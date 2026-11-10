@@ -82,6 +82,8 @@ export interface AcoesDaBolha {
   fimBolha(placar: BolhaPlacar): boolean
   fecharBolha(): void
   falhouBolha(): boolean
+  /** O motor do jogo está ligando (a página vai travar): a conexão avisa o host. */
+  motorCarregando?(sim: boolean): void
 }
 
 export interface BolhaOverlayProps {
@@ -166,6 +168,13 @@ function TelaDaBolha({ bolha, playerId, acoes, urlDoJogo = urlDoJogoBolhaPara(wi
       vigiaRef.current = null
     }
   }, [urlDoJogo, tentativa])
+
+  // O Godot liga o motor numa tarefa só (shaders, cena): a página trava segundos sem mandar ping.
+  // Avisado antes, o host espera em vez de dar o jogador como caído no meio da carga.
+  useEffect(() => {
+    acoesRef.current.motorCarregando?.(estadoDoJogo === 'carregando')
+  }, [estadoDoJogo])
+  useEffect(() => () => acoesRef.current.motorCarregando?.(false), [])
 
   const tentarDeNovo = () => {
     if (ponteRef.current?.recarregar() !== true) return

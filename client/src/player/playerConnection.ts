@@ -1772,6 +1772,14 @@ export interface PlayerConnection {
    */
   falhouBolha(): boolean
   /**
+   * Um minigame Godot (iframe) está ligando o motor nesta página: a thread
+   * trava por segundos (5,9 s medidos na Bolha d'Água sem cache de shader,
+   * 10/11/2026) e nenhum ping sai. Enquanto `true`, o ping vai como `away` e o
+   * host espera o prazo da aba de lado, em vez de dar o jogador como caído no
+   * meio da carga (o que perdia o Pronto e travava o convite).
+   */
+  motorCarregando(sim: boolean): void
+  /**
    * PESCA ("Jogador toca no pino"): pede para pescar no pino `pinId`. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
    * fora do jogo, com pino que não é de pesca "Jogador toca no pino" no mapa
@@ -1917,6 +1925,13 @@ export const SILENCE_DEAD_AFTER_MS = 5_000
  * segundo plano) com a conexão viva; na LAN o pong volta em milissegundos.
  */
 export const WAKE_PROBE_MS = 800
+/**
+ * O tique do ping que chega isto depois do anterior (o dobro do intervalo)
+ * veio de uma PÁGINA PRESA (o motor de um minigame ligando), não de um host
+ * mudo: com a página livre, os tiques chegam de 2 em 2 s e o pong logo atrás.
+ * Aí o silêncio é confirmado com o ping curto do `wake`, sem derrubar direto.
+ */
+export const PING_ATRASADO_MS = 2 * PING_INTERVAL_MS
 /** Quanto tempo o aviso da porta ("Chegue mais perto") fica na tela. O "Trancada" fica até o jogador escolher. */
 export const DOOR_NOTICE_TTL_MS = 2500
 /** Quanto tempo a recusa do movimento ("Parede no caminho") fica na tela: 2-3 s, como a da porta. */
@@ -2392,6 +2407,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let watchingSince = 0
   /** Confirmação de vida depois de a tela acender (`WAKE_PROBE_MS`). */
   let wakeProbeTimer: ReturnType<typeof setTimeout> | null = null
+  /** Quando o timer do ping rodou pela última vez: atrasado demais = a página travou (`PING_ATRASADO_MS`). */
+  let ultimoTiqueDoPing = 0
+  /** Um minigame Godot está ligando o motor nesta página (`motorCarregando`): o ping sai como `away`. */
+  let motorLigando = false
   let nextReqId = 1
   const signalTimers = new Map<string, ReturnType<typeof setTimeout>>()
   let nextSignalId = 1
@@ -3691,9 +3710,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     clearWakeProbe()
   }
 
-  /** O ping diz ao host se a aba está em segundo plano, para ele esperar mais. */
+  /**
+   * O ping diz ao host se a aba está em segundo plano, para ele esperar mais.
+   * Com o MOTOR de um minigame ligando (`motorCarregando`), também: a thread
+   * vai travar por segundos e nenhum ping sai nesse meio.
+   */
   function sendPing(): void {
-    send(isHidden() ? { type: 'ping', away: true } : { type: 'ping' })
+    send(isHidden() || motorLigando ? { type: 'ping', away: true } : { type: 'ping' })
   }
 
   /**
@@ -3706,9 +3729,21 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   function pingOrGiveUp(): void {
+    const agora = Date.now()
+    // A PÁGINA TRAVOU, não o host: o timer chegou muito depois da hora (o motor
+    // Godot de um minigame ligando prende a thread por segundos — 5,9 s medidos
+    // com a Bolha d'Água, 10/11/2026). O pong que o host mandou nesse meio está
+    // na fila, atrás deste timer: derrubar agora perderia o socket vivo (e o
+    // "Começar" clicado em seguida não sairia). Confirma como na volta da aba.
+    const travou = ultimoTiqueDoPing !== 0 && agora - ultimoTiqueDoPing >= PING_ATRASADO_MS
+    ultimoTiqueDoPing = agora
     // Aba oculta: o timer pode estar rodando de minuto em minuto, e o silêncio
     // medido assim é do timer, não do host. Quem decide é o `wake`, à vista.
     if (!isHidden() && hostSilent()) {
+      if (travou) {
+        if (wakeProbeTimer === null) probeAfterWake()
+        return
+      }
       dropSocket()
       return
     }
@@ -5493,6 +5528,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // `join`, na mesma conexão: o host só aceita o aviso de quem já entrou.
       send({ type: 'view.patches' })
       stopPing()
+      ultimoTiqueDoPing = Date.now()
       pingTimer = setInterval(pingOrGiveUp, PING_INTERVAL_MS)
     }
     // Pacote comprimido abre fora de ordem (assíncrono): a entrada o põe de volta na fila.
@@ -6281,6 +6317,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (bolha === undefined) return
       if (bolhaAceitaDesistir(bolha)) enviarBolha({ type: 'bolha.desistir', sessao: bolha.sessao, motivo: 'recusou' })
       setState({ bolha: undefined })
+    },
+
+    motorCarregando(sim) {
+      if (motorLigando === sim) return
+      motorLigando = sim
+      // Já: o motor trava a thread logo depois, e o host precisa da marca antes do silêncio.
+      if (sim && state.status === 'playing') sendPing()
     },
 
     falhouBolha() {
