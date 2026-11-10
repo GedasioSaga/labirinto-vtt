@@ -19,7 +19,7 @@ import type {
 } from '../../lib/treino/lutaDoLobby'
 import { LADOS_DA_LUTA, type CasaDoTreino, type LadoDaLuta, type VagaDaLuta } from '../../lib/treino/mesaEmMemoria'
 import type { LutaDaConta, OlharNaLuta } from '../../lib/treino/vistaDaLuta'
-import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
+import { lerEstadoParaJogador, MOTIVO_DA_RECUSA_MAX } from '../../net/protocoloDaBatalha'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 
 /**
@@ -359,12 +359,15 @@ function lerRecusado(bruto: Record<string, unknown>): MensagemDaLutaNoSite {
   const motivo = daLista(MOTIVOS, proprio(bruto, 'motivo')) ?? 'formato'
   const id = proprio(bruto, 'id')
   const tentarDepoisDe = proprio(bruto, 'tentarDepoisDe')
+  // O texto da regra (R1) é opcional: torto ou longo demais, fica só o código.
+  const texto = proprio(bruto, 'texto')
   return {
     t: 'luta.recusado',
     pedido,
     motivo,
     ...(segmentoValido(id) ? { id } : {}),
     ...(ehInteiro(tentarDepoisDe) ? { tentarDepoisDe } : {}),
+    ...(typeof texto === 'string' && texto.length > 0 && texto.length <= MOTIVO_DA_RECUSA_MAX ? { texto } : {}),
   }
 }
 

@@ -1,4 +1,4 @@
-import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, RODADA_MAX } from '../../net/protocoloDaBatalha'
+import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, MOTIVO_DA_RECUSA_MAX, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
@@ -12,7 +12,7 @@ import { danoDaTecnica } from '../batalha/leituraDaTecnica'
 import { cartaoMontado } from '../batalha/mecanica/leitura'
 import { COMO_MARCA } from '../batalha/marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
-import { saidasDaTecnica } from '../batalha/reacaoComTecnica'
+import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
@@ -216,7 +216,15 @@ export type MotivoDaRecusa =
   /** A batalha recusou: não é a vez, ação gasta, técnica em recarga, alvo que não reage, casa ocupada ou fora da grade, montar fora da montagem ou na metade do outro... */
   | 'regra'
 
-export type ResultadoDaJogada = { ok: true; duelo: DueloGravado } | { ok: false; motivo: MotivoDaRecusa }
+/**
+ * A recusa de uma jogada: o código (o site de antes só lê este) e, quando a
+ * regra falou, o `texto` dela em português simples: o mesmo motivo que o app
+ * mostra ao jogador na mesa (`motivoDoAgir` da store), até `MOTIVO_DA_RECUSA_MAX`.
+ * Ausente = fica a frase do código (`textoDaRecusa` do site).
+ */
+export type RecusaDaJogada = { ok: false; motivo: MotivoDaRecusa; texto?: string }
+
+export type ResultadoDaJogada = { ok: true; duelo: DueloGravado } | RecusaDaJogada
 
 export type CriacaoDoDuelo =
   | { ok: true; duelo: DueloGravado }
@@ -311,11 +319,22 @@ export function criarDuelo(pedido: PedidoDeDuelo, motor: MotorDoDuelo): CriacaoD
 // O servidor recalcula
 // ───────────────────────────────────────────────────────────────────────────
 
-type Recalculo<T> = { ok: true; pedido: T } | { ok: false; motivo: MotivoDaRecusa }
+type Recalculo<T> = { ok: true; pedido: T } | RecusaDaJogada
 
-function recusa(motivo: MotivoDaRecusa): { ok: false; motivo: MotivoDaRecusa } {
-  return { ok: false, motivo }
+function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
+  const dito = texto?.trim() ?? ''
+  return dito === '' ? { ok: false, motivo } : { ok: false, motivo, texto: dito.slice(0, MOTIVO_DA_RECUSA_MAX) }
 }
+
+/** As frases do host da mesa para a vez que andou e o golpe já fechado (`net/batalhaNoHost.ts`): a mesma palavra no app e no site. */
+const TEXTO_DA_VEZ_QUE_PASSOU = 'A vez já passou'
+const TEXTO_DO_GOLPE_RESOLVIDO = 'Esse golpe já foi resolvido'
+
+/** As recusas da grade do site (andar e montar não passam pela regra da batalha: o texto é daqui). */
+const TEXTO_DA_CASA = 'Essa casa está ocupada ou fica fora da grade'
+const TEXTO_DO_ANDAR_FORA_DA_VEZ = 'Só dá para andar na vez desta ficha'
+const TEXTO_DA_MONTAGEM_FECHADA = 'A luta já começou: a casa de largada não muda mais'
+const TEXTO_DA_METADE = 'Na montagem, cada um larga na própria área da grade'
 
 /** Quem age: a carta (da vez, ou a do contra-ataque) e a cópia dela. */
 interface QuemAge {
@@ -539,7 +558,22 @@ export interface MesaDaJogada<L extends LadoDaLuta = LadoDoTreino> {
 }
 
 /** A jogada aceita (`mexeuNaLuta` falso = só a casa de largada mudou: o fim não muda) ou o motivo da recusa. */
-export type JogadaNaMesa<L extends LadoDaLuta = LadoDoTreino> = { ok: true; mesa: MesaDaJogada<L>; mexeuNaLuta: boolean } | { ok: false; motivo: MotivoDaRecusa }
+export type JogadaNaMesa<L extends LadoDaLuta = LadoDoTreino> = { ok: true; mesa: MesaDaJogada<L>; mexeuNaLuta: boolean } | RecusaDaJogada
+
+/**
+ * Por que a batalha recusou a reação, no texto do app: o golpe que já fechou
+ * (a frase do host da mesa) ou a regra da técnica de reação
+ * (`motivoDaReacaoComTecnica`, a mesma conferência da store). `null` = a regra
+ * não diz (fica a frase do código).
+ */
+function textoDaReacaoRecusada(turnos: TurnosDaCena, pedido: PedidoDeReacao, personagem: Personagem | null, sistema: SistemaDeRpg): string | null {
+  const golpe = (turnos.golpes ?? []).find((candidato) => candidato.id === pedido.golpeId)
+  const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === pedido.tokenId)
+  if (golpe === undefined || alvo === undefined || alvo.danoFinal !== undefined) return TEXTO_DO_GOLPE_RESOLVIDO
+  if (pedido.tipo !== 'tecnica') return null
+  const combate = personagem === null ? undefined : turnos.combate?.[personagem.id]
+  return motivoDaReacaoComTecnica({ personagem, sistema, combate, quemPede: 'jogador' }, alvo, pedido, golpe.overload, golpe.surpresa)
+}
 
 /** A carta que age: a do contra-ataque (`contraDe`, fora da vez) ou a da vez. */
 function cartaQueAge(turnos: TurnosDaCena, pedido: PedidoDeAcao): CartaDaOrdem | null {
@@ -549,7 +583,11 @@ function cartaQueAge(turnos: TurnosDaCena, pedido: PedidoDeAcao): CartaDaOrdem |
   return contra === undefined ? null : (turnos.cartas.find((carta) => carta.tokenId === contra.tokenId) ?? null)
 }
 
-/** A jogada na store, com o pedido já refeito: `null` = aceita; senão, o motivo da recusa (antes da store, ou dela). */
+/**
+ * A jogada na store, com o pedido já refeito: `null` = aceita; senão, a recusa
+ * (antes da store, ou dela). Quando é a regra da batalha que recusa, o texto é
+ * o motivo que ela dá (R1 do plano de unificação do combate, 10/11/2026).
+ */
 function jogarNaLoja(
   loja: LojaDaBatalha,
   mesa: MesaDaLuta,
@@ -557,7 +595,7 @@ function jogarNaLoja(
   quem: QuemJoga,
   jogada: Exclude<JogadaDoDuelo, { tipo: 'andar' | 'montar' }>,
   sistema: SistemaDeRpg,
-): MotivoDaRecusa | null {
+): RecusaDaJogada | null {
   const { turnos } = cena
   const { autor } = quem
   const lutadores = mesa.lutadores()
@@ -568,33 +606,39 @@ function jogarNaLoja(
   const copiaDe = (personagemId: string | null): Personagem | null => mesa.personagens().find((personagem) => personagem.id === personagemId) ?? null
   switch (jogada.tipo) {
     case 'passar': {
-      if (!ehDoLado(cartaDaVez(turnos)?.tokenId)) return 'naoEDaConta'
-      return loja.getState().passarVez(CENA_DO_DUELO, autor, jogada.vez) ? null : 'regra'
+      if (!ehDoLado(cartaDaVez(turnos)?.tokenId)) return recusa('naoEDaConta')
+      return loja.getState().passarVez(CENA_DO_DUELO, autor, jogada.vez) ? null : recusa('regra', TEXTO_DA_VEZ_QUE_PASSOU)
     }
     case 'agir': {
       const carta = cartaQueAge(turnos, jogada.pedido)
-      if (carta === null || !ehDoLado(carta.tokenId)) return carta === null ? 'regra' : 'naoEDaConta'
+      if (carta === null) return recusa('regra', loja.getState().motivoDoAgir(CENA_DO_DUELO, autor, jogada.vez, jogada.pedido))
+      if (!ehDoLado(carta.tokenId)) return recusa('naoEDaConta')
       const personagem = copiaDe(carta.personagemId)
-      if (personagem === null || carta.bando !== undefined) return 'regra'
+      if (personagem === null || carta.bando !== undefined) return recusa('regra', loja.getState().motivoDoAgir(CENA_DO_DUELO, autor, jogada.vez, jogada.pedido))
       const refeito = acaoRecalculada(jogada.pedido, { carta, personagem }, cena, sistema)
-      if (!refeito.ok) return refeito.motivo
-      return loja.getState().agir(CENA_DO_DUELO, autor, jogada.vez, refeito.pedido) ? null : 'regra'
+      if (!refeito.ok) return refeito
+      if (loja.getState().agir(CENA_DO_DUELO, autor, jogada.vez, refeito.pedido)) return null
+      // A store recusou sem mudar nada: o motivo é o que a regra diz deste mesmo pedido, agora.
+      return recusa('regra', loja.getState().motivoDoAgir(CENA_DO_DUELO, autor, jogada.vez, refeito.pedido))
     }
     case 'reagir': {
       const vaga = vagaDoToken(lutadores, jogada.pedido.tokenId)
-      if (vaga === null || !quem.podeJogar(vaga)) return vaga === null ? 'regra' : 'naoEDaConta'
-      const refeito = reacaoRecalculada(jogada.pedido, turnos, copiaDe(vaga.personagemId), sistema)
-      if (!refeito.ok) return refeito.motivo
-      return loja.getState().reagir(CENA_DO_DUELO, autor, refeito.pedido) ? null : 'regra'
+      if (vaga === null) return recusa('regra', TEXTO_DO_GOLPE_RESOLVIDO)
+      if (!quem.podeJogar(vaga)) return recusa('naoEDaConta')
+      const personagem = copiaDe(vaga.personagemId)
+      const refeito = reacaoRecalculada(jogada.pedido, turnos, personagem, sistema)
+      if (!refeito.ok) return refeito
+      if (loja.getState().reagir(CENA_DO_DUELO, autor, refeito.pedido)) return null
+      return recusa('regra', textoDaReacaoRecusada(turnos, refeito.pedido, personagem, sistema))
     }
     case 'marcar': {
       // O lembrete é da ficha que atirou: só quem a joga responde (a store confere a passiva, o SP e o alvo).
       const lembrete = (turnos.lembretesDaMarca ?? []).find((candidato) => candidato.id === jogada.pedido.lembreteId)
-      if (lembrete === undefined) return 'regra'
-      if (!ehDoLado(lembrete.tokenId)) return 'naoEDaConta'
+      if (lembrete === undefined) return recusa('regra', 'Esse lembrete da marca não espera mais resposta')
+      if (!ehDoLado(lembrete.tokenId)) return recusa('naoEDaConta')
       const refeito = marcaRecalculada(jogada.pedido)
-      if (!refeito.ok) return refeito.motivo
-      return loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido) ? null : 'regra'
+      if (!refeito.ok) return refeito
+      return loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido) ? null : recusa('regra')
     }
   }
 }
@@ -611,7 +655,7 @@ function casaDoValor(valor: number): number {
   return Math.floor(valor / CASA_DA_ARENA)
 }
 
-type Andanca = { ok: true; posicoes: Record<string, CasaDoTreino> } | { ok: false; motivo: MotivoDaRecusa }
+type Andanca = { ok: true; posicoes: Record<string, CasaDoTreino> } | RecusaDaJogada
 
 /**
  * O `andar` na loja: o lado da ficha; a vez dela (`naVez`) ou o contra-ataque
@@ -631,16 +675,16 @@ function andarNaLoja(
   const { turnos } = duelo.cena
   const { tokenId } = jogada
   const vaga = vagaDoToken(duelo.lutadores, tokenId)
-  if (vaga === null) return recusa('regra')
+  if (vaga === null) return recusa('regra', TEXTO_DA_CASA)
   if (!quem.podeJogar(vaga)) return recusa('naoEDaConta')
   const contra = jogada.contraDe === undefined ? null : ((turnos.contras ?? []).find((candidato) => candidato.golpeId === jogada.contraDe && candidato.tokenId === tokenId) ?? null)
-  if (jogada.contraDe !== undefined && contra === null) return recusa('regra')
+  if (jogada.contraDe !== undefined && contra === null) return recusa('regra', 'Esse contra-ataque não existe mais')
   if (regra === 'naVez' && contra === null) {
     const { vez } = jogada
-    if (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada || cartaDaVez(turnos)?.tokenId !== tokenId) return recusa('regra')
+    if (vez === null || turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada || cartaDaVez(turnos)?.tokenId !== tokenId) return recusa('regra', TEXTO_DO_ANDAR_FORA_DA_VEZ)
   }
   const de = duelo.posicoes[tokenId]
-  if (de === undefined || !casaNaGrade(jogada.col, jogada.row, grade)) return recusa('regra')
+  if (de === undefined || !casaNaGrade(jogada.col, jogada.row, grade)) return recusa('regra', TEXTO_DA_CASA)
   const passo = passoEmBatalha({
     grid: CASA_DA_ARENA,
     colunas: grade.colunas,
@@ -655,8 +699,8 @@ function andarNaLoja(
     ocupada: (ponto) => Object.entries(duelo.posicoes).some(([outro, casa]) => outro !== tokenId && casa.col === casaDoValor(ponto.x) && casa.row === casaDoValor(ponto.y)),
   })
   // Casa ocupada, ou a mesma casa (não é passo).
-  if (!passo.ok || passo.blocos === 0) return recusa('regra')
-  if (contra !== null && !loja.getState().agir(CENA_DO_DUELO, quem.autor, null, { tipo: 'mover', contraDe: contra.golpeId })) return recusa('regra')
+  if (!passo.ok || passo.blocos === 0) return recusa('regra', TEXTO_DA_CASA)
+  if (contra !== null && !loja.getState().agir(CENA_DO_DUELO, quem.autor, null, { tipo: 'mover', contraDe: contra.golpeId })) return recusa('regra', loja.getState().motivoDoAgir(CENA_DO_DUELO, quem.autor, null, { tipo: 'mover', contraDe: contra.golpeId }))
   loja.getState().somarCaminho(CENA_DO_DUELO, tokenId, passo.blocos, passo.caminho)
   return { ok: true, posicoes: { ...duelo.posicoes, [tokenId]: { col: casaDoValor(passo.x), row: casaDoValor(passo.y) } } }
 }
@@ -678,13 +722,14 @@ function montarNaGrade(
   jogada: Extract<JogadaDoDuelo, { tipo: 'montar' }>,
   grade: GradeDaArena,
 ): Andanca {
-  if (!duelo.montagem) return recusa('regra')
+  if (!duelo.montagem) return recusa('regra', TEXTO_DA_MONTAGEM_FECHADA)
   const vaga = vagaDoToken(duelo.lutadores, jogada.tokenId)
-  if (vaga === null) return recusa('regra')
+  if (vaga === null) return recusa('regra', TEXTO_DA_CASA)
   if (!quem.podeJogar(vaga)) return recusa('naoEDaConta')
   const { col, row } = jogada
-  if (!casaNaGrade(col, row, grade) || !quem.podeMontarEm({ col, row })) return recusa('regra')
-  if (Object.values(duelo.posicoes).some((casa) => casa.col === col && casa.row === row)) return recusa('regra')
+  if (!casaNaGrade(col, row, grade)) return recusa('regra', TEXTO_DA_CASA)
+  if (!quem.podeMontarEm({ col, row })) return recusa('regra', TEXTO_DA_METADE)
+  if (Object.values(duelo.posicoes).some((casa) => casa.col === col && casa.row === row)) return recusa('regra', TEXTO_DA_CASA)
   return { ok: true, posicoes: { ...duelo.posicoes, [jogada.tokenId]: { col, row } } }
 }
 
@@ -718,8 +763,8 @@ export function jogarNaMesa<L extends LadoDaLuta>(
     if (!andou.ok) return andou
     return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: andou.posicoes, montagem: false, cena: cenaDaLoja(loja), passos: copia.passos } }
   }
-  const motivo = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema)
-  if (motivo !== null) return recusa(motivo)
+  const recusada = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema)
+  if (recusada !== null) return recusada
   // A marca não conta passo (não é golpe nem vez), como andar.
   const passos = jogada.tipo === 'marcar' ? copia.passos : copia.passos + 1
   return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: copia.posicoes, montagem: false, cena: cenaDaLoja(loja), passos } }

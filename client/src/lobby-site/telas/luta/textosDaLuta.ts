@@ -108,8 +108,9 @@ const TEXTO_DA_RECUSA: Readonly<Record<MotivoDaLutaRecusada, string>> = {
   naoArbitra: 'Só o árbitro da luta faz isso.',
 }
 
-export function textoDaRecusaDaLuta(motivo: MotivoDaLutaRecusada): string {
-  return TEXTO_DA_RECUSA[motivo]
+/** A frase da recusa; com o motivo que a regra da batalha deu (`daRegra`, o mesmo do app), é ele que aparece. */
+export function textoDaRecusaDaLuta(motivo: MotivoDaLutaRecusada, daRegra?: string): string {
+  return daRegra === undefined || daRegra.trim() === '' ? TEXTO_DA_RECUSA[motivo] : daRegra
 }
 
 /** A sala de espera que acabou, pelo lado de quem lê. */

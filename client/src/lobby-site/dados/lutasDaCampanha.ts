@@ -26,6 +26,8 @@ export interface RecusaDaLuta {
   pedido: TipoDoPedidoDaLuta | 'luta'
   motivo: MotivoDaLutaRecusada
   id?: string
+  /** O motivo que a regra da batalha deu (o texto do app); ausente = a frase do código. */
+  texto?: string
   n: number
 }
 
@@ -217,7 +219,7 @@ export function criarLutasDaCampanha(opcoes: OpcoesDasLutas): LutasDaCampanha {
           const { historico } = estado
           const doHistorico = mensagem.pedido === 'luta.historico'
           mudar({
-            recusa: { pedido: mensagem.pedido, motivo: mensagem.motivo, n: avisos, ...(mensagem.id === undefined ? {} : { id: mensagem.id }) },
+            recusa: { pedido: mensagem.pedido, motivo: mensagem.motivo, n: avisos, ...(mensagem.id === undefined ? {} : { id: mensagem.id }), ...(mensagem.texto === undefined ? {} : { texto: mensagem.texto }) },
             ...(doHistorico ? { historico: { ...historico, carregando: false, abrindo: null } } : {}),
             ...(mensagem.pedido === 'luta' ? { esperando: null } : mensagem.pedido === 'luta.lista' || doHistorico ? {} : terminou([mensagem.pedido], mensagem.id ?? null)),
           })

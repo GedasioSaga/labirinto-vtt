@@ -149,7 +149,7 @@ export function PainelDasLutas({ campanha, lutas, naoAbriram, soLeitura }: { cam
     lutas.torta
       ? 'Chegou uma luta num formato que esta página não lê. Recarregue a página para ver a versão nova do site.'
       : recusa !== null && naArena === undefined
-        ? textoDaRecusaDaLuta(recusa.motivo)
+        ? textoDaRecusaDaLuta(recusa.motivo, recusa.texto)
         : fechada !== null
           ? textoDaEsperaFechada(fechada.motivo, fechada.espera?.criador.contaId === eu, fechada.espera?.criador.nome ?? 'Quem criou')
           : null

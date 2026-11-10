@@ -395,10 +395,12 @@ export function fichasDaConta(sql: SqlStorage, contaId: string, ids: readonly st
 
 // ── Respostas e difusão ────────────────────────────────────────────────────
 
-function recusar(ws: WebSocket, pedido: TipoDoPedidoDoDuelo | 'duelo', motivo: MotivoDoDueloRecusado, extra: { id?: string; tentarDepoisDe?: number } = {}): void {
+/** `texto` = o motivo que a regra da batalha deu (R1); campo a mais no frame, que o site de antes ignora (N-1). */
+function recusar(ws: WebSocket, pedido: TipoDoPedidoDoDuelo | 'duelo', motivo: MotivoDoDueloRecusado, extra: { id?: string; tentarDepoisDe?: number; texto?: string } = {}): void {
   const resposta: MensagemDoDueloDoServidor = { t: 'duelo.recusado', pedido, motivo }
   if (extra.id !== undefined) resposta.id = extra.id
   if (extra.tentarDepoisDe !== undefined) resposta.tentarDepoisDe = extra.tentarDepoisDe
+  if (extra.texto !== undefined) resposta.texto = extra.texto
   enviar(ws, resposta)
 }
 
@@ -568,7 +570,7 @@ function jogar(sala: SalaDoDuelo, ws: WebSocket, eu: Membro, pedido: Extract<Ped
   if (sistema === null) return recusar(ws, pedido.t, 'sistema', { id: pedido.id })
   const feito = aplicarJogada(duelo, motorDe(sistema), eu.contaId, pedido.jogada)
   if (!feito.ok) {
-    recusar(ws, pedido.t, feito.motivo, { id: pedido.id })
+    recusar(ws, pedido.t, feito.motivo, feito.texto === undefined ? { id: pedido.id } : { id: pedido.id, texto: feito.texto })
     // Jogada sobre estado velho (ou duelo já acabado): quem mandou recebe o de agora para jogar de novo.
     if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') enviarEstadoA(sql, ws, duelo, eu.contaId)
     return

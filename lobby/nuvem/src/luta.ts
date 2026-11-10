@@ -510,10 +510,12 @@ function contaOcupada(sql: SqlStorage, contaId: string, agora: number, exceto: s
 
 // ── Respostas e difusão ────────────────────────────────────────────────────
 
-function recusar(ws: WebSocket, pedido: TipoDoPedidoDaLuta | 'luta', motivo: MotivoDaLutaRecusada, extra: { id?: string; tentarDepoisDe?: number } = {}): void {
+/** `texto` = o motivo que a regra da batalha deu (R1); campo a mais no frame, que o site de antes ignora (N-1). */
+function recusar(ws: WebSocket, pedido: TipoDoPedidoDaLuta | 'luta', motivo: MotivoDaLutaRecusada, extra: { id?: string; tentarDepoisDe?: number; texto?: string } = {}): void {
   const resposta: MensagemDaLutaDoServidor = { t: 'luta.recusado', pedido, motivo }
   if (extra.id !== undefined) resposta.id = extra.id
   if (extra.tentarDepoisDe !== undefined) resposta.tentarDepoisDe = extra.tentarDepoisDe
+  if (extra.texto !== undefined) resposta.texto = extra.texto
   enviar(ws, resposta)
 }
 
@@ -937,7 +939,7 @@ function mexer(sala: SalaDaLuta, ws: WebSocket, eu: Membro, pedido: Extract<Pedi
   const motor = motorDe(sistema)
   const feito: ResultadoNaLuta = pedido.t === 'luta.jogar' ? aplicarJogadaNaLuta(luta, motor, eu.contaId, pedido.jogada) : arbitrarNaLuta(luta, motor, eu.contaId, pedido.pedido, agora)
   if (!feito.ok) {
-    recusar(ws, pedido.t, feito.motivo, { id: pedido.id })
+    recusar(ws, pedido.t, feito.motivo, feito.texto === undefined ? { id: pedido.id } : { id: pedido.id, texto: feito.texto })
     // Sobre estado velho (ou luta já acabada): quem mandou recebe o de agora para jogar de novo.
     if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') enviarEstadoA(sql, ws, luta, eu.contaId)
     return

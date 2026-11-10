@@ -57,8 +57,15 @@ const TEXTO_DA_RECUSA: Readonly<Record<MotivoDoDueloRecusado, string>> = {
   regra: 'A regra da batalha não deixou: pode não ser a sua vez, a ação já foi gasta ou a técnica está recarregando.',
 }
 
-export function textoDaRecusa(motivo: MotivoDoDueloRecusado): string {
-  return TEXTO_DA_RECUSA[motivo]
+/**
+ * A frase da recusa. `daRegra` (R1 do plano de unificação do combate) = o
+ * motivo que a regra da batalha deu, o mesmo que o app mostra na mesa
+ * ("Ninguém marcado está ferido", "SP insuficiente: custa 25, você tem 20"):
+ * com ele, é ele que aparece. Sem ele (o servidor de antes, ou a recusa que
+ * não é da regra), a frase do código.
+ */
+export function textoDaRecusa(motivo: MotivoDoDueloRecusado, daRegra?: string): string {
+  return daRegra === undefined || daRegra.trim() === '' ? TEXTO_DA_RECUSA[motivo] : daRegra
 }
 
 /** O convite que acabou sem duelo, pelo lado de quem lê. */

@@ -84,7 +84,12 @@ export type MensagemDoDueloDoServidor =
   | { t: 'duelo.estado'; duelo: DueloRecebido }
   /** Só a quem acabou de mandar `ola`: os convites e os duelos dele (em andamento e os acabados que ainda ficam), cada um do lado dele. */
   | { t: 'duelo.lista'; convites: ConviteDoDuelo[]; duelos: DueloRecebido[] }
-  | { t: 'duelo.recusado'; pedido: TipoDoPedidoDoDuelo | 'duelo'; motivo: MotivoDoDueloRecusado; id?: string; tentarDepoisDe?: number }
+  /**
+   * `texto` (R1 do plano de unificação do combate): o motivo que a regra da
+   * batalha deu, em português simples, o mesmo do app. Campo a mais: o site de
+   * antes o ignora e segue lendo o código `motivo` (N-1). Ausente = só o código.
+   */
+  | { t: 'duelo.recusado'; pedido: TipoDoPedidoDoDuelo | 'duelo'; motivo: MotivoDoDueloRecusado; id?: string; tentarDepoisDe?: number; texto?: string }
 
 /** O pedido lido; fora do formato, o tipo (se conhecido) e o `id` (se legível) para a resposta. */
 export type LeituraDoPedidoDoDuelo = { ok: true; pedido: PedidoDoDuelo } | { ok: false; pedido: TipoDoPedidoDoDuelo | 'duelo'; id?: string }

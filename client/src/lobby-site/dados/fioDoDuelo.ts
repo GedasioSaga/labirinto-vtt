@@ -5,7 +5,7 @@ import type { DueloNoFio, FimDoDuelo, JogadorDoDuelo } from '../../lib/treino/du
 import type { ContaNoDuelo, ConviteDoDuelo, FimDoConvite, MensagemDoDueloDoServidor, MotivoDoDueloRecusado, TipoDoPedidoDoDuelo } from '../../lib/treino/dueloDoLobby'
 import { GRADE_DO_TREINO, type CasaDoTreino, type LadoDoTreino, type VagaDoTreino } from '../../lib/treino/mesaEmMemoria'
 import type { DueloRecebido } from '../../lib/treino/vistaDoDuelo'
-import { lerEstadoParaJogador } from '../../net/protocoloDaBatalha'
+import { lerEstadoParaJogador, MOTIVO_DA_RECUSA_MAX } from '../../net/protocoloDaBatalha'
 
 /**
  * LEITURA DOS FRAMES DO DUELO (`duelo.*`, fatia T7): o que o DO Campanha manda
@@ -260,7 +260,10 @@ export function lerFrameDoDuelo(bruto: Record<string, unknown>): MensagemDoDuelo
       if (pedido === null || motivo === null) return null
       if (id !== undefined && !segmentoValido(id)) return null
       if (tentarDepoisDe !== undefined && !ehInteiro(tentarDepoisDe)) return null
-      return { t, pedido, motivo, ...(id === undefined ? {} : { id }), ...(tentarDepoisDe === undefined ? {} : { tentarDepoisDe }) }
+      // O texto da regra (R1) é opcional e nunca derruba o frame: torto ou longo demais, fica só o código.
+      const texto = proprio(bruto, 'texto')
+      const comTexto = typeof texto === 'string' && texto.length > 0 && texto.length <= MOTIVO_DA_RECUSA_MAX ? { texto } : {}
+      return { t, pedido, motivo, ...(id === undefined ? {} : { id }), ...(tentarDepoisDe === undefined ? {} : { tentarDepoisDe }), ...comTexto }
     }
     default:
       return null

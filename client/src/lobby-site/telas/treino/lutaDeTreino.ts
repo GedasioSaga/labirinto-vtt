@@ -3,7 +3,7 @@ import type { CasaDaArena } from '../../../lib/arena/grade'
 import { AVISO_SEM_HP, fichaSemHp } from '../../../lib/livros/combate'
 import type { Personagem } from '../../../lib/personagem'
 import type { SistemaDeRpg } from '../../../lib/sistemaDeRpg'
-import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo } from '../../../lib/treino/duelo'
+import { aplicarJogada, criarDuelo, type DueloGravado, type JogadaDoDuelo, type MotorDoDuelo, type RecusaDaJogada } from '../../../lib/treino/duelo'
 import { GRADE_DO_TREINO, montarLutadores, VAGAS_POR_LADO_MAX, type LutadoresDoTreino, type MontagemDoTreino } from '../../../lib/treino/mesaEmMemoria'
 import { dentroDaGrade } from './grade/bonecos'
 import { criarSorteio, type Sorteio } from '../../../lib/treino/sorteio'
@@ -169,7 +169,7 @@ function comLargada(duelo: DueloGravado, largada: LargadaDaLuta): DueloGravado {
   return { ...duelo, posicoes }
 }
 
-export type ResultadoNaLuta = { ok: true; luta: LutaLocal } | { ok: false; motivo: MotivoDaRecusa }
+export type ResultadoNaLuta = { ok: true; luta: LutaLocal } | RecusaDaJogada
 
 /** A minha jogada (lado A). Andar é livre, como na Arena do app: qualquer ficha minha, a qualquer hora (a casa dentro da grade e livre). */
 export function jogarNaLuta(luta: LutaLocal, jogada: JogadaDoDuelo): ResultadoNaLuta {

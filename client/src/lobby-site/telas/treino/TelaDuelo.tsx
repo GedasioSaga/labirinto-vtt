@@ -262,7 +262,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
             ? 'Sem conexão: tentando voltar. Até lá, nenhuma jogada sai daqui.'
             : estadoDoDuelo(duelo, meuLado, outro.nome, ocupado)
       }
-      recusa={recusa === null ? null : { texto: textoDaRecusa(recusa.motivo), n: recusa.n }}
+      recusa={recusa === null ? null : { texto: textoDaRecusa(recusa.motivo, recusa.texto), n: recusa.n }}
       onEsquecerRecusa={() => site.duelo()?.esquecerAvisos()}
       fim={
         fim === null ? null : (
@@ -374,7 +374,7 @@ export function TelaDuelo({ campanha, duelo }: { campanha: EstadoDaCampanha; due
         <div className="lo-linha-aviso lo-tr-aviso" role="alert">
           <span>
             {duelo.recusa !== null
-              ? textoDaRecusa(duelo.recusa.motivo)
+              ? textoDaRecusa(duelo.recusa.motivo, duelo.recusa.texto)
               : fechado !== null
                 ? textoDoConviteFechado(fechado.motivo, fechado.convite?.de.contaId === eu.contaId, outroDoFechado?.nome ?? 'O colega')
                 : ''}

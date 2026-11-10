@@ -186,7 +186,8 @@ export type CriacaoDaLuta =
 /** Por que a luta recusa: os motivos do duelo, a jogada na pausa (`pausada`) e o pedido de árbitro de quem não arbitra (`naoArbitra`). */
 export type MotivoDaRecusaNaLuta = MotivoDaRecusa | 'pausada' | 'naoArbitra'
 
-export type ResultadoNaLuta = { ok: true; luta: EstadoDaLuta } | { ok: false; motivo: MotivoDaRecusaNaLuta }
+/** A recusa leva o `texto` da regra da batalha quando ela falou (`RecusaDaJogada` do duelo); ausente = a frase do código. */
+export type ResultadoNaLuta = { ok: true; luta: EstadoDaLuta } | { ok: false; motivo: MotivoDaRecusaNaLuta; texto?: string }
 
 type CriacaoRecusada = Exclude<CriacaoDaLuta, { ok: true }>
 

@@ -20,6 +20,8 @@ export interface RecusaDoDuelo {
   motivo: MotivoDoDueloRecusado
   id?: string
   tentarDepoisDe?: number
+  /** O motivo que a regra da batalha deu (o texto do app); ausente = a frase do código. */
+  texto?: string
   n: number
 }
 
@@ -132,7 +134,7 @@ export function criarDueloDaCampanha(opcoes: OpcoesDoDuelo): DueloDaCampanha {
         case 'duelo.recusado':
           avisos += 1
           mudar({
-            recusa: { pedido: mensagem.pedido, motivo: mensagem.motivo, n: avisos, ...(mensagem.id === undefined ? {} : { id: mensagem.id }), ...(mensagem.tentarDepoisDe === undefined ? {} : { tentarDepoisDe: mensagem.tentarDepoisDe }) },
+            recusa: { pedido: mensagem.pedido, motivo: mensagem.motivo, n: avisos, ...(mensagem.id === undefined ? {} : { id: mensagem.id }), ...(mensagem.tentarDepoisDe === undefined ? {} : { tentarDepoisDe: mensagem.tentarDepoisDe }), ...(mensagem.texto === undefined ? {} : { texto: mensagem.texto }) },
             ...respondido(mensagem.pedido, mensagem.id ?? null),
           })
           return

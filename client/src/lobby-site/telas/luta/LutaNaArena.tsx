@@ -182,7 +182,7 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
         </>
       }
       estado={estado}
-      recusa={recusa === null || (recusa.id !== undefined && recusa.id !== luta.id) ? null : { texto: textoDaRecusaDaLuta(recusa.motivo), n: recusa.n }}
+      recusa={recusa === null || (recusa.id !== undefined && recusa.id !== luta.id) ? null : { texto: textoDaRecusaDaLuta(recusa.motivo, recusa.texto), n: recusa.n }}
       onEsquecerRecusa={() => site.lutas()?.esquecerAvisos()}
       fim={
         fim === null ? null : (

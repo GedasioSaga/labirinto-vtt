@@ -96,7 +96,7 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
     if (luta === null) return false
     const feito = jogarNaLuta(luta, jogada)
     if (!feito.ok) {
-      recusar(textoDaRecusa(feito.motivo))
+      recusar(textoDaRecusa(feito.motivo, feito.texto))
       return false
     }
     setRecusa(null)

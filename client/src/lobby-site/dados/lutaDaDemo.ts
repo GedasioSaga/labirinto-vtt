@@ -358,8 +358,8 @@ export function criarLutaDaDemo(opcoes: OpcoesDaLutaDaDemo): LutaDaDemo {
 
   // ── Pedidos ───────────────────────────────────────────────────────────────
 
-  function recusar(entregar: (mensagem: MensagemDaLutaDoServidor) => void, pedido: PedidoDaLuta['t'], motivo: MotivoDaLutaRecusada, id?: string): void {
-    entregar({ t: 'luta.recusado', pedido, motivo, ...(id === undefined ? {} : { id }) })
+  function recusar(entregar: (mensagem: MensagemDaLutaDoServidor) => void, pedido: PedidoDaLuta['t'], motivo: MotivoDaLutaRecusada, id?: string, texto?: string): void {
+    entregar({ t: 'luta.recusado', pedido, motivo, ...(id === undefined ? {} : { id }), ...(texto === undefined ? {} : { texto }) })
   }
 
   /** A espera vale? A vencida fecha aqui mesmo. */
@@ -451,7 +451,7 @@ export function criarLutaDaDemo(opcoes: OpcoesDaLutaDaDemo): LutaDaDemo {
 
   function aplicado(daMesa: LutaDaMesa, feito: ResultadoNaLuta, pedido: PedidoDaLuta['t'], entregar: (mensagem: MensagemDaLutaDoServidor) => void, listaMudou = false): void {
     if (!feito.ok) {
-      recusar(entregar, pedido, feito.motivo, daMesa.luta.id)
+      recusar(entregar, pedido, feito.motivo, daMesa.luta.id, feito.texto)
       if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') estadoPara(daMesa.luta, entregar)
       return
     }

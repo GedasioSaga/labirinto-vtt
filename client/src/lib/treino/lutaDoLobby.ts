@@ -177,7 +177,8 @@ export type MensagemDaLutaDoServidor =
   /** Ao `luta.lista`, e a todos quando uma luta começa, acaba ou muda quem assiste: as salas de espera da conta e as lutas acontecendo. */
   | { t: 'luta.lista'; convites: EsperaDaLuta[]; acontecendo: LutaAcontecendo[] }
   | { t: 'luta.historico'; lista: LutaNoHistorico[]; temMais: boolean }
-  | { t: 'luta.recusado'; pedido: TipoDoPedidoDaLuta | 'luta'; motivo: MotivoDaLutaRecusada; id?: string; tentarDepoisDe?: number }
+  /** `texto`: o motivo que a regra da batalha deu (como no `duelo.recusado`); campo a mais, que o site de antes ignora. */
+  | { t: 'luta.recusado'; pedido: TipoDoPedidoDaLuta | 'luta'; motivo: MotivoDaLutaRecusada; id?: string; tentarDepoisDe?: number; texto?: string }
 
 /** O pedido lido; fora do formato, o tipo (se conhecido) e o `id` (se legível) para a resposta. */
 export type LeituraDoPedidoDaLuta = { ok: true; pedido: PedidoDaLuta } | { ok: false; pedido: TipoDoPedidoDaLuta | 'luta'; id?: string }

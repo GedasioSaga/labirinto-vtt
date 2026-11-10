@@ -242,7 +242,7 @@ export function criarDueloDaDemo(opcoes: OpcoesDoDueloDaDemo): DueloDaDemo {
           if (daMesa === undefined) return entregar({ t: 'duelo.recusado', pedido: pedido.t, motivo: 'nao-existe', id: pedido.id })
           const feito = aplicarJogada(daMesa.gravado, motor, eu.contaId, pedido.jogada)
           if (!feito.ok) {
-            entregar({ t: 'duelo.recusado', pedido: pedido.t, motivo: feito.motivo, id: pedido.id })
+            entregar({ t: 'duelo.recusado', pedido: pedido.t, motivo: feito.motivo, id: pedido.id, ...(feito.texto === undefined ? {} : { texto: feito.texto }) })
             if (feito.motivo === 'seqVelho' || feito.motivo === 'acabou') estadoPara(daMesa.gravado, eu.contaId, entregar)
             return
           }
