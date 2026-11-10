@@ -6,7 +6,7 @@
  * mestre por padrão, em vez de vazar por padrão.
  */
 import { describe, expect, it } from 'vitest'
-import type { MapData, Token } from '../types/map'
+import type { CondicaoPropria, MapData, Token } from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import type { BarrasParaJogador } from './vidaDaFicha'
 import { createEmptyMap } from './mapFactory'
@@ -23,7 +23,10 @@ const FOTO = 'data:image/png;base64,iVBORw0KGgo='
  * segura sem acordo — aqui, "arco" —, nunca a gravada no mapa do mestre (ver
  * `fogFilter.npcEmprestado.test.ts`).
  */
-const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'health', 'alerta', 'secret', 'mochila', 'emprestada', 'locked', 'piso'])
+const CAMPOS_DO_JOGADOR = new Set(['id', 'characterId', 'name', 'x', 'y', 'size', 'image', 'imageData', 'rotation', 'color', 'conditions', 'condicoesProprias', 'health', 'alerta', 'secret', 'mochila', 'emprestada', 'locked', 'piso'])
+
+/** CONDIÇÃO CRIADA PELO MESTRE, com símbolo digitado: vai inteira na ficha, para a pastilha e o nome saírem na tela de quem joga. */
+const MARCADO: CondicaoPropria = { id: 'cond_marcado', nome: 'Marcado pela bruxa', cor: '#7fb8f0', simbolo: 'alvo', texto: '🎯M' }
 
 function ficha(id: string, name: string, x: number, extra: Partial<Token> = {}): Token {
   return { id, characterId: null, name, x, y: 100, size: 1, image: null, ...extra }
@@ -87,11 +90,13 @@ describe('recorte: a ficha sai por lista branca', () => {
         playerCharacter: true,
         contrato: { tarefa: 'vigiar a ponte', ate: null, visao: true },
         hidden: false,
+        condicoesProprias: [MARCADO],
       }),
     )
     const recebidas = tokensDaDuda([comSegredo(ficha('arco', 'Arco', 100, { locked: true, npc: true, playerCharacter: true })), cheia])
     const chaves = recebidas.flatMap((t) => Object.keys(t))
     expect(chaves.length).toBeGreaterThan(0)
+    expect(chaves).toContain('condicoesProprias')
     expect(chaves.filter((k) => !CAMPOS_DO_JOGADOR.has(k))).toEqual([])
   })
 
@@ -125,6 +130,8 @@ describe('recorte: a ficha sai por lista branca', () => {
           imageData: FOTO,
           image: 'C:/mestre/fotos/arco.png',
           conditions: ['envenenado'],
+          // A condição criada chega limpa campo a campo: o que o mestre anotou a mais nela fica com ele.
+          condicoesProprias: [Object.assign({ ...MARCADO }, { notaDoMestre: SEGREDO })],
           secret: true,
           mochila: [{ id: 'chave', nome: 'Chave da ponte' }],
         }),
@@ -132,6 +139,7 @@ describe('recorte: a ficha sai por lista branca', () => {
       'arco',
       BARRA_DO_ARCO,
     )
+    expect(JSON.stringify(arco)).not.toContain(SEGREDO)
     expect(arco).toEqual({
       id: 'arco',
       characterId: null,
@@ -144,6 +152,7 @@ describe('recorte: a ficha sai por lista branca', () => {
       rotation: 0,
       color: '#35b24a',
       conditions: ['envenenado'],
+      condicoesProprias: [MARCADO],
       health: { current: 50, max: 100, shownToPlayers: true },
       secret: true,
       mochila: [{ id: 'chave', nome: 'Chave da ponte' }],
