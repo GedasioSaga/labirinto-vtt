@@ -170,6 +170,23 @@ describe('PlayerInventory', () => {
     expect(dialogo().querySelector('.pp-inv__marcas')).toBeNull()
   })
 
+  it('condição criada pelo mestre: entra em "Condições na ficha" com a pastilha e o NOME, depois das de fábrica', () => {
+    const marcada = ficha('jill', 'Jill', 100, {
+      conditions: ['envenenado'],
+      condicoesProprias: [{ id: 'cond_marcado', nome: 'Marcado pela bruxa', cor: '#7fb8f0', simbolo: 'alvo', texto: 'M' }],
+    })
+    render(personagens([marcada, DIEGO], ['jill']))
+    const itens = Array.from(dialogo().querySelectorAll('.pp-inv__marcas li'))
+    expect(itens).toHaveLength(2)
+    expect(itens[0]?.textContent).toBe('Envenenado')
+    const pastilha = itens[1]?.querySelector('svg')
+    expect(pastilha?.getAttribute('aria-hidden')).toBe('true')
+    expect(pastilha?.querySelector('circle')?.getAttribute('fill')).toBe('#7fb8f0')
+    // Sem tela para pintar (jsdom), o símbolo digitado vai como texto dentro da pastilha.
+    expect(pastilha?.textContent).toBe('M')
+    expect(itens[1]?.lastChild?.textContent).toBe('Marcado pela bruxa')
+  })
+
   it('sem foto: a inicial no lugar do retrato e onde escolher uma', () => {
     render(personagens([ficha('jill', 'Jill', 100)], ['jill']))
     expect(dialogo().querySelector('img')).toBeNull()

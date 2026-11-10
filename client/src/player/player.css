@@ -6704,6 +6704,15 @@ button.pp-colecao__casa:focus-visible {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 
+/* Condição criada pelo mestre: a pastilha é maior que o ponto de cor, então a folga da esquerda encolhe. */
+.pp-inv__marca--criada {
+  padding-left: 3px;
+}
+
+.pp-inv__marca--criada svg {
+  flex: none;
+}
+
 /* ------------------------------------------------------------ a grade */
 
 .pp-inv__grade {

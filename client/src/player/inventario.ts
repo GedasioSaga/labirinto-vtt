@@ -1,4 +1,5 @@
-import type { MapData, Pin, Token, TokenCondition } from '../types/map'
+import type { CondicaoPropria, MapData, Pin, Token, TokenCondition } from '../types/map'
+import { condicoesPropriasOf } from '../lib/condicoesProprias'
 import { itemOfPin, quantidadeDe, tokensTouch } from '../lib/items'
 import { healthFraction, healthState, readTokenHealth, type HealthState } from '../lib/tokenHealth'
 import { tokenConditionsOf } from '../lib/tokenConditions'
@@ -207,6 +208,8 @@ export interface InventoryCharacter {
   editable: boolean
   condition: InventoryCondition
   conditions: TokenCondition[]
+  /** As condições que o mestre criou e marcou nesta ficha: é aqui que quem joga lê o NOME delas (no mapa só vai a pastilha). */
+  condicoesProprias: CondicaoPropria[]
   slots: InventorySlot[]
   moedas: number
   colleagues: InventoryColleague[]
@@ -242,6 +245,7 @@ export function inventoryCharacters(map: MapData, ownTokenIds: readonly string[]
       editable: isOwnCharacter(token),
       condition: inventoryCondition(token),
       conditions: tokenConditionsOf(token),
+      condicoesProprias: condicoesPropriasOf(token),
       slots: inventorySlots(token),
       moedas: moedasDe(token),
       colleagues: party.filter((t) => tokensTouch(token, t, map.grid)).map(colleagueOf),

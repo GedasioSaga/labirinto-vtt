@@ -2,8 +2,10 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { createPortal } from 'react-dom'
 import { HEALTH_BAR_COLORS } from '../pixi/drawTokenHealth'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
+import { simboloDaCondicaoPropria } from '../lib/condicoesProprias'
 import { moedasLabel } from '../lib/troca'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
+import { PastilhaDeCondicao } from '../components/PastilhaDeCondicao'
 import { itemNoticeText } from './itemNotice'
 import type { ItemNotice } from './playerConnection'
 import {
@@ -28,6 +30,9 @@ import {
 
 /** Sem resposta da mesa nesse tempo, a espera vira aviso: nada gira para sempre (o host descarta pedido rápido demais sem responder). */
 export const INVENTORY_PENDING_TIMEOUT_MS = 10_000
+
+/** A pastilha de uma condição criada na lista "Condições na ficha", em px: o símbolo digitado (até 2 caracteres) ainda se lê. */
+const PASTILHA_NA_LISTA = 22
 
 /** Controles do inventário por onde o Tab circula; as vagas fora da escolhida saem (a grade é UMA parada do Tab). */
 const FOCUSABLE = 'button:not(:disabled):not([tabindex="-1"]), input:not(:disabled)'
@@ -435,12 +440,19 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
               )}
               <p className="pp-inv__nome">{character.name}</p>
               <ConditionStrip condition={character.condition} owner={character} />
-              {character.conditions.length > 0 && (
+              {(character.conditions.length > 0 || character.condicoesProprias.length > 0) && (
                 <ul className="pp-inv__marcas" aria-label="Condições na ficha">
                   {character.conditions.map((c) => (
                     <li key={c} className="pp-inv__marca">
                       <span className="pp-inv__marca-cor" style={{ background: TOKEN_CONDITION_SYMBOLS[c].fill }} aria-hidden="true" />
                       {TOKEN_CONDITION_LABELS[c]}
+                    </li>
+                  ))}
+                  {/* As que o mestre criou: a mesma pastilha que está em cima da ficha no mapa, e o nome ao lado. */}
+                  {character.condicoesProprias.map((c) => (
+                    <li key={c.id} className="pp-inv__marca pp-inv__marca--criada">
+                      <PastilhaDeCondicao symbol={simboloDaCondicaoPropria(c)} tamanho={PASTILHA_NA_LISTA} />
+                      {c.nome}
                     </li>
                   ))}
                 </ul>
