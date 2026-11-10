@@ -32,7 +32,8 @@ import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armaPadraoNaBatalha, economi
 import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
-import type { InvocarNoMenu } from './MenuDaVez'
+import { MenuDaVez, type InvocarNoMenu } from './MenuDaVez'
+import './vezNoCentro.css'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
@@ -245,6 +246,93 @@ function invocarDoNpc(sceneKey: string, personagem: Personagem, sistema: Sistema
 /** S4: com a trava (Atordoado, Paralisado), cada golpe apaga com o motivo dela; `null` = a lista como veio. */
 function comATrava<T extends { motivo: string | null }>(lista: T[], trava: string | null): T[] {
   return trava === null ? lista : lista.map((item) => ({ ...item, motivo: trava }))
+}
+
+/**
+ * Pedido de 09/11/2026 (item 5): os golpes e as formas da vez do NPC, lidos
+ * num lugar só, para a aba Batalha e o menu do centro (`VezDoNpcNoCentro`)
+ * mostrarem o mesmo.
+ */
+function golpesDaVezDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaDaOrdem, personagem: Personagem | null, acoes: ReturnType<typeof acoesDaCarta>) {
+  const { sistema } = mesa
+  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
+  // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
+  const arma = armaPadraoNaBatalha(personagem, combate)
+  // Tipos de habilidade F2: os selos do NPC somam na conta (a mesma `bonusDaBatalha` do jogador e da caixa).
+  const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
+  // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez; tudo apaga com o motivo, menos o Encerrar.
+  const trava = travaDoToken(turnos.selos, carta.tokenId)
+  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : [], trava)
+  const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, acoes, bonus), trava)
+  // F3: as formas do NPC (a tira Transformação). C6: a forma em que o mestre decide os números não mostra prévia; a que já espera fica apagada.
+  const esperando = (turnos.formasPendentes ?? []).filter((pendente) => pendente.personagemId === personagem?.id)
+  const formas = (personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), esperando) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
+  return { trava, habilidades, armas, formas }
+}
+
+/** O "clicar na ficha escolhe o alvo" do menu do centro. Fora do componente: o efeito do `MenuDaVez` depende da identidade dela. */
+function mirarNoMapaDoMestre(mirando: boolean): void {
+  useMiraDoMestre.getState().mirar(mirando)
+}
+
+/** A recusa do host dita ao mestre (a frase do `MenuDaVez` fala de conexão, que é do jogador). */
+const RECUSA_PARA_O_MESTRE = 'A regra recusou: confira a ação, o custo, a recarga e o alvo.'
+
+/**
+ * Pedido de 09/11/2026 (item 5): a vez do NPC no MENU DO CENTRO, o mesmo do
+ * jogador (`MenuDaVez`: as tiras, a lista de técnicas, a mira, teclado e
+ * mouse), sobre o mapa do mestre (`App.tsx`, junto do `EfeitosDoMestre`). A
+ * aba Batalha fica com o que é só do mestre: ordem, selos, lembretes, Dar
+ * dano, Ações extras, Encerrar. A vez do bando (os invocados) segue na aba.
+ */
+export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
+  const mesa = useMesa(sceneKey)
+  const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
+  const { cena, personagens, sistema } = mesa
+  const turnos = cena?.turnos
+  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+  const carta = turnos === undefined ? null : cartaDaVez(turnos)
+  if (cena === undefined || turnos === undefined || carta === null || carta.bando !== undefined || !ehDoMestre(carta.personagemId, personagens)) return null
+
+  const { personagemId, tokenId } = carta
+  const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
+  const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
+  const combate = personagemId === null ? undefined : turnos.combate?.[personagemId]
+  const carga = combate?.carga ?? 0
+  const vez = { cartaId: carta.id, rodada: turnos.rodada }
+  const { trava, habilidades, armas, formas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
+  const passivas = passivasNaCena(personagem, sistema, turnos, tokenId)
+  return (
+    <div className="bt-centro-do-mestre" data-limite-da-leitura>
+      <MenuDaVez
+        key={`${carta.id}:${turnos.rodada}`}
+        quem={nomeDaFicha(mesa, tokenId, carta)}
+        acoes={acoes}
+        carga={carga}
+        motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
+        armas={armas}
+        habilidades={habilidades}
+        alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
+        avisoDaRecusa={RECUSA_PARA_O_MESTRE}
+        onAgir={(pedido) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)}
+        onZerarCarga={personagemId === null || carga === 0 ? undefined : () => useBatalhaStore.getState().zerarCarga(sceneKey, MESTRE, personagemId)}
+        onEncerrar={passarAVez}
+        alvoDoMapa={alvoDoMapa}
+        onMirando={mirarNoMapaDoMestre}
+        consulta={consultaDoMestre}
+        formas={formas}
+        personagemId={personagemId}
+        passivas={passivas.length === 0 ? undefined : { itens: passivas, tokenId, sistema, onPedir: pedirPassiva(sceneKey) }}
+        evoluir={{
+          // Tipos de habilidade F4: o mestre evolui sempre (fora da vez também); a regra é a da store.
+          motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId, cartaoId, custo }),
+          onEvoluir: (cartaoId, custo) => useBatalhaStore.getState().evoluir(sceneKey, MESTRE, { tipo: 'evoluir', tokenId, cartaoId, custo }),
+        }}
+        invocacao={personagem === null ? undefined : invocarDoNpc(sceneKey, personagem, sistema, turnos, carta, acoes)}
+        travado={trava}
+      />
+    </div>
+  )
 }
 
 /** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
@@ -491,22 +579,12 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     )
   }
 
-  // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
-  const arma = armaPadraoNaBatalha(personagem, combate)
-  // Tipos de habilidade F2: os selos do NPC somam na conta (a mesma `bonusDaBatalha` do jogador e da caixa).
-  const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
-  // Conserto das fichas F1 (S4): Atordoado ou Paralisado só passa a vez; tudo apaga com o motivo, menos o Encerrar.
-  const trava = travaDoToken(turnos.selos, carta.tokenId)
-  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, acoes, arma, bonus) : [], trava)
-  const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, acoes, bonus), trava)
+  const { trava, habilidades, armas, formas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos })
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
   const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
-  // F3: as formas do NPC (a tira Transformação do painel) e a imagem da forma ligada, que vence a foto.
-  // C6: a forma em que o mestre decide os números não mostra prévia; a que já espera fica apagada.
-  const esperando = (turnos.formasPendentes ?? []).filter((pendente) => pendente.personagemId === personagem?.id)
-  const formas = (personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), esperando) : []).map((forma) => (trava === null ? forma : { ...forma, motivo: trava, motivoDosUsos: trava }))
+  // F3: a imagem da forma ligada vence a foto.
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
   const alvos = alvosDaOrdem(mesa, turnos.cartas, carta)
@@ -523,6 +601,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           imagem={aparencia ?? mesa.fichas.find((ficha) => ficha.id === carta.tokenId)?.imageData ?? personagem?.retrato ?? null}
           formas={formas}
           personagemId={carta.personagemId}
+          acoesNoCentro
           selos={<SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />}
           lembretes={lembretes.length === 0 ? undefined : <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
           passivas={

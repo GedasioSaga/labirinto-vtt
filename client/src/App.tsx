@@ -181,7 +181,7 @@ import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
 import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
-import { EfeitosDoMestre } from './components/batalha/BatalhaDoMestre'
+import { EfeitosDoMestre, VezDoNpcNoCentro } from './components/batalha/BatalhaDoMestre'
 import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { consultaDoMestre, escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
@@ -3584,6 +3584,8 @@ function App() {
         />
         {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
         {batalhaNaCenaAberta && <EfeitosDoMestre sceneKey={chaveDaCenaAberta} onTremor={() => tremer(canvasHostRef.current)} />}
+        {/* BATALHA (pedido de 09/11, item 5): a vez do NPC no menu do centro, o mesmo do jogador. */}
+        {batalhaNaCenaAberta && <VezDoNpcNoCentro sceneKey={chaveDaCenaAberta} />}
         {/* BATALHA DBT: golpe, dano, Ki, forma e condição sobre o mapa, só na batalha Dragon Ball da cena aberta. */}
         {batalhaDBTNaTela && <EfeitosDoMestreDBT sceneKey={chaveDaCenaAberta} consulta={consultaDoMestre} />}
         {/* INVOCAÇÃO F3: "Clique na casa onde o Lobo nasce", com o Cancelar (Esc). */}

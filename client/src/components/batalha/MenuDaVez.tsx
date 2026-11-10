@@ -87,6 +87,8 @@ export interface MenuDaVezProps {
   golpesDoContra?: { armas: readonly GolpeNaTela[]; habilidades: readonly GolpeNaTela[] }
   /** O pedido saiu? (`false` = sem conexão ou recusado na hora.) */
   onAgir: (pedido: PedidoDeAcao) => boolean
+  /** Pedido de 09/11 (item 5): a frase da recusa para quem não é jogador (o mestre na vez do NPC). Ausente = a do jogador. */
+  avisoDaRecusa?: string
   /** "Zerar" a concentração (o botão ao lado da tira Concentrar, só com carga). Não devolve a ação gasta. Ausente = sem o botão. */
   onZerarCarga?: () => boolean
   /** Ausente fora da vez. */
@@ -164,7 +166,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
     const semContra = pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar'
     const comContra: PedidoDeAcao = contra !== undefined && !semContra ? { ...pedido, contraDe: contra.golpeId } : pedido
     const saiu = onAgir(comContra)
-    setAviso(saiu ? null : 'Não saiu: sem conexão com o mestre, ou a vez já passou.')
+    setAviso(saiu ? null : (props.avisoDaRecusa ?? 'Não saiu: sem conexão com o mestre, ou a vez já passou.'))
     if (saiu && contra !== undefined) setContraId(null)
     return saiu
   }

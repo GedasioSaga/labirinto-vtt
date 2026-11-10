@@ -295,7 +295,9 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
     if (el === null) return
     const medir = () => {
       const caixa = el.getBoundingClientRect()
-      const sobra = Math.floor(window.innerWidth - caixa.right - VAO_DA_LEITURA - FOLGA_DA_JANELA)
+      // Pedido de 09/11 (item 5): no mestre a lista mora entre os dois livros; a sobra vai até a borda de quem a cerca, não até a da janela.
+      const borda = el.closest('[data-limite-da-leitura]')?.getBoundingClientRect().right ?? window.innerWidth
+      const sobra = Math.floor(borda - caixa.right - VAO_DA_LEITURA - FOLGA_DA_JANELA)
       const topo = coluna.current?.offsetTop ?? 0
       const altura = Math.min(LEITURA_ALTURA_MAX, Math.max(LEITURA_ALTURA_MIN, Math.floor(window.innerHeight - caixa.top - topo - FOLGA_DA_JANELA)))
       const novo: LugarDaLeitura = sobra < LEITURA_MIN ? { tipo: 'lugar' } : { tipo: 'lado', largura: Math.min(LEITURA_MAX, sobra), topo, altura }

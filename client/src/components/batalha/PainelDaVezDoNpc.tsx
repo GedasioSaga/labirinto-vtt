@@ -68,6 +68,11 @@ export interface PainelDaVezDoNpcProps {
   evoluir?: EvoluirNaTela
   /** Invocação F3: as opções e o Invocar do NPC (a regra é a da store). Ausente = a técnica fica apagada. */
   invocacao?: InvocarNoMenu
+  /**
+   * Pedido de 09/11/2026 (item 5): as ações do NPC (técnicas, armas, mira, Transformação, Concentrar) estão no menu
+   * do centro, o mesmo do jogador (`VezDoNpcNoCentro`); o painel fica com o que é só do mestre. Ausente = tudo aqui.
+   */
+  acoesNoCentro?: boolean
 }
 
 /** A técnica de Tipo Invocação numa mesa sem o Invocar (a Arena). */
@@ -78,7 +83,7 @@ const SEM_FORMAS: readonly FormaNoMenu[] = []
 export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const { nome, imagem, cor, descricao, recursos, acoes, carga, motivoDoConcentrar, armas, habilidades, alvos, sugestao, onExecutar, onConcentrar, onZerarCarga, onEncerrar, onAcoesExtras, onDarDano, consulta, alvoDoMapa, mapa } =
     props
-  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir, invocacao } = props
+  const { formas = SEM_FORMAS, personagemId = null, selos, lembretes, passivas, evoluir, invocacao, acoesNoCentro = false } = props
   const [formaAberta, setFormaAberta] = useState<string | null>(null)
   const habilidadesNaTela = invocacao !== undefined ? habilidades : habilidades.map((golpe) => (golpe.invocacao === true ? { ...golpe, motivo: SEM_INVOCAR } : golpe))
   const golpes = [...habilidadesNaTela, ...armas]
@@ -87,7 +92,8 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
   const [escolhida, setEscolhida] = useState<string | null>(() => (sugestao.chave !== null && golpes.some((golpe) => golpe.chave === sugestao.chave && golpe.motivo === null) ? sugestao.chave : primeiraValida))
   const [aberto, setAberto] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const golpe = golpes.find((candidato) => candidato.chave === escolhida) ?? null
+  // Com as ações no centro, o painel não tem golpe escolhido (nem mira).
+  const golpe = acoesNoCentro ? null : (golpes.find((candidato) => candidato.chave === escolhida) ?? null)
   const textoCarga = textoDaCarga(carga)
   const estilo = cor === null ? undefined : ({ '--lado': cor } as CSSProperties)
 
@@ -174,7 +180,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         {textoCarga !== null && ` · ${textoCarga}`}
       </p>
       {selos}
-      {formas.length > 0 && (
+      {!acoesNoCentro && formas.length > 0 && (
         <div className="bt-npc__lista bt-npc__formas" role="group" aria-label="Transformação">
           <p className="bt-npc__legenda">Transformação</p>
           {formas.map((forma) => {
@@ -217,9 +223,15 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         </div>
       )}
       {passivas}
-      {grupo('Habilidades', habilidadesNaTela)}
-      {grupo('Atacar', armas)}
-      {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}
+      {acoesNoCentro ? (
+        <p className="bt-texto">As ações de {nome} estão no menu sobre o mapa, igual ao do jogador.</p>
+      ) : (
+        <>
+          {grupo('Habilidades', habilidadesNaTela)}
+          {grupo('Atacar', armas)}
+          {golpes.length === 0 && <p className="bt-texto">Sem técnica nem arma na ficha: dê dano à mão ou encerre a vez.</p>}
+        </>
+      )}
       {golpe !== null && golpe.invocacao === true && (
         <MiraDaInvocacaoDoNpc
           key={golpe.chave}
@@ -253,16 +265,18 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
         </p>
       )}
       <div className="bt-pendente__acoes">
-        <button
-          type="button"
-          className="bt-botao"
-          disabled={motivoDoConcentrar !== null}
-          title={motivoDoConcentrar ?? undefined}
-          onClick={() => setAviso(onConcentrar() ? null : 'Não concentrou: a ação já foi gasta.')}
-        >
-          Concentrar
-        </button>
-        {onZerarCarga !== undefined && carga > 0 && (
+        {!acoesNoCentro && (
+          <button
+            type="button"
+            className="bt-botao"
+            disabled={motivoDoConcentrar !== null}
+            title={motivoDoConcentrar ?? undefined}
+            onClick={() => setAviso(onConcentrar() ? null : 'Não concentrou: a ação já foi gasta.')}
+          >
+            Concentrar
+          </button>
+        )}
+        {!acoesNoCentro && onZerarCarga !== undefined && carga > 0 && (
           <button type="button" className="bt-botao" title={motivoDoConcentrar === MOTIVO_JA_CONCENTROU ? 'Volta a 0 e desfaz o Concentrar desta vez' : 'Volta a 0; a ação gasta não volta'} onClick={() => setAviso(onZerarCarga() ? null : 'Não zerou: a carga já estava em 0.')}>
             Zerar concentração ({carga})
           </button>
@@ -277,7 +291,7 @@ export function PainelDaVezDoNpc(props: PainelDaVezDoNpcProps) {
           Encerrar vez
         </button>
       </div>
-      {motivoDoConcentrar !== null && <p className="bt-npc__perfil">Concentrar: {motivoDoConcentrar}</p>}
+      {!acoesNoCentro && motivoDoConcentrar !== null && <p className="bt-npc__perfil">Concentrar: {motivoDoConcentrar}</p>}
     </div>
   )
 }

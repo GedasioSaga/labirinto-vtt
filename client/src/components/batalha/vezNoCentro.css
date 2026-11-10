@@ -1,0 +1,44 @@
+/*
+ * Pedido de 09/11/2026 (item 5): o menu da vez do NPC sobre o mapa do mestre
+ * (`VezDoNpcNoCentro`), na mesma régua do menu do jogador (player.css
+ * `.pp-batalha-menu`): à esquerda do mapa, centrado na altura que sobra. O invólucro
+ * não pega clique: o mapa segue clicável em volta (a mira escolhe o alvo nele).
+ * O miolo (`.bt-vez`, tiras, lista, mira) é o do combate.css, sem cópia.
+ */
+.bt-centro-do-mestre {
+  position: absolute;
+  /* Abaixo da faixa da ordem dos turnos e acima da barra de ferramentas do pé (main.css `.lb-editor__top` e `__base`). */
+  top: 300px;
+  bottom: 118px;
+  /* À direita do livro da esquerda: a mesma conta do pé do editor, que acompanha o livro recolhido. */
+  left: calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  /* Até o livro da direita: a leitura ao lado da lista se mede por esta borda (`data-limite-da-leitura`). */
+  right: calc(var(--lb-coldir-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  pointer-events: none;
+}
+
+.bt-centro-do-mestre > * {
+  pointer-events: auto;
+}
+
+.bt-centro-do-mestre > .bt-vez {
+  max-height: 100%;
+}
+
+/* As marcas da mira (os anéis nas fichas do mapa) ficam atrás do menu, como na Arena (arena.css): em cima, riscavam a lista de alvos. */
+.bt-centro-do-mestre .bt-marcas-da-mira {
+  z-index: -1;
+}
+
+/* A mira alta rola dentro do menu, como na Arena (arena.css), em vez de sair da tela. */
+.bt-centro-do-mestre > .bt-vez--lista:has(> .bt-mira) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
