@@ -122,7 +122,8 @@ function mundo(): Container {
 function camadaDasNotas(): Container {
   const camada = palco()
     .children.slice(1)
-    .find((filho) => filho instanceof Container && !(filho instanceof Graphics))
+    // A camada das partículas (fumaça e brasas) entra logo acima do mundo e não é a das notas.
+    .find((filho) => filho instanceof Container && !(filho instanceof Graphics) && filho.label !== 'particulas')
   if (!(camada instanceof Container)) throw new Error('a PlayerView não montou a camada das notas')
   return camada
 }

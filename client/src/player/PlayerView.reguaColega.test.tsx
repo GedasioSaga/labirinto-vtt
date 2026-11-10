@@ -95,7 +95,8 @@ function mundo(): Container {
  * números dele) entraram antes dela.
  */
 function camadaDoCaminho(): Graphics {
-  const camada = palco().children[6]
+  // A camada das partículas (fumaça e brasas) entra logo acima do mundo e não conta na posição.
+  const camada = palco().children.filter((filho) => filho.label !== 'particulas')[6]
   if (!(camada instanceof Graphics)) throw new Error('a PlayerView não montou a camada do caminho')
   return camada
 }
