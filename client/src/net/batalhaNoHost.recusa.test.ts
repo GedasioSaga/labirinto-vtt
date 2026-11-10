@@ -5,8 +5,9 @@
  * store de verdade (`criarBatalhaStore` sobre a mesa em memória do treino).
  * - bug 8: na vez da ficha emprestada (a tela dele mostra "sua vez"), o host
  *   aceita o Atacar;
- * - bug 1: a recusa leva o motivo ("A vez já passou", a regra da ficha dele),
- *   e o motivo da regra nunca sai da ficha que não é dele de verdade.
+ * - bug 1: a recusa leva o motivo ("A vez já passou", a regra da ficha dele).
+ *   Unificação do combate (U2, 10/11/2026): na vez da ficha que ele opera (a
+ *   emprestada, o NPC controlado) o motivo da regra sai também.
  */
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
@@ -115,13 +116,14 @@ describe('bug 8: vez da ficha emprestada', () => {
 })
 
 describe('bug 1: a recusa diz por quê', () => {
-  it('vez que já passou e regra da ficha dele viram motivo; na emprestada a regra sai genérica; o reenvio repete a recusa', () => {
+  it('vez que já passou e regra da ficha dele viram motivo; na emprestada, na vez dela, a regra também sai com o motivo (U2); o reenvio repete a recusa', () => {
     const { host, ana, vez, tokenDaVez, doZe, doMarinheiro } = mesaDaAna()
     const daLia = vez()
-    // Lia (emprestada) ataca; o segundo Atacar não tem Simples: a regra é de outro personagem, então sai a genérica.
+    // Lia (emprestada) ataca; o segundo Atacar não tem Simples. Unificação do combate (U2, 10/11/2026): na vez da ficha
+    // que ele opera (a emprestada, o NPC controlado) o motivo da regra sai como na ficha dele; antes saía a genérica.
     expect(host.agir(ana, { type: 'batalha.agir', reqId: 'r1', vez: daLia, pedido: ataque(doMarinheiro) }).saidas[0]?.msg).toMatchObject({ ok: true })
-    const emprestada = host.agir(ana, { type: 'batalha.agir', reqId: 'r2', vez: daLia, pedido: ataque(doMarinheiro) }).saidas[0]?.msg
-    expect(emprestada).toEqual({ type: 'batalha.resultado', reqId: 'r2', ok: false, motivo: 'Essa ação não vale agora' })
+    const emprestada = parseBatalhaResultado(host.agir(ana, { type: 'batalha.agir', reqId: 'r2', vez: daLia, pedido: ataque(doMarinheiro) }).saidas[0]?.msg)
+    expect([emprestada?.ok, typeof emprestada?.motivo, emprestada?.motivo === 'Essa ação não vale agora']).toEqual([false, 'string', false])
     expect(host.passar(ana, { type: 'batalha.passar', reqId: 'r3', cartaId: daLia.cartaId, rodada: daLia.rodada }).mudou).toBe(true)
 
     // O pedido com a vez velha (a da Lia) e o "Passar" repetido: "A vez já passou".
