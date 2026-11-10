@@ -29,6 +29,7 @@ import {
   ADVENTURE_VERSION,
   baseName,
   cleanSceneName,
+  comFixadas,
   comPeriodo,
   nestScene,
   newSceneId,
@@ -94,6 +95,7 @@ import {
   type TravelSceneOption,
 } from '../lib/pinTravel'
 import { cloneSceneMap } from '../lib/entityClone'
+import { alternarFixada } from '../lib/cenasFixadas'
 import { loadPendingScenes, mapDirFor, saveAdventureToDisk, scenePath, type ArrivedScene, type OpenedMapFile, type SceneLoad } from '../lib/mapFileIO'
 import { levarMidiaDaAventura } from '../lib/midiaDaPasta'
 import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
@@ -256,6 +258,12 @@ interface AdventureState {
    * já era a inicial.
    */
   definirCenaInicial: (sceneId: string) => boolean
+  /**
+   * HOJE NA SESSÃO: fixa a cena no topo da lista Cenas (no fim das fixadas)
+   * ou tira. Pede Salvar como o renomear: as fixadas vão no `adventure.json`.
+   * `cheia` = já há cinco e nada mudou; `nada` = mapa solto ou cena que não existe.
+   */
+  alternarFixada: (sceneId: string) => 'fixou' | 'tirou' | 'cheia' | 'nada'
   /**
    * "Configurar só neste mapa" (`true`) e "Usar o da pasta" (`false`): troca
    * o que o editor usa, sem mexer em nenhuma lista — os personagens do mapa
@@ -1679,7 +1687,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     }
     const scenes = removeSceneKeepingInside(adventure.scenes, sceneId)
     set({
-      adventure: { ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId },
+      // A apagada sai também das fixadas do "Hoje na sessão".
+      adventure: comFixadas(
+        { ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId },
+        (adventure.fixadas ?? []).filter((id) => id !== sceneId),
+      ),
       cache: nextCache,
       dirty: nextDirty,
       previousSceneId: previousSceneId === sceneId ? null : previousSceneId,
@@ -1857,6 +1869,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (adventure === null || adventure.startSceneId === sceneId || !adventure.scenes.some((entry) => entry.id === sceneId)) return false
     set({ adventure: { ...adventure, startSceneId: sceneId }, structureDirty: true })
     return true
+  },
+
+  alternarFixada: (sceneId) => {
+    const { adventure } = get()
+    if (adventure === null || !adventure.scenes.some((entry) => entry.id === sceneId)) return 'nada'
+    const antes = adventure.fixadas ?? []
+    const { fixadas, cheia } = alternarFixada(antes, sceneId)
+    if (cheia) return 'cheia'
+    set({ adventure: comFixadas(adventure, fixadas), structureDirty: true })
+    return fixadas.length > antes.length ? 'fixou' : 'tirou'
   },
 
   definirProprio: (proprio) => {

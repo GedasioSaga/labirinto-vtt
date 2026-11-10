@@ -15,7 +15,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
 import { CorteDaTorreDialog } from './CorteDaTorre'
 import type { CorteJogador } from '../lib/corteDaTorre'
-import { ChevronDownIcon, CloseIcon, SearchIcon, SettingsIcon, TokenIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, SearchIcon, SettingsIcon, TachinhaIcon, TokenIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -23,6 +23,8 @@ import { sceneTree, SCENE_PUBLIC_NAME_MAX_LENGTH, SCENE_TRAIL_SEPARATOR, type Sc
 import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/sceneSearch'
 import { type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
 import { RetratosDaCena, type PessoaNaLinha } from './RetratosDaCena'
+import { HojeNaSessao } from './HojeNaSessao'
+import { AVISO_FIXADAS_CHEIAS, lembrarRecente, lerListaDeIds, recentesAVista } from '../lib/cenasFixadas'
 import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
@@ -146,6 +148,13 @@ export interface ScenesSectionProps {
   defaultOpen?: boolean
   /** Aberta ou recolhida, na montagem e a cada troca (a coluna da direita reparte a altura por isso). */
   onOpenChange?: (open: boolean) => void
+  /** HOJE NA SESSÃO: ids das cenas fixadas no topo, na ordem (`adventure.fixadas`). */
+  pinned?: readonly string[]
+  /**
+   * Fixa ou tira a cena do topo. `cheia` = já há cinco e nada mudou. Ausente =
+   * mapa solto: sem o alfinete e sem o bloco "Hoje na sessão".
+   */
+  onTogglePin?: (sceneId: string) => 'fixou' | 'tirou' | 'cheia' | 'nada'
 }
 
 /** Um jogador na lista do "Revelar planta para…". */
@@ -851,6 +860,48 @@ function useCollapsedScenes(adventureId: string | null) {
   return { collapsed: current.ids, toggle, expand }
 }
 
+/** Nenhuma cena fixada (lista estável: os cálculos da lista leem dela). */
+const NO_PINNED: readonly string[] = []
+
+/** Chave das recentes no localStorage: `lb-cenas-recentes:<id da aventura>`. */
+const RECENT_STORAGE_PREFIX = 'lb-cenas-recentes:'
+
+/** localStorage pode não existir, lançar ou ter lixo: sem ele, nenhuma recente. */
+function readRecent(adventureId: string | null): string[] {
+  if (adventureId === null) return []
+  try {
+    return lerListaDeIds(window.localStorage.getItem(RECENT_STORAGE_PREFIX + adventureId))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * As últimas cenas abertas da aventura, a mais nova primeiro. Conveniência
+ * deste computador, como as pastas recolhidas: não vai no `adventure.json`.
+ */
+function useRecentScenes(adventureId: string | null, activeId: string | null): readonly string[] {
+  const [state, setState] = useState(() => ({ adventureId, ids: readRecent(adventureId) }))
+  let current = state
+  if (state.adventureId !== adventureId) {
+    current = { adventureId, ids: readRecent(adventureId) }
+    setState(current)
+  }
+  useEffect(() => {
+    if (adventureId === null || activeId === null || activeId === '') return
+    const base = readRecent(adventureId)
+    if (base[0] === activeId) return
+    const ids = lembrarRecente(base, activeId)
+    try {
+      window.localStorage.setItem(RECENT_STORAGE_PREFIX + adventureId, JSON.stringify(ids))
+    } catch {
+      // Sem armazenamento, as recentes valem enquanto a lista está montada.
+    }
+    setState({ adventureId, ids })
+  }, [adventureId, activeId])
+  return current.ids
+}
+
 /** O nível da linha para o CSS: o recuo e os fios da pasta saem de `--lb-cena-nivel`. */
 function levelStyle(depth: number): CSSProperties {
   return { '--lb-cena-nivel': String(depth) } as CSSProperties
@@ -958,6 +1009,8 @@ export function ScenesSection({
   onRevealPlanFor,
   defaultOpen = true,
   onOpenChange,
+  pinned = NO_PINNED,
+  onTogglePin,
 }: ScenesSectionProps) {
   const waiting = useWaitingMinutes(waitingSince)
   const [editing, setEditing] = useState<Editing>(null)
@@ -1124,6 +1177,27 @@ export function ScenesSection({
   const draggedHasParent = dragging !== null && (rowOf(dragging.sceneId)?.parentId ?? null) !== null
 
   const activeId = scenes.find((scene) => scene.active)?.id ?? null
+  const recent = useRecentScenes(adventureId, activeId)
+  const pinnedSet = new Set(pinned)
+  /**
+   * HOJE NA SESSÃO, no topo: com o alfinete à mão (aventura) e uma lista que
+   * já pede filtro, ou com alguma fixada. Lista curta cabe inteira à vista.
+   */
+  const pinnedRows = pinned.flatMap((id) => {
+    const entry = rowOf(id)?.entry
+    return entry === undefined ? [] : [entry]
+  })
+  const showToday = onTogglePin !== undefined && (showFilter || pinnedRows.length > 0)
+  const recentRows = showToday
+    ? recentesAVista(recent, pinned, activeId, new Set(rowIndex.keys())).flatMap((id) => {
+        const entry = rowOf(id)?.entry
+        return entry === undefined ? [] : [entry]
+      })
+    : []
+  /** O alfinete da linha e o item do menu: a sexta não entra, e a linha diz por quê. */
+  const togglePin = (sceneId: string) => {
+    if (onTogglePin?.(sceneId) === 'cheia') setNoteFeedback({ sceneId, text: AVISO_FIXADAS_CHEIAS })
+  }
   const revealedActive = useRef(activeId)
   // A cena aberta mudou (lista, pino de viagem, Voltar): as pastas de fora dela
   // abrem, para a linha destacada estar à vista. Na montagem não: quem fechou
@@ -1325,6 +1399,10 @@ export function ScenesSection({
         onSelect: toForm((opener) => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName, opener)),
       },
       { label: 'Mover para…', disabled: onMove === undefined, onSelect: toForm((opener) => startMove(scene.id, opener)) },
+      // HOJE NA SESSÃO: só com aventura (o mapa solto não tem o bloco).
+      ...(onTogglePin === undefined
+        ? []
+        : [{ label: pinnedSet.has(scene.id) ? 'Tirar do topo' : 'Fixar no topo', disabled: false, onSelect: andClose(() => togglePin(scene.id)) }]),
       { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
       { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
       { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
@@ -1566,6 +1644,23 @@ export function ScenesSection({
           </p>
         </div>
       )}
+      {showToday && !filtering && (
+        <>
+          <HojeNaSessao
+            fixadas={pinnedRows}
+            recentes={recentRows}
+            genteDe={(sceneId) => {
+              const here = people?.get(sceneId)
+              return here === undefined || (here.people.length === 0 && here.pendingRequests === 0) ? null : here
+            }}
+            onSelect={onSelect}
+            onTirar={togglePin}
+          />
+          <p className="lb-cenas__sobrancelha" aria-hidden="true">
+            Todas as cenas
+          </p>
+        </>
+      )}
       <ul ref={listRef} id={listId} className="lb-cenas" aria-label="Cenas da aventura" onKeyDown={onListKeyDown}>
         {visibleRows.map((row) => {
           const scene = row.entry
@@ -1731,6 +1826,19 @@ export function ScenesSection({
                       onClick={() => onConfigure(scene.id)}
                     >
                       <SettingsIcon size={13} />
+                    </button>
+                  )}
+                  {/* HOJE NA SESSÃO: o alfinete fixa a cena no topo da lista (o estado vai em `aria-pressed`). */}
+                  {onTogglePin !== undefined && scene.id !== '' && (
+                    <button
+                      type="button"
+                      className="lb-cenas__fixar-btn"
+                      aria-label={`Fixar ${scene.name} no topo`}
+                      aria-pressed={pinnedSet.has(scene.id)}
+                      title={pinnedSet.has(scene.id) ? 'Fixada no topo. Clique para tirar' : 'Fixar no topo: Hoje na sessão'}
+                      onClick={() => togglePin(scene.id)}
+                    >
+                      <TachinhaIcon size={14} />
                     </button>
                   )}
                   {hasSceneMenu && scene.id !== '' && (
