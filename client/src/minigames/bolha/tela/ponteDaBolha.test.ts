@@ -101,7 +101,7 @@ describe('ponteDaBolha', () => {
     bom.doJogo({ tipo: 'iniciado' })
     bom.doJogo({ tipo: 'fim', placar: PLACAR_DO_JOGO })
     expect(bom.placares).toEqual([
-      { vitoria: true, motivo: 'apagou', cenario: 'casa', dificuldade: 'dificil', tempoS: 61.25, bolhas: 40, acertos: 31, precisao: 77, focosApagados: 9, focosQuePegaram: 2, fogoNoFim: 0, pontos: 1830, estrelas: 3 },
+      { vitoria: true, motivo: 'apagou', cenario: 'casa', dificuldade: 'dificil', semente: 4242, modo: 'equipe', tempoS: 61.25, bolhas: 40, acertos: 31, precisao: 77, focosApagados: 9, focosQuePegaram: 2, fogoNoFim: 0, pontos: 1830, estrelas: 3 },
     ])
     expect(bom.ponte.estado()).toBe('fim')
     // Um segundo fim (repetido) não manda outro placar.

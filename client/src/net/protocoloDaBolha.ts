@@ -63,15 +63,18 @@ export interface BolhaJogadorDaPartida {
 
 /**
  * O placar do fim que o jogo manda (`fim.placar`), no formato do app. O id e
- * o nome do jogador, a semente e o modo que o jogo devolve não viajam: o
- * mestre já sabe de quem é a mensagem e qual partida mandou.
+ * o nome do jogador não viajam: o mestre já sabe de quem é a mensagem. A
+ * semente e o modo viajam para o host conferir que o placar é da partida que
+ * ele mandou (`conferirPlacarDaBolha.ts`).
  */
 export interface BolhaPlacar {
   vitoria: boolean
-  /** `apagou`, `tempo` ou `tomou` hoje; texto livre para não recusar um motivo novo do jogo. */
+  /** `apagou`, `tempo` ou `tomou` hoje; texto livre no parse (a conferência do host exige `apagou` na vitória). */
   motivo: string
   cenario: CenarioBolha
   dificuldade: DificuldadeBolha
+  semente: number
+  modo: ModoBolha
   /** Segundos de partida (o jogo manda com duas casas). */
   tempoS: number
   bolhas: number
@@ -257,15 +260,18 @@ export function lerPlacarDaBolha(value: unknown): BolhaPlacar | null {
   const { vitoria, motivo, tempoS, bolhas, acertos, precisao, focosApagados, focosQuePegaram, fogoNoFim, pontos, estrelas } = value
   const cenario = umDaLista(CENARIOS_BOLHA, value.cenario)
   const dificuldade = umDaLista(DIFICULDADES_BOLHA, value.dificuldade)
+  const modo = umDaLista(MODOS_BOLHA, value.modo)
+  const { semente } = value
   if (typeof vitoria !== 'boolean' || !textoEntre(motivo, 0, MOTIVO_MAX) || cenario === undefined || dificuldade === undefined) return null
+  if (modo === undefined || !inteiroEntre(semente, 0, BOLHA_SEMENTE_MAX)) return null
   if (!numeroEntre(tempoS, 0, BOLHA_TEMPO_MAX_S) || !contagem(bolhas) || !contagem(acertos) || !porcento(precisao)) return null
   if (!contagem(focosApagados) || !contagem(focosQuePegaram) || !porcento(fogoNoFim) || !contagem(pontos) || !inteiroEntre(estrelas, 0, 3)) return null
-  return { vitoria, motivo, cenario, dificuldade, tempoS, bolhas, acertos, precisao, focosApagados, focosQuePegaram, fogoNoFim, pontos, estrelas }
+  return { vitoria, motivo, cenario, dificuldade, semente, modo, tempoS, bolhas, acertos, precisao, focosApagados, focosQuePegaram, fogoNoFim, pontos, estrelas }
 }
 
 /**
  * O placar como o JOGO manda (`fim.placar`, snake_case), convertido para o
- * do app. `null` = torto. `semente`, `modo` e `jogador` ficam: o app já sabe.
+ * do app. `null` = torto. O `jogador` fica: o host já sabe de quem é.
  */
 export function placarDoJogoDaBolha(value: unknown): BolhaPlacar | null {
   if (!isRecord(value)) return null
@@ -274,6 +280,8 @@ export function placarDoJogoDaBolha(value: unknown): BolhaPlacar | null {
     motivo: value.motivo,
     cenario: value.cenario,
     dificuldade: lerDificuldade(value.dificuldade),
+    semente: value.semente,
+    modo: value.modo,
     tempoS: value.tempo_s,
     bolhas: value.bolhas,
     acertos: value.acertos,
