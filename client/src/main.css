@@ -3899,8 +3899,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   align-items: center;
 }
 
-/* Foto da ficha, ou a inicial na cor do jogador. O aro na cor do cartão
-   separa um rosto do outro quando eles se sobrepõem. */
+/* Foto da ficha, ou a inicial na cor do jogador. Lado a lado, com 2 px entre
+   eles, e não sobrepostos: cada retrato mostra só a cor de quem ele é (a
+   jornada cenas-com-gente confere a cor dentro da caixa de cada um). O aro na
+   cor do cartão contorna o rosto sem invadir o vizinho. */
 .lb-cenas__retrato {
   display: inline-flex;
   flex: none;
@@ -3908,7 +3910,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   justify-content: center;
   width: 20px;
   height: 20px;
-  margin-left: calc(var(--lb-space-1) * -1);
+  margin-left: calc(var(--lb-space-1) / 2);
   overflow: hidden;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--lb-retrato-aro, var(--lb-color-stone-solid));
@@ -4581,6 +4583,12 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   font-size: var(--lb-font-size-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Na cena aberta o fundo é de latão: o cinza da contagem cai para 3,6:1 ali;
+   o secundário passa no AA (5,1:1). */
+.lb-cenas__item--ativa .lb-cenas__info .lb-cenas__conta {
+  color: var(--lb-color-parchment-dim);
 }
 
 .lb-cenas__info .lb-cenas__espera {
