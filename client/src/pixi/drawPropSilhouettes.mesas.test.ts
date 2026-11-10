@@ -97,15 +97,11 @@ describe('mesas e a chave de obra do Meio-Termo', () => {
 })
 
 describe('catálogo e menu do Objeto: as três mesas, sem mudar ordem nem id', () => {
-  it('no catálogo, a mesa e logo depois a quadrada e a redonda; no menu, as três em "Dentro de casa"', () => {
+  it('no catálogo, a mesa e logo depois a quadrada e a redonda; no menu, as três abrindo "Sala e quarto"', () => {
     const i = TIPOS_NO_CATALOGO.indexOf('mesa')
     expect(TIPOS_NO_CATALOGO.slice(i, i + 3)).toEqual(['mesa', 'mesaQuadrada', 'mesaRedonda'])
-    const dentro = PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Dentro de casa')
-    // Os 8 móveis de casa (28/10/2026) entram em pares: sofá e poltrona, balcão e pratos, fogão e geladeira, pia e privada;
-    // a lareira (29/10/2026) fecha a parte.
-    expect(dentro?.tipos).toEqual([
-      'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona',
-      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo', 'lareira',
-    ])
+    const sala = PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')
+    // As partes da ficha (10/11/2026): as mesas e os assentos, a cama, os tapetes e a lareira; a cozinha e o banheiro à parte.
+    expect(sala?.tipos).toEqual(['mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona', 'catre', 'aparador', 'tapete', 'tapeteLongo', 'lareira'])
   })
 })

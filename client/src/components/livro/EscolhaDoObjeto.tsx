@@ -1,0 +1,310 @@
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { isEditableTarget } from '../../lib/keymap'
+import { GRUPOS_DE_OBJETO, acharObjetos, grupoDoObjeto, partesDoObjeto, type IdDoGrupoDeObjeto } from '../../lib/mobilia/gruposDoObjeto'
+import { TIPOS_MOBILIA, type TipoMobilia } from '../../lib/mobilia/tipos'
+import { useObjetosUsados } from '../../stores/objetosUsados'
+import { Botao } from '../grimorio/Botao'
+import { CampoSeg } from '../grimorio/CampoSeg'
+import { classes } from '../grimorio/comum'
+import type { OpcaoDoEixo } from '../ToolVariantMenu'
+import { IconeDoLivro } from './icones'
+import './escolhaDoObjeto.css'
+
+/** A família de chaves das seções recolhíveis (`lb-section:<id>`, CollapsibleSection). */
+const PREFIXO_DA_CHAVE = 'lb-section:objeto-'
+/** A tecla que leva à busca de qualquer lugar sem campo de texto (a "/" das buscas de documentação). */
+const TECLA_DA_BUSCA = '/'
+
+const TIPOS_CONHECIDOS: ReadonlySet<string> = new Set(TIPOS_MOBILIA)
+function ehTipo(id: string): id is TipoMobilia {
+  return TIPOS_CONHECIDOS.has(id)
+}
+
+/** localStorage pode faltar ou lançar (janela privada): sem escolha gravada vale a regra de partida. */
+function lerAberto(grupo: IdDoGrupoDeObjeto): boolean | null {
+  try {
+    const gravado = window.localStorage.getItem(PREFIXO_DA_CHAVE + grupo)
+    return gravado === '1' ? true : gravado === '0' ? false : null
+  } catch {
+    return null
+  }
+}
+
+function gravarAberto(grupo: IdDoGrupoDeObjeto, aberto: boolean): void {
+  try {
+    window.localStorage.setItem(PREFIXO_DA_CHAVE + grupo, aberto ? '1' : '0')
+  } catch {
+    // Sem armazenamento a escolha vale enquanto a ficha estiver montada.
+  }
+}
+
+/** Tecla usada aqui não segue para o mapa (lá a seta empurra a seleção e o Esc larga o rascunho). */
+function consumir(evento: KeyboardEvent<HTMLElement>): void {
+  evento.preventDefault()
+  evento.stopPropagation()
+}
+
+function contagem(n: number): string {
+  return n === 1 ? '1 objeto' : `${n} objetos`
+}
+
+export interface EscolhaDoObjetoProps {
+  /** O nome do eixo ("Objeto"), o rótulo do campo. */
+  rotulo: string
+  /** As opções do eixo `mobiliaTipo` (`eixoDaVariante`), na ordem do catálogo, com o desenho de cada móvel. */
+  opcoes: readonly OpcaoDoEixo[]
+  marcada: string | null
+  escolher: (id: string) => void
+}
+
+/**
+ * A ESCOLHA DO OBJETO na ficha da ferramenta (pedido de 10/11/2026: a grade de
+ * 48 nomes sem ordem virou grupos). De cima para baixo: o rótulo com o objeto
+ * escolhido à direita (sempre à vista), a busca sem acento, "Usados há pouco"
+ * (os últimos móveis postos no mapa) e os grupos de `GRUPO_DO_OBJETO`,
+ * recolhíveis e lembrados entre sessões. Nenhum objeto some: todo tipo do
+ * catálogo cai num grupo (os sem grupo em "Outros").
+ *
+ * Teclado: "/" de qualquer lugar sem campo de texto põe o cursor na busca;
+ * na busca, seta para baixo desce para a lista, Enter escolhe o primeiro
+ * achado e Esc apaga (o segundo sai do campo); numa grade as setas andam e
+ * escolhem (`andarPelosRadios`) e digitar uma letra volta à busca com ela;
+ * nos títulos dos grupos as setas passam de um título ao outro.
+ */
+export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDoObjetoProps) {
+  const ids = useId()
+  const entradaRef = useRef<HTMLInputElement | null>(null)
+  const listaRef = useRef<HTMLDivElement | null>(null)
+  const [busca, setBusca] = useState('')
+  /** O aberto/fechado que o mestre gravou; `null` = nunca mexeu naquele grupo. */
+  const [guardados, setGuardados] = useState<ReadonlyMap<IdDoGrupoDeObjeto, boolean | null>>(
+    () => new Map(GRUPOS_DE_OBJETO.map((grupo) => [grupo.id, lerAberto(grupo.id)])),
+  )
+  const usados = useObjetosUsados()
+
+  const porId = new Map(opcoes.map((opcao) => [opcao.id, opcao]))
+  const partes = partesDoObjeto(opcoes.map((opcao) => opcao.id).filter(ehTipo))
+  const tituloDoGrupo = new Map<string, string>()
+  for (const parte of partes) for (const tipo of parte.tipos) tituloDoGrupo.set(tipo, parte.titulo)
+  const escolhida = marcada === null ? undefined : porId.get(marcada)
+  const grupoDaEscolhida = marcada !== null && ehTipo(marcada) ? grupoDoObjeto(marcada) : null
+  // O grupo do escolhido QUANDO A FICHA ABRIU: escolher outro objeto depois não
+  // abre nem fecha grupo nenhum (a lista não pula debaixo do ponteiro).
+  const [grupoDePartida] = useState(grupoDaEscolhida)
+  /** Gravado vence; nunca mexido, abre só o grupo do objeto escolhido na abertura. */
+  const estaAberto = (grupo: IdDoGrupoDeObjeto): boolean => guardados.get(grupo) ?? grupo === grupoDePartida
+  const alternar = (grupo: IdDoGrupoDeObjeto) => {
+    const aberto = !estaAberto(grupo)
+    setGuardados((antes) => new Map(antes).set(grupo, aberto))
+    gravarAberto(grupo, aberto)
+  }
+
+  const consulta = busca.trim()
+  const filtrando = consulta !== ''
+  const achados = filtrando
+    ? acharObjetos(
+        opcoes.map((opcao) => ({ opcao, rotulo: opcao.label, grupo: tituloDoGrupo.get(opcao.id) ?? '' })),
+        consulta,
+      ).map((achado) => achado.opcao)
+    : []
+  const opcoesUsadas = usados.flatMap((tipo) => porId.get(tipo) ?? [])
+
+  // "/" de qualquer lugar: o cursor na busca. Só com a ficha à vista e sem
+  // diálogo aberto por cima; num campo de texto a barra é texto.
+  useEffect(() => {
+    const aoTeclar = (evento: globalThis.KeyboardEvent) => {
+      if (evento.key !== TECLA_DA_BUSCA || evento.ctrlKey || evento.metaKey || evento.altKey) return
+      const alvo = evento.target instanceof HTMLElement ? evento.target : null
+      if (alvo !== null && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      const entrada = entradaRef.current
+      // Sem `offsetParent` o campo está numa página do livro que não está à vista.
+      if (entrada === null || entrada.offsetParent === null || document.querySelector('[aria-modal="true"]') !== null) return
+      evento.preventDefault()
+      entrada.focus()
+      entrada.select()
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [])
+
+  const focarPrimeiroDaLista = (): boolean => {
+    const primeiro = listaRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"], [data-cabeca-do-grupo]')
+    primeiro?.focus()
+    return primeiro !== undefined && primeiro !== null
+  }
+
+  const aoTeclarNaBusca = (evento: KeyboardEvent<HTMLInputElement>) => {
+    if (evento.key === 'ArrowDown') {
+      if (focarPrimeiroDaLista()) consumir(evento)
+      return
+    }
+    if (evento.key === 'Enter') {
+      const primeiro = achados[0]
+      if (evento.nativeEvent.isComposing || primeiro === undefined) return
+      consumir(evento)
+      escolher(primeiro.id)
+      return
+    }
+    if (evento.key === 'Escape') {
+      consumir(evento)
+      // Primeiro Esc apaga a busca; o segundo, com o campo vazio, sai dele.
+      if (busca !== '') setBusca('')
+      else evento.currentTarget.blur()
+    }
+  }
+
+  // Letra com o foco numa opção ou num título: volta à busca com ela (a
+  // convenção de digitar para achar); sem isso a letra iria ao mapa e trocaria
+  // de ferramenta.
+  const aoTeclarNaLista = (evento: KeyboardEvent<HTMLDivElement>) => {
+    const alvo = evento.target
+    if (!(alvo instanceof HTMLElement) || (alvo.getAttribute('role') !== 'radio' && !alvo.hasAttribute('data-cabeca-do-grupo'))) return
+    if (evento.key.length !== 1 || evento.key.trim() === '' || evento.ctrlKey || evento.metaKey || evento.altKey) return
+    consumir(evento)
+    setBusca(busca + evento.key)
+    entradaRef.current?.focus()
+  }
+
+  // Setas nos títulos: de um título ao outro sem abrir nada (Enter e Espaço abrem).
+  const aoTeclarNoTitulo = (evento: KeyboardEvent<HTMLButtonElement>) => {
+    const titulos = Array.from(listaRef.current?.querySelectorAll<HTMLButtonElement>('[data-cabeca-do-grupo]') ?? [])
+    const atual = titulos.indexOf(evento.currentTarget)
+    let proximo: HTMLElement | null | undefined
+    switch (evento.key) {
+      case 'ArrowDown':
+        proximo = titulos[Math.min(atual + 1, titulos.length - 1)]
+        break
+      case 'ArrowUp':
+        proximo = atual === 0 ? entradaRef.current : titulos[atual - 1]
+        break
+      case 'Home':
+        proximo = titulos[0]
+        break
+      case 'End':
+        proximo = titulos[titulos.length - 1]
+        break
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        proximo = null
+        break
+      default:
+        return
+    }
+    consumir(evento)
+    proximo?.focus()
+  }
+
+  const limparBusca = () => {
+    setBusca('')
+    entradaRef.current?.focus()
+  }
+
+  const paraOSeg = (lista: readonly OpcaoDoEixo[]) => lista.map((opcao) => ({ valor: opcao.id, rotulo: opcao.label, icone: opcao.icon }))
+
+  return (
+    <div className="gr-campo lb-escolha-objeto">
+      <span className="gr-campo__rot">
+        {rotulo}
+        {escolhida !== undefined && <b title={`Próximo objeto: ${escolhida.label}`}>{escolhida.label}</b>}
+      </span>
+      <div className="lb-escolha-objeto__busca">
+        <IconeDoLivro nome="busca" />
+        <input
+          ref={entradaRef}
+          className="gr-entrada"
+          type="search"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={40}
+          aria-label="Procurar objeto"
+          aria-keyshortcuts={TECLA_DA_BUSCA}
+          aria-controls={`${ids}-lista`}
+          placeholder="Procurar objeto"
+          value={busca}
+          onChange={(evento) => setBusca(evento.currentTarget.value)}
+          onKeyDown={aoTeclarNaBusca}
+        />
+        {busca === '' ? (
+          <kbd className="gr-kbd lb-escolha-objeto__tecla" aria-hidden="true">
+            {TECLA_DA_BUSCA}
+          </kbd>
+        ) : (
+          <Botao className="lb-escolha-objeto__limpar" soIcone tamanho="p" aria-label="Limpar busca" title="Limpar busca (Esc)" onClick={limparBusca}>
+            <IconeDoLivro nome="x" />
+          </Botao>
+        )}
+      </div>
+
+      <div className="lb-escolha-objeto__lista" id={`${ids}-lista`} ref={listaRef} onKeyDown={aoTeclarNaLista}>
+        {filtrando ? (
+          <>
+            <p className="lb-escolha-objeto__resumo" role="status">
+              {achados.length === 0 ? `Nenhum objeto com “${consulta}”.` : contagem(achados.length)}
+            </p>
+            {achados.length > 0 ? (
+              <CampoSeg nomeAcessivel={`Objetos com “${consulta}”`} forma="grade" opcoes={paraOSeg(achados)} valor={marcada ?? undefined} onChange={escolher} />
+            ) : (
+              <div className="lb-escolha-objeto__vazio">
+                <span>Tente só o começo do nome, ou o lugar: “cozinha”, “feira”.</span>
+                <Botao variante="fantasma" tamanho="p" onClick={limparBusca}>
+                  Limpar busca
+                </Botao>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {opcoesUsadas.length > 0 && (
+              <section className="lb-escolha-objeto__usados" aria-labelledby={`${ids}-usados`}>
+                <h3 className="lb-escolha-objeto__legenda" id={`${ids}-usados`}>
+                  <IconeDoLivro nome="relogio" />
+                  Usados há pouco
+                </h3>
+                <CampoSeg nomeAcessivel="Usados há pouco" forma="grade" opcoes={paraOSeg(opcoesUsadas)} valor={marcada ?? undefined} onChange={escolher} />
+              </section>
+            )}
+            {partes.map((parte) => {
+              const aberto = estaAberto(parte.id)
+              const idDoTitulo = `${ids}-${parte.id}`
+              const aquiAEscolhida = parte.id === grupoDaEscolhida
+              const daParte = parte.tipos.flatMap((tipo) => porId.get(tipo) ?? [])
+              return (
+                <section key={parte.id} className={classes('lb-escolha-objeto__grupo', !aberto && 'lb-escolha-objeto__grupo--fechado')} aria-labelledby={idDoTitulo}>
+                  <h3 className="lb-escolha-objeto__titulo">
+                    <button
+                      type="button"
+                      id={idDoTitulo}
+                      className="lb-escolha-objeto__cab"
+                      data-cabeca-do-grupo=""
+                      aria-expanded={aberto}
+                      aria-controls={`${idDoTitulo}-grade`}
+                      aria-describedby={`${idDoTitulo}-conta`}
+                      onClick={() => alternar(parte.id)}
+                      onKeyDown={aoTeclarNoTitulo}
+                    >
+                      <IconeDoLivro nome="baixo" />
+                      <span className="lb-escolha-objeto__nome">{parte.titulo}</span>
+                      {/* Fechado, o grupo que guarda o escolhido o diz: o mestre sabe onde ele mora. */}
+                      {aquiAEscolhida && !aberto && <span className="lb-escolha-objeto__marca" aria-hidden="true" />}
+                      {/* A contagem fica fora do nome (quem procura o grupo pelo título exato acha): vai na descrição. */}
+                      <small className="lb-escolha-objeto__conta" aria-hidden="true">
+                        {daParte.length}
+                      </small>
+                    </button>
+                  </h3>
+                  <span className="gr-sr" id={`${idDoTitulo}-conta`}>
+                    {contagem(daParte.length)}
+                    {aquiAEscolhida && escolhida !== undefined ? `, com ${escolhida.label} escolhido` : ''}
+                  </span>
+                  <div className="lb-escolha-objeto__grade" id={`${idDoTitulo}-grade`} hidden={!aberto}>
+                    <CampoSeg nomeAcessivel={parte.titulo} forma="grade" opcoes={paraOSeg(daParte)} valor={marcada ?? undefined} onChange={escolher} />
+                  </div>
+                </section>
+              )
+            })}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

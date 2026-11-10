@@ -7,6 +7,7 @@ import { findContainingRoom } from '../lib/roomNesting'
 import { roomRotationOf } from '../lib/roomRotation'
 import { selectionOfItem } from '../lib/selectionModel'
 import type { LayerId, TipoMobilia } from '../types/map'
+import { lembrarObjetoUsado } from './objetosUsados'
 
 /** `criarMovel` não grava `layer`, e objeto sem `layer` mora em Objetos (`propLayer`). */
 const CAMADA_DO_MOVEL: LayerId = 'objetos'
@@ -51,5 +52,7 @@ export function porMovelNoPonto(
   const giro = roomRotationOf(sala?.room)
   store.addProp(giro === 0 ? movel : { ...movel, rotation: giro })
   store.setSelection(selectionOfItem({ kind: 'prop', id: movel.id }))
+  // "Usados há pouco" da ficha da ferramenta: conta o móvel posto, não a escolha.
+  lembrarObjetoUsado(tipo)
   return { kind: 'posto', id: movel.id }
 }

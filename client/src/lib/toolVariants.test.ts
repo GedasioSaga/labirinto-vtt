@@ -253,12 +253,14 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide em 6 partes (Dentro de casa 21 com os móveis de casa e a lareira, Rua e jardim 12 com o Fogo e a ponte, Cemitério 4, Feira 4, Oficina 3, Fazenda 4) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 8 partes da ficha (Sala e quarto 11, Cozinha e banheiro 7, Armazenagem 3, Rua e jardim 12, Cemitério 4, Feira 4, Oficina 3, Fazenda 4; os grupos ainda vazios não aparecem) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
-      ['Dentro de casa', 21],
+      ['Sala e quarto', 11],
+      ['Cozinha e banheiro', 7],
+      ['Armazenagem', 3],
       ['Rua e jardim', 12],
       ['Cemitério', 4],
       ['Feira', 4],

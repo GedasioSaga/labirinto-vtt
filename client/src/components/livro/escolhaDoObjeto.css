@@ -1,0 +1,192 @@
+/*
+ * ESCOLHA DO OBJETO (pedido de 10/11/2026): a lista "Objeto" da ficha da
+ * ferramenta em grupos recolhíveis, com busca e "Usados há pouco". As grades
+ * são as de sempre (`.gr-seg--grade`, ícone em cima do nome); aqui moram só a
+ * busca, os títulos dos grupos e o respiro entre eles. Os títulos seguem as
+ * categorias da página Sons (`.lb-cat__abrir`): a seta gira e a grade aparece
+ * inteira, sem animar a altura, porque abrir e fechar é coisa de toda hora.
+ */
+
+.lb-escolha-objeto {
+  gap: 8px;
+}
+
+/* O escolhido à direita do rótulo, sempre à vista: a voz do valor do campo
+   (`.gr-campo__rot b`), na fonte do texto e cortado com reticências. */
+.lb-escolha-objeto > .gr-campo__rot > b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 1.2;
+}
+
+/* ---------------------------------------------------------------- busca */
+.lb-escolha-objeto__busca {
+  position: relative;
+  min-width: 0;
+}
+.lb-escolha-objeto__busca > .gr-ic {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+.lb-escolha-objeto__busca > .gr-entrada {
+  padding-left: 29px;
+  padding-right: 34px;
+  text-overflow: ellipsis;
+}
+/* O X nativo vem com a cara do sistema: o "Limpar busca" é um botão do app. */
+.lb-escolha-objeto__busca > .gr-entrada::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.lb-escolha-objeto__tecla {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+/* 28 px dentro do campo de 32: 2 px de cada lado, sem transform (o aperto do
+   `.gr-bt` já usa o transform para a escala). */
+.lb-escolha-objeto__limpar {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+.lb-escolha-objeto__limpar .gr-ic {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------------------------------------------------------------- lista */
+.lb-escolha-objeto__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lb-escolha-objeto__resumo {
+  margin: 2px 0 4px;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-escolha-objeto__vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+  border: 1px dashed var(--lb-gr-filete);
+  border-radius: var(--lb-radius-md);
+}
+
+/* "Usados há pouco": o mesmo alinhamento dos títulos dos grupos (o relógio
+   onde mora a seta), mas não é botão. */
+.lb-escolha-objeto__usados {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+.lb-escolha-objeto__legenda {
+  margin: 0;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-regular);
+  color: var(--lb-color-parchment-dim);
+}
+.lb-escolha-objeto__legenda > .gr-ic {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* ---------------------------------------------------------------- grupos */
+.lb-escolha-objeto__titulo {
+  margin: 0;
+  font: inherit;
+}
+.lb-escolha-objeto__cab {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 4px;
+  background: none;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--lb-font-size-md);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.lb-escolha-objeto__cab > .gr-ic {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--lb-color-parchment-faint);
+  transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.lb-escolha-objeto__grupo--fechado .lb-escolha-objeto__cab > .gr-ic {
+  transform: rotate(-90deg);
+}
+.lb-escolha-objeto__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-escolha-objeto__conta {
+  flex: none;
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-faint);
+}
+/* O ponto de latão: fechado, este grupo guarda o objeto escolhido. */
+.lb-escolha-objeto__marca {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+}
+/* A grade aberta: um respiro antes do próximo título. */
+.lb-escolha-objeto__grade {
+  padding: 2px 0 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-escolha-objeto__cab:hover {
+    background: var(--lb-gr-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-escolha-objeto__cab > .gr-ic {
+    transition-duration: 0ms;
+  }
+}

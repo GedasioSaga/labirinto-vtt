@@ -13,6 +13,7 @@ import { TOOL_ICONS } from '../toolIcons'
 import { Cabeca, CabecaMedalha } from '../grimorio/Cabeca'
 import { CampoSeg } from '../grimorio/CampoSeg'
 import { Nota } from '../grimorio/Nota'
+import { EscolhaDoObjeto } from './EscolhaDoObjeto'
 import './fichaDaFerramenta.css'
 
 /** O ícone da medalha (o CSS da cabeça fixa 22 px; o tamanho aqui é só o desenho de partida). */
@@ -124,6 +125,9 @@ function grupoValeAgora(grupo: ToolVariantGroup, variantes: ToolVariantBindings)
 
 function CampoDaVariante({ grupo, variantes }: { grupo: ToolVariantGroup; variantes: ToolVariantBindings }) {
   const { opcoes, marcada, escolher } = eixoDaVariante(grupo, variantes, iconeDaOpcao)
+  // Os 48 objetos não cabem numa grade só: grupos, busca e "Usados há pouco" (pedido de 10/11/2026).
+  if (grupo.storeKey === 'mobiliaTipo') return <EscolhaDoObjeto rotulo={grupo.label} opcoes={opcoes} marcada={marcada} escolher={escolher} />
+
   const comIcone = opcoes.map((opcao) => ({ ...opcao, icon: opcao.icon ?? iconeDaFicha(grupo, opcao.id) }))
   // Com ícone, três opções já pedem a grade (ícone em cima do nome, como as formas do protótipo).
   const temIcone = comIcone.some((opcao) => opcao.icon !== undefined && opcao.icon !== null)

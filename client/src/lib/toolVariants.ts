@@ -10,6 +10,7 @@ import type { BrushMode } from './baldeDeTinta'
 import type { ToolClusterId } from '../components/labels'
 import { NOME_COM_ARTIGO, ROTULO_MOBILIA } from './mobilia'
 import { TIPOS_NO_CATALOGO } from './mobilia/pecasNovas'
+import { partesDoObjeto } from './mobilia/gruposDoObjeto'
 
 /**
  * Catálogo de dados puro (sem JSX, sem store) da feature N1 do usuário
@@ -580,38 +581,17 @@ export const ATALHO_DA_ARVORE: {
 }
 
 /**
- * O menu do Objeto em 3 partes (revisão de design da MT5): com 25 nomes numa
- * grade só, as mesas acabavam em zigue-zague entre as colunas e a "Placa de
- * seta" ficava sozinha numa linha. Cada parte é lida em pares (a grade tem 2
- * colunas): Mesa ao lado da Cadeira, as duas mesas novas juntas, os dois tapetes
- * juntos. Só a ORDEM DO MENU muda: o eixo continua um só (`mobiliaTipo`) e o
- * catálogo (`TIPOS_NO_CATALOGO`, o seletor do painel) segue na ordem dele. O
- * teste prende que todo tipo do catálogo cai em exatamente uma parte; o atalho
- * da árvore fecha a parte "Rua e jardim".
+ * O menu do Objeto em partes, as MESMAS da ficha da ferramenta: os grupos moram
+ * em `lib/mobilia/gruposDoObjeto.ts` (`GRUPO_DO_OBJETO`, uma linha por tipo) e
+ * as duas telas leem de lá. Só a ARRUMAÇÃO muda: o eixo continua um só
+ * (`mobiliaTipo`) e o catálogo (`TIPOS_NO_CATALOGO`) segue na ordem dele. Grupo
+ * sem peça não vira parte; tipo sem grupo cai em "Outros". O teste prende que
+ * todo tipo do catálogo cai em exatamente uma parte; o atalho da árvore fecha a
+ * parte "Rua e jardim".
  */
-export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = [
-  // Os móveis de casa de 28/10/2026 entram aqui, em pares: sofá e poltrona, balcão e pratos, fogão e geladeira, pia e privada.
-  // A lareira (29/10/2026) fecha a parte, depois dos tapetes: sem par, fica sozinha na última linha.
-  {
-    titulo: 'Dentro de casa',
-    tipos: [
-      'barril', 'caixa', 'bau', 'catre', 'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona',
-      'armario', 'aparador', 'balcao', 'pratos', 'fogao', 'geladeira', 'pia', 'privada', 'tapete', 'tapeteLongo', 'lareira',
-    ],
-  },
-  // O chafariz (02/11/2026) ao lado do poço: a água da praça no mesmo par.
-  // A ponte (03/11/2026) fecha a parte: na última linha, ao lado do atalho da árvore (os dois da paisagem).
-  { titulo: 'Rua e jardim', tipos: ['cerca', 'sebe', 'jardineira', 'vaso', 'arcoDoPortao', 'placaDeSeta', 'poco', 'chafariz', 'lampiao', 'fogueira', 'fogo', 'ponte'] },
-  // O cemitério (07/11/2026): a lápide sai da rua para ficar com a cova e os caixões, em dois pares.
-  { titulo: 'Cemitério', tipos: ['lapide', 'cova', 'caixao', 'caixaoAberto'] },
-  // O cata-vento de brinquedo (02/11/2026) é de feira: fecha o par com o quadro de avisos.
-  { titulo: 'Feira', tipos: ['barraca', 'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo'] },
-  // A oficina do ferreiro (29/10/2026): a fornalha e a bigorna lado a lado, o balde de água da têmpera embaixo.
-  { titulo: 'Oficina', tipos: ['fornalha', 'bigorna', 'balde'] },
-  // A fazenda (29/10/2026): os troncos e o feno lado a lado, para o estábulo, o celeiro e o quintal.
-  // O cata-vento que puxa água e o moinho (02/11/2026), o vento da fazenda, no par de baixo.
-  { titulo: 'Fazenda', tipos: ['troncos', 'feno', 'cataVento', 'moinho'] },
-]
+export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = partesDoObjeto(TIPOS_NO_CATALOGO).map(
+  ({ titulo, tipos }) => ({ titulo, tipos }),
+)
 
 /** A parte do menu que termina com o atalho da árvore. */
 export const PARTE_COM_O_ATALHO_DA_ARVORE = 'Rua e jardim'

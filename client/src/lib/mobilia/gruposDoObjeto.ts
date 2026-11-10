@@ -1,0 +1,166 @@
+import type { TipoMobilia } from './tipos'
+
+/**
+ * OS GRUPOS DO OBJETO (pedido do mestre de 10/11/2026: "organizar essa parte",
+ * a grade comprida da ficha da ferramenta Objeto). Um lugar só para os dois
+ * caminhos até a mesma escolha: a ficha (`components/livro/EscolhaDoObjeto.tsx`)
+ * e o cantinho da barra (`PARTES_DO_MENU_DE_OBJETO` em `lib/toolVariants.ts`,
+ * que sai daqui).
+ *
+ * PEÇA NOVA NO CATÁLOGO: uma linha em `GRUPO_DO_OBJETO` (`tipo: 'idDoGrupo'`),
+ * no bloco do grupo dela. A ordem das linhas é a ordem da peça dentro do grupo.
+ * Sem a linha ela não some: cai em "Outros" (`GRUPO_PADRAO`), no fim, na ordem
+ * do catálogo. Grupo sem peça não aparece em lugar nenhum ("Destroços e sucata"
+ * e "Esporte e lazer" já estão previstos e esperam as peças deles).
+ *
+ * Só a ARRUMAÇÃO muda: o id de cada tipo (`lib/mobilia/tipos.ts`) é o que o
+ * mapa salvo guarda e continua igual.
+ */
+export const GRUPOS_DE_OBJETO = [
+  { id: 'salaEQuarto', titulo: 'Sala e quarto' },
+  { id: 'cozinhaEBanheiro', titulo: 'Cozinha e banheiro' },
+  { id: 'armazenagem', titulo: 'Armazenagem' },
+  { id: 'ruaEJardim', titulo: 'Rua e jardim' },
+  { id: 'cemiterio', titulo: 'Cemitério' },
+  { id: 'feira', titulo: 'Feira' },
+  { id: 'oficina', titulo: 'Oficina' },
+  { id: 'fazenda', titulo: 'Fazenda' },
+  { id: 'destrocosESucata', titulo: 'Destroços e sucata' },
+  { id: 'esporteELazer', titulo: 'Esporte e lazer' },
+  { id: 'outros', titulo: 'Outros' },
+] as const
+
+export type IdDoGrupoDeObjeto = (typeof GRUPOS_DE_OBJETO)[number]['id']
+
+/** Onde cai o tipo do catálogo que ainda não tem linha em `GRUPO_DO_OBJETO`. */
+export const GRUPO_PADRAO: IdDoGrupoDeObjeto = 'outros'
+
+/**
+ * O grupo de cada objeto. "Banheiro" sozinho teria só a privada: vai com a
+ * cozinha (as peças de água da casa). O balde de água fica na oficina, com a
+ * fornalha e a bigorna (a água da têmpera), como já estava no menu.
+ */
+export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeObjeto>>> = {
+  // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira.
+  mesa: 'salaEQuarto',
+  cadeira: 'salaEQuarto',
+  mesaQuadrada: 'salaEQuarto',
+  mesaRedonda: 'salaEQuarto',
+  sofa: 'salaEQuarto',
+  poltrona: 'salaEQuarto',
+  catre: 'salaEQuarto',
+  aparador: 'salaEQuarto',
+  tapete: 'salaEQuarto',
+  tapeteLongo: 'salaEQuarto',
+  lareira: 'salaEQuarto',
+  // Cozinha e banheiro.
+  armario: 'cozinhaEBanheiro',
+  balcao: 'cozinhaEBanheiro',
+  fogao: 'cozinhaEBanheiro',
+  geladeira: 'cozinhaEBanheiro',
+  pia: 'cozinhaEBanheiro',
+  pratos: 'cozinhaEBanheiro',
+  privada: 'cozinhaEBanheiro',
+  // Armazenagem.
+  barril: 'armazenagem',
+  caixa: 'armazenagem',
+  bau: 'armazenagem',
+  // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte).
+  cerca: 'ruaEJardim',
+  sebe: 'ruaEJardim',
+  jardineira: 'ruaEJardim',
+  vaso: 'ruaEJardim',
+  arcoDoPortao: 'ruaEJardim',
+  placaDeSeta: 'ruaEJardim',
+  poco: 'ruaEJardim',
+  chafariz: 'ruaEJardim',
+  lampiao: 'ruaEJardim',
+  fogueira: 'ruaEJardim',
+  fogo: 'ruaEJardim',
+  ponte: 'ruaEJardim',
+  // Cemitério.
+  lapide: 'cemiterio',
+  cova: 'cemiterio',
+  caixao: 'cemiterio',
+  caixaoAberto: 'cemiterio',
+  // Feira.
+  barraca: 'feira',
+  carroca: 'feira',
+  quadroDeAvisos: 'feira',
+  cataVentoBrinquedo: 'feira',
+  // Oficina.
+  fornalha: 'oficina',
+  bigorna: 'oficina',
+  balde: 'oficina',
+  // Fazenda.
+  troncos: 'fazenda',
+  feno: 'fazenda',
+  cataVento: 'fazenda',
+  moinho: 'fazenda',
+  // Destroços e sucata: (as sucatas de metal e os destroços de madeira entram aqui)
+  // Esporte e lazer: (o campinho de futebol entra aqui)
+}
+
+export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {
+  return GRUPO_DO_OBJETO[tipo] ?? GRUPO_PADRAO
+}
+
+export interface ParteDoObjeto {
+  readonly id: IdDoGrupoDeObjeto
+  readonly titulo: string
+  readonly tipos: readonly TipoMobilia[]
+}
+
+/** A ordem das linhas de `GRUPO_DO_OBJETO`, que é a ordem dentro de cada grupo. */
+const ORDEM_NO_GRUPO: ReadonlyMap<string, number> = new Map(Object.keys(GRUPO_DO_OBJETO).map((tipo, indice) => [tipo, indice]))
+
+/**
+ * O catálogo em grupos, na ordem de `GRUPOS_DE_OBJETO`, só os que têm peça.
+ * Cada tipo do catálogo cai em exatamente um grupo; quem não tem linha vai
+ * para "Outros", no fim, na ordem do catálogo.
+ */
+export function partesDoObjeto(catalogo: readonly TipoMobilia[]): ParteDoObjeto[] {
+  const porGrupo = new Map<IdDoGrupoDeObjeto, TipoMobilia[]>()
+  for (const tipo of catalogo) {
+    const grupo = grupoDoObjeto(tipo)
+    const lista = porGrupo.get(grupo) ?? []
+    lista.push(tipo)
+    porGrupo.set(grupo, lista)
+  }
+  const fimDaLista = ORDEM_NO_GRUPO.size
+  const ordem = (tipo: TipoMobilia) => ORDEM_NO_GRUPO.get(tipo) ?? fimDaLista
+  return GRUPOS_DE_OBJETO.flatMap((grupo) => {
+    const tipos = porGrupo.get(grupo.id)
+    if (tipos === undefined) return []
+    // `sort` é estável: os sem linha ficam na ordem do catálogo, depois dos com linha.
+    return [{ id: grupo.id, titulo: grupo.titulo, tipos: [...tipos].sort((a, b) => ordem(a) - ordem(b)) }]
+  })
+}
+
+const MARCA_DE_ACENTO = /\p{M}/gu
+
+/** Sem acento, minúsculo e com os espaços juntados: "armario" acha "Armário de cozinha". */
+export function nomeParaBusca(texto: string): string {
+  return texto.normalize('NFD').replace(MARCA_DE_ACENTO, '').toLowerCase().replace(/\s+/gu, ' ').trim()
+}
+
+/**
+ * O que a busca da ficha acha, na ordem em que o Enter escolhe: primeiro os
+ * nomes que COMEÇAM com o que foi digitado (ou têm uma palavra que começa),
+ * depois os que só o contêm, e por fim os do grupo cujo título casa ("cozinha"
+ * traz o fogão). Dentro de cada leva, a ordem de quem chamou.
+ */
+export function acharObjetos<T extends { readonly rotulo: string; readonly grupo: string }>(itens: readonly T[], consulta: string): T[] {
+  const alvo = nomeParaBusca(consulta)
+  if (alvo === '') return [...itens]
+  const comeco: T[] = []
+  const meio: T[] = []
+  const doGrupo: T[] = []
+  for (const item of itens) {
+    const nome = nomeParaBusca(item.rotulo)
+    if (nome.startsWith(alvo) || nome.includes(` ${alvo}`)) comeco.push(item)
+    else if (nome.includes(alvo)) meio.push(item)
+    else if (nomeParaBusca(item.grupo).includes(alvo)) doGrupo.push(item)
+  }
+  return [...comeco, ...meio, ...doGrupo]
+}
