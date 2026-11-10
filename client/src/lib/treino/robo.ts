@@ -16,13 +16,13 @@ import {
   type PedidoDeReacao,
   type SeloPedido,
 } from '../batalha/combate'
-import type { ContextoDaFormula } from '../batalha/formula'
+import { lerDano, type ContextoDaFormula } from '../batalha/formula'
 import { armasDe, type ArmaDaFicha } from '../batalha/leituraDaFicha'
 import { danoDaTecnicaComAVida } from '../batalha/leituraDaTecnica'
 import { lerMarca, type ComoMarca } from '../batalha/marca'
 import { formaDecididaPeloMestre } from '../batalha/mecanica/formaDoMestre'
 import { cartaoMontado, pecasDoCartao, seloDasPecas } from '../batalha/mecanica/leitura'
-import { limpezaDe } from '../batalha/mecanicasAMao'
+import { formulaDaCura, limpezaDe } from '../batalha/mecanicasAMao'
 import { passivasDe, passivasLigadas, type PassivaNaTira } from '../batalha/passivas'
 import type { VezEsperada } from '../batalha/ponte'
 import { ehLembreteDaPreparacao } from '../batalha/preparacao'
@@ -57,7 +57,8 @@ import { equipesDasVagas, type VagaDaLuta } from './mesaEmMemoria'
  *     técnica que cura (`limpezaDe`: a Bolha, o Revigorar, a Medicina): cura
  *     o mais ferido. A cura que custa o golpe da vez (Ação Simples ou
  *     Completa) sai nas rodadas ímpares, ou em qualquer uma com o ferido
- *     abaixo de 30%;
+ *     abaixo de 30%, e só se devolve pelo menos 5% da vida máxima dele (a
+ *     cura pequena e sem limite não toma o lugar do golpe para sempre);
  *  2. FORMA: a transformação desligada que ele pode ativar, com a ação da
  *     ficha. Ficam de fora a que troca outra forma ligada do mesmo grupo e a
  *     que o mestre decide os números (no site não há mestre para decidir);
@@ -124,6 +125,8 @@ const VIDA_QUE_PEDE_CURA = 0.6
 const VIDA_CRITICA = 0.3
 /** Quantos feridos cada cura tenta, do mais ferido ao menos (o segundo, se a regra recusar o primeiro). */
 const ALVOS_DA_CURA_MAX = 2
+/** A cura que custa o golpe da vez tem de devolver pelo menos esta parte (5%) da vida máxima do ferido: abaixo disso, bater vale mais. */
+const CURA_QUE_VALE_O_GOLPE = 0.05
 /** A técnica em recarga vale a espera concentrando quando dá pelo menos isto vezes o melhor golpe de agora. */
 const VANTAGEM_PARA_ESPERAR = 2
 
@@ -414,10 +417,34 @@ function tecnicasDeApoio(vez: VezDoRobo): readonly TecnicaNoMenu[] {
 }
 
 /**
+ * Quanto a técnica cura agora, pela conta da regra (`formulaDaCura` com a
+ * carga de agora, lida por `lerDano` como a store lê). `null` = a conta não
+ * fecha (a regra recusa o pedido sem cobrar) ou a técnica não diz.
+ */
+function quantoCura(tecnica: TecnicaNoMenu, vez: VezDoRobo): number | null {
+  const limpeza = limpezaDe(tecnica.cartao)
+  if (limpeza === null) return null
+  const lida = lerDano(formulaDaCura(limpeza, vez.combate?.carga ?? 0), { personagem: vez.personagem, sistema: vez.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: vez.bonus })
+  return lida.tipo === 'valor' ? lida.valor : lida.tipo === 'semDano' ? 0 : null
+}
+
+/**
+ * A cura paga o golpe que ela custa? Só quando devolve pelo menos
+ * `CURA_QUE_VALE_O_GOLPE` da vida máxima do ferido. Sem isso, o robô com uma
+ * cura pequena e sem limite gastava todas as vezes num colega que não saía do
+ * vermelho e nunca batia (fase final, risco 1: de 73% para 6% de vitória).
+ * Sem número lido, decide a regra (ela recusa a conta que não fecha).
+ */
+function curaValeOGolpe(quanto: number | null, ferido: Lutador): boolean {
+  return quanto === null || ferido.vida === null || quanto >= ferido.vida.maximo * CURA_QUE_VALE_O_GOLPE
+}
+
+/**
  * As curas: cada técnica que cura, nos feridos do lado dele (abaixo de
  * `VIDA_QUE_PEDE_CURA`), do mais ferido ao menos. A que só vale "em si" (a
  * montada), só nele. A que custa o golpe da vez: nas rodadas de preparo, ou
- * com o ferido abaixo de `VIDA_CRITICA`.
+ * com o ferido abaixo de `VIDA_CRITICA`, e só se devolve vida que pague o
+ * golpe (`curaValeOGolpe`).
  */
 function curas(vez: VezDoRobo): PedidoDeAcao[] {
   const { personagem, sistema, carta } = vez
@@ -427,9 +454,15 @@ function curas(vez: VezDoRobo): PedidoDeAcao[] {
   const lista: PedidoDeAcao[] = []
   for (const tecnica of tecnicasDeApoio(vez)) {
     if (!utilizavel(tecnica, personagem, sistema) || papelDaTecnica(tecnica) !== 'cura') continue
+    const quanto = quantoCura(tecnica, vez)
+    // A cura que a conta diz que não devolve nada não vale nem a ação livre.
+    if (quanto !== null && quanto <= 0) continue
     const soEmMim = pecasDoCartao(tecnica.cartao)?.alvo.quem === 'si'
-    const semPerderOGolpe = preparo || !custaOGolpe(tecnica.acao)
-    const alvos = feridos.filter((ferido) => (!soEmMim || ferido.vaga.tokenId === carta.tokenId) && (semPerderOGolpe || ferido.proporcao < VIDA_CRITICA))
+    const pesa = custaOGolpe(tecnica.acao)
+    const semPerderOGolpe = preparo || !pesa
+    const alvos = feridos.filter(
+      (ferido) => (!soEmMim || ferido.vaga.tokenId === carta.tokenId) && (semPerderOGolpe || ferido.proporcao < VIDA_CRITICA) && (!pesa || curaValeOGolpe(quanto, ferido)),
+    )
     for (const alvo of alvos.slice(0, ALVOS_DA_CURA_MAX)) lista.push(pedidoDaTecnica(tecnica, sistema, null, [{ tokenId: alvo.vaga.tokenId, dano: null }], false))
   }
   return lista
