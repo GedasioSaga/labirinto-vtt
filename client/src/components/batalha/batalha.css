@@ -129,6 +129,35 @@
     opacity 220ms var(--lb-gr-ease-out),
     transform 220ms var(--lb-gr-ease-out);
 }
+/*
+ * D8: a faixa da ordem na linguagem do combate: a pedra e uma sombra de
+ * sangue curta, as duas RASGADAS (camadas atrás do conteúdo; a faixa em si
+ * não é recortada: o Registro e o menu da carta saem dela).
+ */
+.bt-faixa {
+  isolation: isolate;
+  background: none;
+  box-shadow: none;
+}
+.bt-faixa::before,
+.bt-faixa::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.bt-faixa::before {
+  z-index: -1;
+  background: var(--lb-color-stone);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-panel);
+  clip-path: var(--bt-rasgo-caixa);
+}
+.bt-faixa::after {
+  z-index: -2;
+  background: var(--bt-sangue);
+  clip-path: var(--bt-rasgo-caixa2);
+  transform: translate(5px, 5px);
+}
 /* A batalha começou: a faixa entra uma vez, de leve, de cima. */
 @starting-style {
   .bt-faixa {

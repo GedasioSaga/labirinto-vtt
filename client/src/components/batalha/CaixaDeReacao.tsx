@@ -277,17 +277,22 @@ function UmaReacao({
               <button ref={primeiro} type="button" className="bt-botao bt-botao--batalha" disabled={esperando} onClick={() => pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador, ...comDado })}>
                 {esperando ? 'Rolando…' : dado === null ? 'Rolar 1d20' : 'Rolar 2d20'}
               </button>
-              <label className="bt-mod" htmlFor={idDoDado}>
-                Dado
-                <select id={idDoDado} value={dado ?? ''} disabled={esperando} onChange={(evento) => setDado(VANTAGENS_DO_DADO.find((modo) => modo === evento.target.value) ?? null)}>
-                  <option value="">Normal: 1 dado</option>
+              {/* D8: o dado em chips (nada de seletor nativo branco), como a mira. */}
+              <fieldset id={idDoDado} className="bt-escolha bt-reacao__dado" disabled={esperando}>
+                <legend>Dado</legend>
+                <div className="bt-escolha__chips">
+                  <label className="bt-escolha__chip">
+                    <input type="radio" className="bt-sr" name={`${idDoDado}-modo`} checked={dado === null} onChange={() => setDado(null)} />
+                    Normal: 1 dado
+                  </label>
                   {VANTAGENS_DO_DADO.map((modo) => (
-                    <option key={modo} value={modo}>
+                    <label key={modo} className="bt-escolha__chip">
+                      <input type="radio" className="bt-sr" name={`${idDoDado}-modo`} checked={dado === modo} onChange={() => setDado(modo)} />
                       {ROTULO_DO_DADO[modo]}
-                    </option>
+                    </label>
                   ))}
-                </select>
-              </label>
+                </div>
+              </fieldset>
               <label className="bt-mod">
                 Modificador
                 <input

@@ -44,7 +44,7 @@ function mulberry32(semente: number): () => number {
 }
 
 /** A borda rasgada da tira (protótipo `rasgo`): pontos aleatórios em volta, com a mesma semente. */
-function rasgo(semente: number, amplitude = 4): string {
+export function rasgo(semente: number, amplitude = 4): string {
   const r = mulberry32(semente)
   const n = 28
   const pontos: string[] = []
@@ -55,7 +55,7 @@ function rasgo(semente: number, amplitude = 4): string {
   return `polygon(${pontos.join(',')})`
 }
 
-function sementeDe(texto: string): number {
+export function sementeDe(texto: string): number {
   let h = 2166136261
   for (let i = 0; i < texto.length; i += 1) h = Math.imul(h ^ texto.charCodeAt(i), 16777619)
   return h >>> 0

@@ -361,7 +361,8 @@ export function MenuDaVez(props: MenuDaVezProps) {
           // A sugestão do NPC: o alvo dela só vale no golpe sugerido; nos outros, a regra de sempre.
           alvoInicial={props.sugestao !== undefined && props.sugestao.chave === tela.golpe.chave ? (props.sugestao.alvoTokenId ?? undefined) : undefined}
           confirmaOutroLado={props.doMestre === true}
-          focoAoAbrir={porTeclado}
+          // D2/D8: o foco entra na mira sempre (o Enter lança, o Esc volta), não só quando abriu pelo teclado.
+          focoAoAbrir={podeTomarOFoco()}
           onVoltar={() => abrir({ tipo: 'lista', de: tela.de }, true)}
           onLancar={(escolha) => lancar(tela.golpe, escolha)}
         />

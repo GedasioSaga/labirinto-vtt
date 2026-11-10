@@ -1,4 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
+import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
+import { rasgo, sementeDe } from './ListaDeTecnicas'
 import {
   ALVOS_MAX,
   CUSTO_MAX,
@@ -220,6 +222,27 @@ const NOTA_DA_REACAO = 'O alvo rola 1d20 para reagir: 10+ defende (metade), 15+ 
 const NOTA_DO_BUFF = 'Buff: ninguém reage. O selo pega em todos que você marcar.'
 const NOTA_DO_DEBUFF_SEM_DANO = 'O alvo rola 1d20 para reagir: se esquivar ou contra-atacar, o selo não pega.'
 
+/**
+ * D8 (decisão 3): os alvos que fazem sentido, à vista por padrão (o resto
+ * atrás de "mostrar todos"): no ataque, o outro lado de pé; na ajuda, o lado
+ * de quem usa (na cura, só os feridos; sem a vida à mão, conta como ferido).
+ */
+function fazSentido(golpe: GolpeNaTela, alvo: AlvoNaMira, ajuda: boolean): boolean {
+  if (alvo.motivo) return false
+  if (ajuda) return alvo.lado !== 'outro' && (golpe.cura !== true || alvo.ferido !== false)
+  return alvo.lado === 'outro' && !alvo.caiu
+}
+
+/** D8: o lado do alvo em palavra ("você", "aliado", "outro lado"). */
+function textoDoLado(alvo: AlvoNaMira, doMestre: boolean): string {
+  if (alvo.lado === 'eu') return doMestre ? 'quem usa' : 'você'
+  return alvo.lado === 'aliado' ? 'aliado' : 'outro lado'
+}
+
+/** D8: a mira cabe na tela: a altura até o fundo da janela (ou do menu que a cerca), com esta folga. */
+const FOLGA_DA_MIRA = 12
+const MIRA_ALTURA_MIN = 260
+
 function primeiroAlvo(alvos: readonly AlvoNaMira[]): string | null {
   const validos = alvos.filter((alvo) => !alvo.motivo)
   return (validos.find((alvo) => alvo.lado === 'outro' && !alvo.caiu) ?? validos.find((alvo) => !alvo.caiu))?.tokenId ?? null
@@ -344,6 +367,33 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const balaEscolhida = balaId === null ? null : (balas.find((bala) => bala.id === balaId) ?? null)
   const danoAtual = balaEscolhida?.dano ?? danoDaOpcao
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
+  // D8: os ajustes finos (Dano base, Calcular, o dano de cada alvo, Surpresa, Perfurante) atrás do "Ajustar".
+  const [ajustando, setAjustando] = useState(false)
+  // D8: por padrão só os alvos que fazem sentido; o resto atrás de "Mostrar todos".
+  const [mostrarTodos, setMostrarTodos] = useState(false)
+  // D8: a mira cabe na tela: o corpo rola por dentro e o pé (Lançar, Voltar) fica sempre à vista.
+  const forma = useRef<HTMLFormElement>(null)
+  useLayoutEffect(() => {
+    const el = forma.current
+    if (el === null) return
+    const medir = () => {
+      const topo = el.getBoundingClientRect().top
+      let fundo = window.innerHeight
+      // O menu que cerca a mira tem teto de altura (e rola): a mira não passa dele.
+      for (let pai = el.parentElement; pai !== null; pai = pai.parentElement) {
+        const teto = Number.parseFloat(window.getComputedStyle(pai).maxHeight)
+        if (Number.isFinite(teto)) fundo = Math.min(fundo, pai.getBoundingClientRect().top + teto)
+      }
+      el.style.maxHeight = `${Math.max(MIRA_ALTURA_MIN, Math.floor(fundo - topo - FOLGA_DA_MIRA))}px`
+    }
+    medir()
+    window.addEventListener('resize', medir)
+    return () => window.removeEventListener('resize', medir)
+  }, [])
+  const estiloDoRasgo = useMemo(() => {
+    const semente = sementeDe(golpe.chave)
+    return { '--rasgo': rasgo(semente, 6), '--rasgo2': rasgo(semente + 7, 7) } as CSSProperties
+  }, [golpe.chave])
   // A calculadora do Dano base: abre no lugar, "Usar este valor" põe o número no campo.
   const [calculando, setCalculando] = useState(false)
   const campoDaBase = useRef<HTMLInputElement>(null)
@@ -377,7 +427,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   useEffect(() => {
     if (!focoAoAbrir) return
     const marcada = marcados[0] === undefined ? undefined : caixas.current.get(marcados[0])
-    const primeira = marcada ?? lista.map((alvo) => caixas.current.get(alvo.tokenId)).find((caixa) => caixa !== undefined && !caixa.disabled)
+    const primeira = marcada ?? visiveis.map((alvo) => caixas.current.get(alvo.tokenId)).find((caixa) => caixa !== undefined && !caixa.disabled)
     primeira?.focus({ preventScroll: true })
     // Só ao abrir: marcar e desmarcar depois não puxa o foco.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -486,6 +536,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
     })
     if (saiu !== true) setErro(typeof saiu === 'string' ? saiu : 'O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
+    else tocarSomDoCombate('confirmar')
   }
 
   const teclar = (evento: KeyboardEvent<HTMLFormElement>) => {
@@ -499,9 +550,12 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     const alvo = evento.target instanceof HTMLInputElement && evento.target.type === 'checkbox' ? evento.target.dataset.alvo : undefined
     if (alvo === undefined || (evento.key !== 'ArrowDown' && evento.key !== 'ArrowUp')) return
     evento.preventDefault()
-    const i = lista.findIndex((candidato) => candidato.tokenId === alvo)
-    const proximo = lista[(i + (evento.key === 'ArrowDown' ? 1 : -1) + lista.length) % lista.length]
-    if (proximo !== undefined) caixas.current.get(proximo.tokenId)?.focus()
+    const i = visiveis.findIndex((candidato) => candidato.tokenId === alvo)
+    const proximo = visiveis[(i + (evento.key === 'ArrowDown' ? 1 : -1) + visiveis.length) % visiveis.length]
+    if (proximo !== undefined) {
+      caixas.current.get(proximo.tokenId)?.focus()
+      tocarSomDoCombate('mover')
+    }
   }
 
   /**
@@ -572,14 +626,24 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const areaNaGrade = areaDaGrade(golpe, alvos)
   const verbo = rotuloDoLancar ?? 'Lançar'
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
+  // D8: com a área ou sem alvo, todos à vista (a área marca pela grade). O marcado nunca some da lista.
+  const filtra = !mostrarTodos && golpe.area === undefined && golpe.semAlvo !== true
+  const visiveis = filtra ? lista.filter((alvo) => marcadosSet.has(alvo.tokenId) || fazSentido(golpe, alvo, ajuda)) : lista
+  const escondidos = lista.length - visiveis.length
+  // O Dano base que não fecha (fórmula, campo vazio) abre os ajustes: é ali que se digita.
+  const ajustesAbertos = !semDano && (ajustando || base === null)
 
   return (
     <>
-      <form className="bt-mira bt-papel" onSubmit={lancar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
-        <p className="bt-mira__rot">{contra ? 'Contra-ataque · mira' : 'Mira'}</p>
-        <h3 className="bt-mira__nome" id={`${idBase}-nome`}>
-          {golpe.nome}
-        </h3>
+      <form ref={forma} className="bt-mira bt-papel" style={estiloDoRasgo} onSubmit={lancar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
+        {/* D8: a cabeça é uma tira em tinta (a linguagem do menu); o corpo rola por dentro; o pé fica sempre à vista. */}
+        <div className="bt-mira__cabeca">
+          <p className="bt-mira__rot">{contra ? 'Contra-ataque · mira' : 'Mira'}</p>
+          <h3 className="bt-mira__nome" id={`${idBase}-nome`}>
+            {golpe.nome}
+          </h3>
+        </div>
+        <div className="bt-mira__corpo">
         {(golpe.categoria !== undefined || golpe.capacidade !== undefined) && (
           <p className="bt-mira__arma">
             {golpe.categoria !== undefined && <span className="bt-etq bt-etq--categoria">{golpe.categoria}</span>}
@@ -639,7 +703,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             ))}
           </fieldset>
         )}
-        {!semDano && (
+        {ajustesAbertos && (
           <div className="bt-linha-campo">
             <label className="bt-linha-campo">
               <span>Dano base</span>
@@ -661,7 +725,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             </small>
           </div>
         )}
-        {!semDano && calculando && (
+        {ajustesAbertos && calculando && (
           <CalculadoraDeDano
             id={`${idBase}-calc`}
             inicial={baseTexto}
@@ -688,7 +752,10 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
                   : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
           </legend>
-          {lista.map((alvo) => {
+          {visiveis.length === 0 && lista.length > 0 && (
+            <p className="bt-mira__nota">{ajuda ? (golpe.cura === true ? 'Ninguém do seu lado está ferido.' : 'Ninguém do seu lado à vista.') : 'Nenhum inimigo de pé à vista.'}</p>
+          )}
+          {visiveis.map((alvo) => {
             const marcado = marcadosSet.has(alvo.tokenId)
             const baseDoAlvo = marcado ? baseDe(alvo.tokenId) : null
             const conta = baseDoAlvo === null ? null : contaDoGolpe(baseDoAlvo, carga, comSurpresa && golpe.semSurpresa !== true, golpe.multiplicadores)
@@ -712,19 +779,29 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 />
                 <label className="bt-alvo__nome" htmlFor={`${idBase}-${alvo.tokenId}`}>
                   <MiniaturaDoAlvo imagem={alvo.imagem} nome={alvo.nome} cor={alvo.cor} caiu={alvo.caiu} />
+                  {/* D8: o cartaz do alvo: o nome, o lado e a vida (quando quem olha vê). */}
                   <span className="bt-alvo__texto">
-                    {alvo.nome} {alvo.lado !== 'outro' ? <small>{alvo.lado === 'eu' ? (confirmaOutroLado ? '· quem usa' : '· você') : '· aliado'}</small> : confirmaOutroLado && <small>· outro lado</small>}
-                    {golpe.cura === true && alvo.vida !== undefined && (
-                      <small>
-                        {' '}
-                        · vida {formatarNumero(alvo.vida.atual)}/{formatarNumero(alvo.vida.maximo)}
+                    <span className="bt-alvo__quem">{alvo.nome}</span>
+                    <span className="bt-alvo__tags">
+                      <small className="bt-alvo__lado" data-lado={alvo.lado}>
+                        {textoDoLado(alvo, confirmaOutroLado)}
                       </small>
+                      {alvo.caiu && <small className="bt-alvo__caiu">caído</small>}
+                      {alvo.motivo && <small>{alvo.motivo}</small>}
+                      {alvo.vida !== undefined && (
+                        <small className="bt-alvo__vida-texto">
+                          vida {formatarNumero(alvo.vida.atual)}/{formatarNumero(alvo.vida.maximo)}
+                        </small>
+                      )}
+                    </span>
+                    {alvo.vida !== undefined && alvo.vida.maximo > 0 && (
+                      <span className="bt-alvo__vida" aria-hidden="true">
+                        <span style={{ transform: `scaleX(${Math.max(0, Math.min(1, alvo.vida.atual / alvo.vida.maximo)).toFixed(3)})` }} />
+                      </span>
                     )}
-                    {alvo.caiu && <small> · caiu</small>}
-                    {alvo.motivo && <small> · {alvo.motivo}</small>}
                   </span>
                 </label>
-                {marcado && !semDano ? (
+                {marcado && !semDano && ajustesAbertos ? (
                   <span className="bt-alvo__dano">
                     <input
                       className="bt-num"
@@ -779,6 +856,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
               </div>
             )
           })}
+          {(escondidos > 0 || mostrarTodos) && (
+            <button type="button" className="bt-botao bt-botao--p bt-mira__todos" aria-pressed={mostrarTodos} onClick={() => setMostrarTodos(!mostrarTodos)}>
+              {mostrarTodos ? 'Só os que fazem sentido' : `Mostrar todos (+${escondidos})`}
+            </button>
+          )}
         </fieldset>
         {golpe.custo.tipo === 'pergunta' && (
           <label className="bt-linha-campo">
@@ -787,20 +869,21 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             <small className="bt-mira__nota">A ficha diz: {golpe.custo.texto}</small>
           </label>
         )}
+        {/* D8: sem seletor nativo branco: a Ação vira chips, como a área e as opções. */}
         {golpe.acao === null && (
-          <label className="bt-linha-campo">
-            <span>Ação</span>
-            <select value={acao} onChange={(evento) => setAcao(evento.target.value as AcaoDaTecnica | '')}>
-              <option value="">A ficha não diz: escolha</option>
+          <fieldset className="bt-escolha">
+            <legend>Ação · a ficha não diz: escolha</legend>
+            <div className="bt-escolha__chips">
               {ACOES_PERGUNTADAS.map((opcao) => (
-                <option key={opcao} value={opcao}>
+                <label key={opcao} className="bt-escolha__chip">
+                  <input type="radio" className="bt-sr" name={`${idBase}-acao`} checked={acao === opcao} onChange={() => setAcao(opcao)} />
                   {textoDaAcao(opcao)}
-                </option>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </fieldset>
         )}
-        {!semDano && (
+        {ajustesAbertos && (
           <div className="bt-npc__chaves">
             {!contra && (
               <label className="bt-chave">
@@ -904,7 +987,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           </div>
         )}
         <p className="bt-mira__nota">{notaDaReacao(golpe, semReacao, semDano)}</p>
-        {/* O pé (o motivo da recusa e o Lançar) fica à vista quando a mira alta rola dentro do menu do centro. */}
+        </div>
+        {/* D8: o pé fica preso embaixo (o corpo rola): a recusa com o motivo, Lançar, Ajustar e Voltar sempre na tela. */}
         <div className="bt-mira__pe">
           {erro !== null && (
             <p className="bt-mira__erro" role="alert">
@@ -915,6 +999,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             <button type="submit" className="bt-botao bt-botao--batalha">
               {textoDoLancar} <kbd>Enter</kbd>
             </button>
+            {!semDano && (
+              <button type="button" className="bt-botao" aria-expanded={ajustesAbertos} disabled={base === null} title={base === null ? 'Digite o Dano base: a ficha não dá um número' : undefined} onClick={() => setAjustando(!ajustando)}>
+                {ajustesAbertos ? 'Fechar ajustes' : 'Ajustar'}
+              </button>
+            )}
             {mapa !== undefined && (
               <button type="button" className="bt-botao" aria-pressed={mapa.ligado} onClick={() => mapa.onTrocar(!mapa.ligado)}>
                 {mapa.ligado ? 'Clique na ficha no mapa…' : 'Escolher no mapa'}
