@@ -29,7 +29,8 @@ import type { TravelLogSectionProps } from './TravelLogSection'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
 import { EscolherFichaDeTeste, RetratoDaFicha, useUltimo, type AberturaDaEscolha } from './EscolherFichaDeTeste'
-import { EscolherTokenParaAtribuir, gruposDeAtribuir, nomesDeAtribuir } from './AtribuirToken'
+import { AvisoDeCliqueNoMapa, EscolherTokenParaAtribuir, gruposDeAtribuir, nomesDeAtribuir } from './AtribuirToken'
+import { usePaginaAVista } from './livro/paginaAVista'
 import { abrirDestaqueNoMapa, esperarTokenNoMapa, type DestaqueNoMapa } from '../stores/destaqueNoMapa'
 import { tokenFillColor } from '../lib/tokenColor'
 import { Botao } from './grimorio/Botao'
@@ -578,6 +579,19 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
     }
   }, [esperaNoMapa, aoClicarNoMapaRef])
 
+  // O card deixou de poder escolher (a página do Grupo saiu da vista, o livro
+  // recolheu, ou não sobrou ficha para dar): a lista fecha, o mapa volta ao que
+  // era e a espera do clique desarma. Escondida, ela daria a este jogador o
+  // próximo token que o mestre clicasse.
+  const aVista = usePaginaAVista()
+  const podeEscolher = aVista && list.length > 0
+  useEffect(() => {
+    if (podeEscolher) return
+    fecharLista()
+    setEsperaNoMapa(false)
+    // `fecharLista` só mexe em refs e no estado da lista: a do render em que o card deixou de poder escolher serve.
+  }, [podeEscolher])
+
   // Sem ficha nenhuma para dar, a lista seria um controle que não faz nada: quem espera lê o porquê.
   if (list.length === 0) return waiting ? <p className="lb-player__note">{NO_TOKENS_HINT}</p> : null
 
@@ -652,6 +666,8 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
           {aviso}
         </p>
       )}
+      {/* Fora do card, sobre o mapa: o mestre vê de quem é o próximo token clicado mesmo com o card longe. */}
+      {esperaNoMapa && <AvisoDeCliqueNoMapa jogador={player.name} />}
       {escolha !== null && !esperaNoMapa && (
         <EscolherTokenParaAtribuir
           id={escolhaId}

@@ -15,6 +15,7 @@ import {
 } from './EscolherFichaDeTeste'
 import { CursorIcon, EnterIcon, SearchIcon } from './icons'
 import type { RoomPanelToken } from './RoomPanel'
+import { MAPA_DO_EDITOR, PRAZO_DA_ESPERA_MS } from '../stores/destaqueNoMapa'
 import './AtribuirToken.css'
 
 /**
@@ -209,8 +210,8 @@ export function EscolherTokenParaAtribuir({ grupos, jogador, ancora, abertura, i
   const indiceAtivo = ativa === undefined ? -1 : linhas.indexOf(ativa)
   const idDaLinha = (tokenId: string) => `${listaId}-${tokenId}`
   const idDaAtiva = ativa === undefined ? undefined : idDaLinha(ativa.token.id)
-  // Uma cena só não precisa de título: o título existe para separar as cenas.
-  const comTitulos = grupos.length > 1
+  // Só "Nesta cena" sozinha dispensa o título: ele separa as cenas e diz o nome da que não está aberta.
+  const variasCenas = grupos.length > 1
   const temTokenNestaCena = grupos.some((grupo) => grupo.cena === null)
 
   // O foco nasce na busca.
@@ -403,6 +404,7 @@ export function EscolherTokenParaAtribuir({ grupos, jogador, ancora, abertura, i
           {achados.map((grupo) => {
             const titulo = grupo.cena ?? NESTA_CENA
             const tituloId = `${listaId}-cena-${grupo.cena ?? ''}`
+            const comTitulos = variasCenas || grupo.cena !== null
             return (
               <div key={grupo.cena ?? ''} className="lb-atribuir__grupo" role="group" aria-labelledby={comTitulos ? tituloId : undefined}>
                 {comTitulos && (
@@ -483,5 +485,28 @@ export function EscolherTokenParaAtribuir({ grupos, jogador, ancora, abertura, i
       </div>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * O AVISO SOBRE O MAPA enquanto um card espera o clique num token: o card pode
+ * estar longe do ponteiro ou rolado para fora da página, e o mestre precisa ver
+ * no mapa que o próximo token clicado tem dono. A linha de baixo encolhe até o
+ * prazo em que a espera desiste sozinha.
+ *
+ * Só para os olhos: o leitor de tela lê a faixa do próprio card, que tem o
+ * Cancelar. Os cliques atravessam o aviso (o token embaixo dele continua clicável).
+ */
+export function AvisoDeCliqueNoMapa({ jogador }: { jogador: string }) {
+  return createPortal(
+    <div className="lb-atribuir__aviso" aria-hidden="true">
+      <CursorIcon size={14} />
+      <span className="lb-atribuir__aviso-texto">
+        Clique no token de <b>{jogador}</b> no mapa
+      </span>
+      <span className="lb-atribuir__aviso-esc">· Esc cancela</span>
+      <span className="lb-atribuir__aviso-prazo" style={{ animationDuration: `${PRAZO_DA_ESPERA_MS}ms` }} />
+    </div>,
+    document.querySelector(MAPA_DO_EDITOR) ?? document.body,
   )
 }

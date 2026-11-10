@@ -179,6 +179,13 @@ describe('RoomPanel: atribuir ficha — livres primeiro, de qualquer cena, sem t
     expect(titulos).toEqual(['Nesta cena', 'Biblioteca'])
   })
 
+  it('só há ficha em OUTRA cena: o grupo único continua com o nome da cena no título', () => {
+    render([GINA], [{ id: 'tok-livro', name: 'Livro', sceneName: 'Biblioteca' }])
+    linhasDaLista('Gina')
+    const titulos = Array.from(document.body.querySelectorAll('.lb-atribuir__cena-nome')).map((el) => el.textContent)
+    expect(titulos).toEqual(['Biblioteca'])
+  })
+
   it('quatro "Alce" na cena: cada um tem o seu número, e buscar "alce 3" com Enter atribui o terceiro', () => {
     const alces: RoomPanelToken[] = ['a', 'b', 'c', 'd'].map((letra) => ({ id: `tok-alce-${letra}`, name: 'Alce', npc: true }))
     const tokens: RoomPanelToken[] = [...alces.slice(0, 2), { id: 'tok-urso', name: 'Urso', npc: true }, ...alces.slice(2)]

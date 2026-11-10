@@ -165,9 +165,103 @@
   }
 }
 
+/* ------------------------------------------------ o aviso sobre o mapa */
+
+/* Enquanto um card espera o clique: sobre o mapa, no meio do que sobra entre
+   os dois livros (a mesma conta do pé do editor, main.css `.lb-editor__base`)
+   e com a mesma chapa do aviso de colocar invocação da batalha. Os cliques
+   atravessam: o token que estiver embaixo dele continua clicável. */
+.lb-atribuir__aviso {
+  position: absolute;
+  /* Acima da barra de ferramentas em duas fileiras e do balão de dica da
+     ferramenta, que ficam no pé: a 28px do pé o aviso nascia atrás da barra. */
+  bottom: 184px;
+  left: calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  right: calc(var(--lb-coldir-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  width: fit-content;
+  margin-inline: auto;
+  padding: 8px 14px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-sm);
+  background: rgba(20, 18, 16, 0.92);
+  box-shadow: inset 0 0 0 1px var(--lb-color-brass-soft), var(--lb-shadow-float);
+  color: var(--lb-color-parchment);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  transition:
+    opacity var(--lb-motion-base) var(--lb-motion-ease),
+    transform var(--lb-motion-base) var(--lb-motion-ease);
+}
+
+@starting-style {
+  .lb-atribuir__aviso {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.lb-atribuir__aviso > svg {
+  flex: none;
+  color: var(--lb-color-brass-bright);
+}
+
+/* Nome comprido de jogador encolhe com reticências; o "Esc cancela" nunca some. */
+.lb-atribuir__aviso-texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-atribuir__aviso-texto b {
+  color: var(--lb-color-brass-bright);
+}
+
+.lb-atribuir__aviso-esc {
+  flex: none;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O prazo da espera: a linha encolhe até ele (a duração vem do componente, é o mesmo número do prazo). */
+.lb-atribuir__aviso-prazo {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--lb-color-brass);
+  transform-origin: left;
+  animation: lb-atribuir-prazo linear forwards;
+}
+
+@keyframes lb-atribuir-prazo {
+  to {
+    transform: scaleX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lb-atribuir__campo:active,
   .lb-atribuir__no-mapa:active {
     transform: none;
+  }
+
+  /* Sem movimento: o aviso só aparece (opacidade) e a linha do prazo não corre. */
+  .lb-atribuir__aviso {
+    transition: opacity var(--lb-motion-base) ease;
+  }
+
+  .lb-atribuir__aviso-prazo {
+    display: none;
+  }
+
+  @starting-style {
+    .lb-atribuir__aviso {
+      transform: none;
+    }
   }
 }

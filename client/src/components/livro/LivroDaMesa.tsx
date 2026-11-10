@@ -7,6 +7,7 @@ import { Botao } from '../grimorio/Botao'
 import { Marcadores, type PaginaDoMarcador } from '../grimorio/Marcador'
 import { classes } from '../grimorio/comum'
 import { entrarFolha } from './LivroDoMestre'
+import { PaginaAVistaProvider, usePaginaAVista } from './paginaAVista'
 import { PaginaSons } from './PaginaSons'
 import type { PausaDosNpcs } from './TopoDaSala'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
@@ -134,11 +135,15 @@ const PAGINAS: readonly { id: PaginaDaMesa; rotulo: string; icone: NomeDoIcone }
 /** As páginas que existem sem sala: as Cenas, a Batalha (o mapa solto também luta) e os Sons (o som local não depende de sala). */
 const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'batalha', 'sons'])
 
-/** Uma página do livro da mesa: todas ficam montadas (o rascunho do chat e o filtro das Cenas sobrevivem) e só a aberta fica à vista. */
+/**
+ * Uma página do livro da mesa: todas ficam montadas (o rascunho do chat e o filtro das Cenas sobrevivem) e só a aberta fica à vista.
+ * O que está dentro lê `usePaginaAVista` para saber se está na tela: a página aberta, com o livro sem recolher.
+ */
 function FolhaDaMesa({ pagina, aberta, id, cheia = false, children }: { pagina: PaginaDaMesa; aberta: boolean; id?: string; cheia?: boolean; children: ReactNode }) {
+  const livroAVista = usePaginaAVista()
   return (
     <div className={classes('gr-folha', cheia && 'gr-folha--cheia')} data-pagina={pagina} id={id} hidden={!aberta}>
-      {cheia ? children : <div className="gr-folha__rolo lb-scroll">{children}</div>}
+      <PaginaAVistaProvider value={aberta && livroAVista}>{cheia ? children : <div className="gr-folha__rolo lb-scroll">{children}</div>}</PaginaAVistaProvider>
     </div>
   )
 }
@@ -286,35 +291,38 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
         <div className="gr-pagina" id={comSala ? 'lb-rail-panel-room' : undefined}>
           {comSala && <div className="gr-pagina__topo">{topo}</div>}
           <div ref={corpo} className="gr-pagina__corpo" id={corpoId} role="tabpanel" aria-label="Página aberta">
-            {comSala && (
-              <>
-                <FolhaDaMesa pagina="grupo" aberta={pagina === 'grupo'}>
-                  {grupo}
-                </FolhaDaMesa>
-                <FolhaDaMesa pagina="chat" aberta={pagina === 'chat'} id="lb-rail-panel-chat" cheia>
-                  {chat}
-                </FolhaDaMesa>
-              </>
-            )}
-            <FolhaDaMesa pagina="cenas" aberta={pagina === 'cenas'}>
-              {/* `div` com papel de região, e não `section`: as jornadas acham seções pela tag. */}
-              <div className="lb-cenas-pagina" role="region" aria-label="Cenas">
-                {cenas}
-              </div>
-            </FolhaDaMesa>
-            {/* BATALHA F2 (5.1): página própria, sempre montada (o Shift+B mora no `ControleDaBatalha` dentro dela). */}
-            <FolhaDaMesa pagina="batalha" aberta={pagina === 'batalha'}>
-              {batalha}
-            </FolhaDaMesa>
-            {comSala && (
-              <FolhaDaMesa pagina="mesa" aberta={pagina === 'mesa'}>
-                {mesa}
+            {/* Recolhido, nenhuma página está à vista (o trilho fica `inert`): cada folha soma a isto se é a aberta. */}
+            <PaginaAVistaProvider value={!recolhido}>
+              {comSala && (
+                <>
+                  <FolhaDaMesa pagina="grupo" aberta={pagina === 'grupo'}>
+                    {grupo}
+                  </FolhaDaMesa>
+                  <FolhaDaMesa pagina="chat" aberta={pagina === 'chat'} id="lb-rail-panel-chat" cheia>
+                    {chat}
+                  </FolhaDaMesa>
+                </>
+              )}
+              <FolhaDaMesa pagina="cenas" aberta={pagina === 'cenas'}>
+                {/* `div` com papel de região, e não `section`: as jornadas acham seções pela tag. */}
+                <div className="lb-cenas-pagina" role="region" aria-label="Cenas">
+                  {cenas}
+                </div>
               </FolhaDaMesa>
-            )}
-            {/* Sempre montada, com e sem sala: liga a biblioteca à aventura e ouve as teclas 1 a 9 com qualquer página à vista. */}
-            <FolhaDaMesa pagina="sons" aberta={pagina === 'sons'}>
-              <PaginaSons />
-            </FolhaDaMesa>
+              {/* BATALHA F2 (5.1): página própria, sempre montada (o Shift+B mora no `ControleDaBatalha` dentro dela). */}
+              <FolhaDaMesa pagina="batalha" aberta={pagina === 'batalha'}>
+                {batalha}
+              </FolhaDaMesa>
+              {comSala && (
+                <FolhaDaMesa pagina="mesa" aberta={pagina === 'mesa'}>
+                  {mesa}
+                </FolhaDaMesa>
+              )}
+              {/* Sempre montada, com e sem sala: liga a biblioteca à aventura e ouve as teclas 1 a 9 com qualquer página à vista. */}
+              <FolhaDaMesa pagina="sons" aberta={pagina === 'sons'}>
+                <PaginaSons />
+              </FolhaDaMesa>
+            </PaginaAVistaProvider>
           </div>
         </div>
       </div>

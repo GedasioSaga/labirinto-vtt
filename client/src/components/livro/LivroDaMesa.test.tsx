@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NO_CHAT_UNREAD, type ChatUnread } from '../MasterChatPanel'
 import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
 import { LivroDaMesa, useLivroDaMesaAberto, type LivroDaMesaProps } from './LivroDaMesa'
+import { usePaginaAVista } from './paginaAVista'
 
 /*
  * O LIVRO DA MESA (fatia 4 do design consolidado): lombada com Grupo, Chat,
@@ -55,6 +56,10 @@ const marcador = (nome: string) => {
   return achado
 }
 const folha = (pagina: string) => container.querySelector<HTMLElement>(`[data-pagina="${pagina}"]`)
+/** O que a página lê de `usePaginaAVista`, escrito na tela. */
+function DizSeEstaAVista() {
+  return <output>{usePaginaAVista() ? 'à vista' : 'escondida'}</output>
+}
 /** Os marcadores do livro: só os da lista dele (a página Sons tem abas próprias, Músicas e Efeitos sonoros). */
 const marcadores = () =>
   [...container.querySelectorAll('[role="tablist"][aria-label="Páginas do livro da mesa"] [role="tab"]')].map((aba) => aba.textContent)
@@ -73,6 +78,19 @@ describe('LivroDaMesa', () => {
     expect(folha('grupo')?.hidden).toBe(true)
     // O topo da Sala fica acima de todas as páginas.
     expect(container.querySelector('.gr-pagina__topo')?.textContent).toBe('topo da sala')
+  })
+
+  it('cada página sabe se está à vista: só a aberta, e nenhuma com o livro recolhido', () => {
+    // Quem arma um modo dentro da página (o "clicar no token no mapa" do Grupo) desarma por aqui quando ela some.
+    const paginas = { grupo: <DizSeEstaAVista />, mesa: <DizSeEstaAVista /> }
+    montar(paginas)
+    expect(folha('grupo')?.textContent).toBe('à vista')
+    expect(folha('mesa')?.textContent).toBe('escondida')
+    act(() => marcador('Mesa').click())
+    expect(folha('grupo')?.textContent).toBe('escondida')
+    expect(folha('mesa')?.textContent).toBe('à vista')
+    montar({ ...paginas, aberto: false })
+    expect(folha('mesa')?.textContent).toBe('escondida')
   })
 
   it('contadores: pedidos no Grupo e não lidas no Chat (com o @ da menção), lidos pelo nome do marcador', () => {

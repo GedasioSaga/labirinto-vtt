@@ -1,13 +1,15 @@
-import { EMPTY_SELECTION, selectionOfItem, selectionSingle, type SelectionSet } from '../lib/selectionModel'
+import { EMPTY_SELECTION, isSelectionEmpty, selectionOfItem, selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 
 /**
  * O seletor "Atribuir token" e o mapa conversam por aqui, sem o canvas saber
  * de nada: o destaque é a SELEÇÃO do editor (o anel que o mestre já conhece) e
- * o "clicar no token no mapa" é ouvir essa mesma seleção mudar.
+ * o "clicar no token no mapa" é ouvir essa mesma seleção mudar DENTRO de um
+ * clique no canvas.
  *
  * Tudo é vista do mestre: o mapa não muda (nada para desfazer) e a rede não
- * manda nada.
+ * manda nada. O que os dois mexem no editor (ferramenta, seleção, pino) volta
+ * a ser o que era quando acabam sem escolha.
  */
 
 export interface DestaqueNoMapa {
@@ -17,9 +19,29 @@ export interface DestaqueNoMapa {
   soltar(): void
 }
 
+/** A seleção que o destaque da lista faz não é clique do mestre: quem espera o clique no mapa a ignora. */
+let peloDestaque = false
+
+function selecionarPeloDestaque(selecao: SelectionSet): void {
+  peloDestaque = true
+  try {
+    useMapStore.getState().setSelection(selecao)
+  } finally {
+    peloDestaque = false
+  }
+}
+
+/** Quem espera o clique agora: chamado quando outro card arma ou quando uma lista abre. */
+let esperaAtual: (() => void) | null = null
+
 /** Guarda a seleção de agora e devolve o controle do destaque enquanto a lista está aberta. */
 export function abrirDestaqueNoMapa(): DestaqueNoMapa {
-  const antes: SelectionSet = useMapStore.getState().selection
+  // Uma lista aberta tira a vez de quem esperava o clique no mapa: apontar uma
+  // linha da lista de um jogador nunca dá o token a outro.
+  esperaAtual?.()
+  const inicio = useMapStore.getState()
+  // Selecionar um token solta o pino e a zona oculta do painel: os dois voltam junto com a seleção.
+  const antes = { selecao: inicio.selection, pino: inicio.selectedPinId, zona: inicio.selectedConcealZoneId }
   let aceso: string | null = null
 
   const voltar = (): void => {
@@ -27,7 +49,11 @@ export function abrirDestaqueNoMapa(): DestaqueNoMapa {
     const store = useMapStore.getState()
     // O mestre selecionou outra coisa no meio do caminho: a escolha dele fica.
     const atual = selectionSingle(store.selection)
-    if (atual?.kind === 'token' && atual.id === aceso) store.setSelection(antes)
+    if (atual?.kind === 'token' && atual.id === aceso) {
+      selecionarPeloDestaque(antes.selecao)
+      if (antes.pino !== null) store.setSelectedPin(antes.pino)
+      else if (antes.zona !== null) store.setSelectedConcealZone(antes.zona)
+    }
     aceso = null
   }
 
@@ -40,40 +66,110 @@ export function abrirDestaqueNoMapa(): DestaqueNoMapa {
         return
       }
       aceso = tokenId
-      store.setSelection(selectionOfItem({ kind: 'token', id: tokenId }))
+      selecionarPeloDestaque(selectionOfItem({ kind: 'token', id: tokenId }))
     },
     soltar: voltar,
   }
 }
 
-/** Quem espera o clique agora: chamado quando outro card arma. */
-let esperaAtual: (() => void) | null = null
+/** A área do mapa no editor (`App.tsx`): o canvas mora nela, e é sobre ela que o aviso da espera aparece. */
+export const MAPA_DO_EDITOR = '.lb-editor__canvas'
+/** Só o aperto que nasce no canvas do mapa é clique no mapa. */
+const CANVAS_DO_MAPA = `${MAPA_DO_EDITOR} canvas`
+
+/**
+ * A espera desiste sozinha depois deste tempo: um modo esquecido ligado não dá
+ * o próximo token que o mestre selecionar a ninguém.
+ */
+export const PRAZO_DA_ESPERA_MS = 30_000
 
 /**
  * "Clicar no token no mapa": arma a ferramenta Selecionar com a seleção vazia
- * e avisa o primeiro token que o mestre clicar. Devolve como desarmar.
+ * e avisa o primeiro token que o mestre CLICAR no mapa. Só o clique conta: a
+ * seleção que muda fora de um aperto no canvas (o destaque de uma lista, outro
+ * painel, um atalho) não escolhe ninguém. Devolve como desarmar.
+ *
  * A seleção começa vazia de propósito: clicar no token que já estava
  * selecionado não mudaria nada, e o clique passaria em branco.
+ *
+ * Acaba de quatro jeitos: o clique (`aoClicar`, e o token clicado fica
+ * selecionado), o desarmar de quem armou, e os três que tiram a vez
+ * (`aoPerderAVez`): outro card armou ou uma lista abriu, o mestre pegou outra
+ * ferramenta, ou o prazo venceu. Sem clique, a ferramenta e a seleção voltam a
+ * ser as de antes.
  */
-export function esperarTokenNoMapa(aoClicar: (tokenId: string) => void, aoPerderAVez: () => void): () => void {
+export function esperarTokenNoMapa(aoClicar: (tokenId: string) => void, aoPerderAVez: () => void, prazoMs: number = PRAZO_DA_ESPERA_MS): () => void {
   // Um card de cada vez espera o clique: o que armou antes perde a vez.
   esperaAtual?.()
-  const store = useMapStore.getState()
-  if (store.activeTool !== 'select') store.setActiveTool('select')
-  store.setSelection(EMPTY_SELECTION)
-  const parar = useMapStore.subscribe((estado, anterior) => {
-    if (estado.selection === anterior.selection) return
-    const unico = selectionSingle(estado.selection)
-    if (unico?.kind === 'token') aoClicar(unico.id)
-  })
+  const inicio = useMapStore.getState()
+  const antes = { ferramenta: inicio.activeTool, selecao: inicio.selection }
+  if (inicio.activeTool !== 'select') inicio.setActiveTool('select')
+  inicio.setSelection(EMPTY_SELECTION)
+
+  let viva = true
+  let gestoNoMapa = false
+  let fimDoGesto: ReturnType<typeof setTimeout> | null = null
+
+  const aoApertar = (evento: PointerEvent): void => {
+    if (fimDoGesto !== null) clearTimeout(fimDoGesto)
+    fimDoGesto = null
+    // Só o botão principal: o direito abre o menu do token, não o escolhe.
+    gestoNoMapa = evento.button === 0 && evento.target instanceof Element && evento.target.matches(CANVAS_DO_MAPA)
+  }
+  const aoSoltar = (): void => {
+    // O editor ainda seleciona ao soltar (o clique que fecha um laço): o gesto acaba depois dele.
+    fimDoGesto = setTimeout(() => {
+      fimDoGesto = null
+      gestoNoMapa = false
+    }, 0)
+  }
+
+  const encerrar = (): void => {
+    viva = false
+    parar()
+    clearTimeout(prazo)
+    if (fimDoGesto !== null) clearTimeout(fimDoGesto)
+    window.removeEventListener('pointerdown', aoApertar, true)
+    window.removeEventListener('pointerup', aoSoltar, true)
+    window.removeEventListener('pointercancel', aoSoltar, true)
+    if (esperaAtual === tirarAVez) esperaAtual = null
+  }
+  const devolver = (): void => {
+    const agora = useMapStore.getState()
+    // O mestre mexeu no meio do caminho (outra ferramenta, outra seleção): a escolha dele fica.
+    if (agora.activeTool !== 'select' || !isSelectionEmpty(agora.selection)) return
+    // A ferramenta antes da seleção: trocar para uma ferramenta que cria limpa a seleção.
+    if (antes.ferramenta !== 'select') agora.setActiveTool(antes.ferramenta)
+    if (!isSelectionEmpty(antes.selecao)) agora.setSelection(antes.selecao)
+  }
+  const desarmar = (): void => {
+    if (!viva) return
+    encerrar()
+    devolver()
+  }
   const tirarAVez = (): void => {
+    if (!viva) return
     desarmar()
     aoPerderAVez()
   }
-  const desarmar = (): void => {
-    parar()
-    if (esperaAtual === tirarAVez) esperaAtual = null
-  }
+
+  const parar = useMapStore.subscribe((estado, anterior) => {
+    // Com outra ferramenta na mão o clique não seleciona token: a espera acabou.
+    if (estado.activeTool !== 'select') {
+      tirarAVez()
+      return
+    }
+    if (peloDestaque || !gestoNoMapa || estado.selection === anterior.selection) return
+    const unico = selectionSingle(estado.selection)
+    if (unico?.kind !== 'token') return
+    // O clique fecha a espera sem devolver nada: o token clicado fica selecionado, e o gesto (talvez um arrasto) segue.
+    encerrar()
+    aoClicar(unico.id)
+  })
+  const prazo = setTimeout(tirarAVez, prazoMs)
+  window.addEventListener('pointerdown', aoApertar, true)
+  window.addEventListener('pointerup', aoSoltar, true)
+  window.addEventListener('pointercancel', aoSoltar, true)
   esperaAtual = tirarAVez
   return desarmar
 }
