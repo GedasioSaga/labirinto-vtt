@@ -96,6 +96,8 @@ import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { createZoomDaRoda } from './zoomDaRoda'
 import { createGlideDaCamera } from './glideDaCamera'
+import { registrarCameraDaBatalha } from './cameraDaBatalha'
+import { registrarFichasDoImpacto } from './impactoNasFichas'
 import { ENDIREITAR_FANTASMA_LABEL, criarFantasmaDoEndireitar, tracosDoEndireitar } from './straightenGhost'
 import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
@@ -3123,6 +3125,8 @@ function PixiCanvasDoContexto({
       // Ficha na mão, anel da vez e passo do jogador animam no relógio do Pixi
       // — e só enquanto alguma coisa anima (tokensRenderer.ts).
       const tokensRenderer = createTokensRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      // D4 da batalha: o recuo e o tombo da ficha atingida (`impactoNasFichas.ts`).
+      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, app.ticker)
       const fantasmaRenderer = createFantasmaDeTesteRenderer(fantasmaDeTesteContainer, { ticker: app.ticker, reducedMotion: prefersReducedMotion })
       redrawFantasmaRef.current = redrawFantasma
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
@@ -3497,6 +3501,21 @@ function PixiCanvasDoContexto({
         },
         zoom: zoomDaRoda,
         ticker: app.ticker,
+      })
+      // D7 da batalha (`cameraDaBatalha.ts`): a ficha da vez fora da tela ou na borda vem para a vista, sem zoom.
+      // Seguindo um jogador, o mestre não é puxado.
+      const soltarCameraDaBatalha = registrarCameraDaBatalha({
+        pontoDaFicha: (tokenId) => {
+          const ficha = tokensRenderer.involucroDe?.(tokenId) ?? null
+          return ficha === null || ficha.destroyed ? null : ficha.getGlobalPosition()
+        },
+        camera: () => camera,
+        tela: () => ({ width: app.screen.width, height: app.screen.height }),
+        irPara: (alvo) => {
+          if (useFollowStore.getState().playerId !== null) return
+          if (prefersReducedMotion()) applyCamera(alvo, 'pedido')
+          else glideDaCamera.deslizar(alvo)
+        },
       })
       const syncLabelsToScale = umaVezPorQuadro(() => {
         const { scale } = useMapStore.getState().camera
@@ -9298,6 +9317,8 @@ function PixiCanvasDoContexto({
         app.ticker.remove(tickMapaDeLuz)
         mapaDeLuz.destruir()
         tokensRenderer.cancelarAnimacoes()
+        soltarImpactoDasFichas()
+        soltarCameraDaBatalha()
         animadorDePortas.cancelar()
         fantasmaRenderer.desmontar()
         redrawFantasmaRef.current = null

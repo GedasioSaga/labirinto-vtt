@@ -96,6 +96,8 @@ import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
 import { createJudgeDoMapa, type JudgeDoMapa } from '../pixi/judgeDoMapa'
+import { registrarCameraDaBatalha } from '../pixi/cameraDaBatalha'
+import { registrarFichasDoImpacto } from '../pixi/impactoNasFichas'
 import type { JudgeNaCena } from '../lib/batalha/judge'
 import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } from '../pixi/drawPropLooks'
 import { buildFloorMask } from '../pixi/floorMask'
@@ -4325,6 +4327,24 @@ function PlayerViewDoCanvas({
       // BATALHA F1: o anel da vez. Sem vez, sai na primeira linha; com vez parada, só confere o relógio da batida.
       const tickAnelDaVez = () => passoDoAnelDaVez(scene, performance.now())
       app.ticker.add(tickAnelDaVez)
+      // D4 e D7 da batalha: o recuo e o tombo da ficha atingida; a ficha da vez fora da tela ou na borda vem para a vista.
+      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => scene.tokenViews.get(tokenId)?.wrapper ?? null, app.ticker)
+      const soltarCameraDaBatalha = registrarCameraDaBatalha({
+        pontoDaFicha: (tokenId) => {
+          const ficha = scene.tokenViews.get(tokenId)?.wrapper ?? null
+          return ficha === null || ficha.destroyed ? null : ficha.getGlobalPosition()
+        },
+        camera: () => scene.camera,
+        tela: () => ({ width: app.screen.width, height: app.screen.height }),
+        irPara: (alvo) => {
+          if (prefersReducedMotion()) {
+            setCameraFromApp(scene, alvo)
+            return
+          }
+          scene.zoomAnimation = null
+          scene.cameraGlide = startCameraGlide(scene.camera, alvo, performance.now())
+        },
+      })
 
       // PORTA POR CIMA DO TELHADO: enquanto um telhado desbota, as portas dele
       // são refeitas a cada quadro, e mais um quadro depois do fim — o telhado
@@ -4992,6 +5012,8 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickCameraGlide)
         app.ticker.remove(tickZoomLayers)
         app.ticker.remove(tickAnelDaVez)
+        soltarImpactoDasFichas()
+        soltarCameraDaBatalha()
         app.ticker.remove(tickPortasNoTelhado)
         app.ticker.remove(tickEdgeScroll)
         app.ticker.remove(tickSignals)

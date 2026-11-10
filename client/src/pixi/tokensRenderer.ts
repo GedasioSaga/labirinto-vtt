@@ -235,6 +235,8 @@ export interface TokensRenderer {
   levantar: (tokenId: string | null) => void
   /** Desmonte: sai do relógio de quadros e esquece toda animação em curso. */
   cancelarAnimacoes: () => void
+  /** D4 da batalha (`pixi/impactoNasFichas.ts`): o invólucro desenhado da ficha, para o recuo e o tombo. */
+  involucroDe?: (tokenId: string) => Container | null
 }
 
 /** Escala do wrapper indo de `from` a `to` (levantar e assentar). */
@@ -1109,5 +1111,5 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     return changedLabels
   }
 
-  return { draw, setCameraScale, levantar, cancelarAnimacoes }
+  return { draw, setCameraScale, levantar, cancelarAnimacoes, involucroDe: (tokenId) => cache.get(tokenId)?.wrapper ?? null }
 }

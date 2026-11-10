@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EfeitoDaBatalha, NumeroDaForma, SaidaDaReacao } from '../../lib/batalha/combate'
 import { saidasPossiveis } from '../../lib/batalha/reacao'
 import { ehRefDeMidia, type ResolverDeImagem } from '../../lib/midia'
+import { trazerFichaDaVez } from '../../pixi/cameraDaBatalha'
+import { levantarFicha, levantarTodas, recuarFicha, tombarFicha } from '../../pixi/impactoNasFichas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
 import { anuncioDoEfeito, formatarNumero, movimentoReduzido, palavraDoDano, TEXTO_DA_SAIDA } from './dadosDoMenu'
 import type { ConsultaDaFicha } from './MiraDoGolpe'
@@ -69,6 +71,17 @@ export interface EfeitosDaBatalhaProps {
   /** O palco mudou: quem monta esconde o menu da vez (e o véu) enquanto não é `null`. */
   onPalco?: (palco: PalcoDosEfeitos) => void
   className?: string
+  /**
+   * D4: a vida da ficha (já com o dano), para o impacto do tamanho do golpe e
+   * a queda. Ausente ou `null` = o tremor do meio (7 px) e sem tombo.
+   */
+  vidaDe?: (tokenId: string) => { atual: number; maximo: number } | null
+  /**
+   * D7: a câmera traz a ficha da vez para a vista (só fora da tela ou na
+   * borda, sem zoom). Ausente = a escolha guardada neste computador
+   * (`cameraDaBatalhaLigada`, ligada por padrão); `false` = nunca.
+   */
+  cameraSegue?: boolean
 }
 
 /**
@@ -221,7 +234,7 @@ function texto(pai: HTMLElement, classe: string, conteudo: string, tag: 'span' |
   return el
 }
 
-export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onTremor, onPalco, className }: EfeitosDaBatalhaProps) {
+export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onTremor, onPalco, className, vidaDe, cameraSegue }: EfeitosDaBatalhaProps) {
   const camada = useRef<HTMLDivElement>(null)
   const palco = useRef<Palco | null>(null)
   const fila = useRef<Tarefa[]>([])
@@ -237,8 +250,10 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
   const [anuncio, setAnuncio] = useState('')
   const resolver = useImagemDaMesa()
   // As props mudam a cada render; o motor lê sempre as de agora.
-  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor, onPalco, resolver })
-  atuais.current = { consulta, nomeDe, imagemDe, onTremor, onPalco, resolver }
+  const atuais = useRef({ consulta, nomeDe, imagemDe, onTremor, onPalco, resolver, vidaDe, cameraSegue })
+  atuais.current = { consulta, nomeDe, imagemDe, onTremor, onPalco, resolver, vidaDe, cameraSegue }
+  /** D4: quem bateu por último (o recuo do alvo vai para longe dele). */
+  const ultimoAtacante = useRef<string | null>(null)
 
   /**
    * O palco de agora: o corte e a faixa sobem a camada por cima de tudo e pegam
@@ -327,8 +342,13 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
 
   const tocar = async (motor: Palco, tarefa: Tarefa) => {
     const reduzido = movimentoReduzido()
-    const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer, resolver: resolverImagem } = atuais.current
+    const { consulta: consultar, nomeDe: nome, imagemDe: imagem, onTremor: tremer, resolver: resolverImagem, vidaDe: vidaDaFicha, cameraSegue: cameraLigada } = atuais.current
     if (tarefa.tipo === 'vez') {
+      if (tarefa.tokenId !== null) {
+        // D4: quem tem a vez está de pé. D7: a ficha da vez fora da tela ou na borda vem para a vista (decisão 6).
+        levantarFicha(tarefa.tokenId)
+        if (cameraLigada !== false) trazerFichaDaVez(tarefa.tokenId)
+      }
       // C9: a foto de quem tem a vez no círculo da faixa (a forma ligada vence, como no corte).
       const foto = tarefa.tokenId === null ? null : srcDaImagem(resolverImagem, imagem(tarefa.tokenId))
       return tocarFaixa(motor, tarefa.nome, tarefa.tokenId === null ? undefined : foto, tarefa.minha, reduzido, tarefa.curta ? TEMPOS_DA_VEZ_SEGUIDA : TEMPOS_DO_PALCO)
@@ -341,6 +361,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
       return tocarTransformacao(motor, nome(efeito.tokenId), retrato, efeito.forma, efeito.numeros ?? [], reduzido)
     }
     if (efeito.tipo === 'golpe') {
+      ultimoAtacante.current = efeito.atacanteTokenId
       const retrato = srcDaImagem(resolverImagem, imagem(efeito.atacanteTokenId))
       await tocarCorte(motor, nome(efeito.atacanteTokenId), retrato, efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
       if (!reduzido) await Promise.all(efeito.alvos.map((tokenId) => tocarRisco(motor, motor.posicao(consultar, tokenId))))
@@ -352,7 +373,17 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     if (efeito.tipo === 'forma') return tocarAviso(motor, onde, `${efeito.forma} desfeito`, 'forma', reduzido)
     if (efeito.tipo === 'selo') return tocarAviso(motor, onde, `${efeito.nome} acabou`, 'selo', reduzido)
     if (efeito.tipo === 'reacao') return tocarDado(motor, onde, efeito.d20, efeito.modificador, efeito.total, reduzido)
-    if (efeito.valor > 0 && !reduzido) tremer?.()
+    if (efeito.valor > 0) {
+      // D4: o impacto do tamanho do golpe. Tremor de 3, 7 ou 12 px; a ficha pisca (~90 ms) e recua ~10 px para longe
+      // de quem bateu (volta em ~180 ms); a que caiu tomba 12° em 320 ms e fica esmaecida.
+      const vida = vidaDaFicha?.(efeito.tokenId) ?? null
+      forcaDoTremor = forcaDoTremorPeloDano(vida !== null && vida.maximo > 0 ? efeito.valor / vida.maximo : null)
+      if (!reduzido) tremer?.()
+      const deQuem = ultimoAtacante.current === null ? null : motor.posicao(consultar, ultimoAtacante.current)
+      void piscarFicha(motor, onde, reduzido)
+      recuarFicha(efeito.tokenId, deQuem === null ? null : { x: onde.x - deQuem.x, y: onde.y - deQuem.y }, reduzido)
+      if (vida !== null && vida.atual <= 0) tombarFicha(efeito.tokenId, reduzido)
+    }
     return tocarNumero(motor, onde, efeito.valor, efeito.saida, reduzido)
   }
 
@@ -360,6 +391,8 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
   useEffect(() => {
     if (efeitos.length === 0) {
       ultimoSeq.current = -1
+      // D4: sem batalha, ninguém fica tombado no mapa.
+      levantarTodas()
       return
     }
     if (ultimoSeq.current === null) {
@@ -600,6 +633,18 @@ async function tocarNumero(motor: Palco, onde: { x: number; y: number; raio: num
   el.remove()
 }
 
+/** D4: a ficha atingida pisca: um clarão de papel sobre o disco, acende em ~25 ms e apaga até os 90 ms (só opacity). */
+const CLARAO_MS = 90
+async function piscarFicha(motor: Palco, onde: { x: number; y: number; raio: number }, reduzido: boolean) {
+  const el = motor.criar('bt-ef-clarao')
+  const diametro = Math.max(24, onde.raio * 2.4)
+  el.style.width = `${diametro}px`
+  el.style.height = `${diametro}px`
+  el.style.transform = `translate(${onde.x - diametro / 2}px, ${onde.y - diametro / 2}px)`
+  await motor.animar(el, [{ opacity: 0 }, { opacity: reduzido ? 0.5 : 0.9, offset: 0.28 }, { opacity: 0 }], { duration: CLARAO_MS, easing: 'linear' })
+  el.remove()
+}
+
 function filho(pai: HTMLElement, classe: string): HTMLElement {
   const el = document.createElement('div')
   el.className = classe
@@ -751,10 +796,28 @@ async function tocarAviso(motor: Palco, onde: { x: number; y: number; raio: numb
   el.remove()
 }
 
-/** O tremor de 220 ms no invólucro do mapa (quem monta chama no `onTremor`). Movimento reduzido: nada. */
-export function tremer(elemento: HTMLElement | null) {
+/**
+ * D4: a força do próximo tremor, em px, pelo tamanho do golpe (até 10% da vida
+ * do alvo: 3; até 30%: 7; acima: 12). Os efeitos escrevem logo antes de chamar
+ * o `onTremor`, e o `tremer` de quem monta lê daqui sem mudar de assinatura.
+ */
+const TREMOR_LEVE = 3
+const TREMOR_MEDIO = 7
+const TREMOR_FORTE = 12
+let forcaDoTremor = TREMOR_MEDIO
+
+/** D4: o tremor pelo dano, em fração da vida máxima do alvo (`null` = sem a vida à mão: o do meio). */
+export function forcaDoTremorPeloDano(fracao: number | null): number {
+  if (fracao === null) return TREMOR_MEDIO
+  return fracao <= 0.1 ? TREMOR_LEVE : fracao <= 0.3 ? TREMOR_MEDIO : TREMOR_FORTE
+}
+
+/** O tremor de 220 ms no invólucro do mapa (quem monta chama no `onTremor`), do tamanho do golpe (D4). Movimento reduzido: nada. */
+export function tremer(elemento: HTMLElement | null, px: number = forcaDoTremor) {
   if (elemento === null || movimentoReduzido()) return
-  elemento.animate([{ transform: 'translate(0, 0)' }, { transform: 'translate(7px, -4px)' }, { transform: 'translate(-6px, 4px)' }, { transform: 'translate(4px, -2px)' }, { transform: 'translate(-2px, 1px)' }, { transform: 'translate(0, 0)' }], {
+  const k = px / TREMOR_MEDIO
+  const passo = (x: number, y: number) => ({ transform: `translate(${(x * k).toFixed(1)}px, ${(y * k).toFixed(1)}px)` })
+  elemento.animate([passo(0, 0), passo(7, -4), passo(-6, 4), passo(4, -2), passo(-2, 1), passo(0, 0)], {
     duration: 220,
     easing: 'linear',
   })
