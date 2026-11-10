@@ -21,6 +21,7 @@ import {
 import type { ParedeDoPasso } from '../lib/batalha/blocos'
 import type { EfeitoDaBatalha, GolpeDaBatalha } from '../lib/batalha/combate'
 import { recursoDoEscudo } from '../lib/batalha/leituraDaFicha'
+import { esquecerCopiaDaFicha, registrarCopiaDaFicha } from '../lib/batalha/mecanicasAMao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { passoEmBatalha } from '../lib/batalha/movimentoEmBatalha'
 import { REGISTRO_MAX, type LinhaDoRegistro } from '../lib/batalha/registro'
@@ -194,6 +195,8 @@ function encerrarALuta(): void {
   pararOBoneco()
   nomesDosGolpes.clear()
   batalhaDaArena.getState().desligar(CENA_DA_ARENA)
+  // U5: as cópias desta luta saem do registro de origem (as mecânicas presas à ficha, `ficha:<id>`).
+  for (const copiaId of Object.keys(useArenaStore.getState().sessao?.origemDe ?? {})) esquecerCopiaDaFicha(copiaId)
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -231,6 +234,9 @@ export const useArenaStore = create<ArenaState>()((set, get) => {
     const personagens = naGrade.map((ficha) => ficha.personagem)
 
     encerrarALuta()
+    // U5: cada cópia diz de qual ficha veio, ANTES de ligar: a regra presa à ficha (a esquiva normal da Ryoko, a pergunta da
+    // arma do Siegfried) vale na cópia desde a primeira vez.
+    for (const copia of copias) registrarCopiaDaFicha(copia.personagem.id, copia.origem)
     // A sessão vem ANTES de ligar: a ordem pela Agilidade lê as cópias pela mesa da arena.
     set({
       sessao: {

@@ -1094,15 +1094,58 @@ export function gastaACarga(cartao: ChaveDaMecanica | null): boolean {
 }
 
 /**
+ * U5 (plano de 10/11): de qual ficha cada CÓPIA veio (id da cópia → id da
+ * ficha de verdade). A Arena de Testes e o treino do site lutam com cópias de
+ * id novo (`copiaDaFicha`, a mesa em memória do treino), e a linha presa à
+ * ficha (`ficha:<id>`: a esquiva normal da Ryoko, a pergunta da arma do
+ * Siegfried) era procurada pelo id da cópia: sumia. Quem cria a cópia registra
+ * a origem (`registrarCopiaDaFicha`); `chavesDoDono` monta a chave com ela.
+ * Com teto: quem esquecer de `esquecerCopiaDaFicha` não enche a memória (o
+ * servidor do treino fica de pé por muito tempo).
+ */
+const origemDasCopias = new Map<string, string>()
+/** U5: quantas cópias o registro guarda; passou, a mais antiga sai. Uma luta usa poucas dezenas. */
+export const COPIAS_REGISTRADAS_MAX = 2_000
+
+/**
+ * U5: `copiaId` é cópia da ficha `origemId`: as mecânicas presas à ficha de
+ * origem valem na cópia. Cópia de cópia aponta para a primeira origem. Chamar
+ * de novo com a mesma cópia troca a origem. Quem cria a cópia chama (a Arena:
+ * `arenaStore`; o treino do site: a mesa em memória).
+ */
+export function registrarCopiaDaFicha(copiaId: string, origemId: string): void {
+  const origem = origemDaFicha(origemId)
+  if (origem === copiaId) return
+  origemDasCopias.delete(copiaId)
+  origemDasCopias.set(copiaId, origem)
+  // O Map guarda a ordem de entrada: a primeira chave é a mais antiga.
+  for (const antiga of origemDasCopias.keys()) {
+    if (origemDasCopias.size <= COPIAS_REGISTRADAS_MAX) break
+    origemDasCopias.delete(antiga)
+  }
+}
+
+/** U5: a cópia saiu (a luta acabou): a chave dela volta a ser a do próprio id. */
+export function esquecerCopiaDaFicha(copiaId: string): void {
+  origemDasCopias.delete(copiaId)
+}
+
+/** U5: o id da ficha de verdade de `personagemId`: a origem registrada da cópia, ou o próprio id (a ficha não é cópia). */
+export function origemDaFicha(personagemId: string): string {
+  return origemDasCopias.get(personagemId) ?? personagemId
+}
+
+/**
  * F2 (fatia E): as chaves da tabela que valem para o dono: os ids dos cartões
  * da ficha (todas as abas), a da raça (`raca:ogro`, sem acento nem caixa) e a
  * da ficha (`ficha:<id>`). Quem lê "os cartões do dono" (as perguntas de todo
- * golpe, o Atacar melhorado) passa por aqui.
+ * golpe, o Atacar melhorado) passa por aqui. U5: a chave da ficha usa o id da
+ * ficha de ORIGEM (`origemDaFicha`), para valer nas cópias da Arena e do treino.
  */
 export function chavesDoDono(personagem: Pick<Personagem, 'id' | 'abas' | 'escolhas'>): string[] {
   const cartoes = Object.values(personagem.abas).flatMap((lista) => lista.map((cartao) => cartao.id))
   const raca = normalizar(personagem.escolhas.raca ?? '').trim()
-  return [...cartoes, ...(raca.length === 0 ? [] : [`${CHAVE_DA_RACA}${raca}`]), `${CHAVE_DA_FICHA}${personagem.id}`]
+  return [...cartoes, ...(raca.length === 0 ? [] : [`${CHAVE_DA_RACA}${raca}`]), `${CHAVE_DA_FICHA}${origemDaFicha(personagem.id)}`]
 }
 
 /** F2 (fatia E): a raça do dono na tabela (a primeira chave com `raca`); `null` = a raça não faz nada no app. */
