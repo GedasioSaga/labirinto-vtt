@@ -79,6 +79,7 @@ export const mesaDaAventura: MesaDaBatalha = {
   equipes: () => equipesAtivas(useAdventureStore.getState()),
   ajustarPersonagem: (personagemId, ajustar) => useAdventureStore.getState().ajustarPersonagem(personagemId, ajustar),
   trocarEquipe: (personagemId, equipeId) => useAdventureStore.getState().trocarEquipe(personagemId, equipeId),
+  salvarEquipes: (equipes) => useAdventureStore.getState().salvarEquipes(equipes),
 
   criarInvocado: (sceneKey, personagem, token) => {
     const aventura = useAdventureStore.getState()

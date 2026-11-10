@@ -89,7 +89,8 @@ export function equipeDe(personagemId: string, equipes: readonly Equipe[] | unde
  *  - nenhuma equipe cadastrada: todo personagem de tipo "jogador" é aliado (a
  *    equipe implícita: colega vê colega, como antes das equipes);
  *  - com equipes: os membros de tipo "jogador" das equipes dele. Sem equipe =
- *    sem aliados.
+ *    sem aliados; com a equipe automática na lista, o jogador sem equipe conta
+ *    como dela (`equipesNaLeitura`).
  * Nunca entra NPC, nem os próprios personagens.
  */
 export function aliadosDe(meusPersonagens: ReadonlySet<string>, equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): Set<string> {
@@ -99,7 +100,7 @@ export function aliadosDe(meusPersonagens: ReadonlySet<string>, equipes: readonl
     for (const id of jogadores) if (!meusPersonagens.has(id)) aliados.add(id)
     return aliados
   }
-  for (const equipe of equipes) {
+  for (const equipe of equipesNaLeitura(equipes, personagens)) {
     if (!equipe.membros.some((id) => meusPersonagens.has(id))) continue
     for (const id of equipe.membros) if (jogadores.has(id) && !meusPersonagens.has(id)) aliados.add(id)
   }
@@ -124,7 +125,8 @@ export interface LadosDaBatalha {
  * recusa:
  *  - o invocado conta como o dono (a ficha temporária não tem equipe);
  *  - com equipes cadastradas: a equipe dele. O JOGADOR sem equipe fica sem
- *    lado; o NPC sem equipe fica no lado padrão dos NPCs (conserto de 09/11:
+ *    lado (com a equipe automática na lista, o lado dele é ela:
+ *    `equipesNaLeitura`); o NPC sem equipe fica no lado padrão dos NPCs (conserto de 09/11:
  *    com o Tree na equipe dos jogadores, os Ursos sem equipe deixavam de ser
  *    aliados entre si);
  *  - sem equipes: o tipo (os jogadores de um lado, os NPCs do outro).
@@ -137,7 +139,7 @@ export function ladoNaBatalha(personagemId: string | null, mesa: LadosDaBatalha)
   const quemDaOLado = doInvocado === undefined ? personagemId : doInvocado.donoPersonagemId
   const tipo = mesa.personagens.find((personagem) => personagem.id === quemDaOLado)?.tipo
   if (mesa.equipes !== undefined && mesa.equipes.length > 0) {
-    const equipe = equipeDe(quemDaOLado, mesa.equipes)
+    const equipe = equipeDe(quemDaOLado, equipesNaLeitura(mesa.equipes, mesa.personagens))
     if (equipe !== null) return equipe.id
     return tipo === 'npc' ? LADO_DOS_NPCS : null
   }
@@ -162,22 +164,74 @@ export type LadoDoNpc = 'jogadores' | 'contra'
 /** O nome e a cor da equipe criada quando o mestre põe o primeiro NPC do lado dos jogadores e nenhuma equipe tem jogador. */
 export const NOME_DA_EQUIPE_DOS_JOGADORES = 'Jogadores'
 export const COR_DA_EQUIPE_DOS_JOGADORES = '#3f7fbf'
+/**
+ * O id FIXO da equipe automática, que é a marca dela (segunda auditoria,
+ * 09/11/2026, achado 2): separa a equipe que o app criou das que o mestre fez
+ * em "Equipes", sem campo novo no arquivo. Só ela tem as duas regras abaixo
+ * (`equipesNaLeitura`, `semEquipeAutomaticaVazia`); as do mestre seguem como eram.
+ */
+export const ID_DA_EQUIPE_DOS_JOGADORES = 'equipe_dos_jogadores'
 
-/** A equipe dos jogadores: a que tem mais personagens de tipo "jogador" (empate: a primeira). `null` = nenhuma equipe tem jogador. */
-export function equipeDosJogadores(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): Equipe | null {
-  const jogadores = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
-  let melhor: { equipe: Equipe; quantos: number } | null = null
-  for (const equipe of equipes ?? []) {
-    const quantos = equipe.membros.filter((id) => jogadores.has(id)).length
-    if (quantos > 0 && (melhor === null || quantos > melhor.quantos)) melhor = { equipe, quantos }
-  }
-  return melhor?.equipe ?? null
+export function ehEquipeAutomatica(equipe: Equipe): boolean {
+  return equipe.id === ID_DA_EQUIPE_DOS_JOGADORES
 }
 
-/** O lado do NPC para a tela: "jogadores" quando a equipe dele tem jogador; senão "contra" (o padrão). */
+/** A equipe automática como nasce: os jogadores de agora (os que chegarem depois entram pela leitura, `equipesNaLeitura`). */
+export function equipeAutomatica(personagens: readonly Personagem[]): Equipe {
+  const jogadores = personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id)
+  return { id: ID_DA_EQUIPE_DOS_JOGADORES, nome: NOME_DA_EQUIPE_DOS_JOGADORES, cor: COR_DA_EQUIPE_DOS_JOGADORES, membros: jogadores }
+}
+
+/**
+ * A regra de LEITURA da equipe automática: todo personagem de tipo jogador sem
+ * equipe conta como membro dela. A lista gravada só tem os jogadores do dia em
+ * que ela nasceu; o jogador criado depois ficava sem equipe, os colegas
+ * deixavam de ver a vida dele e a cura de jogador nele era recusada. Vale na
+ * leitura para não depender de regravar a lista a cada ficha nova.
+ * Sem equipe automática, devolve a MESMA lista (as equipes do mestre valem como antes).
+ */
+export function equipesNaLeitura(equipes: readonly Equipe[], personagens: readonly Personagem[]): readonly Equipe[] {
+  if (!equipes.some(ehEquipeAutomatica)) return equipes
+  const comEquipe = new Set(equipes.flatMap((equipe) => equipe.membros))
+  const soltos = personagens.filter((personagem) => personagem.tipo === 'jogador' && !comEquipe.has(personagem.id)).map((personagem) => personagem.id)
+  if (soltos.length === 0) return equipes
+  return equipes.map((equipe) => (ehEquipeAutomatica(equipe) ? { ...equipe, membros: [...equipe.membros, ...soltos] } : equipe))
+}
+
+/**
+ * A equipe automática some quando o último NPC sai dela: sem NPC ela só repete
+ * a regra de sempre (jogador é aliado de jogador) e ficava esquecida na pasta.
+ * Nada para tirar = a MESMA lista.
+ */
+export function semEquipeAutomaticaVazia(equipes: readonly Equipe[], personagens: readonly Personagem[]): readonly Equipe[] {
+  const npcs = new Set(personagens.filter((personagem) => personagem.tipo === 'npc').map((personagem) => personagem.id))
+  const ficam = equipes.filter((equipe) => !ehEquipeAutomatica(equipe) || equipe.membros.some((id) => npcs.has(id)))
+  return ficam.length === equipes.length ? equipes : ficam
+}
+
+/**
+ * A equipe dos jogadores: a que tem mais personagens de tipo "jogador" (empate:
+ * a primeira), contando na automática os jogadores sem equipe. `null` = nenhuma
+ * equipe tem jogador.
+ */
+export function equipeDosJogadores(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): Equipe | null {
+  const lista = equipes ?? []
+  const jogadores = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
+  let melhor: { id: string; quantos: number } | null = null
+  for (const equipe of equipesNaLeitura(lista, personagens)) {
+    const quantos = equipe.membros.filter((id) => jogadores.has(id)).length
+    if (quantos > 0 && (melhor === null || quantos > melhor.quantos)) melhor = { id: equipe.id, quantos }
+  }
+  // A equipe como está gravada (a da leitura é uma cópia com os jogadores sem equipe).
+  const idDaMelhor = melhor?.id
+  return lista.find((equipe) => equipe.id === idDaMelhor) ?? null
+}
+
+/** O lado do NPC para a tela: "jogadores" quando a equipe dele tem jogador (a automática é sempre a deles); senão "contra" (o padrão). */
 export function ladoDoNpc(personagemId: string, equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): LadoDoNpc {
   const equipe = equipeDe(personagemId, equipes)
   if (equipe === null) return 'contra'
+  if (ehEquipeAutomatica(equipe)) return 'jogadores'
   const jogadores = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
   return equipe.membros.some((id) => jogadores.has(id)) ? 'jogadores' : 'contra'
 }
@@ -185,19 +239,20 @@ export function ladoDoNpc(personagemId: string, equipes: readonly Equipe[] | und
 /**
  * As equipes com o NPC do lado pedido:
  *  - "jogadores": entra na equipe dos jogadores (`equipeDosJogadores`); se
- *    nenhuma equipe tem jogador, nasce a equipe "Jogadores" com TODOS os
+ *    nenhuma equipe tem jogador, nasce a equipe automática "Jogadores" com os
  *    personagens de tipo jogador e ele (os colegas seguem se vendo como antes);
- *  - "contra": sai da equipe que tem jogador (fica sem equipe, com os NPCs).
+ *  - "contra": sai da equipe que tem jogador (fica sem equipe, com os NPCs). A
+ *    automática some quando o último NPC sai; a feita pelo mestre fica.
  * A MESMA lista = nada mudou. `null` = não cabe mais uma equipe (`EQUIPES_MAX`).
  */
-export function equipesComOLado(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[], personagemId: string, lado: LadoDoNpc, novoId: () => string = novoIdDeEquipe): readonly Equipe[] | null {
+export function equipesComOLado(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[], personagemId: string, lado: LadoDoNpc): readonly Equipe[] | null {
   const lista = equipes ?? []
   if (ladoDoNpc(personagemId, lista, personagens) === lado) return lista
   const semEle = lista.map((equipe) => (equipe.membros.includes(personagemId) ? { ...equipe, membros: equipe.membros.filter((id) => id !== personagemId) } : equipe))
-  if (lado === 'contra') return semEle
-  const destino = equipeDosJogadores(lista, personagens)
+  if (lado === 'contra') return semEquipeAutomaticaVazia(semEle, personagens)
+  const destino = equipeDosJogadores(lista, personagens) ?? lista.find(ehEquipeAutomatica) ?? null
   if (destino !== null) return semEle.map((equipe) => (equipe.id === destino.id ? { ...equipe, membros: [...equipe.membros, personagemId] } : equipe))
   if (lista.length >= EQUIPES_MAX) return null
-  const jogadores = personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id)
-  return [...semEle, { id: novoId(), nome: NOME_DA_EQUIPE_DOS_JOGADORES, cor: COR_DA_EQUIPE_DOS_JOGADORES, membros: [...jogadores, personagemId] }]
+  const nova = equipeAutomatica(personagens)
+  return [...semEle, { ...nova, membros: [...nova.membros, personagemId] }]
 }

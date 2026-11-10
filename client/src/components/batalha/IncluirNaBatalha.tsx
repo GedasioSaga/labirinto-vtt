@@ -7,6 +7,10 @@ import { Acoes, Botao } from '../grimorio/Botao'
 import { QuemEntraNaBatalha } from '../livro/QuemEntraNaBatalha'
 import { useEscolhaNoMapa } from './escolhaNoMapa'
 import { lerQuemPodeEntrar, prepararQuemEntra, type ListaDeQuemEntra } from './fichasDeQuemEntra'
+import { porNpcNoLado } from './ladoDoNpcNaTela'
+
+/** O "Incluir" põe cada NPC no lado depois de ele entrar na ordem; a preparação das fichas não mexe em lado. */
+const SEM_LADOS: ReadonlyMap<string, LadoDoNpc> = new Map()
 
 /**
  * Conserto de 09/11/2026 (achado 2): o "Incluir" da batalha em curso. No lugar
@@ -30,9 +34,14 @@ export function IncluirNaBatalha({ sceneKey }: { sceneKey: string }) {
 
   const confirmar = (escolhas: EscolhaDaBatalha[], lados: ReadonlyMap<string, LadoDoNpc>) => {
     setCaixa(null)
-    const entram = prepararQuemEntra(escolhas, lados)
+    const entram = prepararQuemEntra(escolhas, SEM_LADOS)
     if (entram === null) return
-    for (const token of entram) useBatalhaStore.getState().incluirCombatente(sceneKey, token)
+    for (const token of entram) {
+      useBatalhaStore.getState().incluirCombatente(sceneKey, token)
+      // O lado vai DEPOIS de entrar na ordem: com a carta na batalha, a troca de lado fica no registro (segunda auditoria, achado 2).
+      const lado = lados.get(token.id)
+      if (lado !== undefined) porNpcNoLado(token.characterId, lado)
+    }
   }
 
   if (caixa !== null)

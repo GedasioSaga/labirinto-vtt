@@ -34,6 +34,13 @@ export interface MesaDaBatalha {
   /** Põe o personagem na equipe `equipeId` (ou em nenhuma, `null`). `false` = não deu (equipe que não existe, nada onde gravar). */
   trocarEquipe(personagemId: string, equipeId: string | null): boolean
   /**
+   * Grava a lista inteira de equipes: por aqui a equipe automática dos
+   * jogadores nasce e some (`lib/batalha/equipes.ts`). `false` = não há onde
+   * gravar. Opcional: a mesa de equipes fixas (a arena, o treino) não troca
+   * o lado de ninguém.
+   */
+  salvarEquipes?(equipes: readonly Equipe[]): boolean
+  /**
    * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): o personagem
    * temporário e o token do invocado entram juntos na cena `sceneKey` (o que
    * já existe com o mesmo id fica como está; `null` = só o outro). `false` =

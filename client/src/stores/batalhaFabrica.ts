@@ -107,7 +107,18 @@ import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, s
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
-import { aliadosDe, equipeDe, mesmoLadoNaBatalha } from '../lib/batalha/equipes'
+import {
+  EQUIPES_MAX,
+  ID_DA_EQUIPE_DOS_JOGADORES,
+  NOME_DA_EQUIPE_DOS_JOGADORES,
+  aliadosDe,
+  ehEquipeAutomatica,
+  equipeAutomatica,
+  equipeDe,
+  mesmoLadoNaBatalha,
+  semEquipeAutomaticaVazia,
+  type Equipe,
+} from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   acoesDaCarta,
@@ -626,6 +637,37 @@ function cenasComOPersonagem(cenas: Readonly<Record<string, BatalhaDaCena>>, per
   return achadas
 }
 
+/**
+ * Troca a equipe pela mesa (segunda auditoria, 09/11/2026, achado 2). A equipe
+ * automática dos jogadores nasce quando alguém entra nela (o primeiro NPC "do
+ * lado dos jogadores", ou o Desfazer de quem saiu) e some quando o último NPC
+ * sai; as feitas pelo mestre só trocam de membro, como antes. `false` = não deu.
+ */
+function trocarEquipeNaMesa(mesa: MesaDaBatalha, personagemId: string, equipeId: string | null): boolean {
+  const antes = mesa.equipes()
+  if (equipeId === ID_DA_EQUIPE_DOS_JOGADORES && !antes.some(ehEquipeAutomatica)) {
+    if (antes.length >= EQUIPES_MAX || mesa.salvarEquipes?.([...antes, equipeAutomatica(mesa.personagens())]) !== true) return false
+  }
+  const trocou = mesa.trocarEquipe(personagemId, equipeId)
+  // Trocou ou não, a automática sem NPC não fica na pasta: a que o último NPC deixou, ou a que nasceu agora e a troca recusou.
+  const depois = mesa.equipes()
+  const limpas = semEquipeAutomaticaVazia(depois, mesa.personagens())
+  if (limpas !== depois) mesa.salvarEquipes?.(limpas)
+  return trocou
+}
+
+/**
+ * A linha do registro da troca de equipe. O NPC que entra na equipe automática
+ * ou sai dela para equipe nenhuma trocou de LADO, e a linha diz isso (o mestre
+ * escolheu um lado, não uma equipe); o resto é a linha de sempre.
+ */
+function textoDaTrocaDeEquipe(personagem: Personagem | undefined, antes: Equipe | null, depois: Equipe | null, paraAAutomatica: boolean): string {
+  const nome = personagem?.nome ?? 'Personagem'
+  if (personagem?.tipo === 'npc' && paraAAutomatica) return `${nome} passou para o lado dos jogadores`
+  if (personagem?.tipo === 'npc' && antes !== null && ehEquipeAutomatica(antes) && depois === null) return `${nome} passou a lutar contra os jogadores`
+  return `${nome}: ${antes?.nome ?? 'sem equipe'} → ${depois?.nome ?? (paraAAutomatica ? NOME_DA_EQUIPE_DOS_JOGADORES : 'sem equipe')}`
+}
+
 /** O nome que vai no histórico da ficha ao desfazer: diferente do autor, para o `registrar` não fundir e apagar a linha velha. */
 function quemDesfezNaFicha(autor: AutorDaAcao): string {
   return `${autor.tipo === 'mestre' ? NOME_DO_MESTRE : autor.nome} (desfez)`
@@ -687,7 +729,7 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       return { cena, emParte, ok }
     }
     case 'equipe': {
-      const ok = mesa.trocarEquipe(reversao.personagemId, reversao.antes)
+      const ok = trocarEquipeNaMesa(mesa, reversao.personagemId, reversao.antes)
       return { cena, emParte: false, ok }
     }
     case 'regras':
@@ -3181,10 +3223,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const personagens = mesa.personagens()
       const antes = equipeDe(personagemId, equipes)
       if ((antes?.id ?? null) === equipeId) return true
-      if (!mesa.trocarEquipe(personagemId, equipeId)) return false
+      if (!trocarEquipeNaMesa(mesa, personagemId, equipeId)) return false
       const depois = equipeId === null ? null : (equipes.find((equipe) => equipe.id === equipeId) ?? null)
       const personagem = personagens.find((candidato) => candidato.id === personagemId)
-      const texto = `${personagem?.nome ?? 'Personagem'}: ${antes?.nome ?? 'sem equipe'} → ${depois?.nome ?? 'sem equipe'}`
+      const texto = textoDaTrocaDeEquipe(personagem, antes, depois, equipeId === ID_DA_EQUIPE_DOS_JOGADORES)
       const cenas = { ...get().cenas }
       for (const { chave, cena, tokenIds } of cenasComOPersonagem(cenas, personagemId)) {
         cenas[chave] = comMudanca(cena, cena.turnos, {

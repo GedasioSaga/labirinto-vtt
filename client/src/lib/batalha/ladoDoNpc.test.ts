@@ -25,8 +25,8 @@ const lados = (equipes: readonly Equipe[] | undefined) => ({ equipes, personagen
 
 describe('o lado do NPC pela equipe de sempre', () => {
   it('sem equipes: "do lado dos jogadores" cria a equipe com os jogadores e ele; os NPCs que sobraram seguem aliados entre si', () => {
-    const comAArvore = equipesComOLado(undefined, personagens, arvore.id, 'jogadores', () => 'equipe_de_teste')
-    expect(comAArvore).toEqual([{ id: 'equipe_de_teste', nome: 'Jogadores', cor: '#3f7fbf', membros: [capita.id, grumete.id, arvore.id] }])
+    const comAArvore = equipesComOLado(undefined, personagens, arvore.id, 'jogadores')
+    expect(comAArvore).toEqual([{ id: 'equipe_dos_jogadores', nome: 'Jogadores', cor: '#3f7fbf', membros: [capita.id, grumete.id, arvore.id] }])
     const equipes = equipesComOLado(comAArvore ?? [], personagens, ferreiro.id, 'jogadores')
     expect(equipes?.[0]?.membros).toEqual([capita.id, grumete.id, arvore.id, ferreiro.id])
     expect([ladoDoNpc(arvore.id, equipes ?? [], personagens), ladoDoNpc(urso.id, equipes ?? [], personagens)]).toEqual(['jogadores', 'contra'])

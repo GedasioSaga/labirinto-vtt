@@ -1,4 +1,4 @@
-import { EQUIPES_MAX, equipeDosJogadores, equipesComOLado, type LadoDoNpc } from '../../lib/batalha/equipes'
+import { EQUIPES_MAX, ID_DA_EQUIPE_DOS_JOGADORES, equipeDosJogadores, equipesComOLado, type LadoDoNpc } from '../../lib/batalha/equipes'
 import { equipesAtivas, personagensAtivos, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { useToastStore } from '../../stores/toastStore'
@@ -20,10 +20,11 @@ const SEM_DONO_DO_LADO = 'Sem aventura aberta: as equipes moram na aventura (ou 
 const SEM_VAGA_PARA_O_LADO = `Já há ${EQUIPES_MAX} equipes: apague uma em "Equipes", no painel da batalha, para criar a dos jogadores.`
 
 /**
- * Põe o NPC no lado pedido; `false` = não deu (o aviso diz por quê). Com a
- * equipe dos jogadores já criada (ou só saindo dela), é a troca de equipe de
- * sempre: entra no registro da batalha com o Desfazer. Sem equipe com jogador,
- * nasce a equipe "Jogadores" com todos os jogadores e ele.
+ * Põe o NPC no lado pedido; `false` = não deu (o aviso diz por quê). É sempre
+ * a troca de equipe da batalha: com o NPC na ordem, entra no registro com o
+ * Desfazer. Sem equipe com jogador, o destino é a equipe automática "Jogadores"
+ * (segunda auditoria, achado 2): a batalha a cria na troca e a tira quando o
+ * último NPC sai dela.
  */
 export function porNpcNoLado(personagemId: string, lado: LadoDoNpc): boolean {
   const aventura = useAdventureStore.getState()
@@ -35,8 +36,8 @@ export function porNpcNoLado(personagemId: string, lado: LadoDoNpc): boolean {
     useToastStore.getState().push('info', SEM_VAGA_PARA_O_LADO)
     return false
   }
-  const destino = lado === 'jogadores' ? equipeDosJogadores(equipes, personagens) : null
-  const feito = lado === 'contra' || destino !== null ? useBatalhaStore.getState().trocarEquipe(personagemId, destino?.id ?? null) : aventura.salvarEquipes(depois)
+  const destino = lado === 'jogadores' ? (equipeDosJogadores(equipes, personagens)?.id ?? ID_DA_EQUIPE_DOS_JOGADORES) : null
+  const feito = useBatalhaStore.getState().trocarEquipe(personagemId, destino)
   if (!feito) useToastStore.getState().push('info', SEM_DONO_DO_LADO)
   return feito
 }
