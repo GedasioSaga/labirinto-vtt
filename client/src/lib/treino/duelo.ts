@@ -1,9 +1,10 @@
-import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeReacao, MOTIVO_DA_RECUSA_MAX, RODADA_MAX } from '../../net/protocoloDaBatalha'
+import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeEvolucao, lerPedidoDePassiva, lerPedidoDeReacao, MOTIVO_DA_RECUSA_MAX, parseBatalhaArmas, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
 import type { ParedeDoPasso } from '../batalha/blocos'
-import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeMarca, PedidoDeReacao } from '../batalha/combate'
+import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeEvolucao, PedidoDeMarca, PedidoDePassiva, PedidoDeReacao } from '../batalha/combate'
+import { ehLembreteDoSangramento } from '../batalha/condicoes'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armaSoDeEfeito } from '../batalha/formula'
@@ -199,6 +200,16 @@ export type JogadaDoDuelo =
    * não é golpe nem vez.
    */
   | { tipo: 'marcar'; seq: number; pedido: PedidoDeMarca }
+  /**
+   * R4 (unificação do combate, 10/11/2026): Ativar ou Desligar a passiva de
+   * uma ficha de quem pede, ou a resposta ao lembrete dela (a manutenção da
+   * forma, a Preparação). O custo e o selo são os da ficha. Não conta passo.
+   */
+  | { tipo: 'passiva'; seq: number; pedido: PedidoDePassiva }
+  /** R4: Evoluir a técnica nesta batalha, na vez da ficha (a batalha confere). Não conta passo. */
+  | { tipo: 'evoluir'; seq: number; pedido: PedidoDeEvolucao }
+  /** R4: as armas da batalha da cópia `personagemId` de quem pede, até o limite da ficha (a batalha confere). Não conta passo. */
+  | { tipo: 'armas'; seq: number; personagemId: string; armas: readonly string[] }
 
 /**
  * Quem anda e quando. `naVez` (o duelo: o servidor decide): só a ficha da vez,
@@ -219,7 +230,7 @@ export type MotivoDaRecusa =
   /** A ficha que age ou reage é do outro lado. */
   | 'naoEDaConta'
   | 'surpresa'
-  /** Dano que a ficha não calcula (À mão, "1d6", "% da vida do alvo", "Dano da arma" sem arma): no duelo ninguém digita dano. */
+  /** Dano que a ficha não calcula (À mão, "1d6", "Dano da arma" sem arma): no duelo ninguém digita dano. O "% da vida do alvo" passa: a batalha calcula (R3). */
   | 'danoAMao'
   /** Fora do duelo: o `agir` de mover pelo contra-ataque (vai pelo `andar`), reação livre, rerolar, passar sem dano e o "rolei fora" da marca (decisões do mestre na mesa). */
   | 'foraDoDuelo'
@@ -347,6 +358,7 @@ function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
 /** As frases do host da mesa para a vez que andou e o golpe já fechado (`net/batalhaNoHost.ts`): a mesma palavra no app e no site. */
 const TEXTO_DA_VEZ_QUE_PASSOU = 'A vez já passou'
 const TEXTO_DO_GOLPE_RESOLVIDO = 'Esse golpe já foi resolvido'
+const TEXTO_DO_ALVO_DE_FORA = 'Esse alvo não está na luta'
 
 /** As recusas da grade do site (andar e montar não passam pela regra da batalha: o texto é daqui). */
 const TEXTO_DA_CASA = 'Essa casa está ocupada ou fica fora da grade'
@@ -669,6 +681,54 @@ function jogarNaLoja(
       if (!refeito.ok) return refeito
       return loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido) ? null : recusa('regra')
     }
+    case 'passiva': {
+      const { pedido } = jogada
+      if (!ehDoLado(pedido.tokenId)) return recusa('naoEDaConta')
+      // O alvo da passiva tem de estar na luta (o host da mesa confere que está na tela de quem pede).
+      if (pedido.tipo === 'passiva' && pedido.alvoTokenId !== undefined && vagaDoToken(lutadores, pedido.alvoTokenId) === null) return recusa('regra', TEXTO_DO_ALVO_DE_FORA)
+      return loja.getState().passiva(CENA_DO_DUELO, autor, passivaSemNumero(pedido)) ? null : recusa('regra')
+    }
+    case 'evoluir': {
+      if (!ehDoLado(jogada.pedido.tokenId)) return recusa('naoEDaConta')
+      if (loja.getState().evoluir(CENA_DO_DUELO, autor, jogada.pedido)) return null
+      return recusa('regra', loja.getState().motivoDoEvoluir(CENA_DO_DUELO, autor, jogada.pedido))
+    }
+    case 'armas': {
+      const vaga = lutadores.vagas.find((candidata) => candidata.personagemId === jogada.personagemId)
+      if (vaga === undefined || !quem.podeJogar(vaga)) return recusa('naoEDaConta')
+      return loja.getState().escolherArmas(CENA_DO_DUELO, autor, jogada.personagemId, jogada.armas) ? null : recusa('regra')
+    }
+  }
+}
+
+/**
+ * R4: a passiva sem número do cliente. O custo é o da ficha (`custo: null`)
+ * e o selo é o que a batalha lê da ficha (sem `selo` no pedido), como o dano
+ * e o custo do golpe. A opção (`variante`), o alvo e o atributo da Preparação
+ * são escolhas de quem joga: a batalha confere.
+ */
+function passivaSemNumero(pedido: PedidoDePassiva): PedidoDePassiva {
+  if (pedido.tipo === 'lembrete') return pedido
+  const limpo: PedidoDePassiva = { tipo: 'passiva', tokenId: pedido.tokenId, cartaoId: pedido.cartaoId, ligar: pedido.ligar, custo: null }
+  if (pedido.alvoTokenId !== undefined) limpo.alvoTokenId = pedido.alvoTokenId
+  if (pedido.variante !== undefined) limpo.variante = pedido.variante
+  return limpo
+}
+
+/** Quem aplica o que na mesa só o mestre aplica: no site, a própria regra. */
+const AUTOR_DA_REGRA: AutorDaAcao = { tipo: 'mestre' }
+
+/**
+ * R4 (o dano de selo por vez): na mesa, o lembrete do Sangramento na vez de
+ * quem sangra só o mestre aplica (a batalha recusa o do jogador). O site não
+ * tem mestre, e o Sangrando tirava 0: depois de cada jogada aceita, a regra
+ * aplica os lembretes de Sangramento que esperam, pelo caminho da batalha.
+ */
+function aplicarSangramentos(loja: LojaDaBatalha): void {
+  const { turnos } = cenaDaLoja(loja)
+  const esperando = Object.values(turnos.combate ?? {}).flatMap((combate) => (combate.lembretes ?? []).filter(ehLembreteDoSangramento))
+  for (const lembrete of esperando) {
+    loja.getState().passiva(CENA_DO_DUELO, AUTOR_DA_REGRA, { tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar: true })
   }
 }
 
@@ -794,8 +854,10 @@ export function jogarNaMesa<L extends LadoDaLuta>(
   }
   const recusada = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema)
   if (recusada !== null) return recusada
-  // A marca não conta passo (não é golpe nem vez), como andar.
-  const passos = jogada.tipo === 'marcar' ? copia.passos : copia.passos + 1
+  aplicarSangramentos(loja)
+  // Só o golpe, a reação e a vez contam passo; a marca, a passiva, o Evoluir e as armas não (como andar).
+  const contaPasso = jogada.tipo === 'agir' || jogada.tipo === 'reagir' || jogada.tipo === 'passar'
+  const passos = contaPasso ? copia.passos + 1 : copia.passos
   return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: copia.posicoes, montagem: false, cena: cenaDaLoja(loja), passos } }
 }
 
@@ -976,6 +1038,21 @@ export function jogadaDoValor(valor: unknown): JogadaDoDuelo | null {
     case 'marcar': {
       const pedido = lerPedidoDeMarca(valor.pedido)
       return pedido === null ? null : { tipo: 'marcar', seq, pedido }
+    }
+    case 'passiva': {
+      // O custo e o selo digitados saem ANTES da leitura (como o dano): o servidor usa os da ficha.
+      const cru = ehRegistro(valor.pedido) && valor.pedido.tipo === 'passiva' ? { ...valor.pedido, custo: null, selo: undefined } : valor.pedido
+      const pedido = lerPedidoDePassiva(cru)
+      return pedido === null ? null : { tipo: 'passiva', seq, pedido }
+    }
+    case 'evoluir': {
+      const pedido = lerPedidoDeEvolucao(valor.pedido)
+      return pedido === null ? null : { tipo: 'evoluir', seq, pedido }
+    }
+    case 'armas': {
+      // A forma é a do fio da mesa (`batalha.armas`: ids no teto, sem repetir, até o máximo de armas).
+      const lido = parseBatalhaArmas({ type: 'batalha.armas', reqId: 'site', personagemId: valor.personagemId, armas: valor.armas })
+      return lido === null ? null : { tipo: 'armas', seq, personagemId: lido.personagemId, armas: lido.armas }
     }
     default:
       return null

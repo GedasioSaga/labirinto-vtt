@@ -4,7 +4,7 @@ import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { aplicarJogada, type DueloGravado, type JogadaDoDuelo, type JogadorDoDuelo, type MotorDoDuelo } from '../../lib/treino/duelo'
 import type { LadoDoTreino, LutadoresDoTreino } from '../../lib/treino/mesaEmMemoria'
-import { jogadaDoRobo, marcaDoRobo, type JogadaDoRobo } from '../../lib/treino/robo'
+import { jogadaDoRobo, marcaDoRobo, passivasDoRobo, type JogadaDoRobo } from '../../lib/treino/robo'
 
 /**
  * O ROBÔ NO DUELO (fatia T7): o robô do treino (`lib/treino/robo.ts`, T3)
@@ -65,17 +65,38 @@ export interface PassoDoRobo {
   golpesDaVez: GolpesDaVez | null
 }
 
+/** A ficha `tokenId` é de um lado que o robô joga? */
+function tokenDoRobo(duelo: DueloGravado, podeJogar: (lado: LadoDoTreino) => boolean): (tokenId: string) => boolean {
+  return (tokenId) => {
+    const lado = ladoDoToken(duelo.lutadores, tokenId)
+    return lado !== null && podeJogar(lado)
+  }
+}
+
+/**
+ * R2 e R4 da unificação do combate (10/11/2026): a passiva de uma ficha do
+ * robô (`passivasDoRobo`: o lembrete que espera resposta, ou a passiva pronta
+ * de quem está na vez), pela jogada `passiva`. Tenta na ordem e fica com a
+ * primeira aceita; `null` = nada a fazer (ou tudo recusado: a luta segue).
+ */
+function passivaPeloRobo(duelo: DueloGravado, motor: MotorDoDuelo, podeJogar: (lado: LadoDoTreino) => boolean): DueloGravado | null {
+  const { vagas, personagens } = duelo.lutadores
+  for (const pedido of passivasDoRobo({ turnos: duelo.cena.turnos, vagas, personagens, sistema: motor.sistema }, tokenDoRobo(duelo, podeJogar))) {
+    const lado = ladoDoToken(duelo.lutadores, pedido.tokenId)
+    if (lado === null) continue
+    const feito = aplicarJogada(duelo, motor, duelo.jogadores[lado].contaId, { tipo: 'passiva', seq: duelo.seq, pedido })
+    if (feito.ok) return feito.duelo
+  }
+  return null
+}
+
 /**
  * O lembrete da marca de uma ficha do robô respondido (`marcaDoRobo`: o teste,
  * o SP ou "Agora não"); `null` = nenhum esperando. Vem antes da reação e da
  * vez: o lembrete não segura a luta, mas o segundo golpe da vez já dobra.
  */
 function marcaPeloRobo(duelo: DueloGravado, motor: MotorDoDuelo, podeJogar: (lado: LadoDoTreino) => boolean): DueloGravado | null {
-  const doRobo = (tokenId: string): boolean => {
-    const lado = ladoDoToken(duelo.lutadores, tokenId)
-    return lado !== null && podeJogar(lado)
-  }
-  const marca = marcaDoRobo(duelo.cena.turnos, doRobo)
+  const marca = marcaDoRobo(duelo.cena.turnos, tokenDoRobo(duelo, podeJogar))
   const lado = marca === null ? null : ladoDoToken(duelo.lutadores, marca.tokenId)
   if (marca === null || lado === null) return null
   for (const pedido of marca.pedidos) {
@@ -94,6 +115,8 @@ export function passoDoRobo(duelo: DueloGravado, motor: MotorDoDuelo, golpesDaVe
   if (duelo.fim !== null) return null
   const marcou = marcaPeloRobo(duelo, motor, podeJogar)
   if (marcou !== null) return { duelo: marcou, golpesDaVez }
+  const ligou = passivaPeloRobo(duelo, motor, podeJogar)
+  if (ligou !== null) return { duelo: ligou, golpesDaVez }
   const proxima = proximaDoRobo(vistaDoGravado(duelo), motor.sistema, golpesDaVez)
   if (proxima === null || !podeJogar(proxima.lado)) return null
   const contaId = duelo.jogadores[proxima.lado].contaId

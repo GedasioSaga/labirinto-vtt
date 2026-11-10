@@ -114,6 +114,9 @@ export function LutaTurnoATurno({ montagem, nomeDoInimigo }: { montagem: Montage
             reagir: (pedido) => jogar({ tipo: 'reagir', seq, pedido }),
             passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq, vez: { cartaId, rodada } }),
             marcar: (pedido) => jogar({ tipo: 'marcar', seq, pedido }),
+            escolherArmas: (personagemId, armas) => jogar({ tipo: 'armas', seq, personagemId, armas }),
+            passiva: (pedido) => jogar({ tipo: 'passiva', seq, pedido }),
+            evoluir: (pedido) => jogar({ tipo: 'evoluir', seq, pedido }),
           },
     // `jogar` lê a luta de agora: a conexão nova a cada luta nova basta.
     [luta],

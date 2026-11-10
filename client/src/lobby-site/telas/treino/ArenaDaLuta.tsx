@@ -28,15 +28,17 @@ import './arenaDaLuta.css'
  * A tela só desenha e pede: as jogadas vão por `jogadas` (no treino, o motor
  * no navegador; no duelo, o servidor) e andar vai por `onAndar`. O que o HUD
  * do app pede e a luta do site não tem fica de fora com o motivo dito: a
- * troca de armas, a reação livre e o "rolei fora" da marca recusam com um
- * recado; o lembrete da marca (Olhar Artístico) vai pelas jogadas (o teste
- * rola no motor, ou paga o SP); invocar, as passivas e o Evoluir nem
- * aparecem (sem a prop, o HUD os apaga).
+ * reação livre e o "rolei fora" da marca recusam com um recado; o lembrete
+ * da marca (Olhar Artístico) vai pelas jogadas (o teste rola no motor, ou
+ * paga o SP). R4 da unificação do combate (10/11/2026): as passivas e os
+ * lembretes delas, o Evoluir e a troca de armas também vão pelas jogadas (a
+ * mesma regra da batalha do app). Invocar segue de fora (sem a prop, o HUD
+ * apaga a técnica): invocado é ficha nova no mapa, e a luta do site não cria.
  * O "Mover" do contra-ataque vira o próximo passo da ficha na grade.
  */
 
 /** As jogadas que a luta aceita (o resto da `ConexaoDaBatalha` a Arena do site responde sozinha). */
-export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez'> & Required<Pick<ConexaoDaBatalha, 'marcar'>>
+export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez' | 'escolherArmas'> & Required<Pick<ConexaoDaBatalha, 'marcar' | 'passiva' | 'evoluir'>>
 
 export interface ArenaDaLutaProps {
   titulo: string
@@ -78,24 +80,11 @@ export interface ArenaDaLutaProps {
   desfazendo?: ReadonlySet<string>
 }
 
-const MOTIVO_DAS_ARMAS = 'No treino e no duelo a luta usa as armas da ficha: a troca é só na mesa, com o mestre.'
 const MOTIVO_DA_REACAO_LIVRE = 'A reação livre é só na mesa, com o mestre. Aqui a defesa é a do golpe que chega.'
 const MOTIVO_DA_MARCA_FORA = 'O "rolei fora" é só na mesa, com o mestre. Aqui o teste rola no app, ou pague o SP.'
 const MOTIVO_DO_MODIFICADOR_DA_MARCA = 'Aqui o teste soma o modificador da ficha: o número trocado não vale.'
 /** A faixa pede a função; sem `onDesfazer` as linhas chegam sem o Desfazer, então esta nunca é chamada. */
 const SEM_DESFAZER = () => {}
-
-/**
- * "Armas por batalha" é escolha da mesa (o mestre confirma). No site a luta
- * usa todas as armas da ficha (`armasNaBatalha` com `armas` null): sem o
- * limite na vista, o HUD não abre sozinho a janela que aqui nunca confirmaria
- * nem marca o ATACAR como pendente.
- */
-function semEscolhaDeArmas(vista: EstadoParaJogador): EstadoParaJogador {
-  const { meus } = vista
-  if (meus === undefined || meus.every((meu) => meu.limiteDeArmas === null)) return vista
-  return { ...vista, meus: meus.map((meu) => (meu.limiteDeArmas === null ? meu : { ...meu, limiteDeArmas: null })) }
-}
 
 /**
  * A entrada animada acontece uma vez: as abas do treino ficam montadas e só
@@ -165,10 +154,10 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
         return jogadas.reagir(pedido)
       },
       passarVez: jogadas.passarVez,
-      escolherArmas: () => {
-        avisar(MOTIVO_DAS_ARMAS)
-        return false
-      },
+      // R4: as armas da batalha, as passivas (com os lembretes) e o Evoluir vão pela regra da batalha, como na mesa.
+      escolherArmas: jogadas.escolherArmas,
+      passiva: jogadas.passiva,
+      evoluir: jogadas.evoluir,
       marcar: (pedido) => {
         if (pedido.como === 'passou' || pedido.como === 'falhou') {
           avisar(MOTIVO_DA_MARCA_FORA)
@@ -190,7 +179,8 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
     return onAndar(tokenId, casa, contraDe)
   }
 
-  const vistaDoHud = useMemo(() => (vista === null ? null : semEscolhaDeArmas(vista)), [vista])
+  // R4: a vista vai como é, com o limite de armas da ficha: o HUD pede a escolha e ela vai pelas jogadas.
+  const vistaDoHud = vista
   const dados = useMemo(() => (vista === null ? null : faixaDaArena({ vista, fio, fichas, meus, sistema, arbitra })), [vista, fichas, meus, fio, sistema, arbitra])
   // Sem quem desfaça, a linha perde o Desfazer: um botão que não faz nada é pior que nenhum.
   const desfaz = onDesfazer !== undefined

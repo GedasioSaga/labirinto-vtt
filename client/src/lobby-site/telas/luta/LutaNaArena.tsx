@@ -75,6 +75,9 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
             reagir: (pedido) => jogar({ tipo: 'reagir', seq: luta.seq, pedido }),
             passarVez: (cartaId, rodada) => jogar({ tipo: 'passar', seq: luta.seq, vez: { cartaId, rodada } }),
             marcar: (pedido) => jogar({ tipo: 'marcar', seq: luta.seq, pedido }),
+            escolherArmas: (personagemId, armas) => jogar({ tipo: 'armas', seq: luta.seq, personagemId, armas }),
+            passiva: (pedido) => jogar({ tipo: 'passiva', seq: luta.seq, pedido }),
+            evoluir: (pedido) => jogar({ tipo: 'evoluir', seq: luta.seq, pedido }),
           },
     // A jogada leva o `seq` do estado que a tela mostra.
     // eslint-disable-next-line react-hooks/exhaustive-deps
