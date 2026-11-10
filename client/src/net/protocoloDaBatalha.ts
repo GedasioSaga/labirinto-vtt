@@ -294,8 +294,30 @@ export interface BatalhaAliadosMessage {
   personagens: Personagem[]
 }
 
-/** Conserto das fichas F1 (bug 1): o teto do motivo da recusa no fio. */
-export const MOTIVO_DA_RECUSA_MAX = 120
+/**
+ * Conserto das fichas F1 (bug 1): o teto do motivo da recusa no fio.
+ * Unificação do combate (10/11/2026): de 120 para 240. A frase do Escudo
+ * ("Ninguém marcado está ferido: o Escudo segurou o golpe. <técnica> cura só a
+ * vida.") tem 71 letras fora o nome da técnica, e com nome comprido chegava ao
+ * jogador cortada no meio. A página de antes lê até 120: motivo maior ela não
+ * mostra (cai na recusa genérica), não quebra.
+ */
+export const MOTIVO_DA_RECUSA_MAX = 240
+
+const RETICENCIAS = '…'
+
+/**
+ * O motivo como sai no fio: o que cabe no teto vai inteiro; o que passa é
+ * cortado no fim de uma palavra, com reticências, nunca no meio dela (a
+ * palavra só que sozinha passa do teto é a exceção).
+ */
+export function motivoNoFio(texto: string): string {
+  if (texto.length <= MOTIVO_DA_RECUSA_MAX) return texto
+  const corte = texto.slice(0, MOTIVO_DA_RECUSA_MAX - RETICENCIAS.length)
+  const espaco = corte.lastIndexOf(' ')
+  const ateAPalavra = espaco <= 0 ? corte : corte.slice(0, espaco)
+  return `${ateAPalavra.replace(/[\s.,;:]+$/u, '')}${RETICENCIAS}`
+}
 
 export interface BatalhaResultadoMessage {
   type: 'batalha.resultado'

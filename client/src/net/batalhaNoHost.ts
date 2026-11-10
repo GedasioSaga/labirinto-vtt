@@ -8,7 +8,7 @@ import { efeitosParaJogador, vistaParaJogador, type ContextoDoJogador, type Efei
 import {
   ALIADOS_MAX,
   JANELA_DOS_PEDIDOS_DE_BATALHA_MS,
-  MOTIVO_DA_RECUSA_MAX,
+  motivoNoFio,
   PEDIDOS_DE_BATALHA_POR_JANELA,
   type BatalhaAgirMessage,
   type BatalhaAjustarMessage,
@@ -323,10 +323,13 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     return visiveis
   }
 
-  /** Conserto das fichas F1 (bug 1): a recusa leva um motivo curto, sem nada que a tela dele já não mostre. */
+  /**
+   * Conserto das fichas F1 (bug 1): a recusa leva um motivo curto, sem nada que a tela dele já não mostre. O que passa do
+   * teto do fio sai cortado no fim de uma palavra (`motivoNoFio`), não no meio dela.
+   */
   const resultado = (clientId: string, reqId: string, ok: boolean, motivo?: string): SaidaDaBatalha => ({
     clientId,
-    msg: ok || motivo === undefined ? { type: 'batalha.resultado', reqId, ok } : { type: 'batalha.resultado', reqId, ok, motivo: motivo.slice(0, MOTIVO_DA_RECUSA_MAX) },
+    msg: ok || motivo === undefined ? { type: 'batalha.resultado', reqId, ok } : { type: 'batalha.resultado', reqId, ok, motivo: motivoNoFio(motivo) },
   })
   const saidaDa = (clientId: string, reqId: string, resposta: true | Recusa): SaidaDaBatalha => (resposta === true ? resultado(clientId, reqId, true) : resultado(clientId, reqId, false, resposta.motivo))
 
