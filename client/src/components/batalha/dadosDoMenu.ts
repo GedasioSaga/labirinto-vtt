@@ -3,6 +3,7 @@ import { armaPadraoEntre, comAPadraoNaFrente } from '../../lib/batalha/mecanica/
 import { resumoDaMecanica } from '../../lib/batalha/mecanica/resumo'
 import { cartaoEstaOculto, NOME_DO_OCULTO, ocultoNaBatalha } from '../../lib/habilidadeOculta'
 import {
+  ALVOS_MAX,
   CARGA_MAX,
   MULTIPLICADOR_DA_CARGA,
   MODIFICADOR_DA_REACAO_MAX,
@@ -45,9 +46,10 @@ import {
 } from '../../lib/batalha/leituraDaFicha'
 import { danoFinal, danoQueChega, saidasDaRolagem } from '../../lib/batalha/reacao'
 import { blocosEntreTokens, ordenarAlvosDaMira } from '../../lib/batalha/ordemDosAlvos'
-import type { CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
+import type { CartaParaJogador, CombateParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { CartaoDaFicha, Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { recursoDeVida, vidaDoPersonagem } from '../../lib/vidaDaFicha'
 
 /**
  * O ADAPTADOR DO MENU DA VEZ (F2 da batalha One Piece, seção 5.2 do plano):
@@ -278,13 +280,20 @@ export function leituraDoCartao(cartao: CartaoDaFicha | null, sistema: SistemaDe
   return linhas
 }
 
-/** Uma ficha que pode ser alvo, como a mira a lista. */
+/**
+ * Uma ficha que pode ser alvo, como a mira a lista. Unificação do combate U1
+ * (10/11/2026): a mesma forma em toda entrada (o mestre no mapa, o jogador
+ * por LAN, a Arena e o site), montada por `alvoDaMira`.
+ */
 export interface AlvoNaMira {
   tokenId: string
   nome: string
-  /** 'eu' = do jogador que olha (ou do NPC da vez, no mestre). */
+  /** O lado NA LUTA em relação a quem age: 'eu' = a ficha que age (só ela); 'aliado' = luta do lado dela, jogador ou NPC; 'outro' = o outro lado. */
   lado: 'eu' | 'aliado' | 'outro'
+  /** A vida chegou a 0. Sem a vida na mão (a ficha do outro lado na tela do jogador), só o que o recorte diz. */
   caiu: boolean
+  /** U1: a vida não está cheia (o caído também conta). Só vem junto da `vida`: ausente = quem olha não vê a vida deste alvo. */
+  ferido?: boolean
   /** Presente = não pode ser alvo (ficha sem personagem), com a frase. */
   motivo?: string | null
   /** A miniatura: a imagem da forma, a foto do token ou o retrato (referência ou embutida, como na faixa); ausente = as iniciais. */
@@ -295,8 +304,141 @@ export interface AlvoNaMira {
   deslocamento?: Casa
   /** Construtor C3: a ficha do alvo e a de quem age na grade, inteiras (token grande), e para onde quem age olha; ausente = sem posição. */
   naGrade?: GradeDaMira
-  /** Pedido de 09/11 (a Bolha): a vida do alvo, para a mira da cura marcar os feridos e mostrar quanto falta. Ausente = quem monta não sabe (a tela do jogador). */
-  vida?: { atual: number; maximo: number }
+  /**
+   * Pedido de 09/11 (a Bolha): a vida do alvo, para a mira da cura marcar os feridos e mostrar quanto falta.
+   * U1: vem sempre que quem olha pode ver: o mestre e a Arena veem todos; o jogador, a dele e a dos aliados
+   * jogadores (a regra do recorte: número de NPC não sai). Ausente = quem olha não vê.
+   */
+  vida?: VidaNaMira
+}
+
+/** A vida de um alvo na mira, nos pontos da ficha. */
+export interface VidaNaMira {
+  atual: number
+  maximo: number
+}
+
+/**
+ * U1: a vida que a mira mostra, lida como a regra da cura a lê
+ * (`motivoDaCuraSemFerido`: o recurso de vida do sistema), para o "ferido" da
+ * tela ser o mesmo da regra. `undefined` = sem ficha, sem sistema ou sem vida.
+ */
+export function vidaNaMira(personagem: Personagem | null | undefined, sistema: SistemaDeRpg | null): VidaNaMira | undefined {
+  const recurso = recursoDeVida(sistema)
+  if (personagem === null || personagem === undefined || recurso === null) return undefined
+  const vida = vidaDoPersonagem(personagem, recurso)
+  return vida === null ? undefined : { atual: vida.atual, maximo: vida.maximo }
+}
+
+/** U1: o que cada entrada sabe de uma ficha antes de ela virar alvo da mira. */
+export interface DadosDoAlvo {
+  tokenId: string
+  nome: string
+  lado: AlvoNaMira['lado']
+  /** Quem monta já sabe que caiu (a carta do recorte, `tokensCaidos`). Com a vida na mão, a vida em 0 também vale. */
+  caiu?: boolean
+  motivo?: string | null
+  imagem?: string | null
+  cor?: string | null
+  /** Só quando quem olha pode ver. */
+  vida?: VidaNaMira
+}
+
+/**
+ * U1: UM alvo da mira, igual em toda entrada. Quem monta diz o lado na luta e
+ * o que sabe; daqui saem o caído e o ferido, sempre do mesmo jeito.
+ */
+export function alvoDaMira(dados: DadosDoAlvo): AlvoNaMira {
+  const { vida } = dados
+  const caiu = dados.caiu === true || (vida !== undefined && vida.atual <= 0)
+  const alvo: AlvoNaMira = { tokenId: dados.tokenId, nome: dados.nome, lado: dados.lado, caiu, motivo: dados.motivo ?? null, imagem: dados.imagem ?? null, cor: dados.cor ?? null }
+  if (vida !== undefined) {
+    alvo.vida = vida
+    alvo.ferido = vida.atual < vida.maximo
+  }
+  return alvo
+}
+
+/** As duas cartas são da mesma equipe (o recorte só leva o nome e a cor; duas equipes com os dois iguais contam como uma). */
+function mesmaEquipeNaCarta(a: CartaParaJogador['equipe'], b: CartaParaJogador['equipe']): boolean {
+  return a !== undefined && b !== undefined && a.nome === b.nome && a.cor === b.cor
+}
+
+/**
+ * U1: o lado de uma carta do RECORTE em relação a quem age, pela regra da
+ * luta (`ladoNaBatalha`, a que o host confere), com o que o recorte traz:
+ *  - a ficha que age é 'eu', só ela (a outra ficha do mesmo jogador é aliada);
+ *  - as duas com equipe: a mesma equipe é aliada, outra é o outro lado. É por
+ *    aqui que o NPC da equipe dos jogadores (o Tree) vira aliado na tela do
+ *    jogador, e que a Arena (tudo "meu" no recorte) separa o Lado A do B;
+ *  - sem as duas equipes, ficha de jogador: vale o recorte (os colegas);
+ *  - sem as duas equipes, NPC que age (o emprestado, sem equipe): do lado dele
+ *    ficam os outros sem equipe que não são do jogador (os outros NPCs).
+ */
+export function ladoDaCartaNaMira(carta: Pick<CartaParaJogador, 'tokenId' | 'lado' | 'equipe'>, quemAge: Pick<CartaParaJogador, 'tokenId' | 'equipe'>, npcQueAge: boolean): AlvoNaMira['lado'] {
+  if (carta.tokenId === quemAge.tokenId) return 'eu'
+  if (carta.equipe !== undefined && quemAge.equipe !== undefined) return mesmaEquipeNaCarta(carta.equipe, quemAge.equipe) ? 'aliado' : 'outro'
+  if (!npcQueAge) return carta.lado === 'outro' ? 'outro' : 'aliado'
+  return carta.lado === 'outro' && carta.equipe === undefined && quemAge.equipe === undefined ? 'aliado' : 'outro'
+}
+
+/** U1: o que a mira do recorte precisa para listar os alvos. */
+export interface MiraDoRecorte {
+  cartas: readonly CartaParaJogador[]
+  /** A carta de quem age (a da vez, a do contra-ataque guardado, o dono do lembrete); `null` = ninguém age: o lado fica o do recorte. */
+  quemAge: CartaParaJogador | null
+  /** As fichas que quem olha tem inteiras: as dele e as dos aliados (na Arena, todas as cópias). É daqui que sai a vida. */
+  personagens: readonly Personagem[]
+  sistema: SistemaDeRpg | null
+  nomeDe: (tokenId: string) => string
+  imagemDe: (tokenId: string) => string | null
+}
+
+/**
+ * U1: os alvos da mira a partir do RECORTE (o jogador por LAN, a Arena, o
+ * site), na ordem das cartas. A mesma montagem do mestre no mapa
+ * (`alvoDaMira`): o lado na luta, a vida quando quem olha a tem, o ferido e o
+ * caído. A carta do bando vira os invocados dela.
+ */
+export function alvosDoRecorte(mira: MiraDoRecorte): AlvoNaMira[] {
+  const { cartas, quemAge, personagens, sistema, nomeDe, imagemDe } = mira
+  const fichaDe = (personagemId: string | undefined) => (personagemId === undefined ? undefined : personagens.find((candidato) => candidato.id === personagemId))
+  const npcQueAge = fichaDe(quemAge?.personagemId)?.tipo === 'npc'
+  const ladoDe = (carta: CartaParaJogador): AlvoNaMira['lado'] => (quemAge === null ? carta.lado : ladoDaCartaNaMira(carta, quemAge, npcQueAge))
+  const vistos = new Set<string>()
+  const alvos: AlvoNaMira[] = []
+  for (const carta of cartas) {
+    const { bando } = carta
+    // Invocação F3: a carta do bando não é ficha do mapa; os invocados dela são os alvos, do lado e com a cor do dono.
+    if (bando !== undefined) {
+      const dono = bando.donoTokenId === undefined ? undefined : cartas.find((candidata) => candidata.tokenId === bando.donoTokenId && candidata.bando === undefined)
+      const doDono = dono === undefined ? carta.lado : ladoDe(dono)
+      for (const membro of bando.membros) {
+        if (vistos.has(membro.tokenId)) continue
+        vistos.add(membro.tokenId)
+        alvos.push(alvoDaMira({ tokenId: membro.tokenId, nome: membro.nome.trim() || nomeDe(membro.tokenId), lado: doDono === 'outro' ? 'outro' : 'aliado', imagem: imagemDe(membro.tokenId), cor: dono?.equipe?.cor ?? null, vida: membro.vida }))
+      }
+      continue
+    }
+    if (vistos.has(carta.tokenId)) continue
+    vistos.add(carta.tokenId)
+    const ficha = fichaDe(carta.personagemId)
+    alvos.push(
+      alvoDaMira({
+        tokenId: carta.tokenId,
+        nome: carta.nome.trim() || nomeDe(carta.tokenId),
+        lado: ladoDe(carta),
+        caiu: carta.caiu === true,
+        // A carta "outro" do recorte não diz se tem personagem: o host confere.
+        motivo: carta.lado !== 'outro' && carta.personagemId === undefined ? MOTIVO_SEM_PERSONAGEM : null,
+        // A imagem da carta na faixa: a forma, a foto do token e o retrato (só de ficha que quem olha já tem).
+        imagem: imagemDe(carta.tokenId) ?? ficha?.retrato ?? null,
+        cor: carta.equipe?.cor ?? null,
+        vida: vidaNaMira(ficha, sistema),
+      }),
+    )
+  }
+  return alvos
 }
 
 /**
@@ -347,6 +489,63 @@ export function alvosNaOrdemDaAjuda<T extends AlvoNaMira>(alvos: readonly T[]): 
     .map((alvo, indice) => ({ alvo, indice }))
     .sort((a, b) => grupo(a.alvo) - grupo(b.alvo) || (grupo(a.alvo) === 0 ? vidaQueFalta(b.alvo) - vidaQueFalta(a.alvo) : 0) || a.indice - b.indice)
     .map(({ alvo }) => alvo)
+}
+
+/**
+ * U1 (decisão 3 do plano de unificação): o alvo SERVE à técnica, e por isso
+ * fica à vista quando a mira abre; o resto vai para trás do "mostrar todos".
+ *  - golpe: os inimigos de pé;
+ *  - cura: os feridos do lado de quem usa (ele junto). O aliado cuja vida quem
+ *    olha não vê (o NPC da equipe, na tela do jogador) fica à vista: pode
+ *    estar ferido, e só o host sabe;
+ *  - outra ajuda (Buff): o lado de quem usa, de pé.
+ */
+export function alvoServeAoAbrir(golpe: Pick<GolpeNaTela, 'cura' | 'reacao'>, alvo: AlvoNaMira): boolean {
+  if (alvo.motivo || alvo.caiu) return false
+  if (!golpeDeAjuda(golpe)) return alvo.lado === 'outro'
+  if (alvo.lado === 'outro') return false
+  return golpe.cura !== true || alvo.vida === undefined || vidaQueFalta(alvo) > 0
+}
+
+/** U1: o que a mira sabe a mais ao abrir. */
+export interface AberturaDaMira {
+  /** A sugestão do app (a vez do NPC): `undefined` = sem sugestão (vale a regra); `null` = a sugestão é não marcar ninguém. */
+  sugerido?: string | null
+  /** Quem está na área, quando quem monta já calculou; ausente = a conta daqui (a grade, ou a casa de cada alvo). */
+  daArea?: readonly string[]
+  /** Para onde a área montada aponta; ausente = a frente de quem age (`direcaoDaAreaAoAbrir`). */
+  direcao?: Direcao
+}
+
+/**
+ * U1 (decisão 3): QUEM A MIRA MARCA AO ABRIR, a regra única para toda entrada.
+ * Nunca abre marcada num alvo que a regra vai recusar:
+ *  - cura: os feridos do lado de quem usa, o mais ferido primeiro, até o teto
+ *    da técnica; ninguém ferido = SEM alvo marcado (a mira diz por quê);
+ *  - ajuda em quem usa (Buff): a ficha que age;
+ *  - técnica sem alvo: ninguém;
+ *  - área: quem está nela (a montada, mesmo ninguém);
+ *  - golpe: a sugestão do app, ou o primeiro inimigo de pé da lista (o mais
+ *    perto); sem inimigo de pé, SEM alvo marcado (nunca um aliado, nunca quem age).
+ */
+export function marcadosAoAbrirAMira(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], abertura: AberturaDaMira = {}): string[] {
+  const valido = (tokenId: string): boolean => alvos.some((alvo) => alvo.tokenId === tokenId && !alvo.motivo)
+  if (golpe.cura === true) return feridosParaACura(alvos, golpe.tetoDeAlvos ?? 1) ?? []
+  if (golpe.alvoEmSi === true) {
+    const quemUsa = alvos.find((alvo) => alvo.lado === 'eu' && !alvo.motivo)
+    return quemUsa === undefined ? [] : [quemUsa.tokenId]
+  }
+  if (golpe.semAlvo === true) return []
+  if (golpe.area !== undefined) {
+    const pelaGrade = golpe.areaPelaGrade === true && miraComGrade(alvos)
+    const daArea = abertura.daArea ?? (pelaGrade ? alvosNaAreaPelaGrade(golpe.area, alvos, abertura.direcao ?? direcaoDaAreaAoAbrir(golpe.area, alvos)) : alvosNaAreaDaMira(golpe.area, alvos))
+    if (pelaGrade || daArea.length > 0) return daArea.filter(valido).slice(0, ALVOS_MAX)
+  }
+  const { sugerido } = abertura
+  if (sugerido === null) return []
+  if (sugerido !== undefined && valido(sugerido)) return [sugerido]
+  const primeiro = alvos.find((alvo) => alvoServeAoAbrir(golpe, alvo))
+  return primeiro === undefined || golpeDeAjuda(golpe) ? [] : [primeiro.tokenId]
 }
 
 /** Construtor C3: onde o alvo e quem age estão na grade (a ficha inteira de cada um). */

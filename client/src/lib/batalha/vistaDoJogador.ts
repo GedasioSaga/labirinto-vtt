@@ -40,7 +40,7 @@ import {
   type SaidaDaReacao,
   type SeloDaBatalha,
 } from './combate'
-import { corDaEquipe, equipeDe, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
+import { corDaEquipe, equipeDe, equipesNaLeitura, NOME_DA_EQUIPE_MAX, NOME_DA_EQUIPE_PADRAO, type Equipe } from './equipes'
 import type { JudgeNaCena } from './judge'
 import { limiteDeArmas, recursoDoEscudo } from './leituraDaFicha'
 import { LEMBRETES_DA_MARCA_MAX } from './marca'
@@ -406,7 +406,9 @@ export function selosParaOBonus(cartas: readonly Pick<CartaParaJogador, 'tokenId
 function cartaParaJogador(carta: CartaDaOrdem, nome: string, ctx: ContextoDoJogador, caidos: ReadonlySet<string>, turnos: TurnosDaCena, registro: readonly LinhaDoRegistro[]): CartaParaJogador {
   const lado = ladoDa(carta, ctx)
   const saida: CartaParaJogador = { id: carta.id, tokenId: carta.tokenId, nome: nome.slice(0, NOME_NA_CARTA_MAX), lado }
-  const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, ctx.equipes)
+  // U1: a equipe como a regra a lê (`equipesNaLeitura`): o jogador criado depois da equipe automática conta
+  // como dela, senão a carta dele saía sem equipe e a mira o punha do outro lado do NPC aliado (o Tree).
+  const equipe = carta.personagemId === null || ctx.equipes === undefined ? null : equipeDe(carta.personagemId, equipesNaLeitura(ctx.equipes, ctx.personagens))
   // Cor e nome passam de novo pelos tetos: a equipe pode ter vindo da tela do mestre sem passar pelo arquivo.
   if (equipe !== null) saida.equipe = { nome: equipe.nome.trim().slice(0, NOME_DA_EQUIPE_MAX) || NOME_DA_EQUIPE_PADRAO, cor: corDaEquipe(equipe.cor) }
   if (carta.extra !== undefined) saida.extra = carta.extra.duracao

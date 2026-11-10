@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
-import { GRADES_DA_ARENA, type LadoDaArena } from '../../lib/arena/grade'
+import { GRADES_DA_ARENA } from '../../lib/arena/grade'
 import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib/arena/tipos'
 import type { PedidoDeAcao, PedidoDeEvolucao, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
 import type { Equipe } from '../../lib/batalha/equipes'
@@ -10,7 +10,6 @@ import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
 import { alvosDeMod, selosDoToken } from '../../lib/batalha/selos'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { cartaDaVez } from '../../lib/batalha/turnos'
-import type { EstadoParaJogador, LadoNaCarta } from '../../lib/batalha/vistaDoJogador'
 import type { ResolverDeImagem } from '../../lib/midia'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -91,35 +90,6 @@ function fotosDoPalco(formas: FotosDaForma | null, tokens: readonly Token[], cop
     if (src !== null) fotos.set(token.id, src)
   }
   return fotos.size === 0 ? null : fotos
-}
-
-/** O lado do token na arena (o boneco joga no Lado B). */
-function ladoDoToken(sessao: SessaoDaArena, tokenId: string): LadoDaArena | null {
-  const lado = sessao.ladoDe[tokenId]
-  if (lado === undefined) return null
-  return lado === 'boneco' ? 'b' : lado
-}
-
-/**
- * A vista da arena é "tudo meu" (todas as cartas "eu"). Na vez de uma ficha,
- * o menu dela lê os lados de verdade: ela é "eu", o lado dela é "aliado" e o
- * outro é "outro" — assim a mira já começa num inimigo e a lista de alvos não
- * diz "você" para todo mundo. Fora da vez fica como veio (o contra-ataque
- * guardado procura a ficha "eu").
- */
-function comLadosDaVez(estado: EstadoParaJogador, sessao: SessaoDaArena): EstadoParaJogador {
-  if (!estado.minhaVez || estado.vez === null) return estado
-  const daVez = estado.cartas.find((carta) => carta.id === estado.vez)
-  if (daVez === undefined) return estado
-  const ladoDaVez = ladoDoToken(sessao, daVez.tokenId)
-  let mudou = false
-  const cartas = estado.cartas.map((carta) => {
-    const lado: LadoNaCarta = carta.tokenId === daVez.tokenId ? 'eu' : ladoDoToken(sessao, carta.tokenId) === ladoDaVez ? 'aliado' : 'outro'
-    if (carta.lado === lado) return carta
-    mudou = true
-    return { ...carta, lado }
-  })
-  return mudou ? { ...estado, cartas } : estado
 }
 
 /** O nome da ficha no palco (o do token). */
@@ -227,7 +197,9 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
   const { turnos } = cena
   const boneco = sessao.boneco
   const equipes = useMemo(() => equipesDaArena(sessao), [sessao])
-  const estado = useMemo(() => comLadosDaVez(vistaDaArena(cena, sessao, sistema), sessao), [cena, sessao, sistema])
+  // U1: o recorte da arena fica "tudo meu" (a reação, o contra-ataque e os lembretes de qualquer lado são do mestre). O lado
+  // de cada alvo na mira sai da equipe da carta (Lado A, Lado B), em relação a quem age: `alvosDoRecorte`, a montagem de toda entrada.
+  const estado = useMemo(() => vistaDaArena(cena, sessao, sistema), [cena, sessao, sistema])
   const dados = useMemo(() => faixaDoMestre({ turnos, fichas: sessao.tokens, personagens: sessao.copias, equipes, sistema }), [turnos, sessao, equipes, sistema])
   const registro = useMemo(() => linhasDoMestre(cena.registro), [cena.registro])
   const vidas = useMemo(() => vidasDaCena(sessao.tokens, sessao.copias, sistema), [sessao, sistema])

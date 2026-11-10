@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDeMarca, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
@@ -11,12 +11,12 @@ import type { VezEsperada } from '../../lib/batalha/ponte'
 import { bonusDaBatalha, bonusDaReacao, type SeloQueSoma } from '../../lib/batalha/selos'
 import { formasNoMenu } from '../../lib/batalha/transformacao'
 import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
-import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
+import { ATACANTE_FORA_DA_VISTA, selosParaOBonus, type CartaParaJogador, type EfeitoParaJogador, type EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { BotaoDeReacao } from './BotaoDeReacao'
 import { CaixaDeReacao, type BonusDaReacaoNaTela, type ReacaoNaCaixa } from './CaixaDeReacao'
-import { MOTIVO_SEM_PERSONAGEM, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade, type AlvoNaMira } from './dadosDoMenu'
+import { alvosDoRecorte, alvosNaOrdemDaMira, armaPadraoNaBatalha, combateDoJogador, golpesDeAtaque, golpesDeHabilidade } from './dadosDoMenu'
 import { EfeitosDaBatalha, type PalcoDosEfeitos } from './EfeitosDaBatalha'
 import { invocacaoDaFicha, motivoNoJogador, pedidoDeInvocacao } from './dadosDaInvocacao'
 import { EscolhaDeArmas } from './EscolhaDeArmas'
@@ -195,39 +195,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   // Tipos de habilidade F2: os selos do recorte (a carta extra repete os do token: conta uma vez), na forma que `bonusDaBatalha` lê.
   const selosQueSomam = useMemo(() => selosParaOBonus(estado.cartas), [estado.cartas])
 
-  // As fichas da ordem do ponto de vista dele: os alvos da mira e o oponente da passiva.
-  const alvos = useMemo(() => {
-    const vistos = new Set<string>()
-    const alvos: AlvoNaMira[] = []
-    for (const carta of estado.cartas) {
-      // Invocação F3: a carta do bando não é ficha do mapa; os invocados dela são os alvos, com a cor do dono.
-      if (carta.bando !== undefined) {
-        const dono = carta.bando.donoTokenId === undefined ? undefined : estado.cartas.find((candidata) => candidata.tokenId === carta.bando?.donoTokenId && candidata.bando === undefined)
-        for (const membro of carta.bando.membros) {
-          if (vistos.has(membro.tokenId)) continue
-          vistos.add(membro.tokenId)
-          alvos.push({ tokenId: membro.tokenId, nome: membro.nome.trim() || nomeDe(membro.tokenId), lado: carta.lado === 'outro' ? 'outro' : 'aliado', caiu: false, motivo: null, imagem: imagemDe(membro.tokenId), cor: dono?.equipe?.cor ?? null })
-        }
-        continue
-      }
-      if (vistos.has(carta.tokenId)) continue
-      vistos.add(carta.tokenId)
-      alvos.push({
-        tokenId: carta.tokenId,
-        nome: carta.nome.trim() || nomeDe(carta.tokenId),
-        lado: carta.lado,
-        caiu: carta.caiu === true,
-        // A carta "outro" não diz se tem personagem: o host confere.
-        motivo: carta.lado !== 'outro' && carta.personagemId === undefined ? MOTIVO_SEM_PERSONAGEM : null,
-        // A imagem da carta na faixa: a forma, a foto do token e o retrato. O retrato só vem de
-        // personagem que ele já tem (`meus`): a carta "outro" da mesa não traz `personagemId`, e na
-        // Arena, onde o mestre vê tudo, o lado de lá também ganha o retrato.
-        imagem: imagemDe(carta.tokenId) ?? meus.find((candidato) => candidato.id === carta.personagemId)?.retrato ?? null,
-        cor: carta.equipe?.cor ?? null,
-      })
-    }
-    return alvos
-  }, [estado.cartas, nomeDe, imagemDe, meus])
+  // U1: as fichas inteiras que quem olha tem (as dele e as dos aliados; na Arena, todas as cópias): daqui sai a vida de cada alvo.
+  const fichasInteiras = useMemo(() => [...meus, ...aliados], [meus, aliados])
+  // U1: os alvos da mira e o oponente da passiva, do ponto de vista de quem age, pela mesma montagem do mestre no mapa
+  // (`alvosDoRecorte`): o lado na luta, a vida quando quem olha a tem, o ferido e o caído.
+  const alvosPara = useCallback(
+    (quemAge: CartaParaJogador | null) => alvosDoRecorte({ cartas: estado.cartas, quemAge, personagens: fichasInteiras, sistema, nomeDe, imagemDe }),
+    [estado.cartas, fichasInteiras, sistema, nomeDe, imagemDe],
+  )
 
   const menu = useMemo(() => {
     if (cartaQueAge === undefined) return null
@@ -241,14 +216,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       habilidades: habilidades(acoes),
       contra: { armas: golpesDeAtaque(personagem, sistema, combate, null, bonus), habilidades: habilidades(null) },
       // C4: inimigos do mais perto ao mais longe, aliados depois, ele por último.
-      alvos: alvosNaOrdemDaMira(alvos, fichas, cartaQueAge.tokenId, tamanhoDaCasa),
+      alvos: alvosNaOrdemDaMira(alvosPara(cartaQueAge), fichas, cartaQueAge.tokenId, tamanhoDaCasa),
       // F3: a tira Transformação (com a prévia dos números da ficha dele).
       // C6: a forma em que o mestre decide os números não mostra prévia, e a que já espera o mestre fica apagada.
       formas: personagem !== null && sistema !== null ? formasComODecidirDoMestre(formasNoMenu(personagem, sistema, acoes, combate), meuCombate?.formasEsperando) : [],
       // Tipos de habilidade F3: a tira Passivas (as ligadas vêm do recorte, `passivasAtivas`).
       passivas: passivasNoRecorte(personagem, sistema, estado.rodada, meuCombate, selosDoDono),
     }
-  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvos, selosQueSomam, fichas, tamanhoDaCasa])
+  }, [cartaQueAge, personagem, sistema, combate, acoes, estado.cartas, estado.rodada, meuCombate, alvosPara, selosQueSomam, fichas, tamanhoDaCasa])
 
   const contrasNoMenu = useMemo<ContraNoMenu[]>(
     () =>
@@ -271,10 +246,12 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
       const dele = meus.find((candidato) => candidato.id === meu.personagemId)
       const selosDoDono = estado.cartas.find((carta) => carta.tokenId === primeiro.tokenId)?.selos?.length ?? 0
       const passivas = passivasNoRecorte(dele, sistema, estado.rodada, meu, selosDoDono)
-      itens.push(...lembretesNaTela(meu.lembretes, passivas, alvos, varios ? nomeDe(primeiro.tokenId) : undefined, custosDasFormasNaTela(dele, sistema)))
+      // U1: os alvos do lembrete do ponto de vista do DONO da passiva (na Arena, cada lado vê o outro como o outro lado).
+      const cartaDoDono = estado.cartas.find((carta) => carta.tokenId === primeiro.tokenId && carta.bando === undefined) ?? null
+      itens.push(...lembretesNaTela(meu.lembretes, passivas, alvosPara(cartaDoDono), varios ? nomeDe(primeiro.tokenId) : undefined, custosDasFormasNaTela(dele, sistema)))
     }
     return itens
-  }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvos, nomeDe])
+  }, [comPassiva, estado.meus, estado.rodada, estado.cartas, meus, sistema, alvosPara, nomeDe])
   // ---- R1 (lote de 01/11): os lembretes da marca, de todas as fichas dele (o nome quando ele tem mais de uma).
   const pedirMarca = conexao.marcar
   const marcas = useMemo<MarcaNaTela[]>(() => {
@@ -484,6 +461,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
             alvoDoMapa={alvoDoMapa}
             onMirando={onMirando}
             consulta={consulta}
+            // U1: na Arena quem opera é o mestre: a mira diz o lado de cada alvo ("quem usa", "outro lado") e a ajuda
+            // no outro lado pede um toque a mais, como na vez do NPC no mapa.
+            doMestre={operaComoMestre}
             formas={menu.formas}
             personagemId={personagemId ?? null}
             passivas={conexao.passiva === undefined || menu.passivas.length === 0 ? undefined : { itens: menu.passivas, tokenId: cartaQueAge.tokenId, sistema, onPedir: conexao.passiva }}
