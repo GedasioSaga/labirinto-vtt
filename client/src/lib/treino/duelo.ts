@@ -723,12 +723,15 @@ const AUTOR_DA_REGRA: AutorDaAcao = { tipo: 'mestre' }
  * quem sangra só o mestre aplica (a batalha recusa o do jogador). O site não
  * tem mestre, e o Sangrando tirava 0: depois de cada jogada aceita, a regra
  * aplica os lembretes de Sangramento que esperam, pelo caminho da batalha.
+ * `chave` = a cena da store (a luta v4 chama depois de cada passo do robô,
+ * com a cena dela). Cena desligada: nada.
  */
-function aplicarSangramentos(loja: LojaDaBatalha): void {
-  const { turnos } = cenaDaLoja(loja)
-  const esperando = Object.values(turnos.combate ?? {}).flatMap((combate) => (combate.lembretes ?? []).filter(ehLembreteDoSangramento))
+export function aplicarSangramentos(loja: LojaDaBatalha, chave: string = CENA_DO_DUELO): void {
+  const cena = loja.getState().cenas[chave]
+  if (cena === undefined) return
+  const esperando = Object.values(cena.turnos.combate ?? {}).flatMap((combate) => (combate.lembretes ?? []).filter(ehLembreteDoSangramento))
   for (const lembrete of esperando) {
-    loja.getState().passiva(CENA_DO_DUELO, AUTOR_DA_REGRA, { tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar: true })
+    loja.getState().passiva(chave, AUTOR_DA_REGRA, { tipo: 'lembrete', tokenId: lembrete.tokenId, cartaoId: lembrete.cartaoId, aplicar: true })
   }
 }
 

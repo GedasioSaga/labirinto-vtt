@@ -7,7 +7,7 @@ import { bonusDaBatalha, bonusDaReacao } from '../batalha/selos'
 import { cartaDaVez, combatentesIniciais, type AutorDaAcao } from '../batalha/turnos'
 import { projetarParaTreino } from '../nuvem/projecao'
 import type { Personagem } from '../personagem'
-import { fimDaMesaDaJogada, jogarNaMesa, VOLTA_DO_AUSENTE_MS, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo, type QuemJoga, type RegraDoAndar } from './duelo'
+import { aplicarSangramentos, fimDaMesaDaJogada, jogarNaMesa, VOLTA_DO_AUSENTE_MS, type JogadaDoDuelo, type MotivoDaRecusa, type MotorDoDuelo, type QuemJoga, type RegraDoAndar } from './duelo'
 import type { FimDaLuta } from './fimDaLuta'
 import { fichaDoJuiz, juizNaoReage, type AjustesDoJuiz } from './juiz'
 import { AUTOR_DO_ROBO, type GolpesDaVez } from './lutaAutomatica'
@@ -466,6 +466,8 @@ function jogarPeloRobo(luta: EstadoDaLuta, motor: MotorDoDuelo): EstadoDaLuta {
     const passo = passoDoRobo(aberta, doRobo, golpesDaVez)
     if (!passo.jogou) break
     golpesDaVez = passo.golpesDaVez
+    // R4: sem mestre, a regra aplica o Sangramento que o passo deixou esperando (o da ficha de gente também).
+    aplicarSangramentos(aberta.loja, CENA_DA_LUTA)
     // O robô só joga depois que a conta sumiu no meio da luta: a montagem já não vale.
     agora = { ...luta, lutadores: aberta.mesa.lutadores(), cena: aberta.cena(), passos: agora.passos + 1, montagem: false }
     if (fimDaMesaDaJogada(motor.sistema, agora) !== null) break
