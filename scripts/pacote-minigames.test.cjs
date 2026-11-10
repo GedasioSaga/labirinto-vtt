@@ -10,6 +10,7 @@ const os = require('node:os')
 const path = require('node:path')
 const zlib = require('node:zlib')
 const { assinaturaConfere } = require('./publicar-versao.cjs')
+const { escolherMotorMinimo, MOTOR_MINIMO_PISO } = require('./pacote-minigames.cjs')
 
 const SCRIPT = path.join(__dirname, 'pacote-minigames.cjs')
 const CHAVE = path.join(os.homedir(), '.tauri', 'labirinto.key')
@@ -73,4 +74,18 @@ test('recusa build copiado pela metade (tamanho fora do GODOT_CONFIG) sem gerar 
   } finally {
     fs.rmSync(raiz, { recursive: true, force: true })
   }
+})
+
+test('motorMinimo: sem pedido é a versão do app desta árvore; com --motor-minimo, só entre o piso e ela', () => {
+  const erro = (mensagem) => {
+    throw new Error(mensagem)
+  }
+  assert.equal(escolherMotorMinimo(null, '0.5.44', erro), '0.5.44')
+  assert.equal(escolherMotorMinimo(null, '0.5.30', erro), MOTOR_MINIMO_PISO)
+  // Pacote que só conserta o jogo: chega a quem ainda está num app mais antigo.
+  assert.equal(escolherMotorMinimo('0.5.40', '0.5.44', erro), '0.5.40')
+  assert.equal(escolherMotorMinimo('0.5.44', '0.5.44', erro), '0.5.44')
+  assert.throws(() => escolherMotorMinimo('0.5.36', '0.5.44', erro), /abaixo do piso/)
+  assert.throws(() => escolherMotorMinimo('0.5.45', '0.5.44', erro), /passa da versão do app/)
+  assert.throws(() => escolherMotorMinimo('0.5', '0.5.44', erro), /pede uma versão/)
 })

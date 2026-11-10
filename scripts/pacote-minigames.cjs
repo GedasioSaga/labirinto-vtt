@@ -7,6 +7,10 @@
  *
  * Opções:
  *   --jogo <id>         qual jogo (padrão: fogo; os conhecidos estão em JOGOS)
+ *   --motor-minimo <x.y.z>  a versão mais antiga do app que roda este pacote. Sem a opção
+ *                       vale a versão do app nesta árvore (o mais seguro: só quem tem o app
+ *                       de agora baixa). Com ela, um pacote que só conserta o JOGO chega também
+ *                       a quem ainda não atualizou o app. De MOTOR_MINIMO_PISO à versão desta árvore.
  * Opções de teste (recusadas com --publicar):
  *   --build <pasta>     lê o export web de outra pasta (padrão: FOGO_WEB_DIR ou o build do projeto do jogo)
  *   --versao <n>        troca a versão do índice (em vez da publicada + 1)
@@ -85,11 +89,12 @@ function log(mensagem) {
 }
 
 function lerArgumentos(argv) {
-  const args = { publicar: false, jogo: 'fogo', build: null, versao: null, saida: SAIDA_PADRAO }
+  const args = { publicar: false, jogo: 'fogo', build: null, versao: null, saida: SAIDA_PADRAO, motorMinimo: null }
   const valor = (i, nome) => argv[i] ?? falhar(`${nome} pede um valor`)
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--publicar') args.publicar = true
     else if (argv[i] === '--jogo') args.jogo = valor(++i, '--jogo')
+    else if (argv[i] === '--motor-minimo') args.motorMinimo = valor(++i, '--motor-minimo')
     else if (argv[i] === '--build') args.build = path.resolve(valor(++i, '--build'))
     else if (argv[i] === '--versao') args.versao = Number(valor(++i, '--versao'))
     else if (argv[i] === '--saida') args.saida = path.resolve(valor(++i, '--saida'))
@@ -115,6 +120,20 @@ function maiorVersao(a, b) {
   const vb = lerVersao(b)
   for (let i = 0; i < 3; i++) if (va[i] !== vb[i]) return va[i] > vb[i] ? a : b
   return a
+}
+
+/**
+ * O `motorMinimo` do índice. Sem pedido, a versão do app desta árvore (nunca abaixo do piso).
+ * Com `--motor-minimo`, a pedida, desde que fique entre o piso e a versão desta árvore: abaixo
+ * do piso o app nem conhecia o pacote; acima da árvore, nenhum app publicado baixaria.
+ */
+function escolherMotorMinimo(pedido, versaoDoApp, erro) {
+  const padrao = maiorVersao(versaoDoApp, MOTOR_MINIMO_PISO)
+  if (pedido === null) return padrao
+  if (lerVersao(pedido) === null) return erro(`--motor-minimo pede uma versão x.y.z, veio "${pedido}"`)
+  if (maiorVersao(pedido, MOTOR_MINIMO_PISO) !== pedido) return erro(`--motor-minimo ${pedido} fica abaixo do piso ${MOTOR_MINIMO_PISO}`)
+  if (maiorVersao(pedido, padrao) !== padrao) return erro(`--motor-minimo ${pedido} passa da versão do app desta árvore (${padrao})`)
+  return pedido
 }
 
 /** O `GODOT_CONFIG` que o export grava no HTML: daí saem o executável e os tamanhos esperados. */
@@ -298,7 +317,7 @@ async function main() {
 
   const versao = args.versao ?? (await proximaVersao(args.jogo))
   const nomeados = nomear(args.jogo, versao, compactados, falhar)
-  const motorMinimo = maiorVersao(conf.version, MOTOR_MINIMO_PISO)
+  const motorMinimo = escolherMotorMinimo(args.motorMinimo, conf.version, falhar)
   fs.rmSync(args.saida, { recursive: true, force: true })
   fs.mkdirSync(args.saida, { recursive: true })
   const caminhos = []
@@ -329,4 +348,4 @@ async function main() {
 // Rodado direto, empacota; carregado por require (o teste), só expõe as peças puras.
 if (require.main === module) main().catch((erro) => falhar(erro && erro.stack ? erro.stack : String(erro)))
 
-module.exports = { lerArquivosDoBuild, compactar, nomeNaRelease, nomear, montarIndice, TETO_ARQUIVO, TETO_TOTAL, MAX_ARQUIVOS }
+module.exports = { lerArquivosDoBuild, compactar, nomeNaRelease, nomear, montarIndice, escolherMotorMinimo, MOTOR_MINIMO_PISO, TETO_ARQUIVO, TETO_TOTAL, MAX_ARQUIVOS }
