@@ -1,4 +1,34 @@
-# Estado em 09/11/2026 (o mais recente; abaixo, o histórico)
+# Estado em 10/11/2026, 03h23 (o mais recente)
+
+## Objetivo
+Mandato do mestre de 10/11 01h44 (literal no fim do PEDIDOS.md, "unificar o combate"): unificar o combate segundo docs/planos/unificacao-do-combate-2026-11-10.md, aplicar a lista de design do print tmp/pedidos-2026-11-10/20.png, ajeitar os dois riscos do site, teste e correção só no final, PUBLICAR ao terminar. Ele dorme e vê de manhã: autonomia total, não parar para perguntar. Modelos: Opus 5.5 xhigh por padrão, Fable 5.2 xhigh no complicado. Em paralelo: G Fogo na Floresta (acelerado e carga), H Bolha d'Água (rascunho pronto).
+
+## Estado atual
+- Publicadas nesta sessão: 0.5.42, 0.5.43 (12 consertos de 09/11) e 0.5.44 (lista de cenas, 02h13). main = origin/main no bump da 0.5.44, mais os commits das raias do combate e da G (sem push desde então).
+- COMBATE: as 3 raias estão IMPLEMENTADAS e commitadas na main; `rtk proxy npx tsc --noEmit` em client/ deu exit 0 às 03h21 com tudo junto. NADA foi testado até a fase final. Commits: U `28f4ec40` `6a90f091` `f0ef8f46` `0a77b24f` `5fd77f9b` `e8b767fd` `eababea9` `d53f396d` `45289b57` `a61d5396` `3eaae81b` `4107a167` `38dd27d5`; R `1e1aff4f` `e57f99f` `8dd123e` `4bc79d07` `289de1b9` `9ce6c3f7` `e13526ef`; D `8b3b5244` `481a5c39` `6f146e6e` `1382abf4` `5fc190a9` `471c9be1` `0137692a` `283e6cbf` `6f31a86d`. O que cada um fez está nos itens "RAIA ..." da lista de 09/11 abaixo (seção "Estado atual" antiga).
+- FASE FINAL LANÇADA às 03h22, três frentes em paralelo, arquivos separados: **T1** app e teste de contrato (`a667826b2993f27b6`, programador-frontend, Fable xhigh); **T2** site, robô, segurança do servidor (`abcdb9f50e426aa13`, programador-frontend, Fable xhigh); **T3** tela conferida e corrigida (`a4298a70379764aeb`, designer-opus, Opus xhigh).
+- G Fogo na Floresta (`a3e6e8dec00482248`, debugador, Fable xhigh) ainda roda; já commitou na main `b13d6536` (a carga espera enquanto chegam bytes, progresso real, motivo da falha), `cd9075ed` (a página do jogador começa a baixar o jogo quando o mapa tem pino do fogo), `bc7e9e8e` (`--motor-minimo` no pacote de minigames). Proibido de publicar.
+- H Bolha d'Água: rascunho jogável em ~/jogos/bolha-d-agua (`jogar.ps1`); espera o mestre jogar; não está no app.
+- Pausados e guardados: Prelúdio F3c (branch `wip/preludio-f3c-pausa`, 18 arquivos sujos na árvore) e Companion C10 (branch `wip/construtor-c10-pausa`).
+
+## Próximos passos
+1. Quando T1, T2 e T3 voltarem: consertar o que cada uma apontou em arquivo de outra frente (um corretor por área, mesmo modelo); `rtk proxy npx tsc --noEmit` em client/ e os dois do lobby; suíte vitest inteira UMA vez (8 arquivos já falhavam antes do lote: catálogo de móveis de 07/11 e 3 estouros de tempo; ver item "SUÍTE INTEIRA TERMINOU").
+2. Auditoria final só leitura (verificador-realidade) contra o pedido literal, o print 20 e o "Critério de pronto" do plano; corrigir o que bloquear.
+3. Publicar a 0.5.45: worktree limpo de um commit da main com a árvore parada, bump nos 5 arquivos de versão, `git push -u origin release/0.5.45`, notas em ~/.claude/jobs/6d1d8a12/tmp/notas-0.5.45.md, `$env:CARGO_TARGET_DIR='C:/dev/labirinto/desktop/src-tauri/target'; $env:CARGO_BUILD_JOBS='8'; node scripts/publicar-versao.cjs --publicar --notas <arquivo>` (envia Worker, site e release; a raia R mudou o Worker: Worker antes do site, o script já faz). Depois `gh release view v0.5.45`, cherry-pick do bump na main, push, rmdir das 3 junções node_modules e `git worktree remove`.
+4. G: quando voltar, auditar e publicar (pacote de minigames e o que for do app); se o app já tiver saído, vai na versão seguinte.
+5. Atualizar os diagramas que as fontes mudaram (docs/diagrams: combate-tres-entradas, batalha-turnos, arena-multijogador, lobby-arquitetura, periodo-da-sessao, arquitetura-render-editor) e o INDEX.
+6. De manhã, para o mestre: roteiro de conferência da 0.5.45; a lista de dados de ficha que só ele corrige (no plano); jogar a Bolha d'Água; as perguntas abertas (casa em chamas clareia por fora? 4 ou 2 botões no hover da lista de cenas?).
+
+## Critério de pronto
+O do plano (seção "Critério de pronto"): a Bolha do Tree na Arena abre no ferido ou vazia e a recusa diz o motivo verdadeiro; teste de contrato verde nas entradas; em 1366x768 o Lançar na tela com 7 combatentes e o menu respondendo ao teclado; nenhuma trava de menu nem tarefa longa de 200 ms ou mais; o robô do site cura um aliado ferido; release v0.5.45 no GitHub com latest.json, Worker e site enviados.
+
+## Evidência
+- `gh release view v0.5.44`: Latest, publishedAt 2026-11-10T05:13:47Z, 4 arquivos. `gh release view v0.5.43`: publishedAt 2026-11-10T03:25:04Z.
+- tsc do projeto com as 3 raias juntas: exit 0 às 03h21 (rodado por mim).
+- Varredura de ANTES (executada com as fichas reais): tmp/pedidos-2026-11-10/varredura-combate/ (varredura.md, falhas.txt, saida-tree-*.txt). Análise de design com medidas: tmp/pedidos-2026-11-10/analise-design/. Prints da raia D: tmp/pedidos-2026-11-10/provas-D/ (d8-mira-1366.png mostra o rodapé fixo e os 2 defeitos passados à T3).
+- Nenhuma evidência ainda de que o combate novo FUNCIONA em execução: é o trabalho da fase final.
+
+# Estado em 09/11/2026 (anterior; os itens de 10/11 também estão na lista "Estado atual" abaixo)
 
 ## Objetivo
 Pedidos do usuário de 07-09/11 (todos literais em PEDIDOS.md): (1) conserto das 11 fichas e bugs da batalha; (2) PRELÚDIO, preparação de sessão com o Grimório dentro do Labirinto (plano docs/planos/preludio-2026-11-08.md, Opus max); (3) minigame Fogo na Floresta (Godot, primeira pessoa, noite) no pino; (4) construtor de mecânicas para técnicas novas/NPC (docs/planos/construtor-de-mecanicas-2026-11-08.md). Autonomia total com publicação (memória autonomia-08-11-conserto).
