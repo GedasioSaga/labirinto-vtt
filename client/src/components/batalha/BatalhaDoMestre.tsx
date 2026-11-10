@@ -204,7 +204,8 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const { cena, personagens, sistema, equipes } = mesa
   const turnos = cena?.turnos
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
-  // Pedido de 10/11: a carta REAÇÃO no centro trava a rodada e vem na frente; o menu (e a mira) esperam atrás, com o estado.
+  // Pedido de 10/11: a carta REAÇÃO no centro vem na frente (não trava a vez: ela passa e o golpe espera a virada); o
+  // menu (e a mira) esperam atrás, com o estado.
   const atras = useReacaoNoCentro((state) => state.naFrente)
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
   if (cena === undefined || turnos === undefined || carta === null || carta.bando !== undefined || !ehDoMestre(carta.personagemId, personagens)) return null

@@ -116,6 +116,11 @@ export interface CaixaDeReacaoProps {
   rolarComEnter?: boolean
   /** Ao abrir, se nenhum botão pegou o foco (Overload, Surpresa: sem o Rolar), a caixa pega. */
   focoNaCaixa?: boolean
+  /**
+   * Perguntada antes de cada foco que a caixa daria sozinha (ao abrir, na reação seguinte, quando o dado volta):
+   * `false` = o foco fica onde está (o mestre digitando em outro lugar). Ausente = a caixa sempre foca, como antes.
+   */
+  podeFocar?: () => boolean
 }
 
 /** Conserto das fichas F1: o lugar do "Rolar 1d20" num golpe Overload. */
@@ -188,12 +193,14 @@ function UmaReacao({
   onPedir,
   focar,
   rolarComEnter = false,
+  podeFocar,
 }: {
   reacao: ReacaoNaCaixa
   sozinha: boolean
   onPedir: (pedido: PedidoDeReacao) => boolean
   focar: boolean
   rolarComEnter?: boolean
+  podeFocar?: () => boolean
 }) {
   const [modTexto, setModTexto] = useState(() => {
     const inicial = modificadorInicial(reacao.tokenId, reacao.bonus)
@@ -219,7 +226,11 @@ function UmaReacao({
     return () => window.clearTimeout(prazo)
   }, [esperando])
   useEffect(() => {
-    if (focar) primeiro.current?.focus({ preventScroll: true })
+    if (!focar || primeiro.current === null) return
+    if (podeFocar !== undefined && !podeFocar()) return
+    primeiro.current.focus({ preventScroll: true })
+    // `podeFocar` muda a cada render de quem monta; o foco só anda ao abrir e quando o dado volta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focar, chaveDaRolagem])
 
   const modificador = lerModificadorDaReacao(modTexto)
@@ -427,7 +438,7 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
   return `${nome} · ${formatarNumero(dano)}`
 }
 
-export function CaixaDeReacao({ reacoes, onPedir, onFechar, rotuloDoFechar = 'Depois', conta, todas = reacoes, dica, rolarComEnter = false, focoNaCaixa = false }: CaixaDeReacaoProps) {
+export function CaixaDeReacao({ reacoes, onPedir, onFechar, rotuloDoFechar = 'Depois', conta, todas = reacoes, dica, rolarComEnter = false, focoNaCaixa = false, podeFocar }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
   // T3: quem tinha o foco aqui dentro. A caixa que some com ele (a última reação resolvida pelo teclado) devolve o foco ao menu da vez.
   const ultimoFoco = useRef<Element | null>(null)
@@ -447,7 +458,9 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar, rotuloDoFechar = 'De
   useEffect(() => {
     const elemento = caixa.current
     if (!focoNaCaixa || elemento === null || elemento.contains(document.activeElement)) return
+    if (podeFocar !== undefined && !podeFocar()) return
     elemento.focus({ preventScroll: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focoNaCaixa, chaveDaPrimeira])
   // O golpe Overload não rola (só outra Overload defende): fica fora do "Rolar todas".
   const naoRoladas = todas.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true && reacao.surpresa !== true)
@@ -479,12 +492,12 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar, rotuloDoFechar = 'De
       </div>
       {sozinha ? (
         // A chave: a reação seguinte que toma o lugar nasce limpa (modificador, dado, "Rolando…") e pega o foco.
-        <UmaReacao key={chaveDaReacao(reacoes[0] as ReacaoNaCaixa)} reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar rolarComEnter={rolarComEnter} />
+        <UmaReacao key={chaveDaReacao(reacoes[0] as ReacaoNaCaixa)} reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar rolarComEnter={rolarComEnter} podeFocar={podeFocar} />
       ) : (
         <ul className="bt-reacao__lista">
           {reacoes.map((reacao, i) => (
             <li key={chaveDaReacao(reacao)} className="bt-reacao__item">
-              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} rolarComEnter={rolarComEnter} />
+              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} rolarComEnter={rolarComEnter} podeFocar={podeFocar} />
             </li>
           ))}
         </ul>
