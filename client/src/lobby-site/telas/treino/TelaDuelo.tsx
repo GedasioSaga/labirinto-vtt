@@ -179,7 +179,7 @@ function DueloNaArena({ duelo, meuLado, conectado, ocupado, recusa, onFechar }: 
             marcar: (pedido) => jogar({ tipo: 'marcar', seq: duelo.seq, pedido }),
             escolherArmas: (personagemId, armas) => jogar({ tipo: 'armas', seq: duelo.seq, personagemId, armas }),
             passiva: (pedido) => jogar({ tipo: 'passiva', seq: duelo.seq, pedido }),
-            evoluir: (pedido) => jogar({ tipo: 'evoluir', seq: duelo.seq, pedido }),
+            // Sem `evoluir`: entre contas o servidor recusa (o custo é digitado e a condição é texto), e o HUD nem oferece.
           },
     // A jogada leva o `seq` do estado que a tela mostra: a conexão muda com o duelo.
     [duelo, soLeitura],

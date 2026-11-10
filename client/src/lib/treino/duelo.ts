@@ -77,7 +77,9 @@ import { danoNoTeto, seloDaMira } from './robo'
  *  - DIFERENÇAS DE PROPÓSITO (o site não tem mestre): o golpe marcado "à
  *    mão" ou de dano que a ficha não lê é recusado (ninguém digita dano); a
  *    Surpresa, a reação livre, rerolar com Ponto Saga e passar sem dano são
- *    recusados (decisões do mestre); a saída da técnica de reação é a da
+ *    recusados (decisões do mestre); a Vantagem pedida no d20 da reação não
+ *    vale (`rolarSemVantagemPedida`); o Evoluir (custo digitado, condição em
+ *    texto livre) só vale no treino local; a saída da técnica de reação é a da
  *    ficha (a escolha livre da mesa só vale nas saídas próprias da tabela).
  *    O contra-ataque gasto em se mover não é `agir`: é a jogada `andar` com
  *    o `contraDe`, que gasta e anda de uma vez só;
@@ -206,7 +208,7 @@ export type JogadaDoDuelo =
    * forma, a Preparação). O custo e o selo são os da ficha. Não conta passo.
    */
   | { tipo: 'passiva'; seq: number; pedido: PedidoDePassiva }
-  /** R4: Evoluir a técnica nesta batalha, na vez da ficha (a batalha confere). Não conta passo. */
+  /** R4: Evoluir a técnica nesta batalha, na vez da ficha (a batalha confere). Só no treino local; entre contas é recusado (`foraDoDuelo`). Não conta passo. */
   | { tipo: 'evoluir'; seq: number; pedido: PedidoDeEvolucao }
   /** R4: as armas da batalha da cópia `personagemId` de quem pede, até o limite da ficha (a batalha confere). Não conta passo. */
   | { tipo: 'armas'; seq: number; personagemId: string; armas: readonly string[] }
@@ -215,7 +217,8 @@ export type JogadaDoDuelo =
  * Quem anda e quando. `naVez` (o duelo: o servidor decide): só a ficha da vez,
  * ou a do contra-ataque que ela ganhou. `livre` (o treino local, como a Arena
  * do app): qualquer ficha do lado de quem joga, a qualquer hora. Nas duas, a
- * casa tem de estar dentro da grade e livre.
+ * casa tem de estar dentro da grade e livre. `naVez` também diz que a luta é
+ * entre contas: o Evoluir (custo digitado, condição em texto) é recusado nela.
  */
 export type RegraDoAndar = 'naVez' | 'livre'
 
@@ -352,6 +355,7 @@ function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
 const TEXTO_DA_VEZ_QUE_PASSOU = 'A vez já passou'
 const TEXTO_DO_GOLPE_RESOLVIDO = 'Esse golpe já foi resolvido'
 const TEXTO_DO_ALVO_DE_FORA = 'Esse alvo não está na luta'
+const TEXTO_DO_EVOLUIR_ENTRE_CONTAS = 'Evoluir é só no treino: o custo e a condição da evolução estão no texto da ficha, e na luta entre contas ninguém confere'
 
 /** As recusas da grade do site (andar e montar não passam pela regra da batalha: o texto é daqui). */
 const TEXTO_DA_CASA = 'Essa casa está ocupada ou fica fora da grade'
@@ -510,6 +514,19 @@ function modificadorDaReacao(turnos: TurnosDaCena, tokenId: string): number {
 }
 
 /**
+ * O d20 da reação como o servidor o pede. A Vantagem que o cliente marca não
+ * vale: na mesa é o mestre quem a concede e ele vê o pedido; aqui ninguém vê,
+ * e o pedido com "vantagem" rolaria 2 dados em toda reação. A Desvantagem
+ * pedida fica (só piora o dado de quem pede); a que a regra impõe (selo, golpe)
+ * a batalha aplica sozinha (`vantagemDaReacao`).
+ */
+function rolarSemVantagemPedida(pedido: Extract<PedidoDeReacao, { tipo: 'rolar' }>, modificador: number): PedidoDeReacao {
+  const limpo: PedidoDeReacao = { tipo: 'rolar', golpeId: pedido.golpeId, tokenId: pedido.tokenId, modificador }
+  if (pedido.vantagem === 'desvantagem') limpo.vantagem = 'desvantagem'
+  return limpo
+}
+
+/**
  * A reação com os números da ficha: o modificador é o dos selos; a técnica
  * leva o custo da ficha e o selo sugerido. Quem valida e resolve é a `reagir`
  * da batalha (a mesma do jogador por LAN): a técnica que a cópia não tem, em
@@ -520,7 +537,7 @@ function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, persona
     case 'rolar':
       // De propósito: a reação livre (sem golpe) é o teste que o mestre pede na mesa; no site contaria passo do relógio da luta.
       if (pedido.golpeId === null) return recusa('foraDoDuelo')
-      return { ok: true, pedido: { ...pedido, modificador: modificadorDaReacao(turnos, pedido.tokenId) } }
+      return { ok: true, pedido: rolarSemVantagemPedida(pedido, modificadorDaReacao(turnos, pedido.tokenId)) }
     // De propósito: rerolar com Ponto Saga e passar sem dano são decisões do mestre.
     case 'rerolar':
     case 'semDano':
@@ -629,6 +646,7 @@ function jogarNaLoja(
   quem: QuemJoga,
   jogada: Exclude<JogadaDoDuelo, { tipo: 'andar' | 'montar' }>,
   sistema: SistemaDeRpg,
+  entreContas: boolean,
 ): RecusaDaJogada | null {
   const { turnos } = cena
   const { autor } = quem
@@ -683,6 +701,9 @@ function jogarNaLoja(
     }
     case 'evoluir': {
       if (!ehDoLado(jogada.pedido.tokenId)) return recusa('naoEDaConta')
+      // De propósito: o custo do Evoluir é o digitado e a condição é texto livre da ficha (a batalha não lê nenhum dos
+      // dois: na mesa o mestre vê). Entre contas ninguém vê, e o pedido com custo 0 evoluiria de graça.
+      if (entreContas) return recusa('foraDoDuelo', TEXTO_DO_EVOLUIR_ENTRE_CONTAS)
       if (loja.getState().evoluir(CENA_DO_DUELO, autor, jogada.pedido)) return null
       return recusa('regra', loja.getState().motivoDoEvoluir(CENA_DO_DUELO, autor, jogada.pedido))
     }
@@ -848,7 +869,8 @@ export function jogarNaMesa<L extends LadoDaLuta>(
     if (!andou.ok) return andou
     return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: andou.posicoes, montagem: false, cena: cenaDaLoja(loja), passos: copia.passos } }
   }
-  const recusada = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema)
+  // Só o treino local joga com `livre`: lá os dois lados são de quem joga (o outro é o robô dele).
+  const recusada = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema, regraDoAndar === 'naVez')
   if (recusada !== null) return recusada
   aplicarSangramentos(loja)
   // Só o golpe, a reação e a vez contam passo; a marca, a passiva, o Evoluir e as armas não (como andar).

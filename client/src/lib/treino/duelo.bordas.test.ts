@@ -318,13 +318,13 @@ describe('a opção (variante) da técnica: o servidor lê o dano da opção ped
   it('opção que a técnica não tem é recusada (regra), e o duelo fica como estava', () => {
     const d = naVezDoZe(zeComOpcoes(), daConta(MARINHEIRO, CONTA_B), m)
     const antes = structuredClone(d)
-    expect(aplicarJogada(d, m, CONTA_A, golpeDoZe(d, 'tec_golpe', 'Opção Forjada de 9999'))).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(d, m, CONTA_A, golpeDoZe(d, 'tec_golpe', 'Opção Forjada de 9999'))).toEqual({ ok: false, motivo: 'regra', texto: 'Opção não encontrada na técnica' })
     expect(d).toEqual(antes)
   })
 
   it('técnica que não está na ficha é recusada', () => {
     const d = naVezDoZe(zeComOpcoes(), daConta(MARINHEIRO, CONTA_B), m)
-    expect(aplicarJogada(d, m, CONTA_A, golpeDoZe(d, 'tec_inventada'))).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(d, m, CONTA_A, golpeDoZe(d, 'tec_inventada'))).toEqual({ ok: false, motivo: 'regra', texto: 'Técnica não encontrada na ficha' })
   })
 })
 
@@ -345,7 +345,7 @@ describe('as respostas da mira (F2, fatia B): o servidor refaz o dano com elas',
     const d = naVezDoZe(daConta(jimboy, CONTA_A), daConta(may, CONTA_B), m)
     expect(danoNoMarinheiro(aceita(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'sim' })), 'o ponto vital'))).toBe(90)
     expect(danoNoMarinheiro(aceita(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'nao' })), 'sem o ponto vital'))).toBe(60)
-    expect(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'talvez' }))).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(d, m, CONTA_A, golpeComRespostas(d, QUEBRA_QUEIXO.id, { vital: 'talvez' }))).toEqual({ ok: false, motivo: 'regra', texto: 'Resposta fora das opções: Acertou ponto vital?' })
   })
 
   it('Grande Chifre da May: 3 quadrados e parede = 151, e o Jimboy que não reage fica Atordoado', () => {
@@ -380,7 +380,7 @@ describe('o Electro no Atacar (F2, fatia C): o servidor leva as respostas junto'
 
   it('resposta fora das opções é recusada (regra)', () => {
     const d = naVezDoZe(daConta(aira, CONTA_A), daConta(may, CONTA_B), m)
-    expect(aplicarJogada(d, m, CONTA_A, atacarDaAira(d, { electro: 'talvez' }))).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(d, m, CONTA_A, atacarDaAira(d, { electro: 'talvez' }))).toEqual({ ok: false, motivo: 'regra', texto: 'Resposta fora das opções: Imbuir eletricidade? (+20 de dano, -10 SP)' })
   })
 })
 
@@ -389,7 +389,7 @@ describe('a forma que não está na ficha', () => {
     const m = motor()
     const d = naVezDoZe(daConta(ze(60), CONTA_A), daConta(MARINHEIRO, CONTA_B), m)
     const jogada: JogadaDoDuelo = { tipo: 'agir', seq: d.seq, vez: vezDe(d), pedido: { tipo: 'transformar', cartaoId: 'forma_gear_5', acao: 'simples', trocarImagem: false } }
-    expect(aplicarJogada(d, m, CONTA_A, jogada)).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(d, m, CONTA_A, jogada)).toEqual({ ok: false, motivo: 'regra', texto: 'Forma não encontrada na ficha' })
   })
 
   it('mover pelo agir (o caminho do contra-ataque) é fora do duelo: o andar é a jogada própria', () => {
@@ -452,7 +452,7 @@ describe('a reação com técnica: saída, custo e selo vêm da ficha, não do p
   it('técnica de reação que o Marinheiro não tem é recusada', () => {
     const m = motor()
     const { duelo, golpeId } = golpeEsperando(m)
-    expect(aplicarJogada(duelo, m, CONTA_B, { tipo: 'reagir', seq: duelo.seq, pedido: { tipo: 'tecnica', golpeId, tokenId: TOKEN_DO_MARINHEIRO, cartaoId: 'tec_inventada', saida: 'esquiva', custo: null } })).toEqual({ ok: false, motivo: 'regra' })
+    expect(aplicarJogada(duelo, m, CONTA_B, { tipo: 'reagir', seq: duelo.seq, pedido: { tipo: 'tecnica', golpeId, tokenId: TOKEN_DO_MARINHEIRO, cartaoId: 'tec_inventada', saida: 'esquiva', custo: null } })).toEqual({ ok: false, motivo: 'regra', texto: 'Técnica não encontrada na ficha' })
   })
 
   it('a conta do Zé não reage pelo Marinheiro', () => {

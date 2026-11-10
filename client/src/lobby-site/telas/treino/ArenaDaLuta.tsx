@@ -32,14 +32,17 @@ import './arenaDaLuta.css'
  * reação livre e o "rolei fora" da marca recusam com um recado; o lembrete
  * da marca (Olhar Artístico) vai pelas jogadas (o teste rola no motor, ou
  * paga o SP). R4 da unificação do combate (10/11/2026): as passivas e os
- * lembretes delas, o Evoluir e a troca de armas também vão pelas jogadas (a
- * mesma regra da batalha do app). Invocar segue de fora (sem a prop, o HUD
+ * lembretes delas, o Evoluir (só no treino local) e a troca de armas também
+ * vão pelas jogadas (a mesma regra da batalha do app). Invocar segue de fora (sem a prop, o HUD
  * apaga a técnica): invocado é ficha nova no mapa, e a luta do site não cria.
  * O "Mover" do contra-ataque vira o próximo passo da ficha na grade.
  */
 
-/** As jogadas que a luta aceita (o resto da `ConexaoDaBatalha` a Arena do site responde sozinha). */
-export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez' | 'escolherArmas'> & Required<Pick<ConexaoDaBatalha, 'marcar' | 'passiva' | 'evoluir'>>
+/**
+ * As jogadas que a luta aceita (o resto da `ConexaoDaBatalha` a Arena do site responde sozinha).
+ * `evoluir` só no treino local: entre contas o servidor recusa, e sem a função o HUD não oferece o Evoluir.
+ */
+export type JogadasDaLuta = Pick<ConexaoDaBatalha, 'agir' | 'reagir' | 'passarVez' | 'escolherArmas' | 'evoluir'> & Required<Pick<ConexaoDaBatalha, 'marcar' | 'passiva'>>
 
 export interface ArenaDaLutaProps {
   titulo: string

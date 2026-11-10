@@ -77,7 +77,7 @@ export function LutaNaArena({ luta, eu, conectado, ocupado, recusa, onFechar }: 
             marcar: (pedido) => jogar({ tipo: 'marcar', seq: luta.seq, pedido }),
             escolherArmas: (personagemId, armas) => jogar({ tipo: 'armas', seq: luta.seq, personagemId, armas }),
             passiva: (pedido) => jogar({ tipo: 'passiva', seq: luta.seq, pedido }),
-            evoluir: (pedido) => jogar({ tipo: 'evoluir', seq: luta.seq, pedido }),
+            // Sem `evoluir`: entre contas o servidor recusa (o custo é digitado e a condição é texto), e o HUD nem oferece.
           },
     // A jogada leva o `seq` do estado que a tela mostra.
     // eslint-disable-next-line react-hooks/exhaustive-deps
