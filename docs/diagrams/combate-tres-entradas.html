@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Combate: três entradas, um motor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .sub {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--color-muted);
+      max-width: 44rem;
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Arquitetura · Labirinto · 10/11/2026</p>
+    <h1>Combate: três entradas, um motor</h1>
+    <p class="sub">A Arena de Testes, a batalha no mapa e o site calculam o golpe no mesmo lugar. O que muda é a cola de cada entrada: quem é o autor do golpe, que tela de mira ela usa e quantos pedidos estão ligados. É na cola que uma técnica funciona numa entrada e falha na outra.</p>
+
+    <svg viewBox="0 0 1000 608" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="combate-tres-entradas-title combate-tres-entradas-desc">
+      <title id="combate-tres-entradas-title">Combate: três entradas, um motor</title>
+      <desc id="combate-tres-entradas-desc">Arquitetura do combate do Labirinto: a Arena de Testes, a batalha no mapa (mestre e jogador por LAN) e o site do Lobby entram na mesma fábrica da batalha, que chama um único motor; cada entrada tem a sua tela de mira e um número diferente de pedidos ligados.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Zona: o app do mestre (Arena e batalha no mapa) -->
+      <rect x="28" y="64" width="464" height="136" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="40" y="68" width="92" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="86" y="77" fill="rgba(45,49,66,0.40)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">APP DO MESTRE</text>
+
+      <!-- Setas: cada entrada desce até a fábrica por uma pista própria -->
+      <path d="M 140,192 V 264 Q 140,272 148,272 H 396 Q 404,272 404,280 V 312" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 380,192 V 232 Q 380,240 388,240 H 460 Q 468,240 468,248 V 312" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 620,192 V 232 Q 620,240 612,240 H 540 Q 532,240 532,248 V 312" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <path d="M 860,192 V 264 Q 860,272 852,272 H 604 Q 596,272 596,280 V 312" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <line x1="500" y1="376" x2="500" y2="424" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <!-- Rótulos das setas: a mesa de cada entrada, ao lado do trecho vertical -->
+      <rect x="148" y="212" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="152" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">MESA DA ARENA</text>
+      <rect x="388" y="208" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="392" y="217" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">MESA REAL</text>
+      <rect x="628" y="208" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="632" y="217" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">VIA HOST</text>
+      <rect x="868" y="212" width="64" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="872" y="221" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">EM MEMÓRIA</text>
+
+      <!-- 1. Arena de Testes -->
+      <rect x="40" y="96" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="96" width="200" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="48" y="104" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="62" y="113" fill="rgba(45,49,66,0.80)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">APP</text>
+      <text x="140" y="140" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Arena de Testes</text>
+      <text x="140" y="160" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">tela de mira do jogador</text>
+      <text x="140" y="176" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">8 pedidos · autor: mestre</text>
+
+      <!-- 2. Batalha no mapa, mestre -->
+      <rect x="280" y="96" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="280" y="96" width="200" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="288" y="104" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="302" y="113" fill="rgba(45,49,66,0.80)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">APP</text>
+      <text x="380" y="140" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Batalha no mapa · mestre</text>
+      <text x="380" y="160" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">tela de mira do mestre</text>
+      <text x="380" y="176" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">todos os pedidos · vê lado e vida</text>
+
+      <!-- 3. Batalha no mapa, jogador por LAN -->
+      <rect x="520" y="96" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="520" y="96" width="200" height="96" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="528" y="104" width="28" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.60)" stroke-width="0.8"/>
+      <text x="542" y="113" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LAN</text>
+      <text x="620" y="140" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Batalha no mapa · jogador</text>
+      <text x="620" y="160" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">tela de mira do jogador</text>
+      <text x="620" y="176" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">13 pedidos · host confere dono e vez</text>
+
+      <!-- 4. Site do Lobby -->
+      <rect x="760" y="96" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="760" y="96" width="200" height="96" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <rect x="768" y="104" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.30)" stroke-width="0.8"/>
+      <text x="784" y="113" fill="rgba(45,49,66,0.70)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SITE</text>
+      <text x="860" y="140" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Treino, duelo e luta</text>
+      <text x="860" y="160" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">tela de mira do jogador</text>
+      <text x="860" y="176" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">6 jogadas · o robô só bate</text>
+
+      <!-- 5. Fábrica da batalha (focal) -->
+      <rect x="340" y="312" width="320" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="340" y="312" width="320" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="500" y="340" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fábrica da batalha</text>
+      <text x="500" y="360" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">criarBatalhaStore · stores/batalhaFabrica.ts</text>
+
+      <!-- 6. Motor -->
+      <rect x="340" y="424" width="320" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="340" y="424" width="320" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="500" y="452" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Motor do combate</text>
+      <text x="500" y="472" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lib/batalha · golpe, selos, turnos, reação</text>
+
+      <!-- Aparte: a regra que só vale em duas entradas -->
+      <text x="40" y="400" fill="#2d3142" font-size="16" font-style="italic" font-family="'Instrument Serif', serif">A ajuda de NPC em qualquer ficha</text>
+      <text x="40" y="420" fill="#2d3142" font-size="16" font-style="italic" font-family="'Instrument Serif', serif">só vale na Arena e no mapa do mestre.</text>
+      <text x="40" y="440" fill="#2d3142" font-size="16" font-style="italic" font-family="'Instrument Serif', serif">No site e no jogador por LAN é recusada.</text>
+      <path d="M 280 436 Q 312 440 336 456" fill="none" stroke="rgba(45,49,66,0.40)" stroke-width="1" stroke-dasharray="4,3"/>
+      <circle cx="336" cy="456" r="2" fill="#2d3142"/>
+
+      <!-- Legenda -->
+      <line x1="40" y1="536" x2="960" y2="536" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="564" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+
+      <rect x="120" y="552" width="20" height="16" rx="4" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="148" y="564" fill="#2d3142" font-size="8" font-family="'Geist', sans-serif">ponto comum das três</text>
+
+      <rect x="280" y="552" width="20" height="16" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="308" y="564" fill="#2d3142" font-size="8" font-family="'Geist', sans-serif">dentro do app</text>
+
+      <rect x="408" y="552" width="20" height="16" rx="4" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="436" y="564" fill="#2d3142" font-size="8" font-family="'Geist', sans-serif">jogador no navegador</text>
+
+      <rect x="568" y="552" width="20" height="16" rx="4" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="596" y="564" fill="#2d3142" font-size="8" font-family="'Geist', sans-serif">site do Lobby</text>
+
+      <line x1="696" y1="560" x2="724" y2="560" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+      <text x="736" y="564" fill="#2d3142" font-size="8" font-family="'Geist', sans-serif">o servidor refaz dano, custo e selo</text>
+    </svg>
+  </div>
+</body>
+</html>
