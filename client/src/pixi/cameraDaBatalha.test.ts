@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ligarCameraDaBatalha, registrarCameraDaBatalha, trazerFichaDaVez } from './cameraDaBatalha'
+import { ligarCameraDaBatalha, pontoAVista, registrarCameraDaBatalha, trazerFichaDaVez } from './cameraDaBatalha'
 
 /**
  * A CÂMERA DA BATALHA (D7, decisão 6): na troca de vez, só traz a ficha da vez
@@ -39,6 +39,19 @@ describe('câmera da batalha', () => {
     soltar = noMiolo.soltar
     trazerFichaDaVez('t1')
     expect(noMiolo.irPara).not.toHaveBeenCalled()
+  })
+
+  it('ficha embaixo da interface (faixa da ordem, menu da vez) vai para o mapa que aparece, perto de onde estava', () => {
+    // A faixa cobre o topo; o menu, o meio; o painel, a direita. O mapa aparece à esquerda e embaixo.
+    const livre = (x: number, y: number) => !(y < 180 || (x > 300 && x < 700 && y < 480) || x > 850)
+    const destino = pontoAVista({ x: 500, y: 300 }, TELA, livre)
+    expect(destino).not.toBeNull()
+    if (destino === null) return
+    expect(livre(destino.x, destino.y)).toBe(true)
+    // Longe da beira do que aparece (pelo menos uma casa da amostra de folga).
+    expect(livre(destino.x - 60, destino.y) && livre(destino.x + 60, destino.y) && livre(destino.x, destino.y - 60)).toBe(true)
+    // Já à vista (sem nada por cima, longe da borda): fica quieta.
+    expect(pontoAVista({ x: 150, y: 400 }, TELA, livre)).toBeNull()
   })
 
   it('não puxa a tela enquanto o mestre arrasta; depois de soltar, volta a seguir', () => {

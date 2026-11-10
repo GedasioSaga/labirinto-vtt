@@ -3511,6 +3511,8 @@ function PixiCanvasDoContexto({
         },
         camera: () => camera,
         tela: () => ({ width: app.screen.width, height: app.screen.height }),
+        // T4: à vista = sem painel, faixa da ordem ou menu da vez por cima da ficha.
+        elemento: () => app.canvas,
         irPara: (alvo) => {
           if (useFollowStore.getState().playerId !== null) return
           if (prefersReducedMotion()) applyCamera(alvo, 'pedido')

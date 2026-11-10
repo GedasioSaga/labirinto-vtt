@@ -4336,6 +4336,8 @@ function PlayerViewDoCanvas({
         },
         camera: () => scene.camera,
         tela: () => ({ width: app.screen.width, height: app.screen.height }),
+        // T4: à vista = sem a interface do jogador por cima da ficha.
+        elemento: () => app.canvas,
         irPara: (alvo) => {
           if (prefersReducedMotion()) {
             setCameraFromApp(scene, alvo)
