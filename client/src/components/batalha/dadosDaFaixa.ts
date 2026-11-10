@@ -12,6 +12,7 @@ import type { CartaParaJogador, EstadoParaJogador } from '../../lib/batalha/vist
 import { numeroDaFicha, type Personagem } from '../../lib/personagem'
 import type { RecursoDoSistema, SistemaDeRpg, TomDoRecurso } from '../../lib/sistemaDeRpg'
 import { nomeDoBando } from './dadosDaInvocacao'
+import { nomesNumerados } from './nomesNumerados'
 
 /**
  * O QUE A FAIXA DA ORDEM MOSTRA (F1 da batalha One Piece, seção 4 do plano):
@@ -215,6 +216,8 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
   const fichaPorId = porId(fichas)
   const personagemPorId = porId(personagens)
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
+  // Achado 4 (09/11): as fichas de mesmo nome com número, pela ordem do mapa ("Urso 1", "Urso 2"), como na lista de quem entra e na mira.
+  const rotulos = nomesNumerados(fichas.map((ficha) => ({ id: ficha.id, nome: ficha.name })))
   const cartas = turnos.cartas.map((carta): DadosDaCarta => {
     if (carta.bando !== undefined) return cartaDoBandoNoMestre(carta, turnos, { fichaPorId, personagemPorId, equipes, sistema })
     const ficha = fichaPorId.get(carta.tokenId)
@@ -226,7 +229,7 @@ export function faixaDoMestre({ turnos, fichas, personagens, equipes, sistema, r
     return {
       id: carta.id,
       tokenId: carta.tokenId,
-      nome: ficha?.name.trim() || carta.nome?.trim() || personagem?.nome || NOME_SEM_FICHA,
+      nome: (ficha?.name.trim() ? rotulos.get(carta.tokenId) : undefined) || carta.nome?.trim() || personagem?.nome || NOME_SEM_FICHA,
       imagem: aparenciaDaForma(forma, personagem) ?? ficha?.imageData ?? personagem?.retrato ?? null,
       forma: nomeDaFormaLigada(forma, personagem),
       selos: selosNaCarta(selosDoToken(turnos.selos, carta.tokenId), sistema),

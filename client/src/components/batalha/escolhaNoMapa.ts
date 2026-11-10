@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { EMPTY_SELECTION, selectionOfItem, selectionSingle, type SelectionSet } from '../../lib/selectionModel'
 import { useMapStore } from '../../stores/mapStore'
 
@@ -24,23 +25,42 @@ export interface EscolhaNoMapa {
  */
 const ESPERA_PARA_ESVAZIAR_MS = 220
 
+/**
+ * A troca de seleção feita por este arquivo (acender, apagar) não é clique do
+ * mestre. Vale para toda lista aberta: a carta da faixa que acende uma ficha
+ * não marca nem desmarca ninguém na lista de quem entra.
+ */
+let trocaDaqui = false
+
+function porSelecao(selecao: SelectionSet): void {
+  trocaDaqui = true
+  try {
+    useMapStore.getState().setSelection(selecao)
+  } finally {
+    trocaDaqui = false
+  }
+}
+
+function selecaoDaFicha(tokenId: string | null): SelectionSet {
+  const existe = tokenId !== null && useMapStore.getState().map.tokens.some((token) => token.id === tokenId)
+  return tokenId !== null && existe ? selectionOfItem({ kind: 'token', id: tokenId }) : EMPTY_SELECTION
+}
+
+/** As fichas selecionadas no mapa agora (conserto de 09/11, achado 3): quem o mestre selecionou antes de abrir a lista já vem marcado. */
+export function fichasSelecionadasNoMapa(): string[] {
+  return useMapStore
+    .getState()
+    .selection.filter((item) => item.kind === 'token')
+    .map((item) => item.id)
+}
+
 export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): EscolhaNoMapa {
   const inicio = useMapStore.getState()
   const antes: SelectionSet = inicio.selection
   // Clicar em ficha só seleciona com a ferramenta Selecionar.
   if (inicio.activeTool !== 'select') inicio.setActiveTool('select')
-  // A troca feita por esta lista (acender, apagar) não é clique do mestre.
-  let daLista = false
   let relogio: ReturnType<typeof setTimeout> | null = null
 
-  const porSelecao = (selecao: SelectionSet): void => {
-    daLista = true
-    try {
-      useMapStore.getState().setSelection(selecao)
-    } finally {
-      daLista = false
-    }
-  }
   const pararRelogio = (): void => {
     if (relogio !== null) clearTimeout(relogio)
     relogio = null
@@ -48,7 +68,7 @@ export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): Escolha
 
   porSelecao(EMPTY_SELECTION)
   const parar = useMapStore.subscribe((estado, anterior) => {
-    if (daLista || estado.selection === anterior.selection) return
+    if (trocaDaqui || estado.selection === anterior.selection) return
     const unico = selectionSingle(estado.selection)
     if (unico?.kind !== 'token') return
     aoClicar(unico.id)
@@ -63,13 +83,81 @@ export function abrirEscolhaNoMapa(aoClicar: (tokenId: string) => void): Escolha
   return {
     destacar(tokenId) {
       pararRelogio()
-      const existe = tokenId !== null && useMapStore.getState().map.tokens.some((token) => token.id === tokenId)
-      porSelecao(tokenId !== null && existe ? selectionOfItem({ kind: 'token', id: tokenId }) : EMPTY_SELECTION)
+      porSelecao(selecaoDaFicha(tokenId))
     },
     soltar() {
       pararRelogio()
       parar()
       porSelecao(antes)
     },
+  }
+}
+
+/**
+ * Conserto de 09/11/2026 (achado 1): a lista aberta ouve o mapa por este gancho.
+ * `clique` é a ficha clicada (`seq` sobe a cada clique) e volta a `null` quando
+ * a lista fecha: a lista seguinte não herda o clique da anterior (antes, o
+ * último clique ficava guardado e a lista reaberta o repetia ao nascer).
+ */
+export function useEscolhaNoMapa(ativa: boolean): { clique: { tokenId: string; seq: number } | null; destacar: (tokenId: string | null) => void } {
+  const [clique, setClique] = useState<{ tokenId: string; seq: number } | null>(null)
+  const escolha = useRef<EscolhaNoMapa | null>(null)
+  useEffect(() => {
+    if (!ativa) return
+    const aberta = abrirEscolhaNoMapa((tokenId) => setClique((antes) => ({ tokenId, seq: (antes?.seq ?? 0) + 1 })))
+    escolha.current = aberta
+    return () => {
+      escolha.current = null
+      aberta.soltar()
+      setClique(null)
+    }
+  }, [ativa])
+  const destacar = useCallback((tokenId: string | null) => escolha.current?.destacar(tokenId), [])
+  return { clique, destacar }
+}
+
+/** Passar o mouse numa carta sem querer (de passagem) não acende nada: só depois deste tanto parado nela. */
+const ESPERA_DA_INTENCAO_MS = 120
+
+/**
+ * Conserto de 09/11/2026 (achado 4): passar o mouse numa carta da faixa da
+ * ordem acende a ficha dela no mapa, pela mesma seleção do editor. Sair da
+ * carta devolve a seleção de antes. Só vista do mestre; nada muda no mapa.
+ */
+export function abrirDestaqueDaFaixa(): { apontar(tokenId: string | null): void; soltar(): void } {
+  let antes: SelectionSet | null = null
+  let aceso: string | null = null
+  let relogio: ReturnType<typeof setTimeout> | null = null
+  const pararRelogio = (): void => {
+    if (relogio !== null) clearTimeout(relogio)
+    relogio = null
+  }
+  const apagar = (): void => {
+    pararRelogio()
+    // Só devolve a seleção se ela ainda é a que esta faixa acendeu: o que o mestre selecionou no meio fica.
+    const atual = selectionSingle(useMapStore.getState().selection)
+    if (antes !== null && aceso !== null && atual?.kind === 'token' && atual.id === aceso) porSelecao(antes)
+    antes = null
+    aceso = null
+  }
+  return {
+    apontar(tokenId) {
+      // A carta nova desmarca a espera da anterior (o mouse só passou por ela).
+      pararRelogio()
+      if (tokenId === aceso) return
+      if (tokenId === null) {
+        apagar()
+        return
+      }
+      relogio = setTimeout(() => {
+        relogio = null
+        const selecao = selecaoDaFicha(tokenId)
+        if (selecao === EMPTY_SELECTION) return
+        if (antes === null) antes = useMapStore.getState().selection
+        aceso = tokenId
+        porSelecao(selecao)
+      }, ESPERA_DA_INTENCAO_MS)
+    },
+    soltar: apagar,
   }
 }

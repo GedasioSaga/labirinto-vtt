@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { Equipe } from '../../lib/batalha/equipes'
 import type { RegrasDaBatalha } from '../../lib/batalha/regrasDoCampo'
 import type { Desempate } from '../../lib/batalha/turnos'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
-import { CampoSel } from '../grimorio/CampoTexto'
 import type { DadosDaFaixa, LinhaNaTela } from './dadosDaFaixa'
-import { abrirEscolhaNoMapa, type EscolhaNoMapa } from './escolhaNoMapa'
 import { RegistroDaBatalha } from './RegistroDaBatalha'
 import './batalha.css'
 
@@ -21,20 +19,14 @@ import './batalha.css'
  * carta, na faixa: o painel diz onde.
  */
 
-export interface FichaForaDaOrdem {
-  tokenId: string
-  nome: string
-}
-
 export interface PainelDaBatalhaProps {
   dados: DadosDaFaixa
   onPassarVez: () => void
   onOrdenar: () => void
   desempate: Desempate
   onDesempate: (desempate: Desempate) => void
-  /** Fichas da cena que ainda não estão na ordem. */
-  foraDaOrdem: readonly FichaForaDaOrdem[]
-  onIncluir: (tokenId: string) => void
+  /** O "Incluir na batalha" (`IncluirNaBatalha`): quantas fichas estão fora da ordem e a lista para escolher quem entra. */
+  incluir: ReactNode
   regras: RegrasDaBatalha | null
   onMudarRegras: () => void
   onBiblioteca: () => void
@@ -58,8 +50,7 @@ export function PainelDaBatalha({
   onOrdenar,
   desempate,
   onDesempate,
-  foraDaOrdem,
-  onIncluir,
+  incluir,
   regras,
   onMudarRegras,
   onBiblioteca,
@@ -68,27 +59,8 @@ export function PainelDaBatalha({
   registro,
   onDesfazer,
 }: PainelDaBatalhaProps) {
-  const [incluir, setIncluir] = useState('')
   const daVez = dados.vez === null ? undefined : dados.cartas.find((carta) => carta.id === dados.vez)
-  const escolhidoParaIncluir = foraDaOrdem.some((ficha) => ficha.tokenId === incluir) ? incluir : (foraDaOrdem[0]?.tokenId ?? '')
   const semCartas = dados.cartas.length === 0
-  // Pedido de 09/11/2026 (item 6): "Escolher no mapa" no Fora da ordem. Ligado, a ficha escolhida fica acesa no mapa e
-  // clicar numa ficha de fora da ordem escolhe ela na lista. Só ligado: ouvir sempre tomaria a seleção do editor.
-  const [noMapa, setNoMapa] = useState(false)
-  const escolhendoNoMapa = noMapa && foraDaOrdem.length > 0
-  const escolhaNoMapa = useRef<EscolhaNoMapa | null>(null)
-  useEffect(() => {
-    if (!escolhendoNoMapa) return
-    const escolha = abrirEscolhaNoMapa(setIncluir)
-    escolhaNoMapa.current = escolha
-    return () => {
-      escolhaNoMapa.current = null
-      escolha.soltar()
-    }
-  }, [escolhendoNoMapa])
-  useEffect(() => {
-    if (escolhendoNoMapa) escolhaNoMapa.current?.destacar(escolhidoParaIncluir === '' ? null : escolhidoParaIncluir)
-  }, [escolhendoNoMapa, escolhidoParaIncluir])
 
   return (
     <div className="bt-painel" aria-label="Painel da batalha">
@@ -132,22 +104,7 @@ export function PainelDaBatalha({
         <p className="bt-texto">
           {desempate === 'd20' ? '1d20: o app rola para os empatados e mostra o número na carta (só você vê).' : 'Eu decido: a marca de empate fica na carta até você arrastar.'}
         </p>
-        {foraDaOrdem.length > 0 ? (
-          <div className="bt-linha-de-campo">
-            <CampoSel
-              rotulo="Fora da ordem"
-              opcoes={foraDaOrdem.map((ficha) => ({ valor: ficha.tokenId, rotulo: ficha.nome }))}
-              valor={escolhidoParaIncluir}
-              onChange={setIncluir}
-            />
-            <Botao onClick={() => escolhidoParaIncluir !== '' && onIncluir(escolhidoParaIncluir)}>Incluir</Botao>
-            <Botao variante="fantasma" aria-pressed={escolhendoNoMapa} title="A ficha da lista fica acesa no mapa, e clicar numa ficha de fora da ordem escolhe ela" onClick={() => setNoMapa(!noMapa)}>
-              {escolhendoNoMapa ? 'Parar de escolher no mapa' : 'Escolher no mapa'}
-            </Botao>
-          </div>
-        ) : (
-          <p className="bt-texto">Toda ficha da cena já está na ordem.</p>
-        )}
+        {incluir}
         <p className="bt-texto">Clique numa carta da faixa para dar a vez, pôr uma carta extra, trocar de equipe ou tirar da batalha.</p>
       </section>
 

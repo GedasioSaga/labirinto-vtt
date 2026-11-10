@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
-import { equipeDe } from '../../lib/batalha/equipes'
+import { equipeDe, ladoDoNpc } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
@@ -9,7 +9,9 @@ import { useMapStore } from '../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { DialogoDoMestreNaCena, type DialogoDoMestre } from './BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from './dadosDaFaixa'
+import { abrirDestaqueDaFaixa } from './escolhaNoMapa'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
+import { ROTULO_DO_LADO, porNpcNoLado } from './ladoDoNpcNaTela'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from './PassivasDaBatalha'
 import { PerfilDaCarta } from './PerfilDaCarta'
@@ -54,6 +56,14 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
   // Conserto das fichas F1 (bug 7): passa SÓ a vez mostrada; o duplo clique e o clique junto com o do jogador não pulam ninguém.
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+
+  // Achado 4 (09/11): passar o mouse numa carta acende a ficha dela no mapa (pela seleção do editor); sair devolve a seleção.
+  const destaque = useRef<ReturnType<typeof abrirDestaqueDaFaixa> | null>(null)
+  useEffect(() => () => destaque.current?.soltar(), [])
+  const apontarCarta = useCallback((tokenId: string | null) => {
+    destaque.current ??= abrirDestaqueDaFaixa()
+    destaque.current.apontar(tokenId)
+  }, [])
 
   const menuDaCarta = useCallback(
     (carta: DadosDaCarta): readonly ItemDoMenuDaCarta[] => {
@@ -156,6 +166,12 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
           detalhe: 'Volta a 0; a ação gasta não volta. Entra no registro',
           onEscolher: () => store.zerarCarga(sceneKey, MESTRE, personagemId),
         })
+      // Conserto de 09/11 (a Bolha do Tree): de que lado o NPC luta, pela equipe de sempre (entra no registro quando a equipe já existe).
+      if (personagemId !== null && carta.bando === undefined && personagens.find((candidato) => candidato.id === personagemId)?.tipo === 'npc') {
+        const lado = ladoDoNpc(personagemId, equipes, personagens)
+        itens.push({ id: 'lado-jogadores', secao: 'Lado', rotulo: ROTULO_DO_LADO.jogadores, detalhe: 'Aliado dos jogadores: cura e Buff dele valem neles', marcado: lado === 'jogadores', onEscolher: () => porNpcNoLado(personagemId, 'jogadores') })
+        itens.push({ id: 'lado-contra', rotulo: ROTULO_DO_LADO.contra, detalhe: 'Luta junto dos outros NPCs', marcado: lado === 'contra', onEscolher: () => porNpcNoLado(personagemId, 'contra') })
+      }
       if (personagemId !== null) {
         if (equipes.length === 0) {
           itens.push({ id: 'equipe-nenhuma', secao: 'Equipe', rotulo: 'Sem equipes', detalhe: 'Crie equipes no painel da batalha, no livro da mesa', desabilitado: true, onEscolher: () => {} })
@@ -210,6 +226,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         registro={registro}
         onDesfazer={(linhaId) => useBatalhaStore.getState().desfazer(sceneKey, linhaId, MESTRE)}
         onSelo={(carta, seloId) => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId })}
+        onApontar={apontarCarta}
       />
       {perfil !== undefined && (
         <PerfilDaCarta

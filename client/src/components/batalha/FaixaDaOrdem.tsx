@@ -46,6 +46,8 @@ export interface FaixaDaOrdemProps {
   className?: string
   /** F3, mestre: o clique caiu num selo da carta (`data-selo`): abre editar e tirar no lugar do menu. */
   onSelo?: (carta: DadosDaCarta, seloId: string) => void
+  /** Achado 4 (09/11), mestre: o mouse está sobre a carta desta ficha (`null` = saiu das cartas): quem monta acende a ficha no mapa. */
+  onApontar?: (tokenId: string | null) => void
 }
 
 /** Arrastar só começa depois deste tanto: clique com a mão tremendo continua clique. */
@@ -86,7 +88,7 @@ function moverVoltando(el: HTMLElement, dx: number): void {
   el.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: VOLTA_MS, easing: CURVA_DA_VOLTA })
 }
 
-export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo }: FaixaDaOrdemProps) {
+export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo, onApontar }: FaixaDaOrdemProps) {
   const doMestre = papel === 'mestre'
   const arrasta = doMestre && onMover !== undefined
   const tituloId = useId()
@@ -331,6 +333,17 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
               onPointerCancel={() => soltar(true)}
               onLostPointerCapture={() => soltar(false)}
               onKeyDown={teclar}
+              onMouseOver={
+                onApontar === undefined
+                  ? undefined
+                  : (evento) => {
+                      const cartaId = evento.target instanceof Element ? evento.target.closest<HTMLElement>('.bt-carta')?.dataset.id : undefined
+                      const carta = dados.cartas.find((candidata) => candidata.id === cartaId)
+                      // A carta do bando não é uma ficha só: não acende ninguém.
+                      onApontar(carta === undefined || carta.bando !== undefined ? null : carta.tokenId)
+                    }
+              }
+              onMouseLeave={onApontar === undefined ? undefined : () => onApontar(null)}
             >
               {dados.cartas.map((carta, indice) => {
                 const temMenu = comMenu(carta)

@@ -945,15 +945,6 @@ button.bt-carta__corpo {
   color: var(--lb-color-parchment);
   font-weight: 600;
 }
-.bt-linha-de-campo {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--lb-space-2);
-}
-.bt-linha-de-campo > :first-child {
-  flex: 1;
-  min-width: 0;
-}
 
 /* ---------------------------------------------------------------- equipes */
 .bt-equipes {

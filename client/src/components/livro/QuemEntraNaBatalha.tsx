@@ -1,24 +1,30 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { maximoComposto } from '../../lib/ajusteDaFicha'
+import type { LadoDoNpc } from '../../lib/batalha/equipes'
 import { AVISO_SEM_HP, type CandidatoDaBatalha, type ComoEntra, type EscolhaDaBatalha } from '../../lib/livros/combate'
 import { RECURSO_QUE_A_FORCA_MULTIPLICA, numeroDaFicha, type Personagem } from '../../lib/personagem'
+import { ROTULO_DO_LADO } from '../batalha/ladoDoNpcNaTela'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { Acoes, Botao } from '../grimorio/Botao'
-import { Dialogo } from '../grimorio/Dialogo'
 import './QuemEntraNaBatalha.css'
 
 /**
  * "QUEM ENTRA NA BATALHA?" (M1, docs/planos/livros-de-regras-plano.md): a
- * caixa do Iniciar batalha, depois da abertura, quando a cena tem token sem
- * ficha de combate (`precisaPerguntar(quemPodeEntrar(...))`). Com ficha de
- * combate: marcados. Sem ficha, ou "Só no cenário": desmarcados, cada um com
- * "Ficha mínima (HP 300, golpe 80)" (a escolha de partida de quem não tem
- * ficha), "Como <modelo>" ou, para o de cenário, a própria ficha. Quem não é
- * marcado fica fora da ordem dos turnos. A ficha criada fica no bestiário
- * (decisão D3): quem chama a cria.
+ * lista de quem luta, dentro do livro, sem janela por cima do mapa (pedido de
+ * 09/11/2026, item 6): o mestre vê e clica nas fichas enquanto escolhe. É a
+ * MESMA lista no "Iniciar batalha" e no "Incluir na batalha" (conserto de
+ * 09/11, achados 2 e 3).
+ *
+ * Com ficha de combate: marcados (ou só quem o mestre selecionou no mapa,
+ * `marcadosDePartida`). Sem ficha, ou "Só no cenário": desmarcados, cada um
+ * com "Ficha mínima (HP 300, golpe 80)" (a escolha de partida de quem não tem
+ * ficha), "Como <modelo>" ou, para o de cenário, a própria ficha. Cada NPC
+ * escolhe o lado: "Contra os jogadores" (o padrão) ou "Do lado dos jogadores".
+ * Quem não é marcado fica fora da ordem dos turnos. A ficha criada fica no
+ * bestiário (decisão D3): quem chama a cria.
  */
 export interface QuemEntraNaBatalhaProps {
-  /** A caixa à vista. Montada desde antes de abrir, para a saída do diálogo tocar. */
+  /** A lista à vista. */
   aberto: boolean
   /** Os tokens da cena, na ordem do mapa (`quemPodeEntrar`), SEM os tokens de jogador sem ficha (ficha mínima é coisa de NPC). */
   candidatos: readonly CandidatoDaBatalha[]
@@ -28,27 +34,37 @@ export interface QuemEntraNaBatalhaProps {
   modelos: readonly Personagem[]
   /** As fichas em uso, para o retrato e o HP de quem já tem uma. */
   personagens: readonly Personagem[]
-  /** Só os MARCADOS. Quem chama cria as fichas, liga os tokens e chama `combatentesIniciais` com `incluir`. */
-  onConfirmar: (escolhas: EscolhaDaBatalha[]) => void
-  /** Esc ou "Cancelar": a batalha não começa. */
+  /** Só os MARCADOS, e o lado de cada NPC marcado (por token). Quem chama cria as fichas, liga os tokens e põe cada NPC no lado. */
+  onConfirmar: (escolhas: EscolhaDaBatalha[], lados: ReadonlyMap<string, LadoDoNpc>) => void
+  /** Esc ou "Cancelar": nada acontece. */
   onCancelar: () => void
-  /**
-   * Pedido de 09/11/2026 (item 6): a lista dentro do livro, sem a janela por cima do mapa, para o mestre ver e clicar
-   * nas fichas enquanto escolhe. Ausente = a janela de sempre.
-   */
-  emLinha?: boolean
-  /** Pedido de 09/11 (item 6): o nome de cada token com o número dos repetidos ("Urso 1", "Urso 2"). Ausente = o nome do token. */
+  /** O nome de cada token com o número dos repetidos ("Urso 1", "Urso 2"). Ausente = o nome do token. */
   rotulos?: ReadonlyMap<string, string>
-  /** Pedido de 09/11 (item 6): o mouse (ou o foco) entrou numa linha: acende a ficha no mapa; `null` = saiu. */
+  /** O mouse (ou o foco) entrou numa linha: acende a ficha no mapa; `null` = saiu. */
   onDestacar?: (tokenId: string | null) => void
-  /** Pedido de 09/11 (item 6): a ficha clicada no mapa marca ou desmarca a linha dela; `seq` sobe a cada clique. */
+  /** A ficha clicada no mapa marca ou desmarca a linha dela; `seq` sobe a cada clique. */
   cliqueNoMapa?: { tokenId: string; seq: number } | null
+  /** Quem já vem marcado (as fichas que o mestre selecionou no mapa, mais os jogadores). Ausente = todos com ficha de combate. */
+  marcadosDePartida?: ReadonlySet<string>
+  /** O lado de agora de um NPC com ficha. Ausente = a lista não pergunta o lado. */
+  ladoDe?: (personagemId: string) => LadoDoNpc
+  /** O título do painel. Ausente = "Quem entra na batalha?". */
+  titulo?: string
+  /** O rótulo do botão com `quantos` marcados. Ausente = "Iniciar com N". */
+  rotuloDoConfirmar?: (quantos: number) => string
+  /** O rótulo do botão quando a cena não tem ninguém para marcar (ele confirma assim mesmo). Ausente = o botão fica apagado. */
+  rotuloSemNinguem?: string
+  /** Os campos de antes da lista, dentro do mesmo formulário (o "Iniciar batalha": abertura, nome, desempate, regra). */
+  antes?: ReactNode
+  /** Uma classe a mais no formulário. */
+  classeDoForm?: string
 }
 
 /** O valor de cada opção da lista "como entra". O modelo leva prefixo: id de personagem nunca colide com as palavras fixas. */
 const COMO_PROPRIA = 'propria'
 const COMO_MINIMA = 'minima'
 const PREFIXO_DO_MODELO = 'modelo:'
+const LADOS: readonly LadoDoNpc[] = ['contra', 'jogadores']
 
 function valorDoComo(como: ComoEntra): string {
   if (como.tipo === 'modelo') return `${PREFIXO_DO_MODELO}${como.modeloId}`
@@ -77,54 +93,109 @@ function legendaDe(candidato: CandidatoDaBatalha, personagem: Personagem | undef
   return temAtual ? `${tipo} · HP ${numeroDaFicha(personagem.recursos, RECURSO_QUE_A_FORCA_MULTIPLICA)}/${maximo}` : `${tipo} · HP ${maximo}`
 }
 
-export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, modelos, personagens, onConfirmar, onCancelar, emLinha = false, rotulos, onDestacar, cliqueNoMapa = null }: QuemEntraNaBatalhaProps) {
+export function QuemEntraNaBatalha({
+  aberto,
+  candidatos,
+  jogadoresSemFicha,
+  modelos,
+  personagens,
+  onConfirmar,
+  onCancelar,
+  rotulos,
+  onDestacar,
+  cliqueNoMapa = null,
+  marcadosDePartida,
+  ladoDe,
+  titulo = 'Quem entra na batalha?',
+  rotuloDoConfirmar = (quantos) => `Iniciar com ${quantos}`,
+  rotuloSemNinguem,
+  antes,
+  classeDoForm,
+}: QuemEntraNaBatalhaProps) {
   const idBase = useId()
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(
-    () => new Set(candidatos.filter((candidato) => candidato.situacao === 'combate').map((candidato) => candidato.tokenId)),
+    () => new Set(candidatos.filter((candidato) => (marcadosDePartida === undefined ? candidato.situacao === 'combate' : candidato.situacao !== 'semHp' && marcadosDePartida.has(candidato.tokenId))).map((candidato) => candidato.tokenId)),
   )
   const [comoPorToken, setComoPorToken] = useState<Readonly<Record<string, ComoEntra>>>({})
+  const [ladoPorToken, setLadoPorToken] = useState<Readonly<Record<string, LadoDoNpc>>>({})
   const porId = new Map(personagens.map((personagem) => [personagem.id, personagem]))
   const comFicha = candidatos.filter((candidato) => candidato.situacao === 'combate')
   const semFicha = candidatos.filter((candidato) => candidato.situacao === 'semFicha' || candidato.situacao === 'soCenario')
   // F2 (fatia A, resposta da Saga): a ficha sem HP fica de fora, sem caixa de marcar; a linha diz por quê.
   const semHp = candidatos.filter((candidato) => candidato.situacao === 'semHp')
+  const marcaveis = candidatos.filter((candidato) => candidato.situacao !== 'semHp')
   const comoDe = (candidato: CandidatoDaBatalha): ComoEntra => comoPorToken[candidato.tokenId] ?? comoDePartida(candidato)
+  const personagemDe = (candidato: CandidatoDaBatalha): Personagem | undefined => (candidato.personagemId === null ? undefined : porId.get(candidato.personagemId))
+  /** A ficha nova de quem não tem ficha nasce NPC; quem tem ficha é o que a ficha diz. */
+  const ehNpc = (candidato: CandidatoDaBatalha): boolean => (personagemDe(candidato)?.tipo ?? 'npc') === 'npc'
+  /** O lado do NPC na lista: o que o mestre escolheu aqui; senão o de agora; sem ficha, "contra" (o padrão). */
+  const ladoNaLista = (candidato: CandidatoDaBatalha): LadoDoNpc => ladoPorToken[candidato.tokenId] ?? (candidato.personagemId !== null && ladoDe !== undefined ? ladoDe(candidato.personagemId) : 'contra')
 
   const alternar = (tokenId: string) => {
-    setMarcados((antes) => {
-      const depois = new Set(antes)
+    setMarcados((anteriores) => {
+      const depois = new Set(anteriores)
       if (depois.has(tokenId)) depois.delete(tokenId)
       else depois.add(tokenId)
       return depois
     })
   }
 
-  // Pedido de 09/11 (item 6): a ficha clicada no mapa marca ou desmarca a linha dela (a sem HP não tem caixa de marcar).
-  const cliqueSeq = cliqueNoMapa?.seq ?? 0
+  // A ficha clicada no mapa marca ou desmarca a linha dela (a sem HP não tem caixa de marcar). Conserto de 09/11
+  // (achado 1): só o clique NOVO conta. A lista que nasce com um clique antigo guardado em quem a montou não o repete.
+  const ultimoSeq = useRef(cliqueNoMapa?.seq ?? 0)
+  const alternarAgora = useRef(alternar)
+  alternarAgora.current = alternar
+  const candidatosAgora = useRef(candidatos)
+  candidatosAgora.current = candidatos
   useEffect(() => {
-    if (cliqueNoMapa === null || !aberto) return
-    const clicado = candidatos.find((candidato) => candidato.tokenId === cliqueNoMapa.tokenId)
-    if (clicado !== undefined && clicado.situacao !== 'semHp') alternar(clicado.tokenId)
-    // Só o clique novo (`seq`) alterna: a lista e a janela aberta não repetem o último clique.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cliqueSeq])
+    if (cliqueNoMapa === null || cliqueNoMapa.seq === ultimoSeq.current) return
+    ultimoSeq.current = cliqueNoMapa.seq
+    if (!aberto) return
+    const clicado = candidatosAgora.current.find((candidato) => candidato.tokenId === cliqueNoMapa.tokenId)
+    if (clicado !== undefined && clicado.situacao !== 'semHp') alternarAgora.current(clicado.tokenId)
+  }, [cliqueNoMapa, aberto])
+
+  // Abriu: o painel fica à vista no livro e o foco entra no botão de confirmar (Enter inicia; Esc cancela).
+  const secao = useRef<HTMLElement>(null)
+  const confirmarRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    if (typeof secao.current?.scrollIntoView === 'function') secao.current.scrollIntoView({ block: 'nearest' })
+    confirmarRef.current?.focus({ preventScroll: true })
+  }, [aberto])
+
+  if (!aberto) return null
 
   const nomeDe = (candidato: CandidatoDaBatalha): string => rotulos?.get(candidato.tokenId) ?? candidato.nome
-  const total = candidatos.filter((candidato) => marcados.has(candidato.tokenId)).length
+  const escolhidos = candidatos.filter((candidato) => marcados.has(candidato.tokenId))
+  const total = escolhidos.length
   const extras = semFicha.filter((candidato) => marcados.has(candidato.tokenId)).length
+  const semNinguem = marcaveis.length === 0 && rotuloSemNinguem !== undefined
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
-    if (total === 0) return
-    onConfirmar(candidatos.filter((candidato) => marcados.has(candidato.tokenId)).map((candidato) => ({ tokenId: candidato.tokenId, como: comoDe(candidato) })))
+    if (total === 0 && !semNinguem) return
+    const lados = new Map<string, LadoDoNpc>()
+    if (ladoDe !== undefined) for (const candidato of escolhidos) if (ehNpc(candidato)) lados.set(candidato.tokenId, ladoNaLista(candidato))
+    onConfirmar(
+      escolhidos.map((candidato) => ({ tokenId: candidato.tokenId, como: comoDe(candidato) })),
+      lados,
+    )
+  }
+
+  const teclar = (evento: KeyboardEvent<HTMLElement>) => {
+    if (evento.key !== 'Escape') return
+    evento.preventDefault()
+    evento.stopPropagation()
+    onCancelar()
   }
 
   const linha = (candidato: CandidatoDaBatalha) => {
-    const personagem = candidato.personagemId === null ? undefined : porId.get(candidato.personagemId)
+    const personagem = personagemDe(candidato)
     const idDaMarca = `${idBase}-${candidato.tokenId}`
     const marcado = marcados.has(candidato.tokenId)
     return (
-      <li key={candidato.tokenId} className="gr-entra" onMouseEnter={() => onDestacar?.(candidato.tokenId)} onMouseLeave={() => onDestacar?.(null)}>
+      <li key={candidato.tokenId} className="gr-entra" data-token={candidato.tokenId} onMouseEnter={() => onDestacar?.(candidato.tokenId)} onMouseLeave={() => onDestacar?.(null)}>
         <input
           type="checkbox"
           id={idDaMarca}
@@ -142,12 +213,25 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
             <small>{legendaDe(candidato, personagem)}</small>
           </span>
         </label>
-        {candidato.situacao === 'combate' ? (
-          // No livro (estreito) a linha tem três colunas: a célula vazia abriria uma linha a mais.
-          emLinha ? null : (
-            <span />
-          )
-        ) : (
+        {ladoDe !== undefined && ehNpc(candidato) && (
+          <select
+            className="gr-entrada gr-entra__como"
+            aria-label={`De que lado ${nomeDe(candidato)} luta`}
+            disabled={!marcado}
+            value={ladoNaLista(candidato)}
+            onChange={(evento) => {
+              const lado = LADOS.find((opcao) => opcao === evento.currentTarget.value)
+              if (lado !== undefined) setLadoPorToken((anteriores) => ({ ...anteriores, [candidato.tokenId]: lado }))
+            }}
+          >
+            {LADOS.map((lado) => (
+              <option key={lado} value={lado}>
+                {ROTULO_DO_LADO[lado]}
+              </option>
+            ))}
+          </select>
+        )}
+        {candidato.situacao !== 'combate' && (
           <select
             className="gr-entrada gr-entra__como"
             aria-label={`Como ${nomeDe(candidato)} entra`}
@@ -155,7 +239,7 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
             value={valorDoComo(comoDe(candidato))}
             onChange={(evento) => {
               const como = comoDoValor(evento.currentTarget.value)
-              setComoPorToken((antes) => ({ ...antes, [candidato.tokenId]: como }))
+              setComoPorToken((anteriores) => ({ ...anteriores, [candidato.tokenId]: como }))
             }}
           >
             {candidato.personagemId !== null && <option value={COMO_PROPRIA}>Com a própria ficha, só nesta batalha</option>}
@@ -172,16 +256,36 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
   }
 
   const descricao =
-    semFicha.length === 0
-      ? 'Marque quem luta. Ficha sem HP fica fora da ordem dos turnos.'
-      : `Há ${semFicha.length} ${semFicha.length === 1 ? 'token' : 'tokens'} no mapa sem ficha de combate. Marque os que lutam; o resto fica fora da ordem dos turnos.`
-  const resumo =
-    extras === 0
-      ? 'Ninguém sem ficha entra.'
-      : `${extras} sem ficha ${extras === 1 ? 'entra' : 'entram'} com a ficha escolhida. A ficha nova fica nos NPCs de combate.`
+    marcaveis.length === 0
+      ? 'Nenhuma ficha nesta cena para marcar.'
+      : semFicha.length === 0
+        ? 'Marque quem luta.'
+        : `Marque quem luta. Há ${semFicha.length} ${semFicha.length === 1 ? 'token' : 'tokens'} sem ficha de combate: marcado, entra com a ficha escolhida.`
 
-  const miolo = (
-      <form className="gr-entra-form" onSubmit={confirmar} data-gr-foco>
+  return (
+    <section ref={secao} className="gr-entra-painel" aria-labelledby={`${idBase}-titulo`} onKeyDown={teclar}>
+      <h3 className="gr-entra-painel__tit" id={`${idBase}-titulo`}>
+        {titulo}
+      </h3>
+      <form className={['gr-entra-form', classeDoForm].filter(Boolean).join(' ')} onSubmit={confirmar}>
+        {antes}
+        <p className="gr-nota">
+          {descricao}
+          {marcaveis.length > 0 && ' Passe o mouse num nome para ver a ficha no mapa. Clicar numa ficha no mapa marca ou desmarca.'}
+        </p>
+        {marcaveis.length > 0 && (
+          <div className="gr-entra-todos">
+            <Botao tamanho="p" onClick={() => setMarcados(new Set(marcaveis.map((candidato) => candidato.tokenId)))}>
+              Todos
+            </Botao>
+            <Botao tamanho="p" onClick={() => setMarcados(new Set())}>
+              Nenhum
+            </Botao>
+            <span className="gr-entra-todos__conta" aria-live="polite">
+              {total} de {marcaveis.length}
+            </span>
+          </div>
+        )}
         {comFicha.length > 0 && (
           <fieldset className="gr-entra-grupo">
             <legend className="gr-entra-grupo__tit">Têm ficha de combate</legend>
@@ -206,37 +310,22 @@ export function QuemEntraNaBatalha({ aberto, candidatos, jogadoresSemFicha, mode
               : `${jogadoresSemFicha} tokens de jogador sem ficha ficam fora: ligue a ficha de cada um no token para eles lutarem.`}
           </p>
         )}
-        <p className="gr-nota" aria-live="polite">
-          {resumo}
-        </p>
-        <Acoes>
-          <Botao tipo="submit" variante="primario" disabled={total === 0}>
-            {total === 0 ? 'Marque quem entra' : `Iniciar com ${total}`}
-          </Botao>
-          <Botao variante="fantasma" onClick={onCancelar}>
-            Cancelar
-          </Botao>
-        </Acoes>
+        {extras > 0 && (
+          <p className="gr-nota" aria-live="polite">
+            {extras} sem ficha {extras === 1 ? 'entra' : 'entram'} com a ficha escolhida. A ficha nova fica nos NPCs de combate.
+          </p>
+        )}
+        <div className="gr-entra-acoes">
+          <Acoes>
+            <Botao ref={confirmarRef} tipo="submit" variante="primario" disabled={total === 0 && !semNinguem}>
+              {semNinguem ? rotuloSemNinguem : total === 0 ? 'Marque quem entra' : rotuloDoConfirmar(total)}
+            </Botao>
+            <Botao variante="fantasma" onClick={onCancelar}>
+              Cancelar
+            </Botao>
+          </Acoes>
+        </div>
       </form>
-  )
-
-  // Pedido de 09/11 (item 6): no livro, sem janela por cima: o mapa fica à vista e clicável.
-  if (emLinha) {
-    if (!aberto) return null
-    return (
-      <section className="gr-entra-painel" aria-labelledby={`${idBase}-titulo`}>
-        <h3 className="gr-entra-painel__tit" id={`${idBase}-titulo`}>
-          Quem entra na batalha?
-        </h3>
-        <p className="gr-nota">{descricao} Passe o mouse num nome para ver a ficha no mapa. Clicar numa ficha no mapa marca ou desmarca.</p>
-        {miolo}
-      </section>
-    )
-  }
-
-  return (
-    <Dialogo aberto={aberto} titulo="Quem entra na batalha?" onFechar={onCancelar} descricao={descricao}>
-      {miolo}
-    </Dialogo>
+    </section>
   )
 }
