@@ -39,12 +39,17 @@ export interface LuzDoObjeto {
  * Objeto fora desta tabela não ilumina. Os alcances seguem os da ferramenta
  * Luz (`lib/presetsDeLuz.ts`: fogueira 5 casas e lampião 3,5 a partir do
  * centro; aqui a conta parte da borda da pegada).
+ *
+ * `fumacaEBrasas` também responde "a cena tem fogo?" (`lib/particulasDaCena.ts`):
+ * tudo que queima à vista solta, e só o lampião, de chama fechada, não. Com a
+ * fogueira de fora, a cena só com ela contava como sem fogo e a fumaça nascia
+ * espalhada pela tela toda.
  */
 export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>> = {
   fogo: { alcanceEmCasas: 4, cor: 0xffdca6, forca: 0.95, fumacaEBrasas: true },
-  fogueira: { alcanceEmCasas: 4.5, cor: 0xffd9a0, forca: 0.95, fumacaEBrasas: false },
-  lareira: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: false },
-  fornalha: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: false },
+  fogueira: { alcanceEmCasas: 4.5, cor: 0xffd9a0, forca: 0.95, fumacaEBrasas: true },
+  lareira: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: true },
+  fornalha: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
   lampiao: { alcanceEmCasas: 3, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
 }
 

@@ -7,10 +7,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Container, Sprite, Ticker } from 'pixi.js'
-import type { MapData, Prop, Token } from '../types/map'
+import type { MapData, Prop, TipoMobilia, Token } from '../types/map'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
-import { particulasDoJogador } from '../lib/particulasDaCena'
+import { particulasDoJogador, particulasDoMestre } from '../lib/particulasDaCena'
 import { criarParticulasDoMapa, type ParticulasDoMapa } from './particulasDoMapa'
 
 const GRID = 50
@@ -25,8 +25,12 @@ function ficha(id: string, x: number, y: number): Token {
   return { id, characterId: null, name: `ficha-${id}`, x, y, size: 1, image: null }
 }
 
+function movel(id: string, mobilia: TipoMobilia, x: number, y: number): Prop {
+  return { id, src: '', x, y, width: GRID, height: GRID, linkedMapPath: null, mobilia }
+}
+
 function fogo(id: string, x: number, y: number): Prop {
-  return { id, src: '', x, y, width: GRID, height: GRID, linkedMapPath: null, mobilia: 'fogo' }
+  return movel(id, 'fogo', x, y)
 }
 
 function floresta(props: Prop[]): MapData {
@@ -86,6 +90,45 @@ describe('partículas na tela do jogador', () => {
     // Nascem no fogo e sobem com o vento: nenhuma a mais de 4 casas para o lado dele.
     expect(vivas.every((s) => Math.abs(s.x - (HEROI.x + 2 * GRID)) < 4 * GRID && s.y < HEROI.y + GRID)).toBe(true)
     doFogo.particulas.destruir()
+  })
+})
+
+/*
+ * Segunda auditoria (09/11/2026): fogueira, lareira e fornalha iluminavam mas
+ * não soltavam nada. A cena só com fogueira contava como "sem fogo" e a fumaça
+ * nascia espalhada pela tela toda, para o mestre e para o jogador.
+ */
+describe('fogueira, lareira e fornalha soltam fumaça e brasas', () => {
+  const QUE_SOLTAM: readonly TipoMobilia[] = ['fogueira', 'lareira', 'fornalha']
+  const PERTO = { x: HEROI.x + 2 * GRID, y: HEROI.y }
+
+  it('cena só com uma delas, no mestre: as partículas nascem dela e o modo espalhado não liga; o lampião não solta', () => {
+    for (const tipo of QUE_SOLTAM) {
+      const cena = floresta([movel('acesa', tipo, PERTO.x, PERTO.y)])
+      const entrada = particulasDoMestre(cena)
+      expect(entrada?.espalhar, tipo).toBe(false)
+      const { particulas, bater } = tela()
+      particulas.atualizar(cena.id, entrada)
+      bater(QUADROS)
+      const vivas = sprites(particulas.camada)
+      expect(vivas.length, tipo).toBeGreaterThan(0)
+      // Nascem no fogo e sobem com o vento: nenhuma a mais de 4 casas para o lado dele.
+      expect(vivas.every((s) => Math.abs(s.x - PERTO.x) < 4 * GRID && s.y < PERTO.y + GRID), tipo).toBe(true)
+      particulas.destruir()
+    }
+    // O lampião só ilumina: a cena só com ele segue sem fogo.
+    expect(particulasDoMestre(floresta([movel('lampiao', 'lampiao', PERTO.x, PERTO.y)]))?.espalhar).toBe(true)
+  })
+
+  it('jogador sem a fogueira à vista: o host não diz "cena sem fogo" e nada é desenhado', () => {
+    const recorte = recorteDoJogador(floresta([movel('longe', 'fogueira', HEROI.x + 45 * GRID, HEROI.y)]))
+    expect(recorte.props).toEqual([])
+    expect(recorte.particulasSemFogo).toBeUndefined()
+    const { particulas, bater } = tela()
+    particulas.atualizar(recorte.id, particulasDoJogador(recorte))
+    bater(QUADROS)
+    expect(sprites(particulas.camada)).toEqual([])
+    particulas.destruir()
   })
 })
 
