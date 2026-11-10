@@ -21,8 +21,10 @@ import './combate.css'
  *
  * O corte e a faixa são o PALCO (pedido de 30/10: "passa rápido demais para
  * alguém ver"): entram em 220 ms, SEGURAM 1,2 s legíveis e saem em 260 ms;
- * enquanto passam, a camada sobe por cima de tudo e pega o clique, e quem
- * monta esconde o menu da vez (`onPalco`).
+ * enquanto passam, a camada sobe por cima de tudo. D3 (decisão 4, 10/11): só
+ * os primeiros 300 ms escondem o menu da vez (`onPalco`); depois ele volta por
+ * baixo e já aceita comando. A camada nunca pega o clique: o clique pula e
+ * age. A faixa da vez seguinte do mesmo dono é curta (220 + 350 + 180 ms).
  *
  * Começa no `seq` de agora (sem reprise do que já passou). Clique, Enter,
  * Espaço ou Esc pulam o que está tocando (no palco a tecla é só do pulo; no
@@ -51,7 +53,18 @@ export interface EfeitosDaBatalhaProps {
    * A faixa da troca de vez: uma chave nova (carta e rodada) toca a faixa —
    * SUA VEZ com `minha`, senão "Vez de <nome>". `null` = sem vez à vista.
    */
-  vez?: { chave: string; nome: string; minha: boolean; tokenId?: string } | null
+  vez?: {
+    chave: string
+    nome: string
+    minha: boolean
+    tokenId?: string
+    /**
+     * D3: quem joga esta vez (o id do jogador, ou 'mestre' para os NPC). Duas
+     * vezes seguidas do mesmo dono tocam a faixa curta (220 + 350 + 180 ms).
+     * Ausente = só a SUA VEZ seguida de outra SUA VEZ conta como o mesmo dono.
+     */
+    dono?: string | null
+  } | null
   onTremor?: () => void
   /** O palco mudou: quem monta esconde o menu da vez (e o véu) enquanto não é `null`. */
   onPalco?: (palco: PalcoDosEfeitos) => void
@@ -65,7 +78,7 @@ export interface EfeitosDaBatalhaProps {
  */
 export type PalcoDosEfeitos = 'golpe' | 'transformacao' | 'vez' | 'suaVez' | null
 
-type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean; tokenId: string | null }
+type Tarefa = { tipo: 'efeito'; efeito: EfeitoDaBatalha } | { tipo: 'vez'; nome: string; minha: boolean; tokenId: string | null; curta: boolean }
 
 const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -75,6 +88,21 @@ const CHEGADA = 'cubic-bezier(0.2, 0.9, 0.3, 1)'
 const ENTRA_MS = 220
 const SEGURA_MS = 1200
 const SAI_MS = 260
+interface TemposDoPalco {
+  entra: number
+  segura: number
+  sai: number
+}
+const TEMPOS_DO_PALCO: TemposDoPalco = { entra: ENTRA_MS, segura: SEGURA_MS, sai: SAI_MS }
+/** D3: a faixa "Vez de" quando a mesma pessoa joga a vez seguinte: um aceno, não a apresentação inteira. */
+const TEMPOS_DA_VEZ_SEGUIDA: TemposDoPalco = { entra: 220, segura: 350, sai: 180 }
+/**
+ * D3 (decisão 4 do plano de 10/11): o palco segura a duração inteira, mas só
+ * BLOQUEIA os primeiros 300 ms (o tempo de ler que algo começou). Depois o
+ * menu da vez volta (entra por baixo do corte, que segue por cima sem pegar
+ * o clique) e já aceita comando; o clique e o Enter que pulam também agem.
+ */
+const BLOQUEIO_MS = 300
 const TECLAS_QUE_PULAM = new Set(['Enter', ' ', 'Escape'])
 /** O texto curto sobre a ficha (forma desfeita, selo que acabou): entra, segura e sai. */
 const AVISO_ENTRA_MS = 220
@@ -202,6 +230,10 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
   const palcoAvisado = useRef<PalcoDosEfeitos>(null)
   const ultimoSeq = useRef<number | null>(null)
   const ultimaVez = useRef<string | null | undefined>(undefined)
+  /** D3: o dono da última faixa de vez (a seguinte do mesmo dono é curta). */
+  const ultimoDono = useRef<string | null>(null)
+  /** D3: passados os 300 ms do palco que toca, ele segue à vista mas não bloqueia mais. */
+  const liberado = useRef(false)
   const [anuncio, setAnuncio] = useState('')
   const resolver = useImagemDaMesa()
   // As props mudam a cada render; o motor lê sempre as de agora.
@@ -217,11 +249,13 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     const tocandoAgora = palcoDa(tarefaAtual.current)
     const raiz = camada.current
     if (raiz !== null) {
+      // O palco segue POR CIMA a duração inteira (o z da camada), mas nunca pega o clique (CSS): ele passa e age.
       if (tocandoAgora === null) delete raiz.dataset.pulavel
       else raiz.dataset.pulavel = 'sim'
     }
     const suaVezNaFila = fila.current.some((tarefa) => tarefa.tipo === 'vez' && tarefa.minha)
-    const agora: PalcoDosEfeitos = suaVezNaFila ? 'suaVez' : tocandoAgora
+    // D3: liberado, o palco não esconde mais o menu: o da vez nova entra por baixo da faixa e já aceita comando.
+    const agora: PalcoDosEfeitos = suaVezNaFila ? 'suaVez' : liberado.current ? null : tocandoAgora
     if (agora === palcoAvisado.current) return
     palcoAvisado.current = agora
     atuais.current.onPalco?.(agora)
@@ -247,15 +281,19 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     const pular = () => motor.pular()
     const teclar = (evento: KeyboardEvent) => {
       if (!TECLAS_QUE_PULAM.has(evento.key) || emCampoDeTexto(evento.target)) return
-      // No palco, a tecla é só do pulo: o menu escondido atrás não age às cegas.
-      if (palcoDa(tarefaAtual.current) !== null) {
+      // D3: nos 300 ms em que o palco bloqueia, a tecla é só do pulo (o menu ainda está escondido: não age às
+      // cegas). Depois, o Enter e o Espaço pulam E agem no menu que já voltou; o Esc só pula (não recolhe o menu).
+      const noPalco = palcoDa(tarefaAtual.current) !== null
+      if (noPalco && (!liberado.current || evento.key === 'Escape')) {
         evento.preventDefault()
         evento.stopPropagation()
       }
       pular()
     }
     window.addEventListener('keydown', teclar, true)
+    // O clique pula e segue para o que está embaixo (a camada nunca o pega): pula e age.
     window.addEventListener('pointerdown', pular, { capture: true, passive: true })
+    let prazoDoBloqueio = 0
     void (async () => {
       try {
         // Um de cada vez: o próximo só começa quando o anterior acabou (ou foi pulado).
@@ -263,11 +301,21 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
           const tarefa = fila.current.shift() as Tarefa
           motor.pulando = false
           tarefaAtual.current = tarefa
+          liberado.current = false
           avisarPalco()
+          window.clearTimeout(prazoDoBloqueio)
+          if (palcoDa(tarefa) !== null)
+            prazoDoBloqueio = window.setTimeout(() => {
+              if (tarefaAtual.current !== tarefa) return
+              liberado.current = true
+              avisarPalco()
+            }, BLOQUEIO_MS)
           if (tarefa.tipo === 'efeito') setAnuncio(anuncioDoEfeito(tarefa.efeito, atuais.current.nomeDe))
           await tocar(motor, tarefa)
         }
       } finally {
+        window.clearTimeout(prazoDoBloqueio)
+        liberado.current = false
         window.removeEventListener('keydown', teclar, true)
         window.removeEventListener('pointerdown', pular, true)
         tocando.current = false
@@ -283,7 +331,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     if (tarefa.tipo === 'vez') {
       // C9: a foto de quem tem a vez no círculo da faixa (a forma ligada vence, como no corte).
       const foto = tarefa.tokenId === null ? null : srcDaImagem(resolverImagem, imagem(tarefa.tokenId))
-      return tocarFaixa(motor, tarefa.nome, tarefa.tokenId === null ? undefined : foto, tarefa.minha, reduzido)
+      return tocarFaixa(motor, tarefa.nome, tarefa.tokenId === null ? undefined : foto, tarefa.minha, reduzido, tarefa.curta ? TEMPOS_DA_VEZ_SEGUIDA : TEMPOS_DO_PALCO)
     }
     const efeito = tarefa.efeito
     // F3: o gesto do Judge toca no mapa (`pixi/judgeDoMapa.ts`); aqui só o anúncio da região viva.
@@ -338,9 +386,13 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     if (antes === undefined || chaveDaVez === null || chaveDaVez === antes || vez === undefined || vez === null) return
     const minha = vez.minha
     const nome = vez.nome.trim()
+    // D3: o mesmo dono jogando a vez seguinte (dois personagens do jogador, dois NPC do mestre): a faixa curta.
+    const dono = vez.dono ?? (minha ? 'eu' : null)
+    const curta = dono !== null && dono === ultimoDono.current
+    ultimoDono.current = dono
     // A vez de outro sem nome à vista não tem o que dizer.
     if (!minha && nome === '') return
-    fila.current.push({ tipo: 'vez', nome, minha, tokenId: vez.tokenId ?? null })
+    fila.current.push({ tipo: 'vez', nome, minha, tokenId: vez.tokenId ?? null, curta })
     if (tocando.current) avisarPalco()
     else tocarFila()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -356,10 +408,10 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
 }
 
 /** Aparece, segura e some só com opacity (movimento reduzido): o mesmo tempo de leitura, sem deslizar. */
-async function tocarSoOpacidade(motor: Palco, el: HTMLElement) {
-  await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: ENTRA_MS, easing: EASE })
-  await motor.esperar(SEGURA_MS)
-  await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: SAI_MS, easing: EASE })
+async function tocarSoOpacidade(motor: Palco, el: HTMLElement, tempos: TemposDoPalco = TEMPOS_DO_PALCO) {
+  await motor.animar(el, [{ opacity: 0 }, { opacity: 1 }], { duration: tempos.entra, easing: EASE })
+  await motor.esperar(tempos.segura)
+  await motor.animar(el, [{ opacity: 1 }, { opacity: 0 }], { duration: tempos.sai, easing: EASE })
   el.remove()
 }
 
@@ -393,7 +445,8 @@ function fotoRedonda(pai: HTMLElement, classe: string, imagem: string | null, no
  * A faixa da troca de vez: SUA VEZ (e o nome da carta) para quem joga; "Vez de" e o nome para os outros.
  * C9 (lote de 01/11): a foto de quem tem a vez num círculo à esquerda; `imagem` undefined = sem ficha à vista (sem o círculo).
  */
-async function tocarFaixa(motor: Palco, nome: string, imagem: string | null | undefined, minha: boolean, reduzido: boolean) {
+async function tocarFaixa(motor: Palco, nome: string, imagem: string | null | undefined, minha: boolean, reduzido: boolean, tempos: TemposDoPalco = TEMPOS_DO_PALCO) {
+  const { entra: ENTRA_MS, segura: SEGURA_MS, sai: SAI_MS } = tempos
   const el = motor.criar('bt-ef-faixa')
   el.dataset.de = minha ? 'mim' : 'outro'
   const roda = imagem === undefined ? null : fotoRedonda(el, 'bt-ef-faixa__foto', imagem, nome)
@@ -405,7 +458,7 @@ async function tocarFaixa(motor: Palco, nome: string, imagem: string | null | un
     texto(el, 'bt-ef-faixa__sub', 'Vez de')
     grande = texto(el, 'bt-ef-faixa__grande', nome)
   }
-  if (reduzido) return tocarSoOpacidade(motor, el)
+  if (reduzido) return tocarSoOpacidade(motor, el, tempos)
   // A foto chega um passo antes do título e deriva junto com ele (o mesmo sentido, menos distância).
   if (roda !== null) {
     void motor.animar(

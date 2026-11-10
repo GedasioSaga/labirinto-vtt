@@ -1729,11 +1729,14 @@
 .bt-efeitos > * {
   pointer-events: none;
 }
-/* O palco (corte do golpe, faixa da vez): a camada pega o clique, que só pula, e sobe por cima do que mora no mapa. */
+/*
+ * O palco (corte do golpe, faixa da vez): a camada sobe por cima do que mora no
+ * mapa, mas NÃO pega o clique (D3): o clique pula a animação (o `pointerdown`
+ * na janela) e segue para o que está embaixo, que também age.
+ */
 .bt-efeitos[data-pulavel='sim'] {
   z-index: 12;
-  pointer-events: auto;
-  cursor: pointer;
+  pointer-events: none;
 }
 .bt-ef-faixa {
   position: absolute;
