@@ -1,3 +1,4 @@
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import type { SceneListItem } from '../stores/adventureStore'
 import { TachinhaIcon, TokenIcon } from './icons'
 import { RetratosDaCena, type PessoaNaLinha } from './RetratosDaCena'
@@ -16,7 +17,13 @@ interface HojeNaSessaoProps {
   genteDe: (sceneId: string) => GenteDaCena | null
   onSelect: (sceneId: string) => void
   onTirar: (sceneId: string) => void
+  /** Botão direito numa fixada ou numa recente: o mesmo menu da cena, no ponto do clique. */
+  onMenu?: (sceneId: string, event: ReactMouseEvent<HTMLElement>) => void
 }
+
+/** O estado vazio é uma linha só (o bloco não empurra a árvore); o título ensina o resto. */
+const VAZIO = 'Fixe uma cena pelo menu “…” dela.'
+const VAZIO_TITULO = 'Clique com o botão direito numa cena, ou no “…” dela, e escolha Fixar no topo.'
 
 /**
  * "HOJE NA SESSÃO" (lista de cenas, ideia 3), no topo da lista: as cenas que
@@ -27,20 +34,27 @@ interface HojeNaSessaoProps {
  * O nome acessível dos botões diz "(fixada)" e "(recente)": a árvore tem o
  * botão com o nome puro da cena, e os dois não se confundem.
  */
-export function HojeNaSessao({ fixadas, recentes, genteDe, onSelect, onTirar }: HojeNaSessaoProps) {
+export function HojeNaSessao({ fixadas, recentes, genteDe, onSelect, onTirar, onMenu }: HojeNaSessaoProps) {
   return (
     <div className="lb-cenas__hoje" role="region" aria-label="Hoje na sessão">
       <p className="lb-cenas__sobrancelha" aria-hidden="true">
         Hoje na sessão
       </p>
       {fixadas.length === 0 ? (
-        <p className="lb-cenas__vazio">Nenhuma cena fixada. Clique com o botão direito numa cena, ou no “…” dela, e escolha Fixar no topo.</p>
+        <p className="lb-cenas__vazio" title={VAZIO_TITULO}>
+          {VAZIO}
+        </p>
       ) : (
         <ul className="lb-cenas lb-cenas--fixas" aria-label="Cenas fixadas">
           {fixadas.map((scene) => {
             const gente = genteDe(scene.id)
             return (
-              <li key={scene.id} className={scene.active ? 'lb-cenas__item lb-cenas__item--ativa' : 'lb-cenas__item'} data-cena-fixada={scene.id}>
+              <li
+                key={scene.id}
+                className={scene.active ? 'lb-cenas__item lb-cenas__item--ativa' : 'lb-cenas__item'}
+                data-cena-fixada={scene.id}
+                onContextMenu={(event) => onMenu?.(scene.id, event)}
+              >
                 <div className="lb-cenas__linha">
                   <button
                     type="button"
@@ -92,6 +106,7 @@ export function HojeNaSessao({ fixadas, recentes, genteDe, onSelect, onTirar }: 
                 title={scene.name}
                 disabled={!scene.available}
                 onClick={() => onSelect(scene.id)}
+                onContextMenu={(event) => onMenu?.(scene.id, event)}
               >
                 {scene.name}
               </button>

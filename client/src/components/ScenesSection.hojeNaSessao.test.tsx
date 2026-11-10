@@ -72,7 +72,7 @@ describe('ScenesSection: Hoje na sessão', () => {
 
   it('Fixar no topo põe a cena no bloco, na ordem; o alfinete tira, e sem fixadas o bloco ensina como fixar', () => {
     act(() => root.render(<Mesa inicial={[]} />))
-    expect(vazio()).toContain('Fixar no topo')
+    expect(vazio()).toContain('Fixe uma cena')
     escolher('Bosque', 'Fixar no topo')
     escolher('Forja', 'Fixar no topo')
     expect(fixadasNaTela()).toEqual(['Bosque', 'Forja'])
@@ -83,7 +83,33 @@ describe('ScenesSection: Hoje na sessão', () => {
     if (alfinete === null) throw new Error('sem o alfinete')
     act(() => alfinete.click())
     expect(fixadasNaTela()).toEqual([])
-    expect(vazio()).toContain('Fixar no topo')
+    expect(vazio()).toContain('Fixe uma cena')
+  })
+
+  it('sem fixadas, o bloco é uma linha só e discreta; o título ensina o resto', () => {
+    act(() => root.render(<Mesa inicial={[]} />))
+    const vazia = container.querySelector<HTMLElement>('[role="region"][aria-label="Hoje na sessão"] .lb-cenas__vazio')
+    expect(vazia?.textContent).toBe('Fixe uma cena pelo menu “…” dela.')
+    expect(vazia?.title).toContain('Fixar no topo')
+  })
+
+  it('botão direito numa fixada abre o menu da cena, no lugar do menu do navegador', () => {
+    act(() => root.render(<Mesa inicial={['s5']} />))
+    const fixada = container.querySelector<HTMLElement>('[aria-label="Cenas fixadas"] li[data-cena-fixada="s5"]')
+    if (fixada === null) throw new Error('sem a fixada')
+    const evento = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 12 })
+    act(() => {
+      fixada.querySelector('.lb-cenas__nome')?.dispatchEvent(evento)
+    })
+    expect(evento.defaultPrevented, 'o menu do navegador não abre').toBe(true)
+    const menu = container.querySelector<HTMLElement>('[role="menu"]:not([inert])')
+    expect(menu?.getAttribute('aria-label')).toBe('Ações de Adega')
+    expect(Array.from(menu?.querySelectorAll('[role="menuitem"]') ?? []).map((b) => b.textContent)).toContain('Tirar do topo')
+    // Esc fecha e devolve o foco à fixada, de onde o menu saiu.
+    act(() => {
+      menu?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.activeElement).toBe(fixada.querySelector('.lb-cenas__nome'))
   })
 
   it('a sexta não entra: a linha dela diz por quê e o bloco fica com as cinco', () => {

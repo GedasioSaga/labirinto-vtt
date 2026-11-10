@@ -4893,10 +4893,15 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
   text-transform: uppercase;
 }
 
+/* Sem fixadas, uma linha só: com seis cenas ou mais o bloco aparece sempre, e
+   três linhas de explicação empurravam a árvore para baixo. */
 .lb-cenas__vazio {
   margin: 0;
+  overflow: hidden;
   color: var(--lb-color-parchment-faint);
   font-size: var(--lb-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lb-cenas.lb-cenas--fixas {

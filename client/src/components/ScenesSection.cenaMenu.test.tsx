@@ -339,6 +339,62 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     expect(document.activeElement).toBe(nome)
   })
 
+  it('Renomear… aberto pelo botão direito: Esc no campo devolve o foco ao nome da cena, não ao "…" escondido', async () => {
+    render()
+    const nome = container.querySelector<HTMLButtonElement>('button[data-cena-nome="s-9"]')
+    if (nome === null) throw new Error('sem o nome')
+    act(() => {
+      nome.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })
+    const menu = menuAberto()
+    if (menu === null) throw new Error('menu não abriu')
+    act(() => item(menu, 'Renomear…').click())
+    const campo = container.querySelector<HTMLInputElement>('#lb-cena-nome')
+    if (campo === null) throw new Error('campo não abriu')
+    tecla(campo, 'Escape')
+    // O foco volta no quadro seguinte (`refocusOpener`).
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(container.querySelector('#lb-cena-nome')).toBeNull()
+    expect(document.activeElement).toBe(nome)
+  })
+
+  it('com o menu aberto, a lista rola e a linha dele sai da vista: o menu fecha', () => {
+    const rolagem = document.createElement('div')
+    rolagem.style.overflowY = 'auto'
+    container.appendChild(rolagem)
+    const raiz = createRoot(rolagem)
+    act(() =>
+      raiz.render(<ScenesSection scenes={CENAS} onSelect={() => {}} onCreate={() => {}} onRename={() => {}} onDuplicate={() => {}} />),
+    )
+    try {
+      act(() => gatilho('Cena 9').click())
+      expect(menuAberto()).not.toBeNull()
+      // Rolou um pouco: a linha continua à vista (área de 0 a 300, linha em 200), o menu fica.
+      let topoDaLinha = 200
+      const caixa = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 222, width: 222, height, x: 0, y: top, toJSON: () => ({}) })
+      const medida = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+        if (this === rolagem) return caixa(0, 300)
+        if (this.matches('li[data-cena-id="s-9"]')) return caixa(topoDaLinha, 40)
+        return caixa(0, 0)
+      })
+      try {
+        act(() => {
+          rolagem.dispatchEvent(new Event('scroll'))
+        })
+        expect(menuAberto(), 'a linha ainda está à vista').not.toBeNull()
+        topoDaLinha = -60
+        act(() => {
+          rolagem.dispatchEvent(new Event('scroll'))
+        })
+        expect(menuAberto(), 'a linha saiu por cima da área que rola').toBeNull()
+      } finally {
+        medida.mockRestore()
+      }
+    } finally {
+      act(() => raiz.unmount())
+    }
+  })
+
   it('Renomear… abre o campo na própria linha da cena, com o nome dela no rótulo', () => {
     render()
     escolher('Cena 9', 'Renomear…')

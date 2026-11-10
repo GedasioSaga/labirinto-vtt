@@ -539,6 +539,8 @@ interface SceneMenuProps {
   onClose(focusTrigger: boolean): void
   /** Botão direito: o ponto do clique, na janela. `null` = abre junto do "…". */
   ponto: MenuPoint | null
+  /** Quem o menu segue quando a lista rola: a fixada ou a recente de onde ele saiu. `null` = a linha da árvore que o contém. */
+  linha?: HTMLElement | null
 }
 
 /** Um ponto na janela (clientX/clientY). */
@@ -551,6 +553,22 @@ interface MenuPoint {
 const MENU_EDGE_GAP_PX = 8
 /** Vão entre o menu e o "…" (ou o ponto do clique) que o abriu. */
 const MENU_ANCHOR_GAP_PX = 2
+
+/** A linha saiu inteira da vista: da área que rola em volta dela, ou da janela. */
+function rowOutOfView(row: Element): boolean {
+  let top = 0
+  let bottom = window.innerHeight
+  for (let node = row.parentElement; node !== null; node = node.parentElement) {
+    if (/(auto|scroll|hidden)/.test(getComputedStyle(node).overflowY)) {
+      const box = node.getBoundingClientRect()
+      top = Math.max(top, box.top)
+      bottom = Math.min(bottom, box.bottom)
+      break
+    }
+  }
+  const box = row.getBoundingClientRect()
+  return box.bottom <= top || box.top >= bottom
+}
 
 /**
  * O ancestral que vira o contêiner de um `position: fixed` (transform, filtro,
@@ -615,11 +633,13 @@ export function placeSceneMenu(input: {
  * aplica agora (Subir na primeira cena) fica no lugar, esmaecido, para o
  * mestre aprender onde ele mora.
  */
-function SceneMenu({ id, label, items, trigger, onClose, ponto, saindo = false }: SceneMenuProps & ComSaidaFilho) {
+function SceneMenu({ id, label, items, trigger, onClose, ponto, linha = null, saindo = false }: SceneMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   /** O ponto do clique guardado em relação à linha: a lista rola e o menu vai junto. */
   const pointInRow = useRef<{ dx: number; dy: number } | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   // Em `position: fixed`, posto antes da pintura e de novo quando a janela
   // muda de tamanho ou a lista rola. A lista mora numa coluna que rola: preso à
@@ -627,7 +647,7 @@ function SceneMenu({ id, label, items, trigger, onClose, ponto, saindo = false }
   useLayoutEffect(() => {
     const menu = menuRef.current
     if (menu === null) return
-    const row = menu.closest('li')
+    const row = linha ?? menu.closest('li')
     // Saindo, o menu fica onde estava: nada de recalcular o ponto com a lista já rolada.
     if (!saindo) {
       const box = row?.getBoundingClientRect()
@@ -668,9 +688,14 @@ function SceneMenu({ id, label, items, trigger, onClose, ponto, saindo = false }
     }
     place()
     if (saindo) return
-    // Rolar dentro do próprio menu não muda onde ele está.
+    // Rolar dentro do próprio menu não muda onde ele está. A linha que saiu
+    // inteira da vista leva o menu junto: preso à borda, ele ficava solto no ar.
     const onScroll = (event: Event) => {
       if (event.target instanceof Node && menu.contains(event.target)) return
+      if (row !== null && rowOutOfView(row)) {
+        onCloseRef.current(false)
+        return
+      }
       place()
     }
     window.addEventListener('resize', place)
@@ -679,7 +704,7 @@ function SceneMenu({ id, label, items, trigger, onClose, ponto, saindo = false }
       window.removeEventListener('resize', place)
       document.removeEventListener('scroll', onScroll, true)
     }
-  }, [ponto, trigger, saindo])
+  }, [ponto, trigger, saindo, linha])
 
   /** Os itens que agem, na ordem: é por eles que as setas andam. */
   const enabled = (): HTMLButtonElement[] => {
@@ -1197,6 +1222,8 @@ export function ScenesSection({
   const [menuPoint, setMenuPoint] = useState<MenuPoint | null>(null)
   /** Quem recebe o foco quando o menu fecha com Esc ou escolha; `null` = o "…" da linha. */
   const menuReturnRef = useRef<HTMLElement | null>(null)
+  /** Aberto numa fixada ou numa recente (Hoje na sessão): quem o menu segue. `null` = a linha da árvore. */
+  const [menuLinha, setMenuLinha] = useState<HTMLElement | null>(null)
   /** Cena com a confirmação de apagar aberta; `null` = nenhuma. */
   const [deleting, setDeleting] = useState<string | null>(null)
   /** O "…" de cada cena, pelo id: é para ele que o foco volta. */
@@ -1565,9 +1592,10 @@ export function ScenesSection({
   }
 
   /** Abre o menu da cena: pelo "…" (`point` nulo) ou pelo botão direito, no ponto do clique. */
-  const openMenu = (sceneId: string, point: MenuPoint | null, returnTo: HTMLElement | null) => {
+  const openMenu = (sceneId: string, point: MenuPoint | null, returnTo: HTMLElement | null, linha: HTMLElement | null = null) => {
     setDeleting(null)
     setMenuPoint(point)
+    setMenuLinha(linha)
     menuReturnRef.current = returnTo
     setMenuFor(sceneId)
   }
@@ -1595,11 +1623,15 @@ export function ScenesSection({
       closeMenu(true)
       run()
     }
-    // Renomear e Mover abrem um campo: o foco vai para ele e, ao fechar, volta ao "…".
+    // Renomear e Mover abrem um campo: o foco vai para ele e, ao fechar, volta ao
+    // "…" — ou, aberto pelo botão direito, para onde ele estava (o nome da cena),
+    // não para o "…" escondido.
     const trigger = menuTriggers.current.get(scene.id) ?? null
     const toForm = (run: (opener: HTMLElement | null) => void) => () => {
+      const back = menuReturnRef.current
+      menuReturnRef.current = null
       setMenuFor(null)
-      run(trigger)
+      run(back ?? trigger)
     }
     return [
       {
@@ -1790,6 +1822,22 @@ export function ScenesSection({
     openMenu(sceneId, inside ? { x: event.clientX, y: event.clientY } : null, focused ?? (name !== null && !name.disabled ? name : null))
   }
 
+  /**
+   * Botão direito numa fixada ou numa recente (Hoje na sessão): o mesmo menu da
+   * cena, no ponto do clique, seguindo a linha de onde saiu. O menu e os campos
+   * dele (Renomear, Mover…) moram na linha da árvore: a pasta de fora abre.
+   */
+  const onTodayContextMenu = (sceneId: string, event: ReactMouseEvent<HTMLElement>) => {
+    if (!hasSceneMenu || rowOf(sceneId) === undefined) return
+    event.preventDefault()
+    const origin = event.currentTarget
+    const box = origin.getBoundingClientRect()
+    const inside = event.clientX > box.left && event.clientX < box.right && event.clientY > box.top && event.clientY < box.bottom
+    const button = origin instanceof HTMLButtonElement ? origin : origin.querySelector<HTMLButtonElement>('.lb-cenas__nome')
+    expand(ancestorIdsOf(sceneId))
+    openMenu(sceneId, inside ? { x: event.clientX, y: event.clientY } : null, button !== null && !button.disabled ? button : null, origin)
+  }
+
   /** A linha da cena: o que ela mostra a mais quando é uma pasta recolhida. */
   const peopleOf = (index: number, collapsedFolder: boolean): RowPeople | null => {
     const row = tree[index]
@@ -1947,6 +1995,7 @@ export function ScenesSection({
             }}
             onSelect={onSelect}
             onTirar={togglePin}
+            onMenu={onTodayContextMenu}
           />
           <p className="lb-cenas__sobrancelha" aria-hidden="true">
             Todas as cenas
@@ -2120,8 +2169,9 @@ export function ScenesSection({
                       aria-label={`Mais ações de ${scene.name}`}
                       title="Mais ações da cena (também no botão direito da linha)"
                       aria-haspopup="menu"
-                      aria-expanded={menuOpen}
-                      aria-controls={menuOpen ? menuId : undefined}
+                      // Aberto numa fixada ou numa recente, o menu não saiu deste "…".
+                      aria-expanded={menuOpen && menuLinha === null}
+                      aria-controls={menuOpen && menuLinha === null ? menuId : undefined}
                       onClick={() => {
                         if (menuOpen) {
                           setMenuFor(null)
@@ -2142,9 +2192,10 @@ export function ScenesSection({
                     id={menuId}
                     label={`Ações de ${scene.name}`}
                     items={menuItems(row)}
-                    trigger={menuTriggers.current.get(scene.id) ?? null}
+                    trigger={menuLinha === null ? (menuTriggers.current.get(scene.id) ?? null) : null}
                     onClose={closeMenu}
                     ponto={menuPoint}
+                    linha={menuLinha}
                   />
                 )}
               </ComSaida>
