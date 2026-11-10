@@ -70,6 +70,7 @@ import {
   golpesSaoOverload,
   somaCorpoACorpo,
   somaDasRespostas,
+  formulaDaCura,
   gastaACarga,
   limpezaDe,
   mantidaDe,
@@ -454,6 +455,7 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
         semConta ??
+        motivoDaCuraSemConta(ctx, tecnica.cartao, personagem, sistema, gastaACarga(tecnica.cartao) ? combate.carga : 0) ??
         motivoDaLimpeza(ctx, tecnica.cartao, pedido.alvos) ??
         motivoDoAlvoDasPecas(ctx, tecnica.cartao, pedido.alvos) ??
         motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
@@ -581,6 +583,28 @@ function motivoDoDanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formu
   if (lido.tipo === 'precisaArma' && danoUsaArma(pecas.dano) && formula.arma === null) return 'Escolha a arma da técnica'
   return 'O mestre precisa conferir a fórmula do dano desta técnica'
 }
+
+/**
+ * U6 (plano de 10/11): a cura cuja fórmula não fecha (atributo que a ficha não
+ * tem, texto fora da gramática) virava cura 0 na store: cobrava o custo e o
+ * uso, e não avisava. Recusa ANTES de cobrar, com o motivo. A conta é a que a
+ * store faz ao curar: a fórmula da carga que o golpe gasta (`formulaDaCura`),
+ * lida na ficha de quem usa. "0" e "-" (a técnica que só tira selos) fecham.
+ */
+function motivoDaCuraSemConta(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, personagem: Personagem, sistema: SistemaDeRpg, carga: number): string | null {
+  const limpeza = limpezaDe(cartao)
+  if (limpeza === null) return null
+  const formula = formulaDaCura(limpeza, carga)
+  const lida = lerDano(formula, { personagem, sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) })
+  if (lida.tipo === 'valor' || lida.tipo === 'semDano') return null
+  const nome = cartao.nome.trim() || 'A técnica'
+  // O jogador não conserta a fórmula; o mestre lê qual é (cortada: o motivo tem teto no fio).
+  if (ctx.autor.tipo !== 'mestre') return `${nome}: o mestre precisa conferir a fórmula da cura desta técnica`
+  return `${nome} não saiu: a fórmula da cura ("${formula.trim().slice(0, FORMULA_NO_MOTIVO_MAX)}") não fecha a conta. Nada foi cobrado.`
+}
+
+/** U6: quanto da fórmula da cura cabe no motivo da recusa. */
+const FORMULA_NO_MOTIVO_MAX = 40
 
 /**
  * Construtor C1 (revisão): a peça "em si" ou "nos aliados" não pede reação

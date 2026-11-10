@@ -2751,6 +2751,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           novos = { ...novos, selos: (novos.selos ?? []).filter((selo) => !fora.has(selo.id)) }
           // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo); com 3 cargas, a fórmula do X3 da ficha.
           const lida = lerDano(formulaDaCura(limpeza, lancado.cargaUsada), { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
+          // U6: a fórmula que não fecha a conta já foi recusada antes de cobrar (`podeAgir`); aqui só chega número ou "sem cura" (0).
           const cura = lida.tipo === 'valor' ? lida.valor : 0
           // Pedido de 09/11 (a Bolha): o que cabe na vida do alvo AGORA (lido antes de gravar), para a nota dizer o que entrou.
           const sistemaDaCura = ctx.sistema
