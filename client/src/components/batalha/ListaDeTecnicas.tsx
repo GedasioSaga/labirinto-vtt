@@ -82,7 +82,8 @@ export interface TiraProps {
   controla?: string
   /** O id da leitura aberta desta tira (o leitor de tela lê o texto inteiro depois do nome). */
   descritaPor?: string
-  onEscolher: () => void
+  /** `teclado` = o clique veio do Enter ou do Espaço no botão. */
+  onEscolher: (teclado: boolean) => void
   onFoco: () => void
   /** O mouse passou por cima (só mouse: no toque o "hover" vem junto do toque). */
   onApontar?: () => void
@@ -117,8 +118,9 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
       onPointerEnter={(evento) => {
         if (evento.pointerType === 'mouse') onApontar?.()
       }}
-      onClick={() => {
-        if (!motivo) onEscolher()
+      onClick={(evento) => {
+        // `detail` 0 = o clique veio do teclado (Enter ou Espaço no botão).
+        if (!motivo) onEscolher(evento.detail === 0)
       }}
     >
       <span className="bt-tira__nome">{nome}</span>
@@ -232,7 +234,10 @@ export interface ListaDeTecnicasProps {
   pips: readonly PipDaVez[] | null
   carga: number
   golpes: readonly GolpeNaTela[]
-  onEscolher: (golpe: GolpeNaTela) => void
+  /** `teclado` = escolhida pelo Enter (a mira abre com o foco dentro). */
+  onEscolher: (golpe: GolpeNaTela, teclado: boolean) => void
+  /** Achado 6: a chave do golpe que o app sugere para a vez do NPC (a marca "sugestão" na tira). */
+  sugerida?: string | null
   onVoltar: () => void
   /** "Escolher armas" no topo (o limite da ficha, Q1/Q8). `pendente` = ainda não escolheu. */
   armas?: { pendente: boolean; onAbrir: () => void }
@@ -270,7 +275,7 @@ function mesmoLugar(a: LugarDaLeitura, b: LugarDaLeitura): boolean {
   return a.largura === b.largura && a.topo === b.topo && a.altura === b.altura
 }
 
-export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVoltar, armas, instantaneo, vazio, evoluir }: ListaDeTecnicasProps) {
+export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, sugerida = null, onVoltar, armas, instantaneo, vazio, evoluir }: ListaDeTecnicasProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const coluna = useRef<HTMLUListElement>(null)
   const leitura = useRef<HTMLDivElement>(null)
@@ -321,7 +326,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
     if (lugar.tipo === 'lugar') caixa.scrollIntoView({ block: 'nearest' })
   }, [chaveAtual, lendo, lugar.tipo])
 
-  const escolher = (golpe: GolpeNaTela, indice: number) => {
+  const escolher = (golpe: GolpeNaTela, indice: number, teclado: boolean) => {
     const tocou = toque.current
     toque.current = null
     // Sem mouse não há "passar por cima": o primeiro toque numa tira abre a leitura dela; o segundo escolhe.
@@ -330,7 +335,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
       setLendo(true)
       return
     }
-    onEscolher(golpe)
+    onEscolher(golpe, teclado)
   }
 
   // Evoluiu: o bloco some da leitura; o foco volta à tira (a marca nova está nela).
@@ -422,7 +427,16 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
                   lado={golpe.custoTexto}
                   detalhe={golpe.descricao || null}
                   motivo={golpe.motivo}
-                  chips={<ChipsDoGolpe golpe={golpe} />}
+                  chips={
+                    <>
+                      {sugerida === golpe.chave && (
+                        <span className="bt-opcao__sug" title="O app sugere este golpe para a vez do NPC">
+                          sugestão
+                        </span>
+                      )}
+                      <ChipsDoGolpe golpe={golpe} />
+                    </>
+                  }
                   forma={golpe.forma !== undefined}
                   esta={atual === indice}
                   expandida={aberta}
@@ -430,7 +444,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, onVol
                   descritaPor={aberta ? id : undefined}
                   onFoco={() => setAtual(indice)}
                   onApontar={() => setAtual(indice)}
-                  onEscolher={() => escolher(golpe, indice)}
+                  onEscolher={(teclado) => escolher(golpe, indice, teclado)}
                   refDaTira={(elemento) => {
                     tiras.current[indice] = elemento
                   }}

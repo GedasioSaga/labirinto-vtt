@@ -33,6 +33,7 @@ import { EscolhaDeArmas } from './EscolhaDeArmas'
 import { InvocacoesPendentes, PainelDoBando, type MembroNaVez, type PendenciaNaTela } from './InvocacoesDoMestre'
 import { FormasPendentes } from './FormasDoMestre'
 import { MenuDaVez, type InvocarNoMenu } from './MenuDaVez'
+import { nomesNumerados } from './nomesNumerados'
 import './vezNoCentro.css'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
@@ -107,6 +108,8 @@ interface Mesa {
   personagens: readonly Personagem[]
   equipes: readonly Equipe[] | undefined
   sistema: SistemaDeRpg | null
+  /** Achado 4: o nome de cada ficha com o número dos repetidos ("Urso 1", "Urso 2"), pela ordem do mapa. */
+  rotulos: ReadonlyMap<string, string>
 }
 
 function useMesa(sceneKey: string): Mesa {
@@ -118,11 +121,14 @@ function useMesa(sceneKey: string): Mesa {
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
-  return { cena, fichas, tamanhoDaCasa, personagens, equipes, sistema }
+  const rotulos = useMemo(() => nomesNumerados(fichas.map((ficha) => ({ id: ficha.id, nome: ficha.name }))), [fichas])
+  return { cena, fichas, tamanhoDaCasa, personagens, equipes, sistema, rotulos }
 }
 
+/** O nome da ficha no mapa, com o número quando o nome repete (achado 4); ficha sem nome usa o da carta. */
 function nomeDaFicha(mesa: Mesa, tokenId: string, carta?: CartaDaOrdem): string {
-  return mesa.fichas.find((ficha) => ficha.id === tokenId)?.name.trim() || carta?.nome?.trim() || 'Ficha'
+  const noMapa = mesa.fichas.find((ficha) => ficha.id === tokenId)?.name.trim()
+  return (noMapa ? mesa.rotulos.get(tokenId) : undefined) || noMapa || carta?.nome?.trim() || 'Ficha'
 }
 
 /** Ficha que o mestre move: sem personagem, ou de personagem NPC. */
@@ -275,8 +281,14 @@ function mirarNoMapaDoMestre(mirando: boolean): void {
   useMiraDoMestre.getState().mirar(mirando)
 }
 
-/** A recusa do host dita ao mestre (a frase do `MenuDaVez` fala de conexão, que é do jogador). */
+/** A recusa do host dita ao mestre quando a regra não dá o motivo (a frase do `MenuDaVez` fala de conexão, que é do jogador). */
 const RECUSA_PARA_O_MESTRE = 'A regra recusou: confira a ação, o custo, a recarga e o alvo.'
+
+/** A sugestão do app para a vez do NPC, na forma que o menu e o painel leem: a chave do golpe e o alvo. */
+function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | null): { chave: string | null; alvoTokenId: string | null } {
+  if (sugestao === null) return { chave: null, alvoTokenId: null }
+  return { chave: sugestao.cartaoId !== null ? `tecnica:${sugestao.cartaoId}` : sugestao.armaId !== null ? `arma:${sugestao.armaId}` : null, alvoTokenId: sugestao.alvoTokenId }
+}
 
 /**
  * Pedido de 09/11/2026 (item 5): a vez do NPC no MENU DO CENTRO, o mesmo do
@@ -288,7 +300,7 @@ const RECUSA_PARA_O_MESTRE = 'A regra recusou: confira a ação, o custo, a reca
 export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const mesa = useMesa(sceneKey)
   const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
-  const { cena, personagens, sistema } = mesa
+  const { cena, personagens, sistema, equipes } = mesa
   const turnos = cena?.turnos
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
@@ -302,6 +314,8 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
   const { trava, habilidades, armas, formas } = golpesDaVezDoNpc(mesa, turnos, carta, personagem, acoes)
   const passivas = passivasNaCena(personagem, sistema, turnos, tokenId)
+  // Achado 6: a sugestão do app chega ao menu do centro (a marca na tira e o alvo já marcado na mira).
+  const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
   return (
     <div className="bt-centro-do-mestre" data-limite-da-leitura>
       <MenuDaVez
@@ -314,6 +328,10 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
         habilidades={habilidades}
         alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
         avisoDaRecusa={RECUSA_PARA_O_MESTRE}
+        // Conserto de 09/11 (a Bolha): toda recusa da regra chega ao mestre com o motivo dela.
+        motivoDaRecusa={(pedido) => useBatalhaStore.getState().motivoDoAgir(sceneKey, MESTRE, vez, pedido)}
+        doMestre
+        sugestao={sugestaoNaTela(sugestao)}
         onAgir={(pedido) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)}
         onZerarCarga={personagemId === null || carga === 0 ? undefined : () => useBatalhaStore.getState().zerarCarga(sceneKey, MESTRE, personagemId)}
         onEncerrar={passarAVez}
@@ -616,10 +634,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           armas={armas}
           habilidades={habilidades}
           alvos={alvos}
-          sugestao={{
-            chave: sugestao === null ? null : sugestao.cartaoId !== null ? `tecnica:${sugestao.cartaoId}` : sugestao.armaId !== null ? `arma:${sugestao.armaId}` : null,
-            alvoTokenId: sugestao?.alvoTokenId ?? null,
-          }}
+          sugestao={sugestaoNaTela(sugestao)}
           onExecutar={agir}
           onConcentrar={() => agir({ tipo: 'concentrar' })}
           onZerarCarga={zerarCarga}

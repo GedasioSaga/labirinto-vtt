@@ -89,6 +89,12 @@ export interface MenuDaVezProps {
   onAgir: (pedido: PedidoDeAcao) => boolean
   /** Pedido de 09/11 (item 5): a frase da recusa para quem não é jogador (o mestre na vez do NPC). Ausente = a do jogador. */
   avisoDaRecusa?: string
+  /** Conserto de 09/11: o MOTIVO da recusa do pedido, dito pela regra (o mestre na vez do NPC); `null` = a regra não recusa (cai no `avisoDaRecusa`). */
+  motivoDaRecusa?: (pedido: PedidoDeAcao) => string | null
+  /** Conserto de 09/11: o menu é do mestre: a mira diz o lado de cada alvo e a ajuda no outro lado pede um toque a mais. */
+  doMestre?: boolean
+  /** Achado 6: o golpe (a chave) e o alvo que o app sugere para a vez do NPC. */
+  sugestao?: { chave: string | null; alvoTokenId: string | null }
   /** "Zerar" a concentração (o botão ao lado da tira Concentrar, só com carga). Não devolve a ação gasta. Ausente = sem o botão. */
   onZerarCarga?: () => boolean
   /** Ausente fora da vez. */
@@ -161,19 +167,30 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const pips = acoes === null ? null : pipsDaVez(acoes)
   const textoCarga = textoDaCarga(carga)
 
-  const agir = (pedido: PedidoDeAcao): boolean => {
+  /** Pede a ação; `true` = saiu, um texto = não saiu, e por quê (o motivo da regra, quando quem monta sabe dizer). */
+  const pedir = (pedido: PedidoDeAcao): true | string => {
     // F3: Ativar e Desfazer a forma nunca são contra-ataque.
     const semContra = pedido.tipo === 'concentrar' || pedido.tipo === 'transformar' || pedido.tipo === 'destransformar'
     const comContra: PedidoDeAcao = contra !== undefined && !semContra ? { ...pedido, contraDe: contra.golpeId } : pedido
-    const saiu = onAgir(comContra)
-    setAviso(saiu ? null : (props.avisoDaRecusa ?? 'Não saiu: sem conexão com o mestre, ou a vez já passou.'))
-    if (saiu && contra !== undefined) setContraId(null)
-    return saiu
+    if (onAgir(comContra)) {
+      if (contra !== undefined) setContraId(null)
+      return true
+    }
+    // A recusa não muda a cena: o motivo lido agora é o do pedido que acabou de voltar.
+    return props.motivoDaRecusa?.(comContra) ?? props.avisoDaRecusa ?? 'Não saiu: sem conexão com o mestre, ou a vez já passou.'
   }
 
-  const lancar = (golpe: GolpeNaTela, escolha: EscolhaDaMira): boolean => {
-    const saiu = agir(pedidoDoGolpe(golpe, escolha))
-    if (saiu) {
+  const agir = (pedido: PedidoDeAcao): boolean => {
+    const saiu = pedir(pedido)
+    setAviso(saiu === true ? null : saiu)
+    return saiu === true
+  }
+
+  /** O golpe da mira: o motivo da recusa volta para ela, que o mostra junto do Lançar. */
+  const lancar = (golpe: GolpeNaTela, escolha: EscolhaDaMira): true | string => {
+    const saiu = pedir(pedidoDoGolpe(golpe, escolha))
+    if (saiu === true) {
+      setAviso(null)
       setTela({ tipo: 'menu' })
       setAtual(0)
     }
@@ -222,8 +239,9 @@ export function MenuDaVez(props: MenuDaVezProps) {
         armas={tela.de === 'atacar' ? escolhaDeArmas : undefined}
         vazio={tela.de === 'atacar' ? 'Nenhuma arma levada para esta batalha.' : 'Nenhuma habilidade na ficha (nem nas transformações ligadas).'}
         evoluir={tela.de === 'habilidade' ? evoluir : undefined}
+        sugerida={props.sugestao?.chave ?? null}
         onVoltar={() => abrir({ tipo: 'menu' }, true)}
-        onEscolher={(golpe) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, false)}
+        onEscolher={(golpe, teclado) => abrir(golpe.invocacao === true && tela.de === 'habilidade' ? { tipo: 'invocacao', golpe } : { tipo: 'mira', golpe, de: tela.de }, teclado)}
       />
     )
   }
@@ -303,14 +321,13 @@ export function MenuDaVez(props: MenuDaVezProps) {
           alvoDoMapa={alvoDoMapa}
           consulta={consulta}
           contra={modoContra}
+          // A sugestão do NPC: o alvo dela só vale no golpe sugerido; nos outros, a regra de sempre.
+          alvoInicial={props.sugestao !== undefined && props.sugestao.chave === tela.golpe.chave ? (props.sugestao.alvoTokenId ?? undefined) : undefined}
+          confirmaOutroLado={props.doMestre === true}
+          focoAoAbrir={porTeclado}
           onVoltar={() => abrir({ tipo: 'lista', de: tela.de }, true)}
           onLancar={(escolha) => lancar(tela.golpe, escolha)}
         />
-        {aviso !== null && (
-          <p className="bt-vez__aviso" role="alert">
-            {aviso}
-          </p>
-        )}
       </div>
     )
   }

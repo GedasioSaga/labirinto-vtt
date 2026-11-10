@@ -308,9 +308,45 @@ export interface AlvoNaMira {
  * Quem caiu não entra sozinho (o mestre marca à mão, se a mesa deixar).
  */
 export function feridosParaACura(alvos: readonly AlvoNaMira[], teto: number): string[] | null {
-  const falta = (alvo: AlvoNaMira): number => (alvo.vida === undefined ? 0 : alvo.vida.maximo - alvo.vida.atual)
+  const falta = vidaQueFalta
   const feridos = alvos.filter((alvo) => alvo.lado !== 'outro' && !alvo.motivo && !alvo.caiu && falta(alvo) > 0).sort((a, b) => falta(b) - falta(a))
   return feridos.length === 0 ? null : feridos.slice(0, Math.max(1, teto)).map((alvo) => alvo.tokenId)
+}
+
+/** Quanto falta para a vida encher; sem a vida na lista, 0. */
+function vidaQueFalta(alvo: AlvoNaMira): number {
+  return alvo.vida === undefined ? 0 : Math.max(0, alvo.vida.maximo - alvo.vida.atual)
+}
+
+/**
+ * Conserto de 09/11/2026 (achado 5): ninguém do lado de quem usa está ferido,
+ * e a lista sabe disso (traz a vida). A mira da cura abre sem alvo marcado e
+ * diz a frase, em vez de marcar quem usa com a vida cheia. Lista sem a vida (a
+ * tela do jogador) = `false`: vale a regra de sempre.
+ */
+export function semFeridoDoLado(alvos: readonly AlvoNaMira[]): boolean {
+  const doLado = alvos.filter((alvo) => alvo.lado !== 'outro' && !alvo.motivo && !alvo.caiu && alvo.vida !== undefined)
+  return doLado.length > 0 && doLado.every((alvo) => vidaQueFalta(alvo) === 0)
+}
+
+/** A técnica é de ajuda: cura, ou ninguém reage a ela (Buff; a peça "em si" e "nos aliados"). */
+export function golpeDeAjuda(golpe: Pick<GolpeNaTela, 'cura' | 'reacao'>): boolean {
+  return golpe.cura === true || golpe.reacao === 'nunca'
+}
+
+/**
+ * Conserto de 09/11/2026 (a Bolha do Tree): os alvos na ordem da AJUDA. A
+ * ordem de sempre (`alvosNaOrdemDaMira`) é a do golpe: inimigos primeiro. Na
+ * cura e no Buff, primeiro quem é do lado de quem usa: os feridos (o mais
+ * ferido antes), depois o resto do lado, e por último o outro lado. Dentro de
+ * cada grupo a ordem que veio se mantém.
+ */
+export function alvosNaOrdemDaAjuda<T extends AlvoNaMira>(alvos: readonly T[]): T[] {
+  const grupo = (alvo: T): number => (alvo.lado === 'outro' ? 2 : vidaQueFalta(alvo) > 0 && !alvo.caiu ? 0 : 1)
+  return alvos
+    .map((alvo, indice) => ({ alvo, indice }))
+    .sort((a, b) => grupo(a.alvo) - grupo(b.alvo) || (grupo(a.alvo) === 0 ? vidaQueFalta(b.alvo) - vidaQueFalta(a.alvo) : 0) || a.indice - b.indice)
+    .map(({ alvo }) => alvo)
 }
 
 /** Construtor C3: onde o alvo e quem age estão na grade (a ficha inteira de cada um). */

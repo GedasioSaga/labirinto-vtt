@@ -25,7 +25,10 @@ import { ContaComBonus } from './ContaComBonus'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
   alvosNaAreaDaMira,
+  alvosNaOrdemDaAjuda,
   feridosParaACura,
+  golpeDeAjuda,
+  semFeridoDoLado,
   alvosNaAreaPelaGrade,
   areaComFrente,
   contaDoGolpe,
@@ -185,8 +188,8 @@ export interface MiraDoGolpeProps {
   alvos: readonly AlvoNaMira[]
   /** A ficha clicada no mapa (S4); `seq` muda a cada clique, mesmo na mesma ficha. */
   alvoDoMapa?: { tokenId: string; seq: number } | null
-  /** `false` = não saiu (a mira continua, com o aviso). */
-  onLancar: (escolha: EscolhaDaMira) => boolean
+  /** `false` = não saiu (a mira continua, com o aviso). Um texto = não saiu, e o motivo é esse (a recusa da regra dita ao mestre). */
+  onLancar: (escolha: EscolhaDaMira) => boolean | string
   onVoltar: () => void
   /** As marcas sobre as fichas do mapa. */
   consulta?: ConsultaDaFicha | null
@@ -202,8 +205,16 @@ export interface MiraDoGolpeProps {
   mapa?: { ligado: boolean; onTrocar: (ligado: boolean) => void }
   /** F2 (fatia F, Giro de Pá): quem está na área da técnica (`alvosDaAreaNaMira`), marcados ao abrir; ausente = a regra de sempre. */
   marcadosDaArea?: readonly string[]
+  /**
+   * Conserto de 09/11/2026 (a Bolha do Tree): a mira é do MESTRE. Cada linha diz o lado ("outro lado"), e a técnica de
+   * ajuda (cura, Buff) num alvo do outro lado pede um toque a mais, na própria linha, antes de marcar.
+   */
+  confirmaOutroLado?: boolean
+  /** A mira abriu pelo teclado: o foco entra no alvo marcado (ou no primeiro da lista). */
+  focoAoAbrir?: boolean
 }
 
+const NOTA_SEM_FERIDO_DO_LADO = 'Ninguém do lado de quem usa está ferido. Marque alguém, se quiser.'
 const ACOES_PERGUNTADAS: readonly AcaoDaTecnica[] = ['simples', 'completa', 'bonus', 'livre']
 const NOTA_DA_REACAO = 'O alvo rola 1d20 para reagir: 10+ defende (metade), 15+ esquiva, 20 contra-ataca; 1 é crítico (×1,5).'
 const NOTA_DO_BUFF = 'Buff: ninguém reage. O selo pega em todos que você marcar.'
@@ -266,6 +277,8 @@ function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoI
   // Pedido de 09/11 (a Bolha): a cura abre nos feridos do lado de quem usa; sem ferido (ou sem a vida na lista), em quem usa.
   const feridos = golpe.cura === true ? feridosParaACura(alvos, golpe.tetoDeAlvos ?? 1) : null
   if (feridos !== null) return feridos
+  // Conserto de 09/11 (achado 5): a lista sabe a vida e ninguém do lado está ferido: abre sem alvo (a nota diz por quê).
+  if (golpe.cura === true && semFeridoDoLado(alvos)) return []
   const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
   if (emSi !== null) return [emSi]
   // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
@@ -278,8 +291,13 @@ function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoI
   return primeiro === null ? [] : [primeiro]
 }
 
-export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea }: MiraDoGolpeProps) {
+export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea, confirmaOutroLado = false, focoAoAbrir = false }: MiraDoGolpeProps) {
   const idBase = useId()
+  // Conserto de 09/11 (a Bolha): na ajuda, quem é do lado de quem usa vem primeiro (os feridos antes); o outro lado fica no fim.
+  const ajuda = golpeDeAjuda(golpe)
+  const lista = ajuda ? alvosNaOrdemDaAjuda(alvos) : alvos
+  /** O alvo do outro lado que espera o segundo toque (a ajuda na mão do mestre). */
+  const [pedindo, setPedindo] = useState<string | null>(null)
   // Construtor C3: a área montada aponta para a frente de quem age (ou o lado que pega mais); quem usa pode virar.
   const [direcao, setDirecao] = useState<Direcao>(() => {
     const area = areaDaGrade(golpe, alvos)
@@ -331,15 +349,39 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const campoDaBase = useRef<HTMLInputElement>(null)
   const botaoDaCalculadora = useRef<HTMLButtonElement>(null)
 
-  // S4: clicar numa ficha no mapa marca ou desmarca o alvo.
+  const alternar = (tokenId: string) => {
+    const alvo = alvos.find((candidato) => candidato.tokenId === tokenId)
+    if (alvo === undefined || alvo.motivo) return
+    setErro(null)
+    // A ajuda num alvo do outro lado: o primeiro toque pergunta na linha dele; o segundo marca.
+    if (confirmaOutroLado && ajuda && alvo.lado === 'outro' && !marcados.includes(tokenId) && pedindo !== tokenId) {
+      setPedindo(tokenId)
+      return
+    }
+    setPedindo(null)
+    setMarcados((antes) => alternarNaLista(antes, tokenId, golpe.tetoDeAlvos))
+  }
+
+  // S4: clicar numa ficha no mapa marca ou desmarca o alvo, pelo mesmo caminho da lista (o outro lado também pede o segundo toque).
+  const alternarAgora = useRef(alternar)
+  alternarAgora.current = alternar
   const ultimoSeq = useRef(alvoDoMapa?.seq ?? -1)
   useEffect(() => {
     if (alvoDoMapa === null || alvoDoMapa === undefined || alvoDoMapa.seq === ultimoSeq.current) return
     ultimoSeq.current = alvoDoMapa.seq
-    if (!alvos.some((alvo) => alvo.tokenId === alvoDoMapa.tokenId)) return
     setFoco(alvoDoMapa.tokenId)
-    setMarcados((antes) => alternarNaLista(antes, alvoDoMapa.tokenId, golpe.tetoDeAlvos))
-  }, [alvoDoMapa, alvos, golpe.tetoDeAlvos])
+    alternarAgora.current(alvoDoMapa.tokenId)
+  }, [alvoDoMapa])
+
+  // Achado 6: aberta pelo teclado, o foco entra na mira (o alvo marcado, ou o primeiro que dá para marcar).
+  useEffect(() => {
+    if (!focoAoAbrir) return
+    const marcada = marcados[0] === undefined ? undefined : caixas.current.get(marcados[0])
+    const primeira = marcada ?? lista.map((alvo) => caixas.current.get(alvo.tokenId)).find((caixa) => caixa !== undefined && !caixa.disabled)
+    primeira?.focus({ preventScroll: true })
+    // Só ao abrir: marcar e desmarcar depois não puxa o foco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const semDano = danoDaOpcao.semDano
   const base = semDano ? null : lerInteiro(baseTexto, DANO_MAX)
@@ -355,12 +397,6 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     if (semDano) return null
     const editado = editados[tokenId]
     return editado === undefined ? base : lerInteiro(editado, DANO_MAX)
-  }
-
-  const alternar = (tokenId: string) => {
-    if (alvos.find((alvo) => alvo.tokenId === tokenId)?.motivo) return
-    setErro(null)
-    setMarcados((antes) => alternarNaLista(antes, tokenId, golpe.tetoDeAlvos))
   }
 
   /** Construtor C3: virar a área remarca quem está nela (o que quem usa mudou à mão sai junto: é outra mira). */
@@ -449,7 +485,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
       ...(golpe.perguntas === undefined ? {} : { respostas }),
       ...(armaEscolhida === null ? {} : { armaId: armaEscolhida.id }),
     })
-    if (!saiu) setErro('O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
+    if (saiu !== true) setErro(typeof saiu === 'string' ? saiu : 'O golpe não saiu: sem conexão com o mestre, ou a vez já passou. Tente de novo.')
   }
 
   const teclar = (evento: KeyboardEvent<HTMLFormElement>) => {
@@ -463,8 +499,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     const alvo = evento.target instanceof HTMLInputElement && evento.target.type === 'checkbox' ? evento.target.dataset.alvo : undefined
     if (alvo === undefined || (evento.key !== 'ArrowDown' && evento.key !== 'ArrowUp')) return
     evento.preventDefault()
-    const i = alvos.findIndex((candidato) => candidato.tokenId === alvo)
-    const proximo = alvos[(i + (evento.key === 'ArrowDown' ? 1 : -1) + alvos.length) % alvos.length]
+    const i = lista.findIndex((candidato) => candidato.tokenId === alvo)
+    const proximo = lista[(i + (evento.key === 'ArrowDown' ? 1 : -1) + lista.length) % lista.length]
     if (proximo !== undefined) caixas.current.get(proximo.tokenId)?.focus()
   }
 
@@ -641,15 +677,18 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
             }}
           />
         )}
+        {golpe.cura === true && semFeridoDoLado(alvos) && <p className="bt-mira__nota">{NOTA_SEM_FERIDO_DO_LADO}</p>}
         <fieldset className="bt-mira__alvos">
           <legend>
             {alvos.length === 0
               ? 'Nenhuma ficha à vista para mirar'
-              : buff
-                ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
-                : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
+              : confirmaOutroLado && ajuda
+                ? 'Quem recebe · o lado de quem usa vem primeiro; Espaço marca, ou clique na ficha no mapa'
+                : buff
+                  ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
+                  : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
           </legend>
-          {alvos.map((alvo) => {
+          {lista.map((alvo) => {
             const marcado = marcadosSet.has(alvo.tokenId)
             const baseDoAlvo = marcado ? baseDe(alvo.tokenId) : null
             const conta = baseDoAlvo === null ? null : contaDoGolpe(baseDoAlvo, carga, comSurpresa && golpe.semSurpresa !== true, golpe.multiplicadores)
@@ -674,7 +713,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 <label className="bt-alvo__nome" htmlFor={`${idBase}-${alvo.tokenId}`}>
                   <MiniaturaDoAlvo imagem={alvo.imagem} nome={alvo.nome} cor={alvo.cor} caiu={alvo.caiu} />
                   <span className="bt-alvo__texto">
-                    {alvo.nome} {alvo.lado !== 'outro' && <small>{alvo.lado === 'eu' ? '· você' : '· aliado'}</small>}
+                    {alvo.nome} {alvo.lado !== 'outro' ? <small>{alvo.lado === 'eu' ? (confirmaOutroLado ? '· quem usa' : '· você') : '· aliado'}</small> : confirmaOutroLado && <small>· outro lado</small>}
                     {golpe.cura === true && alvo.vida !== undefined && (
                       <small>
                         {' '}
@@ -702,6 +741,14 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   </span>
                 ) : (
                   <span />
+                )}
+                {pedindo === alvo.tokenId && !marcado && (
+                  <span className="bt-alvo__conta bt-alvo__confirma" role="alert">
+                    <em>{alvo.nome} está do outro lado.</em>{' '}
+                    <button type="button" className="bt-botao bt-botao--p" onClick={() => alternar(alvo.tokenId)}>
+                      Marcar mesmo assim
+                    </button>
+                  </span>
                 )}
                 {marcado && !semDano && (
                   <span className="bt-alvo__conta">
