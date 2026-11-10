@@ -130,7 +130,7 @@ function pendentes(cena: BatalhaDaCena): { golpeId: string; tokenId: string }[] 
 }
 
 function contaDoToken(tokenId: string): string {
-  return tokenId === RIVAL ? CONTA_B : CONTA_A
+  return tokenId.startsWith('treino_tok_b') ? CONTA_B : CONTA_A
 }
 
 /** Todo alvo que espera toma o golpe inteiro ("não reagir"), pela conta dona dele. */
@@ -421,5 +421,73 @@ describe('a recusa volta com a frase da regra (a marca e a passiva pedida como t
     const { motor } = motorContado()
     const duelo = dueloDoPintor(motor)
     expect(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(OLHAR.id, RIVAL)))).toEqual({ ok: false, motivo: 'regra', texto: 'Passiva: use a tira Passivas' })
+  })
+})
+
+const CAPANGA = 'treino_tok_b2'
+
+/** O golpe por peças: Força + 20, com o alvo que a peça diz. */
+function golpePorPecas(id: string, nome: string, forma: { tipo: 'um' } | { tipo: 'raio'; casas: number }): CartaoDaFicha {
+  return {
+    ...cartao(id, nome, { dano: '', acao: 'Ação Simples' }),
+    mecanica: {
+      versao: 1,
+      acao: 'simples',
+      custos: [],
+      limite: {},
+      alvo: { quem: 'inimigos', forma },
+      teste: { tipo: 'reacao' },
+      dano: { base: { formula: 'Força + 20' }, multiplicadores: { concentracao: true, surpresa: true } },
+      efeitos: [],
+    },
+  }
+}
+
+/** Num inimigo só. */
+const ESTOQUE = golpePorPecas('cart_estoque', 'Estoque', { tipo: 'um' })
+/** Em área: os inimigos a 1 casa de quem usa. */
+const GIRO = golpePorPecas('cart_giro', 'Giro de Lança', { tipo: 'raio', casas: 1 })
+
+/** O Lanceiro (Força 60) abre a luta contra o Rival e o Capanga. */
+function dueloDoLanceiro(motor: MotorDoDuelo): DueloGravado {
+  const lanceiro = ficha('Lanceiro de Teste', { forca: 60, agilidade: 90 }, { hp: 400, sp: 120, escudo: 0 }, { habilidades: [ESTOQUE, GIRO] })
+  const capanga = ficha('Capanga de Teste', { forca: 30, agilidade: 20 }, { hp: 300, sp: 0, escudo: 0 }, {})
+  return dueloCom([daConta(lanceiro, CONTA_A)], [rivalDeTeste(), daConta(capanga, CONTA_B)], motor)
+}
+
+function nosDois(cartaoId: string): PedidoDeAcao {
+  return { tipo: 'habilidade', cartaoId, armaId: null, alvos: [{ tokenId: RIVAL, dano: null }, { tokenId: CAPANGA, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null }
+}
+
+function hpDosRivais(duelo: DueloGravado): number[] {
+  return [hpDe(duelo, 'Rival de Teste'), hpDe(duelo, 'Capanga de Teste')]
+}
+
+describe('cliente malicioso: mais alvos do que a técnica acerta', () => {
+  it('a técnica de um alvo só com 2 marcados: a regra recusa com o motivo; com 1, sai (Força 60 + 20)', () => {
+    const { motor } = motorContado()
+    const duelo = dueloDoLanceiro(motor)
+    const antes = structuredClone(duelo)
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, nosDois(ESTOQUE.id)))).toEqual({ ok: false, motivo: 'regra', texto: 'Estoque dá dano em um inimigo só' })
+    expect(duelo).toEqual(antes)
+    const honesto = semReagir(aceita(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(ESTOQUE.id, RIVAL))), 'o Estoque'), motor)
+    expect(hpDosRivais(honesto)).toEqual([420, 300])
+  })
+
+  it('a técnica de área (1 casa em volta) com alvo fora da área: recusada; só quem está ao lado toma o golpe', () => {
+    const { motor } = motorContado()
+    const inicio = dueloDoLanceiro(motor)
+    const foraDaArea = { ok: false, motivo: 'regra', texto: 'Giro de Lança só acerta quem está na área dela' }
+    // Na largada os dois lados estão longe um do outro: o Rival está fora da área.
+    expect(peloFio(inicio, motor, CONTA_A, agir(inicio, tecnica(GIRO.id, RIVAL)))).toEqual(foraDaArea)
+    // Montagem: o Lanceiro e o Rival lado a lado na divisa da grade; o Capanga fica na largada, longe.
+    const comOLanceiro = aceita(peloFio(inicio, motor, CONTA_A, { tipo: 'montar', seq: inicio.seq, tokenId: PRIMEIRA_DE_A, col: 5, row: 3 }), 'montar o Lanceiro')
+    const duelo = aceita(peloFio(comOLanceiro, motor, CONTA_B, { tipo: 'montar', seq: comOLanceiro.seq, tokenId: RIVAL, col: 6, row: 3 }), 'montar o Rival')
+    const antes = structuredClone(duelo)
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, nosDois(GIRO.id)))).toEqual(foraDaArea)
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(GIRO.id, CAPANGA)))).toEqual(foraDaArea)
+    expect(duelo).toEqual(antes)
+    const acertou = semReagir(aceita(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(GIRO.id, RIVAL))), 'o Giro'), motor)
+    expect(hpDosRivais(acertou)).toEqual([420, 300])
   })
 })

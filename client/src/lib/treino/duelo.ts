@@ -2,6 +2,7 @@ import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeEvolucao, lerPedidoDePas
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
+import { casaNaArea, DIRECOES } from '../batalha/area'
 import type { ParedeDoPasso } from '../batalha/blocos'
 import type { AcaoDaTecnica, EfeitoDaBatalha, LembreteDaMarca, PedidoDeAcao, PedidoDeAlvo, PedidoDeEvolucao, PedidoDeMarca, PedidoDePassiva, PedidoDeReacao } from '../batalha/combate'
 import { ehLembreteDoSangramento } from '../batalha/condicoes'
@@ -12,7 +13,7 @@ import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, recursoDoCusto, tecnic
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
 import { cartaoMontado } from '../batalha/mecanica/leitura'
 import { COMO_MARCA, marcaDoToken, motivoDaMarca, passivaDaMarca } from '../batalha/marca'
-import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
+import { chavesDoDono, mecanicaDoCartao, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
 import { motivoDaPassiva } from '../batalha/passivas'
@@ -502,7 +503,36 @@ function formaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'transformar' }>
   return { ok: true, pedido: { tipo: 'transformar', cartaoId: pedido.cartaoId, acao: cartao === null ? ACAO_SEM_A_FICHA : acaoDaForma(cartao), trocarImagem: pedido.trocarImagem } }
 }
 
-function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCena, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
+/** Onde cada ficha está na grade (o `posicoes` do duelo e da luta v4). */
+type PosicoesNaGrade = Readonly<Record<string, CasaDoTreino>>
+
+/**
+ * A ÁREA DA TÉCNICA VALE NO SITE (fechamento de 10/11/2026). Na mesa a mira
+ * marca quem está na área e quem usa pode pôr e tirar ficha à mão, porque o
+ * mestre vê. No site ninguém vê, e a regra da batalha não confere distância:
+ * o pedido com um alvo do outro lado da grade passava. A área é a da ficha
+ * (`mecanicaDoCartao`: a peça de alvo "linha", "quadrado" ou "raio", ou a
+ * linha da tabela à mão), medida pelas casas da grade (cada ficha ocupa 1). A
+ * que aponta para um lado (linha, quadrado à frente) vale virada para qualquer
+ * dos 4, desde que todos os alvos caibam no MESMO lado. Quem usa não fica
+ * "fora" da própria técnica (se ela vale nele, quem diz é a regra da
+ * batalha); ficha sem casa na grade não é medida. `null` = sem área, ou todos
+ * dentro. O teto de alvos ("um", "vários até N") a regra da batalha já recusa.
+ */
+function motivoDoAlvoForaDaArea(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>, quem: QuemAge, posicoes: PosicoesNaGrade, sistema: SistemaDeRpg): string | null {
+  const cartao = tecnicaPorId(quem.personagem, sistema, pedido.cartaoId)?.cartao
+  const area = cartao === undefined ? undefined : mecanicaDoCartao(cartao)?.area
+  const origem = posicoes[quem.carta.tokenId]
+  if (cartao === undefined || area === undefined || origem === undefined) return null
+  const casas = pedido.alvos.flatMap((alvo) => {
+    const casa = alvo.tokenId === quem.carta.tokenId ? undefined : posicoes[alvo.tokenId]
+    return casa === undefined ? [] : [casa]
+  })
+  const cabem = DIRECOES.some((direcao) => casas.every((casa) => casaNaArea(area.forma, origem, direcao, casa)))
+  return cabem ? null : `${cartao.nome.trim() || 'A técnica'} só acerta quem está na área dela`
+}
+
+function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCena, posicoes: PosicoesNaGrade, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
   switch (pedido.tipo) {
     // Sem dano, custo nem ação vindos do cliente: a regra da batalha confere o resto.
     case 'concentrar':
@@ -514,8 +544,13 @@ function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCen
       return recusa('foraDoDuelo')
     case 'atacar':
       return ataqueRecalculado(pedido, quem.personagem, sistema)
-    case 'habilidade':
-      return tecnicaRecalculada(pedido, quem, cena, sistema)
+    case 'habilidade': {
+      const refeito = tecnicaRecalculada(pedido, quem, cena, sistema)
+      if (!refeito.ok) return refeito
+      // Nenhum pedido aceito aqui (nem o que segue sem número) leva alvo de fora da área da ficha.
+      const foraDaArea = motivoDoAlvoForaDaArea(pedido, quem, posicoes, sistema)
+      return foraDaArea === null ? refeito : recusa('regra', foraDaArea)
+    }
   }
 }
 
@@ -670,12 +705,13 @@ function cartaQueAge(turnos: TurnosDaCena, pedido: PedidoDeAcao): CartaDaOrdem |
 function jogarNaLoja(
   loja: LojaDaBatalha,
   mesa: MesaDaLuta,
-  cena: BatalhaDaCena,
+  antes: Pick<MesaDaJogada<LadoDaLuta>, 'cena' | 'posicoes'>,
   quem: QuemJoga,
   jogada: Exclude<JogadaDoDuelo, { tipo: 'andar' | 'montar' }>,
   sistema: SistemaDeRpg,
   entreContas: boolean,
 ): RecusaDaJogada | null {
+  const { cena, posicoes } = antes
   const { turnos } = cena
   const { autor } = quem
   const lutadores = mesa.lutadores()
@@ -695,7 +731,7 @@ function jogarNaLoja(
       if (!ehDoLado(carta.tokenId)) return recusa('naoEDaConta')
       const personagem = copiaDe(carta.personagemId)
       if (personagem === null || carta.bando !== undefined) return recusa('regra', loja.getState().motivoDoAgir(CENA_DO_DUELO, autor, jogada.vez, jogada.pedido))
-      const refeito = acaoRecalculada(jogada.pedido, { carta, personagem }, cena, sistema)
+      const refeito = acaoRecalculada(jogada.pedido, { carta, personagem }, cena, posicoes, sistema)
       if (!refeito.ok) return refeito
       if (loja.getState().agir(CENA_DO_DUELO, autor, jogada.vez, refeito.pedido)) return null
       // A store recusou sem mudar nada: o motivo é o que a regra diz deste mesmo pedido, agora.
@@ -905,7 +941,7 @@ export function jogarNaMesa<L extends LadoDaLuta>(
     return { ok: true, mexeuNaLuta: true, mesa: { lutadores: mesa.lutadores(), posicoes: andou.posicoes, montagem: false, cena: cenaDaLoja(loja), passos: copia.passos } }
   }
   // Só o treino local joga com `livre`: lá os dois lados são de quem joga (o outro é o robô dele).
-  const recusada = jogarNaLoja(loja, mesa, copia.cena, quem, jogada, motor.sistema, regraDoAndar === 'naVez')
+  const recusada = jogarNaLoja(loja, mesa, copia, quem, jogada, motor.sistema, regraDoAndar === 'naVez')
   if (recusada !== null) return recusada
   aplicarSangramentos(loja)
   // Só o golpe, a reação e a vez contam passo; a marca, a passiva, o Evoluir e as armas não (como andar).
