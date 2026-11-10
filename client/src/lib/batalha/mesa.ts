@@ -44,7 +44,8 @@ export interface MesaDaBatalha {
    * INVOCAÇÃO (docs/planos/batalha-invocacao-plano.md): o personagem
    * temporário e o token do invocado entram juntos na cena `sceneKey` (o que
    * já existe com o mesmo id fica como está; `null` = só o outro). `false` =
-   * não deu, e nada fica. Opcional: a mesa sem mapa (a arena) não invoca.
+   * não deu, e nada fica. Opcional: a mesa que não tem onde pôr o token não
+   * invoca. A arena invoca no palco dela, com cópias em memória.
    */
   criarInvocado?(sceneKey: string, personagem: Personagem | null, token: Token | null): boolean
   /** Invocação: tira o token e o personagem temporário. Devolve como estavam (`null` = já não existia). */

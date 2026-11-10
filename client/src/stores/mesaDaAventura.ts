@@ -1,4 +1,5 @@
 import { direcaoDaRotacao } from '../lib/batalha/area'
+import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
 import * as mapFactory from '../lib/mapFactory'
@@ -101,7 +102,7 @@ export const mesaDaAventura: MesaDaBatalha = {
   },
 
   limparInvocados: (sceneKey) => {
-    const temporarios = personagensAtivos(useAdventureStore.getState()).filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey)
+    const temporarios = temporariosDaCena(personagensAtivos(useAdventureStore.getState()), sceneKey)
     if (temporarios.length === 0) return
     const ids = new Set(temporarios.map((personagem) => personagem.id))
     for (const token of tokensDaCena(sceneKey)) if (token.characterId !== null && ids.has(token.characterId)) tirarToken(sceneKey, token.id)

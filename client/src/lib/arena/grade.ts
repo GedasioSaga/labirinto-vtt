@@ -95,6 +95,35 @@ export function casaOcupadaNaArena(tokens: readonly Pick<Token, 'id' | 'x' | 'y'
   })
 }
 
+/**
+ * O centro da casa livre mais perto de `origem` (px do mundo), para quem nasce
+ * ao lado de alguém (o invocado ao lado do dono): os anéis em volta da casa de
+ * origem, do mais perto ao mais longe, e em cada anel as casas em linha reta
+ * antes das diagonais. `null` = nenhuma casa livre na grade.
+ */
+export function casaLivrePertoDe(tokens: readonly Pick<Token, 'id' | 'x' | 'y'>[], origem: PontoNaArena, grade: GradeDaArena): PontoNaArena | null {
+  const centro = casaSobOPonto(origem)
+  const alcance = Math.max(grade.colunas, grade.linhas)
+  for (let raio = 1; raio <= alcance; raio += 1) {
+    const anel: { casa: CasaDaArena; passos: number }[] = []
+    for (let dRow = -raio; dRow <= raio; dRow += 1) {
+      for (let dCol = -raio; dCol <= raio; dCol += 1) {
+        if (Math.max(Math.abs(dRow), Math.abs(dCol)) !== raio) continue
+        const casa = { col: centro.col + dCol, row: centro.row + dRow }
+        if (casa.col < 0 || casa.row < 0 || casa.col >= grade.colunas || casa.row >= grade.linhas) continue
+        anel.push({ casa, passos: Math.abs(dRow) + Math.abs(dCol) })
+      }
+    }
+    anel.sort((a, b) => a.passos - b.passos)
+    for (const { casa } of anel) {
+      const ponto = centroDaCasaNaArena(casa)
+      // Id vazio: nenhuma ficha fica de fora da conta (quem nasce ainda não está no palco).
+      if (!casaOcupadaNaArena(tokens, '', ponto)) return ponto
+    }
+  }
+  return null
+}
+
 /** As casas do lado, em zigue-zague nas 2 colunas da borda (a de dentro primeiro), centradas na altura. */
 export function casasDoLado(quantas: number, lado: LadoDaArena, grade: GradeDaArena): CasaDaArena[] {
   const dentro = lado === 'a' ? Math.min(1, grade.colunas - 1) : Math.max(0, grade.colunas - 2)

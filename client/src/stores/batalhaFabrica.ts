@@ -63,6 +63,7 @@ import {
   pendenciaPorId,
   quantosNoCampo,
   semBandosVazios,
+  temporariosDaCena,
   ultraEmCampo,
   type ContextoDaInvocacao,
 } from '../lib/batalha/invocacao'
@@ -2941,7 +2942,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       }
       // Invocação: o app fechado no meio da batalha deixou lobos salvos (personagem temporário e token).
       // Saem ANTES da ordem, e a carta de um deles que o mestre escolheu não entra.
-      const sobras = new Set(mesa.personagens().filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey).map((personagem) => personagem.id))
+      const sobras = new Set(temporariosDaCena(mesa.personagens(), sceneKey).map((personagem) => personagem.id))
       if (sobras.size > 0) mesa.limparInvocados?.(sceneKey)
       const semSobras = inicio === undefined || sobras.size === 0 ? inicio : { ...inicio, combatentes: inicio.combatentes.filter((carta) => carta.personagemId === null || !sobras.has(carta.personagemId)) }
       // Conserto das fichas F1 (resposta do Vincent): o Escudo de cada combatente volta cheio. Sem linha: o Iniciar não se desfaz.
@@ -3334,7 +3335,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
 
     invocar: (sceneKey, autor, pedido) => {
       const cena = cenaDe(sceneKey)
-      // Mesa sem mapa (a arena) não invoca: não há onde pôr o token.
+      // Mesa que não diz onde pôr o token não invoca. A arena põe no palco dela (`mesaDaArena`).
       if (cena === undefined || mesa.criarInvocado === undefined) return false
       const { turnos } = cena
       const dono = turnos.cartas.find((carta) => carta.tokenId === pedido.tokenId && carta.bando === undefined)

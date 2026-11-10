@@ -330,6 +330,16 @@ export function ultraEmCampo(turnos: Pick<TurnosDaCena, 'invocados'>, de: Pick<I
   return (turnos.invocados ?? SEM_INVOCADOS).some((invocado) => invocado.ultra && invocado.donoPersonagemId === de.donoPersonagemId && invocado.cartaoId === de.cartaoId)
 }
 
+/**
+ * Os personagens TEMPORÁRIOS nascidos na batalha `sceneKey` (a marca
+ * `invocadoNaCena` de `fichaDoInvocado`): os que o fim da batalha tira e os
+ * que sobram de um app fechado no meio. Uma leitura só para toda mesa (a
+ * aventura, a arena) e para a store, que confere as sobras ao ligar.
+ */
+export function temporariosDaCena(personagens: readonly Personagem[], sceneKey: string): Personagem[] {
+  return personagens.filter((personagem) => personagem.combate?.invocadoNaCena === sceneKey)
+}
+
 /** O motivo de recusar o comum com o Ultra em campo (a store recusa colocar; a regra do pedido, pedir). */
 export const MOTIVO_DO_COMUM_COM_O_ULTRA = 'Com o Ultra em campo, os comuns não entram'
 

@@ -3,7 +3,8 @@ import { create } from 'zustand'
 import { ajustesValidos, comAjustesDoBoneco, fichaDoBoneco } from '../lib/arena/boneco'
 import { copiasDaMontagem, novoIdDeCopia } from '../lib/arena/copias'
 import { AUTOR_DA_ARENA, equipesDaArena } from '../lib/arena/estadoDaArena'
-import { CASA_DA_ARENA, casaOcupadaNaArena, GRADES_DA_ARENA, tokensDaArena, type FichaNaGrade } from '../lib/arena/grade'
+import { CASA_DA_ARENA, casaLivrePertoDe, casaOcupadaNaArena, GRADES_DA_ARENA, tokensDaArena, type FichaNaGrade } from '../lib/arena/grade'
+import { comInvocadoNaArena, semInvocadoNaArena, semInvocadosDaCena } from '../lib/arena/invocados'
 import { comEscolha, judgeDoArbitro, montagemPronta, montagemVazia, semEscolha } from '../lib/arena/montagem'
 import { golpeNoPlacar, placarDoBoneco, type ContextoDoPlacar, type NomeDoGolpe } from '../lib/arena/placar'
 import { passoDoBoneco, type PassoDoBoneco } from '../lib/arena/reacaoDoBoneco'
@@ -21,6 +22,7 @@ import {
 import { direcaoDaRotacao } from '../lib/batalha/area'
 import type { ParedeDoPasso } from '../lib/batalha/blocos'
 import type { EfeitoDaBatalha, GolpeDaBatalha } from '../lib/batalha/combate'
+import { pendenciaPorId } from '../lib/batalha/invocacao'
 import { recursoDoEscudo } from '../lib/batalha/leituraDaFicha'
 import { esquecerCopiaDaFicha, registrarCopiaDaFicha } from '../lib/batalha/mecanicasAMao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
@@ -30,7 +32,7 @@ import { combatentesIniciais, tokensCaidos } from '../lib/batalha/turnos'
 import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { recursoDeVida } from '../lib/vidaDaFicha'
-import { criarBatalhaStore, type LojaDaBatalha } from './batalhaStore'
+import { criarBatalhaStore, type AjusteDaColocacao, type LojaDaBatalha } from './batalhaStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
 /**
@@ -102,6 +104,28 @@ export const mesaDaArena: MesaDaBatalha = {
     return true
   },
   trocarEquipe: () => false,
+  // U4 (plano de 10/11): a INVOCAÇÃO na arena (`lib/arena/invocados.ts`). O invocado é mais uma cópia em memória: entra nas
+  // cópias e no palco do lado de quem invocou e sai com a luta (o `desligar` da batalha chama as duas saídas). Nada vai a ficha de verdade.
+  criarInvocado: (_sceneKey, personagem, token) => {
+    const sessao = useArenaStore.getState().sessao
+    if (sessao === null || sessao.fase !== 'lutando') return false
+    const comOInvocado = comInvocadoNaArena(sessao, personagem, token)
+    if (comOInvocado === null) return false
+    if (comOInvocado !== sessao) useArenaStore.setState({ sessao: comOInvocado })
+    return true
+  },
+  tirarInvocado: (_sceneKey, personagemId, tokenId) => {
+    const sessao = useArenaStore.getState().sessao
+    if (sessao === null) return { personagem: null, token: null }
+    const tirado = semInvocadoNaArena(sessao, personagemId, tokenId)
+    if (tirado.sessao !== sessao) useArenaStore.setState({ sessao: tirado.sessao })
+    return { personagem: tirado.personagem, token: tirado.token }
+  },
+  limparInvocados: (sceneKey) => {
+    const sessao = useArenaStore.getState().sessao
+    const semEles = sessao === null ? null : semInvocadosDaCena(sessao, sceneKey)
+    if (semEles !== null && semEles !== sessao) useArenaStore.setState({ sessao: semEles })
+  },
   // U4 (plano de 10/11): a arena tem grade: a casa e a frente de cada ficha, como no mapa (o "perto" de quem rebate vale aqui também).
   posicaoDoToken: (_sceneKey, tokenId) => {
     const token = useArenaStore.getState().sessao?.tokens.find((candidato) => candidato.id === tokenId)
@@ -111,6 +135,22 @@ export const mesaDaArena: MesaDaBatalha = {
 
 /** A batalha da arena: sempre na cena `CENA_DA_ARENA`, com as cópias. */
 export const batalhaDaArena: LojaDaBatalha = criarBatalhaStore(mesaDaArena)
+
+/**
+ * U4: o "Colocar" da invocação na arena. No mapa o mestre clica na casa; aqui
+ * o invocado nasce na casa livre mais perto de quem invocou (o mestre arrasta
+ * depois, como qualquer ficha do palco). Devolve o token novo; `null` = não
+ * nasceu (a pendência saiu, número fora do limite, o dono fora do palco ou a
+ * grade cheia), e nada muda.
+ */
+export function colocarInvocadoNaArena(invocacaoId: string, ajuste?: AjusteDaColocacao): string | null {
+  const sessao = useArenaStore.getState().sessao
+  const pendente = pendenciaPorId(batalhaDaArena.getState().cenas[CENA_DA_ARENA]?.turnos ?? {}, invocacaoId)
+  if (sessao === null || sessao.fase !== 'lutando' || pendente === null) return null
+  const dono = sessao.tokens.find((token) => token.id === pendente.donoTokenId)
+  const onde = dono === undefined ? null : casaLivrePertoDe(sessao.tokens, dono, GRADES_DA_ARENA[sessao.montagem.grade])
+  return onde === null ? null : batalhaDaArena.getState().colocarInvocado(CENA_DA_ARENA, invocacaoId, onde, ajuste)
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // O boneco sozinho e o placar
