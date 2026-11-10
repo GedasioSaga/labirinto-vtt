@@ -56,20 +56,30 @@ import { danoNoTeto, seloDaMira } from './robo'
  * guarda o `DueloGravado` e chama estas funções; aqui não há rede, relógio
  * nem sorteio: o d20 entra por `MotorDoDuelo.rolarD20` (no DO, o do crypto).
  *
- * O servidor não confia no cliente (achados Tr2, Tr3, Tr5 e Tr7, §11):
- *  - RECALCULA dano, custo e ação pela cópia: o dano de cada alvo é o que a
- *    mira sugere (o mesmo cálculo do robô, `robo.ts`), o custo e a ação são
- *    os da ficha (a ação que a ficha não diz = Simples, `ACAO_SEM_A_FICHA`;
- *    a de Ativar a forma = a do campo Ação, `acaoDaForma`); os do pedido
- *    são ignorados. Golpe de dano que a ficha não calcula ("dano à
- *    mão") é recusado: no duelo ninguém digita dano;
- *  - recusa a Surpresa e o "dano livre" (não existe jogada de dano livre:
- *    só agir, reagir e passar). Também refaz o que a tela deixaria trocar à
- *    vontade: o Perfurante só se a ficha diz, o selo só o sugerido, o bônus
- *    da reação só o dos selos, a saída da técnica de reação só a da ficha;
- *    e recusa o que na mesa é decisão do mestre (rerolar com Ponto Saga,
- *    passar sem dano). O contra-ataque gasto em se mover não é `agir`: é a
- *    jogada `andar` com o `contraDe`, que gasta e anda de uma vez só;
+ * O servidor não confia no cliente (achados Tr2, Tr3, Tr5 e Tr7, §11), mas
+ * também NÃO refaz a regra (R3 da unificação do combate, 10/11/2026): quem
+ * valida e executa é a mesma `agir`/`reagir` da batalha do app, o caminho do
+ * jogador por LAN (`net/batalhaNoHost.ts`), e a recusa volta com o motivo
+ * dela. Aqui fica só a conferência de dono, de vez (`seq`) e de formato:
+ *  - o pedido não traz NÚMERO do cliente. Na mesa a mira do jogador manda o
+ *    dano, o custo e o bônus e o mestre vê; no site ninguém vê, então o
+ *    servidor faz o papel da mira com as leituras do motor: o dano que a
+ *    ficha dá (o mesmo de `robo.ts`), o custo e a ação da ficha (a ação que
+ *    a ficha não diz = Simples, `ACAO_SEM_A_FICHA`; a de Ativar a forma = a
+ *    do campo Ação, `acaoDaForma`), Perfurante só se a ficha diz, o selo só
+ *    o sugerido, o bônus da reação só o dos selos. O dano "% da vida do
+ *    alvo" (Explosão) vai vazio: o motor o calcula alvo a alvo
+ *    (`comDanoPelaVida` em `lib/batalha/golpe.ts`);
+ *  - arma, bala, técnica, opção, resposta e forma que a cópia não tem não
+ *    são recusadas aqui: o pedido segue sem número e a batalha recusa com o
+ *    motivo que ela dá ao jogador na mesa;
+ *  - DIFERENÇAS DE PROPÓSITO (o site não tem mestre): o golpe marcado "à
+ *    mão" ou de dano que a ficha não lê é recusado (ninguém digita dano); a
+ *    Surpresa, a reação livre, rerolar com Ponto Saga e passar sem dano são
+ *    recusados (decisões do mestre); a saída da técnica de reação é a da
+ *    ficha (a escolha livre da mesa só vale nas saídas próprias da tabela).
+ *    O contra-ataque gasto em se mover não é `agir`: é a jogada `andar` com
+ *    o `contraDe`, que gasta e anda de uma vez só;
  *  - ANDAR (fatia M1, a grade 12 x 8 da Arena): só a ficha do lado de quem
  *    pede, na vez dela (ou pelo contra-ataque que ela ganhou), para uma casa
  *    dentro da grade e livre, pelo mesmo passo da batalha do app
@@ -316,14 +326,22 @@ export function criarDuelo(pedido: PedidoDeDuelo, motor: MotorDoDuelo): CriacaoD
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// O servidor recalcula
+// O servidor preenche os números (a regra é a da batalha)
 // ───────────────────────────────────────────────────────────────────────────
 
 type Recalculo<T> = { ok: true; pedido: T } | RecusaDaJogada
 
+/** O motivo no teto do fio (`MOTIVO_DA_RECUSA_MAX`), sem cortar no meio de uma palavra. */
+function motivoNoTeto(texto: string): string {
+  if (texto.length <= MOTIVO_DA_RECUSA_MAX) return texto
+  const corte = texto.slice(0, MOTIVO_DA_RECUSA_MAX)
+  const espaco = corte.lastIndexOf(' ')
+  return espaco <= 0 ? corte : corte.slice(0, espaco)
+}
+
 function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
   const dito = texto?.trim() ?? ''
-  return dito === '' ? { ok: false, motivo } : { ok: false, motivo, texto: dito.slice(0, MOTIVO_DA_RECUSA_MAX) }
+  return dito === '' ? { ok: false, motivo } : { ok: false, motivo, texto: motivoNoTeto(dito) }
 }
 
 /** As frases do host da mesa para a vez que andou e o golpe já fechado (`net/batalhaNoHost.ts`): a mesma palavra no app e no site. */
@@ -353,20 +371,20 @@ function idsDosCartoes(personagem: Personagem): string[] {
 }
 
 /**
- * O Atacar refeito: o dano da arma (e da bala) pela cópia; Perfurante só se a
- * arma diz; o Atacar não leva selo (a mira só o sugere na técnica). F2 (fatia
- * C): as respostas de todo golpe do dono (o Electro da Aira) vão junto, depois
- * de conferidas; resposta torta recusa o pedido.
+ * O Atacar com os números da ficha: o dano da arma (e da bala) pela cópia, o
+ * que a mira do app sugere; Perfurante só se a arma diz; o Atacar não leva
+ * selo (a mira só o sugere na técnica). Arma, bala e respostas (F2, fatia C:
+ * o Electro da Aira) que a cópia não tem NÃO são recusadas aqui: seguem para
+ * a regra da batalha, que recusa com o motivo dela (R3).
  */
 function ataqueRecalculado(pedido: Extract<PedidoDeAcao, { tipo: 'atacar' }>, personagem: Personagem, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
+  // De propósito: no site não há mestre para conceder a Surpresa.
   if (pedido.surpresa) return recusa('surpresa')
   const { respostas } = pedido
-  if (respostas !== undefined && motivoDasRespostasDoGolpe(null, idsDosCartoes(personagem), respostas) !== null) return recusa('regra')
-  const arma = pedido.armaId === null ? null : armasDe(personagem).find((candidata) => candidata.id === pedido.armaId)
-  if (arma === undefined) return recusa('regra')
+  const arma = pedido.armaId === null ? null : (armasDe(personagem).find((candidata) => candidata.id === pedido.armaId) ?? null)
+  // De propósito: no site ninguém digita dano (arma marcada "à mão", ou dano que a ficha não lê).
   if (arma !== null && arma.aMao === true) return recusa('danoAMao')
-  const bala = pedido.balaId === undefined ? null : arma === null ? null : balaDaArma(arma, pedido.balaId)
-  if (pedido.balaId !== undefined && bala === null) return recusa('regra')
+  const bala = arma === null || pedido.balaId === undefined ? null : balaDaArma(arma, pedido.balaId)
   const valor = danoDoAtacarNoDuelo(personagem, sistema, arma, bala)
   if (valor === undefined) return recusa('danoAMao')
   const perfurante = pedido.perfurante && arma !== null && ehPerfurante(arma)
@@ -400,48 +418,51 @@ function danoDoAtacarNoDuelo(personagem: Personagem, sistema: SistemaDeRpg, arma
 }
 
 /**
- * A Habilidade refeita: o dano lido da técnica (ou da opção escolhida) pela
- * cópia, com o bônus dos selos de quem age, como a mira e o robô; o custo da
- * ficha (`custo: null`); a ação da ficha (`ACAO_SEM_A_FICHA` quando ela não
- * diz); Perfurante só se a técnica diz; o selo só o sugerido.
+ * A Habilidade com os números da ficha: o dano lido da técnica (ou da opção
+ * escolhida) pela cópia, com o bônus dos selos de quem age, como a mira e o
+ * robô; o custo da ficha (`custo: null`); a ação da ficha (`ACAO_SEM_A_FICHA`
+ * quando ela não diz); Perfurante só se a técnica diz; o selo só o sugerido.
+ * O dano "% da vida do alvo" (`precisaAlvo`, a Explosão) vai vazio: a batalha
+ * o calcula alvo a alvo. Técnica, arma, opção e resposta que a cópia não tem
+ * NÃO são recusadas aqui: o pedido segue sem número (`semNumero`) e a regra
+ * da batalha recusa com o motivo dela (R3).
  */
 function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }>, quem: QuemAge, cena: BatalhaDaCena, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
+  // De propósito: no site não há mestre para conceder a Surpresa.
   if (pedido.surpresa) return recusa('surpresa')
   const { carta, personagem } = quem
   const { turnos } = cena
-  const arma = pedido.armaId === null ? null : armasDe(personagem).find((candidata) => candidata.id === pedido.armaId)
-  if (arma === undefined) return recusa('regra')
+  const { respostas } = pedido
+  // Nada do que o cliente digitaria: sem dano, o custo e a ação da ficha, sem Perfurante nem selo.
+  const semNumero: PedidoDeAcao = { tipo: 'habilidade', cartaoId: pedido.cartaoId, armaId: pedido.armaId, alvos: comODano(pedido.alvos, null), surpresa: false, perfurante: false, custo: null, acao: ACAO_SEM_A_FICHA }
+  if (pedido.contraDe !== undefined) semNumero.contraDe = pedido.contraDe
+  if (pedido.variante !== undefined) semNumero.variante = pedido.variante
+  if (respostas !== undefined) semNumero.respostas = respostas
+  const arma = pedido.armaId === null ? null : (armasDe(personagem).find((candidata) => candidata.id === pedido.armaId) ?? null)
   const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
   const tecnica = tecnicasNoMenu(personagem, sistema, turnos.combate?.[personagem.id], acoes, arma, bonus).find((candidata) => candidata.cartao.id === pedido.cartaoId)
-  if (tecnica === undefined) return recusa('regra')
+  if (tecnica === undefined) return { ok: true, pedido: semNumero }
+  // De propósito: no site ninguém digita dano (técnica marcada "à mão").
   if (tecnica.cartao.aMao === true) return recusa('danoAMao')
   const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
-  if (pedido.variante !== undefined && variante === null) return recusa('regra')
+  if (pedido.variante !== undefined && variante === null) return { ok: true, pedido: semNumero }
   // A opção que não é a principal pode trazer o dano e o selo dela (`preenchimentoDaVariante`, como a mira).
   const daOpcao = variante === null || variante.principal ? null : preenchimentoDaVariante(tecnica.cartao, variante, { personagem, sistema, arma, vidaDoAlvo: null, bonusDaBatalha: bonus })
-  // F2 (fatia B): as respostas da mira (ponto vital, quadrados empurrados) mudam o dano; resposta torta recusa o pedido.
-  const { respostas } = pedido
-  // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
-  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, idsDosCartoes(personagem), respostas) !== null) return recusa('regra')
+  // F2 (fatias B e C): as respostas da mira (ponto vital, quadrados empurrados, o Electro da Aira) mudam o dano; a resposta torta não entra na conta e a batalha a recusa.
+  if (respostas !== undefined && motivoDasRespostasDoGolpe(pedido.cartaoId, idsDosCartoes(personagem), respostas) !== null) return { ok: true, pedido: semNumero }
   const leitura = daOpcao?.dano ?? (respostas === undefined ? tecnica.dano : danoDaTecnica(tecnica.cartao, { personagem, sistema, arma, bonusDaBatalha: bonus }, respostas))
-  if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano') return recusa('danoAMao')
+  // De propósito: no site ninguém digita dano (o que a ficha não lê). O `precisaAlvo` passa: a batalha fecha a conta pela vida de cada alvo.
+  if (leitura.tipo !== 'valor' && leitura.tipo !== 'semDano' && leitura.tipo !== 'precisaAlvo') return recusa('danoAMao')
   const perfurante = pedido.perfurante && tecnica.perfurante
   const novo: PedidoDeAcao = {
-    tipo: 'habilidade',
-    cartaoId: pedido.cartaoId,
-    armaId: pedido.armaId,
+    ...semNumero,
     alvos: comODano(pedido.alvos, leitura.tipo === 'valor' ? danoNoTeto(leitura.valor) : null),
-    surpresa: false,
     perfurante,
-    custo: null,
     // A ação do pedido é ignorada: `null` = a da ficha (a store lê); a ficha que não diz gasta a Simples.
     acao: tecnica.acao === null ? ACAO_SEM_A_FICHA : null,
   }
   if (perfurante && tecnica.perfuracao !== undefined) novo.perfuracao = tecnica.perfuracao
-  if (pedido.contraDe !== undefined) novo.contraDe = pedido.contraDe
-  if (pedido.variante !== undefined) novo.variante = pedido.variante
-  if (respostas !== undefined) novo.respostas = respostas
   if (pedido.selo !== undefined) {
     const sugerido = daOpcao === null ? seloDaMira(tecnica.cartao, sistema) : daOpcao.selo === null ? null : seloPedidoValido(daOpcao.selo, sistema)
     if (sugerido !== null) novo.selo = sugerido
@@ -453,12 +474,12 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
  * Ativar a forma refeito: a ação é a do campo Ação da cópia (`acaoDaForma`:
  * vazio ou ilegível = Completa; a forma Livre não gasta, a store confere); a
  * do pedido é ignorada. Senão a forma de Ação Completa ligaria pedida como
- * Simples ou Bônus e sobraria ação na vez. Forma que não é da cópia = recusada.
+ * Simples ou Bônus e sobraria ação na vez. A forma que não é da cópia segue
+ * para a regra da batalha, que recusa com o motivo dela (R3).
  */
 function formaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'transformar' }>, personagem: Personagem, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
   const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
-  if (cartao === null) return recusa('regra')
-  return { ok: true, pedido: { tipo: 'transformar', cartaoId: pedido.cartaoId, acao: acaoDaForma(cartao), trocarImagem: pedido.trocarImagem } }
+  return { ok: true, pedido: { tipo: 'transformar', cartaoId: pedido.cartaoId, acao: cartao === null ? ACAO_SEM_A_FICHA : acaoDaForma(cartao), trocarImagem: pedido.trocarImagem } }
 }
 
 function acaoRecalculada(pedido: PedidoDeAcao, quem: QuemAge, cena: BatalhaDaCena, sistema: SistemaDeRpg): Recalculo<PedidoDeAcao> {
@@ -483,12 +504,19 @@ function modificadorDaReacao(turnos: TurnosDaCena, tokenId: string): number {
   return bonusDaReacao(bonusDaBatalha(turnos.selos, tokenId))
 }
 
-/** A reação refeita: modificador dos selos; a técnica com a saída e o custo da ficha e o selo sugerido. */
+/**
+ * A reação com os números da ficha: o modificador é o dos selos; a técnica
+ * leva o custo da ficha e o selo sugerido. Quem valida e resolve é a `reagir`
+ * da batalha (a mesma do jogador por LAN): a técnica que a cópia não tem, em
+ * recarga ou sem SP é recusada por ela, com o motivo dela (R3).
+ */
 function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, personagem: Personagem | null, sistema: SistemaDeRpg): Recalculo<PedidoDeReacao> {
   switch (pedido.tipo) {
     case 'rolar':
+      // De propósito: a reação livre (sem golpe) é o teste que o mestre pede na mesa; no site contaria passo do relógio da luta.
       if (pedido.golpeId === null) return recusa('foraDoDuelo')
       return { ok: true, pedido: { ...pedido, modificador: modificadorDaReacao(turnos, pedido.tokenId) } }
+    // De propósito: rerolar com Ponto Saga e passar sem dano são decisões do mestre.
     case 'rerolar':
     case 'semDano':
       return recusa('foraDoDuelo')
@@ -498,8 +526,9 @@ function reacaoRecalculada(pedido: PedidoDeReacao, turnos: TurnosDaCena, persona
       return { ok: true, pedido }
     case 'tecnica': {
       const achada = personagem === null ? null : tecnicaPorId(personagem, sistema, pedido.cartaoId)
-      if (achada === null) return recusa('regra')
-      // O texto que não diz a saída (modo "escolher") rola o d20: no duelo ninguém escolhe a esquiva.
+      // A técnica que a cópia não tem segue sem escolha nem número: a batalha recusa com o motivo dela.
+      if (achada === null) return { ok: true, pedido: { tipo: 'tecnica', golpeId: pedido.golpeId, tokenId: pedido.tokenId, cartaoId: pedido.cartaoId, saida: 'rolar', custo: null, modificador: modificadorDaReacao(turnos, pedido.tokenId) } }
+      // De propósito: o texto que não diz a saída (modo "escolher") rola o d20; sem mestre, ninguém escolhe a esquiva.
       // F2 (fatia D): a técnica da tabela com saídas próprias (Armadura Humana: Defender ou Atacar) aceita a escolha de quem reage.
       const daTecnica = saidasDaTecnica(achada.cartao.id, modoDaReacao(achada.cartao))
       const saida = reacaoAMaoDe(achada.cartao.id)?.saidas !== undefined && daTecnica.saidas.includes(pedido.saida) ? pedido.saida : (daTecnica.sugerida ?? 'rolar')
