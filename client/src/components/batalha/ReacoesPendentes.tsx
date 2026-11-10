@@ -1,7 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import type { PedidoDeReacao } from '../../lib/batalha/combate'
 import { porcentagemQuePerfura } from '../../lib/batalha/reacao'
-import { CaixaDeReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
+import { chaveDaReacao, type ReacaoNaCaixa } from './CaixaDeReacao'
+import { useReacaoNoCentro } from './centroDaReacao'
 import { origemDoBonus } from './ContaComBonus'
 import { formatarNumero, lerPerfuracao, saidasNaTela, textoDoPerfurante } from './dadosDoMenu'
 import './batalha.css'
@@ -9,10 +10,11 @@ import './combate.css'
 
 /**
  * AS REAÇÕES PENDENTES (mestre, aba Batalha): os golpes esperando reação. Os
- * de NPC na caixa REAÇÃO (Rolar, modificador, Não reagir antes do dado; depois
- * as saídas, Passar e Rolar de novo; "Rolar todas" com mais de um; antes do
- * dado, "Usar técnica" com as técnicas de reação do NPC, que
- * `BatalhaDoMestre` põe em `tecnicas`). Passar
+ * de NPC numa linha curta cada (pedido de 10/11): a caixa REAÇÃO deles abre no
+ * centro do mapa (`ReacaoNoCentro`: Rolar, modificador, Não reagir antes do
+ * dado; depois as saídas, Passar e Rolar de novo; "Rolar todas" com mais de
+ * um; antes do dado, "Usar técnica" com as técnicas de reação do NPC, que
+ * `BatalhaDoMestre` põe em `tecnicas`), e a linha a traz para lá. Passar
  * mantém o crítico do 1 natural, como no jogador. Os de jogador, "Esperando Lia", com
  * "Rolar por ela" e "Não reagir por ela". Perfurante (Q4) por golpe: o
  * mestre decide no fim.
@@ -93,6 +95,38 @@ function PerfuranteDoGolpe({ item, onTrocar }: { item: PendenteNaTela; onTrocar:
   )
 }
 
+/**
+ * Pedido de 10/11: a reação do mestre numa linha curta (quem reage, o golpe, o dano). A carta abre no centro do mapa
+ * (`ReacaoNoCentro`); a linha traz aquela reação para lá, aberta, e diz qual está lá.
+ */
+function LinhaDoMestre({ item }: { item: PendenteNaTela }) {
+  const chave = chaveDaReacao(item)
+  const noCentro = useReacaoNoCentro((state) => state.noCentro === chave)
+  const aberta = useReacaoNoCentro((state) => state.naFrente)
+  const rolagem = item.rolagem
+  const onde = noCentro ? (aberta ? 'no centro' : 'recolhida: abrir') : 'trazer ao centro'
+  return (
+    <li>
+      <button type="button" className="bt-pendente bt-pendente--linha" aria-current={noCentro ? 'true' : undefined} onClick={() => useReacaoNoCentro.getState().trazer(chave)}>
+        <span>
+          {item.por === undefined ? (
+            <>
+              <b>{item.alvo}</b> · {item.atacante} usa {item.nome}
+            </>
+          ) : (
+            <>
+              <b>{item.por.nome}</b> pode rebater por <b>{item.alvo}</b>
+            </>
+          )}
+          {item.dano === null ? '' : `: ${formatarNumero(item.dano)}`}
+          {rolagem !== undefined && <span className="bt-pendente__d20"> · d20 {rolagem.total}</span>}
+        </span>
+        <span className="bt-pendente__onde">{onde}</span>
+      </button>
+    </li>
+  )
+}
+
 export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: ReacoesPendentesProps) {
   if (itens.length === 0) return null
   const doMestre = itens.filter((item) => item.doMestre)
@@ -108,8 +142,15 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
         Reações esperando · {itens.length}
         {quantosGolpes !== itens.length && ` em ${quantosGolpes} ${quantosGolpes === 1 ? 'golpe' : 'golpes'}`}
       </h3>
-      <p className="bt-vez__dica">Quem não reagir toma o golpe na virada da rodada. O golpe da última vez da rodada espera a virada seguinte.</p>
-      {doMestre.length > 0 && <CaixaDeReacao reacoes={doMestre} onPedir={onPedir} />}
+      {/* Pedido de 10/11: a regra da virada vai na carta do centro; aqui só fica com golpe esperando jogador, que não tem carta. */}
+      {deJogador.length > 0 && <p className="bt-vez__dica">Quem não reagir toma o golpe na virada da rodada. O golpe da última vez da rodada espera a virada seguinte.</p>}
+      {doMestre.length > 0 && (
+        <ul className="bt-pendentes" aria-label="Reações dos NPCs: a carta abre no centro do mapa">
+          {doMestre.map((item) => (
+            <LinhaDoMestre key={chaveDaReacao(item)} item={item} />
+          ))}
+        </ul>
+      )}
       {deJogador.length > 0 && (
         <ul className="bt-pendentes">
           {deJogador.map((item) => {

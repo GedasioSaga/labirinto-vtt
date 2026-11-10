@@ -61,3 +61,75 @@ body:has(.bt-centro-do-mestre .bt-mira) .lb-hint {
   padding-bottom: 8px;
   scrollbar-width: thin;
 }
+
+/*
+ * Pedido de 10/11/2026 ("reação tem que ficar na parte do campo e não na
+ * lateral"): a carta REAÇÃO do mestre (`ReacaoNoCentro`) no MEIO do mesmo
+ * lugar do menu da vez (entre os livros, abaixo da faixa da ordem, acima da
+ * barra do pé), um degrau acima dele. A caixa é a do jogador (combate.css
+ * `.bt-reacao`, 540 px, papel rasgado com a sombra de sangue). O invólucro
+ * não pega clique: o mapa em volta segue clicável.
+ */
+.bt-reacao-no-centro {
+  position: absolute;
+  top: var(--bt-centro-topo, 300px);
+  bottom: var(--bt-centro-base, 118px);
+  left: calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  right: calc(var(--lb-coldir-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  z-index: 10;
+  display: flex;
+  /* De baixo para cima: no meio quando cabe; mais alta que o lugar (tela baixa), cresce sobre a faixa da ordem, nunca
+     sobre a barra de ferramentas do pé, e não rola (a carta inteira à vista era o pedido). */
+  flex-direction: column-reverse;
+  align-items: center;
+  pointer-events: none;
+}
+.bt-reacao-no-centro > * {
+  pointer-events: auto;
+}
+/* No centro sobra largura: as opções do dado numa linha só (a tela baixa do notebook pede cada linha). As margens
+   automáticas centram; sem espaço, somem e a carta fica presa no pé do lugar (a coluna é invertida). */
+.bt-reacao-no-centro > .bt-reacao {
+  width: min(680px, 100% - 8px);
+  flex: none;
+  margin-block: auto;
+}
+/* Rolar 1d20 e o Modificador lado a lado; o dado (Normal, Vantagem, Desvantagem) embaixo, na largura toda. */
+.bt-reacao-no-centro .bt-reacao__opcoes {
+  align-items: center;
+}
+.bt-reacao-no-centro .bt-reacao__opcoes > .bt-reacao__dado {
+  order: 1;
+  flex-basis: 100%;
+}
+/* Os respiros entre as partes um pouco menores que os da caixa do jogador: no notebook a carta cabe entre a faixa e o pé com folga. */
+.bt-reacao-no-centro .bt-reacao__linha {
+  margin-top: 10px;
+}
+.bt-reacao-no-centro .bt-reacao__pe {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+/*
+ * Recolhida: só o botão REAÇÃO, no alto à direita do lugar, logo abaixo da caixa da rodada (a reação é o que trava a
+ * virada). Embaixo no meio, como no jogador, ele caía sobre a dica da ferramenta e encostava no menu da vez.
+ */
+.bt-reacao-no-centro[data-recolhida='sim'] {
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 10px 10px 0 0;
+}
+/* A dica da ferramenta (`.lb-hint`, da barra do pé) ficava por trás do pé da carta e vazava pela borda, como na mira. */
+body:has(.bt-reacao-no-centro > .bt-reacao) .lb-hint {
+  opacity: 0;
+}
+
+/*
+ * Com a carta na frente, o menu da vez (e a mira, com o que já estava
+ * marcado) espera atrás, sem foco nem clique (`inert`). Some e volta na hora,
+ * sem esmaecer: a volta quase sempre vem de um Enter, e a carta também sai
+ * sem animação (nada de um instante com os dois apagados).
+ */
+.bt-centro-do-mestre[data-atras='sim'] {
+  visibility: hidden;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { MODIFICADOR_DA_REACAO_MAX, PERFURACAO_MAX, VANTAGENS_DO_DADO, type ParteDoBonus, type PedidoDeReacao, type RolagemDaReacao, type SaidaDaReacao, type VantagemDoDado } from '../../lib/batalha/combate'
 import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasDaRolagem } from '../../lib/batalha/reacao'
 import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
@@ -27,8 +27,10 @@ import './combate.css'
  * o campo segue editável. O lembrado por ficha guarda só a parte digitada à
  * mão: quando o selo sai, o modificador volta sem ele.
  *
- * Com mais de um golpe esperando (o mestre, um por NPC atingido), uma linha
- * por golpe e "Rolar todas". Esc recolhe (o botão REAÇÃO reabre).
+ * Com mais de um golpe esperando, uma linha por golpe e "Rolar todas". Esc
+ * recolhe (o botão REAÇÃO reabre). O mestre (pedido de 10/11, `ReacaoNoCentro`)
+ * vê uma por vez sobre o mapa, com "1 de 2" na `conta` e o "Rolar todas" da
+ * fila inteira (`todas`).
  */
 
 export interface ReacaoNaCaixa {
@@ -102,6 +104,18 @@ export interface CaixaDeReacaoProps {
   onPedir: (pedido: PedidoDeReacao) => boolean
   /** Esc ou "Depois": recolhe. Ausente = a caixa não recolhe. */
   onFechar?: () => void
+  /** O botão que recolhe; ausente = "Depois". */
+  rotuloDoFechar?: string
+  /** Pedido de 10/11 (a reação do mestre no centro): no lugar de "N golpes esperando", ao lado do título ("1 de 2" e as setas). */
+  conta?: ReactNode
+  /** O "Rolar todas" conta estas (o centro mostra uma por vez, mas rola todas as da fila); ausente = as `reacoes`. */
+  todas?: readonly ReacaoNaCaixa[]
+  /** A dica do pé (as teclas e a regra da virada); ausente = nenhuma. */
+  dica?: ReactNode
+  /** Enter no Modificador rola (o foco já nasce no Rolar 1d20, que o Enter aperta). */
+  rolarComEnter?: boolean
+  /** Ao abrir, se nenhum botão pegou o foco (Overload, Surpresa: sem o Rolar), a caixa pega. */
+  focoNaCaixa?: boolean
 }
 
 /** Conserto das fichas F1: o lugar do "Rolar 1d20" num golpe Overload. */
@@ -115,7 +129,8 @@ const PUNCH = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
 const NUMEROS_DO_GIRO = 8
 const PASSO_DO_GIRO_MS = 48
 
-function chaveDa(reacao: ReacaoNaCaixa): string {
+/** Uma reação esperando: o golpe, quem reage e, no "perto" do Aplauso, quem rebate. */
+export function chaveDaReacao(reacao: ReacaoNaCaixa): string {
   return `${reacao.golpeId ?? 'livre'}:${reacao.tokenId}${reacao.por === undefined ? '' : `:${reacao.por.tokenId}`}`
 }
 
@@ -172,11 +187,13 @@ function UmaReacao({
   sozinha,
   onPedir,
   focar,
+  rolarComEnter = false,
 }: {
   reacao: ReacaoNaCaixa
   sozinha: boolean
   onPedir: (pedido: PedidoDeReacao) => boolean
   focar: boolean
+  rolarComEnter?: boolean
 }) {
   const [modTexto, setModTexto] = useState(() => {
     const inicial = modificadorInicial(reacao.tokenId, reacao.bonus)
@@ -303,6 +320,15 @@ function UmaReacao({
                   placeholder="0"
                   aria-describedby={origem === '' ? undefined : idDaOrigem}
                   onChange={(evento) => setModTexto(evento.target.value)}
+                  onKeyDown={
+                    rolarComEnter
+                      ? (evento) => {
+                          if (evento.key !== 'Enter' || esperando) return
+                          evento.preventDefault()
+                          pedir({ tipo: 'rolar', golpeId, tokenId: reacao.tokenId, modificador, ...comDado })
+                        }
+                      : undefined
+                  }
                 />
                 {origem !== '' && (
                   <small id={idDaOrigem} className="bt-mod__origem" title="Vem dos selos de quem reage; o campo segue editável">
@@ -401,10 +427,11 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
   return `${nome} · ${formatarNumero(dano)}`
 }
 
-export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps) {
+export function CaixaDeReacao({ reacoes, onPedir, onFechar, rotuloDoFechar = 'Depois', conta, todas = reacoes, dica, rolarComEnter = false, focoNaCaixa = false }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
   // T3: quem tinha o foco aqui dentro. A caixa que some com ele (a última reação resolvida pelo teclado) devolve o foco ao menu da vez.
   const ultimoFoco = useRef<Element | null>(null)
+  const caixa = useRef<HTMLDivElement>(null)
   const vazia = reacoes.length === 0
   useEffect(() => {
     if (vazia) return
@@ -414,8 +441,16 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps
       if (perdido) devolverFocoAoMenu()
     }
   }, [vazia])
+  // O Rolar 1d20 pega o foco no efeito da reação (que roda antes deste); sem ele (Overload, Surpresa), a própria caixa: o Esc
+  // recolhe e o Tab entra nos botões, e nenhum Enter resolve o golpe sem querer.
+  const chaveDaPrimeira = reacoes[0] === undefined ? null : chaveDaReacao(reacoes[0])
+  useEffect(() => {
+    const elemento = caixa.current
+    if (!focoNaCaixa || elemento === null || elemento.contains(document.activeElement)) return
+    elemento.focus({ preventScroll: true })
+  }, [focoNaCaixa, chaveDaPrimeira])
   // O golpe Overload não rola (só outra Overload defende): fica fora do "Rolar todas".
-  const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true && reacao.surpresa !== true)
+  const naoRoladas = todas.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true && reacao.surpresa !== true)
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
     // A caixa não deixa a tecla virar atalho do mapa atrás dela.
     evento.stopPropagation()
@@ -425,24 +460,36 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps
     }
   }
   if (reacoes.length === 0) return null
+  const comPe = naoRoladas.length > 1 || onFechar !== undefined
+  // A dica vai no pé, entre o "Rolar todas" e o recolher (uma linha a menos na tela baixa); sem pé, embaixo de tudo.
+  const textoDaDica = dica === undefined ? null : <p className="bt-reacao__dica">{dica}</p>
   return (
-    <div className="bt-reacao" role="dialog" aria-label="Reação" onKeyDown={teclar} onFocus={(evento) => (ultimoFoco.current = evento.target)}>
+    <div
+      ref={caixa}
+      className="bt-reacao"
+      role="dialog"
+      aria-label="Reação"
+      tabIndex={focoNaCaixa ? -1 : undefined}
+      onKeyDown={teclar}
+      onFocus={(evento) => (ultimoFoco.current = evento.target)}
+    >
       <div className="bt-reacao__topo">
         <h3 className="bt-reacao__titulo">REAÇÃO</h3>
-        <span className="bt-reacao__conta">{sozinha ? '' : `${reacoes.length} golpes esperando`}</span>
+        <span className="bt-reacao__conta">{conta ?? (sozinha ? '' : `${reacoes.length} golpes esperando`)}</span>
       </div>
       {sozinha ? (
-        <UmaReacao reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar />
+        // A chave: a reação seguinte que toma o lugar nasce limpa (modificador, dado, "Rolando…") e pega o foco.
+        <UmaReacao key={chaveDaReacao(reacoes[0] as ReacaoNaCaixa)} reacao={reacoes[0] as ReacaoNaCaixa} sozinha onPedir={onPedir} focar rolarComEnter={rolarComEnter} />
       ) : (
         <ul className="bt-reacao__lista">
           {reacoes.map((reacao, i) => (
-            <li key={chaveDa(reacao)} className="bt-reacao__item">
-              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} />
+            <li key={chaveDaReacao(reacao)} className="bt-reacao__item">
+              <UmaReacao reacao={reacao} sozinha={false} onPedir={onPedir} focar={i === 0} rolarComEnter={rolarComEnter} />
             </li>
           ))}
         </ul>
       )}
-      {(naoRoladas.length > 1 || onFechar !== undefined) && (
+      {comPe && (
         <div className="bt-reacao__pe">
           {naoRoladas.length > 1 ? (
             <button
@@ -455,18 +502,21 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps
                 }
               }}
             >
-              Rolar todas
+              {/* No centro do mestre só uma está à vista: o número diz que o dado sai para a fila inteira. */}
+              {todas === reacoes ? 'Rolar todas' : `Rolar todas (${naoRoladas.length})`}
             </button>
-          ) : (
+          ) : textoDaDica === null ? (
             <span />
-          )}
+          ) : null}
+          {textoDaDica}
           {onFechar !== undefined && (
             <button type="button" className="bt-botao bt-botao--fantasma bt-botao--p" onClick={onFechar}>
-              Depois <kbd>Esc</kbd>
+              {rotuloDoFechar} <kbd>Esc</kbd>
             </button>
           )}
         </div>
       )}
+      {!comPe && textoDaDica}
     </div>
   )
 }

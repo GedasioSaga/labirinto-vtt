@@ -43,6 +43,8 @@ import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { LembretesDaPassiva, PassivasDaFicha, lembreteDaRegraNaTela, lembretesNaTela, passivasNaCena, type LembreteNaTela } from './PassivasDaBatalha'
 import { ReacoesPendentes, type PendenteNaTela } from './ReacoesPendentes'
+import { ReacaoNoCentro } from './ReacaoNoCentro'
+import { useReacaoNoCentro } from './centroDaReacao'
 import { SeloDialog } from './SeloDialog'
 
 /**
@@ -202,6 +204,8 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const { cena, personagens, sistema, equipes } = mesa
   const turnos = cena?.turnos
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+  // Pedido de 10/11: a carta REAÇÃO no centro trava a rodada e vem na frente; o menu (e a mira) esperam atrás, com o estado.
+  const atras = useReacaoNoCentro((state) => state.naFrente)
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
   if (cena === undefined || turnos === undefined || carta === null || carta.bando !== undefined || !ehDoMestre(carta.personagemId, personagens)) return null
 
@@ -216,8 +220,9 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   // Achado 6: a sugestão do app chega ao menu do centro (a marca na tira e o alvo já marcado na mira).
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
   return (
-    <div className="bt-centro-do-mestre" data-limite-da-leitura>
+    <div className="bt-centro-do-mestre" data-limite-da-leitura data-atras={atras ? 'sim' : undefined} inert={atras}>
       <MenuDaVez
+        atras={atras}
         key={`${carta.id}:${turnos.rodada}`}
         quem={nomeDaFicha(mesa, tokenId, carta)}
         acoes={acoes}
@@ -290,26 +295,14 @@ function LembretesDosNpcs({ pedidos, mesa, turnos, exceto }: { pedidos: PedidosD
   )
 }
 
-/** O painel da vez e as reações pendentes, no alto da aba Batalha. */
-export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
-  const mesa = useMesa(sceneKey)
-  const pedidos = usePedidosDoMestre(sceneKey)
-  const { cena, personagens, sistema, equipes } = mesa
-  const mirando = useMiraDoMestre((state) => state.mirando)
-  const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
-  const turnos = cena?.turnos
-  const carta = turnos === undefined ? null : cartaDaVez(turnos)
-  const chave = carta === null || turnos === undefined ? null : `${carta.id}:${turnos.rodada}`
-  // Conserto das fichas F1 (bug 7): a vez mostrada e o clique que só vale com a vez já assentada (o duplo clique não pula ninguém).
-  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
-
-  // A mira no mapa desliga quando a vez anda ou a página sai.
-  useEffect(() => {
-    useMiraDoMestre.getState().mirar(false)
-  }, [chave])
-  useEffect(() => () => useMiraDoMestre.getState().mirar(false), [])
-
-  const pendentes = useMemo<PendenteNaTela[]>(() => {
+/**
+ * Os golpes esperando reação na cena, na ordem do registro (golpe a golpe, alvo a alvo): a lista da aba Batalha e
+ * a carta do centro (`ReacaoDoMestreNoCentro`) leem a mesma.
+ */
+function usePendentesDoMestre(mesa: Mesa): PendenteNaTela[] {
+  const { personagens, sistema } = mesa
+  const turnos = mesa.cena?.turnos
+  return useMemo<PendenteNaTela[]>(() => {
     if (turnos === undefined) return []
     const itens: PendenteNaTela[] = []
     for (const golpe of turnos.golpes ?? []) {
@@ -370,6 +363,41 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
     // `mesa` muda junto com as fichas e os personagens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turnos, mesa.fichas, personagens, sistema])
+}
+
+/**
+ * Pedido de 10/11/2026 ("reação tem que ficar na parte do campo e não na lateral"): a carta REAÇÃO dos golpes que
+ * esperam o mestre (NPC, ficha sem personagem) sobre o mapa (`App.tsx`, junto do menu da vez). A aba fica com a lista.
+ */
+export function ReacaoDoMestreNoCentro({ sceneKey }: { sceneKey: string }) {
+  const mesa = useMesa(sceneKey)
+  const pedidos = usePedidosDoMestre(sceneKey)
+  const pendentes = usePendentesDoMestre(mesa)
+  const doMestre = useMemo(() => pendentes.filter((item) => item.doMestre), [pendentes])
+  if (doMestre.length === 0) return null
+  return <ReacaoNoCentro itens={doMestre} onPedir={pedidos.reagir} />
+}
+
+/** O painel da vez e as reações pendentes, no alto da aba Batalha. */
+export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
+  const mesa = useMesa(sceneKey)
+  const pedidos = usePedidosDoMestre(sceneKey)
+  const { cena, personagens, sistema, equipes } = mesa
+  const mirando = useMiraDoMestre((state) => state.mirando)
+  const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
+  const turnos = cena?.turnos
+  const carta = turnos === undefined ? null : cartaDaVez(turnos)
+  const chave = carta === null || turnos === undefined ? null : `${carta.id}:${turnos.rodada}`
+  // Conserto das fichas F1 (bug 7): a vez mostrada e o clique que só vale com a vez já assentada (o duplo clique não pula ninguém).
+  const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+
+  // A mira no mapa desliga quando a vez anda ou a página sai.
+  useEffect(() => {
+    useMiraDoMestre.getState().mirar(false)
+  }, [chave])
+  useEffect(() => () => useMiraDoMestre.getState().mirar(false), [])
+
+  const pendentes = usePendentesDoMestre(mesa)
 
   // Invocação F3: as pendências que esperam o mestre pôr no mapa ("Ryoko invocou 1 Lobo").
   const pendenciasDeInvocacao = useMemo<PendenciaNaTela[]>(

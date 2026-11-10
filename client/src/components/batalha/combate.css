@@ -1525,6 +1525,62 @@
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* Pedido de 10/11 (a reação do mestre no centro): "1 de 2" entre as setas, ao lado do título. */
+.bt-reacao__fila {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.bt-reacao__seta {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--lb-radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  color: var(--lb-color-parchment);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 120ms var(--bt-ease-out);
+}
+.bt-reacao__seta:active {
+  transform: scale(0.95);
+}
+.bt-reacao__seta:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-reacao__seta:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+/* As teclas (só com o foco na carta) e a regra da virada, no pé, como a dica do menu da vez. */
+.bt-reacao__dica {
+  margin: 10px 0 0;
+  flex: 1 1 220px;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.06em;
+  color: var(--lb-color-parchment-dim);
+}
+.bt-reacao__pe > .bt-reacao__dica {
+  margin: 0;
+}
+.bt-reacao__dica kbd {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  font-family: inherit;
+  color: var(--lb-color-parchment);
+}
+.bt-reacao:focus-visible {
+  outline: none;
+}
 /*
  * USAR TÉCNICA (tipos de habilidade F1): um cartão por técnica de reação,
  * antes do d20. A saída lida do texto vem marcada (papel sobre tinta, como a
@@ -2008,8 +2064,46 @@
   list-style: none;
 }
 
-/* Na aba Batalha a caixa de reação ocupa a largura da página do livro. */
-.bt-pendentes-secao .bt-reacao { width: 100%; }
+/*
+ * Pedido de 10/11: a reação do NPC na aba é uma linha que traz a carta ao centro do mapa. A que está lá fica marcada
+ * com a borda de sangue (`aria-current`).
+ */
+.bt-pendente--linha {
+  width: 100%;
+  border: 0;
+  box-shadow: inset 3px 0 0 transparent;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms var(--bt-ease-out);
+}
+.bt-pendente--linha[aria-current='true'] {
+  box-shadow: inset 3px 0 0 var(--bt-sangue);
+}
+.bt-pendente--linha:active {
+  transform: scale(0.99);
+}
+.bt-pendente--linha:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 3px 0 0 var(--bt-sangue),
+    var(--lb-shadow-focus);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-pendente--linha:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+.bt-pendente__onde {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.06em;
+  color: var(--lb-color-parchment-faint);
+}
+.bt-pendente--linha[aria-current='true'] .bt-pendente__onde {
+  color: var(--bt-sangue-claro, var(--bt-sangue));
+}
 
 /* Contador com mais e menos (Ações extras). */
 .bt-contador {
@@ -3096,8 +3190,14 @@
   .bt-chave__trilho::after,
   .bt-seta,
   .bt-vez-recolhido,
-  .bt-botao-reacao {
+  .bt-botao-reacao,
+  .bt-reacao__seta,
+  .bt-pendente--linha {
     transition: none;
+  }
+  .bt-reacao__seta:active,
+  .bt-pendente--linha:active {
+    transform: none;
   }
   .bt-zerar,
   .bt-vez:not([data-instantaneo='sim']) .bt-zerar {

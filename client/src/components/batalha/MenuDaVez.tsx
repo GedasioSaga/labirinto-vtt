@@ -122,6 +122,11 @@ export interface MenuDaVezProps {
   invocacao?: InvocarNoMenu
   /** Conserto das fichas F1 (S4): Atordoado ou Paralisado (o motivo); só o Encerrar vez fica aceso. Ausente ou `null` = livre. */
   travado?: string | null
+  /**
+   * Pedido de 10/11 (a reação do mestre no centro): a carta REAÇÃO está na frente e o menu fica atrás, escondido; a mira
+   * aberta para de escutar o clique no mapa até o menu voltar. Ausente = à vista.
+   */
+  atras?: boolean
 }
 
 type Tela =
@@ -199,7 +204,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   }
 
   // A mira liga o "clicar na ficha escolhe o alvo" (S4); sair dela desliga.
-  const mirando = tela.tipo === 'mira' && !recolhido
+  const mirando = tela.tipo === 'mira' && !recolhido && props.atras !== true
   useEffect(() => {
     onMirando?.(mirando)
   }, [mirando, onMirando])

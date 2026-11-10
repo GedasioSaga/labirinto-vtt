@@ -16,7 +16,7 @@ async function seletoresDaDica(): Promise<string[]> {
 }
 
 describe('o menu da vez do NPC no centro e a dica da ferramenta', () => {
-  it('a dica só some com a mira aberta no centro; com o menu recolhido ou só a lista de ações, ela fica', async () => {
-    expect(await seletoresDaDica()).toEqual(['body:has(.bt-centro-do-mestre .bt-mira) .lb-hint'])
+  it('a dica só some com a mira aberta no centro ou com a carta REAÇÃO aberta; com o menu recolhido, a lista de ações ou a reação recolhida, ela fica', async () => {
+    expect(await seletoresDaDica()).toEqual(['body:has(.bt-centro-do-mestre .bt-mira) .lb-hint', 'body:has(.bt-reacao-no-centro > .bt-reacao) .lb-hint'])
   })
 })
