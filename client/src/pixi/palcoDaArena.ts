@@ -11,6 +11,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
 import { findTokenAt } from './tokenInteraction'
 import { createTokensRenderer } from './tokensRenderer'
+import { registrarFichasDoImpacto } from './impactoNasFichas'
 import { fitCamera, freeArea, panBy, zoomAt, type Bounds, type Camera } from './world'
 
 /**
@@ -153,6 +154,8 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
     }
 
     const tokensRenderer = createTokensRenderer({ ticker: relogio, reducedMotion: prefersReducedMotion })
+    // T3 (D4 da batalha, `impactoNasFichas.ts`): a ficha atingida recua e a que cai tomba também no palco da Arena.
+    const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, relogio)
     const judge = createJudgeDoMapa({ movimento: { ticker: relogio, reducedMotion: prefersReducedMotion }, aoMudar: pedirQuadro })
     world.addChild(chao, grade.camada, fichas, judge.camada)
 
@@ -426,6 +429,7 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       app.canvas.removeEventListener('dblclick', aoDuploClique)
       app.canvas.removeEventListener('webglcontextlost', perderContexto)
       app.ticker.remove(vigiarFotos)
+      soltarImpactoDasFichas()
       tokensRenderer.cancelarAnimacoes()
       // O Judge sai do relógio antes do app (a folha fica no cache do `Assets` para o próximo palco).
       judge.destruir()
