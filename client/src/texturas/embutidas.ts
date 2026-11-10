@@ -1,10 +1,12 @@
 import { METAL_CASAS, metalEmChapaXadrez, metalEmGrade, metalEmPaineis, metalEmPlacas } from './chaoDeMetal'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
+import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
   cristas,
   empacotar,
   fbm,
   hash,
+  limitar01,
   luz,
   luzNaInclinacao,
   LUZ_NO_PLANO,
@@ -60,6 +62,12 @@ export interface DefinicaoDeTextura {
    * O mapa guarda o id da forma; pincel, rede e desenho não sabem de grupo.
    */
   forma?: { grupo: string; nome: string }
+  /**
+   * O que muda de um lugar do mapa para outro (tom largo, moitas), pintado por
+   * posição no chão em pedaços (`meioTermo/chaoNoMundo.ts`) e nunca no
+   * ladrilho, que se repete. Ausente = a textura é só o ladrilho.
+   */
+  vida?: VidaDoChao
 }
 
 /** O ladrilho maior, das texturas de período longo (Bosque, Pântano, Terra). */
@@ -121,13 +129,13 @@ function duna(u: number, v: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Grama / campo: os dois verdes de campo do mapa (#76c577 e #8ac459) em
-// manchas largas, moitas um pouco mais escuras e tufos miúdos com luz.
+// Grama / campo: os dois verdes de campo do mapa (#76c577 e #8ac459), moitas
+// um pouco mais escuras e tufos de lâminas com luz.
 // Duas formas, o mesmo campo em duas estações (pedido de 13/10/2026: "uma
 // textura de grama amarela"; a terceira, o MORTO, vem logo abaixo): a VERDE, a de sempre; a AMARELA, palha dourada
-// nos ouros da areia e da duna do mapa. O desenho é o mesmo (as manchas, as
-// moitas e os tufos caem nos mesmos lugares) e cada cor da Amarela tem a luz
-// da sua par na Verde, então a luz do campo também é a mesma.
+// nos ouros da areia e da duna do mapa. O desenho do ladrilho é o mesmo (os
+// tufos caem nos mesmos lugares) e cada cor da Amarela tem a luz da sua par na
+// Verde, então a luz do campo também é a mesma.
 
 interface TomDoCampo {
   /** As duas cores das manchas largas. */
@@ -137,31 +145,212 @@ interface TomDoCampo {
   moita: Rgb
 }
 
-const CAMPO_VERDE: TomDoCampo = { base: rgb('#76c577'), mancha: rgb('#8ac459'), moita: rgb('#62ab64') }
+/**
+ * O campo que não repete (pedido de 10/11/2026: "melhorar essa textura de
+ * grama para não deixar o padrão repetido"). As manchas e as moitas moravam no
+ * ladrilho, que tem 3 casas no mapa: a mesma moita voltava em fileiras e
+ * colunas, como papel de parede. Agora o ladrilho é só o capim de perto
+ * (tufos de lâminas, domos e grão) na cor `meio`, igual em todo lugar, e as
+ * manchas e as moitas vêm da posição no mapa (`vidaDoCampo`, pintada em
+ * `meioTermo/chaoNoMundo.ts`). `meio` foi acertada para a cor média do campo
+ * pintado ser a de antes (teste em `chaoNoMundo.test.ts`): o mapa salvo abre
+ * da mesma cor. No ladrilho repetido (estilo Simples, "Chão leve", a prévia do
+ * pincel) não há posição: o campo sai liso, só com o capim.
+ */
+interface CampoVivo extends TomDoCampo {
+  meio: Rgb
+}
+
+const CAMPO_VERDE: CampoVivo = { meio: rgb('#7fc468'), base: rgb('#76c577'), mancha: rgb('#8ac459'), moita: rgb('#62ab64') }
 
 /**
  * Palha contida, de matiz entre o da areia (#cbb57e, ~45°) e o da duna
  * (#c4a45e, ~41°): a base mais pálida, a mancha um ouro mais quente, a moita
  * mais funda. Saturação abaixo da do verde, para o campo seco não gritar.
  */
-const CAMPO_AMARELO: TomDoCampo = { base: rgb('#c0af74'), mancha: rgb('#c9b069'), moita: rgb('#a79665') }
+const CAMPO_AMARELO: CampoVivo = { meio: rgb('#c4af6f'), base: rgb('#c0af74'), mancha: rgb('#c9b069'), moita: rgb('#a79665') }
 
-function gramaNoTom({ base, mancha, moita }: TomDoCampo): (u: number, v: number) => number {
+/**
+ * Tufos de lâminas: a grade deles no ladrilho, a chance de cada célula ter um,
+ * o leque (rad para cada lado do "para cima"), o comprimento e a meia largura
+ * da lâmina (em células da grade) e de quanto a quanto o tufo muda de tamanho.
+ * No ladrilho eles são muitos, miúdos e iguais em toda parte, para nenhum virar
+ * marco quando o ladrilho se repete; quem os junta em touceiras é a vida do
+ * campo, por posição no mapa (`VidaDoChao.ralo`). O maior tufo alcança 1,11
+ * célula: menos que a distância ao pé de um tufo duas células adiante (1,14),
+ * então as 3 x 3 células em volta do pixel bastam e nenhuma lâmina sai cortada.
+ */
+const LAMINAS = { grade: 13, chance: 0.86, abertura: 1.15, comprida: 0.84, curta: 0.46, meiaLargura: 0.085, menor: 0.72, maior: 1.15 }
+/** O quanto a lâmina puxa para a cor da sombra (as de sombra) ou para o realce (a de luz), e o pé escuro do tufo. */
+const LAMINA_DE_SOMBRA = 0.7
+const LAMINA_DE_LUZ = 0.7
+const PE_DO_TUFO = 0.35
+/** Até onde um tufo de tamanho 1 alcança, em células (a lâmina mais comprida, mais a largura dela). */
+const ALCANCE_DO_TUFO = LAMINAS.comprida + LAMINAS.meiaLargura * 2
+
+/** Os domos do capim: a grade deles no ladrilho, o quanto o ponto foge do centro da célula e o raio (em células). */
+const DOMOS = { grade: 26, folga: 0.38, raio: 0.3, raioAMais: 0.14 }
+/** Por célula da grade dos domos: onde o domo caiu nela (x, y) e o raio. */
+const CAMPOS_DO_DOMO = 3
+/** Por célula da grade dos tufos: onde o pé caiu nela (x, y), quantas lâminas (0 = sem tufo), o tamanho e, de cada lâmina, a direção, o comprimento e se é a de luz. */
+const CAMPOS_DO_TUFO = 4 + 3 * 4
+const FOLGA_DO_TUFO = 0.36
+
+interface CapimDoLadrilho {
+  readonly domos: Float32Array
+  readonly tufos: Float32Array
+}
+let capimPronto: CapimDoLadrilho | null = null
+
+/**
+ * Os domos e os tufos do ladrilho, sorteados UMA vez (os mesmos no Verde e no
+ * Amarelo: o desenho é um só). O ladrilho visita 18 células por pixel; sortear
+ * de novo a cada visita (como o `vizinhos` faz) dobrava o tempo dele. O ponto
+ * de cada célula é o do `vizinhos`: o centro mais a folga sorteada.
+ */
+function capimDoLadrilho(): CapimDoLadrilho {
+  if (capimPronto !== null) return capimPronto
+  const nd = DOMOS.grade
+  const domos = new Float32Array(nd * nd * CAMPOS_DO_DOMO)
+  for (let iy = 0; iy < nd; iy += 1) {
+    for (let ix = 0; ix < nd; ix += 1) {
+      const o = (iy * nd + ix) * CAMPOS_DO_DOMO
+      domos[o] = 0.5 + (hash(ix, iy, 33) - 0.5) * 2 * DOMOS.folga
+      domos[o + 1] = 0.5 + (hash(ix, iy, 33 + 7) - 0.5) * 2 * DOMOS.folga
+      domos[o + 2] = DOMOS.raio + hash(ix, iy, 34) * DOMOS.raioAMais
+    }
+  }
+  const n = LAMINAS.grade
+  const tufos = new Float32Array(n * n * CAMPOS_DO_TUFO)
+  for (let iy = 0; iy < n; iy += 1) {
+    for (let ix = 0; ix < n; ix += 1) {
+      const o = (iy * n + ix) * CAMPOS_DO_TUFO
+      tufos[o] = 0.5 + (hash(ix, iy, 36) - 0.5) * 2 * FOLGA_DO_TUFO
+      tufos[o + 1] = 0.5 + (hash(ix, iy, 36 + 7) - 0.5) * 2 * FOLGA_DO_TUFO
+      if (hash(ix, iy, 37) > LAMINAS.chance) continue
+      const laminas = hash(ix, iy, 38) < 0.45 ? 2 : 3
+      const clara = Math.floor(hash(ix, iy, 39) * laminas)
+      tufos[o + 2] = laminas
+      tufos[o + 3] = LAMINAS.menor + (LAMINAS.maior - LAMINAS.menor) * hash(ix, iy, 42)
+      for (let k = 0; k < laminas; k += 1) {
+        const leque = ((k + 0.2 + 0.6 * hash(ix, iy, 43 + k)) / laminas - 0.5) * 2 * LAMINAS.abertura
+        tufos[o + 4 + k * 4] = Math.sin(leque)
+        tufos[o + 5 + k * 4] = -Math.cos(leque)
+        tufos[o + 6 + k * 4] = LAMINAS.curta + (LAMINAS.comprida - LAMINAS.curta) * hash(ix, iy, 47 + k)
+        tufos[o + 7 + k * 4] = k === clara ? 1 : 0
+      }
+    }
+  }
+  capimPronto = { domos, tufos }
+  return capimPronto
+}
+
+/** Índice da grade que dá a volta (o ladrilho repete sem emenda). */
+function naGrade(i: number, n: number): number {
+  const r = i % n
+  return r < 0 ? r + n : r
+}
+
+function gramaNoTom({ meio, mancha, moita }: CampoVivo): (u: number, v: number) => number {
+  const realce = luz(mancha, 0.08)
+  const fundo = luz(moita, -0.1)
   return (u, v) => {
-    let c = misturar(base, mancha, passoSuave(0.2, 0.8, fbm(u, v, 2, 4, 31) * 0.5 + 0.5))
-    c = misturar(c, moita, passoSuave(0.55, 0.9, fbm(u, v, 5, 3, 32) * 0.5 + 0.5) * 0.7)
-    // Tufos: domos baixos, claros do lado da luz e escuros do outro.
-    let tufo = 0
-    vizinhos(u, v, 26, 33, 0.38, (p) => {
-      const r = 0.3 + hash(p.ix, p.iy, 34) * 0.14
-      const d = Math.hypot(p.dx, p.dy)
-      if (d >= r) return
-      const h = Math.sqrt(1 - (d / r) ** 2)
-      const brilho = luzNaInclinacao((p.dx / r) * 1.4, (p.dy / r) * 1.4) - LUZ_NO_PLANO
-      tufo += brilho * passoSuave(r, r * 0.6, d) * (0.6 + 0.4 * h)
-    })
-    c = luz(c, tufo * 0.1 + (valor(u * 160, v * 160, 160, 35) - 0.5) * 0.04)
+    const { domos, tufos } = capimDoLadrilho()
+    // Domos baixos, claros do lado da luz e escuros do outro: o capim tem volume, não é chapa.
+    let domo = 0
+    const xd = u * DOMOS.grade
+    const yd = v * DOMOS.grade
+    const cxd = Math.floor(xd)
+    const cyd = Math.floor(yd)
+    for (let oy = -1; oy <= 1; oy += 1) {
+      const linha = naGrade(cyd + oy, DOMOS.grade) * DOMOS.grade
+      for (let ox = -1; ox <= 1; ox += 1) {
+        const o = (linha + naGrade(cxd + ox, DOMOS.grade)) * CAMPOS_DO_DOMO
+        const dx = xd - (cxd + ox + domos[o])
+        const dy = yd - (cyd + oy + domos[o + 1])
+        const r = domos[o + 2]
+        const d2 = dx * dx + dy * dy
+        if (d2 >= r * r) continue
+        const d = Math.sqrt(d2)
+        const h = Math.sqrt(1 - d2 / (r * r))
+        domo += (luzNaInclinacao((dx / r) * 1.4, (dy / r) * 1.4) - LUZ_NO_PLANO) * passoSuave(r, r * 0.6, d) * (0.6 + 0.4 * h)
+      }
+    }
+    // Tufos: duas ou três lâminas em leque, de pé (para cima no mapa), grossas no pé e finas na ponta; uma delas pega luz.
+    let sombra = 0
+    let brilho = 0
+    const xt = u * LAMINAS.grade
+    const yt = v * LAMINAS.grade
+    const cxt = Math.floor(xt)
+    const cyt = Math.floor(yt)
+    for (let oy = -1; oy <= 1; oy += 1) {
+      const linha = naGrade(cyt + oy, LAMINAS.grade) * LAMINAS.grade
+      for (let ox = -1; ox <= 1; ox += 1) {
+        const o = (linha + naGrade(cxt + ox, LAMINAS.grade)) * CAMPOS_DO_TUFO
+        const laminas = tufos[o + 2]
+        if (laminas === 0) continue
+        const px = xt - (cxt + ox + tufos[o])
+        const py = yt - (cyt + oy + tufos[o + 1])
+        // Fora do alcance do tufo (a lâmina mais comprida dele), nada a pintar: a maior parte das 9 células sai aqui.
+        const tamanho = tufos[o + 3]
+        const alcance = ALCANCE_DO_TUFO * tamanho
+        const longe2 = px * px + py * py
+        if (longe2 > alcance * alcance) continue
+        for (let k = 0; k < laminas; k += 1) {
+          const dx = tufos[o + 4 + k * 4]
+          const dy = tufos[o + 5 + k * 4]
+          const comprimento = tufos[o + 6 + k * 4] * tamanho
+          // O ponto da lâmina mais perto deste: t de 0 (pé) a 1 (ponta).
+          const t = limitar01((px * dx + py * dy) / comprimento)
+          // A lâmina afina até a ponta; a borda dela é macia (some em 1,5 vez a meia largura, cheia até 30% disso).
+          const borda = LAMINAS.meiaLargura * tamanho * (1 - 0.72 * t) * 1.5
+          const ex = px - dx * comprimento * t
+          const ey = py - dy * comprimento * t
+          const distancia2 = ex * ex + ey * ey
+          if (distancia2 >= borda * borda) continue
+          const cobre = passoSuave(borda, borda * 0.3, Math.sqrt(distancia2))
+          // A de luz clareia para a ponta (o sol pega em cima); as de sombra são mais escuras no pé.
+          if (tufos[o + 7 + k * 4] === 1) brilho = Math.max(brilho, cobre * (0.35 + 0.65 * t))
+          else sombra = Math.max(sombra, cobre * (1 - 0.55 * t))
+        }
+        // O pé do tufo: uma sombra macia, um nada para baixo e para a direita (a luz vem de cima à esquerda).
+        const pe = 0.3 * tamanho
+        const pex = px - 0.04
+        const pey = py - 0.03
+        const pe2 = pex * pex + pey * pey
+        if (pe2 < pe * pe) sombra = Math.max(sombra, PE_DO_TUFO * passoSuave(pe, 0.05, Math.sqrt(pe2)))
+      }
+    }
+    let c = misturar(meio, fundo, sombra * LAMINA_DE_SOMBRA)
+    c = misturar(c, realce, brilho * LAMINA_DE_LUZ)
+    // A luz do domo (7%), a da lâmina que pega sol (6%) e o grão fino (3,5%).
+    c = luz(c, domo * 0.07 + brilho * 0.06 + (valor(u * 160, v * 160, 160, 35) - 0.5) * 0.035)
     return empacotar(c)
+  }
+}
+
+/**
+ * A vida do campo no mapa (`VidaDoChao`): o tom largo vai da `base` à `mancha`
+ * (as duas cores que o ladrilho de antes alternava a cada casa e meia, agora
+ * em regiões de dezenas de casas), e as moitas e os brotos são nuvens de uma
+ * casa ou duas, para o lado da `moita` e para o lado oposto dela.
+ *
+ * As forças são contidas de propósito (a grama é fundo: ficha, árvore e objeto
+ * leem por cima): o tom chega a 46% do caminho entre as duas cores para cada
+ * lado; a moita, a 42% da cor dela; o broto, a 26% para o lado claro; a luz
+ * larga, a 1,2%; e entre as touceiras sobra 20% do detalhe do ladrilho.
+ */
+function vidaDoCampo({ meio, base, mancha, moita }: CampoVivo): VidaDoChao {
+  const tom = 0.46
+  const fechada = 0.42
+  const nova = 0.26
+  return {
+    tom: [(mancha[0] - base[0]) * tom, (mancha[1] - base[1]) * tom, (mancha[2] - base[2]) * tom],
+    luz: 0.012,
+    moita: [(moita[0] - meio[0]) * fechada, (moita[1] - meio[1]) * fechada, (moita[2] - meio[2]) * fechada],
+    broto: [(meio[0] - moita[0]) * nova, (meio[1] - moita[1]) * nova, (meio[2] - moita[2]) * nova],
+    meio,
+    ralo: 0.2,
   }
 }
 
@@ -1177,8 +1366,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'areia', nome: 'Areia', escala: 36, cor: areia },
   { id: 'duna', nome: 'Duna', escala: 64, cor: duna },
   // As formas de um grupo ficam juntas, a primeira é a que o cartão escolhe na primeira vez.
-  { id: 'grama', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Verde' }, cor: gramaNoTom(CAMPO_VERDE) },
-  { id: 'grama-amarela', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Amarelo' }, cor: gramaNoTom(CAMPO_AMARELO) },
+  { id: 'grama', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Verde' }, cor: gramaNoTom(CAMPO_VERDE), vida: vidaDoCampo(CAMPO_VERDE) },
+  { id: 'grama-amarela', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Amarelo' }, cor: gramaNoTom(CAMPO_AMARELO), vida: vidaDoCampo(CAMPO_AMARELO) },
   // O Morto tem o ladrilho maior (a falha não se repete em grade) e o capim na mesma resolução das outras duas.
   { id: 'grama-morta', nome: 'Campo', escala: CAMPO_MORTO_ESCALA, lado: LADO_MAIOR, forma: { grupo: 'grama', nome: 'Morto' }, cor: campoMorto },
   { id: 'floresta', nome: 'Floresta', escala: 40, cor: (u, v) => copas(u, v, FLORESTA) },

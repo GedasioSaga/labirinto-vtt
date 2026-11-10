@@ -322,6 +322,40 @@ function correlacao(a: readonly number[], b: readonly number[]): number {
   return cov / Math.sqrt(va * vb)
 }
 
+/** A digital (FNV-1a, 128 px) do ladrilho do Campo verde desde 10/11/2026. */
+const DIGITAL_DO_CAMPO_VERDE = 1606870568
+
+/** Média de caixa (`caixa` px, ímpar por construção) nas duas direções, dando a volta: o ladrilho repete. */
+function borrarNaVolta(v: Float64Array, lado: number, caixa: number): Float64Array {
+  const meia = Math.floor(caixa / 2)
+  const linhas = new Float64Array(lado * lado)
+  const saida = new Float64Array(lado * lado)
+  for (let y = 0; y < lado; y += 1) {
+    for (let x = 0; x < lado; x += 1) {
+      let s = 0
+      for (let k = -meia; k <= meia; k += 1) s += v[y * lado + ((x + k + lado) % lado)]
+      linhas[y * lado + x] = s / (2 * meia + 1)
+    }
+  }
+  for (let y = 0; y < lado; y += 1) {
+    for (let x = 0; x < lado; x += 1) {
+      let s = 0
+      for (let k = -meia; k <= meia; k += 1) s += linhas[((y + k + lado) % lado) * lado + x]
+      saida[y * lado + x] = s / (2 * meia + 1)
+    }
+  }
+  return saida
+}
+
+function desvio(v: Float64Array): number {
+  let media = 0
+  for (const x of v) media += x
+  media /= v.length
+  let soma = 0
+  for (const x of v) soma += (x - media) ** 2
+  return Math.sqrt(soma / v.length)
+}
+
 describe('Campo em duas formas, Verde e Amarelo (pedido de 13/10/2026)', () => {
   it('as duas formam o grupo "grama": a verde primeiro, com o mesmo nome de cartão e o mesmo tamanho', () => {
     expect(texturaDe('grama').forma).toEqual({ grupo: 'grama', nome: 'Verde' })
@@ -331,9 +365,35 @@ describe('Campo em duas formas, Verde e Amarelo (pedido de 13/10/2026)', () => {
     expect(texturaDe('grama-amarela').lado).toBe(texturaDe('grama').lado)
   })
 
-  it('a Verde é pixel a pixel a de antes: mapa salvo com Campo não muda', () => {
-    // Medida na versão de 07a2a7e2, antes da forma Amarela existir.
-    expect(impressaoDigital(pixelsDoLadrilho(texturaDe('grama').cor, 128))).toBe(1018597982)
+  it('a Verde é pixel a pixel a do campo que não repete (10/11/2026): daqui em diante, só muda de propósito', () => {
+    // Até 10/11/2026 a digital era 1018597982 (a de 07a2a7e2, antes da forma Amarela). O mestre pediu a grama sem o
+    // padrão repetido: as manchas e as moitas saíram do ladrilho (hoje vêm da posição no mapa, `vidaDoCampo`) e o
+    // ladrilho ficou só com o capim de perto. A cor média é a de antes (teste em `meioTermo/chaoNoMundo.test.ts`).
+    expect(impressaoDigital(pixelsDoLadrilho(texturaDe('grama').cor, 128))).toBe(DIGITAL_DO_CAMPO_VERDE)
+  })
+
+  it('o ladrilho do Campo não tem marco: borrado em 8% do lado, quase não sobra mancha de luz nem de tom para repetir', () => {
+    // O que tem o tamanho de uma moita volta a cada ladrilho (3 casas no mapa) e vira grade. Antes de 10/11/2026 o
+    // ladrilho borrado guardava 1,49 nível de luz e 10,5 de tom (R - B) no Verde (4,3 no Amarelo): eram as manchas.
+    for (const id of ['grama', 'grama-amarela']) {
+      const lado = 128
+      const d = pixelsDoLadrilho(texturaDe(id).cor, lado)
+      const luz = new Float64Array(lado * lado)
+      const tom = new Float64Array(lado * lado)
+      for (let i = 0; i < lado * lado; i += 1) {
+        luz[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2]
+        tom[i] = d[i * 4] - d[i * 4 + 2]
+      }
+      const caixa = Math.round(lado * 0.08)
+      expect(desvio(borrarNaVolta(borrarNaVolta(luz, lado, caixa), lado, caixa)), `${id}: mancha de luz`).toBeLessThan(0.9)
+      expect(desvio(borrarNaVolta(borrarNaVolta(tom, lado, caixa), lado, caixa)), `${id}: mancha de tom`).toBeLessThan(1)
+    }
+  })
+
+  it('o Campo declara a vida que o ladrilho deixou de ter (tom largo, moitas e touceiras por posição), e só ele', () => {
+    expect(texturaDe('grama').vida).toBeDefined()
+    expect(texturaDe('grama-amarela').vida).toBeDefined()
+    expect(TEXTURAS_EMBUTIDAS.filter((t) => t.vida !== undefined).map((t) => t.id)).toEqual(['grama', 'grama-amarela'])
   })
 
   it('a Amarela é palha dourada contida (nem limão nem laranja), com a luz e o desenho da Verde', () => {

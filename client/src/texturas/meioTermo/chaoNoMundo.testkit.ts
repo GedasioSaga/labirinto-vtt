@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs'
 import { texturaDoCatalogo } from '../catalogo'
 import { LADO_DO_LADRILHO, pixelsDoLadrilho } from '../ladrilhos'
 import { escalaDaTextura, ladoDoLadrilhoNoMundo } from '../../pixi/drawTexturas'
-import { LADO_DO_PEDACO, mipDoLadrilho, pintarPedaco, sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from './chaoNoMundo'
+import { LADO_DO_PEDACO, mipDoLadrilho, pintarPedaco, sementeDoChao, torcaoDaTextura, vidaDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from './chaoNoMundo'
 import type { Cinza } from './repeticao.testkit'
 
 /**
@@ -49,6 +49,7 @@ export function chaoDe(id: string, mapa: { width: number; height: number; grid: 
     semente: sementeDoChao(id),
     torcao: torcaoDaTextura(texturaDoCatalogo(id)),
     manchas: true,
+    vida: vidaDaTextura(texturaDoCatalogo(id)),
   }
 }
 
