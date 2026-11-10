@@ -94,10 +94,24 @@ export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaPr
   const setComoJogador = useTintaNoEditor((estado) => estado.setComoJogador)
   const arrastar = useArrastoComUmPasso()
 
-  // Abriu pelo botão: o foco entra no balão, para o Escape e as setas valerem aqui.
+  // Abriu pelo botão: o foco entra no balão, para as setas valerem aqui.
   useEffect(() => {
     raiz.current?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus()
   }, [])
+
+  // O Escape fecha o balão onde quer que o foco esteja (o mestre abre, clica num
+  // campo do painel e aperta Esc). Na captura do documento: o Escape é deste
+  // balão enquanto ele está aberto, e não fecha nem cancela mais nada por baixo.
+  useEffect(() => {
+    if (saindo) return
+    const aoApertar = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', aoApertar, true)
+    return () => document.removeEventListener('keydown', aoApertar, true)
+  }, [onClose, saindo])
 
   const cena = { externa, periodoFixo, ambientePorPeriodo }
   const periodo = periodoDaCena(cena, sessao)
@@ -116,12 +130,6 @@ export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaPr
       inert={saindo}
       role="dialog"
       aria-labelledby={tituloId}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return
-        // O Escape é deste balão: não fecha mais nada por cima.
-        event.stopPropagation()
-        onClose()
-      }}
     >
       <h3 id={tituloId} className="lb-eyebrow">
         Luz da cena

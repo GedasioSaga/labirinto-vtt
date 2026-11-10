@@ -405,11 +405,14 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    *  quando o popover fecha (Escape, clique fora, ou opção escolhida). */
   const variantArrowRefs = useRef<Map<ToolbarSlot, HTMLButtonElement>>(new Map())
 
+  /** Quem recebe o foco quando o popover da posição fecha: a setinha, ou o próprio botão na posição sem setinha (a Luz da cena). */
+  const botaoDaPosicao = (slot: ToolbarSlot): HTMLElement | null =>
+    variantArrowRefs.current.get(slot) ?? variantAnchorRefs.current.get(slot)?.querySelector<HTMLElement>('.lb-ferr') ?? null
+
   const closeVariantMenu = () => {
     const slot = openVariantSlot
     setOpenVariantSlot(null)
-    // Posição sem setinha (a Luz da cena): o foco volta ao próprio botão.
-    if (slot) (variantArrowRefs.current.get(slot) ?? variantAnchorRefs.current.get(slot)?.querySelector<HTMLElement>('.lb-ferr'))?.focus()
+    if (slot) botaoDaPosicao(slot)?.focus()
   }
 
   // Fecha ao clicar fora do popover aberto. `pointerdown` (não `click`) pra
@@ -421,6 +424,15 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
       const anchor = variantAnchorRefs.current.get(openVariantSlot)
       if (anchor && event.target instanceof Node && anchor.contains(event.target)) return
       setOpenVariantSlot(null)
+      // O clique que não pousa em nada focável (o mapa) deixaria o foco no
+      // popover que fecha ou no <body>: aí ele volta ao botão da posição. Quem
+      // clicou em outro controle fica com o foco lá. Depois do clique, porque
+      // é o `mousedown` que move o foco.
+      const botao = botaoDaPosicao(openVariantSlot)
+      window.setTimeout(() => {
+        const comFoco = document.activeElement
+        if (comFoco === null || comFoco === document.body || anchor?.contains(comFoco) === true) botao?.focus()
+      }, 0)
     }
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
