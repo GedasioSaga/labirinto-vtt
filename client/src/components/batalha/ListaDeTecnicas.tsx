@@ -132,6 +132,28 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
   )
 }
 
+/**
+ * O mouse acendeu uma tira: se o foco já está no menu, ele vai junto (um
+ * cursor só: a seta seguinte anda dali, sem um contorno sobrando em outra
+ * tira). Com o foco fora (no mapa, no chat), o mouse não puxa o foco.
+ */
+export function focoSegueOMouse(tira: HTMLButtonElement | null | undefined) {
+  if (tira === null || tira === undefined) return
+  const menu = tira.closest('.bt-vez')
+  if (menu !== null && menu.contains(document.activeElement) && document.activeElement !== tira) tira.focus({ preventScroll: true })
+}
+
+/**
+ * O foco pode entrar no menu sozinho (ao nascer, ao abrir a lista)? Não
+ * quando alguém digita num campo, nem com uma janela aberta por cima.
+ */
+export function podeTomarOFoco(): boolean {
+  const ativo = document.activeElement
+  if (!(ativo instanceof HTMLElement) || ativo === document.body) return true
+  if (ativo.isContentEditable || ativo.tagName === 'INPUT' || ativo.tagName === 'TEXTAREA' || ativo.tagName === 'SELECT') return false
+  return ativo.closest('[role="dialog"], dialog, [aria-modal="true"]') === null
+}
+
 /** As setas andam entre as tiras; Home e End vão às pontas. Devolve se tratou a tecla. */
 export function andarComSetas(evento: KeyboardEvent, tiras: readonly (HTMLButtonElement | null)[], atual: number): boolean {
   const total = tiras.length
@@ -401,7 +423,10 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
                 pequena
                 esta={atual === 0}
                 onFoco={() => setAtual(0)}
-                onApontar={() => setAtual(0)}
+                onApontar={() => {
+                  setAtual(0)
+                  focoSegueOMouse(tiras.current[0])
+                }}
                 onEscolher={armas.onAbrir}
                 refDaTira={(elemento) => {
                   tiras.current[0] = elemento
@@ -443,7 +468,10 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
                   controla={aberta ? id : undefined}
                   descritaPor={aberta ? id : undefined}
                   onFoco={() => setAtual(indice)}
-                  onApontar={() => setAtual(indice)}
+                  onApontar={() => {
+                    setAtual(indice)
+                    focoSegueOMouse(tiras.current[indice])
+                  }}
                   onEscolher={(teclado) => escolher(golpe, indice, teclado)}
                   refDaTira={(elemento) => {
                     tiras.current[indice] = elemento

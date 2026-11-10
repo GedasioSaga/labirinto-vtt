@@ -395,17 +395,26 @@
     opacity: 0;
   }
 }
-/* Entrada: as tiras deslizam da esquerda, uma depois da outra (protótipo `entradaLista`). Pelo teclado, na hora. */
+/*
+ * Entrada: as tiras deslizam da esquerda, uma depois da outra (protótipo
+ * `entradaLista`). Pelo teclado, na hora. É uma ANIMAÇÃO, não a transição da
+ * tira: vale só durante a entrada (`backwards`: depois dela não sobra nada) e
+ * o aperto e o acender continuam nos 80 ms da `.bt-tira`. Antes, a transição
+ * de entrada (240 ms, com o atraso da cascata) vencia a de 80 ms para sempre.
+ * O quadro final é o da própria tira (a escolhida chega já 14 px à direita).
+ */
 .bt-vez:not([data-instantaneo='sim']) .bt-tira {
-  transition:
-    transform 240ms var(--bt-ease-out) calc(var(--i, 0) * 35ms),
-    opacity 240ms var(--bt-ease-out) calc(var(--i, 0) * 35ms),
-    color 80ms ease;
+  animation: bt-tira-entra 240ms var(--bt-ease-out) calc(var(--i, 0) * 35ms) backwards;
 }
-@starting-style {
-  .bt-vez:not([data-instantaneo='sim']) .bt-tira {
+@keyframes bt-tira-entra {
+  from {
     opacity: 0;
     transform: rotate(var(--giro, -3deg)) translateX(-48px);
+  }
+}
+@keyframes bt-tira-aparece {
+  from {
+    opacity: 0;
   }
 }
 .bt-vez__cabeca {
@@ -2685,9 +2694,11 @@
     transform: none;
   }
   .bt-tira,
-  .bt-vez:not([data-instantaneo='sim']) .bt-tira,
   .bt-vez__cabeca {
     transition: opacity 150ms ease;
+  }
+  .bt-vez:not([data-instantaneo='sim']) .bt-tira {
+    animation: bt-tira-aparece 150ms ease backwards;
   }
   .bt-tira::after,
   .bt-chave__trilho::after,
@@ -2717,9 +2728,6 @@
     }
     .bt-calc {
       transform: none;
-    }
-    .bt-vez:not([data-instantaneo='sim']) .bt-tira {
-      transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px));
     }
     .bt-vez:not([data-instantaneo='sim']) .bt-vez__cabeca {
       transform: rotate(-3deg);

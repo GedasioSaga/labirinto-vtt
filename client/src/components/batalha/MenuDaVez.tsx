@@ -6,7 +6,7 @@ import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
-import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
+import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
@@ -478,6 +478,11 @@ export function MenuDaVez(props: MenuDaVezProps) {
               passiva={item.passiva}
               esta={atual === indice}
               onFoco={() => setAtual(indice)}
+              // O mouse acende a tira (o mesmo papel e os 14 px da escolhida); com o foco no menu, o foco vai junto (um cursor só).
+              onApontar={() => {
+                setAtual(indice)
+                focoSegueOMouse(tiras.current[indice])
+              }}
               onEscolher={() => {
                 if (esperando) return
                 item.executar(false)
