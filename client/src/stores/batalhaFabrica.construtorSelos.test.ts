@@ -149,8 +149,11 @@ describe('veneno de NPC montado, até o próximo golpe', () => {
   })
 
   it('a técnica de ajuda em quem tem o selo não o tira; o golpe do inimigo tira', () => {
-    const { loja } = batalha()
+    const { loja, mesa } = batalha()
     expect(usar(loja, emSi(loja, TEIA.id))).toBe(true)
+    // Conserto de 09/11 (achado 5): a cura em quem está de vida cheia é recusada antes de cobrar; a Aranha entra ferida.
+    const daAranha = mesa.personagens().find((personagem) => personagem.nome === aranha.nome)?.id ?? ''
+    expect(mesa.ajustarPersonagem(daAranha, (atual) => ({ ...atual, recursos: { ...atual.recursos, hp: 480 } }))).toBe(true)
     expect(usar(loja, emSi(loja, MUDA.id))).toBe(true)
     expect(selosNaAranha(loja)).toEqual(['Protegido'])
     expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Marujo de Teste'), atacarAAranha(loja))).toBe(true)

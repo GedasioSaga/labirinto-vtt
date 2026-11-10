@@ -95,17 +95,21 @@ describe('a Bolha do NPC (cura o Espírito de quem usa no aliado)', () => {
     expect(turnos.combate?.[quemUsou]?.usos[BOLHA.id]).toBe(1)
   })
 
-  it('o registro diz o que curou de verdade: 20 no quase cheio, nada no cheio (antes dizia "curou 50" nos dois)', () => {
-    const linhaDaBolha = (hpDoAliado: number): string => {
-      const { loja, recurso } = mesaDaBolha(hpDoAliado)
-      const vez = naVezDe(loja, 'Sapo de Teste')
-      expect(loja.getState().agir(CENA, MESTRE, vez, bolhaEm([token(loja, 'Urso de Teste')]))).toBe(true)
-      expect(recurso('Urso de Teste', 'hp')).toBe(500)
-      return cena(loja).registro.at(-1)?.texto ?? ''
-    }
-    expect(linhaDaBolha(480)).toContain('curou 20 (a vida encheu)')
-    const noCheio = linhaDaBolha(500)
-    expect(noCheio).toContain('vida já cheia, não curou')
-    expect(noCheio).not.toContain('curou 50')
+  it('o registro diz o que curou de verdade (20 no quase cheio); só em quem está de vida cheia, recusa antes de cobrar', () => {
+    const quaseCheio = mesaDaBolha(480)
+    const vez = naVezDe(quaseCheio.loja, 'Sapo de Teste')
+    expect(quaseCheio.loja.getState().agir(CENA, MESTRE, vez, bolhaEm([token(quaseCheio.loja, 'Urso de Teste')]))).toBe(true)
+    expect(quaseCheio.recurso('Urso de Teste', 'hp')).toBe(500)
+    expect(cena(quaseCheio.loja).registro.at(-1)?.texto ?? '').toContain('curou 20 (a vida encheu)')
+
+    // Conserto de 09/11 (achado 5): antes gastava 30 de SP e 1 uso e o registro dizia "vida já cheia, não curou".
+    const { loja, recurso } = mesaDaBolha(500)
+    const daVez = naVezDe(loja, 'Sapo de Teste')
+    const noCheio = bolhaEm([token(loja, 'Urso de Teste'), token(loja, 'Sapo de Teste')])
+    const linhasAntes = cena(loja).registro.length
+    expect(loja.getState().motivoDoAgir(CENA, MESTRE, daVez, noCheio)).toBe('Ninguém marcado está ferido')
+    expect(loja.getState().agir(CENA, MESTRE, daVez, noCheio)).toBe(false)
+    const quemUsou = cena(loja).turnos.cartas.find((carta) => carta.id === daVez.cartaId)?.personagemId ?? ''
+    expect([recurso('Sapo de Teste', 'sp'), cena(loja).turnos.combate?.[quemUsou]?.usos[BOLHA.id] ?? 0, cena(loja).registro.length]).toEqual([120, 0, linhasAntes])
   })
 })

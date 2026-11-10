@@ -106,6 +106,9 @@ export function aliadosDe(meusPersonagens: ReadonlySet<string>, equipes: readonl
   return aliados
 }
 
+/** O lado de todo NPC sem equipe: "contra os jogadores", o padrão. É o mesmo texto do lado por tipo (`tipo:npc`). */
+const LADO_DOS_NPCS = 'tipo:npc'
+
 /** O que `ladoNaBatalha` lê da mesa. */
 export interface LadosDaBatalha {
   equipes: readonly Equipe[] | undefined
@@ -120,7 +123,10 @@ export interface LadosDaBatalha {
  * ela e o host confere o golpe por ela, para a mira não marcar quem o host
  * recusa:
  *  - o invocado conta como o dono (a ficha temporária não tem equipe);
- *  - com equipes cadastradas: a equipe dele (sem equipe = sem lado);
+ *  - com equipes cadastradas: a equipe dele. O JOGADOR sem equipe fica sem
+ *    lado; o NPC sem equipe fica no lado padrão dos NPCs (conserto de 09/11:
+ *    com o Tree na equipe dos jogadores, os Ursos sem equipe deixavam de ser
+ *    aliados entre si);
  *  - sem equipes: o tipo (os jogadores de um lado, os NPCs do outro).
  * Não é `aliadosDe`, que decide o que o jogador VÊ dos colegas e nunca põe
  * NPC: na luta, o NPC tem aliados. `null` = sem lado (ninguém é aliado dele).
@@ -129,8 +135,12 @@ export function ladoNaBatalha(personagemId: string | null, mesa: LadosDaBatalha)
   if (personagemId === null) return null
   const doInvocado = mesa.invocados.find((invocado) => invocado.personagemId === personagemId)
   const quemDaOLado = doInvocado === undefined ? personagemId : doInvocado.donoPersonagemId
-  if (mesa.equipes !== undefined && mesa.equipes.length > 0) return equipeDe(quemDaOLado, mesa.equipes)?.id ?? null
   const tipo = mesa.personagens.find((personagem) => personagem.id === quemDaOLado)?.tipo
+  if (mesa.equipes !== undefined && mesa.equipes.length > 0) {
+    const equipe = equipeDe(quemDaOLado, mesa.equipes)
+    if (equipe !== null) return equipe.id
+    return tipo === 'npc' ? LADO_DOS_NPCS : null
+  }
   return tipo === undefined ? null : `tipo:${tipo}`
 }
 
@@ -138,4 +148,56 @@ export function ladoNaBatalha(personagemId: string | null, mesa: LadosDaBatalha)
 export function mesmoLadoNaBatalha(deQuem: string | null, outro: string | null, mesa: LadosDaBatalha): boolean {
   const lado = ladoNaBatalha(deQuem, mesa)
   return lado !== null && ladoNaBatalha(outro, mesa) === lado
+}
+
+/**
+ * Conserto de 09/11/2026 (a Bolha do Tree "não curou nada"): o NPC que luta ao
+ * lado dos jogadores era inimigo deles para o app, porque sem equipe todo NPC
+ * fica do lado dos NPCs. O mestre escolhe o lado de cada NPC em "Quem entra" e
+ * no menu da carta; por baixo é a equipe de sempre (nenhum sistema novo):
+ * "do lado dos jogadores" = na equipe que tem jogador.
+ */
+export type LadoDoNpc = 'jogadores' | 'contra'
+
+/** O nome e a cor da equipe criada quando o mestre põe o primeiro NPC do lado dos jogadores e nenhuma equipe tem jogador. */
+export const NOME_DA_EQUIPE_DOS_JOGADORES = 'Jogadores'
+export const COR_DA_EQUIPE_DOS_JOGADORES = '#3f7fbf'
+
+/** A equipe dos jogadores: a que tem mais personagens de tipo "jogador" (empate: a primeira). `null` = nenhuma equipe tem jogador. */
+export function equipeDosJogadores(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): Equipe | null {
+  const jogadores = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
+  let melhor: { equipe: Equipe; quantos: number } | null = null
+  for (const equipe of equipes ?? []) {
+    const quantos = equipe.membros.filter((id) => jogadores.has(id)).length
+    if (quantos > 0 && (melhor === null || quantos > melhor.quantos)) melhor = { equipe, quantos }
+  }
+  return melhor?.equipe ?? null
+}
+
+/** O lado do NPC para a tela: "jogadores" quando a equipe dele tem jogador; senão "contra" (o padrão). */
+export function ladoDoNpc(personagemId: string, equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[]): LadoDoNpc {
+  const equipe = equipeDe(personagemId, equipes)
+  if (equipe === null) return 'contra'
+  const jogadores = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
+  return equipe.membros.some((id) => jogadores.has(id)) ? 'jogadores' : 'contra'
+}
+
+/**
+ * As equipes com o NPC do lado pedido:
+ *  - "jogadores": entra na equipe dos jogadores (`equipeDosJogadores`); se
+ *    nenhuma equipe tem jogador, nasce a equipe "Jogadores" com TODOS os
+ *    personagens de tipo jogador e ele (os colegas seguem se vendo como antes);
+ *  - "contra": sai da equipe que tem jogador (fica sem equipe, com os NPCs).
+ * A MESMA lista = nada mudou. `null` = não cabe mais uma equipe (`EQUIPES_MAX`).
+ */
+export function equipesComOLado(equipes: readonly Equipe[] | undefined, personagens: readonly Personagem[], personagemId: string, lado: LadoDoNpc, novoId: () => string = novoIdDeEquipe): readonly Equipe[] | null {
+  const lista = equipes ?? []
+  if (ladoDoNpc(personagemId, lista, personagens) === lado) return lista
+  const semEle = lista.map((equipe) => (equipe.membros.includes(personagemId) ? { ...equipe, membros: equipe.membros.filter((id) => id !== personagemId) } : equipe))
+  if (lado === 'contra') return semEle
+  const destino = equipeDosJogadores(lista, personagens)
+  if (destino !== null) return semEle.map((equipe) => (equipe.id === destino.id ? { ...equipe, membros: [...equipe.membros, personagemId] } : equipe))
+  if (lista.length >= EQUIPES_MAX) return null
+  const jogadores = personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id)
+  return [...semEle, { id: novoId(), nome: NOME_DA_EQUIPE_DOS_JOGADORES, cor: COR_DA_EQUIPE_DOS_JOGADORES, membros: [...jogadores, personagemId] }]
 }

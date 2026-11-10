@@ -69,7 +69,7 @@ describe('arena: a carta da vez age com a própria cópia', () => {
     const { turnos, vez, tokenDoBruno } = lutar(3, 12)
     const pedido = { tipo: 'atacar', armaId: null, alvos: [{ tokenId: tokenDoBruno, dano: 80 }], surpresa: false, perfurante: false } satisfies Parameters<ReturnType<typeof batalhaDaArena.getState>['agir']>[3]
     expect(batalhaDaArena.getState().agir(CENA_DA_ARENA, AUTOR_DA_ARENA, { cartaId: vez.id, rodada: turnos.rodada }, pedido)).toBe(true)
-    expect(batalhaDaArena.getState().cenas[CENA_DA_ARENA]?.registro.at(-1)?.texto).toMatch(/^Ilo 1 usa Ataque em Bruno/)
+    expect(batalhaDaArena.getState().cenas[CENA_DA_ARENA]?.registro.at(-1)?.texto).toMatch(/^Ilo 1 usa Mão nua em Bruno/)
   })
 
   it('cada cópia é uma ficha à parte: id próprio (nem o real, nem o da outra) e a força da ficha de origem', () => {

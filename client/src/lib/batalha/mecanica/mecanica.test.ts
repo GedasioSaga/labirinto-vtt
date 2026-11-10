@@ -149,7 +149,9 @@ describe('revisão da C1: o host confere o que as peças prometem', () => {
     const empurrao = cartao('cart_empurrao', 'Empurrão Amigo', {}, { versao: 1, acao: 'simples', alvo: { quem: 'aliados', forma: { tipo: 'um' } }, dano: { base: { fixo: 40 }, multiplicadores: MULT } })
     const capitao = ficha('Capitão de Teste', { forca: 60 }, { hp: 500, sp: 100, escudo: 0 }, { habilidades: [furia, empurrao] })
     expect(podeAgir(contexto(jogadora, capitao), pedido(furia.id))).toBe('Fúria de Teste só vale em você')
-    expect(podeAgir(contexto(mestre, capitao), pedido(empurrao.id))).toBe('Empurrão Amigo só vale em você ou num aliado')
+    // Conserto de 09/11: o mestre lê quem está do outro lado (o jogador segue com a frase curta).
+    expect(podeAgir(contexto(mestre, capitao), pedido(empurrao.id))).toBe(`Empurrão Amigo só vale em quem usa ou num aliado. ${boneco.nome} está do outro lado.`)
+    expect(podeAgir(contexto(jogadora, capitao), pedido(empurrao.id))).toBe('Empurrão Amigo só vale em você ou num aliado')
     expect(podeAgir(contexto(jogadora, capitao), pedido(furia.id, 'tok_marinheiro'))).toBeNull()
   })
 

@@ -113,7 +113,7 @@ describe('bug 2: golpe sem resposta', () => {
     expect(cena(loja).turnos.golpes ?? []).toHaveLength(1)
     const naoReagiram = linhasNaoReagiu(loja)
     expect(naoReagiram).toHaveLength(20)
-    expect(naoReagiram[0]?.texto).toMatch(/^.+ não reagiu até a virada da rodada \(Ataque de .+\)$/)
+    expect(naoReagiram[0]?.texto).toMatch(/^.+ não reagiu até a virada da rodada \(Mão nua de .+\)$/)
     expect(hpDaMesa(mesa)).toBe(hpAntes - 20 * DANO)
 
     const ultima = naoReagiram[naoReagiram.length - 1]

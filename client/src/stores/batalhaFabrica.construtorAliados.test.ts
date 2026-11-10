@@ -64,11 +64,12 @@ function curar(alvos: readonly string[]): PedidoDeAcao {
 }
 
 describe('a área "aliados" da técnica montada no host', () => {
-  it('o NPC cura o NPC da equipe dele (200 → 250); o jogador do outro lado é recusado', () => {
+  // Conserto de 09/11: a recusa do outro lado é do JOGADOR; o mestre com o NPC cura quem ele mirar (batalhaFabrica.bolhaNoJogador.test.ts).
+  it('a jogadora cura a aliada da equipe dela (200 → 250); o NPC do outro lado é recusado', () => {
     const lutadores = lutadoresDe([
-      { ficha: ferido('Curandeira de Teste', 'npc', [CHUVA_CURATIVA]), lado: 'a' },
-      { ficha: ferido('Grumete de Teste', 'npc'), lado: 'a' },
-      { ficha: ferido('Capitã de Teste', 'jogador'), lado: 'b' },
+      { ficha: ferido('Curandeira de Teste', 'jogador', [CHUVA_CURATIVA]), lado: 'a' },
+      { ficha: ferido('Grumete de Teste', 'jogador'), lado: 'a' },
+      { ficha: ferido('Capitã de Teste', 'npc'), lado: 'b' },
     ])
     const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadores)
     const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
@@ -77,8 +78,9 @@ describe('a área "aliados" da técnica montada no host', () => {
     const vez = naVezDe(loja, 'Curandeira de Teste')
     const hp = (nome: string) => numeroDaFicha(mesa.personagens().find((item) => item.nome === nome)?.recursos ?? {}, 'hp')
 
-    expect(loja.getState().agir(CENA, MESTRE, vez, curar([token(loja, 'Capitã de Teste')]))).toBe(false)
-    expect(loja.getState().agir(CENA, MESTRE, vez, curar([token(loja, 'Grumete de Teste'), token(loja, 'Curandeira de Teste')]))).toBe(true)
+    const jogadora: AutorDaAcao = { tipo: 'jogador', playerId: 'p1', nome: 'Jogadora' }
+    expect(loja.getState().agir(CENA, jogadora, vez, curar([token(loja, 'Capitã de Teste')]))).toBe(false)
+    expect(loja.getState().agir(CENA, jogadora, vez, curar([token(loja, 'Grumete de Teste'), token(loja, 'Curandeira de Teste')]))).toBe(true)
     expect([hp('Grumete de Teste'), hp('Curandeira de Teste'), hp('Capitã de Teste')]).toEqual([250, 250, 200])
   })
 
@@ -92,6 +94,7 @@ describe('a área "aliados" da técnica montada no host', () => {
     expect([mesmoLadoNaBatalha(npcA.id, npcB.id, semEquipes), mesmoLadoNaBatalha(npcA.id, jogadora.id, semEquipes), mesmoLadoNaBatalha(npcB.id, 'pers_lobo', semEquipes)]).toEqual([true, false, true])
     const equipes: Equipe[] = [{ id: 'equipe_mista', nome: 'Mista', cor: '#336699', membros: [npcA.id, jogadora.id] }]
     const comEquipes = { equipes, personagens, invocados }
-    expect([mesmoLadoNaBatalha(npcA.id, jogadora.id, comEquipes), mesmoLadoNaBatalha(npcA.id, npcB.id, comEquipes), ladoNaBatalha(npcB.id, comEquipes)]).toEqual([true, false, null])
+    // Conserto de 09/11: o NPC sem equipe fica no lado padrão dos NPCs (antes, sem lado nenhum); o jogador sem equipe segue sem lado.
+    expect([mesmoLadoNaBatalha(npcA.id, jogadora.id, comEquipes), mesmoLadoNaBatalha(npcA.id, npcB.id, comEquipes), ladoNaBatalha(npcB.id, comEquipes)]).toEqual([true, false, 'tipo:npc'])
   })
 })

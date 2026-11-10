@@ -42,6 +42,7 @@ import {
   type VantagemNaRolagem,
 } from './combate'
 import { comAMantida } from './custoPorTurno'
+import { debuffsDoToken } from './debuffs'
 import { equipeDe, type Equipe } from './equipes'
 import { usoEvoluido, varianteDoPedido } from './escolhaEEvolucao'
 import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, type ContextoDaFormula } from './formula'
@@ -236,8 +237,8 @@ export interface SugestaoDoNpc {
   alvoTokenId: string | null
 }
 
-/** O nome do golpe sem arma nem técnica. */
-export const NOME_DO_ATAQUE = 'Ataque'
+/** O nome do golpe sem arma nem técnica: o mesmo da tira do Atacar (conserto de 09/11: o registro dizia "usa Ataque"). */
+export const NOME_DO_ATAQUE = 'Mão nua'
 /** O efeito da bala no registro: a linha inteira tem `REGISTRO_TEXTO_MAX`, e o efeito vem por último. */
 export const EFEITO_DA_BALA_NO_REGISTRO_MAX = 80
 
@@ -449,11 +450,12 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
         (subida !== null && 'motivo' in subida ? subida.motivo : null) ??
         motivoDosAlvos(ctx, pedido.alvos, 0) ??
         semConta ??
-        motivoDaLimpeza(ctx, tecnica.cartao, alvosPersonagemIds) ??
-        motivoDoAlvoDasPecas(ctx, tecnica.cartao, alvosPersonagemIds) ??
+        motivoDaLimpeza(ctx, tecnica.cartao, pedido.alvos) ??
+        motivoDoAlvoDasPecas(ctx, tecnica.cartao, pedido.alvos) ??
         motivoDoTetoDeDano(tecnica.cartao, tecnica.cartao.nome.trim() || 'A técnica', alvosPersonagemIds, ctx.aliados ?? new Set<string>()) ??
         motivoDoDivide(tecnica.cartao, pedido.alvos.length) ??
-        motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos)
+        motivoDoSeloPedido(tecnica.cartao.id, selosDosAlvos) ??
+        motivoDaCuraSemFerido(ctx, tecnica.cartao, pedido.alvos, pedido.selo !== undefined && pedido.selo !== null)
       )
     }
   }
@@ -582,15 +584,69 @@ function motivoDoDanoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, formu
  * aliados dele, com a regra da limpeza (`motivoDaLimpeza`); lançada num
  * inimigo, ele levaria o selo ou o dano sem reagir.
  */
-function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
+function motivoDoAlvoDasPecas(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos: readonly PedidoDeAlvo[]): string | null {
   const quem = pecasDoCartao(cartao)?.alvo.quem
   if (quem !== 'si' && quem !== 'aliados') return null
   const deQuemUsa = ctx.carta.personagemId
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || (quem === 'aliados' && aliadoPeloCartao(ctx, cartao, id)))
-  if (alvosPersonagemIds.every(vale)) return null
+  const juiz = quem === 'aliados' && mestreComNpc(ctx)
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || (quem === 'aliados' && aliadoPeloCartao(ctx, cartao, id)))
+  const fora = alvos.find((alvo) => !vale(ctx.personagemDoToken(alvo.tokenId)))
+  if (fora === undefined) return null
   const nome = cartao.nome.trim() || 'A técnica'
-  return quem === 'si' ? `${nome} só vale em você` : `${nome} só vale em você ou num aliado`
+  if (quem === 'si') return ctx.autor.tipo === 'mestre' ? `${nome} só vale em quem usa` : `${nome} só vale em você`
+  return motivoDeForaDaAjuda(ctx, nome, fora.tokenId)
 }
+
+/**
+ * Conserto de 09/11/2026 (a Bolha do Tree "não curou nada"): o mestre é o juiz.
+ * A técnica de ajuda (cura, limpeza, a peça "nos aliados") que ELE lança com um
+ * NPC vale em qualquer ficha com personagem, jogador inclusive: o NPC que luta
+ * ao lado dos jogadores era inimigo deles para o app, e a regra recusava
+ * calada. A tela do mestre pede a confirmação do alvo do outro lado; o
+ * jogador (e o mestre jogando pela ficha de um jogador) segue na regra de
+ * sempre.
+ */
+function mestreComNpc(ctx: ContextoDoGolpe): boolean {
+  return ctx.autor.tipo === 'mestre' && ctx.personagem?.tipo === 'npc'
+}
+
+/**
+ * A recusa da ajuda fora do lado. O mestre lê quem está do outro lado, pelo
+ * nome da carta. O jogador lê a frase de sempre: o nome da carta é o do
+ * mestre e pode não ser o que o jogador vê no mapa.
+ */
+function motivoDeForaDaAjuda(ctx: ContextoDoGolpe, nome: string, tokenId: string): string {
+  if (ctx.autor.tipo !== 'mestre') return `${nome} só vale em você ou num aliado`
+  const personagemId = ctx.personagemDoToken(tokenId)
+  if (typeof personagemId !== 'string') return `${nome} só vale em ficha com personagem`
+  const doAlvo = ctx.turnos.cartas.find((carta) => carta.tokenId === tokenId)?.nome?.trim() || ctx.personagens.find((personagem) => personagem.id === personagemId)?.nome.trim() || 'O alvo'
+  return `${nome} só vale em quem usa ou num aliado. ${doAlvo} está do outro lado.`
+}
+
+/**
+ * Conserto de 09/11/2026 (achado 5): a cura lançada só em quem está de vida
+ * cheia gastava o custo e o uso sem curar ninguém. Recusa antes de cobrar,
+ * quando a técnica não faria mais nada: sem selo no pedido, sem dano, e sem
+ * debuff para tirar (a que limpa). Ficha sem vida conhecida não entra na
+ * conta: na dúvida, a técnica sai.
+ */
+function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos: readonly PedidoDeAlvo[], comSelo: boolean): string | null {
+  const limpeza = limpezaDe(cartao)
+  const recurso = recursoDeVida(ctx.sistema)
+  if (limpeza === null || recurso === null || comSelo || alvos.length === 0) return null
+  for (const alvo of alvos) {
+    if (alvo.dano !== null && alvo.dano > 0) return null
+    const personagemId = ctx.personagemDoToken(alvo.tokenId)
+    const dele = typeof personagemId === 'string' ? ctx.personagens.find((candidato) => candidato.id === personagemId) : undefined
+    const vida = dele === undefined ? null : vidaDoPersonagem(dele, recurso)
+    if (vida === null || vida.atual < vida.maximo) return null
+    if (limpeza.soCura !== true && debuffsDoToken(ctx.turnos.selos, alvo.tokenId).length > 0) return null
+  }
+  return MOTIVO_SEM_FERIDO
+}
+
+/** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */
+export const MOTIVO_SEM_FERIDO = 'Ninguém marcado está ferido'
 
 /**
  * Construtor C5 (revisão): a técnica é de ajuda? Na montada, pelas peças ("em
@@ -852,11 +908,14 @@ function custosDoGolpe(daTecnica: LeituraDoCusto | null, extraEmSp: number): Lei
  * em quem usa ou nos aliados dele (`ctx.aliados`, ids de personagem). Ficha
  * sem personagem ou de outra equipe recusa com o motivo.
  */
-function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvosPersonagemIds: readonly (string | null | undefined)[]): string | null {
+function motivoDaLimpeza(ctx: ContextoDoGolpe, cartao: Pick<CartaoDaFicha, 'id' | 'nome' | 'mecanica'>, alvos: readonly PedidoDeAlvo[]): string | null {
   if (limpezaDe(cartao) === null) return null
   const deQuemUsa = ctx.carta.personagemId
-  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (id === deQuemUsa || aliadoPeloCartao(ctx, cartao, id))
-  return alvosPersonagemIds.every(vale) ? null : `${cartao.nome.trim() || 'A técnica'} só vale em você ou num aliado`
+  // Conserto de 09/11: o mestre com o NPC cura quem ele mirar (`mestreComNpc`).
+  const juiz = mestreComNpc(ctx)
+  const vale = (id: string | null | undefined): boolean => typeof id === 'string' && (juiz || id === deQuemUsa || aliadoPeloCartao(ctx, cartao, id))
+  const fora = alvos.find((alvo) => !vale(ctx.personagemDoToken(alvo.tokenId)))
+  return fora === undefined ? null : motivoDeForaDaAjuda(ctx, cartao.nome.trim() || 'A técnica', fora.tokenId)
 }
 
 /**
