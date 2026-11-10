@@ -4951,6 +4951,84 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
   display: none;
 }
 
+/* MINIATURA DO MAPA (lista de cenas, ideia 1). O topo da lista: o rótulo do
+   filtro à esquerda (quando há filtro) e o interruptor "Miniaturas" à direita,
+   na mesma linha. Sem filtro, a linha é só o interruptor. */
+.lb-cenas__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-height: var(--lb-space-6);
+}
+
+.lb-cenas__topo--so {
+  justify-content: flex-end;
+  margin-bottom: var(--lb-space-2);
+}
+
+/* O interruptor da casa, menor: legenda de canto, não campo de formulário.
+   (0,2,0) vence o tamanho e a cor de `.lb-switch` (0,1,0). */
+.lb-switch.lb-cenas__miniaturas {
+  gap: var(--lb-space-2);
+  min-height: var(--lb-space-6);
+  margin-left: auto;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+/* O quadro do desenho: do tamanho da planta (40×30), com borda e fundo de pedra
+   funda, também vazio — cena sem mapa guarda o lugar e os nomes não pulam. É
+   desenho, não controle: o clique atravessa até o nome, que é a linha inteira. */
+.lb-cenas__mini {
+  flex: none;
+  width: var(--lb-space-10);
+  height: calc(var(--lb-space-10) * 3 / 4);
+  /* Centrado na primeira linha do nome (a faixa de 24 px): sobe 3 px no vão do
+     cartão, e a linha cresce 3 px, não 6. */
+  margin-top: calc((var(--lb-space-6) - var(--lb-space-10) * 3 / 4) / 2);
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  pointer-events: none;
+}
+
+.lb-cenas__mini > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A arte que chega depois do quadro (calculada no tempo livre) entra num
+   esmaecer curto em vez de estalar. Só a primeira vez: a que já estava pronta
+   e a que se redesenha (ficha andando) não piscam. */
+.lb-cenas__mini[data-chegou='true'] > svg {
+  animation: lb-cenas-mini-chega var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@keyframes lb-cenas-mini-chega {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cenas__mini[data-chegou='true'] > svg {
+    animation: none;
+  }
+}
+
+/* Com a miniatura, os retratos de quem está na cena começam embaixo do nome,
+   não embaixo do desenho. */
+.lb-cenas--mini > .lb-cenas__item > .lb-cenas__gente {
+  padding-left: calc(var(--lb-space-10) + var(--lb-space-1));
+}
+
+.lb-cenas--mini > .lb-cenas__item:has(> .lb-cenas__linha > :is(.lb-cenas__pasta, .lb-cenas__recuo)) > .lb-cenas__gente {
+  padding-left: calc(var(--lb-space-6) + var(--lb-space-10) + var(--lb-space-1));
+}
+
 /* Com filtro, o caminho de cada cena achada, em cinza, na linha de baixo do nome. */
 .lb-cenas__caminho {
   flex-basis: 100%;
