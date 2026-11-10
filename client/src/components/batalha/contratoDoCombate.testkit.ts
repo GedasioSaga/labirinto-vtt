@@ -668,7 +668,7 @@ export function entradaDoSite(elenco: Elenco): EntradaDoContrato {
     if (recusa !== null) throw new Error(`o site não passou a vez: ${recusa.motivo} ${recusa.texto ?? ''}`)
   }
   // O que a `ArenaDaLuta` dá ao `BatalhaDoJogador`, do lado de quem opera a carta da vez.
-  // Ela NÃO passa `tamanhoDaCasa` (ArenaDaLuta.tsx, o `<BatalhaDoJogador>`): a mira do site não tem a grade.
+  // A casa é a da Arena (`CASA_DA_ARENA`, a mesma que a ArenaDaLuta.tsx passa ao `<BatalhaDoJogador>`): a mira do site tem a grade.
   const menu = () => {
     const lado = ladoDoToken(l.cartaDaVezAgora().tokenId)
     const fio = dueloParaOLado(luta.duelo, lado, SISTEMA)
@@ -680,7 +680,7 @@ export function entradaDoSite(elenco: Elenco): EntradaDoContrato {
       aliados: [],
       fichas,
       sistema: SISTEMA,
-      tamanhoDaCasa: undefined,
+      tamanhoDaCasa: CASA_DA_ARENA,
       vidaPublica: (tokenId) => vidas.get(tokenId) ?? null,
     })
   }

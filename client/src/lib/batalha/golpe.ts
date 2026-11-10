@@ -657,11 +657,18 @@ function motivoDeForaDaAjuda(ctx: ContextoDoGolpe, nome: string, tokenId: string
  * quando a técnica não faria mais nada: sem selo no pedido, sem dano, e sem
  * debuff para tirar (a que limpa). Ficha sem vida conhecida não entra na
  * conta: na dúvida, a técnica sai.
+ *
+ * Fase final (10/11/2026): a lista de alvos VAZIA também não cura ninguém e
+ * cobrava igual. A mira barra antes de mandar; a página que manda assim mesmo
+ * é recusada aqui. Nenhuma técnica que cura ou limpa sai sem alvo de
+ * propósito: as "sem alvo" da tabela (Armadilhar, Fúria do Dragão) não limpam
+ * e saem no `limpeza === null`; passiva e forma não passam por aqui.
  */
 function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvos: readonly PedidoDeAlvo[], comSelo: boolean): string | null {
   const limpeza = limpezaDe(cartao)
   const recurso = recursoDeVida(ctx.sistema)
-  if (limpeza === null || recurso === null || comSelo || alvos.length === 0) return null
+  if (limpeza === null || recurso === null || comSelo) return null
+  if (alvos.length === 0) return MOTIVO_SEM_ALVO_NA_CURA
   let comEscudoGasto: { tokenId: string; personagem: Personagem } | null = null
   for (const alvo of alvos) {
     if (alvo.dano !== null && alvo.dano > 0) return null
@@ -677,6 +684,9 @@ function motivoDaCuraSemFerido(ctx: ContextoDoGolpe, cartao: CartaoDaFicha, alvo
 
 /** A recusa da cura sem ninguém para curar; a mira diz a mesma frase antes de mandar. */
 export const MOTIVO_SEM_FERIDO = 'Ninguém marcado está ferido'
+
+/** A recusa da cura pedida sem alvo nenhum: a frase manda escolher (a mira diz a dela antes de mandar). */
+const MOTIVO_SEM_ALVO_NA_CURA = 'Escolha quem vai receber'
 
 /** U2: o Escudo do personagem está abaixo do cheio desta batalha (`ctx.escudoCheio`): ele apanhou e a vida ficou inteira. */
 function escudoGasto(ctx: ContextoDoGolpe, personagem: Personagem): boolean {

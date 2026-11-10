@@ -83,17 +83,15 @@ const NPC_CURA_O_OUTRO_LADO: Record<NomeDaEntrada, [ResultadoDoPedido, number]> 
 }
 
 /**
- * Quem a mira da área marca ao abrir (os dois inimigos colados). O site ainda
- * não dá a grade à mira (`ArenaDaLuta.tsx`, o `<BatalhaDoJogador>` sem
- * `tamanhoDaCasa`): abre no inimigo mais perto e o resto é marcado à mão. É
- * defeito da tela do site, não decisão: quando ela passar a casa, esta linha
- * fica igual às outras (e o `tamanhoDaCasa` do testkit também).
+ * A cura pedida sem alvo nenhum. A mira barra antes de mandar ("Escolha ao
+ * menos um alvo"); a página que manda assim mesmo ouve a regra, que recusa
+ * antes de cobrar. Nenhuma técnica que cura ou limpa sai sem alvo de propósito.
  */
-const AREA_AO_ABRIR: Record<NomeDaEntrada, number> = {
-  Arena: 2,
-  'mapa (mestre)': 2,
-  'mapa (jogador)': 2,
-  site: 1,
+const CURA_SEM_ALVO: Record<NomeDaEntrada, string> = {
+  Arena: 'Escolha quem vai receber',
+  'mapa (mestre)': 'Escolha quem vai receber',
+  'mapa (jogador)': 'A mesa não aceitou: escolha quem vai receber.',
+  site: 'Escolha quem vai receber',
 }
 
 /**
@@ -176,11 +174,27 @@ describe.each(ENTRADAS)('contrato do combate: $nome', ({ nome, montar }) => {
     expect({ marujo: e.recurso(MARUJO.nome, 'hp'), sp: e.recurso(CURANDEIRA.nome, 'sp') }).toEqual({ marujo: 400, sp: 180 })
   })
 
-  it('técnica de área na grade: a mira marca quem está na área e o golpe acerta os dois', () => {
+  it('cura pedida com a lista de alvos vazia (por peças e "à mão"): recusa sem cobrar, e a tela manda escolher quem recebe', () => {
+    const e = comFeridos(abrir())
+    const pedidos = { porPecas: usar(e, CURANDEIRA.nome, BOLHA.id, []), aMao: usar(e, CURANDEIRA.nome, CURA_A_MAO.id, []) }
+    const depois = { ...vidas(e), sp: e.recurso(CURANDEIRA.nome, 'sp'), usos: [e.usos(CURANDEIRA.nome, BOLHA.id), e.usos(CURANDEIRA.nome, CURA_A_MAO.id)] }
+    expect({ ...pedidos, ...depois }).toEqual({
+      porPecas: recusado(CURA_SEM_ALVO[nome]),
+      aMao: recusado(CURA_SEM_ALVO[nome]),
+      curandeira: 460,
+      sapo: 300,
+      tartaruga: 500,
+      escudoDaTartaruga: 100,
+      sp: 200,
+      usos: [0, 0],
+    })
+  })
+
+  it('técnica de área na grade: a mira marca os dois inimigos da área nas quatro entradas, e o golpe acerta os dois', () => {
     const e = abrir(elencoDoContrato({ col: 6, row: 5 }))
     e.vezDe(CURANDEIRA.nome)
     const { marcados } = e.mira(CURANDEIRA.nome, GIRO.id)
-    expect([marcados.length, marcados.every((alvo) => alvo === MARUJO.nome || alvo === CAPITA.nome)]).toEqual([AREA_AO_ABRIR[nome], true])
+    expect([marcados.length, marcados.every((alvo) => alvo === MARUJO.nome || alvo === CAPITA.nome)]).toEqual([2, true])
     expect(usar(e, CURANDEIRA.nome, GIRO.id, [MARUJO.nome, CAPITA.nome])).toEqual(ACEITO)
     e.ninguemReage()
     expect({ marujo: e.recurso(MARUJO.nome, 'hp'), capita: e.recurso(CAPITA.nome, 'hp') }).toEqual({ marujo: 460, capita: 460 })
