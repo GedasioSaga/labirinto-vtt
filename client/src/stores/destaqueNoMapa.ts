@@ -1,3 +1,4 @@
+import { marcarRealceNoMapa } from '../lib/batalha/realceNoMapa'
 import { isSingleGroup, NO_GROUPS } from '../lib/itemGroups'
 import { EMPTY_SELECTION, isSelectionEmpty, selectionOfItem, selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
@@ -67,7 +68,10 @@ export function abrirDestaqueNoMapa(): DestaqueNoMapa {
         return
       }
       aceso = tokenId
-      selecionarPeloDestaque(selectionOfItem({ kind: 'token', id: tokenId }))
+      // A seleção aqui é só realce da lista: marcada, o Delete/Backspace/recortar do editor não age nela.
+      const selecao = selectionOfItem({ kind: 'token', id: tokenId })
+      marcarRealceNoMapa(selecao)
+      selecionarPeloDestaque(selecao)
     },
     soltar: voltar,
   }
