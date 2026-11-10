@@ -4,8 +4,7 @@ import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/es
 import { CASA_DA_ARENA, GRADES_DA_ARENA } from '../../lib/arena/grade'
 import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib/arena/tipos'
 import type { FormaPendente } from '../../lib/batalha/combate'
-import { travaDoContador } from '../../lib/batalha/condicoes'
-import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
+import { contadorNoMenu } from '../../lib/batalha/contadorNoMenu'
 import type { Equipe } from '../../lib/batalha/equipes'
 import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
@@ -98,31 +97,16 @@ const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
 const PEDIDOS = pedidosDaVez(batalhaDaArena, CENA_DA_ARENA, AUTOR_DA_ARENA)
 
 /**
- * U4: o contador da ficha no menu da carta (a Polaridade do Vagn), com os
- * mesmos textos e a mesma regra do menu do mestre no mapa (`FaixaDoMestre`):
- * carregar gasta a reação até a vez dela; zerar é só do mestre.
+ * U4: o contador da ficha no menu da carta (a Polaridade do Vagn). A conta e
+ * os textos moram em `contadorNoMenu` (lib/batalha), a leitura única para o
+ * mapa e a Arena; aqui só o que fazer ao escolher.
  */
 function itensDoContador(tokenId: string, personagem: Personagem, sistema: SistemaDeRpg, turnos: BatalhaEmTurnos['turnos']): ItemDoMenuDaCarta[] {
-  const contador = contadorDoPersonagem(personagem, sistema)
+  const contador = contadorNoMenu(tokenId, personagem, sistema, turnos)
   if (contador === null) return []
-  const nivel = nivelDoContador(turnos, tokenId, contador.cartao.id)
-  const maximo = contador.leitura.danoPorNivel.length
-  const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagem.id]?.semReacao === true, temGolpeEsperando(turnos.golpes, tokenId))
-  // Atordoado ou Paralisado não reage, então não carrega (a store recusa igual).
-  const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === tokenId))
-  const pedido = { tokenId, cartaoId: contador.cartao.id }
-  const itens: ItemDoMenuDaCarta[] = [
-    {
-      id: 'contador-ganhar',
-      rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
-      detalhe:
-        travado ??
-        (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'golpeEsperando' ? 'Tem golpe esperando a reação: responda antes de carregar' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
-      desabilitado: travado !== null || motivo !== null,
-      onEscolher: () => PEDIDOS.contador({ tipo: 'ganhar', ...pedido }),
-    },
-  ]
-  if (nivel > 0) itens.push({ id: 'contador-zerar', rotulo: `Zerar ${contador.leitura.nome}`, detalhe: 'Volta a 0 e o dano a mais sai; entra no registro', onEscolher: () => PEDIDOS.contador({ tipo: 'zerar', ...pedido }) })
+  const { pedido, ganhar, zerar } = contador
+  const itens: ItemDoMenuDaCarta[] = [{ id: 'contador-ganhar', ...ganhar, onEscolher: () => PEDIDOS.contador({ tipo: 'ganhar', ...pedido }) }]
+  if (zerar !== null) itens.push({ id: 'contador-zerar', ...zerar, onEscolher: () => PEDIDOS.contador({ tipo: 'zerar', ...pedido }) })
   return itens
 }
 
