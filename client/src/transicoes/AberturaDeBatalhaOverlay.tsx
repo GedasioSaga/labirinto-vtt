@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { estaCalado, useSomStore } from '../stores/somStore'
+import { assinarTelasQueFaltam, entrarNaLargadaDoMestre, esperarLargadaDoJogador, telasQueFaltam, type EsperaDoJogador } from './largada'
 import { tocarAberturaDeBatalha, type ControleDeTransicao } from './motor'
 import './transicoes.css'
 
@@ -10,6 +11,11 @@ import './transicoes.css'
  * some com o mesmo fade curto da transição de local (`TransicaoOverlay.tsx`).
  * Sem `transicao` ("Nenhuma") não aparece; abertura que este app não tem
  * (pacote ainda não baixado) termina na hora pelo próprio motor.
+ *
+ * LARGADA COMBINADA (09/11/2026, `largada.ts`): cada tela prepara a cena por
+ * baixo da cortina preta, avisa que está pronta e só toca quando a mesa larga
+ * (todas prontas, ou o prazo). No mestre a conta vem das telas da sala; no
+ * jogador e na TV, do `preparo` e do `largouEm` que a conexão entrega.
  */
 
 /** O pedido de tocar: `id` novo a cada batalha ligada. */
@@ -17,45 +23,101 @@ export interface AberturaPedida {
   id: number
   transicao?: string
   texto?: string
+  /** Jogador e TV: o número que o mestre deu a este preparo. Ausente = mestre antigo, ou a tela do próprio mestre. */
+  preparo?: number
+  /** Jogador e TV: o instante (`performance.now()`) em que a ordem de tocar chegou. */
+  largouEm?: number
 }
 
 interface AberturaDeBatalhaOverlayProps {
   abertura: AberturaPedida | null | undefined
   /** 0 a 1. Ausente = o "Som da mesa" deste aparelho (volume e mudo). A TV passa o volume fixo dela. */
   volume?: number
+  /** Jogador e TV: conta ao mestre que a abertura do `preparo` está carregada aqui (ou que esta tela desistiu dela). */
+  aoFicarPronta?: (preparo: number) => void
 }
 
 /** Saída da cortina: o mesmo fade da transição de local. */
 const SAIDA_MS = 260
 
+/** Em que pé está a abertura nesta tela: carregando, esperando a mesa largar, ou no ar. */
+type Fase = 'preparando' | 'esperando' | 'tocando'
+
 function querMovimentoReduzido(): boolean {
   return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function AberturaTela({ id, nome, volume, onFim }: { id: string; nome: string | undefined; volume: number; onFim: () => void }) {
+interface AberturaTelaProps {
+  id: string
+  nome: string | undefined
+  volume: number
+  preparo: number | undefined
+  largouEm: number | undefined
+  aoFicarPronta: ((preparo: number) => void) | undefined
+  onFase: (fase: Fase) => void
+  onFim: () => void
+}
+
+function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFase, onFim }: AberturaTelaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cortinaRef = useRef<HTMLDivElement>(null)
   const controleRef = useRef<ControleDeTransicao | null>(null)
+  const esperaRef = useRef<EsperaDoJogador | null>(null)
+  /** O aviso de "esta tela saiu" de uma desmontagem, adiado um instante (ver a limpeza do efeito). */
+  const desistenciaRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onFimRef = useRef(onFim)
   onFimRef.current = onFim
+  const onFaseRef = useRef(onFase)
+  onFaseRef.current = onFase
+  const aoFicarProntaRef = useRef(aoFicarPronta)
+  aoFicarProntaRef.current = aoFicarPronta
   const volumeRef = useRef(volume)
   volumeRef.current = volume
+  const largouEmRef = useRef(largouEm)
+  largouEmRef.current = largouEm
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    if (desistenciaRef.current !== null) clearTimeout(desistenciaRef.current)
+    desistenciaRef.current = null
     let vivo = true
-    const opcoesDoNome = nome === undefined ? {} : { nome }
+    const desistencia = new AbortController()
+    // Quem diz a hora de largar: no mestre, as telas da sala; no jogador e na TV, a ordem do mestre.
+    const lugar = preparo === undefined ? entrarNaLargadaDoMestre() : null
+    const espera = preparo === undefined ? null : esperarLargadaDoJogador()
+    esperaRef.current = espera
+    if (espera !== null && largouEmRef.current !== undefined) espera.largou(largouEmRef.current)
+    const largada = lugar?.largada ?? espera?.largada
+    let avisou = false
+    /** Pronta, terminada ou desistida: nos três casos a mesa não espera mais por esta tela. Uma vez só. */
+    const soltarAMesa = () => {
+      if (avisou) return
+      avisou = true
+      lugar?.pronta()
+      if (preparo !== undefined) aoFicarProntaRef.current?.(preparo)
+    }
     void tocarAberturaDeBatalha({
       canvas,
       id,
-      ...opcoesDoNome,
+      ...(nome === undefined ? {} : { nome }),
+      ...(largada === undefined ? {} : { largada }),
       volume: volumeRef.current,
       reduzirMovimento: querMovimentoReduzido(),
+      sinal: desistencia.signal,
+      onPronta: () => {
+        soltarAMesa()
+        if (vivo) onFaseRef.current('esperando')
+      },
+      onLargada: () => {
+        if (vivo) onFaseRef.current('tocando')
+      },
       onFade: (opacidade) => {
         if (cortinaRef.current) cortinaRef.current.style.opacity = String(opacidade)
       },
       onFim: () => {
+        // Abertura que este app não tem, ou cena que falhou: a mesa também não espera por ela.
+        soltarAMesa()
         if (vivo) onFimRef.current()
       },
     }).then((controle) => {
@@ -64,10 +126,21 @@ function AberturaTela({ id, nome, volume, onFim }: { id: string; nome: string | 
     })
     return () => {
       vivo = false
+      desistencia.abort()
+      espera?.cancelar()
+      esperaRef.current = null
       controleRef.current?.parar()
       controleRef.current = null
+      // Saiu antes de ficar pronta (pulou, a batalha acabou): não segura a mesa. Adiado um instante
+      // porque o React de desenvolvimento desmonta e monta de novo na hora, e essa não é uma saída.
+      if (!avisou) desistenciaRef.current = setTimeout(soltarAMesa, 0)
     }
-  }, [id, nome])
+  }, [id, nome, preparo])
+
+  // A ordem de tocar chegou pela conexão (jogador e TV).
+  useEffect(() => {
+    if (largouEm !== undefined) esperaRef.current?.largou(largouEm)
+  }, [largouEm])
 
   useEffect(() => {
     controleRef.current?.definirVolume(volume)
@@ -81,17 +154,28 @@ function AberturaTela({ id, nome, volume, onFim }: { id: string; nome: string | 
   )
 }
 
-export function AberturaDeBatalhaOverlay({ abertura, volume }: AberturaDeBatalhaOverlayProps) {
+/** O que a tela preta diz enquanto a cena não larga. No mestre, quantas telas da sala ainda carregam. */
+function textoDoAviso(fase: Fase, doMestre: boolean, faltam: number): string {
+  if (fase === 'preparando') return 'Preparando a cena…'
+  if (!doMestre) return 'Esperando a mesa…'
+  if (faltam === 0) return 'Preparando a cena…'
+  return faltam === 1 ? 'Esperando 1 tela…' : `Esperando ${faltam} telas…`
+}
+
+export function AberturaDeBatalhaOverlay({ abertura, volume, aoFicarPronta }: AberturaDeBatalhaOverlayProps) {
   const [vista, setVista] = useState<number | null>(null)
   const [saindo, setSaindo] = useState(false)
+  const [fase, setFase] = useState<Fase>('preparando')
   const pularRef = useRef<HTMLButtonElement>(null)
   const volumeDoAparelho = useSomStore((estado) => (estaCalado(estado) ? 0 : estado.volume))
+  const faltam = useSyncExternalStore(assinarTelasQueFaltam, telasQueFaltam)
   const pedido = abertura ?? null
   const ativa = pedido !== null && pedido.transicao !== undefined && vista !== pedido.id
   const nonce = pedido?.id ?? null
 
   useEffect(() => {
     setSaindo(false)
+    setFase('preparando')
   }, [nonce])
 
   useEffect(() => {
@@ -110,7 +194,21 @@ export function AberturaDeBatalhaOverlay({ abertura, volume }: AberturaDeBatalha
   return createPortal(
     <div className="lb-transicao-jogo" data-saindo={saindo} role="dialog" aria-modal="true" aria-label="Abertura da batalha">
       {/* `key`: outra batalha ligada no meio da animação recomeça do zero. */}
-      <AberturaTela key={pedido.id} id={pedido.transicao} nome={pedido.texto} volume={volume ?? volumeDoAparelho} onFim={terminar} />
+      <AberturaTela
+        key={pedido.id}
+        id={pedido.transicao}
+        nome={pedido.texto}
+        volume={volume ?? volumeDoAparelho}
+        preparo={pedido.preparo}
+        largouEm={pedido.largouEm}
+        aoFicarPronta={aoFicarPronta}
+        onFase={setFase}
+        onFim={terminar}
+      />
+      {/* Só aparece se a espera passar de um instante (o atraso mora no CSS); com a cena no ar, some. */}
+      <p className="lb-transicao-jogo__aviso" role="status" data-visivel={fase !== 'tocando' && !saindo}>
+        {textoDoAviso(fase, pedido.preparo === undefined, faltam)}
+      </p>
       <button ref={pularRef} type="button" className="lb-transicao-jogo__pular" onClick={terminar}>
         Pular
       </button>

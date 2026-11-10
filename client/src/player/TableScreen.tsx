@@ -12,6 +12,7 @@ import { tableScreenText } from './tableScreenText'
 import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
 import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { aquecerMotorDasCutscenes } from '../transicoes/aquecimento'
 import { PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
 
 /**
@@ -84,6 +85,11 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
   const [settings] = useState<PlayerViewSettings>(() => loadPlayerSettings(null))
   const copy = tableScreenText(state, code)
 
+  // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas chega com a página ociosa, antes da primeira batalha.
+  useEffect(() => {
+    aquecerMotorDasCutscenes()
+  }, [])
+
   // Queda de rede: tenta de novo sozinha enquanto a tela estiver neste estado.
   useEffect(() => {
     if (!copy.retry) return
@@ -110,7 +116,11 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           onMove={IGNORE_MOVE}
         />
         {/* MODO BATALHA (B5): a TV toca a abertura também, no volume fixo dela (o mesmo dos sons ao vivo). */}
-        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} volume={PREFERENCIA_DE_SOM_PADRAO.volume} />
+        <AberturaDeBatalhaOverlay
+          abertura={state.batalhaIniciada}
+          volume={PREFERENCIA_DE_SOM_PADRAO.volume}
+          aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)}
+        />
       </PlayerErrorBoundary>
     )
   }

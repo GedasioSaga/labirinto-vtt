@@ -100,6 +100,7 @@ import {
   CALL_REASON_LABELS,
   clampTravelDenyText,
   lerBatalhaIniciada,
+  lerCutscenePronta,
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
   parseSomFalhou,
@@ -107,6 +108,7 @@ import {
   SOM_DESLOCAMENTO_MAX_S,
   TRAVEL_DENY_TEXT_MAX_LENGTH,
   type ChatEntry,
+  type CutsceneTocarMessage,
   type DoorRequestHow,
   type FonteDeSomNaRede,
   type HostErrorReason,
@@ -115,6 +117,7 @@ import {
   type SomFalhouMessage,
   type SomHostMessage,
 } from './protocol'
+import { combinarLargada, type Combinado } from '../transicoes/largada'
 import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
 import { avisarFalhaDeSom, registrarRedeDosSons, type PedidoDeSomAoVivo, type RedeDosSons, type ResultadoDoSomNaRede } from './ponteDosSons'
 import type { AlvoDosSons } from '../lib/sons/biblioteca'
@@ -1263,6 +1266,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const falhasDosSons = new Map<string, Set<string>>()
   /** SONS AO VIVO: a janela do teto de `som.falhou` de cada conexão. Sai ao cair. */
   const janelasDeFalhaDeSom = new Map<string, { inicio: number; contagem: number }>()
+  /** LARGADA COMBINADA: as aberturas de batalha esperando as telas ficarem prontas, por número do preparo. */
+  const largadasEmCurso = new Map<number, Combinado>()
+  let proximoPreparo = 1
   /**
    * SONS AO VIVO: por conexão, os áudios que esta sala mandou a ELA (tocar ou
    * pré-carregar): o que a F5 pode servir por `/sons/<id>` a quem pedir. Sai ao cair.
@@ -1843,6 +1849,42 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const esquecerConexaoDosSons = (clientId: string) => {
     janelasDeFalhaDeSom.delete(clientId)
     midiasLiberadas.delete(clientId)
+  }
+
+  /** LARGADA COMBINADA: a conexão acabou, e ninguém espera por quem saiu. */
+  const tirarDasLargadas = (clientId: string) => {
+    for (const combinado of [...largadasEmCurso.values()]) combinado.saiu(clientId)
+  }
+
+  /**
+   * LARGADA COMBINADA (`transicoes/largada.ts`): espera as telas avisarem
+   * `cutscene.pronta` e manda `cutscene.tocar` a todas de uma vez, na última
+   * resposta ou no prazo. Aba de lado não desenha (o navegador segura os
+   * quadros dela): não se espera por ela, mas a ordem vai, e ela entra no
+   * ponto certo quando o jogador voltar.
+   */
+  const abrirLargadaDaAbertura = (preparo: number, clientIds: readonly string[]) => {
+    let largou = false
+    const combinado = combinarLargada({
+      telas: clientIds.filter((clientId) => !awayClients.has(clientId)),
+      aoLargar: () => {
+        largou = true
+        largadasEmCurso.delete(preparo)
+        const room = session
+        if (room === null) return
+        const ordem: CutsceneTocarMessage = { type: 'cutscene.tocar', preparo }
+        const naSala = clientIds.filter((clientId) => entrouNaSala(room, clientId))
+        if (naSala.length > 0) void dispatch({ outbound: naSala.map((clientId) => ({ clientId, msg: ordem })) })
+      },
+    })
+    // Sem tela a esperar, a largada já saiu ali em cima: nada a guardar.
+    if (!largou) largadasEmCurso.set(preparo, combinado)
+  }
+
+  /** A sala fechou: quem esperava uma largada (a tela do mestre) segue sozinho. */
+  const cancelarLargadas = () => {
+    for (const combinado of [...largadasEmCurso.values()]) combinado.cancelar()
+    largadasEmCurso.clear()
   }
 
   /**
@@ -3464,6 +3506,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     gzipClients.delete(clientId)
     // O `close` do Rust também passa por `dropClient`, mas só depois do kick: o liberado dela sai já.
     esquecerConexaoDosSons(clientId)
+    tirarDasLargadas(clientId)
     deps.invoke('net_kick', { clientId }).catch(() => {
       // Já fechada no Rust (a aba foi fechada antes): era o que se queria.
     })
@@ -3574,6 +3617,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (isRecord(crua) && typeof crua.type === 'string' && crua.type.startsWith('som.') && entrouNaSala(session, clientId)) {
       const falha = parseSomFalhou(crua)
       if (falha !== null) receberFalhaDeSom(clientId, falha)
+      return
+    }
+    // LARGADA COMBINADA: o "pronta" de quem ENTROU também fica fora da sessão, como o `som.falhou`.
+    // Só vale para um preparo em curso que espera por esta conexão; o resto (repetido, atrasado, inventado) some.
+    if (isRecord(crua) && crua.type === 'cutscene.pronta' && entrouNaSala(session, clientId)) {
+      const pronta = lerCutscenePronta(crua)
+      if (pronta !== null) largadasEmCurso.get(pronta.preparo)?.pronta(clientId)
       return
     }
     // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
@@ -3850,6 +3900,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     awayClients.delete(clientId)
     gzipClients.delete(clientId)
     esquecerConexaoDosSons(clientId)
+    tirarDasLargadas(clientId)
     // Conexão que nunca entrou (código errado) — ou que a varredura já deu
     // como caída — não acha jogador: não há quem avisar de novo.
     const dropped = session.listPlayers().find((p) => p.clientId === clientId)
@@ -4045,6 +4096,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // SONS AO VIVO: antes da espera abaixo — nela a sessão ainda vive, e um loop mandado ali
       // sairia depois do `room.closed` (eterno no jogador). O jogador para os dele ao ler `room.closed` (F5).
       limparSons()
+      cancelarLargadas()
       // Avisa antes de derrubar: sem `room.closed` o jogador veria queda de rede,
       // não "O mestre encerrou a sala".
       if (session) await dispatch(session.closeRoom())
@@ -4105,7 +4157,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     anunciarBatalha({ sceneKey, transicao, texto }) {
       const room = session
       if (room === null) return
-      const msg = lerBatalhaIniciada({ type: 'batalha.iniciada', transicao, texto })
+      // LARGADA COMBINADA: com animação a tocar, o aviso leva o número do preparo e a ordem de tocar sai depois.
+      const preparo = transicao === undefined ? undefined : proximoPreparo++
+      const msg = lerBatalhaIniciada({ type: 'batalha.iniciada', transicao, texto, preparo })
       if (msg === null) return
       // Jogador da cena aberta de mapa solto não tem `sceneId`: a chave dele é a do mapa aberto.
       const aberta = tableSceneKey(world().open)
@@ -4115,7 +4169,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         .flatMap((p) => (p.clientId === null ? [] : [p.clientId]))
       const telas = telasDaMesa()
       const clientIds = telas.cena === sceneKey ? [...naCena, ...telas.clientIds] : naCena
-      if (clientIds.length > 0) void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
+      if (clientIds.length === 0) return
+      void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
+      if (msg.preparo !== undefined) abrirLargadaDaAbertura(msg.preparo, clientIds)
     },
 
     notifyPeriodoChanged() {

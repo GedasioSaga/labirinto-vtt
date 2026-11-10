@@ -33,6 +33,15 @@ export interface CenaTransicao {
    * pista toca uma vez por volta; `reiniciar` esquece as já tocadas.
    */
   criarSom?: (kit: KitDeSom) => { atualizar: (t: number) => void; reiniciar: () => void }
+  /**
+   * Opcional: resolve quando o que a cena carrega de fora (imagens) chegou e
+   * rejeita se alguma falhar. O motor espera por ela (até ESPERA_DA_CENA_MAX_MS)
+   * antes de compilar e ligar o relógio e, se ela rejeitar ou demorar, toca
+   * assim mesmo: imagem que falta vira quadro vazio, não transição travada. O
+   * gravador (scripts/gravar-cena.cjs) para com erro, porque vídeo com peça
+   * faltando não serve. Cena sem `pronta` segue como sempre.
+   */
+  pronta?: Promise<void>
   descartar: () => void
 }
 

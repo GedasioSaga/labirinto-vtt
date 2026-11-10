@@ -5,7 +5,8 @@ import type { CenaTransicao, CriarCena, KitDeSom, OpcoesDaCena, ThreeModule } fr
 
 /**
  * Motor das transições especiais: carrega `three` sob demanda, monta a cena do
- * catálogo num canvas, toca no tempo escolhido e avisa o fim.
+ * catálogo num canvas, PREPARA tudo (programas, texturas, um quadro escondido)
+ * e só então liga o relógio, toca no tempo escolhido e avisa o fim.
  *
  * Nada aqui pode prender o jogo: sem WebGL, sem `three`, transição que este
  * app não tem (pacote ainda não baixado) ou com erro na cena, `onFim` sai na
@@ -15,7 +16,7 @@ import type { CenaTransicao, CriarCena, KitDeSom, OpcoesDaCena, ThreeModule } fr
 let threeCarregando: Promise<ThreeModule> | null = null
 
 /** Sem WebGL (navegador velho, ambiente de teste) nem vale baixar o `three`. */
-function temWebGL(): boolean {
+export function temWebGL(): boolean {
   return typeof WebGLRenderingContext !== 'undefined'
 }
 
@@ -86,6 +87,26 @@ interface OpcoesDoPalco {
   /** Opacidade da cortina preta (fade da própria cena), a cada quadro. */
   onFade?: (opacidade: number) => void
   onFim: () => void
+  /**
+   * O que mais precisa chegar antes de a cena tocar (o mapa novo da travessia):
+   * o motor espera por ela DEPOIS de montar a cena e ANTES de se dizer pronto.
+   * Quem passa cuida do teto; rejeição vale como "chegou".
+   */
+  antes?: Promise<unknown>
+  /** Chamado uma vez com tudo carregado, compilado e a página sossegada: falta só o relógio. */
+  onPronta?: () => void
+  /**
+   * LARGADA COMBINADA (`largada.ts`): o relógio só liga quando ela resolve, com
+   * o instante (`performance.now()`) em que a mesa largou. Quem ficou pronto
+   * depois desse instante entra adiantado nesse tanto (o ponto certo da cena);
+   * quem já perdeu a cena inteira só chama `onFim`. Ausente = liga assim que
+   * estiver pronta. Quem passa cuida do teto.
+   */
+  largada?: Promise<number>
+  /** Chamado uma vez quando o relógio liga (o primeiro quadro vem logo atrás). */
+  onLargada?: () => void
+  /** Quem pediu desistiu (pulou, desmontou): o preparo para no próximo passo, sem `onFim`. */
+  sinal?: AbortSignal
 }
 
 export interface OpcoesDeTocar extends OpcoesDoPalco {
@@ -111,15 +132,25 @@ interface CenaResolvida {
   duracaoS: number
 }
 
+async function resolverTransicao(escolha: TransicaoEscolhida): Promise<CenaResolvida | null> {
+  const criar = await resolverFabricaDaCena(escolha.id)
+  const info = transicaoInfo(escolha.id)
+  if (criar === null || info === undefined) return null
+  return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: duracaoEfetivaS(escolha, info) }
+}
+
+async function resolverAbertura(id: string): Promise<CenaResolvida | null> {
+  // O pacote pode estar chegando agora: o mesmo carregamento das transições.
+  await aguardarTransicoesDeFora()
+  const criar = criarCenaDaAbertura(id)
+  const info = aberturaDeBatalhaInfo(id)
+  if (criar === null || info === undefined) return null
+  return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: info.duracaoNaturalS }
+}
+
 /** Toca uma transição. Resolve com o controle; qualquer falha vira `onFim` imediato. */
 export function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeTransicao> {
-  const { escolha } = opcoes
-  return tocarCena(opcoes, { reduzirMovimento: opcoes.reduzirMovimento }, async () => {
-    const criar = await resolverFabricaDaCena(escolha.id)
-    const info = transicaoInfo(escolha.id)
-    if (criar === null || info === undefined) return null
-    return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: duracaoEfetivaS(escolha, info) }
-  })
+  return tocarCena(opcoes, { reduzirMovimento: opcoes.reduzirMovimento }, () => resolverTransicao(opcoes.escolha))
 }
 
 /**
@@ -131,18 +162,45 @@ export function tocarTransicao(opcoes: OpcoesDeTocar): Promise<ControleDeTransic
 export function tocarAberturaDeBatalha(opcoes: OpcoesDeTocarAbertura): Promise<ControleDeTransicao> {
   const { id, nome } = opcoes
   const opcoesDaCena: OpcoesDaCena = nome === undefined ? { reduzirMovimento: opcoes.reduzirMovimento } : { reduzirMovimento: opcoes.reduzirMovimento, nome }
-  return tocarCena(opcoes, opcoesDaCena, async () => {
-    // O pacote pode estar chegando agora: o mesmo carregamento das transições.
-    await aguardarTransicoesDeFora()
-    const criar = criarCenaDaAbertura(id)
-    const info = aberturaDeBatalhaInfo(id)
-    if (criar === null || info === undefined) return null
-    return { criar, duracaoNaturalS: info.duracaoNaturalS, duracaoS: info.duracaoNaturalS }
-  })
+  return tocarCena(opcoes, opcoesDaCena, () => resolverAbertura(id))
 }
 
 /** Teto da espera pelos shaders: com o contexto perdido no meio, o `compileAsync` não acabaria. */
 const ESPERA_DOS_SHADERS_MAX_MS = 1500
+/** Teto da espera pelas imagens de uma cena (`pronta`): rede lenta não segura a transição. */
+export const ESPERA_DA_CENA_MAX_MS = 4000
+/** Teto da espera pelo sossego da página: aparelho que nunca fica ocioso toca assim mesmo. */
+const ESPERA_DO_SOSSEGO_MAX_MS = 1200
+/** Quem entra atrasado por mais que isto não ouve de uma vez os sons que já passaram (ver `entrarComSom`). */
+const ATRASO_COM_SOM_MAX_S = 0.25
+/** Subida do volume de quem entrou atrasado, depois de os sons passados terem sido engolidos. */
+const SUBIDA_DO_SOM_S = 0.3
+
+/** As etapas do preparo no User Timing do navegador (aba Desempenho): é por elas que se mede onde o tempo foi. */
+function marcar(etapa: 'pedida' | 'codigo' | 'montada' | 'compilada' | 'pronta' | 'largada'): void {
+  performance.mark(`lb-cutscene:${etapa}`)
+}
+
+/**
+ * Espera a `pronta` da cena, se ela tiver uma (cenas antigas não têm e seguem
+ * na hora). Falha ou teto estourado: segue, e a cena desenha o que já chegou.
+ */
+export async function aguardarCenaPronta(cena: Pick<CenaTransicao, 'pronta'>): Promise<void> {
+  if (!cena.pronta) return
+  let teto: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      cena.pronta,
+      new Promise<void>((resolver) => {
+        teto = setTimeout(resolver, ESPERA_DA_CENA_MAX_MS)
+      }),
+    ])
+  } catch {
+    // Segue sem as imagens que faltaram.
+  } finally {
+    clearTimeout(teto)
+  }
+}
 
 /**
  * Compila os programas da cena sem travar a página (`compileAsync` usa o
@@ -167,8 +225,88 @@ async function compilarAntesDoRelogio(renderer: Three.WebGLRenderer, cena: CenaT
   }
 }
 
+/** Todas as texturas que os materiais da cena usam, inclusive as de objeto ainda escondido. */
+function texturasDaCena(THREE: ThreeModule, scene: Three.Scene): Set<Three.Texture> {
+  const texturas = new Set<Three.Texture>()
+  const colher = (valor: unknown): void => {
+    if (valor instanceof THREE.Texture) texturas.add(valor)
+  }
+  scene.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line || obj instanceof THREE.Sprite)) return
+    const materiais: unknown[] = Array.isArray(obj.material) ? obj.material : [obj.material]
+    for (const material of materiais) {
+      if (!(material instanceof THREE.Material)) continue
+      for (const valor of Object.values(material)) colher(valor)
+      if (material instanceof THREE.ShaderMaterial) for (const uniforme of Object.values(material.uniforms)) colher(uniforme.value)
+    }
+  })
+  return texturas
+}
+
+/**
+ * Sobe as texturas para a placa e desenha um quadro escondido (a cortina preta
+ * ainda cobre o canvas). O `compileAsync` não cobre isso: sem este passo, o 1º
+ * quadro de verdade subia as texturas e montava as sombras com o relógio já
+ * correndo (medido em 09/11/2026 com a CPU 4x mais lenta: 348 ms no Portão
+ * pesado, comidos do começo da cena). Falha aqui não decide nada: o primeiro
+ * quadro de verdade tem o `catch` dele.
+ */
+function aquecerNaPlaca(THREE: ThreeModule, renderer: Three.WebGLRenderer, cena: CenaTransicao): void {
+  try {
+    for (const textura of texturasDaCena(THREE, cena.scene)) {
+      // Alvo de desenho não tem imagem a subir; textura sem imagem ainda (cena com `pronta` que falhou) também não.
+      if (textura.isRenderTargetTexture || textura.image === null || textura.image === undefined) continue
+      renderer.initTexture(textura)
+    }
+    cena.atualizar(0)
+    renderer.render(cena.scene, cena.camera)
+  } catch {
+    // Segue para o primeiro quadro.
+  }
+}
+
+/**
+ * Espera a página sossegar: o mapa novo, o recorte da batalha e os painéis
+ * chegam junto com a ordem de tocar e montam por baixo da cortina. Com o
+ * relógio correndo, esse trabalho comia quadros do começo da cena.
+ */
+function sossegoDaPagina(): Promise<void> {
+  return new Promise((feito) => {
+    const depoisDoQuadro = (): void => {
+      requestAnimationFrame(() => feito())
+    }
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(depoisDoQuadro, { timeout: ESPERA_DO_SOSSEGO_MAX_MS })
+    else setTimeout(depoisDoQuadro, 0)
+  })
+}
+
+type Pistas = ReturnType<NonNullable<CenaTransicao['criarSom']>>
+
+interface SomDaCena {
+  ctx: AudioContext
+  volume: GainNode
+  pistas: Pistas
+}
+
+/**
+ * Quem entra com a cena andando não ouve de uma vez os sons que já passaram:
+ * as pistas disparam mudas até o ponto de entrada e o volume sobe em seguida
+ * (o que ainda soa entra pela metade, como para quem chegou atrasado).
+ */
+function entrarComSom(audio: SomDaCena, tS: number, volume: number): void {
+  if (tS <= ATRASO_COM_SOM_MAX_S) return
+  const agora = audio.ctx.currentTime
+  audio.volume.gain.setValueAtTime(0, agora)
+  try {
+    audio.pistas.atualizar(tS)
+  } catch {
+    // O `catch` do primeiro quadro decide; aqui só não se toca o que passou.
+  }
+  audio.volume.gain.linearRampToValueAtTime(volume, agora + SUBIDA_DO_SOM_S)
+}
+
 async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, resolver: () => Promise<CenaResolvida | null>): Promise<ControleDeTransicao> {
-  const { canvas, repetir = false, onFade, onFim } = opcoes
+  const { canvas, repetir = false, onFade, onFim, sinal } = opcoes
   let parado = false
   let fimAvisado = false
   const avisarFim = () => {
@@ -177,6 +315,26 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
     onFim()
   }
   const controleVazio: ControleDeTransicao = { parar: () => (parado = true), definirVolume: () => undefined }
+  const desistiu = (): boolean => parado || fimAvisado || sinal?.aborted === true
+  let relogioLigado = false
+  /**
+   * A mesa não espera por esta tela: se a cena inteira passar para ela com o
+   * preparo daqui ainda no meio (o `three` descendo numa rede lenta), não há
+   * mais o que mostrar. Avisa o fim na hora em que a cena acabou para a mesa, e
+   * o jogador volta ao jogo em vez de ficar na tela preta até o download acabar.
+   */
+  const vigiarCenaPerdida = (duracaoS: number): void => {
+    if (repetir || !opcoes.largada) return
+    void opcoes.largada.then(
+      (largouEm) => {
+        const restaMs = duracaoS * 1000 - (performance.now() - largouEm)
+        setTimeout(() => {
+          if (!relogioLigado && !desistiu()) avisarFim()
+        }, Math.max(0, restaMs))
+      },
+      () => undefined,
+    )
+  }
 
   let THREE: ThreeModule
   let renderer: Three.WebGLRenderer
@@ -189,6 +347,7 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
   // Só para soltar o contexto WebGL se a cena (de um pacote, talvez) falhar ao montar.
   let rendererCriado: Three.WebGLRenderer | null = null
   try {
+    marcar('pedida')
     // A fábrica antes do `three`: transição desconhecida nem baixa a biblioteca.
     const achada = await resolver()
     if (achada === null) {
@@ -196,12 +355,17 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
       return controleVazio
     }
     resolvida = achada
+    vigiarCenaPerdida(achada.duracaoS)
     THREE = await carregarThree()
+    marcar('codigo')
+    // Quem pediu já saiu (pulou durante o download): nem monta a cena.
+    if (desistiu()) return controleVazio
     renderer = rendererCriado = criarRenderer(THREE, canvas, false)
     cena = resolvida.criar(THREE, opcoesDaCena)
     // Vale também para as do pacote: elas são escritas no mesmo molde das
     // embutidas (luzes afinadas em unidades legadas), e assim tocam igual.
     converterLuzesLegadas(cena.scene)
+    marcar('montada')
   } catch {
     rendererCriado?.dispose()
     avisarFim()
@@ -213,7 +377,8 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
 
   // Som: contexto próprio, criado já dentro do gesto que abriu a transição
   // quando houver um; se o navegador recusar, segue mudo.
-  let audio: { ctx: AudioContext; volume: GainNode; pistas: ReturnType<NonNullable<CenaTransicao['criarSom']>> } | null = null
+  let audio: SomDaCena | null = null
+  let volumeAtual = opcoes.volume
   try {
     if (cena.criarSom && typeof AudioContext !== 'undefined') {
       const ctx = new AudioContext()
@@ -252,12 +417,6 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
   const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(ajustar) : null
   observador?.observe(canvas)
 
-  // Os shaders compilam antes do relógio, com a cortina preta ainda cobrindo
-  // tudo: no primeiro quadro eles comiam o começo da cena (medido em 28/10/2026,
-  // a frio: 280 ms na Marinha e 492 ms nas Espadas entre o 1º e o 2º quadro).
-  await compilarAntesDoRelogio(renderer, cena)
-
-  let inicio = performance.now()
   let quadro = 0
   const desmontar = () => {
     cancelAnimationFrame(quadro)
@@ -267,9 +426,51 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
     if (audio) void audio.ctx.close().catch(() => undefined)
   }
 
+  // TUDO CARREGADO ANTES DE TOCAR, com a cortina preta ainda cobrindo o canvas:
+  // as imagens da cena, os shaders (no primeiro quadro eles comiam o começo da
+  // cena: medido em 28/10/2026, a frio, 280 ms na Marinha e 492 ms nas Espadas
+  // entre o 1º e o 2º quadro), as texturas na placa e um quadro escondido.
+  await aguardarCenaPronta(cena)
+  await compilarAntesDoRelogio(renderer, cena)
+  marcar('compilada')
+  if (!desistiu()) aquecerNaPlaca(THREE, renderer, cena)
+  // O mapa novo da travessia e o trabalho que chega junto com a ordem (recorte da
+  // batalha, painéis) terminam por baixo da cortina, e não em cima da cena tocando.
+  if (opcoes.antes) await opcoes.antes.catch(() => undefined)
+  await sossegoDaPagina()
+  if (desistiu()) {
+    desmontar()
+    return controleVazio
+  }
+  marcar('pronta')
+  opcoes.onPronta?.()
+
+  // A largada combinada: o instante em que a mesa largou. Quem ficou pronto depois entra adiantado.
+  let inicio = performance.now()
+  if (opcoes.largada) {
+    const largouEm = await opcoes.largada.catch(() => performance.now())
+    if (desistiu()) {
+      desmontar()
+      return controleVazio
+    }
+    inicio = Math.min(largouEm, performance.now())
+  }
+  const entradaS = ((performance.now() - inicio) / 1000) * escala
+  if (!repetir && entradaS >= natural) {
+    // A cena inteira já passou para a mesa: nada a mostrar, e o que veio depois (a batalha aberta) está embaixo.
+    onFade?.(1)
+    desmontar()
+    avisarFim()
+    return controleVazio
+  }
+  if (audio) entrarComSom(audio, entradaS, volumeAtual)
+  relogioLigado = true
+  marcar('largada')
+  opcoes.onLargada?.()
+
   const tick = (agora: number) => {
     if (parado) return
-    let t = ((agora - inicio) / 1000) * escala
+    let t = Math.max(0, ((agora - inicio) / 1000) * escala)
     if (t >= natural) {
       if (repetir) {
         inicio = agora
@@ -303,6 +504,7 @@ async function tocarCena(opcoes: OpcoesDoPalco, opcoesDaCena: OpcoesDaCena, reso
       desmontar()
     },
     definirVolume: (volume) => {
+      volumeAtual = volume
       if (audio) audio.volume.gain.value = volume
     },
   }
@@ -339,6 +541,7 @@ export function miniaturaDaTransicao(id: TransicaoId): Promise<string | null> {
       const cena = criar(THREE, { reduzirMovimento: false })
       converterLuzesLegadas(cena.scene)
       cena.ajustarTela(320 / 180)
+      await aguardarCenaPronta(cena)
       cena.atualizar(info.quadroDaMiniaturaS)
       renderer.render(cena.scene, cena.camera)
       const url = canvas.toDataURL('image/jpeg', 0.82)

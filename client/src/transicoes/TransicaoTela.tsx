@@ -60,6 +60,8 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, on
     const canvas = canvasRef.current
     if (!canvas) return
     let vivo = true
+    // Quem saiu durante o preparo (pulou, fechou a prévia) para o motor ali mesmo, sem montar a cena à toa.
+    const desistencia = new AbortController()
     const reduzirMovimento = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     void tocarTransicao({
       canvas,
@@ -67,6 +69,7 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, on
       volume: volumeRef.current,
       reduzirMovimento,
       repetir,
+      sinal: desistencia.signal,
       onFade: (opacidade) => {
         if (cortinaRef.current) cortinaRef.current.style.opacity = String(opacidade)
       },
@@ -79,6 +82,7 @@ export function TransicaoTela({ escolha, volume, repetir = false, rodada = 0, on
     })
     return () => {
       vivo = false
+      desistencia.abort()
       controleRef.current?.parar()
       controleRef.current = null
     }

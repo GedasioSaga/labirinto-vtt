@@ -72,6 +72,7 @@ import { lerBilheteSemConferir } from '../lib/nuvem/bilhete'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { aquecerMotorDasCutscenes, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
@@ -1018,7 +1019,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // jogador. Uma vez por página; sem pacote, 404 e silêncio.
   useEffect(() => {
     void carregarPacoteDaPagina()
+    // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas chega com a página ociosa, antes da primeira batalha.
+    aquecerMotorDasCutscenes()
   }, [])
+  // E o código das transições que os pinos e as escadas deste mapa usam, em vez de na hora da
+  // travessia (cada transição uma vez por página).
+  const mapaDasTransicoes = state.map
+  useEffect(() => {
+    aquecerTransicoesDoMapa(mapaDasTransicoes)
+  }, [mapaDasTransicoes])
   const armazenamento = useMemo(() => storage ?? localStorageOrNull(), [storage])
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(armazenamento))
   const [focus, setFocus] = useState<FocusRequest>(NO_FOCUS)
@@ -2629,7 +2638,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
         {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
-        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} />
+        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)} />
         {reconnecting}
       </PlayerErrorBoundary>
     )

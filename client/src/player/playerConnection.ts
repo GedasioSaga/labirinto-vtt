@@ -160,7 +160,7 @@ import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, type ChatChannel } from '../lib/chat'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
-import { lerBatalhaIniciada, parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type SnapshotPlaces } from '../net/protocol'
+import { lerBatalhaIniciada, lerCutscenePronta, lerCutsceneTocar, parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type CutsceneProntaMessage, type SnapshotPlaces } from '../net/protocol'
 import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
@@ -388,8 +388,11 @@ export interface PlayerState {
    * MODO BATALHA: o mestre acabou de ligar a batalha nesta cena, com a
    * abertura escolhida (`transicao`, `texto`; os dois opcionais). `id` novo a
    * cada aviso. Quem toca a animação é a B5; aqui só fica o pedido.
+   * LARGADA COMBINADA: `preparo` é o número que o mestre deu a esta abertura
+   * (ausente = mestre antigo, toca ao ficar pronta) e `largouEm` o instante
+   * (`performance.now()`) em que a ordem de tocar chegou aqui.
    */
-  batalhaIniciada?: { id: number; transicao?: string; texto?: string }
+  batalhaIniciada?: { id: number; transicao?: string; texto?: string; preparo?: number; largouEm?: number }
   /**
    * BATALHA F1: a ordem dos turnos como o host deixa ele ver (`batalha.estado`,
    * `vistaParaJogador`): cartas, vez, rodada, o registro dele e as regras do
@@ -1229,6 +1232,12 @@ export interface PlayerConnection {
    * além do `join` e do `ping`. `false` = não saiu (forma errada ou sem socket).
    */
   informarSomFalhou(instancia: string, motivo: MotivoDaFalhaDoSom): boolean
+  /**
+   * LARGADA COMBINADA: conta ao mestre que a abertura do `preparo` está
+   * carregada nesta tela (ou que ela desistiu: pulou, saiu). A tela da mesa
+   * também manda. `false` = não saiu (sem socket).
+   */
+  informarCutscenePronta(preparo: number): boolean
   /**
    * SONS AO VIVO (F5): a chave que o servidor da sala deu ao socket de agora
    * (`midia.chave`, 64 hex), para o cabeçalho de `/sons/<id>`. `null` antes
@@ -3557,10 +3566,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage | SomFalhouMessage): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
     // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
-    if (isTable && message.type !== 'join' && message.type !== 'ping' && message.type !== 'som.falhou') return false
+    // E o `cutscene.pronta` (09/11): a TV também toca a abertura, e a mesa espera por ela para largar.
+    if (isTable && message.type !== 'join' && message.type !== 'ping' && message.type !== 'som.falhou' && message.type !== 'cutscene.pronta') return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     const texto = JSON.stringify(message)
     // O servidor fecha o socket de quem manda acima do teto: melhor a mensagem
@@ -5110,8 +5120,20 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // MODO BATALHA: o pedido de tocar a abertura; campo torto derruba o aviso inteiro.
         const aviso = lerBatalhaIniciada(data)
         if (aviso === null) return
-        const abertura = { ...(aviso.transicao === undefined ? {} : { transicao: aviso.transicao }), ...(aviso.texto === undefined ? {} : { texto: aviso.texto }) }
+        const abertura = {
+          ...(aviso.transicao === undefined ? {} : { transicao: aviso.transicao }),
+          ...(aviso.texto === undefined ? {} : { texto: aviso.texto }),
+          ...(aviso.preparo === undefined ? {} : { preparo: aviso.preparo }),
+        }
         setState({ batalhaIniciada: { id: nextNoticeId++, ...abertura } })
+        return
+      }
+      case 'cutscene.tocar': {
+        // LARGADA COMBINADA: a mesa largou. Só vale para a abertura que esta tela prepara agora, uma vez.
+        const ordem = lerCutsceneTocar(data)
+        const abertura = state.batalhaIniciada
+        if (ordem === null || abertura === undefined || abertura.preparo !== ordem.preparo || abertura.largouEm !== undefined) return
+        setState({ batalhaIniciada: { ...abertura, largouEm: performance.now() } })
         return
       }
       case 'batalha.estado': {
@@ -5440,6 +5462,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     informarSomFalhou(instancia, motivo) {
       // A mesma conferência do host antes de sair: o que ele ignoraria não gasta a cota do servidor.
       const conferida = parseSomFalhou({ type: 'som.falhou', instancia, motivo })
+      return conferida !== null && send(conferida)
+    },
+    informarCutscenePronta(preparo) {
+      const conferida = lerCutscenePronta({ type: 'cutscene.pronta', preparo })
       return conferida !== null && send(conferida)
     },
     requestMove(tokenId, x, y) {

@@ -214,3 +214,25 @@
   outline: 2px solid #d8d0bf;
   outline-offset: 2px;
 }
+
+/* Aviso do preparo (largada combinada): a tela está preta carregando a cena ou esperando a mesa.
+   O atraso da entrada faz o preparo rápido passar sem piscar texto; a saída é na hora. */
+.lb-transicao-jogo__aviso {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  padding: 10px 0;
+  color: rgba(216, 208, 191, 0.72);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+.lb-transicao-jogo__aviso[data-visivel='true'] {
+  opacity: 1;
+  transition: opacity 200ms ease-out 400ms;
+}

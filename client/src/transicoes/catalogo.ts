@@ -190,6 +190,11 @@ export function cenaConferida(valor: unknown, THREE: ThreeModule, id: string): C
     const criarSom = valor.criarSom
     cena.criarSom = (kit: KitDeSom) => pistasConferidas(Reflect.apply(criarSom, valor, [kit]), id)
   }
+  // Opcional: a cena que carrega imagens diz quando acabou, e o motor espera por ela antes de tocar.
+  // Só o que é mesmo promessa passa; o resultado dela não importa (o motor só espera).
+  if ('pronta' in valor && valor.pronta instanceof Promise) {
+    cena.pronta = valor.pronta.then(() => undefined)
+  }
   return cena
 }
 

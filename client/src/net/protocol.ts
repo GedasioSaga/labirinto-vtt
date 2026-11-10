@@ -1095,6 +1095,46 @@ export interface BatalhaIniciadaMessage {
   type: 'batalha.iniciada'
   transicao?: string
   texto?: string
+  /** LARGADA COMBINADA: o número deste preparo (ver `CutsceneTocarMessage`). Ausente = toca ao ficar pronta. */
+  preparo?: number
+}
+
+/**
+ * LARGADA COMBINADA da abertura (09/11/2026, "deixe tudo carregado primeiro para aí sim tocar"):
+ * com `preparo` no `batalha.iniciada`, quem recebe prepara a cena, responde `cutscene.pronta` e só
+ * toca no `cutscene.tocar` do mesmo número (ou no teto dele, se a ordem não chegar). A conta mora
+ * em `transicoes/largada.ts`. Aditivo: jogador antigo ignora o campo e a ordem, e toca ao receber;
+ * mestre antigo não manda `preparo`, e o jogador novo toca assim que estiver pronto.
+ */
+export interface CutsceneTocarMessage {
+  type: 'cutscene.tocar'
+  preparo: number
+}
+
+/**
+ * Do jogador (ou da TV) ao mestre: a cena do `preparo` está carregada aqui. FORA da união
+ * `PlayerMessage`, como o `som.falhou`: a ponte do mestre lê antes (`lerCutscenePronta`) e a
+ * sessão nunca a vê.
+ */
+export interface CutsceneProntaMessage {
+  type: 'cutscene.pronta'
+  preparo: number
+}
+
+function ehPreparoDeCutscene(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+/** Valida a ordem de tocar que o jogador (ou a TV) recebe. */
+export function lerCutsceneTocar(value: unknown): CutsceneTocarMessage | null {
+  if (!isRecord(value) || value.type !== 'cutscene.tocar' || !ehPreparoDeCutscene(value.preparo)) return null
+  return { type: 'cutscene.tocar', preparo: value.preparo }
+}
+
+/** Valida o "pronta" que chega ao mestre (e o que o jogador manda, antes de sair). */
+export function lerCutscenePronta(value: unknown): CutsceneProntaMessage | null {
+  if (!isRecord(value) || value.type !== 'cutscene.pronta' || !ehPreparoDeCutscene(value.preparo)) return null
+  return { type: 'cutscene.pronta', preparo: value.preparo }
 }
 
 /** Texto curto não vazio, sem quebra de linha, até `max` caracteres. */
@@ -1110,6 +1150,8 @@ export function lerBatalhaIniciada(value: unknown): BatalhaIniciadaMessage | nul
   const msg: BatalhaIniciadaMessage = { type: 'batalha.iniciada' }
   if (typeof value.transicao === 'string') msg.transicao = value.transicao
   if (typeof value.texto === 'string') msg.texto = value.texto.trim()
+  // O `preparo` só combina a largada, nunca decide se a abertura toca: torto ou sem animação, cai só ele.
+  if (msg.transicao !== undefined && ehPreparoDeCutscene(value.preparo)) msg.preparo = value.preparo
   return msg
 }
 
@@ -1956,6 +1998,8 @@ export type HostMessage =
   // mesa que a mostra, uma vez. `transicao`: id da animação de abertura escolhida; `texto`: o
   // nome que aparece nela (ex.: "Royals"). Os dois opcionais: ausente = sem animação ou sem texto.
   | BatalhaIniciadaMessage
+  // LARGADA COMBINADA: a ordem de tocar a abertura do `preparo` (ver `CutsceneTocarMessage`). Jogador antigo ignora.
+  | CutsceneTocarMessage
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   // VEÍCULO: o "Subir"/"Descer" não valeu, e por quê (`VehicleRejection`). Aceito não tem resposta: vem no snapshot.
   | { type: 'vehicle.rejected'; reason: VehicleRejection }
