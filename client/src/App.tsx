@@ -4735,9 +4735,6 @@ function App() {
             // Cenas em pastas: só a lista do mestre muda (pede Salvar); o jogador não recebe nada.
             onMove={adventure === null ? undefined : (sceneId, parentId) => useAdventureStore.getState().moveScene(sceneId, parentId)}
             adventureId={adventure?.id ?? null}
-            // Hoje na sessão: as fixadas gravam com a aventura (pede Salvar, como mover); o jogador não recebe nada.
-            pinned={adventure?.fixadas}
-            onTogglePin={adventure === null ? undefined : (sceneId) => useAdventureStore.getState().alternarFixada(sceneId)}
             // Alarme para várias cenas, também só com a sala aberta.
             alarm={room === null ? null : sceneAlarm}
             onAlarm={soarAlarme}

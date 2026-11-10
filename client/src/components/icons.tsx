@@ -235,20 +235,6 @@ export function PinIcon(props: IconProps) {
   )
 }
 
-/**
- * Alfinete de fixar (tachinha): a cabeça larga e a ponta para baixo. Fixa uma
- * cena no topo da lista ("Hoje na sessão"); não confundir com o `PinIcon`, a
- * gota do pino do mapa.
- */
-export function TachinhaIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M9 3.5h6l-.8 5.2 3.3 3.8h-11l3.3-3.8z" />
-      <path d="M12 12.5V21" />
-    </Icon>
-  )
-}
-
 export function RoomIcon(props: IconProps) {
   return (
     <Icon {...props}>

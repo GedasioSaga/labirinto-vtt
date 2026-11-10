@@ -8,7 +8,6 @@ import { equipesDoArquivo, type Equipe } from './batalha/equipes'
 import { pastasDeFichasDoArquivo, type PastaDeFichas } from './pastasDeFichas'
 import { personagensDoArquivo, sistemaDaAventuraDoArquivo, type Personagem } from './personagem'
 import { marcadorDaMochilaDoArquivo } from './mochila/marcador'
-import { fixadasDoArquivo } from './cenasFixadas'
 
 /**
  * AVENTURA: várias cenas (mapas) numa pasta só. Cada cena continua sendo um
@@ -122,13 +121,6 @@ export interface Adventure {
    * para a ficha uma mochila já gasta. Ausente = ainda não migrada.
    */
   mochilaMigrada?: number
-  /**
-   * "HOJE NA SESSÃO" (`lib/cenasFixadas.ts`): ids das cenas que o mestre fixou
-   * no topo da lista Cenas, na ordem em que fixou, no máximo cinco. Ausente =
-   * nenhuma; tirar a última tira a chave, e a aventura antiga grava igual.
-   * Aditivo: `ADVENTURE_VERSION` não muda.
-   */
-  fixadas?: string[]
 }
 
 /** Nome de cena vazio vira este, em vez de uma entrada sem nome na lista. */
@@ -298,8 +290,6 @@ export function parseAdventure(json: string): Adventure {
   const periodo = lerPeriodo(parsed.periodo)
   // MOCHILA NA FICHA: o marcador torto conta como ausente (aventura ainda não migrada).
   const mochilaMigrada = marcadorDaMochilaDoArquivo(parsed.mochilaMigrada)
-  // HOJE NA SESSÃO: só ids de cenas que existem; lista vazia ou torta grava sem a chave.
-  const fixadas = fixadasDoArquivo(parsed.fixadas, seen)
   const adventure: Adventure = {
     version: typeof parsed.version === 'number' ? parsed.version : ADVENTURE_VERSION,
     id: typeof parsed.id === 'string' && parsed.id.length > 0 ? parsed.id : `adv_${crypto.randomUUID()}`,
@@ -315,7 +305,6 @@ export function parseAdventure(json: string): Adventure {
     ...(camadas === undefined ? {} : { camadas }),
     ...(periodo === undefined ? {} : { periodo }),
     ...(mochilaMigrada === undefined ? {} : { mochilaMigrada }),
-    ...(fixadas === undefined ? {} : { fixadas }),
   }
   // Agenda ausente ou ilegível: a aventura abre sem o campo, igual a uma antiga.
   const agenda = lerAgenda(parsed.agenda)
@@ -332,17 +321,6 @@ export function comPeriodo(adventure: Adventure, periodo: Periodo): Adventure {
   if (adventure.periodo === undefined) return adventure
   const { periodo: _antigo, ...semPeriodo } = adventure
   return semPeriodo
-}
-
-/**
- * HOJE NA SESSÃO: a aventura com estas cenas fixadas. Lista vazia tira a
- * chave, então a aventura que perde a última fixada grava igual à de antes.
- */
-export function comFixadas(adventure: Adventure, fixadas: readonly string[]): Adventure {
-  if (fixadas.length > 0) return { ...adventure, fixadas: [...fixadas] }
-  if (adventure.fixadas === undefined) return adventure
-  const { fixadas: _antigas, ...semFixadas } = adventure
-  return semFixadas
 }
 
 export function serializeAdventure(adventure: Adventure): string {
