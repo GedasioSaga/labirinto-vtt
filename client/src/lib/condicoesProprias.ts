@@ -75,6 +75,21 @@ const SIMBOLO_DIGITADO_UNIDADES_MAX = 40
 const TEM_O_QUE_VER = /[\p{L}\p{N}\p{P}\p{S}]/u
 /** Controle, metade solta de par e quebra de linha: nunca entram num símbolo. */
 const NAO_ENTRA = /[\p{Cc}\p{Cs}\p{Zl}\p{Zp}]/u
+/**
+ * Branco que passa por letra ou por símbolo e não deixa tinta: os ignoráveis do
+ * Unicode (preenchedores de hangul como U+3164, largura zero, seletores), todo
+ * espaço, o braille em branco (U+2800) e a nota musical vazia (U+1D159).
+ */
+const SEM_TINTA = /[\p{Default_Ignorable_Code_Point}\p{White_Space}⠀\u{1D159}]/gu
+
+/**
+ * O grafema deixa tinta na pastilha? Tirados os brancos, tem de sobrar o que
+ * ver. O emoji composto leva seletor e junção invisíveis por dentro e passa: o
+ * que não passa é o grafema feito SÓ de branco, que dava pastilha vazia.
+ */
+function temTinta(grafema: string): boolean {
+  return TEM_O_QUE_VER.test(grafema.replace(SEM_TINTA, ''))
+}
 
 let separador: Intl.Segmenter | null = null
 
@@ -98,7 +113,7 @@ function grafemasDe(texto: string): string[] {
  */
 export function limparSimboloDigitado(value: unknown): string {
   if (typeof value !== 'string') return ''
-  const visiveis = grafemasDe(value.replace(/\s+/gu, '')).filter((grafema) => TEM_O_QUE_VER.test(grafema) && !NAO_ENTRA.test(grafema))
+  const visiveis = grafemasDe(value.replace(/\s+/gu, '')).filter((grafema) => temTinta(grafema) && !NAO_ENTRA.test(grafema))
   let limpo = visiveis.slice(0, SIMBOLO_DIGITADO_MAX)
   while (limpo.length > 0 && limpo.join('').length > SIMBOLO_DIGITADO_UNIDADES_MAX) limpo = limpo.slice(0, -1)
   return limpo.join('')
@@ -326,7 +341,7 @@ export function simboloDaCondicaoPropria(condicao: Pick<CondicaoPropria, 'cor' |
   return { ...marca, fill: condicao.cor, ink: tintaSobre(cor) }
 }
 
-/** Teto do nome: cabe no chip do painel e na lista de quem joga. */
+/** Teto do nome, em unidades de código: cabe no chip do painel e na lista de quem joga. */
 export const CONDICAO_NOME_MAX = 20
 /** Quantas condições criadas uma ficha leva: com as cinco de fábrica, o leque ainda cabe na metade de cima do disco. */
 export const CONDICOES_POR_FICHA_MAX = 6
@@ -335,9 +350,43 @@ export const CATALOGO_MAX = 40
 
 const ID_VALIDO = /^[\w-]{1,64}$/
 
-/** O nome como é gravado: espaços enxugados e no teto. Qualquer coisa que não seja texto vira vazio. */
+/** Metade solta de par (arquivo editado à mão): não é texto, e chega torta a quem joga. */
+const METADE_SOLTA = /\p{Cs}/gu
+
+/**
+ * O texto um caractere por vez, como a pessoa o lê, sem partir o texto inteiro
+ * (quem corta para no teto). Sem `Intl.Segmenter` (Firefox antigo, na tela de
+ * quem joga) vai por ponto de código, que ao menos nunca separa as duas
+ * metades de um emoji.
+ */
+function* caracteresDe(texto: string): Generator<string> {
+  if (typeof Intl.Segmenter !== 'function') {
+    yield* texto
+    return
+  }
+  separador ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  for (const parte of separador.segment(texto)) yield parte.segment
+}
+
+/**
+ * O nome no teto, cortado só ENTRE caracteres: o que não cabe inteiro fica de
+ * fora. O `slice` deixava metade de um emoji no fim, e ela chegava a quem joga.
+ * Não enxuga espaço: é o corte do campo do formulário, enquanto o mestre ainda
+ * digita a palavra seguinte.
+ */
+export function cortarNomeDeCondicao(texto: string): string {
+  let nome = ''
+  for (const caractere of caracteresDe(texto)) {
+    if (nome.length + caractere.length > CONDICAO_NOME_MAX) break
+    nome += caractere
+  }
+  return nome
+}
+
+/** O nome como é gravado: espaços enxugados, sem metade solta de par e no teto. Qualquer coisa que não seja texto vira vazio. */
 export function limparNomeDeCondicao(value: unknown): string {
-  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, CONDICAO_NOME_MAX) : ''
+  if (typeof value !== 'string') return ''
+  return cortarNomeDeCondicao(value.replace(METADE_SOLTA, '').replace(/\s+/g, ' ').trim()).trimEnd()
 }
 
 function campoDe(value: object, chave: string): unknown {

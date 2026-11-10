@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { CondicaoPropria, MapData, Token } from '../types/map'
 import { createEmptyMap } from './mapFactory'
 import {
+  CONDICAO_NOME_MAX,
   CONDICOES_POR_FICHA_MAX,
   SIMBOLO_DIGITADO_MAX,
   alternarCondicaoPropria,
   condicoesPropriasOf,
+  cortarNomeDeCondicao,
   lerCondicaoPropria,
+  limparNomeDeCondicao,
   limparSimboloDigitado,
   simboloDaCondicaoPropria,
   tirarCondicaoPropriaDasFichas,
@@ -70,6 +73,40 @@ describe('símbolo digitado: letra, número ou emoji no lugar do desenho', () =>
     expect(pastilha.ink).not.toBe(simboloDaCondicaoPropria({ ...QUEIMANDO, texto: 'F' }).ink)
     expect(lerCondicaoPropria({ ...QUEIMANDO, texto: '\u0000' })).toEqual(QUEIMANDO)
     expect(simboloDaCondicaoPropria(QUEIMANDO).texto).toBeUndefined()
+  })
+})
+
+/* Segunda auditoria (09/11/2026): pastilha vazia e metade de emoji chegando a quem joga. */
+describe('símbolo sem tinta e nome cortado ao meio', () => {
+  it('branco que passa por letra ou por símbolo não vira símbolo digitado: a pastilha não sai vazia', () => {
+    // Braille em branco (símbolo) e preenchedores de hangul (letras): nenhum deixa tinta.
+    expect(limparSimboloDigitado('⠀')).toBe('')
+    expect(limparSimboloDigitado('ㅤ')).toBe('')
+    expect(limparSimboloDigitado('ᅟᅠﾠ')).toBe('')
+    expect(limparSimboloDigitado('⠀Aㅤ')).toBe('A')
+    // O emoji composto leva seletor e junção invisíveis por dentro e continua inteiro.
+    expect(limparSimboloDigitado('7️⃣👨‍👩‍👧')).toBe('7️⃣👨‍👩‍👧')
+    // Símbolo torto só some: a condição fica, com o desenho.
+    expect(lerCondicaoPropria({ ...QUEIMANDO, texto: 'ㅤ' })).toEqual(QUEIMANDO)
+  })
+
+  it('o nome é cortado no teto só entre caracteres: nenhuma metade de emoji fica no fim, na leitura do host e no campo do formulário', () => {
+    const metadeSolta = /\p{Cs}/u
+    // 19 letras e um emoji de 2 unidades: o teto cai no meio dele.
+    const fogoNoTeto = 'Queimando muito for🔥'
+    expect(fogoNoTeto.length).toBe(CONDICAO_NOME_MAX + 1)
+    expect(lerCondicaoPropria({ ...QUEIMANDO, nome: fogoNoTeto })?.nome).toBe('Queimando muito for')
+    // Emoji composto que não cabe inteiro sai inteiro, e o espaço que sobra no fim também.
+    const comFamilia = limparNomeDeCondicao('Marcado pela 👨‍👩‍👧')
+    expect(comFamilia).toBe('Marcado pela')
+    expect(metadeSolta.test(comFamilia)).toBe(false)
+    // O que cabe inteiro fica.
+    expect(limparNomeDeCondicao('Em chamas 🔥')).toBe('Em chamas 🔥')
+    // Metade solta que já vem no texto (arquivo editado à mão) não é nome.
+    expect(limparNomeDeCondicao('Queimando\uD83D')).toBe('Queimando')
+    // O campo do formulário corta enquanto o mestre digita, sem enxugar o espaço da palavra seguinte.
+    expect(cortarNomeDeCondicao('Em chamas ')).toBe('Em chamas ')
+    expect(cortarNomeDeCondicao(fogoNoTeto)).toBe('Queimando muito for')
   })
 })
 

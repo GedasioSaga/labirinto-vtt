@@ -2,11 +2,11 @@ import { useId, useState, type FormEvent } from 'react'
 import type { CondicaoPropria, MapData } from '../types/map'
 import {
   CATALOGO_MAX,
-  CONDICAO_NOME_MAX,
   CONDICOES_POR_FICHA_MAX,
   CORES_DE_CONDICAO,
   SIMBOLO_NOMES,
   SIMBOLO_ORDEM,
+  cortarNomeDeCondicao,
   criarCondicaoPropria,
   ehSimboloDeCondicao,
   lerCondicaoPropria,
@@ -134,15 +134,15 @@ function FormDaCondicao({ inicial, aviso, tamanhoNoMapa, onSalvar, onExcluir, on
         <label className="gr-campo__rot" htmlFor={nomeId}>
           Nome
         </label>
+        {/* Sem `maxLength`, como o símbolo: ele conta unidades de código e cortaria um emoji no meio. Quem corta é a limpeza, entre caracteres. */}
         <input
           id={nomeId}
           className="gr-entrada"
           value={nome}
-          maxLength={CONDICAO_NOME_MAX}
           placeholder="Queimando"
           autoComplete="off"
           autoFocus
-          onChange={(evento) => setNome(evento.currentTarget.value)}
+          onChange={(evento) => setNome(cortarNomeDeCondicao(evento.currentTarget.value))}
         />
       </div>
       <div className="gr-campo">
