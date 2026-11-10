@@ -1,6 +1,7 @@
 import { casasDoLado, casasDoPerimetro, GRADE_MEDIA, GRADE_PEQUENA, type GradeDaArena, type TamanhoDaGrade } from '../arena/grade'
 import type { Casa } from '../batalha/blocos'
 import type { Equipe } from '../batalha/equipes'
+import { registrarCopiaDaFicha } from '../batalha/mecanicasAMao'
 import type { MesaDaBatalha } from '../batalha/mesa'
 import { fichaSemHp } from '../livros/combate'
 import type { Personagem } from '../personagem'
@@ -305,9 +306,19 @@ export function equipesDasVagas(vagas: readonly VagaDaLuta[]): Equipe[] {
  * estava). Vaga sem a cópia dela (luta gravada torta) = `RangeError`: a luta
  * não começa pela metade. `grade` ausente: a do treino com 2 lados (a de
  * sempre), a média com mais.
+ *
+ * R6 (unificação do combate, 10/11/2026): cada mesa diz à batalha de qual
+ * ficha cada cópia veio (`registrarCopiaDaFicha`), para a mecânica presa à
+ * ficha (`ficha:<id>`: a esquiva da Ryoko, a arma do Siegfried) valer na
+ * cópia. É AQUI, e não só ao criar a cópia, porque o id da cópia se repete
+ * de luta em luta (`copia-a1`...) e o registro é do módulo: cada jogada monta
+ * a mesa dela e regrava a origem antes de a regra ler (a jogada é síncrona),
+ * e a luta que volta do servidor reiniciado também. Por isso ninguém chama
+ * `esquecerCopiaDaFicha`: os ids são poucos e fixos, o registro não cresce.
  */
 export function criarMesaEmMemoria<L extends LadoDaLuta>(sistema: SistemaDeRpg | null, lutadores: LutadoresDaLuta<L>, grade?: GradeDaArena): MesaDaLuta<L> {
   const vagas = lutadores.vagas
+  for (const vaga of vagas) registrarCopiaDaFicha(vaga.personagemId, vaga.origem)
   const porId = new Map(lutadores.personagens.map((personagem) => [personagem.id, personagem]))
   const casas = casasIniciais(vagas, grade ?? (soOsDoisLados(vagas) ? GRADE_DO_TREINO : GRADE_MEDIA))
   const tokens: readonly TokenDaVaga[] = vagas.map((vaga) => {
