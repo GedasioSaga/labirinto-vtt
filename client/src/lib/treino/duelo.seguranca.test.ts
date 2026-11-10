@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao, PedidoDeReacao } from '../batalha/combate'
 import { ficha } from '../batalha/fichasDaFatiaB.testkit'
+import { ATRIBUTOS_DA_AIRA, BENCAO } from '../batalha/fichasDaFatiaC.testkit'
 import { danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armasDe } from '../batalha/leituraDaFicha'
 import type { VezEsperada } from '../batalha/ponte'
@@ -489,5 +490,44 @@ describe('cliente malicioso: mais alvos do que a técnica acerta', () => {
     expect(duelo).toEqual(antes)
     const acertou = semReagir(aceita(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(GIRO.id, RIVAL))), 'o Giro'), motor)
     expect(hpDosRivais(acertou)).toEqual([420, 300])
+  })
+})
+
+const NOME_DA_BENCAO = 'Bênção de uma Raposa'
+
+/** A Raposa (ficha inventada) com a técnica de pergunta numérica da tabela ("quantos turnos?", de 1 a 99) e o Escudeiro do lado dela. */
+function dueloDaRaposa(motor: MotorDoDuelo): DueloGravado {
+  const raposa = ficha('Raposa de Teste', { ...ATRIBUTOS_DA_AIRA, agilidade: 90 }, { hp: 900, sp: 140, escudo: 100 }, { habilidades: [BENCAO] })
+  const escudeiro = ficha('Escudeiro de Teste', { forca: 30, agilidade: 10 }, { hp: 400, sp: 0, escudo: 0 }, {})
+  return dueloCom([daConta(raposa, CONTA_A), daConta(escudeiro, CONTA_A)], [rivalDeTeste()], motor)
+}
+
+/** A Bênção no Escudeiro com o número de turnos como o cliente o manda (qualquer coisa). */
+function bencao(turnos: unknown): Record<string, unknown> {
+  return { tipo: 'habilidade', cartaoId: BENCAO.id, armaId: null, alvos: [{ tokenId: ESCUDEIRO, dano: null }], surpresa: false, perfurante: false, custo: null, acao: null, respostas: { turnos, fisico: 'forca' } }
+}
+
+describe('cliente malicioso: o número perguntado fora da faixa da técnica', () => {
+  it('abaixo da faixa (0 turnos) e texto no lugar do número: a regra recusa com o motivo; 2 turnos saem (selo por 2, 35 SP)', () => {
+    const { motor } = motorContado()
+    const duelo = dueloDaRaposa(motor)
+    const antes = structuredClone(duelo)
+    const foraDaFaixa = { ok: false, motivo: 'regra', texto: 'Número fora da faixa (1 a 99): Quantos turnos o aliado fica com a Bênção?' }
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, bencao(0)))).toEqual(foraDaFaixa)
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, bencao('5')))).toEqual(foraDaFaixa)
+    expect(duelo).toEqual(antes)
+    const honesta = aceita(peloFio(duelo, motor, CONTA_A, agir(duelo, bencao(2))), 'a Bênção')
+    expect(retratoDoDuelo(honesta).selos).toEqual([{ tokenId: ESCUDEIRO, nome: NOME_DA_BENCAO, turnos: 2 }])
+    expect(spDe(honesta, 'Raposa de Teste')).toBe(105)
+  })
+
+  it('acima da faixa (100 turnos), negativo ou quebrado: o fio recusa a forma antes da regra; 99 (o teto da faixa) sai', () => {
+    const { motor } = motorContado()
+    const duelo = dueloDaRaposa(motor)
+    for (const turnos of [100, 9999, -1, 1.5]) {
+      expect(lerJogadaDoDuelo(JSON.stringify(agir(duelo, bencao(turnos)))), `${turnos} turnos`).toEqual({ ok: false, motivo: 'formato' })
+    }
+    const noTeto = aceita(peloFio(duelo, motor, CONTA_A, agir(duelo, bencao(99))), 'a Bênção de 99 turnos')
+    expect(retratoDoDuelo(noTeto).selos).toEqual([{ tokenId: ESCUDEIRO, nome: NOME_DA_BENCAO, turnos: 99 }])
   })
 })
