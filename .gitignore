@@ -40,3 +40,5 @@ scratchpad/
 
 # Cache incremental do tsc (tsconfig.node.json com composite)
 *.tsbuildinfo
+# Provas e prints de trabalho: podem mostrar o mapa e fichas reais do mestre. Nunca vão ao repositório público.
+/tmp/
