@@ -889,11 +889,38 @@
   justify-self: start;
   margin-top: 2px;
 }
+/* T3: tela baixa (1366x768 e afins): cabeça, corpo e pé mais justos, para a lista ter lugar. */
+@media (max-height: 820px) {
+  .bt-mira__cabeca {
+    padding: 6px 20px 8px 22px;
+  }
+  .bt-mira__cabeca .bt-mira__nome {
+    font-size: 22px;
+  }
+  .bt-mira__corpo {
+    gap: 6px;
+    padding-top: 8px;
+  }
+  .bt-mira .bt-mira__alvos {
+    gap: 4px;
+  }
+  .bt-mira__pe {
+    padding: 8px 18px 12px 16px;
+  }
+}
+/*
+ * T3 (10/11): o alvo cabe numa linha (nome, lado e vida; "chega" na ponta), para
+ * caberem 3 alvos inteiros em 1366x768 com o rodapé fixo. Antes eram 57 px (86 o
+ * marcado, com o "chega" numa segunda linha) e só cabia um e meio.
+ */
 .bt-mira .bt-alvo {
   position: relative;
   isolation: isolate;
-  min-height: 52px;
-  padding: 6px 14px 6px 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  min-height: 40px;
+  padding: 4px 12px 4px 8px;
   border-radius: 0;
   background: none;
   transition: color 80ms ease;
@@ -925,13 +952,38 @@
   outline-offset: 2px;
 }
 .bt-mira .bt-alvo__foto {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
 }
+/* Nome, lado e vida lado a lado; a barra de vida corre fina por baixo do nome. Motivo longo quebra a linha. */
 .bt-mira .bt-alvo__texto {
-  display: grid;
-  gap: 3px;
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding-bottom: 6px;
   white-space: normal;
+}
+.bt-mira .bt-alvo__quem {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 16px;
+}
+.bt-mira .bt-alvo__tags small {
+  font-size: 12px;
+}
+/* Um tom mais escuro que o #5d5a54 de fora: com o mouse em cima (cinza 13%) ainda passa de 4,5:1. */
+.bt-mira .bt-alvo__nome small {
+  color: #45423d;
+}
+.bt-mira .bt-alvo__vida {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(140px, 70%);
+  max-width: none;
+  height: 3px;
 }
 .bt-alvo__quem {
   overflow: hidden;
@@ -993,6 +1045,10 @@
 }
 /* "chega 100": o que vai chegar, grande como o número do custo nas tiras. */
 .bt-mira .bt-alvo__conta {
+  grid-column: auto;
+  margin-top: 0;
+  justify-self: end;
+  white-space: nowrap;
   font-family: var(--bt-titulo);
   font-stretch: condensed;
   font-weight: 700;
@@ -1000,6 +1056,13 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--lb-color-brass-bright);
+}
+/* Editado à mão ("editado · chega X · Voltar à conta") e a pergunta do outro lado: linha própria embaixo. */
+.bt-mira .bt-alvo__conta:has(button),
+.bt-mira .bt-alvo__confirma {
+  grid-column: 2 / -1;
+  justify-self: start;
+  white-space: normal;
 }
 .bt-mira .bt-alvo__conta em {
   color: var(--lb-color-ember);
