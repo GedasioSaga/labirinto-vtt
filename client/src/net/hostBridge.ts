@@ -100,6 +100,8 @@ import {
   CALL_REASON_LABELS,
   clampTravelDenyText,
   lerBatalhaIniciada,
+  lerCutsceneAquecer,
+  lerCutsceneCarregando,
   lerCutscenePronta,
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
@@ -117,7 +119,8 @@ import {
   type SomFalhouMessage,
   type SomHostMessage,
 } from './protocol'
-import { combinarLargada, type Combinado } from '../transicoes/largada'
+import { BATIDA_DE_CARREGANDO_MS, combinarLargada, type Combinado } from '../transicoes/largada'
+import { aberturaPretendida, assinarAberturaPretendida } from '../transicoes/intencao'
 import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
 import { avisarFalhaDeSom, registrarRedeDosSons, type PedidoDeSomAoVivo, type RedeDosSons, type ResultadoDoSomNaRede } from './ponteDosSons'
 import type { AlvoDosSons } from '../lib/sons/biblioteca'
@@ -1270,6 +1273,13 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const largadasEmCurso = new Map<number, Combinado>()
   let proximoPreparo = 1
   /**
+   * AQUECER PELA INTENÇÃO: a abertura que esta sala tocou por último (quem chega depois a aquece
+   * para a próxima batalha), a que já foi avisada e a quem. Trocou a abertura, todos são avisados de novo.
+   */
+  let ultimaAberturaAnunciada: string | null = null
+  let aberturaAvisada: string | null = null
+  const avisadosDaAbertura = new Set<string>()
+  /**
    * SONS AO VIVO: por conexão, os áudios que esta sala mandou a ELA (tocar ou
    * pré-carregar): o que a F5 pode servir por `/sons/<id>` a quem pedir. Sai ao cair.
    */
@@ -1465,6 +1475,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     sendPartyIfChanged()
     // SONS AO VIVO: antes do "nada mudou na lista" — a TV que entra não muda a lista de jogadores.
     reconciliarSons()
+    // AQUECER PELA INTENÇÃO: quem acabou de entrar (jogador ou TV) recebe a abertura a aquecer.
+    reconciliarAquecimento()
     const list = playerList()
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -1854,6 +1866,29 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** LARGADA COMBINADA: a conexão acabou, e ninguém espera por quem saiu. */
   const tirarDasLargadas = (clientId: string) => {
     for (const combinado of [...largadasEmCurso.values()]) combinado.saiu(clientId)
+    avisadosDaAbertura.delete(clientId)
+  }
+
+  /**
+   * AQUECER PELA INTENÇÃO (`transicoes/intencao.ts`): manda `cutscene.aquecer` com a abertura que
+   * o mestre marcou (ou, sem marca, a última que esta sala tocou) a quem ainda não a recebeu:
+   * todos, quando a abertura muda; depois, só quem entra. Chamada a cada evento que pode mudar
+   * quem está na sala; sem abertura a aquecer, ou sem ninguém novo, não manda nada.
+   */
+  const reconciliarAquecimento = () => {
+    const room = session
+    const abertura = aberturaPretendida() ?? ultimaAberturaAnunciada
+    if (room === null || abertura === null) return
+    const msg = lerCutsceneAquecer({ type: 'cutscene.aquecer', abertura })
+    if (msg === null) return
+    if (abertura !== aberturaAvisada) {
+      aberturaAvisada = abertura
+      avisadosDaAbertura.clear()
+    }
+    const novos = destinatarios({ tipo: 'todos' }, room.listPlayers(world()), telasDaMesa()).filter((clientId) => !avisadosDaAbertura.has(clientId))
+    if (novos.length === 0) return
+    for (const clientId of novos) avisadosDaAbertura.add(clientId)
+    void dispatch({ outbound: novos.map((clientId) => ({ clientId, msg })) })
   }
 
   /**
@@ -3626,6 +3661,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (pronta !== null) largadasEmCurso.get(pronta.preparo)?.pronta(clientId)
       return
     }
+    // E a batida de quem ainda carrega ("estou viva"): a mesa espera por ela até o teto maior.
+    if (isRecord(crua) && crua.type === 'cutscene.carregando' && entrouNaSala(session, clientId)) {
+      const carregando = lerCutsceneCarregando(crua)
+      if (carregando !== null) largadasEmCurso.get(carregando.preparo)?.carregando(clientId)
+      return
+    }
     // Só o ping diz em que plano está a aba; qualquer outra mensagem vem de quem está olhando.
     const parsed = parsePlayerMessage(event.payload.msg)
     if (parsed?.type === 'ping' && parsed.away === true) awayClients.add(clientId)
@@ -4035,6 +4076,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         await deps.listen('net:message', onMessage),
         await deps.listen('net:peer', onPeer),
         await deps.listen('net:tunnel', onTunnel),
+        // AQUECER PELA INTENÇÃO: o mestre marcou outra abertura, e a sala inteira a aquece.
+        assinarAberturaPretendida(reconciliarAquecimento),
       ]
       stopLivenessSweep()
       livenessTimer = setInterval(sweepSilent, LIVENESS_SWEEP_MS)
@@ -4159,7 +4202,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (room === null) return
       // LARGADA COMBINADA: com animação a tocar, o aviso leva o número do preparo e a ordem de tocar sai depois.
       const preparo = transicao === undefined ? undefined : proximoPreparo++
-      const msg = lerBatalhaIniciada({ type: 'batalha.iniciada', transicao, texto, preparo })
+      // E pede a batida `cutscene.carregando`: a tela viva que ainda carrega segura a largada até o teto maior.
+      const msg = lerBatalhaIniciada({ type: 'batalha.iniciada', transicao, texto, preparo, batidaMs: BATIDA_DE_CARREGANDO_MS })
       if (msg === null) return
       // Jogador da cena aberta de mapa solto não tem `sceneId`: a chave dele é a do mapa aberto.
       const aberta = tableSceneKey(world().open)
@@ -4169,6 +4213,14 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         .flatMap((p) => (p.clientId === null ? [] : [p.clientId]))
       const telas = telasDaMesa()
       const clientIds = telas.cena === sceneKey ? [...naCena, ...telas.clientIds] : naCena
+      // AQUECER PELA INTENÇÃO: quem entrar depois aquece esta abertura para a próxima batalha.
+      // Quem a recebe agora para tocar já a carrega: não precisa do recado.
+      if (msg.transicao !== undefined) {
+        if (msg.transicao !== aberturaAvisada) avisadosDaAbertura.clear()
+        ultimaAberturaAnunciada = msg.transicao
+        aberturaAvisada = msg.transicao
+        for (const clientId of clientIds) avisadosDaAbertura.add(clientId)
+      }
       if (clientIds.length === 0) return
       void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
       if (msg.preparo !== undefined) abrirLargadaDaAbertura(msg.preparo, clientIds)

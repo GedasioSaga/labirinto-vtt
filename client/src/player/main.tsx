@@ -72,7 +72,8 @@ import { lerBilheteSemConferir } from '../lib/nuvem/bilhete'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
-import { aquecerMotorDasCutscenes, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
+import { aquecerAbertura, aquecerMotorDasCutscenes, aquecerTransicao, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
+import { parseTransicao } from '../transicoes/catalogo'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
@@ -1019,7 +1020,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // jogador. Uma vez por página; sem pacote, 404 e silêncio.
   useEffect(() => {
     void carregarPacoteDaPagina()
-    // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas chega com a página ociosa, antes da primeira batalha.
+    // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas começa a baixar já ao entrar na mesa
+    // (quem recebia a ordem 1 s depois de entrar passava a cena inteira na tela preta).
     aquecerMotorDasCutscenes()
   }, [])
   // E o código das transições que os pinos e as escadas deste mapa usam, em vez de na hora da
@@ -1028,6 +1030,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   useEffect(() => {
     aquecerTransicoesDoMapa(mapaDasTransicoes)
   }, [mapaDasTransicoes])
+  // AQUECER PELA INTENÇÃO: a abertura que o mestre marcou é pré-compilada aqui antes de ele confirmar.
+  const aberturaParaAquecer = state.aberturaParaAquecer
+  useEffect(() => {
+    if (aberturaParaAquecer !== undefined) aquecerAbertura(aberturaParaAquecer)
+  }, [aberturaParaAquecer])
   const armazenamento = useMemo(() => storage ?? localStorageOrNull(), [storage])
   const [settings, setSettings] = useState<PlayerViewSettings>(() => loadPlayerSettings(armazenamento))
   const [focus, setFocus] = useState<FocusRequest>(NO_FOCUS)
@@ -1478,6 +1485,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   }
 
   const openPin = openPinId === null ? null : (map?.pins ?? []).find((p) => p.id === openPinId) ?? null
+  // AQUECER PELA INTENÇÃO: o cartão da passagem aberto é o sinal de que o jogador vai atravessar. A
+  // cena dela (a do pino, ou a da escada do pino invisível, como em `requestTravel`) é pré-compilada
+  // com a página ociosa, antes do "Passar".
+  const transicaoDoPinoAberto = useMemo(() => {
+    if (openPin === null || openPin.kind !== 'viagem') return undefined
+    const escadaDoPino = openPin.escadaId === undefined ? undefined : map?.stairs.find((s) => s.id === openPin.escadaId)
+    return parseTransicao(escadaDoPino?.transicao ?? openPin.transicao)?.id
+  }, [map, openPin])
+  useEffect(() => {
+    if (transicaoDoPinoAberto !== undefined) aquecerTransicao(transicaoDoPinoAberto)
+  }, [transicaoDoPinoAberto])
   // ITEM NO MAPA: o cartão do item abre para a imagem no chão e para o PINO DE
   // ITEM (o "!" do saco); o pino "!" pegável de antes segue no cartão do pino.
   // Saiu do recorte (alguém pegou, a ficha andou): o cartão fecha sozinho.
@@ -2636,9 +2654,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* TIRO: o convite da barraca abre por cima do mapa, até o jogador sair. */}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
-        {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} />}
+        {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} antes={state.transicao.mapaNovo} />}
         {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}
-        <AberturaDeBatalhaOverlay abertura={state.batalhaIniciada} aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)} />
+        <AberturaDeBatalhaOverlay
+          abertura={state.batalhaIniciada}
+          aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)}
+          aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
+        />
         {reconnecting}
       </PlayerErrorBoundary>
     )

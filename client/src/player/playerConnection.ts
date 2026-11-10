@@ -160,7 +160,19 @@ import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
 import { CHAT_HISTORY_MAX, CHAT_TEXT_MAX_LENGTH, cleanChatText, type ChatChannel } from '../lib/chat'
 import { SCENE_PUBLIC_NAME_MAX_LENGTH } from '../lib/adventure'
 import { TOKEN_GLIDE_MS } from './tokenGlide'
-import { lerBatalhaIniciada, lerCutscenePronta, lerCutsceneTocar, parseAccountHostMessage, parseSnapshotPlaces, VIEW_RESYNC_MIN_INTERVAL_MS, type CutsceneProntaMessage, type SnapshotPlaces } from '../net/protocol'
+import {
+  lerBatalhaIniciada,
+  lerCutsceneAquecer,
+  lerCutsceneCarregando,
+  lerCutscenePronta,
+  lerCutsceneTocar,
+  parseAccountHostMessage,
+  parseSnapshotPlaces,
+  VIEW_RESYNC_MIN_INTERVAL_MS,
+  type CutsceneCarregandoMessage,
+  type CutsceneProntaMessage,
+  type SnapshotPlaces,
+} from '../net/protocol'
 import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
@@ -389,10 +401,12 @@ export interface PlayerState {
    * abertura escolhida (`transicao`, `texto`; os dois opcionais). `id` novo a
    * cada aviso. Quem toca a animação é a B5; aqui só fica o pedido.
    * LARGADA COMBINADA: `preparo` é o número que o mestre deu a esta abertura
-   * (ausente = mestre antigo, toca ao ficar pronta) e `largouEm` o instante
-   * (`performance.now()`) em que a ordem de tocar chegou aqui.
+   * (ausente = mestre antigo, toca ao ficar pronta), `largouEm` o instante
+   * (`performance.now()`) em que a ordem de tocar chegou aqui, e `batidaMs`
+   * de quanto em quanto a tela que ainda carrega avisa o mestre (ausente =
+   * mestre que não ouve a batida).
    */
-  batalhaIniciada?: { id: number; transicao?: string; texto?: string; preparo?: number; largouEm?: number }
+  batalhaIniciada?: { id: number; transicao?: string; texto?: string; preparo?: number; largouEm?: number; batidaMs?: number }
   /**
    * BATALHA F1: a ordem dos turnos como o host deixa ele ver (`batalha.estado`,
    * `vistaParaJogador`): cartas, vez, rodada, o registro dele e as regras do
@@ -498,8 +512,16 @@ export interface PlayerState {
    * TRANSIÇÃO ESPECIAL a tocar agora: o jogador atravessou um pino (ou subiu
    * uma escada) que tem uma. `nonce` muda a cada travessia — a tela toca uma
    * vez por valor. Levado, reunido ou a bordo: nunca (não foi ele que passou).
+   * `mapaNovo` resolve quando o snapshot da travessia foi aplicado (ou no teto
+   * `ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS`): a cena espera por ele antes de tocar.
    */
-  transicao?: { nonce: number; escolha: TransicaoEscolhida }
+  transicao?: { nonce: number; escolha: TransicaoEscolhida; mapaNovo?: Promise<void> }
+  /**
+   * AQUECER PELA INTENÇÃO: a abertura de batalha que o mestre marcou e ainda
+   * não confirmou (`cutscene.aquecer`). A tela baixa e pré-compila a cena; não
+   * toca nada.
+   */
+  aberturaParaAquecer?: string
   /** ITEM PEGÁVEL: "Pegar" ou "Dar a…" — enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   item?: ItemNotice
   /** LOJA COM PREÇOS: o último "Quero" — esperando o mestre, a resposta dele ou a recusa do host. A resposta some sozinha. */
@@ -1238,6 +1260,12 @@ export interface PlayerConnection {
    * também manda. `false` = não saiu (sem socket).
    */
   informarCutscenePronta(preparo: number): boolean
+  /**
+   * LARGADA COMBINADA: a batida de quem ainda carrega a abertura do `preparo`
+   * ("estou viva"): a mesa espera a tela viva até o teto maior. Só para o
+   * mestre que pediu a batida (`batalhaIniciada.batidaMs`). `false` = não saiu.
+   */
+  informarCutsceneCarregando(preparo: number): boolean
   /**
    * SONS AO VIVO (F5): a chave que o servidor da sala deu ao socket de agora
    * (`midia.chave`, 64 hex), para o cabeçalho de `/sons/<id>`. `null` antes
@@ -2255,6 +2283,13 @@ function withTokenPatch(map: MapData, tokenId: string, patch: Partial<Token>): M
   return { ...map, tokens: map.tokens.map((t) => (t.id === tokenId ? { ...t, ...patch } : t)) }
 }
 
+/**
+ * TRANSIÇÃO ESPECIAL: o mais que a cena da travessia espera pelo snapshot do
+ * mapa novo antes de tocar. Rede que não entrega o mapa nesse tempo não segura
+ * a cena: ela toca, e o mapa monta quando chegar.
+ */
+export const ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS = 2500
+
 export function createPlayerConnection(options: PlayerConnectionOptions): PlayerConnection {
   const { url, code, name, createSocket } = options
   const isTable = options.role === 'table'
@@ -2676,6 +2711,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   let travelTimer: ReturnType<typeof setTimeout> | null = null
   /** TRANSIÇÃO ESPECIAL do pino do último pedido de passagem; toca se a chegada for dele. */
   let transicaoDoPedido: TransicaoEscolhida | undefined
+  /** TRANSIÇÃO ESPECIAL: solta quem espera o mapa da travessia em curso (`esperarMapaDaTransicao`). */
+  let soltarMapaDaTransicao: (() => void) | null = null
+  /**
+   * A promessa que a cena da travessia espera antes de tocar: o snapshot do
+   * mapa novo (ou do piso novo) aplicado, para ele montar por baixo da cortina
+   * preta e não em cima da cena. O teto solta a cena se o snapshot não vier.
+   */
+  function esperarMapaDaTransicao(): Promise<void> {
+    // Outra travessia por cima: a cena de antes já saiu da tela, e a espera dela acaba aqui.
+    soltarMapaDaTransicao?.()
+    return new Promise<void>((chegou) => {
+      const soltar = (): void => {
+        clearTimeout(teto)
+        if (soltarMapaDaTransicao === soltar) soltarMapaDaTransicao = null
+        chegou()
+      }
+      const teto = setTimeout(soltar, ESPERA_DO_MAPA_DA_TRANSICAO_MAX_MS)
+      soltarMapaDaTransicao = soltar
+    })
+  }
   /** Quando saiu o último pedido de passagem (qualquer pino) e o de cada pino: o espelho dos limites do host. */
   let lastTravelSentAt: number | null = null
   const lastTravelSentAtByPin = new Map<string, number>()
@@ -3566,11 +3621,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage | CutsceneCarregandoMessage): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
     // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
-    // E o `cutscene.pronta` (09/11): a TV também toca a abertura, e a mesa espera por ela para largar.
-    if (isTable && message.type !== 'join' && message.type !== 'ping' && message.type !== 'som.falhou' && message.type !== 'cutscene.pronta') return false
+    // E o `cutscene.pronta` e o `cutscene.carregando` (09/11): a TV também toca a abertura, e a mesa espera por ela para largar.
+    const daTela = message.type === 'join' || message.type === 'ping' || message.type === 'som.falhou' || message.type === 'cutscene.pronta' || message.type === 'cutscene.carregando'
+    if (isTable && !daTela) return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     const texto = JSON.stringify(message)
     // O servidor fecha o socket de quem manda acima do teto: melhor a mensagem
@@ -4451,8 +4507,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         {
           const fase = travelPhaseOfSceneChange(data.by)
           showTravelAnswer({ id: nextNoticeId++, phase: fase })
-          // TRANSIÇÃO ESPECIAL: só na chegada pedida pelo próprio jogador.
-          if (fase === 'arrived' && transicaoDoPedido !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha: transicaoDoPedido } })
+          // TRANSIÇÃO ESPECIAL: só na chegada pedida pelo próprio jogador. O mapa novo vem no snapshot logo atrás.
+          if (fase === 'arrived' && transicaoDoPedido !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha: transicaoDoPedido, mapaNovo: esperarMapaDaTransicao() } })
           transicaoDoPedido = undefined
         }
         return
@@ -5080,6 +5136,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
         if (porAtravessar === null) return
         applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
+        // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou; a cena que esperava por ele pode tocar.
+        soltarMapaDaTransicao?.()
         return
       }
       case 'wait.state':
@@ -5096,6 +5154,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'patch':
         applyPatch(data)
+        // TRANSIÇÃO ESPECIAL: a troca de piso da mesma cena pode vir só como remendo.
+        soltarMapaDaTransicao?.()
         return
       case 'token.move.accepted': {
         if (typeof data.reqId !== 'string' || !isFiniteNumber(data.x) || !isFiniteNumber(data.y)) return
@@ -5124,8 +5184,19 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           ...(aviso.transicao === undefined ? {} : { transicao: aviso.transicao }),
           ...(aviso.texto === undefined ? {} : { texto: aviso.texto }),
           ...(aviso.preparo === undefined ? {} : { preparo: aviso.preparo }),
+          ...(aviso.batidaMs === undefined ? {} : { batidaMs: aviso.batidaMs }),
         }
+        // LARGADA COMBINADA: a primeira batida sai daqui, antes de a tela montar: o mestre já sabe
+        // que esta tela está viva e carregando, e não a trata como muda. As seguintes saem da tela.
+        if (aviso.preparo !== undefined && aviso.batidaMs !== undefined) send({ type: 'cutscene.carregando', preparo: aviso.preparo })
         setState({ batalhaIniciada: { id: nextNoticeId++, ...abertura } })
+        return
+      }
+      case 'cutscene.aquecer': {
+        // AQUECER PELA INTENÇÃO: a abertura que o mestre marcou. Só o pedido fica aqui; quem aquece é a tela.
+        const pedido = lerCutsceneAquecer(data)
+        if (pedido === null || pedido.abertura === state.aberturaParaAquecer) return
+        setState({ aberturaParaAquecer: pedido.abertura })
         return
       }
       case 'cutscene.tocar': {
@@ -5468,6 +5539,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const conferida = lerCutscenePronta({ type: 'cutscene.pronta', preparo })
       return conferida !== null && send(conferida)
     },
+    informarCutsceneCarregando(preparo) {
+      const conferida = lerCutsceneCarregando({ type: 'cutscene.carregando', preparo })
+      return conferida !== null && send(conferida)
+    },
     requestMove(tokenId, x, y) {
       // O dedo manda mais que o "Andar até aqui": arrastar a ficha para a caminhada.
       stopWalk()
@@ -5582,7 +5657,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // TRANSIÇÃO ESPECIAL da escada: toca no toque — a troca de piso é na
       // mesma cena e o host responde na hora, a animação cobre a virada.
       const escolha = parseTransicao(state.map?.stairs.find((s) => s.id === stairId)?.transicao)
-      if (escolha !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha } })
+      if (escolha !== undefined) setState({ transicao: { nonce: nextNoticeId++, escolha, mapaNovo: esperarMapaDaTransicao() } })
       return true
     },
     boardVehicle(tokenId, vehicleId) {

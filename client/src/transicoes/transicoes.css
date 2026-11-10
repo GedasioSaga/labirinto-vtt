@@ -215,12 +215,29 @@
   outline-offset: 2px;
 }
 
-/* Aviso do preparo (largada combinada): a tela está preta carregando a cena ou esperando a mesa.
-   O atraso da entrada faz o preparo rápido passar sem piscar texto; a saída é na hora. */
-.lb-transicao-jogo__aviso {
+/* Espera do preparo (largada combinada): a tela está preta carregando a cena ou esperando a mesa.
+   O atraso da entrada faz o preparo rápido passar sem piscar texto; a saída é na hora.
+   No mestre, o "Tocar agora" mora ao lado do aviso e aparece e some com ele. */
+.lb-transicao-jogo__espera {
   position: absolute;
   left: max(16px, env(safe-area-inset-left, 0px));
   bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  opacity: 0;
+  visibility: hidden;
+  /* A visibilidade cai só depois do fade: escondido, o botão não recebe clique nem foco. */
+  transition: opacity 150ms ease-out, visibility 0s linear 150ms;
+}
+
+.lb-transicao-jogo__espera[data-visivel='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 200ms ease-out 400ms, visibility 0s linear 400ms;
+}
+
+.lb-transicao-jogo__aviso {
   margin: 0;
   padding: 10px 0;
   color: rgba(216, 208, 191, 0.72);
@@ -228,11 +245,34 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 150ms ease-out;
 }
 
-.lb-transicao-jogo__aviso[data-visivel='true'] {
-  opacity: 1;
-  transition: opacity 200ms ease-out 400ms;
+/* O mesmo desenho do "Pular", com a borda mais acesa: é a saída que o mestre procura enquanto espera. */
+.lb-transicao-jogo__agora {
+  padding: 10px 16px;
+  border: 1px solid rgba(216, 208, 191, 0.6);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8d0bf;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 120ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-transicao-jogo__agora:hover {
+    border-color: #d8d0bf;
+  }
+}
+
+.lb-transicao-jogo__agora:active {
+  transform: scale(0.97);
+}
+
+.lb-transicao-jogo__agora:focus-visible {
+  outline: 2px solid #d8d0bf;
+  outline-offset: 2px;
 }

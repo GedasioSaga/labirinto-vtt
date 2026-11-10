@@ -1097,7 +1097,16 @@ export interface BatalhaIniciadaMessage {
   texto?: string
   /** LARGADA COMBINADA: o número deste preparo (ver `CutsceneTocarMessage`). Ausente = toca ao ficar pronta. */
   preparo?: number
+  /**
+   * LARGADA COMBINADA: de quanto em quanto tempo (ms) a tela que ainda carrega manda
+   * `cutscene.carregando`. Ausente = mestre que não ouve a batida (versão anterior): a tela não manda.
+   */
+  batidaMs?: number
 }
+
+/** A batida `cutscene.carregando` que o mestre pode pedir: nem rajada, nem tão rara que pareça tela muda. */
+export const BATIDA_DE_CUTSCENE_MIN_MS = 250
+export const BATIDA_DE_CUTSCENE_MAX_MS = 2000
 
 /**
  * LARGADA COMBINADA da abertura (09/11/2026, "deixe tudo carregado primeiro para aí sim tocar"):
@@ -1137,6 +1146,40 @@ export function lerCutscenePronta(value: unknown): CutsceneProntaMessage | null 
   return { type: 'cutscene.pronta', preparo: value.preparo }
 }
 
+/**
+ * Do jogador (ou da TV) ao mestre, a cada `batidaMs` enquanto a cena do `preparo` carrega: "estou
+ * viva, ainda não pronta". A mesa espera a tela viva até um teto maior que o da tela muda
+ * (`transicoes/largada.ts`). FORA da união `PlayerMessage`, como o `cutscene.pronta`. Só sai para
+ * o mestre que pediu a batida (`batidaMs` no `batalha.iniciada`).
+ */
+export interface CutsceneCarregandoMessage {
+  type: 'cutscene.carregando'
+  preparo: number
+}
+
+/** Valida o "carregando" que chega ao mestre (e o que o jogador manda, antes de sair). */
+export function lerCutsceneCarregando(value: unknown): CutsceneCarregandoMessage | null {
+  if (!isRecord(value) || value.type !== 'cutscene.carregando' || !ehPreparoDeCutscene(value.preparo)) return null
+  return { type: 'cutscene.carregando', preparo: value.preparo }
+}
+
+/**
+ * AQUECER PELA INTENÇÃO (09/11/2026): o mestre escolheu a abertura e ainda não confirmou. Quem
+ * recebe baixa e pré-compila a cena com a página ociosa (`transicoes/aquecimento.ts`), para o
+ * preparo de verdade caber folgado no prazo da largada. Não toca nada. Jogador antigo ignora.
+ */
+export interface CutsceneAquecerMessage {
+  type: 'cutscene.aquecer'
+  /** Id da abertura de batalha, como o `transicao` do `batalha.iniciada`. */
+  abertura: string
+}
+
+/** Valida o pedido de aquecer (mestre e jogador usam o mesmo). */
+export function lerCutsceneAquecer(value: unknown): CutsceneAquecerMessage | null {
+  if (!isRecord(value) || value.type !== 'cutscene.aquecer' || !textoCurto(value.abertura, BATALHA_TRANSICAO_MAX)) return null
+  return { type: 'cutscene.aquecer', abertura: value.abertura }
+}
+
 /** Texto curto não vazio, sem quebra de linha, até `max` caracteres. */
 function textoCurto(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\r\n]/.test(value)
@@ -1152,6 +1195,9 @@ export function lerBatalhaIniciada(value: unknown): BatalhaIniciadaMessage | nul
   if (typeof value.texto === 'string') msg.texto = value.texto.trim()
   // O `preparo` só combina a largada, nunca decide se a abertura toca: torto ou sem animação, cai só ele.
   if (msg.transicao !== undefined && ehPreparoDeCutscene(value.preparo)) msg.preparo = value.preparo
+  // A batida só existe com o preparo; fora da faixa, cai só ela (a tela fica sem avisar "carregando").
+  const batida = value.batidaMs
+  if (msg.preparo !== undefined && typeof batida === 'number' && Number.isFinite(batida) && batida >= BATIDA_DE_CUTSCENE_MIN_MS && batida <= BATIDA_DE_CUTSCENE_MAX_MS) msg.batidaMs = batida
   return msg
 }
 
@@ -2000,6 +2046,8 @@ export type HostMessage =
   | BatalhaIniciadaMessage
   // LARGADA COMBINADA: a ordem de tocar a abertura do `preparo` (ver `CutsceneTocarMessage`). Jogador antigo ignora.
   | CutsceneTocarMessage
+  // AQUECER PELA INTENÇÃO: baixar e pré-compilar a abertura que o mestre escolheu (ver `CutsceneAquecerMessage`). Jogador antigo ignora.
+  | CutsceneAquecerMessage
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   // VEÍCULO: o "Subir"/"Descer" não valeu, e por quê (`VehicleRejection`). Aceito não tem resposta: vem no snapshot.
   | { type: 'vehicle.rejected'; reason: VehicleRejection }

@@ -12,7 +12,8 @@ import { tableScreenText } from './tableScreenText'
 import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
 import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
-import { aquecerMotorDasCutscenes } from '../transicoes/aquecimento'
+import { aquecerAbertura, aquecerMotorDasCutscenes } from '../transicoes/aquecimento'
+import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import { PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
 
 /**
@@ -85,10 +86,18 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
   const [settings] = useState<PlayerViewSettings>(() => loadPlayerSettings(null))
   const copy = tableScreenText(state, code)
 
-  // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas chega com a página ociosa, antes da primeira batalha.
+  // PACOTE DE ANIMAÇÕES do mestre, pelo servidor da sala, como na página do jogador: toda abertura
+  // de batalha vem dele, e sem ele a TV pulava a abertura (a cena "que este app não tem").
+  // CUTSCENES CARREGADAS ANTES DE TOCAR: o motor delas começa a baixar junto, antes da primeira batalha.
   useEffect(() => {
+    void carregarPacoteDaPagina()
     aquecerMotorDasCutscenes()
   }, [])
+  // AQUECER PELA INTENÇÃO: a abertura que o mestre marcou é pré-compilada aqui antes de ele confirmar.
+  const aberturaParaAquecer = state.aberturaParaAquecer
+  useEffect(() => {
+    if (aberturaParaAquecer !== undefined) aquecerAbertura(aberturaParaAquecer)
+  }, [aberturaParaAquecer])
 
   // Queda de rede: tenta de novo sozinha enquanto a tela estiver neste estado.
   useEffect(() => {
@@ -120,6 +129,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           abertura={state.batalhaIniciada}
           volume={PREFERENCIA_DE_SOM_PADRAO.volume}
           aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)}
+          aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
         />
       </PlayerErrorBoundary>
     )

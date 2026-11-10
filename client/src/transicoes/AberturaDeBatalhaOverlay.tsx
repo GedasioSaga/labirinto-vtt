@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { estaCalado, useSomStore } from '../stores/somStore'
-import { assinarTelasQueFaltam, entrarNaLargadaDoMestre, esperarLargadaDoJogador, telasQueFaltam, type EsperaDoJogador } from './largada'
+import { assinarTelasQueFaltam, entrarNaLargadaDoMestre, esperarLargadaDoJogador, largarAgora, telasQueFaltam, type EsperaDoJogador } from './largada'
 import { tocarAberturaDeBatalha, type ControleDeTransicao } from './motor'
 import './transicoes.css'
 
@@ -16,6 +16,9 @@ import './transicoes.css'
  * baixo da cortina preta, avisa que está pronta e só toca quando a mesa larga
  * (todas prontas, ou o prazo). No mestre a conta vem das telas da sala; no
  * jogador e na TV, do `preparo` e do `largouEm` que a conexão entrega.
+ * Enquanto carrega, o jogador e a TV batem "carregando" para o mestre (a tela
+ * viva segura a mesa por mais tempo que a muda); o mestre vê quantas telas
+ * faltam e pode largar já, no "Tocar agora".
  */
 
 /** O pedido de tocar: `id` novo a cada batalha ligada. */
@@ -27,6 +30,8 @@ export interface AberturaPedida {
   preparo?: number
   /** Jogador e TV: o instante (`performance.now()`) em que a ordem de tocar chegou. */
   largouEm?: number
+  /** Jogador e TV: de quanto em quanto avisar o mestre de que a cena ainda carrega. Ausente = o mestre não ouve a batida. */
+  batidaMs?: number
 }
 
 interface AberturaDeBatalhaOverlayProps {
@@ -35,6 +40,8 @@ interface AberturaDeBatalhaOverlayProps {
   volume?: number
   /** Jogador e TV: conta ao mestre que a abertura do `preparo` está carregada aqui (ou que esta tela desistiu dela). */
   aoFicarPronta?: (preparo: number) => void
+  /** Jogador e TV: a batida de quem ainda carrega a abertura do `preparo` ("estou viva"). */
+  aoCarregar?: (preparo: number) => void
 }
 
 /** Saída da cortina: o mesmo fade da transição de local. */
@@ -53,12 +60,14 @@ interface AberturaTelaProps {
   volume: number
   preparo: number | undefined
   largouEm: number | undefined
+  batidaMs: number | undefined
   aoFicarPronta: ((preparo: number) => void) | undefined
+  aoCarregar: ((preparo: number) => void) | undefined
   onFase: (fase: Fase) => void
   onFim: () => void
 }
 
-function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFase, onFim }: AberturaTelaProps) {
+function AberturaTela({ id, nome, volume, preparo, largouEm, batidaMs, aoFicarPronta, aoCarregar, onFase, onFim }: AberturaTelaProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const cortinaRef = useRef<HTMLDivElement>(null)
   const controleRef = useRef<ControleDeTransicao | null>(null)
@@ -71,6 +80,8 @@ function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFa
   onFaseRef.current = onFase
   const aoFicarProntaRef = useRef(aoFicarPronta)
   aoFicarProntaRef.current = aoFicarPronta
+  const aoCarregarRef = useRef(aoCarregar)
+  aoCarregarRef.current = aoCarregar
   const volumeRef = useRef(volume)
   volumeRef.current = volume
   const largouEmRef = useRef(largouEm)
@@ -90,10 +101,14 @@ function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFa
     if (espera !== null && largouEmRef.current !== undefined) espera.largou(largouEmRef.current)
     const largada = lugar?.largada ?? espera?.largada
     let avisou = false
+    // Jogador e TV: enquanto a cena carrega aqui, a batida diz ao mestre que esta tela está viva
+    // (a primeira já saiu da conexão, ao receber o aviso). Para quando a tela solta a mesa.
+    const batida = preparo === undefined || batidaMs === undefined ? undefined : setInterval(() => aoCarregarRef.current?.(preparo), batidaMs)
     /** Pronta, terminada ou desistida: nos três casos a mesa não espera mais por esta tela. Uma vez só. */
     const soltarAMesa = () => {
       if (avisou) return
       avisou = true
+      clearInterval(batida)
       lugar?.pronta()
       if (preparo !== undefined) aoFicarProntaRef.current?.(preparo)
     }
@@ -126,6 +141,7 @@ function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFa
     })
     return () => {
       vivo = false
+      clearInterval(batida)
       desistencia.abort()
       espera?.cancelar()
       esperaRef.current = null
@@ -135,7 +151,7 @@ function AberturaTela({ id, nome, volume, preparo, largouEm, aoFicarPronta, onFa
       // porque o React de desenvolvimento desmonta e monta de novo na hora, e essa não é uma saída.
       if (!avisou) desistenciaRef.current = setTimeout(soltarAMesa, 0)
     }
-  }, [id, nome, preparo])
+  }, [id, nome, preparo, batidaMs])
 
   // A ordem de tocar chegou pela conexão (jogador e TV).
   useEffect(() => {
@@ -162,7 +178,7 @@ function textoDoAviso(fase: Fase, doMestre: boolean, faltam: number): string {
   return faltam === 1 ? 'Esperando 1 tela…' : `Esperando ${faltam} telas…`
 }
 
-export function AberturaDeBatalhaOverlay({ abertura, volume, aoFicarPronta }: AberturaDeBatalhaOverlayProps) {
+export function AberturaDeBatalhaOverlay({ abertura, volume, aoFicarPronta, aoCarregar }: AberturaDeBatalhaOverlayProps) {
   const [vista, setVista] = useState<number | null>(null)
   const [saindo, setSaindo] = useState(false)
   const [fase, setFase] = useState<Fase>('preparando')
@@ -190,6 +206,9 @@ export function AberturaDeBatalhaOverlay({ abertura, volume, aoFicarPronta }: Ab
 
   if (!ativa || pedido === null || pedido.transicao === undefined) return null
   const terminar = () => setSaindo(true)
+  const doMestre = pedido.preparo === undefined
+  // Só o mestre larga a mesa, e só quando a cena dele já está pronta e ainda há tela carregando.
+  const podeLargar = doMestre && fase === 'esperando' && faltam > 0 && !saindo
 
   return createPortal(
     <div className="lb-transicao-jogo" data-saindo={saindo} role="dialog" aria-modal="true" aria-label="Abertura da batalha">
@@ -201,14 +220,24 @@ export function AberturaDeBatalhaOverlay({ abertura, volume, aoFicarPronta }: Ab
         volume={volume ?? volumeDoAparelho}
         preparo={pedido.preparo}
         largouEm={pedido.largouEm}
+        batidaMs={pedido.batidaMs}
         aoFicarPronta={aoFicarPronta}
+        aoCarregar={aoCarregar}
         onFase={setFase}
         onFim={terminar}
       />
       {/* Só aparece se a espera passar de um instante (o atraso mora no CSS); com a cena no ar, some. */}
-      <p className="lb-transicao-jogo__aviso" role="status" data-visivel={fase !== 'tocando' && !saindo}>
-        {textoDoAviso(fase, pedido.preparo === undefined, faltam)}
-      </p>
+      <div className="lb-transicao-jogo__espera" data-visivel={fase !== 'tocando' && !saindo}>
+        <p className="lb-transicao-jogo__aviso" role="status">
+          {textoDoAviso(fase, doMestre, faltam)}
+        </p>
+        {/* "Tocar agora": o mestre não espera quem ainda carrega; essas telas entram no ponto certo da cena. */}
+        {podeLargar && (
+          <button type="button" className="lb-transicao-jogo__agora" onClick={largarAgora}>
+            Tocar agora
+          </button>
+        )}
+      </div>
       <button ref={pularRef} type="button" className="lb-transicao-jogo__pular" onClick={terminar}>
         Pular
       </button>
