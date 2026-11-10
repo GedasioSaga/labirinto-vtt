@@ -7,6 +7,7 @@ import {
   FOLGA_DA_LARGADA_MS,
   largarAgora,
   PRAZO_DA_LARGADA_MS,
+  SILENCIO_DA_TELA_VIVA_MAX_MS,
   telasQueFaltam,
   TETO_DA_TELA_CARREGANDO_MS,
 } from './largada'
@@ -108,12 +109,26 @@ describe('largada combinada da cutscene', () => {
     clearInterval(bater)
   })
 
-  it('tela que carregava e calou (travou, a aba morreu) volta a valer o prazo curto, contado da última batida', () => {
+  // Medido em 09/11/2026 (aparelho 6x mais lento, rede de 320 kbps): a tela bateu uma vez e ficou 2,98 s
+  // sem conseguir bater de novo, com a thread principal presa montando a cena; a mesa largou sem ela.
+  it('tela viva presa montando a cena (bateu e não consegue bater de novo) segue esperada além do prazo da muda', () => {
+    const aoLargar = vi.fn()
+    const combinado = combinarLargada({ telas: ['presa'], aoLargar })
+    combinado.carregando('presa')
+    vi.advanceTimersByTime(PRAZO_DA_LARGADA_MS + 1000)
+    expect(aoLargar).not.toHaveBeenCalled()
+    expect(telasQueFaltam()).toBe(1)
+    combinado.pronta('presa')
+    expect(aoLargar).toHaveBeenCalledTimes(1)
+  })
+
+  it('tela que batia e calou de vez (a aba morreu) sai no silêncio da viva, contado da última batida e antes do teto', () => {
     const aoLargar = vi.fn()
     const combinado = combinarLargada({ telas: ['calou'], aoLargar })
     vi.advanceTimersByTime(1000)
     combinado.carregando('calou')
-    vi.advanceTimersByTime(PRAZO_DA_LARGADA_MS - 1)
+    expect(1000 + SILENCIO_DA_TELA_VIVA_MAX_MS).toBeLessThan(TETO_DA_TELA_CARREGANDO_MS)
+    vi.advanceTimersByTime(SILENCIO_DA_TELA_VIVA_MAX_MS - 1)
     expect(aoLargar).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
     expect(aoLargar).toHaveBeenCalledTimes(1)

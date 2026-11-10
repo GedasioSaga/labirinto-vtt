@@ -5,8 +5,9 @@
  * O mestre dispara a abertura da batalha; cada tela (mestre, jogadores, TV)
  * prepara a cena (`motor.ts`) e avisa "pronta"; a animação larga para todo
  * mundo quando a última tela avisou. Quem ainda carrega avisa "carregando" a
- * cada batida, e a mesa espera por ela até `TETO_DA_TELA_CARREGANDO_MS`; a
- * tela MUDA (cliente antigo, aba travada, fio caído) só segura a mesa por
+ * cada batida, e a mesa espera por ela até `TETO_DA_TELA_CARREGANDO_MS`
+ * (calada por mais de `SILENCIO_DA_TELA_VIVA_MAX_MS`, sai antes); a tela MUDA
+ * (cliente antigo, aba travada, fio caído) só segura a mesa por
  * `PRAZO_DA_LARGADA_MS`. O mestre pode largar já ("Tocar agora"). Quem não
  * ficou pronto a tempo entra no ponto certo quando ficar (o motor adianta o
  * relógio dele).
@@ -18,10 +19,20 @@
  */
 
 /**
- * Prazo da tela MUDA: a que nunca disse nada, ou a que dizia "carregando" e
- * calou (contado da última batida). Vencido, ninguém espera mais por ela.
+ * Prazo da tela MUDA: a que nunca disse nada nesta abertura (cliente antigo,
+ * aba travada, fio caído). Vencido, ninguém espera mais por ela.
  */
 export const PRAZO_DA_LARGADA_MS = 2500
+/**
+ * Silêncio tolerado da tela VIVA: a que já avisou "carregando" nesta abertura
+ * e parou de bater (contado da última batida). É maior que o prazo da muda
+ * porque a batida sai da mesma thread que monta a cena: medido em 09/11/2026,
+ * num aparelho 6x mais lento com rede de 320 kbps, a tela bateu e ficou 2,98 s
+ * sem conseguir bater de novo, e a mesa largou sem ela. Quem calou de vez (a
+ * aba morreu sem o fio cair) ainda sai antes do teto. Número do mestre, para
+ * ajustar.
+ */
+export const SILENCIO_DA_TELA_VIVA_MAX_MS = 5000
 /**
  * Teto da tela VIVA que ainda carrega (rede lenta, aparelho fraco): o mais que
  * a mesa espera antes de largar sem ela. DECISÃO de 09/11/2026 ("esperar um
@@ -45,8 +56,9 @@ export interface Combinado {
   /** A tela avisou que está pronta. Desconhecida, repetida ou depois da largada: nada. */
   pronta(tela: string): void
   /**
-   * A tela avisou que está viva e ainda carrega: o prazo curto dela recomeça
-   * (até o teto). Vale também para a que já tinha saído da conta por silêncio.
+   * A tela avisou que está viva e ainda carrega: passa a valer o silêncio da
+   * tela viva, contado desta batida (até o teto). Vale também para a que já
+   * tinha saído da conta por silêncio.
    */
   carregando(tela: string): void
   /** A tela caiu ou desistiu (pulou): não se espera mais por ela. */
@@ -62,6 +74,8 @@ export interface OpcoesDoCombinado {
   aoLargar: () => void
   /** Prazo da tela muda. */
   prazoMs?: number
+  /** Silêncio tolerado da tela viva, contado da última batida dela. */
+  silencioDaVivaMs?: number
   /** Teto da tela viva que ainda carrega. */
   tetoMs?: number
 }
@@ -88,11 +102,18 @@ function avisarOuvintes(): void {
 
 /**
  * Abre a espera pelas `telas`. Larga (chama `aoLargar`) quando a última
- * avisar "pronta" ou sair da conta; sem tela nenhuma, na hora. Cada tela sai
- * da conta sozinha depois de `prazoMs` de silêncio (a batida "carregando"
- * recomeça a contagem), e tudo larga em `tetoMs`, com quem estiver.
+ * avisar "pronta" ou sair da conta; sem tela nenhuma, na hora. A tela que
+ * nunca disse nada sai da conta sozinha depois de `prazoMs`; a que bateu
+ * "carregando", depois de `silencioDaVivaMs` sem bater de novo; e tudo larga em
+ * `tetoMs`, com quem estiver.
  */
-export function combinarLargada({ telas, aoLargar, prazoMs = PRAZO_DA_LARGADA_MS, tetoMs = TETO_DA_TELA_CARREGANDO_MS }: OpcoesDoCombinado): Combinado {
+export function combinarLargada({
+  telas,
+  aoLargar,
+  prazoMs = PRAZO_DA_LARGADA_MS,
+  silencioDaVivaMs = SILENCIO_DA_TELA_VIVA_MAX_MS,
+  tetoMs = TETO_DA_TELA_CARREGANDO_MS,
+}: OpcoesDoCombinado): Combinado {
   const faltam = new Set(telas)
   /** O prazo de silêncio de cada tela esperada. A do mestre não tem: é local, e vale só o teto. */
   const silencios = new Map<string, ReturnType<typeof setTimeout>>()
@@ -127,11 +148,11 @@ export function combinarLargada({ telas, aoLargar, prazoMs = PRAZO_DA_LARGADA_MS
     if (faltam.size === 0) largar()
     else avisarOuvintes()
   }
-  const armarSilencio = (tela: string): void => {
+  const armarSilencio = (tela: string, silencioMs: number): void => {
     clearTimeout(silencios.get(tela))
     silencios.set(
       tela,
-      setTimeout(() => tirarDaConta(tela), prazoMs),
+      setTimeout(() => tirarDaConta(tela), silencioMs),
     )
   }
   const resolvida = (tela: string): void => {
@@ -144,7 +165,7 @@ export function combinarLargada({ telas, aoLargar, prazoMs = PRAZO_DA_LARGADA_MS
     if (!aberto || resolvidas.has(tela) || !telas.includes(tela)) return
     const voltou = !faltam.has(tela)
     faltam.add(tela)
-    armarSilencio(tela)
+    armarSilencio(tela, silencioDaVivaMs)
     if (voltou) avisarOuvintes()
   }
   const cancelar = (): void => {
@@ -153,7 +174,7 @@ export function combinarLargada({ telas, aoLargar, prazoMs = PRAZO_DA_LARGADA_MS
   }
   const combinado: CombinadoEmCurso = { faltam, largou, pronta: resolvida, saiu: resolvida, carregando, cancelar, largarJa: largar }
   const teto = setTimeout(largar, tetoMs)
-  for (const tela of faltam) armarSilencio(tela)
+  for (const tela of faltam) armarSilencio(tela, prazoMs)
   emCurso.add(combinado)
   if (faltam.size === 0) largar()
   else avisarOuvintes()
