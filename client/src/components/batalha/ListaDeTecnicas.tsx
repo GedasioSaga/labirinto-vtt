@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type UIEvent } from 'react'
 import { CUSTO_MAX } from '../../lib/batalha/combate'
+import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { ContaComBonus } from './ContaComBonus'
 import { lerInteiro, textoDaCarga, type EvolucaoNaTela, type GolpeNaTela, type LinhaDaLeitura, type PipDaVez } from './dadosDoMenu'
 import './batalha.css'
@@ -147,6 +148,7 @@ export function Tira({ indice, chave, nome, lado, detalhe, motivo, resumo, chips
  */
 export function focoSegueOMouse(tira: HTMLButtonElement | null | undefined) {
   if (tira === null || tira === undefined) return
+  tocarSomDoCombate('mover')
   const menu = tira.closest('.bt-vez')
   if (menu !== null && menu.contains(document.activeElement) && document.activeElement !== tira) tira.focus({ preventScroll: true })
 }
@@ -174,6 +176,7 @@ export function andarComSetas(evento: KeyboardEvent, tiras: readonly (HTMLButton
   if (proxima === null) return false
   evento.preventDefault()
   tiras[proxima]?.focus()
+  tocarSomDoCombate('mover')
   return true
 }
 
@@ -386,6 +389,7 @@ export function ListaDeTecnicas({ titulo, pips, carga, golpes, onEscolher, suger
       return
     }
     if (memoria !== undefined) ultimaTecnica.set(memoria, golpe.chave)
+    tocarSomDoCombate('confirmar')
     onEscolher(golpe, teclado)
   }
 

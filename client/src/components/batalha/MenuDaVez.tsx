@@ -5,6 +5,8 @@ import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
 import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
+import { BotaoDoSomDoCombate } from './ChavesDoCombate'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
 import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, podeTomarOFoco, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
@@ -479,6 +481,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
   const escolherItem = (item: ItemDoMenu, teclado: boolean) => {
     if (esperando || item.motivo) return
     lembrar(item.chave)
+    tocarSomDoCombate('confirmar')
     item.executar(teclado)
   }
 
@@ -596,6 +599,7 @@ export function MenuDaVez(props: MenuDaVezProps) {
         <button type="button" className="bt-botao bt-botao--p" onClick={() => setRecolhido(true)}>
           Recolher
         </button>
+        <BotaoDoSomDoCombate />
       </div>
     </div>
   )
