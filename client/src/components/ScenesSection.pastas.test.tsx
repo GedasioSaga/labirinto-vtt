@@ -325,14 +325,17 @@ describe('ScenesSection: cenas em pastas', () => {
     expect(container.querySelector('[data-cena-raiz]')).toBeNull()
   })
 
+  /** "Mover para…" mora no menu "…" de toda cena (lista de cenas, ideia 5): a linha não tem mais o botão. */
+  function moverPeloMenu(cena: string): void {
+    act(() => botao(`Mais ações de ${cena}`)?.click())
+    const item = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent === 'Mover para…')
+    act(() => item?.click())
+  }
+
   it('"Mover para…" na cena aberta: sem ela e sem as de dentro dela, a pasta de hoje marcada, e move', () => {
     const { onMove } = render()
-    const abrir = botao('Mover Porto Cinza para…')
-    expect(abrir).toBeDefined()
-    // Só a cena aberta tem o botão, como o renomear.
-    expect(botao('Mover Mercado para…')).toBeUndefined()
-    abrir?.focus()
-    act(() => abrir?.click())
+    expect(botao('Mover Porto Cinza para…')).toBeUndefined()
+    moverPeloMenu('Porto Cinza')
 
     const escolha = container.querySelector<HTMLSelectElement>('select')
     expect(container.querySelector(`label[for="${escolha?.id ?? ''}"]`)?.textContent).toBe('Mover Porto Cinza para dentro de')
@@ -357,7 +360,7 @@ describe('ScenesSection: cenas em pastas', () => {
 
   it('"Mover para…": Esc fecha sem mover e sem chegar ao mapa', () => {
     const { onMove } = render()
-    act(() => botao('Mover Porto Cinza para…')?.click())
+    moverPeloMenu('Porto Cinza')
     const escolha = container.querySelector('select')
     digita(escolha, '')
     tecla(escolha, 'Escape')

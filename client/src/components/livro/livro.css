@@ -18,6 +18,59 @@
   pointer-events: none;
 }
 .gr-livro--esq { left: 12px; }
+
+/* A borda de fora da página do livro da mesa (a esquerda, onde começa o mapa):
+   uma faixa de 12 px com o puxador de duas ranhuras no meio (o desenho
+   aprovado da lista de cenas, ideia 5). A borda acende em latão com o mouse,
+   no foco e durante o arrasto. */
+.gr-borda-da-pagina {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  z-index: 3;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.gr-borda-da-pagina[hidden] { display: none; }
+.gr-borda-da-pagina::before {
+  content: '';
+  position: absolute;
+  top: var(--lb-radius-lg);
+  bottom: var(--lb-radius-lg);
+  left: 5px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+.gr-borda-da-pagina::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 1px;
+  width: 10px;
+  height: 36px;
+  margin-top: -18px;
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-radius: 5px;
+  background:
+    linear-gradient(var(--lb-color-parchment-faint), var(--lb-color-parchment-faint)) 3px 50% / 1px 14px no-repeat,
+    linear-gradient(var(--lb-color-parchment-faint), var(--lb-color-parchment-faint)) 6px 50% / 1px 14px no-repeat,
+    var(--lb-gr-cartao);
+  box-shadow: var(--lb-shadow-md);
+  transition: border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .gr-borda-da-pagina:hover::before { background: var(--lb-color-brass); }
+  .gr-borda-da-pagina:hover::after { border-color: var(--lb-color-brass); }
+}
+.gr-borda-da-pagina.gr-e-puxando::before,
+.gr-borda-da-pagina:focus-visible::before { background: var(--lb-color-brass); }
+.gr-borda-da-pagina.gr-e-puxando::after,
+.gr-borda-da-pagina:focus-visible::after { border-color: var(--lb-color-brass); box-shadow: var(--lb-shadow-focus); }
 .gr-livro > * { pointer-events: auto; }
 
 .gr-lombada {
@@ -214,10 +267,15 @@
 :root { --lb-coldir-espaco: 0px; --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
 /* O livro do mestre recolhido tapa só a lombada: a barra do pé (main.css) usa o vão devolvido. */
 :root:has(.gr-livro--esq.gr-e-recolhido) { --lb-livroesq-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
-:root:has(.lb-editor[data-coldir='aberta']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-gr-largura-pagina)); }
+:root:has(.lb-editor[data-coldir='aberta']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada) + var(--lb-livrodir-pagina, var(--lb-gr-largura-pagina))); }
 :root:has(.lb-editor[data-coldir='escondida']) { --lb-coldir-espaco: calc(12px + var(--lb-gr-largura-lombada)); }
 
-.gr-livro--dir { right: 12px; flex-direction: row-reverse; }
+.gr-livro--dir {
+  right: 12px;
+  flex-direction: row-reverse;
+  /* A página tem a largura que o mestre arrastou (BordaDaPagina.tsx); sem arrasto, o token. */
+  width: calc(var(--lb-gr-largura-lombada) + var(--lb-livrodir-pagina, var(--lb-gr-largura-pagina)));
+}
 .gr-livro--dir .gr-lombada {
   border-radius: 0 var(--lb-radius-lg) var(--lb-radius-lg) 0;
   background: linear-gradient(270deg, var(--lb-gr-couro-1), var(--lb-gr-couro-3) 55%, var(--lb-gr-couro-2));

@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,7 +15,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
 import { CorteDaTorreDialog } from './CorteDaTorre'
 import type { CorteJogador } from '../lib/corteDaTorre'
-import { ChevronDownIcon, CloseIcon, MoveIntoIcon, SearchIcon, SettingsIcon, TokenIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, SearchIcon, SettingsIcon, TokenIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -992,7 +993,14 @@ export function ScenesSection({
   /** "+ Nova cena": o foco cai nele quando a linha da cena apagada some. */
   const createButtonRef = useRef<HTMLButtonElement | null>(null)
   const menuIdBase = useId()
-  const hasSceneMenu = onDuplicate !== undefined || onShift !== undefined || onSetStart !== undefined || onDelete !== undefined || deletionInfo !== undefined
+  const hasSceneMenu =
+    onDuplicate !== undefined ||
+    onShift !== undefined ||
+    onSetStart !== undefined ||
+    onDelete !== undefined ||
+    deletionInfo !== undefined ||
+    onMove !== undefined ||
+    scenes.some((scene) => scene.renamable)
   const [draft, setDraft] = useState('')
   /** Janela "Visão geral das cenas" aberta. */
   const [overviewOpen, setOverviewOpen] = useState(false)
@@ -1185,8 +1193,10 @@ export function ScenesSection({
     })
   }
 
-  const startEditing = (next: NonNullable<Editing>, initial: string, initialPublic = '') => {
-    rememberOpener()
+  /** `opener`: quem recebe o foco de volta. Vindo do menu, é o "…" (o item do menu some ao fechar). */
+  const startEditing = (next: NonNullable<Editing>, initial: string, initialPublic = '', opener?: HTMLElement | null) => {
+    if (opener === undefined) rememberOpener()
+    else openerRef.current = opener
     setNoting(null)
     setQuaking(null)
     setMoving(null)
@@ -1216,8 +1226,9 @@ export function ScenesSection({
     setQuaking(sceneId)
   }
 
-  const startMove = (sceneId: string) => {
-    rememberOpener()
+  const startMove = (sceneId: string, opener?: HTMLElement | null) => {
+    if (opener === undefined) rememberOpener()
+    else openerRef.current = opener
     setEditing(null)
     setNoting(null)
     setQuaking(null)
@@ -1324,7 +1335,19 @@ export function ScenesSection({
       closeMenu(true)
       run()
     }
+    // Renomear e Mover abrem um campo: o foco vai para ele e, ao fechar, volta ao "…".
+    const trigger = menuTriggers.current.get(scene.id) ?? null
+    const toForm = (run: (opener: HTMLElement | null) => void) => () => {
+      setMenuFor(null)
+      run(trigger)
+    }
     return [
+      {
+        label: 'Renomear…',
+        disabled: !scene.renamable,
+        onSelect: toForm((opener) => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName, opener)),
+      },
+      { label: 'Mover para…', disabled: onMove === undefined, onSelect: toForm((opener) => startMove(scene.id, opener)) },
       { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
       { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
       { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
@@ -1482,6 +1505,19 @@ export function ScenesSection({
     drag.begin(sceneId, event)
   }
 
+  /**
+   * Botão direito na linha (ou a tecla Menu / Shift+F10 com o nome em foco):
+   * abre o mesmo menu do "…". Campo de texto aberto na linha fica com o menu
+   * do navegador (copiar e colar).
+   */
+  const onRowContextMenu = (sceneId: string, event: ReactMouseEvent<HTMLLIElement>) => {
+    if (!hasSceneMenu || sceneId === '' || !(event.target instanceof Element)) return
+    if (event.target.closest('form, input, textarea, select, [role="menu"]') !== null) return
+    event.preventDefault()
+    setDeleting(null)
+    setMenuFor(sceneId)
+  }
+
   /** A linha da cena: o que ela mostra a mais quando é uma pasta recolhida. */
   const peopleOf = (index: number, collapsedFolder: boolean): RowPeople | null => {
     const row = tree[index]
@@ -1591,6 +1627,7 @@ export function ScenesSection({
               data-movida={moveFeedback?.ok === true && moveFeedback.sceneId === scene.id ? 'true' : undefined}
               data-enter={enterTarget?.entry.id === scene.id ? 'true' : undefined}
               onPointerDown={(event) => onRowPointerDown(scene.id, event)}
+              onContextMenu={(event) => onRowContextMenu(scene.id, event)}
             >
               <div className="lb-cenas__linha">
                 {hasFolders &&
@@ -1624,7 +1661,8 @@ export function ScenesSection({
                     onSelect(scene.id)
                   }}
                 >
-                  {scene.name}
+                  {/* Quebra em até duas linhas em vez de cortar no fim; o nome inteiro está no título. */}
+                  <span className="lb-cenas__nome-texto">{scene.name}</span>
                 </button>
                 {/* O que se lê de relance, à direita do nome: selos do estado, a espera e a contagem. */}
                 <span className="lb-cenas__info">
@@ -1643,33 +1681,10 @@ export function ScenesSection({
                   {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
                   <SceneTokens scene={scene} />
                 </span>
-                {/* Na cena aberta as ações têm linha própria, sempre à vista; nas outras flutuam
-                    sobre o fim da linha e aparecem no hover e no foco do teclado (main.css). */}
+                {/* As ações flutuam sobre o fim da linha e aparecem no hover e no foco do
+                    teclado (main.css), também na cena aberta. Renomear e Mover para… moram no
+                    menu "…", que o botão direito na linha também abre. */}
                 <span className="lb-cenas__controles">
-                  {scene.active && scene.renamable && editing === null && (
-                    <button
-                      type="button"
-                      className="lb-cenas__renomear"
-                      aria-label={`Renomear ${scene.name}`}
-                      title="Renomear"
-                      onClick={() => startEditing({ kind: 'rename', sceneId: scene.id }, scene.name, scene.publicName)}
-                    >
-                      ✎
-                    </button>
-                  )}
-                  {/* Na cena aberta, como o renomear; montado também com o formulário aberto: é para ele que o foco volta. */}
-                  {scene.active && onMove !== undefined && scene.id !== '' && (
-                    <button
-                      type="button"
-                      className="lb-cenas__renomear lb-cenas__mover-btn"
-                      aria-label={`Mover ${scene.name} para…`}
-                      aria-expanded={moving === scene.id}
-                      title="Mover para dentro de outra cena"
-                      onClick={() => (moving === scene.id ? closeMove() : startMove(scene.id))}
-                    >
-                      <MoveIntoIcon size={14} />
-                    </button>
-                  )}
                   {/* Montado também com o campo aberto: é para ele que o foco volta. */}
                   {onNote !== undefined && scene.id !== '' && (
                     <button
@@ -1750,7 +1765,7 @@ export function ScenesSection({
                       type="button"
                       className="lb-cenas__mais"
                       aria-label={`Mais ações de ${scene.name}`}
-                      title="Duplicar, mover ou apagar"
+                      title="Renomear, mover, duplicar ou apagar (também no botão direito da linha)"
                       aria-haspopup="menu"
                       aria-expanded={menuOpen}
                       aria-controls={menuOpen ? menuId : undefined}

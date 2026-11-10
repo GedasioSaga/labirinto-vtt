@@ -17,7 +17,7 @@ function html(people?: ReadonlyMap<string, ScenePeople>): string {
 
 /** O pedaço do HTML de um item da lista, do `<li>` da cena até o próximo. */
 function item(markup: string, nome: string): string {
-  const inicio = markup.indexOf(`>${nome}</button>`)
+  const inicio = markup.indexOf(`>${nome}</span></button>`)
   const fim = markup.indexOf('</li>', inicio)
   return markup.slice(inicio, fim)
 }

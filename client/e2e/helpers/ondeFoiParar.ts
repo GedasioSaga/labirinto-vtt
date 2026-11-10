@@ -570,8 +570,11 @@ export const BLOCOS: readonly Bloco[] = [
     tela: 'mestre', titulo: 'Cenas', estado: 'aventura aberta, livro da mesa', escopo: 'direita',
     vai: 'Marcador Cenas do livro da mesa (feito)', fatia: '4',
     linhas: [
-      ...todos([b('Cripta'), b('Renomear Cripta'), b('Mover Cripta para…'), b('Planta de Cripta'), b('Configurar Cripta'), b('+ Nova cena'), b('Revisar aventura')], marcador('Cenas')),
-      ...['Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) => l(`Mais ações da cena: ${m}`, ['menuitem', m], marcador('Cenas'), b('Mais ações de Cripta'))),
+      ...todos([b('Cripta'), b('Planta de Cripta'), b('Configurar Cripta'), b('+ Nova cena'), b('Revisar aventura')], marcador('Cenas')),
+      // Renomear e Mover saíram da linha da cena aberta para o menu "…" (lista de cenas, ideia 5).
+      ...['Renomear…', 'Mover para…', 'Duplicar', 'Subir', 'Descer', 'É a cena inicial', 'Apagar cena…'].map((m) =>
+        l(`Mais ações da cena: ${m}`, ['menuitem', m], marcador('Cenas'), b('Mais ações de Cripta')),
+      ),
     ],
   },
   {
