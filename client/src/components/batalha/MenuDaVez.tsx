@@ -250,6 +250,15 @@ export function MenuDaVez(props: MenuDaVezProps) {
     const indice = pouso.current
     setAtual(indice)
     if (podeTomarOFoco()) tiras.current[indice]?.focus({ preventScroll: true })
+    // A tela que abre junto com o menu (a Arena foca o próprio título num efeito que roda depois deste): um quadro
+    // depois, se o foco caiu fora do menu e fora de um controle (o corpo, um título com tabIndex -1), ele volta à tira.
+    const quadro = requestAnimationFrame(() => {
+      const ativo = document.activeElement
+      const semControle = !(ativo instanceof HTMLElement) || ativo === document.body || ativo.tabIndex < 0
+      const foraDoMenu = !(ativo instanceof HTMLElement) || ativo.closest('.bt-vez') === null
+      if (semControle && foraDoMenu && podeTomarOFoco()) tiras.current[pouso.current]?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(quadro)
   }, [tela.tipo, recolhido, semAcao, contraId])
 
   if (recolhido) {

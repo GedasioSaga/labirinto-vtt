@@ -908,7 +908,8 @@
   transition: background-color 80ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .bt-mira .bt-alvo:not([data-apagado='sim']):hover::before {
+  /* o marcado fica em tinta mesmo com o mouse em cima (senão o texto claro some no cinza) */
+  .bt-mira .bt-alvo:not([data-apagado='sim']):not(:has(input:checked)):hover::before {
     background: rgba(12, 12, 14, 0.13);
   }
 }
@@ -1373,6 +1374,8 @@
   color: var(--lb-color-parchment-dim);
 }
 .bt-reacao .bt-escolha__chip {
+  /* na tinta o texto do chip é claro (o chip base é feito para o papel e tem texto escuro) */
+  color: var(--lb-color-parchment);
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
 }
@@ -4111,5 +4114,52 @@
 .bt-forma__do-mestre {
   margin: 0;
   font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass-bright);
+}
+
+/*
+ * U4 na Arena: as formas "o mestre decide" (o envoltório .ar-pendencias de
+ * TelaDaArena). Coluna da direita, abaixo da barra, oposta ao menu (que fica à
+ * esquerda); papel de tinta rasgado com a sombra de sangue, como a caixa de
+ * reação. Vazio (FormasPendentes devolve null), some.
+ */
+.ar-tela .ar-pendencias {
+  position: fixed;
+  top: calc(var(--ar-barra, 60px) + 10px + var(--pp-faixa-alto, 0px) + 12px);
+  right: 24px;
+  z-index: 9;
+  isolation: isolate;
+  width: min(340px, calc(100% - 48px));
+  padding: var(--lb-space-3) var(--lb-space-4);
+  color: var(--lb-color-parchment);
+}
+.ar-tela .ar-pendencias:empty {
+  display: none;
+}
+.ar-tela .ar-pendencias::before,
+.ar-tela .ar-pendencias::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ar-tela .ar-pendencias::before {
+  z-index: -1;
+  background: var(--bt-tinta);
+  clip-path: var(--bt-rasgo-caixa);
+}
+.ar-tela .ar-pendencias::after {
+  z-index: -2;
+  background: var(--bt-sangue);
+  clip-path: var(--bt-rasgo-caixa2);
+  transform: translate(6px, 6px);
+}
+.ar-tela .ar-pendencias > .bt-secao {
+  max-height: calc(100vh - var(--ar-barra, 60px) - var(--pp-faixa-alto, 0px) - 140px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.ar-tela .ar-pendencias .bt-secao__titulo {
   color: var(--lb-color-brass-bright);
 }

@@ -26,10 +26,10 @@ import { BotaoDaCalculadora, CalculadoraDeDano } from './CalculadoraDeDano'
 import { ContaComBonus } from './ContaComBonus'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
-  alvosNaAreaDaMira,
+  alvoServeAoAbrir,
   alvosNaOrdemDaAjuda,
-  feridosParaACura,
   golpeDeAjuda,
+  marcadosAoAbrirAMira,
   semFeridoDoLado,
   alvosNaAreaPelaGrade,
   areaComFrente,
@@ -222,17 +222,6 @@ const NOTA_DA_REACAO = 'O alvo rola 1d20 para reagir: 10+ defende (metade), 15+ 
 const NOTA_DO_BUFF = 'Buff: ninguém reage. O selo pega em todos que você marcar.'
 const NOTA_DO_DEBUFF_SEM_DANO = 'O alvo rola 1d20 para reagir: se esquivar ou contra-atacar, o selo não pega.'
 
-/**
- * D8 (decisão 3): os alvos que fazem sentido, à vista por padrão (o resto
- * atrás de "mostrar todos"): no ataque, o outro lado de pé; na ajuda, o lado
- * de quem usa (na cura, só os feridos; sem a vida à mão, conta como ferido).
- */
-function fazSentido(golpe: GolpeNaTela, alvo: AlvoNaMira, ajuda: boolean): boolean {
-  if (alvo.motivo) return false
-  if (ajuda) return alvo.lado !== 'outro' && (golpe.cura !== true || alvo.ferido !== false)
-  return alvo.lado === 'outro' && !alvo.caiu
-}
-
 /** D8: o lado do alvo em palavra ("você", "aliado", "outro lado"). */
 function textoDoLado(alvo: AlvoNaMira, doMestre: boolean): string {
   if (alvo.lado === 'eu') return doMestre ? 'quem usa' : 'você'
@@ -242,11 +231,6 @@ function textoDoLado(alvo: AlvoNaMira, doMestre: boolean): string {
 /** D8: a mira cabe na tela: a altura até o fundo da janela (ou do menu que a cerca), com esta folga. */
 const FOLGA_DA_MIRA = 12
 const MIRA_ALTURA_MIN = 260
-
-function primeiroAlvo(alvos: readonly AlvoNaMira[]): string | null {
-  const validos = alvos.filter((alvo) => !alvo.motivo)
-  return (validos.find((alvo) => alvo.lado === 'outro' && !alvo.caiu) ?? validos.find((alvo) => !alvo.caiu))?.tokenId ?? null
-}
 
 /** A nota do pé da mira: se o alvo reage, como `alvosDoGolpe` (golpe.ts) decide. `semDano` = o da opção escolhida. */
 function notaDaReacao(golpe: GolpeNaTela, semReacao: boolean, semDano: boolean): string {
@@ -270,12 +254,6 @@ function textoDaAreaNaMira(naArea: number, comFrente: boolean): string {
   return `A área pega ${naArea} ${naArea === 1 ? 'ficha' : 'fichas'}. Clique numa ficha para tirar ou pôr.`
 }
 
-/** Buff (tipos de habilidade F2): a mira começa em quem usa (o "você" da lista; no mestre, o NPC da vez). */
-function voceNaLista(alvos: readonly AlvoNaMira[]): string | null {
-  const meus = alvos.filter((alvo) => alvo.lado === 'eu' && !alvo.motivo)
-  return (meus.find((alvo) => !alvo.caiu) ?? meus[0])?.tokenId ?? null
-}
-
 /** Construtor C3: cada lado no seletor da área (o mapa visto de cima, como na tela), na ordem das setas do teclado. */
 const LADOS_DA_AREA: readonly { direcao: Direcao; seta: string; rotulo: string }[] = [
   { direcao: 'oeste', seta: '←', rotulo: 'Esquerda' },
@@ -295,25 +273,6 @@ function alternarNaLista(antes: readonly string[], tokenId: string, tetoDeAlvos:
   return tetoDeAlvos === 1 ? [tokenId] : [...antes, tokenId].slice(-ALVOS_MAX)
 }
 
-/** Quem a mira marca ao abrir: Buff em si; quem está na área (F2, fatia F: Giro de Pá); a sugestão do NPC; o primeiro de outra equipe. */
-function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined, daArea: readonly string[] | undefined): string[] {
-  // Pedido de 09/11 (a Bolha): a cura abre nos feridos do lado de quem usa; sem ferido (ou sem a vida na lista), em quem usa.
-  const feridos = golpe.cura === true ? feridosParaACura(alvos, golpe.tetoDeAlvos ?? 1) : null
-  if (feridos !== null) return feridos
-  // Conserto de 09/11 (achado 5): a lista sabe a vida e ninguém do lado está ferido: abre sem alvo (a nota diz por quê).
-  if (golpe.cura === true && semFeridoDoLado(alvos)) return []
-  const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
-  if (emSi !== null) return [emSi]
-  // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
-  if (golpe.semAlvo === true) return []
-  // Construtor C3: a área montada com a grade marca só quem está nela, mesmo ninguém (a área vazia não vira o "primeiro inimigo").
-  if (areaDaGrade(golpe, alvos) !== null && daArea !== undefined) return daArea.slice(0, ALVOS_MAX)
-  if (golpe.area !== undefined && daArea !== undefined && daArea.length > 0) return daArea.filter((tokenId) => alvos.some((alvo) => alvo.tokenId === tokenId && !alvo.motivo)).slice(0, ALVOS_MAX)
-  const sugerido = alvoInicial !== undefined && alvoInicial !== null && alvos.some((alvo) => alvo.tokenId === alvoInicial && !alvo.motivo) ? alvoInicial : null
-  const primeiro = sugerido ?? (alvoInicial === undefined ? primeiroAlvo(alvos) : null)
-  return primeiro === null ? [] : [primeiro]
-}
-
 export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVoltar, consulta, contra, alvoInicial, rotuloDoLancar, semVoltar, mapa, marcadosDaArea, confirmaOutroLado = false, focoAoAbrir = false }: MiraDoGolpeProps) {
   const idBase = useId()
   // Conserto de 09/11 (a Bolha): na ajuda, quem é do lado de quem usa vem primeiro (os feridos antes); o outro lado fica no fim.
@@ -326,11 +285,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     const area = areaDaGrade(golpe, alvos)
     return area === null ? 'norte' : direcaoDaAreaAoAbrir(area, alvos)
   })
-  const [marcados, setMarcados] = useState<readonly string[]>(() => {
-    const area = areaDaGrade(golpe, alvos)
-    const daArea = area !== null ? alvosNaAreaPelaGrade(area, alvos, direcao) : golpe.area === undefined ? undefined : alvosNaAreaDaMira(golpe.area, alvos)
-    return marcadosAoAbrir(golpe, alvos, alvoInicial, marcadosDaArea ?? daArea)
-  })
+  // U1 (decisão 3): a regra única de quem vem marcado; sem ninguém que sirva, abre sem alvo (a nota diz por quê).
+  const [marcados, setMarcados] = useState<readonly string[]>(() => marcadosAoAbrirAMira(golpe, alvos, { sugerido: alvoInicial, daArea: marcadosDaArea, direcao }))
   // F2 (fatia F, Siegfried): a arma da técnica (a 1ª levada vem marcada); trocar refaz o Dano base.
   const [armaId, setArmaId] = useState<string | null>(golpe.armas?.[0]?.id ?? null)
   const armaEscolhida = golpe.armas?.find((arma) => arma.id === armaId) ?? null
@@ -379,10 +335,13 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
     const medir = () => {
       const topo = el.getBoundingClientRect().top
       let fundo = window.innerHeight
-      // O menu que cerca a mira tem teto de altura (e rola): a mira não passa dele.
+      // O menu que cerca a mira tem teto de altura (em px) ou é uma caixa fixa com fundo (a coluna do menu na
+      // Arena): a mira não passa dele. Um teto em % ("100%") não é medida em px e fica de fora.
       for (let pai = el.parentElement; pai !== null; pai = pai.parentElement) {
-        const teto = Number.parseFloat(window.getComputedStyle(pai).maxHeight)
-        if (Number.isFinite(teto)) fundo = Math.min(fundo, pai.getBoundingClientRect().top + teto)
+        const estilo = window.getComputedStyle(pai)
+        const caixa = pai.getBoundingClientRect()
+        if (estilo.maxHeight.endsWith('px')) fundo = Math.min(fundo, caixa.top + Number.parseFloat(estilo.maxHeight))
+        if (estilo.position === 'fixed' && estilo.bottom !== 'auto') fundo = Math.min(fundo, caixa.bottom)
       }
       el.style.maxHeight = `${Math.max(MIRA_ALTURA_MIN, Math.floor(fundo - topo - FOLGA_DA_MIRA))}px`
     }
@@ -628,7 +587,7 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const textoDoLancar = marcados.length > 1 ? `${verbo} em ${marcados.length} alvos` : verbo
   // D8: com a área ou sem alvo, todos à vista (a área marca pela grade). O marcado nunca some da lista.
   const filtra = !mostrarTodos && golpe.area === undefined && golpe.semAlvo !== true
-  const visiveis = filtra ? lista.filter((alvo) => marcadosSet.has(alvo.tokenId) || fazSentido(golpe, alvo, ajuda)) : lista
+  const visiveis = filtra ? lista.filter((alvo) => marcadosSet.has(alvo.tokenId) || alvoServeAoAbrir(golpe, alvo)) : lista
   const escondidos = lista.length - visiveis.length
   // O Dano base que não fecha (fórmula, campo vazio) abre os ajustes: é ali que se digita.
   const ajustesAbertos = !semDano && (ajustando || base === null)
@@ -752,8 +711,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   ? 'Quem recebe · você e aliados; Espaço marca, ou clique na ficha no mapa'
                   : 'Alvos · Espaço marca, setas trocam, clique na ficha no mapa'}
           </legend>
-          {visiveis.length === 0 && lista.length > 0 && (
-            <p className="bt-mira__nota">{ajuda ? (golpe.cura === true ? 'Ninguém do seu lado está ferido.' : 'Ninguém do seu lado à vista.') : 'Nenhum inimigo de pé à vista.'}</p>
+          {visiveis.length === 0 && lista.length > 0 && !(golpe.cura === true && semFeridoDoLado(alvos)) && (
+            <p className="bt-mira__nota">{ajuda ? (golpe.cura === true ? 'Ninguém do seu lado está ferido: a mira abre sem alvo.' : 'Ninguém do seu lado de pé: a mira abre sem alvo.') : 'Nenhum inimigo de pé: a mira abre sem alvo.'}</p>
           )}
           {visiveis.map((alvo) => {
             const marcado = marcadosSet.has(alvo.tokenId)
