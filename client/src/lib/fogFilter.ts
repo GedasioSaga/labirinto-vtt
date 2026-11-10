@@ -1,6 +1,6 @@
 import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
-import { lerPeriodo, luzAcesaNoPeriodo } from './periodo'
-import { fogoAcendeLuz, raioDaLuzDoFogo } from './luzDoFogo'
+import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
+import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoObjeto, raioDaLuzDoObjeto } from './luzDoFogo'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
@@ -2842,19 +2842,23 @@ function recorteDoGrupo(
       // teto fechado fica fora do escuro mesmo espiada: nada vaza.
       return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at) && !carriedByHidden(l)
     })
-    // O FOGO É LUZ (pedido de 09/11/2026, `lib/luzDoFogo.ts`): o objeto Fogo que o
-    // jogador pode receber clareia como um lampião, no mesmo alcance do desenho.
-    // Fogo oculto, secreto, em sala secreta, sob teto fechado ou em zona não ilumina.
-    const fogos = naCamadaDoJogador('objeto', map.props).filter((p) => {
+    // O OBJETO DE LUZ É LUZ (pedidos de 09/11/2026, `lib/luzDoFogo.ts`): o fogo, a
+    // fogueira, a lareira, a fornalha e o lampião que o jogador pode receber
+    // clareiam como um ponto de luz, no mesmo alcance do desenho e só até o teto
+    // (`capped`, `tetoDaLuzDe`). Objeto oculto, secreto, em sala secreta, sob
+    // teto fechado ou em zona não ilumina.
+    const luzesDeObjeto = naCamadaDoJogador('objeto', map.props).flatMap((p) => {
+      const luz = luzDoObjeto(p)
       const at = { x: p.x, y: p.y }
-      return fogoAcendeLuz(p) && !p.secret && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at)
+      if (luz === null || p.secret || inSecretRoom(at) || inClosedRoof(at) || hiddenByZone(at)) return []
+      return [{ x: p.x, y: p.y, radius: raioDaLuzDoObjeto(p, luz, map.grid), capped: true }]
     })
     return {
       sceneDark: map.dark === true,
       noite,
       rooms: darkRooms.map((r) => r.points),
       veils: veils.map((v) => v.ring),
-      lights: [...lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })), ...fogos.map((f) => ({ x: f.x, y: f.y, radius: raioDaLuzDoFogo(f, map.grid) }))],
+      lights: [...lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })), ...luzesDeObjeto],
       cell: map.grid,
     }
   }
@@ -2874,9 +2878,23 @@ function recorteDoGrupo(
    * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
   const darkness = darknessForPlayer(openDarkRooms)
-  /** Olhar de UMA ficha em `origin`: um anel sem escuro; com escuro, vários (`darkVision`). */
-  const sightFrom = (origin: RegionPoint, segments: Segment[], radius: number, dark: Darkness | null): RegionPoint[][] =>
-    dark === null ? [computeVisibility(origin, segments, radius)] : darkVision(origin, segments, radius, dark)
+  /**
+   * TETO DA LUZ DOS OBJETOS para esta ficha (`lib/luzDoFogo.ts`): a visão cheia
+   * do DIA dela neste lugar. O raio do dono chega já no período da cena, então
+   * a cheia sai pelo caminho de volta (`visaoCheiaDoDia`) e passa pelas mesmas
+   * regras do raio (`radiusOf`): a Sala com raio próprio e a fumaça valem de dia também.
+   */
+  const periodoDoGrupo = viewers.map((viewer) => periodoDoRaio(viewer.visionRadius)).find((p) => p !== undefined) ?? PERIODO_PADRAO
+  const tetoDaLuzDe = (token: Token): number => {
+    const at = { x: token.x, y: token.y }
+    const cheia = visaoCheiaDoDia(radiusByToken.get(token.id) ?? 0, periodoDoGrupo, map)
+    return TETO_DA_LUZ_EM_VISOES_DO_DIA * visionRadiusAt(map, at, roomVisionRadiusAt(at, radiusRooms, cheia))
+  }
+  /** Olhar de UMA ficha: um anel sem escuro; com escuro, vários (`darkVision`), a luz dos objetos só até o teto dela. */
+  const sightFrom = (token: Token, segments: Segment[], dark: Darkness | null): RegionPoint[][] => {
+    const origin = { x: token.x, y: token.y }
+    return dark === null ? [computeVisibility(origin, segments, radiusOf(token))] : darkVision(origin, segments, radiusOf(token), dark, tetoDaLuzDe(token))
+  }
   /**
    * Anéis de visão de cada ficha (mesmo índice de `ownTokens`). As DUAS
    * visões abaixo passam por aqui, então o escuro corta o que sai no pacote e
@@ -2884,7 +2902,7 @@ function recorteDoGrupo(
    * escuro corta o anel de cada uma no raio dela, não num raio único do grupo.
    */
   const visionByToken = (segmentsOf: (i: number) => Segment[]): RegionPoint[][][] =>
-    ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, segmentsOf(i), radiusOf(t), darkness))
+    ownTokens.map((t, i) => sightFrom(t, segmentsOf(i), darkness))
   const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }, peekDoorIds) : []
 
   /**
@@ -3010,9 +3028,9 @@ function recorteDoGrupo(
       // Prédio sem cômodo escuro reaproveita o olhar da autoridade já calculado.
       authorityFor: (roof, token, i) => {
         const dark = glimpseDarknessOf(roof)
-        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom({ x: token.x, y: token.y }, authoritySegmentsOf(i), radiusOf(token), dark)
+        return dark === null ? authorityByToken.slice(i, i + 1).flat() : sightFrom(token, authoritySegmentsOf(i), dark)
       },
-      sightFor: (roof, token, segments) => sightFrom({ x: token.x, y: token.y }, segments, radiusOf(token), glimpseDarknessOf(roof) ?? darkness),
+      sightFor: (roof, token, segments) => sightFrom(token, segments, glimpseDarknessOf(roof) ?? darkness),
       peekDoorIds,
       // A conta do jogador vista de dentro deste prédio: as paredes que ele
       // recebe, mais a mobília DESTE prédio (que o cone vai mostrar) — nunca a
@@ -3124,7 +3142,7 @@ function recorteDoGrupo(
       peekerIndexes.has(i)
         ? seeThroughSegments(peekSeeThrough, peekSegments, peekWalls, peekFloor, i)
         : seeThroughSegments(playerSeeThrough, playerSegments, playerWalls, playerFloorForVision, i)
-    visionByTokenSent = ownTokens.map((t, i) => sightFrom({ x: t.x, y: t.y }, sentSegmentsOf(i), radiusOf(t), darkness))
+    visionByTokenSent = ownTokens.map((t, i) => sightFrom(t, sentSegmentsOf(i), darkness))
     vision = visionByTokenSent.flat()
   }
 

@@ -51,6 +51,12 @@ export interface DarkLight {
   x: number
   y: number
   radius: number
+  /**
+   * Luz de OBJETO do mapa (`lib/luzDoFogo.ts`): o claro dela só soma até o
+   * teto de distância de quem olha (`darkVision`, `ceiling`). Ausente = a Luz
+   * de sempre, vista na linha de visão sem limite de distância.
+   */
+  capped?: boolean
 }
 
 export interface Darkness {
@@ -194,8 +200,19 @@ function lightBox(l: DarkLight): Boxed {
  * o que é claro na linha de visão (fora das salas escuras, e só numa cena que
  * não é escura) e o claro das luzes na linha de visão, mesmo além do raio.
  * `visionRadius <= 0` é ficha sem visão: nada, como em `computeVisibility`.
+ *
+ * `ceiling` (px de mundo) é o TETO das luzes de objeto (`DarkLight.capped`): o
+ * claro delas só soma dentro deste raio em volta de `origin`. Quem chama passa
+ * a visão cheia do dia de quem olha, então o claro de um fogo nunca mostra
+ * mais do que o dia mostraria. Sem ele, não há teto.
  */
-export function darkVision(origin: RegionPoint, segments: Segment[], visionRadius: number, darkness: Darkness): RegionPoint[][] {
+export function darkVision(
+  origin: RegionPoint,
+  segments: Segment[],
+  visionRadius: number,
+  darkness: Darkness,
+  ceiling = Number.POSITIVE_INFINITY,
+): RegionPoint[][] {
   if (!(visionRadius > 0)) return []
   const out: RegionPoint[][] = []
   const nearRadius = Math.min(visionRadius, darkness.cell * DARK_SIGHT_CELLS)
@@ -225,7 +242,11 @@ export function darkVision(origin: RegionPoint, segments: Segment[], visionRadiu
   }
 
   const lights = darkness.sceneDark ? darkness.lights : darkness.lights.filter((l) => litBeyondSight(l, origin, visionRadius, darkness, rooms))
-  if (lights.length > 0) out.push(...litRings(origin, segments, lights, darkness, rooms, veils))
+  const uncapped = lights.filter((l) => l.capped !== true)
+  // Luz de objeto com o claro inteiro além do teto não entra na conta: é o que segura o custo do mapa cheio de fogos.
+  const capped = lights.filter((l) => l.capped === true && Math.hypot(l.x - origin.x, l.y - origin.y) - l.radius < ceiling)
+  if (uncapped.length > 0) out.push(...litRings(origin, segments, uncapped, darkness, rooms, veils, Number.POSITIVE_INFINITY))
+  if (capped.length > 0) out.push(...litRings(origin, segments, capped, darkness, rooms, veils, ceiling))
   return out.filter((ring) => ring.length >= 3)
 }
 
@@ -275,7 +296,10 @@ function ringInside(inner: Boxed, outer: Boxed): boolean {
   return pointInRing(inner.ring[0], outer.ring)
 }
 
-/** O claro de cada luz que a ficha em `origin` vê, mesmo além do raio dela. */
+/**
+ * O claro de cada luz que a ficha em `origin` vê, mesmo além do raio dela.
+ * `ceiling` corta a linha de visão nesta distância: nenhum anel passa dela.
+ */
 function litRings(
   origin: RegionPoint,
   segments: Segment[],
@@ -283,9 +307,10 @@ function litRings(
   darkness: Darkness,
   rooms: readonly Boxed[],
   veils: readonly Boxed[],
+  ceiling: number,
 ): RegionPoint[][] {
-  // Linha de visão SEM o raio da ficha: o que a luz acende se vê de longe.
-  const reach = Math.max(...lights.map((l) => Math.hypot(l.x - origin.x, l.y - origin.y) + l.radius)) + darkness.cell
+  // Linha de visão SEM o raio da ficha: o que a luz acende se vê de longe (até o teto, se houver).
+  const reach = Math.min(ceiling, Math.max(...lights.map((l) => Math.hypot(l.x - origin.x, l.y - origin.y) + l.radius)) + darkness.cell)
   const far = boxed(tidy(computeVisibility(origin, segments, reach)))
   if (far.ring.length < 3) return []
   const farWalls = ringToSegments(far.ring)

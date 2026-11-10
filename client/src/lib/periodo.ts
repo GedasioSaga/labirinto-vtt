@@ -1,5 +1,5 @@
 import type { AmbienteDoPeriodo, Light, MapData, Periodo } from '../types/map'
-import { SCENE_VISION_CELLS_MAX } from './sceneVision'
+import { SCENE_VISION_CELLS_MAX, readSceneVisionCells } from './sceneVision'
 
 /**
  * DIA/TARDE/NOITE: o período em que cada cena está e a tinta de ambiente dele.
@@ -78,6 +78,32 @@ export function raioNoPeriodo(raio: number, periodo: Periodo, cena?: Pick<MapDat
   if (cena === undefined || casas === undefined) return semCampo
   const px = casas * cena.grid * fator
   return Number.isFinite(px) && px >= 0 ? Math.min(raio, px) : semCampo
+}
+
+/**
+ * O CAMINHO DE VOLTA de `raioNoPeriodo`: a visão cheia do DIA de quem, nesta
+ * cena e neste período, enxerga `raio` px. É o que o recorte do host tem à mão
+ * (ele recebe o raio já no período) para limitar a luz dos objetos ao que o
+ * jogador veria de dia (`lib/luzDoFogo.ts`, o teto).
+ *  - dia: o próprio raio;
+ *  - sem `visaoPorPeriodo` do período: noite = o dobro (a noite é metade), tarde = o raio;
+ *  - com as casas do período E "Visão nesta cena": as casas do raio dão o fator
+ *    do jogador, e a cheia é a visão da cena vezes ele (nunca abaixo do raio);
+ *  - com as casas do período e SEM "Visão nesta cena": a cheia é o raio de base
+ *    do jogador, que o recorte não conhece. Vale a regra de sempre do período
+ *    (noite = o dobro). É a única conta aproximada: pode passar da cheia de
+ *    verdade se o mestre pôs a noite acima da metade dela.
+ */
+export function visaoCheiaDoDia(raio: number, periodo: Periodo, cena: Pick<MapData, 'visaoPorPeriodo' | 'visionCells' | 'grid'>): number {
+  if (!(raio > 0) || periodo === PERIODO_PADRAO) return raio
+  const pelaRegraDeSempre = periodo === 'noite' ? raio / VISAO_DA_NOITE : raio
+  const campo: unknown = cena.visaoPorPeriodo
+  const casasDoPeriodo = ehObjeto(campo) ? casasDeVisao(campo[periodo]) : undefined
+  const casasDaCena = readSceneVisionCells(cena.visionCells)
+  if (casasDoPeriodo === undefined || casasDoPeriodo === 0 || casasDaCena === undefined) return pelaRegraDeSempre
+  const fator = raio / (casasDoPeriodo * cena.grid)
+  const cheia = casasDaCena * cena.grid * fator
+  return Number.isFinite(cheia) ? Math.max(raio, cheia) : pelaRegraDeSempre
 }
 
 // ───────────────────────────────────────────────────────────────────────────

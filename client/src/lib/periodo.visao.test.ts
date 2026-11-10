@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { MapData, Periodo } from '../types/map'
-import { periodoDaCena, raioNoPeriodo, VISAO_DA_NOITE } from './periodo'
+import { periodoDaCena, raioNoPeriodo, visaoCheiaDoDia, VISAO_DA_NOITE } from './periodo'
 
 const GRID = 50
 /** 14 casas de 50 px. */
@@ -77,5 +77,32 @@ describe('raioNoPeriodo com visaoPorPeriodo (tabela de casos)', () => {
   it('sem a cena, a regra de antes (quem não tem o mapa à mão)', () => {
     expect(raioNoPeriodo(CHEIA, 'noite')).toBe(METADE)
     expect(raioNoPeriodo(CHEIA, 'tarde')).toBe(CHEIA)
+  })
+})
+
+/**
+ * O CAMINHO DE VOLTA (`visaoCheiaDoDia`): do raio que o recorte recebe, já no
+ * período, à visão cheia do dia. É o teto da luz dos objetos (`lib/luzDoFogo.ts`).
+ */
+describe('visaoCheiaDoDia desfaz raioNoPeriodo', () => {
+  it('devolve a cheia de quem a cena deixa calcular, com e sem as casas do período', () => {
+    const casos: { nome: string; c: Cena & Pick<MapData, 'visionCells'>; fator: number }[] = [
+      { nome: 'sem campo: a noite é metade', c: cena(), fator: 1 },
+      { nome: 'casas da noite e "Visão nesta cena"', c: { ...cena({ visaoPorPeriodo: { noite: 3 } }), visionCells: 14 }, fator: 1 },
+      { nome: 'o fator do jogador sai das casas do período', c: { ...cena({ visaoPorPeriodo: { noite: 3 } }), visionCells: 14 }, fator: 1.5 },
+      { nome: 'noite acima da cheia: a cheia é o próprio raio', c: { ...cena({ visaoPorPeriodo: { noite: 30 } }), visionCells: 14 }, fator: 1 },
+    ]
+    for (const { nome, c, fator } of casos) {
+      const cheia = CHEIA * fator
+      const deNoite = raioNoPeriodo(cheia, 'noite', c, fator)
+      expect(visaoCheiaDoDia(deNoite, 'noite', c), nome).toBe(cheia)
+      expect(visaoCheiaDoDia(cheia, 'dia', c), nome).toBe(cheia)
+    }
+  })
+
+  it('sem "Visão nesta cena" e com as casas da noite, vale a regra de sempre (o dobro); visão apagada segue apagada', () => {
+    expect(visaoCheiaDoDia(3 * GRID, 'noite', cena({ visaoPorPeriodo: { noite: 3 } }))).toBe(6 * GRID)
+    expect(visaoCheiaDoDia(0, 'noite', cena({ visaoPorPeriodo: { noite: 0 } }))).toBe(0)
+    expect(visaoCheiaDoDia(4 * GRID, 'tarde', cena({ visaoPorPeriodo: { tarde: 4 } }))).toBe(4 * GRID)
   })
 })

@@ -1,6 +1,6 @@
 import { BufferImageSource, Container, Graphics, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js'
 import type { Light, MapData, Periodo, RegionPoint } from '../types/map'
-import { COR_DA_LUZ_DO_FOGO, FORCA_DA_LUZ_DO_FOGO, fogoAcendeLuz, raioDaLuzDoFogo, type FogoQueIlumina } from '../lib/luzDoFogo'
+import { fogoAcendeLuz, luzDoObjeto, raioDaLuzDoObjeto, type FogoQueIlumina } from '../lib/luzDoFogo'
 import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
 import { computeVisibility, type Segment } from '../lib/visibility'
 
@@ -191,12 +191,12 @@ export function luzesDoMapa(luzes: readonly Light[], obstaculos: Segment[], fato
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * A LUZ DO FOGO (decisão do mestre, 27/10/2026; alcance e tom refeitos em
- * 09/11/2026): à noite o objeto Fogo acende uma luz no mapa, como um lampião,
- * no tom do fogo. Os números e o alcance moram em `lib/luzDoFogo.ts`, que a
- * visão do jogador (`lib/fogFilter.ts`) também lê.
+ * A LUZ DOS OBJETOS (decisão do mestre, 27/10/2026; alcance e tom refeitos em
+ * 09/11/2026): à noite o Fogo, a fogueira, a lareira, a fornalha e o lampião
+ * acendem uma luz no mapa, cada um no seu alcance e no seu tom. A tabela mora
+ * em `lib/luzDoFogo.ts`, que a visão do jogador (`lib/fogFilter.ts`) também lê.
  */
-export { COR_DA_LUZ_DO_FOGO, FORCA_DA_LUZ_DO_FOGO, type FogoQueIlumina }
+export { type FogoQueIlumina }
 
 /** FNV-1a do id, em [0, 1): o tremor de cada fogo no seu passo, igual nas duas telas. */
 function faseDoId(id: string): number {
@@ -218,24 +218,26 @@ export interface LuzDoFogo extends LuzNoMapa {
  */
 function conteudoDosFogos(fogos: readonly FogoQueIlumina[] | undefined): string {
   let chave = ''
-  for (const f of fogos ?? []) if (f.mobilia === 'fogo' && f.hidden !== true) chave += `${f.id}|${f.x}|${f.y}|${f.width}|${f.height};`
+  // O tipo entra na chave: cada objeto de luz tem o seu alcance e o seu tom, e a lareira apagada sai da lista.
+  for (const f of fogos ?? []) if (fogoAcendeLuz(f)) chave += `${f.id}|${f.mobilia}|${f.x}|${f.y}|${f.width}|${f.height};`
   return chave
 }
 
-/** `casa` = a grade do mapa em px de mundo: o alcance da luz é contado em casas dele (`raioDaLuzDoFogo`). */
+/** `casa` = a grade do mapa em px de mundo: o alcance da luz é contado em casas dele (`raioDaLuzDoObjeto`). */
 export function luzesDosFogos(fogos: readonly FogoQueIlumina[], obstaculos: Segment[], fatorDaLuz: number, cache?: CacheDePoligonos, casa?: number): LuzDoFogo[] {
   const fator = grampear01(fatorDaLuz)
   if (fator === 0) return []
   const saida: LuzDoFogo[] = []
   for (const f of fogos) {
-    if (!fogoAcendeLuz(f)) continue
-    const raio = raioDaLuzDoFogo(f, casa)
+    const luz = luzDoObjeto(f)
+    if (luz === null) continue
+    const raio = raioDaLuzDoObjeto(f, luz, casa)
     const chave = `${f.id}|${f.x}|${f.y}|${raio}`
     const guardado = cache?.get(chave)
     const poligono = guardado !== undefined && guardado.obstaculos === obstaculos ? guardado.poligono : computeVisibility({ x: f.x, y: f.y }, obstaculos, raio)
     cache?.set(chave, { obstaculos, poligono })
     if (poligono.length < 3) continue
-    saida.push({ id: f.id, x: f.x, y: f.y, raio, cor: COR_DA_LUZ_DO_FOGO, forca: FORCA_DA_LUZ_DO_FOGO * fator, poligono, fase: faseDoId(f.id) })
+    saida.push({ id: f.id, x: f.x, y: f.y, raio, cor: luz.cor, forca: luz.forca * fator, poligono, fase: faseDoId(f.id) })
   }
   return saida
 }
@@ -497,8 +499,8 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     for (const luz of luzesDosFogosNoPalco) luz.desenho.destroy()
     luzesDosFogosNoPalco = []
     const lista = quadro.fogos ?? []
-    // Mapa sem fogo não pede os obstáculos nem cria nada.
-    if (!lista.some((p) => p.mobilia === 'fogo')) {
+    // Mapa sem objeto de luz não pede os obstáculos nem cria nada.
+    if (!lista.some(fogoAcendeLuz)) {
       poligonosDosFogos.clear()
       return
     }
