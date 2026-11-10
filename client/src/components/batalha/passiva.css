@@ -198,6 +198,39 @@
   color: var(--lb-color-brass-bright);
 }
 
+/* ---------------------------------------------------------------- a carta por cima (painel do NPC, perfil, lembrete) */
+/*
+ * Aberta de dentro de uma coluna estreita, a carta descia a coluna e saía da janela (o Ativar ficava abaixo da
+ * dobra). Ela sobe para a camada do topo (`popover`) e fica ao lado da coluna, na altura da linha, inteira na
+ * janela: a posição, a largura e a altura máxima vêm de `assentarPorCima` (PassivasDaBatalha.tsx); o corpo rola.
+ * A marca guarda o lugar da coluna sem ocupar altura. Navegador sem `popover` ignora tudo isto: a carta abre no lugar.
+ */
+.bt-passiva__ancora {
+  display: block;
+  flex-basis: 100%;
+  height: 0;
+}
+.bt-mira.bt-passiva:popover-open {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow: visible;
+  background: none;
+  color: var(--bt-tinta);
+  pointer-events: auto;
+}
+
+/* O "Ativar…" do lembrete, com a carta aberta e o ponteiro em cima, ficava latão claro sobre latão claro: sem letra. */
+.bt-botao.bt-botao--passiva[aria-expanded='true'] {
+  border-color: var(--bt-passiva);
+  color: var(--lb-color-brass-contrast);
+}
+.bt-botao.bt-botao--passiva[aria-expanded='true']:not(:hover) {
+  background: var(--bt-passiva);
+}
+
 /* ---------------------------------------------------------------- tela baixa (1366x768 e afins) */
 /* No menu da vez a carta tem ~260 px: três linhas de texto, respiros mais justos e o resto atrás do "Ler mais". */
 @media (max-height: 820px) {

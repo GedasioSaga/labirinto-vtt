@@ -312,13 +312,51 @@ export interface PainelDaPassivaProps {
   onVoltar?: () => void
   rotuloDoVoltar?: string
   className?: string
+  /**
+   * A carta aberta de dentro de uma coluna estreita (linha do painel do NPC, do
+   * perfil, lembrete): abre POR CIMA, ao lado da coluna e na altura da linha,
+   * inteira dentro da janela, em vez de empurrar a coluna para baixo e sair da
+   * tela. Ausente = no lugar (o menu da vez, que já tem a altura da tela).
+   */
+  porCima?: boolean
 }
 
 /** O que os ajustes do selo põem em foco: o primeiro campo (aberto pelo botão) ou o campo que a recusa aponta. */
 type FocoNosAjustes = 'abrir' | 'nome' | 'turnos' | 'mods'
 
+/** A carta por cima: a largura em que cabem as duas colunas da leitura, a margem até a borda da janela e a folga até a coluna que a abriu. */
+const LARGURA_POR_CIMA = 560
+const MARGEM_DA_JANELA = 12
+const FOLGA_DA_COLUNA = 22
+/** O que passa do papel: a tira da cabeça, girada, sobe uns 22 px; a sombra de sangue desce 7. */
+const SOBRA_DA_CABECA = 24
+const SOBRA_DA_SOMBRA = 8
+
+/**
+ * Assenta a carta por cima: ao lado da coluna de `marca` (à esquerda; sem
+ * lugar, à direita; sem nenhum, sobre ela), na altura da linha que a abriu,
+ * e sempre inteira na janela (a altura máxima é a da janela menos a margem;
+ * o corpo da carta é que rola).
+ */
+function assentarPorCima(carta: HTMLElement, marca: HTMLElement): void {
+  const coluna = marca.getBoundingClientRect()
+  const linha = (marca.parentElement ?? marca).getBoundingClientRect()
+  const largura = Math.min(LARGURA_POR_CIMA, window.innerWidth - 2 * MARGEM_DA_JANELA)
+  const aEsquerda = coluna.left - FOLGA_DA_COLUNA - largura
+  const aDireita = coluna.right + FOLGA_DA_COLUNA
+  const sobreAColuna = Math.max(MARGEM_DA_JANELA, Math.min(coluna.left, window.innerWidth - MARGEM_DA_JANELA - largura))
+  const esquerda = aEsquerda >= MARGEM_DA_JANELA ? aEsquerda : aDireita + largura <= window.innerWidth - MARGEM_DA_JANELA ? aDireita : sobreAColuna
+  const teto = MARGEM_DA_JANELA + SOBRA_DA_CABECA
+  const chao = window.innerHeight - MARGEM_DA_JANELA - SOBRA_DA_SOMBRA
+  carta.style.width = `${largura}px`
+  carta.style.left = `${Math.round(esquerda)}px`
+  carta.style.maxHeight = `${Math.max(0, chao - teto)}px`
+  // A altura vem depois da largura e do teto: é com ela que a carta sobe para caber.
+  carta.style.top = `${Math.round(Math.max(teto, Math.min(linha.top, chao - carta.offsetHeight)))}px`
+}
+
 /** O papel de uma passiva: a leitura, o que o Ativar vai fazer e Ativar (com alvo, custo e selo ajustável) ou Desligar. */
-export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre = false, esperando, onPedir, onFeito, onVoltar, rotuloDoVoltar = 'Voltar', className }: PainelDaPassivaProps) {
+export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre = false, esperando, onPedir, onFeito, onVoltar, rotuloDoVoltar = 'Voltar', className, porCima = false }: PainelDaPassivaProps) {
   const idBase = useId()
   const ligada = passiva.estado === 'ativa'
   const [alvoId, setAlvoId] = useState(passiva.alvo === 'dono' ? tokenId : '')
@@ -334,6 +372,8 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   // O selo sugerido já vai pronto no pedido: nome, turnos e modificadores só aparecem em "Ajustar o selo".
   const [ajustando, setAjustando] = useState(false)
   const [focoNosAjustes, setFocoNosAjustes] = useState<{ campo: FocoNosAjustes } | null>(null)
+  const forma = useRef<HTMLFormElement>(null)
+  const ancora = useRef<HTMLSpanElement>(null)
   const corpo = useRef<HTMLDivElement>(null)
   const ajustes = useRef<HTMLDivElement>(null)
   const campoDoAlvo = useRef<HTMLSelectElement>(null)
@@ -363,6 +403,38 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     return { '--rasgo': rasgo(semente, 6), '--rasgo2': rasgo(semente + 7, 7) } as CSSProperties
   }, [passiva.cartao.id])
 
+  // Por cima: a carta sobe para a camada do topo (`popover`, fora do corte e do giro de qualquer painel) e se assenta
+  // na janela; acompanha a linha quando a coluna rola, a janela muda ou a própria carta cresce (ajustes, "Ler mais").
+  useLayoutEffect(() => {
+    const carta = forma.current
+    const marca = ancora.current
+    // Navegador sem `popover`: o atributo não vale nada e a carta fica no lugar, como antes.
+    if (!porCima || carta === null || marca === null || typeof carta.showPopover !== 'function') return
+    try {
+      carta.showPopover()
+    } catch {
+      // Não subiu: sem o atributo ela aparece no lugar (com ele e fechada, ficaria invisível).
+      carta.removeAttribute('popover')
+      return
+    }
+    const assentar = () => assentarPorCima(carta, marca)
+    // A rolagem do corpo da própria carta não a tira do lugar.
+    const aoRolar = (evento: Event) => {
+      if (!(evento.target instanceof Node && carta.contains(evento.target))) assentar()
+    }
+    assentar()
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(assentar)
+    observador?.observe(carta)
+    window.addEventListener('resize', assentar)
+    document.addEventListener('scroll', aoRolar, true)
+    return () => {
+      observador?.disconnect()
+      window.removeEventListener('resize', assentar)
+      document.removeEventListener('scroll', aoRolar, true)
+      if (carta.matches(':popover-open')) carta.hidePopover()
+    }
+  }, [porCima])
+
   // Abre com o foco no que ele precisa responder primeiro: o alvo, o custo ou o botão.
   useEffect(() => {
     const campo = ligada ? null : passiva.alvo === 'oponente' ? campoDoAlvo.current : passiva.custo.tipo === 'pergunta' ? campoDoCusto.current : null
@@ -380,8 +452,9 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     const { campo } = focoNosAjustes
     const alvo = campo === 'turnos' ? campoDosTurnos.current : campo === 'mods' ? (ajustes.current?.querySelector<HTMLElement>('.bt-mods [aria-invalid="true"]') ?? null) : campoDoNome.current
     alvo?.focus({ preventScroll: true })
-    mostrarNoCorpo(corpo.current, campo === 'abrir' ? ajustes.current : (alvo ?? ajustes.current), true)
-  }, [focoNosAjustes])
+    // Por cima, a carta já está inteira na janela: só o corpo dela rola, a coluna de fora fica onde está.
+    mostrarNoCorpo(corpo.current, campo === 'abrir' ? ajustes.current : (alvo ?? ajustes.current), !porCima)
+  }, [focoNosAjustes, porCima])
 
   /** A recusa num campo do selo abre os ajustes e leva o foco ao campo: nada obrigatório fica escondido. */
   const recusarNoSelo = (recusa: string, campo: FocoNosAjustes) => {
@@ -473,7 +546,10 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const rotuloDoBotao = ligada ? 'Desligar' : `Ativar${gasto === null || faltaOCusto ? '' : ` · ${gasto}`}`
   const classe = ['bt-mira', 'bt-papel', 'bt-passiva', className].filter(Boolean).join(' ')
   return (
-    <form className={classe} style={estiloDoRasgo} onSubmit={enviar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
+    <>
+    {/* Por cima: a marca fica no lugar onde a carta abriria (a coluna e a linha por onde ela se assenta). */}
+    {porCima && <span ref={ancora} className="bt-passiva__ancora" aria-hidden="true" />}
+    <form ref={forma} className={classe} style={estiloDoRasgo} popover={porCima ? 'manual' : undefined} onSubmit={enviar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
       <div className="bt-mira__cabeca">
         <p className="bt-mira__rot">
           {ligada ? 'Passiva · ativa' : passiva.estado === 'pronta' ? 'Passiva · pronta' : 'Passiva'}
@@ -687,6 +763,7 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
         </div>
       </div>
     </form>
+    </>
   )
 }
 
@@ -905,6 +982,7 @@ export function PassivasDaFicha({ passivas, tokenId, alvos, sistema, aplicarLivr
                 onVoltar={() => fechar(id)}
                 rotuloDoVoltar="Fechar"
                 className="bt-forma--npc"
+                porCima
               />
             )}
           </div>
@@ -1230,6 +1308,7 @@ function UmLembrete({ item, sistema, aplicarLivre, esperando, onPedir }: Omit<Le
           }}
           rotuloDoVoltar="Fechar"
           className="bt-lembrete__papel"
+          porCima
         />
       )}
     </li>
