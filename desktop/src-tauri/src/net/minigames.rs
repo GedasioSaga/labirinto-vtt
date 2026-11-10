@@ -37,7 +37,7 @@ pub const PASTA_DE_MINIGAMES: &str = "minigames";
 pub const URL_BASE: &str = "https://github.com/GedasioSaga/labirinto-vtt/releases/download/minigames/";
 
 /// Os jogos que o app sabe baixar e servir (os `JOGOS` do script).
-pub const JOGOS: [&str; 1] = ["fogo"];
+pub const JOGOS: [&str; 2] = ["fogo", "bolha"];
 
 /// A página que o iframe abre (o `ENTRADA` do script).
 pub const ENTRADA: &str = "index.html";
