@@ -58,10 +58,8 @@ describe('ScenesSection: nome para os jogadores', () => {
   it('renomear abre com o nome público atual e devolve os dois nomes', () => {
     const onRename = vi.fn()
     render(onRename)
-    // O renomear mora no menu "…" da cena (lista de cenas, ideia 5).
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Mais ações de Terreo do cofre"]')?.click())
-    const renomear = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent === 'Renomear…')
-    act(() => renomear?.click())
+    const lapis = container.querySelector<HTMLButtonElement>('button[aria-label="Renomear Terreo do cofre"]')
+    act(() => lapis?.click())
 
     const publico = campoPorRotulo('Nome para os jogadores (opcional)')
     expect(publico.value).toBe('Térreo')

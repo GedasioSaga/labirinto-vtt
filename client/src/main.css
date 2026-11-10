@@ -995,9 +995,7 @@ body {
   top: var(--lb-layout-edge-gap);
   left: 0;
   right: 0;
-  /* A página do livro da mesa pode estar mais larga (borda que arrasta): o chip
-     do alto guarda o maior dos dois, e no padrão continua igual (12 + 52 + 262 = 326). */
-  padding: 0 calc(max(var(--lb-layout-livro-do-mestre), var(--lb-coldir-espaco, 0px)) + var(--lb-layout-edge-gap));
+  padding: 0 calc(var(--lb-layout-livro-do-mestre) + var(--lb-layout-edge-gap));
   display: flex;
   /* O chip da cena (fatia 3) no alto, centrado. A barra de ferramentas mora no pé (fatia 6). */
   flex-direction: column;
@@ -4396,12 +4394,12 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 /* ---- Linha da cena (bar: painel de camadas do Figma, Explorer do VS Code)
    A primeira linha do item é nome | info | controles. O nome fica com a
-   largura e quebra em até duas linhas (o nome inteiro mora no title); a info à direita traz só o que se lê
-   de relance. Os controles flutuam sobre o fim da linha e
+   largura (o nome inteiro mora no title); a info à direita traz só o que se lê
+   de relance. Nas cenas fechadas, os controles flutuam sobre o fim da linha e
    só aparecem no hover e no foco do teclado: em repouso ficam com opacity 0 —
    nunca display nem visibility, e cada botão mantém o pointer-events — para o
-   Tab e o clique direto continuarem alcançando cada botão. A cena aberta segue
-   a mesma regra (lista de cenas, ideia 5). Sem animação: hover de linha e foco de
+   Tab e o clique direto continuarem alcançando cada botão. Na cena aberta têm
+   linha própria, sempre à vista. Sem animação: hover de linha e foco de
    teclado são ações de alta frequência, e movimento ali só atrasa. */
 .lb-cenas__item:has(> .lb-cenas__linha) {
   /* O fundo que a faixa de controles copia para cobrir o fim do nome. */
@@ -4430,32 +4428,17 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   position: relative;
   display: flex;
   flex-basis: 100%;
-  /* Pelo topo: o nome que quebra em duas linhas não arrasta a seta nem a contagem para o meio. */
-  align-items: flex-start;
+  align-items: center;
   gap: var(--lb-space-1);
   min-width: 0;
   /* A altura dos botões da faixa: a linha não pula quando eles aparecem. */
   min-height: var(--lb-space-6);
 }
 
-/* Do tamanho do texto: um nome curto deixa o meio da linha livre para o clique.
-   O comprido quebra em até duas linhas em vez de cortar no fim, que é justo
-   onde duas cenas parecidas se diferenciam (o nome inteiro mora no title). A
-   primeira linha fica no meio dos 24 px da faixa de botões. */
+/* Do tamanho do texto, encolhendo com reticências quando falta espaço: um nome
+   curto deixa o meio da linha livre para o clique. */
 .lb-cenas__linha > .lb-cenas__nome {
   flex: 0 1 auto;
-  padding: 3px 0;
-  line-height: calc(var(--lb-space-6) - 6px);
-  white-space: normal;
-}
-
-.lb-cenas__nome-texto {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
 }
 
 /* A linha inteira abre a cena, não só as letras. O ::after se estende até a
@@ -4488,8 +4471,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   align-items: center;
   gap: var(--lb-space-1);
   margin-left: auto;
-  /* Na altura da primeira linha do nome. */
-  min-height: var(--lb-space-6);
 }
 
 /* A contagem é nota de rodapé, não manchete: ícone e número em cinza, na letra,
@@ -4535,15 +4516,19 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   line-height: 1;
 }
 
-/* Toda cena, a aberta também: a faixa de controles pousa sobre o fim da
-   primeira linha, com o fundo do cartão e um degradê que apaga o fim do nome
-   por baixo dela. A faixa em si deixa o clique passar (o nome segue clicável
-   até os botões); os botões não. */
-.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
+/* Na cena aberta os próprios botões mostram o estado, sempre à vista. */
+.lb-cenas__item--ativa .lb-cenas__selo {
+  display: none;
+}
+
+/* Cena fechada: a faixa de controles pousa sobre o fim da linha, com o fundo do
+   cartão e um degradê que apaga o fim do nome por baixo dela. A faixa em si
+   deixa o clique passar (o nome segue clicável até os botões); os botões não. */
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
   position: absolute;
   top: 0;
   right: 0;
-  height: var(--lb-space-6);
+  bottom: 0;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -4553,7 +4538,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   pointer-events: none;
 }
 
-.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles::before {
+.lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
   content: '';
   position: absolute;
   top: 0;
@@ -4579,8 +4564,28 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 /* Arrastando uma cena, o mouse passa por cima de todas: nenhuma faixa acende. */
-html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
+html.lb-arrastando-cena .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
   opacity: 0;
+}
+
+/* Cena aberta: nome e info na primeira linha; os controles, sempre à vista, na
+   segunda, alinhados à direita. O nome com base 0 cresce sem empurrar a info
+   para baixo. */
+.lb-cenas__item--ativa > .lb-cenas__linha {
+  flex-wrap: wrap;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__nome {
+  flex: 1 1 0;
+}
+
+.lb-cenas__item--ativa > .lb-cenas__linha > .lb-cenas__controles {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Entre os ícones da faixa, meio vão do painel: sem moldura, eles não encostam
@@ -4666,17 +4671,16 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
     flex: 1 1 0;
   }
 
-  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles {
     position: relative;
     flex-basis: 100%;
-    height: auto;
     justify-content: flex-end;
     padding-left: 0;
     background: none;
     opacity: 1;
   }
 
-  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles::before {
+  .lb-cenas__item:not(.lb-cenas__item--ativa) > .lb-cenas__linha > .lb-cenas__controles::before {
     content: none;
   }
 

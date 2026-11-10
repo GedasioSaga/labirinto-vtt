@@ -6,7 +6,6 @@ import { Balao } from '../grimorio/Balao'
 import { Botao } from '../grimorio/Botao'
 import { Marcadores, type PaginaDoMarcador } from '../grimorio/Marcador'
 import { classes } from '../grimorio/comum'
-import { BordaDaPagina } from './BordaDaPagina'
 import { entrarFolha } from './LivroDoMestre'
 import { PaginaAVistaProvider, usePaginaAVista } from './paginaAVista'
 import { PaginaSons } from './PaginaSons'
@@ -327,8 +326,6 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
           </div>
         </div>
       </div>
-      {/* A borda de fora da página arrasta: a largura fica neste computador (BordaDaPagina.tsx). */}
-      <BordaDaPagina escondida={recolhido} />
     </aside>
   )
 }

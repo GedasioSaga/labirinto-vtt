@@ -99,53 +99,24 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
   }
 
   it('sem os callbacks (mapa solto) não há menu "…"', () => {
-    // O mapa solto: uma linha só, sem id e sem renomear (`sceneList`).
-    const solto: SceneListItem[] = [{ id: '', name: 'Mapa solto', tokenCount: 0, available: true, active: true, renamable: false }]
-    act(() => root.render(<ScenesSection scenes={solto} onSelect={() => {}} onCreate={() => {}} onRename={() => {}} />))
+    act(() => root.render(<ScenesSection scenes={CENAS} onSelect={() => {}} onCreate={() => {}} onRename={() => {}} />))
     expect(container.querySelector('button[aria-label^="Mais ações de"]')).toBeNull()
   })
 
-  it('o menu tem os itens, com foco no primeiro; Subir fica esmaecido na primeira cena', () => {
+  it('o menu tem os cinco itens, com foco no primeiro; Subir fica esmaecido na primeira cena', () => {
     render()
     const menu = abrir('PC - Cais')
     expect(gatilho('PC - Cais').getAttribute('aria-expanded')).toBe('true')
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent)).toEqual([
-      // Renomear e Mover saíram da linha da cena aberta para o menu (lista de cenas, ideia 5).
-      'Renomear…',
-      'Mover para…',
       'Duplicar',
       'Subir',
       'Descer',
       'Definir como cena inicial',
       'Apagar cena…',
     ])
-    expect(document.activeElement).toBe(item(menu, 'Renomear…'))
-    // Sem `onMove` (este render), Mover fica no lugar, esmaecido.
-    expect(item(menu, 'Mover para…').getAttribute('aria-disabled')).toBe('true')
+    expect(document.activeElement).toBe(item(menu, 'Duplicar'))
     expect(item(menu, 'Subir').getAttribute('aria-disabled')).toBe('true')
     expect(item(menu, 'Descer').getAttribute('aria-disabled')).toBeNull()
-  })
-
-  it('botão direito na linha abre o mesmo menu, sem o menu do navegador; dentro de um campo, não', () => {
-    render({ onMove: () => true })
-    const linha = gatilho('Casa genérica').closest('li')
-    if (linha === null) throw new Error('sem linha')
-    const direito = (alvo: Element) => {
-      const evento = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-      act(() => {
-        alvo.dispatchEvent(evento)
-      })
-      return evento
-    }
-    const evento = direito(linha.querySelector('button[data-cena-nome]') ?? linha)
-    expect(evento.defaultPrevented).toBe(true)
-    expect(menuAberto()?.getAttribute('aria-label')).toBe('Ações de Casa genérica')
-    expect(document.activeElement?.textContent).toBe('Renomear…')
-    // O "Mover para…" abre dentro da linha: lá o botão direito é do campo (copiar, colar).
-    act(() => item(menuAberto() as HTMLElement, 'Mover para…').click())
-    const campo = linha.querySelector('select')
-    if (campo === null) throw new Error('Mover para… não abriu na linha')
-    expect(direito(campo).defaultPrevented).toBe(false)
   })
 
   it('Duplicar chama onDuplicate com a cena da linha e fecha o menu', () => {
@@ -180,14 +151,12 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
     render()
     const menu = abrir('PC - Cais')
     tecla(menu, 'ArrowDown')
-    // "Mover para…" (sem onMove) e "Subir" (primeira cena) estão esmaecidos: a seta os pula.
-    expect(document.activeElement).toBe(item(menu, 'Duplicar'))
-    tecla(menu, 'ArrowDown')
+    // "Subir" está esmaecido na primeira cena: a seta vai direto a "Descer".
     expect(document.activeElement).toBe(item(menu, 'Descer'))
     tecla(menu, 'ArrowDown')
     expect(document.activeElement).toBe(item(menu, 'Apagar cena…'))
     tecla(menu, 'ArrowDown')
-    expect(document.activeElement).toBe(item(menu, 'Renomear…'))
+    expect(document.activeElement).toBe(item(menu, 'Duplicar'))
     tecla(menu, 'ArrowUp')
     expect(document.activeElement).toBe(item(menu, 'Apagar cena…'))
     tecla(menu, 'Escape')
@@ -319,7 +288,7 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
       const reaberto = abrir('Casa genérica')
       expect(reaberto).toBe(menu)
       expect(menu.classList.contains('gr-sai')).toBe(false)
-      expect(document.activeElement).toBe(item(menu, 'Renomear…'))
+      expect(document.activeElement).toBe(item(menu, 'Duplicar'))
     })
   })
 
