@@ -262,6 +262,29 @@
 .bt-tira[data-esta='sim']::after {
   transform: translate(10px, 7px);
 }
+/*
+ * D7: VIDA EM REPOUSO. Com o menu parado, a sombra rasgada da tira escolhida
+ * respira 1,5 px, devagar (3,2 s indo e voltando), depois de 700 ms sem
+ * mexer: o menu parece vivo sem pedir atenção. Só a sombra (o papel e o
+ * texto ficam parados para ler); só o menu e a lista (a mira não).
+ * Movimento reduzido: parada.
+ */
+.bt-vez:not(:has(.bt-mira)) .bt-tira[data-esta='sim']::after {
+  animation: bt-tira-respira 3200ms cubic-bezier(0.77, 0, 0.175, 1) 700ms infinite alternate;
+}
+@keyframes bt-tira-respira {
+  from {
+    transform: translate(10px, 7px);
+  }
+  to {
+    transform: translate(11.5px, 8.5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-vez:not(:has(.bt-mira)) .bt-tira[data-esta='sim']::after {
+    animation: none;
+  }
+}
 .bt-tira[data-esta='sim'] .bt-tira__det {
   color: #3b3a36;
 }
