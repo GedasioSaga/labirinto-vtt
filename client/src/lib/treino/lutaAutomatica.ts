@@ -1,11 +1,11 @@
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
-import { chaveDaVez, type PedidoDeAcao, type PedidoDeReacao } from '../batalha/combate'
+import { chaveDaVez, type PedidoDeAcao, type PedidoDePassiva, type PedidoDeReacao } from '../batalha/combate'
 import { combatentesIniciais, type AutorDaAcao } from '../batalha/turnos'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem, type VidaDaFicha } from '../vidaDaFicha'
 import { fimDaLuta, type FimDaLuta, type RelogioDaLuta, type TetosDaLuta } from './fimDaLuta'
 import { criarMesaEmMemoria, type LadoDaLuta, type LadoDoTreino, type LutadoresDaLuta, type MesaDaLuta } from './mesaEmMemoria'
-import { jogadaDoRobo, type JogadaDoRobo } from './robo'
+import { jogadaDoRobo, passivasDoRobo, type JogadaDoRobo, type VistaDoRobo } from './robo'
 import { criarSorteio, retomarSorteio, type EstadoDoSorteio, type Sorteio } from './sorteio'
 
 /**
@@ -16,7 +16,9 @@ import { criarSorteio, retomarSorteio, type EstadoDoSorteio, type Sorteio } from
  * (`mesaEmMemoria.ts`): a ficha de verdade nunca é tocada.
  *
  * Um PASSO é uma chamada à batalha: uma reação (rolar ou escolher a saída),
- * um golpe, ou passar a vez. Depois de cada passo, `fimDaLuta` decide se
+ * uma passiva (o lembrete respondido, ou a que o gatilho deixou pronta), um
+ * golpe (ou a cura, a forma, a ajuda e o concentrar do robô), ou passar a
+ * vez. Depois de cada passo, `fimDaLuta` decide se
  * acabou (vitória, todos caídos, ou tempo pelos tetos de rodada e de passo:
  * é o teto que garante que a luta sempre para).
  *
@@ -75,6 +77,8 @@ export interface LutaGravada<L extends LadoDaLuta = LadoDoTreino> {
 /** O que um passo fez. "parado" = não havia vez nem reação esperando (o passo conta, e o teto acaba a luta). */
 export type PassoDaLuta =
   | { tipo: 'reagir'; pedido: PedidoDeReacao; aceito: boolean }
+  /** R2: a passiva do robô (fora da vez, sem gastar ação): o lembrete respondido ou a passiva ativada. */
+  | { tipo: 'passiva'; pedido: PedidoDePassiva }
   | { tipo: 'agir'; tokenId: string; pedido: PedidoDeAcao }
   | { tipo: 'passarVez'; tokenId: string; aceito: boolean }
   | { tipo: 'parado' }
@@ -180,19 +184,28 @@ function lutaSobre<L extends LadoDaLuta>(mesa: MesaDaLuta<L>, sorteio: Sorteio, 
     }
   }
 
+  /** A passiva do robô (todas as vagas são dele): o primeiro pedido que a batalha aceitar; `null` = nenhum. */
+  const passivaAceita = (vista: VistaDoRobo): PassoDaLuta | null => {
+    for (const pedido of passivasDoRobo(vista, () => true)) {
+      if (loja.getState().passiva(CENA_DO_TREINO, AUTOR_DO_ROBO, pedido)) return { tipo: 'passiva', pedido }
+    }
+    return null
+  }
+
   const passo = (): PassoDaLuta | null => {
     if (fim !== null) return null
     const cena = cenaDeAgora()
     const vez = cena.turnos.vez
-    const jogada = jogadaDoRobo({
+    const vista: VistaDoRobo = {
       turnos: cena.turnos,
       regras: cena.regras,
       vagas: mesa.vagas(),
       personagens: mesa.personagens(),
       sistema: mesa.sistema(),
       golpesNaVez: vez === null ? 0 : golpesNaVez(chaveDaVez(cena.turnos.rodada, vez)),
-    })
-    const feito = executar(jogada)
+    }
+    // As passivas valem fora da vez e não gastam ação: vêm antes da reação e da vez.
+    const feito = passivaAceita(vista) ?? executar(jogadaDoRobo(vista))
     passos += 1
     fim = fimDaLuta(mesa, relogio(), tetos)
     return feito

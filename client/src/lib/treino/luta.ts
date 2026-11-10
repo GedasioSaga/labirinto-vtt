@@ -26,7 +26,7 @@ import {
   type MesaDaLuta,
   type VagaDaLuta,
 } from './mesaEmMemoria'
-import { golpesDoRobo, marcaDoRobo } from './robo'
+import { golpesDoRobo, marcaDoRobo, passivasDoRobo } from './robo'
 
 /**
  * A LUTA DE N LADOS, motor v4 (Arena multijogador, fatia F2 de
@@ -408,23 +408,31 @@ const ROBO_PAROU: PassoDoRobo = { jogou: false }
 
 /**
  * Um passo do robô pelas vagas `doRobo`, como a luta automática: a reação
- * esperando por uma delas; o lembrete da marca de uma delas; senão, se algum golpe ainda espera a reação de
- * gente, para; senão, na vez de uma delas, o golpe mais forte que a batalha
- * aceitar (até `GOLPES_POR_VEZ_MAX` na vez), ou passa a vez. A vez de gente
- * (ou a batalha que recusa) = para.
+ * esperando por uma delas; o lembrete da marca de uma delas; a passiva de uma
+ * delas (o lembrete respondido, ou a que o gatilho deixou pronta na vez dela);
+ * senão, se algum golpe ainda espera a reação de gente, para; senão, na vez de
+ * uma delas, o primeiro da lista do robô que a batalha aceitar (a cura, a
+ * forma, a ajuda, o concentrar ou o golpe mais forte; até
+ * `GOLPES_POR_VEZ_MAX` na vez), ou passa a vez. A vez de gente (ou a batalha
+ * que recusa) = para.
  */
 function passoDoRobo(aberta: LutaNaLoja, doRobo: (vaga: VagaDaLuta) => boolean, golpesDaVez: GolpesDaVez | null): PassoDoRobo {
   const { turnos, regras } = aberta.cena()
   const batalha = aberta.loja.getState()
+  const tokenDoRobo = (tokenId: string): boolean => aberta.mesa.vagas().some((vaga) => vaga.tokenId === tokenId && doRobo(vaga))
   for (const vaga of aberta.mesa.vagas()) {
     if (!doRobo(vaga)) continue
     const pedido = reacaoDoBoneco(turnos.golpes, vaga.tokenId, vaga.reage ?? 'd20', bonusDaReacao(bonusDaBatalha(turnos.selos, vaga.tokenId)), turnos.selos)
     if (pedido !== null) return batalha.reagir(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido) ? { jogou: true, golpesDaVez } : ROBO_PAROU
   }
   // O lembrete da marca de uma ficha dele (o teste, o SP ou "Agora não", que sempre passa).
-  const marca = marcaDoRobo(turnos, (tokenId) => aberta.mesa.vagas().some((vaga) => vaga.tokenId === tokenId && doRobo(vaga)))
+  const marca = marcaDoRobo(turnos, tokenDoRobo)
   for (const pedido of marca?.pedidos ?? []) {
     if (batalha.marcar(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido)) return { jogou: true, golpesDaVez }
+  }
+  // R2: as passivas de uma ficha dele (fora da vez, sem gastar ação).
+  for (const pedido of passivasDoRobo({ turnos, vagas: aberta.mesa.vagas(), personagens: aberta.mesa.personagens(), sistema: aberta.mesa.sistema() }, tokenDoRobo)) {
+    if (batalha.passiva(CENA_DA_LUTA, AUTOR_DO_ROBO, pedido)) return { jogou: true, golpesDaVez }
   }
   if ((turnos.golpes ?? []).some((golpe) => golpe.alvos.some((alvo) => alvo.danoFinal === undefined))) return ROBO_PAROU
   const carta = cartaDaVez(turnos)
