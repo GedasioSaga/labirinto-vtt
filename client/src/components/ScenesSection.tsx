@@ -1049,10 +1049,12 @@ function levelStyle(depth: number, layer: number): CSSProperties {
 const STRIP_SCROLL_GAP_PX = 2
 
 /**
- * A faixa de botões pousa ACIMA do cartão. Na primeira linha visível de uma
- * lista rolada não há onde pousar: a borda da área que rola a cortaria. Aí ela
- * desce para o pé do cartão (sobre o respiro de baixo e o vão até o de baixo,
- * onde não há texto). Na tela de toque a faixa já mora dentro da linha.
+ * A faixa de botões pousa ACIMA do cartão. Na primeira linha da lista, e na
+ * primeira visível de uma lista rolada, não há onde pousar: acima da lista mora
+ * o interruptor "Miniaturas" (ou o cabeçalho "Cenas", no mapa solto), cujo pé
+ * ela tapava, e a borda da área que rola a cortaria. Aí ela desce para o pé do
+ * cartão (sobre o respiro de baixo e o vão até o de baixo, onde não há texto).
+ * Na tela de toque a faixa já mora dentro da linha.
  */
 function placeRowStrip(row: HTMLElement): void {
   const strip = row.querySelector<HTMLElement>(':scope > .lb-cenas__linha > .lb-cenas__controles')
@@ -1060,14 +1062,15 @@ function placeRowStrip(row: HTMLElement): void {
   if (strip === null || strip === undefined || line === null || line === undefined) return
   delete row.dataset.faixa
   if (getComputedStyle(strip).position !== 'absolute') return
-  let top = 0
+  // O teto: o topo da própria lista e a borda de cima da área que rola.
+  let ceiling = Math.max(row.parentElement?.getBoundingClientRect().top ?? 0, STRIP_SCROLL_GAP_PX)
   for (let node = row.parentElement; node !== null; node = node.parentElement) {
     if (/(auto|scroll|hidden)/.test(getComputedStyle(node).overflowY)) {
-      top = node.getBoundingClientRect().top
+      ceiling = Math.max(ceiling, node.getBoundingClientRect().top + STRIP_SCROLL_GAP_PX)
       break
     }
   }
-  if (strip.getBoundingClientRect().top >= top + STRIP_SCROLL_GAP_PX) return
+  if (strip.getBoundingClientRect().top >= ceiling) return
   // O topo da faixa no fim do conteúdo do cartão: ela cobre o respiro, a borda e o vão.
   const style = getComputedStyle(row)
   const contentBottom = row.getBoundingClientRect().bottom - parseFloat(style.borderBottomWidth) - parseFloat(style.paddingBottom)

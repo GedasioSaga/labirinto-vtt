@@ -4656,6 +4656,17 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   bottom: auto;
 }
 
+/* Em repouso (sem o mouse, sem o foco de teclado e sem formulário ou menu
+   aberto) a faixa escondida mora DENTRO do próprio cartão, rente à borda de
+   cima. Invisível, ela não pega clique fora dele: nem no pé do interruptor
+   "Miniaturas" e do cabeçalho "Cenas", acima da lista, nem no vão entre os
+   cartões. O mouse que chega ali já está no cartão, e a faixa sobe para o
+   lugar dela (acima do nome) antes do clique. */
+.lb-cenas__item:not(:hover) > .lb-cenas__linha:not(:has(:focus-visible)) > .lb-cenas__controles:not(:has([aria-expanded='true'])) {
+  top: calc(var(--lb-space-2) * -1);
+  bottom: auto;
+}
+
 /* Aparece com o mouse sobre o cartão, com o foco de teclado em qualquer peça da
    linha e enquanto um dos botões está com o formulário ou o menu aberto. */
 .lb-cenas__item:hover > .lb-cenas__linha > .lb-cenas__controles,
@@ -4765,6 +4776,11 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
     background: none;
     box-shadow: none;
     opacity: 1;
+  }
+
+  /* Aqui a faixa está sempre à vista, na linha: o lugar de repouso não vale. */
+  .lb-cenas__item:not(:hover) > .lb-cenas__linha:not(:has(:focus-visible)) > .lb-cenas__controles:not(:has([aria-expanded='true'])) {
+    top: auto;
   }
 
   /* Alvo de dedo, o mesmo mínimo de 44px dos botões da tela do jogador; o

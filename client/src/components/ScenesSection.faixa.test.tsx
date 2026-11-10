@@ -116,6 +116,36 @@ describe('ScenesSection: a faixa do hover não cobre o nome', () => {
     expect(Number(pe?.[1])).toBeLessThanOrEqual(respiroDoNome)
   })
 
+  it('a faixa da primeira linha nunca passa do topo da lista: desce para o pé do cartão; a da segunda fica em cima', () => {
+    // Acima da lista mora o interruptor "Miniaturas" (ou o cabeçalho "Cenas"):
+    // a faixa da primeira linha subia 14 px acima dela e tapava o pé dele.
+    const estilo = document.createElement('style')
+    estilo.textContent = '.lb-cenas__controles { position: absolute } .lb-cenas__item { padding-bottom: 8px; border-bottom-width: 1px }'
+    document.head.appendChild(estilo)
+    // O jsdom não desenha: a lista começa em y 100, cada cartão tem 42 px e o vão é de 8.
+    const caixa = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 222, width: 222, height, x: 0, y: top, toJSON: () => ({}) })
+    const medida = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.matches('ul.lb-cenas')) return caixa(100, 92)
+      const li = this.closest('li')
+      const topo = li === null ? 0 : 100 + Array.from(li.parentElement?.children ?? []).indexOf(li) * 50
+      if (this.matches('li')) return caixa(topo, 42)
+      if (this.matches('.lb-cenas__linha')) return caixa(topo + 9, 24)
+      if (this.matches('.lb-cenas__controles')) return caixa(topo - 14, 26)
+      return caixa(0, 0)
+    })
+    try {
+      render(() => {}, () => {})
+      const focar = (nome: string) => act(() => linha(nome).querySelector<HTMLButtonElement>('.lb-cenas__nome')?.focus())
+      focar('Salao Norte')
+      expect(linha('Salao Norte').dataset.faixa, 'a primeira linha: o topo da faixa (86) passa do topo da lista (100)').toBe('embaixo')
+      focar('Cripta Rubra')
+      expect(linha('Cripta Rubra').dataset.faixa, 'a segunda linha: a faixa (136) cabe abaixo do topo da lista').toBeUndefined()
+    } finally {
+      medida.mockRestore()
+      estilo.remove()
+    }
+  })
+
   it('a faixa tem no máximo 4 botões (Recado, Pausar, Configurar e "…"); Abalo, Planta e Fixar moram no menu', () => {
     render(() => {}, () => {})
     for (const nome of ['Salao Norte', 'Cripta Rubra']) {
