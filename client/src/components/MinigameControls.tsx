@@ -738,9 +738,12 @@ export function MinigameControls(props: MinigameControlsProps) {
     <div className="lb-minigame">
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Jogo</legend>
+        {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha): numa fila só, os 5 jogos
+            passavam da largura do rail e a Bolha vazava da caixa (medido em 1366x768, 10/11/2026). */}
         <Pastilhas
           rotulo="Jogo"
           opcoes={JOGOS}
+          classe="lb-seg--grid"
           valor={minigame.jogo}
           // O jogo que já está: nada grava (um passo de desfazer que não muda nada só confundiria o Ctrl+Z).
           onChange={(jogo) => jogo !== minigame.jogo && onChange(trocarJogoDoMinigame(minigame, jogo))}
