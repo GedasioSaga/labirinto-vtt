@@ -310,6 +310,14 @@ export interface EntradaDoJogador {
   sistema: SistemaDeRpg | null
 }
 
+/**
+ * A carta caiu, na vista do jogador? O host marca `caiu` na ficha dele e na do aliado jogador; o NPC aliado
+ * só traz a `vida` (U, 45289b57): vida 0 também é caído (T3, 10/11).
+ */
+function caiuNaVista(carta: CartaParaJogador): boolean {
+  return carta.caiu === true || carta.vida?.atual === 0
+}
+
 /** Quantos turnos faltam para a próxima carta dele que não caiu, contando só as que ele vê. */
 function turnosAteAMinha(estado: EstadoParaJogador): number | null {
   const { cartas } = estado
@@ -339,7 +347,7 @@ function cartaDoJogador(carta: CartaParaJogador, ficha: FichaNaFaixa | undefined
     equipe: carta.equipe?.nome ?? null,
     vida,
     recursos,
-    caiu: carta.caiu === true,
+    caiu: caiuNaVista(carta),
     extra: carta.extra ?? null,
     d20: null,
     empate: null,
