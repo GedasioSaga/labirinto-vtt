@@ -12,6 +12,7 @@ import { BibliotecaDeRegrasDialog } from './BibliotecaDeRegrasDialog'
 import { faixaDoMestre, linhasDoMestre } from './dadosDaFaixa'
 import { EquipesDialog } from './EquipesDialog'
 import { EscolhaDaRegra, confirmarRascunho, rascunhoDe, type RascunhoDaRegra } from './EscolhaDaRegra'
+import { nomesNumerados } from './nomesNumerados'
 import { PainelDaBatalha, type FichaForaDaOrdem } from './PainelDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
 
@@ -61,7 +62,9 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
     const naOrdem = new Set(turnos.cartas.map((carta) => carta.tokenId))
     // O invocado age na carta do bando do dono; "Incluir" daria a ele uma segunda vez na ordem.
     for (const invocado of turnos.invocados ?? []) naOrdem.add(invocado.tokenId)
-    return fichas.filter((ficha) => !naOrdem.has(ficha.id)).map((ficha) => ({ tokenId: ficha.id, nome: `${ficha.name.trim() || 'Ficha sem nome'}${ficha.hidden === true ? ' (escondida)' : ''}` }))
+    // Pedido de 09/11 (item 6): os de mesmo nome com número, pela ordem do mapa ("Urso 1", "Urso 2"), como na lista de quem entra.
+    const rotulos = nomesNumerados(fichas.map((ficha) => ({ id: ficha.id, nome: ficha.name.trim() || 'Ficha sem nome' })))
+    return fichas.filter((ficha) => !naOrdem.has(ficha.id)).map((ficha) => ({ tokenId: ficha.id, nome: `${rotulos.get(ficha.id) ?? 'Ficha sem nome'}${ficha.hidden === true ? ' (escondida)' : ''}` }))
   }, [turnos, fichas])
 
   if (cena === undefined || dados === null) return null

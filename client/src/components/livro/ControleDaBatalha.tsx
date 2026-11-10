@@ -20,7 +20,9 @@ import { useBatalhaStore, type AberturaDaBatalha } from '../../stores/batalhaSto
 import { useMapStore } from '../../stores/mapStore'
 import { useRegrasDoCampoStore } from '../../stores/regrasDoCampoStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
+import { abrirEscolhaNoMapa, type EscolhaNoMapa } from '../batalha/escolhaNoMapa'
 import { EscolhaDaRegra, confirmarRascunho, type RascunhoDaRegra } from '../batalha/EscolhaDaRegra'
+import { nomesNumerados } from '../batalha/nomesNumerados'
 import { motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
 import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
@@ -75,9 +77,11 @@ interface CaixaDeQuemEntra {
   abertura: AberturaDaBatalha
   candidatos: CandidatoDaBatalha[]
   jogadoresSemFicha: number
-  /** As fichas e os modelos de quando a caixa abriu: ela é modal, nada muda a lista enquanto está à vista. */
+  /** As fichas e os modelos de quando a caixa abriu. Pedido de 09/11 (item 6): ela já não é modal; token que saiu do mapa no meio fica de fora ao iniciar. */
   personagens: readonly Personagem[]
   modelos: Personagem[]
+  /** Pedido de 09/11 (item 6): o nome de cada token com o número dos repetidos ("Urso 1", "Urso 2"), pela ordem do mapa. */
+  rotulos: ReadonlyMap<string, string>
 }
 
 export interface ControleDaBatalhaProps {
@@ -171,6 +175,15 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
 
   const confirmar = (evento: FormEvent) => {
     evento.preventDefault()
+    iniciar(false)
+  }
+
+  /**
+   * Pedido de 09/11/2026 (item 6): `escolher` = o mestre pediu "Escolher quem
+   * entra" (a lista abre sempre que há token na cena); sem isso, o Iniciar de
+   * sempre (a lista só abre quando há token sem ficha de combate).
+   */
+  const iniciar = (escolher: boolean) => {
     if (!cabe) return
     const abertura: AberturaDaBatalha = {}
     if (transicao !== NENHUMA) abertura.transicao = transicao
@@ -188,10 +201,12 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const ehNpc = new Set(tokens.filter((token) => token.npc === true).map((token) => token.id))
     // Token de JOGADOR sem ficha não ganha ficha mínima: fica fora da lista, e a caixa diz quantos.
     const candidatos = todos.filter((candidato) => candidato.situacao !== 'semFicha' || ehNpc.has(candidato.tokenId))
-    if (sistema === undefined || !precisaPerguntar(candidatos)) {
+    if (sistema === undefined || candidatos.length === 0 || (!escolher && !precisaPerguntar(candidatos))) {
       ligarBatalha(abertura)
       return
     }
+    // Pedido de 09/11 (item 6): a lista mora na página Batalha do livro (sem janela por cima do mapa); o livro vai até ela.
+    useLivroDaMesaStore.getState().abrirPagina('batalha')
     setCaixa((antes) => ({
       chave: (antes?.chave ?? 0) + 1,
       aberta: true,
@@ -200,8 +215,23 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
       jogadoresSemFicha: todos.length - candidatos.length,
       personagens,
       modelos: modelosDeNpc(personagens),
+      rotulos: nomesNumerados(tokens.map((token) => ({ id: token.id, nome: token.name }))),
     }))
   }
+
+  // Pedido de 09/11 (item 6): com a lista aberta, passar o mouse num nome acende a ficha e clicar numa ficha no mapa marca ou desmarca.
+  const [cliqueNoMapa, setCliqueNoMapa] = useState<{ tokenId: string; seq: number } | null>(null)
+  const escolhaNoMapa = useRef<EscolhaNoMapa | null>(null)
+  const caixaAberta = caixa?.aberta === true
+  useEffect(() => {
+    if (!caixaAberta) return
+    const escolha = abrirEscolhaNoMapa((tokenId) => setCliqueNoMapa((antes) => ({ tokenId, seq: (antes?.seq ?? 0) + 1 })))
+    escolhaNoMapa.current = escolha
+    return () => {
+      escolhaNoMapa.current = null
+      escolha.soltar()
+    }
+  }, [caixaAberta])
 
   /**
    * "Iniciar com N" da caixa: cria as fichas escolhidas (mínima ou variação do
@@ -313,6 +343,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
             <Botao tipo="submit" variante="primario">
               Iniciar
             </Botao>
+            {/* Pedido de 09/11 (item 6): a lista de quem entra, sempre à mão (antes só abria com token sem ficha). */}
+            <Botao onClick={() => iniciar(true)}>Escolher quem entra</Botao>
             <Botao variante="fantasma" onClick={() => setEscolhendo(false)}>
               Cancelar
             </Botao>
@@ -327,6 +359,10 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
           jogadoresSemFicha={caixa.jogadoresSemFicha}
           modelos={caixa.modelos}
           personagens={caixa.personagens}
+          emLinha
+          rotulos={caixa.rotulos}
+          onDestacar={(tokenId) => escolhaNoMapa.current?.destacar(tokenId)}
+          cliqueNoMapa={cliqueNoMapa}
           onConfirmar={confirmarQuemEntra}
           onCancelar={() => setCaixa({ ...caixa, aberta: false })}
         />

@@ -14,3 +14,11 @@
 .gr-entra__nome small { display: block; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
 .gr-entra__como { width: auto; min-width: 190px; max-width: 260px; }
 .gr-entra__como:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Pedido de 09/11/2026 (item 6): a mesma lista dentro do livro (`emLinha`), sem janela por cima do mapa.
+   O livro é estreito: a linha fica com três colunas e o "como entra" desce para baixo do nome. */
+.gr-entra-painel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--lb-color-brass); border-radius: 8px; background: var(--lb-color-stone-sunken); }
+.gr-entra-painel__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; color: var(--lb-color-parchment); }
+.gr-entra-painel .gr-entra-lista { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.gr-entra-painel .gr-entra { grid-template-columns: 22px 28px minmax(0, 1fr); }
+.gr-entra-painel .gr-entra__como { grid-column: 2 / -1; width: 100%; min-width: 0; max-width: none; }
