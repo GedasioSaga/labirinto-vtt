@@ -57,6 +57,18 @@ import { TiroAoVivoPainel } from './TiroAoVivo'
 import type { TiroNoPainel } from './tiroNoPainel'
 import { FogoAoVivoPainel } from './FogoAoVivo'
 import type { FogoNoPainel } from './fogoNoPainel'
+import {
+  BOLHA_TEXTO_MAX_LENGTH,
+  CENARIOS_BOLHA,
+  DIFICULDADES_BOLHA,
+  NOME_DA_DIFICULDADE_BOLHA,
+  NOME_DO_CENARIO_BOLHA,
+  type CenarioBolha,
+  type DificuldadeBolha,
+  type MinigameBolha,
+} from '../minigames/bolha/tipos'
+import { BolhaAoVivoPainel } from './BolhaAoVivo'
+import type { BolhaNoPainel } from './bolhaNoPainel'
 import { PacoteDoMinigame } from './PacoteDoMinigame'
 import './MinigameControls.css'
 
@@ -165,12 +177,20 @@ const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
   { valor: 'pesca', rotulo: 'Pesca' },
   { valor: 'tiro', rotulo: 'Tiro' },
   { valor: 'fogo', rotulo: 'Fogo na Floresta' },
+  { valor: 'bolha', rotulo: "Bolha d'Água" },
 ]
 
 const PERMITIDAS_DO_FOGO: readonly { valor: 'escolha' | DificuldadeFogo; rotulo: string }[] = [
   { valor: 'escolha', rotulo: 'Escolho na hora' },
   ...DIFICULDADES_FOGO.map((d) => ({ valor: d, rotulo: `Só ${NOME_DA_DIFICULDADE_FOGO[d]}` })),
 ]
+
+const PERMITIDAS_DA_BOLHA: readonly { valor: 'escolha' | DificuldadeBolha; rotulo: string }[] = [
+  { valor: 'escolha', rotulo: 'Escolho na hora' },
+  ...DIFICULDADES_BOLHA.map((d) => ({ valor: d, rotulo: `Só ${NOME_DA_DIFICULDADE_BOLHA[d]}` })),
+]
+
+const CENARIOS_DA_BOLHA: readonly { valor: CenarioBolha; rotulo: string }[] = CENARIOS_BOLHA.map((c) => ({ valor: c, rotulo: NOME_DO_CENARIO_BOLHA[c] }))
 
 const ENTRADAS: readonly { valor: EntradaPesca; rotulo: string }[] = [
   { valor: 'mestre', rotulo: 'Mestre chama' },
@@ -701,6 +721,8 @@ export interface MinigameControlsProps {
   aoVivoDoTiro?: TiroNoPainel | null
   /** Sala aberta: o Fogo na Floresta ao vivo (`fogoNoPainel`). `null` ou ausente = sem sala. */
   aoVivoDoFogo?: FogoNoPainel | null
+  /** Sala aberta: a Bolha d'Água ao vivo (`bolhaNoPainel`). `null` ou ausente = sem sala. */
+  aoVivoDaBolha?: BolhaNoPainel | null
   /** O teste troca; o app usa o disco e o Web Audio de verdade. */
   caminho?: CaminhoDaMusica
 }
@@ -730,6 +752,8 @@ export function MinigameControls(props: MinigameControlsProps) {
         <PainelDoTiro {...props} minigame={minigame} />
       ) : minigame.jogo === 'fogo' ? (
         <PainelDoFogo {...props} minigame={minigame} />
+      ) : minigame.jogo === 'bolha' ? (
+        <PainelDaBolha {...props} minigame={minigame} />
       ) : (
         <PainelDaDanca {...props} minigame={minigame} />
       )}
@@ -940,6 +964,75 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
           <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para o fogo.</span>
         ) : (
           <FogoAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDoFogo} />
+        )}
+      </PacoteDoMinigame>
+    </>
+  )
+}
+
+type PainelDaBolhaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaBolha'> & { minigame: MinigameBolha }
+
+/**
+ * A Bolha d'Água do pino, no molde do fogo: quem pede ajuda, a fala, o
+ * cenário, como começa, a dificuldade permitida, o prêmio e a consequência.
+ * O mestre chama daqui (equipe ou cada um no seu); com "Jogador toca no
+ * pino", o jogador também começa sozinho no cartão. Sem porta: a bolha não
+ * abre nada.
+ */
+function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBolhaProps) {
+  const baseId = useId()
+  const mudar = (patch: Partial<MinigameBolha>) => onChange({ ...minigame, ...patch })
+  const id = (nome: string) => `${baseId}-${nome}`
+  // Sala fechada ou sem partida = nada aberto; com partida aberta o jogo não troca de versão.
+  const faseDaBolha = aoVivoDaBolha?.bolha?.fase
+  const bolhaAberta = faseDaBolha === 'convite' || faseDaBolha === 'jogo' || faseDaBolha === 'pausa'
+  return (
+    <>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('npc')}>
+          Quem pede ajuda
+        </label>
+        <CampoDeTexto id={id('npc')} valor={minigame.npc} max={NPC_MAX_LENGTH} onCommit={(npc) => mudar({ npc })} />
+      </div>
+      <div className="lb-field">
+        <label className="lb-label" htmlFor={id('fala')}>
+          Fala
+        </label>
+        <CampoDeTexto id={id('fala')} valor={minigame.fala} max={FALA_MAX_LENGTH} linhas={3} onCommit={(fala) => mudar({ fala })} />
+      </div>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Cenário</legend>
+        <Pastilhas rotulo="Cenário" opcoes={CENARIOS_DA_BOLHA} valor={minigame.cenario} onChange={(cenario) => mudar({ cenario })} />
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Como começa</legend>
+        <Pastilhas rotulo="Como começa" opcoes={ENTRADAS} valor={minigame.entrada} onChange={(entrada) => mudar({ entrada })} />
+        <span className="lb-label">
+          {minigame.entrada === 'pino' ? 'O jogador começa sozinho no cartão do pino; você também pode chamar a mesa daqui.' : 'Só você chama, daqui do painel.'}
+        </span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">Dificuldade permitida</legend>
+        <Pastilhas rotulo="Dificuldade permitida" opcoes={PERMITIDAS_DA_BOLHA} valor={minigame.permitida} onChange={(permitida) => mudar({ permitida })} />
+        <span className="lb-label">Com "Escolho na hora", quem começa escolhe: você, ao chamar a mesa, ou o jogador sozinho no pino.</span>
+      </fieldset>
+      <fieldset className="lb-minigame__grupo">
+        <legend className="lb-label">O que vale</legend>
+        <label className="lb-label" htmlFor={id('premio')}>
+          Prêmio (apagou o fogo)
+        </label>
+        <CampoDeTexto id={id('premio')} valor={minigame.premio.texto} max={BOLHA_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ premio: { texto } })} />
+        <label className="lb-label" htmlFor={id('consequencia')}>
+          Consequência (não apagou)
+        </label>
+        <CampoDeTexto id={id('consequencia')} valor={minigame.consequencia.texto} max={BOLHA_TEXTO_MAX_LENGTH} onCommit={(texto) => mudar({ consequencia: { texto } })} />
+        <span className="lb-label">Só texto: aparece no convite e no resultado do jogador. A bolha não abre porta nem entrega item.</span>
+      </fieldset>
+      <PacoteDoMinigame jogo="bolha" ocupado={bolhaAberta}>
+        {aoVivoDaBolha === null || aoVivoDaBolha === undefined ? (
+          <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para a bolha.</span>
+        ) : (
+          <BolhaAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDaBolha} />
         )}
       </PacoteDoMinigame>
     </>

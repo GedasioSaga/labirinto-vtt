@@ -253,6 +253,8 @@ import { dancaNoPainel } from './components/dancaNoPainel'
 import { pescaNoPainel } from './components/pescaNoPainel'
 import { tiroNoPainel } from './components/tiroNoPainel'
 import { fogoNoPainel } from './components/fogoNoPainel'
+import { bolhaNoPainel } from './components/bolhaNoPainel'
+import type { BolhaAoVivo } from './net/bolhaNoHost'
 import type { FogoAoVivo } from './net/fogoNoHost'
 import { portaDasContasDoApp } from './stores/contasStore'
 import { RpgDialogs } from './components/RpgDialogs'
@@ -882,6 +884,7 @@ function App() {
   // MINIGAME DE TIRO: cada pino com barraca de tiro (quem atira, o vivo, as rodadas), como o painel lê. O dono é a sessão do host.
   const [tiros, setTiros] = useState<TiroAoVivo[]>([])
   const [fogo, setFogo] = useState<FogoAoVivo | null>(null)
+  const [bolha, setBolha] = useState<BolhaAoVivo | null>(null)
   // CHAT DOS JOGADORES: o que o mestre lê (Global e cenas), relido a cada linha nova.
   const [masterChat, setMasterChat] = useState<MasterChatState>(NO_MASTER_CHAT)
   const [tunnel, setTunnel] = useState<TunnelState>({ kind: 'idle' })
@@ -1017,6 +1020,7 @@ function App() {
         onPescaChange: setPescas,
         onTiroChange: setTiros,
         onFogoChange: setFogo,
+        onBolhaChange: setBolha,
         // ENTRAR PELO LOBBY: o link público pronto (ou caído) muda os endereços que o site oferece.
         onTunnelChange: (estado) => {
           setTunnel(estado)
@@ -2878,6 +2882,12 @@ function App() {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       fogo,
+      ponte: () => hostBridgeRef.current,
+    }),
+    aoVivoDaBolha: bolhaNoPainel(pin.id, {
+      aberta: room !== null,
+      players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
+      bolha,
       ponte: () => hostBridgeRef.current,
     }),
   })

@@ -15,10 +15,12 @@ import { Channel, invoke, isTauri } from '@tauri-apps/api/core'
  * mesma barra).
  */
 
-export type JogoDoPacote = 'fogo'
+export type JogoDoPacote = 'fogo' | 'bolha'
 
+/** O nome nas frases do painel ("Baixando o …", "Conferindo o …"): masculino, por isso "jogo Bolha d'Água". */
 export const NOME_DO_JOGO_DO_PACOTE: Record<JogoDoPacote, string> = {
   fogo: 'Fogo na Floresta',
+  bolha: "jogo Bolha d'Água",
 }
 
 /** Único formato de índice que este app entende (o `FORMATO` do script). */
@@ -122,7 +124,7 @@ export type MotivoDaFalha = 'sem_internet' | 'invalido' | 'app_velho' | 'disco'
 
 export type FaseDoPacote =
   | { tipo: 'conferindo' }
-  /** Fora do app: o servidor de páginas serve o jogo (o Vite em dev, `FOGO_WEB_DIR`). */
+  /** Fora do app: o servidor de páginas serve o jogo (o Vite em dev, `FOGO_WEB_DIR` / `BOLHA_WEB_DIR`). */
   | { tipo: 'dispensado' }
   /** Primeira vez, nada instalado: a barra no lugar do painel. `total` nulo = ainda sem resposta do GitHub. */
   | { tipo: 'baixando'; baixado: number; total: number | null }

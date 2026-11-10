@@ -1,0 +1,211 @@
+/*
+ * BOLHA D'ÁGUA, a tela do jogador por cima do mapa (BolhaOverlay.tsx).
+ * A mesma cara do Fogo na Floresta (fogo.css), com a cor da água no lugar da
+ * brasa: o jogo é um iframe do tamanho da tela; o convite, o resultado e o
+ * aviso de encerrado são um cartão por cima. Abre com o fade curto da pesca e
+ * do fogo (raro: uma vez por convite); nada mais anima.
+ */
+
+.lb-bolha {
+  --bl-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --bl-agua: #6cc4ee;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 13px/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lb-bolha {
+    animation: bl-aparece 220ms var(--bl-ease-out);
+  }
+}
+@keyframes bl-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+/* O jogo ocupa tudo; fora do jogo carrega escondido (o `pronto` chega antes do "Começar"). */
+.lb-bolha__jogo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+.lb-bolha:not(.lb-bolha--jogo) .lb-bolha__jogo {
+  visibility: hidden;
+}
+/* No resultado e no encerrado, o fim do jogo fica visível por trás do cartão. */
+/* .lb-bolha dobrado: vence o :not() de cima, que conta como duas classes. */
+.lb-bolha.lb-bolha--resultado .lb-bolha__jogo,
+.lb-bolha.lb-bolha--encerrada .lb-bolha__jogo {
+  visibility: visible;
+  filter: brightness(0.35);
+}
+
+.lb-bolha__cartao {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(460px, calc(100vw - 32px));
+  /* 32px de folga da janela e 42px do próprio cartão (padding e borda ficam fora da conta da altura). */
+  max-height: calc(100dvh - 74px);
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 10px;
+  background: var(--lb-color-ink);
+}
+
+.lb-bolha__eyebrow {
+  margin: 0;
+  color: var(--bl-agua);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.lb-bolha__titulo {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.lb-bolha__fala,
+.lb-bolha__premio,
+.lb-bolha__consequencia,
+.lb-bolha__numeros,
+.lb-bolha__motivo,
+.lb-bolha__aviso,
+.lb-bolha__dica {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* Mouse: sem ele não dá para jogar, então vem antes da escolha e destacado. */
+.lb-bolha__aviso {
+  padding: 8px 10px;
+  border-left: 3px solid var(--bl-agua);
+  border-radius: 4px;
+  background: rgb(108 196 238 / 0.12);
+}
+.lb-bolha__dica {
+  color: var(--lb-color-parchment-dim);
+  font-size: 12px;
+}
+.lb-bolha__numeros {
+  font-variant-numeric: tabular-nums;
+}
+.lb-bolha__estrelas {
+  color: var(--bl-agua);
+  letter-spacing: 0.08em;
+}
+
+/* A dificuldade no "sozinho" com escolha: três opções lado a lado (quebram em janela estreita). */
+.lb-bolha__escolha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lb-bolha__escolha legend {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.lb-bolha__opcao {
+  display: flex;
+  flex: 1 1 6rem;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.lb-bolha__opcao:has(input:checked) {
+  border-color: var(--bl-agua);
+}
+.lb-bolha__opcao:has(input:focus-visible) {
+  outline: 2px solid var(--bl-agua);
+  outline-offset: 2px;
+}
+.lb-bolha__opcao:has(input:disabled) {
+  cursor: default;
+}
+.lb-bolha__opcao-nome {
+  font-weight: 600;
+}
+
+.lb-bolha__mesa {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-bolha__mesa li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.lb-bolha__nome {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lb-bolha__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A carga do jogo no convite: a barra, ou o motivo de não ter chegado. */
+.lb-bolha__carga {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  scroll-margin-bottom: 20px;
+}
+.lb-bolha__carga-barra {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--bl-agua);
+}
+.lb-bolha__carga-erro {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #ff8a80;
+}
+
+/* No jogo, só uma faixa fina em cima: o resto é do jogo. */
+.lb-bolha__barra {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 4px 12px;
+  background: rgb(0 0 0 / 0.55);
+  font-size: 12px;
+  pointer-events: none;
+}
+.lb-bolha__selo {
+  color: var(--bl-agua);
+}

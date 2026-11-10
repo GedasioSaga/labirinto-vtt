@@ -144,6 +144,8 @@ import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
 import type { FogoAoVivo, FogoConviteResultado } from './fogoNoHost'
 import { FOGO_REPASSE_MS } from './protocoloDoFogo'
+import { textoDoDesfechoDaBolha, type BolhaAoVivo, type BolhaConviteResultado } from './bolhaNoHost'
+import type { DificuldadeBolha, ModoBolha } from '../minigames/bolha/tipos'
 import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
 
 /**
@@ -323,6 +325,8 @@ export interface HostBridgeDeps {
   onDancaChange?: (danca: DancaAoVivo | null) => void
   /** MINIGAME FOGO NA FLORESTA: o incêndio como o painel do mestre o lê (convite, quem joga, hash, desfecho). Sala fechada = `null`. */
   onFogoChange?: (fogo: FogoAoVivo | null) => void
+  /** MINIGAME BOLHA D'ÁGUA: a partida como o painel do mestre a lê (convite, quem joga, desfecho). Sala fechada = `null`. */
+  onBolhaChange?: (bolha: BolhaAoVivo | null) => void
   /**
    * MINIGAME DE PESCA: cada pino com pesca como o painel do mestre lê (quem
    * entrou, fase, lance k de N, medidor, cesto e maior peixe), a cada
@@ -727,6 +731,20 @@ export interface HostBridge extends RedeDosSons {
   encerrarFogo(): boolean
   /** O fogo de agora (ou o último), para o painel; `null` = nenhum, ou sala fechada. */
   fogo(): FogoAoVivo | null
+  /**
+   * MINIGAME BOLHA D'ÁGUA: chama estes jogadores para a bolha do pino `pinId`,
+   * em equipe (a mesma partida, cada um na sua cópia) ou cada um no seu.
+   * `null` com a sala fechada. O resto chega por `onBolhaChange`.
+   */
+  convidarParaBolha(pinId: string, playerIds: readonly string[], modo: ModoBolha): BolhaConviteResultado | null
+  /** Todos os prontos começam juntos, na dificuldade dada. `false` = ninguém pronto, fora de fase ou sala fechada. */
+  comecarBolha(dificuldade: DificuldadeBolha): boolean
+  pausarBolha(): boolean
+  retomarBolha(): boolean
+  /** "Encerrar para todos": sem desfecho. */
+  encerrarBolha(): boolean
+  /** A bolha de agora (ou a última), para o painel; `null` = nenhuma, ou sala fechada. */
+  bolha(): BolhaAoVivo | null
   /**
    * MINIGAME DE PESCA ("Mestre chama"): chama estes jogadores para a pesca do
    * pino `pinId`. O resultado diz quantos entraram, ou por que não saiu;
@@ -1174,6 +1192,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let lastSecretChecksKey = '[]'
   let lastDancaKey = 'null'
   let lastFogoKey = 'null'
+  let lastBolhaKey = 'null'
   /** FOGO: o repasse das entradas a cada `FOGO_REPASSE_MS`, com a sala aberta. */
   let repasseDoFogo: ReturnType<typeof setInterval> | null = null
   let lastPescaKey = '[]'
@@ -1651,6 +1670,32 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     return result
   }
 
+  /**
+   * BOLHA: o painel do mestre só ouve quando algo mudou. O desfecho vira
+   * aviso na tela do mestre: quantos apagaram e os pontos da mesa.
+   */
+  const notifyBolhaIfChanged = () => {
+    const bolha = session === null ? null : session.bolha()
+    const key = JSON.stringify(bolha)
+    if (key === lastBolhaKey) return
+    const antes: unknown = JSON.parse(lastBolhaKey)
+    lastBolhaKey = key
+    const jaTinhaDesfecho = typeof antes === 'object' && antes !== null && Reflect.get(antes, 'desfecho') !== undefined && Reflect.get(antes, 'sessao') === bolha?.sessao
+    if (bolha?.fase === 'fim' && bolha.desfecho !== undefined && !jaTinhaDesfecho) {
+      toastSink.push('info', textoDoDesfechoDaBolha(bolha))
+    }
+    deps.onBolhaChange?.(bolha)
+  }
+
+  /** BOLHA: um comando do painel do mestre — despacha, e o painel relê. `null` = sala fechada. */
+  const comandoDaBolha = <T extends HostResult>(run: (room: HostSession) => T): T | null => {
+    if (session === null) return null
+    const result = run(session)
+    void dispatch(result)
+    notifyBolhaIfChanged()
+    return result
+  }
+
   /** FOGO: o repasse do lockstep; sem nada na fila não sai mensagem nenhuma. */
   const repassarFogo = () => {
     if (session === null) return
@@ -1736,6 +1781,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch(result)
     notifyDancaIfChanged()
     notifyFogoIfChanged()
+    notifyBolhaIfChanged()
     return result
   }
 
@@ -3912,6 +3958,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     notifyPlayersIfChanged()
     notifyDancaIfChanged()
     notifyFogoIfChanged()
+    notifyBolhaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     if (wasJoined) return
@@ -3953,6 +4000,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
     notifyDancaIfChanged()
     notifyFogoIfChanged()
+    notifyBolhaIfChanged()
     notifyPescaIfChanged()
     notifyTiroIfChanged()
     forgetScreen(clientId)
@@ -4171,6 +4219,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifySecretChecksIfChanged()
       notifyDancaIfChanged()
       notifyFogoIfChanged()
+      notifyBolhaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       try {
@@ -4549,6 +4598,31 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       return comandoDoFogo((room) => room.mudarFerramentaNoFogo(playerId, ferramenta))?.ok === true
     },
 
+    convidarParaBolha(pinId, playerIds, modo) {
+      const result = comandoDaBolha((room) => room.convidarParaBolha(pinId, playerIds, modo, world()))
+      return result === null ? null : result.convite
+    },
+
+    comecarBolha(dificuldade) {
+      return comandoDaBolha((room) => room.comecarBolha(dificuldade))?.comecou === true
+    },
+
+    pausarBolha() {
+      return comandoDaBolha((room) => room.pausarBolha())?.ok === true
+    },
+
+    retomarBolha() {
+      return comandoDaBolha((room) => room.retomarBolha())?.ok === true
+    },
+
+    encerrarBolha() {
+      return comandoDaBolha((room) => room.encerrarBolha())?.ok === true
+    },
+
+    bolha() {
+      return session === null ? null : session.bolha()
+    },
+
     comecarFogo(dificuldade) {
       return comandoDoFogo((room) => room.comecarFogo(dificuldade))?.comecou === true
     },
@@ -4656,6 +4730,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
       notifyDancaIfChanged()
       notifyFogoIfChanged()
+      notifyBolhaIfChanged()
       notifyPescaIfChanged()
       notifyTiroIfChanged()
       // O expulso devolve o ajudante: o prazo dele não acorda mais ninguém.

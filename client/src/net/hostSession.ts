@@ -81,6 +81,9 @@ import { DANCA_PARTICIPANTES_MAX, type DancaPlayerMessage } from './protocoloDaD
 import { criarFogoNoHost, type FogoAoVivo, type FogoConviteResultado } from './fogoNoHost'
 import { FOGO_PARTICIPANTES_MAX, type FogoMotivoDaRecusa, type FogoPlayerMessage } from './protocoloDoFogo'
 import type { DificuldadeFogo, FerramentaFogo, ModoFogo } from '../minigames/fogo/tipos'
+import { criarBolhaNoHost, type BolhaAoVivo, type BolhaConviteResultado } from './bolhaNoHost'
+import { BOLHA_PARTICIPANTES_MAX, type BolhaMotivoDaRecusa, type BolhaPlayerMessage } from './protocoloDaBolha'
+import type { DificuldadeBolha, ModoBolha } from '../minigames/bolha/tipos'
 import { criarPescaNoHost, type PescaAoVivo, type PescaConviteResultado } from './pescaNoHost'
 import { PESCA_PARTICIPANTES_MAX, type PescaMotivoDaRecusa, type PescaPlayerMessage } from './protocoloDaPesca'
 import { criarTiroNoHost, type TiroAoVivo, type TiroConviteResultado } from './tiroNoHost'
@@ -2119,6 +2122,22 @@ export interface HostSession {
   /** O fogo como o painel do MESTRE o lê (o último, mesmo terminado); `null` = nenhum nesta sala. */
   fogo(): FogoAoVivo | null
   /**
+   * MINIGAME BOLHA D'ÁGUA: `bolha.convite` (o desafio do pino `pinId`,
+   * congelado agora) aos escolhidos que estão na sala e jogando, na ordem da
+   * sala. Equipe: até 6, todos com a mesma partida (cada um na sua cópia);
+   * solo: cada um no seu. Recusa pino que não é de bolha, bolha ativa (uma
+   * por vez) e lista sem ninguém válido.
+   */
+  convidarParaBolha(pinId: string, playerIds: readonly string[], modo: ModoBolha, source: HostMapSource): HostResult & { convite: BolhaConviteResultado }
+  /** Só os prontos (e na sala) jogam; os outros recebem `bolha.encerra` `fora`. `comecou: false` = ninguém pronto. */
+  comecarBolha(dificuldade: DificuldadeBolha): HostResult & { comecou: boolean }
+  pausarBolha(): HostResult & { ok: boolean }
+  retomarBolha(): HostResult & { ok: boolean }
+  /** Encerra a bolha ativa sem desfecho. */
+  encerrarBolha(): HostResult & { ok: boolean }
+  /** A bolha como o painel do MESTRE a lê (a última, mesmo terminada); `null` = nenhuma nesta sala. */
+  bolha(): BolhaAoVivo | null
+  /**
    * MINIGAME DE PESCA ("Mestre chama"): `pesca.convite` (o desafio do pino
    * `pinId`) aos escolhidos que estão na sala e jogando, na ordem da sala, até
    * `PESCA_PARTICIPANTES_MAX`. Entram na sessão do pino se ela ainda tem
@@ -3620,6 +3639,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const dancaNoHost = criarDancaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME FOGO NA FLORESTA: o incêndio ativo (um por vez) e o último, para o painel.
   const fogoNoHost = criarFogoNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
+  // MINIGAME BOLHA D'ÁGUA: a partida ativa (uma por vez) e a última, para o painel.
+  const bolhaNoHost = criarBolhaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE PESCA: uma sessão por pino (a de agora ou a última), para o painel.
   const pescaNoHost = criarPescaNoHost({ conexaoDe: (playerId) => players.get(playerId)?.clientId ?? null, randomId: () => randomId() })
   // MINIGAME DE TIRO: uma barraca por pino (a de agora ou a última), com as tentativas de cada um.
@@ -5570,6 +5591,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     outbound.push(...dancaNoHost.entrou(playerId))
     // FOGO: no convite, o convite de novo; no meio do jogo, a aba nova perdeu a partida e sai.
     outbound.push(...fogoNoHost.entrou(playerId))
+    // BOLHA: igual ao fogo.
+    outbound.push(...bolhaNoHost.entrou(playerId))
     // PESCA: no convite, o convite de novo; no meio da pesca, a aba nova perdeu o jogo e sai.
     outbound.push(...pescaNoHost.entrou(playerId))
     // TIRO: o convite de novo, com as tentativas que já gastou; no meio da rodada, a aba nova perdeu a rodada.
@@ -9780,6 +9803,49 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * BOLHA D'ÁGUA: pedir, pronto, placar e desistência. Quem confere sessão,
+   * fase e participante é `bolhaNoHost`; o que não vale morre calado.
+   */
+  function handleBolha(clientId: string, msg: BolhaPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    switch (msg.type) {
+      case 'bolha.pedir':
+        return pedirBolha(clientId, playerId, msg.pinId, world)
+      case 'bolha.pronto':
+        return { outbound: bolhaNoHost.pronto(playerId, msg) }
+      case 'bolha.fim':
+        return { outbound: bolhaNoHost.fim(playerId, msg) }
+      case 'bolha.desistir':
+        return { outbound: bolhaNoHost.desistir(playerId, msg) }
+    }
+  }
+
+  /**
+   * BOLHA começar sozinho no cartão do pino, pelas regras do pedido do fogo
+   * (jogando, cena sem pausa, pino de bolha no recorte DELE e uma ficha dele
+   * encostada) e só quando o mestre deixou (`entrada: 'pino'`). Uma partida
+   * por vez na sala: com outra acesa, volta `ocupado`.
+   */
+  function pedirBolha(clientId: string, playerId: string, pinId: string, world: HostWorld): HostResult {
+    const record = players.get(playerId)
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const recusa = (motivo: BolhaMotivoDaRecusa): HostResult => reply(clientId, { type: 'bolha.recusado', pinId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const map = scene.map
+    const pin = map.pins.find((p) => p.id === pinId)
+    if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'bolha' || pin.minigame.entrada !== 'pino') return recusa('indisponivel')
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
+    const owned = new Set(ownership[playerId] ?? [])
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    const { outbound, resultado } = bolhaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
+    return resultado.ok ? { outbound } : recusa('ocupado')
+  }
+
+  /**
    * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
    * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
    * sem pausa, pino de pesca que chega ao recorte DELE e uma ficha dele
@@ -10033,6 +10099,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'fogo.fim':
       case 'fogo.desistir':
         return handleFogo(clientId, msg, world)
+      case 'bolha.pedir':
+      case 'bolha.pronto':
+      case 'bolha.fim':
+      case 'bolha.desistir':
+        return handleBolha(clientId, msg, world)
       case 'pesca.pedir':
       case 'pesca.pronto':
       case 'pesca.vivo':
@@ -10990,7 +11061,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // TIRO: quem atirava e caiu perde a rodada (a tentativa já contou).
       // COMPARTILHAR COM O MESTRE: a medida de quem caiu some da tela do mestre.
       return comDesfechoDaDanca({
-        outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId), ...fogoNoHost.caiu(playerId)],
+        outbound: [...dancaNoHost.caiu(playerId), ...pescaNoHost.caiu(playerId), ...tiroNoHost.caiu(playerId), ...fogoNoHost.caiu(playerId), ...bolhaNoHost.caiu(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -11023,7 +11094,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // PESCA: o expulso sai da pesca (do convite, ou da água).
       // TIRO: o expulso sai da barraca (do convite, ou da rodada, que conta como perdida).
       return comDesfechoDaDanca({
-        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId)],
+        outbound: [{ clientId, msg: { type: 'kicked' } }, ...dancaNoHost.esquecer(playerId), ...pescaNoHost.esquecer(playerId), ...tiroNoHost.esquecer(playerId), ...fogoNoHost.esquecer(playerId), ...bolhaNoHost.esquecer(playerId)],
         ...apagarMedidaNoMestre(playerId),
       })
     },
@@ -11781,6 +11852,47 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     fogo() {
       return fogoNoHost.aoVivo()
+    },
+
+    convidarParaBolha(pinId, playerIds, modo, source) {
+      const world = toWorld(source)
+      const pin = allScenes(world)
+        .flatMap((scene) => scene.map.pins)
+        .find((p) => p.id === pinId)
+      const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
+      if (desafio === undefined || desafio.jogo !== 'bolha') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
+      const convidados = inRoomOrder(new Set(playerIds))
+        .flatMap((playerId) => {
+          const record = players.get(playerId)
+          return record !== undefined && record.clientId !== null && statusOf(playerId) === 'playing' ? [{ playerId, nome: record.name }] : []
+        })
+        .slice(0, BOLHA_PARTICIPANTES_MAX)
+      const { outbound, resultado } = bolhaNoHost.convidar({ pinId, minigame: copiarMinigame(desafio) }, modo, convidados)
+      return { outbound, convite: resultado }
+    },
+
+    comecarBolha(dificuldade) {
+      const outbound = bolhaNoHost.comecar(dificuldade)
+      return { outbound: outbound ?? [], comecou: outbound !== null }
+    },
+
+    pausarBolha() {
+      const outbound = bolhaNoHost.pausar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    retomarBolha() {
+      const outbound = bolhaNoHost.retomar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    encerrarBolha() {
+      const outbound = bolhaNoHost.encerrar()
+      return { outbound: outbound ?? [], ok: outbound !== null }
+    },
+
+    bolha() {
+      return bolhaNoHost.aoVivo()
     },
 
     convidarParaPesca(pinId, playerIds, source) {

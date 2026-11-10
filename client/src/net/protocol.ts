@@ -45,6 +45,7 @@ import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from 
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
 import { parseFogoPlayerMessage, type FogoHostMessage, type FogoPlayerMessage } from './protocoloDoFogo'
+import { parseBolhaPlayerMessage, type BolhaHostMessage, type BolhaPlayerMessage } from './protocoloDaBolha'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
 import { parseMedidaCompartilhar, type MedidaCompartilharMessage } from './protocoloDaMedida'
 import {
@@ -1291,6 +1292,8 @@ export type PlayerMessage =
   | PescaPlayerMessage
   // MINIGAME FOGO NA FLORESTA: pronto, entradas por tique, hash e placar (`protocoloDoFogo.ts`).
   | FogoPlayerMessage
+  // MINIGAME BOLHA D'ÁGUA: pedir, pronto, placar e desistir (`protocoloDaBolha.ts`).
+  | BolhaPlayerMessage
   // MINIGAME DE TIRO: pedir, pronto, vivo e resultado (`protocoloDoTiro.ts`).
   | TiroPlayerMessage
   | MyNotesSetMessage
@@ -2154,6 +2157,8 @@ export type HostMessage =
   | PescaHostMessage
   // MINIGAME FOGO NA FLORESTA: convite, começar, entradas dos colegas, sair, pausa e desfecho (`protocoloDoFogo.ts`).
   | FogoHostMessage
+  // MINIGAME BOLHA D'ÁGUA: convite, estado, começar, pausa, desfecho e recusa (`protocoloDaBolha.ts`).
+  | BolhaHostMessage
   // MINIGAME DE TIRO: convite, estado, início, pausa, encerramento e recusa (`protocoloDoTiro.ts`).
   | TiroHostMessage
   // BATALHA F1: o recorte da ordem dos turnos, os aliados e a resposta aos pedidos (`protocoloDaBatalha.ts`).
@@ -3609,6 +3614,11 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'fogo.fim':
     case 'fogo.desistir':
       return parseFogoPlayerMessage(value)
+    case 'bolha.pedir':
+    case 'bolha.pronto':
+    case 'bolha.fim':
+    case 'bolha.desistir':
+      return parseBolhaPlayerMessage(value)
     case 'pesca.pedir':
     case 'pesca.pronto':
     case 'pesca.vivo':

@@ -68,6 +68,15 @@ import {
   type DificuldadeFogo,
   type MinigameFogo,
 } from '../minigames/fogo/tipos'
+import {
+  BOLHA_TEXTO_MAX_LENGTH,
+  CENARIOS_BOLHA,
+  DIFICULDADES_BOLHA,
+  MINIGAME_BOLHA_PADRAO,
+  type DificuldadeBolha,
+  type EntradaBolha,
+  type MinigameBolha,
+} from '../minigames/bolha/tipos'
 import type { MinigameDoPino } from '../minigames/tipos'
 import { readPinLock } from './pinLock'
 import { sanitizeRoomLabelStyle } from './roomLabelStyle'
@@ -285,7 +294,30 @@ export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined
   if (jogo === 'pesca') return lerPescaDoArquivo(valor)
   if (jogo === 'tiro') return lerTiroDoArquivo(valor)
   if (jogo === 'fogo') return lerFogoDoArquivo(valor)
+  if (jogo === 'bolha') return lerBolhaDoArquivo(valor)
   return undefined
+}
+
+const PERMITIDAS_BOLHA: readonly ('escolha' | DificuldadeBolha)[] = ['escolha', ...DIFICULDADES_BOLHA]
+const ENTRADAS_BOLHA: readonly EntradaBolha[] = ['mestre', 'pino']
+
+/**
+ * A BOLHA do disco, pelo caminho do fogo: textos aparados e cortados nos
+ * tetos de `bolha/tipos.ts`; `cenario`, `entrada` e `permitida` fora da lista
+ * voltam o padrão.
+ */
+function lerBolhaDoArquivo(valor: object): MinigameBolha {
+  const padrao = MINIGAME_BOLHA_PADRAO
+  return {
+    jogo: 'bolha',
+    npc: textoDoArquivo(campoDoArquivo(valor, 'npc'), NPC_MAX_LENGTH, padrao.npc),
+    fala: textoDoArquivo(campoDoArquivo(valor, 'fala'), FALA_MAX_LENGTH, padrao.fala),
+    cenario: umDaLista(CENARIOS_BOLHA, campoDoArquivo(valor, 'cenario')) ?? padrao.cenario,
+    entrada: umDaLista(ENTRADAS_BOLHA, campoDoArquivo(valor, 'entrada')) ?? padrao.entrada,
+    permitida: umDaLista(PERMITIDAS_BOLHA, campoDoArquivo(valor, 'permitida')) ?? padrao.permitida,
+    premio: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'premio'), padrao.premio.texto, BOLHA_TEXTO_MAX_LENGTH) },
+    consequencia: { texto: textoDeObjetoDoArquivo(campoDoArquivo(valor, 'consequencia'), padrao.consequencia.texto, BOLHA_TEXTO_MAX_LENGTH) },
+  }
 }
 
 const PERMITIDAS_FOGO: readonly ('escolha' | DificuldadeFogo)[] = ['escolha', ...DIFICULDADES_FOGO]

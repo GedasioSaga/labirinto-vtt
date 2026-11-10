@@ -2,17 +2,18 @@
 /**
  * PACOTE DE MINIGAMES (jogo Godot baixado na primeira vez, sem pesar no instalador).
  *
- *   node scripts/pacote-minigames.cjs              empacota o Fogo na Floresta, assina e confere (nada sai do PC)
- *   node scripts/pacote-minigames.cjs --publicar   idem + envia para a release "minigames" do GitHub
+ *   node scripts/pacote-minigames.cjs                   empacota o Fogo na Floresta, assina e confere (nada sai do PC)
+ *   node scripts/pacote-minigames.cjs --jogo bolha      idem com a Bolha d'Água
+ *   node scripts/pacote-minigames.cjs --publicar        idem + envia para a release "minigames" do GitHub
  *
  * Opções:
- *   --jogo <id>         qual jogo (padrão: fogo; os conhecidos estão em JOGOS)
+ *   --jogo <id>         qual jogo (padrão: fogo; os conhecidos estão em JOGOS: fogo, bolha)
  *   --motor-minimo <x.y.z>  a versão mais antiga do app que roda este pacote. Sem a opção
  *                       vale a versão do app nesta árvore (o mais seguro: só quem tem o app
  *                       de agora baixa). Com ela, um pacote que só conserta o JOGO chega também
  *                       a quem ainda não atualizou o app. De MOTOR_MINIMO_PISO à versão desta árvore.
  * Opções de teste (recusadas com --publicar):
- *   --build <pasta>     lê o export web de outra pasta (padrão: FOGO_WEB_DIR ou o build do projeto do jogo)
+ *   --build <pasta>     lê o export web de outra pasta (padrão: FOGO_WEB_DIR / BOLHA_WEB_DIR ou o build do projeto do jogo)
  *   --versao <n>        troca a versão do índice (em vez da publicada + 1)
  *   --saida <pasta>     grava a saída em outra pasta (padrão: client/dist-minigames)
  *
@@ -56,6 +57,10 @@ const JOGOS = {
   fogo: {
     nome: 'Fogo na Floresta',
     build: process.env.FOGO_WEB_DIR ?? path.join(os.homedir(), 'jogos', 'fogo-na-floresta', 'build', 'web'),
+  },
+  bolha: {
+    nome: "Bolha d'Água",
+    build: process.env.BOLHA_WEB_DIR ?? path.join(os.homedir(), 'jogos', 'bolha-d-agua', 'build', 'web'),
   },
 }
 
@@ -279,7 +284,7 @@ function releaseExiste() {
 function publicar(arquivos, indice, sig) {
   if (!releaseExiste()) {
     log(`criando a release "${RELEASE}" como PRÉ-LANÇAMENTO (não vira a "latest" do atualizador)`)
-    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de minigames', '--notes', 'Jogos baixados pelo app na primeira vez que o mestre abre o minigame (Fogo na Floresta). Publicado por scripts/pacote-minigames.cjs.'])
+    rodar('gh', ['release', 'create', RELEASE, '--repo', REPO_GITHUB, '--prerelease', '--title', 'Pacote de minigames', '--notes', `Jogos baixados pelo app na primeira vez que o mestre abre o minigame (${Object.values(JOGOS).map((j) => j.nome).join(', ')}). Publicado por scripts/pacote-minigames.cjs.`])
   }
   // Arquivos primeiro: o app nunca vê um índice novo apontando para arquivo que
   // ainda não subiu. E, com a versão no nome, nenhum deles é de um índice já

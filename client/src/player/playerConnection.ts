@@ -190,6 +190,9 @@ import { dancaAceitaPronto, dancaNaPista, receberDanca, type DancaDoJogador } fr
 import type { DificuldadeFogo, FerramentaFogo } from '../minigames/fogo/tipos'
 import { parseFogoHostMessage, parseFogoPlayerMessage, type FogoEntrada, type FogoMotivoDaRecusa, type FogoPlacar, type FogoPlayerMessage } from '../net/protocoloDoFogo'
 import { FOGO_RECUSA_AVISO_MS, fogoAceitaDesistir, fogoAceitaPronto, fogoEmJogo, receberFogo, type FogoDoJogador, type FogoParaOJogo } from './estadoDoFogo'
+import type { DificuldadeBolha } from '../minigames/bolha/tipos'
+import { parseBolhaHostMessage, parseBolhaPlayerMessage, type BolhaMotivoDaRecusa, type BolhaPlacar, type BolhaPlayerMessage } from '../net/protocoloDaBolha'
+import { BOLHA_RECUSA_AVISO_MS, bolhaAceitaDesistir, bolhaAceitaPronto, bolhaEmJogo, receberBolha, type BolhaDoJogador } from './estadoDaBolha'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
 import {
   parsePescaHostMessage,
@@ -744,6 +747,14 @@ export interface PlayerState {
   fogo?: FogoDoJogador
   /** FOGO "Apagar o fogo" no pino: o host não deixou (`fogo.recusado`); some sozinho em `FOGO_RECUSA_AVISO_MS`. */
   fogoRecusado?: { id: number; pinId: string; motivo: FogoMotivoDaRecusa }
+  /**
+   * BOLHA D'ÁGUA: o convite (do mestre, ou a volta do "Apagar com bolhas"
+   * deste jogador) e o que chegou depois (estado, começar, pausa, desfecho),
+   * como estado puro (`player/estadoDaBolha.ts`). Sai com `fecharBolha`, ou com a sala.
+   */
+  bolha?: BolhaDoJogador
+  /** BOLHA "Apagar com bolhas" no pino: o host não deixou (`bolha.recusado`); some sozinho em `BOLHA_RECUSA_AVISO_MS`. */
+  bolhaRecusado?: { id: number; pinId: string; motivo: BolhaMotivoDaRecusa }
   /**
    * MINIGAME DE PESCA: o convite (do mestre, ou a volta do "Pescar" deste
    * jogador), o que chegou depois (estado, pausa, encerramento) e os lances
@@ -1734,6 +1745,32 @@ export interface PlayerConnection {
    * (sem estado: 10 por segundo não redesenham a tela). Devolve o desligar.
    */
   ouvirFogo(ouvinte: (msg: FogoParaOJogo) => void): () => void
+  /**
+   * BOLHA: "Pronto". `false` sem convite aberto, com o Pronto já mandado ou
+   * com o socket fechado. No convite `sozinho` (o "Apagar com bolhas" do
+   * pino) leva a dificuldade e já começa: `false` também com a dificuldade
+   * que o mestre não deixou.
+   */
+  prontoBolha(dificuldade?: DificuldadeBolha): boolean
+  /**
+   * BOLHA "Apagar com bolhas": pede uma partida só deste jogador no pino
+   * `pinId`. O convite volta do mestre se a ficha estiver encostada. `false`
+   * (nada sai) fora do jogo, com pino que não é de bolha "pino" no mapa dele,
+   * com uma bolha aberta na tela ou com o socket fechado.
+   */
+  pedirBolha(pinId: string): boolean
+  /** BOLHA: o placar do fim deste aparelho. Uma vez só; depois dele nada sai. */
+  fimBolha(placar: BolhaPlacar): boolean
+  /**
+   * BOLHA: a tela fechou ("Agora não", o resultado, o aviso de encerrado): o
+   * estado da bolha sai. Antes do fim, o mestre fica sabendo (`bolha.desistir`).
+   */
+  fecharBolha(): void
+  /**
+   * BOLHA: o jogo não carregou ou parou neste aparelho. Avisa o mestre e tira
+   * o Pronto daqui; a tela continua aberta para mostrar o aviso. `false` = nada a avisar.
+   */
+  falhouBolha(): boolean
   /**
    * PESCA ("Jogador toca no pino"): pede para pescar no pino `pinId`. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
@@ -3615,6 +3652,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
+  /** BOLHA: a mesma conferência do host antes de sair, como o fogo. */
+  function enviarBolha(message: BolhaPlayerMessage): boolean {
+    const conferida = parseBolhaPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
   /** TIRO: a mesma conferência do host antes de sair, como a pesca. */
   function enviarTiro(message: TiroPlayerMessage): boolean {
     const conferida = parseTiroPlayerMessage(message)
@@ -4836,6 +4879,31 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (fogo !== state.fogo) setState({ fogo })
         return
       }
+      case 'bolha.convite':
+      case 'bolha.estado':
+      case 'bolha.comecar':
+      case 'bolha.pausa':
+      case 'bolha.retoma':
+      case 'bolha.encerra':
+      case 'bolha.desfecho':
+      case 'bolha.recusado': {
+        // A tela da mesa só olha: a bolha é de quem o mestre chamou.
+        if (isTable) return
+        const msg = parseBolhaHostMessage(data)
+        if (msg === null) return
+        if (msg.type === 'bolha.recusado') {
+          if (state.status !== 'playing') return
+          const id = nextNoticeId++
+          setState({ bolhaRecusado: { id, pinId: msg.pinId, motivo: msg.motivo } })
+          setTimeout(() => {
+            if (state.bolhaRecusado?.id === id) setState({ bolhaRecusado: undefined })
+          }, BOLHA_RECUSA_AVISO_MS)
+          return
+        }
+        const bolha = receberBolha(state.bolha, msg)
+        if (bolha !== state.bolha) setState({ bolha })
+        return
+      }
       case 'pesca.convite':
       case 'pesca.estado':
       case 'pesca.pausa':
@@ -5281,7 +5349,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -5315,7 +5383,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -5334,7 +5402,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -5347,7 +5415,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -6173,6 +6241,54 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return () => {
         ouvintesDoFogo.delete(ouvinte)
       }
+    },
+
+    prontoBolha(dificuldade) {
+      const bolha = state.bolha
+      if (!bolhaAceitaPronto(bolha)) return false
+      const sozinho = bolha.convite.sozinho
+      if (sozinho === undefined) {
+        if (!enviarBolha({ type: 'bolha.pronto', sessao: bolha.sessao })) return false
+      } else {
+        // Sozinho no pino: a dificuldade que o mestre deixou (o host recusaria calado a outra).
+        const escolhida = sozinho.permitida === 'escolha' ? dificuldade : sozinho.permitida
+        if (escolhida === undefined || (dificuldade !== undefined && dificuldade !== escolhida)) return false
+        if (!enviarBolha({ type: 'bolha.pronto', sessao: bolha.sessao, dificuldade: escolhida })) return false
+      }
+      setState({ bolha: { ...bolha, pronto: true } })
+      return true
+    },
+
+    pedirBolha(pinId) {
+      if (state.status !== 'playing') return false
+      // Uma bolha por vez na tela: a aberta fecha antes de pedir outra.
+      const aberta = state.bolha
+      if (aberta !== undefined && aberta.encerrada === undefined && aberta.desfecho === undefined) return false
+      const pin = state.map?.pins.find((p) => p.id === pinId)
+      if (pin?.kind !== 'minigame' || pin.minigameVisivel?.jogo !== 'bolha' || pin.minigameVisivel.entrada !== 'pino') return false
+      return enviarBolha({ type: 'bolha.pedir', pinId })
+    },
+
+    fimBolha(placar) {
+      const bolha = state.bolha
+      if (!bolhaEmJogo(bolha) || !enviarBolha({ type: 'bolha.fim', sessao: bolha.sessao, placar })) return false
+      setState({ bolha: { ...bolha, fimEnviado: true } })
+      return true
+    },
+
+    fecharBolha() {
+      const bolha = state.bolha
+      if (bolha === undefined) return
+      if (bolhaAceitaDesistir(bolha)) enviarBolha({ type: 'bolha.desistir', sessao: bolha.sessao, motivo: 'recusou' })
+      setState({ bolha: undefined })
+    },
+
+    falhouBolha() {
+      const bolha = state.bolha
+      if (!bolhaAceitaDesistir(bolha) || !enviarBolha({ type: 'bolha.desistir', sessao: bolha.sessao, motivo: 'erro' })) return false
+      // O mestre voltou este jogador a Convidado: se o jogo carregar depois, o Pronto é pedido de novo.
+      if (bolha.pronto) setState({ bolha: { ...bolha, pronto: false } })
+      return true
     },
 
     pedirPesca(pinId) {

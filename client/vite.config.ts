@@ -41,9 +41,24 @@ function embutirAsset(arquivo: string): boolean | undefined {
  * usa (`ROTA_DO_FOGO` de `FogoOverlay.tsx`). Pasta: `FOGO_WEB_DIR`, ou o build
  * do projeto do jogo em `~/jogos/fogo-na-floresta/build/web`. No app instalado
  * quem serve é o mestre, pelo pacote baixado na primeira vez (fora daqui).
+ *
+ * A BOLHA D'ÁGUA (minigames/bolha/) vem pelo mesmo caminho: `/minigames/bolha/`,
+ * pasta `BOLHA_WEB_DIR` ou `~/jogos/bolha-d-agua/build/web`.
  */
-const ROTA_DO_FOGO = '/minigames/fogo/'
-const PASTA_DO_FOGO = process.env.FOGO_WEB_DIR ?? join(homedir(), 'jogos', 'fogo-na-floresta', 'build', 'web')
+const JOGOS_EM_DEV: readonly { rota: string; pasta: string; nome: string; variavel: string }[] = [
+  {
+    rota: '/minigames/fogo/',
+    pasta: process.env.FOGO_WEB_DIR ?? join(homedir(), 'jogos', 'fogo-na-floresta', 'build', 'web'),
+    nome: 'Fogo na Floresta',
+    variavel: 'FOGO_WEB_DIR',
+  },
+  {
+    rota: '/minigames/bolha/',
+    pasta: process.env.BOLHA_WEB_DIR ?? join(homedir(), 'jogos', 'bolha-d-agua', 'build', 'web'),
+    nome: "Bolha d'Água",
+    variavel: 'BOLHA_WEB_DIR',
+  },
+]
 const TIPO_DO_ARQUIVO_DO_FOGO: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -59,25 +74,27 @@ function jogoDoFogoEmDev(): Plugin {
     name: 'labirinto-jogo-do-fogo',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use(ROTA_DO_FOGO, (req, res, next) => {
-        // O `use` com rota já tira o prefixo: sobra `/index.wasm?v=1`.
-        const nome = (req.url ?? '').split('?')[0].slice(1) || 'index.html'
-        const tipo = TIPO_DO_ARQUIVO_DO_FOGO[extname(nome)]
-        if (!NOME_DO_ARQUIVO_DO_FOGO.test(nome) || tipo === undefined) return next()
-        const caminho = join(PASTA_DO_FOGO, nome)
-        let tamanho: number
-        try {
-          tamanho = statSync(caminho).size
-        } catch {
-          res.statusCode = 404
-          res.end('O build do Fogo na Floresta não está nesta máquina (FOGO_WEB_DIR).')
-          return
-        }
-        res.setHeader('Content-Type', tipo)
-        res.setHeader('Content-Length', String(tamanho))
-        res.setHeader('Cache-Control', 'no-cache')
-        createReadStream(caminho).pipe(res)
-      })
+      for (const jogo of JOGOS_EM_DEV) {
+        server.middlewares.use(jogo.rota, (req, res, next) => {
+          // O `use` com rota já tira o prefixo: sobra `/index.wasm?v=1`.
+          const nome = (req.url ?? '').split('?')[0].slice(1) || 'index.html'
+          const tipo = TIPO_DO_ARQUIVO_DO_FOGO[extname(nome)]
+          if (!NOME_DO_ARQUIVO_DO_FOGO.test(nome) || tipo === undefined) return next()
+          const caminho = join(jogo.pasta, nome)
+          let tamanho: number
+          try {
+            tamanho = statSync(caminho).size
+          } catch {
+            res.statusCode = 404
+            res.end(`O build do ${jogo.nome} não está nesta máquina (${jogo.variavel}).`)
+            return
+          }
+          res.setHeader('Content-Type', tipo)
+          res.setHeader('Content-Length', String(tamanho))
+          res.setHeader('Cache-Control', 'no-cache')
+          createReadStream(caminho).pipe(res)
+        })
+      }
     },
   }
 }

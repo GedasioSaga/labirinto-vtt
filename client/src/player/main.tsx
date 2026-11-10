@@ -6,6 +6,7 @@ import { latestActionNotice } from './moveNotice'
 import { textoDaRecusaDaPesca } from './estadoDaPesca'
 import { textoDaRecusaDoTiro } from './estadoDoTiro'
 import { textoDaRecusaDoFogo } from './estadoDoFogo'
+import { textoDaRecusaDaBolha } from './estadoDaBolha'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
@@ -93,6 +94,8 @@ import { fontesDaSala } from '../minigames/danca/tela/musicaImportada'
 import { PescaOverlay, type AjustesDaTelaDaPesca } from '../minigames/pesca/tela/PescaOverlay'
 import { aquecerJogoDoFogo } from '../minigames/fogo/aquecer'
 import { FogoOverlay } from '../minigames/fogo/tela/FogoOverlay'
+import { aquecerJogoDaBolha } from '../minigames/bolha/aquecer'
+import { BolhaOverlay } from '../minigames/bolha/tela/BolhaOverlay'
 import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
@@ -1503,6 +1506,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   useEffect(() => {
     if (temPinoDoFogo) aquecerJogoDoFogo()
   }, [temPinoDoFogo])
+  // BOLHA D'ÁGUA NO MAPA: o mesmo para o outro jogo (`minigames/bolha/aquecer.ts`).
+  const temPinoDaBolha = map?.pins.some((p) => p.kind === 'minigame' && p.minigameVisivel?.jogo === 'bolha') ?? false
+  useEffect(() => {
+    if (temPinoDaBolha) aquecerJogoDaBolha()
+  }, [temPinoDaBolha])
   // ITEM NO MAPA: o cartão do item abre para a imagem no chão e para o PINO DE
   // ITEM (o "!" do saco); o pino "!" pegável de antes segue no cartão do pino.
   // Saiu do recorte (alguém pegou, a ficha andou): o cartão fecha sozinho.
@@ -2247,6 +2255,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onApagarFogo={() => {
               if (connection.pedirFogo(openPin.id)) setOpenPinId(null)
             }}
+            // BOLHA "Apagar com bolhas": o mesmo caminho; o convite volta (sozinho) e abre a tela da bolha.
+            onApagarComBolhas={() => {
+              if (connection.pedirBolha(openPin.id)) setOpenPinId(null)
+            }}
           />
         )}
         {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
@@ -2536,6 +2548,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {textoDaRecusaDoFogo(state.fogoRecusado.motivo)}
           </p>
         )}
+        {/* BOLHA no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.bolhaRecusado && (
+          <p key={state.bolhaRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDaBolha(state.bolhaRecusado.motivo)}
+          </p>
+        )}
         {state.travel && (
           <p key={state.travel.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {travelNoticeText(state.travel)}
@@ -2658,6 +2676,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} fontesDaMusica={musicaDaSala} {...ajustesDaDanca} />}
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}
         {state.fogo && <FogoOverlay fogo={state.fogo} playerId={state.playerId} acoes={connection} />}
+        {/* BOLHA D'ÁGUA: o convite (do mestre ou do pino) abre por cima do mapa, até o resultado ou o encerramento. */}
+        {state.bolha && <BolhaOverlay bolha={state.bolha} playerId={state.playerId} acoes={connection} />}
         {/* TIRO: o convite da barraca abre por cima do mapa, até o jogador sair. */}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}

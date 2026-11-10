@@ -5128,8 +5128,10 @@ function minigameVisivelDe(pin: Pin, readable: boolean): MinigameVisivel {
   // O fogo: "Apagar o fogo" começa sozinho no pino (a equipe vem do painel do
   // mestre), e o pedido de ajuda do NPC é a fala do cartão. Pino "só de perto"
   // visto de longe não leva a fala, como não leva a descrição.
-  if (minigame?.jogo === 'fogo') {
-    const visivel: MinigameVisivel = { jogo: 'fogo', entrada: 'pino' }
+  // A bolha leva a fala igual, mas só começa no pino quando o mestre deixou.
+  if (minigame?.jogo === 'fogo' || minigame?.jogo === 'bolha') {
+    const entrada = minigame.jogo === 'fogo' || minigame.entrada === 'pino' ? 'pino' : 'mestre'
+    const visivel: MinigameVisivel = { jogo: minigame.jogo, entrada }
     if (readable && typeof minigame.npc === 'string' && minigame.npc.trim() !== '') visivel.npc = minigame.npc
     if (readable && typeof minigame.fala === 'string' && minigame.fala.trim() !== '') visivel.fala = minigame.fala
     return visivel
