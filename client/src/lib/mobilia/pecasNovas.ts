@@ -122,9 +122,11 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // Destroços e sucata (10/11/2026): pilhas soltas, cada uma com o próprio desenho. As pilhas grandes nascem
   // em 2 x 2 casas; a de engrenagens, um monte pequeno de peças, em 1 x 1. Esticam e giram como todo objeto.
   destrocosDeMadeira: { rotulo: 'Destroços de madeira', artigo: 'uns destroços de madeira', tamanho: { largura: 2, altura: 2 }, redonda: false },
-  sucataChapas: { rotulo: 'Sucata de chapas', artigo: 'uma sucata de chapas', tamanho: { largura: 2, altura: 2 }, redonda: false },
-  sucataEngrenagens: { rotulo: 'Sucata de engrenagens', artigo: 'uma sucata de engrenagens', tamanho: { largura: 1, altura: 1 }, redonda: false },
-  sucataTambores: { rotulo: 'Sucata de tambores', artigo: 'uma sucata de tambores', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // "de metal" vai no nome das três: o mestre pediu "sucatas de metal", e a busca da ficha só lê o nome e o
+  // título do grupo (quem digita "metal" tem de achá-las).
+  sucataChapas: { rotulo: 'Sucata de metal: chapas', artigo: 'uma sucata de chapas', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  sucataEngrenagens: { rotulo: 'Sucata de metal: engrenagens', artigo: 'uma sucata de engrenagens', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  sucataTambores: { rotulo: 'Sucata de metal: tambores', artigo: 'uma sucata de tambores', tamanho: { largura: 2, altura: 2 }, redonda: false },
   // O campinho de futebol (10/11/2026): 10 x 6 casas, deitado; cabe um bate-bola de 3 contra 3. Mora no chão
   // (`ehMovelDoChao`): as fichas e os outros objetos ficam por cima dele.
   campinho: { rotulo: 'Campinho de futebol', artigo: 'um campinho de futebol', tamanho: { largura: 10, altura: 6 }, redonda: false },

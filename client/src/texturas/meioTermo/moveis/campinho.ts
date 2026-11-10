@@ -40,17 +40,39 @@ const REDE: MaterialDaPeca = { classe: 'liso', rgb: rgb(tomDoMeio('linho', 1.06)
 const MEIA_LINHA = 1.15
 /** Raio das marcas (o centro e o pênalti). */
 const RAIO_DA_MARCA = 1.5
-/** Altura da trave em casas (o travessão de um gol de pelada, na altura do peito). */
-const ALTURA_DA_TRAVE = 0.42
+/**
+ * Altura da trave em casas (o travessão de um gol de pelada, na altura do peito). É quanto os postes e o
+ * travessão sobem na vista 3/4 (o teste de `tresQuartos` confere).
+ */
+export const ALTURA_DA_TRAVE = 0.42
 /** Raio do poste e do travessão (px do protótipo). */
 const RAIO_DO_POSTE = 2.3
 const RAIO_DO_TRAVESSAO = 1.6
+/** A beira do gramado (px do protótipo): o recuo médio e quanto as ondas largas e os tufos miúdos a mexem. */
+const RECUO_DA_BEIRA = 1.7
+const ONDA_DA_BEIRA = 3.2
+const TUFO_DA_BEIRA = 1.2
+/**
+ * Até onde a beira alcança: o ruído vale de -0,5 a 0,5, então a onda e o tufo somam no máximo metade de cada
+ * um; daqui para dentro a conta da beira dá sempre 1 ou mais (gramado cheio) e nem precisa ser feita.
+ */
+const ALCANCE_DA_BEIRA = 1 + RECUO_DA_BEIRA + (ONDA_DA_BEIRA + TUFO_DA_BEIRA) / 2
 /** Lado da malha da rede (px do protótipo). */
 const MALHA_DA_REDE = 3.4
 /** A rede de longe, sem a malha: o véu que deixa o chão aparecer (a média do fio cheio com o vão aberto). */
 const VEU_DA_REDE = 0.4
 /** A menor escala (pixels da imagem por px do protótipo) em que a malha ainda se desenha. */
 const MALHA_A_PARTIR_DE = 1.2
+
+/**
+ * A distância de (a, b) à origem pela raiz direta, e não por `Math.hypot`: aqui ela roda umas 9 vezes por
+ * pixel, e o `hypot` do V8 (que se protege de estouro e aceita qualquer número de termos) custava mais que
+ * todo o resto da pintura do campo (medido: 795 ms para 496 ms no campo de 1520 x 906 px, a mesma imagem
+ * byte a byte). Os termos aqui são px do protótipo, longe de qualquer estouro.
+ */
+function hipotenusa(a: number, b: number): number {
+  return Math.sqrt(a * a + b * b)
+}
 
 /** As medidas do campo em px do protótipo, no referencial do campo (X ao longo, Y através). */
 interface Medidas {
@@ -96,14 +118,14 @@ function medidasDoCampo(c: ContextoDoMovel): Medidas {
 /** Distância a um trecho de reta em pé (X fixo, |Y| até `ateY`): o lado da área que olha para o meio. */
 function ateOLadoDaArea(ax: number, ay: number, x: number, ateY: number): number {
   const dx = ax - x
-  return ay <= ateY ? Math.abs(dx) : Math.hypot(dx, ay - ateY)
+  return ay <= ateY ? Math.abs(dx) : hipotenusa(dx, ay - ateY)
 }
 
 /** Distância a um trecho deitado (|Y| fixo, X de `deX` até a linha de fundo `a`): o lado da área que sai do fundo. */
 function ateOLadoDeFora(ax: number, ay: number, y: number, deX: number, a: number): number {
   const dy = Math.abs(ay - y)
-  if (ax < deX) return Math.hypot(deX - ax, dy)
-  return ax > a ? Math.hypot(ax - a, dy) : dy
+  if (ax < deX) return hipotenusa(deX - ax, dy)
+  return ax > a ? hipotenusa(ax - a, dy) : dy
 }
 
 /** A menor distância (px do protótipo) do ponto às linhas de cal. O campo é simétrico: vale o quadrante. */
@@ -113,10 +135,10 @@ function distanciaAsLinhas(X: number, Y: number, m: Medidas): number {
   // As quatro linhas de fora: a borda do retângulo a x b.
   const qx = ax - m.a
   const qy = ay - m.b
-  let d = Math.abs(Math.hypot(qx > 0 ? qx : 0, qy > 0 ? qy : 0) + Math.min(qx > qy ? qx : qy, 0))
+  let d = Math.abs(hipotenusa(qx > 0 ? qx : 0, qy > 0 ? qy : 0) + Math.min(qx > qy ? qx : qy, 0))
   // A linha do meio, o círculo central e a marca do centro.
   if (ay <= m.b) d = Math.min(d, ax)
-  const r = Math.hypot(X, Y)
+  const r = hipotenusa(X, Y)
   d = Math.min(d, Math.abs(r - m.circulo), r - RAIO_DA_MARCA + MEIA_LINHA)
   // A grande área e a pequena.
   const xArea = m.a - m.areaFundo
@@ -124,11 +146,11 @@ function distanciaAsLinhas(X: number, Y: number, m: Medidas): number {
   const xPequena = m.a - m.pequenaFundo
   d = Math.min(d, ateOLadoDaArea(ax, ay, xPequena, m.pequenaMeia), ateOLadoDeFora(ax, ay, m.pequenaMeia, xPequena, m.a))
   // A marca do pênalti e a meia-lua (o arco só do lado de fora da área).
-  const ateAMarca = Math.hypot(ax - (m.a - m.marca), ay)
+  const ateAMarca = hipotenusa(ax - (m.a - m.marca), ay)
   d = Math.min(d, ateAMarca - RAIO_DA_MARCA + MEIA_LINHA)
   if (ax < xArea) d = Math.min(d, Math.abs(ateAMarca - m.circulo * 0.92))
   // Os quatro cantos: o quarto de círculo por dentro.
-  if (ax <= m.a && ay <= m.b) d = Math.min(d, Math.abs(Math.hypot(ax - m.a, ay - m.b) - m.canto))
+  if (ax <= m.a && ay <= m.b) d = Math.min(d, Math.abs(hipotenusa(ax - m.a, ay - m.b) - m.canto))
   return d
 }
 
@@ -139,7 +161,7 @@ function desgaste(X: number, Y: number, x: number, y: number, m: Medidas): numbe
   const bx = (ax - (m.a - m.areaFundo * 0.3)) / (m.areaFundo * 0.85)
   const by = ay / (m.meioGol * 1.7)
   const boca = 1 - bx * bx - by * by
-  const rc = Math.hypot(X, Y) / (m.circulo * 0.85)
+  const rc = hipotenusa(X, Y) / (m.circulo * 0.85)
   const meio = 0.9 * (1 - rc * rc)
   const fy = ay / (m.b * 0.5)
   const faixa = 0.26 * (1 - fy * fy)
@@ -186,8 +208,12 @@ function texDoCampo(c: ContextoDoMovel, m: Medidas): Textura {
     s[1] = g
     s[2] = b
     s[3] += luz
-    // A beira: o gramado recua até ~3 px da pegada, em ondas e tufos.
-    const beira = Math.min(hw - Math.abs(x), hh - Math.abs(y)) - 1.7 + ruido(x * 0.33 + 71, y * 0.33 + 13) * 3.2 + ruido(x * 1.2 + 9, y * 1.2) * 1.2
+    // A beira: o gramado recua até ~3 px da pegada, em ondas e tufos. Só perto da borda: o ruído mexe no
+    // máximo `ALCANCE_DA_BEIRA` px, e mais para dentro que isso o gramado é sempre cheio (o campo de 10 x 6
+    // casas tem 97% dos pixels aí, e cada um pagava os dois ruídos à toa).
+    const borda = Math.min(hw - Math.abs(x), hh - Math.abs(y))
+    if (borda >= ALCANCE_DA_BEIRA) return
+    const beira = borda - RECUO_DA_BEIRA + ruido(x * 0.33 + 71, y * 0.33 + 13) * ONDA_DA_BEIRA + ruido(x * 1.2 + 9, y * 1.2) * TUFO_DA_BEIRA
     if (beira < 1) {
       s[5] = beira <= 0 ? 0 : beira
       s[3] -= 0.06 * (1 - s[5])

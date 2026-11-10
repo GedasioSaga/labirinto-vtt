@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { aceitaVista, criarMovel, ehMovelRedondo, ehTipoMobilia, movelComOutraVista, NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA, tracosDoGlifo } from '../mobilia'
 import { TIPOS_COM_TEXTURA } from '../../texturas/meioTermo/moveis'
+import { acharObjetos, GRUPOS_DE_OBJETO, grupoDoObjeto } from './gruposDoObjeto'
 import { ehPecaNova, PECAS_NOVAS, TIPOS_NO_CATALOGO, varianteDaLapide } from './pecasNovas'
 
 /**
@@ -105,9 +106,9 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   caixao: ['Caixão', 'um caixão'],
   caixaoAberto: ['Caixão aberto', 'um caixão aberto'],
   destrocosDeMadeira: ['Destroços de madeira', 'uns destroços de madeira'],
-  sucataChapas: ['Sucata de chapas', 'uma sucata de chapas'],
-  sucataEngrenagens: ['Sucata de engrenagens', 'uma sucata de engrenagens'],
-  sucataTambores: ['Sucata de tambores', 'uma sucata de tambores'],
+  sucataChapas: ['Sucata de metal: chapas', 'uma sucata de chapas'],
+  sucataEngrenagens: ['Sucata de metal: engrenagens', 'uma sucata de engrenagens'],
+  sucataTambores: ['Sucata de metal: tambores', 'uma sucata de tambores'],
   campinho: ['Campinho de futebol', 'um campinho de futebol'],
 }
 
@@ -198,5 +199,12 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO).toHaveLength(53)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
+  })
+
+  it('a busca da ficha acha as três sucatas por "metal" (o mestre pediu "sucatas de metal") e por "sucata"', () => {
+    const itens = TIPOS_NO_CATALOGO.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
+    expect(acharObjetos(itens, 'metal').map((item) => item.tipo)).toEqual(['sucataChapas', 'sucataEngrenagens', 'sucataTambores'])
+    // Por "sucata": as três pelo nome e, depois, os destroços pelo título do grupo.
+    expect(acharObjetos(itens, 'sucata').map((item) => item.tipo)).toEqual(['sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'destrocosDeMadeira'])
   })
 })

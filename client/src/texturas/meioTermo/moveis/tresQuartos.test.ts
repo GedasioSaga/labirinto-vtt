@@ -6,7 +6,8 @@ import { ALTURA_DA_LENHA_EM_TRES_QUARTOS, DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS 
 import { chaveDoMovel, giroDaImagem, textoDaChave } from '../../../pixi/rasterDosMoveis'
 import { MATERIAIS } from '../materiais'
 import { G } from './contexto'
-import { escalaDoNivel, GRADE_DE_REFERENCIA, pintarMovel, type DesenhoDoMovel } from './index'
+import { ALTURA_DA_TRAVE } from './campinho'
+import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, pintarMovel, type DesenhoDoMovel } from './index'
 import { PISO_DE_LUZ, type LimitesDaImagem } from './motor'
 import { ALFA_DE_PECA, ALFA_OPACO, digitalDosPixels, medirImagem } from './medidas.testkit'
 import { PERFIS, perfilDoTresQuartos } from './tresQuartos'
@@ -76,8 +77,13 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // O FOGO fica fora desta regra: a imagem dele é só o chão queimado, rente ao chão (sem altura nem
   // sombra), e as chamas, que são a parte em pé, já sobem na tela pela camada animada (`pixi/fogosDoMapa.ts`).
   // Na 3/4 a imagem dele não muda (teste logo abaixo).
+  // O CAMPINHO tem 10 x 6 casas: no nível 3 este teste pinta 1520 x 906 px três vezes (no app a imagem não
+  // passa de 1024 px de lado, `LADO_MAXIMO_DA_IMAGEM`) e ordena 1,4 milhão de saturações. Com o desenho já
+  // barateado leva ~2 s sozinho; com a suíte inteira carregando a máquina, passava dos 5 s do padrão e
+  // falhava por tempo, não por imagem. Só ele ganha o teto maior.
+  const TETO_DO_CAMPINHO_MS = 20_000
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
-    it(`${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, () => {
+    it(`${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, tipo === 'campinho' ? { timeout: TETO_DO_CAMPINHO_MS } : {}, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)
       const tres = desenho(prop, 'tres-quartos')
@@ -107,6 +113,19 @@ describe('vista 3/4: o catálogo inteiro', () => {
     for (const nivel of [1, 3]) {
       expect(digitalDosPixels(pintar(desenho(prop, 'tres-quartos'), nivel).pixels), `nível ${nivel}`).toBe(digitalDosPixels(pintar(desenho(prop), nivel).pixels))
     }
+  })
+
+  it('campinho: o gramado e a rede ficam no chão, e os 4 postes e os 2 travessões sobem a altura da trave', () => {
+    const prop = movel('campinho')
+    expect(montarCena(desenho(prop)).partes.every((p) => p.dy === 0)).toBe(true)
+    const tres = montarCena(desenho(prop, 'tres-quartos'))
+    // O gramado é a primeira peça da cena (a de baixo de todas).
+    expect(tres.partes[0].dy).toBe(0)
+    const subida = ALTURA_DA_TRAVE * G
+    expect(tres.partes.filter((p) => Math.abs(p.dy + subida) < 1e-9)).toHaveLength(6)
+    // Nada sobe a outra altura: o resto (gramado, rede, a barra de trás e a frente dos postes) fica no chão,
+    // e a frente de cada travessão para logo abaixo dele.
+    expect(tres.partes.filter((p) => p.dy < -subida - 1e-9)).toEqual([])
   })
 
   it('a fogueira sobe a lenha o mesmo que a chama sobe na tela', () => {

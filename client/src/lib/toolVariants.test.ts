@@ -229,7 +229,7 @@ describe('TOOL_VARIANTS', () => {
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
-      'Destroços de madeira', 'Sucata de chapas', 'Sucata de engrenagens', 'Sucata de tambores', 'Campinho de futebol',
+      'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Campinho de futebol',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']

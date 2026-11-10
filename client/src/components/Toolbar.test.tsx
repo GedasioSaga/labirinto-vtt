@@ -301,7 +301,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento',
-      'Destroços de madeira', 'Sucata de chapas', 'Sucata de engrenagens', 'Sucata de tambores',
+      'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores',
       'Campinho de futebol',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
