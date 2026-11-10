@@ -48,6 +48,12 @@ describe('ScenesSection: planta por cena', () => {
     act(() => el.click())
   }
 
+  /** A planta saiu da faixa do hover (ela cobria o nome): abre pelo "Planta…" do menu "…" da cena. */
+  function abrirPlanta(cena: string): void {
+    clica(botao(`Mais ações de ${cena}`))
+    clica(Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Planta…'))
+  }
+
   function caixa(rotulo: string): HTMLInputElement {
     const label = Array.from(container.querySelectorAll('label')).find((l) => l.textContent?.trim() === rotulo)
     const input = label?.querySelector('input') ?? (label?.htmlFor ? container.querySelector<HTMLInputElement>(`#${CSS.escape(label.htmlFor)}`) : null)
@@ -55,19 +61,17 @@ describe('ScenesSection: planta por cena', () => {
     return input
   }
 
-  it('o botão de planta abre o painel da cena; a caixa mostra o estado e liga/desliga', () => {
+  it('o "Planta…" do menu abre o painel da cena; a caixa mostra o estado e liga/desliga', () => {
     const onTogglePlanKnown = vi.fn()
     render({ onTogglePlanKnown })
-    const abrir = botao('Planta de Abadia')
-    expect(abrir?.getAttribute('aria-expanded')).toBe('false')
-    clica(abrir)
-    expect(abrir?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.textContent).not.toContain('Planta conhecida por todos')
+    abrirPlanta('Abadia')
     const flag = caixa('Planta conhecida por todos')
     expect(flag.checked).toBe(true)
     clica(flag)
     expect(onTogglePlanKnown).toHaveBeenCalledWith('s-abadia', false)
 
-    clica(botao('Planta de Capital'))
+    abrirPlanta('Capital')
     expect(caixa('Planta conhecida por todos').checked).toBe(false)
     clica(caixa('Planta conhecida por todos'))
     expect(onTogglePlanKnown).toHaveBeenLastCalledWith('s-capital', true)
@@ -76,7 +80,7 @@ describe('ScenesSection: planta por cena', () => {
   it('Revelar planta para… cena vazia: sem ninguém marcado não revela; marcando Oto, revela só para ele', () => {
     const onRevealPlanFor = vi.fn(() => 1)
     render({ onTogglePlanKnown: () => {}, onRevealPlanFor, players: JOGADORES })
-    clica(botao('Planta de Abadia'))
+    abrirPlanta('Abadia')
     const revelar = botao('Revelar')
     expect(revelar?.disabled).toBe(true)
     expect(container.textContent).toContain('Marque ao menos um jogador')
@@ -90,7 +94,7 @@ describe('ScenesSection: planta por cena', () => {
 
   it('sem sala aberta a revelação some; sala sem jogador diz isso', () => {
     render({ onTogglePlanKnown: () => {} })
-    clica(botao('Planta de Abadia'))
+    abrirPlanta('Abadia')
     expect(container.textContent).not.toContain('Revelar planta para')
 
     render({ onTogglePlanKnown: () => {}, onRevealPlanFor: () => 0, players: [] })
@@ -100,18 +104,15 @@ describe('ScenesSection: planta por cena', () => {
 
   it('Esc dentro do painel fecha o painel', () => {
     render({ onTogglePlanKnown: () => {}, onRevealPlanFor: () => 1, players: JOGADORES })
-    const abrir = botao('Planta de Abadia')
-    abrir?.focus()
-    clica(abrir)
+    abrirPlanta('Abadia')
     const dentro = caixa('Oto')
     act(() => {
       dentro.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
-    expect(abrir?.getAttribute('aria-expanded')).toBe('false')
     expect(container.textContent).not.toContain('Planta conhecida por todos')
   })
 
-  it('mapa solto (sem aventura) não tem o botão', () => {
+  it('mapa solto (sem aventura) não tem a planta', () => {
     act(() =>
       root.render(
         <ScenesSection
@@ -123,6 +124,7 @@ describe('ScenesSection: planta por cena', () => {
         />,
       ),
     )
+    expect(botao('Mais ações de Vale')).toBeUndefined()
     expect(botao('Planta de Vale')).toBeUndefined()
   })
 

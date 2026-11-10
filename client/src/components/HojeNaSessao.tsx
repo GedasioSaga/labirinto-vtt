@@ -20,7 +20,7 @@ interface HojeNaSessaoProps {
 
 /**
  * "HOJE NA SESSÃO" (lista de cenas, ideia 3), no topo da lista: as cenas que
- * o mestre fixou pelo alfinete (até cinco, na ordem dele), com quem está em
+ * o mestre fixou pelo menu da cena (até cinco, na ordem dele), com quem está em
  * cada uma, e logo abaixo as três últimas que ele abriu. Um clique leva à
  * cena; o alfinete da linha tira do topo. A árvore inteira continua embaixo.
  *
@@ -34,7 +34,7 @@ export function HojeNaSessao({ fixadas, recentes, genteDe, onSelect, onTirar }: 
         Hoje na sessão
       </p>
       {fixadas.length === 0 ? (
-        <p className="lb-cenas__vazio">Nenhuma cena fixada. Passe o mouse numa cena e clique no alfinete, ou use o botão direito.</p>
+        <p className="lb-cenas__vazio">Nenhuma cena fixada. Clique com o botão direito numa cena, ou no “…” dela, e escolha Fixar no topo.</p>
       ) : (
         <ul className="lb-cenas lb-cenas--fixas" aria-label="Cenas fixadas">
           {fixadas.map((scene) => {

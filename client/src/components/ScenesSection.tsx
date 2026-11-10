@@ -15,7 +15,7 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { SceneOverviewDialog } from './SceneOverview'
 import { CorteDaTorreDialog } from './CorteDaTorre'
 import type { CorteJogador } from '../lib/corteDaTorre'
-import { ChevronDownIcon, CloseIcon, SearchIcon, SettingsIcon, TachinhaIcon, TokenIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, SearchIcon, SettingsIcon, TokenIcon } from './icons'
 import { useSceneDrag, type SceneDrag } from './sceneDrag'
 import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
@@ -153,7 +153,7 @@ export interface ScenesSectionProps {
   pinned?: readonly string[]
   /**
    * Fixa ou tira a cena do topo. `cheia` = já há cinco e nada mudou. Ausente =
-   * mapa solto: sem o alfinete e sem o bloco "Hoje na sessão".
+   * mapa solto: sem o "Fixar no topo" do menu e sem o bloco "Hoje na sessão".
    */
   onTogglePin?: (sceneId: string) => 'fixou' | 'tirou' | 'cheia' | 'nada'
 }
@@ -1025,6 +1025,10 @@ export function ScenesSection({
   const createButtonRef = useRef<HTMLButtonElement | null>(null)
   const menuIdBase = useId()
   const hasSceneMenu =
+    // Fixar, Abalo e Planta moram só no menu: com eles, o "…" existe.
+    onTogglePin !== undefined ||
+    onQuake !== undefined ||
+    onTogglePlanKnown !== undefined ||
     onDuplicate !== undefined ||
     onShift !== undefined ||
     onSetStart !== undefined ||
@@ -1184,7 +1188,7 @@ export function ScenesSection({
   const recent = useRecentScenes(adventureId, activeId)
   const pinnedSet = new Set(pinned)
   /**
-   * HOJE NA SESSÃO, no topo: com o alfinete à mão (aventura) e uma lista que
+   * HOJE NA SESSÃO, no topo: com o "Fixar no topo" à mão (aventura) e uma lista que
    * já pede filtro, ou com alguma fixada. Lista curta cabe inteira à vista.
    */
   const pinnedRows = pinned.flatMap((id) => {
@@ -1198,7 +1202,7 @@ export function ScenesSection({
         return entry === undefined ? [] : [entry]
       })
     : []
-  /** O alfinete da linha e o item do menu: a sexta não entra, e a linha diz por quê. */
+  /** O "Fixar no topo" do menu: a sexta não entra, e a linha diz por quê. */
   const togglePin = (sceneId: string) => {
     if (onTogglePin?.(sceneId) === 'cheia') setNoteFeedback({ sceneId, text: AVISO_FIXADAS_CHEIAS })
   }
@@ -1271,8 +1275,8 @@ export function ScenesSection({
     setNoting(sceneId)
   }
 
-  const startQuake = (sceneId: string) => {
-    rememberOpener()
+  const startQuake = (sceneId: string, opener: HTMLElement | null) => {
+    openerRef.current = opener
     setEditing(null)
     setMoving(null)
     setNoting(null)
@@ -1291,8 +1295,8 @@ export function ScenesSection({
     setMoving(sceneId)
   }
 
-  const startPlan = (sceneId: string) => {
-    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const startPlan = (sceneId: string, opener: HTMLElement | null) => {
+    openerRef.current = opener
     setEditing(null)
     setNoting(null)
     setQuaking(null)
@@ -1407,6 +1411,9 @@ export function ScenesSection({
       ...(onTogglePin === undefined
         ? []
         : [{ label: pinnedSet.has(scene.id) ? 'Tirar do topo' : 'Fixar no topo', disabled: false, onSelect: andClose(() => togglePin(scene.id)) }]),
+      // ABALO e PLANTA saíram da faixa do hover (ela cobria o nome): abrem o formulário na linha, e o foco volta ao "…".
+      ...(onQuake === undefined ? [] : [{ label: 'Abalo…', disabled: !scene.available, onSelect: toForm((opener) => startQuake(scene.id, opener)) }]),
+      ...(onTogglePlanKnown === undefined ? [] : [{ label: 'Planta…', disabled: false, onSelect: toForm((opener) => startPlan(scene.id, opener)) }]),
       { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
       { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
       { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
@@ -1781,9 +1788,11 @@ export function ScenesSection({
                   {minutesWaiting !== undefined && <SceneEspera minutes={minutesWaiting} />}
                   <SceneTokens scene={scene} />
                 </span>
-                {/* As ações flutuam sobre o fim da linha e aparecem no hover e no foco do
-                    teclado (main.css), também na cena aberta. Renomear e Mover para… moram no
-                    menu "…", que o botão direito na linha também abre. */}
+                {/* As ações aparecem no hover e no foco do teclado (main.css), também na
+                    cena aberta, numa faixa que pousa ACIMA da linha do nome: nunca cobre o
+                    nome. No máximo quatro botões (Recado, Pausar, Configurar e "…"); Abalo,
+                    Planta, Fixar, Renomear e Mover para… moram no menu "…", que o botão
+                    direito na linha também abre. */}
                 <span className="lb-cenas__controles">
                   {/* Montado também com o campo aberto: é para ele que o foco volta. */}
                   {onNote !== undefined && scene.id !== '' && (
@@ -1799,20 +1808,6 @@ export function ScenesSection({
                       {/* Glifo, como o ✎ do renomear: sete linhas repetindo "Recado"
                           poluem a lista. O nome vai no rótulo acessível e no título. */}
                       <span aria-hidden="true">✉</span>
-                    </button>
-                  )}
-                  {/* ABALO: montado também com o formulário aberto, como o Recado — é para ele que o foco volta. */}
-                  {onQuake !== undefined && scene.id !== '' && (
-                    <button
-                      type="button"
-                      className="lb-cenas__recado-btn"
-                      aria-label={`Abalo a partir de ${scene.name}`}
-                      aria-expanded={quaking === scene.id}
-                      title="Abalo: um texto por distância para todas as cenas"
-                      disabled={!scene.available}
-                      onClick={() => (quaking === scene.id ? closeQuake() : startQuake(scene.id))}
-                    >
-                      <span aria-hidden="true">≋</span>
                     </button>
                   )}
                   {/* Mapa solto (`id` vazio) não tem cena para pausar. O nome
@@ -1831,19 +1826,6 @@ export function ScenesSection({
                       <span aria-hidden="true">⏸</span>
                     </button>
                   )}
-                  {onTogglePlanKnown !== undefined && scene.id !== '' && (
-                    <button
-                      type="button"
-                      className="lb-cenas__recado-btn"
-                      aria-label={`Planta de ${scene.name}`}
-                      aria-expanded={planning === scene.id}
-                      title={scene.planKnownByAll === true ? 'Planta: conhecida por todos' : 'Planta: quem conhece esta cena'}
-                      onClick={() => (planning === scene.id ? closePlan() : startPlan(scene.id))}
-                    >
-                      {/* ▦ cheio quando a cena é conhecida por todos: o estado se lê sem abrir. */}
-                      <span aria-hidden="true">{scene.planKnownByAll === true ? '▦' : '▢'}</span>
-                    </button>
-                  )}
                   {onConfigure !== undefined && (
                     <button
                       type="button"
@@ -1856,19 +1838,6 @@ export function ScenesSection({
                       <SettingsIcon size={13} />
                     </button>
                   )}
-                  {/* HOJE NA SESSÃO: o alfinete fixa a cena no topo da lista (o estado vai em `aria-pressed`). */}
-                  {onTogglePin !== undefined && scene.id !== '' && (
-                    <button
-                      type="button"
-                      className="lb-cenas__fixar-btn"
-                      aria-label={`Fixar ${scene.name} no topo`}
-                      aria-pressed={pinnedSet.has(scene.id)}
-                      title={pinnedSet.has(scene.id) ? 'Fixada no topo. Clique para tirar' : 'Fixar no topo: Hoje na sessão'}
-                      onClick={() => togglePin(scene.id)}
-                    >
-                      <TachinhaIcon size={14} />
-                    </button>
-                  )}
                   {hasSceneMenu && scene.id !== '' && (
                     <button
                       ref={(node) => {
@@ -1878,7 +1847,7 @@ export function ScenesSection({
                       type="button"
                       className="lb-cenas__mais"
                       aria-label={`Mais ações de ${scene.name}`}
-                      title="Renomear, mover, duplicar ou apagar (também no botão direito da linha)"
+                      title="Mais ações da cena (também no botão direito da linha)"
                       aria-haspopup="menu"
                       aria-expanded={menuOpen}
                       aria-controls={menuOpen ? menuId : undefined}

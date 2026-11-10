@@ -131,7 +131,8 @@ describe('ScenesSection: nomes legíveis na lista de cenas', () => {
       expect(botaoNome).toBe(nome(id))
       expect(antes(botaoNome, info)).toBe(true)
       expect(antes(info, controles)).toBe(true)
-      for (const acao of [`Pausar ${cena}`, `Planta de ${cena}`, `Mais ações de ${cena}`]) {
+      // A Planta mora no menu "…" (a faixa do hover cobria o nome com sete botões).
+      for (const acao of [`Pausar ${cena}`, `Mais ações de ${cena}`]) {
         expect(controles.querySelector(`button[aria-label="${acao}"]`), acao).not.toBeNull()
       }
     }

@@ -69,6 +69,18 @@ describe('ScenesSection: "Abalo" a partir de uma cena', () => {
     return Array.from(container.querySelectorAll('button')).find((b) => (b.getAttribute('aria-label') ?? b.textContent) === nome)
   }
 
+  /** Os itens do menu "…" da cena, abrindo o menu (o Abalo saiu da faixa do hover, que cobria o nome). */
+  function itensDoMenu(cena: string): HTMLButtonElement[] {
+    act(() => botao(`Mais ações de ${cena}`)?.click())
+    return Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+  }
+
+  function abrirAbalo(cena: string): void {
+    const item = itensDoMenu(cena).find((b) => b.textContent === 'Abalo…')
+    if (item === undefined) throw new Error(`sem "Abalo…" no menu de ${cena}`)
+    act(() => item.click())
+  }
+
   function campoPorRotulo(rotulo: string): HTMLTextAreaElement | HTMLSelectElement {
     const label = Array.from(container.querySelectorAll('label')).find((l) => l.textContent?.startsWith(rotulo))
     // `useId` gera ids com ':' — getElementById dispensa escapar o seletor.
@@ -87,15 +99,15 @@ describe('ScenesSection: "Abalo" a partir de uma cena', () => {
     })
   }
 
-  it('sem sala (sem onQuake) não há botão "Abalo"', () => {
+  it('sem sala (sem onQuake) não há "Abalo…"', () => {
     render()
-    expect(botao('Abalo a partir de Andar Dois')).toBeUndefined()
+    expect(itensDoMenu('Andar Dois').map((b) => b.textContent)).not.toContain('Abalo…')
   })
 
   it('escolhe a Sala de origem, escreve as três faixas e envia um abalo só, com as cenas vizinhas', () => {
     const onQuake = vi.fn<AbaloEnvio>(() => ({ perto: 2, andar: 1, longe: 0 }))
     render(onQuake)
-    act(() => botao('Abalo a partir de Andar Dois')?.click())
+    abrirAbalo('Andar Dois')
 
     const origem = campoPorRotulo('De onde veio')
     expect(origem instanceof HTMLSelectElement ? Array.from(origem.options).map((o) => o.textContent) : []).toEqual([
@@ -121,13 +133,13 @@ describe('ScenesSection: "Abalo" a partir de uma cena', () => {
   it('sem ponto: vai sem x/y; tudo vazio não envia; Esc cancela', () => {
     const onQuake = vi.fn<AbaloEnvio>(() => ({ perto: 0, andar: 0, longe: 1 }))
     render(onQuake)
-    act(() => botao('Abalo a partir de Andar Dois')?.click())
+    abrirAbalo('Andar Dois')
     expect(botao('Enviar abalo')?.disabled).toBe(true)
     digita('No resto da aventura', 'Um ronco distante.')
     act(() => botao('Enviar abalo')?.click())
     expect(onQuake).toHaveBeenCalledWith({ sceneId: 's-andar2' }, { perto: '', andar: '', longe: 'Um ronco distante.' }, expect.any(Array))
 
-    act(() => botao('Abalo a partir de Andar Dois')?.click())
+    abrirAbalo('Andar Dois')
     const campo = campoPorRotulo('Nesta cena')
     act(() => {
       campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))

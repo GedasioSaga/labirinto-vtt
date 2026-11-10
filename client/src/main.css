@@ -4464,27 +4464,15 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 /* ---- Linha da cena (bar: painel de camadas do Figma, Explorer do VS Code)
    A primeira linha do item é nome | info | controles. O nome fica com a
    largura e quebra em até duas linhas (o nome inteiro mora no title); a info à direita traz só o que se lê
-   de relance. Os controles flutuam sobre o fim da linha e
+   de relance. Os controles flutuam acima da linha, no canto de cima do cartão, e
    só aparecem no hover e no foco do teclado: em repouso ficam com opacity 0 —
    nunca display nem visibility, e cada botão mantém o pointer-events — para o
    Tab e o clique direto continuarem alcançando cada botão. A cena aberta segue
    a mesma regra (lista de cenas, ideia 5). Sem animação: hover de linha e foco de
    teclado são ações de alta frequência, e movimento ali só atrasa. */
 .lb-cenas__item:has(> .lb-cenas__linha) {
-  /* O fundo que a faixa de controles copia para cobrir o fim do nome. */
-  --lb-cena-fundo: var(--lb-color-stone-solid);
   /* Vão lateral de 8px, não 12: cada pixel daqui sai da largura do nome. */
   padding: var(--lb-space-2);
-}
-
-.lb-cenas__item[data-enter='true'] {
-  --lb-cena-fundo: var(--lb-color-stone-raised);
-}
-
-.lb-cenas__item[data-movida='true'] {
-  /* O latão translúcido da cena recém-movida, sobre o fundo opaco: a faixa
-     precisa esconder o texto que passa por baixo dela. */
-  --lb-cena-fundo: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
 }
 
 /* O nome é a linha inteira (ver o ::after abaixo): com foco de teclado, o anel
@@ -4496,11 +4484,6 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 /* A cena aberta guarda a barra de latão também com o anel de foco. */
 .lb-cenas__item--ativa:has(> .lb-cenas__linha > .lb-cenas__nome:focus-visible) {
   box-shadow: inset 3px 0 0 var(--lb-color-brass), var(--lb-shadow-focus);
-}
-
-/* A faixa de controles da cena aberta copia o fundo de latão para cobrir o fim do nome. */
-.lb-cenas__item--ativa:has(> .lb-cenas__linha) {
-  --lb-cena-fundo: linear-gradient(var(--lb-color-brass-soft), var(--lb-color-brass-soft)) var(--lb-color-stone-solid);
 }
 
 .lb-cenas__linha {
@@ -4618,34 +4601,27 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   line-height: 1;
 }
 
-/* Toda cena, a aberta também: a faixa de controles pousa sobre o fim da
-   primeira linha, com o fundo do cartão e um degradê que apaga o fim do nome
-   por baixo dela. A faixa em si deixa o clique passar (o nome segue clicável
-   até os botões); os botões não. */
+/* Toda cena, a aberta também: a faixa de controles é uma barrinha que pousa
+   sobre a borda de cima do cartão, no canto direito, ACIMA da linha do nome.
+   Ela já pousou sobre o fim da primeira linha: na coluna de 262 px cobria o
+   meio do nome, e o clique no nome caía no Pausar. O pé dela entra na linha só
+   o respiro de cima do nome (3 px, sem letra); o resto fica no vão entre os
+   cartões e no respiro de baixo do cartão de cima, onde também não há texto.
+   Assim o lugar dos botões é só deles: chegar ali com o mouse é passar o mouse
+   na linha, e a faixa acende antes do clique. A faixa em si deixa o clique
+   passar; os botões não (o Tab e o clique direto continuam alcançando cada um). */
 .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
   position: absolute;
-  top: 0;
+  bottom: calc(100% - 3px);
   right: 0;
-  height: var(--lb-space-6);
   z-index: 2;
   display: flex;
   align-items: center;
-  padding-left: var(--lb-space-1);
-  background: var(--lb-cena-fundo);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: var(--lb-shadow-sm);
   opacity: 0;
-  pointer-events: none;
-}
-
-.lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 100%;
-  bottom: 0;
-  width: var(--lb-space-4);
-  background: var(--lb-cena-fundo);
-  /* Na máscara só o alfa conta: a cor opaca da ponta é indiferente. */
-  mask-image: linear-gradient(to right, transparent, var(--lb-color-ink));
   pointer-events: none;
 }
 
@@ -4667,9 +4643,8 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
 }
 
 /* Entre os ícones da faixa, meio vão do painel: sem moldura, eles não encostam
-   um no outro e os sete ainda cabem numa linha da coluna de 212 px
-   (7 × 24 + 6 × 4 = 192). As regras da cena aberta e da fechada só dizem onde
-   a faixa fica; o vão é este nas duas. */
+   um no outro. São no máximo quatro (Recado, Pausar, Configurar e "…":
+   4 × 24 + 3 × 4 = 108 px), o que cabe no cartão mais fundo da coluna de 262 px. */
 .lb-cenas__linha > .lb-cenas__controles {
   gap: calc(var(--lb-control-gap) / 2);
 }
@@ -4738,9 +4713,9 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
     flex-wrap: wrap;
   }
 
-  /* Com a sala aberta a faixa chega a 7 botões de 44px, mais largos que o
-     cartão: quebram em mais de uma linha, alinhados à direita, em vez de vazar
-     pela esquerda. */
+  /* Com a sala aberta a faixa chega a 4 botões de 44px, que no cartão mais
+     fundo podem passar da largura: quebram em mais de uma linha, alinhados à
+     direita, em vez de vazar pela esquerda. */
   .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
     flex-wrap: wrap;
   }
@@ -4751,16 +4726,14 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
 
   .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles {
     position: relative;
+    bottom: auto;
     flex-basis: 100%;
-    height: auto;
     justify-content: flex-end;
-    padding-left: 0;
+    border: 0;
+    border-radius: 0;
     background: none;
+    box-shadow: none;
     opacity: 1;
-  }
-
-  .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controles::before {
-    content: none;
   }
 
   /* Alvo de dedo, o mesmo mínimo de 44px dos botões da tela do jogador; o
@@ -4939,13 +4912,6 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
 .lb-cenas__recente:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-/* O alfinete da faixa, ligado: só o ícone em latão (o fundo cheio é do Pausar, que segura o grupo). */
-.lb-cenas__linha > .lb-cenas__controles > button.lb-cenas__fixar-btn[aria-pressed='true'],
-.lb-cenas__linha > .lb-cenas__controles > button.lb-cenas__fixar-btn[aria-pressed='true']:hover:not(:disabled) {
-  background: none;
-  color: var(--lb-color-brass);
 }
 
 /* "Filtrar cenas" (só com a lista longa): mesmo campo do "Buscar objeto". */
