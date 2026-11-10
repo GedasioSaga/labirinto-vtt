@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
-import { GRADES_DA_ARENA } from '../../lib/arena/grade'
+import { CASA_DA_ARENA, GRADES_DA_ARENA } from '../../lib/arena/grade'
 import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib/arena/tipos'
-import type { PedidoDeAcao, PedidoDeEvolucao, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
+import type { FormaPendente, PedidoDeAcao, PedidoDeEvolucao, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
+import { travaDoContador } from '../../lib/batalha/condicoes'
+import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
 import type { Equipe } from '../../lib/batalha/equipes'
 import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
 import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
@@ -22,6 +24,7 @@ import { efeitosDaCena } from '../../stores/batalhaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
 import { AcoesExtrasDialog } from '../batalha/AcoesExtrasDialog'
+import { AjustarDialog } from '../batalha/AjustarDialog'
 import { BatalhaDoJogador, type ConexaoDaBatalha } from '../batalha/BatalhaDoJogador'
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from '../batalha/PassivasDaBatalha'
 import { DarDanoDialog } from '../batalha/DarDanoDialog'
@@ -30,6 +33,7 @@ import { RECUSA_SEM_MOTIVO } from '../batalha/dadosDoMenu'
 import { tremer } from '../batalha/EfeitosDaBatalha'
 import { EscolhaDeArmas } from '../batalha/EscolhaDeArmas'
 import { FaixaDaOrdem } from '../batalha/FaixaDaOrdem'
+import { FormasPendentes } from '../batalha/FormasDoMestre'
 import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from '../batalha/marcasNoMapa'
 import type { ItemDoMenuDaCarta } from '../batalha/MenuDaCarta'
 import type { ConsultaDaFicha } from '../batalha/MiraDoGolpe'
@@ -71,10 +75,43 @@ type DialogoDaArena =
   | { tipo: 'extras'; cartaId: string }
   | { tipo: 'armas'; personagemId: string }
   | { tipo: 'selo'; tokenId: string; seloId: string | null }
+  // U4: o "Ajustar..." da carta, como no mapa (HP, SP, Escudo e um modificador de atributo na cópia).
+  | { tipo: 'ajustar'; tokenId: string; personagemId: string }
 
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_FOTOS: FotosDaForma = new Map()
 const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, rodadas: 0, mediaPorRodada: 0 }
+const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
+
+/**
+ * U4: o contador da ficha no menu da carta (a Polaridade do Vagn), com os
+ * mesmos textos e a mesma regra do menu do mestre no mapa (`FaixaDoMestre`):
+ * carregar gasta a reação até a vez dela; zerar é só do mestre.
+ */
+function itensDoContador(tokenId: string, personagem: Personagem, sistema: SistemaDeRpg, turnos: BatalhaEmTurnos['turnos']): ItemDoMenuDaCarta[] {
+  const contador = contadorDoPersonagem(personagem, sistema)
+  if (contador === null) return []
+  const loja = batalhaDaArena.getState()
+  const nivel = nivelDoContador(turnos, tokenId, contador.cartao.id)
+  const maximo = contador.leitura.danoPorNivel.length
+  const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagem.id]?.semReacao === true, temGolpeEsperando(turnos.golpes, tokenId))
+  // Atordoado ou Paralisado não reage, então não carrega (a store recusa igual).
+  const travado = travaDoContador((turnos.selos ?? []).filter((selo) => selo.tokenId === tokenId))
+  const pedido = { tokenId, cartaoId: contador.cartao.id }
+  const itens: ItemDoMenuDaCarta[] = [
+    {
+      id: 'contador-ganhar',
+      rotulo: `Carregar ${contador.leitura.nome} (${nivel} de ${maximo})`,
+      detalhe:
+        travado ??
+        (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'golpeEsperando' ? 'Tem golpe esperando a reação: responda antes de carregar' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
+      desabilitado: travado !== null || motivo !== null,
+      onEscolher: () => loja.contador(CENA_DA_ARENA, AUTOR_DA_ARENA, { tipo: 'ganhar', ...pedido }),
+    },
+  ]
+  if (nivel > 0) itens.push({ id: 'contador-zerar', rotulo: `Zerar ${contador.leitura.nome}`, detalhe: 'Volta a 0 e o dano a mais sai; entra no registro', onEscolher: () => loja.contador(CENA_DA_ARENA, AUTOR_DA_ARENA, { tipo: 'zerar', ...pedido }) })
+  return itens
+}
 
 /** U2: o motivo da regra para o pedido que a batalha da arena acabou de recusar (o mesmo `motivoDoAgir` da vez do NPC no mapa). */
 function motivoDaRecusaNaArena(vez: VezEsperada | null, pedido: PedidoDeAcao): string | null {
@@ -167,6 +204,18 @@ function DialogoNaArena({ dialogo, cena, sessao, sistema, onFechar }: DialogoNaA
   }
   const personagem = sessao.copias.find((candidato) => candidato.id === dialogo.personagemId)
   if (personagem === undefined) return null
+  if (dialogo.tipo === 'ajustar') {
+    return (
+      <AjustarDialog
+        quem={nomeDoToken(sessao, dialogo.tokenId)}
+        tokenId={dialogo.tokenId}
+        personagem={personagem}
+        sistema={sistema}
+        onConfirmar={(pedido) => loja.ajustar(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido)}
+        onFechar={onFechar}
+      />
+    )
+  }
   return (
     <EscolhaDeArmas
       quem={personagem.nome}
@@ -291,6 +340,11 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         if (seloId === null) continue
         itens.push({ id: `selo-${seloId}`, rotulo: `${selo.texto}…`, detalhe: 'Editar ou tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }) })
       }
+      // U4: os pedidos do mapa que faltavam na arena: o "Ajustar..." da carta e o contador da ficha (a Polaridade do Vagn).
+      if (personagemId !== null && carta.bando === undefined && carta.tokenId !== boneco?.tokenId)
+        itens.push({ id: 'ajustar', rotulo: 'Ajustar…', detalhe: 'HP, SP, Escudo e um modificador de atributo na cópia; entra no registro', onEscolher: () => setDialogo({ tipo: 'ajustar', tokenId: carta.tokenId, personagemId }) })
+      const copiaDaCarta = personagemId === null || carta.bando !== undefined ? undefined : sessao.copias.find((copia) => copia.id === personagemId)
+      if (copiaDaCarta !== undefined) itens.push(...itensDoContador(carta.tokenId, copiaDaCarta, sistema, turnos))
       if (personagemId !== null && (carta.carga ?? 0) > 0)
         itens.push({
           id: 'zerar-carga',
@@ -310,7 +364,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         })
       return itens
     },
-    [dados, boneco, turnos],
+    [dados, boneco, turnos, sessao.copias, sistema],
   )
 
   const perfil = perfilId === null ? undefined : sessao.copias.find((personagem) => personagem.id === perfilId)
@@ -387,6 +441,20 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         />
       </div>
 
+      {/* U4: a forma "o mestre decide" pedida na arena: a janela abre sozinha e a lista fica até decidir ou recusar, como na aba Batalha do mapa. */}
+      <div className="ar-pendencias">
+        <FormasPendentes
+          itens={turnos.formasPendentes ?? SEM_FORMAS_PENDENTES}
+          personagens={sessao.copias}
+          sistema={sistema}
+          turnos={turnos}
+          registro={cena.registro}
+          nomeDoToken={nomeNaArena}
+          onDecidir={(pendenteId, decisao) => batalhaDaArena.getState().decidirForma(CENA_DA_ARENA, pendenteId, decisao)}
+          onRecusar={(pendenteId) => batalhaDaArena.getState().cancelarForma(CENA_DA_ARENA, pendenteId)}
+        />
+      </div>
+
       <FaixaDaOrdem
         papel="mestre"
         className="pp-batalha-faixa"
@@ -412,6 +480,8 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         onMirando={setMirando}
         onTremor={() => tremer(palcoRef.current)}
         textoDaVez="vezDe"
+        // U4: a arena tem grade: a área da técnica marca pelas casas, como no mapa.
+        tamanhoDaCasa={CASA_DA_ARENA}
         // U2: a regra roda aqui mesmo: a recusa diz o motivo dela, como na vez do NPC no mapa (nunca "sem conexão com o mestre").
         motivoDaRecusa={motivoDaRecusaNaArena}
         avisoDaRecusa={RECUSA_SEM_MOTIVO}

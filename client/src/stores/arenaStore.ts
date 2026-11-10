@@ -18,12 +18,13 @@ import {
   type MontagemDaArena,
   type SessaoDaArena,
 } from '../lib/arena/tipos'
+import { direcaoDaRotacao } from '../lib/batalha/area'
 import type { ParedeDoPasso } from '../lib/batalha/blocos'
 import type { EfeitoDaBatalha, GolpeDaBatalha } from '../lib/batalha/combate'
 import { recursoDoEscudo } from '../lib/batalha/leituraDaFicha'
 import { esquecerCopiaDaFicha, registrarCopiaDaFicha } from '../lib/batalha/mecanicasAMao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { passoEmBatalha } from '../lib/batalha/movimentoEmBatalha'
+import { casaDoToken, passoEmBatalha } from '../lib/batalha/movimentoEmBatalha'
 import { REGISTRO_MAX, type LinhaDoRegistro } from '../lib/batalha/registro'
 import { combatentesIniciais, tokensCaidos } from '../lib/batalha/turnos'
 import type { Personagem } from '../lib/personagem'
@@ -101,6 +102,11 @@ export const mesaDaArena: MesaDaBatalha = {
     return true
   },
   trocarEquipe: () => false,
+  // U4 (plano de 10/11): a arena tem grade: a casa e a frente de cada ficha, como no mapa (o "perto" de quem rebate vale aqui também).
+  posicaoDoToken: (_sceneKey, tokenId) => {
+    const token = useArenaStore.getState().sessao?.tokens.find((candidato) => candidato.id === tokenId)
+    return token === undefined ? null : { casa: casaDoToken(token, token.size, CASA_DA_ARENA), direcao: direcaoDaRotacao(token.rotation) }
+  },
 }
 
 /** A batalha da arena: sempre na cena `CENA_DA_ARENA`, com as cópias. */
