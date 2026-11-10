@@ -904,25 +904,28 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
           </div>
         )}
         <p className="bt-mira__nota">{notaDaReacao(golpe, semReacao, semDano)}</p>
-        {erro !== null && (
-          <p className="bt-mira__erro" role="alert">
-            {erro}
-          </p>
-        )}
-        <div className="bt-pendente__acoes">
-          <button type="submit" className="bt-botao bt-botao--batalha">
-            {textoDoLancar} <kbd>Enter</kbd>
-          </button>
-          {mapa !== undefined && (
-            <button type="button" className="bt-botao" aria-pressed={mapa.ligado} onClick={() => mapa.onTrocar(!mapa.ligado)}>
-              {mapa.ligado ? 'Clique na ficha no mapa…' : 'Escolher no mapa'}
-            </button>
+        {/* O pé (o motivo da recusa e o Lançar) fica à vista quando a mira alta rola dentro do menu do centro. */}
+        <div className="bt-mira__pe">
+          {erro !== null && (
+            <p className="bt-mira__erro" role="alert">
+              {erro}
+            </p>
           )}
-          {!semVoltar && (
-            <button type="button" className="bt-botao" onClick={onVoltar}>
-              Voltar <kbd>Esc</kbd>
+          <div className="bt-pendente__acoes">
+            <button type="submit" className="bt-botao bt-botao--batalha">
+              {textoDoLancar} <kbd>Enter</kbd>
             </button>
-          )}
+            {mapa !== undefined && (
+              <button type="button" className="bt-botao" aria-pressed={mapa.ligado} onClick={() => mapa.onTrocar(!mapa.ligado)}>
+                {mapa.ligado ? 'Clique na ficha no mapa…' : 'Escolher no mapa'}
+              </button>
+            )}
+            {!semVoltar && (
+              <button type="button" className="bt-botao" onClick={onVoltar}>
+                Voltar <kbd>Esc</kbd>
+              </button>
+            )}
+          </div>
         </div>
       </form>
       {consulta !== undefined && consulta !== null && <MarcasDaMira consulta={consulta} tokenIds={alvos.map((alvo) => alvo.tokenId)} marcados={marcadosSet} foco={foco} />}

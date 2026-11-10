@@ -35,6 +35,24 @@
   z-index: -1;
 }
 
+/* Acabamento de 09/11/2026 (achado 7): na tela baixa a mira rola dentro do menu; o motivo da recusa e o Lançar ficam
+   presos no pé, sempre à vista (antes o Lançar ficava abaixo da dobra). */
+.bt-centro-do-mestre .bt-mira__pe {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 8px 0 2px;
+  background: var(--bt-papel);
+  box-shadow: 0 -10px 10px -10px rgba(0, 0, 0, 0.35);
+}
+
+/* Acabamento de 09/11/2026 (achado 7): a dica da ferramenta (`.lb-hint`, da barra do pé) ficava por baixo do pé do
+   menu e as letras das duas se misturavam. Com o menu da vez no centro, a dica sai: o menu é o que o mestre lê agora.
+   `opacity`, como o main.css já faz quando o menu das variantes cobre a mesma faixa (a dica segue no DOM). */
+body:has(.bt-centro-do-mestre) .lb-hint {
+  opacity: 0;
+}
+
 /* A mira alta rola dentro do menu, como na Arena (arena.css), em vez de sair da tela. */
 .bt-centro-do-mestre > .bt-vez--lista:has(> .bt-mira) {
   overflow-y: auto;

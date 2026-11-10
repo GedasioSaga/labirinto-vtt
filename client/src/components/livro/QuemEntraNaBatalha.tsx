@@ -161,7 +161,10 @@ export function QuemEntraNaBatalha({
   useEffect(() => {
     if (!aberto) return
     if (typeof secao.current?.scrollIntoView === 'function') secao.current.scrollIntoView({ block: 'nearest' })
-    confirmarRef.current?.focus({ preventScroll: true })
+    // Botão apagado não recebe foco (o Incluir abre com ninguém marcado): o foco vai para a primeira caixa de marcar.
+    const botao = confirmarRef.current
+    const alvo = botao !== null && !botao.disabled ? botao : secao.current?.querySelector<HTMLElement>('input[type="checkbox"]')
+    alvo?.focus({ preventScroll: true })
   }, [aberto])
 
   if (!aberto) return null

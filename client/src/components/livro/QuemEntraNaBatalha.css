@@ -23,4 +23,4 @@
    O livro é estreito: a linha tem três colunas, e o lado do NPC e o "como entra" descem para baixo do nome. */
 .gr-entra-painel { display: flex; flex-direction: column; gap: 10px; min-width: 0; margin-top: 8px; padding: 12px; border: 1px solid var(--lb-color-brass); border-radius: 8px; background: var(--lb-color-stone-sunken); }
 .gr-entra-painel__tit { margin: 0; font-size: var(--lb-font-size-md); font-weight: 600; color: var(--lb-color-parchment); }
-.gr-entra__como { grid-column: 2 / -1; width: 100%; min-width: 0; max-width: none; min-height: 30px; }
+.gr-entra__como { grid-column: 1 / -1; width: 100%; min-width: 0; max-width: none; min-height: 30px; }

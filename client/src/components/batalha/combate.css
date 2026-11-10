@@ -753,6 +753,19 @@
   font-size: var(--lb-font-size-sm);
   font-weight: 600;
 }
+/* O pé da mira: o motivo da recusa e os botões, com o mesmo respiro das outras linhas. */
+.bt-mira__pe {
+  display: grid;
+  gap: 10px;
+}
+/* A ajuda num alvo do outro lado (a mira do mestre): a pergunta na própria linha, antes de marcar. */
+.bt-alvo__confirma {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 0;
+}
 
 /* Interruptor (Surpresa, Perfurante): trilho e bolinha, a bolinha anda por transform. */
 .bt-chave {
