@@ -461,15 +461,19 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
       if (!dock || !balloon || !button) return
 
       const buttonBox = button.getBoundingClientRect()
+      // O livro da direita pode estar com a página alargada (borda que arrasta):
+      // o quanto ele tapa é `--lb-coldir-espaco` (livro.css), que o recuo
+      // direito da base da barra (`.lb-editor__base`) já segue, resolvido em px.
+      const base = dock.closest('.lb-editor__base')
+      const rightGuard = base instanceof HTMLElement ? parseFloat(getComputedStyle(base).paddingRight) : Number.NaN
       setPlacement({
         key: placementKey,
         value: placeHint({
           anchorCenter: buttonBox.left + buttonBox.width / 2,
           originLeft: dock.getBoundingClientRect().left,
           hintWidth: balloon.offsetWidth,
-          // A coluna da direita espelha o rail: o balão para antes dela como
-          // para antes do rail (a borda direita útil é a janela menos a coluna).
-          viewportWidth: window.innerWidth - (HINT_MIN_LEFT - EDGE_GAP),
+          // A borda direita útil é a janela menos o livro da direita.
+          viewportWidth: window.innerWidth - ((Number.isFinite(rightGuard) ? rightGuard : HINT_MIN_LEFT) - EDGE_GAP),
           minLeft: HINT_MIN_LEFT,
           edgeGap: EDGE_GAP,
         }),
@@ -492,7 +496,9 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
     }
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
     if (observer) {
-      for (const el of [dockRef.current, hintRef.current, activeButtonRef.current]) if (el) observer.observe(el)
+      // A base também: alargar a página do livro da direita muda o recuo dela (o vão útil), sem mudar a barra.
+      const base = dockRef.current?.closest('.lb-editor__base') ?? null
+      for (const el of [dockRef.current, hintRef.current, activeButtonRef.current, base]) if (el) observer.observe(el)
     } else {
       measureNextFrame()
     }
