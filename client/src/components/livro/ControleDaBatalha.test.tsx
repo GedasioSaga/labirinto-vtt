@@ -15,6 +15,10 @@ import { ControleDaBatalha } from './ControleDaBatalha'
  */
 
 const tocadas = vi.hoisted(() => [] as { id: string; nome?: string }[])
+// O aviso "o mestre pretende tocar esta abertura" chama o motor de verdade (pré-compilação);
+// aqui só interessa que o controle não dependa dele para ligar a batalha.
+vi.mock('../../transicoes/intencao', () => ({ pretenderAbertura: () => undefined }))
+
 vi.mock('../../transicoes/motor', () => ({
   tocarAberturaDeBatalha: (opcoes: { id: string; nome?: string }) => {
     tocadas.push({ id: opcoes.id, ...(opcoes.nome === undefined ? {} : { nome: opcoes.nome }) })
