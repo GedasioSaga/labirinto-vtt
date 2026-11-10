@@ -91,38 +91,59 @@ function aoJogador(id: string, dado: unknown) {
   else if (msg.type === 'fogo.sair') ponte.sair(msg.id, msg.depoisDe)
 }
 
-/** Do jogador ao mestre: pelo parser do host, como `protocol.ts` faz. */
+/**
+ * Do jogador ao mestre, com atraso próprio. A ordem por jogador se mantém (como o WebSocket):
+ * sem isso, dois lotes mandados colados (a página travou e os temporizadores de 100 ms
+ * dispararam juntos) chegavam trocados, o mestre largava o de trás como repetido e os colegas
+ * esperavam para sempre uma entrada que ninguém repassou. Defeito da mesa, não do app.
+ */
+const filaAoMestre = new Map<string, Promise<void>>()
 function aoMestre(id: string, msg: FogoPlayerMessage) {
-  atrasar(() => {
-    const lida = parseFogoPlayerMessage(peloFio(msg))
-    if (lida === null) {
-      resultado.erros.push(`mensagem de ${id} recusada pelo mestre`)
-      return
-    }
-    if (lida.type === 'fogo.entradas') entregar(host.entradas(id, lida))
-    else if (lida.type === 'fogo.hash') {
-      ;(resultado.hashes[id] ??= {})[lida.tique] = lida.hash
-      entregar(host.hash(id, lida))
-    } else if (lida.type === 'fogo.fim') {
-      ;(resultado.hashes[id] ??= {})[lida.tique] = lida.hash
-      const p = lida.placar
-      resultado.fins.push({
-        id,
-        tique: lida.tique,
-        hash: lida.hash,
-        vitoria: p.vitoria,
-        motivo: p.motivo,
-        pontos: p.pontos,
-        modo: p.modo,
-        ferramentas: p.porJogador.map((l) => `${l.id}:${l.ferramenta}:${l.fogoCerto}`).join(','),
-      })
-      entregar(host.fim(id, lida))
-    }
-    const aoVivo = host.aoVivo()
-    resultado.divergencia = aoVivo?.divergencia ?? null
-    resultado.fase = aoVivo?.fase ?? null
-    resultado.desfecho = aoVivo?.desfecho ?? null
-  })
+  const anterior = filaAoMestre.get(id) ?? Promise.resolve()
+  filaAoMestre.set(
+    id,
+    anterior.then(
+      () =>
+        new Promise<void>((pronto) =>
+          atrasar(() => {
+            receberNoMestre(id, msg)
+            pronto()
+          }),
+        ),
+    ),
+  )
+}
+
+/** A mensagem do jogador chegou ao mestre: pelo parser do host, como `protocol.ts` faz. */
+function receberNoMestre(id: string, msg: FogoPlayerMessage) {
+  const lida = parseFogoPlayerMessage(peloFio(msg))
+  if (lida === null) {
+    resultado.erros.push(`mensagem de ${id} recusada pelo mestre`)
+    return
+  }
+  if (lida.type === 'fogo.entradas') entregar(host.entradas(id, lida))
+  else if (lida.type === 'fogo.hash') {
+    ;(resultado.hashes[id] ??= {})[lida.tique] = lida.hash
+    entregar(host.hash(id, lida))
+  } else if (lida.type === 'fogo.fim') {
+    ;(resultado.hashes[id] ??= {})[lida.tique] = lida.hash
+    const p = lida.placar
+    resultado.fins.push({
+      id,
+      tique: lida.tique,
+      hash: lida.hash,
+      vitoria: p.vitoria,
+      motivo: p.motivo,
+      pontos: p.pontos,
+      modo: p.modo,
+      ferramentas: p.porJogador.map((l) => `${l.id}:${l.ferramenta}:${l.fogoCerto}`).join(','),
+    })
+    entregar(host.fim(id, lida))
+  }
+  const aoVivo = host.aoVivo()
+  resultado.divergencia = aoVivo?.divergencia ?? null
+  resultado.fase = aoVivo?.fase ?? null
+  resultado.desfecho = aoVivo?.desfecho ?? null
 }
 
 const convidados = ids.map((id, i) => ({ playerId: id, nome: id, ferramenta: FERRAMENTAS_FOGO[i % FERRAMENTAS_FOGO.length] }))
