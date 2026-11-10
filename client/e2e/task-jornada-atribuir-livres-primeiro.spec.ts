@@ -41,9 +41,12 @@
 //   - NPC: o app não tem marca de NPC hoje (client/src/types/map.ts:413). A régua
 //     marca o Mordomo com `npc: true` na ficha gravada; se o conserto escolher
 //     outro critério, troque só a função `ficha()` do Mordomo;
-//   - a ficha de outro jogador fica na lista "Atribuir token" (select nativo) com
-//     o texto 'Machado — de Bruno'; escolhê-la abre uma confirmação com o botão
-//     "Cancelar" (diálogo ou dentro do card).
+//   - a ficha de outro jogador fica na lista "Atribuir token" com o dono escrito
+//     na linha; escolhê-la abre uma confirmação com o botão "Cancelar" (diálogo
+//     ou dentro do card). AJUSTE DECLARADO (09/11/2026, seletor com busca do
+//     commit 34ac9251): a lista deixou de ser um select nativo. O campo é o
+//     botão "Atribuir token" do card, que abre a caixa "Atribuir token a <jogador>"
+//     com uma linha (`option`) por ficha, de nome acessível 'Machado, de Bruno'.
 import { test, expect, type Browser, type BrowserContext, type Locator, type Page, type WebSocketRoute } from '@playwright/test'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { serializeMap } from '../src/lib/mapFile'
@@ -94,7 +97,7 @@ const PIXELS_DE_CENA = 2000
 const RESIDUO = 25
 
 const AGUARDANDO_PERSONAGEM = /Aguardando o mestre atribuir/
-const DE_BRUNO = /Machado\s*—\s*de Bruno/
+const DE_BRUNO = /Machado\s*[—,]\s*de Bruno/
 const escapar = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // ── A aventura no disco: Cozinha (6 fichas de jogador + Mordomo) e Biblioteca (Livro)
@@ -301,6 +304,21 @@ function botoesDeAtribuir(card: Locator): Locator {
   return card.getByRole('button', { name: /Atribuir / })
 }
 
+/** O campo "Atribuir token" do card: o botão que abre a lista. */
+function campoDeAtribuir(card: Locator): Locator {
+  return card.getByRole('button', { name: 'Atribuir token', exact: true })
+}
+
+/** Abre a lista "Atribuir token" do card e devolve a caixa dela (mora fora do card, por cima da tela). */
+async function abrirListaDeAtribuir(mestre: Page, card: Locator, jogador: string): Promise<Locator> {
+  const campo = campoDeAtribuir(card)
+  await expect(campo, `o card de ${jogador} deveria ter o campo "Atribuir token"`).toBeVisible({ timeout: ESPERA })
+  await campo.click()
+  const lista = mestre.getByRole('dialog', { name: `Atribuir token a ${jogador}` })
+  await expect(lista, `o campo "Atribuir token" de ${jogador} deveria abrir a lista`).toBeVisible({ timeout: ESPERA })
+  return lista
+}
+
 /** Aba Jogo → card → "Atribuir <ficha>" (um clique); sem o botão, a lista "Atribuir token". */
 async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string): Promise<void> {
   await mestre.getByRole('tab', { name: 'Grupo' }).click()
@@ -309,9 +327,11 @@ async function mestreAtribui(mestre: Page, jogador: string, nomeDaFicha: string)
   if ((await botao.count()) > 0) {
     await botao.first().click()
   } else {
-    const lista = card.getByRole('combobox')
-    const texto = (await lista.locator('option', { hasText: nomeDaFicha }).first().textContent()) ?? nomeDaFicha
-    await lista.selectOption({ label: texto.trim() })
+    const lista = await abrirListaDeAtribuir(mestre, card, jogador)
+    await lista
+      .getByRole('option', { name: new RegExp(`^${escapar(nomeDaFicha)}\\b`) })
+      .first()
+      .click()
   }
   await expect(card.getByRole('button', { name: `Remover ${nomeDaFicha}` }), `${jogador} deveria ficar com ${nomeDaFicha}`).toBeVisible({ timeout: ESPERA })
 }
@@ -471,13 +491,12 @@ test('4. "Machado — de Bruno" na lista pede confirmação e Cancelar mantém B
   const { bruno } = await mesaMontada(browser, page, baseURL ?? '')
   await page.getByRole('tab', { name: 'Grupo' }).click()
   const card = cardDeJogador(page, GINA)
-  const lista = card.getByRole('combobox', { name: 'Atribuir token' })
-  await expect(lista, 'o card da Gina deveria ter a lista "Atribuir token"').toBeVisible({ timeout: ESPERA })
-  const opcao = lista.locator('option').filter({ hasText: DE_BRUNO })
+  const lista = await abrirListaDeAtribuir(page, card, GINA)
+  const opcao = lista.getByRole('option', { name: DE_BRUNO })
   await expect
-    .poll(() => opcao.count(), { timeout: ESPERA, message: `a lista da Gina deveria marcar a ficha do Bruno como "Machado — de Bruno"; hoje: ${JSON.stringify(await lista.locator('option').allInnerTexts())}` })
+    .poll(() => opcao.count(), { timeout: ESPERA, message: `a lista da Gina deveria marcar a ficha do Bruno como "Machado, de Bruno"; hoje: ${JSON.stringify(await lista.getByRole('option').allInnerTexts())}` })
     .toBeGreaterThan(0)
-  await lista.selectOption({ label: ((await opcao.first().textContent()) ?? '').trim() })
+  await opcao.first().click()
 
   const confirmacao = page.getByRole('alertdialog').or(page.getByRole('dialog')).or(card)
   const cancelar = confirmacao.getByRole('button', { name: 'Cancelar', exact: true })

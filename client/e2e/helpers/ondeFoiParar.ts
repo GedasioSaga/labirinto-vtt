@@ -603,7 +603,7 @@ export const BLOCOS: readonly Bloco[] = [
       l('Buscar jogador', ['searchbox', 'Buscar jogador']),
       l('Pedindo (chip do alto)', b('/^Pedindo/')),
       l('Chegando: Atribuir a ficha livre', b('/Atribuir Goblin$/')),
-      l('Chegando: lista Atribuir token', ['combobox', 'Atribuir token']),
+      l('Chegando: lista Atribuir token', b('Atribuir token')),
       l('Chegando: Emprestar como ajudante', b('Emprestar como ajudante…')),
       l('Chegando: Expulsar', b('Expulsar')),
       l('Cena: recolher e abrir', b('/^Cripta.*jogadores/')),
@@ -619,7 +619,7 @@ export const BLOCOS: readonly Bloco[] = [
       ...todos([b('Seguir'), b('Mandar para…'), b('Ver tela de Ana'), b('Dar o que o grupo viu'), ['combobox', 'Passar o mapa de Ana a'], b('Dar um mapa a Ana'), b('Emprestar como ajudante…'), b('Expulsar')], b('/Ana — jogando/'), ['radio', 'Ações']),
       ...todos([b('Dar item a Ana'), b('Moedas de Ana'), b('Propor troca a Ana')], b('/Ana — jogando/'), ['radio', 'Mochila']),
       ...todos([['slider', 'Raio de visão'], ['slider', 'Fator de visão'], b('Revelar planta'), b('Esconder de novo')], b('/Ana — jogando/'), ['radio', 'Visão']),
-      ...todos([b('Remover Guerreira'), ['combobox', 'Atribuir token']], b('/Ana — jogando/'), ['radio', 'Ficha']),
+      ...todos([b('Remover Guerreira'), b('Atribuir token')], b('/Ana — jogando/'), ['radio', 'Ficha']),
     ],
   },
   {

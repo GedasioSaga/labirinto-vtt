@@ -213,12 +213,11 @@ async function emitir(page: Page, evento: string, payload: unknown): Promise<voi
   await page.evaluate(({ e, p }) => (window as unknown as { __emitTauri(e: string, p: unknown): void }).__emitTauri(e, p), { e: evento, p: payload })
 }
 
-/** "Atribuir token" de quem está em Chegando: a lista com as fichas da cena. */
+/** "Atribuir token" de quem está em Chegando: o campo abre a lista com as fichas (a caixa mora por cima da tela), e a linha da ficha atribui. */
 async function atribuir(page: Page, jogador: string, ficha: string): Promise<void> {
   const livro = escopo(page, 'direita')
-  const lista = livro.locator('.gr-chegando', { hasText: jogador }).getByRole('combobox', { name: 'Atribuir token' })
-  const texto = (await lista.locator('option', { hasText: ficha }).first().textContent()) ?? ficha
-  await lista.selectOption({ label: texto.trim() })
+  await livro.locator('.gr-chegando', { hasText: jogador }).getByRole('button', { name: 'Atribuir token', exact: true }).click()
+  await page.getByRole('dialog', { name: `Atribuir token a ${jogador}` }).getByRole('option', { name: ficha }).first().click()
   await expect(livro.getByRole('button', { name: `Remover ${ficha}` })).toBeVisible()
 }
 
