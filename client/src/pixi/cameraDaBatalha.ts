@@ -30,10 +30,34 @@ const BORDA = 0.12
 /** Desligada nesta sessão (vale mesmo sem armazenamento). */
 let sessaoDesligada = false
 
+/**
+ * T3 (10/11): os ponteiros apertados agora. Com um apertado, alguém arrasta (o mapa, uma ficha, uma régua): a
+ * câmera da batalha não puxa a tela dele no meio do gesto. Contados na janela, em captura, enquanto houver tela.
+ */
+const apertados = new Set<number>()
+const apertar = (evento: PointerEvent) => apertados.add(evento.pointerId)
+const soltar = (evento: PointerEvent) => apertados.delete(evento.pointerId)
+const OUVIR_PONTEIRO: AddEventListenerOptions = { capture: true, passive: true }
+
+function vigiarPonteiros(ligar: boolean) {
+  const acao = ligar ? window.addEventListener.bind(window) : window.removeEventListener.bind(window)
+  acao('pointerdown', apertar, OUVIR_PONTEIRO)
+  acao('pointerup', soltar, OUVIR_PONTEIRO)
+  acao('pointercancel', soltar, OUVIR_PONTEIRO)
+  if (!ligar) apertados.clear()
+}
+
+/** Alguém está arrastando agora (um ponteiro apertado)? */
+export function arrastandoAgora(): boolean {
+  return apertados.size > 0
+}
+
 export function registrarCameraDaBatalha(tela: TelaDaCamera): () => void {
+  if (telas.size === 0 && typeof window !== 'undefined') vigiarPonteiros(true)
   telas.add(tela)
   return () => {
     telas.delete(tela)
+    if (telas.size === 0 && typeof window !== 'undefined') vigiarPonteiros(false)
   }
 }
 
@@ -71,6 +95,8 @@ export function alvoParaAFicha(camera: Camera, ponto: { x: number; y: number }, 
 /** A vez trocou: traz a ficha da vez para a vista em toda tela registrada (se a câmera da batalha está ligada). */
 export function trazerFichaDaVez(tokenId: string) {
   if (sessaoDesligada || !cameraDaBatalhaLigada()) return
+  // Quem arrasta o mapa ou uma ficha agora não tem a câmera roubada no meio do gesto.
+  if (arrastandoAgora()) return
   for (const tela of telas) {
     const ponto = tela.pontoDaFicha(tokenId)
     if (ponto === null) continue
