@@ -92,7 +92,10 @@ describe('vista 3/4: o catálogo inteiro', () => {
         expect(m.saturacaoP95, `${tipo} nível ${nivel} saturação`).toBeLessThanOrEqual(0.62)
         expect(m.luminanciaLinearMinima, `${tipo} nível ${nivel} piso de luz`).toBeGreaterThanOrEqual(PISO_DE_LUZ - 0.002)
         expect(m.contornoMinimo, `${tipo} nível ${nivel} contorno`).toBeGreaterThanOrEqual(0.06)
-        if (nivel !== 3) continue
+        // O CAMPINHO (10/11/2026) é chão: o gramado fica onde está e só as traves sobem, no meio da altura
+        // dele. A beira de cima da imagem é o gramado, que não muda: a regra do tampo não se aplica a ele (a
+        // troca do desenho e as regras de cor, logo acima, sim).
+        if (nivel !== 3 || tipo === 'campinho') continue
         if (emPe) expect(alfaDaSombra(b), `${tipo}: sombra de baixo`).toBeGreaterThan(alfaDaSombra(a) * 1.02)
         else expect(topoDasPecas(b), `${tipo}: o tampo sobe`).toBeLessThanOrEqual(topoDasPecas(a) - 1)
       }

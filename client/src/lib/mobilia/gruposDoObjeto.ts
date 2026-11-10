@@ -10,8 +10,7 @@ import type { TipoMobilia } from './tipos'
  * PEÇA NOVA NO CATÁLOGO: uma linha em `GRUPO_DO_OBJETO` (`tipo: 'idDoGrupo'`),
  * no bloco do grupo dela. A ordem das linhas é a ordem da peça dentro do grupo.
  * Sem a linha ela não some: cai em "Outros" (`GRUPO_PADRAO`), no fim, na ordem
- * do catálogo. Grupo sem peça não aparece em lugar nenhum ("Destroços e sucata"
- * e "Esporte e lazer" já estão previstos e esperam as peças deles).
+ * do catálogo. Grupo sem peça não aparece em lugar nenhum.
  *
  * Só a ARRUMAÇÃO muda: o id de cada tipo (`lib/mobilia/tipos.ts`) é o que o
  * mapa salvo guarda e continua igual.
@@ -97,8 +96,13 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   feno: 'fazenda',
   cataVento: 'fazenda',
   moinho: 'fazenda',
-  // Destroços e sucata: (as sucatas de metal e os destroços de madeira entram aqui)
-  // Esporte e lazer: (o campinho de futebol entra aqui)
+  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal.
+  destrocosDeMadeira: 'destrocosESucata',
+  sucataChapas: 'destrocosESucata',
+  sucataEngrenagens: 'destrocosESucata',
+  sucataTambores: 'destrocosESucata',
+  // Esporte e lazer (10/11/2026).
+  campinho: 'esporteELazer',
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

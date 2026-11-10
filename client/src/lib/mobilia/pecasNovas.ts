@@ -29,6 +29,7 @@ export const PECAS_NOVAS = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   'ponte',
   'cova', 'caixao', 'caixaoAberto',
+  'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -118,6 +119,15 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   cova: { rotulo: 'Cova', artigo: 'uma cova', tamanho: { largura: 1, altura: 2 }, redonda: false },
   caixao: { rotulo: 'Caixão', artigo: 'um caixão', tamanho: { largura: 1, altura: 2 }, redonda: false },
   caixaoAberto: { rotulo: 'Caixão aberto', artigo: 'um caixão aberto', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  // Destroços e sucata (10/11/2026): pilhas soltas, cada uma com o próprio desenho. As pilhas grandes nascem
+  // em 2 x 2 casas; a de engrenagens, um monte pequeno de peças, em 1 x 1. Esticam e giram como todo objeto.
+  destrocosDeMadeira: { rotulo: 'Destroços de madeira', artigo: 'uns destroços de madeira', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  sucataChapas: { rotulo: 'Sucata de chapas', artigo: 'uma sucata de chapas', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  sucataEngrenagens: { rotulo: 'Sucata de engrenagens', artigo: 'uma sucata de engrenagens', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  sucataTambores: { rotulo: 'Sucata de tambores', artigo: 'uma sucata de tambores', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // O campinho de futebol (10/11/2026): 10 x 6 casas, deitado; cabe um bate-bola de 3 contra 3. Mora no chão
+  // (`ehMovelDoChao`): as fichas e os outros objetos ficam por cima dele.
+  campinho: { rotulo: 'Campinho de futebol', artigo: 'um campinho de futebol', tamanho: { largura: 10, altura: 6 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -161,6 +171,11 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     cova: valor(f.cova),
     caixao: valor(f.caixao),
     caixaoAberto: valor(f.caixaoAberto),
+    destrocosDeMadeira: valor(f.destrocosDeMadeira),
+    sucataChapas: valor(f.sucataChapas),
+    sucataEngrenagens: valor(f.sucataEngrenagens),
+    sucataTambores: valor(f.sucataTambores),
+    campinho: valor(f.campinho),
   }
 }
 
@@ -189,8 +204,10 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
-  // Os objetos de vento (02/11/2026), sem parente antigo: fecham o catálogo.
+  // Os objetos de vento (02/11/2026), sem parente antigo.
   'cataVento', 'moinho', 'cataVentoBrinquedo',
+  // Destroços, sucata e o campinho (10/11/2026), sem parente antigo: fecham o catálogo.
+  'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
 ]
 
 /**
@@ -509,6 +526,44 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       return tracosDoCaixao(largura, altura, false)
     case 'caixaoAberto':
       return tracosDoCaixao(largura, altura, true)
+    // Destroços e sucata (10/11/2026): poucos traços que dizem a pilha.
+    case 'destrocosDeMadeira':
+      // As tábuas cruzadas, cada uma num ângulo.
+      return [
+        { x1: -hw * 0.9, y1: hh * 0.2, x2: hw * 0.86, y2: hh * 0.5 },
+        { x1: -hw * 0.6, y1: -hh * 0.8, x2: hw * 0.1, y2: hh * 0.84 },
+        { x1: -hw * 0.3, y1: hh * 0.7, x2: hw * 0.8, y2: -hh * 0.76 },
+        { x1: -hw * 0.8, y1: -hh * 0.44, x2: hw * 0.6, y2: -hh * 0.3 },
+      ]
+    case 'sucataChapas':
+      // A chapa torta e as duas vigas cruzadas por cima.
+      return [
+        ...fechado([[-hw * 0.8, -hh * 0.3], [hw * 0.36, -hh * 0.62], [hw * 0.56, hh * 0.5], [-hw * 0.62, hh * 0.8]]),
+        { x1: -hw * 0.86, y1: -hh * 0.76, x2: hw * 0.7, y2: hh * 0.66 },
+        { x1: -hw * 0.6, y1: hh * 0.3, x2: hw * 0.9, y2: -hh * 0.5 },
+      ]
+    case 'sucataEngrenagens': {
+      // A engrenagem grande com o furo do eixo e a pequena encostada.
+      const menor = Math.min(largura, altura)
+      return [...aro(menor * 0.56, menor * 0.56, -hw * 0.16, hh * 0.12), ...aro(menor * 0.14, menor * 0.14, -hw * 0.16, hh * 0.12), ...aro(menor * 0.34, menor * 0.34, hw * 0.4, -hh * 0.38)]
+    }
+    case 'sucataTambores': {
+      // O tambor em pé (a roda), o deitado (a caixa) e a tampa solta.
+      const menor = Math.min(largura, altura)
+      return [
+        ...aro(menor * 0.42, menor * 0.42, -hw * 0.4, -hh * 0.36),
+        ...quadro(-hw * 0.5, hh * 0.12, hw * 0.7, hh * 0.8),
+        ...aro(menor * 0.2, menor * 0.2, hw * 0.5, -hh * 0.4),
+      ]
+    }
+    // O campinho (10/11/2026), ao longo do lado maior: as linhas de fora, a do meio e o círculo central.
+    case 'campinho': {
+      const deitado = largura >= altura
+      const recuo = Math.min(largura, altura) * 0.06
+      const circulo = Math.min(largura, altura) * 0.3
+      const meio = deitado ? { x1: 0, y1: -hh + recuo, x2: 0, y2: hh - recuo } : linha(-hw + recuo, 0, hw - recuo)
+      return [...quadro(-hw + recuo, -hh + recuo, hw - recuo, hh - recuo), meio, ...aro(circulo, circulo)]
+    }
   }
 }
 

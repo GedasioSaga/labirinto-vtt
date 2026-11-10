@@ -774,6 +774,55 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6.8 9h10.4M9.3 11.5h5.4l-1 7.5h-3.4z" />
         </>
       )
+    // Destroços e sucata (10/11/2026), de cima como o desenho do mapa.
+    case 'destrocosDeMadeira':
+      // Três tábuas cruzadas, duas com a ponta lascada em dentes.
+      return (
+        <>
+          <path d="M2.5 15.2l15.6-3.4 1 1-.7 1.1 1.3.6-.5 1.5L3.2 18.6z" />
+          <path d="M6.2 3.4l2.8-.9 5.4 16.9-2.8.9z" />
+          <path d="M13.4 12.2l5.2-8 .2 1.6 1.2-.9.3 1.5 1.2-.2-5.4 8.2" />
+        </>
+      )
+    case 'sucataChapas':
+      // A chapa torta com o canto dobrado e a viga atravessada por cima.
+      return (
+        <>
+          <path d="M3.5 8.5l11-3 5.5 11.5-12.5 4z" />
+          <path d="M16.2 8.6l-3.4 1 3.9 1.8" />
+          <path d="M2.5 13.6l18-9.4M3.6 15.8l18-9.4" />
+        </>
+      )
+    case 'sucataEngrenagens':
+      // A roda dentada grande com o furo do eixo e a pequena engrenada nela.
+      return (
+        <>
+          <circle cx="9.5" cy="13.5" r="5" />
+          <circle cx="9.5" cy="13.5" r="1.6" />
+          <path d="M9.5 6.5v2M9.5 18.5v2M2.5 13.5h2M14.5 13.5h2M4.6 8.6l1.4 1.4M13 17l1.4 1.4M4.6 18.4L6 17M13 10l1.4-1.4" />
+          <circle cx="18" cy="6.5" r="2.6" />
+          <path d="M18 2.4v1.5M18 9.1v1.5M13.9 6.5h1.5M20.6 6.5h1.5" />
+        </>
+      )
+    case 'sucataTambores':
+      // O tambor em pé (a boca amassada, com o bujão) e o deitado na frente, com os dois aros.
+      return (
+        <>
+          <path d="M3 8a5 5 0 0 1 9.6-1.6L10.8 9l1.4 2.4A5 5 0 0 1 3 8z" />
+          <path d="M6 6.4h.01" />
+          <rect x="7.5" y="14" width="14" height="7" rx="1.6" />
+          <path d="M12 14v7M17 14v7" />
+        </>
+      )
+    // O campinho (10/11/2026), de cima: as linhas de fora, a do meio, o círculo central e as duas áreas.
+    case 'campinho':
+      return (
+        <>
+          <rect x="2" y="5" width="20" height="14" />
+          <path d="M12 5v14M2 9h3.5v6H2M22 9h-3.5v6H22" />
+          <circle cx="12" cy="12" r="2.6" />
+        </>
+      )
   }
 }
 

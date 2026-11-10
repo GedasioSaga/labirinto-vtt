@@ -101,7 +101,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 48 objetos nas 8 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 53 objetos nas 10 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -301,10 +301,12 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento',
+      'Destroços de madeira', 'Sucata de chapas', 'Sucata de engrenagens', 'Sucata de tambores',
+      'Campinho de futebol',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(48)
+    expect(new Set(desenhos).size).toBe(53)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

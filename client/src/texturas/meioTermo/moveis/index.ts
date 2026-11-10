@@ -55,6 +55,9 @@ import { montarCataVento, montarCataVentoBrinquedo, montarMoinho } from './cataV
 import { montarPonte } from './ponte'
 import { montarCova } from './cova'
 import { montarCaixao, montarCaixaoAberto } from './caixao'
+import { montarDestrocosDeMadeira } from './destrocos'
+import { montarSucataDeChapas, montarSucataDeEngrenagens, montarSucataDeTambores } from './sucata'
+import { montarCampinho } from './campinho'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -120,6 +123,12 @@ const MONTADORES = {
   cova: montarCova,
   caixao: montarCaixao,
   caixaoAberto: montarCaixaoAberto,
+  // Destroços, sucata e o campinho (10/11/2026): cada sucata é um desenho próprio, não uma variante.
+  destrocosDeMadeira: montarDestrocosDeMadeira,
+  sucataChapas: montarSucataDeChapas,
+  sucataEngrenagens: montarSucataDeEngrenagens,
+  sucataTambores: montarSucataDeTambores,
+  campinho: montarCampinho,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -155,6 +164,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   'ponte',
   'cova', 'caixao', 'caixaoAberto',
+  'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

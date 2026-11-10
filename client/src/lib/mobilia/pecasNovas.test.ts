@@ -57,6 +57,13 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   cova: [1, 2],
   caixao: [1, 2],
   caixaoAberto: [1, 2],
+  // Destroços e sucata (10/11/2026): as pilhas grandes em 2 x 2, a de engrenagens em 1 x 1.
+  destrocosDeMadeira: [2, 2],
+  sucataChapas: [2, 2],
+  sucataEngrenagens: [1, 1],
+  sucataTambores: [2, 2],
+  // Campinho de futebol (10/11/2026): 10 casas de comprimento por 6 de largura.
+  campinho: [10, 6],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -97,6 +104,11 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   cova: ['Cova', 'uma cova'],
   caixao: ['Caixão', 'um caixão'],
   caixaoAberto: ['Caixão aberto', 'um caixão aberto'],
+  destrocosDeMadeira: ['Destroços de madeira', 'uns destroços de madeira'],
+  sucataChapas: ['Sucata de chapas', 'uma sucata de chapas'],
+  sucataEngrenagens: ['Sucata de engrenagens', 'uma sucata de engrenagens'],
+  sucataTambores: ['Sucata de tambores', 'uma sucata de tambores'],
+  campinho: ['Campinho de futebol', 'um campinho de futebol'],
 }
 
 describe('peças novas: registro', () => {
@@ -174,15 +186,16 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     const fogueira = TIPOS_NO_CATALOGO.indexOf('fogueira')
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
-    // Os objetos de vento (02/11/2026) depois deles.
-    expect(TIPOS_NO_CATALOGO.slice(-7)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    // Os objetos de vento (02/11/2026) depois deles, e os destroços, as sucatas e o campinho (10/11/2026) no fim.
+    expect(TIPOS_NO_CATALOGO.slice(-12, -5)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    expect(TIPOS_NO_CATALOGO.slice(-5)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
     // E o chafariz de 02/11/2026, logo depois do poço, e os 3 objetos de vento no fim; a ponte de 03/11/2026
     // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
     const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
     expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(48)
+    expect(TIPOS_NO_CATALOGO).toHaveLength(53)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

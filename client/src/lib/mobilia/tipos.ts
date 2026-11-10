@@ -29,6 +29,9 @@ export const TIPOS_MOBILIA = [
   'ponte',
   // O cemitério (07/11/2026): a cova (o monte de terra) e o caixão fechado e aberto, 1 x 2 casas.
   'cova', 'caixao', 'caixaoAberto',
+  // Destroços, sucata e o campinho (10/11/2026): os destroços de madeira, as três sucatas de metal (chapas e
+  // vigas, peças e engrenagens, tambores amassados) e o campinho de futebol, que mora no chão.
+  'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -221,13 +221,15 @@ describe('TOOL_VARIANTS', () => {
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
       'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
       'cataVento', 'moinho', 'cataVentoBrinquedo',
+      'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
     ])
-    expect(grupo.options).toHaveLength(48)
+    expect(grupo.options).toHaveLength(53)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
+      'Destroços de madeira', 'Sucata de chapas', 'Sucata de engrenagens', 'Sucata de tambores', 'Campinho de futebol',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
@@ -253,7 +255,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 8 partes da ficha (Sala e quarto 11, Cozinha e banheiro 7, Armazenagem 3, Rua e jardim 12, Cemitério 4, Feira 4, Oficina 3, Fazenda 4; os grupos ainda vazios não aparecem) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 10 partes da ficha (Sala e quarto 11, Cozinha e banheiro 7, Armazenagem 3, Rua e jardim 12, Cemitério 4, Feira 4, Oficina 3, Fazenda 4, Destroços e sucata 4, Esporte e lazer 1; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -266,8 +268,12 @@ describe('TOOL_VARIANTS', () => {
       ['Feira', 4],
       ['Oficina', 3],
       ['Fazenda', 4],
+      ['Destroços e sucata', 4],
+      ['Esporte e lazer', 1],
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual(['campinho'])
     const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)
     expect(new Set(nasPartes).size).toBe(nasPartes.length)
     expect([...nasPartes].sort()).toEqual([...catalogo].sort())

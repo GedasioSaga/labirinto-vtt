@@ -209,6 +209,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   cova: [],
   caixao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Alças', METAIS, 'ferro')],
   caixaoAberto: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  // Destroços e sucata (10/11/2026). Os destroços têm a madeira das tábuas (o carvalho, de partida: a velha,
+  // cinza, ao lado da sucata lia como ferro); a quebra lascada sai dela, puxada para o cerne claro. O metal
+  // das sucatas, a ferrugem e a tinta gasta dos tambores são fixos: escolher "latão" numa pilha de
+  // ferro-velho não mudaria nada que se leia.
+  destrocosDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  sucataChapas: [],
+  sucataEngrenagens: [],
+  sucataTambores: [],
+  // O campinho (10/11/2026): o gramado, a terra batida, a cal das linhas e as traves têm cor própria.
+  campinho: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

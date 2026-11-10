@@ -140,6 +140,15 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   cova: DERIVADO,
   caixao: DERIVADO,
   caixaoAberto: DERIVADO,
+  // Destroços e sucata (10/11/2026) ficam como de cima, como os troncos e o feno: são pilhas baixas e largas
+  // de peças soltas, e derivadas subiam num bloco com a frente varrida lisa.
+  destrocosDeMadeira: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  sucataChapas: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  sucataEngrenagens: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  sucataTambores: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // O campinho (10/11/2026) é chão: o gramado e a rede ficam onde estão, e só as traves sobem (os postes
+  // são colunas e o travessão, o tampo no ar, pelas sombras que o desenho de cima declara).
+  campinho: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */
