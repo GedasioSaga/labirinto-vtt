@@ -5,7 +5,7 @@ import { linhasDoJogador } from '../../../components/batalha/dadosDaFaixa'
 import { tremer } from '../../../components/batalha/EfeitosDaBatalha'
 import { FaixaDaOrdem } from '../../../components/batalha/FaixaDaOrdem'
 import type { ConsultaDaFicha } from '../../../components/batalha/MiraDoGolpe'
-import type { CasaDaArena, GradeDaArena as MedidaDaGrade } from '../../../lib/arena/grade'
+import { CASA_DA_ARENA, type CasaDaArena, type GradeDaArena as MedidaDaGrade } from '../../../lib/arena/grade'
 import type { PedidoDeAcao } from '../../../lib/batalha/combate'
 import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
 import type { LadoDaLuta, VagaDaLuta } from '../../../lib/treino/mesaEmMemoria'
@@ -313,6 +313,8 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
           efeitos={fio.efeitos}
           meus={meus}
           fichas={fichas}
+          // A mesma casa que põe as fichas na grade (`fichasDaLuta`): sem ela a mira conta em px e a técnica de área marca 1 inimigo em vez de 2.
+          tamanhoDaCasa={CASA_DA_ARENA}
           sistema={sistema}
           vidaPublica={vidaPublica}
           conexao={conexao}
