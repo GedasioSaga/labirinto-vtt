@@ -1,4 +1,31 @@
-# ATENÇÃO, 06h25 de 10/11/2026: a 0.5.45 está PRONTA e NÃO PUBLICADA
+# 0.5.45 PUBLICADA às 08h34 de 10/11/2026 (o mais recente)
+
+## Objetivo
+O mandato de 10/11 01h44 (unificar o combate, a lista de design do print 20, os riscos do site, publicar) está CUMPRIDO E PUBLICADO. O que resta é o mestre conferir no app instalado e decidir as pendências abaixo.
+
+## Estado atual
+- No ar: **v0.5.45** (`gh release view v0.5.45`: Latest, publishedAt 2026-11-10T11:34:28Z, alvo `d04dfcb5`, 4 arquivos: setup, .sig, msi, latest.json); Worker e site do Lobby enviados (Worker antes do site); log ~/.claude/jobs/6d1d8a12/tmp/publicar-0.5.45.log termina em `release v0.5.45 publicada com latest.json.` e `exit=0 minutos=7`. Também no ar desta sessão: 0.5.42, 0.5.43 (12 consertos), 0.5.44 (lista de cenas) e o pacote do Fogo na Floresta v3 (04h36).
+- main = origin/main, com o bump da 0.5.45 por cherry-pick; worktree labirinto-rel045 removido (junções antes; node_modules intacto). As branches release/0.5.43, 0.5.44 e 0.5.45 ficam no origin; NUNCA fazer merge da 0.5.43 na main (tem reverts).
+- O mestre autorizou ("pode publicar", 08h25) e autorizou fechar os dois `vite` antigos (portas 5461 e 5317, de sessões de 09/11, 6 GB cada), que tinham levado a memória a 0,5 GB livre e derrubado a primeira tentativa às 06h23.
+- Nenhum agente em voo. Pausados e guardados: Prelúdio F3c (`wip/preludio-f3c-pausa`, 18 arquivos sujos na árvore da main) e Companion C10 (`wip/construtor-c10-pausa`). Bolha d'Água: rascunho jogável em ~/jogos/bolha-d-agua (`jogar.ps1`), fora do app.
+
+## Próximos passos (todos dependem do mestre)
+1. Ele confere a 0.5.45 no app instalado, com um jogador de verdade no navegador. O que NINGUÉM viu: a tela do JOGADOR em batalha; os sons (só medidos); o app Tauri de verdade; a memória do menu; o Dragon Ball.
+2. Ele corrige os dados de ficha que o app não escreve (lista em docs/planos/unificacao-do-combate-2026-11-10.md, "Dado da ficha").
+3. Ele joga a Bolha d'Água (3 partidas por dificuldade) e responde as 3 perguntas; só então ela entra no app como minigame do pino.
+4. Decisões dele: Bolha cura Escudo? casa em chamas clareia por fora? "Ação bônus" no site sem mestre? Atacar com vários alvos em luta entre contas no site? jogador vê "Urso 1, 2, 3"? colega de aba escondida sai do Fogo depois de 10 s? 4 ou 2 botões no hover da lista de cenas?
+5. Fila técnica para depois (nada bloqueia): botão "Conferir ficha"; resto do papel rasgado (painel Rodada/Turno, Registro, cartas da faixa, corte do golpe); vez do bando no menu do centro; a "Visão de jogador" receber a batalha (net/visaoDeTeste/visaoDeTeste.ts:471); o Judge cobrindo fichas (App.tsx:1591-1609); troca de vez mais lenta com CPU 4x; os 8 testes antigos do catálogo de móveis de 07/11 (um leva 12,8 min); diagramas batalha-turnos, arena-multijogador, lobby-arquitetura, periodo-da-sessao e arquitetura-render-editor por atualizar.
+
+## Critério de pronto
+Cumprido para a publicação: release v0.5.45 no GitHub com latest.json, Worker e site enviados; teste de contrato 48 de 48 nas quatro entradas; Lançar na tela em 1366x768; nenhuma tarefa longa de 200 ms ou mais em build de produção com CPU normal; o robô do site cura. Falta só o aceite do mestre (gravar com `node ~/.claude/scripts/aceite.js sim|nao` quando ele responder).
+
+## Evidência
+- `gh release view v0.5.45` (acima) e `gh release list`: v0.5.45 Latest.
+- Suíte vitest inteira no worktree parado: 2061 arquivos, 19.989 testes, 9 falhas todas antigas (tmp/pedidos-2026-11-10/vitest-rel045.log).
+- Auditoria final só leitura (Opus xhigh): 71 testes executados verdes; "pode publicar".
+- Medida em produção: tmp/pedidos-2026-11-10/provas-T5/tabela.txt. Varredura com as fichas reais antes e depois: tmp/pedidos-2026-11-10/varredura-combate/ e varredura-depois/.
+
+# (histórico) ATENÇÃO, 06h25 de 10/11/2026: a 0.5.45 estava PRONTA e NÃO PUBLICADA
 
 O Claude Code interrompeu a publicação por FALTA DE MEMÓRIA na máquina (aviso do sistema às ~06h23: o comando foi parado com a sessão ociosa; não é falha do comando) e mandou NÃO relançar por conta própria: só quando o mestre pedir. Parou na etapa "build do site do Lobby", DEPOIS de compilar o app (Rust `Finished release in 2m 56s`) e de gerar e assinar o instalador (existe: desktop/src-tauri/target/release/bundle/nsis/Labirinto_0.5.45_x64-setup.exe). NADA foi enviado: nem Worker, nem site, nem release (`gh release list`: a última é a v0.5.44).
 
