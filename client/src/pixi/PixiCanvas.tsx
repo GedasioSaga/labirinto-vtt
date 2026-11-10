@@ -356,6 +356,7 @@ import {
   boundsOfDrawing,
   boundsOfWall,
   classifyMarqueeGesture,
+  ctrlPressPicksToken,
   ctrlStartsMarquee,
   EMPTY_AREA_SELECTION,
   MARQUEE_DRAG_THRESHOLD_SCREEN_PX,
@@ -3922,6 +3923,11 @@ function PixiCanvasDoContexto({
       // Peça sob o cursor quando o laço abriu com Ctrl em cima dela: um
       // Ctrl+clique parado a seleciona, como o clique comum (pointerup).
       let areaMarqueeClickItem: SelectionItem | null = null
+      // A ficha sob o aperto com Ctrl (`ctrlPressPicksToken`): o gesto nasce
+      // laço, e o clique parado segue sendo dele; passada a folga de arrasto
+      // vira o arrasto DESTA ficha, que atravessa parede. `pegouEm` é o ponto
+      // de mundo do aperto, para a pegada do pino.
+      let ctrlTokenPress: { tokenId: string; pressScreen: Point; pegouEm: Point } | null = null
       let areaSelectionDragBefore: MapData | null = null
       // A4 — arrasto do rótulo da Sala. Offset absoluto a partir do ponto e
       // do offset do pointerdown (não delta acumulado), então o arredondamento
@@ -4632,11 +4638,12 @@ function PixiCanvasDoContexto({
        * apertar Ctrl"): o Ctrl já era a tecla do movimento LIVRE de todo
        * arrasto — solta a guia de alinhamento (`isFreeMoveModifier`). Na ficha
        * ele também solta a parede, a porta e o barranco (`moveTokenLive`), e a
-       * grade continua sendo do Alt. Os outros dois usos do Ctrl ficam como
-       * estão: no aperto do botão em cima de ficha NÃO selecionada ele abre o
-       * laço (`ctrlStartsMarquee`), então o atravessar vale ao segurar o Ctrl
-       * já arrastando, ou ao pegar a ficha já selecionada. Este canvas é só do
-       * mestre: o jogador anda pela tela dele e o host confere o pedido.
+       * grade continua sendo do Alt. Vale com o Ctrl apertado no meio do
+       * arrasto e também antes de pegar a ficha: em cima de ficha NÃO
+       * selecionada o aperto abre o laço, e passada a folga o gesto vira o
+       * arrasto dela (`pegarFichaDoApertoComCtrl`); no vazio e em cima de
+       * outra peça o laço segue. Este canvas é só do mestre: o jogador anda
+       * pela tela dele e o host confere o pedido.
        */
       const passoDoArrastoDaFicha = (tokenId: string, worldPoint: Point, teclas: GuideKeys): void => {
         const { map } = useMapStore.getState()
@@ -4704,6 +4711,35 @@ function PixiCanvasDoContexto({
         if (event.key !== 'Control' && event.key !== 'Meta') return
         if (mode !== 'dragging-token' || draggingTokenId === null || pendingAltClone !== null || laserPointer === null) return
         passoDoArrastoDaFicha(draggingTokenId, laserPointer, event)
+      }
+
+      /**
+       * O aperto com Ctrl em cima da ficha passou da folga: o laço aberto sai
+       * de cena e o gesto vira o arrasto da ficha, como o do clique comum —
+       * ela fica selecionada sozinha, o snapshot de antes fecha o arrasto num
+       * Ctrl+Z só. Sem cópia do Alt aqui: com o Ctrl o gesto é de passar, não
+       * de duplicar. `false` se a ficha sumiu no meio (o laço segue).
+       */
+      const pegarFichaDoApertoComCtrl = (aperto: { tokenId: string; pegouEm: Point }): boolean => {
+        const { map, setSelection } = useMapStore.getState()
+        const token = map.tokens.find((t) => t.id === aperto.tokenId)
+        if (token === undefined) return false
+        areaMarqueeStart = null
+        areaMarqueeClickItem = null
+        areaMarqueeGraphics.clear()
+        marqueeHint.hide()
+        setSelection(selectionOfItem({ kind: 'token', id: token.id }))
+        mode = 'dragging-token'
+        tokenDragSnapshot = map
+        tokenDragOrigin = { x: token.x, y: token.y }
+        tokenDragPegada = pinosDaCena(map).has(token.id) ? { x: token.x - aperto.pegouEm.x, y: token.y - aperto.pegouEm.y } : { x: 0, y: 0 }
+        tokenDragLastShown = null
+        tokenDragLifted = false
+        draggingTokenId = token.id
+        segurarNoArrasto([{ kind: 'token', id: token.id }])
+        startTokenGuides(token.id)
+        updateCursor()
+        return true
       }
 
       /**
@@ -7105,13 +7141,19 @@ function PixiCanvasDoContexto({
         // começar o retângulo. Em cima do que já está selecionado o gesto segue
         // sendo mover livre das guias (`ctrlStartsMarquee`). Depois das alças
         // e do arrasto de grupo de propósito: esses só pegam o que já está
-        // selecionado.
+        // selecionado. Em cima de FICHA não selecionada o laço abre, mas o
+        // arrasto é dela (`ctrlPressPicksToken`, pedido do mestre de 10/11/2026).
         if (activeTool === 'select' && isFreeMoveModifier(event)) {
           const ctrlHit = findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map)) ?? floorHitAt(map, worldPoint)
           const pressedOnSelected = ctrlHit ? selectionHas(selection, { kind: ctrlHit.kind, id: ctrlHit.id }) : false
           if (ctrlStartsMarquee(event, pressedOnSelected)) {
             const travada = camadaTravadaNoPiso(map, useMapStore.getState().pisoAtivo, worldPoint, pinosNoToque(map)) !== null
             areaMarqueeClickItem = ctrlHit && !travada ? { kind: ctrlHit.kind, id: ctrlHit.id } : null
+            const fichaSobCtrl = ctrlHit?.kind === 'token' && !travada ? map.tokens.find((t) => t.id === ctrlHit.id) : undefined
+            ctrlTokenPress =
+              fichaSobCtrl !== undefined && ctrlPressPicksToken(event, canInteract(fichaSobCtrl))
+                ? { tokenId: fichaSobCtrl.id, pressScreen: { x: event.global.x, y: event.global.y }, pegouEm: worldPoint }
+                : null
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
             lastPoint = { x: event.global.x, y: event.global.y }
@@ -7412,6 +7454,7 @@ function PixiCanvasDoContexto({
             mode = 'area-marquee-drag'
             areaMarqueeStart = worldPoint
             areaMarqueeClickItem = null
+            ctrlTokenPress = null
           } else {
             // Nenhuma ferramenta de desenho chega aqui (todas saem com
             // `return` bem acima); sobra a Selecionar. Este ramo é a rede de
@@ -7871,6 +7914,7 @@ function PixiCanvasDoContexto({
         resizingPropSnapshot = null
         areaMarqueeStart = null
         areaMarqueeClickItem = null
+        ctrlTokenPress = null
         areaSelectionDragBefore = null
         tokenDragSnapshot = null
         propDragSnapshot = null
@@ -8078,6 +8122,7 @@ function PixiCanvasDoContexto({
         // cancela sem fechar a seleção (mesmo padrão de wallDraftStart/
         // roomDraftStart abaixo: um draft "solto fora do canvas" descarta, não
         // commita com o último ponto conhecido).
+        ctrlTokenPress = null
         if (areaMarqueeStart) {
           areaMarqueeStart = null
           areaMarqueeGraphics.clear()
@@ -8490,6 +8535,17 @@ function PixiCanvasDoContexto({
         // varre todas as entidades do mapa.
         if (mode === 'area-marquee-drag' && areaMarqueeStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          // Ctrl apertou em cima de uma ficha: dentro da folga ainda é clique
+          // (nada desenha), além dela o gesto vira o arrasto da ficha.
+          if (ctrlTokenPress !== null) {
+            if (Math.hypot(event.global.x - ctrlTokenPress.pressScreen.x, event.global.y - ctrlTokenPress.pressScreen.y) < MARQUEE_DRAG_THRESHOLD_SCREEN_PX) return
+            if (pegarFichaDoApertoComCtrl(ctrlTokenPress)) {
+              passoDoArrastoDaFicha(ctrlTokenPress.tokenId, worldPoint, event)
+              ctrlTokenPress = null
+              return
+            }
+            ctrlTokenPress = null
+          }
           const rect: AreaRect = { x1: areaMarqueeStart.x, y1: areaMarqueeStart.y, x2: worldPoint.x, y2: worldPoint.y }
           drawSelectionMarquee(areaMarqueeGraphics, rect)
           // A dica de "e a vista, como move?" só enquanto a pessoa ainda não
@@ -9137,6 +9193,7 @@ function PixiCanvasDoContexto({
             // universal de "deixa pra lá" não vale aqui; ela vale.
             if (mode === 'area-marquee-drag') {
               areaMarqueeStart = null
+              ctrlTokenPress = null
               areaMarqueeGraphics.clear()
               marqueeHint.hide()
               mode = 'idle'

@@ -346,3 +346,58 @@ describe('PixiCanvas — "Ir até lá" leva a câmera deslizando (M23)', () => {
     expect(camera.x).toBeCloseTo(tela.largura / 2 - FOCO.x * 0.5, 6)
   })
 })
+
+describe('PixiCanvas — Ctrl apertado ANTES de pegar a ficha atravessa a parede (10/11/2026)', () => {
+  /** Muro em pé no x = 320, entre a Lanterna (160, 160) e o destino (480, 160). */
+  const MURO = { id: 'muro', x1: 320, y1: 0, x2: 320, y2: 1280, blocksLight: true, blocksMove: true, door: null }
+
+  /** O mesmo gesto de `ponteiro`, com o Ctrl segurado. */
+  function comCtrl(tipo: 'pointerdown' | 'pointermove' | 'pointerup', mundo: { x: number; y: number }): void {
+    act(() => {
+      const e = evento(mundo)
+      e.ctrlKey = true
+      app().stage.emit(tipo, e)
+    })
+  }
+  const posicao = (id: string) => useMapStore.getState().map.tokens.find((t) => t.id === id)
+  const selecao = () => useMapStore.getState().selection
+
+  beforeEach(() => {
+    useMapStore.setState({ map: { ...mapa(), walls: [MURO] } })
+  })
+
+  it('ficha não selecionada: o arrasto com Ctrl é dela e passa pela parede; de volta, sem Ctrl, a parede barra', async () => {
+    await monta()
+    comCtrl('pointerdown', { x: 160, y: 160 })
+    comCtrl('pointermove', { x: 480, y: 160 })
+    comCtrl('pointerup', { x: 480, y: 160 })
+    expect(posicao('lanterna')).toMatchObject({ x: 480, y: 160 })
+    expect(selecao()).toEqual([{ kind: 'token', id: 'lanterna' }])
+
+    ponteiro('pointerdown', { x: 480, y: 160 })
+    ponteiro('pointermove', { x: 160, y: 160 })
+    ponteiro('pointerup', { x: 160, y: 160 })
+    expect(posicao('lanterna')?.x).toBe(480)
+  })
+
+  it('Ctrl+clique parado na ficha só a seleciona; Ctrl no vazio e em cima da sala abre o laço, e nada anda', async () => {
+    await monta()
+    comCtrl('pointerdown', { x: 160, y: 160 })
+    comCtrl('pointerup', { x: 161, y: 160 })
+    expect(posicao('lanterna')).toMatchObject({ x: 160, y: 160 })
+    expect(selecao()).toEqual([{ kind: 'token', id: 'lanterna' }])
+
+    // No vazio: o laço pega o Machado inteiro e ninguém sai do lugar.
+    comCtrl('pointerdown', { x: 100, y: 420 })
+    comCtrl('pointermove', { x: 240, y: 540 })
+    comCtrl('pointerup', { x: 240, y: 540 })
+    expect(selecao()).toEqual([{ kind: 'token', id: 'machado' }])
+    expect(posicao('machado')).toMatchObject({ x: 160, y: 480 })
+
+    // Em cima da sala (não é ficha): laço, a sala não anda.
+    comCtrl('pointerdown', { x: 700, y: 400 })
+    comCtrl('pointermove', { x: 1000, y: 700 })
+    comCtrl('pointerup', { x: 1000, y: 700 })
+    expect(useMapStore.getState().map.regions.find((r) => r.id === 'quarto')?.points).toEqual(QUARTO.points)
+  })
+})

@@ -740,6 +740,20 @@ export function ctrlStartsMarquee(
   return !pressedOnSelected
 }
 
+/**
+ * Ctrl no aperto em cima de uma FICHA que ainda não está selecionada (o laço
+ * de `ctrlStartsMarquee` já abriu): o gesto é da ficha? Pedido do mestre de
+ * 10/11/2026 — segurar Ctrl, pegar a ficha e arrastar passa por parede
+ * (`moveTokenLive` com `atravessar`). Quem decide é a FOLGA de arrasto: o
+ * clique parado segue sendo do laço (seleciona a ficha, como sempre), e só
+ * passada `MARQUEE_DRAG_THRESHOLD_SCREEN_PX` o canvas troca o laço pelo
+ * arrasto dela. Não pega: com Shift (Shift+Ctrl+arrastar segue somando área à
+ * seleção) nem ficha travada (`movable`), que não anda por gesto nenhum.
+ */
+export function ctrlPressPicksToken(event: { shiftKey: boolean }, movable: boolean): boolean {
+  return movable && !event.shiftKey
+}
+
 /** Onde cabe a dica "Espaço ou botão do meio move a vista" DENTRO do
  *  retângulo em curso, em coordenadas de MUNDO (é lá que o marquee é
  *  desenhado). `visible: false` quando o retângulo é pequeno demais pra
