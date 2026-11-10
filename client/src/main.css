@@ -5007,10 +5007,15 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
   animation: lb-cenas-mini-chega var(--lb-motion-fast) var(--lb-motion-ease);
 }
 
-/* Só opacidade, nada se move: fica também com movimento reduzido. */
 @keyframes lb-cenas-mini-chega {
   from {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cenas__mini[data-chegou='true'] > svg {
+    animation: none;
   }
 }
 
