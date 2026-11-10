@@ -21,7 +21,8 @@ import { SceneAlarmControls, type ActiveAlarmView } from './SceneAlarmControls'
 import { NOTE_MAX_LENGTH } from '../net/protocol'
 import { sceneTree, SCENE_PUBLIC_NAME_MAX_LENGTH, SCENE_TRAIL_SEPARATOR, type SceneTreeRow } from '../lib/adventure'
 import { matchesSceneSearch, SCENE_FILTER_MIN, sceneSearchWords } from '../lib/sceneSearch'
-import { pendingRequestsLabel, type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
+import { type ScenePeople, type ScenePerson, type SceneRoom } from '../lib/party'
+import { RetratosDaCena, type PessoaNaLinha } from './RetratosDaCena'
 import { esperaLonga, minutosDeEspera, rotuloDeEspera, type EsperaPorCena } from '../lib/cenaQueEspera'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import type { MapData } from '../types/map'
@@ -764,13 +765,8 @@ function MoveForm({ sceneName, options, currentParentId, onMove, onCancel }: Mov
 /** Campo aberto na seção: nome da cena nova, ou novo nome da cena aberta. */
 type Editing = { kind: 'create' } | { kind: 'rename'; sceneId: string } | null
 
-/** Uma bolinha da linha. `where` = ela está numa cena de dentro da pasta recolhida, e o rótulo diz qual. */
-interface RowPerson extends ScenePerson {
-  where?: string
-}
-
 interface RowPeople {
-  people: RowPerson[]
+  people: PessoaNaLinha[]
   pendingRequests: number
 }
 
@@ -800,25 +796,6 @@ function nameTitle(scene: SceneListItem, minutesWaiting: number | undefined): st
   if (unavailable !== undefined) lines.push(unavailable)
   else if (minutesWaiting !== undefined) lines.push(esperaTitle(minutesWaiting))
   return lines.join('\n')
-}
-
-/**
- * A segunda linha do item: uma bolinha por jogador na cena (cor da ficha,
- * nome no rótulo e no título — o mouse em cima diz quem é) e o selo dos
- * pedidos que esperam o mestre. Fica numa linha própria para sete jogadores
- * não espremerem o nome da cena. Na pasta recolhida entram também os de
- * dentro dela, e o rótulo diz onde cada um está.
- */
-function SceneGente({ people }: { people: RowPeople }) {
-  return (
-    <div className="lb-cenas__gente">
-      {people.people.map((person) => {
-        const label = person.where === undefined ? person.name : `${person.name}, em ${person.where}`
-        return <span key={person.playerId} role="img" className="lb-cenas__pessoa" aria-label={label} title={label} style={{ background: person.color }} />
-      })}
-      {people.pendingRequests > 0 && <span className="lb-cenas__pedidos">{pendingRequestsLabel(people.pendingRequests)}</span>}
-    </div>
-  )
 }
 
 /** localStorage pode não existir ou lançar (janela privada, dado bloqueado): sem ele, nada vem recolhido. */
@@ -1522,7 +1499,7 @@ export function ScenesSection({
   const peopleOf = (index: number, collapsedFolder: boolean): RowPeople | null => {
     const row = tree[index]
     const own = people?.get(row.entry.id)
-    const list: RowPerson[] = own === undefined ? [] : [...own.people]
+    const list: PessoaNaLinha[] = own === undefined ? [] : [...own.people]
     let pendingRequests = own?.pendingRequests ?? 0
     if (collapsedFolder) {
       for (const inner of tree.slice(index + 1, subtreeEnd(index))) {
@@ -1806,7 +1783,8 @@ export function ScenesSection({
                   Jogadores leem: {scene.publicName}
                 </p>
               )}
-              {here !== null && <SceneGente people={here} />}
+              {/* ONDE ESTÁ O GRUPO: retratos e nomes de quem está aqui (na pasta recolhida, também lá dentro). */}
+              {here !== null && <RetratosDaCena pessoas={here.people} pedidos={here.pendingRequests} />}
               {deleting === scene.id && deletionInfo !== undefined && (
                 <DeleteConfirm sceneName={scene.name} info={deletionInfo(scene.id)} onConfirm={() => confirmDelete(scene.id)} onCancel={cancelDelete} />
               )}

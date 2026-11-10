@@ -146,7 +146,7 @@ describe('ScenesSection: cenas em pastas', () => {
 
   it('recolher esconde as de dentro sem trocar de cena, e a linha da pasta soma as bolinhas e os pedidos', () => {
     const { onSelect } = render({ people: GENTE })
-    expect(linha('Costa Norte').querySelectorAll('.lb-cenas__pessoa')).toHaveLength(0)
+    expect(linha('Costa Norte').querySelectorAll('.lb-cenas__retrato')).toHaveLength(0)
 
     act(() => pasta('Costa Norte')?.click())
 
@@ -154,17 +154,17 @@ describe('ScenesSection: cenas em pastas', () => {
     expect(pasta('Costa Norte')?.getAttribute('aria-expanded')).toBe('false')
     expect(nomes()).toEqual(['Costa Norte', 'Mercado', 'Estrada Velha', 'Vila do Vau', 'Taverna'])
     const costa = linha('Costa Norte')
-    const bolinhas = Array.from(costa.querySelectorAll<HTMLElement>('.lb-cenas__pessoa'))
+    const bolinhas = Array.from(costa.querySelectorAll<HTMLElement>('.lb-cenas__retrato'))
     expect(bolinhas.map((b) => b.getAttribute('aria-label'))).toEqual(['Bruno, em Porto Cinza', 'Ana, em Taverna'])
     expect(bolinhas.map((b) => b.style.background)).toEqual(['rgb(47, 123, 255)', 'rgb(60, 255, 0)'])
     expect(costa.textContent).toContain('1 pedido')
     // A Estrada Velha, fora da pasta, continua só com quem está nela.
-    expect(Array.from(linha('Estrada Velha').querySelectorAll('.lb-cenas__pessoa')).map((b) => b.getAttribute('aria-label'))).toEqual(['Caio'])
+    expect(Array.from(linha('Estrada Velha').querySelectorAll('.lb-cenas__retrato')).map((b) => b.getAttribute('aria-label'))).toEqual(['Caio'])
 
     act(() => pasta('Costa Norte')?.click())
     expect(nomes()).toHaveLength(7)
-    expect(linha('Costa Norte').querySelectorAll('.lb-cenas__pessoa')).toHaveLength(0)
-    expect(Array.from(linha('Porto Cinza').querySelectorAll('.lb-cenas__pessoa')).map((b) => b.getAttribute('aria-label'))).toEqual(['Bruno'])
+    expect(linha('Costa Norte').querySelectorAll('.lb-cenas__retrato')).toHaveLength(0)
+    expect(Array.from(linha('Porto Cinza').querySelectorAll('.lb-cenas__retrato')).map((b) => b.getAttribute('aria-label'))).toEqual(['Bruno'])
   })
 
   it('a pasta recolhida é lembrada por aventura: fechar e abrir a aba volta igual', () => {

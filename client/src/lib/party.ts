@@ -11,6 +11,7 @@ import { mapaDoPiso, pisoDe } from './pisos'
 import { roomsAt } from './roomNesting'
 import type { DestinationMark } from './signals'
 import { tokenFillColor } from './tokenColor'
+import { isTokenPhotoData } from './tokenPhoto'
 import { entourageNear } from './travelTogether'
 import { isCoinAmount, moedasDe } from './troca'
 
@@ -507,6 +508,12 @@ export interface ScenePerson {
    * Só o mestre lê: nunca vai pela rede.
    */
   rooms?: SceneRoom[]
+  /**
+   * A foto da ficha (`imageData`, a cópia `data:image/...` embutida), para o
+   * retrato da lista Cenas. Ausente = sem foto: o retrato mostra a inicial na
+   * cor. Só com `world`; só o mestre lê.
+   */
+  photo?: string
 }
 
 /** Uma Sala do mapa da cena, pelo nome que o mestre deu. */
@@ -529,6 +536,15 @@ function roomsOfMember(member: PartyMember, world: HostWorld): SceneRoom[] {
     const name = (region.room?.name ?? '').trim()
     return { id: region.id, name: name === '' ? UNNAMED_ROOM_LABEL : name }
   })
+}
+
+/** A foto embutida da ficha do membro, na cena dele; caminho de disco não serve (não vira `src` sem o Tauri). */
+function photoOfMember(member: PartyMember, world: HostWorld): string | undefined {
+  if (member.token === null) return undefined
+  const tokenId = member.token.id
+  const scene = allScenes(world).find((s) => s.sceneId === member.sceneId)
+  const photo = scene?.map.tokens.find((t) => t.id === tokenId)?.imageData
+  return isTokenPhotoData(photo) ? photo : undefined
 }
 
 /** O que a linha de UMA cena da lista Cenas mostra além do nome. */
@@ -563,7 +579,11 @@ export function peopleByScene(members: PartyMember[], world?: HostWorld): Map<st
     }
     if (member.token !== null) {
       const person: ScenePerson = { playerId: member.playerId, name: member.name, color: member.token.color }
-      if (world !== undefined) person.rooms = roomsOfMember(member, world)
+      if (world !== undefined) {
+        person.rooms = roomsOfMember(member, world)
+        const photo = photoOfMember(member, world)
+        if (photo !== undefined) person.photo = photo
+      }
       entry.people.push(person)
     }
     if (member.travelPending) entry.pendingRequests += 1
