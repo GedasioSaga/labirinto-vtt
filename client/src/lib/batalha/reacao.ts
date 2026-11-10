@@ -181,3 +181,21 @@ export function ajustesDaCura(personagem: Personagem, sistema: SistemaDeRpg, cur
   if (recurso === null || vida === null || vida.atual >= vida.maximo) return []
   return [{ parte: 'recurso', chave: recurso.id, valor: Math.min(vida.maximo, vida.atual + cura) }]
 }
+
+/** Quanto da cura entra de verdade: o que falta até o máximo. Sem vida na ficha ou já cheia, 0. */
+export function curaQueCabe(personagem: Personagem, sistema: SistemaDeRpg, cura: number): number {
+  const recurso = recursoDeVida(sistema)
+  const vida = recurso === null || !(cura > 0) ? null : vidaDoPersonagem(personagem, recurso)
+  return vida === null ? 0 : Math.max(0, Math.min(cura, vida.maximo - vida.atual))
+}
+
+/**
+ * Pedido de 09/11/2026 (a Bolha do NPC): a cura no registro é a que entrou, não
+ * a da conta. Antes a linha dizia "curou 50" também em quem estava com a vida
+ * cheia, e o mestre lia uma cura que não mudou nada. Ex.: 50 em quem tem 480
+ * de 500 = "curou 20 (a vida encheu)"; em quem tem 500 = "vida já cheia, não curou".
+ */
+export function notaDaCura(cura: number, coube: number): string {
+  if (cura <= 0 || coube >= cura) return `curou ${cura}`
+  return coube === 0 ? 'vida já cheia, não curou' : `curou ${coube} (a vida encheu)`
+}

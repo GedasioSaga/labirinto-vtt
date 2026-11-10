@@ -198,7 +198,8 @@ describe('Revigorar do Guilherme', () => {
     expect(loja.getState().agir(CENA, MESTRE, vez, tecnica(REVIGORAR.id, [{ tokenId: token(loja, 'Guilherme'), dano: null }]))).toBe(true)
     expect(recursos(mesa, 'Guilherme').hp).toBe(1100)
     expect(combateDe(loja, idDe(mesa, 'Guilherme'))?.carga).toBe(0)
-    expect(textos(loja).some((texto) => texto.includes('curou 300'))).toBe(true)
+    // Pedido de 09/11 (a Bolha): a nota diz o que entrou (a conta deu 300; cabiam 200 até o máximo de 1100).
+    expect(textos(loja).some((texto) => texto.includes('curou 200 (a vida encheu)'))).toBe(true)
   })
 
   it('nele: cura o Espírito (900 → 1000, máximo 1100); no Vagn (inimigo) é recusado', () => {

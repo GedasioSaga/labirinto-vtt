@@ -140,6 +140,8 @@ export interface GolpeNaTela {
   reacao?: ReacaoDoTipo
   /** Tipos de habilidade F2: Buff, a mira começa em quem usa (aliados também marcáveis). */
   alvoEmSi?: boolean
+  /** Pedido de 09/11 (a Bolha): a técnica cura; a mira abre nos feridos do lado de quem usa (`feridosParaACura`) e mostra a vida de cada um. */
+  cura?: boolean
   /** Tipos de habilidade F2: o bônus dos selos de quem age que entrou na conta (`bonusDaBatalha`); ausente = nenhum. */
   bonus?: BonusDaBatalha
   /** Atacar com arma: a categoria da ficha ("De fogo"); ausente = a ficha não diz. */
@@ -293,6 +295,22 @@ export interface AlvoNaMira {
   deslocamento?: Casa
   /** Construtor C3: a ficha do alvo e a de quem age na grade, inteiras (token grande), e para onde quem age olha; ausente = sem posição. */
   naGrade?: GradeDaMira
+  /** Pedido de 09/11 (a Bolha): a vida do alvo, para a mira da cura marcar os feridos e mostrar quanto falta. Ausente = quem monta não sabe (a tela do jogador). */
+  vida?: { atual: number; maximo: number }
+}
+
+/**
+ * Pedido de 09/11/2026 (a Bolha do NPC "não curou nada"): quem a mira da cura
+ * marca ao abrir. Antes ela abria só em quem usa, mesmo com a vida cheia, e o
+ * Executar gastava o custo sem curar ninguém. Agora: os feridos do lado de
+ * quem usa (ele junto), o mais ferido primeiro, até o teto de alvos da técnica.
+ * `null` = ninguém ferido, ou a lista não traz a vida: vale a regra de sempre.
+ * Quem caiu não entra sozinho (o mestre marca à mão, se a mesa deixar).
+ */
+export function feridosParaACura(alvos: readonly AlvoNaMira[], teto: number): string[] | null {
+  const falta = (alvo: AlvoNaMira): number => (alvo.vida === undefined ? 0 : alvo.vida.maximo - alvo.vida.atual)
+  const feridos = alvos.filter((alvo) => alvo.lado !== 'outro' && !alvo.motivo && !alvo.caiu && falta(alvo) > 0).sort((a, b) => falta(b) - falta(a))
+  return feridos.length === 0 ? null : feridos.slice(0, Math.max(1, teto)).map((alvo) => alvo.tokenId)
 }
 
 /** Construtor C3: onde o alvo e quem age estão na grade (a ficha inteira de cada um). */
@@ -594,7 +612,10 @@ function golpeDaTecnica(
   if (golpe.motivo === null && subida !== null && 'motivo' in subida) golpe.motivo = subida.motivo
   // F2 (fatia D, Revigorar): a técnica que limpa começa em quem usa (vale nele ou num aliado).
   // Construtor C3: a cura montada em área começa em quem está na área (a grade marca os aliados).
-  if (limpezaDe(cartao) !== null && golpe.areaPelaGrade !== true) golpe.alvoEmSi = true
+  if (limpezaDe(cartao) !== null && golpe.areaPelaGrade !== true) {
+    golpe.alvoEmSi = true
+    golpe.cura = true
+  }
   // F2 (fatia C): mais as perguntas de todo golpe do dono (o Electro da Aira).
   // F2 (fatia D, Imbuir Fogo): a opção que a forma ligada não deixa some (a Ignição ligada deixa só "Não" no fogo).
   const perguntas = perguntasComAsFormas(perguntasDoGolpe(id, idsDosCartoes(personagem)), id, personagem.cartoesAtivos)

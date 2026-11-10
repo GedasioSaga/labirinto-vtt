@@ -154,7 +154,7 @@ import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
-import { ajustesDaCura, ajustesDoDano, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
+import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
 import {
   comLinha,
@@ -2697,6 +2697,10 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           // A cura lê o Espírito de quem usa DEPOIS da limpeza (sem o cansaço, se ele limpou a si mesmo); com 3 cargas, a fórmula do X3 da ficha.
           const lida = lerDano(formulaDaCura(limpeza, lancado.cargaUsada), { personagem: ctx.personagem, sistema: ctx.sistema, arma: null, vidaDoAlvo: null, bonusDaBatalha: bonusDaBatalha(novos.selos, carta.tokenId) })
           const cura = lida.tipo === 'valor' ? lida.valor : 0
+          // Pedido de 09/11 (a Bolha): o que cabe na vida do alvo AGORA (lido antes de gravar), para a nota dizer o que entrou.
+          const sistemaDaCura = ctx.sistema
+          const fichaDoAlvo = alvo.personagemId === null ? undefined : mesa.personagens().find((candidato) => candidato.id === alvo.personagemId)
+          const coube = fichaDoAlvo === undefined ? 0 : curaQueCabe(fichaDoAlvo, sistemaDaCura, cura)
           const curou = alvo.personagemId === null || cura <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDaCura(atual, sistema, cura), quem)
           if (curou === 'recusada') {
             devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
@@ -2706,7 +2710,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
           const item = pedido.tipo === 'habilidade' ? mecanicaDoCartao(pedido.cartaoId)?.gastaItem : undefined
           const doItem = item === undefined ? '' : `, gastou 1 ${item}`
-          const nota = limpeza.soCura === true ? `curou ${cura}${doItem}` : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, curou ${cura}${doItem}`
+          const daCura = `${notaDaCura(cura, coube)}${doItem}`
+          const nota = limpeza.soCura === true ? daCura : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, ${daCura}`
           golpe = golpeComOAlvo(golpe, { ...alvo, nota })
         }
       }

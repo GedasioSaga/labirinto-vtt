@@ -25,6 +25,7 @@ import { ContaComBonus } from './ContaComBonus'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
 import {
   alvosNaAreaDaMira,
+  feridosParaACura,
   alvosNaAreaPelaGrade,
   areaComFrente,
   contaDoGolpe,
@@ -262,6 +263,9 @@ function alternarNaLista(antes: readonly string[], tokenId: string, tetoDeAlvos:
 
 /** Quem a mira marca ao abrir: Buff em si; quem está na área (F2, fatia F: Giro de Pá); a sugestão do NPC; o primeiro de outra equipe. */
 function marcadosAoAbrir(golpe: GolpeNaTela, alvos: readonly AlvoNaMira[], alvoInicial: string | null | undefined, daArea: readonly string[] | undefined): string[] {
+  // Pedido de 09/11 (a Bolha): a cura abre nos feridos do lado de quem usa; sem ferido (ou sem a vida na lista), em quem usa.
+  const feridos = golpe.cura === true ? feridosParaACura(alvos, golpe.tetoDeAlvos ?? 1) : null
+  if (feridos !== null) return feridos
   const emSi = golpe.alvoEmSi === true ? voceNaLista(alvos) : null
   if (emSi !== null) return [emSi]
   // F2 (fatia C): a técnica sem alvo (Armadilhar posiciona a armadilha) abre sem ninguém marcado.
@@ -671,6 +675,12 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                   <MiniaturaDoAlvo imagem={alvo.imagem} nome={alvo.nome} cor={alvo.cor} caiu={alvo.caiu} />
                   <span className="bt-alvo__texto">
                     {alvo.nome} {alvo.lado !== 'outro' && <small>{alvo.lado === 'eu' ? '· você' : '· aliado'}</small>}
+                    {golpe.cura === true && alvo.vida !== undefined && (
+                      <small>
+                        {' '}
+                        · vida {formatarNumero(alvo.vida.atual)}/{formatarNumero(alvo.vida.maximo)}
+                      </small>
+                    )}
                     {alvo.caiu && <small> · caiu</small>}
                     {alvo.motivo && <small> · {alvo.motivo}</small>}
                   </span>
