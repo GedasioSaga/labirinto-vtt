@@ -111,8 +111,8 @@ body:has(.bt-centro-do-mestre .bt-mira) .lb-hint {
   padding-top: 10px;
 }
 /*
- * Recolhida: só o botão REAÇÃO, no alto à direita do lugar, logo abaixo da caixa da rodada (a reação é o que trava a
- * virada). Embaixo no meio, como no jogador, ele caía sobre a dica da ferramenta e encostava no menu da vez.
+ * Recolhida: só o botão REAÇÃO, no alto à direita do lugar, logo abaixo da caixa da rodada (é a decisão que o mestre
+ * deve antes da virada; não trava nada). Embaixo no meio, como no jogador, ele caía sobre a dica da ferramenta e encostava no menu da vez.
  */
 .bt-reacao-no-centro[data-recolhida='sim'] {
   justify-content: flex-end;

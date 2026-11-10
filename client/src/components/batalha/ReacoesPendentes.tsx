@@ -43,7 +43,9 @@ export interface ReacoesPendentesProps {
  * ligado). O número vale ao sair do campo ou no Enter (cada troca reescreve a
  * linha do registro); Esc ou número torto voltam ao do golpe.
  */
-function PerfuranteDoGolpe({ item, onTrocar }: { item: PendenteNaTela; onTrocar: ReacoesPendentesProps['onTrocarPerfurante'] }) {
+function PerfuranteDoGolpe({ item, emQuem, onTrocar }: { item: PendenteNaTela; emQuem: string; onTrocar: ReacoesPendentesProps['onTrocarPerfurante'] }) {
+  // Auditoria de 10/11: três golpes da mesma arma davam três chaves iguais; o alvo no rótulo diz qual é qual.
+  const golpe = `${item.nome} em ${emQuem}`
   const idTexto = useId()
   const porcentagem = porcentagemQuePerfura(true, item.perfuracao)
   const [texto, setTexto] = useState(String(porcentagem))
@@ -59,11 +61,11 @@ function PerfuranteDoGolpe({ item, onTrocar }: { item: PendenteNaTela; onTrocar:
       <label className="bt-chave">
         <input type="checkbox" role="switch" checked={item.perfurante} aria-describedby={idTexto} onChange={(evento) => onTrocar(item.golpeId, evento.target.checked)} />
         <span className="bt-chave__trilho" aria-hidden="true" />
-        {item.nome}: perfurante
+        {golpe}: perfurante
       </label>
       {item.perfurante && (
         <label className="bt-perfura__quanto">
-          <span className="bt-sr">Quanto {item.nome} perfura, em %</span>
+          <span className="bt-sr">Quanto {golpe} perfura, em %</span>
           <input
             className="bt-num"
             inputMode="numeric"
@@ -93,6 +95,12 @@ function PerfuranteDoGolpe({ item, onTrocar }: { item: PendenteNaTela; onTrocar:
       </small>
     </span>
   )
+}
+
+/** "Alce 1", "Alce 1 e Alce 2", "Alce 1, Alce 2 e Alce 3". */
+function listaDeNomes(nomes: readonly string[]): string {
+  if (nomes.length <= 1) return nomes[0] ?? ''
+  return `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1] ?? ''}`
 }
 
 /**
@@ -133,6 +141,13 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
   const deJogador = itens.filter((item) => !item.doMestre)
   const golpes = new Map<string, PendenteNaTela>()
   for (const item of itens) if (item.dano !== null && !golpes.has(item.golpeId)) golpes.set(item.golpeId, item)
+  // Quem cada golpe atingiu, na ordem da lista (o "perto" do Aplauso repete o alvo: entra uma vez).
+  const alvosDoGolpe = new Map<string, string[]>()
+  for (const item of itens) {
+    const nomes = alvosDoGolpe.get(item.golpeId) ?? []
+    if (!nomes.includes(item.alvo)) nomes.push(item.alvo)
+    alvosDoGolpe.set(item.golpeId, nomes)
+  }
   // Conserto das fichas F1 (bug 2): o mestre vê quantos golpes esperam e o que acontece com eles na virada.
   const quantosGolpes = new Set(itens.map((item) => item.golpeId)).size
 
@@ -227,7 +242,7 @@ export function ReacoesPendentes({ itens, onPedir, onTrocarPerfurante }: Reacoes
       {golpes.size > 0 && (
         <div className="bt-npc__chaves bt-sobre-escuro">
           {[...golpes.values()].map((item) => (
-            <PerfuranteDoGolpe key={item.golpeId} item={item} onTrocar={onTrocarPerfurante} />
+            <PerfuranteDoGolpe key={item.golpeId} item={item} emQuem={listaDeNomes(alvosDoGolpe.get(item.golpeId) ?? [item.alvo])} onTrocar={onTrocarPerfurante} />
           ))}
         </div>
       )}
