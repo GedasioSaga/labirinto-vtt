@@ -17,6 +17,7 @@ import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMes
 import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { vidasDaCena } from '../../lib/vidaDaFicha'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { efeitosDaCena, useBatalhaStore, type BatalhaDaCena } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
@@ -561,12 +562,28 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
     }
     return (tokenId: string) => porToken.get(tokenId) ?? null
   }, [fichas, cartas, formas, personagens])
+  // D4: a vida de cada ficha (o mestre vê todas), para o impacto do tamanho do golpe e a queda.
+  const sistemaId = useAdventureStore(sistemaAtivo)
+  const biblioteca = useRpgStore((state) => state.biblioteca)
+  const vidaDe = useMemo(() => {
+    const vidas = vidasDaCena(fichas, personagens, sistemaPorId(biblioteca, sistemaId) ?? null)
+    return (tokenId: string) => vidas.get(tokenId) ?? null
+  }, [fichas, personagens, biblioteca, sistemaId])
   const carta = turnos === undefined ? null : cartaDaVez(turnos)
   const vez =
     carta === null || turnos === undefined
       ? null
-      : { chave: `${carta.id}:${turnos.rodada}`, nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha', minha: false, ...(carta.bando === undefined ? { tokenId: carta.tokenId } : {}) }
-  return <EfeitosDaBatalha efeitos={efeitos} consulta={consultaDoMestre} nomeDe={nomeDe} imagemDe={imagemDe} vez={vez} onTremor={onTremor} />
+      : {
+          chave: `${carta.id}:${turnos.rodada}`,
+          nome: fichas.find((ficha) => ficha.id === carta.tokenId)?.name.trim() || carta.nome?.trim() || 'Ficha',
+          minha: false,
+          // D3: quem joga a vez. Os NPCs, as fichas sem personagem e o bando são do mestre (duas vezes seguidas dele tocam a
+          // faixa curta). A ficha de jogador fica sem dono: qual jogador a controla só a sessão do host sabe, não esta tela.
+          dono: ehDoMestre(carta.personagemId, personagens) ? 'mestre' : null,
+          ...(carta.bando === undefined ? { tokenId: carta.tokenId } : {}),
+        }
+  // D7: `cameraSegue` fica ausente de propósito: ausente = a chave guardada neste computador (`BotaoDaCameraDaBatalha`), lida na hora.
+  return <EfeitosDaBatalha efeitos={efeitos} consulta={consultaDoMestre} nomeDe={nomeDe} imagemDe={imagemDe} vez={vez} onTremor={onTremor} vidaDe={vidaDe} />
 }
 
 /** Os diálogos do mestre (menu da carta e painel da vez). */

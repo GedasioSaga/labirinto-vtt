@@ -5,6 +5,7 @@ import type { Desempate } from '../../lib/batalha/turnos'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
+import { BotaoDaCameraDaBatalha } from './ChavesDoCombate'
 import type { DadosDaFaixa, LinhaNaTela } from './dadosDaFaixa'
 import { RegistroDaBatalha } from './RegistroDaBatalha'
 import './batalha.css'
@@ -87,6 +88,8 @@ export function PainelDaBatalha({
           <Botao variante="primario" aria-disabled={semCartas} title={semCartas ? 'Inclua um combatente primeiro' : undefined} onClick={() => !semCartas && onPassarVez()}>
             Passar a vez
           </Botao>
+          {/* D7: a chave do mestre para a câmera que traz a ficha da vez para a vista (ligada por padrão, guardada neste computador). */}
+          <BotaoDaCameraDaBatalha />
         </Acoes>
         {dados.depois !== null && <p className="bt-texto">{dados.depois}</p>}
       </section>

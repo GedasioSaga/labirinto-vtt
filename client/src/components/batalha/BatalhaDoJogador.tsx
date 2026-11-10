@@ -199,6 +199,9 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
     (quemAge: CartaParaJogador | null) => alvosDoRecorte({ cartas: estado.cartas, quemAge, personagens: fichasInteiras, sistema, nomeDe, imagemDe }),
     [estado.cartas, fichasInteiras, sistema, nomeDe, imagemDe],
   )
+  // D4: a vida de cada ficha, para o impacto do tamanho do golpe e a queda. Só a que quem olha PODE ver (a mesma da
+  // mira: a dele, a do aliado, a que o host pôs na carta); ficha sem vida no recorte = `null` (o tremor do meio, sem tombo).
+  const vidaDe = useCallback((tokenId: string) => alvosPara(null).find((alvo) => alvo.tokenId === tokenId)?.vida ?? null, [alvosPara])
 
   const menu = useMemo(() => {
     if (cartaQueAge === undefined) return null
@@ -428,10 +431,19 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         vez={
           vez === null || cartaDaVez === undefined
             ? null
-            : { chave: `${vez}:${estado.rodada}`, nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId), minha: estado.minhaVez && textoDaVez === 'suaVez', ...(cartaDaVez.bando === undefined ? { tokenId: cartaDaVez.tokenId } : {}) }
+            : {
+                chave: `${vez}:${estado.rodada}`,
+                nome: cartaDaVez.nome.trim() || nomeDe(cartaDaVez.tokenId),
+                minha: estado.minhaVez && textoDaVez === 'suaVez',
+                // D3: quem joga a vez. Toda vez que quem olha joga é do mesmo dono (na Arena, onde a faixa diz "Vez de Lia", o
+                // mestre joga por todos): a seguinte toca a faixa curta. A vez dos outros fica sem dono: o recorte não diz quem a joga.
+                dono: estado.minhaVez ? 'eu' : null,
+                ...(cartaDaVez.bando === undefined ? { tokenId: cartaDaVez.tokenId } : {}),
+              }
         }
         onTremor={onTremor}
         onPalco={setPalco}
+        vidaDe={vidaDe}
       />
       {mostrarMenu && <div className="pp-batalha-veu" aria-hidden="true" data-palco={noPalco} />}
       {mostrarMenu && (
