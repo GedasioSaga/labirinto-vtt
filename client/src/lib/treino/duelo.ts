@@ -1,4 +1,4 @@
-import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeEvolucao, lerPedidoDePassiva, lerPedidoDeReacao, MOTIVO_DA_RECUSA_MAX, parseBatalhaArmas, RODADA_MAX } from '../../net/protocoloDaBatalha'
+import { ID_DA_BATALHA_MAX, lerPedidoDeAcao, lerPedidoDeEvolucao, lerPedidoDePassiva, lerPedidoDeReacao, motivoNoFio, parseBatalhaArmas, RODADA_MAX } from '../../net/protocoloDaBatalha'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../../stores/batalhaFabrica'
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
@@ -240,7 +240,7 @@ export type MotivoDaRecusa =
 /**
  * A recusa de uma jogada: o código (o site de antes só lê este) e, quando a
  * regra falou, o `texto` dela em português simples: o mesmo motivo que o app
- * mostra ao jogador na mesa (`motivoDoAgir` da store), até `MOTIVO_DA_RECUSA_MAX`.
+ * mostra ao jogador na mesa (`motivoDoAgir` da store), no teto do fio (`motivoNoFio`).
  * Ausente = fica a frase do código (`textoDaRecusa` do site).
  */
 export type RecusaDaJogada = { ok: false; motivo: MotivoDaRecusa; texto?: string }
@@ -342,17 +342,10 @@ export function criarDuelo(pedido: PedidoDeDuelo, motor: MotorDoDuelo): CriacaoD
 
 type Recalculo<T> = { ok: true; pedido: T } | RecusaDaJogada
 
-/** O motivo no teto do fio (`MOTIVO_DA_RECUSA_MAX`), sem cortar no meio de uma palavra. */
-function motivoNoTeto(texto: string): string {
-  if (texto.length <= MOTIVO_DA_RECUSA_MAX) return texto
-  const corte = texto.slice(0, MOTIVO_DA_RECUSA_MAX)
-  const espaco = corte.lastIndexOf(' ')
-  return espaco <= 0 ? corte : corte.slice(0, espaco)
-}
-
+/** A recusa com o texto da regra no teto do fio (`motivoNoFio`: o mesmo corte do host da mesa, no fim de uma palavra). */
 function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
   const dito = texto?.trim() ?? ''
-  return dito === '' ? { ok: false, motivo } : { ok: false, motivo, texto: motivoNoTeto(dito) }
+  return dito === '' ? { ok: false, motivo } : { ok: false, motivo, texto: motivoNoFio(dito) }
 }
 
 /** As frases do host da mesa para a vez que andou e o golpe já fechado (`net/batalhaNoHost.ts`): a mesma palavra no app e no site. */

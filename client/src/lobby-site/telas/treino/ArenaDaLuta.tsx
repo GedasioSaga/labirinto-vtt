@@ -9,6 +9,7 @@ import type { CasaDaArena, GradeDaArena as MedidaDaGrade } from '../../../lib/ar
 import type { PedidoDeAcao } from '../../../lib/batalha/combate'
 import type { EstadoParaJogador } from '../../../lib/batalha/vistaDoJogador'
 import type { LadoDaLuta, VagaDaLuta } from '../../../lib/treino/mesaEmMemoria'
+import { vidasDaCena } from '../../../lib/vidaDaFicha'
 import { useDoSite, useSistemaDoLobby } from '../contexto'
 import { Icone, type NomeDoIcone } from '../Icone'
 import { bonecosDoDuelo } from './grade/bonecosDoDuelo'
@@ -129,6 +130,11 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
   const acabou = fio.fim !== null
   const fichas = useMemo(() => fichasDaLuta(fio, demo), [fio, demo])
   const meus = useMemo(() => copiasDoLado(fio, ehMinha ?? ((vaga) => vaga.lado === meuLado)), [fio, meuLado, ehMinha])
+  // A ficha é pública no site (`faixaComFichaPublica`): a mira da cura sabe quem está ferido também no outro lado.
+  const vidaPublica = useMemo(() => {
+    const vidas = vidasDaCena(fichas, fio.lutadores.personagens, sistema)
+    return (tokenId: string) => vidas.get(tokenId) ?? null
+  }, [fichas, fio.lutadores.personagens, sistema])
   const nomeDe = (tokenId: string) => fichas.find((ficha) => ficha.id === tokenId)?.name ?? 'A ficha'
   // O "Mover" do contra-ataque vale enquanto o contra existir (gasto ao andar, ou a vez virou): depois some sozinho.
   const contraValido = contraDoPasso !== null && !acabou && (fio.turnos.contras ?? []).some((contra) => contra.golpeId === contraDoPasso.golpeId) ? contraDoPasso : null
@@ -305,6 +311,7 @@ export function ArenaDaLuta({ titulo, icone, fio, vista, meuLado, ehMinha, grade
           meus={meus}
           fichas={fichas}
           sistema={sistema}
+          vidaPublica={vidaPublica}
           conexao={conexao}
           consulta={consulta}
           alvoDoMapa={alvoDoMapa}
