@@ -1,4 +1,6 @@
 import type { DificuldadeFogo } from '../tipos'
+import { erroDaFalhaDoJogo } from './textos'
+import type { ProgressoDaCarga } from './vigiaDaCarga'
 import {
   FOGO_LOTE_MAX,
   FOGO_LOTES_MAX,
@@ -17,7 +19,9 @@ import {
  * `iniciar` leva a `ferramenta` de cada um, e o jogo ignora `v: 1`).
  *
  *  - jogo → app: `pronto`, `iniciado`, `erro`, `entrada` (a MINHA, uma por
- *    tique), `hash` (a cada 50 tiques) e `fim` (o placar);
+ *    tique), `hash` (a cada 50 tiques) e `fim` (o placar); antes do `pronto`,
+ *    a casca do export web manda `carga` (bytes que já chegaram e o total) e
+ *    `falha` (o motivo de não carregar). Pacote antigo não manda nenhum dos dois;
  *  - app → jogo: `iniciar`, `entradas` (as dos colegas), `sair`, `pausa`,
  *    `retoma` e `encerrar`.
  *
@@ -57,6 +61,8 @@ export interface OpcoesDaPonte {
   /** Solo: ninguém precisa das minhas entradas. */
   repassarMinhas: boolean
   aoMudar?(estado: EstadoDaPonte, erro?: string): void
+  /** Enquanto carrega: os bytes do jogo que já chegaram (só o pacote novo avisa). */
+  aoCarregar?(carga: ProgressoDaCarga): void
 }
 
 export interface PonteDoJogo {
@@ -69,6 +75,11 @@ export interface PonteDoJogo {
   encerrar(): void
   /** O jogo não chegou (a rota não existe, o download caiu, demorou demais): `carregando` vira `erro`. Depois do `pronto`, nada muda. */
   falhouCarga(erro: string): void
+  /**
+   * "Tentar de novo": o iframe vai carregar outra vez, e o `erro` da carga
+   * volta a `carregando`. Só antes de haver partida (no convite); devolve se voltou.
+   */
+  recarregar(): boolean
   /** Manda ao mestre as minhas entradas juntas desde o último. */
   repassar(): void
   estado(): EstadoDaPonte
@@ -136,6 +147,13 @@ export function criarPonteDoJogo(op: OpcoesDaPonte): PonteDoJogo {
 
   const doJogo = (m: Record<string, unknown>) => {
     switch (m.tipo) {
+      case 'carga':
+        if (estado === 'carregando' && inteiro(m.atual) && inteiro(m.total) && m.atual >= 0 && m.total > 0 && m.atual <= m.total) op.aoCarregar?.({ atual: m.atual, total: m.total })
+        return
+      case 'falha':
+        // A casca do jogo desistiu de carregar e disse por quê (sem WebGL 2, conexão que caiu...).
+        if (estado === 'carregando') mudar('erro', erroDaFalhaDoJogo(m.motivo))
+        return
       case 'pronto':
         if (estado === 'carregando') {
           mudar('esperando')
@@ -218,6 +236,11 @@ export function criarPonteDoJogo(op: OpcoesDaPonte): PonteDoJogo {
     },
     falhouCarga(erro) {
       if (estado === 'carregando') mudar('erro', erro)
+    },
+    recarregar() {
+      if (estado !== 'erro' || partida !== null) return false
+      mudar('carregando')
+      return true
     },
     repassar,
     estado: () => estado,

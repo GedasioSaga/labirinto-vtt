@@ -93,8 +93,40 @@ export const MOTIVO_DO_ENCERRAMENTO_FOGO: Record<FogoMotivoDoFim, string> = {
 }
 
 /** Por que o jogo não chegou neste aparelho (entra no aviso: "O jogo não carregou (...)"). */
-export const ERRO_DO_JOGO_AUSENTE = 'o aparelho do mestre ainda não tem este jogo'
+export const ERRO_DO_JOGO_AUSENTE = 'o computador do mestre ainda não baixou este jogo'
+/** Nenhum sinal do jogo no prazo (pacote antigo, que não avisa o progresso, ou página que nem abriu). */
 export const ERRO_DA_CARGA_DEMORADA = 'demorou demais para carregar'
+/** O jogo avisava o progresso e os bytes pararam de chegar. */
+export const ERRO_DA_CARGA_PARADA = 'o download parou no meio: a conexão com o mestre caiu ou está lenta demais'
+/** Baixou inteiro e não disse `pronto`. */
+export const ERRO_DO_JOGO_QUE_NAO_LIGOU = 'o jogo baixou, mas não ligou neste aparelho'
+
+/**
+ * O motivo que o próprio jogo manda quando a carga falha (`falha.motivo`, da
+ * casca do export web: `tools/build/casca_web.html` no projeto do jogo), em
+ * frase simples. Motivo que este app não conhece: "não ligou".
+ */
+export function erroDaFalhaDoJogo(motivo: unknown): string {
+  if (motivo === 'webgl2') return 'este navegador está sem WebGL 2: ligue a aceleração de vídeo ou abra em outro navegador'
+  if (motivo === 'rede') return 'a conexão caiu no meio do download'
+  if (motivo === 'arquivo') return 'um arquivo do jogo não veio do computador do mestre'
+  return ERRO_DO_JOGO_QUE_NAO_LIGOU
+}
+
+/** O que a pessoa faz depois de "O jogo não carregou (...)." */
+export function oQueFazerSemOJogo(erro: string | null): string {
+  if (erro === ERRO_DO_JOGO_AUSENTE) return 'Peça ao mestre para abrir o pino deste minigame no app (é aí que o jogo baixa) e toque em "Tentar de novo".'
+  return 'Toque em "Tentar de novo"; se continuar, avise o mestre.'
+}
+
+/** A linha embaixo da barra enquanto o jogo carrega. `null` = o jogo ainda não disse quanto falta. */
+export function textoDaCargaDoFogo(carga: { atual: number; total: number } | null, botao: string): string {
+  const libera = `O ${botao} libera quando terminar.`
+  if (carga === null || carga.total <= 0) return `Carregando o jogo… ${libera}`
+  // O motor liga numa tarefa só e a tela não se mexe enquanto isso: a frase avisa da espera.
+  if (carga.atual >= carga.total) return `Jogo baixado, ligando… Na primeira vez neste aparelho pode levar um minuto. ${libera}`
+  return `Carregando o jogo: ${Math.floor((carga.atual / carga.total) * 100)}%. ${libera}`
+}
 
 /** O jogo é em primeira pessoa e não tem controle de toque nesta versão. */
 export const AVISO_MOUSE_E_TECLADO_FOGO = 'Precisa de mouse e teclado: o jogo não funciona com toque (celular ou tablet).'

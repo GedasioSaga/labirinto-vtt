@@ -59,7 +59,9 @@
   flex-direction: column;
   gap: 10px;
   width: min(460px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  /* 32px de folga da janela e 42px do próprio cartão (padding e borda ficam fora da conta da altura):
+     sem os 42, o cartão cheio (com o aviso de carga e o "Tentar de novo") passava da janela. */
+  max-height: calc(100dvh - 74px);
   overflow-y: auto;
   padding: 20px;
   border: 1px solid var(--lb-color-line);
@@ -182,6 +184,26 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* A carga do jogo no convite: a barra com o quanto já chegou, ou o motivo de não ter chegado. */
+.lb-fogo__carga {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  /* Quando o erro rola para dentro da vista (cartão mais alto que a janela), sobra o respiro do cartão embaixo. */
+  scroll-margin-bottom: 20px;
+}
+.lb-fogo__carga-barra {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--fg-brasa);
+}
+.lb-fogo__carga-erro {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #ff8a80;
 }
 
 /* No jogo, só uma faixa fina em cima: o resto é do jogo. */

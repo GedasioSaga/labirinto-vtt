@@ -9,7 +9,9 @@ import {
   CONTROLES_DO_FOGO,
   DICA_DA_FERRAMENTA_FOGO,
   ERRO_DA_CARGA_DEMORADA,
+  ERRO_DA_CARGA_PARADA,
   ERRO_DO_JOGO_AUSENTE,
+  ERRO_DO_JOGO_QUE_NAO_LIGOU,
   MOTIVO_DO_ENCERRAMENTO_FOGO,
   NOME_DA_DIFICULDADE_FOGO,
   NOME_DA_FERRAMENTA_FOGO,
@@ -19,7 +21,10 @@ import {
   fraseDoModoFogo,
   fraseDoMotivoFogo,
   linhaDaAlturaFogo,
+  oQueFazerSemOJogo,
+  textoDaCargaDoFogo,
 } from './textos'
+import { criarVigiaDaCarga, type MotivoDaCargaParada, type ProgressoDaCarga, type VigiaDaCarga } from './vigiaDaCarga'
 import './fogo.css'
 
 /**
@@ -52,11 +57,32 @@ export function urlDoJogoFogoPara(local: Pick<Location, 'protocol' | 'hostname'>
   if (local.hostname === 'tauri.localhost') return `${local.protocol}//minigame.localhost/fogo/index.html`
   return URL_DO_JOGO_FOGO
 }
+
+let marcasDaFila = 0
+
 /**
- * Até quando esperar o `pronto` do jogo: são ~38 MB do motor (10 MB com gzip),
- * e numa rede local fraca isso leva meio minuto. Passou disso, é erro.
+ * Roda `fazer` depois das mensagens que já esperavam na fila desta janela: um
+ * recado para si mesma entra no fim da mesma fila (as mensagens entre janelas
+ * saem na ordem em que entraram), então o `pronto` que o jogo mandou antes é
+ * lido primeiro. É a `depoisDaFila` da vigia da carga.
  */
-const FOGO_CARGA_MAX_MS = 90_000
+function depoisDasMensagensNaFila(fazer: () => void): void {
+  const marca = `lb-fogo-fila-${(marcasDaFila += 1)}`
+  const ouvir = (ev: MessageEvent) => {
+    if (ev.source !== window || ev.data !== marca) return
+    window.removeEventListener('message', ouvir)
+    fazer()
+  }
+  window.addEventListener('message', ouvir)
+  window.postMessage(marca, window.location.origin)
+}
+
+/** A frase de cada espera estourada da carga (`vigiaDaCarga.ts`). */
+const ERRO_DA_ESPERA: Record<MotivoDaCargaParada, string> = {
+  sem_sinal: ERRO_DA_CARGA_DEMORADA,
+  parado: ERRO_DA_CARGA_PARADA,
+  motor: ERRO_DO_JOGO_QUE_NAO_LIGOU,
+}
 
 export interface AcoesDoFogo {
   /** No convite `sozinho` (o "Apagar o fogo" do pino), leva a dificuldade e já começa. */
@@ -92,11 +118,16 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
   const ponteRef = useRef<PonteDoJogo | null>(null)
   const acoesRef = useRef(acoes)
   acoesRef.current = acoes
+  const vigiaRef = useRef<VigiaDaCarga | null>(null)
   const [estadoDoJogo, setEstadoDoJogo] = useState<EstadoDaPonte>('carregando')
   const [erroDoJogo, setErroDoJogo] = useState<string | null>(null)
+  /** Os bytes do jogo que já chegaram; `null` = o jogo ainda não avisou (ou é o pacote antigo, que não avisa). */
+  const [carga, setCarga] = useState<ProgressoDaCarga | null>(null)
+  /** Cada "Tentar de novo" soma um: o iframe remonta (a `key`) e a vigia da carga recomeça. */
+  const [tentativa, setTentativa] = useState(0)
   const [ferramenta, setFerramenta] = useState<FerramentaFogo>(() => fogo.pronto ?? ferramentaDoConvite(fogo, playerId))
 
-  // A ponte vive enquanto a tela vive: um iframe por sessão (a `key` é a sessão).
+  // A ponte vive enquanto a tela vive: uma por sessão (a `key` é a sessão).
   useEffect(() => {
     const origem = new URL(urlDoJogo, window.location.href).origin
     const ponte = criarPonteDoJogo({
@@ -111,8 +142,14 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
       aoMudar: (estado, erro) => {
         setEstadoDoJogo(estado)
         if (erro !== undefined) setErroDoJogo(erro)
+        // Carregou ou falhou: a espera da carga acabou.
+        if (estado !== 'carregando') vigiaRef.current?.encerrar()
         // Jogo quebrado aqui: o mestre fica sabendo, e ninguém da equipe espera por este aparelho.
         if (estado === 'erro') acoesRef.current.falhouFogo()
+      },
+      aoCarregar: (progresso) => {
+        setCarga(progresso)
+        vigiaRef.current?.progresso(progresso)
       },
     })
     ponteRef.current = ponte
@@ -123,21 +160,7 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
       else ponte.sair(msg.id, msg.depoisDe)
     })
     const repasse = window.setInterval(() => ponte.repassar(), FOGO_REPASSE_MS)
-    // O jogo que não chega vira erro, em vez de "Carregando" para sempre: o prazo
-    // pega o download que caiu; a conferência pega na hora a rota que o mestre não serve.
-    let viva = true
-    const prazo = window.setTimeout(() => ponte.falhouCarga(ERRO_DA_CARGA_DEMORADA), FOGO_CARGA_MAX_MS)
-    const conferencia = new AbortController()
-    fetch(urlDoJogo, { method: 'HEAD', cache: 'no-store', signal: conferencia.signal })
-      .then((resposta) => {
-        if (viva && !resposta.ok) ponte.falhouCarga(ERRO_DO_JOGO_AUSENTE)
-      })
-      // Sem resposta (rede caída, ou a tela fechou e abortou): quem decide é o prazo.
-      .catch(() => undefined)
     return () => {
-      viva = false
-      conferencia.abort()
-      window.clearTimeout(prazo)
       window.clearInterval(repasse)
       desligarCanal()
       window.removeEventListener('message', aoReceber)
@@ -145,6 +168,42 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
     }
     // Uma ponte por sessão (a key): o modo não muda dentro dela, e as ações são lidas pela ref.
   }, [urlDoJogo])
+
+  // A cada carga do iframe (a primeira e cada "Tentar de novo"): o jogo que não chega vira
+  // erro, em vez de "Carregando" para sempre. A vigia espera enquanto chegam bytes e desiste
+  // quando param; a conferência pega na hora a rota que o mestre não serve.
+  useEffect(() => {
+    setCarga(null)
+    const vigia = criarVigiaDaCarga({
+      agendar: (fazer, ms) => {
+        const id = window.setTimeout(fazer, ms)
+        return () => window.clearTimeout(id)
+      },
+      depoisDaFila: depoisDasMensagensNaFila,
+      aoParar: (motivo) => ponteRef.current?.falhouCarga(ERRO_DA_ESPERA[motivo]),
+    })
+    vigiaRef.current = vigia
+    let viva = true
+    const conferencia = new AbortController()
+    fetch(urlDoJogo, { method: 'HEAD', cache: 'no-store', signal: conferencia.signal })
+      .then((resposta) => {
+        if (viva && !resposta.ok) ponteRef.current?.falhouCarga(ERRO_DO_JOGO_AUSENTE)
+      })
+      // Sem resposta (rede caída, ou a tela fechou e abortou): quem decide é a vigia.
+      .catch(() => undefined)
+    return () => {
+      viva = false
+      conferencia.abort()
+      vigia.encerrar()
+      vigiaRef.current = null
+    }
+  }, [urlDoJogo, tentativa])
+
+  const tentarDeNovo = () => {
+    if (ponteRef.current?.recarregar() !== true) return
+    setErroDoJogo(null)
+    setTentativa((n) => n + 1)
+  }
 
   const comecar = fogo.comecar
   useEffect(() => {
@@ -169,7 +228,9 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
   return (
     <div className={`lb-fogo lb-fogo--${tela}`} role="dialog" aria-modal="true" aria-label={NOME_DO_JOGO_FOGO}>
       {/* pointer-lock: o clique no jogo prende o mouse, que vira o olhar (primeira pessoa). */}
+      {/* A `key` é a tentativa: "Tentar de novo" troca o iframe por outro, que carrega do zero. */}
       <iframe
+        key={tentativa}
         ref={quadroRef}
         className="lb-fogo__jogo"
         src={urlDoJogo}
@@ -179,7 +240,17 @@ function TelaDoFogo({ fogo, playerId, acoes, urlDoJogo = urlDoJogoFogoPara(windo
         tabIndex={tela === 'jogo' ? 0 : -1}
       />
       {tela === 'convite' && (
-        <Convite fogo={fogo} playerId={playerId} ferramenta={ferramenta} setFerramenta={setFerramenta} estadoDoJogo={estadoDoJogo} erroDoJogo={erroDoJogo} acoes={acoes} />
+        <Convite
+          fogo={fogo}
+          playerId={playerId}
+          ferramenta={ferramenta}
+          setFerramenta={setFerramenta}
+          estadoDoJogo={estadoDoJogo}
+          erroDoJogo={erroDoJogo}
+          carga={carga}
+          aoTentarDeNovo={tentarDeNovo}
+          acoes={acoes}
+        />
       )}
       {tela === 'jogo' && (
         <div className="lb-fogo__barra" aria-live="polite">
@@ -221,6 +292,8 @@ interface ConviteProps {
   setFerramenta(ferramenta: FerramentaFogo): void
   estadoDoJogo: EstadoDaPonte
   erroDoJogo: string | null
+  carga: ProgressoDaCarga | null
+  aoTentarDeNovo(): void
   acoes: AcoesDoFogo
 }
 
@@ -231,7 +304,7 @@ function statusNoConvite(status: FogoStatus | undefined): string {
   return 'Esperando'
 }
 
-function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erroDoJogo, acoes }: ConviteProps) {
+function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erroDoJogo, carga, aoTentarDeNovo, acoes }: ConviteProps) {
   const c = fogo.convite
   const pronto = fogo.pronto
   const solo = c.modo === 'solo'
@@ -241,6 +314,12 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
   const [dificuldade, setDificuldade] = useState<DificuldadeFogo>(() => (sozinho === undefined || sozinho.permitida === 'escolha' ? 'normal' : sozinho.permitida))
   // Só com o jogo carregado: Pronto sem jogo deixaria a equipe esperando entradas que nunca saem.
   const jogoCarregado = estadoDoJogo === 'esperando'
+  // O motivo e o "Tentar de novo" ficam no fim do cartão: em janela baixa (a Visão de jogador
+  // abre com 750 px) o cartão rola por dentro, e o erro tem de aparecer sem a pessoa procurar.
+  const erroRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (estadoDoJogo === 'erro') erroRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [estadoDoJogo])
   const statusDe = (id: string) => fogo.estado?.participantes.find((p) => p.playerId === id)
   return (
     <div className="lb-fogo__cartao">
@@ -311,13 +390,27 @@ function Convite({ fogo, playerId, ferramenta, setFerramenta, estadoDoJogo, erro
           Agora não
         </button>
       </div>
-      <p className="lb-fogo__dica" aria-live="polite">
-        {estadoDoJogo === 'carregando'
-          ? `Carregando o jogo… o ${sozinho === undefined ? 'Pronto' : 'Começar'} libera quando terminar.`
-          : estadoDoJogo === 'erro'
-            ? `O jogo não carregou${erroDoJogo === null ? '' : ` (${erroDoJogo})`}. Avise o mestre.`
-            : 'Jogo carregado.'}
-      </p>
+      {estadoDoJogo === 'carregando' ? (
+        <div className="lb-fogo__carga">
+          {/* Sem `value` a barra fica indeterminada: o jogo ainda não disse quanto falta. */}
+          <progress className="lb-fogo__carga-barra" max={carga?.total} value={carga?.atual} aria-label="Carga do jogo" />
+          {/* Sem `aria-live`: o percentual muda 4 vezes por segundo, e quem ouve a tela já tem a barra. */}
+          <p className="lb-fogo__dica">{textoDaCargaDoFogo(carga, sozinho === undefined ? 'Pronto' : 'Começar')}</p>
+        </div>
+      ) : estadoDoJogo === 'erro' ? (
+        <div className="lb-fogo__carga" role="alert" ref={erroRef}>
+          <p className="lb-fogo__carga-erro">
+            O jogo não carregou{erroDoJogo === null ? '' : ` (${erroDoJogo})`}. {oQueFazerSemOJogo(erroDoJogo)}
+          </p>
+          <button type="button" className="lb-btn" onClick={aoTentarDeNovo}>
+            Tentar de novo
+          </button>
+        </div>
+      ) : (
+        <p className="lb-fogo__dica" aria-live="polite">
+          Jogo carregado.
+        </p>
+      )}
     </div>
   )
 }
