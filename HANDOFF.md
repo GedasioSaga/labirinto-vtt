@@ -1,4 +1,14 @@
-# Estado em 10/11/2026, 03h23 (o mais recente)
+# ATENÇÃO, 06h25 de 10/11/2026: a 0.5.45 está PRONTA e NÃO PUBLICADA
+
+O Claude Code interrompeu a publicação por FALTA DE MEMÓRIA na máquina (aviso do sistema às ~06h23: o comando foi parado com a sessão ociosa; não é falha do comando) e mandou NÃO relançar por conta própria: só quando o mestre pedir. Parou na etapa "build do site do Lobby", DEPOIS de compilar o app (Rust `Finished release in 2m 56s`) e de gerar e assinar o instalador (existe: desktop/src-tauri/target/release/bundle/nsis/Labirinto_0.5.45_x64-setup.exe). NADA foi enviado: nem Worker, nem site, nem release (`gh release list`: a última é a v0.5.44).
+
+- Tudo o mais está feito: portão final passou (suíte inteira 19.989 testes, só as 9 falhas antigas; auditoria final "pode publicar"; consertos dela aplicados). Detalhe no item "PORTÃO FINAL PASSOU" mais abaixo.
+- Release pronta para sair: worktree `C:\dev\labirinto-rel045`, branch `release/0.5.45`, HEAD = upstream = `d04dfcb5`, árvore limpa, junções node_modules no lugar, notas em ~/.claude/jobs/6d1d8a12/tmp/notas-0.5.45.md.
+- QUANDO O MESTRE PEDIR ("publica"): conferir memória livre (`Get-CimInstance Win32_OperatingSystem`), e rodar: `Set-Location C:\dev\labirinto-rel045; $env:CARGO_TARGET_DIR='C:/dev/labirinto/desktop/src-tauri/target'; $env:CARGO_BUILD_JOBS='8'; node scripts/publicar-versao.cjs --publicar --notas "$env:USERPROFILE\.claude\jobs\6d1d8a12\tmp\notas-0.5.45.md" *> "$env:USERPROFILE\.claude\jobs\6d1d8a12\tmp\publicar-0.5.45.log"` (cerca de 6 a 10 min; o Rust está em cache). Depois: `gh release view v0.5.45`; na main `git cherry-pick 5dd8f08a` (só o bump), push; rmdir das 3 junções e `git worktree remove C:\dev\labirinto-rel045`.
+- QUEM ESTÁ COM A MEMÓRIA (medido 06h24: 5,5 GB livres de 31,7): dois servidores `vite` ANTIGOS, de antes desta sessão, com 3,3 GB cada (portas 5461, aberto 09/11 08h35, e 5317, aberto 09/11 15h17), e o Chrome (4 GB). Não são desta sessão: NÃO matei. Fechar os dois vite devolve ~6,6 GB (o mestre decide).
+- O pacote do Fogo na Floresta v3 JÁ ESTÁ NO AR (04h36); a 0.5.44 (lista de cenas) também.
+
+# Estado em 10/11/2026, 03h23 (anterior a esta atenção; o resto continua valendo)
 
 ## Objetivo
 Mandato do mestre de 10/11 01h44 (literal no fim do PEDIDOS.md, "unificar o combate"): unificar o combate segundo docs/planos/unificacao-do-combate-2026-11-10.md, aplicar a lista de design do print tmp/pedidos-2026-11-10/20.png, ajeitar os dois riscos do site, teste e correção só no final, PUBLICAR ao terminar. Ele dorme e vê de manhã: autonomia total, não parar para perguntar. Modelos: Opus 5.5 xhigh por padrão, Fable 5.2 xhigh no complicado. Em paralelo: G Fogo na Floresta (acelerado e carga), H Bolha d'Água (rascunho pronto).
