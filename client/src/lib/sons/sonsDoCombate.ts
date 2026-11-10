@@ -47,9 +47,11 @@ export const RECEITAS_DO_COMBATE: Readonly<Record<SomDoCombate, readonly Voz[]>>
     { fonte: 'ruido', inicio: 0.03, ataque: 0.02, duracao: 0.14, pico: 0.08, filtro: { tipo: 'highpass', hz: 3800 } },
     { fonte: 'osc', forma: 'sawtooth', hzIni: 180, hzFim: 90, inicio: 0, ataque: 0.03, duracao: 0.2, pico: 0.025, filtro: { tipo: 'lowpass', hz: 700 } },
   ],
-  impactoLeve: baque(0.22, 0.16),
-  impactoMedio: baque(0.34, 0.24),
-  impactoForte: baque(0.5, 0.36),
+  // T3 (10/11): medidos offline com o volume no máximo, o médio e o forte passavam de -12 dBFS de pico
+  // (-8,5 e -5,2). Agora: leve -18, médio -14,5, forte -12,3 dBFS no máximo; no volume padrão, abaixo de -24.
+  impactoLeve: baque(0.12, 0.16),
+  impactoMedio: baque(0.17, 0.24),
+  impactoForte: baque(0.22, 0.36),
   dado: [
     { fonte: 'ruido', inicio: 0, ataque: 0.001, duracao: 0.022, pico: 0.1, filtro: { tipo: 'bandpass', hz: 3200, q: 4 } },
     { fonte: 'ruido', inicio: 0.045, ataque: 0.001, duracao: 0.022, pico: 0.08, filtro: { tipo: 'bandpass', hz: 2900, q: 4 } },
