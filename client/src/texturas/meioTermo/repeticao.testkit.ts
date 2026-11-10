@@ -70,6 +70,95 @@ function detalhe(img: Cinza): Float32Array {
   return fino
 }
 
+/** Média de caixa `lado` x `lado` de cada pixel (imagem integral); só o miolo onde a caixa cabe inteira. */
+function mediaDeCaixa(luz: ArrayLike<number>, W: number, H: number, lado: number): { luz: Float32Array; largura: number; altura: number } {
+  const soma = new Float64Array((W + 1) * (H + 1))
+  for (let y = 0; y < H; y += 1) {
+    let linha = 0
+    for (let x = 0; x < W; x += 1) {
+      linha += luz[y * W + x]
+      soma[(y + 1) * (W + 1) + x + 1] = soma[y * (W + 1) + x + 1] + linha
+    }
+  }
+  const largura = W - lado + 1
+  const altura = H - lado + 1
+  const media = new Float32Array(largura * altura)
+  for (let y = 0; y < altura; y += 1) {
+    for (let x = 0; x < largura; x += 1) {
+      media[y * largura + x] = (soma[(y + lado) * (W + 1) + x + lado] - soma[y * (W + 1) + x + lado] - soma[(y + lado) * (W + 1) + x] + soma[y * (W + 1) + x]) / (lado * lado)
+    }
+  }
+  return { luz: media, largura, altura }
+}
+
+/** Correlação da imagem com ela mesma deslocada de (dx, dy), com a média tirada, lendo 1 pixel a cada 2. */
+function correlacaoNoAtraso(luz: ArrayLike<number>, W: number, H: number, dx: number, dy: number): number {
+  let media = 0
+  let n = 0
+  for (let i = 0; i < W * H; i += 3) {
+    media += luz[i]
+    n += 1
+  }
+  media /= n
+  let energia = 0
+  let s = 0
+  let pares = 0
+  for (let y = 0; y + dy < H; y += 2) {
+    for (let x = 0; x + dx < W; x += 2) {
+      const a = luz[y * W + x] - media
+      s += a * (luz[(y + dy) * W + x + dx] - media)
+      energia += a * a
+      pares += 1
+    }
+  }
+  return pares === 0 || energia === 0 ? 0 : s / energia
+}
+
+export interface RepeticaoNoPeriodo {
+  /** A luz como ela é, média do mapa tirada: a conta literal. A mancha larga do terreno (que não é repetição) entra aqui. */
+  readonly literal: { x: number; y: number }
+  /** A MANCHA: a luz borrada em 8% do período, menos a média local numa caixa de um período. Só o que volta a cada ladrilho sobra. */
+  readonly mancha: { x: number; y: number }
+  /** O desvio (níveis de luz) da mancha: quanto do desenho é mancha que poderia repetir. */
+  readonly desvioDaMancha: number
+}
+
+/**
+ * O quanto a imagem se repete no PERÍODO do ladrilho (`periodo` px), em x e em y
+ * (pedido de 10/11/2026: a mesma moita em fileiras e colunas). A autocorrelação
+ * pixel a pixel (`maiorAutocorrelacao`) não vê essa repetição: a torção desloca
+ * a moita uns 15% do ladrilho, o pixel deixa de coincidir e a conta dá perto de
+ * zero, mas a moita continua na mesma casa da grade, e o olho a vê. Borrada em
+ * 8% do período, a conta enxerga a moita, não o pixel.
+ */
+export function repeticaoNoPeriodo(img: Cinza, periodo: number): RepeticaoNoPeriodo {
+  const W = img.largura
+  const H = img.altura
+  const P = Math.round(periodo)
+  const literal = { x: correlacaoNoAtraso(img.luz, W, H, P, 0), y: correlacaoNoAtraso(img.luz, W, H, 0, P) }
+  // Borrão: duas caixas seguidas (um triângulo), cada uma com 8% do período.
+  const caixa = Math.max(2, Math.round(P * 0.08))
+  const a = mediaDeCaixa(img.luz, W, H, caixa)
+  const b = mediaDeCaixa(a.luz, a.largura, a.altura, caixa)
+  // Média local: a caixa de um período deixa inteiro o que tem esse período e tira o que é mais largo.
+  const local = mediaDeCaixa(b.luz, b.largura, b.altura, P)
+  const meio = Math.floor(P / 2)
+  const mancha = new Float32Array(local.largura * local.altura)
+  let soma2 = 0
+  for (let y = 0; y < local.altura; y += 1) {
+    for (let x = 0; x < local.largura; x += 1) {
+      const v = b.luz[(y + meio) * b.largura + x + meio] - local.luz[y * local.largura + x]
+      mancha[y * local.largura + x] = v
+      soma2 += v * v
+    }
+  }
+  return {
+    literal,
+    mancha: { x: correlacaoNoAtraso(mancha, local.largura, local.altura, P, 0), y: correlacaoNoAtraso(mancha, local.largura, local.altura, 0, P) },
+    desvioDaMancha: Math.sqrt(soma2 / mancha.length),
+  }
+}
+
 export interface PicoDeAutocorrelacao {
   readonly r: number
   readonly atraso: number

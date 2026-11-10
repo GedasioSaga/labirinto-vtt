@@ -10,7 +10,7 @@ import { rasterizarTexturas } from './texturasRaster'
 import { desenhadoLigado, meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { assinarDesenhado, chaoParaPintar, pedirChaoDesenhado, versaoDoDesenhado, type ChaoCarregado } from '../texturas/desenhado/carregador'
 import { chaoDesenhadoDoApp } from '../texturas/desenhado/chao'
-import { mipDoLadrilho, sementeDoChao, torcaoDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
+import { mipDoLadrilho, sementeDoChao, torcaoDaTextura, vidaDaTextura, type ChaoDaTextura, type ImagemDoLadrilho } from '../texturas/meioTermo/chaoNoMundo'
 import { CacheDoChao, chaoDoGrupo, montarChaoEmPedacos, type ChaoDoPedaco, type ChaoEmPedacos } from './pedacosDoChao'
 import { chaoLeveLigado, useChaoLeveStore } from '../stores/chaoLeveStore'
 import { criarVitrine, type Vitrine } from './vitrineDasTexturas'
@@ -514,7 +514,9 @@ export function createTexturasRenderer(opcoes: OpcoesDasTexturas = {}): Texturas
       pixelsLidos.set(ladrilho, pixels)
     }
     if (pixels === null) return null
-    const chao: ChaoDaTextura = { ladrilho: pixels, ladoNoMundo: lado, semente: sementeDoChao(id), torcao: torcaoDaTextura(texturaDoCatalogo(id)), manchas }
+    const textura = texturaDoCatalogo(id)
+    // A vida (tom largo, moitas e touceiras por posição) é da textura: a chave do pedaço não muda, o catálogo embutido é fixo.
+    const chao: ChaoDaTextura = { ladrilho: pixels, ladoNoMundo: lado, semente: sementeDoChao(id), torcao: torcaoDaTextura(textura), manchas, vida: vidaDaTextura(textura) }
     return { chave: `${id}#${versaoDoCatalogo}#${lado}#${versaoDoEstilo()}#${manchas ? 'manchas' : 'liso'}`, chao }
   }
 

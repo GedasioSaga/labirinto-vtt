@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { oklabDoRgb } from './materiais'
-import { blocosIguais, maiorAutocorrelacao } from './repeticao.testkit'
+import { blocosIguais, maiorAutocorrelacao, repeticaoNoPeriodo } from './repeticao.testkit'
 import { BIOMAS, chaoDe, cinzaDe, ladrilhoDe, pintarAntes, pintarRegiao, recortar, registrar, type Regiao } from './chaoNoMundo.testkit'
 import { LADO_DO_PEDACO, comecarPedaco, mipDoPedaco, pintarLinhas, pintarPedaco, sementeDoChao, torcaoDaTextura, TORCAO_DO_ASSENTAMENTO, TORCAO_NATURAL } from './chaoNoMundo'
 import { texturaDoCatalogo } from '../catalogo'
@@ -65,6 +65,14 @@ function cores(r: Regiao): { saturacaoP95: number; cromaMedio: number; menorLuz:
   return { saturacaoP95: saturacoes[Math.floor(saturacoes.length * 0.95)], cromaMedio: croma / n, menorLuz }
 }
 
+/**
+ * O Campo verde como era pintado até 10/11/2026 (commit 54ed133f: as manchas e as moitas dentro do ladrilho), no mapa
+ * de prova, com "Manchas do chão" ligadas, medido pela `cores` de cima: a régua da cor do Campo de hoje.
+ */
+const CAMPO_PINTADO_ANTES_DA_VIDA = { saturacaoP95: 0.5215, cromaMedio: 0.13598, menorLuz: 0.6159 }
+/** A cor média do mesmo Campo de antes (sem "Manchas do chão", o padrão do mapa): o mapa salvo do mestre não muda de cara. */
+const COR_MEDIA_DO_CAMPO_DE_ANTES = [126.22, 194.73, 103.55] as const
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -96,7 +104,9 @@ describe('o chão pintado não repete (MT7)', { timeout: 120_000 }, () => {
 
   it.each(BIOMAS)('%s: cor contida (saturação p95 e croma médio no máximo os de antes, com folga mínima) e sem preto novo', (id) => {
     const novo = cores(depois(id))
-    const velho = cores(antes(id))
+    // O Campo tem vida por posição desde 10/11/2026: o ladrilho dele ficou só com o capim miúdo, numa cor só, e deixou
+    // de ser "o desenho de antes". A régua do Campo é o Campo PINTADO de antes dessa data, medido neste mesmo mapa.
+    const velho = id === 'grama' ? CAMPO_PINTADO_ANTES_DA_VIDA : cores(antes(id))
     registrar(
       `[medida] ${id}: saturação p95 ${novo.saturacaoP95.toFixed(3)} (antes ${velho.saturacaoP95.toFixed(3)}); croma médio ${novo.cromaMedio.toFixed(4)} (antes ${velho.cromaMedio.toFixed(4)}); menor luz ${novo.menorLuz.toFixed(3)} (antes ${velho.menorLuz.toFixed(3)})`,
     )
@@ -171,6 +181,14 @@ describe('o pedaço (MT7)', () => {
     expect(torcaoDaTextura(null)).toBe(TORCAO_NATURAL)
   })
 
+  it('sem vida, os bytes de sempre: os pedaços da Terra e da Floresta têm a digital de antes de a vida existir', () => {
+    // Digitais tiradas do código de 54ed133f (antes de 10/11/2026), nos mesmos pedaços, com e sem "Manchas do chão".
+    expect(fnv(pintarPedaco(chaoDe('terra'), { i: 3, j: 5, nivel: 0 }))).toBe(1436592518)
+    expect(fnv(pintarPedaco(chaoDe('terra'), { i: -2, j: 1, nivel: 2 }))).toBe(3161174407)
+    expect(fnv(pintarPedaco({ ...chaoDe('floresta'), manchas: false }, { i: 3, j: 5, nivel: 0 }))).toBe(3323246397)
+    expect(fnv(pintarPedaco({ ...chaoDe('floresta'), manchas: false }, { i: -2, j: 1, nivel: 2 }))).toBe(416117711)
+  })
+
   it('tempo: um pedaço de 256 x 256 no nível 0 (registrado; o teto folgado da suíte é 60 ms em Node)', () => {
     const chao = chaoDe('floresta')
     pintarPedaco(chao, { i: 40, j: 40, nivel: 0 })
@@ -183,5 +201,89 @@ describe('o pedaço (MT7)', () => {
     tempos.sort((a, b) => a - b)
     registrar(`[medida] pedaço de 256 x 256 no nível 0: mediana ${tempos[3].toFixed(1)} ms, pior ${tempos[6].toFixed(1)} ms`)
     expect(tempos[3]).toBeLessThan(60)
+  })
+})
+
+/**
+ * O CAMPO QUE NÃO REPETE (pedido de 10/11/2026: "melhorar essa textura de
+ * grama para não deixar o padrão repetido"). O mapa do mestre: grama em tudo,
+ * ladrilho de 3 casas, visto inteiro na tela e a 100%. As metas, nos bytes
+ * pintados, sem "Manchas do chão" (o padrão do mapa):
+ * - a mancha não volta no período do ladrilho: autocorrelação abaixo de 0,15
+ *   em x e em y, na luz como ela é e na luz borrada (a mancha);
+ * - a cor média fica a menos de 2,5% da do Campo de antes, em cada canal;
+ * - o tom muda de uma região do mapa para outra (e sem a vida, não muda).
+ */
+describe('o Campo que não repete (10/11/2026)', { timeout: 120_000 }, () => {
+  const MAPA_DO_MESTRE = { width: 40, height: 24, grid: 64 }
+  const TETO_DA_REPETICAO = 0.15
+
+  /** O Campo como o app o pinta num mapa sem "Manchas do chão". */
+  function campo(mapa = MAPA_DO_MESTRE) {
+    return { ...chaoDe('grama', mapa), manchas: false }
+  }
+
+  /** O mapa inteiro pintado no nível pedido (0 = a 100%; 1 = como o app pinta o mapa de 40 x 24 casas visto inteiro). */
+  function mapaPintado(chao: ReturnType<typeof campo>, mapa: { width: number; height: number; grid: number }, nivel: number): Regiao {
+    const passo = 2 ** nivel
+    const largura = mapa.width * mapa.grid
+    const altura = mapa.height * mapa.grid
+    const pedaco = LADO_DO_PEDACO * passo
+    const regiao = pintarRegiao(chao, 0, 0, Math.ceil(largura / pedaco), Math.ceil(altura / pedaco), nivel)
+    return recortar(regiao, 0, 0, Math.floor(largura / passo), Math.floor(altura / passo))
+  }
+
+  it.each([
+    ['a 100%', 0],
+    ['no mapa inteiro', 1],
+  ] as const)('%s, a mancha não volta no período do ladrilho (abaixo de 0,15 em x e em y); o ladrilho repetido volta (controle)', (_zoom, nivel) => {
+    const chao = campo()
+    const passo = 2 ** nivel
+    const periodo = chao.ladoNoMundo / passo
+    const pintado = mapaPintado(chao, MAPA_DO_MESTRE, nivel)
+    const novo = repeticaoNoPeriodo(cinzaDe(pintado), periodo)
+    const repetido = repeticaoNoPeriodo(cinzaDe(pintarAntes(chao.ladrilho, chao.ladoNoMundo, pintado.largura, pintado.altura, passo)), periodo)
+    registrar(
+      `[medida] Campo, nível ${nivel}, período ${periodo} px: literal x ${novo.literal.x.toFixed(3)} y ${novo.literal.y.toFixed(3)}; mancha x ${novo.mancha.x.toFixed(3)} y ${novo.mancha.y.toFixed(3)} (desvio ${novo.desvioDaMancha.toFixed(2)}); ladrilho repetido: mancha x ${repetido.mancha.x.toFixed(3)} y ${repetido.mancha.y.toFixed(3)} (desvio ${repetido.desvioDaMancha.toFixed(2)})`,
+    )
+    for (const r of [novo.literal.x, novo.literal.y, novo.mancha.x, novo.mancha.y]) expect(Math.abs(r)).toBeLessThan(TETO_DA_REPETICAO)
+    expect(repetido.literal.x, 'controle: o ladrilho repetido volta no período').toBeGreaterThan(0.9)
+    expect(repetido.mancha.y, 'controle: a mancha do ladrilho repetido volta no período').toBeGreaterThan(0.9)
+  })
+
+  it('a cor média fica a menos de 2,5% da do Campo de antes em cada canal, do mapa pequeno ao grande e de perto ou de longe', () => {
+    for (const [largura, altura, nivel] of [[20, 15, 0], [40, 24, 0], [40, 24, 1], [80, 60, 2]] as const) {
+      const mapa = { width: largura, height: altura, grid: 64 }
+      const pintado = mapaPintado(campo(mapa), mapa, nivel)
+      const media = [0, 1, 2].map((canal) => {
+        let soma = 0
+        for (let i = canal; i < pintado.rgba.length; i += 4) soma += pintado.rgba[i]
+        return soma / (pintado.rgba.length / 4)
+      })
+      registrar(`[medida] Campo ${largura} x ${altura}, nível ${nivel}: cor média ${media.map((m) => m.toFixed(1)).join(', ')} (antes ${COR_MEDIA_DO_CAMPO_DE_ANTES.join(', ')})`)
+      media.forEach((m, canal) => expect(Math.abs(m / COR_MEDIA_DO_CAMPO_DE_ANTES[canal] - 1), `${largura} x ${altura}, canal ${canal}: ${m.toFixed(1)}`).toBeLessThan(0.025))
+    }
+  })
+
+  it('o tom muda de uma região do mapa para outra (blocos de 8 casas); sem a vida, o chão é o mesmo em todo lugar (controle)', () => {
+    /** O desvio, entre os blocos de 8 x 8 casas, do tom médio (R - B) de cada bloco. */
+    const desvioEntreRegioes = (r: Regiao): number => {
+      const bloco = 8 * MAPA_DO_MESTRE.grid
+      const tons: number[] = []
+      for (let by = 0; by + bloco <= r.altura; by += bloco) {
+        for (let bx = 0; bx + bloco <= r.largura; bx += bloco) {
+          let soma = 0
+          for (let y = by; y < by + bloco; y += 4) for (let x = bx; x < bx + bloco; x += 4) soma += r.rgba[(y * r.largura + x) * 4] - r.rgba[(y * r.largura + x) * 4 + 2]
+          tons.push(soma / (bloco / 4) ** 2)
+        }
+      }
+      const media = tons.reduce((a, b) => a + b, 0) / tons.length
+      return Math.sqrt(tons.reduce((a, b) => a + (b - media) ** 2, 0) / tons.length)
+    }
+    const comVida = desvioEntreRegioes(mapaPintado(campo(), MAPA_DO_MESTRE, 0))
+    const semVida = desvioEntreRegioes(mapaPintado({ ...campo(), vida: undefined }, MAPA_DO_MESTRE, 0))
+    registrar(`[medida] Campo: desvio do tom (R - B) entre regiões de 8 casas ${comVida.toFixed(2)} níveis; sem a vida ${semVida.toFixed(2)}`)
+    expect(comVida).toBeGreaterThan(3)
+    expect(semVida).toBeLessThan(1)
   })
 })

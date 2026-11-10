@@ -12,8 +12,11 @@ import { cristas, fbm, hash, mod, valor, vizinhos } from './ruido'
 const HASH_ANTES_DA_F5: Record<string, string> = {
   areia: '07860dc67fbed4981f80f7100191c2f2ac0a1c66c1ef6a44217bdbd7ea00768b',
   duna: 'd633a6305ccff8b087115735118bfd62a283548410323a09fa31cbef43937e2b',
-  grama: 'b8ba828cc8735d5935665ec2121d875b055ae692e34f560035276c8435600145',
-  'grama-amarela': '2c5c66aad9452247d7e0e5c201d77432eaa7a09c1169e89e8aef5df90738b7da',
+  // O Campo verde e o amarelo mudaram DE PROPÓSITO em 10/11/2026 (pedido do mestre: a grama sem o padrão repetido).
+  // As manchas e as moitas saíram do ladrilho (vêm da posição no mapa, `vidaDoCampo`) e ele ficou só com o capim de
+  // perto: o hash é o do código que os redesenhou. Antes: b8ba828c…600145 (verde) e 2c5c66aa…38b7da (amarelo).
+  grama: 'ff6a417be41c0fe6499dc480df150a86462e6b2ce9465d6390ab2183dcd94c5b',
+  'grama-amarela': 'dac9ac7c8515e7cf93f8d3ef22ac87c6214a501870389a7f5557f7123e3d6218',
   // O Campo morto nasceu depois da F5 (03/11/2026): o hash é o do código que o criou.
   'grama-morta': '89d65339098d4a091ee3b79160c87fc3f6a6db14be322ed30085437826c664f6',
   floresta: 'd3e6a04ed6ab39fb5d086bd9973bc369503cdbbc4fd011e3e8d594abbf35a9da',
