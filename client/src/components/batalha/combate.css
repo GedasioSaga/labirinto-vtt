@@ -3164,10 +3164,7 @@
   }
 }
 
-/* O papel da passiva: o rótulo em tinta dourada; a leitura em faixas escuras, como os números da forma. */
-.bt-passiva__rot {
-  color: var(--bt-passiva-tinta);
-}
+/* A leitura em faixas escuras, como os números da forma (hoje só a forma a usa, ListaDeFormas.tsx; a carta de passiva tem a folha dela, passiva.css). */
 .bt-passiva__leitura {
   display: grid;
   gap: 3px;
@@ -3215,20 +3212,6 @@
   font-size: 11px;
   line-height: 16px;
   vertical-align: 1px;
-}
-.bt-passiva__selo {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 6px;
-  margin: 0;
-  font-size: var(--lb-font-size-sm);
-  font-weight: 600;
-}
-.bt-passiva__selo small {
-  flex-basis: 100%;
-  font-weight: 400;
-  color: #5d5a54;
 }
 
 /* As linhas (painel do NPC, perfil, janela do jogador): a ativa ganha o fio dourado à esquerda. */

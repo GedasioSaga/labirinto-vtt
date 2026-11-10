@@ -1,0 +1,217 @@
+/*
+ * A CARTA DE PASSIVA ABERTA (`PainelDaPassiva`, PassivasDaBatalha.tsx). Pedido de 10/11/2026: "ajeita isso não dá
+ * para entender nada". A carta usa o papel rasgado da mira (D8, combate.css): a cabeça em tinta, o corpo que rola
+ * e o pé preso. Antes ela não tinha essas três partes, e o papel sem respiro encolhia e deixava o resto vazar.
+ *
+ * Ordem de leitura: o que faz (o texto da ficha, uma vez só), quando dispara, o custo; depois o que se decide (em
+ * quem, quanto gastar); no pé, a frase do que o Ativar vai fazer e os botões. O selo (nome, turnos, modificadores)
+ * é ajuste: fica atrás de "Ajustar o selo".
+ *
+ * Serve ao menu da vez (largo e baixo), ao painel do NPC, ao perfil da carta e ao lembrete (colunas estreitas):
+ * as duas colunas viram uma sozinhas. Sem movimento novo: a carta abre por clique e por teclado, muitas vezes por
+ * sessão, e nada aqui entra ou sai da tela aos poucos.
+ */
+
+/* ---------------------------------------------------------------- corpo: a leitura */
+/* Duas colunas quando cabem duas de 240 px (o texto à esquerda, os fatos à direita); nunca três. */
+.bt-passiva__colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(240px, calc(50% - 12px))), 1fr));
+  align-items: start;
+  gap: 8px 22px;
+  min-width: 0;
+}
+.bt-passiva__colunas > * {
+  min-width: 0;
+}
+/* O que faz: o maior corpo da carta. Recolhido, mostra `--bt-passiva-linhas` linhas; "Ler mais" abre ali mesmo. */
+.bt-passiva__texto {
+  margin: 0;
+  font-size: var(--lb-font-size-md);
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.bt-passiva__texto[data-aberto='nao'] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--bt-passiva-linhas, 6);
+  overflow: hidden;
+}
+.bt-passiva__sem-texto {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: #5d5a54;
+}
+/* O sangue claro do "Ler mais" dava 4,4:1 no papel (letra de 10,5 px); o vermelho da recusa passa de 7:1. O respiro faz o alvo de 24 px. */
+.bt-passiva .bt-ler-mais__botao {
+  margin-top: 0;
+  padding: 5px 8px 5px 0;
+  color: #8a2c22;
+}
+/* Os fatos: rótulo à esquerda, valor à direita; na coluna estreita o valor desce para a linha de baixo. */
+.bt-passiva__fatos {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.4;
+}
+.bt-passiva__fatos > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+/* O mesmo rótulo dos campos (`.bt-linha-campo > span`), para as duas colunas de valor baterem. */
+.bt-passiva__fatos dt {
+  flex: none;
+  min-width: 6.5em;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5a54;
+}
+.bt-passiva__fatos dd {
+  flex: 1 1 9.5em;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.bt-passiva__fatos small {
+  font-size: inherit;
+  color: #5d5a54;
+}
+
+/* ---------------------------------------------------------------- corpo: o que se decide */
+/* O nome comprido não empurra a carta: o campo ocupa o que sobra da linha (na coluna estreita, a linha de baixo inteira) e só então encurta o nome com reticências. */
+.bt-passiva__campo select {
+  flex: 1 1 12em;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+.bt-passiva__campo select:focus-visible {
+  outline: 2px solid var(--bt-sangue);
+  outline-offset: 1px;
+}
+.bt-passiva__campo select[aria-invalid='true'] {
+  border-color: var(--bt-sangue);
+  box-shadow: inset 0 0 0 1px var(--bt-sangue);
+}
+/* O cinza padrão do navegador no texto de exemplo dava 4,4:1 no campo. */
+.bt-passiva .bt-num::placeholder {
+  color: #5d5a54;
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------- corpo: os ajustes do selo */
+.bt-mira__selo.bt-passiva__ajustes {
+  gap: 8px;
+  padding: 8px 10px 10px;
+  /* As linhas de modificador se medem por esta caixa (a regra `@container` logo abaixo). */
+  container-type: inline-size;
+}
+/* Na coluna estreita (painel do NPC) o atributo cortava em "Forç": ele ganha a linha inteira; o número e o × descem. */
+@container (max-width: 250px) {
+  .bt-passiva__ajustes .bt-mods__linha {
+    grid-template-columns: minmax(0, 1fr) 32px;
+  }
+  .bt-passiva__ajustes .bt-mods__linha select {
+    grid-column: 1 / -1;
+  }
+}
+/* Dentro do painel do NPC a legenda herdava o cinza claro das listas escuras (2,7:1 no papel); o × dava 4,4:1. */
+.bt-passiva .bt-mods__legenda {
+  color: #5d5a54;
+}
+.bt-passiva .bt-mods__tirar {
+  color: #4a4843;
+}
+.bt-passiva__ajustes-nome {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  font-weight: 600;
+}
+.bt-passiva__ajustes-nome small {
+  margin-left: 4px;
+  font-size: inherit;
+  font-weight: 400;
+  color: #5d5a54;
+}
+/* O nome do selo vai até 24 letras: o campo cresce com a linha em vez de cortar o nome em 16. */
+.bt-passiva__nome-do-selo {
+  flex: 1 1 15em;
+  min-width: 0;
+}
+.bt-passiva__nome-do-selo .bt-num.bt-num--texto {
+  flex: 1 1 10ch;
+  width: auto;
+  min-width: 0;
+  max-width: 28ch;
+}
+
+/* ---------------------------------------------------------------- pé: o que vai acontecer e os botões */
+/* No centro do mapa do mestre o pé da mira é grudado e sem respiro dos lados (vezNoCentro.css); aqui o corpo é que rola. */
+.bt-mira.bt-passiva > .bt-mira__pe {
+  position: static;
+  gap: 6px;
+  padding: 10px 18px 16px 16px;
+  background: none;
+  box-shadow: none;
+}
+.bt-passiva__resumo {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--bt-tinta);
+  overflow-wrap: anywhere;
+}
+.bt-passiva__resumo b {
+  font-weight: 700;
+}
+/* O custo que ainda falta dizer ("? SP") e o motivo de não poder ativar, no vermelho da recusa. */
+.bt-passiva__resumo [data-falta='sim'],
+.bt-passiva__resumo[data-tom='recusa'] {
+  color: #8a2c22;
+}
+.bt-passiva__resumo[data-tom='recusa'] {
+  font-weight: 600;
+}
+/* "Dano +20" na frase: o dourado em tinta da passiva (o vermelho do selo da mira dava 4,4:1). */
+.bt-passiva__mods {
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--bt-passiva-tinta);
+}
+/* A nota ocupa o que sobra da linha dos botões; sem lugar, desce para baixo deles. */
+.bt-passiva__nota {
+  flex: 1 1 13em;
+  min-width: 0;
+}
+/* O botão aberto da batalha é latão claro sobre latão quase transparente: no papel some. Aqui fica na pedra. */
+.bt-passiva .bt-botao[aria-expanded='true'] {
+  background: var(--lb-color-stone-raised);
+  border-color: var(--bt-passiva);
+  color: var(--lb-color-brass-bright);
+}
+
+/* ---------------------------------------------------------------- tela baixa (1366x768 e afins) */
+/* No menu da vez a carta tem ~260 px: três linhas de texto, respiros mais justos e o resto atrás do "Ler mais". */
+@media (max-height: 820px) {
+  .bt-vez--lista > .bt-passiva {
+    --bt-passiva-linhas: 3;
+  }
+  .bt-passiva__colunas {
+    row-gap: 6px;
+  }
+  .bt-mira.bt-passiva > .bt-mira__corpo {
+    padding-bottom: 6px;
+  }
+  .bt-mira.bt-passiva > .bt-mira__pe {
+    gap: 5px;
+    padding: 8px 18px 10px 16px;
+  }
+}

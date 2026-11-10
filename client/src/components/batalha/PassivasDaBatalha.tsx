@@ -1,10 +1,10 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react'
 import { CUSTO_MAX, NOME_DO_SELO_MAX, TURNOS_DO_SELO_MAX, type LembreteDaPassiva, type PedidoDePassiva, type SeloDaBatalha, type SeloPedido } from '../../lib/batalha/combate'
 import { DANO_DO_SANGRAMENTO, ehLembreteDoSangramento, porVezDoLembrete } from '../../lib/batalha/condicoes'
 import { ehLembreteDoCustoDaForma, type CustoDaFormaNaTela } from '../../lib/batalha/custoPorTurno'
 import { BONUS_DA_PREPARACAO, NOME_DA_PREPARACAO, ehLembreteDaPreparacao } from '../../lib/batalha/preparacao'
 import { cartaoDaVariante, temEscolha, variantesDe } from '../../lib/batalha/escolhaEEvolucao'
-import { CAMPO_DO_EFEITO } from '../../lib/batalha/leituraDaFicha'
+import { CAMPO_DO_EFEITO, type LeituraDoCusto } from '../../lib/batalha/leituraDaFicha'
 import { passivasDe, passivasLigadas, seloDaPassiva, textoDoPorTurno, type EstadoDaPassiva, type PassivaNaTira } from '../../lib/batalha/passivas'
 import { alvosDeMod, ehNomeDeSelo, selosDoToken } from '../../lib/batalha/selos'
 import type { CartaDaOrdem, TurnosDaCena } from '../../lib/batalha/turnos'
@@ -13,21 +13,25 @@ import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { lerInteiro, textoDoCusto, type AlvoNaMira, type OpcaoNaTela, type PipDaVez } from './dadosDoMenu'
 import { LinhasDeMods, linhasDosMods, modsDasLinhas, resumoDasLinhas, type LinhaDeMod } from './LinhasDeMods'
-import { CabecaDaVez, Tira, andarComSetas, semRolarDeLado } from './ListaDeTecnicas'
+import { CabecaDaVez, Tira, andarComSetas, rasgo, semRolarDeLado, sementeDe } from './ListaDeTecnicas'
 import { ChipsDaOpcao } from './MiraDoGolpe'
 import './batalha.css'
 import './combate.css'
+import './passiva.css'
 
 /**
  * AS PASSIVAS NA BATALHA (tipos de habilidade F3, seções 4b e 6 do plano
  * docs/planos/batalha-tipos-de-habilidade-plano.md; decisões 3 e 4 do
  * usuário): a passiva NUNCA ativa sozinha.
  *
- *  - `PainelDaPassiva`: o papel de uma passiva (como o da forma): o gatilho,
- *    o efeito, o "a cada turno" e, desligada, em quem vai o selo (pedido
- *    antes quando o texto diz "escolhendo um oponente"), o custo que a ficha
- *    não fecha e o selo dourado sugerido, editável (nome, turnos e as linhas
- *    `LinhasDeMods`). Ativar cobra e põe o selo; ligada, Desligar o tira.
+ *  - `PainelDaPassiva`: o papel de uma passiva, no desenho da mira (cabeça em
+ *    tinta, corpo que rola, pé preso). Na ordem de quem lê: o que ela faz (o
+ *    texto da ficha, uma vez só), quando dispara, o custo e, desligada, em
+ *    quem vai o selo (pedido antes quando o texto diz "escolhendo um
+ *    oponente") e quanto gastar quando a ficha não fecha o custo. No pé, a
+ *    frase do que o Ativar vai fazer. O selo dourado sugerido (nome, turnos e
+ *    as linhas `LinhasDeMods`) fica atrás de "Ajustar o selo". Ativar cobra e
+ *    põe o selo; ligada, Desligar o tira.
  *  - `ListaDePassivasDoMenu`: a tira Passivas aberta no menu da vez (tiras e o painel).
  *  - `PassivasDaFicha`: as linhas do painel do NPC, do perfil da carta e da
  *    janela "Passivas" do jogador, com a seta que abre o painel embaixo.
@@ -55,8 +59,6 @@ const ROTULO_DO_ESTADO: Record<EstadoDaPassiva, string> = { ativa: 'Ativa', pron
 /** A ordem dos alvos na escolha: oponentes primeiro, depois aliados, o dono por último. */
 const ORDEM_DO_LADO: Record<AlvoDaPassiva['lado'], number> = { outro: 0, aliado: 1, eu: 2 }
 
-/** O texto do efeito que cabe no painel (a ficha às vezes traz parágrafos). */
-const EFEITO_NO_PAINEL_MAX = 280
 /** C5: o corte do que a passiva faz na tira (duas linhas na largura do menu). */
 const RESUMO_NA_TIRA_MAX = 110
 
@@ -148,12 +150,6 @@ function textoDaPassiva(passiva: PassivaNaTira): string {
   return semTexto(descricao) ? '' : descricao
 }
 
-/** O efeito no painel; `texto` = o da opção escolhida (tipos de habilidade F4), senão o da ficha (`textoDaPassiva`). */
-function efeitoDaPassiva(passiva: PassivaNaTira, texto: string = textoDaPassiva(passiva)): string {
-  if (semTexto(texto)) return ''
-  return texto.length <= EFEITO_NO_PAINEL_MAX ? texto : `${texto.slice(0, EFEITO_NO_PAINEL_MAX).trimEnd()}…`
-}
-
 /** C5: o que a passiva faz, para a tira (a tira corta em duas linhas; o papel tem o texto inteiro). Sem texto na ficha = `null`. */
 function resumoDaPassiva(passiva: PassivaNaTira): string | null {
   const texto = textoDaPassiva(passiva)
@@ -180,21 +176,92 @@ function detalheNaTira(passiva: PassivaNaTira, resumo: string | null): string {
   return [repete ? null : detalheDaPassiva(passiva), motivo].filter(Boolean).join(' · ')
 }
 
-/** C5: o efeito no papel, com "Ler mais" quando passa do corte (o texto inteiro abre ali mesmo). */
-function EfeitoComLerMais({ curto, inteiro }: { curto: string; inteiro: string }) {
+/**
+ * C5: o que a passiva faz, no papel: o texto da ficha, uma vez só. Recolhido,
+ * mostra as linhas que a folha deixa (`--bt-passiva-linhas`, menos na tela
+ * baixa); "Ler mais" só aparece quando sobra texto, e abre ali mesmo.
+ */
+function TextoDaFicha({ texto }: { texto: string }) {
   const [aberto, setAberto] = useState(false)
+  const [sobra, setSobra] = useState(false)
+  const paragrafo = useRef<HTMLParagraphElement>(null)
   const id = useId()
-  const corta = curto !== inteiro
+
+  useLayoutEffect(() => {
+    const el = paragrafo.current
+    if (el === null || aberto) return
+    const medir = () => setSobra(el.scrollHeight > el.clientHeight + 1)
+    medir()
+    // A largura da coluna muda com a janela, e o corte com ela. Sem ResizeObserver, vale a primeira medida.
+    if (typeof ResizeObserver === 'undefined') return
+    const observador = new ResizeObserver(medir)
+    observador.observe(el)
+    return () => observador.disconnect()
+  }, [aberto, texto])
+
   return (
-    <div className="bt-forma__texto bt-ler-mais">
-      <p id={id}>{aberto || !corta ? inteiro : curto}</p>
-      {corta && (
+    <div className="bt-ler-mais" role="group" aria-label="O que faz">
+      <p ref={paragrafo} id={id} className="bt-passiva__texto" data-aberto={aberto ? 'sim' : 'nao'}>
+        {texto}
+      </p>
+      {(sobra || aberto) && (
         <button type="button" className="bt-ler-mais__botao" aria-expanded={aberto} aria-controls={id} onClick={() => setAberto((antes) => !antes)}>
           {aberto ? 'Ler menos' : 'Ler mais'}
         </button>
       )}
     </div>
   )
+}
+
+/**
+ * Quando a passiva dispara, em português simples, e a ressalva ao lado. O
+ * requisito costuma ser o próprio Efeito ("Ao atingir inimigos..."): com o
+ * texto já na carta (`naTela`), ele não se repete.
+ */
+function quandoDispara(passiva: PassivaNaTira, naTela: string): { texto: string; nota: string | null } {
+  const jaAconteceu = passiva.estado === 'pronta' ? 'já aconteceu' : null
+  switch (passiva.gatilho.tipo) {
+    case 'inicio':
+      return { texto: 'No início do combate', nota: jaAconteceu }
+    case 'rodada':
+      return { texto: `A partir da rodada ${passiva.gatilho.rodada}`, nota: jaAconteceu }
+    case 'vida':
+      return { texto: `Com a vida abaixo de ${passiva.gatilho.abaixoDe}%`, nota: jaAconteceu }
+    case 'requisito':
+      return { texto: mesmoComeco(passiva.gatilho.texto, naTela) ? 'Na condição do texto' : passiva.gatilho.texto, nota: 'o app não confere: veja na mesa' }
+    case 'sempre':
+      return { texto: 'Vale sempre', nota: passiva.estado === 'ativa' ? null : 'sem lembrete: ative quando quiser' }
+  }
+}
+
+/** O que o Ativar cobra, com o que já foi digitado: "30 SP", "? SP" (falta dizer quanto); `null` = não gasta nada. */
+function gastoDoAtivar(custo: LeituraDoCusto, digitado: number | null): string | null {
+  if (custo.tipo === 'nada') return null
+  if (custo.tipo === 'valor') return custo.valor > 0 ? textoDoCusto(custo) : null
+  if (digitado === null) return `? ${custo.recurso.toUpperCase()}`
+  return digitado > 0 ? textoDoCusto({ tipo: 'valor', recurso: custo.recurso, valor: digitado, porTurno: false }) : null
+}
+
+/** A folga entre o campo e a borda do corpo que rola. */
+const FOLGA_NO_CORPO = 8
+
+/**
+ * Põe `el` à vista dentro do corpo da carta. O topo de `el` nunca sai: o que
+ * é mais alto que o corpo fica com o começo à mostra. Corpo que não rola (a
+ * carta dentro de uma coluna): com `aColunaAnda`, a coluna de fora é que
+ * anda; sem ele nada se mexe (ao abrir, o foco vai com `preventScroll` para
+ * a página não pular).
+ */
+function mostrarNoCorpo(corpo: HTMLElement | null, el: HTMLElement | null, aColunaAnda = false): void {
+  if (corpo === null || el === null) return
+  if (corpo.scrollHeight <= corpo.clientHeight + 1) {
+    if (aColunaAnda) el.scrollIntoView?.({ block: 'nearest' })
+    return
+  }
+  const caixa = corpo.getBoundingClientRect()
+  const alvo = el.getBoundingClientRect()
+  if (alvo.top < caixa.top) corpo.scrollTop -= caixa.top - alvo.top + FOLGA_NO_CORPO
+  else if (alvo.bottom > caixa.bottom) corpo.scrollTop += Math.min(alvo.bottom - caixa.bottom + FOLGA_NO_CORPO, alvo.top - caixa.top)
 }
 
 /** O nome no lembrete, sem o "(Passiva)" que a ficha costuma pôr: a faixa é de uma linha. */
@@ -247,7 +314,10 @@ export interface PainelDaPassivaProps {
   className?: string
 }
 
-/** O papel de uma passiva: a leitura e Ativar (com alvo, custo e selo editável) ou Desligar. */
+/** O que os ajustes do selo põem em foco: o primeiro campo (aberto pelo botão) ou o campo que a recusa aponta. */
+type FocoNosAjustes = 'abrir' | 'nome' | 'turnos' | 'mods'
+
+/** O papel de uma passiva: a leitura, o que o Ativar vai fazer e Ativar (com alvo, custo e selo ajustável) ou Desligar. */
 export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre = false, esperando, onPedir, onFeito, onVoltar, rotuloDoVoltar = 'Voltar', className }: PainelDaPassivaProps) {
   const idBase = useId()
   const ligada = passiva.estado === 'ativa'
@@ -261,28 +331,64 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
   const [opcaoChave, setOpcaoChave] = useState<string | null>(() => opcoes?.[0]?.chave ?? null)
   const opcao = opcoes?.find((candidata) => candidata.chave === opcaoChave) ?? null
   const [erro, setErro] = useState<string | null>(null)
+  // O selo sugerido já vai pronto no pedido: nome, turnos e modificadores só aparecem em "Ajustar o selo".
+  const [ajustando, setAjustando] = useState(false)
+  const [focoNosAjustes, setFocoNosAjustes] = useState<{ campo: FocoNosAjustes } | null>(null)
+  const corpo = useRef<HTMLDivElement>(null)
+  const ajustes = useRef<HTMLDivElement>(null)
   const campoDoAlvo = useRef<HTMLSelectElement>(null)
   const campoDoCusto = useRef<HTMLInputElement>(null)
+  const campoDoNome = useRef<HTMLInputElement>(null)
+  const campoDosTurnos = useRef<HTMLInputElement>(null)
   const botao = useRef<HTMLButtonElement>(null)
 
   const mods = alvosDeMod(sistema)
   const resumo = resumoDasLinhas(linhas, mods)
-  const efeito = opcao === null || opcao.principal ? efeitoDaPassiva(passiva) : efeitoDaPassiva(passiva, opcao.texto)
-  const textoInteiro = (opcao === null || opcao.principal ? textoDaPassiva(passiva) : opcao.texto).trim()
+  // O texto da ficha, ou o da opção escolhida (F4); desligada com opções, quem o mostra são os chips.
+  const daFicha = (opcao === null || opcao.principal ? textoDaPassiva(passiva) : opcao.texto).trim()
+  const texto = semTexto(daFicha) ? '' : daFicha
+  const escolhendo = !ligada && opcoes !== null
+  const quando = quandoDispara(passiva, escolhendo ? (opcao?.texto ?? '') : texto)
   const motivo = ligada ? null : passiva.motivo
   const custo = textoDoCusto(passiva.custo)
+  const custoDigitado = passiva.custo.tipo === 'pergunta' ? lerInteiro(custoTexto, CUSTO_MAX) : null
+  const gasto = gastoDoAtivar(passiva.custo, custoDigitado)
+  const faltaOCusto = passiva.custo.tipo === 'pergunta' && custoDigitado === null
   const podeAplicar = ligada && passiva.porTurno !== null && (aplicarLivre || passiva.lembrete?.tipo === 'porTurno')
   const turnosLidos = seloTurnos.trim() === '' ? null : lerInteiro(seloTurnos, TURNOS_DO_SELO_MAX)
   const ordenados = alvosOrdenados(alvos)
+  const alvoEscolhido = ordenados.find((alvo) => alvo.tokenId === alvoId)
+  const estiloDoRasgo = useMemo(() => {
+    const semente = sementeDe(passiva.cartao.id)
+    return { '--rasgo': rasgo(semente, 6), '--rasgo2': rasgo(semente + 7, 7) } as CSSProperties
+  }, [passiva.cartao.id])
 
   // Abre com o foco no que ele precisa responder primeiro: o alvo, o custo ou o botão.
   useEffect(() => {
-    if (!ligada && passiva.alvo === 'oponente') campoDoAlvo.current?.focus({ preventScroll: true })
-    else if (!ligada && passiva.custo.tipo === 'pergunta') campoDoCusto.current?.focus({ preventScroll: true })
-    else botao.current?.focus({ preventScroll: true })
+    const campo = ligada ? null : passiva.alvo === 'oponente' ? campoDoAlvo.current : passiva.custo.tipo === 'pergunta' ? campoDoCusto.current : null
+    const primeiro = campo ?? botao.current
+    primeiro?.focus({ preventScroll: true })
+    // O campo que espera resposta fica à vista dentro do corpo (a página não pula).
+    mostrarNoCorpo(corpo.current, campo)
     // Só ao abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Os ajustes do selo abertos pelo botão ganham o foco no nome; abertos por uma recusa, no campo recusado.
+  useEffect(() => {
+    if (focoNosAjustes === null) return
+    const { campo } = focoNosAjustes
+    const alvo = campo === 'turnos' ? campoDosTurnos.current : campo === 'mods' ? (ajustes.current?.querySelector<HTMLElement>('.bt-mods [aria-invalid="true"]') ?? null) : campoDoNome.current
+    alvo?.focus({ preventScroll: true })
+    mostrarNoCorpo(corpo.current, campo === 'abrir' ? ajustes.current : (alvo ?? ajustes.current), true)
+  }, [focoNosAjustes])
+
+  /** A recusa num campo do selo abre os ajustes e leva o foco ao campo: nada obrigatório fica escondido. */
+  const recusarNoSelo = (recusa: string, campo: FocoNosAjustes) => {
+    setErro(recusa)
+    setAjustando(true)
+    setFocoNosAjustes({ campo })
+  }
 
   const pedir = (pedido: PedidoDePassiva, falhou: string) => {
     const saiu = onPedir(pedido)
@@ -331,16 +437,16 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     }
     const nome = seloNome.trim()
     if (!ehNomeDeSelo(nome)) {
-      setErro(`Dê um nome ao selo (até ${NOME_DO_SELO_MAX} letras).`)
+      recusarNoSelo(`Dê um nome ao selo (até ${NOME_DO_SELO_MAX} letras).`, 'nome')
       return
     }
     if (seloTurnos.trim() !== '' && (turnosLidos === null || turnosLidos < 1)) {
-      setErro(`Os turnos do selo vão de 1 a ${TURNOS_DO_SELO_MAX} (vazio = até desligar).`)
+      recusarNoSelo(`Os turnos do selo vão de 1 a ${TURNOS_DO_SELO_MAX} (vazio = até desligar).`, 'turnos')
       return
     }
     const lidos = modsDasLinhas(linhas, mods)
     if ('erro' in lidos) {
-      setErro(lidos.erro)
+      recusarNoSelo(lidos.erro, 'mods')
       return
     }
     const selo: SeloPedido = { nome, turnos: turnosLidos }
@@ -363,96 +469,108 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
     onVoltar()
   }
 
-  const rotuloDoBotao = ligada ? `Desligar ${passiva.nome}` : `Ativar${custo === null || passiva.custo.tipo === 'pergunta' ? '' : ` · ${custo}`}`
+  // O botão diz o que cobra (o digitado também); o nome da passiva já está na cabeça da carta.
+  const rotuloDoBotao = ligada ? 'Desligar' : `Ativar${gasto === null || faltaOCusto ? '' : ` · ${gasto}`}`
   const classe = ['bt-mira', 'bt-papel', 'bt-passiva', className].filter(Boolean).join(' ')
   return (
-    <form className={classe} onSubmit={enviar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
-      <p className="bt-mira__rot bt-passiva__rot">
-        {ligada ? 'Passiva · ativa' : 'Passiva'}
-        {passiva.forma !== undefined && <span> · {passiva.forma}</span>}
-      </p>
-      <h3 className="bt-mira__nome" id={`${idBase}-nome`}>
-        {passiva.nome}
-      </h3>
-      <dl className="bt-passiva__leitura">
-        <div>
-          <dt>Gatilho</dt>
-          <dd>
-            {passiva.textoDoGatilho}
-            {passiva.gatilho.tipo === 'requisito' && <small> · o app não confere: veja na mesa</small>}
-            {passiva.estado === 'pronta' && <small> · já bateu</small>}
-          </dd>
-        </div>
-        {custo !== null && (
-          <div>
-            <dt>Custo</dt>
-            <dd>{passiva.custo.tipo === 'pergunta' ? `a ficha diz: ${passiva.custo.texto}` : custo}</dd>
-          </div>
-        )}
-        {passiva.porTurno !== null && (
-          <div>
-            <dt>A cada turno</dt>
-            <dd>
-              {textoDoPorTurno(passiva.porTurno, sistema)}
-              <small> · lembra no começo da vez, com Aplicar</small>
-            </dd>
-          </div>
-        )}
-      </dl>
-      {!ligada && opcoes !== null && <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />}
-      {efeito !== '' && (ligada || opcoes === null) && <EfeitoComLerMais curto={efeito} inteiro={textoInteiro} />}
-      {!ligada && (
-        <>
-          <label className="bt-linha-campo">
-            <span>Em quem</span>
-            <select
-              ref={campoDoAlvo}
-              value={alvoId}
-              aria-invalid={erro !== null && alvoId === '' ? true : undefined}
-              onChange={(evento) => {
-                setErro(null)
-                setAlvoId(evento.target.value)
-              }}
-            >
-              {passiva.alvo === 'oponente' && (
-                <option value="" disabled>
-                  Escolha o oponente…
-                </option>
-              )}
-              {ordenados.map((alvo) => (
-                <option key={alvo.tokenId} value={alvo.tokenId}>
-                  {alvo.tokenId === tokenId ? `${alvo.nome} (o dono)` : alvo.nome}
-                </option>
-              ))}
-            </select>
-            {passiva.alvo === 'oponente' && <small className="bt-mira__nota">o texto diz "escolhendo um oponente"</small>}
-          </label>
-          {passiva.custo.tipo === 'pergunta' && (
-            <label className="bt-linha-campo" title={`A ficha diz: ${passiva.custo.texto}`}>
-              <span>Custo ({passiva.custo.recurso.toUpperCase()})</span>
+    <form className={classe} style={estiloDoRasgo} onSubmit={enviar} onKeyDown={teclar} aria-labelledby={`${idBase}-nome`} noValidate>
+      <div className="bt-mira__cabeca">
+        <p className="bt-mira__rot">
+          {ligada ? 'Passiva · ativa' : passiva.estado === 'pronta' ? 'Passiva · pronta' : 'Passiva'}
+          {passiva.forma !== undefined && <span> · {passiva.forma}</span>}
+        </p>
+        <h3 className="bt-mira__nome" id={`${idBase}-nome`}>
+          {passiva.nome}
+        </h3>
+      </div>
+      <div className="bt-mira__corpo" ref={corpo}>
+        {/* A leitura, na ordem de quem nunca viu a carta: o que faz, quando dispara, o custo; depois o que ele decide. */}
+        <div className="bt-passiva__colunas">
+          {escolhendo ? (
+            <ChipsDaOpcao idBase={idBase} opcoes={opcoes} escolhida={opcao} onEscolher={escolherOpcao} />
+          ) : texto !== '' ? (
+            <TextoDaFicha texto={texto} />
+          ) : (
+            <p className="bt-passiva__sem-texto">A ficha não diz o que esta passiva faz.</p>
+          )}
+          <dl className="bt-passiva__fatos">
+            <div>
+              <dt>Quando</dt>
+              <dd>
+                {quando.texto}
+                {quando.nota !== null && <small> · {quando.nota}</small>}
+              </dd>
+            </div>
+            <div>
+              <dt>Custo</dt>
+              <dd>{passiva.custo.tipo === 'pergunta' ? `A ficha diz: “${passiva.custo.texto}”` : (custo ?? 'Sem custo')}</dd>
+            </div>
+            {passiva.porTurno !== null && (
+              <div>
+                <dt>A cada turno</dt>
+                <dd>
+                  {textoDoPorTurno(passiva.porTurno, sistema)}
+                  <small> · lembra no começo da vez, com Aplicar</small>
+                </dd>
+              </div>
+            )}
+          </dl>
+          {!ligada && (
+            <label className="bt-linha-campo bt-passiva__campo">
+              <span>Em quem</span>
+              <select
+                ref={campoDoAlvo}
+                value={alvoId}
+                aria-invalid={erro !== null && alvoId === '' ? true : undefined}
+                onChange={(evento) => {
+                  setErro(null)
+                  setAlvoId(evento.target.value)
+                }}
+              >
+                {passiva.alvo === 'oponente' && (
+                  <option value="" disabled>
+                    Escolha o oponente…
+                  </option>
+                )}
+                {ordenados.map((alvo) => (
+                  <option key={alvo.tokenId} value={alvo.tokenId}>
+                    {alvo.tokenId === tokenId ? `${alvo.nome} (o dono)` : alvo.nome}
+                  </option>
+                ))}
+              </select>
+              {passiva.alvo === 'oponente' && <small className="bt-mira__nota">o texto diz "escolhendo um oponente"</small>}
+            </label>
+          )}
+          {!ligada && passiva.custo.tipo === 'pergunta' && (
+            <label className="bt-linha-campo bt-passiva__campo">
+              <span>Gastar agora</span>
               <input
                 ref={campoDoCusto}
                 className="bt-num"
                 inputMode="numeric"
                 value={custoTexto}
                 placeholder="?"
+                aria-invalid={erro !== null && faltaOCusto ? true : undefined}
                 onChange={(evento) => {
                   setErro(null)
                   setCustoTexto(evento.target.value)
                 }}
               />
+              {passiva.custo.recurso.toUpperCase()}
+              <small className="bt-mira__nota">0 = não gasta</small>
             </label>
           )}
-          <div className="bt-mira__selo" data-marcado="sim" data-natureza="passiva">
-            <p className="bt-passiva__selo">
-              Selo <span className="bt-selo" data-natureza="passiva">{seloNome.trim() || passiva.selo.nome}</span> · {textoDosTurnos(turnosLidos)}
-              {resumo !== '' && <span className="bt-mira__selo-mods">{resumo}</span>}
-              <small>pílula dourada na carta enquanto estiver ativa</small>
+        </div>
+        {!ligada && ajustando && (
+          <div ref={ajustes} id={`${idBase}-ajustes`} className="bt-mira__selo bt-passiva__ajustes" role="group" aria-labelledby={`${idBase}-ajustes-nome`} data-marcado="sim" data-natureza="passiva">
+            <p className="bt-passiva__ajustes-nome" id={`${idBase}-ajustes-nome`}>
+              Ajustes do selo <small>a marca dourada que fica na carta de quem recebe, enquanto a passiva estiver ativa</small>
             </p>
             <div className="bt-mira__selo-campos">
-              <label className="bt-linha-campo">
+              <label className="bt-linha-campo bt-passiva__nome-do-selo">
                 <span>Nome</span>
                 <input
+                  ref={campoDoNome}
                   className="bt-num bt-num--texto"
                   maxLength={NOME_DO_SELO_MAX}
                   value={seloNome}
@@ -466,21 +584,22 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
               <label className="bt-linha-campo">
                 <span>Turnos</span>
                 <input
+                  ref={campoDosTurnos}
                   className="bt-num"
                   inputMode="numeric"
                   value={seloTurnos}
-                  placeholder="até desligar"
                   onChange={(evento) => {
                     setErro(null)
                     setSeloTurnos(evento.target.value)
                   }}
                 />
+                <small className="bt-mira__nota">vazio = até desligar</small>
               </label>
               <LinhasDeMods
                 idBase={`${idBase}-selo`}
                 linhas={linhas}
                 alvos={mods}
-                dica="lidas do Efeito; confira e ajuste"
+                dica="o que o selo soma ou tira; lido do texto, confira"
                 onMudar={(novas) => {
                   setErro(null)
                   setLinhas(novas)
@@ -488,40 +607,85 @@ export function PainelDaPassiva({ passiva, tokenId, alvos, sistema, aplicarLivre
               />
             </div>
           </div>
-        </>
-      )}
-      {motivo !== null && (
-        <p className="bt-mira__nota bt-forma__motivo" id={`${idBase}-motivo`}>
-          {motivo}
-        </p>
-      )}
-      {erro !== null && erro !== motivo && (
-        <p className="bt-mira__erro" role="alert">
-          {erro}
-        </p>
-      )}
-      <div className="bt-pendente__acoes">
-        <button
-          ref={botao}
-          type="submit"
-          className={ligada ? 'bt-botao' : 'bt-botao bt-botao--passiva'}
-          disabled={esperando || motivo !== null}
-          aria-describedby={motivo === null ? undefined : `${idBase}-motivo`}
-        >
-          {rotuloDoBotao} <kbd>Enter</kbd>
-        </button>
-        {podeAplicar && passiva.porTurno !== null && (
-          <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} onClick={aplicar}>
-            Aplicar {textoDoPorTurno(passiva.porTurno, sistema)}
-          </button>
-        )}
-        {onVoltar !== undefined && (
-          <button type="button" className="bt-botao" onClick={onVoltar}>
-            {rotuloDoVoltar} <kbd>Esc</kbd>
-          </button>
         )}
       </div>
-      <p className="bt-mira__nota">Fora da vez, sem gastar ação. Desfazer na linha do registro volta tudo.</p>
+      {/* O pé fica preso embaixo (o corpo rola): o que vai acontecer, a recusa com o motivo e os botões, sempre na tela. */}
+      <div className="bt-mira__pe">
+        {motivo !== null ? (
+          <p className="bt-passiva__resumo" data-tom="recusa" id={`${idBase}-motivo`}>
+            {motivo}
+          </p>
+        ) : ligada ? (
+          <p className="bt-passiva__resumo" id={`${idBase}-resumo`}>
+            Está ativa. Desligar tira o selo dourado da carta.
+          </p>
+        ) : (
+          <p className="bt-passiva__resumo" id={`${idBase}-resumo`}>
+            Ativar{' '}
+            {gasto === null ? (
+              'não gasta nada'
+            ) : (
+              <>
+                gasta <b data-falta={faltaOCusto ? 'sim' : undefined}>{gasto}</b>
+              </>
+            )}{' '}
+            e põe o selo{' '}
+            <span className="bt-selo" data-natureza="passiva">
+              {seloNome.trim() || passiva.selo.nome}
+            </span>{' '}
+            {alvoId === '' ? 'no oponente que você escolher' : alvoEscolhido === undefined ? 'no dono' : <>em <b>{alvoEscolhido.nome}</b></>}{' '}
+            {turnosLidos === null ? 'até desligar' : `por ${textoDosTurnos(turnosLidos)}`}
+            {resumo !== '' && (
+              <>
+                , com <span className="bt-passiva__mods">{resumo}</span>
+              </>
+            )}
+            .
+          </p>
+        )}
+        {erro !== null && erro !== motivo && (
+          <p className="bt-mira__erro" role="alert">
+            {erro}
+          </p>
+        )}
+        <div className="bt-pendente__acoes">
+          <button
+            ref={botao}
+            type="submit"
+            className={ligada ? 'bt-botao' : 'bt-botao bt-botao--passiva'}
+            disabled={esperando || motivo !== null}
+            aria-label={ligada ? `Desligar ${passiva.nome}` : undefined}
+            aria-describedby={motivo === null ? `${idBase}-resumo` : `${idBase}-motivo`}
+          >
+            {rotuloDoBotao} <kbd>Enter</kbd>
+          </button>
+          {podeAplicar && passiva.porTurno !== null && (
+            <button type="button" className="bt-botao bt-botao--passiva" disabled={esperando} onClick={aplicar}>
+              Aplicar {textoDoPorTurno(passiva.porTurno, sistema)}
+            </button>
+          )}
+          {!ligada && (
+            <button
+              type="button"
+              className="bt-botao"
+              aria-expanded={ajustando}
+              aria-controls={ajustando ? `${idBase}-ajustes` : undefined}
+              onClick={() => {
+                setAjustando(!ajustando)
+                setFocoNosAjustes(ajustando ? null : { campo: 'abrir' })
+              }}
+            >
+              {ajustando ? 'Fechar ajustes' : 'Ajustar o selo'}
+            </button>
+          )}
+          {onVoltar !== undefined && (
+            <button type="button" className="bt-botao" onClick={onVoltar}>
+              {rotuloDoVoltar} <kbd>Esc</kbd>
+            </button>
+          )}
+          <small className="bt-mira__nota bt-passiva__nota">Não gasta ação. Dá para desfazer na linha do registro.</small>
+        </div>
+      </div>
     </form>
   )
 }
