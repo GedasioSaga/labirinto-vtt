@@ -1,5 +1,6 @@
 import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { lerPeriodo, luzAcesaNoPeriodo } from './periodo'
+import { fogoAcendeLuz, raioDaLuzDoFogo } from './luzDoFogo'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
@@ -2836,12 +2837,19 @@ function recorteDoGrupo(
       // teto fechado fica fora do escuro mesmo espiada: nada vaza.
       return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at) && !carriedByHidden(l)
     })
+    // O FOGO É LUZ (pedido de 09/11/2026, `lib/luzDoFogo.ts`): o objeto Fogo que o
+    // jogador pode receber clareia como um lampião, no mesmo alcance do desenho.
+    // Fogo oculto, secreto, em sala secreta, sob teto fechado ou em zona não ilumina.
+    const fogos = naCamadaDoJogador('objeto', map.props).filter((p) => {
+      const at = { x: p.x, y: p.y }
+      return fogoAcendeLuz(p) && !p.secret && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at)
+    })
     return {
       sceneDark: map.dark === true,
       noite,
       rooms: darkRooms.map((r) => r.points),
       veils: veils.map((v) => v.ring),
-      lights: lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })),
+      lights: [...lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })), ...fogos.map((f) => ({ x: f.x, y: f.y, radius: raioDaLuzDoFogo(f, map.grid) }))],
       cell: map.grid,
     }
   }

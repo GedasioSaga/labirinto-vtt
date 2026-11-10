@@ -4555,6 +4555,7 @@ function PlayerViewDoCanvas({
           fichas,
           // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
           fogos: m.props,
+          casa: m.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = scene.mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).

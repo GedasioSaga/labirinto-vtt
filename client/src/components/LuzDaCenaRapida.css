@@ -1,0 +1,43 @@
+/* LUZ DA CENA: o balão do botão do sol (`LuzDaCenaRapida.tsx`). A caixa é a do
+   menu de variantes da barra (`.lb-toolvariant-menu`: posição acima do botão,
+   entrada de 110 ms, teto pela janela). Aqui só o que é dele: uma coluna de
+   campos, numa largura que cabe a frase de cada período em duas linhas. */
+.lb-luz-da-cena {
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  width: 296px;
+  padding: var(--lb-space-3);
+}
+
+.lb-luz-da-cena > .lb-eyebrow {
+  margin: 0;
+}
+
+/* Os grupos de efeito (fumaça, brasas): rótulo em cima, segmentado embaixo. */
+.lb-luz-da-cena__efeitos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-3);
+  padding-top: var(--lb-space-3);
+  border-top: 1px solid var(--lb-color-line);
+}
+
+/* O atalho de volta à ferramenta de sempre: a tecla fica à direita, como nos menus do livro. */
+.lb-luz-da-cena .lb-luz-da-cena__por-luz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  min-height: 30px;
+  border-color: var(--lb-color-line);
+}
+
+.lb-luz-da-cena .lb-luz-da-cena__por-luz:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-luz-da-cena .lb-luz-da-cena__por-luz:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -3010,6 +3010,7 @@ function PixiCanvasDoContexto({
           fichas: [],
           // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
           fogos: map.props,
+          casa: map.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).

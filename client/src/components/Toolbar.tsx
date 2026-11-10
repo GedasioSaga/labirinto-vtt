@@ -32,6 +32,17 @@ import { ComSaida } from './grimorio/ComSaida'
 import { Balao } from './grimorio/Balao'
 import { movimentoReduzido } from './grimorio/comum'
 import { TOOL_ICONS } from './toolIcons'
+import { LuzDaCenaRapida } from './LuzDaCenaRapida'
+
+/**
+ * LUZ DA CENA (pedido do mestre de 09/11/2026): o botão do sol deixou de armar
+ * a ferramenta e passou a abrir o controle rápido da luz da cena
+ * (`LuzDaCenaRapida`). A ferramenta de pôr um ponto de luz continua na tecla
+ * de sempre e num botão dentro do balão; a placa de latão ainda marca o sol
+ * quando ela está armada.
+ */
+const SLOT_DA_LUZ_DA_CENA: ToolbarSlot = 'light'
+const ROTULO_DA_LUZ_DA_CENA = 'Luz da cena'
 
 interface ToolbarProps {
   activeTool: DrawingTool
@@ -397,7 +408,8 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
   const closeVariantMenu = () => {
     const slot = openVariantSlot
     setOpenVariantSlot(null)
-    if (slot) variantArrowRefs.current.get(slot)?.focus()
+    // Posição sem setinha (a Luz da cena): o foco volta ao próprio botão.
+    if (slot) (variantArrowRefs.current.get(slot) ?? variantAnchorRefs.current.get(slot)?.querySelector<HTMLElement>('.lb-ferr'))?.focus()
   }
 
   // Fecha ao clicar fora do popover aberto. `pointerdown` (não `click`) pra
@@ -530,6 +542,8 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
               if (!view) return null
               const { Icon } = view
               const menuOpen = openVariantSlot === slot
+              // LUZ DA CENA: o botão do sol abre o controle rápido da luz em vez de armar a ferramenta.
+              const ehLuzDaCena = slot === SLOT_DA_LUZ_DA_CENA
               return (
                 // Âncora do par botão+cantinho. O cantinho é um `<button>` IRMÃO
                 // do principal (nunca aninhado), então o clique no corpo do
@@ -547,7 +561,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                     abrirVariantesPeloGesto(slot, view)
                   }}
                 >
-                  <Balao texto={view.texto} atalho={view.atalho} grupo={group.nome}>
+                  <Balao texto={ehLuzDaCena ? ROTULO_DA_LUZ_DA_CENA : view.texto} atalho={ehLuzDaCena ? undefined : view.atalho} grupo={group.nome}>
                     {(gatilho) => (
                       <button
                         // A dica da ferramenta ativa ancora no botão que está
@@ -562,6 +576,8 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                         // `exact`); a letra vai no balão, como tecla.
                         aria-label={view.label}
                         aria-pressed={view.pressed}
+                        aria-haspopup={ehLuzDaCena ? 'dialog' : undefined}
+                        aria-expanded={ehLuzDaCena ? menuOpen : undefined}
                         aria-describedby={gatilho['aria-describedby']}
                         onPointerEnter={gatilho.onPointerEnter}
                         onPointerLeave={() => {
@@ -578,6 +594,10 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                         onBlur={gatilho.onBlur}
                         onKeyDown={gatilho.onKeyDown}
                         onClick={() => {
+                          if (ehLuzDaCena) {
+                            setOpenVariantSlot((current) => (current === slot ? null : slot))
+                            return
+                          }
                           animarPlaca.current = true
                           onSelectTool(view.target)
                         }}
@@ -615,6 +635,18 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
                     // quem anuncia a mudança é o balão, que é `role="status"`.
                     <span ref={markRef} aria-hidden="true" style={VARIANT_MARK_STYLE} />
                   )}
+                  <ComSaida>
+                  {ehLuzDaCena && menuOpen && (
+                    <LuzDaCenaRapida
+                      onClose={closeVariantMenu}
+                      onPorLuz={() => {
+                        setOpenVariantSlot(null)
+                        animarPlaca.current = true
+                        onSelectTool(view.target)
+                      }}
+                    />
+                  )}
+                  </ComSaida>
                   <ComSaida>
                   {view.groups && menuOpen && (
                     <ToolVariantMenu
