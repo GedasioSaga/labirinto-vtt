@@ -382,3 +382,18 @@ export function criarParticulasDoMapa(movimento: MovimentoDasParticulas, opcoes:
 
   return { camada, atualizar, recortar, destruir }
 }
+
+/**
+ * A tela do JOGADOR entrega as partículas e o recorte num passo só. A camada
+ * fica acima da névoa: partícula ligada sem o recorte apareceria por cima do
+ * preto, mostrando onde há fogo no que ele não enxerga.
+ */
+export function atualizarParticulasDoJogador(
+  particulas: Pick<ParticulasDoMapa, 'atualizar' | 'recortar'>,
+  cena: string,
+  entrada: ParticulasDaTela | null,
+  recorte: RecorteDasParticulas,
+): void {
+  particulas.atualizar(cena, entrada)
+  particulas.recortar(recorte)
+}

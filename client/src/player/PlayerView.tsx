@@ -82,7 +82,7 @@ import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens,
 import { nuvensLigadas } from '../lib/nuvens'
 import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
-import { criarParticulasDoMapa, type ParticulasDoMapa } from '../pixi/particulasDoMapa'
+import { atualizarParticulasDoJogador, criarParticulasDoMapa, type ParticulasDoMapa } from '../pixi/particulasDoMapa'
 import { particulasDoJogador } from '../lib/particulasDaCena'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
@@ -3307,9 +3307,14 @@ function PlayerViewDoCanvas({
     )
     // PARTÍCULAS DA CENA: são só movimento, então saem sem "Efeitos do mapa" e no modo leve.
     // Só aparecem onde o jogador enxerga (a camada fica acima da névoa), e quem
-    // diz se a cena não tem fogo é o host (`particulasDoJogador`).
-    scene.particulas.atualizar(currentMap.id, modoLeve || !efeitosDoMapaLigados(currentSettings) ? null : particulasDoJogador(currentMap))
-    scene.particulas.recortar({ ver: currentVision, esconder: currentConcealed })
+    // diz se a cena não tem fogo é o host (`particulasDoJogador`). Ligar e
+    // recortar são um passo só (`atualizarParticulasDoJogador`).
+    atualizarParticulasDoJogador(
+      scene.particulas,
+      currentMap.id,
+      modoLeve || !efeitosDoMapaLigados(currentSettings) ? null : particulasDoJogador(currentMap),
+      { ver: currentVision, esconder: currentConcealed },
+    )
     // Portão por referência (`contentChanged`): o passo da ficha não serializa as salas.
     // Sem perigo à vista a chave é vazia: não serializa as salas à toa.
     const perigosChanged = contentChanged(scene.perigosKey, [currentMap.perigos, currentMap.regions, hidden], () =>

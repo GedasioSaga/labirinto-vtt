@@ -6,12 +6,12 @@
  * nasciam espalhadas pela tela toda. Pacote forjado, dados inventados.
  */
 import { describe, expect, it } from 'vitest'
-import { Container, Sprite, Ticker } from 'pixi.js'
-import type { MapData, Prop, TipoMobilia, Token } from '../types/map'
+import { Container, Graphics, Sprite, Ticker } from 'pixi.js'
+import type { MapData, Prop, RegionPoint, TipoMobilia, Token } from '../types/map'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
 import { particulasDoJogador, particulasDoMestre } from '../lib/particulasDaCena'
-import { criarParticulasDoMapa, type ParticulasDoMapa } from './particulasDoMapa'
+import { atualizarParticulasDoJogador, criarParticulasDoMapa, type ParticulasDoMapa } from './particulasDoMapa'
 
 const GRID = 50
 const HEROI = { x: 600, y: 400 }
@@ -128,6 +128,75 @@ describe('fogueira, lareira e fornalha soltam fumaça e brasas', () => {
     particulas.atualizar(recorte.id, particulasDoJogador(recorte))
     bater(QUADROS)
     expect(sprites(particulas.camada)).toEqual([])
+    particulas.destruir()
+  })
+})
+
+/*
+ * Segunda auditoria (09/11/2026): a camada fica acima da névoa do jogador, e
+ * nada conferia o recorte dela pelo que ele enxerga. A fumaça sobe e sai da
+ * visão; sem o recorte, aparece por cima do preto.
+ */
+describe('recorte pela visão do jogador: nada por cima da névoa', () => {
+  interface Caixa {
+    esquerda: number
+    topo: number
+    direita: number
+    base: number
+  }
+
+  function anelDa(caixa: Caixa): RegionPoint[] {
+    return [
+      { x: caixa.esquerda, y: caixa.topo },
+      { x: caixa.direita, y: caixa.topo },
+      { x: caixa.direita, y: caixa.base },
+      { x: caixa.esquerda, y: caixa.base },
+    ]
+  }
+
+  function dentroDa(caixa: Caixa, ponto: { x: number; y: number }): boolean {
+    return ponto.x > caixa.esquerda && ponto.x < caixa.direita && ponto.y > caixa.topo && ponto.y < caixa.base
+  }
+
+  /** O que a tela mostra desta partícula: pai invisível some com ela; a máscara corta o que fica fora dela (a invertida, o que fica dentro). */
+  function aparece(particula: Sprite): boolean {
+    for (let no: Container | null = particula; no !== null; no = no.parent) {
+      if (!no.visible) return false
+      const mascara = no.mask
+      if (!(mascara instanceof Graphics)) continue
+      // O Pixi não tem leitura pública de "máscara invertida": é o campo que o `setMask` grava.
+      const invertida = no._maskOptions?.inverse === true
+      if (mascara.containsPoint({ x: particula.x, y: particula.y }) === invertida) return false
+    }
+    return true
+  }
+
+  it('a partícula só aparece dentro da visão e fora do preto das zonas ocultas; quem não enxerga nada não vê nenhuma', () => {
+    const FOGO = { x: HEROI.x + 2 * GRID, y: HEROI.y }
+    const recorte = recorteDoJogador(floresta([fogo('perto', FOGO.x, FOGO.y)]))
+    // A visão acaba uma casa acima do fogo (a fumaça sobe e passa dela), e a zona oculta cobre o lado direito dele.
+    const visao: Caixa = { esquerda: FOGO.x - 6 * GRID, topo: FOGO.y - GRID, direita: FOGO.x + 6 * GRID, base: FOGO.y + 2 * GRID }
+    const oculta: Caixa = { esquerda: FOGO.x, topo: FOGO.y - 3 * GRID, direita: FOGO.x + 6 * GRID, base: FOGO.y + 2 * GRID }
+    const { particulas, bater } = tela()
+
+    atualizarParticulasDoJogador(particulas, recorte.id, particulasDoJogador(recorte), { ver: [anelDa(visao)], esconder: [anelDa(oculta)] })
+    bater(QUADROS)
+    const vivas = sprites(particulas.camada)
+    const aVista = vivas.filter((s) => dentroDa(visao, s) && !dentroDa(oculta, s))
+    const foraDaVisao = vivas.filter((s) => !dentroDa(visao, s))
+    const noPreto = vivas.filter((s) => dentroDa(visao, s) && dentroDa(oculta, s))
+    // As três situações acontecem nesta cena: sem elas o teste não confere nada.
+    expect(aVista.length).toBeGreaterThan(0)
+    expect(foraDaVisao.length).toBeGreaterThan(0)
+    expect(noPreto.length).toBeGreaterThan(0)
+    expect(aVista.every(aparece)).toBe(true)
+    expect(foraDaVisao.some(aparece)).toBe(false)
+    expect(noPreto.some(aparece)).toBe(false)
+
+    // O jogador deixou de enxergar (a ficha saiu da cena): as partículas vivas somem da tela dele.
+    atualizarParticulasDoJogador(particulas, recorte.id, particulasDoJogador(recorte), { ver: [], esconder: [] })
+    expect(sprites(particulas.camada).length).toBeGreaterThan(0)
+    expect(sprites(particulas.camada).some(aparece)).toBe(false)
     particulas.destruir()
   })
 })
