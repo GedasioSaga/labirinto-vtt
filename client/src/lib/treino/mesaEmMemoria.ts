@@ -289,8 +289,8 @@ export function casasIniciais(vagas: readonly VagaDaLuta[], grade: GradeDaArena 
   return casas
 }
 
-/** As equipes virtuais com as cópias de cada lado: as duas de sempre no treino e no duelo; na luta de mais lados, uma por lado que tem vaga. */
-function equipesDasVagas(vagas: readonly VagaDaLuta[]): Equipe[] {
+/** As equipes virtuais com as cópias de cada lado: as duas de sempre no treino e no duelo; na luta de mais lados, uma por lado que tem vaga. O robô (`robo.ts`) lê as mesmas para o alvo. */
+export function equipesDasVagas(vagas: readonly VagaDaLuta[]): Equipe[] {
   const lados: readonly LadoDaLuta[] = soOsDoisLados(vagas) ? LADOS_DO_TREINO : ladosDasVagas(vagas)
   return lados.map((lado) => ({
     ...EQUIPE_DA_LUTA[lado],

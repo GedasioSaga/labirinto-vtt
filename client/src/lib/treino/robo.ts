@@ -1,5 +1,5 @@
 import { valorDoRank } from '../ajusteDaFicha'
-import { danoSugeridoDoAtaque, acoesDaCarta } from '../batalha/golpe'
+import { acoesDaCarta, danoSugeridoDoAtaque, sugestaoParaNpc, type SugestaoDoNpc } from '../batalha/golpe'
 import { acaoDoConcentrar, motivoDoAtacar, motivoDoConcentrar, tecnicasNoMenu, type AcoesDaVez, type TecnicaNoMenu } from '../batalha/acoes'
 import {
   chaveDaVez,
@@ -30,12 +30,12 @@ import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { bonusDaBatalha, bonusDaReacao, seloPedidoValido, selosDoToken } from '../batalha/selos'
 import { seloSugeridoDaTecnica } from '../batalha/tiposDaHabilidade'
 import { formasNoMenu } from '../batalha/transformacao'
-import { cartaDaVez, type CartaDaOrdem, type TurnosDaCena } from '../batalha/turnos'
+import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../batalha/turnos'
 import { reacaoDoBoneco } from '../arena/reacaoDoBoneco'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida, vidaDoPersonagem, type VidaDaFicha } from '../vidaDaFicha'
-import type { VagaDaLuta } from './mesaEmMemoria'
+import { equipesDasVagas, type VagaDaLuta } from './mesaEmMemoria'
 
 /**
  * O ROBÔ DO TREINO (LOBBY v2, fatia T3 de
@@ -68,8 +68,12 @@ import type { VagaDaLuta } from './mesaEmMemoria'
  *  4. CONCENTRAR antes do golpe quando sai de graça (a 3ª carga) ou quando a
  *     técnica mais forte está em recarga e dá pelo menos o dobro do melhor
  *     golpe de agora (ele carrega enquanto espera);
- *  5. GOLPE: todos os que ele pode pagar agora no inimigo de pé mais ferido
- *     (empate: o primeiro na ordem das vagas), do mais forte ao mais fraco;
+ *  5. GOLPE: todos os que ele pode pagar agora, do mais forte ao mais fraco,
+ *     no alvo que o app sugere para o NPC (`sugestaoParaNpc`, a mesma escolha
+ *     do painel do mestre: o inimigo de pé mais ferido). No empate de dano, o
+ *     golpe que o app sugere vem primeiro. A ordem segue "o mais forte"
+ *     (decisão do usuário) e não a sugestão inteira porque ela prefere a
+ *     técnica ao Atacar mesmo mais fraca e só lê a arma padrão;
  *  6. CONCENTRAR por último, se ainda couber (sobrou a Bônus, ou nenhum golpe
  *     passou).
  * A forma e a ajuda que custam o golpe da vez só saem nas rodadas ímpares: nas
@@ -288,8 +292,9 @@ interface VezDoRobo {
 interface GolpeCandidato {
   dano: number
   pedido: PedidoDeAcao
-  /** Técnica: o cartão (a mesma técnica com outra arma não repete). */
+  /** Técnica: o cartão (a mesma técnica com outra arma não repete). `null` = o Atacar. */
   cartaoId: string | null
+  armaId: string | null
 }
 
 /** O Atacar com a arma (`null` = sem arma, a Força); `null` = a conta não lê o dano dela. */
@@ -300,7 +305,8 @@ function ataqueCom(personagem: Personagem, sistema: SistemaDeRpg, arma: ArmaDaFi
   const valor = danoSugeridoDoAtaque(personagem, sistema, arma)
   if (valor === null) return null
   const dano = danoNoTeto(valor)
-  return { dano, cartaoId: null, pedido: { tipo: 'atacar', armaId: arma?.id ?? null, alvos: [{ tokenId: alvo, dano }], surpresa: false, perfurante: false } }
+  const armaId = arma?.id ?? null
+  return { dano, cartaoId: null, armaId, pedido: { tipo: 'atacar', armaId, alvos: [{ tokenId: alvo, dano }], surpresa: false, perfurante: false } }
 }
 
 /**
@@ -369,21 +375,27 @@ function tecnicasDeGolpe(vez: VezDoRobo, alvo: Lutador): GolpeCandidato[] {
       const valor = danoNoAlvo(tecnica, { personagem, sistema, arma, bonusDaBatalha: vez.bonus }, alvo)
       if (valor === null) continue
       const dano = danoNoTeto(valor)
-      lista.push({ dano, cartaoId: tecnica.cartao.id, pedido: pedidoDaTecnica(tecnica, sistema, arma?.id ?? null, [{ tokenId: alvo.vaga.tokenId, dano }], tecnica.perfurante) })
+      const armaId = arma?.id ?? null
+      lista.push({ dano, cartaoId: tecnica.cartao.id, armaId, pedido: pedidoDaTecnica(tecnica, sistema, armaId, [{ tokenId: alvo.vaga.tokenId, dano }], tecnica.perfurante) })
     }
   }
   return lista
 }
 
+/** O golpe é o que o app sugere para o NPC: a mesma técnica (ou o Atacar, sem técnica) com a mesma arma. */
+function ehOSugerido(golpe: GolpeCandidato, sugestao: SugestaoDoNpc): boolean {
+  return golpe.cartaoId === sugestao.cartaoId && golpe.armaId === sugestao.armaId
+}
+
 /**
- * Os golpes no alvo, do mais forte ao mais fraco (empate: o Atacar primeiro,
- * depois as técnicas na ordem da ficha; a mesma técnica com outra arma só
- * fica a mais forte).
+ * Os golpes no alvo, do mais forte ao mais fraco (empate: o que o app sugere
+ * para o NPC, depois o Atacar, depois as técnicas na ordem da ficha; a mesma
+ * técnica com outra arma só fica a mais forte).
  */
-function golpesNoAlvo(vez: VezDoRobo, alvo: Lutador): GolpeCandidato[] {
+function golpesNoAlvo(vez: VezDoRobo, alvo: Lutador, sugestao: SugestaoDoNpc): GolpeCandidato[] {
   const candidatos = [...ataques(vez, alvo.vaga.tokenId), ...tecnicasDeGolpe(vez, alvo)]
-  // `sort` é estável: no empate fica a ordem de cima (Atacar, depois a ficha).
-  const ordenados = candidatos.sort((a, b) => b.dano - a.dano)
+  // `sort` é estável: no empate que sobra fica a ordem de cima (Atacar, depois a ficha).
+  const ordenados = candidatos.sort((a, b) => b.dano - a.dano || Number(ehOSugerido(b, sugestao)) - Number(ehOSugerido(a, sugestao)))
   const vistas = new Set<string>()
   const golpes: GolpeCandidato[] = []
   for (const candidato of ordenados) {
@@ -507,7 +519,13 @@ export function golpesDoRobo(vista: VistaDoRobo, carta: CartaDaOrdem): PedidoDeA
   if (minhaVaga === undefined || personagem === undefined || !dePe(personagem, sistema)) return []
   const naLuta = doMaisFerido(lutadoresDePe(vista))
   const inimigos = naLuta.filter((lutador) => lutador.vaga.lado !== minhaVaga.lado)
-  const alvo = inimigos[0]
+  // O alvo e o golpe que o app sugere para o NPC (a escolha do painel do mestre), sobre as equipes da luta.
+  const sugestao = sugestaoParaNpc(
+    personagem,
+    { turnos, registro: [], regras: vista.regras },
+    { personagens: vista.personagens, sistema, equipes: equipesDasVagas(vista.vagas), caidos: tokensCaidos(turnos.cartas, vista.personagens, sistema) },
+  )
+  const alvo = inimigos.find((lutador) => lutador.vaga.tokenId === sugestao.alvoTokenId) ?? inimigos[0]
   if (alvo === undefined) return []
   const combate = turnos.combate?.[personagem.id]
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: vista.regras })
@@ -528,7 +546,7 @@ export function golpesDoRobo(vista: VistaDoRobo, carta: CartaDaOrdem): PedidoDeA
     inimigos,
     golpesNaVez: vista.golpesNaVez,
   }
-  const golpes = golpesNoAlvo(vez, alvo)
+  const golpes = golpesNoAlvo(vez, alvo, sugestao)
   // O último golpe da vez fica para a cura e o golpe: o preparo de ação livre não toma o lugar do ataque.
   const ultimo = vista.golpesNaVez >= GOLPES_POR_VEZ_MAX - 1
   const preparo = ultimo ? [] : [...formas(vez), ...ajudas(vez)]
