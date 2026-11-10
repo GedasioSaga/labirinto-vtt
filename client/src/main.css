@@ -3996,8 +3996,14 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 .lb-cenas__form {
   display: flex;
   flex-direction: column;
+  flex-basis: 100%;
   gap: var(--lb-space-2);
   margin-top: var(--lb-space-2);
+}
+
+/* O renomear abre na própria linha da cena: o vão do cartão já separa. */
+.lb-cenas__item > .lb-cenas__form {
+  margin-top: 0;
 }
 
 .lb-cenas__acoes {
@@ -4080,21 +4086,25 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   color: var(--lb-color-brass);
 }
 
-/* O menu abre sob o "…", por cima das linhas de baixo: a linha é a âncora. */
 .lb-cenas__item {
   position: relative;
 }
 
+/* O menu fica preso à janela, não à linha: abre no ponto do clique direito ou
+   junto do "…", e o SceneMenu (ScenesSection) o põe sempre inteiro na janela —
+   vira para cima, desliza e, na janela baixa demais, rola por dentro. */
 .lb-panel.lb-cenas__menu {
-  position: absolute;
-  top: calc(100% - var(--lb-space-1));
-  right: var(--lb-space-2);
+  position: fixed;
+  top: 0;
+  left: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 10rem;
   padding: var(--lb-space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   /* Opaco, como o menu de fundo do ActionBar: as linhas de baixo não vazam entre os itens. */
   background: var(--lb-color-stone-solid);
   /* Entra e sai pela transição de `.gr-anima` (ComSaida, fatia 20), encolhendo
@@ -4111,6 +4121,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 .lb-cenas__menu-item {
+  /* Na janela baixa o menu rola: o item não encolhe para caber. */
+  flex: none;
   width: 100%;
   padding: 6px var(--lb-space-2);
   border: 1px solid transparent;
@@ -4463,7 +4475,7 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 
 /* ---- Linha da cena (bar: painel de camadas do Figma, Explorer do VS Code)
    A primeira linha do item é nome | info | controles. O nome fica com a
-   largura e quebra em até duas linhas (o nome inteiro mora no title); a info à direita traz só o que se lê
+   largura e quebra em quantas linhas precisar, sem nunca cortar; a info à direita traz só o que se lê
    de relance. Os controles flutuam acima da linha, no canto de cima do cartão, e
    só aparecem no hover e no foco do teclado: em repouso ficam com opacity 0 —
    nunca display nem visibility, e cada botão mantém o pointer-events — para o
@@ -4499,8 +4511,8 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
 }
 
 /* Do tamanho do texto: um nome curto deixa o meio da linha livre para o clique.
-   O comprido quebra em até duas linhas em vez de cortar no fim, que é justo
-   onde duas cenas parecidas se diferenciam (o nome inteiro mora no title). A
+   O comprido quebra em quantas linhas precisar: cortar no fim apagava justo o
+   pedaço em que duas cenas parecidas se diferenciam ("Casa de Frog – an…"). A
    primeira linha fica no meio dos 24 px da faixa de botões. */
 .lb-cenas__linha > .lb-cenas__nome {
   flex: 0 1 auto;
@@ -4509,12 +4521,10 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   white-space: normal;
 }
 
+/* Sem limite de linhas. Palavra sem espaço maior que a linha (um nome colado de
+   60 letras) quebra em qualquer letra em vez de vazar pela borda. */
 .lb-cenas__nome-texto {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  display: block;
   overflow-wrap: anywhere;
 }
 
@@ -4623,6 +4633,27 @@ label.lb-switch[data-dica-linha='aberta'] > span:first-child::after,
   box-shadow: var(--lb-shadow-sm);
   opacity: 0;
   pointer-events: none;
+}
+
+/* A faixa sobe uns 6 px sobre o pé do cartão de cima. Cada linha é uma camada,
+   maior nas de cima (`--lb-cena-camada`, ScenesSection): em repouso o cartão de
+   cima fica por cima da faixa escondida do de baixo, e o clique no fim dele
+   abre a cena dele, nunca um botão invisível. A linha com o mouse, o foco ou o
+   menu aberto sobe acima de todas, e a faixa dela aparece inteira. */
+.lb-cenas > .lb-cenas__item {
+  z-index: var(--lb-cena-camada, auto);
+}
+
+.lb-cenas > .lb-cenas__item:is(:hover, :focus-within, :has(> [role='menu'])) {
+  z-index: var(--lb-cenas-total, auto);
+}
+
+/* Primeira linha visível da lista rolada: em cima não há onde pousar (a borda
+   da área que rola cortava a faixa), e ela desce para o pé do cartão, sobre o
+   respiro de baixo e o vão — onde também não há texto (`placeRowStrip`). */
+.lb-cenas__item[data-faixa='embaixo'] > .lb-cenas__linha > .lb-cenas__controles {
+  top: var(--lb-faixa-topo);
+  bottom: auto;
 }
 
 /* Aparece com o mouse sobre o cartão, com o foco de teclado em qualquer peça da
@@ -4884,20 +4915,22 @@ html.lb-arrastando-cena .lb-cenas__item > .lb-cenas__linha > .lb-cenas__controle
   gap: var(--lb-space-1);
 }
 
-/* Recente: uma pílula com o nome; o nome inteiro no title quando a pílula corta. */
+/* Recente: uma pílula com o nome inteiro, como nas linhas da árvore: o nome
+   comprido quebra em mais linhas em vez de cortar. O raio é metade da altura
+   de uma linha: pílula com uma linha, cartão arredondado com várias. */
 .lb-cenas__recente {
   max-width: 100%;
   min-height: var(--lb-space-6);
-  padding: 0 var(--lb-space-2);
-  overflow: hidden;
+  padding: 2px var(--lb-space-2);
   border: 1px solid var(--lb-color-line);
-  border-radius: 999px;
+  border-radius: calc(var(--lb-space-6) / 2);
   background: none;
   color: var(--lb-color-parchment-dim);
   font-family: inherit;
   font-size: var(--lb-font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition:
     border-color var(--lb-motion-fast) var(--lb-motion-ease),

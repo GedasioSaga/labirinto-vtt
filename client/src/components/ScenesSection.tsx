@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -536,6 +537,75 @@ interface SceneMenuProps {
   trigger: HTMLElement | null
   /** `focusTrigger`: Esc e escolha devolvem o foco ao "…"; Tab e clique fora, não. */
   onClose(focusTrigger: boolean): void
+  /** Botão direito: o ponto do clique, na janela. `null` = abre junto do "…". */
+  ponto: MenuPoint | null
+}
+
+/** Um ponto na janela (clientX/clientY). */
+interface MenuPoint {
+  x: number
+  y: number
+}
+
+/** Folga entre o menu e a borda da janela (a mesma do menu da porta). */
+const MENU_EDGE_GAP_PX = 8
+/** Vão entre o menu e o "…" (ou o ponto do clique) que o abriu. */
+const MENU_ANCHOR_GAP_PX = 2
+
+/**
+ * O ancestral que vira o contêiner de um `position: fixed` (transform, filtro,
+ * contenção): com ele, `left`/`top` contam do canto dele, não da janela.
+ */
+function fixedContainerOf(el: HTMLElement): HTMLElement | null {
+  // Valor ausente (navegador de teste) ou neutro não cria contêiner.
+  const set = (value: string | undefined) => value !== undefined && value !== '' && value !== 'none' && value !== 'normal' && value !== 'auto'
+  for (let node = el.parentElement; node !== null; node = node.parentElement) {
+    const s = getComputedStyle(node)
+    if (
+      set(s.transform) ||
+      set(s.perspective) ||
+      set(s.filter) ||
+      set(s.backdropFilter) ||
+      /paint|layout|strict|content/.test(s.contain ?? '') ||
+      set(s.containerType) ||
+      /transform|perspective|filter/.test(s.willChange ?? '')
+    ) {
+      return node
+    }
+  }
+  return null
+}
+
+/**
+ * Onde o menu cabe INTEIRO na janela. Abre embaixo do que o abriu; sem lugar
+ * embaixo, vira para cima; sem lugar nos dois, desliza até caber, encostado
+ * no pé da janela; e, na janela mais baixa que ele, rola por dentro.
+ */
+export function placeSceneMenu(input: {
+  anchor: { left: number; right: number; top: number; bottom: number }
+  /** Do ponto do clique o menu cresce para a direita; do "…", para a esquerda. */
+  fromPoint: boolean
+  width: number
+  height: number
+  viewWidth: number
+  viewHeight: number
+}): { left: number; top: number; maxHeight: number | null; up: boolean } {
+  const { anchor, fromPoint, width, height, viewWidth, viewHeight } = input
+  const room = viewHeight - 2 * MENU_EDGE_GAP_PX
+  const maxHeight = height > room ? Math.max(0, room) : null
+  const h = Math.min(height, room)
+  const below = viewHeight - MENU_EDGE_GAP_PX - (anchor.bottom + MENU_ANCHOR_GAP_PX)
+  const above = anchor.top - MENU_ANCHOR_GAP_PX - MENU_EDGE_GAP_PX
+  let top: number
+  let up = false
+  if (h <= below) top = anchor.bottom + MENU_ANCHOR_GAP_PX
+  else if (h <= above) {
+    top = anchor.top - MENU_ANCHOR_GAP_PX - h
+    up = true
+  } else top = Math.max(MENU_EDGE_GAP_PX, viewHeight - MENU_EDGE_GAP_PX - h)
+  const wanted = fromPoint ? anchor.left : anchor.right - width
+  const left = Math.max(MENU_EDGE_GAP_PX, Math.min(wanted, viewWidth - MENU_EDGE_GAP_PX - width))
+  return { left, top, maxHeight, up }
 }
 
 /**
@@ -545,9 +615,71 @@ interface SceneMenuProps {
  * aplica agora (Subir na primeira cena) fica no lugar, esmaecido, para o
  * mestre aprender onde ele mora.
  */
-function SceneMenu({ id, label, items, trigger, onClose, saindo = false }: SceneMenuProps & ComSaidaFilho) {
+function SceneMenu({ id, label, items, trigger, onClose, ponto, saindo = false }: SceneMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  /** O ponto do clique guardado em relação à linha: a lista rola e o menu vai junto. */
+  const pointInRow = useRef<{ dx: number; dy: number } | null>(null)
+
+  // Em `position: fixed`, posto antes da pintura e de novo quando a janela
+  // muda de tamanho ou a lista rola. A lista mora numa coluna que rola: preso à
+  // linha (`absolute`), o menu da última cena abria embaixo dela e saía da janela.
+  useLayoutEffect(() => {
+    const menu = menuRef.current
+    if (menu === null) return
+    const row = menu.closest('li')
+    // Saindo, o menu fica onde estava: nada de recalcular o ponto com a lista já rolada.
+    if (!saindo) {
+      const box = row?.getBoundingClientRect()
+      pointInRow.current = ponto !== null && box !== undefined ? { dx: ponto.x - box.left, dy: ponto.y - box.top } : null
+    }
+    const container = fixedContainerOf(menu)
+    const place = () => {
+      const offset = pointInRow.current
+      const rowBox = row?.getBoundingClientRect()
+      let anchor: { left: number; right: number; top: number; bottom: number }
+      if (offset !== null && rowBox !== undefined) {
+        const x = rowBox.left + offset.dx
+        const y = rowBox.top + offset.dy
+        anchor = { left: x, right: x, top: y, bottom: y }
+      } else if (trigger !== null && trigger.isConnected) {
+        anchor = trigger.getBoundingClientRect()
+      } else if (rowBox !== undefined) {
+        anchor = { left: rowBox.right, right: rowBox.right, top: rowBox.bottom, bottom: rowBox.bottom }
+      } else return
+      // A altura inteira mesmo com o limite já posto (o scrollHeight conta o que rola).
+      const height = menu.scrollHeight + (menu.offsetHeight - menu.clientHeight)
+      const spot = placeSceneMenu({
+        anchor,
+        fromPoint: offset !== null,
+        width: menu.offsetWidth,
+        height,
+        viewWidth: document.documentElement.clientWidth,
+        viewHeight: document.documentElement.clientHeight,
+      })
+      const origin = container === null ? { x: 0, y: 0 } : container.getBoundingClientRect()
+      const originX = container === null ? 0 : origin.x + container.clientLeft
+      const originY = container === null ? 0 : origin.y + container.clientTop
+      menu.style.left = `${spot.left - originX}px`
+      menu.style.top = `${spot.top - originY}px`
+      menu.style.maxHeight = spot.maxHeight === null ? '' : `${spot.maxHeight}px`
+      // Cresce a partir de quem o abriu: virado para cima, nasce do pé.
+      menu.style.transformOrigin = `${spot.up ? 'bottom' : 'top'} ${offset !== null ? 'left' : 'right'}`
+    }
+    place()
+    if (saindo) return
+    // Rolar dentro do próprio menu não muda onde ele está.
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && menu.contains(event.target)) return
+      place()
+    }
+    window.addEventListener('resize', place)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [ponto, trigger, saindo])
 
   /** Os itens que agem, na ordem: é por eles que as setas andam. */
   const enabled = (): HTMLButtonElement[] => {
@@ -904,8 +1036,49 @@ function useRecentScenes(adventureId: string | null, activeId: string | null): r
 }
 
 /** O nível da linha para o CSS: o recuo e os fios da pasta saem de `--lb-cena-nivel`. */
-function levelStyle(depth: number): CSSProperties {
-  return { '--lb-cena-nivel': String(depth) } as CSSProperties
+/**
+ * `layer`: a camada da linha, maior nas de cima (main.css). A faixa de botões
+ * de uma linha sobe uns 6 px sobre o pé do cartão de cima; com o cartão de
+ * cima por cima dela, o clique no fim dele nunca cai num botão invisível de baixo.
+ */
+function levelStyle(depth: number, layer: number): CSSProperties {
+  return { '--lb-cena-nivel': String(depth), '--lb-cena-camada': String(layer) } as CSSProperties
+}
+
+/** Folga entre a faixa de botões e a borda de cima da área que rola. */
+const STRIP_SCROLL_GAP_PX = 2
+
+/**
+ * A faixa de botões pousa ACIMA do cartão. Na primeira linha visível de uma
+ * lista rolada não há onde pousar: a borda da área que rola a cortaria. Aí ela
+ * desce para o pé do cartão (sobre o respiro de baixo e o vão até o de baixo,
+ * onde não há texto). Na tela de toque a faixa já mora dentro da linha.
+ */
+function placeRowStrip(row: HTMLElement): void {
+  const strip = row.querySelector<HTMLElement>(':scope > .lb-cenas__linha > .lb-cenas__controles')
+  const line = strip?.parentElement
+  if (strip === null || strip === undefined || line === null || line === undefined) return
+  delete row.dataset.faixa
+  if (getComputedStyle(strip).position !== 'absolute') return
+  let top = 0
+  for (let node = row.parentElement; node !== null; node = node.parentElement) {
+    if (/(auto|scroll|hidden)/.test(getComputedStyle(node).overflowY)) {
+      top = node.getBoundingClientRect().top
+      break
+    }
+  }
+  if (strip.getBoundingClientRect().top >= top + STRIP_SCROLL_GAP_PX) return
+  // O topo da faixa no fim do conteúdo do cartão: ela cobre o respiro, a borda e o vão.
+  const style = getComputedStyle(row)
+  const contentBottom = row.getBoundingClientRect().bottom - parseFloat(style.borderBottomWidth) - parseFloat(style.paddingBottom)
+  row.style.setProperty('--lb-faixa-topo', `${contentBottom - line.getBoundingClientRect().top}px`)
+  row.dataset.faixa = 'embaixo'
+}
+
+/** Some o mouse e o foco da linha: a faixa volta ao lugar de sempre (escondida, não pega clique no cartão de baixo). */
+function resetRowStrip(row: HTMLElement): void {
+  if (row.matches(':hover') || row.contains(document.activeElement)) return
+  delete row.dataset.faixa
 }
 
 /** O que soltar a cena arrastada ali faria: a dica do fantasma, o destaque do destino e a pasta nova. */
@@ -1017,6 +1190,10 @@ export function ScenesSection({
   const [editing, setEditing] = useState<Editing>(null)
   /** Cena com o menu "…" aberto; `null` = nenhuma. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** Aberto pelo botão direito: o ponto do clique. `null` = aberto pelo "…" (ou pela tecla Menu). */
+  const [menuPoint, setMenuPoint] = useState<MenuPoint | null>(null)
+  /** Quem recebe o foco quando o menu fecha com Esc ou escolha; `null` = o "…" da linha. */
+  const menuReturnRef = useRef<HTMLElement | null>(null)
   /** Cena com a confirmação de apagar aberta; `null` = nenhuma. */
   const [deleting, setDeleting] = useState<string | null>(null)
   /** O "…" de cada cena, pelo id: é para ele que o foco volta. */
@@ -1367,8 +1544,29 @@ export function ScenesSection({
 
   const closeMenu = (focus: boolean) => {
     const sceneId = menuFor
+    const back = menuReturnRef.current
+    menuReturnRef.current = null
     setMenuFor(null)
-    if (focus && sceneId !== null) focusTrigger(sceneId)
+    if (!focus || sceneId === null) return
+    // Aberto pelo botão direito, o foco volta ao nome da cena (onde estava), não ao "…" escondido.
+    if (back === null) {
+      focusTrigger(sceneId)
+      return
+    }
+    const refocus = () => {
+      if (back.isConnected) back.focus()
+      else focusTrigger(sceneId)
+    }
+    refocus()
+    requestAnimationFrame(refocus)
+  }
+
+  /** Abre o menu da cena: pelo "…" (`point` nulo) ou pelo botão direito, no ponto do clique. */
+  const openMenu = (sceneId: string, point: MenuPoint | null, returnTo: HTMLElement | null) => {
+    setDeleting(null)
+    setMenuPoint(point)
+    menuReturnRef.current = returnTo
+    setMenuFor(sceneId)
   }
 
   const cancelDelete = () => {
@@ -1580,8 +1778,13 @@ export function ScenesSection({
     if (!hasSceneMenu || sceneId === '' || !(event.target instanceof Element)) return
     if (event.target.closest('form, input, textarea, select, [role="menu"]') !== null) return
     event.preventDefault()
-    setDeleting(null)
-    setMenuFor(sceneId)
+    const row = event.currentTarget
+    const box = row.getBoundingClientRect()
+    // A tecla Menu / Shift+F10 não traz um ponto dentro da linha: aí o menu abre junto do "…".
+    const inside = event.clientX > box.left && event.clientX < box.right && event.clientY > box.top && event.clientY < box.bottom
+    const name = row.querySelector<HTMLButtonElement>('button[data-cena-nome]')
+    const focused = document.activeElement instanceof HTMLElement && row.contains(document.activeElement) ? document.activeElement : null
+    openMenu(sceneId, inside ? { x: event.clientX, y: event.clientY } : null, focused ?? (name !== null && !name.disabled ? name : null))
   }
 
   /** A linha da cena: o que ela mostra a mais quando é uma pasta recolhida. */
@@ -1609,7 +1812,60 @@ export function ScenesSection({
       .map((row) => ({ id: row.entry.id, label: [...trailOf(row.entry.id), row.entry.name].join(SCENE_TRAIL_SEPARATOR) }))
   }
 
-  const inputLabel = editing?.kind === 'create' ? 'Nome da nova cena' : 'Novo nome da cena'
+  /** O rótulo do renomear diz qual cena: "Novo nome de Taverna – adega". */
+  const renameLabel = (sceneId: string) => `Novo nome de ${rowOf(sceneId)?.entry.name ?? 'cena'}`
+
+  /**
+   * O campo de criar (no pé da lista) e o de renomear (na própria linha da
+   * cena, onde o mestre clicou: abrir no pé rolava a lista até lá).
+   */
+  const editForm = (label: string) =>
+    editing === null ? null : (
+      <form className="lb-cenas__form" onSubmit={submit}>
+        <div className="lb-field">
+          <label className="lb-label" htmlFor="lb-cena-nome">
+            {label}
+          </label>
+          <input
+            id="lb-cena-nome"
+            ref={inputRef}
+            className="lb-input"
+            value={draft}
+            maxLength={80}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onInputKeyDown}
+          />
+        </div>
+        {editing.kind === 'rename' && (
+          <div className="lb-field">
+            <label className="lb-label" htmlFor="lb-cena-publico">
+              Nome para os jogadores (opcional)
+            </label>
+            <input
+              id="lb-cena-publico"
+              className="lb-input"
+              value={publicDraft}
+              maxLength={SCENE_PUBLIC_NAME_MAX_LENGTH}
+              placeholder="Ex.: 1º andar"
+              aria-describedby="lb-cena-publico-dica"
+              onChange={(event) => setPublicDraft(event.target.value)}
+              onKeyDown={onInputKeyDown}
+            />
+            <p id="lb-cena-publico-dica" className="lb-cenas__dica">
+              Aparece no canto da tela de quem está nesta cena. Vazio: os jogadores não veem nome nenhum.
+            </p>
+          </div>
+        )}
+        <div className="lb-cenas__acoes">
+          <button type="button" className="lb-btn lb-btn--ghost" onClick={close}>
+            Cancelar
+          </button>
+          <button type="submit" className="lb-btn">
+            {editing.kind === 'create' ? 'Criar' : 'Renomear'}
+          </button>
+        </div>
+      </form>
+    )
 
   // Interruptor (role switch), não botão: no topo da lista, ele não passa à
   // frente das cenas para quem procura o primeiro botão da seção.
@@ -1694,8 +1950,16 @@ export function ScenesSection({
           </p>
         </>
       )}
-      <ul ref={listRef} id={listId} className={showThumbs ? 'lb-cenas lb-cenas--mini' : 'lb-cenas'} aria-label="Cenas da aventura" onKeyDown={onListKeyDown}>
-        {visibleRows.map((row) => {
+      <ul
+        ref={listRef}
+        id={listId}
+        className={showThumbs ? 'lb-cenas lb-cenas--mini' : 'lb-cenas'}
+        aria-label="Cenas da aventura"
+        // A linha com o mouse, o foco ou o menu sobe acima de todas (main.css).
+        style={{ '--lb-cenas-total': String(visibleRows.length + 1) } as CSSProperties}
+        onKeyDown={onListKeyDown}
+      >
+        {visibleRows.map((row, position) => {
           const scene = row.entry
           const index = rowIndex.get(scene.id) ?? 0
           const isFolder = !filtering && row.childIds.length > 0
@@ -1724,8 +1988,12 @@ export function ScenesSection({
             <li
               key={scene.id || 'cena-solta'}
               className={classes}
-              style={levelStyle(depth)}
+              style={levelStyle(depth, visibleRows.length - position)}
               aria-level={row.depth + 1}
+              onPointerEnter={(event) => placeRowStrip(event.currentTarget)}
+              onPointerLeave={(event) => resetRowStrip(event.currentTarget)}
+              onFocus={(event) => placeRowStrip(event.currentTarget)}
+              onBlur={(event) => resetRowStrip(event.currentTarget)}
               data-cena-id={scene.id === '' ? undefined : scene.id}
               data-arrastando={dragging?.sceneId === scene.id ? 'true' : undefined}
               data-alvo={alvo}
@@ -1768,7 +2036,7 @@ export function ScenesSection({
                     onSelect(scene.id)
                   }}
                 >
-                  {/* Quebra em até duas linhas em vez de cortar no fim; o nome inteiro está no título. */}
+                  {/* Quebra em quantas linhas precisar: o nome nunca corta. */}
                   <span className="lb-cenas__nome-texto">{scene.name}</span>
                 </button>
                 {/* O que se lê de relance, à direita do nome: selos do estado, a espera e a contagem. */}
@@ -1856,8 +2124,7 @@ export function ScenesSection({
                           setMenuFor(null)
                           return
                         }
-                        setDeleting(null)
-                        setMenuFor(scene.id)
+                        openMenu(scene.id, null, null)
                       }}
                     >
                       <span aria-hidden="true">…</span>
@@ -1874,6 +2141,7 @@ export function ScenesSection({
                     items={menuItems(row)}
                     trigger={menuTriggers.current.get(scene.id) ?? null}
                     onClose={closeMenu}
+                    ponto={menuPoint}
                   />
                 )}
               </ComSaida>
@@ -1890,6 +2158,7 @@ export function ScenesSection({
               )}
               {/* ONDE ESTÁ O GRUPO: retratos e nomes de quem está aqui (na pasta recolhida, também lá dentro). */}
               {here !== null && <RetratosDaCena pessoas={here.people} pedidos={here.pendingRequests} />}
+              {editing?.kind === 'rename' && editing.sceneId === scene.id && editForm(renameLabel(scene.id))}
               {deleting === scene.id && deletionInfo !== undefined && (
                 <DeleteConfirm sceneName={scene.name} info={deletionInfo(scene.id)} onConfirm={() => confirmDelete(scene.id)} onCancel={cancelDelete} />
               )}
@@ -2023,52 +2292,9 @@ export function ScenesSection({
           onClose={closeTower}
         />
       )}
-      {editing !== null && (
-        <form className="lb-cenas__form" onSubmit={submit}>
-          <div className="lb-field">
-            <label className="lb-label" htmlFor="lb-cena-nome">
-              {inputLabel}
-            </label>
-            <input
-              id="lb-cena-nome"
-              ref={inputRef}
-              className="lb-input"
-              value={draft}
-              maxLength={80}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={onInputKeyDown}
-            />
-          </div>
-          {editing.kind === 'rename' && (
-            <div className="lb-field">
-              <label className="lb-label" htmlFor="lb-cena-publico">
-                Nome para os jogadores (opcional)
-              </label>
-              <input
-                id="lb-cena-publico"
-                className="lb-input"
-                value={publicDraft}
-                maxLength={SCENE_PUBLIC_NAME_MAX_LENGTH}
-                placeholder="Ex.: 1º andar"
-                aria-describedby="lb-cena-publico-dica"
-                onChange={(event) => setPublicDraft(event.target.value)}
-                onKeyDown={onInputKeyDown}
-              />
-              <p id="lb-cena-publico-dica" className="lb-cenas__dica">
-                Aparece no canto da tela de quem está nesta cena. Vazio: os jogadores não veem nome nenhum.
-              </p>
-            </div>
-          )}
-          <div className="lb-cenas__acoes">
-            <button type="button" className="lb-btn lb-btn--ghost" onClick={close}>
-              Cancelar
-            </button>
-            <button type="submit" className="lb-btn">
-              {editing.kind === 'create' ? 'Criar' : 'Renomear'}
-            </button>
-          </div>
-        </form>
-      )}
+      {editing?.kind === 'create' && editForm('Nome da nova cena')}
+      {/* A cena do renomear sumiu da vista (filtro, pasta recolhida): o campo fica aqui, com o nome dela no rótulo. */}
+      {editing?.kind === 'rename' && !visibleRows.some((row) => row.entry.id === editing.sceneId) && editForm(renameLabel(editing.sceneId))}
       {dragging !== null &&
         verdict !== null &&
         createPortal(

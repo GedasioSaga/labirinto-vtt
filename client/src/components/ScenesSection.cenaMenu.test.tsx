@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SceneDeletionInfo, SceneListItem } from '../stores/adventureStore'
 import { SAIDA_DO_POP_MS } from './grimorio/comum'
-import { ScenesSection, type ScenesSectionProps } from './ScenesSection'
+import { ScenesSection, placeSceneMenu, type ScenesSectionProps } from './ScenesSection'
 
 const CENAS: SceneListItem[] = [
   { id: 's-cais', name: 'PC - Cais', active: true, available: true, renamable: true, tokenCount: 3 },
@@ -321,6 +321,46 @@ describe('ScenesSection: menu "…" da cena (Duplicar, Subir, Descer, Apagar)', 
       expect(menu.classList.contains('gr-sai')).toBe(false)
       expect(document.activeElement).toBe(item(menu, 'Renomear…'))
     })
+  })
+
+  it('Esc depois do botão direito devolve o foco ao nome da cena, onde ele estava', () => {
+    render()
+    const nome = container.querySelector<HTMLButtonElement>('button[data-cena-nome="s-casa"]')
+    if (nome === null) throw new Error('sem o nome')
+    act(() => nome.focus())
+    act(() => {
+      nome.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })
+    const menu = menuAberto()
+    if (menu === null) throw new Error('menu não abriu')
+    expect(document.activeElement).toBe(item(menu, 'Renomear…'))
+    tecla(menu, 'Escape')
+    expect(menuAberto()).toBeNull()
+    expect(document.activeElement).toBe(nome)
+  })
+
+  it('Renomear… abre o campo na própria linha da cena, com o nome dela no rótulo', () => {
+    render()
+    escolher('Cena 9', 'Renomear…')
+    const campo = container.querySelector<HTMLInputElement>('#lb-cena-nome')
+    if (campo === null) throw new Error('campo não abriu')
+    expect(campo.closest('li')?.getAttribute('data-cena-id')).toBe('s-9')
+    expect(container.querySelector('label[for="lb-cena-nome"]')?.textContent).toBe('Novo nome de Cena 9')
+    expect(document.activeElement).toBe(campo)
+  })
+
+  it('placeSceneMenu põe o menu inteiro na janela: embaixo, virado para cima, deslizado ou rolando por dentro', () => {
+    const base = { width: 160, height: 290, viewWidth: 1366, viewHeight: 768 }
+    const ponto = (x: number, y: number) => ({ left: x, right: x, top: y, bottom: y })
+    expect(placeSceneMenu({ ...base, anchor: ponto(1134, 200), fromPoint: true })).toEqual({ left: 1134, top: 202, maxHeight: null, up: false })
+    // A última cena, rente ao pé da janela: vira para cima e termina 2 px acima do clique.
+    expect(placeSceneMenu({ ...base, anchor: ponto(1134, 740), fromPoint: true })).toEqual({ left: 1134, top: 448, maxHeight: null, up: true })
+    // Clique no meio de uma janela de 400 px: nem embaixo nem em cima cabe; encosta no pé.
+    expect(placeSceneMenu({ ...base, viewHeight: 400, anchor: ponto(1300, 200), fromPoint: true })).toEqual({ left: 1198, top: 102, maxHeight: null, up: false })
+    // Pelo "…": a borda direita do menu na do botão.
+    expect(placeSceneMenu({ ...base, anchor: { left: 1250, right: 1273, top: 100, bottom: 124 }, fromPoint: false }).left).toBe(1113)
+    // Janela mais baixa que o menu: ele ocupa a altura toda e rola por dentro.
+    expect(placeSceneMenu({ ...base, viewHeight: 240, anchor: ponto(1134, 230), fromPoint: true })).toEqual({ left: 1134, top: 8, maxHeight: 224, up: false })
   })
 
   it('apagar uma pasta avisa que as cenas de dentro sobem um nível', () => {
