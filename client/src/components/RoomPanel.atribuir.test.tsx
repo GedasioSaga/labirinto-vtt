@@ -5,6 +5,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import type { TunnelState } from '../net/hostBridge'
 import type { HostWorld, PlayerInfo } from '../net/hostSession'
 import type { Token } from '../types/map'
+import { gruposDeAtribuir } from './AtribuirToken'
 import { RoomPanel, roomPanelTokensOf, type RoomPanelToken } from './RoomPanel'
 
 /*
@@ -106,19 +107,35 @@ describe('RoomPanel: atribuir ficha — livres primeiro, de qualquer cena, sem t
       .filter((texto) => /Atribuir /.test(texto))
   }
 
-  function lista(nome: string): HTMLSelectElement {
-    const select = card(nome).querySelector('select')
-    if (select === null) throw new Error(`sem lista "Atribuir token" no card de ${nome}`)
-    return select
+  /** O campo "Atribuir token" do card: o botão que abre a lista. */
+  function campo(nome: string): HTMLButtonElement {
+    const botao = card(nome).querySelector<HTMLButtonElement>('.lb-atribuir__campo')
+    if (botao === null) throw new Error(`sem o campo "Atribuir token" no card de ${nome}`)
+    return botao
+  }
+
+  /** Abre a lista do card e devolve as linhas dela (a lista mora no `body`), na ordem da tela. */
+  function linhasDaLista(nome: string): HTMLElement[] {
+    if (campo(nome).getAttribute('aria-expanded') !== 'true') act(() => campo(nome).click())
+    return Array.from(document.body.querySelectorAll<HTMLElement>('.lb-atribuir [role="option"]'))
   }
 
   function escolhe(nome: string, tokenId: string): void {
-    const select = lista(nome)
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    const linha = linhasDaLista(nome).find((el) => el.id.endsWith(`-${tokenId}`))
+    if (linha === undefined) throw new Error(`sem a linha de ${tokenId} na lista de ${nome}`)
+    act(() => linha.click())
+  }
+
+  /** Digita na busca da lista aberta. */
+  function busca(texto: string): HTMLInputElement {
+    const entrada = document.body.querySelector<HTMLInputElement>('.lb-atribuir input')
+    if (entrada === null) throw new Error('sem a busca da lista')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     act(() => {
-      setter?.call(select, tokenId)
-      select.dispatchEvent(new Event('change', { bubbles: true }))
+      setter?.call(entrada, texto)
+      entrada.dispatchEvent(new Event('input', { bubbles: true }))
     })
+    return entrada
   }
 
   function botaoNoCard(nome: string, texto: string): HTMLButtonElement | undefined {
@@ -150,15 +167,49 @@ describe('RoomPanel: atribuir ficha — livres primeiro, de qualquer cena, sem t
     expect(botoesDeUmClique('Gina')).toEqual(['Atribuir Arco', 'Biblioteca · Atribuir Livro'])
   })
 
-  it('a lista marca a ficha de outro jogador com o dono ("Machado — de Bruno") e põe as livres primeiro', () => {
+  it('a lista diz de quem é cada ficha, põe as livres antes das com dono e separa a outra cena num grupo', () => {
     render([...JOGANDO, GINA])
-    const textos = Array.from(lista('Gina').options).map((o) => o.textContent ?? '')
-    expect(textos).toContain('● Machado — de Bruno')
-    const livro = textos.findIndex((t) => t.includes('Livro'))
-    const machado = textos.indexOf('● Machado — de Bruno')
-    expect(livro).toBeGreaterThan(0)
-    expect(livro).toBeLessThan(machado)
-    expect(textos.find((t) => t.includes('Livro'))).toBe('● Biblioteca · Livro')
+    const rotulos = linhasDaLista('Gina').map((el) => el.getAttribute('aria-label') ?? '')
+    expect(rotulos).toContain('Machado, de Bruno')
+    // Nesta cena: o Mordomo (NPC, sem jogador) vem antes das fichas que já têm dono.
+    expect(rotulos[0]).toBe('Mordomo, NPC, sem jogador')
+    // A outra cena é o último grupo, com o nome dela no título.
+    expect(rotulos.at(-1)).toBe('Livro, sem jogador, na cena Biblioteca')
+    const titulos = Array.from(document.body.querySelectorAll('.lb-atribuir__cena-nome')).map((el) => el.textContent)
+    expect(titulos).toEqual(['Nesta cena', 'Biblioteca'])
+  })
+
+  it('quatro "Alce" na cena: cada um tem o seu número, e buscar "alce 3" com Enter atribui o terceiro', () => {
+    const alces: RoomPanelToken[] = ['a', 'b', 'c', 'd'].map((letra) => ({ id: `tok-alce-${letra}`, name: 'Alce', npc: true }))
+    const tokens: RoomPanelToken[] = [...alces.slice(0, 2), { id: 'tok-urso', name: 'Urso', npc: true }, ...alces.slice(2)]
+    render([GINA], tokens)
+    expect(linhasDaLista('Gina').map((el) => el.getAttribute('aria-label'))).toEqual([
+      'Alce 1, NPC, sem jogador',
+      'Alce 2, NPC, sem jogador',
+      'Alce 3, NPC, sem jogador',
+      'Alce 4, NPC, sem jogador',
+      'Urso, NPC, sem jogador',
+    ])
+    const entrada = busca('alce 3')
+    act(() => {
+      entrada.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(onAssign).toHaveBeenCalledWith('p7', 'tok-alce-c')
+    expect(document.body.querySelector('.lb-atribuir')).toBeNull()
+  })
+
+  it('gruposDeAtribuir: o número é o mesmo no card de qualquer jogador e pula o nome que já existe', () => {
+    const tokens: RoomPanelToken[] = [
+      { id: 'l1', name: 'Lobo' },
+      { id: 'l2', name: 'Lobo 2' },
+      { id: 'l3', name: 'lobo' },
+      { id: 'f1', name: 'Lobo', sceneName: 'Floresta' },
+    ]
+    const nomes = (tokenIds: string[]): string[][] => gruposDeAtribuir(tokens, { tokenIds }, new Map()).map((grupo) => grupo.linhas.map((linha) => linha.nome))
+    // "Lobo 2" já é nome de outro token: o segundo lobo vira "lobo 3". O da Floresta é o único de lá: sem número.
+    expect(nomes([])).toEqual([['Lobo 1', 'Lobo 2', 'lobo 3'], ['Lobo']])
+    // Quem já tem o primeiro lobo continua vendo o outro como "lobo 3".
+    expect(nomes(['l1'])).toEqual([['Lobo 2', 'lobo 3'], ['Lobo']])
   })
 
   it('escolher a ficha de outro jogador pede confirmação com foco em Cancelar; Cancelar mantém a ficha com o dono', () => {
@@ -174,7 +225,7 @@ describe('RoomPanel: atribuir ficha — livres primeiro, de qualquer cena, sem t
     act(() => cancelar?.click())
     expect(onAssign).not.toHaveBeenCalled()
     expect(card('Gina').querySelector('[role="alertdialog"]')).toBeNull()
-    expect(document.activeElement).toBe(lista('Gina'))
+    expect(document.activeElement).toBe(campo('Gina'))
   })
 
   it('Esc na confirmação também cancela', () => {
@@ -225,10 +276,13 @@ describe('roomPanelTokensOf: fichas de todas as cenas para o painel', () => {
       open: { sceneId: 's1', name: 'Cozinha', map: cozinha },
       background: [{ sceneId: 's2', name: 'Biblioteca', map: biblioteca }],
     }
+    // A cor é a do disco no mapa (a de fábrica, aqui): o retrato sem foto da lista de atribuir.
+    const cor = roomPanelTokensOf(world)[0]?.cor
+    expect(cor).toMatch(/^#[0-9a-f]{6}$/)
     expect(roomPanelTokensOf(world)).toEqual([
-      { id: 'a', name: 'Machado' },
-      { id: 'm', name: 'Mordomo', npc: true },
-      { id: 'l', name: 'Livro', sceneName: 'Biblioteca' },
+      { id: 'a', name: 'Machado', cor },
+      { id: 'm', name: 'Mordomo', npc: true, cor },
+      { id: 'l', name: 'Livro', sceneName: 'Biblioteca', cor },
     ])
   })
 })

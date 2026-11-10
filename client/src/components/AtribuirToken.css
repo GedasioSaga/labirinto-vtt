@@ -1,0 +1,173 @@
+/*
+ * ATRIBUIR TOKEN — o campo do card e o que a lista (`AtribuirToken.tsx`) tem
+ * a mais que a caixa da Visão de jogador (`vj-escolha*`, de
+ * EscolherFichaDeTeste.css): o título de cada cena, o botão "Clicar no token
+ * no mapa" e a faixa "Clique no token no mapa" do card. Só o editor carrega
+ * esta folha, então as cores vêm direto de `var(--lb-*)`.
+ */
+
+/* ------------------------------------------------------------ o campo */
+
+/* Tem a moldura dos campos (`.lb-input`) porque mora na linha deles; abre a lista em vez de aceitar texto. */
+.lb-atribuir__campo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-1);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-atribuir__campo:active {
+  transform: scale(0.98);
+}
+
+.lb-atribuir__campo[aria-expanded='true'] {
+  border-color: var(--lb-color-brass);
+}
+
+.lb-atribuir__campo-texto {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lb-color-parchment-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-atribuir__campo-seta {
+  display: inline-flex;
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+}
+
+/* --------------------------------------------- a faixa "clique no mapa" */
+
+/* No lugar do campo enquanto o app espera o clique: diz o que fazer e como desistir. */
+/* No card estreito o Cancelar desce para a linha de baixo, à direita: a frase nunca quebra no meio. */
+.lb-atribuir__espera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-1) var(--lb-space-2);
+  min-width: 0;
+  padding: var(--lb-space-1) var(--lb-space-1) var(--lb-space-1) var(--lb-space-2);
+  border: 1px solid var(--lb-color-brass);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+  font-size: var(--lb-font-size-sm);
+}
+
+.lb-atribuir__espera-texto {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-height: 24px;
+  white-space: nowrap;
+}
+
+.lb-atribuir__espera > .lb-btn {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------- a lista */
+
+.lb-atribuir__lista {
+  gap: 0;
+}
+
+.lb-atribuir__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+}
+
+.lb-atribuir__grupo + .lb-atribuir__grupo {
+  margin-top: var(--lb-space-1);
+}
+
+/* O título da cena fica preso no alto enquanto as linhas dela passam: o mestre sempre sabe em que cena está lendo. */
+.lb-atribuir__cena {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+  padding: 7px var(--lb-space-2) 5px;
+  background: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: var(--lb-font-leading-tight);
+}
+
+.lb-atribuir__cena-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-atribuir__cena-conta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--lb-font-weight-medium);
+}
+
+/* A seta que rola até a linha ativa para antes do título preso, não embaixo dele. */
+.lb-atribuir__grupo .vj-escolha__linha {
+  scroll-margin-top: 30px;
+}
+
+/* ------------------------------------------- "Clicar no token no mapa" */
+
+.lb-atribuir__no-mapa {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+  flex: none;
+  min-height: 34px;
+  margin: var(--lb-space-1) var(--lb-space-1) 0;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-atribuir__no-mapa:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-atribuir__no-mapa:hover {
+    border-color: var(--lb-color-line-strong);
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-atribuir__campo:active,
+  .lb-atribuir__no-mapa:active {
+    transform: none;
+  }
+}

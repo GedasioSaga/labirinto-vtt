@@ -182,7 +182,7 @@ describe('GrupoCompacto', () => {
     expect(chegando?.compareDocumentPosition(cenas()[0] as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     const enzo = cartaoDoJogador(container, 'Enzo')
     expect(chegando?.contains(enzo)).toBe(true)
-    expect(enzo.querySelector('select')).not.toBeNull()
+    expect(enzo.querySelector('.lb-atribuir__campo')).not.toBeNull()
     expect(container.querySelector('.lb-party__count')?.textContent).toBe('1 esperando personagem')
   })
 

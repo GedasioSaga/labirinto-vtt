@@ -6,6 +6,7 @@ import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
 import { abrirFicha } from './grupoTeste'
 import { TopoDaSala } from './livro/TopoDaSala'
+import { gruposDeAtribuir } from './AtribuirToken'
 import { FIREWALL_HINT, LASER_HINT, PLAN_HINT, RoomPanel, TUNNEL_WARNING, assignOptionLabel, assignableTokens, downloadLabel, playerStatusLabel, qrDataUrl, tokenDotColor } from './RoomPanel'
 
 const noop = vi.fn()
@@ -93,14 +94,18 @@ describe('RoomPanel', () => {
     expect(assignableTokens(TOKENS, player({ tokenIds: ['t1'] }))).toEqual([{ id: 't2', name: 'Ladino' }])
   })
 
-  it('lista de atribuir mostra o nome de cada token com bolinha de cor própria, sem os já atribuídos', () => {
+  it('lista de atribuir mostra o nome de cada token, sem os já atribuídos', () => {
     const tokens = [...TOKENS, { id: 't3', name: 'Token 1' }]
-    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ tokenIds: ['t2'] })]} tokens={tokens} tunnel={IDLE} {...handlers} />)
-    const options = [...html.matchAll(/<option value="(t\d)" style="color:([^"]+)">([^<]*)<\/option>/g)].map((m) => ({ id: m[1], color: m[2], label: m[3] }))
-    expect(options).toEqual([
-      { id: 't1', color: tokenDotColor('t1'), label: '● Herói' },
-      { id: 't3', color: tokenDotColor('t3'), label: '● Token 1' },
+    const grupos = gruposDeAtribuir(tokens, player({ tokenIds: ['t2'] }), new Map())
+    expect(grupos.map((grupo) => grupo.linhas.map((linha) => ({ id: linha.token.id, nome: linha.nome })))).toEqual([
+      [
+        { id: 't1', nome: 'Herói' },
+        { id: 't3', nome: 'Token 1' },
+      ],
     ])
+    // O campo do card abre a lista: fechado, é um botão com o nome "Atribuir token".
+    const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={[player({ tokenIds: ['t2'] })]} tokens={tokens} tunnel={IDLE} {...handlers} />)
+    expect(html).toContain('aria-haspopup="dialog"')
     expect(assignOptionLabel({ id: 'x', name: 'Ladino' })).toBe('● Ladino')
   })
 

@@ -266,7 +266,7 @@ export function lugarDaEscolha(ancora: CaixaDaAncora, tela: { largura: number; a
   return { esquerda, largura, topo: ancora.base + FOLGA_DA_ANCORA, base: null, alturaMaxima: Math.max(0, abaixo), origem: `${origemX}px 0` }
 }
 
-function medirLugar(ancora: HTMLElement): LugarDaEscolha {
+export function medirLugar(ancora: HTMLElement): LugarDaEscolha {
   const caixa = ancora.getBoundingClientRect()
   // `clientWidth` não conta a barra de rolagem da página; no jsdom ele é 0 e vale a janela.
   const largura = document.documentElement.clientWidth || window.innerWidth
@@ -274,7 +274,7 @@ function medirLugar(ancora: HTMLElement): LugarDaEscolha {
   return lugarDaEscolha({ esquerda: caixa.left, topo: caixa.top, direita: caixa.right, base: caixa.bottom }, { largura, altura })
 }
 
-function mesmoLugar(a: LugarDaEscolha, b: LugarDaEscolha): boolean {
+export function mesmoLugar(a: LugarDaEscolha, b: LugarDaEscolha): boolean {
   return a.esquerda === b.esquerda && a.largura === b.largura && a.topo === b.topo && a.base === b.base && a.alturaMaxima === b.alturaMaxima && a.origem === b.origem
 }
 
@@ -304,7 +304,7 @@ export interface EscolherFichaDeTesteProps {
 }
 
 /** O valor mais recente de uma prop, para ouvintes que não devem se refazer a cada render. */
-function useUltimo<T>(valor: T) {
+export function useUltimo<T>(valor: T) {
   const ref = useRef(valor)
   useLayoutEffect(() => {
     ref.current = valor
@@ -312,7 +312,7 @@ function useUltimo<T>(valor: T) {
   return ref
 }
 
-function Realce({ texto, palavras }: { texto: string; palavras: readonly string[] }) {
+export function Realce({ texto, palavras }: { texto: string; palavras: readonly string[] }) {
   if (palavras.length === 0) return <>{texto}</>
   return (
     <>

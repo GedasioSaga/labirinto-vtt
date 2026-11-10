@@ -223,7 +223,7 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(antes(gina, lista)).toBe(true)
     // Aberto: atribuir em um clique, a lista e o raio, sem abrir nada.
     expect(botoes(gina)).toContain('Biblioteca · Atribuir Livro')
-    expect(controle(gina, 'Atribuir token').tagName).toBe('SELECT')
+    expect(controle(gina, 'Atribuir token').tagName).toBe('BUTTON')
     expect(controle(gina, 'Raio de visão').getAttribute('type')).toBe('range')
   })
 

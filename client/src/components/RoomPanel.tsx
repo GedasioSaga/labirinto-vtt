@@ -28,9 +28,12 @@ import type { TableScreenSectionProps } from './TableScreenSection'
 import type { TravelLogSectionProps } from './TravelLogSection'
 import { FEATURES, type FeatureFlags } from '../lib/features'
 import type { FichaParaTeste, VisaoDeJogadorNoPainel } from '../net/visaoDeTeste/tipos'
-import { EscolherFichaDeTeste, RetratoDaFicha, type AberturaDaEscolha } from './EscolherFichaDeTeste'
+import { EscolherFichaDeTeste, RetratoDaFicha, useUltimo, type AberturaDaEscolha } from './EscolherFichaDeTeste'
+import { EscolherTokenParaAtribuir, gruposDeAtribuir, nomesDeAtribuir } from './AtribuirToken'
+import { abrirDestaqueNoMapa, esperarTokenNoMapa, type DestaqueNoMapa } from '../stores/destaqueNoMapa'
+import { tokenFillColor } from '../lib/tokenColor'
 import { Botao } from './grimorio/Botao'
-import { CloseIcon, EyeIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, CursorIcon, EyeIcon } from './icons'
 
 export interface RoomPanelToken {
   id: string
@@ -39,6 +42,10 @@ export interface RoomPanelToken {
   sceneName?: string
   /** Ficha de NPC: fica fora dos botões de um clique (continua na lista). */
   npc?: boolean
+  /** Cor do disco do token no mapa (`#rrggbb`): o retrato sem foto na lista de atribuir. */
+  cor?: string
+  /** A cópia embutida da foto (`Token.imageData`); ausente = disco com as iniciais. */
+  retrato?: string
 }
 
 export interface RoomPanelProps {
@@ -224,6 +231,8 @@ export function roomPanelTokensOf(world: HostWorld): RoomPanelToken[] {
       name: token.name,
       ...(scene === world.open ? {} : { sceneName: scene.name }),
       ...(token.npc === true ? { npc: true } : {}),
+      cor: `#${tokenFillColor(token).toString(16).padStart(6, '0')}`,
+      ...(typeof token.imageData === 'string' && token.imageData !== '' ? { retrato: token.imageData } : {}),
     })),
   )
 }
@@ -296,18 +305,7 @@ export function quickAssignTokens(tokens: RoomPanelToken[], owners: ReadonlyMap<
     .slice(0, QUICK_ASSIGN_MAX)
 }
 
-/** 0 = livre, 1 = NPC livre, 2 = de outro jogador. */
-function listRank(token: RoomPanelToken, owners: ReadonlyMap<string, string>): number {
-  if (owners.has(token.id)) return 2
-  return token.npc === true ? 1 : 0
-}
-
-/** Lista "Atribuir token": livres primeiro, depois NPC, por último as de outros jogadores. */
-export function assignListTokens(tokens: RoomPanelToken[], player: PlayerInfo, owners: ReadonlyMap<string, string>): RoomPanelToken[] {
-  return assignableTokens(tokens, player).sort((a, b) => listRank(a, owners) - listRank(b, owners) || sceneRank(a) - sceneRank(b))
-}
-
-/** Paleta das bolinhas da lista de atribuir: tons distintos e legíveis no tema escuro. */
+/** Paleta das bolinhas dos botões de um clique: tons distintos e legíveis no tema escuro. */
 const TOKEN_DOT_COLORS = ['#e57373', '#64b5f6', '#81c784', '#ffd54f', '#ba68c8', '#4dd0e1', '#ff8a65', '#a1887f']
 
 /**
@@ -371,9 +369,13 @@ export function loanBadge(name: string, contrato: TokenContract): string {
   return `${name} — ajudante ${prazo}${contrato.tarefa === '' ? '' : ` · ${contrato.tarefa}`}`
 }
 
-/** Nome da ficha para o botão "Remover …"; o id só quando ela não existe em cena nenhuma. */
+/**
+ * Nome da ficha para o botão "Remover …", com o mesmo número da lista de
+ * atribuir quando o nome repete na cena ("Alce 3"); o id só quando ela não
+ * existe em cena nenhuma.
+ */
 export function tokenName(tokens: RoomPanelToken[], tokenId: string): string {
-  return tokens.find((token) => token.id === tokenId)?.name ?? tokenId
+  return nomesDeAtribuir(tokens).get(tokenId) ?? tokenId
 }
 
 /**
@@ -476,32 +478,105 @@ interface AssignControlsProps {
   onAssign(playerId: string, tokenId: string): void
 }
 
+/** A linha ativa só acende no mapa depois deste tempo parada: varrer a lista com o ponteiro não troca a seleção do mapa a cada linha. */
+const ATRASO_DO_DESTAQUE_MS = 70
+
 /**
  * Dar ficha a um jogador: botões de um clique (só fichas livres, de qualquer
- * cena) para quem espera e a lista com todas. Escolher a ficha de OUTRO
- * jogador não atribui na hora: abre a confirmação no próprio card, com o
- * foco em Cancelar — o engano não derruba quem está jogando.
+ * cena) para quem espera e o campo "Atribuir token", que abre a lista com
+ * busca, grupos por cena e o token aceso no mapa (`AtribuirToken.tsx`), ou
+ * espera o mestre clicar no token no mapa. Escolher a ficha de OUTRO jogador
+ * não atribui na hora: abre a confirmação no próprio card, com o foco em
+ * Cancelar — o engano não derruba quem está jogando.
  */
 export function AssignControls({ player, tokens, owners, onAssign }: AssignControlsProps) {
   const [pendingId, setPendingId] = useState<string | null>(null)
-  const selectRef = useRef<HTMLSelectElement>(null)
-  const selectId = `lb-room-assign-${player.playerId}`
+  const [escolha, setEscolha] = useState<{ ancora: HTMLElement; abertura: AberturaDaEscolha } | null>(null)
+  const [esperaNoMapa, setEsperaNoMapa] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const campoRef = useRef<HTMLButtonElement>(null)
+  const destaqueRef = useRef<DestaqueNoMapa | null>(null)
+  const acenderRef = useRef<number | null>(null)
+  /** Desistir do clique no mapa devolve o foco ao campo, que volta a existir no render seguinte. */
+  const focoNoCampoRef = useRef(false)
+  const campoId = `lb-room-assign-${player.playerId}`
+  const rotuloId = `lb-room-assign-rot-${player.playerId}`
   const confirmTextId = `lb-room-confirm-${player.playerId}`
+  const escolhaId = useId()
   const waiting = player.status === 'waiting'
   const quick = waiting ? quickAssignTokens(tokens, owners) : []
-  const list = assignListTokens(tokens, player, owners)
-  const pending = pendingId === null ? undefined : list.find((token) => token.id === pendingId)
+  const grupos = gruposDeAtribuir(tokens, player, owners)
+  const list = grupos.flatMap((grupo) => grupo.linhas)
+  const pending = pendingId === null ? undefined : list.find((linha) => linha.token.id === pendingId)
   // A ficha pode ter mudado de mãos enquanto o mestre lia: sem dono agora, não há o que confirmar.
-  const pendingOwner = pending === undefined ? undefined : owners.get(pending.id)
+  const pendingOwner = pending === undefined ? undefined : owners.get(pending.token.id)
 
   const closeConfirm = () => {
     setPendingId(null)
-    selectRef.current?.focus()
+    campoRef.current?.focus()
   }
   const pick = (tokenId: string) => {
     if (owners.has(tokenId)) setPendingId(tokenId)
     else onAssign(player.playerId, tokenId)
   }
+
+  const fecharLista = () => {
+    if (acenderRef.current !== null) window.clearTimeout(acenderRef.current)
+    acenderRef.current = null
+    destaqueRef.current?.soltar()
+    destaqueRef.current = null
+    setEscolha(null)
+  }
+  const acender = (tokenId: string | null) => {
+    if (acenderRef.current !== null) window.clearTimeout(acenderRef.current)
+    acenderRef.current = window.setTimeout(() => {
+      acenderRef.current = null
+      destaqueRef.current?.destacar(tokenId)
+    }, ATRASO_DO_DESTAQUE_MS)
+  }
+  // O card saiu da tela com a lista aberta (o jogador saiu, a página trocou): o mapa volta ao que era.
+  useEffect(
+    () => () => {
+      if (acenderRef.current !== null) window.clearTimeout(acenderRef.current)
+      destaqueRef.current?.soltar()
+    },
+    [],
+  )
+
+  const aoClicarNoMapaRef = useUltimo((tokenId: string) => {
+    setEsperaNoMapa(false)
+    if (list.some((linha) => linha.token.id === tokenId)) {
+      pick(tokenId)
+      return
+    }
+    // Só fica fora da lista o token que o jogador já tem.
+    if (player.tokenIds.includes(tokenId)) setAviso(`${nomesDeAtribuir(tokens).get(tokenId) ?? 'Esse token'} já é de ${player.name}.`)
+  })
+  useEffect(() => {
+    if (!esperaNoMapa) {
+      if (focoNoCampoRef.current) {
+        focoNoCampoRef.current = false
+        campoRef.current?.focus()
+      }
+      return
+    }
+    const desarmar = esperarTokenNoMapa(
+      (tokenId) => aoClicarNoMapaRef.current(tokenId),
+      () => setEsperaNoMapa(false),
+    )
+    // Esc desiste de qualquer lugar (o foco costuma estar no mapa) e não chega aos atalhos do editor.
+    const aoTeclar = (evento: globalThis.KeyboardEvent): void => {
+      if (evento.key !== 'Escape') return
+      evento.stopPropagation()
+      evento.preventDefault()
+      setEsperaNoMapa(false)
+    }
+    window.addEventListener('keydown', aoTeclar, true)
+    return () => {
+      desarmar()
+      window.removeEventListener('keydown', aoTeclar, true)
+    }
+  }, [esperaNoMapa, aoClicarNoMapaRef])
 
   // Sem ficha nenhuma para dar, a lista seria um controle que não faz nada: quem espera lê o porquê.
   if (list.length === 0) return waiting ? <p className="lb-player__note">{NO_TOKENS_HINT}</p> : null
@@ -522,27 +597,77 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
         </div>
       )}
       {waiting && quick.length === 0 && <span className="lb-player__note">Nenhuma ficha livre — escolha na lista abaixo.</span>}
-      <div className="lb-player__pick">
-        <label className="lb-label" htmlFor={selectId}>
-          Atribuir token
-        </label>
-        <select
-          ref={selectRef}
-          id={selectId}
-          className="lb-input"
-          value=""
-          onChange={(event) => {
-            if (event.target.value !== '') pick(event.target.value)
+      {esperaNoMapa ? (
+        <div className="lb-atribuir__espera" role="status">
+          <span className="lb-atribuir__espera-texto">
+            <CursorIcon size={14} />
+            Clique no token no mapa.
+          </span>
+          <button
+            type="button"
+            className="lb-btn lb-btn--ghost lb-btn--compact"
+            autoFocus
+            onClick={() => {
+              focoNoCampoRef.current = true
+              setEsperaNoMapa(false)
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <div className="lb-player__pick">
+          <label className="lb-label" id={rotuloId} htmlFor={campoId}>
+            Atribuir token
+          </label>
+          <button
+            ref={campoRef}
+            id={campoId}
+            type="button"
+            className="lb-input lb-atribuir__campo"
+            aria-labelledby={rotuloId}
+            aria-haspopup="dialog"
+            aria-expanded={escolha !== null}
+            aria-controls={escolha !== null ? escolhaId : undefined}
+            onClick={(evento) => {
+              if (escolha !== null) {
+                fecharLista()
+                return
+              }
+              setAviso(null)
+              destaqueRef.current = abrirDestaqueNoMapa()
+              // `detail` 0 é Enter ou Espaço: pelo teclado a lista aparece parada.
+              setEscolha({ ancora: evento.currentTarget, abertura: evento.detail === 0 ? 'teclado' : 'ponteiro' })
+            }}
+          >
+            <span className="lb-atribuir__campo-texto">Escolher…</span>
+            <span className="lb-atribuir__campo-seta" aria-hidden="true">
+              <ChevronDownIcon size={14} />
+            </span>
+          </button>
+        </div>
+      )}
+      {aviso !== null && (
+        <p className="lb-player__note" role="status">
+          {aviso}
+        </p>
+      )}
+      {escolha !== null && !esperaNoMapa && (
+        <EscolherTokenParaAtribuir
+          id={escolhaId}
+          grupos={grupos}
+          jogador={player.name}
+          ancora={escolha.ancora}
+          abertura={escolha.abertura}
+          onEscolher={pick}
+          onFechar={fecharLista}
+          onAtiva={acender}
+          onClicarNoMapa={() => {
+            fecharLista()
+            setEsperaNoMapa(true)
           }}
-        >
-          <option value="">Escolher…</option>
-          {list.map((token) => (
-            <option key={token.id} value={token.id} style={{ color: tokenDotColor(token.id) }}>
-              {assignOptionLabel(token, owners.get(token.id))}
-            </option>
-          ))}
-        </select>
-      </div>
+        />
+      )}
       {pending !== undefined && pendingOwner !== undefined && (
         <div
           role="alertdialog"
@@ -557,13 +682,13 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
           }}
         >
           <p id={confirmTextId}>
-            {pending.name} é de {pendingOwner}. Dar a {player.name} tira a ficha de {pendingOwner}.
+            {pending.nome} é de {pendingOwner}. Dar a {player.name} tira a ficha de {pendingOwner}.
           </p>
           <button
             type="button"
             className="lb-btn lb-btn--danger"
             onClick={() => {
-              onAssign(player.playerId, pending.id)
+              onAssign(player.playerId, pending.token.id)
               closeConfirm()
             }}
           >
