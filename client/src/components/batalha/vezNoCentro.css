@@ -46,10 +46,11 @@
   box-shadow: 0 -10px 10px -10px rgba(0, 0, 0, 0.35);
 }
 
-/* Acabamento de 09/11/2026 (achado 7): a dica da ferramenta (`.lb-hint`, da barra do pé) ficava por baixo do pé do
-   menu e as letras das duas se misturavam. Com o menu da vez no centro, a dica sai: o menu é o que o mestre lê agora.
+/* Acabamento de 09/11/2026 (achado 7): a dica da ferramenta (`.lb-hint`, da barra do pé) ficava por baixo do pé da
+   mira e as letras das duas se misturavam. Com a mira aberta no centro, a dica sai: a mira é o que o mestre lê agora.
+   Só com a mira (segunda auditoria, achado 4): antes a dica sumia a vez inteira do NPC, mesmo com o menu recolhido.
    `opacity`, como o main.css já faz quando o menu das variantes cobre a mesma faixa (a dica segue no DOM). */
-body:has(.bt-centro-do-mestre) .lb-hint {
+body:has(.bt-centro-do-mestre .bt-mira) .lb-hint {
   opacity: 0;
 }
 
