@@ -4,6 +4,7 @@ import { danoFinal, divisaoDoDano, porcentagemQuePerfura, saidaDoPassar, saidasD
 import type { ReacaoComTecnica } from '../../lib/batalha/reacaoComTecnica'
 import { origemDoBonus } from './ContaComBonus'
 import { formatarNumero, lerModificadorDaReacao, movimentoReduzido, saidasNaTela, TEXTO_DA_SAIDA } from './dadosDoMenu'
+import { devolverFocoAoMenu } from './ListaDeTecnicas'
 import { TecnicasDaReacao } from './TecnicasDaReacao'
 import './batalha.css'
 import './combate.css'
@@ -402,6 +403,17 @@ function rotuloDaSaida(saida: SaidaDaReacao, dano: number | null): string {
 
 export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps) {
   const sozinha = reacoes.length === 1
+  // T3: quem tinha o foco aqui dentro. A caixa que some com ele (a última reação resolvida pelo teclado) devolve o foco ao menu da vez.
+  const ultimoFoco = useRef<Element | null>(null)
+  const vazia = reacoes.length === 0
+  useEffect(() => {
+    if (vazia) return
+    return () => {
+      const perdido = ultimoFoco.current !== null && !ultimoFoco.current.isConnected
+      ultimoFoco.current = null
+      if (perdido) devolverFocoAoMenu()
+    }
+  }, [vazia])
   // O golpe Overload não rola (só outra Overload defende): fica fora do "Rolar todas".
   const naoRoladas = reacoes.filter((reacao) => reacao.rolagem === undefined && reacao.golpeId !== null && reacao.overload !== true && reacao.surpresa !== true)
   const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
@@ -414,7 +426,7 @@ export function CaixaDeReacao({ reacoes, onPedir, onFechar }: CaixaDeReacaoProps
   }
   if (reacoes.length === 0) return null
   return (
-    <div className="bt-reacao" role="dialog" aria-label="Reação" onKeyDown={teclar}>
+    <div className="bt-reacao" role="dialog" aria-label="Reação" onKeyDown={teclar} onFocus={(evento) => (ultimoFoco.current = evento.target)}>
       <div className="bt-reacao__topo">
         <h3 className="bt-reacao__titulo">REAÇÃO</h3>
         <span className="bt-reacao__conta">{sozinha ? '' : `${reacoes.length} golpes esperando`}</span>

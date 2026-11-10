@@ -164,6 +164,21 @@ export function podeTomarOFoco(): boolean {
   return ativo.closest('[role="dialog"], dialog, [aria-modal="true"]') === null
 }
 
+/**
+ * T3 (10/11): o foco que se perde quando uma caixa por cima do menu some (a REAÇÃO resolvida com o
+ * teclado deixava o foco no corpo da página, e as setas e o Enter não faziam mais nada). Quem some
+ * avisa; o menu da vez à vista pega o foco de volta, na tira lembrada (sem ação, no Encerrar vez).
+ */
+export const FOCO_DE_VOLTA_AO_MENU = 'bt:foco-de-volta-ao-menu'
+
+/** Avisa o menu da vez que o foco caiu no corpo da página (um quadro depois, se ninguém o pegou). */
+export function devolverFocoAoMenu(): void {
+  window.requestAnimationFrame(() => {
+    const ativo = document.activeElement
+    if (ativo === null || ativo === document.body) window.dispatchEvent(new Event(FOCO_DE_VOLTA_AO_MENU))
+  })
+}
+
 /** As setas andam entre as tiras; Home e End vão às pontas. Devolve se tratou a tecla. */
 export function andarComSetas(evento: KeyboardEvent, tiras: readonly (HTMLButtonElement | null)[], atual: number): boolean {
   const total = tiras.length

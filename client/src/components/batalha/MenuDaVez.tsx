@@ -8,7 +8,7 @@ import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeN
 import { tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
 import { BotaoDoSomDoCombate } from './ChavesDoCombate'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
-import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, podeTomarOFoco, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
+import { CabecaDaVez, FOCO_DE_VOLTA_AO_MENU, ListaDeTecnicas, Tira, andarComSetas, focoSegueOMouse, podeTomarOFoco, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
 import { MiraDoGolpe, pedidoDoGolpe, type ConsultaDaFicha, type EscolhaDaMira } from './MiraDoGolpe'
 import { ListaDePassivasDoMenu, type PassivasNoMenu } from './PassivasDaBatalha'
@@ -260,6 +260,18 @@ export function MenuDaVez(props: MenuDaVezProps) {
     })
     return () => cancelAnimationFrame(quadro)
   }, [tela.tipo, recolhido, semAcao, contraId])
+
+  // T3: a caixa por cima (a REAÇÃO) sumiu com o foco dentro: o foco volta à tira em que o menu pousaria.
+  useEffect(() => {
+    if (tela.tipo !== 'menu' || recolhido) return
+    const devolver = () => {
+      if (!podeTomarOFoco()) return
+      setAtual(pouso.current)
+      tiras.current[pouso.current]?.focus({ preventScroll: true })
+    }
+    window.addEventListener(FOCO_DE_VOLTA_AO_MENU, devolver)
+    return () => window.removeEventListener(FOCO_DE_VOLTA_AO_MENU, devolver)
+  }, [tela.tipo, recolhido])
 
   if (recolhido) {
     return (
