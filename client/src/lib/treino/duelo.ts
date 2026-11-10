@@ -90,8 +90,10 @@ import { danoNoTeto, seloDaMira } from './robo'
  *    dentro da grade e livre, pelo mesmo passo da batalha do app
  *    (`passoEmBatalha`, sem paredes, como a Arena). Os blocos somam no MOV
  *    da vez (`somarCaminho`), que fica vermelho acima do limite e não trava.
- *    A regra não usa distância (nem dano, nem alcance): andar não muda o
- *    robô, as 100 lutas nem a semente;
+ *    A regra da batalha não usa distância (nem dano, nem alcance); aqui só a
+ *    ÁREA da técnica é medida pelas casas (`motivoDoAlvoForaDaArea`: no site
+ *    ninguém vê o alvo marcado à mão fora dela). As 100 lutas não passam por
+ *    aqui: andar não muda o robô delas nem a semente;
  *  - MONTAR (a montagem por arrasto do site): a casa de largada que cada um
  *    escolheu. Só na montagem (`DueloGravado.montagem`: nenhum dos dois agiu
  *    ainda; a primeira jogada que não é `montar` a fecha), só a ficha do lado
