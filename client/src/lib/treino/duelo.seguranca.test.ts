@@ -23,7 +23,9 @@ import { criarMesaEmMemoria } from './mesaEmMemoria'
 
 const CONTA_A = 'conta_a'
 const CONTA_B = 'conta_b'
-const CURANDEIRA = 'treino_tok_a1'
+/** O token da primeira ficha do lado A: a que abre a luta (a Curandeira; nos fechamentos de 10/11, a ficha de cada caso). */
+const PRIMEIRA_DE_A = 'treino_tok_a1'
+const CURANDEIRA = PRIMEIRA_DE_A
 const ESCUDEIRO = 'treino_tok_a2'
 const RIVAL = 'treino_tok_b1'
 const D20_FIXO = 10
@@ -83,12 +85,17 @@ function motorContado(): { motor: MotorDoDuelo; dados: () => number } {
   }
 }
 
-function novoDuelo(motor: MotorDoDuelo): DueloGravado {
-  const { a, b } = fichasDoTeste()
+/** O duelo da Ana (lado A) contra a Bia (lado B) com as fichas dadas; quem abre é a primeira do lado A (a mais rápida). */
+function dueloCom(a: Personagem[], b: Personagem[], motor: MotorDoDuelo): DueloGravado {
   const criado = criarDuelo({ id: 'duelo_seguranca', a: { contaId: CONTA_A, nome: 'Ana', fichas: a }, b: { contaId: CONTA_B, nome: 'Bia', fichas: b } }, motor)
   if (!criado.ok) throw new Error(`duelo recusado: ${JSON.stringify(criado)}`)
-  if (cartaDaVez(criado.duelo.cena.turnos)?.tokenId !== CURANDEIRA) throw new Error('a Curandeira devia abrir a luta (Agilidade 90)')
+  if (cartaDaVez(criado.duelo.cena.turnos)?.tokenId !== PRIMEIRA_DE_A) throw new Error('a primeira ficha do lado A devia abrir a luta (Agilidade 90)')
   return criado.duelo
+}
+
+function novoDuelo(motor: MotorDoDuelo): DueloGravado {
+  const { a, b } = fichasDoTeste()
+  return dueloCom(a, b, motor)
 }
 
 function vezDe(duelo: DueloGravado): VezEsperada {
@@ -378,5 +385,41 @@ describe('cliente malicioso: evoluir pagando 0', () => {
     const evoluido = aceita(aplicarJogada(duelo, motor, CONTA_A, lida.jogada, 'livre'), 'o Evoluir no treino')
     expect(retratoDoDuelo(evoluido).combate.flatMap((combate) => combate.evoluidas)).toEqual([SALTO.id])
     expect(spDe(evoluido, 'Curandeira de Teste')).toBe(90)
+  })
+})
+
+// ─── Fechamentos de 10/11/2026: a frase da recusa, os alvos e o número perguntado ───
+
+const PISTOLA = cartao('arma_pistola', 'Pistola de Tinta', { dano: '20', acao: 'Ação Simples', categoria: 'De fogo', atributoDoAtaque: 'Percepção' })
+/** A passiva de marca inventada: o teste com CD ou 30 de SP. */
+const OLHAR = cartao('cart_olhar', 'Olhar de Pintor', { acao: 'Passiva', tipo: 'Passiva', efeito: 'Ao acertar um tiro, pode deixar uma marca de tinta no alvo.', custo: 'Teste de Percepção Cd 15 ou Gastar 30 de SP' })
+
+function rivalDeTeste(): Personagem {
+  return daConta(ficha('Rival de Teste', { forca: 50, agilidade: 40 }, { hp: 500, sp: 60, escudo: 0 }, { armas: [MACHADO] }), CONTA_B)
+}
+
+/** O Pintor (20 de SP: não paga os 30 da marca) abre a luta contra o Rival. */
+function dueloDoPintor(motor: MotorDoDuelo): DueloGravado {
+  const pintor = ficha('Pintor de Teste', { forca: 10, percepcao: 35, agilidade: 90 }, { hp: 400, sp: 20, escudo: 0 }, { habilidades: [OLHAR], armas: [PISTOLA] })
+  return dueloCom([daConta(pintor, CONTA_A)], [rivalDeTeste()], motor)
+}
+
+describe('a recusa volta com a frase da regra (a marca e a passiva pedida como técnica)', () => {
+  it('pagar a marca sem o SP: "SP insuficiente", e o lembrete segue esperando', () => {
+    const { motor } = motorContado()
+    const inicio = dueloDoPintor(motor)
+    const tiro = { tipo: 'atacar', armaId: PISTOLA.id, alvos: [{ tokenId: RIVAL, dano: null }], surpresa: false, perfurante: false }
+    const duelo = semReagir(aceita(peloFio(inicio, motor, CONTA_A, agir(inicio, tiro)), 'o tiro'), motor)
+    const lembreteId = duelo.cena.turnos.lembretesDaMarca?.[0]?.id
+    if (lembreteId === undefined) throw new Error('o tiro que acerta devia lembrar a marca')
+    const antes = structuredClone(duelo)
+    expect(peloFio(duelo, motor, CONTA_A, { tipo: 'marcar', seq: duelo.seq, pedido: { tipo: 'marcar', lembreteId, como: 'sp' } })).toEqual({ ok: false, motivo: 'regra', texto: 'SP insuficiente: custa 30, você tem 20' })
+    expect(duelo).toEqual(antes)
+  })
+
+  it('a passiva pedida como técnica: a regra manda usar a tira Passivas (não "dano digitado à mão")', () => {
+    const { motor } = motorContado()
+    const duelo = dueloDoPintor(motor)
+    expect(peloFio(duelo, motor, CONTA_A, agir(duelo, tecnica(OLHAR.id, RIVAL)))).toEqual({ ok: false, motivo: 'regra', texto: 'Passiva: use a tira Passivas' })
   })
 })

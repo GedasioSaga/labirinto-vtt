@@ -3,15 +3,15 @@ import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from '../..
 import { CASA_DA_ARENA, centroDaCasaNaArena, type GradeDaArena } from '../arena/grade'
 import { tecnicasNoMenu } from '../batalha/acoes'
 import type { ParedeDoPasso } from '../batalha/blocos'
-import type { AcaoDaTecnica, EfeitoDaBatalha, PedidoDeAcao, PedidoDeAlvo, PedidoDeEvolucao, PedidoDeMarca, PedidoDePassiva, PedidoDeReacao } from '../batalha/combate'
+import type { AcaoDaTecnica, EfeitoDaBatalha, LembreteDaMarca, PedidoDeAcao, PedidoDeAlvo, PedidoDeEvolucao, PedidoDeMarca, PedidoDePassiva, PedidoDeReacao } from '../batalha/combate'
 import { ehLembreteDoSangramento } from '../batalha/condicoes'
 import { preenchimentoDaVariante, varianteDoPedido } from '../batalha/escolhaEEvolucao'
 import { acoesDaCarta, danoSugeridoDoAtaque } from '../batalha/golpe'
 import { armaSoDeEfeito } from '../batalha/formula'
-import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, tecnicaPorId, type ArmaDaFicha, type BalaDaArma } from '../batalha/leituraDaFicha'
+import { armasDe, balaDaArma, ehPerfurante, perfuracaoDe, recursoDoCusto, tecnicaPorId, type ArmaDaFicha, type BalaDaArma } from '../batalha/leituraDaFicha'
 import { danoDaTecnica } from '../batalha/leituraDaTecnica'
 import { cartaoMontado } from '../batalha/mecanica/leitura'
-import { COMO_MARCA } from '../batalha/marca'
+import { COMO_MARCA, marcaDoToken, motivoDaMarca, passivaDaMarca } from '../batalha/marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
@@ -26,7 +26,7 @@ import { cartaDaVez, combatentesIniciais, type AutorDaAcao, type CartaDaOrdem, t
 import { bytesDoTexto, ehRegistro, lerJsonSeguro } from '../nuvem/json'
 import { LIMITES } from '../nuvem/limites'
 import { projetarParaJogador } from '../nuvem/projecao'
-import type { Personagem } from '../personagem'
+import { numeroDaFicha, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { MesaDaBatalha } from '../batalha/mesa'
 import { fimDaLuta, mesaDosLutadores, type FimDaLuta } from './fimDaLuta'
@@ -356,6 +356,14 @@ function recusa(motivo: MotivoDaRecusa, texto?: string | null): RecusaDaJogada {
 const TEXTO_DA_VEZ_QUE_PASSOU = 'A vez já passou'
 const TEXTO_DO_GOLPE_RESOLVIDO = 'Esse golpe já foi resolvido'
 const TEXTO_DO_ALVO_DE_FORA = 'Esse alvo não está na luta'
+const TEXTO_DO_ALVO_JA_MARCADO = 'Esse alvo já está marcado'
+/**
+ * A frase da regra para a passiva pedida como técnica (`motivoDaTecnica` em
+ * `lib/batalha/acoes.ts`). Dita daqui porque `podeAgir` confere o custo antes
+ * de `motivoDaTecnica`, e a passiva de custo em texto (o Olhar artístico:
+ * "Teste de Percepção Cd 15 ou Gastar 30 de SP") voltava "Confirme o custo".
+ */
+const TEXTO_DA_PASSIVA_COMO_TECNICA = 'Passiva: use a tira Passivas'
 const TEXTO_DO_EVOLUIR_ENTRE_CONTAS = 'Evoluir é só no treino: o custo e a condição da evolução estão no texto da ficha, e na luta entre contas ninguém confere'
 
 /** As recusas da grade do site (andar e montar não passam pela regra da batalha: o texto é daqui). */
@@ -453,6 +461,8 @@ function tecnicaRecalculada(pedido: Extract<PedidoDeAcao, { tipo: 'habilidade' }
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
   const tecnica = tecnicasNoMenu(personagem, sistema, turnos.combate?.[personagem.id], acoes, arma, bonus).find((candidata) => candidata.cartao.id === pedido.cartaoId)
   if (tecnica === undefined) return { ok: true, pedido: semNumero }
+  // A passiva não é golpe. Vem antes do "dano à mão": ela não tem dano que a ficha leia, e a tela dizia "pede dano digitado à mão".
+  if (tecnica.acao === 'passiva' || tecnica.tipo.tipo === 'passiva') return recusa('regra', TEXTO_DA_PASSIVA_COMO_TECNICA)
   // De propósito: no site ninguém digita dano (técnica marcada "à mão").
   if (tecnica.cartao.aMao === true) return recusa('danoAMao')
   const variante = pedido.variante === undefined ? null : varianteDoPedido(tecnica.cartao, pedido.variante)
@@ -627,6 +637,23 @@ function textoDaReacaoRecusada(turnos: TurnosDaCena, pedido: PedidoDeReacao, per
   return motivoDaReacaoComTecnica({ personagem, sistema, combate, quemPede: 'jogador' }, alvo, pedido, golpe.overload, golpe.surpresa)
 }
 
+/**
+ * Por que a batalha recusou a resposta à marca, no texto do app: o alvo que
+ * saiu da luta ou já está marcado (uma marca por alvo) e a regra da passiva
+ * (`motivoDaMarca`, a mesma conferência de `marcar` na store: o SP que não
+ * paga, a CD que a ficha não diz). `null` = a regra não diz (fica a frase do
+ * código).
+ */
+function textoDaMarcaRecusada(turnos: TurnosDaCena, lembrete: LembreteDaMarca, pedido: PedidoDeMarca, personagem: Personagem | null, sistema: SistemaDeRpg): string | null {
+  const achada = personagem === null ? null : passivaDaMarca(personagem, sistema)
+  if (personagem === null || achada === null || achada.cartao.id !== lembrete.cartaoId) return null
+  if (!turnos.cartas.some((carta) => carta.tokenId === lembrete.alvoTokenId)) return TEXTO_DO_ALVO_DE_FORA
+  if (marcaDoToken(turnos.selos, lembrete.alvoTokenId) !== undefined) return TEXTO_DO_ALVO_JA_MARCADO
+  const recursoDoSp = recursoDoCusto(sistema, 'sp')
+  const sp = recursoDoSp === null ? 0 : numeroDaFicha(personagem.recursos, recursoDoSp.id)
+  return motivoDaMarca(achada.leitura, pedido.como, sp)
+}
+
 /** A carta que age: a do contra-ataque (`contraDe`, fora da vez) ou a da vez. */
 function cartaQueAge(turnos: TurnosDaCena, pedido: PedidoDeAcao): CartaDaOrdem | null {
   const contraDe = contraDoPedido(pedido)
@@ -691,7 +718,9 @@ function jogarNaLoja(
       if (!ehDoLado(lembrete.tokenId)) return recusa('naoEDaConta')
       const refeito = marcaRecalculada(jogada.pedido)
       if (!refeito.ok) return refeito
-      return loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido) ? null : recusa('regra')
+      if (loja.getState().marcar(CENA_DO_DUELO, autor, refeito.pedido)) return null
+      // A store recusou sem mudar nada: o motivo é o que a regra da marca diz deste mesmo pedido, agora.
+      return recusa('regra', textoDaMarcaRecusada(turnos, lembrete, refeito.pedido, copiaDe(lembrete.personagemId), sistema))
     }
     case 'passiva': {
       const { pedido } = jogada
