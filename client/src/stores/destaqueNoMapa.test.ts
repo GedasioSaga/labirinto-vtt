@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { selectionOfItem } from '../lib/selectionModel'
+import { selectionFromItems, selectionOfItem, type SelectionSet } from '../lib/selectionModel'
 import type { Token } from '../types/map'
 import { abrirDestaqueNoMapa, esperarTokenNoMapa, PRAZO_DA_ESPERA_MS } from './destaqueNoMapa'
 import { useMapStore } from './mapStore'
@@ -31,14 +31,19 @@ beforeEach(() => {
 
 afterEach(() => {
   mapa.remove()
+  useMapStore.setState({ itemGroups: {} })
   vi.useRealTimers()
 })
 
-/** O clique de verdade: o aperto nasce no canvas do mapa e é dentro dele que o editor seleciona o token, como o Pixi faz. */
-function clicarNoToken(tokenId: string): void {
-  canvas.addEventListener('pointerdown', () => useMapStore.getState().setSelection(doToken(tokenId)), { once: true })
+/** O clique de verdade: o aperto nasce no canvas do mapa e é dentro dele que o editor seleciona, como o Pixi faz. */
+function clicarSelecionando(selecao: SelectionSet): void {
+  canvas.addEventListener('pointerdown', () => useMapStore.getState().setSelection(selecao), { once: true })
   canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+}
+
+function clicarNoToken(tokenId: string): void {
+  clicarSelecionando(doToken(tokenId))
 }
 
 describe('esperarTokenNoMapa: só um clique de verdade num token do mapa escolhe', () => {
@@ -83,6 +88,29 @@ describe('esperarTokenNoMapa: só um clique de verdade num token do mapa escolhe
     useMapStore.getState().setSelection(doToken('t2'))
     desarmar()
 
+    expect(cliques).toEqual([])
+  })
+
+  it('clique num token agrupado (Ctrl+G) seleciona o grupo inteiro: a espera acaba dizendo o porquê, sem ficar muda até o prazo', () => {
+    // O clique num membro seleciona o grupo todo (`expandToGroup`), e a seleção não diz qual foi clicado.
+    const paredes = selectionFromItems([{ kind: 'wall', id: 'w1' }, { kind: 'wall', id: 'w2' }])
+    const alces = selectionFromItems([{ kind: 'token', id: 't1' }, { kind: 'token', id: 't2' }])
+    useMapStore.setState({ itemGroups: { m1: [{ id: 'g-paredes', members: paredes }, { id: 'g-alces', members: alces }] } })
+    const cliques: string[] = []
+    const acabou = vi.fn()
+    esperarTokenNoMapa((id) => cliques.push(id), acabou)
+
+    // Grupo sem token nenhum é como clicar numa parede: a espera segue.
+    clicarSelecionando(paredes)
+    expect(acabou).not.toHaveBeenCalled()
+
+    clicarSelecionando(alces)
+    expect(acabou).toHaveBeenCalledTimes(1)
+    expect(acabou).toHaveBeenCalledWith('grupo')
+    // O grupo fica selecionado: o mestre desagrupa dali mesmo.
+    expect(useMapStore.getState().selection).toEqual(alces)
+    // E a espera acabou de verdade: o token clicado depois não vai para ninguém.
+    clicarNoToken('t1')
     expect(cliques).toEqual([])
   })
 

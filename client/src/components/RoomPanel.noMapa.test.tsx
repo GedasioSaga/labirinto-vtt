@@ -2,7 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { selectionOfItem } from '../lib/selectionModel'
+import { selectionFromItems, selectionOfItem, type SelectionSet } from '../lib/selectionModel'
 import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
 import { useMapStore } from '../stores/mapStore'
@@ -60,6 +60,7 @@ describe('RoomPanel: "clicar no token no mapa" só escolhe com um clique de verd
     act(() => root.unmount())
     container.remove()
     mapa.remove()
+    useMapStore.setState({ itemGroups: {} })
     vi.useRealTimers()
   })
 
@@ -123,13 +124,17 @@ describe('RoomPanel: "clicar no token no mapa" só escolhe com um clique de verd
     })
   }
 
-  /** O clique de verdade: o aperto nasce no canvas do mapa e é dentro dele que o editor seleciona o token, como o Pixi faz. */
-  function clicarNoToken(tokenId: string): void {
-    canvas.addEventListener('pointerdown', () => useMapStore.getState().setSelection(doToken(tokenId)), { once: true })
+  /** O clique de verdade: o aperto nasce no canvas do mapa e é dentro dele que o editor seleciona, como o Pixi faz. */
+  function clicarSelecionando(selecao: SelectionSet): void {
+    canvas.addEventListener('pointerdown', () => useMapStore.getState().setSelection(selecao), { once: true })
     act(() => {
       canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
       window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
     })
+  }
+
+  function clicarNoToken(tokenId: string): void {
+    clicarSelecionando(doToken(tokenId))
   }
 
   const espera = (nome: string): Element | null => card(nome).querySelector('.lb-atribuir__espera')
@@ -161,6 +166,21 @@ describe('RoomPanel: "clicar no token no mapa" só escolhe com um clique de verd
     expect(onAssign).toHaveBeenCalledTimes(1)
     expect(onAssign).toHaveBeenCalledWith('p8', 'alce-c')
     expect(aviso()).toBeNull()
+  })
+
+  it('armado, o clique num alce agrupado (Ctrl+G) não atribui: a espera acaba e o card diz para desagrupar ou escolher pela lista', () => {
+    // O clique num membro seleciona o grupo inteiro, como o editor faz.
+    const grupo = selectionFromItems(ALCES.slice(0, 2).map((id) => ({ kind: 'token', id })))
+    useMapStore.setState({ itemGroups: { m1: [{ id: 'g-alces', members: grupo }] } })
+    render([GINA])
+    armar('Gina')
+
+    clicarSelecionando(grupo)
+
+    expect(onAssign).not.toHaveBeenCalled()
+    expect(espera('Gina')).toBeNull()
+    expect(aviso()).toBeNull()
+    expect(card('Gina').querySelector('.lb-player__note[role="status"]')?.textContent).toBe('Esse token está num grupo. Desagrupe ou escolha pela lista.')
   })
 
   it('trocar de página com a espera armada desarma: o aviso some e o token clicado depois não vai para ninguém', () => {

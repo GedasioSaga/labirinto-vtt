@@ -1,3 +1,4 @@
+import { isSingleGroup, NO_GROUPS } from '../lib/itemGroups'
 import { EMPTY_SELECTION, isSelectionEmpty, selectionOfItem, selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { useMapStore } from './mapStore'
 
@@ -84,6 +85,12 @@ const CANVAS_DO_MAPA = `${MAPA_DO_EDITOR} canvas`
 export const PRAZO_DA_ESPERA_MS = 30_000
 
 /**
+ * Por que a espera acabou sem escolha: `vez` = outro tirou a vez (outro card,
+ * outra ferramenta, o prazo); `grupo` = o clique pegou um token agrupado.
+ */
+export type FimSemEscolha = 'vez' | 'grupo'
+
+/**
  * "Clicar no token no mapa": arma a ferramenta Selecionar com a seleção vazia
  * e avisa o primeiro token que o mestre CLICAR no mapa. Só o clique conta: a
  * seleção que muda fora de um aperto no canvas (o destaque de uma lista, outro
@@ -92,13 +99,18 @@ export const PRAZO_DA_ESPERA_MS = 30_000
  * A seleção começa vazia de propósito: clicar no token que já estava
  * selecionado não mudaria nada, e o clique passaria em branco.
  *
- * Acaba de quatro jeitos: o clique (`aoClicar`, e o token clicado fica
- * selecionado), o desarmar de quem armou, e os três que tiram a vez
- * (`aoPerderAVez`): outro card armou ou uma lista abriu, o mestre pegou outra
- * ferramenta, ou o prazo venceu. Sem clique, a ferramenta e a seleção voltam a
- * ser as de antes.
+ * Acaba de cinco jeitos: o clique (`aoClicar`, e o token clicado fica
+ * selecionado), o desarmar de quem armou, os três que tiram a vez
+ * (`aoPerderAVez('vez')`): outro card armou ou uma lista abriu, o mestre pegou
+ * outra ferramenta, ou o prazo venceu; e o clique num token AGRUPADO
+ * (`aoPerderAVez('grupo')`), que seleciona o grupo inteiro. Sem clique, a
+ * ferramenta e a seleção voltam a ser as de antes.
  */
-export function esperarTokenNoMapa(aoClicar: (tokenId: string) => void, aoPerderAVez: () => void, prazoMs: number = PRAZO_DA_ESPERA_MS): () => void {
+export function esperarTokenNoMapa(
+  aoClicar: (tokenId: string) => void,
+  aoPerderAVez: (motivo: FimSemEscolha) => void,
+  prazoMs: number = PRAZO_DA_ESPERA_MS,
+): () => void {
   // Um card de cada vez espera o clique: o que armou antes perde a vez.
   esperaAtual?.()
   const inicio = useMapStore.getState()
@@ -147,10 +159,10 @@ export function esperarTokenNoMapa(aoClicar: (tokenId: string) => void, aoPerder
     encerrar()
     devolver()
   }
-  const tirarAVez = (): void => {
+  const tirarAVez = (motivo: FimSemEscolha = 'vez'): void => {
     if (!viva) return
     desarmar()
-    aoPerderAVez()
+    aoPerderAVez(motivo)
   }
 
   const parar = useMapStore.subscribe((estado, anterior) => {
@@ -161,7 +173,13 @@ export function esperarTokenNoMapa(aoClicar: (tokenId: string) => void, aoPerder
     }
     if (peloDestaque || !gestoNoMapa || estado.selection === anterior.selection) return
     const unico = selectionSingle(estado.selection)
-    if (unico?.kind !== 'token') return
+    if (unico?.kind !== 'token') {
+      // Token agrupado (Ctrl+G): o clique seleciona o grupo inteiro e a seleção não diz qual membro foi clicado.
+      // A espera acaba avisando, em vez de ficar muda até o prazo; o grupo fica selecionado, para o mestre desagrupar dali.
+      const noGrupo = estado.selection.some((item) => item.kind === 'token') && isSingleGroup(estado.itemGroups[estado.map.id] ?? NO_GROUPS, estado.selection)
+      if (noGrupo) tirarAVez('grupo')
+      return
+    }
     // O clique fecha a espera sem devolver nada: o token clicado fica selecionado, e o gesto (talvez um arrasto) segue.
     encerrar()
     aoClicar(unico.id)

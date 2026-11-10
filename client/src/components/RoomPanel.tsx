@@ -481,6 +481,8 @@ interface AssignControlsProps {
 
 /** A linha ativa só acende no mapa depois deste tempo parada: varrer a lista com o ponteiro não troca a seleção do mapa a cada linha. */
 const ATRASO_DO_DESTAQUE_MS = 70
+/** O "clicar no token no mapa" pegou um token agrupado (Ctrl+G): o editor seleciona o grupo inteiro, e não dá para saber qual foi clicado. */
+const AVISO_DE_TOKEN_NO_GRUPO = 'Esse token está num grupo. Desagrupe ou escolha pela lista.'
 
 /**
  * Dar ficha a um jogador: botões de um clique (só fichas livres, de qualquer
@@ -563,7 +565,10 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
     }
     const desarmar = esperarTokenNoMapa(
       (tokenId) => aoClicarNoMapaRef.current(tokenId),
-      () => setEsperaNoMapa(false),
+      (motivo) => {
+        setEsperaNoMapa(false)
+        if (motivo === 'grupo') setAviso(AVISO_DE_TOKEN_NO_GRUPO)
+      },
     )
     // Esc desiste de qualquer lugar (o foco costuma estar no mapa) e não chega aos atalhos do editor.
     const aoTeclar = (evento: globalThis.KeyboardEvent): void => {
