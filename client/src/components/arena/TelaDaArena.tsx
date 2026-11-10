@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
 import { CASA_DA_ARENA, GRADES_DA_ARENA } from '../../lib/arena/grade'
 import { CENA_DA_ARENA, type ContaDoPlacar, type SessaoDaArena } from '../../lib/arena/tipos'
-import type { FormaPendente, PedidoDeAcao, PedidoDeEvolucao, PedidoDePassiva, PedidoDeReacao } from '../../lib/batalha/combate'
+import type { FormaPendente } from '../../lib/batalha/combate'
 import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, temGolpeEsperando } from '../../lib/batalha/contador'
 import type { Equipe } from '../../lib/batalha/equipes'
 import { armasDe, limiteDeArmas, recursoDoEscudo } from '../../lib/batalha/leituraDaFicha'
-import type { BatalhaEmTurnos, VezEsperada } from '../../lib/batalha/ponte'
+import type { BatalhaEmTurnos } from '../../lib/batalha/ponte'
 import { alvosDeMod, selosDoToken } from '../../lib/batalha/selos'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { cartaDaVez } from '../../lib/batalha/turnos'
@@ -25,7 +25,7 @@ import { useMundoDoLivroStore, usePersonagensDoMundo } from '../../stores/mundoD
 import { useToastStore } from '../../stores/toastStore'
 import { AcoesExtrasDialog } from '../batalha/AcoesExtrasDialog'
 import { AjustarDialog } from '../batalha/AjustarDialog'
-import { BatalhaDoJogador, type ConexaoDaBatalha } from '../batalha/BatalhaDoJogador'
+import { BatalhaDoJogador } from '../batalha/BatalhaDoJogador'
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from '../batalha/PassivasDaBatalha'
 import { useColocacaoDoMestre } from '../batalha/colocacaoDoMestre'
 import { DarDanoDialog } from '../batalha/DarDanoDialog'
@@ -40,6 +40,7 @@ import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelo
 import type { ItemDoMenuDaCarta } from '../batalha/MenuDaCarta'
 import { alvosDoDarDano, pendenciasDeInvocacaoNaTela, vezDoBandoNaTela, type MesaDoMestre } from '../batalha/mesaDoMestre'
 import { nomesNumerados } from '../batalha/nomesNumerados'
+import { pedidosDaVez } from '../batalha/pedidosDaVez'
 import type { ConsultaDaFicha } from '../batalha/MiraDoGolpe'
 import { PerfilDaCarta } from '../batalha/PerfilDaCarta'
 import { SeloDialog } from '../batalha/SeloDialog'
@@ -88,6 +89,15 @@ const PLACAR_VAZIO: ContaDoPlacar = { golpes: [], total: 0, rodadas: 0, mediaPor
 const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
 
 /**
+ * U4: TODOS os pedidos da arena saem da função única (`pedidosDaVez`), com o
+ * mestre de autor: a mesma lista do mestre no mapa, nenhum desligado. O menu
+ * da vez, a caixa REAÇÃO, o menu da carta, as janelas e a vez do bando pedem
+ * por aqui; só a ordem das cartas (dar a vez, carta extra, tirar da batalha)
+ * segue direto na store, como a faixa do mestre faz.
+ */
+const PEDIDOS = pedidosDaVez(batalhaDaArena, CENA_DA_ARENA, AUTOR_DA_ARENA)
+
+/**
  * U4: o contador da ficha no menu da carta (a Polaridade do Vagn), com os
  * mesmos textos e a mesma regra do menu do mestre no mapa (`FaixaDoMestre`):
  * carregar gasta a reação até a vez dela; zerar é só do mestre.
@@ -95,7 +105,6 @@ const SEM_FORMAS_PENDENTES: readonly FormaPendente[] = []
 function itensDoContador(tokenId: string, personagem: Personagem, sistema: SistemaDeRpg, turnos: BatalhaEmTurnos['turnos']): ItemDoMenuDaCarta[] {
   const contador = contadorDoPersonagem(personagem, sistema)
   if (contador === null) return []
-  const loja = batalhaDaArena.getState()
   const nivel = nivelDoContador(turnos, tokenId, contador.cartao.id)
   const maximo = contador.leitura.danoPorNivel.length
   const motivo = motivoDoContador('ganhar', nivel, maximo, turnos.combate?.[personagem.id]?.semReacao === true, temGolpeEsperando(turnos.golpes, tokenId))
@@ -110,16 +119,11 @@ function itensDoContador(tokenId: string, personagem: Personagem, sistema: Siste
         travado ??
         (motivo === 'semReacao' ? 'Já gastou a reação: volta na vez dela' : motivo === 'golpeEsperando' ? 'Tem golpe esperando a reação: responda antes de carregar' : motivo === 'noMaximo' ? 'Já está no máximo' : `Perde a reação até a vez dela; nível ${nivel + 1} soma +${contador.leitura.danoPorNivel[nivel] ?? 0} de dano`),
       desabilitado: travado !== null || motivo !== null,
-      onEscolher: () => loja.contador(CENA_DA_ARENA, AUTOR_DA_ARENA, { tipo: 'ganhar', ...pedido }),
+      onEscolher: () => PEDIDOS.contador({ tipo: 'ganhar', ...pedido }),
     },
   ]
-  if (nivel > 0) itens.push({ id: 'contador-zerar', rotulo: `Zerar ${contador.leitura.nome}`, detalhe: 'Volta a 0 e o dano a mais sai; entra no registro', onEscolher: () => loja.contador(CENA_DA_ARENA, AUTOR_DA_ARENA, { tipo: 'zerar', ...pedido }) })
+  if (nivel > 0) itens.push({ id: 'contador-zerar', rotulo: `Zerar ${contador.leitura.nome}`, detalhe: 'Volta a 0 e o dano a mais sai; entra no registro', onEscolher: () => PEDIDOS.contador({ tipo: 'zerar', ...pedido }) })
   return itens
-}
-
-/** U2: o motivo da regra para o pedido que a batalha da arena acabou de recusar (o mesmo `motivoDoAgir` da vez do NPC no mapa). */
-function motivoDaRecusaNaArena(vez: VezEsperada | null, pedido: PedidoDeAcao): string | null {
-  return batalhaDaArena.getState().motivoDoAgir(CENA_DA_ARENA, AUTOR_DA_ARENA, vez, pedido)
 }
 
 /**
@@ -175,12 +179,11 @@ interface DialogoNaArenaProps {
 /** Os diálogos do mestre, sobre a batalha da arena (o hospedeiro da mesa lê a aventura e o mapa: não serve aqui). */
 function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: DialogoNaArenaProps) {
   const { turnos } = cena
-  const loja = batalhaDaArena.getState()
 
   if (dialogo.tipo === 'dano') {
     // U4: a carta do bando vira os invocados dela (a store recusa dano na carta), como no mapa.
     const { alvos, inicial } = alvosDoDarDano(mesa, turnos, dialogo.tokenId)
-    return <DarDanoDialog alvos={alvos} alvoInicial={inicial} onConfirmar={(tokenId, valor) => loja.darDano(CENA_DA_ARENA, AUTOR_DA_ARENA, tokenId, valor)} onFechar={onFechar} />
+    return <DarDanoDialog alvos={alvos} alvoInicial={inicial} onConfirmar={PEDIDOS.darDano} onFechar={onFechar} />
   }
   if (dialogo.tipo === 'selo') {
     const { tokenId, seloId } = dialogo
@@ -193,8 +196,8 @@ function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: Dial
         selo={selo === null ? null : { nome: selo.nome, turnos: selo.turnos, ...(selo.mods === undefined ? {} : { mods: selo.mods }) }}
         alvosDeMod={alvosDeMod(sistema)}
         corFixa={selo?.cartaoId === undefined ? undefined : (selo.natureza ?? 'condicao')}
-        onConfirmar={(pedido) => (seloId === null ? loja.porSelo(CENA_DA_ARENA, tokenId, pedido) : loja.editarSelo(CENA_DA_ARENA, seloId, pedido))}
-        onTirar={seloId === null ? undefined : () => loja.tirarSelo(CENA_DA_ARENA, seloId)}
+        onConfirmar={(pedido) => (seloId === null ? PEDIDOS.porSelo(tokenId, pedido) : PEDIDOS.editarSelo(seloId, pedido))}
+        onTirar={seloId === null ? undefined : () => PEDIDOS.tirarSelo(seloId)}
         onFechar={onFechar}
       />
     )
@@ -206,7 +209,7 @@ function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: Dial
       <AcoesExtrasDialog
         quem={nomeDoToken(sessao, carta.tokenId)}
         inicial={turnos.extras[carta.id] ?? null}
-        onConfirmar={(extras) => loja.darAcoesExtras(CENA_DA_ARENA, carta.id, extras)}
+        onConfirmar={(extras) => PEDIDOS.darAcoesExtras(carta.id, extras)}
         onFechar={onFechar}
       />
     )
@@ -220,7 +223,7 @@ function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: Dial
         tokenId={dialogo.tokenId}
         personagem={personagem}
         sistema={sistema}
-        onConfirmar={(pedido) => loja.ajustar(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido)}
+        onConfirmar={PEDIDOS.ajustar}
         onFechar={onFechar}
       />
     )
@@ -231,7 +234,7 @@ function DialogoNaArena({ dialogo, cena, sessao, mesa, sistema, onFechar }: Dial
       armas={armasDe(personagem).map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', detalhe: arma.campos.dano ? `Dano ${arma.campos.dano}` : undefined }))}
       limite={limiteDeArmas(personagem)}
       escolhidas={turnos.combate?.[personagem.id]?.armas ?? null}
-      onConfirmar={(armas) => loja.escolherArmas(CENA_DA_ARENA, AUTOR_DA_ARENA, personagem.id, armas)}
+      onConfirmar={(armas) => PEDIDOS.escolherArmas(personagem.id, armas)}
       onFechar={onFechar}
     />
   )
@@ -298,25 +301,6 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
   // A posição de cada ficha na tela: o palco publica, a mira e os efeitos leem sempre a de agora.
   const consulta = useCallback<ConsultaDaFicha>((tokenId) => consultaAtual.current?.(tokenId) ?? null, [])
 
-  const conexao = useMemo<ConexaoDaBatalha>(
-    () => ({
-      agir: (vez: VezEsperada | null, pedido: PedidoDeAcao) => batalhaDaArena.getState().agir(CENA_DA_ARENA, AUTOR_DA_ARENA, vez, pedido),
-      reagir: (pedido: PedidoDeReacao) => batalhaDaArena.getState().reagir(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
-      escolherArmas: (personagemId, armas) => batalhaDaArena.getState().escolherArmas(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId, armas),
-      passarVez: (cartaId, rodada) => batalhaDaArena.getState().passarVez(CENA_DA_ARENA, AUTOR_DA_ARENA, { cartaId, rodada }),
-      zerarCarga: (personagemId) => batalhaDaArena.getState().zerarCarga(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId),
-      // Tipos de habilidade F3: o menu da vez e os lembretes das passivas (o mestre opera todos os lados).
-      passiva: (pedido: PedidoDePassiva) => batalhaDaArena.getState().passiva(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
-      // Tipos de habilidade F4: o Evoluir na leitura das Habilidades (o mestre evolui sempre).
-      evoluir: (pedido: PedidoDeEvolucao) => batalhaDaArena.getState().evoluir(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
-      // U4: a técnica de Tipo Invocação (o Chamado do Lobo): o pedido vira pendência e o mestre a põe pela lista Invocações.
-      invocar: (pedido) => batalhaDaArena.getState().invocar(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
-      // R1 (lote de 01/11): o lembrete da marca (o mestre responde por todos os lados).
-      marcar: (pedido) => batalhaDaArena.getState().marcar(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido),
-    }),
-    [],
-  )
-
   const menuDaCarta = useCallback(
     (carta: DadosDaCarta): readonly ItemDoMenuDaCarta[] => {
       const loja = batalhaDaArena.getState()
@@ -359,7 +343,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
           rotulo: `Desfazer a forma (${carta.forma})`,
           detalhe: jaEaVez ? 'Ação livre; entra no registro, o Desfazer volta' : 'Só na vez desta carta',
           desabilitado: !jaEaVez,
-          onEscolher: () => loja.agir(CENA_DA_ARENA, AUTOR_DA_ARENA, { cartaId: carta.id, rodada: turnos.rodada }, { tipo: 'destransformar', cartaoId: forma.cartaoId }),
+          onEscolher: () => PEDIDOS.agir({ cartaId: carta.id, rodada: turnos.rodada }, { tipo: 'destransformar', cartaoId: forma.cartaoId }),
         })
       }
       itens.push({ id: 'por-selo', secao: 'Selos', rotulo: 'Pôr selo…', detalhe: 'Atordoado, Cego… com turnos ou até tirar', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId: null }) })
@@ -378,7 +362,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
           id: 'zerar-carga',
           rotulo: `Zerar a concentração (carga ${carta.carga ?? 0})`,
           detalhe: 'Volta a 0; a ação gasta não volta. Entra no registro',
-          onEscolher: () => loja.zerarCarga(CENA_DA_ARENA, AUTOR_DA_ARENA, personagemId),
+          onEscolher: () => PEDIDOS.zerarCarga(personagemId),
         })
       // Invocação (pedido de 01/11): a carta do bando não tem "Tirar da batalha" (a store recusa).
       if (carta.bando === undefined)
@@ -478,11 +462,11 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
           turnos={turnos}
           registro={cena.registro}
           nomeDoToken={nomeNaArena}
-          onDecidir={(pendenteId, decisao) => batalhaDaArena.getState().decidirForma(CENA_DA_ARENA, pendenteId, decisao)}
-          onRecusar={(pendenteId) => batalhaDaArena.getState().cancelarForma(CENA_DA_ARENA, pendenteId)}
+          onDecidir={PEDIDOS.decidirForma}
+          onRecusar={PEDIDOS.cancelarForma}
         />
         {/* U4: as invocações esperando (Colocar e Cancelar) e a vez do bando, as mesmas peças da aba Batalha do mapa. */}
-        <InvocacoesPendentes sceneKey={CENA_DA_ARENA} itens={pendenciasDeInvocacao} onCancelar={(invocacaoId) => batalhaDaArena.getState().cancelarInvocacao(CENA_DA_ARENA, invocacaoId)} />
+        <InvocacoesPendentes sceneKey={CENA_DA_ARENA} itens={pendenciasDeInvocacao} onCancelar={PEDIDOS.cancelarInvocacao} />
         {vezDoBando !== null && (
           <section className="bt-secao" aria-label={`Vez de ${vezDoBando.nome}`}>
             <PainelDoBando
@@ -490,8 +474,8 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
               nome={vezDoBando.nome}
               cor={vezDoBando.cor}
               membros={vezDoBando.membros}
-              onAgir={(tokenId, pedido) => batalhaDaArena.getState().agirComInvocado(CENA_DA_ARENA, { cartaId: vezDoBando.carta.id, rodada: turnos.rodada }, tokenId, pedido)}
-              onEncerrar={() => batalhaDaArena.getState().passarVez(CENA_DA_ARENA, AUTOR_DA_ARENA, { cartaId: vezDoBando.carta.id, rodada: turnos.rodada })}
+              onAgir={(tokenId, pedido) => PEDIDOS.agirComInvocado({ cartaId: vezDoBando.carta.id, rodada: turnos.rodada }, tokenId, pedido)}
+              onEncerrar={() => PEDIDOS.passarVez(vezDoBando.carta.id, turnos.rodada)}
               onDarDano={() => setDialogo({ tipo: 'dano', tokenId: vezDoBando.carta.tokenId })}
               consulta={consulta}
               alvoDoMapa={alvoDoMapa}
@@ -507,10 +491,10 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         dados={dados}
         onMover={(cartaId, indice) => batalhaDaArena.getState().moverCarta(CENA_DA_ARENA, cartaId, indice)}
         menuDaCarta={menuDaCarta}
-        onPassarVez={dados.cartas.length === 0 ? undefined : () => batalhaDaArena.getState().passarVez(CENA_DA_ARENA, AUTOR_DA_ARENA)}
+        onPassarVez={dados.cartas.length === 0 ? undefined : () => PEDIDOS.passarVez()}
         regras={cena.regras}
         registro={registro}
-        onDesfazer={(linhaId) => batalhaDaArena.getState().desfazer(CENA_DA_ARENA, linhaId, AUTOR_DA_ARENA)}
+        onDesfazer={PEDIDOS.desfazer}
         onSelo={(carta, seloId) => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId })}
       />
 
@@ -520,7 +504,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         meus={sessao.copias}
         fichas={sessao.tokens}
         sistema={sistema}
-        conexao={conexao}
+        conexao={PEDIDOS}
         consulta={consulta}
         alvoDoMapa={alvoDoMapa}
         onMirando={setMirando}
@@ -529,7 +513,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         // U4: a arena tem grade: a área da técnica marca pelas casas, como no mapa.
         tamanhoDaCasa={CASA_DA_ARENA}
         // U2: a regra roda aqui mesmo: a recusa diz o motivo dela, como na vez do NPC no mapa (nunca "sem conexão com o mestre").
-        motivoDaRecusa={motivoDaRecusaNaArena}
+        motivoDaRecusa={PEDIDOS.motivoDoAgir}
         avisoDaRecusa={RECUSA_SEM_MOTIVO}
       />
 
@@ -562,7 +546,7 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
                 alvos={alvosDaOrdemParaPassiva(turnos.cartas, nomeNaArena, cartaDoPerfil.tokenId, (personagemId) => personagemId !== null && equipeDoPerfil?.membros.includes(personagemId) === true)}
                 sistema={sistema}
                 aplicarLivre
-                onPedir={(pedido) => batalhaDaArena.getState().passiva(CENA_DA_ARENA, AUTOR_DA_ARENA, pedido)}
+                onPedir={PEDIDOS.passiva}
               />
             )
           }

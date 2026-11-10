@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao, type PedidoDeEvolucao, type PedidoDeInvocacao, type PedidoDeMarca, type PedidoDePassiva, type PedidoDeReacao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { motivoDoEvoluirNaFicha } from '../../lib/batalha/escolhaEEvolucao'
 import { armasDe } from '../../lib/batalha/leituraDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
@@ -25,6 +25,7 @@ import { MenuDaVez, textoDaEspera, textoDoMestreDecidindo, type ContraNoMenu, ty
 import type { ConsultaDaFicha } from './MiraDoGolpe'
 import { LembretesDaMarca, marcaNaTela, type MarcaNaTela } from './LembretesDaMarca'
 import { LembretesDaPassiva, lembretesNaTela, passivasNoRecorte, type LembreteNaTela } from './PassivasDaBatalha'
+import type { ConexaoDaBatalha } from './pedidosDaVez'
 import './batalha.css'
 import './combate.css'
 
@@ -46,22 +47,8 @@ import './combate.css'
  * a tira Passivas no menu da vez.
  */
 
-export interface ConexaoDaBatalha {
-  agir: (vez: VezEsperada | null, pedido: PedidoDeAcao) => boolean
-  reagir: (pedido: PedidoDeReacao) => boolean
-  escolherArmas: (personagemId: string, armas: readonly string[]) => boolean
-  passarVez: (cartaId: string, rodada: number) => boolean
-  /** "Zerar" a concentração do personagem dele. Ausente = sem o botão. */
-  zerarCarga?: (personagemId: string) => boolean
-  /** Tipos de habilidade F3: Ativar/Desligar a passiva e responder o lembrete. Ausente = sem a tira Passivas nem os lembretes. */
-  passiva?: (pedido: PedidoDePassiva) => boolean
-  /** Tipos de habilidade F4: Evoluir a técnica nesta batalha (o jogador, na vez dele). Ausente = sem o botão Evoluir. */
-  evoluir?: (pedido: PedidoDeEvolucao) => boolean
-  /** Invocação F3: pedir a técnica de Tipo Invocação (o mestre põe no mapa). Ausente = a técnica fica apagada (a Arena). */
-  invocar?: (pedido: PedidoDeInvocacao) => boolean
-  /** R1 (lote de 01/11): responder o lembrete da marca. Ausente = sem os lembretes da marca. */
-  marcar?: (pedido: PedidoDeMarca) => boolean
-}
+// U4: o contrato dos pedidos mora com a função que os monta (`pedidosDaVez.ts`); sai daqui também para quem já importava.
+export type { ConexaoDaBatalha }
 
 export interface FichaDoJogador {
   id: string

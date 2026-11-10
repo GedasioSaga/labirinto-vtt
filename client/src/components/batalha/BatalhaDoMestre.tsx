@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type FormaPendente, type PedidoDeAcao, type PedidoDePassiva } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
@@ -35,6 +35,7 @@ import { FormasPendentes } from './FormasDoMestre'
 import { alvosDaOrdem, alvosDoDarDano, nomeDaFicha, pendenciasDeInvocacaoNaTela, vezDoBandoNaTela, type MesaDoMestre } from './mesaDoMestre'
 import { MenuDaVez, type InvocarNoMenu } from './MenuDaVez'
 import { nomesNumerados } from './nomesNumerados'
+import { pedidosDaVez, type PedidosDaVez } from './pedidosDaVez'
 import './vezNoCentro.css'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
@@ -124,13 +125,18 @@ function ehDoMestre(personagemId: string | null, personagens: readonly Personage
   return personagens.find((personagem) => personagem.id === personagemId)?.tipo === 'npc'
 }
 
-/** Tipos de habilidade F3: a passiva pedida pelo mestre (qualquer ficha, a qualquer hora). */
-function pedirPassiva(sceneKey: string) {
-  return (pedido: PedidoDePassiva) => useBatalhaStore.getState().passiva(sceneKey, MESTRE, pedido)
+/**
+ * U4: os pedidos do mestre nesta cena saem da função única (`pedidosDaVez`),
+ * a mesma da Arena, com nenhum desligado (o mapa tem onde pôr o invocado). A
+ * ordem das cartas e o Passar a vez com a vez assentada (`usePassarVezDoMestre`)
+ * seguem onde estavam.
+ */
+function usePedidosDoMestre(sceneKey: string): PedidosDaVez {
+  return useMemo(() => pedidosDaVez(useBatalhaStore, sceneKey, MESTRE), [sceneKey])
 }
 
 /** Invocação F3: o Invocar do NPC da vez, com a regra da store (`motivoDaInvocacao`). */
-function invocarDoNpc(sceneKey: string, personagem: Personagem, sistema: SistemaDeRpg | null, turnos: TurnosDaCena, carta: CartaDaOrdem, acoes: ReturnType<typeof acoesDaCarta>): InvocarNoMenu {
+function invocarDoNpc(invocar: NonNullable<PedidosDaVez['invocar']>, personagem: Personagem, sistema: SistemaDeRpg | null, turnos: TurnosDaCena, carta: CartaDaOrdem, acoes: ReturnType<typeof acoesDaCarta>): InvocarNoMenu {
   return {
     leitura: (cartaoId) => {
       const lida = invocacaoDaFicha(personagem, sistema, cartaoId)
@@ -138,7 +144,7 @@ function invocarDoNpc(sceneKey: string, personagem: Personagem, sistema: Sistema
     },
     contar: (cartaoId, opcao) => quantosNoCampo(turnos, personagem.id, cartaoId, opcao.chave),
     motivo: (cartaoId) => (opcao, custo, acao) => motivoDaInvocacao({ personagem, sistema, turnos, acoes }, pedidoDeInvocacao(carta.tokenId, cartaoId, opcao.chave, custo, acao)),
-    onInvocar: (cartaoId, opcao, custo, acao) => useBatalhaStore.getState().invocar(sceneKey, MESTRE, pedidoDeInvocacao(carta.tokenId, cartaoId, opcao, custo, acao)),
+    onInvocar: (cartaoId, opcao, custo, acao) => invocar(pedidoDeInvocacao(carta.tokenId, cartaoId, opcao, custo, acao)),
     esperando: [],
   }
 }
@@ -190,6 +196,7 @@ function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | null): { 
  */
 export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const mesa = useMesa(sceneKey)
+  const pedidos = usePedidosDoMestre(sceneKey)
   const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
   const { cena, personagens, sistema, equipes } = mesa
   const turnos = cena?.turnos
@@ -220,24 +227,24 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
         alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
         avisoDaRecusa={RECUSA_SEM_MOTIVO}
         // Conserto de 09/11 (a Bolha): toda recusa da regra chega ao mestre com o motivo dela.
-        motivoDaRecusa={(pedido) => useBatalhaStore.getState().motivoDoAgir(sceneKey, MESTRE, vez, pedido)}
+        motivoDaRecusa={(pedido) => pedidos.motivoDoAgir(vez, pedido)}
         doMestre
         sugestao={sugestaoNaTela(sugestao)}
-        onAgir={(pedido) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)}
-        onZerarCarga={personagemId === null || carga === 0 ? undefined : () => useBatalhaStore.getState().zerarCarga(sceneKey, MESTRE, personagemId)}
+        onAgir={(pedido) => pedidos.agir(vez, pedido)}
+        onZerarCarga={personagemId === null || carga === 0 ? undefined : () => pedidos.zerarCarga(personagemId)}
         onEncerrar={passarAVez}
         alvoDoMapa={alvoDoMapa}
         onMirando={mirarNoMapaDoMestre}
         consulta={consultaDoMestre}
         formas={formas}
         personagemId={personagemId}
-        passivas={passivas.length === 0 ? undefined : { itens: passivas, tokenId, sistema, onPedir: pedirPassiva(sceneKey) }}
+        passivas={passivas.length === 0 ? undefined : { itens: passivas, tokenId, sistema, onPedir: pedidos.passiva }}
         evoluir={{
           // Tipos de habilidade F4: o mestre evolui sempre (fora da vez também); a regra é a da store.
           motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId, cartaoId, custo }),
-          onEvoluir: (cartaoId, custo) => useBatalhaStore.getState().evoluir(sceneKey, MESTRE, { tipo: 'evoluir', tokenId, cartaoId, custo }),
+          onEvoluir: (cartaoId, custo) => pedidos.evoluir({ tipo: 'evoluir', tokenId, cartaoId, custo }),
         }}
-        invocacao={personagem === null ? undefined : invocarDoNpc(sceneKey, personagem, sistema, turnos, carta, acoes)}
+        invocacao={personagem === null || pedidos.invocar === undefined ? undefined : invocarDoNpc(pedidos.invocar, personagem, sistema, turnos, carta, acoes)}
         travado={trava}
       />
     </div>
@@ -245,7 +252,7 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
 }
 
 /** Tipos de habilidade F3: os lembretes dos NPCs fora do `exceto` (o da vez, que os vê no painel), com o nome de cada um. */
-function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string; mesa: Mesa; turnos: TurnosDaCena; exceto: string | null }) {
+function LembretesDosNpcs({ pedidos, mesa, turnos, exceto }: { pedidos: PedidosDaVez; mesa: Mesa; turnos: TurnosDaCena; exceto: string | null }) {
   const itens: LembreteNaTela[] = []
   for (const [personagemId, combate] of Object.entries(turnos.combate ?? {})) {
     if (personagemId === exceto || (combate.lembretes ?? []).length === 0) continue
@@ -276,8 +283,8 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
   return (
     <section className="bt-secao" aria-label="Lembretes das passivas dos NPCs e das marcas">
       <h3 className="bt-secao__titulo">Passivas dos NPCs e marcas</h3>
-      {marcas.length > 0 && <LembretesDaMarca itens={marcas} onResponder={(pedido) => useBatalhaStore.getState().marcar(sceneKey, MESTRE, pedido)} className="bt-lembretes--npc" />}
-      {itens.length > 0 && <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
+      {marcas.length > 0 && <LembretesDaMarca itens={marcas} onResponder={pedidos.marcar} className="bt-lembretes--npc" />}
+      {itens.length > 0 && <LembretesDaPassiva itens={itens} sistema={mesa.sistema} aplicarLivre onPedir={pedidos.passiva} className="bt-lembretes--npc" />}
     </section>
   )
 }
@@ -285,6 +292,7 @@ function LembretesDosNpcs({ sceneKey, mesa, turnos, exceto }: { sceneKey: string
 /** O painel da vez e as reações pendentes, no alto da aba Batalha. */
 export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
   const mesa = useMesa(sceneKey)
+  const pedidos = usePedidosDoMestre(sceneKey)
   const { cena, personagens, sistema, equipes } = mesa
   const mirando = useMiraDoMestre((state) => state.mirando)
   const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
@@ -382,24 +390,18 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
         turnos={turnos}
         registro={cena.registro}
         nomeDoToken={(tokenId) => nomeDaFicha(mesa, tokenId)}
-        onDecidir={(pendenteId, decisao) => useBatalhaStore.getState().decidirForma(sceneKey, pendenteId, decisao)}
-        onRecusar={(pendenteId) => useBatalhaStore.getState().cancelarForma(sceneKey, pendenteId)}
+        onDecidir={pedidos.decidirForma}
+        onRecusar={pedidos.cancelarForma}
       />
-      <InvocacoesPendentes sceneKey={sceneKey} itens={pendenciasDeInvocacao} onCancelar={(invocacaoId) => useBatalhaStore.getState().cancelarInvocacao(sceneKey, invocacaoId)} />
+      <InvocacoesPendentes sceneKey={sceneKey} itens={pendenciasDeInvocacao} onCancelar={pedidos.cancelarInvocacao} />
     </>
   )
-  const reacoes = (
-    <ReacoesPendentes
-      itens={pendentes}
-      onPedir={(pedido) => useBatalhaStore.getState().reagir(sceneKey, MESTRE, pedido)}
-      onTrocarPerfurante={(golpeId, perfurante, perfuracao) => useBatalhaStore.getState().trocarPerfurante(sceneKey, golpeId, perfurante, perfuracao)}
-    />
-  )
+  const reacoes = <ReacoesPendentes itens={pendentes} onPedir={pedidos.reagir} onTrocarPerfurante={pedidos.trocarPerfurante} />
   if (carta === null)
     return (
       <>
         {invocacoes}
-        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
+        <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
     )
@@ -419,7 +421,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
             nome={doBando.nome}
             cor={doBando.cor}
             membros={doBando.membros}
-            onAgir={(tokenId, pedido) => useBatalhaStore.getState().agirComInvocado(sceneKey, vez, tokenId, pedido)}
+            onAgir={(tokenId, pedido) => pedidos.agirComInvocado(vez, tokenId, pedido)}
             onEncerrar={encerrar}
             onDarDano={() => onDialogo({ tipo: 'dano', tokenId: null })}
             consulta={consultaDoMestre}
@@ -427,7 +429,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
             mapa={{ ligado: mirando, onTrocar: (ligado) => useMiraDoMestre.getState().mirar(ligado) }}
           />
         </section>
-        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
+        <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
     )
@@ -440,7 +442,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
   const carga = combate?.carga ?? 0
   const { personagemId } = carta
-  const zerarCarga = personagemId === null || carga === 0 ? undefined : () => useBatalhaStore.getState().zerarCarga(sceneKey, MESTRE, personagemId)
+  const zerarCarga = personagemId === null || carga === 0 ? undefined : () => pedidos.zerarCarga(personagemId)
 
   if (!doMestre) {
     return (
@@ -464,7 +466,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           </div>
           <SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />
         </section>
-        <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={null} />
+        <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={null} />
         {reacoes}
       </>
     )
@@ -474,7 +476,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const caidos = tokensCaidos(turnos.cartas, personagens, sistema)
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos })
   const equipe = carta.personagemId === null ? null : equipeDe(carta.personagemId, equipes)
-  const agir = (pedido: PedidoDeAcao) => useBatalhaStore.getState().agir(sceneKey, MESTRE, vez, pedido)
+  const agir = (pedido: PedidoDeAcao) => pedidos.agir(vez, pedido)
   // F3: a imagem da forma ligada vence a foto.
   const aparencia = carta.personagemId === null || personagem === null ? null : aparenciaDaForma(turnos.formas?.[carta.personagemId], personagem)
   // Tipos de habilidade F3: as passivas do NPC da vez e os lembretes dele (o mestre aplica o "a cada turno" quando quiser).
@@ -494,10 +496,8 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           personagemId={carta.personagemId}
           acoesNoCentro
           selos={<SelosDaVez turnos={turnos} tokenId={carta.tokenId} nome={nome} sistema={sistema} onDialogo={onDialogo} />}
-          lembretes={lembretes.length === 0 ? undefined : <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} className="bt-lembretes--npc" />}
-          passivas={
-            passivas.length === 0 ? undefined : <PassivasDaFicha passivas={passivas} tokenId={carta.tokenId} alvos={alvos} sistema={sistema} aplicarLivre onPedir={pedirPassiva(sceneKey)} />
-          }
+          lembretes={lembretes.length === 0 ? undefined : <LembretesDaPassiva itens={lembretes} sistema={sistema} aplicarLivre onPedir={pedidos.passiva} className="bt-lembretes--npc" />}
+          passivas={passivas.length === 0 ? undefined : <PassivasDaFicha passivas={passivas} tokenId={carta.tokenId} alvos={alvos} sistema={sistema} aplicarLivre onPedir={pedidos.passiva} />}
           cor={equipe?.cor ?? null}
           descricao={[personagem === null ? 'Sem ficha ligada' : 'NPC', equipe?.nome].filter(Boolean).join(' · ')}
           recursos={personagem === null ? [] : recursosDaCarta(personagem, sistema)}
@@ -520,12 +520,12 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
           evoluir={{
             // Tipos de habilidade F4: o mestre evolui sempre (fora da vez também); a regra é a da store.
             motivo: (cartaoId, custo) => motivoDoEvoluir({ personagem, sistema, turnos, soNaVez: false }, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
-            onEvoluir: (cartaoId, custo) => useBatalhaStore.getState().evoluir(sceneKey, MESTRE, { tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
+            onEvoluir: (cartaoId, custo) => pedidos.evoluir({ tipo: 'evoluir', tokenId: carta.tokenId, cartaoId, custo }),
           }}
-          invocacao={personagem === null ? undefined : invocarDoNpc(sceneKey, personagem, sistema, turnos, carta, acoes)}
+          invocacao={personagem === null || pedidos.invocar === undefined ? undefined : invocarDoNpc(pedidos.invocar, personagem, sistema, turnos, carta, acoes)}
         />
       </section>
-      <LembretesDosNpcs sceneKey={sceneKey} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />
+      <LembretesDosNpcs pedidos={pedidos} mesa={mesa} turnos={turnos} exceto={carta.personagemId} />
       {reacoes}
     </>
   )
@@ -572,14 +572,14 @@ export function EfeitosDoMestre({ sceneKey, onTremor }: { sceneKey: string; onTr
 /** Os diálogos do mestre (menu da carta e painel da vez). */
 export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKey: string; dialogo: DialogoDoMestre; onFechar: () => void }) {
   const mesa = useMesa(sceneKey)
+  const pedidos = usePedidosDoMestre(sceneKey)
   const turnos = mesa.cena?.turnos
   if (turnos === undefined) return null
-  const store = useBatalhaStore.getState()
 
   if (dialogo.tipo === 'dano') {
     // A carta do bando vira os invocados dela, e a janela aberta por ela começa no primeiro (`alvosDoDarDano`, o mesmo da Arena).
     const { alvos, inicial } = alvosDoDarDano(mesa, turnos, dialogo.tokenId)
-    return <DarDanoDialog alvos={alvos} alvoInicial={inicial} onConfirmar={(tokenId, valor) => store.darDano(sceneKey, MESTRE, tokenId, valor)} onFechar={onFechar} />
+    return <DarDanoDialog alvos={alvos} alvoInicial={inicial} onConfirmar={pedidos.darDano} onFechar={onFechar} />
   }
   if (dialogo.tipo === 'selo') {
     const { tokenId, seloId } = dialogo
@@ -592,8 +592,8 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
         selo={selo === null ? null : { nome: selo.nome, turnos: selo.turnos, ...(selo.mods === undefined ? {} : { mods: selo.mods }) }}
         alvosDeMod={alvosDeMod(mesa.sistema)}
         corFixa={selo?.cartaoId === undefined ? undefined : (selo.natureza ?? 'condicao')}
-        onConfirmar={(pedido) => (seloId === null ? store.porSelo(sceneKey, tokenId, pedido) : store.editarSelo(sceneKey, seloId, pedido))}
-        onTirar={seloId === null ? undefined : () => store.tirarSelo(sceneKey, seloId)}
+        onConfirmar={(pedido) => (seloId === null ? pedidos.porSelo(tokenId, pedido) : pedidos.editarSelo(seloId, pedido))}
+        onTirar={seloId === null ? undefined : () => pedidos.tirarSelo(seloId)}
         onFechar={onFechar}
       />
     )
@@ -607,7 +607,7 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
         tokenId={dialogo.tokenId}
         personagem={personagem}
         sistema={mesa.sistema}
-        onConfirmar={(pedido) => store.ajustar(sceneKey, MESTRE, pedido)}
+        onConfirmar={pedidos.ajustar}
         onFechar={onFechar}
       />
     )
@@ -619,7 +619,7 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
       <AcoesExtrasDialog
         quem={nomeDaFicha(mesa, carta.tokenId, carta)}
         inicial={turnos.extras[carta.id] ?? null}
-        onConfirmar={(extras) => store.darAcoesExtras(sceneKey, carta.id, extras)}
+        onConfirmar={(extras) => pedidos.darAcoesExtras(carta.id, extras)}
         onFechar={onFechar}
       />
     )
@@ -632,7 +632,7 @@ export function DialogoDoMestreNaCena({ sceneKey, dialogo, onFechar }: { sceneKe
       armas={armasDe(personagem).map((arma) => ({ id: arma.id, nome: arma.nome.trim() || 'Arma sem nome', detalhe: arma.campos.dano ? `Dano ${arma.campos.dano}` : undefined }))}
       limite={limiteDeArmas(personagem)}
       escolhidas={turnos.combate?.[personagem.id]?.armas ?? null}
-      onConfirmar={(armas) => store.escolherArmas(sceneKey, MESTRE, personagem.id, armas)}
+      onConfirmar={(armas) => pedidos.escolherArmas(personagem.id, armas)}
       onFechar={onFechar}
     />
   )
