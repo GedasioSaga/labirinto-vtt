@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { equipesDaArena, vistaDaArena, AUTOR_DA_ARENA } from '../../lib/arena/estadoDaArena'
 import { CASA_DA_ARENA, GRADES_DA_ARENA } from '../../lib/arena/grade'
@@ -149,6 +149,47 @@ function recomecar(fichas: readonly Personagem[]) {
 /** U4: a invocação que não nasceu na arena (a regra recusou, ou não há casa livre perto de quem invocou). */
 const NAO_NASCEU_NA_ARENA = 'Não nasceu: a invocação já foi posta ou cancelada, os números estão fora do limite ou não há casa livre no palco.'
 
+/** O vão da faixa da ordem até a caixa ao lado e a de baixo (o mesmo do menu da vez em arena.css). */
+const VAO_DA_FAIXA = 12
+/** Entre os lembretes das passivas e a caixa de baixo (o mesmo do menu, em BatalhaDoJogador). */
+const VAO_DOS_LEMBRETES = 10
+
+/**
+ * U4: onde moram as pendências do mestre. A lista (formas e invocações) fica
+ * no canto do alto da coluna do menu, à esquerda da faixa da ordem: o canto
+ * que a faixa deixa livre, fora do palco (o enquadramento já desvia da faixa e
+ * do menu), sem cobrir ficha nem o menu, que começa abaixo da faixa. A vez do
+ * bando fica no lugar do menu, que nessa vez não aparece, abaixo da faixa e dos
+ * lembretes. A faixa muda de altura e de largura com as cartas, e os lembretes
+ * vêm e vão: medidos a cada mudança da luta e ao redimensionar, viram as
+ * variáveis das duas caixas (combate.css, bloco `.ar-tela .ar-pendencias`).
+ */
+function useLugarDasPendencias(lista: RefObject<HTMLDivElement | null>, bando: RefObject<HTMLDivElement | null>, mudou: unknown): void {
+  useLayoutEffect(() => {
+    const tela = lista.current?.closest('.ar-tela') ?? null
+    const faixa = tela?.querySelector<HTMLElement>('.pp-batalha-faixa') ?? null
+    if (tela === null || faixa === null) return
+    const lembretes = tela.querySelector<HTMLElement>('.pp-batalha-lembretes')
+    const medir = () => {
+      const daFaixa = faixa.getBoundingClientRect()
+      const dosLembretes = lembretes?.getBoundingClientRect()
+      lista.current?.style.setProperty('--ar-faixa-alto', `${daFaixa.height}px`)
+      lista.current?.style.setProperty('--ar-faixa-esquerda', `${daFaixa.left}px`)
+      const topoDoBando = dosLembretes === undefined || dosLembretes.height === 0 ? daFaixa.bottom + VAO_DA_FAIXA : dosLembretes.bottom + VAO_DOS_LEMBRETES
+      bando.current?.style.setProperty('--ar-bando-topo', `${topoDoBando}px`)
+    }
+    medir()
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    observador?.observe(faixa)
+    if (lembretes !== null) observador?.observe(lembretes)
+    window.addEventListener('resize', medir)
+    return () => {
+      observador?.disconnect()
+      window.removeEventListener('resize', medir)
+    }
+  }, [lista, bando, mudou])
+}
+
 interface DialogoNaArenaProps {
   dialogo: DialogoDaArena
   cena: BatalhaEmTurnos
@@ -259,6 +300,9 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
     [cena, sessao, equipes, sistema],
   )
   const pendenciasDeInvocacao = useMemo(() => pendenciasDeInvocacaoNaTela(mesa, turnos), [mesa, turnos])
+  const lugarDasPendencias = useRef<HTMLDivElement>(null)
+  const lugarDoBando = useRef<HTMLDivElement>(null)
+  useLugarDasPendencias(lugarDasPendencias, lugarDoBando, cena)
   // U4: o "Escolher no mapa" da invocação. No mapa o mestre clica na casa; o palco da arena não tem esse clique, então o
   // invocado nasce na casa livre mais perto de quem invocou (`colocarInvocadoNaArena`) e o mestre arrasta depois.
   const colocacao = useColocacaoDoMestre((state) => state.armada)
@@ -437,37 +481,45 @@ function Luta({ sessao, cena, sistema }: LutaProps) {
         />
       </div>
 
-      {/* U4: a forma "o mestre decide" pedida na arena: a janela abre sozinha e a lista fica até decidir ou recusar, como na aba Batalha do mapa. */}
-      <div className="ar-pendencias">
-        <FormasPendentes
-          itens={turnos.formasPendentes ?? SEM_FORMAS_PENDENTES}
-          personagens={sessao.copias}
-          sistema={sistema}
-          turnos={turnos}
-          registro={cena.registro}
-          nomeDoToken={nomeNaArena}
-          onDecidir={PEDIDOS.decidirForma}
-          onRecusar={PEDIDOS.cancelarForma}
-        />
-        {/* U4: as invocações esperando (Colocar e Cancelar) e a vez do bando, as mesmas peças da aba Batalha do mapa. */}
-        <InvocacoesPendentes sceneKey={CENA_DA_ARENA} itens={pendenciasDeInvocacao} onCancelar={PEDIDOS.cancelarInvocacao} />
-        {vezDoBando !== null && (
-          <section className="bt-secao" aria-label={`Vez de ${vezDoBando.nome}`}>
-            <PainelDoBando
-              key={`${vezDoBando.carta.id}:${turnos.rodada}`}
-              nome={vezDoBando.nome}
-              cor={vezDoBando.cor}
-              membros={vezDoBando.membros}
-              onAgir={(tokenId, pedido) => PEDIDOS.agirComInvocado({ cartaId: vezDoBando.carta.id, rodada: turnos.rodada }, tokenId, pedido)}
-              onEncerrar={() => PEDIDOS.passarVez(vezDoBando.carta.id, turnos.rodada)}
-              onDarDano={() => setDialogo({ tipo: 'dano', tokenId: vezDoBando.carta.tokenId })}
-              consulta={consulta}
-              alvoDoMapa={alvoDoMapa}
-              mapa={{ ligado: mirando, onTrocar: setMirando }}
-            />
-          </section>
-        )}
+      {/* U4: a forma "o mestre decide" pedida na arena: a janela abre sozinha e a lista fica até decidir ou recusar, como na aba Batalha do mapa.
+          A lista mora no canto do alto, ao lado da faixa da ordem, e rola dentro dela (`useLugarDasPendencias`); vazia, some. */}
+      <div ref={lugarDasPendencias} className="ar-pendencias">
+        <div className="ar-pendencias__rolo">
+          <FormasPendentes
+            itens={turnos.formasPendentes ?? SEM_FORMAS_PENDENTES}
+            personagens={sessao.copias}
+            sistema={sistema}
+            turnos={turnos}
+            registro={cena.registro}
+            nomeDoToken={nomeNaArena}
+            onDecidir={PEDIDOS.decidirForma}
+            onRecusar={PEDIDOS.cancelarForma}
+          />
+          {/* U4: as invocações esperando (Colocar e Cancelar), a mesma peça da aba Batalha do mapa. */}
+          <InvocacoesPendentes sceneKey={CENA_DA_ARENA} itens={pendenciasDeInvocacao} onCancelar={PEDIDOS.cancelarInvocacao} />
+        </div>
       </div>
+      {/* U4: a vez do bando é o menu da vez dos invocados: mora no lugar do menu (que nessa vez não aparece), abaixo da faixa e dos lembretes. */}
+      {vezDoBando !== null && (
+        <div ref={lugarDoBando} className="ar-pendencias ar-pendencias--bando">
+          <div className="ar-pendencias__rolo">
+            <section className="bt-secao" aria-label={`Vez de ${vezDoBando.nome}`}>
+              <PainelDoBando
+                key={`${vezDoBando.carta.id}:${turnos.rodada}`}
+                nome={vezDoBando.nome}
+                cor={vezDoBando.cor}
+                membros={vezDoBando.membros}
+                onAgir={(tokenId, pedido) => PEDIDOS.agirComInvocado({ cartaId: vezDoBando.carta.id, rodada: turnos.rodada }, tokenId, pedido)}
+                onEncerrar={() => PEDIDOS.passarVez(vezDoBando.carta.id, turnos.rodada)}
+                onDarDano={() => setDialogo({ tipo: 'dano', tokenId: vezDoBando.carta.tokenId })}
+                consulta={consulta}
+                alvoDoMapa={alvoDoMapa}
+                mapa={{ ligado: mirando, onTrocar: setMirando }}
+              />
+            </section>
+          </div>
+        </div>
+      )}
 
       <FaixaDaOrdem
         papel="mestre"

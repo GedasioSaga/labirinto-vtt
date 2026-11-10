@@ -4202,23 +4202,84 @@
 }
 
 /*
- * U4 na Arena: as formas "o mestre decide" (o envoltório .ar-pendencias de
- * TelaDaArena). Coluna da direita, abaixo da barra, oposta ao menu (que fica à
- * esquerda); papel de tinta rasgado com a sombra de sangue, como a caixa de
- * reação. Vazio (FormasPendentes devolve null), some.
+ * U4 na Arena: as pendências do mestre (o envoltório .ar-pendencias de
+ * TelaDaArena). A lista (formas "o mestre decide" e invocações) mora no canto
+ * do alto da coluna do menu, à esquerda da faixa da ordem: começa na altura da
+ * faixa, para no pé dela (o menu começa abaixo) e rola por dentro, fora do
+ * palco (o enquadramento já desvia da faixa e do menu). A vez do bando
+ * (--bando) fica no lugar do menu, que nessa vez não aparece. A altura e a
+ * borda da faixa e o pé dos lembretes vêm de useLugarDasPendencias. Papel de
+ * tinta rasgado com a sombra de sangue, como a caixa de reação. Vazia, some.
  */
 .ar-tela .ar-pendencias {
   position: fixed;
-  top: calc(var(--ar-barra, 60px) + 10px + var(--pp-faixa-alto, 0px) + 12px);
-  right: 24px;
+  top: calc(var(--ar-barra, 60px) + 10px);
+  left: 20px;
   z-index: 9;
   isolation: isolate;
-  width: min(340px, calc(100% - 48px));
-  padding: var(--lb-space-3) var(--lb-space-4);
+  display: flex;
+  flex-direction: column;
+  /* Até 12px antes da faixa; sem medida, os 312px que a faixa sempre deixa de cada lado (arena.css). */
+  width: min(360px, calc(var(--ar-faixa-esquerda, 312px) - 32px));
+  max-height: var(--ar-faixa-alto, 196px);
+  /* 3px a menos em volta: vão no rolo para o anel de foco não ser cortado pela rolagem. */
+  padding: 9px 6px 9px 13px;
   color: var(--lb-color-parchment);
+  /* Chega quando o primeiro pedido espera o mestre: desce 4px da barra e acende (some sem animar). */
+  animation: ar-pendencias-entra 180ms var(--lb-gr-ease-out) backwards;
 }
-.ar-tela .ar-pendencias:empty {
+@keyframes ar-pendencias-entra {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-tela .ar-pendencias { animation-name: ar-aparece; }
+}
+.ar-tela .ar-pendencias:has(> .ar-pendencias__rolo:empty) {
   display: none;
+}
+.ar-tela .ar-pendencias__rolo {
+  min-height: 0;
+  padding: 3px 6px 3px 3px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  /* A borda que tem mais lista esmaece (presa à rolagem, não ao tempo); sem o que rolar, nada esmaece. */
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--ar-pendencias-topo), #000 calc(100% - var(--ar-pendencias-pe)), transparent);
+  animation: ar-pendencias-rola linear both;
+  animation-timeline: scroll(self);
+}
+@property --ar-pendencias-topo {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --ar-pendencias-pe {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes ar-pendencias-rola {
+  from { --ar-pendencias-topo: 0px; --ar-pendencias-pe: 20px; }
+  12% { --ar-pendencias-topo: 20px; }
+  88% { --ar-pendencias-pe: 20px; }
+  to { --ar-pendencias-topo: 20px; --ar-pendencias-pe: 0px; }
+}
+/*
+ * A vez do bando: o lugar do menu (abaixo da faixa e dos lembretes, acima do
+ * REAÇÃO), da largura dele. A mira do bando põe anéis fixos sobre as fichas,
+ * fora da caixa: o transform da entrada os prenderia à caixa (aqui só acende) e
+ * a máscara do esmaecer os apagaria.
+ */
+.ar-tela .ar-pendencias--bando {
+  --ar-bando-topo-padrao: calc(var(--ar-barra, 60px) + 217px);
+  top: var(--ar-bando-topo, var(--ar-bando-topo-padrao));
+  width: min(470px, calc(100% - 40px));
+  max-height: calc(100% - var(--ar-bando-topo, var(--ar-bando-topo-padrao)) - 76px);
+  animation-name: ar-aparece;
+}
+.ar-tela .ar-pendencias--bando > .ar-pendencias__rolo {
+  mask-image: none;
+  animation: none;
 }
 .ar-tela .ar-pendencias::before,
 .ar-tela .ar-pendencias::after {
@@ -4237,12 +4298,6 @@
   background: var(--bt-sangue);
   clip-path: var(--bt-rasgo-caixa2);
   transform: translate(6px, 6px);
-}
-.ar-tela .ar-pendencias > .bt-secao {
-  max-height: calc(100vh - var(--ar-barra, 60px) - var(--pp-faixa-alto, 0px) - 140px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
 }
 .ar-tela .ar-pendencias .bt-secao__titulo {
   color: var(--lb-color-brass-bright);
