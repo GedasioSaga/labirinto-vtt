@@ -1,7 +1,8 @@
 import { useCallback, useId, useState, type ReactNode } from 'react'
 import type { CondicaoPropria, TokenCondition } from '../types/map'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
-import { CondicoesProprias, PastilhaDeCondicao } from './CondicoesProprias'
+import { CondicoesProprias } from './CondicoesProprias'
+import { PastilhaDeCondicao } from './PastilhaDeCondicao'
 import './TokenControls.css'
 
 const SEM_PROPRIAS: readonly CondicaoPropria[] = []

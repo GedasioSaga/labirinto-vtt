@@ -1689,8 +1689,8 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (parseHexColor(token.color) !== null) forPlayer.color = token.color
   const conditions = tokenConditionsOf(token)
   if (conditions.length > 0) forPlayer.conditions = conditions
-  // CONDIÇÃO CRIADA PELO MESTRE: vai inteira (nome, cor, desenho) e já limpa
-  // campo a campo (`condicoesPropriasOf`): só texto curto, cor `#rrggbb` e id de desenho da biblioteca.
+  // CONDIÇÃO CRIADA PELO MESTRE: vai inteira (nome, cor, desenho ou símbolo digitado) e já limpa
+  // campo a campo (`condicoesPropriasOf`): só texto curto, cor `#rrggbb`, id de desenho da biblioteca e símbolo de até 2 caracteres.
   const condicoesProprias = condicoesPropriasOf(token)
   if (condicoesProprias.length > 0) forPlayer.condicoesProprias = condicoesProprias
   if (cut.health !== undefined) forPlayer.health = { ...cut.health }

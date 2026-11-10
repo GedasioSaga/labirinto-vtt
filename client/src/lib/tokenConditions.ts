@@ -115,6 +115,12 @@ export interface ConditionSymbol {
    * (`lib/condicoesProprias.ts`). O contorno da pastilha não muda.
    */
   ink?: string
+  /**
+   * SÍMBOLO DIGITADO pelo mestre (letra, número ou emoji) no lugar do desenho.
+   * Só a condição criada usa. Com ele, traços, formas e pontos ficam de fora:
+   * quem pinta é `lib/glifoDeCondicao.ts`, na tinta de `ink`.
+   */
+  texto?: string
 }
 
 /** Tinta do contorno e do desenho: a mesma do contorno da ficha (`pixi/drawTokens.ts`). */
@@ -126,6 +132,12 @@ export const CONDITION_OUTLINE_FRACTION = 0.17
 export const CONDITION_GLYPH_FRACTION = 0.6
 /** Espessura do traço do desenho, em fração do raio da pastilha. */
 export const CONDITION_GLYPH_STROKE_FRACTION = 0.19
+/**
+ * Meia-aresta do quadrado do SÍMBOLO DIGITADO, em fração do raio da pastilha.
+ * Maior que a do desenho porque a letra não enche os cantos do quadrado: quem
+ * a mantém dentro do disco é o encaixe de `lib/glifoDeCondicao.ts`.
+ */
+export const CONDITION_TEXT_FRACTION = 0.78
 
 /**
  * As cinco pastilhas. A COR separa uma condição da outra de relance, e o

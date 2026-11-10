@@ -107,6 +107,49 @@
   border-color: var(--lb-gr-filete-latao);
 }
 
+/* "Ou digite": o rótulo, o campo curto e a frase de ajuda numa linha só, que quebra em painel estreito. */
+.lb-cond-form__digitar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+/* Campo de 1 ou 2 caracteres: curto, centrado, e maior que o texto do painel para o emoji ler. */
+.lb-cond-form__digitado {
+  flex: none;
+  width: 60px;
+  padding: 4px 6px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+/* Com algo digitado, o campo leva a marca de escolhido que o desenho perdeu. */
+.lb-cond-form__digitado[data-ativo] {
+  background: var(--lb-color-brass-soft);
+  border-color: var(--lb-gr-filete-latao);
+}
+
+/* A prévia: a pastilha no tamanho do mapa e a frase ao lado. Altura fixa pela
+   maior pastilha comum, para trocar de símbolo não empurrar os botões. */
+.lb-cond-form__previa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.lb-cond-form__previa svg {
+  flex: none;
+}
+
+/* O aviso de teto ocupa a linha inteira, como o formulário. */
+.lb-cond-aviso {
+  flex: 1 0 100%;
+  grid-column: 1 / -1;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .lb-cond-propria__editar:hover:not([aria-expanded='true']) {
     background: var(--lb-gr-hover);

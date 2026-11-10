@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import type { CondicaoPropria } from '../types/map'
+import type { CondicaoPropria, MapData } from '../types/map'
 import {
   CATALOGO_MAX,
   CONDICAO_NOME_MAX,
@@ -11,76 +11,72 @@ import {
   ehSimboloDeCondicao,
   lerCondicaoPropria,
   limparNomeDeCondicao,
+  limparSimboloDigitado,
   simboloDaCondicaoPropria,
   type RascunhoDeCondicao,
   type SimboloDeCondicao,
 } from '../lib/condicoesProprias'
-import {
-  CONDITION_GLYPH_FRACTION,
-  CONDITION_GLYPH_STROKE_FRACTION,
-  CONDITION_INK,
-  CONDITION_OUTLINE_FRACTION,
-  type ConditionSymbol,
-  type ConditionSymbolPoint,
-} from '../lib/tokenConditions'
+import { conditionBadgeLayout } from '../lib/tokenConditions'
+import { tokenSizeInSquares } from '../lib/tokenSize'
+import { alcanceDaCondicao, tirarCondicaoDeTodasAsCenas, trocarCondicaoEmTodasAsCenas, type AlcanceDaCondicao } from '../stores/condicoesNasCenas'
 import { useCondicoesPropriasStore } from '../stores/condicoesPropriasStore'
 import { useMapStore } from '../stores/mapStore'
 import { Acoes, Botao } from './grimorio/Botao'
 import { CampoCor } from './grimorio/CampoCor'
 import { andarPelosRadios } from './grimorio/comum'
+import { PastilhaDeCondicao } from './PastilhaDeCondicao'
 import './CondicoesProprias.css'
 
-/** Centro e raio da pastilha no `viewBox` de 24: sobra 1 unidade para o contorno não ser cortado na borda. */
-const CENTRO = 12
-const RAIO = 10.5
+const DESENHO_INICIAL: SimboloDeCondicao = 'chama'
+/** A prévia nunca passa disto, em px: grade enorme não estoura o formulário. */
+const PREVIA_MAX = 64
 
 /**
- * Uma pastilha de condição como SVG — a mesma geometria que
- * `pixi/drawTokenConditions.ts` desenha em cima da ficha, lida da mesma fonte
- * (`ConditionSymbol`) e nas mesmas proporções: o botão mostra a marca que vai
- * sair no mapa. Serve às cinco de fábrica e às criadas pelo mestre.
- *
- * Decorativa (`aria-hidden`): quem carrega o nome é o texto ou o rótulo do botão.
+ * O diâmetro da pastilha em cima DESTA ficha com o mapa a 100% de zoom, em px:
+ * a mesma conta do mapa (`conditionBadgeLayout`), para a prévia do formulário
+ * sair do tamanho que o mestre vai ver na mesa.
  */
-export function PastilhaDeCondicao({ symbol, tamanho = 18 }: { symbol: ConditionSymbol; tamanho?: number }) {
-  const scale = RAIO * CONDITION_GLYPH_FRACTION
-  const width = RAIO * CONDITION_GLYPH_STROKE_FRACTION
-  const tinta = symbol.ink ?? CONDITION_INK
-  const ponto = (p: ConditionSymbolPoint): string => `${(CENTRO + p.x * scale).toFixed(2)},${(CENTRO + p.y * scale).toFixed(2)}`
-  return (
-    <svg className="lb-token-condition__badge" width={tamanho} height={tamanho} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx={CENTRO} cy={CENTRO} r={RAIO} fill={symbol.fill} stroke={CONDITION_INK} strokeWidth={RAIO * CONDITION_OUTLINE_FRACTION} />
-      {(symbol.solids ?? []).map((solid, i) => (
-        <polygon key={`cheio-${i}`} points={solid.map(ponto).join(' ')} fill={tinta} />
-      ))}
-      {symbol.strokes.map((stroke, i) => {
-        const points = stroke.points.map(ponto).join(' ')
-        return stroke.closed === true ? (
-          <polygon key={`traco-${i}`} points={points} fill="none" stroke={tinta} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
-        ) : (
-          <polyline key={`traco-${i}`} points={points} fill="none" stroke={tinta} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
-        )
-      })}
-      {(symbol.dots ?? []).map((dot, i) => (
-        <circle
-          key={`ponto-${i}`}
-          cx={CENTRO + dot.x * scale}
-          cy={CENTRO + dot.y * scale}
-          r={dot.r * scale}
-          fill={dot.hole === true ? symbol.fill : tinta}
-        />
-      ))}
-    </svg>
-  )
+function tamanhoDaPastilhaNoMapa(map: Pick<MapData, 'grid' | 'tokens'>, tokenId: string): number {
+  const raioDaFicha = (map.grid * tokenSizeInSquares(map.tokens.find((token) => token.id === tokenId))) / 2
+  return Math.min(Math.round(conditionBadgeLayout([tokenId], raioDaFicha, map.grid).radius * 2), PREVIA_MAX)
 }
 
-const DESENHO_INICIAL: SimboloDeCondicao = 'chama'
+function quantas(quantidade: number, uma: string, varias: string): string {
+  return quantidade === 1 ? `1 ${uma}` : `${quantidade} ${varias}`
+}
+
+/** Onde a condição está marcada, em frase: "3 fichas, em 2 cenas". */
+function ondeEsta({ fichas, cenas }: AlcanceDaCondicao): string {
+  return `${quantas(fichas, 'ficha', 'fichas')}, em ${quantas(cenas, 'cena', 'cenas')}`
+}
+
+/** A cena que não abriu não muda: o aviso diz quantas ficaram de fora. `null` = todas abriram. */
+function avisoDasCenasFechadas({ cenasFechadas }: AlcanceDaCondicao): string | null {
+  if (cenasFechadas === 0) return null
+  return cenasFechadas === 1
+    ? '1 cena não abriu: as fichas dela ficam como estão.'
+    : `${cenasFechadas} cenas não abriram: as fichas delas ficam como estão.`
+}
+
+/** O que o Salvar de uma edição alcança. */
+function avisoDeEditar(alcance: AlcanceDaCondicao): string {
+  if (alcance.fichas === 0) return 'Nenhuma ficha está com ela agora.'
+  return `Ela está em ${ondeEsta(alcance)}. Salvar muda em ${alcance.fichas === 1 ? 'essa ficha também' : 'todas'}.`
+}
+
+/** O que o "Excluir de vez" alcança. */
+function avisoDeExcluir(alcance: AlcanceDaCondicao): string {
+  if (alcance.fichas === 0) return 'Ela sai da sua lista. Nenhuma ficha está com ela.'
+  return `Ela sai da sua lista e de ${ondeEsta(alcance)}.`
+}
 
 interface FormDaCondicaoProps {
   /** `null` = condição nova. */
   inicial: CondicaoPropria | null
   /** Por que a última tentativa de salvar não gravou; `null` = nada a dizer. */
   aviso: string | null
+  /** Diâmetro da pastilha no mapa a 100%, em px: o tamanho da prévia. */
+  tamanhoNoMapa: number
   onSalvar: (rascunho: RascunhoDeCondicao) => void
   /** Só ao editar. */
   onExcluir?: () => void
@@ -88,25 +84,39 @@ interface FormDaCondicaoProps {
 }
 
 /**
- * Nome, desenho e cor. Enter no nome salva, Esc fecha sem gravar. Os desenhos
- * aparecem já na cor escolhida: o que o mestre vê aqui é a pastilha que sai em
- * cima da ficha, para ele e para quem joga.
+ * Nome, símbolo e cor. Enter no nome salva, Esc fecha sem gravar. O símbolo é
+ * um desenho da biblioteca OU o que o mestre digita (uma letra, um número, um
+ * emoji): digitar tira a marca do desenho, e escolher um desenho limpa o que
+ * foi digitado. A prévia é a pastilha do tamanho que sai em cima da ficha,
+ * para ele e para quem joga.
+ *
+ * Ao editar, o formulário diz quantas fichas levam a condição, em quantas
+ * cenas da aventura (o Salvar e o Excluir alcançam todas), e quantas cenas não
+ * abriram e ficam de fora. A conta é refeita a cada desenho do formulário: vale
+ * a de agora quando o mestre clica em "Excluir".
  */
-function FormDaCondicao({ inicial, aviso, onSalvar, onExcluir, onFechar }: FormDaCondicaoProps) {
+function FormDaCondicao({ inicial, aviso, tamanhoNoMapa, onSalvar, onExcluir, onFechar }: FormDaCondicaoProps) {
   const [nome, setNome] = useState(inicial === null ? '' : inicial.nome)
   const [cor, setCor] = useState(inicial === null ? CORES_DE_CONDICAO[0].valor : inicial.cor)
   const [simbolo, setSimbolo] = useState<SimboloDeCondicao>(
     inicial !== null && ehSimboloDeCondicao(inicial.simbolo) ? inicial.simbolo : DESENHO_INICIAL,
   )
+  const [texto, setTexto] = useState(inicial === null ? '' : limparSimboloDigitado(inicial.texto))
   const [confirmando, setConfirmando] = useState(false)
   const nomeId = useId()
-  const desenhoId = useId()
+  const simboloId = useId()
+  const textoId = useId()
+  const ajudaId = useId()
   const nomeLimpo = limparNomeDeCondicao(nome)
+  const digitado = texto !== ''
   const foraDaPaleta = !CORES_DE_CONDICAO.some((opcao) => opcao.valor === cor.toLowerCase())
+  const rascunho: RascunhoDeCondicao = digitado ? { nome: nomeLimpo, cor, simbolo, texto } : { nome: nomeLimpo, cor, simbolo }
+  const alcance = inicial === null ? null : alcanceDaCondicao(inicial.id)
+  const cenasFechadas = alcance === null ? null : avisoDasCenasFechadas(alcance)
 
   const enviar = (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault()
-    if (nomeLimpo !== '') onSalvar({ nome: nomeLimpo, cor, simbolo })
+    if (nomeLimpo !== '') onSalvar(rascunho)
   }
 
   return (
@@ -136,25 +146,49 @@ function FormDaCondicao({ inicial, aviso, onSalvar, onExcluir, onFechar }: FormD
         />
       </div>
       <div className="gr-campo">
-        <span className="gr-campo__rot" id={desenhoId}>
-          Desenho
+        <span className="gr-campo__rot" id={simboloId}>
+          Símbolo
         </span>
-        <div className="lb-cond-form__desenhos" role="radiogroup" aria-labelledby={desenhoId} onKeyDown={andarPelosRadios}>
+        <div className="lb-cond-form__desenhos" role="radiogroup" aria-labelledby={simboloId} onKeyDown={andarPelosRadios}>
           {SIMBOLO_ORDEM.map((opcao) => (
             <button
               key={opcao}
               type="button"
               role="radio"
               className="lb-cond-form__desenho"
-              aria-checked={opcao === simbolo}
+              aria-checked={!digitado && opcao === simbolo}
               aria-label={SIMBOLO_NOMES[opcao]}
               title={SIMBOLO_NOMES[opcao]}
               tabIndex={opcao === simbolo ? 0 : -1}
-              onClick={() => setSimbolo(opcao)}
+              onClick={() => {
+                setSimbolo(opcao)
+                setTexto('')
+              }}
             >
               <PastilhaDeCondicao symbol={simboloDaCondicaoPropria({ cor, simbolo: opcao })} tamanho={24} />
             </button>
           ))}
+        </div>
+        <div className="lb-cond-form__digitar">
+          <label className="gr-campo__rot" htmlFor={textoId}>
+            Ou digite
+          </label>
+          {/* Sem `maxLength`: ele conta unidades de código e cortaria um emoji no meio. Quem corta é a limpeza, por caractere visto. */}
+          <input
+            id={textoId}
+            className="gr-entrada lb-cond-form__digitado"
+            value={texto}
+            placeholder="A"
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            aria-describedby={ajudaId}
+            data-ativo={digitado ? '' : undefined}
+            onChange={(evento) => setTexto(limparSimboloDigitado(evento.currentTarget.value))}
+          />
+          <span className="gr-nota" id={ajudaId}>
+            Letra, número ou emoji. Até 2.
+          </span>
         </div>
       </div>
       <CampoCor
@@ -173,6 +207,16 @@ function FormDaCondicao({ inicial, aviso, onSalvar, onExcluir, onFechar }: FormD
           />
         }
       />
+      <div className="lb-cond-form__previa">
+        <PastilhaDeCondicao symbol={simboloDaCondicaoPropria(rascunho)} tamanho={tamanhoNoMapa} />
+        <p className="gr-nota">Assim ela aparece sobre a ficha, com o mapa a 100%.</p>
+      </div>
+      {alcance !== null && !confirmando && (
+        <p className="gr-nota">
+          {avisoDeEditar(alcance)}
+          {cenasFechadas !== null && ` ${cenasFechadas}`}
+        </p>
+      )}
       <Acoes>
         <Botao variante="primario" tamanho="p" tipo="submit" disabled={nomeLimpo === ''}>
           {inicial === null ? 'Criar' : 'Salvar'}
@@ -186,9 +230,10 @@ function FormDaCondicao({ inicial, aviso, onSalvar, onExcluir, onFechar }: FormD
           </Botao>
         )}
       </Acoes>
-      {confirmando && (
+      {confirmando && alcance !== null && (
         <p className="gr-nota" role="status">
-          Ela sai da sua lista e das fichas desta cena. Clique em "Excluir de vez" para confirmar.
+          {avisoDeExcluir(alcance)}
+          {cenasFechadas !== null && ` ${cenasFechadas}`} Clique em "Excluir de vez" para confirmar.
         </p>
       )}
       {aviso !== null && (
@@ -223,7 +268,7 @@ type Edicao = { tipo: 'nova' } | { tipo: 'editar'; condicao: CondicaoPropria }
 
 const AVISO_LISTA_CHEIA = `Sua lista já tem ${CATALOGO_MAX} condições. Exclua uma para criar outra.`
 const AVISO_NAO_GRAVOU = 'Não deu para salvar. Confira o nome e a cor.'
-const DICA_FICHA_CHEIA = `Uma ficha leva até ${CONDICOES_POR_FICHA_MAX} condições criadas. Tire uma para marcar esta.`
+const AVISO_FICHA_CHEIA = `Esta ficha já tem ${CONDICOES_POR_FICHA_MAX} condições criadas. Tire uma para marcar outra.`
 
 export interface CondicoesPropriasProps {
   /** A ficha selecionada. */
@@ -240,25 +285,43 @@ export interface CondicoesPropriasProps {
  * fábrica; o lápis ao lado edita), o chip tracejado "Criar condição" e, aberto
  * por ele ou pelo lápis, o formulário.
  *
- * Marcar, editar e excluir passam pelo histórico do mapa (Ctrl+Z desfaz o que
- * mudou nas fichas). A lista em si mora neste computador
+ * Marcar passa pelo histórico do mapa (Ctrl+Z desfaz). Editar e excluir valem
+ * para TODAS as cenas da aventura aberta (`stores/condicoesNasCenas.ts`): na
+ * cena aberta o Ctrl+Z desfaz o que mudou nas fichas; nas de fundo, não. A
+ * lista em si mora na pasta aberta, num `condicoes.json` ao lado do arquivo
+ * das fichas; sem pasta (mapa solto), neste computador
  * (`stores/condicoesPropriasStore.ts`).
  *
  * Condição que veio dentro do mapa e não está na lista (mapa feito em outro
  * computador) também ganha chip: dá para tirar da ficha, e salvar pelo lápis a
  * traz para a lista.
+ *
+ * Os dois tetos avisam em frase, à vista: a ficha cheia (os chips que não dá
+ * para marcar ficam apagados) e a lista cheia (o "Criar condição" diz por quê,
+ * em vez de abrir um formulário que não vai gravar).
  */
 export function CondicoesProprias({ tokenId, naFicha, classeDoChip }: CondicoesPropriasProps) {
   const catalogo = useCondicoesPropriasStore((state) => state.catalogo)
+  const tamanhoNoMapa = useMapStore((state) => tamanhoDaPastilhaNoMapa(state.map, tokenId))
   const [edicao, setEdicao] = useState<Edicao | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [listaCheia, setListaCheia] = useState(false)
   const lista = [...catalogo, ...naFicha.filter((daFicha) => !catalogo.some((daLista) => daLista.id === daFicha.id))]
   const fichaCheia = naFicha.length >= CONDICOES_POR_FICHA_MAX
   const criando = edicao !== null && edicao.tipo === 'nova'
 
   const abrir = (proxima: Edicao | null) => {
     setAviso(null)
+    setListaCheia(false)
     setEdicao(proxima)
+  }
+
+  const criar = () => {
+    if (criando) abrir(null)
+    else if (catalogo.length >= CATALOGO_MAX) {
+      abrir(null)
+      setListaCheia(true)
+    } else abrir({ tipo: 'nova' })
   }
 
   const salvar = (rascunho: RascunhoDeCondicao) => {
@@ -274,13 +337,13 @@ export function CondicoesProprias({ tokenId, naFicha, classeDoChip }: CondicoesP
     }
     // Quem cria a condição na ficha quer vê-la na ficha: a nova já sai marcada.
     if (edicao.tipo === 'nova') useMapStore.getState().alternarCondicaoPropria(tokenId, condicao)
-    else useMapStore.getState().trocarCondicaoPropriaNasFichas(condicao)
+    else trocarCondicaoEmTodasAsCenas(condicao)
     abrir(null)
   }
 
   const excluir = (id: string) => {
     useCondicoesPropriasStore.getState().excluir(id)
-    useMapStore.getState().tirarCondicaoPropriaDasFichas(id)
+    tirarCondicaoDeTodasAsCenas(id)
     abrir(null)
   }
 
@@ -297,7 +360,6 @@ export function CondicoesProprias({ tokenId, naFicha, classeDoChip }: CondicoesP
               className={classeDoChip}
               aria-pressed={marcada}
               disabled={travada}
-              title={travada ? DICA_FICHA_CHEIA : undefined}
               onClick={() => useMapStore.getState().alternarCondicaoPropria(tokenId, condicao)}
             >
               <PastilhaDeCondicao symbol={simboloDaCondicaoPropria(condicao)} />
@@ -316,20 +378,26 @@ export function CondicoesProprias({ tokenId, naFicha, classeDoChip }: CondicoesP
           </span>
         )
       })}
-      <button
-        type="button"
-        className={`${classeDoChip} gr-chip--mais lb-cond-criar`}
-        aria-expanded={criando}
-        onClick={() => abrir(criando ? null : { tipo: 'nova' })}
-      >
+      <button type="button" className={`${classeDoChip} gr-chip--mais lb-cond-criar`} aria-expanded={criando} onClick={criar}>
         <Mais />
         Criar condição
       </button>
+      {fichaCheia && (
+        <p className="gr-nota lb-cond-aviso" role="status">
+          {AVISO_FICHA_CHEIA}
+        </p>
+      )}
+      {listaCheia && (
+        <p className="gr-nota lb-cond-aviso" role="alert">
+          {AVISO_LISTA_CHEIA}
+        </p>
+      )}
       {edicao !== null && (
         <FormDaCondicao
           key={edicao.tipo === 'nova' ? 'nova' : edicao.condicao.id}
           inicial={edicao.tipo === 'nova' ? null : edicao.condicao}
           aviso={aviso}
+          tamanhoNoMapa={tamanhoNoMapa}
           onSalvar={salvar}
           onExcluir={edicao.tipo === 'nova' ? undefined : () => excluir(edicao.condicao.id)}
           onFechar={() => abrir(null)}

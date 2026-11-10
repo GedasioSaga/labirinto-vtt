@@ -1367,8 +1367,14 @@ export interface CondicaoPropria {
   nome: string
   /** Cor da pastilha, `#rrggbb` minúsculo. */
   cor: string
-  /** Id de um desenho da biblioteca (`SimboloDeCondicao`); desconhecido não vira marca. */
+  /** Id de um desenho da biblioteca (`SimboloDeCondicao`); desconhecido não vira marca. Com `texto`, é o desenho de reserva. */
   simbolo: string
+  /**
+   * SÍMBOLO DIGITADO pelo mestre no lugar do desenho: 1 ou 2 caracteres (letra,
+   * número ou emoji), contados por grafema. Ausente = vale o desenho. O app de
+   * antes deste campo o ignora e mostra o desenho de reserva.
+   */
+  texto?: string
 }
 
 /**

@@ -5,8 +5,9 @@ import { CONDITION_INK, type ConditionSymbol, type ConditionSymbolPoint } from '
 /**
  * CONDIÇÃO CRIADA PELO MESTRE (pedido de 09/11/2026): além das cinco de
  * fábrica (`lib/tokenConditions.ts`), o mestre monta as dele — nome, cor e um
- * desenho da biblioteca abaixo — e marca na ficha com um clique. Puro: sem
- * DOM, sem Pixi, sem store.
+ * símbolo: um desenho da biblioteca abaixo, ou uma letra, um número ou um
+ * emoji que ele digita — e marca na ficha com um clique. Puro: sem DOM, sem
+ * Pixi, sem store.
  *
  * A condição vai INTEIRA dentro da ficha (`Token.condicoesProprias`), e não só
  * o id: o mapa salvo abre em outro computador com as marcas no lugar, e a tela
@@ -56,6 +57,56 @@ export const SIMBOLO_NOMES: Record<SimboloDeCondicao, string> = {
 
 export function ehSimboloDeCondicao(value: unknown): value is SimboloDeCondicao {
   return typeof value === 'string' && SIMBOLO_ORDEM.some((simbolo) => simbolo === value)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SÍMBOLO DIGITADO: letra, número ou emoji no lugar do desenho
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Quantos caracteres o símbolo digitado leva, contados como a pessoa os vê (grafemas). */
+export const SIMBOLO_DIGITADO_MAX = 2
+/**
+ * Teto em unidades de código: um emoji de família tem 11, uma bandeira 4. Dois
+ * emojis compostos cabem com folga; o que passa disto é pilha de acentos, não símbolo.
+ */
+const SIMBOLO_DIGITADO_UNIDADES_MAX = 40
+
+/** O que a pessoa enxerga: letra, número, pontuação ou símbolo (o emoji é símbolo). */
+const TEM_O_QUE_VER = /[\p{L}\p{N}\p{P}\p{S}]/u
+/** Controle, metade solta de par e quebra de linha: nunca entram num símbolo. */
+const NAO_ENTRA = /[\p{Cc}\p{Cs}\p{Zl}\p{Zp}]/u
+
+let separador: Intl.Segmenter | null = null
+
+/**
+ * O texto partido como a pessoa o lê: "👨‍👩‍👧" é UM caractere, embora tenha 8
+ * unidades de código. Navegador sem `Intl.Segmenter` (Firefox antigo, na tela
+ * de quem joga) não sabe partir: o texto conta como um só, e vale o teto em
+ * unidades de código.
+ */
+function grafemasDe(texto: string): string[] {
+  if (typeof Intl.Segmenter !== 'function') return texto === '' ? [] : [texto]
+  separador ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+  return Array.from(separador.segment(texto), (parte) => parte.segment)
+}
+
+/**
+ * O símbolo digitado como é gravado: sem espaço, só o que se enxerga, no
+ * máximo `SIMBOLO_DIGITADO_MAX` caracteres. Vazio = não há símbolo digitado
+ * (vale o desenho). Serve ao campo do formulário, que corta enquanto o mestre
+ * digita, e à leitura do disco e da rede.
+ */
+export function limparSimboloDigitado(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const visiveis = grafemasDe(value.replace(/\s+/gu, '')).filter((grafema) => TEM_O_QUE_VER.test(grafema) && !NAO_ENTRA.test(grafema))
+  let limpo = visiveis.slice(0, SIMBOLO_DIGITADO_MAX)
+  while (limpo.length > 0 && limpo.join('').length > SIMBOLO_DIGITADO_UNIDADES_MAX) limpo = limpo.slice(0, -1)
+  return limpo.join('')
+}
+
+/** Quantos caracteres o símbolo tem, para o encaixe na pastilha (um ocupa o disco; dois dividem a largura). */
+export function caracteresDoSimbolo(texto: string): number {
+  return grafemasDe(texto).length
 }
 
 /** Pontos em volta do centro, a partir do alto: o anel do alvo e as pontas da estrela. */
@@ -259,12 +310,20 @@ function tintaSobre(cor: number): string {
   return claridade < CLARIDADE_MINIMA_DA_TINTA_ESCURA ? TINTA_CLARA : CONDITION_INK
 }
 
-/** A pastilha desta condição, no formato que o mapa e o painel já desenham (`ConditionSymbol`). */
-export function simboloDaCondicaoPropria(condicao: Pick<CondicaoPropria, 'cor' | 'simbolo'>): ConditionSymbol {
-  const desenho = ehSimboloDeCondicao(condicao.simbolo) ? DESENHOS[condicao.simbolo] : DESENHOS.alvo
+const SEM_DESENHO: Desenho = { strokes: [] }
+
+/**
+ * A pastilha desta condição, no formato que o mapa e o painel já desenham
+ * (`ConditionSymbol`). Com símbolo digitado, ele vai no lugar do desenho; a
+ * tinta é a mesma nos dois casos, escolhida contra a cor da pastilha.
+ */
+export function simboloDaCondicaoPropria(condicao: Pick<CondicaoPropria, 'cor' | 'simbolo' | 'texto'>): ConditionSymbol {
+  const digitado = typeof condicao.texto === 'string' && condicao.texto !== '' ? condicao.texto : null
+  const desenho = digitado !== null ? SEM_DESENHO : ehSimboloDeCondicao(condicao.simbolo) ? DESENHOS[condicao.simbolo] : DESENHOS.alvo
+  const marca = digitado === null ? desenho : { ...desenho, texto: digitado }
   const cor = parseHexColor(condicao.cor)
-  if (cor === null) return { ...desenho, fill: CORES_DE_CONDICAO[0].valor }
-  return { ...desenho, fill: condicao.cor, ink: tintaSobre(cor) }
+  if (cor === null) return { ...marca, fill: CORES_DE_CONDICAO[0].valor }
+  return { ...marca, fill: condicao.cor, ink: tintaSobre(cor) }
 }
 
 /** Teto do nome: cabe no chip do painel e na lista de quem joga. */
@@ -287,9 +346,10 @@ function campoDe(value: object, chave: string): unknown {
 
 /**
  * Guarda de leitura, campo a campo. A entrada real é `unknown`: mapa lido do
- * disco, lista lida do `localStorage`, ficha que chega pela rede. Sem id, sem
- * nome, com cor que não é `#rrggbb` ou com desenho fora da biblioteca, não
- * vira marca. A cor sai sempre em minúsculas.
+ * disco, lista lida do arquivo da pasta ou do `localStorage`, ficha que chega
+ * pela rede. Sem id, sem nome, com cor que não é `#rrggbb` ou com desenho fora
+ * da biblioteca, não vira marca. A cor sai sempre em minúsculas. O símbolo
+ * digitado que não passa na limpeza só some: a marca fica, com o desenho.
  */
 export function lerCondicaoPropria(value: unknown): CondicaoPropria | null {
   if (typeof value !== 'object' || value === null) return null
@@ -298,7 +358,9 @@ export function lerCondicaoPropria(value: unknown): CondicaoPropria | null {
   const cor = parseHexColor(campoDe(value, 'cor'))
   const simbolo = campoDe(value, 'simbolo')
   if (typeof id !== 'string' || !ID_VALIDO.test(id) || nome === '' || cor === null || !ehSimboloDeCondicao(simbolo)) return null
-  return { id, nome, cor: `#${cor.toString(16).padStart(6, '0')}`, simbolo }
+  const texto = limparSimboloDigitado(campoDe(value, 'texto'))
+  const lida: CondicaoPropria = { id, nome, cor: `#${cor.toString(16).padStart(6, '0')}`, simbolo }
+  return texto === '' ? lida : { ...lida, texto }
 }
 
 function lerLista(cru: unknown, teto: number): CondicaoPropria[] {
@@ -325,8 +387,23 @@ export function lerCatalogoDeCondicoes(cru: unknown): CondicaoPropria[] {
   return lerLista(cru, CATALOGO_MAX)
 }
 
+/**
+ * A lista com esta condição gravada: troca a de mesmo id, ou entra no fim.
+ * `null` = não coube (condição nova e a lista já está no teto). A mesma regra
+ * para a lista em memória, a do computador e a do arquivo da pasta.
+ */
+export function listaComCondicao(lista: readonly CondicaoPropria[], condicao: CondicaoPropria): CondicaoPropria[] | null {
+  if (lista.some((c) => c.id === condicao.id)) return lista.map((c) => (c.id === condicao.id ? condicao : c))
+  return lista.length >= CATALOGO_MAX ? null : [...lista, condicao]
+}
+
+/** A lista sem a condição `id`; a mesma lista quando ela não está lá. */
+export function listaSemCondicao(lista: readonly CondicaoPropria[], id: string): readonly CondicaoPropria[] {
+  return lista.some((c) => c.id === id) ? lista.filter((c) => c.id !== id) : lista
+}
+
 /** O que o formulário entrega: tudo menos o id. */
-export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo'>
+export type RascunhoDeCondicao = Pick<CondicaoPropria, 'nome' | 'cor' | 'simbolo' | 'texto'>
 
 /** Condição nova a partir do formulário; `null` quando o rascunho não passa na leitura (nome vazio, cor torta). */
 export function criarCondicaoPropria(rascunho: RascunhoDeCondicao, id: string = `cond_${crypto.randomUUID()}`): CondicaoPropria | null {
@@ -372,7 +449,12 @@ function nasFichas(map: MapData, trocar: (atuais: CondicaoPropria[]) => Condicao
 }
 
 function mesmaCondicao(a: CondicaoPropria, b: CondicaoPropria): boolean {
-  return a.id === b.id && a.nome === b.nome && a.cor === b.cor && a.simbolo === b.simbolo
+  return a.id === b.id && a.nome === b.nome && a.cor === b.cor && a.simbolo === b.simbolo && a.texto === b.texto
+}
+
+/** Quantas fichas deste mapa levam a condição `condicaoId`: o número do aviso de editar e de excluir. */
+export function fichasComCondicao(map: Pick<MapData, 'tokens'>, condicaoId: string): number {
+  return map.tokens.filter((token) => condicoesPropriasOf(token).some((c) => c.id === condicaoId)).length
 }
 
 /** O mestre editou a condição: as fichas desta cena que a levam passam a mostrar o nome, a cor e o desenho novos. */
