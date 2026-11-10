@@ -127,6 +127,22 @@ export function tocarSomDoCombate(id: SomDoCombate): boolean {
   return tocou
 }
 
+/**
+ * T4 (10/11): toca no QUADRO em que o efeito aparece. Medido no mapa do mestre (1366x768 e 1920x1000), o som do
+ * corte saía 87 a 112 ms antes do corte aparecer: o som sai na hora, mas a pintura espera acabar a tarefa longa em
+ * que o efeito nasceu (o Lançar). No `requestAnimationFrame` os dois saem juntos. Janela escondida não pinta (o
+ * quadro não vem): aí toca na hora, que é quando o aviso pelo som mais serve.
+ */
+export function tocarNoQuadro(id: SomDoCombate): void {
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function' || document.visibilityState === 'hidden') {
+    tocarSomDoCombate(id)
+    return
+  }
+  window.requestAnimationFrame(() => {
+    tocarSomDoCombate(id)
+  })
+}
+
 /** O impacto do tamanho do tremor (3, 7 ou 12 px). */
 export function somDoImpacto(tremorPx: number): SomDoCombate {
   return tremorPx <= 3 ? 'impactoLeve' : tremorPx <= 7 ? 'impactoMedio' : 'impactoForte'

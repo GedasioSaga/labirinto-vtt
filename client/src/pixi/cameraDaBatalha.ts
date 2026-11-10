@@ -97,8 +97,19 @@ let sessaoDesligada = false
  * câmera da batalha não puxa a tela dele no meio do gesto. Contados na janela, em captura, enquanto houver tela.
  */
 const apertados = new Set<number>()
+/**
+ * T4 (10/11): a ficha da vez que trocou no meio de um arrasto. Medido no mapa: o Urso fora da vista ficava fora
+ * depois de soltar. A câmera espera o arrasto acabar e então a traz (a vez seguinte troca a ficha esperada).
+ */
+let esperando: string | null = null
 const apertar = (evento: PointerEvent) => apertados.add(evento.pointerId)
-const soltar = (evento: PointerEvent) => apertados.delete(evento.pointerId)
+const soltar = (evento: PointerEvent) => {
+  apertados.delete(evento.pointerId)
+  if (apertados.size > 0 || esperando === null) return
+  const tokenId = esperando
+  esperando = null
+  trazerFichaDaVez(tokenId)
+}
 const OUVIR_PONTEIRO: AddEventListenerOptions = { capture: true, passive: true }
 
 function vigiarPonteiros(ligar: boolean) {
@@ -106,7 +117,9 @@ function vigiarPonteiros(ligar: boolean) {
   acao('pointerdown', apertar, OUVIR_PONTEIRO)
   acao('pointerup', soltar, OUVIR_PONTEIRO)
   acao('pointercancel', soltar, OUVIR_PONTEIRO)
-  if (!ligar) apertados.clear()
+  if (ligar) return
+  apertados.clear()
+  esperando = null
 }
 
 /** Alguém está arrastando agora (um ponteiro apertado)? */
@@ -156,9 +169,16 @@ export function alvoParaAFicha(camera: Camera, ponto: { x: number; y: number }, 
 
 /** A vez trocou: traz a ficha da vez para a vista em toda tela registrada (se a câmera da batalha está ligada). */
 export function trazerFichaDaVez(tokenId: string) {
-  if (sessaoDesligada || !cameraDaBatalhaLigada()) return
-  // Quem arrasta o mapa ou uma ficha agora não tem a câmera roubada no meio do gesto.
-  if (arrastandoAgora()) return
+  if (sessaoDesligada || !cameraDaBatalhaLigada()) {
+    esperando = null
+    return
+  }
+  // Quem arrasta o mapa ou uma ficha agora não tem a câmera roubada no meio do gesto: ela espera soltar.
+  if (arrastandoAgora()) {
+    esperando = tokenId
+    return
+  }
+  esperando = null
   for (const tela of telas) {
     const ponto = tela.pontoDaFicha(tokenId)
     if (ponto === null) continue

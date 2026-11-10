@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EfeitoDaBatalha, NumeroDaForma, SaidaDaReacao } from '../../lib/batalha/combate'
 import { saidasPossiveis } from '../../lib/batalha/reacao'
 import { ehRefDeMidia, type ResolverDeImagem } from '../../lib/midia'
-import { somDoImpacto, tocarSomDoCombate } from '../../lib/sons/sonsDoCombate'
+import { somDoImpacto, tocarNoQuadro } from '../../lib/sons/sonsDoCombate'
 import { trazerFichaDaVez } from '../../pixi/cameraDaBatalha'
 import { levantarFicha, levantarTodas, recuarFicha, tombarFicha } from '../../pixi/impactoNasFichas'
 import { useImagemDaMesa } from '../ImagemDaMesa'
@@ -351,7 +351,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
         if (cameraLigada !== false) trazerFichaDaVez(tarefa.tokenId)
       }
       // D5: os sons tocam no mesmo quadro do efeito.
-      if (tarefa.minha) tocarSomDoCombate('suaVez')
+      if (tarefa.minha) tocarNoQuadro('suaVez')
       // C9: a foto de quem tem a vez no círculo da faixa (a forma ligada vence, como no corte).
       const foto = tarefa.tokenId === null ? null : srcDaImagem(resolverImagem, imagem(tarefa.tokenId))
       return tocarFaixa(motor, tarefa.nome, tarefa.tokenId === null ? undefined : foto, tarefa.minha, reduzido, tarefa.curta ? TEMPOS_DA_VEZ_SEGUIDA : TEMPOS_DO_PALCO)
@@ -365,7 +365,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     }
     if (efeito.tipo === 'golpe') {
       ultimoAtacante.current = efeito.atacanteTokenId
-      tocarSomDoCombate('corte')
+      tocarNoQuadro('corte')
       const retrato = srcDaImagem(resolverImagem, imagem(efeito.atacanteTokenId))
       await tocarCorte(motor, nome(efeito.atacanteTokenId), retrato, efeito.nome, efeito.surpresa ? 'Surpresa' : efeito.overload ? 'Overload' : null, reduzido)
       if (!reduzido) await Promise.all(efeito.alvos.map((tokenId) => tocarRisco(motor, motor.posicao(consultar, tokenId))))
@@ -376,7 +376,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
     // F3: a forma desfeita e o selo que acabou: o texto curto sobre a ficha.
     if (efeito.tipo === 'forma') return tocarAviso(motor, onde, `${efeito.forma} desfeito`, 'forma', reduzido)
     if (efeito.tipo === 'selo') return tocarAviso(motor, onde, `${efeito.nome} acabou`, 'selo', reduzido)
-    if (efeito.tipo === 'reacao') tocarSomDoCombate('dado')
+    if (efeito.tipo === 'reacao') tocarNoQuadro('dado')
     if (efeito.tipo === 'reacao') return tocarDado(motor, onde, efeito.d20, efeito.modificador, efeito.total, reduzido)
     if (efeito.valor > 0) {
       // D4: o impacto do tamanho do golpe. Tremor de 3, 7 ou 12 px; a ficha pisca (~90 ms) e recua ~10 px para longe
@@ -384,7 +384,7 @@ export function EfeitosDaBatalha({ efeitos, consulta, nomeDe, imagemDe, vez, onT
       const vida = vidaDaFicha?.(efeito.tokenId) ?? null
       forcaDoTremor = forcaDoTremorPeloDano(vida !== null && vida.maximo > 0 ? efeito.valor / vida.maximo : null)
       if (!reduzido) tremer?.()
-      tocarSomDoCombate(somDoImpacto(forcaDoTremor))
+      tocarNoQuadro(somDoImpacto(forcaDoTremor))
       const deQuem = ultimoAtacante.current === null ? null : motor.posicao(consultar, ultimoAtacante.current)
       void piscarFicha(motor, onde, reduzido)
       recuarFicha(efeito.tokenId, deQuem === null ? null : { x: onde.x - deQuem.x, y: onde.y - deQuem.y }, reduzido)

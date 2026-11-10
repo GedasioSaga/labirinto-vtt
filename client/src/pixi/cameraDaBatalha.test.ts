@@ -54,14 +54,14 @@ describe('câmera da batalha', () => {
     expect(pontoAVista({ x: 150, y: 400 }, TELA, livre)).toBeNull()
   })
 
-  it('não puxa a tela enquanto o mestre arrasta; depois de soltar, volta a seguir', () => {
+  it('não puxa a tela enquanto o mestre arrasta; ao soltar, traz a ficha que esperou', () => {
     const tela = montar({ x: 20, y: 300 })
     soltar = tela.soltar
     ponteiro('pointerdown')
     trazerFichaDaVez('t1')
     expect(tela.irPara).not.toHaveBeenCalled()
     ponteiro('pointerup')
-    trazerFichaDaVez('t1')
     expect(tela.irPara).toHaveBeenCalledTimes(1)
+    expect(tela.irPara).toHaveBeenCalledWith({ x: 480, y: 0, scale: 1 })
   })
 })
