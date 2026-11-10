@@ -144,6 +144,11 @@ export interface GolpeNaTela {
   alvoEmSi?: boolean
   /** Pedido de 09/11 (a Bolha): a técnica cura; a mira abre nos feridos do lado de quem usa (`feridosParaACura`) e mostra a vida de cada um. */
   cura?: boolean
+  /**
+   * Contrato do combate (10/11/2026): a peça de alvo mira os INIMIGOS. Mesmo sem reação (a técnica "não erra", ou o
+   * teste é rolado ao usar), é golpe, não ajuda: a mira abre no inimigo de pé. Ausente = a regra de sempre.
+   */
+  contraInimigos?: true
   /** Tipos de habilidade F2: o bônus dos selos de quem age que entrou na conta (`bonusDaBatalha`); ausente = nenhum. */
   bonus?: BonusDaBatalha
   /** Atacar com arma: a categoria da ficha ("De fogo"); ausente = a ficha não diz. */
@@ -492,9 +497,14 @@ export function semFeridoDoLado(alvos: readonly AlvoNaMira[]): boolean {
   return doLado.length > 0 && doLado.every((alvo) => vidaQueFalta(alvo) === 0)
 }
 
-/** A técnica é de ajuda: cura, ou ninguém reage a ela (Buff; a peça "em si" e "nos aliados"). */
-export function golpeDeAjuda(golpe: Pick<GolpeNaTela, 'cura' | 'reacao'>): boolean {
-  return golpe.cura === true || golpe.reacao === 'nunca'
+/**
+ * A técnica é de ajuda: cura, ou ninguém reage a ela (Buff; a peça "em si" e
+ * "nos aliados"). O golpe certo nos inimigos (a peça "não erra", o teste
+ * rolado ao usar) também não tem reação, mas é golpe: antes a mira dele abria
+ * sem alvo, com os aliados na frente e os inimigos atrás do "mostrar todos".
+ */
+export function golpeDeAjuda(golpe: Pick<GolpeNaTela, 'cura' | 'reacao' | 'contraInimigos'>): boolean {
+  return golpe.cura === true || (golpe.reacao === 'nunca' && golpe.contraInimigos !== true)
 }
 
 /**
@@ -521,7 +531,7 @@ export function alvosNaOrdemDaAjuda<T extends AlvoNaMira>(alvos: readonly T[]): 
  *    estar ferido, e só o host sabe;
  *  - outra ajuda (Buff): o lado de quem usa, de pé.
  */
-export function alvoServeAoAbrir(golpe: Pick<GolpeNaTela, 'cura' | 'reacao'>, alvo: AlvoNaMira): boolean {
+export function alvoServeAoAbrir(golpe: Pick<GolpeNaTela, 'cura' | 'reacao' | 'contraInimigos'>, alvo: AlvoNaMira): boolean {
   if (alvo.motivo || alvo.caiu) return false
   if (!golpeDeAjuda(golpe)) return alvo.lado === 'outro'
   if (alvo.lado === 'outro') return false
@@ -858,6 +868,7 @@ function golpeDaTecnica(
     if (alvoDasPecas !== null) {
       golpe.reacao = reacaoDasPecas(alvoDasPecas)
       golpe.alvoEmSi = alvoDasPecas.alvo.quem === 'si' || (alvoDasPecas.alvo.quem === 'aliados' && mecanica?.area === undefined)
+      if (alvoDasPecas.alvo.quem === 'inimigos') golpe.contraInimigos = true
     }
   }
   if (mecanica?.lembreteNaMira !== undefined) golpe.lembrete = mecanica.lembreteNaMira
@@ -1158,6 +1169,7 @@ function golpeDaArmaMontada(
   }
   const selo = seloDasPecas(mecanica)
   if (selo !== null) golpe.selo = selo
+  if (mecanica.alvo.quem === 'inimigos') golpe.contraInimigos = true
   const linha = mecanicaDoCartao(arma)
   if (linha?.tetoDeAlvosComDano !== undefined) golpe.tetoDeAlvos = linha.tetoDeAlvosComDano
   if (linha?.divide !== undefined) golpe.divide = linha.divide.teto
