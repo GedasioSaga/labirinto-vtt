@@ -1,20 +1,23 @@
 import type { Graphics } from 'pixi.js'
 import type { MapData, WatchAlert } from '../types/map'
 import { visibleTokens } from '../lib/layers'
-import { tokenWatchOf, watchConePolygon } from '../lib/npcWatch'
+import { fichasDeJogadorNoMapa, guardAlerts, tokenWatchOf, watchConePolygon } from '../lib/npcWatch'
+import type { Personagem } from '../lib/personagem'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { CONDITION_INK } from '../lib/tokenConditions'
 import { parseHexColor } from '../lib/tokenColor'
 
 /**
  * OLHOS DO GUARDA no Pixi: o CONE que o mestre vê no editor e o BALÃO (?, !)
- * que o jogador vê em cima do guarda. Mesmo idioma do minimapa: forma chapada,
- * contorno fino, nada de brilho nem degradê.
+ * em cima do guarda, que o jogador vê na tela dele e o mestre no editor.
+ * Mesmo idioma do minimapa: forma chapada, contorno fino, nada de brilho nem
+ * degradê.
  */
 
 /**
- * Nome (`Container.label`) da camada do balão dentro da ficha do jogador
- * (`player/PlayerView.tsx`). É por ele que o teste acha a camada.
+ * Nome (`Container.label`) da camada do balão dentro da ficha, na tela do
+ * jogador (`player/PlayerView.tsx`) e no editor (`pixi/tokensRenderer.ts`). É
+ * por ele que o teste acha a camada.
  */
 export const WATCH_ALERT_LABEL = 'alerta'
 
@@ -46,8 +49,13 @@ export function drawWatchAlert(graphics: Graphics, alert: WatchAlert | null, tok
     graphics.moveTo(cx, cy - r * 0.55).lineTo(cx, cy + r * 0.12).stroke({ width, color: INK, cap: 'round' })
   } else {
     // Gancho do "?": meia-volta por cima e a haste descendo para o centro.
+    // O `moveTo` na ponta esquerda do gancho é obrigatório: sem ele o arco
+    // nasce ligado à origem do desenho e risca a ficha do centro até o balão.
+    const ganchoY = cy - r * 0.22
+    const ganchoRaio = r * 0.3
     graphics
-      .arc(cx, cy - r * 0.22, r * 0.3, Math.PI, Math.PI * 2.4)
+      .moveTo(cx - ganchoRaio, ganchoY)
+      .arc(cx, ganchoY, ganchoRaio, Math.PI, Math.PI * 2.4)
       .lineTo(cx, cy + r * 0.12)
       .stroke({ width, color: INK, cap: 'round', join: 'round' })
   }
@@ -72,6 +80,30 @@ function segmentsOf(map: MapData): Segment[] {
     cached = { walls: map.walls, floor: map.floor, segments: visionSegments(map) }
   }
   return cached.segments
+}
+
+const SEM_ALERTAS: ReadonlyMap<string, WatchAlert> = new Map()
+
+/** Há ficha que vigia neste mapa? É o portão barato de quem só trabalha quando existe guarda. */
+export function haGuardaNoMapa(map: Pick<MapData, 'tokens'>): boolean {
+  return map.tokens.some((t) => tokenWatchOf(t) !== null)
+}
+
+/**
+ * A marca (?, !) de cada guarda do mapa do MESTRE: quem tem ficha de jogador
+ * no olhar agora (`fichasDeJogadorNoMapa`), pela mesma regra do recorte do
+ * jogador (`guardAlerts`: "!" até a metade do alcance, "?" dali até a borda).
+ * O mestre vê tudo, então névoa, segredo e teto não entram. Mapa sem guarda
+ * não mede nada: o redesenho das fichas roda a cada passo do arrasto.
+ */
+export function alertasNoEditor(
+  map: MapData,
+  personagens: readonly Pick<Personagem, 'id' | 'tipo'>[],
+  posse: Readonly<Record<string, readonly string[]>>,
+): ReadonlyMap<string, WatchAlert> {
+  if (!haGuardaNoMapa(map)) return SEM_ALERTAS
+  const alvos = fichasDeJogadorNoMapa(map.tokens, personagens, posse)
+  return alvos.size === 0 ? SEM_ALERTAS : guardAlerts(map, alvos, segmentsOf(map))
 }
 
 /**

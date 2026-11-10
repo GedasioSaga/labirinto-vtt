@@ -220,7 +220,7 @@ import { drawAreaTriggers } from './drawAreaTriggers'
 import { areaTriggerAreas } from '../lib/areaTriggers'
 import { drawConveyorMarks } from './drawConveyors'
 import { conveyorMarks, NO_CONVEYOR_MARKS } from '../lib/conveyorMarks'
-import { drawWatchCones } from './drawNpcWatch'
+import { alertasNoEditor, drawWatchCones, haGuardaNoMapa } from './drawNpcWatch'
 import { drawPerigos } from './drawPerigos'
 import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
@@ -2842,6 +2842,8 @@ function PixiCanvasDoContexto({
           // BATALHA F3: idem para a imagem da forma e os selos.
           exportScene === null ? (fotoDaFormaRef.current ?? undefined) : undefined,
           exportScene === null ? (selosNasFichasRef.current ?? undefined) : undefined,
+          // OLHOS DO GUARDA: "?" e "!" em cima do guarda que tem ficha de jogador no olhar, com a sala aberta ou fechada.
+          exportScene === null ? alertasNoEditor(map, personagensAtivos(useAdventureStore.getState()), useDonosDasFichasStore.getState().posse) : undefined,
         )
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
@@ -3397,6 +3399,12 @@ function PixiCanvasDoContexto({
       )
       const unsubscribeDonos = useDonosDasFichasStore.subscribe((state, previous) => {
         if (state.posse !== previous.posse) redrawTokens()
+      })
+      // OLHOS DO GUARDA: porta que abre ou parede que muda troca o que o guarda vê, e a
+      // marca (?, !) em cima dele acompanha. Mapa sem guarda não repinta ficha nenhuma.
+      const unsubscribeOlharDoGuarda = useMapStore.subscribe((state, previous) => {
+        if (state.map.walls === previous.map.walls && state.map.floor === previous.map.floor) return
+        if (haGuardaNoMapa(state.map)) redrawTokens()
       })
       // BARRA DE VIDA: a ficha mudou (o dano digitado pelo mestre ou pela sala, a
       // transformação ligada) ou o sistema trocou — a barra repinta na hora. O
@@ -9298,6 +9306,7 @@ function PixiCanvasDoContexto({
         unsubscribeAwayTokens()
         unsubscribeContinente()
         unsubscribeDonos()
+        unsubscribeOlharDoGuarda()
         unsubscribeVidaDasFichas()
         unsubscribeSistemas()
         unsubscribeProps()

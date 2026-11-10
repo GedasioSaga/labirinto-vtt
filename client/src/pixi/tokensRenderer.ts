@@ -2,7 +2,7 @@ import { Container, Sprite, Graphics, Text, Assets, Texture, type Ticker } from 
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
-import type { Token } from '../types/map'
+import type { Token, WatchAlert } from '../types/map'
 import {
   SECRET_ITEM_ALPHA,
   SELECTION_COLOR,
@@ -39,6 +39,7 @@ import { useToastStore } from '../stores/toastStore'
 import { screenLabelSizing } from './screenLabel'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { CONDITION_MARKS_LABEL, drawTokenConditions } from './drawTokenConditions'
+import { WATCH_ALERT_LABEL, drawWatchAlert } from './drawNpcWatch'
 import { estaCongelada } from '../lib/congelar'
 import { drawFrostBadge } from './drawTokenFrozen'
 import { faseDoMarcador } from './drawMarcadorDeContinente'
@@ -197,6 +198,9 @@ export interface TokensRenderer {
    * pronto: embutida ou URL da mídia), que vence a foto do token enquanto vale.
    * `selos`: BATALHA F3 — por tokenId, os selos da ficha ("ATORDOADO 2"),
    * escritos logo acima do disco. Omitidos = nenhum (fora de batalha, exportação).
+   * `alertas`: OLHOS DO GUARDA — por tokenId do guarda, a marca "?" ou "!" de
+   * quem tem ficha de jogador no olhar (`alertasNoEditor`), no balão do alto à
+   * direita. Omitido = nenhuma (exportação: a imagem é do mapa, não da sessão).
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -217,6 +221,7 @@ export interface TokensRenderer {
     vezTokenId?: string | null,
     fotoDaForma?: FotosDaForma,
     selos?: SelosNasFichas,
+    alertas?: ReadonlyMap<string, WatchAlert>,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -244,6 +249,7 @@ const NO_PINS: ReadonlyMap<string, string> = new Map()
 const SEM_VIDAS: VidasDaCena = new Map()
 const SEM_FORMAS: FotosDaForma = new Map()
 const SEM_SELOS: SelosNasFichas = new Map()
+const SEM_ALERTAS: ReadonlyMap<string, WatchAlert> = new Map()
 
 /** Anel de seleção no chão do pino, em px de tela: a elipse de um anel deitado, na mesma inclinação do pino. */
 const MARCADOR_SELECAO_RX = 15
@@ -289,6 +295,8 @@ interface TokenPaint {
   forma: string | null
   /** BATALHA F3: o texto dos selos ("ATORDOADO 2"); `''` = nenhum. */
   selos: string
+  /** OLHOS DO GUARDA: a marca do guarda que tem ficha de jogador no olhar; `null` = nenhuma. */
+  alerta: WatchAlert | null
 }
 
 /** A última pintura da ficha ainda vale para estas entradas? */
@@ -303,6 +311,7 @@ function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean 
     painted.pino === agora.pino &&
     painted.forma === agora.forma &&
     painted.selos === agora.selos &&
+    painted.alerta === agora.alerta &&
     mesmaVida(painted.vida, agora.vida)
   )
 }
@@ -342,6 +351,10 @@ interface TokenEntry {
    *  nunca é destruído no meio da sessão): ficha sem selo continua com os
    *  filhos de sempre. */
   selos: Text | null
+  /** OLHOS DO GUARDA: o balão "?" / "!" do guarda (`pixi/drawNpcWatch.ts`).
+   *  Nasce só no guarda que tem ficha de jogador no olhar e morre quando ela
+   *  sai: as outras fichas continuam com os filhos de sempre. */
+  alerta: Graphics | null
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
@@ -619,6 +632,29 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     return mudou && conteudo !== ''
   }
 
+  /**
+   * OLHOS DO GUARDA: o balão do guarda, logo acima das marcas de condição. Sem
+   * animação de propósito: a marca troca a cada passo do arrasto de uma ficha,
+   * e é o mesmo balão parado que o jogador vê (`player/PlayerView.tsx`).
+   */
+  function syncAlerta(entry: TokenEntry, alerta: WatchAlert | null, outlineRadius: number): void {
+    if (alerta === null) {
+      if (entry.alerta) {
+        entry.wrapper.removeChild(entry.alerta)
+        entry.alerta.destroy()
+        entry.alerta = null
+      }
+      return
+    }
+    if (!entry.alerta) {
+      const balao = new Graphics()
+      balao.label = WATCH_ALERT_LABEL
+      entry.wrapper.addChildAt(balao, entry.wrapper.getChildIndex(entry.marks) + 1)
+      entry.alerta = balao
+    }
+    drawWatchAlert(entry.alerta, alerta, outlineRadius)
+  }
+
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
     for (const entry of cache.values()) applyLabelSizing(entry)
@@ -650,6 +686,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     syncHealthBar(entry, null, 0)
     syncTurnRing(entry, token.id, false, 0)
     entry.marks.clear()
+    syncAlerta(entry, null, 0)
     syncSelos(entry, '', 0)
     selecao.clear()
     if (selected) {
@@ -781,6 +818,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     vezTokenId: string | null = null,
     fotoDaForma: FotosDaForma = SEM_FORMAS,
     selos: SelosNasFichas = SEM_SELOS,
+    alertas: ReadonlyMap<string, WatchAlert> = SEM_ALERTAS,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     // A vez só pulsa a chegada na TROCA: este `draw` roda a cada passo de arrasto.
@@ -842,6 +880,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           label,
           marks,
           selos: null,
+          alerta: null,
           loadedSrc: null,
           loadedData: null,
           loadedUrl: null,
@@ -881,7 +920,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // BATALHA F3: a forma e os selos, como a vida, não vão no pino do continente.
       const forma = pino === null ? (fotoDaForma.get(token.id) ?? null) : null
       const textoDosSelos = pino === null ? textoDosSelosNaFicha(selos.get(token.id)) : ''
-      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida, forma, selos: textoDosSelos }
+      // OLHOS DO GUARDA: o pino do continente não leva balão, como não leva condição.
+      const alerta = pino === null ? (alertas.get(token.id) ?? null) : null
+      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida, forma, selos: textoDosSelos, alerta }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA.
       if (paintIsCurrent(entry.painted, pintura)) continue
@@ -1034,6 +1075,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
       // jogadores" esmaecem a marca junto, pelo alpha do wrapper.
       drawTokenConditions(entry.marks, tokenConditionsOf(token), outlineRadius, gridSize)
+      // OLHOS DO GUARDA: "?" desconfia, "!" percebeu — o mestre lê no guarda se a ficha chamou atenção.
+      syncAlerta(entry, alerta, outlineRadius)
       // BATALHA F3: os selos ("ATORDOADO 2") logo acima das marcas, em pé como elas.
       if (syncSelos(entry, textoDosSelos, outlineRadius)) changedLabels += 1
 

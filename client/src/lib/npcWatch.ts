@@ -1,10 +1,12 @@
-import type { MapData, RegionPoint, TokenWatch, WatchAlert } from '../types/map'
+import type { MapData, RegionPoint, Token, TokenWatch, WatchAlert } from '../types/map'
 import { visibleTokens } from './layers'
+import type { Personagem } from './personagem'
 import { visionSegments, type Segment } from './visibility'
 
 /**
- * OLHOS DO GUARDA — regras compartilhadas pelo editor do mestre (cone e aviso)
- * e pelo recorte do jogador (a marca ? / !). Puro: sem DOM, sem Pixi, sem store.
+ * OLHOS DO GUARDA — regras compartilhadas pelo editor do mestre (cone, aviso e
+ * a marca ? / ! em cima do guarda) e pelo recorte do jogador (a mesma marca).
+ * Puro: sem DOM, sem Pixi, sem store.
  *
  * O guarda é uma ficha com `vigia`: olha para `direcao`, com `abertura` graus
  * de olhar, até `alcance` quadrados. Parede e porta fechada cortam a visão dele
@@ -92,6 +94,31 @@ export function tokenWatchOf(token: { vigia?: unknown }): TokenWatch | null {
 /** Guarda de leitura da marca: só "?" e "!" viram balão. */
 export function watchAlertOf(token: { alerta?: unknown }): WatchAlert | null {
   return token.alerta === '?' || token.alerta === '!' ? token.alerta : null
+}
+
+/**
+ * As fichas de JOGADOR como o MESTRE as conta no mapa dele, com a sala aberta
+ * ou fechada — os alvos da marca (?, !) que ele vê em cima do guarda. Entra a
+ * ficha que tem dono na sala (`posse`, a mesma lista do recorte do jogador), a
+ * marcada "Ficha de jogador" e a ligada a uma ficha de personagem de jogador.
+ * NPC, token sem ficha e ficha apagada ficam de fora.
+ *
+ * Sem a sala, `posse` é vazia: é pelo vínculo com a ficha que o mestre que
+ * move as peças sozinho (mesa presencial, preparo) sabe quem chamou atenção.
+ */
+export function fichasDeJogadorNoMapa(
+  tokens: readonly Pick<Token, 'id' | 'characterId' | 'playerCharacter'>[],
+  personagens: readonly Pick<Personagem, 'id' | 'tipo'>[],
+  posse: Readonly<Record<string, readonly string[]>>,
+): Set<string> {
+  const comDono = new Set(Object.values(posse).flat())
+  const deJogador = new Set(personagens.filter((personagem) => personagem.tipo === 'jogador').map((personagem) => personagem.id))
+  const alvos = new Set<string>()
+  for (const token of tokens) {
+    const ligadaAJogador = token.characterId !== null && deJogador.has(token.characterId)
+    if (comDono.has(token.id) || token.playerCharacter === true || ligadaAJogador) alvos.add(token.id)
+  }
+  return alvos
 }
 
 /** Diferença angular em graus, em [-180, 180]. */
