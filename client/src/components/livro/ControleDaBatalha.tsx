@@ -28,7 +28,6 @@ import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../transicoes/aberturasDeBatalha'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/AberturaDeBatalhaOverlay'
-import { pretenderAbertura } from '../../transicoes/intencao'
 import { batalhaCabeNaGrade } from '../../pixi/gradeDaBatalha'
 import type { GridShape } from '../../types/map'
 import { Balao } from '../grimorio/Balao'
@@ -198,13 +197,6 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const entram = prepararQuemEntra(escolhas, lados)
     if (entram !== null) ligarBatalha(abertura, new Set(entram.map((token) => token.id)))
   }
-
-  // Com o "Iniciar batalha" aberto e uma abertura escolhida, as telas dos jogadores já preparam
-  // essa cutscene antes de o mestre confirmar. Fechou ou trocou para "Nenhuma": desfaz o aviso.
-  useEffect(() => {
-    pretenderAbertura(caixa !== null && transicao !== NENHUMA ? transicao : null)
-  }, [caixa, transicao])
-  useEffect(() => () => pretenderAbertura(null), [])
 
   // Shift+B de qualquer ponto do editor; com a escolha aberta a tecla é dela (o Esc fecha).
   const alternarAgora = useRef(alternar)
