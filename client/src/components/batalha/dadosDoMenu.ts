@@ -770,6 +770,15 @@ export function armaPadraoNaBatalha(personagem: Personagem | null, combate: Pick
 
 const DESCRICAO_DO_DESARMADO = 'Sem arma: o dano é a Força.'
 
+/**
+ * Pedido de 09/11/2026 (item 3): a "Mão nua" está sempre na lista do Atacar,
+ * depois das armas, para o jogador e para o NPC. É o Atacar sem arma que o
+ * host já aceitava (`armaId: null`, o dano é a Força); antes ele só aparecia
+ * em quem não levava arma nenhuma.
+ */
+export const CHAVE_DA_MAO_NUA = 'ataque'
+const NOME_DA_MAO_NUA = 'Mão nua'
+
 /** R6: o que sobra do ataque adicional da forma nesta rodada ("+1 ataque"); `null` = fora da vez, nenhuma forma dá, ou já usou. */
 function textoDoAtaqueExtra(acoes: AcoesDaVez | null): string | null {
   if (acoes === null || acoes.ataqueExtra === undefined) return null
@@ -815,11 +824,11 @@ export function golpesDeAtaque(
       ...(categoria === null ? {} : { categoria }),
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
       ...(balas.length === 0 ? {} : { balas }),
-      chave: arma === null ? 'ataque' : `arma:${arma.id}`,
+      chave: arma === null ? CHAVE_DA_MAO_NUA : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,
       armaId: arma?.id ?? null,
-      nome: arma === null ? 'Ataque desarmado' : arma.nome.trim() || 'Arma sem nome',
+      nome: arma === null ? NOME_DA_MAO_NUA : arma.nome.trim() || 'Arma sem nome',
       descricao,
       leitura: arma === null ? [{ rotulo: 'Descrição', texto: DESCRICAO_DO_DESARMADO }, ...leituraDoCartao(null, sistema, ABA_DAS_ARMAS, dano)] : leituraDoCartao(arma, sistema, ABA_DAS_ARMAS, dano),
       custoTexto: null,
@@ -840,9 +849,10 @@ export function golpesDeAtaque(
   }
   // Construtor C8: a arma padrão da ficha vem primeiro na lista do Atacar.
   const armas = comAPadraoNaFrente(armasNaBatalha(personagem, combate))
-  if (armas.length === 0) return [golpeDe(null)]
   // Construtor C8: a arma montada (o Boomerang) ataca pelas peças; a de texto segue como sempre.
-  return armas.map((arma) => (personagem !== null && sistema !== null && cartaoMontado(arma) ? golpeDaArmaMontada(golpeDe(arma), arma, personagem, sistema, combate, acoes, bonus) : golpeDe(arma)))
+  const comArma = armas.map((arma) => (personagem !== null && sistema !== null && cartaoMontado(arma) ? golpeDaArmaMontada(golpeDe(arma), arma, personagem, sistema, combate, acoes, bonus) : golpeDe(arma)))
+  // Pedido de 09/11 (item 3): a Mão nua fecha a lista, com arma ou sem.
+  return [...comArma, golpeDe(null)]
 }
 
 /**

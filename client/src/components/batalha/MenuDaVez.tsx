@@ -4,7 +4,7 @@ import type { AcaoDaTecnica, PedidoDeAcao } from '../../lib/batalha/combate'
 import type { OpcaoDaInvocacao } from '../../lib/batalha/invocacao'
 import type { MotivoDaOpcao } from './dadosDaInvocacao'
 import type { FormaNoMenu } from '../../lib/batalha/transformacao'
-import { pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
+import { CHAVE_DA_MAO_NUA, pipsDaVez, textoDaCarga, type AlvoNaMira, type GolpeNaTela } from './dadosDoMenu'
 import { ListaDeFormas, nomeDaForma } from './ListaDeFormas'
 import { CabecaDaVez, ListaDeTecnicas, Tira, andarComSetas, semRolarDeLado, type EvoluirNaTela } from './ListaDeTecnicas'
 import { MiraDaInvocacao } from './MiraDaInvocacao'
@@ -349,7 +349,9 @@ export function MenuDaVez(props: MenuDaVezProps) {
       contras.forEach((candidato) =>
         itens.push({ chave: `contra:${candidato.golpeId}`, nome: 'Contra-ataque', detalhe: `Guardado (${candidato.rotulo}): usa sem gastar a vez`, executar: () => setContraId(candidato.golpeId) }),
       )
-    itens.push({ chave: 'atacar', nome: 'Atacar', lado: armas.length > 0 && armas[0]?.chave !== 'ataque' ? `${armas.length} ${armas.length === 1 ? 'arma' : 'armas'}` : null, executar: (t) => abrir({ tipo: 'lista', de: 'atacar' }, t) })
+    // Pedido de 09/11 (item 3): a Mão nua está sempre na lista e não conta como arma.
+    const quantasArmas = armas.filter((golpe) => golpe.chave !== CHAVE_DA_MAO_NUA).length
+    itens.push({ chave: 'atacar', nome: 'Atacar', lado: quantasArmas > 0 ? `${quantasArmas} ${quantasArmas === 1 ? 'arma' : 'armas'}` : null, executar: (t) => abrir({ tipo: 'lista', de: 'atacar' }, t) })
     itens.push({ chave: 'habilidades', nome: 'Habilidades', lado: habilidades.length > 0 ? String(habilidades.length) : null, executar: (t) => abrir({ tipo: 'lista', de: 'habilidade' }, t) })
     const ligada = formas.find((forma) => forma.ligada)
     itens.push({
