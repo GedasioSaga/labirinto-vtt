@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
@@ -7,7 +7,9 @@ import type { TunnelState } from '../net/hostBridge'
 import type { PlayerInfo } from '../net/hostSession'
 import { useMapStore } from '../stores/mapStore'
 import type { Token } from '../types/map'
+import { ComSaida } from './grimorio/ComSaida'
 import { PaginaAVistaProvider } from './livro/paginaAVista'
+import { LuzDaCenaRapida } from './LuzDaCenaRapida'
 import { RoomPanel, type RoomPanelToken } from './RoomPanel'
 
 /*
@@ -32,6 +34,12 @@ const IDLE: TunnelState = { kind: 'idle' }
 const ATRASO_DO_DESTAQUE_MS = 70
 
 const doToken = (id: string) => selectionOfItem({ kind: 'token', id })
+
+/** O balão "Luz da cena" como a barra o monta: fecha pelo `onClose` e ainda sai por 120 ms (`ComSaida`). */
+function BalaoDaLuz() {
+  const [aberto, setAberto] = useState(true)
+  return <ComSaida>{aberto && <LuzDaCenaRapida onClose={() => setAberto(false)} onPorLuz={() => {}} />}</ComSaida>
+}
 
 describe('RoomPanel: "clicar no token no mapa" só escolhe com um clique de verdade e não fica ligado escondido', () => {
   let container: HTMLDivElement
@@ -181,6 +189,37 @@ describe('RoomPanel: "clicar no token no mapa" só escolhe com um clique de verd
     expect(espera('Gina')).toBeNull()
     expect(aviso()).toBeNull()
     expect(card('Gina').querySelector('.lb-player__note[role="status"]')?.textContent).toBe('Esse token está num grupo. Desagrupe ou escolha pela lista.')
+  })
+
+  it('espera armada e o balão "Luz da cena" aberto por cima: o primeiro Esc fecha só o balão, e o seguinte cancela a espera', () => {
+    render([GINA])
+    armar('Gina')
+    const lugarDoBalao = document.createElement('div')
+    document.body.appendChild(lugarDoBalao)
+    const raizDoBalao = createRoot(lugarDoBalao)
+    act(() => raizDoBalao.render(<BalaoDaLuz />))
+    // O que está saindo (`.gr-sai`) já fechou.
+    const balao = (): Element | null => lugarDoBalao.querySelector('[role="dialog"]:not(.gr-sai)')
+    // O foco costuma estar no mapa: o Esc nasce fora do card e fora do balão.
+    const apertarEsc = (): void => {
+      act(() => {
+        canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      })
+    }
+    try {
+      expect(balao()).not.toBeNull()
+
+      apertarEsc()
+      expect(balao()).toBeNull()
+      expect(espera('Gina')).not.toBeNull()
+
+      apertarEsc()
+      expect(espera('Gina')).toBeNull()
+      expect(aviso()).toBeNull()
+    } finally {
+      act(() => raizDoBalao.unmount())
+      lugarDoBalao.remove()
+    }
   })
 
   it('trocar de página com a espera armada desarma: o aviso some e o token clicado depois não vai para ninguém', () => {

@@ -483,6 +483,8 @@ interface AssignControlsProps {
 const ATRASO_DO_DESTAQUE_MS = 70
 /** O "clicar no token no mapa" pegou um token agrupado (Ctrl+G): o editor seleciona o grupo inteiro, e não dá para saber qual foi clicado. */
 const AVISO_DE_TOKEN_NO_GRUPO = 'Esse token está num grupo. Desagrupe ou escolha pela lista.'
+/** O balão "Luz da cena" aberto (`LuzDaCenaRapida.tsx`); o que está saindo leva `.gr-sai` e já não conta. */
+const BALAO_POR_CIMA = '.lb-luz-da-cena:not(.gr-sai)'
 
 /**
  * Dar ficha a um jogador: botões de um clique (só fichas livres, de qualquer
@@ -573,6 +575,9 @@ export function AssignControls({ player, tokens, owners, onAssign }: AssignContr
     // Esc desiste de qualquer lugar (o foco costuma estar no mapa) e não chega aos atalhos do editor.
     const aoTeclar = (evento: globalThis.KeyboardEvent): void => {
       if (evento.key !== 'Escape') return
+      // Um Esc fecha uma coisa só, a de cima: com o balão "Luz da cena" aberto o Esc é dele
+      // (ele o segura na captura do documento, depois desta janela), e só o seguinte cancela a espera.
+      if (document.querySelector(BALAO_POR_CIMA) !== null) return
       evento.stopPropagation()
       evento.preventDefault()
       setEsperaNoMapa(false)
