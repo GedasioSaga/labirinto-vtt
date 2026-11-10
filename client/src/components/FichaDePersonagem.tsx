@@ -56,9 +56,14 @@ export interface FichaDePersonagemProps {
    * marca e desmarca "Esconder dos jogadores". Ausente = nem um nem outro.
    */
   onRevelar?: (cartaoId: string) => void
+  /**
+   * As fichas da mesma pasta (jogadores e NPCs), para o "Trazer de outra ficha"
+   * das Habilidades em edição. Só o app do mestre passa. Ausente = sem o botão.
+   */
+  outrasFichas?: readonly Personagem[]
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica, onRevelar }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica, onRevelar, outrasFichas }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   return (
     <div className="lb-ficha">
@@ -82,6 +87,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
           onAjustar={ajustar}
           quemEditaAMecanica={quemEditaAMecanica}
           onRevelar={onRevelar}
+          outrasFichas={outrasFichas}
         />
       </div>
     </div>

@@ -1,0 +1,204 @@
+/*
+ * "TRAZER DE OUTRA FICHA" (`TrazerDeOutraFicha.tsx`): a caixa é a mesma do
+ * "Escolher do livro" (`lb-escolher*`, de EscolherDoLivro.css). Aqui só o que
+ * ela tem a mais: a linha da ficha com retrato, e o passo de marcar os cartões.
+ */
+
+/* ------------------------------------------------------- passo 1: fichas */
+
+.lb-escolher__item.lb-trazer__ficha {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--lb-space-3);
+}
+
+.lb-trazer__retrato {
+  display: block;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--lb-radius-full);
+  box-shadow: 0 0 0 1px var(--lb-color-line-strong);
+}
+
+.lb-trazer__retrato img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-trazer__retrato .lb-ficha__iniciais {
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  font-weight: var(--lb-font-weight-semibold);
+}
+
+.lb-trazer__ficha-texto {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Os nomes dos cartões da ficha numa linha só: é por eles que o mestre reconhece de quem trazer. */
+.lb-trazer__ficha-nomes {
+  overflow: hidden;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-trazer__tipo {
+  padding: 0 6px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-xs);
+  font-weight: var(--lb-font-weight-medium);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.lb-trazer__conta {
+  flex: none;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------ passo 2: cartões */
+
+.lb-trazer__topo {
+  align-items: center;
+}
+
+.lb-trazer__voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+/* De quem são os cartões: ocupa o meio e empurra o Fechar para a ponta. */
+.lb-trazer__de {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--lb-space-2);
+  min-width: 0;
+}
+
+.lb-trazer__de .lb-trazer__retrato {
+  width: 24px;
+  height: 24px;
+}
+
+.lb-trazer__de .lb-trazer__retrato .lb-ficha__iniciais {
+  font-size: var(--lb-font-size-xs);
+}
+
+.lb-trazer__de-nome {
+  overflow: hidden;
+  font-weight: var(--lb-font-weight-semibold);
+  color: var(--lb-color-parchment);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-trazer__cartoes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* A linha inteira é o rótulo da caixa: clicar em qualquer ponto dela marca. */
+.lb-trazer__cartao {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lb-space-3);
+  min-height: 44px;
+  padding: var(--lb-space-2);
+  border-radius: var(--lb-radius-sm);
+  cursor: pointer;
+  transition: background-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-trazer__cartao:hover {
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-trazer__cartao[data-marcado] {
+  background: var(--lb-color-brass-soft);
+}
+
+.lb-trazer__cartao input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  /* Alinha a caixa com a primeira linha do nome. */
+  margin: 3px 0 0;
+  accent-color: var(--lb-color-brass);
+  cursor: inherit;
+}
+
+.lb-trazer__cartao:has(input:focus-visible) {
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.lb-trazer__cartao input:focus-visible {
+  outline: none;
+}
+
+.lb-trazer__cartao-corpo {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-trazer__frases {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-trazer__nota {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-trazer__pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lb-control-gap);
+}
+
+.lb-trazer__falta {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+}
+
+/* A ação principal fica na ponta direita, onde a leitura da caixa termina. */
+.lb-trazer__confirmar {
+  margin-left: auto;
+}
+
+/* O aviso que fica na aba depois de trazer: o que veio, de quem, e que é cópia. */
+.lb-trazer__veio {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}

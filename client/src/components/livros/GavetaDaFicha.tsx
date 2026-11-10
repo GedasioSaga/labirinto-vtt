@@ -58,6 +58,8 @@ export function GavetaDaFicha({ sistema, sistemaId }: GavetaDaFichaProps) {
       onSalvar={(salvo) => void salvarNoMundo(salvo, personagem, modelo)}
       onClose={() => useMundoDoLivroStore.getState().fecharFicha()}
       escolherImagem={escolherImagemDaFicha}
+      // "Trazer de outra ficha": as fichas da pasta aberta no mundo do livro.
+      outrasFichas={personagens}
       tokens={[]}
       onLigarToken={() => undefined}
       onAjustar={

@@ -134,6 +134,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           onSalvar={(salvo) => useAdventureStore.getState().salvarPersonagem(salvo)}
           onClose={() => useRpgStore.getState().fecharFicha()}
           escolherImagem={escolherImagemDaFicha}
+          // "Trazer de outra ficha": as fichas da pasta (jogadores e NPCs, as mesmas dos Livros de regras).
+          outrasFichas={personagens}
           onAbrirLivro={sistema !== undefined && temLivro(sistema) ? () => useRpgStore.getState().abrirLivro() : undefined}
           tokens={tokensParaLigar}
           // Pelo histórico do mapa, como o resto do token: Ctrl+Z desliga.

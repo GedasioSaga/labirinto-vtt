@@ -42,6 +42,8 @@ export interface FichaDePersonagemDialogProps {
   onAjustar?: (ajuste: Ajuste) => void
   /** O inventário do personagem (a mochila do token ligado), já com as ações do mestre. Ausente = sem token ligado. */
   inventario?: ReactNode
+  /** As fichas da mesma pasta, para o "Trazer de outra ficha" das Habilidades em edição. Ausente = sem o botão. */
+  outrasFichas?: readonly Personagem[]
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
@@ -67,6 +69,7 @@ export function FichaDePersonagemDialog({
   onLigarToken,
   onAjustar,
   inventario,
+  outrasFichas,
 }: FichaDePersonagemDialogProps) {
   const tituloId = useId()
   const ligarId = useId()
@@ -259,6 +262,7 @@ export function FichaDePersonagemDialog({
               onAjustar={onAjustar}
               inventario={inventario}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
+              outrasFichas={outrasFichas}
             />
           )}
           <section className="lb-ficha-nota" aria-labelledby={`${notaId}-titulo`}>

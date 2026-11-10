@@ -10,6 +10,7 @@ import { pecasDoCartao } from '../lib/batalha/mecanica/leitura'
 import { CampoDeDano } from './CampoDeDano'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDaCategoria, rotuloDoVazio, valorDaEscolha } from './escolhaDeCampo'
 import { EscolherDoLivro, type EstadoDaEscolha, type LivroDaFicha } from './EscolherDoLivro'
+import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
@@ -40,9 +41,15 @@ export interface FichaAbasProps {
   quemEditaAMecanica?: QuemEditaAMecanica
   /** Fatia C7: só o mestre revela um cartão oculto, com um clique fora da edição. Ausente = sem o botão. */
   onRevelar?: (cartaoId: string) => void
+  /**
+   * As fichas da mesma pasta (jogadores e NPCs), para o "Trazer de outra ficha"
+   * das Habilidades em edição. Só o app do mestre passa: ele é quem tem todas.
+   * Ausente = sem o botão.
+   */
+  outrasFichas?: readonly Personagem[]
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar, outrasFichas }: FichaAbasProps) {
   const idBase = useId()
   // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
@@ -108,6 +115,7 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
             livro={livro}
             quemEditaAMecanica={quemEditaAMecanica}
             podeOcultar={quemEditaAMecanica === 'mestre' && onRevelar !== undefined}
+            outrasFichas={outrasFichas}
           />
         ) : cartoes.length === 0 && ocultas === 0 ? (
           <p className="lb-ficha__vazio">{ativa.vazio}</p>
@@ -288,13 +296,36 @@ interface ListaEditavelProps {
   quemEditaAMecanica: QuemEditaAMecanica
   /** Fatia C7: o app do mestre esconde cartões dos jogadores (o site, não: lá o segredo subiria ao Lobby). */
   podeOcultar: boolean
+  /** As fichas da pasta, para o "Trazer de outra ficha" (só na lista de cima das Habilidades). Ausente = sem o botão. */
+  outrasFichas?: readonly Personagem[]
 }
 
-function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica, podeOcultar }: ListaEditavelProps) {
+/** O aviso que fica na aba depois de trazer: o que veio, de quem, e que é cópia. */
+function avisoDoQueVeio(aba: AbaDoSistema, novos: readonly CartaoDaFicha[], deQuem: string): string {
+  if (novos.length === 1) return `${novos[0].nome} veio de ${deQuem}. É uma cópia: mudar aqui não muda a ficha de ${deQuem}.`
+  return `${novos.length} ${aba.nome.toLocaleLowerCase('pt-BR')} vieram de ${deQuem}. São cópias: mudar aqui não muda a ficha de ${deQuem}.`
+}
+
+function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherImagem, aninhada = false, daArma = false, livro, quemEditaAMecanica, podeOcultar, outrasFichas }: ListaEditavelProps) {
   // O cartão que acabou de nascer abre aberto; os outros ficam fechados numa linha cada.
   const [recemCriado, setRecemCriado] = useState<string | null>(null)
   const [escolhendo, setEscolhendo] = useState(false)
   const botaoDoLivro = useRef<HTMLButtonElement>(null)
+  // "Trazer de outra ficha": os golpes que outra ficha da pasta já tem (pedido do mestre, 09/11/2026).
+  const ofereceTrazer = !aninhada && outrasFichas !== undefined && aba.id === ABA_DAS_TECNICAS
+  const [trazendo, setTrazendo] = useState(false)
+  const [veio, setVeio] = useState<string | null>(null)
+  const botaoDeTrazer = useRef<HTMLButtonElement>(null)
+  const fecharTrazer = () => {
+    setTrazendo(false)
+    botaoDeTrazer.current?.focus()
+  }
+  const trazer = (novos: CartaoDaFicha[], deQuem: string) => {
+    // Entram fechados, uma linha cada: já vêm prontos, e o aviso do que veio fica à vista logo abaixo.
+    onChange([...cartoes, ...novos])
+    setVeio(avisoDoQueVeio(aba, novos, deQuem))
+    fecharTrazer()
+  }
   // Os itens do catálogo da aba: no sistema (mestre, ou o livro do jogador que já chegou) ou ainda no mestre.
   const itens = itensDaAba(sistema.catalogos, aba.id)
   const noMestre = livro !== undefined && itens.length === 0 && abaTemCatalogo(livro.resumo, aba.id)
@@ -372,6 +403,8 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
                 setEscolhendo(false)
                 return
               }
+              // Uma caixa de cada vez embaixo dos botões.
+              setTrazendo(false)
               setEscolhendo(true)
               pedirLivro()
             }}
@@ -379,7 +412,38 @@ function ListaEditavel({ aba, sistema, personagem, cartoes, onChange, escolherIm
             Escolher do livro
           </button>
         )}
+        {ofereceTrazer && (
+          <button
+            ref={botaoDeTrazer}
+            type="button"
+            className="lb-btn lb-btn--ghost"
+            aria-expanded={trazendo}
+            onClick={() => {
+              setEscolhendo(false)
+              setVeio(null)
+              setTrazendo(!trazendo)
+            }}
+          >
+            Trazer de outra ficha
+          </button>
+        )}
       </div>
+      {veio !== null && !trazendo && (
+        <p className="lb-trazer__veio" role="status">
+          {veio}
+        </p>
+      )}
+      {ofereceTrazer && trazendo && (
+        <TrazerDeOutraFicha
+          aba={aba}
+          sistema={sistema}
+          personagem={personagem}
+          fichas={outrasFichas}
+          nomesNaFicha={new Set(cartoes.map((cartao) => cartao.nome.trim().toLocaleLowerCase('pt-BR')))}
+          onTrazer={trazer}
+          onFechar={fecharTrazer}
+        />
+      )}
       {ofereceLivro && escolhendo && (
         <EscolherDoLivro
           aba={aba}
