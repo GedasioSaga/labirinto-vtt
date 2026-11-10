@@ -15,6 +15,7 @@ import { COMO_MARCA } from '../batalha/marca'
 import { chavesDoDono, motivoDasRespostasDoGolpe, reacaoAMaoDe } from '../batalha/mecanicasAMao'
 import { motivoDaReacaoComTecnica, saidasDaTecnica } from '../batalha/reacaoComTecnica'
 import { passoEmBatalha } from '../batalha/movimentoEmBatalha'
+import { motivoDaPassiva } from '../batalha/passivas'
 import type { VezEsperada } from '../batalha/ponte'
 import type { RegrasDaBatalha } from '../batalha/regrasDoCampo'
 import { registroParaJogador, type LinhaParaJogador } from '../batalha/registro'
@@ -697,7 +698,12 @@ function jogarNaLoja(
       if (!ehDoLado(pedido.tokenId)) return recusa('naoEDaConta')
       // O alvo da passiva tem de estar na luta (o host da mesa confere que está na tela de quem pede).
       if (pedido.tipo === 'passiva' && pedido.alvoTokenId !== undefined && vagaDoToken(lutadores, pedido.alvoTokenId) === null) return recusa('regra', TEXTO_DO_ALVO_DE_FORA)
-      return loja.getState().passiva(CENA_DO_DUELO, autor, passivaSemNumero(pedido)) ? null : recusa('regra')
+      const limpo = passivaSemNumero(pedido)
+      if (loja.getState().passiva(CENA_DO_DUELO, autor, limpo)) return null
+      // A store recusou sem mudar nada: o motivo é o que a regra das passivas diz deste mesmo pedido, agora.
+      const vaga = vagaDoToken(lutadores, pedido.tokenId)
+      const personagem = vaga === null ? null : copiaDe(vaga.personagemId)
+      return recusa('regra', motivoDaPassiva({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, limpo))
     }
     case 'evoluir': {
       if (!ehDoLado(jogada.pedido.tokenId)) return recusa('naoEDaConta')

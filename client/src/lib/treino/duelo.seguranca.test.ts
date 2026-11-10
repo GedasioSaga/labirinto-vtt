@@ -317,6 +317,16 @@ describe('cliente malicioso: agir com a ficha que não é dele', () => {
     expect(peloFio(duelo, motor, 'conta_de_fora', { tipo: 'passar', seq: duelo.seq, vez: vezDe(duelo) })).toEqual({ ok: false, motivo: 'naoJoga' })
     expect(duelo).toEqual(antes)
   })
+
+  it('a passiva que a regra recusa volta com o motivo da regra (a tela do site não cai na frase genérica)', () => {
+    const { motor } = motorContado()
+    const duelo = novoDuelo(motor)
+    const antes = structuredClone(duelo)
+    const passiva = (cartaoId: string): Record<string, unknown> => ({ tipo: 'passiva', seq: duelo.seq, pedido: { tipo: 'passiva', tokenId: CURANDEIRA, cartaoId, ligar: true, custo: null } })
+    expect(peloFio(duelo, motor, CONTA_A, passiva('cart_que_nao_existe'))).toEqual({ ok: false, motivo: 'regra', texto: 'Passiva não encontrada na ficha' })
+    expect(peloFio(duelo, motor, CONTA_A, passiva(SOPRO.id))).toEqual({ ok: false, motivo: 'regra', texto: 'Esta habilidade não é passiva' })
+    expect(duelo).toEqual(antes)
+  })
 })
 
 describe('cliente malicioso: técnica e arma que a ficha não tem', () => {
