@@ -46,6 +46,17 @@ function nomeDoCartao(cartao: CartaoDaFicha): string {
   return cartao.nome.trim() === '' ? CARTAO_SEM_NOME : cartao.nome
 }
 
+/**
+ * De onde sai a técnica que mora dentro de uma transformação: na ficha de quem
+ * traz ela chega solta, então a lista diz de que forma ela é ("da forma Gear 4").
+ * O nome que já começa por "Forma" não repete a palavra ("da Forma Híbrida").
+ */
+function origemNaForma(forma: string): string {
+  const nome = forma.trim()
+  if (nome === '') return 'de uma forma sem nome'
+  return /^forma\b/i.test(nome) ? `da ${nome}` : `da forma ${nome}`
+}
+
 /** "1 habilidade", "3 habilidades": a conta com a palavra da aba. */
 function contaDaAba(aba: AbaDoSistema, quantos: number): string {
   return `${quantos} ${(quantos === 1 ? aba.item : aba.nome).toLocaleLowerCase('pt-BR')}`
@@ -257,7 +268,7 @@ function CartaoParaMarcar({ item, aba, sistema, personagem, marcado, jaNaFicha, 
                 {etiquetaDaMecanica(pecas)}
               </span>
             )}
-            {item.dentroDe !== null && <span className="lb-escolher__ja">em {item.dentroDe}</span>}
+            {item.dentroDe !== null && <span className="lb-escolher__ja">{origemNaForma(item.dentroDe)}</span>}
             {jaNaFicha && <span className="lb-escolher__ja">{nomeDaFicha(personagem)} já tem uma com este nome</span>}
           </span>
           {pecas !== null ? (

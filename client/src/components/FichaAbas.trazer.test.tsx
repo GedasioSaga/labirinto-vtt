@@ -45,7 +45,7 @@ const FROG: Personagem = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'npc', 'Frog'), 
 const SEM_GOLPES: Personagem = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Nav'), id: 'pers_nav' }
 
 /** O Frog em edição, guardando o rascunho como a janela guarda; `visto` recebe cada versão. */
-function FrogEditando({ visto }: { visto: (p: Personagem) => void }) {
+function FrogEditando({ visto, fichas = [FROG, TREE, SEM_GOLPES] }: { visto: (p: Personagem) => void; fichas?: Personagem[] }) {
   const [personagem, setPersonagem] = useState(FROG)
   return (
     <FichaDePersonagem
@@ -57,7 +57,7 @@ function FrogEditando({ visto }: { visto: (p: Personagem) => void }) {
         setPersonagem(novo)
       }}
       escolherImagem={async () => null}
-      outrasFichas={[FROG, TREE, SEM_GOLPES]}
+      outrasFichas={fichas}
     />
   )
 }
@@ -116,6 +116,27 @@ describe('Trazer de outra ficha', () => {
     expect(visto.mock.calls.at(-1)?.[0].abas[ABA_DAS_TECNICAS]?.[0]?.nome).toBe('Bolha do Frog')
     expect(TREE.abas[ABA_DAS_TECNICAS]?.[0]).toBe(BOLHA)
     expect(BOLHA.nome).toBe('Bolha')
+  })
+
+  it('a técnica que mora dentro de uma transformação diz de que forma é: "da forma Gear 4", e "da Forma Híbrida" sem repetir a palavra', () => {
+    const forma = (nome: string, tecnica: string): CartaoDaFicha => ({ ...novoCartao(nome), id: `cart_${nome}`, subcartoes: [{ ...novoCartao(tecnica), id: `cart_${tecnica}` }] })
+    const treeComFormas: Personagem = { ...TREE, abas: { [ABA_DAS_TECNICAS]: [BOLHA], transformacoes: [forma('Gear 4', 'Esmagar'), forma('Forma Híbrida', 'Garra')] } }
+    act(() => root.render(<FrogEditando visto={() => undefined} fichas={[FROG, treeComFormas]} />))
+    act(() => botao('Trazer de outra ficha').click())
+    const tree = container.querySelector<HTMLButtonElement>('.lb-trazer__ficha')
+    if (tree === null) throw new Error('sem o Tree na lista de fichas')
+    act(() => tree.click())
+
+    const origens = Array.from(container.querySelectorAll('.lb-trazer__cartao')).map((linha) => [
+      linha.querySelector('.lb-escolher__nome')?.firstChild?.textContent,
+      linha.querySelector('.lb-escolher__ja')?.textContent ?? null,
+    ])
+    // A Bolha é solta na aba: sem origem. As outras duas saem de dentro das formas.
+    expect(origens).toEqual([
+      ['Bolha', null],
+      ['Esmagar', 'da forma Gear 4'],
+      ['Garra', 'da Forma Híbrida'],
+    ])
   })
 
   it('copiaDoCartao: ids novos de cima a baixo, a mecânica inteira, sem a proposta do dono nem a arma padrão', () => {
