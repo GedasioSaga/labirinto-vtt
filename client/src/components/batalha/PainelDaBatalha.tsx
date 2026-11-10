@@ -5,7 +5,7 @@ import type { Desempate } from '../../lib/batalha/turnos'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
-import { BotaoDaCameraDaBatalha } from './ChavesDoCombate'
+import { BotaoDaCameraDaBatalha, BotaoDoSomDoCombate } from './ChavesDoCombate'
 import type { DadosDaFaixa, LinhaNaTela } from './dadosDaFaixa'
 import { RegistroDaBatalha } from './RegistroDaBatalha'
 import './batalha.css'
@@ -90,6 +90,8 @@ export function PainelDaBatalha({
           </Botao>
           {/* D7: a chave do mestre para a câmera que traz a ficha da vez para a vista (ligada por padrão, guardada neste computador). */}
           <BotaoDaCameraDaBatalha />
+          {/* D5: a chave do som também mora aqui: na vez de um jogador o menu da vez (onde ela está) não aparece para o mestre. */}
+          <BotaoDoSomDoCombate />
         </Acoes>
         {dados.depois !== null && <p className="bt-texto">{dados.depois}</p>}
       </section>
