@@ -279,6 +279,21 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   biombo: [lugar('madeira', 'Moldura', MADEIRAS, 'nogueira'), lugar('pano', 'Pano', TECIDOS, 'linho')],
   piano: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('assento', 'Assento', TECIDOS, 'vinho')],
   candelabroDeChao: [lugar('metal', 'Metal', METAIS, 'ferro')],
+  // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro. O primeiro lugar vai na "Cor"; o
+  // segundo, na "Cor da linha". Os metais da banheira são a torneira, as cruzetas, a correntinha e os pés; a
+  // madeira da tina é a das aduelas e a do banquinho (os mesmos lugares do barril e do balde). Fixos: a louça,
+  // a água, a espuma, o sabão e o tampão da banheira; o pano de linho, a água, o vapor e a escova da tina (um
+  // objeto só guarda duas cores, e o pano não virou lugar); a louça com o filete azul, a água, o sabão e o
+  // latão da barra do lavatório; o vidro, o barro, os panos, as conservas, o barbante, o ferro do varão, as
+  // ervas e o alho da prateleira de potes; o aço, o ferro, o latão dos rebites, o peixe, os legumes e o pano
+  // da mesa de corte (os cabos trocam de madeira sozinhos, para não sumir no tampo); o ferro dos ganchos, a
+  // corda e as carnes do gancho.
+  banheira: [lugar('metais', 'Metais', METAIS, 'latao'), lugar('toalha', 'Toalha', TECIDOS, 'vinho')],
+  tinaDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  lavatorioComJarro: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('toalha', 'Toalha', TECIDOS, 'azul')],
+  prateleiraDePotes: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  mesaDeCorte: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  ganchoComCarne: [lugar('madeira', 'Armação', MADEIRAS, 'carvalho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

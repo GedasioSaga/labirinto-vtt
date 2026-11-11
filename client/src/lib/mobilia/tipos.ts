@@ -46,6 +46,9 @@ export const TIPOS_MOBILIA = [
   // Lote 4 dos 95 objetos novos (11/11/2026), a sala e o quarto: a escrivaninha, o criado-mudo com vela, a
   // cama de casal, o berço, a banqueta, o biombo, o piano e o candelabro de chão.
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+  // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro: a banheira, a tina de madeira, o
+  // lavatório com jarro, a prateleira de potes, a mesa de corte e o gancho com carne pendurada.
+  'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

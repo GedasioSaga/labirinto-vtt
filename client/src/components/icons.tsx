@@ -1175,6 +1175,70 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6 4.3h.01M12 2.8h.01M18 4.3h.01" />
         </>
       )
+    case 'banheira':
+      // De lado: a borda de ponta a ponta, o bojo fundo sobre os dois pés de garra, a torneira em arco numa ponta e as bolhas de espuma (a pia não tem pés nem bolhas).
+      return (
+        <>
+          <path d="M2 10h20" />
+          <path d="M3.5 10v2.5a5.5 5.5 0 0 0 5.5 5.5h6a5.5 5.5 0 0 0 5.5-5.5V10" />
+          <path d="M7 18l-1.2 3.2M17 18l1.2 3.2" />
+          <path d="M20.5 10V6.2a2 2 0 0 0-4 0" />
+          <circle cx="7.5" cy="6.8" r="1.3" />
+          <circle cx="11" cy="5.2" r="0.9" />
+        </>
+      )
+    case 'tinaDeMadeira':
+      // De frente: a tina larga e baixa com os dois aros, o vapor subindo da água e o banquinho de dois degraus ao lado (o balde é estreito e tem alça).
+      return (
+        <>
+          <path d="M2.5 9.5H16l-1 11H3.5z" />
+          <path d="M2.9 13h12.7M3.2 17h12.1" />
+          <path d="M6.5 6.5c-.8-1 .8-1.7 0-3M11.5 6.5c-.8-1 .8-1.7 0-3" />
+          <path d="M17.5 20.5V14H20v3h2.5v3.5z" />
+        </>
+      )
+    case 'lavatorioComJarro':
+      // De frente: a mesinha de duas pernas com a toalha pendurada na barra, a bacia em cima do tampo e o jarro de asa ao lado.
+      return (
+        <>
+          <path d="M2.5 12.5h19M4.5 12.5v9M19.5 12.5v9" />
+          <path d="M8 15h8M9.5 15v4.5h5V15" />
+          <path d="M4 9h7.5c0 2-1.5 3.5-3.75 3.5S4 11 4 9z" />
+          <path d="M14.3 12.5c-1-1-1.1-3 .4-4.3V6h3.2v2.2c1.5 1.3 1.4 3.3.4 4.3" />
+          <path d="M17.9 6.8h1.1a1.2 1.2 0 0 1 1.2 1.2v.5a1.4 1.4 0 0 1-1.4 1.4" />
+        </>
+      )
+    case 'prateleiraDePotes':
+      // De frente, na parede: as duas tábuas com as mãos-francesas, um vidro de tampa de pano e um pote redondo em cima, um vidro no vão, e a réstia de alho e o maço de ervas pendurados embaixo.
+      return (
+        <>
+          <path d="M2.5 9h19M2.5 14.5h19M4 9v8.5M20 9v8.5" />
+          <path d="M6.5 9V4.5h4V9M6 4.5h5M13.5 14.5v-3.2h3.2v3.2" />
+          <circle cx="16" cy="6.4" r="2.6" />
+          <path d="M9 14.5v2M15.5 14.5v2.2l-1.6 3.6M15.5 16.7l1.6 3.6M15.5 16.7v4" />
+          <circle cx="9" cy="17.7" r="1.2" />
+          <circle cx="9" cy="20.3" r="1.2" />
+        </>
+      )
+    case 'mesaDeCorte':
+      // De frente: o bloco grosso do tampo sobre as duas pernas, o cutelo cravado nele (a lâmina em pé, com o furo, e o cabo para o alto) e o peixe ao lado.
+      return (
+        <>
+          <rect x="2.5" y="11" width="19" height="4" />
+          <path d="M5 15v6.5M19 15v6.5" />
+          <path d="M13.5 11V5.5h4.5V11M18 6.5l3-2.5M15 7.5h.01" />
+          <path d="M3.5 9.5c2-2.6 5-2.6 7 0c-2 1.6-5 1.6-7 0zM3.5 9.5l-1.5-1.3M3.5 9.5l-1.5 1M8.8 9h.01" />
+        </>
+      )
+    case 'ganchoComCarne':
+      // De frente: a trave sobre os dois postes e, pendurados nela, o presunto (o jarrete fino e o corpo gordo) e a volta de linguiça com o rabo que sobra.
+      return (
+        <>
+          <path d="M2 4.5h20M3.5 4.5v17M20.5 4.5v17" />
+          <path d="M8 4.5v3.5M8 8c-2.2 2.6-3 4.8-3 6.6a3 3 0 0 0 6 0c0-1.8-.8-4-3-6.6z" />
+          <path d="M13 4.5v3a2.5 2.5 0 0 0 5 0v-3M15.5 10v3.5" />
+        </>
+      )
   }
 }
 

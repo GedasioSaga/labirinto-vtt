@@ -34,6 +34,7 @@ export const PECAS_NOVAS = [
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+  'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -187,6 +188,17 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   biombo: { rotulo: 'Biombo', artigo: 'um biombo', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
   piano: { rotulo: 'Piano', artigo: 'um piano', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   candelabroDeChao: { rotulo: 'Candelabro de chão', artigo: 'um candelabro de chão', tamanho: { largura: 0.6, altura: 0.6 }, redonda: true },
+  // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro, cada um com o próprio desenho; esticam e
+  // giram como todo objeto. A frente da banheira (a toalha na borda), do lavatório (a barra da toalha), da mesa
+  // de corte (o pano) e do gancho (onde as peças pendem) é o lado de baixo; a prateleira de potes é de parede
+  // (o lado de cima encosta nela) e não toca o chão. A tina é redonda, mas o banquinho dela ocupa o canto da
+  // pegada: por isso não é `redonda`. Nenhum tem luz nem chama.
+  banheira: { rotulo: 'Banheira', artigo: 'uma banheira', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  tinaDeMadeira: { rotulo: 'Tina de madeira', artigo: 'uma tina de madeira', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  lavatorioComJarro: { rotulo: 'Lavatório com jarro', artigo: 'um lavatório com jarro', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
+  prateleiraDePotes: { rotulo: 'Prateleira de potes', artigo: 'uma prateleira de potes', tamanho: { largura: 1.5, altura: 0.4 }, redonda: false },
+  mesaDeCorte: { rotulo: 'Mesa de corte', artigo: 'uma mesa de corte', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  ganchoComCarne: { rotulo: 'Gancho com carne pendurada', artigo: 'um gancho com carne pendurada', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -268,6 +280,12 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     biombo: valor(f.biombo),
     piano: valor(f.piano),
     candelabroDeChao: valor(f.candelabroDeChao),
+    banheira: valor(f.banheira),
+    tinaDeMadeira: valor(f.tinaDeMadeira),
+    lavatorioComJarro: valor(f.lavatorioComJarro),
+    prateleiraDePotes: valor(f.prateleiraDePotes),
+    mesaDeCorte: valor(f.mesaDeCorte),
+    ganchoComCarne: valor(f.ganchoComCarne),
   }
 }
 
@@ -300,12 +318,13 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1, 2, 3 e 4 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em
-  // que o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 a 5 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+  'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
 ]
 
 /**
@@ -1054,6 +1073,84 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         }),
         { x1: menor * 0.06, y1: menor * 0.02, x2: menor * 0.44, y2: menor * 0.16 },
         { x1: -menor * 0.06, y1: menor * 0.02, x2: -menor * 0.44, y2: menor * 0.16 },
+      ]
+    }
+    case 'banheira':
+      // A beira da água (o oval por dentro da borda), a bica da torneira na ponta direita e a toalha dobrada na borda da frente.
+      return [
+        ...aro(largura * 0.8, altura * 0.62),
+        linha(hw * 0.58, 0, hw * 0.94),
+        ...quadro(-hw * 0.5, hh * 0.68, -hw * 0.18, hh * 0.98),
+      ]
+    case 'tinaDeMadeira': {
+      // A tina redonda no canto do fundo (a boca e a beira da água), a escova atravessada na borda e o banquinho de dois degraus colado nela, do lado do canto da frente.
+      const menor = Math.min(largura, altura)
+      const raio = menor * 0.43
+      const cx = -hw + raio + menor * 0.01
+      const cy = -hh + raio + menor * 0.01
+      const ate = Math.hypot(hw - cx, hh - cy) || 1
+      const ux = (hw - cx) / ate
+      const uy = (hh - cy) / ate
+      const perto = raio + menor * 0.035
+      const longe = perto + menor * 0.176
+      const meio = menor * 0.107
+      const noBanco = (ao: number, lado: number): [number, number] => [cx + ux * ao - uy * lado, cy + uy * ao + ux * lado]
+      const [dx1, dy1] = noBanco((perto + longe) / 2, -meio)
+      const [dx2, dy2] = noBanco((perto + longe) / 2, meio)
+      return [
+        ...aro(raio * 2, raio * 2, cx, cy),
+        ...aro(raio * 1.4, raio * 1.4, cx, cy),
+        { x1: cx + raio * 0.3, y1: cy - raio * 0.24, x2: cx + raio * 0.72, y2: cy - raio * 0.56 },
+        ...fechado([noBanco(perto, -meio), noBanco(perto, meio), noBanco(longe, meio), noBanco(longe, -meio)]),
+        { x1: dx1, y1: dy1, x2: dx2, y2: dy2 },
+      ]
+    }
+    case 'lavatorioComJarro': {
+      // O espaldar no fundo, a bacia à esquerda (a borda e a água), o jarro à direita com a asa e a barra da toalha na frente.
+      const bacia = Math.min(altura * 0.66, largura * 0.42)
+      const jarro = bacia * 0.62
+      const xJarro = hw * 0.43
+      const yJarro = -hh * 0.18
+      return [
+        linha(-hw, -hh * 0.8, hw),
+        ...aro(bacia, bacia, -hw * 0.5, -hh * 0.06),
+        ...aro(bacia * 0.6, bacia * 0.6, -hw * 0.5, -hh * 0.06),
+        ...aro(jarro, jarro, xJarro, yJarro),
+        { x1: xJarro + jarro * 0.46, y1: yJarro + jarro * 0.2, x2: xJarro + jarro * 0.72, y2: yJarro + jarro * 0.3 },
+        linha(-hw * 0.54, hh * 0.86, hw * 0.54),
+      ]
+    }
+    case 'prateleiraDePotes': {
+      // A ripa de fundo, rente à parede, e a fileira de potes vistos pela boca, um maior e um menor.
+      const pote = Math.min(altura * 0.56, largura * 0.14)
+      return [
+        linha(-hw, -hh * 0.62, hw),
+        ...[-0.76, -0.38, 0, 0.38, 0.76].flatMap((f, i) => aro(pote * (i % 2 === 0 ? 1 : 0.7), pote * (i % 2 === 0 ? 1 : 0.7), hw * f, hh * 0.16)),
+      ]
+    }
+    case 'mesaDeCorte': {
+      // A beira do bloco, o peixe no meio (o corpo e o rabo em V), o cutelo cravado no canto (a lâmina e o cabo) e o pano na quina da frente.
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.92, hw * 0.94, hh * 0.92),
+        ...aro(largura * 0.4, menor * 0.2, -hw * 0.1, -hh * 0.18),
+        { x1: -hw * 0.5, y1: -hh * 0.18, x2: -hw * 0.66, y2: -hh * 0.36 },
+        { x1: -hw * 0.5, y1: -hh * 0.18, x2: -hw * 0.66, y2: 0 },
+        ...fechado([[hw * 0.3, -hh * 0.52], [hw * 0.62, -hh * 0.72], [hw * 0.68, -hh * 0.56], [hw * 0.36, -hh * 0.36]]),
+        { x1: hw * 0.65, y1: -hh * 0.64, x2: hw * 0.88, y2: -hh * 0.8 },
+        ...quadro(-hw * 0.86, hh * 0.38, -hw * 0.44, hh * 0.84),
+      ]
+    }
+    case 'ganchoComCarne': {
+      // A trave de ponta a ponta entre as duas sapatas atravessadas e, pendurados na frente dela, o presunto, os gomos da linguiça e a ave.
+      const peca = Math.min(altura * 0.44, largura * 0.16)
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.2, hw * 0.96, hh * 0.06),
+        { x1: -hw * 0.9, y1: -hh * 0.94, x2: -hw * 0.9, y2: hh * 0.94 },
+        { x1: hw * 0.9, y1: -hh * 0.94, x2: hw * 0.9, y2: hh * 0.94 },
+        ...aro(peca * 1.3, peca, -hw * 0.5, hh * 0.5),
+        ...[-0.14, 0.04, 0.22].flatMap((f) => aro(peca * 0.5, peca * 0.5, hw * f, hh * 0.36)),
+        ...aro(peca, peca * 0.8, hw * 0.56, hh * 0.46),
       ]
     }
   }

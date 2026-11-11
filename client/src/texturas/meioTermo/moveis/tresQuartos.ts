@@ -39,6 +39,11 @@ import { ESPESSURA_DO_TAMPO_DA_BANCADA } from './bancadaDeFerramentas'
 import { ESPESSURA_DO_COCHO } from './cocho'
 import { ESPESSURA_DAS_TRAVESSAS_DO_BIOMBO } from './biombo'
 import { ALTURA_DA_VELA_DO_CANDELABRO } from './candelabroDeChao'
+import { ESPESSURA_DA_BORDA_DA_BANHEIRA } from './banheira'
+import { ESPESSURA_DO_LAVATORIO } from './lavatorioComJarro'
+import { ESPESSURA_DA_TABUA_DA_PRATELEIRA_DE_POTES } from './prateleiraDePotes'
+import { ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE } from './mesaDeCorte'
+import { ESPESSURA_DA_TRAVE_DO_GANCHO } from './ganchoComCarne'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -255,6 +260,26 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // na altura que o desenho exporta: com a padrão as velas saíam tocos de 3 px. Os nós do mastro são tampos
   // sem peça e têm a mesma altura.
   candelabroDeChao: { modo: 'derivado', espessura: ALTURA_DA_VELA_DO_CANDELABRO },
+  // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro: nenhum serve com a beirada padrão. A
+  // borda roliça da banheira é um tampo solto por cima do bojo (a coluna), e a toalha que cai pela frente é
+  // outro, fino, colado nela: os dois descem a grossura da borda, que o desenho exporta.
+  banheira: { modo: 'derivado', espessura: ESPESSURA_DA_BORDA_DA_BANHEIRA },
+  // Os dois aros de ferro da frente da tina são tampos soltos e finos (a metade da frente de cada anel, na
+  // altura dele, sem sombra): com a beirada padrão cada aro engrossaria 3 px para baixo. Sem beirada nenhuma.
+  tinaDeMadeira: { modo: 'derivado', espessura: 0 },
+  // A beirada do lavatório serve à saia do tampo, ao espaldar (um tampo solto uma beirada acima do tampo) e à
+  // queda da toalha na barra da frente: com a padrão a mesinha virava uma tábua fina, o espaldar ficava solto
+  // no ar e a toalha encolhia. É a que o desenho exporta.
+  lavatorioComJarro: { modo: 'derivado', espessura: ESPESSURA_DO_LAVATORIO },
+  // A prateleira de potes, a mesa de corte e o gancho desenham as peças de uma vista só (a de cima some quando
+  // a 3/4 a sobe; a da frente só aparece subida) e prendem a ordem em âncoras de um ponto, que nunca pintam:
+  // os três contam com a 3/4 subindo cada peça pelo `dy` dela (`cenaEmTresQuartos`). A beirada de cada um é a
+  // que o desenho exporta: a grossura da tábua de cima da prateleira (a de baixo é desenhada com a mesma), o
+  // bloco de açougueiro da mesa (com a padrão saía fino como o de uma mesa de jantar) e a trave do gancho (com
+  // a padrão, fina como uma ripa).
+  prateleiraDePotes: { modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DA_PRATELEIRA_DE_POTES },
+  mesaDeCorte: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE },
+  ganchoComCarne: { modo: 'derivado', espessura: ESPESSURA_DA_TRAVE_DO_GANCHO },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

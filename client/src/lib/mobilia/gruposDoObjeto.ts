@@ -65,7 +65,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   biombo: 'salaEQuarto',
   piano: 'salaEQuarto',
   candelabroDeChao: 'salaEQuarto',
-  // Cozinha e banheiro; o caldeirão e o forno de pão (11/11/2026).
+  // Cozinha e banheiro; o caldeirão e o forno de pão (11/11/2026); e o lote 5 dos objetos novos (11/11/2026),
+  // da banheira ao gancho com carne pendurada.
   armario: 'cozinhaEBanheiro',
   balcao: 'cozinhaEBanheiro',
   fogao: 'cozinhaEBanheiro',
@@ -75,6 +76,12 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   privada: 'cozinhaEBanheiro',
   caldeirao: 'cozinhaEBanheiro',
   fornoDePao: 'cozinhaEBanheiro',
+  banheira: 'cozinhaEBanheiro',
+  tinaDeMadeira: 'cozinhaEBanheiro',
+  lavatorioComJarro: 'cozinhaEBanheiro',
+  prateleiraDePotes: 'cozinhaEBanheiro',
+  mesaDeCorte: 'cozinhaEBanheiro',
+  ganchoComCarne: 'cozinhaEBanheiro',
   // Armazenagem.
   barril: 'armazenagem',
   caixa: 'armazenagem',

@@ -76,8 +76,15 @@ export interface ContextoDoMovel {
    * sombra do assento no chão e a luz da cova dele caem no lugar na tela), o
    * biombo (a sombra pintada de cada folha, as raias cortadas a prumo da
    * tela, e a almofada e a travessa do meio só do lado virado para quem
-   * olha) e o candelabro de chão (as chamas apontam para cima na tela). Os
-   * outros desenhos não leem.
+   * olha) e o candelabro de chão (as chamas apontam para cima na tela). Do
+   * lote 5 (11/11/2026) leem a tina de madeira (os dois aros da frente e os
+   * rebites deles ficam do lado que cai embaixo na tela; sem isso, girada, os
+   * aros sairiam por cima da água), a prateleira de potes e o gancho com carne
+   * (girados, não põem as peças da vista de cima e desenham a frente já
+   * desgirada: a prateleira de costas mostra as ripas do fundo na frente dos
+   * potes, e o gancho de lado põe as peças de perfil ao longo da trave) e a
+   * mesa de corte (só o cutelo: de pé na direção girada). Os outros desenhos
+   * não leem.
    */
   readonly giro: number
 }

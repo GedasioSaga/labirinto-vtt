@@ -183,6 +183,13 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       biombo: ['madeira:nogueira', 'pano:linho'],
       piano: ['madeira:nogueira', 'assento:vinho'],
       candelabroDeChao: ['metal:ferro'],
+      // Lote 5 dos 95 objetos novos (11/11/2026): a tina com os lugares do barril e do balde.
+      banheira: ['metais:latao', 'toalha:vinho'],
+      tinaDeMadeira: ['madeira:carvalho', 'aros:ferro'],
+      lavatorioComJarro: ['madeira:nogueira', 'toalha:azul'],
+      prateleiraDePotes: ['madeira:nogueira'],
+      mesaDeCorte: ['madeira:pinho'],
+      ganchoComCarne: ['madeira:carvalho'],
     })
   })
 

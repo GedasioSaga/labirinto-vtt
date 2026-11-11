@@ -91,6 +91,12 @@ import { montarBanqueta } from './banqueta'
 import { montarBiombo } from './biombo'
 import { montarPiano } from './piano'
 import { montarCandelabroDeChao } from './candelabroDeChao'
+import { montarBanheira } from './banheira'
+import { montarTinaDeMadeira } from './tinaDeMadeira'
+import { montarLavatorioComJarro } from './lavatorioComJarro'
+import { montarPrateleiraDePotes } from './prateleiraDePotes'
+import { montarMesaDeCorte } from './mesaDeCorte'
+import { montarGanchoComCarne } from './ganchoComCarne'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -205,6 +211,15 @@ const MONTADORES = {
   biombo: montarBiombo,
   piano: montarPiano,
   candelabroDeChao: montarCandelabroDeChao,
+  // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro: um desenho por arquivo. A tina de
+  // madeira, a prateleira de potes, a mesa de corte e o gancho com carne leem o `giro` (o quarto de volta que a
+  // 3/4 pinta); a banheira e o lavatório, não (girados, a 3/4 os deriva sozinha).
+  banheira: montarBanheira,
+  tinaDeMadeira: montarTinaDeMadeira,
+  lavatorioComJarro: montarLavatorioComJarro,
+  prateleiraDePotes: montarPrateleiraDePotes,
+  mesaDeCorte: montarMesaDeCorte,
+  ganchoComCarne: montarGanchoComCarne,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -245,6 +260,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+  'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
