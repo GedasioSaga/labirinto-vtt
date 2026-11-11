@@ -121,6 +121,17 @@ describe('resolveHoverHit — resize-corner (entidade já selecionada)', () => {
     expect(result).toEqual({ kind: 'resize-corner', corner: 0, target: null })
   })
 
+  // Prova de 11/11/2026: no objeto girado o canto que responde é o do desenho, não o da caixa sem giro.
+  it('prop girado 40°: o canto do desenho promete redimensionar, o da caixa sem giro não', () => {
+    const map = addProp(baseMap, { id: 'p1', src: 'x.png', x: 500, y: 400, width: 128, height: 128, linkedMapPath: null, rotation: 40 })
+    const a = (40 * Math.PI) / 180
+    const cimaDireita = { x: 500 + 64 * Math.cos(a) + 64 * Math.sin(a), y: 400 + 64 * Math.sin(a) - 64 * Math.cos(a) }
+    const pairar = (worldPoint: { x: number; y: number }) =>
+      resolveHoverHit({ map, selection: { kind: 'prop', id: 'p1' }, areaSelection: null, activeTool: 'select', worldPoint })
+    expect(pairar(cimaDireita)).toEqual({ kind: 'resize-corner', corner: 1, target: null })
+    expect(pairar({ x: 564, y: 336 }).kind).not.toBe('resize-corner')
+  })
+
   // Pedido de 11/11/2026: o objeto ganha a alça de girar da sala, e ela fica por cima do que está embaixo dela.
   it('prop selecionado: a bolinha acima do topo promete girar, mesmo com outro objeto embaixo dela', () => {
     let map = addProp(baseMap, { id: 'p1', src: 'x.png', x: 100, y: 100, width: 40, height: 40, linkedMapPath: null })

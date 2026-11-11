@@ -7,11 +7,11 @@ import { alcasDoDesenho, editavelPorPontos } from '../lib/pontosChave'
 import { hasRoomCornerHandles } from '../lib/roomOps'
 import { propRotateHandle, roomRotateHandle, roomRotationOf, type RoomRotateHandle } from '../lib/roomRotation'
 import { isLocked } from '../lib/itemTransform'
-import { cornerHandleExtent, drawCornerHandle, drawRoomHandles } from './drawRoomHandles'
+import { cornerHandleExtent, drawCornerHandle, drawCornerHandlesOnScreen, drawRoomHandles } from './drawRoomHandles'
 import { stairHandles } from '../lib/stairHandles'
 import { stairLength } from '../lib/stairCurve'
 import { alcaDaCurvaDaCerca } from '../lib/cercaCurva'
-import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
+import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, propCorners } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import { selectionOutlineWidth } from './drawWalls'
@@ -353,7 +353,9 @@ export function drawEditHandles(
   if (selection.kind === 'prop') {
     const prop = map.props.find((p) => p.id === selection.id)
     if (!prop || isLocked(prop)) return
-    drawBoxResizeHandles(graphics, propBoundingBox(prop), scale)
+    // Os chips nos cantos do DESENHO: girado, a caixa sem giro gira com ele (`propCorners`).
+    const box = propBoundingBox(prop)
+    drawCornerHandlesOnScreen(graphics, propCorners(prop), box.maxX - box.minX, box.maxY - box.minY, scale)
     // CERCA: além dos cantos (que esticam o trecho), a bolinha vazada de curvar no meio do fio (`lib/cercaCurva.ts`).
     const alca = alcaDaCurvaDaCerca(prop)
     if (alca !== null) drawStairCurveHandle(graphics, alca, scale)

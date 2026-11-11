@@ -23,7 +23,7 @@ import type { DrawingPoint, Prop, RegionPoint, Stair } from '../types/map'
 import type { Point } from '../pixi/world'
 import { stairHandles, type StairHandleKind } from './stairHandles'
 import { alcaDaCurvaDaCerca } from './cercaCurva'
-import { findBoxCornerAt, boxCorners, RESIZE_HANDLE_TOLERANCE, type Box, type Corner } from './objectTransform'
+import { findBoxCornerAt, boxCorners, pointInPropAxis, propBoundingBox, RESIZE_HANDLE_TOLERANCE, type Box, type Corner } from './objectTransform'
 import { findRoomCornerAt, ROOM_CORNER_HIT_TOLERANCE, type RoomCorner } from './roomOps'
 import { findCurveControlPointAt } from './selectionHitTest'
 import { cornerHandleExtent } from '../pixi/drawRoomHandles'
@@ -80,6 +80,14 @@ export function findBoxCornerHandleAt(box: Box, point: Point, cameraScale: numbe
   const byReach = findBoxCornerAt(box, point, reach)
   if (byReach !== null) return byReach
   return cornerChipAt(boxCorners(box), point, chipHalfSide(width, height, cameraScale))
+}
+
+/**
+ * Canto de Objeto sob o ponteiro: a conta da caixa sem giro, com o ponteiro deitado no eixo
+ * do objeto (`pointInPropAxis`) — no objeto girado, o canto que responde é o do desenho.
+ */
+export function findPropCornerHandleAt(prop: Prop, point: Point, cameraScale: number): Corner | null {
+  return findBoxCornerHandleAt(propBoundingBox(prop), pointInPropAxis(prop, point), cameraScale)
 }
 
 /** Canto de Sala retangular sob o ponteiro, no zoom `cameraScale`. */

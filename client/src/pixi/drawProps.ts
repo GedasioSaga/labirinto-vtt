@@ -9,6 +9,7 @@ import { desenhadoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
+import { propCorners } from '../lib/objectTransform'
 import { ehMovelDeCimaDaMesa, ehMovelDoChao, temParteAnimada } from '../lib/mobilia'
 import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
@@ -384,6 +385,13 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     if (curva !== null) {
       if (isHidden(prop)) strokeDashedPolygon(highlightGraphics, curva)
       if (prop.id === selectedPropId) highlightGraphics.poly(curva.flatMap((p) => [p.x, p.y]), true).stroke({ width: 3, color: SELECTION_COLOR })
+      return
+    }
+    // OBJETO GIRADO: fantasma e destaque seguem o desenho, nos cantos girados (`propCorners`).
+    if (prop.rotation) {
+      const cantos = propCorners(prop)
+      if (isHidden(prop)) strokeDashedPolygon(highlightGraphics, cantos)
+      if (prop.id === selectedPropId) highlightGraphics.poly(cantos.flatMap((p) => [p.x, p.y]), true).stroke({ width: 3, color: SELECTION_COLOR })
       return
     }
     const left = prop.x - prop.width / 2

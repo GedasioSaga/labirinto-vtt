@@ -4,7 +4,7 @@ import { drawEditHandles, findLightRadiusHandleAt, lightRadiusHandlePosition, ci
 import { createEmptyMap } from '../lib/mapFactory'
 import { ROOM_ROTATE_HANDLE } from '../lib/roomRotation'
 import { tokenBoundingBox } from '../lib/objectTransform'
-import { CORNER_HANDLE_KEYLINE_WIDTH, CORNER_HANDLE_RADIUS, HANDLE_VISUAL_RADIUS } from './constants'
+import { CORNER_HANDLE_KEYLINE_WIDTH, CORNER_HANDLE_RADIUS, HANDLE_VISUAL_RADIUS, SELECTION_COLOR } from './constants'
 import type { Light, Region, Wall, Drawing, Token, Prop, MapData } from '../types/map'
 
 /** Conta instruções `action: 'fill'` realmente empilhadas no GraphicsContext da instância. */
@@ -457,6 +457,32 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
 
     expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
     expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
+  })
+
+  // Prova de 11/11/2026: na barraca a 40° os chips ficavam na caixa SEM giro, a 61,9 px dos cantos do desenho.
+  it('prop girado 40°: os 4 chips ficam nos cantos do desenho girado', () => {
+    const prop: Prop = { id: 'p1', src: '/a.png', x: 500, y: 400, width: 128, height: 128, linkedMapPath: null, rotation: 40 }
+    const map = { ...createEmptyMap('m', 'M', 30, 20, 64), props: [prop] }
+    const g = new Graphics()
+
+    drawEditHandles(g, map, { kind: 'prop', id: 'p1' }, 'select')
+
+    // O quadrado amarelo de cada chip: o `rect` pintado de SELECTION_COLOR.
+    const chips = g.context.instructions.flatMap((i) => {
+      if (i.action !== 'fill' || i.data.style.color !== SELECTION_COLOR) return []
+      return i.data.path.instructions.flatMap((passo) => {
+        if (passo.action !== 'rect') return []
+        const [x, y, w, h]: unknown[] = passo.data
+        return typeof x === 'number' && typeof y === 'number' && typeof w === 'number' && typeof h === 'number' ? [{ x: x + w / 2, y: y + h / 2 }] : []
+      })
+    })
+    const a = (40 * Math.PI) / 180
+    const desenho = [[-64, -64], [64, -64], [64, 64], [-64, 64]].map(([dx, dy]) => ({ x: 500 + dx * Math.cos(a) - dy * Math.sin(a), y: 400 + dx * Math.sin(a) + dy * Math.cos(a) }))
+    expect(chips).toHaveLength(4)
+    chips.forEach((chip, i) => {
+      expect(chip.x).toBeCloseTo(desenho[i].x, 6)
+      expect(chip.y).toBeCloseTo(desenho[i].y, 6)
+    })
   })
 
   it('MAPA DE CONTINENTE: ficha desenhada como pino não ganha alça de canto (tamanho do pino é fixo na tela)', () => {

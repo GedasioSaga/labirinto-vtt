@@ -15,6 +15,7 @@ import {
   resizePolygonDrawing,
   resizeTokenSize,
   resizePropBox,
+  propCorners,
   resizeCircleDrawingRadius,
   MIN_TOKEN_SIZE,
   type Box,
@@ -321,6 +322,23 @@ describe('resizePropBox', () => {
     const result = resizePropBox(prop, 2, 40, 45)
     expect(result.width).toBeGreaterThan(0)
     expect(result.height).toBeGreaterThan(0)
+  })
+
+  // Prova de 11/11/2026: a barraca a 40° esticava nos eixos da tela. O canto anda no eixo DELA.
+  it('objeto girado 40°: o canto estica no eixo dele, o canto oposto fica parado no mapa e o giro não muda', () => {
+    const girado: Prop = { ...prop, x: 500, y: 400, width: 128, height: 64, rotation: 40 }
+    const antes = propCorners(girado)
+    const a = (40 * Math.PI) / 180
+    const u = { x: Math.cos(a), y: Math.sin(a) }
+    const v = { x: -Math.sin(a), y: Math.cos(a) }
+    // Canto 2 puxado 32 px para fora em cada eixo do objeto.
+    const alvo = { x: antes[2].x + 32 * (u.x + v.x), y: antes[2].y + 32 * (u.y + v.y) }
+    const depois = propCorners({ ...girado, ...resizePropBox(girado, 2, alvo.x, alvo.y) })
+    expect(depois[0].x).toBeCloseTo(antes[0].x, 6)
+    expect(depois[0].y).toBeCloseTo(antes[0].y, 6)
+    expect(depois[2].x).toBeCloseTo(alvo.x, 6)
+    expect(depois[2].y).toBeCloseTo(alvo.y, 6)
+    expect(resizePropBox(girado, 2, alvo.x, alvo.y)).toMatchObject({ width: expect.closeTo(160, 6), height: expect.closeTo(96, 6) })
   })
 })
 

@@ -1,5 +1,6 @@
 import type { Drawing, DrawingPoint, Token, Prop } from '../types/map'
 import type { Point } from '../pixi/world'
+import { rotatePointAround, rotationTrig } from './roomRotation'
 
 /**
  * Agente B3 — dossiê `docs/DOSSIE-FEEDBACK-F4.md`, seção "bug3 mover e
@@ -265,6 +266,29 @@ export function propBoundingBox(prop: Prop): Box {
   }
 }
 
+/*
+ * OBJETO GIRADO (prova de 11/11/2026: a barraca a 40° tinha os chips e a moldura
+ * na caixa SEM giro, a 61,9 px dos cantos do desenho). `propBoundingBox` é a
+ * caixa no EIXO do objeto; estas duas passam entre esse eixo e o mapa, girando
+ * em volta do centro, onde a tela gira a imagem (`pixi/propInteraction.ts`).
+ * Sem giro, nada é girado: o objeto reto segue exatamente a conta de antes.
+ */
+/** O ponto do mapa deitado no eixo do objeto (o giro ao contrário em volta do centro). */
+export function pointInPropAxis(prop: Pick<Prop, 'x' | 'y' | 'rotation'>, point: Point): Point {
+  return prop.rotation ? rotatePointAround(point, prop, rotationTrig(-prop.rotation)) : point
+}
+
+/** Um ponto do eixo do objeto de volta ao mapa (o giro do objeto em volta do centro). */
+function pointFromPropAxis(prop: Pick<Prop, 'x' | 'y' | 'rotation'>, point: Point): Point {
+  return prop.rotation ? rotatePointAround(point, prop, rotationTrig(prop.rotation)) : point
+}
+
+/** Os 4 cantos do objeto como a tela o desenha, na ordem `Corner` (0 = em cima à esquerda, no eixo dele). */
+export function propCorners(prop: Prop): [Point, Point, Point, Point] {
+  const [a, b, c, d] = boxCorners(propBoundingBox(prop))
+  return [pointFromPropAxis(prop, a), pointFromPropAxis(prop, b), pointFromPropAxis(prop, c), pointFromPropAxis(prop, d)]
+}
+
 type RectDrawing = Extract<Drawing, { kind: 'rect' }>
 type EllipseDrawing = Extract<Drawing, { kind: 'ellipse' }>
 type PolygonDrawing = Extract<Drawing, { kind: 'polygon' }>
@@ -389,6 +413,11 @@ export function resizeTokenSize(token: Token, gridSize: number, x: number, y: nu
  * (não min-corner+dimensões como rect), então o retorno já vem convertido
  * pro formato que `Prop` usa. `modifiers` opcional (item 17), mesma regra de
  * `resizeRectDrawing`.
+ *
+ * Girado: a MESMA conta, no eixo do objeto — o ponteiro deitado em volta do
+ * centro (`pointInPropAxis`), a caixa sem giro redimensionada e o centro novo
+ * devolvido ao mapa. O canto oposto fica parado no mapa e o giro não muda,
+ * como no canto da sala girada (`roomOps.resizeRoomCornerInOwnAxis`).
  */
 export function resizePropBox(
   prop: Prop,
@@ -397,10 +426,12 @@ export function resizePropBox(
   y: number,
   modifiers: ResizeModifiers = NO_RESIZE_MODIFIERS,
 ): { x: number; y: number; width: number; height: number } {
-  const box = resizeBoxWithModifiers(propBoundingBox(prop), corner, x, y, modifiers, MIN_PROP_DIMENSION)
+  const ponteiro = pointInPropAxis(prop, { x, y })
+  const box = resizeBoxWithModifiers(propBoundingBox(prop), corner, ponteiro.x, ponteiro.y, modifiers, MIN_PROP_DIMENSION)
+  const centro = pointFromPropAxis(prop, { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 })
   return {
-    x: (box.minX + box.maxX) / 2,
-    y: (box.minY + box.maxY) / 2,
+    x: centro.x,
+    y: centro.y,
     width: box.maxX - box.minX,
     height: box.maxY - box.minY,
   }

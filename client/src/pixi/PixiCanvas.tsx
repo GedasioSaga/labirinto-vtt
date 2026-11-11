@@ -250,7 +250,7 @@ import { drawDrawings } from './drawDrawings'
 import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawEditHandles, circleDrawingRadiusHandle } from './drawEditHandles'
 // Área de clique das alças no mesmo tamanho de TELA do desenho, em qualquer zoom.
-import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findVertexHandleAt, isOnRadiusHandle } from '../lib/handleHitArea'
 import { alcasDoDesenho, editavelPorPontos, type DesenhoPorPontos } from '../lib/pontosChave'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { isFreeMoveModifier } from '../lib/alignmentGuides'
@@ -348,7 +348,7 @@ import { rotuloDeQuadradosAndados, rotuloDoArrastoDaFicha } from '../lib/tokenDr
 import { tokenRadiusOf } from '../lib/doorReach'
 // Integrador I8 (F4): B3 "mover e redimensionar" — geometria de bounding-box
 // pra resize por canto de Drawing rect/ellipse/polygon, Token e Prop.
-import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
+import { drawingBoundingBox, tokenBoundingBox, resizeTokenSize, type Corner } from '../lib/objectTransform'
 // N3 "ferramenta de seleção de área" — geometria pura de marquee + mover grupo.
 import {
   selectEntitiesInArea,
@@ -6978,7 +6978,7 @@ function PixiCanvasDoContexto({
         if (activeTool === 'select' && single?.kind === 'prop') {
           const prop = map.props.find((p) => p.id === single.id)
           if (prop && canInteract(prop)) {
-            const corner = findBoxCornerHandleAt(propBoundingBox(prop), worldPoint, camera.scale)
+            const corner = findPropCornerHandleAt(prop, worldPoint, camera.scale)
             if (corner !== null) {
               mode = 'resizing-prop-corner'
               resizingPropId = prop.id
