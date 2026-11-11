@@ -1,4 +1,33 @@
-# 0.5.45 PUBLICADA às 08h34 de 10/11/2026 (o mais recente)
+# 95 OBJETOS NOVOS EM LOTES, plano aprovado em 11/11/2026 ~12h30 (o mais recente)
+
+## Objetivo
+Pôr no catálogo da ferramenta Objeto os 95 objetos que o mestre aprovou ("pronto gostei de todos, faça usando o Fable 5.2"). A lista literal, grupo a grupo, está no fim do `PEDIDOS.md` (11/11/2026). O catálogo vai de 53 objetos em 10 grupos para 148 em 13 (novos: Porto e navio, Templo e masmorra, Magia e alquimia). Plano inteiro, com a receita de um objeto arquivo por arquivo e a tabela dos 13 lotes: `C:\Users\gedasio.filho\.claude\plans\immutable-juggling-moore.md`.
+
+## Estado atual
+- Decisões do mestre (11/11, por pergunta): arte por código no motor Meio-Termo do app, como o lote de ontem (`4c654aa9`); entrega lote a lote sem parar (folha de arte por lote, sigo para o próximo enquanto ele olha, uma versão a cada lote aprovado); os 24 com estrela primeiro; até 3 desenhistas em paralelo só em arquivos novos mais 1 integrador nos compartilhados (passa por cima do "1 escritor por vez" do Meio-Termo, só neste trabalho); braseiro e forno de pão com chama animada (Aceso/Apagado), caldeirão com brasa pintada, velas e candelabro só iluminam.
+- Todos os agentes em Fable 5.2 (`model: "fable"`); desenhistas `designer-fable` e integrador `programador-frontend` em xhigh; auditor `verificador-realidade`.
+- Nada de código ainda. Catálogo: 53 objetos, main = 0.5.49 publicada.
+- Lote 0 (ferramenta): gerador de folha de contato fora do navegador em `client/src/texturas/meioTermo/moveis/` e acerto das duas tabelas de teste suspeitas (`texturas/meioTermo/materiais.test.ts:83-133`, `lib/mobilia.test.ts:90`). Ver a linha de andamento abaixo.
+
+## Próximos passos
+1. Lote 0 voltar; conferir que o gerador pinta um objeto não registrado.
+2. Lote 1 (boneco de treino, pilar, altar, estante de livros, sacos de grão, banco de praça, escombros de pedra, canhão): 3 desenhistas, depois 1 integrador (um commit só nos arquivos compartilhados), portão (`rtk proxy npx tsc --noEmit` + os 7 testes da área, uma vez), folha em `tmp/objetos-2026-11-11/lote-01/folha.png` enviada ao mestre, prova no app (pôr, girar, salvar, reabrir) e print da lista.
+3. Lotes 2 a 13 na ordem da tabela do plano, desenho do lote seguinte começando enquanto o anterior integra.
+4. A cada "aprovado": `verificador-realidade` contra o literal do PEDIDOS, depois publicar (worktree limpo cortado no commit do último lote APROVADO; lote registrado e não aprovado não entra).
+
+## Critério de pronto
+- Por lote: cada objeto aparece na ferramenta Objeto no grupo certo com o nome da lista; a busca acha; pôr, girar, salvar e reabrir dá o mesmo desenho; `tsc` sai 0; os 7 testes da área passam (ou só falham os que já falhavam, nomeados); o mestre viu a folha e aprovou.
+- No fim: 148 objetos em 13 grupos na contagem de `client/src/lib/toolVariants.test.ts`; os 95 itens do PEDIDOS marcados FEITO pelo verificador; `latest.json` responde a última versão.
+
+## Evidência
+- Receita conferida no código por um batedor (11/11, só leitura): 1 arquivo novo por objeto (`texturas/meioTermo/moveis/<tipo>.ts`) e 7 arquivos compartilhados mais 3 testes de contagem; o compilador cobra todos juntos quando o id entra em `lib/mobilia/tipos.ts`.
+- Máquina às 12h10: `C livre GB: 35,7`, `RAM livre GB: 4,9 de 31,7`.
+- Sem conferir: e2e de tempo `client/e2e/task-meio-termo-tres-quartos.spec.ts` (uma página por tipo, teto de 300 s; com 148 tipos pode estourar), Tauri de verdade, painel estreito.
+
+## Andamento dos lotes (uma linha por evento, a mais nova em cima)
+- 11/11 ~12h35: lote 0 lançado (`programador-frontend`, Fable xhigh).
+
+# 0.5.45 PUBLICADA às 08h34 de 10/11/2026
 
 ## Objetivo
 O mandato de 10/11 01h44 (unificar o combate, a lista de design do print 20, os riscos do site, publicar) está CUMPRIDO E PUBLICADO. O que resta é o mestre conferir no app instalado e decidir as pendências abaixo.
