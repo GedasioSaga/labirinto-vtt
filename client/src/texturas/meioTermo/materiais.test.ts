@@ -129,6 +129,23 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       // Troncos e feno (29/10/2026).
       troncos: ['lenha:lenhaCarvalho'],
       feno: [],
+      // O chafariz e os objetos de vento (02/11/2026).
+      chafariz: ['pedra:arenito'],
+      cataVento: ['madeira:velha'],
+      moinho: ['pedra:arenito', 'madeira:nogueira'],
+      cataVentoBrinquedo: [],
+      // A ponte (03/11/2026).
+      ponte: ['madeira:carvalho', 'pedra:granito'],
+      // O cemitério (07/11/2026).
+      cova: [],
+      caixao: ['madeira:carvalho', 'ferragens:ferro'],
+      caixaoAberto: ['madeira:carvalho'],
+      // Destroços, sucata e o campinho (10/11/2026).
+      destrocosDeMadeira: ['madeira:carvalho'],
+      sucataChapas: [],
+      sucataEngrenagens: [],
+      sucataTambores: [],
+      campinho: [],
     })
   })
 
