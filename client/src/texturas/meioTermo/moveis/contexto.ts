@@ -83,8 +83,14 @@ export interface ContextoDoMovel {
    * (girados, não põem as peças da vista de cima e desenham a frente já
    * desgirada: a prateleira de costas mostra as ripas do fundo na frente dos
    * potes, e o gancho de lado põe as peças de perfil ao longo da trave) e a
-   * mesa de corte (só o cutelo: de pé na direção girada). Os outros desenhos
-   * não leem.
+   * mesa de corte (só o cutelo: de pé na direção girada). Do lote 6
+   * (11/11/2026) leem os barris deitados e o tonel de adega (girados, montam a
+   * cena já na tela e a devolvem ao referencial do objeto, `desgirarCena` de
+   * `pipaDeitada.ts`: de costas sai o tampo de trás, sem torneira; de lado, o
+   * bojo de lado com a torneira na ponta), as ânforas de barro (para onde desce
+   * o corpo guardado de cada ânfora em pé, a sombra pintada no chão, a ordem
+   * dos pinos e a luz do lombo da tombada) e o cofre (só a sombra pintada da
+   * roda e da alavanca no chão). Os outros desenhos não leem.
    */
   readonly giro: number
 }

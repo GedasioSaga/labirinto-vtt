@@ -49,6 +49,9 @@ export const TIPOS_MOBILIA = [
   // Lote 5 dos 95 objetos novos (11/11/2026), a cozinha e o banheiro: a banheira, a tina de madeira, o
   // lavatório com jarro, a prateleira de potes, a mesa de corte e o gancho com carne pendurada.
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
+  // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem: a pilha de caixas, os barris deitados num
+  // suporte, o tonel de adega, as ânforas de barro, o cesto de vime e o cofre.
+  'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

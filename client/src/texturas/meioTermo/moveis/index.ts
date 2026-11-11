@@ -97,6 +97,12 @@ import { montarLavatorioComJarro } from './lavatorioComJarro'
 import { montarPrateleiraDePotes } from './prateleiraDePotes'
 import { montarMesaDeCorte } from './mesaDeCorte'
 import { montarGanchoComCarne } from './ganchoComCarne'
+import { montarPilhaDeCaixas } from './pilhaDeCaixas'
+import { montarBarrisDeitados } from './barrisDeitados'
+import { montarTonelDeAdega } from './tonelDeAdega'
+import { montarAnforasDeBarro } from './anforasDeBarro'
+import { montarCestoDeVime } from './cestoDeVime'
+import { montarCofre } from './cofre'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -220,6 +226,16 @@ const MONTADORES = {
   prateleiraDePotes: montarPrateleiraDePotes,
   mesaDeCorte: montarMesaDeCorte,
   ganchoComCarne: montarGanchoComCarne,
+  // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem: um desenho por arquivo. Os barris deitados e o
+  // tonel dividem um ajudante (`pipaDeitada.ts`, como o `fogoDeCasa.ts` da lareira, da fornalha, do forno de
+  // pão e do caldeirão), que não é objeto e não entra aqui. Os barris deitados, o tonel, as ânforas e o cofre leem o `giro` (o quarto de volta
+  // que a 3/4 pinta); a pilha de caixas e o cesto, não.
+  pilhaDeCaixas: montarPilhaDeCaixas,
+  barrisDeitados: montarBarrisDeitados,
+  tonelDeAdega: montarTonelDeAdega,
+  anforasDeBarro: montarAnforasDeBarro,
+  cestoDeVime: montarCestoDeVime,
+  cofre: montarCofre,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -261,6 +277,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
+  'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

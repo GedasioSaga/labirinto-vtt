@@ -190,6 +190,14 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       prateleiraDePotes: ['madeira:nogueira'],
       mesaDeCorte: ['madeira:pinho'],
       ganchoComCarne: ['madeira:carvalho'],
+      // Lote 6 dos 95 objetos novos (11/11/2026): os barris deitados e o tonel com os lugares do barril; as
+      // ânforas sem lugar, como os sacos de grão.
+      pilhaDeCaixas: ['madeira:pinho', 'lona:linho'],
+      barrisDeitados: ['madeira:carvalho', 'aros:ferro'],
+      tonelDeAdega: ['madeira:carvalho', 'aros:ferro'],
+      anforasDeBarro: [],
+      cestoDeVime: ['pano:linho'],
+      cofre: ['metal:ferro', 'ferragens:latao'],
     })
   })
 

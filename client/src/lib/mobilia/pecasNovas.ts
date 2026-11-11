@@ -35,6 +35,7 @@ export const PECAS_NOVAS = [
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
+  'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -199,6 +200,17 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   prateleiraDePotes: { rotulo: 'Prateleira de potes', artigo: 'uma prateleira de potes', tamanho: { largura: 1.5, altura: 0.4 }, redonda: false },
   mesaDeCorte: { rotulo: 'Mesa de corte', artigo: 'uma mesa de corte', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   ganchoComCarne: { rotulo: 'Gancho com carne pendurada', artigo: 'um gancho com carne pendurada', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
+  // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem, cada um com o próprio desenho; esticam e giram
+  // como todo objeto. Na pilha de caixas o caixote comprido fica no fundo e a lona no canto da frente à direita.
+  // A frente dos barris deitados (as torneiras e a caneca), do tonel (um dos lados menores: a torneira e a
+  // escadinha), das ânforas (a tombada), do cesto (por onde o pano sai) e do cofre (a porta, a roda de segredo
+  // e a alavanca) é o lado de baixo. Só o cesto é `redonda`: estica em oval com a pegada. Nenhum tem luz nem chama.
+  pilhaDeCaixas: { rotulo: 'Pilha de caixas', artigo: 'uma pilha de caixas', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  barrisDeitados: { rotulo: 'Barris deitados', artigo: 'uns barris deitados', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  tonelDeAdega: { rotulo: 'Tonel de adega', artigo: 'um tonel de adega', tamanho: { largura: 2, altura: 3 }, redonda: false },
+  anforasDeBarro: { rotulo: 'Ânforas de barro', artigo: 'umas ânforas de barro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cestoDeVime: { rotulo: 'Cesto de vime', artigo: 'um cesto de vime', tamanho: { largura: 0.7, altura: 0.7 }, redonda: true },
+  cofre: { rotulo: 'Cofre', artigo: 'um cofre', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -286,6 +298,12 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     prateleiraDePotes: valor(f.prateleiraDePotes),
     mesaDeCorte: valor(f.mesaDeCorte),
     ganchoComCarne: valor(f.ganchoComCarne),
+    pilhaDeCaixas: valor(f.pilhaDeCaixas),
+    barrisDeitados: valor(f.barrisDeitados),
+    tonelDeAdega: valor(f.tonelDeAdega),
+    anforasDeBarro: valor(f.anforasDeBarro),
+    cestoDeVime: valor(f.cestoDeVime),
+    cofre: valor(f.cofre),
   }
 }
 
@@ -318,13 +336,14 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 5 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // Lotes 1 a 6 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
   // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
+  'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
 ]
 
 /**
@@ -1151,6 +1170,73 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(peca * 1.3, peca, -hw * 0.5, hh * 0.5),
         ...[-0.14, 0.04, 0.22].flatMap((f) => aro(peca * 0.5, peca * 0.5, hw * f, hh * 0.36)),
         ...aro(peca, peca * 0.8, hw * 0.56, hh * 0.46),
+      ]
+    }
+    case 'pilhaDeCaixas':
+      // O caixote comprido do fundo, o grande da frente com o amarrado torto em cima dele e o da direita com os sarrafos em cruz.
+      return [
+        ...quadro(-hw * 0.62, -hh * 0.9, hw * 0.76, -hh * 0.28),
+        ...quadro(-hw * 0.92, -hh * 0.16, hw * 0.04, hh * 0.86),
+        ...fechado([[-hw * 0.84, hh * 0.18], [-hw * 0.3, hh * 0.02], [-hw * 0.14, hh * 0.56], [-hw * 0.68, hh * 0.72]]),
+        ...quadro(hw * 0.14, -hh * 0.1, hw * 0.88, hh * 0.62),
+        { x1: hw * 0.14, y1: -hh * 0.1, x2: hw * 0.88, y2: hh * 0.62 },
+        { x1: hw * 0.88, y1: -hh * 0.1, x2: hw * 0.14, y2: hh * 0.62 },
+      ]
+    case 'barrisDeitados': {
+      // Os três barris lado a lado (o dorso bojudo de cada um), o aro perto de cada ponta e a torneira saindo da frente.
+      const meio = largura / 3
+      return [-1, 0, 1].flatMap((k) => [
+        ...aro(meio * 0.9, altura * 0.8, k * meio, -hh * 0.12),
+        linha(k * meio - meio * 0.36, -hh * 0.56, k * meio + meio * 0.36),
+        linha(k * meio - meio * 0.36, hh * 0.32, k * meio + meio * 0.36),
+        { x1: k * meio, y1: hh * 0.68, x2: k * meio, y2: hh * 0.96 },
+      ])
+    }
+    case 'tonelDeAdega':
+      // O bojo comprido, os aros largos atravessados (quatro riscos), o batoque no alto e, na frente, a torneira e a escadinha.
+      return [
+        ...aro(largura * 0.86, altura * 0.86, 0, -hh * 0.1),
+        ...[-0.66, -0.36, 0.16, 0.46].map((f) => linha(-hw * 0.62, hh * f, hw * 0.62)),
+        ...aro(largura * 0.1, largura * 0.1, 0, -hh * 0.1),
+        { x1: 0, y1: hh * 0.76, x2: 0, y2: hh * 0.96 },
+        ...quadro(hw * 0.28, hh * 0.8, hw * 0.56, hh * 0.98),
+      ]
+    case 'anforasDeBarro': {
+      // As três em pé (a roda do bojo e a boca no meio de cada uma) e a tombada na frente: o pé em ponta, o bojo, o pescoço fino e a boca.
+      const menor = Math.min(largura, altura)
+      const emPe: readonly (readonly [number, number, number])[] = [[-0.44, -0.42, 0.5], [0.47, -0.52, 0.4], [0.66, 0.13, 0.3]]
+      return [
+        ...emPe.flatMap(([x, y, r]) => [...aro(menor * r, menor * r, hw * x, hh * y), ...aro(menor * r * 0.36, menor * r * 0.36, hw * x, hh * y)]),
+        ...fechado([[-hw * 0.9, hh * 0.62], [-hw * 0.24, hh * 0.3], [hw * 0.18, hh * 0.5], [hw * 0.66, hh * 0.52], [hw * 0.66, hh * 0.64], [hw * 0.18, hh * 0.68], [-hw * 0.24, hh * 0.9]]),
+      ]
+    }
+    case 'cestoDeVime': {
+      // A borda por dentro da parede, as duas alças em orelha (três traços de cada lado) e três maçãs no meio.
+      const maca = Math.min(largura, altura) * 0.2
+      return [
+        ...aro(largura * 0.54, altura * 0.54),
+        ...[-1, 1].flatMap((lado) => [
+          { x1: lado * hw * 0.78, y1: -hh * 0.36, x2: lado * hw * 0.96, y2: -hh * 0.2 },
+          { x1: lado * hw * 0.96, y1: -hh * 0.2, x2: lado * hw * 0.96, y2: hh * 0.2 },
+          { x1: lado * hw * 0.96, y1: hh * 0.2, x2: lado * hw * 0.78, y2: hh * 0.36 },
+        ]),
+        ...aro(maca, maca, -maca * 0.46, -maca * 0.3),
+        ...aro(maca, maca, maca * 0.5, -maca * 0.26),
+        ...aro(maca, maca, 0, maca * 0.52),
+      ]
+    }
+    case 'cofre': {
+      // A moldura rebitada do tampo, a frente do corpo e a da porta saliente, a roda de segredo vista de cutelo (o eixo e a barra) e a bola da alavanca.
+      const corpo = hh - altura * 0.19
+      const porta = hh - altura * 0.105
+      const bola = Math.min(largura, altura) * 0.07
+      return [
+        ...quadro(-hw * 0.8, -hh * 0.8, hw * 0.8, corpo - altura * 0.1),
+        linha(-hw, corpo, hw),
+        linha(-hw * 0.87, porta, hw * 0.87),
+        { x1: hw * 0.09, y1: porta, x2: hw * 0.09, y2: hh * 0.95 },
+        linha(-hw * 0.26, hh * 0.95, hw * 0.44),
+        ...aro(bola, bola, -hw * 0.72, hh * 0.87),
       ]
     }
   }

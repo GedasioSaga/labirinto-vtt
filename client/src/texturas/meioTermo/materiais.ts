@@ -294,6 +294,22 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   prateleiraDePotes: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
   mesaDeCorte: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   ganchoComCarne: [lugar('madeira', 'Armação', MADEIRAS, 'carvalho')],
+  // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem. O primeiro lugar vai na "Cor"; o segundo, na "Cor
+  // da linha". Os barris deitados e o tonel têm os lugares do barril: a madeira das aduelas, do cavalete e da
+  // caneca dos barris, e a das aduelas, dos berços e da escadinha (mais clara) do tonel; os aros e a cinta da
+  // caneca. As listras do pano do cesto saem do pano escolhido. As ferragens do cofre levam junto o espelho da
+  // fechadura, a plaqueta, a seta do segredo e a cabeça do pino da dobradiça; os rebites, as cantoneiras e as
+  // dobradiças são do metal do cofre, num tom mais claro. Fixos: a corda, a tinta do estêncil e os ilhoses da
+  // pilha de caixas; o latão das torneiras e a espuma dos barris (um objeto só guarda duas cores); o latão da
+  // torneira, a cortiça do batoque e o giz do tonel; o barro, o engobe da faixa, o óxido do zigue-zague, a
+  // cortiça, o pano cru e a corda das ânforas (como nos sacos de grão, nenhum lugar); o vime e as maçãs do
+  // cesto; a ferrugem das chapas do cofre.
+  pilhaDeCaixas: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('lona', 'Lona', TECIDOS, 'linho')],
+  barrisDeitados: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  tonelDeAdega: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  anforasDeBarro: [],
+  cestoDeVime: [lugar('pano', 'Pano', TECIDOS, 'linho')],
+  cofre: [lugar('metal', 'Cofre', METAIS, 'ferro'), lugar('ferragens', 'Roda e alavanca', METAIS, 'latao')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

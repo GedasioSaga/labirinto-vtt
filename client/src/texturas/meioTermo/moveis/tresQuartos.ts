@@ -280,6 +280,27 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   prateleiraDePotes: { modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DA_PRATELEIRA_DE_POTES },
   mesaDeCorte: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE },
   ganchoComCarne: { modo: 'derivado', espessura: ESPESSURA_DA_TRAVE_DO_GANCHO },
+  // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem. A pilha de caixas fica como de cima, como os
+  // sacos de grão: derivada, cada caixote de cima subiria como coluna desde o chão e taparia o de baixo.
+  pilhaDeCaixas: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // O barril da 3/4 é desenhado à parte e guardado em fatias debaixo do dorso, cada fatia pendurada num pino
+  // (um tampo solto do tamanho de um ponto, sem sombra; `pipaDeitada.ts`); no tonel também a torneira, os
+  // degraus e a escadinha guardada. Com a beirada padrão cada pino ganharia um fio de madeira de 3 px para
+  // baixo: sem beirada nenhuma, e não o derivado puro.
+  barrisDeitados: { modo: 'derivado', espessura: 0 },
+  tonelDeAdega: { modo: 'derivado', espessura: 0 },
+  // As ânforas, o cesto e o cofre sobem pelas sombras e penduram o que fica guardado debaixo do tampo em
+  // pinos sem tamanho nem tinta (`forca: 0`): a beirada que a 3/4 dá ao tampo solto não pinta nada, e o
+  // derivado puro serve. Três pinos por ânfora em pé (o corpo de baixo, guardado debaixo do bojo, o bojo e a
+  // boca); a tombada não tem pino e fica no chão. No cesto a parede que a 3/4 varre sai na palha trançada do
+  // motor (o vime é da classe palha), a ponta do pano que cai pela frente fica guardada debaixo da boca, num
+  // pino, e as alças têm uma estrutura solta sem sombra, que lhes dá a grossura. No cofre o corpo e a porta
+  // saliente são duas colunas (o canudo da dobradiça é da coluna da porta); a porta é desenhada de frente e
+  // fica guardada debaixo do tampo, um pino por peça, como a frente do criado-mudo, e a roda e a alavanca
+  // vistas de cima têm os pinos delas, na altura dos eixos.
+  anforasDeBarro: DERIVADO,
+  cestoDeVime: DERIVADO,
+  cofre: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

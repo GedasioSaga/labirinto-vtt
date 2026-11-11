@@ -1239,6 +1239,75 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M13 4.5v3a2.5 2.5 0 0 0 5 0v-3M15.5 10v3.5" />
         </>
       )
+    case 'pilhaDeCaixas':
+      // De frente: dois caixotes no chão, cada um com a emenda das tábuas, e um terceiro, torto, em cima dos dois, com os sarrafos em cruz (a caixa é uma só, de cima).
+      return (
+        <>
+          <rect x="2.5" y="12.5" width="9" height="8.5" />
+          <rect x="12.5" y="14" width="9" height="7" />
+          <path d="M6.2 5.2l8.6-1.6 1.5 7.6-8.6 1.6z" />
+          <path d="M6.2 5.2l10.1 6M14.8 3.6L7.7 12.8" />
+          <path d="M2.5 16.5h9M12.5 17.5h9" />
+        </>
+      )
+    case 'barrisDeitados':
+      // De frente: os tampos redondos de dois barris lado a lado, a torneira no pé de cada um e o cavalete embaixo (o barril é um só, de cima, com dois aros; os troncos são três, em pirâmide).
+      return (
+        <>
+          <circle cx="7" cy="10" r="5" />
+          <circle cx="17" cy="10" r="5" />
+          <path d="M7 12.8v2.6M17 12.8v2.6" />
+          <path d="M1.5 17.5h21M4.5 17.5v3.5M19.5 17.5v3.5" />
+        </>
+      )
+    case 'tonelDeAdega':
+      // De frente: o tampo redondo grande com a travessa, a torneira embaixo, os dois pés do berço e a escadinha encostada (os barris deitados são dois, pequenos, sem escada).
+      return (
+        <>
+          <circle cx="10" cy="10.5" r="8" />
+          <path d="M2.6 8h14.8" />
+          <path d="M10 14.5v3" />
+          <path d="M4.3 16.2l-1 5.3M15.7 16.2l1 5.3" />
+          <path d="M18.5 22l1.6-12M22.5 22l-1-12M19 18.2h3.2M19.5 14.4h2.4" />
+        </>
+      )
+    case 'anforasDeBarro':
+      // De lado: o beiço, o pescoço fino com uma asa de cada lado, o bojo que afina até o pé e as duas beiras da faixa pintada (o vaso de planta é uma boca redonda com folhas).
+      return (
+        <>
+          <path d="M9.5 3h5M10.5 3v3.2M13.5 3v3.2" />
+          <path d="M10.5 6.2C7.5 7.4 6 9.6 6 12c0 3.4 2.4 6.3 4.8 8.5h2.4C15.6 18.3 18 15.4 18 12c0-2.4-1.5-4.6-4.5-5.8" />
+          <path d="M10.5 4.2C7.7 4.2 6.6 6 7.4 8.3M13.5 4.2c2.8 0 3.9 1.8 3.1 4.1" />
+          <path d="M6.2 11h11.6M6.6 14.2h10.8" />
+          <path d="M9.5 21.5h5" />
+        </>
+      )
+    case 'cestoDeVime':
+      // De lado: a borda grossa, o cesto bojudo com a trama (duas voltas e três estacas), uma alça em orelha de cada lado e três maçãs por cima (o balde é liso e tem a alça por cima).
+      return (
+        <>
+          <path d="M3.5 10.5h17v2h-17z" />
+          <path d="M4.5 12.5c0 4.5 1.5 7 3.5 8.5h8c2-1.5 3.5-4 3.5-8.5" />
+          <path d="M5.1 15.5h13.8M6.6 18.5h10.8M9 12.5V21M12 12.5V21M15 12.5V21" />
+          <path d="M3.5 11.5C1.6 11.5 1.6 15 4.7 15M20.5 11.5c1.9 0 1.9 3.5-1.2 3.5" />
+          <circle cx="8.6" cy="8.2" r="2.2" />
+          <circle cx="15.4" cy="8.2" r="2.2" />
+          <circle cx="12" cy="6.6" r="2.4" />
+        </>
+      )
+    case 'cofre':
+      // De frente: a caixa pesada, a porta por dentro do quadro, a roda de segredo com os raios em X, a alavanca, as duas dobradiças e os pés (o baú é deitado e tem tampa; o guarda-roupa tem duas portas).
+      return (
+        <>
+          <rect x="3" y="3" width="18" height="17" />
+          <rect x="5.5" y="5.5" width="13" height="12" />
+          <circle cx="13" cy="11.5" r="3.4" />
+          <path d="M10.6 9.1l4.8 4.8M15.4 9.1l-4.8 4.8" />
+          <path d="M8.2 10.4 7 12.8" />
+          <path d="M18.5 8H21M18.5 15H21" />
+          <path d="M5.5 20v1.5M18.5 20v1.5" />
+        </>
+      )
   }
 }
 

@@ -82,12 +82,18 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   prateleiraDePotes: 'cozinhaEBanheiro',
   mesaDeCorte: 'cozinhaEBanheiro',
   ganchoComCarne: 'cozinhaEBanheiro',
-  // Armazenagem.
+  // Armazenagem; e o lote 6 dos objetos novos (11/11/2026), da pilha de caixas ao cofre.
   barril: 'armazenagem',
   caixa: 'armazenagem',
   bau: 'armazenagem',
   sacosDeGrao: 'armazenagem',
   prateleiraDeDeposito: 'armazenagem',
+  pilhaDeCaixas: 'armazenagem',
+  barrisDeitados: 'armazenagem',
+  tonelDeAdega: 'armazenagem',
+  anforasDeBarro: 'armazenagem',
+  cestoDeVime: 'armazenagem',
+  cofre: 'armazenagem',
   // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte).
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
