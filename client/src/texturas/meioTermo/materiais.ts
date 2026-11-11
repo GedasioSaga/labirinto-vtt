@@ -246,6 +246,23 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   pedrasERochas: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
   mausoleu: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('porta', 'Porta', METAIS, 'ferro')],
   alvoDeArcoEFlecha: [lugar('madeira', 'Cavalete', MADEIRAS, 'carvalho')],
+  // Lote 3 dos 95 objetos novos (11/11/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha".
+  // Fixos: na banca, o pinho dos caixotes, as frutas e verduras e a balança; as listras do toldo (de linho
+  // cru, ou de vinho no toldo de linho, a regra da barraca), a corda e o latão dos ilhoses; o ferro das
+  // ferramentas e da morsa da bancada e os cabos (trocam de madeira sozinhos, para não sumir no tampo); o
+  // ferro e a água da pedra de amolar; o aço, o latão, o couro, as hastes e a pintura do escudo do suporte; a
+  // palha, os panos, a corda e o corvo do espantalho; a água, a palha e o molhado do cocho (a casca é a dos
+  // troncos, e o cerne lavrado sai dela). Os ossos e a antena não têm lugar: não existe osso na tabela, e o
+  // alumínio da tela, o aço do mastro, o concreto e o cabo são fixos.
+  bancaDeFrutas: [lugar('madeira', 'Mesa', MADEIRAS, 'carvalho')],
+  toldoListrado: [lugar('toldo', 'Toldo', TECIDOS, 'vinho'), lugar('madeira', 'Estacas', MADEIRAS, 'pinho')],
+  bancadaDeFerramentas: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  pedraDeAmolar: [lugar('pedra', 'Roda', PEDRAS, 'granito'), lugar('madeira', 'Cavalete', MADEIRAS, 'carvalho')],
+  suporteDeArmas: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  espantalho: [lugar('madeira', 'Poste', MADEIRAS, 'nogueira')],
+  cocho: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  ossos: [],
+  antenaParabolica: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -32,6 +32,7 @@ export const PECAS_NOVAS = [
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
+  'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -157,6 +158,20 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   pedrasERochas: { rotulo: 'Pedras e rochas', artigo: 'umas pedras e rochas', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
   mausoleu: { rotulo: 'Mausoléu', artigo: 'um mausoléu', tamanho: { largura: 3, altura: 4 }, redonda: false },
   alvoDeArcoEFlecha: { rotulo: 'Alvo de arco e flecha', artigo: 'um alvo de arco e flecha', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lote 3 dos 95 objetos novos (11/11/2026), cada um com o próprio desenho; esticam e giram como todo objeto.
+  // A frente da banca de frutas (o lado da freguesia), da bancada (a morsa), da pedra de amolar (a manivela)
+  // e do suporte de armas (o escudo) é o lado de baixo. O toldo é só o pano no ar, entre quatro estacas, sem
+  // balcão (a barraca é outra peça). O espantalho é desenhado em pé, de frente, como o boneco de treino. Os
+  // ossos são rentes ao chão, mas não moram nele (não são `ehMovelDoChao`). Nenhum tem luz nem chama.
+  bancaDeFrutas: { rotulo: 'Banca de frutas', artigo: 'uma banca de frutas', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  toldoListrado: { rotulo: 'Toldo listrado', artigo: 'um toldo listrado', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  bancadaDeFerramentas: { rotulo: 'Bancada de ferramentas', artigo: 'uma bancada de ferramentas', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  pedraDeAmolar: { rotulo: 'Pedra de amolar', artigo: 'uma pedra de amolar', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  suporteDeArmas: { rotulo: 'Suporte de armas', artigo: 'um suporte de armas', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
+  espantalho: { rotulo: 'Espantalho', artigo: 'um espantalho', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cocho: { rotulo: 'Cocho', artigo: 'um cocho', tamanho: { largura: 2, altura: 0.7 }, redonda: false },
+  ossos: { rotulo: 'Ossos', artigo: 'uns ossos', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  antenaParabolica: { rotulo: 'Antena parabólica', artigo: 'uma antena parabólica', tamanho: { largura: 2, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -221,6 +236,15 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     pedrasERochas: valor(f.pedrasERochas),
     mausoleu: valor(f.mausoleu),
     alvoDeArcoEFlecha: valor(f.alvoDeArcoEFlecha),
+    bancaDeFrutas: valor(f.bancaDeFrutas),
+    toldoListrado: valor(f.toldoListrado),
+    bancadaDeFerramentas: valor(f.bancadaDeFerramentas),
+    pedraDeAmolar: valor(f.pedraDeAmolar),
+    suporteDeArmas: valor(f.suporteDeArmas),
+    espantalho: valor(f.espantalho),
+    cocho: valor(f.cocho),
+    ossos: valor(f.ossos),
+    antenaParabolica: valor(f.antenaParabolica),
   }
 }
 
@@ -253,10 +277,11 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 e 2 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
-  // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1, 2 e 3 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que
+  // o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
+  'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
 ]
 
 /**
@@ -791,6 +816,123 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: -hw * 0.5, y1: hh * 0.46, x2: -hw * 0.8, y2: hh * 0.92 },
         { x1: hw * 0.5, y1: hh * 0.46, x2: hw * 0.8, y2: hh * 0.92 },
         linha(-hw * 0.66, hh * 0.62, hw * 0.66),
+      ]
+    }
+    // Lote 3 dos 95 objetos novos (11/11/2026): os traços que cada desenhista entregou com o desenho.
+    case 'bancaDeFrutas': {
+      // A divisa dos dois degraus, as divisas dos três caixotes do fundo, as duas abóboras na frente e a balança (os dois pratos e o travessão).
+      const abobora = Math.min(altura * 0.36, largura * 0.17)
+      const prato = Math.min(altura * 0.2, largura * 0.09)
+      return [
+        linha(-hw, -hh * 0.02, hw),
+        { x1: -hw * 0.34, y1: -hh, x2: -hw * 0.34, y2: -hh * 0.02 },
+        { x1: hw * 0.36, y1: -hh, x2: hw * 0.36, y2: -hh * 0.02 },
+        ...aro(abobora, abobora, -hw * 0.78, hh * 0.46),
+        ...aro(abobora, abobora, -hw * 0.42, hh * 0.5),
+        ...aro(prato, prato, hw * 0.5, hh * 0.44),
+        ...aro(prato, prato, hw * 0.84, hh * 0.44),
+        linha(hw * 0.5, hh * 0.44, hw * 0.84),
+      ]
+    }
+    case 'toldoListrado': {
+      // As quatro estacas nos cantos, a beira do pano e as emendas das cinco listras, de cima a baixo.
+      const estaca = Math.min(largura, altura) * 0.09
+      return [
+        ...[-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => aro(estaca, estaca, sx * hw * 0.88, sy * hh * 0.88))),
+        ...quadro(-hw * 0.84, -hh * 0.78, hw * 0.84, hh * 0.78),
+        ...[-0.5, -0.17, 0.17, 0.5].map((f) => ({ x1: hw * f, y1: -hh * 0.78, x2: hw * f, y2: hh * 0.78 })),
+      ]
+    }
+    case 'bancadaDeFerramentas': {
+      // As duas testeiras do tampo e a beira da frente, a morsa nela (os mordentes e a manivela) e o martelo largado em cima.
+      const morsa = Math.min(largura, altura) * 0.16
+      const beira = hh * 0.78
+      return [
+        { x1: -hw * 0.9, y1: -hh, x2: -hw * 0.9, y2: beira },
+        { x1: hw * 0.9, y1: -hh, x2: hw * 0.9, y2: beira },
+        linha(-hw, beira, hw),
+        ...quadro(-hw * 0.5 - morsa, beira - morsa * 0.9, -hw * 0.5 + morsa, beira + morsa * 0.5),
+        linha(-hw * 0.5 - morsa * 0.8, hh * 0.97, -hw * 0.5 + morsa * 0.8),
+        { x1: hw * 0.02, y1: hh * 0.1, x2: hw * 0.5, y2: -hh * 0.42 },
+        { x1: hw * 0.42, y1: -hh * 0.6, x2: hw * 0.6, y2: -hh * 0.26 },
+      ]
+    }
+    case 'pedraDeAmolar':
+      // O quadro do cavalete, a roda vista do alto (a tira atravessada), o eixo de ponta a ponta e a manivela na frente.
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.62, hw * 0.94, hh * 0.62),
+        ...quadro(-hw * 0.82, -hh * 0.18, hw * 0.82, hh * 0.18),
+        { x1: 0, y1: -hh * 0.76, x2: 0, y2: -hh * 0.18 },
+        { x1: 0, y1: hh * 0.18, x2: 0, y2: hh * 0.74 },
+        linha(0, hh * 0.74, hw * 0.3),
+        { x1: hw * 0.3, y1: hh * 0.74, x2: hw * 0.3, y2: hh * 0.98 },
+      ]
+    case 'suporteDeArmas': {
+      // O quadro do cavalete, a espada (a lâmina e a guarda atravessada), a lança, o machado (o cabo e a lâmina de lado) e o escudo no pé.
+      const escudo = Math.min(altura * 0.9, largura * 0.26)
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.9, hw * 0.96, hh * 0.9),
+        { x1: -hw * 0.62, y1: -hh * 0.7, x2: -hw * 0.62, y2: hh * 0.6 },
+        linha(-hw * 0.74, -hh * 0.2, -hw * 0.5),
+        { x1: -hw * 0.2, y1: -hh * 0.7, x2: -hw * 0.2, y2: hh * 0.6 },
+        { x1: hw * 0.16, y1: -hh * 0.7, x2: hw * 0.16, y2: hh * 0.6 },
+        ...fechado([[hw * 0.16, -hh * 0.6], [hw * 0.34, -hh * 0.7], [hw * 0.34, 0], [hw * 0.16, -hh * 0.14]]),
+        ...aro(escudo, escudo * 0.4, hw * 0.64, hh * 0.56),
+      ]
+    }
+    case 'espantalho':
+      // Em pé, de frente: a copa e a aba larga do chapéu, a cabeça, a travessa dos braços, a camisa abrindo para baixo e o poste fincado no chão.
+      return [
+        ...quadro(-hw * 0.24, -hh * 0.98, hw * 0.24, -hh * 0.72),
+        linha(-hw * 0.52, -hh * 0.72, hw * 0.52),
+        ...aro(largura * 0.28, altura * 0.28, 0, -hh * 0.42),
+        linha(-hw * 0.92, -hh * 0.1, hw * 0.92),
+        { x1: -hw * 0.28, y1: -hh * 0.1, x2: -hw * 0.42, y2: hh * 0.46 },
+        { x1: hw * 0.28, y1: -hh * 0.1, x2: hw * 0.42, y2: hh * 0.46 },
+        linha(-hw * 0.42, hh * 0.46, hw * 0.42),
+        { x1: 0, y1: hh * 0.46, x2: 0, y2: hh * 0.94 },
+      ]
+    case 'cocho':
+      // A água na cova (a roda comprida), as duas beiras do tronco e as pontas dos dois pés saindo dos lados.
+      return [
+        ...aro(largura * 0.82, altura * 0.46),
+        linha(-hw * 0.96, -hh * 0.74, hw * 0.96),
+        linha(-hw * 0.96, hh * 0.74, hw * 0.96),
+        ...[-0.6, 0.6].flatMap((f) => [
+          { x1: hw * f, y1: -hh, x2: hw * f, y2: -hh * 0.74 },
+          { x1: hw * f, y1: hh * 0.74, x2: hw * f, y2: hh },
+        ]),
+      ]
+    case 'ossos': {
+      // O crânio no canto, com as duas órbitas; a coluna saindo dele, com três costelas atravessadas; e dois ossos compridos soltos.
+      const menor = Math.min(largura, altura)
+      const [cx, cy] = [-hw + menor * 0.2, -hh + menor * 0.29]
+      return [
+        ...aro(menor * 0.36, menor * 0.4, cx, cy),
+        ...aro(menor * 0.09, menor * 0.09, cx - menor * 0.07, cy + menor * 0.02),
+        ...aro(menor * 0.09, menor * 0.09, cx + menor * 0.07, cy + menor * 0.02),
+        { x1: cx + menor * 0.2, y1: cy + menor * 0.14, x2: hw * 0.36, y2: hh * 0.2 },
+        ...[0.3, 0.44, 0.58].map((f) => ({ x1: cx + menor * f, y1: -hh * 0.46, x2: cx + menor * f, y2: hh * 0.34 })),
+        { x1: hw * 0.5, y1: hh * 0.08, x2: hw * 0.9, y2: -hh * 0.68 },
+        { x1: -hw * 0.5, y1: hh * 0.82, x2: hw * 0.2, y2: hh * 0.74 },
+      ]
+    }
+    case 'antenaParabolica': {
+      // O prato inclinado (a elipse torta), as quatro hastes que se encontram no receptor, fora do meio, a base com o mastro atrás do aro e o cabo.
+      const menor = Math.min(largura, altura)
+      const naBoca = (m: number, n: number): [number, number] => [menor * (0.02 + 0.386 * m - 0.161 * n), menor * (-0.12 + 0.223 * m + 0.278 * n)]
+      const [fx, fy] = naBoca(0, -0.43)
+      const [bx, by] = naBoca(0, 1.26)
+      const base = menor * 0.12
+      return [
+        ...fechado(Array.from({ length: 16 }, (_v, i) => naBoca(Math.cos((Math.PI * i) / 8), Math.sin((Math.PI * i) / 8)))),
+        ...[0.87, 2.27, 4.01, 5.41].map((a) => {
+          const [x1, y1] = naBoca(Math.cos(a), Math.sin(a))
+          return { x1, y1, x2: fx, y2: fy }
+        }),
+        ...aro(menor * 0.08, menor * 0.08, fx, fy),
+        ...quadro(bx - base, by - base, bx + base, by + base),
+        { x1: bx + base, y1: by + base * 0.5, x2: menor * 0.46, y2: menor * 0.46 },
       ]
     }
   }

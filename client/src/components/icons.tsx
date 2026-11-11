@@ -993,6 +993,101 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M5.4 18.6h11.2" />
         </>
       )
+    // Lote 3 dos 95 objetos novos (11/11/2026): o ícone que cada desenhista entregou com o desenho.
+    case 'bancaDeFrutas':
+      // De frente: o caixote de ripas sobre os pés e, em cima, a maçã grande com o cabinho e a folha entre duas frutas menores (o caixote com três bolas em fila era a jardineira).
+      return (
+        <>
+          <path d="M2.5 11.5h19V17h-19zM2.5 14.2h19M5.5 17v4.5M18.5 17v4.5" />
+          <circle cx="12" cy="7.9" r="3.4" />
+          <path d="M12 4.5V3M12 3.6c1.1-1.4 2.4-1.8 3.7-1.4" />
+          <circle cx="6" cy="9.3" r="2" />
+          <circle cx="18" cy="9.3" r="2" />
+        </>
+      )
+    case 'toldoListrado':
+      // De frente: as duas estacas até o chão, o pano com a barriga no meio, as listras e a sanefa em gomos (sem o balcão da barraca; de cima, o quadrado com quatro bolas nos cantos lia como drone).
+      return (
+        <>
+          <path d="M4 3v18.5M20 3v18.5" />
+          <path d="M4 4.8c2.6 1.4 5.2 2 8 2s5.4-.6 8-2" />
+          <path d="M4 9.6a2 2 0 0 0 4 1a2 2 0 0 0 4 .6a2 2 0 0 0 4-.6a2 2 0 0 0 4-1" />
+          <path d="M8 6.3v4.3M12 6.8v4.4M16 6.3v4.3" />
+        </>
+      )
+    case 'bancadaDeFerramentas':
+      // De frente: o tampo grosso, as duas pernas com a prateleira de baixo, a morsa na ponta (o mordente, o fuso e a manivela) e o martelo em cima.
+      return (
+        <>
+          <path d="M2.5 9.5h19v3h-19z" />
+          <path d="M4.5 12.5v9M19.5 12.5v9M4.5 17.5h15" />
+          <path d="M5 9.5V6h3.5v3.5M6.7 6V4M5.4 4h2.7" />
+          <path d="M13 8.5l5-4M16.6 3.2l2.6 2.9" />
+        </>
+      )
+    case 'pedraDeAmolar':
+      // De frente: a roda de pedra com o cubo, o trilho do cavalete na frente dela, as duas pernas, a calha e a manivela.
+      return (
+        <>
+          <circle cx="12" cy="9" r="6.5" />
+          <path d="M12 9h.01" />
+          <path d="M3 13.5h18M5 13.5v8M19 13.5v8" />
+          <path d="M7.5 13.5v4h9v-4" />
+          <path d="M12 9l3.2 2.4v2.4" />
+        </>
+      )
+    case 'suporteDeArmas':
+      // De frente: os dois postes com as duas travessas, a espada (a guarda atravessada), a lança de ponta em folha, o machado e o escudo redondo no pé.
+      return (
+        <>
+          <path d="M2.5 11v10.5M21.5 11v10.5M2.5 13h19M2.5 19.5h19" />
+          <path d="M6.5 19.5V5.5M4.7 8.3h3.6" />
+          <path d="M11 19.5V6l-1.2-2.2L11 1.5l1.2 2.3L11 6" />
+          <path d="M15 19.5V6.5M15 7.2h2.6l1 2.4-1 2H15" />
+          <circle cx="18" cy="17.5" r="3.3" />
+        </>
+      )
+    case 'espantalho':
+      // De frente: o chapéu de aba larga, a cabeça, os braços abertos com a palha saindo dos punhos, a camisa e o poste fincado no chão.
+      return (
+        <>
+          <path d="M6 6.2h12M9.3 6.2l.9-3.7h3.6l.9 3.7" />
+          <circle cx="12" cy="8.7" r="2.3" />
+          <path d="M4 12.2h16M4 12.2l-1.8-1.3M4 12.2l-1.8 1.3M20 12.2l1.8-1.3M20 12.2l1.8 1.3" />
+          <path d="M9.2 11.2h5.6l1.4 6.8H7.8z" />
+          <path d="M12 18v3.5M9 21.5h6" />
+        </>
+      )
+    case 'cocho':
+      // De lado: o cocho comprido, mais largo na boca, a água em onda dentro dele e os dois pés (a jardineira tem flores e não tem pés; o balde é alto e tem alça).
+      return (
+        <>
+          <path d="M2.5 8.5h19l-1.6 7h-15.8z" />
+          <path d="M5.2 11.6c1.1-.8 2.3-.8 3.4 0s2.3.8 3.4 0 2.3-.8 3.4 0 2.3.8 3.4 0" />
+          <path d="M6.5 15.5v5M17.5 15.5v5M4.8 20.5h3.4M15.8 20.5h3.4" />
+        </>
+      )
+    case 'ossos':
+      // O crânio (a caixa redonda, o queixo estreito, as duas órbitas e dois dentes) e, embaixo, um osso comprido com os nós nas pontas.
+      return (
+        <>
+          <path d="M9 11.4a4.5 4.5 0 1 1 6 0v2.6H9z" />
+          <circle cx="10.4" cy="8.6" r="1" />
+          <circle cx="13.6" cy="8.6" r="1" />
+          <path d="M11 14v-1.5M13 14v-1.5" />
+          <path d="M5.5 20.2l13-2.4M5.5 20.2l-1.9-.7M5.5 20.2l-1.1 1.6M18.5 17.8l1.9.7M18.5 17.8l1.1-1.6" />
+        </>
+      )
+    case 'antenaParabolica':
+      // De lado: o prato virado para o céu (a boca reta e as costas em arco), as duas hastes até o receptor no foco, o mastro e a base no chão.
+      return (
+        <>
+          <path d="M4 4.5Q4.2 15.3 14.5 15.5z" />
+          <path d="M4 4.5l9.6 1.7M14.5 15.5l-.9-9.3" />
+          <circle cx="14.6" cy="5.3" r="1.4" />
+          <path d="M7.6 13.6v7.9M4.5 21.5h6.5" />
+        </>
+      )
   }
 }
 

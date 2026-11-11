@@ -88,32 +88,41 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   bancoDePraca: 'ruaEJardim',
   estatua: 'ruaEJardim',
   pedrasERochas: 'ruaEJardim',
+  antenaParabolica: 'ruaEJardim',
   // Cemitério.
   lapide: 'cemiterio',
   cova: 'cemiterio',
   caixao: 'cemiterio',
   caixaoAberto: 'cemiterio',
   mausoleu: 'cemiterio',
-  // Feira.
+  // Feira; a banca de frutas e o toldo listrado (11/11/2026).
   barraca: 'feira',
   carroca: 'feira',
   quadroDeAvisos: 'feira',
   cataVentoBrinquedo: 'feira',
-  // Oficina.
+  bancaDeFrutas: 'feira',
+  toldoListrado: 'feira',
+  // Oficina; a bancada de ferramentas, a pedra de amolar e o suporte de armas (11/11/2026).
   fornalha: 'oficina',
   bigorna: 'oficina',
   balde: 'oficina',
-  // Fazenda.
+  bancadaDeFerramentas: 'oficina',
+  pedraDeAmolar: 'oficina',
+  suporteDeArmas: 'oficina',
+  // Fazenda; o espantalho e o cocho (11/11/2026).
   troncos: 'fazenda',
   feno: 'fazenda',
   cataVento: 'fazenda',
   moinho: 'fazenda',
-  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra (11/11/2026).
+  espantalho: 'fazenda',
+  cocho: 'fazenda',
+  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra e os ossos (11/11/2026).
   destrocosDeMadeira: 'destrocosESucata',
   sucataChapas: 'destrocosESucata',
   sucataEngrenagens: 'destrocosESucata',
   sucataTambores: 'destrocosESucata',
   escombrosDePedra: 'destrocosESucata',
+  ossos: 'destrocosESucata',
   // Esporte e lazer (10/11/2026); o boneco de treino e o alvo de arco e flecha (11/11/2026).
   campinho: 'esporteELazer',
   bonecoDeTreino: 'esporteELazer',

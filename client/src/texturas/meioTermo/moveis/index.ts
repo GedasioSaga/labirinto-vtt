@@ -74,6 +74,15 @@ import { montarEstatua } from './estatua'
 import { montarPedrasERochas } from './pedrasERochas'
 import { montarMausoleu } from './mausoleu'
 import { montarAlvoDeArcoEFlecha } from './alvoDeArcoEFlecha'
+import { montarBancaDeFrutas } from './bancaDeFrutas'
+import { montarToldoListrado } from './toldoListrado'
+import { montarBancadaDeFerramentas } from './bancadaDeFerramentas'
+import { montarPedraDeAmolar } from './pedraDeAmolar'
+import { montarSuporteDeArmas } from './suporteDeArmas'
+import { montarEspantalho } from './espantalho'
+import { montarCocho } from './cocho'
+import { montarOssos } from './ossos'
+import { montarAntenaParabolica } from './antenaParabolica'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -166,6 +175,17 @@ const MONTADORES = {
   pedrasERochas: montarPedrasERochas,
   mausoleu: montarMausoleu,
   alvoDeArcoEFlecha: montarAlvoDeArcoEFlecha,
+  // Lote 3 dos 95 objetos novos (11/11/2026): um desenho por arquivo. O toldo listrado, a pedra de amolar, o
+  // suporte de armas, os ossos e a antena parabólica leem o `giro` (o quarto de volta que a 3/4 pinta).
+  bancaDeFrutas: montarBancaDeFrutas,
+  toldoListrado: montarToldoListrado,
+  bancadaDeFerramentas: montarBancadaDeFerramentas,
+  pedraDeAmolar: montarPedraDeAmolar,
+  suporteDeArmas: montarSuporteDeArmas,
+  espantalho: montarEspantalho,
+  cocho: montarCocho,
+  ossos: montarOssos,
+  antenaParabolica: montarAntenaParabolica,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -204,6 +224,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
+  'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

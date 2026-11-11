@@ -39,6 +39,10 @@ export const TIPOS_MOBILIA = [
   // de casa, aceso ou apagado), a prateleira de depósito, a estátua, as pedras e rochas, o mausoléu e o alvo
   // de arco e flecha.
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
+  // Lote 3 dos 95 objetos novos (11/11/2026): a banca de frutas e o toldo listrado da feira, a bancada de
+  // ferramentas, a pedra de amolar e o suporte de armas da oficina, o espantalho e o cocho da fazenda, os
+  // ossos e a antena parabólica.
+  'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

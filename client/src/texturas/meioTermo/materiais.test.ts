@@ -164,6 +164,16 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       pedrasERochas: ['pedra:granito'],
       mausoleu: ['pedra:granito', 'porta:ferro'],
       alvoDeArcoEFlecha: ['madeira:carvalho'],
+      // Lote 3 dos 95 objetos novos (11/11/2026).
+      bancaDeFrutas: ['madeira:carvalho'],
+      toldoListrado: ['toldo:vinho', 'madeira:pinho'],
+      bancadaDeFerramentas: ['madeira:carvalho'],
+      pedraDeAmolar: ['pedra:granito', 'madeira:carvalho'],
+      suporteDeArmas: ['madeira:nogueira'],
+      espantalho: ['madeira:nogueira'],
+      cocho: ['lenha:lenhaCarvalho'],
+      ossos: [],
+      antenaParabolica: [],
     })
   })
 

@@ -34,6 +34,9 @@ import { ESPESSURA_DO_TAMPO_DO_ALTAR } from './altar'
 import { ESPESSURA_DO_ARCO_DO_FORNO } from './fornoDePao'
 import { ESPESSURA_DA_CORNIJA } from './estatua'
 import { ESPESSURA_DA_FIADA } from './mausoleu'
+import { ESPESSURA_DA_BANCA } from './bancaDeFrutas'
+import { ESPESSURA_DO_TAMPO_DA_BANCADA } from './bancadaDeFerramentas'
+import { ESPESSURA_DO_COCHO } from './cocho'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -195,6 +198,34 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   mausoleu: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA },
   // O alvo já é desenhado em pé, de frente, como o boneco de treino (de cima o disco seria um risco).
   alvoDeArcoEFlecha: EM_PE,
+  // Lote 3 dos 95 objetos novos (11/11/2026). A banca de frutas são dois degraus (dois tampos soltos, o de
+  // trás 0,28 casa mais alto), e a beirada de cada um é essa diferença, que o desenho exporta: a do degrau de
+  // trás desce exatamente até o tampo do da frente. Com a padrão (0,06 casa) o chão aparecia entre os dois.
+  bancaDeFrutas: { modo: 'derivado', espessura: ESPESSURA_DA_BANCA },
+  // O pano do toldo é um tampo solto na altura das estacas, e cada estaca, uma coluna. A sanefa que cai da
+  // beira da frente é desenhada pelo próprio toldo (a faixa listrada e os gomos, numa fresta um pouco mais
+  // baixa que o pano): sem beirada nenhuma, ou saía por baixo da sanefa uma tira lisa de uma cor só.
+  toldoListrado: { modo: 'derivado', espessura: 0 },
+  // O tampo da bancada é uma prancha grossa, na espessura que o desenho exporta: com a padrão ele saía fino
+  // como o de uma mesa de jantar, e a tábua da prateleira de baixo também.
+  bancadaDeFerramentas: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_BANCADA },
+  // A roda da pedra de amolar e as armas do suporte são desenhadas de frente e guardadas em fatias, cada uma
+  // presa a uma âncora (um tampo solto de um quarto de px, sem sombra): com a beirada padrão cada âncora
+  // ganharia um fio de 3 px debaixo dela. Sem beirada nenhuma, como a prateleira de depósito.
+  pedraDeAmolar: { modo: 'derivado', espessura: 0 },
+  suporteDeArmas: { modo: 'derivado', espessura: 0 },
+  // O espantalho já é desenhado em pé, de frente, como o boneco de treino (de cima seria um chapéu numa cruz).
+  espantalho: EM_PE,
+  // O cocho é um tampo solto na altura da borda, sobre os tocos dos pés, e a beirada dele é a altura do corpo
+  // do tronco, que o desenho exporta (como a lateral da carroça): com a padrão a água boiava numa tábua fina.
+  cocho: { modo: 'derivado', espessura: ESPESSURA_DO_COCHO },
+  // Os ossos são rentes ao chão e espalhados, e não uma pilha: o esqueleto sobe inteiro a espessura de um
+  // osso e a sombra fica onde está (nenhuma sombra deles tem altura). Em pé, a sombra de baixo saía como uma
+  // faixa escura solta debaixo do esqueleto inteiro.
+  ossos: { modo: 'derivado', alturaSolta: 0.03 * G },
+  // A antena sobe pelas sombras: o prato é o tampo no ar e o mastro, a coluna da mesma altura. A beirada são
+  // as costas do prato: com 0,16 casa ele lia como uma panela de parede reta.
+  antenaParabolica: { modo: 'derivado', espessura: 0.09 * G },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

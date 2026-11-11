@@ -63,7 +63,14 @@ export interface ContextoDoMovel {
    * (a sombra pintada no leito), o forno de pão (o que é desenhado de frente
    * não entra girado, e a luz da cúpula fica onde está na tela), a estátua (o
    * corte do pedestal e a sombra pintada no tampo) e o mausoléu (a sombra da
-   * casa na laje e nos degraus). Os outros desenhos não leem.
+   * casa na laje e nos degraus). Do lote 3 (11/11/2026) leem o toldo listrado
+   * (com um quarto de volta as listras acabam nos lados e não há sanefa de
+   * frente), a pedra de amolar (entrega a cena girada ao contrário: a roda
+   * aparece de frente em qualquer giro), o suporte de armas (girado, monta só
+   * o quadro e põe as armas inteiras, em pé, onde o giro as deixou), os ossos
+   * (a sombra pintada de cada osso continua caindo para baixo à direita na
+   * tela) e a antena parabólica (a luz de dentro do prato e as sombras
+   * pintadas na base). Os outros desenhos não leem.
    */
   readonly giro: number
 }
