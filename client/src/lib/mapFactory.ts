@@ -2571,13 +2571,14 @@ export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx:
  * no pointerup, mesmo padrão de `updateLightRadiusLive`/`updateCurvePointLive`
  * (mapStore.ts). Sala Circular/Polígono ou região sem `room`: `map` sem mudança.
  * Sala retangular girada fora de 90° estica no eixo dela
- * (`roomOps.resizeRoomCornerInOwnAxis`, pedido de 11/11/2026).
+ * (`roomOps.resizeRoomCornerInOwnAxis`, pedido de 11/11/2026); `passo` é o
+ * encaixe da grade nesse eixo (ausente = livre; a reta não o usa).
  */
-export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorner, x: number, y: number): MapData {
+export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorner, x: number, y: number, passo?: number): MapData {
   const region = map.regions.find((r) => r.id === id)
   if (!region || region.room?.shape !== 'rect') return map
 
-  const points = resizeRoomCornerInOwnAxis(region.points, corner, x, y)
+  const points = resizeRoomCornerInOwnAxis(region.points, corner, x, y, passo)
   if (points === region.points) return map
   return {
     ...map,

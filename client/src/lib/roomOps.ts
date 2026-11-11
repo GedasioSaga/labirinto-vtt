@@ -142,15 +142,30 @@ function eixoDaSala(points: readonly RegionPoint[]): EixoDaSala | null {
  * e tudo devolvido ao giro de antes. O canto oposto fica parado no mapa, a
  * ordem dos vértices não muda (as paredes vinculadas seguem pelo índice) e a
  * sala continua no mesmo ângulo. Sem eixo (`eixoDaSala`): `points` sem mudança.
+ *
+ * `passo` (o encaixe na grade, prova de 11/11/2026: a sala a 37° foi de 6 x 4
+ * para 6,83 x 4,55 casas): na girada, largura e altura andam em múltiplos
+ * dele, medidos no eixo dela a partir do canto oposto — o que a sala reta faz
+ * com o canto na linha da grade. A reta ignora o `passo`: quem chama já pôs o
+ * canto na grade do mapa. Ausente (encaixe desligado): livre.
  */
-export function resizeRoomCornerInOwnAxis(points: RegionPoint[], corner: RoomCorner, x: number, y: number): RegionPoint[] {
+export function resizeRoomCornerInOwnAxis(points: RegionPoint[], corner: RoomCorner, x: number, y: number, passo?: number): RegionPoint[] {
   if (isAxisAlignedRect(points)) return resizeRoomCorner(points, corner, x, y)
   const eixo = eixoDaSala(points)
   if (eixo === null) return points
   const { origem, paraASala, paraOMapa } = eixo
   const deitada = points.map((p) => rotatePointAround(p, origem, paraASala))
   const ponteiro = rotatePointAround({ x, y }, origem, paraASala)
-  return resizeRoomCorner(deitada, corner, ponteiro.x, ponteiro.y).map((p) => rotatePointAround(p, origem, paraOMapa))
+  const alvo = passo !== undefined && Number.isFinite(passo) && passo > 0 ? emCasasInteiras(ponteiro, deitada[(corner + 2) % 4], passo) : ponteiro
+  return resizeRoomCorner(deitada, corner, alvo.x, alvo.y).map((p) => rotatePointAround(p, origem, paraOMapa))
+}
+
+/** O ponto a um número inteiro de `passo` da `ancora` em cada eixo (o mais perto de `ponto`). */
+function emCasasInteiras(ponto: RegionPoint, ancora: RegionPoint, passo: number): RegionPoint {
+  return {
+    x: ancora.x + Math.round((ponto.x - ancora.x) / passo) * passo,
+    y: ancora.y + Math.round((ponto.y - ancora.y) / passo) * passo,
+  }
 }
 
 /** A Sala retangular tem alça de canto: reta, ou girada com eixo (`resizeRoomCornerInOwnAxis`). */

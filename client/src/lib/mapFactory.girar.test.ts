@@ -271,6 +271,25 @@ describe('sala retangular girada fora de 90°', () => {
     paredesNasArestas(maior, 'sala')
   })
 
+  // Prova de 11/11/2026: a sala a 37° foi de 6 x 4 para 6,83 x 4,55 casas. Com o encaixe, o passo é a casa, no eixo DELA.
+  it('com o passo da grade, o canto anda em casas inteiras no eixo da sala, e o canto oposto fica parado', () => {
+    const torta = rotateRegion(salaEmPe(), 'sala', 37)
+    const antes = sala(torta).points
+    const ladoU = Math.hypot(antes[1].x - antes[0].x, antes[1].y - antes[0].y)
+    const ladoV = Math.hypot(antes[3].x - antes[0].x, antes[3].y - antes[0].y)
+    const u = { x: (antes[1].x - antes[0].x) / ladoU, y: (antes[1].y - antes[0].y) / ladoU }
+    const v = { x: (antes[3].x - antes[0].x) / ladoV, y: (antes[3].y - antes[0].y) / ladoV }
+    // O ponteiro passa 0,83 casa num eixo e 0,55 no outro: as duas medidas sobem uma casa inteira.
+    const ponteiro = { x: antes[2].x + 64 * (0.83 * u.x + 0.55 * v.x), y: antes[2].y + 64 * (0.83 * u.y + 0.55 * v.y) }
+
+    const depois = sala(resizeRoomCornerLive(torta, 'sala', 2, ponteiro.x, ponteiro.y, 64)).points
+
+    expect(depois[0].x).toBeCloseTo(antes[0].x, 6)
+    expect(depois[0].y).toBeCloseTo(antes[0].y, 6)
+    expect(Math.hypot(depois[1].x - depois[0].x, depois[1].y - depois[0].y)).toBeCloseTo(ladoU + 64, 6)
+    expect(Math.hypot(depois[3].x - depois[0].x, depois[3].y - depois[0].y)).toBeCloseTo(ladoV + 64, 6)
+  })
+
   it('largura/altura numérica continua sem efeito na sala girada fora de 90°', () => {
     const torta = rotateRegion(salaEmPe(), 'sala', 37)
     expect(resizeRoomDimensions(torta, 'sala', 500, 500)).toBe(torta)
