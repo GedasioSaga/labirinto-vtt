@@ -52,6 +52,10 @@ export const TIPOS_MOBILIA = [
   // Lote 6 dos 95 objetos novos (11/11/2026), a armazenagem: a pilha de caixas, os barris deitados num
   // suporte, o tonel de adega, as ânforas de barro, o cesto de vime e o cofre.
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
+  // Lote 7 dos 95 objetos novos (11/11/2026), a rua e o jardim: o varal de roupa, a horta e o canteiro de
+  // flores (os dois no chão), o muro baixo de pedra, o toco de árvore, o carrinho de mão e a placa de loja
+  // pendurada.
+  'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -36,6 +36,7 @@ export const PECAS_NOVAS = [
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
+  'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -211,6 +212,22 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   anforasDeBarro: { rotulo: 'Ânforas de barro', artigo: 'umas ânforas de barro', tamanho: { largura: 1, altura: 1 }, redonda: false },
   cestoDeVime: { rotulo: 'Cesto de vime', artigo: 'um cesto de vime', tamanho: { largura: 0.7, altura: 0.7 }, redonda: true },
   cofre: { rotulo: 'Cofre', artigo: 'um cofre', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lote 7 dos 95 objetos novos (11/11/2026), a rua e o jardim, cada um com o próprio desenho; esticam e giram
+  // como todo objeto. No varal a corda corre ao longo da largura, no fundo da pegada, e a roupa cai para a
+  // frente (o lado de baixo); esticado, ganha mais roupa, nunca roupa esticada. Na horta as leiras correm ao
+  // longo da largura e o regador fica à direita; esticada, ganha mais leiras. A horta e o canteiro moram no
+  // chão (`ehMovelDoChao` em `lib/mobilia.ts`), como o campinho: o que o mestre põe dentro deles fica por
+  // cima. O muro corre pelo lado maior da pegada (em pé, 0,5 x 2, é o trecho em pé sem girar) e é reto: o
+  // trecho esticado ganha mais pedras. No carrinho a roda fica à direita e os cabos à esquerda; na placa o
+  // poste fica à esquerda e a frente é o lado de baixo. Só o canteiro (um feijão sem quina) e o toco são
+  // `redonda`. Nenhum tem luz nem chama.
+  varalDeRoupa: { rotulo: 'Varal de roupa', artigo: 'um varal de roupa', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  horta: { rotulo: 'Horta', artigo: 'uma horta', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  canteiroDeFlores: { rotulo: 'Canteiro de flores', artigo: 'um canteiro de flores', tamanho: { largura: 1.5, altura: 1 }, redonda: true },
+  muroBaixoDePedra: { rotulo: 'Muro baixo de pedra', artigo: 'um muro baixo de pedra', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  tocoDeArvore: { rotulo: 'Toco de árvore', artigo: 'um toco de árvore', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  carrinhoDeMao: { rotulo: 'Carrinho de mão', artigo: 'um carrinho de mão', tamanho: { largura: 1.5, altura: 0.7 }, redonda: false },
+  placaDeLoja: { rotulo: 'Placa de loja pendurada', artigo: 'uma placa de loja pendurada', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -304,6 +321,13 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     anforasDeBarro: valor(f.anforasDeBarro),
     cestoDeVime: valor(f.cestoDeVime),
     cofre: valor(f.cofre),
+    varalDeRoupa: valor(f.varalDeRoupa),
+    horta: valor(f.horta),
+    canteiroDeFlores: valor(f.canteiroDeFlores),
+    muroBaixoDePedra: valor(f.muroBaixoDePedra),
+    tocoDeArvore: valor(f.tocoDeArvore),
+    carrinhoDeMao: valor(f.carrinhoDeMao),
+    placaDeLoja: valor(f.placaDeLoja),
   }
 }
 
@@ -336,7 +360,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 6 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // Lotes 1 a 7 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
   // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
@@ -344,6 +368,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
+  'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
 ]
 
 /**
@@ -1239,6 +1264,94 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(bola, bola, -hw * 0.72, hh * 0.87),
       ]
     }
+    case 'varalDeRoupa': {
+      // Os dois postes nas pontas, a corda entre eles e as quatro roupas penduradas nela, de tamanhos desiguais (a calça com o vão das pernas).
+      const corda = -hh * 0.5
+      const poste = Math.min(altura * 0.36, largura * 0.08)
+      return [
+        ...aro(poste, poste, -hw + poste / 2, corda),
+        ...aro(poste, poste, hw - poste / 2, corda),
+        linha(-hw + poste, corda, hw - poste),
+        ...quadro(-hw * 0.74, corda, -hw * 0.34, hh * 0.3),
+        ...quadro(-hw * 0.26, corda, hw * 0.2, hh * 0.9),
+        ...quadro(hw * 0.28, corda, hw * 0.5, hh * 0.72),
+        { x1: hw * 0.39, y1: hh * 0.1, x2: hw * 0.39, y2: hh * 0.72 },
+        ...quadro(hw * 0.58, corda, hw * 0.8, hh * 0.24),
+      ]
+    }
+    case 'horta': {
+      // A beira direita do canteiro (o resto é a silhueta), os sulcos entre as leiras, os repolhos na leira do fundo e o regador ao lado, com o bico para o fundo.
+      const beira = hw * 0.7
+      const repolho = Math.min(altura * 0.2, largura * 0.14)
+      const regador = Math.min(altura * 0.16, largura * 0.11)
+      return [
+        { x1: beira, y1: -hh, x2: beira, y2: hh },
+        ...[-0.5, 0, 0.5].map((f) => linha(-hw, hh * f, beira)),
+        ...[-0.72, -0.3, 0.12].flatMap((f) => aro(repolho, repolho, hw * f, -hh * 0.75)),
+        ...aro(regador, regador, hw * 0.85, hh * 0.42),
+        { x1: hw * 0.85, y1: hh * 0.42 - regador / 2, x2: hw * 0.85, y2: -hh * 0.05 },
+      ]
+    }
+    case 'canteiroDeFlores': {
+      // A beira de dentro da borda de pedras (a de fora é a silhueta, em elipse) e quatro moitas redondas, de tamanhos desiguais, espalhadas na terra.
+      const menor = Math.min(largura, altura)
+      return [
+        ...aro(largura * 0.8, altura * 0.74),
+        ...aro(menor * 0.3, menor * 0.3, -hw * 0.42, -hh * 0.2),
+        ...aro(menor * 0.28, menor * 0.28, hw * 0.34, -hh * 0.22),
+        ...aro(menor * 0.3, menor * 0.3, hw * 0.1, hh * 0.3),
+        ...aro(menor * 0.22, menor * 0.22, -hw * 0.34, hh * 0.36),
+      ]
+    }
+    case 'muroBaixoDePedra': {
+      // Ao longo do lado maior (como a imagem): as duas beiras da capa de lajes, de ponta a ponta, e as juntas entre as lajes, cada uma inclinada para um lado (a ponte de pedra tem as bordas rentes à beira e um fecho só, a prumo; o banco tem os braços e três ripas).
+      const deitado = largura >= altura
+      const meioC = deitado ? hw : hh
+      const meiaL = deitado ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitado ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const capa = meiaL * 0.5
+      const lajes = Math.max(2, Math.round((2 * meioC) / (Math.min(largura, altura) * 0.8)))
+      const juntas: Traco[] = []
+      for (let i = 1; i < lajes; i += 1) {
+        const u = -meioC + (2 * meioC * i) / lajes
+        const inclina = (i % 2 === 0 ? 1 : -1) * capa * 0.3
+        juntas.push(traco(u - inclina, -capa, u + inclina, capa))
+      }
+      return [traco(-meioC, -capa, meioC, -capa), traco(-meioC, capa, meioC, capa), ...juntas]
+    }
+    case 'tocoDeArvore': {
+      // A casca e o topo serrado (os dois aros, um dentro do outro), o anel do miolo um pouco fora do centro com a rachadura saindo dele, e quatro raízes abrindo da casca para o chão (o moinho de torre são três aros certinhos, sem raiz nem rachadura).
+      const menor = Math.min(largura, altura)
+      const raiz = (ang: number): Traco => ({ x1: Math.cos(ang) * menor * 0.29, y1: Math.sin(ang) * menor * 0.29, x2: Math.cos(ang + 0.12) * menor * 0.47, y2: Math.sin(ang + 0.12) * menor * 0.47 })
+      return [
+        ...aro(menor * 0.57, menor * 0.57),
+        ...aro(menor * 0.45, menor * 0.45),
+        ...aro(menor * 0.2, menor * 0.2, -menor * 0.02, menor * 0.02),
+        { x1: -menor * 0.02, y1: menor * 0.02, x2: menor * 0.11, y2: menor * 0.2 },
+        ...[-2.55, -0.2, 1, 2.55].map((ang) => raiz(ang)),
+      ]
+    }
+    case 'carrinhoDeMao':
+      // A caçamba (mais larga atrás), os dois cabos saindo para trás, os varais fechando na frente e, entre eles, a roda atravessada pelo eixo.
+      return [
+        ...fechado([[-hw * 0.55, -hh * 0.93], [hw * 0.45, -hh * 0.74], [hw * 0.45, hh * 0.74], [-hw * 0.55, hh * 0.93]]),
+        { x1: -hw * 0.98, y1: -hh * 0.72, x2: -hw * 0.55, y2: -hh * 0.62 },
+        { x1: -hw * 0.98, y1: hh * 0.72, x2: -hw * 0.55, y2: hh * 0.62 },
+        { x1: hw * 0.45, y1: -hh * 0.4, x2: hw * 0.82, y2: -hh * 0.33 },
+        { x1: hw * 0.45, y1: hh * 0.4, x2: hw * 0.82, y2: hh * 0.33 },
+        ...quadro(hw * 0.5, -hh * 0.16, hw * 0.98, hh * 0.16),
+        { x1: hw * 0.74, y1: -hh * 0.44, x2: hw * 0.74, y2: hh * 0.44 },
+      ]
+    case 'placaDeLoja':
+      // De frente: o poste numa ponta, o braço saindo do alto dele com a mão-francesa, as duas correntes e a tabuleta pendurada, de cantos de baixo chanfrados.
+      return [
+        { x1: -hw * 0.8, y1: -hh, x2: -hw * 0.8, y2: hh },
+        linha(-hw * 0.8, -hh * 0.72, hw * 0.92),
+        { x1: -hw * 0.8, y1: hh * 0.1, x2: -hw * 0.3, y2: -hh * 0.72 },
+        { x1: 0, y1: -hh * 0.72, x2: 0, y2: -hh * 0.36 },
+        { x1: hw * 0.7, y1: -hh * 0.72, x2: hw * 0.7, y2: -hh * 0.36 },
+        ...fechado([[-hw * 0.14, -hh * 0.36], [hw * 0.84, -hh * 0.36], [hw * 0.84, hh * 0.6], [hw * 0.68, hh * 0.9], [hw * 0.02, hh * 0.9], [-hw * 0.14, hh * 0.6]]),
+      ]
   }
 }
 

@@ -396,12 +396,16 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
 /**
  * Móveis que moram no CHÃO, por baixo de todo objeto: o tapete e o tapete
  * longo (MT5), a ponte (03/11/2026: o caminho em que se anda, com o barril
- * e a carroça por cima dela) e o campinho de futebol (10/11/2026: o gramado em
- * que se joga). A ordem de desenho, o contêiner do chão do editor e o clique
- * (que pega o tapete, a ponte e o campinho por último) leem esta lista.
+ * e a carroça por cima dela), o campinho de futebol (10/11/2026: o gramado em
+ * que se joga) e a horta e o canteiro de flores (11/11/2026: o pedaço de chão
+ * em que o mestre põe o espantalho, a estátua ou o lampião, que ficam por
+ * cima; os dois não são rentes, mas o que está dentro deles conta mais que o
+ * que está encostado atrás). A ordem de desenho, o contêiner do chão do editor
+ * e o clique (que pega o tapete, a ponte, o campinho, a horta e o canteiro por
+ * último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores'
 }
 
 /**

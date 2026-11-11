@@ -103,6 +103,13 @@ import { montarTonelDeAdega } from './tonelDeAdega'
 import { montarAnforasDeBarro } from './anforasDeBarro'
 import { montarCestoDeVime } from './cestoDeVime'
 import { montarCofre } from './cofre'
+import { montarVaralDeRoupa } from './varalDeRoupa'
+import { montarHorta } from './horta'
+import { montarCanteiroDeFlores } from './canteiroDeFlores'
+import { montarMuroBaixoDePedra } from './muroBaixoDePedra'
+import { montarTocoDeArvore } from './tocoDeArvore'
+import { montarCarrinhoDeMao } from './carrinhoDeMao'
+import { montarPlacaDeLoja } from './placaDeLoja'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -236,6 +243,16 @@ const MONTADORES = {
   anforasDeBarro: montarAnforasDeBarro,
   cestoDeVime: montarCestoDeVime,
   cofre: montarCofre,
+  // Lote 7 dos 95 objetos novos (11/11/2026), a rua e o jardim: um desenho por arquivo. O varal de roupa, a
+  // horta, o canteiro de flores, o muro baixo de pedra e a placa de loja leem o `giro` (o quarto de volta que a
+  // 3/4 pinta); o toco e o carrinho, não. O muro estica pelos controles de sempre e é reto: não lê a `curva`.
+  varalDeRoupa: montarVaralDeRoupa,
+  horta: montarHorta,
+  canteiroDeFlores: montarCanteiroDeFlores,
+  muroBaixoDePedra: montarMuroBaixoDePedra,
+  tocoDeArvore: montarTocoDeArvore,
+  carrinhoDeMao: montarCarrinhoDeMao,
+  placaDeLoja: montarPlacaDeLoja,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -278,6 +295,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
+  'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

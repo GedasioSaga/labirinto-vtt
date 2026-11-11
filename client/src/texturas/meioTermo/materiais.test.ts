@@ -198,6 +198,14 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       anforasDeBarro: [],
       cestoDeVime: ['pano:linho'],
       cofre: ['metal:ferro', 'ferragens:latao'],
+      // Lote 7 dos 95 objetos novos (11/11/2026): o toco com o lugar dos troncos e do cocho.
+      varalDeRoupa: ['madeira:carvalho', 'pano:vinho'],
+      horta: ['madeira:carvalho'],
+      canteiroDeFlores: ['pedras:granito'],
+      muroBaixoDePedra: ['pedra:granito'],
+      tocoDeArvore: ['lenha:lenhaCarvalho'],
+      carrinhoDeMao: ['madeira:carvalho'],
+      placaDeLoja: ['madeira:carvalho'],
     })
   })
 

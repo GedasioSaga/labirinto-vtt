@@ -44,6 +44,7 @@ import { ESPESSURA_DO_LAVATORIO } from './lavatorioComJarro'
 import { ESPESSURA_DA_TABUA_DA_PRATELEIRA_DE_POTES } from './prateleiraDePotes'
 import { ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE } from './mesaDeCorte'
 import { ESPESSURA_DA_TRAVE_DO_GANCHO } from './ganchoComCarne'
+import { ESPESSURA_DA_FIADA_DO_MURO } from './muroBaixoDePedra'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -301,6 +302,27 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   anforasDeBarro: DERIVADO,
   cestoDeVime: DERIVADO,
   cofre: DERIVADO,
+  // Lote 7 dos 95 objetos novos (11/11/2026), a rua e o jardim. No varal, na horta e no canteiro o que sobe
+  // (as faixas da roupa, a cabeça dos repolhos, a rama das cenouras, os andares do tomateiro, as moitas, as
+  // borboletas) sobe preso a um pino ou a uma fresta, um tampo solto minúsculo e sem sombra escondido debaixo
+  // da própria peça: com a beirada padrão dos tampos soltos cada pino ganharia um toco de 3 px debaixo dele.
+  // Sem beirada nenhuma, e não o derivado puro.
+  varalDeRoupa: { modo: 'derivado', espessura: 0 },
+  horta: { modo: 'derivado', espessura: 0 },
+  canteiroDeFlores: { modo: 'derivado', espessura: 0 },
+  // Cada pedra da face do muro é um tampo solto raso, sem peça (como as fiadas da fachada do mausoléu), e a
+  // beirada dele é a face da pedra, da altura de uma fiada, que o desenho exporta: com a padrão sobrava um vão
+  // escuro entre as fiadas.
+  muroBaixoDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DO_MURO },
+  // O toco sobe pelas sombras: o tronco é uma coluna (o contorno da casca) e cada cogumelo, um pé com o chapéu
+  // (um tampo solto, com a beirada padrão); as raízes ficam no chão.
+  tocoDeArvore: DERIVADO,
+  // O carrinho fica como de cima, como o canhão: derivado, a roda (uma tira no chão) viraria um bloco varrido
+  // e os cabos ficariam deitados na terra debaixo da caçamba.
+  carrinhoDeMao: EM_PE,
+  // Na placa o poste é uma coluna de verdade; o braço, as correntes e a face da tabuleta são desenhados de
+  // frente e guardados em fatias, cada uma presa a uma âncora, como a pedra de amolar: sem beirada nenhuma.
+  placaDeLoja: { modo: 'derivado', espessura: 0 },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

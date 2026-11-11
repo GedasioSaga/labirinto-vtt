@@ -1308,6 +1308,85 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M5.5 20v1.5M18.5 20v1.5" />
         </>
       )
+    case 'varalDeRoupa':
+      // De frente: os dois postes, a corda entre eles, a camisa (com as mangas) e o lençol de barra ondulada, cada um com dois pregadores (o toldo listrado tem o pano com barriga e a sanefa; aqui são roupas soltas na corda).
+      return (
+        <>
+          <path d="M3 3.5v18M21 3.5v18" />
+          <path d="M3 5.5h18" />
+          <path d="M7.6 5.5h3.8L13 8l-1.1.9-.9-.8v5.4H8V8.1l-.9.8L6 8z" />
+          <path d="M14.8 5.5V17c.7.5 1.4.5 2.1 0 .7-.5 1.4-.5 2.1 0V5.5" />
+          <path d="M8.4 4.4v1.6M10.6 4.4v1.6M15.7 4.4v1.6M18.1 4.4v1.6" />
+        </>
+      )
+    case 'horta':
+      // De lado, cortada: a linha da terra, a cenoura enterrada (com os dois riscos dela), a rama aberta em cima e, ao lado, a muda de duas folhas.
+      return (
+        <>
+          <path d="M2.5 11.5h19" />
+          <path d="M7.4 11.5 10 21l2.6-9.5" />
+          <path d="M8.7 14.8h2.6M9.4 17.6h1.2" />
+          <path d="M10 11.5 6.8 5.2M10 11.5V3.5M10 11.5l3.2-6.3" />
+          <path d="M17.5 11.5V7.6" />
+          <path d="M17.5 8.4c-1.7 0-2.6-1-2.6-2.5 1.7 0 2.6 1 2.6 2.5zM17.5 8.4c1.7 0 2.6-1 2.6-2.5-1.7 0-2.6 1-2.6 2.5z" />
+        </>
+      )
+    case 'canteiroDeFlores':
+      // De cima: a borda de pedras roliças (a oval tracejada, deitada) e três flores na terra (o poço é redondo, com a boca e a trave; a jardineira é o cocho de frente).
+      return (
+        <>
+          <ellipse cx="12" cy="12" rx="10" ry="7.5" strokeDasharray="3.6 1.4" />
+          <circle cx="7.5" cy="11" r="2.1" />
+          <circle cx="13" cy="9.3" r="2.1" />
+          <circle cx="14.5" cy="14.6" r="2.1" />
+        </>
+      )
+    case 'muroBaixoDePedra':
+      // De frente: a capa de lajes sobrando dos dois lados (uma laje mais alta que a outra), as duas fiadas de pedras tortas, de juntas inclinadas, e a pedra caída ao pé (a ferramenta Parede é o retângulo liso de tijolos, sem capa nem pedra caída).
+      return (
+        <>
+          <path d="M1.5 12V9.5h9v-1h12V12z" />
+          <path d="M10.5 9.5V12M16.5 8.5V12" />
+          <path d="M3 12v7.5h13M21 12v4.5" />
+          <path d="M3 15.7l6-.3 6 .5 6-.3" />
+          <path d="M8 12l.5 3.4M14.6 12l-.4 3.8M11.4 15.6l.4 3.9" />
+          <path d="M17.5 21.5l1-2.3 2.6-.4 1.4 1.7-.6 1z" />
+        </>
+      )
+    case 'tocoDeArvore':
+      // De lado: o topo serrado em elipse com um arco de anel, o tronco curto com dois riscos de casca, as raízes abrindo em dentes no pé e um cogumelo ao lado (os troncos são três toras de ponta; a bigorna tem o toco liso debaixo dela).
+      return (
+        <>
+          <ellipse cx="11" cy="6.5" rx="6.5" ry="2.8" />
+          <path d="M8.2 6.2c1.2 1.4 4.4 1.4 5.6 0" />
+          <path d="M4.5 6.5V14c0 2.4-1.2 4.2-3 6h4.2l1.6-1.8L9.2 20h3.6l1.9-1.8 1.6 1.8h2M17.5 6.5V14c0 1.3.3 2.2.9 3" />
+          <path d="M8.5 11.5v3M13.5 10.5V14" />
+          <path d="M18.6 18.2a2.2 1.9 0 0 1 4.4 0zM20.8 18.2v2.3" />
+        </>
+      )
+    case 'carrinhoDeMao':
+      // De lado: a caçamba funda, a roda única na frente, o cabo comprido para trás, o pé e duas abóboras passando da borda (a carroça é a caixa reta com duas rodas).
+      return (
+        <>
+          <path d="M6.5 8.5h11l-2.2 6.5H9z" />
+          <circle cx="17.5" cy="18" r="3" />
+          <path d="M2 10.5l7 4.5h6.3l2.2 3" />
+          <path d="M9 15l-1 6" />
+          <path d="M9.5 8.5a2.2 2.2 0 0 1 4.4 0M13.9 8.5a1.6 1.6 0 0 1 3.2 0" />
+        </>
+      )
+    case 'placaDeLoja':
+      // De frente: o poste, o braço de ferro com a ponta enrolada e a voluta por baixo, as duas correntes e a tabuleta chanfrada com a caneca (o arco do portão tem dois postes e a placa lisa).
+      return (
+        <>
+          <path d="M5 21.5V2.5" />
+          <path d="M5 5h14.5a1.3 1.3 0 1 0-1.3-1.3" />
+          <path d="M5 11.5c3 0 5-2.5 5-6.5" />
+          <path d="M11.5 5v3.5M18.5 5v3.5" />
+          <path d="M9.5 8.5h11v8l-1.5 1.5h-8l-1.5-1.5z" />
+          <path d="M13 11.5h3.5v4H13zM16.5 12.5h1.2v2h-1.2" />
+        </>
+      )
   }
 }
 

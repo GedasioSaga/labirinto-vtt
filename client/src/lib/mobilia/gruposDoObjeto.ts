@@ -94,7 +94,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   anforasDeBarro: 'armazenagem',
   cestoDeVime: 'armazenagem',
   cofre: 'armazenagem',
-  // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte).
+  // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte); e o lote 7 dos objetos novos
+  // (11/11/2026), do varal de roupa à placa de loja pendurada.
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
   jardineira: 'ruaEJardim',
@@ -111,6 +112,13 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   estatua: 'ruaEJardim',
   pedrasERochas: 'ruaEJardim',
   antenaParabolica: 'ruaEJardim',
+  varalDeRoupa: 'ruaEJardim',
+  horta: 'ruaEJardim',
+  canteiroDeFlores: 'ruaEJardim',
+  muroBaixoDePedra: 'ruaEJardim',
+  tocoDeArvore: 'ruaEJardim',
+  carrinhoDeMao: 'ruaEJardim',
+  placaDeLoja: 'ruaEJardim',
   // Cemitério.
   lapide: 'cemiterio',
   cova: 'cemiterio',

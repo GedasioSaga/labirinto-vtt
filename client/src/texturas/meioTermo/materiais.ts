@@ -310,6 +310,21 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   anforasDeBarro: [],
   cestoDeVime: [lugar('pano', 'Pano', TECIDOS, 'linho')],
   cofre: [lugar('metal', 'Cofre', METAIS, 'ferro'), lugar('ferragens', 'Roda e alavanca', METAIS, 'latao')],
+  // Lote 7 dos 95 objetos novos (11/11/2026), a rua e o jardim. O primeiro lugar vai na "Cor"; o segundo, na
+  // "Cor da linha". O pano do varal é só o pano listrado de franja (as listras são de linho cru; no pano de
+  // linho, de vinho, como no toldo listrado). A madeira da horta vale para as tábuas, as estacas de canto, a
+  // estaca do tomateiro e o cabo da pá. O toco tem o lugar dos troncos e do cocho: o cerne do corte sai da casca
+  // escolhida. Fixos: a corda, os pregadores, a camisa, o lençol e a calça do varal; a terra, as verduras, o
+  // tomateiro, o zinco e a água do regador e o ferro da pá da horta; a terra, as folhas, as flores e as
+  // borboletas do canteiro; o musgo e o líquen do muro; o musgo e os cogumelos do toco; o ferro e as abóboras
+  // do carrinho; o ferro forjado, as pedras do calço e a pintura da tabuleta da placa.
+  varalDeRoupa: [lugar('madeira', 'Postes', MADEIRAS, 'carvalho'), lugar('pano', 'Pano listrado', TECIDOS, 'vinho')],
+  horta: [lugar('madeira', 'Tábuas', MADEIRAS, 'carvalho')],
+  canteiroDeFlores: [lugar('pedras', 'Pedras', PEDRAS, 'granito')],
+  muroBaixoDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  tocoDeArvore: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  carrinhoDeMao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  placaDeLoja: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

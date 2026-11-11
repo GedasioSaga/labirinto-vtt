@@ -90,7 +90,17 @@ export interface ContextoDoMovel {
    * bojo de lado com a torneira na ponta), as ânforas de barro (para onde desce
    * o corpo guardado de cada ânfora em pé, a sombra pintada no chão, a ordem
    * dos pinos e a luz do lombo da tombada) e o cofre (só a sombra pintada da
-   * roda e da alavanca no chão). Os outros desenhos não leem.
+   * roda e da alavanca no chão). Do lote 7 (11/11/2026) leem o varal de roupa
+   * (com um quarto de volta é visto de ponta, cada roupa uma fita de pano ao
+   * longo da corda; com meia volta a roupa é montada de frente para o outro
+   * lado), a horta (a encosta clara das leiras, as sombras pintadas, o ombro da
+   * cenoura à frente da rama e os pinos do tomateiro à frente da estaca), o
+   * canteiro de flores (o lado claro das copas, o pé das moitas e a sombra das
+   * borboletas), o muro baixo de pedra (as pedras da face são montadas do lado
+   * que cai embaixo na tela: a face comprida, de frente ou de trás, ou a ponta,
+   * com o muro de topo) e a placa de loja (entrega a cena girada ao contrário,
+   * como a pedra de amolar: a tabuleta fica de frente em qualquer giro). Os
+   * outros desenhos não leem.
    */
   readonly giro: number
 }
