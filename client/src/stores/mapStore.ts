@@ -1531,6 +1531,9 @@ interface MapStoreState {
    */
   moveTokenLive: (id: string, targetX: number, targetY: number, atravessar?: boolean) => void
   movePropLive: (id: string, x: number, y: number) => void
+  /** Esc no meio de mover objeto: os objetos voltam aos de `before` (a cópia do Alt some), SEM
+   *  histórico; a seleção perde o que deixou de existir. */
+  cancelPropDragLive: (before: MapData) => void
   moveWallLive: (wallId: string, dx: number, dy: number) => void
   moveRegionLive: (regionId: string, dx: number, dy: number) => void
   moveStairLive: (id: string, dx: number, dy: number) => void
@@ -3443,6 +3446,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (next !== map) set({ map: next })
     },
     movePropLive: (id, x, y) => set((state) => ({ map: mapFactory.setPropPosition(state.map, id, x, y) })),
+    cancelPropDragLive: (before) => set((state) => {
+      const ids = new Set(before.props.map((p) => p.id))
+      const selection = state.selection.filter((item) => item.kind !== 'prop' || ids.has(item.id))
+      return { map: { ...state.map, props: before.props }, ...(selection.length === state.selection.length ? {} : { selection }) }
+    }),
     moveWallLive: (wallId, dx, dy) => set((state) => ({ map: mapFactory.moveWall(state.map, wallId, dx, dy) })),
     moveRegionLive: (regionId, dx, dy) => set((state) => ({ map: mapFactory.moveRegion(state.map, regionId, dx, dy) })),
     moveStairLive: (id, dx, dy) => set((state) => ({ map: mapFactory.moveStair(state.map, id, dx, dy) })),

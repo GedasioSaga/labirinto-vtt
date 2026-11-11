@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Container, EventBoundary, FederatedPointerEvent } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
+import { criarMovel } from '../lib/mobilia'
 import { useMapStore } from '../stores/mapStore'
 import type { MapData, Prop, Region } from '../types/map'
 import { PixiCanvas } from './PixiCanvas'
@@ -212,6 +213,47 @@ describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
     aperta(NO_CORREDOR, BOTAO_DIREITO)
 
     expect(useMapStore.getState().map.props).toEqual([])
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+})
+
+/** `pointerdown`/`pointermove`/`pointerup` no palco, no ponto de mundo, com o botão esquerdo apertado no meio. */
+function ponteiro(tipo: 'pointerdown' | 'pointermove' | 'pointerup', mundo: { x: number; y: number }): void {
+  const p = naTela(mundo)
+  const e = new FederatedPointerEvent(new EventBoundary())
+  e.pointerType = 'mouse'
+  e.pointerId = 1
+  e.isPrimary = true
+  e.button = BOTAO_ESQUERDO
+  e.buttons = tipo === 'pointerup' ? 0 : 1
+  e.global.set(p.x, p.y)
+  act(() => {
+    palco().emit(tipo, e)
+  })
+}
+
+/**
+ * ESC NO MEIO DE MOVER O OBJETO (prova de 11/11/2026: a barraca ficou fora do
+ * lugar depois de um arrasto de mover com Esc no meio). O Esc desfaz o arrasto
+ * em curso, como no giro da sala: o objeto volta ao lugar e ao giro de antes, e
+ * o soltar que vem depois não grava nada.
+ */
+describe('PixiCanvas — Esc no meio de mover o objeto', () => {
+  it('o objeto volta ao lugar e ao giro de antes, e soltar depois não deixa passo no desfazer', async () => {
+    const barraca: Prop = { ...criarMovel('barraca', { x: 160, y: 480 }, GRADE, 'barraca'), rotation: 40 }
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [barraca] }, activeTool: 'select' })
+    await monta()
+
+    ponteiro('pointerdown', { x: 160, y: 480 })
+    ponteiro('pointermove', { x: 260, y: 530 })
+    expect(unicoMovel().x).not.toBeCloseTo(160, 0)
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    })
+    ponteiro('pointermove', { x: 300, y: 560 })
+    ponteiro('pointerup', { x: 300, y: 560 })
+
+    expect(useMapStore.getState().map.props).toEqual([barraca])
     expect(useMapStore.getState().past).toHaveLength(0)
   })
 })

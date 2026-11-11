@@ -9056,6 +9056,20 @@ function PixiCanvasDoContexto({
           updateCursor()
           return
         }
+        // No meio de MOVER um objeto, Esc o devolve ao lugar de antes (a cópia do Alt some) e
+        // nada vai para o histórico — e só isso, como no giro. Sem isto o Esc só largava a
+        // seleção, o arrasto seguia e o soltar gravava o objeto fora do lugar (prova de 11/11/2026).
+        if (mode === 'dragging-prop' && event.key === 'Escape' && propDragSnapshot !== null) {
+          event.preventDefault()
+          useMapStore.getState().cancelPropDragLive(propDragSnapshot)
+          propDragSnapshot = null
+          bodyGuideDrag = null
+          pendingAltClone = null
+          endGuides()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
         if (mode === 'rotating-room') {
           if (event.key === 'Escape') {
             event.preventDefault()
