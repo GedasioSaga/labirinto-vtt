@@ -14,6 +14,7 @@ import { findPinAt, findPinsAt } from './pins'
 import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
 import { desenhoFicaSobAsSalas } from './desenhoSobAsSalas'
+import { ehPinturaDeBalde } from './baldeDeTinta'
 
 export interface Point {
   x: number
@@ -420,17 +421,25 @@ function regionHitAt(map: MapData, point: Point): SelectableHit | null {
  * 1. ficha, objeto, luz — pequenos, em primeiro plano;
  * 2. Texto e Caminho — por cima da planta, ganham da parede como sempre;
  * 3. parede (e porta) e escada;
- * 4. desenhos do botão Desenho (Pincel, balde, Linha, Curva, Círculo,
- *    Elipse, Retângulo, Polígono — `desenhoFicaSobAsSalas`);
- * 5. sala, por último (área grande, não deve "engolir" clique destinado a
- *    algo menor por cima).
+ * 4. desenhos do botão Desenho (traço do Pincel, Linha, Curva, Círculo,
+ *    Elipse, Retângulo, Polígono — `desenhoFicaSobAsSalas`), menos a pintura
+ *    do balde;
+ * 5. sala (área grande, não deve "engolir" clique destinado a algo menor por
+ *    cima);
+ * 6. a pintura do balde do Pincel (`ehPinturaDeBalde`), por último.
  *
  * PAREDE > DESENHO > SALA (pedido de 08/10/2026): a pintura do balde é um
  * polígono CHEIO uma célula maior que a sala, então acertava qualquer ponto em
  * cima da parede e a parede ficava impossível de selecionar. Agora o desenho
- * mora sob a parede na tela (`pixi/PixiCanvas.tsx`) e no clique também; no
- * miolo da sala pintada ele ainda ganha da sala, e a sala sai onde não há
- * desenho.
+ * mora sob a parede na tela (`pixi/PixiCanvas.tsx`) e no clique também.
+ *
+ * SALA > PINTURA DO BALDE (pedido de 11/11/2026: "eu pintei e coloquei a
+ * textura por cima, agora não consigo selecionar as salas"): a pintura do
+ * balde é chão, área grande como a sala, e cobria o miolo dela inteiro — o
+ * clique na sala pegava sempre a tinta. Agora ela só responde onde não há sala
+ * (nem nada menor por cima). Dentro da sala ela ainda se alcança escondendo a
+ * camada Salas, e a borracha (`findErasableAt`) continua achando a tinta antes
+ * da sala.
  *
  * Cada array é filtrado pela camada visível (map.hiddenLayers) ANTES do
  * hit-test — item em camada oculta não é selecionável, mesmo que geometricamente
@@ -442,12 +451,14 @@ function regionHitAt(map: MapData, point: Point): SelectableHit | null {
  */
 export function findSelectableAt(map: MapData, point: Point, pinos?: PinosNoToque): SelectableHit | null {
   const drawings = visibleDrawings(map.drawings, map.hiddenLayers)
+  const sobAsSalas = drawings.filter(desenhoFicaSobAsSalas)
   return (
     findForegroundAt(map, point, pinos) ??
     drawingHitAt(drawings.filter((drawing) => !desenhoFicaSobAsSalas(drawing)), point) ??
     findStructureAt(map, point) ??
-    drawingHitAt(drawings.filter(desenhoFicaSobAsSalas), point) ??
-    regionHitAt(map, point)
+    drawingHitAt(sobAsSalas.filter((drawing) => !ehPinturaDeBalde(drawing)), point) ??
+    regionHitAt(map, point) ??
+    drawingHitAt(sobAsSalas.filter(ehPinturaDeBalde), point)
   )
 }
 
