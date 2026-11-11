@@ -414,6 +414,21 @@ export function ehMovelDeCimaDaMesa(tipo: TipoMobilia | undefined): boolean {
   return tipo === 'pratos'
 }
 
+/**
+ * As CAMAS, com as TRÊS cores (madeira, cobertor e travesseiro): a de solteiro
+ * (o id antigo `catre`) e a de casal (11/11/2026). As cores de tecido moram em
+ * `Prop.mobiliaCorDoCobertor` e `mobiliaCorDoTravesseiro` e só valem nelas: a
+ * porta dessas cores (`normalizarCorDeTecido`: arquivo, edição e travessia),
+ * a troca de tipo (`semTecidoForaDaCama`), o painel de materiais
+ * (`components/MaterialDaPeca.tsx`) e a imagem (`pixi/rasterDosMoveis.ts`)
+ * leem esta lista. As áreas de tecido do desenho em LINHAS (`regioesDaCama`)
+ * continuam só da cama de solteiro: a de casal é peça nova, sai sempre com
+ * textura, e o provisório dela são só os traços.
+ */
+export function ehCama(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'catre' || tipo === 'camaDeCasal'
+}
+
 /** Lados do polígono que imita a elipse: redondo a olho no zoom máximo, poucos pontos. */
 export const LADOS_DA_ELIPSE = 32
 
@@ -1497,7 +1512,8 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
     { ...comVistaGravada(prop, vista), mobilia: tipo, ...tamanhoPadrao(tipo, vista ?? 'frente', grade, forma ?? 'retangular') },
     normalizarFormaDoMovel(tipo, prop.mobiliaForma),
   )
-  // As cores de tecido são só da cama: outro tipo não tem travesseiro nem cobertor.
+  // As cores de tecido são só das camas: outro tipo não tem travesseiro nem cobertor (da de solteiro para a de
+  // casal, e de volta, elas ficam).
   const curvado = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
   // A versão em linhas só existe nos 11 de antes (MT12): a peça nova sai sempre com textura.
   const movel = ofereceDesenhoEmLinhas(tipo) ? curvado : comDesenhoGravado(curvado, undefined)
@@ -1652,13 +1668,13 @@ export function normalizarCorDoMovel(valor: unknown): string | undefined {
 }
 
 /**
- * Cor de TECIDO da cama (travesseiro e cobertor): só na cama, e só `#rrggbb`
- * normalizada (a mesma porta da "Cor"). Em outro tipo, ou cor torta, vira
- * `undefined`. É a porta da leitura do arquivo, da edição, da travessia para
- * o jogador e do desenho.
+ * Cor de TECIDO da cama (travesseiro e cobertor): só nas camas (`ehCama`: a de
+ * solteiro e a de casal), e só `#rrggbb` normalizada (a mesma porta da "Cor").
+ * Em outro tipo, ou cor torta, vira `undefined`. É a porta da leitura do
+ * arquivo, da edição, da travessia para o jogador e do desenho.
  */
 export function normalizarCorDeTecido(tipo: TipoMobilia | undefined, valor: unknown): string | undefined {
-  return tipo === 'catre' ? normalizarCorDoMovel(valor) : undefined
+  return ehCama(tipo) ? normalizarCorDoMovel(valor) : undefined
 }
 
 /**
@@ -1766,9 +1782,9 @@ export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
   )
 }
 
-/** `prop` sem as cores de tecido quando ele não é a cama: elas só valem nela. */
+/** `prop` sem as cores de tecido quando ele não é uma cama (`ehCama`): elas só valem nas camas. */
 function semTecidoForaDaCama(prop: Prop): Prop {
-  if (prop.mobilia === 'catre' || (!('mobiliaCorDoTravesseiro' in prop) && !('mobiliaCorDoCobertor' in prop))) return prop
+  if (ehCama(prop.mobilia) || (!('mobiliaCorDoTravesseiro' in prop) && !('mobiliaCorDoCobertor' in prop))) return prop
   const { mobiliaCorDoTravesseiro: _corDoTravesseiro, mobiliaCorDoCobertor: _corDoCobertor, ...semTecido } = prop
   return semTecido
 }

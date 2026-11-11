@@ -102,7 +102,10 @@ describe('catálogo e menu do Objeto: as três mesas, sem mudar ordem nem id', (
     expect(TIPOS_NO_CATALOGO.slice(i, i + 3)).toEqual(['mesa', 'mesaQuadrada', 'mesaRedonda'])
     const sala = PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')
     // As partes da ficha (10/11/2026): as mesas e os assentos, a cama, os tapetes e a lareira; a cozinha e o banheiro à parte.
-    // A estante de livros e o guarda-roupa (11/11/2026) fecham a parte.
-    expect(sala?.tipos).toEqual(['mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona', 'catre', 'aparador', 'tapete', 'tapeteLongo', 'lareira', 'estanteDeLivros', 'guardaRoupa'])
+    // A estante de livros e o guarda-roupa (11/11/2026) e, depois deles, o lote 4 dos objetos novos fecham a parte.
+    expect(sala?.tipos).toEqual([
+      'mesa', 'cadeira', 'mesaQuadrada', 'mesaRedonda', 'sofa', 'poltrona', 'catre', 'aparador', 'tapete', 'tapeteLongo', 'lareira', 'estanteDeLivros', 'guardaRoupa',
+      'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+    ])
   })
 })

@@ -263,6 +263,22 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   cocho: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   ossos: [],
   antenaParabolica: [],
+  // Lote 4 dos 95 objetos novos (11/11/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha". A
+  // cama de casal tem os três lugares da cama de solteiro, com os mesmos ids e na mesma ordem, e guarda o
+  // cobertor (a colcha) e o travesseiro nos campos próprios dela (`ehCama` em `lib/mobilia.ts`). Fixos: na
+  // escrivaninha, o couro verde do forro e o filete dourado, o papel, a tinta, a pena, o lacre e o castiçal;
+  // no criado-mudo, o pires de latão, a cera, a chama e o halo e os livros; o lençol da cama e o do berço (o
+  // `LENCOL` de `contexto.ts`), as listras cruas da manta e o coelho de pano; no biombo, o latão das
+  // dobradiças e a linha do bordado (sai do próprio pano); no piano, o marfim e o ébano das teclas, o feltro,
+  // o latão, a cera e a partitura; a cera, o pavio, as chamas e os halos do candelabro.
+  escrivaninha: [lugar('madeira', 'Madeira', MADEIRAS, 'cerejeira'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
+  criadoMudo: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('puxadores', 'Puxador', METAIS, 'latao')],
+  camaDeCasal: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('cobertor', 'Cobertor', TECIDOS, 'azul'), lugar('travesseiro', 'Travesseiro', TECIDOS, 'linho')],
+  berco: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('manta', 'Manta', TECIDOS, 'azul')],
+  banqueta: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  biombo: [lugar('madeira', 'Moldura', MADEIRAS, 'nogueira'), lugar('pano', 'Pano', TECIDOS, 'linho')],
+  piano: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('assento', 'Assento', TECIDOS, 'vinho')],
+  candelabroDeChao: [lugar('metal', 'Metal', METAIS, 'ferro')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -57,6 +57,15 @@ describe('rasterDosMoveis: chave da imagem', () => {
     const cama = chaveDoMovel({ ...barril(NOGUEIRA), mobilia: 'catre', width: 50, height: 100, mobiliaCorDoCobertor: '#41526a', mobiliaCorDoTravesseiro: '#5a6344' }, 1, 1)
     expect(cama?.desenho.materiais).toEqual(['nogueira', 'azul', 'musgo'])
   })
+
+  it('a cama de casal (11/11/2026) lê os mesmos 3 campos; sem nenhum deles sai com os materiais de partida', () => {
+    const casal: Prop = { id: 'c', src: '', x: 100, y: 100, width: 100, height: 100, linkedMapPath: null, mobilia: 'camaDeCasal' }
+    expect(chaveDoMovel(casal, 1, 1)?.desenho.materiais).toEqual(['nogueira', 'azul', 'linho'])
+    const pintada = chaveDoMovel({ ...casal, mobiliaCor: CARVALHO, mobiliaCorDoCobertor: '#6d3337', mobiliaCorDoTravesseiro: '#5a6344' }, 1, 1)
+    expect(pintada?.desenho.materiais).toEqual(['carvalho', 'vinho', 'musgo'])
+    // A "Cor da linha", o 2º lugar dos outros móveis, não pinta o cobertor da cama.
+    expect(chaveDoMovel({ ...casal, mobiliaCorDaLinha: '#6d3337' }, 1, 1)?.desenho.materiais).toEqual(['nogueira', 'azul', 'linho'])
+  })
 })
 
 describe('rasterDosMoveis: cache e fila', () => {

@@ -37,6 +37,8 @@ import { ESPESSURA_DA_FIADA } from './mausoleu'
 import { ESPESSURA_DA_BANCA } from './bancaDeFrutas'
 import { ESPESSURA_DO_TAMPO_DA_BANCADA } from './bancadaDeFerramentas'
 import { ESPESSURA_DO_COCHO } from './cocho'
+import { ESPESSURA_DAS_TRAVESSAS_DO_BIOMBO } from './biombo'
+import { ALTURA_DA_VELA_DO_CANDELABRO } from './candelabroDeChao'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -226,6 +228,33 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // A antena sobe pelas sombras: o prato é o tampo no ar e o mastro, a coluna da mesma altura. A beirada são
   // as costas do prato: com 0,16 casa ele lia como uma panela de parede reta.
   antenaParabolica: { modo: 'derivado', espessura: 0.09 * G },
+  // Lote 4 dos 95 objetos novos (11/11/2026). A escrivaninha, o criado-mudo e a cama de casal têm a frente
+  // (as gavetas; na cama, a face da cabeceira, a da peseira e a frente dos postes) desenhada de frente e
+  // guardada debaixo do tampo ou das cobertas, com a fresta dela (um tampo solto de um quarto de px, sem
+  // sombra), e ela começa rente ao chão: com a beirada padrão dos tampos soltos, a da fresta caía no chão
+  // como uma tira de madeira lisa (e, na cabeceira da cama, por cima da quina dela). Sem beirada nenhuma,
+  // como a prateleira de depósito.
+  escrivaninha: { modo: 'derivado', espessura: 0 },
+  criadoMudo: { modo: 'derivado', espessura: 0 },
+  camaDeCasal: { modo: 'derivado', espessura: 0 },
+  // O berço sobe pelas sombras, com a beirada padrão.
+  berco: DERIVADO,
+  // Cada pé da banqueta é inclinado e sobe em fatias finas (um tampo solto por fatia): com a beirada padrão
+  // cada fatia ganhava uma beirada reta e o pé virava uma escada de anéis. Sem beirada o pé sai liso; a
+  // espessura do assento é uma peça do desenho.
+  banqueta: { modo: 'derivado', espessura: 0 },
+  // As travessas do biombo e cada ponto do bordado são tampos soltos numa raia fina, e a altura de cada um
+  // na tela é a beirada mais a raia: com a padrão as travessas e as ondas saíam com o dobro da grossura. A
+  // beirada é a que o desenho exporta.
+  biombo: { modo: 'derivado', espessura: ESPESSURA_DAS_TRAVESSAS_DO_BIOMBO },
+  // O piano sobe pelas sombras: a frente (os painéis, a tampa das teclas, o rodapé) é desenhada de frente e
+  // fatiada, cada faixa com a fresta dela, como a do guarda-roupa; o teclado e o banquinho são tampos soltos,
+  // e a beirada padrão é a grossura do leito das teclas e a do assento (o `BEIRADA` de `piano.ts` a repete).
+  piano: DERIVADO,
+  // Cada vela do candelabro é um tampo solto na altura do alto dela, e a beirada do tampo é o corpo de cera,
+  // na altura que o desenho exporta: com a padrão as velas saíam tocos de 3 px. Os nós do mastro são tampos
+  // sem peça e têm a mesma altura.
+  candelabroDeChao: { modo: 'derivado', espessura: ALTURA_DA_VELA_DO_CANDELABRO },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

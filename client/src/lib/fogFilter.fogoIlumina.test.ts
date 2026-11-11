@@ -2,8 +2,9 @@
  * O FOGO É LUZ no recorte do jogador (pedido do mestre de 09/11/2026: "na
  * gameplay isso não ilumina nada os jogadores"). À noite a visão cai para o
  * raio do período; além dele só chega o claro das luzes na linha de visão.
- * Os objetos de luz (fogo, fogueira, lareira, fornalha, forno de pão e lampião,
- * `lib/luzDoFogo.ts`) contam como luz, ATÉ O TETO: o claro deles só revela o
+ * Os objetos de luz (fogo, fogueira, lareira, fornalha, forno de pão, lampião
+ * e as velas do criado-mudo e do candelabro de chão, `lib/luzDoFogo.ts`)
+ * contam como luz, ATÉ O TETO: o claro deles só revela o
  * que está dentro da visão cheia do dia de quem olha. Sem o teto, um mapa
  * aberto cheio de fogos entregava de noite o mapa inteiro. Pacote forjado,
  * dados inventados.
@@ -59,8 +60,8 @@ describe('à noite o objeto Fogo clareia como um lampião', () => {
     expect(oQueChega(clareira(fogo('fogueira', a(5))), 3 * GRID)).toEqual({ fichas: ['heroi'], objetos: [] })
   })
 
-  it('lampião, fogueira, lareira, fornalha e forno de pão também clareiam; lareira e forno apagados, caldeirão e móvel sem fogo não', () => {
-    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha', 'fornoDePao']
+  it('lampião, fogueira, lareira, fornalha, forno de pão e as velas (criado-mudo e candelabro de chão) também clareiam; lareira e forno apagados, caldeirão e móvel sem fogo não', () => {
+    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha', 'fornoDePao', 'criadoMudo', 'candelabroDeChao']
     for (const mobilia of outrasLuzes) {
       expect(oQueChega(clareira(fogo('luz', a(5), { mobilia })), noite), mobilia).toEqual({ fichas: ['guarda', 'heroi'], objetos: ['luz'] })
     }
@@ -69,6 +70,13 @@ describe('à noite o objeto Fogo clareia como um lampião', () => {
     // O caldeirão (11/11/2026) tem a brasa só pintada: não é fonte de luz.
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'caldeirao' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'mesa' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
+  })
+
+  it('as velas (11/11/2026) clareiam menos que o lampião: a do criado-mudo não chega ao guarda a 2,6 casas dela; as cinco do candelabro de chão chegam', () => {
+    // No tamanho de partida dos dois (0,6 casa): a vela do criado-mudo alcança 1,9 casa do meio e o candelabro, 2,9.
+    const vela = (mobilia: TipoMobilia): MapData => cena([ficha('guarda', a(5, 2.6))], [fogo('luz', a(5), { mobilia, width: 0.6 * GRID, height: 0.6 * GRID })])
+    expect(oQueChega(vela('criadoMudo'), noite)).toEqual({ fichas: ['heroi'], objetos: ['luz'] })
+    expect(oQueChega(vela('candelabroDeChao'), noite)).toEqual({ fichas: ['guarda', 'heroi'], objetos: ['luz'] })
   })
 })
 

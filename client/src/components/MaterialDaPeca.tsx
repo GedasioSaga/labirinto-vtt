@@ -1,6 +1,6 @@
 import { useId, useRef, type CSSProperties } from 'react'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
-import { normalizarCorDeTecido, normalizarCorDoMovel } from '../lib/mobilia'
+import { ehCama, normalizarCorDeTecido, normalizarCorDoMovel } from '../lib/mobilia'
 import { formaDaPonte, lugarDaPonteNaForma } from '../lib/mobilia/ponte'
 import { formaDoMoinho } from '../lib/mobilia/cataVento'
 import {
@@ -28,14 +28,15 @@ function destino(tecla: string, i: number, ultimo: number): number | null {
 
 /**
  * O campo de cor do arquivo que guarda o material de cada lugar, na ordem dos
- * lugares: a cama usa as 3 cores de hoje (madeira, cobertor, travesseiro); o
- * resto, a "Cor" (o 1º lugar) e a "Cor da linha" (o 2º). É a mesma ordem que o
- * desenho lê (`materiaisDoMovel` em `pixi/rasterDosMoveis.ts`).
+ * lugares: as camas (a de solteiro e a de casal, `ehCama`) usam as 3 cores de
+ * hoje (madeira, cobertor, travesseiro); o resto, a "Cor" (o 1º lugar) e a
+ * "Cor da linha" (o 2º). É a mesma ordem que o desenho lê (`materiaisDoMovel`
+ * em `pixi/rasterDosMoveis.ts`).
  */
 export type CampoDoMaterial = 'cor' | 'corDaLinha' | 'corDoCobertor' | 'corDoTravesseiro'
 
 function camposDosLugares(tipo: TipoMobilia): readonly CampoDoMaterial[] {
-  return tipo === 'catre' ? ['cor', 'corDoCobertor', 'corDoTravesseiro'] : ['cor', 'corDaLinha']
+  return ehCama(tipo) ? ['cor', 'corDoCobertor', 'corDoTravesseiro'] : ['cor', 'corDaLinha']
 }
 
 function corGravada(prop: Prop, campo: CampoDoMaterial): string | undefined {

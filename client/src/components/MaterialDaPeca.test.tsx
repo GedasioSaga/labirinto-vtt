@@ -2,6 +2,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
+import { MATERIAIS } from '../texturas/meioTermo/materiais'
 import type { Prop } from '../types/map'
 import { MobiliaControls } from './MobiliaControls'
 
@@ -84,6 +85,25 @@ describe('MaterialDaPeca: o material da peça nova', () => {
     })
     // Depois da ardósia, a última, a seta volta à primeira (granito).
     expect(pedidos).toEqual([{ cor: '#7e7b76' }])
+  })
+
+  it('a cama de casal (11/11/2026) tem os três lugares da cama: cobertor e travesseiro gravam nos campos de tecido, não na Cor da linha', () => {
+    const pedidos: AparenciaDoMovelPatch[] = []
+    const casal: Prop = { ...POCO, width: 100, height: 100, mobilia: 'camaDeCasal' }
+    pintar(casal, pedidos)
+    const grupos = [...caixa.querySelectorAll('[role="radiogroup"]')]
+    expect(grupos).toHaveLength(3)
+    // Sem nenhuma das três cores no arquivo, os materiais de partida saem marcados.
+    const marcados = (): (string | null | undefined)[] =>
+      [...caixa.querySelectorAll('[role="radiogroup"]')].map((g) => g.querySelector('[aria-checked="true"]')?.getAttribute('aria-label'))
+    expect(marcados()).toEqual([MATERIAIS.nogueira.nome, MATERIAIS.azul.nome, MATERIAIS.linho.nome])
+    act(() => grupos[1]?.querySelector<HTMLButtonElement>(`[aria-label="${MATERIAIS.vinho.nome}"]`)?.click())
+    act(() => grupos[2]?.querySelector<HTMLButtonElement>(`[aria-label="${MATERIAIS.musgo.nome}"]`)?.click())
+    act(() => grupos[0]?.querySelector<HTMLButtonElement>(`[aria-label="${MATERIAIS.carvalho.nome}"]`)?.click())
+    expect(pedidos).toEqual([{ corDoCobertor: MATERIAIS.vinho.hex }, { corDoTravesseiro: MATERIAIS.musgo.hex }, { cor: MATERIAIS.carvalho.hex }])
+    // A cor gravada volta marcada no lugar dela.
+    pintar({ ...casal, mobiliaCorDoCobertor: MATERIAIS.vinho.hex, mobiliaCorDoTravesseiro: MATERIAIS.musgo.hex }, [])
+    expect(marcados()).toEqual([MATERIAIS.nogueira.nome, MATERIAIS.vinho.nome, MATERIAIS.musgo.nome])
   })
 
   it('peça de um lugar só (a lápide) tem um grupo; móvel antigo com textura (MT12) tem o material, e em linhas as cores livres', () => {

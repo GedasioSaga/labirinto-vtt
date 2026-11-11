@@ -70,7 +70,14 @@ export interface ContextoDoMovel {
    * o quadro e põe as armas inteiras, em pé, onde o giro as deixou), os ossos
    * (a sombra pintada de cada osso continua caindo para baixo à direita na
    * tela) e a antena parabólica (a luz de dentro do prato e as sombras
-   * pintadas na base). Os outros desenhos não leem.
+   * pintadas na base). Do lote 4 (11/11/2026) leem a cama de casal (girada,
+   * não guarda as faces da cabeceira, da peseira e dos postes: a 3/4 varre a
+   * madeira lisa do lado ou das costas, que é o que se veria), a banqueta (a
+   * sombra do assento no chão e a luz da cova dele caem no lugar na tela), o
+   * biombo (a sombra pintada de cada folha, as raias cortadas a prumo da
+   * tela, e a almofada e a travessa do meio só do lado virado para quem
+   * olha) e o candelabro de chão (as chamas apontam para cima na tela). Os
+   * outros desenhos não leem.
    */
   readonly giro: number
 }

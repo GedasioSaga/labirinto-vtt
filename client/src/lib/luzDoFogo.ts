@@ -8,7 +8,9 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
  * lampião são fontes de luz de verdade: o MESMO alcance vale para o desenho
  * (`pixi/mapaDeLuz.ts`, o claro quente que treme) e para a visão do jogador
  * no escuro (`lib/fogFilter.ts`, o claro na linha de visão chega como o de um
- * ponto de luz).
+ * ponto de luz). As velas (11/11/2026: a do criado-mudo e as cinco do
+ * candelabro de chão) também: só iluminam em volta, com a chama pintada no
+ * desenho, sem animação e sem Aceso/Apagado (decisão do mestre).
  *
  * Antes disto a luz desses objetos era só desenho: fora do raio curto da
  * noite nem chegavam ao jogador, e o claro era cortado na borda da visão dele.
@@ -42,9 +44,12 @@ export interface LuzDoObjeto {
  * centro; aqui a conta parte da borda da pegada).
  *
  * `fumacaEBrasas` também responde "a cena tem fogo?" (`lib/particulasDaCena.ts`):
- * tudo que queima à vista solta, e só o lampião, de chama fechada, não. Com a
- * fogueira de fora, a cena só com ela contava como sem fogo e a fumaça nascia
- * espalhada pela tela toda.
+ * tudo que queima à vista solta, e só o lampião, de chama fechada, e as velas,
+ * de chama pequena, não. Com a fogueira de fora, a cena só com ela contava
+ * como sem fogo e a fumaça nascia espalhada pela tela toda.
+ *
+ * A luz nasce sempre do MEIO do objeto (`x`, `y`): a tabela não tem como pôr a
+ * origem em outro ponto da pegada.
  */
 export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>> = {
   fogo: { alcanceEmCasas: 4, cor: 0xffdca6, forca: 0.95, fumacaEBrasas: true },
@@ -54,6 +59,12 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // O forno de pão (11/11/2026), com o fogo aceso: a luz da lareira, o outro fogo de lenha de dentro de casa.
   fornoDePao: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: true },
   lampiao: { alcanceEmCasas: 3, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
+  // As velas (11/11/2026), no tom do lampião e mais curtas que ele. A do criado-mudo é uma vela só: metade do
+  // alcance. Ela fica fora do meio do móvel (a 0,15 casa dele no tamanho de partida, `CHAMA_DO_CRIADO_MUDO`
+  // em `texturas/meioTermo/moveis/criadoMudo.ts`), mas a luz sai do meio: a diferença some no alcance.
+  criadoMudo: { alcanceEmCasas: 1.5, cor: 0xffe8c4, forca: 0.7, fumacaEBrasas: false },
+  // O candelabro de chão: cinco velas em anel em volta do mastro, que é o meio da pegada.
+  candelabroDeChao: { alcanceEmCasas: 2.5, cor: 0xffe8c4, forca: 0.8, fumacaEBrasas: false },
 }
 
 /**

@@ -42,7 +42,8 @@ export const GRUPO_PADRAO: IdDoGrupoDeObjeto = 'outros'
  * fornalha e a bigorna (a água da têmpera), como já estava no menu.
  */
 export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeObjeto>>> = {
-  // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira; a estante e o guarda-roupa (11/11/2026).
+  // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira; a estante e o guarda-roupa (11/11/2026);
+  // e o lote 4 dos objetos novos (11/11/2026), da escrivaninha ao candelabro de chão.
   mesa: 'salaEQuarto',
   cadeira: 'salaEQuarto',
   mesaQuadrada: 'salaEQuarto',
@@ -56,6 +57,14 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   lareira: 'salaEQuarto',
   estanteDeLivros: 'salaEQuarto',
   guardaRoupa: 'salaEQuarto',
+  escrivaninha: 'salaEQuarto',
+  criadoMudo: 'salaEQuarto',
+  camaDeCasal: 'salaEQuarto',
+  berco: 'salaEQuarto',
+  banqueta: 'salaEQuarto',
+  biombo: 'salaEQuarto',
+  piano: 'salaEQuarto',
+  candelabroDeChao: 'salaEQuarto',
   // Cozinha e banheiro; o caldeirão e o forno de pão (11/11/2026).
   armario: 'cozinhaEBanheiro',
   balcao: 'cozinhaEBanheiro',

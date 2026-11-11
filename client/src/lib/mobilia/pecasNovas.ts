@@ -33,6 +33,7 @@ export const PECAS_NOVAS = [
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
+  'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -172,6 +173,20 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   cocho: { rotulo: 'Cocho', artigo: 'um cocho', tamanho: { largura: 2, altura: 0.7 }, redonda: false },
   ossos: { rotulo: 'Ossos', artigo: 'uns ossos', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   antenaParabolica: { rotulo: 'Antena parabólica', artigo: 'uma antena parabólica', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // Lote 4 dos 95 objetos novos (11/11/2026), a sala e o quarto, cada um com o próprio desenho; esticam e giram
+  // como todo objeto. A frente da escrivaninha e do criado-mudo (as gavetas), do biombo (o bordado) e do piano
+  // (o teclado e o banquinho, que contam na pegada) é o lado de baixo. A cama de casal tem a cabeceira em
+  // cima, como a de solteiro, e as três cores dela (`ehCama` em `lib/mobilia.ts`); o berço tem a cabeça à
+  // esquerda. A banqueta e o candelabro são redondos. A vela do criado-mudo e as cinco do candelabro só
+  // iluminam em volta (`lib/luzDoFogo.ts`): a chama é pintura, sem animação nem Aceso/Apagado.
+  escrivaninha: { rotulo: 'Escrivaninha', artigo: 'uma escrivaninha', tamanho: { largura: 1.5, altura: 0.8 }, redonda: false },
+  criadoMudo: { rotulo: 'Criado-mudo com vela', artigo: 'um criado-mudo com vela', tamanho: { largura: 0.6, altura: 0.6 }, redonda: false },
+  camaDeCasal: { rotulo: 'Cama de casal', artigo: 'uma cama de casal', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  berco: { rotulo: 'Berço', artigo: 'um berço', tamanho: { largura: 1, altura: 0.7 }, redonda: false },
+  banqueta: { rotulo: 'Banqueta', artigo: 'uma banqueta', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  biombo: { rotulo: 'Biombo', artigo: 'um biombo', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
+  piano: { rotulo: 'Piano', artigo: 'um piano', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  candelabroDeChao: { rotulo: 'Candelabro de chão', artigo: 'um candelabro de chão', tamanho: { largura: 0.6, altura: 0.6 }, redonda: true },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -245,6 +260,14 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     cocho: valor(f.cocho),
     ossos: valor(f.ossos),
     antenaParabolica: valor(f.antenaParabolica),
+    escrivaninha: valor(f.escrivaninha),
+    criadoMudo: valor(f.criadoMudo),
+    camaDeCasal: valor(f.camaDeCasal),
+    berco: valor(f.berco),
+    banqueta: valor(f.banqueta),
+    biombo: valor(f.biombo),
+    piano: valor(f.piano),
+    candelabroDeChao: valor(f.candelabroDeChao),
   }
 }
 
@@ -277,11 +300,12 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1, 2 e 3 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que
-  // o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1, 2, 3 e 4 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em
+  // que o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
+  'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
 ]
 
 /**
@@ -933,6 +957,103 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(menor * 0.08, menor * 0.08, fx, fy),
         ...quadro(bx - base, by - base, bx + base, by + base),
         { x1: bx + base, y1: by + base * 0.5, x2: menor * 0.46, y2: menor * 0.46 },
+      ]
+    }
+    // Lote 4 dos 95 objetos novos (11/11/2026): os traços que cada desenhista entregou com o desenho.
+    case 'escrivaninha': {
+      // O forro de couro por dentro da moldura do tampo, o livro aberto (as duas páginas e a lombada) e o tinteiro com a pena no canto.
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw + menor * 0.16, -hh + menor * 0.16, hw - menor * 0.16, hh - menor * 0.16),
+        ...quadro(-hw * 0.58, -hh * 0.28, hw * 0.02, hh * 0.44),
+        { x1: -hw * 0.28, y1: -hh * 0.28, x2: -hw * 0.28, y2: hh * 0.44 },
+        ...aro(menor * 0.16, menor * 0.16, hw * 0.5, -hh * 0.34),
+        { x1: hw * 0.5, y1: -hh * 0.34, x2: hw * 0.74, y2: -hh * 0.56 },
+      ]
+    }
+    case 'criadoMudo': {
+      // O pires com a vela (os dois aros) no canto do fundo, o livro fechado, torto, no da frente e o puxador da gaveta na beira.
+      const menor = Math.min(largura, altura)
+      return [
+        ...aro(menor * 0.36, menor * 0.36, -hw * 0.36, -hh * 0.34),
+        ...aro(menor * 0.14, menor * 0.14, -hw * 0.36, -hh * 0.34),
+        ...fechado([[hw * 0.02, hh * 0.2], [hw * 0.74, hh * 0.04], [hw * 0.84, hh * 0.56], [hw * 0.12, hh * 0.72]]),
+        linha(-hw * 0.14, hh * 0.9, hw * 0.14),
+      ]
+    }
+    case 'camaDeCasal': {
+      // A cabeceira no fundo, os dois travesseiros lado a lado, a dobra do lençol (as duas beiras dela) e a peseira na frente.
+      const cabeceira = -hh + altura * 0.09
+      const fimDosTravesseiros = cabeceira + altura * 0.22
+      return [
+        linha(-hw, cabeceira, hw),
+        ...quadro(-hw * 0.86, cabeceira + altura * 0.02, -hw * 0.04, fimDosTravesseiros),
+        ...quadro(hw * 0.04, cabeceira + altura * 0.02, hw * 0.86, fimDosTravesseiros),
+        linha(-hw * 0.94, fimDosTravesseiros + altura * 0.05, hw * 0.94),
+        linha(-hw * 0.94, fimDosTravesseiros + altura * 0.16, hw * 0.94),
+        linha(-hw, hh - altura * 0.07, hw),
+      ]
+    }
+    case 'berco': {
+      // A cabeceira à esquerda, o travesseiro junto dela, a dobra da manta e as ripas das duas grades.
+      const cabeceira = -hw + largura * 0.16
+      const ripa = altura * 0.14
+      return [
+        { x1: cabeceira, y1: -hh * 0.8, x2: cabeceira, y2: hh * 0.8 },
+        ...quadro(cabeceira + largura * 0.05, -hh * 0.42, cabeceira + largura * 0.2, hh * 0.42),
+        { x1: hw * 0.1, y1: -hh * 0.62, x2: hw * 0.1, y2: hh * 0.62 },
+        ...[-0.25, 0.15, 0.55].flatMap((f) => [
+          { x1: hw * f, y1: -hh * 0.8, x2: hw * f, y2: -hh * 0.8 + ripa },
+          { x1: hw * f, y1: hh * 0.8 - ripa, x2: hw * f, y2: hh * 0.8 },
+        ]),
+      ]
+    }
+    case 'banqueta': {
+      // O assento no meio, os três pés saindo por baixo dele (um para a frente, dois para trás) e as travessas em triângulo.
+      const R = Math.min(largura, altura) / 2
+      const pes = [Math.PI / 2, -Math.PI / 6, (7 * Math.PI) / 6].map((a): readonly [number, number] => [Math.cos(a), Math.sin(a)])
+      return [
+        ...aro(R * 0.92, R * 0.92),
+        ...pes.map(([x, y]) => ({ x1: x * R * 0.46, y1: y * R * 0.46, x2: x * R * 0.96, y2: y * R * 0.96 })),
+        ...fechado(pes.map(([x, y]): readonly [number, number] => [x * R * 0.78, y * R * 0.78])),
+      ]
+    }
+    case 'biombo': {
+      // As quatro folhas em ziguezague, de ponta a ponta, e a pinha do montante de cada ponta.
+      const dobras = [0, 1, 2, 3, 4].map((j): readonly [number, number] => [-hw * 0.94 + (largura * 0.94 * j) / 4, (j % 2 === 0 ? -1 : 1) * hh * 0.8])
+      // A pinha tem teto pela largura: no biombo esticado estreito e alto ela não sai da caixa (a ponta fica a
+      // 0,03 da largura da beira); no tamanho de partida manda o lado menor.
+      const pinha = Math.min(Math.min(largura, altura) * 0.16, largura * 0.05)
+      return [
+        ...dobras.slice(1).map(([x2, y2], j) => ({ x1: dobras[j][0], y1: dobras[j][1], x2, y2 })),
+        ...aro(pinha, pinha, dobras[0][0], dobras[0][1]),
+        ...aro(pinha, pinha, dobras[4][0], dobras[4][1]),
+      ]
+    }
+    case 'piano': {
+      // A beira da tampa e a do teclado, as teclas pretas em grupos de duas e de três penduradas na primeira, e o banquinho redondo na frente.
+      const tampa = -hh + altura * 0.42
+      const teclado = -hh + altura * 0.62
+      const banquinho = Math.min(altura * 0.3, largura * 0.4)
+      return [
+        linha(-hw, tampa, hw),
+        linha(-hw, teclado, hw),
+        ...[-0.66, -0.42, -0.02, 0.22, 0.46].map((f) => ({ x1: hw * f, y1: tampa, x2: hw * f, y2: tampa + altura * 0.12 })),
+        ...aro(banquinho, banquinho, 0, hh - banquinho / 2),
+      ]
+    }
+    case 'candelabroDeChao': {
+      // O mastro no meio, as cinco velas em anel em volta dele e os dois pés da frente, abertos, saindo por baixo.
+      const menor = Math.min(largura, altura)
+      const anel = menor * 0.32
+      return [
+        ...aro(menor * 0.12, menor * 0.12),
+        ...[0, 1, 2, 3, 4].flatMap((i) => {
+          const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5
+          return aro(menor * 0.2, menor * 0.2, anel * Math.cos(a), anel * Math.sin(a))
+        }),
+        { x1: menor * 0.06, y1: menor * 0.02, x2: menor * 0.44, y2: menor * 0.16 },
+        { x1: -menor * 0.06, y1: menor * 0.02, x2: -menor * 0.44, y2: menor * 0.16 },
       ]
     }
   }

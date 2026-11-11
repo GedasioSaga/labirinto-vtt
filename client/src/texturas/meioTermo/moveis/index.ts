@@ -83,6 +83,14 @@ import { montarEspantalho } from './espantalho'
 import { montarCocho } from './cocho'
 import { montarOssos } from './ossos'
 import { montarAntenaParabolica } from './antenaParabolica'
+import { montarEscrivaninha } from './escrivaninha'
+import { montarCriadoMudo } from './criadoMudo'
+import { montarCamaDeCasal } from './camaDeCasal'
+import { montarBerco } from './berco'
+import { montarBanqueta } from './banqueta'
+import { montarBiombo } from './biombo'
+import { montarPiano } from './piano'
+import { montarCandelabroDeChao } from './candelabroDeChao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -186,6 +194,17 @@ const MONTADORES = {
   cocho: montarCocho,
   ossos: montarOssos,
   antenaParabolica: montarAntenaParabolica,
+  // Lote 4 dos 95 objetos novos (11/11/2026): um desenho por arquivo. A cama de casal, a banqueta, o biombo e
+  // o candelabro de chão leem o `giro` (o quarto de volta que a 3/4 pinta); de cima ele chega 0 a todos, e
+  // quem gira é a imagem pronta (com o giro, a sombra pintada da banqueta e a do biombo sairiam viradas).
+  escrivaninha: montarEscrivaninha,
+  criadoMudo: montarCriadoMudo,
+  camaDeCasal: montarCamaDeCasal,
+  berco: montarBerco,
+  banqueta: montarBanqueta,
+  biombo: montarBiombo,
+  piano: montarPiano,
+  candelabroDeChao: montarCandelabroDeChao,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -225,6 +244,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
+  'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

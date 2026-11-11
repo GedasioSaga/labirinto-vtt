@@ -1789,8 +1789,10 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | FormaGravadaDoVento | FormaGravadaDaPonte | FormaGravadaDaCova
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
-   *  o desenho de sempre — sem linha de migração. Vale só na cama (`catre`):
-   *  em outro tipo some na leitura e na travessia. Vai ao jogador junto do tipo. */
+   *  o desenho de sempre — sem linha de migração. Vale só nas camas (`catre`
+   *  e, desde 11/11/2026, `camaDeCasal`; `ehCama` em `lib/mobilia.ts`): em
+   *  outro tipo some na leitura e na travessia. Vai ao jogador junto do tipo.
+   *  Com textura, o desenho lê o material de tecido mais perto da cor. */
   mobiliaCorDoTravesseiro?: string
   /** Cor do cobertor da cama, da dobra ao pé (a madeira fica à vista nos
    *  lados e no pé), `#rrggbb` com as mesmas regras de `mobiliaCorDoTravesseiro`.

@@ -174,6 +174,15 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       cocho: ['lenha:lenhaCarvalho'],
       ossos: [],
       antenaParabolica: [],
+      // Lote 4 dos 95 objetos novos (11/11/2026): a cama de casal com os três lugares da de solteiro.
+      escrivaninha: ['madeira:cerejeira', 'puxadores:latao'],
+      criadoMudo: ['madeira:nogueira', 'puxadores:latao'],
+      camaDeCasal: ['madeira:nogueira', 'cobertor:azul', 'travesseiro:linho'],
+      berco: ['madeira:carvalho', 'manta:azul'],
+      banqueta: ['madeira:carvalho'],
+      biombo: ['madeira:nogueira', 'pano:linho'],
+      piano: ['madeira:nogueira', 'assento:vinho'],
+      candelabroDeChao: ['metal:ferro'],
     })
   })
 

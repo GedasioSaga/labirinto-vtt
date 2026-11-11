@@ -43,6 +43,9 @@ export const TIPOS_MOBILIA = [
   // ferramentas, a pedra de amolar e o suporte de armas da oficina, o espantalho e o cocho da fazenda, os
   // ossos e a antena parabólica.
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
+  // Lote 4 dos 95 objetos novos (11/11/2026), a sala e o quarto: a escrivaninha, o criado-mudo com vela, a
+  // cama de casal, o berço, a banqueta, o biombo, o piano e o candelabro de chão.
+  'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

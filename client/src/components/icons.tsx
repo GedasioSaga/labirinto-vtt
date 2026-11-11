@@ -1088,6 +1088,93 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M7.6 13.6v7.9M4.5 21.5h6.5" />
         </>
       )
+    // Lote 4 dos 95 objetos novos (11/11/2026): o ícone que cada desenhista entregou com o desenho.
+    case 'escrivaninha':
+      // De frente: o tampo, os dois pedestais com duas gavetas cada (o puxador de cada uma), o vão dos joelhos no meio e a pena no tinteiro em cima.
+      return (
+        <>
+          <path d="M2.5 9.5h19" />
+          <path d="M3.5 9.5v11h5.5v-11M15 9.5v11h5.5v-11" />
+          <path d="M3.5 15h5.5M15 15h5.5" />
+          <path d="M6.25 12.3h.01M6.25 17.8h.01M17.75 12.3h.01M17.75 17.8h.01" />
+          <path d="M15.5 9.5V7.2h3v2.3" />
+          <path d="M17 7.2 20.8 2.2l.4 2.8-2.3-.25" />
+        </>
+      )
+    case 'criadoMudo':
+      // De frente: o tampo, a gaveta com o puxador, o nicho aberto entre os dois pés e, em cima, a vela acesa (a chama em losango) e o livro deitado.
+      return (
+        <>
+          <path d="M4 11h16" />
+          <path d="M5.5 11v10.5M18.5 11v10.5" />
+          <path d="M5.5 15.5h13M5.5 19.5h13" />
+          <path d="M12 13.3h.01" />
+          <path d="M7.5 11V7h2.2v4" />
+          <path d="M8.6 5.2 7.6 3.7 8.6 1.8l1 1.9z" />
+          <path d="M13.5 11V9h5v2" />
+        </>
+      )
+    case 'camaDeCasal':
+      // De cima, larga: a cabeceira passando dos lados, os dois travesseiros e a dobra do lençol (a de solteiro é estreita, com um travesseiro só).
+      return (
+        <>
+          <rect x="3" y="3.5" width="18" height="17.5" />
+          <path d="M2 3.5h20" />
+          <rect x="5" y="5.6" width="6" height="3.8" />
+          <rect x="13" y="5.6" width="6" height="3.8" />
+          <path d="M3 11.6h18M3 14h18" />
+        </>
+      )
+    case 'berco':
+      // De lado: a cabeceira alta de topo redondo, a peseira, a grade de ripas entre as duas travessas e o balanço em arco embaixo.
+      return (
+        <>
+          <path d="M4 17V5.5a1.5 1.5 0 0 1 3 0v3M20 6.5V17" />
+          <path d="M4 8.5h16M4 17h16" />
+          <path d="M10.2 8.5V17M13.5 8.5V17M16.8 8.5V17" />
+          <path d="M2.5 19c3.2 2.6 15.8 2.6 19 0M5.5 17v3.3M18.5 17v3.3" />
+        </>
+      )
+    case 'banqueta':
+      // De frente: o assento grosso em cima, os três pés abrindo para baixo (o do meio reto) e a travessa entre eles.
+      return (
+        <>
+          <rect x="5.5" y="4.5" width="13" height="3" rx="1.2" />
+          <path d="M8 7.5 4.5 20.5M16 7.5l3.5 13M12 7.5v13" />
+          <path d="M6.2 15h11.6" />
+        </>
+      )
+    case 'biombo':
+      // De frente: as quatro folhas em sanfona (uma sobe, a outra desce) e a risca da almofada de madeira, embaixo, de folha em folha.
+      return (
+        <>
+          <path d="M3 6.5 7.5 4v14.5L3 21zM7.5 4l4.5 2.5V21l-4.5-2.5M12 6.5 16.5 4v14.5L12 21M16.5 4 21 6.5V21l-4.5-2.5" />
+          <path d="M3 15.5l4.5-2.5 4.5 2.5 4.5-2.5 4.5 2.5" />
+        </>
+      )
+    case 'piano':
+      // De frente: a tampa mais larga que a caixa, o painel, o teclado saindo dela com as pretas em duas e três, os dois consolos e o banquinho no meio.
+      return (
+        <>
+          <path d="M3 2.5h18M4 2.5v9.5M20 2.5v9.5" />
+          <rect x="8" y="5" width="8" height="4" />
+          <rect x="2.5" y="12" width="19" height="3.5" />
+          <path d="M6 12v2M8.5 12v2M12.5 12v2M15 12v2M17.5 12v2" />
+          <path d="M3.5 15.5v6M20.5 15.5v6" />
+          <path d="M9 18.5h6M10 18.5v3M14 18.5v3" />
+        </>
+      )
+    case 'candelabroDeChao':
+      // De frente: o tripé, o mastro com o nó, os braços abertos em arco e as três velas com a chama de cada uma (o lampião é uma caixa de vidro com chapéu).
+      return (
+        <>
+          <path d="M12 19.5v-7M7.5 21.5l4.5-2 4.5 2" />
+          <circle cx="12" cy="15.8" r="1" />
+          <path d="M6 9.5c0 2.4 2.6 3 6 3s6-.6 6-3" />
+          <path d="M6 9.5v-3M12 12.5V5M18 9.5v-3" />
+          <path d="M6 4.3h.01M12 2.8h.01M18 4.3h.01" />
+        </>
+      )
   }
 }
 

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Prop } from '../types/map'
+import type { Prop, TipoMobilia } from '../types/map'
 import {
   comAparenciaDoMovel,
   criarMovel,
+  ehCama,
   movelComOutroTipo,
   normalizarCorDeTecido,
   PALETA_DE_TECIDO,
@@ -12,12 +13,14 @@ import {
 
 /**
  * CAMA EM TRÊS CORES, sem tela: a "Cor" fica na madeira; travesseiro e
- * cobertor têm cor própria, só na cama e só `#rrggbb`, pela mesma porta no
- * painel, no disco e na troca de tipo.
+ * cobertor têm cor própria, só nas camas (a de solteiro e, desde 11/11/2026,
+ * a de casal: `ehCama`) e só `#rrggbb`, pela mesma porta no painel, no disco
+ * e na troca de tipo.
  */
 
 const GRADE = 40
 const CAMA: Prop = criarMovel('catre', { x: 300, y: 200 }, GRADE, 'c1')
+const CASAL: Prop = criarMovel('camaDeCasal', { x: 300, y: 200 }, GRADE, 'c2')
 
 describe('cama — cores de tecido', () => {
   it('a porta: só na cama, só cor de verdade; #ABC vira #aabbcc', () => {
@@ -56,6 +59,34 @@ describe('cama — cores de tecido', () => {
     expect(mesa.mobiliaCor).toBe('#7a5838')
     expect(mesa).not.toHaveProperty('mobiliaCorDoTravesseiro')
     expect(mesa).not.toHaveProperty('mobiliaCorDoCobertor')
+  })
+
+  it('a cama de casal (11/11/2026) passa pela mesma porta: painel, disco e troca de tipo', () => {
+    expect(ehCama('catre')).toBe(true)
+    expect(ehCama('camaDeCasal')).toBe(true)
+    const outros: readonly (TipoMobilia | undefined)[] = ['berco', 'sofa', 'mesa', undefined]
+    for (const outro of outros) expect(ehCama(outro), String(outro)).toBe(false)
+    expect(normalizarCorDeTecido('camaDeCasal', '#ABC')).toBe('#aabbcc')
+    expect(normalizarCorDeTecido('camaDeCasal', 'url(x)')).toBeUndefined()
+    // Recém-posta, sem nenhuma das três cores: o pedido do painel grava só o campo pedido.
+    expect(CASAL).not.toHaveProperty('mobiliaCor')
+    expect(CASAL).not.toHaveProperty('mobiliaCorDoCobertor')
+    expect(CASAL).not.toHaveProperty('mobiliaCorDoTravesseiro')
+    const coberta = comAparenciaDoMovel(CASAL, { corDoCobertor: '#46638A' })
+    expect(coberta).toEqual({ ...CASAL, mobiliaCorDoCobertor: '#46638a' })
+    expect(comAparenciaDoMovel(coberta, { corDoCobertor: null })).toEqual(CASAL)
+    // Disco: a boa fica no mesmo objeto, a torta some.
+    const boa = { ...CASAL, mobiliaCorDoTravesseiro: '#e6e1d6', mobiliaCorDoCobertor: '#46638a' }
+    expect(propMobiliaFromFile(boa)).toBe(boa)
+    expect(propMobiliaFromFile({ ...CASAL, mobiliaCorDoTravesseiro: 'url(javascript:x)' })).not.toHaveProperty('mobiliaCorDoTravesseiro')
+    // Entre as duas camas os tecidos ficam; para outro móvel, somem.
+    const solteiro = movelComOutroTipo(boa, 'catre', GRADE)
+    expect(solteiro.mobiliaCorDoTravesseiro).toBe('#e6e1d6')
+    expect(solteiro.mobiliaCorDoCobertor).toBe('#46638a')
+    expect(movelComOutroTipo(solteiro, 'camaDeCasal', GRADE).mobiliaCorDoCobertor).toBe('#46638a')
+    const berco = movelComOutroTipo(boa, 'berco', GRADE)
+    expect(berco).not.toHaveProperty('mobiliaCorDoTravesseiro')
+    expect(berco).not.toHaveProperty('mobiliaCorDoCobertor')
   })
 
   it('a paleta: 8 tons de tecido, todos #rrggbb e contidos (saturação HSL abaixo de 50%)', () => {

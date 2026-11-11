@@ -1,6 +1,6 @@
 import { BufferImageSource, Texture } from 'pixi.js'
 import type { Prop } from '../types/map'
-import { cordaDaCerca, ehMovelDeCimaDaMesa, ehMovelDoChao, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
+import { cordaDaCerca, ehCama, ehMovelDeCimaDaMesa, ehMovelDoChao, formaDoTapete, geometriaDaCerca, normalizarCorDeTecido, normalizarCorDoMovel, varianteDoFogo, varianteDosPratos, vistaDoMovel, voltaDaCerca } from '../lib/mobilia'
 import { varianteDaLapide } from '../lib/mobilia/pecasNovas'
 import { ehMovelDePilha, varianteDaPilha } from '../lib/mobilia/pilhas'
 import { varianteDoChafariz } from '../lib/mobilia/chafariz'
@@ -158,13 +158,14 @@ function passosNaChave(casas: number): number {
 
 /**
  * Material no lugar da cor: cada campo de cor que o móvel já tem vira o
- * material mais perto da lista do lugar (`materialMaisPerto`). A cama usa os
- * 3 campos de hoje (madeira, cobertor, travesseiro); o resto, a "Cor" (o
- * material principal) e a "Cor da linha" (o segundo).
+ * material mais perto da lista do lugar (`materialMaisPerto`). As camas (a de
+ * solteiro e a de casal, `ehCama`) usam os 3 campos de hoje (madeira,
+ * cobertor, travesseiro); o resto, a "Cor" (o material principal) e a "Cor
+ * da linha" (o segundo).
  */
 function materiaisDoMovel(prop: MovelParaImagem, tipo: DesenhoDoMovel['tipo']): OpcaoDeMaterial[] {
   const cores =
-    tipo === 'catre'
+    ehCama(tipo)
       ? [normalizarCorDoMovel(prop.mobiliaCor), normalizarCorDeTecido(tipo, prop.mobiliaCorDoCobertor), normalizarCorDeTecido(tipo, prop.mobiliaCorDoTravesseiro)]
       : [normalizarCorDoMovel(prop.mobiliaCor), normalizarCorDoMovel(prop.mobiliaCorDaLinha)]
   return LUGARES_DE_MATERIAL[tipo].map((lugar, i) => materialMaisPerto(cores[i], lugar))
