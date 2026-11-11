@@ -375,19 +375,27 @@ describe('findSelectableAt — parede por cima da pintura do botão Desenho', ()
     expect(findSelectableAt(mapaPintado(), { x: 100, y: 199 })).toEqual({ kind: 'wall', id: 'porta', draggable: false })
   })
 
-  it('no miolo da sala pintada (longe da parede) o clique pega o DESENHO', () => {
-    expect(findSelectableAt(mapaPintado(), { x: 100, y: 100 })).toEqual({ kind: 'drawing', id: 'balde', draggable: true })
-  })
-
   it('na sala sem desenho o clique pega a SALA', () => {
     expect(findSelectableAt(mapaPintado([]), { x: 100, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
   })
 
-  it('pintura que cobre só metade da sala: fora dela a sala sai', () => {
-    const metade: Drawing = { ...balde, id: 'metade', points: [{ x: -4, y: -4 }, { x: 100, y: -4 }, { x: 100, y: 204 }, { x: -4, y: 204 }] }
-    const mapa = mapaPintado([metade])
-    expect(findSelectableAt(mapa, { x: 50, y: 100 })).toEqual({ kind: 'drawing', id: 'metade', draggable: true })
-    expect(findSelectableAt(mapa, { x: 150, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
+  // PINTURA DO BALDE POR BAIXO DA SALA, também no clique (pedido de 11/11/2026:
+  // "eu pintei e coloquei a textura por cima, agora não consigo selecionar as
+  // salas é como se pintura ficasse por cima"). O chão pintado é área grande
+  // como a sala: no miolo dela a SALA ganha; a textura por cima não muda nada.
+  it('chão pintado pelo balde e com textura por cima: no miolo da sala o clique pega a SALA', () => {
+    const mapa: MapData = {
+      ...mapaPintado(),
+      texturas: [{ id: 'tabuas', tipo: 'balde', textura: 'madeira', forca: 1, alvo: { tipo: 'desenho', id: 'balde' } }],
+    }
+    expect(findSelectableAt(mapa, { x: 100, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
+  })
+
+  it('fora de qualquer sala a pintura do balde continua respondendo ao clique', () => {
+    const chaoTodo: Drawing = { ...balde, id: 'chao-todo', points: [{ x: -4, y: -4 }, { x: 600, y: -4 }, { x: 600, y: 600 }, { x: -4, y: 600 }] }
+    const mapa = mapaPintado([chaoTodo])
+    expect(findSelectableAt(mapa, { x: 100, y: 100 })).toEqual({ kind: 'region', id: 'sala', draggable: false })
+    expect(findSelectableAt(mapa, { x: 400, y: 400 })).toEqual({ kind: 'drawing', id: 'chao-todo', draggable: true })
   })
 
   it('traço do Pincel por cima da parede: a parede ganha; longe dela, o traço', () => {

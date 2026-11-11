@@ -11,7 +11,8 @@ import type { Drawing } from '../types/map'
  * - na TELA ficam entre o fundo da sala e a borda dela, sempre sob paredes,
  *   portas e escadas (`pixi/PixiCanvas.tsx`, `player/PlayerView.tsx`);
  * - no CLIQUE perdem para parede e escada e ganham da sala
- *   (`lib/selectionHitTest.ts`, `findSelectableAt`).
+ *   (`lib/selectionHitTest.ts`, `findSelectableAt`); a pintura do balde,
+ *   que é chão, perde também da sala (pedido de 11/11/2026).
  *
  * Ficam DE FORA, como estavam (por cima da sala, ganhando o clique da parede):
  * - o Texto, que é botão próprio (T) e precisa ser lido por cima da planta;
