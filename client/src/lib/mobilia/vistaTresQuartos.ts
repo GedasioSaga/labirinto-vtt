@@ -36,14 +36,15 @@ export const DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS = -(ALTURA_DA_LENHA_EM_TRES_Q
  * O deslocamento da chama deste móvel (px de mundo, em y da tela): 0 fora da 3/4, na fogueira de lado
  * (já em pé) e na fogueira EM LINHAS (MT12: o desenho de antes não sobe a lenha). A LAREIRA (29/10/2026)
  * queima no lar, rente ao chão, entre as ombreiras: não sobe. A FORNALHA queima na bancada: a chama sobe
- * a altura dela, uma fração do lado menor, como o desenho (`FORNALHA.alturaDaBancada`).
+ * a altura dela, uma fração do lado menor, como o desenho (`FORNALHA.alturaDaBancada`). O FORNO DE PÃO
+ * (11/11/2026) é como a lareira: o lar fica no chão, fora de qualquer estrutura, e a chama não sobe.
  */
 export function deslocamentoDaChama(
   prop: Pick<Prop, 'mobilia' | 'mobiliaVista' | 'mobiliaDesenho'> & Partial<Pick<Prop, 'width' | 'height'>>,
   vista: MapData['vistaDosMoveis'] | undefined,
 ): number {
   if (!tresQuartosAtivo(vista) || desenhaEmLinhas(prop)) return 0
-  if (prop.mobilia === 'lareira') return 0
+  if (prop.mobilia === 'lareira' || prop.mobilia === 'fornoDePao') return 0
   if (prop.mobilia === 'fornalha') {
     const menor = Math.min(prop.width ?? 0, prop.height ?? 0)
     return Number.isFinite(menor) && menor > 0 ? -FORNALHA.alturaDaBancada * menor : 0

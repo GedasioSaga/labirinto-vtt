@@ -2,7 +2,7 @@
  * O FOGO É LUZ no recorte do jogador (pedido do mestre de 09/11/2026: "na
  * gameplay isso não ilumina nada os jogadores"). À noite a visão cai para o
  * raio do período; além dele só chega o claro das luzes na linha de visão.
- * Os objetos de luz (fogo, fogueira, lareira, fornalha e lampião,
+ * Os objetos de luz (fogo, fogueira, lareira, fornalha, forno de pão e lampião,
  * `lib/luzDoFogo.ts`) contam como luz, ATÉ O TETO: o claro deles só revela o
  * que está dentro da visão cheia do dia de quem olha. Sem o teto, um mapa
  * aberto cheio de fogos entregava de noite o mapa inteiro. Pacote forjado,
@@ -59,12 +59,15 @@ describe('à noite o objeto Fogo clareia como um lampião', () => {
     expect(oQueChega(clareira(fogo('fogueira', a(5))), 3 * GRID)).toEqual({ fichas: ['heroi'], objetos: [] })
   })
 
-  it('lampião, fogueira, lareira e fornalha também clareiam; lareira apagada e móvel sem fogo não', () => {
-    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha']
+  it('lampião, fogueira, lareira, fornalha e forno de pão também clareiam; lareira e forno apagados, caldeirão e móvel sem fogo não', () => {
+    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha', 'fornoDePao']
     for (const mobilia of outrasLuzes) {
       expect(oQueChega(clareira(fogo('luz', a(5), { mobilia })), noite), mobilia).toEqual({ fichas: ['guarda', 'heroi'], objetos: ['luz'] })
     }
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'lareira', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
+    expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'fornoDePao', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
+    // O caldeirão (11/11/2026) tem a brasa só pintada: não é fonte de luz.
+    expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'caldeirao' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'mesa' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
   })
 })

@@ -35,6 +35,10 @@ export const TIPOS_MOBILIA = [
   // Lote 1 dos 95 objetos novos (11/11/2026): o boneco de treino, o pilar e o altar de pedra, a estante de
   // livros, os sacos de grão, o banco de praça, os escombros de pedra e o canhão de navio.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+  // Lote 2 dos 95 objetos novos (11/11/2026): o guarda-roupa, o caldeirão no fogo, o forno de pão (com o fogo
+  // de casa, aceso ou apagado), a prateleira de depósito, a estátua, as pedras e rochas, o mausoléu e o alvo
+  // de arco e flecha.
+  'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

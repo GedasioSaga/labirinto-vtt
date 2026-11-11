@@ -66,6 +66,14 @@ import { montarSacosDeGrao } from './sacosDeGrao'
 import { montarBancoDePraca } from './bancoDePraca'
 import { montarEscombrosDePedra } from './escombrosDePedra'
 import { montarCanhao } from './canhao'
+import { montarGuardaRoupa } from './guardaRoupa'
+import { montarCaldeirao } from './caldeirao'
+import { montarFornoDePao } from './fornoDePao'
+import { montarPrateleiraDeDeposito } from './prateleiraDeDeposito'
+import { montarEstatua } from './estatua'
+import { montarPedrasERochas } from './pedrasERochas'
+import { montarMausoleu } from './mausoleu'
+import { montarAlvoDeArcoEFlecha } from './alvoDeArcoEFlecha'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -147,6 +155,17 @@ const MONTADORES = {
   bancoDePraca: montarBancoDePraca,
   escombrosDePedra: montarEscombrosDePedra,
   canhao: montarCanhao,
+  // Lote 2 dos 95 objetos novos (11/11/2026): um desenho por arquivo. O caldeirão, o forno de pão, a estátua
+  // e o mausoléu leem o `giro` (o quarto de volta que a 3/4 pinta). No forno de pão o fogo aceso ou apagado
+  // chega na `variante`, como na lareira; a prateleira lê a `variante` (os tons da carga), que hoje é sempre 0.
+  guardaRoupa: montarGuardaRoupa,
+  caldeirao: montarCaldeirao,
+  fornoDePao: montarFornoDePao,
+  prateleiraDeDeposito: montarPrateleiraDeDeposito,
+  estatua: montarEstatua,
+  pedrasERochas: montarPedrasERochas,
+  mausoleu: montarMausoleu,
+  alvoDeArcoEFlecha: montarAlvoDeArcoEFlecha,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -184,6 +203,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'cova', 'caixao', 'caixaoAberto',
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+  'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

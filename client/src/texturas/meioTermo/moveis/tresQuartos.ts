@@ -31,6 +31,9 @@ import { elipse, type Caixa, type Forma } from './formas'
 import { SOMBRA_DO_TAPETE } from './tapete'
 import { ESPESSURA_DO_CAPITEL } from './pilar'
 import { ESPESSURA_DO_TAMPO_DO_ALTAR } from './altar'
+import { ESPESSURA_DO_ARCO_DO_FORNO } from './fornoDePao'
+import { ESPESSURA_DA_CORNIJA } from './estatua'
+import { ESPESSURA_DA_FIADA } from './mausoleu'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -169,6 +172,29 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // O canhão fica como de cima, como a bigorna: derivado, o cano inteiro varria até o chão e virava uma
   // pílula, e a corda subia junto com a carreta.
   canhao: EM_PE,
+  // Lote 2 dos 95 objetos novos (11/11/2026). O guarda-roupa sobe pelas sombras: a frente é desenhada em
+  // faixas, cada uma com a fresta dela (como as prateleiras da estante), então mostra as portas e os
+  // puxadores, e não a madeira lisa que a 3/4 varreria.
+  guardaRoupa: DERIVADO,
+  // O caldeirão sobe pelas sombras: um pino sobe o bojo e outro, a boca; o fogo fica no chão, debaixo dele.
+  caldeirao: DERIVADO,
+  // O forno de pão sobe pelas sombras, com a beirada das aduelas do arco na espessura que o desenho exporta:
+  // com a padrão (0,06 casa) o arco saía fino demais e a boca perdia a volta. O lar não está em nenhuma
+  // estrutura: fica no chão, e a chama não sobe (`deslocamentoDaChama`), como na lareira.
+  fornoDePao: { modo: 'derivado', espessura: ESPESSURA_DO_ARCO_DO_FORNO },
+  // A prateleira de depósito também tem a frente em faixas, mas ela começa rente ao chão (os pés e o vão
+  // escuro debaixo da prateleira de baixo): com a beirada padrão dos tampos soltos, a da faixa de baixo caía
+  // no chão, na frente da prateleira, como uma tira de madeira lisa. Sem beirada nenhuma.
+  prateleiraDeDeposito: { modo: 'derivado', espessura: 0 },
+  // A estátua e o mausoléu sobem pelas sombras, com a beirada dos tampos na espessura que cada desenho
+  // exporta: com a padrão, o tronco da figura (faixas empilhadas) e as fiadas da fachada, o telhado e a
+  // porta do mausoléu ficavam com vãos.
+  estatua: { modo: 'derivado', espessura: ESPESSURA_DA_CORNIJA },
+  // As pedras e rochas ficam como de cima, como os escombros de pedra: um monte baixo e largo.
+  pedrasERochas: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  mausoleu: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA },
+  // O alvo já é desenhado em pé, de frente, como o boneco de treino (de cima o disco seria um risco).
+  alvoDeArcoEFlecha: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

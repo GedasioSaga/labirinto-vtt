@@ -155,6 +155,15 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       bancoDePraca: ['madeira:carvalho', 'ferragens:ferro'],
       escombrosDePedra: ['pedra:granito'],
       canhao: ['metal:ferro', 'madeira:carvalho'],
+      // Lote 2 dos 95 objetos novos (11/11/2026).
+      guardaRoupa: ['madeira:cerejeira', 'puxadores:latao'],
+      caldeirao: ['metal:ferro', 'pedras:granito'],
+      fornoDePao: ['pedra:granito', 'madeira:pinho'],
+      prateleiraDeDeposito: ['madeira:carvalho'],
+      estatua: ['pedra:granito'],
+      pedrasERochas: ['pedra:granito'],
+      mausoleu: ['pedra:granito', 'porta:ferro'],
+      alvoDeArcoEFlecha: ['madeira:carvalho'],
     })
   })
 

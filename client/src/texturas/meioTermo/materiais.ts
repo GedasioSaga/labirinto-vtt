@@ -232,6 +232,20 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   bancoDePraca: [lugar('madeira', 'Ripas', MADEIRAS, 'carvalho'), lugar('ferragens', 'Pés e braços', METAIS, 'ferro')],
   escombrosDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
   canhao: [lugar('metal', 'Cano', METAIS, 'ferro'), lugar('madeira', 'Carreta', MADEIRAS, 'carvalho')],
+  // Lote 2 dos 95 objetos novos (11/11/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha".
+  // Os puxadores do guarda-roupa levam junto as dobradiças e o espelho da fechadura. Fixos: no caldeirão, a
+  // lenha, a cinza, a brasa, o caldo, os legumes e a concha (o latão dá um caldeirão de cobre); no forno, o
+  // barro da cúpula, o tijolo, a fuligem, a lenha e os pães; a carga da prateleira (o pinho dos caixotes, o
+  // barro, a estopa, a corda); o musgo e o líquen das pedras; a palha, a tinta dos anéis, a corda e as
+  // flechas do alvo. A porta do mausoléu é de metal: de latão, lê como porta de bronze.
+  guardaRoupa: [lugar('madeira', 'Madeira', MADEIRAS, 'cerejeira'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
+  caldeirao: [lugar('metal', 'Caldeirão', METAIS, 'ferro'), lugar('pedras', 'Pedras', PEDRAS, 'granito')],
+  fornoDePao: [lugar('pedra', 'Soleira', PEDRAS, 'granito'), lugar('madeira', 'Pá e tábua', MADEIRAS, 'pinho')],
+  prateleiraDeDeposito: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  estatua: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  pedrasERochas: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  mausoleu: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('porta', 'Porta', METAIS, 'ferro')],
+  alvoDeArcoEFlecha: [lugar('madeira', 'Cavalete', MADEIRAS, 'carvalho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

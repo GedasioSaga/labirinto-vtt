@@ -31,6 +31,7 @@ export const PECAS_NOVAS = [
   'cova', 'caixao', 'caixaoAberto',
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+  'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -143,6 +144,19 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   bancoDePraca: { rotulo: 'Banco de praça', artigo: 'um banco de praça', tamanho: { largura: 2, altura: 0.7 }, redonda: false },
   escombrosDePedra: { rotulo: 'Escombros de pedra', artigo: 'uns escombros de pedra', tamanho: { largura: 2, altura: 2 }, redonda: false },
   canhao: { rotulo: 'Canhão', artigo: 'um canhão', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  // Lote 2 dos 95 objetos novos (11/11/2026), cada um com o próprio desenho; esticam e giram como todo objeto.
+  // A frente do guarda-roupa, do forno de pão, da prateleira, da estátua e do mausoléu é o lado de baixo (no
+  // mausoléu, um dos lados menores: a porta e os degraus). O caldeirão é redondo, como o barril, e a brasa
+  // debaixo dele é só pintura (sem chama nem luz); o forno de pão tem o fogo de casa, aceso ou apagado, como
+  // a lareira (`lib/mobilia/fogoDeCasa.ts`). O alvo é desenhado em pé, de frente, como o boneco de treino.
+  guardaRoupa: { rotulo: 'Guarda-roupa', artigo: 'um guarda-roupa', tamanho: { largura: 1.5, altura: 0.6 }, redonda: false },
+  caldeirao: { rotulo: 'Caldeirão', artigo: 'um caldeirão', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  fornoDePao: { rotulo: 'Forno de pão', artigo: 'um forno de pão', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  prateleiraDeDeposito: { rotulo: 'Prateleira de depósito', artigo: 'uma prateleira de depósito', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
+  estatua: { rotulo: 'Estátua', artigo: 'uma estátua', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  pedrasERochas: { rotulo: 'Pedras e rochas', artigo: 'umas pedras e rochas', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  mausoleu: { rotulo: 'Mausoléu', artigo: 'um mausoléu', tamanho: { largura: 3, altura: 4 }, redonda: false },
+  alvoDeArcoEFlecha: { rotulo: 'Alvo de arco e flecha', artigo: 'um alvo de arco e flecha', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -199,6 +213,14 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     bancoDePraca: valor(f.bancoDePraca),
     escombrosDePedra: valor(f.escombrosDePedra),
     canhao: valor(f.canhao),
+    guardaRoupa: valor(f.guardaRoupa),
+    caldeirao: valor(f.caldeirao),
+    fornoDePao: valor(f.fornoDePao),
+    prateleiraDeDeposito: valor(f.prateleiraDeDeposito),
+    estatua: valor(f.estatua),
+    pedrasERochas: valor(f.pedrasERochas),
+    mausoleu: valor(f.mausoleu),
+    alvoDeArcoEFlecha: valor(f.alvoDeArcoEFlecha),
   }
 }
 
@@ -231,9 +253,10 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lote 1 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o mestre
-  // os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 e 2 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+  'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
 ]
 
 /**
@@ -673,6 +696,103 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...quadro(-hw * 0.7, hh * 0.48, -hw * 0.44, hh * 0.72),
         ...quadro(-hw * 0.04, hh * 0.48, hw * 0.24, hh * 0.72),
       ]
+    // Lote 2 dos 95 objetos novos (11/11/2026): os traços que cada desenhista entregou com o desenho.
+    case 'guardaRoupa': {
+      // A moldura da cornija no tampo, a frente das portas, o encontro das duas folhas e os dois puxadores na beira.
+      const frente = -hh + altura * 0.46
+      const puxador = Math.min(largura, altura) * 0.14
+      return [
+        ...quadro(-hw * 0.86, -hh * 0.72, hw * 0.86, frente - altura * 0.12),
+        linha(-hw, frente, hw),
+        { x1: 0, y1: frente, x2: 0, y2: hh },
+        ...aro(puxador, puxador, -puxador * 0.8, hh * 0.72),
+        ...aro(puxador, puxador, puxador * 0.8, hh * 0.72),
+      ]
+    }
+    case 'caldeirao': {
+      // O bojo e o caldo (os dois aros, um nada para o fundo), a concha saindo pela beira da frente e as pontas das toras do fogo.
+      const menor = Math.min(largura, altura)
+      return [
+        ...aro(menor * 0.66, menor * 0.66, 0, -hh * 0.05),
+        ...aro(menor * 0.4, menor * 0.4, 0, -hh * 0.08),
+        { x1: hw * 0.04, y1: 0, x2: hw * 0.6, y2: hh * 0.42 },
+        { x1: hw * 0.7, y1: hh * 0.04, x2: hw * 0.95, y2: hh * 0.05 },
+        { x1: -hw * 0.7, y1: -hh * 0.04, x2: -hw * 0.95, y2: -hh * 0.05 },
+        { x1: hw * 0.32, y1: hh * 0.62, x2: hw * 0.41, y2: hh * 0.8 },
+        { x1: -hw * 0.33, y1: hh * 0.62, x2: -hw * 0.42, y2: hh * 0.8 },
+      ]
+    }
+    case 'fornoDePao': {
+      // A cúpula redonda com a chaminé no fundo, o bloco da boca na frente com o vão em arco, e a soleira.
+      const chamine = Math.min(largura, altura) * 0.058
+      return [
+        ...aro(largura * 0.77, altura * 0.77, 0, -altura * 0.105),
+        ...quadro(-chamine, -altura * 0.33 - chamine, chamine, -altura * 0.33 + chamine),
+        ...quadro(-hw * 0.5, hh * 0.43, hw * 0.5, hh * 0.83),
+        ...aro(largura * 0.24, altura * 0.12, 0, altura * 0.365),
+        linha(-hw * 0.54, hh * 0.9, hw * 0.54),
+      ]
+    }
+    case 'prateleiraDeDeposito': {
+      // A beira do tampo, os três montantes da frente e a carga entre eles: um pote redondo e um caixote em cada vão.
+      const beira = -hh * 0.24
+      const carga = Math.min(altura * 0.4, largura * 0.14)
+      const naTabua = hh * 0.44
+      return [
+        linha(-hw, beira, hw),
+        ...[-0.94, 0, 0.94].map((f) => ({ x1: hw * f, y1: beira, x2: hw * f, y2: hh })),
+        ...[-1, 1].flatMap((lado) => [
+          ...aro(carga, carga, lado * hw * 0.66, naTabua),
+          ...quadro(lado * hw * 0.3 - carga / 2, naTabua - carga / 2, lado * hw * 0.3 + carga / 2, naTabua + carga / 2),
+        ]),
+      ]
+    }
+    case 'estatua': {
+      // A moldura do pedestal e, dentro, a figura de cima: os ombros, a roda do elmo e a espada na frente dela (a lâmina e a guarda em cruz).
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.72, -hh * 0.72, hw * 0.72, hh * 0.72),
+        ...aro(menor * 0.34, menor * 0.16),
+        ...aro(menor * 0.17, menor * 0.17, 0, -menor * 0.03),
+        { x1: 0, y1: menor * 0.1, x2: 0, y2: menor * 0.2 },
+        linha(-menor * 0.1, menor * 0.14, menor * 0.1),
+      ]
+    }
+    case 'pedrasERochas':
+      // A rocha grande, com a rachadura que desce do alto dela, e as duas médias, ao lado e na frente.
+      return [
+        ...fechado([[-hw * 0.72, -hh * 0.86], [-hw * 0.2, -hh * 0.94], [hw * 0.2, -hh * 0.56], [hw * 0.22, hh * 0.1], [-hw * 0.12, hh * 0.56], [-hw * 0.66, hh * 0.44], [-hw * 0.92, -hh * 0.2]]),
+        { x1: -hw * 0.46, y1: -hh * 0.7, x2: -hw * 0.36, y2: -hh * 0.2 },
+        { x1: -hw * 0.36, y1: -hh * 0.2, x2: -hw * 0.3, y2: hh * 0.3 },
+        ...fechado([[hw * 0.14, -hh * 0.5], [hw * 0.56, -hh * 0.78], [hw * 0.96, -hh * 0.5], [hw * 0.92, -hh * 0.06], [hw * 0.5, hh * 0.1]]),
+        ...fechado([[-hw * 0.04, hh * 0.24], [hw * 0.34, hh * 0.1], [hw * 0.66, hh * 0.46], [hw * 0.5, hh * 0.9], [hw * 0.06, hh * 0.9], [-hw * 0.14, hh * 0.58]]),
+      ]
+    case 'mausoleu': {
+      // O telhado de duas águas (a beira e a cumeeira no meio), os capitéis das quatro colunas dos cantos e os dois degraus da frente.
+      const capitel = Math.min(largura, altura) * 0.045
+      const [norte, sul] = [-hh * 0.93, hh * 0.64]
+      const capiteis = [[-1, norte], [1, norte], [-1, sul], [1, sul]].flatMap(([lado, y]) => quadro(lado * hw * 0.9 - capitel, y - capitel, lado * hw * 0.9 + capitel, y + capitel))
+      return [
+        ...quadro(-hw * 0.8, norte, hw * 0.8, sul),
+        { x1: 0, y1: norte, x2: 0, y2: sul },
+        ...capiteis,
+        linha(-hw * 0.4, hh * 0.78, hw * 0.4),
+        linha(-hw * 0.48, hh * 0.93, hw * 0.48),
+      ]
+    }
+    case 'alvoDeArcoEFlecha': {
+      // Em pé, de frente: o disco com dois anéis e a mosca, os dois pés abertos do cavalete e a travessa.
+      const menor = Math.min(largura, altura)
+      const meio = -hh * 0.2
+      return [
+        ...aro(menor * 0.74, menor * 0.74, 0, meio),
+        ...aro(menor * 0.44, menor * 0.44, 0, meio),
+        ...aro(menor * 0.14, menor * 0.14, 0, meio),
+        { x1: -hw * 0.5, y1: hh * 0.46, x2: -hw * 0.8, y2: hh * 0.92 },
+        { x1: hw * 0.5, y1: hh * 0.46, x2: hw * 0.8, y2: hh * 0.92 },
+        linha(-hw * 0.66, hh * 0.62, hw * 0.66),
+      ]
+    }
   }
 }
 

@@ -96,10 +96,11 @@ describe('partículas na tela do jogador', () => {
 /*
  * Segunda auditoria (09/11/2026): fogueira, lareira e fornalha iluminavam mas
  * não soltavam nada. A cena só com fogueira contava como "sem fogo" e a fumaça
- * nascia espalhada pela tela toda, para o mestre e para o jogador.
+ * nascia espalhada pela tela toda, para o mestre e para o jogador. O forno
+ * de pão (11/11/2026), com o fogo de casa da lareira, solta como eles.
  */
-describe('fogueira, lareira e fornalha soltam fumaça e brasas', () => {
-  const QUE_SOLTAM: readonly TipoMobilia[] = ['fogueira', 'lareira', 'fornalha']
+describe('fogueira, lareira, fornalha e forno de pão soltam fumaça e brasas', () => {
+  const QUE_SOLTAM: readonly TipoMobilia[] = ['fogueira', 'lareira', 'fornalha', 'fornoDePao']
   const PERTO = { x: HEROI.x + 2 * GRID, y: HEROI.y }
 
   it('cena só com uma delas, no mestre: as partículas nascem dela e o modo espalhado não liga; o lampião não solta', () => {

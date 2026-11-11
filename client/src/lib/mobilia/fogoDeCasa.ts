@@ -4,7 +4,8 @@
  * e o mestre acende ou apaga no painel ("Fogo": Aceso | Apagado). Aqui mora a
  * disposição que a imagem parada (`texturas/meioTermo/moveis/lareira.ts` e
  * `fornalha.ts`: as brasas, o halo, a lenha) e a camada animada (as línguas)
- * leem juntas, para cada língua nascer em cima da brasa pintada.
+ * leem juntas, para cada língua nascer em cima da brasa pintada. O FORNO DE
+ * PÃO (11/11/2026) usa o mesmo fogo, sem código novo de animação.
  *
  * Tudo em FRAÇÃO da pegada (centro na origem, frente = lado de baixo, sem
  * giro): esticar a lareira afasta as línguas junto com a lenha, sem desenhar
@@ -21,11 +22,11 @@ export const ROTULO_DO_FOGO_DO_MOVEL: Readonly<Record<FogoDoMovel, string>> = {
   apagado: 'Apagado',
 }
 
-/** Os móveis com fogo que acende e apaga. */
-export type MovelComFogoDeCasa = 'lareira' | 'fornalha'
+/** Os móveis com fogo que acende e apaga: a lareira, a fornalha e o forno de pão (11/11/2026). */
+export type MovelComFogoDeCasa = 'lareira' | 'fornalha' | 'fornoDePao'
 
 export function ehMovelComFogoDeCasa(tipo: string | undefined): tipo is MovelComFogoDeCasa {
-  return tipo === 'lareira' || tipo === 'fornalha'
+  return tipo === 'lareira' || tipo === 'fornalha' || tipo === 'fornoDePao'
 }
 
 /** Uma língua: a base em fração da pegada (x da largura, y da altura), a altura em fração do lado menor e o atraso de fase. */
@@ -83,6 +84,29 @@ export const FORNALHA = {
 /** A fornalha queima carvão: uma língua baixa no meio da cova, as brasas fazem o resto. */
 export const LINGUAS_DA_FORNALHA: readonly LinguaDeCasa[] = [{ x: FORNALHA.fogareiro.x, y: FORNALHA.fogareiro.y + 0.03, altura: 0.24, fase: 0 }]
 
+/**
+ * FORNO DE PÃO (2 x 2 casas de partida, 11/11/2026): as três línguas no lar,
+ * de trás para a frente, as duas do lado mais baixas e a do meio por último,
+ * como na lareira. Nascem em volta do meio do fogo da imagem parada
+ * (`FORNO_DE_PAO.fogo` em `texturas/meioTermo/moveis/fornoDePao.ts`: x 0,
+ * y 0,355, onde as brasas e o halo ficam; a disposição mora lá porque só o
+ * desenho a lê). São baixas (a do meio, 0,13 do lado menor): de cima a ponta
+ * fica em cima do arco, sem passar para a cúpula, e na 3/4 fica dentro do
+ * escuro da boca, abaixo do arco.
+ */
+export const LINGUAS_DO_FORNO_DE_PAO: readonly LinguaDeCasa[] = [
+  { x: -0.055, y: 0.35, altura: 0.085, fase: 0.37 },
+  { x: 0.055, y: 0.345, altura: 0.08, fase: 0.71 },
+  { x: 0, y: 0.37, altura: 0.13, fase: 0 },
+]
+
+const LINGUAS_DO_FOGO_DE_CASA: Readonly<Record<MovelComFogoDeCasa, readonly LinguaDeCasa[]>> = {
+  lareira: LINGUAS_DA_LAREIRA,
+  fornalha: LINGUAS_DA_FORNALHA,
+  fornoDePao: LINGUAS_DO_FORNO_DE_PAO,
+}
+
+/** As línguas do móvel. Móvel novo com fogo de casa sem as línguas dele aqui não compila. */
 export function linguasDoFogoDeCasa(tipo: MovelComFogoDeCasa): readonly LinguaDeCasa[] {
-  return tipo === 'lareira' ? LINGUAS_DA_LAREIRA : LINGUAS_DA_FORNALHA
+  return LINGUAS_DO_FOGO_DE_CASA[tipo]
 }

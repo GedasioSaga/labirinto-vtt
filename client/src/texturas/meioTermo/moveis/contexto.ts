@@ -59,7 +59,11 @@ export interface ContextoDoMovel {
    * quarto de volta é pintado na cena (`girarCena`), para deixar no lugar NA
    * TELA o que depende dela: o corte do plinto e do toro em metade do norte e
    * metade do sul, o lado claro do fuste e a sombra pintada no plinto e no
-   * degrau. Os outros desenhos não leem.
+   * degrau. Do lote 2 dos objetos novos (11/11/2026) leem também o caldeirão
+   * (a sombra pintada no leito), o forno de pão (o que é desenhado de frente
+   * não entra girado, e a luz da cúpula fica onde está na tela), a estátua (o
+   * corte do pedestal e a sombra pintada no tampo) e o mausoléu (a sombra da
+   * casa na laje e nos degraus). Os outros desenhos não leem.
    */
   readonly giro: number
 }

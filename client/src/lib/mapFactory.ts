@@ -45,6 +45,7 @@ import { ehCova, formaDaCova, type FormaDaCova } from './mobilia/cova'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
 import { ehMovelDeVento, formaDoMoinho, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
+import { ehMovelComFogoDeCasa } from './mobilia/fogoDeCasa'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehicle, moveTokenWithVehicle, passengerIdsOf } from './vehicle'
@@ -921,13 +922,13 @@ export function trocarFormaDosPratos(map: MapData, propId: string, forma: FormaD
 }
 
 /**
- * "Fogo" do painel da LAREIRA e da FORNALHA (Aceso | Apagado): a pegada fica
- * (`movelComOutroFogo`). O mesmo estado, outro tipo ou id que não existe
- * devolvem o MESMO mapa (a store não empilha passo vazio).
+ * "Fogo" do painel da LAREIRA, da FORNALHA e do FORNO DE PÃO (Aceso | Apagado):
+ * a pegada fica (`movelComOutroFogo`). O mesmo estado, outro tipo ou id que
+ * não existe devolvem o MESMO mapa (a store não empilha passo vazio).
  */
 export function trocarFogoDoMovel(map: MapData, propId: string, fogo: FogoDoMovel): MapData {
   const alvo = map.props.find((p) => p.id === propId)
-  if (alvo === undefined || (alvo.mobilia !== 'lareira' && alvo.mobilia !== 'fornalha') || fogoDoMovel(alvo) === fogo) return map
+  if (alvo === undefined || !ehMovelComFogoDeCasa(alvo.mobilia) || fogoDoMovel(alvo) === fogo) return map
   return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutroFogo(p, fogo) : p)) }
 }
 

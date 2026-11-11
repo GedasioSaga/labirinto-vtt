@@ -223,8 +223,9 @@ describe('TOOL_VARIANTS', () => {
       'cataVento', 'moinho', 'cataVentoBrinquedo',
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
       'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+      'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
     ])
-    expect(grupo.options).toHaveLength(61)
+    expect(grupo.options).toHaveLength(69)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -232,6 +233,7 @@ describe('TOOL_VARIANTS', () => {
       'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Campinho de futebol',
       'Boneco de treino', 'Pilar', 'Altar', 'Estante de livros', 'Sacos de grão', 'Banco de praça', 'Escombros de pedra', 'Canhão',
+      'Guarda-roupa', 'Caldeirão', 'Forno de pão', 'Prateleira de depósito', 'Estátua', 'Pedras e rochas', 'Mausoléu', 'Alvo de arco e flecha',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
@@ -257,33 +259,35 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 12 partes da ficha (Sala e quarto 12, Cozinha e banheiro 7, Armazenagem 4, Rua e jardim 13, Cemitério 4, Feira 4, Oficina 3, Fazenda 4, Destroços e sucata 5, Esporte e lazer 2, Porto e navio 1, Templo e masmorra 2; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 12 partes da ficha (Sala e quarto 13, Cozinha e banheiro 9, Armazenagem 5, Rua e jardim 15, Cemitério 5, Feira 4, Oficina 3, Fazenda 4, Destroços e sucata 5, Esporte e lazer 3, Porto e navio 1, Templo e masmorra 2; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
-      ['Sala e quarto', 12],
-      ['Cozinha e banheiro', 7],
-      ['Armazenagem', 4],
-      ['Rua e jardim', 13],
-      ['Cemitério', 4],
+      ['Sala e quarto', 13],
+      ['Cozinha e banheiro', 9],
+      ['Armazenagem', 5],
+      ['Rua e jardim', 15],
+      ['Cemitério', 5],
       ['Feira', 4],
       ['Oficina', 3],
       ['Fazenda', 4],
       ['Destroços e sucata', 5],
-      ['Esporte e lazer', 2],
+      ['Esporte e lazer', 3],
       ['Porto e navio', 1],
       ['Templo e masmorra', 2],
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto', 'mausoleu'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra'])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual(['campinho', 'bonecoDeTreino'])
-    // Os dois grupos novos de 11/11/2026 e o objeto novo de cada grupo antigo, no fim do grupo dele.
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual(['campinho', 'bonecoDeTreino', 'alvoDeArcoEFlecha'])
+    // Os dois grupos novos de 11/11/2026 e o objeto novo de cada grupo antigo, no fim do grupo dele: os do
+    // lote 1 e, depois deles, os do lote 2.
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Porto e navio')?.tipos).toEqual(['canhao'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Templo e masmorra')?.tipos).toEqual(['pilar', 'altar'])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.at(-1)).toBe('estanteDeLivros')
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.at(-1)).toBe('sacosDeGrao')
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.at(-1)).toBe('bancoDePraca')
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-2)).toEqual(['estanteDeLivros', 'guardaRoupa'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cozinha e banheiro')?.tipos.slice(-2)).toEqual(['caldeirao', 'fornoDePao'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.slice(-2)).toEqual(['sacosDeGrao', 'prateleiraDeDeposito'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-3)).toEqual(['bancoDePraca', 'estatua', 'pedrasERochas'])
     const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)
     expect(new Set(nasPartes).size).toBe(nasPartes.length)
     expect([...nasPartes].sort()).toEqual([...catalogo].sort())

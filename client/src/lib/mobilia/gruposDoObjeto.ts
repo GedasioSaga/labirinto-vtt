@@ -42,7 +42,7 @@ export const GRUPO_PADRAO: IdDoGrupoDeObjeto = 'outros'
  * fornalha e a bigorna (a água da têmpera), como já estava no menu.
  */
 export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeObjeto>>> = {
-  // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira.
+  // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira; a estante e o guarda-roupa (11/11/2026).
   mesa: 'salaEQuarto',
   cadeira: 'salaEQuarto',
   mesaQuadrada: 'salaEQuarto',
@@ -55,7 +55,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tapeteLongo: 'salaEQuarto',
   lareira: 'salaEQuarto',
   estanteDeLivros: 'salaEQuarto',
-  // Cozinha e banheiro.
+  guardaRoupa: 'salaEQuarto',
+  // Cozinha e banheiro; o caldeirão e o forno de pão (11/11/2026).
   armario: 'cozinhaEBanheiro',
   balcao: 'cozinhaEBanheiro',
   fogao: 'cozinhaEBanheiro',
@@ -63,11 +64,14 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   pia: 'cozinhaEBanheiro',
   pratos: 'cozinhaEBanheiro',
   privada: 'cozinhaEBanheiro',
+  caldeirao: 'cozinhaEBanheiro',
+  fornoDePao: 'cozinhaEBanheiro',
   // Armazenagem.
   barril: 'armazenagem',
   caixa: 'armazenagem',
   bau: 'armazenagem',
   sacosDeGrao: 'armazenagem',
+  prateleiraDeDeposito: 'armazenagem',
   // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte).
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
@@ -82,11 +86,14 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   fogo: 'ruaEJardim',
   ponte: 'ruaEJardim',
   bancoDePraca: 'ruaEJardim',
+  estatua: 'ruaEJardim',
+  pedrasERochas: 'ruaEJardim',
   // Cemitério.
   lapide: 'cemiterio',
   cova: 'cemiterio',
   caixao: 'cemiterio',
   caixaoAberto: 'cemiterio',
+  mausoleu: 'cemiterio',
   // Feira.
   barraca: 'feira',
   carroca: 'feira',
@@ -107,9 +114,10 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   sucataEngrenagens: 'destrocosESucata',
   sucataTambores: 'destrocosESucata',
   escombrosDePedra: 'destrocosESucata',
-  // Esporte e lazer (10/11/2026); o boneco de treino (11/11/2026).
+  // Esporte e lazer (10/11/2026); o boneco de treino e o alvo de arco e flecha (11/11/2026).
   campinho: 'esporteELazer',
   bonecoDeTreino: 'esporteELazer',
+  alvoDeArcoEFlecha: 'esporteELazer',
   // Porto e navio (11/11/2026).
   canhao: 'portoENavio',
   // Templo e masmorra (11/11/2026).

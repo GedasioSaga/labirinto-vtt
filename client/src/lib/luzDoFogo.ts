@@ -4,10 +4,11 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 /**
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
  * isso não ilumina nada os jogadores" e "coloque o sistema iluminação"). O
- * fogo, a fogueira, a lareira, a fornalha e o lampião são fontes de luz de
- * verdade: o MESMO alcance vale para o desenho (`pixi/mapaDeLuz.ts`, o claro
- * quente que treme) e para a visão do jogador no escuro (`lib/fogFilter.ts`,
- * o claro na linha de visão chega como o de um ponto de luz).
+ * fogo, a fogueira, a lareira, a fornalha, o forno de pão (11/11/2026) e o
+ * lampião são fontes de luz de verdade: o MESMO alcance vale para o desenho
+ * (`pixi/mapaDeLuz.ts`, o claro quente que treme) e para a visão do jogador
+ * no escuro (`lib/fogFilter.ts`, o claro na linha de visão chega como o de um
+ * ponto de luz).
  *
  * Antes disto a luz desses objetos era só desenho: fora do raio curto da
  * noite nem chegavam ao jogador, e o claro era cortado na borda da visão dele.
@@ -50,6 +51,8 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   fogueira: { alcanceEmCasas: 4.5, cor: 0xffd9a0, forca: 0.95, fumacaEBrasas: true },
   lareira: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: true },
   fornalha: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
+  // O forno de pão (11/11/2026), com o fogo aceso: a luz da lareira, o outro fogo de lenha de dentro de casa.
+  fornoDePao: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: true },
   lampiao: { alcanceEmCasas: 3, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
 }
 

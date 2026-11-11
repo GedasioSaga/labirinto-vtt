@@ -904,6 +904,95 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <circle cx="14" cy="18.6" r="2.3" />
         </>
       )
+    // Lote 2 dos 95 objetos novos (11/11/2026): o ícone que cada desenhista entregou com o desenho.
+    case 'guardaRoupa':
+      // De frente: a cornija larga no alto, as duas portas com a almofada de cada uma, os dois puxadores junto do meio e os pés.
+      return (
+        <>
+          <path d="M3.5 2.5h17v2.6h-17z" />
+          <rect x="4.5" y="5.1" width="15" height="14.9" />
+          <path d="M12 5.1V20" />
+          <rect x="6.6" y="7.2" width="3.3" height="6.2" />
+          <rect x="14.1" y="7.2" width="3.3" height="6.2" />
+          <path d="M10.5 16h.01M13.5 16h.01" />
+          <path d="M6 20v1.5M18 20v1.5" />
+        </>
+      )
+    case 'caldeirao':
+      // De frente: o beiço, a barriga redonda com as duas orelhas, os três pés e o vapor subindo do caldo (o balde é reto e tem alça).
+      return (
+        <>
+          <path d="M4.5 9.5h15" />
+          <path d="M6 9.5c-1.3 1.5-2 3.2-2 5a6 6 0 0 0 6 6h4a6 6 0 0 0 6-6c0-1.8-.7-3.5-2-5" />
+          <path d="M4 13H2.5M20 13h1.5M7.5 20 6.5 22.5M16.5 20l1 2.5M12 20.5v2" />
+          <path d="M9.5 6.5c-.8-1 .8-1.7 0-3M14.5 6.5c-.8-1 .8-1.7 0-3" />
+        </>
+      )
+    case 'fornoDePao':
+      // De frente: a cúpula redonda com a chaminé curta, a boca em arco com um pão dentro e a soleira (a lareira é quadrada e tem consolo).
+      return (
+        <>
+          <path d="M3.5 20v-7a8.5 8.5 0 0 1 17 0v7" />
+          <path d="M14 4.8V2.5h3v3.6" />
+          <path d="M8.5 20v-4a3.5 3.5 0 0 1 7 0v4" />
+          <ellipse cx="12" cy="18.2" rx="2.2" ry="1.2" />
+          <path d="M2 20h20" />
+        </>
+      )
+    case 'prateleiraDeDeposito':
+      // De frente: os dois montantes até o chão, as três tábuas e a carga nas duas de baixo, um pote redondo e um caixote em cada.
+      return (
+        <>
+          <path d="M4 2.5v19M20 2.5v19" />
+          <path d="M4 4h16M4 11.5h16M4 19h16" />
+          <circle cx="8.7" cy="8.1" r="2.6" />
+          <rect x="13.3" y="6.6" width="4.2" height="4.9" />
+          <rect x="6.6" y="14.6" width="5.2" height="4.4" />
+          <circle cx="15.4" cy="15.6" r="2.6" />
+        </>
+      )
+    case 'estatua':
+      // De frente: a figura de capa em cima do pedestal (a cabeça, o corpo abrindo até o pé), a espada de ponta para baixo na frente dela e o pedestal com a cornija e o soco.
+      return (
+        <>
+          <circle cx="12" cy="4.2" r="1.9" />
+          <path d="M9.6 7h4.8l1.8 7.5H7.8z" />
+          <path d="M12 8.2v6.3M10.4 9.8h3.2" />
+          <path d="M6.5 14.5h11v2h-11zM8 16.5V20h8v-3.5M5.5 20h13v2h-13z" />
+        </>
+      )
+    case 'pedrasERochas':
+      // A rocha grande de facetas (as arestas que descem do alto dela), a média encostada nela e duas pedrinhas no chão.
+      return (
+        <>
+          <path d="M2.5 19.5 4 12.5 8 7l5 1.5 2.5 5 .5 6z" />
+          <path d="M8 7l1 5.5H4M9 12.5l4 1 3 6M9 12.5l-1.5 7" />
+          <path d="M16 19.5l.8-4 3-1.5 2.2 2.5-.5 3z" />
+          <path d="M3 22h.01M12.5 22h.01" />
+        </>
+      )
+    case 'mausoleu':
+      // De frente: o frontão em triângulo, a cornija, as duas colunas dos cantos, a porta de duas folhas no meio e os degraus.
+      return (
+        <>
+          <path d="M3 9l9-6 9 6z" />
+          <path d="M4 9v2.2h16V9M5.5 11.2v8M18.5 11.2v8" />
+          <path d="M9.5 19.2v-6h5v6M12 13.2v6" />
+          <path d="M3.5 19.2h17M2 21.5h20" />
+        </>
+      )
+    case 'alvoDeArcoEFlecha':
+      // De frente: o disco com um anel e a mosca, uma flecha cravada perto do meio (as penas para fora), os dois pés do cavalete e a travessa.
+      return (
+        <>
+          <circle cx="11" cy="10" r="7.5" />
+          <circle cx="11" cy="10" r="4.2" />
+          <path d="M11 10h.01" />
+          <path d="M12.8 8.2 20.5 1.5M18 4V1.5M18 4h2.5" />
+          <path d="M6.6 16.1 4 21.5M15.4 16.1l2.6 5.4" />
+          <path d="M5.4 18.6h11.2" />
+        </>
+      )
   }
 }
 

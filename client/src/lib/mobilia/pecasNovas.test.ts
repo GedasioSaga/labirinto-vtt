@@ -74,6 +74,15 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   bancoDePraca: [2, 0.7],
   escombrosDePedra: [2, 2],
   canhao: [2, 1],
+  // Lote 2 dos 95 objetos novos (11/11/2026).
+  guardaRoupa: [1.5, 0.6],
+  caldeirao: [1, 1],
+  fornoDePao: [2, 2],
+  prateleiraDeDeposito: [2, 0.6],
+  estatua: [1, 1],
+  pedrasERochas: [2, 1.5],
+  mausoleu: [3, 4],
+  alvoDeArcoEFlecha: [1, 1],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -127,6 +136,14 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   bancoDePraca: ['Banco de praça', 'um banco de praça'],
   escombrosDePedra: ['Escombros de pedra', 'uns escombros de pedra'],
   canhao: ['Canhão', 'um canhão'],
+  guardaRoupa: ['Guarda-roupa', 'um guarda-roupa'],
+  caldeirao: ['Caldeirão', 'um caldeirão'],
+  fornoDePao: ['Forno de pão', 'um forno de pão'],
+  prateleiraDeDeposito: ['Prateleira de depósito', 'uma prateleira de depósito'],
+  estatua: ['Estátua', 'uma estátua'],
+  pedrasERochas: ['Pedras e rochas', 'umas pedras e rochas'],
+  mausoleu: ['Mausoléu', 'um mausoléu'],
+  alvoDeArcoEFlecha: ['Alvo de arco e flecha', 'um alvo de arco e flecha'],
 }
 
 describe('peças novas: registro', () => {
@@ -167,9 +184,9 @@ describe('peças novas: registro', () => {
     expect([carroca.width / GRADE, carroca.height / GRADE]).toEqual([2, 1.25])
   })
 
-  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água e o moinho; o resto é retângulo', () => {
+  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água, o moinho e o caldeirão; o resto é retângulo', () => {
     const redondos = PECAS_NOVAS.filter((tipo) => ehMovelRedondo(tipo))
-    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho'])
+    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao'])
   })
 
   it('cada peça tem desenho de linhas (o provisório antes da imagem), nas duas vistas quando tem vista', () => {
@@ -205,17 +222,18 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
     // Os objetos de vento (02/11/2026) depois deles, os destroços, as sucatas e o campinho (10/11/2026) em
-    // seguida, e o lote 1 dos 95 objetos novos (11/11/2026) no fim.
-    expect(TIPOS_NO_CATALOGO.slice(-20, -13)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
-    expect(TIPOS_NO_CATALOGO.slice(-13, -8)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
-    expect(TIPOS_NO_CATALOGO.slice(-8)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
+    // seguida, e os lotes 1 e 2 dos 95 objetos novos (11/11/2026) no fim.
+    expect(TIPOS_NO_CATALOGO.slice(-28, -21)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    expect(TIPOS_NO_CATALOGO.slice(-21, -16)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
+    expect(TIPOS_NO_CATALOGO.slice(-16, -8)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
+    expect(TIPOS_NO_CATALOGO.slice(-8)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
     // E o chafariz de 02/11/2026, logo depois do poço, e os 3 objetos de vento no fim; a ponte de 03/11/2026
     // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
     const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
     expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(61)
+    expect(TIPOS_NO_CATALOGO).toHaveLength(69)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

@@ -238,8 +238,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'lapide' ? { variante: varianteDaLapide(prop.id) } : {}),
     // Os pratos: a forma (cheio, vazio, pilha) é a variante do desenho.
     ...(prop.mobilia === 'pratos' ? { variante: varianteDosPratos(prop) } : {}),
-    // A lareira e a fornalha: o fogo (aceso, apagado) é a variante do desenho (as brasas e o halo só no aceso).
-    ...(prop.mobilia === 'lareira' || prop.mobilia === 'fornalha' ? { variante: varianteDoFogo(prop) } : {}),
+    // A lareira, a fornalha e o forno de pão: o fogo (aceso, apagado) é a variante do desenho (as brasas e o halo só no aceso).
+    ...(ehMovelComFogoDeCasa(prop.mobilia) ? { variante: varianteDoFogo(prop) } : {}),
     // Os troncos e o feno: a forma (toras ou lenha; fardos ou monte) é a variante do desenho.
     ...(ehMovelDePilha(prop.mobilia) ? { variante: varianteDaPilha(prop.mobilia, prop.mobiliaForma) } : {}),
     // O chafariz: a forma e a água (o prato cheio ou seco, a espuma) são a variante do desenho.
@@ -385,7 +385,8 @@ export function chaveDesenhada(prop: MovelParaImagem, cameraScale: number, rende
     ...(forma !== undefined ? { forma } : {}),
     ...(tipo === 'lapide' ? { variacao: varianteDaLapide(prop.id) } : {}),
   }
-  const halo = tipo === 'lampiao' ? 'lampiao' : ehMovelComFogoDeCasa(tipo) && prop.mobiliaForma !== 'apagado' ? tipo : null
+  // O halo do fogo aceso é só da lareira e da fornalha: o forno de pão não tem pacote Desenhado (não chega aqui).
+  const halo = tipo === 'lampiao' ? 'lampiao' : (tipo === 'lareira' || tipo === 'fornalha') && prop.mobiliaForma !== 'apagado' ? tipo : null
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
   const sombraAParte = !ehMovelDoChao(tipo) && !ehMovelDeCimaDaMesa(tipo)
   // A cerca por peças (CONTRATO 10.12) é montada já no giro da tela, com os mourões do app.
