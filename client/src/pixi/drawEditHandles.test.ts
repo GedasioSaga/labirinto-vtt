@@ -249,7 +249,8 @@ describe('drawEditHandles — alça de girar sala', () => {
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
-  it('Sala retangular girada torta: sem chip de canto (puxar um canto a desmontaria), só a alça de girar', () => {
+  // Pedido de 11/11/2026: a casa girada também se redimensiona pelos cantos.
+  it('Sala retangular girada torta: os 4 chips de canto e a alça de girar', () => {
     const torta: Region = {
       ...buildRectRoomRegion('r1'),
       points: [{ x: 50, y: -20.71 }, { x: 120.71, y: 50 }, { x: 50, y: 120.71 }, { x: -20.71, y: 50 }],
@@ -260,7 +261,7 @@ describe('drawEditHandles — alça de girar sala', () => {
 
     drawEditHandles(g, map, { kind: 'region', id: 'r1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(FILLS_DA_ALCA_DE_GIRAR)
+    expect(countFillInstructions(g)).toBe(torta.points.length * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
     expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
   })
 

@@ -334,7 +334,7 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // interior — ver a docstring de `eraseAt`). A função segue exportada e testada
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
+import { hasRoomCornerHandles, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
 import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
 import { useTintaNoEditor } from '../stores/tintaNoEditor'
 import { createTelhadosRenderer, telhadoParaDesenhar } from './telhadosRenderer'
@@ -7024,10 +7024,10 @@ function PixiCanvasDoContexto({
               // no arrasto de vértice/midpoint genérico abaixo, que deixaria a
               // sala virar um quadrilátero torto e dessincronizaria as 4
               // paredes vinculadas (resizeRoomCornerLive já cuida da sync,
-              // ver mapFactory.ts). Girada torta, nem o canto: reconstruir o
-              // retângulo pelos cantos a desmontaria (`isAxisAlignedRect`).
+              // ver mapFactory.ts). Girada torta, o canto estica no eixo
+              // dela (`hasRoomCornerHandles`, pedido de 11/11/2026).
               if (region.room?.shape === 'rect') {
-                const corner = isAxisAlignedRect(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, camera.scale) : null
+                const corner = hasRoomCornerHandles(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, camera.scale) : null
                 if (corner !== null) {
                   mode = 'resizing-room-corner'
                   resizingRoomId = editRegionId

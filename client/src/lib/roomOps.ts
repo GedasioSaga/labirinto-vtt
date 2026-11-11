@@ -1,5 +1,6 @@
 import type { RegionPoint, RoomMeta } from '../types/map'
 import type { Point } from '../pixi/world'
+import { rotatePointAround, type RotationTrig } from './roomRotation'
 
 /**
  * TETO DE CONSTRUÇÃO ligado (`RoomMeta.roof`), lido em UM lugar só.
@@ -106,6 +107,57 @@ export function resizeRoomCorner(points: RegionPoint[], corner: RoomCorner, x: n
   return rectFromCorners(anchor, { x: clampedX, y: clampedY })
 }
 
+/** O eixo de uma Sala retangular: o giro que deita a aresta 0 e o que a devolve, em volta do vértice 0. */
+interface EixoDaSala {
+  origem: RegionPoint
+  paraASala: RotationTrig
+  paraOMapa: RotationTrig
+}
+
+/**
+ * O eixo DA sala, lido dos pontos (não de `RoomMeta.rotation`, que é só a
+ * leitura e não conta a troca de ordem de `normalizeRectRoomOrder`): a aresta 0,
+ * do vértice 0 ao 1, é o "deitado" dela. `null` quando, deitada assim, ela não
+ * é um retângulo em volta horária com o vértice 0 em cima à esquerda (arquivo
+ * feito à mão, quadrilátero torto): aí não há eixo em que a conta valha.
+ */
+function eixoDaSala(points: readonly RegionPoint[]): EixoDaSala | null {
+  if (points.length !== 4) return null
+  const origem = points[0]
+  const dx = points[1].x - origem.x
+  const dy = points[1].y - origem.y
+  const lado = Math.hypot(dx, dy)
+  if (!(lado > 0)) return null
+  const paraOMapa = { sin: dy / lado, cos: dx / lado }
+  const paraASala = { sin: -paraOMapa.sin, cos: paraOMapa.cos }
+  const deitada = points.map((p) => rotatePointAround(p, origem, paraASala))
+  return rectCornerShift(deitada) === 0 ? { origem, paraASala, paraOMapa } : null
+}
+
+/**
+ * Arrasto de canto de Sala retangular em qualquer giro (pedido de 11/11/2026:
+ * "não consigo redimencionar o tamanho da casa quando ela ta em um grau
+ * diferente"). Reta: exatamente `resizeRoomCorner`. Girada: a MESMA conta, no
+ * eixo dela — sala e ponteiro deitados em volta do vértice 0, o canto puxado,
+ * e tudo devolvido ao giro de antes. O canto oposto fica parado no mapa, a
+ * ordem dos vértices não muda (as paredes vinculadas seguem pelo índice) e a
+ * sala continua no mesmo ângulo. Sem eixo (`eixoDaSala`): `points` sem mudança.
+ */
+export function resizeRoomCornerInOwnAxis(points: RegionPoint[], corner: RoomCorner, x: number, y: number): RegionPoint[] {
+  if (isAxisAlignedRect(points)) return resizeRoomCorner(points, corner, x, y)
+  const eixo = eixoDaSala(points)
+  if (eixo === null) return points
+  const { origem, paraASala, paraOMapa } = eixo
+  const deitada = points.map((p) => rotatePointAround(p, origem, paraASala))
+  const ponteiro = rotatePointAround({ x, y }, origem, paraASala)
+  return resizeRoomCorner(deitada, corner, ponteiro.x, ponteiro.y).map((p) => rotatePointAround(p, origem, paraOMapa))
+}
+
+/** A Sala retangular tem alça de canto: reta, ou girada com eixo (`resizeRoomCornerInOwnAxis`). */
+export function hasRoomCornerHandles(points: readonly RegionPoint[]): boolean {
+  return isAxisAlignedRect(points) || eixoDaSala(points) !== null
+}
+
 /**
  * Recalcula os 4 vértices de uma Sala retangular a partir de largura/altura
  * numéricas — âncora sempre em `points[0]` (canto de menor x/menor y, ver
@@ -155,12 +207,13 @@ const FOLGA_DE_ALINHAMENTO = 1e-3
 
 /**
  * Sala retangular RETA: lados na horizontal e na vertical — em pé ou deitada
- * (0°, 90°, 180°, −90°). Só ela tem alça de canto e largura/altura, porque as
- * duas reconstroem o retângulo a partir de dois cantos opostos alinhados à
- * tela (`rectFromCorners`): numa sala torta isso a DESMONTARIA, trocando-a por
- * outro retângulo, reto, no lugar dela. Torta, esses controles somem
- * (`pixi/drawEditHandles.ts`, `components/RoomControls.tsx`) e voltam quando
- * ela é girada de novo a um múltiplo de 90°.
+ * (0°, 90°, 180°, −90°). Só ela tem largura/altura, porque a conta reconstrói
+ * o retângulo a partir de dois cantos opostos alinhados à tela
+ * (`rectFromCorners`): numa sala torta isso a DESMONTARIA, trocando-a por
+ * outro retângulo, reto, no lugar dela. Torta, os campos somem
+ * (`components/RoomControls.tsx`) e voltam quando ela é girada de novo a um
+ * múltiplo de 90°. A alça de canto vale nas duas desde 11/11/2026: na torta, a
+ * mesma conta roda no eixo dela (`resizeRoomCornerInOwnAxis`).
  */
 export function isAxisAlignedRect(points: readonly RegionPoint[]): boolean {
   if (points.length !== 4) return false

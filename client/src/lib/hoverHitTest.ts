@@ -38,7 +38,7 @@ import type { Selection, SelectionKind, DrawingTool } from '../types/tools'
 import type { Point } from '../pixi/world'
 import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
-import { isAxisAlignedRect } from './roomOps'
+import { hasRoomCornerHandles } from './roomOps'
 import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
@@ -178,8 +178,8 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
           return { kind: 'rotate', corner: null, target: null }
         }
         if (region.room?.shape === 'rect') {
-          // Torta não tem alça de canto (ver `isAxisAlignedRect`), e também não cai no vértice solto abaixo.
-          const corner = isAxisAlignedRect(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, scale) : null
+          // Mesma condição do desenho das alças (`hasRoomCornerHandles`); Sala nunca cai no vértice solto abaixo.
+          const corner = hasRoomCornerHandles(region.points) ? findRoomCornerHandleAt(region.points, worldPoint, scale) : null
           if (corner !== null) return { kind: 'resize-corner', corner, target: null }
         } else if (findVertexHandleAt(region.points, worldPoint, scale) !== null) {
           return { kind: 'vertex', corner: null, target: null }

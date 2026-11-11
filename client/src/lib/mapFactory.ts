@@ -11,7 +11,7 @@ import { MODELO_PADRAO_DO_TETO, corDaPaleta, corDoTetoOuPadrao, corDoTetoValida,
 import { syncLinkedWallsToPoints, remapForInsert, remapForRemove, translateLinkedWalls, previousEdgeIndex } from './roomLink'
 import { simplifyPolygon, chaikinSmooth } from './regionSmoothing'
 import { edgesCoveredByParent, findContainingRoom, insertIndexAfterSubtree, pointOnPolygonBorder, subtreeIds } from './roomNesting'
-import { isAxisAlignedRect, rectCornerShift, resizeRoomCorner, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
+import { isAxisAlignedRect, rectCornerShift, resizeRoomCornerInOwnAxis, resizeRoomDimensions as resizeRoomDimensionsPoints, type RoomCorner } from './roomOps'
 import {
   isQuarterAngle, normalizeRotation, quarterAngleGridShift, roomCentroid, roomRotationOf, rotatePointAround, rotateVector, rotationDelta,
   rotationPivot, rotationTrig, withoutRotationNoise, type RotationTrig,
@@ -2570,13 +2570,15 @@ export function resizeRoomDimensions(map: MapData, id: string, wPx: number, hPx:
  * do arrasto da alça de canto (drawRoomHandles.ts). Par de `commitDragHistory`
  * no pointerup, mesmo padrão de `updateLightRadiusLive`/`updateCurvePointLive`
  * (mapStore.ts). Sala Circular/Polígono ou região sem `room`: `map` sem mudança.
- * Sala retangular torta também, pelo mesmo motivo de `resizeRoomDimensions`.
+ * Sala retangular girada fora de 90° estica no eixo dela
+ * (`roomOps.resizeRoomCornerInOwnAxis`, pedido de 11/11/2026).
  */
 export function resizeRoomCornerLive(map: MapData, id: string, corner: RoomCorner, x: number, y: number): MapData {
   const region = map.regions.find((r) => r.id === id)
-  if (!region || region.room?.shape !== 'rect' || !isAxisAlignedRect(region.points)) return map
+  if (!region || region.room?.shape !== 'rect') return map
 
-  const points = resizeRoomCorner(region.points, corner, x, y)
+  const points = resizeRoomCornerInOwnAxis(region.points, corner, x, y)
+  if (points === region.points) return map
   return {
     ...map,
     regions: map.regions.map((r) => (r.id === id ? { ...r, points } : r)),
