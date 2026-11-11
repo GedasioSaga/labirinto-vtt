@@ -37,12 +37,12 @@ import type { MapData } from '../types/map'
 import type { Selection, SelectionKind, DrawingTool } from '../types/tools'
 import type { Point } from '../pixi/world'
 import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
-import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
+import { drawingBoundingBox, tokenBoundingBox } from './objectTransform'
 import { hasRoomCornerHandles } from './roomOps'
 import { isOnPropRotateHandle, isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
-import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
+import { findBoxCornerHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
 import { canInteractInLayer, propLayer, stairLayer } from './layers'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
@@ -153,7 +153,7 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     if (selection.kind === 'prop') {
       const prop = map.props.find((p) => p.id === selection.id)
       if (prop && canInteract(prop)) {
-        const corner = findBoxCornerHandleAt(propBoundingBox(prop), worldPoint, scale)
+        const corner = findPropCornerHandleAt(prop, worldPoint, scale)
         if (corner !== null) return { kind: 'resize-corner', corner, target: null }
         // Alça de curvar da cerca: a mesma condição do pointerdown (`pixi/cercaCurvaGesture.ts`).
         if (canInteractInLayer(prop, propLayer(prop), map.lockedLayers) && isOnFenceCurveHandle(prop, worldPoint, scale)) {

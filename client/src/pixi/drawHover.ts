@@ -57,7 +57,7 @@ import type { Graphics } from 'pixi.js'
 import type { MapData } from '../types/map'
 import type { Point } from './world'
 import type { HoverTarget } from '../lib/hoverHitTest'
-import { tokenBoundingBox, propBoundingBox } from '../lib/objectTransform'
+import { tokenBoundingBox, propBoundingBox, propCorners } from '../lib/objectTransform'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
 import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
@@ -126,6 +126,8 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: 
       // CERCA CURVA: o contorno do pairar é a faixa dobrada no arco, a mesma que o clique pega (`lib/cercaCurva.ts`).
       const curva = contornoDaCercaCurva(prop)
       if (curva !== null) return { shape: 'polygon', points: curva }
+      // OBJETO GIRADO: o contorno nos cantos do desenho (`propCorners`), onde o clique pega.
+      if (prop.rotation) return { shape: 'polygon', points: propCorners(prop) }
       const box = propBoundingBox(prop)
       return { shape: 'rect', x: box.minX, y: box.minY, w: box.maxX - box.minX, h: box.maxY - box.minY }
     }
