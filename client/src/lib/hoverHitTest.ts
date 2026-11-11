@@ -39,7 +39,7 @@ import type { Point } from '../pixi/world'
 import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox } from './objectTransform'
 import { hasRoomCornerHandles } from './roomOps'
-import { isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
+import { isOnPropRotateHandle, isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
 import { findBoxCornerHandleAt, findNearestVertexHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
@@ -159,6 +159,8 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
         if (canInteractInLayer(prop, propLayer(prop), map.lockedLayers) && isOnFenceCurveHandle(prop, worldPoint, scale)) {
           return { kind: 'vertex', corner: null, target: null }
         }
+        // Alça de girar do objeto: a mesma condição do pointerdown (`beginProp`, `pixi/roomRotateGesture.ts`).
+        if (isOnPropRotateHandle(prop, worldPoint, scale)) return { kind: 'rotate', corner: null, target: null }
       }
     }
     let editRegionId: string | null = null

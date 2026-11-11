@@ -447,15 +447,16 @@ describe('drawEditHandles — Token / Prop (bounding box)', () => {
     expect(countStrokeInstructions(g)).toBe(0)
   })
 
-  it('prop selecionado: 4 alças de canto preenchidas', () => {
+  // Pedido de 11/11/2026: o objeto também ganha a alça de girar da sala.
+  it('prop selecionado: 4 alças de canto preenchidas e a alça de girar', () => {
     const prop: Prop = { id: 'p1', src: '/a.png', x: 50, y: 50, width: 20, height: 20, linkedMapPath: null }
     const map = { ...createEmptyMap('m', 'M', 30, 20, 64), props: [prop] }
     const g = new Graphics()
 
     drawEditHandles(g, map, { kind: 'prop', id: 'p1' }, 'select')
 
-    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP)
-    expect(countStrokeInstructions(g)).toBe(0)
+    expect(countFillInstructions(g)).toBe(4 * FILLS_POR_CHIP + FILLS_DA_ALCA_DE_GIRAR)
+    expect(countStrokeInstructions(g)).toBe(STROKES_DA_ALCA_DE_GIRAR)
   })
 
   it('MAPA DE CONTINENTE: ficha desenhada como pino não ganha alça de canto (tamanho do pino é fixo na tela)', () => {

@@ -6,6 +6,7 @@ import { createEmptyMap } from '../lib/mapFactory'
 import { criarMovel } from '../lib/mobilia'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { alcaDaCurvaDaCerca } from '../lib/cercaCurva'
+import { propRotateHandle } from '../lib/roomRotation'
 import { createCercaCurvaGesture } from './cercaCurvaGesture'
 import { drawEditHandles } from './drawEditHandles'
 import { CORNER_HANDLE_KEYLINE_COLOR, SELECTION_COLOR } from './constants'
@@ -109,14 +110,20 @@ describe('drawEditHandles — cerca selecionada', () => {
   const SELECAO = { kind: 'prop' as const, id: 'c' }
   const conta = (g: Graphics, action: 'fill' | 'stroke') => g.context.instructions.filter((i) => i.action === action).length
 
-  /** Centro do fundo escuro da bolinha vazada (o `circle` pintado de CORNER_HANDLE_KEYLINE_COLOR). */
-  function centrosDasVazadas(g: Graphics): { x: number; y: number }[] {
+  /**
+   * Centro do fundo escuro da bolinha vazada (o `circle` pintado de CORNER_HANDLE_KEYLINE_COLOR),
+   * fora a bolinha da alça de girar do objeto, que tem o mesmo fundo (`propRotateHandle`).
+   */
+  function centrosDasVazadas(g: Graphics, prop: Prop): { x: number; y: number }[] {
+    const girar = propRotateHandle(prop, 1)?.knob
     return g.context.instructions.flatMap((i) => {
       if (i.action !== 'fill' || i.data.style.color !== CORNER_HANDLE_KEYLINE_COLOR) return []
       return i.data.path.instructions.flatMap((passo) => {
         if (passo.action !== 'circle') return []
         const [x, y]: unknown[] = passo.data
-        return typeof x === 'number' && typeof y === 'number' ? [{ x, y }] : []
+        if (typeof x !== 'number' || typeof y !== 'number') return []
+        // Menos de 1 px: o desenho encosta a bolinha de girar no pixel físico (`alignToPixel`).
+        return girar !== undefined && Math.hypot(x - girar.x, y - girar.y) < 1 ? [] : [{ x, y }]
       })
     })
   }
@@ -125,12 +132,13 @@ describe('drawEditHandles — cerca selecionada', () => {
     const map = mapaComCerca({ mobiliaCurva: 90 })
     const g = new Graphics()
     drawEditHandles(g, map, SELECAO, 'select', { cameraScale: 1 })
-    // 4 chips (faixa escura + amarelo cada) + o fundo escuro da vazada; o aro amarelo é o único traço.
-    expect(conta(g, 'fill')).toBe(4 * 2 + 1)
-    expect(conta(g, 'stroke')).toBe(1)
+    // 4 chips (faixa escura + amarelo cada) + o fundo escuro da vazada + a bolinha da alça de girar;
+    // o aro amarelo da vazada é o primeiro traço (os outros dois são o fio e o aro da alça de girar).
+    expect(conta(g, 'fill')).toBe(4 * 2 + 1 + 1)
+    expect(conta(g, 'stroke')).toBe(1 + 2)
     const stroke = g.context.instructions.find((i) => i.action === 'stroke')
     expect(stroke?.action === 'stroke' ? stroke.data.style.color : null).toBe(SELECTION_COLOR)
-    const [centro] = centrosDasVazadas(g)
+    const [centro] = centrosDasVazadas(g, map.props[0])
     const alca = alcaDaCurvaDaCerca(map.props[0])
     expect(centro?.x).toBeCloseTo(alca?.x ?? Number.NaN, 9)
     expect(centro?.y).toBeCloseTo(alca?.y ?? Number.NaN, 9)
@@ -139,8 +147,9 @@ describe('drawEditHandles — cerca selecionada', () => {
   it('móvel que não é cerca e cerca travada não ganham a alça de curvar', () => {
     for (const extra of [{ mobilia: 'mesa' as const }, { locked: true }]) {
       const g = new Graphics()
-      drawEditHandles(g, mapaComCerca(extra), SELECAO, 'select', { cameraScale: 1 })
-      expect(centrosDasVazadas(g), JSON.stringify(extra)).toEqual([])
+      const map = mapaComCerca(extra)
+      drawEditHandles(g, map, SELECAO, 'select', { cameraScale: 1 })
+      expect(centrosDasVazadas(g, map.props[0]), JSON.stringify(extra)).toEqual([])
     }
   })
 })

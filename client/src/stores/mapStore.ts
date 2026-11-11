@@ -1330,6 +1330,9 @@ interface MapStoreState {
   rotateRoomLive: (id: string, degrees: number) => void
   /** Fecha o arrasto de giro: sala de fora e ordem dos cantos, uma vez só. SEM histórico. */
   finishRoomRotationLive: (before: MapData, id: string) => void
+  /** Giro do OBJETO ao vivo, pela alça (`pixi/roomRotateGesture.ts`): SEM histórico, par de
+   *  `commitDragHistory(before)` no pointerup. `undefined` tira o campo (o Esc devolve o de antes). */
+  setPropRotationLive: (id: string, rotation: number | undefined) => void
   /**
    * Variantes "live" de resize por canto (B3, bug3 "mover e redimensionar"),
    * para os kinds que não tinham resize algum antes desta fase: Drawing
@@ -3102,6 +3105,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // Na grade antes da sala de fora: `reparentRooms` precisa ver a sala onde ela fica.
       const map = settleRoomRotation(mapFactory.alignQuarterTurnToGrid(state.map, id, before), id, before)
       return map === state.map ? {} : { map }
+    }),
+    setPropRotationLive: (id, rotation) => set((state) => {
+      const prop = state.map.props.find((p) => p.id === id)
+      // Mesmo giro (ou objeto que sumiu): nada muda, e nenhum render acorda.
+      if (!prop || prop.rotation === rotation) return {}
+      const { rotation: _antes, ...semGiro } = prop
+      const novo: Prop = rotation === undefined ? semGiro : { ...prop, rotation }
+      return { map: { ...state.map, props: state.map.props.map((p) => (p.id === id ? novo : p)) } }
     }),
     resizeDrawingCornerLive: (drawingId, corner, x, y, modifiers) => set((state) => ({
       map: mapFactory.resizeDrawingCornerLive(state.map, drawingId, corner, x, y, modifiers),
