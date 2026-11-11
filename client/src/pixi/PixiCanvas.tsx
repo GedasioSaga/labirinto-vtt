@@ -334,7 +334,7 @@ import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from 
 // interior — ver a docstring de `eraseAt`). A função segue exportada e testada
 // em lib/eraseGeometry.ts para quem precise da leitura "contido conta".
 import { eraseDecisionForWall, eraseDecisionForStair, eraseDecisionForToken, eraseDecisionForProp } from '../lib/eraseGeometry'
-import { hasRoomCornerHandles, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
+import { hasRoomCornerHandles, isAxisAlignedRect, rectFromCorners, roomHasRoof, type RoomCorner } from '../lib/roomOps'
 import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
 import { useTintaNoEditor } from '../stores/tintaNoEditor'
 import { createTelhadosRenderer, telhadoParaDesenhar } from './telhadosRenderer'
@@ -4184,10 +4184,15 @@ function PixiCanvasDoContexto({
        * lib/tokenSize.ts), senão um disco de 2 quadrados fica meio fora dos
        * quatro quadrados que deveria cobrir.
        */
+      /** O encaixe de `target` neste gesto: a chave do painel, invertida pelo Alt. */
+      const snapLigado = (target: SnapTargetKind, altKey: boolean): boolean => {
+        const { snapTargets } = useMapStore.getState()
+        return altKey ? !snapTargets[target] : snapTargets[target]
+      }
+
       const applySnap = (point: Point, gridSize: number, target: SnapTargetKind, altKey: boolean, tokenCells = 1): Point => {
-        const { map, snapTargets } = useMapStore.getState()
-        const enabled = altKey ? !snapTargets[target] : snapTargets[target]
-        if (!enabled) return point
+        const { map } = useMapStore.getState()
+        if (!snapLigado(target, altKey)) return point
         const snapped = snapPointForTarget(target, map.gridShape, point.x, point.y, gridSize)
         // Só na grade quadrada: hex e triângulo têm centro de célula próprio
         // (`snapToHexGrid`/`triGrid.ts`), e "linha da grade" ali não é a
@@ -8401,6 +8406,14 @@ function PixiCanvasDoContexto({
         if (mode === 'resizing-room-corner' && resizingRoomId !== null && resizingCorner !== null) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map, resizeRoomCornerLive } = useMapStore.getState()
+          const region = map.regions.find((r) => r.id === resizingRoomId)
+          if (region !== undefined && !isAxisAlignedRect(region.points)) {
+            // Girada: o encaixe (a mesma chave e o mesmo Alt da reta) vale no eixo DELA — largura e
+            // altura em casas inteiras. O canto na grade do mapa a deixaria em 6,83 x 4,55 casas.
+            const passo = snapLigado('wall', event.altKey) && map.gridShape === 'square' ? map.grid : undefined
+            resizeRoomCornerLive(resizingRoomId, resizingCorner, worldPoint.x, worldPoint.y, passo)
+            return
+          }
           const snapped = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           resizeRoomCornerLive(resizingRoomId, resizingCorner, snapped.x, snapped.y)
           return

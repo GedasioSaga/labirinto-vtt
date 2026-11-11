@@ -1307,7 +1307,7 @@ interface MapStoreState {
   /** Variante "live" do resize por canto — SEM histórico, aplica direto no
    *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `updateLightRadiusLive`. */
-  resizeRoomCornerLive: (id: string, corner: RoomCorner, x: number, y: number) => void
+  resizeRoomCornerLive: (id: string, corner: RoomCorner, x: number, y: number, passo?: number) => void
   /**
    * GIRAR SALA — os botões −90°/+90° do painel. Gira a Sala e as sub-salas
    * `degrees` graus (positivo = horário) em torno do centro dela, COM
@@ -3084,8 +3084,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       return result.hitZone
     },
     resizeRoomDimensions: (id, wPx, hPx) => withHistory((map) => reparentRooms(mapFactory.resizeRoomDimensions(map, id, wPx, hPx), [id], map)),
-    resizeRoomCornerLive: (id, corner, x, y) => set((state) => ({
-      map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y),
+    resizeRoomCornerLive: (id, corner, x, y, passo) => set((state) => ({
+      map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y, passo),
     })),
     rotateRoom: (id, degrees) => {
       const before = get().map
