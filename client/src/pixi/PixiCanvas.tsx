@@ -6993,6 +6993,14 @@ function PixiCanvasDoContexto({
               updateCursor()
               return
             }
+            // Alça de girar do objeto (bolinha acima dele, a mesma da sala): depois do canto e
+            // da curva da cerca, que seguem como eram; antes do clique no que está embaixo dela.
+            if (event.button === 0 && roomRotateGesture.beginProp(prop.id, worldPoint, camera.scale)) {
+              mode = 'rotating-room'
+              redrawEditHandles()
+              updateCursor()
+              return
+            }
           }
         }
 

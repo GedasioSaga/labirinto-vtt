@@ -121,6 +121,20 @@ describe('resolveHoverHit — resize-corner (entidade já selecionada)', () => {
     expect(result).toEqual({ kind: 'resize-corner', corner: 0, target: null })
   })
 
+  // Pedido de 11/11/2026: o objeto ganha a alça de girar da sala, e ela fica por cima do que está embaixo dela.
+  it('prop selecionado: a bolinha acima do topo promete girar, mesmo com outro objeto embaixo dela', () => {
+    let map = addProp(baseMap, { id: 'p1', src: 'x.png', x: 100, y: 100, width: 40, height: 40, linkedMapPath: null })
+    map = addProp(map, { id: 'p2', src: 'y.png', x: 100, y: 52, width: 40, height: 20, linkedMapPath: null })
+    const result = resolveHoverHit({
+      map,
+      selection: { kind: 'prop', id: 'p1' },
+      areaSelection: null,
+      activeTool: 'select',
+      worldPoint: { x: 100, y: 80 - ROOM_ROTATE_HANDLE.offsetPx }, // topo de p1 em y = 80
+    })
+    expect(result).toEqual({ kind: 'rotate', corner: null, target: null })
+  })
+
   it('Drawing rect selecionado, hover sobre canto: resize-corner, sem target', () => {
     const drawing: Drawing = { id: 'd1', kind: 'rect', x: 0, y: 0, w: 100, h: 50, color: '#fff', width: 2, filled: false, fillAlpha: 1 }
     const map = addDrawing(baseMap, drawing)

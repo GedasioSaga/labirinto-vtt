@@ -1,4 +1,4 @@
-import type { RegionPoint, RoomMeta } from '../types/map'
+import type { Prop, RegionPoint, RoomMeta } from '../types/map'
 
 /**
  * GIRAR SALA — a geometria pura, sem Pixi nem store.
@@ -432,9 +432,40 @@ export function isOnRoomRotateHandle(
   point: RegionPoint,
   cameraScale: number,
 ): boolean {
-  const handle = roomRotateHandle(points, rotationDegrees, cameraScale)
+  return pegaNaAlca(roomRotateHandle(points, rotationDegrees, cameraScale), point)
+}
+
+function pegaNaAlca(handle: RoomRotateHandle | null, point: RegionPoint): boolean {
   if (!handle) return false
   return Math.hypot(point.x - handle.knob.x, point.y - handle.knob.y) <= handle.hitRadius
+}
+
+/** O que a alça de girar de um objeto lê dele. */
+export type PropParaGirar = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation'>
+
+/**
+ * A alça de girar de um OBJETO (pedido de 11/11/2026: "seria legal se os
+ * objetos pudessem ficar se inclinando que nem as casas"): a MESMA da sala,
+ * sobre o retângulo do objeto girado em volta do centro dele — onde a tela gira
+ * a imagem e onde o clique desgira o ponto (`pixi/propInteraction.ts`).
+ */
+export function propRotateHandle(prop: PropParaGirar, cameraScale: number): RoomRotateHandle | null {
+  const giro = prop.rotation ?? 0
+  const trig = rotationTrig(giro)
+  const meiaLargura = prop.width / 2
+  const meiaAltura = prop.height / 2
+  const cantos = [
+    { x: prop.x - meiaLargura, y: prop.y - meiaAltura },
+    { x: prop.x + meiaLargura, y: prop.y - meiaAltura },
+    { x: prop.x + meiaLargura, y: prop.y + meiaAltura },
+    { x: prop.x - meiaLargura, y: prop.y + meiaAltura },
+  ].map((canto) => rotatePointAround(canto, prop, trig))
+  return roomRotateHandle(cantos, giro, cameraScale)
+}
+
+/** Hit-test da alça do objeto — a mesma conta do desenho (`propRotateHandle`). */
+export function isOnPropRotateHandle(prop: PropParaGirar, point: RegionPoint, cameraScale: number): boolean {
+  return pegaNaAlca(propRotateHandle(prop, cameraScale), point)
 }
 
 /**

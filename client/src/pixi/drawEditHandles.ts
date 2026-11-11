@@ -5,7 +5,7 @@ import type { Point } from './world'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { alcasDoDesenho, editavelPorPontos } from '../lib/pontosChave'
 import { hasRoomCornerHandles } from '../lib/roomOps'
-import { roomRotateHandle, roomRotationOf } from '../lib/roomRotation'
+import { propRotateHandle, roomRotateHandle, roomRotationOf, type RoomRotateHandle } from '../lib/roomRotation'
 import { isLocked } from '../lib/itemTransform'
 import { cornerHandleExtent, drawCornerHandle, drawRoomHandles } from './drawRoomHandles'
 import { stairHandles } from '../lib/stairHandles'
@@ -205,9 +205,13 @@ export interface EditHandlesView {
  */
 function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHandlesView): void {
   if (!region.room || isLocked(region)) return
-  const scale = view.cameraScale ?? 1
-  const handle = roomRotateHandle(region.points, roomRotationOf(region.room), scale)
+  drawRotateHandle(graphics, roomRotateHandle(region.points, roomRotationOf(region.room), view.cameraScale ?? 1), view)
+}
+
+/** A alça de girar (traço + bolinha) — a mesma na Sala e no Objeto (`propRotateHandle`). */
+function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, view: EditHandlesView): void {
   if (!handle) return
+  const scale = view.cameraScale ?? 1
   let { base, knob } = handle
   // Traço fino nítido: com a sala reta o traço fica em pé (ou deitado) e,
   // centrado no meio do pixel físico, pinta 1 coluna forte em vez de 2 meio
@@ -353,6 +357,8 @@ export function drawEditHandles(
     // CERCA: além dos cantos (que esticam o trecho), a bolinha vazada de curvar no meio do fio (`lib/cercaCurva.ts`).
     const alca = alcaDaCurvaDaCerca(prop)
     if (alca !== null) drawStairCurveHandle(graphics, alca, scale)
+    // A alça de girar da sala, em volta do centro do objeto (pedido de 11/11/2026).
+    drawRotateHandle(graphics, propRotateHandle(prop, scale), view)
     return
   }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { MapData, Region } from '../types/map'
+import type { MapData, Prop, Region } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
@@ -179,5 +179,58 @@ describe('alça de girar numa sala 3 x 4 (lado ímpar): o quarto de volta pelo a
     expect(roomRotationOf(sala().room)).toBe(0)
     expect(sala().points).toEqual(CANTOS_DE_PARTIDA)
     expect(useMapStore.getState().past).toHaveLength(0)
+  })
+})
+
+/**
+ * OBJETO GIRADO PELA ALÇA (pedido de 11/11/2026: "seria legal se os objetos
+ * pudessem ficar se inclinando que nem as casas"): a mesma bolinha e a mesma
+ * conta da sala, em volta do centro do objeto.
+ */
+describe('alça de girar objeto', () => {
+  // Barraca 128 x 64 com o centro em (640, 448): o topo fica em y = 416.
+  const BARRACA: Prop = { id: 'barraca', src: '', x: 640, y: 448, width: 128, height: 64, linkedMapPath: null }
+  const ALCA_DO_OBJETO = { x: 640, y: 416 - ROOM_ROTATE_HANDLE.offsetPx }
+  const RAIO_DO_OBJETO = BARRACA.y - ALCA_DO_OBJETO.y
+  const noArcoDoObjeto = (graus: number) => {
+    const a = (graus * Math.PI) / 180
+    return { x: BARRACA.x + RAIO_DO_OBJETO * Math.sin(a), y: BARRACA.y - RAIO_DO_OBJETO * Math.cos(a) }
+  }
+  const objeto = (): Prop => {
+    const prop = useMapStore.getState().map.props.find((p) => p.id === 'barraca')
+    if (!prop) throw new Error('o objeto sumiu')
+    return prop
+  }
+  let antes: MapData
+
+  beforeEach(() => {
+    antes = mapFactory.addProp(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), BARRACA)
+    useMapStore.setState({ map: antes, selection: EMPTY_SELECTION, past: [], future: [] })
+  })
+
+  it('arrastar a bolinha em arco inclina o objeto ao vivo, em volta do centro, e soltar grava UM Ctrl+Z', () => {
+    const gesto = createRoomRotateGesture()
+    expect(gesto.beginProp('barraca', { x: 640, y: 448 }, 1)).toBe(false)
+    expect(gesto.beginProp('barraca', ALCA_DO_OBJETO, 1)).toBe(true)
+    let ultimo = null
+    for (let g = 5; g <= 35; g += 5) ultimo = gesto.move(noArcoDoObjeto(g), false)
+    expect(ultimo).toEqual({ rotation: 35, label: '35°' })
+    expect(objeto()).toMatchObject({ rotation: 35, x: 640, y: 448, width: 128, height: 64 })
+    expect(useMapStore.getState().past).toHaveLength(0)
+    expect(gesto.finish()).toBe(true)
+    expect(useMapStore.getState().past).toHaveLength(1)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(antes)
+  })
+
+  it('Esc no meio devolve o objeto como estava, sem histórico; travado não tem alça', () => {
+    const gesto = createRoomRotateGesture()
+    gesto.beginProp('barraca', ALCA_DO_OBJETO, 1)
+    gesto.move(noArcoDoObjeto(50), false)
+    expect(gesto.cancel()).toBe(true)
+    expect(objeto()).toEqual(BARRACA)
+    expect(useMapStore.getState().past).toHaveLength(0)
+    useMapStore.setState({ map: mapFactory.addProp(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), { ...BARRACA, locked: true }) })
+    expect(createRoomRotateGesture().beginProp('barraca', ALCA_DO_OBJETO, 1)).toBe(false)
   })
 })
