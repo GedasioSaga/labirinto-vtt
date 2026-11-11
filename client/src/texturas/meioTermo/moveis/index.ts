@@ -58,6 +58,14 @@ import { montarCaixao, montarCaixaoAberto } from './caixao'
 import { montarDestrocosDeMadeira } from './destrocos'
 import { montarSucataDeChapas, montarSucataDeEngrenagens, montarSucataDeTambores } from './sucata'
 import { montarCampinho } from './campinho'
+import { montarBonecoDeTreino } from './bonecoDeTreino'
+import { montarPilar } from './pilar'
+import { montarAltar } from './altar'
+import { montarEstanteDeLivros } from './estanteDeLivros'
+import { montarSacosDeGrao } from './sacosDeGrao'
+import { montarBancoDePraca } from './bancoDePraca'
+import { montarEscombrosDePedra } from './escombrosDePedra'
+import { montarCanhao } from './canhao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -129,6 +137,16 @@ const MONTADORES = {
   sucataEngrenagens: montarSucataDeEngrenagens,
   sucataTambores: montarSucataDeTambores,
   campinho: montarCampinho,
+  // Lote 1 dos 95 objetos novos (11/11/2026): um desenho por arquivo. O pilar e o altar leem o `giro` (o
+  // quarto de volta que a 3/4 pinta); a estante lê a `variante` (a arrumação dos livros), que hoje é sempre 0.
+  bonecoDeTreino: montarBonecoDeTreino,
+  pilar: montarPilar,
+  altar: montarAltar,
+  estanteDeLivros: montarEstanteDeLivros,
+  sacosDeGrao: montarSacosDeGrao,
+  bancoDePraca: montarBancoDePraca,
+  escombrosDePedra: montarEscombrosDePedra,
+  canhao: montarCanhao,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -165,6 +183,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'ponte',
   'cova', 'caixao', 'caixaoAberto',
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
+  'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

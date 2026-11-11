@@ -101,7 +101,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 53 objetos nas 10 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 61 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -293,20 +293,23 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     const radios = radiosDoObjeto()
     // As mesmas partes da ficha da ferramenta (10/11/2026): a casa em Sala e quarto, Cozinha e banheiro e Armazenagem.
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Cama', 'Aparador', 'Tapete', 'Tapete longo', 'Lareira',
+      'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Cama', 'Aparador', 'Tapete', 'Tapete longo', 'Lareira', 'Estante de livros',
       'Armário de cozinha', 'Balcão', 'Fogão', 'Geladeira', 'Pia', 'Pratos', 'Privada',
-      'Barril', 'Caixa', 'Baú',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Ponte',
+      'Barril', 'Caixa', 'Baú', 'Sacos de grão',
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Ponte', 'Banco de praça',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água',
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento',
-      'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores',
-      'Campinho de futebol',
+      'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra',
+      'Campinho de futebol', 'Boneco de treino',
+      // Os dois grupos novos de 11/11/2026: Porto e navio e Templo e masmorra.
+      'Canhão',
+      'Pilar', 'Altar',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(53)
+    expect(new Set(desenhos).size).toBe(61)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

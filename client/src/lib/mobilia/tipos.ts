@@ -32,6 +32,9 @@ export const TIPOS_MOBILIA = [
   // Destroços, sucata e o campinho (10/11/2026): os destroços de madeira, as três sucatas de metal (chapas e
   // vigas, peças e engrenagens, tambores amassados) e o campinho de futebol, que mora no chão.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
+  // Lote 1 dos 95 objetos novos (11/11/2026): o boneco de treino, o pilar e o altar de pedra, a estante de
+  // livros, os sacos de grão, o banco de praça, os escombros de pedra e o canhão de navio.
+  'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -823,6 +823,87 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <circle cx="12" cy="12" r="2.6" />
         </>
       )
+    // Lote 1 dos 95 objetos novos (11/11/2026): o ícone que cada desenhista entregou com o desenho.
+    case 'bonecoDeTreino':
+      // De frente: a cabeça de saco, a travessa dos braços, o corpo de palha com a corda, o poste e a base em cruz.
+      return (
+        <>
+          <circle cx="12" cy="4.6" r="2.6" />
+          <path d="M3 9h18" />
+          <path d="M8.5 7.6h7l-1 8h-5z" />
+          <path d="M8.8 11.5h6.4" />
+          <path d="M12 15.6v4M6.5 21.5l11-3M6.5 18.5l11 3" />
+        </>
+      )
+    case 'pilar':
+      // De frente: o plinto, o toro, o fuste com duas caneluras e o capitel largo no alto (de cima era um alvo, como o barril).
+      return (
+        <>
+          <path d="M5 19h14v2.5H5zM7 19v-1.8h10V19" />
+          <path d="M8.5 17.2V7.5M15.5 17.2V7.5M10.8 17.2V7.5M13.2 17.2V7.5" />
+          <path d="M8.5 7.5 6 5V3h12v2l-2.5 2.5z" />
+        </>
+      )
+    case 'altar':
+      // De frente: o degrau, o bloco, o tampo grosso, o pano caindo no meio com a barra e, em cima, a tigela entre as duas velas apagadas.
+      return (
+        <>
+          <path d="M2.5 21.5h19v-2.5h-19zM5 19v-7.5M19 19v-7.5" />
+          <rect x="4" y="9" width="16" height="2.5" />
+          <path d="M9.5 11.5v5h5v-5M9.5 15h5" />
+          <path d="M7 9V5.5M17 9V5.5M10 7h4a2 2 0 0 1-4 0z" />
+        </>
+      )
+    case 'estanteDeLivros':
+      // De frente: a estante alta, duas prateleiras, os livros em pé (um tombado) e uma pilha deitada embaixo.
+      return (
+        <>
+          <rect x="4" y="2.5" width="16" height="19" />
+          <path d="M4 8.5h16M4 14.5h16" />
+          <path d="M7 8.5V5M9.5 8.5V4.5M12 8.5V5.5M16.5 8.5l-1.6-3.6" />
+          <path d="M8 14.5V11M13 14.5v-4M15.5 14.5v-3M17.5 14.5V11" />
+          <path d="M6.5 21.5V18M9 21.5V17M14 19.5h4M14 21.5v-2M18 21.5v-2" />
+        </>
+      )
+    case 'sacosDeGrao':
+      // O saco de frente: o corpo gordo fechado pela amarra, a boca franzida acima dela e três grãos (com a espiga o miolo virava borrão).
+      return (
+        <>
+          <path d="M8.5 8.5C5.3 10.8 3.5 13.8 3.5 17a3.5 3.5 0 0 0 3.5 3.5h10a3.5 3.5 0 0 0 3.5-3.5c0-3.2-1.8-6.2-5-8.5z" />
+          <path d="M8.5 8.5 7 4.5l2.6 1.2L12 4l2.4 1.7L17 4.5l-1.5 4" />
+          <path d="M9.5 14.2h.01M14.5 14.2h.01M12 17h.01" />
+        </>
+      )
+    case 'bancoDePraca':
+      // De frente: as duas ripas do encosto entre os montantes, o assento, os dois braços de ferro e os pés.
+      return (
+        <>
+          <path d="M5 4.5v9M19 4.5v9M5 6.5h14M5 10h14" />
+          <rect x="3" y="13.5" width="18" height="2.2" />
+          <path d="M5 11.5H3v2M19 11.5h2v2M4.5 15.7V21M19.5 15.7V21" />
+        </>
+      )
+    case 'escombrosDePedra':
+      // O monte de blocos tombados: dois no chão, um atravessado por cima e as pedrinhas soltas em volta.
+      return (
+        <>
+          <path d="M3 20.5l1.2-6.2 7 .9-.6 5.3z" />
+          <path d="M11.8 20.5l.8-5 7.6 1.3-1 3.7z" />
+          <path d="M8.5 13.9l3-5.9 6 2.8-2.5 4.8z" />
+          <path d="M21 13.5h.01M5 10.5h.01M21.5 20.5h.01" />
+        </>
+      )
+    case 'canhao':
+      // De lado: o cano afinando até a tulipa da boca, com um anel, o botão do cascavel atrás, a carreta em degrau e as duas rodas.
+      return (
+        <>
+          <path d="M4.5 7.5 19 8.6l2-.6v4.5l-2-.6L4.5 13z" />
+          <circle cx="3" cy="10.2" r="1.2" />
+          <path d="M9.5 7.9v4.7M16.5 12.1v4.4h-13v-1.8H6v-1.6" />
+          <circle cx="6.5" cy="18.6" r="2.3" />
+          <circle cx="14" cy="18.6" r="2.3" />
+        </>
+      )
   }
 }
 

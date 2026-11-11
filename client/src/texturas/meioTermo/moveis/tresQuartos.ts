@@ -29,6 +29,8 @@ import { ALTURA_DA_LENHA_EM_TRES_QUARTOS } from '../../../lib/mobilia/vistaTresQ
 import { G, PREGO, QUARTO, type LadoDoMovel } from './contexto'
 import { elipse, type Caixa, type Forma } from './formas'
 import { SOMBRA_DO_TAPETE } from './tapete'
+import { ESPESSURA_DO_CAPITEL } from './pilar'
+import { ESPESSURA_DO_TAMPO_DO_ALTAR } from './altar'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -149,6 +151,24 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // O campinho (10/11/2026) é chão: o gramado e a rede ficam onde estão, e só as traves sobem (os postes
   // são colunas e o travessão, o tampo no ar, pelas sombras que o desenho de cima declara).
   campinho: DERIVADO,
+  // Lote 1 dos 95 objetos novos (11/11/2026). O boneco de treino já é desenhado em pé, de frente, como a lápide.
+  bonecoDeTreino: EM_PE,
+  // O pilar e o altar sobem pelas sombras, com a beirada do capitel e a do tampo na espessura que cada
+  // desenho exporta: com a padrão (0,06 casa) os gomos do fuste apareciam soltos debaixo do capitel, e o
+  // pano que cai pela frente do altar encolhia.
+  pilar: { modo: 'derivado', espessura: ESPESSURA_DO_CAPITEL },
+  altar: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DO_ALTAR },
+  // A estante sobe pelas sombras: cada prateleira tem a própria fresta (um tampo fino no ar, sem sombra) e
+  // sobe para a altura dela, então a frente mostra os livros, e não a madeira lisa que a 3/4 varreria.
+  estanteDeLivros: DERIVADO,
+  // Os sacos de grão ficam como de cima, como os troncos e o feno: uma pilha baixa e larga.
+  sacosDeGrao: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  bancoDePraca: DERIVADO,
+  // Os escombros de pedra ficam como de cima, como os destroços e as sucatas: blocos soltos num monte baixo.
+  escombrosDePedra: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // O canhão fica como de cima, como a bigorna: derivado, o cano inteiro varria até o chão e virava uma
+  // pílula, e a corda subia junto com a carreta.
+  canhao: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

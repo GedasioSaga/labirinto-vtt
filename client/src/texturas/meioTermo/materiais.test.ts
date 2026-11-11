@@ -146,6 +146,15 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       sucataEngrenagens: [],
       sucataTambores: [],
       campinho: [],
+      // Lote 1 dos 95 objetos novos (11/11/2026).
+      bonecoDeTreino: ['madeira:carvalho'],
+      pilar: ['pedra:granito'],
+      altar: ['pedra:granito', 'pano:vinho'],
+      estanteDeLivros: ['madeira:nogueira'],
+      sacosDeGrao: [],
+      bancoDePraca: ['madeira:carvalho', 'ferragens:ferro'],
+      escombrosDePedra: ['pedra:granito'],
+      canhao: ['metal:ferro', 'madeira:carvalho'],
     })
   })
 

@@ -53,7 +53,14 @@ export interface ContextoDoMovel {
   readonly curva: number
   /** Só a lápide lê: o desenho (0, 1 ou 2). */
   readonly variante: number
-  /** Só a placa de seta lê: o giro do objeto em quartos de volta (0, 90, 180, 270), pintado no desenho. */
+  /**
+   * O giro do objeto em quartos de volta (0, 90, 180, 270). A placa de seta lê
+   * para pintar a seta já girada. O pilar e o altar leem na 3/4, em que o
+   * quarto de volta é pintado na cena (`girarCena`), para deixar no lugar NA
+   * TELA o que depende dela: o corte do plinto e do toro em metade do norte e
+   * metade do sul, o lado claro do fuste e a sombra pintada no plinto e no
+   * degrau. Os outros desenhos não leem.
+   */
   readonly giro: number
 }
 

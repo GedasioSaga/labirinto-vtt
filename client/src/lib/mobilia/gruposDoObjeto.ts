@@ -26,6 +26,8 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'fazenda', titulo: 'Fazenda' },
   { id: 'destrocosESucata', titulo: 'Destroços e sucata' },
   { id: 'esporteELazer', titulo: 'Esporte e lazer' },
+  { id: 'portoENavio', titulo: 'Porto e navio' },
+  { id: 'temploEMasmorra', titulo: 'Templo e masmorra' },
   { id: 'outros', titulo: 'Outros' },
 ] as const
 
@@ -52,6 +54,7 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tapete: 'salaEQuarto',
   tapeteLongo: 'salaEQuarto',
   lareira: 'salaEQuarto',
+  estanteDeLivros: 'salaEQuarto',
   // Cozinha e banheiro.
   armario: 'cozinhaEBanheiro',
   balcao: 'cozinhaEBanheiro',
@@ -64,6 +67,7 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   barril: 'armazenagem',
   caixa: 'armazenagem',
   bau: 'armazenagem',
+  sacosDeGrao: 'armazenagem',
   // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte).
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
@@ -77,6 +81,7 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   fogueira: 'ruaEJardim',
   fogo: 'ruaEJardim',
   ponte: 'ruaEJardim',
+  bancoDePraca: 'ruaEJardim',
   // Cemitério.
   lapide: 'cemiterio',
   cova: 'cemiterio',
@@ -96,13 +101,20 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   feno: 'fazenda',
   cataVento: 'fazenda',
   moinho: 'fazenda',
-  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal.
+  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra (11/11/2026).
   destrocosDeMadeira: 'destrocosESucata',
   sucataChapas: 'destrocosESucata',
   sucataEngrenagens: 'destrocosESucata',
   sucataTambores: 'destrocosESucata',
-  // Esporte e lazer (10/11/2026).
+  escombrosDePedra: 'destrocosESucata',
+  // Esporte e lazer (10/11/2026); o boneco de treino (11/11/2026).
   campinho: 'esporteELazer',
+  bonecoDeTreino: 'esporteELazer',
+  // Porto e navio (11/11/2026).
+  canhao: 'portoENavio',
+  // Templo e masmorra (11/11/2026).
+  pilar: 'temploEMasmorra',
+  altar: 'temploEMasmorra',
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

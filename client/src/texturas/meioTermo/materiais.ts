@@ -219,6 +219,19 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   sucataTambores: [],
   // O campinho (10/11/2026): o gramado, a terra batida, a cal das linhas e as traves têm cor própria.
   campinho: [],
+  // Lote 1 dos 95 objetos novos (11/11/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha".
+  // Fixos: a palha, a corda e o saco do boneco; no altar, o latão dos castiçais e da tigela, a cera, a água e
+  // a barra ocre do pano; as capas, os filetes e as folhas dos livros da estante; o pano cru, a corda e o
+  // grão dos sacos (como no feno); a argamassa e o pó dos escombros (saem da pedra escolhida); as ferragens,
+  // a corda e as balas do canhão (o cano de latão lê como canhão de bronze).
+  bonecoDeTreino: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  pilar: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  altar: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('pano', 'Pano', TECIDOS, 'vinho')],
+  estanteDeLivros: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  sacosDeGrao: [],
+  bancoDePraca: [lugar('madeira', 'Ripas', MADEIRAS, 'carvalho'), lugar('ferragens', 'Pés e braços', METAIS, 'ferro')],
+  escombrosDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  canhao: [lugar('metal', 'Cano', METAIS, 'ferro'), lugar('madeira', 'Carreta', MADEIRAS, 'carvalho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */
