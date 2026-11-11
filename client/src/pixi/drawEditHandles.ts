@@ -4,7 +4,7 @@ import type { Selection, DrawingTool } from '../types/tools'
 import type { Point } from './world'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { alcasDoDesenho, editavelPorPontos } from '../lib/pontosChave'
-import { isAxisAlignedRect } from '../lib/roomOps'
+import { hasRoomCornerHandles } from '../lib/roomOps'
 import { roomRotateHandle, roomRotationOf } from '../lib/roomRotation'
 import { isLocked } from '../lib/itemTransform'
 import { cornerHandleExtent, drawCornerHandle, drawRoomHandles } from './drawRoomHandles'
@@ -150,10 +150,9 @@ function drawKeyPointHandles(graphics: Graphics, vertices: readonly Point[], mid
  */
 function drawRegionOrRoomHandles(graphics: Graphics, region: { points: RegionPoint[]; room?: { shape: 'rect' | 'polygon' } }, cameraScale: number): void {
   if (region.room?.shape === 'rect') {
-    // Torta (girada fora de 0/90/180/−90°): sem chip de canto. Puxar um canto
-    // reconstruiria um retângulo reto no lugar dela (`isAxisAlignedRect`); os
-    // chips voltam quando ela é girada de novo a um múltiplo de 90°.
-    if (isAxisAlignedRect(region.points)) drawRoomHandles(graphics, region.points, cameraScale)
+    // Torta (girada fora de 0/90/180/−90°) também tem chip de canto desde
+    // 11/11/2026: o arrasto estica no eixo dela (`resizeRoomCornerInOwnAxis`).
+    if (hasRoomCornerHandles(region.points)) drawRoomHandles(graphics, region.points, cameraScale)
   } else {
     drawRegionHandles(graphics, region.points, cameraScale)
   }

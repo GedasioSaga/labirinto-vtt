@@ -275,13 +275,14 @@ describe('resolveHoverHit — alça de girar sala', () => {
     expect(pairar(buildSquareRegion('r1'), bolinha).kind).not.toBe('rotate')
   })
 
-  it('Sala retangular girada torta: o canto não promete redimensionar (a conta a desmontaria)', () => {
+  // Pedido de 11/11/2026: a casa girada também se redimensiona pelos cantos.
+  it('Sala retangular girada torta: o canto promete redimensionar, como na sala reta', () => {
     const torta: Region = {
       ...sala,
       points: [{ x: 50, y: -20.71 }, { x: 120.71, y: 50 }, { x: 50, y: 120.71 }, { x: -20.71, y: 50 }],
       room: { shape: 'rect', name: 'Sala', rotation: 45 },
     }
-    expect(pairar(torta, { x: 120.71, y: 50 }).kind).not.toBe('resize-corner')
+    expect(pairar(torta, { x: 120.71, y: 50 })).toEqual({ kind: 'resize-corner', corner: 1, target: null })
   })
 })
 

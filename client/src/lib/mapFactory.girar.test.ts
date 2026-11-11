@@ -237,11 +237,43 @@ describe('normalizeRectRoomOrder — o canto 0 volta a ser o de cima à esquerda
   })
 })
 
-describe('sala retangular TORTA não se desmonta', () => {
-  it('largura/altura e canto não fazem nada numa sala girada fora de 90°', () => {
+/**
+ * SALA GIRADA TAMBÉM ESTICA PELO CANTO (pedido de 11/11/2026: "não consigo
+ * redimencionar o tamanho da casa quando ela ta em um grau diferente"). O canto
+ * anda no eixo DA sala: o canto oposto fica parado no mapa, ela continua
+ * retângulo no mesmo giro, e as paredes (porta inclusa) seguem as arestas.
+ */
+describe('sala retangular girada fora de 90°', () => {
+  it('o canto estica a sala no eixo dela: o canto oposto fica parado e paredes e porta acompanham', () => {
+    const torta = rotateRegion(addDoorOnWall(salaEmPe(), 'w1', { x: 704, y: 448 }, 64, 'normal'), 'sala', 37)
+    const antes = sala(torta).points
+    const ladoU = Math.hypot(antes[1].x - antes[0].x, antes[1].y - antes[0].y)
+    const ladoV = Math.hypot(antes[3].x - antes[0].x, antes[3].y - antes[0].y)
+    const u = { x: (antes[1].x - antes[0].x) / ladoU, y: (antes[1].y - antes[0].y) / ladoU }
+    const v = { x: (antes[3].x - antes[0].x) / ladoV, y: (antes[3].y - antes[0].y) / ladoV }
+    // Canto 2 puxado um quadrado para fora em cada eixo da sala.
+    const alvo = { x: antes[2].x + 64 * (u.x + v.x), y: antes[2].y + 64 * (u.y + v.y) }
+
+    const maior = resizeRoomCornerLive(torta, 'sala', 2, alvo.x, alvo.y)
+    const depois = sala(maior).points
+
+    expect(depois[0].x).toBeCloseTo(antes[0].x, 6)
+    expect(depois[0].y).toBeCloseTo(antes[0].y, 6)
+    expect(depois[2].x).toBeCloseTo(alvo.x, 6)
+    expect(depois[2].y).toBeCloseTo(alvo.y, 6)
+    expect(Math.hypot(depois[1].x - depois[0].x, depois[1].y - depois[0].y)).toBeCloseTo(ladoU + 64, 6)
+    expect(Math.hypot(depois[3].x - depois[0].x, depois[3].y - depois[0].y)).toBeCloseTo(ladoV + 64, 6)
+    // Mesmo giro: a aresta 0 aponta para o mesmo lado de antes.
+    expect((depois[1].x - depois[0].x) / (ladoU + 64)).toBeCloseTo(u.x, 6)
+    expect((depois[1].y - depois[0].y) / (ladoU + 64)).toBeCloseTo(u.y, 6)
+    expect(sala(maior).room?.rotation).toBe(sala(torta).room?.rotation)
+    expect(maior.walls.filter((w) => w.door !== null)).toHaveLength(1)
+    paredesNasArestas(maior, 'sala')
+  })
+
+  it('largura/altura numérica continua sem efeito na sala girada fora de 90°', () => {
     const torta = rotateRegion(salaEmPe(), 'sala', 37)
     expect(resizeRoomDimensions(torta, 'sala', 500, 500)).toBe(torta)
-    expect(resizeRoomCornerLive(torta, 'sala', 2, 900, 900)).toBe(torta)
   })
 })
 
