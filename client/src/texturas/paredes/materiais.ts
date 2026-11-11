@@ -10,9 +10,17 @@ import type { MaterialDaParede } from '../../types/map'
 // Só a URL (string) entra no JS; o PNG é baixado quando a primeira parede daquele material aparece.
 const URLS = import.meta.glob<string>('./imagens/*.png', { eager: true, query: '?url', import: 'default' })
 
-/** A URL do PNG do material (`imagens/<material>.png`); `null` se o arquivo não está lá. */
+/** A URL do PNG do material (`imagens/<material>.png`, a folha de peças); `null` se o arquivo não está lá. */
 export function urlDoMaterial(material: MaterialDaParede): string | null {
   return URLS[`./imagens/${material}.png`] ?? null
+}
+
+// A amostra do painel: o topo de uma parede média vista de cima, 240 x 20 px, que repete em x.
+const AMOSTRAS = import.meta.glob<string>('./imagens/amostras/*.png', { eager: true, query: '?url', import: 'default' })
+
+/** A URL da amostra do material (`imagens/amostras/<material>.png`); `null` se o arquivo não está lá. */
+export function urlDaAmostra(material: MaterialDaParede): string | null {
+  return AMOSTRAS[`./imagens/amostras/${material}.png`] ?? null
 }
 
 const prontas = new Map<MaterialDaParede, HTMLImageElement>()

@@ -469,7 +469,8 @@ export function criarPintorDeParedes(): PintorDeParedes {
     const tinta = desenhadoLigado() && !semShader ? tintaPronta() : null
     if (tinta === null) pintarAtual(resto, comTextura)
     else pintarDesenhado(resto, tinta, comTextura)
-    materiais.pintar(comTextura, pedido.grid)
+    // Os encontros saem de todas as paredes com textura do nó (o jogador só desenha as de perto).
+    materiais.pintar(comTextura, pedido.grid, pedido.todas)
     if (comTextura.length > 0) pintarSelecaoDosMateriais(abaixo, comTextura, pedido)
   }
 

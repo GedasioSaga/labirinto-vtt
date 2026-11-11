@@ -100,9 +100,10 @@ export type FeitioDaParede = 'pedra' | 'linha'
 
 /**
  * O MATERIAL da parede com textura (pedido de 07/11/2026: "parede de castelo,
- * de madeira, de ferro e afins"). O catálogo, com nome e descrição, mora em
- * `texturas/paredes/materiais.ts`; a imagem de cada um é a do estúdio, aprovada
- * pelo usuário em 07/11/2026 (`texturas/paredes/imagens/<material>.png`).
+ * de madeira, de ferro e afins"). O catálogo, com nome, descrição e a receita de
+ * cada um, mora em `texturas/paredes/catalogo.ts`; a imagem é a folha de peças do
+ * material, feita no estúdio (`texturas/paredes/imagens/<material>.png`). Desde
+ * 10/11/2026 a parede é montada em peças, vista de cima (`pixi/paredeEmPecas.ts`).
  */
 export type MaterialDaParede = 'castelo' | 'madeira' | 'ferro' | 'tijolo' | 'pedra-rustica' | 'bambu' | 'palha'
 
