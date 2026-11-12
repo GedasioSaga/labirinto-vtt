@@ -54,8 +54,15 @@ const COR_DA_SOMBRA = 0x0a0c06
 export const MAXIMO_DE_PIXELS_DA_TEXTURA = 1024 * 1024
 /** Tempo de pintura por tarefa na palha em fatias (a mesma fatia do relevo, `drawRelevo.ts`). */
 export const FATIA_DA_PINTURA_MS = 8
-/** Texturas sem telhado nenhum usando que ficam guardadas (trocar de cor e voltar não repinta). */
-const TEXTURAS_GUARDADAS = 12
+/**
+ * Pixels das texturas sem telhado nenhum usando que ficam guardadas (trocar de cor e voltar, ou sair de uma cena e
+ * voltar, não repinta). Teto por PIXELS, não por quantidade (caça 12/11, O4): os 85 telhados do Reino de Goa somam
+ * ~5,9 megapixels e voltavam a ser pintados a cada visita com o teto antigo de 12 texturas. 8 megapixels são no pior
+ * caso ~32 MB na placa (~43 MB com mipmap).
+ */
+const PIXELS_GUARDADOS = 8 * 1024 * 1024
+/** Freio só para as entradas sem imagem (polígono quebrado, ainda na fila): elas pesam 0 pixel e nunca passariam do teto acima. */
+const ENTRADAS_SEM_USO_NO_MAXIMO = 512
 /** Margem da imagem de `pintarTelhado` (beiral + 1 px). */
 const MARGEM_DA_IMAGEM = BEIRAL_PX + 1
 
@@ -180,6 +187,15 @@ interface Entrada {
   /** `undefined` = na fila; `null` = vazia (nada a desenhar além do chapado). */
   textura: TexturaDoTelhado | null | undefined
   usos: number
+  /** Pixels da textura na placa (0 sem textura): é o que conta no teto das guardadas. */
+  pixels: number
+}
+
+function pixelsDaTextura(textura: TexturaDoTelhado | null): number {
+  if (textura === null) return 0
+  const { pixelWidth, pixelHeight } = textura.texture.source
+  const pixels = pixelWidth * pixelHeight
+  return Number.isFinite(pixels) && pixels > 0 ? pixels : 0
 }
 
 /** Pixels por px do mapa para a sala caber em `MAXIMO_DE_PIXELS_DA_TEXTURA`. */
@@ -359,6 +375,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   const pedidos = new Map<string, PedidoDeTelhado>()
   /** Texturas sem uso, da mais velha para a mais nova. */
   const semUso = new Set<string>()
+  /** Soma dos `pixels` das entradas em `semUso`. */
+  let pixelsSemUso = 0
   const fila: string[] = []
   /** A palha que está sendo pintada em fatias (a chave volta para a frente da fila entre uma fatia e outra). */
   let emFatias: { chave: string; pintura: PinturaDoTelhado; subir: (imagem: ImagemDoTelhado) => TexturaDoTelhado | null } | null = null
@@ -385,7 +403,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   function pegarTextura(t: PedidoDeTelhado, chave: string): Entrada {
     let entrada = cache.get(chave)
     if (entrada === undefined) {
-      entrada = { textura: undefined, usos: 0 }
+      entrada = { textura: undefined, usos: 0, pixels: 0 }
       cache.set(chave, entrada)
       fila.push(chave)
       const pedido: PedidoDeTelhado = { points: t.points, modelo: t.modelo, cor: t.cor }
@@ -395,17 +413,23 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
       agendarPintura()
     }
     entrada.usos += 1
-    semUso.delete(chave)
+    tirarDeSemUso(chave, entrada)
     return entrada
+  }
+
+  function tirarDeSemUso(chave: string, entrada: Entrada | undefined): void {
+    if (!semUso.delete(chave)) return
+    pixelsSemUso = Math.max(0, pixelsSemUso - (entrada?.pixels ?? 0))
   }
 
   function largarTextura(chave: string): void {
     const entrada = cache.get(chave)
     if (entrada === undefined) return
     entrada.usos = Math.max(0, entrada.usos - 1)
-    if (entrada.usos > 0) return
+    if (entrada.usos > 0 || semUso.has(chave)) return
     semUso.add(chave)
-    while (semUso.size > TEXTURAS_GUARDADAS) {
+    pixelsSemUso += entrada.pixels
+    while (pixelsSemUso > PIXELS_GUARDADOS || semUso.size > ENTRADAS_SEM_USO_NO_MAXIMO) {
       const velha = semUso.values().next().value
       if (velha === undefined) break
       esquecerTextura(velha)
@@ -413,8 +437,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   }
 
   function esquecerTextura(chave: string): void {
-    semUso.delete(chave)
     const entrada = cache.get(chave)
+    tirarDeSemUso(chave, entrada)
     cache.delete(chave)
     pedidos.delete(chave)
     if (emFatias?.chave === chave) emFatias = null
@@ -449,6 +473,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
           return
         }
         entrada.textura = textura
+        // A entrada está em uso aqui (a sem uso foi pulada acima): os pixels só contam quando ela for largada.
+        entrada.pixels = pixelsDaTextura(textura)
         pintadas += 1
         pedidos.delete(chave)
         for (const t of telhados.values()) if (t.chave === chave) vestir(t, entrada.textura)
