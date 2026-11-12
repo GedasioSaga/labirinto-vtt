@@ -204,7 +204,7 @@ interface Notice {
 
 const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
 
-/** A escolha pura do "Entregar item" (`giveChoiceFor`) com o envio de verdade. */
+/** A escolha pura do "Dar item" (`giveChoiceFor`) com o envio de verdade. */
 function withGive(choice: GiveChoice, onGive: (itemId: string) => void): TokenCardGive {
   return choice.kind === 'ready' ? { kind: 'ready', items: choice.items, onGive } : choice
 }
@@ -1599,6 +1599,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const closeAwayNotes = useCallback(() => connection.dismissAwayNotes(), [connection])
   const awayNotes = state.awayNotes ?? NO_NOTES
   const closeActionReply = useCallback(() => connection.dismissTokenAction(), [connection])
+  const closeDoorReply = useCallback(() => connection.dismissDoorReply(), [connection])
   const closeActedOn = useCallback(() => connection.dismissActedOn(), [connection])
   // Estável: o quadro do espiar religa o Escape quando `onClose` muda.
   const closePeek = useCallback(() => connection.dismissPeek(), [connection])
@@ -2459,10 +2460,23 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             escapeCloses={noCardOnTop && !clueCardOpen}
           />
         )}
+        {/* PORTA TRANCADA (caça J3): a "Resposta só para <jogador>" do mestre
+            ao pedido da porta. O mesmo cartão da resposta da ação de ficha, com
+            o veredito no alto ("O mestre abriu", "A porta não abre"), na mesma
+            fila, logo depois dela. */}
+        {state.doorReply && actionReply === null && !state.note && !state.arrival && awayNotes.length === 0 && (
+          <PlayerNoteCard
+            key={state.doorReply.id}
+            title={doorRequestText(state.doorReply.answer)}
+            text={state.doorReply.reply}
+            onClose={closeDoorReply}
+            escapeCloses={noCardOnTop && !clueCardOpen}
+          />
+        )}
         {/* AGIR SOBRE UMA FICHA, do outro lado: o mestre deixou um colega
             fazer algo com a ficha DELE. Mesma fila do cartão da resposta,
-            logo depois dela. */}
-        {state.actedOn && actionReply === null && !state.note && !state.arrival && awayNotes.length === 0 && (
+            logo depois dela (e da resposta da porta). */}
+        {state.actedOn && actionReply === null && !state.doorReply && !state.note && !state.arrival && awayNotes.length === 0 && (
           <PlayerNoteCard
             key={state.actedOn.id}
             title={actedOnTitle(state.actedOn)}
@@ -2474,7 +2488,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* TEXTO DA SALA: o mesmo cartão, com o nome da Sala no alto. Um
             cartão de cada vez no mesmo lugar: com recado aberto, o texto da
             sala espera o recado fechar em vez de ficar por baixo dele. */}
-        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && actionReply === null && !state.actedOn && (
+        {state.roomText && !state.note && !state.arrival && awayNotes.length === 0 && actionReply === null && !state.doorReply && !state.actedOn && (
           <PlayerNoteCard
             key={state.roomText.id}
             title={state.roomText.title || 'Ao entrar'}
@@ -2529,7 +2543,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         <PlayerMarkCard
           marcas={state.map.marcas}
           openMarkId={openMarkId}
-          aguardando={Boolean(state.arrival) || awayNotes.length > 0 || Boolean(state.note) || actionReply !== null || Boolean(state.roomText)}
+          aguardando={Boolean(state.arrival) || awayNotes.length > 0 || Boolean(state.note) || actionReply !== null || Boolean(state.doorReply) || Boolean(state.roomText)}
           onClose={closeMark}
           escapeCloses={noCardOnTop && !clueCardOpen}
         />

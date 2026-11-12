@@ -28,6 +28,8 @@ import {
   isDoorRequestHow,
   isDoorToggleRejection,
   DOOR_REQUEST_TEXT_MAX_LENGTH,
+  parseDoorRequestAnswer,
+  parseItemGivenMessage,
   type DoorRequestAnswer,
   type DoorRequestHow,
   type DoorRequestRejection,
@@ -514,6 +516,12 @@ export interface PlayerState {
   /** O pedido da porta trancada: enviado, a resposta do mestre ou a recusa do host. Some sozinho. */
   doorRequest?: { id: number; phase: DoorRequestPhase }
   /**
+   * PORTA TRANCADA (caça J3): a resposta do mestre que veio com texto ("Resposta
+   * só para <jogador>"). Vira cartão no lugar da linha curta e fica até o
+   * jogador fechar (`dismissDoorReply`), como a resposta escrita da ação de ficha.
+   */
+  doorReply?: DoorReplyNotice
+  /**
    * ESCONDER-SE: `waiting` até o mestre decidir; a recusa some sozinha.
    * Aceito não tem aviso: a própria ficha chega com `secret` e a espera acaba.
    */
@@ -889,6 +897,13 @@ export interface DoorNotice {
 /** `sent`: saiu para o mestre; `opened`/`denied`: a resposta dele; o resto: o host nem levou ao mestre. */
 export type DoorRequestPhase = 'sent' | DoorRequestAnswer | DoorRequestRejection
 
+/** A resposta do mestre ao pedido da porta com o que ele escreveu só para este jogador. `id` novo remonta o cartão. */
+export interface DoorReplyNotice {
+  id: number
+  answer: DoorRequestAnswer
+  reply: string
+}
+
 /** Onde está o pedido de esconder-se. `id` novo repete o aviso; `tokenId` é a ficha pedida — só ela encerra a espera. */
 export type HideNotice = { id: number; phase: 'waiting'; tokenId: string } | { id: number; phase: 'rejected'; reason: TokenHideRejection }
 
@@ -1090,6 +1105,8 @@ export type ItemNotice =
   | { id: number; phase: 'rejected'; reason: PinTakeRejection }
   | { id: number; phase: 'give_rejected'; reason: ItemGiveRejection }
   | { id: number; phase: 'coins_rejected'; reason: CoinsGiveRejection }
+  /** DAR ITEM (decisão 8): o item ou as moedas mudaram de mão; `papel` diz se ele deu ou recebeu (`item.given`). */
+  | { id: number; phase: 'given'; papel: 'deu' | 'recebeu'; verbo: 'deu' | 'pagou'; oQue: string; quem: string }
 
 /**
  * MOEDAS E TROCA: `open` espera a resposta dele; `answered` e `countered`
@@ -1349,6 +1366,8 @@ export interface PlayerConnection {
   useDoorKey(wallId: string): boolean
   /** Fecha o aviso da porta (o × do "Trancada"). */
   dismissDoorNotice(): void
+  /** Fecha o cartão da resposta escrita do mestre ao pedido da porta. */
+  dismissDoorReply(): void
   /**
    * PISOS NA MESMA CENA: pede para subir/descer pela escada `stairId` com a
    * ficha `tokenId`. Só os ids — o piso de destino quem decide é o host. `false`
@@ -2859,14 +2878,17 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     itemTimer = null
   }
 
-  /** Aviso do item. "Enviado" espera a resposta; o resto some sozinho. */
-  function showItemNotice(notice: ItemNotice): void {
+  /**
+   * Aviso do item. "Enviado" espera a resposta; o resto some sozinho e deixa
+   * na tela o `depois` (a espera que ele cobriu), ou nada.
+   */
+  function showItemNotice(notice: ItemNotice, depois?: ItemNotice): void {
     clearItemTimer()
     setState({ item: notice })
     if (notice.phase === 'sent') return
     itemTimer = setTimeout(() => {
       itemTimer = null
-      setState({ item: undefined })
+      setState({ item: depois })
     }, ITEM_NOTICE_TTL_MS)
   }
 
@@ -4546,6 +4568,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           markPlace: undefined,
           tokenAction: undefined,
           actedOn: undefined,
+          doorReply: undefined,
           wait: undefined,
           waitEnded: undefined,
           waitingTokens: undefined,
@@ -5133,9 +5156,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'door.request.answer': {
         if (state.status !== 'playing') return
-        const { answer } = data
-        if (answer !== 'opened' && answer !== 'denied') return
-        showDoorRequest(answer)
+        const msg = parseDoorRequestAnswer(data)
+        if (msg === null) return
+        if (msg.reply === undefined) {
+          showDoorRequest(msg.answer)
+          return
+        }
+        // Com o texto do mestre (caça J3), a resposta vira cartão e fica até ele fechar (`dismissDoorReply`).
+        // Sai a linha curta do pedido ("Pedido enviado"); um aviso de outro toque na porta, se houver, fica com o prazo dele.
+        if (state.doorRequest !== undefined) clearDoorNotice()
+        setState({ doorRequest: undefined, doorReply: { id: nextNoticeId++, answer: msg.answer, reply: msg.reply } })
         return
       }
       case 'pin.take.answer': {
@@ -5190,6 +5220,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         const reason = COINS_GIVE_REJECTIONS.find((r) => r === data.reason)
         if (reason === undefined) return
         showItemNotice({ id: nextNoticeId++, phase: 'coins_rejected', reason })
+        return
+      }
+      case 'item.given': {
+        // DAR ITEM (decisão 8): "Você deu Faca a Bruno" a quem deu, "Ana deu Faca a você" a quem recebeu.
+        if (state.status !== 'playing') return
+        const msg = parseItemGivenMessage(data)
+        if (msg === null) return
+        // Um "Pegar" esperando o mestre volta à tela quando o aviso some: a espera continua no host.
+        const espera = state.item?.phase === 'sent' ? state.item : undefined
+        showItemNotice({ id: nextNoticeId++, phase: 'given', papel: msg.papel, verbo: msg.verbo, oQue: msg.oQue, quem: msg.quem }, espera)
         return
       }
       case 'trade.offer':
@@ -5436,7 +5476,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -5631,7 +5671,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -5756,6 +5796,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.doorNotice === undefined) return
       clearDoorNotice()
       setState({ doorNotice: undefined })
+    },
+
+    dismissDoorReply() {
+      if (state.doorReply !== undefined) setState({ doorReply: undefined })
     },
 
     watchPassage(pinId, on) {
