@@ -13,7 +13,8 @@ import { PixiCanvas } from './PixiCanvas'
  * `stores/mobiliaNoPonto.test.ts` não vê. Lá o posicionamento é provado solto;
  * aqui a prova é que o clique no palco, com a ferramenta ativa, chega até ele:
  * o móvel da setinha nasce no ponto clicado (com o encaixe da Peça), no giro da
- * sala onde caiu, selecionado, e o desfazer tira o móvel inteiro.
+ * sala onde caiu, sem seleção (a ficha fica em "Colocar"), e o desfazer tira o
+ * móvel inteiro; o clique num objeto já posto o seleciona em vez de pôr outro.
  *
  * Mesmo arranjo sem navegador de `PixiCanvas.menuDaParede.test.tsx`: só o
  * `Application` (pede WebGL) e a medida do texto (sem canvas 2d) são trocados.
@@ -166,7 +167,7 @@ function unicoMovel(): Prop {
 }
 
 describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
-  it('clique esquerdo fora de sala: a Mesa nasce no ponto, sem giro, selecionada, a ferramenta segue na mão e o desfazer a tira', async () => {
+  it('clique esquerdo fora de sala: a Mesa nasce no ponto, sem giro e SEM seleção (a ficha fica em "Colocar"), a ferramenta segue na mão e o desfazer a tira', async () => {
     await monta()
     aperta(NO_CORREDOR, BOTAO_ESQUERDO)
 
@@ -175,11 +176,35 @@ describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
     expect(mesa.x).toBeCloseTo(NO_CORREDOR.x, 6)
     expect(mesa.y).toBeCloseTo(NO_CORREDOR.y, 6)
     expect('rotation' in mesa).toBe(false)
-    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: mesa.id }])
+    expect(useMapStore.getState().selection).toEqual([])
     expect(useMapStore.getState().activeTool).toBe('mobilia')
 
     act(() => useMapStore.getState().undo())
     expect(useMapStore.getState().map.props).toEqual([])
+  })
+
+  it('PÔR VÁRIOS EM SEGUIDA (pedido de 12/11/2026): três mesas seguidas, nenhuma fica selecionada, e o Ctrl+Z tira só a última', async () => {
+    await monta()
+    for (const ponto of [NO_CORREDOR, { x: 150, y: 300 }, { x: 900, y: 170 }]) {
+      aperta(ponto, BOTAO_ESQUERDO)
+      expect(useMapStore.getState().selection).toEqual([])
+    }
+    expect(useMapStore.getState().map.props).toHaveLength(3)
+
+    act(() => useMapStore.getState().undo())
+    expect(useMapStore.getState().map.props.map((p) => p.x)).toEqual([NO_CORREDOR.x, 150])
+  })
+
+  it('clique num objeto JÁ POSTO: ele fica selecionado (a ficha passa para ele) e nada nasce por cima', async () => {
+    const mesa = criarMovel('mesa', NO_CORREDOR, GRADE, 'mesa-posta')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [mesa] } })
+    await monta()
+    aperta(NO_CORREDOR, BOTAO_ESQUERDO)
+
+    expect(useMapStore.getState().map.props).toEqual([mesa])
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'mesa-posta' }])
+    expect(useMapStore.getState().activeTool).toBe('mobilia')
+    expect(useMapStore.getState().past).toHaveLength(0)
   })
 
   it('dentro do quarto girado, a Cama escolhida na setinha nasce no giro dele', async () => {

@@ -6631,7 +6631,12 @@ function PixiCanvasDoContexto({
           return
         }
 
-        if (activeTool === 'mobilia') {
+        // Objetos: clique esquerdo num objeto JÁ POSTO é ele que o mestre quer
+        // (pedido de 12/11/2026): segue o fluxo de sempre, mais abaixo — o
+        // objeto fica selecionado (a ficha dele abre) e o mesmo gesto o
+        // arrasta, como o clique da ferramenta Token num token. Nada nasce
+        // por cima dele.
+        if (activeTool === 'mobilia' && !(event.button === 0 && findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))?.kind === 'prop')) {
           // Objetos: o móvel da setinha nasce no clique, com o MESMO encaixe da
           // Peça (os dois são objeto do mapa; Alt inverte). Giro da sala,
           // seleção, camada e o passo do desfazer moram em `porMovelNoPonto`.

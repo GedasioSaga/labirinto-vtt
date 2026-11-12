@@ -6,8 +6,8 @@ import type { Region } from '../types/map'
 
 /**
  * MOBÍLIA NA BARRA: o clique da ferramenta Objetos põe o móvel no ponto, no
- * giro da Sala em que caiu, já selecionado, num passo só do desfazer — e
- * respeita a camada Objetos travada ou oculta.
+ * giro da Sala em que caiu, sem selecionar (a ficha fica em "Colocar"), num
+ * passo só do desfazer — e respeita a camada Objetos travada ou oculta.
  */
 
 const GRADE = 50
@@ -50,7 +50,7 @@ beforeEach(() => {
 const ID_FIXO = () => 'movel-1'
 
 describe('Objetos: o clique no mapa põe o móvel', () => {
-  it('dentro da sala girada, a cama nasce no ponto, no giro da sala, e fica selecionada', () => {
+  it('dentro da sala girada, a cama nasce no ponto, no giro da sala, e não fica selecionada', () => {
     const resultado = porMovelNoPonto('catre', { x: 200, y: 150 }, ID_FIXO)
 
     expect(resultado).toEqual({ kind: 'posto', id: 'movel-1' })
@@ -68,7 +68,7 @@ describe('Objetos: o clique no mapa põe o móvel', () => {
         rotation: 90,
       },
     ])
-    expect(selection).toEqual([{ kind: 'prop', id: 'movel-1' }])
+    expect(selection).toEqual([])
   })
 
   it('fora de qualquer sala, o móvel nasce sem campo de giro (igual a objeto comum)', () => {
@@ -96,11 +96,10 @@ describe('Objetos: o clique no mapa põe o móvel', () => {
     expect(bau !== undefined && 'rotation' in bau).toBe(false)
   })
 
-  it('mapa sem sala nenhuma: o móvel nasce e fica selecionado', () => {
+  it('mapa sem sala nenhuma: o móvel nasce', () => {
     prepararMapa([])
     expect(porMovelNoPonto('barril', { x: 0, y: 0 }, ID_FIXO)).toEqual({ kind: 'posto', id: 'movel-1' })
     expect(useMapStore.getState().map.props).toHaveLength(1)
-    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'movel-1' }])
   })
 
   it('um passo só no desfazer: o Ctrl+Z tira o móvel inteiro', () => {
@@ -112,14 +111,16 @@ describe('Objetos: o clique no mapa põe o móvel', () => {
     expect(useMapStore.getState().map.props).toEqual([])
   })
 
-  it('dois cliques põem dois móveis: a ferramenta segue na mão', () => {
+  it('dois cliques põem dois móveis e a ficha fica em "Colocar": a seleção de antes (objeto clicado, pino, zona) é largada e o móvel novo não é selecionado', () => {
     let proximo = 0
     const ids = () => `movel-${(proximo += 1)}`
+    useMapStore.setState({ selection: [{ kind: 'prop', id: 'outro' }], selectedPinId: 'pino', selectedConcealZoneId: 'zona' })
     porMovelNoPonto('cadeira', { x: 150, y: 150 }, ids)
     porMovelNoPonto('cadeira', { x: 250, y: 150 }, ids)
 
     expect(useMapStore.getState().map.props.map((p) => p.id)).toEqual(['movel-1', 'movel-2'])
-    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'movel-2' }])
+    const { selection, selectedPinId, selectedConcealZoneId } = useMapStore.getState()
+    expect({ selection, selectedPinId, selectedConcealZoneId }).toEqual({ selection: [], selectedPinId: null, selectedConcealZoneId: null })
   })
 })
 

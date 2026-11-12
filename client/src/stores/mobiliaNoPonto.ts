@@ -5,7 +5,7 @@ import { criarMovel } from '../lib/mobilia'
 import { mapaDoPiso } from '../lib/pisos'
 import { findContainingRoom } from '../lib/roomNesting'
 import { roomRotationOf } from '../lib/roomRotation'
-import { selectionOfItem } from '../lib/selectionModel'
+import { EMPTY_SELECTION } from '../lib/selectionModel'
 import type { LayerId, TipoMobilia } from '../types/map'
 import { lembrarObjetoUsado } from './objetosUsados'
 
@@ -20,9 +20,13 @@ export type ResultadoDoMovel = { kind: 'posto'; id: string } | { kind: 'camada-t
  * O móvel do tipo escolhido na setinha nasce centrado em `ponto` (já com o
  * encaixe da Peça aplicado por quem chama). Dentro de uma Sala girada ele
  * deita no giro dela; fora de sala, ou em sala nunca girada, nasce sem giro,
- * igual a objeto comum. Fica selecionado para o mestre arrastar com
- * Selecionar, e a ferramenta segue na mão para pôr o próximo. Um passo só no
- * desfazer (`addProp`).
+ * igual a objeto comum. A ferramenta segue na mão para pôr o próximo. Um passo
+ * só no desfazer (`addProp`).
+ *
+ * Pôr NÃO seleciona (pedido de 12/11/2026): o painel fica em "Colocar", com a
+ * busca e a rolagem da lista, para pôr vários em seguida. Quem abre a ficha do
+ * objeto é o clique nele (o hit-test do `PixiCanvas`). A seleção de antes
+ * (objeto, pino ou zona) é largada, senão a ficha dela seguiria no painel.
  *
  * Só as Salas do piso em edição doam giro: a de outro piso não está na tela.
  *
@@ -51,7 +55,9 @@ export function porMovelNoPonto(
   // Fora de qualquer sala `sala` é null: o `?.` é o caso "sem giro", não um remendo.
   const giro = roomRotationOf(sala?.room)
   store.addProp(giro === 0 ? movel : { ...movel, rotation: giro })
-  store.setSelection(selectionOfItem({ kind: 'prop', id: movel.id }))
+  store.setSelection(EMPTY_SELECTION)
+  store.setSelectedPin(null)
+  store.setSelectedConcealZone(null)
   // "Usados há pouco" da ficha da ferramenta: conta o móvel posto, não a escolha.
   lembrarObjetoUsado(tipo)
   return { kind: 'posto', id: movel.id }
