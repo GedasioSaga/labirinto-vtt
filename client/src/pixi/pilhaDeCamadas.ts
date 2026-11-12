@@ -278,15 +278,80 @@ export interface Balde<N, T> {
 }
 
 /**
- * Divide os itens de uma faixa pelos nós dela, sem mudar a ordem relativa.
+ * A CAMADA MANDA DENTRO DO NÓ (decisão 16 do mestre; achado E12 da caça de
+ * 12/11/2026): Objetos e Decoração dividem o nó dos móveis (e Paredes e Portas
+ * o das linhas e paredes), e quem pinta empilha na ordem que recebe — sem isto
+ * a lista decidia, e um barril de Objetos posto depois cobria a caixa de
+ * Decoração. As camadas do nó vêm de baixo para cima (`ordemDeRender`), então
+ * o item vai para o grupo da camada dele e os grupos saem nessa ordem.
+ * ESTÁVEL: dentro da mesma camada, a ordem da lista continua mandando. Item de
+ * camada que não é do nó (caiu no de hoje) conta como a camada de baixo dele.
+ * Já em ordem (o caso comum) ou nó de uma camada só: devolve o PRÓPRIO array.
+ */
+function emOrdemDasCamadas<T>(itens: T[], camadas: readonly CamadaId[], camadaDe: (item: T) => CamadaId): T[] {
+  if (camadas.length < 2) return itens
+  const posicao = new Map<CamadaId, number>()
+  camadas.forEach((c, i) => {
+    if (!posicao.has(c)) posicao.set(c, i)
+  })
+  const grupos: T[][] = camadas.map(() => [])
+  let maior = 0
+  let emOrdem = true
+  for (const item of itens) {
+    // Camada fora do nó: a de baixo (o nó de hoje recebe o que não tem nó; não deveria acontecer).
+    const k = posicao.get(camadaDe(item)) ?? 0
+    if (k < maior) emOrdem = false
+    else maior = k
+    grupos[k].push(item)
+  }
+  if (emOrdem) return itens
+  const saida: T[] = []
+  for (const grupo of grupos) for (const item of grupo) saida.push(item)
+  return saida
+}
+
+/**
+ * A última lista reordenada de cada lista de entrada, por nó (as camadas dele):
+ * a MESMA lista, fora de ordem, dá sempre a MESMA lista reordenada, para os
+ * portões `Object.is` de quem pinta continuarem pulando o que não mudou. Chave
+ * fraca: some junto com a lista velha da store.
+ */
+const reordenadasPorLista = new WeakMap<readonly unknown[], Map<string, unknown[]>>()
+
+/** Mesmos itens, na mesma ordem, por identidade: cada item da guardada É um item de `nova`, logo um `T`. */
+function mesmaSequencia<T>(guardada: unknown[], nova: readonly T[]): guardada is T[] {
+  return guardada.length === nova.length && guardada.every((item, i) => item === nova[i])
+}
+
+function lembrarReordenada<T>(itens: T[], chave: string, reordenada: T[]): T[] {
+  let porChave = reordenadasPorLista.get(itens)
+  if (porChave === undefined) {
+    porChave = new Map()
+    reordenadasPorLista.set(itens, porChave)
+  }
+  const guardada = porChave.get(chave)
+  if (guardada !== undefined && mesmaSequencia(guardada, reordenada)) return guardada
+  porChave.set(chave, reordenada)
+  return reordenada
+}
+
+/**
+ * Divide os itens de uma faixa pelos nós dela; dentro de cada nó, na ordem das
+ * camadas dele (`emOrdemDasCamadas`) e, na mesma camada, na ordem da lista.
  * CAMINHO RÁPIDO: faixa com um nó só devolve o PRÓPRIO array (mesma
- * referência para os portões `Object.is` de `shapesRedraw.ts`), sem olhar
- * item nenhum. Item de camada sem nó na faixa (não deveria acontecer: par com
- * item ganha nó) cai no nó de hoje. Todo nó sai na lista, vazio ou não: quem
- * pinta limpa o que esvaziou.
+ * referência para os portões `Object.is` de `shapesRedraw.ts`) — sem olhar
+ * item nenhum se o nó tem uma camada só; com duas (móveis, paredes), olha a
+ * camada de cada um e, fora de ordem, devolve sempre a mesma lista
+ * reordenada para a mesma lista de entrada. Item de camada sem nó na faixa
+ * (não deveria acontecer: par com item ganha nó) cai no nó de hoje. Todo nó
+ * sai na lista, vazio ou não: quem pinta limpa o que esvaziou.
  */
 export function distribuir<N, T>(itens: T[], nos: readonly NoDaFaixa<N>[], camadaDe: (item: T) => CamadaId): Balde<N, T>[] {
-  if (nos.length === 1) return [{ no: nos[0].no, itens }]
+  if (nos.length === 1) {
+    const unico = nos[0]
+    const ordenados = emOrdemDasCamadas(itens, unico.camadas, camadaDe)
+    return [{ no: unico.no, itens: ordenados === itens ? itens : lembrarReordenada(itens, unico.camadas.join('+'), ordenados) }]
+  }
   const indiceDaBase = Math.max(0, nos.findIndex((n) => n.base))
   const porCamada = new Map<CamadaId, number>()
   nos.forEach((n, i) => {
@@ -294,7 +359,7 @@ export function distribuir<N, T>(itens: T[], nos: readonly NoDaFaixa<N>[], camad
   })
   const baldes: T[][] = nos.map(() => [])
   for (const item of itens) baldes[porCamada.get(camadaDe(item)) ?? indiceDaBase].push(item)
-  return nos.map((n, i) => ({ no: n.no, itens: baldes[i] }))
+  return nos.map((n, i) => ({ no: n.no, itens: emOrdemDasCamadas(baldes[i], n.camadas, camadaDe) }))
 }
 
 /**
