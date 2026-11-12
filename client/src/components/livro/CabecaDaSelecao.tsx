@@ -1,9 +1,13 @@
 import { Fragment, useId, useRef, useState, type ReactElement } from 'react'
-import type { DoorState, Drawing, FloorPiece, Light, MapData, PinKind, Prop, Region, Stair, TipoMobilia, Token, Wall } from '../../types/map'
+import type { DoorState, Drawing, FloorPiece, Light, MapData, PinKind, Prop, Region, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../../types/map'
+import { compileFloor } from '../../lib/floorSdf'
 import { ROTULO_MOBILIA } from '../../lib/mobilia'
-import { PISO_MAX, PISO_MIN, nomeDoPiso } from '../../lib/pisos'
+import { propCorners } from '../../lib/objectTransform'
+import { cenaTemChao, chaoQueLimita, foraDoChaoLivre } from '../../lib/offFloor'
+import { PISO_MAX, PISO_MIN, mapaDoPiso, nomeDoPiso } from '../../lib/pisos'
 import { salasDaPorta } from '../../lib/mapObjects'
 import { findContainingRoom } from '../../lib/roomNesting'
+import { selectionSingle, type SelectionItem, type SelectionSet } from '../../lib/selectionModel'
 import type { MotivoSemCorredor, bloqueioDaSala } from '../../lib/abrirCorredor'
 import { TOKEN_COLOR_DEFAULT } from '../../lib/tokenColor'
 import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorredor, useMapStore } from '../../stores/mapStore'
@@ -348,6 +352,81 @@ export function useOndeDoPino(pinId: string | null): string {
   return useMapStore((state) => (pinId === null ? '' : ondeDoPino(state.map, pinId)))
 }
 
+/*
+ * FORA DO CHÃO (caça de 12/11/2026, item N7, decisão 22 do mestre). Numa cena
+ * com peça de Chão e "Fora do Chão: Bloqueado", o jogador não vê nada além da
+ * borda do Chão, nem dentro de uma Sala (`lib/offFloor.ts`). A regra fica; o
+ * editor avisa, na cabeça da ficha, quando a Sala, a parede ou o objeto
+ * selecionado tem um ponto fora do Chão.
+ */
+
+/** Como a linha do aviso chama a peça selecionada. */
+type PecaForaDoChao = 'sala' | 'regiao' | 'parede' | 'porta' | 'objeto'
+
+/** A linha do aviso, por peça. `Record`: peça nova no tipo sem frase aqui não compila. */
+const AVISO_FORA_DO_CHAO: Record<PecaForaDoChao, string> = {
+  sala: 'Parte desta sala está fora do Chão: os jogadores não vão ver.',
+  regiao: 'Parte desta região está fora do Chão: os jogadores não vão ver.',
+  parede: 'Parte desta parede está fora do Chão: os jogadores não vão ver.',
+  porta: 'Parte desta porta está fora do Chão: os jogadores não vão ver.',
+  objeto: 'Parte deste objeto está fora do Chão: os jogadores não vão ver.',
+}
+
+/**
+ * Folga da borda (px): canto de Sala ou ponta de parede EM CIMA da borda do
+ * Chão não está fora. É o caso de tudo desenhado na grade, e a distância ali
+ * dá zero ou um ruído de conta.
+ */
+const FOLGA_DA_BORDA_DO_CHAO = 1
+
+/**
+ * Os pontos que o aviso confere e o nome da peça: os vértices da Sala ou
+ * Região, as duas pontas da parede, o centro e os quatro cantos do objeto
+ * (girado, como a tela o desenha). `null` = a seleção é de outro tipo, ou o
+ * item não está no piso.
+ */
+function pontosDaPeca(mapa: MapData, item: SelectionItem): { peca: PecaForaDoChao; pontos: readonly RegionPoint[] } | null {
+  switch (item.kind) {
+    case 'region': {
+      const regiao = mapa.regions.find((r) => r.id === item.id)
+      if (regiao === undefined) return null
+      return { peca: regiao.room === undefined ? 'regiao' : 'sala', pontos: regiao.points }
+    }
+    case 'wall': {
+      const parede = mapa.walls.find((w) => w.id === item.id)
+      if (parede === undefined) return null
+      return { peca: parede.door === null ? 'parede' : 'porta', pontos: [{ x: parede.x1, y: parede.y1 }, { x: parede.x2, y: parede.y2 }] }
+    }
+    case 'prop': {
+      const objeto = mapa.props.find((p) => p.id === item.id)
+      if (objeto === undefined) return null
+      return { peca: 'objeto', pontos: [{ x: objeto.x, y: objeto.y }, ...propCorners(objeto)] }
+    }
+    default:
+      return null
+  }
+}
+
+/**
+ * A linha do aviso "fora do Chão" para a seleção, ou `null` sem nada a dizer:
+ * cena livre, piso sem Chão, seleção de vários itens ou de outro tipo, ou tudo
+ * dentro. Ponto no Chão = a ÚLTIMA peça visível que o contém soma; é o sinal
+ * de `compileFloor` (negativo dentro), o mesmo motor do contorno que corta a
+ * visão do jogador. O Chão é o do piso em edição: o item selecionado está nele.
+ */
+export function avisoForaDoChao(map: MapData, piso: number, selection: SelectionSet): string | null {
+  if (foraDoChaoLivre(map)) return null
+  const item = selectionSingle(selection)
+  if (item === null) return null
+  const mapa = mapaDoPiso(map, piso)
+  if (!cenaTemChao(mapa)) return null
+  const peca = pontosDaPeca(mapa, item)
+  if (peca === null) return null
+  const chao = compileFloor(chaoQueLimita(mapa))
+  const algumFora = peca.pontos.some((ponto) => chao.sample(ponto.x, ponto.y) > FOLGA_DA_BORDA_DO_CHAO)
+  return algumFora ? AVISO_FORA_DO_CHAO[peca.peca] : null
+}
+
 /** A cor do disco de um token sem cor própria: a mesma do mapa. */
 const COR_DO_TOKEN_PADRAO = `#${TOKEN_COLOR_DEFAULT.toString(16).padStart(6, '0')}`
 const MAIS_ACOES = 'Mais ações'
@@ -392,6 +471,10 @@ export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, 
   const [menuAberto, setMenuAberto] = useState(false)
   const gatilho = useRef<HTMLButtonElement | null>(null)
   const notaId = useId()
+  // Pino e zona oculta têm cabeça própria, fora da seleção do mapa: não têm o que conferir no Chão.
+  const daSelecao = identidade.icon !== 'pin' && identidade.icon !== 'zona'
+  // Seletor que devolve a frase (texto fixo) ou `null`: primitivo, a cabeça só renderiza quando o aviso muda.
+  const avisoDoChao = useMapStore((state) => (daSelecao ? avisoForaDoChao(state.map, state.pisoAtivo, state.selection) : null))
   const nome = identidade.name ?? identidade.type
   const marca =
     token !== undefined && token !== null ? (
@@ -441,6 +524,7 @@ export function CabecaDaSelecao({ identidade, token, porta, onde, rotuloApagar, 
           </>
         }
       />
+      {avisoDoChao !== null && <p className="gr-nota">{avisoDoChao}</p>}
       {acoes.length > 0 && (
         <Pop aberto={menuAberto} gatilho={gatilho} onFechar={() => setMenuAberto(false)} rotulo={MAIS_ACOES}>
           {acoes.map((acao, indice) => (
