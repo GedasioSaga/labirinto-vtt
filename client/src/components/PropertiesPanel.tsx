@@ -706,7 +706,11 @@ export function PropertiesPanel({
             token={selection.selection.count === 1 && selection.selection.kind === 'token' ? selectedToken : null}
             porta={portaSelecionada}
             onde={ondeDaPorta}
-            rotuloApagar={portaSelecionada !== null && selection.selection.count === 1 ? TIRAR_PORTA : deleteLabelFor(selection.selection)}
+            rotuloApagar={
+              portaSelecionada !== null && selection.selection.count === 1
+                ? TIRAR_PORTA
+                : deleteLabelFor(selection.selection, { region: selectedRegion, textLabel: selectedTextLabel })
+            }
             onApagar={selection.onRemoveSelected}
             acoes={acoesDaSelecao}
             notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
