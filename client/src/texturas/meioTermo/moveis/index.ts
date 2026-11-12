@@ -285,8 +285,8 @@ const MONTADORES = {
   ossos: montarOssos,
   antenaParabolica: montarAntenaParabolica,
   // Lote 4 dos 95 objetos novos (11/11/2026): um desenho por arquivo. A cama de casal, a banqueta, o biombo e
-  // o candelabro de chão leem o `giro` (o quarto de volta que a 3/4 pinta); de cima ele chega 0 a todos, e
-  // quem gira é a imagem pronta (com o giro, a sombra pintada da banqueta e a do biombo sairiam viradas).
+  // o candelabro de chão leem o `giro` (o quarto de volta que a 3/4 pinta). Desde 12/11/2026 (achado V2) o quarto
+  // é pintado também de cima, com o mesmo `giro`: a sombra pintada da banqueta e a do biombo já saem desviradas.
   escrivaninha: montarEscrivaninha,
   criadoMudo: montarCriadoMudo,
   camaDeCasal: montarCamaDeCasal,
@@ -501,15 +501,15 @@ export interface DesenhoDoMovel {
   /** Só na lápide: o desenho (0, 1 ou 2), do hash do id do objeto (`varianteDaLapide`). Nos pratos, a forma (`varianteDosPratos`); nos troncos e no feno, a forma (`varianteDaPilha`). */
   readonly variante?: number
   /**
-   * Só na placa de seta: o giro do objeto em quartos de volta (90, 180 ou 270;
-   * ausente = 0). A seta sai pintada já girada, com a sombra e a luz no lugar de
-   * sempre; a tela gira a imagem só pelo que sobra (`giroDaImagem`).
+   * O giro do objeto em quartos de volta (90, 180 ou 270; ausente = 0), na
+   * placa de seta e nos móveis derivados da 3/4, nas duas vistas
+   * (`giroDaImagem`). A cena sai pintada já girada, com a sombra e a luz no
+   * lugar de sempre; a tela gira a imagem só pelo que sobra.
    */
   readonly giro?: number
   /**
    * Vista 3/4 do mapa (MT11, `tresQuartos.ts`): o tampo sobe e a frente
-   * aparece embaixo. Ausente = "de cima com volume", a cena de antes byte a
-   * byte. Na 3/4 o `giro` (quarto de volta) vale para todo móvel derivado.
+   * aparece embaixo. Ausente = "de cima com volume".
    */
   readonly vista?: 'tres-quartos'
 }
@@ -544,9 +544,11 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const cena: Cena = { partes: [], sombras: [] }
   const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0 }
   MONTADORES[d.tipo](contexto, cena)
-  if (d.vista !== 'tres-quartos') return cena
-  // 3/4: o quarto de volta é pintado antes de subir o tampo (a frente fica embaixo na tela); a placa já pinta o dela.
+  // O quarto de volta é pintado NAS DUAS VISTAS (achado V2 de 12/11/2026): a forma das sombras gira com a cena e o
+  // deslocamento delas entra depois, na pintura, então a sombra cai sempre para baixo à direita. Na 3/4 é pintado
+  // antes de subir o tampo (a frente fica embaixo na tela). A placa já pinta o dela no desenho.
   const girada = pintaOGiroNaTresQuartos(d.tipo, d.lado) ? girarCena(cena, (d.giro ?? 0) / 90) : cena
+  if (d.vista !== 'tres-quartos') return girada
   return cenaEmTresQuartos(girada, perfilDoTresQuartos(d.tipo, d.lado), contexto.peca)
 }
 

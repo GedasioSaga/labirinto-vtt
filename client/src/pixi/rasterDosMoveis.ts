@@ -117,20 +117,26 @@ export type MovelParaImagem = Pick<
   'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor'
 > &
   // Só a lápide lê o id: a variação do desenho sai dele (`varianteDaLapide`).
-  // Só a placa de seta lê o giro: o quarto de volta é pintado na imagem (`giroDaImagem`).
+  // O giro: o quarto de volta é pintado na imagem (`giroDaImagem`).
   Partial<Pick<Prop, 'id' | 'rotation'>>
 
 /**
- * O giro que a IMAGEM já traz pintado, em graus: só a placa de seta, em
- * quartos de volta (o mais perto do giro do objeto). A tela gira a imagem só
- * pelo resto (`rotation - giroDaImagem`), então a seta aponta para onde o
- * objeto aponta e a sombra e a luz ficam fixas no mapa. Os outros móveis
- * giram a imagem inteira, como sempre (a sombra gira junto: limite registrado
- * no plano, seção MT5).
+ * O giro que a IMAGEM já traz pintado, em graus, em quartos de volta (o mais
+ * perto do giro do objeto). A tela gira a imagem só pelo resto
+ * (`rotation - giroDaImagem`), então a sombra e a luz ficam fixas no mapa.
+ *
+ * Pintam o quarto: a placa de seta (no desenho dela) e, NAS DUAS VISTAS, todo
+ * móvel derivado da 3/4 (`pintaOGiroNaTresQuartos`): de cima, a cama girada
+ * tinha a sombra virada para outro lado (achado V2 de 12/11/2026; antes, de
+ * cima, só a placa). O móvel desenhado em pé (a lápide, a ponte, o chafariz,
+ * os troncos: o perfil `em-pe`) gira a imagem inteira, como na 3/4, com a
+ * sombra junto: o desenho dele pinta a luz sem saber do giro.
+ *
+ * `_vista`: a regra é a mesma nas duas vistas desde 12/11/2026; o parâmetro
+ * fica para quem já chama com a vista.
  */
-export function giroDaImagem(prop: Pick<MovelParaImagem, 'mobilia' | 'mobiliaVista' | 'rotation'>, vista?: 'tres-quartos'): number {
-  // Na 3/4 (MT11) todo móvel derivado pinta o quarto de volta: a frente fica embaixo na tela.
-  const pinta = prop.mobilia === 'placaDeSeta' || (vista === 'tres-quartos' && prop.mobilia !== undefined && pintaOGiroNaTresQuartos(prop.mobilia, vistaDoMovel(prop)))
+export function giroDaImagem(prop: Pick<MovelParaImagem, 'mobilia' | 'mobiliaVista' | 'rotation'>, _vista?: 'tres-quartos'): number {
+  const pinta = prop.mobilia === 'placaDeSeta' || (prop.mobilia !== undefined && pintaOGiroNaTresQuartos(prop.mobilia, vistaDoMovel(prop)))
   if (!pinta) return 0
   const quartos = Math.round((prop.rotation ?? 0) / 90)
   return Number.isFinite(quartos) ? (((quartos % 4) + 4) % 4) * 90 : 0
@@ -229,6 +235,7 @@ function sementeDoTexto(texto: string): number {
 export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendererResolution: number, vista?: 'tres-quartos'): ChaveDoMovel | null {
   const tipo = prop.mobilia
   if (!temTextura(tipo)) return null
+  const giro = giroDaImagem(prop)
   const semSemente = {
     tipo,
     lado: vistaDoMovel(prop),
@@ -251,20 +258,19 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'cova' ? { variante: varianteDaCova(prop.mobiliaForma) } : {}),
     // O moinho de torre (03/11/2026) é a variante 1; o Clássico fica sem variante, com a chave (e a semente) de antes.
     ...(prop.mobilia === 'moinho' && formaDoMoinho(prop.mobiliaForma) === 'torre' ? { variante: 1 } : {}),
-    ...(giroDaImagem(prop) !== 0 ? { giro: giroDaImagem(prop) } : {}),
+    // Na semente o giro entra só na placa de seta, como sempre: girar a cama não troca o veio dela.
+    ...(prop.mobilia === 'placaDeSeta' && giro !== 0 ? { giro } : {}),
   }
   const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
   // A semente sai sempre do desenho "de cima": o mesmo móvel tem o mesmo veio nas duas vistas.
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
-  // O desenho leva a forma do tapete e a volta da cerca (já quantizada pela flecha): é o que a cena da imagem lê.
-  const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva }
+  // O desenho leva a forma do tapete, a volta da cerca (já quantizada pela flecha) e o quarto de volta pintado
+  // (que entra no texto da chave: até 4 imagens por móvel girado): é o que a cena da imagem lê.
+  const desenho = { ...semSemente, semente, forma: parcial.forma, curva: parcial.curva, ...(giro !== 0 ? { giro } : {}) }
   const nivel = nivelDeResolucao(cameraScale, rendererResolution)
   if (vista !== 'tres-quartos') return { ...parcial, desenho, nivel }
-  // 3/4 (MT11): outra imagem (a vista entra no texto da chave) e o quarto de volta pintado em todo móvel derivado.
-  const giro = giroDaImagem(prop, vista)
-  const { giro: _giroDeCima, ...semGiro } = desenho
-  const tresQuartos = { ...semGiro, ...(giro !== 0 ? { giro } : {}), vista }
-  return { ...parcial, vistaDoMapa: 'tres-quartos', desenho: tresQuartos, nivel }
+  // 3/4 (MT11): outra imagem (a vista entra no texto da chave), com o mesmo quarto de volta pintado.
+  return { ...parcial, vistaDoMapa: 'tres-quartos', desenho: { ...desenho, vista }, nivel }
 }
 
 // ---------- DESENHADO (plano de 29/10/2026, F3; CONTRATO.md 10.8) ----------
@@ -445,7 +451,7 @@ export interface ImagemDoMovel {
   readonly pronta: boolean
   /**
    * O giro que a imagem já traz pintado, em graus: a tela gira só `rotation - giroPintado`.
-   * O Atual: 0 (a placa de seta e a 3/4, o quarto de volta). O Desenhado: o quarto de volta
+   * O Atual: o quarto de volta na placa de seta e nos móveis derivados (`giroDaImagem`); 0 no resto. O Desenhado: o quarto de volta
    * de todo móvel (CONTRATO 10.8, item 1); a cerca por peças, o giro inteiro.
    */
   readonly giroPintado: number
@@ -922,7 +928,8 @@ export class RasterDosMoveis {
       casasH: chave.desenho.casasH,
       nivel: chave.nivel,
       giroPintado: chave.desenho.giro ?? 0,
-      trocaEixos: false,
+      // Quarto ímpar pintado: o x da imagem corre na altura do objeto (o mesmo do Desenhado).
+      trocaEixos: ((chave.desenho.giro ?? 0) / 90) % 2 === 1,
       bytes: pedacos.reduce((soma, p) => soma + p.pixels.byteLength, 0) * COPIAS_DA_IMAGEM,
       // Um ladrilho por vez: o buffer de trabalho é o do maior.
       bytesDeTrabalho: Math.max(...pedacos.map((p) => p.limites.W * p.limites.H)) * BYTES_DE_TRABALHO_POR_PIXEL,

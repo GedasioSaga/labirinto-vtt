@@ -479,7 +479,7 @@ function rasterParaPassada(graphics: Graphics, repintar: () => void): RasterDosM
 /**
  * MEIO-TERMO (chave de obra `meioTermoLigado()`): o móvel com textura, a
  * imagem pronta de `rasterDosMoveis.ts` colada com `graphics.texture` e girada
- * com o objeto por `setTransform` (a luz gira junto, sem gerar de novo).
+ * por `setTransform` só pelo que a imagem não traz pintado (`giroPintado`).
  * Enquanto a imagem não fica pronta, cola a pronta de outro nível do mesmo
  * desenho ou, sem nenhuma, o desenho de linhas de sempre (provisório). Pronta
  * a imagem, o raster chama este `Graphics` para se repintar: o provisório SAI
@@ -507,7 +507,7 @@ function drawTexturedFurniture(
     return true
   }
   raster.marcarColada(mostrar)
-  // A placa de seta (e, na 3/4, todo móvel derivado; no Desenhado, todo móvel) traz o quarto de
+  // A placa de seta e todo móvel derivado da 3/4, nas duas vistas (no Desenhado, todo móvel), trazem o quarto de
   // volta pintado (a sombra e a luz não giram): aqui só gira o resto. O giro é o da imagem colada
   // (a do Atual pode estar no lugar da Desenhada enquanto ela pinta). O vaso Desenhado não gira nada.
   const trig = rotationTrig(mostrar.naoGira === true ? 0 : (prop.rotation ?? 0) - mostrar.giroPintado)

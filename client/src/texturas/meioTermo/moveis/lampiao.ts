@@ -18,6 +18,7 @@
 import { anel, caixa, capsula, elipse } from './formas'
 import { SOMBRA_X, SOMBRA_Y, type MaterialDaPeca, type Textura } from './motor'
 import type { MontarMovel } from './contexto'
+import { desgirado } from './tesouroDeOuro'
 
 type Rgb3 = readonly [number, number, number]
 
@@ -74,7 +75,9 @@ export const montarLampiao: MontarMovel = (c, cena) => {
   const k = R / 6.6
   const H = c.g * ALTURA
   const metal = c.m.metal
-  cena.sombras.push({ forma: capsula(0, 0, SOMBRA_X * H, SOMBRA_Y * H, 1.5 * k), z: 0, suave: 1.6, forca: 0.35 })
+  // A sombra do poste vai pintada na forma (z 0): desvirada pelo quarto de volta pintado (`giro`), cai sempre para baixo à direita.
+  const [sx, sy] = desgirado(SOMBRA_X * H, SOMBRA_Y * H, c.giro)
+  cena.sombras.push({ forma: capsula(0, 0, sx, sy, 1.5 * k), z: 0, suave: 1.6, forca: 0.35 })
   cena.sombras.push({ forma: caixa(-6 * k, -6 * k, 6 * k, 6 * k, 1.6 * k), z: H, solta: true, forca: 0.22 })
   const L = cena.partes
   const halo = HALO_EM_RAIOS * R
