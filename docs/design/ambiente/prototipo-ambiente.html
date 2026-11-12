@@ -1,0 +1,2281 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ambiente: neblina, chuva, brasas, neve e folhas</title>
+<!--
+  Protótipo "Ambiente" (pedido do mestre de 12/11/2026: a ferramenta Neblina vira Ambiente).
+  Página única e autônoma: abre com dois cliques, sem rede e sem dependência. Só PC. WebGL 2.
+  - O mapa (rua, casa de teto fechado, pátio, depósito) é pintado UMA vez em tela 2D, no estilo Meio-Termo
+    (docs/design/ESTILO-DO-RPG.md), e vira textura.
+  - A neblina é o shader de client/src/pixi/drawNeblina.ts, com os mesmos números (AJUSTE_DA_NEBLINA),
+    agora andando com o vento.
+  - Chuva, neve, brasas, folhas e cinzas: partículas SEM ESTADO na placa de vídeo. Cada uma sabe onde está
+    pelo próprio número e pelo relógio (um desenho por efeito, nada atualizado por partícula no processador).
+  - O "seco" (onde chuva, neve, folhas e cinzas não caem) e o "abrigo" (onde neblina e brasas só entram pela
+    porta aberta) são uma máscara pequena, refeita só quando a cena muda.
+  ?prova=1 roda a conferência (vazamento para o jogador, nada cai dentro de casa, porta) e mostra no painel.
+  Tokens da interface copiados de docs/design/sombras/prototipo-sombras.html (os de client/src/theme.ts).
+-->
+<style>
+  :root {
+    --ink: #121214;
+    --stone: #1a1a1e;
+    --raised: #232328;
+    --hover: #2c2c33;
+    --sunken: #141417;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #eceae4;
+    --dim: #a2a09a;
+    --faint: #858480;
+    --brass: #e0a44a;
+    --brass-bright: #f3ba66;
+    --brass-soft: rgba(224, 164, 74, 0.14);
+    --f-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+    --f-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    --f-num: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+    --f-code: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+    --r-s: 6px; --r-m: 10px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--ink); color: var(--text); font: 13.5px/1.45 var(--f-sans); overflow: hidden; }
+  h1, h2, h3, p, ol, ul { margin: 0; }
+
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 368px; height: 100vh; }
+  @media (max-width: 960px) {
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 46vh; }
+    .painel { border-left: 0 !important; border-top: 1px solid var(--line); }
+  }
+
+  /* ── Palco ── */
+  .palco { position: relative; background: #111111; min-width: 0; min-height: 0; overflow: hidden; }
+  .palco canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; cursor: none; }
+  .palco canvas.mao { cursor: grab; }
+  .palco canvas.mao.arrastando { cursor: grabbing; }
+  .palco canvas.na-porta { cursor: pointer; }
+  .palco canvas:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+  .cursor-pincel {
+    position: absolute; left: 0; top: 0; pointer-events: none;
+    border-radius: 50%;
+    border: 1.5px solid rgba(243, 186, 102, 0.95);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    will-change: transform;
+  }
+  .cursor-pincel.borracha { border-style: dashed; border-color: rgba(236, 234, 228, 0.95); }
+  .cursor-pincel[hidden] { display: none; }
+  .faixa {
+    position: absolute; top: var(--s3); left: 50%; transform: translateX(-50%);
+    pointer-events: none;
+    font: 600 13px/1 var(--f-sans);
+    padding: 9px 14px; border-radius: 999px;
+    background: rgba(18, 18, 20, 0.88);
+    box-shadow: 0 0 0 1px var(--line-strong);
+    color: var(--text); white-space: nowrap;
+  }
+  .faixa.mestre { color: var(--brass-bright); box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.45); }
+  .faixa.erro { color: #f2a59a; box-shadow: 0 0 0 1px rgba(230, 100, 90, 0.7); }
+  .leitura {
+    position: absolute; left: var(--s3); bottom: var(--s3); pointer-events: none;
+    font: 500 12px/1 var(--f-num); font-variant-numeric: tabular-nums;
+    color: var(--dim); background: rgba(18, 18, 20, 0.78); padding: 7px 10px; border-radius: 999px;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .sem-gl { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--s6); color: var(--text); text-align: center; }
+  .sem-gl[hidden] { display: none; }
+
+  /* ── Painel ── */
+  .painel {
+    background: var(--stone); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: var(--s5) var(--s4);
+    display: flex; flex-direction: column; gap: var(--s4);
+  }
+  .painel > * { min-width: 0; }
+  .topo h1 { font: 400 25px/1.15 var(--f-display); letter-spacing: 0.005em; margin-bottom: var(--s2); }
+  .topo p { color: var(--dim); }
+  .topo p + p { margin-top: var(--s1); }
+  .topo strong { color: var(--text); font-weight: 600; }
+
+  .moldura { background: var(--sunken); border-radius: var(--r-m); padding: var(--s4) var(--s3); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: var(--s4); }
+  .moldura > .titulo-moldura { display: flex; align-items: center; gap: var(--s2); font: 600 14px/1.2 var(--f-sans); }
+  .moldura > .titulo-moldura svg { color: var(--brass-bright); }
+  .moldura > .titulo-moldura small { margin-left: auto; font: 500 11.5px/1 var(--f-sans); color: var(--faint); }
+
+  fieldset.grupo { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .grupo > legend, .grupo > h2 {
+    font: 600 12px/1.3 var(--f-sans); letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--dim); padding: 0; margin-bottom: var(--s2);
+  }
+  .divisor { border-top: 1px solid var(--line); padding-top: var(--s4); }
+
+  /* Lista de efeitos: rádio nativo, uma linha por efeito, com o estado à direita. */
+  .efeitos { display: grid; gap: 3px; background: var(--stone); border-radius: var(--r-s); padding: 3px; }
+  .efeitos input, .segmentos input, .rosa input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .efeitos label {
+    display: grid; grid-template-columns: 22px 1fr auto auto; align-items: center; column-gap: 10px;
+    min-height: 44px; padding: 0 10px; border-radius: 4px; color: var(--dim); cursor: pointer; user-select: none;
+    transition: transform 140ms var(--ease-out);
+  }
+  .efeitos label:active { transform: scale(0.98); }
+  .efeitos .nome { font-weight: 600; color: var(--text); }
+  .efeitos .estado { font-size: 12px; color: var(--faint); text-align: right; white-space: nowrap; }
+  .efeitos .estado.ligado { color: var(--brass); }
+  .efeitos .ponto { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--brass); margin-right: 6px; vertical-align: 1px; }
+  .efeitos input:checked + label { background: var(--brass-soft); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .efeitos input:checked + label svg { color: var(--brass-bright); }
+  .efeitos input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) { .efeitos input:not(:checked) + label:hover { background: var(--hover); } }
+  .sobre-efeito { font-size: 12.5px; color: var(--dim); }
+  .sobre-efeito strong { color: var(--text); font-weight: 600; }
+
+  .segmentos { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--stone); border-radius: var(--r-s); padding: 3px; gap: 3px; }
+  .segmentos label {
+    display: flex; align-items: center; justify-content: center; gap: var(--s2);
+    min-height: 36px; padding: 0 8px; border-radius: 4px; color: var(--dim); cursor: pointer; user-select: none; text-align: center; line-height: 1.2;
+    transition: transform 140ms var(--ease-out);
+  }
+  .segmentos label:active { transform: scale(0.97); }
+  .segmentos input:checked + label { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .segmentos input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .segmentos input:disabled + label { opacity: 0.4; cursor: not-allowed; }
+  @media (hover: hover) and (pointer: fine) { .segmentos input:not(:checked):not(:disabled) + label:hover { background: var(--hover); color: var(--text); } }
+  kbd { font: 500 11px/1 var(--f-num); color: var(--faint); border: 1px solid var(--line-strong); border-radius: 3px; padding: 2px 4px; }
+  input:checked + label kbd { color: var(--brass); border-color: rgba(224, 164, 74, 0.4); }
+  .recomendado { font: 600 10.5px/1 var(--f-sans); letter-spacing: 0.03em; color: #9fd3a4; border: 1px solid rgba(110, 190, 120, 0.45); border-radius: 999px; padding: 2px 6px; white-space: nowrap; }
+
+  /* Chave (interruptor) em cima de checkbox nativo com role=switch. */
+  .chave { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--s3); min-height: 40px; cursor: pointer; user-select: none; }
+  .chave .texto { font-weight: 600; }
+  .chave input { appearance: none; -webkit-appearance: none; margin: 0; width: 40px; height: 24px; border-radius: 999px; background: #3a3a42; position: relative; cursor: pointer; transition: background-color 160ms var(--ease-out); }
+  .chave input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #d8d6d0; transition: transform 160ms var(--ease-in-out); }
+  .chave input:checked { background: var(--brass); }
+  .chave input:checked::after { transform: translateX(16px); background: #1a1406; }
+  .chave input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  .botao {
+    font: 500 13.5px/1.2 var(--f-sans); color: var(--text); background: var(--raised); border: 0;
+    box-shadow: inset 0 0 0 1px var(--line-strong); border-radius: var(--r-s);
+    min-height: 36px; padding: 0 var(--s3); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+    transition: transform 140ms var(--ease-out); user-select: none;
+  }
+  .botao:active { transform: scale(0.97); }
+  .botao:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .botao:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  @media (hover: hover) and (pointer: fine) { .botao:not(:disabled):hover { background: var(--hover); } }
+  .botao[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .botao[aria-pressed="true"] kbd { color: var(--brass); border-color: rgba(224, 164, 74, 0.4); }
+  .botao.fantasma { background: transparent; }
+  .botao.largo { width: 100%; }
+  .linha { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+  .linha .botao { flex: 1 1 auto; }
+  .grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+
+  .ajuste { display: grid; grid-template-columns: 1fr auto; align-items: baseline; row-gap: 2px; }
+  .ajuste + .ajuste, .chave + .ajuste, .ajuste + .sub, .sub + .ajuste { margin-top: var(--s3); }
+  .ajuste label { color: var(--text); font-weight: 600; }
+  .ajuste output { font: 500 15px/1 var(--f-num); color: var(--brass-bright); font-variant-numeric: tabular-nums; }
+  .ajuste output small { font: 500 12px/1 var(--f-sans); color: var(--dim); margin-right: 6px; }
+  .ajuste input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--brass); margin: 6px 0 2px; height: 22px; cursor: pointer; }
+  .ajuste input[type=range]:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+  .ajuste input[type=range]:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ajuste.desligado label, .ajuste.desligado output { color: var(--faint); }
+  .ajuda { grid-column: 1 / -1; font-size: 12.5px; color: var(--dim); }
+  .nota { color: var(--dim); font-size: 12.5px; }
+  .nota + .linha, .linha + .nota, .segmentos + .nota, .nota + .segmentos { margin-top: var(--s2); }
+  .nota + .ajuste, .chave + .nota { margin-top: var(--s2); }
+  .nota + .ajuste { margin-top: var(--s3); }
+  .sub { display: grid; gap: var(--s2); }
+  .sub > span { font-weight: 600; }
+  .sub[hidden], .ajuste[hidden], .botao[hidden] { display: none; }
+
+  /* Rosa dos ventos: 8 rádios numa grade 3 x 3, a força no meio. */
+  .vento { display: grid; grid-template-columns: auto 1fr; gap: var(--s4); align-items: center; }
+  .rosa { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 40px); gap: 3px; background: var(--stone); border-radius: var(--r-s); padding: 3px; }
+  .rosa label { display: grid; place-items: center; border-radius: 4px; color: var(--dim); cursor: pointer; user-select: none; transition: transform 140ms var(--ease-out); }
+  .rosa label svg { width: 18px; height: 18px; }
+  .rosa label:active { transform: scale(0.94); }
+  .rosa input:checked + label { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .rosa input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) { .rosa input:not(:checked) + label:hover { background: var(--hover); color: var(--text); } }
+  .rosa .meio { display: grid; place-items: center; font: 500 12px/1 var(--f-num); color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  .status { color: var(--brass-bright); font-size: 12.5px; min-height: 1.4em; }
+  .prova { background: var(--sunken); border-radius: var(--r-s); padding: var(--s3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .prova[hidden] { display: none; }
+  .prova h2 { font: 600 13px/1.3 var(--f-sans); margin-bottom: var(--s2); }
+  .prova pre { margin: 0; font: 11.5px/1.5 var(--f-code); color: #d8d5cc; white-space: pre-wrap; }
+  .prova.passou { box-shadow: inset 0 0 0 1px rgba(110, 190, 120, 0.6); }
+  .prova.falhou { box-shadow: inset 0 0 0 1px rgba(230, 100, 90, 0.8); }
+  .aviso { font-size: 12.5px; color: #f2c38a; background: rgba(224, 164, 74, 0.1); border-radius: var(--r-s); padding: var(--s2) 10px; }
+  .aviso[hidden] { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .segmentos label, .efeitos label, .rosa label, .botao, .chave input, .chave input::after { transition: none; }
+    .segmentos label:active, .efeitos label:active, .rosa label:active, .botao:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="palco" id="palco-caixa">
+    <canvas id="palco" tabindex="0" aria-label="Mapa de exemplo: uma rua, uma casa de teto fechado, um pátio e um depósito. Arraste para pintar o efeito escolhido; segure Alt para apagar. Clique na porta da casa para abrir e fechar."></canvas>
+    <div class="cursor-pincel" id="cursor" hidden></div>
+    <div class="faixa mestre" id="faixa">Visão do mestre: você vê tudo</div>
+    <div class="leitura" id="leitura" aria-hidden="true">…</div>
+    <div class="sem-gl" id="sem-gl" hidden><p>Este navegador não abriu o WebGL 2, então o protótipo não consegue desenhar. Abra no Chrome ou no Edge atualizados.</p></div>
+  </main>
+
+  <aside class="painel" aria-label="Controles do protótipo">
+    <section class="prova" id="prova" hidden aria-live="polite">
+      <h2 id="prova-titulo">Conferência rodando…</h2>
+      <pre id="prova-texto"></pre>
+    </section>
+
+    <header class="topo">
+      <h1>Ambiente</h1>
+      <p>A ferramenta <strong>Neblina</strong> vira <strong>Ambiente</strong>: neblina, chuva, brasas, neve e folhas e cinzas. Cada efeito vai no mapa inteiro ou pintado numa área, e todos seguem o mesmo vento.</p>
+      <p>Arraste no mapa para pintar o efeito escolhido (segure <strong>Alt</strong> para apagar). Clique na porta da casa para abrir e fechar.</p>
+    </header>
+
+    <p class="aviso" id="aviso-movimento" hidden>Seu sistema pede menos movimento: os efeitos ficam parados. O chão molhado e a neve no chão continuam à vista.</p>
+
+    <!-- O painel como ele ficaria no app -->
+    <section class="moldura" aria-labelledby="t-ferramenta">
+      <div class="titulo-moldura" id="t-ferramenta">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5.5 12.5h8.2a3 3 0 0 0 .3-6 4.3 4.3 0 0 0-8.3.8 2.6 2.6 0 0 0-.2 5.2Z"/><path d="M7 15.2l-.8 1.8M10.4 15.2l-.8 1.8M13.8 15.2l-.8 1.8"/></svg>
+        Ferramenta Ambiente <small>como ficaria no app</small>
+      </div>
+
+      <fieldset class="grupo">
+        <legend>Efeito</legend>
+        <div class="efeitos" id="efeitos"></div>
+        <p class="sobre-efeito" id="sobre-efeito" style="margin-top: var(--s2)"></p>
+      </fieldset>
+
+      <fieldset class="grupo divisor">
+        <legend>Mapa inteiro</legend>
+        <label class="chave"><span class="texto" id="rotulo-mapa">Chuva no mapa inteiro</span><input type="checkbox" role="switch" id="mapa-inteiro" aria-describedby="ajuda-mapa"></label>
+        <p class="nota" id="ajuda-mapa">Sem forma: cobre a cena toda, para você e para os jogadores.</p>
+        <div class="ajuste" id="aj-intensidade">
+          <label for="intensidade">Intensidade</label><output id="o-intensidade" for="intensidade"></output>
+          <input id="intensidade" type="range" min="0" max="100" step="5">
+          <p class="ajuda" id="motivo-intensidade" hidden>Ligue a chave acima para ajustar.</p>
+        </div>
+        <div class="ajuste" id="aj-densidade" hidden>
+          <label for="densidade">Densidade</label><output id="o-densidade" for="densidade"></output>
+          <input id="densidade" type="range" min="0" max="100" step="5">
+          <p class="ajuda">Pouca: tufos soltos, com buracos. Muita: cobre quase tudo. Vale também para a pintada.</p>
+        </div>
+        <div class="sub" id="aj-tipo" hidden>
+          <span id="t-tipo">O que cai</span>
+          <div class="segmentos" role="radiogroup" aria-labelledby="t-tipo">
+            <input type="radio" name="tipo" id="tp-folhas" value="folhas"><label for="tp-folhas">Folhas</label>
+            <input type="radio" name="tipo" id="tp-cinzas" value="cinzas"><label for="tp-cinzas">Cinzas</label>
+            <input type="radio" name="tipo" id="tp-duas" value="duas"><label for="tp-duas">As duas</label>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo divisor">
+        <legend>Pincel</legend>
+        <div class="segmentos" role="radiogroup" aria-label="Pincel ou borracha">
+          <input type="radio" name="modo" id="md-pincel" value="pincel"><label for="md-pincel">Pincel</label>
+          <input type="radio" name="modo" id="md-borracha" value="borracha"><label for="md-borracha">Borracha <kbd>Alt</kbd></label>
+        </div>
+        <p class="nota" id="dica-pincel"></p>
+        <div class="ajuste">
+          <label for="tamanho">Tamanho do pincel</label><output id="o-tamanho" for="tamanho"></output>
+          <input id="tamanho" type="range" min="16" max="200" step="2">
+        </div>
+        <div class="ajuste">
+          <label for="forca" id="rotulo-forca">Intensidade</label><output id="o-forca" for="forca"></output>
+          <input id="forca" type="range" min="10" max="100" step="5">
+        </div>
+        <button class="botao fantasma largo" id="apagar-pintura" type="button" style="margin-top: var(--s3)" hidden>Apagar toda a chuva pintada</button>
+      </fieldset>
+
+      <fieldset class="grupo divisor">
+        <legend>Vento da cena</legend>
+        <div class="vento">
+          <div class="rosa" id="rosa" role="radiogroup" aria-label="Para onde o vento sopra"></div>
+          <div class="ajuste" style="margin: 0">
+            <label for="vento-forca">Força</label><output id="o-vento" for="vento-forca"></output>
+            <input id="vento-forca" type="range" min="0" max="100" step="5">
+            <p class="ajuda">Um vento só por cena: a chuva entorta, a neve e as folhas vão junto, as brasas e a neblina derivam.</p>
+          </div>
+        </div>
+      </fieldset>
+    </section>
+
+    <!-- Escolhas do mestre -->
+    <fieldset class="grupo">
+      <legend>Escolhas para você decidir</legend>
+      <div class="sub">
+        <span id="t-relampago">Relâmpago na chuva forte</span>
+        <div class="segmentos" role="radiogroup" aria-labelledby="t-relampago">
+          <input type="radio" name="relampago" id="rl-nao" value="nao"><label for="rl-nao">Não</label>
+          <input type="radio" name="relampago" id="rl-raro" value="raro"><label for="rl-raro">Raro</label>
+          <input type="radio" name="relampago" id="rl-frequente" value="frequente"><label for="rl-frequente">Frequente</label>
+        </div>
+        <p class="nota"><span class="recomendado">recomendado: Raro</span> Só com a chuva do mapa inteiro a partir de 70%, um clarão leve a cada 15 a 35 s. É um véu por cima de tudo: não acende a noite nem mostra o que está no escuro.</p>
+        <div class="linha"><button class="botao" type="button" id="relampago-agora">Ver um relâmpago agora</button></div>
+      </div>
+      <div class="sub" style="margin-top: var(--s4)">
+        <label class="chave"><span class="texto">Som da chuva</span><input type="checkbox" role="switch" id="som" aria-describedby="ajuda-som"></label>
+        <p class="nota" id="ajuda-som"><span class="recomendado">recomendado: ligado, baixo</span> Segue a intensidade; trovão só junto do relâmpago. Cada jogador desliga no controle de som dele. Aqui é um som feito na hora, para ter ideia.</p>
+      </div>
+      <div class="sub" style="margin-top: var(--s4)">
+        <label class="chave"><span class="texto">Chão molha e junta neve</span><input type="checkbox" role="switch" id="chao" aria-describedby="ajuda-chao"></label>
+        <p class="nota" id="ajuda-chao"><span class="recomendado">recomendado: ligado</span> Com chuva o chão escurece e abre poças na rua; com neve ele embranquece aos poucos. Dentro de casa fica seco.</p>
+      </div>
+    </fieldset>
+
+    <!-- Só no protótipo -->
+    <fieldset class="grupo divisor">
+      <legend>Para conferir (só no protótipo)</legend>
+      <div class="sub">
+        <span id="t-periodo">Hora do dia</span>
+        <div class="segmentos" role="radiogroup" aria-labelledby="t-periodo">
+          <input type="radio" name="periodo" id="pr-dia" value="dia"><label for="pr-dia">Dia <kbd>D</kbd></label>
+          <input type="radio" name="periodo" id="pr-tarde" value="tarde"><label for="pr-tarde">Tarde <kbd>T</kbd></label>
+          <input type="radio" name="periodo" id="pr-noite" value="noite"><label for="pr-noite">Noite <kbd>N</kbd></label>
+        </div>
+      </div>
+      <div class="sub" style="margin-top: var(--s3)">
+        <span id="t-ver">Ver como</span>
+        <div class="segmentos" role="radiogroup" aria-labelledby="t-ver">
+          <input type="radio" name="ver" id="vr-mestre" value="mestre"><label for="vr-mestre">Mestre <kbd>M</kbd></label>
+          <input type="radio" name="ver" id="vr-rua" value="rua"><label for="vr-rua">Jogador na rua <kbd>J</kbd></label>
+          <input type="radio" name="ver" id="vr-dentro" value="dentro"><label for="vr-dentro">Jogador em casa <kbd>I</kbd></label>
+        </div>
+      </div>
+      <div class="sub" style="margin-top: var(--s3)">
+        <span id="t-telhado">Telhado da casa, na sua visão</span>
+        <div class="segmentos" role="radiogroup" aria-labelledby="t-telhado">
+          <input type="radio" name="telhado" id="th-vista" value="vista"><label for="th-vista">À vista <kbd>R</kbd></label>
+          <input type="radio" name="telhado" id="th-dentro" value="dentro"><label for="th-dentro">Ver por dentro</label>
+        </div>
+        <p class="nota" id="nota-telhado">Com o telhado à vista, a chuva bate nele (ele molha e junta neve). Por dentro, a casa fica seca.</p>
+      </div>
+      <div class="grade-2" style="margin-top: var(--s3)">
+        <button class="botao" type="button" id="porta" aria-pressed="false">Porta fechada <kbd>O</kbd></button>
+        <button class="botao" type="button" id="pausar" aria-pressed="false">Pausar o movimento</button>
+      </div>
+      <div class="sub" style="margin-top: var(--s3)">
+        <span id="t-deposito">O depósito (cômodo fechado), para o jogador</span>
+        <div class="segmentos" role="radiogroup" aria-labelledby="t-deposito">
+          <input type="radio" name="deposito" id="dp-nao" value="nao"><label for="dp-nao">Ainda não visto</label>
+          <input type="radio" name="deposito" id="dp-sim" value="sim"><label for="dp-sim">Já visto</label>
+        </div>
+      </div>
+      <label class="chave" style="margin-top: var(--s2)"><span class="texto">Mostrar o erro que a proposta evita</span><input type="checkbox" role="switch" id="erro" aria-describedby="ajuda-erro"></label>
+      <p class="nota" id="ajuda-erro">Só na visão do jogador: se o "seco" viesse de todas as salas, a chuva desenharia o contorno do depósito que ele ainda não viu.</p>
+    </fieldset>
+
+    <fieldset class="grupo divisor">
+      <legend>Climas para experimentar</legend>
+      <div class="grade-2" id="climas"></div>
+    </fieldset>
+
+    <div class="divisor">
+      <div class="linha"><button class="botao" type="button" id="copiar">Copiar os números</button><button class="botao" type="button" id="encaixar">Encaixar o mapa <kbd>0</kbd></button></div>
+      <p class="status" id="status" role="status" style="margin-top: var(--s2)"></p>
+      <p class="nota">Roda do mouse aproxima; botão do meio ou Espaço + arrastar move a vista. <kbd>1</kbd>–<kbd>5</kbd> escolhem o efeito, <kbd>[</kbd> <kbd>]</kbd> mudam o pincel, <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz a pintura, <kbd>Esc</kbd> cancela a pincelada.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+'use strict'
+// ════════════════════════════════════════════════════════════════════════════
+// A cena: 32 x 20 casas de 40 px (mundo de 1280 x 800 px)
+// ════════════════════════════════════════════════════════════════════════════
+const W = 1280
+const H = 800
+const CASA = 40
+const K = 2 // a textura do mapa é pintada no dobro do tamanho (nítida até 200%)
+
+const CASA_R = { x: 120, y: 120, w: 400, h: 280 } // casa de teto fechado (as paredes inclusas)
+const PORTA = { x: 302, y: 390, w: 36, h: 10, cx: 320, cy: 395 }
+const PORTA_SPRITE = { x: 294, y: 352, w: 52, h: 64 }
+const TELHADO_SPRITE = { x: 100, y: 96, w: 444, h: 330 }
+const PATIO = { x: 740, y: 100, w: 440, h: 340 }
+const DEP = { x: 1020, y: 110, w: 150, h: 140 } // depósito: cômodo fechado, sem telhado desenhado
+const DEP_SPRITE = { x: 1012, y: 102, w: 166, h: 160 }
+const DEP_ESCONDE = { x: 1014, y: 104, w: 162, h: 154 } // o preto do jogador que ainda não viu
+const ZONA = { x: 560, y: 680, w: 120, h: 90 } // zona oculta
+const RUA = { y: 500, h: 140 }
+const NAO_EXPLORADO = [{ x: 1188, y: 0, w: 92, h: 800 }, { x: 960, y: 664, w: 320, h: 136 }]
+const FICHA_RUA = { x: 640, y: 570 }
+const FICHA_CASA = { x: 236, y: 330 }
+
+/** Os números que o mestre ajusta (rascunho): quantas partículas cada efeito tem no máximo, na intensidade 100. */
+const TETO = { chuva: 2600, neve: 1500, brasas: 320, folhas: 170, cinzas: 900 }
+const TIPO_GL = { chuva: 0, neve: 1, brasas: 2, folhas: 3, cinzas: 4 }
+
+/** A neblina de hoje, com os números de client/src/pixi/drawNeblina.ts (AJUSTE_DA_NEBLINA). */
+const NEBLINA = {
+  ladrilhoPx: 14 * CASA,
+  alfaMaximo: 0.55,
+  bordasRala: [0.52, 0.64], bordasMedia: [0.3, 0.72], bordasDensa: [0.2, 0.46],
+  piso: 0.6,
+  derivaLarga: [0.0042, 0.0016], derivaMedia: [0.011, -0.004], derivaFina: [-0.03, 0.02],
+  cor: { dia: [0.88, 0.9, 0.92], tarde: [0.9, 0.85, 0.8], noite: [0.62, 0.68, 0.78] },
+  /** O vento empurra a bruma até esta velocidade na força 100 (px de mundo por segundo). */
+  ventoPxPorS: 34,
+}
+const TINTA = { dia: [1, 1, 1], tarde: [0.98, 0.86, 0.74], noite: [0.34, 0.38, 0.52] }
+const NOITE = { dia: 0, tarde: 0.4, noite: 1 }
+
+const EFEITOS = [
+  { id: 'neblina', nome: 'Neblina', tecla: '1', fem: true,
+    sobre: 'A bruma de hoje, agora andando com o vento. <strong>Entra em casa só pela porta aberta.</strong>',
+    escala: (v) => (v < 30 ? 'Leve' : v < 65 ? 'Média' : 'Fechada'),
+    icone: '<path d="M3 7.5c2.2-1.6 4.4 1.6 6.6 0s4.4 1.6 6.6 0"/><path d="M4 11c2.2-1.6 4.4 1.6 6.6 0s4.4 1.6 6.6 0"/><path d="M2.6 14.5c2.2-1.6 4.4 1.6 6.6 0s4.4 1.6 6.6 0"/>' },
+  { id: 'chuva', nome: 'Chuva', tecla: '2', fem: true,
+    sobre: 'Gotas em diagonal pelo vento, de garoa a tempestade, com respingo no chão. <strong>Não cai dentro de casa de teto fechado nem de cômodo fechado.</strong>',
+    escala: (v) => (v < 30 ? 'Garoa' : v < 60 ? 'Chuva' : v < 85 ? 'Chuva forte' : 'Tempestade'),
+    icone: '<path d="M5.4 10.6h8.2a2.8 2.8 0 0 0 .3-5.6 4.1 4.1 0 0 0-7.9.8 2.4 2.4 0 0 0-.6 4.8Z"/><path d="M7 13.4 6 16M10.2 13.4l-1 2.6M13.4 13.4l-1 2.6"/>' },
+  { id: 'brasas', nome: 'Brasas', tecla: '3', fem: true,
+    sobre: 'Fagulhas laranjas que sobem e flutuam; à noite elas brilham. <strong>Entram em casa só pela porta aberta.</strong>',
+    escala: (v) => (v < 35 ? 'Poucas' : v < 70 ? 'Várias' : 'Muitas'),
+    icone: '<path d="M10 16.5c-2.6 0-4.3-1.8-4.3-4 0-2.6 2.6-3.6 2.8-6.3 1.7 1 3 2.6 3.1 4.4.6-.5.9-1.3 1-2 1.1 1 1.7 2.4 1.7 3.9 0 2.2-1.8 4-4.3 4Z"/><path d="M14.6 4.2v.1M16.4 7.4v.1M4.4 5.4v.1"/>' },
+  { id: 'neve', nome: 'Neve', tecla: '4', fem: true,
+    sobre: 'Flocos que caem devagar balançando e embranquecem o chão aos poucos. <strong>Não cai dentro de casa de teto fechado nem de cômodo fechado.</strong>',
+    escala: (v) => (v < 30 ? 'Floquinhos' : v < 65 ? 'Neve' : 'Nevasca'),
+    icone: '<path d="M10 3v14M3.9 6.5l12.2 7M3.9 13.5l12.2-7"/><path d="M8.3 4.4 10 5.8l1.7-1.4M8.3 15.6 10 14.2l1.7 1.4"/>' },
+  { id: 'folhas', nome: 'Folhas e cinzas', tecla: '5', fem: true,
+    sobre: 'Folhas secas rodando com o vento, ou cinza caindo de um incêndio. <strong>Não caem dentro de casa de teto fechado nem de cômodo fechado.</strong>',
+    escala: (v) => (v < 35 ? 'Poucas' : v < 70 ? 'Várias' : 'Muitas'),
+    icone: '<path d="M4.5 15.5C4 9.6 8.2 4.8 15.6 4.4c.3 7.2-4.3 11.4-11.1 11.1Z"/><path d="M4.5 15.5 11.4 8.6"/>' },
+]
+const ID_EFEITOS = EFEITOS.map((e) => e.id)
+
+const DIRECOES = [
+  { id: 'NO', v: [-0.7071, -0.7071], nome: 'Para cima e à esquerda' },
+  { id: 'N', v: [0, -1], nome: 'Para cima' },
+  { id: 'NE', v: [0.7071, -0.7071], nome: 'Para cima e à direita' },
+  { id: 'O', v: [-1, 0], nome: 'Para a esquerda' },
+  null,
+  { id: 'L', v: [1, 0], nome: 'Para a direita' },
+  { id: 'SO', v: [-0.7071, 0.7071], nome: 'Para baixo e à esquerda' },
+  { id: 'S', v: [0, 1], nome: 'Para baixo' },
+  { id: 'SE', v: [0.7071, 0.7071], nome: 'Para baixo e à direita' },
+]
+const escalaDoVento = (v) => (v === 0 ? 'Calmo' : v < 30 ? 'Brisa' : v < 65 ? 'Vento' : 'Ventania')
+
+// ════════════════════════════════════════════════════════════════════════════
+// Estado
+// ════════════════════════════════════════════════════════════════════════════
+const S = {
+  efeito: 'chuva',
+  ef: {
+    neblina: { mapa: false, int: 40, dens: 50 },
+    chuva: { mapa: true, int: 60 },
+    brasas: { mapa: false, int: 50 },
+    neve: { mapa: false, int: 55 },
+    folhas: { mapa: false, int: 50, tipo: 'folhas' },
+  },
+  pincel: { modo: 'pincel', tamanho: 64, forca: 60 },
+  vento: { dir: 'SE', forca: 35 },
+  periodo: 'dia',
+  ver: 'mestre',
+  telhado: 'vista',
+  porta: false,
+  depositoVisto: false,
+  erroIngenuo: false,
+  semDeposito: false, // só a conferência usa: a mesma cena sem o depósito
+  relampago: 'raro',
+  som: false,
+  chao: true,
+  pausado: false,
+}
+const reduzido = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+// ════════════════════════════════════════════════════════════════════════════
+// Sorteio previsível e cores (Meio-Termo)
+// ════════════════════════════════════════════════════════════════════════════
+function mulberry32(semente) {
+  let a = semente >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] }
+const css = (c, f = 1, a = 1) => `rgba(${Math.round(Math.min(255, c[0] * f))},${Math.round(Math.min(255, c[1] * f))},${Math.round(Math.min(255, c[2] * f))},${a})`
+const mistura = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t)
+const P = {
+  grama: hexRgb('#8cbf80'), gramaR: hexRgb('#a2cc92'), gramaS: hexRgb('#76ac6d'),
+  praca: hexRgb('#dcd0b6'), pracaR: hexRgb('#ebe2cd'), pracaS: hexRgb('#bcae94'),
+  terra: hexRgb('#dda56c'), telha: hexRgb('#b56e50'), pedra: hexRgb('#c3c0b2'),
+  carvalho: hexRgb('#a07b51'), nogueira: hexRgb('#775739'), pinho: hexRgb('#b9995f'), ferro: hexRgb('#5d6164'), latao: hexRgb('#b89552'),
+  rosa: hexRgb('#e8a2c4'), amarelo: hexRgb('#f0d266'), violeta: hexRgb('#a87fcb'), branco: hexRgb('#f3efe2'), laranja: hexRgb('#e6793f'),
+  tapete: hexRgb('#a65d4c'), cobertor: hexRgb('#6f86a8'), parede: hexRgb('#9a958a'), copa: hexRgb('#6aa564'),
+}
+/** Regra 1 do estilo: o contorno é o tom escuro da própria cor, nunca preto. */
+const contorno = (c) => css(c, 0.6)
+
+function novaTela(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
+function retArred(c, x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r) }
+
+// ════════════════════════════════════════════════════════════════════════════
+// O mapa, pintado uma vez (tela 2D → textura)
+// ════════════════════════════════════════════════════════════════════════════
+function dentroDe(r, x, y, folga = 0) { return x >= r.x - folga && x <= r.x + r.w + folga && y >= r.y - folga && y <= r.y + r.h + folga }
+function ehGrama(x, y) {
+  if (y > RUA.y - 10 && y < RUA.y + RUA.h + 10) return false
+  if (dentroDe(CASA_R, x, y, 14) || dentroDe(PATIO, x, y, 6)) return false
+  if (x > 290 && x < 352 && y > 400 && y < 506) return false
+  if (x > 928 && x < 992 && y > 432 && y < 506) return false
+  return true
+}
+
+function pintarChao(c, sorteio) {
+  c.fillStyle = css(P.grama); c.fillRect(0, 0, W, H)
+  for (let i = 0; i < 300; i += 1) {
+    const x = sorteio() * W, y = sorteio() * H, r = 20 + sorteio() * 64
+    const cor = sorteio() < 0.5 ? P.gramaR : P.gramaS
+    const g = c.createRadialGradient(x, y, 0, x, y, r)
+    g.addColorStop(0, css(cor, 1, 0.22)); g.addColorStop(1, css(cor, 1, 0))
+    c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2)
+  }
+  c.lineCap = 'round'
+  for (let i = 0; i < 2600; i += 1) {
+    const x = sorteio() * W, y = sorteio() * H
+    if (!ehGrama(x, y)) continue
+    c.strokeStyle = sorteio() < 0.62 ? css(P.gramaS, 0.86) : css(P.gramaR, 1.04)
+    c.lineWidth = 1.1
+    c.beginPath(); c.moveTo(x - 2.4, y - 3.6); c.lineTo(x, y + 0.5); c.lineTo(x + 2.6, y - 3.4); c.moveTo(x, y + 0.5); c.lineTo(x + 0.2, y - 4.6); c.stroke()
+  }
+  const flores = [P.rosa, P.amarelo, P.branco, P.violeta]
+  const flor = (x, y, cor) => {
+    c.fillStyle = css(cor)
+    for (let k = 0; k < 4; k += 1) { c.beginPath(); c.arc(x + Math.cos(k * 1.57) * 1.6, y + Math.sin(k * 1.57) * 1.6, 1.3, 0, 6.29); c.fill() }
+    c.fillStyle = css(P.amarelo, 0.9); c.beginPath(); c.arc(x, y, 0.9, 0, 6.29); c.fill()
+  }
+  for (let i = 0; i < 46; i += 1) {
+    const cx = sorteio() * W, cy = sorteio() * H, cor = flores[Math.floor(sorteio() * 4)]
+    for (let k = 0; k < 5; k += 1) { const x = cx + (sorteio() - 0.5) * 22, y = cy + (sorteio() - 0.5) * 16; if (ehGrama(x, y)) flor(x, y, cor) }
+  }
+  // Canteiro na frente da casa.
+  for (let x = 132; x < 512; x += 9) { if (x > 286 && x < 354) continue; flor(x + sorteio() * 4, 418 + sorteio() * 8, flores[Math.floor(sorteio() * 3)]) }
+}
+
+function pintarRua(c, sorteio) {
+  c.fillStyle = css(P.pracaS); c.fillRect(0, RUA.y, W, RUA.h)
+  const alt = 13
+  for (let y = RUA.y + 3; y < RUA.y + RUA.h - 4; y += alt) {
+    let x = -sorteio() * 22
+    while (x < W) {
+      const w = 15 + sorteio() * 15
+      const tom = mistura(P.praca, sorteio() < 0.5 ? P.pracaR : P.pracaS, sorteio() * 0.75)
+      retArred(c, x + 1, y + 1, w - 2, alt - 2, 3.2); c.fillStyle = css(tom); c.fill()
+      c.strokeStyle = css(P.pracaS, 0.72); c.lineWidth = 0.8; c.stroke()
+      c.strokeStyle = css(P.pracaR, 1, 0.7); c.lineWidth = 0.9
+      c.beginPath(); c.moveTo(x + 3, y + 2.4); c.lineTo(x + w - 4, y + 2.4); c.stroke()
+      x += w
+    }
+  }
+  for (const y of [RUA.y - 6, RUA.y + RUA.h]) {
+    c.fillStyle = css(P.pedra); c.fillRect(0, y, W, 6)
+    c.strokeStyle = contorno(P.pedra); c.lineWidth = 1
+    c.beginPath(); c.moveTo(0, y + 0.5); c.lineTo(W, y + 0.5); c.moveTo(0, y + 5.5); c.lineTo(W, y + 5.5); c.stroke()
+    for (let x = 0; x < W; x += 34) { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 6); c.stroke() }
+  }
+}
+
+function pintarTrilha(c, sorteio, x0, x1, y0, y1) {
+  c.fillStyle = css(P.terra)
+  for (let y = y0; y <= y1; y += 6) {
+    const meio = (x0 + x1) / 2, meia = (x1 - x0) / 2
+    c.beginPath(); c.ellipse(meio + (sorteio() - 0.5) * 3, y, meia + (sorteio() - 0.5) * 4, 7, 0, 0, 6.29); c.fill()
+  }
+  for (let i = 0; i < 70; i += 1) {
+    c.fillStyle = sorteio() < 0.5 ? css(P.terra, 0.86, 0.8) : css(P.terra, 1.1, 0.8)
+    c.beginPath(); c.arc(x0 + 4 + sorteio() * (x1 - x0 - 8), y0 + sorteio() * (y1 - y0), 0.8 + sorteio() * 1.2, 0, 6.29); c.fill()
+  }
+}
+
+function pintarAssoalho(c, sorteio, x0, y0, x1, y1, madeira, vertical) {
+  const tabua = 11
+  c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.clip()
+  if (!vertical) {
+    for (let y = y0; y < y1; y += tabua) {
+      let x = x0 - sorteio() * 80
+      while (x < x1) {
+        const w = 60 + sorteio() * 70
+        c.fillStyle = css(madeira, 0.9 + sorteio() * 0.18); c.fillRect(x, y, w, tabua)
+        c.strokeStyle = css(madeira, 0.66, 0.9); c.lineWidth = 0.9; c.strokeRect(x + 0.5, y + 0.5, w - 1, tabua - 1)
+        c.strokeStyle = css(madeira, 0.78, 0.22); c.lineWidth = 0.6
+        for (let k = 0; k < 2; k += 1) { const gy = y + 3 + sorteio() * 5; c.beginPath(); c.moveTo(x + 4, gy); c.bezierCurveTo(x + w * 0.3, gy - 1.2, x + w * 0.6, gy + 1.2, x + w - 4, gy); c.stroke() }
+        x += w
+      }
+    }
+  } else {
+    for (let x = x0; x < x1; x += tabua) {
+      let y = y0 - sorteio() * 60
+      while (y < y1) {
+        const h = 50 + sorteio() * 60
+        c.fillStyle = css(madeira, 0.9 + sorteio() * 0.18); c.fillRect(x, y, tabua, h)
+        c.strokeStyle = css(madeira, 0.66, 0.9); c.lineWidth = 0.9; c.strokeRect(x + 0.5, y + 0.5, tabua - 1, h - 1)
+        y += h
+      }
+    }
+  }
+  c.restore()
+}
+
+function pintarCaixote(c, x, y, s, madeira) {
+  c.fillStyle = css(madeira); c.fillRect(x, y, s, s)
+  c.strokeStyle = contorno(madeira); c.lineWidth = 1.3; c.strokeRect(x + 0.6, y + 0.6, s - 1.2, s - 1.2)
+  c.lineWidth = 1; c.strokeRect(x + 3.5, y + 3.5, s - 7, s - 7)
+  c.beginPath(); c.moveTo(x + 4, y + 4); c.lineTo(x + s - 4, y + s - 4); c.moveTo(x + s - 4, y + 4); c.lineTo(x + 4, y + s - 4); c.stroke()
+}
+function pintarBarril(c, x, y, r) {
+  c.fillStyle = css(P.carvalho); c.beginPath(); c.arc(x, y, r, 0, 6.29); c.fill()
+  c.strokeStyle = css(P.ferro); c.lineWidth = 1.6; c.beginPath(); c.arc(x, y, r - 1, 0, 6.29); c.stroke()
+  c.lineWidth = 1.1; c.beginPath(); c.arc(x, y, r * 0.62, 0, 6.29); c.stroke()
+  c.strokeStyle = css(P.carvalho, 0.7, 0.6); c.lineWidth = 0.7
+  for (let k = 0; k < 6; k += 1) { const a = k * 1.047; c.beginPath(); c.moveTo(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62); c.lineTo(x + Math.cos(a) * (r - 1.5), y + Math.sin(a) * (r - 1.5)); c.stroke() }
+  c.fillStyle = css(P.carvalho, 1.18, 0.5); c.beginPath(); c.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, 6.29); c.fill()
+}
+
+function pintarCasaPorDentro(c, sorteio) {
+  const { x, y, w, h } = CASA_R
+  // Paredes de pedra.
+  c.fillStyle = css(P.parede); c.fillRect(x, y, w, h)
+  c.strokeStyle = css(P.parede, 0.74); c.lineWidth = 0.8
+  for (let k = x; k < x + w; k += 14) { c.beginPath(); c.moveTo(k, y); c.lineTo(k, y + 10); c.moveTo(k + 7, y + h - 10); c.lineTo(k + 7, y + h); c.stroke() }
+  for (let k = y; k < y + h; k += 14) { c.beginPath(); c.moveTo(x, k); c.lineTo(x + 10, k); c.moveTo(x + w - 10, k + 7); c.lineTo(x + w, k + 7); c.stroke() }
+  pintarAssoalho(c, sorteio, x + 10, y + 10, x + w - 10, y + h - 10, P.carvalho, false)
+  c.strokeStyle = contorno(P.parede); c.lineWidth = 1.6; c.strokeRect(x + 0.8, y + 0.8, w - 1.6, h - 1.6)
+  c.lineWidth = 1.2; c.strokeRect(x + 10, y + 10, w - 20, h - 20)
+  // Vão da porta (a folha é desenhada à parte).
+  c.fillStyle = css(P.carvalho, 0.95); c.fillRect(PORTA.x + 1, y + h - 11, PORTA.w - 2, 12)
+  // Tapete.
+  retArred(c, 236, 214, 176, 108, 4); c.fillStyle = css(P.tapete); c.fill(); c.strokeStyle = contorno(P.tapete); c.lineWidth = 1.2; c.stroke()
+  retArred(c, 244, 222, 160, 92, 3); c.strokeStyle = css(P.laranja, 0.9, 0.7); c.lineWidth = 2; c.stroke()
+  for (let k = 0; k < 7; k += 1) { c.fillStyle = css(P.amarelo, 0.85, 0.65); c.beginPath(); c.arc(262 + k * 21, 268, 2.2, 0, 6.29); c.fill() }
+  // Mesa e cadeiras.
+  const cadeira = (cx, cy) => { c.fillStyle = css(P.carvalho, 1.05); c.fillRect(cx - 7, cy - 7, 14, 14); c.strokeStyle = contorno(P.carvalho); c.lineWidth = 1; c.strokeRect(cx - 6.5, cy - 6.5, 13, 13) }
+  cadeira(300, 236); cadeira(348, 236); cadeira(300, 300); cadeira(348, 300)
+  retArred(c, 282, 244, 84, 48, 4); c.fillStyle = css(P.nogueira); c.fill(); c.strokeStyle = contorno(P.nogueira); c.lineWidth = 1.4; c.stroke()
+  c.strokeStyle = css(P.nogueira, 0.8, 0.7); c.lineWidth = 0.8; for (let k = 254; k < 290; k += 12) { c.beginPath(); c.moveTo(286, k); c.lineTo(362, k); c.stroke() }
+  c.fillStyle = css(P.branco); c.beginPath(); c.arc(314, 262, 5, 0, 6.29); c.fill(); c.fillStyle = css(P.latao); c.beginPath(); c.arc(336, 272, 4, 0, 6.29); c.fill()
+  // Cama.
+  retArred(c, 140, 140, 66, 110, 4); c.fillStyle = css(P.nogueira); c.fill(); c.strokeStyle = contorno(P.nogueira); c.lineWidth = 1.3; c.stroke()
+  c.fillStyle = css(P.branco); c.fillRect(145, 145, 56, 100); c.fillStyle = css(P.branco, 0.93); retArred(c, 150, 149, 46, 18, 5); c.fill()
+  c.fillStyle = css(P.cobertor); c.fillRect(145, 180, 56, 65); c.strokeStyle = contorno(P.cobertor); c.lineWidth = 1; c.strokeRect(145.5, 180.5, 55, 64)
+  c.strokeStyle = css(P.cobertor, 1.15, 0.8); c.beginPath(); c.moveTo(147, 186); c.lineTo(199, 186); c.stroke()
+  // Lareira.
+  c.fillStyle = css(P.pedra); c.fillRect(402, 130, 76, 24); c.strokeStyle = contorno(P.pedra); c.lineWidth = 1.2; c.strokeRect(402.5, 130.5, 75, 23)
+  c.fillStyle = '#2d2622'; c.fillRect(418, 131, 44, 14)
+  for (let k = 0; k < 6; k += 1) { c.fillStyle = css(P.laranja, 1, 0.8); c.beginPath(); c.arc(424 + k * 6.5, 141 - (k % 2) * 2, 1.4, 0, 6.29); c.fill() }
+  // Estante e barril.
+  c.fillStyle = css(P.nogueira); c.fillRect(131, 290, 16, 84); c.strokeStyle = contorno(P.nogueira); c.lineWidth = 1.1; c.strokeRect(131.5, 290.5, 15, 83)
+  for (let k = 0; k < 5; k += 1) { c.fillStyle = css([P.cobertor, P.tapete, P.latao, P.pinho, P.branco][k]); c.fillRect(134, 296 + k * 15, 10, 9) }
+  pintarBarril(c, 490, 362, 13)
+  pintarCaixote(c, 474, 160, 24, P.pinho)
+}
+
+function pintarPatio(c, sorteio) {
+  const { x, y, w, h } = PATIO
+  // Lajes.
+  c.fillStyle = css(P.pracaS, 0.96); c.fillRect(x, y, w, h)
+  c.save(); c.beginPath(); c.rect(x + 10, y + 10, w - 20, h - 20); c.clip()
+  for (let ly = y + 8; ly < y + h - 8; ly += 38) {
+    let lx = x + 8 - sorteio() * 20
+    while (lx < x + w - 8) {
+      const lw = 30 + sorteio() * 22
+      const tom = mistura(P.pracaR, P.praca, sorteio() * 0.8)
+      retArred(c, Math.max(lx + 2, x + 10), ly + 2, lw - 4, 34, 4); c.fillStyle = css(tom); c.fill()
+      c.strokeStyle = css(P.pracaS, 0.78); c.lineWidth = 0.9; c.stroke()
+      lx += lw
+    }
+  }
+  c.restore()
+  // Mureta com o portão embaixo.
+  c.fillStyle = css(P.pedra)
+  const portao = [930, 990]
+  const mureta = [[x, y, w, 10], [x, y, 10, h], [x + w - 10, y, 10, h], [x, y + h - 10, portao[0] - x, 10], [portao[1], y + h - 10, x + w - portao[1], 10]]
+  for (const [mx, my, mw, mh] of mureta) {
+    c.fillStyle = css(P.pedra); c.fillRect(mx, my, mw, mh)
+    c.strokeStyle = contorno(P.pedra); c.lineWidth = 1.1; c.strokeRect(mx + 0.5, my + 0.5, mw - 1, mh - 1)
+    c.lineWidth = 0.7
+    if (mw > mh) for (let k = mx + 12; k < mx + mw; k += 16) { c.beginPath(); c.moveTo(k, my); c.lineTo(k, my + mh); c.stroke() }
+    else for (let k = my + 12; k < my + mh; k += 16) { c.beginPath(); c.moveTo(mx, k); c.lineTo(mx + mw, k); c.stroke() }
+  }
+  // Árvore (copa redonda do Mother).
+  c.fillStyle = 'rgba(40, 60, 30, 0.24)'; c.beginPath(); c.ellipse(852, 210, 60, 52, 0, 0, 6.29); c.fill()
+  c.fillStyle = css(P.copa); c.beginPath(); c.arc(842, 198, 58, 0, 6.29); c.fill()
+  for (let k = 0; k < 9; k += 1) { const a = -2.4 + k * 0.42; c.fillStyle = css(P.gramaR, 0.92, 0.75); c.beginPath(); c.arc(842 + Math.cos(a) * 34, 198 + Math.sin(a) * 30, 15 + (k % 3) * 3, 0, 6.29); c.fill() }
+  c.fillStyle = css(P.gramaR, 1.06, 0.6); c.beginPath(); c.arc(822, 178, 14, 0, 6.29); c.fill()
+  c.strokeStyle = contorno(P.copa); c.lineWidth = 1.6; c.beginPath(); c.arc(842, 198, 58, 0, 6.29); c.stroke()
+  // Poço.
+  c.fillStyle = css(P.pedra); c.beginPath(); c.arc(905, 336, 27, 0, 6.29); c.fill()
+  c.strokeStyle = contorno(P.pedra); c.lineWidth = 1.3; c.stroke()
+  c.lineWidth = 0.8; for (let k = 0; k < 10; k += 1) { const a = k * 0.628; c.beginPath(); c.moveTo(905 + Math.cos(a) * 18, 336 + Math.sin(a) * 18); c.lineTo(905 + Math.cos(a) * 27, 336 + Math.sin(a) * 27); c.stroke() }
+  c.fillStyle = '#3f6170'; c.beginPath(); c.arc(905, 336, 17, 0, 6.29); c.fill()
+  c.strokeStyle = 'rgba(190, 215, 225, 0.55)'; c.lineWidth = 1.2; c.beginPath(); c.arc(901, 332, 8, 3.6, 4.8); c.stroke()
+  c.fillStyle = css(P.nogueira); c.fillRect(872, 333, 66, 6); c.strokeStyle = contorno(P.nogueira); c.lineWidth = 1; c.strokeRect(872.5, 333.5, 65, 5)
+  // Barris, caixas e banco.
+  pintarBarril(c, 772, 404, 12); pintarBarril(c, 797, 412, 12)
+  pintarCaixote(c, 1128, 392, 28, P.pinho); pintarCaixote(c, 1140, 364, 22, P.carvalho)
+  c.fillStyle = css(P.carvalho); c.fillRect(1000, 396, 64, 13); c.strokeStyle = contorno(P.carvalho); c.lineWidth = 1.1; c.strokeRect(1000.5, 396.5, 63, 12)
+  c.beginPath(); c.moveTo(1001, 402.5); c.lineTo(1063, 402.5); c.stroke()
+}
+
+function pintarDeposito(c, sorteio) {
+  const { x, y, w, h } = DEP
+  c.fillStyle = 'rgba(40, 30, 20, 0.22)'; c.fillRect(x + 3, y + 4, w, h)
+  c.fillStyle = css(P.nogueira); c.fillRect(x, y, w, h)
+  c.strokeStyle = css(P.nogueira, 0.72); c.lineWidth = 0.8
+  for (let k = x + 9; k < x + w; k += 9) { c.beginPath(); c.moveTo(k, y); c.lineTo(k, y + 8); c.moveTo(k, y + h - 8); c.lineTo(k, y + h); c.stroke() }
+  pintarAssoalho(c, sorteio, x + 8, y + 8, x + w - 8, y + h - 8, P.pinho, true)
+  c.strokeStyle = contorno(P.nogueira); c.lineWidth = 1.5; c.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5); c.lineWidth = 1.1; c.strokeRect(x + 8, y + 8, w - 16, h - 16)
+  pintarCaixote(c, x + 14, y + 16, 26, P.pinho); pintarCaixote(c, x + 44, y + 18, 22, P.carvalho); pintarCaixote(c, x + 110, y + 92, 26, P.pinho)
+  for (const [sx, sy] of [[x + 118, y + 24], [x + 132, y + 36]]) { c.fillStyle = '#cdbb92'; c.beginPath(); c.ellipse(sx, sy, 11, 8, 0.3, 0, 6.29); c.fill(); c.strokeStyle = 'rgba(120, 100, 70, 0.9)'; c.lineWidth = 1; c.stroke() }
+  pintarBarril(c, x + 92, y + 114, 10)
+  // Porta fechada (embaixo, à esquerda).
+  pintarFolhaFechada(c, x + 16, y + h - 8, 36)
+}
+
+/** Porta do Meio-Termo (a do Resident Evil, polida): batente escuro, folha de tábua, dobradiças, maçaneta de latão e degrau de pedra. */
+function pintarFolhaFechada(c, x, y, w) {
+  c.fillStyle = css(P.pedra); c.fillRect(x - 1, y + 8, w + 2, 6); c.strokeStyle = contorno(P.pedra); c.lineWidth = 0.9; c.strokeRect(x - 0.5, y + 8.5, w + 1, 5)
+  c.fillStyle = '#4a3524'; c.fillRect(x - 4, y - 1, w + 8, 10)
+  c.fillStyle = css(P.carvalho); c.fillRect(x + 1, y + 1, w - 2, 6)
+  c.strokeStyle = css(P.carvalho, 0.62); c.lineWidth = 0.8; for (let k = x + 7; k < x + w - 2; k += 6) { c.beginPath(); c.moveTo(k, y + 1); c.lineTo(k, y + 7); c.stroke() }
+  c.fillStyle = css(P.ferro); c.fillRect(x + 3, y + 1.5, 3, 2); c.fillRect(x + 3, y + 4.5, 3, 2)
+  c.fillStyle = css(P.latao, 1.15); c.beginPath(); c.arc(x + w - 5, y + 4, 1.5, 0, 6.29); c.fill()
+}
+function pintarPortaDaCasa(c, aberta) {
+  const x = PORTA.x, y = PORTA.y, w = PORTA.w
+  if (!aberta) { pintarFolhaFechada(c, x, y, w); return }
+  c.fillStyle = css(P.pedra); c.fillRect(x - 1, y + 8, w + 2, 6); c.strokeStyle = contorno(P.pedra); c.lineWidth = 0.9; c.strokeRect(x - 0.5, y + 8.5, w + 1, 5)
+  c.fillStyle = '#4a3524'; c.fillRect(x - 4, y - 1, 5, 10); c.fillRect(x + w - 1, y - 1, 5, 10)
+  // A folha girada para dentro, encostada no batente.
+  c.fillStyle = css(P.carvalho); c.fillRect(x + 1, y - 34, 6, 34)
+  c.strokeStyle = contorno(P.carvalho); c.lineWidth = 1; c.strokeRect(x + 1.5, y - 33.5, 5, 33)
+  c.strokeStyle = css(P.carvalho, 0.62); c.lineWidth = 0.7; for (let k = y - 28; k < y; k += 6) { c.beginPath(); c.moveTo(x + 1, k); c.lineTo(x + 7, k); c.stroke() }
+  c.fillStyle = css(P.latao, 1.15); c.beginPath(); c.arc(x + 4, y - 29, 1.4, 0, 6.29); c.fill()
+}
+
+function pintarTelhado(c, sorteio) {
+  const x0 = 110, y0 = 106, x1 = 530, y1 = 410, cume = 258
+  c.fillStyle = 'rgba(48, 34, 24, 0.3)'; retArred(c, x0 + 7, y0 + 10, x1 - x0, y1 - y0, 6); c.fill()
+  const claro = mistura(P.telha, [255, 236, 214], 0.16), escuro = P.telha.map((v) => v * 0.86)
+  const fileira = 11, largura = 14
+  for (const [ya, yb, base, sobe] of [[y0, cume, claro, true], [cume, y1, escuro, false]]) {
+    c.fillStyle = css(base); c.fillRect(x0, ya, x1 - x0, yb - ya)
+    for (let y = sobe ? cume - fileira : cume; sobe ? y >= ya - 1 : y < yb; y += sobe ? -fileira : fileira) {
+      const desloca = (Math.round((y - y0) / fileira) % 2) * (largura / 2)
+      for (let x = x0 - desloca; x < x1; x += largura) {
+        const tom = base.map((v) => v * (0.92 + sorteio() * 0.14))
+        c.save(); c.beginPath(); c.rect(x0, ya, x1 - x0, yb - ya); c.clip()
+        c.fillStyle = css(tom)
+        c.beginPath()
+        if (sobe) { c.moveTo(x, y + fileira); c.lineTo(x, y + 4); c.arc(x + largura / 2, y + 4, largura / 2, Math.PI, 0); c.lineTo(x + largura, y + fileira) }
+        else { c.moveTo(x, y); c.lineTo(x, y + fileira - 4); c.arc(x + largura / 2, y + fileira - 4, largura / 2, Math.PI, 0, true); c.lineTo(x + largura, y) }
+        c.closePath(); c.fill()
+        c.strokeStyle = css(P.telha, 0.62, 0.85); c.lineWidth = 0.8; c.stroke()
+        c.restore()
+      }
+    }
+  }
+  // Cumeeira.
+  c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.clip()
+  c.fillStyle = css(P.telha, 0.78); c.fillRect(x0, cume - 6, x1 - x0, 12)
+  for (let x = x0; x < x1; x += 16) { c.fillStyle = css(P.telha, 0.9); c.beginPath(); c.ellipse(x + 8, cume, 8, 5.5, 0, 0, 6.29); c.fill(); c.strokeStyle = css(P.telha, 0.6); c.lineWidth = 0.8; c.stroke() }
+  c.strokeStyle = css(claro, 1.08, 0.6); c.lineWidth = 1; c.beginPath(); c.moveTo(x0, cume - 6.5); c.lineTo(x1, cume - 6.5); c.stroke()
+  c.restore()
+  c.strokeStyle = contorno(P.telha); c.lineWidth = 1.8; c.strokeRect(x0 + 0.9, y0 + 0.9, x1 - x0 - 1.8, y1 - y0 - 1.8)
+  // Chaminé.
+  c.fillStyle = 'rgba(48, 34, 24, 0.3)'; c.fillRect(446, 168, 32, 32)
+  c.fillStyle = css(P.pedra); c.fillRect(440, 160, 32, 32); c.strokeStyle = contorno(P.pedra); c.lineWidth = 1.3; c.strokeRect(440.6, 160.6, 30.8, 30.8)
+  c.lineWidth = 0.7; for (let k = 168; k < 192; k += 8) { c.beginPath(); c.moveTo(440, k); c.lineTo(472, k); c.stroke() }
+  c.fillStyle = '#3a3330'; c.fillRect(447, 167, 18, 18)
+}
+
+function pintarFicha(c) {
+  c.fillStyle = 'rgba(20, 20, 30, 0.35)'; c.beginPath(); c.arc(2, 3, 16, 0, 6.29); c.fill()
+  c.fillStyle = '#4f7fc4'; c.beginPath(); c.arc(0, 0, 15, 0, 6.29); c.fill()
+  c.strokeStyle = '#f3efe2'; c.lineWidth = 2.2; c.beginPath(); c.arc(0, 0, 13.2, 0, 6.29); c.stroke()
+  c.strokeStyle = '#2b456b'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, 15.2, 0, 6.29); c.stroke()
+  c.fillStyle = '#f3efe2'; c.font = '700 13px Segoe UI, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('J', 0, 1)
+}
+
+function pintarMarcasDoMestre(c) {
+  const placa = (texto, x, y, cor) => {
+    c.font = '600 12px Segoe UI, sans-serif'
+    const w = c.measureText(texto).width + 14
+    retArred(c, x - w / 2, y - 10, w, 20, 10); c.fillStyle = 'rgba(18, 18, 20, 0.82)'; c.fill()
+    c.strokeStyle = cor; c.lineWidth = 1; c.stroke()
+    c.fillStyle = '#eceae4'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(texto, x, y + 0.5)
+  }
+  c.setLineDash([6, 4]); c.lineWidth = 2
+  c.strokeStyle = css(P.violeta, 1.1); c.strokeRect(ZONA.x, ZONA.y, ZONA.w, ZONA.h)
+  c.setLineDash([])
+  placa('Zona oculta', ZONA.x + ZONA.w / 2, ZONA.y - 14, css(P.violeta, 1.1))
+  placa('Casa · teto fechado', 320, 86, 'rgba(224, 164, 74, 0.6)')
+  placa('Depósito · cômodo fechado', 1095, 276, 'rgba(224, 164, 74, 0.6)')
+  placa('Pátio · sem teto', 960, 458, 'rgba(255, 255, 255, 0.25)')
+}
+
+/** Tela 2D com o mundo já escalado; `area` = o retângulo de mundo que ela cobre. */
+function telaDoMundo(area, escala = K) {
+  const tela = novaTela(Math.ceil(area.w * escala), Math.ceil(area.h * escala))
+  const c = tela.getContext('2d')
+  c.scale(escala, escala); c.translate(-area.x, -area.y)
+  return { tela, c }
+}
+
+/** Um respiro entre as etapas do começo: nenhuma vira tarefa longa. */
+const respirar = () => new Promise((r) => setTimeout(r, 0))
+/** Cada pedaço da abertura, com o tempo que levou (lido pela conferência: nenhum pode chegar a 200 ms). */
+const etapas = []
+let ultimaEtapa = performance.now()
+function marcar(nome) {
+  const agora = performance.now()
+  etapas.push({ nome, ms: Math.round(agora - ultimaEtapa) })
+  ultimaEtapa = agora
+}
+async function etapa(nome) {
+  marcar(nome)
+  await respirar()
+  ultimaEtapa = performance.now()
+}
+async function pintarTudo() {
+  const sorteio = mulberry32(0x6d617061)
+  const mapa = telaDoMundo({ x: 0, y: 0, w: W, h: H })
+  pintarChao(mapa.c, sorteio); await etapa('chão')
+  pintarRua(mapa.c, sorteio); await etapa('rua')
+  pintarTrilha(mapa.c, sorteio, 296, 344, 404, 500); pintarTrilha(mapa.c, sorteio, 934, 986, 436, 500)
+  pintarPatio(mapa.c, sorteio); await etapa('trilhas e pátio')
+  pintarCasaPorDentro(mapa.c, sorteio); await etapa('casa por dentro')
+  const telhado = telaDoMundo(TELHADO_SPRITE); pintarTelhado(telhado.c, mulberry32(0x74656c68)); await etapa('telhado')
+  const deposito = telaDoMundo(DEP_SPRITE); pintarDeposito(deposito.c, mulberry32(0x64657073))
+  const portaFechada = telaDoMundo(PORTA_SPRITE); pintarPortaDaCasa(portaFechada.c, false)
+  const portaAberta = telaDoMundo(PORTA_SPRITE); pintarPortaDaCasa(portaAberta.c, true)
+  const ficha = telaDoMundo({ x: -20, y: -20, w: 40, h: 40 }); pintarFicha(ficha.c)
+  const marcas = telaDoMundo({ x: 0, y: 0, w: W, h: H }, 1.5); pintarMarcasDoMestre(marcas.c)
+  // Onde a chuva forte abre poça: a rua, as trilhas e o pátio.
+  const material = telaDoMundo({ x: 0, y: 0, w: W, h: H }, 0.25)
+  material.c.fillStyle = '#fff'
+  material.c.fillRect(0, RUA.y, W, RUA.h); material.c.fillRect(296, 404, 48, 96); material.c.fillRect(934, 436, 52, 64)
+  material.c.fillRect(PATIO.x + 10, PATIO.y + 10, PATIO.w - 20, PATIO.h - 20)
+  return { mapa: mapa.tela, telhado: telhado.tela, deposito: deposito.tela, portaFechada: portaFechada.tela, portaAberta: portaAberta.tela, ficha: ficha.tela, marcas: marcas.tela, material: material.tela }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// O ruído da neblina (o mesmo de drawNeblina.ts: 128 x 128, quatro oitavas, sementes iguais)
+// ════════════════════════════════════════════════════════════════════════════
+const LADO_DO_RUIDO = 128
+function ruidoPeriodico(lado, periodo, sorteio) {
+  const grade = new Float32Array(periodo * periodo)
+  for (let i = 0; i < grade.length; i += 1) grade[i] = sorteio()
+  const saida = new Float32Array(lado * lado)
+  const passo = periodo / lado
+  const suave = (t) => t * t * t * (t * (t * 6 - 15) + 10)
+  for (let y = 0; y < lado; y += 1) {
+    const gy = y * passo, y0 = Math.floor(gy), ty = suave(gy - y0)
+    const l0 = (y0 % periodo) * periodo, l1 = ((y0 + 1) % periodo) * periodo
+    for (let x = 0; x < lado; x += 1) {
+      const gx = x * passo, x0 = Math.floor(gx), tx = suave(gx - x0)
+      const c0 = x0 % periodo, c1 = (x0 + 1) % periodo
+      const a = grade[l0 + c0] + (grade[l0 + c1] - grade[l0 + c0]) * tx
+      const b = grade[l1 + c0] + (grade[l1 + c1] - grade[l1 + c0]) * tx
+      saida[y * lado + x] = a + (b - a) * ty
+    }
+  }
+  return saida
+}
+function fbm(lado, semente) {
+  const sorteio = mulberry32(semente)
+  const soma = new Float32Array(lado * lado)
+  let amplitude = 1
+  for (const periodo of [4, 8, 16, 32]) {
+    const oitava = ruidoPeriodico(lado, periodo, sorteio)
+    for (let i = 0; i < soma.length; i += 1) soma[i] += oitava[i] * amplitude
+    amplitude *= 0.5
+  }
+  let min = Infinity, max = -Infinity
+  for (const v of soma) { min = Math.min(min, v); max = Math.max(max, v) }
+  const faixa = max - min || 1
+  for (let i = 0; i < soma.length; i += 1) soma[i] = (soma[i] - min) / faixa
+  return soma
+}
+function pixelsDoRuido() {
+  const r = fbm(LADO_DO_RUIDO, 0x6e65626c), g = fbm(LADO_DO_RUIDO, 0x62727561)
+  const px = new Uint8Array(LADO_DO_RUIDO * LADO_DO_RUIDO * 4)
+  for (let i = 0; i < LADO_DO_RUIDO * LADO_DO_RUIDO; i += 1) { px[i * 4] = Math.round(r[i] * 255); px[i * 4 + 1] = Math.round(g[i] * 255); px[i * 4 + 3] = 255 }
+  return px
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Shaders
+// ════════════════════════════════════════════════════════════════════════════
+const V_RETANGULO = `#version 300 es
+in vec2 aPos;
+uniform vec4 uRet;
+uniform vec4 uCam;
+out vec2 vMundo;
+out vec2 vUV;
+void main() {
+  vec2 p = uRet.xy + aPos * uRet.zw;
+  vMundo = p;
+  vUV = aPos;
+  gl_Position = vec4(p.x * uCam.x + uCam.y, -(p.y * uCam.z + uCam.w), 0.0, 1.0);
+}`
+
+// O chão: a textura do mapa, molhada ou com neve onde o efeito cai, a tinta do período e o preto do jogador.
+const F_MAPA = `#version 300 es
+precision highp float;
+in vec2 vMundo;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform sampler2D uAbrigo;
+uniform sampler2D uPincelChuva;
+uniform sampler2D uPincelNeve;
+uniform sampler2D uRuido;
+uniform sampler2D uMaterial;
+uniform vec2 uMundo;
+uniform vec4 uClima;   // chuva do mapa inteiro, nível do molhado, neve do mapa inteiro, nível da neve
+uniform vec2 uPinceis; // chuva pintada à vista, neve pintada à vista
+uniform float uNublado;
+uniform vec3 uTinta;
+uniform float uJogador;
+uniform float uSemClima;
+out vec4 saida;
+void main() {
+  vec4 c = texture(uTex, vUV);
+  if (c.a < 0.004) discard;
+  vec3 rgb = c.rgb / c.a;
+  vec2 m = clamp(vMundo / uMundo, 0.0, 1.0);
+  vec4 ab = texture(uAbrigo, m);
+  float conhece = mix(1.0, ab.b, uJogador);
+  if (uSemClima < 0.5) {
+    float aberto = 1.0 - ab.r;
+    float chuva = max(uClima.x, texture(uPincelChuva, m).a * uPinceis.x * conhece) * aberto;
+    float molhado = chuva * uClima.y;
+    float n = texture(uRuido, vMundo / 260.0).r * 0.6 + texture(uRuido, vMundo / 97.0).g * 0.4;
+    float poca = smoothstep(0.6, 0.66, n) * texture(uMaterial, m).a * smoothstep(0.45, 0.9, molhado);
+    rgb *= 1.0 - 0.2 * molhado;
+    rgb *= mix(vec3(1.0), vec3(0.93, 0.97, 1.04), molhado);
+    float lum = dot(rgb, vec3(0.3, 0.59, 0.11));
+    rgb = mix(rgb, vec3(lum) * vec3(0.8, 0.86, 0.94), poca * 0.6);
+    float neve = max(uClima.z, texture(uPincelNeve, m).a * uPinceis.y * conhece) * aberto * uClima.w;
+    float nz = texture(uRuido, vMundo / 150.0).r * 0.7 + texture(uRuido, vMundo / 41.0).g * 0.3;
+    // Neve no chão em manchas (o desenho do mapa continua por baixo), nunca um véu branco por igual.
+    float cobre = smoothstep(1.0 - neve * 0.62, 1.2 - neve * 0.62, nz) * step(0.002, neve);
+    float poeira = neve * 0.22;
+    rgb = mix(rgb, vec3(0.93, 0.95, 0.98), max(cobre * 0.74, poeira));
+    float nub = uNublado * aberto;
+    lum = dot(rgb, vec3(0.3, 0.59, 0.11));
+    rgb = mix(rgb, vec3(lum), 0.22 * nub) * (1.0 - 0.1 * nub);
+  }
+  rgb *= uTinta;
+  rgb = mix(vec3(0.043, 0.043, 0.05), rgb, conhece);
+  saida = vec4(rgb * c.a, c.a);
+}`
+
+// A neblina de hoje (drawNeblina.ts), com o abrigo (só entra pela porta) e o corte do pincel ao que o jogador conhece.
+const F_NEBLINA = `#version 300 es
+precision highp float;
+in vec2 vMundo;
+in vec2 vUV;
+uniform sampler2D uRuido;
+uniform sampler2D uPincel;
+uniform sampler2D uAbrigo;
+uniform vec2 uMundo;
+uniform vec4 uMapa;    // 1 / lado do ladrilho, mapa inteiro (0 a 1), alfa máximo, pincel à vista (0 a 1)
+uniform vec4 uDeriva;  // camada larga (xy) e média (zw)
+uniform vec4 uDetalhe; // detalhe (xy), densidade, -
+uniform vec4 uBordas;
+uniform vec4 uBordaMedia;
+uniform vec3 uCor;
+uniform float uJogador;
+out vec4 saida;
+const mat2 GIRO = mat2(0.8, -0.6, 0.6, 0.8);
+void main() {
+  vec2 p = vMundo * uMapa.x;
+  float largo = texture(uRuido, GIRO * p * 0.41 + uDeriva.xy).g;
+  vec2 torcao = vec2(largo - 0.5, texture(uRuido, p * 0.29 - uDeriva.xy).r - 0.5) * 0.6;
+  float medio = texture(uRuido, p + uDeriva.zw + torcao).r;
+  float fino = texture(uRuido, GIRO * p * 2.17 + uDetalhe.xy + torcao * 1.7).g;
+  vec2 m = clamp(vMundo / uMundo, 0.0, 1.0);
+  vec4 ab = texture(uAbrigo, m);
+  float area = max(uMapa.y, texture(uPincel, m).a * uMapa.w * mix(1.0, ab.b, uJogador));
+  float densidade = uDetalhe.z;
+  vec2 bordas = densidade < 0.5
+    ? mix(uBordas.xy, uBordaMedia.xy, densidade * 2.0)
+    : mix(uBordaMedia.xy, uBordas.zw, densidade * 2.0 - 1.0);
+  float bruma = smoothstep(bordas.x, bordas.y, largo * 0.5 + medio * 0.35 + fino * 0.15);
+  float a = area * mix(uBordaMedia.z * densidade, 1.0, bruma) * uMapa.z * (1.0 - ab.g);
+  if (a <= 0.003) discard;
+  saida = vec4(uCor * a, a);
+}`
+
+const F_VEU = `#version 300 es
+precision highp float;
+uniform vec4 uCor;
+out vec4 saida;
+void main() { saida = uCor; }`
+
+// Partículas sem estado: cada uma sabe onde está pelo próprio número (gl_InstanceID) e pelo relógio.
+const V_PARTICULA = `#version 300 es
+precision highp float;
+precision highp int;
+in vec2 aCanto;
+uniform vec4 uCam;
+uniform vec2 uMundo;
+uniform float uTempo;
+uniform int uTipo;
+uniform vec2 uVento;
+uniform float uIntMapa;
+uniform float uIntPincel;
+uniform float uJogador;
+uniform float uNoite;
+uniform float uPx;
+uniform sampler2D uPincel;
+uniform sampler2D uAbrigo;
+out vec2 vLocal;
+out vec2 vMundo;
+out vec4 vParam;
+out vec3 vCor;
+out float vAlfa;
+out float vDoPincel;
+flat out int vForma;
+
+uint hsh(uint x) { x ^= x >> 16u; x *= 0x7feb352du; x ^= x >> 15u; x *= 0x846ca68bu; x ^= x >> 16u; return x; }
+float r01(uint x) { return float(hsh(x) >> 8u) * (1.0 / 16777216.0); }
+vec2 girar(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+
+void main() {
+  uint id = uint(gl_InstanceID);
+  uint base = hsh(id * 16u + uint(uTipo) * 0x01000193u + 0x5bd1e995u);
+  float h1 = r01(base + 1u), h2 = r01(base + 2u), h3 = r01(base + 3u), h4 = r01(base + 4u), h5 = r01(base + 5u);
+  float periodo = uTipo == 0 ? mix(0.5, 0.75, h2) : uTipo == 1 ? mix(7.0, 11.0, h2) : uTipo == 2 ? mix(2.8, 5.2, h2) : uTipo == 3 ? mix(6.0, 10.0, h2) : mix(8.0, 13.0, h2);
+  float tt = uTempo / periodo + h1;
+  float k = floor(tt);
+  float fase = tt - k;
+  uint sk = hsh(base + uint(mod(k, 65536.0)) * 0x9E3779B9u + 7u);
+  vec2 L = vec2(r01(sk + 11u), r01(sk + 23u)) * uMundo;
+  vec2 m = L / uMundo;
+  vec4 ab = textureLod(uAbrigo, m, 0.0);
+  float pin = textureLod(uPincel, m, 0.0).a * uIntPincel * mix(1.0, ab.b, uJogador);
+  float I = max(uIntMapa, pin);
+  float existe = smoothstep(h3, h3 + 0.05, I);
+  vDoPincel = step(uIntMapa, h3);
+  // Chuva, neve e cinza não pousam no seco (dentro de casa de teto fechado e de cômodo fechado).
+  if (uTipo == 0 || uTipo == 1 || uTipo == 4) existe *= 1.0 - step(0.5, ab.r);
+  float forca = length(uVento);
+  vec2 centro = L;
+  vec2 meio = vec2(1.0);
+  float ang = 0.0;
+  float alfa = 0.0;
+  vec3 cor = vec3(1.0);
+  vec4 par = vec4(0.0);
+  int forma = 0;
+  if (uTipo == 0) {
+    float queda = 0.8;
+    vec2 caida = vec2(uVento.x * 95.0, max(30.0, 105.0 + uVento.y * 45.0));
+    if (fase < queda) {
+      float u = fase / queda;
+      float len = mix(8.0, 22.0, I) * mix(0.8, 1.2, h4);
+      vec2 dir = normalize(caida);
+      vec2 cabeca = L - caida * (1.0 - u);
+      centro = cabeca - dir * len * 0.5;
+      meio = vec2(len * 0.5 + 1.5, 0.65 + 2.0 + uPx);
+      ang = atan(dir.y, dir.x);
+      alfa = existe * smoothstep(0.0, 0.15, u) * mix(0.5, 0.8, I);
+      par = vec4(len * 0.5, 0.65, 0.0, 0.0);
+      forma = 0;
+    } else {
+      float s = (fase - queda) / (1.0 - queda);
+      float r = mix(1.0, mix(2.5, 6.0, I) * mix(0.8, 1.2, h4), sqrt(s));
+      meio = vec2(r + 2.5, r * 0.62 + 2.5);
+      alfa = existe * pow(1.0 - s, 1.5) * mix(0.4, 0.75, I);
+      par = vec4(r, 0.55, 0.0, 0.0);
+      forma = 1;
+    }
+  } else if (uTipo == 1) {
+    float queda = 0.86;
+    vec2 caida = vec2(uVento.x * 230.0, max(50.0, 120.0 + uVento.y * 80.0));
+    float r = mix(1.2, 2.6, h4) * mix(0.9, 1.15, I);
+    float bal = sin(uTempo * mix(0.9, 1.7, h5) + h1 * 6.2832) * mix(3.0, 9.0, h2);
+    float u = min(fase / queda, 1.0);
+    centro = L - caida * (1.0 - u) + vec2(bal * (1.0 - u * u), 0.0);
+    if (fase < queda) {
+      alfa = existe * smoothstep(0.0, 0.08, u) * mix(0.8, 1.0, h2);
+    } else {
+      float s = (fase - queda) / (1.0 - queda);
+      r *= 1.0 - 0.35 * s;
+      alfa = existe * (1.0 - s) * 0.8;
+    }
+    meio = vec2(r + 1.0 + uPx);
+    par = vec4(r, 0.0, 0.0, 0.0);
+    forma = 2;
+  } else if (uTipo == 2) {
+    float t = fase;
+    float sobe = mix(90.0, 190.0, h4);
+    centro = L + vec2(uVento.x * 200.0 * t + sin(t * 4.0 + h1 * 6.2832) * 9.0 + sin(t * 11.0 + h5 * 6.2832) * 3.0,
+                      -sobe * t + uVento.y * 110.0 * t);
+    float r = mix(1.0, 1.9, h5) * (1.0 - 0.45 * t);
+    float halo = mix(2.6, 4.6, uNoite);
+    meio = vec2(r * halo + uPx);
+    float pisca = 0.72 + 0.28 * sin(uTempo * mix(12.0, 20.0, h2) + h1 * 40.0);
+    alfa = existe * smoothstep(0.0, 0.08, t) * (1.0 - t * t) * pisca;
+    // Nasce laranja-claro, esfria para laranja e termina vermelho-escuro (brasa, não vaga-lume).
+    cor = mix(mix(vec3(1.0, 0.74, 0.36), vec3(1.0, 0.47, 0.13), smoothstep(0.0, 0.4, t)), vec3(0.78, 0.2, 0.06), smoothstep(0.4, 1.0, t));
+    par = vec4(r, halo, 0.0, 0.0);
+    forma = 3;
+  } else if (uTipo == 3) {
+    float t = fase;
+    vec2 dirV = forca > 0.04 ? uVento / forca : vec2(0.0, 1.0);
+    vec2 perp = vec2(-dirV.y, dirV.x);
+    float D = mix(70.0, 460.0, forca) * mix(0.8, 1.2, h4);
+    float laco = sin(t * 6.2832 * mix(1.0, 2.2, h5) + h1 * 6.2832) * mix(10.0, 24.0, h3);
+    centro = L + dirV * (t - 0.5) * D + perp * laco + vec2(0.0, (t - 0.5) * 50.0 * (1.0 - forca));
+    float giro = (h5 > 0.5 ? 1.0 : -1.0) * mix(1.2, 3.5, h2) * (0.5 + forca);
+    ang = h1 * 6.2832 + uTempo * giro;
+    float vira = cos(uTempo * mix(2.0, 4.5, h3) + h4 * 6.2832);
+    float hl = mix(4.2, 6.8, h4);
+    meio = vec2(hl + 3.0, hl * 0.6 + 1.5 + uPx);
+    par = vec4(hl, hl * 0.42 * (0.3 + 0.7 * abs(vira)), vira, 0.0);
+    alfa = existe * smoothstep(0.0, 0.1, t) * (1.0 - smoothstep(0.88, 1.0, t));
+    int q = int(h3 * 4.0);
+    cor = q == 0 ? vec3(0.70, 0.45, 0.24) : q == 1 ? vec3(0.78, 0.59, 0.29) : q == 2 ? vec3(0.55, 0.40, 0.22) : vec3(0.60, 0.56, 0.31);
+    forma = 4;
+  } else {
+    float queda = 0.9;
+    vec2 caida = vec2(uVento.x * 200.0, max(35.0, 85.0 + uVento.y * 60.0));
+    float bal = sin(uTempo * mix(0.7, 1.4, h5) + h1 * 6.2832) * mix(4.0, 11.0, h2);
+    float u = min(fase / queda, 1.0);
+    centro = L - caida * (1.0 - u) + vec2(bal * (1.0 - u), 0.0);
+    ang = h4 * 6.2832 + uTempo * mix(-2.0, 2.0, h3) * (1.0 - u);
+    float tam = mix(0.8, 1.8, h4);
+    meio = vec2(tam * 1.4 + 1.5 + uPx, tam + 1.5 + uPx);
+    par = vec4(tam * 1.4, tam * mix(0.45, 0.8, h5), 0.0, 0.0);
+    float s = fase < queda ? 0.0 : (fase - queda) / (1.0 - queda);
+    alfa = existe * smoothstep(0.0, 0.08, u) * (1.0 - s) * mix(0.55, 0.85, h2);
+    float g = mix(0.52, 0.8, h3);
+    cor = h5 > 0.94 ? vec3(0.7, 0.52, 0.42) : vec3(g, g * 0.97, g * 0.93);
+    forma = 5;
+  }
+  vec2 local = aCanto * meio;
+  vec2 mundo = centro + girar(local, ang);
+  vLocal = local;
+  vMundo = mundo;
+  vParam = par;
+  vCor = cor;
+  vAlfa = alfa;
+  vForma = forma;
+  if (alfa <= 0.002) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  gl_Position = vec4(mundo.x * uCam.x + uCam.y, -(mundo.y * uCam.z + uCam.w), 0.0, 1.0);
+}`
+
+const F_PARTICULA = `#version 300 es
+precision highp float;
+in vec2 vLocal;
+in vec2 vMundo;
+in vec4 vParam;
+in vec3 vCor;
+in float vAlfa;
+in float vDoPincel;
+flat in int vForma;
+uniform vec2 uMundo;
+uniform sampler2D uAbrigo;
+uniform sampler2D uPincel;
+uniform float uJogador;
+uniform float uNoite;
+uniform float uPx;
+out vec4 saida;
+void main() {
+  vec2 m = vMundo / uMundo;
+  float fora = (m.x < 0.0 || m.y < 0.0 || m.x > 1.0 || m.y > 1.0) ? 1.0 : 0.0;
+  vec2 mc = clamp(m, 0.0, 1.0);
+  vec4 ab = texture(uAbrigo, mc);
+  // Brasas usam o abrigo do ar (entram pela porta aberta); o resto, o seco.
+  float abrigo = vForma == 3 ? ab.g : ab.r;
+  float a = vAlfa * (1.0 - abrigo) * (1.0 - fora);
+  if (vDoPincel > 0.5) a *= smoothstep(0.02, 0.3, texture(uPincel, mc).a * mix(1.0, ab.b, uJogador));
+  float aa = uPx;
+  vec3 prem;
+  float al;
+  if (vForma == 0) {
+    float hl = vParam.x, hw = vParam.y;
+    float y = abs(vLocal.y), x = vLocal.x;
+    float nucleo = 1.0 - smoothstep(hw - aa * 0.5, hw + aa, y);
+    float borda = max((1.0 - smoothstep(hw + 0.8, hw + 1.8 + aa, y)) - nucleo, 0.0);
+    float aoLongo = smoothstep(-hl, hl * 0.5, x) * (1.0 - smoothstep(hl - aa, hl + aa, x));
+    float c1 = nucleo * 0.9, c2 = borda * 0.28 * (1.0 - uNoite);
+    prem = (vec3(0.86, 0.91, 0.98) * c1 + vec3(0.28, 0.34, 0.44) * c2) * aoLongo;
+    al = (c1 + c2) * aoLongo;
+  } else if (vForma == 1) {
+    float d = length(vLocal / vec2(1.0, 0.62));
+    float r = vParam.x, th = vParam.y;
+    float anel = 1.0 - smoothstep(th - aa * 0.5, th + aa, abs(d - r));
+    float sombra = max((1.0 - smoothstep(th, th + 1.4 + aa, abs(d - r - 0.9))) * (1.0 - uNoite) * 0.3 - anel, 0.0);
+    prem = vec3(0.88, 0.92, 0.98) * anel * 0.9 + vec3(0.28, 0.34, 0.44) * sombra;
+    al = anel * 0.9 + sombra;
+  } else if (vForma == 2) {
+    float d = length(vLocal), r = vParam.x;
+    float c = 1.0 - smoothstep(r - aa, r + aa, d);
+    prem = mix(vec3(0.98, 0.99, 1.0), vec3(0.72, 0.78, 0.88), smoothstep(r * 0.25, r, d)) * c;
+    al = c;
+  } else if (vForma == 3) {
+    float d = length(vLocal), r = vParam.x;
+    float nucleo = 1.0 - smoothstep(r * 0.55, r + aa, d);
+    float brilho = exp(-(d * d) / (r * r * vParam.y * 0.9));
+    float g = mix(0.25, 0.85, uNoite);
+    vec3 c = mix(vCor * vec3(1.0, 0.68, 0.46), vCor, uNoite);
+    prem = c * (nucleo + brilho * g);
+    // De dia a brasa é pintada por cima (contraste no chão claro); à noite ela soma luz.
+    al = (nucleo + brilho * 0.3 * g) * (1.0 - mix(0.2, 0.95, uNoite));
+  } else if (vForma == 4) {
+    float hl = vParam.x, hw = vParam.y, x = vLocal.x, y = vLocal.y;
+    float perfil = hw * pow(max(0.0, 1.0 - (x * x) / (hl * hl)), 0.75);
+    float dentro = 1.0 - smoothstep(-aa, aa, abs(y) - perfil);
+    float cabo = (1.0 - smoothstep(0.35, 0.35 + aa, abs(y))) * step(-hl - 2.2, x) * step(x, -hl + 0.5);
+    float c = max(dentro, cabo);
+    float nervura = 1.0 - smoothstep(0.25, 0.25 + aa, abs(y));
+    float beira = smoothstep(-0.9, -0.1, abs(y) - perfil);
+    vec3 base = vCor * (vParam.z < 0.0 ? 0.84 : 1.0) * (y > 0.0 ? 1.06 : 0.94);
+    vec3 escuro = vCor * 0.6;
+    vec3 cor = mix(base, escuro, max(nervura * 0.7 * dentro, beira * 0.8));
+    cor = mix(cor, escuro, cabo * (1.0 - dentro));
+    prem = cor * c;
+    al = c;
+  } else {
+    // Floco de cinza: um losango torto de beira macia (não um retângulo de papel).
+    vec2 q = abs(vLocal) / vParam.xy;
+    float d = (q.x + q.y * 1.15 - 1.0) * min(vParam.x, vParam.y);
+    float c = 1.0 - smoothstep(-aa * 1.5, aa * 1.5, d);
+    prem = vCor * c;
+    al = c;
+  }
+  // À noite: chuva e neve pegam a pouca luz (escurecem pouco); folha escurece mais; cinza fica no meio, para não sumir no escuro.
+  if (vForma != 3) prem *= vForma <= 2 ? mix(1.0, 0.72, uNoite) : vForma == 5 ? mix(1.0, 0.78, uNoite) : mix(1.0, 0.5, uNoite);
+  saida = vec4(prem, al) * a;
+}`
+
+// ════════════════════════════════════════════════════════════════════════════
+// WebGL
+// ════════════════════════════════════════════════════════════════════════════
+const tela = document.getElementById('palco')
+const gl = tela.getContext('webgl2', { antialias: false, alpha: false, premultipliedAlpha: true, preserveDrawingBuffer: false })
+if (!gl) document.getElementById('sem-gl').hidden = false
+marcar('contexto WebGL')
+// Com esta extensão o driver compila os shaders numa linha de fundo: a página não trava esperando.
+const compilacaoParalela = gl?.getExtension('KHR_parallel_shader_compile') ?? null
+
+/**
+ * Compila todos os programas de uma vez e espera sem travar a página. Sem a
+ * extensão, a primeira pergunta pelo LINK_STATUS trava até o fim (o 0,7 s que
+ * a abertura media antes desta troca).
+ */
+async function programas(pares) {
+  const pendentes = pares.map(([v, f]) => {
+    const p = gl.createProgram()
+    const sv = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(sv, v); gl.compileShader(sv)
+    const sf = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(sf, f); gl.compileShader(sf)
+    gl.attachShader(p, sv); gl.attachShader(p, sf)
+    gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 0, 'aCanto')
+    gl.linkProgram(p)
+    return { p, sv, sf }
+  })
+  if (compilacaoParalela) {
+    const pronto = ({ p }) => gl.getProgramParameter(p, compilacaoParalela.COMPLETION_STATUS_KHR)
+    while (!pendentes.every(pronto)) await new Promise((r) => setTimeout(r, 16))
+  }
+  return pendentes.map(({ p, sv, sf }) => {
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      const motivo = gl.getShaderInfoLog(sv) || gl.getShaderInfoLog(sf) || gl.getProgramInfoLog(p)
+      throw new Error(motivo || 'link')
+    }
+    const locais = {}
+    const u = (nome) => (nome in locais ? locais[nome] : (locais[nome] = gl.getUniformLocation(p, nome)))
+    return { p, u }
+  })
+}
+function textura(fonte, { repetir = false, mipmap = false, linear = true } = {}) {
+  const t = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, t)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true)
+  if (fonte instanceof Uint8Array) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, LADO_DO_RUIDO, LADO_DO_RUIDO, 0, gl.RGBA, gl.UNSIGNED_BYTE, fonte)
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fonte)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+  const envolve = repetir ? gl.REPEAT : gl.CLAMP_TO_EDGE
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, envolve); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, envolve)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, linear ? gl.LINEAR : gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mipmap ? gl.LINEAR_MIPMAP_LINEAR : linear ? gl.LINEAR : gl.NEAREST)
+  if (mipmap) gl.generateMipmap(gl.TEXTURE_2D)
+  return t
+}
+function trocarTextura(t, fonte, premultiplicar = true) {
+  gl.bindTexture(gl.TEXTURE_2D, t)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiplicar)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fonte)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+}
+
+let G = null
+/** Monta o WebGL em pedaços, com um respiro entre eles: nenhum pedaço da abertura chega a 200 ms. */
+async function montarGL(arte) {
+  const [pMapa, pNeblina, pVeu, pPart] = await programas([[V_RETANGULO, F_MAPA], [V_RETANGULO, F_NEBLINA], [V_RETANGULO, F_VEU], [V_PARTICULA, F_PARTICULA]])
+  await etapa('programas (compilados em paralelo)')
+  const vao = gl.createVertexArray()
+  gl.bindVertexArray(vao)
+  const buf = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW)
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+  const vaoPart = gl.createVertexArray()
+  gl.bindVertexArray(vaoPart)
+  const bufPart = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufPart)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+  gl.bindVertexArray(null)
+  const tMapa = textura(arte.mapa, { mipmap: true }); await etapa('textura do mapa')
+  const tMarcas = textura(arte.marcas, { mipmap: true }); await etapa('textura das marcas')
+  const tRuido = textura(pixelsDoRuido(), { repetir: true, mipmap: true }); await etapa('ruído da neblina')
+  return {
+    pMapa, pNeblina, pVeu, pPart, vao, vaoPart, tMapa, tMarcas, tRuido,
+    tTelhado: textura(arte.telhado, { mipmap: true }), tDeposito: textura(arte.deposito, { mipmap: true }),
+    tPortaF: textura(arte.portaFechada, { mipmap: true }), tPortaA: textura(arte.portaAberta, { mipmap: true }), tFicha: textura(arte.ficha, { mipmap: true }),
+    tMaterial: textura(arte.material),
+    tAbrigo: textura(mascaras.abrigo),
+    tPincel: Object.fromEntries(ID_EFEITOS.map((e) => [e, textura(pinceis[e].tela)])),
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Máscaras: o seco, o abrigo do ar e o que o jogador conhece (refeitas só quando a cena muda)
+// ════════════════════════════════════════════════════════════════════════════
+const MASCARA = { w: 640, h: 400, escala: 0.5 }
+const mascaras = { abrigo: novaTela(MASCARA.w, MASCARA.h) }
+function casaAbertaNaTela() { return S.ver === 'dentro' || (S.ver === 'mestre' && S.telhado === 'dentro') }
+function salasSecas() {
+  const salas = []
+  if (casaAbertaNaTela()) salas.push(CASA_R)
+  // O depósito só entra no seco de quem o conhece: o mestre, ou o jogador que já o viu.
+  // O "erro" liga o seco de todas as salas, o que desenha o contorno do que ele não viu.
+  if (!S.semDeposito && (S.ver === 'mestre' || S.depositoVisto || S.erroIngenuo)) salas.push(DEP)
+  return salas
+}
+function areasDesconhecidas() {
+  if (S.ver === 'mestre') return []
+  const areas = [...NAO_EXPLORADO, ZONA]
+  if (!S.depositoVisto) areas.push(DEP_ESCONDE)
+  return areas
+}
+const camadaTemp = { seco: novaTela(MASCARA.w, MASCARA.h), ar: novaTela(MASCARA.w, MASCARA.h), conhece: novaTela(MASCARA.w, MASCARA.h) }
+function refazerAbrigo() {
+  const pintar = (tela, fn) => { const c = tela.getContext('2d', { willReadFrequently: true }); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, MASCARA.w, MASCARA.h); c.setTransform(MASCARA.escala, 0, 0, MASCARA.escala, 0, 0); fn(c); return c.getImageData(0, 0, MASCARA.w, MASCARA.h).data }
+  const secas = salasSecas()
+  const seco = pintar(camadaTemp.seco, (c) => { c.fillStyle = '#fff'; for (const r of secas) c.fillRect(r.x, r.y, r.w, r.h) })
+  const ar = pintar(camadaTemp.ar, (c) => {
+    c.fillStyle = '#fff'; for (const r of secas) c.fillRect(r.x, r.y, r.w, r.h)
+    if (S.porta && secas.includes(CASA_R)) {
+      // Porta aberta: a neblina e as brasas entram, mais fortes perto da porta.
+      c.globalCompositeOperation = 'destination-out'
+      const g = c.createRadialGradient(PORTA.cx, PORTA.cy, 0, PORTA.cx, PORTA.cy, 150)
+      g.addColorStop(0, 'rgba(0,0,0,0.85)'); g.addColorStop(0.45, 'rgba(0,0,0,0.45)'); g.addColorStop(1, 'rgba(0,0,0,0)')
+      c.fillStyle = g; c.fillRect(PORTA.cx - 150, PORTA.cy - 150, 300, 300)
+      c.globalCompositeOperation = 'source-over'
+    }
+  })
+  const conhece = pintar(camadaTemp.conhece, (c) => {
+    c.fillStyle = '#fff'; c.fillRect(0, 0, W, H)
+    c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'
+    for (const r of areasDesconhecidas()) c.fillRect(r.x, r.y, r.w, r.h)
+    c.globalCompositeOperation = 'source-over'
+  })
+  const c = mascaras.abrigo.getContext('2d')
+  const img = c.createImageData(MASCARA.w, MASCARA.h)
+  for (let i = 0; i < img.data.length; i += 4) { img.data[i] = seco[i + 3]; img.data[i + 1] = ar[i + 3]; img.data[i + 2] = conhece[i + 3]; img.data[i + 3] = 255 }
+  c.putImageData(img, 0, 0)
+  if (G) trocarTextura(G.tAbrigo, mascaras.abrigo, false)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Pincel: uma máscara pequena por efeito (4 px de mundo por texel), pintada a cada mudança, nunca por quadro
+// ════════════════════════════════════════════════════════════════════════════
+const PINCEL_ESCALA = 0.25
+const pinceis = Object.fromEntries(ID_EFEITOS.map((e) => {
+  const t = novaTela(W * PINCEL_ESCALA, H * PINCEL_ESCALA); t.getContext('2d', { willReadFrequently: true })
+  return [e, { tela: t, base: novaTela(t.width, t.height), traco: novaTela(t.width, t.height), tem: false }]
+}))
+let pincelada = null
+const desfazer = []
+const refazer = []
+function compor(efeito) {
+  const p = pinceis[efeito]
+  const c = p.tela.getContext('2d')
+  c.globalCompositeOperation = 'copy'; c.globalAlpha = 1; c.drawImage(p.base, 0, 0)
+  if (pincelada) {
+    c.globalCompositeOperation = pincelada.borracha ? 'destination-out' : 'source-over'
+    c.globalAlpha = pincelada.forca
+    c.drawImage(p.traco, 0, 0)
+  }
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1
+  if (G) trocarTextura(G.tPincel[efeito], p.tela)
+}
+function carimbo(efeito, x, y) {
+  const p = pinceis[efeito]
+  const c = p.traco.getContext('2d')
+  const r = (S.pincel.tamanho / 2) * PINCEL_ESCALA, cx = x * PINCEL_ESCALA, cy = y * PINCEL_ESCALA
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, r)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = g; c.fillRect(cx - r, cy - r, r * 2, r * 2)
+}
+function comecarPincelada(x, y, borracha) {
+  const efeito = S.efeito
+  const p = pinceis[efeito]
+  const b = p.base.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(p.tela, 0, 0); b.globalCompositeOperation = 'source-over'
+  p.traco.getContext('2d').clearRect(0, 0, p.traco.width, p.traco.height)
+  pincelada = { efeito, borracha, forca: S.pincel.forca / 100, x, y }
+  carimbo(efeito, x, y); compor(efeito)
+}
+function continuarPincelada(x, y) {
+  if (!pincelada) return
+  const passo = Math.max(2, S.pincel.tamanho * 0.18)
+  const dx = x - pincelada.x, dy = y - pincelada.y, dist = Math.hypot(dx, dy)
+  if (dist < passo) return
+  const n = Math.floor(dist / passo)
+  for (let i = 1; i <= n; i += 1) carimbo(pincelada.efeito, pincelada.x + (dx * i) / n, pincelada.y + (dy * i) / n)
+  pincelada.x = x; pincelada.y = y
+  compor(pincelada.efeito)
+}
+function copiaDe(t) { const c = novaTela(t.width, t.height); c.getContext('2d').drawImage(t, 0, 0); return c }
+function terminarPincelada(cancelar = false) {
+  if (!pincelada) return
+  const { efeito, borracha } = pincelada
+  const p = pinceis[efeito]
+  if (cancelar) { pincelada = null; compor(efeito); avisar('Pincelada cancelada.'); return }
+  desfazer.push({ efeito, antes: copiaDe(p.base) }); if (desfazer.length > 40) desfazer.shift()
+  refazer.length = 0
+  // Compõe com o traço ANTES de soltá-lo: a tela fica com o resultado (a base é refeita na próxima pincelada).
+  compor(efeito)
+  pincelada = null
+  conferirPintura(efeito)
+  avisar(borracha ? `Apagou ${artigo(efeito)} pintada.` : `Pintou ${artigo(efeito)} nesta área.`)
+}
+function conferirPintura(efeito) {
+  const d = pinceis[efeito].tela.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W * PINCEL_ESCALA, H * PINCEL_ESCALA).data
+  let tem = false
+  for (let i = 3; i < d.length; i += 16) if (d[i] > 6) { tem = true; break }
+  pinceis[efeito].tem = tem
+  atualizarPainel()
+}
+function voltarPintura(pilhaDe, pilhaPara, rotulo) {
+  const item = pilhaDe.pop()
+  if (!item) { avisar(`Nada para ${rotulo}.`); return }
+  const p = pinceis[item.efeito]
+  pilhaPara.push({ efeito: item.efeito, antes: copiaDe(p.tela) })
+  const c = p.tela.getContext('2d'); c.globalCompositeOperation = 'copy'; c.drawImage(item.antes, 0, 0); c.globalCompositeOperation = 'source-over'
+  const b = p.base.getContext('2d'); b.globalCompositeOperation = 'copy'; b.drawImage(item.antes, 0, 0); b.globalCompositeOperation = 'source-over'
+  if (G) trocarTextura(G.tPincel[item.efeito], p.tela)
+  conferirPintura(item.efeito)
+  avisar(rotulo === 'desfazer' ? `Desfez a pintura de ${nomeMin(item.efeito)}.` : `Refez a pintura de ${nomeMin(item.efeito)}.`)
+}
+function apagarPintura(efeito) {
+  const p = pinceis[efeito]
+  desfazer.push({ efeito, antes: copiaDe(p.tela) }); refazer.length = 0
+  for (const t of [p.tela, p.base]) t.getContext('2d').clearRect(0, 0, t.width, t.height)
+  if (G) trocarTextura(G.tPincel[efeito], p.tela)
+  conferirPintura(efeito)
+  avisar(`Apagou toda ${artigo(efeito)} pintada. Ctrl+Z desfaz.`)
+}
+const nomeMin = (e) => EFEITOS.find((x) => x.id === e).nome.toLowerCase()
+const artigo = (e) => `a ${nomeMin(e)}`
+
+// ════════════════════════════════════════════════════════════════════════════
+// Câmera
+// ════════════════════════════════════════════════════════════════════════════
+const caixa = document.getElementById('palco-caixa')
+const cam = { s: 1, ox: 0, oy: 0, manual: false, cw: 1, ch: 1, dpr: 1 }
+function encaixar() {
+  const m = 18
+  cam.s = Math.min((cam.cw - m * 2) / W, (cam.ch - m * 2) / H)
+  cam.ox = (cam.cw - W * cam.s) / 2; cam.oy = (cam.ch - H * cam.s) / 2; cam.manual = false
+}
+function redimensionar() {
+  const r = caixa.getBoundingClientRect()
+  cam.cw = Math.max(1, r.width); cam.ch = Math.max(1, r.height); cam.dpr = Math.min(2, window.devicePixelRatio || 1)
+  tela.width = Math.round(cam.cw * cam.dpr); tela.height = Math.round(cam.ch * cam.dpr)
+  if (!cam.manual) encaixar()
+}
+new ResizeObserver(redimensionar).observe(caixa)
+const paraMundo = (cx, cy) => ({ x: (cx - cam.ox) / cam.s, y: (cy - cam.oy) / cam.s })
+
+// ════════════════════════════════════════════════════════════════════════════
+// O tempo, o vento e o que vai e vem devagar
+// ════════════════════════════════════════════════════════════════════════════
+const V = {
+  tempo: 0,
+  intMapa: Object.fromEntries(ID_EFEITOS.map((e) => [e, 0])),
+  aparecePincel: Object.fromEntries(ID_EFEITOS.map((e) => [e, 0])),
+  vento: [0, 0],
+  molhado: 0,
+  neveNoChao: 0,
+  nublado: 0,
+  deriva: { larga: [0, 0], media: [0, 0], fina: [0, 0] },
+  relampago: { inicio: -99, proximo: 12 },
+}
+function ventoAlvo() {
+  const d = DIRECOES.find((x) => x && x.id === S.vento.dir)
+  const f = S.vento.forca / 100
+  return [d.v[0] * f, d.v[1] * f]
+}
+function intMapaAlvo(e) {
+  const ef = S.ef[e]
+  if (!ef.mapa) return 0
+  const v = ef.int / 100
+  if (e === 'folhas') return v
+  return v
+}
+const parecido = (a, b) => Math.abs(a - b) < 1e-4
+function aproximar(atual, alvo, dt, subir, descer) {
+  const tau = alvo > atual ? subir : descer
+  return parecido(atual, alvo) ? alvo : alvo + (atual - alvo) * Math.exp(-dt / tau)
+}
+function chuvaTotal() { return Math.max(intMapaAlvo('chuva'), pinceis.chuva.tem ? 1 : 0) }
+function passo(dt) {
+  for (const e of ID_EFEITOS) {
+    V.intMapa[e] = aproximar(V.intMapa[e], intMapaAlvo(e), dt, 0.3, 0.1)
+    V.aparecePincel[e] = aproximar(V.aparecePincel[e], pinceis[e].tem ? 1 : 0, dt, 0.3, 0.1)
+  }
+  // Rajadas: o vento forte varia um pouco, devagar.
+  const alvo = ventoAlvo()
+  const forca = Math.hypot(alvo[0], alvo[1])
+  const rajada = forca > 0.3 ? 1 + 0.22 * Math.sin(V.tempo * 0.7) * Math.sin(V.tempo * 0.31 + 1) : 1
+  V.vento = V.vento.map((v, i) => aproximar(v, alvo[i] * rajada, dt, 0.8, 0.8))
+  const chao = S.chao ? 1 : 0
+  V.molhado = aproximar(V.molhado, chuvaTotal() > 0 ? chao : 0, dt, 5, 12)
+  const neve = Math.max(intMapaAlvo('neve'), pinceis.neve.tem ? 1 : 0)
+  V.neveNoChao = aproximar(V.neveNoChao, neve > 0 ? chao : 0, dt, 8, 14)
+  V.nublado = aproximar(V.nublado, Math.min(1, intMapaAlvo('chuva') * 0.9 + intMapaAlvo('neve') * 0.35), dt, 1.2, 1.2)
+  andarNeblina(dt)
+  passoDoRelampago()
+}
+const giro = (v) => [0.8 * v[0] + 0.6 * v[1], -0.6 * v[0] + 0.8 * v[1]]
+function andarNeblina(dt) {
+  if (S.pausado || reduzido.matches) return
+  const v = V.vento.map((x) => (x * NEBLINA.ventoPxPorS) / NEBLINA.ladrilhoPx)
+  const gv = giro(v)
+  const d = V.deriva
+  d.larga = [d.larga[0] + (NEBLINA.derivaLarga[0] - 0.41 * gv[0]) * dt, d.larga[1] + (NEBLINA.derivaLarga[1] - 0.41 * gv[1]) * dt]
+  d.media = [d.media[0] + (NEBLINA.derivaMedia[0] - v[0]) * dt, d.media[1] + (NEBLINA.derivaMedia[1] - v[1]) * dt]
+  d.fina = [d.fina[0] + (NEBLINA.derivaFina[0] - 2.17 * gv[0]) * dt, d.fina[1] + (NEBLINA.derivaFina[1] - 2.17 * gv[1]) * dt]
+}
+function derivaNoTempo(t) {
+  const v = ventoAlvo().map((x) => (x * NEBLINA.ventoPxPorS) / NEBLINA.ladrilhoPx)
+  const gv = giro(v)
+  V.deriva = {
+    larga: [(NEBLINA.derivaLarga[0] - 0.41 * gv[0]) * t, (NEBLINA.derivaLarga[1] - 0.41 * gv[1]) * t],
+    media: [(NEBLINA.derivaMedia[0] - v[0]) * t, (NEBLINA.derivaMedia[1] - v[1]) * t],
+    fina: [(NEBLINA.derivaFina[0] - 2.17 * gv[0]) * t, (NEBLINA.derivaFina[1] - 2.17 * gv[1]) * t],
+  }
+}
+
+// Relâmpago: um véu claro por cima de tudo, em dois pulsos. Não acende a noite nem a névoa.
+const INTERVALO_DO_RELAMPAGO = { raro: [15, 35], frequente: [5, 12] }
+function passoDoRelampago() {
+  if (S.relampago === 'nao' || reduzido.matches || S.pausado) return
+  if (intMapaAlvo('chuva') < 0.7) { V.relampago.proximo = V.tempo + 6; return }
+  if (V.tempo >= V.relampago.proximo) {
+    disparar()
+    const [a, b] = INTERVALO_DO_RELAMPAGO[S.relampago]
+    V.relampago.proximo = V.tempo + a + Math.random() * (b - a)
+  }
+}
+function disparar() { V.relampago.inicio = V.tempo; Som.trovao(0.8 + Math.random() * 1.8) }
+function brilhoDoRelampago() {
+  const t = V.tempo - V.relampago.inicio
+  if (t < 0 || t > 0.7) return 0
+  const pulso = (c, l) => Math.max(0, 1 - Math.abs(t - c) / l)
+  return Math.max(pulso(0.05, 0.06), 0.7 * pulso(0.22, 0.07), 0.35 * Math.max(0, 1 - (t - 0.22) / 0.48) * (t > 0.22 ? 1 : 0))
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// O desenho de um quadro
+// ════════════════════════════════════════════════════════════════════════════
+const medidas = { cpu: [], intervalo: [], gravando: false, longas: [] }
+let ultimasParticulas = 0
+function usarTextura(unidade, t) { gl.activeTexture(gl.TEXTURE0 + unidade); gl.bindTexture(gl.TEXTURE_2D, t) }
+function camUniform(prog) {
+  gl.uniform4f(prog.u('uCam'), (cam.s * 2) / cam.cw, (cam.ox * 2) / cam.cw - 1, (cam.s * 2) / cam.ch, (cam.oy * 2) / cam.ch - 1)
+}
+function desenharRet(prog, ret, tex, semClima, tinta) {
+  usarTextura(0, tex)
+  gl.uniform4f(prog.u('uRet'), ret.x, ret.y, ret.w, ret.h)
+  gl.uniform1f(prog.u('uSemClima'), semClima ? 1 : 0)
+  gl.uniform3fv(prog.u('uTinta'), tinta)
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+}
+function desenhar() {
+  if (!G) return
+  gl.viewport(0, 0, tela.width, tela.height)
+  gl.clearColor(0.067, 0.067, 0.067, 1); gl.clear(gl.COLOR_BUFFER_BIT)
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  const jogador = S.ver !== 'mestre' ? 1 : 0
+  const tinta = TINTA[S.periodo]
+  const noite = NOITE[S.periodo]
+  usarTextura(1, G.tAbrigo); usarTextura(2, G.tPincel.chuva); usarTextura(3, G.tPincel.neve); usarTextura(4, G.tRuido); usarTextura(5, G.tMaterial)
+
+  // 1. O chão e o que está nele.
+  const pm = G.pMapa
+  gl.useProgram(pm.p); gl.bindVertexArray(G.vao); camUniform(pm)
+  gl.uniform1i(pm.u('uTex'), 0); gl.uniform1i(pm.u('uAbrigo'), 1); gl.uniform1i(pm.u('uPincelChuva'), 2); gl.uniform1i(pm.u('uPincelNeve'), 3); gl.uniform1i(pm.u('uRuido'), 4); gl.uniform1i(pm.u('uMaterial'), 5)
+  gl.uniform2f(pm.u('uMundo'), W, H)
+  gl.uniform4f(pm.u('uClima'), V.intMapa.chuva, V.molhado, V.intMapa.neve, V.neveNoChao)
+  gl.uniform2f(pm.u('uPinceis'), V.aparecePincel.chuva, V.aparecePincel.neve)
+  gl.uniform1f(pm.u('uNublado'), V.nublado)
+  gl.uniform1f(pm.u('uJogador'), jogador)
+  desenharRet(pm, { x: 0, y: 0, w: W, h: H }, G.tMapa, false, tinta)
+  const depositoNaTela = !S.semDeposito && (S.ver === 'mestre' || S.depositoVisto)
+  if (depositoNaTela) desenharRet(pm, DEP_SPRITE, G.tDeposito, false, tinta)
+  const telhado = !casaAbertaNaTela()
+  if (telhado) desenharRet(pm, TELHADO_SPRITE, G.tTelhado, false, tinta)
+  desenharRet(pm, PORTA_SPRITE, S.porta ? G.tPortaA : G.tPortaF, false, tinta)
+  const ficha = S.ver === 'dentro' ? FICHA_CASA : FICHA_RUA
+  desenharRet(pm, { x: ficha.x - 20, y: ficha.y - 20, w: 40, h: 40 }, G.tFicha, true, tinta)
+  if (!jogador) desenharRet(pm, { x: 0, y: 0, w: W, h: H }, G.tMarcas, true, [1, 1, 1])
+
+  // 2. A neblina (por cima da noite e do preto do jogador, como no app).
+  const nebMapa = V.intMapa.neblina
+  const nebPincel = V.aparecePincel.neblina
+  if (nebMapa > 0.002 || nebPincel > 0.002) {
+    const pn = G.pNeblina
+    gl.useProgram(pn.p); camUniform(pn)
+    usarTextura(6, G.tPincel.neblina)
+    gl.uniform1i(pn.u('uRuido'), 4); gl.uniform1i(pn.u('uPincel'), 6); gl.uniform1i(pn.u('uAbrigo'), 1)
+    gl.uniform2f(pn.u('uMundo'), W, H)
+    gl.uniform4f(pn.u('uMapa'), 1 / NEBLINA.ladrilhoPx, nebMapa, NEBLINA.alfaMaximo, nebPincel)
+    gl.uniform4f(pn.u('uDeriva'), V.deriva.larga[0], V.deriva.larga[1], V.deriva.media[0], V.deriva.media[1])
+    gl.uniform4f(pn.u('uDetalhe'), V.deriva.fina[0], V.deriva.fina[1], S.ef.neblina.dens / 100, 0)
+    gl.uniform4f(pn.u('uBordas'), NEBLINA.bordasRala[0], NEBLINA.bordasRala[1], NEBLINA.bordasDensa[0], NEBLINA.bordasDensa[1])
+    gl.uniform4f(pn.u('uBordaMedia'), NEBLINA.bordasMedia[0], NEBLINA.bordasMedia[1], NEBLINA.piso, 0)
+    gl.uniform3fv(pn.u('uCor'), NEBLINA.cor[S.periodo])
+    gl.uniform1f(pn.u('uJogador'), jogador)
+    gl.uniform4f(pn.u('uRet'), 0, 0, W, H)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+  }
+
+  // 3. As partículas: um desenho por efeito.
+  let total = 0
+  if (!reduzido.matches) {
+    const pp = G.pPart
+    gl.useProgram(pp.p); gl.bindVertexArray(G.vaoPart); camUniform(pp)
+    gl.uniform1i(pp.u('uAbrigo'), 1); gl.uniform1i(pp.u('uPincel'), 6)
+    gl.uniform2f(pp.u('uMundo'), W, H)
+    gl.uniform1f(pp.u('uTempo'), V.tempo)
+    gl.uniform2f(pp.u('uVento'), V.vento[0], V.vento[1])
+    gl.uniform1f(pp.u('uJogador'), jogador)
+    gl.uniform1f(pp.u('uNoite'), noite)
+    gl.uniform1f(pp.u('uPx'), 1 / (cam.s * cam.dpr))
+    const desenhos = [['chuva', 'chuva'], ['neve', 'neve'], ['folhas', 'cinzas'], ['folhas', 'folhas'], ['brasas', 'brasas']]
+    for (const [efeito, tipo] of desenhos) {
+      let intMapa = V.intMapa[efeito]
+      let pincel = V.aparecePincel[efeito]
+      if (efeito === 'folhas') {
+        const quer = S.ef.folhas.tipo
+        if (quer !== 'duas' && quer !== tipo) continue
+      }
+      if (intMapa <= 0.002 && pincel <= 0.002) continue
+      usarTextura(6, G.tPincel[efeito])
+      gl.uniform1i(pp.u('uTipo'), TIPO_GL[tipo])
+      gl.uniform1f(pp.u('uIntMapa'), intMapa)
+      gl.uniform1f(pp.u('uIntPincel'), pincel)
+      const n = TETO[tipo]
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n)
+      total += n
+    }
+  }
+  ultimasParticulas = total
+
+  // 4. O relâmpago.
+  const clarao = brilhoDoRelampago() * (S.periodo === 'noite' ? 0.3 : 0.22)
+  if (clarao > 0.002) {
+    const pv = G.pVeu
+    gl.useProgram(pv.p); gl.bindVertexArray(G.vao); camUniform(pv)
+    gl.uniform4f(pv.u('uRet'), -W, -H, W * 3, H * 3)
+    gl.uniform4f(pv.u('uCor'), 0.85 * clarao, 0.9 * clarao, clarao, clarao)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+  }
+  gl.bindVertexArray(null)
+}
+
+let congelado = false
+let anterior = performance.now()
+function quadro(agora) {
+  const inicio = performance.now()
+  const dt = Math.min(0.05, Math.max(0, (agora - anterior) / 1000))
+  if (medidas.gravando) medidas.intervalo.push(agora - anterior)
+  anterior = agora
+  if (!congelado) {
+    if (!S.pausado && !reduzido.matches) V.tempo += dt
+    passo(dt)
+    desenhar()
+    if (medidas.esperarPlaca) gl.finish()
+    Som.definir(S.som ? Math.max(V.intMapa.chuva, V.aparecePincel.chuva * 0.5) : 0)
+  }
+  const gasto = performance.now() - inicio
+  if (medidas.gravando) medidas.cpu.push(gasto)
+  leitura(gasto)
+  requestAnimationFrame(quadro)
+}
+let leituraEm = 0
+const cpuRecente = []
+function leitura(gasto) {
+  cpuRecente.push(gasto); if (cpuRecente.length > 60) cpuRecente.shift()
+  const agora = performance.now()
+  if (agora - leituraEm < 500) return
+  leituraEm = agora
+  const media = cpuRecente.reduce((a, b) => a + b, 0) / cpuRecente.length
+  const n = ultimasParticulas
+  document.getElementById('leitura').textContent = `até ${n.toLocaleString('pt-BR')} partículas · quadro ${media.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ms no processador`
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Som da chuva (feito na hora com o WebAudio, só depois de um clique)
+// ════════════════════════════════════════════════════════════════════════════
+const Som = {
+  ctx: null, ganho: null, grave: null,
+  ligar() {
+    if (!this.ctx) {
+      const c = new AudioContext()
+      const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate)
+      const d = buf.getChannelData(0)
+      let b0 = 0, b1 = 0, b2 = 0
+      for (let i = 0; i < d.length; i += 1) {
+        const branco = Math.random() * 2 - 1
+        b0 = 0.99765 * b0 + branco * 0.099; b1 = 0.963 * b1 + branco * 0.2965; b2 = 0.57 * b2 + branco * 1.0526
+        d[i] = (b0 + b1 + b2 + branco * 0.1848) * 0.12
+      }
+      const fonte = c.createBufferSource(); fonte.buffer = buf; fonte.loop = true
+      const passaAlta = c.createBiquadFilter(); passaAlta.type = 'highpass'; passaAlta.frequency.value = 450
+      const passaBaixa = c.createBiquadFilter(); passaBaixa.type = 'lowpass'; passaBaixa.frequency.value = 6500
+      this.ganho = c.createGain(); this.ganho.gain.value = 0
+      const graveF = c.createBiquadFilter(); graveF.type = 'lowpass'; graveF.frequency.value = 260
+      this.grave = c.createGain(); this.grave.gain.value = 0
+      fonte.connect(passaAlta); passaAlta.connect(passaBaixa); passaBaixa.connect(this.ganho); this.ganho.connect(c.destination)
+      fonte.connect(graveF); graveF.connect(this.grave); this.grave.connect(c.destination)
+      fonte.start()
+      this.ctx = c
+    }
+    this.ctx.resume()
+  },
+  desligar() { if (this.ctx) this.ctx.suspend() },
+  definir(intensidade) {
+    if (!this.ctx || this.ctx.state !== 'running') return
+    const t = this.ctx.currentTime
+    this.ganho.gain.setTargetAtTime(intensidade <= 0.001 ? 0 : 0.05 + 0.2 * intensidade, t, 0.4)
+    this.grave.gain.setTargetAtTime(intensidade > 0.6 ? (intensidade - 0.6) * 0.5 : 0, t, 0.6)
+  },
+  trovao(atraso) {
+    if (!S.som || !this.ctx || this.ctx.state !== 'running') return
+    const c = this.ctx
+    const dur = 3
+    const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate)
+    const d = buf.getChannelData(0)
+    let ultimo = 0
+    for (let i = 0; i < d.length; i += 1) { ultimo = 0.98 * ultimo + (Math.random() * 2 - 1) * 0.2; d[i] = ultimo }
+    const fonte = c.createBufferSource(); fonte.buffer = buf
+    const filtro = c.createBiquadFilter(); filtro.type = 'lowpass'; filtro.frequency.value = 150
+    const g = c.createGain()
+    const t = c.currentTime + atraso
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.9, t + 0.12); g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+    fonte.connect(filtro); filtro.connect(g); g.connect(c.destination)
+    fonte.start(t); fonte.stop(t + dur)
+  },
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// O painel
+// ════════════════════════════════════════════════════════════════════════════
+const $ = (id) => document.getElementById(id)
+function montarPainel() {
+  $('efeitos').innerHTML = EFEITOS.map((e) => `
+    <input type="radio" name="efeito" id="ef-${e.id}" value="${e.id}">
+    <label for="ef-${e.id}">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${e.icone}</svg>
+      <span class="nome">${e.nome}</span>
+      <span class="estado" id="es-${e.id}"></span>
+      <kbd>${e.tecla}</kbd>
+    </label>`).join('')
+  const seta = (v) => {
+    const a = (Math.atan2(v[1], v[0]) * 180) / Math.PI
+    return `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform: rotate(${a}deg)"><path d="M4 10h11M11 6l4 4-4 4"/></svg>`
+  }
+  $('rosa').innerHTML = DIRECOES.map((d) => (d
+    ? `<input type="radio" name="vento" id="vt-${d.id}" value="${d.id}" aria-label="${d.nome}"><label for="vt-${d.id}" title="${d.nome}">${seta(d.v)}</label>`
+    : '<span class="meio" id="rosa-meio" aria-hidden="true"></span>')).join('')
+  $('climas').innerHTML = CLIMAS.map((c, i) => `<button class="botao" type="button" data-clima="${i}">${c.nome}</button>`).join('')
+
+  document.querySelectorAll('input[name=efeito]').forEach((el) => el.addEventListener('change', () => { S.efeito = el.value; atualizarPainel() }))
+  $('mapa-inteiro').addEventListener('change', (ev) => { S.ef[S.efeito].mapa = ev.target.checked; atualizarPainel(); avisar(`${EFEITOS.find((e) => e.id === S.efeito).nome} no mapa inteiro: ${ev.target.checked ? 'ligada' : 'desligada'}.`) })
+  $('intensidade').addEventListener('input', (ev) => { S.ef[S.efeito].int = Number(ev.target.value); atualizarPainel() })
+  $('densidade').addEventListener('input', (ev) => { S.ef.neblina.dens = Number(ev.target.value); atualizarPainel() })
+  document.querySelectorAll('input[name=tipo]').forEach((el) => el.addEventListener('change', () => { S.ef.folhas.tipo = el.value; atualizarPainel() }))
+  document.querySelectorAll('input[name=modo]').forEach((el) => el.addEventListener('change', () => { S.pincel.modo = el.value; atualizarPainel() }))
+  $('tamanho').addEventListener('input', (ev) => { S.pincel.tamanho = Number(ev.target.value); atualizarPainel() })
+  $('forca').addEventListener('input', (ev) => { S.pincel.forca = Number(ev.target.value); atualizarPainel() })
+  $('apagar-pintura').addEventListener('click', () => apagarPintura(S.efeito))
+  document.querySelectorAll('input[name=vento]').forEach((el) => el.addEventListener('change', () => { S.vento.dir = el.value; atualizarPainel() }))
+  $('vento-forca').addEventListener('input', (ev) => { S.vento.forca = Number(ev.target.value); atualizarPainel() })
+  document.querySelectorAll('input[name=relampago]').forEach((el) => el.addEventListener('change', () => { S.relampago = el.value; V.relampago.proximo = V.tempo + 4; atualizarPainel() }))
+  $('relampago-agora').addEventListener('click', () => { disparar(); avisar('Relâmpago: um clarão leve por cima de tudo.') })
+  $('som').addEventListener('change', (ev) => { S.som = ev.target.checked; if (S.som) Som.ligar(); else Som.desligar(); avisar(S.som ? 'Som da chuva ligado.' : 'Som da chuva desligado.') })
+  $('chao').addEventListener('change', (ev) => { S.chao = ev.target.checked; atualizarPainel() })
+  document.querySelectorAll('input[name=periodo]').forEach((el) => el.addEventListener('change', () => { S.periodo = el.value; atualizarPainel() }))
+  document.querySelectorAll('input[name=ver]').forEach((el) => el.addEventListener('change', () => trocarVisao(el.value)))
+  document.querySelectorAll('input[name=telhado]').forEach((el) => el.addEventListener('change', () => { S.telhado = el.value; refazerAbrigo(); atualizarPainel() }))
+  document.querySelectorAll('input[name=deposito]').forEach((el) => el.addEventListener('change', () => { S.depositoVisto = el.value === 'sim'; refazerAbrigo(); atualizarPainel() }))
+  $('erro').addEventListener('change', (ev) => { S.erroIngenuo = ev.target.checked; refazerAbrigo(); atualizarPainel() })
+  $('porta').addEventListener('click', alternarPorta)
+  $('pausar').addEventListener('click', () => { S.pausado = !S.pausado; atualizarPainel() })
+  $('copiar').addEventListener('click', copiarNumeros)
+  $('encaixar').addEventListener('click', () => { encaixar(); avisar('Mapa encaixado na tela.') })
+  $('climas').addEventListener('click', (ev) => { const b = ev.target.closest('[data-clima]'); if (b) aplicarClima(Number(b.dataset.clima)) })
+}
+
+function estadoDoEfeito(e) {
+  const ef = S.ef[e], pintado = pinceis[e].tem
+  if (ef.mapa && pintado) return `Mapa inteiro ${ef.int}% + pintada`
+  if (ef.mapa) return `Mapa inteiro ${ef.int}%`
+  if (pintado) return 'Pintada numa área'
+  return 'Desligada'
+}
+function atualizarPainel() {
+  const e = S.efeito
+  const def = EFEITOS.find((x) => x.id === e)
+  const ef = S.ef[e]
+  for (const x of EFEITOS) {
+    const el = $(`es-${x.id}`)
+    const ligado = S.ef[x.id].mapa || pinceis[x.id].tem
+    el.innerHTML = `${ligado ? '<span class="ponto" aria-hidden="true"></span>' : ''}${estadoDoEfeito(x.id)}`
+    el.classList.toggle('ligado', ligado)
+    $(`ef-${x.id}`).checked = x.id === e
+  }
+  $('sobre-efeito').innerHTML = def.sobre
+  $('rotulo-mapa').textContent = `${def.nome} no mapa inteiro`
+  $('mapa-inteiro').checked = ef.mapa
+  $('intensidade').value = ef.int
+  $('intensidade').disabled = !ef.mapa
+  $('aj-intensidade').classList.toggle('desligado', !ef.mapa)
+  $('motivo-intensidade').hidden = ef.mapa
+  $('o-intensidade').innerHTML = `<small>${def.escala(ef.int)}</small>${ef.int}%`
+  $('aj-densidade').hidden = e !== 'neblina'
+  $('densidade').value = S.ef.neblina.dens
+  $('o-densidade').textContent = `${S.ef.neblina.dens}%`
+  $('aj-tipo').hidden = e !== 'folhas'
+  document.querySelectorAll('input[name=tipo]').forEach((el) => (el.checked = el.value === S.ef.folhas.tipo))
+  document.querySelectorAll('input[name=modo]').forEach((el) => (el.checked = el.value === S.pincel.modo))
+  const borracha = S.pincel.modo === 'borracha'
+  $('dica-pincel').textContent = borracha ? `Arraste por cima ${e === 'neblina' ? 'da' : 'da'} ${nomeMin(e)} pintada para tirá-la.` : `Arraste no mapa para pôr ${nomeMin(e)} só naquela área. Segure Alt para apagar.`
+  $('tamanho').value = S.pincel.tamanho; $('o-tamanho').textContent = `${S.pincel.tamanho}`
+  $('forca').value = S.pincel.forca; $('o-forca').textContent = `${S.pincel.forca}%`
+  $('rotulo-forca').textContent = borracha ? 'Quanto tira' : 'Intensidade'
+  $('apagar-pintura').hidden = !pinceis[e].tem
+  $('apagar-pintura').textContent = `Apagar toda ${artigo(e)} pintada`
+  document.querySelectorAll('input[name=vento]').forEach((el) => (el.checked = el.value === S.vento.dir))
+  $('vento-forca').value = S.vento.forca
+  $('o-vento').innerHTML = `<small>${escalaDoVento(S.vento.forca)}</small>${S.vento.forca}%`
+  $('rosa-meio').textContent = `${S.vento.forca}%`
+  document.querySelectorAll('input[name=relampago]').forEach((el) => (el.checked = el.value === S.relampago))
+  $('som').checked = S.som
+  $('chao').checked = S.chao
+  document.querySelectorAll('input[name=periodo]').forEach((el) => (el.checked = el.value === S.periodo))
+  document.querySelectorAll('input[name=ver]').forEach((el) => (el.checked = el.value === S.ver))
+  document.querySelectorAll('input[name=telhado]').forEach((el) => { el.checked = el.value === S.telhado; el.disabled = S.ver !== 'mestre' })
+  $('nota-telhado').textContent = S.ver === 'mestre'
+    ? 'Com o telhado à vista, a chuva bate nele (ele molha e junta neve). Por dentro, a casa fica seca.'
+    : S.ver === 'rua' ? 'O jogador na rua vê só o telhado (é o app de hoje): a chuva bate nele.' : 'O jogador dentro da casa vê por dentro (o teto abre para ele): lá dentro fica seco.'
+  document.querySelectorAll('input[name=deposito]').forEach((el) => { el.checked = el.value === (S.depositoVisto ? 'sim' : 'nao'); el.disabled = S.ver === 'mestre' })
+  $('erro').checked = S.erroIngenuo
+  $('erro').disabled = S.ver === 'mestre'
+  const porta = $('porta')
+  porta.setAttribute('aria-pressed', String(S.porta))
+  porta.innerHTML = `${S.porta ? 'Porta aberta' : 'Porta fechada'} <kbd>O</kbd>`
+  $('pausar').setAttribute('aria-pressed', String(S.pausado))
+  $('pausar').textContent = S.pausado ? 'Continuar o movimento' : 'Pausar o movimento'
+  $('aviso-movimento').hidden = !reduzido.matches
+  const faixa = $('faixa')
+  faixa.className = `faixa ${S.ver === 'mestre' ? 'mestre' : ''} ${S.erroIngenuo && S.ver !== 'mestre' ? 'erro' : ''}`
+  faixa.textContent = S.ver === 'mestre' ? 'Visão do mestre: você vê tudo'
+    : S.erroIngenuo ? 'O erro evitado: a chuva desenha o depósito que o jogador não viu'
+      : S.ver === 'rua' ? 'Visão do jogador na rua' : 'Visão do jogador dentro da casa'
+  atualizarCursor()
+}
+function trocarVisao(v) {
+  S.ver = v
+  if (v === 'mestre') S.erroIngenuo = false
+  refazerAbrigo(); atualizarPainel()
+  avisar(v === 'mestre' ? 'Visão do mestre.' : v === 'rua' ? 'Visão do jogador na rua: o preto é o que ele não conhece.' : 'Visão do jogador dentro da casa: o teto abriu para ele.')
+}
+function alternarPorta() {
+  S.porta = !S.porta; refazerAbrigo(); atualizarPainel()
+  avisar(S.porta ? 'Porta aberta: a neblina e as brasas entram pela porta. Chuva, neve e folhas continuam fora.' : 'Porta fechada: nada entra na casa.')
+}
+let avisoTempo = 0
+function avisar(texto) {
+  const el = $('status'); el.textContent = texto
+  clearTimeout(avisoTempo); avisoTempo = setTimeout(() => { if (el.textContent === texto) el.textContent = '' }, 5000)
+}
+function linhaDosNumeros() {
+  const partes = EFEITOS.map((e) => {
+    const ef = S.ef[e.id]
+    const extra = e.id === 'neblina' ? `, densidade ${ef.dens}%` : e.id === 'folhas' ? `, ${ef.tipo === 'duas' ? 'folhas e cinzas' : ef.tipo}` : ''
+    return `${e.nome}: ${ef.mapa ? `mapa inteiro ${ef.int}% (${e.escala(ef.int)})` : 'mapa inteiro desligado'}${pinceis[e.id].tem ? ' + pintada' : ''}${extra}`
+  })
+  const dir = DIRECOES.find((d) => d && d.id === S.vento.dir).nome.toLowerCase()
+  return `Ambiente | ${partes.join(' | ')} | Vento: ${dir}, ${S.vento.forca}% (${escalaDoVento(S.vento.forca)}) | Relâmpago: ${S.relampago} | Som da chuva: ${S.som ? 'ligado' : 'desligado'} | Chão molha: ${S.chao ? 'sim' : 'não'}`
+}
+async function copiarNumeros() {
+  const texto = linhaDosNumeros()
+  try { await navigator.clipboard.writeText(texto); avisar('Copiado. Cole na conversa.') } catch {
+    const area = document.createElement('textarea'); area.value = texto; document.body.appendChild(area); area.select()
+    const ok = document.execCommand('copy'); area.remove(); avisar(ok ? 'Copiado. Cole na conversa.' : 'Não deu para copiar: o navegador bloqueou.')
+  }
+}
+
+const CLIMAS = [
+  { nome: 'Tempestade à noite', aplicar: () => mudar({ neblina: [true, 30], chuva: [true, 95], brasas: [false], neve: [false], folhas: [false] }, 'O', 70, 'noite') },
+  { nome: 'Outono com vento', aplicar: () => { S.ef.folhas.tipo = 'folhas'; mudar({ neblina: [false], chuva: [false], brasas: [false], neve: [false], folhas: [true, 60] }, 'L', 55, 'tarde') } },
+  { nome: 'Cidade em chamas', aplicar: () => { S.ef.folhas.tipo = 'cinzas'; mudar({ neblina: [true, 25], chuva: [false], brasas: [true, 75], neve: [false], folhas: [true, 50] }, 'NE', 30, 'noite') } },
+  { nome: 'Nevasca', aplicar: () => mudar({ neblina: [true, 35], chuva: [false], brasas: [false], neve: [true, 90], folhas: [false] }, 'SO', 60, 'dia') },
+  { nome: 'Garoa de manhã', aplicar: () => mudar({ neblina: [true, 45], chuva: [true, 20], brasas: [false], neve: [false], folhas: [false] }, 'S', 10, 'dia') },
+  { nome: 'Desligar tudo', aplicar: () => mudar({ neblina: [false], chuva: [false], brasas: [false], neve: [false], folhas: [false] }, S.vento.dir, S.vento.forca, S.periodo) },
+]
+function mudar(efeitos, dir, forca, periodo) {
+  for (const [e, [mapa, int]] of Object.entries(efeitos)) { S.ef[e].mapa = mapa; if (int !== undefined) S.ef[e].int = int }
+  S.vento.dir = dir; S.vento.forca = forca; S.periodo = periodo
+}
+function aplicarClima(i) { CLIMAS[i].aplicar(); atualizarPainel(); avisar(`Clima: ${CLIMAS[i].nome}.`) }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Mouse e teclado
+// ════════════════════════════════════════════════════════════════════════════
+const cursor = $('cursor')
+const ponteiro = { dentro: false, x: 0, y: 0, alt: false, espaco: false, arrasto: null, porta: null }
+function naPorta(mx, my) { return mx >= PORTA.x - 6 && mx <= PORTA.x + PORTA.w + 6 && my >= PORTA.y - 8 && my <= PORTA.y + 16 }
+function borrachaAgora() { return S.pincel.modo === 'borracha' || ponteiro.alt }
+function atualizarCursor() {
+  const mundo = paraMundo(ponteiro.x, ponteiro.y)
+  const sobrePorta = naPorta(mundo.x, mundo.y) && !ponteiro.arrasto
+  const mostrar = ponteiro.dentro && !ponteiro.espaco && !(ponteiro.arrasto && ponteiro.arrasto.tipo === 'mover') && !sobrePorta
+  cursor.hidden = !mostrar
+  tela.classList.toggle('na-porta', sobrePorta && ponteiro.dentro && !ponteiro.espaco)
+  tela.classList.toggle('mao', ponteiro.espaco || (ponteiro.arrasto && ponteiro.arrasto.tipo === 'mover'))
+  if (!mostrar) return
+  const d = S.pincel.tamanho * cam.s
+  cursor.style.width = `${d}px`; cursor.style.height = `${d}px`
+  cursor.style.transform = `translate(${ponteiro.x - d / 2}px, ${ponteiro.y - d / 2}px)`
+  cursor.classList.toggle('borracha', borrachaAgora())
+}
+function posicao(ev) { const r = tela.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top } }
+tela.addEventListener('pointerenter', () => { ponteiro.dentro = true; atualizarCursor() })
+tela.addEventListener('pointerleave', () => { ponteiro.dentro = false; atualizarCursor() })
+tela.addEventListener('pointerdown', (ev) => {
+  if (ponteiro.arrasto) return // um dedo só
+  const p = posicao(ev)
+  ponteiro.x = p.x; ponteiro.y = p.y; ponteiro.alt = ev.altKey
+  tela.setPointerCapture(ev.pointerId)
+  if (ev.button === 1 || (ev.button === 0 && ponteiro.espaco)) {
+    ponteiro.arrasto = { tipo: 'mover', x: p.x, y: p.y, ox: cam.ox, oy: cam.oy, id: ev.pointerId }
+    tela.classList.add('arrastando'); ev.preventDefault(); atualizarCursor(); return
+  }
+  if (ev.button !== 0) return
+  const m = paraMundo(p.x, p.y)
+  if (naPorta(m.x, m.y)) { ponteiro.arrasto = { tipo: 'porta', x: p.x, y: p.y, id: ev.pointerId }; return }
+  ponteiro.arrasto = { tipo: 'pintar', id: ev.pointerId }
+  comecarPincelada(m.x, m.y, borrachaAgora())
+  atualizarCursor()
+})
+tela.addEventListener('pointermove', (ev) => {
+  const p = posicao(ev)
+  ponteiro.x = p.x; ponteiro.y = p.y; ponteiro.alt = ev.altKey
+  const a = ponteiro.arrasto
+  if (a && a.tipo === 'mover') { cam.ox = a.ox + (p.x - a.x); cam.oy = a.oy + (p.y - a.y); cam.manual = true }
+  if (a && a.tipo === 'pintar') { const m = paraMundo(p.x, p.y); continuarPincelada(m.x, m.y) }
+  atualizarCursor()
+})
+function soltar(ev) {
+  const a = ponteiro.arrasto
+  if (!a || a.id !== ev.pointerId) return
+  ponteiro.arrasto = null
+  tela.classList.remove('arrastando')
+  if (a.tipo === 'pintar') terminarPincelada()
+  if (a.tipo === 'porta') { const p = posicao(ev); const m = paraMundo(p.x, p.y); if (Math.hypot(p.x - a.x, p.y - a.y) < 6 && naPorta(m.x, m.y)) alternarPorta() }
+  atualizarCursor()
+}
+tela.addEventListener('pointerup', soltar)
+tela.addEventListener('pointercancel', (ev) => { if (ponteiro.arrasto && ponteiro.arrasto.tipo === 'pintar') terminarPincelada(true); ponteiro.arrasto = null; atualizarCursor() })
+tela.addEventListener('wheel', (ev) => {
+  ev.preventDefault()
+  const p = posicao(ev)
+  const antes = paraMundo(p.x, p.y)
+  cam.s = Math.min(3, Math.max(0.35, cam.s * Math.exp(-ev.deltaY * 0.0015)))
+  cam.ox = p.x - antes.x * cam.s; cam.oy = p.y - antes.y * cam.s; cam.manual = true
+  atualizarCursor()
+}, { passive: false })
+tela.addEventListener('auxclick', (ev) => ev.preventDefault())
+
+const ATALHOS = {
+  d: () => { S.periodo = 'dia'; atualizarPainel() }, t: () => { S.periodo = 'tarde'; atualizarPainel() }, n: () => { S.periodo = 'noite'; atualizarPainel() },
+  m: () => trocarVisao('mestre'), j: () => trocarVisao('rua'), i: () => trocarVisao('dentro'),
+  r: () => { if (S.ver !== 'mestre') return; S.telhado = S.telhado === 'vista' ? 'dentro' : 'vista'; refazerAbrigo(); atualizarPainel(); avisar(S.telhado === 'vista' ? 'Telhado à vista.' : 'Vendo a casa por dentro.') },
+  o: alternarPorta,
+  '0': () => { encaixar(); atualizarCursor() },
+  '[': () => { S.pincel.tamanho = Math.max(16, S.pincel.tamanho - 8); atualizarPainel() },
+  ']': () => { S.pincel.tamanho = Math.min(200, S.pincel.tamanho + 8); atualizarPainel() },
+}
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Alt') { ponteiro.alt = true; atualizarCursor(); ev.preventDefault(); return }
+  if (ev.key === ' ' && document.activeElement === tela) { ponteiro.espaco = true; atualizarCursor(); ev.preventDefault(); return }
+  if (ev.key === 'Escape' && pincelada) { terminarPincelada(true); ponteiro.arrasto = null; atualizarCursor(); return }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); if (ev.shiftKey) voltarPintura(refazer, desfazer, 'refazer'); else voltarPintura(desfazer, refazer, 'desfazer'); return }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'y') { ev.preventDefault(); voltarPintura(refazer, desfazer, 'refazer'); return }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return
+  const n = Number(ev.key)
+  if (n >= 1 && n <= 5) { S.efeito = ID_EFEITOS[n - 1]; atualizarPainel(); return }
+  const fn = ATALHOS[ev.key.toLowerCase()]
+  if (fn) fn()
+})
+document.addEventListener('keyup', (ev) => {
+  if (ev.key === 'Alt') { ponteiro.alt = false; atualizarCursor(); ev.preventDefault() }
+  if (ev.key === ' ') { ponteiro.espaco = false; atualizarCursor() }
+})
+window.addEventListener('blur', () => { ponteiro.alt = false; ponteiro.espaco = false; atualizarCursor() })
+reduzido.addEventListener('change', atualizarPainel)
+
+// ════════════════════════════════════════════════════════════════════════════
+// Para conferir de fora: congelar o tempo, folha de contato, medir o quadro, prova
+// ════════════════════════════════════════════════════════════════════════════
+function assentar() {
+  for (const e of ID_EFEITOS) { V.intMapa[e] = intMapaAlvo(e); V.aparecePincel[e] = pinceis[e].tem ? 1 : 0 }
+  V.vento = ventoAlvo()
+  V.molhado = chuvaTotal() > 0 && S.chao ? 1 : 0
+  V.neveNoChao = (intMapaAlvo('neve') > 0 || pinceis.neve.tem) && S.chao ? 1 : 0
+  V.nublado = Math.min(1, intMapaAlvo('chuva') * 0.9 + intMapaAlvo('neve') * 0.35)
+}
+function desenharEm(t) { congelado = true; V.tempo = t; assentar(); derivaNoTempo(t); V.relampago.inicio = -99; desenhar() }
+function lerPixels() { const w = tela.width, h = tela.height; const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return { w, h, px } }
+/** Pixels diferentes (qualquer canal > 2) dentro de um retângulo de MUNDO; sem retângulo, a tela toda. */
+function contarDiferentes(a, b, ret, fora) {
+  const w = a.w, h = a.h
+  let x0 = 0, y0 = 0, x1 = w, y1 = h
+  if (ret) { x0 = Math.max(0, Math.ceil((ret.x * cam.s + cam.ox) * cam.dpr)); x1 = Math.min(w, Math.floor(((ret.x + ret.w) * cam.s + cam.ox) * cam.dpr)); y0 = Math.max(0, Math.ceil((ret.y * cam.s + cam.oy) * cam.dpr)); y1 = Math.min(h, Math.floor(((ret.y + ret.h) * cam.s + cam.oy) * cam.dpr)) }
+  const fx0 = fora ? Math.floor((fora.x * cam.s + cam.ox) * cam.dpr) : 0, fx1 = fora ? Math.ceil(((fora.x + fora.w) * cam.s + cam.ox) * cam.dpr) : -1
+  const fy0 = fora ? Math.floor((fora.y * cam.s + cam.oy) * cam.dpr) : 0, fy1 = fora ? Math.ceil(((fora.y + fora.h) * cam.s + cam.oy) * cam.dpr) : -1
+  let n = 0, sx = 0, sy = 0
+  for (let y = y0; y < y1; y += 1) {
+    const linha = (h - 1 - y) * w
+    for (let x = x0; x < x1; x += 1) {
+      if (fora && x >= fx0 && x <= fx1 && y >= fy0 && y <= fy1) continue
+      const i = (linha + x) * 4
+      if (Math.abs(a.px[i] - b.px[i]) > 2 || Math.abs(a.px[i + 1] - b.px[i + 1]) > 2 || Math.abs(a.px[i + 2] - b.px[i + 2]) > 2) { n += 1; sx += x; sy += y }
+    }
+  }
+  return { n, cx: n ? (sx / n / cam.dpr - cam.ox) / cam.s : null, cy: n ? (sy / n / cam.dpr - cam.oy) / cam.s : null }
+}
+function guardarEstado() { return JSON.stringify({ S, tem: ID_EFEITOS.map((e) => pinceis[e].tem) }) }
+function voltarEstado(json) {
+  const o = JSON.parse(json)
+  Object.assign(S, o.S); ID_EFEITOS.forEach((e, i) => (pinceis[e].tem = o.tem[i]))
+  refazerAbrigo(); atualizarPainel()
+}
+function pintarFaixa(efeito, pontos, raio) {
+  const antes = S.pincel.tamanho, efAntes = S.efeito
+  S.efeito = efeito; S.pincel.tamanho = raio
+  comecarPincelada(pontos[0][0], pontos[0][1], false)
+  for (const [x, y] of pontos.slice(1)) continuarPincelada(x, y)
+  terminarPincelada()
+  S.pincel.tamanho = antes; S.efeito = efAntes
+}
+function prova() {
+  const guardado = guardarEstado()
+  const camAntes = { ...cam }
+  encaixar()
+  const linhas = []
+  const res = {}
+  const so = (lista) => { for (const e of ID_EFEITOS) S.ef[e].mapa = lista.includes(e) }
+  const casaMiolo = { x: CASA_R.x + 1, y: CASA_R.y + 1, w: CASA_R.w - 2, h: CASA_R.h - 2 }
+  const rua = { x: 40, y: RUA.y + 10, w: 600, h: RUA.h - 20 }
+  try {
+    // 1. Vazamento: o depósito que o jogador não viu não muda UM pixel da tela dele.
+    S.ver = 'rua'; S.depositoVisto = false; S.erroIngenuo = false; S.semDeposito = false; S.periodo = 'noite'; S.porta = false
+    Object.assign(S.ef.chuva, { mapa: true, int: 80 }); Object.assign(S.ef.neve, { mapa: true, int: 60 }); Object.assign(S.ef.folhas, { mapa: true, int: 70, tipo: 'duas' })
+    Object.assign(S.ef.brasas, { mapa: true, int: 60 }); Object.assign(S.ef.neblina, { mapa: true, int: 40 })
+    S.vento = { dir: 'SE', forca: 45 }
+    pintarFaixa('chuva', [[880, 180], [1100, 180], [1100, 300], [880, 300]], 120)
+    pintarFaixa('neblina', [[1000, 150], [1150, 240]], 140)
+    let vazou = 0, sensivel = 0
+    for (const t of [5.31, 13.07, 27.9]) {
+      refazerAbrigo(); desenharEm(t); const comDeposito = lerPixels()
+      S.semDeposito = true; refazerAbrigo(); desenharEm(t); const semDeposito = lerPixels()
+      S.semDeposito = false; S.erroIngenuo = true; refazerAbrigo(); desenharEm(t); const ingenuo = lerPixels()
+      S.erroIngenuo = false
+      vazou += contarDiferentes(comDeposito, semDeposito).n
+      sensivel += contarDiferentes(ingenuo, semDeposito).n
+    }
+    res.vazamento = { pixelsDiferentes: vazou, ok: vazou === 0, seOSecoViesseDeTodasAsSalas: sensivel, provaSensivel: sensivel > 0 }
+    linhas.push(`Jogador na rua, depósito não visto, 3 instantes, todos os efeitos + chuva e neblina pintadas por cima do depósito:`)
+    linhas.push(`  com o depósito x sem o depósito: ${vazou} pixels diferentes ${vazou === 0 ? '(passou)' : '(FALHOU)'}`)
+    linhas.push(`  o erro evitado (seco de todas as salas): ${sensivel} pixels diferentes ${sensivel > 0 ? '(a prova enxerga o erro)' : '(a prova NÃO enxerga o erro)'}`)
+
+    // 2. Nada cai dentro de casa (mestre vendo por dentro, porta fechada).
+    S.ver = 'mestre'; S.telhado = 'dentro'; S.porta = false; S.periodo = 'dia'; S.vento = { dir: 'L', forca: 60 }
+    for (const e of ID_EFEITOS) { pinceis[e].tem = false; for (const t of [pinceis[e].tela, pinceis[e].base]) t.getContext('2d').clearRect(0, 0, t.width, t.height); trocarTextura(G.tPincel[e], pinceis[e].tela) }
+    res.dentroDeCasa = {}
+    for (const [nome, efeito, tipo] of [['chuva', 'chuva'], ['neve', 'neve'], ['folhas', 'folhas', 'folhas'], ['cinzas', 'folhas', 'cinzas']]) {
+      let dentro = 0, foraN = 0
+      for (const t of [4.1, 9.73, 18.2]) {
+        so([]); refazerAbrigo(); desenharEm(t); const nada = lerPixels()
+        so([efeito]); S.ef[efeito].int = 100; if (tipo) S.ef.folhas.tipo = tipo
+        refazerAbrigo(); desenharEm(t); const com = lerPixels()
+        dentro += contarDiferentes(nada, com, casaMiolo).n
+        foraN += contarDiferentes(nada, com, rua).n
+      }
+      res.dentroDeCasa[nome] = { dentro, fora: foraN, ok: dentro === 0 && foraN > 0 }
+      linhas.push(`${nome} a 100%, vento forte: dentro da casa ${dentro} pixels, na rua ${foraN} ${dentro === 0 && foraN > 0 ? '(passou)' : '(FALHOU)'}`)
+    }
+
+    // 3. Neblina e brasas: só entram pela porta aberta.
+    res.porta = {}
+    for (const efeito of ['neblina', 'brasas']) {
+      so([efeito]); S.ef[efeito].int = 100
+      let fechada = 0, aberta = 0, cy = 0, cx = 0
+      for (const t of [6.4, 12.9]) {
+        so([]); S.porta = false; refazerAbrigo(); desenharEm(t); const nada = lerPixels()
+        so([efeito]); refazerAbrigo(); desenharEm(t); const f = lerPixels()
+        S.porta = true; refazerAbrigo(); desenharEm(t); const a = lerPixels()
+        const portaNaoConta = { x: PORTA_SPRITE.x, y: PORTA_SPRITE.y, w: PORTA_SPRITE.w, h: PORTA_SPRITE.h }
+        fechada += contarDiferentes(nada, f, casaMiolo, portaNaoConta).n
+        const r = contarDiferentes(nada, a, casaMiolo, portaNaoConta)
+        aberta += r.n; if (r.n) { cx = r.cx; cy = r.cy }
+      }
+      const perto = Math.hypot(cx - PORTA.cx, cy - PORTA.cy)
+      res.porta[efeito] = { portaFechada: fechada, portaAberta: aberta, centroDoQueEntrouAtePorta: Math.round(perto), ok: fechada === 0 && aberta > 0 && perto < 140 }
+      linhas.push(`${efeito}: porta fechada ${fechada} pixels dentro; aberta ${aberta}, a ${Math.round(perto)} px da porta ${res.porta[efeito].ok ? '(passou)' : '(FALHOU)'}`)
+    }
+  } finally {
+    for (const e of ID_EFEITOS) { for (const t of [pinceis[e].tela, pinceis[e].base]) t.getContext('2d').clearRect(0, 0, t.width, t.height); trocarTextura(G.tPincel[e], pinceis[e].tela) }
+    voltarEstado(guardado)
+    ID_EFEITOS.forEach((e) => (pinceis[e].tem = false))
+    Object.assign(cam, camAntes)
+    congelado = false
+    atualizarPainel()
+  }
+  const ok = res.vazamento.ok && res.vazamento.provaSensivel && Object.values(res.dentroDeCasa).every((r) => r.ok) && Object.values(res.porta).every((r) => r.ok)
+  res.ok = ok
+  return { ok, res, texto: linhas.join('\n') }
+}
+function mostrarProva() {
+  const caixaProva = $('prova')
+  caixaProva.hidden = false
+  setTimeout(() => {
+    const inicio = performance.now()
+    const r = prova()
+    $('prova-titulo').textContent = r.ok ? `Conferência: passou (${Math.round(performance.now() - inicio)} ms)` : 'Conferência: FALHOU'
+    $('prova-texto').textContent = r.texto
+    caixaProva.className = `prova ${r.ok ? 'passou' : 'falhou'}`
+    console.log('[prova]', JSON.stringify(r.res))
+    window.__resultadoDaProva = r
+  }, 300)
+}
+function percentil(lista, p) { if (!lista.length) return null; const o = [...lista].sort((a, b) => a - b); return o[Math.min(o.length - 1, Math.floor((p / 100) * o.length))] }
+const observadorLongas = 'PerformanceObserver' in window ? new PerformanceObserver((l) => { for (const e of l.getEntries()) medidas.longas.push({ inicio: Math.round(e.startTime), ms: Math.round(e.duration) }) }) : null
+try { observadorLongas?.observe({ type: 'longtask', buffered: true }) } catch { /* sem suporte */ }
+async function medir(ms = 6000, { esperarPlaca = false } = {}) {
+  medidas.cpu = []; medidas.intervalo = []; const longasAntes = medidas.longas.length
+  medidas.esperarPlaca = esperarPlaca
+  medidas.gravando = true
+  await new Promise((r) => setTimeout(r, ms))
+  medidas.gravando = false; medidas.esperarPlaca = false
+  const r = (v) => Math.round(v * 100) / 100
+  return {
+    quadros: medidas.intervalo.length,
+    intervaloMs: { p50: r(percentil(medidas.intervalo, 50)), p95: r(percentil(medidas.intervalo, 95)), max: r(Math.max(...medidas.intervalo)) },
+    processadorMs: { p50: r(percentil(medidas.cpu, 50)), p95: r(percentil(medidas.cpu, 95)), max: r(Math.max(...medidas.cpu)) },
+    tarefasLongas: medidas.longas.slice(longasAntes),
+    particulas: ultimasParticulas,
+    tela: [tela.width, tela.height],
+  }
+}
+/** Folha de contato: n quadros a cada `passo` s, de um recorte da tela (px de CSS), com o tempo embaixo. */
+function folha({ t0 = 10, passo = 0.1, n = 10, recorte, colunas = 5, titulo = '' }) {
+  const rc = recorte ?? { x: 0, y: 0, w: cam.cw, h: cam.ch }
+  const d = cam.dpr
+  const cw = Math.round(rc.w * d), ch = Math.round(rc.h * d)
+  const linhas = Math.ceil(n / colunas)
+  const rotulo = 22, topo = titulo ? 30 : 0, gap = 6
+  const saida = novaTela(colunas * (cw + gap) + gap, topo + linhas * (ch + rotulo + gap) + gap)
+  const c = saida.getContext('2d')
+  c.fillStyle = '#121214'; c.fillRect(0, 0, saida.width, saida.height)
+  if (titulo) { c.fillStyle = '#eceae4'; c.font = '600 15px Segoe UI, sans-serif'; c.fillText(titulo, gap, 20) }
+  for (let i = 0; i < n; i += 1) {
+    const t = t0 + i * passo
+    desenharEm(t)
+    const x = gap + (i % colunas) * (cw + gap), y = topo + gap + Math.floor(i / colunas) * (ch + rotulo + gap)
+    c.drawImage(tela, rc.x * d, rc.y * d, cw, ch, x, y, cw, ch)
+    c.fillStyle = '#a2a09a'; c.font = '500 13px Bahnschrift, Segoe UI, sans-serif'
+    c.fillText(`${(i * passo).toFixed(1).replace('.', ',')} s`, x + 2, y + ch + 16)
+  }
+  congelado = false
+  return saida.toDataURL('image/png')
+}
+window.__ambiente = {
+  S, V, cam, pinceis, etapas, longasDesdeAAbertura: () => medidas.longas.slice(),
+  aplicar(parcial) {
+    const fundir = (alvo, fonte) => { for (const [k, v] of Object.entries(fonte)) { if (v && typeof v === 'object' && !Array.isArray(v) && alvo[k] && typeof alvo[k] === 'object') fundir(alvo[k], v); else alvo[k] = v } }
+    fundir(S, parcial); refazerAbrigo(); atualizarPainel()
+  },
+  pintar: pintarFaixa, apagarPintura, desenharEm, lerPixels, contarDiferentes, mascara: () => mascaras.abrigo, soltar() { congelado = false }, assentar, medir, folha, prova, encaixar, linhaDosNumeros,
+  ponto(xm, ym) { return { x: xm * cam.s + cam.ox, y: ym * cam.s + cam.oy } },
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Começo
+// ════════════════════════════════════════════════════════════════════════════
+async function comecar() {
+  try {
+    marcar('resto do script')
+    montarPainel(); await etapa('painel')
+    redimensionar(); marcar('tamanho da tela')
+    refazerAbrigo()
+    await etapa('máscaras')
+    const arte = await pintarTudo()
+    await respirar()
+    G = await montarGL(arte)
+    await etapa('texturas restantes')
+    atualizarPainel()
+    assentar(); await etapa('primeiro desenho')
+    window.__pronto = true
+    requestAnimationFrame((t) => { anterior = t; requestAnimationFrame(quadro) })
+    if (new URLSearchParams(location.search).get('prova') === '1') mostrarProva()
+  } catch (erro) {
+    const aviso = $('sem-gl'); aviso.hidden = false
+    aviso.querySelector('p').textContent = `O protótipo não conseguiu desenhar: ${erro.message}`
+    console.error(erro)
+  }
+}
+if (gl) comecar()
+</script>
+</body>
+</html>

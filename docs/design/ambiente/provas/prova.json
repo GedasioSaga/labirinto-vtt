@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "res": {
+    "vazamento": {
+      "pixelsDiferentes": 0,
+      "ok": true,
+      "seOSecoViesseDeTodasAsSalas": 59263,
+      "provaSensivel": true
+    },
+    "dentroDeCasa": {
+      "chuva": {
+        "dentro": 0,
+        "fora": 185801,
+        "ok": true
+      },
+      "neve": {
+        "dentro": 0,
+        "fora": 185595,
+        "ok": true
+      },
+      "folhas": {
+        "dentro": 0,
+        "fora": 1725,
+        "ok": true
+      },
+      "cinzas": {
+        "dentro": 0,
+        "fora": 1876,
+        "ok": true
+      }
+    },
+    "porta": {
+      "neblina": {
+        "portaFechada": 0,
+        "portaAberta": 53929,
+        "centroDoQueEntrouAtePorta": 63,
+        "ok": true
+      },
+      "brasas": {
+        "portaFechada": 0,
+        "portaAberta": 225,
+        "centroDoQueEntrouAtePorta": 72,
+        "ok": true
+      }
+    },
+    "ok": true
+  },
+  "texto": "Jogador na rua, depósito não visto, 3 instantes, todos os efeitos + chuva e neblina pintadas por cima do depósito:\n  com o depósito x sem o depósito: 0 pixels diferentes (passou)\n  o erro evitado (seco de todas as salas): 59263 pixels diferentes (a prova enxerga o erro)\nchuva a 100%, vento forte: dentro da casa 0 pixels, na rua 185801 (passou)\nneve a 100%, vento forte: dentro da casa 0 pixels, na rua 185595 (passou)\nfolhas a 100%, vento forte: dentro da casa 0 pixels, na rua 1725 (passou)\ncinzas a 100%, vento forte: dentro da casa 0 pixels, na rua 1876 (passou)\nneblina: porta fechada 0 pixels dentro; aberta 53929, a 63 px da porta (passou)\nbrasas: porta fechada 0 pixels dentro; aberta 225, a 72 px da porta (passou)"
+}

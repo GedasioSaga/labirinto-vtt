@@ -1,0 +1,139 @@
+{
+  "quando": "2026-11-12T22:51:15.212Z",
+  "navegador": "Chromium 143.0.7499.4 (Playwright chromium-1200), headless, --use-angle=d3d11 --enable-gpu",
+  "tela": "1600 x 900, palco 1232 x 900, mapa encaixado (~94%)",
+  "efeitos": "todos no mapa inteiro: neblina 60, chuva 90, brasas 75, neve 70, folhas e cinzas 75; noite; porta aberta",
+  "etapasDaAbertura": [
+    {
+      "nome": "contexto WebGL",
+      "ms": 92
+    },
+    {
+      "nome": "resto do script",
+      "ms": 1
+    },
+    {
+      "nome": "painel",
+      "ms": 1
+    },
+    {
+      "nome": "tamanho da tela",
+      "ms": 82
+    },
+    {
+      "nome": "máscaras",
+      "ms": 12
+    },
+    {
+      "nome": "chão",
+      "ms": 9
+    },
+    {
+      "nome": "rua",
+      "ms": 2
+    },
+    {
+      "nome": "trilhas e pátio",
+      "ms": 1
+    },
+    {
+      "nome": "casa por dentro",
+      "ms": 1
+    },
+    {
+      "nome": "telhado",
+      "ms": 4
+    },
+    {
+      "nome": "programas (compilados em paralelo)",
+      "ms": 822
+    },
+    {
+      "nome": "textura do mapa",
+      "ms": 1
+    },
+    {
+      "nome": "textura das marcas",
+      "ms": 0
+    },
+    {
+      "nome": "ruído da neblina",
+      "ms": 11
+    },
+    {
+      "nome": "texturas restantes",
+      "ms": 2
+    },
+    {
+      "nome": "primeiro desenho",
+      "ms": 2
+    }
+  ],
+  "tarefasLongasDesdeAAbertura": [
+    {
+      "inicio": 13,
+      "ms": 100
+    },
+    {
+      "inicio": 183,
+      "ms": 94
+    }
+  ],
+  "mestre": {
+    "quadros": 360,
+    "intervaloMs": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "max": 16.9
+    },
+    "processadorMs": {
+      "p50": 0.2,
+      "p95": 0.3,
+      "max": 0.5
+    },
+    "tarefasLongas": [],
+    "particulas": 5490,
+    "tela": [
+      1232,
+      900
+    ]
+  },
+  "mestre-esperando-a-placa": {
+    "quadros": 360,
+    "intervaloMs": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "max": 16.9
+    },
+    "processadorMs": {
+      "p50": 0.2,
+      "p95": 0.3,
+      "max": 0.5
+    },
+    "tarefasLongas": [],
+    "particulas": 5490,
+    "tela": [
+      1232,
+      900
+    ]
+  },
+  "jogador-na-rua": {
+    "quadros": 361,
+    "intervaloMs": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "max": 16.9
+    },
+    "processadorMs": {
+      "p50": 0.1,
+      "p95": 0.2,
+      "max": 0.4
+    },
+    "tarefasLongas": [],
+    "particulas": 5490,
+    "tela": [
+      1232,
+      900
+    ]
+  }
+}
