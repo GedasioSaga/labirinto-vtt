@@ -3658,6 +3658,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
   // sozinho — a tela da entrada (`viewFor`) não passa por ele.
   const fichasDaTela = new Map<string, { mapId: string; fichas: readonly { id: string; name: string }[] }>()
+  // O PASSO E A TELA DELE — por playerId: o mapa do último recorte que saiu
+  // para ele (`snapshotFor`), por QUALQUER caminho: a entrada e o "olhar por
+  // outra ficha" (`viewFor`), o broadcast e o reenvio (`viewIfChanged`, que o
+  // troca pelo mesmo recorte com os arrays reaproveitados da tela anterior).
+  // É o que ele está vendo: os objetos daqui dizem se a recusa do passo pode
+  // ser "objeto" (`objetoNaTela`), e as paredes daqui são as que ele conhece
+  // em batalha (`paredesDoRecorte`). O `sentViews` não serve, pelo mesmo
+  // motivo de `fichasDaTela`: a tela da entrada não passa por ele, e ele é
+  // esquecido para forçar a tela inteira. Este registro não decide envio
+  // nenhum. Sem entrada = sem tela de cena: o passo responde como se ele não
+  // visse nada (o lado que não conta nada).
+  const telaDoJogador = new Map<string, MapData>()
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
   const lostSecretCheckCard = new Set<string>()
@@ -4239,6 +4251,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       lastViews.delete(playerId)
       // Sem cena, sem mapa na tela: nenhum pino dele vale como "visto agora".
       seenPins.delete(playerId)
+      telaDoJogador.delete(playerId)
       return [{ type: 'lobby.waiting' }]
     }
     const { messages: view, settled } = snapshotFor(
@@ -4663,6 +4676,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const recorte = marcarTrancasParaJogador(view, new Set(ownTokens), trancas, memory.pinosBarrados)
     // BATALHA F1: as fichas que este recorte leva são as cartas que a ordem dos turnos pode mostrar a ele.
     fichasDaTela.set(playerId, { mapId: map.id, fichas: recorte.tokens })
+    // O PASSO E A TELA DELE: este recorte é o que ele passa a ver, saia pela entrada, pela troca de ficha ou pelo broadcast.
+    telaDoJogador.set(playerId, recorte)
     // ENCONTRO MARCADO: a espera DESTE jogador se resolve antes da marca: a que acabou agora não sai marcada.
     const waitEnded = settleWait(playerId, map.id, view)
     const waiting = waitingTokensForPlayer(view, waitingTokenIds())
@@ -4841,6 +4856,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       inputs,
       session,
     })
+    // O PASSO E A TELA DELE: a mesma tela, com os arrays que não mudaram reaproveitados (as contas do
+    // passo guardam cache por eles). Sem cena, a tela é a espera.
+    if (view === null) telaDoJogador.delete(playerId)
+    else telaDoJogador.set(playerId, view.map)
     return out === null ? cards : [out, ...cards]
   }
 
@@ -5017,6 +5036,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A tela dele virou a espera: o recorte que ele tinha não está mais nela.
     // A ficha que volta (mesmo a mesma, na mesma cena) refaz o recorte.
     lastViews.delete(playerId)
+    telaDoJogador.delete(playerId)
     // Sem ficha não há quem espere: a tela dele volta à espera do lobby, sem a marca.
     if (waits.delete(playerId)) viewEpoch += 1
     // A ficha nova, em qualquer cena, é entrada vinda da espera — não "levado".
@@ -5849,6 +5869,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     cluebooks.delete(playerId)
     colecoesByPlayer.delete(playerId)
     seenPins.delete(playerId)
+    telaDoJogador.delete(playerId)
     lastClueShowAt.delete(playerId)
     lastMapShareAt.delete(playerId)
     lastRouteShowAt.delete(playerId)
@@ -6067,25 +6088,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /**
    * MODO BATALHA: as paredes que o jogador conhece no piso `piso` da cena
-   * `mapId` — as da última tela que esta conexão recebeu. `null` sem tela
-   * dessa cena (aí ele não conhece nada a mais nem a menos que o mestre).
+   * `mapId` — as da última tela que saiu para ele (`telaDoJogador`: a da
+   * entrada também conta). `null` sem tela dessa cena (aí ele não conhece nada
+   * a mais nem a menos que o mestre).
    */
-  function paredesDoRecorte(clientId: string, mapId: string, piso: number, de: RegionPoint | null): Wall[] | null {
-    const recorte = sentViews.get(clientId)?.view?.map
+  function paredesDoRecorte(playerId: string, mapId: string, piso: number, de: RegionPoint | null): Wall[] | null {
+    const recorte = telaDoJogador.get(playerId)
     // BARRANCO: o que ele vê do barranco (o do recorte) também segura a conta dele.
     // OBJETO QUE BARRA: e o objeto grande que ele vê (os do recorte), menos o que contém a ficha (`de`).
     return recorte === undefined || recorte.id !== mapId ? null : paredesParaAndarDoJogador(mapaDoPiso(recorte, piso).walls, recorte, piso, de)
   }
 
   /**
-   * OBJETO QUE BARRA: o objeto está na última tela que esta conexão recebeu da
-   * cena `mapId` (o jogador o está vendo)? Sem tela dessa cena, nenhum está. É
-   * o que decide se a recusa do passo pode dizer "objeto" (`objetoAVista` em
-   * `lib/moveValidation.ts`). A lista de ids só é montada se alguém perguntar:
-   * no passo recusado por um objeto.
+   * OBJETO QUE BARRA: o objeto está na última tela que saiu para o jogador da
+   * cena `mapId` (`telaDoJogador`: ele o está vendo)? Sem tela dessa cena,
+   * nenhum está. É o que decide se a recusa do passo pode dizer "objeto"
+   * (`objetoAVista` em `lib/moveValidation.ts`). A lista de ids só é montada se
+   * alguém perguntar: no passo recusado por um objeto.
    */
-  function objetoNaTela(clientId: string, mapId: string): (prop: Prop) => boolean {
-    const recorte = sentViews.get(clientId)?.view?.map
+  function objetoNaTela(playerId: string, mapId: string): (prop: Prop) => boolean {
+    const recorte = telaDoJogador.get(playerId)
     if (recorte === undefined || recorte.id !== mapId) return () => false
     let ids: Set<string> | null = null
     return (prop) => (ids ??= new Set(recorte.props.map((p) => p.id))).has(prop.id)
@@ -6132,10 +6154,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // mapa e do barranco: o objeto barra no host (`validateTokenMove`) sem entrar no que ele "conhece".
     const deOndeSai = floorMap.tokens.find((t) => t.id === msg.tokenId) ?? null
     const batalha = emBatalha(scene)
-      ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso, deOndeSai) ?? paredesParaAndar(floorMap.walls, floorMap, piso), comCaminho: true }
+      ? { paredesDoJogador: paredesDoRecorte(playerId, scene.map.id, piso, deOndeSai) ?? paredesParaAndar(floorMap.walls, floorMap, piso), comCaminho: true }
       : undefined
     // "Objeto no caminho" só do objeto que está na tela DELE; o que ele não vê barra igual e responde como parede.
-    const objetoAVista = objetoNaTela(clientId, scene.map.id)
+    const objetoAVista = objetoNaTela(playerId, scene.map.id)
     const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha, objetoAVista })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
