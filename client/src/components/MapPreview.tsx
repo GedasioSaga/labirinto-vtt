@@ -103,7 +103,7 @@ export function MapPreview({ map, viewport }: MapPreviewProps) {
     return (
       <svg
         role="img"
-        aria-label={`Prévia do mapa: ${map.width} por ${map.height} quadros de ${map.grid} px não formam uma área desenhável`}
+        aria-label={`Prévia do mapa: ${map.width} por ${map.height} casas de ${map.grid} px não formam uma área desenhável`}
       />
     )
   }
@@ -126,7 +126,7 @@ export function MapPreview({ map, viewport }: MapPreviewProps) {
   const escala = Math.max(pxWidth, pxHeight)
 
   const rotulo =
-    `Prévia do mapa: ${map.width} por ${map.height} quadros, ` +
+    `Prévia do mapa: ${map.width} por ${map.height} casas, ` +
     (tile ? `grade ${nome} visível` : `sem grade (a grade ${nome} nasce desligada)`) +
     (recorte ? ', e o retângulo tracejado é a parte que cabe na janela quando o editor abre' : '')
 

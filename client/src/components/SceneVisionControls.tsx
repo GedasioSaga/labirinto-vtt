@@ -80,7 +80,7 @@ export function SceneVisionControls({
       <h2 className="lb-eyebrow">Visão dos jogadores</h2>
       <div className="lb-field">
         <label className="lb-label" htmlFor="lb-scene-vision">
-          Visão nesta cena (quadrados)
+          Visão nesta cena (casas)
         </label>
         <input
           id="lb-scene-vision"

@@ -37,7 +37,7 @@ const PINCEIS: Array<{ pincel: PincelDaArea; rotulo: string }> = [
 const DICA_DO_MODO: Readonly<Record<ModoDoBarranco, string>> = {
   risco: 'Arraste para riscar a beira. O lado alto começa para cima; clique na alça Virar (ou F) para trocar. Clique num risco para escolher, Delete apaga, Esc solta.',
   area: 'Pinte a parte alta: a borda inteira vira barranco. Começar dentro de uma área alta sobe mais um degrau (até 3). Segure Alt, ou escolha Descer, para baixar um degrau.',
-  rampa: 'Passe o ponteiro sobre um barranco e clique para abrir uma rampa de 2 quadrados. Clique numa rampa para tirar.',
+  rampa: 'Passe o ponteiro sobre um barranco e clique para abrir uma rampa de 2 casas. Clique numa rampa para tirar.',
 }
 
 interface OpcaoSegmentada<T extends string> {

@@ -3,7 +3,7 @@ import { temRpgNoMapa, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 
 /** A pergunta antes de o mapa solto virar aventura (sistema de RPG e fichas moram no `adventure.json`). */
-export const PERGUNTA_VIRAR_AVENTURA = 'Para guardar sistema e fichas, este mapa vira uma aventura (o mapa continua igual). Transformar?'
+export const PERGUNTA_VIRAR_AVENTURA = 'Para guardar sistema e fichas, este mapa vira uma aventura e passa a ter lista de cenas (o mapa continua igual). Transformar?'
 
 export interface GarantirAventuraOpcoes {
   /** Sim/não ao mestre. No app instalado é a janela do sistema (`ask`); nos testes, uma resposta pronta. */
@@ -32,7 +32,7 @@ export async function garantirAventura({ perguntar, caminhoDoMapaSolto }: Garant
 }
 
 /** A pergunta antes de o mapa solto virar aventura por causa da LISTA de camadas (fatia 7). */
-export const PERGUNTA_VIRAR_AVENTURA_CAMADAS = 'A lista de camadas fica guardada na aventura: este mapa vira uma aventura (o mapa continua igual). Transformar?'
+export const PERGUNTA_VIRAR_AVENTURA_CAMADAS = 'A lista de camadas fica guardada na aventura: este mapa vira uma aventura e passa a ter lista de cenas (o mapa continua igual). Transformar?'
 
 /**
  * CAMADAS (fatia 7): criar camada ou mudar a ordem num mapa SOLTO perderia a

@@ -37,7 +37,7 @@ interface PinImageDropProps {
  * e serve também à imagem do token (`TokenImageControls`): o que muda é só o
  * `rotulo` e o que `onImage` faz com o arquivo.
  */
-export function PinImageDrop({ onImage, rotulo = 'Colar ou soltar imagem do ponto de interesse' }: PinImageDropProps) {
+export function PinImageDrop({ onImage, rotulo = 'Colar ou soltar imagem do pino' }: PinImageDropProps) {
   const [arrastando, setArrastando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
 

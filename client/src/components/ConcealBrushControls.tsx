@@ -13,9 +13,9 @@ const MODES: Array<{ mode: RevealBrushMode; label: string }> = [
 ]
 
 const WIDTHS: Array<{ width: RevealBrushWidth; label: string; hint: string }> = [
-  { width: 1, label: 'Fino', hint: '1 quadrado' },
-  { width: 2, label: 'Médio', hint: '2 quadrados' },
-  { width: 4, label: 'Largo', hint: '4 quadrados' },
+  { width: 1, label: 'Fino', hint: '1 casa' },
+  { width: 2, label: 'Médio', hint: '2 casas' },
+  { width: 4, label: 'Largo', hint: '4 casas' },
 ]
 
 /**

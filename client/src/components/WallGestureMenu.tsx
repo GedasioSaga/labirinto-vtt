@@ -41,7 +41,7 @@ export function WallGestureMenu({ x, y, limite, onAbrirVao, onDesabar, onClose, 
   const [posicao, setPosicao] = useState({ left: x, top: y })
 
   const itens: ItemDoMenu[] = [
-    { label: 'Abrir vão aqui', description: 'Passagem de uma célula, dos dois lados da parede.', onSelect: onAbrirVao },
+    { label: 'Abrir vão aqui', description: 'Passagem de uma casa, dos dois lados da parede.', onSelect: onAbrirVao },
     { label: 'Desabar parede', description: 'A parede cai inteira, dos dois lados.', onSelect: onDesabar },
   ]
 

@@ -67,7 +67,7 @@ export function PinIconControls({ icon, onIconChange, pinSelected, glyph }: PinI
       <span className="lb-label">
         {pinSelected
           ? `O ícone aparece no lugar do "${glyph}" — no mapa e no cartão do jogador.`
-          : 'Vale para o próximo ponto de interesse que você cravar.'}
+          : 'Vale para o próximo pino que você cravar.'}
       </span>
     </div>
   )

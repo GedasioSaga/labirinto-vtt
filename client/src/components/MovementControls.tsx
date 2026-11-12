@@ -39,7 +39,7 @@ export function MovementControls({ movement, onMovementChange }: MovementControl
 
       <div className="lb-field">
         <label className="lb-label" htmlFor={stepId}>
-          Passo máximo (quadrados)
+          Passo máximo (casas)
         </label>
         <input
           id={stepId}

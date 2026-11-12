@@ -88,7 +88,7 @@ export function TokenWatchControls({ watch, onWatchChange }: TokenWatchControlsP
                 type="button"
                 role="radio"
                 aria-checked={watch.alcance === squares}
-                aria-label={`${squares} quadrados`}
+                aria-label={`${squares} casas`}
                 className="lb-seg__option"
                 onClick={() => onWatchChange({ ...watch, alcance: squares })}
               >

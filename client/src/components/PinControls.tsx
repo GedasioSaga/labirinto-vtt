@@ -346,10 +346,9 @@ function KindMark({ kind }: { kind: PinKind }) {
  * controles exportados daqui; `PinControlsProps` continua sendo o que o painel
  * recebe do pino (`description: null` = nenhum pino aberto).
  *
- * O título é "Ponto de interesse", não "Pino": o botão da barra já se chama
- * "Pino" e dois rótulos idênticos na mesma tela confundem quem lê por leitor
- * de tela (e o `getByRole` dos specs). O de viagem é "Pino de viagem", que não
- * repete o botão.
+ * O título é "Pino", o nome do botão da barra (caça de 12/11/2026, E20: um
+ * nome só para a mesma coisa; antes era "Ponto de interesse"). Título e botão
+ * têm papéis diferentes (`heading` e `button`). O de viagem é "Pino de viagem".
  *
  * O tipo vem em LINHAS, não em colunas: são cinco opções, e colunas na largura
  * do rail dariam 60 px a cada rótulo — "Interrogação" mede 68.
@@ -360,7 +359,7 @@ export function PinControls({ kind, onKindChange, iconChoice }: PinControlsProps
   const minigame = kind === 'minigame'
   return (
     <section className="lb-section">
-      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : 'Ponto de interesse'}</h2>
+      <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : 'Pino'}</h2>
       <div className="lb-seg lb-seg--rows" role="radiogroup" aria-label="Tipo do pino">
         {PIN_KIND_ORDER.map((option) => (
           <button

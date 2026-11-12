@@ -1654,7 +1654,7 @@ export function ScenesSection({
         : [{ label: pinnedSet.has(scene.id) ? 'Tirar do topo' : 'Fixar no topo', disabled: false, onSelect: andClose(() => togglePin(scene.id)) }]),
       // ABALO e PLANTA saíram da faixa do hover (ela cobria o nome): abrem o formulário na linha, e o foco volta ao "…".
       ...(onQuake === undefined ? [] : [{ label: 'Abalo…', disabled: !scene.available, onSelect: toForm((opener) => startQuake(scene.id, opener)) }]),
-      ...(onTogglePlanKnown === undefined ? [] : [{ label: 'Planta…', disabled: false, onSelect: toForm((opener) => startPlan(scene.id, opener)) }]),
+      ...(onTogglePlanKnown === undefined ? [] : [{ label: 'Mostrar a planta aos jogadores…', disabled: false, onSelect: toForm((opener) => startPlan(scene.id, opener)) }]),
       { label: 'Duplicar', disabled: onDuplicate === undefined || !scene.available, onSelect: andClose(() => onDuplicate?.(scene.id)) },
       { label: 'Subir', disabled: onShift === undefined || first, onSelect: andClose(() => onShift?.(scene.id, -1)) },
       { label: 'Descer', disabled: onShift === undefined || last, onSelect: andClose(() => onShift?.(scene.id, 1)) },
@@ -2159,7 +2159,7 @@ export function ScenesSection({
                       type="button"
                       className="lb-cenas__recado-btn"
                       aria-label={`Configurar ${scene.name}`}
-                      title="Configurar: visão dos jogadores nesta cena"
+                      title="Configurar esta cena"
                       disabled={!scene.available}
                       onClick={() => onConfigure(scene.id)}
                     >

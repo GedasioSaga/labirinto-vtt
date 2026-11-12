@@ -31,9 +31,9 @@ export interface TokenSizeOption {
  * (ver `seatTokenCenter`).
  */
 export const TOKEN_SIZE_OPTIONS: readonly TokenSizeOption[] = [
-  { value: 1, label: '1 quadrado' },
-  { value: 2, label: '2 quadrados' },
-  { value: 3, label: '3 quadrados' },
+  { value: 1, label: '1 casa' },
+  { value: 2, label: '2 casas' },
+  { value: 3, label: '3 casas' },
 ]
 
 /**

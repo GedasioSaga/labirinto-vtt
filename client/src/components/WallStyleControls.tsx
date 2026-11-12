@@ -365,7 +365,7 @@ export function WallStyleControls({
               ))}
             </div>
             <p className="lb-field__hint" id={WALL_WIDTH_HINT_ID}>
-              No ajuste fino a parede vai até {WALL_WIDTH_WORLD_MAX} px, uma célula inteira de muralha. Acompanha o zoom do mapa.
+              No ajuste fino a parede vai até {WALL_WIDTH_WORLD_MAX} px, uma casa inteira de muralha. Acompanha o zoom do mapa.
             </p>
           </div>
           <div className="lb-field">

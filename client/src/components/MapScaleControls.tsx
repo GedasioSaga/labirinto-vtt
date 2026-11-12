@@ -17,11 +17,11 @@ export interface MapScaleControlsProps {
  * que servia o seletor só com o nome do modo.
  */
 export const MEASUREMENT_MODE_DESCRIPTIONS: Record<MeasurementMode, string> = {
-  chessboard: 'A diagonal conta 1 célula, igual a um passo reto.',
-  alternating: 'Diagonais alternam: a primeira conta 1 célula, a segunda conta 2 (5-10-5).',
-  euclidean: 'Distância em linha reta, como uma régua, sem contar por células.',
-  manhattan: 'Só anda na horizontal e na vertical: cada diagonal custa 2 células.',
-  hex: 'Conta os hexágonos atravessados; cada vizinho vale 1 célula.',
+  chessboard: 'A diagonal conta 1 casa, igual a um passo reto.',
+  alternating: 'Diagonais alternam: a primeira conta 1 casa, a segunda conta 2 (5-10-5).',
+  euclidean: 'Distância em linha reta, como uma régua, sem contar por casas.',
+  manhattan: 'Só anda na horizontal e na vertical: cada diagonal custa 2 casas.',
+  hex: 'Conta os hexágonos atravessados; cada vizinho vale 1 casa.',
 }
 
 /**
@@ -55,7 +55,7 @@ export function MapScaleControls({
 
       <div className="lb-field">
         <label className="lb-label" htmlFor="lb-scale-units">
-          Unidades por célula
+          Unidades por casa
         </label>
         <input
           id="lb-scale-units"

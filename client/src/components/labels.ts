@@ -25,7 +25,8 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   roomFree: 'Sala livre',
   stair: 'Escada',
   token: 'Token',
-  prop: 'Peça',
+  // "Imagem", como a aba do botão Objeto ("Objeto: Imagem"); "peça" saiu da tela (caça 12/11, E20).
+  prop: 'Imagem',
   brush: 'Pincel',
   line: 'Linha',
   circle: 'Círculo',
@@ -46,7 +47,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   neblina: 'Neblina',
   carimbos: 'Carimbos',
   pin: 'Pino',
-  mobilia: 'Objetos',
+  mobilia: 'Objeto',
 }
 
 export interface SelectionNoun {
@@ -66,7 +67,7 @@ export const SELECTION_LABELS: Record<SelectionKind, SelectionNoun> = {
   light: { noun: 'luz', gender: 'f' },
   region: { noun: 'região', gender: 'f' },
   stair: { noun: 'escada', gender: 'f' },
-  prop: { noun: 'peça', gender: 'f' },
+  prop: { noun: 'objeto', gender: 'm' },
   drawing: { noun: 'desenho', gender: 'm' },
   floor: { noun: 'peça de chão', gender: 'f' },
 }
@@ -109,7 +110,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   rect: 'Clique e arraste de um canto ao outro para desenhar um retângulo.',
   polygon: 'Clique para adicionar vértice. Duplo clique fecha (mín. 3 pontos). Esc cancela.',
   curve: 'Clique e arraste para desenhar uma curva suave.',
-  text: 'Clique pra colocar um rótulo — edite o texto no painel.',
+  text: 'Clique para colocar um texto — edite no painel.',
   measure: 'Clique e arraste para medir a distância entre dois pontos.',
   eraser: 'Clique ou arraste sobre um item do mapa para apagá-lo.',
   path: 'Escolha a cor DESTE caminho no painel e clique ponto a ponto. Duplo clique ou Enter termina; Backspace tira o último ponto; Esc cancela. Cada caminho guarda a cor dele.',
@@ -127,7 +128,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Dê parte alta e parte baixa ao mapa. Risco: arraste a beira e escolha o lado alto (F vira). Área alta: pinte o platô, e a borda vira barranco; começar dentro sobe mais um degrau, Alt desce. Rampa: clique no barranco para abrir a passagem. O barranco segura a ficha; a visão passa por cima.',
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
-  pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
+  pin: 'Clique no mapa para cravar um pino. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
   mobilia: 'Escolha o objeto e clique no mapa para pôr; em cima de tapete, píer ou palco ele já nasce por cima (outro tapete, píer ou palco, não), e Ctrl + clique o põe em cima de qualquer objeto. Clique num objeto posto abre a ficha dele; o botão direito o põe por cima ou por baixo.',
 }
 

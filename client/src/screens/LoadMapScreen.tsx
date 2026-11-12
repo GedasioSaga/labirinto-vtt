@@ -104,7 +104,7 @@ function grupoStyle(alvo: boolean): CSSProperties {
 /** Tipo do dado do arrasto: só a CHAVE do mapa (a pasta dele em `maps`). Outro arrasto (arquivo, texto) não é aceito. */
 const MIME_DO_MAPA = 'application/x-labirinto-mapa'
 
-/** Id estável do "Excluir" de uma linha: o botão é desmontado enquanto a
+/** Id estável do "Apagar" de uma linha: o botão é desmontado enquanto a
  *  pergunta está aberta, e é por este id que o foco volta a ele. */
 function deleteButtonId(mapId: string): string {
   return `lb-del-${mapId}`
@@ -178,7 +178,7 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
   const focoPendente = useRef<string | null>(null)
   const novaPastaRef = useRef<HTMLButtonElement | null>(null)
 
-  // O "Excluir" só volta à linha no render que fecha a pergunta: aqui ele já existe.
+  // O "Apagar" só volta à linha no render que fecha a pergunta: aqui ele já existe.
   useLayoutEffect(() => {
     const alvo = focoPendente.current
     focoPendente.current = null
@@ -280,7 +280,7 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
 
   const cancelRowMode = () => setRowMode(null)
 
-  /** Fecha a pergunta "Apagar X?" sem apagar. O foco volta ao "Excluir" que
+  /** Fecha a pergunta "Apagar X?" sem apagar. O foco volta ao "Apagar" que
    *  a abriu: o botão clicado saiu da tela, e o foco cairia no `body`. */
   const cancelDelete = (mapId: string) => {
     focoPendente.current = deleteButtonId(mapId)
@@ -592,7 +592,7 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
                 disabled={isBusy}
                 onClick={() => setRowMode({ id: map.id, kind: 'delete-confirm' })}
               >
-                Excluir
+                Apagar
               </button>
             </div>
           </>
@@ -721,7 +721,7 @@ export function LoadMapScreen({ onOpenPath, onBack }: LoadMapScreenProps) {
             style={compactBtnStyle}
             onClick={() => setFolderMode({ id: pasta.id, kind: 'delete-confirm' })}
           >
-            Excluir
+            Apagar
           </button>
         </div>
       </div>

@@ -328,7 +328,7 @@ const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
     id: `pincel-${tamanho}`,
     label: tamanho === 1 ? '1 bloco' : `${tamanho} blocos`,
     value: tamanho,
-    description: tamanho === 1 ? 'Uma célula por vez.' : `Quadrado de ${tamanho}×${tamanho} células.`,
+    description: tamanho === 1 ? 'Uma casa por vez.' : `Quadrado de ${tamanho}×${tamanho} casas.`,
   })),
 }
 
@@ -388,9 +388,9 @@ const STAIR_SIZE_GROUP: ToolVariantGroup = {
   storeKey: 'stairSizePreset',
   label: 'Tamanho',
   options: [
-    { id: 'small', label: 'Pequena', value: 'small', description: 'Metade de uma célula de grade — passagem justa.' },
-    { id: 'medium', label: 'Média', value: 'medium', description: 'Uma célula de grade — mesmo tamanho de hoje.' },
-    { id: 'large', label: 'Grande', value: 'large', description: 'Duas células de grade — cabem 2 tokens lado a lado.' },
+    { id: 'small', label: 'Pequena', value: 'small', description: 'Metade de uma casa — passagem justa.' },
+    { id: 'medium', label: 'Média', value: 'medium', description: 'Uma casa — mesmo tamanho de hoje.' },
+    { id: 'large', label: 'Grande', value: 'large', description: 'Duas casas — cabem 2 tokens lado a lado.' },
   ],
 }
 
@@ -555,7 +555,7 @@ export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape
   label: 'Colocar',
   options: [
     { id: 'mobilia', label: 'Móvel', value: 'mobilia', description: comAtalho('Um móvel desenhado do catálogo', 'mobilia') },
-    { id: 'prop', label: 'Imagem', value: 'prop', description: comAtalho('Uma imagem sua, que vira peça', 'prop') },
+    { id: 'prop', label: 'Imagem', value: 'prop', description: comAtalho('Uma imagem sua, que vira objeto', 'prop') },
   ],
 }
 

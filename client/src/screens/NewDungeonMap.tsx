@@ -103,7 +103,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
           <div className="lb-card__grid">
             <div className="lb-field">
               <label className="lb-label" htmlFor="lb-map-width">
-                Largura (quadros)
+                Largura (casas)
               </label>
               <input
                 id="lb-map-width"
@@ -117,7 +117,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
             </div>
             <div className="lb-field">
               <label className="lb-label" htmlFor="lb-map-height">
-                Altura (quadros)
+                Altura (casas)
               </label>
               <input
                 id="lb-map-height"
@@ -174,7 +174,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
           </div>
           <div>
             <p className="lb-stat">
-              <span className="lb-stat__key">Quadros</span>
+              <span className="lb-stat__key">Casas</span>
               <span className="lb-stat__value">
                 {safeWidth} × {safeHeight}
               </span>
@@ -194,7 +194,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
               <span className="lb-stat__value">
                 {cabeInteiro
                   ? 'o mapa inteiro'
-                  : `${quadrosNaTela.x} × ${quadrosNaTela.y} dos ${safeWidth} × ${safeHeight} quadros`}
+                  : `${quadrosNaTela.x} × ${quadrosNaTela.y} dos ${safeWidth} × ${safeHeight} casas`}
               </span>
             </p>
           </div>

@@ -117,7 +117,7 @@ export function lockDoorOptions(map: MapData, pin: Pin): LockDoorOption[] {
   if (faltou !== undefined) perto.push(faltou)
   return perto.map((p) => {
     const quadros = Math.round(p.distancia / quadro)
-    const onde = quadros === 1 ? 'a 1 quadro' : `a ${quadros} quadros`
+    const onde = quadros === 1 ? 'a 1 casa' : `a ${quadros} casas`
     return { id: p.id, label: p.locked ? `Porta trancada ${onde}` : `Porta ${onde} (já destrancada)` }
   })
 }

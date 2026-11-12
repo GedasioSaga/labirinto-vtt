@@ -38,7 +38,7 @@ export function raioEmQuadrados(visionCells: number | undefined, cellPx: number)
 
 function formatarQuadrados(cells: number): string {
   const texto = String(cells).replace('.', ',')
-  return cells === 1 ? '1 quadrado' : `${texto} quadrados`
+  return cells === 1 ? '1 casa' : `${texto} casas`
 }
 
 /**

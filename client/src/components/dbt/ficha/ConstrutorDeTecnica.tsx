@@ -386,7 +386,7 @@ export function ConstrutorDeTecnica({ tecnicaId, onFechar }: { tecnicaId: string
               (confirmarExclusao ? (
                 <>
                   <button type="button" className="dbf-btn dbf-btn--mal" onClick={excluir}>
-                    Excluir de vez
+                    Apagar de vez
                   </button>
                   <button type="button" className="dbf-btn dbf-btn--ghost" onClick={() => setConfirmarExclusao(false)}>
                     Manter
@@ -394,7 +394,7 @@ export function ConstrutorDeTecnica({ tecnicaId, onFechar }: { tecnicaId: string
                 </>
               ) : (
                 <button type="button" className="dbf-btn dbf-btn--ghost dbf-btn--perigo" onClick={() => setConfirmarExclusao(true)}>
-                  Excluir técnica
+                  Apagar técnica
                 </button>
               ))}
             <span className="dbf-builder__esp" />

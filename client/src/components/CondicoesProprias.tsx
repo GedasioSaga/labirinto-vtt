@@ -64,7 +64,7 @@ function avisoDeEditar(alcance: AlcanceDaCondicao): string {
   return `Ela está em ${ondeEsta(alcance)}. Salvar muda em ${alcance.fichas === 1 ? 'essa ficha também' : 'todas'}.`
 }
 
-/** O que o "Excluir de vez" alcança. */
+/** O que o "Apagar de vez" alcança. */
 function avisoDeExcluir(alcance: AlcanceDaCondicao): string {
   if (alcance.fichas === 0) return 'Ela sai da sua lista. Nenhuma ficha está com ela.'
   return `Ela sai da sua lista e de ${ondeEsta(alcance)}.`
@@ -226,14 +226,14 @@ function FormDaCondicao({ inicial, aviso, tamanhoNoMapa, onSalvar, onExcluir, on
         </Botao>
         {onExcluir !== undefined && (
           <Botao variante="perigo" tamanho="p" onClick={() => (confirmando ? onExcluir() : setConfirmando(true))}>
-            {confirmando ? 'Excluir de vez' : 'Excluir'}
+            {confirmando ? 'Apagar de vez' : 'Apagar'}
           </Botao>
         )}
       </Acoes>
       {confirmando && alcance !== null && (
         <p className="gr-nota" role="status">
           {avisoDeExcluir(alcance)}
-          {cenasFechadas !== null && ` ${cenasFechadas}`} Clique em "Excluir de vez" para confirmar.
+          {cenasFechadas !== null && ` ${cenasFechadas}`} Clique em "Apagar de vez" para confirmar.
         </p>
       )}
       {aviso !== null && (

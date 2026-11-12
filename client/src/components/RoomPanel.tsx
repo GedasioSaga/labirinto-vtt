@@ -218,7 +218,7 @@ export function playerStatusLabel(player: PlayerInfo): string {
 /** "9 quadrados", "7,8 quadrados": quanto este jogador enxerga na cena dele (cena x fator). */
 export function sceneCellsLabel(cells: number, factor: number): string {
   const seen = Math.round(cells * factor * 10) / 10
-  return `${String(seen).replace('.', ',')} ${seen === 1 ? 'quadrado' : 'quadrados'}`
+  return `${String(seen).replace('.', ',')} ${seen === 1 ? 'casa' : 'casas'}`
 }
 
 /**

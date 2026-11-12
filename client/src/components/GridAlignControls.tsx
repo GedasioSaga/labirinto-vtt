@@ -161,7 +161,7 @@ export function GridAlignControls({
 
       {draft && (
         <div className="lb-section__row">
-          <span className="lb-label">Célula resultante</span>
+          <span className="lb-label">Casa resultante</span>
           <span className="lb-num">{Math.round(draft.cellSize)} px</span>
         </div>
       )}
@@ -216,7 +216,7 @@ export function GridAlignControls({
       </button>
 
       <div className="lb-section__row">
-        <span className="lb-label">Tamanho de célula atual</span>
+        <span className="lb-label">Tamanho da casa atual</span>
         <span className="lb-num">{Math.round(cellSize)} px</span>
       </div>
     </section>

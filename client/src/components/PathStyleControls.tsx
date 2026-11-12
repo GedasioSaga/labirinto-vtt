@@ -17,7 +17,7 @@ const WIDTH_STEP_CELLS = 0.5
 /** "1 célula" / "2,5 células" — vírgula decimal, que é como se lê em pt-BR. */
 function larguraEmTexto(widthCells: number): string {
   const numero = widthCells.toLocaleString('pt-BR')
-  return `${numero} ${widthCells === 1 ? 'célula' : 'células'}`
+  return `${numero} ${widthCells === 1 ? 'casa' : 'casas'}`
 }
 
 /**

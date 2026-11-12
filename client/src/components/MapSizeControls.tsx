@@ -70,7 +70,7 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
       <form onSubmit={apply} noValidate>
         <div className="lb-field">
           <label className="lb-label" htmlFor="lb-mapsize-width">
-            Largura (quadros)
+            Largura (casas)
           </label>
           <input
             ref={widthRef}
@@ -94,7 +94,7 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
 
         <div className="lb-field">
           <label className="lb-label" htmlFor="lb-mapsize-height">
-            Altura (quadros)
+            Altura (casas)
           </label>
           <input
             ref={heightRef}
@@ -117,8 +117,8 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
         </div>
 
         <p id="lb-mapsize-hint" className="lb-field__hint">
-          Aumentar põe quadros novos à direita e embaixo: o que já está desenhado fica no mesmo lugar, e o que os
-          jogadores exploraram também. Diminuir tira quadros da direita e de baixo.
+          Aumentar põe casas novas à direita e embaixo: o que já está desenhado fica no mesmo lugar, e o que os
+          jogadores exploraram também. Diminuir tira casas da direita e de baixo.
         </p>
 
         <button

@@ -52,7 +52,7 @@ export function formatarQuadrados(quadrados: number): string {
         maximumFractionDigits: CASAS,
         useGrouping: false,
       })
-  return `${numero} ${valor === 1 ? 'quadrado' : 'quadrados'}`
+  return `${numero} ${valor === 1 ? 'casa' : 'casas'}`
 }
 
 /**

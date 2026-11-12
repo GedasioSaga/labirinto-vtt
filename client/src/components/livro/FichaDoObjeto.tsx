@@ -83,7 +83,8 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
   return (
     <section className="lb-ficha-do-objeto">
       {/* O título do bloco de antes, só para o leitor de tela: a cabeça já diz o tipo. */}
-      <h2 className="gr-sr">{movel ? 'Móvel' : titulo}</h2>
+      {/* "Objeto" também no móvel desenhado (caça 12/11, E20: um nome só para a mesma coisa). */}
+      <h2 className="gr-sr">{titulo}</h2>
       {item !== undefined && itemNoChao !== undefined && (
         <Essencial>
           <ItemNoChaoControls item={item} {...itemNoChao} />

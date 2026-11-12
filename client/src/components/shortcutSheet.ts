@@ -140,7 +140,7 @@ const EDIT_GROUP: ShortcutGroup = {
     { what: 'Selecionar tudo', combo: { keys: ['Ctrl', 'A'] }, action: { kind: 'selectAll' } },
     { what: 'Apagar a seleção', combo: { keys: ['Delete'] }, action: { kind: 'deleteSelected' } },
     { what: 'Mover a seleção 1 quadrado', combo: { keys: ['Setas'] }, action: { kind: 'nudge', dx: 1, dy: 0, fine: false } },
-    { what: 'Mover 10 quadrados', combo: { keys: ['Shift', 'Setas'] }, action: { kind: 'nudge', dx: 10, dy: 0, fine: false } },
+    { what: 'Mover 10 casas', combo: { keys: ['Shift', 'Setas'] }, action: { kind: 'nudge', dx: 10, dy: 0, fine: false } },
     { what: 'Mover 1 pixel', combo: { keys: ['Alt', 'Setas'] }, action: { kind: 'nudge', dx: 1, dy: 0, fine: true } },
     // Fora do mapa de teclas: quem lê o Ctrl é o arrasto da ficha (`passoDoArrastoDaFicha`, pixi/PixiCanvas.tsx).
     { what: 'Passar a ficha por parede e porta', combo: { keys: ['Ctrl'], mouse: 'arrastar a ficha', hold: true } },
