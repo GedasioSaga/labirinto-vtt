@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { isValidMapSide } from '../lib/mapFactory'
+import { MAP_SIDE_MAX, isValidMapSide } from '../lib/mapFactory'
 
 export interface MapSizeControlsProps {
   /** `MapData.width` atual, em quadros. */
@@ -12,7 +12,7 @@ export interface MapSizeControlsProps {
   onApply: (width: number, height: number) => void
 }
 
-const SIDE_ERROR = 'Use um número inteiro de 1 para cima.'
+const SIDE_ERROR = `Use um número inteiro de 1 a ${MAP_SIDE_MAX}.`
 
 /** Texto do campo como lado do mapa; `null` = vazio, zero, negativo, fração ou lixo. */
 function parseSide(text: string): number | null {
@@ -78,6 +78,7 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
             className="lb-input"
             type="number"
             min={1}
+            max={MAP_SIDE_MAX}
             step={1}
             value={widthText}
             aria-invalid={widthError || undefined}
@@ -101,6 +102,7 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
             className="lb-input"
             type="number"
             min={1}
+            max={MAP_SIDE_MAX}
             step={1}
             value={heightText}
             aria-invalid={heightError || undefined}

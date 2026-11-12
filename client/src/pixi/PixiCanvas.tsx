@@ -133,7 +133,7 @@ const FAIXAS_DE_VISTA_UNICA: ReadonlySet<string> = new Set(['tokensContainer', '
 const OUTSIDE_FLOOR_GRID_COLOR = 0xd8d8d8
 const OUTSIDE_FLOOR_GRID_ALPHA = 0.08
 // Onda 3, item 21 (Frente E) — moldura do mapa (contorno + sombra fora dela).
-import { drawMapBounds } from './drawMapBounds'
+import { drawMapBounds, mapBoundsRect } from './drawMapBounds'
 import { createTokensRenderer } from './tokensRenderer'
 import type { FotosDaForma, SelosNasFichas } from './tokenPhotoSprite'
 import { createFantasmaDeTesteRenderer } from './fantasmaDeTeste'
@@ -1834,12 +1834,19 @@ function PixiCanvasDoContexto({
       // no fit automático de abertura quanto na tecla F.
       const FIT_MARGIN = 40
       const fitToContent = (origin: CameraOrigin) => {
-        const bounds = contentBounds(useMapStore.getState().map)
-        // Mapa vazio (bounds nulo): não mexe na câmera — fitCamera não tem
-        // "sem conteúdo" pra enquadrar, e forçar um valor arbitrário seria
-        // pior que deixar a câmera onde já estava.
-        if (!bounds) return
-        applyCamera(fitCamera(bounds, { width: app.screen.width, height: app.screen.height }, FIT_MARGIN), origin)
+        const mapa = useMapStore.getState().map
+        const bounds = contentBounds(mapa)
+        if (bounds) {
+          applyCamera(fitCamera(bounds, { width: app.screen.width, height: app.screen.height }, FIT_MARGIN), origin)
+          return
+        }
+        // Mapa vazio (caça 12/11, E14): enquadra o RETÂNGULO do mapa na parte que os
+        // painéis deixam livre, na abertura e no F — o mapa novo abre com os 4 lados à vista.
+        const retangulo = mapBoundsRect(mapa)
+        if (retangulo === null) return
+        const livre = freeArea({ width: app.screen.width, height: app.screen.height }, focusObstaclesRef.current?.() ?? [])
+        const enquadrada = fitCamera(retangulo, { width: livre.maxX - livre.minX, height: livre.maxY - livre.minY }, FIT_MARGIN)
+        applyCamera({ ...enquadrada, x: enquadrada.x + livre.minX, y: enquadrada.y + livre.minY }, origin)
       }
       // Fit automático ao ABRIR o mapa (item #9): PixiCanvas monta de novo
       // toda vez que `App.tsx` troca de tela pra 'editor' (Carregar Mapa,

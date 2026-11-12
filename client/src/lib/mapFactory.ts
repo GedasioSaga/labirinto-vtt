@@ -58,6 +58,7 @@ import { nuvensLigadas } from './nuvens'
 import { isContinente } from './marcadorDeContinente'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
+  drawingBoundingBox,
   type Corner, type ResizeModifiers,
 } from './objectTransform'
 
@@ -1119,9 +1120,37 @@ export function setGridCellSize(map: MapData, cellSize: number): MapData {
   return { ...map, grid: cellSize }
 }
 
-/** Lado do mapa aceito por `setMapSize`: inteiro de 1 quadro para cima. */
+/** Teto do lado do mapa, em casas (caça de 12/11/2026, E15, decisão 18: o mestre escolheu 500). */
+export const MAP_SIDE_MAX = 500
+
+/** Lado do mapa aceito por `setMapSize`: inteiro de 1 a `MAP_SIDE_MAX` casas. */
 export function isValidMapSide(value: number): boolean {
-  return Number.isInteger(value) && value >= 1
+  return Number.isInteger(value) && value >= 1 && value <= MAP_SIDE_MAX
+}
+
+/**
+ * Quantas peças ficam FORA do retângulo do mapa (caça 12/11, E15): parede,
+ * sala, objeto, ficha, luz, escada, pino e desenho com algum ponto além da
+ * borda. É o que o aviso de diminuir o mapa conta.
+ */
+export function pecasForaDoMapa(map: MapData): number {
+  const maxX = map.width * map.grid
+  const maxY = map.height * map.grid
+  const fora = (x: number, y: number) => x < 0 || y < 0 || x > maxX || y > maxY
+  const algumFora = (pontos: readonly { x: number; y: number }[]) => pontos.some((p) => fora(p.x, p.y))
+  return (
+    map.walls.filter((w) => fora(w.x1, w.y1) || fora(w.x2, w.y2)).length +
+    map.regions.filter((r) => algumFora(r.points)).length +
+    map.props.filter((p) => fora(p.x, p.y)).length +
+    map.tokens.filter((t) => fora(t.x, t.y)).length +
+    map.lights.filter((l) => fora(l.x, l.y)).length +
+    map.stairs.filter((s) => s.segments.some((lance) => fora(lance.x1, lance.y1) || fora(lance.x2, lance.y2))).length +
+    map.pins.filter((p) => fora(p.x, p.y)).length +
+    map.drawings.filter((d) => {
+      const caixa = drawingBoundingBox(d)
+      return caixa !== null && (fora(caixa.minX, caixa.minY) || fora(caixa.maxX, caixa.maxY))
+    }).length
+  )
 }
 
 /**

@@ -44,8 +44,8 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
 
   // Normalização única, usada pela prévia E pela criação — campo vazio ou
   // inválido mostra o mapa que realmente vai nascer.
-  const safeWidth = Math.max(1, Math.round(width) || 30)
-  const safeHeight = Math.max(1, Math.round(height) || 20)
+  const safeWidth = Math.min(mapFactory.MAP_SIDE_MAX, Math.max(1, Math.round(width) || 30))
+  const safeHeight = Math.min(mapFactory.MAP_SIDE_MAX, Math.max(1, Math.round(height) || 20))
   const safeGrid = Math.max(1, Math.round(gridSize) || 64)
 
   /**

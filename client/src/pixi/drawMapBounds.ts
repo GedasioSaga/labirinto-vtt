@@ -46,7 +46,8 @@ const MAP_BOUNDS_STROKE_WIDTH = STROKE_WEIGHT.hairline
  *  área fora do artboard/tela, sem introduzir uma cor nova no vocabulário do
  *  canvas. */
 const OUTSIDE_SHADE_COLOR = 0x000000
-const OUTSIDE_SHADE_ALPHA = 0.25
+/** 0,45 desde a caça de 12/11/2026 (E14): a 0,25 o lado de fora ficava só 11 tons mais escuro e a borda sumia. */
+const OUTSIDE_SHADE_ALPHA = 0.45
 
 export interface MapBoundsSize {
   width: number

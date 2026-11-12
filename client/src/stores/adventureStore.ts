@@ -2285,8 +2285,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     // FORA DO CHÃO: o andar novo herda o que VALE na cena de onde a escada sai. Cena de antes, sem o
     // campo, vale bloqueado: o andar dela nasce bloqueado (e não livre, como a cena criada do zero).
     const herdado: OffFloor = foraDoChaoLivre(live) ? 'free' : 'blocked'
-    const { id, patch } = withEmptyScene(state, live, newFloorName(base, floorSideOf(stair.direction)), null, true, herdado)
+    const nome = newFloorName(base, floorSideOf(stair.direction), state.adventure.scenes.map((entry) => entry.name), openName)
+    const { id, patch } = withEmptyScene(state, live, nome, null, true, herdado)
     set(patch)
+    // Caça 12/11 (E13, decisão 17): o andar nasce numa lista que pode estar fechada; o aviso diz onde ele está.
+    useToastStore.getState().push('info', `Andar criado: ${nome}. Ele está na aba Cenas.`)
     if (building !== null) get().updateBackgroundScene(id, (map) => withBuildingContour(map, live, building, () => crypto.randomUUID()))
     // A escada par no MESMO ponto: o contorno é o mesmo, então quem sobe chega onde estava.
     // Sem `switchScene`: o mestre continua no andar dele, com a escada no painel.

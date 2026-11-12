@@ -2728,9 +2728,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setGridOffset: (offset) => withHistory((map) => mapFactory.setGridOffset(map, offset)),
     setGridCellSize: (cellSize) => withHistory((map) => mapFactory.setGridCellSize(map, cellSize)),
     setMapSize: (width, height) => {
-      const next = mapFactory.setMapSize(get().map, width, height)
-      if (next === get().map) return
+      const antes = get().map
+      const next = mapFactory.setMapSize(antes, width, height)
+      if (next === antes) return
       withHistory(() => next)
+      // Caça 12/11 (E15, decisão 18): diminuir não apaga nada, mas o que ficou além da borda é dito.
+      const diminuiu = width < antes.width || height < antes.height
+      const fora = diminuiu ? mapFactory.pecasForaDoMapa(next) : 0
+      if (fora > 0) {
+        useToastStore.getState().push('info', `${fora === 1 ? '1 peça ficou' : `${fora} peças ficaram`} fora do mapa; aumente de volta ou mova-as.`)
+      }
     },
     setBackground: (background) => withHistory((map) => mapFactory.setBackground(map, background)),
     toggleLayerVisibility: (id) => {

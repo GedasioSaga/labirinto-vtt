@@ -139,9 +139,42 @@ export function floorSideOf(direction: StairDirection): FloorSide {
   return direction === 'up' ? 'cima' : 'baixo'
 }
 
-/** "Casa do prefeito – andar de cima". */
-export function newFloorName(base: string, side: FloorSide): string {
-  return `${base.trim()} – andar de ${side}`
+/** Os sufixos de andar que um nome pode já trazer: os de antes ("andar de cima") e os de agora ("2º andar", "subsolo 1"). */
+const SUFIXO_DE_ANDAR = /\s+–\s+(andar de cima|andar de baixo|(\d+)º andar|subsolo (\d+)|térreo)$/u
+
+/** O nome sem os sufixos de andar e o andar que eles dizem (0 = térreo, negativo = subsolo). */
+function andarDoNome(nome: string): { raiz: string; andar: number } {
+  let raiz = nome.trim()
+  let andar = 0
+  for (let casou = SUFIXO_DE_ANDAR.exec(raiz); casou !== null; casou = SUFIXO_DE_ANDAR.exec(raiz)) {
+    // Só o sufixo de FORA vale como andar absoluto; os antigos empilhados ("– andar de cima – andar de cima") somam.
+    if (casou[2] !== undefined) andar += Number(casou[2])
+    else if (casou[3] !== undefined) andar -= Number(casou[3])
+    else if (casou[1] === 'andar de cima') andar += 1
+    else if (casou[1] === 'andar de baixo') andar -= 1
+    raiz = raiz.slice(0, casou.index).trim()
+  }
+  return { raiz, andar }
+}
+
+/**
+ * Nome do andar novo (caça de 12/11/2026, E13, decisão 17): "Casa – 1º andar",
+ * "Casa – 2º andar"; para baixo "Casa – subsolo 1". O andar conta a partir do
+ * nome da cena de onde a escada sai, então criar o de cima a partir do "1º
+ * andar" dá "2º andar" (antes: "– andar de cima – andar de cima"). Nome que já
+ * existe em `existentes` ganha número: "Casa – 1º andar 2".
+ */
+export function newFloorName(base: string, side: FloorSide, existentes: readonly string[] = [], cenaDeOnde: string = base): string {
+  // A raiz vem de `base` (a Sala do prédio ou a cena); o andar, da cena de onde a escada sai.
+  const { raiz } = andarDoNome(base)
+  const { andar: deOnde } = andarDoNome(cenaDeOnde)
+  const andar = deOnde + (side === 'cima' ? 1 : -1)
+  const nome = andar > 0 ? `${raiz} – ${andar}º andar` : andar < 0 ? `${raiz} – subsolo ${-andar}` : `${raiz} – térreo`
+  const usados = new Set(existentes.map((existente) => existente.trim()))
+  if (!usados.has(nome)) return nome
+  let numero = 2
+  while (usados.has(`${nome} ${numero}`)) numero += 1
+  return `${nome} ${numero}`
 }
 
 /**
