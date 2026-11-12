@@ -4438,8 +4438,12 @@ function recorteDoGrupo(
    */
   const regioesDoRecorte = new Set(filtered.regions.map((r) => r.id))
   const desenhosDoRecorte = new Set(filtered.drawings.map((d) => d.id))
-  // As paredes da sala secreta FECHADA para ele (e das sub-salas): ele nunca as recebe (`walls`).
-  const paredesDeSalaSecreta = map.walls.filter((w) => w.regionId !== undefined && secretRoomIds.has(w.regionId))
+  // As paredes que ele nunca recebe por estarem escondidas DE PROPÓSITO (`walls`): as da sala secreta
+  // FECHADA para ele (e das sub-salas), a parede invisível (`hidden`) e a de camada escondida dos
+  // jogadores. A que ele só ainda não viu é névoa comum e não entra aqui.
+  const paredesEscondidasDele = map.walls.filter(
+    (w) => (w.regionId !== undefined && secretRoomIds.has(w.regionId)) || w.hidden === true || !jogadorVeItem('parede', w),
+  )
   // Textura mora em Terreno: com a camada escondida dos jogadores, nenhuma sai.
   const texturasDoJogador = terrenoVisivel
     ? texturasParaJogador(
@@ -4450,9 +4454,10 @@ function recorteDoGrupo(
         // A área de paredes como o desenho com área: a visão que entra nela, ou o explorado de dentro (como `conhece`, com ou sem memória).
         (pontos) => knownFromInside(pontos, true),
         // Nem pelos cantos nem por dentro: o contorno que encosta na sala secreta fechada ou na zona
-        // oculta, ou que corre numa parede da sala secreta (mesmo fora da borda dela), levaria a
-        // silhueta dela. Descoberta (aberta para ele), a sala sai de `secretRoomIds` e a área volta.
-        (pontos) => touchesSecretOrZone(pontos) || areaPassaPorParede(pontos, paredesDeSalaSecreta, map.grid),
+        // oculta, ou que corre numa parede escondida dele (a da sala secreta, mesmo fora da borda dela;
+        // a invisível; a de camada escondida), levaria a silhueta dela ou desenharia a parede pela
+        // borda da textura. Descoberta (aberta para ele), a sala sai de `secretRoomIds` e a área volta.
+        (pontos) => touchesSecretOrZone(pontos) || areaPassaPorParede(pontos, paredesEscondidasDele, map.grid),
       )
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
