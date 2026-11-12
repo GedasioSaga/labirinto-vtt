@@ -21,6 +21,41 @@ function distanceToSegment(p: RegionPoint, a: RegionPoint, b: RegionPoint): numb
 }
 
 /**
+ * Folga relativa do atalho de `pertoDoSegmento`: muito acima do erro de arredondamento das contas (~1e-16), muito
+ * abaixo de qualquer distância que importe.
+ */
+const FOLGA_DO_ATALHO = 1e-9
+
+/**
+ * `distanceToSegment(p, a, b) <= tolerancia`, com o MESMO resultado, sem a raiz na maioria das arestas (caça 12/11,
+ * O1 passo 2: `Math.hypot` por aresta pesava no recorte do jogador de dia). O quadrado da distância decide quando está
+ * claramente dentro ou fora; perto da fronteira (dentro da folga), a conta de antes decide.
+ */
+function pertoDoSegmento(p: RegionPoint, a: RegionPoint, b: RegionPoint, tolerancia: number): boolean {
+  // Folga zero, negativa ou estranha: só a conta de antes.
+  if (!(tolerancia > 0) || !Number.isFinite(tolerancia)) return distanceToSegment(p, a, b) <= tolerancia
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  let ex: number
+  let ey: number
+  if (len2 === 0) {
+    ex = p.x - a.x
+    ey = p.y - a.y
+  } else {
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+    ex = p.x - (a.x + t * dx)
+    ey = p.y - (a.y + t * dy)
+  }
+  const d2 = ex * ex + ey * ey
+  const t2 = tolerancia * tolerancia
+  if (d2 < t2 * (1 - FOLGA_DO_ATALHO)) return true
+  if (d2 > t2 * (1 + FOLGA_DO_ATALHO)) return false
+  // Na fronteira (ou NaN): a conta de antes, idêntica à de `distanceToSegment`.
+  return Math.hypot(ex, ey) <= tolerancia
+}
+
+/**
  * Ponto sobre alguma aresta do polígono (com folga).
  *
  * EXPORTADO para o TETO DE CONSTRUÇÃO (`lib/fogFilter.ts`): "está dentro do
@@ -31,7 +66,7 @@ function distanceToSegment(p: RegionPoint, a: RegionPoint, b: RegionPoint): numb
 export function pointOnPolygonBorder(point: RegionPoint, polygon: readonly RegionPoint[], tolerance = NESTING_TOLERANCE): boolean {
   const n = polygon.length
   for (let i = 0; i < n; i += 1) {
-    if (distanceToSegment(point, polygon[i], polygon[(i + 1) % n]) <= tolerance) return true
+    if (pertoDoSegmento(point, polygon[i], polygon[(i + 1) % n], tolerance)) return true
   }
   return false
 }
