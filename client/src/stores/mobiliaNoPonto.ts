@@ -3,6 +3,7 @@ import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTrava
 import { compileFloor } from '../lib/floorSdf'
 import { isLayerLocked, isLayerVisible } from '../lib/layers'
 import { criarMovel } from '../lib/mobilia'
+import { TOCHA_DE_PAREDE } from '../lib/mobilia/fogoDeCasa'
 import { cenaTemChao } from '../lib/offFloor'
 import { mapaDoPiso } from '../lib/pisos'
 import { findContainingRoom, pointInPolygonInclusive } from '../lib/roomNesting'
@@ -108,11 +109,14 @@ interface ParedePerto {
 }
 
 /**
- * A parede (do piso já recortado) mais perto de `centro`. Porta e janela ficam
- * de fora: a tocha não vai na folha que abre. Parede de comprimento zero não
- * tem lado.
+ * A parede (do piso já recortado) mais perto de `centro` em que a chapa cabe
+ * INTEIRA. Porta e janela ficam de fora: a tocha não vai na folha que abre. O
+ * pé anda no trecho só até a chapa (meia largura `meiaChapa`) tocar a ponta:
+ * solta em cima de uma porta ou de um vão, a tocha vai para a parede sólida ao
+ * lado com a chapa toda nela, nunca com metade sobre o vão (caça 12/11, prova
+ * P27 caso 10). Trecho mais curto que a chapa não prende.
  */
-function paredeMaisPerto(centro: Vetor, paredes: readonly Wall[]): ParedePerto | null {
+function paredeMaisPerto(centro: Vetor, paredes: readonly Wall[], meiaChapa: number): ParedePerto | null {
   let melhor: ParedePerto | null = null
   for (const parede of paredes) {
     if (parede.door !== null) continue
@@ -120,8 +124,11 @@ function paredeMaisPerto(centro: Vetor, paredes: readonly Wall[]): ParedePerto |
     const dy = parede.y2 - parede.y1
     const comprimento2 = dx * dx + dy * dy
     if (comprimento2 === 0) continue
-    // O pé fica DENTRO do trecho: perto da ponta, a tocha vai para a ponta, não para o prolongamento.
-    const t = Math.min(1, Math.max(0, ((centro.x - parede.x1) * dx + (centro.y - parede.y1) * dy) / comprimento2))
+    const comprimento = Math.sqrt(comprimento2)
+    if (comprimento < 2 * meiaChapa) continue
+    // O pé fica DENTRO do trecho e a chapa também: perto da ponta, a tocha vai até onde a chapa cabe.
+    const margem = meiaChapa / comprimento
+    const t = Math.min(1 - margem, Math.max(margem, ((centro.x - parede.x1) * dx + (centro.y - parede.y1) * dy) / comprimento2))
     const pe = { x: parede.x1 + t * dx, y: parede.y1 + t * dy }
     const distancia = Math.hypot(centro.x - pe.x, centro.y - pe.y)
     if (melhor === null || distancia < melhor.distancia) melhor = { parede, pe, distancia }
@@ -185,7 +192,8 @@ function sentidoParaAParede(prop: Prop, perto: ParedePerto, mapa: Pick<MapData, 
  */
 export function encostarTochaNaParede(prop: Prop, mapa: Pick<MapData, 'walls' | 'regions' | 'floor' | 'grid'>): Prop | null {
   if (prop.mobilia !== TIPO_QUE_SE_PRENDE) return null
-  const perto = paredeMaisPerto(prop, mapa.walls)
+  const meiaChapa = (TOCHA_DE_PAREDE.meiaLarguraDaChapa * Math.min(prop.width, prop.height)) / 2
+  const perto = paredeMaisPerto(prop, mapa.walls, meiaChapa)
   if (perto === null || perto.distancia >= mapa.grid / 2) return null
   const sentido = sentidoParaAParede(prop, perto, mapa)
   const giro = normalizeRotation((Math.atan2(sentido.x, -sentido.y) * 180) / Math.PI)

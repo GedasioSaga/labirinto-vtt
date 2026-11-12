@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useMapStore } from './mapStore'
-import { porMovelNoPonto } from './mobiliaNoPonto'
+import { encostarTochaNaParede, porMovelNoPonto } from './mobiliaNoPonto'
+import { TOCHA_DE_PAREDE } from '../lib/mobilia/fogoDeCasa'
 import { useToastStore } from './toastStore'
-import type { Region } from '../types/map'
+import type { Prop, Region, Wall } from '../types/map'
 
 /**
  * MOBÍLIA NA BARRA: o clique da ferramenta Objetos põe o móvel no ponto, no
@@ -189,5 +190,27 @@ describe('Objetos: a escolha da setinha', () => {
     expect(useMapStore.getState().mobiliaTipo).toBe('barril')
     expect(useMapStore.getState().map).toBe(antes)
     expect(useMapStore.getState().past).toHaveLength(0)
+  })
+})
+
+describe('Tocha de parede: só prende onde a chapa cabe inteira (caça 12/11, P27 caso 10)', () => {
+  function parede(id: string, x1: number, x2: number, door: Wall['door'] = null): Wall {
+    return { id, x1, y1: 100, x2, y2: 100, blocksLight: true, blocksMove: true, door }
+  }
+  function tocha(x: number, y: number): Prop {
+    return { id: 'tocha', src: '', x, y, width: GRADE, height: GRADE, linkedMapPath: null, mobilia: 'tochaDeParede' }
+  }
+  /** Meia largura da chapa, ao longo da parede: 0,28 do meio lado da pegada. */
+  const MEIA_CHAPA = (TOCHA_DE_PAREDE.meiaLarguraDaChapa * GRADE) / 2
+
+  it('solta em cima da porta, vai para a parede sólida ao lado com a chapa toda nela; trecho mais curto que a chapa não prende', () => {
+    const porta: Wall['door'] = { open: false, locked: false, kind: 'normal' }
+    const walls = [parede('esq', 0, 100), parede('porta', 100, 150, porta), parede('dir', 150, 300)]
+    const presa = encostarTochaNaParede(tocha(108, 112), { walls, regions: [], floor: [], grid: GRADE })
+    expect(presa).not.toBeNull()
+    expect((presa?.x ?? Number.NaN) + MEIA_CHAPA).toBeLessThanOrEqual(100)
+
+    const curta = [parede('toco', 0, 2 * MEIA_CHAPA - 1)]
+    expect(encostarTochaNaParede(tocha(5, 112), { walls: curta, regions: [], floor: [], grid: GRADE })).toBeNull()
   })
 })

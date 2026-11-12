@@ -53,7 +53,7 @@ export const ESPESSURA_DA_TOCHA_DE_PAREDE = 0.12 * G * SUBIDA_DA_TOCHA_DE_PAREDE
  * fica a argola, quanto a cabeça passa dela e a altura da cabeça moram em `TOCHA_DE_PAREDE`
  * (`lib/mobilia/fogoDeCasa.ts`), com a conta de onde a chama animada nasce (`fogoDaTochaDeParede`).
  */
-const MEIA_LARGURA_DA_CHAPA = 0.28
+const MEIA_LARGURA_DA_CHAPA = TOCHA_DE_PAREDE.meiaLarguraDaChapa
 const GROSSURA_DA_CHAPA = TOCHA_DE_PAREDE.grossuraDaChapa
 const RAIO_DO_BRACO = 0.085
 const ARGOLA_EM = TOCHA_DE_PAREDE.argolaEm

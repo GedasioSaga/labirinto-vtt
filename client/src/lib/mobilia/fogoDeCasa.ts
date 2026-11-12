@@ -173,6 +173,8 @@ export function fogoDaTochaDePe(largura: number, altura: number): DisposicaoDoFo
  * desenho (`texturas/meioTermo/moveis/tochaDeParede.ts`) lê daqui.
  */
 export const TOCHA_DE_PAREDE = {
+  /** A meia largura da chapa, ao longo da parede: o encaixe só prende onde ela cabe inteira (`mobiliaNoPonto.ts`). */
+  meiaLarguraDaChapa: 0.28,
   argolaEm: 0.55,
   cabecaAlemDaArgola: 0.36,
   grossuraDaChapa: 0.2,
