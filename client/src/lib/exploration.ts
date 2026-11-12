@@ -1,7 +1,7 @@
 import type { MapData, RegionPoint } from '../types/map'
 import { pointInRing } from './floorContour'
 import { simplifyRing } from './refineFloor'
-import { NESTING_TOLERANCE, pointInPolygonInclusive } from './roomNesting'
+import { NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder } from './roomNesting'
 
 /**
  * Memória do que um jogador já viu, em duas camadas que valem juntas:
@@ -559,6 +559,80 @@ export function forgetInside(exp: Exploration, rings: readonly (readonly RegionP
   if (kept.length === exp.rings.length) return
   exp.rings = kept
   exp.ringVertices = kept.reduce((total, r) => total + r.points.length, 0)
+}
+
+/**
+ * Quanto um vértice do contorno lembrado pode passar da borda do Chão e ainda
+ * contar como dentro (px do mundo): o anel da visão bloqueada para EM CIMA da
+ * borda, e o contorno guardado anda até ~0,75 px (simplificado e encaixado na
+ * malha de meio pixel, `memoryRingOf`).
+ */
+const BORDA_DO_CHAO_PX = 1
+
+/** O ponto está no Chão: dentro pela regra par-ímpar dos anéis (fora e buracos) ou em cima de uma borda, com folga. */
+function noChao(p: RegionPoint, chao: readonly ZoneBox[]): boolean {
+  let dentro = false
+  for (const z of chao) {
+    if (p.x < z.minX - BORDA_DO_CHAO_PX || p.x > z.maxX + BORDA_DO_CHAO_PX || p.y < z.minY - BORDA_DO_CHAO_PX || p.y > z.maxY + BORDA_DO_CHAO_PX) continue
+    if (pointOnPolygonBorder(p, z.ring, BORDA_DO_CHAO_PX)) return true
+    if (pointInRing(p, z.ring)) dentro = !dentro
+  }
+  return dentro
+}
+
+/**
+ * FORA DO CHÃO voltou a BLOQUEADO (caça de 12/11/2026, achado N6): apaga da
+ * memória o que fica FORA do Chão que limita. Em "Livre" o jogador via e
+ * lembrava além da borda; de volta a "Bloqueado", lá fora é preto sempre, e a
+ * lembrança cinza de antes não pode sobrar até um "Esquecer tudo".
+ *
+ * `chao`: os anéis do contorno do Chão (`buildFloorOutline`: os de fora e os
+ * buracos), pela regra par-ímpar de `pointInRing`.
+ *
+ *  - CÉLULA: apaga a que tem o CENTRO fora do Chão. A célula marcada em
+ *    "Bloqueado" está inteira dentro da visão, que não passa da borda: o centro
+ *    dela está dentro, e ela fica.
+ *  - CONTORNO LEMBRADO: solta o que tem algum vértice fora (a borda conta como
+ *    dentro, com 1 px de folga): o anel visto em "Livre" que passou da borda sai
+ *    inteiro, e a memória dele volta a ser só a das células.
+ *
+ * Só apaga, nunca marca: não mostra nada novo. Sem anel nenhum (cena sem Chão)
+ * não mexe. Devolve se a memória mudou.
+ */
+export function forgetOutsideFloor(exp: Exploration, chao: readonly (readonly RegionPoint[])[]): boolean {
+  const aneis = zoneBoxes(chao.filter((anel) => anel.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).map((anel) => anel.map((p) => ({ x: p.x, y: p.y }))))
+  if (aneis.length === 0) return false
+  let mudou = false
+  const { cell, cols, rows } = exp
+  const cruzamentos: number[] = []
+  for (let row = 0; row < rows; row += 1) {
+    const y = (row + 0.5) * cell
+    cruzamentos.length = 0
+    for (const { ring } of aneis) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+        const a = ring[j]
+        const b = ring[i]
+        if (a.y > y !== b.y > y) cruzamentos.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y))
+      }
+    }
+    cruzamentos.sort((m, n) => m - n)
+    // Centro dentro = número ímpar de cruzamentos à esquerda dele (a mesma paridade de `pointInRing`).
+    let k = 0
+    for (let col = 0; col < cols; col += 1) {
+      const x = (col + 0.5) * cell
+      while (k < cruzamentos.length && cruzamentos[k] < x) k += 1
+      if (k % 2 === 1 || !isCellSet(exp, col, row)) continue
+      clearCell(exp, col, row)
+      mudou = true
+    }
+  }
+  const kept = exp.rings.filter((r) => r.points.every((p) => noChao(p, aneis)))
+  if (kept.length !== exp.rings.length) {
+    exp.rings = kept
+    exp.ringVertices = kept.reduce((total, r) => total + r.points.length, 0)
+    mudou = true
+  }
+  return mudou
 }
 
 /**
