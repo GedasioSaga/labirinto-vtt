@@ -62,6 +62,10 @@ export const TIPOS_MOBILIA = [
   // Lote 9 dos 95 objetos novos (11/11/2026), a feira: a balança de mercador, a tenda de adivinha, a gaiola
   // com aves, os rolos de tecido, o palco de bardo (que mora no chão) e o barril de peixe.
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
+  // Lote 10 dos 95 objetos novos (11/11/2026), a oficina e a fazenda: o fole, o manequim com armadura, a pilha
+  // de lingotes e a serra da oficina; o galinheiro, a colmeia, o arado, o toco com machado e a plantação em
+  // fileiras (que mora no chão, rente como o campinho) da fazenda.
+  'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -145,20 +145,31 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   rolosDeTecido: 'feira',
   palcoDeBardo: 'feira',
   barrilDePeixe: 'feira',
-  // Oficina; a bancada de ferramentas, a pedra de amolar e o suporte de armas (11/11/2026).
+  // Oficina; a bancada de ferramentas, a pedra de amolar e o suporte de armas (11/11/2026); e o lote 10 dos
+  // objetos novos (11/11/2026), do fole à serra.
   fornalha: 'oficina',
   bigorna: 'oficina',
   balde: 'oficina',
   bancadaDeFerramentas: 'oficina',
   pedraDeAmolar: 'oficina',
   suporteDeArmas: 'oficina',
-  // Fazenda; o espantalho e o cocho (11/11/2026).
+  fole: 'oficina',
+  manequimComArmadura: 'oficina',
+  pilhaDeLingotes: 'oficina',
+  serra: 'oficina',
+  // Fazenda; o espantalho e o cocho (11/11/2026); e o lote 10 dos objetos novos (11/11/2026), do galinheiro à
+  // plantação em fileiras.
   troncos: 'fazenda',
   feno: 'fazenda',
   cataVento: 'fazenda',
   moinho: 'fazenda',
   espantalho: 'fazenda',
   cocho: 'fazenda',
+  galinheiro: 'fazenda',
+  colmeia: 'fazenda',
+  arado: 'fazenda',
+  tocoComMachado: 'fazenda',
+  plantacaoEmFileiras: 'fazenda',
   // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra e os ossos (11/11/2026).
   destrocosDeMadeira: 'destrocosESucata',
   sucataChapas: 'destrocosESucata',

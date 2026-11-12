@@ -1525,6 +1525,115 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M18 21.5l2.5-9l1.5.5l-2.5 9z" />
         </>
       )
+    case 'fole':
+      // De cima: a pera com a orla do couro, a tábua dentro dela, o bico afinando para a direita e a alavanca com a bola no cabo.
+      return (
+        <>
+          <path d="M2.5 12c0-4 2.6-6.5 6.5-6.5 3.6 0 6.2 2.6 8 4.6v3.8c-1.8 2-4.4 4.6-8 4.6-3.9 0-6.5-2.5-6.5-6.5z" />
+          <path d="M5 12c0-2.6 1.7-4.2 4.2-4.2 2.4 0 4.2 1.7 5.6 3.2v2c-1.4 1.5-3.2 3.2-5.6 3.2C6.7 16.2 5 14.6 5 12z" />
+          <path d="M17 10.6l4.5.8v1.2l-4.5.8" />
+          <path d="M4 12.6l11.5-5.4" />
+          <circle cx="3.2" cy="12.9" r="1" />
+        </>
+      )
+    case 'manequimComArmadura':
+      // De frente: o elmo fechado com a fresta em T, a linha dos ombros com as ombreiras, o peitoral afinando até a cintura, o poste e a base.
+      return (
+        <>
+          <path d="M9.5 8V4.5a2.5 2.5 0 0 1 5 0V8z" />
+          <path d="M10.6 5.6h2.8M12 5.6v1.6" />
+          <path d="M4 12.2c0-2.2 1.6-3.6 3.6-3.6h8.8c2 0 3.6 1.4 3.6 3.6" />
+          <path d="M7.6 8.6l.8 7.4h7.2l.8-7.4" />
+          <path d="M12 16v4.5M7.5 20.5h9" />
+        </>
+      )
+    case 'pilhaDeLingotes':
+      // De frente: os lingotes em tronco de pirâmide empilhados em degraus (três, dois e um) sobre o estrado com os tocos.
+      return (
+        <>
+          <path d="M2.5 20.5l1-3.5h4l1 3.5M9 20.5l1-3.5h4l1 3.5M15.5 20.5l1-3.5h4l1 3.5" />
+          <path d="M5.75 17l1-3.5h4l1 3.5M12.25 17l1-3.5h4l1 3.5" />
+          <path d="M9 13.5l1-3.5h4l1 3.5" />
+          <path d="M1.5 20.5h21M3 20.5v2M12 20.5v2M21 20.5v2" />
+        </>
+      )
+    case 'serra':
+      // De cima, um pouco de lado (como no mapa): a tora deitada com o corte da ponta, o cavalete em X por baixo dela (as pontas saindo dos dois lados) e o traçador de pé no corte, com o cabo atravessado em cada ponta e os dentes à mostra embaixo (os troncos são três toras de ponta; a pedra de amolar é a roda no cavalete).
+      return (
+        <>
+          <path d="M16.5 9.5H4.2a1.7 2.5 0 0 0 0 5h12.3" />
+          <ellipse cx="16.5" cy="12" rx="1.7" ry="2.5" />
+          <path d="M5.5 4.5l1.33 5M9.5 4.5l-1.33 5M8.17 14.5l1.33 5M6.83 14.5l-1.33 5" />
+          <path d="M13 3.5v17M11.6 3.5h2.8M11.6 20.5h2.8" />
+          <path d="M13 15.6l-1.2.9 1.2.9-1.2.9" />
+        </>
+      )
+    case 'galinheiro':
+      // De frente: a casinha de tábuas em cima dos pés, com o telhado de duas águas e a portinhola, a rampa de ripas descendo até o chão e a galinha no terreiro (o corpo, o rabo, a cabeça com a crista e o bico). A gaiola com aves é a grade de ripas com a gaiolinha em cima; o mausoléu, o frontão com colunas.
+      return (
+        <>
+          <path d="M1.8 9.2 8 3.6l6.2 5.6" />
+          <path d="M3.2 9.2v6h9.6v-6" />
+          <path d="M6.8 15.2v-3.4h2.4v3.4" />
+          <path d="M4.2 15.2v6.3M11.8 15.2v6.3" />
+          <path d="M9.2 15.2l4.4 6.3M10.4 17.6l1-.6M11.7 19.5l1-.6" />
+          <path d="M1.5 21.5h21" />
+          <path d="M15.4 19.3a2.6 1.9 0 1 0 5.2 0a2.6 1.9 0 1 0-5.2 0" />
+          <circle cx="20.6" cy="16.6" r="1.1" />
+          <path d="M20.1 15.5l.5-1 .6.9M21.7 16.6l1 .35-1 .35M15.6 18.6l-.9-2.5 2.3 1.1" />
+        </>
+      )
+    case 'colmeia':
+      // De frente: o cortiço de palha em sino, com duas voltas do rolo, o pegador no alto e a boca embaixo, em cima do banco de tábua de dois pés, e duas abelhas voando (o corpo e a asa). O forno de pão é a cúpula com a chaminé e a boca grande em arco, no chão.
+      return (
+        <>
+          <path d="M5.5 15.5C5.5 9.5 8.1 5.6 12 5.6s6.5 3.9 6.5 9.9z" />
+          <path d="M6 12.4c4 .9 8 .9 12 0M7.3 9.3c3.1.7 6.3.7 9.4 0" />
+          <path d="M11 5.6V4.3h2v1.3" />
+          <path d="M10.5 15.5a1.5 1.5 0 0 1 3 0" />
+          <path d="M3.2 15.5h17.6v1.9H3.2zM5 17.4v4.1M19 17.4v4.1" />
+          <ellipse cx="20.3" cy="6.8" rx="1.3" ry=".8" />
+          <path d="M19.4 6.2a1 1 0 0 1 1.9-.5" />
+          <ellipse cx="3.7" cy="10" rx="1.3" ry=".8" />
+          <path d="M4.6 9.4a1 1 0 0 0-1.9-.5" />
+        </>
+      )
+    case 'arado':
+      // De lado: a relha em ponta rente ao chão com a aiveca curva subindo atrás dela, a coluna até o timão comprido para a frente, a argola da corrente na ponta dele, a rabiça subindo para trás com o punho e a leiva virada no chão (o carrinho de mão tem a caçamba e a roda).
+      return (
+        <>
+          <path d="M7 20.5h8.5l-.6-4.2c-2.6-.2-5 1.4-7.9 4.2z" />
+          <path d="M12.6 16.5v-4" />
+          <path d="M18 12.5H4.2" />
+          <circle cx="2.6" cy="12.5" r="1.6" />
+          <path d="M15.3 18.5L20.5 7.2h2" />
+          <path d="M17 21.3c1.3-1.9 3-2.4 5-1.4" />
+        </>
+      )
+    case 'tocoComMachado':
+      // De lado: o cepo baixo e largo, reto (sem raiz), com um nó e a rachadura do golpe, a cabeça do machado cravada no topo com o fio enterrado, o cabo subindo de través e uma acha rachada no chão (o toco de árvore tem o topo em elipse, as raízes e o cogumelo).
+      return (
+        <>
+          <path d="M3 13.5h14c.35 2.3.35 4.7 0 7H3c-.35-2.3-.35-4.7 0-7z" />
+          <path d="M5.98 10.22l1.64-1.14.86 1.23 3.47 2.69-.71.5H7.5l-.66-2.05z" />
+          <path d="M8.5 10.3l9-6.3" />
+          <path d="M10.3 13.5l.5 1.6-.6 1.4" />
+          <ellipse cx="13.6" cy="17.4" rx=".9" ry="1.3" />
+          <path d="M18.2 20.5h4a4 4 0 0 0-2-3.46z" />
+        </>
+      )
+    case 'plantacaoEmFileiras':
+      // De lado, cortada: três leiras em monte na linha da terra, cada uma com a muda de milho em cima (as dos lados com um par de folhas; a do meio, mais alta, com as folhas desencontradas). A horta é a cenoura enterrada com a rama; o canteiro, a borda de pedras com as flores.
+      return (
+        <>
+          <path d="M1.5 21h21" />
+          <path d="M2 21a3.3 3.2 0 0 1 6.6 0M8.7 21a3.3 3.2 0 0 1 6.6 0M15.4 21a3.3 3.2 0 0 1 6.6 0" />
+          <path d="M5.3 17.8v-7.2M12 17.8V5.5M18.7 17.8v-7.2" />
+          <path d="M5.3 14.6c-1.8-.3-2.9-1.4-3.1-3 1.8.3 2.9 1.4 3.1 3zM5.3 14.6c1.8-.3 2.9-1.4 3.1-3-1.8.3-2.9 1.4-3.1 3z" />
+          <path d="M12 13.2c-1.9-.3-3-1.5-3.2-3.2 1.9.3 3 1.5 3.2 3.2zM12 9.4c1.9-.3 3-1.5 3.2-3.2-1.9.3-3 1.5-3.2 3.2z" />
+          <path d="M18.7 14.6c-1.8-.3-2.9-1.4-3.1-3 1.8.3 2.9 1.4 3.1 3zM18.7 14.6c1.8-.3 2.9-1.4 3.1-3-1.8.3-2.9 1.4-3.1 3z" />
+        </>
+      )
   }
 }
 

@@ -220,6 +220,17 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       rolosDeTecido: ['madeira:nogueira', 'pano:azul'],
       palcoDeBardo: ['madeira:pinho', 'cortina:vinho'],
       barrilDePeixe: ['madeira:carvalho', 'aros:ferro'],
+      // Lote 10 dos 95 objetos novos (11/11/2026): o toco com machado com o lugar dos troncos e do toco de árvore;
+      // a plantação sem lugar.
+      fole: ['madeira:carvalho'],
+      manequimComArmadura: ['madeira:nogueira'],
+      pilhaDeLingotes: ['metal:ferro', 'madeira:pinho'],
+      serra: ['madeira:pinho', 'lenha:lenhaCarvalho'],
+      galinheiro: ['madeira:pinho'],
+      colmeia: ['madeira:carvalho'],
+      arado: ['madeira:carvalho'],
+      tocoComMachado: ['lenha:lenhaCarvalho'],
+      plantacaoEmFileiras: [],
     })
   })
 

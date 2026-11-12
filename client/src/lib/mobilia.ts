@@ -400,14 +400,17 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * que se joga), a horta e o canteiro de flores (11/11/2026: o pedaço de chão
  * em que o mestre põe o espantalho, a estátua ou o lampião, que ficam por
  * cima; os dois não são rentes, mas o que está dentro deles conta mais que o
- * que está encostado atrás) e o palco de bardo (11/11/2026: a banqueta, o baú
+ * que está encostado atrás), o palco de bardo (11/11/2026: a banqueta, o baú
  * ou o token em cima do tablado saem por cima dele; como objeto comum, a 3/4
- * ordena pela base, e a banqueta no meio do tablado sairia por baixo). A ordem
- * de desenho, o contêiner do chão do editor e o clique (que pega o tapete, a
- * ponte, o campinho, a horta, o canteiro e o palco por último) leem esta lista.
+ * ordena pela base, e a banqueta no meio do tablado sairia por baixo) e a
+ * plantação em fileiras (11/11/2026: o pedaço de roça, rente como o campinho,
+ * em que o mestre põe o espantalho, o arado ou as fichas, que ficam por cima).
+ * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
+ * tapete, a ponte, o campinho, a horta, o canteiro, o palco e a plantação por
+ * último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras'
 }
 
 /**

@@ -45,6 +45,7 @@ import { ESPESSURA_DA_TABUA_DA_PRATELEIRA_DE_POTES } from './prateleiraDePotes'
 import { ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE } from './mesaDeCorte'
 import { ESPESSURA_DA_TRAVE_DO_GANCHO } from './ganchoComCarne'
 import { ESPESSURA_DA_FIADA_DO_MURO } from './muroBaixoDePedra'
+import { ESPESSURA_DA_ESPIRA } from './colmeia'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -357,6 +358,33 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // O barril de peixe é uma coluna da altura do barril, com o peixe na boca, e a tampa encostada, uma coluna
   // mais baixa na frente dele; o puçá e os respingos ficam no chão.
   barrilDePeixe: DERIVADO,
+  // Lote 10 dos 95 objetos novos (11/11/2026), a oficina e a fazenda. O fole fica como de cima, como o canhão e
+  // a bigorna: derivado (provado com parede de 0,16 e de 0,08 casa), o corpo subia como um bloco no ar e as
+  // pontas do cavalete ficavam soltas embaixo, como pernas.
+  fole: EM_PE,
+  // O manequim já é desenhado em pé, de frente, como o boneco de treino: visto de cima seria um disco de aço.
+  manequimComArmadura: EM_PE,
+  // A pilha de lingotes fica como de cima, como as outras pilhas: derivada, as barras da camada do meio cujo
+  // meio cai debaixo da camada de cima subiriam junto com ela e sairiam do lugar das vizinhas.
+  pilhaDeLingotes: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // A serra fica como de cima, como o carrinho de mão e o canhão: derivada, a tora viraria um bloco varrido até
+  // o chão por cima dos cavaletes.
+  serra: EM_PE,
+  // No galinheiro cada tábua do telhado é um tampo solto (a beirada padrão é a face da tábua), os pés e os
+  // mourões são colunas, a rampa desce em lances e a parede da frente, desenhada de frente, sobe num pino na
+  // altura do piso. A colmeia sobe em voltas de palha, um tampo por volta, e a beirada é a grossura do rolo, que
+  // o desenho exporta.
+  galinheiro: DERIVADO,
+  colmeia: { modo: 'derivado', espessura: ESPESSURA_DA_ESPIRA },
+  // O arado fica como de cima: derivado, o timão e as rabiças, que sobem no ar, ficariam rentes ao chão e soltos
+  // do corpo.
+  arado: EM_PE,
+  // O toco com machado sobe pelas sombras: o cepo é uma coluna baixa e cada acha, uma colunazinha; os cavacos e
+  // as lascas ficam no chão, e as peças do machado vão presas ao meio do cepo, para subirem com o topo.
+  tocoComMachado: DERIVADO,
+  // A plantação mora no chão e é rente, como o fogo: nenhuma sombra dela tem altura, então nada sobe e a 3/4 sai
+  // igual à vista de cima (`tresQuartos.test.ts` a dispensa das regras de subir, na lista dos rentes).
+  plantacaoEmFileiras: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

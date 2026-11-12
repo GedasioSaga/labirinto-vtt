@@ -122,6 +122,15 @@ import { montarGaiolaComAves } from './gaiolaComAves'
 import { montarRolosDeTecido } from './rolosDeTecido'
 import { montarPalcoDeBardo } from './palcoDeBardo'
 import { montarBarrilDePeixe } from './barrilDePeixe'
+import { montarFole } from './fole'
+import { montarManequimComArmadura } from './manequimComArmadura'
+import { montarPilhaDeLingotes } from './pilhaDeLingotes'
+import { montarSerra } from './serra'
+import { montarGalinheiro } from './galinheiro'
+import { montarColmeia } from './colmeia'
+import { montarArado } from './arado'
+import { montarTocoComMachado } from './tocoComMachado'
+import { montarPlantacaoEmFileiras } from './plantacaoEmFileiras'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -283,6 +292,18 @@ const MONTADORES = {
   rolosDeTecido: montarRolosDeTecido,
   palcoDeBardo: montarPalcoDeBardo,
   barrilDePeixe: montarBarrilDePeixe,
+  // Lote 10 dos 95 objetos novos (11/11/2026), a oficina e a fazenda: um desenho por arquivo. O galinheiro, a
+  // colmeia e a plantação em fileiras leem o `giro` (o quarto de volta que a 3/4 pinta); o fole, o manequim com
+  // armadura, a pilha de lingotes, a serra, o arado e o toco com machado, não.
+  fole: montarFole,
+  manequimComArmadura: montarManequimComArmadura,
+  pilhaDeLingotes: montarPilhaDeLingotes,
+  serra: montarSerra,
+  galinheiro: montarGalinheiro,
+  colmeia: montarColmeia,
+  arado: montarArado,
+  tocoComMachado: montarTocoComMachado,
+  plantacaoEmFileiras: montarPlantacaoEmFileiras,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -328,6 +349,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
+  'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

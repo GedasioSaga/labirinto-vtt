@@ -87,9 +87,9 @@ describe('criarMovel — o móvel que a ferramenta Objetos põe', () => {
 describe('silhueta redonda', () => {
   it('só o barril e a fogueira (de cima) são redondos', () => {
     // MT4: mais a mesa redonda, o vaso e o poço, peças novas redondas; o balde de água (29/10), o moinho de vento (02/11), o caldeirão,
-    // a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca e a
-    // tenda de adivinha (11/11).
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha'])
+    // a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a
+    // tenda de adivinha e a colmeia (11/11).
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)

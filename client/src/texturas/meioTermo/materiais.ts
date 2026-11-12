@@ -357,6 +357,29 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   rolosDeTecido: [lugar('madeira', 'Mesa', MADEIRAS, 'nogueira'), lugar('pano', 'Pano', TECIDOS, 'azul')],
   palcoDeBardo: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('cortina', 'Cortina', TECIDOS, 'vinho')],
   barrilDePeixe: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  // Lote 10 dos 95 objetos novos (11/11/2026), a oficina e a fazenda. O primeiro lugar vai na "Cor"; o segundo,
+  // na "Cor da linha". A madeira do fole vale para as tábuas, a cabeça, a alavanca e o cavalete; a do manequim,
+  // para o poste, a travessa e a base; o metal da pilha de lingotes pinta as barras de ferro (o latão daria uma
+  // pilha de bronze) e a madeira dela, o estrado; a madeira da serra vale para os cavaletes, as duas tábuas e os
+  // cabos do traçador, e a lenha dela é a casca da tora (os cortes saem dela, com os cernes de `troncos.ts`); a
+  // do galinheiro, para a casinha, o telhado e a rampa; a da colmeia, só para o banco; a do arado, para o timão,
+  // o balancim, as rabiças e a travessa. O toco com machado tem o lugar dos troncos, do cocho e do toco de
+  // árvore: o cepo, as achas e os cavacos saem da lenha escolhida. Fixos: o couro, o ferro do bico, das cintas e
+  // da corrente e o latão das tachas do fole; o aço da armadura, o couro das correias e do cinto, o latão das
+  // fivelas e o escudo do manequim; o cobre da fileira da frente e o estanho das duas barras claras da pilha (a
+  // tabela não tem nenhum dos dois); o aço da lâmina, o ferro das virolas e a serragem da serra; as varas da
+  // cerca, a terra, as galinhas, o ninho e o prato do galinheiro; a palha, a cana, o favo, o mel e as abelhas da
+  // colmeia; o ferro, o aço da aiveca e a terra (a da horta) do arado; a cabeça e o cabo do machado. A plantação
+  // não tem lugar: a terra arada e o milho são fixos.
+  fole: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  manequimComArmadura: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  pilhaDeLingotes: [lugar('metal', 'Lingotes', METAIS, 'ferro'), lugar('madeira', 'Estrado', MADEIRAS, 'pinho')],
+  serra: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('lenha', 'Tora', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  galinheiro: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  colmeia: [lugar('madeira', 'Banco', MADEIRAS, 'carvalho')],
+  arado: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  tocoComMachado: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  plantacaoEmFileiras: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

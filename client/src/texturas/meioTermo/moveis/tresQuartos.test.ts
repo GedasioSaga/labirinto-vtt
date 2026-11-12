@@ -82,8 +82,13 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // barateado leva ~2 s sozinho; com a suíte inteira carregando a máquina, passava dos 5 s do padrão e
   // falhava por tempo, não por imagem. Só ele ganha o teto maior.
   const TETO_DO_CAMPINHO_MS = 20_000
+  // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras, 11/11/2026): nenhuma sombra deles tem
+  // altura, então nada sobe e a 3/4 sai igual à vista de cima. Seguem as regras de cor e a de "mesma entrada,
+  // mesma imagem", mas ficam fora da troca do desenho e do tampo que sobe. Objeto rente novo entra nesta lista.
+  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras']
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
-    it(`${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, tipo === 'campinho' ? { timeout: TETO_DO_CAMPINHO_MS } : {}, () => {
+    const rente = RENTES.includes(tipo)
+    it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, tipo === 'campinho' ? { timeout: TETO_DO_CAMPINHO_MS } : {}, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)
       const tres = desenho(prop, 'tres-quartos')
@@ -91,7 +96,7 @@ describe('vista 3/4: o catálogo inteiro', () => {
       for (const nivel of [1, 3]) {
         const a = pintar(deCima, nivel)
         const b = pintar(tres, nivel)
-        expect(digitalDosPixels(b.pixels), `${tipo} nível ${nivel}`).not.toBe(digitalDosPixels(a.pixels))
+        if (!rente) expect(digitalDosPixels(b.pixels), `${tipo} nível ${nivel}`).not.toBe(digitalDosPixels(a.pixels))
         // Mesma entrada, mesma imagem.
         expect(digitalDosPixels(pintar(tres, nivel).pixels)).toBe(digitalDosPixels(b.pixels))
         const m = medirImagem(b.pixels, b.limites.W, b.limites.H, deCima.casasW * deCima.casasH * G * G * b.S * b.S)
@@ -100,8 +105,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
         expect(m.contornoMinimo, `${tipo} nível ${nivel} contorno`).toBeGreaterThanOrEqual(0.06)
         // O CAMPINHO (10/11/2026) é chão: o gramado fica onde está e só as traves sobem, no meio da altura
         // dele. A beira de cima da imagem é o gramado, que não muda: a regra do tampo não se aplica a ele (a
-        // troca do desenho e as regras de cor, logo acima, sim).
-        if (nivel !== 3 || tipo === 'campinho') continue
+        // troca do desenho e as regras de cor, logo acima, sim). Nem aos rentes, que não sobem nada.
+        if (nivel !== 3 || tipo === 'campinho' || rente) continue
         if (emPe) expect(alfaDaSombra(b), `${tipo}: sombra de baixo`).toBeGreaterThan(alfaDaSombra(a) * 1.02)
         else expect(topoDasPecas(b), `${tipo}: o tampo sobe`).toBeLessThanOrEqual(topoDasPecas(a) - 1)
       }

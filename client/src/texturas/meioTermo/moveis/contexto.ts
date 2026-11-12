@@ -111,8 +111,16 @@ export interface ContextoDoMovel {
    * só a ponta do tapete; os gomos do cone e a parede pegam a luz pela direção
    * na tela) e a gaiola com aves (as galinhas, o cocho, as penas e a gaiolinha
    * dos pombos vão para onde o giro os leva, montados de perfil e em pé na
-   * tela; a face de ripas da frente é sempre a de baixo na tela). Os outros
-   * desenhos não leem.
+   * tela; a face de ripas da frente é sempre a de baixo na tela). Do lote 10
+   * (11/11/2026) leem o galinheiro (a parede desenhada de frente é a do lado
+   * que cai embaixo na tela: a da portinhola sem giro, a de trás com a
+   * janelinha de costas, um oitão com o respiro de lado; a luz das águas do
+   * telhado e as sombras pintadas ficam no lugar na tela), a colmeia (girada,
+   * a boca desenhada de frente não entra; a luz da cúpula e as sombras
+   * pintadas ficam no lugar na tela, e a caixa das voltas, do favo e dos pinos
+   * vai até a frente na tela, para o banco não sair por cima da palha) e a
+   * plantação em fileiras (a encosta clara das leiras e a sombra dos pés
+   * ficam no lugar na tela). Os outros desenhos não leem.
    */
   readonly giro: number
 }

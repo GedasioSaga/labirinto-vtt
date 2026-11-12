@@ -138,6 +138,16 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   rolosDeTecido: [1.5, 1],
   palcoDeBardo: [3, 2],
   barrilDePeixe: [1, 1],
+  // Lote 10 dos 95 objetos novos (11/11/2026).
+  fole: [1.5, 0.7],
+  manequimComArmadura: [1, 1],
+  pilhaDeLingotes: [1, 0.7],
+  serra: [2, 1],
+  galinheiro: [2, 1.5],
+  colmeia: [0.8, 0.8],
+  arado: [2, 1],
+  tocoComMachado: [1, 1],
+  plantacaoEmFileiras: [4, 3],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -247,6 +257,15 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   rolosDeTecido: ['Rolos de tecido', 'uns rolos de tecido'],
   palcoDeBardo: ['Palco de bardo', 'um palco de bardo'],
   barrilDePeixe: ['Barril de peixe', 'um barril de peixe'],
+  fole: ['Fole', 'um fole'],
+  manequimComArmadura: ['Manequim com armadura', 'um manequim com armadura'],
+  pilhaDeLingotes: ['Pilha de lingotes', 'uma pilha de lingotes'],
+  serra: ['Serra', 'uma serra'],
+  galinheiro: ['Galinheiro', 'um galinheiro'],
+  colmeia: ['Colmeia', 'uma colmeia'],
+  arado: ['Arado', 'um arado'],
+  tocoComMachado: ['Toco com machado', 'um toco com machado'],
+  plantacaoEmFileiras: ['Plantação em fileiras', 'uma plantação em fileiras'],
 }
 
 describe('peças novas: registro', () => {
@@ -287,9 +306,9 @@ describe('peças novas: registro', () => {
     expect([carroca.width / GRADE, carroca.height / GRADE]).toEqual([2, 1.25])
   })
 
-  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água, o moinho, o caldeirão, a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca e a tenda de adivinha; o resto é retângulo', () => {
+  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água, o moinho, o caldeirão, a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a tenda de adivinha e a colmeia; o resto é retângulo', () => {
     const redondos = PECAS_NOVAS.filter((tipo) => ehMovelRedondo(tipo))
-    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha'])
+    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia'])
   })
 
   it('cada peça tem desenho de linhas (o provisório antes da imagem), nas duas vistas quando tem vista', () => {
@@ -325,25 +344,26 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(TIPOS_NO_CATALOGO.slice(fogueira, fogueira + 2)).toEqual(['fogueira', 'fogo'])
     // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
     // Os objetos de vento (02/11/2026) depois deles, os destroços, as sucatas e o campinho (10/11/2026) em
-    // seguida, e os lotes 1 a 9 dos 95 objetos novos (11/11/2026) no fim.
-    expect(TIPOS_NO_CATALOGO.slice(-76, -69)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
-    expect(TIPOS_NO_CATALOGO.slice(-69, -64)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
-    expect(TIPOS_NO_CATALOGO.slice(-64, -56)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
-    expect(TIPOS_NO_CATALOGO.slice(-56, -48)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
-    expect(TIPOS_NO_CATALOGO.slice(-48, -39)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
-    expect(TIPOS_NO_CATALOGO.slice(-39, -31)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
-    expect(TIPOS_NO_CATALOGO.slice(-31, -25)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
-    expect(TIPOS_NO_CATALOGO.slice(-25, -19)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
-    expect(TIPOS_NO_CATALOGO.slice(-19, -12)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
-    expect(TIPOS_NO_CATALOGO.slice(-12, -6)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
-    expect(TIPOS_NO_CATALOGO.slice(-6)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
+    // seguida, e os lotes 1 a 10 dos 95 objetos novos (11/11/2026) no fim.
+    expect(TIPOS_NO_CATALOGO.slice(-85, -78)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    expect(TIPOS_NO_CATALOGO.slice(-78, -73)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
+    expect(TIPOS_NO_CATALOGO.slice(-73, -65)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
+    expect(TIPOS_NO_CATALOGO.slice(-65, -57)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
+    expect(TIPOS_NO_CATALOGO.slice(-57, -48)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
+    expect(TIPOS_NO_CATALOGO.slice(-48, -40)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
+    expect(TIPOS_NO_CATALOGO.slice(-40, -34)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
+    expect(TIPOS_NO_CATALOGO.slice(-34, -28)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
+    expect(TIPOS_NO_CATALOGO.slice(-28, -21)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
+    expect(TIPOS_NO_CATALOGO.slice(-21, -15)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
+    expect(TIPOS_NO_CATALOGO.slice(-15, -9)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
+    expect(TIPOS_NO_CATALOGO.slice(-9)).toEqual(['fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras'])
     // 26 de antes, os 8 móveis de casa de 28/10/2026 (fogão, geladeira, pia, balcão, pratos, privada, sofá, poltrona)
     // e os 6 de 29/10/2026 (lareira, fornalha, bigorna, balde, troncos, feno).
     // E o chafariz de 02/11/2026, logo depois do poço, e os 3 objetos de vento no fim; a ponte de 03/11/2026
     // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
     const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
     expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(117)
+    expect(TIPOS_NO_CATALOGO).toHaveLength(126)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })
