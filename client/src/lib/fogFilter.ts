@@ -19,7 +19,7 @@ import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenC
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
-import { exploredCellInside, isPointExplored, isShapeExplored, type Exploration } from './exploration'
+import { exploredCellInside, isPointExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { LAYER_IDS } from '../types/map'
@@ -169,9 +169,13 @@ export interface PlayerMapView {
    */
   concealed: RegionPoint[][]
   /**
-   * Zonas ocultas ativas + salas secretas: o chamador não marca explorado em
-   * célula que toque nelas, e NÃO guarda o contorno do anel de visão que
-   * encosta nelas. NÃO sai pela rede (o anel da sala secreta é o formato dela).
+   * Zonas ocultas ativas: o chamador não marca explorado em célula que toque
+   * nelas, e NÃO guarda o contorno do anel de visão que encosta nelas. A sala
+   * secreta fechada NÃO entra (caça de 12/11/2026, N3): ao vivo ela é chão
+   * vazio para o jogador, e fora daqui a memória a lembra igual — antes ela
+   * virava um buraco preto com o formato exato dela. Quem a protege é o
+   * recorte (nada de dentro dela sai, nem pelo explorado) e
+   * `closedSecretRooms`. NÃO sai pela rede.
    */
   blocked: RegionPoint[][]
   /**
@@ -223,6 +227,18 @@ export interface PlayerMapView {
    * ele sai. Não sai pela rede.
    */
   occupiedSecretRooms: string[]
+  /**
+   * SALA SECRETA NA MEMÓRIA (caça de 12/11/2026, N3) — as salas secretas
+   * FECHADAS para este jogador neste recorte (id e polígono) e as ABERTAS
+   * para ele (ficha dentro ou já descoberta). A memória marca por cima da
+   * fechada como chão vazio (é o que a visão mostra dela), e o recorte
+   * responde "não explorado" lá dentro. O chamador guarda as fechadas e, no
+   * recorte em que uma deixa de estar fechada (abriu, deixou de ser secreta ou
+   * sumiu), apaga da memória o lugar dela antes de marcar: o interior nasce
+   * PRETO, nunca lembrado. NÃO saem pela rede (o polígono é o formato dela).
+   */
+  closedSecretRooms: SalaSecreta[]
+  openSecretRooms: SalaSecreta[]
   /**
    * VER PELA PORTA ABERTA — a espiada deste jogador, ou `null` quando ninguém
    * dele está no vão de uma porta aberta de prédio de teto fechado. Sai pela
@@ -555,15 +571,65 @@ export function playerBlockedRings(map: MapData): RegionPoint[][] {
 
 /**
  * O que a memória de um jogador não pode guardar, seja quem for: zonas ocultas
- * ativas e salas secretas — o mesmo `blocked` de `filterMapForPlayer`. O teto
- * fica de fora de propósito: ele é por jogador (abre para quem está dentro) e
- * quem o apaga da memória é o próprio snapshot (`roofs`).
+ * ativas — o mesmo `blocked` de `filterMapForPlayer`. O teto fica de fora de
+ * propósito: ele é por jogador (abre para quem está dentro) e quem o apaga da
+ * memória é o próprio snapshot (`roofs`). A sala secreta também (caça de
+ * 12/11/2026, N3): a memória a lembra como o chão vazio que a visão mostrou, e
+ * o recorte responde "não explorado" lá dentro enquanto ela está fechada.
+ * Apagá-la aqui trazia de volta, a cada mesa retomada, o retângulo preto com o
+ * formato dela.
  *
  * É o que a mesa retomada apaga da memória guardada antes de usá-la: o mestre
  * pode ter escondido, entre um dia e outro, algo que o jogador já tinha visto.
  */
 export function memoryBlockedRings(map: MapData): RegionPoint[][] {
-  return [...activeConcealRings(map), ...secretRoomsOf(map).map((r) => r.points)]
+  return activeConcealRings(map)
+}
+
+/**
+ * O veto das SOMAS à memória de um jogador (caça de 12/11/2026, N3): a planta
+ * revelada (`markAll`), a memória da ficha que é olho dele, o "Dar o que o
+ * grupo viu", o mapa de papel. Zonas ocultas ativas e salas com teto, como em
+ * `playerBlockedRings`, e as salas secretas que já ABRIRAM para ele (uma ficha
+ * `olhos` estritamente dentro, ou `descobertas`): o que vem de outra memória
+ * ou da planta não pode lembrá-lo de um interior que ele nunca viu. A sala
+ * secreta FECHADA não entra: lá a memória é chão vazio e o recorte responde
+ * "não explorado" (sem ela o lugar virava um buraco preto com o formato dela).
+ * O lugar da que abre é apagado pelo chamador no recorte em que ela abre.
+ */
+export function memoryVetoRings(map: MapData, olhos: readonly Token[], descobertas?: ReadonlySet<string>): RegionPoint[][] {
+  return [
+    ...activeConcealRings(map),
+    ...roofRoomsOf(map.regions).filter((r) => isUsablePolygon(r.points)).map((r) => r.points),
+    ...salasSecretasPara(map, olhos, descobertas).abertas.map((r) => r.points),
+  ]
+}
+
+/** Uma sala secreta pelo id e pelo polígono (o que o host guarda dela). */
+export interface SalaSecreta {
+  id: string
+  points: RegionPoint[]
+}
+
+/**
+ * As salas secretas deste mapa (já o do piso) para quem tem estes `olhos`:
+ * ABERTAS (uma ficha estritamente dentro, em cima do muro ainda é fora, ou a
+ * sala já `descobertas`) e FECHADAS (o resto). A mesma conta de
+ * `filterMapForPlayer` (`openSecretIds`, `closedSecretRooms`).
+ */
+export function salasSecretasPara(
+  map: MapData,
+  olhos: readonly Token[],
+  descobertas?: ReadonlySet<string>,
+): { abertas: SalaSecreta[]; fechadas: SalaSecreta[] } {
+  const abertas: SalaSecreta[] = []
+  const fechadas: SalaSecreta[] = []
+  for (const r of secretRoomsOf(map)) {
+    const aberta = isUsablePolygon(r.points) && (descobertas?.has(r.id) === true || olhos.some((t) => strictlyInside(r.points, { x: t.x, y: t.y })))
+    if (aberta) abertas.push({ id: r.id, points: r.points })
+    else fechadas.push({ id: r.id, points: r.points })
+  }
+  return { abertas, fechadas }
 }
 
 /**
@@ -2498,7 +2564,9 @@ function recorteDoGrupo(
   const hiddenByAncestorIds = new Set(
     map.regions.filter((r) => r.parentId !== undefined && ancestorsOf(map.regions, r.id).some((a) => isClosedSecret(a) || a.hidden)).map((r) => r.id),
   )
-  const secretRoomIds = new Set([...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]), ...hiddenByAncestorIds])
+  /** A sala secreta FECHADA e as salas dentro dela (por `parentId`). */
+  const closedSecretSubtreeIds = new Set(secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]))
+  const secretRoomIds = new Set([...closedSecretSubtreeIds, ...hiddenByAncestorIds])
   // Aberta dentro de uma sala que continua fechada (sub-sala de secreta) não conta: segue sumida.
   const occupiedSecretRooms = occupiedSecretIds.filter((id) => !secretRoomIds.has(id))
   const secretRoomRings = boxRings(secretRooms.map((r) => r.points))
@@ -2804,15 +2872,16 @@ function recorteDoGrupo(
    * `forgetInside` (`net/hostSession.ts`).
    */
   const roofs = closedRoofs.map((roof) => roof.points)
-  // Só a sala secreta FECHADA para este jogador: a que abriu vira memória dele como qualquer cômodo.
-  const blocked = [...concealRings, ...secretRooms.map((r) => r.points)]
+  // Só as zonas ocultas: a sala secreta fechada é chão vazio para a memória (N3, ver `PlayerMapView.blocked`).
+  const blocked = concealRings
 
-  // Peça de chão com a maioria das amostras em área escondida não sai. Limitação
-  // aceita: peça grande que cruza a borda sai inteira, e tirar peça 'subtract'
-  // fecha o buraco dela (só dentro da área escondida).
+  // Peça de chão com a maioria das amostras em área escondida (zona oculta ou
+  // sala secreta fechada) não sai. Limitação aceita: peça grande que cruza a
+  // borda sai inteira, e tirar peça 'subtract' fecha o buraco dela (só dentro
+  // da área escondida).
   // O chão de dentro do prédio de teto fechado some pelo mesmo caminho, embora
   // o teto não esteja mais em `blocked` (ver o comentário de `roofs` acima).
-  const hiddenAreas = boxRings(blocked)
+  const hiddenAreas = boxRings([...concealRings, ...secretRooms.map((r) => r.points)])
   const hiddenFloorIds = new Set(
     hiddenAreas.length === 0 && closedRoofs.length === 0
       ? []
@@ -3230,7 +3299,9 @@ function recorteDoGrupo(
     if (comodoSamples(room).some(isVisible)) return true
     return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
   }
-  const seesInto = (room: BoxedRoom): boolean => seesIntoNow(room) || (explored !== undefined && isShapeExplored(explored, comodoSamples(room)))
+  // Explorado dentro da sala secreta fechada não conta (N3: a memória a marca como chão vazio; ver `isPointExploredOpen`, definida mais abaixo).
+  const seesInto = (room: BoxedRoom): boolean =>
+    seesIntoNow(room) || (explored !== undefined && comodoSamples(room).some((p) => !inSecretRoom(p) && isPointExplored(explored, p)))
   const comodoRooms = boxRooms(comodoCandidates)
   /**
    * Zona oculta ativa sobre o interior INTEIRO: a lembrança (`seenRooms`) não
@@ -3288,7 +3359,11 @@ function recorteDoGrupo(
    * Dentro é "alguma amostra do interior estritamente no cômodo"; a Sala que
    * CONTÉM o cômodo (a casa comum em volta dele, `containsComodo`) não entra.
    */
-  const plainRooms = boxRooms(map.regions.filter((r) => r.room !== undefined && !roomHasRoof(r.room) && isUsablePolygon(r.points)))
+  // A sala secreta FECHADA (e o que mora nela) não é Sala de dentro do cômodo (N3): para o jogador ela é
+  // chão vazio, e excluída da lembrança do cômodo ela virava um buraco preto com o formato dela.
+  const plainRooms = boxRooms(
+    map.regions.filter((r) => r.room !== undefined && !roomHasRoof(r.room) && isUsablePolygon(r.points) && !closedSecretSubtreeIds.has(r.id)),
+  )
   const roomsInsideComodo = new Map(
     knownComodos.map((room) => [
       room.id,
@@ -3361,15 +3436,25 @@ function recorteDoGrupo(
     )
   }
 
+  /**
+   * Explorado e à mostra: fora de zona oculta e fora de sala secreta FECHADA
+   * (caça de 12/11/2026, N3). A memória marca por cima da sala secreta como
+   * chão vazio; aqui a resposta continua "não explorado", para nenhuma regra
+   * de planta mandar algo de dentro dela. Toda pergunta ao explorado neste
+   * recorte passa por aqui (ou por `exploredShapeOpen`), menos o lado da porta
+   * por atravessar (`doorSideKnown`), que segue o que a TELA dele mostra.
+   */
   const isPointExploredOpen = (point: RegionPoint): boolean =>
-    explored !== undefined && !hiddenByZone(point) && isPointExplored(explored, point)
+    explored !== undefined && !hiddenByZone(point) && !inSecretRoom(point) && isPointExplored(explored, point)
+  /** Alguma amostra explorada e à mostra (`isPointExploredOpen`): a regra de `isShapeExplored` sem a sala secreta fechada. */
+  const exploredShapeOpen = (points: readonly RegionPoint[]): boolean => explored !== undefined && points.some(isPointExploredOpen)
 
   // Planta estática: visível agora, já explorada ou dentro de cômodo lembrado. Nunca usar para entidade dinâmica.
   const isPointKnown = (point: RegionPoint): boolean => isVisible(point) || isPointExploredOpen(point) || inKnownComodo(point)
   const isShapeKnown = (points: readonly RegionPoint[], outline: ShapeOutline): boolean => {
     const open = openSamples(points, outline)
     // Cômodo lembrado: só pelas amostras que contam (`open`), como o resto.
-    return isShapeVisible(open) || (explored !== undefined && isShapeExplored(explored, open)) || open.some(inKnownComodo)
+    return isShapeVisible(open) || exploredShapeOpen(open) || open.some(inKnownComodo)
   }
 
   /**
@@ -3388,7 +3473,7 @@ function recorteDoGrupo(
   const memoryMode = remembered !== undefined
   const exploredPoint = (point: RegionPoint): boolean => (memoryMode ? inKnownComodo(point) : isPointExploredOpen(point))
   const exploredShape = (points: readonly RegionPoint[]): boolean =>
-    memoryMode ? outsideZones(points).some(inKnownComodo) : explored !== undefined && isShapeExplored(explored, outsideZones(points))
+    memoryMode ? outsideZones(points).some(inKnownComodo) : exploredShapeOpen(outsideZones(points))
   /** Com memória: ponto no cômodo que ele vê AGORA (`inComodoSeenNow`) conta como visto agora. */
   const comodoSeenPoint = (point: RegionPoint): boolean => memoryMode && inComodoSeenNow(point)
   const comodoSeenShape = (points: readonly RegionPoint[]): boolean => memoryMode && outsideZones(points).some(inComodoSeenNow)
@@ -4642,10 +4727,12 @@ function recorteDoGrupo(
    */
   const doorSideProbe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
   const sentRings = vision === authorityVision ? rings : boxRings(vision)
+  // O explorado CRU (sem a negação da sala secreta de `isPointExploredOpen`): a memória marca a
+  // sala secreta fechada como chão vazio (N3), e é assim que a tela dele a mostra.
   const doorSideKnown = (p: RegionPoint): boolean =>
     !hiddenByZone(p) &&
     !inClosedRoof(p) &&
-    (inAnyRing(sentRings, p) || inBrushReveal(p) || isPointExploredOpen(p) || inKnownComodo(p))
+    (inAnyRing(sentRings, p) || inBrushReveal(p) || (explored !== undefined && isPointExplored(explored, p)) || inKnownComodo(p))
   const portasPorAtravessar = filtered.walls
     .filter((w) => {
       if (w.door === null || w.door.secret === true) return false
@@ -4706,6 +4793,8 @@ function recorteDoGrupo(
     roofs,
     occupiedRooms,
     occupiedSecretRooms,
+    closedSecretRooms: secretRooms.map((r) => ({ id: r.id, points: r.points })),
+    openSecretRooms: allSecretRooms.filter((r) => openSecretIds.has(r.id)).map((r) => ({ id: r.id, points: r.points })),
     peek,
     hazards,
     hazardsHere,

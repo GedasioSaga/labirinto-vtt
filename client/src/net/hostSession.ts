@@ -34,6 +34,7 @@ import {
   giftableRoomsOf,
   marcarTrancasParaJogador,
   memoryBlockedRings,
+  memoryVetoRings,
   noiseCueForPlayer,
   objetoEscondidoDosJogadores,
   ownTokensInView,
@@ -46,6 +47,7 @@ import {
   playerEyeTokens,
   raioDoPeriodo,
   roomClueForPlayer,
+  salasSecretasPara,
   sceneNameForPlayer,
   waitingTokensForPlayer,
   type CompanionMarks,
@@ -2943,6 +2945,18 @@ interface PlayerMemory extends SceneMemory {
    * esquecem junto com o explorado.
    */
   secretRooms: Set<string>
+  /**
+   * SALA SECRETA NA MEMÓRIA (caça de 12/11/2026, N3): as salas secretas
+   * FECHADAS para ele no último recorte desta cena, com o polígono de então
+   * (`PlayerMapView.closedSecretRooms`). A memória marca por cima delas como
+   * chão vazio; no recorte em que uma deixa de estar fechada (a ficha entrou,
+   * o mestre desmarcou "secreta" ou apagou a sala), o lugar dela é apagado da
+   * memória antes de marcar, para ele não "lembrar" um interior que nunca viu.
+   * Ausente = nenhum recorte ainda (memória nova ou da mesa retomada): toda
+   * sala secreta aberta no primeiro recorte conta como recém-aberta. Não vai
+   * para a mesa gravada.
+   */
+  secretasFechadas?: Map<string, RegionPoint[]>
 }
 
 type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
@@ -4025,8 +4039,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       byScene.set(memoryId, memory)
     }
     // Memória da mesa retomada: toda leitura passa por aqui, então é aqui que
-    // o que o mestre escondeu desde a gravação (zona oculta, sala secreta) sai
-    // dela — antes de qualquer recorte ou teste de ponto usá-la.
+    // o que o mestre escondeu desde a gravação (zona oculta) sai dela — antes
+    // de qualquer recorte ou teste de ponto usá-la. A sala secreta NÃO sai
+    // (N3, passo 5): fechada, ela é chão vazio na memória e o recorte responde
+    // "não explorado" lá dentro; apagá-la aqui trazia de volta o retângulo
+    // preto. A que estiver aberta no primeiro recorte é apagada lá
+    // (`esquecerSalasQueAbriram`, sem recorte antes).
     if (memory.restored) {
       forgetBlocked(memory.exp, memoryBlockedRings(mapaDoPiso(map, piso)))
       memory.restored = false
@@ -4173,6 +4191,46 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * SALA SECRETA QUE ABRE (caça de 12/11/2026, N3, passo 4). Fechada, a sala é
+   * chão vazio na memória dele: a visão passou por cima e marcou. Quando ela
+   * deixa de estar fechada para ele (a ficha entrou, o mestre desmarcou
+   * "secreta" ou apagou a sala), esse "chão lembrado" viraria a lembrança de
+   * um interior que ele nunca viu. Então o lugar dela (o polígono do último
+   * recorte em que estava fechada e, se mudou, o de agora) sai do explorado,
+   * do que ele viu (`seen`) e da memória de cada ficha que é olho dele, com a
+   * régua estrita de `forgetBlocked`: o interior nasce PRETO.
+   *
+   * Sem recorte antes (memória nova ou da mesa retomada), toda sala que está
+   * aberta agora conta como recém-aberta. Devolve se o explorado mudou: o
+   * recorte que já o leu tem de ser refeito.
+   */
+  const esquecerSalasQueAbriram = (playerId: string, map: MapData, memory: PlayerMemory, cut: PlayerMapView): boolean => {
+    const antes = memory.secretasFechadas
+    const lugares: RegionPoint[][] = []
+    if (antes === undefined) {
+      for (const sala of cut.openSecretRooms) lugares.push(sala.points)
+    } else {
+      const fechadasAgora = new Set(cut.closedSecretRooms.map((sala) => sala.id))
+      for (const [id, points] of antes) {
+        if (fechadasAgora.has(id)) continue
+        lugares.push(points)
+        const agora = map.regions.find((r) => r.id === id)?.points
+        if (agora !== undefined && agora !== points) lugares.push(agora)
+      }
+    }
+    if (lugares.length === 0) return false
+    const bitsAntes = memory.exp.bits.slice()
+    const aneisAntes = [...memory.exp.rings]
+    forgetBlocked(memory.exp, lugares)
+    forgetBlocked(memory.seen, lugares)
+    for (const t of playerEyeTokens(floorMapOf(playerId, map), playerId, ownership, loansFor(playerId))) {
+      const daFicha = existingTokenMemory(t.id, map)
+      if (daFicha !== undefined) forgetBlocked(daFicha.exp, lugares)
+    }
+    return !sameExploration(memory.exp, bitsAntes, aneisAntes)
+  }
+
+  /**
    * MEMÓRIA POR FICHA — antes do recorte, o jogador soma à memória dele o que
    * cada ficha que é OLHO dele neste mapa já viu. Ajudante sem visão, ficha
    * escondida e ficha de outra cena não entram. Célula que hoje é área
@@ -4182,12 +4240,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     let forbidden: RegionPoint[][] | null = null
     // PISOS: só a ficha que está no piso que o jogador vê — a do outro piso lembra OUTRO piso.
     const floorMap = floorMapOf(playerId, map)
-    for (const t of playerEyeTokens(floorMap, playerId, ownership, loansFor(playerId))) {
+    const olhos = playerEyeTokens(floorMap, playerId, ownership, loansFor(playerId))
+    for (const t of olhos) {
       const source = existingTokenMemory(t.id, map)
       if (source === undefined) continue
       // FORA DO CHÃO (N6): a ficha que viu lá fora em "Livre" não devolve isso ao jogador em "Bloqueado".
       esquecerForaDoChao(source, floorMap)
-      forbidden ??= playerBlockedRings(floorMap)
+      // SALA SECRETA (N3): a fechada passa (é chão vazio na memória); a que já abriu para ele, não.
+      forbidden ??= memoryVetoRings(floorMap, olhos, memory.secretRooms)
       inheritMemory(memory, source, forbidden)
     }
   }
@@ -4636,7 +4696,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // por memória: `markAll` varre o mapa inteiro e o snapshot sai a cada passo.
     // PISOS: o veto é o do piso que ele vê (a memória é deste piso).
     if (!memory.planMarked && planRevealedFor(playerId, scene)) {
-      markAll(exp, playerBlockedRings(floorMapOf(playerId, map)))
+      const pisoDele = floorMapOf(playerId, map)
+      // SALA SECRETA (N3): a fechada entra como chão vazio (o recorte não manda nada de dentro); a aberta, não.
+      markAll(exp, memoryVetoRings(pisoDele, playerEyeTokens(pisoDele, playerId, ownership, loansFor(playerId)), memory.secretRooms))
       memory.planMarked = true
     }
     // MEMÓRIA DA PLANTA (`memory.plan`): sem ela o explorado mostra o PRESENTE —
@@ -4650,26 +4712,32 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(allScenes(world)))
     // MODO BATALHA: a parede invisível em que ele esbarrou é parede comum PARA ELE (regra de 27/10).
     const mapaDoRecorte = comParedesReveladas(map, memory.paredesReveladas)
-    const cut = filterMapForPlayer(
-      mapaDoRecorte,
-      playerId,
-      ownership,
-      tokenRadiusIn(playerId, map),
-      exp,
-      memory.doors,
-      pinAudiences,
-      entered,
-      loansFor(playerId),
-      memory.seenRooms,
-      secretReveals,
-      memory.secretRooms,
-      peekingFor(playerId, scene),
-      fromExplored ? undefined : memory.plan,
-      memory.marcas,
-      oneWay,
-      companionMarks(),
-      barrasDoMapa(map, world, playerId),
-    )
+    const recortar = (): PlayerMapView =>
+      filterMapForPlayer(
+        mapaDoRecorte,
+        playerId,
+        ownership,
+        tokenRadiusIn(playerId, map),
+        exp,
+        memory.doors,
+        pinAudiences,
+        entered,
+        loansFor(playerId),
+        memory.seenRooms,
+        secretReveals,
+        memory.secretRooms,
+        peekingFor(playerId, scene),
+        fromExplored ? undefined : memory.plan,
+        memory.marcas,
+        oneWay,
+        companionMarks(),
+        barrasDoMapa(map, world, playerId),
+      )
+    let cut = recortar()
+    // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
+    // O recorte acima já leu o explorado velho; se a memória mudou, refaz.
+    if (esquecerSalasQueAbriram(playerId, map, memory, cut)) cut = recortar()
+    memory.secretasFechadas = new Map(cut.closedSecretRooms.map((r) => [r.id, r.points]))
     // CABINE DE TRANSPORTE: só as paradas que o recorte JÁ mandou ganham o
     // "aqui/longe" — nada da cabine além disso, nada de parada escondida.
     const view: PlayerMapView = { ...cut, map: { ...cut.map, pins: comCabineParaJogador(cut.map.pins, scene.sceneId, world.cabines, ocupadasPorOutros(playerId, world)) } }
@@ -4678,8 +4746,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // desta cena, deste jogador.
     const discoveredBefore = memory.secretRooms.size
     for (const id of view.occupiedSecretRooms) memory.secretRooms.add(id)
-    // Zona oculta ativa e sala secreta: célula que toca nelas não vira explorada
-    // (senão o jogador guardaria a planta escondida e o formato dela).
+    // Zona oculta ativa: célula que toca nela não vira explorada (senão o
+    // jogador guardaria a planta escondida e o formato dela). A sala secreta
+    // fechada vira chão vazio na memória, como na visão (N3): quem a protege é
+    // o recorte, que responde "não explorado" lá dentro.
     markRings(exp, view.vision, view.blocked)
     // CÔMODO LEMBRADO: o cômodo conhecido levanta a névoa INTEIRO (é o que o
     // jogador vê mais apagado depois de sair), menos o que toca cômodo ainda
@@ -5210,6 +5280,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * SALA SECRETA NA TELA DA MESA (caça de 12/11/2026, N3): a memória de quem
+   * tinha uma sala secreta FECHADA lembra chão vazio lá dentro. Quando ela não
+   * está fechada para a mesa (uma ficha do grupo dentro; o mestre a desmarcou
+   * ou apagou), esse chão viraria na TV a lembrança de um interior que aquele
+   * jogador nunca viu: o lugar dela não passa da memória dele para a cópia.
+   * Memória sem recorte nesta sessão (`secretasFechadas` vazio: mesa retomada,
+   * ou jogador que ainda não voltou à cena) não diz qual sala ele via fechada:
+   * toda sala aberta para a mesa fica de fora dela.
+   */
+  const vetoDaMesaPorSalaSecreta = (world: HostWorld, scene: HostScene, pisoDoMapa: MapData): ((memory: PlayerMemory) => RegionPoint[][]) => {
+    const olhos = [...players.keys()]
+      .filter((playerId) => statusOf(playerId) === 'playing' && sceneFor(playerId, world) === scene)
+      .flatMap((playerId) => playerEyeTokens(pisoDoMapa, playerId, ownership, loansFor(playerId)))
+    const { abertas, fechadas } = salasSecretasPara(pisoDoMapa, olhos)
+    const fechadasNaMesa = new Set(fechadas.map((sala) => sala.id))
+    return (memory) => {
+      const antes = memory.secretasFechadas
+      if (antes === undefined) return abertas.map((sala) => sala.points)
+      const veto: RegionPoint[][] = []
+      for (const [id, points] of antes) {
+        if (fechadasNaMesa.has(id)) continue
+        veto.push(points)
+        const agora = pisoDoMapa.regions.find((r) => r.id === id)?.points
+        if (agora !== undefined && agora !== points) veto.push(agora)
+      }
+      return veto
+    }
+  }
+
+  /**
    * TELA DA MESA — o que a TV recebe: a cena escolhida pelo mestre com só o que
    * o GRUPO já viu. Visão = a união da visão de quem está nessa cena agora, cada
    * um com o próprio raio. Memória = a união da memória de todo jogador que já
@@ -5241,10 +5341,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // e junta só a memória DESSE piso — o explorado do 1º piso abriria no
     // térreo, no mesmo lugar do plano, o que ninguém viu lá.
     const pisoDaMesa = pisoDoGrupo(map, viewers, loaned)
+    const vetoDaSalaSecreta = vetoDaMesaPorSalaSecreta(world, scene, mapaDoPiso(map, pisoDaMesa))
     for (const playerId of players.keys()) {
       const memory = existingMemory(playerId, map, pisoDaMesa)
       if (memory === undefined) continue
-      mergeExploration(merged, memory.exp)
+      mergeExploration(merged, memory.exp, vetoDaSalaSecreta(memory))
       for (const [wallId, door] of memory.doors) {
         const seenAt = memory.doorSeen.get(wallId) ?? 0
         if (seenAt < (doorsSeenAt.get(wallId) ?? -1)) continue
@@ -5260,8 +5361,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const pinoOf = coresDosPinos(map, ownership, { corDoDono: false })
     const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf, barras: barrasDoMapa(map, world) })
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
-    // viaja, fora de zona oculta e sala secreta, e o interior de prédio de teto
-    // fechado para o grupo sai dela.
+    // viaja, fora de zona oculta (a sala secreta fechada é chão vazio, N3: o
+    // recorte do grupo responde "não explorado" lá dentro), e o interior de
+    // prédio de teto fechado para o grupo sai dela.
     markRings(merged, view.vision, view.blocked)
     forgetInside(merged, view.roofs)
     const snapshot: HostMessage = { type: 'snapshot', rev, map: view.map, vision: view.vision, explored: encodeExploration(merged), ownTokens: [], concealed: view.concealed }
@@ -9383,7 +9485,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const given = existingMemory(fromPlayerId, map, piso)
     if (given === undefined) return false
     const memory = memoryFor(toPlayerId, map, world)
-    if (!mergeExploration(memory.exp, given.seen, playerBlockedRings(floorMapOf(toPlayerId, map)))) return false
+    // SALA SECRETA (N3): a fechada para quem recebe passa como chão vazio; a que já abriu para ele, não.
+    const pisoDele = floorMapOf(toPlayerId, map)
+    if (!mergeExploration(memory.exp, given.seen, memoryVetoRings(pisoDele, playerEyeTokens(pisoDele, toPlayerId, ownership, loansFor(toPlayerId)), memory.secretRooms))) return false
     // FORA DO CHÃO (N6): o doador pode lembrar o lado de fora de quando a cena era "Livre"; o próximo recorte confere de novo.
     memory.chaoLimitava = undefined
     for (const [wallId, door] of given.doors) {
@@ -11510,13 +11614,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const map = scene.map
       const memory = memoryFor(playerId, map, world)
       // PISOS: a memória é a do piso que ele vê, e o veto é o desse piso.
-      markAll(memory.exp, playerBlockedRings(floorMapOf(playerId, map)))
+      // SALA SECRETA (N3): a fechada para ele entra como chão vazio (o recorte não manda nada de dentro); a aberta, não.
+      const pisoDele = floorMapOf(playerId, map)
+      markAll(memory.exp, memoryVetoRings(pisoDele, playerEyeTokens(pisoDele, playerId, ownership, loansFor(playerId)), memory.secretRooms))
       // A memória muda no lugar (mesmo objeto): sem isto, o broadcast a acharia igual.
       lastViews.delete(playerId)
       forgetSentView(playerId)
       // Revelar é mostrar a planta de AGORA: a memória passa a ser o presente,
-      // menos o que está sob zona, sala secreta ou teto (lá o explorado também
-      // não foi marcado): desfeito o esconderijo depois, nada disso volta como lembrado.
+      // menos o que está sob zona, sala secreta ou teto (lá o explorado não foi
+      // marcado, ou é chão vazio na sala secreta fechada, N3): desfeito o
+      // esconderijo depois, nada disso volta como lembrado.
       memory.plan = planOfWholeMap(map)
     },
 
@@ -11544,8 +11651,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene === null) return 0
       // PISOS: só o que os colegas viram do piso DELE — outro piso é outra planta no mesmo lugar.
       const piso = pisoOf(playerId, scene.map)
-      const blocked = playerBlockedRings(floorMapOf(playerId, scene.map))
       const target = memoryFor(playerId, scene.map, world)
+      // SALA SECRETA (N3): a fechada para ele passa como chão vazio; a que já abriu para ele, não.
+      const pisoDele = floorMapOf(playerId, scene.map)
+      const blocked = memoryVetoRings(pisoDele, playerEyeTokens(pisoDele, playerId, ownership, loansFor(playerId)), target.secretRooms)
+      // FORA DO CHÃO (N6): o colega pode lembrar o lado de fora de quando a cena era "Livre"; o próximo recorte confere de novo.
+      target.chaoLimitava = undefined
       const bitsBefore = target.exp.bits.slice()
       const ringsBefore = [...target.exp.rings]
       let colleagues = 0
@@ -11595,8 +11706,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (scene === undefined) return { outbound: [] }
       const map = scene.map
       const wanted = new Set(roomIds)
-      // Mesmo veto do "Revelar planta": zona oculta ativa, sala secreta e teto não viram explorados.
-      const blocked = playerBlockedRings(map)
+      // Mesmo veto do "Revelar planta": zona oculta ativa, teto e a sala secreta que já abriu para
+      // ele não viram explorados; a secreta fechada vira chão vazio, como na visão (N3).
+      const blocked = memoryVetoRings(map, playerEyeTokens(map, playerId, ownership, loansFor(playerId)), existingMemory(playerId, map, 0)?.secretRooms)
       const scratch = blankExploration(dimsOf(map))
       const rooms = giftableRoomsOf(map).filter((r) => wanted.has(r.id) && roomLeavesMark(scratch, r.points, blocked))
       if (rooms.length === 0) return { outbound: [] }

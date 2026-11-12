@@ -356,10 +356,13 @@ function ringCovers(outer: MemoryRing, inner: MemoryRing): boolean {
  * Guarda o contorno de um anel de visão, para a memória ter a MESMA borda que
  * o jogador viu ao vivo.
  *
- * SEGURANÇA: anel que encosta em área proibida (zona oculta ativa, sala
- * secreta) não é guardado. O contorno exato desenharia a borda dela na tela do
- * jogador com a precisão do anel; perto dessas áreas continua valendo só o
- * bitset conservador, que já pula a célula inteira que as toca.
+ * SEGURANÇA: anel que encosta em área proibida (a zona oculta ativa, e o que
+ * mais o chamador passar) não é guardado. O contorno exato desenharia a borda
+ * dela na tela do jogador com a precisão do anel; perto dessas áreas continua
+ * valendo só o bitset conservador, que já pula a célula inteira que as toca.
+ * A sala secreta FECHADA não é mais área proibida para a visão (caça de
+ * 12/11/2026, N3): ao vivo ela é chão vazio, e a memória a guarda igual — o
+ * recorte do host responde "não explorado" lá dentro (`lib/fogFilter.ts`).
  *
  * Também não guarda anel já contido em outro guardado: o snapshot é remarcado
  * a cada mudança do mestre, então parado ou andando pouco o mesmo anel chegaria
@@ -684,10 +687,12 @@ export function mergeExplored(into: Exploration, from: Exploration, concealed: r
  * ficha dele viu): soma em `into` o que `from` explorou (células
  * e contornos lembrados). É de mão única: `from` não muda.
  *
- * `concealed`: zonas ocultas ativas e salas secretas AGORA. A memória do
- * colega pode ter sido marcada antes de o mestre esconder o lugar; célula que
- * toca essas áreas e contorno que encosta nelas não passam — a mesma regra de
- * `markRings`, senão a planta escondida viajaria pela memória de outro. Sem
+ * `concealed`: as áreas vetadas AGORA (zonas ocultas ativas, tetos e as salas
+ * secretas que já abriram para quem recebe, `memoryVetoRings` de
+ * `lib/fogFilter.ts`). A memória do colega pode ter sido marcada antes de o
+ * mestre esconder o lugar; célula que toca essas áreas e contorno que encosta
+ * nelas não passam — a mesma regra de `markRings`, senão a planta escondida
+ * viajaria pela memória de outro. Sem
  * `concealed` (tela da mesa), junta tudo: os contornos de `from` já passaram
  * pelo veto quando foram guardados.
  *
