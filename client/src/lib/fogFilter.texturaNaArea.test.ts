@@ -203,3 +203,61 @@ describe('textura na área fechada por parede escondida de propósito', () => {
     expect(mapForImageExport(comum, SEM_O_MESTRE).texturas, 'imagem, parede comum').toEqual(comum.texturas)
   })
 })
+
+/**
+ * PAREDE ESCONDIDA NO MEIO DE UM LADO (12/11/2026): o corredor de paredes
+ * soltas tem, no meio do lado norte, um trecho que é a parede de uma sala
+ * secreta (ou uma parede de camada escondida dos jogadores). O contorno do
+ * corredor não tem canto ali, só os quatro cantos dele, a 9 casas do trecho: a
+ * trava que só olhava os cantos deixava a área passar, e a borda reta da
+ * textura desenhava a parede que quem recebe não ganha.
+ *
+ * Geometria (mapa 35x25 de 40 px, camadas v2): corredor 140..1260 x 400..520; o
+ * trecho do lado norte vai de x = 500 a x = 900, entre paredes comuns em dois
+ * pedaços de cada lado (a imagem tira também o pedaço que encosta na sala
+ * secreta); o cofre secreto, ao norte, em 500..900 x 200..400; o clique do
+ * balde e a ficha em (600, 460).
+ */
+function corredorCom(trecho: Wall[], extra: Partial<MapData> = {}): MapData {
+  const norte = [parede('n0', 140, 400, 300, 400), parede('n1', 300, 400, 500, 400), parede('n2', 900, 400, 1100, 400), parede('n3', 1100, 400, 1260, 400)]
+  const soltas = [...norte, parede('l', 1260, 400, 1260, 520), parede('s', 1260, 520, 140, 520), parede('o', 140, 520, 140, 400)]
+  const base: MapData = { ...createEmptyMap('m', 'M', 35, 25, 40), versaoDasCamadas: 2, ocultasDoJogador: [], walls: [...soltas, ...trecho], tokens: [heroi(600, 460)], ...extra }
+  const area = areaFechadaPorParedes(base, { x: 600, y: 460 })
+  if (area === null) throw new Error('o corredor não fechou')
+  return { ...base, texturas: [{ id: 'lajotas', tipo: 'balde', textura: 'lajotas', forca: 1, alvo: { tipo: 'area', pontos: area } }] }
+}
+
+/** O corredor com o cofre ao norte: a parede sul do cofre é o trecho do meio do lado norte do corredor. */
+function corredorComCofre(): MapData {
+  const cantos: RegionPoint[] = [{ x: 500, y: 200 }, { x: 900, y: 200 }, { x: 900, y: 400 }, { x: 500, y: 400 }]
+  const cofre: Region = { id: 'cofre', points: cantos, tag: '', fillColor: '#123', fillPattern: 'solid', data: {}, room: { shape: 'rect', name: 'cofre' }, secret: true }
+  const paredesDoCofre = cantos.map((p, i): Wall => ({ ...parede(`c${i}`, p.x, p.y, cantos[(i + 1) % 4].x, cantos[(i + 1) % 4].y), regionId: 'cofre' }))
+  return corredorCom(paredesDoCofre, { regions: [cofre] })
+}
+
+describe('textura na área com parede escondida no meio de um lado do contorno', () => {
+  it('SEGURANÇA: o lado do corredor que corre num trecho de parede de sala secreta, ou de camada escondida dos jogadores, segura a área: não sai para o jogador nem (a da sala secreta) na imagem', () => {
+    const comCofre = corredorComCofre()
+    const comCamada = corredorCom([{ ...parede('n-meio', 500, 400, 900, 400), camada: LIVRE }], { ocultasDoJogador: [LIVRE] })
+    // A premissa: o contorno são só os quatro cantos do corredor, nenhum em cima do trecho.
+    for (const m of [comCofre, comCamada]) expect(m.texturas?.[0]).toMatchObject({ alvo: { pontos: [{ x: 1260, y: 400 }, { x: 1260, y: 520 }, { x: 140, y: 520 }, { x: 140, y: 400 }] } })
+
+    const saidas: [string, MapData][] = [
+      ['jogador, sala secreta', filterMapForPlayer(comCofre, 'p1', POSSE, 300).map],
+      ['imagem, sala secreta', mapForImageExport(comCofre, SEM_O_MESTRE)],
+      ['jogador, camada escondida', filterMapForPlayer(comCamada, 'p1', POSSE, 300).map],
+    ]
+    const vazou = saidas.filter(([, saida]) => passos(saida).length > 0).map(([onde]) => onde)
+    expect(vazou, 'a borda reta da textura desenhou a parede que quem recebe não ganha').toEqual([])
+  })
+
+  it('controle: a parede escondida a mais de uma casa do contorno, ou a sala secreta já descoberta pelo jogador, deixa a área ir como hoje', () => {
+    // O lado norte inteiro de parede comum; a de camada escondida corre paralela, a uma casa e meia dele.
+    const longe = corredorCom([parede('n-meio', 500, 400, 900, 400), { ...parede('longe', 500, 340, 900, 340), camada: LIVRE }], { ocultasDoJogador: [LIVRE] })
+    expect(filterMapForPlayer(longe, 'p1', POSSE, 300).map.texturas, 'parede escondida longe').toEqual(longe.texturas)
+
+    const comCofre = corredorComCofre()
+    const recorte = filterMapForPlayer(comCofre, 'p1', POSSE, 300, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['cofre']))
+    expect(recorte.map.texturas, 'sala secreta descoberta').toEqual(comCofre.texturas)
+  })
+})
