@@ -153,6 +153,7 @@ import { isDaVista, type Espiada } from '../lib/espiar'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, planejarCaminhada, type AvisoDoClique, type MotivoDaCaminhada } from '../lib/cliqueParaAndar'
+import { lembrar, mapaParaPlanejar, type ObjetosLembrados } from './objetosLembrados'
 import type { RoofPeek } from '../lib/fogFilter'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
@@ -358,6 +359,12 @@ const PREFIXO_DO_PEDIDO_DBT = 'dbt|'
 export interface PlayerState {
   status: PlayerStatus
   map?: MapData
+  /**
+   * OBJETOS LEMBRADOS (J5): a pegada dos objetos que barram e que o recorte
+   * desta cena já trouxe, só para PLANEJAR caminho (`mapaParaPlanejar`), nunca
+   * para desenhar. Ausente = nada lembrado (sem cena, ou recém-conectado).
+   */
+  objetosLembrados?: ObjetosLembrados
   vision?: RegionPoint[][]
   /** O que o jogador já viu neste mapa (autoridade do mestre). */
   explored?: Exploration
@@ -4049,12 +4056,16 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const walls: readonly unknown[] = Array.isArray(map.walls) ? map.walls : []
     const doorIds = new Set(walls.flatMap((w) => (isRecord(w) && w.door !== null && w.door !== undefined && typeof w.id === 'string' ? [w.id] : [])))
     const doorsToCross = porAtravessar.filter((id) => doorIds.has(id))
+    // OBJETOS LEMBRADOS (J5): do recorte do MESTRE (`map`); outra cena zera, e o
+    // lembrado cujo centro ele vê agora sem o objeto vir no recorte é esquecido.
+    const objetosLembrados = lembrar(state.objetosLembrados, map, vision)
     // O mapa chegou: quem pedia ficha já tem uma, e o pedido termina aqui.
     // A sala está viva: as pistas e os recados voltam a vir do host, e o guardado da queda sai.
     setState({
       status: 'playing',
       rev,
       map: next,
+      objetosLembrados,
       vision,
       explored,
       ownTokens,
@@ -4486,6 +4497,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           arrival: undefined,
           status: 'waiting',
           map: undefined,
+          objetosLembrados: undefined,
           vision: undefined,
           explored: undefined,
           ownTokens: undefined,
@@ -5614,7 +5626,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 
@@ -5661,7 +5673,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const token = map?.tokens.find((t) => t.id === tokenId)
       if (state.status !== 'playing' || map === undefined || token === undefined || state.vision === undefined) return false
       if (!Number.isFinite(x) || !Number.isFinite(y)) return false
-      const plano = planejarCaminhada(map, token, { x, y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
+      // O recorte mais os objetos que barram já vistos e fora da visão (J5): o plano contorna o moinho que saiu da tela.
+      const mapaDoPlano = mapaParaPlanejar(map, state.objetosLembrados)
+      const plano = planejarCaminhada(mapaDoPlano, token, { x, y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
       if (plano.tipo === 'aviso') {
         // Nada sai: a caminhada de antes para (o clique novo manda nela) e o aviso diz por quê.
         stopWalk()

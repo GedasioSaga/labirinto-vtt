@@ -124,6 +124,7 @@ import { letterTitle } from '../lib/correio'
 import { chatFacesByName, type ChatChannel } from '../lib/chat'
 import { findKnownPath } from '../lib/knownPath'
 import { mapaParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
+import { mapaParaPlanejar } from './objetosLembrados'
 import { pisoDe } from '../lib/pisos'
 import { criarPreparoDoCaminho, type PreparoDoCaminho } from '../lib/preparoDoCaminho'
 import type { Pin, Stair } from '../types/map'
@@ -1208,10 +1209,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     if (pointMenu === null || pointMenu.tokenId === null || map === undefined || state.vision === undefined) return null
     const walker = map.tokens.find((t) => t.id === pointMenu.tokenId)
     if (walker === undefined) return null
-    // O mesmo mapa do clique para andar (`planejarCaminhada`): o barranco e o objeto que barra, no piso da ficha.
-    const mapaQueAnda = mapaParaAndarDoJogador(map, pisoDe(walker), walker)
+    // O mesmo mapa do clique para andar (`planejarCaminhada`): o barranco e o objeto que barra, no piso da ficha,
+    // com os objetos que barram já vistos e fora da visão (J5, `mapaParaPlanejar`).
+    const mapaQueAnda = mapaParaAndarDoJogador(mapaParaPlanejar(map, state.objetosLembrados), pisoDe(walker), walker)
     return findKnownPath(mapaQueAnda, walker, { x: pointMenu.x, y: pointMenu.y }, { explored: state.explored, vision: state.vision, concealed: state.concealed ?? [] })
-  }, [pointMenu, state.map, state.explored, state.vision, state.concealed])
+  }, [pointMenu, state.map, state.objetosLembrados, state.explored, state.vision, state.concealed])
   /**
    * A malha do "Andar até aqui" é montada em fatias assim que a cena chega
    * (`lib/preparoDoCaminho.ts`): no mapa grande, montá-la inteira no toque
@@ -1222,12 +1224,13 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
    * dele): com outra lista de paredes a malha adiantada não serviria a elas.
    */
   const fichasProprias = state.ownTokens
+  const objetosLembrados = state.objetosLembrados
   const mapaDoCaminho = useMemo(() => {
     const map = state.map
     if (map === undefined) return undefined
     const propria = map.tokens.find((t) => fichasProprias?.includes(t.id) === true)
-    return propria === undefined ? map : mapaParaAndarDoJogador(map, pisoDe(propria), propria)
-  }, [state.map, fichasProprias])
+    return propria === undefined ? map : mapaParaAndarDoJogador(mapaParaPlanejar(map, objetosLembrados), pisoDe(propria), propria)
+  }, [state.map, fichasProprias, objetosLembrados])
   const preparoDoCaminho = useRef<PreparoDoCaminho | null>(null)
   // Criado e parado no mesmo efeito (o StrictMode monta duas vezes); o efeito
   // do mapa, declarado depois, roda em seguida e entrega o mapa atual.
