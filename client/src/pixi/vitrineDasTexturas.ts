@@ -24,8 +24,9 @@ import type { Caixa } from '../lib/texturas'
  *
  * Compõe de novo quando: a pintura mudou (`sujar('ja')`: na hora, tudo; ou
  * `sujar('aos-poucos')`, os pedaços do chão chegando: aos poucos, por trás);
- * a vista passou da metade da margem; o zoom passou de `ZOOM_SEM_COMPOR`; ou a
- * câmera parou (`PARADA_MS`) num lugar diferente do da composição.
+ * a vista passou da metade da margem; o zoom passou de `ZOOM_SEM_COMPOR`; a
+ * câmera parou (`PARADA_MS`) num lugar diferente do da composição; ou o zoom
+ * começou a diminuir com a frente na margem de sempre (`MARGEM_AO_AFASTAR`).
  *
  * PIXEL COM PIXEL: o canto da composição cai num pixel inteiro da tela, na
  * resolução da tela, e cada ladrilho é desenhado com a mesma conta mundo ->
@@ -37,6 +38,15 @@ import type { Caixa } from '../lib/texturas'
 
 /** Margem de cada lado, em fração da tela. */
 export const MARGEM_DA_VITRINE = 0.125
+/**
+ * Margem de cada lado ENQUANTO O ZOOM DIMINUI (achado V3 de 12/11/2026). Afastar faz a vista crescer para todos
+ * os lados: com a margem de sempre, a vista saía da composição da frente antes de a de trás ficar pronta, e a
+ * beira da tela mostrava o chão sem textura a cada passo da roda. Afastando, a composição nova já nasce com esta
+ * margem (logo no primeiro passo) e cobre os passos seguintes. Parada a câmera, volta a de sempre. Em 1920 x 1080
+ * a 100% são os mesmos 6 ladrilhos (o ladrilho de 960 já sobrava); em 2560 x 1440 a 150%, 24 em vez de 15 só
+ * enquanto afasta.
+ */
+export const MARGEM_AO_AFASTAR = 0.25
 /** Câmera parada há este tempo num lugar diferente do da composição: compõe de novo, alinhada. */
 export const PARADA_MS = 150
 /** Zoom que passou disto (para mais ou para menos) desde a composição: compõe de novo. */
@@ -190,6 +200,8 @@ export interface Vitrine {
 
 interface Jogo {
   quadro: QuadroDaVitrine
+  /** A margem com que foi composto (`MARGEM_DA_VITRINE` ou, afastando, `MARGEM_AO_AFASTAR`). */
+  margem: number
   versao: number
   ladrilhos: Ladrilho[]
   /** Quantos dos `ladrilhos` já foram compostos. */
@@ -213,6 +225,8 @@ export function criarVitrine(o: OpcoesDaVitrine): Vitrine {
   let versao = 0
   let urgente = true
   let mexeuEm = -Infinity
+  /** Quando o zoom diminuiu pela última vez (`MARGEM_AO_AFASTAR`). */
+  let afastouEm = -Infinity
   let ultimaCamera: CameraDaTela | null = null
   let composicoes = 0
   let destruida = false
@@ -249,7 +263,7 @@ export function criarVitrine(o: OpcoesDaVitrine): Vitrine {
     jogo.grupo.destroy({ children: true })
   }
 
-  function novoJogo(q: QuadroDaVitrine): Jogo {
+  function novoJogo(q: QuadroDaVitrine, margem: number): Jogo {
     const r = o.renderer.resolution
     const grupo = new Container()
     grupo.label = 'vitrine'
@@ -257,7 +271,7 @@ export function criarVitrine(o: OpcoesDaVitrine): Vitrine {
     camada.addChild(grupo)
     // Os pedaços do chão são pedidos para a área inteira de uma vez (pedir por ladrilho soltaria os do vizinho).
     o.recortar(q.vista, q.mundo)
-    return { quadro: q, versao, ladrilhos: ladrilhosDoQuadro(q, r), prontos: 0, sprites: [], grupo }
+    return { quadro: q, margem, versao, ladrilhos: ladrilhosDoQuadro(q, r), prontos: 0, sprites: [], grupo }
   }
 
   function comporLadrilho(jogo: Jogo): void {
@@ -292,28 +306,34 @@ export function criarVitrine(o: OpcoesDaVitrine): Vitrine {
     const camera = cameraAgora()
     if (camera === null) return
     const agora = relogio()
+    if (ultimaCamera !== null && camera.s < ultimaCamera.s) afastouEm = agora
     if (ultimaCamera === null || !mesmaCamera(ultimaCamera, camera)) mexeuEm = agora
     ultimaCamera = camera
     // Renderer destruído (ou sem tela): nada a compor neste quadro, sem derrubar o laço do ticker.
     const tela = (o.renderer as Partial<Renderer> | null | undefined)?.screen
     if (tela === undefined || tela === null) return
-    const q = quadroDaVitrine(camera, tela, o.renderer.resolution)
+    // O zoom diminuiu há menos de `PARADA_MS`: a câmera ainda está afastando.
+    const afastando = agora - afastouEm < PARADA_MS
+    const margem = afastando ? MARGEM_AO_AFASTAR : MARGEM_DA_VITRINE
+    const q = quadroDaVitrine(camera, tela, o.renderer.resolution, margem)
     if (urgente) {
       // Pintura nova, cena nova ou a primeira: tudo agora (sem mostrar a pintura de antes nem buraco).
       urgente = false
       if (atras !== null) soltar(atras)
-      atras = novoJogo(q)
+      atras = novoJogo(q, margem)
       while (atras.prontos < atras.ladrilhos.length) comporLadrilho(atras)
       trocar()
       return
     }
     if (atras === null) {
       const estado: EstadoDaVitrine = { frente: frente?.quadro ?? null, desatualizada: frente === null || frente.versao !== versao, parada: agora - mexeuEm }
-      if (precisaCompor(estado, q)) atras = novoJogo(q)
+      // Afastando com a frente na margem de sempre: a de margem maior começa já, no primeiro passo da roda.
+      const afastandoSemFolga = frente !== null && frente.margem < margem
+      if (afastandoSemFolga || precisaCompor(estado, q)) atras = novoJogo(q, margem)
     } else if (!cobre(atras.quadro.mundo, q.vista)) {
       // A vista já saiu da área da composição em curso (pan rápido, zoom para fora): recomeça na vista de agora.
       soltar(atras)
-      atras = novoJogo(q)
+      atras = novoJogo(q, margem)
     }
     if (atras === null) return
     for (let i = 0; i < LADRILHOS_POR_QUADRO && atras.prontos < atras.ladrilhos.length; i += 1) comporLadrilho(atras)
