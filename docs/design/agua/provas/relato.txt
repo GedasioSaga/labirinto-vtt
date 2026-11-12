@@ -1,0 +1,20 @@
+pronto em 888 ms; campo das 5 águas do exemplo: 159 ms; RGBA32F
+tarefas longas ao abrir (ms): [119,78,131,50]
+visão do jogador: ficha em {"cx":23,"cy":14} tentou 6 passos para o mar e ficou em {"cx":28,"cy":14} ; aviso: Mar barra a passagem: a ficha não entra.
+campo do lago e do mar refeito na visão do jogador em 30 ms
+água viva a 60, mapa inteiro, 5 s: {"quadros":300,"mediana":16.7,"p95":16.9,"max":17,"trabalhoP95":0.2,"trabalhoMax":0.2,"longas":[]}
+água viva a 60, de perto (240%), 4 s: {"quadros":241,"mediana":16.7,"p95":16.9,"max":16.9,"trabalhoP95":0.2,"trabalhoMax":0.2,"longas":[]}
+água viva a 30, de perto, 4 s: {"quadros":120,"mediana":33.3,"p95":33.5,"max":33.6,"trabalhoP95":0.1,"trabalhoMax":0.2,"longas":[]}
+custo na placa (mediana de 40 desenhos esperando a placa): {"proposta":0.7000000476837158,"hoje":0.3999999761581421,"agua":0.30000007152557373,"aos60":18.000004291534424,"aos30":9.000002145767212,"tela":"1240 x 900"}
+parada (P): quadros desenhados em 2 s: 0 ; painel: A água está parada: nenhum quadro novo (só desenha quando há motivo) · tarefas acima de 50 ms: nenhuma
+rio de 3,5 casas traçado: Rio 3 feito em 33,4 ms. ; tarefas longas: []
+lago verde-mar traçado: Lago 3 feito em 22,3 ms. ; tarefas longas: []
+águas agora: Mar (mar, #2d5f8c, barra); Lago (lago, #4b87a8); Riacho (rio, #4b87a8); Rio (rio, #4b87a8); Brejo (lago, #5d6b45); Rio 3 (rio, #8a7454); Lago 3 (lago, #3f8a78)
+erros: []
+mudança média por canal entre quadros vizinhos (0 a 255): [1.07,1.08,1.1,1.11,1.12,1.16,1.17,1.18,1.21,1.24,1.28]
+
+Rodadas extras, sem print (tmp/novos-2026-11-12/agua/medir.mjs), duas aberturas seguidas:
+abertura 1 (shader ainda não guardado pelo navegador): compilar a água 120 ms e a grama 84 ms em segundo plano; tarefas longas 100, 52 e 104 ms.
+abertura 2 (shader guardado): nenhuma tarefa longa. Campos: Mar 17 a 28 ms, os outros 3 a 12 ms; junção em 4 faixas de 8 a 19 ms.
+custo na placa [proposta, hoje, água] em ms, 3 medidas de 60 desenhos cada, por abertura: [[0.4,0.3,0.1],[0.4,0.3,0.1],[0.4,0.3,0.1]] e [[0.4,0.3,0.1],[0.5,0.3,0.2],[0.3,0.2,0.1]].
+60 quadros por 5 s nas duas aberturas: 300 quadros, mediana 16,7 ms, p95 16,8 ms, maior 17,2 ms, nenhuma tarefa longa.
