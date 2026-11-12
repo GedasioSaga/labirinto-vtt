@@ -491,6 +491,9 @@ export function PlayerPinCard({
   // a passagem no lugar do glifo — a mesma cabeça que o jogador vê no mapa.
   // O nome da cena de destino nunca chega aqui (`lib/fogFilter.ts`).
   const viagem = pin.kind === 'viagem'
+  // PASSAGEM SEM TEXTO: nenhum parágrafo — o título "Passagem" e o botão
+  // bastam; "o mestre ainda não escreveu nada" leria como ponto de interesse vazio.
+  const passagemSemTexto = viagem && !longeParaLer && descricao === ''
   // ALAVANCA: qual porta ela move nunca chega aqui (`lib/fogFilter.ts`); o
   // cartão só oferece puxar, e o que mudou o jogador vê no mapa.
   const alavanca = pin.kind === 'alavanca'
@@ -711,8 +714,9 @@ export function PlayerPinCard({
           <p className="pp-pincard__title">{titulo}</p>
           {/* Escada: só o sentido. O pino dela não tem texto do mestre, e "o
               mestre ainda não escreveu nada" leria como ponto de interesse vazio.
-              Pino "só de perto" visto de longe: "Chegue mais perto para ler". */}
-          <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
+              Pino "só de perto" visto de longe: "Chegue mais perto para ler".
+              Passagem sem texto: sem parágrafo, pelo mesmo motivo da escada. */}
+          {(escada !== null || !passagemSemTexto) && <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>}
         </div>
         {mercadorias !== null && <PlayerLoja mercadorias={mercadorias} onBuy={onBuy} compra={compra} />}
         {item !== null && (
