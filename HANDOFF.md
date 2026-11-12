@@ -1,34 +1,40 @@
-# CAÇA A BUGS VISUAIS, OTIMIZAÇÃO E INTERAÇÕES ESTRANHAS, pedido de 12/11/2026, estado de 12/11 12h25 (relógio; o mais recente)
+# CAÇA DE 12/11/2026 (bugs visuais, otimização, interações estranhas) EM FASE DE TESTES + 4 PEDIDOS NOVOS COM PROTÓTIPO; estado de 12/11 19h43 (relógio; o mais recente)
 
 ## Objetivo
-O mestre aceitou as versões 0.5.57 a 0.5.60 ("Perfeito") e pediu uma caça a três coisas: bugs visuais (print 17, no "Reino de Goa"; print 21, parede com textura só num pedaço), otimização e interações estranhas (prints 18 e 19: a Passagem pergunta duas vezes; print 20: "Jogar" como padrão no teste; print 22: "Usar chave" sem chave; print 23: "Entregar item" sem se saber o que faz). Das sombras ele quer VER UM PROTÓTIPO da melhor versão. Processo que ele ditou: Fable 5.2 acha o problema e a solução, Opus 5.5 xhigh faz; a LISTA de bugs e otimizações vai para ele ANTES de fazer. O literal e as minhas leituras estão no fim do `PEDIDOS.md`.
+Publicar UMA versão (0.5.61) com tudo o que o mestre pediu na caça de 12/11 ("resolva todos os concertos. Faça o recomendado.") mais o tamanho da ficha por cena, depois de testes só no fim (ordem dele: "faça teste somente no final de tudo"). Depois, fazer os 4 pedidos novos já aprovados em protótipo ou por pergunta: chão e caminho (aprovado), construções (decidido), água (aprovado), ferramenta Ambiente (protótipo em andamento). Todo literal, toda decisão do mestre (numeradas de 1 a 32) e toda escolha do Claude estão no fim do `PEDIDOS.md`.
+
+## Regras desta sessão (do mestre)
+- Até 5 agentes ao mesmo tempo, sem um interferir no outro. NADA DE FABLE nesta sessão (14h57: "não use o fable mais nessa sessão"); tudo em Opus 5.5 xhigh.
+- Teste só no fim de tudo. Agente não lança ajudante. Commit só dos próprios trechos (técnica `git apply --cached` quando o arquivo tem trecho de outro; dois commits misturados aconteceram: `9ac3c0d1` e `7ac577b4`, sem perda).
+- Regras dos agentes: `tmp/caca-2026-11-12/escritores/BRIEFING-ESCRITOR.md`, `tmp/caca-2026-11-12/testes/BRIEFING-CONSERTADOR.md`, `tmp/caca-2026-11-12/testes/BRIEFING-PROVADOR.md`.
 
 ## Estado atual
-- Nada do app foi alterado. Main em `cdfc94fe` (só o registro do pedido), versão publicada 0.5.60.
-- Terreno comum em `tmp/caca-2026-11-12/`: `BRIEFING.md` (regras e formato do relatório de todos os buscadores), `prints-do-mestre/17.png` a `23.png`, `mapas/` (cópia das campanhas "Reino de Goa", 17 cenas, e "Tasmaturi Village", 12 cenas, tirada entre 11h12 e 11h16).
-- Servidor do app (main, sem alterações) na porta 1610, em segundo plano nesta sessão (`rtk proxy npx vite --port 1610 --strictPort --host 127.0.0.1`, de `client/`). Morre com a sessão.
-- ESTADO EM 12/11 12h25 (relógio): VOLTARAM quatro buscadores, com `ACHADOS.md` na pasta de cada um: `jogo/` (14 achados), `sombras/` (7, mais `PROPOSTA.md` e `ESPEC-PROTOTIPO.md`), `editor/` (22), `nevoa/` (7; prints 17 e 21 explicados). EM VOO: `visual/` (varredura das 29 cenas), `otimizacao/` (medida) e o designer Opus 5.5 xhigh do protótipo (saída `docs/design/sombras/prototipo-sombras.html`).
-- O mestre pediu "Use o Grilling" e respondeu 26 decisões (todas no fim do `PEDIDOS.md`, numeradas de 1 a 26). As que mandam no trabalho: interações decididas vão para o Opus JÁ, sem esperar a lista; bug e otimização entram a não ser que ele RISQUE; uma versão por área (interações de jogo; névoa e bugs visuais; editor; otimização).
-- 12h33: o mestre mandou "resolva todos os concertos. Faça o recomendado." (todos os achados entram; escolha que faltava = recomendada). VOLTOU também `visual/` (8 achados). EM VOO: `otimizacao/`, o designer do protótipo das sombras e TRÊS ESCRITORES Opus 5.5 xhigh, regras comuns em `tmp/caca-2026-11-12/escritores/BRIEFING-ESCRITOR.md`: A (porta, itens, teste: J2, J7, J8, J3, J14, J4, J11, J6), B (passagem, andar, NPC: J1, J12, J13, J5, J10, J9), C (editor: E1 a E21, V7, aviso do N7, V5b; E20 por último). Cada um escreve só nos arquivos da lista dele; B só mexe em `hostSession.ts` depois de `escritores/A/PRONTO.txt`; C só faz o E20 depois de `A/PRONTO.txt` e `B/PRONTO.txt`.
-- TRAVA: os escritores só editam `client/` depois de eu criar `tmp/caca-2026-11-12/escritores/LIBERADO.txt`, que crio quando o buscador `otimizacao/` voltar (ele mede no servidor da porta 1610, e cada edição recarrega as páginas).
+- CONSTRUÇÃO: acabou às 15h11 (13 escritores; cerca de 60 commits; tsc 0).
+- TESTES UNITÁRIOS: 5 lotes acertados (B, NE, JO, ED, OV; `tmp/caca-2026-11-12/testes/<lote>/`). Suíte inteira 2ª rodada (17h14-17h41): 20446 de 20469; as 10 falhas = 9 "Test timed out" com a máquina cheia + a grama-morta antiga (fora da caça). Defeitos achados nos testes e já consertados: ciclo de import (`00d11891`), guarda da nuvem (`fa9ded58`), parede solta em sala secreta desenhava a forma (`20aff254`).
+- PROVAS NA TELA: P-NEVOA (41: 33 ok, 3 falhas), P-EDITOR (27: 20 ok, 6 falhas), P-JOGO (16: 15 ok, 1 falha), relatórios em `tmp/caca-2026-11-12/testes/P-*/PROVAS.md`. Consertos com prova na tela: FX-NEVOA PRONTO (`3a480050`, `40d8033e`), FX-JOGO PRONTO (`93f503e4`, `9f623de2`).
+- EM VOO às 19h43: FX-EDITOR (retomado depois do limite de turnos; feitos `a2abdc3d`, `5bfc47ff`, `48a6a03e`; faltam alças P16, Criar mapa 500 P22, título "Mesa online" P25, só Delete apaga a sala, tocha não prende em porta, "Pino sem nome"); FX-ROTA (botão "Mostrar a…" do painel de rota atrás do "Aguardando o mestre…"); E2E (acertou cerca de 55 arquivos de `client/e2e/` SEM COMMIT AINDA, rodando os mexidos um por vez; jornadas com hash e golden de imagem listados para decidir); designer do protótipo do AMBIENTE (`docs/design/ambiente/`).
+- Servidor de desenvolvimento na porta 1610 (em segundo plano nesta sessão). Cópia de segurança dos dados do app (o mestre abriu pelo Tauri dev): `tmp/backup-appdata-20261112-1559`.
+- Protótipos aprovados: sombras (`docs/design/sombras/`, JÁ no app), chão e caminho (`docs/design/chao-e-caminho/`), água (`docs/design/agua/`). Construções: proposta em `tmp/novos-2026-11-12/construcoes/PROPOSTA.md` com as decisões do mestre no PEDIDOS.
 
-## Próximos passos (estado de 15h13)
-CONSTRUÇÃO ACABOU: 13 escritores com PRONTO (A, A2, B, C, C2, D, E, E2, F, G, G2, H, K), cerca de 60 commits, `tsc` exit 0 às 15h11, árvore limpa fora do Prelúdio (outro trabalho), main enviada ao GitHub. Nada testado ainda (ordem do mestre: teste só no fim). Plano da fase de testes: `tmp/caca-2026-11-12/PLANO-DE-TESTES.md`.
-EM VOO: T1 (testador Opus 5.5 xhigh, só triagem: suíte unitária uma vez e classificação das falhas em `tmp/caca-2026-11-12/testes/T1-TRIAGEM.md`); designer Opus do protótipo do chão e caminho (`docs/design/chao-e-caminho/`); buscador Opus das construções (`tmp/novos-2026-11-12/construcoes/`). NADA DE FABLE nesta sessão (ordem do mestre, 14h57).
-1. Com a triagem: até 3 consertadores Opus 5.5 xhigh em lotes de testes que não se cruzam (A muda de propósito: acertar o teste; B defeito: consertar o código), sem lançar ajudantes; depois a suíte inteira de novo.
-2. Provas na tela (53), provas de névoa "igual com e sem" (22, de dia e de noite) e medidas (19), pelo plano, em lotes; um navegador por agente; consertar o que falhar.
-3. e2e: os que mudam de propósito (Mesa online, passe de nomes, um clique na passagem, Jogar como padrão) acertados; as jornadas com hash conferido decididas caso a caso.
-4. Auditoria só de leitura (verificador-realidade, Opus) contra o literal do mestre e as decisões do `PEDIDOS.md`; depois UMA versão por `scripts/publicar-versao.cjs`, de worktree limpo (junções antes de remover o worktree).
-5. Pedidos novos (não entram nesta versão): chão e caminho juntos (protótipo para o mestre aprovar) e construções com regras próprias (ferramenta "Construção", chave "tapa a visão", mestre atravessa).
+## Próximos passos
+1. DECISÃO 32 (nesta versão): na janela de teste, mover a ficha de verdade no mapa faz a janela mostrar a ficha onde o mestre a pôs (`client/src/net/visaoDeTeste/camadaDeTeste.ts`; nota em `tmp/caca-2026-11-12/testes/FX-NEVOA/NOTAS.md`). Um consertador quando abrir vaga.
+2. Esperar FX-EDITOR, FX-ROTA e E2E (PRONTO.txt nas pastas deles). O E2E faz commit dos e2e acertados; levar ao mestre o que ele listar de jornada com hash e golden.
+3. Com a máquina quieta (ninguém rodando): os 9 arquivos que estouraram o tempo, sozinhos (`rasterDosMoveis.sementesMt4/Mt5`, `hostSession.periodo.desempenho`, `carimbos/embutidos`, `PropertiesPanel.mobilia`, `hostBridge.ajudante`, `hostSession.visaoPorPeriodo`); se repetirem, timeout próprio no teste. Depois as medidas M01 a M19 do `PLANO-DE-TESTES.md` seção 1(f) (otimização e sombras: antes e depois).
+4. tsc e uma 3ª rodada da suíte inteira só se algum conserto mexer em código depois da 2ª.
+5. Auditoria só de leitura (verificador-realidade, Opus) contra os literais e as decisões 1 a 32 do `PEDIDOS.md` e contra as provas.
+6. Versão 0.5.61 por `scripts/publicar-versao.cjs`, de worktree limpo (disco de 15 GB ou mais e 3 GB de memória antes de compilar; junções antes de `git worktree remove`); conferir release, `latest.json`, bump na main, push.
+7. Depois da versão, os pedidos novos, cada um com um escritor Opus e prova: chão e caminho; construções; água; Ambiente (quando o mestre aprovar o protótipo).
 
-## Critério de pronto
-- Da caça: existem os seis `ACHADOS.md`; cada achado tem prova (print ou medida, com o caminho) ou está marcado como hipótese; o mestre recebeu a lista única e o protótipo das sombras.
-- Dos consertos (depois do "pode"): cada item aprovado tem um commit, `rtk proxy npx tsc --noEmit` sai 0, a prova pedida no achado passa, e o que toca névoa tem a comparação "igual com e sem a coisa escondida" na tela do jogador.
+## Critério de pronto (da versão)
+- Toda decisão 1 a 32 com commit, ou marcada "para depois" com o motivo no PEDIDOS.
+- tsc 0; suíte unitária sem falha além da grama-morta antiga (e dos testes de outro trabalho, como o logo); os 9 que estouraram o tempo passam sozinhos.
+- As provas "igual com e sem a coisa escondida" da névoa todas sem diferença visível; as falhas das provas na tela consertadas e provadas de novo.
+- Auditoria diz "pode publicar"; release publicada com `latest.json` respondendo 0.5.61.
 
 ## Evidência
-- `date` às 11h12 (leitura do pedido), 11h16 (cópias e servidor: `servidor 1610: HTTP 200`), 11h19 (buscadores lançados).
-- Máquina às 11h14: `RAM livre GB: 7.8`, `Disco C livre GB: 36.5`.
-- Aceite gravado: `registrado em ~/.claude/state/tarefas.jsonl: aceita`.
+- Triagem: `tmp/caca-2026-11-12/testes/T1-TRIAGEM.md` (124 arquivos falhando antes; 2ª rodada em `tmp/caca-2026-11-12/testes/t2-vitest.json`: 20446 de 20469).
+- Provas: `tmp/caca-2026-11-12/testes/P-NEVOA/PROVAS.md`, `P-EDITOR/PROVAS.md`, `P-JOGO/PROVAS.md`; consertos com prova: `FX-NEVOA/` (F03d 11.364 px para 0; F09 Goa 206 mil para 670 de 1 nível; exportação 60.622 para 0), `FX-JOGO/` (11 de 11).
+- `rtk proxy npx tsc --noEmit` exit 0 às 15h11 e nos retornos de cada consertador.
 
 ---
 
