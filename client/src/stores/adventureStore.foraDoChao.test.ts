@@ -1,8 +1,9 @@
 /**
  * "FORA DO CHÃO" (`MapData.offFloor`) nas stores: a cena nova nasce LIVRE, o
- * andar novo criado por escada herda o valor da cena de baixo quando ela tem o
- * campo, e a janela "Configurar cena" grava a opção na cena aberta (um Ctrl+Z)
- * e na cena fechada (pelo cache). Mapa de antes, sem o campo, continua sem ele.
+ * andar novo criado por escada herda o que VALE na cena de baixo (sem o campo,
+ * bloqueado), e a janela "Configurar cena" grava a opção na cena aberta (um
+ * Ctrl+Z) e na cena fechada (pelo cache). Mapa de antes, sem o campo, continua
+ * sem ele.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapData, Stair } from '../types/map'
@@ -66,7 +67,7 @@ describe('cena nova nasce com Fora do Chão LIVRE', () => {
     expect('offFloor' in useMapStore.getState().map).toBe(false)
   })
 
-  it('o andar criado por escada herda o valor da cena de baixo se ela tem o campo; senão nasce livre', () => {
+  it('o andar criado por escada herda o que VALE na cena de baixo: bloqueada, livre, e a cena de antes sem o campo (bloqueada)', () => {
     const andarDe = (terreo: MapData): MapData => {
       montar(terreo)
       useMapStore.getState().addStair(ESCADA)
@@ -76,7 +77,8 @@ describe('cena nova nasce com Fora do Chão LIVRE', () => {
     }
     expect(andarDe({ ...terreoDeAntes(), offFloor: 'blocked' }).offFloor).toBe('blocked')
     expect(andarDe({ ...terreoDeAntes(), offFloor: 'free' }).offFloor).toBe('free')
-    expect(andarDe(terreoDeAntes()).offFloor).toBe('free')
+    // Cena de antes, sem o campo: vale bloqueado, e o andar que sai dela nasce bloqueado (não livre).
+    expect(andarDe(terreoDeAntes()).offFloor).toBe('blocked')
   })
 })
 

@@ -65,10 +65,11 @@ export function readOffFloor(value: unknown): OffFloor | undefined {
 }
 
 /**
- * A cena que NASCE agora (mapa novo, cena nova da aventura, andar novo): livre.
- * `herdado` é a opção da cena de baixo quando o andar nasce de uma escada: se
- * ela tem o campo, o andar novo segue o mesmo valor. Mapa aberto do disco não
- * passa por aqui: campo ausente continua ausente.
+ * A cena que NASCE agora, do zero (mapa novo, cena nova da aventura): livre.
+ * `herdado` é o que VALE na cena de baixo quando o andar nasce de uma escada
+ * (quem chama resolve: cena de antes, sem o campo, vale `'blocked'`), e o andar
+ * novo nasce com esse valor gravado. Mapa aberto do disco não passa por aqui:
+ * campo ausente continua ausente.
  */
 export function comForaDoChaoDeCenaNova(map: MapData, herdado?: OffFloor): MapData {
   return { ...map, offFloor: herdado ?? 'free' }
