@@ -3429,16 +3429,23 @@ function recorteDoGrupo(
   })
 
   /**
-   * Desenho que o jogador não recebe por causa da SALA. Sala secreta e cômodo
-   * não visto: qualquer amostra lá dentro tira o desenho (nada cobre o formato
-   * deles). Teto fechado: só o desenho que mora DENTRO do prédio (a maioria
-   * das amostras sob o teto, a mobília). O chão grande que passa por baixo
-   * (um cais, uma praça) continua do jogador, com o telhado por cima — a mesma
+   * Desenho que o jogador não recebe por causa da SALA. Cômodo não visto:
+   * qualquer amostra lá dentro tira o desenho (nada cobre o formato dele).
+   * Teto fechado: só o desenho que mora DENTRO do prédio (a maioria das
+   * amostras sob o teto, a mobília). O chão grande que passa por baixo (um
+   * cais, uma praça) continua do jogador, com o telhado por cima — a mesma
    * régua da Área que contém o prédio (`swallowedByClosedRoof`). Uma ponta do
    * cais sob a casa apagava o cais inteiro e a textura dele (12/11/2026).
+   *
+   * SALA SECRETA FECHADA, a mesma régua da maioria (caça de 12/11/2026, N5;
+   * decisão 21 do mestre): o desenho que MORA nela (o tapete, o piso dela)
+   * continua sumido; o que só passa por ela (a estrada, o gramado de 458
+   * pontos do Reino de Goa) sai INTEIRO, também no trecho de dentro, e nunca
+   * cortado na borda — o corte desenharia a sala. O trecho de dentro é a
+   * continuação do que ele já vê fora: a vista atravessa a sala e mostra o fundo.
    */
   const drawingInHiddenPlace = (samples: readonly RegionPoint[]): boolean =>
-    samples.some((p) => inSecretRoom(p) || inUnseenComodo(p)) || mostly(samples, roofHides)
+    samples.some(inUnseenComodo) || mostly(samples, inSecretRoom) || mostly(samples, roofHides)
 
   /**
    * A VISÃO ENTRA NA FORMA FECHADA `points`: vértice ou meio de aresta de algum
