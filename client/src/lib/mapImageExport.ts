@@ -1,9 +1,13 @@
-import type { AlvoDoBalde, ConcealZone, Drawing, MapData, PinceladaDeTextura, Region, RegionPoint, Stair, Wall } from '../types/map'
+import type { AlvoDoBalde, ConcealZone, Drawing, MapData, PinceladaDeTextura, Prop, Region, RegionPoint, Stair, Wall } from '../types/map'
+import { contextoDeCamadas } from './camadas/consulta'
 import { distanceToWall } from './doorReach'
+import { paredesQueSeguram, presoNaParede } from './faixasDaParede'
 import { shapeCenter } from './floorSdf'
 import { isHidden } from './itemTransform'
 import { isArrivalOnly } from './pinTravel'
-import { ancestorsOf, pointInPolygonInclusive, subtreeIds } from './roomNesting'
+import { ancestorsOf, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
+import { roomHasRoof } from './roomOps'
+import { rotatePointAround, rotationTrig } from './roomRotation'
 import { areaPassaPorParede, comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
 import { comCarimbos, comCarimbosImportados, importadosParaJogador } from './carimbos'
 
@@ -13,9 +17,10 @@ import { comCarimbos, comCarimbosImportados, importadosParaJogador } from './car
  * `masterOnly` desligado é o caso de postar a imagem no grupo: nada do que é
  * só do mestre pode sair nela — item "Oculto para jogadores" (`secret`), sala
  * secreta com tudo o que está dentro, zona oculta com o que ela cobre, nome de
- * sala escondido dos jogadores e pino de chegada oculta. Mesmas regras
- * estáticas do recorte do jogador (`lib/fogFilter.ts`), sem névoa: a imagem
- * mostra a cena inteira.
+ * sala escondido dos jogadores, pino de chegada oculta, o que mora em camada
+ * escondida dos jogadores e o interior da casa de teto fechado (o telhado sai
+ * cheio). Mesmas regras estáticas do recorte do jogador (`lib/fogFilter.ts`),
+ * sem névoa: a imagem mostra a cena inteira.
  */
 export interface ImageExportOptions {
   grid: boolean
@@ -86,11 +91,120 @@ export function mapForImageExport(map: MapData, options: ImageExportOptions): Ma
 }
 
 /**
+ * CAMADA ESCONDIDA DOS JOGADORES (caça de 12/11/2026, P-NEVOA): o olho
+ * "Jogadores veem" de cada item (`jogadorVeItem`, o mesmo do recorte do
+ * jogador), e Terreno escondido leva as texturas, o relevo, o penhasco e o
+ * barranco. Sem isto o barril e a parede da camada livre escondida saíam na
+ * imagem para os jogadores.
+ */
+function soOQueOsJogadoresVeem(map: MapData): MapData {
+  const camadas = contextoDeCamadas(map)
+  if ((map.ocultasDoJogador ?? map.hiddenLayers).length === 0) return map
+  const terreno = camadas.jogadorVe('terreno')
+  return {
+    ...map,
+    walls: map.walls.filter((w) => camadas.jogadorVeItem('parede', w)),
+    floor: map.floor.filter((f) => camadas.jogadorVeItem('peca', f)),
+    regions: map.regions.filter((r) => camadas.jogadorVeItem('regiao', r)),
+    stairs: map.stairs.filter((s) => camadas.jogadorVeItem('escada', s)),
+    lights: map.lights.filter((l) => camadas.jogadorVeItem('luz', l)),
+    tokens: map.tokens.filter((t) => camadas.jogadorVeItem('ficha', t)),
+    props: map.props.filter((p) => camadas.jogadorVeItem('objeto', p)),
+    pins: map.pins.filter((p) => camadas.jogadorVeItem('pino', p)),
+    lines: map.lines.filter((l) => camadas.jogadorVeItem('linha', l)),
+    markers: map.markers.filter((m) => camadas.jogadorVeItem('marcador', m)),
+    drawings: map.drawings.filter((d) => camadas.jogadorVeItem('desenho', d)),
+    ...(map.carimbos === undefined ? {} : { carimbos: map.carimbos.filter((c) => camadas.jogadorVeItem('carimbo', c)) }),
+    ...(terreno ? {} : { texturas: undefined, relevo: false, penhascos: undefined, barranco: undefined }),
+  }
+}
+
+/** Afasta `p` do centro `c` em direção a ele por `px` (sem passar do centro). */
+function puxarParaDentro(p: RegionPoint, c: RegionPoint, px: number): RegionPoint {
+  const d = Math.hypot(c.x - p.x, c.y - p.y)
+  if (!(d > px)) return c
+  return { x: p.x + ((c.x - p.x) / d) * px, y: p.y + ((c.y - p.y) / d) * px }
+}
+
+/** O centro e os cantos da pegada do objeto (girados, 1 px para dentro: encostar na parede por fora não conta). */
+function pontosDoObjeto(p: Prop): RegionPoint[] {
+  const centro = { x: p.x, y: p.y }
+  const giro = rotationTrig(p.rotation ?? 0)
+  const meiaL = p.width / 2
+  const meiaA = p.height / 2
+  const cantos = [
+    { x: p.x - meiaL, y: p.y - meiaA },
+    { x: p.x + meiaL, y: p.y - meiaA },
+    { x: p.x + meiaL, y: p.y + meiaA },
+    { x: p.x - meiaL, y: p.y + meiaA },
+  ].map((canto) => puxarParaDentro(rotatePointAround(canto, centro, giro), centro, 1))
+  return [centro, ...cantos.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y))]
+}
+
+/**
+ * CASA DE TETO FECHADO (caça de 12/11/2026, decisão 31 do mestre): na imagem
+ * para os jogadores ela sai com o telhado CHEIO (o canvas desenha o telhado
+ * inteiro, `pixi/PixiCanvas.tsx`) e sem o interior, como na tela de quem está
+ * fora. Sai o que mora sob o telhado que os jogadores veem: objeto com alguma
+ * ponta lá dentro (a tocha presa na parede de fora, com o centro na linha,
+ * também, como no recorte), ficha, pino, luz, marcador e carimbo com o centro
+ * lá, escada e linha com alguma ponta, desenho com a maioria dos pontos, a
+ * parede de dentro (a do contorno fica) e as salas de dentro.
+ */
+function semOInteriorDosTetos(map: MapData): MapData {
+  const camadas = contextoDeCamadas(map)
+  const tetos = map.regions.filter(
+    (r) => roomHasRoof(r.room) && camadas.jogadorVeItem('telhado', r) && r.points.length >= 3 && r.points.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
+  )
+  if (tetos.length === 0) return map
+  const sobTeto = (p: RegionPoint): boolean => tetos.some((teto) => pointInPolygonInclusive(p, teto.points))
+  const algumSob = (pontos: readonly RegionPoint[]): boolean => pontos.some(sobTeto)
+  const maioriaSob = (pontos: readonly RegionPoint[]): boolean => pontos.length > 0 && pontos.filter(sobTeto).length * 2 > pontos.length
+  const tetoIds = new Set(tetos.map((t) => t.id))
+  const deDentro = new Set(
+    map.regions
+      .filter((r) => !tetoIds.has(r.id))
+      .filter((r) => tetos.some((teto) => subtreeIds(map.regions, teto.id).has(r.id)) || (r.points.length > 0 && r.points.every(sobTeto)))
+      .map((r) => r.id),
+  )
+  const paredeDeDentro = (w: Wall): boolean => {
+    const pontos = wallPoints(w)
+    return tetos.some((teto) => pontos.every((p) => pointInPolygonInclusive(p, teto.points)) && !pontos.every((p) => pointOnPolygonBorder(p, teto.points)))
+  }
+  return {
+    ...map,
+    regions: map.regions.filter((r) => !deDentro.has(r.id)),
+    walls: map.walls.filter((w) => !paredeDeDentro(w)),
+    props: map.props.filter((p) => !algumSob(pontosDoObjeto(p))),
+    tokens: map.tokens.filter((t) => !sobTeto(t)),
+    pins: map.pins.filter((p) => !sobTeto(p)),
+    lights: map.lights.filter((l) => !sobTeto(l)),
+    markers: map.markers.filter((m) => !sobTeto({ x: m.cx, y: m.cy })),
+    stairs: map.stairs.filter((s) => !algumSob(stairPoints(s))),
+    lines: map.lines.filter((l) => !algumSob(l.points)),
+    drawings: map.drawings.filter((d) => !maioriaSob(drawingPoints(d))),
+    ...(map.carimbos === undefined ? {} : { carimbos: map.carimbos.filter((c) => !sobTeto(c)) }),
+  }
+}
+
+/**
  * Tudo que o jogador nunca recebe por decisão do mestre, fora do mapa.
  * `paredesInvisiveis`: as que `mapForImageExport` já tirou de `map`; contam
- * como paredes tiradas para a textura por área que acaba nelas.
+ * como paredes tiradas para a textura por área que acaba nelas (as de camada
+ * escondida dos jogadores também).
  */
-function withoutMasterOnly(map: MapData, paredesInvisiveis: readonly Wall[]): MapData {
+function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[]): MapData {
+  const naCamadaDosJogadores = soOQueOsJogadoresVeem(inteiro)
+  const naCamada = new Set(naCamadaDosJogadores.walls)
+  const paredesForaDaCamada = inteiro.walls.filter((w) => !naCamada.has(w))
+  // O objeto PRESO só em parede que saiu pela camada (a tocha da parede escondida) sai junto: boiando no lugar dela,
+  // ele desenharia a parede. Preso também numa que fica, fica.
+  const seguramForaDaCamada = paredesQueSeguram(paredesForaDaCamada, inteiro.grid)
+  const seguramNaCamada = seguramForaDaCamada.length === 0 ? [] : paredesQueSeguram(naCamadaDosJogadores.walls, inteiro.grid)
+  const map: MapData =
+    seguramForaDaCamada.length === 0
+      ? naCamadaDosJogadores
+      : { ...naCamadaDosJogadores, props: naCamadaDosJogadores.props.filter((p) => !presoNaParede(p, seguramForaDaCamada) || presoNaParede(p, seguramNaCamada)) }
   const secretRooms = map.regions.filter((r) => r.secret && r.room !== undefined)
   // Sala secreta leva junto as sub-salas e as paredes delas, como no recorte do jogador.
   const goneRegionIds = new Set([
@@ -104,7 +218,7 @@ function withoutMasterOnly(map: MapData, paredesInvisiveis: readonly Wall[]): Ma
   const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d)))
   const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
   const ficam = new Set(walls)
-  const paredesTiradas = [...paredesInvisiveis, ...map.walls.filter((w) => !ficam.has(w))]
+  const paredesTiradas = [...paredesInvisiveis, ...paredesForaDaCamada, ...map.walls.filter((w) => !ficam.has(w))]
   const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas, paredesTiradas)
 
   const semSegredo: MapData = {
@@ -125,9 +239,11 @@ function withoutMasterOnly(map: MapData, paredesInvisiveis: readonly Wall[]): Ma
   }
   // CARIMBOS: o objeto numa sala secreta ou numa zona oculta diria o que há lá
   // (um oásis, a mata que esconde a entrada). O de fora fica.
-  const carimbos = (map.carimbos ?? []).filter((c) => !anyHidden([c]))
+  // Teto fechado por último: o interior sai depois do segredo (decisão 31, `semOInteriorDosTetos`).
+  const semTeto = semOInteriorDosTetos({ ...semSegredo, carimbos: (map.carimbos ?? []).filter((c) => !anyHidden([c])) })
+  const carimbos = semTeto.carimbos ?? []
   // Das importadas, só as que os passos que ficaram usam: o nome e a imagem das outras são do mestre.
-  const comPintura = comTexturasImportadas(comTexturas(semSegredo, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
+  const comPintura = comTexturasImportadas(comTexturas(semTeto, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
   return comCarimbosImportados(comCarimbos(comPintura, carimbos), importadosParaJogador(map.carimbosImportados, carimbos) ?? [])
 }
 

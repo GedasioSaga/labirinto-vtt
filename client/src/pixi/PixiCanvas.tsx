@@ -2095,7 +2095,8 @@ function PixiCanvasDoContexto({
        * síncrona do começo ao fim (ver `exportImage`), então nenhum quadro da
        * tela do mestre chega a ser pintado com ela.
        */
-      let exportScene: { map: MapData; viewport: { left: number; top: number; right: number; bottom: number } } | null = null
+      // `paraJogadores`: a imagem sem "Incluir objetos só do mestre" (o telhado sai cheio, `paintTelhados`).
+      let exportScene: { map: MapData; viewport: { left: number; top: number; right: number; bottom: number }; paraJogadores: boolean } | null = null
       /**
        * PISOS NA MESMA CENA — o editor desenha e MIRA só o piso em edição
        * (`pisoAtivo`): seleção, clique, laço, ímã de vértice e encaixe não
@@ -2434,16 +2435,22 @@ function PixiCanvasDoContexto({
       const paintTelhados = (regioes: Region[], mapaId: string) => {
         const { transparentes } = useTelhadosNoEditor.getState()
         const camadas = contextoDeCamadas(sceneState().map)
-        const ligados = camadas.mestreVe('telhados')
+        // IMAGEM PARA OS JOGADORES (decisão 31 do mestre, 12/11/2026): o telhado sai CHEIO, como na tela de quem está
+        // fora — o olho e a opacidade dos jogadores, sem o "Transparente" do editor, tudo no container dos Telhados
+        // (a `exportImage` o deixa à mostra). O interior já saiu do mapa da imagem (`lib/mapImageExport.ts`).
+        const paraJogadores = exportScene?.paraJogadores === true
+        const ligados = paraJogadores ? camadas.jogadorVe('telhados') : camadas.mestreVe('telhados')
         telhadosContainer.visible = ligados
         // Opacidade da camada Telhados vezes o atalho "Transparente" (a pilha usa a mesma conta).
-        telhadosContainer.alpha = alfaDoTelhadoNoEditor(camadas.alfa('telhados'), transparentes)
+        telhadosContainer.alpha = paraJogadores ? camadas.alfa('telhados') : alfaDoTelhadoNoEditor(camadas.alfa('telhados'), transparentes)
         // CAMADAS (fatia 3b): o telhado de camada escolhida desenha no nó dela, com o olho do mestre dela.
         const daSala = (r: Region) => camadas.camadaDe('telhado', r)
         const noDoTelhado = noDoItem(pilha.nosDaFaixa('telhadosContainer'), daSala)
-        const salas = regioes.filter((r) => roomHasRoof(r.room) && r.points.length >= 3 && camadas.mestreVe(daSala(r)))
+        const salas = regioes.filter(
+          (r) => roomHasRoof(r.room) && r.points.length >= 3 && (paraJogadores ? camadas.jogadorVeItem('telhado', r) : camadas.mestreVe(daSala(r))),
+        )
         telhadosRenderer.desenhar(
-          salas.map((r) => telhadoParaDesenhar(r, noDoTelhado === undefined ? telhadosContainer : noDoTelhado(r))),
+          salas.map((r) => telhadoParaDesenhar(r, noDoTelhado === undefined || paraJogadores ? telhadosContainer : noDoTelhado(r))),
           mapaId,
           sceneState().map.grid,
         )
@@ -3294,13 +3301,15 @@ function PixiCanvasDoContexto({
         const height = source.height * source.grid
         const scale = imageExportScale(width, height)
         const editorCamera = camera
+        // Sem "Incluir objetos só do mestre", a imagem é dos jogadores: o telhado fica, cheio (`paintTelhados`).
+        const paraJogadores = !options.masterOnly
         // Camadas de trabalho do editor: o fundo (sombra fora do mapa), a
         // prévia do alinhamento e tudo o que a montagem põe depois dos pinos.
         const overlays = [
           mapBoundsGraphics,
           gridAlignOverlayGraphics,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
-          ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
+          ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa).filter((no) => !(paraJogadores && no === telhadosContainer)),
           // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
           ...nosCriadosDasFaixas(pilha, ['telhadosContainer']),
           signalsLayer,
@@ -3323,7 +3332,7 @@ function PixiCanvasDoContexto({
         const wasVisible = overlays.map((overlay) => overlay.visible)
         let pending: Promise<string>
         try {
-          exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height } }
+          exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height }, paraJogadores }
           // No lugar das camadas do mestre, na mesma altura: a textura por baixo da luz do relevo.
           if (texturasDaImagem !== null) texturas.camada.parent?.addChildAt(texturasDaImagem, texturas.camada.parent.getChildIndex(texturas.camada) + 1)
           if (relevoDaImagem !== null) relevoContainer.addChild(relevoDaImagem)
@@ -3337,6 +3346,9 @@ function PixiCanvasDoContexto({
           nomesDosLugares.concluirAparicao()
           for (const overlay of overlays) overlay.visible = false
           redrawScene()
+          // Telhado cheio na imagem dos jogadores: a pilha (`atualizarPilha`, em `redrawTokens`) pode repor o alfa do
+          // "Transparente" do editor depois de `paintTelhados`; aqui vale a opacidade da camada, como na tela deles.
+          if (paraJogadores) telhadosContainer.alpha = contextoDeCamadas(mapaDaImagem).alfa('telhados')
           // A escala do mundo mudou para a do PNG: o texto é rasterizado nela
           // (sem isto o nome sairia na resolução do zoom do editor, esticado).
           syncTextResolution()
