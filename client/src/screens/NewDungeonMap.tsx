@@ -110,6 +110,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
                 className="lb-input"
                 type="number"
                 min={1}
+                max={mapFactory.MAP_SIDE_MAX}
                 value={width}
                 onChange={(event) => setWidth(Number(event.target.value))}
               />
@@ -123,6 +124,7 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
                 className="lb-input"
                 type="number"
                 min={1}
+                max={mapFactory.MAP_SIDE_MAX}
                 value={height}
                 onChange={(event) => setHeight(Number(event.target.value))}
               />
