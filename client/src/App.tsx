@@ -2686,7 +2686,7 @@ function App() {
       if (!sourcePath) return
       useMapStore.getState().updatePin(pinId, { image: await importPinImage(sourcePath) })
     } catch (err) {
-      reportFileError('escolher a imagem do ponto de interesse', err)
+      reportFileError('escolher a imagem do pino', err)
     }
   }
 
@@ -2695,7 +2695,7 @@ function App() {
     try {
       useMapStore.getState().updatePin(pinId, { image: await pinImageFromBlob(blob) })
     } catch (err) {
-      reportFileError('usar a imagem do ponto de interesse', err)
+      reportFileError('usar a imagem do pino', err)
     }
   }
 
