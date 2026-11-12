@@ -264,14 +264,23 @@ export interface SeatHold {
  * deu a quem vai junto com a ficha principal (ajudante emprestado, ficha
  * levada, montaria e familiar). Essas fichas chegam DEPOIS da principal, cada
  * uma na casa pré-calculada, sem checar de novo: quem vem a bordo não pode
- * sentar ali antes, senão as duas empilham e a de baixo some. O tamanho de
- * cada uma vem do mapa de partida `from`; quem não está lá não atravessa e
- * não guarda casa. Nada a guardar: `hold` como veio.
+ * sentar ali antes, senão as duas empilham e a de baixo some. A ficha vem
+ * do mapa de partida `from`; quem não está lá não atravessa e não guarda
+ * casa. O tamanho é o com que ela CHEGA: o padrão da cena de chegada `to`
+ * (`tamanhoAoEntrar`, caça 12/11, nota do escritor H), ou o de agora quando
+ * `to` falta (atalho na mesma cena, destino sem mapa). Nada a guardar: `hold`
+ * como veio.
  */
-export function holdAlongSeats(hold: SeatHold | undefined, along: readonly EntourageSeat[], from: MapData): SeatHold | undefined {
+export function holdAlongSeats(
+  hold: SeatHold | undefined,
+  along: readonly EntourageSeat[],
+  from: MapData,
+  to?: Pick<MapData, 'tamanhoDaFichaAoEntrar'>,
+): SeatHold | undefined {
   const seats = along.flatMap((seat): HeldSeat[] => {
     const token = from.tokens.find((t) => t.id === seat.tokenId)
-    return token === undefined ? [] : [{ x: seat.x, y: seat.y, size: tokenSizeInSquares(token) }]
+    if (token === undefined) return []
+    return [{ x: seat.x, y: seat.y, size: to === undefined ? tokenSizeInSquares(token) : tamanhoAoEntrar(to, token) }]
   })
   if (seats.length === 0) return hold
   return { seats: [...(hold?.seats ?? []), ...seats], keepClear: hold?.keepClear ?? [] }

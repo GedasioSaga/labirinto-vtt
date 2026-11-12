@@ -1,6 +1,7 @@
 import { isTauri, type InvokeArgs } from '@tauri-apps/api/core'
 import { gravarJogadoresVistos, lerJogadoresVistos, registrarVistos, type JogadorVisto } from '../lib/livros/jogadoresVistos'
 import { findTokenSpawn, tokenRadiusFor } from '../lib/tokenPlacement'
+import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ToastAction, ToastResposta } from '../stores/toastStore'
 import { PILHA_DO_EDITOR, type ToastSink } from './avisosDaPonte'
@@ -2488,13 +2489,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const putTokens = (playerId: string, faltam: readonly PersonagemSemToken[]) => {
     if (session === null || deps.restoreToken === undefined) return
     const map = world().open.map
-    const radius = tokenRadiusFor(map.grid, 1)
+    // Ficha nova nasce no "Tamanho da ficha ao entrar" da cena; sem padrão, com 1 casa (como o "+ Token").
+    const lado = tamanhoPadraoDaCena(map) ?? 1
+    const radius = tokenRadiusFor(map.grid, lado)
     const meio = { x: (map.width * map.grid) / 2, y: (map.height * map.grid) / 2 }
     faltam.forEach((personagem, i) => {
       // Um ao lado do outro, uma casa de distância, para não nascerem empilhados.
       const preferido = { x: meio.x + i * map.grid, y: meio.y }
       const lugar = findTokenSpawn(preferido, map.walls, { radius }) ?? preferido
-      const token: Token = { id: crypto.randomUUID(), characterId: personagem.personagemId, name: personagem.nome, x: lugar.x, y: lugar.y, size: 1, image: null }
+      const token: Token = { id: crypto.randomUUID(), characterId: personagem.personagemId, name: personagem.nome, x: lugar.x, y: lugar.y, size: lado, image: null }
       deps.restoreToken?.(token)
       if (session !== null) void dispatch(session.assignToken(playerId, token.id))
     })
@@ -3355,7 +3358,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // não senta na casa já dada a quem atravessa depois dela, logo abaixo.
     const current = world()
     const from = [current.open, ...current.background].find((scene) => scene.sceneId === transfer.fromSceneId)
-    const hold = from === undefined ? alone.hold : holdAlongSeats(alone.hold, [...companions, ...(junto ?? []), ...(entourage ?? [])], from.map)
+    // As casas guardadas no tamanho com que cada uma CHEGA (padrão da cena de chegada); no atalho, o de agora.
+    const to =
+      transfer.fromSceneId === transfer.toSceneId ? undefined : [current.open, ...current.background].find((scene) => scene.sceneId === transfer.toSceneId)
+    const hold = from === undefined ? alone.hold : holdAlongSeats(alone.hold, [...companions, ...(junto ?? []), ...(entourage ?? [])], from.map, to?.map)
     if (!apply(hold === undefined ? alone : { ...alone, hold })) return false
     // Ausente é o caso comum (ninguém acompanha), não falha.
     for (const companion of companions) apply({ ...alone, tokenId: companion.tokenId, x: companion.x, y: companion.y })
