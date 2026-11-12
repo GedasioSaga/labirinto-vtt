@@ -139,6 +139,7 @@ import {
   type CallRaiseMessage,
   type CallReason,
   type DoorPeekMessage,
+  type DoorRequestAnswer,
   type DoorRequestHow,
   type DoorRequestMessage,
   type DoorRequestRejection,
@@ -425,6 +426,10 @@ export interface DoorRequest {
   playerId: string
   playerName: string
   how: DoorRequestHow
+  /** O nome (do mapa do mestre) da ficha dele encostada na porta, a mais perto: "<ficha> quer abrir a porta". Ausente = o nome do jogador. */
+  tokenName?: string
+  /** O "o que você faz?" do jogador, aparado; ausente = vazio. */
+  texto?: string
   /** Nome da cena (o que o mestre lê), só quando a porta está numa cena de FUNDO. */
   sceneName?: string
 }
@@ -699,6 +704,8 @@ export interface BarDispute {
   playerName: string
   /** Quem correu o ferrolho, pelo nome na sala. */
   barrerName: string
+  /** O "o que você faz?" do pedido ao mestre, quando a disputa veio de um pedido com texto. */
+  texto?: string
   /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
   sceneName?: string
 }
@@ -2244,10 +2251,11 @@ export interface HostSession {
    * `unlock`) na cena onde a porta está — mesmo de fundo — e
    * `door.request.answer opened` ao jogador. Não exige mais o token perto: é
    * decisão do mestre. Pedido que já não existe, ou porta que sumiu, não faz nada.
+   * `reply`: a "Resposta só para <jogador>" (caça J3), vai junto, só a quem pediu.
    */
-  approveDoorRequest(requestId: string, source: HostMapSource): HostResult
-  /** "Não": `door.request.answer denied` ao jogador. Pedido que já não existe não faz nada. */
-  denyDoorRequest(requestId: string): HostResult
+  approveDoorRequest(requestId: string, source: HostMapSource, reply?: string): HostResult
+  /** "Não": `door.request.answer denied` ao jogador, com o `reply` do mestre quando há. Pedido que já não existe não faz nada. */
+  denyDoorRequest(requestId: string, reply?: string): HostResult
   /** O pedido da porta ainda espera o mestre? `false` depois de decidido, ou quando o jogador saiu. */
   isDoorRequestPending(requestId: string): boolean
   /**
@@ -2346,7 +2354,7 @@ export interface HostSession {
    * DISPUTA NA PORTA: `force` = "Arrombar" (o ferrolho sai e a porta abre:
    * `applyDoor`); `false` = "Aguenta" (nada muda). Revalida contra o mundo de
    * AGORA: ferrolho que já saiu (quem trancou abriu) não abre nada. Disputa
-   * que já não existe também não. Quem PEDIU (Bater/Forçar/Usar chave) lê a
+   * que já não existe também não. Quem PEDIU ("Pedir ao mestre") lê a
    * resposta como na porta do mestre: `door.request.answer` opened/denied.
    */
   answerBarDispute(requestId: string, force: boolean, source: HostMapSource): HostResult
@@ -2759,7 +2767,7 @@ interface PendingBarDispute {
   mapId: string
   wallId: string
   /**
-   * Ele PEDIU (Bater/Forçar/Usar chave), não só tocou. Na porta do mestre o
+   * Ele PEDIU ("Pedir ao mestre"), não só tocou. Na porta do mestre o
    * toque nunca vira pedido: só quem pediu lê "Pedido enviado", "ainda espera
    * o mestre" e a resposta — senão o texto contaria que não foi o mestre.
    */
@@ -6999,12 +7007,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * a Caixa do mestre. `null` = já há uma dele esperando (insistir não vira
    * outra linha) ou ele saiu da sala.
    */
-  const abrirDisputa = (playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho, pedido: boolean): BarDispute | null => {
+  const abrirDisputa = (playerId: string, scene: HostScene, world: HostWorld, wallId: string, ferrolho: Ferrolho, pedido: boolean, texto?: string): BarDispute | null => {
     const record = players.get(playerId)
     if (record === undefined || pendingBarDisputes.has(playerId)) return null
     const requestId = randomId()
     pendingBarDisputes.set(playerId, { requestId, playerId, mapId: sceneKey(scene), wallId, pedido })
-    return { requestId, playerName: record.name, barrerName: ferrolho.playerName, ...backgroundSceneName(scene, world) }
+    return { requestId, playerName: record.name, barrerName: ferrolho.playerName, ...(texto === undefined ? {} : { texto }), ...backgroundSceneName(scene, world) }
   }
 
   /**
@@ -7154,7 +7162,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
           }
           pendingBarDisputes.delete(playerId)
         }
-        const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho, true)
+        const disputa = abrirDisputa(playerId, scene, world, seen.wall.id, ferrolho, true, msg.texto)
         return disputa === null ? reject('pending') : { outbound: [], barDispute: disputa }
       }
       return reject('not_locked')
@@ -7163,13 +7171,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const requestId = randomId()
     pendingDoors.set(playerId, { requestId, playerId, wallId: seen.wall.id, mapId: sceneKey(scene) })
-    const request: DoorRequest = { requestId, playerId, playerName: record.name, how: msg.how }
+    // A ficha dele mais perto da porta: é ela que "quer abrir a porta" na linha do mestre.
+    const porPerto = [...seen.nearTokens].sort((a, b) => distanceToWall(a, seen.wall) - distanceToWall(b, seen.wall))
+    const tokenName = porPerto[0]?.name.trim() || record.name
+    const request: DoorRequest = { requestId, playerId, playerName: record.name, how: msg.how, tokenName }
+    if (msg.texto !== undefined) request.texto = msg.texto
     // Cena de fundo: o mestre lê onde é, porque está olhando outra.
     if (backgroundSceneId(scene, world).sceneId !== undefined) request.sceneName = scene.name
     return { outbound: [], doorRequest: request }
   }
 
   const findPendingDoor = (requestId: string): PendingDoor | undefined => [...pendingDoors.values()].find((pending) => pending.requestId === requestId)
+
+  /** A resposta do pedido da porta; a "Resposta só para <jogador>" do mestre vai junto, aparada e no teto, só quando há. */
+  const doorAnswer = (answer: DoorRequestAnswer, text: string): HostMessage => {
+    const said = clampTokenActionReply(text)
+    return said === '' ? { type: 'door.request.answer', answer } : { type: 'door.request.answer', answer, reply: said }
+  }
 
   /**
    * A ficha `tokenId` que ESTE jogador pode esconder: é dele de verdade (nem
@@ -10627,7 +10645,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return results
     },
 
-    approveDoorRequest(requestId, source) {
+    approveDoorRequest(requestId, source, text = '') {
       const pending = findPendingDoor(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingDoors.delete(pending.playerId)
@@ -10639,17 +10657,17 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const door = scene?.map.walls.find((w) => w.id === pending.wallId)?.door ?? null
       if (scene === undefined || door === null || record === undefined) return { outbound: [] }
       return {
-        outbound: clientId === null ? [] : [{ clientId, msg: { type: 'door.request.answer', answer: 'opened' } }],
+        outbound: clientId === null ? [] : [{ clientId, msg: doorAnswer('opened', text) }],
         applyDoor: { wallId: pending.wallId, open: true, unlock: true, ...backgroundSceneId(scene, world), playerId: pending.playerId, playerName: record.name },
       }
     },
 
-    denyDoorRequest(requestId) {
+    denyDoorRequest(requestId, text = '') {
       const pending = findPendingDoor(requestId)
       if (pending === undefined) return { outbound: [] }
       pendingDoors.delete(pending.playerId)
       const clientId = players.get(pending.playerId)?.clientId ?? null // null = saiu: não há a quem avisar
-      return clientId === null ? { outbound: [] } : reply(clientId, { type: 'door.request.answer', answer: 'denied' })
+      return clientId === null ? { outbound: [] } : reply(clientId, doorAnswer('denied', text))
     },
 
     isDoorRequestPending(requestId) {

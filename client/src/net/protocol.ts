@@ -735,21 +735,32 @@ export interface ClueShowMessage {
   to: string
 }
 
-/** Como o jogador tenta passar pela porta trancada: Bater, Forçar ou Usar chave. */
-export type DoorRequestHow = 'knock' | 'force' | 'key'
+/**
+ * Como o jogador tenta passar pela porta trancada. `ask` é o "Pedir ao
+ * mestre" (decisão 1 do mestre, 12/11): o jogador diz o que faz no `texto`
+ * (opcional). `knock`, `force` e `key` são os três botões de antes (Bater,
+ * Forçar, Usar chave): a tela de hoje não os manda mais, e o host continua
+ * aceitando, para a página de jogador de versão antiga.
+ */
+export type DoorRequestHow = 'ask' | 'knock' | 'force' | 'key'
 
-const DOOR_REQUEST_HOWS: readonly DoorRequestHow[] = ['knock', 'force', 'key']
+const DOOR_REQUEST_HOWS: readonly DoorRequestHow[] = ['ask', 'knock', 'force', 'key']
+
+/** Teto do "o que você faz?" do pedido da porta: o mesmo do Falar e do Ação da ficha. */
+export const DOOR_REQUEST_TEXT_MAX_LENGTH = 120
 
 /**
  * PORTA TRANCADA VIRA PEDIDO: o jogador tocou a porta, leu "Trancada" e pede
- * ao mestre do jeito que escolheu. O host valida (porta visível, trancada,
- * token perto) e leva ao mestre; a resposta volta em `door.request.answer`.
+ * ao mestre. O host valida (porta visível, trancada, token perto) e leva ao
+ * mestre; a resposta volta em `door.request.answer`. `texto`: o "o que você
+ * faz?", aparado; ausente = vazio (o mestre lê "<ficha> quer abrir a porta").
  * Aditiva pelo mesmo critério de `door.toggle`.
  */
 export interface DoorRequestMessage {
   type: 'door.request'
   wallId: string
   how: DoorRequestHow
+  texto?: string
 }
 
 /**
@@ -2076,7 +2087,8 @@ export type HostMessage =
   // jogador antigo ignora e lê "Trancada".
   | { type: 'door.toggle.rejected'; wallId: string; reason: DoorToggleRejection; key?: string }
   | { type: 'door.request.rejected'; wallId: string; reason: DoorRequestRejection }
-  | { type: 'door.request.answer'; answer: DoorRequestAnswer }
+  // `reply` (caça J3): a "Resposta só para <jogador>" do mestre, só a quem pediu. Aditivo: jogador antigo ignora.
+  | DoorRequestAnswerMessage
   // ESCONDER-SE: só a quem pediu. Aceito não tem mensagem: a ficha chega com `secret` no snapshot dele.
   | { type: 'token.hide.rejected'; reason: TokenHideRejection }
   | { type: 'pin.travel.rejected'; reason: PinTravelRejection }
@@ -2338,11 +2350,38 @@ export function isDoorRequestHow(value: unknown): value is DoorRequestHow {
   return DOOR_REQUEST_HOWS.some((how) => how === value)
 }
 
-/** Pedido da porta trancada: id de porta curto e um dos três jeitos; qualquer outra coisa recusa a mensagem. */
+/**
+ * Pedido da porta trancada: id de porta curto, um dos jeitos e, opcional, o
+ * texto até `DOOR_REQUEST_TEXT_MAX_LENGTH` depois de aparado; qualquer outra
+ * coisa recusa a mensagem. Texto só de espaço vale como sem texto.
+ */
 function parseDoorRequest(obj: Record<string, unknown>): DoorRequestMessage | null {
   const { wallId, how } = obj
   if (!isBoundedString(wallId, 1, REQ_ID_MAX_LENGTH) || !isDoorRequestHow(how)) return null
-  return { type: 'door.request', wallId, how }
+  const texto = optionalTrimmed(obj.texto, DOOR_REQUEST_TEXT_MAX_LENGTH)
+  if (texto === null) return null
+  return texto === '' ? { type: 'door.request', wallId, how } : { type: 'door.request', wallId, how, texto }
+}
+
+/** A resposta do mestre ao pedido da porta, como o jogador a recebe. */
+export interface DoorRequestAnswerMessage {
+  type: 'door.request.answer'
+  answer: DoorRequestAnswer
+  /** "Resposta só para <jogador>": o que o mestre escreveu, aparado. Ausente = só o veredito. */
+  reply?: string
+}
+
+/**
+ * Valida o `door.request.answer` que o jogador recebe. O `reply` sai aparado;
+ * fora de forma, só espaço ou acima do teto, ele cai sozinho e o veredito
+ * fica (como no `parseTokenActionHostMessage`). Mestre antigo não manda `reply`.
+ */
+export function parseDoorRequestAnswer(value: unknown): DoorRequestAnswerMessage | null {
+  if (!isRecord(value) || value.type !== 'door.request.answer') return null
+  const { answer, reply } = value
+  if (answer !== 'opened' && answer !== 'denied') return null
+  const said = isBoundedString(reply, 1, TOKEN_ACTION_REPLY_MAX_LENGTH) ? reply.trim() : ''
+  return said === '' ? { type: 'door.request.answer', answer } : { type: 'door.request.answer', answer, reply: said }
 }
 
 /**

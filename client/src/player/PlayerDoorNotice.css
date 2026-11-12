@@ -1,0 +1,52 @@
+/*
+ * PEDIR AO MESTRE na porta trancada (`PlayerDoorNotice.tsx`, caça J3): a
+ * pílula "Trancada" vira um cartão baixo, no mesmo lugar, com o campo "O que
+ * você faz?", os atalhos e o envio. Usa as peças de `player.css`
+ * (`.pp-notice`, `.pp-notice__action`, `.pp-tokencard__field`); aqui só o que
+ * muda de forma. Os seletores levam `.pp-notice--door` junto para ganhar da
+ * pílula de linha, também na faixa do celular.
+ */
+
+.pp-notice--door.pp-door-ask {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.pp-door-ask__label {
+  font-size: 14px;
+}
+
+.pp-door-ask__hint {
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-door-ask__count {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--lb-color-parchment-dim, #a9a7a0);
+}
+
+.pp-door-ask__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-door-ask__row--end {
+  justify-content: flex-end;
+}
+
+@media (max-width: 699px) {
+  .pp-notice--door.pp-door-ask {
+    width: auto;
+    padding: 12px;
+    border-radius: 16px;
+  }
+}

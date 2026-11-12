@@ -928,8 +928,12 @@ export const PLAYER_JOINED_TOAST_MS = 10_000
  * furtiva, e o mestre precisa de tempo para largar o que desenha e narrar.
  */
 export const GUARD_SIGHTING_TOAST_MS = 8_000
-/** A linha do pedido da porta na caixa do mestre: o que o jogador tenta, depois do nome dele. */
-const DOOR_REQUEST_VERB: Record<DoorRequestHow, string> = {
+/**
+ * A linha dos pedidos de porta da página de jogador de versão antiga (os três
+ * botões de antes): o que o jogador tenta, depois do nome dele. O de hoje é o
+ * `ask`, com o texto dele (`doorRequestLine`).
+ */
+const DOOR_REQUEST_VERB: Record<Exclude<DoorRequestHow, 'ask'>, string> = {
   knock: 'bate na porta',
   force: 'tenta forçar a porta',
   key: 'tenta usar uma chave na porta',
@@ -986,10 +990,18 @@ export function hideRequestLine(request: HideRequest): string {
   return `${request.playerName} quer ${what}${where}`
 }
 
-/** "Ana tenta forçar a porta", mais " em Mansão" quando a porta está numa cena de fundo. */
+/**
+ * A linha do pedido da porta trancada na caixa do mestre, mais " em Mansão"
+ * quando a porta está numa cena de fundo. "Pedir ao mestre" (caça J3): sem
+ * texto, "Ryoko quer abrir a porta"; com texto, "Ryoko, na porta trancada:
+ * "bato três vezes"". Página antiga: "Ana tenta forçar a porta".
+ */
 export function doorRequestLine(request: DoorRequest): string {
   const where = request.sceneName === undefined ? '' : ` em ${request.sceneName}`
-  return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+  if (request.how !== 'ask') return `${request.playerName} ${DOOR_REQUEST_VERB[request.how]}${where}`
+  const quem = request.tokenName ?? request.playerName
+  const texto = request.texto ?? ''
+  return texto === '' ? `${quem} quer abrir a porta${where}` : `${quem}, na porta trancada${where}: "${texto}"`
 }
 
 /**
@@ -2828,16 +2840,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * e abre pela store (a cena de fundo quando a porta está lá), manda "O
    * mestre abriu" e o snapshot na hora: a porta abre para quem a vê.
    */
-  const answerDoor = (requestId: string, allow: boolean) => {
+  const answerDoor = (requestId: string, allow: boolean, resposta = '') => {
     const toastId = doorRequestToasts.get(requestId)
     doorRequestToasts.delete(requestId)
     if (toastId !== undefined) toastSink.dismiss(toastId)
     if (session === null) return
     if (!allow) {
-      void dispatch(session.denyDoorRequest(requestId))
+      void dispatch(session.denyDoorRequest(requestId, resposta))
       return
     }
-    const result = session.approveDoorRequest(requestId, world())
+    const result = session.approveDoorRequest(requestId, world(), resposta)
     if (result.applyDoor !== undefined) deps.unlockAndOpenDoor?.(result.applyDoor.wallId, result.applyDoor.sceneId)
     void dispatch(result)
     broadcastNow()
@@ -2846,19 +2858,22 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /**
    * Pedido da porta trancada: uma linha no grupo "Pedidos", a mesma caixa dos
    * pedidos de passagem. Espera o mestre como eles (o × vale "Não"), e o
-   * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`).
+   * "Deixar todos" da caixa responde "Destrancar e abrir" (`emLote`). O campo
+   * "Resposta só para <jogador>" (caça J3, molde do pedido de ação) leva o
+   * que o mestre escreve, junto com o botão, só a quem pediu.
    */
   const askDoor = (request: DoorRequest) => {
     const toastId = toastSink.push('instrucao', doorRequestLine(request), null, {
       actions: [
-        { label: 'Destrancar e abrir', run: () => answerDoor(request.requestId, true), emLote: true },
-        { label: 'Não', run: () => answerDoor(request.requestId, false) },
+        { label: 'Destrancar e abrir', run: (resposta) => answerDoor(request.requestId, true, resposta), emLote: true },
+        { label: 'Não', run: (resposta) => answerDoor(request.requestId, false, resposta) },
       ],
       onDismiss: () => answerDoor(request.requestId, false),
       grupo: 'Pedidos',
       // Sozinho já abre a caixa "Pedidos (1)": o mestre, noutra cena, lê que
       // alguém espera — o pedido de passagem sozinho segue o aviso de hoje.
       sempreEmCaixa: true,
+      resposta: { rotulo: `Resposta só para ${request.playerName} (opcional)`, maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH },
     })
     doorRequestToasts.set(request.requestId, toastId)
   }
@@ -2943,7 +2958,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const askBarDispute = (dispute: BarDispute) => {
     const where = dispute.sceneName === undefined ? '' : ` em ${dispute.sceneName}`
-    const toastId = toastSink.push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}`, null, {
+    // Pedido com o "o que você faz?" do jogador (caça J3): o texto vai junto, como no pedido da porta do mestre.
+    const dito = dispute.texto === undefined ? '' : `: "${dispute.texto}"`
+    const toastId = toastSink.push('instrucao', `${dispute.playerName} tenta abrir a porta que ${dispute.barrerName} trancou com o ferrolho${where}${dito}`, null, {
       actions: [
         { label: 'Arrombar', run: () => answerBarDispute(dispute.requestId, true) },
         { label: 'Aguenta', run: () => answerBarDispute(dispute.requestId, false) },
