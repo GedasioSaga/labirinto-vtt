@@ -412,7 +412,9 @@ describe('createFantasmaDeTesteRenderer — movimento', () => {
 })
 
 describe('createFantasmaDeTesteRenderer — foto', () => {
-  it('foto embutida: textura só do fantasma, recortada no círculo e girada como a ficha; trocar solta a antiga', async () => {
+  // Caça 12/11/2026 (O11): a textura da foto embutida vem do cache de `textureFromDataUrl`, a MESMA da ficha de
+  // verdade. O fantasma a solta (o sprite larga a textura) e nunca a destrói: destruir apagaria a foto da ficha.
+  it('foto embutida: recortada no círculo e girada como a ficha; trocar solta a antiga sem destruir (é dividida com a ficha)', async () => {
     const camada = new Container()
     const renderer = createFantasmaDeTesteRenderer(camada)
     renderer.draw(alvo(480, 160, { imageData: FOTO_A, rotation: 90 }), GRADE, CENA, 1)
@@ -429,17 +431,21 @@ describe('createFantasmaDeTesteRenderer — foto', () => {
     await vi.waitFor(() => expect(foto.texture).toBe(texturaA))
 
     renderer.draw(alvo(480, 160, { imageData: FOTO_B }), GRADE, CENA, 1)
-    expect(destruiuA).toHaveBeenCalledWith(true)
+    expect(foto.texture).not.toBe(texturaA)
+    expect(destruiuA).not.toHaveBeenCalled()
+    expect(texturaA.destroyed).toBe(false)
     const texturaB = RenderTexture.create({ width: 8, height: 8 })
     const destruiuB = vi.spyOn(texturaB, 'destroy')
     fotos.pedidos[1].voltar(texturaB)
     await vi.waitFor(() => expect(foto.texture).toBe(texturaB))
 
     renderer.desmontar()
-    expect(destruiuB).toHaveBeenCalledWith(true)
+    expect(foto.texture).not.toBe(texturaB)
+    expect(destruiuB).not.toHaveBeenCalled()
+    expect(texturaB.destroyed).toBe(false)
   })
 
-  it('a foto velha que volta atrasada não pinta por cima da nova, e é solta', async () => {
+  it('a foto velha que volta atrasada não pinta por cima da nova, e não é destruída (é dividida com a ficha)', async () => {
     const camada = new Container()
     const renderer = createFantasmaDeTesteRenderer(camada)
     renderer.draw(alvo(480, 160, { imageData: FOTO_A }), GRADE, CENA, 1)
@@ -452,8 +458,11 @@ describe('createFantasmaDeTesteRenderer — foto', () => {
     const texturaA = RenderTexture.create({ width: 8, height: 8 })
     const destruiuA = vi.spyOn(texturaA, 'destroy')
     fotos.pedidos[0].voltar(texturaA)
-    await vi.waitFor(() => expect(destruiuA).toHaveBeenCalledWith(true))
+    // Uma volta de tarefa: o `.then` da foto velha já rodou quando esta espera acaba.
+    await new Promise((fim) => setTimeout(fim, 0))
     expect(foto.texture).toBe(texturaB)
+    expect(destruiuA).not.toHaveBeenCalled()
+    expect(texturaA.destroyed).toBe(false)
   })
 
   it('só o arquivo do mestre: a MESMA textura da ficha no cache do Pixi, que o fantasma nunca destrói', async () => {
@@ -474,7 +483,7 @@ describe('createFantasmaDeTesteRenderer — foto', () => {
     expect(destruiu).not.toHaveBeenCalled()
   })
 
-  it('com as duas, a cópia embutida vem primeiro: textura só do fantasma, sem tocar no cache dos arquivos', async () => {
+  it('com as duas, a cópia embutida vem primeiro (pelo cache das fotos embutidas), sem tocar no cache dos arquivos', async () => {
     const camada = new Container()
     createFantasmaDeTesteRenderer(camada).draw(alvo(480, 160, { image: 'C:/fotos/aria.png', imageData: FOTO_A }), GRADE, CENA, 1)
     await vi.waitFor(() => expect(fotos.pedidos.map((p) => p.src)).toEqual([FOTO_A]))
