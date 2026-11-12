@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 126 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 134 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -310,14 +310,16 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento', 'Espantalho', 'Cocho',
       'Galinheiro', 'Colmeia', 'Arado', 'Toco com machado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
+      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada',
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
+      'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       // Os dois grupos novos de 11/11/2026: Porto e navio e Templo e masmorra.
       'Canhão',
       'Pilar', 'Altar',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(126)
+    expect(new Set(desenhos).size).toBe(134)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

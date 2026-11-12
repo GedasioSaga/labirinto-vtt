@@ -385,6 +385,32 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // A plantação mora no chão e é rente, como o fogo: nenhuma sombra dela tem altura, então nada sobe e a 3/4 sai
   // igual à vista de cima (`tresQuartos.test.ts` a dispensa das regras de subir, na lista dos rentes).
   plantacaoEmFileiras: DERIVADO,
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte. A carroça quebrada, o barril quebrado e
+  // a viga caída ficam como de cima, com a sombra de baixo das pilhas, como os destroços de madeira. A carroça
+  // inteira sobe derivada, mas a quebrada tem metade no chão (a roda deitada, as tábuas, o grão, o saco caído e
+  // o caixote); o barril inteiro é derivado, mas o quebrado é quase todo chão (o leque, a tampa, os aros e a
+  // poça); a viga é rente ao chão e espalhada. Derivados, as tábuas, a poça, as aduelas caídas, as telhas, as
+  // lascas e o pó subiriam junto como um bloco.
+  carrocaQuebrada: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  barrilQuebrado: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  vigaCaida: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // A armadura enferrujada é rente ao chão e espalhada, como os ossos: as peças sobem inteiras a espessura de
+  // uma placa de aço e a sombra fica onde está.
+  armaduraEnferrujada: { modo: 'derivado', alturaSolta: 0.035 * G },
+  // Na mesa de jogo, como na banqueta, os pés dos banquinhos são inclinados e sobem em fatias (um tampo solto
+  // por fatia): sem beirada eles saem lisos. Nenhum pé de banquinho passa debaixo do tampo da mesa, senão
+  // subiria com ela.
+  mesaDeJogo: { modo: 'derivado', espessura: 0 },
+  // O ringue mora no chão, como o palco de bardo, mas sobe de verdade: as cordas, as almofadas e os aros do
+  // balde sobem em pinos (tampos soltos do tamanho de um ponto) e com beirada pintariam um risco de madeira,
+  // como na prateleira de depósito. O tablado é coluna, partida em cinco faixas de norte a sul.
+  ringueDeLuta: { modo: 'derivado', espessura: 0 },
+  // No balanço, como na banqueta e no varal, os troncos dos cavaletes e as cordas sobem em fatias: sem beirada.
+  balanco: { modo: 'derivado', espessura: 0 },
+  // Na mesa de sinuca a beirada é a saia de madeira, e TEM de ser a `ESPESSURA_DA_SAIA` de `mesaDeSinuca.ts`
+  // (0,13 casa): os pés torneados, o friso e as redes das caçapas da frente são desenhados contando com ela. Se
+  // mudar uma, muda a outra.
+  mesaDeSinuca: { modo: 'derivado', espessura: 0.13 * G },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

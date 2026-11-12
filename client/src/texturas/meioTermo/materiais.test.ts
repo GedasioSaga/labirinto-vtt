@@ -231,6 +231,16 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       arado: ['madeira:carvalho'],
       tocoComMachado: ['lenha:lenhaCarvalho'],
       plantacaoEmFileiras: [],
+      // Lote 11 dos 95 objetos novos (11/11/2026): a carroça quebrada e o barril quebrado com os lugares dos pais;
+      // o balanço com a lenha da fogueira nos troncos; a armadura enferrujada sem lugar.
+      carrocaQuebrada: ['madeira:nogueira', 'aros:ferro'],
+      barrilQuebrado: ['madeira:carvalho', 'aros:ferro'],
+      vigaCaida: ['madeira:nogueira'],
+      armaduraEnferrujada: [],
+      mesaDeJogo: ['madeira:carvalho'],
+      ringueDeLuta: ['madeira:carvalho', 'lona:linho'],
+      balanco: ['madeira:carvalho', 'lenha:lenhaCarvalho'],
+      mesaDeSinuca: ['madeira:nogueira'],
     })
   })
 

@@ -1634,6 +1634,94 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M18.7 14.6c-1.8-.3-2.9-1.4-3.1-3 1.8.3 2.9 1.4 3.1 3zM18.7 14.6c1.8-.3 2.9-1.4 3.1-3-1.8.3-2.9 1.4-3.1 3z" />
         </>
       )
+    case 'carrocaQuebrada':
+      // De cima: a caçamba torta com a roda presa de viés por cima da borda, o varal com a travessa e a roda solta deitada no chão, com os raios.
+      return (
+        <>
+          <path d="M9 6l12.5 1-.7 9-12.5-1z" />
+          <ellipse cx="15" cy="6.4" rx="4" ry="1.6" />
+          <path d="M8.7 9H3M3 7v5" />
+          <circle cx="6.5" cy="18.5" r="3.5" />
+          <path d="M6.5 15v7M3 18.5h7" />
+        </>
+      )
+    case 'barrilQuebrado':
+      // De cima: a meia-lua das aduelas de pé com a boca, as aduelas caídas em leque saindo do lado aberto e um aro solto.
+      return (
+        <>
+          <path d="M4.8 12.6A5.5 5.5 0 1 1 13 5.4" />
+          <path d="M6.2 11.1A3.5 3.5 0 1 1 11.4 6.5" />
+          <path d="M13.6 9l7.4-1.6M13.4 11.2l7.6 2M11.6 13.2l4.6 5.3M9 14.2l1.4 7.3M6.4 13.8l-2.6 6.4" />
+          <circle cx="19.5" cy="4" r="2.2" />
+        </>
+      )
+    case 'vigaCaida':
+      // A viga grossa partida em duas, desencontradas, com as pontas em lascas, a cavilha na ponta e a trave cruzada por cima.
+      return (
+        <>
+          <path d="M2 7.5h8l1 1-1 1 1 1-1 1 1 1-1 1H2z" />
+          <path d="M22 9.5h-8l-1 1 1 1-1 1 1 1-1 1 1 1h8z" />
+          <path d="M18 2.5l3.4 1.3-4.3 17.5-3.4-1.3z" />
+          <circle cx="4.2" cy="10.5" r="1" />
+        </>
+      )
+    case 'armaduraEnferrujada':
+      // Caída no chão: a couraça de ombros largos com a gola cavada e o furo de ferrugem, o elmo redondo tombado ao lado com a fresta em T e a espada partida embaixo, com a guarda.
+      return (
+        <>
+          <path d="M4 6.5l3-1.5a3 3 0 0 0 4 0l3 1.5-1 8.5H5z" />
+          <circle cx="9" cy="10.5" r="1" />
+          <circle cx="18" cy="7.5" r="3.5" />
+          <path d="M16.2 7h3.6M18 7v2.6" />
+          <path d="M3.5 19.5l7-1M12.5 18.2l8-1.2M5.6 17.6l.5 3.6" />
+        </>
+      )
+    case 'mesaDeJogo':
+      // De cima: o tampo, o tabuleiro quadrado no meio dividido em quatro casas, uma pedra em duas casas opostas e um dado no canto do tampo.
+      return (
+        <>
+          <rect x="2.5" y="4.5" width="19" height="15" rx="1" />
+          <rect x="7.5" y="7.5" width="9" height="9" />
+          <path d="M12 7.5v9M7.5 12h9" />
+          <circle cx="9.75" cy="9.75" r="1" />
+          <circle cx="14.25" cy="14.25" r="1" />
+          <rect x="17.6" y="15.6" width="2.4" height="2.4" rx=".4" />
+        </>
+      )
+    case 'ringueDeLuta':
+      // De frente: o tablado baixo de tábuas, os dois postes da frente com a almofada de pano do lado de dentro e as três voltas de corda de um ao outro.
+      return (
+        <>
+          <path d="M1.5 15.5h21V19h-21zM1.5 17.2h21" />
+          <path d="M4 15.5V3.5M20 15.5V3.5" />
+          <rect x="4" y="5.5" width="1.8" height="8.5" rx="0.9" />
+          <rect x="18.2" y="5.5" width="1.8" height="8.5" rx="0.9" />
+          <path d="M5.8 7.5h12.4M5.8 10h12.4M5.8 12.5h12.4" />
+        </>
+      )
+    case 'balanco':
+      // De frente: a trave em cima, os dois cavaletes em A estreito com as pontas passando da trave e os dois assentos de tábua pendurados por duas cordas cada, um mais baixo que o outro.
+      return (
+        <>
+          <path d="M2.5 5.5h19" />
+          <path d="M4.5 4 2.5 20.5M4.5 4l2 16.5M19.5 4l-2 16.5M19.5 4l2 16.5" />
+          <path d="M8.5 5.5v9M11 5.5v9M13 5.5v7M15.5 5.5v7" />
+          <rect x="7.8" y="14.5" width="3.9" height="1.6" rx=".4" />
+          <rect x="12.3" y="12.5" width="3.9" height="1.6" rx=".4" />
+        </>
+      )
+    case 'mesaDeSinuca':
+      // De frente: o tampo de borda grossa, a saia com o friso, as redes de couro das caçapas penduradas nos cantos e no meio e três pés torneados de bojo.
+      return (
+        <>
+          <path d="M1.5 8h21v2.2h-21zM1.5 10.2h21v3.3h-21zM1.5 11.4h21" />
+          <path d="M2.5 13.5v1.6c0 .8.6 1.4 1.3 1.4s1.3-.6 1.3-1.4v-1.6M10.7 13.5v1.6c0 .8.6 1.4 1.3 1.4s1.3-.6 1.3-1.4v-1.6M18.9 13.5v1.6c0 .8.6 1.4 1.3 1.4s1.3-.6 1.3-1.4v-1.6" />
+          <path d="M6.5 13.5v8M17.5 13.5v8M12 17v4.5" />
+          <ellipse cx="6.5" cy="17.5" rx="1.2" ry="2" />
+          <ellipse cx="17.5" cy="17.5" rx="1.2" ry="2" />
+          <ellipse cx="12" cy="18.8" rx="1.1" ry="1.6" />
+        </>
+      )
   }
 }
 

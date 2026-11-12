@@ -232,8 +232,9 @@ describe('TOOL_VARIANTS', () => {
       'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
       'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
       'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+      'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
     ])
-    expect(grupo.options).toHaveLength(126)
+    expect(grupo.options).toHaveLength(134)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -250,6 +251,7 @@ describe('TOOL_VARIANTS', () => {
       'Cruz de madeira', 'Anjo de pedra', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
       'Balança de mercador', 'Tenda de adivinha', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra', 'Galinheiro', 'Colmeia', 'Arado', 'Toco com machado', 'Plantação em fileiras',
+      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
@@ -275,7 +277,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 12 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 23, Cemitério 11, Feira 12, Oficina 10, Fazenda 11, Destroços e sucata 6, Esporte e lazer 3, Porto e navio 1, Templo e masmorra 2; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 12 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 23, Cemitério 11, Feira 12, Oficina 10, Fazenda 11, Destroços e sucata 10, Esporte e lazer 7, Porto e navio 1, Templo e masmorra 2; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -288,8 +290,8 @@ describe('TOOL_VARIANTS', () => {
       ['Feira', 12],
       ['Oficina', 10],
       ['Fazenda', 11],
-      ['Destroços e sucata', 6],
-      ['Esporte e lazer', 3],
+      ['Destroços e sucata', 10],
+      ['Esporte e lazer', 7],
       ['Porto e navio', 1],
       ['Templo e masmorra', 2],
     ])
@@ -297,13 +299,20 @@ describe('TOOL_VARIANTS', () => {
       'lapide', 'cova', 'caixao', 'caixaoAberto', 'mausoleu',
       'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos'])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual(['campinho', 'bonecoDeTreino', 'alvoDeArcoEFlecha'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual([
+      'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos',
+      'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada',
+    ])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual([
+      'campinho', 'bonecoDeTreino', 'alvoDeArcoEFlecha',
+      'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+    ])
     // Os dois grupos novos de 11/11/2026 e o objeto novo de cada grupo antigo, no fim do grupo dele: os do
     // lote 1 e, depois deles, os do lote 2, os do lote 3, os do lote 4 (todos de Sala e quarto), os do lote 5
     // (todos de Cozinha e banheiro), os do lote 6 (todos de Armazenagem), os do lote 7 (todos de Rua e jardim), os
-    // do lote 8 (todos de Cemitério), os do lote 9 (todos de Feira) e os do lote 10 (os quatro primeiros de
-    // Oficina, os cinco outros de Fazenda).
+    // do lote 8 (todos de Cemitério), os do lote 9 (todos de Feira), os do lote 10 (os quatro primeiros de
+    // Oficina, os cinco outros de Fazenda) e os do lote 11 (os quatro primeiros de Destroços e sucata, os quatro
+    // outros de Esporte e lazer).
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Porto e navio')?.tipos).toEqual(['canhao'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Templo e masmorra')?.tipos).toEqual(['pilar', 'altar'])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-10)).toEqual([

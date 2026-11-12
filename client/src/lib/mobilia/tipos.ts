@@ -66,6 +66,10 @@ export const TIPOS_MOBILIA = [
   // de lingotes e a serra da oficina; o galinheiro, a colmeia, o arado, o toco com machado e a plantação em
   // fileiras (que mora no chão, rente como o campinho) da fazenda.
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte: a carroça quebrada, o barril
+  // quebrado, a viga caída e a armadura enferrujada dos destroços; a mesa de jogo, o ringue de luta (que mora
+  // no chão, como o palco de bardo), o balanço e a mesa de sinuca do esporte e lazer.
+  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

@@ -380,6 +380,29 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   arado: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   tocoComMachado: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   plantacaoEmFileiras: [],
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte. A carroça quebrada e o barril quebrado
+  // têm os lugares dos pais (`carroca` e `barril`): a madeira da carroça vale para a caçamba, os varais, a
+  // travessa, as tábuas soltas, as rodas e o caixote, e os aros, para o aro das duas rodas e o ferro do eixo; a
+  // madeira do barril, para as aduelas, o fundo e as metades da tampa, e os aros, para o aro torto e os dois
+  // soltos. A madeira da viga vale para a viga e a trave (a nogueira é a madeira de telhado). A da mesa de jogo,
+  // para a mesa e os dois banquinhos. No balanço, a madeira são os assentos e a lenha (a da fogueira e dos
+  // troncos), a casca dos troncos dos cavaletes e da trave. No ringue, a madeira vale para o tablado, a
+  // passarela, o friso, os postes, o banquinho e o balde, e a lona, para o pano do meio (o círculo pintado troca
+  // de tinta sozinho: vermelho-terra na lona clara, creme na escura). Na mesa de sinuca, a madeira vale para a
+  // moldura, a saia, o friso e os pés. Fixos: o linho dos sacos, o grão, as couves e os pregos da carroça; o
+  // vinho derramado do barril; as telhas, o pó e o ferro das cavilhas da viga; o tabuleiro, as pedras, as
+  // cartas, os dados, as moedas e as canecas da mesa de jogo; as cordas e a terra batida do balanço; a corda de
+  // cânhamo, as almofadas, a toalha, a água, a esponja e o ferro do ringue; o pano verde, as tabelas, o couro
+  // das caçapas, as bolas, os tacos e o giz da sinuca. A armadura enferrujada não tem lugar: o aço, a ferrugem,
+  // o couro das correias e o capim são fixos.
+  carrocaQuebrada: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  barrilQuebrado: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  vigaCaida: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  armaduraEnferrujada: [],
+  mesaDeJogo: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  ringueDeLuta: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('lona', 'Lona', TECIDOS, 'linho')],
+  balanco: [lugar('madeira', 'Assentos', MADEIRAS, 'carvalho'), lugar('lenha', 'Troncos', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  mesaDeSinuca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

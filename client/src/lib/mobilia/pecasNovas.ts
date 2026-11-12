@@ -40,6 +40,7 @@ export const PECAS_NOVAS = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -280,6 +281,26 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   arado: { rotulo: 'Arado', artigo: 'um arado', tamanho: { largura: 2, altura: 1 }, redonda: false },
   tocoComMachado: { rotulo: 'Toco com machado', artigo: 'um toco com machado', tamanho: { largura: 1, altura: 1 }, redonda: false },
   plantacaoEmFileiras: { rotulo: 'Plantação em fileiras', artigo: 'uma plantação em fileiras', tamanho: { largura: 4, altura: 3 }, redonda: false },
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte, cada um com o próprio desenho; esticam
+  // e giram como todo objeto. A carroça quebrada é maior que a carroça (2 x 1,5 contra 2 x 1,25): a carga caída
+  // e a roda deitada pedem mais fundo; os varais apontam para a esquerda, como na carroça, a caçamba arriou para
+  // baixo e o lado de cima ficou no ar, com a roda presa. No barril quebrado a meia-lua de pé fica no alto à
+  // esquerda e o leque das aduelas, a tampa e a poça saem para baixo e para a direita; não é `redonda` (as
+  // metades da tampa e os aros soltos vão até os cantos). A viga caída cai do alto à esquerda para baixo à
+  // direita, com a trave cruzada por cima da metade da direita. A armadura enferrujada é espalhada no chão,
+  // sem ossos e sem sangue. Na mesa de jogo os dois banquinhos ficam puxados, um de cada lado. O ringue de luta
+  // mora no chão (`ehMovelDoChao` em `lib/mobilia.ts`), como o palco de bardo: a ficha no meio da lona sai por
+  // cima da corda e dos postes. O balanço tem a trave de ponta a ponta e os dois assentos parados em pontos
+  // diferentes do vaivém. A mesa de sinuca tem o comprido em x: o triângulo das bolas no pé, à direita, e a
+  // branca e os tacos na cabeceira, à esquerda. Nenhum tem luz nem chama.
+  carrocaQuebrada: { rotulo: 'Carroça quebrada', artigo: 'uma carroça quebrada', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  barrilQuebrado: { rotulo: 'Barril quebrado', artigo: 'um barril quebrado', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  vigaCaida: { rotulo: 'Viga caída', artigo: 'uma viga caída', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  armaduraEnferrujada: { rotulo: 'Armadura enferrujada', artigo: 'uma armadura enferrujada', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  mesaDeJogo: { rotulo: 'Mesa de jogo', artigo: 'uma mesa de jogo', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  ringueDeLuta: { rotulo: 'Ringue de luta', artigo: 'um ringue de luta', tamanho: { largura: 3, altura: 3 }, redonda: false },
+  balanco: { rotulo: 'Balanço', artigo: 'um balanço', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  mesaDeSinuca: { rotulo: 'Mesa de sinuca', artigo: 'uma mesa de sinuca', tamanho: { largura: 2, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -401,6 +422,14 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     arado: valor(f.arado),
     tocoComMachado: valor(f.tocoComMachado),
     plantacaoEmFileiras: valor(f.plantacaoEmFileiras),
+    carrocaQuebrada: valor(f.carrocaQuebrada),
+    barrilQuebrado: valor(f.barrilQuebrado),
+    vigaCaida: valor(f.vigaCaida),
+    armaduraEnferrujada: valor(f.armaduraEnferrujada),
+    mesaDeJogo: valor(f.mesaDeJogo),
+    ringueDeLuta: valor(f.ringueDeLuta),
+    balanco: valor(f.balanco),
+    mesaDeSinuca: valor(f.mesaDeSinuca),
   }
 }
 
@@ -433,7 +462,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 10 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // Lotes 1 a 11 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
   // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
@@ -445,6 +474,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
 ]
 
 /**
@@ -1701,6 +1731,100 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
           const u = -meioC + (((k % pes) + 0.5 + (Math.floor(k / pes) % 2) * 0.5) * 2 * meioC) / (pes + 0.5)
           return [traco(u - muda, v - muda, u + muda, v + muda), traco(u - muda, v + muda, u + muda, v - muda)]
         }),
+      ]
+    }
+    case 'carrocaQuebrada':
+      // De cima: a caçamba arriada com a face do lado alto, a roda presa de viés por cima da borda, a roda solta deitada, o varal inteiro com a travessa, o toco do que rachou e o caixote.
+      return [
+        ...fechado([[-hw * 0.51, -hh * 0.88], [hw * 0.78, -hh * 0.78], [hw * 0.73, hh * 0.34], [-hw * 0.56, hh * 0.23]]),
+        { x1: -hw * 0.51, y1: -hh * 0.76, x2: hw * 0.77, y2: -hh * 0.66 },
+        ...aro(hw * 0.54, hh * 0.34, hw * 0.18, -hh * 0.74),
+        ...aro(hw * 0.54, hh * 0.71, -hw * 0.59, hh * 0.5),
+        { x1: -hw * 0.97, y1: -hh * 0.5, x2: -hw * 0.53, y2: -hh * 0.47 },
+        { x1: -hw * 0.97, y1: -hh * 0.61, x2: -hw * 0.93, y2: -hh * 0.12 },
+        { x1: -hw * 0.54, y1: -hh * 0.07, x2: -hw * 0.76, y2: -hh * 0.08 },
+        ...fechado([[hw * 0.67, hh * 0.32], [hw * 0.99, hh * 0.46], [hw * 0.9, hh * 0.82], [hw * 0.58, hh * 0.68]]),
+      ]
+    case 'barrilQuebrado':
+      // De cima: o bojo do barril de pé, o aro amassado no alto à direita e as cinco aduelas caídas em leque.
+      return [
+        ...aro(hw * 0.94, hh * 0.94, -hw * 0.36, -hh * 0.32),
+        ...aro(hw * 0.72, hh * 0.72, hw * 0.56, -hh * 0.6),
+        { x1: -hw * 0.02, y1: -hh * 0.43, x2: hw * 0.79, y2: -hh * 0.67 },
+        { x1: -hw * 0.01, y1: -hh * 0.24, x2: hw * 0.86, y2: -hh * 0.02 },
+        { x1: -hw * 0.11, y1: -hh * 0.06, x2: hw * 0.38, y2: hh * 0.44 },
+        { x1: -hw * 0.29, y1: hh * 0.03, x2: -hw * 0.11, y2: hh * 0.87 },
+        { x1: -hw * 0.49, y1: hh * 0.02, x2: -hw * 0.75, y2: hh * 0.69 },
+      ]
+    case 'vigaCaida':
+      // De cima: as duas metades da viga, cada uma acabando nas lascas que se cruzam no meio, e a trave cruzada por cima da da direita.
+      return [
+        ...fechado([[-hw * 0.92, -hh * 0.84], [-hw * 0.2, -hh * 0.33], [hw * 0.04, hh * 0.04], [-hw * 0.26, hh * 0.03], [-hw * 0.98, -hh * 0.48]]),
+        ...fechado([[hw * 0.96, hh * 0.11], [hw * 0.22, -hh * 0.07], [-hw * 0.04, hh * 0.06], [hw * 0.19, hh * 0.31], [hw * 0.94, hh * 0.49]]),
+        ...fechado([[hw * 0.14, -hh * 0.89], [hw * 0.49, hh * 0.6], [hw * 0.62, hh * 0.84], [hw * 0.61, hh * 0.49], [hw * 0.26, -hh]]),
+      ]
+    case 'armaduraEnferrujada': {
+      // Espalhada no chão: o peitoral de ombros largos, o elmo redondo tombado com a fresta em T, a ombreira solta no canto e a espada partida em dois pedaços embaixo.
+      // A ombreira fica a 0,73 da meia largura (a ficha dava 0,78): esticada em pé, a roda dela, medida pelo lado
+      // menor, chega a 0,26 da meia largura e passava da beira da pegada (`mobilia.test.ts`, todo traço cabe).
+      const menor = Math.min(largura, altura)
+      return [
+        ...fechado([[-hw * 0.5, -hh * 0.5], [hw * 0.1, -hh * 0.5], [hw * 0.02, hh * 0.35], [-hw * 0.42, hh * 0.35]]),
+        ...aro(menor * 0.36, menor * 0.36, hw * 0.52, -hh * 0.36),
+        linha(hw * 0.44, -hh * 0.36, hw * 0.6),
+        { x1: hw * 0.52, y1: -hh * 0.36, x2: hw * 0.52, y2: -hh * 0.12 },
+        ...aro(menor * 0.26, menor * 0.16, -hw * 0.73, -hh * 0.62),
+        { x1: -hw * 0.7, y1: hh * 0.72, x2: -hw * 0.34, y2: hh * 0.78 },
+        { x1: -hw * 0.24, y1: hh * 0.82, x2: hw * 0.1, y2: hh * 0.86 },
+      ]
+    }
+    case 'mesaDeJogo': {
+      // O tampo da mesa, o tabuleiro quadrado no meio dividido em quatro casas grandes e os dois banquinhos redondos puxados, um de cada lado, em alturas diferentes.
+      const menor = Math.min(largura, altura)
+      const t = menor * 0.19
+      return [
+        ...quadro(-hw * 0.6, -hh * 0.7, hw * 0.6, hh * 0.62),
+        ...quadro(-t, -hh * 0.1 - t, t, -hh * 0.1 + t),
+        linha(-t, -hh * 0.1, t),
+        { x1: 0, y1: -hh * 0.1 - t, x2: 0, y2: -hh * 0.1 + t },
+        ...aro(menor * 0.2, menor * 0.2, -hw * 0.78, hh * 0.14),
+        ...aro(menor * 0.2, menor * 0.2, hw * 0.78, -hh * 0.24),
+      ]
+    }
+    case 'ringueDeLuta': {
+      // De cima: o tablado, o quadro das cordas de poste a poste, os quatro postes nos cantos e o círculo pintado no meio da lona.
+      const poste = Math.min(largura, altura) * 0.06
+      const cantos: readonly (readonly [number, number])[] = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.97, hw * 0.97, hh * 0.97),
+        ...quadro(-hw * 0.76, -hh * 0.76, hw * 0.76, hh * 0.76),
+        ...cantos.flatMap(([sx, sy]) => aro(poste, poste, sx * hw * 0.76, sy * hh * 0.76)),
+        ...aro(largura * 0.28, altura * 0.28),
+      ]
+    }
+    case 'balanco': {
+      // De cima: a trave de ponta a ponta, os dois cavaletes abertos nas pontas (um pé para a frente, outro para trás) e as duas tábuas puxadas para a frente da trave, cada uma presa por duas cordas.
+      const assentos: readonly (readonly [number, number])[] = [[-0.32, 0.63], [0.32, 0.36]]
+      return [
+        linha(-hw * 0.92, 0, hw * 0.92),
+        ...[-1, 1].flatMap((l): Traco[] => [{ x1: l * hw * 0.82, y1: 0, x2: l * hw * 0.93, y2: hh * 0.8 }, { x1: l * hw * 0.82, y1: 0, x2: l * hw * 0.71, y2: -hh * 0.8 }]),
+        ...assentos.flatMap(([x, y]): Traco[] => [
+          ...quadro(hw * (x - 0.15), hh * (y - 0.1), hw * (x + 0.15), hh * (y + 0.1)),
+          { x1: hw * (x - 0.12), y1: 0, x2: hw * (x - 0.12), y2: hh * (y - 0.1) },
+          { x1: hw * (x + 0.12), y1: 0, x2: hw * (x + 0.12), y2: hh * (y - 0.1) },
+        ]),
+      ]
+    }
+    case 'mesaDeSinuca': {
+      // De cima: a moldura e o pano, as seis caçapas (nos cantos e no meio das bordas compridas), o triângulo das bolas no pé e um taco em diagonal na cabeceira.
+      const boca = Math.min(largura, altura) * 0.11
+      const bocas: readonly (readonly [number, number])[] = [[-0.79, -0.74], [0, -0.77], [0.79, -0.74], [-0.79, 0.74], [0, 0.77], [0.79, 0.74]]
+      return [
+        ...quadro(-hw * 0.9, -hh * 0.94, hw * 0.9, hh * 0.94),
+        ...quadro(-hw * 0.78, -hh * 0.71, hw * 0.78, hh * 0.71),
+        ...bocas.flatMap(([fx, fy]) => aro(boca, boca, hw * fx, hh * fy)),
+        ...fechado([[hw * 0.37, 0], [hw * 0.56, -hh * 0.19], [hw * 0.56, hh * 0.19]]),
+        { x1: -hw * 0.72, y1: hh * 0.55, x2: -hw * 0.02, y2: -hh * 0.1 },
       ]
     }
   }

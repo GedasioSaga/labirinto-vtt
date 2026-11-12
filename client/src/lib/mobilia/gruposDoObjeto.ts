@@ -170,17 +170,27 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   arado: 'fazenda',
   tocoComMachado: 'fazenda',
   plantacaoEmFileiras: 'fazenda',
-  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra e os ossos (11/11/2026).
+  // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra e os ossos (11/11/2026);
+  // e o lote 11 dos objetos novos (11/11/2026), da carroça quebrada à armadura enferrujada.
   destrocosDeMadeira: 'destrocosESucata',
   sucataChapas: 'destrocosESucata',
   sucataEngrenagens: 'destrocosESucata',
   sucataTambores: 'destrocosESucata',
   escombrosDePedra: 'destrocosESucata',
   ossos: 'destrocosESucata',
-  // Esporte e lazer (10/11/2026); o boneco de treino e o alvo de arco e flecha (11/11/2026).
+  carrocaQuebrada: 'destrocosESucata',
+  barrilQuebrado: 'destrocosESucata',
+  vigaCaida: 'destrocosESucata',
+  armaduraEnferrujada: 'destrocosESucata',
+  // Esporte e lazer (10/11/2026); o boneco de treino e o alvo de arco e flecha (11/11/2026); e o lote 11 dos
+  // objetos novos (11/11/2026), da mesa de jogo à mesa de sinuca.
   campinho: 'esporteELazer',
   bonecoDeTreino: 'esporteELazer',
   alvoDeArcoEFlecha: 'esporteELazer',
+  mesaDeJogo: 'esporteELazer',
+  ringueDeLuta: 'esporteELazer',
+  balanco: 'esporteELazer',
+  mesaDeSinuca: 'esporteELazer',
   // Porto e navio (11/11/2026).
   canhao: 'portoENavio',
   // Templo e masmorra (11/11/2026).

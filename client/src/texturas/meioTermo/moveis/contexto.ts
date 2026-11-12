@@ -120,7 +120,18 @@ export interface ContextoDoMovel {
    * pintadas ficam no lugar na tela, e a caixa das voltas, do favo e dos pinos
    * vai até a frente na tela, para o banco não sair por cima da palha) e a
    * plantação em fileiras (a encosta clara das leiras e a sombra dos pés
-   * ficam no lugar na tela). Os outros desenhos não leem.
+   * ficam no lugar na tela). Do lote 11 (11/11/2026) leem a armadura
+   * enferrujada (o brilho do aço, o reflexo e os amassados, pela luz na tela,
+   * e as sombras pintadas), a mesa de jogo (a sombra do assento de cada
+   * banquinho, desgirada, cai para baixo à direita na tela), o balanço (as
+   * sombras pintadas da trave, dos troncos e das cordas, desgiradas; no giro
+   * ímpar os troncos e as cordas são desenhados na tela, senão as fatias
+   * saíam em degraus), o ringue de luta e a mesa de sinuca (montados na tela
+   * para o quarto de volta e devolvidos ao referencial do objeto: no ringue, as
+   * faixas do tablado, a vez das coisas altas e as sombras pintadas são da
+   * tela, e o canto vermelho e o azul vão para onde o giro os leva; na sinuca,
+   * os pés, as redes e o friso que só a 3/4 mostra, e as sombras das tabelas e
+   * das bolas caem para baixo à direita na tela). Os outros desenhos não leem.
    */
   readonly giro: number
 }

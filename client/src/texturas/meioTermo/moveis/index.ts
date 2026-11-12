@@ -131,6 +131,14 @@ import { montarColmeia } from './colmeia'
 import { montarArado } from './arado'
 import { montarTocoComMachado } from './tocoComMachado'
 import { montarPlantacaoEmFileiras } from './plantacaoEmFileiras'
+import { montarCarrocaQuebrada } from './carrocaQuebrada'
+import { montarBarrilQuebrado } from './barrilQuebrado'
+import { montarVigaCaida } from './vigaCaida'
+import { montarArmaduraEnferrujada } from './armaduraEnferrujada'
+import { montarMesaDeJogo } from './mesaDeJogo'
+import { montarRingueDeLuta } from './ringueDeLuta'
+import { montarBalanco } from './balanco'
+import { montarMesaDeSinuca } from './mesaDeSinuca'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -304,6 +312,17 @@ const MONTADORES = {
   arado: montarArado,
   tocoComMachado: montarTocoComMachado,
   plantacaoEmFileiras: montarPlantacaoEmFileiras,
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte: um desenho por arquivo. A armadura
+  // enferrujada, a mesa de jogo, o ringue de luta, o balanço e a mesa de sinuca leem o `giro` (o quarto de volta
+  // que a 3/4 pinta); a carroça quebrada, o barril quebrado e a viga caída, não.
+  carrocaQuebrada: montarCarrocaQuebrada,
+  barrilQuebrado: montarBarrilQuebrado,
+  vigaCaida: montarVigaCaida,
+  armaduraEnferrujada: montarArmaduraEnferrujada,
+  mesaDeJogo: montarMesaDeJogo,
+  ringueDeLuta: montarRingueDeLuta,
+  balanco: montarBalanco,
+  mesaDeSinuca: montarMesaDeSinuca,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -350,6 +369,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
