@@ -115,7 +115,7 @@ function pontoDeChegada(map: MapData, objectKey: string): Point | null {
  */
 export function mandarFichaPara(playerId: string, alvo: AlvoDeMandar, ponte: PonteDeMandar): ResultadoDeMandar {
   const player = ponte.players().find((p) => p.playerId === playerId)
-  if (player === undefined) return { ok: false, mensagem: 'Esse jogador não está mais na sala.' }
+  if (player === undefined) return { ok: false, mensagem: 'Esse jogador não está mais na mesa online.' }
   const [membro] = partyMembers([player], hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map))
   // Sem ficha, nem vai lá: o mestre não troca de cena por um envio que não acontece.
   if (membro === undefined || membro.token === null) return { ok: false, mensagem: `${player.name} não tem ficha em cena.` }
