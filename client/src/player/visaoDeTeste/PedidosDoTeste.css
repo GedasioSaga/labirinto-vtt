@@ -5,8 +5,11 @@
  * folha. Moldura do editor (pedra opaca, filete do painel), como o recado do
  * Olhar: é o mestre falando com o mestre, e não o jogo com o jogador.
  *
- * Embaixo, no meio, logo acima do aviso do jogador (`.pp-notice`, bottom 24 px,
- * uma linha de ~38 px): o "Aguardando o mestre…" continua à vista embaixo.
+ * Embaixo, no meio, logo acima do que a tela do jogador põe ali (avisos,
+ * caminho da régua, recado do Olhar): o "Aguardando o mestre… / Desistir"
+ * continua à vista embaixo. Quanto acima é MEDIDO (`acimaDosAvisos.ts`, a
+ * variável `--vj-pedidos-base`): cada aviso mora num andar e tem a sua altura.
+ * Sem nada embaixo, o cartão desce ao chão dos avisos (24 px).
  */
 
 .vj-pedidos,
@@ -19,15 +22,16 @@
 .vj-pedidos {
   position: fixed;
   left: 50%;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--vj-pedidos-base, calc(24px + env(safe-area-inset-bottom, 0px)));
   /* Acima do recado do Olhar (45): o pedido é resposta que alguém espera. */
   z-index: 46;
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: min(340px, calc(100vw - 24px));
-  /* Muitos pedidos de uma vez: a caixa rola, e não sobe por cima da barra do teste. */
-  max-height: min(60vh, calc(100vh - 140px));
+  /* Muitos pedidos de uma vez: a caixa rola, e não sobe por cima da barra do
+     teste (40 px) nem da folga de 24 px abaixo dela. */
+  max-height: min(60vh, calc(100vh - var(--vj-pedidos-base, 24px) - 64px));
   overflow-y: auto;
   padding: 12px;
   /* `translate` e não `transform`: a entrada anima o `transform` sem desfazer o centro. */

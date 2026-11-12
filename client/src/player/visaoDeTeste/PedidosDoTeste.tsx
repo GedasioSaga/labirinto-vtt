@@ -1,5 +1,6 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import type { PedidoDoTeste } from '../../net/visaoDeTeste/tipos'
+import { useCartaoAcimaDoPe } from './acimaDosAvisos'
 import './PedidosDoTeste.css'
 
 /**
@@ -10,7 +11,9 @@ import './PedidosDoTeste.css'
  * de lá continua, e responder num lado tira o pedido dos dois.
  *
  * Mora embaixo, no meio, logo ACIMA do aviso do jogador (`.pp-notice`), que é
- * onde está o "Aguardando o mestre…": pergunta e resposta lado a lado. Fora
+ * onde está o "Aguardando o mestre…": pergunta e resposta lado a lado. A
+ * altura é medida (`acimaDosAvisos.ts`), e não um número: o aviso muda de
+ * andar e de tamanho, e o "Desistir" dele fica à vista. Fora
  * da tela do jogador, então nem o bloqueio do Olhar nem o mapa pegam o
  * clique. Não rouba o foco: o pedido chega enquanto a pessoa joga.
  */
@@ -26,6 +29,8 @@ export function PedidosDoTeste({ pedidos, onResponder }: PedidosDoTesteProps) {
   /** Respondidos aqui: somem na hora, sem esperar a lista nova do host. */
   const [respondidos, setRespondidos] = useState<ReadonlySet<string>>(() => new Set())
   const visiveis = pedidos.filter((pedido) => !respondidos.has(pedido.id))
+  const caixa = useRef<HTMLElement>(null)
+  useCartaoAcimaDoPe(caixa, visiveis.length > 0)
   if (visiveis.length === 0) return null
 
   const responder = (id: string, botao: number | null, texto: string) => {
@@ -35,7 +40,7 @@ export function PedidosDoTeste({ pedidos, onResponder }: PedidosDoTesteProps) {
   }
 
   return (
-    <section className="vj-pedidos" aria-label="Pedidos do teste">
+    <section ref={caixa} className="vj-pedidos" aria-label="Pedidos do teste">
       <p className="vj-pedidos__titulo">{TITULO_DOS_PEDIDOS}</p>
       <ul className="vj-pedidos__lista">
         {visiveis.map((pedido) => (
