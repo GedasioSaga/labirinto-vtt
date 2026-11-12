@@ -14,7 +14,11 @@ import { useMapStore } from './mapStore'
  * diz qual camada segurou (um por camada, com "Destravar").
  */
 
-/** Crava `pin` e o seleciona. `false` quando a camada dele está travada. */
+/**
+ * Crava `pin`. `false` quando a camada dele está travada. Não o seleciona
+ * (caça de 12/11/2026, E7, decisão 15: nenhuma ferramenta pula para a ficha ao
+ * pôr); clicar no pino depois abre a ficha.
+ */
 export function cravarPinoPeloGesto(pin: Pin): boolean {
   const store = useMapStore.getState()
   const travada = camadaTravadaDoItem(store.map, 'pino', pin)
@@ -23,7 +27,6 @@ export function cravarPinoPeloGesto(pin: Pin): boolean {
     return false
   }
   store.addPin(pin)
-  useMapStore.getState().setSelectedPin(pin.id)
   return true
 }
 

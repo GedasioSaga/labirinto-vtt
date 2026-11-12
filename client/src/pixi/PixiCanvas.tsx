@@ -1166,7 +1166,8 @@ function PixiCanvasDoContexto({
   const closeNameEditor = (commit: boolean) => {
     if (!nameEditorOpenRef.current || !nameEditor) return
     nameEditorOpenRef.current = false
-    if (commit && nameEditor.kind === 'room' && editorRegion?.room && editorRegion.room.name !== nameEditor.value) {
+    // Nome vazio não é gravado (caça 12/11, E5, decisão 14): fica o nome de antes.
+    if (commit && nameEditor.kind === 'room' && editorRegion?.room && nameEditor.value.trim() !== '' && editorRegion.room.name !== nameEditor.value) {
       useMapStore.getState().setRoomName(nameEditor.regionId, nameEditor.value)
     }
     if (commit && nameEditor.kind === 'token') {
@@ -5887,7 +5888,7 @@ function PixiCanvasDoContexto({
         // preserva a seleção (mapStore: "Selecionar mantém"), então o painel
         // continua no que a pessoa acabou de desenhar.
         useMapStore.getState().setActiveTool('select')
-        useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+        // Caça 12/11 (E7, decisão 15): nada é selecionado ao pôr; o painel fica na ferramenta.
         onRoomCreatedRef.current?.(result.region.id)
         if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
       }
@@ -7727,7 +7728,7 @@ function PixiCanvasDoContexto({
             addRoomWithNesting(result)
             // A3 — a Sala nova já nasce selecionada e pede o nome sobre ela
             // mesma (o mesmo campo do duplo clique), com o texto selecionado.
-            useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+            // Caça 12/11 (E7, decisão 15): nada é selecionado ao pôr; o painel fica na ferramenta.
             onRoomCreatedRef.current?.(result.region.id)
             if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
           }
@@ -7743,7 +7744,7 @@ function PixiCanvasDoContexto({
             // Retângulo sem paredes: a zona esconde conteúdo, não bloqueia a visão.
             const zone = buildConcealZoneFromDraft(crypto.randomUUID(), concealDraftStart, end)
             store.addConcealZone(zone)
-            store.setSelectedConcealZone(zone.id)
+            // Caça 12/11 (E7, decisão 15): nada é selecionado ao pôr; o painel fica na ferramenta.
           } else {
             // Clique sem arrasto abre no painel a zona sob o cursor (ou fecha, no vazio).
             const hit = findConcealZoneAt(doPisoEmEdicao(store.map).concealZones, concealDraftRawStart ?? worldPoint)
@@ -7777,7 +7778,7 @@ function PixiCanvasDoContexto({
               regionFillPattern,
             )
             addRoomWithNesting(result)
-            useMapStore.getState().setSelection(selectionOfItem({ kind: 'region', id: result.region.id }))
+            // Caça 12/11 (E7, decisão 15): nada é selecionado ao pôr; o painel fica na ferramenta.
             onRoomCreatedRef.current?.(result.region.id)
             if (result.region.room) openNameEditor({ kind: 'room', regionId: result.region.id, value: result.region.room.name })
           }
@@ -7803,7 +7804,7 @@ function PixiCanvasDoContexto({
             // não mostrava nada e não havia como trocar o sentido nem mover
             // sem antes acertar um clique em cima dela — o passeio cego de
             // 16/09/2026 gastou 4 tentativas e não conseguiu.
-            useMapStore.getState().setSelection(selectionOfItem({ kind: 'stair', id: stairId }))
+            // Caça 12/11 (E7, decisão 15): nada é selecionado ao pôr; o painel fica na ferramenta.
           } else {
             // Rascunho recusado = clique parado (início e fim no mesmo ponto).
             // Antes daqui a ferramenta simplesmente emudecia, e o relato de
@@ -9785,6 +9786,21 @@ function PixiCanvasDoContexto({
               closeNameEditor(false)
               if (history === 'undo') useMapStore.getState().undo()
               else useMapStore.getState().redo()
+            } else if (
+              (event.key === 'Delete' || event.key === 'Backspace') &&
+              nameEditor.kind === 'room' &&
+              editorRegion?.room?.name === nameEditor.value
+            ) {
+              // Caça 12/11 (E5, decisão 14): Delete (ou Backspace) com o nome sugerido intacto
+              // apaga a SALA recém-desenhada, não o nome dela. Digitado algo, a tecla volta a ser texto.
+              event.preventDefault()
+              event.stopPropagation()
+              const salaId = nameEditor.regionId
+              closeNameEditor(false)
+              const store = useMapStore.getState()
+              store.setSelection(selectionOfItem({ kind: 'region', id: salaId }))
+              store.removeSelected()
+              useToastStore.getState().push('info', 'Sala apagada — Ctrl+Z desfaz')
             } else if (event.key === 'Enter') {
               event.preventDefault()
               event.stopPropagation()

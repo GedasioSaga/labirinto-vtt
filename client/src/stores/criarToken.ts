@@ -1,4 +1,3 @@
-import { selectionOfItem } from '../lib/selectionModel'
 import { IMAGEM_SUMIU_DO_ACERVO, pecaDoAcervo, type ItemDoAcervoNaTela } from '../lib/tokenLibrary'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
 import { viewportCenterWorld, type Point } from '../pixi/world'
@@ -50,10 +49,13 @@ export interface TamanhoDaVista {
  * que o botão e o acervo usam, sem montar o editor inteiro.
  */
 export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: TamanhoDaVista | null): string | null {
-  const { map: currentMap, camera, addToken, setSelection } = useMapStore.getState()
+  const { map: currentMap, camera, addToken } = useMapStore.getState()
   const size = opts.size ?? NEW_TOKEN_SIZE
   const requested = opts.at ?? (vista ? viewportCenterWorld(camera, vista.width, vista.height) : { x: 0, y: 0 })
+  const pisoDaFicha = opts.piso ?? 0
   const spot = findTokenSpawn(requested, currentMap.walls, {
+    // Caça 12/11 (E8): dois "+ Token" seguidos não nascem um em cima do outro.
+    ocupadas: currentMap.tokens.filter((token) => (token.piso ?? 0) === pisoDaFicha),
     // O raio acompanha o TAMANHO da peça: o NPC de 2 células vindo do acervo
     // precisa de mais espaço livre que o disco de uma célula, e medir pelo
     // tamanho fixo o assentaria encostado na parede.
@@ -84,7 +86,7 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
     ...(opts.npc === true ? { npc: true } : {}),
     ...(opts.piso !== undefined && opts.piso !== 0 ? { piso: opts.piso } : {}),
   })
-  setSelection(selectionOfItem({ kind: 'token', id }))
+  // Caça 12/11 (E7, decisão 15): a ficha nova não é selecionada; o painel fica onde estava.
   return id
 }
 

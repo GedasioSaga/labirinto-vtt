@@ -62,6 +62,21 @@ export interface TokenSpawnOptions {
   step?: number
   /** Quantos anéis tentar antes de desistir. */
   maxRings?: number
+  /**
+   * Fichas que já estão no mapa (caça de 12/11/2026, E8): o ponto que cairia
+   * em cima de uma delas também não serve, e a busca em anéis segue até a casa
+   * livre ao lado. Ausente = só as paredes contam, como antes.
+   */
+  ocupadas?: readonly Point[]
+}
+
+/** Fração do diâmetro abaixo da qual duas fichas contam como uma em cima da outra (folga de arredondamento). */
+const FICHAS_ENCOSTADAS = 0.98
+
+/** Nenhuma ficha de `ocupadas` está a menos de um diâmetro do ponto. */
+function longeDasFichas(point: Point, ocupadas: readonly Point[], radius: number): boolean {
+  const minimo = radius * 2 * FICHAS_ENCOSTADAS
+  return ocupadas.every((ficha) => Math.hypot(ficha.x - point.x, ficha.y - point.y) >= minimo)
 }
 
 /** Distância do ponto ao SEGMENTO da parede (não à reta infinita dela). */
@@ -106,7 +121,9 @@ function separatedByWall(from: Point, to: Point, walls: readonly Wall[]): boolea
 export function findTokenSpawn(preferred: Point, walls: readonly Wall[], options: TokenSpawnOptions): Point | null {
   const clearance = options.clearance ?? wallClearanceForScale(1)
   const minDistance = options.radius + clearance
-  if (walls.length === 0 || fitsAt(preferred, walls, minDistance)) return preferred
+  const ocupadas = options.ocupadas ?? []
+  const livre = (point: Point) => fitsAt(point, walls, minDistance) && longeDasFichas(point, ocupadas, options.radius)
+  if (livre(preferred)) return preferred
 
   const step = options.step ?? Math.max(MIN_SEARCH_STEP, options.radius / 2)
   const maxRings = options.maxRings ?? DEFAULT_MAX_RINGS
@@ -119,7 +136,7 @@ export function findTokenSpawn(preferred: Point, walls: readonly Wall[], options
     for (let i = 0; i < samples; i += 1) {
       const angle = (2 * Math.PI * i) / samples
       const candidate = { x: preferred.x + Math.cos(angle) * distance, y: preferred.y + Math.sin(angle) * distance }
-      if (!fitsAt(candidate, walls, minDistance)) continue
+      if (!livre(candidate)) continue
       if (!separatedByWall(preferred, candidate, walls)) return candidate
       if (nearestAnywhere === null) nearestAnywhere = candidate
     }
