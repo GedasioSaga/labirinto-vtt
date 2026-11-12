@@ -1,5 +1,5 @@
 import { Container, Graphics, GraphicsContext, type Ticker } from 'pixi.js'
-import type { Prop } from '../types/map'
+import type { Prop, RegionPoint } from '../types/map'
 import {
   CASA_DO_FOGO_PX,
   alturaMaximaDaLingua,
@@ -33,6 +33,9 @@ import {
  *     ├ brilhos  (um disco por fogo)
  *     ├ chamas   (as línguas de cada fogo, de trás para a frente, e as fagulhas)
  *     └ fumaça   (as nuvens de cada fogo)
+ *
+ * Na tela do jogador, brilho e fumaça passam pelo recorte do que ele enxerga
+ * (`recortar`, achado V4 da caça de 12/11/2026); as línguas não.
  *
  * Três subcamadas: a fumaça de um fogo não fica embaixo da chama do vizinho. As
  * formas são as da fogueira, desenhadas UMA vez por tela; por quadro só mudam
@@ -91,6 +94,18 @@ export interface OpcoesDosFogos {
   aoMudar?: (estado: EstadoDosFogos) => void
 }
 
+/**
+ * Onde o BRILHO e a FUMAÇA aparecem na tela do jogador, em px de mundo (caça de
+ * 12/11/2026, achado V4). A camada fica acima da névoa (a casa queimando vista
+ * de fora); sem o recorte, a fumaça e o clarão subiam por cima do preto.
+ */
+export interface RecorteDosFogos {
+  /** Os anéis da visão e os telhados que ele recebeu (o telhado fica acima da névoa): só aí. */
+  ver: readonly (readonly RegionPoint[])[]
+  /** O preto das zonas ocultas: aí também não. */
+  esconder: readonly (readonly RegionPoint[])[]
+}
+
 export interface FogosDoMapa {
   /** A camada inteira: quem chama a põe na pilha, acima dos telhados. */
   readonly camada: Container
@@ -101,6 +116,13 @@ export interface FogosDoMapa {
   sincronizar: (props: readonly PropDoFogo[], tela: TelaDosFogos) => number
   /** A câmera andou: o fogo fora de `vista` sai do relógio (`null` = sem recorte). */
   ajustarAVista: (vista: CaixaDaVista | null) => void
+  /**
+   * O recorte da tela do JOGADOR: brilho e fumaça só onde ele enxerga (ou em
+   * cima de um telhado), nunca no preto da zona oculta; as línguas ficam como
+   * estão (só chega fogo que o recorte do mestre deixou passar). `null` (a tela
+   * do mestre) = sem recorte. Só refaz quando alguma lista muda.
+   */
+  recortar: (recorte: RecorteDosFogos | null) => void
   estado: () => EstadoDosFogos
   destruir: () => void
 }
@@ -225,6 +247,11 @@ function cruza(a: CaixaDaVista, b: CaixaDaVista): boolean {
   return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
 }
 
+/** As mesmas listas de anéis, anel a anel pela referência: o redesenho da tela refaz a lista, não os anéis. */
+function mesmosAneis(a: readonly (readonly RegionPoint[])[], b: readonly (readonly RegionPoint[])[]): boolean {
+  return a === b || (a.length === b.length && a.every((anel, i) => anel === b[i]))
+}
+
 /**
  * Cria os fogos de uma tela, com as formas e o relógio fechados por closure:
  * instanciar dentro do setup de cada montagem (editor e jogador), nunca em
@@ -245,7 +272,25 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
   chamas.label = 'chamas'
   const fumacas = new Container()
   fumacas.label = 'fumaca'
-  camada.addChild(brilhos, chamas, fumacas)
+  // O RECORTE DO JOGADOR (V4): brilho e fumaça dentro de dois embrulhos cada, o
+  // de fora com a máscara do que ele vê e o de dentro sem o preto das zonas
+  // ocultas (o molde de `particulasDoMapa.ts`). As máscaras moram na camada e
+  // andam com o mundo; as do mesmo par dividem o desenho (o mesmo contexto).
+  // As línguas (`chamas`) não entram: o fogo que chega é o que o mestre deixou passar.
+  const brilhosNoQueVe = new Container()
+  const brilhosForaDoOculto = new Container()
+  brilhosForaDoOculto.addChild(brilhos)
+  brilhosNoQueVe.addChild(brilhosForaDoOculto)
+  const fumacaNoQueVe = new Container()
+  const fumacaForaDoOculto = new Container()
+  fumacaForaDoOculto.addChild(fumacas)
+  fumacaNoQueVe.addChild(fumacaForaDoOculto)
+  const mascaraDoBrilho = new Graphics()
+  const mascaraDaFumaca = new Graphics(mascaraDoBrilho.context)
+  const ocultoDoBrilho = new Graphics()
+  const ocultoDaFumaca = new Graphics(ocultoDoBrilho.context)
+  for (const mascara of [mascaraDoBrilho, mascaraDaFumaca, ocultoDoBrilho, ocultoDaFumaca]) mascara.visible = false
+  camada.addChild(brilhosNoQueVe, chamas, fumacaNoQueVe, mascaraDoBrilho, mascaraDaFumaca, ocultoDoBrilho, ocultoDaFumaca)
 
   const fogos = new Map<string, FogoNoPalco>()
   const pose: PoseReescrita = novaPose()
@@ -257,6 +302,12 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
   let conferidoEm = 0
   let ultimoQuadroReduzido = -Infinity
   let avisado = ''
+  /** O recorte do jogador (`null` = tela do mestre) e se ele tem o que ver e o que esconder. */
+  let recorte: RecorteDosFogos | null = null
+  let temOQueVer = false
+  let temOculto = false
+  /** As máscaras que estão ligadas agora: só se mexe nelas quando muda. */
+  let mascarasLigadas = ''
 
   /** As formas nascem com o primeiro fogo e ficam até o fim. */
   function asFormas(): Formas {
@@ -515,8 +566,59 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
     if (naVista) (reduzido ? aplicarParado : aplicarMovendo)(fogo, agora())
   }
 
+  /**
+   * Liga as máscaras do recorte só com fogo na camada (máscara ligada paga o
+   * stencil a cada quadro). Jogador que não vê nada nem tem telhado à vista não
+   * vê brilho nem fumaça.
+   */
+  function ligarRecorte(): void {
+    const ativo = recorte !== null && fogos.size > 0
+    const comVer = ativo && temOQueVer
+    const comOculto = ativo && temOculto
+    const mostra = recorte === null || temOQueVer
+    const chave = `${mostra}|${comVer}|${comOculto}`
+    if (chave === mascarasLigadas) return
+    mascarasLigadas = chave
+    brilhosNoQueVe.visible = mostra
+    fumacaNoQueVe.visible = mostra
+    brilhosNoQueVe.mask = comVer ? mascaraDoBrilho : null
+    fumacaNoQueVe.mask = comVer ? mascaraDaFumaca : null
+    mascaraDoBrilho.visible = comVer
+    mascaraDaFumaca.visible = comVer
+    if (comOculto) {
+      brilhosForaDoOculto.setMask({ mask: ocultoDoBrilho, inverse: true })
+      fumacaForaDoOculto.setMask({ mask: ocultoDaFumaca, inverse: true })
+    } else {
+      brilhosForaDoOculto.mask = null
+      fumacaForaDoOculto.mask = null
+    }
+    ocultoDoBrilho.visible = comOculto
+    ocultoDaFumaca.visible = comOculto
+  }
+
+  function recortarPelaVisao(novo: RecorteDosFogos | null): void {
+    if (novo === recorte) return
+    if (novo !== null && recorte !== null && mesmosAneis(novo.ver, recorte.ver) && mesmosAneis(novo.esconder, recorte.esconder)) {
+      recorte = novo
+      return
+    }
+    recorte = novo
+    mascaraDoBrilho.clear()
+    ocultoDoBrilho.clear()
+    const ver = novo === null ? [] : novo.ver.filter((anel) => anel.length >= 3)
+    const esconder = novo === null ? [] : novo.esconder.filter((anel) => anel.length >= 3)
+    for (const anel of ver) mascaraDoBrilho.poly([...anel], true)
+    if (ver.length > 0) mascaraDoBrilho.fill({ color: 0xffffff })
+    for (const anel of esconder) ocultoDoBrilho.poly([...anel], true)
+    if (esconder.length > 0) ocultoDoBrilho.fill({ color: 0xffffff })
+    temOQueVer = ver.length > 0
+    temOculto = esconder.length > 0
+    ligarRecorte()
+  }
+
   return {
     camada,
+    recortar: recortarPelaVisao,
     sincronizar(props, tela) {
       const t = agora()
       if (movimento !== undefined) {
@@ -560,6 +662,8 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
       }
       for (const id of [...fogos.keys()]) if (!presentes.has(id)) remover(id)
       acertarRelogio()
+      // O primeiro fogo liga as máscaras do recorte; o último que sai as desliga.
+      ligarRecorte()
       return fogos.size
     },
     ajustarAVista(nova) {
