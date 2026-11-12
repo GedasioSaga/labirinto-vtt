@@ -138,8 +138,8 @@ function palco(): Container {
   return p
 }
 
-/** `pointerdown` + `pointerup` no palco do Pixi, no ponto de mundo, com o botão pedido (e o Alt, que inverte o encaixe). */
-function aperta(mundo: { x: number; y: number }, botao: number, alt = false): void {
+/** `pointerdown` + `pointerup` no palco do Pixi, no ponto de mundo, com o botão pedido (e o Alt, que inverte o encaixe; o Ctrl, que põe por cima de objeto). */
+function aperta(mundo: { x: number; y: number }, botao: number, alt = false, ctrl = false): void {
   const p = naTela(mundo)
   const evento = (): FederatedPointerEvent => {
     const e = new FederatedPointerEvent(new EventBoundary())
@@ -148,6 +148,7 @@ function aperta(mundo: { x: number; y: number }, botao: number, alt = false): vo
     e.isPrimary = true
     e.button = botao
     e.altKey = alt
+    e.ctrlKey = ctrl
     e.global.set(p.x, p.y)
     return e
   }
@@ -205,6 +206,27 @@ describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
     expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'mesa-posta' }])
     expect(useMapStore.getState().activeTool).toBe('mobilia')
     expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('objeto de CHÃO não prende o clique: em cima do tapete, a Mesa escolhida nasce por cima dele e nada fica selecionado', async () => {
+    const tapete = criarMovel('tapete', NO_CORREDOR, GRADE, 'tapete-posto')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [tapete] } })
+    await monta()
+    aperta(NO_CORREDOR, BOTAO_ESQUERDO)
+
+    const { props } = useMapStore.getState().map
+    expect(props.map((p) => p.mobilia)).toEqual(['tapete', 'mesa'])
+    expect(useMapStore.getState().selection).toEqual([])
+  })
+
+  it('Ctrl + clique em cima de um objeto comum põe o objeto escolhido por cima dele (o fim da lista), sem selecionar', async () => {
+    const caixa = criarMovel('caixa', NO_CORREDOR, GRADE, 'caixa-grande')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [caixa] }, mobiliaTipo: 'barril' })
+    await monta()
+    aperta(NO_CORREDOR, BOTAO_ESQUERDO, false, true)
+
+    expect(useMapStore.getState().map.props.map((p) => p.mobilia)).toEqual(['caixa', 'barril'])
+    expect(useMapStore.getState().selection).toEqual([])
   })
 
   it('dentro do quarto girado, a Cama escolhida na setinha nasce no giro dele', async () => {

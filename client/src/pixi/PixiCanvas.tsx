@@ -322,6 +322,7 @@ import {
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
+import { ehMovelDoChao } from '../lib/mobilia'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
@@ -2117,6 +2118,12 @@ function PixiCanvasDoContexto({
         const map = doPisoEmEdicao(useMapStore.getState().map)
         const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), ponto, map.grid, pinosNoToque(map))
         return token !== null && menu.tem(token.id) ? token : null
+      }
+
+      /** Há um objeto posto que NÃO é de chão sob `ponto`, o mesmo alvo do clique de selecionar? */
+      const objetoComumEm = (map: MapData, ponto: Point): boolean => {
+        const alvo = findSelectableAt(clickSelectMap(map), ponto, pinosNoToque(map))
+        return alvo?.kind === 'prop' && !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia)
       }
 
       const sceneState = () => {
@@ -6635,8 +6642,11 @@ function PixiCanvasDoContexto({
         // (pedido de 12/11/2026): segue o fluxo de sempre, mais abaixo — o
         // objeto fica selecionado (a ficha dele abre) e o mesmo gesto o
         // arrasta, como o clique da ferramenta Token num token. Nada nasce
-        // por cima dele.
-        if (activeTool === 'mobilia' && !(event.button === 0 && findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))?.kind === 'prop')) {
+        // por cima dele. Duas exceções põem por cima mesmo assim: o objeto de
+        // CHÃO (tapete, píer, palco…) existe para receber coisas em cima e não
+        // prende o clique; e Ctrl (Cmd no Mac) + clique põe por cima de
+        // qualquer objeto. Não é o Alt: neste gesto ele já inverte o encaixe.
+        if (activeTool === 'mobilia' && !(event.button === 0 && !isFreeMoveModifier(event) && objetoComumEm(map, worldPoint))) {
           // Objetos: o móvel da setinha nasce no clique, com o MESMO encaixe da
           // Peça (os dois são objeto do mapa; Alt inverte). Giro da sala,
           // seleção, camada e o passo do desfazer moram em `porMovelNoPonto`.
