@@ -135,6 +135,7 @@ import type { FocusPointRequest } from './PlayerView'
 import { floorShown, PlayerFloorTabs } from './PlayerFloorTabs'
 import type { RegionPoint } from '../types/map'
 import { textoDoFimDaEspera } from '../lib/encontroMarcado'
+import { usePilhaDoPe } from './pilhaDoPe'
 import { baixarArquivoHtml, montarCaderno, nomeDoArquivoDoCaderno, type EntradaDoCaderno } from './meuCaderno'
 import './player.css'
 
@@ -1015,6 +1016,8 @@ function useRecusaDaBatalhaDBT(recusa: PlayerState['batalhaDBTRecusa'], vista: P
 // Exportada só para o teste montar a sessão sem o formulário de entrada.
 export function Session({ connection, code, typedName, hostName, onLeave, onQuit, onSignOut, storage, onAcaoNoOlhar, ajustesDaDanca, ajustesDaPesca, ajustesDoTiro }: SessionProps) {
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
+  // PILHA DO PÉ: avisos e a doca do caminho, embaixo no meio, sem um cobrir o botão de outro.
+  usePilhaDoPe()
   // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
   const resolverDaMesa = useImagemDaMesa()
   const batalhaEstado = state.batalhaEstado
@@ -2550,7 +2553,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           escapeCloses={noCardOnTop && !clueCardOpen}
         />
         {/* CAMINHO DA RÉGUA: "Mostrar a…" com uma medida solta, e o aviso do
-            caminho que um colega mostrou. Acima dos avisos de baixo, sem cobri-los.
+            caminho que um colega mostrou. Acima dos avisos de baixo, sem cobri-los (`pilhaDoPe.ts`).
             Olhando outro andar, a medida solta é do andar atual: o "Mostrar a…" espera a volta. */}
         {((measureArmed && measuredRoute !== null && otherFloor === null) || state.sharedRoute) && (
           <div className="pp-route-dock">

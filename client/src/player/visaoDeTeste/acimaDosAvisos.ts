@@ -1,4 +1,5 @@
 import { useLayoutEffect, type RefObject } from 'react'
+import { EVENTO_DA_PILHA } from '../pilhaDoPe'
 
 /**
  * VISÃO DE JOGADOR — onde pousa o cartão "Você é o mestre:" (`PedidosDoTeste`).
@@ -33,7 +34,7 @@ export interface CaixaNaJanela extends Faixa {
 
 /**
  * Distância do fundo da janela ao pé do cartão: acima do topo mais alto entre
- * as caixas que cruzam a coluna do cartão e moram na metade de baixo. Nenhuma
+ * as caixas que cruzam a coluna do cartão e têm o pé na metade de baixo. Nenhuma
  * (nada no pé, ou só caixas sem tamanho): `null`, e o CSS usa o chão.
  */
 export function baseAcimaDoPe(caixas: readonly CaixaNaJanela[], coluna: Faixa, alturaDaJanela: number): number | null {
@@ -41,8 +42,9 @@ export function baseAcimaDoPe(caixas: readonly CaixaNaJanela[], coluna: Faixa, a
   for (const caixa of caixas) {
     const temTamanho = caixa.base > caixa.topo && caixa.direita > caixa.esquerda
     const cruzaAColuna = caixa.esquerda < coluna.direita && caixa.direita > coluna.esquerda
-    // Um aviso que um dia more no alto não pode puxar o cartão para lá.
-    const moraEmbaixo = (caixa.topo + caixa.base) / 2 > alturaDaJanela / 2
+    // Um aviso que um dia more no alto não pode puxar o cartão para lá. Pelo pé, e não
+    // pelo meio: na tela baixa, a pilha do pé sobe um aviso até passar do meio.
+    const moraEmbaixo = caixa.base > alturaDaJanela / 2
     if (!temTamanho || !cruzaAColuna || !moraEmbaixo) continue
     if (topoMaisAlto === null || caixa.topo < topoMaisAlto) topoMaisAlto = caixa.topo
   }
@@ -58,7 +60,8 @@ const caixaDe = (elemento: Element): CaixaNaJanela => {
  * Enquanto `ativo`, mantém o cartão `cartao` acima do pé da tela. Mede antes
  * da pintura e de novo quando algo muda: aviso que entra, sai ou troca de
  * texto (árvore), que muda de tamanho (duas linhas), que termina a entrada
- * (a subida de 6 px), e a janela. Uma medida por quadro, no máximo; o estado
+ * (a subida de 6 px), que a pilha do pé tira um de baixo do outro
+ * (`pilhaDoPe.ts`), e a janela. Uma medida por quadro, no máximo; o estado
  * do React não muda (só a variável no `style` do cartão).
  */
 export function useCartaoAcimaDoPe(cartao: RefObject<HTMLElement | null>, ativo: boolean): void {
@@ -102,6 +105,7 @@ export function useCartaoAcimaDoPe(cartao: RefObject<HTMLElement | null>, ativo:
     window.addEventListener('resize', agendar)
     document.addEventListener('animationend', agendar, true)
     document.addEventListener('transitionend', agendar, true)
+    document.addEventListener(EVENTO_DA_PILHA, agendar)
     medir()
 
     return () => {
@@ -111,6 +115,7 @@ export function useCartaoAcimaDoPe(cartao: RefObject<HTMLElement | null>, ativo:
       window.removeEventListener('resize', agendar)
       document.removeEventListener('animationend', agendar, true)
       document.removeEventListener('transitionend', agendar, true)
+      document.removeEventListener(EVENTO_DA_PILHA, agendar)
     }
   }, [cartao, ativo])
 }

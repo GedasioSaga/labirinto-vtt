@@ -850,6 +850,17 @@
 }
 
 /*
+ * PILHA DO PÉ (`pilhaDoPe.ts`): cada aviso e a doca do caminho moram no andar
+ * da sua regra; quando dois se cruzam (o "Aguardando o mestre…" de duas
+ * linhas, a faixa da porta, a doca aberta), o de andar mais alto sobe acima do
+ * outro, medido. A subida é a variável que o script escreve no elemento.
+ */
+.pp-notice,
+.pp-route-dock {
+  translate: 0 calc(-1 * var(--pp-pe-subida, 0px));
+}
+
+/*
  * CANTO DA DIREITA (`main.tsx`): abas de andar, "Onde estou" (a cena e a
  * sala, num selo só) e selo de estado numa coluna só, alinhada à
  * direita, com o vão do tema entre um e outro — como a pilha de botões do
@@ -1485,7 +1496,8 @@
   }
 }
 
-/* CAMINHO DA RÉGUA: "Mostrar a…" e o aviso do caminho de um colega, acima dos avisos de baixo. */
+/* CAMINHO DA RÉGUA: "Mostrar a…" e o aviso do caminho de um colega, acima dos avisos de baixo
+   (o aviso de uma linha a 24 px); de um aviso mais alto que cruze, a pilha do pé a tira de baixo. */
 .pp-route-dock {
   position: fixed;
   bottom: 72px;
