@@ -89,6 +89,9 @@ const ALTURA_DO_PE_DO_CABO = 1 * SUBIDA_DA_TOCHA_DE_PAREDE
 const ALTURA_DO_CABO = 1.3 * SUBIDA_DA_TOCHA_DE_PAREDE
 const ALTURA_DA_CABECA = TOCHA_DE_PAREDE.alturaDaCabeca * SUBIDA_DA_TOCHA_DE_PAREDE
 
+/** O giro (graus, `ContextoDoMovel.giro`) da tocha presa na parede de baixo: a chapa fica embaixo na tela. */
+const GIRO_DA_PAREDE_DE_BAIXO = 180
+
 const TOM_DA_CHAPA = 0.92
 const TOM_DO_BRACO = 1.04
 const BRILHO_DO_FERRO = 0.3
@@ -154,7 +157,11 @@ export const montarTochaDeParede: MontarMovel = (c, cena) => {
   const fuligem = elipse(0, fy, FULIGEM_LARGA * R, fry)
   // É a maior peça da cabeça: o material dela é o da cara do rolo de pano na 3/4.
   L.push(P(comMeioEm(fuligem, 0, yCabeca), acesa ? PANO_COM_OLEO : PANO_QUEIMADO, { bisel: 0, contorno: 0, textura: texFuligem(0, fy, FULIGEM_LARGA * R, fry, ALFA_DA_FULIGEM), semente: 17601 }))
-  cena.sombras.push(solta(chapa, ALTURA_DA_CHAPA))
+  // Na parede de BAIXO (giro 180: a parede fica embaixo na tela) a chapa subida deixava uma fresta até a linha (a
+  // subida menos a beirada, ~1,5 px de mundo; caça 12/11, P31). Lá ela sobe como COLUNA: o tampo fica na mesma
+  // altura das outras três paredes e a frente desce até a linha. De cima nada muda (força 0); nas outras paredes,
+  // a chapa continua tampo solto.
+  cena.sombras.push(c.giro === GIRO_DA_PAREDE_DE_BAIXO ? { forma: chapa, z: ALTURA_DA_CHAPA * lado, forca: 0 } : solta(chapa, ALTURA_DA_CHAPA))
   L.push(P(chapa, ferro, { tabua: 0, bisel: 0.6, tom: TOM_DA_CHAPA, metal: BRILHO_DO_FERRO, contorno: 0.3, semente: 17605 }))
   const braco = capsula(0, parede + GROSSURA_DA_CHAPA * R * 0.5, 0, yArgola - ARGOLA_DE_DENTRO * R, RAIO_DO_BRACO * R)
   const doFerro = (semente: number, textura?: Textura) => ({ tabua: 0, bisel: 0.8, tom: TOM_DO_BRACO, metal: BRILHO_DO_FERRO, contorno: 0.28, textura, projeta: { dist: 0.8, forca: 0.3 }, semente })

@@ -211,4 +211,15 @@ describe('vista 3/4: o giro e a chave', () => {
     expect(giroDaImagem(movel('lapide', { rotation: 90 }), 'tres-quartos')).toBe(0)
     expect(giroDaImagem(movel('placaDeSeta', { rotation: 90 }), 'tres-quartos')).toBe(90)
   })
+
+  it('caça 12/11 (P31): a tocha da parede de BAIXO encosta a chapa na linha da parede na 3/4; a de cima fica como era', () => {
+    const d = desenho(movel('tochaDeParede', { rotation: 180 }), 'tres-quartos')
+    const p = pintar(d, 3)
+    const linha = (d.casasH * G) / 2
+    // Logo acima da linha da parede, no meio da chapa: peça. Antes ali era o chão (a fresta de ~1,5 px de mundo).
+    for (const acima of [0.3, 0.8, 1.3]) expect(alfaNoPonto(p, 0, linha - acima), `${acima} px acima da linha`).toBeGreaterThanOrEqual(ALFA_DE_PECA)
+    // Só a de baixo ganha a chapa em coluna (com o contato no pé); nas outras três paredes ela continua tampo solto.
+    const contatos = (rotation: number) => montarCena(desenho(movel('tochaDeParede', { rotation }), 'tres-quartos')).sombras.filter((s) => (s.forca ?? 0) > 0).length
+    expect([0, 90, 180, 270].map(contatos)).toEqual([0, 0, 1, 0])
+  })
 })
