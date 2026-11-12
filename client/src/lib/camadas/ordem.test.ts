@@ -98,6 +98,8 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['walls', ['paredes', 'portas']],
   ['doorHints', ['portas']],
   ['doors', ['portas']],
+  // OBJETO PRESO NA PAREDE (caça de 12/11/2026, N4, decisão 20, `1ed102ea`): logo acima das paredes, ainda sob a névoa.
+  ['objetosNaParede', []],
   ['nuvens', ['terreno']],
   ['roomNames', ['salas']],
   ['textLabels', ['anotacoes']],
@@ -106,6 +108,8 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['hazardsMask', ['salas']],
   ['hazards', ['salas']],
   ['triggers', ['salas']],
+  // PENUMBRA (sombras da caça de 12/11/2026, `3733856b`): só escurece, DEBAIXO do nunca visto e da zona oculta.
+  ['penumbra', []],
   ['fogUnknown', []],
   ['knownMask', []],
   ['fogDim', []],
@@ -153,7 +157,10 @@ describe('FAIXAS de hoje', () => {
     const sobre = FAIXAS_JOGADOR.filter((f) => f.zona === 'sobre-a-nevoa').map((f) => f.id)
     const semZona = FAIXAS_JOGADOR.filter((f) => f.zona === undefined).map((f) => f.id)
     expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens', 'judge'])
-    expect(semZona).toEqual(['fogUnknown', 'knownMask', 'fogDim', 'visionMask', 'concealed'])
+    // A penumbra (sombras, `3733856b`) é fixa e sem zona como a névoa: só escurece, debaixo do nunca visto e da zona oculta.
+    expect(semZona).toEqual(['penumbra', 'fogUnknown', 'knownMask', 'fogDim', 'visionMask', 'concealed'])
+    // E o objeto preso na parede (N4) continua sob a névoa, logo acima das portas.
+    expect(FAIXAS_JOGADOR.find((f) => f.id === 'objetosNaParede')?.zona).toBe('sob-a-nevoa')
   })
 })
 
