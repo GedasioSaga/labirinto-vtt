@@ -46,7 +46,7 @@ export interface ResultadoDeMover {
 }
 
 /** O que a ficha e o menu dizem quando o tipo ainda não muda de camada. */
-export const MOTIVO_CAMADA_PADRAO = 'Desenha na camada padrão por enquanto.'
+export const MOTIVO_CAMADA_PADRAO = 'Sala e texto ficam sempre na camada deles.'
 
 /**
  * O tipo já desenha no nó da camada escolhida, no editor e no jogador. Ficam

@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { camadaDosItens, motivoParaNaoMover, nomeDaCamada, refsDaSelecao } from '../lib/camadas/mover'
 import { opcoesDoEnvio } from '../lib/enviarParaCena'
-import type { LadoDaPilha } from '../lib/mapFactory'
+import { reordenarObjetos, type LadoDaPilha } from '../lib/mapFactory'
+import { propBoundingBox } from '../lib/objectTransform'
+import type { MapData, Prop } from '../types/map'
 import { ehMovelDoChao } from '../lib/mobilia'
 import { tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
@@ -26,6 +28,33 @@ const FOLGA_DA_BORDA = 8
 
 /** Na 3/4 o móvel comum vai pela base (`emOrdemDoTresQuartos`): a pilha da lista não manda nele. */
 const MOTIVO_DA_PILHA_NA_3_4 = 'Na vista 3/4, o objeto mais ao sul fica por cima.'
+
+/** As caixas de dois objetos se cruzam (sem giro: basta para dizer "um está sobre o outro"). */
+function caixasSeCruzam(a: Prop, b: Prop): boolean {
+  const ca = propBoundingBox(a)
+  const cb = propBoundingBox(b)
+  return ca.minX < cb.maxX && cb.minX < ca.maxX && ca.minY < cb.maxY && cb.minY < ca.maxY
+}
+
+/**
+ * Caça 12/11 (E12, decisão 16): "Pôr por cima / por baixo" só troca a ordem
+ * DENTRO da camada. Quando nada mudaria e o objeto está sobre um de OUTRA
+ * camada, o menu diz por quê e o que fazer. `null` = o comando faz efeito, ou
+ * não há com quem trocar.
+ */
+function motivoDaOutraCamada(map: MapData, objetos: readonly string[]): string | null {
+  if (objetos.length === 0) return null
+  if (reordenarObjetos(map, objetos, 'cima') !== map || reordenarObjetos(map, objetos, 'baixo') !== map) return null
+  const camadas = contextoDeCamadas(map)
+  const escolhidos = map.props.filter((p) => objetos.includes(p.id))
+  for (const objeto of escolhidos) {
+    const camada = camadas.camadaDe('objeto', objeto)
+    if (map.props.some((outro) => !objetos.includes(outro.id) && camadas.camadaDe('objeto', outro) !== camada && caixasSeCruzam(objeto, outro))) {
+      return `Este objeto está na camada ${nomeDaCamada(map, camada)}: para passar por cima, mova de camada.`
+    }
+  }
+  return null
+}
 
 /** Foca o item `indice` (com volta), pulando os desligados. */
 function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1 | -1): void {
@@ -94,10 +123,14 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const atual = camadaDosItens(map, refs)
   const motivo = motivoParaNaoMover(map, refs)
 
+  // Caça 12/11 (E18): menu cujo único item ("Mover para camada") está desligado não abre:
+  // sala, chão e texto não oferecem nada no botão direito, e a ficha já diz o porquê.
+  const soItemDesligado = motivo !== null && objetos.length === 0 && fichas.length === 0
+
   // A seleção sumiu por baixo do menu (Ctrl+Z, outra ação): não há o que mover.
   useEffect(() => {
-    if (atual === null && !saindo) onClose()
-  }, [atual, onClose, saindo])
+    if ((atual === null || soItemDesligado) && !saindo) onClose()
+  }, [atual, soItemDesligado, onClose, saindo])
 
   useEffect(() => {
     if (!saindo) itemRef.current?.focus()
@@ -134,14 +167,14 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     return () => document.removeEventListener('pointerdown', fora)
   }, [onClose, saindo])
 
-  if (atual === null) return null
+  if (atual === null || soItemDesligado) return null
   const camadas = contextoDeCamadas(map)
   const opcoes = [...camadas.ordem].reverse()
   const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
   const ligados = fichas.filter((id) => map.tokens.some((token) => token.id === id && token.characterId !== null))
   const pilhaPelaBase = tresQuartosAtivo(map.vistaDosMoveis) && map.props.some((p) => objetos.includes(p.id) && p.mobilia !== undefined && !ehMovelDoChao(p.mobilia))
-  const motivoDaPilha = pilhaPelaBase ? MOTIVO_DA_PILHA_NA_3_4 : null
+  const motivoDaPilha = pilhaPelaBase ? MOTIVO_DA_PILHA_NA_3_4 : motivoDaOutraCamada(map, objetos)
 
   const porNaPilha = (lado: LadoDaPilha) => {
     if (motivoDaPilha !== null) return

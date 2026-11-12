@@ -56,6 +56,7 @@ import { relevoLigado } from './relevo'
 import { nomesDosLugaresLigados } from './nomesDosLugares'
 import { nuvensLigadas } from './nuvens'
 import { isContinente } from './marcadorDeContinente'
+import { contextoDeCamadas } from './camadas/consulta'
 import {
   resizeRectDrawing, resizeEllipseDrawing, resizePolygonDrawing, resizePropBox, resizeCircleDrawingRadius,
   drawingBoundingBox,
@@ -874,10 +875,23 @@ export type LadoDaPilha = 'cima' | 'baixo'
  */
 export function reordenarObjetos(map: MapData, ids: readonly string[], lado: LadoDaPilha): MapData {
   const escolhidos = new Set(ids)
-  const movidos = map.props.filter((p) => escolhidos.has(p.id))
-  if (movidos.length === 0) return map
-  const resto = map.props.filter((p) => !escolhidos.has(p.id))
-  const props = lado === 'cima' ? [...resto, ...movidos] : [...movidos, ...resto]
+  if (!map.props.some((p) => escolhidos.has(p.id))) return map
+  // Caça 12/11 (E12, decisão 16): a CAMADA manda sempre. Cada objeto só troca de lugar
+  // entre os da mesma camada, nas posições que eles já ocupam na lista; os de outra
+  // camada ficam onde estão. Ordem visível igual devolve o próprio mapa (sem passo vazio).
+  const camadas = contextoDeCamadas(map)
+  const camadaDe = (p: Prop) => camadas.camadaDe('objeto', p)
+  const props = [...map.props]
+  for (const camada of new Set(map.props.filter((p) => escolhidos.has(p.id)).map(camadaDe))) {
+    const posicoes = props.flatMap((p, i) => (camadaDe(p) === camada ? [i] : []))
+    const daCamada = posicoes.map((i) => props[i])
+    const movidos = daCamada.filter((p) => escolhidos.has(p.id))
+    const resto = daCamada.filter((p) => !escolhidos.has(p.id))
+    const nova = lado === 'cima' ? [...resto, ...movidos] : [...movidos, ...resto]
+    posicoes.forEach((posicao, k) => {
+      props[posicao] = nova[k]
+    })
+  }
   return props.every((p, i) => p === map.props[i]) ? map : { ...map, props }
 }
 
