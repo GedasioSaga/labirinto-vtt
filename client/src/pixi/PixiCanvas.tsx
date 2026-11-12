@@ -304,6 +304,7 @@ import {
   AVISO_PENHASCO_NADA_A_APAGAR,
   AVISO_PENHASCO_SEM_RELEVO,
   AVISO_PINCEL_SEM_ZONA,
+  AVISO_TEXTURA_AREA_GRANDE,
   AVISO_TEXTURA_BALDE_FORA,
   AVISO_TEXTURA_BALDE_IGUAL,
   AVISO_TEXTURA_AUSENTE,
@@ -432,6 +433,8 @@ function avisoDaTextura(resultado: ResultadoDaTextura): string | null {
       return AVISO_TEXTURA_NADA_A_APAGAR
     case 'fora-de-forma':
       return AVISO_TEXTURA_BALDE_FORA
+    case 'area-grande':
+      return AVISO_TEXTURA_AREA_GRANDE
     case 'igual':
       return AVISO_TEXTURA_BALDE_IGUAL
     case 'textura-ausente':

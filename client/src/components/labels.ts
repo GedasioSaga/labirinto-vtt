@@ -501,6 +501,7 @@ export const AVISO_PENHASCO_NADA_A_APAGAR = 'Não há penhasco aqui para apagar.
  */
 export const AVISO_TEXTURA_NADA_A_APAGAR = 'Não há textura aqui para apagar.'
 export const AVISO_TEXTURA_BALDE_FORA = 'Essa área não está fechada por paredes. O balde enche uma área fechada por paredes, uma região ou um desenho pintado.'
+export const AVISO_TEXTURA_AREA_GRANDE = 'Essa área tem paredes e pilares demais para o balde. Divida-a com paredes ou pinte com o pincel.'
 export const AVISO_TEXTURA_BALDE_IGUAL = 'Esta forma já está com esta textura e esta força.'
 export const AVISO_TEXTURA_AUSENTE = 'A textura escolhida não está nesta cena. Voltei para a Floresta; escolha outra na biblioteca, se quiser.'
 

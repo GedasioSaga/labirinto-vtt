@@ -115,6 +115,7 @@ import {
   FORCA_PADRAO,
   limitar,
   nomeDaTextura,
+  PONTOS_DA_AREA_MAX,
   PREFIXO_IMPORTADA,
   salasPorCimaDasTexturas,
   semTexturaImportada,
@@ -3227,6 +3228,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const area = areaFechadaPorParedes({ ...doPiso, walls: visibleWalls(doPiso.walls, map) }, ponto)
       const alvo = alvoComParedes(regioes, desenhos, ponto, area, doPiso.grid)
       if (alvo === null) return 'fora-de-forma'
+      // Contorno que a leitura do mapa salvo jogaria fora (a caverna de mil pilares): nada gravado, o clique avisa.
+      if (alvo.tipo === 'area' && alvo.pontos.length > PONTOS_DA_AREA_MAX) return 'area-grande'
       const antes = doPiso.texturas ?? []
       const passo: PinceladaDeTextura = esvaziar
         ? { id: crypto.randomUUID(), tipo: 'esvaziar', alvo }

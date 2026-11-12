@@ -68,6 +68,8 @@ export type ResultadoDaTextura =
   | 'igual'
   /** A textura escolhida não existe nesta cena (importada de outra cena ou desfeita, pacote que saiu): nada gravado. */
   | 'textura-ausente'
+  /** Área fechada por paredes com cantos demais (`PONTOS_DA_AREA_MAX`): o mapa salvo não a leria de volta; nada gravado. */
+  | 'area-grande'
   /** A camada Terreno está travada: nada gravado; a store já avisou com "Destravar". */
   | 'camada-travada'
 
@@ -115,7 +117,11 @@ function lerForca(valor: unknown): number | null {
   return typeof valor === 'number' && Number.isFinite(valor) && valor > 0 ? Math.min(FORCA_MAX, valor) : null
 }
 
-/** Pontos de mais no contorno de uma área vieram editados à mão: o passo sai (o mapa salvo não cresce sem limite). */
+/**
+ * Limite de pontos no contorno de uma ÁREA: acima dele a leitura descarta o
+ * passo (o mapa salvo não cresce sem limite), e o balde nem grava
+ * (`encherComTextura`): o que se cria abre de volta.
+ */
 export const PONTOS_DA_AREA_MAX = 20_000
 
 function lerAlvo(valor: unknown): AlvoDoBalde | null {

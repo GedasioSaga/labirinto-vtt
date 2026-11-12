@@ -4,6 +4,7 @@ import { useMapStore } from './mapStore'
 import { addRoom, createEmptyMap } from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { consultaDoChaoPintado } from '../lib/chaoPintado'
+import { lerTexturas } from '../lib/texturas'
 
 /**
  * BALDE DE TEXTURA NA ÁREA FECHADA POR PAREDES (pedido de 12/11/2026: "coloque
@@ -82,5 +83,22 @@ describe('Balde de Texturas na área fechada por paredes', () => {
     useMapStore.setState({ map: addRoom(createEmptyMap('m', 'M', 10, 10, 70), region, walls) })
     expect(useMapStore.getState().encherComTextura({ x: 200, y: 200 })).toBe('pintou')
     expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'regiao', id: 'sala' } })
+  })
+
+  it('caverna de pilares demais: o contorno passaria do que a leitura aceita; nada é gravado e o clique avisa', () => {
+    // Caverna 2000x2000 de paredes soltas com ~4.000 pilares quadrados de 12 px, a cada 30 px: o contorno da área tem ~21.600 pontos.
+    const walls: Wall[] = [parede('n', 20, 20, 1980, 20), parede('l', 1980, 20, 1980, 1980), parede('s', 1980, 1980, 20, 1980), parede('o', 20, 1980, 20, 20)]
+    for (let x = 60; x + 12 < 1960; x += 30) {
+      for (let y = 60; y + 12 < 1960; y += 30) {
+        const id = `${x}-${y}`
+        walls.push(parede(`${id}n`, x, y, x + 12, y), parede(`${id}l`, x + 12, y, x + 12, y + 12), parede(`${id}s`, x + 12, y + 12, x, y + 12), parede(`${id}o`, x, y + 12, x, y))
+      }
+    }
+    useMapStore.setState({ map: { ...createEmptyMap('m', 'M', 50, 50, 40), walls } })
+
+    const resultado = useMapStore.getState().encherComTextura({ x: 40, y: 40 })
+    // O que fica gravado abre de volta igual: o mapa salvo, lido de novo, não perde passo.
+    expect(lerTexturas(JSON.parse(JSON.stringify(passos()))) ?? [], 'a textura gravada some ao reabrir o mapa').toEqual(passos())
+    expect(resultado).toBe('area-grande')
   })
 })
