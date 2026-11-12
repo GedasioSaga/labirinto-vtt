@@ -28,7 +28,13 @@ export interface SementeDoDono {
 
 /** Cópia funda de uma cena: o teste nunca segura o objeto da sessão de verdade. */
 function copiarCena(cena: SavedSceneMemory): SavedSceneMemory {
-  return { ...cena, explored: { ...cena.explored }, doors: cena.doors.map((porta) => ({ ...porta })) }
+  const { secretasFechadas } = cena
+  return {
+    ...cena,
+    explored: { ...cena.explored },
+    doors: cena.doors.map((porta) => ({ ...porta })),
+    ...(secretasFechadas === undefined ? {} : { secretasFechadas: secretasFechadas.map((sala) => ({ id: sala.id, points: sala.points.map((p) => ({ ...p })) })) }),
+  }
 }
 
 /**

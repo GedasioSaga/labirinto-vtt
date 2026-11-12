@@ -2982,9 +2982,10 @@ interface PlayerMemory extends SceneMemory {
    * chão vazio; no recorte em que uma deixa de estar fechada (a ficha entrou,
    * o mestre desmarcou "secreta" ou apagou a sala), o lugar dela é apagado da
    * memória antes de marcar, para ele não "lembrar" um interior que nunca viu.
-   * Ausente = nenhum recorte ainda (memória nova ou da mesa retomada): toda
-   * sala secreta aberta no primeiro recorte conta como recém-aberta. Não vai
-   * para a mesa gravada.
+   * Ausente = nenhum recorte ainda (memória nova, ou da mesa gravada por uma
+   * versão sem o campo): toda sala secreta aberta no primeiro recorte conta
+   * como recém-aberta. Vai para a mesa gravada (`SavedSceneMemory`, só no
+   * arquivo do mestre) e volta na retomada (`restoredMemoryOf`).
    */
   secretasFechadas?: Map<string, RegionPoint[]>
 }
@@ -3122,6 +3123,8 @@ function savedSceneOf(memory: PlayerMemory): SavedSceneMemory {
     grid,
     explored: encodeExploration(memory.exp),
     doors: [...memory.doors].map(([wallId, door]) => savedDoorOf(wallId, door)),
+    // SALA SECRETA (N3): as fechadas do último recorte vão junto, para a retomada saber quais o explorado lembra como chão.
+    ...(memory.secretasFechadas === undefined ? {} : { secretasFechadas: [...memory.secretasFechadas].map(([id, points]) => ({ id, points })) }),
   }
 }
 
@@ -3156,6 +3159,10 @@ function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> 
     sentExplored: null,
     tokens: [],
     secretRooms: new Set(),
+    // SALA SECRETA (N3): as que estavam fechadas quando a mesa foi gravada. A que o mestre desmarcou ou apagou
+    // nesse meio-tempo tem o lugar apagado no primeiro recorte (`esquecerSalasQueAbriram`): nasce preta, não
+    // lembrada. Mesa de antes (sem o campo): ausente, e toda sala aberta conta como recém-aberta.
+    ...(scene.secretasFechadas === undefined ? {} : { secretasFechadas: new Map(scene.secretasFechadas.map((sala) => [sala.id, sala.points])) }),
   }
 }
 

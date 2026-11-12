@@ -10,7 +10,7 @@
  */
 
 import type { ExploredWire } from './exploration'
-import type { DoorKind, DoorState } from '../types/map'
+import type { DoorKind, DoorState, RegionPoint } from '../types/map'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
 import { normalizarCorDaPorta } from './corDaPorta'
 import { readPersonalNoteList, type PersonalNote } from './minhasNotas'
@@ -135,6 +135,22 @@ export interface SavedSceneMemory {
   grid: number
   explored: ExploredWire
   doors: SavedDoor[]
+  /**
+   * SALA SECRETA NA MEMÓRIA (caça de 12/11/2026, N3): as salas secretas
+   * FECHADAS para ele no último recorte (`PlayerMemory.secretasFechadas`), que
+   * o explorado lembra como chão vazio. Na retomada o host sabe quais eram e
+   * apaga o lugar da que abriu nesse meio-tempo (o mestre a desmarcou ou
+   * apagou): o interior nasce preto, não "lembrado". Ausente = mesa gravada
+   * antes disto, ou memória sem recorte: toda sala aberta conta como
+   * recém-aberta. Só no arquivo do mestre; nunca vai ao jogador.
+   */
+  secretasFechadas?: SavedSecretRoom[]
+}
+
+/** Uma sala secreta fechada da memória gravada: o id e o polígono do último recorte em que estava fechada. */
+export interface SavedSecretRoom {
+  id: string
+  points: RegionPoint[]
 }
 
 /** As cenas de um jogador, da usada há mais tempo à mais recente. */
@@ -152,6 +168,9 @@ export interface SavedExploration {
 const MAX_SAVED_SCENES = 16
 /** Teto de portas lidas por cena, pelo mesmo motivo. */
 const MAX_SAVED_DOORS = 4096
+/** Teto de salas secretas fechadas lidas por cena, e de pontos por sala, pelo mesmo motivo. */
+const MAX_SAVED_SECRET_ROOMS = 1024
+const MAX_SAVED_ROOM_POINTS = 4096
 const DOOR_KINDS: readonly DoorKind[] = ['normal', 'double', 'gate']
 
 export function savedExplorationKey(tableId: string): string {
@@ -205,9 +224,45 @@ function parseExploredWire(value: unknown): ExploredWire | null {
   return { cell, cols, rows, bits, rings, ringsFar }
 }
 
+function parseRoomPoint(value: unknown): RegionPoint | null {
+  if (!isRecord(value)) return null
+  const { x, y } = value
+  return typeof x === 'number' && typeof y === 'number' && Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
+function parseSecretRoom(value: unknown): SavedSecretRoom | null {
+  if (!isRecord(value)) return null
+  const { id, points } = value
+  if (typeof id !== 'string' || id === '' || !Array.isArray(points) || points.length > MAX_SAVED_ROOM_POINTS) return null
+  const parsed: RegionPoint[] = []
+  for (const raw of points) {
+    const point = parseRoomPoint(raw)
+    if (point === null) return null
+    parsed.push(point)
+  }
+  return { id, points: parsed }
+}
+
+/**
+ * A lista inteira ou nada: com UMA sala torta o host não saberia se ela estava
+ * fechada, e esquecer de menos deixaria o interior "lembrado". Torta ou grande
+ * demais = `undefined`, e o host cai no caso sem recorte (toda sala aberta é
+ * recém-aberta), o lado seguro.
+ */
+function parseSecretRooms(value: unknown): SavedSecretRoom[] | undefined {
+  if (!Array.isArray(value) || value.length > MAX_SAVED_SECRET_ROOMS) return undefined
+  const rooms: SavedSecretRoom[] = []
+  for (const raw of value) {
+    const room = parseSecretRoom(raw)
+    if (room === null) return undefined
+    rooms.push(room)
+  }
+  return rooms
+}
+
 function parseSceneMemory(value: unknown): SavedSceneMemory | null {
   if (!isRecord(value)) return null
-  const { mapId, width, height, grid, explored, doors } = value
+  const { mapId, width, height, grid, explored, doors, secretasFechadas } = value
   if (typeof mapId !== 'string' || mapId === '') return null
   if (!isPositiveNumber(width) || !isPositiveNumber(height) || !isPositiveNumber(grid)) return null
   const wire = parseExploredWire(explored)
@@ -216,7 +271,9 @@ function parseSceneMemory(value: unknown): SavedSceneMemory | null {
     .slice(0, MAX_SAVED_DOORS)
     .map(parseDoor)
     .filter((door): door is SavedDoor => door !== null)
-  return { mapId, width, height, grid, explored: wire, doors: seen }
+  // Mesa gravada por versão antiga não tem o campo: abre igual, sem ele.
+  const fechadas = secretasFechadas === undefined ? undefined : parseSecretRooms(secretasFechadas)
+  return { mapId, width, height, grid, explored: wire, doors: seen, ...(fechadas === undefined ? {} : { secretasFechadas: fechadas }) }
 }
 
 function parseSeatExploration(value: unknown): SavedSeatExploration | null {
