@@ -1,7 +1,7 @@
 import type { MaterialDaParede, Prop, RegionPoint, Wall } from '../types/map'
 import { ehMaterialDaParede, FORMATO_DA_IMAGEM } from '../texturas/paredes/catalogo'
 import { clampWallWidth, type WallWithStyle } from '../pixi/drawWalls'
-import { CONTORNO_PX } from '../pixi/paredeEmPecas'
+import { CONTORNO_PX } from './contornoDaParede'
 import { ehMovelDoChao } from './mobilia'
 
 /**

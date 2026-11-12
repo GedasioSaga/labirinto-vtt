@@ -1,3 +1,4 @@
+import { CONTORNO_PX } from '../lib/contornoDaParede'
 import { AJUSTE_DO_RELEVO } from '../lib/relevo'
 import { COR, FORMATO_DA_IMAGEM, materialDoCatalogo, MATERIAIS_DA_PAREDE, PONTO, RAMPA, type ReceitaDaParede } from '../texturas/paredes/catalogo'
 import type { MaterialDaParede } from '../types/map'
@@ -49,8 +50,8 @@ export interface MalhaEmPecas {
 
 // ---------- medidas comuns (px do mundo a 64 px por casa) ----------
 
-/** O contorno, no tom escuro da própria cor. */
-export const CONTORNO_PX = 1.25
+/** O contorno, no tom escuro da própria cor (mora em `lib/contornoDaParede.ts`: a conta pura da névoa também mede com ele). */
+export { CONTORNO_PX }
 /** A sombra de contato: quanto anda (cresce com a espessura: parede grossa é mais alta), o alfa e a borda macia. */
 const SOMBRA = { andaBase: 3.5, andaPorEspessura: 0.16, alfa: 0.36, macia: 4 } as const
 /** A oclusão em volta da parede inteira (assenta a parede no chão também do lado da luz). */
