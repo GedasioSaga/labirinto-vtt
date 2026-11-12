@@ -145,7 +145,7 @@ describe('main.tsx: levar o mapa e o caderno para casa', () => {
 
   it('sala encerrada: "Guardar meu caderno" ainda baixa o que ele conhece', async () => {
     act(() => mestre().manda({ type: 'room.closed' }))
-    expect(document.body.textContent).toContain('O mestre encerrou a sala.')
+    expect(document.body.textContent).toContain('O mestre encerrou a mesa online.')
     act(() => botao('Guardar meu caderno').click())
 
     expect(baixados.length).toBe(2)

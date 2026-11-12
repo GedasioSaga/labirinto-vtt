@@ -167,6 +167,6 @@ describe('main.tsx: a tela do celular não apaga durante a sessão', () => {
     expect(trava.release).toHaveBeenCalled()
     expect(trava.released).toBe(true)
     expect(selo()).toBeNull()
-    expect(document.body.textContent).toContain('Você foi removido da sala')
+    expect(document.body.textContent).toContain('Você foi removido da mesa online')
   })
 })

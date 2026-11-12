@@ -75,7 +75,8 @@ describe('loadPlayerSettings e savePlayerSettings: o interruptor sobrevive a rec
   it('sem escolha, nada do interruptor vai para o armazenamento (o padrão continua sendo do aparelho)', () => {
     const guardado = memoria()
     savePlayerSettings(guardado, { ...DEFAULT_PLAYER_SETTINGS, exploredBrightness: 0.8 })
-    expect(JSON.parse(guardado.dados[PLAYER_SETTINGS_KEY] ?? 'null')).toEqual({ exploredBrightness: 0.8, showGrid: false, showNames: true })
+    // `versao: 2` (commit 7ac577b4): marca o brilho já no padrão novo, para a migração do 0,55 não mexer nele de novo.
+    expect(JSON.parse(guardado.dados[PLAYER_SETTINGS_KEY] ?? 'null')).toEqual({ exploredBrightness: 0.8, showGrid: false, showNames: true, versao: 2 })
     savePlayerSettings(guardado, { ...DEFAULT_PLAYER_SETTINGS, followOwnToken: false })
     expect(loadPlayerSettings(guardado).followOwnToken).toBe(false)
   })

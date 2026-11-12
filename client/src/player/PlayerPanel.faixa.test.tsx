@@ -216,13 +216,13 @@ describe('PlayerPanel na gramática do grimório (fatia 19a)', () => {
     expect(botoes().at(-1)?.textContent).toBe('Sair')
 
     act(() => botoes().at(-1)?.click())
-    const pergunta = abaJogo().querySelector<HTMLElement>('[role="group"][aria-label="Sair da sala e deste aparelho"]')
+    const pergunta = abaJogo().querySelector<HTMLElement>('[role="group"][aria-label="Sair da mesa online e deste aparelho"]')
     if (!pergunta) throw new Error('sem a pergunta do segundo toque')
     expect(document.activeElement).toBe(botaoComTexto(pergunta, 'Sair'))
     expect(botaoComTexto(pergunta, 'Ficar')).toBeTruthy()
 
     act(() => pergunta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    expect(abaJogo().querySelector('[aria-label="Sair da sala e deste aparelho"]')).toBeNull()
+    expect(abaJogo().querySelector('[aria-label="Sair da mesa online e deste aparelho"]')).toBeNull()
     expect(botoes().at(-1)?.textContent).toBe('Sair')
   })
 

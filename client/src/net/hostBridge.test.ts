@@ -259,11 +259,11 @@ describe('hostBridge', () => {
     expect(t.invoke).toHaveBeenLastCalledWith('net_stop_room')
   })
 
-  it('"torná-la pública" sem sala aberta: o aviso ensina e fica até o mestre dispensar, sem chamar o túnel', () => {
+  it('"torná-la pública" sem mesa online aberta: o aviso ensina e fica até o mestre dispensar, sem chamar o túnel', () => {
     vi.useFakeTimers()
     const t = setup()
     void t.bridge.startTunnel()
-    const aviso = useToastStore.getState().toasts.find((toast) => toast.text === 'Abra a sala antes de torná-la pública')
+    const aviso = useToastStore.getState().toasts.find((toast) => toast.text === 'Abra a mesa online antes de torná-la pública')
     if (aviso === undefined) throw new Error('o mestre deveria ver o aviso')
     expect(aviso.kind).toBe('instrucao')
     // Bem depois do prazo de um erro comum (7 s): continua na tela.

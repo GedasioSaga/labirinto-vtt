@@ -11,7 +11,7 @@ import { TRAVEL_LOG_MAX, addTravel, nomeNoVeiculo, travelClock, travelLine, trav
 const ficha = (id: string, name: string, x: number, y: number): Token => ({ id, characterId: null, name, x, y, size: 1, image: null })
 
 const mundo: HostWorld = {
-  open: { sceneId: 's-a', name: 'Salão', map: { ...createEmptyMap('m-a', 'A', 30, 10, 50), tokens: [ficha('t-ana', 'Ana', 700, 300)] } },
+  open: { sceneId: 's-a', name: 'Salão', map: { ...createEmptyMap('m-a', 'A', 30, 10, 50), tokens: [{ ...ficha('t-ana', 'Ana', 700, 300), size: 2 }] } },
   background: [{ sceneId: 's-b', name: 'Cripta', map: { ...createEmptyMap('m-b', 'B', 30, 10, 50), tokens: [ficha('t-bia', 'Bia', 100, 100)] } }],
 }
 
@@ -45,7 +45,7 @@ function entrada(id: string, playerId: string, over: Partial<TravelLogEntry> = {
 }
 
 describe('travelLogEntry: a linha nasce da transferência e do mundo ANTES de a ficha sair', () => {
-  it('guarda nome da ficha, as duas cenas pelo nome do mestre e a casa de onde a ficha saiu', () => {
+  it('guarda nome da ficha, as duas cenas pelo nome do mestre, a casa de onde a ficha saiu e o tamanho dela na partida', () => {
     expect(travelLogEntry(transfer(), mundo, 1234, 'v1')).toEqual({
       id: 'v1',
       at: 1234,
@@ -56,6 +56,8 @@ describe('travelLogEntry: a linha nasce da transferência e do mundo ANTES de a 
       fromSceneName: 'Salão',
       fromX: 700,
       fromY: 300,
+      // K 8 (2cc765dc): o lado na partida, para o Desfazer devolver a ficha no tamanho de antes.
+      fromSize: 2,
       toSceneId: 's-b',
       toSceneName: 'Cripta',
     })

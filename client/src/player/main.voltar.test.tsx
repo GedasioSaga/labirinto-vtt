@@ -120,7 +120,7 @@ describe('página do jogador: voltar por aba nova é a mesma pessoa', () => {
     velha.receive({ type: 'welcome', playerId: 'p1', resumeToken: 'tok', name: 'Ana' })
     velha.receive({ type: 'session.replaced' })
     velha.drop()
-    expect(document.body.textContent).toContain('Você abriu a sala em outra aba ou aparelho.')
+    expect(document.body.textContent).toContain('Você abriu a mesa online em outra aba ou aparelho.')
     const usarAqui = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Usar aqui')
     if (usarAqui === undefined) throw new Error('esperava o botão "Usar aqui"')
     act(() => {

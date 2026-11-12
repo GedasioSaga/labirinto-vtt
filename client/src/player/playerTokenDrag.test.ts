@@ -11,20 +11,20 @@ function cena(patch: Partial<MapData> = {}): MapData {
 }
 
 describe('previewTokenDrag (arrasto da própria ficha)', () => {
-  it('mostra "6 quadrados" junto ao dedo, com a mesma régua do Medir', () => {
+  it('mostra "6 casas" junto ao dedo (um nome só, E20), com a mesma régua do Medir', () => {
     expect(previewTokenDrag(cena(), origem, { x: 125 + 6 * GRID, y: 125 + 3 * GRID })).toEqual({
       at: { x: 425, y: 275 },
-      label: '6 quadrados',
+      label: '6 casas',
     })
   })
 
   it('Passo 6 nas Docas: o dedo vai a 30 casas, a ficha para na sexta e o rótulo diz 6', () => {
     const preview = previewTokenDrag(cena({ movement: { maxStepCells: 6 } }), origem, { x: 125 + 30 * GRID, y: 125 })
-    expect(preview).toEqual({ at: { x: 425, y: 125 }, label: '6 quadrados' })
+    expect(preview).toEqual({ at: { x: 425, y: 125 }, label: '6 casas' })
   })
 
-  it('Mercado livre: 30 casas são 30 quadrados', () => {
-    expect(previewTokenDrag(cena(), origem, { x: 125 + 30 * GRID, y: 125 }).label).toBe('30 quadrados')
+  it('Mercado livre: o dedo a 30 casas diz 30 casas', () => {
+    expect(previewTokenDrag(cena(), origem, { x: 125 + 30 * GRID, y: 125 }).label).toBe('30 casas')
   })
 
   it('ficha que não saiu da casa não mostra rótulo', () => {
