@@ -31,6 +31,7 @@
 import { hash, misturar, type Rgb } from '../../ruido'
 import { capsula, elipse, elipseGirada, menos, poligono, type Caixa, type Forma, type Ponto } from './formas'
 import { contato, ruido, type Cena, type CriarPeca, type MaterialDaPeca, type Peca, type Projecao, type Textura } from './motor'
+import { ESCURO_DO_OURO, MASSA_DO_OURO, OURO } from './tesouroDeOuro'
 
 // ---------- as cores (fixas) ----------
 
@@ -72,14 +73,14 @@ export function corDoTom(p: Paleta, t: number): Rgb {
 
 /**
  * O ouro velho: o MESMO ouro das barras e moedas do tesouro (`tesouroDeOuro.ts`, o `OURO`, saturação HSV 0,54),
- * copiado e não importado, para as joias e o ouro do monte serem um metal só. Classe metal: o motor põe o brilho
- * no chanfro e o grão do metal.
+ * importado de lá para as joias e o ouro do monte serem um metal só. Classe metal: o motor põe o brilho no chanfro
+ * e o grão do metal.
  */
-export const OURO_VELHO: MaterialDaPeca = { classe: 'metal', rgb: [188, 152, 86] }
-/** O ouro na sombra (o sulco entalhado, o vão entre as peças): o escuro do ouro do tesouro. */
-export const OURO_NA_SOMBRA: MaterialDaPeca = { classe: 'liso', rgb: [92, 71, 46] }
+export const OURO_VELHO: MaterialDaPeca = OURO
+/** O ouro na sombra (o sulco entalhado, o vão entre as peças): o escuro do ouro do tesouro (`ESCURO_DO_OURO`). */
+export const OURO_NA_SOMBRA: MaterialDaPeca = { classe: 'liso', rgb: ESCURO_DO_OURO }
 /** A massa de ouro do fundo do monte de joias: a do monte de ouro (`MASSA_DO_OURO`). */
-export const MASSA_DE_OURO: Rgb = [128, 101, 60]
+export const MASSA_DE_OURO: Rgb = MASSA_DO_OURO.rgb
 /** O brilho do ouro no chanfro (o do latão do motor é 0,42): mais lustroso que o latão gasto. */
 export const BRILHO_DO_OURO = 0.5
 /** A pérola: creme. */
@@ -579,8 +580,7 @@ export function aoLongo(pontos: readonly Ponto[], passo: number): [number, numbe
   return saida
 }
 
-/** O passo dos elos e as medidas do elo deitado (a argola vista de cima) e do elo de pé (visto de lado), em frações do elo. */
-const PASSO_DO_ELO = 1.1
+/** As medidas do elo deitado (a argola vista de cima) e do elo de pé (visto de lado), em frações do elo. */
 const ELO_COMPRIDO = 0.75
 const ELO_LARGO = 0.5
 const FURO_COMPRIDO = 0.4

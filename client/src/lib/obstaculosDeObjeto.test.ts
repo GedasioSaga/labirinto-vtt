@@ -69,7 +69,8 @@ const BARROU = { ok: false, reason: 'objeto' }
 
 describe('quem barra', () => {
   it('a lista de saída: construções e objetos grandes de rua barram; chão, móvel de sala e imagem não', () => {
-    const barram: TipoMobilia[] = ['moinho', 'cataVento', 'mausoleu', 'poco', 'chafariz', 'estatua', 'anjoDePedra', 'pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado', 'pedrasERochas', 'arvoreSeca', 'carroca', 'carrocaQuebrada', 'tonelDeAdega', 'barraca']
+    // As duas torres do lote 17 (12/11/2026) entraram quando foram registradas no catálogo.
+    const barram: TipoMobilia[] = ['moinho', 'cataVento', 'mausoleu', 'poco', 'chafariz', 'estatua', 'anjoDePedra', 'pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado', 'pedrasERochas', 'arvoreSeca', 'carroca', 'carrocaQuebrada', 'tonelDeAdega', 'barraca', 'torreDePedra', 'torreDeVigia']
     for (const tipo of barram) expect(ehMovelQueBarra(tipo), tipo).toBe(true)
     const passam: TipoMobilia[] = ['tapete', 'mesa', 'cerca', 'tendaDeAdivinha', 'ponte']
     for (const tipo of passam) expect(ehMovelQueBarra(tipo), tipo).toBe(false)

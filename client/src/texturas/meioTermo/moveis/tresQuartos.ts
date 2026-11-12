@@ -47,6 +47,10 @@ import { ESPESSURA_DA_TRAVE_DO_GANCHO } from './ganchoComCarne'
 import { ESPESSURA_DA_FIADA_DO_MURO } from './muroBaixoDePedra'
 import { ESPESSURA_DA_ESPIRA } from './colmeia'
 import { ESPESSURA_DA_VIGA_DO_POTRO } from './potroDeTortura'
+import { ESPESSURA_DA_TOCHA_DE_PAREDE } from './tochaDeParede'
+import { ALTURA_DO_CESTO_DA_TOCHA } from './tochaDePe'
+import { ESPESSURA_DA_FIADA_DA_TORRE } from './torreDePedra'
+import { ESPESSURA_DA_TORRE_DE_VIGIA } from './torreDeVigia'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -473,6 +477,32 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   estanteDePocoes: DERIVADO,
   bolaDeCristal: { modo: 'derivado', espessura: 0 },
   pedestalComLivro: { modo: 'derivado', espessura: 0 },
+  // Lote 17 dos objetos novos (12/11/2026), o tesouro. A barra de ouro fica como de cima, como a âncora: é ouro
+  // deitado no chão, baixo; derivada, a frente varrida virava um pedestal debaixo das rampas. A moeda é uma coluna
+  // fininha, e a frente mostra a grossura dela. Os quatro montes são chão com altura: o anel e o miolo sobem em
+  // degraus baixos (as estruturas soltas que o desenho declara), sem beirada, e o flanco de cada degrau é pintado
+  // na massa de baixo. O diamante e a joia sobem em tampos soltos, também sem beirada.
+  barraDeOuro: EM_PE,
+  monteDeOuro: { modo: 'derivado', espessura: 0 },
+  moedaDeOuro: DERIVADO,
+  monteDeMoedasDeOuro: { modo: 'derivado', espessura: 0 },
+  diamante: { modo: 'derivado', espessura: 0 },
+  monteDeDiamantes: { modo: 'derivado', espessura: 0 },
+  joia: { modo: 'derivado', espessura: 0 },
+  monteDeJoias: { modo: 'derivado', espessura: 0 },
+  // O resto do lote 17 (12/11/2026). A teia de aranha é rente, como o círculo mágico: nada sobe e a 3/4 sai igual
+  // à vista de cima (`tresQuartos.test.ts` a dispensa das regras de subir, na lista dos rentes). Nas duas tochas a
+  // beirada de cada tampo (a chapa, o cabo e o rolo da cabeça; as metades do cesto e a cabeça) TEM de ser a
+  // espessura que o desenho exporta; a chama animada sobe até a cabeça (`deslocamentoDaChama`). O crânio é
+  // desenhado de frente nas duas vistas, como a lápide. A tenda é desenhada na tela em grupos presos a âncoras,
+  // como a tenda de adivinha. Nas torres a beirada é a fiada de pedra e a tábua da torre de vigia, as do desenho.
+  teiaDeAranha: DERIVADO,
+  tochaDeParede: { modo: 'derivado', espessura: ESPESSURA_DA_TOCHA_DE_PAREDE },
+  tochaDePe: { modo: 'derivado', espessura: ALTURA_DO_CESTO_DA_TOCHA },
+  cranio: EM_PE,
+  tenda: { modo: 'derivado', espessura: 0 },
+  torreDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE },
+  torreDeVigia: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_VIGIA },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

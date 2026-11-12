@@ -45,6 +45,8 @@ export const PECAS_NOVAS = [
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
+  'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
+  'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -365,6 +367,31 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   estanteDePocoes: { rotulo: 'Estante de poções', artigo: 'uma estante de poções', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
   bolaDeCristal: { rotulo: 'Bola de cristal', artigo: 'uma bola de cristal', tamanho: { largura: 1, altura: 1 }, redonda: true },
   pedestalComLivro: { rotulo: 'Pedestal com livro aberto', artigo: 'um pedestal com livro aberto', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
+  // Lote 17 dos objetos novos (12/11/2026), o tesouro: cada um sozinho e em monte ("como objeto única e em
+  // poças", pediu o mestre). O ouro e as pedras são cor fixa (a tabela de materiais não tem ouro nem pedra
+  // preciosa) e o brilho é pintado: nenhum acende luz. Os quatro montes moram no chão COM altura (como a cela):
+  // o baú, o trono ou a ficha que o mestre põe em cima saem por cima; esticados, ganham peças, nunca peças
+  // esticadas. A moeda e o diamante são grandes de propósito, para se verem no mapa.
+  barraDeOuro: { rotulo: 'Barra de ouro', artigo: 'uma barra de ouro', tamanho: { largura: 0.6, altura: 0.3 }, redonda: false },
+  monteDeOuro: { rotulo: 'Monte de ouro', artigo: 'um monte de ouro', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  moedaDeOuro: { rotulo: 'Moeda de ouro', artigo: 'uma moeda de ouro', tamanho: { largura: 0.4, altura: 0.4 }, redonda: true },
+  monteDeMoedasDeOuro: { rotulo: 'Monte de moedas de ouro', artigo: 'um monte de moedas de ouro', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  diamante: { rotulo: 'Diamante', artigo: 'um diamante', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  monteDeDiamantes: { rotulo: 'Monte de diamantes', artigo: 'um monte de diamantes', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  joia: { rotulo: 'Joia', artigo: 'uma joia', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  monteDeJoias: { rotulo: 'Monte de joias', artigo: 'um monte de joias', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  // O resto do lote 17 (12/11/2026). A teia de aranha é rente, mas NÃO mora no chão: fica por cima do móvel ou
+  // da parede em que o mestre a encosta. As duas tochas têm o fogo de casa do braseiro (Aceso | Apagado,
+  // `lib/mobilia/fogoDeCasa.ts`); a de parede encosta a beira de cima na parede e gira para as outras. O crânio
+  // é desenhado de frente, como a lápide. A tenda é a de acampamento, de lona crua (não é a tenda de adivinha).
+  // As duas torres barram a passagem do jogador (`ehMovelQueBarra` em `lib/mobilia.ts`).
+  teiaDeAranha: { rotulo: 'Teia de aranha', artigo: 'uma teia de aranha', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  tochaDeParede: { rotulo: 'Tocha de parede', artigo: 'uma tocha de parede', tamanho: { largura: 0.4, altura: 0.5 }, redonda: false },
+  tochaDePe: { rotulo: 'Tocha de pé', artigo: 'uma tocha de pé', tamanho: { largura: 0.6, altura: 0.6 }, redonda: true },
+  cranio: { rotulo: 'Crânio', artigo: 'um crânio', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  tenda: { rotulo: 'Tenda', artigo: 'uma tenda', tamanho: { largura: 2, altura: 2.5 }, redonda: false },
+  torreDePedra: { rotulo: 'Torre de pedra', artigo: 'uma torre de pedra', tamanho: { largura: 3, altura: 3 }, redonda: true },
+  torreDeVigia: { rotulo: 'Torre de vigia', artigo: 'uma torre de vigia', tamanho: { largura: 2, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -521,6 +548,21 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     estanteDePocoes: valor(f.estanteDePocoes),
     bolaDeCristal: valor(f.bolaDeCristal),
     pedestalComLivro: valor(f.pedestalComLivro),
+    barraDeOuro: valor(f.barraDeOuro),
+    monteDeOuro: valor(f.monteDeOuro),
+    moedaDeOuro: valor(f.moedaDeOuro),
+    monteDeMoedasDeOuro: valor(f.monteDeMoedasDeOuro),
+    diamante: valor(f.diamante),
+    monteDeDiamantes: valor(f.monteDeDiamantes),
+    joia: valor(f.joia),
+    monteDeJoias: valor(f.monteDeJoias),
+    teiaDeAranha: valor(f.teiaDeAranha),
+    tochaDeParede: valor(f.tochaDeParede),
+    tochaDePe: valor(f.tochaDePe),
+    cranio: valor(f.cranio),
+    tenda: valor(f.tenda),
+    torreDePedra: valor(f.torreDePedra),
+    torreDeVigia: valor(f.torreDeVigia),
   }
 }
 
@@ -553,8 +595,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 16 dos objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o mestre
-  // os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 a 17 dos objetos novos (11 e 12/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
@@ -570,6 +612,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
+  'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
+  'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
 ]
 
 /**
@@ -2312,6 +2356,180 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: 0, y1: lN, x2: 0, y2: lS },
         ...[-m * 0.2, m * 0.02].flatMap((y) => [linha(-lw * 0.82, y, -lw * 0.16), linha(lw * 0.16, y, lw * 0.82)]),
         { x1: m * 0.06, y1: lS - m * 0.08, x2: m * 0.1, y2: yS + m * 0.14 },
+      ]
+    }
+    case 'barraDeOuro': {
+      // De cima, deitada: a base, a face de cima recuada (as rampas em volta), o cartucho redondo da marca para a esquerda e os três riscos do ensaiador (a pilha de lingotes é um estrado com barras arrumadas).
+      // O cartucho mede pelo lado menor: na barra deitada é a altura, como na ficha; na barra em pé não passa da beira.
+      const cartucho = Math.min(largura, altura) * 0.42
+      return [
+        ...quadro(-hw * 0.95, -hh * 0.88, hw * 0.95, hh * 0.88),
+        ...quadro(-hw * 0.79, -hh * 0.58, hw * 0.79, hh * 0.58),
+        ...aro(cartucho, cartucho, -hw * 0.33, 0),
+        { x1: hw * 0.17, y1: -hh * 0.23, x2: hw * 0.17, y2: hh * 0.23 },
+        { x1: hw * 0.27, y1: -hh * 0.23, x2: hw * 0.27, y2: hh * 0.23 },
+        { x1: hw * 0.36, y1: -hh * 0.23, x2: hw * 0.36, y2: hh * 0.23 },
+      ]
+    }
+    case 'monteDeOuro': {
+      // De cima: o contorno irregular do monte, três barras jogadas no meio, cada uma num rumo, e as duas barras soltas fora, nas quinas (o monte de moedas tem moedas redondas; a pilha de lingotes, barras arrumadas num estrado).
+      const menor = Math.min(largura, altura)
+      const [meioComprimento, meiaLargura] = [0.15, 0.066]
+      const cantos: readonly (readonly [number, number])[] = [[-meioComprimento, -meiaLargura], [meioComprimento, -meiaLargura], [meioComprimento, meiaLargura], [-meioComprimento, meiaLargura]]
+      const barra = (cx: number, cy: number, rumo: number): Traco[] =>
+        fechado(cantos.map(([u, v]): readonly [number, number] => [cx + (u * Math.cos(rumo) - v * Math.sin(rumo)) * menor, cy + (u * Math.sin(rumo) + v * Math.cos(rumo)) * menor]))
+      // A barra solta fica na quina sem passar da beira do objeto (2% de folga, para o arredondamento não a pôr
+      // um fio para fora): o meio dela recua o quanto ela ocupa de lado no rumo dela.
+      const naQuina = (fracao: number, rumo: number): number =>
+        Math.min(hw * fracao, hw * 0.98 - (meioComprimento * Math.abs(Math.cos(rumo)) + meiaLargura * Math.abs(Math.sin(rumo))) * menor)
+      return [
+        ...fechado([[-hw * 0.88, -hh * 0.06], [-hw * 0.58, -hh * 0.6], [hw * 0.02, -hh * 0.78], [hw * 0.6, -hh * 0.58], [hw * 0.86, -hh * 0.02], [hw * 0.56, hh * 0.62], [-hw * 0.06, hh * 0.74], [-hw * 0.62, hh * 0.52]]),
+        ...barra(-hw * 0.24, -hh * 0.02, 0.35),
+        ...barra(hw * 0.2, -hh * 0.24, 1.95),
+        ...barra(hw * 0.12, hh * 0.32, -0.45),
+        ...barra(naQuina(0.78, 0.5), hh * 0.66, 0.5),
+        ...barra(-naQuina(0.84, -0.3), -hh * 0.66, -0.3),
+      ]
+    }
+    case 'moedaDeOuro':
+      // De cima: o disco, o aro de dentro (o sulco da borda em cordão) e a coroa de três pontas no meio.
+      return [
+        ...aro(largura * 0.92, altura * 0.92),
+        ...aro(largura * 0.65, altura * 0.65),
+        ...fechado([[-hw * 0.3, hh * 0.22], [-hw * 0.36, -hh * 0.2], [-hw * 0.14, hh * 0.02], [0, -hh * 0.28], [hw * 0.14, hh * 0.02], [hw * 0.36, -hh * 0.2], [hw * 0.3, hh * 0.22]]),
+      ]
+    case 'monteDeMoedasDeOuro': {
+      // De cima: o contorno irregular do monte, a pilhinha tombada em leque (três moedas deslizadas), duas moedas inteiras por cima e duas soltas fora, nas quinas (o monte de ouro tem barras).
+      const d = Math.min(largura, altura) * 0.116
+      const moeda = (cx: number, cy: number, achatado = 1): Traco[] => aro(d, d * achatado, cx, cy)
+      return [
+        ...fechado([[-hw * 0.9, -hh * 0.12], [-hw * 0.62, -hh * 0.62], [-hw * 0.02, -hh * 0.76], [hw * 0.56, -hh * 0.6], [hw * 0.82, -hh * 0.02], [hw * 0.6, hh * 0.6], [-hw * 0.04, hh * 0.76], [-hw * 0.64, hh * 0.58]]),
+        ...moeda(-hw * 0.3, hh * 0.06, 0.56),
+        ...moeda(-hw * 0.3 + d * 0.38, hh * 0.06 - d * 0.2, 0.56),
+        ...moeda(-hw * 0.3 + d * 0.76, hh * 0.06 - d * 0.4, 0.56),
+        ...moeda(hw * 0.3, -hh * 0.28),
+        ...moeda(hw * 0.12, hh * 0.4),
+        ...moeda(-hw * 0.78, hh * 0.66),
+        ...moeda(hw * 0.82, -hh * 0.62),
+      ]
+    }
+    case 'diamante': {
+      // De cima: a cinta da pedra caída (uma oval), a mesa octogonal fora do meio, para cima à esquerda, e quatro arestas da mesa até a cinta (a joia é o medalhão com a corrente em volta; o monte de diamantes, a poça de lóbulos com pedrinhas).
+      const r = Math.min(largura, altura) / 2
+      const mesa = Array.from({ length: 8 }, (_, i): readonly [number, number] => [-r * 0.14 + r * 0.3 * Math.cos(((2 * i + 1) * Math.PI) / 8), -r * 0.18 + r * 0.24 * Math.sin(((2 * i + 1) * Math.PI) / 8)])
+      const aresta = ([x, y]: readonly [number, number]): Traco => ({ x1: x, y1: y, x2: -r * 0.14 + (x + r * 0.14) * 2.3, y2: -r * 0.18 + (y + r * 0.18) * 2.3 })
+      return [...aro(r * 1.64, r * 1.34), ...fechado(mesa), aresta(mesa[0]), aresta(mesa[2]), aresta(mesa[4]), aresta(mesa[6])]
+    }
+    case 'monteDeDiamantes': {
+      // De cima: a poça (um aro por fora), as três pedras grandes do alto (octógonos) e duas soltas fora da beira (o monte de joias tem o colar e a taça; o de moedas, discos).
+      const pedra = (cx: number, cy: number, r: number): Traco[] => fechado(Array.from({ length: 8 }, (_, i): readonly [number, number] => [cx + r * Math.cos(((2 * i + 1) * Math.PI) / 8), cy + r * Math.sin(((2 * i + 1) * Math.PI) / 8)]))
+      return [
+        ...aro(largura * 0.84, altura * 0.8),
+        ...pedra(-hw * 0.16, -hh * 0.2, hw * 0.14),
+        ...pedra(hw * 0.22, -hh * 0.04, hw * 0.13),
+        ...pedra(-hw * 0.03, hh * 0.22, hw * 0.12),
+        ...pedra(-hw * 0.94, hh * 0.3, hw * 0.06),
+        ...pedra(hw * 0.92, -hh * 0.52, hw * 0.06),
+      ]
+    }
+    case 'joia': {
+      // De cima: a oval do medalhão, o aro do engaste com a pedra, a argola em cima e a corrente que dá a volta pela direita e por baixo até o fecho (o diamante é a pedra sozinha; o monte de joias, a poça cheia de aros e colares).
+      const r = Math.min(largura, altura) / 2
+      const corrente: readonly (readonly [number, number])[] = [[0.1, -0.7], [0.34, -0.68], [0.62, -0.5], [0.8, -0.16], [0.78, 0.24], [0.56, 0.58], [0.2, 0.78], [-0.2, 0.8], [-0.54, 0.66], [-0.78, 0.4], [-0.86, 0.08]]
+      return [
+        ...aro(r * 0.96, r * 1.1, -r * 0.12, -r * 0.14),
+        ...aro(r * 0.6, r * 0.68, -r * 0.12, -r * 0.14),
+        ...aro(r * 0.2, r * 0.16, r * 0.1, -r * 0.72),
+        ...corrente.slice(1).map(([x, y], i): Traco => ({ x1: corrente[i][0] * r, y1: corrente[i][1] * r, x2: x * r, y2: y * r })),
+      ]
+    }
+    case 'monteDeJoias': {
+      // De cima: a poça (um aro por fora), o colar de pérolas atravessando de um lado ao outro, a taça tombada à direita (a haste e a boca) e dois anéis (o monte de diamantes tem só pedras; o de moedas, discos).
+      const colar: readonly (readonly [number, number])[] = [[-0.98, 0.42], [-0.66, 0.22], [-0.36, 0.36], [-0.06, 0.16], [0.24, 0.32], [0.5, 0.1], [0.62, -0.12]]
+      return [
+        ...aro(largura * 0.84, altura * 0.8),
+        ...colar.slice(1).map(([x, y], i): Traco => ({ x1: colar[i][0] * hw, y1: colar[i][1] * hh, x2: x * hw, y2: y * hh })),
+        { x1: hw * 0.34, y1: -hh * 0.44, x2: hw * 0.56, y2: -hh * 0.14 },
+        ...aro(hw * 0.14, hh * 0.36, hw * 0.64, -hh * 0.05),
+        ...aro(hw * 0.12, hw * 0.12, -hw * 0.3, -hh * 0.5),
+        ...aro(hw * 0.1, hw * 0.1, hw * 0.1, hh * 0.6),
+      ]
+    }
+    case 'teiaDeAranha': {
+      // A teia de cima: sete raios saindo do miolo (um pouco acima e à esquerda do meio, como no desenho) e duas voltas tortas da espiral ligando os raios.
+      const menor = Math.min(largura, altura)
+      const [mx, my] = [-hw * 0.13, -hh * 0.1]
+      const rumos = [-104, -55, -10, 38, 90, 140, 190].map((graus) => (graus * Math.PI) / 180)
+      const volta = (r: number): Traco[] => fechado(rumos.map((a): readonly [number, number] => [mx + Math.cos(a) * r, my + Math.sin(a) * r]))
+      return [
+        ...rumos.map((a): Traco => ({ x1: mx, y1: my, x2: mx + Math.cos(a) * menor * 0.4, y2: my + Math.sin(a) * menor * 0.4 })),
+        ...volta(menor * 0.17),
+        ...volta(menor * 0.31),
+      ]
+    }
+    case 'tochaDeParede': {
+      // A chapa rente à parede (a beira de cima), o braço até a argola e a cabeça oval um pouco além dela.
+      const r = Math.min(hw, hh)
+      return [
+        { x1: -0.28 * r, y1: -hh, x2: 0.28 * r, y2: -hh },
+        { x1: 0, y1: -hh, x2: 0, y2: -hh + 0.55 * r },
+        ...aro(0.64 * r, 0.8 * r, 0, -hh + 0.91 * r),
+      ]
+    }
+    case 'tochaDePe': {
+      // O aro do cesto com a cabeça dentro e as três pernas do tripé saindo dele (a de trás e as duas da frente).
+      const pe = (graus: number): Traco => {
+        const a = (graus * Math.PI) / 180
+        return { x1: Math.cos(a) * hw * 0.44, y1: Math.sin(a) * hh * 0.44, x2: Math.cos(a) * hw * 0.86, y2: Math.sin(a) * hh * 0.86 }
+      }
+      return [...aro(largura * 0.44, altura * 0.44), ...aro(largura * 0.27, altura * 0.27), pe(30), pe(150), pe(270)]
+    }
+    case 'cranio': {
+      // O crânio de frente, como no desenho: a cúpula, as duas órbitas, o nariz em ponta, o queixo de cima com a linha dos dentes e, caída à esquerda, a mandíbula em L (os ossos têm o crânio pequeno no canto, a coluna e as costelas).
+      const u = Math.min(largura, altura) / 28
+      return [
+        ...aro(19 * u, 17 * u, 2 * u, -3.6 * u),
+        ...aro(5.4 * u, 4.7 * u, -0.6 * u, 0.4 * u),
+        ...aro(4.5 * u, 4.6 * u, 5.8 * u, 0.5 * u),
+        ...fechado([[2.8 * u, 2.5 * u], [4.2 * u, 6 * u], [1.4 * u, 6 * u]]),
+        { x1: -1.5 * u, y1: 4.2 * u, x2: -1.5 * u, y2: 9.8 * u },
+        linha(-1.5 * u, 9.8 * u, 6.8 * u),
+        { x1: 6.8 * u, y1: 9.8 * u, x2: 6.8 * u, y2: 4.2 * u },
+        linha(-1.3 * u, 7.3 * u, 6.5 * u),
+        { x1: -13.2 * u, y1: 1.2 * u, x2: -12.8 * u, y2: 8.8 * u },
+        { x1: -12.8 * u, y1: 8.8 * u, x2: -2.8 * u, y2: 8.6 * u },
+      ]
+    }
+    case 'tenda': {
+      // A lona de duas águas com a cumeeira no meio e o recorte da porta na ponta de baixo, as cordas em V da ponta de cada mastro e três cordas de cada beira até as estacas (o toldo é um quadro listrado com uma estaca em cada canto; a tenda de adivinha é redonda).
+      const k = hw / 56
+      const e = hw - 17 * k
+      const l = Math.max(hh - 20 * k, hh * 0.45)
+      const porta = e * 0.3
+      return [
+        ...fechado([[-e, -l], [e, -l], [e, l], [porta, l], [0, l - 12 * k], [-porta, l], [-e, l]]),
+        { x1: 0, y1: -l, x2: 0, y2: l - 12 * k },
+        ...[-1, 1].flatMap((sy) => [-1, 1].map((sx): Traco => ({ x1: 0, y1: sy * l, x2: sx * e * 0.75, y2: sy * (hh - 3.5 * k) }))),
+        ...[-1, 1].flatMap((sx) => [-2 / 3, 0, 2 / 3].map((f): Traco => ({ x1: sx * e * 0.8, y1: l * f, x2: sx * (hw - 3.5 * k), y2: l * f }))),
+      ]
+    }
+    case 'torreDePedra': {
+      // O anel da parede, o anel de dentro do parapeito e as frestas entre as doze ameias, uma bem em cima da porta (frente).
+      const fresta = (i: number): Traco => {
+        const a = ((90 + i * 30) * Math.PI) / 180
+        return { x1: Math.cos(a) * hw * 0.62, y1: Math.sin(a) * hh * 0.62, x2: Math.cos(a) * hw * 0.8, y2: Math.sin(a) * hh * 0.8 }
+      }
+      return [...aro(largura * 0.8, altura * 0.8), ...aro(largura * 0.62, altura * 0.62), ...Array.from({ length: 12 }, (_, i) => fresta(i))]
+    }
+    case 'torreDeVigia': {
+      // O assoalho quadrado, as arestas do telhado de quatro águas até o meio e a escada saindo pela frente.
+      const [dx, dy] = [hw * 0.72, hh * 0.72]
+      const [tx, ty] = [hw * 0.52, hh * 0.52]
+      return [
+        { x1: -dx, y1: -dy, x2: dx, y2: -dy }, { x1: dx, y1: -dy, x2: dx, y2: dy },
+        { x1: dx, y1: dy, x2: -dx, y2: dy }, { x1: -dx, y1: dy, x2: -dx, y2: -dy },
+        { x1: -tx, y1: -ty, x2: tx, y2: ty }, { x1: tx, y1: -ty, x2: -tx, y2: ty },
+        { x1: -hw * 0.09, y1: dy, x2: -hw * 0.09, y2: hh * 0.97 }, { x1: hw * 0.09, y1: dy, x2: hw * 0.09, y2: hh * 0.97 },
       ]
     }
   }

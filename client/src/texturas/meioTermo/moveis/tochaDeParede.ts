@@ -29,6 +29,7 @@
  * As alturas são em lados (o menor lado da pegada). Materiais: `metal` (a
  * chapa, o braço e a argola) e `madeira` (o cabo).
  */
+import { TOCHA_DE_PAREDE } from '../../../lib/mobilia/fogoDeCasa'
 import { limitar01, type Rgb } from '../../ruido'
 import { anel, caixa, capsula, elipse, type Forma } from './formas'
 import { texturaDaClasse, type Textura } from './motor'
@@ -42,18 +43,22 @@ import { PANO_COM_OLEO, PANO_QUEIMADO, texPanoDaTocha } from './tochaDePe'
  */
 export const ESPESSURA_DA_TOCHA_DE_PAREDE = 0.12 * G
 
-/** As medidas de cima, em fração do menor meio lado; o `y` conta da parede (a beira de cima da pegada). */
+/**
+ * As medidas de cima, em fração do menor meio lado; o `y` conta da parede (a beira de cima da pegada). Onde
+ * fica a argola, quanto a cabeça passa dela e a altura da cabeça moram em `TOCHA_DE_PAREDE`
+ * (`lib/mobilia/fogoDeCasa.ts`), com a conta de onde a chama animada nasce (`fogoDaTochaDeParede`).
+ */
 const MEIA_LARGURA_DA_CHAPA = 0.28
 const GROSSURA_DA_CHAPA = 0.2
 const RAIO_DO_BRACO = 0.085
-const ARGOLA_EM = 0.55
+const ARGOLA_EM = TOCHA_DE_PAREDE.argolaEm
 const ARGOLA_DE_FORA = 0.24
 const ARGOLA_DE_DENTRO = 0.14
 const RAIO_DO_CABO = 0.12
 /** O cabo, em fração do menor meio lado a partir da argola: o pé (de, até) e o trecho de cima. */
 const PE_DO_CABO: readonly [number, number] = [-0.2, 0.02]
 const ALTO_DO_CABO: readonly [number, number] = [0.1, 0.22]
-const CABECA_ALEM_DA_ARGOLA = 0.36
+const CABECA_ALEM_DA_ARGOLA = TOCHA_DE_PAREDE.cabecaAlemDaArgola
 /** A cabeça inclinada para fora: de cima, um oval mais comprido para longe da parede. */
 const RAIO_DA_CABECA = 0.32
 const ALONGADO_DA_CABECA = 1.25
@@ -73,20 +78,7 @@ const COR_DA_FULIGEM: Rgb = [0x24, 0x20, 0x1d]
 const ALTURA_DA_CHAPA = 0.9
 const ALTURA_DO_PE_DO_CABO = 1
 const ALTURA_DO_CABO = 1.3
-const ALTURA_DA_CABECA = 1.6
-
-/**
- * Onde a chama nasce, para a camada animada (no formato do `BRASEIRO` de
- * `lib/mobilia/fogoDeCasa.ts`): o meio da cabeça em fração da pegada a partir
- * do centro (x da largura, y da altura, sem giro) e o alto da cabeça em fração
- * do menor lado. A cabeça mora a uma distância fixa da parede, então esticar
- * a pegada muda a fração: por isso é função, não constante. A pegada em casas;
- * no tamanho de partida (0,4 x 0,5) dá x 0, y -0,136 e altura 1,6.
- */
-export function fogoDaTochaDeParede(largura: number, altura: number): { readonly fogo: { readonly x: number; readonly y: number }; readonly alturaDaBorda: number } {
-  const R = Math.min(largura, altura) / 2
-  return { fogo: { x: 0, y: (-altura / 2 + (ARGOLA_EM + CABECA_ALEM_DA_ARGOLA) * R) / altura }, alturaDaBorda: ALTURA_DA_CABECA }
-}
+const ALTURA_DA_CABECA = TOCHA_DE_PAREDE.alturaDaCabeca
 
 const TOM_DA_CHAPA = 0.92
 const TOM_DO_BRACO = 1.04

@@ -32,6 +32,7 @@
  * As alturas são em LADOS (o menor lado da pegada): esticada, a tocha cresce
  * junto e a boca do cesto fica onde a chama a procura. Material: `metal`.
  */
+import { TOCHA_DE_PE } from '../../../lib/mobilia/fogoDeCasa'
 import { limitar01, type Rgb } from '../../ruido'
 import { anel, capsula, elipse, uniao, type Forma, type Ponto } from './formas'
 import { bordaDaSombra, contato, ruido, SOMBRA_X, SOMBRA_Y, texturaDaClasse, type MaterialDaPeca, type Textura } from './motor'
@@ -40,27 +41,20 @@ import { FOGO_PARADO, texBrasa, texHalo } from './fogoDeCasa'
 
 const GRAUS = Math.PI / 180
 
-/** Alturas em lados (0,6 casa na pegada de partida): o alto do colar do pé e o fundo do cesto (1,15 casa). */
+/**
+ * Alturas em lados (0,6 casa na pegada de partida): o alto do colar do pé e o fundo do cesto (1,15 casa). A
+ * haste e a sobra da cabeça moram em `TOCHA_DE_PE` (`lib/mobilia/fogoDeCasa.ts`), com a conta de onde a chama
+ * animada nasce (`fogoDaTochaDePe`): a tela lê sem carregar o motor dos móveis.
+ */
 const ALTURA_DO_COLAR = 0.3
-const ALTURA_DA_HASTE = 1.92
+const ALTURA_DA_HASTE = TOCHA_DE_PE.alturaDaHaste
 /** Quanto a cabeça passa da boca do cesto, em lados. */
-const SOBRA_DA_CABECA = 0.1
+const SOBRA_DA_CABECA = TOCHA_DE_PE.sobraDaCabeca
 /**
  * A altura do cesto (px do protótipo). Na 3/4 é a BEIRADA das duas metades do
  * cesto e da cabeça: o perfil da tocha de pé usa este valor como espessura.
  */
-export const ALTURA_DO_CESTO_DA_TOCHA = 0.16 * G
-
-/**
- * Onde a chama nasce, para a camada animada (no formato do `BRASEIRO` de
- * `lib/mobilia/fogoDeCasa.ts`): o meio da cabeça em fração da pegada a partir
- * do centro (x da largura, y da altura, sem giro) e o alto da cabeça em fração
- * do menor lado. A pegada em casas; 2,29 no tamanho de partida (0,6 casa).
- */
-export function fogoDaTochaDePe(largura: number, altura: number): { readonly fogo: { readonly x: number; readonly y: number }; readonly alturaDaBorda: number } {
-  const lado = Math.min(largura, altura)
-  return { fogo: { x: 0, y: 0 }, alturaDaBorda: ALTURA_DA_HASTE + SOBRA_DA_CABECA + ALTURA_DO_CESTO_DA_TOCHA / (lado * G) }
-}
+export const ALTURA_DO_CESTO_DA_TOCHA = TOCHA_DE_PE.alturaDoCestoEmCasas * G
 
 /** As medidas de cima, em fração do menor meio lado. */
 const RAIO_DA_HASTE = 0.075

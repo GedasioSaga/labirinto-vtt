@@ -86,6 +86,13 @@ export const TIPOS_MOBILIA = [
   // 13, a magia e a alquimia: a estante de poções, a bola de cristal e o pedestal com livro aberto.
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
+  // Lote 17 dos objetos novos (12/11/2026). O tesouro, cada um sozinho e em monte (os quatro montes moram no
+  // chão, com altura): a barra, o monte de ouro, a moeda, o monte de moedas, o diamante, o monte de
+  // diamantes, a joia e o monte de joias. No templo e masmorra: a teia de aranha (rente, por cima do que
+  // estiver embaixo) e as tochas de parede e de pé (com o fogo de casa do braseiro, acesas ou apagadas). Nos
+  // destroços, o crânio; na rua e jardim, a tenda e as torres de pedra e de vigia (que barram a passagem).
+  'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
+  'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

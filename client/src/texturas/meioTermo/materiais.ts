@@ -459,6 +459,31 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   estanteDePocoes: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
   bolaDeCristal: [],
   pedestalComLivro: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  // Lote 17 dos objetos novos (12/11/2026). O tesouro não tem lugar: o ouro, as pedras, as pérolas e o brilho
+  // são cor fixa (a tabela não tem ouro nem pedra preciosa). A teia de aranha (o fio, o pó e os casulos) e o
+  // crânio (o osso dos ossos) também não. Na tocha de parede, o metal da chapa, do braço e da argola e a madeira
+  // do cabo; na tocha de pé, o metal do tripé, da haste e do cesto; fixos: o pano com óleo, a brasa e a fuligem.
+  // Na tenda, a lona (as águas, as empenas, a fita da cumeeira e as abas) e a madeira dos mastros e das estacas;
+  // fixos: a corda, a esteira, a manta e o escuro de dentro. Na torre de pedra, a pedra das fiadas, do parapeito
+  // e do rodapé e a madeira da porta, do alçapão e do mastro; fixos: as cintas e a argola de ferro do alçapão e
+  // a bandeira vinho. Na
+  // torre de vigia, a madeira dos esteios, do assoalho e da escada e o telhado, de palha (o desenho) ou de tábua
+  // de uma das madeiras; fixos: a pedra das sapatas, a água e a corneta.
+  barraDeOuro: [],
+  monteDeOuro: [],
+  moedaDeOuro: [],
+  monteDeMoedasDeOuro: [],
+  diamante: [],
+  monteDeDiamantes: [],
+  joia: [],
+  monteDeJoias: [],
+  teiaDeAranha: [],
+  tochaDeParede: [lugar('metal', 'Metal', METAIS, 'ferro'), lugar('madeira', 'Cabo', MADEIRAS, 'carvalho')],
+  tochaDePe: [lugar('metal', 'Metal', METAIS, 'ferro')],
+  cranio: [],
+  tenda: [lugar('lona', 'Lona', TECIDOS, 'linho'), lugar('madeira', 'Mastros e estacas', MADEIRAS, 'nogueira')],
+  torreDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  torreDeVigia: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('telhado', 'Telhado', ['palha', ...MADEIRAS], 'palha')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

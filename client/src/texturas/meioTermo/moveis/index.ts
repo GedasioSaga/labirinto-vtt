@@ -166,6 +166,21 @@ import { montarSangueNoChao } from './sangueNoChao'
 import { montarEstanteDePocoes } from './estanteDePocoes'
 import { montarBolaDeCristal } from './bolaDeCristal'
 import { montarPedestalComLivro } from './pedestalComLivro'
+import { montarBarraDeOuro } from './barraDeOuro'
+import { montarMonteDeOuro } from './monteDeOuro'
+import { montarMoedaDeOuro } from './moedaDeOuro'
+import { montarMonteDeMoedasDeOuro } from './monteDeMoedasDeOuro'
+import { montarDiamante } from './diamante'
+import { montarMonteDeDiamantes } from './monteDeDiamantes'
+import { montarJoia } from './joia'
+import { montarMonteDeJoias } from './monteDeJoias'
+import { montarTeiaDeAranha } from './teiaDeAranha'
+import { montarTochaDeParede } from './tochaDeParede'
+import { montarTochaDePe } from './tochaDePe'
+import { montarCranio } from './cranio'
+import { montarTenda } from './tenda'
+import { montarTorreDePedra } from './torreDePedra'
+import { montarTorreDeVigia } from './torreDeVigia'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -389,6 +404,26 @@ const MONTADORES = {
   estanteDePocoes: montarEstanteDePocoes,
   bolaDeCristal: montarBolaDeCristal,
   pedestalComLivro: montarPedestalComLivro,
+  // Lote 17 dos objetos novos (12/11/2026): um desenho por arquivo; o ouro divide `tesouroDeOuro.ts` e as
+  // pedras e as joias, `pedraLapidada.ts`, que não são objeto e não entram aqui. Leem o `giro` (o quarto de
+  // volta que a 3/4 pinta) os oito do tesouro (a barra, em pé, chega com 0), a teia de aranha, a tocha de pé, a
+  // tenda e as duas torres; a tocha de parede e o crânio, não. Nas duas tochas o fogo aceso ou apagado chega na
+  // `variante`, como no braseiro.
+  barraDeOuro: montarBarraDeOuro,
+  monteDeOuro: montarMonteDeOuro,
+  moedaDeOuro: montarMoedaDeOuro,
+  monteDeMoedasDeOuro: montarMonteDeMoedasDeOuro,
+  diamante: montarDiamante,
+  monteDeDiamantes: montarMonteDeDiamantes,
+  joia: montarJoia,
+  monteDeJoias: montarMonteDeJoias,
+  teiaDeAranha: montarTeiaDeAranha,
+  tochaDeParede: montarTochaDeParede,
+  tochaDePe: montarTochaDePe,
+  cranio: montarCranio,
+  tenda: montarTenda,
+  torreDePedra: montarTorreDePedra,
+  torreDeVigia: montarTorreDeVigia,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -440,6 +475,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
+  'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
+  'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

@@ -167,6 +167,19 @@ export interface ContextoDoMovel {
    * cristal (o lado claro da bola, a janela de luz e a sombra dela no pano
    * ficam no lugar na tela, `desgirado`, a conta do altar) e o pedestal com
    * livro aberto (a sombra da tábua nos degraus cai para o mesmo lado na tela).
+   * Do lote 17 (12/11/2026) leem o tesouro: o monte de ouro e o de moedas (a
+   * luz das rampas das barras e da meia-lua de cada moeda, `paraALuz`, e o rumo
+   * das quinas riscadas do flanco, `desgirado`), a moeda (a meia-lua de luz e a
+   * de sombra ficam do lado da luz na tela; a coroa gira junto, como numa moeda
+   * de verdade), o diamante, o monte de diamantes, a joia e o monte de joias (a
+   * luz das facetas e as sombras pintadas, `desgirado`; a barra de ouro também
+   * lê, mas, em pé, chega com 0); a teia de aranha (a sombra fina dos fios e a
+   * dos casulos caem para baixo à direita na tela); a tocha de pé (as barras do
+   * cesto na frente e no fundo NA TELA); a tenda (a porta vai para onde o giro a
+   * leva: de costas fica a empena fechada, de lado as trouxas e a esteira saem
+   * na ponta; as águas e a empena pegam a luz pela direção na tela) e as duas
+   * torres (a porta, as seteiras e a escada andam com o objeto; na de vigia, os
+   * X de travamento ficam sempre nas faces da frente e de trás da tela).
    * Os outros desenhos não leem.
    */
   readonly giro: number

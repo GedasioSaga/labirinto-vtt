@@ -30,6 +30,7 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'temploEMasmorra', titulo: 'Templo e masmorra' },
   { id: 'salaDeTortura', titulo: 'Sala de tortura' },
   { id: 'magiaEAlquimia', titulo: 'Magia e alquimia' },
+  { id: 'tesouro', titulo: 'Tesouro' },
   { id: 'outros', titulo: 'Outros' },
 ] as const
 
@@ -96,8 +97,9 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   anforasDeBarro: 'armazenagem',
   cestoDeVime: 'armazenagem',
   cofre: 'armazenagem',
-  // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte); e o lote 7 dos objetos novos
-  // (11/11/2026), do varal de roupa à placa de loja pendurada.
+  // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte); o lote 7 dos objetos novos
+  // (11/11/2026), do varal de roupa à placa de loja pendurada; e, do lote 17 (12/11/2026), a tenda de
+  // acampamento e as torres de pedra e de vigia.
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
   jardineira: 'ruaEJardim',
@@ -121,6 +123,9 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tocoDeArvore: 'ruaEJardim',
   carrinhoDeMao: 'ruaEJardim',
   placaDeLoja: 'ruaEJardim',
+  tenda: 'ruaEJardim',
+  torreDePedra: 'ruaEJardim',
+  torreDeVigia: 'ruaEJardim',
   // Cemitério; e o lote 8 dos objetos novos (11/11/2026), da cruz de madeira à árvore seca.
   lapide: 'cemiterio',
   cova: 'cemiterio',
@@ -173,8 +178,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tocoComMachado: 'fazenda',
   plantacaoEmFileiras: 'fazenda',
   // Destroços e sucata (10/11/2026): a madeira quebrada e as três sucatas de metal; os escombros de pedra e os ossos (11/11/2026);
-  // o lote 11 dos objetos novos (11/11/2026), da carroça quebrada à armadura enferrujada; e a armadura despedaçada
-  // do lote 15 (11/11/2026).
+  // o lote 11 dos objetos novos (11/11/2026), da carroça quebrada à armadura enferrujada; a armadura despedaçada
+  // do lote 15 (11/11/2026); e o crânio do lote 17 (12/11/2026), junto dos ossos.
   destrocosDeMadeira: 'destrocosESucata',
   sucataChapas: 'destrocosESucata',
   sucataEngrenagens: 'destrocosESucata',
@@ -186,6 +191,7 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   vigaCaida: 'destrocosESucata',
   armaduraEnferrujada: 'destrocosESucata',
   armaduraDespedacada: 'destrocosESucata',
+  cranio: 'destrocosESucata',
   // Esporte e lazer (10/11/2026); o boneco de treino e o alvo de arco e flecha (11/11/2026); e o lote 11 dos
   // objetos novos (11/11/2026), da mesa de jogo à mesa de sinuca.
   campinho: 'esporteELazer',
@@ -204,8 +210,9 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   redeDePesca: 'portoENavio',
   pier: 'portoENavio',
   caixoteDePeixe: 'portoENavio',
-  // Templo e masmorra (11/11/2026): o pilar e o altar; a armadura de pé do lote 15 (11/11/2026); e os do lote 13
-  // e do lote 16 dos objetos novos (11/11/2026), do braseiro aos três blocos de inscrições.
+  // Templo e masmorra (11/11/2026): o pilar e o altar; a armadura de pé do lote 15 (11/11/2026); os do lote 13
+  // e do lote 16 dos objetos novos (11/11/2026), do braseiro aos três blocos de inscrições; e, do lote 17
+  // (12/11/2026), a teia de aranha e as tochas de parede e de pé.
   pilar: 'temploEMasmorra',
   altar: 'temploEMasmorra',
   armadura: 'temploEMasmorra',
@@ -217,6 +224,9 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   blocoDeInscricoesAzul: 'temploEMasmorra',
   blocoDeInscricoesVermelho: 'temploEMasmorra',
   blocoDeInscricoesDourado: 'temploEMasmorra',
+  teiaDeAranha: 'temploEMasmorra',
+  tochaDeParede: 'temploEMasmorra',
+  tochaDePe: 'temploEMasmorra',
   // Sala de tortura (11/11/2026): o lote 14 dos objetos novos, do potro de tortura ao sangue no chão.
   potroDeTortura: 'salaDeTortura',
   damaDeFerro: 'salaDeTortura',
@@ -230,6 +240,16 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   estanteDePocoes: 'magiaEAlquimia',
   bolaDeCristal: 'magiaEAlquimia',
   pedestalComLivro: 'magiaEAlquimia',
+  // Tesouro (12/11/2026): os oito do lote 17 dos objetos novos, cada um sozinho e o monte dele, da barra de ouro
+  // ao monte de joias. A busca da ficha acha os oito por "tesouro" (o título do grupo).
+  barraDeOuro: 'tesouro',
+  monteDeOuro: 'tesouro',
+  moedaDeOuro: 'tesouro',
+  monteDeMoedasDeOuro: 'tesouro',
+  diamante: 'tesouro',
+  monteDeDiamantes: 'tesouro',
+  joia: 'tesouro',
+  monteDeJoias: 'tesouro',
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

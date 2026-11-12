@@ -101,7 +101,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 161 objetos nas 14 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 176 objetos nas 15 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -301,6 +301,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
       'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Ponte', 'Banco de praça', 'Estátua', 'Pedras e rochas', 'Antena parabólica',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
+      'Tenda', 'Torre de pedra', 'Torre de vigia',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Mausoléu',
       'Cruz de madeira', 'Anjo de pedra', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
@@ -310,21 +311,23 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento', 'Espantalho', 'Cocho',
       'Galinheiro', 'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
-      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada',
+      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada', 'Crânio',
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
       'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       // Os quatro grupos novos de 11/11/2026: Porto e navio (o canhão e o lote 12), Templo e masmorra (o pilar, o
       // altar, a armadura do lote 15 e os dos lotes 13 e 16), Sala de tortura (o lote 14) e Magia e alquimia (os
-      // três últimos do lote 13).
+      // três últimos do lote 13). E o Tesouro (12/11/2026), com os oito do lote 17 que não foram para um grupo antigo.
       'Canhão', 'Âncora', 'Cordas enroladas', 'Timão', 'Bote', 'Rede de pesca', 'Píer', 'Caixote de peixe',
       'Pilar', 'Altar', 'Armadura',
       'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico', 'Bloco de inscrições azul', 'Bloco de inscrições vermelho', 'Bloco de inscrições dourado',
+      'Teia de aranha', 'Tocha de parede', 'Tocha de pé',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
+      'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(161)
+    expect(new Set(desenhos).size).toBe(176)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

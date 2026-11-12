@@ -3,7 +3,7 @@ import { meioTermoLigado } from '../estiloDoMapa'
 import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../mobilia'
 import { desenhaEmLinhas } from './desenhoDoMovel'
 import { rotationTrig } from '../roomRotation'
-import { BRASEIRO, FORNALHA } from './fogoDeCasa'
+import { BRASEIRO, FORNALHA, fogoDaTochaDePe, fogoDaTochaDeParede } from './fogoDeCasa'
 
 /**
  * VISTA 3/4 DOS MÓVEIS (Meio-Termo, fatia MT11): o que a tela precisa saber
@@ -39,7 +39,9 @@ export const DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS = -(ALTURA_DA_LENHA_EM_TRES_Q
  * a altura dela, uma fração do lado menor, como o desenho (`FORNALHA.alturaDaBancada`). O FORNO DE PÃO
  * (11/11/2026) é como a lareira: o lar fica no chão, fora de qualquer estrutura, e a chama não sobe. O
  * BRASEIRO (11/11/2026) é como a fornalha: o carvão queima rente à borda da bacia, no alto do tripé, e a chama
- * sobe a altura da borda (`BRASEIRO.alturaDaBorda`, 0,72 casa no braseiro de 0,8).
+ * sobe a altura da borda (`BRASEIRO.alturaDaBorda`, 0,72 casa no braseiro de 0,8). As duas TOCHAS (12/11/2026)
+ * também: a chama sobe até o alto da cabeça (`fogoDaTochaDePe` e `fogoDaTochaDeParede`); na de pé a altura muda
+ * um pouco com a pegada, porque o cesto tem altura fixa em casas.
  */
 export function deslocamentoDaChama(
   prop: Pick<Prop, 'mobilia' | 'mobiliaVista' | 'mobiliaDesenho'> & Partial<Pick<Prop, 'width' | 'height'>>,
@@ -47,12 +49,20 @@ export function deslocamentoDaChama(
 ): number {
   if (!tresQuartosAtivo(vista) || desenhaEmLinhas(prop)) return 0
   if (prop.mobilia === 'lareira' || prop.mobilia === 'fornoDePao') return 0
-  if (prop.mobilia === 'fornalha' || prop.mobilia === 'braseiro') {
+  if (prop.mobilia === 'fornalha' || prop.mobilia === 'braseiro' || prop.mobilia === 'tochaDeParede' || prop.mobilia === 'tochaDePe') {
     const menor = Math.min(prop.width ?? 0, prop.height ?? 0)
-    const altura = prop.mobilia === 'fornalha' ? FORNALHA.alturaDaBancada : BRASEIRO.alturaDaBorda
-    return Number.isFinite(menor) && menor > 0 ? -altura * menor : 0
+    if (!(Number.isFinite(menor) && menor > 0)) return 0
+    return -alturaDaChamaNoMovel(prop.mobilia, prop.width ?? 0, prop.height ?? 0) * menor
   }
   return prop.mobiliaVista === 'lado' ? 0 : DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS
+}
+
+/** Até onde a chama sobe na 3/4, em fração do menor lado; a pegada em px de mundo (a das tochas vai em casas da imagem). */
+function alturaDaChamaNoMovel(tipo: 'fornalha' | 'braseiro' | 'tochaDeParede' | 'tochaDePe', largura: number, altura: number): number {
+  if (tipo === 'fornalha') return FORNALHA.alturaDaBancada
+  if (tipo === 'braseiro') return BRASEIRO.alturaDaBorda
+  const [casasW, casasH] = [largura / PX_DE_MUNDO_POR_CASA, altura / PX_DE_MUNDO_POR_CASA]
+  return (tipo === 'tochaDePe' ? fogoDaTochaDePe(casasW, casasH) : fogoDaTochaDeParede(casasW, casasH)).alturaDaBorda
 }
 
 /**

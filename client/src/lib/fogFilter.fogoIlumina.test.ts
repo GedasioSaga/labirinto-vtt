@@ -3,9 +3,10 @@
  * gameplay isso não ilumina nada os jogadores"). À noite a visão cai para o
  * raio do período; além dele só chega o claro das luzes na linha de visão.
  * Os objetos de luz (fogo, fogueira, lareira, fornalha, forno de pão,
- * braseiro, lampião e as velas do criado-mudo, do candelabro de chão e das
- * velas e oferendas, `lib/luzDoFogo.ts`) contam como luz, ATÉ O TETO: o claro
- * deles só revela o que está dentro da visão cheia do dia de quem olha. Sem o
+ * braseiro, as tochas de parede e de pé, lampião e as velas do criado-mudo, do
+ * candelabro de chão e das velas e oferendas, `lib/luzDoFogo.ts`) contam como
+ * luz, ATÉ O TETO: o claro deles só revela o que está dentro da visão cheia do
+ * dia de quem olha. Sem o
  * teto, um mapa aberto cheio de fogos entregava de noite o mapa inteiro.
  * Pacote forjado, dados inventados.
  */
@@ -60,14 +61,16 @@ describe('à noite o objeto Fogo clareia como um lampião', () => {
     expect(oQueChega(clareira(fogo('fogueira', a(5))), 3 * GRID)).toEqual({ fichas: ['heroi'], objetos: [] })
   })
 
-  it('lampião, fogueira, lareira, fornalha, forno de pão, braseiro e as velas (criado-mudo, candelabro de chão e velas e oferendas) também clareiam; lareira, forno e braseiro apagados, caldeirão e móvel sem fogo não', () => {
-    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha', 'fornoDePao', 'braseiro', 'criadoMudo', 'candelabroDeChao', 'velasEOferendas']
+  it('lampião, fogueira, lareira, fornalha, forno de pão, braseiro, as tochas e as velas (criado-mudo, candelabro de chão e velas e oferendas) também clareiam; lareira, forno, braseiro e tochas apagados, caldeirão e móvel sem fogo não', () => {
+    const outrasLuzes: readonly TipoMobilia[] = ['lampiao', 'fogueira', 'lareira', 'fornalha', 'fornoDePao', 'braseiro', 'tochaDeParede', 'tochaDePe', 'criadoMudo', 'candelabroDeChao', 'velasEOferendas']
     for (const mobilia of outrasLuzes) {
       expect(oQueChega(clareira(fogo('luz', a(5), { mobilia })), noite), mobilia).toEqual({ fichas: ['guarda', 'heroi'], objetos: ['luz'] })
     }
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'lareira', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'fornoDePao', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'braseiro', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
+    expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'tochaDeParede', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
+    expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'tochaDePe', mobiliaForma: 'apagado' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     // O caldeirão (11/11/2026) tem a brasa só pintada: não é fonte de luz.
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'caldeirao' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })
     expect(oQueChega(clareira(fogo('luz', a(5), { mobilia: 'mesa' })), noite)).toEqual({ fichas: ['heroi'], objetos: [] })

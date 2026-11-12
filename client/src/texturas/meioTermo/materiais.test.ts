@@ -275,6 +275,24 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       estanteDePocoes: ['madeira:nogueira'],
       bolaDeCristal: [],
       pedestalComLivro: ['pedra:granito'],
+      // Lote 17 dos objetos novos (12/11/2026): o tesouro, a teia e o crânio sem lugar; as tochas com o ferro (a de
+      // parede também com o cabo); a tenda com a lona e os mastros; as torres com a pedra ou a madeira, e a de
+      // vigia com o telhado de palha.
+      barraDeOuro: [],
+      monteDeOuro: [],
+      moedaDeOuro: [],
+      monteDeMoedasDeOuro: [],
+      diamante: [],
+      monteDeDiamantes: [],
+      joia: [],
+      monteDeJoias: [],
+      teiaDeAranha: [],
+      tochaDeParede: ['metal:ferro', 'madeira:carvalho'],
+      tochaDePe: ['metal:ferro'],
+      cranio: [],
+      tenda: ['lona:linho', 'madeira:nogueira'],
+      torreDePedra: ['pedra:granito', 'madeira:carvalho'],
+      torreDeVigia: ['madeira:carvalho', 'telhado:palha'],
     })
   })
 

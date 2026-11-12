@@ -2011,6 +2011,163 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M5 21.5h14v-2H5zM7 19.5v-1.7h10v1.7" />
         </>
       )
+    case 'barraDeOuro':
+      // De frente: um lingote só, em tronco de pirâmide (a face da frente e a de cima recuando), o cartucho redondo e os três riscos do ensaiador na frente e o brilho de quatro pontas no alto (a pilha de lingotes são seis barras em degraus num estrado).
+      return (
+        <>
+          <path d="M2.5 18.5h19l-2.5-6.5h-14z" />
+          <path d="M5 12l2.2-3.5h9.6L19 12" />
+          <circle cx="8.6" cy="15.3" r="1.4" />
+          <path d="M12.6 14v2.6M14.8 14v2.6M17 14v2.6" />
+          <path d="M20.5 2.5v4M18.5 4.5h4" />
+        </>
+      )
+    case 'monteDeOuro':
+      // De cima: barras de ouro jogadas umas por cima das outras, cada uma num rumo, com pepitas entre elas, uma barra solta embaixo e o brilho de quatro pontas no alto (o monte de moedas é um morro de moedas; a pilha de lingotes, barras em degraus).
+      return (
+        <>
+          <rect x="2.6" y="14.6" width="7.6" height="3.2" rx=".6" transform="rotate(-14 6.4 16.2)" />
+          <rect x="9.6" y="13.6" width="7.6" height="3.2" rx=".6" transform="rotate(16 13.4 15.2)" />
+          <rect x="6.4" y="8.6" width="7.6" height="3.2" rx=".6" transform="rotate(-26 10.2 10.2)" />
+          <rect x="15" y="18.2" width="7" height="3" rx=".6" transform="rotate(-8 18.5 19.7)" />
+          <circle cx="4.4" cy="11.4" r="1.2" />
+          <circle cx="17.4" cy="10.6" r="1.3" />
+          <circle cx="12.4" cy="19.8" r="1" />
+          <path d="M19.5 2.5v3.6M17.7 4.3h3.6" />
+        </>
+      )
+    case 'moedaDeOuro':
+      // De cima: a moeda com a borda e o aro de dentro e a coroa de três pontas no meio.
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="6.6" />
+          <path d="M8.6 14.6l-.7-5 2.7 2.4L12 8.4l1.4 3.6 2.7-2.4-.7 5z" />
+        </>
+      )
+    case 'monteDeMoedasDeOuro':
+      // De frente: o morro de moedas com as moedas deitadas na encosta, uma pilhinha de duas no alto e o brilho de quatro pontas (o monte de ouro são barras jogadas).
+      return (
+        <>
+          <path d="M2 20.5c1.2-5 5-8 10-8s8.8 3 10 8z" />
+          <ellipse cx="12" cy="11" rx="2.6" ry="1.1" />
+          <ellipse cx="12" cy="9.2" rx="2.6" ry="1.1" />
+          <ellipse cx="7.8" cy="17.2" rx="2.2" ry="1" />
+          <ellipse cx="14.8" cy="16.2" rx="2.2" ry="1" />
+          <ellipse cx="11.6" cy="19.2" rx="2.2" ry="1" />
+          <ellipse cx="17.9" cy="19.2" rx="2" ry=".9" />
+          <path d="M5.5 4v3.6M3.7 5.8h3.6" />
+        </>
+      )
+    case 'diamante':
+      // De lado: a pedra lapidada, a coroa em trapézio com a mesa em cima, a ponta embaixo e as arestas das facetas (a joia é o pingente na corrente; o monte de diamantes, três pedras em cima de um monte).
+      return (
+        <>
+          <path d="M6.5 4h11l4 5L12 21 2.5 9z" />
+          <path d="M2.5 9h19M9.5 4 8 9l4 12M14.5 4 16 9l-4 12" />
+        </>
+      )
+    case 'monteDeDiamantes':
+      // De lado: o monte baixo e três pedras lapidadas em cima, uma no alto (o diamante é uma pedra só, grande; o monte de joias tem a taça e o colar).
+      return (
+        <>
+          <path d="M2 21c2.2-4 5.4-6 10-6s7.8 2 10 6z" />
+          <path d="M4 11.5h5l1.6 2-4.1 4.5-4.1-4.5zM13.4 11.5h5l1.6 2-4.1 4.5-4.1-4.5zM9.5 4h5l1.6 2-4.1 4.5L7.9 6z" />
+        </>
+      )
+    case 'joia':
+      // O pingente: a corrente em V vinda de cima, a argola, o medalhão oval com a pedra lapidada no meio e as pérolas dos lados (o diamante é a pedra sozinha; o monte de joias, a pilha com a taça).
+      return (
+        <>
+          <path d="M4 2.5 10.9 9.6M20 2.5 13.1 9.6" />
+          <circle cx="12" cy="10.6" r="1.3" />
+          <ellipse cx="12" cy="16.6" rx="5.2" ry="5.4" />
+          <path d="M12 13.4 14.4 16 12 19.8 9.6 16z" />
+          <circle cx="7.2" cy="16.6" r=".9" />
+          <circle cx="16.8" cy="16.6" r=".9" />
+        </>
+      )
+    case 'monteDeJoias':
+      // De lado: o monte baixo com a taça de pé em cima, um anel e o colar caindo pela encosta (o monte de diamantes tem só pedras; o de moedas, discos empilhados).
+      return (
+        <>
+          <path d="M2 21c2.2-4 5.4-6 10-6s7.8 2 10 6z" />
+          <path d="M5.5 5h6v1.6a3 3 0 0 1-6 0zM8.5 9.6v4.2M6.6 13.8h3.8" />
+          <circle cx="17" cy="11" r="2.2" />
+          <path d="M12.5 16.2c2.2 1.6 5.2 1.6 7.6-.8" />
+        </>
+      )
+    case 'teiaDeAranha':
+      // A teia de cima: seis raios saindo do miolo um pouco fora do meio e duas voltas tortas da espiral (sem aranha, como no desenho).
+      return (
+        <>
+          <path d="M11 11 4 4.5M11 11l8.5-6.5M11 11l9.5 3.5M11 11l2 9.5M11 11l-8 5.5M11 11 3 10" />
+          <path d="M8.2 10.7 8.6 8.7h5.4l.3 3.5-2.6 2.1-3.5-1.4z" />
+          <path d="M5.4 10.3 6.1 6.5H17l.7 7-5.3 4.2-7-2.8z" />
+        </>
+      )
+    case 'tochaDeParede':
+      // De frente: a chapa na parede, a argola, o cabo, a cabeça de pano e a chama.
+      return (
+        <>
+          <path d="M10 20h4v-4.5h-4Z" />
+          <path d="M9.5 13.5c0 .8 1.1 1.3 2.5 1.3s2.5-.5 2.5-1.3-1.1-1.3-2.5-1.3-2.5.5-2.5 1.3Z" />
+          <path d="M12 17.5V11M10 11h4l-.5-2.5h-3Z" />
+          <path d="M12 8.5c-1.7 0-2.4-1.5-1.5-3 .4-.7 1-1.3 1.5-2.5.5 1.2 1.1 1.8 1.5 2.5.9 1.5.2 3-1.5 3Z" />
+        </>
+      )
+    case 'tochaDePe':
+      // De frente: o tripé, a haste comprida, o cesto aberto e a chama.
+      return (
+        <>
+          <path d="M8 21.5l4-2.5 4 2.5M12 19v2.5M12 19V10" />
+          <path d="M9 7.5h6M9 7.5l1 2.5h4l1-2.5" />
+          <path d="M12 6.5c-1.6 0-2.3-1.4-1.4-2.8.4-.6.9-1.2 1.4-2.2.5 1 1 1.6 1.4 2.2.9 1.4.2 2.8-1.4 2.8Z" />
+        </>
+      )
+    case 'cranio':
+      // O crânio grande de frente (a cúpula, as órbitas, o nariz e os dentes de cima) e a mandíbula caída de lado, em L, embaixo à esquerda (o dos ossos é um crânio pequeno com um osso comprido).
+      return (
+        <>
+          <path d="M10.5 15.6a6.5 6.5 0 1 1 7 0V19h-7z" />
+          <circle cx="12.3" cy="11.4" r="1.4" />
+          <circle cx="15.9" cy="11.4" r="1.2" />
+          <path d="M14.1 13.4l-.8 1.6h1.6z" />
+          <path d="M12.6 19v-1.7M14.1 19v-1.7M15.6 19v-1.7" />
+          <path d="M3.4 12.2v7.3h6.4M6 19.5v-1.6M8 19.5v-1.6" />
+        </>
+      )
+    case 'tenda':
+      // De frente: a lona de duas águas em triângulo até o chão, a ponta do mastro passando da cumeeira, a porta aberta com as duas abas presas nas amarras e uma corda de cada lado até a estaca. A tenda de adivinha é redonda, com parede reta e flâmula; o toldo são duas estacas com o pano listrado no alto; o templo tem frontão sobre colunas.
+      return (
+        <>
+          <path d="M12 5.6V2.8" />
+          <path d="M3.4 20.8L12 5.6l8.6 15.2" />
+          <path d="M2.4 20.8h19.2" />
+          <path d="M9.3 20.8c.3-1.9.4-3.3.1-4.6c.9-2.4 1.6-4.6 2.6-7.2c1 2.6 1.7 4.8 2.6 7.2c-.3 1.3-.2 2.7.1 4.6" />
+          <path d="M8.4 16.2h2M13.6 16.2h2" />
+          <path d="M11.2 7.2L1.4 17.6v3.2M12.8 7.2l9.8 10.4v3.2" />
+        </>
+      )
+    case 'torreDePedra':
+      // De frente: o corpo de pedra, o parapeito com três ameias, a porta em arco, uma seteira e a bandeira no mastro.
+      return (
+        <>
+          <path d="M3 21h18M6.5 21V10M17.5 21V10" />
+          <path d="M5.5 10h13M5.5 10V6.5H8v2h2.5v-2h3v2H16v-2h2.5V10" />
+          <path d="M10 21v-3a2 2 0 0 1 4 0v3M12 12.5V15" />
+          <path d="M12 6.5V2.5l3.5 1.2L12 5" />
+        </>
+      )
+    case 'torreDeVigia':
+      // De frente: os dois esteios com o X de travamento, o assoalho, o guarda-corpo, os pilares e o telhado em ponta.
+      return (
+        <>
+          <path d="M7.5 21V12M16.5 21V12M7.5 20.5l9-7.5M16.5 20.5l-9-7.5" />
+          <path d="M5.5 12h13M7 12v-2h10v2" />
+          <path d="M7.5 10V7.5M16.5 10V7.5M5 7.5 12 3l7 4.5Z" />
+        </>
+      )
   }
 }
 

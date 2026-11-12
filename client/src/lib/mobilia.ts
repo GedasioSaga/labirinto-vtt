@@ -417,16 +417,20 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * círculo mágico (11/11/2026: o giz no chão, rente como o campinho, em que o
  * mestre põe o altar, o braseiro ou as fichas) e o sangue no chão (11/11/2026:
  * a poça e o rastro, rentes como o círculo; o potro, a cadeira ou a ficha que
- * o mestre põe em cima saem por cima da mancha). O píer não é a ponte: o que é
- * só da ponte (as formas Madeira, Pedra e Corda, o material de cada forma)
- * pergunta por `'ponte'` pelo nome.
+ * o mestre põe em cima saem por cima da mancha) e os quatro montes do tesouro
+ * (12/11/2026: o de ouro, o de moedas, o de diamantes e o de joias, chão COM
+ * altura, como a armadilha; o baú, o trono ou a ficha que o mestre põe em cima
+ * saem por cima do monte). O píer não é a ponte: o que é só da ponte (as
+ * formas Madeira, Pedra e Corda, o material de cada forma) pergunta por
+ * `'ponte'` pelo nome. A teia de aranha é rente, mas NÃO mora aqui: fica por
+ * cima do móvel em que o mestre a encosta.
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
- * ringue, o píer, a cela, a armadilha, o círculo e o sangue por último) leem
- * esta lista.
+ * ringue, o píer, a cela, a armadilha, o círculo, o sangue e os montes por
+ * último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias'
 }
 
 /**
@@ -437,10 +441,13 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * sala, cerca, tenda em que se entra) não barra. Quem monta o obstáculo e
  * decide o que nunca barra (objeto de chão, item, secreto, escondido) é
  * `lib/obstaculosDeObjeto.ts`; o mestre atravessa sempre.
- * As duas torres (`torreDePedra`, `torreDeVigia`) entram nesta lista quando forem registradas em `mobilia/tipos.ts`.
+ * As duas torres do lote 17 (12/11/2026: "tem que ter um colisão para os
+ * jogadores não passarem por dentro"), a de pedra e a de vigia, barram com a
+ * forma que o módulo tira de todo objeto (a elipse da redonda, o quadrado da
+ * outra), não com a pegada sólida própria que o desenho exporta.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'moinho' || tipo === 'cataVento' || tipo === 'mausoleu' || tipo === 'poco' || tipo === 'chafariz' || tipo === 'estatua' || tipo === 'anjoDePedra' || tipo === 'pilar' || tipo === 'blocoDeInscricoesAzul' || tipo === 'blocoDeInscricoesVermelho' || tipo === 'blocoDeInscricoesDourado' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'barraca'
+  return tipo === 'moinho' || tipo === 'cataVento' || tipo === 'mausoleu' || tipo === 'poco' || tipo === 'chafariz' || tipo === 'estatua' || tipo === 'anjoDePedra' || tipo === 'pilar' || tipo === 'blocoDeInscricoesAzul' || tipo === 'blocoDeInscricoesVermelho' || tipo === 'blocoDeInscricoesDourado' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'barraca' || tipo === 'torreDePedra' || tipo === 'torreDeVigia'
 }
 
 /**
@@ -1005,7 +1012,7 @@ export function chamaDoMovel(prop: Pick<Prop, 'mobilia' | 'mobiliaForma' | 'mobi
     return forma === null ? null : { ...forma, extras: [] }
   }
   if (!ehMovelComFogoDeCasa(prop.mobilia) || fogoDoMovel(prop) === 'apagado' || !tamanhoDesenhavel(prop.width, prop.height)) return null
-  const linguas = linguasDoFogoDeCasa(prop.mobilia)
+  const linguas = linguasDoFogoDeCasa(prop.mobilia, prop.width, prop.height)
   const menorLado = Math.min(prop.width, prop.height)
   const principal = linguas[linguas.length - 1]
   const ancora = { x: principal.x * prop.width, y: principal.y * prop.height }

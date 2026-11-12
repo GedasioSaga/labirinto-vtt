@@ -98,13 +98,14 @@ describe('partículas na tela do jogador', () => {
  * não soltavam nada. A cena só com fogueira contava como "sem fogo" e a fumaça
  * nascia espalhada pela tela toda, para o mestre e para o jogador. O forno
  * de pão e o braseiro (11/11/2026), com o fogo de casa da lareira, soltam
- * como eles.
+ * como eles, e a tocha de pé (12/11/2026) também; a tocha de parede, feita
+ * para ir às dezenas num corredor, não.
  */
-describe('fogueira, lareira, fornalha, forno de pão e braseiro soltam fumaça e brasas', () => {
-  const QUE_SOLTAM: readonly TipoMobilia[] = ['fogueira', 'lareira', 'fornalha', 'fornoDePao', 'braseiro']
+describe('fogueira, lareira, fornalha, forno de pão, braseiro e tocha de pé soltam fumaça e brasas', () => {
+  const QUE_SOLTAM: readonly TipoMobilia[] = ['fogueira', 'lareira', 'fornalha', 'fornoDePao', 'braseiro', 'tochaDePe']
   const PERTO = { x: HEROI.x + 2 * GRID, y: HEROI.y }
 
-  it('cena só com uma delas, no mestre: as partículas nascem dela e o modo espalhado não liga; o lampião não solta', () => {
+  it('cena só com uma delas, no mestre: as partículas nascem dela e o modo espalhado não liga; o lampião e a tocha de parede não soltam', () => {
     for (const tipo of QUE_SOLTAM) {
       const cena = floresta([movel('acesa', tipo, PERTO.x, PERTO.y)])
       const entrada = particulasDoMestre(cena)
@@ -118,8 +119,9 @@ describe('fogueira, lareira, fornalha, forno de pão e braseiro soltam fumaça e
       expect(vivas.every((s) => Math.abs(s.x - PERTO.x) < 4 * GRID && s.y < PERTO.y + GRID), tipo).toBe(true)
       particulas.destruir()
     }
-    // O lampião só ilumina: a cena só com ele segue sem fogo.
+    // O lampião e a tocha de parede só iluminam: a cena só com um deles segue sem fogo.
     expect(particulasDoMestre(floresta([movel('lampiao', 'lampiao', PERTO.x, PERTO.y)]))?.espalhar).toBe(true)
+    expect(particulasDoMestre(floresta([movel('tocha', 'tochaDeParede', PERTO.x, PERTO.y)]))?.espalhar).toBe(true)
   })
 
   it('jogador sem a fogueira à vista: o host não diz "cena sem fogo" e nada é desenhado', () => {

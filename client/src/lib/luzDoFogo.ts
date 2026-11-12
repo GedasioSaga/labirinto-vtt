@@ -5,7 +5,8 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
  * isso não ilumina nada os jogadores" e "coloque o sistema iluminação"). O
  * fogo, a fogueira, a lareira, a fornalha, o forno de pão (11/11/2026), o
- * braseiro (11/11/2026) e o lampião são fontes de luz de verdade: o MESMO
+ * braseiro (11/11/2026), as tochas de parede e de pé (12/11/2026) e o lampião
+ * são fontes de luz de verdade: o MESMO
  * alcance vale para o desenho (`pixi/mapaDeLuz.ts`, o claro quente que treme)
  * e para a visão do jogador no escuro (`lib/fogFilter.ts`, o claro na linha de
  * visão chega como o de um ponto de luz). As velas (11/11/2026: a do
@@ -45,9 +46,11 @@ export interface LuzDoObjeto {
  * centro; aqui a conta parte da borda da pegada).
  *
  * `fumacaEBrasas` também responde "a cena tem fogo?" (`lib/particulasDaCena.ts`):
- * tudo que queima à vista solta, e só o lampião, de chama fechada, e as velas,
- * de chama pequena, não. Com a fogueira de fora, a cena só com ela contava
- * como sem fogo e a fumaça nascia espalhada pela tela toda.
+ * tudo que queima à vista solta, e só o lampião, de chama fechada, as velas,
+ * de chama pequena, e a tocha de parede, que vai às dezenas num corredor (a
+ * fuligem pintada na parede já conta a fumaça), não. Com a fogueira de fora, a
+ * cena só com ela contava como sem fogo e a fumaça nascia espalhada pela tela
+ * toda.
  *
  * A luz nasce sempre do MEIO do objeto (`x`, `y`): a tabela não tem como pôr a
  * origem em outro ponto da pegada.
@@ -62,6 +65,11 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // O braseiro (11/11/2026), com o fogo aceso: a luz da fornalha, o outro fogo de carvão em brasa. O fogo fica
   // no meio da pegada, de onde a luz nasce.
   braseiro: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
+  // As tochas (12/11/2026), com o fogo aceso, no tom do braseiro. A de pé tem a luz dele. A de parede, presa na
+  // parede e feita para ir às dezenas num corredor, alcança menos e não solta fumaça nem brasa; a cabeça dela
+  // fica a 0,07 casa do meio da pegada no tamanho de partida, mas a luz sai do meio: a diferença some no alcance.
+  tochaDeParede: { alcanceEmCasas: 2.5, cor: 0xffd29c, forca: 0.8, fumacaEBrasas: false },
+  tochaDePe: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
   lampiao: { alcanceEmCasas: 3, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
   // As velas (11/11/2026), no tom do lampião e mais curtas que ele. A do criado-mudo é uma vela só: metade do
   // alcance. Ela fica fora do meio do móvel (a 0,15 casa dele no tamanho de partida, `CHAMA_DO_CRIADO_MUDO`
