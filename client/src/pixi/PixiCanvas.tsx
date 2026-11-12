@@ -9837,13 +9837,12 @@ function PixiCanvasDoContexto({
               closeNameEditor(false)
               if (history === 'undo') useMapStore.getState().undo()
               else useMapStore.getState().redo()
-            } else if (
-              (event.key === 'Delete' || event.key === 'Backspace') &&
-              nameEditor.kind === 'room' &&
-              editorRegion?.room?.name === nameEditor.value
-            ) {
-              // Caça 12/11 (E5, decisão 14): Delete (ou Backspace) com o nome sugerido intacto
-              // apaga a SALA recém-desenhada, não o nome dela. Digitado algo, a tecla volta a ser texto.
+            } else if (event.key === 'Delete' && nameEditor.kind === 'room' && editorRegion?.room?.name === nameEditor.value) {
+              // Caça 12/11 (E5, decisão 14): Delete com o nome sugerido intacto apaga a SALA
+              // recém-desenhada, não o nome dela. Digitado algo, a tecla volta a ser texto.
+              // Backspace é SEMPRE texto (caça 12/11, prova P19): com o nome todo
+              // selecionado (Ctrl+A, Shift+Home) ele apagava a sala de quem só
+              // queria limpar o campo para digitar outro nome.
               event.preventDefault()
               event.stopPropagation()
               const salaId = nameEditor.regionId
