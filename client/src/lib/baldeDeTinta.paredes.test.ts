@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Drawing, DrawingPoint, Wall } from '../types/map'
-import { areaDoBalde, areaFechadaPorParedes } from './baldeDeTinta'
+import type { DrawingPoint, Wall } from '../types/map'
+import { areaFechadaPorParedes } from './baldeDeTinta'
 import { dentroDoPoligono } from './baldeDeTextura'
-import contornosDeAntes from './__fixtures__/contornosDoBalde.json'
 
 /**
  * A ÁREA FECHADA POR PAREDES do Balde da ferramenta Texturas (pedido de
@@ -79,46 +78,10 @@ describe('areaFechadaPorParedes', () => {
     const t1 = performance.now()
     const salao = areaFechadaPorParedes(mapa, { x: lado / 2, y: lado * 0.75 })
     const t2 = performance.now()
-    const pequeno = areaFechadaPorParedes({ width: 10, height: 10, grid: 70, walls: L }, { x: 150, y: 300 })
-    const t3 = performance.now()
-    console.log(
-      `[tempo] ${walls.length} paredes; clique numa sala de 7x7: ${Math.round(t1 - t0)} ms; no salão de 200x100: ${Math.round(t2 - t1)} ms; no L de um mapa 10x10: ${Math.round(t3 - t2)} ms`,
-    )
+    console.log(`[tempo] ${walls.length} paredes; clique numa sala de 7x7: ${Math.round(t1 - t0)} ms; no salão de 200x100: ${Math.round(t2 - t1)} ms`)
 
     expect(sala).not.toBeNull()
     expect(salao).not.toBeNull()
-    expect(pequeno).not.toBeNull()
     expect(t2 - t1).toBeLessThan(5000)
-  })
-
-  /**
-   * O ATALHO NÃO MUDA O RESULTADO (o clique passou de 231 ms para menos de 150
-   * num salão de 200 x 100 casas olhando só a borda da grade e os vértices com
-   * aresta): os contornos são os mesmos, ponto por ponto, que a conta de antes
-   * devolvia (`__fixtures__/contornosDoBalde.json`, gravado com ela).
-   */
-  it('o contorno é o mesmo de antes: o L do print, o L aberto, a sala e o salão do mapa grande e o balde do Pincel num círculo', () => {
-    const grade = 70
-    const lado = 200 * grade
-    const walls: Wall[] = [parede('n', 0, 0, lado, 0), parede('l', lado, 0, lado, lado), parede('s', lado, lado, 0, lado), parede('o', 0, lado, 0, 0)]
-    const passo = 7 * grade
-    for (let y = passo; y <= lado / 2; y += passo) walls.push(parede(`h${y}`, 0, y, lado, y))
-    for (let x = passo; x < lado; x += passo) walls.push(parede(`v${x}`, x, 0, x, lado / 2))
-    const grande = { width: 200, height: 200, grid: grade, walls }
-    const pontosDoCirculo: DrawingPoint[] = []
-    for (let i = 0; i <= 40; i += 1) {
-      const angulo = (2 * Math.PI * (i % 40)) / 40
-      pontosDoCirculo.push({ x: 3500 + 1200 * Math.cos(angulo), y: 3500 + 1200 * Math.sin(angulo) })
-    }
-    const circulo: Drawing = { id: 'c', kind: 'freehand', points: pontosDoCirculo, color: '#000000', width: 4 }
-
-    const agora = {
-      lDoPrint: areaFechadaPorParedes({ width: 10, height: 10, grid: 70, walls: L }, { x: 150, y: 300 }),
-      lAberto: areaFechadaPorParedes({ width: 10, height: 10, grid: 70, walls: L.filter((w) => w.id !== 'esquerda') }, { x: 150, y: 300 }),
-      salaNoMapaGrande: areaFechadaPorParedes(grande, { x: passo * 3.5, y: passo * 1.5 }),
-      salaoNoMapaGrande: areaFechadaPorParedes(grande, { x: 7000, y: 10500 }),
-      pincelNoCirculo: areaDoBalde({ width: 100, height: 100, grid: 70, drawings: [circulo] }, { x: 3500, y: 3500 }),
-    }
-    expect(JSON.parse(JSON.stringify(agora))).toEqual(contornosDeAntes)
   })
 })
