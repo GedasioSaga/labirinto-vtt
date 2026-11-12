@@ -301,6 +301,7 @@ import { buildMinimapFromImage, MINIMAP_IMAGE_DEFAULTS } from './lib/minimapFrom
 import { layoutMapFrame, MINIMAP_FRAME_STYLE } from './lib/mapFrame'
 import { fitTitleFont } from './pixi/frameTitle'
 import { curvaForTurnDegrees, stairCanCurve, stairLength, stairMaxTurnDegrees, stairTurnDegrees } from './lib/stairCurve'
+import { stairRotationOf } from './lib/stairRotation'
 
 /**
  * Onda 2, item 12 (Frente A) — empurra um toast de erro padronizado pros
@@ -4633,6 +4634,11 @@ function App() {
                           useMapStore.getState().setStairCurveLive(selectedStair.id, curvaForTurnDegrees(degrees, stairLength(selectedStair))),
                         ),
                     },
+              // Rotação e "Girar 90°" da escada já colocada: o mesmo giro da bolinha do mapa, um Ctrl+Z por clique.
+              giro:
+                selectedStair === null
+                  ? undefined
+                  : { degrees: stairRotationOf(selectedStair), onRotate: (delta) => useMapStore.getState().rotateStair(selectedStair.id, delta) },
               // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
               travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}

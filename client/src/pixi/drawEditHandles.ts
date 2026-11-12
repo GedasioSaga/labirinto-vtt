@@ -10,6 +10,7 @@ import { isLocked } from '../lib/itemTransform'
 import { cornerHandleExtent, drawCornerHandle, drawCornerHandlesOnScreen, drawRoomHandles } from './drawRoomHandles'
 import { stairHandles } from '../lib/stairHandles'
 import { stairLength } from '../lib/stairCurve'
+import { stairRotateHandle } from '../lib/stairRotation'
 import { alcaDaCurvaDaCerca } from '../lib/cercaCurva'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, propCorners } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
@@ -208,7 +209,7 @@ function drawRoomRotateHandle(graphics: Graphics, region: Region, view: EditHand
   drawRotateHandle(graphics, roomRotateHandle(region.points, roomRotationOf(region.room), view.cameraScale ?? 1), view)
 }
 
-/** A alça de girar (traço + bolinha) — a mesma na Sala e no Objeto (`propRotateHandle`). */
+/** A alça de girar (traço + bolinha) — a mesma na Sala, no Objeto (`propRotateHandle`) e na Escada (`stairRotateHandle`). */
 function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, view: EditHandlesView): void {
   if (!handle) return
   const scale = view.cameraScale ?? 1
@@ -384,7 +385,12 @@ export function drawEditHandles(
   // Escada travada: o pointerdown não pega alça nenhuma (`pixi/stairHandleGesture.ts`).
   if (selection.kind === 'stair') {
     const stair = map.stairs.find((s) => s.id === selection.id)
-    if (stair && !isLocked(stair)) drawStairHandles(graphics, stair, scale)
+    if (stair && !isLocked(stair)) {
+      // A alça de girar da sala e do objeto, acima da caixa da escada (pedido de 12/11/2026).
+      // Antes das alças dela: o traço nasce na lateral, e o chip da lateral fica por cima.
+      drawRotateHandle(graphics, stairRotateHandle(stair, scale), view)
+      drawStairHandles(graphics, stair, scale)
+    }
   }
 }
 

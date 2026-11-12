@@ -39,10 +39,10 @@ function centrosDosChips(g: Graphics): { x: number; y: number }[] {
 describe('drawEditHandles — escada selecionada', () => {
   it('reta: chips nas duas pontas e nas duas laterais, e a alça vazada de curvar no meio', () => {
     const g = desenhar(escada())
-    // 4 chips (faixa escura + amarelo cada) + o fundo escuro da vazada.
-    expect(conta(g, 'fill')).toBe(4 * 2 + 1)
-    // O aro amarelo da vazada.
-    expect(conta(g, 'stroke')).toBe(1)
+    // 4 chips (faixa escura + amarelo cada) + o fundo escuro da vazada + a cabeça da bolinha de girar.
+    expect(conta(g, 'fill')).toBe(4 * 2 + 1 + 1)
+    // O aro amarelo da vazada, e o traço e o aro da bolinha de girar.
+    expect(conta(g, 'stroke')).toBe(1 + 2)
     const esperado = stairHandles(escada())
       .filter((h) => h.kind !== 'curve')
       .map((h) => h.point)
@@ -55,10 +55,10 @@ describe('drawEditHandles — escada selecionada', () => {
     expect(centrosDosChips(desenhar(curva))).toContainEqual(lateral)
   })
 
-  it('espiral: só as pontas do diâmetro', () => {
+  it('espiral: só as pontas do diâmetro (e a bolinha de girar)', () => {
     const g = desenhar(escada({ shape: 'spiral' }))
-    expect(conta(g, 'fill')).toBe(2 * 2)
-    expect(conta(g, 'stroke')).toBe(0)
+    expect(conta(g, 'fill')).toBe(2 * 2 + 1)
+    expect(conta(g, 'stroke')).toBe(2)
   })
 
   it('travada não tem alça; fora da ferramenta Selecionar também não', () => {
@@ -69,6 +69,7 @@ describe('drawEditHandles — escada selecionada', () => {
   it('a alça de curvar tem a faixa escura em volta, como os pontos-chave', () => {
     const g = desenhar(escada())
     const fundo = g.context.instructions.filter((i) => i.action === 'fill' && i.data.style.color === CORNER_HANDLE_KEYLINE_COLOR)
-    expect(fundo.length).toBe(4 + 1)
+    // 4 faixas dos chips, o fundo da vazada e a cabeça escura da bolinha de girar.
+    expect(fundo.length).toBe(4 + 1 + 1)
   })
 })

@@ -6937,6 +6937,14 @@ function PixiCanvasDoContexto({
           updateCursor()
           return
         }
+        // Alça de girar da escada (a bolinha da sala e do objeto, acima da caixa dela):
+        // depois das alças de tamanho e curva, que seguem como eram.
+        if (activeTool === 'select' && single?.kind === 'stair' && event.button === 0 && roomRotateGesture.beginStair(single.id, worldPoint, camera.scale)) {
+          mode = 'rotating-room'
+          redrawEditHandles()
+          updateCursor()
+          return
+        }
 
         if (activeTool === 'select' && single?.kind === 'light') {
           const light = map.lights.find((l) => l.id === single.id)

@@ -33,6 +33,7 @@ import { sameCenario } from '../cenario/catalogo'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
+import { rotateStairBy } from './stairRotation'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
@@ -2200,6 +2201,18 @@ export function setStairCurve(map: MapData, stairId: string, curva: number): Map
   const stair = map.stairs.find((s) => s.id === stairId)
   if (stair === undefined || !Number.isFinite(curva)) return map
   return setStairGeometry(map, stairId, { segments: stair.segments, stepWidth: stair.stepWidth, curva })
+}
+
+/**
+ * Gira a escada `degrees` (horário) em volta do centro dela, pela ficha
+ * (`lib/stairRotation.ts`): os lances giram, a curva fica, e o pino da escada
+ * que leva a outro andar vai junto com a boca. Nada a girar: o MESMO mapa.
+ */
+export function rotateStair(map: MapData, stairId: string, degrees: number): MapData {
+  const stair = map.stairs.find((s) => s.id === stairId)
+  if (stair === undefined) return map
+  const next = rotateStairBy(stair, degrees)
+  return next === stair ? map : setStairGeometry(map, stairId, next)
 }
 
 // ─────────────────────────────────────────────────────────────

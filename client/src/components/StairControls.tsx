@@ -37,6 +37,19 @@ export interface StairControlsProps {
    * aparece sempre, porque `stepWidth` já é prop.
    */
   tamanho?: StairTamanhoProps
+  /**
+   * Giro da escada SELECIONADA (pedido de 12/11/2026: "uma vez que eu coloco a
+   * escada não da para colocar trocar para vertical e horizontal"). Ausente =
+   * sem o campo (quem monta o painel sem essa ligação).
+   */
+  giro?: StairGiroProps
+}
+
+export interface StairGiroProps {
+  /** Ângulo do primeiro lance em graus, em (−180°, 180°] (`lib/stairRotation.ts`, `stairRotationOf`). */
+  degrees: number
+  /** Gira a escada `delta` graus (horário) em volta do centro dela. Um Ctrl+Z por chamada. */
+  onRotate: (delta: number) => void
 }
 
 export interface StairTamanhoProps {
@@ -127,6 +140,40 @@ function CampoDeCurva({ degrees, maxDegrees, onCurveChange }: { degrees: number;
           </Botao>
         </Acoes>
       )}
+    </>
+  )
+}
+
+/** O "Girar 90°": deitada vira em pé, e em pé vira deitada. */
+const QUARTO_DE_VOLTA = 90
+/** Folga do campo: o ângulo mostrado fica em (−180°, 180°], então − e + nunca travam no limite. */
+const LIMITE_DO_CAMPO_DE_GIRO = 360
+
+/**
+ * A Rotação da escada: o ângulo do lance em graus inteiros, com − e + de um
+ * grau (a mesma trava da bolinha de girar no mapa), e o "Girar 90°" que troca
+ * deitada por em pé num clique. O número digitado vale como ângulo final: a
+ * escada gira o que falta para chegar nele.
+ */
+function CampoDeGiro({ degrees, onRotate }: StairGiroProps) {
+  return (
+    <>
+      <CampoNum
+        id="lb-stair-rotation"
+        rotulo="Rotação"
+        nome="a rotação"
+        unidade="°"
+        valor={degrees}
+        min={-LIMITE_DO_CAMPO_DE_GIRO}
+        max={LIMITE_DO_CAMPO_DE_GIRO}
+        decimais={0}
+        onChange={(novo) => onRotate(novo - degrees)}
+      />
+      <Acoes>
+        <Botao tamanho="p" onClick={() => onRotate(QUARTO_DE_VOLTA)}>
+          Girar 90°
+        </Botao>
+      </Acoes>
     </>
   )
 }
@@ -330,6 +377,7 @@ export function StairControls({
   grid,
   travel,
   tamanho,
+  giro,
   parte,
 }: StairControlsProps & {
   /**
@@ -406,6 +454,9 @@ export function StairControls({
           onTrocar={tamanho.onLengthChange}
         />
       )}
+
+      {/* Rotação (pedido de 12/11/2026): na reta e na espiral, onde girar leva a boca pela volta do círculo. */}
+      {giro !== undefined && <CampoDeGiro {...giro} />}
     </>
   )
   if (parte === 'essencial') return campos

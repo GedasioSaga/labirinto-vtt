@@ -630,6 +630,9 @@ interface MapStoreState {
   /** Comprimento de ponta a ponta da escada JÁ CRIADA (campo da ficha), com o
    *  começo parado — `mapFactory.setStairLength`. Com histórico. */
   setStairLength: (id: string, length: number) => void
+  /** Gira a escada JÁ CRIADA `degrees` (horário) em volta do centro dela — campo
+   *  Rotação e "Girar 90°" da ficha (`mapFactory.rotateStair`). Com histórico. */
+  rotateStair: (id: string, degrees: number) => void
   /** Curva da escada pelo deslizante da ficha — SEM histórico, par de
    *  `commitDragHistory` no fim do gesto (`liveSliderChange` no App). */
   setStairCurveLive: (id: string, curva: number) => void
@@ -2348,6 +2351,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // Igual ao de agora (ou limitado ao mesmo valor): nenhum passo de desfazer vazio.
       if (mapFactory.setStairLength(get().map, id, length) === get().map) return
       withHistory((map) => mapFactory.setStairLength(map, id, length))
+    },
+    rotateStair: (id, degrees) => {
+      // Giro de 0° (ou escada sem lance): nenhum passo de desfazer vazio.
+      if (mapFactory.rotateStair(get().map, id, degrees) === get().map) return
+      withHistory((map) => mapFactory.rotateStair(map, id, degrees))
     },
     setStairCurveLive: (id, curva) => set((state) => ({ map: mapFactory.setStairCurve(state.map, id, curva) })),
     setStairGeometryLive: (id, geometry) => set((state) => ({ map: mapFactory.setStairGeometry(state.map, id, geometry) })),

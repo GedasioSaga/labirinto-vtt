@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { MapData, Prop, Region } from '../types/map'
+import type { MapData, Prop, Region, Stair } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
@@ -232,5 +232,60 @@ describe('alça de girar objeto', () => {
     expect(useMapStore.getState().past).toHaveLength(0)
     useMapStore.setState({ map: mapFactory.addProp(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), { ...BARRACA, locked: true }) })
     expect(createRoomRotateGesture().beginProp('barraca', ALCA_DO_OBJETO, 1)).toBe(false)
+  })
+})
+
+/**
+ * ESCADA GIRADA PELA ALÇA (pedido de 12/11/2026: "uma vez que eu coloco a
+ * escada não da para colocar trocar para vertical e horizontal"): a mesma
+ * bolinha, acima da escada deitada, e o giro vai para os lances.
+ */
+describe('alça de girar escada', () => {
+  // A escada deitada do print: 4 casas, centro em (256, 256), borda de cima em y = 224.
+  const DEITADA: Stair = { id: 'e', shape: 'straight', direction: 'up', segments: [{ x1: 128, y1: 256, x2: 384, y2: 256 }], stepWidth: 64 }
+  const CENTRO_DA_ESCADA = { x: 256, y: 256 }
+  const ALCA_DA_ESCADA = { x: 256, y: 224 - ROOM_ROTATE_HANDLE.offsetPx }
+  const RAIO_DA_ESCADA = CENTRO_DA_ESCADA.y - ALCA_DA_ESCADA.y
+  const noArcoDaEscada = (graus: number) => {
+    const a = (graus * Math.PI) / 180
+    return { x: CENTRO_DA_ESCADA.x + RAIO_DA_ESCADA * Math.sin(a), y: CENTRO_DA_ESCADA.y - RAIO_DA_ESCADA * Math.cos(a) }
+  }
+  const escada = (): Stair => {
+    const stair = useMapStore.getState().map.stairs.find((s) => s.id === 'e')
+    if (!stair) throw new Error('a escada sumiu')
+    return stair
+  }
+  let antes: MapData
+
+  beforeEach(() => {
+    antes = mapFactory.addStair(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), DEITADA)
+    useMapStore.setState({ map: antes, selection: EMPTY_SELECTION, past: [], future: [] })
+  })
+
+  it('arrastar a bolinha até 90° põe a escada em pé ao vivo, em volta do centro, e soltar grava UM Ctrl+Z', () => {
+    const gesto = createRoomRotateGesture()
+    expect(gesto.beginStair('e', CENTRO_DA_ESCADA, 1)).toBe(false)
+    expect(gesto.beginStair('e', ALCA_DA_ESCADA, 1)).toBe(true)
+    let ultimo = null
+    for (let g = 15; g <= 90; g += 15) ultimo = gesto.move(noArcoDaEscada(g), true)
+    expect(ultimo).toEqual({ rotation: 90, label: '90°' })
+    expect(escada().segments).toEqual([{ x1: 256, y1: 128, x2: 256, y2: 384 }])
+    expect(useMapStore.getState().past).toHaveLength(0)
+    expect(gesto.finish()).toBe(true)
+    expect(useMapStore.getState().past).toHaveLength(1)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(antes)
+  })
+
+  it('Esc no meio devolve a escada como estava, sem histórico; travada não tem alça', () => {
+    const gesto = createRoomRotateGesture()
+    gesto.beginStair('e', ALCA_DA_ESCADA, 1)
+    gesto.move(noArcoDaEscada(50), false)
+    expect(escada().segments).not.toEqual(DEITADA.segments)
+    expect(gesto.cancel()).toBe(true)
+    expect(escada()).toEqual(DEITADA)
+    expect(useMapStore.getState().past).toHaveLength(0)
+    useMapStore.setState({ map: mapFactory.addStair(mapFactory.createEmptyMap('m', 'M', 30, 20, 64), { ...DEITADA, locked: true }) })
+    expect(createRoomRotateGesture().beginStair('e', ALCA_DA_ESCADA, 1)).toBe(false)
   })
 })

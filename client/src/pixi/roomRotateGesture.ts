@@ -1,10 +1,12 @@
-import type { MapData } from '../types/map'
+import type { MapData, Stair } from '../types/map'
 import type { Point } from './world'
 import { useMapStore } from '../stores/mapStore'
 import { canInteract } from '../lib/itemTransform'
+import { canInteractInLayer, stairLayer } from '../lib/layers'
 import {
   angleAroundPivot, formatRotationLabel, isOnPropRotateHandle, isOnRoomRotateHandle, roomCentroid, roomRotationOf, rotationDelta, snapRoomRotation,
 } from '../lib/roomRotation'
+import { isOnStairRotateHandle, rotateStairBy, stairRotateFrame } from '../lib/stairRotation'
 
 /**
  * Gesto da alça de GIRAR SALA, sem Pixi: o PixiCanvas repassa os eventos do
@@ -23,6 +25,12 @@ import {
  * objeto (`propRotateHandle`) e o resto do gesto é o mesmo — a mesma trava, a
  * mesma etiqueta, um Ctrl+Z só. O objeto gira em volta do próprio centro e
  * guarda o ângulo em `Prop.rotation` (`setPropRotationLive`).
+ *
+ * ESCADA (pedido de 12/11/2026: "uma vez que eu coloco a escada não da para
+ * colocar trocar para vertical e horizontal"): `beginStair` pega a mesma
+ * bolinha sobre a caixa da escada (`stairRotateHandle`). A escada não guarda
+ * ângulo — o giro vai para os lances (`lib/stairRotation.ts`), e cada quadro
+ * gira a escada do COMEÇO do gesto (`setStairGeometryLive`), sem acumular erro.
  */
 
 /**
@@ -34,8 +42,11 @@ const RAIO_MORTO_PX = 6
 
 type RoomRotateStore = Pick<typeof useMapStore, 'getState'>
 
-/** O que está girando: a Sala (giro gravado nos pontos) ou o Objeto (giro gravado em `rotation`). */
-type AlvoDoGiro = { kind: 'region'; id: string } | { kind: 'prop'; id: string; rotacaoGuardada: number | undefined }
+/** O que está girando: a Sala (giro gravado nos pontos), o Objeto (giro gravado em `rotation`) ou a Escada (giro gravado nos lances). */
+type AlvoDoGiro =
+  | { kind: 'region'; id: string }
+  | { kind: 'prop'; id: string; rotacaoGuardada: number | undefined }
+  | { kind: 'stair'; id: string; inicial: Stair }
 
 interface Giro {
   alvo: AlvoDoGiro
@@ -61,6 +72,11 @@ export interface RoomRotateFeedback {
 export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
   let giro: Giro | null = null
 
+  /** Grava a escada no mapa sem histórico, como as alças dela (`pixi/stairHandleGesture.ts`). */
+  const gravarEscada = (id: string, stair: Stair): void => {
+    store.getState().setStairGeometryLive(id, { segments: stair.segments, stepWidth: stair.stepWidth, curva: stair.curva })
+  }
+
   const aplicar = (ponto: Point, shift: boolean): RoomRotateFeedback | null => {
     if (!giro) return null
     giro.ultimoPonto = ponto
@@ -71,7 +87,8 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
     const passo = rotationDelta(giro.rotacaoAtual, alvo)
     if (passo !== 0) {
       if (giro.alvo.kind === 'region') store.getState().rotateRoomLive(giro.alvo.id, passo)
-      else store.getState().setPropRotationLive(giro.alvo.id, alvo)
+      else if (giro.alvo.kind === 'prop') store.getState().setPropRotationLive(giro.alvo.id, alvo)
+      else gravarEscada(giro.alvo.id, rotateStairBy(giro.alvo.inicial, alvo - giro.rotacaoInicial))
     }
     giro.rotacaoAtual = alvo
     return { rotation: alvo, label: formatRotationLabel(alvo) }
@@ -113,6 +130,20 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       return comecar(alvo, { x: prop.x, y: prop.y }, prop.rotation ?? 0, ponto, cameraScale)
     },
 
+    /**
+     * Pointerdown com a Escada `stairId` selecionada: a mesma regra, sobre a
+     * bolinha acima da caixa dela. Escada travada, ou na camada travada, não
+     * gira — a mesma condição das alças dela (`pixi/stairHandleGesture.ts`).
+     */
+    beginStair(stairId: string, ponto: Point, cameraScale: number): boolean {
+      const map = store.getState().map
+      const stair = map.stairs.find((s) => s.id === stairId)
+      if (stair === undefined || !canInteractInLayer(stair, stairLayer(stair), map.lockedLayers)) return false
+      const frame = stairRotateFrame(stair)
+      if (frame === null || !isOnStairRotateHandle(stair, ponto, cameraScale)) return false
+      return comecar({ kind: 'stair', id: stairId, inicial: stair }, frame.pivot, frame.rotation, ponto, cameraScale)
+    },
+
     /** Pointermove: gira até o ângulo do ponteiro. `null` = nada a mostrar (sem giro, ou no raio morto). */
     move(ponto: Point, shift: boolean): RoomRotateFeedback | null {
       return aplicar(ponto, shift)
@@ -133,6 +164,8 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       if (rotacaoAtual === rotacaoInicial) {
         // O objeto pode ter passado por outro ângulo: volta ao campo de antes, sem histórico.
         if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
+        // A escada também: volta aos lances do começo, sem histórico.
+        if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
         return true
       }
       if (alvo.kind === 'region') store.getState().finishRoomRotationLive(antes, alvo.id)
@@ -140,13 +173,14 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       return true
     },
 
-    /** Esc no meio do arrasto: a sala (ou o objeto) volta ao ângulo do começo e nada vai para o histórico. */
+    /** Esc no meio do arrasto: a sala (o objeto, a escada) volta ao ângulo do começo e nada vai para o histórico. */
     cancel(): boolean {
       if (!giro) return false
       const volta = rotationDelta(giro.rotacaoAtual, giro.rotacaoInicial)
       const alvo = giro.alvo
       giro = null
       if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
+      else if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
       else if (volta !== 0) store.getState().rotateRoomLive(alvo.id, volta)
       return true
     },

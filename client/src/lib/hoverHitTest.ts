@@ -40,6 +40,7 @@ import type { HoverKind, ResizeCorner } from '../pixi/cursorPolicy'
 import { drawingBoundingBox, tokenBoundingBox } from './objectTransform'
 import { hasRoomCornerHandles } from './roomOps'
 import { isOnPropRotateHandle, isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
+import { isOnStairRotateHandle } from './stairRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
 import { findBoxCornerHandleAt, findDoorEndHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
@@ -138,8 +139,10 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     // Alças da escada (pontas, laterais, meio): a mesma condição do pointerdown (`pixi/stairHandleGesture.ts`).
     if (selection.kind === 'stair') {
       const stair = map.stairs.find((s) => s.id === selection.id)
-      if (stair && canInteractInLayer(stair, stairLayer(stair), map.lockedLayers) && findStairHandleAt(stair, worldPoint, scale) !== null) {
-        return { kind: 'vertex', corner: null, target: null }
+      if (stair && canInteractInLayer(stair, stairLayer(stair), map.lockedLayers)) {
+        if (findStairHandleAt(stair, worldPoint, scale) !== null) return { kind: 'vertex', corner: null, target: null }
+        // Alça de girar da escada: a mesma condição do pointerdown (`beginStair`, `pixi/roomRotateGesture.ts`).
+        if (isOnStairRotateHandle(stair, worldPoint, scale)) return { kind: 'rotate', corner: null, target: null }
       }
     }
     if (selection.kind === 'token') {
