@@ -353,15 +353,18 @@ describe('aba Jogo compacta: 7 jogadores, 1 aguardando', () => {
     expect(mandarBruno.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('a página Grupo é só o Grupo: código, Laser, convite (link, endereços, QR) e Fechar sala moram no topo da Sala (livro da mesa)', () => {
+  it('a página Grupo é só o Grupo: código, Laser, convite (link, endereços, QR) e Fechar mesa online moram no topo da Mesa online (livro da mesa)', () => {
     render()
     const secao = grupo()
     // O Grupo abre a página: nada de montar a mesa antes dele.
     expect(secao.parentElement?.firstElementChild).toBe(secao)
     expect(container.textContent).not.toContain(ROOM.code)
-    expect(container.querySelector('img[alt="QR da sala"]')).toBeNull()
-    for (const fora of ['Laser', 'Tornar pública', 'Fechar sala']) {
-      expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === fora), fora).toBe(false)
+    // Qualquer QR (o da mesa online e o do link público): o texto do `alt` já mudou uma vez (decisão 29).
+    expect(container.querySelector('img[alt*="QR"], img.lb-room__qr')).toBeNull()
+    // Os textos de hoje do topo (`livro/TopoDaSala.tsx`, decisão 29 "Mesa online"), no texto ou no nome acessível do botão.
+    const nomesDosBotoes = Array.from(container.querySelectorAll('button')).flatMap((b) => [b.textContent?.trim() ?? '', b.getAttribute('aria-label') ?? ''])
+    for (const fora of ['Laser', 'Tornar pública', 'Mais da mesa online', 'Fechar mesa online…', 'Fechar mesa online']) {
+      expect(nomesDosBotoes.includes(fora), fora).toBe(false)
     }
   })
 })
