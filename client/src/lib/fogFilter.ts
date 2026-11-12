@@ -3388,12 +3388,24 @@ function recorteDoGrupo(
     },
   })
 
+  /**
+   * Desenho que o jogador não recebe por causa da SALA. Sala secreta e cômodo
+   * não visto: qualquer amostra lá dentro tira o desenho (nada cobre o formato
+   * deles). Teto fechado: só o desenho que mora DENTRO do prédio (a maioria
+   * das amostras sob o teto, a mobília). O chão grande que passa por baixo
+   * (um cais, uma praça) continua do jogador, com o telhado por cima — a mesma
+   * régua da Área que contém o prédio (`swallowedByClosedRoof`). Uma ponta do
+   * cais sob a casa apagava o cais inteiro e a textura dele (12/11/2026).
+   */
+  const drawingInHiddenPlace = (samples: readonly RegionPoint[]): boolean =>
+    samples.some((p) => inSecretRoom(p) || inUnseenComodo(p)) || mostly(samples, roofHides)
+
   const drawings = recallItems(map.drawings, remembered?.drawings, {
     allowed: (d) => !d.secret,
     shown: (d) => jogadorVeItem('desenho', d),
     placeOk: (d) => {
       const samples = drawingSamplePoints(d)
-      if (samples.some(inHiddenPlace)) return false
+      if (drawingInHiddenPlace(samples)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
       return outsideZones(samples).length > 0
@@ -4135,7 +4147,7 @@ function recorteDoGrupo(
     drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
-      if (samples.some(inHiddenPlace)) return false
+      if (drawingInHiddenPlace(samples)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
       return memoryMode || isShapeKnown(samples, drawingOutline(d))
