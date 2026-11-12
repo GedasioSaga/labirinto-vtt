@@ -123,6 +123,7 @@ import {
   type PointActionKind,
 } from '../lib/pointActions'
 import { tokenSizeInSquares } from '../lib/tokenSize'
+import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
 import { congeladaPresaA, estaCongelada, podeAcompanhar, semAsCongeladas } from '../lib/congelar'
@@ -360,6 +361,18 @@ function sceneChangedFor(to: MapData, by?: 'master' | 'gather' | 'veiculo'): Ext
  */
 export function travelPinsClearance(map: MapData): KeepClear[] {
   return map.pins.filter((p) => p.kind === 'viagem' && p.secret !== true && p.hidden !== true && !isArrivalOnly(p)).flatMap(pinClearance)
+}
+
+/**
+ * TAMANHO AO ENTRAR (`lib/tamanhoAoEntrar.ts`): `token` com o lado com que
+ * ele chega a `to` — o padrão da cena quando a ficha MUDA de cena; no atalho
+ * (`mudaDeCena` falso, mesma cena) o que ela tem. As casas de chegada são
+ * procuradas nesse lado; quem grava o tamanho é a travessia
+ * (`lib/travessiaDaFicha.ts`). Sem padrão, ou já nele: o MESMO objeto.
+ */
+function noLadoDeChegada(token: Token, to: MapData, mudaDeCena: boolean): Token {
+  const padrao = tamanhoPadraoDaCena(to)
+  return !mudaDeCena || padrao === null || padrao === token.size ? token : { ...token, size: padrao }
 }
 
 function travelLookup(scenes: readonly HostScene[]): (sceneId: string) => TravelScene | null {
@@ -1134,8 +1147,25 @@ export interface ChatAppended {
   entry: ChatEntry
 }
 
+/**
+ * BROADCAST EM PARTES (caça 12/11, O1 passo 1): o passo de um jogador refazia, na MESMA tarefa do mestre, o recorte
+ * de todos da cena (318 ms com 4 na mesa). Com `primeiro`, sai já a tela de quem andou (e a de quem está em outra
+ * cena, que nem muda); a dos colegas da cena dele volta em `recortesAdiados`, e o integrador manda cada uma numa
+ * tarefa própria, com `so`. Cada tela sai igual à do broadcast inteiro com o mundo daquela hora: muda quando, não o quê.
+ */
+export interface PartesDoBroadcast {
+  /** Conexão de quem andou: a tela dela sai já; a dos colegas de cena dela fica para depois. */
+  primeiro?: string
+  /** Só a tela desta conexão (uma das adiadas). */
+  so?: string
+  /** Com `so`: é a última adiada, e a tela da mesa sai nesta chamada (com a memória de todos já em dia). */
+  ultima?: boolean
+}
+
 export interface HostResult {
   outbound: Outbound[]
+  /** Broadcast com `primeiro` (`PartesDoBroadcast`): as conexões cuja tela ficou para depois, uma tarefa cada. */
+  recortesAdiados?: string[]
   /** Chamado NOVO na fila: o integrador mostra a linha e toca o bipe. Repetição do mesmo chamado não vem. */
   call?: MasterCall
   applyMove?: AppliedMove
@@ -2007,7 +2037,7 @@ export interface HostSession {
    * de um veículo, "Levar para…") recebe antes `scene.changed` `by: 'master'`
    * e perde o pedido de passagem que tinha na cena de antes.
    */
-  broadcast(source: HostMapSource): HostResult
+  broadcast(source: HostMapSource, partes?: PartesDoBroadcast): HostResult
   /**
    * O mapa do mestre mudou: o ferrolho de porta que ficou aberta, trancada
    * pelo mestre ou apagada sai de vez, em toda cena. Chamado a CADA mudança,
@@ -3234,13 +3264,14 @@ type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
 
 /** O que sai na tela do jogador, sem o `rev` (que muda a cada broadcast). */
 function contentOf(msg: SnapshotMessage): PlayerViewContent {
-  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed }
+  // Caça 12/11 (O2): as portas por atravessar mudam a cada passo na cidade; nos extras, cada passo ia inteiro (~300 kB).
+  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [] }
 }
 
 /**
  * O resto do snapshot (fora `contentOf`, `type` e `rev`), em JSON: batalha,
- * perigo, portas por atravessar, andares, relógio… O `patch` não
- * leva nada disto — o jogador mantém o que já tinha —, então mudou, vai inteiro.
+ * perigo, andares, relógio… O `patch` não leva nada disto — o jogador mantém
+ * o que já tinha —, então mudou, vai inteiro. As portas por atravessar vão no patch (`contentOf`).
  */
 function extrasOf(msg: SnapshotMessage): string {
   const rest: Partial<SnapshotMessage> = { ...msg }
@@ -3251,6 +3282,7 @@ function extrasOf(msg: SnapshotMessage): string {
   delete rest.explored
   delete rest.ownTokens
   delete rest.concealed
+  delete rest.porAtravessar
   return JSON.stringify(rest)
 }
 
@@ -3704,6 +3736,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const batalhaDBTNoHost = criarBatalhaDBTNoHost({ ponte: options.ponteDaBatalhaDBT, agora: () => now() })
   // Sobe a cada `broadcast`: o pedido de batalha sabe se a store já mandou o recorte DE DENTRO da ação (`handleBatalha`).
   let broadcastsFeitos = 0
+  // BROADCAST EM PARTES (O1): aviso de perigo de quem teve a tela adiada, por conexão; sai logo depois da tela dele.
+  const avisosDepoisDaTela = new Map<string, Outbound[]>()
   // BATALHA F1 — por playerId: as fichas do último recorte que saiu para ele
   // (`snapshotFor`) e de que mapa. É o "o que a tela dele tem" da ordem dos
   // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
@@ -8897,8 +8931,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // "Aguardando o mestre" para sempre.
       if (hadPending) lostTravels.push({ clientId, msg: { type: 'pin.travel.rejected', reason: 'unavailable' } })
     }
+    // TAMANHO AO ENTRAR: quem leva e quem é levado já no lado com que entram (no atalho, o de sempre).
+    const muda = from.sceneId !== to.sceneId
+    const chegando = (t: Token): Token => noLadoDeChegada(t, to.map, muda)
     return {
-      transfer: { junto: companionArrivals(to.map, carrier, spot, carried) },
+      transfer: { junto: companionArrivals(to.map, chegando(carrier), spot, carried.map(chegando)) },
       outbound,
       lost: lostTravels.length === 0 ? {} : { lostTravels },
     }
@@ -8965,7 +9002,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const aBordo = veiculo === null ? [] : passengerIdsOf(travel.from.map, veiculo.id)
     const going = new Set([travel.token.id, lead.id, ...aBordo])
     const seen = seenOnArrival(playerId, travel.to.map, travel.token, { x: travel.partner.x, y: travel.partner.y, piso: pisoDoPar }, going)
-    const spot = arrivalSpot(seen, travel.partner, lead.size, lead.id)
+    // TAMANHO AO ENTRAR: a casa da frente (e de quem vai junto) no lado com que ela entra na outra cena.
+    const mudaDeCena = travel.from.sceneId !== travel.to.sceneId
+    const leadNaChegada = noLadoDeChegada(lead, travel.to.map, mudaDeCena)
+    const spot = arrivalSpot(seen, travel.partner, leadNaChegada.size, lead.id)
     // A cena dele passa a ser a de destino a partir daqui: é ela que o
     // próximo broadcast manda, com a memória que ele tem DELA.
     currentScene.set(playerId, sceneKey(travel.to))
@@ -8984,7 +9024,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ajudante nem séquito — senão sairia do veículo para sentar ao lado.
     const levados = new Set([...going].filter((id) => id !== travel.token.id))
     const acompanham = semAsFichas(semAsCongeladas(travel.from.map), levados)
-    const companions = loanedFollowers(playerId, acompanham, travel.to.map, lead, spot)
+    const companions = loanedFollowers(playerId, acompanham, travel.to.map, leadNaChegada, spot, mudaDeCena)
     const along = carriedAlong(playerId, travel.token.id, travel.from, travel.to, spot, world, 'master')
     const applyTransfer: AppliedTransfer = {
       ...along.transfer,
@@ -9012,8 +9052,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
     }
     // O veículo já ocupa a casa de chegada inteira: o séquito senta em volta dele.
-    const vehicleSeat: Seat[] = veiculo === null ? [] : [{ x: spot.x, y: spot.y, size: veiculo.size }]
-    withEntourage(applyTransfer, acompanham, travel.token, travel.to.map, [...vehicleSeat, ...carriedSeats(applyTransfer, travel.from.map)], travel.partner, travel.chosen)
+    const vehicleSeat: Seat[] = veiculo === null ? [] : [{ x: spot.x, y: spot.y, size: leadNaChegada.size }]
+    withEntourage(applyTransfer, acompanham, travel.token, travel.to.map, [...vehicleSeat, ...carriedSeats(applyTransfer, travel.from.map, travel.to.map)], travel.partner, travel.chosen)
     withoutCarriedInEntourage(applyTransfer)
     return {
       outbound: [{ clientId, msg: atalho ? { ...changed, tokenId: travel.token.id } : changed }, ...along.outbound],
@@ -9068,14 +9108,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const keepClear = pin === null ? [] : pinClearance(pin)
     const going = new Set([lead.id, ...near.map((t) => t.id)])
     const destination = seenOnArrival(transfer.playerId, to, lead, transfer, going)
-    const seats = entourageSeats(destination, transfer, [{ x: transfer.x, y: transfer.y, size: lead.size }, ...taken], near.map((t) => t.size), keepClear)
+    // TAMANHO AO ENTRAR: dono e séquito no lado com que chegam (no atalho, o de sempre).
+    const lado = (t: Token): number => noLadoDeChegada(t, to, transfer.fromSceneId !== transfer.toSceneId).size
+    const seats = entourageSeats(destination, transfer, [{ x: transfer.x, y: transfer.y, size: lado(lead) }, ...taken], near.map(lado), keepClear)
     const entourage: EntourageSeat[] = []
     const used: Seat[] = []
     near.forEach((token, index) => {
       const seat = seats[index] ?? null
       if (seat === null) return
       entourage.push({ tokenId: token.id, x: seat.x, y: seat.y })
-      used.push({ x: seat.x, y: seat.y, size: token.size })
+      used.push({ x: seat.x, y: seat.y, size: lado(token) })
     })
     if (entourage.length > 0) transfer.entourage = entourage
     return used
@@ -9133,8 +9175,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * LEVAR FICHA JUNTO + MONTARIA: as casas que a travessia já deu às fichas
    * levadas (`transfer.junto`). O séquito senta em volta sem cobri-las.
    */
-  function carriedSeats(transfer: AppliedTransfer, from: MapData): Seat[] {
-    return (transfer.junto ?? []).map((carried) => ({ x: carried.x, y: carried.y, size: from.tokens.find((t) => t.id === carried.tokenId)?.size ?? 1 }))
+  function carriedSeats(transfer: AppliedTransfer, from: MapData, to: MapData): Seat[] {
+    const muda = transfer.fromSceneId !== transfer.toSceneId
+    return (transfer.junto ?? []).map((carried) => {
+      const token = from.tokens.find((t) => t.id === carried.tokenId)
+      // TAMANHO AO ENTRAR: a casa no lado com que a levada chega a `to`.
+      return { x: carried.x, y: carried.y, size: token === undefined ? 1 : noLadoDeChegada(token, to, muda).size }
+    })
   }
 
   /**
@@ -9251,13 +9298,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * Não coube em volta (sala cheia, parede em tudo)? Assenta na casa de quem
    * viaja: empilhado ainda é melhor que perdido em outra cena.
    */
-  function loanedFollowers(playerId: string, fromMap: MapData, toMap: MapData, traveler: Token, spot: { x: number; y: number }): TransferCompanion[] {
+  function loanedFollowers(playerId: string, fromMap: MapData, toMap: MapData, traveler: Token, spot: { x: number; y: number }, mudaDeCena: boolean): TransferCompanion[] {
     const loaned = loansFor(playerId)
     const following = fromMap.tokens.filter((t) => t.id !== traveler.id && loaned.has(t.id))
     if (following.length === 0) return []
     // A ficha principal ainda não está no destino: entra no cálculo já assentada, para ninguém cair em cima dela.
+    // `traveler` já vem no lado com que chega; os ajudantes também (TAMANHO AO ENTRAR).
     const withTraveler: MapData = { ...toMap, tokens: [...toMap.tokens, { ...traveler, x: spot.x, y: spot.y }] }
-    const seats = gatherSpots(withTraveler, spot, following.map((t) => tokenSizeInSquares(t)))
+    const seats = gatherSpots(withTraveler, spot, following.map((t) => tokenSizeInSquares(noLadoDeChegada(t, toMap, mudaDeCena))))
     return following.map((t, index) => {
       const seat = seats[index] ?? null
       return { tokenId: t.id, x: seat === null ? spot.x : seat.x, y: seat === null ? spot.y : seat.y }
@@ -10806,18 +10854,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Quem pediu não passou: ninguém vai "junto" de quem ficou.
       if (group === null || arrival === undefined) return [lead]
       const { travel, near } = group
+      // TAMANHO AO ENTRAR: todo mundo desta viagem no lado com que entra (no atalho, o de sempre).
+      const lado = (t: Token): number => noLadoDeChegada(t, travel.to.map, travel.from.sceneId !== travel.to.sceneId).size
       // VEÍCULO: a motorista chegou de veículo — é ele que ocupa a casa de chegada.
-      const leader = { x: arrival.x, y: arrival.y, size: (vehicleDrivenBy(travel.from.map, travel.token.id) ?? travel.token).size }
+      const leader = { x: arrival.x, y: arrival.y, size: lado(vehicleDrivenBy(travel.from.map, travel.token.id) ?? travel.token) }
       // O séquito de quem pediu já tem casa: ninguém senta em cima do pônei dele.
       const leadEntourage: Seat[] = (arrival.entourage ?? []).flatMap((seat) => {
         const token = travel.from.map.tokens.find((t) => t.id === seat.tokenId)
-        return token === undefined ? [] : [{ x: seat.x, y: seat.y, size: token.size }]
+        return token === undefined ? [] : [{ x: seat.x, y: seat.y, size: lado(token) }]
       })
-      const spots = companionSpots(travel.to.map, travel.partner, leader, near.map((c) => c.token.size), leadEntourage)
+      const spots = companionSpots(travel.to.map, travel.partner, leader, near.map((c) => lado(c.token)), leadEntourage)
       // Todas as casas já dadas nesta viagem: o séquito de cada companheiro desvia delas.
       const companionSeats = near.flatMap((companion, index) => {
         const spot = spots[index] ?? null
-        return spot === null ? [] : [{ x: spot.x, y: spot.y, size: companion.token.size }]
+        return spot === null ? [] : [{ x: spot.x, y: spot.y, size: lado(companion.token) }]
       })
       const taken: Seat[] = [leader, ...leadEntourage, ...companionSeats]
       const results: HostResult[] = [lead]
@@ -11001,7 +11051,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const pin = gatherAt !== undefined || pinId === null ? null : to.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
       // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
       if (pin === undefined) return { outbound: [] }
-      const spot = gatherAt ?? (pin === null ? arrivalSpotWithoutPin(to.map, token.size, token.id) : arrivalSpot(to.map, pin, token.size, token.id))
+      // TAMANHO AO ENTRAR: sempre outra cena aqui; a casa no lado com que ela entra (a da reunião já vem nele).
+      const naChegada = noLadoDeChegada(token, to.map, true)
+      const spot = gatherAt ?? (pin === null ? arrivalSpotWithoutPin(to.map, naChegada.size, token.id) : arrivalSpot(to.map, pin, naChegada.size, token.id))
       currentScene.set(playerId, sceneKey(to))
       forgetSentView(playerId)
       // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
@@ -11010,7 +11062,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       pendingTravels.delete(playerId)
       const by = gatherAt === undefined ? 'master' : 'gather'
       // O ajudante emprestado vai junto, como no pino (`loanedFollowers`).
-      const companions = loanedFollowers(playerId, from.map, to.map, token, spot)
+      const companions = loanedFollowers(playerId, from.map, to.map, naChegada, spot, true)
       const along = carriedAlong(playerId, token.id, from, to, spot, world, by)
       const applyTransfer: AppliedTransfer = {
         ...along.transfer,
@@ -11030,7 +11082,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // "Reunir o grupo aqui" já escolheu a casa de cada ficha do grupo inteiro,
       // séquito incluído (`lib/gatherParty.ts`): sentar o séquito agora tomaria
       // a casa de quem vem depois, então as casas vêm do plano.
-      if (gatherAt === undefined) withEntourage(applyTransfer, from.map, token, to.map, carriedSeats(applyTransfer, from.map), pin)
+      if (gatherAt === undefined) withEntourage(applyTransfer, from.map, token, to.map, carriedSeats(applyTransfer, from.map, to.map), pin)
       else withPlannedEntourage(applyTransfer, from.map, token, gatherAt.entourage ?? [])
       withoutCarriedInEntourage(applyTransfer)
       return {
@@ -11052,7 +11104,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const to = allScenes(world).find((scene) => scene.sceneId === back.sceneId)
       if (to === undefined || to.sceneId === null) return { outbound: [] }
       // Alguém parou na casa dela enquanto isso: volta ao lado, sem empilhar (a de baixo sumia).
-      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, token.size, tokenId)
+      // TAMANHO AO ENTRAR: a volta também é entrar na cena de origem (o padrão dela, se tiver).
+      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, noLadoDeChegada(token, to.map, true).size, tokenId)
       currentScene.set(playerId, sceneKey(to))
       // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
       tellScene(playerId, to)
@@ -11086,7 +11139,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const owned = new Set(ownership[playerId] ?? [])
       const owner = here.map.tokens.find((t) => owned.has(t.id))
       if (owner === undefined) return { outbound: [] }
-      const [seat] = entourageSeats(here.map, owner, [{ x: owner.x, y: owner.y, size: owner.size }], [token.size], travelPinsClearance(here.map))
+      // TAMANHO AO ENTRAR: a trazida vem de outra cena, no lado com que entra nesta.
+      const [seat] = entourageSeats(here.map, owner, [{ x: owner.x, y: owner.y, size: owner.size }], [noLadoDeChegada(token, here.map, true).size], travelPinsClearance(here.map))
       if (seat === undefined || seat === null) return { outbound: [] }
       return {
         outbound: [],
@@ -11156,7 +11210,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const toSceneId = to.sceneId
       const ownerOf = new Map<string, string>()
       for (const [playerId, ids] of Object.entries(ownership)) for (const id of ids) ownerOf.set(id, playerId)
-      const spots = landingSpots(to.map, city.partner, landing)
+      // TAMANHO AO ENTRAR: cada um desce na cidade no lado com que entra nela.
+      const chegando = (t: Token): Token => noLadoDeChegada(t, to.map, fromSceneId !== toSceneId)
+      const spots = landingSpots(to.map, city.partner, landing.map(chegando))
       const told = new Set<string>()
       const arrivals: CaravanArrival[] = []
       landing.forEach((token, i) => {
@@ -11176,7 +11232,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // junto. Ficando no mapa-mundi com o vínculo gravado, voltaria a ser
         // puxada quando quem a leva voltasse para lá.
         const companions = carriedBy(from.map, token.id).filter((t) => !memberIds.has(t.id))
-        const junto = companionArrivals(to.map, token, spot, companions)
+        const junto = companionArrivals(to.map, chegando(token), spot, companions.map(chegando))
         arrivals.push({
           transfer: {
             tokenId: token.id,
@@ -11753,7 +11809,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       podarFerrolhosDe(toWorld(source()))
     },
 
-    broadcast(source) {
+    broadcast(source, partes) {
       const world = toWorld(source)
       broadcastsFeitos += 1
       rev += 1
@@ -11765,7 +11821,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // CONGELAR FICHA: o pedido que o mestre congelou sai da espera já neste envio.
       const congelados = dropFrozenTravels(world)
       outbound.push(...congelados.outbound)
+      // BROADCAST EM PARTES (O1): a cena de quem andou; os colegas dela esperam a vez, cada um na sua tarefa.
+      const primeiro = partes?.primeiro
+      const quemAndou = primeiro === undefined ? undefined : byClient.get(primeiro)
+      const cenaDeQuemAndou = quemAndou === undefined || statusOf(quemAndou) !== 'playing' ? null : sceneFor(quemAndou, world)
+      const adiados: string[] = []
       for (const [clientId, playerId] of byClient) {
+        if (partes?.so !== undefined && clientId !== partes.so) continue
+        if (
+          cenaDeQuemAndou !== null &&
+          clientId !== primeiro &&
+          statusOf(playerId) === 'playing' &&
+          sceneFor(playerId, world)?.sceneId === cenaDeQuemAndou.sceneId
+        ) {
+          adiados.push(clientId)
+          continue
+        }
         if (statusOf(playerId) !== 'playing') {
           // Fora de jogo a tela dele não tem recorte: quando voltar, o envio refaz.
           lastViews.delete(playerId)
@@ -11811,7 +11882,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       }
       // A tela da mesa DEPOIS dos jogadores: a memória de cada um já inclui a
       // visão deste broadcast. Um recorte só, igual para todas as telas.
-      if (tableClients.size > 0) {
+      // Em partes (O1), ela sai quando a última tela adiada sair: antes, faltaria a memória dos adiados.
+      const mesaAgora = partes === undefined || (partes.so === undefined ? adiados.length === 0 : partes.ultima === true)
+      if (tableClients.size > 0 && mesaAgora) {
         const msg = tableView(world)
         for (const clientId of tableClients) outbound.push({ clientId, msg })
       }
@@ -11835,18 +11908,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Empréstimo: o dono está fora, mas a ficha dele anda. O que ela vê entra
       // no explorado DELE — para ele voltar sabendo onde a ficha esteve —, e o
       // recorte montado para isso não sai pela rede.
-      for (const ownerId of new Set([...loans.values()].map((loan) => loan.ownerId))) {
-        const scene = sceneFor(ownerId, world)
-        if (scene !== null) snapshotFor(ownerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(ownerId, scene, world), elsewhereFor(ownerId, world, scene))
+      // Na tela adiada (O1) não: o passo que mexeu na ficha emprestada já fez isso na chamada de quem andou.
+      if (partes?.so === undefined) {
+        for (const ownerId of new Set([...loans.values()].map((loan) => loan.ownerId))) {
+          const scene = sceneFor(ownerId, world)
+          if (scene !== null) snapshotFor(ownerId, scene.map, world, sceneNameForPlayer(scene), floorsFor(ownerId, scene, world), elsewhereFor(ownerId, world, scene))
+        }
       }
       // ZONA DE PERIGO: o aviso vai DEPOIS do snapshot — a tela já desenha o
-      // perigo quando o texto aparece.
+      // perigo quando o texto aparece. O de quem teve a tela adiada (O1) espera a tela dele sair.
       const hazards = hazardEntriesIn(world)
-      outbound.push(...hazards.outbound)
+      for (const aviso of hazards.outbound) {
+        if (!adiados.includes(aviso.clientId)) outbound.push(aviso)
+        else avisosDepoisDaTela.set(aviso.clientId, [...(avisosDepoisDaTela.get(aviso.clientId) ?? []), aviso])
+      }
+      for (const [clientId, avisos] of [...avisosDepoisDaTela]) {
+        if (adiados.includes(clientId) || (partes?.so !== undefined && clientId !== partes.so)) continue
+        outbound.push(...avisos)
+        avisosDepoisDaTela.delete(clientId)
+      }
       // GATILHO DE ÁREA: nada vai para `outbound` — o aviso é só do mestre.
       const triggerEntries = triggerEntriesIn(world)
       return {
         outbound,
+        ...(adiados.length === 0 ? {} : { recortesAdiados: adiados }),
         ...(congelados.frozen.length === 0 ? {} : { frozenTravels: congelados.frozen }),
         ...(hazards.entries.length === 0 ? {} : { hazardEntries: hazards.entries }),
         ...(triggerEntries.length === 0 ? {} : { triggerEntries }),
