@@ -325,6 +325,29 @@ function camadaDaSelecao(map: MapData, selection: Selection): CamadaId | null {
   }
 }
 
+/**
+ * Caça de 12/11/2026 (E4): depois de Ctrl+Z ou Ctrl+Y o painel só mostra o
+ * que existe no mapa NOVO e pode ser mexido. Sai da seleção o item que sumiu
+ * ou cuja camada ficou oculta ou travada; o pino e a zona abertos que sumiram
+ * fecham. O item que continua (o Ctrl+Z de um MOVIMENTO) fica selecionado.
+ * Devolve só o que muda, para entrar no mesmo `set` da troca de mapa.
+ */
+function selecaoDepoisDoHistorico(
+  map: MapData,
+  state: Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>,
+): Partial<Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>> {
+  const camadas = contextoDeCamadas(map)
+  const selection = state.selection.filter((item) => {
+    const camada = camadaDaSelecao(map, item)
+    return camada !== null && camadas.mestreVe(camada) && !camadas.travada(camada)
+  })
+  const patch: Partial<Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>> = {}
+  if (selection.length !== state.selection.length) patch.selection = selection.length === 0 ? EMPTY_SELECTION : selection
+  if (state.selectedPinId !== null && !map.pins.some((pin) => pin.id === state.selectedPinId)) patch.selectedPinId = null
+  if (state.selectedConcealZoneId !== null && !map.concealZones.some((zone) => zone.id === state.selectedConcealZoneId)) patch.selectedConcealZoneId = null
+  return patch
+}
+
 /** O que sobra da seleção depois do olho ou do cadeado: sai o item cuja camada, no mapa NOVO, o mestre não vê ou travou. */
 function selecaoQueSobra(map: MapData, selection: SelectionSet, sai: (camada: CamadaId) => boolean): SelectionSet {
   return selection.filter((item) => {
@@ -3653,6 +3676,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         map: previous,
         past: state.past.slice(0, -1),
         future: [...state.future, map],
+        ...selecaoDepoisDoHistorico(previous, state),
       }))
     },
     redo: () => {
@@ -3664,6 +3688,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         map: next,
         future: state.future.slice(0, -1),
         past: [...state.past, map],
+        ...selecaoDepoisDoHistorico(next, state),
       }))
     },
   }

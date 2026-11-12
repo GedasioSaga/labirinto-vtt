@@ -6486,6 +6486,13 @@ function PixiCanvasDoContexto({
           // difícil, e aqui não há preview de arrasto pra corrigir a mira.
           // Filtrado por camada visível (mesmo filtro do render/hit-test de
           // seleção) — não cria porta em cima de parede que o LayersPanel escondeu.
+          // Caça 12/11 (E6): clique EM CIMA de uma porta seleciona a parede dela (a ficha da porta
+          // abre), em vez de espremer uma segunda porta colada no trecho vizinho.
+          const portaNoClique = findDoorAt(doPisoEmEdicao(map), worldPoint)
+          if (portaNoClique !== null) {
+            setSelection(selectionOfItem({ kind: 'wall', id: portaNoClique.id }))
+            return
+          }
           const paredesDoPiso = visibleWalls(doPisoEmEdicao(map).walls, map.hiddenLayers)
           // Parede presa a um desenho ("Paredes ao redor") é refeita a partir
           // dele: a porta partiria a parede e sumiria na edição seguinte do
@@ -6648,6 +6655,14 @@ function PixiCanvasDoContexto({
         }
 
         if (activeTool === 'light') {
+          // Caça 12/11 (E17, decisão 19): clicar numa luz que já existe a seleciona, como o
+          // Objeto; Ctrl (Cmd) + clique põe outra por cima.
+          const luzNoClique = isFreeMoveModifier(event) ? null : findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))
+          if (luzNoClique !== null && luzNoClique.kind === 'light') {
+            setSelection(selectionOfItem({ kind: 'light', id: luzNoClique.id }))
+            mode = 'idle'
+            return
+          }
           mode = 'drawing-light'
           lightDraftCenter = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           lightDraftRawStart = worldPoint
@@ -6716,7 +6731,9 @@ function PixiCanvasDoContexto({
           return
         }
 
-        if (activeTool === 'prop') {
+        // Caça 12/11 (E10): na aba Imagem, como na aba Móvel, o clique num objeto já posto é dele
+        // (fluxo de sempre, mais abaixo: a ficha abre); o seletor de arquivo só no vazio.
+        if (activeTool === 'prop' && !(!isFreeMoveModifier(event) && objetoPrendeOCliqueDePor(map, worldPoint))) {
           const point = applySnap(worldPoint, map.grid, 'prop', event.altKey)
           void (async () => {
             // Passeio cego de 17/09/2026: este bloco era um `void (async ...)()`
@@ -6865,6 +6882,15 @@ function PixiCanvasDoContexto({
         }
 
         if (activeTool === 'text') {
+          // Caça 12/11 (E17, decisão 19): clicar num texto que já existe entra em edição NELE
+          // (o teclado continua o texto); Ctrl (Cmd) + clique põe outro por cima.
+          const textoNoClique = isFreeMoveModifier(event) ? null : findSelectableAt(clickSelectMap(map), worldPoint, pinosNoToque(map))
+          if (textoNoClique !== null && textoNoClique.kind === 'drawing' && map.drawings.some((d) => d.id === textoNoClique.id && d.kind === 'text')) {
+            setSelection(selectionOfItem({ kind: 'drawing', id: textoNoClique.id }))
+            textEditingId = textoNoClique.id
+            textEditingReplacesAll = false
+            return
+          }
           const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
           const id = crypto.randomUUID()
           const { addDrawing, drawColor, drawFontSize, drawFontFamily, setSelection: select } = useMapStore.getState()
@@ -9411,6 +9437,15 @@ function PixiCanvasDoContexto({
                       ? 'Pino de viagem apagado — Ctrl+Z desfaz'
                       : 'Ponto de interesse apagado — Ctrl+Z desfaz',
                 )
+              break
+            }
+            // Caça 12/11 (E16): a ZONA OCULTA aberta também mora fora de `selection`
+            // (`selectedConcealZoneId`): Delete a apaga, como o botão "Excluir zona", e avisa.
+            // Conferida no mapa, pelo mesmo motivo do pino acima (o id pode estar velho).
+            const { map: mapaDaZona, selectedConcealZoneId: zonaAberta, removeConcealZone } = useMapStore.getState()
+            if (zonaAberta !== null && mapaDaZona.concealZones.some((zona) => zona.id === zonaAberta)) {
+              removeConcealZone(zonaAberta)
+              useToastStore.getState().push('info', 'Zona oculta apagada — Ctrl+Z desfaz')
               break
             }
             // O mapa é lido ANTES da remoção: depois dela não há como saber se
