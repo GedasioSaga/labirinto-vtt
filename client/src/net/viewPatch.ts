@@ -74,6 +74,11 @@ export interface PlayerViewContent {
   explored: ExploredWire
   ownTokens: string[]
   concealed: RegionPoint[][]
+  /**
+   * PORTAS POR ATRAVESSAR (`snapshot.porAtravessar`), ausente = nenhuma. Caça 12/11 (O2): antes ia nos "extras" e
+   * qualquer mudança mandava a tela inteira (~300 kB por passo na cidade); agora viaja no patch como os outros campos.
+   */
+  porAtravessar?: string[]
 }
 
 /** Só os pedaços da tela que mudaram; tudo ausente = a tela é a mesma. */
@@ -85,6 +90,8 @@ export interface ViewPatch {
   exploredEdits?: ExploredEdits
   ownTokens?: string[]
   concealed?: RegionPoint[][]
+  /** A lista inteira de agora; `[]` = nenhuma porta por atravessar (vazia viaja, ausente = a mesma de antes). */
+  porAtravessar?: string[]
 }
 
 /**
@@ -476,6 +483,8 @@ export function diffView(prev: PlayerViewContent, next: PlayerViewContent): View
   }
   if (!sameValue(prev.ownTokens, next.ownTokens)) patch.ownTokens = next.ownTokens
   if (!sameValue(prev.concealed, next.concealed)) patch.concealed = next.concealed
+  const porAtravessar = next.porAtravessar ?? []
+  if (!sameValue(prev.porAtravessar ?? [], porAtravessar)) patch.porAtravessar = porAtravessar
   return patch
 }
 
@@ -492,7 +501,10 @@ export function applyViewPatch(prev: PlayerViewContent, patch: ViewPatch): Playe
     if (edited === null) return null
     explored = edited
   }
-  return { map, vision: patch.vision ?? prev.vision, explored, ownTokens: patch.ownTokens ?? prev.ownTokens, concealed: patch.concealed ?? prev.concealed }
+  const tela: PlayerViewContent = { map, vision: patch.vision ?? prev.vision, explored, ownTokens: patch.ownTokens ?? prev.ownTokens, concealed: patch.concealed ?? prev.concealed }
+  const porAtravessar = patch.porAtravessar ?? prev.porAtravessar
+  if (porAtravessar !== undefined) tela.porAtravessar = porAtravessar
+  return tela
 }
 
 export function isEmptyViewPatch(patch: ViewPatch): boolean {
@@ -502,6 +514,7 @@ export function isEmptyViewPatch(patch: ViewPatch): boolean {
     patch.explored === undefined &&
     patch.exploredEdits === undefined &&
     patch.ownTokens === undefined &&
-    patch.concealed === undefined
+    patch.concealed === undefined &&
+    patch.porAtravessar === undefined
   )
 }

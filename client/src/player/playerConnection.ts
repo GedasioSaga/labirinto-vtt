@@ -4179,6 +4179,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const ownTokens = data.ownTokens === undefined ? received.ownTokens : isStringList(data.ownTokens) ? data.ownTokens : null
     const concealed = data.concealed === undefined ? received.concealed : isVision(data.concealed) ? data.concealed : null
     if (vision === null || ownTokens === null || concealed === null) return askResync()
+    // PORTAS POR ATRAVESSAR no patch (caça 12/11, O2): ausente = as mesmas de antes; `[]` = nenhuma.
+    const porAtravessar = data.porAtravessar === undefined ? (state.porAtravessar ?? []) : lerPortasPorAtravessar(data.porAtravessar)
+    if (porAtravessar === null) return askResync()
     applySnapshot(
       rev,
       map,
@@ -4199,7 +4202,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.elsewhere ?? [],
       state.peek,
       state.waitingTokens ?? [],
-      state.porAtravessar ?? [],
+      porAtravessar,
       exploredWire,
     )
   }
