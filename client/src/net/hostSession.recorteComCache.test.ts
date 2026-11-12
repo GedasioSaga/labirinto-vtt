@@ -58,8 +58,20 @@ function so(r: HostResult): HostMessage | null {
   return msgs[0] ?? null
 }
 
+/**
+ * A tela de um snapshot, como o `contentOf` do host a monta (`net/hostSession.ts`): com as portas por atravessar
+ * (O2) e os olhares (peça D das sombras, `cde20c55`), que viajam no patch junto da visão.
+ */
 function telaDe(snap: Snapshot): PlayerViewContent {
-  return { map: snap.map, vision: snap.vision, explored: snap.explored, ownTokens: snap.ownTokens, concealed: snap.concealed }
+  return {
+    map: snap.map,
+    vision: snap.vision,
+    explored: snap.explored,
+    ownTokens: snap.ownTokens,
+    concealed: snap.concealed,
+    porAtravessar: snap.porAtravessar ?? [],
+    olhares: snap.olhares ?? [],
+  }
 }
 
 function aplica(tela: PlayerViewContent, patch: Patch): PlayerViewContent {

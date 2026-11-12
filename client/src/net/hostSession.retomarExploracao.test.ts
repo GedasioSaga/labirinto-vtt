@@ -180,13 +180,23 @@ describe('hostSession: retomar a mesa com o mapa explorado de cada jogador', () 
     expect(snap.map.regions.map((r) => r.id)).toContain('porao-oeste')
   })
 
-  it('sala marcada secreta à noite: não chega nem fica na memória devolvida', () => {
+  // N3 (caça de 12/11/2026, `873686fc`, e `2eb4dd61` para a mesa retomada): a mesa retomada não apaga mais da memória
+  // a sala secreta FECHADA (apagar trazia de volta o retângulo preto com o formato dela). Ela fica lembrada como o
+  // chão vazio que a visão mostra, e o recorte responde "não explorado" lá dentro: a memória devolvida é a da MESMA
+  // cena sem a sala (o mestre a apagou à noite em vez de marcá-la), e nada dela chega.
+  it('sala marcada secreta à noite: não chega, e a memória devolvida é a da mesma cena sem a sala', () => {
     const ontem = dia1()
     const { entra } = dia2(ontem)
     const regioesSecretas = porao(OESTE, OESTE).regions.map((r) => (r.id === 'porao-leste' ? { ...r, secret: true } : r))
     const snap = snapshotDe(entra('c1', 'Carla', mundo(porao(OESTE, OESTE, { extra: { regions: regioesSecretas } }))).result.outbound, 'c1')
     expect(JSON.stringify(snap.map)).not.toContain('porao-leste')
-    expect(isPointExplored(explorado(snap.explored), CENTRO_LESTE)).toBe(false)
+    const texto = JSON.stringify(snap)
+    for (const segredo of ['porao-leste', 'Porão leste', 'closedSecretRooms', 'openSecretRooms']) expect(texto, segredo).not.toContain(segredo)
+    const semASala = porao(OESTE, OESTE).regions.filter((r) => r.id !== 'porao-leste')
+    const sem = snapshotDe(dia2(ontem).entra('c1', 'Carla', mundo(porao(OESTE, OESTE, { extra: { regions: semASala } }))).result.outbound, 'c1')
+    expect(snap).toEqual(sem)
+    // O que não foi escondido continua lembrado.
+    expect(snap.map.regions.map((r) => r.id)).toContain('porao-oeste')
   })
 
   it('a memória é de quem explorou: Diego volta só com o oeste, e quem chega com nome novo não recebe mapa nenhum', () => {

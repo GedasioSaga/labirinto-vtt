@@ -253,14 +253,21 @@ describe('hostSession', () => {
       expect(isPointExplored(exp, { x: 800, y: 100 })).toBe(true)
     })
 
-    it('SEGURANÇA: Revelar planta não marca o interior de sala secreta como explorado', () => {
-      const t = controlsSetup({ regions: [{ ...roomRegion('cripta-secreta', 'Cripta secreta', farRoom), secret: true }] })
+    // N3 (caça de 12/11/2026, `873686fc`): a planta revelada marca a sala secreta FECHADA como o chão vazio que a
+    // visão mostraria dela (antes ficava um buraco preto com o formato exato dela). A invariante agora: o pacote é
+    // o da MESMA cena sem a sala (e sem o que mora nela), e o recorte responde "não explorado" lá dentro.
+    it('SEGURANÇA: Revelar planta não entrega nada da sala secreta fechada, e o pacote é o da mesma cena sem a sala', () => {
+      const bau = { id: 'bau-da-cripta', src: '', x: 750, y: 750, width: 40, height: 40, linkedMapPath: null }
+      const t = controlsSetup({ regions: [{ ...roomRegion('cripta-secreta', 'Cripta secreta', farRoom), secret: true }], props: [bau] })
       t.s.revealPlan(t.ana, t.map)
       const snap = t.snapshotTo('c1')
-      expect(JSON.stringify(snap)).not.toContain('Cripta secreta')
+      const json = JSON.stringify(snap)
+      for (const segredo of ['Cripta secreta', 'cripta-secreta', 'bau-da-cripta', 'closedSecretRooms', 'openSecretRooms']) expect(json, segredo).not.toContain(segredo)
+      const semASala = controlsSetup({ regions: [] })
+      semASala.s.revealPlan(semASala.ana, semASala.map)
+      expect(snap).toEqual(semASala.snapshotTo('c1'))
       const exp = decodeExploration(snap.explored)
       if (exp === null) throw new Error('explored inválido')
-      expect(isPointExplored(exp, { x: 750, y: 750 })).toBe(false)
       expect(isPointExplored(exp, { x: 800, y: 100 })).toBe(true)
     })
 
@@ -521,13 +528,23 @@ describe('hostSession', () => {
       expect(isPointExplored(explored, { x: 800, y: 200 })).toBe(false)
     })
 
-    it('SEGURANÇA: a visão não marca como explorada célula que toca sala secreta', () => {
+    // N3 (caça de 12/11/2026, `873686fc`): a visão passa pela sala secreta FECHADA como por chão vazio, e a memória
+    // passou a lembrá-la igual (antes a célula que tocava a sala ficava de fora: um buraco preto com o formato dela).
+    // A invariante agora: o explorado e o pacote são os da MESMA cena sem a sala (e sem o que mora nela).
+    it('SEGURANÇA: a visão sobre a sala secreta fechada deixa o explorado e o pacote iguais aos da cena sem a sala', () => {
+      const secret = { id: 'sala-secreta', points: [{ x: 230, y: 180 }, { x: 330, y: 180 }, { x: 330, y: 280 }, { x: 230, y: 280 }], tag: '', fillColor: '#000', fillPattern: 'solid' as const, data: {}, room: { shape: 'rect' as const, name: 'nome-da-secreta' }, secret: true }
+      const bau = { id: 'bau-da-secreta', src: '', x: 280, y: 230, width: 20, height: 20, linkedMapPath: null }
       const s = smallSession()
-      const secret = { id: 'sala-secreta', points: [{ x: 230, y: 180 }, { x: 330, y: 180 }, { x: 330, y: 280 }, { x: 230, y: 280 }], tag: '', fillColor: '#000', fillPattern: 'solid' as const, data: {}, room: { shape: 'rect' as const, name: 's' }, secret: true }
-      const map = mapAt(200, 200, { regions: [secret] })
+      const map = mapAt(200, 200, { regions: [secret], props: [bau] })
       joinPlaying(s, 'c1', map)
-      const { explored } = snapshotTo(s.broadcast(map), 'c1')
-      expect(isPointExplored(explored, { x: 280, y: 230 })).toBe(false)
+      const { explored, msg } = snapshotTo(s.broadcast(map), 'c1')
+      const json = JSON.stringify(msg)
+      for (const segredo of ['sala-secreta', 'nome-da-secreta', 'bau-da-secreta', 'closedSecretRooms', 'openSecretRooms']) expect(json, segredo).not.toContain(segredo)
+      const semASala = smallSession()
+      const mapaSemASala = mapAt(200, 200, { regions: [] })
+      joinPlaying(semASala, 'c1', mapaSemASala)
+      const sem = snapshotTo(semASala.broadcast(mapaSemASala), 'c1')
+      expect(msg).toEqual(sem.msg)
       expect(isPointExplored(explored, { x: 150, y: 200 })).toBe(true)
     })
 

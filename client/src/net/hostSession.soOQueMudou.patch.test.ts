@@ -79,8 +79,20 @@ function patchPara(r: HostResult, clientId: string): Patch {
   return msg
 }
 
+/**
+ * A tela de um snapshot, como o `contentOf` do host a monta (`net/hostSession.ts`): com as portas por atravessar
+ * (O2) e os olhares (peça D das sombras, `cde20c55`), que viajam no patch junto da visão.
+ */
 function telaDe(snap: Snapshot): PlayerViewContent {
-  return { map: snap.map, vision: snap.vision, explored: snap.explored, ownTokens: snap.ownTokens, concealed: snap.concealed }
+  return {
+    map: snap.map,
+    vision: snap.vision,
+    explored: snap.explored,
+    ownTokens: snap.ownTokens,
+    concealed: snap.concealed,
+    porAtravessar: snap.porAtravessar ?? [],
+    olhares: snap.olhares ?? [],
+  }
 }
 
 /** O que o jogador faz com o patch: aplica na última tela. Campo ausente = não mudou. */

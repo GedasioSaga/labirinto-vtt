@@ -238,7 +238,17 @@ describe('memória por ficha', () => {
     t.s.assignToken(ana, 'lia')
     const snap = t.snapshotPara('c1', tresSalas())
     // `partyTokens` (ITEM PEGÁVEL) e `place`/`places` (LUGARES) já existiam antes; o que não pode entrar é a visão por ficha.
-    expect(Object.keys(snap).sort()).toEqual(['concealed', 'explored', 'map', 'ownTokens', 'partyTokens', 'place', 'places', 'rev', 'type', 'vision'])
+    // `olhares` (peça D das sombras, caça de 12/11/2026, `cde20c55`) entrou de propósito: NÃO é a visão por ficha,
+    // só o centro da ficha dele, o raio dela e o índice, em `vision`, do anel que ele já recebe.
+    expect(Object.keys(snap).sort()).toEqual(['concealed', 'explored', 'map', 'olhares', 'ownTokens', 'partyTokens', 'place', 'places', 'rev', 'type', 'vision'])
     expect(JSON.stringify(snap)).not.toContain('eyes')
+    const lia = snap.map.tokens.find((t) => t.id === 'lia')
+    expect(snap.ownTokens).toEqual(['lia'])
+    expect(lia).toBeDefined()
+    expect(snap.olhares).toEqual([{ x: lia?.x, y: lia?.y, raio: RADIUS, aneis: [0] }])
+    for (const olhar of snap.olhares ?? []) {
+      expect(Object.keys(olhar).sort()).toEqual(['aneis', 'raio', 'x', 'y'])
+      for (const i of olhar.aneis) expect(snap.vision[i]).toBeDefined()
+    }
   })
 })
