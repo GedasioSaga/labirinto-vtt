@@ -10,7 +10,7 @@ import { TopoDaSala } from './livro/TopoDaSala'
 
 /*
  * VISÃO DE JOGADOR no livro da mesa (maquete 1A, 1B e 1C; lugar novo na
- * fatia 4): o botão no topo da Sala fechada, logo abaixo de "Abrir sala", e
+ * fatia 4): o botão no topo da Sala fechada, logo abaixo de "Abrir mesa online", e
  * na ficha "Visão de jogador" da página Mesa (com a linha de ajuda); a lista
  * de fichas presa a ele e o estado "Janela aberta". Sem a prop, nada aparece.
  */
@@ -59,9 +59,9 @@ describe('RoomPanel — Visão de jogador', () => {
     expect(renderToStaticMarkup(<PaginaMesa {...BASE} />)).not.toContain('Visão de jogador')
   })
 
-  it('sala fechada: no topo, logo abaixo de "Abrir sala" e antes da Rede, sem a linha de ajuda', () => {
+  it('sala fechada: no topo, logo abaixo de "Abrir mesa online" e antes da Rede, sem a linha de ajuda', () => {
     const html = renderToStaticMarkup(<TopoDaSala {...BASE} visaoDeJogador={visao()} />)
-    const abrir = html.indexOf('Abrir sala')
+    const abrir = html.indexOf('Abrir mesa online')
     const botao = html.indexOf('Visão de jogador')
     expect(abrir).toBeGreaterThan(-1)
     expect(botao).toBeGreaterThan(abrir)

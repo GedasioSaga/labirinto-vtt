@@ -120,7 +120,7 @@ describe('SecretCheckSection', () => {
   })
 
   it('o aviso diz por que o pedido não saiu', () => {
-    expect(secretCheckFeedbackText(null)).toBe('Não deu: a sala não está aberta.')
+    expect(secretCheckFeedbackText(null)).toBe('Não deu: a mesa online não está aberta.')
     expect(secretCheckFeedbackText(0)).toBe('Ninguém escolhido está jogando agora.')
     expect(secretCheckFeedbackText(1)).toBe('Teste pedido a 1 jogador')
   })

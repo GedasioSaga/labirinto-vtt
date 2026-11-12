@@ -108,7 +108,7 @@ describe('PescaAoVivoPainel', () => {
     expect(p.onPausar).toHaveBeenCalledTimes(1)
     act(() => botao('Encerrar para todos').click())
     expect(p.onEncerrar).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Não deu: a pesca já acabou ou a sala fechou.')
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Não deu: a pesca já acabou ou a mesa online fechou.')
   })
 
   it('encerrada: a linha diz e não há mais pausar nem encerrar', () => {

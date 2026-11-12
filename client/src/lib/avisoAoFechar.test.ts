@@ -20,14 +20,14 @@ describe('perguntaAoFechar', () => {
     expect(perguntaAoFechar({ alteracoesNaoSalvas: false, jogadoresNaSala: 0 })).toBeNull()
   })
 
-  it('com 7 jogadores na sala e mapa salvo: pergunta citando os 7', () => {
+  it('com 7 jogadores na mesa online e mapa salvo: pergunta citando os 7', () => {
     const texto = perguntaAoFechar({ alteracoesNaoSalvas: false, jogadoresNaSala: 7 })
-    expect(texto).toBe('Há 7 jogadores na sala. Fechar o Labirinto desconecta todos. Fechar mesmo assim?')
+    expect(texto).toBe('Há 7 jogadores na mesa online. Fechar o Labirinto desconecta todos. Fechar mesmo assim?')
   })
 
   it('com 1 jogador: singular, sem "todos"', () => {
     expect(perguntaAoFechar({ alteracoesNaoSalvas: false, jogadoresNaSala: 1 })).toBe(
-      'Há 1 jogador na sala. Fechar o Labirinto desconecta esse jogador. Fechar mesmo assim?',
+      'Há 1 jogador na mesa online. Fechar o Labirinto desconecta esse jogador. Fechar mesmo assim?',
     )
   })
 
@@ -37,7 +37,7 @@ describe('perguntaAoFechar', () => {
 
   it('jogadores e alteração não salva: uma pergunta só, com as duas coisas', () => {
     expect(perguntaAoFechar({ alteracoesNaoSalvas: true, jogadoresNaSala: 3 })).toBe(
-      'Há 3 jogadores na sala e alterações não salvas neste mapa. Fechar o Labirinto desconecta todos. Fechar mesmo assim?',
+      'Há 3 jogadores na mesa online e alterações não salvas neste mapa. Fechar o Labirinto desconecta todos. Fechar mesmo assim?',
     )
   })
 })
@@ -53,10 +53,10 @@ describe('criarPedidoDeFechar', () => {
     await t.aoPedirFechar(evento)
     expect(evento.preventDefault).toHaveBeenCalledTimes(1)
     expect(t.perguntar).toHaveBeenCalledTimes(1)
-    expect(t.perguntar.mock.calls[0]?.[0]).toMatch(/^Há 7 jogadores na sala/)
+    expect(t.perguntar.mock.calls[0]?.[0]).toMatch(/^Há 7 jogadores na mesa online/)
   })
 
-  it('Cancelar mantém a janela (e a sala) aberta', async () => {
+  it('Cancelar mantém a janela (e a mesa online) aberta', async () => {
     const t = montar({ alteracoesNaoSalvas: false, jogadoresNaSala: 7 }, Promise.resolve(false))
     await t.aoPedirFechar(pedido())
     expect(t.perguntar).toHaveBeenCalledTimes(1)
@@ -89,7 +89,7 @@ describe('criarPedidoDeFechar', () => {
     })
     jogadores = 2
     await aoPedirFechar(pedido())
-    expect(perguntar).toHaveBeenCalledWith('Há 2 jogadores na sala. Fechar o Labirinto desconecta todos. Fechar mesmo assim?')
+    expect(perguntar).toHaveBeenCalledWith('Há 2 jogadores na mesa online. Fechar o Labirinto desconecta todos. Fechar mesmo assim?')
   })
 
   it('diálogo que falha: fecha mesmo assim (janela travada é pior)', async () => {

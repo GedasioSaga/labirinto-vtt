@@ -216,14 +216,14 @@ describe('AgendaSection', () => {
     it('com a sala fechada o evento ainda avisa, e a Caixa diz que o alarme não soou', () => {
       render({ agora: { dia: 7, apito: 'aurora' }, eventos: [{ ...GEMEOS, efeito: SINO }] }, { cenas: CENAS })
       clica('Próximo apito')
-      expect(textosNaCaixa()).toEqual(['Disparo dos Gêmeos — dia 7, Meio', 'Alarme de "Disparo dos Gêmeos" não soou: a sala não está aberta.'])
+      expect(textosNaCaixa()).toEqual(['Disparo dos Gêmeos — dia 7, Meio', 'Alarme de "Disparo dos Gêmeos" não soou: a mesa online não está aberta.'])
       expect(useToastStore.getState().toasts.map((t) => t.grupo)).toEqual([GRUPO_DA_AGENDA, GRUPO_DA_AGENDA])
     })
 
     it('o host recusou (null): a Caixa diz que não soou', () => {
       render({ agora: { dia: 7, apito: 'aurora' }, eventos: [{ ...GEMEOS, efeito: SINO }] }, { cenas: CENAS, onAlarm: () => null })
       clica('Próximo apito')
-      expect(textosNaCaixa()).toEqual(['Disparo dos Gêmeos — dia 7, Meio', 'Alarme de "Disparo dos Gêmeos" não soou: a sala não está aberta.'])
+      expect(textosNaCaixa()).toEqual(['Disparo dos Gêmeos — dia 7, Meio', 'Alarme de "Disparo dos Gêmeos" não soou: a mesa online não está aberta.'])
     })
 
     it('marca pelo formulário um evento que soa alarme; sem cena escolhida não deixa marcar', () => {

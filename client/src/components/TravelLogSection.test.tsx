@@ -130,7 +130,7 @@ describe('Página Mesa com o diário', () => {
   it('sala fechada: a ficha só diz que abre com a sala; sem `travelLog` (mapa solto), nada de diário', () => {
     const fechada = renderToStaticMarkup(<PaginaMesa room={null} players={[]} {...handlers} travelLog={{ entries: DIARIO, onUndo: () => true }} />)
     expect(fechada).not.toContain('Ana: Salão → Cripta')
-    expect(fechada).toContain('Abre junto com a sala.')
+    expect(fechada).toContain('Abre junto com a mesa online.')
     const semDiario = renderToStaticMarkup(<PaginaMesa room={ROOM} players={[]} {...handlers} />)
     expect(semDiario).not.toContain('Diário')
   })

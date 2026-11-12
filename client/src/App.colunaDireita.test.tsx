@@ -200,22 +200,22 @@ describe('App: livro da mesa em janela menor que 1366', () => {
     tauri.ligado = true
     await act(async () => root.render(<App />))
     const topo = () => livroDaMesa()?.querySelector<HTMLElement>('.gr-pagina__topo') ?? container
-    expect(botao('Abrir sala', true, topo())).toBeDefined()
+    expect(botao('Abrir mesa online', true, topo())).toBeDefined()
     // A sala abre na janela larga, onde a página está à vista.
     redimensionar(1440)
     expect(recolhido()).toBe(false)
-    await act(async () => botao('Abrir sala', true, topo())?.click())
+    await act(async () => botao('Abrir mesa online', true, topo())?.click())
     expect(topo().textContent).toContain(SALA.code)
     redimensionar(1280)
     expect(recolhido()).toBe(false)
     expect(editor()?.dataset.coldir).toBe('aberta')
-    // Fechar a sala pelo "Mais da sala" (o menu e a pergunta vão para o body).
-    act(() => livroDaMesa()?.querySelector<HTMLButtonElement>('button[aria-label="Mais da sala"]')?.click())
-    await act(async () => botao('Fechar sala…', true, document.body)?.click())
-    const fechar = botao('Fechar sala', true, document.querySelector('[role="alertdialog"]') ?? container)
+    // Fechar a sala pelo "Mais da mesa online" (o menu e a pergunta vão para o body).
+    act(() => livroDaMesa()?.querySelector<HTMLButtonElement>('button[aria-label="Mais da mesa online"]')?.click())
+    await act(async () => botao('Fechar mesa online…', true, document.body)?.click())
+    const fechar = botao('Fechar mesa online', true, document.querySelector('[role="alertdialog"]') ?? container)
     expect(fechar).toBeDefined()
     await act(async () => fechar?.click())
-    expect(botao('Abrir sala', true, topo())).toBeDefined()
+    expect(botao('Abrir mesa online', true, topo())).toBeDefined()
     expect(recolhido()).toBe(true)
     expect(editor()?.dataset.coldir).toBe('escondida')
     expect(window.localStorage.getItem('lb-coldir:aberta')).toBeNull()

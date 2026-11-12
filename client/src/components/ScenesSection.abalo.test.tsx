@@ -148,10 +148,10 @@ describe('ScenesSection: "Abalo" a partir de uma cena', () => {
     expect(onQuake).toHaveBeenCalledTimes(1)
   })
 
-  it('aviso: quem ouviu em cada faixa, ninguém, e sala fechada', () => {
+  it('aviso: quem ouviu em cada faixa, ninguém, e mesa online fechada', () => {
     expect(abaloFeedbackText({ perto: 2, andar: 1, longe: 3 })).toBe('Abalo: 2 nesta cena, 1 nas vizinhas, 3 longe')
     expect(abaloFeedbackText({ perto: 1, andar: 0, longe: 0 })).toBe('Abalo: 1 nesta cena')
     expect(abaloFeedbackText({ perto: 0, andar: 0, longe: 0 })).toBe('Ninguém ouviu: nenhum jogador nas faixas com texto')
-    expect(abaloFeedbackText(null)).toMatch(/sala/)
+    expect(abaloFeedbackText(null)).toMatch(/mesa online/)
   })
 })

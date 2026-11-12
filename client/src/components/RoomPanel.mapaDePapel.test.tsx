@@ -231,7 +231,7 @@ describe('RoomPanel: dar um mapa de papel', () => {
     clica(campoDoRotulo<HTMLInputElement>('Biblioteca'))
     clica(botao('Entregar'))
     expect(onGiveMap).toHaveBeenCalledWith('p1', 's-salao', ['r-bib'])
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.')
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Nada foi: essas salas estão ocultas para jogadores agora, ou a mesa online fechou.')
   })
 
   it('memória da Ana cheia: diz ao mestre que nada foi e por quê, e mantém as Salas marcadas', () => {

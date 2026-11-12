@@ -120,7 +120,7 @@ describe('DancaAoVivoPainel', () => {
     act(() => botao(CHAMAR_PARA_DANCAR).click())
     act(() => botao('Enviar convite').click())
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(textoDoConviteRecusado({ ok: false, motivo: 'ocupada' }))
-    expect(textoDoConviteRecusado(null)).toBe('Não deu: a sala não está aberta.')
+    expect(textoDoConviteRecusado(null)).toBe('Não deu: a mesa online não está aberta.')
   })
 
   it('"Começar" só com alguém pronto e na sala; o status mostra a dificuldade escolhida', () => {

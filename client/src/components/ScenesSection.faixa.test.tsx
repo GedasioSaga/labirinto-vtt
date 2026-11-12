@@ -146,7 +146,7 @@ describe('ScenesSection: a faixa do hover não cobre o nome', () => {
     }
   })
 
-  it('a faixa tem no máximo 4 botões (Recado, Pausar, Configurar e "…"); Abalo, Planta e Fixar moram no menu', () => {
+  it('a faixa tem no máximo 4 botões (Recado, Pausar, Configurar e "…"); Abalo, Mostrar a planta e Fixar moram no menu', () => {
     render(() => {}, () => {})
     for (const nome of ['Salao Norte', 'Cripta Rubra']) {
       const faixa = linha(nome).querySelector('.lb-cenas__controles')
@@ -157,6 +157,6 @@ describe('ScenesSection: a faixa do hover não cobre o nome', () => {
     // O "…" da Cripta traz o que saiu da faixa.
     act(() => linha('Cripta Rubra').querySelector<HTMLButtonElement>('button[aria-label="Mais ações de Cripta Rubra"]')?.click())
     const itens = Array.from(container.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)
-    expect(itens).toEqual(expect.arrayContaining(['Abalo…', 'Planta…', 'Fixar no topo']))
+    expect(itens).toEqual(expect.arrayContaining(['Abalo…', 'Mostrar a planta aos jogadores…', 'Fixar no topo']))
   })
 })

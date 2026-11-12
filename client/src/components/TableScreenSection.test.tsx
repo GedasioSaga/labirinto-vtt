@@ -103,6 +103,6 @@ describe('Página Mesa com a tela da mesa', () => {
     const fechada = renderToStaticMarkup(<PaginaMesa room={null} players={[]} {...handlers} table={props()} />)
     expect(fechada).toContain('Tela da mesa')
     expect(fechada).not.toContain('Cena na tela')
-    expect(fechada).toContain('Abre junto com a sala.')
+    expect(fechada).toContain('Abre junto com a mesa online.')
   })
 })

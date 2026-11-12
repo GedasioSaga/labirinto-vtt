@@ -167,11 +167,11 @@ describe('mandarFichaPara', () => {
     expect(mapaDe(vale).tokens.map((t) => t.id)).toEqual(['grog'])
   })
 
-  it('jogador que saiu da sala: nada anda', () => {
+  it('jogador que saiu da mesa online: nada anda', () => {
     const { vale, cripta } = montarAventura()
     const ponte = ponteFalsa(jogadora(vale), vale)
     const resultado = mandarFichaPara('outro', { sceneId: cripta, objectKey: 'room:r-trono', name: 'Sala do Trono' }, ponte)
-    expect(resultado).toEqual({ ok: false, mensagem: 'Esse jogador não está mais na sala.' })
+    expect(resultado).toEqual({ ok: false, mensagem: 'Esse jogador não está mais na mesa online.' })
     expect(useAdventureStore.getState().activeSceneId).toBe(vale)
   })
 

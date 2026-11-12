@@ -105,10 +105,10 @@ describe('ScenesSection: "Recado" por cena', () => {
     expect(onNote).not.toHaveBeenCalled()
   })
 
-  it('aviso: plural, singular, ninguém e sala fechada', () => {
+  it('aviso: plural, singular, ninguém e mesa online fechada', () => {
     expect(noteFeedbackText(3)).toBe('Recado enviado a 3 jogadores')
     expect(noteFeedbackText(1)).toBe('Recado enviado a 1 jogador')
     expect(noteFeedbackText(0)).toBe('Ninguém está nesta cena')
-    expect(noteFeedbackText(null)).toMatch(/sala/)
+    expect(noteFeedbackText(null)).toMatch(/mesa online/)
   })
 })

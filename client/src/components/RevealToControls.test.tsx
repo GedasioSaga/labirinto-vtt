@@ -111,9 +111,9 @@ describe('Revelar para…', () => {
     expect(lista()).toBeNull()
   })
 
-  it('sem jogador na sala: diz isso em vez de uma lista vazia', () => {
+  it('sem jogador na mesa online: diz isso em vez de uma lista vazia', () => {
     act(() => root.render(<PlayerSecretControls secret onSecretChange={() => undefined} reveal={{ players: [], chosen: [], onChange: vi.fn() }} />))
-    expect(container.textContent).toContain('Nenhum jogador na sala.')
+    expect(container.textContent).toContain('Nenhum jogador na mesa online.')
     expect(container.querySelectorAll('input[type="checkbox"]').length).toBe(1) // só o "Oculto para jogadores"
   })
 })

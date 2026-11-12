@@ -48,10 +48,10 @@ describe('ScenesSection: planta por cena', () => {
     act(() => el.click())
   }
 
-  /** A planta saiu da faixa do hover (ela cobria o nome): abre pelo "Planta…" do menu "…" da cena. */
+  /** A planta saiu da faixa do hover (ela cobria o nome): abre pelo "Mostrar a planta aos jogadores…" do menu "…" da cena. */
   function abrirPlanta(cena: string): void {
     clica(botao(`Mais ações de ${cena}`))
-    clica(Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Planta…'))
+    clica(Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === 'Mostrar a planta aos jogadores…'))
   }
 
   function caixa(rotulo: string): HTMLInputElement {
@@ -61,7 +61,7 @@ describe('ScenesSection: planta por cena', () => {
     return input
   }
 
-  it('o "Planta…" do menu abre o painel da cena; a caixa mostra o estado e liga/desliga', () => {
+  it('o "Mostrar a planta aos jogadores…" do menu abre o painel da cena; a caixa mostra o estado e liga/desliga', () => {
     const onTogglePlanKnown = vi.fn()
     render({ onTogglePlanKnown })
     expect(container.textContent).not.toContain('Planta conhecida por todos')
@@ -92,13 +92,13 @@ describe('ScenesSection: planta por cena', () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Planta revelada para 1 jogador')
   })
 
-  it('sem sala aberta a revelação some; sala sem jogador diz isso', () => {
+  it('sem mesa online aberta a revelação some; mesa online sem jogador diz isso', () => {
     render({ onTogglePlanKnown: () => {} })
     abrirPlanta('Abadia')
     expect(container.textContent).not.toContain('Revelar planta para')
 
     render({ onTogglePlanKnown: () => {}, onRevealPlanFor: () => 0, players: [] })
-    expect(container.textContent).toContain('Nenhum jogador na sala')
+    expect(container.textContent).toContain('Nenhum jogador na mesa online')
     expect(botao('Revelar')).toBeUndefined()
   })
 
@@ -131,7 +131,7 @@ describe('ScenesSection: planta por cena', () => {
   it('o aviso conta os jogadores e diz quando não deu', () => {
     expect(planRevealFeedbackText(2)).toBe('Planta revelada para 2 jogadores')
     expect(planRevealFeedbackText(1)).toBe('Planta revelada para 1 jogador')
-    expect(planRevealFeedbackText(0)).toBe('Nenhum jogador recebeu: a cena ou os jogadores não estão mais na sala.')
-    expect(planRevealFeedbackText(null)).toBe('Não deu para revelar: a sala não está aberta.')
+    expect(planRevealFeedbackText(0)).toBe('Nenhum jogador recebeu: a cena ou os jogadores não estão mais na mesa online.')
+    expect(planRevealFeedbackText(null)).toBe('Não deu para revelar: a mesa online não está aberta.')
   })
 })

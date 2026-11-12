@@ -357,7 +357,7 @@ describe('MinigameControls', () => {
 
   it('sem sala: no lugar do "Chamar para dançar", o que falta', () => {
     render(props())
-    expect(container.textContent).toContain('Abra a sala, ou a Visão de jogador para testar sozinho, para chamar para dançar.')
+    expect(container.textContent).toContain('Abra a mesa online, ou a Visão de jogador para testar sozinho, para chamar para dançar.')
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Chamar para dançar')).toBe(false)
   })
 
@@ -438,7 +438,7 @@ describe('MinigameControls', () => {
 
   it('pino de pesca sem sala: diz o que falta; com a sala, a pesca ao vivo do pino', () => {
     render(props({ minigame: { ...MINIGAME_PESCA_PADRAO } }))
-    expect(container.textContent).toContain('Abra a sala para acompanhar a pesca e chamar quem pesca.')
+    expect(container.textContent).toContain('Abra a mesa online para acompanhar a pesca e chamar quem pesca.')
     render(
       props({
         minigame: { ...MINIGAME_PESCA_PADRAO },

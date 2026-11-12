@@ -116,11 +116,11 @@ describe('RoomPanel', () => {
     expect(colors.size).toBeGreaterThan(1)
   })
 
-  it('sem sala o topo mostra Abrir sala e a Rede (a dica do firewall no pop), e a página Grupo a mesa vazia', () => {
+  it('sem sala o topo mostra Abrir mesa online e a Rede (a dica do firewall no pop), e a página Grupo a mesa vazia', () => {
     const html = renderToStaticMarkup(<TopoDaSala room={null} players={[]} tunnel={IDLE} {...handlers} />)
-    expect(html).toContain('Abrir sala')
+    expect(html).toContain('Abrir mesa online')
     expect(html).toContain('Fechada')
-    expect(html).not.toContain('Mais da sala')
+    expect(html).not.toContain('Mais da mesa online')
     expect(html).not.toContain('Tornar pública')
     expect(html).toMatch(/aria-haspopup="dialog"[^>]*><svg.*?<\/svg>Rede<\/button>/)
     expect(renderToStaticMarkup(<RoomPanel room={null} players={[]} tokens={TOKENS} tunnel={IDLE} {...handlers} />)).toContain('A mesa está vazia')
@@ -129,11 +129,11 @@ describe('RoomPanel', () => {
   it('com sala mostra código (topo), URLs e QR (Convidar) e jogadores (Grupo); Expulsar só para quem está conectado', () => {
     const players = [player(), player({ playerId: 'p2', clientId: null, name: 'Bia', connected: false, tokenIds: ['t2'] })]
     const topo = renderToStaticMarkup(<TopoDaSala room={ROOM} players={players} tunnel={IDLE} {...handlers} />)
-    expect(topo).toContain('aria-label="Código da sala AB12CD. Clique para copiar"')
-    expect(topo).toContain('aria-label="Mais da sala"')
+    expect(topo).toContain('aria-label="Código da mesa online AB12CD. Clique para copiar"')
+    expect(topo).toContain('aria-label="Mais da mesa online"')
     const convite = renderWithTunnel(IDLE)
     expect(convite).toContain('http://10.0.0.2:7777')
-    expect(convite).toContain('alt="QR da sala"')
+    expect(convite).toContain('alt="QR da mesa online"')
     const html = renderToStaticMarkup(<RoomPanel room={ROOM} players={players} tokens={TOKENS} tunnel={IDLE} {...handlers} />)
     // "Bia — aguardando · desconectado": o nome à vista, o status inteiro para o leitor de tela.
     expect(html).toMatch(/>Bia<\/strong><span class="lb-sr-only"> — aguardando · desconectado<\/span>/)
@@ -188,7 +188,7 @@ describe('RoomPanel', () => {
     expect(html).toContain(`<strong class="lb-room__link">${url}</strong>`)
     expect(html).toContain('alt="QR do link público"')
     expect(html).toContain(qrDataUrl('<svg id="pub"/>').replace(/&/g, '&amp;'))
-    expect(html).not.toContain('alt="QR da sala"')
+    expect(html).not.toContain('alt="QR da mesa online"')
     expect(html).toContain(TUNNEL_WARNING)
     expect(html).toContain('Encerrar link público')
     expect(html).not.toContain('Tornar pública')

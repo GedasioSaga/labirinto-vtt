@@ -7,9 +7,9 @@ import { FIREWALL_HINT } from '../RoomPanel'
 import { TopoDaSala, avisoDeFecharASala, type TopoDaSalaProps } from './TopoDaSala'
 
 /*
- * O TOPO DA SALA do livro da mesa (fatia 4): fechada, Abrir sala, Visão de
- * jogador e Rede; aberta, o código que copia, o "Mais da sala" (Visão, Pausar
- * NPCs, Fechar sala com confirmação), Laser, Som e Convidar.
+ * O TOPO DA SALA do livro da mesa (fatia 4): fechada, Abrir mesa online, Visão de
+ * jogador e Rede; aberta, o código que copia, o "Mais da mesa online" (Visão, Pausar
+ * NPCs, Fechar mesa online com confirmação), Laser, Som e Convidar.
  */
 
 const ROOM = { code: 'K7Q2XM', urls: ['http://10.0.0.2:7777'], qrSvg: '<svg/>' }
@@ -52,11 +52,11 @@ const item = (nome: string): HTMLButtonElement => {
 }
 
 describe('TopoDaSala', () => {
-  it('fechada: título, "Fechada", Abrir sala e o pop Rede com a dica do firewall', () => {
+  it('fechada: título, "Fechada", Abrir mesa online e o pop Rede com a dica do firewall', () => {
     const { onStart } = montar({ room: null })
-    expect(container.querySelector('h2')?.textContent).toBe('Sala')
+    expect(container.querySelector('h2')?.textContent).toBe('Mesa online')
     expect(container.textContent).toContain('Fechada')
-    act(() => botao('Abrir sala').click())
+    act(() => botao('Abrir mesa online').click())
     expect(onStart).toHaveBeenCalledWith(false)
     act(() => botao('Rede').click())
     const pop = document.querySelector('[role="dialog"][aria-label="Rede local"]')
@@ -65,20 +65,20 @@ describe('TopoDaSala', () => {
     expect(document.activeElement).toBe(pop)
   })
 
-  it('aberta: Fechar sala mora no "Mais da sala" e pergunta antes; "Continuar jogando" desiste e Fechar sala fecha', () => {
+  it('aberta: Fechar mesa online mora no "Mais da mesa online" e pergunta antes; "Continuar jogando" desiste e Fechar mesa online fecha', () => {
     const { onStop } = montar({ players: [jogador('Ana', true), jogador('Bia', false), jogador('Caio', true)] })
-    expect(botao('Mais da sala').getAttribute('aria-haspopup')).toBe('menu')
-    act(() => botao('Mais da sala').click())
-    act(() => item('Fechar sala…').click())
+    expect(botao('Mais da mesa online').getAttribute('aria-haspopup')).toBe('menu')
+    act(() => botao('Mais da mesa online').click())
+    act(() => item('Fechar mesa online…').click())
     const dialogo = document.querySelector('[role="alertdialog"]')
-    expect(dialogo?.textContent).toContain('Fechar a sala?')
+    expect(dialogo?.textContent).toContain('Fechar a mesa online?')
     expect(dialogo?.textContent).toContain(avisoDeFecharASala(2))
     expect(document.activeElement?.textContent).toBe('Continuar jogando')
     act(() => botao('Continuar jogando', document).click())
     expect(onStop).not.toHaveBeenCalled()
-    act(() => botao('Mais da sala').click())
-    act(() => item('Fechar sala…').click())
-    act(() => botao('Fechar sala', document.querySelector('[role="alertdialog"]') ?? document).click())
+    act(() => botao('Mais da mesa online').click())
+    act(() => item('Fechar mesa online…').click())
+    act(() => botao('Fechar mesa online', document.querySelector('[role="alertdialog"]') ?? document).click())
     expect(onStop).toHaveBeenCalledOnce()
   })
 
@@ -88,15 +88,15 @@ describe('TopoDaSala', () => {
     expect(avisoDeFecharASala(4)).toBe('Os 4 jogadores conectados saem da mesa. O mapa e as fichas ficam como estão.')
   })
 
-  it('o "Mais da sala" pausa os NPCs só quando há alguém andando sozinho', () => {
+  it('o "Mais da mesa online" pausa os NPCs só quando há alguém andando sozinho', () => {
     const onAlternar = vi.fn()
     montar({ npcs: { pausados: false, onAlternar } })
-    act(() => botao('Mais da sala').click())
+    act(() => botao('Mais da mesa online').click())
     act(() => item('Pausar todos os NPCs').click())
     expect(onAlternar).toHaveBeenCalledOnce()
     montar({ npcs: undefined })
-    act(() => botao('Mais da sala').click())
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toEqual(['Fechar sala…'])
+    act(() => botao('Mais da mesa online').click())
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toEqual(['Fechar mesa online…'])
   })
 
   it('a placa copia o código e avisa; sem área de transferência, o aviso diz o código', async () => {
@@ -104,7 +104,7 @@ describe('TopoDaSala', () => {
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: escrever } })
     const avisar = vi.spyOn(useToastStore.getState(), 'push')
     montar()
-    const placa = container.querySelector<HTMLButtonElement>('button[aria-label="Código da sala K7Q2XM. Clique para copiar"]')
+    const placa = container.querySelector<HTMLButtonElement>('button[aria-label="Código da mesa online K7Q2XM. Clique para copiar"]')
     expect(placa?.textContent).toBe('K7Q2XM')
     // Acabou de abrir: o reflexo corre uma vez.
     expect(placa?.classList.contains('gr-brilha')).toBe(true)
@@ -113,7 +113,7 @@ describe('TopoDaSala', () => {
     expect(avisar).toHaveBeenCalledWith('info', 'Código K7Q2XM copiado.')
     vi.stubGlobal('navigator', { ...navigator, clipboard: undefined })
     await act(async () => placa?.click())
-    expect(avisar).toHaveBeenLastCalledWith('error', 'Não deu para copiar. O código da sala é K7Q2XM.')
+    expect(avisar).toHaveBeenLastCalledWith('error', 'Não deu para copiar. O código da mesa online é K7Q2XM.')
     vi.unstubAllGlobals()
   })
 })

@@ -5,7 +5,7 @@ import type { TunnelState } from '../net/hostBridge'
 import { TopoDaSala, type TopoDaSalaProps } from './livro/TopoDaSala'
 
 /**
- * "Abrir sala" (topo da Sala do livro da mesa) com mesa guardada pergunta
+ * "Abrir mesa online" (topo da Sala do livro da mesa) com mesa guardada pergunta
  * "Retomar a mesa?": Retomar devolve as fichas pelo nome; "Mesa nova" é a sala
  * de hoje. Sem mesa guardada, abre direto, como sempre.
  */
@@ -42,17 +42,17 @@ describe('RoomPanel: Retomar a mesa?', () => {
   }
   const clica = (nome: string) => act(() => botao(nome).click())
 
-  it('sem mesa guardada, "Abrir sala" abre direto a mesa de hoje', () => {
+  it('sem mesa guardada, "Abrir mesa online" abre direto a mesa de hoje', () => {
     const onStart = render({ savedTableNames: null })
-    clica('Abrir sala')
+    clica('Abrir mesa online')
     expect(onStart).toHaveBeenCalledTimes(1)
     expect(onStart).toHaveBeenCalledWith(false)
     expect(container.textContent).not.toContain('Retomar a mesa?')
   })
 
-  it('com mesa guardada, "Abrir sala" pergunta; Retomar abre com a mesa', () => {
+  it('com mesa guardada, "Abrir mesa online" pergunta; Retomar abre com a mesa', () => {
     const onStart = render({ savedTableNames: 'Ana e Bruno' })
-    clica('Abrir sala')
+    clica('Abrir mesa online')
     expect(onStart).not.toHaveBeenCalled()
     const pergunta = container.querySelector<HTMLElement>('[role="group"]')
     if (pergunta === null) throw new Error('a pergunta deveria ser um grupo com nome')
@@ -67,7 +67,7 @@ describe('RoomPanel: Retomar a mesa?', () => {
 
   it('"Mesa nova" abre a sala de hoje', () => {
     const onStart = render({ savedTableNames: 'Ana' })
-    clica('Abrir sala')
+    clica('Abrir mesa online')
     clica('Mesa nova')
     expect(onStart).toHaveBeenCalledTimes(1)
     expect(onStart).toHaveBeenCalledWith(false)
@@ -75,11 +75,11 @@ describe('RoomPanel: Retomar a mesa?', () => {
 
   it('"Voltar" desiste sem abrir sala', () => {
     const onStart = render({ savedTableNames: 'Ana' })
-    clica('Abrir sala')
+    clica('Abrir mesa online')
     clica('Voltar')
     expect(onStart).not.toHaveBeenCalled()
-    // O foco volta para onde estava: quem desistiu pelo teclado continua no "Abrir sala".
-    expect(document.activeElement).toBe(botao('Abrir sala'))
+    // O foco volta para onde estava: quem desistiu pelo teclado continua no "Abrir mesa online".
+    expect(document.activeElement).toBe(botao('Abrir mesa online'))
     expect(container.textContent).not.toContain('Retomar a mesa?')
   })
 })

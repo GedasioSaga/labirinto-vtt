@@ -76,6 +76,6 @@ describe('RoomPanel: Dar o que o grupo viu', () => {
     expect(groupViewFeedbackText('Duda', 1)).toBe('Duda recebeu o que 1 colega viu')
     expect(groupViewFeedbackText('Duda', 2)).toBe('Duda recebeu o que 2 colegas viram')
     expect(groupViewFeedbackText('Duda', 0)).toBe('Ninguém mais explorou a cena de Duda')
-    expect(groupViewFeedbackText('Duda', null)).toBe('Não deu: a sala não está aberta.')
+    expect(groupViewFeedbackText('Duda', null)).toBe('Não deu: a mesa online não está aberta.')
   })
 })

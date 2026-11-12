@@ -159,10 +159,10 @@ describe('ScenesSection: "Alarme" para várias cenas', () => {
     expect(onEndAlarm).toHaveBeenCalledTimes(1)
   })
 
-  it('aviso: plural, singular, ninguém ainda e sala fechada', () => {
+  it('aviso: plural, singular, ninguém ainda e mesa online fechada', () => {
     expect(alarmFeedbackText(3)).toBe('Alarme soou para 3 jogadores')
     expect(alarmFeedbackText(1)).toBe('Alarme soou para 1 jogador')
     expect(alarmFeedbackText(0)).toBe('Ninguém está nessas cenas agora: quem chegar verá o alarme')
-    expect(alarmFeedbackText(null)).toMatch(/sala/)
+    expect(alarmFeedbackText(null)).toMatch(/mesa online/)
   })
 })
