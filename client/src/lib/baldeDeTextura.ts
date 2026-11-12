@@ -1,6 +1,7 @@
 import type { AlvoDoBalde, Drawing, Region, RegionPoint } from '../types/map'
 import type { Caixa } from './texturas'
 import { ehPinturaDeBalde } from './baldeDeTinta'
+import { distanceToWall } from './doorReach'
 
 /**
  * BALDE da ferramenta Texturas (`lib/texturas.ts`): qual forma o clique enche
@@ -160,35 +161,60 @@ export function alvoDoBalde(regioes: readonly Region[], desenhos: readonly Drawi
 }
 
 /**
+ * Folga, em casas da grade, com que um canto conta como "em cima" de um
+ * contorno. O contorno da área segue o eixo das paredes, mas a enchente
+ * arredonda o canto agudo em mapa grande: medido, no máximo 0,2 casa (14 px
+ * numa sala triangular, mapa de 200 x 200 casas); na sala comum, 0.
+ */
+const FOLGA_DO_CONTORNO_EM_CASAS = 0.25
+
+/** `p` está a mais de `folga` de todo lado do polígono? */
+function longeDoContorno(p: RegionPoint, poligono: readonly RegionPoint[], folga: number): boolean {
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i, i += 1) {
+    const lado = { x1: poligono[j].x, y1: poligono[j].y, x2: poligono[i].x, y2: poligono[i].y }
+    if (distanceToWall(p, lado) <= folga) return false
+  }
+  return true
+}
+
+/**
+ * A forma `contorno` cabe INTEIRA na área fechada pelas paredes: nenhuma parede
+ * a corta. Dois lados da mesma conta, com a mesma folga: nenhum canto da forma
+ * fica do lado de fora da área (a parede na diagonal da sala, a divisória a
+ * meia casa da borda), e nenhum canto da área fica no miolo da forma (o cômodo
+ * fechado no meio da sala, o armário encostado na parede dela). A caixa não
+ * serve: a do triângulo que a diagonal fecha é a mesma da sala inteira.
+ */
+function cabeNaArea(contorno: readonly RegionPoint[], area: readonly RegionPoint[], folga: number): boolean {
+  if (contorno.some((p) => !dentroDoPoligono(p, area) && longeDoContorno(p, area, folga))) return false
+  return !area.some((p) => dentroDoPoligono(p, contorno) && longeDoContorno(p, contorno, folga))
+}
+
+/**
  * O alvo do clique do Balde, com a ÁREA FECHADA POR PAREDES em volta dele
  * (`areaFechadaPorParedes`, `lib/baldeDeTinta.ts`; `null` = não fecha). Vale a
  * área, a não ser que o alvo de antes dela (o desenho pintado ou a região sob
- * o clique) caiba dentro dela, folga de `folga` px: aí ele fica, como era — a
- * sala com paredes continua enchendo a SALA (a textura segue a sala se ela
- * andar), e o lago pintado no meio do quarto continua enchendo o lago. A
- * região grande por baixo de tudo (o chão da caverna) não cabe, e quem vale é a
- * área das paredes. Sem área fechada, o alvo de antes; sem os dois, `null`.
+ * o clique) caiba INTEIRO dentro dela (`cabeNaArea`; `grade` = px por casa):
+ * aí ele fica, como era — a sala com paredes continua enchendo a SALA (a
+ * textura segue a sala se ela andar), e o lago pintado no meio do quarto
+ * continua enchendo o lago. A sala que uma parede solta corta não cabe (o
+ * limite são as paredes: enche só o lado clicado), nem a região grande por
+ * baixo de tudo (o chão da caverna): quem vale é a área das paredes. Sem área
+ * fechada, o alvo de antes; sem os dois, `null`.
  */
 export function alvoComParedes(
   regioes: readonly Region[],
   desenhos: readonly Drawing[],
   ponto: RegionPoint,
   area: readonly RegionPoint[] | null,
-  folga: number,
+  grade: number,
 ): AlvoDoBalde | null {
   const deAntes = alvoDoBalde(regioes, desenhos, ponto)
   if (area === null || area.length < 3) return deAntes
   const daArea: AlvoDoBalde = { tipo: 'area', pontos: area.map((p) => ({ x: p.x, y: p.y })) }
   if (deAntes === null) return daArea
-  const caixa = caixaDoAlvo(deAntes, regioes, desenhos)
-  const limite = caixaDosPontos(area)
-  const cabe =
-    caixa !== null &&
-    caixa.minX >= limite.minX - folga &&
-    caixa.minY >= limite.minY - folga &&
-    caixa.maxX <= limite.maxX + folga &&
-    caixa.maxY <= limite.maxY + folga
-  return cabe ? deAntes : daArea
+  const contorno = formaDoBalde(deAntes, regioes, desenhos)?.contorno
+  return contorno !== undefined && cabeNaArea(contorno, area, grade * FOLGA_DO_CONTORNO_EM_CASAS) ? deAntes : daArea
 }
 
 /**
