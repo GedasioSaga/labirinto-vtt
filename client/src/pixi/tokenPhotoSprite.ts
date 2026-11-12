@@ -20,8 +20,42 @@ import { screenLabelSizing } from './screenLabel'
  * rejeita. `Image` + `decode()` resolve o caso auto-contido sem depender de
  * detecção nenhuma, e `decode()` garante que a textura nasce já decodificada
  * (sem primeiro quadro em branco).
+ *
+ * A MESMA foto dá a MESMA textura (caça 12/11/2026, O11): antes, cada pedido
+ * criava um `Image` e uma textura novos que o `Texture.from` do Pixi guarda no
+ * cache global dele (por `Image`) até alguém destruir, e ninguém destruía: ir e
+ * voltar entre cenas com foto embutida deixava +2 texturas por volta, sem parar.
+ * Agora a textura é dividida (os 16 Soldados com a mesma foto usam uma só) e
+ * NINGUÉM que a recebe a destrói. Teto de `FOTOS_GUARDADAS`: a mais velha sai
+ * da lista sem ser destruída (uma ficha na tela ainda pode estar com ela).
  */
-export async function textureFromDataUrl(src: string): Promise<Texture> {
+export function textureFromDataUrl(src: string): Promise<Texture> {
+  const guardada = fotosGuardadas.get(src)
+  if (guardada !== undefined) {
+    // Usada agora: vai para o fim da fila (a mais velha é a do começo).
+    fotosGuardadas.delete(src)
+    fotosGuardadas.set(src, guardada)
+    return guardada
+  }
+  const nova = decodificarFoto(src)
+  fotosGuardadas.set(src, nova)
+  // Foto que não decodifica não fica guardada: o próximo pedido tenta de novo.
+  nova.catch(() => {
+    if (fotosGuardadas.get(src) === nova) fotosGuardadas.delete(src)
+  })
+  while (fotosGuardadas.size > FOTOS_GUARDADAS) {
+    const velha = fotosGuardadas.keys().next().value
+    if (velha === undefined) break
+    fotosGuardadas.delete(velha)
+  }
+  return nova
+}
+
+/** Fotos embutidas diferentes guardadas de uma vez (cada uma é uma textura). */
+const FOTOS_GUARDADAS = 64
+const fotosGuardadas = new Map<string, Promise<Texture>>()
+
+async function decodificarFoto(src: string): Promise<Texture> {
   const img = new Image()
   img.src = src
   await img.decode()

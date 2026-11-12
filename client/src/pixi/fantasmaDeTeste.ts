@@ -218,7 +218,10 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
 
   /** A foto pedida agora (`ref`); `null` = disco de cor. */
   let fotoAtual: string | null = null
-  /** Textura que só o fantasma usa (da cópia embutida): é ele que a destrói. */
+  /**
+   * Textura da cópia embutida que o fantasma mostra. Vem do cache de `textureFromDataUrl`, dividida com a ficha de
+   * verdade (caça 12/11, O11): o fantasma só a solta, nunca a destrói.
+   */
   let texturaPropria: Texture | null = null
   /** Sobe a cada pedido de foto: o carregamento que voltar atrasado não pinta por cima do mais novo. */
   let carga = 0
@@ -242,7 +245,6 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
   function soltarTexturaPropria(): void {
     if (texturaPropria === null) return
     if (foto.texture === texturaPropria) foto.texture = Texture.EMPTY
-    texturaPropria.destroy(true)
     texturaPropria = null
   }
 
@@ -260,10 +262,7 @@ export function createFantasmaDeTesteRenderer(parent: Container, motion?: Fantas
       : Promise.resolve().then(() => Assets.load<Texture>(convertFileSrc(caminho)))
     pedido
       .then((textura) => {
-        if (desmontado || minha !== carga) {
-          if (pedida.embutida) textura.destroy(true)
-          return
-        }
+        if (desmontado || minha !== carga) return
         if (pedida.embutida) texturaPropria = textura
         foto.texture = textura
         // A proporção só é conhecida com a textura na mão: reencaixa.
