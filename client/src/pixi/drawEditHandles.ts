@@ -295,8 +295,19 @@ export function drawEditHandles(
     if (wall.regionId !== undefined) {
       const region = map.regions.find((r) => r.id === wall.regionId)
       if (region) drawRegionSelectionHandles(graphics, region, view)
+    }
+
+    // PORTA (pedido de 12/11/2026): o chip de canto da casa em cada ponta, que
+    // alarga ou estreita o vão ao longo da parede (`pixi/doorEndGesture.ts`).
+    // Na porta de parede solta ele substitui as bolinhas de ponta, que moviam
+    // a ponta para qualquer lado e tiravam a porta da reta da parede.
+    if (wall.door !== null) {
+      if (isLocked(wall)) return
+      const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
+      drawCornerHandlesOnScreen(graphics, [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }], length, length, scale)
       return
     }
+    if (wall.regionId !== undefined) return
 
     drawVertexHandle(graphics, wall.x1, wall.y1, scale)
     drawVertexHandle(graphics, wall.x2, wall.y2, scale)

@@ -342,6 +342,7 @@ import { createRoomRotateGesture } from './roomRotateGesture'
 import { createStairHandleGesture } from './stairHandleGesture'
 import { stairHandleLabel } from '../lib/stairHandles'
 import { createCercaCurvaGesture } from './cercaCurvaGesture'
+import { createDoorEndGesture } from './doorEndGesture'
 import { rotuloDaCurvaDaCerca } from '../lib/cercaCurva'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados, rotuloDoArrastoDaFicha } from '../lib/tokenDragDistance'
@@ -2464,6 +2465,8 @@ function PixiCanvasDoContexto({
       const stairHandleGesture = createStairHandleGesture()
       // Alça de curvar da cerca selecionada (meio do fio), o mesmo gesto da curva da escada.
       const cercaCurvaGesture = createCercaCurvaGesture()
+      // Alças de ponta da porta selecionada: alargam ou estreitam o vão ao longo da parede.
+      const doorEndGesture = createDoorEndGesture()
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -3640,6 +3643,8 @@ function PixiCanvasDoContexto({
         | 'resizing-stair'
         // Alça de curvar da cerca selecionada (pixi/cercaCurvaGesture.ts).
         | 'curving-fence'
+        // Alça de ponta da porta selecionada (pixi/doorEndGesture.ts).
+        | 'resizing-door'
         | 'dragging-line-point'
         | 'dragging-line-body'
         // B3 (bug3 "mover e redimensionar"): resize por canto de Drawing
@@ -6942,9 +6947,19 @@ function PixiCanvasDoContexto({
           }
         }
 
+        // Alça de ponta da PORTA selecionada (pixi/doorEndGesture.ts): antes das
+        // bolinhas da parede solta e das alças da sala dona — o chip da ponta é
+        // o que está por cima ali.
+        if (activeTool === 'select' && single?.kind === 'wall' && event.button === 0 && doorEndGesture.begin(single.id, worldPoint, camera.scale)) {
+          mode = 'resizing-door'
+          updateCursor()
+          return
+        }
+
         if (activeTool === 'select' && single?.kind === 'wall') {
           const wall = map.walls.find((w) => w.id === single.id)
-          if (wall && wall.regionId === undefined) {
+          // A porta não tem bolinha de ponta: a ponta dela anda pela alça da porta, ao longo da parede.
+          if (wall && wall.regionId === undefined && wall.door === null) {
             const index = findVertexHandleAt(
               [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }],
               worldPoint,
@@ -7814,6 +7829,11 @@ function PixiCanvasDoContexto({
           cercaCurvaGesture.finish()
           mode = 'idle'
         }
+        // Alça de ponta da porta: o arrasto inteiro vira um Ctrl+Z (`doorEndGesture.finish`).
+        if (mode === 'resizing-door') {
+          doorEndGesture.finish()
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -8027,6 +8047,11 @@ function PixiCanvasDoContexto({
         // Alça de curvar da cerca: o arrasto inteiro vira um Ctrl+Z (`cercaCurvaGesture.finish`).
         if (mode === 'curving-fence') {
           cercaCurvaGesture.finish()
+          mode = 'idle'
+        }
+        // Alça de ponta da porta solta fora do canvas: fecha igual ao pointerup.
+        if (mode === 'resizing-door') {
+          doorEndGesture.finish()
           mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -8439,6 +8464,15 @@ function PixiCanvasDoContexto({
             const label = stairHandleLabel(feedback.stair, feedback.handle, map.grid, map.gridShape, map.scale)
             dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, label, computeViewport())
           }
+          return
+        }
+
+        // Alça de ponta da porta ao vivo: a ponta anda ao longo da parede, com o
+        // encaixe de parede (Alt inverte), como as outras alças.
+        if (mode === 'resizing-door') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const { map } = useMapStore.getState()
+          doorEndGesture.move(worldPoint, snapLigado('wall', event.altKey) && map.gridShape === 'square' ? map.grid : null)
           return
         }
 
@@ -9053,6 +9087,13 @@ function PixiCanvasDoContexto({
         // Shift apertado agora já trava de 15 em 15°, sem esperar o mouse andar.
         // No meio do arrasto da alça da escada, Esc devolve a escada como
         // estava — e só isso, pelo mesmo motivo do giro da sala abaixo.
+        if (mode === 'resizing-door' && event.key === 'Escape') {
+          event.preventDefault()
+          doorEndGesture.cancel()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
         if (mode === 'curving-fence' && event.key === 'Escape') {
           event.preventDefault()
           cercaCurvaGesture.cancel()

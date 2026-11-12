@@ -1479,29 +1479,11 @@ export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, do
   const door = wall.door // narrowed não-nulo aqui; capturado antes do .map porque o
   // callback abaixo itera sobre `w` (outra referência), que o TS não re-narrowa.
 
-  const dx = wall.x2 - wall.x1
-  const dy = wall.y2 - wall.y1
-  const length = Math.hypot(dx, dy)
-  if (length === 0) return map
-
-  // Eixo com origem no início do vão atual: o vão ocupa 0..length nesse eixo, e
-  // pedaço antes da porta tem parâmetro negativo.
-  const axis: EdgeAxis = { ox: wall.x1, oy: wall.y1, ux: dx / length, uy: dy / length }
+  const vao = vaoDaPorta(map, wall)
+  if (vao === null) return map
+  const { length, siblings, leftSolid, rightSolid, bounds, encostaEm } = vao
   const center = length / 2
   const half = doorLength / 2
-
-  const siblings: EdgePieceSpan[] = []
-  for (const other of map.walls) {
-    if (other.id === wall.id) continue
-    if (!sameEdgeIdentity(wall, other)) continue
-    const span = spanOnAxis(axis, other)
-    if (span) siblings.push(span)
-  }
-
-  const encostaEm = (a: number, b: number): boolean => Math.abs(a - b) <= EDGE_PIECE_EPSILON
-  const leftSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.to, 0))
-  const rightSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.from, length))
-  const bounds = regionEdgeBoundsOnAxis(map, wall, axis)
 
   // Até onde o vão pode crescer para cada lado: a ponta de fora do vizinho
   // sólido; se o vizinho é outra porta, não cresce nada; sem vizinho nenhum, o
@@ -1523,6 +1505,56 @@ export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, do
   const newTo = Math.min(center + half, high)
   if (newTo - newFrom <= EDGE_PIECE_EPSILON) return map
 
+  return aplicarVaoDaPorta(map, wall, vao, newFrom, newTo, { ...door, kind })
+}
+
+/** O vão de uma porta no eixo dela (origem no início do vão: ele ocupa `0..length`) e os vizinhos da mesma aresta. */
+interface VaoDaPorta {
+  axis: EdgeAxis
+  length: number
+  siblings: EdgePieceSpan[]
+  /** O pedaço sólido encostado antes do vão (`to` = 0), se houver. */
+  leftSolid: EdgePieceSpan | undefined
+  /** O pedaço sólido encostado depois do vão (`from` = length), se houver. */
+  rightSolid: EdgePieceSpan | undefined
+  bounds: { low: number; high: number } | null
+  encostaEm: (a: number, b: number) => boolean
+}
+
+/** O vão da porta `wall` e os vizinhos dela, ou `null` para parede de comprimento zero. */
+function vaoDaPorta(map: MapData, wall: Wall): VaoDaPorta | null {
+  const dx = wall.x2 - wall.x1
+  const dy = wall.y2 - wall.y1
+  const length = Math.hypot(dx, dy)
+  if (length === 0) return null
+
+  // Eixo com origem no início do vão atual: o vão ocupa 0..length nesse eixo, e
+  // pedaço antes da porta tem parâmetro negativo.
+  const axis: EdgeAxis = { ox: wall.x1, oy: wall.y1, ux: dx / length, uy: dy / length }
+
+  const siblings: EdgePieceSpan[] = []
+  for (const other of map.walls) {
+    if (other.id === wall.id) continue
+    if (!sameEdgeIdentity(wall, other)) continue
+    const span = spanOnAxis(axis, other)
+    if (span) siblings.push(span)
+  }
+
+  const encostaEm = (a: number, b: number): boolean => Math.abs(a - b) <= EDGE_PIECE_EPSILON
+  const leftSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.to, 0))
+  const rightSolid = siblings.find((s) => s.wall.door === null && encostaEm(s.from, length))
+  const bounds = regionEdgeBoundsOnAxis(map, wall, axis)
+  return { axis, length, siblings, leftSolid, rightSolid, bounds, encostaEm }
+}
+
+/**
+ * Põe o vão da porta em `newFrom..newTo` (no eixo de `vaoDaPorta`): o vizinho
+ * sólido de cada lado é redimensionado junto (mantendo id, estilo e vínculo),
+ * some quando o vão o cobre inteiro, e nasce um pedaço novo quando o vão
+ * encolhe e não havia vizinho daquele lado. Quem chama já prendeu o trecho.
+ */
+function aplicarVaoDaPorta(map: MapData, wall: Wall, vao: VaoDaPorta, newFrom: number, newTo: number, door: DoorState): MapData {
+  const { axis, length, leftSolid, rightSolid } = vao
   const pieceAt = (template: Wall, id: string, from: number, to: number): Wall => ({
     ...template,
     id,
@@ -1567,12 +1599,48 @@ export function setWallDoorKind(map: MapData, wallId: string, kind: DoorKind, do
     y1: axis.oy + axis.uy * newFrom,
     x2: axis.ox + axis.ux * newTo,
     y2: axis.oy + axis.uy * newTo,
-    door: { ...door, kind },
+    door,
   })
 
   const walls = map.walls.filter((w) => !removed.has(w.id)).map((w) => replacements.get(w.id) ?? w)
 
   return { ...map, walls: [...walls, ...created] }
+}
+
+/** Menor vão que a alça de ponta deixa a porta ter, em px de mundo: metade da porta Normal. */
+export const MIN_DOOR_LENGTH = 16
+
+/**
+ * ALARGAR OU ESTREITAR A PORTA pela alça de uma ponta (pedido de 12/11/2026:
+ * "uma vez que eu coloco uma porta eu não consigo tirar ou expandir"). A ponta
+ * `ponta` (0 = `x1,y1`, 1 = `x2,y2`) vai até o ponto PROJETADO na reta da
+ * parede; a outra fica parada, e o vizinho sólido acompanha
+ * (`aplicarVaoDaPorta`, a mesma conta do Tipo de porta).
+ *
+ * Limites: a ponta de fora do vizinho sólido (o fim da parede) e a quina da
+ * Sala; do lado sem vizinho sólido (outra porta, vão aberto, a ponta da
+ * parede) a porta não cresce. Nunca menor que `MIN_DOOR_LENGTH`. `passo`: o
+ * encaixe no eixo da parede, a partir da ponta parada (quem chama o usa na
+ * parede inclinada; na reta, já pôs o ponteiro na grade). O tipo e o estado da
+ * porta não mudam. Sem mudança, ou parede que não é porta: o mesmo `map`.
+ */
+export function resizeDoorEnd(map: MapData, wallId: string, ponta: 0 | 1, x: number, y: number, passo?: number): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const vao = vaoDaPorta(map, wall)
+  if (vao === null) return map
+  const { axis, length, leftSolid, rightSolid, bounds } = vao
+  const minimo = Math.min(MIN_DOOR_LENGTH, length)
+  const low = Math.max(leftSolid !== undefined ? leftSolid.from : 0, bounds?.low ?? Number.NEGATIVE_INFINITY)
+  const high = Math.min(rightSolid !== undefined ? rightSolid.to : length, bounds?.high ?? Number.POSITIVE_INFINITY)
+  const parada = ponta === 0 ? length : 0
+  const projetado = axisParam(axis, x, y)
+  const s = passo !== undefined && Number.isFinite(passo) && passo > 0 ? parada + Math.round((projetado - parada) / passo) * passo : projetado
+  if (!Number.isFinite(s)) return map
+  const newFrom = ponta === 0 ? Math.min(Math.max(s, low), length - minimo) : 0
+  const newTo = ponta === 1 ? Math.max(Math.min(s, high), minimo) : length
+  if (Math.abs(newFrom) <= EDGE_PIECE_EPSILON && Math.abs(newTo - length) <= EDGE_PIECE_EPSILON) return map
+  return aplicarVaoDaPorta(map, wall, vao, newFrom, newTo, wall.door)
 }
 
 /**

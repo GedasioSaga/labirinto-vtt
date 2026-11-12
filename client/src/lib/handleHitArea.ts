@@ -19,7 +19,7 @@
  * (`lib/hoverHitTest.ts`) — os dois têm de concordar, senão o cursor promete
  * um gesto que o clique não faz.
  */
-import type { DrawingPoint, Prop, RegionPoint, Stair } from '../types/map'
+import type { DrawingPoint, Prop, RegionPoint, Stair, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { stairHandles, type StairHandleKind } from './stairHandles'
 import { alcaDaCurvaDaCerca } from './cercaCurva'
@@ -88,6 +88,32 @@ export function findBoxCornerHandleAt(box: Box, point: Point, cameraScale: numbe
  */
 export function findPropCornerHandleAt(prop: Prop, point: Point, cameraScale: number): Corner | null {
   return findBoxCornerHandleAt(propBoundingBox(prop), pointInPropAxis(prop, point), cameraScale)
+}
+
+/**
+ * Ponta de PORTA sob o ponteiro (0 = `x1,y1`, 1 = `x2,y2`), no zoom
+ * `cameraScale`: o chip de canto desenhado em cada ponta (`drawEditHandles`)
+ * ou o alcance de clique da alça de canto, preso a 1/3 do vão para as duas
+ * pontas nunca disputarem o mesmo ponto. A mais perto ganha.
+ */
+export function findDoorEndHandleAt(wall: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>, point: Point, cameraScale: number): 0 | 1 | null {
+  const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1)
+  if (!(length > 0)) return null
+  const reach = Math.min(screenToWorldTolerance(RESIZE_HANDLE_TOLERANCE, cameraScale), length * BOX_CORNER_REACH_MAX_SIDE_RATIO)
+  const half = chipHalfSide(length, length, cameraScale)
+  const pontas = [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }] as const
+  let melhor: 0 | 1 | null = null
+  let menor = Number.POSITIVE_INFINITY
+  for (const i of [0, 1] as const) {
+    const p = pontas[i]
+    const d = Math.hypot(point.x - p.x, point.y - p.y)
+    const noChip = Math.abs(point.x - p.x) <= half && Math.abs(point.y - p.y) <= half
+    if ((d <= reach || noChip) && d < menor) {
+      melhor = i
+      menor = d
+    }
+  }
+  return melhor
 }
 
 /** Canto de Sala retangular sob o ponteiro, no zoom `cameraScale`. */

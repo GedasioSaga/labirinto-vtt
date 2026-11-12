@@ -42,8 +42,8 @@ import { hasRoomCornerHandles } from './roomOps'
 import { isOnPropRotateHandle, isOnRoomRotateHandle, roomRotationOf } from './roomRotation'
 import { findSelectableAt } from './selectionHitTest'
 import type { PinosNoToque } from './marcadorDeContinente'
-import { findBoxCornerHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
-import { canInteractInLayer, propLayer, stairLayer } from './layers'
+import { findBoxCornerHandleAt, findDoorEndHandleAt, findNearestVertexHandleAt, findPropCornerHandleAt, findRoomCornerHandleAt, findStairHandleAt, findVertexHandleAt, isOnFenceCurveHandle, isOnRadiusHandle } from './handleHitArea'
+import { canInteractInLayer, propLayer, stairLayer, wallLayer } from './layers'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
@@ -163,6 +163,13 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
         if (isOnPropRotateHandle(prop, worldPoint, scale)) return { kind: 'rotate', corner: null, target: null }
       }
     }
+    // Alça de ponta da PORTA: a mesma condição do pointerdown (`pixi/doorEndGesture.ts`), antes das alças da sala dona.
+    if (selection.kind === 'wall') {
+      const porta = map.walls.find((w) => w.id === selection.id)
+      if (porta && porta.door !== null && canInteractInLayer(porta, wallLayer(porta), map.lockedLayers) && findDoorEndHandleAt(porta, worldPoint, scale) !== null) {
+        return { kind: 'vertex', corner: null, target: null }
+      }
+    }
     let editRegionId: string | null = null
     if (selection.kind === 'region') editRegionId = selection.id
     else if (selection.kind === 'wall') {
@@ -191,7 +198,7 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
     if (selection.kind === 'wall') {
       const wall = map.walls.find((w) => w.id === selection.id)
       // Parede presa a um desenho não tem alça: ela anda com o desenho.
-      if (wall && wall.regionId === undefined && wall.desenhoId === undefined) {
+      if (wall && wall.regionId === undefined && wall.desenhoId === undefined && wall.door === null) {
         const pts = [{ x: wall.x1, y: wall.y1 }, { x: wall.x2, y: wall.y2 }]
         if (findVertexHandleAt(pts, worldPoint, scale) !== null) return { kind: 'vertex', corner: null, target: null }
       }

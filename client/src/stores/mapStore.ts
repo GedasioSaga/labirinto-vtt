@@ -1308,6 +1308,11 @@ interface MapStoreState {
    *  `map` a cada pointermove do arrasto. Par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `updateLightRadiusLive`. */
   resizeRoomCornerLive: (id: string, corner: RoomCorner, x: number, y: number, passo?: number) => void
+  /** Alça de ponta da porta (`mapFactory.resizeDoorEnd`), SEM histórico: par de
+   *  `commitDragHistory(before)` no pointerup (`pixi/doorEndGesture.ts`). */
+  resizeDoorEndLive: (wallId: string, ponta: 0 | 1, x: number, y: number, passo?: number) => void
+  /** Esc no meio de um gesto que só mexe em paredes: as paredes voltam às de `before`, SEM histórico. */
+  restoreWallsLive: (before: MapData) => void
   /**
    * GIRAR SALA — os botões −90°/+90° do painel. Gira a Sala e as sub-salas
    * `degrees` graus (positivo = horário) em torno do centro dela, COM
@@ -3095,6 +3100,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     resizeRoomCornerLive: (id, corner, x, y, passo) => set((state) => ({
       map: mapFactory.resizeRoomCornerLive(state.map, id, corner, x, y, passo),
     })),
+    resizeDoorEndLive: (wallId, ponta, x, y, passo) => set((state) => {
+      const map = mapFactory.resizeDoorEnd(state.map, wallId, ponta, x, y, passo)
+      return map === state.map ? {} : { map }
+    }),
+    restoreWallsLive: (before) => set((state) => (state.map.walls === before.walls ? {} : { map: { ...state.map, walls: before.walls } })),
     rotateRoom: (id, degrees) => {
       const before = get().map
       // Travada não gira, nem por um caminho que esqueça de conferir: o painel
