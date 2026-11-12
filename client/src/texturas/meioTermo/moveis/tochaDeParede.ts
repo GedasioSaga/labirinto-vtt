@@ -17,8 +17,11 @@
  * o brilho. Apagada: o pano queimado quase preto, sem brasa e sem brilho no
  * chão; a fuligem da parede fica.
  *
- * NA 3/4 a tocha fica no MEIO DA PAREDE (`tresQuartos.ts`; todo tampo tem a
- * beirada `ESPESSURA_DA_TOCHA_DE_PAREDE`, que é a espessura do perfil):
+ * NA 3/4 a tocha sobe POUCO (`tresQuartos.ts`; todo tampo tem a beirada
+ * `ESPESSURA_DA_TOCHA_DE_PAREDE`, que é a espessura do perfil): a parede do
+ * app é uma linha sem altura, e a chapa continua na linha dela (decisão 27 do
+ * mestre, 12/11/2026; o fator é `SUBIDA_DA_TOCHA_DE_PAREDE`). A ordem é a de
+ * uma tocha em pé no meio da parede:
  * - a CHAPA é um tampo; o braço e a argola sobem com ela (a caixa de cada um
  *   é centrada na chapa) e ficam no alto dela;
  * - o CABO são dois tampos: o pé (com a peça de madeira dele) e o trecho de
@@ -29,7 +32,7 @@
  * As alturas são em lados (o menor lado da pegada). Materiais: `metal` (a
  * chapa, o braço e a argola) e `madeira` (o cabo).
  */
-import { TOCHA_DE_PAREDE } from '../../../lib/mobilia/fogoDeCasa'
+import { SUBIDA_DA_TOCHA_DE_PAREDE, TOCHA_DE_PAREDE } from '../../../lib/mobilia/fogoDeCasa'
 import { limitar01, type Rgb } from '../../ruido'
 import { anel, caixa, capsula, elipse, type Forma } from './formas'
 import { texturaDaClasse, type Textura } from './motor'
@@ -40,8 +43,10 @@ import { PANO_COM_OLEO, PANO_QUEIMADO, texPanoDaTocha } from './tochaDePe'
 /**
  * A beirada de cada tampo da tocha (px do protótipo): a cara da chapa, o cabo
  * e o rolo da cabeça. O perfil da tocha de parede usa este valor como espessura.
+ * Encolhe com as alturas (`SUBIDA_DA_TOCHA_DE_PAREDE`): cada tampo continua
+ * tampo, sem virar coluna até o chão (com sombra de contato debaixo da cabeça).
  */
-export const ESPESSURA_DA_TOCHA_DE_PAREDE = 0.12 * G
+export const ESPESSURA_DA_TOCHA_DE_PAREDE = 0.12 * G * SUBIDA_DA_TOCHA_DE_PAREDE
 
 /**
  * As medidas de cima, em fração do menor meio lado; o `y` conta da parede (a beira de cima da pegada). Onde
@@ -49,7 +54,7 @@ export const ESPESSURA_DA_TOCHA_DE_PAREDE = 0.12 * G
  * (`lib/mobilia/fogoDeCasa.ts`), com a conta de onde a chama animada nasce (`fogoDaTochaDeParede`).
  */
 const MEIA_LARGURA_DA_CHAPA = 0.28
-const GROSSURA_DA_CHAPA = 0.2
+const GROSSURA_DA_CHAPA = TOCHA_DE_PAREDE.grossuraDaChapa
 const RAIO_DO_BRACO = 0.085
 const ARGOLA_EM = TOCHA_DE_PAREDE.argolaEm
 const ARGOLA_DE_FORA = 0.24
@@ -74,11 +79,15 @@ const FULIGEM_FUNDA = 0.26
 const ALFA_DA_FULIGEM = 0.6
 const COR_DA_FULIGEM: Rgb = [0x24, 0x20, 0x1d]
 
-/** Alturas em lados (0,4 casa na pegada de partida): o alto da chapa, do pé do cabo, do cabo e da cabeça. */
-const ALTURA_DA_CHAPA = 0.9
-const ALTURA_DO_PE_DO_CABO = 1
-const ALTURA_DO_CABO = 1.3
-const ALTURA_DA_CABECA = TOCHA_DE_PAREDE.alturaDaCabeca
+/**
+ * Alturas em lados (0,4 casa na pegada de partida): o alto da chapa, do pé do cabo, do cabo e da cabeça. As do
+ * desenho em pé vezes `SUBIDA_DA_TOCHA_DE_PAREDE`: na 3/4 a chapa fica na linha da parede (decisão 27 do mestre).
+ * De cima elas não pintam nada (as sombras são só a altura, força 0).
+ */
+const ALTURA_DA_CHAPA = TOCHA_DE_PAREDE.alturaDaChapa * SUBIDA_DA_TOCHA_DE_PAREDE
+const ALTURA_DO_PE_DO_CABO = 1 * SUBIDA_DA_TOCHA_DE_PAREDE
+const ALTURA_DO_CABO = 1.3 * SUBIDA_DA_TOCHA_DE_PAREDE
+const ALTURA_DA_CABECA = TOCHA_DE_PAREDE.alturaDaCabeca * SUBIDA_DA_TOCHA_DE_PAREDE
 
 const TOM_DA_CHAPA = 0.92
 const TOM_DO_BRACO = 1.04

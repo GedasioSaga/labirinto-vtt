@@ -167,27 +167,43 @@ export function fogoDaTochaDePe(largura: number, altura: number): DisposicaoDoFo
 /**
  * TOCHA DE PAREDE (0,4 x 0,5 casa de partida, 12/11/2026): a parede é a beira
  * de cima da pegada. Em fração do menor MEIO lado, contadas da parede: onde
- * fica a argola e quanto a cabeça passa dela; em lados, a altura da cabeça.
- * Moram aqui pela razão da tocha de pé; o desenho
- * (`texturas/meioTermo/moveis/tochaDeParede.ts`) lê daqui.
+ * fica a argola, quanto a cabeça passa dela e a grossura da chapa; em lados, a
+ * altura da chapa e a da cabeça no desenho EM PÉ (antes de
+ * `SUBIDA_DA_TOCHA_DE_PAREDE`). Moram aqui pela razão da tocha de pé; o
+ * desenho (`texturas/meioTermo/moveis/tochaDeParede.ts`) lê daqui.
  */
 export const TOCHA_DE_PAREDE = {
   argolaEm: 0.55,
   cabecaAlemDaArgola: 0.36,
+  grossuraDaChapa: 0.2,
+  alturaDaChapa: 0.9,
   alturaDaCabeca: 1.6,
 } as const
+
+/**
+ * Quanto a tocha de parede sobe na 3/4, em fração das alturas do desenho em pé
+ * (decisão 27 do mestre, achado V5 de 12/11/2026). A parede do app é uma linha
+ * sem altura: subindo inteira (a chapa a 0,9 lado), a tocha da parede de cima
+ * ia parar fora da sala e a da parede de baixo ficava solta, a meia casa da
+ * linha. Agora ela sobe só o bastante para a chapa continuar na linha da
+ * parede: a chapa sobe a própria grossura (0,1 lado, 1/9 do em pé), a cabeça
+ * fica dentro da sala na parede de cima e, na de baixo, a chapa fica encostada
+ * na linha. Todas as alturas (a chapa, o cabo, a cabeça, a beirada e a chama
+ * animada) encolhem pelo mesmo fator: a forma da 3/4 é a mesma, mais baixa.
+ */
+export const SUBIDA_DA_TOCHA_DE_PAREDE = TOCHA_DE_PAREDE.grossuraDaChapa / 2 / TOCHA_DE_PAREDE.alturaDaChapa
 
 /**
  * Onde a chama da tocha de parede nasce: o meio da cabeça e o alto dela em
  * fração do menor lado. A cabeça mora a uma distância fixa da parede, então
  * esticar a pegada muda a fração: por isso é função, não constante. A pegada
  * em casas (ou em px: a fração não muda com a escala); no tamanho de partida
- * dá x 0, y -0,136 e altura 1,6.
+ * dá x 0, y -0,136 e altura 1,6 / 9 (a cabeça na 3/4, `SUBIDA_DA_TOCHA_DE_PAREDE`).
  */
 export function fogoDaTochaDeParede(largura: number, altura: number): DisposicaoDoFogo {
   const meioLado = Math.min(largura, altura) / 2
   const cabeca = -altura / 2 + (TOCHA_DE_PAREDE.argolaEm + TOCHA_DE_PAREDE.cabecaAlemDaArgola) * meioLado
-  return { fogo: { x: 0, y: cabeca / altura }, alturaDaBorda: TOCHA_DE_PAREDE.alturaDaCabeca }
+  return { fogo: { x: 0, y: cabeca / altura }, alturaDaBorda: TOCHA_DE_PAREDE.alturaDaCabeca * SUBIDA_DA_TOCHA_DE_PAREDE }
 }
 
 /**
