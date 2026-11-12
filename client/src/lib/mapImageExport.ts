@@ -4,7 +4,7 @@ import { shapeCenter } from './floorSdf'
 import { isHidden } from './itemTransform'
 import { isArrivalOnly } from './pinTravel'
 import { ancestorsOf, pointInPolygonInclusive, subtreeIds } from './roomNesting'
-import { comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
+import { areaPassaPorParede, comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
 import { comCarimbos, comCarimbosImportados, importadosParaJogador } from './carimbos'
 
 /**
@@ -98,12 +98,15 @@ function withoutMasterOnly(map: MapData): MapData {
   const hidden = (point: RegionPoint): boolean => hiddenAreas.some((ring) => pointInPolygonInclusive(point, ring))
   const anyHidden = (points: readonly RegionPoint[]): boolean => hiddenAreas.length > 0 && points.some(hidden)
   const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d)))
-  const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas)
+  const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
+  const ficam = new Set(walls)
+  const paredesTiradas = map.walls.filter((w) => !ficam.has(w))
+  const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas, paredesTiradas)
 
   const semSegredo: MapData = {
     ...map,
     regions: map.regions.filter((r) => !goneRegionIds.has(r.id)).map(withoutHiddenRoomName),
-    walls: map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w))),
+    walls,
     tokens: map.tokens.filter((t) => !t.secret && !anyHidden([t])),
     props: map.props.filter((p) => !p.secret && !anyHidden([p])),
     pins: map.pins.filter((p) => !p.secret && !isArrivalOnly(p) && !anyHidden([p])),
@@ -136,6 +139,7 @@ function texturasSemSegredo(
   goneRegionIds: ReadonlySet<string>,
   drawingIds: ReadonlySet<string>,
   hiddenAreas: readonly (readonly RegionPoint[])[],
+  paredesTiradas: readonly Wall[],
 ): PinceladaDeTextura[] {
   const encosta = (p: RegionPoint, raio: number): boolean =>
     hiddenAreas.some(
@@ -146,9 +150,14 @@ function texturasSemSegredo(
           return distanceToWall(p, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }) <= raio
         }),
     )
-  // A ÁREA fechada por paredes não é forma do mapa: sai se o contorno encosta numa sala secreta ou zona oculta.
+  // A ÁREA fechada por paredes não é forma do mapa: sai se o contorno encosta numa sala secreta ou zona
+  // oculta, ou se corre numa parede que a imagem tira (a do cofre, mesmo fora da borda dele): o contorno a desenharia.
   const alvoFica = (alvo: AlvoDoBalde): boolean =>
-    alvo.tipo === 'area' ? !alvo.pontos.some((p) => encosta(p, 0)) : alvo.tipo === 'regiao' ? !goneRegionIds.has(alvo.id) : drawingIds.has(alvo.id)
+    alvo.tipo === 'area'
+      ? !alvo.pontos.some((p) => encosta(p, 0)) && !areaPassaPorParede(alvo.pontos, paredesTiradas, map.grid)
+      : alvo.tipo === 'regiao'
+      ? !goneRegionIds.has(alvo.id)
+      : drawingIds.has(alvo.id)
   return (map.texturas ?? []).filter((passo) => {
     if (passo.tipo === 'balde' || passo.tipo === 'esvaziar') return alvoFica(passo.alvo)
     // A sala secreta não abre buraco na textura: o buraco desenharia a silhueta dela.

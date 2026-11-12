@@ -1,4 +1,5 @@
-import type { AlvoDoBalde, AlvoDoBaldePorId, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada } from '../types/map'
+import type { AlvoDoBalde, AlvoDoBaldePorId, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada, Wall } from '../types/map'
+import { distanceToWall } from './doorReach'
 import { caminhosParaJogador, passoDoRisco, tracosSeTocam } from './penhasco'
 import { comPiso, pisoDe, pisoLido } from './pisos'
 
@@ -16,7 +17,7 @@ import { comPiso, pisoDe, pisoLido } from './pisos'
  * de px de mundo, e a pintura inteira como imagem não caberia no arquivo nem
  * na rede; o passo é um caminho de poucos pontos.
  *
- * Folha de propósito (só tipos e o penhasco, que também é folha): o
+ * Folha de propósito (só tipos, o penhasco e a distância de `doorReach`, folhas também): o
  * `fogFilter` importa daqui. Quem precisa da geometria das formas (o balde)
  * usa `lib/baldeDeTextura.ts`, que conversa com o relevo.
  */
@@ -333,6 +334,28 @@ function soComTinta<T extends PinceladaDeTextura>(lista: readonly T[]): T[] {
 // Jogador
 
 /**
+ * Folga, em quadrados da grade, com que um canto do contorno da ÁREA conta como
+ * em cima de uma parede. A tinta do balde vai até o eixo da parede; a
+ * simplificação e a fresta afastam o canto dele no máximo uma célula do balde,
+ * e a célula (4 milhões no mapa inteiro) é menor que meio quadrado.
+ */
+export const FOLGA_DA_AREA_NA_PAREDE = 0.5
+
+/**
+ * O contorno da ÁREA fechada por paredes passa por alguma das `paredes`: um
+ * canto dele a até `FOLGA_DA_AREA_NA_PAREDE` quadrado do eixo dela. O contorno
+ * segue o eixo das paredes que cercam a área, então a parede que quem recebe o
+ * passo NÃO recebe (a de sala secreta fechada, a que a imagem exportada tira)
+ * sairia desenhada nele: o buraco no formato do cofre no meio do salão, onde
+ * quer que o mestre tenha posto a parede dele (12/11/2026).
+ */
+export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: readonly Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>[], grid: number): boolean {
+  if (paredes.length === 0) return false
+  const folga = grid * FOLGA_DA_AREA_NA_PAREDE
+  return pontos.some((p) => paredes.some((w) => distanceToWall(p, w) <= folga))
+}
+
+/**
  * Os passos que vão ao jogador:
  * - pincel e borracha: só os pedaços cujo disco encosta no que ele conhece
  *   (`caminhosParaJogador`, o mesmo corte do penhasco). O resto do caminho do
@@ -344,7 +367,8 @@ function soComTinta<T extends PinceladaDeTextura>(lista: readonly T[]): T[] {
  *   com `conhecidaPorDentro`, quando ele a conhece POR DENTRO (a visão entra
  *   nela, ou o explorado tem ponto dentro; ver `knownFromInside` no recorte):
  *   o contorno são só os cantos, e no meio de um salão grande ele não via
- *   nenhum (12/11/2026).
+ *   nenhum (12/11/2026). Nunca a área cujo contorno `denunciaSegredo`: o
+ *   buraco no formato da sala secreta que ele não conhece (`areaPassaPorParede`).
  * A tela dele ainda guarda a textura sob a máscara do conhecido. Borracha no
  * começo (sem tinta antes dela no que sobrou) sai.
  */
@@ -354,10 +378,13 @@ export function texturasParaJogador(
   escondido: (p: RegionPoint) => boolean,
   formaNoRecorte: (alvo: AlvoDoBaldePorId) => boolean,
   conhecidaPorDentro: (pontos: readonly RegionPoint[]) => boolean = () => false,
+  denunciaSegredo: (pontos: readonly RegionPoint[]) => boolean = () => false,
 ): PinceladaDeTextura[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
   const noRecorte = (alvo: AlvoDoBalde): boolean =>
-    alvo.tipo === 'area' ? alvo.pontos.some(conhece) || conhecidaPorDentro(alvo.pontos) : formaNoRecorte(alvo)
+    alvo.tipo === 'area'
+      ? !denunciaSegredo(alvo.pontos) && (alvo.pontos.some(conhece) || conhecidaPorDentro(alvo.pontos))
+      : formaNoRecorte(alvo)
   const saida: PinceladaDeTextura[] = []
   for (const item of lista) {
     if (item.tipo === 'balde' || item.tipo === 'esvaziar') {
