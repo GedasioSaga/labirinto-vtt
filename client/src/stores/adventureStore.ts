@@ -22,7 +22,7 @@ import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { comForaDoChaoDeCenaNova, type OffFloor } from '../lib/offFloor'
+import { comForaDoChaoDeCenaNova, foraDoChaoLivre, type OffFloor } from '../lib/offFloor'
 import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { pisoDe } from '../lib/pisos'
 import { travessiaDaFicha, type SceneHistory } from '../lib/travessiaDaFicha'
@@ -1364,7 +1364,7 @@ function aventuraDoMapaSolto(
  * nível. Devolve o id e o que gravar no estado.
  *
  * A cena nasce com "Fora do Chão" LIVRE (`lib/offFloor.ts`); `offFloorHerdado`
- * é o valor da cena de onde o andar novo sai, quando ela tem o campo.
+ * é o que vale na cena de onde o andar novo sai (sem o campo, bloqueado).
  */
 function withEmptyScene(
   state: AdventureState,
@@ -2186,8 +2186,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const building = buildingOfStair(live, stair)
     const openName = state.adventure.scenes.find((entry) => entry.id === state.activeSceneId)?.name ?? live.name
     const base = building?.room !== undefined && building.room.name.trim().length > 0 ? building.room.name : openName
-    // FORA DO CHÃO: o andar novo segue a escolha da cena de onde a escada sai, se ela tem o campo.
-    const { id, patch } = withEmptyScene(state, live, newFloorName(base, floorSideOf(stair.direction)), null, true, live.offFloor)
+    // FORA DO CHÃO: o andar novo herda o que VALE na cena de onde a escada sai. Cena de antes, sem o
+    // campo, vale bloqueado: o andar dela nasce bloqueado (e não livre, como a cena criada do zero).
+    const herdado: OffFloor = foraDoChaoLivre(live) ? 'free' : 'blocked'
+    const { id, patch } = withEmptyScene(state, live, newFloorName(base, floorSideOf(stair.direction)), null, true, herdado)
     set(patch)
     if (building !== null) get().updateBackgroundScene(id, (map) => withBuildingContour(map, live, building, () => crypto.randomUUID()))
     // A escada par no MESMO ponto: o contorno é o mesmo, então quem sobe chega onde estava.
