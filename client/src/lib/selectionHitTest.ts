@@ -358,7 +358,8 @@ function findForegroundAt(map: MapData, point: Point, pinos?: PinosNoToque): Sel
   const token = findTokenAt(visibleTokens(map.tokens, map.hiddenLayers), point, map.grid, pinos)
   if (token) return { kind: 'token', id: token.id, draggable: true }
 
-  const prop = findPropAt(visibleProps(map.props, map.hiddenLayers), point)
+  // `map`: o de cima NA TELA, na ordem da pilha (Decoração por cima de Objetos), não só a da lista.
+  const prop = findPropAt(visibleProps(map.props, map.hiddenLayers), point, map)
   if (prop) return { kind: 'prop', id: prop.id, draggable: true }
 
   const light = findLightAt(visibleLights(map.lights, map.hiddenLayers), point)
