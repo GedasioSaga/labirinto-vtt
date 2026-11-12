@@ -15,6 +15,14 @@ const PREFIXO_DA_CHAVE = 'lb-section:objeto-'
 /** A tecla que leva à busca de qualquer lugar sem campo de texto (a "/" das buscas de documentação). */
 const TECLA_DA_BUSCA = '/'
 
+/**
+ * O texto da busca FORA do componente (E11 da caça de 12/11/2026): a ficha do
+ * objeto toma o painel e a troca de ferramenta desmontam esta escolha, e a
+ * busca voltava vazia no meio da montagem da cena. Dura enquanto o app está
+ * aberto; o Esc e o "Limpar busca" apagam como antes.
+ */
+let buscaGuardada = ''
+
 const TIPOS_CONHECIDOS: ReadonlySet<string> = new Set(TIPOS_MOBILIA)
 function ehTipo(id: string): id is TipoMobilia {
   return TIPOS_CONHECIDOS.has(id)
@@ -75,7 +83,12 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
   const ids = useId()
   const entradaRef = useRef<HTMLInputElement | null>(null)
   const listaRef = useRef<HTMLDivElement | null>(null)
-  const [busca, setBusca] = useState('')
+  const [busca, setBuscaNaTela] = useState(buscaGuardada)
+  /** Toda mudança da busca passa por aqui: a tela e a cópia que sobrevive ao desmonte andam juntas. */
+  const mudarBusca = (texto: string) => {
+    buscaGuardada = texto
+    setBuscaNaTela(texto)
+  }
   /** O aberto/fechado que o mestre gravou; `null` = nunca mexeu naquele grupo. */
   const [guardados, setGuardados] = useState<ReadonlyMap<IdDoGrupoDeObjeto, boolean | null>>(
     () => new Map(GRUPOS_DE_OBJETO.map((grupo) => [grupo.id, lerAberto(grupo.id)])),
@@ -103,7 +116,8 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
   const filtrando = consulta !== ''
   const achados = filtrando
     ? acharObjetos(
-        opcoes.map((opcao) => ({ opcao, rotulo: opcao.label, grupo: tituloDoGrupo.get(opcao.id) ?? '' })),
+        // O tipo leva às palavras do dia a dia (`PALAVRAS_DO_OBJETO`): "cripta" acha o mausoléu.
+        opcoes.map((opcao) => ({ opcao, rotulo: opcao.label, grupo: tituloDoGrupo.get(opcao.id) ?? '', tipo: ehTipo(opcao.id) ? opcao.id : undefined })),
         consulta,
       ).map((achado) => achado.opcao)
     : []
@@ -148,7 +162,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
     if (evento.key === 'Escape') {
       consumir(evento)
       // Primeiro Esc apaga a busca; o segundo, com o campo vazio, sai dele.
-      if (busca !== '') setBusca('')
+      if (busca !== '') mudarBusca('')
       else evento.currentTarget.blur()
     }
   }
@@ -161,7 +175,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
     if (!(alvo instanceof HTMLElement) || (alvo.getAttribute('role') !== 'radio' && !alvo.hasAttribute('data-cabeca-do-grupo'))) return
     if (evento.key.length !== 1 || evento.key.trim() === '' || evento.ctrlKey || evento.metaKey || evento.altKey) return
     consumir(evento)
-    setBusca(busca + evento.key)
+    mudarBusca(busca + evento.key)
     entradaRef.current?.focus()
   }
 
@@ -195,7 +209,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
   }
 
   const limparBusca = () => {
-    setBusca('')
+    mudarBusca('')
     entradaRef.current?.focus()
   }
 
@@ -221,7 +235,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
           aria-controls={`${ids}-lista`}
           placeholder="Procurar objeto"
           value={busca}
-          onChange={(evento) => setBusca(evento.currentTarget.value)}
+          onChange={(evento) => mudarBusca(evento.currentTarget.value)}
           onKeyDown={aoTeclarNaBusca}
         />
         {busca === '' ? (

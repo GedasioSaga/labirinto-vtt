@@ -288,6 +288,204 @@ export function partesDoObjeto(catalogo: readonly TipoMobilia[]): ParteDoObjeto[
   })
 }
 
+/**
+ * PALAVRAS DO DIA A DIA de cada objeto, para a busca da ficha (E11 da caça de 12/11/2026, decisão 24 do mestre):
+ * quem digita "cripta" acha o mausoléu, "esqueleto" os ossos e o crânio, "poça" os montes do tesouro e o sangue.
+ * Primeiro rascunho, montado pelo Claude em 12/11/2026: o mestre corrige depois.
+ * Regra da lista: nenhuma palavra leva a objeto errado (na dúvida, fica de fora). Sem acento e sem maiúscula
+ * não importa (`nomeParaBusca`). Cuidado com o começo: "poção" ficou de fora porque, sem acento, "poça" acharia
+ * a estante de poções; e nada aqui começa com "metal", "ouro", "tesouro", "navio", "templo", "tortura" etc.,
+ * que já acham pelo nome ou pelo título do grupo (os testes de `acharObjetos` em `pecasNovas.test.ts`).
+ */
+export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly string[]>>> = {
+  // Sala e quarto
+  mesa: ['mesa comprida', 'mesa de jantar', 'mesa de taverna'],
+  cadeira: ['assento'],
+  mesaRedonda: ['távola redonda', 'mesa de reunião'],
+  sofa: ['divã', 'canapé', 'assento'],
+  poltrona: ['cadeirão', 'assento'],
+  catre: ['leito', 'catre', 'cama de solteiro', 'colchão'],
+  aparador: ['bufê', 'buffet', 'cômoda'],
+  tapete: ['carpete', 'alfombra'],
+  tapeteLongo: ['passadeira', 'carpete', 'alfombra'],
+  lareira: ['chaminé', 'fogo'],
+  estanteDeLivros: ['biblioteca', 'prateleira de livros', 'livraria'],
+  guardaRoupa: ['armário de roupa', 'roupeiro', 'closet', 'guarda roupa'],
+  escrivaninha: ['escritório', 'mesa de escrever', 'mesa de estudo'],
+  criadoMudo: ['mesa de cabeceira', 'cabeceira', 'criado mudo'],
+  camaDeCasal: ['leito', 'cama grande', 'colchão'],
+  berco: ['bebê', 'neném', 'cama de bebê'],
+  banqueta: ['banquinho', 'banco alto', 'assento'],
+  biombo: ['divisória', 'paravento', 'anteparo'],
+  piano: ['música', 'instrumento musical'],
+  candelabroDeChao: ['castiçal', 'velas', 'luz'],
+  // Cozinha e banheiro
+  armario: ['guarda-louça', 'louceiro'],
+  balcao: ['balcão de bar', 'balcão de taverna'],
+  fogao: ['fogão a lenha', 'fogão de ferro'],
+  geladeira: ['refrigerador', 'freezer'],
+  pia: ['torneira'],
+  pratos: ['louça', 'comida', 'refeição', 'banquete', 'talheres'],
+  privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],
+  caldeirao: ['panela', 'tacho', 'sopa', 'bruxa'],
+  fornoDePao: ['padaria', 'padeiro'],
+  banheira: ['banho', 'ofurô'],
+  tinaDeMadeira: ['banho', 'ofurô', 'banheira de madeira'],
+  lavatorioComJarro: ['lavabo', 'bacia', 'pia antiga', 'jarra'],
+  prateleiraDePotes: ['despensa', 'conservas', 'temperos', 'estante de potes'],
+  mesaDeCorte: ['açougue', 'açougueiro', 'tábua de corte', 'cutelo'],
+  ganchoComCarne: ['açougue', 'açougueiro'],
+  // Armazenagem ("barril" acha todos os barris: os três pelo nome e estes três pela palavra)
+  barril: ['barrica', 'barril de cerveja', 'barril de vinho'],
+  caixa: ['caixote', 'engradado', 'caixa de madeira'],
+  bau: ['arca'],
+  sacosDeGrao: ['farinha', 'trigo', 'milho', 'mantimentos', 'provisões', 'saca'],
+  prateleiraDeDeposito: ['estante', 'armazém', 'estoque', 'despensa'],
+  pilhaDeCaixas: ['caixotes', 'engradados', 'carga'],
+  barrisDeitados: ['barril', 'barris de vinho', 'adega'],
+  tonelDeAdega: ['barril', 'barril grande', 'vinho'],
+  anforasDeBarro: ['cântaro', 'moringa', 'vaso de barro', 'jarro de barro', 'cerâmica'],
+  cestoDeVime: ['cesta', 'balaio'],
+  cofre: ['caixa-forte', 'caixa forte'],
+  // Rua e jardim
+  cerca: ['cerca de madeira', 'cercado', 'mourão'],
+  sebe: ['cerca viva', 'arbusto', 'moita'],
+  jardineira: ['floreira'],
+  vaso: ['vaso de flor', 'planta em vaso'],
+  arcoDoPortao: ['pórtico', 'arcada'],
+  placaDeSeta: ['sinalização', 'placa de estrada', 'placa de direção'],
+  poco: ['poço de água', 'cacimba', 'cisterna'],
+  chafariz: ['fonte', 'repuxo'],
+  lampiao: ['lanterna', 'poste', 'poste de luz', 'luz'],
+  fogueira: ['fogo de acampamento', 'acampamento'],
+  fogo: ['chamas', 'incêndio', 'labareda'],
+  ponte: ['passarela', 'pinguela'],
+  bancoDePraca: ['banco de jardim', 'banco de parque', 'assento'],
+  estatua: ['escultura', 'monumento'],
+  pedrasERochas: ['pedregulho', 'seixos', 'rochedo'],
+  antenaParabolica: ['satélite'],
+  varalDeRoupa: ['lavanderia', 'roupa estendida'],
+  horta: ['verduras', 'legumes', 'hortaliças'],
+  canteiroDeFlores: ['jardim de flores'],
+  muroBaixoDePedra: ['mureta', 'cerca de pedra', 'parede baixa'],
+  tocoDeArvore: ['cepo', 'tronco cortado'],
+  carrinhoDeMao: ['carriola'],
+  placaDeLoja: ['letreiro', 'tabuleta'],
+  tenda: ['barraca de acampamento', 'acampamento'],
+  torreDePedra: ['torreão'],
+  torreDeVigia: ['atalaia', 'mirante'],
+  // Cemitério
+  lapide: ['túmulo', 'sepultura', 'pedra tumular', 'campa'],
+  cova: ['sepultura', 'túmulo', 'enterro', 'monte de terra'],
+  caixao: ['esquife', 'ataúde', 'féretro'],
+  caixaoAberto: ['esquife', 'ataúde', 'velório'],
+  mausoleu: ['cripta', 'jazigo', 'tumba', 'túmulo', 'sepulcro'],
+  cruzDeMadeira: ['crucifixo'],
+  anjoDePedra: ['estátua de anjo', 'querubim'],
+  cercaDeFerro: ['grade de ferro', 'gradil', 'cerca de cemitério'],
+  paCravada: ['coveiro'],
+  velasEOferendas: ['luz', 'vigília'],
+  arvoreSeca: ['árvore morta', 'galhos secos'],
+  // Feira
+  barraca: ['banca', 'tenda de feira', 'mercado', 'quiosque', 'feirante'],
+  carroca: ['charrete', 'carroção', 'carro de boi'],
+  quadroDeAvisos: ['mural', 'cartaz', 'quadro de missões', 'missão', 'recompensa', 'procurado'],
+  cataVentoBrinquedo: ['catavento', 'cata vento'],
+  bancaDeFrutas: ['quitanda', 'mercado', 'frutaria'],
+  toldoListrado: ['cobertura', 'lona'],
+  balancaDeMercador: ['pesos', 'pesagem'],
+  tendaDeAdivinha: ['cartomante', 'vidente', 'adivinho', 'oráculo'],
+  gaiolaComAves: ['passarinho', 'pássaros', 'viveiro'],
+  rolosDeTecido: ['pano', 'panos', 'alfaiate', 'tecelagem'],
+  palcoDeBardo: ['teatro', 'menestrel', 'música', 'tablado'],
+  barrilDePeixe: ['peixaria', 'pescado'],
+  // Oficina
+  fornalha: ['forja', 'ferraria'],
+  bigorna: ['forja', 'ferreiro', 'ferraria'],
+  bancadaDeFerramentas: ['marcenaria', 'carpintaria', 'mesa de trabalho'],
+  pedraDeAmolar: ['afiador', 'amolador', 'esmeril', 'mó', 'rebolo'],
+  suporteDeArmas: ['arsenal', 'armeiro'],
+  fole: ['forja', 'ferreiro', 'ferraria', 'soprador'],
+  manequimComArmadura: ['armeiro'],
+  pilhaDeLingotes: ['barras empilhadas', 'fundição'],
+  serra: ['cavalete', 'serrar lenha', 'tora'],
+  // Fazenda
+  troncos: ['lenha', 'toras', 'pilha de lenha'],
+  feno: ['palha', 'fardo'],
+  cataVento: ['catavento', 'cata vento'],
+  moinho: ['moenda'],
+  espantalho: ['boneco de palha'],
+  cocho: ['bebedouro', 'comedouro', 'manjedoura'],
+  galinheiro: ['galinhas', 'galo', 'ovos', 'poleiro'],
+  colmeia: ['abelhas', 'mel', 'apiário'],
+  arado: ['charrua', 'lavoura'],
+  tocoComMachado: ['lenhador', 'cepo', 'rachar lenha'],
+  plantacaoEmFileiras: ['lavoura', 'roça', 'plantio', 'cultivo'],
+  // Destroços e sucata
+  destrocosDeMadeira: ['entulho', 'tábuas', 'madeira quebrada', 'ruína', 'ruínas'],
+  sucataChapas: ['ferro-velho', 'lixo', 'chapas de ferro', 'ferrugem'],
+  sucataEngrenagens: ['ferro-velho', 'lixo', 'mecanismo', 'peças de máquina'],
+  sucataTambores: ['ferro-velho', 'lixo', 'barril de metal', 'barris amassados'],
+  escombrosDePedra: ['entulho', 'ruína', 'ruínas', 'desabamento', 'desmoronamento'],
+  ossos: ['esqueleto', 'ossada', 'restos mortais'],
+  carrocaQuebrada: ['charrete quebrada', 'roda quebrada'],
+  barrilQuebrado: ['barrica quebrada'],
+  vigaCaida: ['madeira caída', 'desabamento'],
+  armaduraEnferrujada: ['ferrugem', 'armadura velha'],
+  armaduraDespedacada: ['armadura quebrada', 'restos de armadura'],
+  cranio: ['caveira', 'esqueleto', 'osso'],
+  // Esporte e lazer
+  campinho: ['campo', 'gol', 'trave'],
+  bonecoDeTreino: ['manequim de treino', 'treinamento'],
+  alvoDeArcoEFlecha: ['arqueiro', 'arquearia', 'tiro ao alvo'],
+  mesaDeJogo: ['cartas', 'baralho', 'damas', 'tabuleiro', 'jogatina'],
+  ringueDeLuta: ['arena', 'boxe', 'pugilismo'],
+  balanco: ['parquinho', 'parque infantil'],
+  mesaDeSinuca: ['bilhar', 'snooker', 'taco'],
+  // Porto e navio
+  canhao: ['artilharia', 'bombarda'],
+  cordasEnroladas: ['cabo', 'amarras', 'rolo de corda'],
+  timao: ['leme', 'roda do leme'],
+  bote: ['barco', 'barquinho', 'canoa', 'escaler'],
+  redeDePesca: ['pescaria', 'pescador', 'tarrafa'],
+  pier: ['cais', 'trapiche', 'atracadouro', 'deque', 'doca'],
+  caixoteDePeixe: ['peixaria', 'pescado'],
+  // Templo e masmorra
+  pilar: ['coluna', 'pilastra'],
+  altar: ['santuário', 'sacrifício', 'ritual'],
+  armadura: ['cavaleiro'],
+  braseiro: ['fogo', 'pira', 'fogareiro'],
+  celaComGrade: ['prisão', 'cadeia', 'calabouço'],
+  corrente: ['correntes', 'acorrentado'],
+  armadilhaDeEspinhos: ['estacas', 'espetos'],
+  circuloMagico: ['runas', 'ritual', 'invocação', 'magia'],
+  blocoDeInscricoesAzul: ['monólito', 'monumento', 'glifos', 'runas'],
+  blocoDeInscricoesVermelho: ['monólito', 'monumento', 'glifos', 'runas'],
+  blocoDeInscricoesDourado: ['monólito', 'monumento', 'glifos', 'runas'],
+  teiaDeAranha: ['teias'],
+  tochaDeParede: ['archote', 'facho', 'luz'],
+  tochaDePe: ['archote', 'facho', 'tocheiro', 'luz'],
+  // Sala de tortura
+  potroDeTortura: ['estiramento', 'esticador'],
+  damaDeFerro: ['virgem de ferro', 'donzela de ferro'],
+  gaiolaSuspensa: ['jaula', 'gaiola pendurada'],
+  mesaDeInstrumentos: ['alicate', 'tenaz', 'ferro de marcar', 'carrasco'],
+  sangueNoChao: ['poça de sangue', 'mancha de sangue'],
+  // Magia e alquimia
+  estanteDePocoes: ['frascos', 'elixir', 'boticário', 'alquimista'],
+  bolaDeCristal: ['vidente', 'cartomante', 'adivinhação', 'oráculo'],
+  pedestalComLivro: ['grimório', 'tomo', 'atril', 'púlpito', 'livro de feitiços'],
+  // Tesouro ("poça" acha os quatro montes)
+  barraDeOuro: ['lingote de ouro', 'riqueza'],
+  monteDeOuro: ['poça de ouro', 'pilha de ouro', 'riqueza', 'fortuna'],
+  moedaDeOuro: ['dinheiro', 'dobrão', 'riqueza'],
+  monteDeMoedasDeOuro: ['poça de moedas', 'pilha de moedas', 'dinheiro', 'riqueza', 'fortuna'],
+  diamante: ['pedra preciosa', 'gema', 'brilhante', 'riqueza'],
+  monteDeDiamantes: ['poça de diamantes', 'pilha de diamantes', 'pedras preciosas', 'gemas', 'riqueza', 'fortuna'],
+  joia: ['pingente', 'colar', 'medalhão', 'riqueza'],
+  monteDeJoias: ['poça de joias', 'pilha de joias', 'riqueza', 'fortuna'],
+}
+
 const MARCA_DE_ACENTO = /\p{M}/gu
 
 /** Sem acento, minúsculo e com os espaços juntados: "armario" acha "Armário de cozinha". */
@@ -295,23 +493,42 @@ export function nomeParaBusca(texto: string): string {
   return texto.normalize('NFD').replace(MARCA_DE_ACENTO, '').toLowerCase().replace(/\s+/gu, ' ').trim()
 }
 
+/** O texto (já em `nomeParaBusca`) começa com o alvo ou tem uma palavra que começa com ele. */
+function temComeco(texto: string, alvo: string): boolean {
+  return texto.startsWith(alvo) || texto.includes(` ${alvo}`)
+}
+
+const SEM_PALAVRAS: readonly string[] = []
+
+/** As palavras do dia a dia do tipo (`PALAVRAS_DO_OBJETO`); item sem tipo não tem nenhuma. */
+function palavrasDoObjeto(tipo: TipoMobilia | undefined): readonly string[] {
+  return tipo === undefined ? SEM_PALAVRAS : (PALAVRAS_DO_OBJETO[tipo] ?? SEM_PALAVRAS)
+}
+
 /**
  * O que a busca da ficha acha, na ordem em que o Enter escolhe: primeiro os
  * nomes que COMEÇAM com o que foi digitado (ou têm uma palavra que começa),
- * depois os que só o contêm, e por fim os do grupo cujo título casa ("cozinha"
+ * depois os que só o contêm, depois os que têm uma palavra do dia a dia que
+ * começa com ele (`PALAVRAS_DO_OBJETO`, só quando o item traz o `tipo`:
+ * "cripta" traz o mausoléu) e por fim os do grupo cujo título casa ("cozinha"
  * traz o fogão). Dentro de cada leva, a ordem de quem chamou.
  */
-export function acharObjetos<T extends { readonly rotulo: string; readonly grupo: string }>(itens: readonly T[], consulta: string): T[] {
+export function acharObjetos<T extends { readonly rotulo: string; readonly grupo: string; readonly tipo?: TipoMobilia }>(
+  itens: readonly T[],
+  consulta: string,
+): T[] {
   const alvo = nomeParaBusca(consulta)
   if (alvo === '') return [...itens]
   const comeco: T[] = []
   const meio: T[] = []
+  const porPalavra: T[] = []
   const doGrupo: T[] = []
   for (const item of itens) {
     const nome = nomeParaBusca(item.rotulo)
-    if (nome.startsWith(alvo) || nome.includes(` ${alvo}`)) comeco.push(item)
+    if (temComeco(nome, alvo)) comeco.push(item)
     else if (nome.includes(alvo)) meio.push(item)
+    else if (palavrasDoObjeto(item.tipo).some((palavra) => temComeco(nomeParaBusca(palavra), alvo))) porPalavra.push(item)
     else if (nomeParaBusca(item.grupo).includes(alvo)) doGrupo.push(item)
   }
-  return [...comeco, ...meio, ...doGrupo]
+  return [...comeco, ...meio, ...porPalavra, ...doGrupo]
 }

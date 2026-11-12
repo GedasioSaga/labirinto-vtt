@@ -157,8 +157,10 @@ button:where([class^='gr-'], [class*=' gr-']):disabled { cursor: not-allowed; }
 .gr-seg__op--ic svg { width: 17px; height: 17px; }
 .gr-seg--grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
 .gr-seg--grade .gr-seg__op { flex-direction: column; min-height: 50px; gap: 3px; font-size: var(--lb-font-size-xs); padding: 4px 2px; white-space: normal; }
-/* nome que não cabe na célula ("Armário de cozinha") quebra em duas linhas, em vez de cortar as duas pontas */
-.gr-seg--grade .gr-seg__op > span { text-align: center; line-height: 1.15; }
+/* nome que não cabe na célula ("Armário de cozinha") quebra em duas linhas, em vez de cortar as duas pontas; a palavra
+   que sozinha passa da coluna ("despedaçada", "interrogatório") quebra por dentro, com hífen onde o navegador souber
+   (o html é pt-BR), em vez de perder a última letra (E21 da caça de 12/11/2026) */
+.gr-seg--grade .gr-seg__op > span { text-align: center; line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; }
 .gr-seg--grade .gr-seg__op svg { width: 20px; height: 20px; }
 .gr-seg--grade .gr-seg__op .gr-kbd { border: 0; padding: 0; min-width: 0; font-size: 9.5px; color: var(--lb-color-parchment-faint); }
 .gr-seg--icone .gr-seg__op { min-height: 34px; }

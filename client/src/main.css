@@ -690,6 +690,14 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* O rótulo da grade: a palavra que sozinha passa da coluna quebra por dentro,
+   com hífen onde o navegador souber (o html é pt-BR), em vez de encostar no
+   vizinho ou perder a última letra (V7 e E21 da caça de 12/11/2026). */
+.lb-seg--grid .lb-seg__option {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
 /* Mesma pastilha do segmented, em LINHAS: o tipo do pino tem três opções, e
    três colunas na largura do rail dariam 60 px a cada rótulo — "Interrogação"
    mede 68. A marca vai à esquerda, na altura do texto, como numa legenda de mapa. */

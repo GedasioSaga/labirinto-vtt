@@ -77,11 +77,21 @@
     0 0 0 1px rgba(224, 164, 74, 0.55);
 }
 
+/* O nome em até duas linhas: em uma só, "Chão de floresta" e "Lajotas de
+   pedra" saíam com reticências nos 57 px da coluna (E21 da caça de
+   12/11/2026). A palavra que sozinha não cabe ("Calçamento") quebra por
+   dentro, com hífen onde o navegador souber. Só a fileira que precisa cresce;
+   as miniaturas ficam no alto, alinhadas com as vizinhas. */
 .lb-texturas__nome {
+  display: -webkit-box;
+  hyphens: auto;
+  line-height: 1.2;
   overflow: hidden;
+  overflow-wrap: anywhere;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* A moldura da miniatura do catálogo: é nela que o selo de formas se ancora. */
