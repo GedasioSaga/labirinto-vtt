@@ -4358,6 +4358,8 @@ function recorteDoGrupo(
     // "Visão nesta cena" é regra do mestre: o jogador recebe o círculo já
     // cortado (`vision`), nunca o número que o desenhou.
     visionCells: undefined,
+    // "Tamanho da ficha ao entrar" também é regra do mestre: o jogador recebe a ficha já no tamanho.
+    tamanhoDaFichaAoEntrar: undefined,
     // "Cena escura" também: o escuro já vem aplicado na visão e no que sai.
     dark: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
