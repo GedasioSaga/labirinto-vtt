@@ -6,6 +6,7 @@ import { ComSaida } from '../components/grimorio/ComSaida'
 import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
+import { criarDesenhoSobPedido, type DesenhoSobPedido } from './desenhoSobPedido'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
@@ -1239,6 +1240,8 @@ function PixiCanvasDoContexto({
   const fantasmaDeTesteRef = useRef(fantasmaDeTeste)
   const fichaDoFantasmaRef = useRef(fichaDoFantasma)
   const redrawFantasmaRef = useRef<(() => void) | null>(null)
+  /** O10: o desenho sob pedido do palco montado (`desenhoSobPedido.ts`); `null` antes de montar e depois de desmontar. */
+  const desenhoRef = useRef<DesenhoSobPedido | null>(null)
   useEffect(() => {
     fantasmaDeTesteRef.current = fantasmaDeTeste
     fichaDoFantasmaRef.current = fichaDoFantasma
@@ -1300,6 +1303,11 @@ function PixiCanvasDoContexto({
       }
       initialized = true
       registrarNaSonda('appMestre', app)
+      // O10 (caça de 12/11/2026): parado, a tela não redesenha; o relógio
+      // continua batendo. Logo depois do init: o desenho fica no mesmo lugar do tique.
+      const desenho = criarDesenhoSobPedido(app)
+      desenhoRef.current = desenho
+      registrarNaSonda('desenhoMestre', desenho.medidas)
       // Contexto perdido: quem está em volta (`PixiCanvas`) troca este Pixi por
       // um novo. `onContextoPerdido` é estável (useCallback) e cada geração
       // monta este efeito uma vez só, então a referência do fechamento serve.
@@ -1396,7 +1404,7 @@ function PixiCanvasDoContexto({
       })
       // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
       const fogos = createFogosDoMapa({
-        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
           el.dataset.fogos = String(estado.fogos)
           el.dataset.fogosNaVista = String(estado.naVista)
@@ -1405,7 +1413,7 @@ function PixiCanvasDoContexto({
       })
       // JUDGE (F3, `judgeDoMapa.ts`): por cima das fichas, dos telhados e dos fogos; respira só na vista e com batalha.
       const judgeDoMapa = createJudgeDoMapa({
-        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
           el.dataset.judge = estado.visivel ? String(estado.direcao) : 'nao'
           el.dataset.judgeAnimando = String(estado.animando)
@@ -1427,7 +1435,7 @@ function PixiCanvasDoContexto({
       // elas andando; por quadro mudam só posição e opacidade. O contêiner é o
       // que a troca de cena densa esconde até a camada ser pintada.
       const nuvens = createNuvensRenderer(
-        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         {
           aoMudar: (estado) => {
             el.dataset.nuvens = String(estado.nuvens)
@@ -1446,7 +1454,7 @@ function PixiCanvasDoContexto({
       // NOMES DOS LUGARES (`drawNomesDosLugares.ts`): a pílula de cada região com
       // nome, acima dos nomes, das luzes e das rotas, e abaixo das fichas e dos
       // pinos, que continuam legíveis por cima. O relógio só roda na aparição.
-      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: desenho.relogio, reducedMotion: prefersReducedMotion })
       const nomesDosLugaresContainer = new Container()
       nomesDosLugaresContainer.eventMode = 'none'
       nomesDosLugaresContainer.addChild(nomesDosLugares.camada)
@@ -2340,7 +2348,7 @@ function PixiCanvasDoContexto({
        * escolhida quando `open` muda e repinta sozinho no relógio do Pixi
        * enquanto alguma anda (`animadorDePortas.ts`).
        */
-      const movimentoDasPortas = { ticker: app.ticker, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }
+      const movimentoDasPortas = { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, som: tocarSomDePorta }
       const animadorDePortas = createAnimadorDePortas(movimentoDasPortas, { comParedeDesenhada: true })
       // CAMADAS: o animador guarda o último Graphics que pintou; nó criado tem o dele.
       const animadoresDePortas = criarPorNo<Container, ReturnType<typeof createAnimadorDePortas>>(
@@ -2925,7 +2933,7 @@ function PixiCanvasDoContexto({
       // A chama das fogueiras anima no relógio do Pixi, só com fogueira no mapa
       // e movimento normal; por quadro mudam só escala, posição e alpha.
       const propsRenderer = createPropsRenderer({
-        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
           el.dataset.chamas = String(estado.chamas)
           el.dataset.chamasAnimando = String(estado.animando)
@@ -2936,7 +2944,7 @@ function PixiCanvasDoContexto({
       const propsPorNo = criarPorNo<Container, ReturnType<typeof createPropsRenderer>>(
         propsContainer,
         propsRenderer,
-        () => createPropsRenderer({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+        () => createPropsRenderer({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
         (renderer) => renderer.destruir(),
       )
       aoDescartarNo.push((no) => propsPorNo.soltar(no))
@@ -2991,7 +2999,7 @@ function PixiCanvasDoContexto({
       // NEBLINA (`neblinaNoEditor.ts`): logo ACIMA da tinta, para a bruma seguir à vista de noite.
       const neblinaDoEditor = criarNeblinaDoEditor({
         renderer: app.renderer,
-        ticker: app.ticker,
+        ticker: desenho.relogio,
         reducedMotion: prefersReducedMotion,
         mundo: world,
         aoMudar: (estado) => {
@@ -3001,7 +3009,7 @@ function PixiCanvasDoContexto({
       })
       // PARTÍCULAS DA CENA (`particulasDoMapa.ts`): fumaça e brasas dos fogos, no palco logo acima do mundo.
       const particulasDoMapa = criarParticulasDoMapa(
-        { ticker: app.ticker, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
         {
           aoMudar: (estado) => {
             el.dataset.particulas = estado.ligadas ? String(estado.vivas) : 'desligadas'
@@ -3012,6 +3020,8 @@ function PixiCanvasDoContexto({
       // O que as partículas leram do mapa: só refazem a entrada quando uma destas referências muda.
       let particulasLidas: { cena: string; particulas: MapData['particulas']; props: MapData['props']; grid: number } | null = null
       let ultimaTintaEscrita = ''
+      /** O que a neblina leu no último quadro: mudou, o quadro desenha (O10). */
+      let neblinaLida: { map: MapData | null; piso: number; periodo: string | null } = { map: null, piso: -1, periodo: null }
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
         if (particulasLidas === null || particulasLidas.cena !== map.id || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
@@ -3025,8 +3035,15 @@ function PixiCanvasDoContexto({
         const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
         const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
         // A neblina fica logo abaixo do fantasma de teste, e a tinta logo abaixo dela.
-        const tetoDaTinta = neblinaDoEditor.quadro(map, useMapStore.getState().pisoAtivo, fantasmaDeTesteContainer)
-        neblinaDoEditor.renderer.setPeriodo(tinta?.periodo ?? null)
+        const pisoAtivo = useMapStore.getState().pisoAtivo
+        const tetoDaTinta = neblinaDoEditor.quadro(map, pisoAtivo, fantasmaDeTesteContainer)
+        const periodoDaNeblina = tinta?.periodo ?? null
+        neblinaDoEditor.renderer.setPeriodo(periodoDaNeblina)
+        // O10: a neblina muda por número de shader (cor do período, densidade), que o Pixi não vê: pede o quadro.
+        if (map !== neblinaLida.map || pisoAtivo !== neblinaLida.piso || periodoDaNeblina !== neblinaLida.periodo) {
+          neblinaLida = { map, piso: pisoAtivo, periodo: periodoDaNeblina }
+          desenho.pedir()
+        }
         // Para o e2e ler a tinta aplicada no quadro em que ela mudou (o gesto da força no painel).
         const textoDaTinta = tinta === null ? 'nenhuma' : `${tinta.periodo} ${tinta.rgb.toString(16).padStart(6, '0')} ${tinta.alfa}`
         if (textoDaTinta !== ultimaTintaEscrita) {
@@ -3156,10 +3173,10 @@ function PixiCanvasDoContexto({
       }
       // Ficha na mão, anel da vez e passo do jogador animam no relógio do Pixi
       // — e só enquanto alguma coisa anima (tokensRenderer.ts).
-      const tokensRenderer = createTokensRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const tokensRenderer = createTokensRenderer({ ticker: desenho.relogio, reducedMotion: prefersReducedMotion })
       // D4 da batalha: o recuo e o tombo da ficha atingida (`impactoNasFichas.ts`).
-      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, app.ticker)
-      const fantasmaRenderer = createFantasmaDeTesteRenderer(fantasmaDeTesteContainer, { ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, desenho.relogio)
+      const fantasmaRenderer = createFantasmaDeTesteRenderer(fantasmaDeTesteContainer, { ticker: desenho.relogio, reducedMotion: prefersReducedMotion })
       redrawFantasmaRef.current = redrawFantasma
       // Onda 2, item 16 (Frente C) — número ao vivo durante o arrasto de forma.
       const dimensionLabelRenderer = createDimensionLabelRenderer()
@@ -3532,7 +3549,7 @@ function PixiCanvasDoContexto({
           if (!destroyed) redrawScaleDependentLayers()
         },
         zoom: zoomDaRoda,
-        ticker: app.ticker,
+        ticker: desenho.relogio,
       })
       // D7 da batalha (`cameraDaBatalha.ts`): a ficha da vez fora da tela ou na borda vem para a vista, sem zoom.
       // Seguindo um jogador, o mestre não é puxado.
@@ -3625,7 +3642,7 @@ function PixiCanvasDoContexto({
       el.dataset.straightenGhost = '0'
       const straightenGhost = criarFantasmaDoEndireitar({
         graphics: straightenGhostGraphics,
-        ticker: app.ticker,
+        ticker: desenho.relogio,
         movimentoReduzido: prefersReducedMotion,
         escalaDaCamera: () => camera.scale,
         resolucao: () => app.renderer.resolution,
@@ -9719,6 +9736,9 @@ function PixiCanvasDoContexto({
         onImageExporterChangeRef.current?.(null)
         consultaDaFichaRef.current = null
         onFichaNaTelaRef.current?.(() => null)
+        // O10: por último, com todos fora do relógio; o app volta ao desenho de todo quadro até morrer.
+        desenhoRef.current = null
+        desenho.destruir()
       }
     }
 
@@ -9746,6 +9766,13 @@ function PixiCanvasDoContexto({
       })
     }
   }, [])
+
+  // O10 (desenho sob pedido): todo render do React do editor desenha um quadro,
+  // mesmo o que só troca número de shader. Por último e sem dependências: roda
+  // depois dos efeitos acima, a cada render (que não é por quadro).
+  useEffect(() => {
+    desenhoRef.current?.pedir()
+  })
 
   // Campo de SALA: a própria etiqueta do mapa (lugar, fonte, cor, plaquinha e
   // orientação dela), não uma caixa escura por cima. A lista de salas é a que
