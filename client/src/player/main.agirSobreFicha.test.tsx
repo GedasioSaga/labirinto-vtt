@@ -146,9 +146,10 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
   it('tocar na ficha alheia abre o cartão; "Enviar ao mestre" manda o pedido e mostra "Aguardando…"', () => {
     act(() => botao('ficha severa').click())
     expect(dialogo().getAttribute('aria-label')).toBe('Ficha: Mulher de capuz')
-    // O retrato DA FICHA TOCADA (não o da Gabi) ao lado das três ações: sem foto, as iniciais do nome dela.
+    // O retrato DA FICHA TOCADA (não o da Gabi) ao lado das ações: sem foto, as iniciais do nome dela.
     expect(dialogo().querySelector('.pp-tokencard__face')?.textContent).toBe('MD')
-    expect(Array.from(dialogo().querySelectorAll('.pp-tokencard__actions button')).map((b) => b.textContent)).toEqual(['Falar', 'Ação', 'Entregar item'])
+    // A Severa não é de jogador (NPC): só Falar e Ação, sem "Dar item" (decisão 2 do mestre, 12/11/2026).
+    expect(Array.from(dialogo().querySelectorAll('.pp-tokencard__actions button')).map((b) => b.textContent)).toEqual(['Falar', 'Ação'])
     act(() => botao('Falar', dialogo()).click())
     const campo = dialogo().querySelector('input')
     if (!(campo instanceof HTMLInputElement)) throw new Error('sem o campo do que ele diz')
@@ -163,7 +164,8 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
 
   it('a resposta em texto do mestre chega num cartão só para ela, e fica até o jogador fechar', () => {
     act(() => mestre().manda({ type: 'token.action.answer', reqId: ultimoReqId(), accepted: true, reply: 'Ela aponta a torre: "Subiu ontem."' }))
-    const cartao = Array.from(document.querySelectorAll('section')).find((s) => s.querySelector('h2')?.textContent === 'O mestre aceitou: Falar com Mulher de capuz')
+    // Caça J14: o Falar respondido em texto é a fala do NPC ("<ficha> responde").
+    const cartao = Array.from(document.querySelectorAll('section')).find((s) => s.querySelector('h2')?.textContent === 'Mulher de capuz responde')
     if (cartao === undefined) throw new Error('sem o cartão da resposta')
     expect(cartao.textContent).toContain('Ela aponta a torre: "Subiu ontem."')
     // O cartão toma o lugar do aviso "Aguardando…".
@@ -184,11 +186,11 @@ describe('main.tsx: agir sobre uma ficha de ponta a ponta', () => {
     expect(avisos()).toEqual(['O mestre recusou: Ação com Mulher de capuz'])
   })
 
-  it('Entregar item para quem não é jogador explica por quê, e nada sai', () => {
+  it('para quem não é jogador o "Dar item" nem aparece, e nada sai', () => {
     const antes = mestre().sent.length
     act(() => botao('ficha severa').click())
-    act(() => botao('Entregar item', dialogo()).click())
-    expect(dialogo().textContent).toContain('Só dá para entregar a outro jogador.')
+    expect(dialogo().textContent).not.toContain('Dar item')
+    expect(dialogo().textContent).not.toContain('Entregar')
     act(() => botao('Fechar', dialogo()).click())
     expect(mestre().sent.slice(antes).filter((m) => JSON.stringify(m).includes('item.give'))).toEqual([])
   })

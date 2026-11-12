@@ -2,7 +2,7 @@
  * INVENTÁRIO ESTILO RESIDENT EVIL montado na página do jogador (`main.tsx`),
  * de ponta a ponta sem navegador: o botão "Inventário" da barra e a tecla I
  * abrem, Esc fecha e devolve o foco, o I digitado num campo não abre, e o
- * "Sim" do "Dar a…" sai pelo socket como o mesmo `item.give` do "Comigo".
+ * toque no colega do "Dar item" sai pelo socket como o mesmo `item.give` do "Comigo".
  *
  * Mesmo molde de `main.agirSobreFicha.test.tsx`: a `PlayerView` (Pixi pede
  * WebGL) vira um marcador, e o `WebSocket` vira um falso no papel do mestre.
@@ -160,16 +160,16 @@ describe('main.tsx: o inventário de ponta a ponta', () => {
     expect(inventario()).toBeNull()
   })
 
-  it('"Dar a…" → Diego → Sim manda o mesmo item.give do "Comigo"', () => {
+  it('"Dar item" → Diego manda o mesmo item.give do "Comigo", sem Sim', () => {
     act(() => botaoDoInventario().click())
     const aberto = inventario()
     if (aberto === null) throw new Error('o inventário não abriu')
     const chave = aberto.querySelector<HTMLButtonElement>('[role="gridcell"] button[aria-label="Chave do Escudo"]')
     if (chave === null) throw new Error('sem a vaga da chave')
     act(() => chave.click())
-    act(() => botao('Dar a…', aberto).click())
+    act(() => botao('Dar item', aberto).click())
+    // Tocar no colega já dá, sem o Sim (decisão 8 do mestre, 12/11/2026).
     act(() => botao('Diego', aberto).click())
-    act(() => botao('Sim', aberto).click())
     expect(mestre().enviados('item.give')).toEqual([{ type: 'item.give', itemId: 'chave-1', toTokenId: 'diego' }])
   })
 })

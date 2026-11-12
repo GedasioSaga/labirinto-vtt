@@ -93,12 +93,13 @@ describe('hostBridge: pedido de ação sobre ficha', () => {
     expect(pedidos()).toEqual([])
   })
 
-  it('o pedido traz o campo "Resposta só para Ana", e o texto escrito vai junto com a resposta, só a ela', async () => {
+  it('o pedido de Falar traz o campo "O que Severa responde", e o texto escrito vai junto com a resposta, só a Ana', async () => {
     const { emit, sent } = await mesa()
     emit('net:message', { clientId: 'c1', msg: { type: 'token.action', reqId: 'a1', tokenId: 'severa', action: 'falar', text: 'Você viu o Lemos?' } })
     const [aviso] = pedidos()
     if (aviso === undefined) throw new Error('esperava o pedido na caixa')
-    expect(aviso.resposta).toEqual({ rotulo: 'Resposta só para Ana (opcional)', maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH })
+    // Caça J14 (12/11/2026): no Falar, o campo é a fala do NPC; o texto continua indo só a quem pediu.
+    expect(aviso.resposta).toEqual({ rotulo: 'O que Severa responde (opcional)', maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH })
 
     const antes = sent().length
     // A tela passa a `run` o que o mestre escreveu no campo do aviso (components/Toast.tsx).

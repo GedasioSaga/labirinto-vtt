@@ -77,7 +77,10 @@ describe('texto do cartão e do aviso', () => {
 
   it('cada fase do pedido diz o que aconteceu, com a ação e a ficha', () => {
     expect(tokenActionNoticeText({ id: 1, phase: 'waiting', action: 'acao', targetName: 'Severa' })).toBe('Pedido ao mestre: Ação com Severa. Aguardando…')
-    expect(tokenActionNoticeText({ id: 1, phase: 'accepted', action: 'falar', targetName: 'Severa' })).toBe('O mestre aceitou: Falar com Severa')
+    // Caça J14 (12/11/2026): o texto diz o que aconteceu, por tipo de pedido.
+    expect(tokenActionNoticeText({ id: 1, phase: 'accepted', action: 'falar', targetName: 'Severa' })).toBe('O mestre ouviu. A resposta vem na mesa.')
+    expect(tokenActionNoticeText({ id: 1, phase: 'accepted', action: 'falar', targetName: 'Severa', reply: 'Não vi.' })).toBe('Severa responde')
+    expect(tokenActionNoticeText({ id: 1, phase: 'accepted', action: 'acao', targetName: 'Severa' })).toBe('O mestre deixou: Ação com Severa')
     expect(tokenActionNoticeText({ id: 1, phase: 'refused', action: 'acao', targetName: 'Severa' })).toBe('O mestre recusou: Ação com Severa')
     expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'unavailable', action: 'acao', targetName: 'Severa' })).toBe('Não dá para fazer isso agora.')
     expect(tokenActionNoticeText({ id: 1, phase: 'rejected', reason: 'pending', action: 'acao', targetName: 'Severa' })).toBe('Você já tem um pedido esperando o mestre.')

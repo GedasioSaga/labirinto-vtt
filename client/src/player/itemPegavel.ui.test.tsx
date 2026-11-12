@@ -63,7 +63,7 @@ describe('telas do item pegável', () => {
     expect(container.textContent).toContain('Chave do Escudo')
   })
 
-  it('Dar a…: abre os colegas encostados e passa o item para quem foi escolhido', () => {
+  it('Dar item (o mesmo nome nos três caminhos, decisão 8 do mestre): abre os colegas encostados e passa o item para quem foi escolhido', () => {
     const onGive = vi.fn()
     act(() =>
       root.render(
@@ -77,14 +77,14 @@ describe('telas do item pegável', () => {
         />,
       ),
     )
-    act(() => botao('Dar Chave do Escudo a…').click())
+    act(() => botao('Dar item: Chave do Escudo').click())
     act(() => botao('Carla').click())
     expect(onGive).toHaveBeenCalledWith('chave', 'carla')
   })
 
-  it('Dar a… sem ninguém encostado explica em vez de abrir lista vazia', () => {
+  it('Dar item sem ninguém encostado explica em vez de abrir lista vazia', () => {
     act(() => root.render(<PlayerBackpack items={[{ id: 'chave', nome: 'Chave do Escudo' }]} colleagues={[]} onGive={vi.fn()} />))
-    act(() => botao('Dar Chave do Escudo a…').click())
+    act(() => botao('Dar item: Chave do Escudo').click())
     expect(container.textContent).toContain('Ninguém encostado em você.')
   })
 
