@@ -72,6 +72,7 @@ import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
 import { espessuraDoMaterial, ladosDoObjetoNaParede, paredeComMaterial, paredesQueSeguram, type ParedeQueSegura } from './faixasDaParede'
+import { alcancePeloObjeto, type AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -4174,6 +4175,25 @@ function recorteDoGrupo(
     if (propSamplePoints(p).some((q) => inHiddenPlace(q) || hiddenByZone(q))) return false
     return lados.some(isVisible)
   }
+  // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
+  // fechado leva junto o objeto com qualquer amostra dela lá dentro
+  // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
+  // preso na parede sai também pelos lados dela (`presoNaParedeAVista`).
+  const propsDoRecorte = naCamadaDoJogador('objeto', map.props)
+    .filter(
+      (p) =>
+        !p.hidden &&
+        !p.secret &&
+        ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
+    )
+    .map(propForPlayer)
+  /**
+   * ALCANCE PELO OBJETO (caça de 12/11/2026, J9): o "Usar <chave>" de uma
+   * passagem trancada no meio de um objeto que barra aparece para quem encosta
+   * no objeto, como o host aceita. Lê os MESMOS objetos que este recorte
+   * entrega (`propsDoRecorte`): objeto escondido dele não conta.
+   */
+  const pelosObjetos = alcancePeloObjeto({ grid: map.grid, props: propsDoRecorte })
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
@@ -4264,18 +4284,8 @@ function recorteDoGrupo(
     // outro piso, fumaça, luz apagada pelo estado, vista de longe).
     lights: sentLights,
     stairs: playerStairs,
-    // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
-    // fechado leva junto o objeto com qualquer amostra dela lá dentro
-    // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
-    // preso na parede sai também pelos lados dela (`presoNaParedeAVista`).
-    props: naCamadaDoJogador('objeto', map.props)
-      .filter(
-        (p) =>
-          !p.hidden &&
-          !p.secret &&
-          ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
-      )
-      .map(propForPlayer),
+    // Ver `propsDoRecorte`: o alcance pelo objeto dos pinos lê esta mesma lista.
+    props: propsDoRecorte,
     drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
       const samples = drawingSamplePoints(d)
@@ -4446,7 +4456,7 @@ function recorteDoGrupo(
         // cima, e só se ela vale (`camadaDe` a reconhece) ou é livre escondida dos jogadores (falha fechada):
         // camada torta cairia em Anotações, que não é a dele.
         if (p.camada !== undefined && !jogadorVeItem('pino', p) && (camadas.camadaDe('pino', p) === p.camada || !camadas.jogadorVe(p.camada))) return []
-        return [pinForPlayer(p, ownTokens, map.grid, true, true, oneWayExits?.get(p.id))]
+        return [pinForPlayer(p, ownTokens, map.grid, true, true, oneWayExits?.get(p.id), pelosObjetos)]
       }
       if (p.hidden || p.secret || !jogadorVeItem('pino', p)) return []
       if (p.presoA !== undefined && mapTokenIds.has(p.presoA) && !deliveredTokenIds.has(p.presoA)) return []
@@ -4457,7 +4467,7 @@ function recorteDoGrupo(
       const known = memoryMode ? recalledPinIds.has(p.id) : isPointKnown(point)
       const reached = p.marco === true ? !hiddenByZone(point) : known
       if (!reached) return []
-      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known, oneWayExits?.get(p.id))]
+      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known, oneWayExits?.get(p.id), pelosObjetos)]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
     // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —
@@ -5150,7 +5160,15 @@ export function espiadaPeloPino(map: MapData, par: Pin, casas: number, limites: 
  * - `cor` e `escala` (fatia 14) VÃO, só hex válido e só escala na faixa: o
  *   mesmo motivo do `semHaste`.
  */
-function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, readable: boolean, known: boolean, oneWay?: ReadonlySet<string>): Pin {
+function pinForPlayer(
+  pin: Pin,
+  ownTokens: readonly Token[],
+  grid: number,
+  readable: boolean,
+  known: boolean,
+  oneWay?: ReadonlySet<string>,
+  pelosObjetos?: AlcancePeloObjeto,
+): Pin {
   // LISTA DO QUE VAI, e não "copia tudo e apaga o que não pode": campo que o
   // arquivo trouxer e o app não conhece (versão futura, edição à mão) não
   // chega ao jogador por descuido (revisão de segurança, 22/09). `destino`,
@@ -5254,7 +5272,10 @@ function pinForPlayer(pin: Pin, ownTokens: readonly Token[], grid: number, reada
   // e o preço ficam no host.
   const item = itemOfPin(pin)
   if (item !== null) forPlayer.item = itemParaJogador(item)
-  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid)))
+  // ALCANCE PELO OBJETO (J9): a ficha que encosta no objeto grande alcança a
+  // passagem trancada no meio dele, como no host. `pelosObjetos` lê só os
+  // objetos que este recorte entrega (o escondido dele não conta).
+  const key = keyForPin(pin, ownTokens.filter((t) => tokenReachesPin(t, pin, grid, pelosObjetos)))
   if (key !== null) forPlayer.chave = key.item.nome
   // FECHADURA COM SEGREDO: `segredo` (resposta e porta ligada) nunca vai. O
   // jogador recebe `fechadura`, montada AQUI a partir do segredo — só a forma e
