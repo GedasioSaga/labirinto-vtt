@@ -44,6 +44,7 @@ import { WATCH_ALERT_LABEL, drawWatchAlert } from './drawNpcWatch'
 import { estaCongelada } from '../lib/congelar'
 import { drawFrostBadge } from './drawTokenFrozen'
 import { faseDoMarcador } from './drawMarcadorDeContinente'
+import { descidaDosNomes, type NomeNoMapa } from '../lib/nomesEncostados'
 import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from './vistaDoMarcador'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
@@ -110,48 +111,6 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
 
 /** Fonte do nome do token em px de mundo; na tela nunca abaixo de 11 px (screenLabel.ts). */
 export const TOKEN_LABEL_FONT_SIZE = 12
-
-/**
- * NOMES ENCOSTADOS (achado V6 de 12/11/2026): duas fichas no mesmo lugar tinham os nomes um por cima do outro
- * ("VinceNav"). A caixa do nome é ESTIMADA pelas letras, sem medir o texto (medir pede o canvas do texto a cada
- * passo do arrasto): a largura média de uma letra e a altura da linha, em fração da fonte. Pouco a mais só faz um
- * nome descer quando os dois quase se tocam.
- */
-const LARGURA_MEDIA_DA_LETRA = 0.6
-const ALTURA_DA_LINHA_DO_NOME = 1.25
-
-/** A caixa do nome de uma ficha no mundo, para ver se ela cruza a de outra. */
-interface CaixaDoNome {
-  label: Text
-  /** O y do nome sem o desvio (`TokenEntry.nomeTopo`). */
-  topo: number
-  tamanho: number
-  /** A posição da ficha na lista do `draw`: no empate de tamanho, desce o nome da que vem depois. */
-  ordem: number
-  x0: number
-  x1: number
-  y0: number
-  y1: number
-  desce: boolean
-}
-
-/**
- * Quais nomes descem uma linha: quando a caixa de um cruza a de outro, o da ficha MENOR desce (mesmo tamanho: o
- * da que vem depois na lista). Uma passada só. Varre pela beira esquerda: só compara caixas que se cruzam no x.
- */
-function marcarNomesQueDescem(caixas: CaixaDoNome[]): void {
-  caixas.sort((a, b) => a.x0 - b.x0)
-  for (let i = 0; i < caixas.length; i += 1) {
-    const a = caixas[i]
-    for (let j = i + 1; j < caixas.length && caixas[j].x0 < a.x1; j += 1) {
-      const b = caixas[j]
-      if (b.y0 >= a.y1 || a.y0 >= b.y1) continue
-      const desceB = b.tamanho < a.tamanho || (b.tamanho === a.tamanho && b.ordem > a.ordem)
-      if (desceB) b.desce = true
-      else a.desce = true
-    }
-  }
-}
 
 /**
  * FICHA NA MÃO — quanto a ficha cresce enquanto o mestre a arrasta: sai da
@@ -712,24 +671,24 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   }
 
   /**
-   * NOMES ENCOSTADOS (V6): cada nome volta ao lugar dele e, se a caixa cruza a de outro nome à vista, o da ficha
-   * menor desce uma linha (`marcarNomesQueDescem`). Pela posição final da ficha: o deslize em curso não conta.
+   * NOMES ENCOSTADOS (V6, caça 12/11 P32): cada nome volta ao lugar dele e desce as linhas que a regra única
+   * (`lib/nomesEncostados.ts`, a mesma da janela do jogador) manda. Pela posição final da ficha: o deslize em curso
+   * não conta.
    */
   function separarNomes(fichas: readonly Token[]): void {
-    const caixas: CaixaDoNome[] = []
-    fichas.forEach((token, ordem) => {
+    const labels: Text[] = []
+    const nomes: NomeNoMapa[] = []
+    for (const token of fichas) {
       const entry = cache.get(token.id)
-      if (entry === undefined) return
+      if (entry === undefined) continue
       entry.label.y = entry.nomeTopo
-      if (!entry.label.visible || entry.label.text === '') return
-      const escala = entry.label.scale.y
-      const meiaLargura = (entry.label.text.length * TOKEN_LABEL_FONT_SIZE * LARGURA_MEDIA_DA_LETRA * escala) / 2
-      const y0 = token.y + entry.nomeTopo
-      const y1 = y0 + TOKEN_LABEL_FONT_SIZE * ALTURA_DA_LINHA_DO_NOME * escala
-      caixas.push({ label: entry.label, topo: entry.nomeTopo, tamanho: token.size, ordem, x0: token.x - meiaLargura, x1: token.x + meiaLargura, y0, y1, desce: false })
+      if (!entry.label.visible || entry.label.text === '') continue
+      labels.push(entry.label)
+      nomes.push({ x: token.x, topo: token.y + entry.nomeTopo, texto: entry.label.text, fonte: TOKEN_LABEL_FONT_SIZE * entry.label.scale.y, tamanho: token.size })
+    }
+    descidaDosNomes(nomes).forEach((descida, i) => {
+      labels[i].y += descida
     })
-    marcarNomesQueDescem(caixas)
-    for (const c of caixas) if (c.desce) c.label.y = c.topo + (c.y1 - c.y0)
   }
 
   /**

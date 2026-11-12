@@ -107,6 +107,7 @@ import { createPropLooksRenderer, type PropLooksCount, type PropLooksRenderer } 
 import { buildFloorMask } from '../pixi/floorMask'
 import { pixelGrid, snapToPhysicalPixel, type PixelGrid } from '../pixi/pixelAlign'
 import { screenLabelSizing } from '../pixi/screenLabel'
+import { descidaDosNomes, type NomeNoMapa } from '../lib/nomesEncostados'
 import { faseDoMarcador } from '../pixi/drawMarcadorDeContinente'
 import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from '../pixi/vistaDoMarcador'
 import {
@@ -922,6 +923,30 @@ function placeCompanionLabel(view: TokenView): void {
   companionLabel.visible = label.visible && companionLabel.text !== ''
   companionLabel.scale.copyFrom(label.scale)
   companionLabel.position.set(label.position.x, label.position.y + (label.text === '' ? 0 : label.height))
+}
+
+/**
+ * NOMES ENCOSTADOS (caça 12/11, P32): a mesma regra do editor (`lib/nomesEncostados.ts`), para o nome de uma
+ * ficha não cair em cima do da vizinha. Roda depois de `syncFacingNib` pôr cada nome no lugar dele (o ponto de
+ * partida, refeito a cada chamada) e leva junto o nome do companheiro. Pela posição final da ficha: o deslize em
+ * curso não conta, como no editor.
+ */
+function separarNomesDasFichas(tokenViews: ReadonlyMap<string, TokenView>, tokens: readonly Token[]): void {
+  const vistas: TokenView[] = []
+  const nomes: NomeNoMapa[] = []
+  for (const token of tokens) {
+    const view = tokenViews.get(token.id)
+    if (view === undefined || !view.wrapper.visible || view.pino !== null || !view.label.visible || view.label.text === '') continue
+    const comCompanheiro = view.companionLabel.visible
+    const texto = comCompanheiro && view.companionLabel.text.length > view.label.text.length ? view.companionLabel.text : view.label.text
+    vistas.push(view)
+    nomes.push({ x: token.x, topo: token.y + view.label.position.y, texto, fonte: LABEL_FONT_SIZE * view.label.scale.y, linhas: comCompanheiro ? 2 : 1, tamanho: token.size })
+  }
+  descidaDosNomes(nomes).forEach((descida, i) => {
+    if (descida === 0) return
+    vistas[i].label.position.y += descida
+    placeCompanionLabel(vistas[i])
+  })
 }
 
 /**
@@ -3338,6 +3363,8 @@ function PlayerViewDoCanvas({
       syncFacingNib(view, scene.camera.scale)
       placeCompanionLabel(view)
     }
+    // O nome tem tamanho fixo na tela: o zoom muda a caixa dele no mundo, e quem se cruza.
+    separarNomesDasFichas(scene.tokenViews, latestRef.current.map.tokens)
     syncLastSeen(scene, Date.now())
   }
 
@@ -3649,6 +3676,8 @@ function PlayerViewDoCanvas({
       const at = syncGlide(scene.tokenGlides, token.id, { shown, target: { x: token.x, y: token.y }, now, animate })
       view.wrapper.position.set(at.x, at.y)
     }
+    // Depois de toda ficha com o nome no lugar e no tamanho do zoom: nenhum nome por cima do outro.
+    separarNomesDasFichas(scene.tokenViews, currentMap.tokens)
     // Já, e não no próximo quadro: o toque que chega antes dele acharia a ordem velha.
     for (const { no } of scene.pilha.nosDaFaixa('tokens')) no.sortChildren()
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
