@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AlvoDoBalde, CamadaId, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { AlvoDoBalde, CamadaId, MapData, PinceladaDeTextura, Region, RegionPoint, Token, Wall } from '../types/map'
 import { areaFechadaPorParedes } from './baldeDeTinta'
 import { createExploration, markRings } from './exploration'
 import { filterMapForPlayer } from './fogFilter'
@@ -259,5 +259,63 @@ describe('textura na área com parede escondida no meio de um lado do contorno',
     const comCofre = corredorComCofre()
     const recorte = filterMapForPlayer(comCofre, 'p1', POSSE, 300, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new Set(['cofre']))
     expect(recorte.map.texturas, 'sala secreta descoberta').toEqual(comCofre.texturas)
+  })
+})
+
+/**
+ * O CANTO VISTO DO OUTRO LADO (12/11/2026): a câmara fechada de paredes soltas,
+ * texturizada por área, e o jogador só do lado de fora, com a visão alcançando
+ * os cantos da parede de frente. O canto do contorno fica em cima da parede, e
+ * a parede vista por FORA dava o canto por conhecido: a área do cômodo fechado
+ * ia inteira no pacote (medido: norte, sul e leste sempre; oeste nesta
+ * geometria). O canto agora é perguntado um pouco para DENTRO da área.
+ *
+ * Geometria (mapa 30x30 de 64 px): câmara 640..1280 x 640..1280; com
+ * `comCorredor`, um corredor fechado ao sul dela, 640..1280 x 1280..1472, que
+ * usa a parede sul da câmara; visão de 12 casas.
+ */
+const VISAO_LONGA = 12 * 64
+
+function camaraFechada(comCorredor = false): MapData {
+  const camara = [parede('n', 640, 640, 1280, 640), parede('l', 1280, 640, 1280, 1280), parede('s', 1280, 1280, 640, 1280), parede('o', 640, 1280, 640, 640)]
+  const corredor = comCorredor ? [parede('co', 640, 1280, 640, 1472), parede('cs', 640, 1472, 1280, 1472), parede('cl', 1280, 1472, 1280, 1280)] : []
+  const base: MapData = { ...createEmptyMap('m', 'M', 30, 30, 64), walls: [...camara, ...corredor] }
+  const passo = (id: string, x: number, y: number): PinceladaDeTextura => {
+    const area = areaFechadaPorParedes(base, { x, y })
+    if (area === null) throw new Error(`a área de ${id} não fechou`)
+    return { id, tipo: 'balde', textura: 'lajotas', forca: 1, alvo: { tipo: 'area', pontos: area } }
+  }
+  return { ...base, texturas: [passo('camara', 960, 960), ...(comCorredor ? [passo('corredor', 960, 1376)] : [])] }
+}
+
+describe('textura na área de um cômodo fechado visto só por fora', () => {
+  it('SEGURANÇA: o jogador de fora, ao norte, ao sul, ao leste ou ao oeste, vendo os cantos da parede de frente, não recebe a área da câmara (nem com o explorado dali)', () => {
+    const deFora: [string, MapData, Token][] = [
+      ['norte', camaraFechada(), heroi(960, 480)],
+      ['sul', camaraFechada(), heroi(960, 1440)],
+      ['leste', camaraFechada(), heroi(1440, 960)],
+      ['oeste', camaraFechada(), heroi(480, 960)],
+      ['no corredor texturizado ao sul', camaraFechada(true), heroi(960, 1376)],
+    ]
+    const vazou = deFora.flatMap(([onde, m, ficha]) => {
+      const cena = { ...m, tokens: [ficha] }
+      const soVisao = filterMapForPlayer(cena, 'p1', POSSE, VISAO_LONGA)
+      // Como o host: o explorado é o da visão enviada, e o recorte seguinte já conta com ele.
+      const explorado = createExploration(cena)
+      markRings(explorado, soVisao.vision)
+      const comExplorado = filterMapForPlayer(cena, 'p1', POSSE, VISAO_LONGA, explorado)
+      // A premissa: ele vê a parede de frente (recebe alguma parede da câmara).
+      expect(soVisao.map.walls.length, `${onde}: não vê parede nenhuma`).toBeGreaterThan(0)
+      return [...(passos(soVisao.map).includes('camara') ? [onde] : []), ...(passos(comExplorado.map).includes('camara') ? [`${onde}, com o explorado`] : [])]
+    })
+    expect(vazou, 'a área da câmara fechada foi para quem só a viu por fora').toEqual([])
+  })
+
+  it('controle: quem entra na câmara recebe a área dela; quem está no corredor texturizado recebe a área do corredor', () => {
+    const dentro = filterMapForPlayer({ ...camaraFechada(), tokens: [heroi(960, 960)] }, 'p1', POSSE, VISAO_LONGA).map
+    expect(passos(dentro)).toEqual(['camara'])
+
+    const noCorredor = filterMapForPlayer({ ...camaraFechada(true), tokens: [heroi(960, 1376)] }, 'p1', POSSE, VISAO_LONGA).map
+    expect(passos(noCorredor)).toContain('corredor')
   })
 })
