@@ -1,5 +1,5 @@
 import { ehBaseDeMidiaLocal } from '../../lib/midia'
-import type { FichaParaTeste } from './tipos'
+import type { FichaParaTeste, ModoDoTeste } from './tipos'
 
 /**
  * O que passa entre a janela principal (o host de teste, `visaoDeTeste.ts`) e
@@ -33,6 +33,12 @@ export type MensagemDoHost =
        * sala para buscar `/media`. Ausente = só as imagens embutidas aparecem.
        */
       midia?: string
+      /**
+       * O modo em que a janela passa a ficar: a página nova (abrir, recarregar)
+       * e o "Ver tela" do Grupo, que abre no Olhar. Ausente = a janela fica no
+       * modo em que está ("Trocar ficha" não muda o modo).
+       */
+      modo?: ModoDoTeste
     }
   /** A lista do "Trocar ficha" mudou (o mestre editou a cena aberta ou a seleção). */
   | { de: 'host'; tipo: 'fichas'; sessao: string; fichas: FichaParaTeste[]; fichaSelecionadaId: string | null }
@@ -75,6 +81,10 @@ function contador(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null
 }
 
+function ehModoDoTeste(value: unknown): value is ModoDoTeste {
+  return value === 'olhar' || value === 'jogar'
+}
+
 function textoOuNull(value: unknown): string | null | undefined {
   if (value === null) return null
   return typeof value === 'string' ? value : undefined
@@ -106,7 +116,7 @@ export function lerMensagemDoHost(dado: unknown, sessao: string): MensagemDoHost
   if (!isRecord(dado) || dado.de !== 'host' || dado.sessao !== sessao) return null
   switch (dado.tipo) {
     case 'config': {
-      const { geracao, codigo, nome, ficha, fichas, fichaSelecionadaId, midia } = dado
+      const { geracao, codigo, nome, ficha, fichas, fichaSelecionadaId, midia, modo } = dado
       const geracaoLida = contador(geracao)
       const fichaLida = lerFicha(ficha)
       const fichasLidas = lerFichas(fichas)
@@ -115,7 +125,9 @@ export function lerMensagemDoHost(dado: unknown, sessao: string): MensagemDoHost
       if (fichaLida === null || fichasLidas === null || selecionada === undefined) return null
       // Base que não é da ponte de arquivos sai calada: a janela não carrega imagem de fora.
       const comMidia = ehBaseDeMidiaLocal(midia) ? { midia } : {}
-      return { de: 'host', tipo: 'config', sessao, geracao: geracaoLida, codigo, nome, ficha: fichaLida, fichas: fichasLidas, fichaSelecionadaId: selecionada, ...comMidia }
+      // Modo que esta versão não conhece sai calado: a janela fica no modo em que está.
+      const comModo = ehModoDoTeste(modo) ? { modo } : {}
+      return { de: 'host', tipo: 'config', sessao, geracao: geracaoLida, codigo, nome, ficha: fichaLida, fichas: fichasLidas, fichaSelecionadaId: selecionada, ...comMidia, ...comModo }
     }
     case 'fichas': {
       const fichas = lerFichas(dado.fichas)

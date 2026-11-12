@@ -16,7 +16,7 @@ import { criarEscritoresDeTeste } from './escritoresDeTeste'
 import type { JanelaDeTeste } from './janela'
 import { lerMensagemDaJanela, type MensagemDaJanela, type MensagemDoHost } from './protocoloDoCanal'
 import { sementeDosAssentos, type SementeDoDono } from './semente'
-import type { FantasmaDeTeste, FichaParaTeste } from './tipos'
+import type { FantasmaDeTeste, FichaParaTeste, ModoDoTeste } from './tipos'
 import { criarTransporteLocal, type TransporteLocal } from './transporteLocal'
 
 /**
@@ -194,6 +194,13 @@ interface Sessao {
   fantasmaAgendado: boolean
   /** A janela está escondida (minimizada): o recorte agendado não sai até ela voltar. */
   oculta: boolean
+  /**
+   * O modo da página nova (abrir, recarregar): o de quem a abriu por último.
+   * O painel abre no Jogar; o "Ver tela" do Grupo, no Olhar.
+   */
+  modoAoAbrir: ModoDoTeste
+  /** O modo que o próximo `config` impõe à janela; `null` = ela fica no modo em que está. */
+  modoPendente: ModoDoTeste | null
 }
 
 /**
@@ -516,7 +523,22 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       () => {
         if (sessao !== s || s.geracao !== geracao) return
         const midia = deps.baseDaMidia?.() ?? null
-        enviar(s, { de: 'host', tipo: 'config', sessao: s.id, geracao, codigo, nome, ficha, fichas: [...fichas], fichaSelecionadaId, ...(midia !== null ? { midia } : {}) })
+        // O modo pendente sai no config que de fato sai: uma geração trocada antes de responder não o perde.
+        const modo = s.modoPendente
+        s.modoPendente = null
+        enviar(s, {
+          de: 'host',
+          tipo: 'config',
+          sessao: s.id,
+          geracao,
+          codigo,
+          nome,
+          ficha,
+          fichas: [...fichas],
+          fichaSelecionadaId,
+          ...(midia !== null ? { midia } : {}),
+          ...(modo !== null ? { modo } : {}),
+        })
       },
       () => {
         // A ponte já pôs o motivo no aviso do teste ("Teste · Não foi possível abrir a sala").
@@ -531,6 +553,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       case 'ola':
         // Janela nova ou recarregada: a conexão de antes morreu com a página, então a ponte recomeça.
         s.oculta = false
+        // A página nova não tem modo: o config diz o de quem a abriu.
+        s.modoPendente = s.modoAoAbrir
         iniciarGeracao(s)
         return
       case 'pong':
@@ -605,7 +629,7 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     mudarEstado(VISAO_FECHADA)
   }
 
-  const abrirSessao = (ficha: FichaParaTeste) => {
+  const abrirSessao = (ficha: FichaParaTeste, modo: ModoDoTeste) => {
     const id = novaSessao()
     const canal = deps.abrirCanal()
     const s: Sessao = {
@@ -627,6 +651,9 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       camada: criarCamadaDeTeste(),
       fantasmaAgendado: false,
       oculta: false,
+      modoAoAbrir: modo,
+      // O `ola` da janela nova é que pede o modo.
+      modoPendente: null,
     }
     s.pararDeOuvir = canal.ouvir((dado) => {
       if (sessao !== s) return
@@ -642,13 +669,21 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     })
   }
 
-  /** Uma janela por vez: com ela aberta, troca a ficha e a traz para a frente; fechada, abre. */
-  const abrirNaFicha = (ficha: FichaParaTeste) => {
+  /**
+   * Uma janela por vez: com ela aberta, troca a ficha e a traz para a frente;
+   * fechada, abre no `modo`. JOGAR É O PADRÃO (pedido do mestre, 12/11): o
+   * painel abre no Jogar; o "Ver tela" do Grupo continua no Olhar, também
+   * quando troca a ficha da janela já aberta. Escolher outra ficha no painel
+   * com a janela aberta não muda o modo; a mesma ficha só traz a janela.
+   */
+  const abrirNaFicha = (ficha: FichaParaTeste, modo: ModoDoTeste) => {
     const s = sessao
     if (s === null) {
-      abrirSessao(ficha)
+      abrirSessao(ficha, modo)
       return
     }
+    s.modoAoAbrir = modo
+    if (modo === 'olhar' && ficha.id !== s.tokenId) s.modoPendente = 'olhar'
     trocarFicha(s, ficha)
     void s.janela.mostrar()
   }
@@ -663,9 +698,9 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     },
     abrir(tokenId) {
       const ficha = fichaDe(tokenId)
-      if (ficha !== null) abrirNaFicha(ficha)
+      if (ficha !== null) abrirNaFicha(ficha, 'jogar')
     },
-    verTela: abrirNaFicha,
+    verTela: (ficha) => abrirNaFicha(ficha, 'olhar'),
     mostrar() {
       const s = sessao
       if (s === null) return

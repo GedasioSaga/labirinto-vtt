@@ -24,7 +24,9 @@ import { criarSocketDoCanal } from './socketDoCanal'
 // (ajustes, notas, nomes de lugares) fica em memória e some ao fechar.
 //
 // OLHAR x JOGAR: o modo é desta página e vale até ela fechar (trocar de ficha
-// não o muda). No Olhar, o bloqueio da tela e a guarda do socket barram o que
+// não o muda). Quem diz o modo da página nova é o host, no `config`: o painel
+// abre no Jogar (o padrão, pedido do mestre em 12/11) e o "Ver tela" do Grupo
+// no Olhar. No Olhar, o bloqueio da tela e a guarda do socket barram o que
 // seria ação do jogador (menos a dança, que o mestre abriu de propósito); no Jogar os dois saem do caminho e tudo chega ao host
 // de teste, que grava na camada de teste, nunca no mapa do mestre. Voltar ao
 // Olhar liga os dois de novo: eles leem o modo a cada evento e a cada envio.
@@ -117,7 +119,10 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   const [ativa, setAtiva] = useState<Ativa | null>(null)
   const [hostName, setHostName] = useState<string | null>(null)
   const [encerrado, setEncerrado] = useState(false)
-  const [modo, setModo] = useState<ModoDoTeste>('olhar')
+  // Jogar é o padrão; o `config` do host pode trocar (o "Ver tela" abre no Olhar).
+  const [modo, setModo] = useState<ModoDoTeste>('jogar')
+  /** A geração do último `config` aplicado: um `config` velho que chegue atrasado não muda o modo. */
+  const ultimaGeracao = useRef(0)
   const [recado, setRecado] = useState(false)
   /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança, a da pesca e a do tiro entram. */
   const [tela, setTela] = useState<HTMLDivElement | null>(null)
@@ -141,9 +146,13 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
       if (mensagem === null) return
       switch (mensagem.tipo) {
         case 'config': {
-          const { geracao: numero, codigo, nome, ficha, fichas, fichaSelecionadaId, midia } = mensagem
+          const { geracao: numero, codigo, nome, ficha, fichas, fichaSelecionadaId, midia, modo: modoDoHost } = mensagem
           setGeracao((atual) => (atual !== null && atual.geracao >= numero ? atual : { geracao: numero, codigo, nome, ficha, ...(midia !== undefined ? { midia } : {}) }))
           setLista({ fichas, fichaSelecionadaId })
+          if (numero > ultimaGeracao.current) {
+            ultimaGeracao.current = numero
+            if (modoDoHost !== undefined) setModo(modoDoHost)
+          }
           return
         }
         case 'fichas':
