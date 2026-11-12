@@ -316,7 +316,8 @@ import {
   STAIR_CLICK_WITHOUT_DRAG_TEXT,
 } from '../components/labels'
 import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
-import { botaoDireitoEhDaParede, ligarMenuDaParede, type MenuDaParede } from './wallGesture'
+import { botaoDireitoEhDaParede, ligarMenuDaParede, WALL_GESTURE_HIT_TOLERANCE, type MenuDaParede } from './wallGesture'
+import { paredeDoGesto } from '../lib/abrirVao'
 import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
 } from '../lib/layers'
@@ -9041,6 +9042,10 @@ function PixiCanvasDoContexto({
             const estado = useMapStore.getState()
             const alvo = findSelectableAt(clickSelectMap(estado.map), ponto, pinosNoToque(estado.map))
             if (alvo === null || (alvo.kind !== 'token' && alvo.kind !== 'prop')) return
+            // A PAREDE ganha do objeto que a cobre (armadura encostada, parede em cima de píer ou
+            // tapete): na folga do menu dela, este ouvinte sai sem selecionar e quem abre é o
+            // "Abrir vão / Desabar" de `ligarMenuDaParede`, logo abaixo. Fora da parede, o objeto.
+            if (alvo.kind === 'prop' && paredeDoGesto(estado.map, ponto, WALL_GESTURE_HIT_TOLERANCE / camera.scale) !== null) return
             estado.setSelection(alvo.kind === 'prop' ? selectionOnClick(estado.map, { kind: 'prop', id: alvo.id }) : [{ kind: 'token', id: alvo.id }])
           }
           event.preventDefault()
