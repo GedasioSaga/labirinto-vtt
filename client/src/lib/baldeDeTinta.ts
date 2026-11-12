@@ -185,6 +185,27 @@ export function baldeDeTintaNoPonto(map: MapaDoBalde, ponto: DrawingPoint, cor: 
 }
 
 /**
+ * MEMÓRIA DE RASCUNHO da grade, reaproveitada entre cliques: alocar ~24 MB por
+ * clique (estado, fila e arestas de até 4 milhões de células) deixava a coleta
+ * de lixo cair no meio do gesto. Só rascunho: cada conta zera o pedaço que usa
+ * (a fila nem precisa: só o que a enchente escreveu é lido), roda inteira sem
+ * pausa, e nada do resultado mora aqui.
+ */
+const rascunhos = { estado: new Uint8Array(0), arestas: new Uint8Array(0), fila: new Int32Array(0) }
+
+function rascunhoZerado(qual: 'estado' | 'arestas', tamanho: number): Uint8Array {
+  if (rascunhos[qual].length < tamanho) rascunhos[qual] = new Uint8Array(tamanho)
+  const pedaco = rascunhos[qual].subarray(0, tamanho)
+  pedaco.fill(0)
+  return pedaco
+}
+
+function rascunhoDaFila(tamanho: number): Int32Array {
+  if (rascunhos.fila.length < tamanho) rascunhos.fila = new Int32Array(tamanho)
+  return rascunhos.fila
+}
+
+/**
  * A ÁREA FECHADA POR PAREDES em volta de `ponto`, para o Balde da ferramenta
  * Texturas (pedido de 12/11/2026: "colocar textura em lugar só com apertar
  * sendo o limite as paredes"). A mesma enchente do balde do Pincel, mas só as
@@ -211,7 +232,7 @@ export function areaDoBalde(map: MapaDoBalde, ponto: DrawingPoint, soFechada = f
   const lado = Math.max(1, Math.sqrt((larguraPx * alturaPx) / ORCAMENTO_DE_CELULAS))
   const cols = Math.max(1, Math.ceil(larguraPx / lado))
   const rows = Math.max(1, Math.ceil(alturaPx / lado))
-  const grade: Grade = { cols, rows, sx: larguraPx / cols, sy: alturaPx / rows, estado: new Uint8Array(cols * rows) }
+  const grade: Grade = { cols, rows, sx: larguraPx / cols, sy: alturaPx / rows, estado: rascunhoZerado('estado', cols * rows) }
 
   const celula = Math.max(grade.sx, grade.sy)
   const minimo = BLOQUEIO_MINIMO_EM_CELULAS * celula
@@ -230,7 +251,7 @@ export function areaDoBalde(map: MapaDoBalde, ponto: DrawingPoint, soFechada = f
   const row = Math.min(rows - 1, Math.floor(ponto.y / grade.sy))
   const cheias = encher(medidor, row * cols + col)
   if (!cheias) return null
-  if (soFechada && vazaPelaBorda(grade, cheias)) return null
+  if (soFechada && vazaPelaBorda(grade)) return null
 
   const aneis = contornar(grade, cheias)
   const externo = aneis.filter((anel) => anel.area > 0).sort((a, b) => b.area - a.area)[0]
@@ -510,7 +531,7 @@ function podeEntrarPorBaixo(medidor: Medidor, de: number, para: number, distanci
 function encher(medidor: Medidor, inicio: number): Int32Array | null {
   const { cols, rows, estado } = medidor.grade
   if (estado[inicio] !== LIVRE) return null
-  const fila = new Int32Array(cols * rows)
+  const fila = rascunhoDaFila(cols * rows)
   let fim = 0
   estado[inicio] = CHEIA
   fila[fim++] = inicio
@@ -556,16 +577,15 @@ function encher(medidor: Medidor, inicio: number): Int32Array | null {
 
 /**
  * A tinta SOLTA chegou na borda do mapa? A que entrou por baixo de um traço
- * não conta: a parede desenhada em cima da borda do mapa fecha a área.
+ * não conta: a parede desenhada em cima da borda do mapa fecha a área. Olha só
+ * as células da borda (a enchente já marcou no `estado` quem encheu solta):
+ * percorrer as cheias custava ~50 ms num salão de 200 x 100 casas (medido).
  */
-function vazaPelaBorda(grade: Grade, cheias: Int32Array): boolean {
+function vazaPelaBorda(grade: Grade): boolean {
   const { cols, rows, estado } = grade
-  for (const i of cheias) {
-    if (estado[i] !== CHEIA) continue
-    const c = i % cols
-    const r = (i - c) / cols
-    if (c === 0 || c === cols - 1 || r === 0 || r === rows - 1) return true
-  }
+  const ultimaLinha = (rows - 1) * cols
+  for (let c = 0; c < cols; c += 1) if (estado[c] === CHEIA || estado[ultimaLinha + c] === CHEIA) return true
+  for (let r = 0, i = 0; r < rows; r += 1, i += cols) if (estado[i] === CHEIA || estado[i + cols - 1] === CHEIA) return true
   return false
 }
 
@@ -583,12 +603,20 @@ function estaCheia(estado: Uint8Array, i: number): boolean {
 function contornar(grade: Grade, cheias: Int32Array): Anel[] {
   const { cols, rows, estado } = grade
   const largura = cols + 1
-  const arestas = new Uint8Array(largura * (rows + 1))
+  const arestas = rascunhoZerado('arestas', largura * (rows + 1))
+  // Os vértices que ganharam aresta: os anéis só começam neles. Percorrê-los em
+  // ordem crescente acha os mesmos anéis, no mesmo começo, que varrer a grade
+  // inteira — sem os ~40 ms de varrer 4 milhões de vértices vazios (medido).
+  const comAresta: number[] = []
+  const ligar = (v: number, bit: number) => {
+    if (arestas[v] === 0) comAresta.push(v)
+    arestas[v] |= bit
+  }
   const marcar = (i: number, c: number, r: number) => {
-    if (r === 0 || !estaCheia(estado, i - cols)) arestas[r * largura + c] |= 1
-    if (c === cols - 1 || !estaCheia(estado, i + 1)) arestas[r * largura + c + 1] |= 2
-    if (r === rows - 1 || !estaCheia(estado, i + cols)) arestas[(r + 1) * largura + c + 1] |= 4
-    if (c === 0 || !estaCheia(estado, i - 1)) arestas[(r + 1) * largura + c] |= 8
+    if (r === 0 || !estaCheia(estado, i - cols)) ligar(r * largura + c, 1)
+    if (c === cols - 1 || !estaCheia(estado, i + 1)) ligar(r * largura + c + 1, 2)
+    if (r === rows - 1 || !estaCheia(estado, i + cols)) ligar((r + 1) * largura + c + 1, 4)
+    if (c === 0 || !estaCheia(estado, i - 1)) ligar((r + 1) * largura + c, 8)
   }
   // Área pequena: só as células cheias. Área grande: a grade em ordem, linha
   // a linha; na ordem da fila da enchente o acesso pula pela memória e esta
@@ -605,7 +633,7 @@ function contornar(grade: Grade, cheias: Int32Array): Anel[] {
   }
   const passo = [1, largura, -1, -largura]
   const aneis: Anel[] = []
-  for (let v0 = 0; v0 < arestas.length; v0 += 1) {
+  for (const v0 of Int32Array.from(comAresta).sort()) {
     for (;;) {
       const livres = arestas[v0] & 0xf & ~(arestas[v0] >> 4)
       if (!livres) break
