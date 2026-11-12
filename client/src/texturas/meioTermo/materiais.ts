@@ -403,6 +403,26 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   ringueDeLuta: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('lona', 'Lona', TECIDOS, 'linho')],
   balanco: [lugar('madeira', 'Assentos', MADEIRAS, 'carvalho'), lugar('lenha', 'Troncos', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   mesaDeSinuca: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  // Lote 12 dos 95 objetos novos (11/11/2026), o porto e o navio. Na âncora a madeira é só o cepo; no timão, a
+  // roda e o pedestal, e as ferragens, a cinta do aro com os parafusos, a tampa do cubo e o botão do eixo; no
+  // bote, o casco; na rede de pesca, as estacas e a vara; no píer, o tabuado; no caixote de peixe, o caixote.
+  // Fixos: o ferro, a ferrugem, as cracas e a corrente da âncora (de latão, uma âncora comida de ferrugem não
+  // faria sentido); o cânhamo, o cabo alcatroado, a falcaça e o ferro do cabeço das cordas enroladas, que não têm
+  // lugar; o cabo da pinha do timão; o ferro, os remos, o couro, a água e a corda do bote; o fio, a cortiça, o
+  // chumbo, a boia de vidro e os peixes da rede; a água, os pregos, o cunho e as amarras do píer; os peixes, o
+  // caranguejo, o sal, as algas e a faca do caixote.
+  ancora: [lugar('madeira', 'Cepo', MADEIRAS, 'carvalho')],
+  cordasEnroladas: [],
+  timao: [lugar('madeira', 'Madeira', MADEIRAS, 'cerejeira'), lugar('ferragens', 'Ferragens', METAIS, 'latao')],
+  bote: [lugar('madeira', 'Casco', MADEIRAS, 'carvalho')],
+  redeDePesca: [lugar('madeira', 'Estacas e vara', MADEIRAS, 'pinho')],
+  pier: [lugar('madeira', 'Tabuado', MADEIRAS, 'velha')],
+  caixoteDePeixe: [lugar('madeira', 'Caixote', MADEIRAS, 'pinho')],
+  // Lote 15 (11/11/2026). A armadura despedaçada não tem lugar: o aço, o couro, o latão, o escudo e o pó são
+  // fixos. Na armadura de pé, a pedra é a do pedestal (o desenho lê `c.m.pedra`); o aço, o latão e a pluma são
+  // fixos.
+  armaduraDespedacada: [],
+  armadura: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

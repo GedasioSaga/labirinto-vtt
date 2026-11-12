@@ -41,6 +41,7 @@ export const PECAS_NOVAS = [
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -268,7 +269,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // alto do elmo). Na pilha de lingotes o estrado fica à esquerda e a barra caída à direita dele. Na serra a
   // tora corre pelo lado maior. A casinha do galinheiro fica no fundo à esquerda, com a rampa na frente dela e o
   // terreiro cercado em volta. A colmeia é `redonda`: o banco redondo leva o cortiço e o favo dentro da roda. O
-  // arado tem o balancim numa ponta curta e a relha, as rabiças e o sulco na outra. O toco com machado não é
+  // arado tem o balancim numa ponta curta e a relha, as rabiças e o sulco na outra. O toco com machado cravado
+  // (o nome da lista do mestre, acertado na auditoria do lote 10) não é
   // `redonda` (o toco de árvore é): as achas, as lascas e os cavacos vão até os cantos da pegada. A plantação em
   // fileiras mora no chão, rente como o campinho (`ehMovelDoChao` em `lib/mobilia.ts`): as leiras correm ao
   // longo do lado maior e, esticada, ganha leiras e pés. Nenhum tem luz nem chama.
@@ -279,7 +281,7 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   galinheiro: { rotulo: 'Galinheiro', artigo: 'um galinheiro', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
   colmeia: { rotulo: 'Colmeia', artigo: 'uma colmeia', tamanho: { largura: 0.8, altura: 0.8 }, redonda: true },
   arado: { rotulo: 'Arado', artigo: 'um arado', tamanho: { largura: 2, altura: 1 }, redonda: false },
-  tocoComMachado: { rotulo: 'Toco com machado', artigo: 'um toco com machado', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  tocoComMachado: { rotulo: 'Toco com machado cravado', artigo: 'um toco com machado cravado', tamanho: { largura: 1, altura: 1 }, redonda: false },
   plantacaoEmFileiras: { rotulo: 'Plantação em fileiras', artigo: 'uma plantação em fileiras', tamanho: { largura: 4, altura: 3 }, redonda: false },
   // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte, cada um com o próprio desenho; esticam
   // e giram como todo objeto. A carroça quebrada é maior que a carroça (2 x 1,5 contra 2 x 1,25): a carga caída
@@ -301,6 +303,28 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   ringueDeLuta: { rotulo: 'Ringue de luta', artigo: 'um ringue de luta', tamanho: { largura: 3, altura: 3 }, redonda: false },
   balanco: { rotulo: 'Balanço', artigo: 'um balanço', tamanho: { largura: 2, altura: 1 }, redonda: false },
   mesaDeSinuca: { rotulo: 'Mesa de sinuca', artigo: 'uma mesa de sinuca', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  // Lote 12 dos 95 objetos novos (11/11/2026), o porto e o navio, cada um com o próprio desenho; esticam e giram
+  // como todo objeto. A âncora fica deitada no chão, a argola à esquerda e as unhas à direita, com o cepo
+  // atravessado perto da argola. O timão é desenhado de frente, como o alvo de arco e flecha, e passa um pouco da
+  // pegada em cima (a malagueta de cima). O bote é deitado de propósito, com a proa à direita: a 3/4 sem giro
+  // mostra o costado; esticado de pé, ele mesmo se gira e fica com a proa para baixo. Na rede de pesca a vara
+  // corre pelo comprido, as estacas repartem os vãos e o monte de rede fica no canto de baixo. O píer mora no
+  // chão (`ehMovelDoChao` em `lib/mobilia.ts`), como a ponte, mas não é ela: sem guarda-corpo, as tábuas sempre
+  // de través ao lado menor e as estacas redondas nas duas bordas compridas; esticado, ganha tábuas e estacas. O
+  // caixote de peixe é raso, com as duas fileiras de cavalinhas e o pargo atravessado no meio.
+  ancora: { rotulo: 'Âncora', artigo: 'uma âncora', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  cordasEnroladas: { rotulo: 'Cordas enroladas', artigo: 'umas cordas enroladas', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  timao: { rotulo: 'Timão', artigo: 'um timão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bote: { rotulo: 'Bote', artigo: 'um bote', tamanho: { largura: 3, altura: 1.5 }, redonda: false },
+  redeDePesca: { rotulo: 'Rede de pesca', artigo: 'uma rede de pesca', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  pier: { rotulo: 'Píer', artigo: 'um píer', tamanho: { largura: 2, altura: 3 }, redonda: false },
+  caixoteDePeixe: { rotulo: 'Caixote de peixe', artigo: 'um caixote de peixe', tamanho: { largura: 1, altura: 0.7 }, redonda: false },
+  // Lote 15 (11/11/2026), as duas armaduras que o mestre pediu. A despedaçada é desfeita na forma de um corpo
+  // caído, do tamanho dos ossos e feita do mesmo jeito que eles. A armadura é desenhada de frente, de pé no
+  // pedestal com a espada de ponta, como o manequim, e passa um pouco da pegada em cima (o elmo e a pluma).
+  // Nenhum dos nove tem luz nem chama.
+  armaduraDespedacada: { rotulo: 'Armadura despedaçada', artigo: 'uma armadura despedaçada', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  armadura: { rotulo: 'Armadura', artigo: 'uma armadura', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -430,6 +454,15 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     ringueDeLuta: valor(f.ringueDeLuta),
     balanco: valor(f.balanco),
     mesaDeSinuca: valor(f.mesaDeSinuca),
+    ancora: valor(f.ancora),
+    cordasEnroladas: valor(f.cordasEnroladas),
+    timao: valor(f.timao),
+    bote: valor(f.bote),
+    redeDePesca: valor(f.redeDePesca),
+    pier: valor(f.pier),
+    caixoteDePeixe: valor(f.caixoteDePeixe),
+    armaduraDespedacada: valor(f.armaduraDespedacada),
+    armadura: valor(f.armadura),
   }
 }
 
@@ -462,8 +495,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 11 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
-  // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 a 12 e 15 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que
+  // o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
@@ -475,6 +508,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
 ]
 
 /**
@@ -1827,6 +1861,190 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: -hw * 0.72, y1: hh * 0.55, x2: -hw * 0.02, y2: -hh * 0.1 },
       ]
     }
+    case 'ancora': {
+      // De cima, deitada: a haste do olho à cruz, a argola na ponta de trás, o cepo atravessado logo depois dela, o arco dos braços e as duas unhas em ponta de pá (a corrente fica de fora: o glifo é a âncora).
+      const menor = Math.min(altura, largura / 1.5)
+      const raio = altura * 0.37
+      const cx = largura * 0.4 - raio
+      const abre = 1.4
+      const passos = 6
+      return [
+        linha(-largura * 0.3, 0, largura * 0.4),
+        ...aro(menor * 0.25, menor * 0.25, -largura * 0.3 - menor * 0.089, 0),
+        { x1: -largura * 0.16, y1: -altura * 0.47, x2: -largura * 0.16, y2: altura * 0.47 },
+        ...Array.from({ length: passos }, (_, i) => {
+          const a0 = -abre + (2 * abre * i) / passos
+          const a1 = -abre + (2 * abre * (i + 1)) / passos
+          return { x1: cx + Math.cos(a0) * raio, y1: Math.sin(a0) * raio, x2: cx + Math.cos(a1) * raio, y2: Math.sin(a1) * raio }
+        }),
+        ...[-1, 1].flatMap((lado) => {
+          const ex = cx + Math.cos(abre) * raio
+          const ey = lado * Math.sin(abre) * raio
+          const fx = -Math.sin(abre)
+          const fy = lado * Math.cos(abre)
+          const ox = Math.cos(abre)
+          const oy = lado * Math.sin(abre)
+          return fechado([
+            [ex + fx * menor * 0.118, ey + fy * menor * 0.118],
+            [ex - fx * menor * 0.1 + ox * menor * 0.098, ey - fy * menor * 0.1 + oy * menor * 0.098],
+            [ex - fx * menor * 0.1 - ox * menor * 0.098, ey - fy * menor * 0.1 - oy * menor * 0.098],
+          ])
+        }),
+      ]
+    }
+    case 'cordasEnroladas': {
+      // A espiral do rolo grande, a corda dele até o cabeço (o chapéu e a chapa), o rolo menor em duas voltas desencontradas e a ponta solta com o nó (o alvo tem anéis fechados; aqui é uma espiral aberta).
+      const menor = Math.min(largura, altura)
+      const cx = -hw * 0.29
+      const cy = -hh * 0.07
+      const passos = 36
+      const voltas = 3
+      return [
+        ...Array.from({ length: passos }, (_, i) => {
+          const t0 = i / passos
+          const t1 = (i + 1) / passos
+          const r0 = menor * (0.07 + 0.22 * t0)
+          const r1 = menor * (0.07 + 0.22 * t1)
+          const a0 = t0 * voltas * 2 * Math.PI
+          const a1 = t1 * voltas * 2 * Math.PI
+          return { x1: cx + Math.cos(a0) * r0, y1: cy + Math.sin(a0) * r0, x2: cx + Math.cos(a1) * r1, y2: cy + Math.sin(a1) * r1 }
+        }),
+        { x1: cx + menor * 0.24, y1: cy - menor * 0.17, x2: hw * 0.68 - menor * 0.12, y2: -hh * 0.66 + menor * 0.08 },
+        ...aro(menor * 0.2, menor * 0.2, hw * 0.68, -hh * 0.66),
+        ...quadro(hw * 0.68 - menor * 0.14, -hh * 0.66 - menor * 0.14, hw * 0.68 + menor * 0.14, -hh * 0.66 + menor * 0.14),
+        ...aro(menor * 0.34, menor * 0.34, hw * 0.5, hh * 0.52),
+        ...aro(menor * 0.3, menor * 0.32, hw * 0.46, hh * 0.47),
+        { x1: hw * 0.33, y1: hh * 0.72, x2: -hw * 0.5, y2: hh * 0.82 },
+        ...aro(menor * 0.1, menor * 0.1, -hw * 0.57, hh * 0.82),
+        { x1: -hw * 0.62, y1: hh * 0.8, x2: -hw * 0.82, y2: hh * 0.74 },
+      ]
+    }
+    case 'timao': {
+      // Em pé, de frente: o aro e o cubo, os oito raios que passam do aro até a ponta das malaguetas, a coluna do pedestal e a base de dois degraus (o alvo tem anéis cheios e pés em A; o cofre, a roda dentro da caixa).
+      const menor = Math.min(largura, altura)
+      const cy = -menor * 0.17
+      return [
+        ...aro(menor * 0.68, menor * 0.68, 0, cy),
+        ...aro(menor * 0.24, menor * 0.24, 0, cy),
+        ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+          const a = (i * Math.PI) / 4 - Math.PI / 2
+          return { x1: Math.cos(a) * menor * 0.12, y1: cy + Math.sin(a) * menor * 0.12, x2: Math.cos(a) * menor * 0.47, y2: cy + Math.sin(a) * menor * 0.47 }
+        }),
+        { x1: -menor * 0.08, y1: menor * 0.17, x2: -menor * 0.1, y2: menor * 0.3 },
+        { x1: menor * 0.08, y1: menor * 0.17, x2: menor * 0.1, y2: menor * 0.3 },
+        ...quadro(-menor * 0.154, menor * 0.3, menor * 0.154, menor * 0.36),
+        ...quadro(-menor * 0.214, menor * 0.36, menor * 0.214, menor * 0.44),
+      ]
+    }
+    case 'bote': {
+      // De cima, a proa à direita (de pé na pegada mais alta que larga, a proa para baixo): o casco de popa reta, mais largo a 40% e afinando em ponta, e os três bancos de través.
+      const deitado = largura >= altura
+      const comprido = deitado ? hw : hh
+      const boca = (deitado ? hh : hw) * 0.92
+      const ponto = (t: number, lado: number): [number, number] => {
+        const v = lado * boca * (t <= 0.4 ? 0.74 + 0.26 * Math.sin((Math.PI / 2) * (t / 0.4)) : 1 - ((t - 0.4) / 0.6) ** 1.7)
+        const u = -comprido + 2 * comprido * t
+        return deitado ? [u, v] : [-v, u]
+      }
+      const ida = Array.from({ length: 13 }, (_, i) => ponto(i / 12, -1))
+      const volta = Array.from({ length: 12 }, (_, i) => ponto(1 - (i + 1) / 12, 1))
+      const banco = (t: number): Traco => {
+        const [x1, y1] = ponto(t, -0.78)
+        const [x2, y2] = ponto(t, 0.78)
+        return { x1, y1, x2, y2 }
+      }
+      return [...fechado([...ida, ...volta]), banco(0.2), banco(0.47), banco(0.72)]
+    }
+    case 'redeDePesca': {
+      // De cima: a vara ao comprido com as estacas redondas embaixo dela, a faixa do pano caído para trás riscada em xis (a malha) e o monte de rede no canto de baixo.
+      // A meia largura do xis e a grossura das estacas saem do lado MENOR (a ficha dava `hh` e `altura`, que são
+      // o menor na pegada deitada, e o desenho de partida não muda): esticada em pé, o xis da ponta chegava a
+      // 1,22 da meia largura e a estaca da ponta, a 1,08, fora da pegada (`mobilia.test.ts`, todo traço cabe).
+      const yv = -hh * 0.14
+      const ponta = largura * 0.44
+      const estacas = Math.max(2, Math.round(largura / (altura * 0.9)) + 1)
+      const passo = (2 * ponta) / (estacas - 1)
+      const meioXis = Math.min(hw, hh) * 0.28
+      const estaca = Math.min(largura, altura) * 0.1
+      const malha = Array.from({ length: 4 }, (_, i): Traco[] => {
+        const x = -ponta + (2 * ponta * (i + 0.5)) / 4
+        return [{ x1: x - meioXis, y1: yv - hh * 0.57, x2: x + meioXis, y2: yv }, { x1: x + meioXis, y1: yv - hh * 0.57, x2: x - meioXis, y2: yv }]
+      }).flat()
+      return [
+        linha(-ponta - largura * 0.04, yv, ponta + largura * 0.04),
+        ...quadro(-ponta, yv - hh * 0.57, ponta, yv),
+        ...malha,
+        ...Array.from({ length: estacas }, (_, i) => aro(estaca, estaca, -ponta + i * passo, yv)).flat(),
+        ...aro(largura * 0.27, altura * 0.34, -hw * 0.63, hh * 0.57),
+      ]
+    }
+    case 'pier': {
+      // De cima: as tábuas de través ao lado menor, de ponta a ponta e sem as bordas da ponte, e as estacas redondas a intervalos nas duas bordas compridas.
+      const deitado = largura > altura
+      const comprido = deitado ? hw : hh
+      const meia = deitado ? hh : hw
+      const em = (u: number, v: number): [number, number] => (deitado ? [u, v] : [v, u])
+      const tabuas = Math.max(3, Math.round(comprido / (meia * 0.18)))
+      const estacas = Math.max(1, Math.round(comprido / (meia * 0.5)))
+      return [
+        ...Array.from({ length: tabuas - 1 }, (_, i): Traco => {
+          const u = -comprido + ((i + 1) * 2 * comprido) / tabuas
+          const [x1, y1] = em(u, -meia * 0.94)
+          const [x2, y2] = em(u, meia * 0.94)
+          return { x1, y1, x2, y2 }
+        }),
+        ...Array.from({ length: estacas }, (_, k) => [-1, 1].flatMap((lado) => aro(meia * 0.28, meia * 0.28, ...em(-comprido + ((k + 0.5) * 2 * comprido) / estacas, lado * meia * 0.86)))).flat(),
+      ]
+    }
+    case 'caixoteDePeixe': {
+      // A beira e o lado de dentro das paredes, as cabeças das duas fileiras de peixe junto das paredes compridas, o peixe grande atravessado (o corpo e o rabo em V), o caranguejo no canto e a faca na borda de baixo (o barril de peixe é redondo, com os peixes em roda).
+      // O caranguejo tem o tamanho do lado MENOR (a ficha dava `altura`, que é o menor na pegada deitada, e o
+      // desenho de partida não muda): esticado em pé, ele chegava a 1,05 da meia largura, fora da pegada
+      // (`mobilia.test.ts`, todo traço cabe).
+      const caranguejo = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.96, hw * 0.97, hh * 0.96),
+        ...quadro(-hw * 0.88, -hh * 0.83, hw * 0.88, hh * 0.83),
+        ...Array.from({ length: 8 }, (_, i) => -hw * 0.77 + (hw * 1.54 * i) / 7).flatMap((x) => [
+          { x1: x, y1: -hh * 0.76, x2: x, y2: -hh * 0.42 },
+          { x1: x, y1: hh * 0.42, x2: x, y2: hh * 0.76 },
+        ]),
+        ...fechado([[-hw * 0.68, hh * 0.02], [-hw * 0.45, -hh * 0.36], [hw * 0.3, -hh * 0.32], [hw * 0.6, hh * 0.02], [hw * 0.3, hh * 0.36], [-hw * 0.45, hh * 0.38]]),
+        ...fechado([[hw * 0.6, hh * 0.02], [hw * 0.8, -hh * 0.32], [hw * 0.8, hh * 0.36]]),
+        ...aro(caranguejo * 0.22, caranguejo * 0.2, -hw * 0.61, -hh * 0.45),
+        { x1: hw * 0.17, y1: hh * 0.77, x2: hw * 0.86, y2: hh * 0.9 },
+      ]
+    }
+    case 'armaduraDespedacada': {
+      // Desfeita na forma de um corpo caído: o elmo redondo no canto com a viseira levantada, o peitoral rachado em duas metades abertas em V, as duas pernas (a de cima dobrada) em traços e o escudo partido embaixo.
+      // O elmo fica a 0,7 da meia largura, como na ficha, e só chega para dentro quando a roda dele, medida pelo
+      // lado menor, não cabe ali (no quadrado e em pé, onde ia a 1,04 da meia largura, fora da pegada:
+      // `mobilia.test.ts`, todo traço cabe). No tamanho de partida, 1,5 x 1, nada muda.
+      const menor = Math.min(largura, altura)
+      const xDoElmo = -Math.min(hw * 0.7, hw - menor * 0.19)
+      return [
+        ...aro(menor * 0.34, menor * 0.38, xDoElmo, -hh * 0.3),
+        linha(xDoElmo - menor * 0.15, -hh * 0.42, xDoElmo + menor * 0.15),
+        ...fechado([[-hw * 0.44, -hh * 0.44], [hw * 0.1, -hh * 0.34], [hw * 0.1, -hh * 0.04], [-hw * 0.44, -hh * 0.12]]),
+        ...fechado([[-hw * 0.44, hh * 0.12], [hw * 0.1, hh * 0.04], [hw * 0.1, hh * 0.34], [-hw * 0.44, hh * 0.44]]),
+        { x1: hw * 0.16, y1: -hh * 0.2, x2: hw * 0.66, y2: -hh * 0.42 },
+        { x1: hw * 0.66, y1: -hh * 0.42, x2: hw * 0.7, y2: -hh * 0.86 },
+        { x1: hw * 0.16, y1: hh * 0.3, x2: hw * 0.86, y2: hh * 0.66 },
+        ...fechado([[-hw * 0.16, hh * 0.58], [hw * 0.12, hh * 0.58], [hw * 0.04, hh * 0.86], [-hw * 0.06, hh * 0.96]]),
+      ]
+    }
+    case 'armadura':
+      // De frente, em pé no pedestal: o elmo, as duas ombreiras, o peito afinando na cintura, as duas pernas, a espada de ponta no meio com a guarda e o pedestal baixo.
+      return [
+        ...aro(largura * 0.2, altura * 0.22, 0, -hh * 0.76),
+        ...aro(largura * 0.2, altura * 0.16, -hw * 0.34, -hh * 0.5),
+        ...aro(largura * 0.2, altura * 0.16, hw * 0.34, -hh * 0.5),
+        ...fechado([[-hw * 0.28, -hh * 0.54], [hw * 0.28, -hh * 0.54], [hw * 0.22, -hh * 0.1], [hw * 0.26, hh * 0.1], [-hw * 0.26, hh * 0.1], [-hw * 0.22, -hh * 0.1]]),
+        { x1: -hw * 0.14, y1: hh * 0.1, x2: -hw * 0.14, y2: hh * 0.7 },
+        { x1: hw * 0.14, y1: hh * 0.1, x2: hw * 0.14, y2: hh * 0.7 },
+        { x1: 0, y1: -hh * 0.18, x2: 0, y2: hh * 0.72 },
+        ...quadro(-hw * 0.4, hh * 0.72, hw * 0.4, hh * 0.9),
+      ]
   }
 }
 

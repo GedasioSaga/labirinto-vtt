@@ -70,6 +70,11 @@ export const TIPOS_MOBILIA = [
   // quebrado, a viga caída e a armadura enferrujada dos destroços; a mesa de jogo, o ringue de luta (que mora
   // no chão, como o palco de bardo), o balanço e a mesa de sinuca do esporte e lazer.
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  // Lote 12 dos 95 objetos novos (11/11/2026), o porto e o navio: a âncora, as cordas enroladas, o timão, o
+  // bote, a rede de pesca, o píer (que mora no chão, como a ponte) e o caixote de peixe. E o lote 15, as duas
+  // armaduras que o mestre pediu: a despedaçada, espalhada como os ossos, nos destroços, e a de pé no pedestal,
+  // no templo.
+  'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

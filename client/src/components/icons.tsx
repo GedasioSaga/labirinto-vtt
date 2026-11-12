@@ -1722,6 +1722,96 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <ellipse cx="12" cy="18.8" rx="1.1" ry="1.6" />
         </>
       )
+    case 'ancora':
+      // Em pé, como o símbolo: a argola no alto, o cepo atravessado, a haste, o arco dos braços e as duas unhas em ponta de pá voltadas para cima (nenhum outro ícone tem o arco com as pontas de seta).
+      return (
+        <>
+          <circle cx="12" cy="4.6" r="2.8" />
+          <path d="M7 9.6h10M12 7.4v13.8" />
+          <path d="M4.4 14.2c.6 4.4 3.8 7 7.6 7s7-2.6 7.6-7" />
+          <path d="M2.4 16.4l2-3.4 2.4 3M17.2 16l2.4-3 2 3.4" />
+        </>
+      )
+    case 'cordasEnroladas':
+      // De cima: a corda aduchada em espiral chata e a ponta que sai do alto dela, na tangente, até o cabeço de amarração (de lado: a base, os dois lados do pé, o chapéu de topo redondo), com a volta passada no pé. O alvo tem anéis fechados; aqui a espiral é aberta e acaba num cabo.
+      return (
+        <>
+          <path d="M9 14.6a1.2 1.2 0 0 1 2.4 0a2.4 2.4 0 0 1-4.8 0a3.6 3.6 0 0 1 7.2 0a4.8 4.8 0 0 1-9.6 0a6 6 0 0 1 6-6c2.6 0 5.2-.2 7.4-.6" />
+          <path d="M16.6 10.2h5M17.6 10.2V5.6M20.6 10.2V5.6M16.8 5.6h4.6M17.2 5.6c0-1.4 3.8-1.4 3.8 0" />
+          <path d="M17.6 8c1 .9 2 .9 3 0" />
+        </>
+      )
+    case 'timao':
+      // De frente: o aro, os oito raios que passam dele até as malaguetas e o pedestal com a base embaixo (o cofre tem a roda em X dentro da caixa; o alvo, anéis cheios e pés em A).
+      return (
+        <>
+          <circle cx="12" cy="9.5" r="5.8" />
+          <path d="M12 1.2v16.6M3.7 9.5h16.6M6.1 3.6l11.8 11.8M17.9 3.6 6.1 15.4" />
+          <path d="M10.3 15.2 9.5 20M13.7 15.2l.8 4.8M7 20h10v2H7z" />
+        </>
+      )
+    case 'bote':
+      // De lado, na água: o casco com a proa subindo à direita e a popa reta inclinada, uma fiada do costado, o remo atravessado com a pá na água e a onda embaixo (o único ícone de casco com remo).
+      return (
+        <>
+          <path d="M3 11h15.5l2.5-2.4C20.2 12.5 18 15.7 14.5 16.5H5z" />
+          <path d="M4 13.7h15.2" />
+          <path d="M6.5 5.5L14 17.4M14.85 16.87l2.4 3.8-1.7 1.06-2.4-3.8z" />
+          <path d="M2 20.5c1.4-1 2.8-1 4.2 0s2.8 1 4.2 0" />
+        </>
+      )
+    case 'redeDePesca':
+      // De frente: a vara deitada por cima de três estacas, o pano de malha em losangos pendurado entre elas, a tralha de baixo e as cortiças em pontos sob a vara (nenhum outro ícone tem a malha em xis).
+      return (
+        <>
+          <path d="M2 5.5h20M4 4v17M12 4v17M20 4v17" />
+          <path d="M4 7l10 10M10 7l10 10M16 7l4 4M4 13l4 4M20 7L10 17M14 7L4 17M8 7l-4 4M20 13l-4 4" />
+          <path d="M4 17h16M7 7.5h.01M10 7.5h.01M14 7.5h.01M17 7.5h.01" />
+        </>
+      )
+    case 'pier':
+      // De lado: o tabuado deitado sobre três estacas, que passam um pouco por cima dele e descem até a água, com a onda batendo entre elas (a ponte é o arco; o píer, as estacas na água).
+      return (
+        <>
+          <path d="M2 9.5h20M2 12h20M8.5 9.5V12M15.5 9.5V12" />
+          <path d="M5 7v12.5M12 7v12.5M19 7v12.5" />
+          <path d="M2 17.5c.9-.8 1.9-.8 2.8 0M6.2 17.5c1.4-1 2.9-1 4.3 0M13.5 17.5c1.4-1 2.9-1 4.3 0M20.2 17.5c.6-.5 1.2-.5 1.8 0" />
+        </>
+      )
+    case 'caixoteDePeixe':
+      // De frente: o caixote raso de ripas (a ripa do meio e os pilaretes dos cantos) com o peixe grande atravessado em cima (o corpo, o rabo em V e o olho). O barril de peixe é redondo e alto, com os peixes de rabo para cima.
+      return (
+        <>
+          <path d="M2.5 13.5h19v7.5h-19z" />
+          <path d="M2.5 17.2h19M5.2 13.5V21M18.8 13.5V21" />
+          <path d="M4 10.2c3-3.4 8.6-3.4 12.4 0c-3.8 3.4-9.4 3.4-12.4 0z" />
+          <path d="M16.4 10.2l4.2-2.8v5.6z" />
+          <path d="M7 9.6h.01" />
+        </>
+      )
+    case 'armaduraDespedacada':
+      // Desmontada no chão: o peitoral rachado ao meio, as duas metades afastadas pela rachadura em zigue-zague; o elmo ao lado com a viseira levantada; e uma perna de ferro deitada embaixo, com o joelho e o pé.
+      return (
+        <>
+          <path d="M3.5 8l4-1.5 1.5 2-1 2.5 1 2.5-1.2 2.5H4.5z" />
+          <path d="M11 8.5l1.5-2 4 1.5-1 8H9.8l1.2-2.5-1-2.5z" />
+          <path d="M17.5 10V6.5a2.5 2.5 0 0 1 5 0V10z" />
+          <path d="M17.5 6.3h5M18.6 8.2h2.8" />
+          <path d="M3.5 20.5h7.5M13.8 20.5h4.5l2.2-2" />
+          <circle cx="12.4" cy="20.5" r="1.4" />
+        </>
+      )
+    case 'armadura':
+      // De frente, em pé no pedestal: o elmo fechado com a fresta em T e a pluma, os ombros largos, o peito até a cintura, as duas pernas e a espada de ponta no meio, com a guarda.
+      return (
+        <>
+          <path d="M10 7V4.6a2 2 0 0 1 4 0V7z" />
+          <path d="M10.9 4.9h2.2M12 4.9v1.5M12 2.6c.2-1 .9-1.6 1.9-1.6" />
+          <path d="M6.5 11c0-1.8 1.2-3 3-3h5c1.8 0 3 1.2 3 3" />
+          <path d="M9 8l.7 6h4.6l.7-6" />
+          <path d="M10.3 14v6M13.7 14v6M12 12v8.5M10.4 13.2h3.2M7.5 21.5h9" />
+        </>
+      )
   }
 }
 

@@ -411,6 +411,26 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // (0,13 casa): os pés torneados, o friso e as redes das caçapas da frente são desenhados contando com ela. Se
   // mudar uma, muda a outra.
   mesaDeSinuca: { modo: 'derivado', espessura: 0.13 * G },
+  // Lote 12 dos 95 objetos novos (11/11/2026), o porto e o navio. A âncora fica como de cima, como o canhão: é
+  // ferro deitado no chão, redondo e baixo, e derivada a haste e os braços virariam colunas de pé. O timão é
+  // desenhado de frente, como o alvo de arco e flecha, e a 3/4 só põe a sombra de baixo.
+  ancora: EM_PE,
+  // As cordas enroladas estão no chão, como o feno e os troncos: em pé com a sombra de baixo das pilhas;
+  // derivada, cada volta do rolo viraria coluna.
+  cordasEnroladas: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  timao: EM_PE,
+  // No bote e na rede de pesca a beirada fina é a grossura dos bancos e dos remos, e a da beira debaixo da vara
+  // e da boia de vidro, que sobem soltos.
+  bote: { modo: 'derivado', espessura: 0.04 * G },
+  redeDePesca: { modo: 'derivado', espessura: 0.04 * G },
+  // O píer mora no chão, como a ponte, mas as estacas sobem (colunas de 0,46 a 0,6 casa) e o tabuado fica rente.
+  // No caixote de peixe só o caixote tem altura, e o que vai dentro sobe com ele.
+  pier: DERIVADO,
+  caixoteDePeixe: DERIVADO,
+  // Lote 15 (11/11/2026). A armadura despedaçada é rente ao chão e espalhada, feita do mesmo jeito que os ossos,
+  // e sobe como eles. A armadura de pé é desenhada de frente, como o manequim.
+  armaduraDespedacada: { modo: 'derivado', alturaSolta: 0.03 * G },
+  armadura: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

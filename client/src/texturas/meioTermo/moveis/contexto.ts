@@ -131,7 +131,17 @@ export interface ContextoDoMovel {
    * faixas do tablado, a vez das coisas altas e as sombras pintadas são da
    * tela, e o canto vermelho e o azul vão para onde o giro os leva; na sinuca,
    * os pés, as redes e o friso que só a 3/4 mostra, e as sombras das tabelas e
-   * das bolas caem para baixo à direita na tela). Os outros desenhos não leem.
+   * das bolas caem para baixo à direita na tela). Do lote 12 (11/11/2026) leem
+   * o bote (a borda vira na 3/4 duas estruturas em anel, cortadas ao comprido
+   * ou de través conforme o giro, e o lado que fica de frente na tela mostra o
+   * costado ou o painel de popa; esticado de pé, ele se monta deitado com o
+   * giro mais um quarto de volta), a rede de pesca (de frente sem giro, de
+   * costas com meia volta, com o pano na frente da vara e das estacas, e de
+   * ponta com um quarto de volta, a faixa estreita do pano) e o píer (a sombra
+   * do tabuado na água e a das estacas, desgiradas, caem para baixo à direita
+   * na tela). Do lote 15 (11/11/2026), a armadura despedaçada, como os ossos
+   * (a luz do aço, os amassados, os riscos e o brilho, pela luz na tela, e as
+   * sombras pintadas de cada peça, desgiradas). Os outros desenhos não leem.
    */
   readonly giro: number
 }

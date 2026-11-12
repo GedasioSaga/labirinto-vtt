@@ -139,6 +139,15 @@ import { montarMesaDeJogo } from './mesaDeJogo'
 import { montarRingueDeLuta } from './ringueDeLuta'
 import { montarBalanco } from './balanco'
 import { montarMesaDeSinuca } from './mesaDeSinuca'
+import { montarAncora } from './ancora'
+import { montarCordasEnroladas } from './cordasEnroladas'
+import { montarTimao } from './timao'
+import { montarBote } from './bote'
+import { montarRedeDePesca } from './redeDePesca'
+import { montarPier } from './pier'
+import { montarCaixoteDePeixe } from './caixoteDePeixe'
+import { montarArmaduraDespedacada } from './armaduraDespedacada'
+import { montarArmadura } from './armadura'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -323,6 +332,18 @@ const MONTADORES = {
   ringueDeLuta: montarRingueDeLuta,
   balanco: montarBalanco,
   mesaDeSinuca: montarMesaDeSinuca,
+  // Lote 12 dos 95 objetos novos (11/11/2026), o porto e o navio, e o lote 15, as duas armaduras: um desenho por
+  // arquivo. O bote, a rede de pesca, o píer e a armadura despedaçada leem o `giro` (o quarto de volta que a 3/4
+  // pinta); a âncora, as cordas enroladas, o timão, o caixote de peixe e a armadura de pé, não.
+  ancora: montarAncora,
+  cordasEnroladas: montarCordasEnroladas,
+  timao: montarTimao,
+  bote: montarBote,
+  redeDePesca: montarRedeDePesca,
+  pier: montarPier,
+  caixoteDePeixe: montarCaixoteDePeixe,
+  armaduraDespedacada: montarArmaduraDespedacada,
+  armadura: montarArmadura,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -370,6 +391,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

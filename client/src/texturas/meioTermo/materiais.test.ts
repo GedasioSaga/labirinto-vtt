@@ -241,6 +241,17 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       ringueDeLuta: ['madeira:carvalho', 'lona:linho'],
       balanco: ['madeira:carvalho', 'lenha:lenhaCarvalho'],
       mesaDeSinuca: ['madeira:nogueira'],
+      // Lote 12 dos 95 objetos novos (11/11/2026): o timão com a madeira e as ferragens; as cordas enroladas sem
+      // lugar. Lote 15: a armadura despedaçada sem lugar; a armadura de pé com a pedra do pedestal.
+      ancora: ['madeira:carvalho'],
+      cordasEnroladas: [],
+      timao: ['madeira:cerejeira', 'ferragens:latao'],
+      bote: ['madeira:carvalho'],
+      redeDePesca: ['madeira:pinho'],
+      pier: ['madeira:velha'],
+      caixoteDePeixe: ['madeira:pinho'],
+      armaduraDespedacada: [],
+      armadura: ['pedra:granito'],
     })
   })
 

@@ -404,15 +404,20 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * ou o token em cima do tablado saem por cima dele; como objeto comum, a 3/4
  * ordena pela base, e a banqueta no meio do tablado sairia por baixo), a
  * plantação em fileiras (11/11/2026: o pedaço de roça, rente como o campinho,
- * em que o mestre põe o espantalho, o arado ou as fichas, que ficam por cima)
- * e o ringue de luta (11/11/2026: como o palco, a ficha no meio da lona sai
- * por cima da corda da frente e dos postes, que são altos mas não a tapam).
+ * em que o mestre põe o espantalho, o arado ou as fichas, que ficam por cima),
+ * o ringue de luta (11/11/2026: como o palco, a ficha no meio da lona sai
+ * por cima da corda da frente e dos postes, que são altos mas não a tapam) e o
+ * píer (11/11/2026: como a ponte, o token anda no tabuado e o que o mestre põe
+ * em cima sai por cima; as estacas sobem, mas ficam nas bordas compridas, fora
+ * da faixa em que se anda). O píer não é a ponte: o que é só da ponte (as formas
+ * Madeira, Pedra e Corda, o material de cada forma) pergunta por `'ponte'` pelo
+ * nome.
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
- * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação e o
- * ringue por último) leem esta lista.
+ * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
+ * ringue e o píer por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier'
 }
 
 /**
