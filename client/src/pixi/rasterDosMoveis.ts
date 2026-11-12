@@ -603,6 +603,19 @@ function* pintarLadrilhosEmPassos(cena: Cena, S: number, pedacos: readonly { lim
   for (const p of pedacos) yield* pintarCenaEmPassos(cena, S, p.limites, p.pixels, true)
 }
 
+/**
+ * Caça 12/11 (O5): acima disto (pixels da imagem pedida, somados os ladrilhos), o móvel sem imagem nenhuma pronta
+ * pinta antes o nível 1 e afia depois. A torre de pedra 3 x 3 de perto (nível 3, 3/4, grade 64) tem ~654 mil e levava
+ * 1,3 s para aparecer; a prévia dela tem 1/9 disso. Barril, mesa e poço ficam abaixo: não pintam duas vezes.
+ */
+export const PIXELS_PARA_PREVIA = 250_000
+
+function pixelsDaImagem(e: Pick<ImagemDoMovel, 'ladrilhos'>): number {
+  let soma = 0
+  for (const l of e.ladrilhos) soma += l.limites.W * l.limites.H
+  return soma
+}
+
 /** Os outros níveis, do mais perto para o mais longe (o de cima primeiro no empate: mais nítido). */
 function niveisVizinhos(nivel: number): number[] {
   const vizinhos: number[] = []
@@ -742,7 +755,24 @@ export class RasterDosMoveis {
         return { pedida, mostrar: vizinha }
       }
     }
+    this.pedirPrevia(chave, pedida)
     return { pedida, mostrar: null }
+  }
+
+  /**
+   * Caça 12/11 (O5): nenhum nível pronto e a imagem pedida é grande. O nível 1 do mesmo móvel entra na fila logo
+   * antes da pedida e conta como pedido deste dono: quando ele fica pronto, o dono se repinta e cola o nível 1 (a
+   * mesma imagem, menos nítida) até a pedida chegar. A ordem das outras imagens na fila não muda.
+   */
+  private pedirPrevia(chave: ChaveDoMovel, pedida: Entrada): void {
+    if (chave.nivel <= 1 || pedida.emPintura || pedida.retirada || pixelsDaImagem(pedida) <= PIXELS_PARA_PREVIA) return
+    const previa = this.pedir({ ...chave, nivel: 1 })
+    if (previa.pronta || previa.emPintura || previa.retirada) return
+    const naFilaPrevia = this.fila.indexOf(previa)
+    const naFilaPedida = this.fila.indexOf(pedida)
+    if (naFilaPedida < 0 || (naFilaPrevia >= 0 && naFilaPrevia < naFilaPedida)) return
+    if (naFilaPrevia >= 0) this.fila.splice(naFilaPrevia, 1)
+    this.fila.splice(this.fila.indexOf(pedida), 0, previa)
   }
 
   /**
