@@ -3548,6 +3548,8 @@ function App() {
           nuvens: nuvensLigadas(sceneMap),
           onNuvensChange: aberta ? setNuvens : (ligado) => mudarFundo((m) => mapFactory.setNuvens(m, ligado)),
         }}
+        // "Tamanho da ficha ao entrar": a seção lê e grava a cena pelas stores (aberta ou de fundo).
+        sceneId={sceneId}
         secaoInicial={configuringSecao}
         onClose={() => {
           setConfiguringSceneId(null)
