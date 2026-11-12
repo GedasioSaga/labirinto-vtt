@@ -6427,6 +6427,16 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // Caça 12/11 (E1): o botão direito só abre menu. Nenhuma ferramenta
+        // desenha, põe peça, marca ponto ou arrasta com ele (antes 21 de 32
+        // faziam o mesmo que o esquerdo, e o Selecionar movia a peça). A
+        // seleção pelo direito é do `onContextMenu`. Só o pincel de blocos
+        // do Chão segue apagando com o direito (decisão de 15/09/2026).
+        if (event.button === 2 && !direitoApagaBlocos()) {
+          mode = 'idle'
+          return
+        }
+
         // DUPLO CLIQUE QUE FECHA A FORMA, no ritmo de quem mira. A dica da
         // tela promete "Duplo clique fecha" (labels.ts) e até 21/09/2026 quem
         // cumpria a promessa era só o evento `dblclick` do navegador, de
@@ -9022,10 +9032,11 @@ function PixiCanvasDoContexto({
         portaDoCliqueDireito = null
         tokenDoCliqueDireito = false
         selecaoDoCliqueDireito = false
-        if (direitoApagaBlocos()) {
-          event.preventDefault()
-          return
-        }
+        // Caça 12/11 (E1): no palco o menu do navegador nunca abre (no app
+        // instalado seria o do WebView, com "Atualizar" recarregando a mesa).
+        // O menu da parede, ouvinte ao lado, não olha `defaultPrevented`.
+        event.preventDefault()
+        if (direitoApagaBlocos()) return
         const rect = el.getBoundingClientRect()
         const local = { x: event.clientX - rect.left, y: event.clientY - rect.top }
         const ponto = toWorldPoint(local.x, local.y)
@@ -9051,13 +9062,34 @@ function PixiCanvasDoContexto({
             // (12/11/2026), o mesmo, com "Pôr por cima / por baixo": vale com a ferramenta Objeto,
             // cujo botão direito não seleciona no `pointerdown`; o grupo vem junto, como no clique.
             const estado = useMapStore.getState()
+            // Caça 12/11 (E1): o `pointerdown` do direito não seleciona mais nada. Com o
+            // Selecionar (e o Pino, no pino) quem escolhe o alvo é este ouvinte, o mesmo do
+            // clique esquerdo: escada, luz, desenho e o pino abrem o menu como antes, sem arrasto.
+            const comSelecionar = estado.activeTool === 'select'
+            if (comSelecionar || estado.activeTool === 'pin') {
+              const pino = pinAt(estado.map, ponto)
+              if (pino) {
+                const gesto = gestoNoPino(estado.map, pino)
+                if (gesto.tipo === 'barrado') {
+                  avisarCamadaTravada(gesto.camada)
+                  return
+                }
+                estado.setSelectedPin(pino.id)
+                selecaoDoCliqueDireito = true
+                setMenuDaSelecao({ x: local.x, y: local.y })
+                return
+              }
+            }
             const alvo = findSelectableAt(clickSelectMap(estado.map), ponto, pinosNoToque(estado.map))
-            if (alvo === null || (alvo.kind !== 'token' && alvo.kind !== 'prop')) return
+            if (alvo === null || alvo.kind === 'wall') return
+            if (alvo.kind !== 'token' && alvo.kind !== 'prop' && !comSelecionar) return
             // A PAREDE ganha do objeto que a cobre (armadura encostada, parede em cima de píer ou
             // tapete): na folga do menu dela, este ouvinte sai sem selecionar e quem abre é o
             // "Abrir vão / Desabar" de `ligarMenuDaParede`, logo abaixo. Fora da parede, o objeto.
-            if (alvo.kind === 'prop' && paredeDoGesto(estado.map, ponto, WALL_GESTURE_HIT_TOLERANCE / camera.scale) !== null) return
-            estado.setSelection(alvo.kind === 'prop' ? selectionOnClick(estado.map, { kind: 'prop', id: alvo.id }) : [{ kind: 'token', id: alvo.id }])
+            if (alvo.kind !== 'token' && paredeDoGesto(estado.map, ponto, WALL_GESTURE_HIT_TOLERANCE / camera.scale) !== null) return
+            // Camada travada: o direito, como o esquerdo, não pega o que está embaixo dela.
+            if (comSelecionar && camadaTravadaNoPiso(estado.map, estado.pisoAtivo, ponto, pinosNoToque(estado.map)) !== null) return
+            estado.setSelection(alvo.kind === 'token' ? [{ kind: 'token', id: alvo.id }] : selectionOnClick(estado.map, { kind: alvo.kind, id: alvo.id }))
           }
           event.preventDefault()
           selecaoDoCliqueDireito = true
