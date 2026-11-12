@@ -91,6 +91,12 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // muda o desenho), mas a beira de cima da imagem é uma peça solta no chão, que não sobe. A regra do tampo não
   // se aplica a eles, como ao campinho.
   const MONTES: readonly TipoMobilia[] = ['monteDeOuro', 'monteDeMoedasDeOuro', 'monteDeDiamantes', 'monteDeJoias']
+  // RÉGUAS ACERTADAS (12/11/2026, decisão 28 do mestre): estas quatro falhavam desde a 0.5.60 por régua, não por
+  // defeito que se veja (o buscador visual olhou as quatro na 3/4, achado V8: "sem defeito que se veja"). Só o
+  // necessário: o chafariz e a cova têm o pixel mais escuro a 0,0428 e 0,0418 de luz linear (a régua pedia 0,043; o
+  // protótipo aceita 0,03); o cata-vento de brinquedo e a ponte ganham ~1% de sombra embaixo na 3/4 (a régua pedia 2%).
+  const FOLGA_DO_PISO: Partial<Record<TipoMobilia, number>> = { chafariz: 0.004, cova: 0.004 }
+  const GANHO_DA_SOMBRA: Partial<Record<TipoMobilia, number>> = { cataVentoBrinquedo: 1.005, ponte: 1.005 }
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
     const rente = RENTES.includes(tipo)
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
@@ -108,13 +114,13 @@ describe('vista 3/4: o catálogo inteiro', () => {
         expect(digitalDosPixels(pintar(tres, nivel).pixels)).toBe(digitalDosPixels(b.pixels))
         const m = medirImagem(b.pixels, b.limites.W, b.limites.H, deCima.casasW * deCima.casasH * G * G * b.S * b.S)
         expect(m.saturacaoP95, `${tipo} nível ${nivel} saturação`).toBeLessThanOrEqual(0.62)
-        expect(m.luminanciaLinearMinima, `${tipo} nível ${nivel} piso de luz`).toBeGreaterThanOrEqual(PISO_DE_LUZ - 0.002)
+        expect(m.luminanciaLinearMinima, `${tipo} nível ${nivel} piso de luz`).toBeGreaterThanOrEqual(PISO_DE_LUZ - (FOLGA_DO_PISO[tipo] ?? 0.002))
         expect(m.contornoMinimo, `${tipo} nível ${nivel} contorno`).toBeGreaterThanOrEqual(0.06)
         // O CAMPINHO (10/11/2026) é chão: o gramado fica onde está e só as traves sobem, no meio da altura
         // dele. A beira de cima da imagem é o gramado, que não muda: a regra do tampo não se aplica a ele (a
         // troca do desenho e as regras de cor, logo acima, sim). Nem aos rentes, que não sobem nada, nem aos montes.
         if (nivel !== 3 || tipo === 'campinho' || rente || MONTES.includes(tipo)) continue
-        if (emPe) expect(alfaDaSombra(b), `${tipo}: sombra de baixo`).toBeGreaterThan(alfaDaSombra(a) * 1.02)
+        if (emPe) expect(alfaDaSombra(b), `${tipo}: sombra de baixo`).toBeGreaterThan(alfaDaSombra(a) * (GANHO_DA_SOMBRA[tipo] ?? 1.02))
         else expect(topoDasPecas(b), `${tipo}: o tampo sobe`).toBeLessThanOrEqual(topoDasPecas(a) - 1)
       }
     })
@@ -191,7 +197,8 @@ describe('vista 3/4: o giro e a chave', () => {
 
   it('a cama girada um quarto de volta: o giro é pintado, a frente fica embaixo na tela', () => {
     const cama = movel('catre', { rotation: 90 })
-    expect(giroDaImagem(cama)).toBe(0)
+    // Caça 12/11/2026 (V2): o quarto de volta é pintado também de cima (a sombra não gira junto), igual nas duas vistas.
+    expect(giroDaImagem(cama)).toBe(90)
     expect(giroDaImagem(cama, 'tres-quartos')).toBe(90)
     const d = desenho(cama, 'tres-quartos')
     expect(d.giro).toBe(90)
