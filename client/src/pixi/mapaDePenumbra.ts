@@ -48,8 +48,13 @@ export const AJUSTE_DA_PENUMBRA = {
   rampa: [0.5, 0.95] as const,
   /** As paredes em branco nos campos: espessura + isto vezes o desvio. */
   paredeBrancaEmDesvios: 2.6,
-  /** A tinta fria do lembrado: brilho vezes isto, por canal, com teto em 1 (`#61708f` a 45%). */
-  pesoDaTinta: [0.85, 0.98, 1.25] as const,
+  /**
+   * A tinta fria do lembrado: brilho vezes isto, por canal, com teto em 1
+   * (`#61708c` a 45%, o padrão do painel). O protótipo tinha 1,25 no azul
+   * (`#61708f`); 1,22 segura o azul do padrão em 0,549, abaixo do 0,55 do véu
+   * preto de antes: com o padrão, nenhum canal do lembrado fica mais claro que era.
+   */
+  pesoDaTinta: [0.85, 0.98, 1.22] as const,
   /** O nunca visto: quase preto, frio (o fundo de fora do mapa fica como está). */
   nuncaVisto: 0x06070a,
   /** A troca do passo, em ms, e a curva (a `--ease-out` da casa). */

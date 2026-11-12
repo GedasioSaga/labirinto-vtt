@@ -66,7 +66,10 @@ function isDrawerScreen(): boolean {
 }
 
 export interface PlayerViewSettings {
-  /** Quanto do explorado fora da visão continua visível: 1 − alpha da camada escurecida. */
+  /**
+   * Quanto do explorado fora da visão continua visível: o brilho da tinta fria
+   * do lembrado (`tintaDoLembrado`, `pixi/mapaDePenumbra.ts`); no modo leve, 1 − alpha do véu preto.
+   */
   exploredBrightness: number
   showGrid: boolean
   /** Nomes das salas, textos da ferramenta Texto e rótulos dos tokens. */
@@ -108,8 +111,19 @@ export const EXPLORED_BRIGHTNESS_MIN = 0.3
 export const EXPLORED_BRIGHTNESS_MAX = 0.8
 const EXPLORED_BRIGHTNESS_STEP = 0.05
 // Grade desligada por padrão: o mapa do jogador segue o minimapa limpo do editor.
-export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.55, showGrid: false, showNames: true }
+// Brilho do explorado em 45%: o das sombras novas que o mestre aprovou (12/11/2026); era 55%.
+export const DEFAULT_PLAYER_SETTINGS: PlayerViewSettings = { exploredBrightness: 0.45, showGrid: false, showNames: true }
 export const PLAYER_SETTINGS_KEY = 'labirinto.jogador.ajustes'
+/**
+ * Versão do que vai guardado. Ajuste guardado SEM versão é de antes das
+ * sombras novas: nele, 55% é o padrão de então, que o jogador nunca mexeu (o
+ * ajuste é guardado inteiro quando ele mexe em qualquer coisa do painel), e
+ * vira o padrão de agora. Guardado com versão, 55% é escolha dele e fica.
+ */
+const PLAYER_SETTINGS_VERSION = 2
+const OLD_DEFAULT_EXPLORED_BRIGHTNESS = 0.55
+/** Folga da comparação com o padrão antigo: o valor guardado é o mesmo literal, mas veio de texto. */
+const BRIGHTNESS_EPSILON = 1e-6
 /** Variável CSS (no painel) com a largura da barra de cima: `player.css` não deixa o cartão mais estreito que o cabeçalho dele. */
 export const BAR_WIDTH_VAR = '--pp-bar-w'
 /**
@@ -189,6 +203,13 @@ function clampBrightness(value: number): number {
   return Math.min(EXPLORED_BRIGHTNESS_MAX, Math.max(EXPLORED_BRIGHTNESS_MIN, value))
 }
 
+/** O brilho guardado; o 55% de um ajuste de antes da versão vira o padrão de agora. */
+function storedBrightness(value: number, versao: unknown): number {
+  const deAntes = versao !== PLAYER_SETTINGS_VERSION
+  if (deAntes && Math.abs(value - OLD_DEFAULT_EXPLORED_BRIGHTNESS) < BRIGHTNESS_EPSILON) return DEFAULT_PLAYER_SETTINGS.exploredBrightness
+  return clampBrightness(value)
+}
+
 /** Ajuste salvo vem de fora do código: campo ausente ou fora do formato cai no padrão, nunca lança. */
 export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSettings {
   let raw: string | null = null
@@ -205,11 +226,12 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
     return { ...DEFAULT_PLAYER_SETTINGS }
   }
   if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_PLAYER_SETTINGS }
-  const { exploredBrightness, showGrid, showNames, followOwnToken, mapEffects } = parsed as Record<string, unknown>
+  // `parsed` é um objeto não nulo (conferido acima); os campos são lidos como `unknown` e conferidos um a um.
+  const { exploredBrightness, showGrid, showNames, followOwnToken, mapEffects, versao } = parsed as Record<string, unknown>
   const settings: PlayerViewSettings = {
     exploredBrightness:
       typeof exploredBrightness === 'number' && Number.isFinite(exploredBrightness)
-        ? clampBrightness(exploredBrightness)
+        ? storedBrightness(exploredBrightness, versao)
         : DEFAULT_PLAYER_SETTINGS.exploredBrightness,
     showGrid: typeof showGrid === 'boolean' ? showGrid : DEFAULT_PLAYER_SETTINGS.showGrid,
     showNames: typeof showNames === 'boolean' ? showNames : DEFAULT_PLAYER_SETTINGS.showNames,
@@ -223,7 +245,7 @@ export function loadPlayerSettings(storage: StorageLike | null): PlayerViewSetti
 /** Armazenamento cheio ou bloqueado (aba anônima) não pode derrubar a partida. */
 export function savePlayerSettings(storage: StorageLike | null, settings: PlayerViewSettings): void {
   try {
-    storage?.setItem(PLAYER_SETTINGS_KEY, JSON.stringify(settings))
+    storage?.setItem(PLAYER_SETTINGS_KEY, JSON.stringify({ ...settings, versao: PLAYER_SETTINGS_VERSION }))
   } catch {
     // Sem persistência: o ajuste vale só nesta aba.
   }
@@ -1234,13 +1256,13 @@ function SignOutButton({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div
       role="group"
-      aria-label="Sair da sala e deste aparelho"
+      aria-label="Sair da mesa online e deste aparelho"
       className="pp-sair-pergunta"
       onKeyDown={(event) => {
         if (event.key === 'Escape') setAsking(false)
       }}
     >
-      <p className="pp-sair-pergunta__texto">Sair da sala? Da próxima vez, este aparelho pede o seu nome (e o PIN, se tiver conta).</p>
+      <p className="pp-sair-pergunta__texto">Sair da mesa online? Da próxima vez, este aparelho pede o seu nome (e o PIN, se tiver conta).</p>
       <div className="pp-sair-pergunta__acoes">
         <button type="button" className="pp-button pp-button--perigo" autoFocus onClick={onSignOut}>
           Sair
