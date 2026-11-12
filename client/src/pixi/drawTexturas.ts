@@ -5,7 +5,8 @@ import { assinaturaDasTexturas, type Caixa } from '../lib/texturas'
 import { unidadeDoRelevo } from '../lib/relevo'
 import type { Camera } from './world'
 import { assinarTexturas, texturaDoCatalogo } from '../texturas/catalogo'
-import { LADO_DO_LADRILHO, pixelsEmFatias } from '../texturas/ladrilhos'
+import { FATIA_DO_LADRILHO_MS, LADO_DO_LADRILHO, pixelsEmFatias } from '../texturas/ladrilhos'
+import { ladrilhoNoWorker } from '../texturas/ladrilhosNoWorker'
 import { rasterizarTexturas } from './texturasRaster'
 import { desenhadoLigado, meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { assinarDesenhado, chaoParaPintar, pedirChaoDesenhado, versaoDoDesenhado, type ChaoCarregado } from '../texturas/desenhado/carregador'
@@ -248,7 +249,10 @@ async function ladrilhoPadrao(id: string, importada: TexturaImportada | undefine
   // O lado em pixels é o da textura (as de período longo têm ladrilho maior);
   // a repetida acerta o tamanho no mundo pela largura do ladrilho (`montarPlano`).
   const lado = textura.lado ?? LADO_DO_LADRILHO
-  const pixels = await pixelsEmFatias(textura.cor, lado, cancelado)
+  // A embutida é pintada no worker (caça 12/11, O3: o calçamento tomava ~880 ms da thread ao abrir o Reino de Goa);
+  // a do pacote, ou sem worker, em fatias aqui. O ladrilho é o mesmo, byte a byte.
+  const fora = textura.origem === 'embutida' ? () => ladrilhoNoWorker(id, lado) : undefined
+  const pixels = await pixelsEmFatias(textura.cor, lado, cancelado, FATIA_DO_LADRILHO_MS, 1, fora)
   if (pixels === null) return null
   const tela = telaComPixels(pixels, lado)
   return tela === null ? null : texturaDoLadrilho(tela)

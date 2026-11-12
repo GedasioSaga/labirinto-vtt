@@ -62,9 +62,17 @@ function ceder(): Promise<void> {
 }
 
 /**
+ * Quem pinta o MESMO ladrilho fora da thread da página (o worker,
+ * `ladrilhosNoWorker.ts`; caça 12/11, O3). `null` = não deu: as fatias assumem.
+ */
+export type PintarForaDaThread = () => Promise<Uint8ClampedArray | null>
+
+/**
  * O ladrilho em fatias de `fatiaMs`, dando a vez ao navegador entre elas: a
  * floresta custa dezenas de ms, e nenhuma tarefa trava a tela. `null` =
  * cancelado no meio (cena trocada, palco desmontado) ou a cor de fora lançou.
+ * Com `fora`, o ladrilho é pedido antes a quem pinta fora da thread; a resposta
+ * entra no mesmo cache (`prontos`), mesmo que quem pediu tenha desistido.
  */
 export async function pixelsEmFatias(
   cor: CorDaTextura,
@@ -72,6 +80,7 @@ export async function pixelsEmFatias(
   cancelado: () => boolean,
   fatiaMs = FATIA_DO_LADRILHO_MS,
   amostras = 1,
+  fora?: PintarForaDaThread,
 ): Promise<Uint8ClampedArray | null> {
   const chave = `${lado}:${amostras}`
   const pronto = prontos.get(cor)?.get(chave)
@@ -85,7 +94,9 @@ export async function pixelsEmFatias(
   let geracao = doCor.get(chave)
   if (geracao === undefined) {
     const interessados = [cancelado]
-    const fim = gerarEmFatias(cor, lado, () => interessados.every((c) => c()), fatiaMs, amostras).then((resultado) => {
+    const todosDesistiram = (): boolean => interessados.every((c) => c())
+    const geracaoDeVerdade = fora === undefined ? gerarEmFatias(cor, lado, todosDesistiram, fatiaMs, amostras) : gerarForaOuEmFatias(fora, cor, lado, todosDesistiram, fatiaMs, amostras)
+    const fim = geracaoDeVerdade.then((resultado) => {
       doCor.delete(chave)
       if (resultado.pixels !== null) {
         const guardados = prontos.get(cor) ?? new Map<string, Uint8ClampedArray>()
@@ -105,7 +116,7 @@ export async function pixelsEmFatias(
   if (resultado.pixels !== null) return resultado.pixels
   // A geração parou porque os outros desistiram e este chegou no fim dela:
   // começa de novo. A cor que lançou (`erro`) não tenta outra vez.
-  if (resultado.motivo === 'cancelado' && !cancelado()) return pixelsEmFatias(cor, lado, cancelado, fatiaMs, amostras)
+  if (resultado.motivo === 'cancelado' && !cancelado()) return pixelsEmFatias(cor, lado, cancelado, fatiaMs, amostras, fora)
   return null
 }
 
@@ -129,6 +140,22 @@ interface Geracao {
   fim: Promise<FimDaGeracao>
 }
 const emCurso = new WeakMap<CorDaTextura, Map<string, Geracao>>()
+
+/**
+ * O ladrilho pedido fora da thread; sem resposta boa (sem worker, erro, tamanho
+ * errado), em fatias aqui. A pintura fora não para no meio: ela termina e fica
+ * guardada mesmo que todos tenham desistido (o próximo pedido sai na hora).
+ */
+async function gerarForaOuEmFatias(fora: PintarForaDaThread, cor: CorDaTextura, lado: number, cancelado: () => boolean, fatiaMs: number, amostras: number): Promise<FimDaGeracao> {
+  let pixels: Uint8ClampedArray | null
+  try {
+    pixels = await fora()
+  } catch {
+    pixels = null
+  }
+  if (pixels !== null && pixels.length === lado * lado * 4) return { pixels, motivo: 'pronto' }
+  return gerarEmFatias(cor, lado, cancelado, fatiaMs, amostras)
+}
 
 async function gerarEmFatias(cor: CorDaTextura, lado: number, cancelado: () => boolean, fatiaMs: number, amostras: number): Promise<FimDaGeracao> {
   // A primeira fatia também espera a vez: quem pede doze ladrilhos ao abrir o
