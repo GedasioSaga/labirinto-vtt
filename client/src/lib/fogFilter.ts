@@ -2987,7 +2987,9 @@ function recorteDoGrupo(
    *   que estava no escuro dela saía no pacote;
    * - luz que o jogador não recebe não ilumina: a da camada escondida, a
    *   oculta, a de dentro de sala secreta, teto fechado ou zona, e a tocha presa
-   *   numa ficha que o mestre esconde (o claro andando entregaria o NPC).
+   *   numa ficha que o mestre esconde (o claro andando entregaria o NPC);
+   * - luz atrás de parede de camada escondida dos jogadores só clareia se ele
+   *   vê a fonte (`atrasDeParedeSoDaAutoridade`, caça de 12/11/2026, F03(d)).
    */
   const darkRoomsOnLayer = regioesNaCamada.filter(
     (r) => r.room?.dark === true && !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
@@ -3014,18 +3016,33 @@ function recorteDoGrupo(
       // pela porta sai da visão, e a visão precisa DESTE escuro — usar
       // `roofHides` aqui lia a constante antes de ela existir (TDZ). Luz sob
       // teto fechado fica fora do escuro mesmo espiada: nada vaza.
-      return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at) && !carriedByHidden(l)
+      return (
+        !l.hidden &&
+        l.apagada !== true &&
+        Number.isFinite(l.radius) &&
+        l.radius > 0 &&
+        !inSecretRoom(at) &&
+        !inClosedRoof(at) &&
+        !hiddenByZone(at) &&
+        !carriedByHidden(l) &&
+        !atrasDeParedeSoDaAutoridade(at, l.radius)
+      )
     })
     // O OBJETO DE LUZ É LUZ (pedidos de 09/11/2026, `lib/luzDoFogo.ts`): o fogo, a
     // fogueira, a lareira, a fornalha e o lampião que o jogador pode receber
     // clareiam como um ponto de luz, no mesmo alcance do desenho e só até o teto
     // (`capped`, `tetoDaLuzDe`). Objeto oculto, secreto, em sala secreta, sob
-    // teto fechado ou em zona não ilumina.
+    // teto fechado ou em zona não ilumina. Sala secreta e teto pela SILHUETA
+    // (`propSamplePoints`), como o pacote (`propsDoRecorte`): o objeto com uma
+    // ponta na sala secreta fechada não sai, e o claro dele sairia sem fonte
+    // (caça de 12/11/2026, F03).
     const luzesDeObjeto = naCamadaDoJogador('objeto', map.props).flatMap((p) => {
       const luz = luzDoObjeto(p)
       const at = { x: p.x, y: p.y }
-      if (luz === null || p.secret || inSecretRoom(at) || inClosedRoof(at) || hiddenByZone(at)) return []
-      return [{ x: p.x, y: p.y, radius: raioDaLuzDoObjeto(p, luz, map.grid), capped: true }]
+      if (luz === null || p.secret || hiddenByZone(at) || propSamplePoints(p).some((q) => inSecretRoom(q) || inClosedRoof(q))) return []
+      const radius = raioDaLuzDoObjeto(p, luz, map.grid)
+      if (atrasDeParedeSoDaAutoridade(at, radius)) return []
+      return [{ x: p.x, y: p.y, radius, capped: true }]
     })
     return {
       sceneDark: map.dark === true,
@@ -3038,12 +3055,23 @@ function recorteDoGrupo(
   }
 
   /**
-   * Duas visões. A da autoridade (todas as paredes, chão inteiro) decide o que
-   * sai do mapa. A enviada (`vision`) é montada sem o que o jogador não pode
-   * saber: paredes da sala secreta, paredes/portas inteiras dentro de zona
+   * Duas visões. A da autoridade (as paredes que existem, chão inteiro) decide
+   * o que sai do mapa. A enviada (`vision`) é montada sem o que o jogador não
+   * pode saber: paredes da sala secreta, paredes/portas inteiras dentro de zona
    * ativa e peças de chão escondidas; senão a sombra delas desenharia a sala na
    * névoa. Parede que só cruza a borda da zona continua na enviada: tirá-la
    * deixaria o jogador ver através dela fora da zona. Colisão não usa isto.
+   *
+   * SALA SECRETA FECHADA NÃO TAPA NADA (caça de 12/11/2026, F09; decisão 30 do
+   * mestre): enquanto for secreta, a sala não existe para o jogador, e ele vê
+   * através dela como chão. A autoridade também olha através das paredes que
+   * MORAM na sala secreta fechada (na borda ou dentro, `naSalaSecretaFechada`):
+   * com elas a autoridade parava na sala, a enviada não, e o que está atrás
+   * sumia do pacote enquanto a tela dizia "vejo" — o vazio desenhava a sombra
+   * da sala. O que está DENTRO continua escondido pelo lugar (`isVisible` e
+   * `isShapeVisible` não contam ponto em sala secreta fechada; `inHiddenPlace`
+   * e as regras de cada tipo seguem), e o OLHO DO GUARDA continua parando nas
+   * paredes dela (`guardSegments`): a sala existe para quem está no mapa.
    *
    * PINCEL: parede ou porta inteira dentro da zona entra na enviada SÓ no
    * trecho pintado (`wallRunsWhere`, o mesmo recorte que o jogador recebe). O
@@ -3051,7 +3079,6 @@ function recorteDoGrupo(
    * deixava de contar como escondida, a parede entrava inteira e as pontas
    * escondidas saíam no fio — com a sombra delas desenhada fora da zona.
    */
-  const darkness = darknessForPlayer(openDarkRooms)
   /**
    * TETO DA LUZ DOS OBJETOS para esta ficha (`lib/luzDoFogo.ts`): a visão cheia
    * do DIA dela neste lugar. O raio do dono chega já no período da cena, então
@@ -3077,7 +3104,53 @@ function recorteDoGrupo(
    */
   const visionByToken = (segmentsOf: (i: number) => Segment[]): RegionPoint[][][] =>
     ownTokens.map((t, i) => sightFrom(t, segmentsOf(i), darkness))
-  const authoritySegments = ownTokens.length > 0 ? visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls }, peekDoorIds) : []
+  /**
+   * PAREDE SOLTA DENTRO DA SALA SECRETA FECHADA (sem o `regionId` dela): não sai no pacote, e a sombra dela também
+   * não pode sair. Sem isto ela barrava a visão ENVIADA, e o anel `vision` desenhava a linha exata dela; com o N3
+   * (caça de 12/11/2026: a sala fechada é chão vazio na memória) a sombra ficava ainda no explorado, um vulto preto
+   * com o formato da parede no chão lembrado. Conta a parede inteira dentro ou na borda, com algum trecho
+   * estritamente dentro: a que só corre na borda continua barrando a visão, como antes.
+   */
+  const insideClosedSecretRoom = (w: Wall): boolean => {
+    if (secretRoomRings.length === 0) return false
+    const minX = Math.min(w.x1, w.x2)
+    const maxX = Math.max(w.x1, w.x2)
+    const minY = Math.min(w.y1, w.y2)
+    const maxY = Math.max(w.y1, w.y2)
+    return secretRoomRings.some((b) => {
+      if (minX < b.minX || maxX > b.maxX || minY < b.minY || maxY > b.maxY) return false
+      const samples = wallStepSamples(w) ?? wallSamples(w)
+      return samples.every((p) => pointInPolygonInclusive(p, b.ring)) && samples.some((p) => !pointOnPolygonBorder(p, b.ring))
+    })
+  }
+  const isSecretRoomWall = (w: Wall): boolean => (w.regionId !== undefined && secretRoomIds.has(w.regionId)) || insideClosedSecretRoom(w)
+  /**
+   * A parede MORA na sala secreta fechada: secreta (`isSecretRoomWall`) e inteira na borda ou dentro de uma delas. A
+   * de sub-sala que sai da sala (geometria torta) e a de sala de dentro de Sala escondida (`hiddenByAncestorIds`, sem
+   * sala secreta em volta) ficam de fora: o lugar não esconde o que está do outro lado delas, então elas seguram a
+   * autoridade como antes.
+   */
+  const naSalaSecretaFechada = (w: Wall): boolean => {
+    if (secretRoomRings.length === 0 || !isSecretRoomWall(w)) return false
+    const minX = Math.min(w.x1, w.x2)
+    const maxX = Math.max(w.x1, w.x2)
+    const minY = Math.min(w.y1, w.y2)
+    const maxY = Math.max(w.y1, w.y2)
+    return secretRoomRings.some((b) => {
+      if (minX < b.minX || maxX > b.maxX || minY < b.minY || maxY > b.maxY) return false
+      return (wallStepSamples(w) ?? wallSamples(w)).every((p) => pointInPolygonInclusive(p, b.ring))
+    })
+  }
+  /** As paredes da autoridade: as que existem, menos as que moram na sala secreta fechada (F09, acima). Mesma referência quando nada sai. */
+  const authorityWalls = ((): Wall[] => {
+    if (secretRoomRings.length === 0) return knownWalls
+    const semSala = knownWalls.filter((w) => !naSalaSecretaFechada(w))
+    return semSala.length === knownWalls.length ? knownWalls : semSala
+  })()
+  const segmentsOfWalls = (walls: Wall[]): Segment[] => visionSegments(walls === map.walls ? map : { ...map, walls }, peekDoorIds)
+  const authoritySegments = ownTokens.length > 0 ? segmentsOfWalls(authorityWalls) : []
+  /** O olho do guarda (`guardAlerts`): todas as paredes, a da sala secreta inclusive. */
+  const guardSegments = (): Segment[] => (authorityWalls === knownWalls ? authoritySegments : segmentsOfWalls(knownWalls))
 
   /**
    * VER ATRAVÉS DAS PAREDES DA SALA (`RoomMeta.dentroVeFora` / `foraVeDentro`).
@@ -3129,7 +3202,33 @@ function recorteDoGrupo(
   }
   const authoritySeeThrough = new Map<string, Segment[]>()
   /** Os obstáculos da autoridade para a ficha `i` (as paredes que ela atravessa fora). */
-  const authoritySegmentsOf = (i: number): Segment[] => seeThroughSegments(authoritySeeThrough, authoritySegments, knownWalls, map.floor, i)
+  const authoritySegmentsOf = (i: number): Segment[] => seeThroughSegments(authoritySeeThrough, authoritySegments, authorityWalls, map.floor, i)
+  /**
+   * CAMADAS NA VISÃO ENVIADA (ver o comentário longo mais abaixo, em `pecasForaDaCamada`): parede de camada
+   * escondida dos jogadores sai da visão enviada e fica na da autoridade. Só no mapa v2.
+   */
+  const cortaVisaoPorCamada = map.versaoDasCamadas === 2 && !nadaOcultoDoJogador
+  /** As caixas dessas paredes (só a autoridade as tem): `atrasDeParedeSoDaAutoridade`. */
+  const paredesSoDaAutoridade = cortaVisaoPorCamada
+    ? knownWalls
+        .filter((w) => !camadas.jogadorVeItem('parede', w))
+        .map((w) => ({ minX: Math.min(w.x1, w.x2), maxX: Math.max(w.x1, w.x2), minY: Math.min(w.y1, w.y2), maxY: Math.max(w.y1, w.y2) }))
+    : []
+  /**
+   * LUZ ATRÁS DE PAREDE QUE SÓ A AUTORIDADE TEM (caça de 12/11/2026, P-NEVOA F03(d)): o claro entra na visão
+   * enviada calculado com as paredes DELA, e a parede de camada escondida dos jogadores não está lá. A tocha presa
+   * do outro lado dela não vai no pacote (a autoridade não a vê), mas o claro atravessava a parede e aparecia na rua
+   * como um anel de luz sem fonte. Luz cujo alcance encosta numa parede dessas só clareia quando alguma ficha do
+   * jogador tem linha de visão até ela pelas paredes da autoridade, como a luz vista de longe (`isSeenFromAfar`): o
+   * jogador vê a fonte. Sem parede escondida por perto, nada muda (o claro que dobra a esquina continua).
+   */
+  const atrasDeParedeSoDaAutoridade = (at: RegionPoint, radius: number): boolean => {
+    if (paredesSoDaAutoridade.length === 0) return false
+    const perto = paredesSoDaAutoridade.some((b) => b.maxX >= at.x - radius && b.minX <= at.x + radius && b.maxY >= at.y - radius && b.minY <= at.y + radius)
+    return perto && !ownTokens.some((t, i) => hasLineOfSight({ x: t.x, y: t.y }, at, authoritySegmentsOf(i)))
+  }
+  // O escuro lê `atrasDeParedeSoDaAutoridade`, que pede os obstáculos da autoridade: só depois deles.
+  const darkness = darknessForPlayer(openDarkRooms)
   const authorityByToken = visionByToken(authoritySegmentsOf)
   /**
    * ESCURO DO CONE PELO VÃO: o de sempre mais as salas escuras de dentro DESTE
@@ -3162,36 +3261,16 @@ function recorteDoGrupo(
     return brushed ? wallRunsWhere(w, inBrushReveal) : []
   }
   /**
-   * PAREDE SOLTA DENTRO DA SALA SECRETA FECHADA (sem o `regionId` dela): não sai no pacote, e a sombra dela também
-   * não pode sair. Sem isto ela barrava a visão ENVIADA, e o anel `vision` desenhava a linha exata dela; com o N3
-   * (caça de 12/11/2026: a sala fechada é chão vazio na memória) a sombra ficava ainda no explorado, um vulto preto
-   * com o formato da parede no chão lembrado. Conta a parede inteira dentro ou na borda, com algum trecho
-   * estritamente dentro: a que só corre na borda continua barrando a visão, como antes.
-   */
-  const insideClosedSecretRoom = (w: Wall): boolean => {
-    if (secretRoomRings.length === 0) return false
-    const minX = Math.min(w.x1, w.x2)
-    const maxX = Math.max(w.x1, w.x2)
-    const minY = Math.min(w.y1, w.y2)
-    const maxY = Math.max(w.y1, w.y2)
-    return secretRoomRings.some((b) => {
-      if (minX < b.minX || maxX > b.maxX || minY < b.minY || maxY > b.maxY) return false
-      const samples = wallStepSamples(w) ?? wallSamples(w)
-      return samples.every((p) => pointInPolygonInclusive(p, b.ring)) && samples.some((p) => !pointOnPolygonBorder(p, b.ring))
-    })
-  }
-  const isSecretRoomWall = (w: Wall): boolean => (w.regionId !== undefined && secretRoomIds.has(w.regionId)) || insideClosedSecretRoom(w)
-  /**
    * CAMADAS NA VISÃO ENVIADA (revisão da fatia 6, decisão do orquestrador,
    * PENDENTE de confirmação do usuário): o que o jogador não vê não existe
    * para a visão DELE. Peça de chão e parede de camada escondida dos jogadores
    * saem dos segmentos da visão enviada — senão o polígono `vision` desenha o
    * contorno delas, embora o pacote venha sem nenhuma. A autoridade (o que
-   * entra no pacote) segue com todas, como a parede de sala secreta. Só no
-   * mapa v2: o recorte do mapa de antes é o de b934f2a1 byte a byte
-   * (`fogFilter.camadas.test.ts`), e lá a camada oculta some para todos.
+   * entra no pacote) segue com todas (a sala secreta fechada não: ver "Duas
+   * visões"). Só no mapa v2: o recorte do mapa de antes é o de b934f2a1 byte
+   * a byte (`fogFilter.camadas.test.ts`), e lá a camada oculta some para
+   * todos. `cortaVisaoPorCamada` mora lá em cima, junto do escuro.
    */
-  const cortaVisaoPorCamada = map.versaoDasCamadas === 2 && !nadaOcultoDoJogador
   const pecasForaDaCamada = cortaVisaoPorCamada ? new Set(map.floor.filter((f) => !camadas.jogadorVeItem('peca', f)).map((f) => f.id)) : new Set<string>()
   const playerFloorForVision = floorWithout(map.floor, pecasForaDaCamada.size === 0 ? hiddenFloorIds : new Set([...hiddenFloorIds, ...pecasForaDaCamada]))
   /**
@@ -3339,7 +3418,8 @@ function recorteDoGrupo(
     vision = visionByTokenSent.flat()
   }
 
-  const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && (inAnyRing(rings, point) || inBrushReveal(point))
+  // Ponto na sala secreta FECHADA nunca está à vista: a autoridade olha através dela (F09, "Duas visões"), e o de dentro continua escondido.
+  const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && !inSecretRoom(point) && (inAnyRing(rings, point) || inBrushReveal(point))
 
   /**
    * A ficha está DENTRO da Sala: estritamente dentro (em cima do muro ainda é
@@ -3509,13 +3589,14 @@ function recorteDoGrupo(
     const box = boxOf(open)
     if (box === null) return false
     if (brushed && open.some(inBrushReveal)) return true
+    // Amostra na sala secreta fechada não conta (como em `isVisible`): só o trecho de fora diz que a forma está à vista.
     return rings.some(
       (b) =>
         box.maxX >= b.minX &&
         box.minX <= b.maxX &&
         box.maxY >= b.minY &&
         box.minY <= b.maxY &&
-        open.some((p) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring)),
+        open.some((p) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring) && !inSecretRoom(p)),
     )
   }
 
@@ -3721,6 +3802,8 @@ function recorteDoGrupo(
     shown: (w) => jogadorVeItem('parede', w),
     placeOk: (w) => {
       if (w.regionId !== undefined && secretRoomIds.has(w.regionId)) return false
+      // A solta dentro da sala secreta fechada também: a autoridade olha através da sala (F09), e ela é de dentro.
+      if (insideClosedSecretRoom(w)) return false
       if (interiorRoofOf(w) !== undefined) return false
       // Porta com o meio escondido não sai nem pelas amostras dos lados.
       if (w.door !== null) return !inConcealZone(wallMidpoint(w))
@@ -4143,7 +4226,7 @@ function recorteDoGrupo(
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
   const alerts =
     seenTargets.size > 0 && playerTokens.some((t) => tokenWatchOf(t) !== null)
-      ? guardAlerts(map, seenTargets, ownTokens.length > 0 ? authoritySegments : undefined)
+      ? guardAlerts(map, seenTargets, ownTokens.length > 0 ? guardSegments() : undefined)
       : new Map<string, WatchAlert>()
 
   // `tokens` (abaixo) sai 1 para 1 de `playerTokens`: os ids que saem já são estes.

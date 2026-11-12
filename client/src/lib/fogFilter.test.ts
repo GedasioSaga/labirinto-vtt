@@ -491,7 +491,7 @@ describe('filterMapForPlayer — revisão de segurança da visibilidade', () => 
     return exp
   }
 
-  it('SEGURANÇA: anel de visão não tem a sombra das paredes da sala secreta; token atrás dela continua fora', () => {
+  it('SEGURANÇA: anel de visão não tem a sombra das paredes da sala secreta; quem está DENTRO continua fora, quem está atrás aparece (decisão 30)', () => {
     const points = [{ x: 300, y: 150 }, { x: 400, y: 150 }, { x: 400, y: 250 }, { x: 300, y: 250 }]
     const secretWalls = [
       wall('ss-1', 300, 150, 400, 150, { regionId: 'sala-secreta' }),
@@ -502,14 +502,22 @@ describe('filterMapForPlayer — revisão de segurança da visibilidade', () => 
     const tokens = [token('heroi', 200, 200), token('atras-da-sala', 450, 200)]
     const plain = filterMapForPlayer(twoRooms({ tokens }), 'p1', ownership, RADIUS)
     const secret = filterMapForPlayer(
-      twoRooms({ tokens, regions: [room('sala-secreta', 's', points, { secret: true })], walls: [wall('divisoria', 500, 0, 500, 1000), ...secretWalls] }),
+      twoRooms({
+        tokens: [...tokens, token('dentro-da-sala', 350, 200)],
+        regions: [room('sala-secreta', 's', points, { secret: true })],
+        walls: [wall('divisoria', 500, 0, 500, 1000), ...secretWalls],
+      }),
       'p1',
       ownership,
       RADIUS,
     )
     expect(JSON.stringify(secret.vision)).toBe(JSON.stringify(plain.vision))
-    // A autoridade continua usando as paredes: o que está atrás delas não sai.
-    expect(JSON.stringify(secret.map)).not.toContain('atras-da-sala')
+    // SALA SECRETA FECHADA NÃO TAPA NADA (caça de 12/11/2026, decisão 30 do mestre): a autoridade olha através
+    // dela como a visão enviada, e o que está atrás sai como na cena sem a sala. O de dentro, a sala e as paredes não.
+    expect(secret.map).toEqual(plain.map)
+    const json = JSON.stringify(secret.map)
+    expect(json).toContain('atras-da-sala')
+    for (const escondido of ['dentro-da-sala', 'sala-secreta', 'ss-1', 'ss-2', 'ss-3', 'ss-4']) expect(json).not.toContain(escondido)
   })
 
   it('SEGURANÇA: parede e porta dentro de zona ativa não mudam o anel de visão (abrir/fechar a porta não aparece)', () => {
