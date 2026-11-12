@@ -20,6 +20,7 @@ import { playerExitPassageOf, unreadExitLabels } from '../lib/pinTravel'
 import type { LockAnswerPhase } from './playerConnection'
 import { PlayerLockPad } from './PlayerLockPad'
 import { PASS_CHECK_TEXT } from './travelNotice'
+import { TEXTO_LONGE_DO_ITEM } from './PlayerItemCard'
 import { TEXTO_A_BORDO_VIAGEM, type PinTravelChoice } from '../lib/pinTravelers'
 import { TEXTO_CONGELADO } from '../lib/congelar'
 import type { JogoDoMinigame } from '../minigames/tipos'
@@ -720,9 +721,14 @@ export function PlayerPinCard({
           <div className="pp-pincard__item">
             <p className="pp-pincard__question">{item.nome}</p>
             {onTakeItem !== undefined && (
-              <button type="button" className="pp-pincard__travel" disabled={takeWaiting} onClick={onTakeItem}>
-                {takeWaiting ? 'Pedido enviado ao mestre' : 'Pegar'}
-              </button>
+              // Longe, apagado com o motivo, como o cartão do item no chão
+              // (`PlayerItemCard`): `longe` é a mesma régua do "Pegar" no host.
+              <>
+                <button type="button" className="pp-pincard__travel" disabled={takeWaiting || longe} onClick={onTakeItem}>
+                  {takeWaiting ? 'Pedido enviado ao mestre' : 'Pegar'}
+                </button>
+                {longe && !takeWaiting && <p className="pp-itemcard__longe">{TEXTO_LONGE_DO_ITEM}</p>}
+              </>
             )}
           </div>
         )}
