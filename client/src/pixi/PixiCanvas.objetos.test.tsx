@@ -219,6 +219,27 @@ describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
     expect(useMapStore.getState().selection).toEqual([])
   })
 
+  it('CHÃO em cima de CHÃO: com o Píer escolhido, o clique num píer já posto o seleciona (a ficha passa para ele) e continua 1 píer', async () => {
+    const pier = criarMovel('pier', NO_CORREDOR, GRADE, 'pier-posto')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [pier] }, mobiliaTipo: 'pier' })
+    await monta()
+    aperta(NO_CORREDOR, BOTAO_ESQUERDO)
+
+    expect(useMapStore.getState().map.props).toEqual([pier])
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'pier-posto' }])
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('objeto comum em cima de CHÃO: com o Barril escolhido, o clique no píer põe o barril por cima dele, sem selecionar', async () => {
+    const pier = criarMovel('pier', NO_CORREDOR, GRADE, 'pier-posto')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [pier] }, mobiliaTipo: 'barril' })
+    await monta()
+    aperta(NO_CORREDOR, BOTAO_ESQUERDO)
+
+    expect(useMapStore.getState().map.props.map((p) => p.mobilia)).toEqual(['pier', 'barril'])
+    expect(useMapStore.getState().selection).toEqual([])
+  })
+
   it('Ctrl + clique em cima de um objeto comum põe o objeto escolhido por cima dele (o fim da lista), sem selecionar', async () => {
     const caixa = criarMovel('caixa', NO_CORREDOR, GRADE, 'caixa-grande')
     useMapStore.setState({ map: { ...mapaComQuarto(), props: [caixa] }, mobiliaTipo: 'barril' })
