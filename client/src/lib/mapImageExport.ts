@@ -82,11 +82,15 @@ export function mapForImageExport(map: MapData, options: ImageExportOptions): Ma
     walls: map.walls.filter((w) => !isHidden(w)),
     regions: map.regions.filter((r) => !isHidden(r)),
   }
-  return options.masterOnly ? shown : withoutMasterOnly(shown)
+  return options.masterOnly ? shown : withoutMasterOnly(shown, map.walls.filter(isHidden))
 }
 
-/** Tudo que o jogador nunca recebe por decisão do mestre, fora do mapa. */
-function withoutMasterOnly(map: MapData): MapData {
+/**
+ * Tudo que o jogador nunca recebe por decisão do mestre, fora do mapa.
+ * `paredesInvisiveis`: as que `mapForImageExport` já tirou de `map`; contam
+ * como paredes tiradas para a textura por área que acaba nelas.
+ */
+function withoutMasterOnly(map: MapData, paredesInvisiveis: readonly Wall[]): MapData {
   const secretRooms = map.regions.filter((r) => r.secret && r.room !== undefined)
   // Sala secreta leva junto as sub-salas e as paredes delas, como no recorte do jogador.
   const goneRegionIds = new Set([
@@ -100,7 +104,7 @@ function withoutMasterOnly(map: MapData): MapData {
   const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d)))
   const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
   const ficam = new Set(walls)
-  const paredesTiradas = map.walls.filter((w) => !ficam.has(w))
+  const paredesTiradas = [...paredesInvisiveis, ...map.walls.filter((w) => !ficam.has(w))]
   const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas, paredesTiradas)
 
   const semSegredo: MapData = {

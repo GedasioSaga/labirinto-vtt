@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AlvoDoBalde, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { AlvoDoBalde, CamadaId, MapData, Region, RegionPoint, Token, Wall } from '../types/map'
 import { areaFechadaPorParedes } from './baldeDeTinta'
 import { createExploration, markRings } from './exploration'
 import { filterMapForPlayer } from './fogFilter'
@@ -157,5 +157,49 @@ describe('textura na área em volta de sala secreta', () => {
       const recorte = filterMapForPlayer({ ...secreto, tokens: [heroi(200, 200)] }, 'p1', POSSE, 300, undefined, undefined, undefined, undefined, undefined, undefined, undefined, descoberto)
       expect(recorte.map.texturas, `descoberto, parede a ${a} px`).toEqual(secreto.texturas)
     }
+  })
+})
+
+/**
+ * PAREDE ESCONDIDA DE PROPÓSITO (12/11/2026): a divisa no meio do salão está
+ * numa camada escondida dos jogadores, ou é parede invisível (`hidden`). O
+ * jogador não a recebe, e a área da metade esquerda acaba em cima dela: a borda
+ * da textura desenharia a parede na tela dele (com a camada escondida, a visão
+ * enviada até passa pela parede). O mesmo na imagem, que tira a parede invisível.
+ *
+ * Geometria (mapa 35x25 de 40 px, camadas v2): salão 140..1260 x 140..860; a
+ * divisa em x = 700; o clique do balde em (300, 300); a ficha em (400, 500).
+ */
+const LIVRE: CamadaId = 'livre_16bcc5fe'
+
+function salaoComDivisa(divisa: Partial<Wall>, ocultasDoJogador: CamadaId[] = []): MapData {
+  const salao = [parede('n', 140, 140, 1260, 140), parede('l', 1260, 140, 1260, 860), parede('s', 1260, 860, 140, 860), parede('o', 140, 860, 140, 140)]
+  const walls = [...salao, { ...parede('divisa', 700, 140, 700, 860), ...divisa }]
+  const base: MapData = { ...createEmptyMap('m', 'M', 35, 25, 40), versaoDasCamadas: 2, ocultasDoJogador, walls, tokens: [heroi(400, 500)] }
+  const area = areaFechadaPorParedes(base, { x: 300, y: 300 })
+  if (area === null) throw new Error('a metade do salão não fechou')
+  return { ...base, texturas: [{ id: 'lajotas', tipo: 'balde', textura: 'lajotas', forca: 1, alvo: { tipo: 'area', pontos: area } }] }
+}
+
+describe('textura na área fechada por parede escondida de propósito', () => {
+  it('SEGURANÇA: a área que acaba numa parede de camada escondida dos jogadores, ou numa parede invisível, não sai para o jogador; a da invisível, nem na imagem exportada', () => {
+    const naCamada = filterMapForPlayer(salaoComDivisa({ camada: LIVRE }, [LIVRE]), 'p1', POSSE, 300).map
+    const invisivel = filterMapForPlayer(salaoComDivisa({ hidden: true }), 'p1', POSSE, 300).map
+    const imagem = mapForImageExport(salaoComDivisa({ hidden: true }), SEM_O_MESTRE)
+    // A premissa: a parede não vai em nenhum dos três.
+    for (const saida of [naCamada, invisivel, imagem]) expect(saida.walls.map((w) => w.id)).not.toContain('divisa')
+
+    const saidas: [string, MapData][] = [['jogador, camada escondida', naCamada], ['jogador, parede invisível', invisivel], ['imagem, parede invisível', imagem]]
+    const vazou = saidas.filter(([, saida]) => passos(saida).length > 0).map(([onde]) => onde)
+    expect(vazou, 'a borda da textura desenhou a parede que quem recebe não ganha').toEqual([])
+  })
+
+  it('controle: a mesma divisa numa camada à mostra dos jogadores, ou parede comum, leva a área como hoje', () => {
+    const naCamada = salaoComDivisa({ camada: LIVRE })
+    expect(filterMapForPlayer(naCamada, 'p1', POSSE, 300).map.texturas, 'camada à mostra').toEqual(naCamada.texturas)
+
+    const comum = salaoComDivisa({})
+    expect(filterMapForPlayer(comum, 'p1', POSSE, 300).map.texturas, 'jogador, parede comum').toEqual(comum.texturas)
+    expect(mapForImageExport(comum, SEM_O_MESTRE).texturas, 'imagem, parede comum').toEqual(comum.texturas)
   })
 })

@@ -351,9 +351,10 @@ export const FOLGA_DA_AREA_NA_PAREDE = 0.5
  * O contorno da ÁREA fechada por paredes passa por alguma das `paredes`: um
  * canto dele a até `FOLGA_DA_AREA_NA_PAREDE` quadrado do eixo dela. O contorno
  * segue o eixo das paredes que cercam a área, então a parede que quem recebe o
- * passo NÃO recebe (a de sala secreta fechada, a que a imagem exportada tira)
- * sairia desenhada nele: o buraco no formato do cofre no meio do salão, onde
- * quer que o mestre tenha posto a parede dele (12/11/2026).
+ * passo NÃO recebe (a de sala secreta fechada, a invisível, a de camada
+ * escondida dos jogadores, a que a imagem exportada tira) sairia desenhada
+ * nele: o buraco no formato do cofre no meio do salão, onde quer que o mestre
+ * tenha posto a parede dele (12/11/2026).
  */
 export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: readonly Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>[], grid: number): boolean {
   if (paredes.length === 0) return false
