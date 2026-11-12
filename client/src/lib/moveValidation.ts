@@ -1,4 +1,4 @@
-import type { MapData, RegionPoint, Token, Wall } from '../types/map'
+import type { MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
 import { paredesParaAndar } from './barranco'
@@ -6,7 +6,8 @@ import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
-import { playerHiddenRings } from './fogFilter'
+import { objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
+import { paredesParaAndarDoJogador, semParedesDeObjeto } from './obstaculosDeObjeto'
 import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
 import type { Casa } from './batalha/blocos'
@@ -30,6 +31,8 @@ export interface TokenMoveRequest {
  * ou uma que iria presa a ela (a bordo, levada; a sessão confere, `lib/congelar.ts`).
  * `a_bordo`: VEÍCULO — a ficha vai a bordo e não é a motorista (`driverOf`): quem
  * vai de passageiro não anda; desce primeiro (a sessão confere, `net/hostSession.ts`).
+ * `objeto`: OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`) — o passo passaria
+ * se não fosse a forma de um objeto no caminho ('Objeto no caminho').
  */
 export type TokenMoveRejection =
   | 'unknown_token'
@@ -41,6 +44,7 @@ export type TokenMoveRejection =
   | 'outside_floor'
   | 'occupied'
   | 'a_bordo'
+  | 'objeto'
 
 /**
  * Por que o movimento aceito parou em outro lugar que não o pedido.
@@ -339,7 +343,13 @@ export function validateTokenMove(
   // FORA DO CHÃO: na cena livre nenhuma peça limita (`chaoQueLimita`), e as três travas do chão abaixo não seguram.
   const compiled = compileFloor(chaoQueLimita(map))
   // BARRANCO (`lib/barranco.ts`): a linha do barranco do piso da ficha segura o passo como parede que deixa ver.
-  const paredes = paredesParaAndar(map.walls, map, pisoDe(token))
+  const semObjetos = paredesParaAndar(map.walls, map, pisoDe(token))
+  // OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`): só o JOGADOR; o mestre atravessa sempre. A ficha que
+  // começa dentro de um objeto ignora as paredes dele (nunca fica presa), e o objeto que o recorte não
+  // entrega a ele (camada, zona oculta, sala secreta) não barra: a recusa contaria que ele existe.
+  let testeDoEscondido: ((prop: Prop) => boolean) | null = null
+  const escondido = (prop: Prop): boolean => (testeDoEscondido ??= objetoEscondidoDosJogadores(map))(prop)
+  const paredes = options.isHost ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido)
 
   // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
   // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto
@@ -353,7 +363,7 @@ export function validateTokenMove(
   // MODO BATALHA: centro da casa, blocos pelo menor caminho legal (o mestre anda livre).
   if (!options.isHost && options.batalha !== undefined) {
     const occupants = options.occupants ?? map.tokens
-    const passo = passoEmBatalha({
+    const pedido = {
       grid: map.grid,
       colunas: map.width,
       linhas: map.height,
@@ -363,9 +373,15 @@ export function validateTokenMove(
       passoMaximo: maxStepOf(map),
       paredesDoHost: paredes,
       paredesDoJogador: options.batalha.paredesDoJogador,
-      noChao: (p) => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
-      ocupada: (p) => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
-    })
+      noChao: (p: Point): boolean => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
+      ocupada: (p: Point): boolean => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
+    }
+    const passo = passoEmBatalha(pedido)
+    // Sem caminho por causa de um objeto (a casa pedida fica dentro dele, ou cercada por eles): a recusa diz isso.
+    if (!passo.ok && passo.reason === 'wall' && paredes !== semObjetos) {
+      const semOsObjetos = passoEmBatalha({ ...pedido, paredesDoHost: semObjetos, paredesDoJogador: semParedesDeObjeto(options.batalha.paredesDoJogador) })
+      if (semOsObjetos.ok) return { ok: false, reason: 'objeto' }
+    }
     // O caminho só vai a quem pediu (a prévia do jogador, B6); o host responde o lugar e os blocos.
     if (!passo.ok || options.batalha.comCaminho === true) return passo
     return { ok: true, x: passo.x, y: passo.y, blocos: passo.blocos }
@@ -373,7 +389,11 @@ export function validateTokenMove(
 
   // Pode ter 2 trechos: entrar em diagonal por porta aberta passa pelo vão (lib/collision.ts).
   const path = findTokenPath(from, to, paredes, map.grid)
-  if (path === null) return { ok: false, reason: 'wall' }
+  if (path === null) {
+    // Passaria se não fosse o objeto? Então quem barrou foi ele. Parede no mesmo traço continua `wall`.
+    const foiObjeto = paredes !== semObjetos && findTokenPath(from, to, semObjetos, map.grid) !== null
+    return { ok: false, reason: foiObjeto ? 'objeto' : 'wall' }
+  }
 
   for (let i = 1; i < path.length; i += 1) {
     const a = path[i - 1]

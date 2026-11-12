@@ -1960,7 +1960,7 @@ export const VEHICLE_NOTICE_TEXT: Record<VehicleNotice, string> = {
 /**
  * O que o aviso do rodapé (`moveNotice`) pode dizer. CLICAR PARA ANDAR: as
  * recusas do trecho marcado (`MotivoDaCaminhada`) e o clique que nem saiu
- * (`AvisoDoClique`: chave desligada, caminho desconhecido, cercado, destino fora do Chão).
+ * (`AvisoDoClique`: chave desligada, caminho desconhecido, cercado, destino fora do Chão ou dentro de um objeto).
  */
 export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice | MotivoDaCaminhada | AvisoDoClique
 const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
@@ -1973,6 +1973,7 @@ const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
   'outside_floor',
   'occupied',
   'a_bordo',
+  'objeto',
   'caminhada_desligada',
   'nevoa',
 ]

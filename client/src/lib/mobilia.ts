@@ -430,6 +430,20 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
 }
 
 /**
+ * Móveis que BARRAM A PASSAGEM da ficha do jogador de saída (pedido do mestre
+ * de 12/11/2026: "esse tipo de construto mais grande como o cata-vento e
+ * alguns outros tem que ter uma colisão para os jogadores não passarem por
+ * dentro"): as construções e os objetos grandes de rua. O resto (móvel de
+ * sala, cerca, tenda em que se entra) não barra. Quem monta o obstáculo e
+ * decide o que nunca barra (objeto de chão, item, secreto, escondido) é
+ * `lib/obstaculosDeObjeto.ts`; o mestre atravessa sempre.
+ * As duas torres (`torreDePedra`, `torreDeVigia`) entram nesta lista quando forem registradas em `mobilia/tipos.ts`.
+ */
+export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
+  return tipo === 'moinho' || tipo === 'cataVento' || tipo === 'mausoleu' || tipo === 'poco' || tipo === 'chafariz' || tipo === 'estatua' || tipo === 'anjoDePedra' || tipo === 'pilar' || tipo === 'blocoDeInscricoesAzul' || tipo === 'blocoDeInscricoesVermelho' || tipo === 'blocoDeInscricoesDourado' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'barraca'
+}
+
+/**
  * Móveis que moram EM CIMA da mesa, por cima de todo objeto: os Pratos (a mesa
  * posta, 28/10/2026). O avesso do tapete: a ordem de desenho (de cima e 3/4),
  * o contêiner da mesa posta do editor e o clique (que pega os pratos primeiro)

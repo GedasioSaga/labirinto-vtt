@@ -2669,7 +2669,7 @@ function PlayerViewDoCanvas({
     if (!previa.ok) {
       drag.x = wanted.x
       drag.y = wanted.y
-      drag.label = previa.reason === 'occupied' ? 'Casa ocupada' : previa.reason === 'outside_floor' ? 'Fora do chão' : previa.reason === 'wall' ? 'Sem caminho' : null
+      drag.label = previa.reason === 'occupied' ? 'Casa ocupada' : previa.reason === 'outside_floor' ? 'Fora do chão' : previa.reason === 'wall' ? 'Sem caminho' : previa.reason === 'objeto' ? 'Objeto no caminho' : null
       drag.caminho = null
       return
     }

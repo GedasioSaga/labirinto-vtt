@@ -33,6 +33,8 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   occupied: 'Lugar ocupado',
   // VEÍCULO: passageiro que não dirige não anda — desce primeiro (ou espera o motorista).
   a_bordo: 'A bordo: desça para andar',
+  // OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`): o moinho, o poço, o pilar no meio do passo.
+  objeto: 'Objeto no caminho',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {
@@ -41,10 +43,11 @@ export function moveNoticeText(reason: TokenMoveRejection): string {
 
 /**
  * CLICAR PARA ANDAR: por que a caminhada não saiu (ou parou no host). O cercado
- * reusa "Lugar ocupado" e o destino fora do Chão reusa "Fora do chão", as
- * frases da recusa do host (`MOVE_NOTICE_TEXT`).
+ * reusa "Lugar ocupado", o destino fora do Chão reusa "Fora do chão" e o
+ * destino dentro de um objeto reusa "Objeto no caminho", as frases da recusa
+ * do host (`MOVE_NOTICE_TEXT`).
  */
-type AvisoDaCaminhada = MotivoDaCaminhada | Exclude<AvisoDoClique, 'occupied' | 'outside_floor'>
+type AvisoDaCaminhada = MotivoDaCaminhada | Exclude<AvisoDoClique, 'occupied' | 'outside_floor' | 'objeto'>
 const CAMINHADA_NOTICE_TEXT: Record<AvisoDaCaminhada, string> = {
   caminhada_desligada: 'O mestre desligou o clicar para andar nesta cena',
   // A mesma frase do item "Andar até aqui" esmaecido no menu do toque longo.

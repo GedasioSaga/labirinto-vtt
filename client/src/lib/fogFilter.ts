@@ -426,6 +426,25 @@ export function fichasNaCamadaDoJogador(map: MapData, tokens: readonly Token[] =
 }
 
 /**
+ * OBJETO QUE BARRA A PASSAGEM (`lib/obstaculosDeObjeto.ts`): o teste do objeto
+ * que o host NÃO pode usar como obstáculo para o jogador, porque o recorte
+ * nunca o entrega e a recusa "Objeto no caminho" contaria que ele existe:
+ * - o de camada que os jogadores não veem (o olho "Jogadores veem", com a
+ *   camada apagada a 0%, como em `fichasNaCamadaDoJogador`);
+ * - o que tem qualquer amostra da silhueta (`propSamplePoints`, a mesma conta
+ *   do recorte) em zona oculta ativa ou em sala secreta (`playerHiddenRings`).
+ * `hidden` e `secret` do próprio objeto ficam com `objetoBarraPassagem`. O
+ * teto fica de fora, como em `playerHiddenRings`: a sala com teto é lugar onde
+ * a ficha entra andando, e o que há nela segura o passo como a parede dela.
+ * As contas do mapa são feitas uma vez; o teste devolvido serve ao passo inteiro.
+ */
+export function objetoEscondidoDosJogadores(map: MapData): (prop: MapData['props'][number]) => boolean {
+  const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
+  const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
+  return (prop) => !camadas.jogadorVeItem('objeto', prop) || (aneis.length > 0 && propSamplePoints(prop).some((p) => aneis.some((anel) => pointInRing(p, anel))))
+}
+
+/**
  * OPACIDADE 0 = O JOGADOR NÃO VÊ (revisão da fatia 6, decisão do
  * orquestrador): camada a 0% com o olho dos jogadores ligado mandava
  * `{ id, alfa: 0 }` e TODOS os itens dela no pacote — invisíveis na tela,

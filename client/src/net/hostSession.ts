@@ -27,6 +27,7 @@ import {
   emptyPlanMemory,
   espiadaPeloPino,
   fichasNaCamadaDoJogador,
+  objetoEscondidoDosJogadores,
   filterFloorMemory,
   filterMapForGroup,
   filterMapForPlayer,
@@ -68,7 +69,7 @@ import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } fro
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
-import { paredesParaAndar } from '../lib/barranco'
+import { paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
@@ -6069,10 +6070,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `mapId` — as da última tela que esta conexão recebeu. `null` sem tela
    * dessa cena (aí ele não conhece nada a mais nem a menos que o mestre).
    */
-  function paredesDoRecorte(clientId: string, mapId: string, piso: number): Wall[] | null {
+  function paredesDoRecorte(clientId: string, mapId: string, piso: number, de: RegionPoint | null): Wall[] | null {
     const recorte = sentViews.get(clientId)?.view?.map
     // BARRANCO: o que ele vê do barranco (o do recorte) também segura a conta dele.
-    return recorte === undefined || recorte.id !== mapId ? null : paredesParaAndar(mapaDoPiso(recorte, piso).walls, recorte, piso)
+    // OBJETO QUE BARRA: e o objeto grande que ele vê (os do recorte), menos o que contém a ficha (`de`).
+    return recorte === undefined || recorte.id !== mapId ? null : paredesParaAndarDoJogador(mapaDoPiso(recorte, piso).walls, recorte, piso, de)
   }
 
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
@@ -6112,7 +6114,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const piso = tokenPisoOf(msg.tokenId, scene.map)
     const floorMap = mapaDoPiso(scene.map, piso)
     // B6: o host pede as casas andadas (`comCaminho`) para o caminho andado; a resposta ao jogador não as leva.
-    const batalha = emBatalha(scene) ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso) ?? paredesParaAndar(floorMap.walls, floorMap, piso), comCaminho: true } : undefined
+    // OBJETO QUE BARRA: sem tela dessa cena, as paredes dele são as que o host usa no passo (`validateTokenMove`).
+    const deOndeSai = floorMap.tokens.find((t) => t.id === msg.tokenId) ?? null
+    const batalha = emBatalha(scene)
+      ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso, deOndeSai) ?? paredesParaAndarDoJogador(floorMap.walls, floorMap, piso, deOndeSai, objetoEscondidoDosJogadores(floorMap)), comCaminho: true }
+      : undefined
     const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da

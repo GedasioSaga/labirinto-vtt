@@ -1,7 +1,7 @@
 import type { MapData, Token } from '../types/map'
 import type { Point } from '../pixi/world'
 import { caminhoConhecido, destinoConhecidoForaDoChao, isPointKnown, type KnownArea } from './knownPath'
-import { mapaParaAndar } from './barranco'
+import { mapaParaAndarDoJogador, objetoBarraOPonto } from './obstaculosDeObjeto'
 import { pisoDe } from './pisos'
 import { MAX_PATH_SAMPLES } from './moveValidation'
 import { findOccupant, tokensOccupy } from './movementRules'
@@ -22,8 +22,9 @@ export type MotivoDaCaminhada = 'caminhada_desligada' | 'nevoa'
  * Por que o clique não virou caminhada (o aviso do rodapé). `outside_floor` é
  * o destino que ele vê, mas fica fora do Chão de uma cena em "Fora do Chão:
  * bloqueado" (`lib/offFloor.ts`): a mesma recusa que o arrasto recebe do host.
+ * `objeto` é o destino dentro de um objeto que barra (`lib/obstaculosDeObjeto.ts`).
  */
-export type AvisoDoClique = 'caminhada_desligada' | 'caminho_desconhecido' | 'occupied' | 'outside_floor'
+export type AvisoDoClique = 'caminhada_desligada' | 'caminho_desconhecido' | 'occupied' | 'outside_floor' | 'objeto'
 
 export type PlanoDaCaminhada = { tipo: 'andar'; trechos: Point[]; destino: Point } | { tipo: 'aviso'; motivo: AvisoDoClique }
 
@@ -105,10 +106,13 @@ export function planejarCaminhada(map: MapData, quemAnda: Token, alvo: Point, ar
   const ocupado = (p: Point): boolean => tokensOccupy(map) && findOccupant(map.tokens, quemAnda.id, p, map.grid) !== undefined
   const destinoPedido = { x: Math.round(alvo.x), y: Math.round(alvo.y) }
   // BARRANCO: o caminho desvia do barranco que ele vê (rampa e ponta do risco deixam passar).
-  const mapaQueAnda = mapaParaAndar(map, pisoDe(quemAnda))
+  // OBJETO QUE BARRA: e contorna o objeto grande que ele vê; a ficha que está dentro de um sai.
+  const mapaQueAnda = mapaParaAndarDoJogador(map, pisoDe(quemAnda), quemAnda)
   if (!ocupado(destinoPedido)) {
     const r = caminhoConhecido(mapaQueAnda, quemAnda, destinoPedido, area)
     if (r.tipo === 'caminho') return { tipo: 'andar', trechos: r.trechos, destino: destinoPedido }
+    // O destino fica dentro de um objeto que barra (só os que a tela dele recebeu): a frase da recusa do host.
+    if (objetoBarraOPonto(map, pisoDe(quemAnda), destinoPedido, quemAnda)) return { tipo: 'aviso', motivo: 'objeto' }
     // Ele conhece o ponto; quem barra é a borda do Chão. No escuro, a frase de sempre.
     return { tipo: 'aviso', motivo: destinoConhecidoForaDoChao(mapaQueAnda, destinoPedido, area) ? 'outside_floor' : 'caminho_desconhecido' }
   }

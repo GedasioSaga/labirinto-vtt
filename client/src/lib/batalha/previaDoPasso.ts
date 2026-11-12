@@ -1,7 +1,7 @@
 import type { MapData } from '../../types/map'
 import type { Point } from '../../pixi/world'
 import { validateTokenMove, type TokenMoveResult } from '../moveValidation'
-import { paredesParaAndar } from '../barranco'
+import { paredesParaAndarDoJogador } from '../obstaculosDeObjeto'
 import { pisoDe } from '../pisos'
 
 /** Dono de mentira da prévia: só a ficha que se arrasta é "dele". */
@@ -20,8 +20,9 @@ const QUEM_ARRASTA = 'previa'
  */
 export function previaDoPassoEmBatalha(recorte: MapData, tokenId: string, para: Point): TokenMoveResult {
   // BARRANCO: o que ele vê do barranco segura a prévia; o host usa todos (o esbarrão avisa a diferença).
+  // OBJETO QUE BARRA: o objeto grande que ele vê também; a ficha que está dentro de um sai.
   const ficha = recorte.tokens.find((t) => t.id === tokenId)
-  const paredes = paredesParaAndar(recorte.walls, recorte, ficha === undefined ? 0 : pisoDe(ficha))
+  const paredes = paredesParaAndarDoJogador(recorte.walls, recorte, ficha === undefined ? 0 : pisoDe(ficha), ficha ?? null)
   return validateTokenMove(
     recorte,
     { playerId: QUEM_ARRASTA, tokenId, x: para.x, y: para.y },
