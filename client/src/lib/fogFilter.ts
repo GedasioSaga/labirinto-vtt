@@ -71,6 +71,7 @@ import { setaDoAbalo, type AbaloSeta } from './abalo'
 import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
+import { espessuraDoMaterial, ladosDoObjetoNaParede, paredeComMaterial, paredesQueSeguram, type ParedeQueSegura } from './faixasDaParede'
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -2080,6 +2081,25 @@ function wallSideSamples(wall: Wall, grid: number, distance: number): RegionPoin
   return out
 }
 
+/** Folga além da meia espessura onde a sonda da parede com textura olha (px do mundo). */
+const SONDA_ALEM_DO_CORPO_PX = 1
+
+/**
+ * As amostras que dizem se a parede está À VISTA: as dos dois lados a
+ * `DOOR_VISION_PROBE` px e, na parede com textura, também as de meia espessura
+ * + 1 px (caça de 12/11/2026, N1 passo 3). A parede com textura colada atrás de
+ * uma lisa (o cais do Reino de Goa: 2,47 px) tem as amostras de 2 px além da
+ * lisa, fora da visão, e não saía no pacote, embora o corpo dela estivesse na
+ * borda do que ele vê. A amostra mais longe só alcança o corpo da própria
+ * parede: conta como vista a parede cujo desenho já está na borda da visão.
+ */
+function wallSeenSamples(wall: Wall, grid: number): RegionPoint[] {
+  const perto = wallSideSamples(wall, grid, DOOR_VISION_PROBE)
+  if (!paredeComMaterial(wall)) return perto
+  const corpo = espessuraDoMaterial(wall, grid) / 2 + SONDA_ALEM_DO_CORPO_PX
+  return corpo > DOOR_VISION_PROBE ? [...perto, ...wallSideSamples(wall, grid, corpo)] : perto
+}
+
 /** Profundidade mínima, em px de mundo, para um vértice da visão contar como DENTRO de uma peça de chão. */
 const FLOOR_SEEN_DEPTH = 1
 
@@ -3532,7 +3552,8 @@ function recorteDoGrupo(
       return true
     },
     seenNow: (w) => {
-      if (w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSideSamples(w, map.grid, DOOR_VISION_PROBE).some(isVisible)) return true
+      // Parede com textura: também a meia espessura + 1 px (`wallSeenSamples`).
+      if (w.door !== null ? doorSamples(w, DOOR_VISION_PROBE).some(isVisible) : wallSeenSamples(w, map.grid).some(isVisible)) return true
       // Cômodo visto agora: as mesmas amostras de `inKnownComodoWall`, fora da sala escondida.
       if (!memoryMode || inHiddenPlace(wallMidpoint(w))) return false
       const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
@@ -3548,7 +3569,7 @@ function recorteDoGrupo(
       if (memoryMode || explored === undefined) return false
       const probe = explored.cell * DOOR_EXPLORED_PROBE_CELLS
       if (w.door !== null) return doorSamples(w, probe).some(isPointExploredOpen)
-      return [...wallSideSamples(w, map.grid, DOOR_VISION_PROBE), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
+      return [...wallSeenSamples(w, map.grid), ...wallSideSamples(w, map.grid, probe)].some(isPointExploredOpen)
     },
   })
   /**
@@ -3568,11 +3589,13 @@ function recorteDoGrupo(
     const probe = (explored?.cell ?? map.grid) * DOOR_EXPLORED_PROBE_CELLS
     return wallProbeSamples(w, probe).some((p) => !inHiddenPlace(p) && inKnownComodo(p))
   }
+  /** As amostras de "à vista" da parede: porta, as do vão a `DOOR_VISION_PROBE`; parede, `wallSeenSamples` (com textura, também a meia espessura). */
+  const wallSeenProbe = (w: Wall): RegionPoint[] => (w.door !== null ? doorSamples(w, DOOR_VISION_PROBE) : wallSeenSamples(w, map.grid))
   /** Parede vista agora ou com o lado explorado (a regra de antes da memória da planta). */
   const wallSeenOrExplored = (w: Wall): boolean => {
-    if (wallProbeSamples(w, DOOR_VISION_PROBE).some(isVisible)) return true
+    if (wallSeenProbe(w).some(isVisible)) return true
     if (explored === undefined) return false
-    return [...wallProbeSamples(w, DOOR_VISION_PROBE), ...wallProbeSamples(w, explored.cell * DOOR_EXPLORED_PROBE_CELLS)].some(isPointExploredOpen)
+    return [...wallSeenProbe(w), ...wallProbeSamples(w, explored.cell * DOOR_EXPLORED_PROBE_CELLS)].some(isPointExploredOpen)
   }
   /**
    * A versão de `w` (de `knownWalls`) que o jogador recebe; `null` = ele nunca
@@ -4112,6 +4135,38 @@ function recorteDoGrupo(
     if (propSamplePoints(p).some((q) => inSecretRoom(q) || hiddenByZone(q))) return false
     return contourSamples(telhado.points).some(isVisible)
   }
+  /**
+   * OBJETO PRESO NA PAREDE (caça de 12/11/2026, N4; decisão 20 do mestre): a
+   * tocha e a armadura do nicho têm o centro EM CIMA da linha da parede, e o
+   * lado em que o centro caía era sorte. O objeto preso (a régua da tela do
+   * jogador, `ladosDoObjetoNaParede`) conta como visto quando um dos dois
+   * pontos a meia espessura + 3 px do eixo, um de cada lado, está à vista:
+   * quem vê a parede vê o que está preso nela, dos dois lados. Só segura a
+   * parede que o jogador pode receber: nem a invisível, nem a de sala secreta
+   * fechada, nem a de dentro de teto fechado, nem a de camada escondida dele.
+   * A guarda de lugar escondido NÃO muda, e ganha a zona oculta: objeto com
+   * alguma amostra em sala secreta, sob teto fechado, em cômodo não visto ou
+   * em zona oculta continua fora.
+   */
+  let seguramPertoDaVisao: ParedeQueSegura[] | null = null
+  const paredesQueSeguramPertoDaVisao = (): ParedeQueSegura[] => {
+    if (seguramPertoDaVisao !== null) return seguramPertoDaVisao
+    // O lado fica dentro da caixa da parede alargada pelo alcance: parede longe de todo anel nunca tem lado à vista (o pincel pinta fora dos anéis).
+    const pertoDaVisao = (w: ParedeQueSegura): boolean =>
+      brushed || rings.some((b) => w.maxX >= b.minX && w.minX <= b.maxX && w.maxY >= b.minY && w.minY <= b.maxY)
+    seguramPertoDaVisao = naCamadaDoJogador('parede', knownWalls).flatMap((w) => {
+      if (w.hidden || isSecretRoomWall(w)) return []
+      const segura = paredesQueSeguram([w], map.grid).filter(pertoDaVisao)
+      return segura.length > 0 && interiorRoofOf(w) === undefined ? segura : []
+    })
+    return seguramPertoDaVisao
+  }
+  const presoNaParedeAVista = (p: MapData['props'][number]): boolean => {
+    const lados = ladosDoObjetoNaParede(p, paredesQueSeguramPertoDaVisao())
+    if (lados.length === 0) return false
+    if (propSamplePoints(p).some((q) => inHiddenPlace(q) || hiddenByZone(q))) return false
+    return lados.some(isVisible)
+  }
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
@@ -4204,9 +4259,15 @@ function recorteDoGrupo(
     stairs: playerStairs,
     // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
     // fechado leva junto o objeto com qualquer amostra dela lá dentro
-    // (`propSamplePoints`), como já leva escada, desenho e linha.
+    // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
+    // preso na parede sai também pelos lados dela (`presoNaParedeAVista`).
     props: naCamadaDoJogador('objeto', map.props)
-      .filter((p) => !p.hidden && !p.secret && ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p)))
+      .filter(
+        (p) =>
+          !p.hidden &&
+          !p.secret &&
+          ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
+      )
       .map(propForPlayer),
     drawings: naCamadaDoJogador('desenho', recalledList(map.drawings, drawings, memoryMode)).filter((d) => {
       if (d.secret) return false
