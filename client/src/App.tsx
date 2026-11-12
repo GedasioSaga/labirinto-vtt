@@ -673,6 +673,7 @@ function App() {
   const setDoorSemEspiar = useMapStore((state) => state.setDoorSemEspiar)
   const revealSecretPassage = useMapStore((state) => state.revealSecretPassage)
   const turnWallIntoDoor = useMapStore((state) => state.turnWallIntoDoor)
+  const tirarPorta = useMapStore((state) => state.tirarPorta)
   const doorKind = useMapStore((state) => state.doorKind)
   const setDoorKind = useMapStore((state) => state.setDoorKind)
   const doorMode = useMapStore((state) => state.doorMode)
@@ -2293,7 +2294,7 @@ function App() {
     // Porta nasce do tamanho padrão no MEIO da parede, partindo a parede como a
     // ferramenta Porta faz. Antes o LADO INTEIRO da sala virava porta (bug P10).
     if (selectedWall.door === null) turnWallIntoDoor(selectedWall.id)
-    else setWallDoor(selectedWall.id, null)
+    else tirarPorta(selectedWall.id)
   }
 
   const handleToggleOpen = () => {

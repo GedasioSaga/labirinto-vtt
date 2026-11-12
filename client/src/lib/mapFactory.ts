@@ -1643,6 +1643,52 @@ export function resizeDoorEnd(map: MapData, wallId: string, ponta: 0 | 1, x: num
   return aplicarVaoDaPorta(map, wall, vao, newFrom, newTo, wall.door)
 }
 
+/** O que faz duas paredes serem "a mesma parede" além da posição: todo campo menos o id e as pontas. */
+function mesmasPropriedades(a: Wall, b: Wall): boolean {
+  const { id: _idA, x1: _ax1, y1: _ay1, x2: _ax2, y2: _ay2, ...restoA } = a
+  const { id: _idB, x1: _bx1, y1: _by1, x2: _bx2, y2: _by2, ...restoB } = b
+  const chaves = new Set([...Object.keys(restoA), ...Object.keys(restoB)])
+  const valorEm = (resto: object, chave: string): unknown => (resto as Record<string, unknown>)[chave]
+  return [...chaves].every((chave) => Object.is(valorEm(restoA, chave), valorEm(restoB, chave)))
+}
+
+/**
+ * TIRAR A PORTA (pedido de 12/11/2026, e a prova de 11/11/2026: a parede ficava
+ * em 3 pedaços e o clique onde estava a porta pegava só o de 32 px). O trecho
+ * da porta volta a ser parede e JUNTA com o vizinho sólido encostado de cada
+ * lado, na mesma reta, do mesmo dono (solto, ou a mesma aresta da mesma sala,
+ * `sameEdgeIdentity`) e com as mesmas propriedades (`mesmasPropriedades`):
+ * vira um pedaço só, com o id do trecho da porta. Só os dois vizinhos que a
+ * retirada deixou encostados; parede de desenho (`desenhoId`, sincronizada
+ * pelo contorno do desenho) não junta. Parede inexistente ou sem porta: `map`.
+ */
+export function tirarPorta(map: MapData, wallId: string): MapData {
+  const wall = map.walls.find((w) => w.id === wallId)
+  if (!wall || !wall.door) return map
+  const solida: Wall = { ...wall, door: null }
+  const semPorta = { ...map, walls: map.walls.map((w) => (w.id === wallId ? solida : w)) }
+  if (solida.desenhoId !== undefined) return semPorta
+  const vao = vaoDaPorta(semPorta, solida)
+  if (vao === null) return semPorta
+  const { axis, leftSolid, rightSolid } = vao
+  const junta = (lado: EdgePieceSpan | undefined): EdgePieceSpan | undefined =>
+    lado !== undefined && lado.wall.desenhoId === undefined && mesmasPropriedades(lado.wall, solida) ? lado : undefined
+  const esquerda = junta(leftSolid)
+  const direita = junta(rightSolid)
+  if (esquerda === undefined && direita === undefined) return semPorta
+  // As pontas de fora são as do próprio vizinho, sem refazer a conta: a quina continua no mesmo ponto exato.
+  const pontaDeFora = (lado: EdgePieceSpan, menor: boolean): { x: number; y: number } => {
+    const a = axisParam(axis, lado.wall.x1, lado.wall.y1)
+    const b = axisParam(axis, lado.wall.x2, lado.wall.y2)
+    return (a < b) === menor ? { x: lado.wall.x1, y: lado.wall.y1 } : { x: lado.wall.x2, y: lado.wall.y2 }
+  }
+  const inicio = esquerda !== undefined ? pontaDeFora(esquerda, true) : { x: solida.x1, y: solida.y1 }
+  const fim = direita !== undefined ? pontaDeFora(direita, false) : { x: solida.x2, y: solida.y2 }
+  const inteira: Wall = { ...solida, x1: inicio.x, y1: inicio.y, x2: fim.x, y2: fim.y }
+  const absorvidas = new Set([esquerda?.wall.id, direita?.wall.id])
+  return { ...semPorta, walls: semPorta.walls.filter((w) => !absorvidas.has(w.id)).map((w) => (w.id === wallId ? inteira : w)) }
+}
+
 /**
  * Alterna `DoorState.locked` de uma porta já existente. Campo no schema desde
  * sempre (types/map.ts), sem UI até a fase F2. Parede inexistente ou sem

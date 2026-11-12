@@ -1155,6 +1155,8 @@ interface MapStoreState {
    *  sala em porta (bug P10). Deixa a porta nova selecionada, para o mestre
    *  seguir em Aberta/Trancada. Parede inexistente ou que já é porta: nada. */
   turnWallIntoDoor: (wallId: string) => void
+  /** "Virar parede sólida" do Mais ações: a porta sai e a parede fica um pedaço só (`mapFactory.tirarPorta`). Com histórico. */
+  tirarPorta: (wallId: string) => void
   addStair: (stair: Stair) => void
   removeStair: (id: string) => void
   moveStair: (id: string, dx: number, dy: number) => void
@@ -2165,11 +2167,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
-      // A PORTA SOZINHA sai e a parede fica inteira (o mesmo "Virar parede sólida"
-      // do Mais ações), num passo de Ctrl+Z — apagar o pedaço deixava um buraco.
+      // A PORTA SOZINHA sai e a parede fica inteira, um pedaço só (`tirarPorta`),
+      // num passo de Ctrl+Z — apagar o pedaço deixava um buraco.
       const porta = mapFactory.portaSozinhaNaSelecao(get().map, selection)
       if (porta !== null) {
-        withHistory((map) => mapFactory.setWallDoor(map, porta.id, null))
+        withHistory((map) => mapFactory.tirarPorta(map, porta.id))
         set({ selection: EMPTY_SELECTION })
         // Daqui, e não de quem chama: Delete, Backspace e o botão "Tirar porta" passam todos por aqui.
         useToastStore.getState().push('info', PORTA_TIRADA_TEXT)
@@ -2861,6 +2863,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setDoorOpensFrom: (wallId, side) => withHistory((map) => mapFactory.setDoorOpensFrom(map, wallId, side)),
     setDoorSemEspiar: (wallId, semEspiar) => withHistory((map) => mapFactory.setDoorSemEspiar(map, wallId, semEspiar)),
     revealSecretPassage: (wallId) => withHistory((map) => mapFactory.revealSecretPassage(map, wallId)),
+    tirarPorta: (wallId) => withHistory((map) => mapFactory.tirarPorta(map, wallId)),
     turnWallIntoDoor: (wallId) => {
       const { map, doorKind } = get()
       const wall = map.walls.find((w) => w.id === wallId)
