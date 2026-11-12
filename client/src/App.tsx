@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { PixiCanvas } from './pixi/PixiCanvas'
 import { acharFichaDoFantasma } from './pixi/drawFantasmaDeTeste'
@@ -200,7 +200,10 @@ import { ligacaoLevarFicha } from './stores/levarFicha'
 import { ligarSalaAoEnvio } from './stores/enviarParaCena'
 import type { ActiveAlarmView } from './components/SceneAlarmControls'
 import { PinsSection } from './components/PinsSection'
-import { pinDirectory } from './lib/pinDirectory'
+import { pinDirectory, type PinDirectoryEntry } from './lib/pinDirectory'
+
+/** Caça 12/11 (O6): a seção dos pinos só se refaz quando a lista ou o "ir" mudam, não a cada mapa novo. */
+const PinsSectionSemRefazer = memo(PinsSection)
 import {
   pickBackgroundImage,
   importBackgroundImage,
@@ -1563,6 +1566,17 @@ function App() {
   const adventure = useAdventureStore((state) => state.adventure)
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const sceneCache = useAdventureStore((state) => state.cache)
+  // Caça 12/11 (O6): a lista de pinos só muda com os pinos, o nome do mapa solto ou as cenas; o passo de uma ficha e
+  // cada movimento do arrasto não a refazem (com `PinsSectionSemRefazer`). `pinScenesOf` lê do mapa vivo só `pins` e
+  // `name`: são eles as dependências do mapa aqui.
+  const pinosDoMapaVivo = map.pins
+  const nomeDoMapaVivo = map.name
+  const entradasDosPinos = useMemo(
+    () => pinDirectory(pinScenesOf({ adventure, activeSceneId, cache: sceneCache }, map)),
+    // O mapa entra só por `pins` e `name` (ver acima): o resto dele muda a cada passo e não altera a lista.
+    [adventure, activeSceneId, sceneCache, pinosDoMapaVivo, nomeDoMapaVivo],
+  )
+  const irAoPino = useCallback((entry: PinDirectoryEntry) => useAdventureStore.getState().goToPin(entry.sceneId, entry.pinId), [])
   const previousSceneId = useAdventureStore((state) => state.previousSceneId)
   // Os personagens EM USO: os da pasta de mapas quando o mapa (até solto) herda dela.
   const personagensEmUso = useAdventureStore(personagensAtivos)
@@ -3767,10 +3781,7 @@ function App() {
             scenes={
               <>
               {/* Todos os pinos da aventura pelo nome só do mestre: tocar abre a cena com o pino selecionado. */}
-              <PinsSection
-                entries={pinDirectory(pinScenesOf({ adventure, activeSceneId, cache: sceneCache }, map))}
-                onGo={(entry) => useAdventureStore.getState().goToPin(entry.sceneId, entry.pinId)}
-              />
+              <PinsSectionSemRefazer entries={entradasDosPinos} onGo={irAoPino} />
               {/* Agenda da campanha: mora na aventura, então só aparece com ela; ao jogador só vai o alarme de um evento, no disparo. */}
               {adventure !== null && (
                 <AgendaSection
