@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chão e caminho: uma ferramenta só</title>
+<!--
+  Protótipo "Chão e caminho" (pedido do mestre de 12/11/2026). Proposta e achados:
+  tmp/novos-2026-11-12/chao-e-caminho/PROPOSTA.md e ACHADOS.md; como usar: README.md ao lado.
+  Página única e autônoma: abre com duplo clique, sem rede e sem dependência. Só PC.
+  Canvas 2D na CPU: os materiais são gerados por código ao abrir (em fatias, sem travar), o terreno é
+  composto por pixel só no retângulo que mudou, e cada jeito de desenhar guarda a sua imagem pronta.
+  Cores da interface: client/src/theme.ts (as mesmas dos protótipos da Luz e das Sombras).
+  Cores dos materiais: client/src/texturas/embutidas.ts e client/src/texturas/meioTermo/paleta.ts (citadas no código).
+-->
+<style>
+  :root {
+    --ink: #121214;
+    --stone: #1a1a1e;
+    --raised: #232328;
+    --hover: #2c2c33;
+    --sunken: #141417;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --text: #eceae4;
+    --dim: #a2a09a;
+    --faint: #858480;
+    --brass: #e0a44a;
+    --brass-bright: #f3ba66;
+    --brass-soft: rgba(224, 164, 74, 0.14);
+    --f-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+    --f-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    --f-num: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+    --r-s: 6px;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--ink); color: var(--text); font: 13.5px/1.45 var(--f-sans); overflow: hidden; }
+  h1, h2, p, ol, ul { margin: 0; }
+
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100vh; }
+
+  /* Palco */
+  .palco { position: relative; background: #111111; min-width: 0; min-height: 0; overflow: hidden; }
+  .palco canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  .palco canvas:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+  .faixa {
+    position: absolute; top: var(--s3); left: 50%; transform: translateX(-50%);
+    pointer-events: none; font: 600 13px/1 var(--f-sans); padding: 9px 14px; border-radius: 999px;
+    background: rgba(18, 18, 20, 0.88); box-shadow: 0 0 0 1px var(--line-strong); color: var(--text); white-space: nowrap;
+  }
+  .faixa.hoje { color: var(--brass-bright); box-shadow: 0 0 0 1px rgba(224, 164, 74, 0.45); }
+  .faixa[hidden], .carregando[hidden] { display: none; }
+  .carregando {
+    position: absolute; inset: 0; display: grid; place-items: center; background: #111111;
+    color: var(--dim); font: 14px/1.4 var(--f-sans);
+  }
+  .carregando b { display: block; color: var(--text); font: 400 22px/1.2 var(--f-display); margin-bottom: var(--s2); text-align: center; }
+  .dica-mapa {
+    position: absolute; left: var(--s3); bottom: var(--s3); pointer-events: none;
+    font-size: 12.5px; color: var(--dim); background: rgba(18, 18, 20, 0.82); padding: 6px 10px; border-radius: var(--r-s);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+
+  /* Painel */
+  .painel {
+    background: var(--stone); border-left: 1px solid var(--line); overflow-y: auto;
+    padding: var(--s5) var(--s4); display: flex; flex-direction: column; gap: var(--s4);
+  }
+  .painel > * { min-width: 0; }
+  .topo h1 { font: 400 25px/1.15 var(--f-display); letter-spacing: 0.005em; margin-bottom: var(--s2); }
+  .topo p { color: var(--dim); }
+  .topo p + p { margin-top: var(--s1); }
+  .topo strong { color: var(--text); font-weight: 600; }
+
+  fieldset.grupo { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .grupo > legend, .grupo > h2 {
+    font: 600 12px/1.3 var(--f-sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim);
+    padding: 0; margin-bottom: var(--s2);
+  }
+  .divisor { border-top: 1px solid var(--line); padding-top: var(--s4); }
+
+  /* Controle segmentado em cima de rádio nativo: Tab, setas e leitor de tela de graça. */
+  .segmentos { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--sunken); border-radius: var(--r-s); padding: 3px; gap: 3px; }
+  .segmentos.dois { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  .segmentos input, .materiais input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .segmentos label {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+    min-height: 40px; padding: 0 10px; border-radius: 4px; color: var(--dim); cursor: pointer; user-select: none;
+    transition: transform 140ms var(--ease-out);
+  }
+  .segmentos.chave label { min-height: 44px; font-size: 14px; font-weight: 600; }
+  .segmentos label:active { transform: scale(0.97); }
+  .segmentos input:checked + label { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .segmentos input:focus-visible + label, .materiais input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+  @media (hover: hover) and (pointer: fine) {
+    .segmentos input:not(:checked) + label:hover { background: var(--hover); color: var(--text); }
+    .materiais input:not(:checked) + label:hover { background: var(--hover); color: var(--text); }
+  }
+  kbd { font: 500 11px/1 var(--f-num); color: var(--faint); border: 1px solid var(--line-strong); border-radius: 3px; padding: 2px 4px; }
+  .segmentos input:checked + label kbd { color: var(--brass); border-color: rgba(224, 164, 74, 0.4); }
+
+  .sobre { margin-top: var(--s2); font-size: 12.5px; color: var(--text); background: var(--raised); border-radius: var(--r-s); padding: var(--s2) 10px; }
+  .mudou { margin-top: var(--s3); padding-left: 1.3em; color: var(--dim); font-size: 12.5px; display: grid; gap: 2px; }
+  .mudou li::marker { color: var(--faint); font: 12px var(--f-num); }
+  .mudou[hidden] { display: none; }
+
+  /* Materiais: rádio com a amostra do próprio material. */
+  .materiais { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .materiais label {
+    display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 10px;
+    min-height: 44px; padding: 4px 8px 4px 4px; border-radius: var(--r-s); background: var(--sunken);
+    color: var(--dim); cursor: pointer; user-select: none; transition: transform 140ms var(--ease-out);
+  }
+  .materiais label:active { transform: scale(0.97); }
+  .materiais canvas { width: 44px; height: 36px; border-radius: 4px; display: block; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12); }
+  .materiais input:checked + label { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .materiais .largo { grid-column: 1 / -1; }
+
+  .ajuste { display: grid; grid-template-columns: 1fr auto; align-items: baseline; row-gap: 2px; }
+  .ajuste + .ajuste { margin-top: var(--s4); }
+  .ajuste label { color: var(--text); font-weight: 600; }
+  .ajuste output { font: 500 15px/1 var(--f-num); color: var(--brass-bright); font-variant-numeric: tabular-nums; }
+  .ajuste input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--brass); margin: 6px 0 2px; height: 22px; cursor: pointer; }
+  .ajuste input[type=range]:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+  .ajuste .ajuda { grid-column: 1 / -1; font-size: 12.5px; color: var(--dim); }
+  .ajuste .motivo { grid-column: 1 / -1; font-size: 12.5px; color: var(--brass); }
+  .ajuste.desligado label, .ajuste.desligado output { color: var(--faint); }
+  .ajuste.desligado input[type=range] { opacity: 0.35; cursor: not-allowed; }
+  .motivo[hidden] { display: none; }
+
+  .marcar { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; cursor: pointer; }
+  .marcar input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--brass); cursor: pointer; }
+  .marcar b { font-weight: 600; color: var(--text); display: block; }
+  .marcar span { font-size: 12.5px; color: var(--dim); }
+  .marcar input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  .botao {
+    font: 500 13.5px/1.2 var(--f-sans); color: var(--text); background: var(--raised); border: 0;
+    box-shadow: inset 0 0 0 1px var(--line-strong); border-radius: var(--r-s); min-height: 36px; padding: 0 var(--s3);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+    transition: transform 140ms var(--ease-out); user-select: none;
+  }
+  .botao:active { transform: scale(0.97); }
+  .botao:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .botao:disabled { color: var(--faint); cursor: not-allowed; }
+  .botao:disabled:active { transform: none; }
+  @media (hover: hover) and (pointer: fine) { .botao:not(:disabled):hover { background: var(--hover); } }
+  .botao[aria-pressed="true"], .botao.segurando { background: var(--brass-soft); color: var(--brass-bright); box-shadow: inset 0 0 0 1px rgba(224, 164, 74, 0.38); }
+  .botao[aria-pressed="true"] kbd { color: var(--brass); border-color: rgba(224, 164, 74, 0.4); }
+  .botao.largo { width: 100%; margin-top: var(--s3); min-height: 40px; }
+  .linha { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+  .linha + .linha, .linha + .nota, .nota + .linha, .marcar + .linha { margin-top: var(--s2); }
+  .linha .botao { flex: 1 1 auto; }
+  .zoom { display: inline-flex; gap: 2px; }
+  .zoom .botao { min-width: 40px; padding: 0 var(--s2); flex: 0 0 auto; }
+  .zoom output { font-variant-numeric: tabular-nums; font-family: var(--f-num); }
+  .nota { color: var(--dim); font-size: 12.5px; }
+  .status { color: var(--brass-bright); font-size: 12.5px; min-height: 1.4em; }
+  .medida { font: 12.5px/1.5 var(--f-num); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .legenda-limite { display: inline-block; width: 26px; height: 0; border-top: 2px dashed #fff; vertical-align: middle; margin-right: 6px; filter: drop-shadow(0 0 1px #000); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .segmentos label, .botao, .materiais label { transition: none; }
+    .segmentos label:active, .botao:active, .materiais label:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="palco" id="palco-caixa">
+    <canvas id="palco" tabindex="0" aria-label="Gramado de exemplo. Arraste com o botão esquerdo para traçar; roda do mouse aproxima; arraste com o botão direito, ou com Espaço apertado, para andar pelo mapa."></canvas>
+    <div class="faixa hoje" id="faixa-hoje" hidden>Mostrando o Hoje enquanto você segura</div>
+    <div class="dica-mapa" id="dica-mapa">Arraste para traçar · roda aproxima · botão direito anda</div>
+    <div class="carregando" id="carregando" role="status" aria-live="polite"><div><b>Preparando os materiais</b><span id="carregando-texto">Grama…</span></div></div>
+  </main>
+
+  <aside class="painel" aria-label="Controles do protótipo">
+    <header class="topo">
+      <h1>Chão e caminho</h1>
+      <p>Um gramado pintado com a ferramenta Texturas, como no seu mapa. <strong>Arraste no mapa</strong> para traçar um caminho ou contornar uma área; troque o material e a largura aqui.</p>
+      <p>A chave abaixo troca o jeito de desenhar. Segure a tecla <strong>H</strong> para ver o de hoje sem tirar a mão.</p>
+      <p>Nada aqui mexe no programa: é para você escolher.</p>
+    </header>
+
+    <fieldset class="grupo">
+      <legend>Desenho</legend>
+      <div class="segmentos dois chave" id="modos">
+        <input type="radio" name="modo" id="m-hoje" value="hoje"><label for="m-hoje">Hoje <kbd>1</kbd></label>
+        <input type="radio" name="modo" id="m-proposta" value="proposta" checked><label for="m-proposta">Proposta <kbd>2</kbd></label>
+        <input type="radio" name="modo" id="m-caminho" value="caminho"><label for="m-caminho">Só o caminho <kbd>3</kbd></label>
+        <input type="radio" name="modo" id="m-textura" value="textura"><label for="m-textura">Trilha na textura <kbd>4</kbd></label>
+      </div>
+      <p class="sobre" id="sobre-modo"></p>
+      <ol class="mudou" id="mudou" aria-label="O que muda na Proposta">
+        <li>O caminho tem material de verdade: pedra, terra, cascalho, areia, tábuas.</li>
+        <li>A curva sai suave, do jeito que a mão traçou.</li>
+        <li>A borda se mistura com a grama: pedras soltas e capim entrando.</li>
+        <li>Dois caminhos do mesmo material viram um só no cruzamento e na bifurcação.</li>
+        <li>Área e caminho ficam por cima da grama e continuam valendo como Chão.</li>
+      </ol>
+      <button type="button" class="botao largo" id="segurar-hoje">Segure para ver o Hoje <kbd>H</kbd></button>
+    </fieldset>
+
+    <fieldset class="grupo divisor">
+      <legend>O que o arrasto faz</legend>
+      <div class="segmentos" id="formas">
+        <input type="radio" name="forma" id="f-trilha" value="trilha" checked><label for="f-trilha">Caminho <kbd>C</kbd></label>
+        <input type="radio" name="forma" id="f-area" value="area"><label for="f-area">Área <kbd>A</kbd></label>
+      </div>
+      <p class="nota" id="ajuda-forma" style="margin-top: var(--s2)"></p>
+    </fieldset>
+
+    <fieldset class="grupo divisor">
+      <legend>Material</legend>
+      <div class="materiais" id="materiais"></div>
+      <p class="nota" style="margin-top: var(--s2)">Grama por cima apaga: o capim volta com a mesma borda solta.</p>
+    </fieldset>
+
+    <fieldset class="grupo divisor" id="ajustes">
+      <legend>Medidas</legend>
+      <div class="ajuste" id="aj-largura">
+        <label for="r-largura">Largura do caminho</label><output id="o-largura" for="r-largura"></output>
+        <input type="range" id="r-largura" min="0.5" max="4" step="0.5" value="2" aria-describedby="h-largura m-largura">
+        <p class="ajuda" id="h-largura">De meia casa (vereda) a quatro (estrada). Teclas [ e ].</p>
+        <p class="motivo" id="m-largura" hidden>Não vale para Área: a área segue o contorno.</p>
+      </div>
+      <div class="ajuste" id="aj-borda">
+        <label for="r-borda">Borda</label><output id="o-borda" for="r-borda"></output>
+        <input type="range" id="r-borda" min="0" max="100" step="5" value="60" aria-describedby="h-borda m-borda">
+        <p class="ajuda" id="h-borda">0 é a beira reta. Mais alto, a beira ondula, a largura varia e as pedras da borda se soltam.</p>
+        <p class="motivo" id="m-borda" hidden>Não vale neste desenho.</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="grupo divisor">
+      <legend>Limite de visão e de andar</legend>
+      <label class="marcar" for="c-limite">
+        <input type="checkbox" id="c-limite" checked>
+        <span><b>O que eu pintar agora conta como Chão</b>Com "Fora do Chão: Bloqueado", o jogador só vê e anda por dentro do Chão. Vale para o próximo traço.</span>
+      </label>
+      <div class="linha">
+        <button type="button" class="botao" id="ver-limite" aria-pressed="false"><span class="legenda-limite" aria-hidden="true"></span>Mostrar o limite <kbd>L</kbd></button>
+      </div>
+      <p class="nota" id="nota-limite"></p>
+    </fieldset>
+
+    <section class="grupo divisor" aria-labelledby="t-mapa">
+      <h2 id="t-mapa">Mapa</h2>
+      <div class="linha">
+        <button type="button" class="botao" id="desfazer">Desfazer <kbd>Ctrl Z</kbd></button>
+        <button type="button" class="botao" id="exemplo">Voltar ao exemplo</button>
+        <button type="button" class="botao" id="limpar">Limpar tudo</button>
+      </div>
+      <div class="linha">
+        <div class="zoom" role="group" aria-label="Zoom do mapa">
+          <button type="button" class="botao" id="zoom-menos" aria-label="Afastar">−</button>
+          <button type="button" class="botao" id="zoom-tudo" aria-label="Ver o mapa inteiro"><output id="o-zoom">100%</output></button>
+          <button type="button" class="botao" id="zoom-mais" aria-label="Aproximar">+</button>
+        </div>
+        <span class="nota">O número volta ao mapa inteiro.</span>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+
+    <section class="grupo divisor" aria-labelledby="t-desempenho">
+      <h2 id="t-desempenho">Fluidez do último traço</h2>
+      <p class="medida" id="medida">Trace algo para medir.</p>
+      <p class="nota">Tempo entre quadros enquanto você arrasta e o maior trabalho do protótipo num quadro. Abaixo de 17 ms é liso.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+'use strict'
+// ─────────────────────────────────────────────────────────────────────────────
+// Mundo: 36 x 24 casas de 40 px (uma casa = a passagem de uma ficha, como a
+// largura do Caminho do app, lib/drawingFactory.ts:522).
+const CASA = 40
+const W = 36 * CASA
+const H = 24 * CASA
+const N = W * H
+const BALDE = 24 // lado da grade de busca dos segmentos, em px do mundo
+const BW = Math.ceil(W / BALDE)
+const BH = Math.ceil(H / BALDE)
+const K_FUSAO = 0.32 * CASA // raio do canto arredondado onde dois caminhos do mesmo material se encontram
+
+// Materiais. `hoje` = a cor lisa com que o app de hoje pintaria (Caminho e tintas do Chão):
+// #8a6a45 é a cor padrão do Caminho (stores/mapStore.ts:2132); #6e6e72 e #4a6b35 são as tintas
+// Pedra e Grama do Chão (lib/camadasDoChao.ts:22-29).
+const MATS = [
+  { id: 'calcamento', nome: 'Calçamento', hoje: '#6e6e72', tipo: 'celula' },
+  { id: 'terra', nome: 'Terra batida', hoje: '#8a6a45', tipo: 'continuo' },
+  { id: 'cascalho', nome: 'Cascalho', hoje: '#8f8a80', tipo: 'celula' },
+  { id: 'areia', nome: 'Areia', hoje: '#cbb57e', tipo: 'continuo' },
+  { id: 'tabuas', nome: 'Tábuas', hoje: '#8d6239', tipo: 'tabuas' },
+  { id: 'grama', nome: 'Grama', hoje: '#4a6b35', tipo: 'continuo' },
+  { id: 'liso', nome: 'Liso (a cor de hoje)', hoje: '#8a6a45', tipo: 'liso' },
+]
+const MAT = Object.fromEntries(MATS.map((m, i) => [m.id, { ...m, i }]))
+
+const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v)
+const passo = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t) }
+
+// ─── Ruído: tabela fixa (mesma semente = mesmo mapa), sem Math.random no desenho ───
+const TAB = new Float32Array(65536)
+;(() => { let s = 0x2f6b9a1 >>> 0; for (let i = 0; i < TAB.length; i += 1) { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); TAB[i] = ((t ^ (t >>> 14)) >>> 0) / 4294967296 } })()
+function vn(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y)
+  const fx = x - xi, fy = y - yi
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy)
+  const x0 = xi & 255, y0 = yi & 255, x1 = (x0 + 1) & 255, y1 = (y0 + 1) & 255
+  const a = TAB[(y0 << 8) | x0], b = TAB[(y0 << 8) | x1], c = TAB[(y1 << 8) | x0], d = TAB[(y1 << 8) | x1]
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
+}
+function fbm(x, y, oit) { let a = 0.5, f = 1, t = 0, n = 0; for (let i = 0; i < oit; i += 1) { t += a * vn(x * f + i * 31.7, y * f - i * 17.3); n += a; a *= 0.5; f *= 2 } return t / n }
+function hc(ix, iy, s) { let h = Math.imul(ix, 374761393) ^ Math.imul(iy, 668265263) ^ Math.imul(s, 982451653); h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296 }
+// Grão de papel do Meio-Termo: células de 2 x 2 px, força 22 (texturas/meioTermo/chaoNoMundo.ts:58-60).
+const grao = (x, y) => (hc(x >> 1, y >> 1, 821) - 0.5) * 22 * 0.55
+
+// ─── Os buffers do mundo ───
+const TEX = {}       // RGBA por material contínuo/célula, do tamanho do mundo
+const CEL = {}       // id da pedra em cada pixel (-1 = junta/fundo)
+const CEN = {}       // centro de cada pedra
+const N1 = new Float32Array(N) // ondulação larga da borda, -1..1
+const N2 = new Float32Array(N) // ondulação fina da borda, -1..1
+const TUFO = new Uint8Array(N) // folhas de capim da grama (entram por cima da beira do caminho)
+const JUN = new Uint8Array(N)  // quanto de junta tem o pixel do calçamento (0 no miolo da pedra)
+
+function genRuido(y0, y1) {
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const i = y * W + x
+    N1[i] = fbm(x / (0.75 * CASA) + 50, y / (0.75 * CASA) + 50, 2) * 2 - 1
+    N2[i] = vn(x / (0.16 * CASA) + 9, y / (0.16 * CASA) - 3) * 2 - 1
+  }
+}
+
+// Grama: o Campo Verde do app (texturas/embutidas.ts:164): meio #7fc468, base #76c577, mancha #8ac459, moita #62ab64.
+const GR = { meio: rgb('#7fc468'), base: rgb('#76c577'), mancha: rgb('#8ac459'), moita: rgb('#62ab64') }
+function genGrama(y0, y1) {
+  const T = TEX.grama
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const i = y * W + x, p = i * 4
+    const largo = fbm(x / (7 * CASA), y / (7 * CASA), 3)
+    const moita = passo(0.55, 0.78, fbm(x / (1.3 * CASA) + 7, y / (1.3 * CASA) + 3, 3))
+    const t = passo(0.3, 0.7, largo)
+    let r = GR.base[0] + (GR.mancha[0] - GR.base[0]) * t, g = GR.base[1] + (GR.mancha[1] - GR.base[1]) * t, b = GR.base[2] + (GR.mancha[2] - GR.base[2]) * t
+    r += (GR.moita[0] - r) * moita * 0.7; g += (GR.moita[1] - g) * moita * 0.7; b += (GR.moita[2] - b) * moita * 0.7
+    // Folhas: riscos curtos e verticais, escuros com a ponta clara (o capim do ladrilho do Campo).
+    const folha = vn(x / 1.6 + 300, y / 5.5 + 200)
+    const cerrado = 0.8 - moita * 0.06
+    if (folha > cerrado) { r *= 0.8; g *= 0.84; b *= 0.8; TUFO[i] = 1 } else if (folha > cerrado - 0.035) { r *= 1.05; g *= 1.05; b *= 1.04 }
+    const gr = grao(x, y)
+    T[p] = r + gr; T[p + 1] = g + gr; T[p + 2] = b + gr; T[p + 3] = 255
+  }
+}
+
+// Terra batida: TERRA_CLARA #a08559, TERRA_ESCURA #8c7150 e PEDRINHA #a89574 (texturas/embutidas.ts:991-993).
+const TE = { clara: rgb('#a08559'), escura: rgb('#8c7150'), pedrinha: rgb('#a89574') }
+function genTerra(y0, y1) {
+  const T = TEX.terra
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const p = (y * W + x) * 4
+    const m = passo(0.3, 0.75, fbm(x / (2.2 * CASA) + 11, y / (2.2 * CASA) + 5, 4))
+    let r = TE.clara[0] + (TE.escura[0] - TE.clara[0]) * m, g = TE.clara[1] + (TE.escura[1] - TE.clara[1]) * m, b = TE.clara[2] + (TE.escura[2] - TE.clara[2]) * m
+    const l = (vn(x / 3, y / 3) - 0.5) * 0.08
+    r *= 1 + l; g *= 1 + l; b *= 1 + l
+    // Pedrinhas raras, luz em cima à esquerda.
+    const cx = Math.floor(x / 11), cy = Math.floor(y / 11)
+    if (hc(cx, cy, 94) < 0.16) {
+      const px = (cx + 0.2 + 0.6 * hc(cx, cy, 95)) * 11, py = (cy + 0.2 + 0.6 * hc(cx, cy, 96)) * 11
+      const rr = 1.6 + hc(cx, cy, 97) * 1.4, d = Math.hypot(x - px, y - py)
+      if (d < rr) { const lz = 1 + 0.12 * (((px - x) + (py - y)) / rr); r = TE.pedrinha[0] * lz; g = TE.pedrinha[1] * lz; b = TE.pedrinha[2] * lz }
+      else if (Math.hypot(x - px - 1, y - py - 1) < rr) { r *= 0.88; g *= 0.88; b *= 0.88 }
+    }
+    const gr = grao(x, y)
+    T[p] = r + gr; T[p + 1] = g + gr; T[p + 2] = b + gr; T[p + 3] = 255
+  }
+}
+
+// Areia: AREIA_CLARA #d6c286, AREIA_MEIA #cbb57e, AREIA_ESCURA #bfa774 (texturas/embutidas.ts:82-84).
+const AR = { clara: rgb('#d6c286'), meia: rgb('#cbb57e'), escura: rgb('#bfa774') }
+function genAreia(y0, y1) {
+  const T = TEX.areia
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const p = (y * W + x) * 4
+    const m = passo(0.25, 0.85, fbm(x / (3 * CASA) + 21, y / (3 * CASA) + 4, 3))
+    let r = AR.clara[0] + (AR.meia[0] - AR.clara[0]) * m, g = AR.clara[1] + (AR.meia[1] - AR.clara[1]) * m, b = AR.clara[2] + (AR.meia[2] - AR.clara[2]) * m
+    const u = passo(0.55, 0.95, fbm(x / (2 * CASA) + 3, y / (2 * CASA) + 8, 2)) * 0.45
+    r += (AR.escura[0] - r) * u; g += (AR.escura[1] - g) * u; b += (AR.escura[2] - b) * u
+    const gr = grao(x, y) * 1.2
+    T[p] = r + gr; T[p + 1] = g + gr; T[p + 2] = b + gr; T[p + 3] = 255
+  }
+}
+
+// Calçamento: pedras nos tons das Lajotas claras (texturas/embutidas.ts:1149-1152), junta de terra
+// (#8c7150 a 60% com a junta das lajotas #a9a397). Pedra por célula de Voronoi, abaulada, luz em cima à esquerda.
+const PEDRA = { tons: ['#cdc8bc', '#c9c5bc', '#cfc9bc', '#c7c3b9', '#ccc6b9', '#c9c4b8'].map(rgb), junta: rgb('#988570') }
+const LADO_PEDRA = 19
+const COLS_P = Math.ceil(W / LADO_PEDRA) + 2
+function centroPedra(ix, iy) { return [(ix + 0.18 + 0.64 * hc(ix, iy, 401)) * LADO_PEDRA, (iy + 0.18 + 0.64 * hc(ix, iy, 402)) * LADO_PEDRA] }
+function genCalcamento(y0, y1) {
+  const T = TEX.calcamento, C = CEL.calcamento, CC = CEN.calcamento
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const i = y * W + x, p = i * 4
+    // Borda da pedra levemente torcida (CALCAMENTO_TORCAO, embutidas.ts:1220).
+    const tx = x + (vn(x / 9, y / 9) - 0.5) * 3.5, ty = y + (vn(x / 9 + 40, y / 9 + 40) - 0.5) * 3.5
+    const ix = Math.floor(tx / LADO_PEDRA), iy = Math.floor(ty / LADO_PEDRA)
+    let d1 = 1e9, d2 = 1e9, a1x = 0, a1y = 0, a2x = 0, a2y = 0, id = 0
+    for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) {
+      const c = centroPedra(ix + ox, iy + oy), d = (tx - c[0]) ** 2 + (ty - c[1]) ** 2
+      if (d < d1) { d2 = d1; a2x = a1x; a2y = a1y; d1 = d; a1x = c[0]; a1y = c[1]; id = (iy + oy + 1) * COLS_P + (ix + ox + 1) }
+      else if (d < d2) { d2 = d; a2x = c[0]; a2y = c[1] }
+    }
+    // Distância até a junta (a bissetriz entre as duas pedras mais perto).
+    const ex = a2x - a1x, ey = a2y - a1y, el = Math.hypot(ex, ey) || 1
+    const borda = ((a2x + a1x) / 2 - tx) * ex / el + ((a2y + a1y) / 2 - ty) * ey / el
+    const tom = PEDRA.tons[Math.floor(hc(id, 0, 403) * PEDRA.tons.length)]
+    const vida = 1 + (hc(id, 0, 404) - 0.5) * 0.1 + (vn(x / 4, y / 4) - 0.5) * 0.06
+    let r = tom[0] * vida, g = tom[1] * vida, b = tom[2] * vida
+    if (borda < 5) { // ombro abaulado: o lado de cima/esquerda clareia, o de baixo/direita escurece
+      const nx = tx - a1x, ny = ty - a1y, nl = Math.hypot(nx, ny) || 1
+      const luz = -(nx / nl + ny / nl) * 0.7071 * (1 - borda / 5) * 0.16
+      r *= 1 + luz; g *= 1 + luz; b *= 1 + luz
+    }
+    const junta = 1 - passo(1.0, 2.1, borda)
+    if (junta > 0) { r += (PEDRA.junta[0] - r) * junta; g += (PEDRA.junta[1] - g) * junta; b += (PEDRA.junta[2] - b) * junta }
+    C[i] = id < 0 ? -1 : id
+    JUN[i] = junta * 255
+    CC[id * 2] = a1x; CC[id * 2 + 1] = a1y
+    const gr = grao(x, y)
+    T[p] = r + gr; T[p + 1] = g + gr; T[p + 2] = b + gr; T[p + 3] = 255
+  }
+}
+
+// Cascalho: pedrinhas de pedra #c3c0b2 (texturas/meioTermo/paleta.ts:33), PEDRINHA #a89574 e um cinza
+// mais fundo, sobre terra clara misturada à pedra.
+const CA = { fundo: [178, 158, 122], tons: [rgb('#c3c0b2'), rgb('#a89574'), rgb('#9c968a'), rgb('#b5ad9c')] }
+const LADO_SEIXO = 7
+const COLS_S = Math.ceil(W / LADO_SEIXO) + 2
+function genCascalho(y0, y1) {
+  const T = TEX.cascalho, C = CEL.cascalho, CC = CEN.cascalho
+  for (let y = y0; y < y1; y += 1) for (let x = 0; x < W; x += 1) {
+    const i = y * W + x, p = i * 4
+    const ix = Math.floor(x / LADO_SEIXO), iy = Math.floor(y / LADO_SEIXO)
+    let melhor = 9, id = -1, cx = 0, cy = 0, rr = 1, sombra = false
+    for (let oy = -1; oy <= 1; oy += 1) for (let ox = -1; ox <= 1; ox += 1) {
+      const jx = ix + ox, jy = iy + oy
+      if (hc(jx, jy, 501) > 0.86) continue
+      const px = (jx + 0.2 + 0.6 * hc(jx, jy, 502)) * LADO_SEIXO, py = (jy + 0.2 + 0.6 * hc(jx, jy, 503)) * LADO_SEIXO
+      const r = 2.3 + hc(jx, jy, 504) * 1.6, d = Math.hypot(x - px, y - py) / r
+      if (d < 1 && d < melhor) { melhor = d; id = (jy + 1) * COLS_S + (jx + 1); cx = px; cy = py; rr = r }
+      if (Math.hypot(x - px - 1.2, y - py - 1.2) < r) sombra = true
+    }
+    let r, g, b
+    if (id >= 0) {
+      const tom = CA.tons[Math.floor(hc(id, 1, 505) * CA.tons.length)]
+      const lz = 1 + 0.2 * (((cx - x) + (cy - y)) / rr) * 0.7071 - melhor * melhor * 0.08
+      r = tom[0] * lz; g = tom[1] * lz; b = tom[2] * lz
+      CC[id * 2] = cx; CC[id * 2 + 1] = cy
+    } else {
+      const v = 1 + (vn(x / 5, y / 5) - 0.5) * 0.12 - (sombra ? 0.16 : 0)
+      r = CA.fundo[0] * v; g = CA.fundo[1] * v; b = CA.fundo[2] * v
+    }
+    C[i] = id
+    const gr = grao(x, y)
+    T[p] = r + gr; T[p + 1] = g + gr; T[p + 2] = b + gr; T[p + 3] = 255
+  }
+}
+
+// Tábuas: madeira #b9895f, madeiraClara #e2b98a e carvalho #a07b51 (texturas/meioTermo/paleta.ts:30-45);
+// fresta escura. No caminho, as tábuas atravessam o traço e seguem a curva (passarela).
+const TB = { tons: [rgb('#b9895f'), rgb('#a07b51'), rgb('#c59a6c')], fresta: rgb('#5c4026') }
+const LARG_TABUA = 13
+let C_R = 0, C_G = 0, C_B = 0
+function corDaTabua(s, u, larg) {
+  const k = Math.floor(s / LARG_TABUA), f = s / LARG_TABUA - k
+  const tom = TB.tons[Math.floor(hc(k, 3, 601) * TB.tons.length)]
+  const veio = 1 + (vn(u / 22 + k * 7.1, f * 2.2 + k) - 0.5) * 0.16 + (hc(k, 4, 602) - 0.5) * 0.08
+  let r = tom[0] * veio, g = tom[1] * veio, b = tom[2] * veio
+  const fr = 1 - passo(0.07, 0.13, f) // fresta entre uma tábua e a próxima
+  const borda = passo(larg - 3, larg, Math.abs(u)) * 0.25
+  r += (TB.fresta[0] - r) * Math.max(fr, borda); g += (TB.fresta[1] - g) * Math.max(fr, borda); b += (TB.fresta[2] - b) * Math.max(fr, borda)
+  C_R = r; C_G = g; C_B = b
+}
+
+// ─── Trechos de terreno ───
+// { id, tipo: 'trilha'|'area', mat, largura (px), asp (0..1), limite, ctrl: [{x,y}], + derivados }
+let trechos = []
+let proximoId = 1
+
+function catmullRom(pts, passoPx) {
+  if (pts.length < 2) return pts.slice()
+  const out = [{ x: pts[0].x, y: pts[0].y }]
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
+    const n = Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / passoPx))
+    for (let k = 1; k <= n; k += 1) {
+      const t = k / n, t2 = t * t, t3 = t2 * t
+      out.push({
+        x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      })
+    }
+  }
+  return out
+}
+function chaikinFechado(pts, voltas) {
+  let p = pts
+  for (let v = 0; v < voltas; v += 1) {
+    const q = []
+    for (let i = 0; i < p.length; i += 1) {
+      const a = p[i], b = p[(i + 1) % p.length]
+      q.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 }, { x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 })
+    }
+    p = q
+  }
+  return p
+}
+const alcanceDe = (t) => t.asp * 0.32 * CASA * 1.4 + K_FUSAO + 0.18 * t.largura / 2 + 12
+
+// Recalcula as amostras, os segmentos e a grade de busca do trecho.
+function derivar(t) {
+  t.alcance = alcanceDe(t)
+  let pts
+  if (t.tipo === 'trilha') {
+    pts = catmullRom(t.ctrl, 6)
+  } else {
+    pts = chaikinFechado(t.ctrl, 2)
+    pts.push(pts[0])
+  }
+  const n = pts.length - 1
+  const S = new Float32Array(Math.max(1, n) * 8)
+  let s = 0, wmax = 0
+  const semente = t.id * 13.7
+  const larguraEm = (sx) => t.tipo === 'area' ? 0 : t.largura * (1 + t.asp * 0.24 * (fbm(sx / (1.8 * CASA) + semente, semente, 2) * 2 - 1))
+  let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9
+  for (let k = 0; k < n; k += 1) {
+    const a = pts[k], b = pts[k + 1], len = Math.hypot(b.x - a.x, b.y - a.y)
+    const w0 = larguraEm(s), w1 = larguraEm(s + len)
+    S.set([a.x, a.y, b.x, b.y, s, len, w0, w1], k * 8)
+    s += len
+    wmax = Math.max(wmax, w0, w1)
+  }
+  for (const p of pts) { bx0 = Math.min(bx0, p.x); by0 = Math.min(by0, p.y); bx1 = Math.max(bx1, p.x); by1 = Math.max(by1, p.y) }
+  const m = wmax / 2 + t.alcance + 2
+  t.bx0 = Math.max(0, Math.floor(bx0 - m)); t.by0 = Math.max(0, Math.floor(by0 - m))
+  t.bx1 = Math.min(W, Math.ceil(bx1 + m)); t.by1 = Math.min(H, Math.ceil(by1 + m))
+  t.S = S; t.n = n; t.pts = pts; t.comprimento = s
+  // Grade de busca: cada célula guarda os segmentos que alcançam ela.
+  const balde = new Array(BW * BH)
+  for (let k = 0; k < n; k += 1) {
+    const o = k * 8, r = Math.max(S[o + 6], S[o + 7]) / 2 + t.alcance + 1
+    const cx0 = Math.max(0, Math.floor((Math.min(S[o], S[o + 2]) - r) / BALDE)), cx1 = Math.min(BW - 1, Math.floor((Math.max(S[o], S[o + 2]) + r) / BALDE))
+    const cy0 = Math.max(0, Math.floor((Math.min(S[o + 1], S[o + 3]) - r) / BALDE)), cy1 = Math.min(BH - 1, Math.floor((Math.max(S[o + 1], S[o + 3]) + r) / BALDE))
+    for (let cy = cy0; cy <= cy1; cy += 1) for (let cx = cx0; cx <= cx1; cx += 1) {
+      const c = cy * BW + cx
+      ;(balde[c] || (balde[c] = [])).push(k)
+    }
+  }
+  t.balde = balde
+  if (t.tipo === 'area') { // máscara de dentro, só na caixa
+    const w = t.bx1 - t.bx0, h = t.by1 - t.by0
+    const tela = document.createElement('canvas'); tela.width = Math.max(1, w); tela.height = Math.max(1, h)
+    const g = tela.getContext('2d', { willReadFrequently: true })
+    g.beginPath(); g.moveTo(pts[0].x - t.bx0, pts[0].y - t.by0)
+    for (const p of pts) g.lineTo(p.x - t.bx0, p.y - t.by0)
+    g.closePath(); g.fillStyle = '#fff'; g.fill()
+    const dados = g.getImageData(0, 0, tela.width, tela.height).data
+    const mascara = new Uint8Array(tela.width * tela.height)
+    for (let j = 0; j < mascara.length; j += 1) mascara[j] = dados[j * 4 + 3] > 127 ? 1 : 0
+    t.mascara = mascara; t.mw = tela.width
+  }
+}
+
+// Distância com sinal até a borda do trecho (negativa dentro). Deixa em QS/QU/QW a posição ao longo
+// do caminho, o lado e a largura ali (as tábuas e o miolo gasto usam).
+let QS = 0, QU = 0, QW = 0, QFIM = false
+function distancia(t, px, py) {
+  const cx = (px / BALDE) | 0, cy = (py / BALDE) | 0
+  if (cx < 0 || cy < 0 || cx >= BW || cy >= BH) return 1e9
+  const lista = t.balde[cy * BW + cx]
+  const S = t.S
+  if (t.tipo === 'area') {
+    let m2 = 1e18
+    if (lista) for (let j = 0; j < lista.length; j += 1) {
+      const o = lista[j] * 8, x0 = S[o], y0 = S[o + 1], dx = S[o + 2] - x0, dy = S[o + 3] - y0, l2 = dx * dx + dy * dy
+      let u = l2 > 0 ? ((px - x0) * dx + (py - y0) * dy) / l2 : 0
+      u = u < 0 ? 0 : u > 1 ? 1 : u
+      const qx = x0 + dx * u - px, qy = y0 + dy * u - py, q = qx * qx + qy * qy
+      if (q < m2) m2 = q
+    }
+    const ix = (px | 0) - t.bx0, iy = (py | 0) - t.by0
+    const dentro = ix >= 0 && iy >= 0 && ix < t.mw && iy < t.by1 - t.by0 && t.mascara[iy * t.mw + ix] === 1
+    const dist = lista ? Math.sqrt(m2) : 1e9
+    QS = py; QU = px; QW = 1e9
+    return dentro ? -dist : dist
+  }
+  if (!lista) return 1e9
+  let melhor = 1e9
+  for (let j = 0; j < lista.length; j += 1) {
+    const o = lista[j] * 8, x0 = S[o], y0 = S[o + 1], dx = S[o + 2] - x0, dy = S[o + 3] - y0, l2 = dx * dx + dy * dy
+    let u = l2 > 0 ? ((px - x0) * dx + (py - y0) * dy) / l2 : 0
+    u = u < 0 ? 0 : u > 1 ? 1 : u
+    const qx = x0 + dx * u - px, qy = y0 + dy * u - py
+    const dist = Math.sqrt(qx * qx + qy * qy)
+    const w = S[o + 6] + (S[o + 7] - S[o + 6]) * u
+    const d = dist - w / 2
+    if (d < melhor) {
+      melhor = d; QS = S[o + 4] + S[o + 5] * u; QW = w
+      QFIM = (lista[j] === 0 && u <= 0) || (lista[j] === t.n - 1 && u >= 1)
+      QU = dx * (py - y0) - dy * (px - x0) >= 0 ? dist : -dist
+    }
+  }
+  return melhor
+}
+function smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25 }
+
+// ─── Cobertura de um pixel por um trecho, no jeito de desenhar `modo` ───
+// Devolve 0..1 e deixa a cor do material (já com a sombra da beira) em C_R/C_G/C_B.
+function cobertura(t, d, dCru, x, y, i, modo) {
+  const m = MAT[t.mat], p = i * 4
+  if (m.tipo === 'liso') { // a cor lisa de hoje, com beira reta
+    const c = t.cor || (t.cor = rgb(m.hoje)); C_R = c[0]; C_G = c[1]; C_B = c[2]
+    return clamp(0.5 - d, 0, 1)
+  }
+  if (modo === 'textura') { // pincelada da ferramenta Texturas: miolo 0,8 do raio e beira até 1,15 (lib/planoDasTexturas.ts:57-58)
+    let a
+    if (t.tipo === 'trilha') { const R = QW / 2, c = d + R; a = 1 - passo(0.8 * R, 1.15 * R, c) } else a = clamp(0.5 - d, 0, 1)
+    if (m.tipo === 'tabuas') corDaTabua(y, x, 1e9)
+    else { const T = TEX[m.id]; C_R = T[p]; C_G = T[p + 1]; C_B = T[p + 2] }
+    return a
+  }
+  const amp = t.asp * 0.32 * CASA
+  const e = d + amp * N1[i] + amp * 0.3 * N2[i]
+  const reta = t.asp < 0.05
+  let a
+  if (m.tipo === 'tabuas') {
+    if (t.tipo === 'trilha') {
+      if (QFIM) return 0
+      const k = Math.floor(QS / LARG_TABUA)
+      const meia = QW / 2 * (1 + (hc(k, 9, 603) - 0.5) * t.asp * 0.35)
+      a = clamp(meia - Math.abs(QU) + 0.5, 0, 1) * clamp(0.5 - (d - (QW / 2 + t.asp * 0.18 * QW) ), 0, 1)
+      corDaTabua(QS, QU, meia)
+    } else { a = clamp(0.5 - d, 0, 1); corDaTabua(y, x + Math.floor(y / LARG_TABUA) * 37, 1e9) }
+    return a
+  }
+  const T = TEX[m.id]
+  C_R = T[p]; C_G = T[p + 1]; C_B = T[p + 2]
+  if (reta) a = clamp(0.5 - d, 0, 1)
+  else if (m.tipo === 'celula') {
+    const id = CEL[m.id][i]
+    if (id >= 0) {
+      if (e < -(amp + 0.55 * CASA)) a = 1
+      else { // a pedra fica ou sai inteira: decide pelo centro dela
+        const ss = QS, uu = QU, ww = QW
+        const cxp = CEN[m.id][id * 2], cyp = CEN[m.id][id * 2 + 1]
+        const ci = (clamp(cyp | 0, 0, H - 1)) * W + clamp(cxp | 0, 0, W - 1)
+        const dc = distancia(t, cxp, cyp) + (d - dCru)
+        QS = ss; QU = uu; QW = ww
+        const ec = dc + amp * N1[ci]
+        const faixa = t.asp * 0.95 * CASA + 2
+        a = ec + (hc(id, 7, 405) - 0.45) * faixa < 0 ? 1 : 0
+        // Pedra da beira: mais redonda e com o contorno de junta do lado da grama (pedra solta no capim).
+        if (a > 0 && m.id === 'calcamento' && ec > -faixa * 0.5) {
+          const raio = LADO_PEDRA * (0.5 + 0.12 * hc(id, 8, 406)), dp = Math.hypot(x - cxp, y - cyp)
+          if (dp > raio) a = 0
+          else if (dp > raio - 1.8) { const k = (dp - (raio - 1.8)) / 1.8 * 0.85; C_R += (PEDRA.junta[0] * 0.8 - C_R) * k; C_G += (PEDRA.junta[1] * 0.8 - C_G) * k; C_B += (PEDRA.junta[2] * 0.8 - C_B) * k }
+        }
+        // folha de capim por cima da beira da pedra solta (só junto da junta, para a pedra continuar inteira)
+        if (a > 0 && e > -4 && TUFO[i] && (m.id !== 'calcamento' || JUN[i] > 60)) a = 0
+      }
+    } else {
+      a = clamp(0.5 - (e + 0.22 * CASA * t.asp) / 1.2, 0, 1)
+      if (a > 0 && e > -(amp * 0.7 + 4) && TUFO[i]) a = 0
+    }
+  } else {
+    a = clamp(0.5 - e / 1.2, 0, 1)
+    if (a > 0 && m.id !== 'grama' && e > -(amp * 0.6 + 4) && TUFO[i]) a = 0
+  }
+  if (m.id !== 'grama' && a > 0) {
+    // Beira afundada: um nada mais escura junto da grama; miolo de terra e areia mais claro (gasto pelo pé).
+    let k = 1 - 0.13 * passo(-0.28 * CASA, 0, e)
+    if (t.tipo === 'trilha' && (m.id === 'terra' || m.id === 'areia' || m.id === 'cascalho')) { const q = Math.abs(QU) / (QW / 2); k *= 1 + 0.06 * (1 - q * q) }
+    C_R *= k; C_G *= k; C_B *= k
+  }
+  return a
+}
+
+// ─── Composição por pixel: cada jeito de desenhar tem a sua imagem do mundo pronta ───
+const MODOS_POR_PIXEL = ['proposta', 'caminho', 'textura']
+const CAMADA = {}
+for (const modo of MODOS_POR_PIXEL) {
+  const tela = document.createElement('canvas'); tela.width = W; tela.height = H
+  const g = tela.getContext('2d')
+  CAMADA[modo] = { tela, g, img: g.createImageData(W, H), fila: [], velha: true }
+}
+const telaHoje = document.createElement('canvas'); telaHoje.width = W; telaHoje.height = H
+const gHoje = telaHoje.getContext('2d')
+let telaGrama = null
+
+function entraNoModo(t, modo) { return modo === 'proposta' || modo === 'textura' || t.tipo === 'trilha' }
+
+function compor(modo, x0, y0, x1, y1) {
+  const cam = CAMADA[modo], D = cam.img.data, G = TEX.grama
+  const lista = trechos.filter((t) => t.n > 0 && t.bx1 > x0 && t.bx0 < x1 && t.by1 > y0 && t.by0 < y1 && entraNoModo(t, modo))
+  const funde = modo === 'proposta'
+  const dmin = new Float64Array(MATS.length)
+  for (let y = y0; y < y1; y += 1) for (let x = x0; x < x1; x += 1) {
+    const i = y * W + x, p = i * 4
+    let r = G[p], g = G[p + 1], b = G[p + 2]
+    if (lista.length > 0) {
+      dmin.fill(1e9)
+      for (let j = 0; j < lista.length; j += 1) {
+        const t = lista[j]
+        if (x < t.bx0 || x >= t.bx1 || y < t.by0 || y >= t.by1) continue
+        const d = distancia(t, x + 0.5, y + 0.5)
+        if (d > t.alcance) continue
+        const mi = MAT[t.mat].i
+        let dd = d
+        // Mesmo material: só perto do encontro os dois viram um (canto arredondado, sem emenda).
+        // Dentro de um anterior do mesmo material, este não faz beira (sem pedra solta no meio da estrada).
+        if (funde && dmin[mi] < 0) dd = Math.min(d, dmin[mi])
+        else if (funde && dmin[mi] < 1e8 && Math.abs(d - dmin[mi]) < K_FUSAO) dd = smin(d, dmin[mi], K_FUSAO)
+        if (d < dmin[mi]) dmin[mi] = d
+        const a = cobertura(t, dd, d, x, y, i, modo)
+        if (a > 0) { r += (C_R - r) * a; g += (C_G - g) * a; b += (C_B - b) * a }
+      }
+    }
+    D[p] = r; D[p + 1] = g; D[p + 2] = b; D[p + 3] = 255
+  }
+  cam.g.putImageData(cam.img, 0, 0, x0, y0, x1 - x0, y1 - y0)
+}
+
+// A fila de retângulos sujos de cada modo, processada em fatias de no máximo ~9 ms por quadro.
+const FATIA_LINHAS = 8
+function sujar(modo, x0, y0, x1, y1) {
+  x0 = clamp(Math.floor(x0), 0, W); x1 = clamp(Math.ceil(x1), 0, W); y0 = clamp(Math.floor(y0), 0, H); y1 = clamp(Math.ceil(y1), 0, H)
+  if (x1 <= x0 || y1 <= y0) return
+  const fila = CAMADA[modo].fila
+  for (let y = y0; y < y1; y += FATIA_LINHAS) fila.push([x0, y, x1, Math.min(y1, y + FATIA_LINHAS)])
+}
+function sujarTudo(modo) { CAMADA[modo].fila.length = 0; sujar(modo, 0, 0, W, H); CAMADA[modo].velha = false }
+function sujarTodos(x0, y0, x1, y1) {
+  for (const modo of MODOS_POR_PIXEL) {
+    if (modo === modoVisivel()) sujar(modo, x0, y0, x1, y1)
+    else CAMADA[modo].velha = true
+  }
+  hojeSujo = true
+}
+let trabalhoDoQuadro = 0
+function trabalhar(orcamentoMs) {
+  const modo = modoVisivel()
+  if (modo === 'hoje') { if (hojeSujo) desenharHoje(); return }
+  const cam = CAMADA[modo]
+  if (cam.velha) sujarTudo(modo)
+  const t0 = performance.now()
+  while (cam.fila.length > 0 && performance.now() - t0 < orcamentoMs) {
+    const [x0, y0, x1, y1] = cam.fila.shift()
+    compor(modo, x0, y0, x1, y1)
+    precisaPintar = true
+  }
+  trabalhoDoQuadro = performance.now() - t0
+}
+
+// Hoje: a grama de Texturas por cima do Chão (a área some, só o contorno aparece, como no print 25),
+// e o Caminho por cima de tudo, uma faixa lisa ligada por retas entre os cliques (pixi/drawDrawings.ts:39-50).
+let hojeSujo = true
+function pontosClicados(ctrl) {
+  const out = [ctrl[0]]; let acc = 0
+  for (let i = 1; i < ctrl.length; i += 1) {
+    acc += Math.hypot(ctrl[i].x - ctrl[i - 1].x, ctrl[i].y - ctrl[i - 1].y)
+    if (acc >= 1.5 * CASA) { out.push(ctrl[i]); acc = 0 }
+  }
+  if (out[out.length - 1] !== ctrl[ctrl.length - 1]) out.push(ctrl[ctrl.length - 1])
+  return out
+}
+function contornosDasAreas(g) {
+  g.save(); g.lineJoin = 'round'
+  for (const t of trechos) {
+    if (t.tipo !== 'area' || t.n === 0) continue
+    g.beginPath(); g.moveTo(t.pts[0].x, t.pts[0].y); for (const p of t.pts) g.lineTo(p.x, p.y); g.closePath()
+    g.strokeStyle = 'rgba(120, 60, 30, 0.55)'; g.lineWidth = 5; g.stroke()
+    g.strokeStyle = '#d98c52'; g.lineWidth = 2.5; g.stroke()
+  }
+  g.restore()
+}
+function desenharHoje() {
+  gHoje.drawImage(telaGrama, 0, 0)
+  contornosDasAreas(gHoje)
+  gHoje.lineCap = 'round'; gHoje.lineJoin = 'round'
+  for (const t of trechos) {
+    if (t.tipo !== 'trilha' || t.ctrl.length < 2) continue
+    const pts = pontosClicados(t.ctrl)
+    gHoje.beginPath(); gHoje.moveTo(pts[0].x, pts[0].y); for (const p of pts) gHoje.lineTo(p.x, p.y)
+    gHoje.strokeStyle = MAT[t.mat].hoje; gHoje.lineWidth = t.largura; gHoje.stroke()
+  }
+  hojeSujo = false; precisaPintar = true
+}
+
+// ─── Limite de visão e de andar: contorno do que conta como Chão (marching squares, passo 8 px) ───
+let segLimite = []
+let limiteSujo = true
+function limitaNoModo(t, modo) { return t.limite && (modo === 'proposta' || t.tipo === 'area') }
+function calcularLimite() {
+  const modo = modoVisivel(), P = 8, cols = Math.ceil(W / P) + 1, rows = Math.ceil(H / P) + 1
+  const lista = trechos.filter((t) => t.n > 0 && limitaNoModo(t, modo))
+  const f = new Float32Array(cols * rows)
+  for (let j = 0; j < rows; j += 1) for (let i = 0; i < cols; i += 1) {
+    const x = Math.min(W - 0.5, i * P), y = Math.min(H - 0.5, j * P)
+    let v = 1e9
+    for (const t of lista) if (x >= t.bx0 && x < t.bx1 && y >= t.by0 && y < t.by1) v = Math.min(v, distancia(t, x, y))
+    f[j * cols + i] = v
+  }
+  const seg = []
+  const ponto = (ax, ay, va, bx, by, vb) => { const k = va / (va - vb); return [ax + (bx - ax) * k, ay + (by - ay) * k] }
+  for (let j = 0; j < rows - 1; j += 1) for (let i = 0; i < cols - 1; i += 1) {
+    const x = i * P, y = j * P
+    const a = f[j * cols + i], b = f[j * cols + i + 1], c = f[(j + 1) * cols + i + 1], d = f[(j + 1) * cols + i]
+    const lado = []
+    if ((a < 0) !== (b < 0)) lado.push(ponto(x, y, a, x + P, y, b))
+    if ((b < 0) !== (c < 0)) lado.push(ponto(x + P, y, b, x + P, y + P, c))
+    if ((c < 0) !== (d < 0)) lado.push(ponto(x + P, y + P, c, x, y + P, d))
+    if ((d < 0) !== (a < 0)) lado.push(ponto(x, y + P, d, x, y, a))
+    if (lado.length >= 2) seg.push(lado[0][0], lado[0][1], lado[1][0], lado[1][1])
+    if (lado.length === 4) seg.push(lado[2][0], lado[2][1], lado[3][0], lado[3][1])
+  }
+  segLimite = seg; limiteSujo = false
+}
+
+// ─── Tela, câmera e quadro ───
+const palco = document.getElementById('palco')
+const ctx = palco.getContext('2d')
+const vista = { s: 1, ox: 0, oy: 0 }
+let dpr = 1, cw = 1, ch = 1
+let precisaPintar = true
+function medirTela() {
+  dpr = window.devicePixelRatio || 1
+  const r = palco.getBoundingClientRect(); cw = r.width; ch = r.height
+  palco.width = Math.round(cw * dpr); palco.height = Math.round(ch * dpr)
+  precisaPintar = true
+}
+function verTudo() {
+  vista.s = Math.min(cw / W, ch / H) * 0.97
+  vista.ox = (cw - W * vista.s) / 2; vista.oy = (ch - H * vista.s) / 2
+  atualizarZoom(); precisaPintar = true
+}
+function zoomEm(px, py, fator) {
+  const s = clamp(vista.s * fator, Math.min(cw / W, ch / H) * 0.6, 3)
+  const wx = (px - vista.ox) / vista.s, wy = (py - vista.oy) / vista.s
+  vista.s = s; vista.ox = px - wx * s; vista.oy = py - wy * s
+  atualizarZoom(); precisaPintar = true
+}
+function atualizarZoom() { document.getElementById('o-zoom').textContent = `${Math.round(vista.s * 100)}%` }
+
+let modoEscolhido = 'proposta'
+let segurandoHoje = false
+const modoVisivel = () => (segurandoHoje ? 'hoje' : modoEscolhido)
+
+function pintar() {
+  const modo = modoVisivel()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, palco.width, palco.height)
+  ctx.setTransform(dpr * vista.s, 0, 0, dpr * vista.s, dpr * vista.ox, dpr * vista.oy)
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(modo === 'hoje' ? telaHoje : CAMADA[modo].tela, 0, 0)
+  if (modo === 'caminho') contornosDasAreas(ctx) // a Área segue sendo o Chão de hoje: some embaixo da grama
+  // Contorno do traço de área enquanto a mão ainda está no mapa.
+  if (arrasto && arrasto.tipo === 'area' && arrasto.ctrl.length > 1) {
+    ctx.beginPath(); ctx.moveTo(arrasto.ctrl[0].x, arrasto.ctrl[0].y); for (const p of arrasto.ctrl) ctx.lineTo(p.x, p.y)
+    ctx.closePath(); ctx.setLineDash([6 / vista.s, 5 / vista.s]); ctx.lineWidth = 2 / vista.s; ctx.strokeStyle = '#f3ba66'; ctx.stroke()
+    ctx.fillStyle = 'rgba(243, 186, 102, 0.12)'; ctx.fill(); ctx.setLineDash([])
+  }
+  if (verLimite && !arrasto) {
+    if (limiteSujo) calcularLimite()
+    ctx.beginPath()
+    for (let k = 0; k < segLimite.length; k += 4) { ctx.moveTo(segLimite[k], segLimite[k + 1]); ctx.lineTo(segLimite[k + 2], segLimite[k + 3]) }
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'; ctx.lineWidth = 3.5 / vista.s; ctx.stroke()
+    ctx.setLineDash([7 / vista.s, 6 / vista.s]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6 / vista.s; ctx.stroke(); ctx.setLineDash([])
+  }
+  precisaPintar = false
+}
+
+// Medidor: intervalo entre quadros e trabalho por quadro enquanto a mão arrasta; tarefas longas pelo observador.
+const medidor = { quadros: [], trabalho: [], longas: [], ultimo: 0 }
+window.__medidor = medidor
+// Para a conferência automática: a tela acabou de compor o que estava pendente?
+window.__ocioso = () => { const m = modoVisivel(); return pronto && (m === 'hoje' ? !hojeSujo : CAMADA[m].fila.length === 0 && !CAMADA[m].velha) }
+try { new PerformanceObserver((l) => { for (const e of l.getEntries()) medidor.longas.push(Math.round(e.duration)) }).observe({ type: 'longtask', buffered: true }) } catch (_) { /* navegador sem longtask */ }
+function quadro(agora) {
+  if (arrasto && medidor.ultimo > 0) medidor.quadros.push(agora - medidor.ultimo)
+  medidor.ultimo = agora
+  if (pronto) {
+    trabalhar(9)
+    if (arrasto) medidor.trabalho.push(trabalhoDoQuadro)
+    if (precisaPintar) pintar()
+  }
+  requestAnimationFrame(quadro)
+}
+const p95 = (v) => { if (v.length === 0) return 0; const o = [...v].sort((a, b) => a - b); return o[Math.min(o.length - 1, Math.floor(o.length * 0.95))] }
+const mediana = (v) => { const o = [...v].sort((a, b) => a - b); return o[Math.floor(o.length / 2)] }
+function mostrarMedida() {
+  const q = medidor.quadros, tb = medidor.trabalho
+  if (q.length < 3) return
+  const longas = medidor.longas.filter((d) => d >= 50)
+  document.getElementById('medida').textContent =
+    `Entre quadros: mediana ${mediana(q).toFixed(1)} ms, p95 ${p95(q).toFixed(1)} ms · trabalho p95 ${p95(tb).toFixed(1)} ms, maior ${Math.max(...tb).toFixed(1)} ms · tarefas acima de 50 ms: ${longas.length === 0 ? 'nenhuma' : longas.join(', ') + ' ms'}`
+}
+
+// ─── Traçar com o mouse ───
+let arrasto = null
+let andando = null
+let espaco = false
+const mundoDe = (ev) => { const r = palco.getBoundingClientRect(); return { x: (ev.clientX - r.left - vista.ox) / vista.s, y: (ev.clientY - r.top - vista.oy) / vista.s } }
+const PASSO_DO_TRACO = 0.25 * CASA
+
+palco.addEventListener('contextmenu', (ev) => ev.preventDefault())
+palco.addEventListener('pointerdown', (ev) => {
+  if (!pronto) return
+  palco.focus({ preventScroll: true })
+  palco.setPointerCapture(ev.pointerId)
+  if (ev.button === 2 || ev.button === 1 || espaco) { andando = { x: ev.clientX, y: ev.clientY }; palco.style.cursor = 'grabbing'; return }
+  if (ev.button !== 0 || arrasto) return
+  const p = mundoDe(ev)
+  arrasto = {
+    id: proximoId++, tipo: forma, mat: material, largura: largura * CASA, asp: borda / 100, limite: limiteNovo,
+    ctrl: [p], n: 0, S: null,
+  }
+  medidor.quadros.length = 0; medidor.trabalho.length = 0; medidor.longas.length = 0; medidor.ultimo = 0
+  if (forma === 'trilha') trechos.push(arrasto)
+  precisaPintar = true
+})
+palco.addEventListener('pointermove', (ev) => {
+  if (andando) {
+    vista.ox += ev.clientX - andando.x; vista.oy += ev.clientY - andando.y
+    andando = { x: ev.clientX, y: ev.clientY }; precisaPintar = true; return
+  }
+  if (!arrasto) return
+  const eventos = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev]
+  let mudou = false
+  for (const e of (eventos.length > 0 ? eventos : [ev])) {
+    const p = mundoDe(e), u = arrasto.ctrl[arrasto.ctrl.length - 1]
+    if (Math.hypot(p.x - u.x, p.y - u.y) >= PASSO_DO_TRACO) { arrasto.ctrl.push(p); mudou = true }
+  }
+  if (!mudou) return
+  if (arrasto.tipo === 'trilha') atualizarTrilha(arrasto)
+  precisaPintar = true
+})
+function atualizarTrilha(t) {
+  if (t.ctrl.length < 2) return
+  derivar(t)
+  // Só os últimos vãos mudam: a curva de Catmull-Rom de um vão depende de 4 pontos.
+  const c = t.ctrl, ini = Math.max(0, c.length - 3)
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9
+  for (let k = ini; k < c.length; k += 1) { x0 = Math.min(x0, c[k].x); y0 = Math.min(y0, c[k].y); x1 = Math.max(x1, c[k].x); y1 = Math.max(y1, c[k].y) }
+  const m = t.largura * 0.62 + t.alcance + 10
+  sujarTodos(x0 - m, y0 - m, x1 + m, y1 + m)
+  limiteSujo = true
+}
+function terminar(ev) {
+  if (andando) { andando = null; palco.style.cursor = ''; return }
+  if (!arrasto) return
+  const t = arrasto
+  arrasto = null
+  if (t.tipo === 'trilha') {
+    if (t.ctrl.length < 2) { trechos = trechos.filter((x) => x !== t); avisar('Arraste para traçar: um clique sozinho não faz caminho.') }
+    else { atualizarTrilha(t); avisar(`${MAT[t.mat].nome}: caminho de ${(t.comprimento / CASA).toFixed(1).replace('.', ',')} casas.`) }
+  } else {
+    const c = t.ctrl
+    let area = 0
+    for (let k = 0; k < c.length; k += 1) { const a = c[k], b = c[(k + 1) % c.length]; area += a.x * b.y - b.x * a.y }
+    if (c.length < 4 || Math.abs(area / 2) < CASA * CASA) avisar('Área pequena demais: contorne um pedaço maior e solte.')
+    else { trechos.push(t); derivar(t); sujarTodos(t.bx0, t.by0, t.bx1, t.by1); limiteSujo = true; avisar(`${MAT[t.mat].nome}: área de ${(Math.abs(area / 2) / (CASA * CASA)).toFixed(0)} casas.`) }
+  }
+  setTimeout(mostrarMedida, 50)
+  atualizarBotoes(); precisaPintar = true
+}
+palco.addEventListener('pointerup', terminar)
+palco.addEventListener('pointercancel', terminar)
+palco.addEventListener('wheel', (ev) => {
+  ev.preventDefault()
+  const r = palco.getBoundingClientRect()
+  zoomEm(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015))
+}, { passive: false })
+
+function desfazer() {
+  if (arrasto || trechos.length === 0) return
+  const t = trechos.pop()
+  sujarTodos(t.bx0, t.by0, t.bx1, t.by1); limiteSujo = true
+  avisar(`Desfeito: ${t.tipo === 'trilha' ? 'caminho' : 'área'} de ${MAT[t.mat].nome.toLowerCase()}.`)
+  atualizarBotoes(); precisaPintar = true
+}
+function recomecar(lista) {
+  trechos = lista
+  for (const t of trechos) derivar(t)
+  for (const modo of MODOS_POR_PIXEL) CAMADA[modo].velha = true
+  hojeSujo = true; limiteSujo = true; precisaPintar = true
+  atualizarBotoes()
+}
+
+// ─── O exemplo: estrada de pedra com bifurcação, trilha de terra cruzando, praça, passarela, cascalho ───
+function exemplo() {
+  const c = (pts) => pts.map(([x, y]) => ({ x: x * CASA, y: y * CASA }))
+  const base = (tipo, mat, larg, asp, pts) => ({ id: proximoId++, tipo, mat, largura: larg * CASA, asp, limite: true, ctrl: c(pts) })
+  return [
+    base('trilha', 'terra', 1.25, 0.55, [[37, 17.5], [31, 16.8], [25, 17.6], [19, 16.2], [13, 17.4], [8, 20.2], [3, 21], [-1, 20.4]]),
+    base('trilha', 'calcamento', 2.5, 0.6, [[17, 25], [17.6, 21], [16.4, 16.5], [17.2, 12.5], [20, 9], [21.6, 6]]),
+    base('trilha', 'calcamento', 1.75, 0.6, [[16.6, 15.2], [13.5, 12.6], [10, 11.4], [6.5, 11.8]]),
+    base('trilha', 'cascalho', 1.5, 0.65, [[6.5, 11.8], [4, 9.5], [3.4, 6], [1.5, 3.5], [-1, 2.6]]),
+    base('area', 'calcamento', 0, 0.55, [[18.8, 2.2], [22.5, 1.3], [26.6, 2.4], [27.6, 5.4], [25.7, 8.2], [21.8, 8.4], [18.6, 6.6]]),
+    base('area', 'areia', 0, 0.7, [[30.6, 9.6], [33.6, 8.7], [36.4, 9.2], [36.4, 14.4], [33.6, 14.6], [31, 13.2]]),
+    base('trilha', 'tabuas', 1.5, 0.5, [[26.2, 7.2], [28.5, 9.4], [30.2, 11], [32.8, 11.6]]),
+  ]
+}
+
+// ─── Painel ───
+let forma = 'trilha', material = 'calcamento', largura = 2, borda = 60, limiteNovo = true, verLimite = false
+const sobre = {
+  hoje: 'Como o app desenha hoje. O Caminho é uma faixa de cor lisa, ligada por retas entre os cliques. A Área é uma peça de Chão: fica embaixo da grama pintada com Texturas e só o contorno aparece.',
+  proposta: 'Uma ferramenta só para chão e caminho. Os dois são o mesmo terreno, com material de verdade, curva suave e beira que se mistura com a grama. Tudo o que você pinta conta como Chão, como hoje.',
+  caminho: 'O jeito mais barato: só o Caminho fica bonito. A Área continua sendo o Chão de hoje, escondido embaixo da grama. Dois caminhos que se cruzam não se fundem: cada um tem a sua beira.',
+  textura: 'O caminho vira uma pincelada da ferramenta Texturas: beira esfumada, sem pedras soltas, e a curva acompanha a mão. Não conta como Chão: o limite continua sendo uma peça de Chão invisível.',
+}
+const ajudaForma = {
+  trilha: 'Arraste para traçar. A curva acompanha a mão; para bifurcar, comece em cima de outro caminho.',
+  area: 'Arraste em volta do lugar e solte: a área fecha sozinha. Serve para praça, chão de casa, areia.',
+}
+function avisar(texto) { document.getElementById('status').textContent = texto }
+function atualizarBotoes() {
+  document.getElementById('desfazer').disabled = trechos.length === 0
+  document.getElementById('limpar').disabled = trechos.length === 0
+}
+function atualizarPainel() {
+  const modo = modoEscolhido
+  document.getElementById('sobre-modo').textContent = sobre[modo]
+  document.getElementById('mudou').hidden = modo !== 'proposta'
+  document.getElementById('ajuda-forma').textContent = ajudaForma[forma]
+  document.getElementById('o-largura').textContent = `${largura.toLocaleString('pt-BR')} ${largura === 1 ? 'casa' : 'casas'}`
+  document.getElementById('o-borda').textContent = borda === 0 ? 'reta' : `${borda}%`
+  const larguraNaoVale = forma === 'area'
+  document.getElementById('aj-largura').classList.toggle('desligado', larguraNaoVale)
+  document.getElementById('r-largura').disabled = larguraNaoVale
+  document.getElementById('m-largura').hidden = !larguraNaoVale
+  const bordaNaoVale = modo === 'hoje' || modo === 'textura' || material === 'liso'
+  document.getElementById('aj-borda').classList.toggle('desligado', bordaNaoVale)
+  document.getElementById('r-borda').disabled = bordaNaoVale
+  const mb = document.getElementById('m-borda')
+  mb.hidden = !bordaNaoVale
+  mb.textContent = material === 'liso' ? 'O Liso tem beira reta, como hoje.' : modo === 'hoje' ? 'Hoje a beira é sempre reta.' : 'A pincelada da Texturas tem a beira esfumada de sempre.'
+  document.getElementById('nota-limite').textContent = modo === 'proposta'
+    ? 'Na Proposta, caminho e área contam como Chão. O limite segue a forma limpa, não as pedras soltas da beira.'
+    : 'Neste desenho, só a Área é Chão: o caminho é pintura e não muda por onde o jogador anda.'
+}
+function montarMateriais() {
+  const caixa = document.getElementById('materiais')
+  for (const m of MATS) {
+    const entrada = document.createElement('input'); entrada.type = 'radio'; entrada.name = 'material'; entrada.id = `mat-${m.id}`; entrada.value = m.id
+    if (m.id === material) entrada.checked = true
+    const rotulo = document.createElement('label'); rotulo.htmlFor = entrada.id
+    if (m.id === 'liso') rotulo.className = 'largo'
+    const amostra = document.createElement('canvas'); amostra.width = 88; amostra.height = 72; amostra.dataset.mat = m.id
+    rotulo.append(amostra, document.createTextNode(m.nome))
+    caixa.append(entrada, rotulo)
+    entrada.addEventListener('change', () => { material = m.id; atualizarPainel() })
+  }
+}
+function pintarAmostras() {
+  for (const tela of document.querySelectorAll('#materiais canvas')) {
+    const m = MAT[tela.dataset.mat], g = tela.getContext('2d'), img = g.createImageData(88, 72)
+    for (let y = 0; y < 72; y += 1) for (let x = 0; x < 88; x += 1) {
+      const wx = 500 + x, wy = 300 + y, p = (y * 88 + x) * 4
+      let r, gg, b
+      if (m.tipo === 'liso') [r, gg, b] = rgb(m.hoje)
+      else if (m.tipo === 'tabuas') { corDaTabua(wx * 0.7, wy, 1e9); r = C_R; gg = C_G; b = C_B }
+      else { const T = TEX[m.id], q = (wy * W + wx) * 4; r = T[q]; gg = T[q + 1]; b = T[q + 2] }
+      img.data[p] = r; img.data[p + 1] = gg; img.data[p + 2] = b; img.data[p + 3] = 255
+    }
+    g.putImageData(img, 0, 0)
+  }
+}
+function escolherModo(modo) {
+  modoEscolhido = modo
+  document.getElementById(`m-${modo}`).checked = true
+  limiteSujo = true; precisaPintar = true; atualizarPainel()
+}
+for (const r of document.querySelectorAll('input[name=modo]')) r.addEventListener('change', () => escolherModo(r.value))
+for (const r of document.querySelectorAll('input[name=forma]')) r.addEventListener('change', () => { forma = r.value; atualizarPainel() })
+document.getElementById('r-largura').addEventListener('input', (ev) => { largura = Number(ev.target.value); atualizarPainel() })
+document.getElementById('r-borda').addEventListener('input', (ev) => { borda = Number(ev.target.value); atualizarPainel() })
+document.getElementById('c-limite').addEventListener('change', (ev) => { limiteNovo = ev.target.checked })
+const botaoLimite = document.getElementById('ver-limite')
+function alternarLimite() { verLimite = !verLimite; botaoLimite.setAttribute('aria-pressed', String(verLimite)); precisaPintar = true }
+botaoLimite.addEventListener('click', alternarLimite)
+document.getElementById('desfazer').addEventListener('click', desfazer)
+document.getElementById('exemplo').addEventListener('click', () => { recomecar(exemplo()); avisar('O exemplo voltou.') })
+document.getElementById('limpar').addEventListener('click', () => { recomecar([]); avisar('Mapa limpo: só a grama. Desfazer não traz de volta; use Voltar ao exemplo.') })
+document.getElementById('zoom-menos').addEventListener('click', () => zoomEm(cw / 2, ch / 2, 1 / 1.25))
+document.getElementById('zoom-mais').addEventListener('click', () => zoomEm(cw / 2, ch / 2, 1.25))
+document.getElementById('zoom-tudo').addEventListener('click', verTudo)
+const botaoHoje = document.getElementById('segurar-hoje')
+function segurarHoje(sim) {
+  if (segurandoHoje === sim) return
+  segurandoHoje = sim
+  botaoHoje.classList.toggle('segurando', sim)
+  document.getElementById('faixa-hoje').hidden = !sim
+  limiteSujo = true; precisaPintar = true
+}
+botaoHoje.addEventListener('pointerdown', () => segurarHoje(true))
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) botaoHoje.addEventListener(ev, () => segurarHoje(false))
+window.addEventListener('keydown', (ev) => {
+  if (ev.target instanceof HTMLInputElement && ev.target.type === 'range' && ev.key.startsWith('Arrow')) return
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); desfazer(); return }
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return
+  const k = ev.key.toLowerCase()
+  if (k === ' ') { if (ev.target === palco) ev.preventDefault(); espaco = true; return }
+  if (ev.repeat) return
+  if (k === 'h') segurarHoje(true)
+  else if (k === '1') escolherModo('hoje')
+  else if (k === '2') escolherModo('proposta')
+  else if (k === '3') escolherModo('caminho')
+  else if (k === '4') escolherModo('textura')
+  else if (k === 'c') { forma = 'trilha'; document.getElementById('f-trilha').checked = true; atualizarPainel() }
+  else if (k === 'a') { forma = 'area'; document.getElementById('f-area').checked = true; atualizarPainel() }
+  else if (k === 'l') alternarLimite()
+  else if (k === '[' || k === ']') {
+    largura = clamp(largura + (k === ']' ? 0.5 : -0.5), 0.5, 4)
+    document.getElementById('r-largura').value = String(largura); atualizarPainel()
+  } else if (k === 'escape' && arrasto) {
+    const t = arrasto; arrasto = null
+    if (t.tipo === 'trilha') { trechos = trechos.filter((x) => x !== t); if (t.n > 0) sujarTodos(t.bx0, t.by0, t.bx1, t.by1) }
+    avisar('Traço cancelado.'); precisaPintar = true
+  }
+})
+window.addEventListener('keyup', (ev) => { if (ev.key.toLowerCase() === 'h') segurarHoje(false); if (ev.key === ' ') espaco = false })
+window.addEventListener('blur', () => { segurarHoje(false); espaco = false })
+window.addEventListener('resize', () => { const centro = { x: (cw / 2 - vista.ox) / vista.s, y: (ch / 2 - vista.oy) / vista.s }; medirTela(); vista.ox = cw / 2 - centro.x * vista.s; vista.oy = ch / 2 - centro.y * vista.s })
+
+// ─── Preparação: os materiais saem em fatias de ~20 ms (nenhuma tarefa longa ao abrir) ───
+let pronto = false
+const ceder = () => new Promise((r) => setTimeout(r, 0))
+async function preparar() {
+  TEX.grama = new Uint8ClampedArray(N * 4); TEX.terra = new Uint8ClampedArray(N * 4); TEX.areia = new Uint8ClampedArray(N * 4)
+  TEX.calcamento = new Uint8ClampedArray(N * 4); TEX.cascalho = new Uint8ClampedArray(N * 4)
+  CEL.calcamento = new Int32Array(N); CEL.cascalho = new Int32Array(N)
+  CEN.calcamento = new Float32Array(COLS_P * (Math.ceil(H / LADO_PEDRA) + 3) * 2)
+  CEN.cascalho = new Float32Array(COLS_S * (Math.ceil(H / LADO_SEIXO) + 3) * 2)
+  const etapas = [['Ruído da beira', genRuido], ['Grama', genGrama], ['Terra batida', genTerra], ['Areia', genAreia], ['Calçamento', genCalcamento], ['Cascalho', genCascalho]]
+  const texto = document.getElementById('carregando-texto')
+  for (let e = 0; e < etapas.length; e += 1) {
+    const [nome, gerar] = etapas[e]
+    texto.textContent = `${nome} (${e + 1} de ${etapas.length})…`
+    for (let y = 0; y < H;) {
+      const t0 = performance.now()
+      while (y < H && performance.now() - t0 < 20) { gerar(y, Math.min(H, y + 4)); y += 4 }
+      await ceder()
+    }
+  }
+  telaGrama = document.createElement('canvas'); telaGrama.width = W; telaGrama.height = H
+  const g = telaGrama.getContext('2d'), img = g.createImageData(W, H); img.data.set(TEX.grama); g.putImageData(img, 0, 0)
+  pintarAmostras()
+  recomecar(exemplo())
+  pronto = true
+  document.getElementById('carregando').hidden = true
+  window.__pronto = true
+}
+
+montarMateriais()
+atualizarPainel()
+atualizarBotoes()
+medirTela()
+verTudo()
+requestAnimationFrame(quadro)
+preparar()
+</script>
+</body>
+</html>

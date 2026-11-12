@@ -1,0 +1,9 @@
+pronto em 3050 ms
+composição inicial (Proposta) em 1124 ms
+tarefas longas ao abrir (ms): [152]
+caminho de 3 casas (Proposta): {"quadros":458,"mediana":8.4,"p95":16.7,"max":17,"trabalhoP95":12.8,"trabalhoMax":13.9,"longas":[]}
+painel: Entre quadros: mediana 8.4 ms, p95 16.7 ms · trabalho p95 12.8 ms, maior 13.9 ms · tarefas acima de 50 ms: nenhuma
+área de cascalho (Proposta): {"quadros":232,"mediana":8.3,"p95":8.5,"max":8.6,"trabalhoP95":0,"trabalhoMax":0.1,"longas":[]} longas até compor: []
+caminho no Hoje: {"quadros":232,"mediana":8.3,"p95":8.4,"max":8.5,"trabalhoP95":0.1,"trabalhoMax":0.1,"longas":[]}
+zoom de perto: 246%
+erros: []
