@@ -326,6 +326,19 @@ interface AdventureState {
    */
   deleteScene: (sceneId: string, playerTokenIds?: ReadonlySet<string>) => boolean
   /**
+   * CENA APAGADA (caça de 12/11/2026, E3, decisão 13): o que o "Desfazer" do
+   * aviso precisa para trazê-la de volta. Vale até o próximo Salvar (que zera)
+   * e só na mesma aventura. `null` = nada a desfazer.
+   */
+  cenaApagada: CenaApagada | null
+  /**
+   * O "Desfazer" do aviso "X foi apagada.": a cena volta à lista no lugar de
+   * antes, com o mapa dela, e os pinos de viagem das outras cenas voltam a
+   * levar a ela. `false` (com aviso) quando já não dá: salvou, trocou de
+   * aventura ou a lista de cenas mudou depois.
+   */
+  desfazerApagarCena: () => boolean
+  /**
    * "Subir" (`-1`) e "Descer" (`1`) do menu da cena: ela troca de lugar com a
    * irmã de cima ou de baixo (mesma cena de fora), na ordem que a lista mostra.
    * A pasta anda com o que tem dentro. `false` na ponta. Não confundir com
@@ -630,6 +643,7 @@ const EMPTY = {
   cache: {},
   dirty: {},
   structureDirty: false,
+  cenaApagada: null,
   cameraRequest: null,
   pasta: null,
   pastaSuja: false,
@@ -713,8 +727,33 @@ export interface ScenePlayer {
   tokenIds: readonly string[]
 }
 
+/** O que o "Desfazer" de "Apagar cena…" guarda (`AdventureState.cenaApagada`). */
+export interface CenaApagada {
+  adventureId: string
+  sceneId: string
+  /** A aventura logo antes de apagar: lista, cena inicial e fixadas. */
+  antes: Adventure
+  /** A lista logo depois: o desfazer só devolve a de antes se ela ainda for esta. */
+  cenasDepois: Adventure['scenes']
+  /** O mapa da apagada no cache (o arquivo dela continua no disco). */
+  slot: SceneSlot | undefined
+  /** Ela tinha mudança por gravar. */
+  suja: boolean
+  /** Pinos das outras cenas que levavam a ela, como eram antes de soltos. */
+  pinosSoltos: { sceneId: string; pinos: Pin[] }[]
+}
+
+/** O mapa com os pinos de `pinos` de volta, pelo id (o que sumiu depois não volta). */
+function comPinosDeVolta(map: MapData, pinos: readonly Pin[]): MapData {
+  const porId = new Map(pinos.map((pin) => [pin.id, pin]))
+  if (!map.pins.some((pin) => porId.has(pin.id))) return map
+  return { ...map, pins: map.pins.map((pin) => porId.get(pin.id) ?? pin) }
+}
+
 /** O que a confirmação de "Apagar cena…" diz antes de apagar. */
 export interface SceneDeletionInfo {
+  /** Fichas da cena: vão junto com ela (caça 12/11, E3). Ausente = quem montou não contou (a confirmação diz só o desenho). */
+  fichas?: number
   /** Pinos de viagem de OUTRAS cenas que levam a esta e ficam sem destino. */
   orphanPins: number
   /** Jogadores com ficha nesta cena: com alguém aqui, apagar fica desligado. */
@@ -737,7 +776,7 @@ export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: 
   }
   const here = new Set((mapOfScene(state, liveMap, sceneId)?.tokens ?? []).map((token) => token.id))
   const blockers = players.filter((player) => player.tokenIds.some((id) => here.has(id))).map((player) => player.name)
-  return { orphanPins, blockers, inside: sceneChildCount(state.adventure?.scenes ?? [], sceneId) }
+  return { fichas: here.size, orphanPins, blockers, inside: sceneChildCount(state.adventure?.scenes ?? [], sceneId) }
 }
 
 /** Sufixo do nome da cena duplicada, o mesmo da cópia de mapa e de sala. */
@@ -1680,6 +1719,17 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
 
     const { adventure, cache, dirty, previousSceneId } = get()
     if (adventure === null) return false
+    // DESFAZER (caça 12/11, E3): os pinos que vão perder o destino, como estão agora, em cada cena
+    // carregada e na aberta. Pino que `unlinkFromScene` troca é o que o desfazer devolve.
+    const pinosSoltos: CenaApagada['pinosSoltos'] = []
+    const anotarPinos = (id: string, mapa: MapData) => {
+      const depois = unlinkFromScene(mapa, sceneId)
+      const pinos = depois === mapa ? [] : mapa.pins.filter((pin) => !depois.pins.includes(pin))
+      if (pinos.length > 0) pinosSoltos.push({ sceneId: id, pinos })
+    }
+    for (const [id, slot] of Object.entries(cache)) if (id !== sceneId && slot.status === 'ok') anotarPinos(id, slot.map)
+    const abertaAgora = get().activeSceneId
+    if (abertaAgora !== null && abertaAgora !== sceneId) anotarPinos(abertaAgora, useMapStore.getState().map)
     const nextCache: Record<string, SceneSlot> = {}
     const nextDirty: Record<string, true> = { ...dirty }
     delete nextDirty[sceneId]
@@ -1704,12 +1754,58 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       dirty: nextDirty,
       previousSceneId: previousSceneId === sceneId ? null : previousSceneId,
       structureDirty: true,
+      cenaApagada: { adventureId: adventure.id, sceneId, antes: adventure, cenasDepois: scenes, slot: cache[sceneId], suja: dirty[sceneId] === true, pinosSoltos },
     })
     // A cena aberta perde a ligação no mapa e no desfazer juntos, sem
     // `withHistory`: apagar a cena não é um passo para o Ctrl+Z desta.
     const { map, past, future } = useMapStore.getState()
     const openUnlinked = withoutLinksTo({ map, past, future }, sceneId)
     if (openUnlinked !== null) useMapStore.setState(openUnlinked)
+    return true
+  },
+
+  desfazerApagarCena: () => {
+    const state = get()
+    const registro = state.cenaApagada
+    const adventure = state.adventure
+    if (registro === null || adventure === null || adventure.id !== registro.adventureId) return false
+    // A lista mudou depois de apagar (cena nova, movida, renomeada): devolver a de antes desfaria isso também.
+    if (adventure.scenes !== registro.cenasDepois) {
+      set({ cenaApagada: null })
+      useToastStore.getState().push('info', 'Não dá mais para desfazer: a lista de cenas mudou depois.')
+      return false
+    }
+    const { sceneId } = registro
+    const cache: Record<string, SceneSlot> = { ...state.cache }
+    const dirty: Record<string, true> = { ...state.dirty }
+    if (registro.slot !== undefined) cache[sceneId] = registro.slot
+    if (registro.suja) dirty[sceneId] = true
+    // Os pinos de viagem voltam a levar a ela: no mapa, no Ctrl+Z e no Ctrl+Y de cada cena.
+    for (const { sceneId: id, pinos } of registro.pinosSoltos) {
+      const religar = (mapa: MapData) => comPinosDeVolta(mapa, pinos)
+      if (id === state.activeSceneId) {
+        const { map, past, future } = useMapStore.getState()
+        useMapStore.setState({ map: religar(map), past: past.map(religar), future: future.map(religar) })
+        continue
+      }
+      const slot = cache[id]
+      if (slot === undefined || slot.status !== 'ok') continue
+      const map = religar(slot.map)
+      if (map === slot.map) continue
+      cache[id] = { ...slot, map, past: slot.past.map(religar), future: slot.future.map(religar) }
+      dirty[id] = true
+    }
+    const fixadas = registro.antes.fixadas ?? []
+    set({
+      adventure: comFixadas(
+        { ...adventure, scenes: registro.antes.scenes, startSceneId: registro.antes.startSceneId === sceneId ? sceneId : adventure.startSceneId },
+        fixadas.includes(sceneId) ? [...(adventure.fixadas ?? []), sceneId] : (adventure.fixadas ?? []),
+      ),
+      cache,
+      dirty,
+      structureDirty: true,
+      cenaApagada: null,
+    })
     return true
   },
 
@@ -2495,7 +2591,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       if (sent === undefined ? state.dirty[sceneId] !== true : nowOf(sceneId) !== sent) dirty[sceneId] = true
     }
     // A lista gravada é a de antes do `await`: se ela mudou, a nova ainda não foi.
-    set({ dir, rootPath: null, rootMapId: null, dirty, structureDirty: after.structureDirty && after.adventure !== adventure })
+    // O "Desfazer" de cena apagada vale até gravar (caça 12/11, E3, decisão 13).
+    set({ dir, rootPath: null, rootMapId: null, dirty, structureDirty: after.structureDirty && after.adventure !== adventure, cenaApagada: null })
     const activeSent = after.activeSceneId === null ? undefined : written.get(after.activeSceneId)
     if (activeSent !== undefined) useSessionStore.getState().markSaved(activeSent)
     return scenePath(dir, activeFile)

@@ -511,6 +511,13 @@ export function orphanPinsText(count: number): string {
   return `${count} pinos de viagem de outras cenas vão ficar sem destino.`
 }
 
+/** O que vai junto com a cena apagada (caça 12/11, E3, decisão 13). */
+export function goesWithSceneText(fichas: number): string {
+  if (fichas === 0) return 'Vai junto tudo o que está desenhado nela.'
+  if (fichas === 1) return 'Vão junto: 1 ficha e tudo o que está desenhado nela.'
+  return `Vão junto: ${fichas} fichas e tudo o que está desenhado nela.`
+}
+
 /** O que a confirmação diz das cenas de dentro da apagada. Sem nenhuma, não diz nada. */
 export function insideScenesText(count: number): string {
   if (count === 0) return ''
@@ -846,6 +853,7 @@ function DeleteConfirm({ sceneName, info, onConfirm, onCancel }: DeleteConfirmPr
       <p id={titleId} className="lb-cenas__apagar-titulo">
         Apagar {sceneName}?
       </p>
+      <p>{goesWithSceneText(info.fichas ?? 0)}</p>
       <p>{orphanPinsText(info.orphanPins)}</p>
       {info.inside > 0 && <p>{insideScenesText(info.inside)}</p>}
       {blocked && <p className="lb-cenas__apagar-bloqueio">{deleteBlockedText(info.blockers)}</p>}
