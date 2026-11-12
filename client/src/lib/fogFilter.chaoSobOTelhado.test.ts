@@ -72,7 +72,8 @@ describe('chão grande que passa por baixo de um teto fechado', () => {
     // Inteiro: o cais é o MESMO da cena sem a sala (um corte na borda desenharia o formato dela).
     const semASala = recorte({ ...mapa({}), regions: [] })
     expect(visto.drawings).toEqual(semASala.drawings.filter((d) => d.id === 'cais'))
-    expect(visto.drawings[0].points).toEqual(CAIS.points)
+    const cais = visto.drawings[0]
+    expect(cais?.kind === 'polygon' ? cais.points : null).toEqual(CAIS.points)
     expect((visto.texturas ?? []).map((t) => t.id)).toEqual(['convés'])
   })
 })
