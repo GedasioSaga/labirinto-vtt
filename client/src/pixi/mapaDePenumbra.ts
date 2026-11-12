@@ -55,9 +55,6 @@ export const AJUSTE_DA_PENUMBRA = {
   /** A troca do passo, em ms, e a curva (a `--ease-out` da casa). */
   misturaMs: 200,
   curva: [0.23, 1, 0.32, 1] as const,
-  /** Fim do alcance (peça D): o olhar perde o claro nos últimos 30% do raio, até 3 casas. */
-  fimDoAlcance: 0.3,
-  fimDoAlcanceTetoEmCasas: 3,
   /** Luz macia (peça E): desvio do borrão do mapa de luz, em px de mundo. */
   luzMaciaPx: 6,
 } as const
