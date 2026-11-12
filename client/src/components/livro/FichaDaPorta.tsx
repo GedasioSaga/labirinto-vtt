@@ -2,6 +2,7 @@ import { useId, useSyncExternalStore, type ReactNode } from 'react'
 import type { DoorKind, DoorSide, DoorState } from '../../types/map'
 import { assinarAnimacoesDePorta, listarAnimacoesDePorta, type AnimacaoDePorta } from '../../portas/animacoesDePorta'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
+import { DOOR_LENGTH_BY_KIND } from '../../stores/mapStore'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { CampoSel, type OpcaoDoSel } from '../grimorio/CampoTexto'
@@ -33,6 +34,8 @@ const PREFIXO_LEMBRADO = 'lb-section:ficha-porta-'
 
 export interface FichaDaPortaProps extends Omit<WallDoorControlsProps, 'door' | 'onToggleDoor'> {
   door: DoorState
+  /** Largura do vão, em px de mundo (o comprimento da parede-porta). Ausente: a ficha confia no tipo. */
+  largura?: number
   /** Tipo da porta selecionada (`setWallDoorKind`, com histórico). */
   onKindChange: (kind: DoorKind) => void
   /** O bloco "Parede" da parede em que a porta mora (espessura e estilo). */
@@ -74,8 +77,23 @@ function resumoDeQuemAbre(door: DoorState): string {
   return door.opensFrom === undefined ? 'Os dois lados' : 'Só deste lado'
 }
 
-function resumoDaAparencia(door: DoorState, animacoes: readonly AnimacaoDePorta[]): string {
-  const tipo = OPCOES_DO_TIPO.find((opcao) => opcao.valor === door.kind)?.rotulo ?? 'Normal'
+/** Meio px de folga: a porta posta pelo tipo tem a largura exata dele; a alça a deixa em qualquer valor. */
+const FOLGA_DA_LARGURA = 0.5
+
+/**
+ * O tipo marcado na ficha: o da porta, só quando a largura é a dele. Alargada
+ * pela alça de ponta (pedido de 12/11/2026), ela fica sob medida e nenhum tipo
+ * fica marcado; o tipo continua no dado (o Portão deixa a visão passar, o
+ * Desenhado desenha cada tipo), por isso a largura sozinha não troca o tipo.
+ */
+function tipoMarcado(door: DoorState, largura: number | undefined): DoorKind | undefined {
+  if (largura === undefined) return door.kind
+  return Math.abs(largura - DOOR_LENGTH_BY_KIND[door.kind]) <= FOLGA_DA_LARGURA ? door.kind : undefined
+}
+
+function resumoDaAparencia(door: DoorState, largura: number | undefined, animacoes: readonly AnimacaoDePorta[]): string {
+  const rotulo = OPCOES_DO_TIPO.find((opcao) => opcao.valor === door.kind)?.rotulo ?? 'Normal'
+  const tipo = tipoMarcado(door, largura) === undefined ? `${rotulo} sob medida` : rotulo
   if (door.animacao === undefined) return `${tipo}, sem animação`
   return animacoes.some((animacao) => animacao.id === door.animacao) ? tipo : `${tipo}, animação não instalada`
 }
@@ -97,10 +115,12 @@ export function FichaDaPorta({
   onAnimacaoChange,
   onCorChange,
   onKindChange,
+  largura,
   paredeEmVolta,
   estadoDaPorta,
 }: FichaDaPortaProps) {
   const secretaAjudaId = `${useId()}-secreta`
+  const marcado = tipoMarcado(door, largura)
   const animacoes = useSyncExternalStore(assinarAnimacoesDePorta, listarAnimacoesDePorta)
   const secreta = door.secret === true
   const lado = door.opensFrom
@@ -161,13 +181,14 @@ export function FichaDaPorta({
             </Acoes>
           )}
         </FichaDaPortaLembrada>
-        <FichaDaPortaLembrada id="aparencia" titulo="Aparência" icone="porta" resumo={resumoDaAparencia(door, animacoes)}>
+        <FichaDaPortaLembrada id="aparencia" titulo="Aparência" icone="porta" resumo={resumoDaAparencia(door, largura, animacoes)}>
           <CampoSeg
             rotulo="Tipo de porta"
             opcoes={OPCOES_DO_TIPO}
-            valor={door.kind}
+            valor={marcado}
             onChange={(kind) => {
-              if (kind !== door.kind) onKindChange(kind)
+              // Sob medida, o próprio tipo também vale: leva a porta de volta à largura dele.
+              if (kind !== marcado) onKindChange(kind)
             }}
           />
           {onCorChange !== undefined && <CorDaPorta cor={door.cor ?? null} onCorChange={onCorChange} />}

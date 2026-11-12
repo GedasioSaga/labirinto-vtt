@@ -1004,6 +1004,7 @@ export function PropertiesPanel({
           <ToolPropertiesSection group="wallDoor" groups={groups}>
             <FichaDaPorta
               door={portaSelecionada}
+              largura={selectedWall === null ? undefined : Math.hypot(selectedWall.x2 - selectedWall.x1, selectedWall.y2 - selectedWall.y1)}
               {...wallDoor}
               onKindChange={doorKind.onKindChange}
               paredeEmVolta={groups.has('wallStyle') ? secaoDaParede(true) : undefined}

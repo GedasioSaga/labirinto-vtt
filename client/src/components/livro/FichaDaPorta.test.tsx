@@ -202,6 +202,20 @@ describe('FichaDaPorta: estado, fichas e resumos (fatia 11)', () => {
     expect(ligado.onKindChange).toHaveBeenCalledTimes(1)
   })
 
+  // Prova de 11/11/2026: alargada pela alça a 50 px, a ficha seguia marcando "Normal" (32 px).
+  it('porta sob medida (largura que não é a do tipo): nenhum tipo marcado, e escolher Normal a leva de volta à largura dele', () => {
+    const ligado = ligacoes()
+    act(() => root.render(<FichaDaPorta door={FECHADA} largura={50} {...ligado} />))
+    expect(['Normal', 'Dupla', 'Portão'].map((tipo) => radio('Tipo de porta', tipo)?.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false'])
+    expect(cabecalho('Aparência')?.textContent).toContain('Normal sob medida')
+    act(() => radio('Tipo de porta', 'Normal')?.click())
+    expect(ligado.onKindChange).toHaveBeenCalledWith('normal')
+
+    // Dupla com a largura dela: Dupla marcada.
+    act(() => root.render(<FichaDaPorta door={{ ...FECHADA, kind: 'double' }} largura={64} {...ligacoes()} />))
+    expect(radio('Tipo de porta', 'Dupla')?.getAttribute('aria-checked')).toBe('true')
+  })
+
   it('a escolha de abrir uma ficha vale para a próxima porta (lembrada no aparelho)', () => {
     act(() => root.render(<FichaDaPorta door={FECHADA} {...ligacoes()} />))
     act(() => cabecalho('Aparência')?.click())
