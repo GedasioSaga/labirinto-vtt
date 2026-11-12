@@ -442,9 +442,11 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * decide o que nunca barra (objeto de chão, item, secreto, escondido) é
  * `lib/obstaculosDeObjeto.ts`; o mestre atravessa sempre.
  * As duas torres do lote 17 (12/11/2026: "tem que ter um colisão para os
- * jogadores não passarem por dentro"), a de pedra e a de vigia, barram com a
- * forma que o módulo tira de todo objeto (a elipse da redonda, o quadrado da
- * outra), não com a pegada sólida própria que o desenho exporta.
+ * jogadores não passarem por dentro") barram: a de vigia com o quadrado da
+ * caixa; a de pedra com a elipse encolhida à parede desenhada (0,8 da caixa,
+ * `PEGADA_SOLIDA` em `lib/obstaculosDeObjeto.ts`).
+ * A TENDA de acampamento (`tenda`) NÃO barra de saída, como a tenda de
+ * adivinha: dá para entrar, e o mestre liga "Barra a passagem" se quiser.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
   return tipo === 'moinho' || tipo === 'cataVento' || tipo === 'mausoleu' || tipo === 'poco' || tipo === 'chafariz' || tipo === 'estatua' || tipo === 'anjoDePedra' || tipo === 'pilar' || tipo === 'blocoDeInscricoesAzul' || tipo === 'blocoDeInscricoesVermelho' || tipo === 'blocoDeInscricoesDourado' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'barraca' || tipo === 'torreDePedra' || tipo === 'torreDeVigia'
