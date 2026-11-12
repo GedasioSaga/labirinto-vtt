@@ -22,7 +22,6 @@ import {
   type InventoryCharacter,
   type InventoryColleague,
   type InventoryCondition,
-  type InventoryPayer,
   type InventorySlot,
   type ItemGlyph,
   type ItemTexts,
@@ -62,13 +61,8 @@ interface PlayerInventoryProps {
 /** Sem memória de textos: todo item cai na linha do que dá para fazer com ele. */
 const NO_TEXTS: ItemTexts = new Map()
 
-type Step =
-  | { kind: 'idle' }
-  | { kind: 'dar' }
-  | { kind: 'confirmar-dar'; colleague: InventoryColleague }
-  | { kind: 'pagar' }
-  /** `payer`: de qual bolsa o host vai tirar (`payerFor`) — pode não ser a da ficha aberta. */
-  | { kind: 'confirmar-pagar'; colleague: InventoryColleague; quanto: number; payer: InventoryPayer | undefined }
+/** Sem a pergunta "Sim / Não" (decisão 8 do mestre, 12/11): escolher o colega já dá ou paga. */
+type Step = { kind: 'idle' } | { kind: 'dar' } | { kind: 'pagar' }
 
 /**
  * Um pedido esperando o mapa novo. No pagamento, `bolsasAntes` é a bolsa de
@@ -82,7 +76,8 @@ type Step =
  */
 type Pending =
   | { kind: 'dar'; tokenId: string; itemId: string; nome: string; para: string; noticeId: number | null }
-  | { kind: 'pagar'; quanto: number; bolsasAntes: ReadonlyMap<string, number>; para: string; noticeId: number | null }
+  /** `bolsa`: "Sai da bolsa de X." quando o host cobra de outra ficha dele (`payerFor`); a frase de sucesso diz. */
+  | { kind: 'pagar'; quanto: number; bolsasAntes: ReadonlyMap<string, number>; para: string; noticeId: number | null; bolsa: string | null }
 
 /** A bolsa de cada ficha dele no mapa, por `tokenId`. */
 function bolsasPorFicha(characters: readonly InventoryCharacter[]): ReadonlyMap<string, number> {
@@ -154,7 +149,7 @@ interface Outcome {
 }
 
 /** Para onde o foco vai depois do próximo desenho — quem mudou o passo diz. */
-type FocusTarget = 'vaga' | 'acao' | 'colega' | 'sim' | 'campo'
+type FocusTarget = 'vaga' | 'acao' | 'colega' | 'campo'
 
 const IDLE: Step = { kind: 'idle' }
 
@@ -163,8 +158,9 @@ const IDLE: Step = { kind: 'idle' }
  * à esquerda o retrato e a faixa da condição (o ECG do RE — Bem, Cuidado,
  * Perigo, ou oculta quando o mestre guarda a vida), à direita a grade de itens
  * com a quantidade, e no meio o item escolhido com o que dá para fazer com ele.
- * Dar e pagar passam pela pergunta "Sim/Não" do RE e saem pelas MESMAS
- * mensagens do "Comigo" — nada novo no protocolo.
+ * Dar e pagar vão num toque, sem a pergunta "Sim/Não" (decisão 8 do mestre:
+ * o mesmo número de passos do "Comigo" e do cartão da ficha), e saem pelas
+ * MESMAS mensagens do "Comigo".
  *
  * Modal de verdade: o foco entra na grade, as setas andam de vaga em vaga,
  * Enter leva às ações, Esc volta um passo (ou fecha), o Tab não sai, e fechar
@@ -179,7 +175,6 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
   const slotRef = useRef<HTMLButtonElement | null>(null)
   const actionRef = useRef<HTMLButtonElement | null>(null)
   const colleagueRef = useRef<HTMLButtonElement | null>(null)
-  const yesRef = useRef<HTMLButtonElement | null>(null)
   const fieldRef = useRef<HTMLInputElement | null>(null)
   const focusNext = useRef<FocusTarget | null>(null)
 
@@ -276,7 +271,6 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
       vaga: slotRef.current,
       acao: actionRef.current !== null && !actionRef.current.disabled ? actionRef.current : slotRef.current,
       colega: colleagueRef.current,
-      sim: yesRef.current,
       campo: fieldRef.current,
     }
     byTarget[target]?.focus()
@@ -294,13 +288,15 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     if (pending === null) return
     if (pending.kind === 'pagar') {
       if (!pagouDeUmaBolsa(pending.bolsasAntes, characters, pending.quanto)) return
-      setOutcome({ tone: 'ok', text: `Você pagou ${moedasLabel(pending.quanto)} a ${pending.para}.` })
+      const deOutraBolsa = pending.bolsa === null ? '' : ` ${pending.bolsa}`
+      setOutcome({ tone: 'ok', text: `Você pagou ${moedasLabel(pending.quanto)} a ${pending.para}.${deOutraBolsa}` })
       setPending(null)
       return
     }
     const dono = characters.find((c) => c.tokenId === pending.tokenId)
     if (dono === undefined || dono.slots.some((s) => s.itemIds.includes(pending.itemId))) return
-    setOutcome({ tone: 'ok', text: `${pending.nome} foi para ${pending.para}.` })
+    // O aviso de quem deu, o mesmo do "Comigo" e do cartão da ficha (decisão 8 do mestre).
+    setOutcome({ tone: 'ok', text: `Você deu ${pending.nome} a ${pending.para}.` })
     setPending(null)
   }, [characters, pending])
 
@@ -363,7 +359,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     setVia(null)
   }
 
-  function confirmGive(colleague: InventoryColleague) {
+  function giveTo(colleague: InventoryColleague) {
     const itemId = selected?.itemIds[0]
     if (character === undefined || selected === undefined || itemId === undefined) return
     setStep(IDLE)
@@ -376,14 +372,17 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
     focusNext.current = 'vaga'
   }
 
-  function confirmPay(colleague: InventoryColleague, quanto: number) {
+  function payTo(colleague: InventoryColleague, quanto: number) {
     if (character === undefined) return
     setStep(IDLE)
     setOutcome(null)
+    // Sem a pergunta, a bolsa de outra ficha (o host escolhe) vai na frase de depois.
+    const payer = payerFor(colleague, quanto)
+    const bolsa = payer !== undefined && payer.tokenId !== character.tokenId ? payerLine(payer) : null
     if (!onPay(colleague.tokenId, quanto)) {
       setOutcome({ tone: 'erro', text: 'Não deu para enviar. Confira a conexão e tente de novo.' })
     } else {
-      setPending({ kind: 'pagar', quanto, bolsasAntes: bolsasPorFicha(characters), para: colleague.name, noticeId: notice?.id ?? null })
+      setPending({ kind: 'pagar', quanto, bolsasAntes: bolsasPorFicha(characters), para: colleague.name, noticeId: notice?.id ?? null, bolsa })
     }
     focusNext.current = 'vaga'
   }
@@ -391,7 +390,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
   const statusText =
     pending !== null
       ? pending.kind === 'dar'
-        ? `Entregando a ${pending.para}…`
+        ? `Dando ${pending.nome} a ${pending.para}…`
         : `Pagando ${moedasLabel(pending.quanto)} a ${pending.para}…`
       : (outcome?.text ?? '')
 
@@ -496,7 +495,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                       </p>
                     </div>
                     {/* A caixa das ações tem sempre a altura do passo mais alto, como a
-                        janela de comandos do RE3: trocar "Dar a…" por "Dar a quem?" ou
+                        janela de comandos do RE3: trocar "Dar item" por "Dar a quem?" ou
                         "Pagar" troca só o miolo, e nem o texto nem a grade saem do lugar. */}
                     <div className="pp-inv__passos">
                       <Actions
@@ -505,7 +504,7 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                         step={step}
                         valor={valor}
                         busy={pending !== null}
-                        refs={{ actionRef, colleagueRef, yesRef, fieldRef }}
+                        refs={{ actionRef, colleagueRef, fieldRef }}
                         onValor={setValor}
                         onStart={() => {
                           setOutcome(null)
@@ -518,18 +517,8 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                             focusNext.current = 'colega'
                           }
                         }}
-                        onChooseGive={(colleague) => {
-                          setStep({ kind: 'confirmar-dar', colleague })
-                          focusNext.current = 'sim'
-                        }}
-                        onChoosePay={(colleague, quanto) => {
-                          setStep({ kind: 'confirmar-pagar', colleague, quanto, payer: payerFor(colleague, quanto) })
-                          focusNext.current = 'sim'
-                        }}
-                        onConfirm={() => {
-                          if (step.kind === 'confirmar-dar') confirmGive(step.colleague)
-                          else if (step.kind === 'confirmar-pagar') confirmPay(step.colleague, step.quanto)
-                        }}
+                        onChooseGive={giveTo}
+                        onChoosePay={payTo}
                         onBack={back}
                       />
                       <StepMold colleagues={character.colleagues} moedas={character.moedas} />
@@ -710,28 +699,27 @@ interface ActionsProps {
   refs: {
     actionRef: RefObject<HTMLButtonElement | null>
     colleagueRef: RefObject<HTMLButtonElement | null>
-    yesRef: RefObject<HTMLButtonElement | null>
     fieldRef: RefObject<HTMLInputElement | null>
   }
   onValor: (valor: string) => void
   onStart: () => void
   onChooseGive: (colleague: InventoryColleague) => void
   onChoosePay: (colleague: InventoryColleague, quanto: number) => void
-  onConfirm: () => void
   onBack: () => void
 }
 
 /**
- * O que dá para fazer com a vaga: "Dar a…" num item, "Pagar a…" na bolsa. Os
- * dois só com colega encostado — sem ninguém, o botão fica desligado e a
- * frase ao lado diz como ligar. Escolhido o colega, a pergunta do RE: Sim/Não.
+ * O que dá para fazer com a vaga: "Dar item" num item, "Pagar a…" na bolsa.
+ * Os dois só com colega encostado — sem ninguém, o botão fica desligado e a
+ * frase ao lado diz como ligar. Escolher o colega já dá ou paga, sem a
+ * pergunta "Sim/Não" (decisão 8 do mestre); a frase de depois diz o que foi.
  *
- * "Dar a quem?", "Pagar" e a pergunta final têm a mesma forma, como a janela
- * de comandos do RE3: duas fileiras da altura de um botão. Em cima, o que se
- * pergunta (ou o campo de moedas) e, no canto direito, o "Voltar"; embaixo,
- * as respostas — os colegas, ou Sim e Não. A zona mede o mesmo nos três
- * passos e cabe inteira na tela de um celular em pé, então o foco que cai
- * nela ao entrar no passo não rola a página nem arrasta a grade junto.
+ * "Dar a quem?" e "Pagar" têm a mesma forma, como a janela de comandos do
+ * RE3: duas fileiras da altura de um botão. Em cima, o que se pergunta (ou o
+ * campo de moedas) e, no canto direito, o "Voltar"; embaixo, os colegas. A
+ * zona mede o mesmo nos passos e cabe inteira na tela de um celular em pé,
+ * então o foco que cai nela ao entrar no passo não rola a página nem arrasta
+ * a grade junto.
  *
  * No "Pagar", um valor que não vale não tira nada da tela: o aviso escreve
  * numa linha reservada embaixo dos colegas, e os colegas ficam indisponíveis,
@@ -742,41 +730,13 @@ interface ActionsProps {
  * de dedo ou de Enter — não pergunta nem paga: devolve o foco ao campo, que
  * é onde está o conserto.
  */
-function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onConfirm, onBack }: ActionsProps) {
+function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onBack }: ActionsProps) {
   const reasonId = useId()
   const questionId = useId()
   const fieldId = useId()
   const avisoId = useId()
   const pagar = slot.kind === 'moedas'
   const semColega = character.colleagues.length === 0
-
-  if (step.kind === 'confirmar-dar' || step.kind === 'confirmar-pagar') {
-    const pergunta = step.kind === 'confirmar-dar' ? `Dar ${slot.nome} a ${step.colleague.name}?` : `Pagar ${moedasLabel(step.quanto)} a ${step.colleague.name}?`
-    // O host cobra de outra ficha dele (vem antes no mapa e tem saldo): a pergunta diz, antes do Sim.
-    const outraBolsa = step.kind === 'confirmar-pagar' && step.payer !== undefined && step.payer.tokenId !== character.tokenId ? payerLine(step.payer) : null
-    return (
-      <div className="pp-inv__passo" role="group" aria-labelledby={questionId} aria-describedby={outraBolsa === null ? undefined : reasonId}>
-        <div className="pp-inv__passo-topo">
-          <p id={questionId} className="pp-inv__pergunta">
-            {pergunta}
-          </p>
-          {outraBolsa !== null && (
-            <p id={reasonId} className="pp-inv__motivo pp-inv__bolsa">
-              {outraBolsa}
-            </p>
-          )}
-        </div>
-        <div className="pp-inv__passo-escolhas">
-          <button ref={refs.yesRef} type="button" className="pp-button pp-inv__acao" onClick={onConfirm}>
-            Sim
-          </button>
-          <button type="button" className="pp-button pp-inv__acao pp-inv__acao--nao" onClick={onBack}>
-            Não
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   if (step.kind === 'dar') {
     return (
@@ -880,7 +840,7 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
           aria-describedby={semColega ? reasonId : undefined}
           onClick={onStart}
         >
-          {pagar ? 'Pagar a…' : 'Dar a…'}
+          {pagar ? 'Pagar a…' : 'Dar item'}
         </button>
       </div>
       {semColega && (

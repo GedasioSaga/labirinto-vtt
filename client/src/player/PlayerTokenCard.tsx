@@ -1,14 +1,15 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useContext, useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { CarriedItem, Token } from '../types/map'
 import { TOKEN_ACTIONS, TOKEN_ACTION_LABELS, TOKEN_ACTION_PROMPTS, TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { ImagemOuIniciais } from '../components/FichaPecas'
 import { tokenCardName } from './tokenCard'
+import { NoTeste } from './visaoDeTeste/noTeste'
 
 /**
- * O que "Entregar item" pode fazer com esta ficha. O host só aceita o
- * `item.give` para a ficha de um COLEGA encostada numa ficha do jogador
- * (NPC é do mestre): a tela diz por quê antes de mandar algo que voltaria
- * recusado.
+ * O que "Dar item" pode fazer com esta ficha. O host só aceita o `item.give`
+ * para a ficha de um COLEGA encostada numa ficha do jogador (NPC é do
+ * mestre): a tela diz por quê ANTES do toque (decisão 2 do mestre, 12/11),
+ * em vez de mandar algo que voltaria recusado.
  */
 export type TokenCardGive =
   | { kind: 'ready'; items: readonly CarriedItem[]; onGive: (itemId: string) => void }
@@ -22,7 +23,7 @@ interface PlayerTokenCardProps {
   onClose: () => void
   /** Manda o pedido ao mestre. `text` vem aparado e nunca vazio. */
   onSend: (action: TokenAction, text: string) => void
-  /** Já há um pedido esperando o mestre: "Falar" e "Ação" ficam desligadas ("Entregar item" não passa pelo mestre). */
+  /** Já há um pedido esperando o mestre: "Falar" e "Ação" ficam desligadas ("Dar item" não passa pelo mestre). */
   waiting: boolean
   give: TokenCardGive
 }
@@ -32,23 +33,32 @@ type Chosen = TokenAction | 'entregar'
 /** Controles focáveis dentro do cartão, na ordem do DOM: é por eles que o Tab circula. */
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled)'
 
-/** Por que não dá para entregar, na voz do jogador. */
-function giveBlockedText(give: Exclude<TokenCardGive, { kind: 'ready' }>, name: string): string {
+/** No teste há um jogador só: a ficha de um colega não tem quem a jogue. */
+export const SEM_COLEGA_NO_TESTE = 'No teste não há outro jogador para receber.'
+
+/**
+ * Por que "Dar item" está apagado, na voz do jogador; `null` = o botão nem
+ * aparece. NPC nunca recebe item (decisão 2): para ele o botão some, e o
+ * cartão fica com "Falar" e "Ação". Na janela de teste, a ficha que seria de
+ * um colega (`semColegaNoTeste`) mostra o botão apagado com o porquê.
+ */
+function giveBlockedText(give: Exclude<TokenCardGive, { kind: 'ready' }>, name: string, semColegaNoTeste: boolean): string | null {
   switch (give.kind) {
     case 'empty':
       return 'Sua mochila está vazia.'
     case 'far':
-      return `Chegue perto de ${name} para entregar.`
+      return `Chegue perto de ${name} para dar um item.`
     case 'npc':
-      return `Só dá para entregar a outro jogador. Para oferecer algo a ${name}, use Ação.`
+      return semColegaNoTeste ? SEM_COLEGA_NO_TESTE : null
   }
 }
 
 /**
- * CARTÃO DA FICHA ALHEIA (NPC ou colega): o retrato DELA ao lado das três
- * coisas que ele pode fazer com ela. "Falar" e "Ação" (agir com ou contra a
- * ficha: beijar, lutar) pedem o texto e viram pedido na Caixa do mestre;
- * "Entregar item" abre a mochila e o item vai direto, pelo `item.give`. O
+ * CARTÃO DA FICHA ALHEIA (NPC ou colega): o retrato DELA ao lado do que ele
+ * pode fazer com ela. "Falar" e "Ação" (agir com ou contra a ficha: beijar,
+ * lutar) pedem o texto e viram pedido na Caixa do mestre; "Dar item" (só
+ * para colega: some para o NPC) abre a mochila e o item vai direto, pelo
+ * `item.give`, sem pergunta. O
  * mesmo lugar e a mesma pintura do cartão do pino (`PlayerPinCard`): encostado
  * à direita, com o mapa à vista, e fecha por Escape, pelo "Fechar" e por
  * tocar fora.
@@ -65,7 +75,14 @@ export function PlayerTokenCard({ token, onClose, onSend, waiting, give }: Playe
   const [chosen, setChosen] = useState<Chosen | null>(null)
   const [text, setText] = useState('')
   const fieldId = useId()
+  const giveReasonId = useId()
   const name = tokenCardName(token)
+  const teste = useContext(NoTeste)
+  const semColegaNoTeste = teste !== null && teste.fichasDeJogador.has(token.id)
+  /** Por que "Dar item" está apagado; `null` com ele aceso. */
+  const giveReason = give.kind === 'ready' ? null : giveBlockedText(give, name, semColegaNoTeste)
+  /** O botão aparece aceso (`ready`) ou apagado com o porquê; para o NPC, some. */
+  const showGive = give.kind === 'ready' || giveReason !== null
 
   useEffect(() => {
     // Foco dentro do cartão ao abrir e a cada troca de vista: quem chegou pelo teclado segue daqui.
@@ -141,25 +158,43 @@ export function PlayerTokenCard({ token, onClose, onSend, waiting, give }: Playe
           </span>
           <div className="pp-tokencard__main">
             {waiting && asking === null && chosen !== 'entregar' && (
-              <p className="pp-pincard__locked">Você já tem um pedido esperando o mestre. Entregar item continua valendo.</p>
+              <p className="pp-pincard__locked">
+                {/* "continua valendo" só quando vale: com o botão apagado ou sumido, a frase mentiria. */}
+                {give.kind === 'ready' ? 'Você já tem um pedido esperando o mestre. Dar item continua valendo.' : 'Você já tem um pedido esperando o mestre.'}
+              </p>
             )}
             {chosen === null && (
-              <div ref={actionsRef} className="pp-tokencard__actions" role="group" aria-label="O que você faz">
-                {TOKEN_ACTIONS.map((action) => (
-                  <button
-                    key={action}
-                    type="button"
-                    className="pp-pincard__travel"
-                    disabled={waiting}
-                    onClick={() => setChosen(action)}
-                  >
-                    {TOKEN_ACTION_LABELS[action]}
-                  </button>
-                ))}
-                <button type="button" className="pp-pincard__travel" onClick={() => setChosen('entregar')}>
-                  Entregar item
-                </button>
-              </div>
+              <>
+                <div ref={actionsRef} className="pp-tokencard__actions" role="group" aria-label="O que você faz">
+                  {TOKEN_ACTIONS.map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className="pp-pincard__travel"
+                      disabled={waiting}
+                      onClick={() => setChosen(action)}
+                    >
+                      {TOKEN_ACTION_LABELS[action]}
+                    </button>
+                  ))}
+                  {showGive && (
+                    <button
+                      type="button"
+                      className="pp-pincard__travel"
+                      disabled={give.kind !== 'ready'}
+                      aria-describedby={giveReason === null ? undefined : giveReasonId}
+                      onClick={() => setChosen('entregar')}
+                    >
+                      Dar item
+                    </button>
+                  )}
+                </div>
+                {giveReason !== null && (
+                  <p id={giveReasonId} className="pp-pincard__watch-hint">
+                    {giveReason}
+                  </p>
+                )}
+              </>
             )}
             {asking !== null && (
               <form className="pp-pincard__confirm" onSubmit={submit}>
@@ -193,7 +228,7 @@ export function PlayerTokenCard({ token, onClose, onSend, waiting, give }: Playe
             )}
             {chosen === 'entregar' && (
               <div className="pp-pincard__confirm">
-                <p className="pp-pincard__question">Entregar a {name}</p>
+                <p className="pp-pincard__question">Dar a {name}</p>
                 {give.kind === 'ready' ? (
                   <ul className="pp-tokencard__items" aria-label="Itens da sua mochila">
                     {give.items.map((item, index) => (
@@ -209,7 +244,8 @@ export function PlayerTokenCard({ token, onClose, onSend, waiting, give }: Playe
                     ))}
                   </ul>
                 ) : (
-                  <p className="pp-empty">{giveBlockedText(give, name)}</p>
+                  // O colega se afastou ou a mochila esvaziou com a lista aberta: diz por quê.
+                  <p className="pp-empty">{giveReason ?? 'Não dá para dar um item agora.'}</p>
                 )}
                 <div className="pp-pincard__choices">
                   <button ref={backRef} type="button" className="pp-pincard__close pp-pincard__close--inline" onClick={back}>

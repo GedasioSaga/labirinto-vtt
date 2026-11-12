@@ -50,6 +50,7 @@ import {
   type LockAttempt,
   type PurchaseRequest,
   type BarDispute,
+  type Doacao,
   type TradeProposeResult,
   type TradeUpdate,
   type AppliedTransfer,
@@ -937,6 +938,12 @@ const DOOR_REQUEST_VERB: Record<Exclude<DoorRequestHow, 'ask'>, string> = {
   knock: 'bate na porta',
   force: 'tenta forçar a porta',
   key: 'tenta usar uma chave na porta',
+}
+
+/** DAR ITEM: "Ana deu Faca a Bruno", "Ana pagou 3 moedas a Bruno", mais " em Mansão" quando a cena é de fundo. */
+export function doacaoLine(doacao: Pick<Doacao, 'de' | 'para' | 'verbo' | 'oQue' | 'sceneName'>): string {
+  const where = doacao.sceneName === undefined ? '' : ` em ${doacao.sceneName}`
+  return `${doacao.de} ${doacao.verbo} ${doacao.oQue} a ${doacao.para}${where}`
 }
 
 /**
@@ -2971,6 +2978,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     disputeToasts.set(dispute.requestId, toastId)
   }
 
+  /**
+   * DAR ITEM (decisão 8 do mestre): "Ana deu Faca a Bruno" ao mestre (só
+   * informa, some sozinho) e o aviso a quem deu e a quem recebeu.
+   */
+  const announceDoacao = (doacao: Doacao) => {
+    void dispatch({ outbound: doacao.avisos })
+    toastSink.push('info', doacaoLine(doacao))
+  }
+
   /** "Ana passou o ferrolho numa porta", "Ana barrou Fundo do poço em Cripta": só informa, some sozinho. */
   const announceTranca = (aviso: TrancaAviso) => {
     const where = aviso.sceneName === undefined ? '' : ` em ${aviso.sceneName}`
@@ -3886,6 +3902,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) toastSink.push('info', doorKeyLine(result.doorKeyUsed))
     if (result.peek !== undefined) announcePeek(result.peek)
+    // DAR ITEM: só depois de gravar (o `completeItems` acima); sem quem grave, nada mudou de mão e ninguém é avisado.
+    if (result.doacao !== undefined && deps.applyItems !== undefined) announceDoacao(result.doacao)
     if (result.barDispute !== undefined) askBarDispute(result.barDispute)
     if (result.travelRequest !== undefined) {
       if (deps.applyTransfer === undefined) {

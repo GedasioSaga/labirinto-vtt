@@ -203,7 +203,7 @@ import {
   type TradeClosedResult,
   type TradeCounterMessage,
 } from './protocol'
-import { canPay, cleanTradeTerms, payCoinsChange, tradeChange, tradeSideText, tradeTooBig, type TradeAsk, type TradeProposal } from '../lib/troca'
+import { canPay, cleanTradeTerms, moedasLabel, payCoinsChange, tradeChange, tradeSideText, tradeTooBig, type TradeAsk, type TradeProposal } from '../lib/troca'
 import {
   AWAY_NOTES_MAX,
   clampAlarmText,
@@ -699,6 +699,24 @@ export interface TrancaAviso {
  * jogador trancou com o ferrolho. Vai para a Caixa de Pedidos ("Arrombar" /
  * "Aguenta"). Nada disto vai ao jogador: ele só leu "Trancada".
  */
+/**
+ * DAR ITEM (decisão 8 do mestre, 12/11): um jogador deu um item ou pagou
+ * moedas a um colega. O integrador lê "Ana deu Faca a Bruno" ao mestre e,
+ * DEPOIS de gravar as mochilas, manda os `avisos` (o `item.given` de quem deu
+ * e o de quem recebeu): o aviso nunca chega antes do item.
+ */
+export interface Doacao {
+  /** Quem deu e quem recebeu, pelo nome na sala (o mestre lê). */
+  de: string
+  para: string
+  verbo: 'deu' | 'pagou'
+  /** "Faca", "Flecha ×3" ou "3 moedas". */
+  oQue: string
+  /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
+  sceneName?: string
+  avisos: Outbound[]
+}
+
 export interface BarDispute {
   requestId: string
   playerName: string
@@ -1194,6 +1212,8 @@ export interface HostResult {
   trancaAviso?: TrancaAviso
   /** Tentativa do outro lado de uma porta com ferrolho: o integrador põe na Caixa de Pedidos. */
   barDispute?: BarDispute
+  /** "Dar item"/"Pagar a…" valeu (vem com `applyItems`): o integrador avisa o mestre e os dois jogadores. */
+  doacao?: Doacao
   /**
    * O mestre deixou ir, ou o pino é livre (aí vem de `handleMessage`): o
    * integrador move o token entre as cenas ANTES de despachar `outbound`.
@@ -7398,6 +7418,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * DAR ITEM (decisão 8): o aviso dos dois lados e a linha do mestre. Quem deu
+   * lê o nome da ficha como ELE a vê (o do recorte, `targetSeenName`); quem
+   * recebeu, o nome de quem deu na sala ("Ana deu Faca a você"). Colega fora
+   * do ar ou fora do jogo não recebe aviso: o item chega do mesmo jeito.
+   */
+  const doacaoPara = (playerId: string, target: Token, targetSeenName: string, verbo: Doacao['verbo'], oQue: string, scene: HostScene, world: HostWorld): Doacao => {
+    const giver = players.get(playerId)
+    const giverName = giver === undefined ? '' : giver.name
+    const ownerId = Object.entries(ownership).find(([owner, ids]) => owner !== playerId && ids.includes(target.id))?.[0]
+    const owner = ownerId === undefined ? undefined : players.get(ownerId)
+    const visto = targetSeenName.trim()
+    const avisos: Outbound[] = []
+    if (giver !== undefined && giver.clientId !== null) {
+      avisos.push({ clientId: giver.clientId, msg: { type: 'item.given', papel: 'deu', verbo, oQue, quem: visto === '' ? 'Alguém' : visto } })
+    }
+    if (ownerId !== undefined && owner !== undefined && owner.clientId !== null && statusOf(ownerId) === 'playing' && giverName !== '') {
+      avisos.push({ clientId: owner.clientId, msg: { type: 'item.given', papel: 'recebeu', verbo, oQue, quem: giverName } })
+    }
+    return { de: giverName, para: owner === undefined ? target.name : owner.name, verbo, oQue, ...backgroundSceneName(scene, world), avisos }
+  }
+
+  /**
    * "Dar a…": o item sai da mochila de uma ficha DELE e entra na de um COLEGA
    * (ficha de outro jogador) que ele vê agora e que está encostada. Ficha do
    * mestre (NPC), a própria, a que ele não vê e item que ele não tem
@@ -7427,6 +7469,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       return reject('unavailable')
     }
     if (!tokensTouch(giverSeen, targetSeen, map.grid)) return reject('far')
+    // ACERVO DE ITENS: a pilha vai inteira, e o aviso diz quantos.
+    const oQue = item.quantidade !== undefined && item.quantidade > 1 ? `${item.nome} ×${item.quantidade}` : item.nome
     return {
       outbound: [],
       applyItems: {
@@ -7437,6 +7481,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ],
         ...autoriaDosItens(playerId),
       },
+      doacao: doacaoPara(playerId, target, targetSeen.name, 'deu', oQue, scene, world),
     }
   }
 
@@ -7468,7 +7513,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const seen of touching) {
       const giver = masterToken(seen.id)
       const change = giver === undefined ? null : payCoinsChange(giver, target, msg.moedas)
-      if (change !== null) return { outbound: [], applyItems: { ...backgroundSceneId(scene, world), ...change, ...autoriaDosItens(playerId) } }
+      if (change !== null) {
+        return {
+          outbound: [],
+          applyItems: { ...backgroundSceneId(scene, world), ...change, ...autoriaDosItens(playerId) },
+          // O "Pagar a…" acompanha o "Dar item" (decisão 8): aviso aos três.
+          doacao: doacaoPara(playerId, target, targetSeen.name, 'pagou', moedasLabel(msg.moedas), scene, world),
+        }
+      }
     }
     return reject('short')
   }

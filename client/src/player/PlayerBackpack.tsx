@@ -28,7 +28,8 @@ interface PlayerBackpackProps {
 }
 
 /**
- * "Comigo": a mochila do jogador, no painel dele. Cada item tem "Dar a…",
+ * "Comigo": a mochila do jogador, no painel dele. Cada item tem "Dar item"
+ * (o mesmo nome no inventário e no cartão da ficha, decisão 8 do mestre),
  * que abre os colegas encostados; escolher um passa o item (o host confere
  * de novo quem está perto). Sem ninguém perto, a lista diz isso em vez de
  * abrir vazia. A bolsa aparece em cima, com "Pagar a…".
@@ -53,17 +54,17 @@ export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay }:
             <li key={item.id} className="pp-comigo__item">
               <span className="pp-character__name">
                 {item.nome}
-                {/* ACERVO DE ITENS: a pilha vai inteira no "Dar a…". */}
+                {/* ACERVO DE ITENS: a pilha vai inteira no "Dar item". */}
                 {quantidadeDe(item) > 1 ? ` ×${quantidadeDe(item)}` : ''}
               </span>{' '}
               <button
                 type="button"
                 className="pp-button"
-                aria-label={`Dar ${item.nome} a…`}
+                aria-label={`Dar item: ${item.nome}`}
                 aria-expanded={givingId === item.id}
                 onClick={() => setGivingId((current) => (current === item.id ? null : item.id))}
               >
-                Dar a…
+                Dar item
               </button>
               {givingId === item.id &&
                 (colleagues.length === 0 ? (

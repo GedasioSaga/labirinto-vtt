@@ -14,6 +14,7 @@ import { createPlayerConnection, type PlayerConnection, type StorageLike } from 
 import { instalarSonsDoJogador } from '../sonsDoJogador'
 import { BarraDoTeste } from './BarraDoTeste'
 import { criarBloqueioDoOlhar, instalarGuardaDeTeclado } from './bloqueioDeEntrada'
+import { NoTeste, type InfoDoTeste } from './noTeste'
 import { RecadoDoOlhar } from './RecadoDoOlhar'
 import { criarSocketDoCanal } from './socketDoCanal'
 
@@ -131,6 +132,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   const danca = useMemo(() => ajustesDaDanca(midia, tela), [midia, tela])
   // Sem a caixa, a pesca (fixed, z-index 10000) iria para o `body` e cobriria a barra do teste.
   const pesca = useMemo<AjustesDaTelaDaPesca>(() => (tela === null ? {} : { raiz: tela }), [tela])
+  // O cartão da ficha alheia lê daqui quais fichas seriam de um colega (o recorte não diz quem é NPC).
+  const infoDoTeste = useMemo<InfoDoTeste>(() => ({ fichasDeJogador: new Set(lista.fichas.filter((ficha) => !ficha.npc).map((ficha) => ficha.id)) }), [lista.fichas])
   /** O modo lido pelo socket e pelo bloqueio a cada evento, sem recriar nenhum dos dois. */
   const modoRef = useRef(modo)
   modoRef.current = modo
@@ -251,21 +254,23 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
       <div ref={setTela} style={TELA} {...bloqueio}>
         {ativa !== null && geracao !== null && ativa.geracao === geracao.geracao ? (
           <ImagemDaMesa.Provider key={ativa.geracao} value={geracao.midia === undefined ? resolverSoEmbutida : resolverComBase(geracao.midia)}>
-          <Session
-            key={ativa.geracao}
-            connection={ativa.connection}
-            code={geracao.codigo}
-            typedName={geracao.nome}
-            hostName={hostName}
-            onLeave={recomecar}
-            onQuit={recomecar}
-            storage={ativa.storage}
-            onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
-            ajustesDaDanca={danca}
-            ajustesDaPesca={pesca}
-            // A barraca de tiro entra na mesma caixa que a pesca (só a raiz muda).
-            ajustesDoTiro={pesca}
-          />
+            <NoTeste.Provider value={infoDoTeste}>
+              <Session
+                key={ativa.geracao}
+                connection={ativa.connection}
+                code={geracao.codigo}
+                typedName={geracao.nome}
+                hostName={hostName}
+                onLeave={recomecar}
+                onQuit={recomecar}
+                storage={ativa.storage}
+                onAcaoNoOlhar={modo === 'olhar' ? mostrarRecado : undefined}
+                ajustesDaDanca={danca}
+                ajustesDaPesca={pesca}
+                // A barraca de tiro entra na mesma caixa que a pesca (só a raiz muda).
+                ajustesDoTiro={pesca}
+              />
+            </NoTeste.Provider>
           </ImagemDaMesa.Provider>
         ) : (
           <Aviso>Abrindo a tela do jogador…</Aviso>

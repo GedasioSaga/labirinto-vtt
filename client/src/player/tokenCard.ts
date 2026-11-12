@@ -2,6 +2,7 @@ import type { CarriedItem, MapData, RegionPoint, Token, Wall } from '../types/ma
 import { distanceToWall, findDoorAt } from '../lib/doorReach'
 import { carriedItemsOf, tokensTouch } from '../lib/items'
 import type { TokenAction, TokenActionRejection } from '../lib/tokenActions'
+import type { ItemGivenMessage } from '../net/protocol'
 
 /**
  * CARTÃO DA FICHA ALHEIA: o toque curto numa ficha que não é do jogador abre o
@@ -55,7 +56,7 @@ export function findTappedOtherToken(
 }
 
 /**
- * "Entregar item" no cartão, com o que esta tela já sabe — a mesma régua do
+ * "Dar item" no cartão, com o que esta tela já sabe — a mesma régua do
  * `item.give` no host: só ficha de COLEGA (`partyTokens`; NPC é do mestre) e
  * só das fichas dele ENCOSTADAS nela. Os itens são os dessas fichas: o host
  * recusaria (`far`) item de uma ficha dele que está longe.
@@ -69,6 +70,15 @@ export function giveChoiceFor(map: MapData, ownTokens: readonly string[], partyT
   if (touching.length === 0) return { kind: 'far' }
   const items = touching.flatMap(carriedItemsOf)
   return items.length === 0 ? { kind: 'empty' } : { kind: 'ready', items }
+}
+
+/**
+ * DAR ITEM (decisão 8 do mestre): o aviso curto de quem deu ("Você deu Faca
+ * a Bruno") e de quem recebeu ("Ana deu Faca a você"), igual nos três
+ * caminhos (painel, inventário, cartão da ficha). Moedas: "pagou".
+ */
+export function itemGivenText(msg: Pick<ItemGivenMessage, 'papel' | 'verbo' | 'oQue' | 'quem'>): string {
+  return msg.papel === 'deu' ? `Você ${msg.verbo} ${msg.oQue} a ${msg.quem}` : `${msg.quem} ${msg.verbo} ${msg.oQue} a você`
 }
 
 /** O nome no cartão: o que o jogador vê. O mestre escondeu o nome ("Nome para os jogadores" vazio)? "Alguém". */

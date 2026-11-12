@@ -817,6 +817,38 @@ export interface ItemGiveMessage {
 }
 
 /**
+ * DAR ITEM (decisão 8 do mestre, 12/11): o item ou as moedas mudaram de mão,
+ * e os dois lados ficam sabendo. Só a quem deu (`papel: 'deu'`, `quem` = o
+ * nome da ficha que recebeu, como ELE a vê) e a quem recebeu (`papel:
+ * 'recebeu'`, `quem` = o nome de quem deu, na sala). `oQue`: "Faca" ou "3
+ * moedas"; `verbo`: "deu" (item) ou "pagou" (moedas). Aditiva: jogador
+ * antigo ignora e não lê aviso.
+ */
+export interface ItemGivenMessage {
+  type: 'item.given'
+  papel: 'deu' | 'recebeu'
+  verbo: 'deu' | 'pagou'
+  oQue: string
+  quem: string
+}
+
+/** Teto do `oQue` e do `quem` do `item.given`: nome de item ou de ficha com folga. */
+const ITEM_GIVEN_TEXT_MAX_LENGTH = 120
+
+/** Valida o `item.given` que o jogador recebe; fora de forma, `null` (sem aviso). Os textos saem aparados. */
+export function parseItemGivenMessage(value: unknown): ItemGivenMessage | null {
+  if (!isRecord(value) || value.type !== 'item.given') return null
+  const { papel, verbo, oQue, quem } = value
+  if (papel !== 'deu' && papel !== 'recebeu') return null
+  if (verbo !== 'deu' && verbo !== 'pagou') return null
+  if (!isBoundedString(oQue, 1, ITEM_GIVEN_TEXT_MAX_LENGTH) || !isBoundedString(quem, 1, ITEM_GIVEN_TEXT_MAX_LENGTH)) return null
+  const oQueLimpo = oQue.trim()
+  const quemLimpo = quem.trim()
+  if (oQueLimpo === '' || quemLimpo === '') return null
+  return { type: 'item.given', papel, verbo, oQue: oQueLimpo, quem: quemLimpo }
+}
+
+/**
  * MOEDAS E TROCA — "Pagar a…": `moedas` da bolsa de uma ficha dele à ficha
  * `toTokenId`, de um colega encostado. Qual ficha dele paga o host escolhe
  * (a encostada que tem o bastante): o jogador só diz a quem e quanto.
@@ -2101,6 +2133,8 @@ export type HostMessage =
   | { type: 'pin.buy.answer'; answer: 'sold'; nome: string }
   | { type: 'pin.buy.answer'; answer: 'denied' }
   | { type: 'item.give.rejected'; reason: ItemGiveRejection }
+  // DAR ITEM (decisão 8): o aviso de quem deu e de quem recebeu. Aditivo.
+  | ItemGivenMessage
   // MOEDAS E TROCA, só a quem pagou ou a quem a oferta foi feita.
   | { type: 'coins.give.rejected'; reason: CoinsGiveRejection }
   | TradeOfferMessage
