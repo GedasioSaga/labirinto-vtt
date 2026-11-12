@@ -6,7 +6,7 @@ import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
-import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, RegionPoint, Token, TokenContract, Wall } from '../types/map'
+import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
@@ -27,7 +27,6 @@ import {
   emptyPlanMemory,
   espiadaPeloPino,
   fichasNaCamadaDoJogador,
-  objetoEscondidoDosJogadores,
   filterFloorMemory,
   filterMapForGroup,
   filterMapForPlayer,
@@ -69,6 +68,7 @@ import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } fro
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
+import { paredesParaAndar } from '../lib/barranco'
 import { paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
@@ -6077,6 +6077,20 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return recorte === undefined || recorte.id !== mapId ? null : paredesParaAndarDoJogador(mapaDoPiso(recorte, piso).walls, recorte, piso, de)
   }
 
+  /**
+   * OBJETO QUE BARRA: o objeto está na última tela que esta conexão recebeu da
+   * cena `mapId` (o jogador o está vendo)? Sem tela dessa cena, nenhum está. É
+   * o que decide se a recusa do passo pode dizer "objeto" (`objetoAVista` em
+   * `lib/moveValidation.ts`). A lista de ids só é montada se alguém perguntar:
+   * no passo recusado por um objeto.
+   */
+  function objetoNaTela(clientId: string, mapId: string): (prop: Prop) => boolean {
+    const recorte = sentViews.get(clientId)?.view?.map
+    if (recorte === undefined || recorte.id !== mapId) return () => false
+    let ids: Set<string> | null = null
+    return (prop) => (ids ??= new Set(recorte.props.map((p) => p.id))).has(prop.id)
+  }
+
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -6114,12 +6128,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const piso = tokenPisoOf(msg.tokenId, scene.map)
     const floorMap = mapaDoPiso(scene.map, piso)
     // B6: o host pede as casas andadas (`comCaminho`) para o caminho andado; a resposta ao jogador não as leva.
-    // OBJETO QUE BARRA: sem tela dessa cena, as paredes dele são as que o host usa no passo (`validateTokenMove`).
+    // OBJETO QUE BARRA: sem tela dessa cena ele não está vendo objeto nenhum, e as paredes dele são só as do
+    // mapa e do barranco: o objeto barra no host (`validateTokenMove`) sem entrar no que ele "conhece".
     const deOndeSai = floorMap.tokens.find((t) => t.id === msg.tokenId) ?? null
     const batalha = emBatalha(scene)
-      ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso, deOndeSai) ?? paredesParaAndarDoJogador(floorMap.walls, floorMap, piso, deOndeSai, objetoEscondidoDosJogadores(floorMap)), comCaminho: true }
+      ? { paredesDoJogador: paredesDoRecorte(clientId, scene.map.id, piso, deOndeSai) ?? paredesParaAndar(floorMap.walls, floorMap, piso), comCaminho: true }
       : undefined
-    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha })
+    // "Objeto no caminho" só do objeto que está na tela DELE; o que ele não vê barra igual e responde como parede.
+    const objetoAVista = objetoNaTela(clientId, scene.map.id)
+    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha, objetoAVista })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
     // tela dele, aqui no host). Depois de todas as recusas de sempre: a marca só acrescenta.

@@ -32,7 +32,9 @@ export interface TokenMoveRequest {
  * `a_bordo`: VEÍCULO — a ficha vai a bordo e não é a motorista (`driverOf`): quem
  * vai de passageiro não anda; desce primeiro (a sessão confere, `net/hostSession.ts`).
  * `objeto`: OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`) — o passo passaria
- * se não fosse a forma de um objeto no caminho ('Objeto no caminho').
+ * se não fosse a forma de um objeto no caminho ('Objeto no caminho'). Só do
+ * objeto que o jogador está vendo (`TokenMoveOptions.objetoAVista`); o que ele
+ * não vê barra igual e responde `wall`.
  */
 export type TokenMoveRejection =
   | 'unknown_token'
@@ -80,6 +82,16 @@ export interface TokenMoveOptions {
     /** B6: devolve também as casas andadas (`caminho`), para a prévia desenhar. O host não pede. */
     comCaminho?: boolean
   }
+  /**
+   * OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`): o HOST diz quais objetos
+   * ESTE jogador está recebendo (os da última tela dele). O objeto fora dela
+   * (névoa, escuro) barra do mesmo jeito, mas a recusa é `wall`, a mesma da
+   * parede que ele não vê: `objeto` contaria que ali há um objeto. Ausente =
+   * todo objeto do mapa está à vista (a tela do próprio jogador, em que o mapa
+   * já é o recorte). Em batalha a recusa `objeto` sai só de `paredesDoJogador`,
+   * que o host monta com os objetos dessa mesma tela.
+   */
+  objetoAVista?: (prop: Prop) => boolean
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -392,7 +404,13 @@ export function validateTokenMove(
   if (path === null) {
     // Passaria se não fosse o objeto? Então quem barrou foi ele. Parede no mesmo traço continua `wall`.
     const foiObjeto = paredes !== semObjetos && findTokenPath(from, to, semObjetos, map.grid) !== null
-    return { ok: false, reason: foiObjeto ? 'objeto' : 'wall' }
+    if (!foiObjeto) return { ok: false, reason: 'wall' }
+    // E passaria só com os objetos que ele está VENDO (`objetoAVista`)? Então quem barrou foi um que ele
+    // não vê: a recusa é a da parede que ele não vê, e não conta que ali há um objeto.
+    const aVista = options.objetoAVista
+    const soOsQueEleVe = aVista === undefined ? paredes : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, (prop) => escondido(prop) || !aVista(prop))
+    const foiUmQueEleVe = soOsQueEleVe === paredes || findTokenPath(from, to, soOsQueEleVe, map.grid) === null
+    return { ok: false, reason: foiUmQueEleVe ? 'objeto' : 'wall' }
   }
 
   for (let i = 1; i < path.length; i += 1) {
