@@ -1,6 +1,8 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+// O livro do Dragon Ball Tales só no app do mestre (a página do jogador não o carrega; caça 12/11, O7).
+import './lib/dbt/livroDoApp'
 import App from './App'
 import { MidiaDoMestre } from './components/MidiaDoMestre'
 import { instalarDicasDoPainel } from './lib/dicaDoPainel'

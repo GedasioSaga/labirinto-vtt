@@ -1,5 +1,4 @@
-import { FORMATO_DO_SISTEMA, type AtributoDoSistema, type RecursoDoSistema, type SistemaDeRpg } from '../sistemaDeRpg'
-import { LIVRO_DRAGON_BALL } from './livro/livroDragonBall'
+import { FORMATO_DO_SISTEMA, type AtributoDoSistema, type CapituloDoLivro, type RecursoDoSistema, type SistemaDeRpg } from '../sistemaDeRpg'
 import { ID_SISTEMA_DBT, IDS_DOS_ATRIBUTOS, IDS_DOS_RECURSOS, type IdAtributoDBT, type IdRecursoDBT } from './modelo'
 
 /**
@@ -45,9 +44,22 @@ export const SISTEMA_DRAGON_BALL: SistemaDeRpg = {
   recursos: IDS_DOS_RECURSOS.map((id) => ({ id, ...RECURSOS[id] })),
   atributos: IDS_DOS_ATRIBUTOS.map((id) => ({ id, ...ATRIBUTOS[id] })),
   abas: [],
-  // 85 capítulos, ~648 mil caracteres, o maior com ~33 mil: dentro dos tetos
-  // do formato (200 / 1,2 milhão / 100 mil) e ~15 partes de 48 KiB no fio (teto 64).
-  livro: LIVRO_DRAGON_BALL,
+  // `livro`: entra por `registrarLivroDragonBall` (abaixo), só no app do mestre.
   // Sem `catalogos`: raça, perícia e técnica vêm de lib/dbt/dados pela ficha
   // própria, não pelo "Escolher do livro" das abas do motor padrão.
+}
+
+/**
+ * O LIVRO do Dragon Ball Tales (85 capítulos, ~648 mil caracteres, o maior com
+ * ~33 mil: dentro dos tetos do formato, 200 / 1,2 milhão / 100 mil, e ~15
+ * partes de 48 KiB no fio, teto 64) entra no sistema por aqui, chamado por
+ * `livroDoApp.ts`, que só o app do mestre importa (`src/main.tsx`).
+ *
+ * Caça 12/11/2026 (O7): com o `import` do livro aqui, ele ia para o pedaço de
+ * código comum que a página do jogador e a "Visão de jogador" também carregam
+ * antes de abrir (~670 kB de texto). O jogador nunca lê o livro deste objeto:
+ * recebe do mestre pela rede (`livro.parte`, `net/hostSession.ts`).
+ */
+export function registrarLivroDragonBall(livro: CapituloDoLivro[]): void {
+  SISTEMA_DRAGON_BALL.livro = livro
 }
