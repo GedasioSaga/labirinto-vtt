@@ -3130,7 +3130,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       ],
       onDismiss: () => answerAction(request.requestId, false),
       grupo: 'Pedidos',
-      resposta: { rotulo: `Resposta só para ${request.playerName} (opcional)`, maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH },
+      // No Falar, o que o mestre escreve é a fala do NPC (caça J14): o campo diz isso. O texto continua indo só a quem pediu.
+      resposta: {
+        rotulo: request.action === 'falar' ? `O que ${request.targetName} responde (opcional)` : `Resposta só para ${request.playerName} (opcional)`,
+        maxLength: TOKEN_ACTION_REPLY_MAX_LENGTH,
+      },
     })
     actionToasts.set(request.requestId, toastId)
   }

@@ -27,7 +27,8 @@ const ATALHOS_DO_PEDIDO: readonly { rotulo: string; texto: string }[] = [
 const DOOR_REQUEST_TEXT: Record<DoorRequestPhase, string> = {
   sent: 'Pedido enviado',
   opened: 'O mestre abriu',
-  denied: 'O mestre disse não',
+  // O que aconteceu, e não o "disse não" (caça J14): quem pediu para abrir lê que a porta não abriu.
+  denied: 'A porta não abre',
   pending: 'Seu pedido anterior ainda espera o mestre',
   far: 'Chegue mais perto da porta',
   not_visible: 'Você não vê essa porta daqui',

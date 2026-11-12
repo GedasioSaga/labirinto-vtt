@@ -115,14 +115,20 @@ export function tokenActionReply(notice: TokenActionNotice): string | null {
   return (notice.phase === 'accepted' || notice.phase === 'refused') && notice.reply !== undefined ? notice.reply : null
 }
 
-/** O aviso de baixo da tela para cada fase do pedido (e o título do cartão da resposta em texto). */
+/**
+ * O aviso de baixo da tela para cada fase do pedido (e o título do cartão da
+ * resposta em texto). Texto por tipo de pedido (caça J14): "aceitou" não dizia
+ * o que aconteceu. Falar aceito sem resposta escrita: a conversa segue na
+ * mesa; com resposta, o cartão é a fala do NPC. Ação aceita: "deixou".
+ */
 export function tokenActionNoticeText(notice: TokenActionNotice): string {
   const phrase = tokenActionPhrase(notice.action, notice.targetName)
   switch (notice.phase) {
     case 'waiting':
       return `Pedido ao mestre: ${phrase}. Aguardando…`
     case 'accepted':
-      return `O mestre aceitou: ${phrase}`
+      if (notice.action === 'acao') return `O mestre deixou: ${phrase}`
+      return notice.reply === undefined ? 'O mestre ouviu. A resposta vem na mesa.' : `${notice.targetName} responde`
     case 'refused':
       return `O mestre recusou: ${phrase}`
     case 'rejected':
