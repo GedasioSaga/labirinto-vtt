@@ -85,6 +85,40 @@ describe('Balde de Texturas na área fechada por paredes', () => {
     expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'regiao', id: 'sala' } })
   })
 
+  /** Sala de 10 x 10 casas, de (70, 70) a (770, 770), com as paredes soltas `soltas` dentro dela e os `desenhos`. */
+  function salaCom(soltas: Wall[], desenhos: Drawing[] = []): void {
+    const { region, walls } = buildRoomFromDraft('sala', ['w0', 'w1', 'w2', 'w3'], { x: 70, y: 70 }, { x: 770, y: 770 })
+    const comSala = addRoom(createEmptyMap('m', 'M', 12, 12, 70), region, walls)
+    useMapStore.setState({ map: { ...comSala, walls: [...comSala.walls, ...soltas], drawings: desenhos } })
+  }
+
+  it('parede solta que CORTA a sala (na diagonal; a meia casa da borda): o clique enche só o lado clicado, nunca a sala inteira', () => {
+    salaCom([parede('diagonal', 70, 70, 770, 770)])
+    expect(useMapStore.getState().encherComTextura({ x: 560, y: 280 })).toBe('pintou')
+    expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'area' } })
+    expect(texturaEm(560, 280)).toBe('lajotas')
+    expect(texturaEm(280, 560)).toBeNull()
+
+    salaCom([parede('divisoria', 105, 70, 105, 770)])
+    expect(useMapStore.getState().encherComTextura({ x: 420, y: 420 })).toBe('pintou')
+    expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'area' } })
+    expect(texturaEm(420, 420)).toBe('lajotas')
+    expect(texturaEm(88, 420)).toBeNull()
+  })
+
+  it('cômodo fechado de paredes soltas no meio da sala: o clique fora dele não o enche; o lago pintado na sala continua enchendo o lago', () => {
+    salaCom([parede('n', 350, 350, 490, 350), parede('l', 490, 350, 490, 490), parede('s', 490, 490, 350, 490), parede('o', 350, 490, 350, 350)])
+    expect(useMapStore.getState().encherComTextura({ x: 200, y: 200 })).toBe('pintou')
+    expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'area' } })
+    expect(texturaEm(200, 200)).toBe('lajotas')
+    expect(texturaEm(420, 420)).toBeNull()
+
+    const lago: Drawing = { id: 'lago', kind: 'circle', cx: 420, cy: 420, radius: 140, color: '#2a6f97', width: 0, filled: true, fillAlpha: 1 }
+    salaCom([], [lago])
+    expect(useMapStore.getState().encherComTextura({ x: 420, y: 420 })).toBe('pintou')
+    expect(passos()[0]).toMatchObject({ tipo: 'balde', alvo: { tipo: 'desenho', id: 'lago' } })
+  })
+
   it('caverna de pilares demais: o contorno passaria do que a leitura aceita; nada é gravado e o clique avisa', () => {
     // Caverna 2000x2000 de paredes soltas com ~4.000 pilares quadrados de 12 px, a cada 30 px: o contorno da área tem ~21.600 pontos.
     const walls: Wall[] = [parede('n', 20, 20, 1980, 20), parede('l', 1980, 20, 1980, 1980), parede('s', 1980, 1980, 20, 1980), parede('o', 20, 1980, 20, 20)]
