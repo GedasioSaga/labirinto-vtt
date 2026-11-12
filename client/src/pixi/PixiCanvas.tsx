@@ -323,7 +323,7 @@ import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
-import { porMovelNoPonto } from '../stores/mobiliaNoPonto'
+import { encostarTochaArrastadaNaParede, porMovelNoPonto } from '../stores/mobiliaNoPonto'
 import { ehMovelDoChao } from '../lib/mobilia'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
@@ -7995,6 +7995,9 @@ function PixiCanvasDoContexto({
           tokenDragLifted = false
         }
         if (mode === 'dragging-prop' && propDragSnapshot) {
+          // Tocha de parede solta perto de uma parede se prende nela (caça V5 b).
+          // Ao vivo e ANTES de fechar o Ctrl+Z: o encaixe entra no passo do arrasto.
+          encostarTochaArrastadaNaParede(propDragSnapshot)
           useMapStore.getState().commitDragHistory(propDragSnapshot)
         }
         // Mesmo par do Token: arrastar o pino inteiro vira UM Ctrl+Z.
@@ -8184,6 +8187,8 @@ function PixiCanvasDoContexto({
           tokenDragLifted = false
         }
         if (mode === 'dragging-prop' && propDragSnapshot) {
+          // O mesmo encaixe da tocha de parede do pointerup (caça V5 b): soltar fora do canvas também é soltar.
+          encostarTochaArrastadaNaParede(propDragSnapshot)
           useMapStore.getState().commitDragHistory(propDragSnapshot)
         }
         // Mesmo par do Token: arrastar o pino inteiro vira UM Ctrl+Z.
