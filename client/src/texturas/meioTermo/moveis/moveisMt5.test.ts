@@ -123,7 +123,7 @@ describe('MT5: a placa de seta pinta o giro, com a sombra e a luz fixas', () => 
     return textoDaChave(chave)
   }
 
-  it('a chave: sem giro igual à de antes (sem sufixo), 90/180/270 com o quarto de volta; os outros móveis não leem o giro', () => {
+  it('a chave: sem giro igual à de antes (sem sufixo), 90/180/270 com o quarto de volta; o móvel em pé não lê o giro', () => {
     expect(texto(0)).toBe(texto(undefined))
     expect(texto(0)).not.toContain('|q')
     expect(texto(360)).toBe(texto(0))
@@ -131,9 +131,18 @@ describe('MT5: a placa de seta pinta o giro, com a sombra e a luz fixas', () => 
     expect(texto(80)).toBe(texto(90))
     expect(new Set([texto(0), texto(90), texto(180), texto(270)]).size).toBe(4)
     expect([0, 90, 180, 270, 450, -90].map((r) => giroDaImagem({ mobilia: 'placaDeSeta', rotation: r }))).toEqual([0, 90, 180, 270, 90, 270])
+    // Caça 12/11/2026 (V2): o móvel derivado da 3/4 (a sebe) também pinta o quarto de volta de cima, para a sombra
+    // não girar junto: a chave leva o giro (outra imagem), mas a semente não (girar não troca o veio).
     const sebe = peca('sebe', 2, 0.5, 'buxo', null)
-    expect(texto(90, sebe)).toBe(texto(undefined, sebe))
-    expect(giroDaImagem({ mobilia: 'sebe', rotation: 90 })).toBe(0)
+    expect(texto(90, sebe)).not.toBe(texto(undefined, sebe))
+    expect(texto(90, sebe)).toContain('|q90|')
+    expect(texto(undefined, sebe)).not.toContain('|q')
+    expect(giroDaImagem({ mobilia: 'sebe', rotation: 90 })).toBe(90)
+    expect(chaveDoMovel({ ...sebe, rotation: 90 }, 1, 1)?.desenho.semente).toBe(chaveDoMovel(sebe, 1, 1)?.desenho.semente)
+    // O móvel em pé (a lápide) gira a imagem inteira, como antes: nem a chave nem o giro pintado leem o giro.
+    const lapide = peca('lapide', 0.5, 0.5, 'pinho', null)
+    expect(texto(90, lapide)).toBe(texto(undefined, lapide))
+    expect(giroDaImagem({ mobilia: 'lapide', rotation: 90 })).toBe(0)
   })
 
   it('nos 4 giros, com a semente do app: a sombra cai para baixo à direita da tábua e a cabeça larga fica do lado do giro', () => {

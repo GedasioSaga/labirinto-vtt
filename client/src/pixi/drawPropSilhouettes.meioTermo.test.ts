@@ -61,6 +61,26 @@ function alfaNoPonto(im: ImagemDoMovel, x: number, y: number): number {
   return bytes[(j * W + i) * 4 + 3]
 }
 
+/** O centro da massa do alfa da imagem, em px do protótipo em volta do centro do móvel (y para baixo). */
+function centroDaMassa(im: ImagemDoMovel): { x: number; y: number } {
+  const { x0, y0, W, H } = im.limites
+  const bytes = im.textura.source.resource
+  if (!(bytes instanceof Uint8ClampedArray)) throw new Error('imagem sem bytes')
+  let soma = 0
+  let sx = 0
+  let sy = 0
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const a = bytes[(j * W + i) * 4 + 3]
+      soma += a
+      sx += a * (x0 + (i + 0.5) / im.S)
+      sy += a * (y0 + (j + 0.5) / im.S)
+    }
+  }
+  if (soma === 0) throw new Error('imagem vazia')
+  return { x: sx / soma, y: sy / soma }
+}
+
 /** Os números da matriz sem o -0 (o giro de 180 dá seno -0). */
 function matriz(i: Extract<Instruction, { action: 'texture' }>): number[] {
   const m = i.data.transform
@@ -145,25 +165,35 @@ describe('drawPropSilhouettes com o Meio-Termo ligado', () => {
     }
   })
 
-  it('o giro de 90, 180 e 270 gira a imagem (setTransform) com a mesma textura, sem gerar outra', async () => {
+  // Caça 12/11/2026 (V2): o móvel derivado traz o quarto de volta PINTADO também de cima (antes só a 3/4 e a placa);
+  // a tela gira só o resto. Com a imagem inteira girada, a sombra pintada ia junto (a 180, para cima à esquerda).
+  it('o giro de 90, 180 e 270 vai pintado na imagem (uma por quarto de volta): a tela não gira nada e a sombra cai sempre para baixo à direita', async () => {
     await carregarMoveisDoMeioTermo()
     trocarObraNoTeste(true)
     const { raster, rodar } = rasterComFila()
     const g = new Graphics()
-    drawPropSilhouettes(g, [barril()], 1, 1)
-    rodar()
-    const reta = imagem(g)
-    const esperado: Record<number, number[]> = { 90: [0, 1, -1, 0, 100, 100], 180: [-1, 0, 0, -1, 100, 100], 270: [0, -1, 1, 0, 100, 100] }
-    for (const rotation of [90, 180, 270]) {
+    const texturas = new Set<Texture>()
+    for (const rotation of [0, 90, 180, 270]) {
       drawPropSilhouettes(g, [barril({ rotation })], 1, 1)
-      const girada = imagem(g)
-      expect(girada.data.image).toBe(reta.data.image)
-      expect(matriz(girada), `${rotation}°`).toEqual(esperado[rotation])
-      // A imagem é posta pelo centro: a pegada fica em volta de (100, 100) depois do giro.
-      expect(girada.data.dx).toBeLessThan(-17.5 + 1)
-      expect(girada.data.dx + girada.data.dw).toBeGreaterThan(17.5)
+      rodar()
+      const colada = imagem(g)
+      // Uma imagem nova a cada quarto de volta, com o giro pintado: a tela não gira nada.
+      expect(texturas.has(colada.data.image), `${rotation}°`).toBe(false)
+      texturas.add(colada.data.image)
+      expect(matriz(colada), `${rotation}°`).toEqual([1, 0, 0, 1, 100, 100])
+      const im = raster.imagemDoMovel(barril({ rotation }), 1, 1)
+      if (im === null) throw new Error('sem imagem')
+      expect(im.giroPintado).toBe(rotation)
+      // A imagem é posta pelo centro: a pegada fica em volta de (100, 100).
+      expect(colada.data.dx).toBeLessThan(-17.5 + 1)
+      expect(colada.data.dx + colada.data.dw).toBeGreaterThan(17.5)
+      // A sombra pintada puxa a massa da imagem para baixo à direita, NA TELA (com o giro da matriz), em todos os giros.
+      const centro = centroDaMassa(im)
+      const [a, b, c, d] = matriz(colada)
+      expect(a * centro.x + c * centro.y, `${rotation}° x na tela`).toBeGreaterThan(0)
+      expect(b * centro.x + d * centro.y, `${rotation}° y na tela`).toBeGreaterThan(0)
     }
-    expect(raster.geradas).toBe(1)
+    expect(raster.geradas).toBe(4)
   })
 
   it('móvel não quadrado que reusa a imagem de um quase igual: estica x e y cada um pelo seu fator', async () => {
