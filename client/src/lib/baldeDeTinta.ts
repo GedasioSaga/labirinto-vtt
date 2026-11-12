@@ -184,25 +184,8 @@ export function baldeDeTintaNoPonto(map: MapaDoBalde, ponto: DrawingPoint, cor: 
   return contorno ? buildPolygonDrawing(id, contorno, cor, 0, true, 1) : null
 }
 
-/**
- * A ÁREA FECHADA POR PAREDES em volta de `ponto`, para o Balde da ferramenta
- * Texturas (pedido de 12/11/2026: "colocar textura em lugar só com apertar
- * sendo o limite as paredes"). A mesma enchente do balde do Pincel, mas só as
- * paredes cercam: toda parede (solta, de sala, porta aberta ou fechada, janela,
- * atravessável); traço de desenho, linha do mapa e borda de região não. `null`
- * quando a área não fecha (a tinta chega na borda do mapa), o clique cai em
- * cima de uma parede ou fora do mapa.
- */
-export function areaFechadaPorParedes(map: Pick<MapData, 'width' | 'height' | 'grid' | 'walls'>, ponto: DrawingPoint): DrawingPoint[] | null {
-  return areaDoBalde({ width: map.width, height: map.height, grid: map.grid, walls: map.walls, drawings: [] }, ponto, true)
-}
-
-/**
- * O contorno (px de mundo) da área que o balde enche a partir de `ponto`.
- * `soFechada`: `null` também quando a tinta solta (fora de baixo de um traço)
- * chega na borda do mapa — a área não fecha.
- */
-export function areaDoBalde(map: MapaDoBalde, ponto: DrawingPoint, soFechada = false): DrawingPoint[] | null {
+/** O contorno (px de mundo) da área que o balde enche a partir de `ponto`. */
+export function areaDoBalde(map: MapaDoBalde, ponto: DrawingPoint): DrawingPoint[] | null {
   const larguraPx = map.width * map.grid
   const alturaPx = map.height * map.grid
   if (!(larguraPx > 0 && alturaPx > 0)) return null
@@ -230,7 +213,6 @@ export function areaDoBalde(map: MapaDoBalde, ponto: DrawingPoint, soFechada = f
   const row = Math.min(rows - 1, Math.floor(ponto.y / grade.sy))
   const cheias = encher(medidor, row * cols + col)
   if (!cheias) return null
-  if (soFechada && vazaPelaBorda(grade, cheias)) return null
 
   const aneis = contornar(grade, cheias)
   const externo = aneis.filter((anel) => anel.area > 0).sort((a, b) => b.area - a.area)[0]
@@ -552,21 +534,6 @@ function encher(medidor: Medidor, inicio: number): Int32Array | null {
     }
   }
   return fila.subarray(0, fim)
-}
-
-/**
- * A tinta SOLTA chegou na borda do mapa? A que entrou por baixo de um traço
- * não conta: a parede desenhada em cima da borda do mapa fecha a área.
- */
-function vazaPelaBorda(grade: Grade, cheias: Int32Array): boolean {
-  const { cols, rows, estado } = grade
-  for (const i of cheias) {
-    if (estado[i] !== CHEIA) continue
-    const c = i % cols
-    const r = (i - c) / cols
-    if (c === 0 || c === cols - 1 || r === 0 || r === rows - 1) return true
-  }
-  return false
 }
 
 function estaCheia(estado: Uint8Array, i: number): boolean {
