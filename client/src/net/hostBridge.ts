@@ -93,6 +93,7 @@ import {
   type TrancaAviso,
   type TravelRequest,
   type HostSessionOptions,
+  type PartesDoBroadcast,
 } from './hostSession'
 import { distanceLabel, TOKEN_ACTION_LABELS, TOKEN_ACTION_REPLY_MAX_LENGTH } from '../lib/tokenActions'
 import { linhaDoPedidoVivo } from '../lib/pedidoVivo'
@@ -1198,6 +1199,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   let currentRoom: RoomInfo | null = null
   let unlisteners: UnlistenFn[] = []
   let pendingBroadcast: ReturnType<typeof setTimeout> | null = null
+  // BROADCAST EM PARTES (caça 12/11, O1): conexões cuja tela o passo de um colega adiou, e a tarefa que manda a próxima.
+  const telasAdiadas = new Set<string>()
+  let proximaTelaAdiada: ReturnType<typeof setTimeout> | null = null
   let pendingExplorationSave: ReturnType<typeof setTimeout> | null = null
   let pendingMyNotesSave: ReturnType<typeof setTimeout> | null = null
   /** Despertador do prazo do ajudante contratado mais próximo (`armLoanTimer`). */
@@ -2251,6 +2255,28 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     pendingBroadcast = null
   }
 
+  /** O envio para todos refaz toda tela: nenhuma adiada fica para depois. */
+  function esquecerTelasAdiadas() {
+    telasAdiadas.clear()
+    if (proximaTelaAdiada !== null) clearTimeout(proximaTelaAdiada)
+    proximaTelaAdiada = null
+  }
+
+  /**
+   * BROADCAST EM PARTES (caça 12/11, O1 passo 1): uma tela adiada por tarefa, com o mundo de AGORA. Entre uma e
+   * outra o navegador desenha e atende o clique do mestre; com 4 na mesa o passo era uma tarefa só de 318 ms.
+   */
+  function mandarTelaAdiada() {
+    proximaTelaAdiada = null
+    const [clientId] = telasAdiadas
+    // Sala fechada: as telas adiadas eram dela.
+    if (session === null) telasAdiadas.clear()
+    if (clientId === undefined || session === null) return
+    telasAdiadas.delete(clientId)
+    // `broadcastNow` arma a próxima tarefa se ainda sobrar tela adiada.
+    broadcastNow({ so: clientId, ultima: telasAdiadas.size === 0 })
+  }
+
   /**
    * O envio imediato leva o mundo de AGORA, que já contém toda mudança que
    * agendou o broadcast pendente: o agendado seria a mesma cena de novo. Sem
@@ -2258,13 +2284,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * `notifyMapChanged`) saía duas vezes — com 7 na mesa, 14 recortes da névoa
    * e 14 envios por passo na thread do mestre.
    */
-  const broadcastNow = () => {
+  const broadcastNow = (partes?: PartesDoBroadcast) => {
     if (session === null) return
     followCaravans()
-    cancelPendingBroadcast()
+    // A tela de uma conexão só (adiada) não cobre o agendado, que é para todos: ele segue de pé.
+    if (partes?.so === undefined) cancelPendingBroadcast()
+    if (partes === undefined) esquecerTelasAdiadas()
+    else if (partes.primeiro !== undefined) telasAdiadas.delete(partes.primeiro)
     const current = world()
-    const result = session.broadcast(current)
+    const result = session.broadcast(current, partes)
     void dispatch(result)
+    for (const clientId of result.recortesAdiados ?? []) telasAdiadas.add(clientId)
+    if (telasAdiadas.size > 0 && proximaTelaAdiada === null) proximaTelaAdiada = setTimeout(mandarTelaAdiada, 0)
     // SONS AO VIVO: o mestre pode ter levado uma ficha de cena pelo editor (ou trocado a cena da TV):
     // quem saiu ou chegou à cena de um loop só aparece aqui. Sem loop, não custa nada.
     reconciliarSons()
@@ -3884,7 +3915,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Cena aberta: a mesma chamada de sempre, sem o quarto argumento.
       if (sceneId === undefined) deps.applyMove(tokenId, x, y)
       else deps.applyMove(tokenId, x, y, sceneId)
-      broadcastNow()
+      // Caça 12/11 (O1): a tela de quem andou sai já; a dos colegas da cena dele, uma por tarefa logo em seguida.
+      broadcastNow({ primeiro: clientId })
     }
     if (result.applyDoor !== undefined) {
       // Todos veem a porta nova: o mestre pela store, os jogadores pelo snapshot imediato.
