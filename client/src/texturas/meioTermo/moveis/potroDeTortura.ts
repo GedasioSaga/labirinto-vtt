@@ -154,11 +154,6 @@ function meioDa(f: Forma): Ponto {
   return [(f.b[0] + f.b[2]) / 2, (f.b[1] + f.b[3]) / 2]
 }
 
-/** A forma `f` andada (dx, dy): a sombra pintada no chão de uma coisa no ar. */
-function deslocada(f: Forma, dx: number, dy: number): Forma {
-  return { b: [f.b[0] + dx, f.b[1] + dy, f.b[2] + dx, f.b[3] + dy], d: (x, y) => f.d(x - dx, y - dy) }
-}
-
 /**
  * A peça só é pintada NO LUGAR em que foi desenhada (`dy` zero): a 3/4 sobe
  * cada peça mexendo no `dy` dela, então a peça da vista de cima some quando

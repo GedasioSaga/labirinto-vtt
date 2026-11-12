@@ -301,7 +301,7 @@ function assento(p: Planta, forma: Forma): void {
 function braco(p: Planta, forma: Forma, lado: number, projecao: number, semente: number): void {
   const { c, L, k } = p
   const P = c.peca
-  const [x0, y0, x1, y1] = forma.b
+  const [x0, , x1, y1] = forma.b
   const mad = c.m.madeira
   L.push(P(forma, mad, { tabua: 0, bisel: 1.2, contorno: 0.24, semente, projeta: { dist: projecao, forca: 0.3, suave: 1.2 } }))
   L.push(P(caixa(x0, y1 - 3.4 * k, x1, y1, 0.6 * k), FERRO, { tabua: 0, bisel: 0.7 * k, contorno: 0.26, metal: BRILHO_DO_FERRO, textura: texFerrugem(0.14), semente: semente + 1 }))
