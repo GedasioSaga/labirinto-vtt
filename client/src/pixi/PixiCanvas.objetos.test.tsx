@@ -5,7 +5,7 @@ import { Container, EventBoundary, FederatedPointerEvent } from 'pixi.js'
 import { createEmptyMap } from '../lib/mapFactory'
 import { criarMovel } from '../lib/mobilia'
 import { useMapStore } from '../stores/mapStore'
-import type { MapData, Prop, Region } from '../types/map'
+import type { MapData, Prop, Region, Wall } from '../types/map'
 import { PixiCanvas } from './PixiCanvas'
 
 /**
@@ -293,6 +293,39 @@ describe('PixiCanvas — botão direito no objeto: Pôr por cima / por baixo', (
     expect(useMapStore.getState().past).toHaveLength(1)
     act(() => useMapStore.getState().undo())
     expect(useMapStore.getState().map.props.map((p) => p.id)).toEqual(['pequena', 'grande'])
+  })
+
+  /** Parede solta que corta o tapete posto em `NO_CORREDOR` (192 x 128 px, de y=106 a y=234). */
+  const PAREDE_NO_TAPETE: Wall = { id: 'parede-no-tapete', x1: 40, y1: 130, x2: 260, y2: 130, blocksLight: true, blocksMove: true, door: null }
+
+  /** Os rótulos do menu aberto agora (o que acabou de fechar ainda sai por 120 ms, inerte). */
+  function itensDoMenuAberto(): string[] {
+    return [...raiz.querySelectorAll<HTMLButtonElement>('[role="menu"]:not([inert]) [role="menuitem"]')].map((b) => b.textContent ?? '')
+  }
+
+  function comTapeteSobAParede(): void {
+    const tapete = criarMovel('tapete', NO_CORREDOR, GRADE, 'tapete-posto')
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [tapete], walls: [PAREDE_NO_TAPETE] } })
+  }
+
+  it('PAREDE em cima do tapete: o botão direito na parede abre o menu DELA ("Abrir vão aqui"), e o tapete não é selecionado', async () => {
+    comTapeteSobAParede()
+    await monta()
+    cliqueDireito({ x: 150, y: 130 })
+
+    expect(itensDoMenuAberto().some((rotulo) => rotulo.includes('Abrir vão aqui'))).toBe(true)
+    expect(itensDoMenuAberto()).not.toContain('Pôr por cima')
+    expect(useMapStore.getState().selection).toEqual([])
+  })
+
+  it('no mesmo tapete, FORA da parede, o botão direito continua abrindo o menu do objeto', async () => {
+    comTapeteSobAParede()
+    await monta()
+    cliqueDireito({ x: 150, y: 215 })
+
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'tapete-posto' }])
+    expect(itensDoMenuAberto()).toContain('Pôr por cima')
+    expect(itensDoMenuAberto().some((rotulo) => rotulo.includes('Abrir vão aqui'))).toBe(false)
   })
 })
 
