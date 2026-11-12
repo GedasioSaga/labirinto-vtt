@@ -42,23 +42,13 @@
  * casa de partida): esticado, o braseiro fica oval, como o barril. Material:
  * `metal` (a bacia e o tripé). O carvão, a cinza e o fogo são fixos.
  */
+import { BRASEIRO } from '../../../lib/mobilia/fogoDeCasa'
 import { hash, limitar01, misturar, type Rgb } from '../../ruido'
 import { anel, capsula, elipse, poligono, uniao, type Caixa, type Forma, type Ponto } from './formas'
 import { bordaDaSombra, contato, ruido, SOMBRA_X, SOMBRA_Y, texturaDaClasse, type MaterialDaPeca, type Peca, type Textura } from './motor'
 import { CINZA, G, type MontarMovel } from './contexto'
 import { FOGO_PARADO, texBrasa, texCinza, texHalo } from './fogoDeCasa'
 import { BRASA_QUENTE, BRASA_VIVA } from './fogueira'
-
-/**
- * A disposição do braseiro, que a imagem parada e a chama animada leem juntas: `fogo` é o meio do monte de
- * carvão, onde as línguas nascem, em frações da pegada a partir do centro (x da largura, y da altura), sem
- * giro, como `FORNO_DE_PAO`; `alturaDaBorda` é a altura da borda em fração do menor lado (0,72 casa no
- * braseiro de 0,8). O carvão queima rente à borda: na 3/4 a chama sobe essa altura.
- */
-export const BRASEIRO = {
-  fogo: { x: 0, y: 0 },
-  alturaDaBorda: 0.9,
-} as const
 
 /** O braseiro foi medido no tamanho de partida (0,8 casa, 22,4 px de meio lado): as medidas miúdas escalam por aqui. */
 const MEIO_LADO_DE_PARTIDA = 0.4 * G

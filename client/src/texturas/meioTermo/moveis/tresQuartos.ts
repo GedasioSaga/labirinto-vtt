@@ -431,6 +431,27 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // e sobe como eles. A armadura de pé é desenhada de frente, como o manequim.
   armaduraDespedacada: { modo: 'derivado', alturaSolta: 0.03 * G },
   armadura: EM_PE,
+  // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. O braseiro sobe pelas sombras: cada
+  // perna é uma coluna da altura da borda e a bacia sobe em dois pinos, o do bojo e o da boca; a chama animada
+  // sobe a mesma altura (`deslocamentoDaChama`), como a da fornalha.
+  braseiro: DERIVADO,
+  // A cela mora no chão, como o palco de bardo, mas a grade sobe: cada barra, poste e batente é uma coluna da
+  // altura da grade e cada trilho, um tampo no alto dela; as lajes, a palha e a tigela ficam no chão.
+  celaComGrade: DERIVADO,
+  // A corrente é rente ao chão e espalhada, feita do mesmo jeito que os ossos, e sobe como eles.
+  corrente: { modo: 'derivado', alturaSolta: 0.03 * G },
+  // A armadilha mora no chão, com altura, como a horta, e também sem beirada: cada espinho em pé são quatro
+  // tampos soltos (o corpo, o lado claro, a luva de ferrugem e a lasca do brilho), e com beirada cada um
+  // ganharia uma tira por baixo e o espinho viraria uma escada.
+  armadilhaDeEspinhos: { modo: 'derivado', espessura: 0 },
+  // O círculo mágico mora no chão e é rente, como a plantação: nenhuma sombra dele tem altura, então nada sobe e
+  // a 3/4 sai igual à vista de cima (`tresQuartos.test.ts` o dispensa das regras de subir, na lista dos rentes).
+  circuloMagico: DERIVADO,
+  // Nos blocos de inscrições a face da frente é guardada debaixo da face de cima em fatias penduradas em pinos,
+  // como no tonel e nos barris deitados: com beirada, os pinos ganhariam uma tira.
+  blocoDeInscricoesAzul: { modo: 'derivado', espessura: 0 },
+  blocoDeInscricoesVermelho: { modo: 'derivado', espessura: 0 },
+  blocoDeInscricoesDourado: { modo: 'derivado', espessura: 0 },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

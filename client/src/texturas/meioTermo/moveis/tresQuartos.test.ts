@@ -82,10 +82,11 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // barateado leva ~2 s sozinho; com a suíte inteira carregando a máquina, passava dos 5 s do padrão e
   // falhava por tempo, não por imagem. Só ele ganha o teto maior.
   const TETO_DO_CAMPINHO_MS = 20_000
-  // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras, 11/11/2026): nenhuma sombra deles tem
-  // altura, então nada sobe e a 3/4 sai igual à vista de cima. Seguem as regras de cor e a de "mesma entrada,
-  // mesma imagem", mas ficam fora da troca do desenho e do tampo que sobe. Objeto rente novo entra nesta lista.
-  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras']
+  // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras e o círculo mágico, 11/11/2026): nenhuma
+  // sombra deles tem altura, então nada sobe e a 3/4 sai igual à vista de cima. Seguem as regras de cor e a de
+  // "mesma entrada, mesma imagem", mas ficam fora da troca do desenho e do tampo que sobe. Objeto rente novo
+  // entra nesta lista.
+  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico']
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
     const rente = RENTES.includes(tipo)
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, tipo === 'campinho' ? { timeout: TETO_DO_CAMPINHO_MS } : {}, () => {

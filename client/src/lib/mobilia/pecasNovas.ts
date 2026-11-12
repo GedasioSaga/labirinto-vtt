@@ -42,6 +42,7 @@ export const PECAS_NOVAS = [
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
+  'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -325,6 +326,23 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // Nenhum dos nove tem luz nem chama.
   armaduraDespedacada: { rotulo: 'Armadura despedaçada', artigo: 'uma armadura despedaçada', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   armadura: { rotulo: 'Armadura', artigo: 'uma armadura', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra, cada um com o próprio desenho;
+  // esticam e giram como todo objeto. O braseiro é a bacia redonda de ferro no tripé, com o fogo de casa da
+  // lareira (aceso ou apagado, `lib/mobilia/fogoDeCasa.ts`); esticado, fica oval, como o barril. A cela com grade
+  // mora no chão (`ehMovelDoChao` em `lib/mobilia.ts`): o que o mestre põe dentro sai por cima das lajes; de
+  // cima ela é aberta, sem teto de grade, e a porta fica na frente. A armadilha de espinhos também mora no chão,
+  // com os espinhos em pé; esticada, ganha espinhos, nunca espinhos maiores. A corrente é rente ao chão, como os
+  // ossos. O círculo mágico mora no chão, rente como o campinho; esticado, os anéis viram elipse. Os três blocos
+  // de inscrições são o mesmo desenho (`blocoDeInscricoes.ts`, que não é objeto) em três cores, com a quina de
+  // cima lascada; esticados, ganham glifos, nunca glifos esticados.
+  braseiro: { rotulo: 'Braseiro', artigo: 'um braseiro', tamanho: { largura: 0.8, altura: 0.8 }, redonda: true },
+  celaComGrade: { rotulo: 'Cela com grade', artigo: 'uma cela com grade', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  corrente: { rotulo: 'Corrente', artigo: 'uma corrente', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  armadilhaDeEspinhos: { rotulo: 'Armadilha de espinhos', artigo: 'uma armadilha de espinhos', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  circuloMagico: { rotulo: 'Círculo mágico', artigo: 'um círculo mágico', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  blocoDeInscricoesAzul: { rotulo: 'Bloco de inscrições azul', artigo: 'um bloco de inscrições azul', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  blocoDeInscricoesVermelho: { rotulo: 'Bloco de inscrições vermelho', artigo: 'um bloco de inscrições vermelho', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  blocoDeInscricoesDourado: { rotulo: 'Bloco de inscrições dourado', artigo: 'um bloco de inscrições dourado', tamanho: { largura: 2, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -463,6 +481,14 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     caixoteDePeixe: valor(f.caixoteDePeixe),
     armaduraDespedacada: valor(f.armaduraDespedacada),
     armadura: valor(f.armadura),
+    braseiro: valor(f.braseiro),
+    celaComGrade: valor(f.celaComGrade),
+    corrente: valor(f.corrente),
+    armadilhaDeEspinhos: valor(f.armadilhaDeEspinhos),
+    circuloMagico: valor(f.circuloMagico),
+    blocoDeInscricoesAzul: valor(f.blocoDeInscricoesAzul),
+    blocoDeInscricoesVermelho: valor(f.blocoDeInscricoesVermelho),
+    blocoDeInscricoesDourado: valor(f.blocoDeInscricoesDourado),
   }
 }
 
@@ -495,8 +521,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 12 e 15 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que
-  // o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 a 12, 15 e 16 e os cinco primeiros do lote 13 dos 95 objetos novos (11/11/2026), sem parente
+  // antigo: fecham o catálogo. A ordem em que o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
@@ -509,6 +535,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
+  'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
 ]
 
 /**
@@ -2044,6 +2071,86 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: hw * 0.14, y1: hh * 0.1, x2: hw * 0.14, y2: hh * 0.7 },
         { x1: 0, y1: -hh * 0.18, x2: 0, y2: hh * 0.72 },
         ...quadro(-hw * 0.4, hh * 0.72, hw * 0.4, hh * 0.9),
+      ]
+    case 'braseiro': {
+      // A borda da bacia e o monte de carvão (dois aros) e as três pernas saindo da beira: duas na frente, uma atrás.
+      const pe = (graus: number): Traco => {
+        const a = (graus * Math.PI) / 180
+        return { x1: Math.cos(a) * hw * 0.84, y1: Math.sin(a) * hh * 0.84, x2: Math.cos(a) * hw, y2: Math.sin(a) * hh }
+      }
+      return [...aro(largura * 0.82, altura * 0.82), ...aro(largura * 0.6, altura * 0.6), pe(30), pe(150), pe(270)]
+    }
+    case 'celaComGrade': {
+      // O quadro dos trilhos, a sombra das barras do fundo riscando o chão de dentro e os dois batentes da porta na frente.
+      const x = hw * 0.91
+      const y = hh * 0.91
+      const sombra = (u: number): Traco => ({ x1: u, y1: -y, x2: u + hw * 0.3, y2: -y + hh * 0.24 })
+      return [...quadro(-x, -y, x, y), sombra(-x * 0.6), sombra(-x * 0.2), sombra(x * 0.2), { x1: -hw * 0.36, y1: y, x2: -hw * 0.36, y2: y * 0.8 }, { x1: hw * 0.36, y1: y, x2: hw * 0.36, y2: y * 0.8 }]
+    }
+    case 'corrente': {
+      // A placa no canto de trás, a corrente em curva até o meio da direita e os dois grilhões abertos (aros) na frente.
+      return [
+        ...quadro(-hw * 0.66, -hh * 0.64, -hw * 0.38, -hh * 0.36),
+        { x1: -hw * 0.42, y1: -hh * 0.38, x2: -hw * 0.31, y2: -hh * 0.02 },
+        { x1: -hw * 0.31, y1: -hh * 0.02, x2: -hw * 0.15, y2: hh * 0.24 },
+        { x1: -hw * 0.15, y1: hh * 0.24, x2: hw * 0.08, y2: hh * 0.25 },
+        { x1: hw * 0.08, y1: hh * 0.25, x2: hw * 0.38, y2: hh * 0.16 },
+        ...aro(hw * 0.31, hh * 0.31, hw * 0.3, hh * 0.6),
+        ...aro(hw * 0.31, hh * 0.31, hw * 0.72, hh * 0.26),
+      ]
+    }
+    case 'armadilhaDeEspinhos': {
+      // De cima: o alçapão dentro da moldura, a placa de pressão na soleira (embaixo; deitada, à esquerda) e os espinhos em grade de três por três, cada um um xis.
+      const menor = Math.min(largura, altura)
+      const [m, s, p] = [menor * 0.09, menor * 0.24, menor * 0.07]
+      const [x0, y0, x1, y1] = altura >= largura ? [-hw + m, -hh + m, hw - m, hh - s] : [-hw + s, -hh + m, hw - m, hh - m]
+      const [px, py] = altura >= largura ? [0, hh - s / 2] : [-hw + s / 2, 0]
+      const xis = (cx: number, cy: number): Traco[] => [
+        { x1: cx - p / 2, y1: cy - p / 2, x2: cx + p / 2, y2: cy + p / 2 },
+        { x1: cx - p / 2, y1: cy + p / 2, x2: cx + p / 2, y2: cy - p / 2 },
+      ]
+      const espinhos = [0.2, 0.5, 0.8].flatMap((fx) => [0.2, 0.5, 0.8].flatMap((fy) => xis(x0 + (x1 - x0) * fx, y0 + (y1 - y0) * fy)))
+      return [...quadro(x0, y0, x1, y1), ...quadro(px - p, py - p, px + p, py + p), ...espinhos]
+    }
+    case 'circuloMagico': {
+      // De cima: o anel de fora e o do meio, e a estrela de sete pontas riscada de dois em dois vértices, com as pontas na faixa das runas.
+      const ponta = (i: number): [number, number] => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 7
+        return [Math.cos(a) * hw * 0.74, Math.sin(a) * hh * 0.74]
+      }
+      const estrela = [0, 1, 2, 3, 4, 5, 6].map((i): Traco => {
+        const [[ax, ay], [bx, by]] = [ponta(i), ponta(i + 2)]
+        return { x1: ax, y1: ay, x2: bx, y2: by }
+      })
+      return [...aro(largura * 0.9, altura * 0.9), ...aro(largura * 0.3, altura * 0.3), ...estrela]
+    }
+    case 'blocoDeInscricoesAzul':
+      // De cima: a face de cima com a quina lascada, o friso por dentro e três fileiras de escrita deitadas.
+      return [
+        ...fechado([[-hw * 0.9, -hh * 0.9], [hw * 0.66, -hh * 0.9], [hw * 0.9, -hh * 0.66], [hw * 0.9, hh * 0.9], [-hw * 0.9, hh * 0.9]]),
+        ...quadro(-hw * 0.72, -hh * 0.72, hw * 0.72, hh * 0.72),
+        linha(-hw * 0.5, -hh * 0.36, hw * 0.5),
+        linha(-hw * 0.5, 0, hw * 0.5),
+        linha(-hw * 0.5, hh * 0.36, hw * 0.5),
+      ]
+    case 'blocoDeInscricoesVermelho':
+      // De cima: a face de cima com a quina lascada, o friso por dentro e três colunas de escrita em pé.
+      return [
+        ...fechado([[-hw * 0.9, -hh * 0.9], [hw * 0.66, -hh * 0.9], [hw * 0.9, -hh * 0.66], [hw * 0.9, hh * 0.9], [-hw * 0.9, hh * 0.9]]),
+        ...quadro(-hw * 0.72, -hh * 0.72, hw * 0.72, hh * 0.72),
+        { x1: -hw * 0.36, y1: -hh * 0.5, x2: -hw * 0.36, y2: hh * 0.5 },
+        { x1: 0, y1: -hh * 0.5, x2: 0, y2: hh * 0.5 },
+        { x1: hw * 0.36, y1: -hh * 0.5, x2: hw * 0.36, y2: hh * 0.5 },
+      ]
+    case 'blocoDeInscricoesDourado':
+      // De cima: a face de cima com a quina lascada, o friso por dentro e quatro glifos em caixa, dois a dois.
+      return [
+        ...fechado([[-hw * 0.9, -hh * 0.9], [hw * 0.66, -hh * 0.9], [hw * 0.9, -hh * 0.66], [hw * 0.9, hh * 0.9], [-hw * 0.9, hh * 0.9]]),
+        ...quadro(-hw * 0.72, -hh * 0.72, hw * 0.72, hh * 0.72),
+        ...quadro(-hw * 0.5, -hh * 0.5, -hw * 0.12, -hh * 0.12),
+        ...quadro(hw * 0.12, -hh * 0.5, hw * 0.5, -hh * 0.12),
+        ...quadro(-hw * 0.5, hh * 0.12, -hw * 0.12, hh * 0.5),
+        ...quadro(hw * 0.12, hh * 0.12, hw * 0.5, hh * 0.5),
       ]
   }
 }

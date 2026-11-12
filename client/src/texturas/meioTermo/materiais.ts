@@ -423,6 +423,22 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // fixos.
   armaduraDespedacada: [],
   armadura: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra. No braseiro o metal é a bacia e o
+  // tripé (de latão fica um braseiro de templo); na cela, o ferro da grade, da porta e da argola do chão, e o
+  // piso, as lajes de dentro (de ardósia fica um chão escuro de masmorra); na corrente, a placa, os elos, os
+  // grilhões e o cadeado; na armadilha, a pedra da moldura e da soleira, e o metal dos espinhos. Fixos: o
+  // carvão, a brasa, a cinza e o fogo do braseiro; a palha, a madeira da tigela, o mingau e o rejunte da cela; o
+  // chumbo e a chave de latão da corrente; a ferrugem, o escuro dos furos e o reflexo dos espinhos. O círculo
+  // mágico (o giz azul pálido) e os três blocos de inscrições (a pedra, o ouro e os sulcos de cada cor) não têm
+  // lugar.
+  braseiro: [lugar('metal', 'Braseiro', METAIS, 'ferro')],
+  celaComGrade: [lugar('grade', 'Grade', METAIS, 'ferro'), lugar('piso', 'Piso', PEDRAS, 'granito')],
+  corrente: [lugar('metal', 'Corrente', METAIS, 'ferro')],
+  armadilhaDeEspinhos: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('metal', 'Espinhos', METAIS, 'ferro')],
+  circuloMagico: [],
+  blocoDeInscricoesAzul: [],
+  blocoDeInscricoesVermelho: [],
+  blocoDeInscricoesDourado: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

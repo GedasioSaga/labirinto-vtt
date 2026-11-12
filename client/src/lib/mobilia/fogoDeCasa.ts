@@ -5,7 +5,8 @@
  * disposição que a imagem parada (`texturas/meioTermo/moveis/lareira.ts` e
  * `fornalha.ts`: as brasas, o halo, a lenha) e a camada animada (as línguas)
  * leem juntas, para cada língua nascer em cima da brasa pintada. O FORNO DE
- * PÃO (11/11/2026) usa o mesmo fogo, sem código novo de animação.
+ * PÃO e o BRASEIRO (11/11/2026) usam o mesmo fogo, sem código novo de
+ * animação.
  *
  * Tudo em FRAÇÃO da pegada (centro na origem, frente = lado de baixo, sem
  * giro): esticar a lareira afasta as línguas junto com a lenha, sem desenhar
@@ -22,11 +23,11 @@ export const ROTULO_DO_FOGO_DO_MOVEL: Readonly<Record<FogoDoMovel, string>> = {
   apagado: 'Apagado',
 }
 
-/** Os móveis com fogo que acende e apaga: a lareira, a fornalha e o forno de pão (11/11/2026). */
-export type MovelComFogoDeCasa = 'lareira' | 'fornalha' | 'fornoDePao'
+/** Os móveis com fogo que acende e apaga: a lareira, a fornalha, o forno de pão e o braseiro (11/11/2026). */
+export type MovelComFogoDeCasa = 'lareira' | 'fornalha' | 'fornoDePao' | 'braseiro'
 
 export function ehMovelComFogoDeCasa(tipo: string | undefined): tipo is MovelComFogoDeCasa {
-  return tipo === 'lareira' || tipo === 'fornalha' || tipo === 'fornoDePao'
+  return tipo === 'lareira' || tipo === 'fornalha' || tipo === 'fornoDePao' || tipo === 'braseiro'
 }
 
 /** Uma língua: a base em fração da pegada (x da largura, y da altura), a altura em fração do lado menor e o atraso de fase. */
@@ -100,10 +101,40 @@ export const LINGUAS_DO_FORNO_DE_PAO: readonly LinguaDeCasa[] = [
   { x: 0, y: 0.37, altura: 0.13, fase: 0 },
 ]
 
+/**
+ * BRASEIRO (0,8 x 0,8 casa de partida, 11/11/2026): a disposição que a imagem
+ * parada (`texturas/meioTermo/moveis/braseiro.ts`) e a chama animada leem
+ * juntas. `fogo` é o meio do monte de carvão, onde as línguas nascem, em
+ * frações da pegada a partir do centro (x da largura, y da altura), sem giro;
+ * `alturaDaBorda` é a altura da borda em fração do menor lado (0,72 casa no
+ * braseiro de 0,8). O carvão queima rente à borda: na 3/4 a chama sobe essa
+ * altura (`deslocamentoDaChama`), como a da fornalha. Mora aqui, e não no
+ * desenho, pela mesma razão da `FORNALHA`: a tela lê a altura sem carregar o
+ * motor dos móveis.
+ */
+export const BRASEIRO = {
+  fogo: { x: 0, y: 0 },
+  alturaDaBorda: 0.9,
+} as const
+
+/**
+ * O braseiro (lote 13, 11/11/2026): o fogo de carvão numa bacia redonda, baixo e largo. Duas línguas atrás,
+ * uma no meio do fundo, duas na frente e a principal no meio, todas dentro do miolo em brasa (0,34 da pegada).
+ */
+export const LINGUAS_DO_BRASEIRO: readonly LinguaDeCasa[] = [
+  { x: -0.16, y: -0.06, altura: 0.24, fase: 0.21 },
+  { x: 0.15, y: -0.07, altura: 0.22, fase: 0.63 },
+  { x: 0, y: -0.12, altura: 0.27, fase: 0.45 },
+  { x: -0.11, y: 0.07, altura: 0.26, fase: 0.37 },
+  { x: 0.12, y: 0.06, altura: 0.25, fase: 0.79 },
+  { x: 0, y: 0.02, altura: 0.36, fase: 0 },
+]
+
 const LINGUAS_DO_FOGO_DE_CASA: Readonly<Record<MovelComFogoDeCasa, readonly LinguaDeCasa[]>> = {
   lareira: LINGUAS_DA_LAREIRA,
   fornalha: LINGUAS_DA_FORNALHA,
   fornoDePao: LINGUAS_DO_FORNO_DE_PAO,
+  braseiro: LINGUAS_DO_BRASEIRO,
 }
 
 /** As línguas do móvel. Móvel novo com fogo de casa sem as línguas dele aqui não compila. */

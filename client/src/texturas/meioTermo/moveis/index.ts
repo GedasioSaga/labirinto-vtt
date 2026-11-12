@@ -148,6 +148,14 @@ import { montarPier } from './pier'
 import { montarCaixoteDePeixe } from './caixoteDePeixe'
 import { montarArmaduraDespedacada } from './armaduraDespedacada'
 import { montarArmadura } from './armadura'
+import { montarBraseiro } from './braseiro'
+import { montarCelaComGrade } from './celaComGrade'
+import { montarCorrente } from './corrente'
+import { montarArmadilhaDeEspinhos } from './armadilhaDeEspinhos'
+import { montarCirculoMagico } from './circuloMagico'
+import { montarBlocoDeInscricoesAzul } from './blocoDeInscricoesAzul'
+import { montarBlocoDeInscricoesVermelho } from './blocoDeInscricoesVermelho'
+import { montarBlocoDeInscricoesDourado } from './blocoDeInscricoesDourado'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -344,6 +352,18 @@ const MONTADORES = {
   caixoteDePeixe: montarCaixoteDePeixe,
   armaduraDespedacada: montarArmaduraDespedacada,
   armadura: montarArmadura,
+  // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra: um desenho por arquivo; os três
+  // blocos de inscrições dividem `blocoDeInscricoes.ts`, que não é objeto e não entra aqui. O braseiro, a cela
+  // com grade, a armadilha de espinhos e os três blocos leem o `giro` (o quarto de volta que a 3/4 pinta); a
+  // corrente e o círculo mágico, não. No braseiro o fogo aceso ou apagado chega na `variante`, como na lareira.
+  braseiro: montarBraseiro,
+  celaComGrade: montarCelaComGrade,
+  corrente: montarCorrente,
+  armadilhaDeEspinhos: montarArmadilhaDeEspinhos,
+  circuloMagico: montarCirculoMagico,
+  blocoDeInscricoesAzul: montarBlocoDeInscricoesAzul,
+  blocoDeInscricoesVermelho: montarBlocoDeInscricoesVermelho,
+  blocoDeInscricoesDourado: montarBlocoDeInscricoesDourado,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -392,6 +412,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
+  'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

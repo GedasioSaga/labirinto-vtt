@@ -1812,6 +1812,90 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M10.3 14v6M13.7 14v6M12 12v8.5M10.4 13.2h3.2M7.5 21.5h9" />
         </>
       )
+    case 'braseiro':
+      // De frente: a bacia larga e rasa no alto do tripé (duas pernas abertas e a do meio) e as chamas baixas saindo do carvão (o caldeirão tem barriga e orelhas; a fogueira, pedras).
+      return (
+        <>
+          <path d="M4 10h16" />
+          <path d="M5 10c.5 2.8 3.4 4.6 7 4.6s6.5-1.8 7-4.6" />
+          <path d="M8.5 14.2 6 21M15.5 14.2 18 21M12 14.6V21" />
+          <path d="M9 10c-.7-1.6.6-2.6 1.2-3.8.3 1.3.9 1.8 1.3 2.6.5-1.8 1.4-2.8 2.6-4 .3 2 1.4 3.1.9 5.2" />
+        </>
+      )
+    case 'celaComGrade':
+      // De frente: o quadro da jaula com as barras em pé, a travessa de cima e o cadeado pendurado na porta (a cerca de ferro tem lanças e pilaretes; a gaiola, cúpula).
+      return (
+        <>
+          <rect x="3.5" y="3.5" width="17" height="17" rx="1" />
+          <path d="M7.5 3.5v17M11 3.5v17M14.5 3.5v17M18 3.5v17" />
+          <path d="M3.5 7h17" />
+          <rect x="12.6" y="12" width="3.8" height="3.2" rx=".6" />
+        </>
+      )
+    case 'corrente':
+      // A corrente na diagonal, presa na argola de cima: elos deitados (ovais) e em pé (traços) até o grilhão aberto embaixo.
+      return (
+        <>
+          <circle cx="5" cy="5" r="2.2" />
+          <ellipse cx="8.6" cy="8.6" rx="2.4" ry="1.3" transform="rotate(45 8.6 8.6)" />
+          <path d="m10.7 10.7 1.9 1.9" />
+          <ellipse cx="14.4" cy="14.4" rx="2.4" ry="1.3" transform="rotate(45 14.4 14.4)" />
+          <path d="m16.2 16.2 1 1.9" />
+          <path d="M19.45 22.56A2.6 2.6 0 1 1 21.56 20.45" />
+        </>
+      )
+    case 'armadilhaDeEspinhos':
+      // De frente: a laje rente ao chão e quatro espinhos em pé saindo dela, de alturas diferentes, o da direita torto (a cerca de ferro tem travessas e lança; aqui não há travessa).
+      return (
+        <>
+          <rect x="2.5" y="19" width="19" height="2.5" />
+          <path d="M4 19 5.5 10 7 19M8.5 19 10 5l1.5 14M13 19l1.5-11 1.5 11M17.5 19l2.8-7.5.2 7.5" />
+        </>
+      )
+    case 'circuloMagico':
+      // De cima: o anel duplo, a estrela de sete pontas de dois em dois vértices inscrita no anel de dentro e o pingo no meio (o campinho tem o círculo dentro do retângulo; o tapete redondo não tem estrela).
+      return (
+        <>
+          <circle cx="12" cy="12" r="10.5" />
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 4 19.8 13.8 8.5 19.2 5.7 7H18.3L15.5 19.2 4.2 13.8Z" />
+          <path d="M12 12h.01" />
+        </>
+      )
+    case 'blocoDeInscricoesAzul':
+      // De frente: o bloco alto de pedra com a quina de cima lascada, três fileiras de glifos em caixinha (duas por fileira) e o chão com capim dos dois lados do pé.
+      return (
+        <>
+          <path d="M5.5 20.5V3.5h10.5l2.5 2.5v14.5" />
+          <path d="M8.5 7h2.5v2.5H8.5zM13 7h2.5v2.5H13zM8.5 11h2.5v2.5H8.5zM13 11h2.5v2.5H13zM8.5 15h2.5v2.5H8.5zM13 15h2.5v2.5H13z" />
+          <path d="M2.5 20.5h19M4 20.5l-.6-1.8M20 20.5l.6-1.8" />
+        </>
+      )
+    case 'blocoDeInscricoesVermelho':
+      // De frente: o bloco alto de pedra com a quina de cima lascada, três fileiras de glifos em cálice (abertos em cima), a rachadura que sobe do pé e o chão com capim.
+      return (
+        <>
+          <path d="M5.5 20.5V3.5h10.5l2.5 2.5v14.5" />
+          <path d="M8.5 7v2.5H11V7M13 7v2.5h2.5V7M8.5 11v2.5H11V11M13 11v2.5h2.5V11M8.5 15v2.5H11V15M13 15v2.5h2.5V15" />
+          <path d="M12 20.5l-.8-1.6.9-1.2" />
+          <path d="M2.5 20.5h19M4 20.5l-.6-1.8M20 20.5l.6-1.8" />
+        </>
+      )
+    case 'blocoDeInscricoesDourado':
+      // De frente: o bloco alto de ouro com a quina de cima lascada, três fileiras de glifos em argola, o brilho de quatro pontas fora da quina da luz e o chão com capim.
+      return (
+        <>
+          <path d="M5.5 20.5V3.5h10.5l2.5 2.5v14.5" />
+          <circle cx="9.75" cy="8.25" r="1.25" />
+          <circle cx="14.25" cy="8.25" r="1.25" />
+          <circle cx="9.75" cy="12.25" r="1.25" />
+          <circle cx="14.25" cy="12.25" r="1.25" />
+          <circle cx="9.75" cy="16.25" r="1.25" />
+          <circle cx="14.25" cy="16.25" r="1.25" />
+          <path d="M3.2 1.5v2.6M1.9 2.8h2.6" />
+          <path d="M2.5 20.5h19M4 20.5l-.6-1.8M20 20.5l.6-1.8" />
+        </>
+      )
   }
 }
 

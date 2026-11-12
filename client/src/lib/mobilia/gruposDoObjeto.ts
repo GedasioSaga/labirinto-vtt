@@ -202,10 +202,19 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   redeDePesca: 'portoENavio',
   pier: 'portoENavio',
   caixoteDePeixe: 'portoENavio',
-  // Templo e masmorra (11/11/2026): o pilar e o altar; e a armadura de pé do lote 15 (11/11/2026).
+  // Templo e masmorra (11/11/2026): o pilar e o altar; a armadura de pé do lote 15 (11/11/2026); e os do lote 13
+  // e do lote 16 dos objetos novos (11/11/2026), do braseiro aos três blocos de inscrições.
   pilar: 'temploEMasmorra',
   altar: 'temploEMasmorra',
   armadura: 'temploEMasmorra',
+  braseiro: 'temploEMasmorra',
+  celaComGrade: 'temploEMasmorra',
+  corrente: 'temploEMasmorra',
+  armadilhaDeEspinhos: 'temploEMasmorra',
+  circuloMagico: 'temploEMasmorra',
+  blocoDeInscricoesAzul: 'temploEMasmorra',
+  blocoDeInscricoesVermelho: 'temploEMasmorra',
+  blocoDeInscricoesDourado: 'temploEMasmorra',
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

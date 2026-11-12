@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 143 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 151 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -314,13 +314,14 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
       'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       // Os dois grupos novos de 11/11/2026: Porto e navio (o canhão e o lote 12) e Templo e masmorra (o pilar, o
-      // altar e a armadura do lote 15).
+      // altar, a armadura do lote 15 e os dos lotes 13 e 16).
       'Canhão', 'Âncora', 'Cordas enroladas', 'Timão', 'Bote', 'Rede de pesca', 'Píer', 'Caixote de peixe',
       'Pilar', 'Altar', 'Armadura',
+      'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico', 'Bloco de inscrições azul', 'Bloco de inscrições vermelho', 'Bloco de inscrições dourado',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(143)
+    expect(new Set(desenhos).size).toBe(151)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

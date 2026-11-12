@@ -252,6 +252,16 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       caixoteDePeixe: ['madeira:pinho'],
       armaduraDespedacada: [],
       armadura: ['pedra:granito'],
+      // Lotes 13 e 16 dos 95 objetos novos (11/11/2026): a cela com a grade e o piso, a armadilha com a pedra e os
+      // espinhos; o círculo mágico e os três blocos de inscrições sem lugar.
+      braseiro: ['metal:ferro'],
+      celaComGrade: ['grade:ferro', 'piso:granito'],
+      corrente: ['metal:ferro'],
+      armadilhaDeEspinhos: ['pedra:granito', 'metal:ferro'],
+      circuloMagico: [],
+      blocoDeInscricoesAzul: [],
+      blocoDeInscricoesVermelho: [],
+      blocoDeInscricoesDourado: [],
     })
   })
 

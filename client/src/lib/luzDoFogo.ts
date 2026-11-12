@@ -4,14 +4,14 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 /**
  * A LUZ DOS OBJETOS DO MAPA (pedidos do mestre de 09/11/2026: "na gameplay
  * isso não ilumina nada os jogadores" e "coloque o sistema iluminação"). O
- * fogo, a fogueira, a lareira, a fornalha, o forno de pão (11/11/2026) e o
- * lampião são fontes de luz de verdade: o MESMO alcance vale para o desenho
- * (`pixi/mapaDeLuz.ts`, o claro quente que treme) e para a visão do jogador
- * no escuro (`lib/fogFilter.ts`, o claro na linha de visão chega como o de um
- * ponto de luz). As velas (11/11/2026: a do criado-mudo, as cinco do
- * candelabro de chão e as sete das velas e oferendas do cemitério) também: só
- * iluminam em volta, com a chama pintada no desenho, sem animação e sem
- * Aceso/Apagado (decisão do mestre).
+ * fogo, a fogueira, a lareira, a fornalha, o forno de pão (11/11/2026), o
+ * braseiro (11/11/2026) e o lampião são fontes de luz de verdade: o MESMO
+ * alcance vale para o desenho (`pixi/mapaDeLuz.ts`, o claro quente que treme)
+ * e para a visão do jogador no escuro (`lib/fogFilter.ts`, o claro na linha de
+ * visão chega como o de um ponto de luz). As velas (11/11/2026: a do
+ * criado-mudo, as cinco do candelabro de chão e as sete das velas e oferendas
+ * do cemitério) também: só iluminam em volta, com a chama pintada no desenho,
+ * sem animação e sem Aceso/Apagado (decisão do mestre).
  *
  * Antes disto a luz desses objetos era só desenho: fora do raio curto da
  * noite nem chegavam ao jogador, e o claro era cortado na borda da visão dele.
@@ -59,6 +59,9 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   fornalha: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
   // O forno de pão (11/11/2026), com o fogo aceso: a luz da lareira, o outro fogo de lenha de dentro de casa.
   fornoDePao: { alcanceEmCasas: 3.5, cor: 0xffd8a4, forca: 0.9, fumacaEBrasas: true },
+  // O braseiro (11/11/2026), com o fogo aceso: a luz da fornalha, o outro fogo de carvão em brasa. O fogo fica
+  // no meio da pegada, de onde a luz nasce.
+  braseiro: { alcanceEmCasas: 3, cor: 0xffd29c, forca: 0.85, fumacaEBrasas: true },
   lampiao: { alcanceEmCasas: 3, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
   // As velas (11/11/2026), no tom do lampião e mais curtas que ele. A do criado-mudo é uma vela só: metade do
   // alcance. Ela fica fora do meio do móvel (a 0,15 casa dele no tamanho de partida, `CHAMA_DO_CRIADO_MUDO`

@@ -141,7 +141,18 @@ export interface ContextoDoMovel {
    * do tabuado na água e a das estacas, desgiradas, caem para baixo à direita
    * na tela). Do lote 15 (11/11/2026), a armadura despedaçada, como os ossos
    * (a luz do aço, os amassados, os riscos e o brilho, pela luz na tela, e as
-   * sombras pintadas de cada peça, desgiradas). Os outros desenhos não leem.
+   * sombras pintadas de cada peça, desgiradas). Dos lotes 13 e 16 (11/11/2026)
+   * leem o braseiro (as pernas que ficam na frente na tela têm a caixa esticada
+   * até a frente da pegada e passam na frente do bojo, e a sombra da bacia cai
+   * para baixo à direita na tela), a cela com grade (as cantoneiras sobem com a
+   * caixa esticada até a frente na tela, e a sombra da grade pintada nas lajes
+   * de dentro cai para baixo à direita na tela), a armadilha de espinhos (os
+   * espinhos ficam em pé na tela, e a luz das faces, o reflexo da ponta e a
+   * sombra pintada ficam no lugar na tela) e os três blocos de inscrições (como
+   * o tonel: a coluna, a face da frente com o texto dela, a lasca que o giro
+   * leva para a frente e o capim de pé são montados na tela e devolvidos ao
+   * objeto com `desgirarCena`; a face de cima, a terra e o capim do chão giram
+   * com o objeto). Os outros desenhos não leem.
    */
   readonly giro: number
 }

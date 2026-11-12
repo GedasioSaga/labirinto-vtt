@@ -75,6 +75,11 @@ export const TIPOS_MOBILIA = [
   // armaduras que o mestre pediu: a despedaçada, espalhada como os ossos, nos destroços, e a de pé no pedestal,
   // no templo.
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
+  // Lotes 13 e 16 dos 95 objetos novos (11/11/2026), o templo e a masmorra: o braseiro (com o fogo de casa
+  // da lareira, aceso ou apagado), a cela com grade e a armadilha de espinhos (as duas moram no chão, com
+  // altura), a corrente, o círculo mágico (no chão, rente como o campinho) e os três blocos de inscrições, o
+  // azul, o vermelho e o dourado.
+  'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
