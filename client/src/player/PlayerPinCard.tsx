@@ -38,8 +38,9 @@ interface PlayerPinCardProps {
   pin: PinDoCartao
   onClose: () => void
   /**
-   * Pino de viagem: manda o pedido de passagem ao mestre (já confirmado aqui).
-   * Ausente = o cartão não oferece passar, só lê. `exitId` é a saída escolhida
+   * Pino de viagem: manda o pedido de passagem, num toque (a pergunta só abre
+   * para escolher fichas ou avisar da passagem só de ida). Ausente = o cartão
+   * não oferece passar, só lê. `exitId` é a saída escolhida
    * numa encruzilhada; no pino de uma saída ele não vem. `tokenIds` são as
    * fichas marcadas no "Quem passa?"; sem a escolha (uma ficha só), não vem.
    */
@@ -253,8 +254,11 @@ export function CabecaDoPino({ pin }: { pin: PinDoCartao }) {
 interface TextosDaPassagem {
   botao: string
   esperando: string
+  /** Só na pergunta que ainda abre: "Quem passa?" (2 fichas ou mais) e a passagem só de ida. */
   pergunta: string
   confirmar: string
+  /** Linha pequena embaixo do botão: o que acontece além do gesto (o modo com passe). */
+  aviso?: string
 }
 
 const TEXTOS_PEDE: TextosDaPassagem = {
@@ -283,13 +287,15 @@ const TEXTOS_LIVRE: TextosDaPassagem = {
 /**
  * Passe (crachá, catraca): o cartão não sabe se o jogador tem o passe — o que
  * abre a catraca nunca chega aqui (`lib/fogFilter.ts`). Então ele tenta, e diz
- * de antemão o que acontece sem o passe: o pedido vai ao mestre.
+ * de antemão o que acontece sem o passe, numa linha embaixo do botão (decisão
+ * 5 do mestre, 12/11/2026: o "Passar" vai num toque, sem pergunta).
  */
 const TEXTOS_PASSE: TextosDaPassagem = {
   botao: 'Passar',
   esperando: PASS_CHECK_TEXT,
-  pergunta: 'Passar por aqui? Sem o passe, o pedido vai ao mestre.',
+  pergunta: 'Passar por aqui?',
   confirmar: 'Passar',
+  aviso: 'Sem o passe, o pedido vai ao mestre.',
 }
 
 /** Os textos do modo do pino; trancada não oferece botão, e cai nos do pedido. */
@@ -323,7 +329,7 @@ function textosDaEscada(direction: StairDirection, passagem: PinPassage): Textos
   const verbo = stairTravelLabel(direction)
   const minusculo = verbo.toLowerCase()
   if (passagem === 'livre') return { ...TEXTOS_LIVRE, pergunta: `${verbo} por aqui?` }
-  if (passagem === 'passe') return { ...TEXTOS_PASSE, pergunta: `${verbo} por aqui? Sem o passe, o pedido vai ao mestre.` }
+  if (passagem === 'passe') return { ...TEXTOS_PASSE, pergunta: `${verbo} por aqui?` }
   return { ...TEXTOS_PEDE, botao: `Pedir para ${minusculo}`, pergunta: `Pedir ao mestre para ${minusculo}?` }
 }
 
@@ -635,12 +641,26 @@ export function PlayerPinCard({
       return depois
     })
   }
-  const perguntar = (saida: PinExitLabel | null) => {
-    // Cada pergunta começa com o grupo inteiro marcado.
-    setDeFora(new Set())
-    setConfirming({ saida })
+  /**
+   * UM TOQUE (decisão 5 do mestre, 12/11/2026): o botão da passagem manda o
+   * pedido direto — "Passar", "Pedir para passar", "Pedir para subir", a chave,
+   * a encruzilhada. A pergunta só abre quando há o que escolher ("Quem passa?",
+   * duas fichas ou mais) ou o que avisar (só de ida: "Não dá para voltar").
+   * Contra o toque sem querer: no "pede" o mestre ainda decide e o aviso de
+   * baixo tem "Desistir"; no livre, a passagem de volta está do outro lado.
+   */
+  const pedirOuPerguntar = (saida: PinExitLabel | null) => {
     if (saida !== null) setUltimaSaida(saida.id)
-    setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
+    if (escolheFichas || saidaSoIda(saida)) {
+      // Cada pergunta começa com o grupo inteiro marcado.
+      setDeFora(new Set())
+      setConfirming({ saida })
+      setFocusTarget(saidaSoIda(saida) ? 'cancel' : 'confirm')
+      return
+    }
+    if (onRequestTravel === undefined) return
+    if (saida === null) onRequestTravel()
+    else onRequestTravel(saida.id)
   }
   /**
    * Os textos da saída `saida` (`null` = o pino de uma saída). Sem modos
@@ -667,6 +687,8 @@ export function PlayerPinCard({
   const saidaPedida = escolhas.find((saida) => saida.id === ultimaSaida) ?? null
   const esperando = encruzilhada ? textosDaSaida(saidaPedida).esperando : textos.esperando
   const pergunta = confirming !== null && saidaSoIda(confirming.saida) ? `${perguntaBase} ${AVISO_SO_IDA}` : perguntaBase
+  // A linha embaixo do botão (o modo com passe): a do pino, ou a primeira das saídas que tiver.
+  const avisoDaPassagem = (encruzilhada ? escolhas.map(textosDaSaida) : [textos]).find((t) => t.aviso !== undefined)?.aviso ?? null
 
   return (
     <div className="pp-pincard__backdrop">
@@ -852,7 +874,7 @@ export function PlayerPinCard({
             type="button"
             className="pp-pincard__travel"
             disabled={travelWaiting || semPassar !== null}
-            onClick={() => perguntar(null)}
+            onClick={() => pedirOuPerguntar(null)}
           >
             {travelWaiting ? textos.esperando : (semPassar ?? textos.botao)}
           </button>
@@ -876,7 +898,7 @@ export function PlayerPinCard({
                     className="pp-pincard__travel"
                     // MODO POR SAÍDA: trancada num pino mudo não pede nada — o host recusaria.
                     disabled={travelWaiting || semPassar !== null || saidaMuda(saida)}
-                    onClick={() => perguntar(saida)}
+                    onClick={() => pedirOuPerguntar(saida)}
                   >
                     {saida.rotulo}
                     {/* Modos misturados: cada botão diz o modo dele, no texto (e para o leitor de tela). */}
@@ -899,9 +921,8 @@ export function PlayerPinCard({
           </>
         )}
         {podePedir && confirming !== null && (
-          // Confirmação antes de mandar: no modo "pede" o pedido interrompe o
-          // mestre, e no livre o jogador troca de cena — nos dois, um toque
-          // sem querer não pode virar a ação.
+          // A pergunta que sobrou (decisão 5): só com o que escolher ("Quem
+          // passa?") ou o que avisar (a passagem só de ida, sem volta).
           <div className="pp-pincard__confirm" role="group" aria-labelledby={`pp-travel-ask-${pin.id}`}>
             <p id={`pp-travel-ask-${pin.id}`} className="pp-pincard__question">
               {pergunta}
@@ -954,6 +975,8 @@ export function PlayerPinCard({
             </div>
           </div>
         )}
+        {/* Modo com passe: o que acontece sem ele, embaixo do botão (antes era a pergunta). */}
+        {podePedir && semPassar === null && avisoDaPassagem !== null && <p className="pp-pincard__watch-hint">{avisoDaPassagem}</p>}
         {podeBarrar && confirming === null && (
           // Barrar não interrompe o mestre nem troca de cena: vai num toque, sem
           // pergunta. O outro lado só descobre ao tentar passar. Secundário de
