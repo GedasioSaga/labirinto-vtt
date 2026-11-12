@@ -118,7 +118,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   revealBrush:
     'Arraste sobre uma zona oculta para mostrar aos jogadores só o pedaço pintado. Segure Alt (ou escolha Esconder no painel) para esconder de volta.',
   texturas:
-    'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche uma região ou um desenho, a borracha tira. Segure Alt com o pincel para apagar.',
+    'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche com um clique uma área fechada por paredes, uma região ou um desenho, a borracha tira. Segure Alt para apagar, com o pincel ou no clique do balde.',
   neblina:
     'Pinte uma bruma lenta por cima do mapa: ela fica à vista de noite e no escuro, por cima da névoa dos jogadores, e nunca mostra o que está embaixo. Segure Alt para apagar. No painel, ligue a neblina no mapa inteiro.',
   carimbos:
