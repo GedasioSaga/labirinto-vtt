@@ -2122,10 +2122,16 @@ function PixiCanvasDoContexto({
         return token !== null && menu.tem(token.id) ? token : null
       }
 
-      /** Há um objeto posto que NÃO é de chão sob `ponto`, o mesmo alvo do clique de selecionar? */
-      const objetoComumEm = (map: MapData, ponto: Point): boolean => {
+      /**
+       * Há sob `ponto` um objeto posto (o mesmo alvo do clique de selecionar) que PRENDE o clique de
+       * pôr? O objeto comum, sempre. O de CHÃO (tapete, píer, palco…), só quando o objeto escolhido
+       * também é de chão: píer em píer ou tapete em píer é o mestre querendo a ficha do que está
+       * posto, e não outro por cima dele.
+       */
+      const objetoPrendeOCliqueDePor = (map: MapData, ponto: Point): boolean => {
         const alvo = findSelectableAt(clickSelectMap(map), ponto, pinosNoToque(map))
-        return alvo?.kind === 'prop' && !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia)
+        if (alvo?.kind !== 'prop') return false
+        return !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia) || ehMovelDoChao(useMapStore.getState().mobiliaTipo)
       }
 
       const sceneState = () => {
@@ -6648,9 +6654,11 @@ function PixiCanvasDoContexto({
         // arrasta, como o clique da ferramenta Token num token. Nada nasce
         // por cima dele. Duas exceções põem por cima mesmo assim: o objeto de
         // CHÃO (tapete, píer, palco…) existe para receber coisas em cima e não
-        // prende o clique; e Ctrl (Cmd no Mac) + clique põe por cima de
-        // qualquer objeto. Não é o Alt: neste gesto ele já inverte o encaixe.
-        if (activeTool === 'mobilia' && !(event.button === 0 && !isFreeMoveModifier(event) && objetoComumEm(map, worldPoint))) {
+        // prende o clique de um objeto comum (o de outro objeto de chão ele
+        // prende: píer em píer abre a ficha); e Ctrl (Cmd no Mac) + clique põe
+        // por cima de qualquer objeto. Não é o Alt: neste gesto ele já inverte
+        // o encaixe.
+        if (activeTool === 'mobilia' && !(event.button === 0 && !isFreeMoveModifier(event) && objetoPrendeOCliqueDePor(map, worldPoint))) {
           // Objetos: o móvel da setinha nasce no clique, com o MESMO encaixe da
           // Peça (os dois são objeto do mapa; Alt inverte). Giro da sala,
           // seleção, camada e o passo do desfazer moram em `porMovelNoPonto`.
