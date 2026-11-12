@@ -116,7 +116,7 @@ describe('SceneSettingsDialog', () => {
 
       abrirComChao('free', true, onOffFloorChange)
       expect(marcada()).toBe('Livre')
-      expect(linha()).toBe('A ficha anda e enxerga em qualquer lugar. Só parede, porta, escuridão e o alcance da visão limitam.')
+      expect(linha()).toBe('A ficha anda e enxerga em qualquer lugar. O que está fora do Chão passa a aparecer para o jogador. Só parede, porta, escuridão e o alcance da visão limitam.')
       act(() => opcoes()[0]?.click())
       expect(onOffFloorChange).toHaveBeenLastCalledWith('blocked')
     })
