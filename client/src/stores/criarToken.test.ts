@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import { EMPTY_SELECTION, selectionOfItem } from '../lib/selectionModel'
+import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { IMAGEM_SUMIU_DO_ACERVO } from '../lib/tokenLibrary'
 import type { Token } from '../types/map'
 import { colocarPecaDoAcervo, criarToken } from './criarToken'
@@ -34,7 +34,7 @@ describe('peça nova no mapa (stores/criarToken)', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('item do acervo vira ficha gravada no mapa com npc: true, tamanho e foto do item, selecionada e com um desfazer', () => {
+  it('item do acervo vira ficha gravada no mapa com npc: true, tamanho e foto do item, sem pular para a ficha (nada selecionado) e com um desfazer', () => {
     const id = colocarPecaDoAcervo(MORDOMO, 'tok-mordomo', FOTO, { x: 300, y: 300 }, null)
 
     expect(id).toBe('tok-mordomo')
@@ -43,7 +43,7 @@ describe('peça nova no mapa (stores/criarToken)', () => {
     expect(mordomo?.name).toBe('Mordomo')
     expect(mordomo?.size).toBe(2)
     expect(mordomo?.image).toBe(FOTO.image)
-    expect(useMapStore.getState().selection).toEqual(selectionOfItem({ kind: 'token', id: 'tok-mordomo' }))
+    expect(useMapStore.getState().selection).toEqual(EMPTY_SELECTION)
     expect(useMapStore.getState().past.length).toBe(1)
     expect(useToastStore.getState().toasts).toEqual([])
   })

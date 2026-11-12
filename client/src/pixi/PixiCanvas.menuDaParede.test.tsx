@@ -215,9 +215,10 @@ describe('PixiCanvas — o clique direito na parede abre o menu da parede', () =
     expect(menu()).toBeNull()
   })
 
-  it('fora de parede o clique direito continua sendo o do navegador', async () => {
+  it('fora de parede o clique direito não abre menu nenhum: nem o da parede nem o do navegador', async () => {
     await monta()
-    expect(cliqueDireito({ x: 250, y: 160 })).toBe(false)
+    // Caça 12/11 (E1, commit 1ec7ef19): no palco o direito só abre menu do app; no vazio, nada (sem o do navegador).
+    expect(cliqueDireito({ x: 250, y: 160 })).toBe(true)
     expect(menu()).toBeNull()
   })
 })

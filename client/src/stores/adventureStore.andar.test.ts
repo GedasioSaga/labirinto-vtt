@@ -89,14 +89,14 @@ beforeEach(() => {
 })
 
 describe('criar andar de cima a partir do prédio', () => {
-  it('"Casa do prefeito – andar de cima" nasce com o mesmo contorno, sem a porta da rua e sem o quarto', () => {
+  it('"Casa do prefeito – 1º andar" nasce com o mesmo contorno, sem a porta da rua e sem o quarto', () => {
     const terreoMap = terreoComACasa()
     const terreo = montar(terreoMap)
     const novo = useAdventureStore.getState().createFloorFromStair('escada-terreo', 'livre')
     if (novo === null) throw new Error('não criou o andar')
 
     const cena = useAdventureStore.getState().adventure?.scenes.find((s) => s.id === novo)
-    expect(cena?.name).toBe('Casa do prefeito – andar de cima')
+    expect(cena?.name).toBe('Casa do prefeito – 1º andar')
     // O mestre continua no Térreo, com a escada no painel.
     expect(useAdventureStore.getState().activeSceneId).toBe(terreo)
 
@@ -141,7 +141,7 @@ describe('criar andar de cima a partir do prédio', () => {
     expect(deLa.passagem).toBe('livre')
     expect(visiblePins(cima.pins, cima.hiddenLayers)).toEqual([])
     const travel = stairTravelOf(useAdventureStore.getState(), aberto, ESCADA)
-    expect(travel.status === 'ligado' && travel.sceneName).toBe('Casa do prefeito – andar de cima')
+    expect(travel.status === 'ligado' && travel.sceneName).toBe('Casa do prefeito – 1º andar')
   })
 
   it('Duda passa pela escada e chega no mesmo ponto do andar de cima, dentro da casa', () => {
@@ -160,7 +160,7 @@ describe('criar andar de cima a partir do prédio', () => {
     useMapStore.getState().setStairDirection('escada-terreo', 'down')
     const novo = useAdventureStore.getState().createFloorFromStair('escada-terreo', 'pede')
     if (novo === null) throw new Error('não criou o andar')
-    expect(useAdventureStore.getState().adventure?.scenes.find((s) => s.id === novo)?.name).toBe('Casa do prefeito – andar de baixo')
+    expect(useAdventureStore.getState().adventure?.scenes.find((s) => s.id === novo)?.name).toBe('Casa do prefeito – subsolo 1')
     expect(mapaDoFundo(novo).stairs.map((s) => s.direction)).toEqual(['up'])
   })
 
@@ -168,7 +168,7 @@ describe('criar andar de cima a partir do prédio', () => {
     montar(createEmptyMap('map_raiz', 'Térreo', 30, 20, 64))
     const novo = useAdventureStore.getState().createFloorFromStair('escada-terreo', 'livre')
     if (novo === null) throw new Error('não criou o andar')
-    expect(useAdventureStore.getState().adventure?.scenes.find((s) => s.id === novo)?.name).toBe('Térreo – andar de cima')
+    expect(useAdventureStore.getState().adventure?.scenes.find((s) => s.id === novo)?.name).toBe('Térreo – 1º andar')
     const cima = mapaDoFundo(novo)
     expect(cima.regions).toEqual([])
     expect(cima.walls).toEqual([])

@@ -413,8 +413,8 @@ describe('pilha de camadas: correções da revisão da fatia 3', () => {
   })
 })
 
-describe('LIMITACAO ATUAL (fixada para a fatia futura mudar de propósito)', () => {
-  it('LIMITACAO ATUAL: com Objetos e Decoração separados, o tapete de Decoração vai para o nó de CIMA (acima das cadeiras de Objetos) e o clique segue a ordem do array, não a dos nós', () => {
+describe('o clique segue os nós da pilha (era a LIMITACAO ATUAL; mudou de propósito no E12, commit ac434003)', () => {
+  it('com Objetos e Decoração separados, o tapete de Decoração vai para o nó de CIMA (acima das cadeiras de Objetos) e o clique com o mapa pega o de cima NA TELA', () => {
     const { pilha } = montar()
     pilha.atualizar(entrada(MODELO_PADRAO, { alfa: (c) => (c === 'objetos' ? 0.4 : 1) }))
     const tapete: Prop = { id: 'tapete', src: '', x: 64, y: 64, width: 128, height: 128, linkedMapPath: null, mobilia: 'tapete', layer: 'decoracao' }
@@ -424,7 +424,12 @@ describe('LIMITACAO ATUAL (fixada para a fatia futura mudar de propósito)', () 
     const baldes = distribuir([tapete, bau, cadeira], pilha.nosDaFaixa('propsContainer'), camadaDoMovel)
     // Nó de baixo (Objetos): a cadeira. Nó de cima (Decoração): tapete e baú, por cima da cadeira na tela.
     expect(baldes.map((b) => b.itens.map((p) => p.id))).toEqual([['cadeira'], ['tapete', 'bau']])
-    // O baú desenha por cima da cadeira, mas o clique pega a cadeira (a última do array).
+    // O clique do editor passa o mapa: mesmos nós da tela. No nó de cima (Decoração) o baú ganha do tapete (chão).
+    const mapa: MapData = { ...createEmptyMap('m', 'M', 20, 20, 64), props: [tapete, bau, cadeira], opacidadeDasCamadas: { objetos: 0.4 } }
+    expect(findPropAt([tapete, bau, cadeira], { x: 64, y: 64 }, mapa)?.id).toBe('bau')
+    // Sem o baú, o tapete de Decoração está por cima da cadeira na tela, e o clique pega o tapete.
+    expect(findPropAt([tapete, cadeira], { x: 64, y: 64 }, mapa)?.id).toBe('tapete')
+    // Sem o mapa (quem não sabe das camadas), a lista é a pilha: o último do array, como antes.
     expect(findPropAt([tapete, bau, cadeira], { x: 64, y: 64 })?.id).toBe('cadeira')
   })
 })
@@ -516,16 +521,38 @@ describe('distribuir e pares', () => {
 
   const nosFalsos = (lista: { camadas: CamadaId[]; base: boolean }[]) => lista.map((n, i) => ({ no: new NoFalso(`n${i}`), ...n }))
 
-  it('faixa com um nó só devolve o MESMO array (portão Object.is), sem olhar os itens', () => {
+  it('faixa com um nó de UMA camada devolve o MESMO array (portão Object.is), sem olhar os itens', () => {
     const itens = [{ id: 'a' }, { id: 'b' }]
     let perguntas = 0
-    const baldes = distribuir(itens, nosFalsos([{ camadas: ['paredes', 'portas'], base: true }]), () => {
+    const baldes = distribuir(itens, nosFalsos([{ camadas: ['paredes'], base: true }]), () => {
       perguntas += 1
       return 'paredes'
     })
     expect(baldes).toHaveLength(1)
     expect(baldes[0].itens).toBe(itens)
     expect(perguntas).toBe(0)
+  })
+
+  it('nó único de DUAS camadas (E12, decisão 16): olha a camada de cada item; em ordem, o MESMO array; fora de ordem, a de cima por último e sempre a mesma lista', () => {
+    const emOrdem = [
+      { id: 'parede', camada: 'paredes' as CamadaId },
+      { id: 'porta', camada: 'portas' as CamadaId },
+    ]
+    let perguntas = 0
+    const camadaDe = (item: { camada: CamadaId }): CamadaId => {
+      perguntas += 1
+      return item.camada
+    }
+    const no = nosFalsos([{ camadas: ['paredes', 'portas'], base: true }])
+    expect(distribuir(emOrdem, no, camadaDe)[0].itens).toBe(emOrdem)
+    expect(perguntas).toBe(2)
+
+    // A porta (camada de cima do nó) posta ANTES da parede na lista: desenha depois dela, e o portão Object.is segura.
+    const foraDeOrdem = [emOrdem[1], emOrdem[0]]
+    const primeira = distribuir(foraDeOrdem, no, camadaDe)[0].itens
+    expect(primeira.map((i) => i.id)).toEqual(['parede', 'porta'])
+    expect(primeira).not.toBe(foraDeOrdem)
+    expect(distribuir(foraDeOrdem, no, camadaDe)[0].itens).toBe(primeira)
   })
 
   it('com vários nós, cada item vai ao nó da camada dele, na ordem de antes; camada sem nó cai no de hoje', () => {

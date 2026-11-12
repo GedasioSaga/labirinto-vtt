@@ -111,7 +111,7 @@ describe('StairControls: criar andar e escada em espiral', () => {
     clicar('Criar andar de cima')
 
     const cenas = useAdventureStore.getState().adventure?.scenes ?? []
-    const nova = cenas.find((s) => s.name === 'Térreo – andar de cima')
+    const nova = cenas.find((s) => s.name === 'Térreo – 1º andar')
     if (nova === undefined) throw new Error('o andar não nasceu')
     expect(mapaDoFundo(nova.id).stairs.map((s) => s.direction)).toEqual(['down'])
     expect(useMapStore.getState().map.pins.map((p) => p.passagem)).toEqual(['livre'])
@@ -127,7 +127,7 @@ describe('StairControls: criar andar e escada em espiral', () => {
     renderizar()
     expect(botao('Criar andar de cima')).toBeUndefined()
     clicar('Criar andar de baixo')
-    const nova = useAdventureStore.getState().adventure?.scenes.find((s) => s.name === 'Térreo – andar de baixo')
+    const nova = useAdventureStore.getState().adventure?.scenes.find((s) => s.name === 'Térreo – subsolo 1')
     expect(nova).toBeDefined()
   })
 

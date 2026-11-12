@@ -264,14 +264,14 @@ describe('shiftScene', () => {
 })
 
 describe('sceneDeletionInfo', () => {
-  it('conta os pinos de outras cenas que ficam sem destino e diz quem está lá', () => {
+  it('conta os pinos de outras cenas que ficam sem destino, quantas fichas vão junto e quem está lá', () => {
     const state = useAdventureStore.getState()
     const live = useMapStore.getState().map
     // p-cais (no cais) e p-9 (na Cena 9) levam à casa.
-    expect(sceneDeletionInfo(state, live, CASA, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Bruno'], inside: 0 })
+    expect(sceneDeletionInfo(state, live, CASA, JOGADORES)).toEqual({ fichas: 2, orphanPins: 2, blockers: ['Bruno'], inside: 0 })
     // p-casa e p-casa9 (saída extra "Porão") levam ao cais.
-    expect(sceneDeletionInfo(state, live, CAIS, JOGADORES)).toEqual({ orphanPins: 2, blockers: ['Ana'], inside: 0 })
-    expect(sceneDeletionInfo(state, live, NOVE, JOGADORES)).toEqual({ orphanPins: 1, blockers: [], inside: 0 })
+    expect(sceneDeletionInfo(state, live, CAIS, JOGADORES)).toEqual({ fichas: 2, orphanPins: 2, blockers: ['Ana'], inside: 0 })
+    expect(sceneDeletionInfo(state, live, NOVE, JOGADORES)).toEqual({ fichas: 0, orphanPins: 1, blockers: [], inside: 0 })
   })
 })
 

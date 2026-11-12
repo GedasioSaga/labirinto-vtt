@@ -87,10 +87,12 @@ describe('pino × camada Anotações travada', () => {
     expect(avisos()).toEqual([])
   })
 
-  it('destravada, cravar e apagar pelo gesto funcionam como hoje', () => {
+  it('destravada, cravar (sem abrir a ficha) e apagar pelo gesto funcionam', () => {
     abrir({ pins: [pino] })
     expect(cravarPinoPeloGesto({ ...pino, id: 'p2' })).toBe(true)
-    expect(useMapStore.getState().selectedPinId).toBe('p2')
+    // Caça 12/11 (E7, decisão 15): cravar não pula para a ficha; o pino nasce e nada fica aberto.
+    expect(useMapStore.getState().map.pins.map((p) => p.id)).toEqual([pino.id, 'p2'])
+    expect(useMapStore.getState().selectedPinId).toBeNull()
     expect(apagarPinoPeloGesto(pino.id)).toBe(true)
     expect(useMapStore.getState().map.pins.map((p) => p.id)).toEqual(['p2'])
     expect(avisos()).toEqual([])

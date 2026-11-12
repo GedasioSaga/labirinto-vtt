@@ -253,13 +253,15 @@ describe('pino × camada Anotações travada, no gesto', () => {
     expect(avisos()).toEqual(['A camada Anotações está travada'])
   })
 
-  it('ferramenta Pino destravada: o pino nasce no clique e fica selecionado', async () => {
+  it('ferramenta Pino destravada: o pino nasce no clique e nada fica selecionado (não pula para a ficha)', async () => {
     abrir(mapaBase(), 'pin')
     await monta()
     clica({ x: 160, y: 160 })
     const [novo] = useMapStore.getState().map.pins
     expect(novo?.x).toBeCloseTo(160, 6)
-    expect(useMapStore.getState().selectedPinId).toBe(novo?.id)
+    // Caça 12/11 (E7, decisão 15): nenhuma ferramenta pula para a ficha ao pôr.
+    expect(useMapStore.getState().selectedPinId).toBeNull()
+    expect(useMapStore.getState().selection).toEqual([])
     expect(avisos()).toEqual([])
   })
 
@@ -310,6 +312,6 @@ describe('pino × camada Anotações travada, no gesto', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
     })
     expect(useMapStore.getState().map.pins).toEqual([])
-    expect(avisos()).toEqual(['Ponto de interesse apagado — Ctrl+Z desfaz'])
+    expect(avisos()).toEqual(['Pino apagado — Ctrl+Z desfaz'])
   })
 })
