@@ -116,6 +116,12 @@ import { montarCercaDeFerro } from './cercaDeFerro'
 import { montarPaCravada } from './paCravada'
 import { montarVelasEOferendas } from './velasEOferendas'
 import { montarArvoreSeca } from './arvoreSeca'
+import { montarBalancaDeMercador } from './balancaDeMercador'
+import { montarTendaDeAdivinha } from './tendaDeAdivinha'
+import { montarGaiolaComAves } from './gaiolaComAves'
+import { montarRolosDeTecido } from './rolosDeTecido'
+import { montarPalcoDeBardo } from './palcoDeBardo'
+import { montarBarrilDePeixe } from './barrilDePeixe'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -268,6 +274,15 @@ const MONTADORES = {
   paCravada: montarPaCravada,
   velasEOferendas: montarVelasEOferendas,
   arvoreSeca: montarArvoreSeca,
+  // Lote 9 dos 95 objetos novos (11/11/2026), a feira: um desenho por arquivo. A balança de mercador, a tenda de
+  // adivinha e a gaiola com aves leem o `giro` (o quarto de volta que a 3/4 pinta); os rolos de tecido, o palco
+  // de bardo e o barril de peixe, não.
+  balancaDeMercador: montarBalancaDeMercador,
+  tendaDeAdivinha: montarTendaDeAdivinha,
+  gaiolaComAves: montarGaiolaComAves,
+  rolosDeTecido: montarRolosDeTecido,
+  palcoDeBardo: montarPalcoDeBardo,
+  barrilDePeixe: montarBarrilDePeixe,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -312,6 +327,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
+  'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

@@ -103,7 +103,16 @@ export interface ContextoDoMovel {
    * lote 8 (11/11/2026) leem a cerca de ferro (a ponta de cada lança aponta
    * para cima na tela, e as quatro faces da pirâmide do pilarete pegam a luz
    * pela direção na tela, a conta do candelabro) e as velas e oferendas (a
-   * chama de cada vela aponta para cima na tela). Os outros desenhos não leem.
+   * chama de cada vela aponta para cima na tela). Do lote 9 (11/11/2026) leem
+   * a balança de mercador (a balança, os pesos e as moedas ficam em pé na tela
+   * onde o giro os leva, e o pano só cai pela frente do caixote quando corre
+   * de trás para a frente na tela: sem giro e de costas), a tenda de adivinha
+   * (a porta vai para onde o giro a leva: de costas não aparece, de lado sai
+   * só a ponta do tapete; os gomos do cone e a parede pegam a luz pela direção
+   * na tela) e a gaiola com aves (as galinhas, o cocho, as penas e a gaiolinha
+   * dos pombos vão para onde o giro os leva, montados de perfil e em pé na
+   * tela; a face de ripas da frente é sempre a de baixo na tela). Os outros
+   * desenhos não leem.
    */
   readonly giro: number
 }

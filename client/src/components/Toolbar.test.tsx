@@ -285,7 +285,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 111 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 117 objetos nas 12 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -304,6 +304,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Mausoléu',
       'Cruz de madeira', 'Anjo de pedra', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
       'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
+      'Balança de mercador', 'Tenda de adivinha', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas',
       'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento', 'Espantalho', 'Cocho',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
@@ -314,7 +315,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(111)
+    expect(new Set(desenhos).size).toBe(117)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

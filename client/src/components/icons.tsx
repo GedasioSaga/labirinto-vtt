@@ -1455,6 +1455,76 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M10.4 21.5c-1.2-.2-2.5.1-3.6.8M13.6 21.5c1.2-.2 2.5.1 3.6.8" />
         </>
       )
+    case 'balancaDeMercador':
+      // De frente: a balança de dois pratos sobre o caixote (a coluna com o pé torneado e o fiel em cima, o travessão inclinado e cada prato pendurado em duas correntes, o mais pesado mais baixo) e um peso com botão no tampo. A banca de frutas mostra fruta no caixote, não balança.
+      return (
+        <>
+          <path d="M2.5 18.5h19v3h-19z" />
+          <path d="M12 18.5V3M10 18.5c0-1.3.9-2.1 2-2.1s2 .8 2 2.1" />
+          <path d="M4.2 7.4L19.8 4.6" />
+          <path d="M4.2 7.4L2 13.4M4.2 7.4l2.2 6M1.6 13.4h5.2a2.6 2.1 0 0 1-5.2 0z" />
+          <path d="M19.8 4.6l-2.2 6M19.8 4.6l2.2 6M17.2 10.6h5.2a2.6 2.1 0 0 1-5.2 0z" />
+          <path d="M15.6 18.5v-1.9h2.8v1.9M17 16.6v-.8" />
+        </>
+      )
+    case 'tendaDeAdivinha':
+      // De frente: a tenda redonda (o telhado em cone com o mastro e a flâmula, a beira em bicos e a parede reta), a porta em arco ogival e uma lua no pano. A barraca é um toldo reto sobre balcão; o toldo listrado são duas estacas com o pano listrado.
+      return (
+        <>
+          <path d="M12 6.5V2.2l3.6 1.2-3.6 1.2" />
+          <path d="M12 6.5L3 13.2h18z" />
+          <path d="M4 13.2v8h16v-8" />
+          <path d="M3 13.2a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0a1.5 1.5 0 0 0 3 0" />
+          <path d="M9.6 21.2v-4.4c0-1.6 1-3 2.4-4.4c1.4 1.4 2.4 2.8 2.4 4.4v4.4" />
+          <path d="M7.4 15.6a2.1 2.1 0 0 0 0 4.2a1.5 2.1 0 0 1 0-4.2z" />
+        </>
+      )
+    case 'gaiolaComAves':
+      // De frente: a gaiola de ripas com a galinha atrás delas (o corpo, a cabeça com a crista e o bico, o rabo em pé) e, em cima, a gaiolinha de arame em domo com o gancho. Sem a ave, as ripas liam como caixote ou engradado.
+      return (
+        <>
+          <path d="M2.5 12h19v9.5h-19z" />
+          <path d="M6 12v9.5M10 12v9.5" />
+          <path d="M3.5 12V8.5a3 3 0 0 1 6 0V12M6.5 3.6V12" />
+          <path d="M12.6 18.6a2.9 2.1 0 1 0 5.8 0a2.9 2.1 0 1 0-5.8 0" />
+          <circle cx="17.9" cy="16" r="1.3" />
+          <path d="M17.3 14.7l.6-1.1.7 1M19.2 16l1.1.4-1.1.4M13.2 17.4l-1.2-2.6 2.5 1.2" />
+        </>
+      )
+    case 'rolosDeTecido':
+      // De frente: a mesa baixa com três rolos empilhados de ponta (o miolo de cada um), o pano que cai da beira em dobras e o rolo em pé no caixote ao lado.
+      return (
+        <>
+          <path d="M2 13.5h13M3.5 13.5v6M13.5 13.5v6" />
+          <circle cx="6" cy="10.8" r="2.7" />
+          <circle cx="11.4" cy="10.8" r="2.7" />
+          <circle cx="8.7" cy="6.4" r="2.7" />
+          <path d="M6 10.8h.01M11.4 10.8h.01M8.7 6.4h.01" />
+          <path d="M5 13.5v4.5c1 .8 2 .8 3 0c1 .8 2 .8 3 0v-4.5" />
+          <path d="M16.5 15h5v6.5h-5zM17.5 15V4.5h3V15" />
+        </>
+      )
+    case 'palcoDeBardo':
+      // De frente: o tablado baixo sobre as pernas, o degrau na frente, os dois postes com a trave, as bandeirolas penduradas nela e a cortina franzida no fundo.
+      return (
+        <>
+          <path d="M2 15.5h20V18H2zM3.5 18v3.5M20.5 18v3.5M9 21.5V19h6v2.5" />
+          <path d="M3.5 15.5V3M20.5 15.5V3M3.5 4h17" />
+          <path d="M6 4l1.5 2.2L9 4M11 4l1 2.2L13 4M15 4l1.5 2.2L18 4" />
+          <path d="M5 7.5c1 .6 2 .6 3 0s2-.6 3 0s2 .6 3 0s2-.6 3 0s2 .6 2 0M6.5 8v7.5M9.5 8v7.5M12.5 8v7.5M15.5 8v7.5M18.5 8v7.5" />
+        </>
+      )
+    case 'barrilDePeixe':
+      // De frente: o barril aberto de bojo e dois aros, dois peixes de rabo para fora da boca (o corpo, o rabo em V e o olho), e a tampa encostada ao lado.
+      return (
+        <>
+          <path d="M4.5 10h11l1 5.5l-1 6h-11l-1-6z" />
+          <path d="M3.8 13h12.4M3.8 18.5h12.4" />
+          <path d="M8 10c-1.3-1.8-1.3-3.6 0-5.4c1.3 1.8 1.3 3.6 0 5.4zM12 10c-1.3-1.8-1.3-3.6 0-5.4c1.3 1.8 1.3 3.6 0 5.4z" />
+          <path d="M8 4.6l-1-1.6M8 4.6l1-1.6M12 4.6l-1-1.6M12 4.6l1-1.6M8 8.4h.01M12 8.4h.01" />
+          <path d="M18 21.5l2.5-9l1.5.5l-2.5 9z" />
+        </>
+      )
   }
 }
 

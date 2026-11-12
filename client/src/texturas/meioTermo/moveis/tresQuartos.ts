@@ -338,6 +338,25 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // galhos: com a beirada padrão cada galho ganhava uma laje grossa por baixo. A beirada é a de um galho,
   // 0,025 casa.
   arvoreSeca: { modo: 'derivado', espessura: 0.025 * G },
+  // Lote 9 dos 95 objetos novos (11/11/2026), a feira. Na balança de mercador o caixote é derivado, com a
+  // beirada padrão (a 3/4 sobe o tampo e varre a frente); a balança, os pesos e as moedas são desenhados duas
+  // vezes, presos às âncoras do gancho com carne (um ponto só, sem sombra), e só os de frente aparecem na 3/4.
+  balancaDeMercador: DERIVADO,
+  // A tenda e a gaiola são montadas inteiras pelas âncoras, cada peça de uma vista só (a de frente só aparece na
+  // 3/4), e não têm caixote derivado: sem beirada nenhuma, como o toldo, o perfil com que a folha do desenhista
+  // passou no portão.
+  tendaDeAdivinha: { modo: 'derivado', espessura: 0 },
+  gaiolaComAves: { modo: 'derivado', espessura: 0 },
+  // Nos rolos a mesa é um tampo solto sobre quatro pés, o pano que cai da beira é uma coluna estreita na quina
+  // da frente e cada ripa do caixote é uma coluna: a beirada padrão é a espessura do tampo da mesa.
+  rolosDeTecido: DERIVADO,
+  // O palco mora no chão, como o campinho, mas o tablado sobe de verdade: duas faixas soltas (a de trás com as
+  // três primeiras tábuas, para o banquinho sair entre elas) e a cortina do fundo em doze pregas, cada uma uma
+  // coluna.
+  palcoDeBardo: DERIVADO,
+  // O barril de peixe é uma coluna da altura do barril, com o peixe na boca, e a tampa encostada, uma coluna
+  // mais baixa na frente dele; o puçá e os respingos ficam no chão.
+  barrilDePeixe: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

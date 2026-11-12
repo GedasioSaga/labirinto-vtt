@@ -213,6 +213,13 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       paCravada: ['madeira:velha', 'metal:ferro'],
       velasEOferendas: ['pano:vinho'],
       arvoreSeca: ['madeira:velha'],
+      // Lote 9 dos 95 objetos novos (11/11/2026): o barril de peixe com os lugares do barril.
+      balancaDeMercador: ['madeira:nogueira', 'pano:vinho'],
+      tendaDeAdivinha: ['madeira:pinho'],
+      gaiolaComAves: ['madeira:carvalho'],
+      rolosDeTecido: ['madeira:nogueira', 'pano:azul'],
+      palcoDeBardo: ['madeira:pinho', 'cortina:vinho'],
+      barrilDePeixe: ['madeira:carvalho', 'aros:ferro'],
     })
   })
 

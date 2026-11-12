@@ -38,6 +38,7 @@ export const PECAS_NOVAS = [
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
+  'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -243,6 +244,22 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   paCravada: { rotulo: 'Pá cravada na terra', artigo: 'uma pá cravada na terra', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
   velasEOferendas: { rotulo: 'Velas e oferendas', artigo: 'umas velas e oferendas', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
   arvoreSeca: { rotulo: 'Árvore seca', artigo: 'uma árvore seca', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  // Lote 9 dos 95 objetos novos (11/11/2026), a feira, cada um com o próprio desenho; esticam e giram como todo
+  // objeto. A balança de mercador é a balança grande de dois pratos sobre um caixote, com pesos e moedas (a
+  // banca de frutas só tem uma balancinha num canto). A porta da tenda de adivinha e o tapete que sai dela ficam
+  // no lado de baixo; vista de cima, a tenda é o círculo do telhado em cone, por isso é `redonda`, como o
+  // moinho (as cordas e as estacas dos cantos saem da elipse). A gaiola tem as ripas da frente no lado de
+  // baixo e a gaiolinha dos pombos no canto de trás. Nos rolos de tecido a mesa fica à esquerda e o caixote com
+  // os rolos em pé à direita. O palco de bardo mora no chão (`ehMovelDoChao` em `lib/mobilia.ts`), como a
+  // horta: o que o mestre põe em cima do tablado fica por cima; a cortina fica no fundo e o degrau na frente. O
+  // barril de peixe é o barril aberto, com a tampa encostada e o puçá fora do círculo: por isso não é
+  // `redonda`. Nenhum tem luz nem chama (o palco não tem lanterna).
+  balancaDeMercador: { rotulo: 'Balança de mercador', artigo: 'uma balança de mercador', tamanho: { largura: 1, altura: 0.7 }, redonda: false },
+  tendaDeAdivinha: { rotulo: 'Tenda de adivinha', artigo: 'uma tenda de adivinha', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  gaiolaComAves: { rotulo: 'Gaiola com aves', artigo: 'uma gaiola com aves', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  rolosDeTecido: { rotulo: 'Rolos de tecido', artigo: 'uns rolos de tecido', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  palcoDeBardo: { rotulo: 'Palco de bardo', artigo: 'um palco de bardo', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  barrilDePeixe: { rotulo: 'Barril de peixe', artigo: 'um barril de peixe', tamanho: { largura: 1, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -349,6 +366,12 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     paCravada: valor(f.paCravada),
     velasEOferendas: valor(f.velasEOferendas),
     arvoreSeca: valor(f.arvoreSeca),
+    balancaDeMercador: valor(f.balancaDeMercador),
+    tendaDeAdivinha: valor(f.tendaDeAdivinha),
+    gaiolaComAves: valor(f.gaiolaComAves),
+    rolosDeTecido: valor(f.rolosDeTecido),
+    palcoDeBardo: valor(f.palcoDeBardo),
+    barrilDePeixe: valor(f.barrilDePeixe),
   }
 }
 
@@ -381,7 +404,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 8 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // Lotes 1 a 9 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
   // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
@@ -391,6 +414,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
+  'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
 ]
 
 /**
@@ -1451,6 +1475,87 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(menor * 0.07, menor * 0.07),
         ...[[-1.95, 0.44], [-0.8, 0.47], [0.25, 0.42], [1.3, 0.46], [2.2, 0.41]].flatMap(([ang, alcance]) => galho(ang, alcance)),
         galho(2.95, 0.24)[0],
+      ]
+    }
+    case 'balancaDeMercador': {
+      // A beira do caixote, os dois pratos grandes com o travessão de um gancho ao outro, o pé redondo da coluna no meio e a escadinha de quatro pesos, do maior ao menor, na frente (a balancinha da banca de frutas é um detalhe pequeno num canto dela, sem pé nem pesos).
+      const prato = Math.min(largura * 0.29, altura * 0.42)
+      const peso = Math.min(largura * 0.118, altura * 0.168)
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.92, hw * 0.96, hh * 0.92),
+        ...aro(prato, prato, -hw * 0.57, -hh * 0.13),
+        ...aro(prato, prato, hw * 0.57, -hh * 0.13),
+        linha(-hw * 0.57, -hh * 0.13, hw * 0.57),
+        ...aro(prato * 0.63, prato * 0.63, 0, -hh * 0.13),
+        ...[1, 0.85, 0.7, 0.55].flatMap((f, i) => aro(peso * f, peso * f, -hw * (0.63 - i * 0.23), hh * 0.61)),
+      ]
+    }
+    case 'tendaDeAdivinha': {
+      // A beira redonda do telhado, as emendas dos doze gomos até o mastro no meio, as quatro cordas até as estacas dos cantos e o tapete que sai da porta, ao sul (o toldo é um quadro listrado com as estacas nos cantos, sem círculo).
+      const emenda = (i: number): number => Math.PI / 2 + Math.PI / 12 + (i * Math.PI) / 6
+      return [
+        ...aro(largura * 0.86, altura * 0.86),
+        ...Array.from({ length: 12 }, (_, i) => ({ x1: 0, y1: 0, x2: hw * 0.86 * Math.cos(emenda(i)), y2: hh * 0.86 * Math.sin(emenda(i)) })),
+        ...[-1, 1].flatMap((sx) => [-1, 1].map((sy) => ({ x1: sx * hw * 0.61, y1: sy * hh * 0.61, x2: sx * hw * 0.92, y2: sy * hh * 0.92 }))),
+        ...quadro(-hw * 0.11, hh * 0.84, hw * 0.11, hh * 0.97),
+      ]
+    }
+    case 'gaiolaComAves': {
+      // A beira da gaiola, as duas ripas compridas e a travessa do teto (seis vãos), as três galinhas vistas de cima nos vãos, a gaiolinha dos pombos no canto de trás e o cocho comprido na frente (a grade sem as aves e a gaiolinha lia como um engradado).
+      const galinhas: readonly (readonly [number, number])[] = [[-0.44, 0], [0.44, 0], [-0.41, 0.55]]
+      return [
+        ...quadro(-hw * 0.93, -hh * 0.88, hw * 0.93, hh * 0.88),
+        linha(-hw * 0.93, -hh * 0.29, hw * 0.93),
+        linha(-hw * 0.93, hh * 0.29, hw * 0.93),
+        { x1: 0, y1: -hh * 0.88, x2: 0, y2: hh * 0.88 },
+        ...galinhas.flatMap(([fx, fy]) => aro(hw * 0.5, hh * 0.33, hw * fx, hh * fy)),
+        ...quadro(hw * 0.11, -hh * 0.86, hw * 0.82, -hh * 0.16),
+        ...quadro(hw * 0.19, hh * 0.44, hw * 0.67, hh * 0.59),
+      ]
+    }
+    case 'rolosDeTecido': {
+      // A mesa baixa com a pilha (as divisas de três rolos), o pano que cai da beira e se amontoa no chão, o caixote com os dois rolos em pé de trás e os panos dobrados no canto.
+      const rolo = Math.min(largura * 0.12, altura * 0.18)
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.98, hw * 0.28, hh * 0.24),
+        linha(-hw * 0.94, -hh * 0.6, 0),
+        linha(-hw * 0.94, -hh * 0.24, 0),
+        ...fechado([[-hw * 0.84, hh * 0.24], [-hw * 0.2, hh * 0.24], [-hw * 0.12, hh * 0.94], [-hw * 0.96, hh * 0.94]]),
+        ...quadro(hw * 0.39, -hh * 0.9, hw * 0.98, 0),
+        ...aro(rolo, rolo, hw * 0.54, -hh * 0.66),
+        ...aro(rolo, rolo, hw * 0.83, -hh * 0.66),
+        ...quadro(hw * 0.33, hh * 0.24, hw * 0.93, hh * 0.94),
+      ]
+    }
+    case 'palcoDeBardo': {
+      // O tablado com as linhas dos cavaletes de lado, a cortina franzida no fundo (a beira em zigue-zague), a trave de poste a poste, o degrau na frente e o banquinho no canto de trás.
+      const banquinho = Math.min(largura, altura) * 0.1
+      const pregas = [-0.92, -0.69, -0.46, -0.23, 0, 0.23, 0.46, 0.69, 0.92]
+      return [
+        ...quadro(-hw * 0.95, -hh * 0.775, hw * 0.95, hh * 0.6),
+        linha(-hw * 0.95, -hh * 0.95, hw * 0.95),
+        ...pregas.slice(1).map((f, i) => ({ x1: hw * pregas[i], y1: -hh * (i % 2 === 0 ? 0.8 : 0.88), x2: hw * f, y2: -hh * (i % 2 === 0 ? 0.88 : 0.8) })),
+        { x1: -hw * 0.68, y1: -hh * 0.775, x2: -hw * 0.68, y2: hh * 0.6 },
+        { x1: hw * 0.68, y1: -hh * 0.775, x2: hw * 0.68, y2: hh * 0.6 },
+        ...quadro(-hw * 0.2, hh * 0.6, hw * 0.2, hh * 0.8),
+        ...aro(banquinho, banquinho, -hw * 0.7, -hh * 0.52),
+      ]
+    }
+    case 'barrilDePeixe': {
+      // O aro do barril aberto e a boca, os peixes em roda (um traço por peixe, da parede para o meio), a tampa encostada e o puçá com o cabo.
+      const menor = Math.min(largura, altura)
+      const cx = -hw * 0.12
+      const cy = -hh * 0.14
+      return [
+        ...aro(largura * 0.7, altura * 0.7, cx, cy),
+        ...aro(largura * 0.5, altura * 0.5, cx, cy),
+        ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+          const a = (i * Math.PI) / 4 + 0.35
+          return { x1: cx + Math.cos(a) * largura * 0.22, y1: cy + Math.sin(a) * altura * 0.22, x2: cx + Math.cos(a) * largura * 0.08, y2: cy + Math.sin(a) * altura * 0.08 }
+        }),
+        ...fechado([[hw * 0.67, -hh * 0.1], [hw * 0.95, hh * 0.17], [hw * 0.19, hh * 0.93], [-hw * 0.08, hh * 0.66]]),
+        ...aro(menor * 0.22, menor * 0.22, -hw * 0.62, hh * 0.7),
+        { x1: -hw * 0.72, y1: hh * 0.5, x2: -hw * 0.95, y2: -hh * 0.2 },
       ]
     }
   }

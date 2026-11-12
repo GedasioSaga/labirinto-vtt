@@ -339,6 +339,24 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   paCravada: [lugar('madeira', 'Cabo', MADEIRAS, 'velha'), lugar('metal', 'Lâmina e lampião', METAIS, 'ferro')],
   velasEOferendas: [lugar('pano', 'Pano', TECIDOS, 'vinho')],
   arvoreSeca: [lugar('madeira', 'Madeira', MADEIRAS, 'velha')],
+  // Lote 9 dos 95 objetos novos (11/11/2026), a feira. O primeiro lugar vai na "Cor"; o segundo, na "Cor da
+  // linha". A madeira da balança vale para o caixote e o pé torneado da coluna, e o pano dela é a faixa que
+  // corre de trás para a frente e cai pela beira; a da tenda, para as quatro estacas e o mastro; a da gaiola,
+  // para as ripas, a moldura, o teto, o cocho e a bandeja da gaiolinha; a dos rolos, para a mesa, e o pano
+  // deles é o pano desenrolado (o rolo dele, o que corre na mesa, o que cai da beira e o monte no chão); a do
+  // palco, para o tablado, o degrau, os postes, a trave e o banquinho. O barril de peixe tem os lugares do
+  // barril. Fixos: o latão da balança e das correntes, os pesos de bronze, o saco de estopa com o tempero, as
+  // moedas e o galão; o pano roxo e anil com as estrelas e luas de ocre, o forro das abas, o escuro de dentro,
+  // o tapete, a toalha da mesinha, as cartas, a flâmula, a corda e o latão do mastro da tenda; a palha, o
+  // arame, o milho, as aves e as penas da gaiola; os outros panos, o caixote de pinho, a fita de medir e a
+  // tesoura dos rolos; o alaúde, as bandeirolas, o chapéu, a pena e as moedas do palco; a salmoura, os peixes,
+  // o sal, o puçá e os respingos do barril de peixe.
+  balancaDeMercador: [lugar('madeira', 'Caixote', MADEIRAS, 'nogueira'), lugar('pano', 'Pano', TECIDOS, 'vinho')],
+  tendaDeAdivinha: [lugar('madeira', 'Estacas', MADEIRAS, 'pinho')],
+  gaiolaComAves: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  rolosDeTecido: [lugar('madeira', 'Mesa', MADEIRAS, 'nogueira'), lugar('pano', 'Pano', TECIDOS, 'azul')],
+  palcoDeBardo: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('cortina', 'Cortina', TECIDOS, 'vinho')],
+  barrilDePeixe: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -131,13 +131,20 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   paCravada: 'cemiterio',
   velasEOferendas: 'cemiterio',
   arvoreSeca: 'cemiterio',
-  // Feira; a banca de frutas e o toldo listrado (11/11/2026).
+  // Feira; a banca de frutas e o toldo listrado (11/11/2026); e o lote 9 dos objetos novos (11/11/2026), da
+  // balança de mercador ao barril de peixe.
   barraca: 'feira',
   carroca: 'feira',
   quadroDeAvisos: 'feira',
   cataVentoBrinquedo: 'feira',
   bancaDeFrutas: 'feira',
   toldoListrado: 'feira',
+  balancaDeMercador: 'feira',
+  tendaDeAdivinha: 'feira',
+  gaiolaComAves: 'feira',
+  rolosDeTecido: 'feira',
+  palcoDeBardo: 'feira',
+  barrilDePeixe: 'feira',
   // Oficina; a bancada de ferramentas, a pedra de amolar e o suporte de armas (11/11/2026).
   fornalha: 'oficina',
   bigorna: 'oficina',
