@@ -6567,10 +6567,9 @@ function PixiCanvasDoContexto({
 
         if (activeTool === 'texturas') {
           const { texturaModo, texturaTamanho, texturaForca, texturaEscolhida } = useMapStore.getState()
-          // Balde: um clique enche a área fechada por paredes (ou a forma) debaixo dele; não há arrasto.
-          // Alt + clique tira a textura dela, como o Alt troca pincel e borracha no arrasto.
+          // Balde: um clique enche a forma debaixo dele; não há arrasto.
           if (texturaModo === 'balde') {
-            avisarTextura(useMapStore.getState().encherComTextura(worldPoint, event.altKey))
+            avisarTextura(useMapStore.getState().encherComTextura(worldPoint))
             return
           }
           // Sem snap, como o penhasco; Alt troca pincel e borracha só nesta pincelada.

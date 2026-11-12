@@ -2688,21 +2688,16 @@ export interface BarrancoDoMapa {
  *   forma menos o que está desenhado por cima dela), lida na hora de pintar;
  * - `sala`: a sala `regiao` nasceu aqui, depois dos passos de antes — tira a
  *   textura deles de dentro dela (o chão da sala fica por cima); o que vem
- *   depois cobre a sala de novo (`salasPorCimaDasTexturas`, pedido de 12/10/2026);
- * - `esvaziar`: o Alt + clique do Balde — tira a textura (qualquer uma) da
- *   forma inteira do `alvo`, com força cheia (pedido de 12/11/2026).
+ *   depois cobre a sala de novo (`salasPorCimaDasTexturas`, pedido de 12/10/2026).
  * `forca` (0 a 1) é o quanto o passo cobre o que veio antes: 1 cobre tudo.
  * `piso` (`NoPiso`): o piso em que o passo foi feito; ausente = térreo, mapa
  * de antes abre igual. Cada piso pinta só os passos dele (`mapaDoPiso`).
- * Passo de tipo desconhecido (de uma versão mais nova do app) sai na leitura
- * (`lib/texturas.ts`, `lerTexturas`), e o resto da lista fica.
  */
 export type PinceladaDeTextura = NoPiso & (
   | { id: string; tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'borracha'; forca: number; raio: number; pontos: RegionPoint[] }
   | { id: string; tipo: 'balde'; textura: string; forca: number; alvo: AlvoDoBalde }
   | { id: string; tipo: 'sala'; regiao: string }
-  | { id: string; tipo: 'esvaziar'; alvo: AlvoDoBalde }
 )
 
 /**
@@ -2738,18 +2733,8 @@ export interface ParticulasDaCena {
  */
 export type PinceladaDeNeblina = NoPiso & { id: string; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: RegionPoint[]; densidade?: number }
 
-/**
- * A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo
- * id), relidos a cada pintura; ou uma ÁREA FECHADA POR PAREDES (pedido de
- * 12/11/2026: "dar para colocar textura em lugar só com apertar sendo o limite
- * as paredes"), guardada pelos `pontos` do contorno no momento do clique —
- * mexer nas paredes depois não muda a textura. Alvo de tipo desconhecido (de
- * uma versão mais nova) tira o passo na leitura.
- */
-export type AlvoDoBalde = AlvoDoBaldePorId | { tipo: 'area'; pontos: RegionPoint[] }
-
-/** O alvo de balde que aponta para uma forma do mapa pelo id. */
-export interface AlvoDoBaldePorId {
+/** A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo id). */
+export interface AlvoDoBalde {
   tipo: 'regiao' | 'desenho'
   id: string
 }

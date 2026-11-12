@@ -28,7 +28,7 @@ import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type R
 import * as mapFactory from '../lib/mapFactory'
 import { estiloDoMapa, type EstiloVisual } from '../lib/estiloDoMapa'
 import { MATERIAL_PADRAO } from '../texturas/paredes/catalogo'
-import { areaFechadaPorParedes, inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
+import { inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
 import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
@@ -103,7 +103,7 @@ import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
 import type { CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
-import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
+import { visibleRegions, visibleDrawings } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { barrancoOuVazio, comBarranco, ehParedeDoBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
 import type { AlturaDoBarranco, BarrancoDoMapa } from '../types/map'
@@ -127,7 +127,7 @@ import {
 } from '../lib/texturas'
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
 import { comParticulas, type EfeitoDeParticula } from '../lib/particulasDaCena'
-import { alvoComParedes, caixaDoAlvo } from '../lib/baldeDeTextura'
+import { alvoDoBalde, caixaDoAlvo } from '../lib/baldeDeTextura'
 import { texturaDoCatalogo } from '../texturas/catalogo'
 import {
   comCarimbos,
@@ -1405,13 +1405,8 @@ interface MapStoreState {
    * vira passo e devolve o motivo para a tela dizer.
    */
   pintarTextura: (pincelada: { tipo: 'pincel'; textura: string; forca: number; raio: number; pontos: PontoDoMundo[] } | { tipo: 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[] }) => ResultadoDaTextura
-  /**
-   * Balde: enche com a textura escolhida a área fechada por paredes em volta do
-   * ponto, ou a forma pintada debaixo dele (`alvoComParedes`,
-   * `lib/baldeDeTextura.ts`). `esvaziar` (Alt + clique): tira a textura dessa
-   * forma. Um passo no desfazer.
-   */
-  encherComTextura: (ponto: PontoDoMundo, esvaziar?: boolean) => ResultadoDaTextura
+  /** Balde: enche com a textura escolhida a forma pintada debaixo do ponto (`lib/baldeDeTextura.ts`). Com desfazer. */
+  encherComTextura: (ponto: PontoDoMundo) => ResultadoDaTextura
   /** Acrescenta uma textura importada (o ladrilho já reduzido) e a deixa escolhida. Com desfazer. Devolve o id. */
   importarTextura: (nome: string, imagem: string) => string
   /** Tira uma textura importada e o que ela pintava. Com desfazer. */
@@ -3212,26 +3207,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (lista !== antes) withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], lista, pisoAtivo)))
       return resultado
     },
-    encherComTextura: (ponto, esvaziar = false) => {
+    encherComTextura: (ponto) => {
       if (terrenoBarrado()) return 'camada-travada'
       const { map, texturaEscolhida, texturaForca, pisoAtivo } = get()
       // Importada de outra cena (ou desfeita), textura de um pacote que saiu: o passo seria órfão — gravado e invisível.
-      if (!esvaziar && !texturaNaCena(map, texturaEscolhida)) {
+      if (!texturaNaCena(map, texturaEscolhida)) {
         set({ texturaEscolhida: TEXTURA_ESCOLHIDA_PADRAO })
         return 'textura-ausente'
       }
-      // A forma é a que esta tela mostra: as paredes, as regiões e os desenhos do piso em edição, nas camadas à vista.
+      // A forma é a que esta tela mostra: as regiões e os desenhos do piso em edição, nas camadas à vista.
       const doPiso = mapaDoPiso(map, pisoAtivo)
-      const regioes = visibleRegions(doPiso.regions, map)
-      const desenhos = visibleDrawings(doPiso.drawings, map)
-      const area = areaFechadaPorParedes({ ...doPiso, walls: visibleWalls(doPiso.walls, map) }, ponto)
-      const alvo = alvoComParedes(regioes, desenhos, ponto, area, doPiso.grid)
+      const alvo = alvoDoBalde(visibleRegions(doPiso.regions, map), visibleDrawings(doPiso.drawings, map), ponto)
       if (alvo === null) return 'fora-de-forma'
       const antes = doPiso.texturas ?? []
-      const passo: PinceladaDeTextura = esvaziar
-        ? { id: crypto.randomUUID(), tipo: 'esvaziar', alvo }
-        : { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo }
-      const { lista, resultado } = somarPincelada(antes, passo, (a) => caixaDoAlvo(a, regioes, desenhos))
+      const { lista, resultado } = somarPincelada(antes, { id: crypto.randomUUID(), tipo: 'balde', textura: texturaEscolhida, forca: texturaForca, alvo })
       if (lista !== antes) withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], lista, pisoAtivo)))
       return resultado
     },

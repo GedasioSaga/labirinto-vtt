@@ -1,4 +1,4 @@
-import type { AlvoDoBalde, ConcealZone, Drawing, MapData, PinceladaDeTextura, Region, RegionPoint, Stair, Wall } from '../types/map'
+import type { ConcealZone, Drawing, MapData, PinceladaDeTextura, Region, RegionPoint, Stair, Wall } from '../types/map'
 import { distanceToWall } from './doorReach'
 import { shapeCenter } from './floorSdf'
 import { isHidden } from './itemTransform'
@@ -146,11 +146,8 @@ function texturasSemSegredo(
           return distanceToWall(p, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }) <= raio
         }),
     )
-  // A ÁREA fechada por paredes não é forma do mapa: sai se o contorno encosta numa sala secreta ou zona oculta.
-  const alvoFica = (alvo: AlvoDoBalde): boolean =>
-    alvo.tipo === 'area' ? !alvo.pontos.some((p) => encosta(p, 0)) : alvo.tipo === 'regiao' ? !goneRegionIds.has(alvo.id) : drawingIds.has(alvo.id)
   return (map.texturas ?? []).filter((passo) => {
-    if (passo.tipo === 'balde' || passo.tipo === 'esvaziar') return alvoFica(passo.alvo)
+    if (passo.tipo === 'balde') return passo.alvo.tipo === 'regiao' ? !goneRegionIds.has(passo.alvo.id) : drawingIds.has(passo.alvo.id)
     // A sala secreta não abre buraco na textura: o buraco desenharia a silhueta dela.
     if (passo.tipo === 'sala') return !goneRegionIds.has(passo.regiao)
     return passo.tipo === 'borracha' || !passo.pontos.some((p) => encosta(p, passo.raio))
