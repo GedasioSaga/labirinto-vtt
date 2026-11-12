@@ -1,5 +1,6 @@
 import type { AlvoDoBalde, Drawing, Region, RegionPoint } from '../types/map'
 import type { Caixa } from './texturas'
+import { ehPinturaDeBalde } from './baldeDeTinta'
 
 /**
  * BALDE da ferramenta Texturas (`lib/texturas.ts`): qual forma o clique enche
@@ -13,7 +14,9 @@ import type { Caixa } from './texturas'
  * continua à vista — senão o balde na ilha cobriria a floresta pintada nela.
  *
  * O balde guarda só o alvo (`AlvoDoBalde`); a forma é lida de novo a cada
- * pintura, então a textura acompanha o desenho se o mestre o redesenhar.
+ * pintura, então a textura acompanha o desenho se o mestre o redesenhar. A
+ * ÁREA FECHADA POR PAREDES (pedido de 12/11/2026, `alvoComParedes`) é a
+ * exceção: ela guarda o contorno do clique, e mexer nas paredes depois não a muda.
  */
 
 /** Lados do polígono que aproxima círculo e elipse (o mesmo número do relevo). */
@@ -157,12 +160,53 @@ export function alvoDoBalde(regioes: readonly Region[], desenhos: readonly Drawi
 }
 
 /**
+ * O alvo do clique do Balde, com a ÁREA FECHADA POR PAREDES em volta dele
+ * (`areaFechadaPorParedes`, `lib/baldeDeTinta.ts`; `null` = não fecha). Vale a
+ * área, a não ser que o alvo de antes dela (o desenho pintado ou a região sob
+ * o clique) caiba dentro dela, folga de `folga` px: aí ele fica, como era — a
+ * sala com paredes continua enchendo a SALA (a textura segue a sala se ela
+ * andar), e o lago pintado no meio do quarto continua enchendo o lago. A
+ * região grande por baixo de tudo (o chão da caverna) não cabe, e quem vale é a
+ * área das paredes. Sem área fechada, o alvo de antes; sem os dois, `null`.
+ */
+export function alvoComParedes(
+  regioes: readonly Region[],
+  desenhos: readonly Drawing[],
+  ponto: RegionPoint,
+  area: readonly RegionPoint[] | null,
+  folga: number,
+): AlvoDoBalde | null {
+  const deAntes = alvoDoBalde(regioes, desenhos, ponto)
+  if (area === null || area.length < 3) return deAntes
+  const daArea: AlvoDoBalde = { tipo: 'area', pontos: area.map((p) => ({ x: p.x, y: p.y })) }
+  if (deAntes === null) return daArea
+  const caixa = caixaDoAlvo(deAntes, regioes, desenhos)
+  const limite = caixaDosPontos(area)
+  const cabe =
+    caixa !== null &&
+    caixa.minX >= limite.minX - folga &&
+    caixa.minY >= limite.minY - folga &&
+    caixa.maxX <= limite.maxX + folga &&
+    caixa.maxY <= limite.maxY + folga
+  return cabe ? deAntes : daArea
+}
+
+/**
  * A parte à vista do alvo: o contorno dele menos o que está por cima (as
  * regiões cheias de depois e, numa região, todos os desenhos; num desenho, os
  * desenhos de depois). `null` = o alvo não está nestas listas (apagado, ou
  * fora do recorte do jogador).
  */
 export function formaDoBalde(alvo: AlvoDoBalde, regioes: readonly Region[], desenhos: readonly Drawing[]): FormaDoBalde | null {
+  if (alvo.tipo === 'area') {
+    if (alvo.pontos.length < 3 || !alvo.pontos.every(finito)) return null
+    const contorno = alvo.pontos.map((p) => ({ x: p.x, y: p.y }))
+    const caixa = caixaDosPontos(contorno)
+    // O que está desenhado na área continua à vista (o traço do círculo, a forma
+    // cheia); a pintura do balde do Pincel é chão, e a textura vai por cima dela.
+    const recortes = desenhos.filter((d) => !ehPinturaDeBalde(d)).flatMap(recortesDoDesenho)
+    return { contorno, recortes: recortes.filter((r) => tocaACaixa(r, caixa)), caixa }
+  }
   if (alvo.tipo === 'regiao') {
     const indice = regioes.findIndex((r) => r.id === alvo.id)
     if (indice < 0 || !regiaoCheia(regioes[indice])) return null
@@ -192,6 +236,7 @@ function tocaACaixa(recorte: RecorteDoBalde, caixa: Caixa): boolean {
 
 /** A caixa da forma de um alvo, ou `null` (a forma sumiu). Para a borracha saber se passa por um balde. */
 export function caixaDoAlvo(alvo: AlvoDoBalde, regioes: readonly Region[], desenhos: readonly Drawing[]): Caixa | null {
+  if (alvo.tipo === 'area') return alvo.pontos.length >= 3 && alvo.pontos.every(finito) ? caixaDosPontos(alvo.pontos) : null
   if (alvo.tipo === 'regiao') {
     const r = regioes.find((item) => item.id === alvo.id)
     return r !== undefined && regiaoCheia(r) ? caixaDosPontos(r.points) : null

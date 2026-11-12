@@ -1,4 +1,4 @@
-import type { AlvoDoBalde, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada } from '../types/map'
+import type { AlvoDoBalde, AlvoDoBaldePorId, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada } from '../types/map'
 import { caminhosParaJogador, passoDoRisco, tracosSeTocam } from './penhasco'
 import { comPiso, pisoDe, pisoLido } from './pisos'
 
@@ -61,7 +61,7 @@ export type ResultadoDaTextura =
   | 'pintou'
   /** Borracha onde não há textura nenhuma. */
   | 'nada-a-apagar'
-  /** Balde fora de região e de desenho pintado (no mar, fora da terra). */
+  /** Balde fora de área fechada por paredes, de região e de desenho pintado. */
   | 'fora-de-forma'
   /** Balde com a mesma textura e força do último balde nesta forma: nada muda. */
   | 'igual'
@@ -114,11 +114,27 @@ function lerForca(valor: unknown): number | null {
   return typeof valor === 'number' && Number.isFinite(valor) && valor > 0 ? Math.min(FORCA_MAX, valor) : null
 }
 
+/** Pontos de mais no contorno de uma área vieram editados à mão: o passo sai (o mapa salvo não cresce sem limite). */
+export const PONTOS_DA_AREA_MAX = 20_000
+
 function lerAlvo(valor: unknown): AlvoDoBalde | null {
-  if (typeof valor !== 'object' || valor === null || !('tipo' in valor) || !('id' in valor)) return null
+  if (typeof valor !== 'object' || valor === null || !('tipo' in valor)) return null
+  if (valor.tipo === 'area') {
+    const pontos = lerPontos('pontos' in valor ? valor.pontos : undefined)
+    return pontos !== null && pontos.length >= 3 && pontos.length <= PONTOS_DA_AREA_MAX ? { tipo: 'area', pontos } : null
+  }
+  if (!('id' in valor)) return null
   const { tipo, id } = valor
   if ((tipo !== 'regiao' && tipo !== 'desenho') || typeof id !== 'string' || id === '') return null
   return { tipo, id }
+}
+
+/** O mesmo alvo: a mesma forma pelo id, ou a área com o mesmo contorno (o clique de novo no mesmo lugar dá os mesmos pontos). */
+export function mesmoAlvo(a: AlvoDoBalde, b: AlvoDoBalde): boolean {
+  if (a.tipo === 'area' || b.tipo === 'area') {
+    return a.tipo === 'area' && b.tipo === 'area' && a.pontos.length === b.pontos.length && a.pontos.every((p, i) => p.x === b.pontos[i].x && p.y === b.pontos[i].y)
+  }
+  return a.tipo === b.tipo && a.id === b.id
 }
 
 function lerPincelada(valor: unknown): PinceladaDeTextura | null {
@@ -128,6 +144,10 @@ function lerPincelada(valor: unknown): PinceladaDeTextura | null {
   if (tipo === 'sala') {
     const regiao = 'regiao' in valor ? valor.regiao : undefined
     return typeof regiao === 'string' && regiao !== '' ? { id, tipo, regiao, ...pisoLido(valor) } : null
+  }
+  if (tipo === 'esvaziar') {
+    const alvo = lerAlvo('alvo' in valor ? valor.alvo : undefined)
+    return alvo === null ? null : { id, tipo, alvo, ...pisoLido(valor) }
   }
   const forca = lerForca('forca' in valor ? valor.forca : undefined)
   if (forca === null) return null
@@ -253,13 +273,25 @@ export function somarPincelada(
   pincelada: PinceladaDeTextura,
   caixaDoAlvo?: (alvo: AlvoDoBalde) => Caixa | null,
 ): { lista: readonly PinceladaDeTextura[]; resultado: ResultadoDaTextura } {
-  if (pincelada.tipo === 'borracha') {
-    const caixa = caixaDoCaminho(pincelada.pontos, pincelada.raio)
+  if (pincelada.tipo === 'borracha' || pincelada.tipo === 'esvaziar') {
+    // O que o passo tira: o caminho da borracha, ou a forma inteira do balde que esvazia (Alt + clique).
+    const borracha = pincelada.tipo === 'borracha' ? pincelada : null
+    const caixa =
+      pincelada.tipo === 'borracha'
+        ? caixaDoCaminho(pincelada.pontos, pincelada.raio)
+        : caixaDoAlvo === undefined
+          ? undefined
+          : caixaDoAlvo(pincelada.alvo)
+    // Esvaziar uma forma que sumiu não tira nada.
+    if (caixa === null) return { lista, resultado: 'nada-a-apagar' }
     const temDebaixo = lista.some((item) => {
-      if (item.tipo === 'pincel') return tracosSeTocam(item, pincelada)
+      if (item.tipo === 'pincel') {
+        if (borracha !== null) return tracosSeTocam(item, borracha)
+        return caixa === undefined || caixasSeTocam(caixaDoCaminho(item.pontos, item.raio), caixa)
+      }
       if (item.tipo === 'balde') {
         const caixaDoBalde = caixaDoAlvo === undefined ? undefined : caixaDoAlvo(item.alvo)
-        return caixaDoBalde === undefined || (caixaDoBalde !== null && caixasSeTocam(caixaDoBalde, caixa))
+        return caixa === undefined || caixaDoBalde === undefined || (caixaDoBalde !== null && caixasSeTocam(caixaDoBalde, caixa))
       }
       return false
     })
@@ -267,7 +299,7 @@ export function somarPincelada(
   }
   if (pincelada.tipo === 'balde') {
     // O mesmo balde de novo na mesma forma não muda nada (o último já cobriu igual).
-    const ultimoNaForma = [...lista].reverse().find((item) => item.tipo === 'balde' && item.alvo.tipo === pincelada.alvo.tipo && item.alvo.id === pincelada.alvo.id)
+    const ultimoNaForma = [...lista].reverse().find((item) => item.tipo === 'balde' && mesmoAlvo(item.alvo, pincelada.alvo))
     const ultimo = lista[lista.length - 1]
     if (ultimoNaForma !== undefined && ultimoNaForma === ultimo && ultimo.tipo === 'balde' && ultimo.textura === pincelada.textura && ultimo.forca === pincelada.forca) {
       return { lista, resultado: 'igual' }
@@ -305,8 +337,10 @@ function soComTinta<T extends PinceladaDeTextura>(lista: readonly T[]): T[] {
  * - pincel e borracha: só os pedaços cujo disco encosta no que ele conhece
  *   (`caminhosParaJogador`, o mesmo corte do penhasco). O resto do caminho do
  *   mestre não sai: diria onde ele pintou floresta na névoa;
- * - balde: só se a forma que ele enche chegou no recorte (`formaNoRecorte`).
- *   A forma já está com ele; o balde não diz nada que ela não diga.
+ * - balde (e o esvaziar dele): só se a forma que ele enche chegou no recorte
+ *   (`formaNoRecorte`). A forma já está com ele; o balde não diz nada que ela
+ *   não diga. A ÁREA fechada por paredes não é forma do mapa: vai quando ele
+ *   conhece algum ponto do contorno dela (as paredes que ele já viu).
  * A tela dele ainda guarda a textura sob a máscara do conhecido. Borracha no
  * começo (sem tinta antes dela no que sobrou) sai.
  */
@@ -314,13 +348,14 @@ export function texturasParaJogador(
   lista: readonly PinceladaDeTextura[] | undefined,
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
-  formaNoRecorte: (alvo: AlvoDoBalde) => boolean,
+  formaNoRecorte: (alvo: AlvoDoBaldePorId) => boolean,
 ): PinceladaDeTextura[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
+  const noRecorte = (alvo: AlvoDoBalde): boolean => (alvo.tipo === 'area' ? alvo.pontos.some(conhece) : formaNoRecorte(alvo))
   const saida: PinceladaDeTextura[] = []
   for (const item of lista) {
-    if (item.tipo === 'balde') {
-      if (formaNoRecorte(item.alvo)) saida.push(item)
+    if (item.tipo === 'balde' || item.tipo === 'esvaziar') {
+      if (noRecorte(item.alvo)) saida.push(item)
       continue
     }
     // A sala que ele não conhece não abre buraco na textura: fica como estava para ele.
@@ -358,10 +393,16 @@ export function assinaturaDasTexturas(lista: readonly PinceladaDeTextura[] | und
       item.tipo === 'sala'
         ? `${item.id}:s:${item.regiao}`
         : item.tipo === 'balde'
-        ? `${item.id}:b:${item.textura}:${item.forca}:${item.alvo.tipo}:${item.alvo.id}`
+        ? `${item.id}:b:${item.textura}:${item.forca}:${assinaturaDoAlvo(item.alvo)}`
+        : item.tipo === 'esvaziar'
+        ? `${item.id}:v:${assinaturaDoAlvo(item.alvo)}`
         : `${item.id}:${item.tipo === 'pincel' ? `p:${item.textura}` : 'e'}:${item.forca}:${item.raio}:${item.pontos.map((p) => `${p.x},${p.y}`).join(' ')}`,
     )
     .join('|')
+}
+
+function assinaturaDoAlvo(alvo: AlvoDoBalde): string {
+  return alvo.tipo === 'area' ? `area:${alvo.pontos.map((p) => `${p.x},${p.y}`).join(' ')}` : `${alvo.tipo}:${alvo.id}`
 }
 
 // ---------------------------------------------------------------------------

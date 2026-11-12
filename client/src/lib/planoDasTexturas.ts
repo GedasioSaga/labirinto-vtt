@@ -132,6 +132,13 @@ export function planoDasTexturas(
       brutos.push({ textura: null, forca: 1, forma: { tipo: 'balde', forma: { ...forma, recortes: [] } }, caixa: forma.caixa })
       continue
     }
+    // ESVAZIAR (Alt + clique do Balde): uma borracha na forma inteira do alvo, com força cheia, como a sala.
+    if (passo.tipo === 'esvaziar') {
+      const forma = formaDoBalde(passo.alvo, regioes, desenhos)
+      if (forma === null) continue
+      brutos.push({ textura: null, forca: 1, forma: { tipo: 'balde', forma: { ...forma, recortes: [] } }, caixa: forma.caixa })
+      continue
+    }
     if (passo.tipo === 'pincel' && !disponivel(passo.textura)) continue
     brutos.push({
       textura: passo.tipo === 'pincel' ? passo.textura : null,

@@ -65,6 +65,24 @@ describe('leitura do disco', () => {
     expect('texturas' in sem).toBe(false)
     expect('texturasImportadas' in sem).toBe(false)
   })
+
+  // Pedido de 12/11/2026: o balde da área fechada por paredes guarda o contorno; o Alt + clique, o passo `esvaziar`.
+  it('o arquivo leva e traz o balde de área e o esvaziar; passo de tipo desconhecido e área quebrada saem, o resto fica', () => {
+    const area = { tipo: 'area' as const, pontos: [{ x: 70, y: 70 }, { x: 350, y: 70 }, { x: 350, y: 490 }, { x: 70, y: 490 }] }
+    const novos: PinceladaDeTextura[] = [
+      { id: 'a', tipo: 'balde', textura: 'lajotas', forca: 1, alvo: area },
+      { id: 'b', tipo: 'esvaziar', alvo: area },
+    ]
+    const volta = deserializeMap(serializeMap({ ...createEmptyMap('m', 'Mapa', 10, 10, 70), texturas: novos }))
+    expect(volta.texturas).toEqual(novos)
+    const lidos = lerTexturas([
+      ...novos,
+      { id: 'c', tipo: 'mancha', textura: 'areia', forca: 1 },
+      { id: 'd', tipo: 'balde', textura: 'areia', forca: 1, alvo: { tipo: 'area', pontos: [{ x: 1, y: 1 }, { x: 2, y: 2 }] } },
+      { id: 'e', tipo: 'esvaziar', alvo: { tipo: 'circulo', id: 'x' } },
+    ])
+    expect(lidos?.map((p) => p.id)).toEqual(['a', 'b'])
+  })
 })
 
 describe('somar passo', () => {
@@ -135,7 +153,7 @@ describe('recorte do jogador', () => {
     const lista = [pincel('a', 'floresta', [{ x: 0, y: 0 }, { x: 90, y: 0 }], 2)]
     const vai = texturasParaJogador(lista, conhece, escondido, () => true) ?? []
     expect(vai.length).toBe(2)
-    for (const p of vai) for (const ponto of p.tipo === 'balde' || p.tipo === 'sala' ? [] : p.pontos) expect(escondido(ponto)).toBe(false)
+    for (const p of vai) for (const ponto of p.tipo === 'balde' || p.tipo === 'sala' || p.tipo === 'esvaziar' ? [] : p.pontos) expect(escondido(ponto)).toBe(false)
   })
 
   it('balde só vai se a forma que ele enche saiu no recorte; borracha no começo sai', () => {

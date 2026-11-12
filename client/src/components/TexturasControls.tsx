@@ -27,7 +27,7 @@ import './TexturasControls.css'
 
 const MODOS: Array<{ modo: ModoDaTextura; rotulo: string; dica: string }> = [
   { modo: 'pincel', rotulo: 'Pincel', dica: 'Arraste por cima do mapa para pintar a textura. Segure Alt para apagar.' },
-  { modo: 'balde', rotulo: 'Balde', dica: 'Clique numa região ou num desenho pintado: a textura enche a parte dele que está à vista.' },
+  { modo: 'balde', rotulo: 'Balde', dica: 'Clique dentro de uma área fechada por paredes, de uma sala ou de um desenho pintado para enchê-la. Segure Alt para apagar.' },
   { modo: 'borracha', rotulo: 'Borracha', dica: 'Arraste por cima de uma textura para tirá-la. O desenho de baixo volta a aparecer.' },
 ]
 

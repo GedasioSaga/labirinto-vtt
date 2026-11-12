@@ -64,6 +64,13 @@ function passoDe(item: PinceladaDeTextura, regioes: readonly Region[], desenhos:
       const { contorno, recortes } = forma
       return { caixa: forma.caixa, cobre: (p) => dentroDoPoligono(p, contorno) && !recortes.some((r) => recorteCobre(r, p)), textura: item.textura }
     }
+    case 'esvaziar': {
+      // O Alt + clique do Balde tira a textura da forma inteira (sem recortes, como a sala).
+      const forma = formaDoBalde(item.alvo, regioes, desenhos)
+      if (forma === null) return null
+      const { contorno } = forma
+      return { caixa: forma.caixa, cobre: (p) => dentroDoPoligono(p, contorno), textura: null }
+    }
     case 'sala': {
       const regiao = regioes.find((r) => r.id === item.regiao)
       if (regiao === undefined || regiao.points.length < 3) return null
