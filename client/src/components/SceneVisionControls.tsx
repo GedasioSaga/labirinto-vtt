@@ -1,5 +1,7 @@
 import type { OffFloor } from '../lib/offFloor'
 import { SCENE_VISION_CELLS_MAX, SCENE_VISION_CELLS_MIN, readSceneVisionCells } from '../lib/sceneVision'
+import { quantasCenasComChao, useAdventureStore } from '../stores/adventureStore'
+import { useMapStore } from '../stores/mapStore'
 import { Toggle } from './Toggle'
 
 export interface SceneVisionControlsProps {
@@ -24,6 +26,9 @@ const OPCOES_DO_FORA_DO_CHAO: readonly { valor: OffFloor; rotulo: string }[] = [
   { valor: 'blocked', rotulo: 'Bloqueado' },
   { valor: 'free', rotulo: 'Livre' },
 ]
+
+/** Com menos cenas com Chão, o botão de lote faria o mesmo que o clique de cima: não aparece. */
+const MINIMO_DE_CENAS_PARA_O_LOTE = 2
 
 /** A linha embaixo do "Fora do Chão": o que a escolha faz, ou por que não há o que escolher. */
 function dicaDoForaDoChao(offFloor: OffFloor, temChao: boolean): string {
@@ -55,6 +60,11 @@ export function SceneVisionControls({
   onOffFloorChange,
   temChao = true,
 }: SceneVisionControlsProps) {
+  // "Usar em todas as cenas com Chão (N)" (caça de 12/11/2026, E19): N = a aberta e as de fundo que abriram, com Chão.
+  const mapaAberto = useMapStore((state) => state.map)
+  const cenasComChao = useAdventureStore((state) => quantasCenasComChao(state, mapaAberto))
+  const usarForaDoChaoEmTodas = useAdventureStore((state) => state.usarForaDoChaoEmTodas)
+
   function change(text: string) {
     if (text.trim() === '') {
       onVisionCellsChange(undefined)
@@ -119,6 +129,16 @@ export function SceneVisionControls({
           <p id="lb-scene-offfloor-hint" className="lb-field__hint">
             {dicaDoForaDoChao(offFloor, temChao)}
           </p>
+          {temChao && cenasComChao >= MINIMO_DE_CENAS_PARA_O_LOTE && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--ghost lb-btn--compact"
+              title={`Põe "${offFloor === 'free' ? 'Livre' : 'Bloqueado'}" em todas as cenas desta aventura que têm Chão.`}
+              onClick={() => usarForaDoChaoEmTodas(offFloor)}
+            >
+              Usar em todas as cenas com Chão ({cenasComChao})
+            </button>
+          )}
         </div>
       )}
     </section>

@@ -22,7 +22,7 @@ import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
-import { comForaDoChaoDeCenaNova, foraDoChaoLivre, type OffFloor } from '../lib/offFloor'
+import { cenaTemChao, comForaDoChaoDeCenaNova, foraDoChaoLivre, type OffFloor } from '../lib/offFloor'
 import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { pisoDe } from '../lib/pisos'
 import { travessiaDaFicha, type SceneHistory } from '../lib/travessiaDaFicha'
@@ -452,6 +452,15 @@ interface AdventureState {
   /** Muda uma cena de FUNDO sem passar pelo desfazer da cena aberta. */
   updateBackgroundScene: (sceneId: string, updater: (map: MapData) => MapData) => void
   /**
+   * "FORA DO CHÃO" EM LOTE (caça de 12/11/2026, E19, decisão 23): põe `valor`
+   * em toda cena da aventura que tem Chão (`cenaTemChao`) e abriu. A aberta
+   * muda pelo histórico dela (um Ctrl+Z desfaz), as de fundo pelo
+   * `updateBackgroundScene` — a mesma troca que a janela da cena faz uma a
+   * uma. Avisa "Fora do Chão: Livre em N cenas." e devolve N. Mapa solto: 0,
+   * nada muda.
+   */
+  usarForaDoChaoEmTodas: (valor: OffFloor) => number
+  /**
    * Mudança de um JOGADOR numa cena de FUNDO. Além do mapa, `transform` entra
    * em todo passo do desfazer guardado dela: quando o mestre abrir a cena, o
    * Ctrl+Z não pode devolver a ficha (ou a porta) do jogador ao estado de
@@ -777,6 +786,30 @@ export function sceneDeletionInfo(state: SceneState, liveMap: MapData, sceneId: 
   const here = new Set((mapOfScene(state, liveMap, sceneId)?.tokens ?? []).map((token) => token.id))
   const blockers = players.filter((player) => player.tokenIds.some((id) => here.has(id))).map((player) => player.name)
   return { fichas: here.size, orphanPins, blockers, inside: sceneChildCount(state.adventure?.scenes ?? [], sceneId) }
+}
+
+/**
+ * "FORA DO CHÃO" EM LOTE (E19): as cenas de FUNDO que abriram e têm Chão. A
+ * que ainda vem do disco ou não abriu fica de fora: não dá para saber se tem
+ * Chão, e o aviso contaria uma cena que não mudou.
+ */
+function cenasDeFundoComChao(state: SceneState): string[] {
+  if (state.adventure === null) return []
+  return state.adventure.scenes.flatMap((entry) => {
+    if (entry.id === state.activeSceneId) return []
+    const slot = state.cache[entry.id]
+    return slot !== undefined && slot.status === 'ok' && cenaTemChao(slot.map) ? [entry.id] : []
+  })
+}
+
+/**
+ * O "(N)" do botão "Usar em todas as cenas com Chão": a cena aberta (se tem
+ * Chão) e as de fundo que abriram com Chão. Mapa solto: 0. Número, e não a
+ * lista, para servir de seletor da store sem render a cada mudança.
+ */
+export function quantasCenasComChao(state: SceneState, liveMap: MapData): number {
+  if (state.adventure === null) return 0
+  return cenasDeFundoComChao(state).length + (cenaTemChao(liveMap) ? 1 : 0)
 }
 
 /** Sufixo do nome da cena duplicada, o mesmo da cópia de mapa e de sala. */
@@ -2099,6 +2132,19 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ cache: { ...cache, [sceneId]: { ...slot, map } }, dirty: { ...dirty, [sceneId]: true } })
     // MOCHILA NA FICHA (C1): boneco ligado, desligado ou apagado nesta cena de fundo.
     syncBonecosNaCenaDeFundo(sceneId, slot.map)
+  },
+
+  usarForaDoChaoEmTodas: (valor) => {
+    const state = get()
+    if (state.adventure === null) return 0
+    const live = useMapStore.getState().map
+    const total = quantasCenasComChao(state, live)
+    // A aberta pela ação da store: entra no Ctrl+Z dela, como o clique em "Livre"/"Bloqueado".
+    if (cenaTemChao(live)) useMapStore.getState().setSceneOffFloor(valor)
+    for (const id of cenasDeFundoComChao(state)) get().updateBackgroundScene(id, (map) => mapFactory.setSceneOffFloor(map, valor))
+    const rotulo = valor === 'free' ? 'Livre' : 'Bloqueado'
+    useToastStore.getState().push('info', `Fora do Chão: ${rotulo} em ${total} ${total === 1 ? 'cena' : 'cenas'}.`)
+    return total
   },
 
   applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
