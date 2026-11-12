@@ -2369,3 +2369,20 @@ Preparado às 11h16 (relógio): cópia das campanhas "Reino de Goa" (17 cenas) e
   9. Aprovar a lista: eu mostro tudo por gravidade; defeito claro entra a não ser que ele RISQUE; o que depende de escolha eu pergunto.
   10. As interações decididas acima vão para o Opus 5.5 xhigh JÁ (assim que os buscadores liberarem o servidor), sem esperar a lista.
   11. Versões: uma por área, cada uma quando estiver provada (interações de jogo; névoa e bugs visuais; editor; otimização).
+- 12/11/2026, 12h25: buscadores E (editor, 22 achados, `tmp/caca-2026-11-12/editor/ACHADOS.md`) e N (névoa e visão, 7 achados, `tmp/caca-2026-11-12/nevoa/ACHADOS.md`) VOLTARAM. Print 17 explicado (N2): são as sombras dos 85 telhados da cena empilhadas no canto do mapa (`client/src/pixi/telhadosRenderer.ts:550` perde a origem do sprite); nenhuma casa tem sombra. Print 21 explicado (N1): a névoa do jogador corta no eixo da primeira parede que barra a vista, então parede com textura aparece pela metade; no cais do Reino de Goa há duas paredes a 2,47 px e a lisa tapa a que tem textura. Ainda em voo: V (varredura visual), O (otimização) e o protótipo das sombras.
+- 12/11/2026, 12h25: MAIS DECISÕES DO MESTRE, por pergunta:
+  12. Gramado que sai do lugar (E2): o desenho ganha a chave "Travado", como o objeto.
+  13. Apagar cena (E3): a pergunta diz o que vai junto, e o aviso de depois traz "Desfazer" (vale até o próximo salvar e religa as passagens).
+  14. Nome da sala (E5): continua abrindo pronto para digitar; Delete com o nome intacto apaga a sala; nome vazio não é gravado.
+  15. Painel ao pôr (E7): NENHUMA ferramenta pula para a ficha; só o Texto fica pronto para digitar.
+  16. "Pôr por cima" (E12): a camada manda sempre; só troca a ordem dentro da mesma camada, e o menu diz o motivo quando não dá.
+  17. Nome do andar novo (E13): "<cena> – 1º andar", "2º andar"; para baixo "subsolo 1"; nome repetido ganha número; aviso "Andar criado: <nome>. Ele está na aba Cenas." Os andares que ele já tem não são renomeados.
+  18. Tamanho do mapa (E15): teto de 500 casas de lado (eu recomendei 300; ele escolheu 500) e aviso do que ficou de fora ao diminuir.
+  19. Luz e Texto (E17): igual ao Objeto (clicar em cima seleciona ou edita; Ctrl + clique empilha).
+  20. Objeto preso na parede (N4): aparece para quem vê a parede, dos dois lados; sala secreta, zona oculta e teto fechado continuam escondendo.
+  21. Desenho que atravessa sala secreta (N5): aparece inteiro; o que mora dentro da sala continua escondido; nada é cortado na borda.
+  22. Sala fora do Chão em cena Bloqueada (N7): a regra fica; o editor avisa.
+  23. "Fora do Chão" em lote (E19): botão "Usar em todas as cenas com Chão (N)".
+  24. Busca de objeto (E11): eu monto a lista de palavras do dia a dia para os 176 objetos; ele corrige depois. A busca que se apaga é consertada.
+  25. Nomes (E20): passe de texto, um nome só (objeto, pino, Apagar, casas); a mesa online deixa de se chamar "Sala" e vira "Sessão". A CONFERIR antes de fazer (dúvida minha, levantada depois da resposta dele): "Sessão" já é o nome das páginas de sessão do Prelúdio; se bater na tela, volto a ele com outra palavra.
+  26. Cor própria em objeto com textura (E22): fica como está.
