@@ -105,6 +105,7 @@ import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { perigosFromFile } from './perigo'
 import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
+import { lerBarraPassagem } from './obstaculosDeObjeto'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
@@ -862,8 +863,11 @@ function deserializeMapFields(json: string): MapData {
     // ausente continua ausente. Presente, só na forma de `propPlayerLook.ts`
     // (rótulo curto, imagem em data URL); o resto sai em vez de ir parar na
     // tela do jogador.
+    // BARRA A PASSAGEM (`barraPassagem`): novo e opcional, ausente continua
+    // ausente. Só booleano que difere do padrão do tipo fica (`lerBarraPassagem`,
+    // depois do tipo e do item, que decidem o padrão).
     props: entityList(parsed.props).map((p) =>
-      propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null }))),
+      lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
     stairs: entityList(parsed.stairs).map((s) => semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) })),

@@ -1,9 +1,12 @@
+import { useId } from 'react'
 import type { Prop } from '../../types/map'
 import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { nomeDaCamada } from '../../lib/camadas/mover'
 import { meioTermoLigado } from '../../lib/estiloDoMapa'
 import { saiComTextura } from '../../lib/mobilia/desenhoDoMovel'
+import { barraPassagemEscolhida, objetoPodeBarrar } from '../../lib/obstaculosDeObjeto'
 import { useMapStore } from '../../stores/mapStore'
+import { Toggle } from '../Toggle'
 import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
 import { ItemNoChaoControls, type ItemNoChaoControlsProps } from '../ItemNoMapaControls'
@@ -19,7 +22,8 @@ import './fichaDoItem.css'
  * da porta, sem perder controle). O essencial diz o que a peça É — Tipo, Vista
  * e Forma do móvel, ou o item no chão; a imagem solta não tem essencial — e as
  * fichas Aparência (só o móvel: Preencher, Cor, as cores da cama e Cor da
- * linha), No mapa (Rotação, Travado, Oculto no editor e Oculto para jogadores;
+ * linha), No mapa (Rotação, Travado, Oculto no editor, Oculto para jogadores e,
+ * desde 12/11/2026, "Barra a passagem", `lib/obstaculosDeObjeto.ts`;
  * a Camada mora no topo da ficha desde a fatia 8 das camadas, o resumo ainda a
  * diz) e Para os jogadores (rótulo e imagem; o item no chão não tem: a
  * imagem dele já é o que o jogador vê). "No mapa" nasce aberta: Travado e
@@ -68,6 +72,9 @@ function resumoParaOsJogadores(prop: Prop): string {
 
 export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: FichaDoObjetoProps) {
   const camada = useMapStore((state) => nomeDaCamada(state.map, contextoDeCamadas(state.map).camadaDe('objeto', prop)))
+  // "Barra a passagem" vai direto à cena aberta (a mesma de onde a camada acima é lida), com um Ctrl+Z.
+  const setPropBarraPassagem = useMapStore((state) => state.setPropBarraPassagem)
+  const explicacaoDaPassagemId = useId()
   const ehItem = prop.item !== undefined
   // A mesma escolha de antes: o item no chão com a ligação montada mostra o item; o resto, o móvel (se for móvel).
   const item = ehItem && itemNoChao !== undefined ? prop.item : undefined
@@ -103,6 +110,15 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
             secret={prop.secret === true}
             {...transform}
           />
+          {/* BARRA A PASSAGEM: o objeto de chão e o item não mostram (a ficha pisa neles). */}
+          {objetoPodeBarrar(prop) && (
+            <div className="lb-field">
+              <Toggle label="Barra a passagem" checked={barraPassagemEscolhida(prop)} onChange={(barra) => setPropBarraPassagem(prop.id, barra)} describedBy={explicacaoDaPassagemId} />
+              <p id={explicacaoDaPassagemId} className="lb-field__hint">
+                A ficha do jogador não atravessa este objeto. Você, mestre, atravessa sempre.
+              </p>
+            </div>
+          )}
         </FichaDoObjetoLembrada>
         {!ehItem && (
           <FichaDoObjetoLembrada id="jogadores" titulo="Para os jogadores" icone="pessoa" padrao={false} resumo={resumoParaOsJogadores(prop)}>

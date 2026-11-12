@@ -15,11 +15,13 @@ import { latestActionNotice } from '../player/moveNotice'
 import { paredesParaAndar } from './barranco'
 import { previaDoPassoEmBatalha } from './batalha/previaDoPasso'
 import { planejarCaminhada } from './cliqueParaAndar'
+import { filterMapForPlayer } from './fogFilter'
 import type { KnownArea } from './knownPath'
 import { createEmptyMap } from './mapFactory'
+import { deserializeMap, serializeMap } from './mapFile'
 import { ehMovelQueBarra } from './mobilia'
 import { validateTokenMove } from './moveValidation'
-import { ehParedeDeObjeto, objetoBarraPassagem, paredesParaAndarDoJogador } from './obstaculosDeObjeto'
+import { barraPassagemEscolhida, comBarraPassagemNoMapa, ehParedeDeObjeto, objetoBarraPassagem, paredesParaAndarDoJogador } from './obstaculosDeObjeto'
 
 const GRADE = 40
 const POSSE = { p1: ['heroi'] }
@@ -180,6 +182,63 @@ describe('modo batalha', () => {
   })
 })
 
+describe('o botão "Barra a passagem" (`Prop.barraPassagem`)', () => {
+  const MESA = objeto('mesa', 'mesa', 480, 480, 2)
+  const IMAGEM = objeto('imagem', undefined, 480, 480, 2)
+
+  it('moinho com `barraPassagem: false` deixa passar; mesa e imagem com `true` barram; objeto de chão nunca', () => {
+    expect(arrastar(cena({ props: [{ ...MOINHO, barraPassagem: false }] }), DO_OUTRO_LADO)).toEqual(PASSOU)
+    expect(arrastar(cena({ props: [MESA] }), DO_OUTRO_LADO)).toEqual(PASSOU)
+    expect(arrastar(cena({ props: [{ ...MESA, barraPassagem: true }] }), DO_OUTRO_LADO)).toEqual(BARROU)
+    expect(arrastar(cena({ props: [{ ...IMAGEM, barraPassagem: true }] }), DO_OUTRO_LADO)).toEqual(BARROU)
+    expect(arrastar(cena({ props: [{ ...objeto('tapete', 'tapete', 480, 480, 2), barraPassagem: true }] }), DO_OUTRO_LADO)).toEqual(PASSOU)
+  })
+
+  it('o campo só é gravado quando difere do padrão do tipo: voltar ao padrão apaga, e o mesmo valor devolve o mesmo mapa', () => {
+    const map = cena({ props: [MOINHO, MESA] })
+    const moinhoSolto = comBarraPassagemNoMapa(map, 'moinho', false)
+    expect(moinhoSolto.props[0]).toEqual({ ...MOINHO, barraPassagem: false })
+    expect(barraPassagemEscolhida(moinhoSolto.props[0] ?? MOINHO)).toBe(false)
+    const deVolta = comBarraPassagemNoMapa(moinhoSolto, 'moinho', true)
+    expect(deVolta.props[0]).toEqual(MOINHO)
+    expect(Object.hasOwn(deVolta.props[0] ?? {}, 'barraPassagem')).toBe(false)
+    expect(comBarraPassagemNoMapa(map, 'moinho', true)).toBe(map)
+    expect(comBarraPassagemNoMapa(map, 'mesa', false)).toBe(map)
+    expect(comBarraPassagemNoMapa(map, 'mesa', true).props[1]).toEqual({ ...MESA, barraPassagem: true })
+    expect(comBarraPassagemNoMapa(map, 'ninguem', true)).toBe(map)
+  })
+
+  it('mapa salvo reabre igual; valor torto, igual ao padrão ou em objeto de chão some na leitura', () => {
+    const map = cena({ props: [{ ...MOINHO, barraPassagem: false }, { ...MESA, barraPassagem: true }, IMAGEM] })
+    const texto = serializeMap(map)
+    const lido = deserializeMap(texto)
+    expect(lido.props.map((p) => p.barraPassagem)).toEqual([false, true, undefined])
+    expect(serializeMap(lido)).toBe(texto)
+    const tortos = [
+      { ...MOINHO, barraPassagem: 'nao' },
+      { ...MOINHO, id: 'moinho-2', barraPassagem: true },
+      { ...MESA, barraPassagem: 0 },
+      { ...objeto('tapete', 'tapete', 480, 480, 2), barraPassagem: true },
+    ]
+    const consertado = deserializeMap(JSON.stringify({ ...JSON.parse(texto), props: tortos }))
+    expect(consertado.props.map((p) => Object.hasOwn(p, 'barraPassagem'))).toEqual([false, false, false, false])
+  })
+
+  it('o jogador recebe o campo junto do objeto que ele vê, e a tela dele planeja com ele', () => {
+    const map = cena({ props: [{ ...MOINHO, barraPassagem: false }, { ...MESA, id: 'mesa', x: 480, y: 700, barraPassagem: true }] })
+    const { map: recorte } = filterMapForPlayer(map, 'p1', POSSE, 700)
+    expect(recorte.props.map((p) => [p.id, p.barraPassagem])).toEqual([
+      ['moinho', false],
+      ['mesa', true],
+    ])
+    // O moinho solto: o clique passa reto por ele. A mesa que barra: o clique nela avisa.
+    const heroi = recorte.tokens.find((t) => t.id === 'heroi') ?? HEROI
+    const reto = planejarCaminhada(recorte, heroi, DO_OUTRO_LADO, VE_TUDO)
+    expect(reto.tipo === 'andar' ? reto.trechos : null).toEqual([DO_OUTRO_LADO])
+    expect(planejarCaminhada(recorte, heroi, { x: 480, y: 700 }, VE_TUDO)).toEqual({ tipo: 'aviso', motivo: 'objeto' })
+  })
+})
+
 describe('cache', () => {
   it('a mesma lista de objetos devolve as MESMAS paredes; centenas de pilares entram uma vez só', () => {
     const pilares = Array.from({ length: 600 }, (_, k) => objeto(`pilar-${k}`, 'pilar', 20 + (k % 25) * GRADE, 620 + Math.floor(k / 25) * 12, 0.25))
@@ -188,7 +247,8 @@ describe('cache', () => {
     expect(primeira.filter((w) => ehParedeDeObjeto(w.id))).toHaveLength(12 + 600 * 4)
     expect(paredesParaAndarDoJogador(map.walls, map, 0, { x: 310, y: 470 })).toBe(primeira)
     // Outra cópia do mapa com as mesmas listas (o pacote só mexeu nas fichas): a mesma resposta.
-    expect(paredesParaAndarDoJogador(map.walls, { ...map, tokens: [] }, 0, HEROI)).toBe(primeira)
+    const outraCopia: MapData = { ...map, tokens: [] }
+    expect(paredesParaAndarDoJogador(map.walls, outraCopia, 0, HEROI)).toBe(primeira)
     for (let k = 0; k < 200; k += 1) expect(arrastar(map, { x: 300 + (k % 5), y: 300 })).toEqual({ ok: true, x: 300 + (k % 5), y: 300 })
   })
 })

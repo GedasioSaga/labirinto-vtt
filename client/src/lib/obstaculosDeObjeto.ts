@@ -50,15 +50,66 @@ export interface ObstaculoDeObjeto {
 }
 
 /**
- * O objeto barra a passagem da ficha do jogador? Objeto de chão (tapete,
- * ponte), item no chão, objeto escondido (`hidden`) e secreto (`secret`) nunca
- * barram: os dois últimos o jogador nem recebe, e barrar seria uma parede
- * invisível que conta que há algo ali.
+ * O objeto PODE barrar? O objeto de chão (tapete, ponte) e o item no chão
+ * nunca: a ficha pisa neles. Para eles o botão "Barra a passagem" nem aparece.
+ */
+export function objetoPodeBarrar(prop: Pick<Prop, 'mobilia' | 'item'>): boolean {
+  return prop.item === undefined && !ehMovelDoChao(prop.mobilia)
+}
+
+/**
+ * O que o botão "Barra a passagem" mostra: a escolha do mestre
+ * (`Prop.barraPassagem`), senão o padrão do tipo (`ehMovelQueBarra`; a imagem
+ * solta não barra). É a regra do objeto, sem olhar se ele está escondido.
+ */
+export function barraPassagemEscolhida(prop: Pick<Prop, 'mobilia' | 'item' | 'barraPassagem'>): boolean {
+  if (!objetoPodeBarrar(prop)) return false
+  return typeof prop.barraPassagem === 'boolean' ? prop.barraPassagem : ehMovelQueBarra(prop.mobilia)
+}
+
+/**
+ * O objeto barra a passagem da ficha do jogador AGORA? A escolha acima, menos o
+ * objeto escondido (`hidden`) e o secreto (`secret`): esses o jogador nem
+ * recebe, e barrar seria uma parede invisível que conta que há algo ali.
  */
 export function objetoBarraPassagem(prop: Prop): boolean {
-  if (prop.hidden === true || prop.secret === true || prop.item !== undefined) return false
-  if (ehMovelDoChao(prop.mobilia)) return false
-  return ehMovelQueBarra(prop.mobilia)
+  if (prop.hidden === true || prop.secret === true) return false
+  return barraPassagemEscolhida(prop)
+}
+
+/**
+ * O objeto com o botão em `barra`. O campo só fica quando difere do padrão do
+ * tipo: voltar ao padrão o apaga, e o mapa salva como antes. O que já vale
+ * devolve o MESMO objeto (sem passo vazio no desfazer). Objeto que não pode
+ * barrar não ganha o campo.
+ */
+export function comBarraPassagem(prop: Prop, barra: boolean): Prop {
+  const { barraPassagem: antes, ...resto } = prop
+  // O que fica gravado: só a escolha que difere do padrão, e só no objeto que pode barrar.
+  const gravado = objetoPodeBarrar(prop) && barra !== ehMovelQueBarra(prop.mobilia) ? barra : undefined
+  if (gravado === antes) return prop
+  return gravado === undefined ? resto : { ...resto, barraPassagem: gravado }
+}
+
+/** O mapa com o botão do objeto `id` em `barra`; sem o objeto, ou sem nada a mudar, o MESMO mapa. */
+export function comBarraPassagemNoMapa(map: MapData, id: string, barra: boolean): MapData {
+  const antes = map.props.find((p) => p.id === id)
+  if (antes === undefined) return map
+  const depois = comBarraPassagem(antes, barra)
+  return depois === antes ? map : { ...map, props: map.props.map((p) => (p === antes ? depois : p)) }
+}
+
+/**
+ * Leitura do disco: o campo só fica quando é booleano, o objeto pode barrar e
+ * o valor difere do padrão do tipo. O resto (texto, número, o próprio padrão
+ * gravado por engano, objeto de chão) some. Sem nada a consertar, o mesmo objeto.
+ */
+export function lerBarraPassagem(prop: Prop): Prop {
+  if (!Object.hasOwn(prop, 'barraPassagem')) return prop
+  const valor: unknown = prop.barraPassagem
+  if (typeof valor === 'boolean' && objetoPodeBarrar(prop) && valor !== ehMovelQueBarra(prop.mobilia)) return prop
+  const { barraPassagem: _torto, ...resto } = prop
+  return resto
 }
 
 /** O id é de uma parede de objeto (e não de uma parede do mapa)? */

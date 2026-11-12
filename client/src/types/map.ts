@@ -1823,6 +1823,13 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  (`itemParaJogador`, `lib/itemNoMapa.ts`), junto do objeto que ele enxerga.
    *  Ausente = objeto comum — sem linha de migração (`readPinItem` no disco). */
   item?: PinItem
+  /** BARRA A PASSAGEM (12/11/2026, `lib/obstaculosDeObjeto.ts`): a ficha do
+   *  JOGADOR não atravessa este objeto (o mestre atravessa sempre). Só é
+   *  gravado quando difere do padrão do tipo (`ehMovelQueBarra`: o moinho barra,
+   *  a mesa e a imagem solta não): ausente = o padrão do tipo, e voltar ao
+   *  padrão apaga o campo. Mapa de antes abre e salva igual. Vai ao jogador
+   *  junto do objeto que ele enxerga: a tela dele planeja o caminho com ele. */
+  barraPassagem?: boolean
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

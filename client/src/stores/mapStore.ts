@@ -12,6 +12,7 @@ import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDo
 import * as perigo from '../lib/perigo'
 import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
 import type { OffFloor } from '../lib/offFloor'
+import { comBarraPassagemNoMapa } from '../lib/obstaculosDeObjeto'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -1476,6 +1477,8 @@ interface MapStoreState {
   setFaceRangeCells: (cells: number | null) => void
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
+  /** "Barra a passagem" do objeto (`Prop.barraPassagem`, `lib/obstaculosDeObjeto.ts`). Com histórico; escolher o que já vale não cria passo. */
+  setPropBarraPassagem: (id: string, barra: boolean) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
   insertCurvePoint: (drawingId: string, afterIndex: number, x: number, y: number) => void
   removeCurvePoint: (drawingId: string, index: number) => void
@@ -3400,6 +3403,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setSceneOffFloor: (offFloor) => passoSeMudou((map) => mapFactory.setSceneOffFloor(map, offFloor)),
     setFaceRangeCells: (cells) => withHistory((map) => mapFactory.setFaceRangeCells(map, cells)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
+    setPropBarraPassagem: (id, barra) => passoSeMudou((map) => comBarraPassagemNoMapa(map, id, barra)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
       props: map.props.map((p) => (p.id === id ? { ...p, linkedMapPath: path } : p)),

@@ -1,7 +1,9 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createEmptyMap } from '../../lib/mapFactory'
 import { criarMovel } from '../../lib/mobilia'
+import { useMapStore } from '../../stores/mapStore'
 import { MATERIAIS } from '../../texturas/meioTermo/materiais'
 import type { Prop } from '../../types/map'
 import { FichaDoObjeto, type FichaDoObjetoProps } from './FichaDoObjeto'
@@ -76,5 +78,40 @@ describe('FichaDoObjeto: resumo da Aparência', () => {
     expect(resumoDaAparencia(mesa)).toBe('Padrão')
     expect(resumoDaAparencia({ ...mesa, mobiliaCor: '#8b4513' })).toBe('Cor própria')
     expect(resumoDaAparencia({ ...mesa, mobiliaPreenchido: false, mobiliaCor: '#8b4513' })).toBe('Sem fundo')
+  })
+})
+
+/*
+ * "BARRA A PASSAGEM" (12/11/2026, `lib/obstaculosDeObjeto.ts`), na ficha "No
+ * mapa": ligado no objeto que barra por padrão (o moinho), desligado no resto
+ * (a mesa, a imagem solta). A troca vai para a cena aberta com UM Ctrl+Z, e o
+ * campo só fica gravado quando difere do padrão do tipo.
+ */
+describe('FichaDoObjeto: "Barra a passagem"', () => {
+  const EXPLICACAO = 'A ficha do jogador não atravessa este objeto. Você, mestre, atravessa sempre.'
+
+  function chave(prop: Prop): HTMLInputElement | null {
+    useMapStore.setState({ map: { ...createEmptyMap('m', 'M', 20, 20, 64), props: [prop] }, past: [], future: [] })
+    act(() => root.render(<FichaDoObjeto prop={prop} {...ligacoes()} />))
+    return Array.from(container.querySelectorAll('input')).find((input) => Array.from(input.labels ?? []).some((rotulo) => rotulo.textContent?.includes('Barra a passagem') === true)) ?? null
+  }
+
+  it('o moinho nasce ligado e a mesa desligada, com a linha que explica; desligar grava na cena e um Ctrl+Z desfaz', () => {
+    expect(chave(criarMovel('mesa', CENTRO, 64, 'me1'))?.checked).toBe(false)
+    const doMoinho = chave(criarMovel('moinho', CENTRO, 64, 'mo1'))
+    expect(doMoinho?.checked).toBe(true)
+    expect(container.textContent).toContain(EXPLICACAO)
+    act(() => doMoinho?.click())
+    expect(useMapStore.getState().map.props[0]?.barraPassagem).toBe(false)
+    act(() => useMapStore.getState().undo())
+    const desfeito = useMapStore.getState().map.props[0]
+    expect(desfeito !== undefined && Object.hasOwn(desfeito, 'barraPassagem')).toBe(false)
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('objeto de chão e item no chão não mostram o controle (a ficha pisa neles)', () => {
+    expect(chave(criarMovel('tapete', CENTRO, 64, 't1'))).toBeNull()
+    expect(chave({ id: 'i1', src: '', x: 300, y: 200, width: 64, height: 64, linkedMapPath: null, item: { nome: 'Espada' } })).toBeNull()
+    expect(container.textContent).not.toContain(EXPLICACAO)
   })
 })

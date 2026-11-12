@@ -5403,6 +5403,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   // carrega a imagem embutida —, sem o id do acervo nem o preço.
   const item = itemDoObjeto(prop)
   if (item !== null) forPlayer.item = itemParaJogador(item)
+  // BARRA A PASSAGEM (`lib/obstaculosDeObjeto.ts`): a tela dele planeja o
+  // caminho com a mesma escolha do mestre. Só booleano (a travessia não confia
+  // no mapa do mestre); do objeto que ele já vê, não conta nada além disso.
+  if (typeof prop.barraPassagem === 'boolean') forPlayer.barraPassagem = prop.barraPassagem
   return forPlayer
 }
 
