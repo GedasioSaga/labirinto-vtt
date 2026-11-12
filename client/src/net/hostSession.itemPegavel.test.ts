@@ -238,6 +238,18 @@ describe('Dar a um colega encostado', () => {
         { tokenId: 'bruno', mochila: [{ id: 'pino-chave', nome: 'Chave do Escudo' }] },
       ],
     })
+    // Os três leem as FICHAS, e não os jogadores: o item sai de uma e entra na outra.
+    expect(r.doacao).toEqual({
+      de: 'nome-diego',
+      para: 'nome-bruno',
+      verbo: 'deu',
+      oQue: 'Chave do Escudo',
+      sceneName: 'Mansão',
+      avisos: [
+        { clientId: 'c1', msg: { type: 'item.given', papel: 'deu', verbo: 'deu', oQue: 'Chave do Escudo', quem: 'nome-bruno' } },
+        { clientId: 'c2', msg: { type: 'item.given', papel: 'recebeu', verbo: 'deu', oQue: 'Chave do Escudo', quem: 'nome-diego' } },
+      ],
+    })
     t.aplicar(r)
     const envio = t.s.broadcast(t.world)
     expect(snapshotFor(envio, 'c2').map.tokens.find((tk) => tk.id === 'bruno')?.mochila).toEqual([{ id: 'pino-chave', nome: 'Chave do Escudo' }])

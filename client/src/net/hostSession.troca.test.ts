@@ -145,6 +145,18 @@ describe('Pagar: moedas a um colega encostado', () => {
     const t = mesa()
     const r = t.s.handleMessage('c1', { type: 'coins.give', toTokenId: 'bruno', moedas: 3 }, t.world)
     expect(r.outbound).toEqual([])
+    // Os três leem as FICHAS, e não os jogadores: a moeda sai da bolsa de uma e entra na da outra.
+    expect(r.doacao).toEqual({
+      de: 'nome-diego',
+      para: 'nome-bruno',
+      verbo: 'pagou',
+      oQue: '3 moedas',
+      sceneName: 'Mansão',
+      avisos: [
+        { clientId: 'c1', msg: { type: 'item.given', papel: 'deu', verbo: 'pagou', oQue: '3 moedas', quem: 'nome-bruno' } },
+        { clientId: 'c2', msg: { type: 'item.given', papel: 'recebeu', verbo: 'pagou', oQue: '3 moedas', quem: 'nome-diego' } },
+      ],
+    })
     t.aplicar(r)
     expect(t.ficha('diego')?.moedas).toBe(7)
     expect(t.ficha('bruno')?.moedas).toBe(8)

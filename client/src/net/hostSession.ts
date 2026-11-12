@@ -718,12 +718,12 @@ export interface TrancaAviso {
  */
 /**
  * DAR ITEM (decisão 8 do mestre, 12/11): um jogador deu um item ou pagou
- * moedas a um colega. O integrador lê "Ana deu Faca a Bruno" ao mestre e,
+ * moedas a um colega. O integrador lê "Ryoko deu Faca a Lírio" (as fichas) ao mestre e,
  * DEPOIS de gravar as mochilas, manda os `avisos` (o `item.given` de quem deu
  * e o de quem recebeu): o aviso nunca chega antes do item.
  */
 export interface Doacao {
-  /** Quem deu e quem recebeu, pelo nome na sala (o mestre lê). */
+  /** A ficha que deu e a que recebeu, pelo nome de verdade (o mestre lê). */
   de: string
   para: string
   verbo: 'deu' | 'pagou'
@@ -732,6 +732,12 @@ export interface Doacao {
   /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
   sceneName?: string
   avisos: Outbound[]
+}
+
+/** O nome da ficha no aviso do "Dar a…" e do "Pagar a…"; ficha sem nome (ou o vulto) é "Alguém". */
+function nomeOuAlguem(nome: string): string {
+  const limpo = nome.trim()
+  return limpo === '' ? 'Alguém' : limpo
 }
 
 export interface BarDispute {
@@ -7620,25 +7626,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
-   * DAR ITEM (decisão 8): o aviso dos dois lados e a linha do mestre. Quem deu
-   * lê o nome da ficha como ELE a vê (o do recorte, `targetSeenName`); quem
-   * recebeu, o nome de quem deu na sala ("Ana deu Faca a você"). Colega fora
-   * do ar ou fora do jogo não recebe aviso: o item chega do mesmo jeito.
+   * DAR ITEM (decisão 8): o aviso dos dois lados e a linha do mestre, todos
+   * pelo nome das FICHAS, porque o item sai de uma ficha e entra em outra
+   * ("Ryoko deu Faca a Lírio"). Quem deu lê a ficha que recebeu como ELE a vê
+   * (o do recorte, `targetSeenName`); quem recebeu, a ficha que deu como a
+   * mesa a lê (o "Nome para os jogadores"); o mestre, os nomes de verdade.
+   * Sem nome, "Alguém". Colega fora do ar ou fora do jogo não recebe aviso: o
+   * item chega do mesmo jeito.
    */
-  const doacaoPara = (playerId: string, target: Token, targetSeenName: string, verbo: Doacao['verbo'], oQue: string, scene: HostScene, world: HostWorld): Doacao => {
+  const doacaoPara = (playerId: string, giverToken: Token, target: Token, targetSeenName: string, verbo: Doacao['verbo'], oQue: string, scene: HostScene, world: HostWorld): Doacao => {
     const giver = players.get(playerId)
-    const giverName = giver === undefined ? '' : giver.name
     const ownerId = Object.entries(ownership).find(([owner, ids]) => owner !== playerId && ids.includes(target.id))?.[0]
     const owner = ownerId === undefined ? undefined : players.get(ownerId)
-    const visto = targetSeenName.trim()
     const avisos: Outbound[] = []
     if (giver !== undefined && giver.clientId !== null) {
-      avisos.push({ clientId: giver.clientId, msg: { type: 'item.given', papel: 'deu', verbo, oQue, quem: visto === '' ? 'Alguém' : visto } })
+      avisos.push({ clientId: giver.clientId, msg: { type: 'item.given', papel: 'deu', verbo, oQue, quem: nomeOuAlguem(targetSeenName) } })
     }
-    if (ownerId !== undefined && owner !== undefined && owner.clientId !== null && statusOf(ownerId) === 'playing' && giverName !== '') {
-      avisos.push({ clientId: owner.clientId, msg: { type: 'item.given', papel: 'recebeu', verbo, oQue, quem: giverName } })
+    if (ownerId !== undefined && owner !== undefined && owner.clientId !== null && statusOf(ownerId) === 'playing') {
+      const giverSeenName = tokenAsSeenByPlayer(giverToken, false).name
+      avisos.push({ clientId: owner.clientId, msg: { type: 'item.given', papel: 'recebeu', verbo, oQue, quem: nomeOuAlguem(giverSeenName) } })
     }
-    return { de: giverName, para: owner === undefined ? target.name : owner.name, verbo, oQue, ...backgroundSceneName(scene, world), avisos }
+    return { de: nomeOuAlguem(giverToken.name), para: nomeOuAlguem(target.name), verbo, oQue, ...backgroundSceneName(scene, world), avisos }
   }
 
   /**
@@ -7683,7 +7691,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ],
         ...autoriaDosItens(playerId),
       },
-      doacao: doacaoPara(playerId, target, targetSeen.name, 'deu', oQue, scene, world),
+      doacao: doacaoPara(playerId, giver, target, targetSeen.name, 'deu', oQue, scene, world),
     }
   }
 
@@ -7714,13 +7722,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (touching.length === 0) return reject('far')
     for (const seen of touching) {
       const giver = masterToken(seen.id)
-      const change = giver === undefined ? null : payCoinsChange(giver, target, msg.moedas)
+      if (giver === undefined) continue
+      const change = payCoinsChange(giver, target, msg.moedas)
       if (change !== null) {
         return {
           outbound: [],
           applyItems: { ...backgroundSceneId(scene, world), ...change, ...autoriaDosItens(playerId) },
           // O "Pagar a…" acompanha o "Dar item" (decisão 8): aviso aos três.
-          doacao: doacaoPara(playerId, target, targetSeen.name, 'pagou', moedasLabel(msg.moedas), scene, world),
+          doacao: doacaoPara(playerId, giver, target, targetSeen.name, 'pagou', moedasLabel(msg.moedas), scene, world),
         }
       }
     }
