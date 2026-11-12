@@ -4426,6 +4426,8 @@ function recorteDoGrupo(
         (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
         (p) => inHiddenPlace(p) || inConcealZone(p),
         (alvo) => (alvo.tipo === 'regiao' ? regioesDoRecorte.has(alvo.id) : desenhosDoRecorte.has(alvo.id)),
+        // A área de paredes como o desenho com área: a visão que entra nela, ou o explorado de dentro (como `conhece`, com ou sem memória).
+        (pontos) => knownFromInside(pontos, true),
       )
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)

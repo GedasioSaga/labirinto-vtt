@@ -340,7 +340,11 @@ function soComTinta<T extends PinceladaDeTextura>(lista: readonly T[]): T[] {
  * - balde (e o esvaziar dele): só se a forma que ele enche chegou no recorte
  *   (`formaNoRecorte`). A forma já está com ele; o balde não diz nada que ela
  *   não diga. A ÁREA fechada por paredes não é forma do mapa: vai quando ele
- *   conhece algum ponto do contorno dela (as paredes que ele já viu).
+ *   conhece algum ponto do contorno dela (as paredes que ele já viu) ou,
+ *   com `conhecidaPorDentro`, quando ele a conhece POR DENTRO (a visão entra
+ *   nela, ou o explorado tem ponto dentro; ver `knownFromInside` no recorte):
+ *   o contorno são só os cantos, e no meio de um salão grande ele não via
+ *   nenhum (12/11/2026).
  * A tela dele ainda guarda a textura sob a máscara do conhecido. Borracha no
  * começo (sem tinta antes dela no que sobrou) sai.
  */
@@ -349,9 +353,11 @@ export function texturasParaJogador(
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
   formaNoRecorte: (alvo: AlvoDoBaldePorId) => boolean,
+  conhecidaPorDentro: (pontos: readonly RegionPoint[]) => boolean = () => false,
 ): PinceladaDeTextura[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
-  const noRecorte = (alvo: AlvoDoBalde): boolean => (alvo.tipo === 'area' ? alvo.pontos.some(conhece) : formaNoRecorte(alvo))
+  const noRecorte = (alvo: AlvoDoBalde): boolean =>
+    alvo.tipo === 'area' ? alvo.pontos.some(conhece) || conhecidaPorDentro(alvo.pontos) : formaNoRecorte(alvo)
   const saida: PinceladaDeTextura[] = []
   for (const item of lista) {
     if (item.tipo === 'balde' || item.tipo === 'esvaziar') {
