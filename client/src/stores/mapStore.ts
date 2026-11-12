@@ -12,6 +12,7 @@ import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDo
 import * as perigo from '../lib/perigo'
 import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
 import type { OffFloor } from '../lib/offFloor'
+import { comFichasNoPadrao, comTamanhoAoEntrar, fichasForaDoPadrao } from '../lib/tamanhoAoEntrar'
 import { comBarraPassagemNoMapa } from '../lib/obstaculosDeObjeto'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
@@ -1500,6 +1501,17 @@ interface MapStoreState {
   setSceneOffFloor: (offFloor: OffFloor) => void
   /** "Rostos só de perto: N casas" da cena; `null` desliga. Ver `mapFactory.setFaceRangeCells`. */
   setFaceRangeCells: (cells: number | null) => void
+  /**
+   * "Tamanho da ficha ao entrar" da cena aberta (`lib/tamanhoAoEntrar.ts`);
+   * `undefined` = "Não mudar". Com histórico; escolher o que já vale não cria passo.
+   */
+  setTamanhoDaFichaAoEntrar: (tamanho: number | undefined) => void
+  /**
+   * "Aplicar às fichas desta cena (N)": toda ficha da cena aberta no padrão
+   * dela, num passo só do Ctrl+Z. Devolve quantas mudaram (0 = nada mudou,
+   * nenhum passo).
+   */
+  aplicarTamanhoDaCenaAsFichas: () => number
   setScenarioLink: (value: string | null) => void
   setPropLinkedPath: (id: string, path: string | null) => void
   /** "Barra a passagem" do objeto (`Prop.barraPassagem`, `lib/obstaculosDeObjeto.ts`). Com histórico; escolher o que já vale não cria passo. */
@@ -1747,9 +1759,11 @@ const HISTORY_CAP = 50
  * Empurra `entry` no topo de `past`, descartando a entrada MAIS ANTIGA
  * quando o cap estoura — nunca a mais recente. Compartilhada pelos dois
  * pontos de push (`withHistory` e `commitDragHistory`) pra não divergir —
- * `stores/historyCap.test.ts` cobre os dois.
+ * `stores/historyCap.test.ts` cobre os dois. Exportada para o passo de
+ * desfazer guardado numa cena de FUNDO ("Aplicar às fichas desta cena",
+ * `adventureStore.aplicarTamanhoAsFichasDaCena`), com o mesmo teto.
  */
-function pushPast(past: MapData[], entry: MapData): MapData[] {
+export function pushPast(past: MapData[], entry: MapData): MapData[] {
   const next = [...past, entry]
   return next.length > HISTORY_CAP ? next.slice(next.length - HISTORY_CAP) : next
 }
@@ -3438,6 +3452,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setSceneOffFloor: (offFloor) => passoSeMudou((map) => mapFactory.setSceneOffFloor(map, offFloor)),
     setFaceRangeCells: (cells) => withHistory((map) => mapFactory.setFaceRangeCells(map, cells)),
+    setTamanhoDaFichaAoEntrar: (tamanho) => passoSeMudou((map) => comTamanhoAoEntrar(map, tamanho)),
+    aplicarTamanhoDaCenaAsFichas: () => {
+      const quantas = fichasForaDoPadrao(get().map)
+      if (quantas > 0) withHistory(comFichasNoPadrao)
+      return quantas
+    },
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropBarraPassagem: (id, barra) => passoSeMudou((map) => comBarraPassagemNoMapa(map, id, barra)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({

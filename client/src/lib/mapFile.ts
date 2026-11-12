@@ -114,6 +114,7 @@ import { paredesDoDesenhoDoArquivo, vinculosDeParedeDoArquivo } from './paredesP
 import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
+import { lerTamanhoAoEntrar } from './tamanhoAoEntrar'
 import { pisosDoArquivo } from './pisos'
 import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
@@ -1066,6 +1067,9 @@ function deserializeMapFields(json: string): MapData {
     // o resto (texto, fração, arquivo editado à mão) volta AUSENTE — a cena de
     // sempre, com o rosto de todo mundo à vista.
     faceRangeCells: faceRangeCellsOrNull(parsed.faceRangeCells) ?? undefined,
+    // "Tamanho da ficha ao entrar": campo NOVO e OPCIONAL. Só 1, 2 ou 3 voltam;
+    // ausente (ou torto) abre SEM o campo — "Não mudar", a cena de sempre (`lib/tamanhoAoEntrar.ts`).
+    ...tamanhoAoEntrarField(parsed.tamanhoDaFichaAoEntrar),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
     // MOVIMENTO CONTADO: campo NOVO e OPCIONAL. Mapa de antes (ou com lixo
@@ -1137,6 +1141,12 @@ function deserializeMapFields(json: string): MapData {
 function offFloorField(raw: unknown): Pick<MapData, 'offFloor'> {
   const offFloor = readOffFloor(raw)
   return offFloor === undefined ? {} : { offFloor }
+}
+
+/** `tamanhoDaFichaAoEntrar` só entra no mapa quando o arquivo traz um dos botões: mapa de antes não ganha campo. */
+function tamanhoAoEntrarField(raw: unknown): Pick<MapData, 'tamanhoDaFichaAoEntrar'> {
+  const tamanhoDaFichaAoEntrar = lerTamanhoAoEntrar(raw)
+  return tamanhoDaFichaAoEntrar === undefined ? {} : { tamanhoDaFichaAoEntrar }
 }
 
 /** `textoChegada` só entra no mapa quando o arquivo traz texto: mapa de antes não ganha campo. */

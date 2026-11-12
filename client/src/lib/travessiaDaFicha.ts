@@ -5,7 +5,8 @@ import { carrierIdOf, withoutCarrier } from './carry'
 import { vehicleRiderSpots, type SeatHold } from './gatherParty'
 import { withPlayerVisibleTokens } from './pinTravel'
 import { comPiso, mapaDoPiso, pisoDe } from './pisos'
-import { tokenSizeInSquares, type Point } from './tokenSize'
+import { fichaQueEntra, tamanhoAoEntrar } from './tamanhoAoEntrar'
+import type { Point } from './tokenSize'
 import { leaveVehicle, passengersOf } from './vehicle'
 
 /**
@@ -36,6 +37,13 @@ export interface PedidoDeTravessia {
   piso?: number
   /** VEÍCULO no "Reunir o grupo aqui": as casas que a reunião já deu e o pino dela. */
   hold?: SeatHold
+  /**
+   * TAMANHO AO ENTRAR: o lado, em casas, com que a ficha da frente chega,
+   * FORÇADO — é o Desfazer de um envio devolvendo o tamanho que ela tinha.
+   * Ausente = o padrão da cena de destino, senão o que ela tem
+   * (`lib/tamanhoAoEntrar.ts`). Quem vai a bordo segue sempre o destino.
+   */
+  tamanho?: number
 }
 
 /** Quem atravessa, já na casa e no piso de chegada, e as tochas presas neles, já no ponto de chegada. */
@@ -187,20 +195,29 @@ function arrivingLink(token: Token, destination: MapData): Token {
  * contaria ao jogador que há algo invisível ali.
  */
 export function planoDaTravessia(origem: MapData, destino: MapData, pedido: PedidoDeTravessia): PlanoDaTravessia | null {
-  const { tokenId, x, y, piso, hold } = pedido
+  const { tokenId, x, y, piso, hold, tamanho } = pedido
   const token = origem.tokens.find((t) => t.id === tokenId)
   if (token === undefined) return null
   const riders = passengersOf(origem, tokenId)
   const planta = mapaDoPiso(destino, piso ?? 0)
+  // TAMANHO AO ENTRAR (`lib/tamanhoAoEntrar.ts`): cada um chega com o lado que a
+  // cena de destino dá (o padrão dela, senão o que tinha). A casa de quem vai a
+  // bordo é procurada já nesse lado; a da frente vem pronta de quem pediu.
+  const ladoDaFrente = tamanho ?? tamanhoAoEntrar(destino, token)
   const seats = vehicleRiderSpots(
     withPlayerVisibleTokens(planta),
-    { x, y, size: tokenSizeInSquares(token) },
-    riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tokenSizeInSquares(p) })),
+    { x, y, size: ladoDaFrente },
+    riders.map((p) => ({ dx: p.x - token.x, dy: p.y - token.y, size: tamanhoAoEntrar(destino, p) })),
     [...travelPinsClearance(planta), ...(hold?.keepClear ?? [])],
     hold?.seats ?? [],
   )
   const arrive = (t: Token, at: Point): Token => comPiso({ ...arrivingLink(t, destino), x: at.x, y: at.y }, piso)
-  const viajantes: Token[] = [arrive(token, { x, y }), ...riders.map((p, index) => arrive(p, seats[index]))]
+  const frente = arrive(token, { x, y })
+  const viajantes: Token[] = [
+    // Forçado (Desfazer): o lado de antes, no ponto de antes, sem assentar de novo.
+    tamanho === undefined ? fichaQueEntra(destino, frente) : { ...frente, size: tamanho },
+    ...riders.map((p, index) => fichaQueEntra(destino, arrive(p, seats[index]))),
+  ]
   return { viajantes, tochas: torchesOf(origem, [token, ...riders], viajantes) }
 }
 

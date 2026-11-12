@@ -26,6 +26,7 @@ import { cenaTemChao, comForaDoChaoDeCenaNova, foraDoChaoLivre, type OffFloor } 
 import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { pisoDe } from '../lib/pisos'
 import { travessiaDaFicha, type SceneHistory } from '../lib/travessiaDaFicha'
+import { comFichasNoPadrao, comTamanhoAoEntrar, fichasForaDoPadrao, tamanhoAoEntrar } from '../lib/tamanhoAoEntrar'
 import {
   ADVENTURE_VERSION,
   baseName,
@@ -103,7 +104,7 @@ import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/
 import type { PinDirectoryScene } from '../lib/pinDirectory'
 import { dirname } from '@tauri-apps/api/path'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
-import { useMapStore, type MapClipboard } from './mapStore'
+import { pushPast, useMapStore, type MapClipboard } from './mapStore'
 import { useSessionStore } from './sessionStore'
 import { useToastStore } from './toastStore'
 
@@ -461,6 +462,20 @@ interface AdventureState {
    */
   usarForaDoChaoEmTodas: (valor: OffFloor) => number
   /**
+   * TAMANHO DA FICHA AO ENTRAR (`lib/tamanhoAoEntrar.ts`), da janela
+   * "Configurar cena": grava o padrão da cena `sceneId` (`undefined` = "Não
+   * mudar"). A aberta pela ação da store (1 Ctrl+Z); a de fundo pelo
+   * `updateBackgroundScene`, como as outras opções da janela.
+   */
+  definirTamanhoAoEntrar: (sceneId: string, tamanho: number | undefined) => void
+  /**
+   * "Aplicar às fichas desta cena (N)": toda ficha da cena `sceneId` no padrão
+   * dela, num passo só do Ctrl+Z — na aberta, o passo de sempre; na de fundo,
+   * o passo fica guardado no desfazer dela e vale quando o mestre a abrir.
+   * Devolve quantas mudaram (0 = nada mudou, nenhum passo).
+   */
+  aplicarTamanhoAsFichasDaCena: (sceneId: string) => number
+  /**
    * Mudança de um JOGADOR numa cena de FUNDO. Além do mapa, `transform` entra
    * em todo passo do desfazer guardado dela: quando o mestre abrir a cena, o
    * Ctrl+Z não pode devolver a ficha (ou a porta) do jogador ao estado de
@@ -536,9 +551,12 @@ interface AdventureState {
    * piso da cena de destino onde ele chega; ausente = o térreo — o piso da
    * cena de partida não vale na outra cena. VEÍCULO no "Reunir o grupo aqui":
    * `hold` são as casas que a reunião já deu e o pino dela — quem vem a bordo
-   * não senta em nenhuma (`SeatHold`).
+   * não senta em nenhuma (`SeatHold`). TAMANHO AO ENTRAR: a ficha chega com
+   * o padrão da cena de destino, quando ela tem (`lib/tamanhoAoEntrar.ts`);
+   * `tamanho` força o lado da ficha da frente (o Desfazer de um envio
+   * devolvendo o que ela tinha).
    */
-  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number, hold?: SeatHold) => boolean
+  transferToken: (tokenId: string, fromSceneId: string, toSceneId: string, x: number, y: number, piso?: number, hold?: SeatHold, tamanho?: number) => boolean
   /**
    * "Levar para…" da ficha SEM DONO (NPC, monstro): leva o token `tokenId` da
    * cena aberta para `toSceneId`, na ponta do pino de viagem `pinId` (`null` =
@@ -2147,6 +2165,21 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return total
   },
 
+  definirTamanhoAoEntrar: (sceneId, tamanho) => {
+    // O mapa solto é a "cena" de id vazio da janela (`renderSceneSettings` do App).
+    if (sceneId === (get().activeSceneId ?? '')) {
+      useMapStore.getState().setTamanhoDaFichaAoEntrar(tamanho)
+      return
+    }
+    get().updateBackgroundScene(sceneId, (map) => comTamanhoAoEntrar(map, tamanho))
+  },
+
+  aplicarTamanhoAsFichasDaCena: (sceneId) => {
+    const quantas = aplicarTamanhoNaCena(sceneId)
+    if (quantas > 0) useToastStore.getState().push('info', quantas === 1 ? 'Uma ficha mudou de tamanho.' : `${quantas} fichas mudaram de tamanho.`)
+    return quantas
+  },
+
   applyPlayerChangeToBackgroundScene: (sceneId, transform) => {
     const { cache, dirty } = get()
     const slot = cache[sceneId]
@@ -2495,7 +2528,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     return true
   },
 
-  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso, hold) => {
+  transferToken: (tokenId, fromSceneId, toSceneId, x, y, piso, hold, tamanho) => {
     const { activeSceneId, cache, dirty } = get()
     if (activeSceneId === null || fromSceneId === toSceneId) return false
     const read = (sceneId: string): SceneHistory | null => {
@@ -2511,7 +2544,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     if (from === null || to === null) return false
     // A conta da travessia é pura (`lib/travessiaDaFicha.ts`, a mesma da Visão de jogador):
     // aqui ela só é lida e gravada nas stores. Id repetido no destino ganha um sorteado.
-    const travessia = travessiaDaFicha(from, to, { tokenId, x, y, piso, hold }, () => crypto.randomUUID())
+    const travessia = travessiaDaFicha(from, to, { tokenId, x, y, piso, hold, ...(tamanho === undefined ? {} : { tamanho }) }, () => crypto.randomUUID())
     if (travessia === null) return false
     const { origem: leaving, destino: arriving, renamedResidents } = travessia
     const nextCache: Record<string, SceneSlot> = { ...cache }
@@ -2555,8 +2588,9 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const pin = pinId === null ? null : slot.map.pins.find((p) => p.id === pinId && p.kind === 'viagem')
     // Pino que sumiu entre abrir o painel e confirmar: não chega em outro lugar calado.
     if (pin === undefined) return null
-    // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`).
-    const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, token.size)
+    // O mesmo assento de quem atravessa pelo "Mandar para…" (`hostSession.sendPlayer`),
+    // procurado já no lado com que ela entra lá (TAMANHO AO ENTRAR, `lib/tamanhoAoEntrar.ts`).
+    const spot = pin === null ? arrivalPoint(slot.map) : arrivalSpot(slot.map, pin, tamanhoAoEntrar(slot.map, token))
     if (!get().transferToken(tokenId, activeSceneId, toSceneId, spot.x, spot.y, pin?.piso)) return null
     // A ficha já não está no mapa aberto: a seleção não pode apontar para ela.
     const item: SelectionItem = { kind: 'token', id: tokenId }
@@ -2977,6 +3011,25 @@ export function semAcertoDosBonecos(fazer: () => void): void {
   } finally {
     bonecosChegando = false
   }
+}
+
+/**
+ * "Aplicar às fichas desta cena (N)" sem o aviso: toda ficha de `sceneId` no
+ * padrão dela (`lib/tamanhoAoEntrar.ts`), num passo só do Ctrl+Z. A aberta (ou
+ * o mapa solto, id vazio) pela ação da `useMapStore`; a de fundo direto no
+ * cache, com o mapa de antes no desfazer DELA (o mesmo teto da aberta) — o
+ * Ctrl+Z vale quando o mestre a abrir. Devolve quantas mudaram.
+ */
+function aplicarTamanhoNaCena(sceneId: string): number {
+  const { activeSceneId, cache, dirty } = useAdventureStore.getState()
+  if (sceneId === (activeSceneId ?? '')) return useMapStore.getState().aplicarTamanhoDaCenaAsFichas()
+  const slot = cache[sceneId]
+  if (slot === undefined || slot.status !== 'ok') return 0
+  const quantas = fichasForaDoPadrao(slot.map)
+  if (quantas === 0) return 0
+  const map = comFichasNoPadrao(slot.map)
+  useAdventureStore.setState({ cache: { ...cache, [sceneId]: { ...slot, map, past: pushPast(slot.past, slot.map), future: [] } }, dirty: { ...dirty, [sceneId]: true } })
+  return quantas
 }
 
 /**

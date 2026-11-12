@@ -3,6 +3,7 @@ import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
 import * as mapFactory from '../lib/mapFactory'
+import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { MapData, Token } from '../types/map'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
@@ -37,6 +38,17 @@ function tokensDaCena(sceneKey: string): readonly Token[] {
   if (cenaAberta(sceneKey)) return useMapStore.getState().map.tokens
   const slot = useAdventureStore.getState().cache[sceneKey]
   return slot !== undefined && slot.status === 'ok' ? slot.map.tokens : []
+}
+
+/**
+ * O invocado como nasce na cena: no "Tamanho da ficha ao entrar" dela, quando
+ * a cena tem (`lib/tamanhoAoEntrar.ts`), como toda ficha nova; senão como veio.
+ */
+function invocadoNoTamanhoDaCena(sceneKey: string, token: Token): Token {
+  const slot = useAdventureStore.getState().cache[sceneKey]
+  const mapa = cenaAberta(sceneKey) ? useMapStore.getState().map : slot !== undefined && slot.status === 'ok' ? slot.map : null
+  const padrao = mapa === null ? null : tamanhoPadraoDaCena(mapa)
+  return padrao === null || token.size === padrao ? token : { ...token, size: padrao }
 }
 
 /** O tamanho da casa da grade da cena (a aberta, ou a de fundo já carregada); cena que não está à mão = `null`. */
@@ -87,7 +99,8 @@ export const mesaDaAventura: MesaDaBatalha = {
     const novoPersonagem = personagem !== null && !personagensAtivos(aventura).some((candidato) => candidato.id === personagem.id)
     if (novoPersonagem && !aventura.adicionarPersonagens([personagem])) return false
     if (token === null || tokensDaCena(sceneKey).some((candidato) => candidato.id === token.id)) return true
-    if (mudarACena(sceneKey, () => useMapStore.getState().addToken(token), (map) => mapFactory.addToken(map, token))) return true
+    const nasce = invocadoNoTamanhoDaCena(sceneKey, token)
+    if (mudarACena(sceneKey, () => useMapStore.getState().addToken(nasce), (map) => mapFactory.addToken(map, nasce))) return true
     // Sem cena onde pôr o token: o personagem que acabou de entrar sai (nada fica pela metade).
     if (novoPersonagem) useAdventureStore.getState().apagarPersonagem(personagem.id)
     return false

@@ -3,7 +3,7 @@ import type { HostBridge } from '../net/hostBridge'
 import { casaDeChegada, pinoDeChegada, textoDoEnvio } from '../lib/enviarParaCena'
 import { pisoDe } from '../lib/pisos'
 import { removeSelectionItem, selectionHas, type SelectionItem } from '../lib/selectionModel'
-import { tokenSizeInSquares } from '../lib/tokenSize'
+import { tamanhoAoEntrar } from '../lib/tamanhoAoEntrar'
 import { useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
@@ -42,7 +42,8 @@ interface FichaEnviada {
   tokenId: string
   nome: string
   playerId: string | null
-  antes: { x: number; y: number; piso?: number }
+  /** `size`: o lado que ela tinha — a cena de destino pode tê-lo trocado pelo padrão dela (TAMANHO AO ENTRAR). */
+  antes: { x: number; y: number; piso?: number; size: number }
 }
 
 /** Um envio feito: as duas cenas e as fichas que de fato mudaram de cena. */
@@ -122,7 +123,7 @@ function ida(tokenIds: readonly string[], destinoId: string): { envio: Envio | n
       foraDaMesa += 1
       continue
     }
-    const antes = { x: token.x, y: token.y, ...(token.piso === undefined ? {} : { piso: token.piso }) }
+    const antes = { x: token.x, y: token.y, ...(token.piso === undefined ? {} : { piso: token.piso }), size: token.size }
     const playerId = donos.jogando.get(tokenId) ?? null
     let foi: boolean
     if (playerId !== null && ponte !== null) {
@@ -131,7 +132,8 @@ function ida(tokenIds: readonly string[], destinoId: string): { envio: Envio | n
       // Lido de novo a cada ficha: a anterior já ocupa a casa dela no destino.
       const agora = useAdventureStore.getState().cache[destinoId]
       if (agora === undefined || agora.status !== 'ok') break
-      const casa = casaDeChegada(agora.map, pino, tokenSizeInSquares(token), tokenId)
+      // A casa já no lado com que ela entra lá (TAMANHO AO ENTRAR, `lib/tamanhoAoEntrar.ts`).
+      const casa = casaDeChegada(agora.map, pino, tamanhoAoEntrar(agora.map, token), tokenId)
       foi = useAdventureStore.getState().transferToken(tokenId, activeSceneId, destinoId, casa.x, casa.y, piso)
     }
     if (foi) fichas.push({ tokenId, nome: token.name, playerId, antes })
@@ -161,7 +163,8 @@ function volta(envio: Envio): FichaEnviada[] {
     const foi =
       playerId !== null && ponte !== null
         ? ponte.returnPlayer(playerId, tokenId, { sceneId: envio.origemId, x: antes.x, y: antes.y })
-        : useAdventureStore.getState().transferToken(tokenId, envio.destinoId, envio.origemId, antes.x, antes.y, antes.piso)
+        : // O tamanho de antes volta junto: a origem pode não ter padrão, ou ter outro.
+          useAdventureStore.getState().transferToken(tokenId, envio.destinoId, envio.origemId, antes.x, antes.y, antes.piso, undefined, antes.size)
     if (foi) voltaram.push(ficha)
   }
   return voltaram

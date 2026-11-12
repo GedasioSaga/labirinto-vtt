@@ -3,6 +3,7 @@ import { NavegacaoVertical, type SecaoDaNavegacao } from './grimorio/NavegacaoVe
 import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisionControls'
 import { SceneMapaVivoControls, SceneMapTypeControls, temMapaVivo, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
 import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
+import { SceneTokenSizeControls } from './SceneTokenSizeControls'
 
 /** Raio em px que o jogador usa quando a cena não diz nada (`DEFAULT_VISION_RADIUS`, `net/hostBridge.ts`). */
 export const RAIO_PADRAO_PX = 700
@@ -24,6 +25,10 @@ export interface SceneSettingsDialogProps {
   mapSize?: MapSizeControlsProps
   /** "Tipo de mapa" (Normal | Continente) e a caravana dentro do Continente. Ausente omite a seção. */
   mapType?: SceneMapTypeControlsProps
+  /** A cena desta janela (id vazio = o mapa solto): liga a seção "Tamanho da
+   *  ficha" (pedido de 12/11/2026, `SceneTokenSizeControls`), que lê e grava a
+   *  cena pelas stores. Ausente omite a seção. */
+  sceneId?: string
   /** A seção que abre à vista (`SECAO_MAPA_VIVO`); ausente ou sem conteúdo, a primeira. */
   secaoInicial?: string
   onClose: () => void
@@ -78,14 +83,15 @@ export const SECAO_MAPA_VIVO = 'mapa-vivo'
 /**
  * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena
  * (com o "Fora do Chão" de 12/11/2026, `SceneVisionControls`),
- * com o radar ao lado, o "Tamanho do mapa" (11/11/2026), o "Tipo de mapa" (09/10/2026) e o "Mapa vivo" (fatia
+ * com o radar ao lado, o "Tamanho do mapa" (11/11/2026), o "Tamanho da ficha" ao
+ * entrar (12/11/2026), o "Tipo de mapa" (09/10/2026) e o "Mapa vivo" (fatia
  * 20: Relevo, Nomes dos lugares, Nuvens). Abre pelo botão de engrenagem na
  * linha da cena, e pelo "Mapa vivo" da página Cena.
  *
  * Casca do Grimório: `Dialogo` com a navegação vertical; os controles são os
  * de antes. O foco entra no campo da visão, o que se mexe mais.
  */
-export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapType, secaoInicial, onClose }: SceneSettingsDialogProps) {
+export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapType, sceneId, secaoInicial, onClose }: SceneSettingsDialogProps) {
   const { cells, padrao } = raioEmQuadrados(vision.visionCells, cellPx)
   const secoes: SecaoDaNavegacao[] = [
     {
@@ -106,6 +112,7 @@ export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapTyp
     },
   ]
   if (mapSize !== undefined) secoes.push({ id: 'tamanho', rotulo: 'Tamanho do mapa', conteudo: <MapSizeControls {...mapSize} /> })
+  if (sceneId !== undefined) secoes.push({ id: 'fichas', rotulo: 'Tamanho da ficha', conteudo: <SceneTokenSizeControls sceneId={sceneId} /> })
   if (mapType !== undefined) {
     secoes.push({ id: 'tipo', rotulo: 'Tipo de mapa', conteudo: <SceneMapTypeControls {...mapType} /> })
     // Sem chave nenhuma, a seção não aparece vazia.

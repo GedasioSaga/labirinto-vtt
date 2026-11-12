@@ -2381,6 +2381,13 @@ export interface MapData {
    *  (`lib/tokenVulto.ts`, `lib/fogFilter.ts`). Inteiro de 1 a 99;
    *  `undefined` = desligada (a cena de sempre) — sem linha de migração. */
   faceRangeCells?: number
+  /** "TAMANHO DA FICHA AO ENTRAR" — opção da CENA (pedido de 12/11/2026,
+   *  `lib/tamanhoAoEntrar.ts`): toda ficha que chega a esta cena (passagem,
+   *  escada, "Reunir grupo", "Levar para…", "+ Token") entra com este lado, em
+   *  casas — um dos valores do "Tamanho da ficha" (1, 2 ou 3). Depois o mestre
+   *  muda à mão, como sempre. `undefined` = "Não mudar": a ficha entra com o
+   *  tamanho que tinha (toda cena de antes) — sem linha de migração. */
+  tamanhoDaFichaAoEntrar?: number
   ownerId: string | null
   scenarioLink: string | null
   /** Passo máximo e ocupação das fichas dos jogadores. `undefined` = livre. */

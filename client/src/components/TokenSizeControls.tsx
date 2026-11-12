@@ -17,9 +17,10 @@ const CELULA = 6
  *
  * `aria-hidden`: o nome acessível do botão já diz "2 quadrados", e anunciar a
  * arte de novo só atrapalharia — mesma regra da amostra de cor
- * (`TokenColorControls`).
+ * (`TokenColorControls`). Exportada para o "Tamanho da ficha ao entrar" da
+ * cena (`SceneTokenSizeControls`), que oferece os mesmos botões.
  */
-function TokenSizeArt({ cells }: { cells: number }) {
+export function TokenSizeArt({ cells }: { cells: number }) {
   const meio = (CELULA * 3) / 2
   // -1 para o disco não encostar na borda da miniatura, o mesmo respiro que o
   // token de verdade tem no mapa (`radius = gridSize * size / 2 - 2`).

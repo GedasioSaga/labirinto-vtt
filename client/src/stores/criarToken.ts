@@ -1,4 +1,5 @@
 import { IMAGEM_SUMIU_DO_ACERVO, pecaDoAcervo, type ItemDoAcervoNaTela } from '../lib/tokenLibrary'
+import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
 import { viewportCenterWorld, type Point } from '../pixi/world'
 import { useMapStore } from './mapStore'
@@ -50,7 +51,10 @@ export interface TamanhoDaVista {
  */
 export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: TamanhoDaVista | null): string | null {
   const { map: currentMap, camera, addToken } = useMapStore.getState()
-  const size = opts.size ?? NEW_TOKEN_SIZE
+  // TAMANHO AO ENTRAR (`lib/tamanhoAoEntrar.ts`): na cena com padrão, toda ficha
+  // nova nasce nele — também a do acervo e a do personagem do livro. Sem padrão,
+  // o tamanho pedido (o do acervo) ou uma casa.
+  const size = tamanhoPadraoDaCena(currentMap) ?? opts.size ?? NEW_TOKEN_SIZE
   const requested = opts.at ?? (vista ? viewportCenterWorld(camera, vista.width, vista.height) : { x: 0, y: 0 })
   const pisoDaFicha = opts.piso ?? 0
   const spot = findTokenSpawn(requested, currentMap.walls, {

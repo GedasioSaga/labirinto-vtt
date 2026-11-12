@@ -7,6 +7,7 @@ import { compileFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
 import type { PartyMember } from './party'
 import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
+import { tamanhoAoEntrar } from './tamanhoAoEntrar'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
 import { passengersOf, vehicleCarrying, withRiders } from './vehicle'
 
@@ -495,15 +496,15 @@ function withTakenSeats(map: MapData, taken: readonly Seated[]): MapData {
  * entra nela, para o séquito do próximo dono não cair em cima. `pin` é o pino
  * da reunião: o séquito não senta nele nem cobre a cabeça (`pinClearance`).
  */
-function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonly Token[], moving: ReadonlySet<string>, taken: Seated[]): EntourageSeat[] {
+function entourageSpots(map: MapData, center: Point, pin: Point, tokens: readonly Token[], moving: ReadonlySet<string>, taken: Seated[], lado: (token: Token) => number): EntourageSeat[] {
   if (tokens.length === 0) return []
-  const seats = gatherSpots(withTakenSeats(map, taken), center, tokens.map(tokenSizeInSquares), moving, pinClearance(pin))
+  const seats = gatherSpots(withTakenSeats(map, taken), center, tokens.map(lado), moving, pinClearance(pin))
   const placed: EntourageSeat[] = []
   tokens.forEach((token, index) => {
     const seat = seats[index] ?? null
     if (seat === null) return
     placed.push({ tokenId: token.id, x: seat.x, y: seat.y })
-    taken.push({ point: seat, size: tokenSizeInSquares(token) })
+    taken.push({ point: seat, size: lado(token) })
   })
   return placed
 }
@@ -583,8 +584,12 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
   ])
   const seats = seatFinder(openMap, pin, moving, [])
   const taken: Seated[] = []
+  // TAMANHO AO ENTRAR (`lib/tamanhoAoEntrar.ts`): quem vem de outra cena chega
+  // com o padrão da cena do pino, e a casa dele é procurada nesse lado. Quem já
+  // está aqui só anda: o tamanho fica.
+  const ladoNaReuniao = (token: Token, travels: boolean): number => (travels ? tamanhoAoEntrar(openMap, token) : tokenSizeInSquares(token))
   const spots = joining.map((j, index) => {
-    const size = tokenSizeInSquares(j.token)
+    const size = ladoNaReuniao(j.token, j.travels)
     const aboard = riders[index] ?? []
     // Primeiro a casa em que todos a bordo acompanham; sem ela, a em que quem a parede barra fica e desce.
     const found =
@@ -619,7 +624,7 @@ export function planGather(members: readonly PartyMember[], world: HostWorld, pi
       ...(vemCom === null ? {} : { vemCom }),
       ...(vehicle === undefined ? {} : { carriedBy: vehicle }),
     }
-    const entourage = entourageSpots(openMap, spot, pin, j.entourage, moving, taken)
+    const entourage = entourageSpots(openMap, spot, pin, j.entourage, moving, taken, (token) => ladoNaReuniao(token, j.travels))
     if (entourage.length > 0) move.entourage = entourage
     moves.push(move)
   })
