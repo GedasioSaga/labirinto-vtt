@@ -9035,11 +9035,13 @@ function PixiCanvasDoContexto({
           // Em cima do que está selecionado (fatia 8 das camadas): "Mover para camada" da seleção inteira.
           if (!cliqueNaSelecao(ponto)) {
             // LIGAR FICHA (09/11/2026): botão direito num token fora da seleção o seleciona (o mesmo
-            // alvo do clique de selecionar) e abre o menu dele, com "Ligar ficha ›".
+            // alvo do clique de selecionar) e abre o menu dele, com "Ligar ficha ›". No OBJETO
+            // (12/11/2026), o mesmo, com "Pôr por cima / por baixo": vale com a ferramenta Objeto,
+            // cujo botão direito não seleciona no `pointerdown`; o grupo vem junto, como no clique.
             const estado = useMapStore.getState()
             const alvo = findSelectableAt(clickSelectMap(estado.map), ponto, pinosNoToque(estado.map))
-            if (alvo === null || alvo.kind !== 'token') return
-            estado.setSelection([{ kind: 'token', id: alvo.id }])
+            if (alvo === null || (alvo.kind !== 'token' && alvo.kind !== 'prop')) return
+            estado.setSelection(alvo.kind === 'prop' ? selectionOnClick(estado.map, { kind: 'prop', id: alvo.id }) : [{ kind: 'token', id: alvo.id }])
           }
           event.preventDefault()
           selecaoDoCliqueDireito = true

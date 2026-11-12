@@ -996,6 +996,8 @@ interface MapStoreState {
   setVehiclePassenger: (vehicleId: string, tokenId: string, aBordo: boolean) => boolean
   addProp: (prop: Prop) => void
   removeProp: (id: string) => void
+  /** "Pôr por cima / por baixo" (`mapFactory.reordenarObjetos`): um passo do Ctrl+Z; já na ponta, nenhum. */
+  reordenarObjetos: (ids: readonly string[], lado: mapFactory.LadoDaPilha) => void
   moveProp: (id: string, x: number, y: number) => void
   /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
    *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
@@ -2661,6 +2663,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     addProp: (prop) => withHistory((map) => mapFactory.addProp(map, prop)),
     removeProp: (id) => withHistory((map) => mapFactory.removeProp(map, id)),
+    reordenarObjetos: (ids, lado) => {
+      if (mapFactory.reordenarObjetos(get().map, ids, lado) === get().map) return
+      withHistory((map) => mapFactory.reordenarObjetos(map, ids, lado))
+    },
     moveProp: (id, x, y) => withHistory((map) => mapFactory.setPropPosition(map, id, x, y)),
     updateProp: (id, patch) => withHistory((map) => ({
       ...map,

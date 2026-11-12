@@ -2,6 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { camadaDosItens, motivoParaNaoMover, nomeDaCamada, refsDaSelecao } from '../lib/camadas/mover'
 import { opcoesDoEnvio } from '../lib/enviarParaCena'
+import type { LadoDaPilha } from '../lib/mapFactory'
+import { ehMovelDoChao } from '../lib/mobilia'
+import { tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
 import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
@@ -20,6 +23,9 @@ export interface MenuDaSelecaoProps {
 
 /** Folga entre o menu e a borda do canvas quando o clique foi rente a ela. */
 const FOLGA_DA_BORDA = 8
+
+/** Na 3/4 o móvel comum vai pela base (`emOrdemDoTresQuartos`): a pilha da lista não manda nele. */
+const MOTIVO_DA_PILHA_NA_3_4 = 'Na vista 3/4, o objeto mais ao sul fica por cima.'
 
 /** Foca o item `indice` (com volta), pulando os desligados. */
 function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1 | -1): void {
@@ -54,6 +60,11 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * (busca e a lista dos Personagens; cada token com a própria vida,
  * `stores/ligarFichaNoToken.ts`) e "Desligar ficha". Vale para todos os
  * tokens selecionados, num passo do Ctrl+Z.
+ *
+ * PÔR POR CIMA / POR BAIXO (pedido de 12/11/2026): com objeto na seleção, os
+ * objetos vão ao topo ou ao fundo da pilha da faixa deles (o chão entre o
+ * chão, `mapFactory.reordenarObjetos`), num passo do Ctrl+Z. Na 3/4 o móvel
+ * comum vai pela base: o item aparece desligado, com o porquê.
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
@@ -61,6 +72,9 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const pinoId = useMapStore((state) => state.selectedPinId)
   const [refs] = useState(() => refsDaSelecao(selection, pinoId))
   const [fichas] = useState(() => selection.filter((item) => item.kind === 'token').map((item) => item.id))
+  const [objetos] = useState(() => selection.filter((item) => item.kind === 'prop').map((item) => item.id))
+  const porCimaRef = useRef<HTMLButtonElement | null>(null)
+  const porBaixoRef = useRef<HTMLButtonElement | null>(null)
   const [submenuAberto, setSubmenuAberto] = useState(false)
   // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
   const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
@@ -126,6 +140,21 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
   const ligados = fichas.filter((id) => map.tokens.some((token) => token.id === id && token.characterId !== null))
+  const pilhaPelaBase = tresQuartosAtivo(map.vistaDosMoveis) && map.props.some((p) => objetos.includes(p.id) && p.mobilia !== undefined && !ehMovelDoChao(p.mobilia))
+  const motivoDaPilha = pilhaPelaBase ? MOTIVO_DA_PILHA_NA_3_4 : null
+
+  const porNaPilha = (lado: LadoDaPilha) => {
+    if (motivoDaPilha !== null) return
+    useMapStore.getState().reordenarObjetos(objetos, lado)
+    onClose()
+  }
+
+  /** O ponteiro desceu para um item sem submenu: os submenus abertos fecham. */
+  const fecharSubmenus = () => {
+    setSubmenuAberto(false)
+    setCenasAbertas(null)
+    setFichasAbertas(null)
+  }
 
   const abrirSubmenu = (focar: boolean) => {
     setCenasAbertas(null)
@@ -211,13 +240,15 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [itemRef.current, cenaRef.current, fichaRef.current, desligarRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, cenaRef.current, fichaRef.current, desligarRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         if (document.activeElement === cenaRef.current) abrirCenas(true)
         else if (document.activeElement === fichaRef.current) abrirFichas(true)
-        else if (document.activeElement === desligarRef.current) {
+        else if (document.activeElement === porCimaRef.current || document.activeElement === porBaixoRef.current) {
+          if (event.key !== 'ArrowRight') porNaPilha(document.activeElement === porCimaRef.current ? 'cima' : 'baixo')
+        } else if (document.activeElement === desligarRef.current) {
           if (event.key !== 'ArrowRight') desligar()
         } else abrirSubmenu(true)
       } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
@@ -314,6 +345,43 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
             )
           })}
         </div>
+      )}
+      {objetos.length > 0 && (
+        <>
+          <button
+            ref={porCimaRef}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-disabled={motivoDaPilha !== null}
+            title={motivoDaPilha ?? undefined}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              fecharSubmenus()
+            }}
+            onClick={() => porNaPilha('cima')}
+          >
+            <span>Pôr por cima</span>
+          </button>
+          <button
+            ref={porBaixoRef}
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className="lb-portamenu__item lb-menusel__pai"
+            aria-disabled={motivoDaPilha !== null}
+            title={motivoDaPilha ?? undefined}
+            onPointerEnter={(event) => {
+              event.currentTarget.focus()
+              fecharSubmenus()
+            }}
+            onClick={() => porNaPilha('baixo')}
+          >
+            <span>Pôr por baixo</span>
+          </button>
+          {motivoDaPilha !== null && <p className="lb-menusel__motivo">{motivoDaPilha}</p>}
+        </>
       )}
       {fichas.length > 0 && (
         <>

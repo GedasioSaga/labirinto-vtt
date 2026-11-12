@@ -264,6 +264,38 @@ describe('PixiCanvas — a ferramenta Objetos põe o móvel no clique', () => {
   })
 })
 
+/** Clique direito do navegador sobre o canvas, depois do `pointerdown`/`pointerup` do mesmo botão (a ordem do navegador). */
+function cliqueDireito(mundo: { x: number; y: number }): void {
+  aperta(mundo, BOTAO_DIREITO)
+  const p = naTela(mundo)
+  const canvas = raiz.querySelector('canvas')
+  if (canvas === null) throw new Error('o canvas não foi anexado ao contêiner')
+  act(() => {
+    canvas.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: BOTAO_DIREITO, clientX: p.x, clientY: p.y }))
+  })
+}
+
+describe('PixiCanvas — botão direito no objeto: Pôr por cima / por baixo', () => {
+  it('com a ferramenta Objeto, o botão direito na caixa pequena a seleciona e abre o menu; "Pôr por cima" a leva ao topo num passo do Ctrl+Z', async () => {
+    const grande = criarMovel('caixa', { x: 150, y: 170 }, GRADE, 'grande')
+    const pequena = { ...criarMovel('caixa', { x: 180, y: 200 }, GRADE, 'pequena'), width: 32, height: 32 }
+    useMapStore.setState({ map: { ...mapaComQuarto(), props: [pequena, grande] } })
+    await monta()
+    cliqueDireito({ x: 185, y: 210 })
+
+    expect(useMapStore.getState().selection).toEqual([{ kind: 'prop', id: 'pequena' }])
+    expect(useMapStore.getState().map.props).toHaveLength(2)
+    const porCima = [...raiz.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((b) => b.textContent === 'Pôr por cima')
+    if (porCima === undefined) throw new Error('o menu não tem "Pôr por cima"')
+    act(() => porCima.click())
+
+    expect(useMapStore.getState().map.props.map((p) => p.id)).toEqual(['grande', 'pequena'])
+    expect(useMapStore.getState().past).toHaveLength(1)
+    act(() => useMapStore.getState().undo())
+    expect(useMapStore.getState().map.props.map((p) => p.id)).toEqual(['pequena', 'grande'])
+  })
+})
+
 /** `pointerdown`/`pointermove`/`pointerup` no palco, no ponto de mundo, com o botão esquerdo apertado no meio. */
 function ponteiro(tipo: 'pointerdown' | 'pointermove' | 'pointerup', mundo: { x: number; y: number }): void {
   const p = naTela(mundo)

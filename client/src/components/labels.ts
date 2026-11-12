@@ -128,7 +128,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um ponto de interesse. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
-  mobilia: 'Escolha o objeto e clique no mapa para pôr; em cima de tapete, píer ou palco ele já nasce por cima, e Ctrl + clique o põe em cima de qualquer objeto. Clique num objeto posto para abrir a ficha dele e arrastar.',
+  mobilia: 'Escolha o objeto e clique no mapa para pôr; em cima de tapete, píer ou palco ele já nasce por cima, e Ctrl + clique o põe em cima de qualquer objeto. Clique num objeto posto abre a ficha dele; o botão direito o põe por cima ou por baixo.',
 }
 
 /**

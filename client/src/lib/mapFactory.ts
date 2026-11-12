@@ -859,6 +859,26 @@ export function removeProp(map: MapData, propId: string): MapData {
   return { ...map, props: map.props.filter((p) => p.id !== propId) }
 }
 
+/** "Pôr por cima" ou "Pôr por baixo" do menu do botão direito no objeto. */
+export type LadoDaPilha = 'cima' | 'baixo'
+
+/**
+ * PÔR POR CIMA / POR BAIXO (pedido de 12/11/2026): os objetos `ids` vão para o
+ * fim (cima) ou o começo (baixo) da lista, na ordem em que já estavam entre si.
+ * A lista É a pilha: o último é desenhado por cima, no editor e no jogador, e
+ * o clique o pega primeiro (`findPropAt`). O chão e a mesa posta seguem nas
+ * faixas deles (`emOrdemDeDesenho`): o tapete "por cima" sobe só entre os de
+ * chão. Nada muda (mesmo `map`) quando os objetos já estão na ponta pedida.
+ */
+export function reordenarObjetos(map: MapData, ids: readonly string[], lado: LadoDaPilha): MapData {
+  const escolhidos = new Set(ids)
+  const movidos = map.props.filter((p) => escolhidos.has(p.id))
+  if (movidos.length === 0) return map
+  const resto = map.props.filter((p) => !escolhidos.has(p.id))
+  const props = lado === 'cima' ? [...resto, ...movidos] : [...movidos, ...resto]
+  return props.every((p, i) => p === map.props[i]) ? map : { ...map, props }
+}
+
 export function setPropPosition(map: MapData, propId: string, x: number, y: number): MapData {
   return {
     ...map,

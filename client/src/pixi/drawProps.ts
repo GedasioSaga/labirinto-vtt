@@ -282,6 +282,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
     // Fogueira, lareira ou fornalha que sumiu (outro tipo, camada oculta) leva a chama; apagada, `colocar` já a tirou.
     chamas.podar(fogueiras)
+    // A lista é a pilha, o último por cima, como no jogador e no clique; na 3/4, os móveis depois pela base.
+    reordenar(container, nosNaOrdemDaLista(container, props))
     if (tresQuartosAtivo(view.vistaDosMoveis)) ordenarPelaBase(container, props)
     // O chão volta ao fundo: o que entrou agora com `addChildAt(…, 0)` passou por
     // baixo dele. Mapa sem tapete nunca ganha o chão (a lista de filhos fica a de sempre).
@@ -368,6 +370,35 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       nos.push(entry.drawing)
       if (entry.chama !== null && !entry.chama.destroyed && entry.chama.parent === container) nos.push(entry.chama)
     }
+    reordenar(container, nos)
+  }
+
+  /**
+   * A PILHA É A LISTA (pedido de 12/11/2026, "a caixa menor fica por baixo da
+   * grande"): as imagens e os móveis soltos no contêiner (o chão e a mesa posta
+   * têm contêiner próprio, já na ordem da lista), cada chama logo acima da sua
+   * fogueira, o último da lista por cima — como no jogador (`emOrdemDeDesenho`)
+   * e no clique (`findPropAt`). Todo nó novo entra com `addChildAt(…, 0)`, e sem
+   * isto o objeto posto por último ficava por baixo dos outros só no editor.
+   */
+  function nosNaOrdemDaLista(container: Container, props: readonly Prop[]): Container[] {
+    const nos: Container[] = []
+    for (const prop of props) {
+      if (prop.mobilia === undefined) {
+        const sprite = spriteCache.get(prop.id)
+        if (sprite !== undefined && sprite.parent === container) nos.push(sprite)
+        continue
+      }
+      const entry = furnitureCache.get(prop.id)
+      if (entry === undefined || entry.drawing.parent !== container) continue
+      nos.push(entry.drawing)
+      if (entry.chama !== null && !entry.chama.destroyed && entry.chama.parent === container) nos.push(entry.chama)
+    }
+    return nos
+  }
+
+  /** Os `nos` trocam de lugar entre si, nos mesmos índices que já ocupavam; os outros filhos não saem do lugar. */
+  function reordenar(container: Container, nos: readonly Container[]): void {
     if (nos.length < 2) return
     const doConjunto = new Set<Container>(nos)
     const filhos = container.children
