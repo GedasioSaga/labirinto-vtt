@@ -22,6 +22,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 const { esquemaDoNpcDBT, gerarNpcDBTNaIa, personagemDaIaDBT } = await import('./gerarNpcDBT')
 const { ErroDaIa, MODELO_PADRAO } = await import('./portaDaIa')
 const { SISTEMA_DRAGON_BALL } = await import('../dbt/sistemaDragonBall')
+// O livro entra no sistema só pelo app do mestre (caça 12/11/2026, O7): o teste faz o que o `src/main.tsx` faz.
+await import('../dbt/livroDoApp')
 const { LIMITES_DBT, lerFichaDBT } = await import('../dbt/modelo')
 const { ROTULOS } = await import('../dbt/dados/rotulos')
 const { RACAS } = await import('../dbt/dados/racas')
@@ -422,7 +424,9 @@ describe('personagemDaIaDBT: texto com HTML ou script', () => {
       act(() => root.unmount())
       container.remove()
     }
-  })
+    // Teto próprio (12/11/2026): rodando este arquivo sozinho, a primeira importação da tela do NPC leva ~5 s
+    // (transformação a frio) e estourava os 5 s padrão; na suíte inteira passa em menos. É carga, não espera presa.
+  }, 30_000)
 })
 
 beforeAll(() => {
