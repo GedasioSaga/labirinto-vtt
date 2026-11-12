@@ -221,23 +221,11 @@ type MapaComObjetos = Pick<MapData, 'barranco' | 'grid' | 'props'>
 const cacheDeParedes = new WeakMap<Wall[], WeakMap<readonly ObstaculoDeObjeto[], Map<string, Wall[]>>>()
 
 /**
- * As paredes que seguram o ANDAR DO JOGADOR neste piso: as de `paredesParaAndar`
- * (mapa mais barranco) e as dos objetos que barram.
- *
- * `de` é onde a ficha está: o objeto que a contém fica de fora (nunca prender).
- * `escondido` é do HOST: o objeto que o recorte nunca entrega a este jogador
- * (camada que ele não vê, zona oculta, sala secreta) também fica de fora, senão
- * a recusa contaria que ele existe. Na tela do jogador o mapa já é o recorte.
- *
- * As mesmas entradas devolvem o MESMO array (as malhas e os blocos da batalha
- * guardam cache pela referência das paredes). Sem objeto que barre, é a própria
- * lista de `paredesParaAndar`.
+ * `base` mais as paredes dos obstáculos `valem` (os de `obstaculos` que
+ * contam nesta conta). As mesmas entradas devolvem o MESMO array; sem nenhum
+ * que valha, a própria `base`.
  */
-export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, piso: number, de: Point | null, escondido?: (prop: Prop) => boolean): Wall[] {
-  const base = paredesParaAndar(walls, map, piso)
-  const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)
-  if (obstaculos.length === 0) return base
-  const valem = obstaculos.filter((o) => !(de !== null && pontoNoObstaculo(o, de)) && escondido?.(o.prop) !== true)
+function juntarParedes(base: Wall[], obstaculos: readonly ObstaculoDeObjeto[], valem: readonly ObstaculoDeObjeto[]): Wall[] {
   if (valem.length === 0) return base
   let porObstaculos = cacheDeParedes.get(base)
   if (porObstaculos === undefined) {
@@ -255,6 +243,44 @@ export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, pi
   const todas = [...base, ...valem.flatMap((o) => o.paredes)]
   porChave.set(chave, todas)
   return todas
+}
+
+/**
+ * As paredes que seguram o ANDAR DO JOGADOR neste piso: as de `paredesParaAndar`
+ * (mapa mais barranco) e as dos objetos que barram.
+ *
+ * `de` é onde a ficha está: o objeto que a contém fica de fora (nunca prender).
+ * `escondido` é do HOST: o objeto que o recorte nunca entrega a este jogador
+ * (camada que ele não vê, zona oculta, sala secreta) também fica de fora, senão
+ * a recusa contaria que ele existe. Na tela do jogador o mapa já é o recorte.
+ *
+ * As mesmas entradas devolvem o MESMO array (as malhas e os blocos da batalha
+ * guardam cache pela referência das paredes). Sem objeto que barre, é a própria
+ * lista de `paredesParaAndar`.
+ */
+export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, piso: number, de: Point | null, escondido?: (prop: Prop) => boolean): Wall[] {
+  const base = paredesParaAndar(walls, map, piso)
+  const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)
+  if (obstaculos.length === 0) return base
+  const valem = obstaculos.filter((o) => !(de !== null && pontoNoObstaculo(o, de)) && escondido?.(o.prop) !== true)
+  return juntarParedes(base, obstaculos, valem)
+}
+
+/**
+ * As paredes que seguram o NPC que anda sozinho (rotina, patrulha) neste piso:
+ * as do piso e as dos objetos que barram (decisão 7 do mestre, 12/11/2026: o
+ * jogador via o NPC atravessar o moinho). Sem barranco (o motor do NPC nunca o
+ * contou) e sem o filtro de quem não vê o objeto: o NPC é do mestre. O objeto
+ * escondido (`hidden`) ou secreto continua sem barrar (`objetoBarraPassagem`):
+ * o jogador veria o NPC desviar do nada.
+ *
+ * `de` é onde o NPC está: o objeto que o contém fica de fora (NUNCA PRENDER: a
+ * Vendedora dentro da barraca sai). As mesmas entradas devolvem o MESMO array.
+ */
+export function paredesDoNpc(walls: Wall[], props: readonly Prop[], grid: number, piso: number, de: Point): Wall[] {
+  const obstaculos = obstaculosDeObjeto(props, grid, piso)
+  if (obstaculos.length === 0) return walls
+  return juntarParedes(walls, obstaculos, obstaculos.filter((o) => !pontoNoObstaculo(o, de)))
 }
 
 /** As paredes sem as de objeto: a conta de "passaria se não fosse o objeto?" da recusa `objeto`. */
