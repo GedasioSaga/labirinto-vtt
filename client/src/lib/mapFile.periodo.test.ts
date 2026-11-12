@@ -34,7 +34,8 @@ describe('periodoFixo no arquivo: mapa de antes', () => {
       const lido = deserializeMap(bruto)
       expect('periodoFixo' in lido).toBe(false)
       const uma = serializeMap(lido)
-      expect(uma).toBe(JSON.stringify(antes, null, 2))
+      // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o mesmo texto congelado, compacto.
+      expect(uma).toBe(JSON.stringify(antes))
       expect(serializeMap(deserializeMap(uma))).toBe(uma)
       for (const chave of ['"periodoFixo"', '"ambientePorPeriodo"', '"visaoPorPeriodo"']) expect(uma).not.toContain(chave)
       expect('ambientePorPeriodo' in lido || 'visaoPorPeriodo' in lido).toBe(false)
@@ -101,7 +102,7 @@ describe('periodoFixo no arquivo: campo novo', () => {
     const lido = deserializeMap('{"id": "velha", "periodoFixo": "manha"}')
     expect(lido.periodoFixo).toBe('dia')
     const gravado = serializeMap(lido)
-    expect(gravado).toContain('"periodoFixo": "dia"')
+    expect(gravado).toContain('"periodoFixo":"dia"')
     expect(gravado).not.toContain('manha')
   })
 

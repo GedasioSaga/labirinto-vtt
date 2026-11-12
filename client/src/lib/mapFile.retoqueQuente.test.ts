@@ -48,7 +48,8 @@ describe('retoque Q no arquivo: mapa de antes', () => {
     it(`${nome}: abre sem os campos e salva byte a byte igual`, () => {
       const lido = deserializeMap(bruto)
       const uma = serializeMap(lido)
-      expect(uma).toBe(JSON.stringify(antes, null, 2))
+      // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o mesmo texto congelado, compacto.
+      expect(uma).toBe(JSON.stringify(antes))
       expect(serializeMap(deserializeMap(uma))).toBe(uma)
       for (const chave of CHAVES_NOVAS) expect(uma).not.toContain(chave)
       expect('vistaDosMoveis' in lido).toBe(false)

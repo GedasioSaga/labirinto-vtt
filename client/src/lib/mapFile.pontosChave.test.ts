@@ -28,7 +28,8 @@ describe('mapFile: pontos-chave do traço', () => {
 
   it('pontos-chave com lixo no arquivo não quebram nada: as alças voltam a ser calculadas', () => {
     const salvo = serializeMap({ ...createEmptyMap('m', 'M', 10, 10, 50), drawings: [traco] })
-    const json = salvo.replace(/"pontosChave": \[[^\]]*\]/, '"pontosChave": "oi"')
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o campo é procurado no formato compacto.
+    const json = salvo.replace(/"pontosChave":\[[^\]]*\]/, '"pontosChave":"oi"')
     expect(json).not.toBe(salvo)
     const desenho = deserializeMap(json).drawings[0]
     if (desenho.kind !== 'freehand') throw new Error('o traço sumiu')

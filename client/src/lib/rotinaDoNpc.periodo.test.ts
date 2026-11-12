@@ -37,7 +37,8 @@ describe('posto por período no arquivo: mapa de antes', () => {
   for (const [nome, bruto, antes] of fixtures) {
     it(`${nome}: salva byte a byte igual, sem "periodo"`, () => {
       const uma = serializeMap(deserializeMap(bruto))
-      expect(uma).toBe(JSON.stringify(antes, null, 2))
+      // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o mesmo texto congelado, compacto.
+      expect(uma).toBe(JSON.stringify(antes))
       expect(uma).not.toContain('"periodo"')
     })
   }

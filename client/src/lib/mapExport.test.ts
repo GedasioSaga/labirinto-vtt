@@ -159,7 +159,8 @@ describe('exportMapFolder', () => {
 
     await exportMapFolder(map, 'C:\\maps\\map_1', 'C:\\destino')
 
-    expect(writeTextFileMock).toHaveBeenCalledWith('C:\\destino\\map.json', JSON.stringify(map, null, 2))
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8).
+    expect(writeTextFileMock).toHaveBeenCalledWith('C:\\destino\\map.json', JSON.stringify(map))
   })
 
   it('quando o diretório de origem do mapa não existe, não tenta listar nem copiar arquivos', async () => {

@@ -139,7 +139,8 @@ describe('arquivo', () => {
   it('maps/L1.json sai byte a byte igual, também depois de passar pelo painel e voltar ao padrão', () => {
     const lido = deserializeMap(JSON.stringify(l1Json))
     expect('ambientePorPeriodo' in lido || 'visaoPorPeriodo' in lido || 'periodoFixo' in lido).toBe(false)
-    const congelado = JSON.stringify(antesL1, null, 2)
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o mesmo texto congelado, compacto.
+    const congelado = JSON.stringify(antesL1)
     expect(serializeMap(lido)).toBe(congelado)
     let mexido = comPeriodoFixo(lido, 'noite')
     for (const atalho of ATALHOS_DA_NOITE) mexido = comAtalhoDaNoite(mexido, atalho.id)

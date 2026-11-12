@@ -49,12 +49,13 @@ describe('disco: "Abre com" do pino', () => {
   it('valor que não é texto, ou só espaço, volta ausente — o pino continua trancado', () => {
     // O arquivo editado à mão: troca o texto gravado por outra forma, no próprio JSON.
     const gravado = serializeMap(mapaCom(pino()))
-    const campo = `"abreCom": "${CHAVE}"`
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): o campo é procurado no formato compacto.
+    const campo = `"abreCom":"${CHAVE}"`
     expect(gravado).toContain(campo)
-    const objeto = deserializeMap(gravado.replace(campo, `"abreCom": {"nome": "${CHAVE}"}`))
+    const objeto = deserializeMap(gravado.replace(campo, `"abreCom":{"nome":"${CHAVE}"}`))
     expect(objeto.pins[0]?.abreCom).toBeUndefined()
     expect(objeto.pins[0]?.passagem).toBe('trancada')
-    expect(deserializeMap(gravado.replace(campo, '"abreCom": "   "')).pins[0]?.abreCom).toBeUndefined()
+    expect(deserializeMap(gravado.replace(campo, '"abreCom":"   "')).pins[0]?.abreCom).toBeUndefined()
   })
 
   it('mapa de antes do campo abre sem ele', () => {

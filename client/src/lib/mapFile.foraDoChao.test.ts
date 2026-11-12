@@ -17,7 +17,8 @@ describe('offFloor no arquivo da cena', () => {
       expect(lida).toEqual(cena)
       // O arquivo de um mapa lido, lido e gravado de novo, sai byte a byte igual.
       const arquivo = serializeMap(lida)
-      expect(arquivo).toContain(`"offFloor": "${offFloor}"`)
+      // Sem indentação desde 12/11/2026 (caça, O8).
+      expect(arquivo).toContain(`"offFloor":"${offFloor}"`)
       expect(serializeMap(deserializeMap(arquivo))).toBe(arquivo)
     }
   })

@@ -242,9 +242,10 @@ describe('saveMapToAppData', () => {
     const path = await saveMapToAppData(map)
 
     expect(path).toBe('C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps\\map_1\\map.json')
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8).
     expect(writeTextFileMock).toHaveBeenCalledWith(
       'C:\\Users\\test\\AppData\\Roaming\\labirinto\\maps\\map_1\\map.json',
-      JSON.stringify(map, null, 2),
+      JSON.stringify(map),
     )
   })
 })
@@ -558,7 +559,8 @@ describe('saveMapToPath', () => {
 
     await saveMapToPath(map, 'C:\\Dev\\labirinto\\maps\\L1.json')
 
-    expect(writeTextFileMock).toHaveBeenCalledWith('C:\\Dev\\labirinto\\maps\\L1.json', JSON.stringify(map, null, 2))
+    // O arquivo sai sem indentação desde 12/11/2026 (caça, O8).
+    expect(writeTextFileMock).toHaveBeenCalledWith('C:\\Dev\\labirinto\\maps\\L1.json', JSON.stringify(map))
     expect(mkdirMock).not.toHaveBeenCalled()
   })
 })

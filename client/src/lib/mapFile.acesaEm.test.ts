@@ -39,14 +39,16 @@ describe('acesaEm no arquivo', () => {
     expect(luzLidaDe(serializeMap(mapaCom([luz({ acesaEm: [] })])))?.acesaEm).toEqual([])
   })
 
+  // O arquivo sai sem indentação desde 12/11/2026 (caça, O8): a edição à mão procura o campo no formato compacto.
   it('arquivo editado à mão: repetição e ordem trocada saem arrumadas', () => {
-    const json = serializeMap(mapaCom([luz()])).replace('"intensity": 0.85', '"intensity": 0.85, "acesaEm": ["noite", "tarde", "noite"]')
+    const json = serializeMap(mapaCom([luz()])).replace('"intensity":0.85', '"intensity":0.85,"acesaEm":["noite","tarde","noite"]')
+    expect(json).toContain('acesaEm')
     expect(luzLidaDe(json)?.acesaEm).toEqual(['tarde', 'noite'])
   })
 
   it('valor torto some e a luz fica como a de sempre, sem derrubar o arquivo', () => {
     for (const torto of ['"noite"', '0', 'null', 'true', '{}', '["madrugada"]', '["noite",1]']) {
-      const json = serializeMap(mapaCom([luz()])).replace('"intensity": 0.85', `"intensity": 0.85, "acesaEm": ${torto}`)
+      const json = serializeMap(mapaCom([luz()])).replace('"intensity":0.85', `"intensity":0.85,"acesaEm":${torto}`)
       expect(json, torto).toContain('acesaEm')
       const lida = luzLidaDe(json)
       expect(lida, torto).toEqual(luz())
