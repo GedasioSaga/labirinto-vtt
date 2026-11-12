@@ -119,12 +119,18 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tocoDeArvore: 'ruaEJardim',
   carrinhoDeMao: 'ruaEJardim',
   placaDeLoja: 'ruaEJardim',
-  // Cemitério.
+  // Cemitério; e o lote 8 dos objetos novos (11/11/2026), da cruz de madeira à árvore seca.
   lapide: 'cemiterio',
   cova: 'cemiterio',
   caixao: 'cemiterio',
   caixaoAberto: 'cemiterio',
   mausoleu: 'cemiterio',
+  cruzDeMadeira: 'cemiterio',
+  anjoDePedra: 'cemiterio',
+  cercaDeFerro: 'cemiterio',
+  paCravada: 'cemiterio',
+  velasEOferendas: 'cemiterio',
+  arvoreSeca: 'cemiterio',
   // Feira; a banca de frutas e o toldo listrado (11/11/2026).
   barraca: 'feira',
   carroca: 'feira',

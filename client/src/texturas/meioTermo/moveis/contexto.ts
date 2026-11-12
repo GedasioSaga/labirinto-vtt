@@ -99,8 +99,11 @@ export interface ContextoDoMovel {
    * borboletas), o muro baixo de pedra (as pedras da face são montadas do lado
    * que cai embaixo na tela: a face comprida, de frente ou de trás, ou a ponta,
    * com o muro de topo) e a placa de loja (entrega a cena girada ao contrário,
-   * como a pedra de amolar: a tabuleta fica de frente em qualquer giro). Os
-   * outros desenhos não leem.
+   * como a pedra de amolar: a tabuleta fica de frente em qualquer giro). Do
+   * lote 8 (11/11/2026) leem a cerca de ferro (a ponta de cada lança aponta
+   * para cima na tela, e as quatro faces da pirâmide do pilarete pegam a luz
+   * pela direção na tela, a conta do candelabro) e as velas e oferendas (a
+   * chama de cada vela aponta para cima na tela). Os outros desenhos não leem.
    */
   readonly giro: number
 }

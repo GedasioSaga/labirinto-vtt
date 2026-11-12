@@ -110,6 +110,12 @@ import { montarMuroBaixoDePedra } from './muroBaixoDePedra'
 import { montarTocoDeArvore } from './tocoDeArvore'
 import { montarCarrinhoDeMao } from './carrinhoDeMao'
 import { montarPlacaDeLoja } from './placaDeLoja'
+import { montarCruzDeMadeira } from './cruzDeMadeira'
+import { montarAnjoDePedra } from './anjoDePedra'
+import { montarCercaDeFerro } from './cercaDeFerro'
+import { montarPaCravada } from './paCravada'
+import { montarVelasEOferendas } from './velasEOferendas'
+import { montarArvoreSeca } from './arvoreSeca'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -253,6 +259,15 @@ const MONTADORES = {
   tocoDeArvore: montarTocoDeArvore,
   carrinhoDeMao: montarCarrinhoDeMao,
   placaDeLoja: montarPlacaDeLoja,
+  // Lote 8 dos 95 objetos novos (11/11/2026), o cemitério: um desenho por arquivo. A cerca de ferro e as velas e
+  // oferendas leem o `giro` (o quarto de volta que a 3/4 pinta); a cruz, o anjo, a pá e a árvore seca, não. A
+  // cerca de ferro é um trecho reto que reparte as barras pelo comprimento: não lê a `curva`.
+  cruzDeMadeira: montarCruzDeMadeira,
+  anjoDePedra: montarAnjoDePedra,
+  cercaDeFerro: montarCercaDeFerro,
+  paCravada: montarPaCravada,
+  velasEOferendas: montarVelasEOferendas,
+  arvoreSeca: montarArvoreSeca,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -296,6 +311,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
+  'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

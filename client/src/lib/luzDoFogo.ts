@@ -8,9 +8,10 @@ import { CASA_DO_FOGO_PX } from './mobilia/fogo'
  * lampião são fontes de luz de verdade: o MESMO alcance vale para o desenho
  * (`pixi/mapaDeLuz.ts`, o claro quente que treme) e para a visão do jogador
  * no escuro (`lib/fogFilter.ts`, o claro na linha de visão chega como o de um
- * ponto de luz). As velas (11/11/2026: a do criado-mudo e as cinco do
- * candelabro de chão) também: só iluminam em volta, com a chama pintada no
- * desenho, sem animação e sem Aceso/Apagado (decisão do mestre).
+ * ponto de luz). As velas (11/11/2026: a do criado-mudo, as cinco do
+ * candelabro de chão e as sete das velas e oferendas do cemitério) também: só
+ * iluminam em volta, com a chama pintada no desenho, sem animação e sem
+ * Aceso/Apagado (decisão do mestre).
  *
  * Antes disto a luz desses objetos era só desenho: fora do raio curto da
  * noite nem chegavam ao jogador, e o claro era cortado na borda da visão dele.
@@ -65,6 +66,9 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   criadoMudo: { alcanceEmCasas: 1.5, cor: 0xffe8c4, forca: 0.7, fumacaEBrasas: false },
   // O candelabro de chão: cinco velas em anel em volta do mastro, que é o meio da pegada.
   candelabroDeChao: { alcanceEmCasas: 2.5, cor: 0xffe8c4, forca: 0.8, fumacaEBrasas: false },
+  // As velas e oferendas do cemitério: sete velas em roda do pano, a luz do candelabro de chão. O centro dos
+  // pavios (`LUZ_DAS_VELAS` em `texturas/meioTermo/moveis/velasEOferendas.ts`) fica a 0,01 da largura do meio.
+  velasEOferendas: { alcanceEmCasas: 2.5, cor: 0xffe8c4, forca: 0.8, fumacaEBrasas: false },
 }
 
 /**

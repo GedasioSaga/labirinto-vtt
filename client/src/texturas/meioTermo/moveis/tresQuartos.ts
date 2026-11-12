@@ -323,6 +323,21 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // Na placa o poste é uma coluna de verdade; o braço, as correntes e a face da tabuleta são desenhados de
   // frente e guardados em fatias, cada uma presa a uma âncora, como a pedra de amolar: sem beirada nenhuma.
   placaDeLoja: { modo: 'derivado', espessura: 0 },
+  // Lote 8 dos 95 objetos novos (11/11/2026), o cemitério. A cruz, o anjo e a pá já são desenhados em pé, de
+  // frente, como a lápide e o espantalho: de cima a cruz seria um risco e o anjo, um borrão de asas.
+  cruzDeMadeira: EM_PE,
+  anjoDePedra: EM_PE,
+  // A cerca de ferro sobe pelas sombras, com a beirada padrão: cada barra e cada pilarete são colunas, e a
+  // lança, as travessas e a capa do pilarete são tampos soltos cujo corpo é a beirada.
+  cercaDeFerro: DERIVADO,
+  paCravada: EM_PE,
+  // As velas também: cada vela é uma coluna de cera, a tigela e o pão são colunas baixas e o pano, as flores,
+  // as moedas e as poças de cera ficam no chão.
+  velasEOferendas: DERIVADO,
+  // Na árvore seca o tronco é a coluna e a copa, um tampo solto na altura da árvore com a forma dos próprios
+  // galhos: com a beirada padrão cada galho ganhava uma laje grossa por baixo. A beirada é a de um galho,
+  // 0,025 casa.
+  arvoreSeca: { modo: 'derivado', espessura: 0.025 * G },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

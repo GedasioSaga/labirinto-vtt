@@ -325,6 +325,20 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   tocoDeArvore: [lugar('lenha', 'Madeira', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
   carrinhoDeMao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   placaDeLoja: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  // Lote 8 dos 95 objetos novos (11/11/2026), o cemitério. O primeiro lugar vai na "Cor"; o segundo, na "Cor da
+  // linha". A madeira da cruz pinta o poste e a travessa; a da árvore seca é pintada como casca fendida em toda a
+  // copa e nas raízes (a lasca do galho quebrado mostra o miolo no veio dela). A pedra do anjo pinta a figura e o
+  // pedestal, com as manchas de chuva. O metal da pá vale para a lâmina e para o lampião apagado no pé dela. O
+  // escuro das velas sai do pano escolhido. Fixos: a amarra de corda, a coroa de flores, a terra, as pedras e o
+  // capim da cruz; o musgo e o líquen do anjo; a ferrugem, o líquen dos pilaretes e o capim da cerca; a terra, os
+  // torrões, o vidro e o toco de vela da pá; a cera, as chamas, a tigela com água, o pão, as moedas, as flores e
+  // a renda das velas; o corvo e o miolo podre do oco da árvore.
+  cruzDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'velha')],
+  anjoDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  cercaDeFerro: [lugar('grade', 'Grade', METAIS, 'ferro'), lugar('pedra', 'Pilaretes', PEDRAS, 'granito')],
+  paCravada: [lugar('madeira', 'Cabo', MADEIRAS, 'velha'), lugar('metal', 'Lâmina e lampião', METAIS, 'ferro')],
+  velasEOferendas: [lugar('pano', 'Pano', TECIDOS, 'vinho')],
+  arvoreSeca: [lugar('madeira', 'Madeira', MADEIRAS, 'velha')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

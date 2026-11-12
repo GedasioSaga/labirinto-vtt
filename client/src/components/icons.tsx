@@ -1387,6 +1387,74 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M13 11.5h3.5v4H13zM16.5 12.5h1.2v2h-1.2" />
         </>
       )
+    case 'cruzDeMadeira':
+      // De frente: a travessa larga no alto com a amarra de corda em X, a coroa de flores pendurada logo abaixo, o poste de tábua descendo dela e o monte de terra no pé (a lápide é a pedra de topo em arco com a cruz pequena gravada; o espantalho tem chapéu e cabeça).
+      return (
+        <>
+          <path d="M3.5 3.5h17v3h-17z" />
+          <path d="M10.5 3.5l3 3M13.5 3.5l-3 3" />
+          <circle cx="12" cy="10" r="3.2" />
+          <path d="M10.5 12.8v5.6M13.5 12.8v5.6" />
+          <path d="M2.5 21.5c2.2-2.4 5.4-3.4 9.5-3.4s7.3 1 9.5 3.4z" />
+        </>
+      )
+    case 'anjoDePedra':
+      // De frente: a cabeça baixa, as mãos juntas no peito, o manto abrindo em pregas até o pé, as duas asas fechadas subindo acima da cabeça e o pedestal com a placa (a estátua tem a espada e nenhuma asa).
+      return (
+        <>
+          <circle cx="12" cy="6.2" r="1.9" />
+          <path d="M10 8.6h4l1.6 7.4H8.4z" />
+          <path d="M12 9.8v2.2M11 16v-3M13 16v-3" />
+          <path d="M9.6 8.4C7.8 6.4 7 3.6 7.6 2c-2.6.6-4.4 3.6-4.2 7.4.2 3 1.4 5.2 3.6 6.6" />
+          <path d="M14.4 8.4c1.8-2 2.6-4.8 2-6.4 2.6.6 4.4 3.6 4.2 7.4-.2 3-1.4 5.2-3.6 6.6" />
+          <path d="M5.5 16h13v5.5h-13zM9 18h6" />
+        </>
+      )
+    case 'cercaDeFerro':
+      // De frente: os dois pilaretes de pedra com a ponta em pirâmide, as duas travessas e as barras com ponta de lança (a cerca de madeira tem mourões redondos e fio; o arco do portão, a trave por cima e a placa pendurada).
+      return (
+        <>
+          <path d="M2 21.5V8h4v13.5M18 21.5V8h4v13.5" />
+          <path d="M1.5 8L4 5l2.5 3M17.5 8L20 5l2.5 3" />
+          <path d="M6 10.5h12M6 18.5h12" />
+          <path d="M9 20.5V8M12 20.5V8M15 20.5V8" />
+          <path d="M8 8.5l1-2.5 1 2.5M11 8.5l1-2.5 1 2.5M14 8.5l1-2.5 1 2.5" />
+        </>
+      )
+    case 'paCravada':
+      // De frente: o monte de terra em meia-lua, a pá cravada no alto dele (a lâmina de ombros, o cabo e o punho em D) e o lampião apagado no pé (a cova é o monte comprido visto de cima, com a beira escura de través).
+      return (
+        <>
+          <path d="M1.5 21c1.3-5 4.5-7.8 8.5-7.8s7.2 2.8 8.5 7.8z" />
+          <path d="M8 13.4V9.8l1.2-1.3h1.6L12 9.8v3.6" />
+          <path d="M10 8.5V4.6M8 2.2h4L10 4.6z" />
+          <rect x="19" y="16.5" width="3.5" height="4.5" rx="0.6" />
+          <path d="M20.75 16.5v-1.6" />
+        </>
+      )
+    case 'velasEOferendas':
+      // De frente: o pano estendido no chão, a tigela no meio dele e duas velas de alturas diferentes, cada uma com a chama em gota (o candelabro de chão tem o tripé, o mastro e os braços; o altar, o degrau, o bloco e o tampo).
+      return (
+        <>
+          <path d="M1.5 21.5l2.5-3h16l2.5 3z" />
+          <path d="M9.5 15.8h5a2.5 2.5 0 0 1-5 0z" />
+          <rect x="3.5" y="7" width="3" height="11.5" rx="0.4" />
+          <rect x="17.5" y="11.5" width="3" height="7" rx="0.4" />
+          <path d="M5 6.8c-1-.9-1-2.1 0-3.4 1 1.3 1 2.5 0 3.4zM19 11.3c-1-.9-1-2.1 0-3.4 1 1.3 1 2.5 0 3.4z" />
+        </>
+      )
+    case 'arvoreSeca':
+      // De lado: o tronco torto alargando no pé, os galhos nus abrindo em forquilhas, um galho quebrado de ponta lascada e as raízes saindo no chão (o toco de árvore é o tronco curto serrado, com cogumelo; o espantalho tem a travessa reta).
+      return (
+        <>
+          <path d="M10.4 21.5c.6-2.6.3-5.2-.8-7.6M13.6 21.5c-.3-2.6 0-5.2 1.3-7.6" />
+          <path d="M9.6 13.9C7.8 11.4 5.4 10.1 2.6 9.7M5.6 10.3 4.4 6.9" />
+          <path d="M14.9 13.9c1.3-2.6 3.3-4 6.4-4.6M18.4 10l.6-3.5" />
+          <path d="M12 13.9V8.4l-1.8-3.6M12 8.4l2.3-4.2" />
+          <path d="M12 11.4l2.2-1.5.3.9.7-.6" />
+          <path d="M10.4 21.5c-1.2-.2-2.5.1-3.6.8M13.6 21.5c1.2-.2 2.5.1 3.6.8" />
+        </>
+      )
   }
 }
 

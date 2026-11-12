@@ -206,6 +206,13 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       tocoDeArvore: ['lenha:lenhaCarvalho'],
       carrinhoDeMao: ['madeira:carvalho'],
       placaDeLoja: ['madeira:carvalho'],
+      // Lote 8 dos 95 objetos novos (11/11/2026): a cruz, a pá e a árvore seca na madeira velha.
+      cruzDeMadeira: ['madeira:velha'],
+      anjoDePedra: ['pedra:granito'],
+      cercaDeFerro: ['grade:ferro', 'pedra:granito'],
+      paCravada: ['madeira:velha', 'metal:ferro'],
+      velasEOferendas: ['pano:vinho'],
+      arvoreSeca: ['madeira:velha'],
     })
   })
 

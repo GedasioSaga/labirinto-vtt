@@ -37,6 +37,7 @@ export const PECAS_NOVAS = [
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
+  'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -228,6 +229,20 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   tocoDeArvore: { rotulo: 'Toco de árvore', artigo: 'um toco de árvore', tamanho: { largura: 1, altura: 1 }, redonda: true },
   carrinhoDeMao: { rotulo: 'Carrinho de mão', artigo: 'um carrinho de mão', tamanho: { largura: 1.5, altura: 0.7 }, redonda: false },
   placaDeLoja: { rotulo: 'Placa de loja pendurada', artigo: 'uma placa de loja pendurada', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  // Lote 8 dos 95 objetos novos (11/11/2026), o cemitério, cada um com o próprio desenho; esticam e giram como
+  // todo objeto. A cruz, o anjo e a pá são desenhados de frente nas duas vistas, como a lápide: girados, a
+  // imagem deita. A cerca de ferro é um trecho reto que corre pelo lado maior da pegada (em pé, 0,3 x 2, é o
+  // trecho em pé sem girar), com um pilarete em cada ponta: esticada, ganha mais barras, nunca barras mais
+  // largas, e dois trechos encostados dividem o pilarete da emenda. Nas velas o pano fica no meio, com as
+  // oferendas, e as sete velas em roda; elas só iluminam em volta (`LUZ_DOS_OBJETOS` em `lib/luzDoFogo.ts`),
+  // sem chama animada e sem Aceso/Apagado. A árvore seca é vista de cima de verdade: a copa de galhos é uma
+  // estrela dentro do círculo da pegada, por isso é a única `redonda`.
+  cruzDeMadeira: { rotulo: 'Cruz de madeira', artigo: 'uma cruz de madeira', tamanho: { largura: 0.6, altura: 0.6 }, redonda: false },
+  anjoDePedra: { rotulo: 'Anjo de pedra', artigo: 'um anjo de pedra', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cercaDeFerro: { rotulo: 'Cerca de ferro', artigo: 'uma cerca de ferro', tamanho: { largura: 2, altura: 0.3 }, redonda: false },
+  paCravada: { rotulo: 'Pá cravada na terra', artigo: 'uma pá cravada na terra', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
+  velasEOferendas: { rotulo: 'Velas e oferendas', artigo: 'umas velas e oferendas', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
+  arvoreSeca: { rotulo: 'Árvore seca', artigo: 'uma árvore seca', tamanho: { largura: 2, altura: 2 }, redonda: true },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -328,6 +343,12 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     tocoDeArvore: valor(f.tocoDeArvore),
     carrinhoDeMao: valor(f.carrinhoDeMao),
     placaDeLoja: valor(f.placaDeLoja),
+    cruzDeMadeira: valor(f.cruzDeMadeira),
+    anjoDePedra: valor(f.anjoDePedra),
+    cercaDeFerro: valor(f.cercaDeFerro),
+    paCravada: valor(f.paCravada),
+    velasEOferendas: valor(f.velasEOferendas),
+    arvoreSeca: valor(f.arvoreSeca),
   }
 }
 
@@ -360,7 +381,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 7 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
+  // Lotes 1 a 8 dos 95 objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o
   // mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
@@ -369,6 +390,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
   'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
+  'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
 ]
 
 /**
@@ -1352,6 +1374,85 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: hw * 0.7, y1: -hh * 0.72, x2: hw * 0.7, y2: -hh * 0.36 },
         ...fechado([[-hw * 0.14, -hh * 0.36], [hw * 0.84, -hh * 0.36], [hw * 0.84, hh * 0.6], [hw * 0.68, hh * 0.9], [hw * 0.02, hh * 0.9], [-hw * 0.14, hh * 0.6]]),
       ]
+    case 'cruzDeMadeira': {
+      // Em pé, de frente: o poste e a travessa larga no alto (a cruz em T), a coroa de flores pendurada no cruzamento e o monte de terra no pé (o espantalho tem o chapéu e a cabeça; a lápide é um risco só).
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.12, -hh * 0.94, hw * 0.12, hh * 0.62),
+        ...quadro(-hw * 0.86, -hh * 0.84, hw * 0.86, -hh * 0.6),
+        ...aro(menor * 0.36, menor * 0.36, 0, -hh * 0.24),
+        ...aro(largura * 0.92, altura * 0.28, 0, hh * 0.72),
+      ]
+    }
+    case 'anjoDePedra': {
+      // Em pé, de frente: as duas asas fechadas subindo acima da cabeça baixa, o manto abrindo até o pé e o pedestal com a placa (a estátua é vista de cima, com a espada e sem asas).
+      const menor = Math.min(largura, altura)
+      return [
+        ...fechado([[-hw * 0.18, -hh * 0.36], [-hw * 0.42, -hh * 0.98], [-hw * 0.8, -hh * 0.62], [-hw * 0.62, hh * 0.22]]),
+        ...fechado([[hw * 0.18, -hh * 0.36], [hw * 0.42, -hh * 0.98], [hw * 0.8, -hh * 0.62], [hw * 0.62, hh * 0.22]]),
+        ...aro(menor * 0.2, menor * 0.2, 0, -hh * 0.5),
+        ...fechado([[-hw * 0.18, -hh * 0.34], [hw * 0.18, -hh * 0.34], [hw * 0.32, hh * 0.26], [-hw * 0.32, hh * 0.26]]),
+        ...quadro(-hw * 0.72, hh * 0.26, hw * 0.72, hh * 0.96),
+        linha(-hw * 0.36, hh * 0.6, hw * 0.36),
+      ]
+    }
+    case 'cercaDeFerro': {
+      // Ao longo do lado maior (como a imagem): um pilarete quadrado em cada ponta, a travessa entre eles e as barras atravessadas nela (o arco do portão tem postes compridos e a trave sem barras; o muro baixo, as duas beiras da capa com as juntas tortas).
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitada ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const p = meiaL * 0.9
+      const pilarete = (u: number): Traco[] => [traco(u - p, -p, u + p, -p), traco(u + p, -p, u + p, p), traco(u + p, p, u - p, p), traco(u - p, p, u - p, -p)]
+      const barras = Math.max(3, Math.round((2 * meioC - 4 * p) / (meiaL * 1.2)))
+      const vao = (2 * meioC - 4 * p) / (barras + 1)
+      return [
+        ...pilarete(-meioC + p),
+        ...pilarete(meioC - p),
+        traco(-meioC + 2 * p, 0, meioC - 2 * p, 0),
+        ...Array.from({ length: barras }, (_, i) => -meioC + 2 * p + vao * (i + 1)).map((u) => traco(u, -meiaL * 0.55, u, meiaL * 0.55)),
+      ]
+    }
+    case 'paCravada': {
+      // De frente, como a imagem: a meia-lua do monte de terra sobre a linha do chão, a lâmina saindo do alto dele, o cabo e o punho em D (a cova é um oval com o risco no meio; a lápide, uma linha só).
+      const chao = hh * 0.72
+      const monte = aro(largura * 0.88, altura * 0.66, 0, chao).filter((t) => Math.max(t.y1, t.y2) <= chao + 0.5)
+      return [
+        linha(-hw * 0.95, chao, hw * 0.95),
+        ...monte,
+        ...quadro(-hw * 0.15, -hh * 0.3, hw * 0.15, hh * 0.08),
+        { x1: 0, y1: -hh * 0.3, x2: 0, y2: -hh * 0.72 },
+        ...fechado([[-hw * 0.16, -hh * 0.95], [hw * 0.16, -hh * 0.95], [0, -hh * 0.72]]),
+      ]
+    }
+    case 'velasEOferendas': {
+      // O pano no meio com a tigela e o pão, e as sete velas em roda, cada uma um aro pequeno (o candelabro de chão tem o mastro no meio e cinco velas iguais em anel; o altar, o tampo, o degrau e o pano atravessado).
+      const menor = Math.min(largura, altura)
+      const velas: readonly (readonly [number, number])[] = [[-0.71, -0.56], [0.03, -0.71], [0.67, -0.54], [0.76, 0.19], [0.45, 0.69], [-0.32, 0.73], [-0.76, 0.15]]
+      return [
+        ...quadro(-hw * 0.61, -hh * 0.49, hw * 0.59, hh * 0.57),
+        ...aro(menor * 0.21, menor * 0.21, -hw * 0.2, -hh * 0.14),
+        ...aro(menor * 0.2, menor * 0.17, hw * 0.22, hh * 0.06),
+        ...velas.flatMap(([fx, fy]) => aro(menor * 0.08, menor * 0.08, fx * hw, fy * hh)),
+      ]
+    }
+    case 'arvoreSeca': {
+      // De cima: o nó do tronco no meio, com o oco, cinco galhos abrindo em estrela desigual até a borda, cada um com a forquilha na ponta, e um sexto quebrado, curto (o toco de árvore tem os aros do topo serrado e quatro raízes curtas).
+      // A estrela inteira em 0,89 do menor lado: a forquilha do galho mais longo chega a 0,56 dele e passava da pegada (0,15 px na pegada estreita de 40 x 80; até 4 px no tamanho de partida); assim cabe no círculo inscrito.
+      const menor = Math.min(largura, altura) * 0.89
+      const em = (ang: number, r: number): [number, number] => [Math.cos(ang) * menor * r, Math.sin(ang) * menor * r]
+      const galho = (ang: number, alcance: number): Traco[] => {
+        const [[x0, y0], [x1, y1]] = [em(ang, 0.1), em(ang, alcance)]
+        const dente = (lado: number): Traco => ({ x1, y1, x2: x1 + em(ang + lado * 0.5, 0.1)[0], y2: y1 + em(ang + lado * 0.5, 0.1)[1] })
+        return [{ x1: x0, y1: y0, x2: x1, y2: y1 }, dente(-1), dente(1)]
+      }
+      return [
+        ...aro(menor * 0.2, menor * 0.2),
+        ...aro(menor * 0.07, menor * 0.07),
+        ...[[-1.95, 0.44], [-0.8, 0.47], [0.25, 0.42], [1.3, 0.46], [2.2, 0.41]].flatMap(([ang, alcance]) => galho(ang, alcance)),
+        galho(2.95, 0.24)[0],
+      ]
+    }
   }
 }
 

@@ -56,6 +56,9 @@ export const TIPOS_MOBILIA = [
   // flores (os dois no chão), o muro baixo de pedra, o toco de árvore, o carrinho de mão e a placa de loja
   // pendurada.
   'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
+  // Lote 8 dos 95 objetos novos (11/11/2026), o cemitério: a cruz de madeira, o anjo de pedra, a cerca de
+  // ferro, a pá cravada na terra, as velas e oferendas (que iluminam em volta) e a árvore seca.
+  'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
