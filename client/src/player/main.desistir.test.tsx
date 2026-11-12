@@ -83,11 +83,10 @@ function avisoDaViagem(): HTMLElement | null {
   return document.querySelector<HTMLElement>('.pp-notice--travel')
 }
 
-/** Toca o pino e confirma o pedido: o aviso de espera aparece. */
+/** Toca o pino e pede num toque (decisão 5 do mestre, 12/11/2026): o aviso de espera aparece. */
 function pedirPassagem(): void {
   act(() => botao('pino porta').click())
   act(() => botao('Pedir para passar').click())
-  act(() => botao('Pedir').click())
 }
 
 beforeAll(async () => {

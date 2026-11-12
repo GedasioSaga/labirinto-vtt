@@ -38,17 +38,34 @@ describe('telas da chave no pino trancado', () => {
     return achado
   }
 
-  it('cartão de Diego (com a chave): "Usar Chave do Escudo", confirma sem falar em mestre, e só então passa', () => {
+  // Decisão 5 do mestre (12/11/2026): "Usar <chave>" passa num toque, sem pergunta.
+  // Com 2 fichas ou mais a pergunta ("Quem passa?") volta, e ela diz a chave.
+  const DUAS = [
+    { id: 'diego', name: 'Diego' },
+    { id: 'rufo', name: 'Rufo' },
+  ]
+
+  it('cartão de Diego (com a chave): "Usar Chave do Escudo" passa num toque, sem falar em mestre', () => {
     const onRequestTravel = vi.fn()
     act(() => root.render(<PlayerPinCard pin={{ ...portao, chave: CHAVE }} stairs={[]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
     expect(container.textContent).not.toContain('Está trancada')
+    expect(container.textContent).not.toContain('mestre')
     act(() => botao(`Usar ${CHAVE}`).click())
-    expect(onRequestTravel).not.toHaveBeenCalled()
+    expect(onRequestTravel).toHaveBeenCalledTimes(1)
+    expect(onRequestTravel).toHaveBeenCalledWith()
+    expect(container.querySelector('.pp-pincard__confirm')).toBeNull()
+    expect(container.textContent).not.toContain('mestre')
+
+    // Duas fichas no pino: a pergunta diz a chave, sem falar em mestre, e só então passa.
+    const comDuas = vi.fn()
+    act(() => root.render(<PlayerPinCard pin={{ ...portao, chave: CHAVE }} stairs={[]} onClose={vi.fn()} onRequestTravel={comDuas} travelers={DUAS} />))
+    act(() => botao(`Usar ${CHAVE}`).click())
+    expect(comDuas).not.toHaveBeenCalled()
     expect(container.textContent).toContain(`Usar ${CHAVE} e passar por aqui?`)
     expect(container.textContent).not.toContain('mestre')
     act(() => botao('Usar').click())
-    expect(onRequestTravel).toHaveBeenCalledTimes(1)
-    expect(onRequestTravel).toHaveBeenCalledWith()
+    expect(comDuas).toHaveBeenCalledTimes(1)
+    expect(comDuas).toHaveBeenCalledWith(undefined, ['diego', 'rufo'])
   })
 
   it('cartão de Ana (sem a chave): "Está trancada" e nenhum botão de passar', () => {
@@ -62,7 +79,7 @@ describe('telas da chave no pino trancado', () => {
     expect(textos()).toEqual(['Fechar'])
   })
 
-  it('encruzilhada trancada com a chave: cada saída pergunta com o nome da chave', () => {
+  it('encruzilhada trancada com a chave: cada saída passa num toque; com duas fichas, a pergunta diz o nome da chave', () => {
     const onRequestTravel = vi.fn()
     const escolhas = [
       { id: 'principal', rotulo: 'Cripta' },
@@ -70,16 +87,26 @@ describe('telas da chave no pino trancado', () => {
     ]
     act(() => root.render(<PlayerPinCard pin={{ ...portao, chave: CHAVE, escolhas }} stairs={[]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />))
     act(() => botao('Torre').click())
-    expect(container.textContent).toContain(`Usar ${CHAVE} e passar por Torre?`)
-    act(() => botao('Usar').click())
+    expect(onRequestTravel).toHaveBeenCalledTimes(1)
     expect(onRequestTravel).toHaveBeenCalledWith('s2')
+    expect(container.textContent).not.toContain('mestre')
+
+    const comDuas = vi.fn()
+    act(() =>
+      root.render(<PlayerPinCard pin={{ ...portao, chave: CHAVE, escolhas }} stairs={[]} onClose={vi.fn()} onRequestTravel={comDuas} travelers={DUAS} />),
+    )
+    act(() => botao('Torre').click())
+    expect(container.textContent).toContain(`Usar ${CHAVE} e passar por Torre?`)
+    expect(comDuas).not.toHaveBeenCalled()
+    act(() => botao('Usar').click())
+    expect(comDuas).toHaveBeenCalledWith('s2', ['diego', 'rufo'])
   })
 
   describe('escada trancada (a escada que leva a outro andar)', () => {
     const escada: Stair = { id: 'escada', shape: 'straight', direction: 'up', segments: [{ x1: 0, y1: 0, x2: 0, y2: -80 }], stepWidth: 40 }
     const pinoDaEscada: Pin = { ...portao, id: 'pino-da-escada', description: '', escadaId: 'escada' }
 
-    it('com a chave: lê "Subir", oferece "Usar Chave do Escudo" e pergunta pelo sentido, sem falar em mestre', () => {
+    it('com a chave: lê "Subir", oferece "Usar Chave do Escudo", que sobe num toque, sem falar em mestre', () => {
       const onRequestTravel = vi.fn()
       act(() =>
         root.render(<PlayerPinCard pin={{ ...pinoDaEscada, chave: CHAVE }} stairs={[escada]} onClose={vi.fn()} onRequestTravel={onRequestTravel} />),
@@ -87,11 +114,21 @@ describe('telas da chave no pino trancado', () => {
       expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Subir')
       expect(container.textContent).not.toContain('Está trancada')
       act(() => botao(`Usar ${CHAVE}`).click())
-      expect(container.textContent).toContain(`Usar ${CHAVE} e subir?`)
-      expect(container.textContent).not.toContain('mestre')
-      act(() => botao('Usar').click())
       expect(onRequestTravel).toHaveBeenCalledTimes(1)
       expect(onRequestTravel).toHaveBeenCalledWith()
+      expect(container.textContent).not.toContain('mestre')
+
+      // Com duas fichas a pergunta volta, e é pelo sentido, sem falar em mestre.
+      const comDuas = vi.fn()
+      act(() =>
+        root.render(<PlayerPinCard pin={{ ...pinoDaEscada, chave: CHAVE }} stairs={[escada]} onClose={vi.fn()} onRequestTravel={comDuas} travelers={DUAS} />),
+      )
+      act(() => botao(`Usar ${CHAVE}`).click())
+      expect(container.textContent).toContain(`Usar ${CHAVE} e subir?`)
+      expect(container.textContent).not.toContain('mestre')
+      expect(comDuas).not.toHaveBeenCalled()
+      act(() => botao('Usar').click())
+      expect(comDuas).toHaveBeenCalledWith(undefined, ['diego', 'rufo'])
     })
 
     it('sem a chave: lê "Descer" e "Está trancada", sem botão de passar', () => {

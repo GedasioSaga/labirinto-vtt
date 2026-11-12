@@ -91,12 +91,13 @@ describe('PlayerPinCard: "Quem passa?"', () => {
     expect(t.onRequestTravel).toHaveBeenCalledWith('beiral', ['enzo'])
   })
 
-  it('uma ficha só (ou nenhuma lista): cartão de sempre, sem caixas, e o pedido sem lista', () => {
+  // Decisão 5 do mestre (12/11/2026): com uma ficha só não há o que escolher, e o pedido sai num toque.
+  it('uma ficha só (ou nenhuma lista): cartão de sempre, sem caixas, e o pedido sem lista num toque', () => {
     const t = abre({ travelers: [{ id: 'enzo', name: 'Enzo' }] })
     act(() => t.botao('Pedir para passar').click())
     expect(container.querySelector('fieldset')).toBeNull()
     expect(t.caixas()).toHaveLength(0)
-    act(() => t.botao('Pedir').click())
+    expect(container.querySelector('.pp-pincard__confirm')).toBeNull()
     expect(t.onRequestTravel).toHaveBeenCalledTimes(1)
     expect(t.onRequestTravel.mock.calls[0]).toEqual([])
   })

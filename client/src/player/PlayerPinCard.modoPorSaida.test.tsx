@@ -57,31 +57,68 @@ describe('PlayerPinCard: modo por saída', () => {
     expect(container.textContent).not.toContain('Está trancada')
   })
 
-  it('saída livre: "Passar por Escada?" e o botão de confirmar é "Passar"', () => {
+  /**
+   * Decisão 5 do mestre (12/11/2026): cada saída manda o pedido num toque, sem
+   * pergunta. A pergunta só abre com 2 fichas ou mais no pino ("Quem passa?"),
+   * e aí ela e o botão de confirmar seguem o modo DA SAÍDA.
+   */
+  const DUAS_FICHAS = [
+    { id: 'enzo', name: 'Enzo' },
+    { id: 'rufo', name: 'Rufo' },
+  ]
+  function renderComDuas(pin: Pin, onRequestTravel: (exitId?: string, tokenIds?: string[]) => void): void {
+    act(() => root.render(<PlayerPinCard pin={pin} stairs={[]} onClose={() => {}} onRequestTravel={onRequestTravel} travelers={DUAS_FICHAS} />))
+  }
+
+  it('saída livre: um toque manda a saída; com duas fichas, "Passar por Escada?" e o botão de confirmar é "Passar"', () => {
     const pedir = vi.fn()
     render(CRUZ, pedir)
     act(() => saida('Escada')?.click())
-    expect(pergunta()).toBe('Passar por Escada?')
-    act(() => botao('Passar')?.click())
+    expect(pergunta()).toBe('')
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenCalledWith('saida_torre')
+
+    const pedirDuas = vi.fn()
+    renderComDuas(CRUZ, pedirDuas)
+    act(() => saida('Escada')?.click())
+    expect(pergunta()).toBe('Passar por Escada?')
+    expect(pedirDuas).not.toHaveBeenCalled()
+    act(() => botao('Passar')?.click())
+    expect(pedirDuas).toHaveBeenCalledWith('saida_torre', ['enzo', 'rufo'])
   })
 
-  it('saída que pede: "Pedir ao mestre para passar por Porta?" e "Pedir"', () => {
+  it('saída que pede: um toque manda a saída; com duas fichas, "Pedir ao mestre para passar por Porta?" e "Pedir"', () => {
     const pedir = vi.fn()
     render(CRUZ, pedir)
     act(() => saida('Porta')?.click())
-    expect(pergunta()).toBe('Pedir ao mestre para passar por Porta?')
-    act(() => botao('Pedir')?.click())
+    expect(pergunta()).toBe('')
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenCalledWith('principal')
+
+    const pedirDuas = vi.fn()
+    renderComDuas(CRUZ, pedirDuas)
+    act(() => saida('Porta')?.click())
+    expect(pergunta()).toBe('Pedir ao mestre para passar por Porta?')
+    expect(pedirDuas).not.toHaveBeenCalled()
+    act(() => botao('Pedir')?.click())
+    expect(pedirDuas).toHaveBeenCalledWith('principal', ['enzo', 'rufo'])
   })
 
-  it('saída trancada que aceita tentativas: pede ao mestre para ABRIR', () => {
+  it('saída trancada que aceita tentativas: um toque manda; com duas fichas, pede ao mestre para ABRIR', () => {
     const pedir = vi.fn()
     render(CRUZ, pedir)
     act(() => saida('Poço')?.click())
-    expect(pergunta()).toBe('Pedir ao mestre para abrir Poço?')
-    act(() => botao('Pedir')?.click())
+    expect(pergunta()).toBe('')
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenCalledWith('saida_poco')
+
+    const pedirDuas = vi.fn()
+    renderComDuas(CRUZ, pedirDuas)
+    act(() => saida('Poço')?.click())
+    expect(pergunta()).toBe('Pedir ao mestre para abrir Poço?')
+    expect(pedirDuas).not.toHaveBeenCalled()
+    act(() => botao('Pedir')?.click())
+    expect(pedirDuas).toHaveBeenCalledWith('saida_poco', ['enzo', 'rufo'])
   })
 
   it('saída trancada num pino mudo: o botão dela fica desligado; as outras seguem', () => {

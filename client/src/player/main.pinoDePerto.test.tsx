@@ -137,8 +137,8 @@ describe('main.tsx: pino de viagem só de perto', () => {
     const pedir = botao('Pedir para passar')
     expect(pedir.disabled).toBe(false)
     expect(botaoQueComeca('Chegue mais perto')).toBeUndefined()
+    // Um toque manda (decisão 5 do mestre, 12/11/2026).
     act(() => pedir.click())
-    act(() => botao('Pedir').click())
     expect(mestre().enviados('pin.travel.request')).toEqual([{ type: 'pin.travel.request', pinId: 'porta' }])
   })
 

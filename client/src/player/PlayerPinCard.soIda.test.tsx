@@ -58,11 +58,15 @@ describe('PlayerPinCard: passagem só de ida', () => {
     expect(etiquetas()).toEqual(['Só ida'])
   })
 
-  it('sem semVolta: nenhuma etiqueta, e a pergunta é a de sempre', () => {
-    render(CALHA)
+  // Decisão 5 do mestre (12/11/2026): fora da só de ida (e das 2+ fichas), o pedido sai num toque.
+  it('sem semVolta: nenhuma etiqueta, e o pedido sai num toque, sem pergunta', () => {
+    const pedir = vi.fn()
+    render(CALHA, pedir)
     expect(etiquetas()).toEqual([])
     act(() => botao('Pedir para passar')?.click())
-    expect(pergunta()).toBe('Pedir ao mestre para passar por aqui?')
+    expect(pergunta()).toBe('')
+    expect(pedir).toHaveBeenCalledTimes(1)
+    expect(pedir).toHaveBeenCalledWith()
   })
 
   it('pedir por passagem só de ida: a pergunta avisa que não tem volta e o foco começa no Cancelar', () => {
@@ -95,10 +99,12 @@ describe('PlayerPinCard: passagem só de ida', () => {
     expect(document.activeElement?.textContent).toBe('Cancelar')
     act(() => botao('Cancelar')?.click())
 
+    expect(pedir).not.toHaveBeenCalled()
+
+    // A saída que tem volta vai num toque (decisão 5), sem pergunta.
     act(() => botao('Sacada')?.click())
-    expect(pergunta()).toBe('Pedir ao mestre para passar por Sacada?')
-    expect(document.activeElement?.textContent).toBe('Pedir')
-    act(() => botao('Pedir')?.click())
+    expect(pergunta()).toBe('')
+    expect(pedir).toHaveBeenCalledTimes(1)
     expect(pedir).toHaveBeenCalledWith('principal')
   })
 })

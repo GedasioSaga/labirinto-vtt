@@ -102,6 +102,8 @@ describe('painel do mestre: passagem com passe', () => {
 })
 
 describe('cartão do jogador: pino com passe', () => {
+  // Decisão 5 do mestre (12/11/2026): o aviso do passe mora numa linha embaixo
+  // do botão, ANTES do toque, e o "Passar" manda num toque, sem pergunta.
   it('oferece "Passar" e avisa que, sem o passe, o pedido vai ao mestre', () => {
     const onRequestTravel = vi.fn()
     act(() =>
@@ -114,10 +116,10 @@ describe('cartão do jogador: pino com passe', () => {
         />,
       ),
     )
+    expect(container.querySelector('.pp-pincard__watch-hint')?.textContent).toBe('Sem o passe, o pedido vai ao mestre.')
     act(() => botao('Passar').click())
-    expect(container.textContent).toContain('Sem o passe, o pedido vai ao mestre.')
-    const confirmar = [...container.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Passar').at(-1)
-    act(() => confirmar?.click())
     expect(onRequestTravel).toHaveBeenCalledTimes(1)
+    expect(onRequestTravel).toHaveBeenCalledWith()
+    expect(container.querySelector('.pp-pincard__confirm')).toBeNull()
   })
 })

@@ -35,7 +35,8 @@ describe('PlayerPinCard: escada', () => {
     return achado
   }
 
-  it('escada que sobe: lê "Subir", passa com "Passar" e confirma', () => {
+  // Decisão 5 do mestre (12/11/2026): a passagem vai num toque, sem a pergunta.
+  it('escada que sobe: lê "Subir" e passa com UM toque em "Passar", sem pergunta', () => {
     const onRequestTravel = vi.fn()
     act(() => root.render(<PlayerPinCard pin={PINO} stairs={[SOBE]} onClose={() => {}} onRequestTravel={onRequestTravel} />))
     const dialogo = container.querySelector('[role="dialog"]')
@@ -45,9 +46,10 @@ describe('PlayerPinCard: escada', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(container.textContent).not.toContain('O mestre ainda não escreveu')
     act(() => botao('Passar').click())
-    expect(container.textContent).toContain('Subir por aqui?')
-    act(() => botao('Passar').click())
     expect(onRequestTravel).toHaveBeenCalledTimes(1)
+    expect(onRequestTravel).toHaveBeenCalledWith()
+    expect(container.textContent).not.toContain('Subir por aqui?')
+    expect(container.querySelector('.pp-pincard__confirm')).toBeNull()
   })
 
   it('escada que desce, pedindo ao mestre: lê "Descer" e "Pedir para descer"', () => {

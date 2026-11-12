@@ -89,11 +89,18 @@ describe('PlayerPinCard: pino de viagem de longe', () => {
     expect(host.textContent).not.toContain('Chegue mais perto')
   })
 
+  // Decisão 5 do mestre (12/11/2026): a pergunta só abre com 2 fichas ou mais
+  // ("Quem passa?") ou na passagem só de ida; aqui, as duas fichas a abrem.
   it('a ficha sai de perto com a pergunta aberta: o "Pedir" da confirmação apaga também', () => {
     const pedir = vi.fn()
-    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} />))
+    const duas = [
+      { id: 'enzo', name: 'Enzo' },
+      { id: 'rufo', name: 'Rufo' },
+    ]
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} travelers={duas} />))
     act(() => botao('Pedir para passar').click())
-    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} longe />))
+    expect(pedir).not.toHaveBeenCalled()
+    act(() => root.render(<PlayerPinCard pin={PORTA} stairs={[]} onClose={() => {}} onRequestTravel={pedir} travelers={duas} longe />))
     const confirmar = botao('Pedir')
     expect(confirmar.disabled).toBe(true)
     act(() => confirmar.click())
