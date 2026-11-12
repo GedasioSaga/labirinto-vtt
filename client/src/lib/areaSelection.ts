@@ -674,7 +674,7 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     const drawingIds = new Set(selection.drawings)
     next = {
       ...next,
-      drawings: next.drawings.map((d) => (drawingIds.has(d.id) ? moveDrawingItem(d, dx, dy) : d)),
+      drawings: next.drawings.map((d) => (drawingIds.has(d.id) && canInteract(d) ? moveDrawingItem(d, dx, dy) : d)),
     }
   }
 

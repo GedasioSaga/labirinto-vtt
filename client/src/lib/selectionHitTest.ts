@@ -612,6 +612,8 @@ function semOsTiradosPorItem(map: MapData): MapData {
     lights: map.lights.filter(canInteract),
     regions: map.regions.filter(canInteract),
     stairs: map.stairs.filter(canInteract),
+    // Desenho travado (caça 12/11, E2): a borracha também o tira um a um.
+    drawings: map.drawings.filter(canInteract),
     tokens: map.tokens.filter((token) => canInteract(token) && !isHidden(token)),
     props: map.props.filter((prop) => canInteract(prop) && !isHidden(prop)),
   }

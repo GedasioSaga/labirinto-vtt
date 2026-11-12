@@ -280,7 +280,8 @@ export function drawEditHandles(
   view: EditHandlesView = {},
 ): void {
   graphics.clear()
-  if (activeTool !== 'select' || !selection) return
+  // Caça 12/11 (E9): com a ferramenta Objeto, o objeto selecionado mostra as mesmas alças do Selecionar.
+  if (!selection || (activeTool !== 'select' && !(activeTool === 'mobilia' && selection.kind === 'prop'))) return
   const scale = view.cameraScale ?? 1
 
   if (selection.kind === 'region') {
@@ -317,7 +318,8 @@ export function drawEditHandles(
 
   if (selection.kind === 'drawing') {
     const drawing = map.drawings.find((d) => d.id === selection.id)
-    if (!drawing) return
+    // Desenho travado (caça 12/11, E2): sem alça, como o objeto travado.
+    if (!drawing || isLocked(drawing)) return
 
     if (drawing.kind === 'line') {
       drawVertexHandle(graphics, drawing.x1, drawing.y1, scale)

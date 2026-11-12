@@ -1943,8 +1943,18 @@ export interface ComParedesAoRedor {
   paredes?: ParedesDoDesenho
 }
 
+/**
+ * "Travado" do desenho (caça de 12/11/2026, E2, decisão 12): como o do objeto,
+ * segura o desenho contra arrasto, alça e borracha; o clique ainda o seleciona,
+ * que é como se chega ao interruptor para destravar. `undefined` === false,
+ * sem linha de migração (mesmo padrão de `Prop.locked`).
+ */
+export interface ComTrava {
+  locked?: boolean
+}
+
 // `& PlayerSecret` distribui sobre a união: cada variante ganha `secret?`.
-export type Drawing = PlayerSecret & NoPiso & NaCamada & ComParedesAoRedor & (
+export type Drawing = PlayerSecret & NoPiso & NaCamada & ComParedesAoRedor & ComTrava & (
   | { id: string; kind: 'freehand'; points: DrawingPoint[]; color: string; width: number; cap?: DrawingCap; texture?: FreehandTexture; dash?: DrawingDash; pontosChave?: PontosChave }
   | { id: string; kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; cap?: DrawingCap; dash?: DrawingDash }
   | { id: string; kind: 'circle'; cx: number; cy: number; radius: number; color: string; width: number; filled: boolean; fillAlpha: number }

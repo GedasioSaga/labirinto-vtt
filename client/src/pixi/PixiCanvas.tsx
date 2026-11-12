@@ -5078,6 +5078,10 @@ function PixiCanvasDoContexto({
           // Continua não se movendo — quem cobra isso é `canInteract` em cada
           // branch de arrasto/edição de vértice abaixo.
           regions: map.regions.filter((region) => !camadas.travada(camadas.camadaDe('regiao', region))),
+          // Desenho TRAVADO (caça 12/11, E2) também: o gramado travado segue clicável para chegar
+          // ao interruptor, e o clique nele não pega o que está por baixo. Quem segura o arrasto é
+          // `canInteract` no ramo do desenho; a borracha usa `hitTestMap`, que o tira.
+          drawings: map.drawings.filter((drawing) => !camadas.travada(camadas.camadaDe('desenho', drawing))),
         }
       }
 
@@ -6658,6 +6662,38 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // Alças do objeto selecionado: com o Selecionar e, desde a caça de 12/11 (E9), com a
+        // ferramenta Objeto, que já está com a peça na mão. ANTES do ramo que põe objeto: a
+        // bolinha de girar fica fora do corpo, e o clique nela poria outro objeto ali.
+        if ((activeTool === 'select' || activeTool === 'mobilia') && single?.kind === 'prop') {
+          const prop = map.props.find((p) => p.id === single.id)
+          if (prop && canInteract(prop)) {
+            const corner = findPropCornerHandleAt(prop, worldPoint, camera.scale)
+            if (corner !== null) {
+              mode = 'resizing-prop-corner'
+              resizingPropId = prop.id
+              resizingPropCorner = corner
+              resizingPropSnapshot = map
+              return
+            }
+            // Cerca: a bolinha do meio do fio curva (pixi/cercaCurvaGesture.ts) — antes do
+            // arrasto do corpo, que pegaria a cerca inteira e a moveria.
+            if (event.button === 0 && cercaCurvaGesture.begin(prop.id, worldPoint, camera.scale)) {
+              mode = 'curving-fence'
+              updateCursor()
+              return
+            }
+            // Alça de girar do objeto (bolinha acima dele, a mesma da sala): depois do canto e
+            // da curva da cerca, que seguem como eram; antes do clique no que está embaixo dela.
+            if (event.button === 0 && roomRotateGesture.beginProp(prop.id, worldPoint, camera.scale)) {
+              mode = 'rotating-room'
+              redrawEditHandles()
+              updateCursor()
+              return
+            }
+          }
+        }
+
         // Objetos: clique esquerdo num objeto JÁ POSTO é ele que o mestre quer
         // (pedido de 12/11/2026): segue o fluxo de sempre, mais abaixo — o
         // objeto fica selecionado (a ficha dele abre) e o mesmo gesto o
@@ -6860,7 +6896,8 @@ function PixiCanvasDoContexto({
         }
 
         if (activeTool === 'select' && single?.kind === 'drawing') {
-          const drawing = map.drawings.find((d) => d.id === single.id)
+          // Travado (E2): nenhuma alça pega o desenho.
+          const drawing = map.drawings.find((d) => d.id === single.id && canInteract(d))
 
           // B3 (bug3 "mover e redimensionar"): alça de canto de rect/ellipse,
           // ANTES de curve/line abaixo — um clique numa alça tem prioridade
@@ -7039,35 +7076,6 @@ function PixiCanvasDoContexto({
               mode = 'resizing-token'
               resizingTokenId = token.id
               resizingTokenSnapshot = map
-              return
-            }
-          }
-        }
-
-        if (activeTool === 'select' && single?.kind === 'prop') {
-          const prop = map.props.find((p) => p.id === single.id)
-          if (prop && canInteract(prop)) {
-            const corner = findPropCornerHandleAt(prop, worldPoint, camera.scale)
-            if (corner !== null) {
-              mode = 'resizing-prop-corner'
-              resizingPropId = prop.id
-              resizingPropCorner = corner
-              resizingPropSnapshot = map
-              return
-            }
-            // Cerca: a bolinha do meio do fio curva (pixi/cercaCurvaGesture.ts) — antes do
-            // arrasto do corpo, que pegaria a cerca inteira e a moveria.
-            if (event.button === 0 && cercaCurvaGesture.begin(prop.id, worldPoint, camera.scale)) {
-              mode = 'curving-fence'
-              updateCursor()
-              return
-            }
-            // Alça de girar do objeto (bolinha acima dele, a mesma da sala): depois do canto e
-            // da curva da cerca, que seguem como eram; antes do clique no que está embaixo dela.
-            if (event.button === 0 && roomRotateGesture.beginProp(prop.id, worldPoint, camera.scale)) {
-              mode = 'rotating-room'
-              redrawEditHandles()
-              updateCursor()
               return
             }
           }
@@ -7441,7 +7449,8 @@ function PixiCanvasDoContexto({
               bodyGuideDrag = startFloorGuideDrag(id, worldPoint)
             })
           } else if (hit.kind === 'drawing') {
-            const drawing = map.drawings.find((d) => d.id === hit.id)
+            // Caça 12/11 (E2): desenho travado é selecionado (o interruptor está na ficha) mas não anda.
+            const drawing = map.drawings.find((d) => d.id === hit.id && canInteract(d))
             if (drawing && drawing.kind === 'curve') {
               mode = 'dragging-curve-body'
               curveDragSnapshot = map

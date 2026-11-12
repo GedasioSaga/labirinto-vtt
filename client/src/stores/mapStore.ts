@@ -889,6 +889,8 @@ interface MapStoreState {
    * e ação sem efeito visível não ganha UI (ver ItemTransformControls.tsx).
    */
   setRegionLocked: (id: string, locked: boolean) => void
+  /** "Travado" do desenho (caça 12/11, E2): o mesmo contrato de `setRegionLocked`, com Ctrl+Z. */
+  setDrawingLocked: (id: string, locked: boolean) => void
   addToken: (token: Token) => void
   removeToken: (id: string) => void
   setTokenPosition: (id: string, x: number, y: number) => void
@@ -2568,6 +2570,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRegionLocked: (id, locked) => withHistory((map) => ({
       ...map,
       regions: map.regions.map((r) => (r.id === id ? { ...r, locked } : r)),
+    })),
+    setDrawingLocked: (id, locked) => withHistory((map) => ({
+      ...map,
+      drawings: map.drawings.map((d) => (d.id === id ? { ...d, locked } : d)),
     })),
     addToken: (token) => withHistory((map) => mapFactory.addToken(map, token)),
     removeToken: (id) => withHistory((map) => mapFactory.removeToken(map, id)),

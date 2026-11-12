@@ -6,8 +6,30 @@ import { CAP_OPTIONS, DASH_OPTIONS, LineCapControls, type LineCapControlsProps }
 import { LineShapeControls, type LineShapeControlsProps } from '../LineShapeControls'
 import { ParedesAoRedorControls, type ParedesAoRedorControlsProps } from '../ParedesAoRedorControls'
 import { PlayerSecretControls, type PlayerSecretControlsProps } from '../PlayerSecretControls'
+import { ItemTransformControls } from '../ItemTransformControls'
+import { useMapStore } from '../../stores/mapStore'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import './fichaDoItem.css'
+
+/** O id do desenho selecionado sozinho, ou `null`. */
+function idDoDesenhoSozinho(selection: ReturnType<typeof useMapStore.getState>['selection']): string | null {
+  return selection.length === 1 && selection[0].kind === 'drawing' ? selection[0].id : null
+}
+
+/**
+ * "Travado" do desenho (caça de 12/11/2026, E2, decisão 12): o gramado de 100
+ * casas não sai do lugar num arrasto solto. Lê a store direto: quem monta a
+ * ficha não precisa passar nada, e o interruptor é o mesmo do objeto.
+ */
+function TravaDoDesenho() {
+  const id = useMapStore((state) => idDoDesenhoSozinho(state.selection))
+  const travado = useMapStore((state) => {
+    const alvo = idDoDesenhoSozinho(state.selection)
+    return alvo !== null && state.map.drawings.some((d) => d.id === alvo && d.locked === true)
+  })
+  if (id === null) return null
+  return <ItemTransformControls title="Desenho" locked={travado} onLockedChange={(locked) => useMapStore.getState().setDrawingLocked(id, locked)} semTitulo />
+}
 
 /*
  * FICHA DO DESENHO (fatia 16b do design consolidado; decisão 4.1: a gramática
@@ -65,6 +87,7 @@ export function FichaDoDesenho({ estilo, preenchimento, formato, traco, paredes,
         {formato !== undefined && <LineShapeControls {...formato} semTitulo />}
         {preenchimento !== undefined && <FillControls {...preenchimento} semTitulo />}
         {jogadores !== undefined && <PlayerSecretControls {...jogadores} embutido />}
+        <TravaDoDesenho />
       </Essencial>
       {(traco !== undefined || paredes !== undefined) && (
         <Fichas>
