@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Pin } from '../types/map'
 import { pinDirectory, searchPins, type PinDirectoryScene } from './pinDirectory'
+import { pinSummary } from './pins'
 
 /**
  * LISTA DE PINOS do mestre (cenário "crime"): sete "?" iguais espalhados por
@@ -27,7 +28,7 @@ describe('pinDirectory: todos os pinos da aventura, com o nome do mestre', () =>
     expect(lista.map((e) => [e.sceneId, e.pinId, e.label])).toEqual([
       ['s-casa', 'faca', 'Faca'],
       ['s-casa', 'bilhete', 'Bilhete rasgado'],
-      ['s-casa', 'mudo', 'Ponto de interesse ?'],
+      ['s-casa', 'mudo', 'Pino sem nome'],
       ['s-porao', 'pegada', 'Pegada'],
     ])
     expect(lista[0]).toMatchObject({ sceneName: 'Casa do crime', description: 'Uma lâmina suja de sangue.' })
@@ -43,8 +44,21 @@ describe('pinDirectory: todos os pinos da aventura, com o nome do mestre', () =>
   it('pino sem nenhum campo opcional (mapa antigo) entra na lista pelo resumo', () => {
     const lista = pinDirectory([{ sceneId: null, sceneName: 'Mapa', pins: [{ id: 'velho', x: 0, y: 0, kind: 'exclamacao', description: '', image: null }] }])
     expect(lista).toEqual([
-      expect.objectContaining({ sceneId: null, pinId: 'velho', nome: '', label: 'Ponto de interesse !', description: '' }),
+      expect.objectContaining({ sceneId: null, pinId: 'velho', nome: '', label: 'Pino sem nome', description: '' }),
     ])
+  })
+
+  it('caça 12/11 (P25): "Pino sem nome" só no lugar do glifo cru; descrição, símbolo e viagem continuam, e o texto da rede não muda', () => {
+    const semNada = pino('a', { kind: 'exclamacao' })
+    const lista = pinDirectory([
+      {
+        sceneId: null,
+        sceneName: 'Mapa',
+        pins: [semNada, pino('b', { description: 'Porta rangendo' }), pino('c', { icon: 'bau' }), pino('d', { kind: 'viagem' }), pino('e', { nome: '   ' })],
+      },
+    ])
+    expect(lista.map((e) => e.label)).toEqual(['Pino sem nome', 'Porta rangendo', 'Ponto de interesse — Baú', 'Pino de viagem', 'Pino sem nome'])
+    expect(pinSummary(semNada)).toBe('Ponto de interesse !')
   })
 })
 

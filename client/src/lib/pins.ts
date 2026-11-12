@@ -800,10 +800,21 @@ export function cleanPinName(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, PIN_NOME_MAX_LENGTH) : ''
 }
 
-/** Como o MESTRE chama o pino na lista e ao lado dele: o nome, ou o resumo de sempre. */
+/** O rótulo do mestre para o pino sem nome, sem descrição e sem símbolo. */
+export const PINO_SEM_NOME = 'Pino sem nome'
+
+/**
+ * Como o MESTRE chama o pino na lista e ao lado dele: o nome, ou o resumo de
+ * sempre. Quando o resumo só teria o glifo ("Ponto de interesse !"), a lista diz
+ * que falta nome (caça 12/11, prova P25): o glifo já aparece na própria linha.
+ * `pinSummary` não muda, porque é o texto que vai pela rede.
+ */
 export function pinMasterLabel(pin: Pin): string {
   const nome = cleanPinName(pin.nome)
-  return nome === '' ? pinSummary(pin) : nome
+  if (nome !== '') return nome
+  const resumo = pinSummary(pin)
+  const soOGlifo = pin.description.trim() === '' && resumo === `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
+  return soOGlifo ? PINO_SEM_NOME : resumo
 }
 
 /**

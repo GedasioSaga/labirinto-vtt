@@ -50,8 +50,8 @@ describe('clueRows: as linhas do painel Pistas', () => {
     expect(rows.map((r) => r.pinId)).toEqual(['faca', 'bilhete', 'sem-texto'])
     const bilhete = rows[1]
     expect(bilhete).toMatchObject({ pinId: 'bilhete', label: 'Bilhete', glyph: '?', sceneId: 'cena-andar', sceneName: 'Andar de cima', x: 450, y: 320 })
-    // Sem descrição, o pino é nomeado como no resto do editor.
-    expect(rows[2]?.label).toBe('Ponto de interesse !')
+    // Sem nome nem descrição, a linha diz que falta nome, igual à lista Pinos (caça 12/11).
+    expect(rows[2]?.label).toBe('Pino sem nome')
   })
 
   it('pino com nome só do mestre: a linha usa o mesmo nome da lista Pinos (pinMasterLabel), não a descrição', () => {
