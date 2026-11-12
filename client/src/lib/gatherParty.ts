@@ -4,6 +4,7 @@ import { snapPointForTarget } from '../pixi/tokenInteraction'
 import { carrierIdOf } from './carry'
 import { findTokenPath } from './collision'
 import { compileFloor } from './floorSdf'
+import { chaoQueLimita } from './offFloor'
 import type { PartyMember } from './party'
 import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS } from './pins'
 import { seatTokenCenter, tokenSizeInSquares, type Point } from './tokenSize'
@@ -109,7 +110,7 @@ export function seatChecker(map: MapData, movingTokenIds: ReadonlySet<string> = 
   const grid = map.grid
   const width = map.width * grid
   const height = map.height * grid
-  const floor = compileFloor(map.floor)
+  const floor = compileFloor(chaoQueLimita(map))
   const blocking = map.walls.filter((wall) => wall.blocksMove)
   const taken = seatedTokens(map, movingTokenIds)
   return (p, size) => {
@@ -185,7 +186,7 @@ function seatFinder(map: MapData, pin: Point, movingTokenIds: ReadonlySet<string
   const grid = map.grid
   const width = map.width * grid
   const height = map.height * grid
-  const floor = compileFloor(map.floor)
+  const floor = compileFloor(chaoQueLimita(map))
   const blocking = map.walls.filter((wall) => wall.blocksMove)
   const origin = snapPointForTarget('token', map.gridShape, pin.x, pin.y, grid)
   const originKey = `${Math.round(origin.x)}|${Math.round(origin.y)}`

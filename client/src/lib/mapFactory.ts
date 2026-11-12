@@ -18,6 +18,7 @@ import {
 } from './roomRotation'
 import { defaultMeasurementModeForShape } from './measurement'
 import { faceRangeCellsOrNull } from './tokenVulto'
+import { foraDoChaoLivre, type OffFloor } from './offFloor'
 import { moveBlocos, type Bloco } from './floorBlocks'
 import { apagarBlocosDoChao } from './floorTool'
 import { DEFAULT_FLOOR_STYLE } from './mapFile'
@@ -2869,6 +2870,18 @@ export function setSceneDark(map: MapData, dark: boolean): MapData {
   if (dark) return { ...map, dark: true }
   const { dark: _antes, ...rest } = map
   return rest
+}
+
+/**
+ * "Fora do Chão" da cena (`MapData.offFloor`, `lib/offFloor.ts`). Grava o valor
+ * escolhido, os dois: a cena que o mestre voltou para Bloqueado guarda
+ * `'blocked'`, e o andar novo criado por escada herda a escolha. Escolher o
+ * que já vale devolve o mesmo `map` (cena de antes, sem o campo, continua sem
+ * ele ao escolher Bloqueado).
+ */
+export function setSceneOffFloor(map: MapData, offFloor: OffFloor): MapData {
+  if (foraDoChaoLivre(map) === (offFloor === 'free')) return map
+  return { ...map, offFloor }
 }
 
 /**

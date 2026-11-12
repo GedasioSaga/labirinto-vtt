@@ -29,6 +29,7 @@ import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
 import { visionSegments, type Segment } from '../lib/visibility'
+import { chaoQueLimita } from '../lib/offFloor'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
@@ -644,7 +645,8 @@ function visibleWalls(map: MapData): Wall[] {
  * a troca de período (que refaz o mapa de luz) não muda nada disso.
  */
 function obstaculosDasLuzes(scene: Pick<Scene, 'revisaoDosObstaculos' | 'obstaculosDasLuzes'>, map: MapData): Segment[] {
-  const revisao = scene.revisaoDosObstaculos.de([map.walls, map.floor, map.hiddenLayers])
+  // O chão que LIMITA (`chaoQueLimita`): o mestre trocar o "Fora do Chão" da cena refaz os obstáculos.
+  const revisao = scene.revisaoDosObstaculos.de([map.walls, chaoQueLimita(map), map.hiddenLayers])
   if (scene.obstaculosDasLuzes !== null && scene.obstaculosDasLuzes.revisao === revisao) return scene.obstaculosDasLuzes.segmentos
   const segmentos = visionSegments({ ...map, walls: visibleWalls(map) })
   scene.obstaculosDasLuzes = { revisao, segmentos }
@@ -2878,7 +2880,7 @@ function PlayerViewDoCanvas({
     // luzes, paredes e chão a cada snapshot). A sombra usa o chão INTEIRO, não
     // o recortado da tela (`lastFloorKey` muda a cada pedaço explorado e
     // refaria o contorno da cena toda a cada passo).
-    const revisao = scene.revisaoDasLuzes.de([currentMap.lights, currentMap.walls, currentMap.floor, currentMap.hiddenLayers, scene.pilha.assinaturaDa('lights')])
+    const revisao = scene.revisaoDasLuzes.de([currentMap.lights, currentMap.walls, chaoQueLimita(currentMap), currentMap.hiddenLayers, scene.pilha.assinaturaDa('lights')])
     // Tarde e noite com tinta: quem acende é o mapa de luz, e o halo de sempre some.
     const semHalo = tintaDoJogador(latestRef.current.luz) !== null
     if (revisao === scene.lightsRev && semHalo === scene.lightsSemHalo) return
@@ -4597,7 +4599,7 @@ function PlayerViewDoCanvas({
         const refeitosAntes = scene.mapaDeLuz.medidas.refeitos
         scene.mapaDeLuz.atualizar({
           tinta,
-          revisao: scene.revisaoDoMapaDeLuz.de([m.lights, m.walls, m.floor, m.hiddenLayers]),
+          revisao: scene.revisaoDoMapaDeLuz.de([m.lights, m.walls, chaoQueLimita(m), m.hiddenLayers]),
           luzes: () => visibleLights(m.lights, m.hiddenLayers),
           obstaculos: () => obstaculosDasLuzes(scene, m),
           mapa: { largura: m.width * m.grid, altura: m.height * m.grid },

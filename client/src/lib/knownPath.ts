@@ -7,6 +7,7 @@ import { avancarMalha } from './caminhamento/marcos'
 import { isTokenPathClear } from './collision'
 import { isPointExplored, type Exploration } from './exploration'
 import { compileFloor, type CompiledFloor } from './floorSdf'
+import { chaoQueLimita } from './offFloor'
 import { pointInRing } from './floorContour'
 
 /**
@@ -37,7 +38,7 @@ export interface KnownArea {
   concealed: readonly RegionPoint[][]
 }
 
-export type PathMap = Pick<MapData, 'width' | 'height' | 'grid' | 'walls' | 'floor'>
+export type PathMap = Pick<MapData, 'width' | 'height' | 'grid' | 'walls' | 'floor' | 'offFloor'>
 
 export type MotivoSemCaminhoConhecido = 'sem-caminho' | 'porta-trancada' | 'porta-fechada'
 
@@ -116,7 +117,8 @@ function chaoDe(pecas: FloorPiece[]): CompiledFloor {
 
 /**
  * Onde a ficha do jogador pode pisar: dentro do mapa, no chão (sem peça de
- * chão visível, o chão não restringe — a regra do host) e no que ele conhece
+ * chão visível, ou com a cena em "Fora do Chão: livre", o chão não restringe —
+ * a regra do host, `chaoQueLimita`) e no que ele conhece
  * (`isPointKnown`, com as caixas dos anéis na frente).
  *
  * O CONHECIDO é conferido nos quatro cantos de um quadrado de meio passo de
@@ -126,7 +128,7 @@ function chaoDe(pecas: FloorPiece[]): CompiledFloor {
  * O chão fica na regra do host, ponto a ponto.
  */
 function mascaraConhecida(map: PathMap, area: KnownArea): (x: number, y: number) => boolean {
-  const chao = chaoDe(map.floor)
+  const chao = chaoDe(chaoQueLimita(map))
   const largura = map.width * map.grid
   const altura = map.height * map.grid
   const ocultas = comCaixas(area.concealed)

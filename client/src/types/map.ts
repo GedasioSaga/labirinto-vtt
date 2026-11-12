@@ -2351,6 +2351,13 @@ export interface MapData {
    *  É do mestre: não sai no recorte do jogador (`lib/fogFilter.ts`).
    *  `undefined` === false (cena clara, como sempre) — sem linha de migração. */
   dark?: boolean
+  /** "FORA DO CHÃO" — opção da CENA (`lib/offFloor.ts`). `'free'` (livre): para
+   *  limite de visão e de movimento a cena vale como se não tivesse nenhuma
+   *  peça de Chão; as peças continuam sendo pintura. `'blocked'` e AUSENTE
+   *  (mapa de antes, sem linha de migração): a borda do Chão barra a visão e o
+   *  passo do jogador, como sempre. Atravessa no recorte do jogador
+   *  (`lib/fogFilter.ts`): a tela dele confere o próprio passo com ela. */
+  offFloor?: 'free' | 'blocked'
   /** "Rostos só de perto: N casas" — opção da CENA. Ficha que não é do
    *  jogador, além de N casas (no modo de medição do mapa) de todas as fichas
    *  dele, sai do recorte como "Vulto": sem nome, foto, cor nem marca

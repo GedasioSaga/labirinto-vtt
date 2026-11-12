@@ -85,6 +85,7 @@ import { normalizarCorDaPorta } from './corDaPorta'
 import { readPinColecao } from './colecao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
+import { readOffFloor } from './offFloor'
 import { lerAcesaEm, lerAmbientePorPeriodo, lerPeriodo, lerVisaoPorPeriodo } from './periodo'
 import { isDaVista } from './espiar'
 import { tokenPublicNameFromFile } from './tokenPublicName'
@@ -1049,6 +1050,9 @@ function deserializeMapFields(json: string): MapData {
     visionCells: readSceneVisionCells(parsed.visionCells),
     // NOVO — "Cena escura". Só `true` escurece; ausente ou torto volta ausente (cena clara).
     dark: parsed.dark === true ? true : undefined,
+    // "Fora do Chão": campo NOVO e OPCIONAL. Só 'free' e 'blocked' voltam; ausente
+    // (ou torto) abre SEM o campo, que é bloqueado: a cena de sempre (`lib/offFloor.ts`).
+    ...offFloorField(parsed.offFloor),
     // "Rostos só de perto": campo NOVO e OPCIONAL. Só inteiro de 1 a 99 volta;
     // o resto (texto, fração, arquivo editado à mão) volta AUSENTE — a cena de
     // sempre, com o rosto de todo mundo à vista.
@@ -1118,6 +1122,12 @@ function deserializeMapFields(json: string): MapData {
     // ESTEIRA: campo NOVO e OPCIONAL, mesmo padrão de `hazards` — ver `readConveyors`.
     ...conveyorsField(parsed.conveyors),
   }
+}
+
+/** `offFloor` só entra no mapa quando o arquivo traz um dos dois valores: mapa de antes não ganha campo. */
+function offFloorField(raw: unknown): Pick<MapData, 'offFloor'> {
+  const offFloor = readOffFloor(raw)
+  return offFloor === undefined ? {} : { offFloor }
 }
 
 /** `textoChegada` só entra no mapa quando o arquivo traz texto: mapa de antes não ganha campo. */

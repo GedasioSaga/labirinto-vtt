@@ -5,6 +5,7 @@ import { paredesParaAndar } from './barranco'
 import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
+import { chaoQueLimita } from './offFloor'
 import { playerHiddenRings } from './fogFilter'
 import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
@@ -335,7 +336,8 @@ export function validateTokenMove(
   // direção que pediu. Parede e chão são checados no trecho que ele anda DE
   // FATO — obstáculo além do alcance não recusa um passo que nem chega lá.
   const to = options.isHost ? { x: request.x, y: request.y } : clampToMaxStep(map, from, { x: request.x, y: request.y })
-  const compiled = compileFloor(map.floor)
+  // FORA DO CHÃO: na cena livre nenhuma peça limita (`chaoQueLimita`), e as três travas do chão abaixo não seguram.
+  const compiled = compileFloor(chaoQueLimita(map))
   // BARRANCO (`lib/barranco.ts`): a linha do barranco do piso da ficha segura o passo como parede que deixa ver.
   const paredes = paredesParaAndar(map.walls, map, pisoDe(token))
 

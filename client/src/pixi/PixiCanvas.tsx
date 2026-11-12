@@ -60,6 +60,7 @@ import { createLightsRenderer } from './drawLights'
 import { TINTA_NO_EDITOR, criarMapaDeLuz, criarRevisao, tintaDaCena } from './mapaDeLuz'
 import { luzAcesaNoPeriodo } from '../lib/periodo'
 import { visionSegments, type Segment } from '../lib/visibility'
+import { chaoQueLimita } from '../lib/offFloor'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
 import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo, soltarPintura, vistaDaCamera, type EntradaDasTexturas } from './drawTexturas'
@@ -2366,9 +2367,11 @@ function PixiCanvasDoContexto({
       const SEM_OBSTACULOS_DE_LUZ: Segment[] = []
       let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
       const lightOccludersOf = (map: MapData): Segment[] => {
-        if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === map.floor) return lightOccluders.segments
+        // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena troca a referência e refaz.
+        const floor = chaoQueLimita(map)
+        if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === floor) return lightOccluders.segments
         const segments = visionSegments(map)
-        lightOccluders = { walls: map.walls, floor: map.floor, segments }
+        lightOccluders = { walls: map.walls, floor, segments }
         return segments
       }
 
@@ -3033,7 +3036,7 @@ function PixiCanvasDoContexto({
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
           tinta,
-          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, map.floor, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
+          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, chaoQueLimita(map), map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
             const camadas = contextoDeCamadas(map)
             const daCamada = comoJogador ? map.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(map.lights, map)
@@ -3444,7 +3447,7 @@ function PixiCanvasDoContexto({
       // OLHOS DO GUARDA: porta que abre ou parede que muda troca o que o guarda vê, e a
       // marca (?, !) em cima dele acompanha. Mapa sem guarda não repinta ficha nenhuma.
       const unsubscribeOlharDoGuarda = useMapStore.subscribe((state, previous) => {
-        if (state.map.walls === previous.map.walls && state.map.floor === previous.map.floor) return
+        if (state.map.walls === previous.map.walls && chaoQueLimita(state.map) === chaoQueLimita(previous.map)) return
         if (haGuardaNoMapa(state.map)) redrawTokens()
       })
       // BARRA DE VIDA: a ficha mudou (o dano digitado pelo mestre ou pela sala, a

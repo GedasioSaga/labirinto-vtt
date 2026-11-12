@@ -7,6 +7,7 @@ import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { hazardsOf } from '../lib/hazards'
 import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
+import { chaoQueLimita } from '../lib/offFloor'
 import { tokenPatrolOf } from '../lib/npcPatrol'
 import type { PontoDaRotaAberto } from './drawNpcPatrol'
 import { relevoLigado } from '../lib/relevo'
@@ -231,10 +232,11 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       return [map.stairs, hidden, selectedId('stair'), cameraScale, rendererResolution, nos('stairsGraphics'), nos('secretStairsGraphics')]
     case 'lights':
       // Paredes e chão barram a luz (`visionSegments`): mudou um deles, o recorte muda.
-      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, map.floor, nos('lightsContainer')]
+      // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena também refaz.
+      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, chaoQueLimita(map), nos('lightsContainer')]
     case 'watchCones':
       // OLHOS DO GUARDA: o cone segue o guarda (fichas) e é cortado por paredes e chão.
-      return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, map.floor, hidden, map.grid] : ['sem guarda']
+      return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, chaoQueLimita(map), hidden, map.grid] : ['sem guarda']
     case 'patrolRoutes':
       // ROTA DE PATRULHA: a rota mora na ficha (marcar ponto, avançar), e a camada Fichas esconde junto.
       // O ponto aberto no painel ganha o anel de destaque.

@@ -2,6 +2,7 @@ import type { Graphics } from 'pixi.js'
 import type { MapData, WatchAlert } from '../types/map'
 import { visibleTokens } from '../lib/layers'
 import { fichasDeJogadorNoMapa, guardAlerts, tokenWatchOf, watchConePolygon } from '../lib/npcWatch'
+import { chaoQueLimita } from '../lib/offFloor'
 import type { Personagem } from '../lib/personagem'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { CONDITION_INK } from '../lib/tokenConditions'
@@ -76,8 +77,10 @@ const CONE_STROKE_WIDTH = 1
 let cached: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
 
 function segmentsOf(map: MapData): Segment[] {
-  if (cached === null || cached.walls !== map.walls || cached.floor !== map.floor) {
-    cached = { walls: map.walls, floor: map.floor, segments: visionSegments(map) }
+  // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena troca a referência, e o cone é refeito.
+  const floor = chaoQueLimita(map)
+  if (cached === null || cached.walls !== map.walls || cached.floor !== floor) {
+    cached = { walls: map.walls, floor, segments: visionSegments(map) }
   }
   return cached.segments
 }

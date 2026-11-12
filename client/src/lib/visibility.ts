@@ -2,6 +2,7 @@ import type { FloorPiece, MapData, RegionPoint, Wall } from '../types/map'
 import { isDoorPassable } from './collision'
 import { buildFloorOutline } from './floorContour'
 import { mesmaGeometriaDoChao } from './floorGeometry'
+import { chaoQueLimita } from './offFloor'
 import { simplifyRing } from './refineFloor'
 
 /**
@@ -260,10 +261,12 @@ export function wallLetsSightThrough(wall: Wall, peekDoorIds?: ReadonlySet<strin
 /**
  * Obstáculos de visão: paredes que a visão não atravessa (`wallLetsSightThrough`)
  * + borda do chão. `peekDoorIds`: portas que o jogador desta conta está espiando.
+ * A borda do chão só entra na cena de "Fora do Chão" bloqueado (`chaoQueLimita`):
+ * na cena livre os obstáculos são os da mesma cena sem nenhuma peça de Chão.
  */
 export function visionSegments(map: MapData, peekDoorIds?: ReadonlySet<string>): Segment[] {
   const walls = map.walls
     .filter((w) => !wallLetsSightThrough(w, peekDoorIds))
     .map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
-  return [...walls, ...floorSegments(map.floor)]
+  return [...walls, ...floorSegments(chaoQueLimita(map))]
 }
