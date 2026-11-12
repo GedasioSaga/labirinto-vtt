@@ -401,6 +401,9 @@ const CLOSE_DIALOG_MAX_WAIT_MS = 10_000
 /** Ao fechar o app, quanto se espera o Lobby tirar a sala do ar: sem resposta, ele a esquece sozinho em até 10 min. */
 const FECHAR_NO_LOBBY_MAX_MS = 1_500
 
+/** "X foi apagada." com o "Desfazer" (caça 12/11, E3): o dobro do `info` (4 s), como o aviso de apagar camada. */
+const AVISO_DE_CENA_APAGADA_MS = 8_000
+
 /** ENTRAR PELO LOBBY: a campanha da pasta no sincronizador ligado; `null` = ele não ligou para esta pasta. */
 function campanhaLigadaDaPasta(campanhas: Record<string, CampanhaNoApp>, pastaId: string): string | null {
   return Object.values(campanhas).find((campanha) => campanha.pastaId === pastaId)?.campanhaId ?? null
@@ -2802,7 +2805,23 @@ function App() {
     // Apagar a cena aberta troca a vista: o "Seguir" desliga, como em qualquer troca à mão.
     if (sceneId === activeSceneId) useFollowStore.getState().stop()
     if (useAdventureStore.getState().deleteScene(sceneId, playerTokenIds())) {
-      useToastStore.getState().push('info', `${name} foi apagada.`)
+      // DESFAZER (caça 12/11, E3, decisão 13): vale até o próximo Salvar; quando já não dá, a store avisa o porquê.
+      useToastStore.getState().push('info', `${name} foi apagada.`, AVISO_DE_CENA_APAGADA_MS, {
+        actions: [
+          {
+            label: 'Desfazer',
+            run: () => {
+              // A store guarda só a ÚLTIMA cena apagada: o botão de um aviso mais velho não pode trazer outra.
+              const registro = useAdventureStore.getState().cenaApagada
+              if (registro === null || registro.sceneId !== sceneId) {
+                useToastStore.getState().push('info', 'Não dá mais para desfazer: a aventura foi salva ou outra cena foi apagada depois.')
+                return
+              }
+              if (useAdventureStore.getState().desfazerApagarCena()) useToastStore.getState().push('info', `${name} voltou.`)
+            },
+          },
+        ],
+      })
       return
     }
     useToastStore.getState().push('error', `Não deu para apagar ${name}: alguém ainda está lá, ou é a única cena.`)
