@@ -2322,3 +2322,36 @@ Noite = esta sessão conduzida pelo main thread; o noite-runner continua encerra
 - 12/11/2026, 04h56: **FILA DA NOITE FECHADA.** Tudo o que o mestre pediu entre 11/11 23h40 e 12/11 01h17 está no ar: 0.5.57 (17 objetos), 0.5.58 (18 objetos que fecham os 108, escada que gira, tamanho do mapa por cena, conserto do modo teste), 0.5.59 (textura com um clique, painel do Objeto, botão direito, Ctrl + clique), 0.5.60 (lote 17, telhados, Fora do Chão, colisão). Catálogo: 176 objetos em 15 grupos. As escolhas feitas pelo Claude estão marcadas acima como "decisão do Claude". O que ficou "para depois" está no topo do `HANDOFF.md`.
 - 12/11/2026, 01h01: TEXTURA COM UM CLIQUE, resto dos riscos FECHADO na main (sem versão ainda): `65ce1b99` (a área não vai para o jogador nem para a imagem exportada enquanto o contorno dela denuncia uma sala secreta fechada ou zona oculta; descoberta a sala, a textura volta), `4d2c1bb7` (área com paredes e pilares demais: o balde não grava e avisa "Essa área tem paredes e pilares demais para o balde. Divida-a com paredes ou pinte com o pincel."; antes gravava e sumia ao reabrir), `f1c5af8e` (o texto da ferramenta fala da área fechada por paredes e do Alt + clique). 44 testes passam em 6 arquivos; tsc 0. Efeitos a contar ao mestre: enquanto a sala for secreta, a área inteira em volta dela fica SEM a textura na tela do jogador; mapa novo com essa textura aberto num app antigo (0.5.57 ou menos) abre sem quebrar, mas a textura da área some e o que foi apagado com Alt reaparece. NÃO conferido: navegador; paredes debaixo de telhado fechado. Sai na 0.5.59, com prova na tela do jogador.
 - 12/11/2026, 01h01: ARMADURA QUE SOME NO MODO TESTE (prints 13 e 14): levantado com cópia da cena dele ("Caverna - Corredor – andar de cima"; cópia em `tmp/modo-teste-2026-11-12/armaduras/`). NÃO é defeito do objeto: é a regra de hoje. A linha amarela é a parede do corredor (amarela porque a sala está selecionada); o nicho fica ATRÁS dessa parede, que é inteira e tapa a visão; e um objeto só aparece para o jogador se o CENTRO dele estiver à vista (`client/src/lib/fogFilter.ts:4190`). O centro da armadura está 0,15 px do lado do nicho (o editor prendeu o objeto na linha da parede). Um barril no mesmo ponto também some; 3 px para dentro do corredor, aparece; sem o trecho de parede na frente do nicho, aparece. Não é regressão (regra de setembro). Nada foi mexido no código. Levado ao mestre: no mapa, tirar o trecho de parede na frente do nicho, ou trocar por Janela, ou puxar a armadura para dentro do corredor; e a opção de regra "objeto em cima da parede aparece para quem vê a parede" (não feita; espera ele dizer).
+
+## 12/11/2026, 11h12 (hora em que li; relógio): CAÇA A BUGS VISUAIS, OTIMIZAÇÃO E INTERAÇÕES ESTRANHAS
+
+Literal do mestre (prints 17 a 23 guardados em `tmp/caca-2026-11-12/prints-do-mestre/`):
+
+> Perfeito, Agora vamos atrás de Bugs visuais([Image #17] como esse no reino de goa), optimização e situações estranhas(No sentindo de interações estranhas, exemplo: 1-[Image #18] a gente aperta o botão passar e ele pergunta denovo [Image #19] é uma situação estranha 2-[Image #20] na parte de teste eu quero que Jogar seja o padrão 3-[Image #21] olha esse bug visual aqui, da para ver um parte da parede com textura ma só uma parte o resto fica nas sombras 4-Outro exemplo de estranhesa [Image #22] usar chave? que chave? entende? 5-[Image #23] outra situação entregar item, esse token recebe item ? eu não se não, o que acontece? 5- Eu não sei a melhor maneira das sombras são assim pode ser mais suave sei lá mas esse eu gostaria de ver um prototipo da melhor versão. Além disso já vi que você viu algumas coisas. Vamos fazer o seguinte o Fable 5.2 procura os problemas e acha as soluções e manda o OPUS 5.5 Xhigh fazer. Os bugs e optimizações antes de fazer eu quero a lista para ver.
+
+O "Perfeito" é o aceite das versões 0.5.57 a 0.5.60 (gravado com `aceite.js sim`).
+
+O que ele pediu, item por item:
+1. Print 17: defeito visual no "Reino de Goa" (círculo preto com faixa escura no canto do gramado). Achar a causa.
+2. Prints 18 e 19: a janela "Passagem" pergunta duas vezes ("Passar" e depois "Passar por aqui?").
+3. Print 20: no teste, "Jogar" tem de ser o padrão (hoje é "Olhar").
+4. Print 21: na tela do jogador só um pedaço da parede aparece com textura; o resto fica no escuro.
+5. Print 22: porta trancada oferece "Usar chave" sem existir chave.
+6. Print 23: a ficha oferece "Entregar item" e não se sabe o que acontece.
+7. Sombras: ele quer VER UM PROTÓTIPO da melhor versão (mais suave, talvez) antes de qualquer mudança.
+8. O que eu já tinha visto e deixado "para depois" entra na caça.
+9. Otimização.
+10. Processo: Fable 5.2 acha o problema e a solução; Opus 5.5 xhigh faz. A LISTA de bugs e otimizações vai para ele ANTES de fazer.
+
+Leituras minhas (decisão do Claude, a contar a ele):
+- "Sombras" = o escuro da visão na tela do jogador (o que a ficha não enxerga e a borda dele), que é o assunto do print 21. O protótipo mostra a versão de hoje ao lado da proposta.
+- Os exemplos 1 a 5 são exemplos: os buscadores procuram os outros casos da mesma família.
+- Bug e otimização: nada é consertado antes de ele ver a lista. Os dois itens em que ele já disse o que quer ("Jogar" como padrão; a Passagem que pergunta duas vezes) seguem o caminho que ele descreveu (Fable acha a causa, Opus 5.5 xhigh faz) sem esperar a lista, e aparecem nela como "você já pediu". Chave e Entregar item dependem de escolha dele: vão para a lista com recomendação.
+
+Fila:
+- [ ] Buscadores Fable 5.2 xhigh, só leitura do app, em paralelo, cada um com a sua pasta em `tmp/caca-2026-11-12/`: névoa e visão (prints 17 e 21 e os itens de névoa do "para depois"); sombras (como é hoje, a melhor versão e a especificação do protótipo); varredura visual das 29 cenas dele; interações de jogo (passagem, porta, ficha, pino, escada); interações do editor (a lista "para depois" e o que mais achar); otimização (medida).
+- [ ] Protótipo das sombras (Opus 5.5 xhigh, a partir da especificação do Fable) para ele ver.
+- [ ] Lista única para o mestre, em português simples, com o que precisa de decisão dele.
+- [ ] Depois do "pode": Opus 5.5 xhigh conserta, com prova, e publica.
+
+Preparado às 11h16 (relógio): cópia das campanhas "Reino de Goa" (17 cenas) e "Tasmaturi Village" (12 cenas) em `tmp/caca-2026-11-12/mapas/`; servidor do app (main, sem alterações) na porta 1610; instruções comuns dos buscadores em `tmp/caca-2026-11-12/BRIEFING.md`.
