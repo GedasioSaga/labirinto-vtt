@@ -34,6 +34,7 @@ import {
   marcarTrancasParaJogador,
   memoryBlockedRings,
   noiseCueForPlayer,
+  objetoEscondidoDosJogadores,
   ownTokensInView,
   pinCardForPlayer,
   pinClueForPlayer,
@@ -69,7 +70,7 @@ import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
 import { paredesParaAndar } from '../lib/barranco'
-import { paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
+import { alcancePeloObjeto, paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
@@ -6295,10 +6296,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // Só as fichas que o jogador enxerga, igual ao pedido e ao "Deixar ir"
     // (filterMapForPlayer): ficha escondida pelo mestre não segura o pedido
     // nem vaza, por andar, que está perto do pino.
+    // ALCANCE PELO OBJETO (J9): sem recorte aqui (a conta corre a cada passo), os objetos do mestre
+    // menos os que nenhum jogador recebe (`objetoEscondidoDosJogadores`; `hidden`/`secret` já não barram).
+    const escondido = objetoEscondidoDosJogadores(scene.map)
+    const pelosObjetos = alcancePeloObjeto({ grid: scene.map.grid, props: scene.map.props.filter((p) => !escondido(p)) })
     const stillReaches = fichasNaCamadaDoJogador(scene.map).some((t) => {
       if (!owned.has(t.id) || t.hidden === true) return false
       const novo = movedTo.get(t.id)
-      return tokenReachesPin(novo === undefined ? t : { ...t, ...novo }, pin, scene.map.grid)
+      return tokenReachesPin(novo === undefined ? t : { ...t, ...novo }, pin, scene.map.grid, pelosObjetos)
     })
     if (stillReaches) return null
     return dropPendingTravel(playerId, 'far')
@@ -7123,7 +7128,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return { outbound: [] }
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenAlcancaPino(t, pin, map.grid))) return { outbound: [] }
+    // ALCANCE PELO OBJETO (J9): pelo recorte dele, a mesma conta do botão na tela.
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenAlcancaPino(t, pin, map.grid, alcancePeloObjeto(view.map)))) return { outbound: [] }
     const barrada = barraAtiva(map, pin.id) !== undefined
     if (msg.on === barrada) return { outbound: [] }
     mudarBarra(sceneKey(scene), pin.id, msg.on ? { playerId, playerName: record.name } : null)
@@ -7276,7 +7282,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const noRecorte = alvo.forma === 'pino' ? view.map.pins.some((p) => p.id === itemId) : view.map.props.some((p) => p.id === itemId)
     if (!noRecorte) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
-    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && fichaAlcancaItem(t, alvo, map.grid))
+    // ALCANCE PELO OBJETO (J9): o item no meio do objeto que barra, pelo recorte dele (a mesma conta da tela).
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && fichaAlcancaItem(t, alvo, map.grid, pelosObjetos))
     // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
     const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
     if (token === undefined) return 'far'
@@ -7346,7 +7354,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const item = noRecorte === undefined ? null : itemAVenda(noRecorte, msg.itemId)
     if (item === null) return 'unavailable'
     const owned = new Set(ownership[playerId] ?? [])
-    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))
+    // ALCANCE PELO OBJETO (J9): a banca no meio do objeto que barra, pelo recorte dele.
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const reaching = view.map.tokens.filter((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, pelosObjetos))
     // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
     const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
     if (token === undefined) return 'far'
@@ -7407,7 +7417,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return reject('unavailable')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return reject('far')
+    // ALCANCE PELO OBJETO (J9): pelo recorte dele, a mesma conta da tela.
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return reject('far')
     const door = linkedDoorOf(map, pin)
     if (door === null || door.door.locked) return reject('stuck')
 
@@ -8355,7 +8366,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // (`transferResult`). O alcance é o da FICHA dela, como o cartão do jogador
     // conta (`tokenReachesPin` nas fichas dele) — o veículo não é dele.
     const semDirigir = (id: string): boolean => ridesWithoutDriving(from.map, id)
-    const alcancam = travelCandidates(playerId, mine).filter((t) => tokenReachesPin(t, pin, from.map.grid))
+    // ALCANCE PELO OBJETO (J9): a passagem ou a escada no meio do objeto que barra, pelo recorte dele
+    // (a mesma conta do cartão: botão aceso e "Deixar ir" batem).
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const alcancam = travelCandidates(playerId, mine).filter((t) => tokenReachesPin(t, pin, from.map.grid, pelosObjetos))
     const near = alcancam.filter((t) => !congelada(t.id) && !semDirigir(t.id))
     let token: Token | null = null
     for (const t of near) {
@@ -8390,7 +8404,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         // Com escolha, só uma das escolhidas abre: a chave de quem fica não leva ninguém.
         // CONGELAR FICHA: nem a congelada, que não passa.
         const nearIds = new Set(
-          mine.filter((t) => !congelada(t.id) && !semDirigir(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid)).map((t) => t.id),
+          mine.filter((t) => !congelada(t.id) && !semDirigir(t.id) && (chosen === undefined || chosenIds.has(t.id)) && tokenReachesPin(t, pin, from.map.grid, pelosObjetos)).map((t) => t.id),
         )
         const found = keyForPin(pin, from.map.tokens.filter((t) => nearIds.has(t.id)))
         if (found !== null) keyHolder = { token: found.token, nome: found.item.nome }
@@ -9174,8 +9188,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // "sem visão" anda, mas não enxerga (a regra de `playerEyeTokens`).
     const loans = loansFor(playerId)
     // "Encostado" é a regra de sempre do pino (`tokenReachesPin`), a mesma do
-    // pedido de passagem e do cartão ("Chegue mais perto").
-    const olhoEncostado = view.map.tokens.some((t) => owned.has(t.id) && loans.get(t.id)?.visao !== false && tokenReachesPin(t, pin, from.map.grid))
+    // pedido de passagem e do cartão ("Chegue mais perto"), com o alcance pelo objeto (J9).
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const olhoEncostado = view.map.tokens.some((t) => owned.has(t.id) && loans.get(t.id)?.visao !== false && tokenReachesPin(t, pin, from.map.grid, pelosObjetos))
     if (!olhoEncostado) return reject('unavailable')
     const scenes = allScenes(world)
     const travel = resolvePinTravel(pin, from.sceneId, travelLookup(scenes), SAIDA_PRINCIPAL)
@@ -9919,7 +9934,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return recusa('longe')
     const { outbound, resultado } = fogoNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
     return resultado.ok ? { outbound } : recusa('ocupado')
   }
@@ -9962,7 +9977,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return recusa('longe')
     const { outbound, resultado } = bolhaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
     return resultado.ok ? { outbound } : recusa('ocupado')
   }
@@ -10008,7 +10023,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return recusa('longe')
     const { outbound, resultado } = pescaNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
     if (!resultado.ok) return recusa(resultado.motivo === 'ocupado' ? 'ocupado' : 'indisponivel')
     return { outbound }
@@ -10049,7 +10064,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
     if (!view.map.pins.some((p) => p.id === pin.id)) return recusa('indisponivel')
     const owned = new Set(ownership[playerId] ?? [])
-    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid))) return recusa('longe')
+    if (!view.map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, pin, map.grid, alcancePeloObjeto(view.map)))) return recusa('longe')
     const { outbound, resultado } = tiroNoHost.pedir({ pinId, minigame: copiarMinigame(pin.minigame) }, { playerId, nome: record.name })
     if (!resultado.ok) return recusa(resultado.motivo === 'ocupado' ? 'ocupado' : 'indisponivel')
     return { outbound }

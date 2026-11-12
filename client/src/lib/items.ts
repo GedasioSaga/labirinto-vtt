@@ -2,6 +2,7 @@ import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Prop, Token } fro
 import { tokenRadiusOf } from './doorReach'
 import { venderItem } from './loja'
 import { ehRefDeMidia } from './midia'
+import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
  * ITEM PEGÁVEL — regras puras, compartilhadas pelo host (validar o "Pegar" e
@@ -126,10 +127,16 @@ export function carriedItemsOf(token: Token): CarriedItem[] {
   return token.mochila ?? []
 }
 
-/** O pino está ao alcance da ficha: até `ITEM_REACH_CELLS` célula além da borda dela. */
-export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size'>, pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+/**
+ * O pino está ao alcance da ficha: até `ITEM_REACH_CELLS` célula além da borda
+ * dela. `pelosObjetos` (J9, `alcancePeloObjeto` do recorte do jogador): o pino
+ * no meio de um objeto que barra se alcança encostando no objeto, com a mesma
+ * folga. Ausente = só a distância até o ponto, como antes.
+ */
+export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const reach = tokenRadiusOf(token, grid) + grid * ITEM_REACH_CELLS
-  return Math.hypot(token.x - pin.x, token.y - pin.y) <= reach
+  if (Math.hypot(token.x - pin.x, token.y - pin.y) <= reach) return true
+  return pelosObjetos !== undefined && pelosObjetos(token, pin, reach)
 }
 
 /** Duas fichas encostadas: entre as bordas cabe no máximo `ITEM_REACH_CELLS` célula. */

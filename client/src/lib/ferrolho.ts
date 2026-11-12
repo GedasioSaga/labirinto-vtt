@@ -1,5 +1,6 @@
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor, type ReachPoint } from './doorReach'
+import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
  * JOGADOR TRANCA PORTA OU PASSAGEM — a conta pura, compartilhada pelo host
@@ -43,10 +44,13 @@ export function fichaDoLadoAlcanca(fichas: readonly Pick<Token, 'x' | 'y' | 'siz
 /**
  * A ficha alcança o pino: o centro dele até `DOOR_REACH_CELLS` casa além da
  * borda da ficha — o mesmo "encostado" da porta, para o botão da tela e a
- * checagem do host baterem.
+ * checagem do host baterem. `pelosObjetos` (J9): o pino no meio de um objeto
+ * que barra se alcança encostando no objeto (`alcancePeloObjeto` do recorte).
  */
-export function tokenAlcancaPino(token: Pick<Token, 'x' | 'y' | 'size'>, pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
-  return Math.hypot(pin.x - token.x, pin.y - token.y) <= tokenRadiusOf(token, grid) + grid * DOOR_REACH_CELLS
+export function tokenAlcancaPino(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
+  const alcance = tokenRadiusOf(token, grid) + grid * DOOR_REACH_CELLS
+  if (Math.hypot(pin.x - token.x, pin.y - token.y) <= alcance) return true
+  return pelosObjetos !== undefined && pelosObjetos(token, pin, alcance)
 }
 
 /** O que o botão do ferrolho oferece na tela do jogador, e para qual porta. */

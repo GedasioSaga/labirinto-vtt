@@ -1,6 +1,7 @@
 import type { Pin, Token } from '../types/map'
 import { PIN_TRAVEL_MAX_TOKENS } from '../net/protocol'
 import { tokenReachesPin } from './items'
+import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
 import { readContract } from './tokenLoan'
 import { isNear, NEAR_SQUARES } from './travelTogether'
 import type { Point } from './tokenSize'
@@ -112,13 +113,14 @@ export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly stri
  * que podem ir à frente (as próprias; só com ajudantes na mão, eles), as que
  * encostam no pino estão TODAS congeladas. A mesma conta do host
  * (`validTravel`, que recusa com `congelado`). Ninguém encostado não é caso
- * de congelado: é o "Chegue mais perto".
+ * de congelado: é o "Chegue mais perto". `pelosObjetos` (J9): encostar no
+ * objeto que barra conta como encostar no pino que está dentro dele.
  */
-export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
   const proprias = mine.filter((t) => !isHelper(t))
-  const encostadas = (proprias.length > 0 ? proprias : mine).filter((t) => tokenReachesPin(t, pin, grid))
+  const encostadas = (proprias.length > 0 ? proprias : mine).filter((t) => tokenReachesPin(t, pin, grid, pelosObjetos))
   return encostadas.length > 0 && encostadas.every((t) => t.congelado === true)
 }
 
@@ -141,14 +143,15 @@ export function vaiSemDirigir(token: Pick<Token, 'aBordo'>): boolean {
  * bordo sem dirigir. A mesma conta do host (`validTravel`): conta as que
  * encostam no pino; ninguém encostado, conta todas — a passageira não anda
  * até o pino a bordo, então "Chegue mais perto" não adiantaria. Congelada não
- * entra na conta (`passagemCongelada` diz por ela).
+ * entra na conta (`passagemCongelada` diz por ela). `pelosObjetos` (J9): como
+ * em `passagemCongelada`.
  */
-export function passagemABordo(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number): boolean {
+export function passagemABordo(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
   const proprias = mine.filter((t) => !isHelper(t))
   const pool = proprias.length > 0 ? proprias : mine
-  const encostadas = pool.filter((t) => tokenReachesPin(t, pin, grid))
+  const encostadas = pool.filter((t) => tokenReachesPin(t, pin, grid, pelosObjetos))
   const soltas = (encostadas.length > 0 ? encostadas : pool).filter((t) => t.congelado !== true)
   return soltas.length > 0 && soltas.every(vaiSemDirigir)
 }

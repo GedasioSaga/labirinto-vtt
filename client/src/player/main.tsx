@@ -123,7 +123,7 @@ import { avisoDeCongelado } from './congeladoNotice'
 import { letterTitle } from '../lib/correio'
 import { chatFacesByName, type ChatChannel } from '../lib/chat'
 import { findKnownPath } from '../lib/knownPath'
-import { mapaParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
+import { alcancePeloObjeto, mapaParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
 import { mapaParaPlanejar } from './objetosLembrados'
 import { pisoDe } from '../lib/pisos'
 import { criarPreparoDoCaminho, type PreparoDoCaminho } from '../lib/preparoDoCaminho'
@@ -1540,16 +1540,19 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   useEffect(() => {
     if (openItemNoChaoId !== null && map !== undefined && itemAberto === null) setOpenItemNoChaoId(null)
   }, [openItemNoChaoId, map, itemAberto])
+  // ALCANCE PELO OBJETO (J9): encostar no objeto que barra alcança o que está dentro dele. Do
+  // recorte (o mesmo `view.map` com que o host confere), nunca dos objetos lembrados (J5).
+  const pelosObjetos = useMemo(() => (map === undefined ? undefined : alcancePeloObjeto(map)), [map])
   // A mesma régua do host (`fichaAlcancaItem`): chegando perto, o "Pegar" do cartão aberto acende sozinho.
   const itemAbertoLonge =
-    map !== undefined && itemAberto !== null && !map.tokens.some((t) => ownTokens.includes(t.id) && fichaAlcancaItem(t, itemAberto, map.grid))
+    map !== undefined && itemAberto !== null && !map.tokens.some((t) => ownTokens.includes(t.id) && fichaAlcancaItem(t, itemAberto, map.grid, pelosObjetos))
   // SÓ DE PERTO: a mesma conta do host (`tokenReachesPin`). Recalculada a cada
   // snapshot: quando a ficha encosta, o botão do cartão aberto acende sozinho.
   const openPinFar = useMemo(() => {
     if (!map || openPin === null) return false
     const owned = new Set(ownTokens)
-    return !map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, openPin, map.grid))
-  }, [map, openPin, ownTokens])
+    return !map.tokens.some((t) => owned.has(t.id) && tokenReachesPin(t, openPin, map.grid, pelosObjetos))
+  }, [map, openPin, ownTokens, pelosObjetos])
   // ESCOLHER FICHAS NO PINO: as caixas do "Quem passa?", pela mesma conta que o host confere.
   const pinTravelers = useMemo(
     () => (!map || openPin === null || openPin.kind !== 'viagem' ? NO_TRAVELERS : pinTravelChoices(map.tokens, ownTokens, openPin, map.grid)),
@@ -1558,20 +1561,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // CONGELAR FICHA: só fichas dele congeladas encostam no pino aberto — a
   // mesma conta do host. Recalculada a cada snapshot: descongelar acende o botão.
   const openPinCongelado = useMemo(
-    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemCongelada(map.tokens, ownTokens, openPin, map.grid),
-    [map, openPin, ownTokens],
+    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemCongelada(map.tokens, ownTokens, openPin, map.grid, pelosObjetos),
+    [map, openPin, ownTokens, pelosObjetos],
   )
   // VEÍCULO: só fichas dele a bordo sem dirigir passariam — a mesma conta do
   // host (`a_bordo`), com a marca `aBordo` que só a ficha do dono recebe.
   const openPinABordo = useMemo(
-    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemABordo(map.tokens, ownTokens, openPin, map.grid),
-    [map, openPin, ownTokens],
+    () => map !== undefined && openPin !== null && openPin.kind === 'viagem' && passagemABordo(map.tokens, ownTokens, openPin, map.grid, pelosObjetos),
+    [map, openPin, ownTokens, pelosObjetos],
   )
   // CONGELAR FICHA: o aviso fixo da tela, das fichas DELE que vieram no recorte.
   const avisoCongelado = useMemo(() => (map === undefined ? null : avisoDeCongelado(map.tokens, ownTokens)), [map, ownTokens])
   // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
   const alcancaPinoAberto =
-    openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid))
+    openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid, pelosObjetos))
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.

@@ -1,4 +1,5 @@
 import type { DoorSide, Token, Wall } from '../types/map'
+import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
  * Alcance e acerto de porta — compartilhado pelo host (validar o pedido do
@@ -84,10 +85,15 @@ export const PIN_REACH_CELLS = DOOR_REACH_CELLS
  * A ficha está encostada no pino: a ponta dele (`x`, `y`) até
  * `PIN_REACH_CELLS` célula da borda do token. Usado pelo host (pedido e
  * "Deixar ir") e pelo cartão do jogador (botão aceso ou "Chegue mais perto").
+ *
+ * `pelosObjetos` (J9, `alcancePeloObjeto` do recorte do jogador): o pino no
+ * meio de um objeto que barra se alcança encostando no objeto, com a mesma
+ * folga. Ausente = só a distância até o ponto, como antes.
  */
-export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size'>, pin: ReachPoint, grid: number): boolean {
+export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, pin: ReachPoint, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const reach = tokenRadiusOf(token, grid) + grid * PIN_REACH_CELLS
-  return Math.hypot(token.x - pin.x, token.y - pin.y) <= reach
+  if (Math.hypot(token.x - pin.x, token.y - pin.y) <= reach) return true
+  return pelosObjetos !== undefined && pelosObjetos(token, pin, reach)
 }
 
 /** Porta mais próxima do ponto dentro de `tolerance` (px de mundo), ou `null`. */

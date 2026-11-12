@@ -1,4 +1,4 @@
-import type { MapData, Prop, RegionPoint, TipoMobilia, Wall } from '../types/map'
+import type { MapData, Prop, RegionPoint, TipoMobilia, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
@@ -309,6 +309,58 @@ export function mapaParaAndarDoJogador(map: MapData, piso: number, de: Point | n
   const novo = { ...map, walls }
   porParedes.set(walls, novo)
   return novo
+}
+
+/** De onde o alcance pelo objeto lê os objetos: o RECORTE do jogador (na tela, o mapa que chegou; no host, o `view.map` dele). */
+export type ObjetosDoAlcance = Pick<MapData, 'grid' | 'props'>
+
+/** Distância do ponto à forma do obstáculo: zero dentro dela (ou em cima da borda). */
+function distanciaAoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): number {
+  if (pontoNoObstaculo(obstaculo, p)) return 0
+  const anel = obstaculo.contorno
+  let menor = Number.POSITIVE_INFINITY
+  for (let i = 0, j = anel.length - 1; i < anel.length; j = i, i += 1) {
+    const a = anel[j]
+    const b = anel[i]
+    if (a === undefined || b === undefined) continue
+    menor = Math.min(menor, distanciaAoLado(p, a, b))
+  }
+  return menor
+}
+
+/**
+ * ALCANCE PELO OBJETO (caça de 12/11/2026, J9): quem encosta num objeto que
+ * barra alcança o que está DENTRO dele — o item, a passagem ou a escada no
+ * meio da torre. Sem isto o alcance ia só até o ponto, e a ficha parada na
+ * parede do objeto grande ouvia "Chegue mais perto" para sempre.
+ *
+ * Se `ponto` cai dentro da forma de um objeto que barra no piso da ficha,
+ * mede da ficha até o contorno dessa forma, com o MESMO `alcance` (px) da
+ * conta de sempre. `objetos` é o recorte do jogador: objeto que ele não
+ * recebe (escondido, secreto, camada, zona oculta, sala secreta) não conta,
+ * para o alcance não contar que ele existe. Host e tela passam o mesmo
+ * recorte, senão o botão acende e o host recusa.
+ */
+export function alcancaPeloObjeto(objetos: ObjetosDoAlcance, ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: Point, alcance: number): boolean {
+  if (!(alcance >= 0) || ![ficha.x, ficha.y, ponto.x, ponto.y].every(Number.isFinite)) return false
+  for (const obstaculo of obstaculosDeObjeto(objetos.props, objetos.grid, pisoDe(ficha))) {
+    if (pontoNoObstaculo(obstaculo, ponto) && distanciaAoObstaculo(obstaculo, ficha) <= alcance) return true
+  }
+  return false
+}
+
+/**
+ * O alcance pelo objeto já preso a um recorte: o que as contas de alcance
+ * recebem (`tokenReachesPin`, `tokenAlcancaPino`, `fichaAlcancaItem`). Elas
+ * pedem a FUNÇÃO, e não importam este arquivo: `doorReach`, `items` e
+ * `ferrolho` já estão no fecho de imports daqui, e o import de volta faria um
+ * ciclo novo.
+ */
+export type AlcancePeloObjeto = (ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: Point, alcance: number) => boolean
+
+/** `alcancaPeloObjeto` preso ao recorte `objetos` (ver `AlcancePeloObjeto`). */
+export function alcancePeloObjeto(objetos: ObjetosDoAlcance): AlcancePeloObjeto {
+  return (ficha, ponto, alcance) => alcancaPeloObjeto(objetos, ficha, ponto, alcance)
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   type ItemParaDar,
 } from './items'
 import { comPiso, pisoDe } from './pisos'
+import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
  * ITEM NO MAPA (entrega 5 dos sistemas de RPG) — regras puras do item que o
@@ -91,11 +92,15 @@ export function itemNoChaoNoPonto(props: readonly Prop[], ponto: { x: number; y:
 /**
  * O item está ao alcance da ficha: a mesma régua do pino (`ITEM_REACH_CELLS`
  * além da borda dela), medida até o ponto mais perto da imagem no chão — uma
- * espada comprida se pega pela ponta.
+ * espada comprida se pega pela ponta. `pelosObjetos` (J9): o item no meio de
+ * um objeto que barra (o pino, ou o centro da imagem no chão) se alcança
+ * encostando no objeto (`alcancePeloObjeto` do recorte do jogador).
  */
-export function fichaAlcancaItem(token: Pick<Token, 'x' | 'y' | 'size'>, alvo: ItemNoMapa, grid: number): boolean {
-  if (alvo.forma === 'pino') return tokenReachesPin(token, alvo.pin, grid)
-  return distanciaAoObjeto(alvo.prop, token) <= tokenRadiusOf(token, grid) + grid * ITEM_REACH_CELLS
+export function fichaAlcancaItem(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, alvo: ItemNoMapa, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
+  if (alvo.forma === 'pino') return tokenReachesPin(token, alvo.pin, grid, pelosObjetos)
+  const alcance = tokenRadiusOf(token, grid) + grid * ITEM_REACH_CELLS
+  if (distanciaAoObjeto(alvo.prop, token) <= alcance) return true
+  return pelosObjetos !== undefined && pelosObjetos(token, { x: alvo.prop.x, y: alvo.prop.y }, alcance)
 }
 
 /**
