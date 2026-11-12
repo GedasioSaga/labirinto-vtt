@@ -25,8 +25,8 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   roomFree: 'Sala livre',
   stair: 'Escada',
   token: 'Token',
-  // "Imagem", como a aba do botão Objeto ("Objeto: Imagem"); "peça" saiu da tela (caça 12/11, E20).
-  prop: 'Imagem',
+  // A aba "Imagem" do botão Objeto: "peça" saiu da tela, é objeto em tudo (caça 12/11, E20).
+  prop: 'Objeto de imagem',
   brush: 'Pincel',
   line: 'Linha',
   circle: 'Círculo',
