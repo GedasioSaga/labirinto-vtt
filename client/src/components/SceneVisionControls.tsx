@@ -29,7 +29,7 @@ const OPCOES_DO_FORA_DO_CHAO: readonly { valor: OffFloor; rotulo: string }[] = [
 function dicaDoForaDoChao(offFloor: OffFloor, temChao: boolean): string {
   if (!temChao) return 'Esta cena não tem Chão: a ficha já anda e enxerga em qualquer lugar.'
   return offFloor === 'free'
-    ? 'A ficha anda e enxerga em qualquer lugar. Só parede, porta, escuridão e o alcance da visão limitam.'
+    ? 'A ficha anda e enxerga em qualquer lugar. O que está fora do Chão passa a aparecer para o jogador. Só parede, porta, escuridão e o alcance da visão limitam.'
     : 'A ficha do jogador só anda e enxerga dentro do Chão desta cena.'
 }
 
