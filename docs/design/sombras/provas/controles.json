@@ -1,0 +1,249 @@
+[
+ {
+  "nome": "tecla 1 troca o desenho para hoje",
+  "ok": true
+ },
+ {
+  "nome": "tecla 3 troca o desenho para amaciar",
+  "ok": true
+ },
+ {
+  "nome": "tecla 4 troca o desenho para olho",
+  "ok": true
+ },
+ {
+  "nome": "tecla 2 troca o desenho para proposta",
+  "ok": true
+ },
+ {
+  "nome": "tecla T troca o período para tarde",
+  "ok": true
+ },
+ {
+  "nome": "tecla N troca o período para noite",
+  "ok": true
+ },
+ {
+  "nome": "tecla D troca o período para dia",
+  "ok": true
+ },
+ {
+  "nome": "segurar H mostra o Hoje e soltar volta",
+  "ok": true
+ },
+ {
+  "nome": "botão Segure para ver o Hoje funciona enquanto apertado",
+  "ok": true
+ },
+ {
+  "nome": "L apaga a tocha (o chão perto dela escurece)",
+  "ok": true,
+  "info": {
+   "comTocha": [
+    56,
+    120,
+    242
+   ],
+   "semTocha": [
+    23,
+    59,
+    156
+   ]
+  }
+ },
+ {
+  "nome": "botão Tocha acende de novo",
+  "ok": true
+ },
+ {
+  "nome": "M mostra a visão do mestre com a sala secreta (tapete vermelho)",
+  "ok": true,
+  "info": {
+   "tapete": [
+    156,
+    47,
+    47
+   ]
+  }
+ },
+ {
+  "nome": "sem o mestre, o tapete some",
+  "ok": true,
+  "info": {
+   "tapeteJogador": [
+    6,
+    7,
+    10
+   ]
+  }
+ },
+ {
+  "nome": "seta no deslizante muda a suavidade (0,45 para 0,5) e não anda a ficha",
+  "ok": true,
+  "info": {
+   "pen": 0.5
+  }
+ },
+ {
+  "nome": "o número do deslizante aparece com a unidade",
+  "ok": true
+ },
+ {
+  "nome": "brilho e fim do alcance mudam (40% e 25%)",
+  "ok": true
+ },
+ {
+  "nome": "suavidade 1,0 muda o desenho (borda mais larga)",
+  "ok": true,
+  "info": {
+   "mudaram": 40427
+  }
+ },
+ {
+  "nome": "Copiar os números põe o texto e confirma",
+  "ok": true,
+  "info": {
+   "area": "Sombras: desenho Proposta · borda 1,00 casa · lembrado 40% · fim do alcance 25%"
+  }
+ },
+ {
+  "nome": "Voltar aos números de partida",
+  "ok": true
+ },
+ {
+  "nome": "no Hoje os três deslizantes ficam desabilitados com \"Vale só na Proposta\"",
+  "ok": true
+ },
+ {
+  "nome": "Só amaciar: só a suavidade vale",
+  "ok": true
+ },
+ {
+  "nome": "Olho com tamanho: só o brilho vale",
+  "ok": true
+ },
+ {
+  "nome": "clique na porta da cela fecha (e, com a memória esquecida, a cela some) e abre de novo",
+  "ok": true,
+  "info": {
+   "cela1": [
+    34,
+    25,
+    15
+   ],
+   "cela2": [
+    6,
+    7,
+    10
+   ]
+  }
+ },
+ {
+  "nome": "arrastar contra a parede sul não atravessa",
+  "ok": true,
+  "info": {
+   "pos": [
+    12.5,
+    7.187499922149035
+   ]
+  }
+ },
+ {
+  "nome": "arrasto passa pela porta aberta até o gramado",
+  "ok": true,
+  "info": {
+   "pos": [
+    18.500001089913507,
+    6.5
+   ]
+  }
+ },
+ {
+  "nome": "Esc solta e devolve a ficha ao ponto de saída",
+  "ok": true,
+  "info": {
+   "pos": [
+    12.5,
+    6.5
+   ]
+  }
+ },
+ {
+  "nome": "seta anda 1 casa, com deslize e mistura do escuro",
+  "ok": true
+ },
+ {
+  "nome": "seta contra a parede não anda",
+  "ok": true,
+  "info": {
+   "yAntes": 6.5,
+   "y": 6.5
+  }
+ },
+ {
+  "nome": "zoom: +, − e 100%",
+  "ok": true,
+  "info": {
+   "z0": 0.9799999999999999,
+   "z1": 1.2249999999999999,
+   "z2": 0.9799999999999999,
+   "z3": 1
+  }
+ },
+ {
+  "nome": "roda do mouse aproxima",
+  "ok": true
+ },
+ {
+  "nome": "botão do meio move a vista",
+  "ok": true
+ },
+ {
+  "nome": "espaço apertado + arrastar move a vista",
+  "ok": true
+ },
+ {
+  "nome": "Tab passa pelo mapa e por todos os grupos de controle",
+  "ok": true,
+  "info": {
+   "ordem": [
+    "input:radio \"Proposta 2\" contorno=2px",
+    "button:button \"Segure para ver o Hoje H\" contorno=2px",
+    "input:range \"Suavidade da borda\" contorno=2px",
+    "input:range \"Brilho do lembrado\" contorno=2px",
+    "input:range \"Fim do alcance\" contorno=2px",
+    "input:radio \"Dia D\" contorno=2px",
+    "button:button \"Tocha acesa L\" contorno=2px",
+    "button:button \"Ver como mestre M\" contorno=2px",
+    "button:button \"Esquecer o que já vi E\" contorno=2px",
+    "button:button \"Afastar\" contorno=2px",
+    "button:button \"98%\" contorno=2px",
+    "button:button \"Aproximar\" contorno=2px",
+    "button:button \"Voltar aos números de partida\" contorno=2px",
+    "button:button \"Copiar os números\" contorno=2px",
+    "body \"Visão do mestre: o jogador não vê isto M\" contorno=nenhum",
+    "canvas \"Mapa de exemplo. Arraste a ficha azul co\" contorno=2px",
+    "input:radio \"Proposta 2\" contorno=2px",
+    "button:button \"Segure para ver o Hoje H\" contorno=2px",
+    "input:range \"Suavidade da borda\" contorno=2px",
+    "input:range \"Brilho do lembrado\" contorno=2px",
+    "input:range \"Fim do alcance\" contorno=2px",
+    "input:radio \"Dia D\" contorno=2px",
+    "button:button \"Tocha acesa L\" contorno=2px",
+    "button:button \"Ver como mestre M\" contorno=2px"
+   ]
+  }
+ },
+ {
+  "nome": "console limpo e sem rede",
+  "ok": true,
+  "info": {
+   "erros": [],
+   "pedidos": []
+  }
+ },
+ {
+  "nome": "menos movimento: o passo chega na hora, sem mistura e sem tremor da tocha",
+  "ok": true
+ }
+]

@@ -1,0 +1,424 @@
+{
+ "navegador": "edge",
+ "versao": "157.0.4341.46",
+ "errosNoConsole": [],
+ "pedidosDeRede": [],
+ "resultado": {
+  "secreta": [
+   {
+    "periodo": "dia",
+    "desenho": "hoje",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "hoje",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "hoje",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "hoje",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "proposta",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "proposta",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "proposta",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "proposta",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "amaciar",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "amaciar",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "amaciar",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "amaciar",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "olho",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "olho",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "olho",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "dia",
+    "desenho": "olho",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "hoje",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "hoje",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "hoje",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "hoje",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "proposta",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "proposta",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "proposta",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "proposta",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "amaciar",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "amaciar",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "amaciar",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "amaciar",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "olho",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "olho",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "olho",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "tarde",
+    "desenho": "olho",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "hoje",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "hoje",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "hoje",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "hoje",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "proposta",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "proposta",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "proposta",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "proposta",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "amaciar",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "amaciar",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "amaciar",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "amaciar",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "olho",
+    "posicao": "(12,5; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "olho",
+    "posicao": "(13,6; 6,5)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "olho",
+    "posicao": "(10,5; 7,0) depois de (16,5; 6,9) e (13; 7,0)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   },
+   {
+    "periodo": "noite",
+    "desenho": "olho",
+    "posicao": "(7,6; 5,0) depois de (3,2; 8,8)",
+    "diferentes": 0,
+    "maior": 0,
+    "aceito": true
+   }
+  ],
+  "soEscurece": [
+   {
+    "periodo": "dia",
+    "foraDosCorpos": 0,
+    "dentroDosCorpos": 60987
+   },
+   {
+    "periodo": "tarde",
+    "foraDosCorpos": 0,
+    "dentroDosCorpos": 60987
+   },
+   {
+    "periodo": "noite",
+    "foraDosCorpos": 0,
+    "dentroDosCorpos": 53827
+   }
+  ],
+  "parede": {
+   "hoje": 10,
+   "proposta": 20
+  },
+  "passo": {
+   "quadrosQueMudaram": 10,
+   "quadros": 19,
+   "diferencaAos300ms": 0,
+   "maiorDiferenca": 0
+  },
+  "nuncaVistoDiferente": 0,
+  "passou": true,
+  "ms": 8346
+ }
+}

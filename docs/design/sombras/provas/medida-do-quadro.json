@@ -1,0 +1,105 @@
+{
+ "navegador": "143.0.7499.4",
+ "janela": "1920 x 1080, mapa a 100%",
+ "resultados": [
+  {
+   "caso": "Hoje, dia",
+   "movimentosDoMouse": 191,
+   "quadrosDesenhados": 192,
+   "trabalhoP95ms": 1,
+   "trabalhoPiorMs": 2.4,
+   "trabalhoMedioMs": 0.72,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 8.6,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.98,
+    5.17
+   ]
+  },
+  {
+   "caso": "Proposta, dia",
+   "movimentosDoMouse": 164,
+   "quadrosDesenhados": 164,
+   "trabalhoP95ms": 3.9,
+   "trabalhoPiorMs": 4.9,
+   "trabalhoMedioMs": 3.21,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 8.8,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.98,
+    5.11
+   ]
+  },
+  {
+   "caso": "Só amaciar, dia",
+   "movimentosDoMouse": 160,
+   "quadrosDesenhados": 160,
+   "trabalhoP95ms": 4.6,
+   "trabalhoPiorMs": 6.3,
+   "trabalhoMedioMs": 3.11,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 8.6,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.98,
+    5.17
+   ]
+  },
+  {
+   "caso": "Olho com tamanho, dia",
+   "movimentosDoMouse": 179,
+   "quadrosDesenhados": 179,
+   "trabalhoP95ms": 1.9,
+   "trabalhoPiorMs": 3.1,
+   "trabalhoMedioMs": 1.35,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 8.6,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.98,
+    5.15
+   ]
+  },
+  {
+   "caso": "Proposta, noite",
+   "movimentosDoMouse": 163,
+   "quadrosDesenhados": 597,
+   "trabalhoP95ms": 4.9,
+   "trabalhoPiorMs": 8.2,
+   "trabalhoMedioMs": 1.29,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 33.3,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.98,
+    5.15
+   ]
+  },
+  {
+   "caso": "Olho com tamanho, noite",
+   "movimentosDoMouse": 180,
+   "quadrosDesenhados": 583,
+   "trabalhoP95ms": 1.5,
+   "trabalhoPiorMs": 3.6,
+   "trabalhoMedioMs": 0.45,
+   "intervaloP95ms": 8.5,
+   "intervaloPiorMs": 33.5,
+   "quadrosAcimaDe16ms": 0,
+   "fichaTerminouEm": [
+    3.99,
+    5.05
+   ]
+  }
+ ],
+ "tarefasLongas": [
+  {
+   "inicio": 12,
+   "duracao": 61
+  }
+ ],
+ "maiorTarefaLongaMs": 61,
+ "erros": [],
+ "pedidos": []
+}
