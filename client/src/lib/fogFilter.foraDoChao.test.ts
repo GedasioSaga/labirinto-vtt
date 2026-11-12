@@ -30,8 +30,12 @@ describe('cena com Chão e Fora do Chão LIVRE: o recorte é o da mesma cena sem
     // O Chão continua pintura: só a peça que o jogador pode ver chega (e só ela é lembrada).
     expect(visto.map.floor.map((f) => f.id)).toEqual(['chao'])
     expect([...visto.plan.floor.keys()]).toEqual(['chao'])
-    // O que impede a memória de marcar o esconderijo continua indo ao host.
-    const veto = tipo === 'teto fechado' ? visto.roofs : visto.blocked
+    // O que guarda o esconderijo continua indo ao host. A sala secreta fechada (N3, caça de 12/11/2026, `873686fc`)
+    // não veta mais a memória (ela a lembra como chão vazio): mora em `closedSecretRooms`, interno, e o recorte
+    // responde "não explorado" lá dentro. Ela continua fechada para ele, não aberta.
+    const veto =
+      tipo === 'teto fechado' ? visto.roofs : tipo === 'sala secreta fechada' ? visto.closedSecretRooms.map((sala) => sala.points) : visto.blocked
     expect(veto.some((anel) => pointInRing(DENTRO, anel))).toBe(true)
+    expect(visto.openSecretRooms).toEqual([])
   })
 })

@@ -385,6 +385,26 @@ function idsNoPlano(view: unknown, chave: string): unknown[] {
   return lista.mapa.map((par: unknown) => (Array.isArray(par) ? par[0] : par))
 }
 
+/**
+ * Os três campos que o recorte ganhou depois de b934f2a1 (caça de 12/11/2026), conferidos e tirados para o resto ser
+ * comparado com o congelado: as salas secretas FECHADAS e ABERTAS (N3, `873686fc`: internas, o snapshot não as leva)
+ * e os olhares (peça D das sombras, `cde20c55`: vão no fio). Nenhum mapa congelado tem sala secreta, então as duas
+ * listas saem vazias. O olhar só pode trazer o que o recorte já entrega: o centro da ficha DELE (a que está em
+ * `map.tokens`), o raio dela e o índice do anel de visão que ele já recebe; sem a ficha ou sem visão, nem sai.
+ */
+function semCamposDaCaca(view: unknown): Record<string, unknown> {
+  if (!ehRegistro(view) || !ehRegistro(view.map)) throw new Error('recorte sem mapa')
+  const { closedSecretRooms, openSecretRooms, olhares, ...resto } = view
+  expect(closedSecretRooms, 'closedSecretRooms').toStrictEqual([])
+  expect(openSecretRooms, 'openSecretRooms').toStrictEqual([])
+  const fichas: unknown[] = Array.isArray(view.map.tokens) ? view.map.tokens : []
+  const olho = fichas.find((t): t is Record<string, unknown> => ehRegistro(t) && t.id === 'olho')
+  const visao: unknown[] = Array.isArray(view.vision) ? view.vision : []
+  if (olho === undefined || visao.length === 0) expect(olhares, 'olhares').toBeUndefined()
+  else expect(olhares, 'olhares').toStrictEqual([{ x: olho.x, y: olho.y, raio: RAIO, aneis: [0] }])
+  return resto
+}
+
 /** O recorte sem a lista `chave` no mapa e na memória da planta. */
 function semCampoDoMapa(view: unknown, chave: string): unknown {
   if (!ehRegistro(view) || !ehRegistro(view.plan)) throw new Error('recorte sem mapa')
@@ -398,7 +418,7 @@ describe('mapa antigo: o recorte é o de b934f2a1', () => {
     for (const [nome, ocultas] of Object.entries(OCULTAS_CONGELADAS)) {
       it(`${caso.nome}, oculta: ${nome}`, () => {
         const congelado = CONGELADOS[caso.nome][nome]
-        const agora = recorteEmJson(caso, ocultas)
+        const agora = semCamposDaCaca(recorteEmJson(caso, ocultas))
         const chave = CORTADOS_AGORA.get(nome)
         if (chave === undefined) {
           expect(agora).toStrictEqual(congelado)
@@ -447,7 +467,7 @@ describe('mapa completo antigo: o recorte é o de b934f2a1, menos chão, linha e
     for (const [nome, ocultas] of Object.entries(OCULTAS_DO_COMPLETO)) {
       it(`${caso.nome}, oculta: ${nome}`, () => {
         const congelado = CONGELADOS_COMPLETOS[caso.nome][nome]
-        const agora = recorteEmJson(caso, ocultas)
+        const agora = semCamposDaCaca(recorteEmJson(caso, ocultas))
         const chaves = ocultas.flatMap((camada) => CORTE_NOVO_NO_ANTIGO[camada] ?? [])
         for (const chave of chaves) expect(mapaDoRecorte(agora)[chave], chave).toEqual([])
         expect(semCampos(agora, chaves)).toStrictEqual(semCampos(congelado, chaves))

@@ -60,9 +60,19 @@ describe('chão grande que passa por baixo de um teto fechado', () => {
     expect((visto.texturas ?? []).map((t) => t.id)).toEqual(['convés'])
   })
 
-  it('SEGURANÇA: pela sala secreta continua valendo qualquer amostra (sem telhado, nada cobre o formato dela)', () => {
+  // N5 (caça de 12/11/2026, `aa030690`; decisão 21 do mestre): a sala secreta fechada passou à régua da maioria, como o
+  // teto fechado. Antes, uma amostra do cais lá dentro tirava o cais inteiro (e a textura). Risco aceito na decisão:
+  // o que só passa pela sala sai INTEIRO, também no trecho de dentro; o que mora nela continua de fora.
+  it('SEGURANÇA: pela sala secreta, a mobília que mora nela fica de fora e nada da sala sai; o cais que só passa sai inteiro, nunca cortado', () => {
     const visto = recorte(mapa({ secret: true }))
-    expect(visto.drawings).toEqual([])
-    expect(visto.texturas ?? []).toEqual([])
+    expect(visto.drawings.map((d) => d.id)).toEqual(['cais'])
+    expect(visto.regions).toEqual([])
+    const json = JSON.stringify(visto)
+    for (const segredo of ['"mobilia"', '#ff00ff', '"casa"']) expect(json, segredo).not.toContain(segredo)
+    // Inteiro: o cais é o MESMO da cena sem a sala (um corte na borda desenharia o formato dela).
+    const semASala = recorte({ ...mapa({}), regions: [] })
+    expect(visto.drawings).toEqual(semASala.drawings.filter((d) => d.id === 'cais'))
+    expect(visto.drawings[0].points).toEqual(CAIS.points)
+    expect((visto.texturas ?? []).map((t) => t.id)).toEqual(['convés'])
   })
 })

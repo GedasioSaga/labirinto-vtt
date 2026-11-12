@@ -126,7 +126,25 @@ describe('dentro da sala secreta: a ficha vê o próprio cômodo', () => {
     for (const id of ['sec-n', 'sec-l', 'sec-s']) expect(json).not.toContain(`"${id}"`)
     expect(view.map.walls.find((w) => w.id === 'estante')?.door).toBeNull()
     expect(view.occupiedSecretRooms).toEqual([])
-    expect(view.blocked.some((ring) => pointInRing({ x: 1000, y: 275 }, ring))).toBe(true)
+    // N3 (caça de 12/11/2026, `873686fc`): a sala FECHADA para a Bia saiu de `blocked` (a memória dela lembra ali o
+    // chão vazio que a visão mostra, sem o buraco preto com o formato da sala). Ela mora em `closedSecretRooms`,
+    // campo interno que o snapshot não leva, e o recorte responde "não explorado" lá dentro.
+    expect(view.blocked).toEqual([])
+    expect(view.closedSecretRooms.map((s) => s.id).sort()).toEqual(['r-cofre', 'r-secreto'])
+    const quarto = view.closedSecretRooms.find((s) => s.id === 'r-secreto')
+    expect(quarto !== undefined && pointInRing({ x: 1000, y: 275 }, quarto.points)).toBe(true)
+    expect(view.openSecretRooms).toEqual([])
+    // A prova do N3: com o explorado marcando o mapa INTEIRO (o quarto lembrado como chão vazio), nada de dentro sai.
+    const map = mansao([ficha('ana', 1000, 275), ficha('bia', 825, 275)])
+    const explorado = createExploration({ width: map.width * map.grid, height: map.height * map.grid, grid: map.grid })
+    markAll(explorado)
+    const lembrando = filterMapForPlayer(map, 'p2', ownership, RADIUS, explorado)
+    const jsonLembrando = JSON.stringify(lembrando.map)
+    for (const segredo of ['r-secreto', 'Quarto Secreto', 'pino-chegada', 'pino-secreto', 'pino-cofre', 'r-cofre', 'Cofre', '"ana"', '"sec-n"', '"sec-l"', '"sec-s"', '"cofre-o"', '"cofre-s"']) {
+      expect(jsonLembrando, segredo).not.toContain(segredo)
+    }
+    expect(lembrando.map.walls.find((w) => w.id === 'estante')?.door).toBeNull()
+    expect(lembrando.occupiedSecretRooms).toEqual([])
   })
 
   it('SEGURANÇA: ficha EM CIMA da parede do quarto não abre a sala (na dúvida, fecha)', () => {

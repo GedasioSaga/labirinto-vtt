@@ -205,8 +205,16 @@ describe('fogFilter + pincel de revelar', () => {
     const view = filterMapForPlayer(pintado(mapa), 'ana', DONO, RAIO_VISAO)
     // O pincel continua revelando o corredor fora do cofre.
     expect(view.map.tokens.map((t) => t.id).sort()).toEqual(['tok-lanterna', 'tok-vigia'])
-    const fio = JSON.stringify(view)
+    // N3 (caça de 12/11/2026, `873686fc`): o recorte guarda a sala secreta FECHADA (id e polígono) em
+    // `closedSecretRooms`, campo interno que o snapshot do host não leva. Ele traz só o cofre, e nada mais
+    // dele: fora dos dois campos internos, o recorte inteiro continua sem nenhum segredo, nem o id da sala.
+    expect(view.closedSecretRooms).toEqual([{ id: 'sala-cofre', points: cofre.points }])
+    expect(view.openSecretRooms).toEqual([])
+    const { closedSecretRooms: _fechadas, openSecretRooms: _abertas, ...semAsInternas } = view
+    const fio = JSON.stringify(semAsInternas)
     for (const segredo of ['GuardaDoCofre', 'tok-guarda', 'bau-do-cofre', 'tocha-do-cofre', 'Cofre', 'sala-cofre']) expect(fio).not.toContain(segredo)
+    const inteiro = JSON.stringify(view)
+    for (const segredo of ['GuardaDoCofre', 'tok-guarda', 'bau-do-cofre', 'tocha-do-cofre', 'Cofre']) expect(inteiro).not.toContain(segredo)
     // O interior do cofre continua preto.
     expect(preto(view.concealed, { x: 800, y: 451 })).toBe(true)
     expect(preto(view.concealed, { x: 650, y: 451 })).toBe(false)
