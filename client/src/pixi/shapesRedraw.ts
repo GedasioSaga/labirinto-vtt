@@ -13,6 +13,7 @@ import type { PontoDaRotaAberto } from './drawNpcPatrol'
 import { relevoLigado } from '../lib/relevo'
 import { nomesDosLugaresLigados } from '../lib/nomesDosLugares'
 import { nuvensLigadas } from '../lib/nuvens'
+import { alcasAparecem } from './drawEditHandles'
 
 /**
  * Camadas vetoriais do mapa no editor, NA ORDEM de pintura do PixiCanvas.
@@ -252,10 +253,12 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'textLabels':
       return [map.drawings, hidden, selectedId('drawing')]
     case 'handles':
-      // Alças só existem com UM item selecionado na ferramenta Selecionar; o
-      // item pode estar em qualquer lista do mapa, então elas seguem o mapa.
-      return snapshot.activeTool === 'select' && single !== null
-        ? ['alças', single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
+      // Alças só existem com UM item selecionado, na ferramenta que as mostra
+      // (`alcasAparecem`: Selecionar, ou Objeto com objeto); o item pode estar
+      // em qualquer lista do mapa, então elas seguem o mapa. A ferramenta entra
+      // na chave: trocar Selecionar por Objeto com o mesmo objeto repinta.
+      return single !== null && alcasAparecem(snapshot.activeTool, single.kind)
+        ? ['alças', snapshot.activeTool, single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
         : ['sem alças']
     case 'areaOutline':
       return selection.length > 1 ? ['grupo', selection, map] : ['sem grupo']

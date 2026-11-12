@@ -256,6 +256,19 @@ describe('createShapesRedrawer', () => {
     expect(take()).toEqual(['handles'])
   })
 
+  it('caça 12/11 (E9): com a ferramenta Objeto, selecionar um objeto acende as alças; sala selecionada no Objeto, não', () => {
+    const { redraw, take } = setup()
+    const map = buildMap()
+    redraw(snapshot(map, { activeTool: 'mobilia' }))
+    take()
+    redraw(snapshot(map, { activeTool: 'mobilia', selection: selectionOfItem({ kind: 'prop', id: 'p1' }) }))
+    expect(take()).toEqual(['handles'])
+    redraw(snapshot(map, { activeTool: 'mobilia', selection: selectRegion('r1') }))
+    redraw(snapshot(map, { activeTool: 'mobilia', selection: selectRegion('r2') }))
+    // Sala no Objeto: a primeira apaga as alças do objeto; trocar de sala não acorda a camada.
+    expect(take().filter((layer) => layer === 'handles')).toEqual(['handles'])
+  })
+
   it('MAPA DE CONTINENTE: a posse da sala mudar repinta as alças (a ficha virou pino, ou deixou de ser)', () => {
     const { redraw, take } = setup()
     const map = buildMap()

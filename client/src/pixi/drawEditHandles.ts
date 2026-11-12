@@ -272,6 +272,16 @@ function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, v
  * (Região/Sala, Token, Prop) não tem alça: o pointerdown não deixa pegar
  * nenhuma (`canInteract`).
  */
+/**
+ * Quem tem alça desenhada com a ferramenta aberta. Caça 12/11 (E9): com a
+ * ferramenta Objeto, o objeto selecionado mostra as mesmas alças do
+ * Selecionar. A chave da camada `handles` (`shapesRedraw.ts`) usa esta mesma
+ * regra: se as duas divergem, a camada não repinta e a alça fica invisível.
+ */
+export function alcasAparecem(activeTool: DrawingTool, kind: NonNullable<Selection>['kind']): boolean {
+  return activeTool === 'select' || (activeTool === 'mobilia' && kind === 'prop')
+}
+
 export function drawEditHandles(
   graphics: Graphics,
   map: MapData,
@@ -280,8 +290,7 @@ export function drawEditHandles(
   view: EditHandlesView = {},
 ): void {
   graphics.clear()
-  // Caça 12/11 (E9): com a ferramenta Objeto, o objeto selecionado mostra as mesmas alças do Selecionar.
-  if (!selection || (activeTool !== 'select' && !(activeTool === 'mobilia' && selection.kind === 'prop'))) return
+  if (!selection || !alcasAparecem(activeTool, selection.kind)) return
   const scale = view.cameraScale ?? 1
 
   if (selection.kind === 'region') {
