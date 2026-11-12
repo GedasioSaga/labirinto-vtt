@@ -96,7 +96,7 @@ export function SceneVisionControls({
           onChange={(event) => change(event.target.value)}
         />
         <p id="lb-scene-vision-hint" className="lb-field__hint">
-          Vale para todo jogador nesta cena, vezes o fator de visão dele (painel Sala). Vazio: cada um usa o raio em px de sempre.
+          Vale para todo jogador nesta cena, vezes o fator de visão dele (painel Mesa online). Vazio: cada um usa o raio em px de sempre.
         </p>
       </div>
       {dark !== undefined && onDarkChange !== undefined && (
