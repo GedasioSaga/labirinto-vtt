@@ -21,7 +21,8 @@ import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 import { ehMovelQueBarra } from './mobilia'
 import { validateTokenMove } from './moveValidation'
-import { barraPassagemEscolhida, comBarraPassagemNoMapa, ehParedeDeObjeto, objetoBarraPassagem, paredesParaAndarDoJogador } from './obstaculosDeObjeto'
+import { barraPassagemEscolhida, comBarraPassagemNoMapa, ehParedeDeObjeto, objetoBarraPassagem, paredesParaAndarDoJogador, pegadaSolidaDoTipo } from './obstaculosDeObjeto'
+import { RAIO_SOLIDO_DA_TORRE } from '../texturas/meioTermo/moveis/torreDePedra'
 
 const GRADE = 40
 const POSSE = { p1: ['heroi'] }
@@ -72,7 +73,8 @@ describe('quem barra', () => {
     // As duas torres do lote 17 (12/11/2026) entraram quando foram registradas no catálogo.
     const barram: TipoMobilia[] = ['moinho', 'cataVento', 'mausoleu', 'poco', 'chafariz', 'estatua', 'anjoDePedra', 'pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado', 'pedrasERochas', 'arvoreSeca', 'carroca', 'carrocaQuebrada', 'tonelDeAdega', 'barraca', 'torreDePedra', 'torreDeVigia']
     for (const tipo of barram) expect(ehMovelQueBarra(tipo), tipo).toBe(true)
-    const passam: TipoMobilia[] = ['tapete', 'mesa', 'cerca', 'tendaDeAdivinha', 'ponte']
+    // A tenda de acampamento não barra de saída, como a de adivinha: dá para entrar (o mestre liga a chave se quiser).
+    const passam: TipoMobilia[] = ['tapete', 'mesa', 'cerca', 'tendaDeAdivinha', 'tenda', 'ponte']
     for (const tipo of passam) expect(ehMovelQueBarra(tipo), tipo).toBe(false)
     expect(ehMovelQueBarra(undefined)).toBe(false)
     expect(objetoBarraPassagem(MOINHO)).toBe(true)
@@ -237,6 +239,23 @@ describe('o botão "Barra a passagem" (`Prop.barraPassagem`)', () => {
     const reto = planejarCaminhada(recorte, heroi, DO_OUTRO_LADO, VE_TUDO)
     expect(reto.tipo === 'andar' ? reto.trechos : null).toEqual([DO_OUTRO_LADO])
     expect(planejarCaminhada(recorte, heroi, { x: 480, y: 700 }, VE_TUDO)).toEqual({ tipo: 'aviso', motivo: 'objeto' })
+  })
+})
+
+describe('pegada sólida por tipo', () => {
+  it('a torre de pedra barra só até a parede desenhada (0,8 do raio): o anel de fora, entre 0,8 e 1, fica livre', () => {
+    // 3 x 3 casas com o centro em (480, 480): o raio da caixa é 60 px e o da parede, 48.
+    const map = cena({ props: [objeto('torre', 'torreDePedra', 480, 480, 3)] })
+    // O número mora em `lib` (que não importa de `texturas`): tem de ser o do desenho.
+    expect(pegadaSolidaDoTipo('torreDePedra')).toBe(RAIO_SOLIDO_DA_TORRE)
+    expect(pegadaSolidaDoTipo('moinho')).toBe(1)
+    /** A 57 px do centro: 0,95 do raio, no anel entre a parede e a borda da caixa. */
+    const NO_ANEL = { x: 424, y: 470 }
+    expect(arrastar(map, NO_ANEL)).toEqual({ ok: true, x: NO_ANEL.x, y: NO_ANEL.y })
+    /** A 41 px do centro: 0,68 do raio, dentro da parede. */
+    expect(arrastar(map, { x: 440, y: 472 })).toEqual(BARROU)
+    // O moinho do mesmo tamanho segue com a caixa inteira: o ponto do anel, nele, é barrado.
+    expect(arrastar(cena({ props: [objeto('moinho-grande', 'moinho', 480, 480, 3)] }), NO_ANEL)).toEqual(BARROU)
   })
 })
 

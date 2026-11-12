@@ -1,4 +1,4 @@
-import type { MapData, Prop, RegionPoint, Wall } from '../types/map'
+import type { MapData, Prop, RegionPoint, TipoMobilia, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
@@ -12,7 +12,8 @@ import { rotatePointAround, rotationTrig } from './roomRotation'
  *
  * O obstáculo sai do próprio objeto, sem campo de geometria: a caixa girada, ou
  * a elipse de `LADOS_DA_ELIPSE` lados quando a silhueta é redonda
- * (`ehMovelRedondo`). Vira PAREDES SINTÉTICAS, como as do barranco
+ * (`ehMovelRedondo`), encolhida à pegada sólida do tipo quando o desenho não
+ * ocupa a caixa inteira (`PEGADA_SOLIDA`). Vira PAREDES SINTÉTICAS, como as do barranco
  * (`lib/barranco.ts`): seguram o andar (`blocksMove`), deixam ver
  * (`blocksLight: false`), e só existem nas contas de andar do JOGADOR (arrasto,
  * clique para andar, "Andar até aqui", batalha, modo teste). Nunca vão para
@@ -41,6 +42,12 @@ const LADOS_DA_ELIPSE = 12
 const PREFIXO_DO_ID = 'objeto:'
 /** Até quanto da borda, em px, a ficha conta como DENTRO da forma: em cima da linha ela não fica presa. */
 const TOLERANCIA_DA_BORDA = 0.01
+/**
+ * PEGADA SÓLIDA por tipo: a fração da caixa do objeto que barra, quando o
+ * desenho não a ocupa inteira. Quem não está aqui barra com a caixa toda (1).
+ * `torreDePedra` 0,8: o raio da parede no desenho (`RAIO_SOLIDO_DA_TORRE` em `texturas/meioTermo/moveis/torreDePedra.ts`, que `lib` não importa).
+ */
+const PEGADA_SOLIDA: Partial<Record<TipoMobilia, number>> = { torreDePedra: 0.8 }
 
 /** O obstáculo de um objeto: o contorno fechado e as paredes dele. */
 export interface ObstaculoDeObjeto {
@@ -117,11 +124,18 @@ export function ehParedeDeObjeto(id: string): boolean {
   return id.startsWith(PREFIXO_DO_ID)
 }
 
+/** A fração da caixa que o obstáculo deste tipo ocupa (`PEGADA_SOLIDA`); 1 = a caixa inteira. */
+export function pegadaSolidaDoTipo(tipo: TipoMobilia | undefined): number {
+  return tipo === undefined ? 1 : (PEGADA_SOLIDA[tipo] ?? 1)
+}
+
 /** O contorno do objeto em px de mundo, ou `null` quando as medidas não servem (arquivo estragado). */
 function contornoDoObjeto(prop: Prop, folga: number): RegionPoint[] | null {
   if (![prop.x, prop.y, prop.width, prop.height].every(Number.isFinite) || !(prop.width > 0) || !(prop.height > 0)) return null
-  const meiaLargura = prop.width / 2 + folga
-  const meiaAltura = prop.height / 2 + folga
+  // A pegada sólida do tipo encolhe a forma antes de ela virar parede (a torre de pedra: só até a parede desenhada).
+  const pegada = pegadaSolidaDoTipo(prop.mobilia)
+  const meiaLargura = (prop.width / 2) * pegada + folga
+  const meiaAltura = (prop.height / 2) * pegada + folga
   const centro = { x: prop.x, y: prop.y }
   const retos: RegionPoint[] = ehMovelRedondo(prop.mobilia, vistaDoMovel(prop))
     ? Array.from({ length: LADOS_DA_ELIPSE }, (_, k) => {
