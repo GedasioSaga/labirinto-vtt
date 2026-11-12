@@ -1,6 +1,6 @@
 import type { MapData, Pin, Token, Wall } from '../types/map'
 import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor, type ReachPoint } from './doorReach'
-import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
+import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * JOGADOR TRANCA PORTA OU PASSAGEM — a conta pura, compartilhada pelo host

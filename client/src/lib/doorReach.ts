@@ -1,5 +1,5 @@
 import type { DoorSide, Token, Wall } from '../types/map'
-import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
+import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * Alcance e acerto de porta — compartilhado pelo host (validar o pedido do

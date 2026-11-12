@@ -2,7 +2,7 @@ import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Prop, Token } fro
 import { tokenRadiusOf } from './doorReach'
 import { venderItem } from './loja'
 import { ehRefDeMidia } from './midia'
-import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
+import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * ITEM PEGÁVEL — regras puras, compartilhadas pelo host (validar o "Pegar" e

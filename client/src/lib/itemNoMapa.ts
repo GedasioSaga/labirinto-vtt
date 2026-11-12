@@ -14,7 +14,7 @@ import {
   type ItemParaDar,
 } from './items'
 import { comPiso, pisoDe } from './pisos'
-import type { AlcancePeloObjeto } from './obstaculosDeObjeto'
+import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * ITEM NO MAPA (entrega 5 dos sistemas de RPG) — regras puras do item que o

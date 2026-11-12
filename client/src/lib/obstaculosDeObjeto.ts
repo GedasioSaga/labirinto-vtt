@@ -4,6 +4,7 @@ import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
 import { pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
+import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * OBJETO GRANDE BARRA A FICHA DO JOGADOR (pedido do mestre de 12/11/2026: "esse
@@ -349,14 +350,8 @@ export function alcancaPeloObjeto(objetos: ObjetosDoAlcance, ficha: Pick<Token, 
   return false
 }
 
-/**
- * O alcance pelo objeto já preso a um recorte: o que as contas de alcance
- * recebem (`tokenReachesPin`, `tokenAlcancaPino`, `fichaAlcancaItem`). Elas
- * pedem a FUNÇÃO, e não importam este arquivo: `doorReach`, `items` e
- * `ferrolho` já estão no fecho de imports daqui, e o import de volta faria um
- * ciclo novo.
- */
-export type AlcancePeloObjeto = (ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: Point, alcance: number) => boolean
+// O tipo da função presa ao recorte mora em `lib/tipoDoAlcancePeloObjeto.ts` (a guarda da nuvem segue o import de tipo).
+export type { AlcancePeloObjeto }
 
 /** `alcancaPeloObjeto` preso ao recorte `objetos` (ver `AlcancePeloObjeto`). */
 export function alcancePeloObjeto(objetos: ObjetosDoAlcance): AlcancePeloObjeto {
