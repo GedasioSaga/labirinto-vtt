@@ -1,8 +1,9 @@
-import { BufferImageSource, Container, Graphics, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js'
+import { BufferImageSource, Container, Graphics, GraphicsContext, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js'
 import type { Light, MapData, Periodo, RegionPoint } from '../types/map'
 import { fogoAcendeLuz, luzDoObjeto, raioDaLuzDoObjeto, type FogoQueIlumina } from '../lib/luzDoFogo'
 import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
 import { computeVisibility, type Segment } from '../lib/visibility'
+import { AJUSTE_DA_PENUMBRA, type Borrao } from './mapaDePenumbra'
 
 /**
  * MAPA DE LUZ (Luz L4b, plano `docs/planos/luz-dia-tarde-noite-2026-10-24.md`).
@@ -356,6 +357,16 @@ export interface QuadroDoMapaDeLuz {
   fogos?: readonly FogoQueIlumina[]
   /** A grade do mapa em px de mundo: o alcance da luz do fogo é em casas dele. Ausente = a grade de referência dos móveis. */
   casa?: number
+  /**
+   * Só no jogador com a penumbra (`pixi/mapaDePenumbra.ts`): o claro das luzes
+   * fica só no que ele CONHECE (o contexto de `knownMask`; `revisao` muda quando
+   * ele muda). No nunca visto o mapa é só a tinta, e o nunca visto, que agora não
+   * é preto puro, sai numa cor só, sem a forma do claro de um lampião vazando
+   * nele. Ausente = as luzes como sempre.
+   */
+  conhecido?: { contexto: GraphicsContext; revisao: number } | null
+  /** LUZ MACIA (sombras, peça E): a beira do claro borrada em `AJUSTE_DA_PENUMBRA.luzMaciaPx` de mundo. Só com o borrão (`criarMapaDeLuz`). */
+  luzMacia?: boolean
 }
 
 export interface MedidasDoMapaDeLuz {
@@ -425,7 +436,9 @@ function matrizDaLuz(luz: LuzNoMapa): Matrix {
   return new Matrix(k, 0, 0, k, luz.x - meio, luz.y - meio)
 }
 
-export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz {
+/** `borrao`: o da penumbra (`criarBorrao`), para a luz macia; ausente = a beira seca de sempre. */
+export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { borrao?: Borrao | null } = {}): MapaDeLuz {
+  const borrao = opcoes.borrao ?? null
   const queda = criarTexturaDaQueda()
   // `dynamic`: sem ele o Sprite do Pixi não ouve o `resize` da textura e guarda o
   // tamanho antigo; a janela que cresce à noite deixava a tinta só num retângulo
@@ -448,7 +461,19 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
   claros.blendMode = 'add'
   // A luz de cada fogo num Graphics próprio: o tremor só troca o alpha dele, sem refazer a geometria.
   const clarosDosFogos = new Container()
-  palco.addChild(fundo, claros, clarosDosFogos)
+  // Os claros juntos: no `recorte` (com a máscara do conhecido, quando há) ou,
+  // com a luz macia, desenhados à parte e borrados antes de entrar nele.
+  const luzes = new Container()
+  luzes.addChild(claros, clarosDosFogos)
+  const recorte = new Container()
+  recorte.addChild(luzes)
+  const contextoVazio = new GraphicsContext()
+  const mascaraDoConhecido = new Graphics(contextoVazio)
+  const luzBorrada = new Sprite(Texture.EMPTY)
+  luzBorrada.blendMode = 'add'
+  let texturasDaLuzMacia: { cru: RenderTexture; temp: RenderTexture; borrada: RenderTexture } | null = null
+  let chaveDoConhecido = ''
+  palco.addChild(fundo, recorte, mascaraDoConhecido)
   let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
   const poligonosDosFogos: CacheDePoligonos = new Map()
   let fogosLidos: readonly FogoQueIlumina[] | undefined
@@ -554,13 +579,67 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     sprite.scale.set(1 / ESCALA_DO_MAPA_DE_LUZ / escala)
   }
 
+  /** O claro só no conhecido (a máscara presa ao contexto de `knownMask`), ou em todo lugar, como sempre. */
+  function recortarPeloConhecido(conhecido: QuadroDoMapaDeLuz['conhecido']): void {
+    if (conhecido !== null && conhecido !== undefined) {
+      if (mascaraDoConhecido.context !== conhecido.contexto) mascaraDoConhecido.context = conhecido.contexto
+      if (recorte.mask !== mascaraDoConhecido) recorte.setMask({ mask: mascaraDoConhecido })
+      chaveDoConhecido = String(conhecido.revisao)
+      return
+    }
+    // O `mask` do Pixi devolve `undefined` quando não há máscara.
+    if (recorte.mask !== undefined && recorte.mask !== null) recorte.mask = null
+    // Solta, a máscara volta a ser um Graphics comum: com o contexto vazio ela não desenha nada.
+    if (mascaraDoConhecido.context !== contextoVazio) mascaraDoConhecido.context = contextoVazio
+    chaveDoConhecido = ''
+  }
+
+  /** As três texturas da luz macia, do tamanho do mapa de luz (criadas na primeira vez). */
+  function texturasMacias(largura: number, altura: number): { cru: RenderTexture; temp: RenderTexture; borrada: RenderTexture } {
+    const nova = (): RenderTexture => RenderTexture.create({ width: largura, height: altura, resolution: 1, dynamic: true, scaleMode: 'linear' })
+    texturasDaLuzMacia ??= { cru: nova(), temp: nova(), borrada: nova() }
+    for (const t of [texturasDaLuzMacia.cru, texturasDaLuzMacia.temp, texturasDaLuzMacia.borrada]) {
+      if (t.width !== largura || t.height !== altura) t.resize(largura, altura, 1)
+    }
+    return texturasDaLuzMacia
+  }
+
+  /**
+   * LUZ MACIA: os claros desenhados à parte (sobre o preto, somando), borrados
+   * em `luzMaciaPx` de mundo e somados de volta no recorte. A máscara do
+   * conhecido vem DEPOIS do borrão: o claro macio não escorre para o nunca visto.
+   */
+  function amaciar(quadro: QuadroDoMapaDeLuz, largura: number, altura: number): boolean {
+    if (borrao === null || quadro.luzMacia !== true) {
+      if (luzes.parent !== recorte) {
+        luzBorrada.removeFromParent()
+        recorte.addChild(luzes)
+      }
+      return false
+    }
+    if (luzes.parent !== null) luzes.removeFromParent()
+    if (luzBorrada.parent !== recorte) recorte.addChild(luzBorrada)
+    const t = texturasMacias(largura, altura)
+    renderizador.render({ container: luzes, target: t.cru, clear: true, clearColor: 0x000000, transform: matrizDaVista(quadro.vista, transformacao) })
+    const escala = quadro.vista.escala > 0 && Number.isFinite(quadro.vista.escala) ? quadro.vista.escala : 1
+    borrao.borrar(t.cru, t.temp, t.borrada, AJUSTE_DA_PENUMBRA.luzMaciaPx * escala * ESCALA_DO_MAPA_DE_LUZ)
+    // Em px de mundo, como o sprite do mapa: o palco é desenhado pela mesma matriz da vista.
+    if (luzBorrada.texture !== t.borrada) luzBorrada.texture = t.borrada
+    luzBorrada.position.set(-quadro.vista.x / escala, -quadro.vista.y / escala)
+    luzBorrada.scale.set(1 / ESCALA_DO_MAPA_DE_LUZ / escala)
+    return true
+  }
+
   function desenhar(quadro: QuadroDoMapaDeLuz): void {
-    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}|${versaoDosFogos}|${passoDoTremor}`
+    recortarPeloConhecido(quadro.conhecido)
+    const macia = borrao !== null && quadro.luzMacia === true
+    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}|${versaoDosFogos}|${passoDoTremor}|${chaveDoConhecido}|${macia}`
     if (chave === chaveDoDesenho) return
     chaveDoDesenho = chave
     const largura = Math.max(1, Math.ceil(quadro.vista.largura * ESCALA_DO_MAPA_DE_LUZ))
     const altura = Math.max(1, Math.ceil(quadro.vista.altura * ESCALA_DO_MAPA_DE_LUZ))
     if (textura.width !== largura || textura.height !== altura) textura.resize(largura, altura, 1)
+    amaciar(quadro, largura, altura)
     renderizador.render({ container: palco, target: textura, clear: true, clearColor: BRANCO, transform: matrizDaVista(quadro.vista, transformacao) })
     medidas.refeitos += 1
   }
@@ -618,7 +697,15 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz): MapaDeLuz
     contorno.removeFromParent()
     sprite.destroy()
     contorno.destroy()
+    // O borrão recebido em `criarMapaDeLuz` é deste mapa: sai junto.
+    borrao?.destruir()
+    // Os claros podem estar fora do palco (luz macia): destruídos à parte.
+    luzes.destroy({ children: true })
+    luzBorrada.destroy()
     palco.destroy({ children: true })
+    contextoVazio.destroy()
+    if (texturasDaLuzMacia !== null) for (const t of [texturasDaLuzMacia.cru, texturasDaLuzMacia.temp, texturasDaLuzMacia.borrada]) t.destroy(true)
+    texturasDaLuzMacia = null
     textura.destroy(true)
     queda.destroy(true)
     poligonos.clear()

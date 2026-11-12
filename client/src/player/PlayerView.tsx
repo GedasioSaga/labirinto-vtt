@@ -19,7 +19,7 @@ import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
 import { countExploredCells, forEachExploredNotch, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
-import { corposComTextura, faixasDaParede, paredesQueSeguram, presoNaParede, type CorpoDaParede } from '../lib/faixasDaParede'
+import { corposComTextura, espessuraDoMaterial, faixasDaParede, paredeComMaterial, paredesQueSeguram, presoNaParede, type CorpoDaParede } from '../lib/faixasDaParede'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
 import { createTelhadosRenderer, telhadoParaDesenhar, type TelhadosRenderer } from '../pixi/telhadosRenderer'
@@ -29,7 +29,7 @@ import { drawHazardAreas } from '../pixi/drawHazards'
 import type { PlayerAreaTrigger } from '../lib/areaTriggers'
 import { drawAreaTriggers } from '../pixi/drawAreaTriggers'
 import { visibleDrawings, visibleLights, visibleProps, visibleRegions, visibleStairs } from '../lib/layers'
-import { visionSegments, type Segment } from '../lib/visibility'
+import { visionSegments, wallLetsSightThrough, type Segment } from '../lib/visibility'
 import { chaoQueLimita } from '../lib/offFloor'
 import { tokenReachesDoor } from '../lib/doorReach'
 import { findStairPinAt } from '../lib/selectionHitTest'
@@ -90,6 +90,7 @@ import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
+import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, type MapaDePenumbra, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
 import type { LuzDoJogador } from '../lib/periodo'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
@@ -1433,6 +1434,15 @@ interface Scene {
   lastFogCorpos: readonly CorpoDaParede[] | null
   /** O corpo das paredes com textura do desenho, pela lista do recorte, camadas e grade (`corposDaNevoa`). */
   corposDaNevoa: { fonte: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; corpos: CorpoDaParede[] } | null
+  /**
+   * PENUMBRA POR DENTRO (`pixi/mapaDePenumbra.ts`): o escuro macio no lugar do
+   * véu preto. `null` no modo leve e sem WebGL2: vale a névoa de antes.
+   */
+  penumbra: MapaDePenumbra | null
+  /** Sobe a cada vez que `redrawFog` refaz as máscaras: a penumbra e o recorte das luzes refazem junto. */
+  revisaoDaNevoa: number
+  /** As paredes que barram a vista, para os traços brancos da penumbra (`paredesDaPenumbra`). */
+  paredesDaPenumbra: { fonte: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; paredes: ParedeDaPenumbra[] } | null
   exploredCells: number
   /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
   pins: Container
@@ -1884,14 +1894,22 @@ function corposDaNevoa(scene: Scene, map: MapData, vision: RegionPoint[][], expl
 function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, brightness: number, corpos: readonly CorpoDaParede[]): void {
   const width = map.width * map.grid
   const height = map.height * map.grid
-  scene.fogUnknown.clear().rect(0, 0, width, height).fill({ color: 0x000000, alpha: 1 })
+  const penumbra = scene.penumbra
+  // Com a penumbra, o nunca visto fica quase preto e frio, e o véu preto do
+  // lembrado dá lugar à tinta fria dela (que mora debaixo desta camada).
+  scene.fogUnknown.clear().rect(0, 0, width, height).fill({ color: penumbra === null ? 0x000000 : AJUSTE_DA_PENUMBRA.nuncaVisto, alpha: 1 })
   scene.fogDim.clear().rect(0, 0, width, height).fill({ color: 0x000000, alpha: 1 - brightness })
+  scene.fogDim.visible = penumbra === null
+  penumbra?.definirBrilho(brightness)
 
   // As máscaras só mudam com snapshot novo (ou paredes novas); o slider de brilho só repinta a camada acima.
   if (vision === scene.lastVision && explored === scene.lastExplored && corpos === scene.lastFogCorpos) return
+  // A troca do passo da penumbra: a foto do escuro de agora, ANTES de as máscaras mudarem.
+  penumbra?.guardarAntes(map.id, map.grid)
   scene.lastVision = vision
   scene.lastExplored = explored
   scene.lastFogCorpos = corpos
+  scene.revisaoDaNevoa += 1
 
   const polygons = vision.filter((poly) => poly.length >= 3)
   scene.visionMask.clear()
@@ -1947,6 +1965,40 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
   if (hasKnown) scene.fogUnknown.setMask({ mask: scene.knownMask, inverse: true })
   else scene.fogUnknown.mask = null
   scene.knownMask.visible = hasKnown
+}
+
+/**
+ * As PAREDES DO PACOTE que barram a vista, para os traços brancos da penumbra
+ * (sem eles a borda macia escurece o pé de toda parede). As mesmas do desenho
+ * (o recorte de `playerCulling.ts`, nas camadas visíveis); a espessura é a do
+ * corpo da parede com textura, 0 na de linha. Memorizadas como `corposDaNevoa`.
+ */
+function paredesDaPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined): ParedeDaPenumbra[] {
+  const fonte = scene.culler.cull(map, vision, explored).walls
+  const memo = scene.paredesDaPenumbra
+  if (memo !== null && memo.fonte === fonte && memo.hidden === map.hiddenLayers && memo.grid === map.grid) return memo.paredes
+  const paredes: ParedeDaPenumbra[] = []
+  for (const w of wallsOnVisibleLayers(fonte, map.hiddenLayers)) {
+    if (wallLetsSightThrough(w)) continue
+    paredes.push({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, espessura: paredeComMaterial(w) ? espessuraDoMaterial(w, map.grid) : 0 })
+  }
+  scene.paredesDaPenumbra = { fonte, hidden: map.hiddenLayers, grid: map.grid, paredes }
+  return paredes
+}
+
+/** Depois de `redrawFog`: a penumbra refaz os campos quando as máscaras (ou as paredes) mudaram. */
+function atualizarPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined): void {
+  const penumbra = scene.penumbra
+  if (penumbra === null) return
+  penumbra.atualizar({
+    mapaId: map.id,
+    grid: map.grid,
+    largura: map.width * map.grid,
+    altura: map.height * map.grid,
+    revisao: scene.revisaoDaNevoa,
+    paredes: paredesDaPenumbra(scene, map, vision, explored),
+    temVisao: vision.some((poly) => poly.length >= 3),
+  })
 }
 
 /**
@@ -3477,6 +3529,7 @@ function PlayerViewDoCanvas({
     redrawHazards(scene, currentHazards, currentVision)
     redrawTriggers(scene, currentTriggers)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness, corposDaNevoa(scene, currentMap, currentVision, currentExplored))
+    atualizarPenumbra(scene, currentMap, currentVision, currentExplored)
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
     redrawRoofs(scene, regions, currentPeek, currentMap.id, currentMap.grid)
@@ -3961,6 +4014,11 @@ function PlayerViewDoCanvas({
       )
       const fogDim = new Graphics()
       const visionMask = new Graphics()
+      // PENUMBRA POR DENTRO: a faixa existe sempre (a conta das faixas cobra); vazia no modo leve e sem WebGL2.
+      const penumbraCamada = new Container()
+      penumbraCamada.label = 'penumbra'
+      penumbraCamada.eventMode = 'none'
+      penumbraCamada.interactiveChildren = false
       const concealed = new Graphics()
       const farLights = new Graphics()
       const roofs = new Container()
@@ -4050,6 +4108,8 @@ function PlayerViewDoCanvas({
         hazards,
         // Gatilho revelado: marca da planta, também ABAIXO da névoa.
         triggers,
+        // PENUMBRA (sombras): o escuro macio e a tinta fria do lembrado, só escurecendo, sob o nunca visto e a zona oculta.
+        penumbra: penumbraCamada,
         fogUnknown,
         knownMask,
         fogDim,
@@ -4208,7 +4268,22 @@ function PlayerViewDoCanvas({
       // noite, D2), com o contorno da própria ficha logo acima. Régua, sinais e
       // notas moram fora do mundo e não escurecem. Só entra no mundo com tinta
       // (`tickMapaDeLuz`): de dia o mundo tem os mesmos filhos de antes da Luz.
-      const mapaDeLuz = criarMapaDeLuz(app.renderer)
+      // PENUMBRA POR DENTRO (sombras da caça de 12/11/2026): fora do modo leve e
+      // só se os shaders compilam (WebGL2); senão, a névoa de antes. Criada aqui,
+      // na montagem: o primeiro desenho dos campos sai no primeiro `redraw`.
+      const comPenumbra = !modoLeve && penumbraCompila(app.renderer)
+      const penumbra = comPenumbra
+        ? criarMapaDePenumbra({
+            renderizador: app.renderer,
+            camada: penumbraCamada,
+            visao: visionMask.context,
+            conhecido: knownMask.context,
+            vista: () => ({ x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height, resolucao: app.renderer.resolution }),
+            menosMovimento: prefersReducedMotion,
+          })
+        : null
+      // A luz macia (peça E) usa o borrão da penumbra; sem ela, a beira seca de antes.
+      const mapaDeLuz = criarMapaDeLuz(app.renderer, { borrao: comPenumbra ? criarBorrao(app.renderer) : null })
       app.stage.eventMode = 'static'
       app.stage.hitArea = app.screen
 
@@ -4318,6 +4393,9 @@ function PlayerViewDoCanvas({
         lastVision: null,
         lastFogCorpos: null,
         corposDaNevoa: null,
+        penumbra,
+        revisaoDaNevoa: 0,
+        paredesDaPenumbra: null,
         exploredCells: 0,
         pins,
         pinsRenderer: pinosPorNo.de(pins),
@@ -4725,6 +4803,9 @@ function PlayerViewDoCanvas({
           // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
           fogos: m.props,
           casa: m.grid,
+          // Com a penumbra: o claro só no conhecido (o nunca visto sai numa cor só) e a beira macia (peça E).
+          conhecido: scene.penumbra === null ? null : { contexto: scene.knownMask.context, revisao: scene.revisaoDaNevoa },
+          luzMacia: scene.penumbra !== null,
         })
         const { refeitos, ultimoMs, maiorMs } = scene.mapaDeLuz.medidas
         // Para o e2e medir o refazer; só quando refez (atributo por quadro custaria à toa).
@@ -4736,7 +4817,26 @@ function PlayerViewDoCanvas({
       }
       app.ticker.add(tickMapaDeLuz)
 
-      const sendSignalAt = (screenX: number, screenY: number) => {
+      // PENUMBRA, depois da câmera do quadro: segue a vista (refaz os campos só
+      // se ela saiu da caixa) e anda a troca do passo, que só muda um número.
+      let penumbraRefeitosPublicados = -1
+      const tickPenumbra = () => {
+        const p = scene.penumbra
+        if (p === null) return
+        p.quadro(performance.now())
+        const { refeitos, ultimoMs, maiorMs } = p.medidas
+        // Para o e2e medir o refazer (como `data-mapa-de-luz-*`); só quando refez.
+        if (refeitos !== penumbraRefeitosPublicados) {
+          penumbraRefeitosPublicados = refeitos
+          el.dataset.penumbraRefeitos = String(refeitos)
+          el.dataset.penumbraTrocas = String(p.medidas.trocas)
+          el.dataset.penumbraMs = ultimoMs.toFixed(2)
+          el.dataset.penumbraMaiorMs = maiorMs.toFixed(2)
+        }
+      }
+      app.ticker.add(tickPenumbra)
+
+      const sendSignalAt =(screenX: number, screenY: number) => {
         const point = scene.world.toLocal({ x: screenX, y: screenY })
         latestRef.current.onSignal?.(point.x, point.y)
       }
@@ -5152,6 +5252,8 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickRevisit)
         app.ticker.remove(tickMapaDeLuz)
         scene.mapaDeLuz.destruir()
+        app.ticker.remove(tickPenumbra)
+        scene.penumbra?.destruir()
         for (const animador of [...scene.portasPorNo.todos(), ...scene.portasNoTelhadoPorNo.todos()]) animador.cancelar()
         scene.telhados.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.

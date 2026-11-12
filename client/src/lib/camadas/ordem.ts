@@ -124,8 +124,8 @@ const SOBRE: ZonaDaNevoa = 'sobre-a-nevoa'
 
 /**
  * Jogador (`player/PlayerView.tsx` ~3055-3138): a planta sob a névoa (com os
- * objetos presos na parede por cima das paredes), as 5
- * faixas da névoa (fixas, sem zona) e, por cima, luz de longe, telhados,
+ * objetos presos na parede por cima das paredes), as 6
+ * faixas da névoa (a penumbra e as 5 de antes; fixas, sem zona) e, por cima, luz de longe, telhados,
  * porta no telhado, pílulas, marcas, pinos e fichas. As máscaras andam com o
  * container que recortam. `walls` com paredes e portas por analogia com o
  * editor (não conferido no `drawWalls` do jogador).
@@ -170,6 +170,11 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('hazardsMask', [], ['salas'], SOB),
   faixa('hazards', [], ['salas'], SOB),
   faixa('triggers', [], ['salas'], SOB),
+  // PENUMBRA POR DENTRO (sombras da caça de 12/11/2026, `pixi/mapaDePenumbra.ts`):
+  // o escuro macio do visto e a tinta fria do lembrado, em multiply, DEBAIXO do
+  // nunca visto e da zona oculta. Só escurece; quem decide o que aparece
+  // continua sendo a máscara dura de `fogUnknown`. Fixa, sem zona, como a névoa.
+  faixa('penumbra', [], FIXA),
   faixa('fogUnknown', [], FIXA),
   faixa('knownMask', [], FIXA),
   faixa('fogDim', [], FIXA),
