@@ -456,8 +456,12 @@ export interface MapaDePenumbra {
   guardarAntes(mapaId: string, grid: number): void
   /** DEPOIS de as máscaras mudarem: refaz os campos (se mudaram) e começa a troca guardada. */
   atualizar(campos: CamposDaPenumbra): void
-  /** Todo quadro: segue a câmera (refaz os campos se ela saiu da caixa) e anda a troca. */
-  quadro(agora: number): void
+  /**
+   * Todo quadro: segue a câmera (refaz os campos se ela saiu da caixa) e anda a
+   * troca. Verdadeiro = o escuro mudou neste quadro só por número de shader (a
+   * troca andou ou acabou), que o Pixi não vê: a tela tem de desenhar.
+   */
+  quadro(agora: number): boolean
   destruir(): void
 }
 
@@ -713,7 +717,7 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
     },
     quadro(agora) {
       const estado = ultimos
-      if (estado === null || caixa === null) return
+      if (estado === null || caixa === null) return false
       const vista = opcoes.vista()
       const chave = chaveDaVista(vista)
       if (chave !== ultimaVista) {
@@ -724,13 +728,14 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
           medir(inicio)
         }
       }
-      if (misturaAtual >= 1) return
+      if (misturaAtual >= 1) return false
       // A câmera andou no meio da troca: a foto de antes ficou fora do lugar, então a troca acaba já.
       if (chave !== vistaDaTroca) {
         definirMistura(1)
-        return
+        return true
       }
       definirMistura(mistura(agora - inicioDaTroca))
+      return true
     },
     destruir() {
       borrao.destruir()

@@ -91,6 +91,7 @@ import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
 import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, type MapaDePenumbra, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
+import { criarDesenhoSobPedido, type DesenhoSobPedido } from '../pixi/desenhoSobPedido'
 import type { LuzDoJogador } from '../lib/periodo'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
@@ -1221,6 +1222,8 @@ function paintGhostView(view: GhostView, ghost: LastSeenGhost, grid: number, cam
 
 interface Scene {
   app: Application
+  /** O10: o desenho só quando algo muda (`pixi/desenhoSobPedido.ts`); quem anima usa o `relogio` dele. */
+  desenho: DesenhoSobPedido
   world: Container
   mapBackground: Graphics
   grid: Graphics
@@ -3844,6 +3847,10 @@ function PlayerViewDoCanvas({
       }
       initialized = true
       registrarNaSonda('appJogador', app)
+      // O10 (caça de 12/11/2026): parado, a tela não redesenha; o relógio
+      // continua batendo. Logo depois do init: o desenho fica no mesmo lugar do tique.
+      const desenho = criarDesenhoSobPedido(app)
+      registrarNaSonda('desenhoJogador', desenho.medidas)
       el.appendChild(app.canvas)
       // Contexto perdido: quem está em volta (`PlayerView`) troca este Pixi por
       // um novo. `onContextoPerdido` é estável (useCallback) e cada geração
@@ -3965,9 +3972,9 @@ function PlayerViewDoCanvas({
       })
       carimbosContainer.addChild(carimbos.camada)
       carimbosContainer.mask = carimbosMask
-      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: app.ticker, reducedMotion: prefersReducedMotion })
+      const nomesDosLugares = createNomesDosLugaresRenderer({ ticker: desenho.relogio, reducedMotion: prefersReducedMotion })
       const fogos = createFogosDoMapa({
-        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
           el.dataset.fogos = String(estado.fogos)
           el.dataset.fogosNaVista = String(estado.naVista)
@@ -3976,7 +3983,7 @@ function PlayerViewDoCanvas({
       })
       // JUDGE (F3, `pixi/judgeDoMapa.ts`): a folha só baixa quando a batalha o põe na tela.
       const judgeDoMapa = createJudgeDoMapa({
-        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
           el.dataset.judge = estado.visivel ? String(estado.direcao) : 'nao'
           el.dataset.judgeAnimando = String(estado.animando)
@@ -3986,7 +3993,7 @@ function PlayerViewDoCanvas({
       // e máscara visível pagaria o stencil a cada quadro). O relógio só roda com
       // elas andando: desligadas (chave, "Efeitos do mapa", modo leve) ou paradas, nada.
       const nuvens = createNuvensRenderer(
-        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         {
           aoMudar: (estado) => {
             el.dataset.nuvens = String(estado.nuvens)
@@ -3996,7 +4003,7 @@ function PlayerViewDoCanvas({
       )
       const neblina = createNeblinaRenderer(
         app.renderer,
-        { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         {
           aoMudar: (estado) => {
             el.dataset.neblina = estado.ligada ? (estado.movendo ? 'andando' : 'parada') : 'desligada'
@@ -4005,7 +4012,7 @@ function PlayerViewDoCanvas({
         },
       )
       const particulas = criarParticulasDoMapa(
-        { ticker: app.ticker, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
         {
           aoMudar: (estado) => {
             el.dataset.particulas = estado.ligadas ? String(estado.vivas) : 'desligadas'
@@ -4181,20 +4188,20 @@ function PlayerViewDoCanvas({
       const chamasPorNo = criarPorNo<Container, ChamasDasFogueiras>(
         chamasCamada,
         createChamasDasFogueiras({
-          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+          movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
           aoMudar: (estado) => {
             el.dataset.chamas = String(estado.chamas)
             el.dataset.chamasAnimando = String(estado.animando)
           },
         }),
         // A chama de um nó criado (camada com opacidade própria) anda no mesmo relógio; o painel de teste lê só a de hoje.
-        () => createChamasDasFogueiras({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+        () => createChamasDasFogueiras({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
         (chamas) => chamas.destruir(),
       )
       const looksPorNo = criarPorNo<Container, PropLooksRenderer>(propImages, createPropLooksRenderer(), () => createPropLooksRenderer(), () => {})
       aoDescartarNo.push((no) => chamasPorNo.soltar(no), (no) => looksPorNo.soltar(no), (no) => caminhos.soltar(no))
       // CAMADAS (fatia 4b): luzes, pinos e portas de camada escolhida desenham no nó dela, com renderer próprio.
-      const movimentoDasPortas = { ticker: app.ticker, reducedMotion: prefersReducedMotion }
+      const movimentoDasPortas = { ticker: desenho.relogio, reducedMotion: prefersReducedMotion }
       const luzesPorNo = criarPorNo<Container, ReturnType<typeof createLightsRenderer>>(lights, createLightsRenderer(), createLightsRenderer, (r) => r.destroy())
       const pinosPorNo = criarPorNo<Container, ReturnType<typeof createPinsRenderer>>(pins, createPinsRenderer(), () => createPinsRenderer(), () => {})
       // Só a porta de verdade toca o som; a cópia por cima do telhado anima junto e ficaria em dobro.
@@ -4289,6 +4296,7 @@ function PlayerViewDoCanvas({
 
       const scene: Scene = {
         app,
+        desenho,
         world,
         mapBackground,
         grid,
@@ -4327,7 +4335,7 @@ function PlayerViewDoCanvas({
         naParede: {
           silhuetas: silhuetasNaParede,
           chamasNo: chamasNaParede,
-          chamas: createChamasDasFogueiras({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+          chamas: createChamasDasFogueiras({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
           imagens: imagensNaParede,
           rotulos: rotulosNaParede,
           looks: createPropLooksRenderer(),
@@ -4421,7 +4429,7 @@ function PlayerViewDoCanvas({
         roofs,
         peekedRoofs,
         telhados: createTelhadosRenderer({
-          movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion, escalaDaTela: () => sceneRef.current?.camera.scale ?? 1 },
+          movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, escalaDaTela: () => sceneRef.current?.camera.scale ?? 1 },
         }),
         peekMask,
         lastRoofsKey: null,
@@ -4525,7 +4533,7 @@ function PlayerViewDoCanvas({
       const tickAnelDaVez = () => passoDoAnelDaVez(scene, performance.now())
       app.ticker.add(tickAnelDaVez)
       // D4 e D7 da batalha: o recuo e o tombo da ficha atingida; a ficha da vez fora da tela ou na borda vem para a vista.
-      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => scene.tokenViews.get(tokenId)?.wrapper ?? null, app.ticker)
+      const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => scene.tokenViews.get(tokenId)?.wrapper ?? null, desenho.relogio)
       const soltarCameraDaBatalha = registrarCameraDaBatalha({
         pontoDaFicha: (tokenId) => {
           const ficha = scene.tokenViews.get(tokenId)?.wrapper ?? null
@@ -4823,7 +4831,8 @@ function PlayerViewDoCanvas({
       const tickPenumbra = () => {
         const p = scene.penumbra
         if (p === null) return
-        p.quadro(performance.now())
+        // A troca de 200 ms só muda um número do shader, que o Pixi não vê: pede o quadro.
+        if (p.quadro(performance.now())) desenho.pedir()
         const { refeitos, ultimoMs, maiorMs } = p.medidas
         // Para o e2e medir o refazer (como `data-mapa-de-luz-*`); só quando refez.
         if (refeitos !== penumbraRefeitosPublicados) {
@@ -5277,6 +5286,8 @@ function PlayerViewDoCanvas({
         scene.naParede.chamas.destruir()
         scene.fogos.destruir()
         scene.judge.destruir()
+        // O10: por último, com todos fora do relógio; o app volta ao desenho de todo quadro até morrer.
+        desenho.destruir()
       }
       // ResizePlugin só escuta 'resize' da janela: acompanha o container também.
       resizeObserver = new ResizeObserver(() => {
@@ -5476,6 +5487,14 @@ function PlayerViewDoCanvas({
     const scene = sceneRef.current
     if (scene?.drag?.kind === 'pan') scene.drag = { ...scene.drag, canTap: false }
   }, [aoEscolherFicha])
+
+  // O10 (desenho sob pedido): toda mudança que chega pelas props desenha um
+  // quadro, mesmo a que só troca número de shader (neblina, brilho do
+  // lembrado). Por último e sem dependências: roda depois dos efeitos acima,
+  // a cada render do React (que não é por quadro).
+  useEffect(() => {
+    sceneRef.current?.desenho.pedir()
+  })
 
   return (
     <>
