@@ -2158,6 +2158,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     removeSelected: () => {
       const { selection } = get()
       if (isSelectionEmpty(selection)) return
+      // A PORTA SOZINHA sai e a parede fica inteira (o mesmo "Virar parede sólida"
+      // do Mais ações), num passo de Ctrl+Z — apagar o pedaço deixava um buraco.
+      const porta = mapFactory.portaSozinhaNaSelecao(get().map, selection)
+      if (porta !== null) {
+        withHistory((map) => mapFactory.setWallDoor(map, porta.id, null))
+        set({ selection: EMPTY_SELECTION })
+        return
+      }
       // Um `withHistory` só para o conjunto inteiro (1 entrada de undo pro
       // Delete todo, não N) — despacho por `item.kind` reusa mapFactory
       // direto (mesmas funções que os removers de 1 item já chamam por

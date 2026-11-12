@@ -125,6 +125,12 @@ export function deleteLabelFor(summary: SelectionSummary): string {
   return summary.count === 1 ? deleteSelectionLabel(summary.kind) : `Apagar ${summary.count} itens selecionados`
 }
 
+/**
+ * O Apagar da PORTA selecionada sozinha (pedido de 12/11/2026): ele tira a porta
+ * e a parede fica inteira (`mapStore.removeSelected`), então o nome diz isso.
+ */
+export const TIRAR_PORTA = 'Tirar porta'
+
 /** O título de cada tipo de pino, o mesmo de antes: as jornadas acham a ficha por ele. */
 export const TITULO_DO_PINO: Record<PinKind, string> = {
   exclamacao: 'Ponto de interesse',

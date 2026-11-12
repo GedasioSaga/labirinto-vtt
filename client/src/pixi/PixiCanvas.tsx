@@ -233,7 +233,7 @@ import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
 import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
-import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
+import { buildConcealZoneFromDraft, buildPin, nextTokenName, portaSozinhaNaSelecao } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import { createAngleIndicatorRenderer } from './drawAngleIndicator'
@@ -9289,7 +9289,9 @@ function PixiCanvasDoContexto({
             // O mapa é lido ANTES da remoção: depois dela não há como saber se
             // a região apagada era uma Sala (ver `describeDeletion`).
             const { map: mapaAntes, selection: apagados } = useMapStore.getState()
-            const oQueSumiu = describeDeletion(mapaAntes, apagados)
+            // A porta sozinha não some: sai a porta e a parede fica inteira (`removeSelected`).
+            const oQueSumiu =
+              portaSozinhaNaSelecao(mapaAntes, apagados) !== null ? 'Porta tirada; a parede ficou inteira' : describeDeletion(mapaAntes, apagados)
             useMapStore.getState().removeSelected()
             if (oQueSumiu !== null) useToastStore.getState().push('info', `${oQueSumiu} — Ctrl+Z desfaz`)
             break

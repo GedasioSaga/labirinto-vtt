@@ -13,6 +13,7 @@ import {
   EXCLUIR_PINO,
   EXCLUIR_ZONA,
   deleteLabelFor,
+  TIRAR_PORTA,
   doorActions,
   endireitarAction,
   floorActions,
@@ -705,7 +706,7 @@ export function PropertiesPanel({
             token={selection.selection.count === 1 && selection.selection.kind === 'token' ? selectedToken : null}
             porta={portaSelecionada}
             onde={ondeDaPorta}
-            rotuloApagar={deleteLabelFor(selection.selection)}
+            rotuloApagar={portaSelecionada !== null && selection.selection.count === 1 ? TIRAR_PORTA : deleteLabelFor(selection.selection)}
             onApagar={selection.onRemoveSelected}
             acoes={acoesDaSelecao}
             notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}

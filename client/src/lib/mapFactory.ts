@@ -1160,6 +1160,20 @@ export function setWallDoor(map: MapData, wallId: string, door: DoorState | null
   }
 }
 
+/**
+ * A porta selecionada SOZINHA (um item, parede com `door`), ou `null`. É o caso
+ * em que o Delete TIRA a porta em vez de apagar o pedaço (pedido de 12/11/2026:
+ * "uma vez que eu coloco uma porta eu não consigo tirar"): apagar o pedaço da
+ * porta deixava um buraco na parede. Com mais itens na seleção, o Delete apaga
+ * tudo como sempre.
+ */
+export function portaSozinhaNaSelecao(map: MapData, selection: readonly { kind: string; id: string }[]): Wall | null {
+  const [item] = selection
+  if (selection.length !== 1 || item === undefined || item.kind !== 'wall') return null
+  const wall = map.walls.find((w) => w.id === item.id)
+  return wall !== undefined && wall.door !== null ? wall : null
+}
+
 export function setWallKindForWall(map: MapData, wallId: string, wallKind: Wall['wallKind']): MapData {
   return {
     ...map,

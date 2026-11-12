@@ -438,7 +438,8 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     expect(titulos()).toEqual([])
     expect(container.querySelector('.lb-ficha-da-porta [role="radiogroup"]')?.textContent).toContain('Aberta')
     expect(corpo()?.firstElementChild?.textContent).toContain('Porta')
-    expect(botoesComTexto(/^Apagar parede selecionada$/)).toHaveLength(1)
+    // Pedido de 12/11/2026: o botão da cabeça TIRA a porta (a parede fica inteira), e diz isso.
+    expect(botoesComTexto(/^Tirar porta$/)).toHaveLength(1)
 
     renderPainel(
       propsDoPainel(null, {
