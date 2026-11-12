@@ -1,4 +1,32 @@
-# 108 OBJETOS NOVOS EM LOTES (95 da lista + antena parabólica + 6 de tortura + sangue no chão + 2 armaduras + 3 blocos de inscrições), plano de 11/11/2026, estado de 12/11 ~09h05 (o mais recente)
+# CAÇA A BUGS VISUAIS, OTIMIZAÇÃO E INTERAÇÕES ESTRANHAS, pedido de 12/11/2026, estado de 12/11 11h19 (relógio; o mais recente)
+
+## Objetivo
+O mestre aceitou as versões 0.5.57 a 0.5.60 ("Perfeito") e pediu uma caça a três coisas: bugs visuais (print 17, no "Reino de Goa"; print 21, parede com textura só num pedaço), otimização e interações estranhas (prints 18 e 19: a Passagem pergunta duas vezes; print 20: "Jogar" como padrão no teste; print 22: "Usar chave" sem chave; print 23: "Entregar item" sem se saber o que faz). Das sombras ele quer VER UM PROTÓTIPO da melhor versão. Processo que ele ditou: Fable 5.2 acha o problema e a solução, Opus 5.5 xhigh faz; a LISTA de bugs e otimizações vai para ele ANTES de fazer. O literal e as minhas leituras estão no fim do `PEDIDOS.md`.
+
+## Estado atual
+- Nada do app foi alterado. Main em `cdfc94fe` (só o registro do pedido), versão publicada 0.5.60.
+- Terreno comum em `tmp/caca-2026-11-12/`: `BRIEFING.md` (regras e formato do relatório de todos os buscadores), `prints-do-mestre/17.png` a `23.png`, `mapas/` (cópia das campanhas "Reino de Goa", 17 cenas, e "Tasmaturi Village", 12 cenas, tirada entre 11h12 e 11h16).
+- Servidor do app (main, sem alterações) na porta 1610, em segundo plano nesta sessão (`rtk proxy npx vite --port 1610 --strictPort --host 127.0.0.1`, de `client/`). Morre com a sessão.
+- EM VOO desde 11h18, seis buscadores Fable 5.2 xhigh, só leitura do app, cada um escrevendo só na própria pasta: `nevoa/` (prints 17 e 21 e os itens de névoa do "para depois"), `sombras/` (como é hoje, a melhor versão em `PROPOSTA.md`, a especificação do protótipo em `ESPEC-PROTOTIPO.md`), `visual/` (varredura das 29 cenas), `jogo/` (passagem, porta, ficha, o seletor Olhar | Jogar, colisão), `editor/` (a lista "para depois" do editor e a varredura das ferramentas), `otimizacao/` (medida). Cada um entrega `ACHADOS.md` na pasta dele.
+
+## Próximos passos
+1. Quando o buscador `sombras` voltar: um `designer-opus` (`model: "opus"`, `effort: "xhigh"`) constrói o protótipo HTML a partir de `sombras/ESPEC-PROTOTIPO.md`; eu abro, confiro e mostro ao mestre.
+2. Quando o buscador `jogo` voltar: os dois itens em que o mestre já disse o que quer ("Jogar" como padrão; a Passagem com um clique só) vão para um `programador-frontend` Opus 5.5 xhigh. O resto espera a lista.
+3. Com os seis de volta: juntar tudo numa LISTA ÚNICA em português simples (o que a pessoa vê, gravidade, tamanho, o que depende de escolha dele, com a recomendada) e mostrar ao mestre. Nenhum bug e nenhuma otimização é feito antes do "pode" dele.
+4. Depois do "pode": Opus 5.5 xhigh conserta (um dono por área acoplada; névoa e visão um por vez), auditoria só de leitura contra o literal, prova na tela do jogador onde tocar névoa, e versão publicada por `scripts/publicar-versao.cjs`.
+
+## Critério de pronto
+- Da caça: existem os seis `ACHADOS.md`; cada achado tem prova (print ou medida, com o caminho) ou está marcado como hipótese; o mestre recebeu a lista única e o protótipo das sombras.
+- Dos consertos (depois do "pode"): cada item aprovado tem um commit, `rtk proxy npx tsc --noEmit` sai 0, a prova pedida no achado passa, e o que toca névoa tem a comparação "igual com e sem a coisa escondida" na tela do jogador.
+
+## Evidência
+- `date` às 11h12 (leitura do pedido), 11h16 (cópias e servidor: `servidor 1610: HTTP 200`), 11h19 (buscadores lançados).
+- Máquina às 11h14: `RAM livre GB: 7.8`, `Disco C livre GB: 36.5`.
+- Aceite gravado: `registrado em ~/.claude/state/tarefas.jsonl: aceita`.
+
+---
+
+# (FECHADO em 12/11 04h56) 108 OBJETOS NOVOS EM LOTES (95 da lista + antena parabólica + 6 de tortura + sangue no chão + 2 armaduras + 3 blocos de inscrições), plano de 11/11/2026
 
 ## Objetivo
 Pôr no catálogo da ferramenta Objeto os objetos que o mestre pediu: os 95 da lista de 11/11 ("pronto gostei de todos"), a antena parabólica (11/11 ~18h25) 6 equipamentos de tortura (12/11 ~06h30, "Coloca uns equipamentos de tortura tambem") o sangue no chão (12/11 ~06h40, "coloca tambem como objeto sangue no shão") e 2 armaduras (12/11 ~07h10: armadura despedaçada no chão, do jeito do esqueleto, e armadura inteira) e 3 blocos de inscrições (12/11 ~09h00, com imagem: cubo gigante de pedra gravada, em azul-escuro, vermelho e ouro). Os literais estão no fim do `PEDIDOS.md`. O catálogo vai de 53 objetos em 10 grupos para 161 em 14 (novos: Porto e navio, Templo e masmorra, Magia e alquimia, Sala de tortura). Plano inteiro, com a receita de um objeto arquivo por arquivo e a tabela dos 13 lotes: `C:\Users\gedasio.filho\.claude\plans\immutable-juggling-moore.md`.
