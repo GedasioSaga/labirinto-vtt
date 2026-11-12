@@ -3161,7 +3161,26 @@ function recorteDoGrupo(
     if (zones.length === 0 || !insideZone(w)) return [w]
     return brushed ? wallRunsWhere(w, inBrushReveal) : []
   }
-  const isSecretRoomWall = (w: Wall): boolean => w.regionId !== undefined && secretRoomIds.has(w.regionId)
+  /**
+   * PAREDE SOLTA DENTRO DA SALA SECRETA FECHADA (sem o `regionId` dela): não sai no pacote, e a sombra dela também
+   * não pode sair. Sem isto ela barrava a visão ENVIADA, e o anel `vision` desenhava a linha exata dela; com o N3
+   * (caça de 12/11/2026: a sala fechada é chão vazio na memória) a sombra ficava ainda no explorado, um vulto preto
+   * com o formato da parede no chão lembrado. Conta a parede inteira dentro ou na borda, com algum trecho
+   * estritamente dentro: a que só corre na borda continua barrando a visão, como antes.
+   */
+  const insideClosedSecretRoom = (w: Wall): boolean => {
+    if (secretRoomRings.length === 0) return false
+    const minX = Math.min(w.x1, w.x2)
+    const maxX = Math.max(w.x1, w.x2)
+    const minY = Math.min(w.y1, w.y2)
+    const maxY = Math.max(w.y1, w.y2)
+    return secretRoomRings.some((b) => {
+      if (minX < b.minX || maxX > b.maxX || minY < b.minY || maxY > b.maxY) return false
+      const samples = wallStepSamples(w) ?? wallSamples(w)
+      return samples.every((p) => pointInPolygonInclusive(p, b.ring)) && samples.some((p) => !pointOnPolygonBorder(p, b.ring))
+    })
+  }
+  const isSecretRoomWall = (w: Wall): boolean => (w.regionId !== undefined && secretRoomIds.has(w.regionId)) || insideClosedSecretRoom(w)
   /**
    * CAMADAS NA VISÃO ENVIADA (revisão da fatia 6, decisão do orquestrador,
    * PENDENTE de confirmação do usuário): o que o jogador não vê não existe

@@ -31,13 +31,34 @@ function snapshotPara(r: HostResult, clientId: string): Extract<HostMessage, { t
   return msg
 }
 
+/**
+ * A MESMA cena sem a sala secreta e sem nada do que mora nela (a Sala, os muros dela e todo item de `ESCONDIDOS`):
+ * é como o jogador vê a sala FECHADA, chão vazio (N3, caça de 12/11/2026, `873686fc`).
+ */
+function semASalaSecreta(cena: MapData): MapData {
+  const fica = (item: { id: string }): boolean => !ESCONDIDOS.includes(item.id)
+  return {
+    ...cena,
+    regions: cena.regions.filter((r) => r.secret !== true),
+    walls: cena.walls.filter((w) => w.regionId !== 'sala-secreta' && fica(w)),
+    floor: cena.floor.filter(fica),
+    tokens: cena.tokens.filter(fica),
+    drawings: cena.drawings.filter(fica),
+    texturas: (cena.texturas ?? []).filter(fica),
+    pins: (cena.pins ?? []).filter(fica),
+    props: cena.props.filter(fica),
+  }
+}
+
 describe('SEGURANÇA: cena com Chão e Fora do Chão LIVRE, pela rede', () => {
-  it.each(ESCONDERIJOS)('%s: nada de dentro chega ao jogador e o explorado não marca o lugar', (tipo) => {
+  it.each(ESCONDERIJOS)('%s: nada de dentro chega ao jogador e o explorado não entrega o lugar', (tipo) => {
     const cena = cenaLivreComEsconderijo(tipo)
     const snap = snapshotPara(mesa(cena).broadcast(cena), 'c1')
 
     const json = JSON.stringify(snap)
     for (const escondido of ESCONDIDOS) expect(json, `vazou ${escondido}`).not.toContain(escondido)
+    // Os campos internos da sala secreta (N3) nunca vão no pacote.
+    for (const interno of ['closedSecretRooms', 'openSecretRooms']) expect(json, `vazou ${interno}`).not.toContain(interno)
     // A prova de que a cena está livre: a ficha de fora do Chão chega, e a opção também.
     expect(snap.map.tokens.map((t) => t.id).sort()).toEqual(['heroi', 'la-fora'])
     expect(snap.map.offFloor).toBe('free')
@@ -47,7 +68,16 @@ describe('SEGURANÇA: cena com Chão e Fora do Chão LIVRE, pela rede', () => {
     if (explorado === null) return
     // Controle: fora do Chão, à vista, a névoa levantou...
     expect(isPointExplored(explorado, LA_FORA)).toBe(true)
-    // ...dentro do esconderijo, não.
+    if (tipo === 'sala secreta fechada') {
+      // ...e a sala secreta FECHADA é chão vazio na memória, como na visão (N3): nem a Sala nem os muros dela
+      // saem, e o pacote inteiro (explorado incluso) é o da mesma cena sem a sala. Antes, o lugar dela ficava
+      // sem marcar: um buraco preto com o formato exato da sala.
+      for (const daSala of ['sala-secreta', '"muro-']) expect(json, `vazou ${daSala}`).not.toContain(daSala)
+      const semASala = semASalaSecreta(cena)
+      expect(snap).toEqual(snapshotPara(mesa(semASala).broadcast(semASala), 'c1'))
+      return
+    }
+    // ...dentro da zona oculta e do teto fechado, não.
     expect(isPointExplored(explorado, DENTRO)).toBe(false)
   })
 })
