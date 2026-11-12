@@ -6771,7 +6771,7 @@ function PixiCanvasDoContexto({
               // `reportFileError` em App.tsx:57, que é o texto de erro de
               // arquivo que o resto do app já usa.
               const message = err instanceof Error ? err.message : String(err)
-              useToastStore.getState().push('error', `Não foi possível pôr a peça: ${message}`)
+              useToastStore.getState().push('error', `Não foi possível pôr o objeto: ${message}`)
               // E a pessoa não fica presa numa ferramenta que não funciona: a
               // marcação de ativo volta para Selecionar, que é o estado de onde
               // dá para fazer qualquer outra coisa. Mesmo caminho de
@@ -9448,7 +9448,7 @@ function PixiCanvasDoContexto({
                     ? `Pino de viagem apagado; o de ${travessia.sceneName} ficou sem destino — Ctrl+Z desfaz`
                     : pinoApagado.kind === 'viagem'
                       ? 'Pino de viagem apagado — Ctrl+Z desfaz'
-                      : 'Ponto de interesse apagado — Ctrl+Z desfaz',
+                      : 'Pino apagado — Ctrl+Z desfaz',
                 )
               break
             }

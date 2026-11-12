@@ -43,7 +43,7 @@ import './fichaDoPino.css'
 /*
  * FICHA DO PINO (fatia 12 do design consolidado, docs/design/consolidado/PLANO.md):
  * abaixo da cabeça (a medalha com o ícone do tipo, o nome do local e o
- * Excluir), o bloco essencial — Tipo, Nome do local, Descrição, o destino da
+ * Apagar), o bloco essencial — Tipo, Nome do local, Descrição, o destino da
  * viagem, a porta da alavanca ou o desafio do minigame, Quem vê e o alcance —,
  * os RECURSOS ligados, cada um numa ficha que termina em "Tirar do pino", o
  * "+ Adicionar ao pino" com os que sobram, e as fichas recolhidas Mais da
@@ -310,7 +310,7 @@ function EssencialDoPino({
   lerDePerto,
   onLerDePertoChange,
 }: FichaDoPinoProps) {
-  // As cenas onde mora um par que perde a volta se este pino sumir: o Excluir agora mora na cabeça.
+  // As cenas onde mora um par que perde a volta se este pino sumir: o Apagar agora mora na cabeça.
   const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
   return (
     <Essencial>
@@ -347,7 +347,7 @@ function EssencialDoPino({
       <PinReachControls marco={marco} onMarcoChange={onMarcoChange} lerDePerto={lerDePerto} onLerDePertoChange={onLerDePertoChange} />
       {cenasDosPares.length > 0 && (
         <Nota>
-          {cenasDosPares.length === 1 ? `Excluir deixa o pino de ${cenasDosPares[0]} sem destino.` : `Excluir desliga os pinos de ${cenasDosPares.join(', ')}.`}
+          {cenasDosPares.length === 1 ? `Apagar deixa o pino de ${cenasDosPares[0]} sem destino.` : `Apagar desliga os pinos de ${cenasDosPares.join(', ')}.`}
         </Nota>
       )}
     </Essencial>

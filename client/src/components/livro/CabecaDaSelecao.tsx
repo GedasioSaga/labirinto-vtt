@@ -109,7 +109,8 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
     case 'prop': {
       const mobilia = items.prop?.mobilia
       if (mobilia !== undefined) return { icon: 'mobilia', type: ROTULO_MOBILIA[mobilia], name: null, mobilia }
-      return { icon: 'prop', type: 'Peça', name: null }
+      // "Peça" saiu da tela: o nome da aba que cria a coisa (`TOOL_LABELS.prop`; caça 12/11, E20).
+      return { icon: 'prop', type: 'Objeto de imagem', name: null }
     }
     case 'drawing':
       // Rótulo de texto se chama pelo que diz; a primeira linha basta para achar.
@@ -122,11 +123,16 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
 }
 
 /**
- * Nome do botão Apagar — o MESMO de antes, letra por letra: os testes e2e o
- * procuram pelo nome e pelo texto (`toHaveText('Apagar parede selecionada')`).
+ * Nome do botão Apagar: os testes e2e o procuram pelo nome e pelo texto
+ * (`toHaveText('Apagar parede selecionada')`). Com os itens, a coisa se chama
+ * como na cabeça (caça 12/11, E20): região que é sala diz "sala", desenho que é
+ * texto diz "texto". Sem eles, o nome do tipo da seleção.
  */
-export function deleteLabelFor(summary: SelectionSummary): string {
-  return summary.count === 1 ? deleteSelectionLabel(summary.kind) : `Apagar ${summary.count} itens selecionados`
+export function deleteLabelFor(summary: SelectionSummary, items?: Pick<SelectedItems, 'region' | 'textLabel'>): string {
+  if (summary.count !== 1) return `Apagar ${summary.count} itens selecionados`
+  if (summary.kind === 'region' && items?.region?.room !== undefined) return 'Apagar sala selecionada'
+  if (summary.kind === 'drawing' && items !== undefined && items.textLabel !== null) return 'Apagar texto selecionado'
+  return deleteSelectionLabel(summary.kind)
 }
 
 /**
@@ -135,22 +141,25 @@ export function deleteLabelFor(summary: SelectionSummary): string {
  */
 export const TIRAR_PORTA = 'Tirar porta'
 
-/** O título de cada tipo de pino, o mesmo de antes: as jornadas acham a ficha por ele. */
+/**
+ * O título de cada tipo de pino: as jornadas acham a ficha por ele. "Pino",
+ * o nome da ferramenta, no lugar de "Ponto de interesse" (caça 12/11, E20).
+ */
 export const TITULO_DO_PINO: Record<PinKind, string> = {
-  exclamacao: 'Ponto de interesse',
-  interrogacao: 'Ponto de interesse',
+  exclamacao: 'Pino',
+  interrogacao: 'Pino',
   viagem: 'Pino de viagem',
   alavanca: 'Alavanca',
   minigame: 'Minigame',
 }
 
-/** O Excluir do pino, letra por letra o botão de antes (os testes e2e o procuram pelo nome). */
+/** O Apagar do pino (os testes e2e o procuram pelo nome): "Apagar" em tudo, como a seleção (caça 12/11, E20). */
 export const EXCLUIR_PINO: Record<PinKind, string> = {
-  exclamacao: 'Excluir ponto de interesse',
-  interrogacao: 'Excluir ponto de interesse',
-  viagem: 'Excluir pino de viagem',
-  alavanca: 'Excluir alavanca',
-  minigame: 'Excluir minigame',
+  exclamacao: 'Apagar pino',
+  interrogacao: 'Apagar pino',
+  viagem: 'Apagar pino de viagem',
+  alavanca: 'Apagar alavanca',
+  minigame: 'Apagar minigame',
 }
 
 /**
@@ -164,8 +173,8 @@ export function pinIdentity(kind: PinKind, nome: string): SelectionIdentity {
 /** O tipo da zona oculta: o título do bloco de antes, que as jornadas procuram. */
 const TIPO_DA_ZONA = 'Zona oculta'
 
-/** O Excluir da zona, letra por letra o botão de antes (os testes e2e o procuram pelo nome). */
-export const EXCLUIR_ZONA = 'Excluir zona'
+/** O Apagar da zona (os testes e2e o procuram pelo nome): "Apagar" em tudo (caça 12/11, E20). */
+export const EXCLUIR_ZONA = 'Apagar zona'
 
 /**
  * ZONA OCULTA ABERTA (fatia 16a): como o pino, fica fora do resumo
