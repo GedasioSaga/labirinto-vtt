@@ -8,13 +8,14 @@ import { fontesLocais } from '../../minigames/danca/tela/musicaImportada'
 import type { AjustesDaTelaDaPesca } from '../../minigames/pesca/tela/PescaOverlay'
 import { abrirCanalDoNavegador, type Canal } from '../../net/visaoDeTeste/canal'
 import { lerMensagemDoHost, SESSAO_VALIDA, type MensagemDaJanela } from '../../net/visaoDeTeste/protocoloDoCanal'
-import type { FichaParaTeste, ModoDoTeste } from '../../net/visaoDeTeste/tipos'
+import type { FichaParaTeste, ModoDoTeste, PedidoDoTeste } from '../../net/visaoDeTeste/tipos'
 import { Session, welcomeName } from '../main'
 import { createPlayerConnection, type PlayerConnection, type StorageLike } from '../playerConnection'
 import { instalarSonsDoJogador } from '../sonsDoJogador'
 import { BarraDoTeste } from './BarraDoTeste'
 import { criarBloqueioDoOlhar, instalarGuardaDeTeclado } from './bloqueioDeEntrada'
 import { NoTeste, type InfoDoTeste } from './noTeste'
+import { PedidosDoTeste } from './PedidosDoTeste'
 import { RecadoDoOlhar } from './RecadoDoOlhar'
 import { criarSocketDoCanal } from './socketDoCanal'
 
@@ -125,6 +126,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
   /** A geração do último `config` aplicado: um `config` velho que chegue atrasado não muda o modo. */
   const ultimaGeracao = useRef(0)
   const [recado, setRecado] = useState(false)
+  /** Os pedidos que esperam o mestre, da geração do último `config` (caça J6). */
+  const [pedidos, setPedidos] = useState<readonly PedidoDoTeste[]>([])
   /** A caixa da tela do jogador (embaixo da barra): é onde a tela da dança, a da pesca e a do tiro entram. */
   const [tela, setTela] = useState<HTMLDivElement | null>(null)
   const midia = geracao === null ? undefined : geracao.midia
@@ -155,9 +158,15 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
           if (numero > ultimaGeracao.current) {
             ultimaGeracao.current = numero
             if (modoDoHost !== undefined) setModo(modoDoHost)
+            // Os pedidos eram da ponte que saiu: a nova manda os dela.
+            setPedidos([])
           }
           return
         }
+        case 'pedidos':
+          // Lista de outra geração (a de antes, ainda fechando) não vale aqui.
+          if (mensagem.geracao === ultimaGeracao.current) setPedidos(mensagem.pedidos)
+          return
         case 'fichas':
           setLista({ fichas: mensagem.fichas, fichaSelecionadaId: mensagem.fichaSelecionadaId })
           return
@@ -277,6 +286,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
         )}
       </div>
       {recado && modo === 'olhar' && <RecadoDoOlhar onPassarParaJogar={() => setModo('jogar')} onFechar={() => setRecado(false)} />}
+      {/* Fora da tela do jogador: o bloqueio do Olhar não pega a resposta do mestre. */}
+      <PedidosDoTeste pedidos={pedidos} onResponder={(id, botao, texto) => enviar({ de: 'janela', tipo: 'responder-pedido', sessao, id, botao, texto })} />
     </div>
   )
 }

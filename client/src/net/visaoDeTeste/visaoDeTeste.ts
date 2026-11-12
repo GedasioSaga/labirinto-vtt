@@ -474,7 +474,10 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     // O fator não vai na mesa: entra quando o jogador de teste pegar a ficha, uma vez por geração.
     let fatorPendente = semente === null ? null : semente.visionFactor
     const transporte = criarTransporteLocal({ sessao: s.id, geracao, codigo, enviar: (mensagem) => enviar(s, mensagem) })
-    const avisos = criarAvisosDeTeste(deps.avisos)
+    // Os pedidos que esperam o mestre também vão à janela de teste (caça J6): quem testa sozinho responde lá.
+    const avisos = criarAvisosDeTeste(deps.avisos, (pedidos) => {
+      if (daGeracaoAtual()) enviar(s, { de: 'host', tipo: 'pedidos', sessao: s.id, geracao, pedidos })
+    })
     const ponte = createHostBridge({
       invoke: transporte.invoke,
       listen: transporte.listen,
@@ -576,6 +579,10 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
         return
       case 'pedir-fechar':
         fechar()
+        return
+      case 'responder-pedido':
+        // A resposta do mestre dada na janela de teste: o mesmo botão da caixa "Pedidos do teste".
+        s.avisos?.responder(mensagem.id, mensagem.botao, mensagem.texto)
         return
       default:
         s.transporte?.receber(mensagem)

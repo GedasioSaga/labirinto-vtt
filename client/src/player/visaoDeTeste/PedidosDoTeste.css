@@ -1,0 +1,192 @@
+/*
+ * VISÃO DE JOGADOR — os pedidos que esperam o mestre (`PedidosDoTeste.tsx`).
+ * Página do jogador, sem main.css: só `var(--lb-*)` de theme.ts com o valor
+ * de reserva de player.css, e classes `vj-pedidos*` que não existem em outra
+ * folha. Moldura do editor (pedra opaca, filete do painel), como o recado do
+ * Olhar: é o mestre falando com o mestre, e não o jogo com o jogador.
+ *
+ * Embaixo, no meio, logo acima do aviso do jogador (`.pp-notice`, bottom 24 px,
+ * uma linha de ~38 px): o "Aguardando o mestre…" continua à vista embaixo.
+ */
+
+.vj-pedidos,
+.vj-pedidos *,
+.vj-pedidos *::before,
+.vj-pedidos *::after {
+  box-sizing: border-box;
+}
+
+.vj-pedidos {
+  position: fixed;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  /* Acima do recado do Olhar (45): o pedido é resposta que alguém espera. */
+  z-index: 46;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 24px));
+  /* Muitos pedidos de uma vez: a caixa rola, e não sobe por cima da barra do teste. */
+  max-height: min(60vh, calc(100vh - 140px));
+  overflow-y: auto;
+  padding: 12px;
+  /* `translate` e não `transform`: a entrada anima o `transform` sem desfazer o centro. */
+  translate: -50% 0;
+  background: var(--lb-color-stone-solid, #1a1a1e);
+  border: 1px solid var(--lb-color-line-panel, rgba(255, 255, 255, 0.13));
+  border-radius: var(--lb-radius-lg, 14px);
+  box-shadow:
+    var(--lb-shadow-float, 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55)),
+    var(--lb-shadow-bevel, inset 0 1px 0 rgba(255, 255, 255, 0.07));
+  color: var(--lb-color-parchment, #eceae4);
+  font-family: var(--lb-font-sans, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif);
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  /* Sobe 6 px em 160 ms: o mesmo gesto do recado do Olhar e do `.pp-notice`. */
+  animation: vj-pedidos-entra 160ms var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+@keyframes vj-pedidos-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes vj-pedidos-esmaece {
+  from {
+    opacity: 0;
+  }
+}
+
+.vj-pedidos__titulo {
+  margin: 0;
+  color: var(--lb-color-brass, #e0a44a);
+  font-size: var(--lb-font-size-xs, 10.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  letter-spacing: 0.02em;
+}
+
+.vj-pedidos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vj-pedidos__linha {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vj-pedidos__linha + .vj-pedidos__linha {
+  padding-top: 10px;
+  border-top: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+}
+
+.vj-pedidos__texto {
+  margin: 0;
+  color: var(--lb-color-parchment, #eceae4);
+  font-size: var(--lb-font-size-sm, 11.5px);
+  line-height: var(--lb-font-leading-normal, 1.45);
+  overflow-wrap: anywhere;
+}
+
+.vj-pedidos__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.vj-pedidos__rotulo {
+  color: var(--lb-color-parchment-dim, #a2a09a);
+  font-size: var(--lb-font-size-xs, 10.5px);
+}
+
+.vj-pedidos__entrada {
+  width: 100%;
+  min-height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-sunken, #141417);
+  color: var(--lb-color-parchment, #eceae4);
+  font: inherit;
+  font-size: var(--lb-font-size-sm, 11.5px);
+}
+
+.vj-pedidos__entrada:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+.vj-pedidos__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* O botão compacto do app (24 px): secundário, pedra elevada. */
+.vj-pedidos__botao {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--lb-color-line, rgba(255, 255, 255, 0.08));
+  border-radius: var(--lb-radius-md, 9px);
+  background: var(--lb-color-stone-raised, #232328);
+  color: var(--lb-color-parchment, #eceae4);
+  font: inherit;
+  font-size: var(--lb-font-size-sm, 11.5px);
+  font-weight: var(--lb-font-weight-medium, 500);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    border-color var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+/* "Não, porque…" e "Voltar": sem fundo, o mesmo peso dos botões fantasma do editor. */
+.vj-pedidos__botao--leve {
+  background: transparent;
+}
+
+.vj-pedidos__botao:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .vj-pedidos__botao:not(:disabled):hover {
+    background: var(--lb-color-stone-hover, #2c2c33);
+    border-color: var(--lb-color-line-strong, rgba(255, 255, 255, 0.16));
+  }
+}
+
+.vj-pedidos__botao:not(:disabled):active {
+  background: var(--lb-color-stone-sunken, #141417);
+  transform: scale(0.97);
+}
+
+.vj-pedidos__botao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus, 0 0 0 2px #1a1a1e, 0 0 0 4px #e0a44a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vj-pedidos {
+    animation-name: vj-pedidos-esmaece;
+  }
+
+  .vj-pedidos__botao:not(:disabled):active {
+    transform: none;
+  }
+}

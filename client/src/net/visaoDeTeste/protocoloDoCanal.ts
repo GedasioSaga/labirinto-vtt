@@ -1,5 +1,5 @@
 import { ehBaseDeMidiaLocal } from '../../lib/midia'
-import type { FichaParaTeste, ModoDoTeste } from './tipos'
+import type { CampoDoPedido, FichaParaTeste, ModoDoTeste, PedidoDoTeste } from './tipos'
 
 /**
  * O que passa entre a janela principal (o host de teste, `visaoDeTeste.ts`) e
@@ -52,6 +52,8 @@ export type MensagemDoHost =
   | { de: 'host'; tipo: 'ping'; sessao: string }
   /** O teste acabou: a janela larga a conexão e mostra que encerrou. */
   | { de: 'host'; tipo: 'encerrar'; sessao: string }
+  /** Os pedidos que esperam o mestre (caça J6), a lista inteira a cada mudança. Só valem na `geracao` deles. */
+  | { de: 'host'; tipo: 'pedidos'; sessao: string; geracao: number; pedidos: PedidoDoTeste[] }
 
 export type MensagemDaJanela =
   /** A janela carregou (ou recarregou): o host (re)começa a sessão e manda o `config`. */
@@ -71,6 +73,8 @@ export type MensagemDaJanela =
   | { de: 'janela'; tipo: 'pedir-fechar'; sessao: string }
   /** A janela ficou escondida (minimizada) ou voltou: escondida, o host não manda o recorte agendado. */
   | { de: 'janela'; tipo: 'visibilidade'; sessao: string; oculta: boolean }
+  /** O mestre respondeu um pedido na janela de teste: `botao` = posição em `botoes`; `null` = o campo `responder`. */
+  | { de: 'janela'; tipo: 'responder-pedido'; sessao: string; id: string; botao: number | null; texto: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -111,6 +115,55 @@ function lerFichas(value: unknown): FichaParaTeste[] | null {
   return fichas
 }
 
+/** Teto de texto que a janela de teste aceita num pedido ou devolve numa resposta. */
+const TEXTO_DO_PEDIDO_MAX = 2000
+/** Teto de pedidos numa lista: o que passar disso é mensagem torta. */
+const PEDIDOS_MAX = 50
+
+function textoCurto(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= TEXTO_DO_PEDIDO_MAX
+}
+
+/** Campo de um pedido: `undefined` = ausente, `null` = torto. */
+function lerCampoDoPedido(value: unknown): CampoDoPedido | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) return null
+  const { rotulo, maxLength } = value
+  const tamanho = contador(maxLength)
+  if (!textoCurto(rotulo) || tamanho === null || tamanho > TEXTO_DO_PEDIDO_MAX) return null
+  return { rotulo, maxLength: tamanho }
+}
+
+function lerPedido(value: unknown): PedidoDoTeste | null {
+  if (!isRecord(value)) return null
+  const { id, texto, botoes } = value
+  if (!textoCurto(id) || !textoCurto(texto) || !Array.isArray(botoes) || !botoes.every(textoCurto)) return null
+  const campo = lerCampoDoPedido(value.campo)
+  const responder = lerCampoDoPedido(value.responder)
+  if (campo === null || responder === null) return null
+  const pedido: PedidoDoTeste = { id, texto, botoes: [...botoes] }
+  if (campo !== undefined) pedido.campo = campo
+  if (responder !== undefined) pedido.responder = responder
+  return pedido
+}
+
+function lerPedidos(value: unknown): PedidoDoTeste[] | null {
+  if (!Array.isArray(value) || value.length > PEDIDOS_MAX) return null
+  const pedidos: PedidoDoTeste[] = []
+  for (const item of value) {
+    const pedido = lerPedido(item)
+    if (pedido === null) return null
+    pedidos.push(pedido)
+  }
+  return pedidos
+}
+
+/** Posição de botão: inteiro de 0 em diante; `null` = o campo do pedido; `undefined` = torto. */
+function lerBotao(value: unknown): number | null | undefined {
+  if (value === null) return null
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
 /** Mensagem do host para a janela da sessão `sessao`, ou `null` (torta, de outra sessão ou do outro lado). */
 export function lerMensagemDoHost(dado: unknown, sessao: string): MensagemDoHost | null {
   if (!isRecord(dado) || dado.de !== 'host' || dado.sessao !== sessao) return null
@@ -149,6 +202,11 @@ export function lerMensagemDoHost(dado: unknown, sessao: string): MensagemDoHost
     case 'ping':
     case 'encerrar':
       return { de: 'host', tipo: dado.tipo, sessao }
+    case 'pedidos': {
+      const geracao = contador(dado.geracao)
+      const pedidos = lerPedidos(dado.pedidos)
+      return geracao === null || pedidos === null ? null : { de: 'host', tipo: 'pedidos', sessao, geracao, pedidos }
+    }
     default:
       return null
   }
@@ -184,6 +242,12 @@ export function lerMensagemDaJanela(dado: unknown, sessao: string): MensagemDaJa
     case 'visibilidade': {
       const { oculta } = dado
       return typeof oculta === 'boolean' ? { de: 'janela', tipo: 'visibilidade', sessao, oculta } : null
+    }
+    case 'responder-pedido': {
+      const { id, texto } = dado
+      const botao = lerBotao(dado.botao)
+      if (!textoCurto(id) || !textoCurto(texto) || botao === undefined) return null
+      return { de: 'janela', tipo: 'responder-pedido', sessao, id, botao, texto }
     }
     default:
       return null

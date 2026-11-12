@@ -75,6 +75,30 @@ export interface FantasmaDeTeste {
   y: number
 }
 
+/**
+ * Um pedido do jogador de teste que espera o MESTRE (caça J6): o mesmo aviso
+ * da caixa "Pedidos do teste" da janela principal, espelhado na janela de
+ * teste para quem testa sozinho responder ali mesmo. Só texto e rótulos: a
+ * ação de cada botão fica no host, que a acha pelo `id` e pela posição.
+ */
+export interface PedidoDoTeste {
+  /** O id do aviso na pilha do editor. */
+  id: string
+  /** O texto do aviso, sem o "Teste · " da janela principal. */
+  texto: string
+  /** Os rótulos dos botões, na ordem do aviso ("Deixar ir", "Não"). Sem os que só mexem no editor ("Ir lá"). */
+  botoes: string[]
+  /** Campo acima dos botões: o texto vai com o botão apertado ("Resposta só para Ana (opcional)"). */
+  campo?: CampoDoPedido
+  /** Botão que abre um campo e manda o texto sozinho ("Não, porque…", "Responder"). */
+  responder?: CampoDoPedido
+}
+
+export interface CampoDoPedido {
+  rotulo: string
+  maxLength: number
+}
+
 /** Recado do modo Olhar quando o mestre tenta uma ação do jogador. */
 export interface RecadoDoOlharProps {
   /** Muda para Jogar na hora. Ausente = recado sem o botão (Jogar indisponível). */
