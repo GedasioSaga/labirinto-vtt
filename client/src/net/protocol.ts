@@ -25,7 +25,7 @@ import { MASTER_ROLLER_NAME, parseDiceRequest, type DiceRequest, type DiceRollEn
 import { isNoiseDirection, type NoiseDirection } from '../lib/noise'
 import type { ViewPatch } from './viewPatch'
 import { parsePersonalNoteList, type PersonalNote } from '../lib/minhasNotas'
-import type { OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
+import type { OlharDaVisao, OwnTokenElsewhere, RoofPeek } from '../lib/fogFilter'
 import { ABALO_SETAS, type AbaloSeta } from '../lib/abalo'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { COLECAO_MAX_PARTES, COLECAO_NOME_MAX_LENGTH, COLECOES_MAX, type ColecaoPeca, type ColecaoProgresso } from '../lib/colecao'
@@ -2085,8 +2085,10 @@ export type HostMessage =
   // `waiting` (ENCONTRO MARCADO): ver o comentário acima de `HostMessage`.
   // `porAtravessar` (PORTAS POR ATRAVESSAR): ids de portas que JÁ vão em `map.walls` com um lado ainda na névoa
   // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
-  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; caminhos?: CaminhosDaBatalha; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
-  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[] }
+  // `olhares` (QUEDA DO ALCANCE, peça D das sombras): o centro e o alcance de cada olhar das fichas DELE e quais anéis
+  // de `vision` são do olho (`PlayerMapView.olhares`), só quando há algum; viaja no `patch`. Jogador antigo ignora.
+  | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; caminhos?: CaminhosDaBatalha; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[]; olhares?: OlharDaVisao[] }
+  | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[]; olhares?: OlharDaVisao[] }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
   | ({ type: 'patch'; rev: number; base: number } & ViewPatch)
   // ZONA DE PERIGO: a ficha DESTE jogador entrou num perigo. Só o tipo — nem a sala, nem a zona.

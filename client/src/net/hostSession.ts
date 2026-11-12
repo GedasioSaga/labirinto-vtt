@@ -3265,7 +3265,8 @@ type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
 /** O que sai na tela do jogador, sem o `rev` (que muda a cada broadcast). */
 function contentOf(msg: SnapshotMessage): PlayerViewContent {
   // Caça 12/11 (O2): as portas por atravessar mudam a cada passo na cidade; nos extras, cada passo ia inteiro (~300 kB).
-  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [] }
+  // QUEDA DO ALCANCE (peça D das sombras): os olhares mudam a cada passo, como a visão; vão no patch junto dela.
+  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
 }
 
 /**
@@ -3283,6 +3284,7 @@ function extrasOf(msg: SnapshotMessage): string {
   delete rest.ownTokens
   delete rest.concealed
   delete rest.porAtravessar
+  delete rest.olhares
   return JSON.stringify(rest)
 }
 
@@ -4904,6 +4906,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (luz !== null) base.luz = luz
     // CONE PELO VÃO: campo aditivo, só vai quando há cone.
     if (view.glimpses.length > 0) base.glimpses = view.glimpses
+    // QUEDA DO ALCANCE (peça D das sombras): o olhar das fichas DELE; sem ficha com anel de olho, o campo nem sai.
+    if (view.olhares !== undefined) base.olhares = view.olhares
     // ENCONTRO MARCADO: sem ficha esperando, o campo nem vai: o snapshot sai idêntico ao de antes da feature.
     if (waiting.length > 0) base.waiting = waiting
     // Sem ficha em outra cena o campo nem sai: o snapshot fica igual ao de sempre.

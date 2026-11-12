@@ -1,5 +1,6 @@
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { ExploredWire } from '../lib/exploration'
+import type { OlharDaVisao } from '../lib/fogFilter'
 import type { MapData, RegionPoint, Token } from '../types/map'
 
 /**
@@ -79,6 +80,11 @@ export interface PlayerViewContent {
    * qualquer mudança mandava a tela inteira (~300 kB por passo na cidade); agora viaja no patch como os outros campos.
    */
   porAtravessar?: string[]
+  /**
+   * QUEDA DO ALCANCE (`snapshot.olhares`, peça D das sombras), ausente = nenhum. Muda a cada passo (o centro é o
+   * da ficha): viaja no patch junto da visão, senão cada passo mandaria a tela inteira.
+   */
+  olhares?: OlharDaVisao[]
 }
 
 /** Só os pedaços da tela que mudaram; tudo ausente = a tela é a mesma. */
@@ -92,6 +98,8 @@ export interface ViewPatch {
   concealed?: RegionPoint[][]
   /** A lista inteira de agora; `[]` = nenhuma porta por atravessar (vazia viaja, ausente = a mesma de antes). */
   porAtravessar?: string[]
+  /** A lista inteira de agora; `[]` = nenhum olhar (vazia viaja, ausente = a mesma de antes). */
+  olhares?: OlharDaVisao[]
 }
 
 /**
@@ -485,6 +493,8 @@ export function diffView(prev: PlayerViewContent, next: PlayerViewContent): View
   if (!sameValue(prev.concealed, next.concealed)) patch.concealed = next.concealed
   const porAtravessar = next.porAtravessar ?? []
   if (!sameValue(prev.porAtravessar ?? [], porAtravessar)) patch.porAtravessar = porAtravessar
+  const olhares = next.olhares ?? []
+  if (!sameValue(prev.olhares ?? [], olhares)) patch.olhares = olhares
   return patch
 }
 
@@ -504,6 +514,8 @@ export function applyViewPatch(prev: PlayerViewContent, patch: ViewPatch): Playe
   const tela: PlayerViewContent = { map, vision: patch.vision ?? prev.vision, explored, ownTokens: patch.ownTokens ?? prev.ownTokens, concealed: patch.concealed ?? prev.concealed }
   const porAtravessar = patch.porAtravessar ?? prev.porAtravessar
   if (porAtravessar !== undefined) tela.porAtravessar = porAtravessar
+  const olhares = patch.olhares ?? prev.olhares
+  if (olhares !== undefined) tela.olhares = olhares
   return tela
 }
 
@@ -515,6 +527,7 @@ export function isEmptyViewPatch(patch: ViewPatch): boolean {
     patch.exploredEdits === undefined &&
     patch.ownTokens === undefined &&
     patch.concealed === undefined &&
-    patch.porAtravessar === undefined
+    patch.porAtravessar === undefined &&
+    patch.olhares === undefined
   )
 }

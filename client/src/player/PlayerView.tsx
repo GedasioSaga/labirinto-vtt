@@ -12,7 +12,7 @@ import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { criarPorNo, distribuir, noDoItem, type Pilha, type PorNo } from '../pixi/pilhaDeCamadas'
 import { FAIXAS_DOS_MOVEIS, criarParesDoJogador, criarPilhaDoJogador, entradaDoJogador, nosEmPar } from './pilhaDoJogador'
-import type { RoofPeek } from '../lib/fogFilter'
+import type { OlharDaVisao, RoofPeek } from '../lib/fogFilter'
 import { pisoDe } from '../lib/pisos'
 import { rasterizeMinimap, hexToRgb } from '../lib/minimapRaster'
 import type { Rgb } from '../lib/minimapRaster'
@@ -90,7 +90,7 @@ import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
-import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, type MapaDePenumbra, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
+import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, separarOlhares, type MapaDePenumbra, type OlhosEluzes, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from '../pixi/desenhoSobPedido'
 import type { LuzDoJogador } from '../lib/periodo'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
@@ -271,6 +271,11 @@ interface PlayerViewProps {
   peek?: RoofPeek
   /** PORTAS POR ATRAVESSAR: portas com o outro lado ainda na névoa (o host já recortou); ganham um ponto claro. */
   porAtravessar?: readonly string[]
+  /**
+   * QUEDA DO ALCANCE (peça D das sombras, `snapshot.olhares`): o olhar das fichas dele.
+   * Ausente = sem a queda (o escuro fica o de antes).
+   */
+  olhares?: readonly OlharDaVisao[]
   ownTokens: string[]
   /**
    * LUZ (Luz L4b): o período da cena DESTE jogador e a tinta dele
@@ -1446,6 +1451,8 @@ interface Scene {
   revisaoDaNevoa: number
   /** As paredes que barram a vista, para os traços brancos da penumbra (`paredesDaPenumbra`). */
   paredesDaPenumbra: { fonte: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; paredes: ParedeDaPenumbra[] } | null
+  /** QUEDA DO ALCANCE: os olhos e as luzes da penumbra, refeitos só quando a visão ou os olhares mudam (`separarOlhares`). */
+  olharesDaPenumbra: { vision: RegionPoint[][]; olhares: readonly OlharDaVisao[] | undefined; separados: OlhosEluzes } | null
   exploredCells: number
   /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
   pins: Container
@@ -1990,9 +1997,12 @@ function paredesDaPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], 
 }
 
 /** Depois de `redrawFog`: a penumbra refaz os campos quando as máscaras (ou as paredes) mudaram. */
-function atualizarPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined): void {
+function atualizarPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, olhares: readonly OlharDaVisao[] | undefined): void {
   const penumbra = scene.penumbra
   if (penumbra === null) return
+  const memo = scene.olharesDaPenumbra
+  const separados = memo !== null && memo.vision === vision && memo.olhares === olhares ? memo.separados : separarOlhares(vision, olhares)
+  scene.olharesDaPenumbra = { vision, olhares, separados }
   penumbra.atualizar({
     mapaId: map.id,
     grid: map.grid,
@@ -2001,6 +2011,8 @@ function atualizarPenumbra(scene: Scene, map: MapData, vision: RegionPoint[][], 
     revisao: scene.revisaoDaNevoa,
     paredes: paredesDaPenumbra(scene, map, vision, explored),
     temVisao: vision.some((poly) => poly.length >= 3),
+    olhos: separados.olhos,
+    luzes: separados.luzes,
   })
 }
 
@@ -2342,6 +2354,7 @@ function PlayerViewDoCanvas({
   glimpses = NO_CONCEALED,
   peek,
   porAtravessar = NO_DOORS_TO_CROSS,
+  olhares,
   ownTokens,
   luz = null,
   batalha = false,
@@ -2423,6 +2436,7 @@ function PlayerViewDoCanvas({
     gatilhos,
     peek,
     porAtravessar,
+    olhares,
     ownTokens,
     luz,
     batalha,
@@ -3532,7 +3546,7 @@ function PlayerViewDoCanvas({
     redrawHazards(scene, currentHazards, currentVision)
     redrawTriggers(scene, currentTriggers)
     redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness, corposDaNevoa(scene, currentMap, currentVision, currentExplored))
-    atualizarPenumbra(scene, currentMap, currentVision, currentExplored)
+    atualizarPenumbra(scene, currentMap, currentVision, currentExplored, latestRef.current.olhares)
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
     redrawRoofs(scene, regions, currentPeek, currentMap.id, currentMap.grid)
@@ -4404,6 +4418,7 @@ function PlayerViewDoCanvas({
         penumbra,
         revisaoDaNevoa: 0,
         paredesDaPenumbra: null,
+        olharesDaPenumbra: null,
         exploredCells: 0,
         pins,
         pinsRenderer: pinosPorNo.de(pins),
@@ -5331,7 +5346,7 @@ function PlayerViewDoCanvas({
     if (scene) redraw(scene)
     // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
     // BATALHA F3: a forma que liga ou desliga e o selo que entra, conta ou sai repintam as fichas (raro: um por ação).
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, olhares, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas])
 
   // MODO BATALHA (B5): ligar ou desligar a batalha só mexe na grade de batalha, sem redesenhar a cena.
   useEffect(() => {

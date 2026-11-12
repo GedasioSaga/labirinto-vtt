@@ -1799,6 +1799,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             hazards={state.hazards}
             gatilhos={state.gatilhos}
             porAtravessar={state.porAtravessar}
+            // QUEDA DO ALCANCE (peça D das sombras): o andar de memória acima fica sem (não há visão lá).
+            olhares={state.olhares}
             ownTokens={ownTokens}
             // A tinta do período da cena dele (Luz L4b); o andar de memória acima fica sem.
             luz={state.luz}

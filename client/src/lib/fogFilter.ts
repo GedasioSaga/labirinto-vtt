@@ -51,7 +51,7 @@ import { computeVisibility, hasLineOfSight, visionSegments, wallLetsSightThrough
 import { isDoorPassable } from './collision'
 import { closeIfLocked } from './doorLock'
 import { DOOR_REACH_CELLS, distanceToWall, tokenRadiusOf, tokenReachesDoor } from './doorReach'
-import { darkVision, type Darkness } from './darkness'
+import { DARK_SIGHT_CELLS, darkVision, type Darkness } from './darkness'
 import { ancestorsOf, NESTING_TOLERANCE, pointInPolygonInclusive, pointOnPolygonBorder, subtreeIds } from './roomNesting'
 import { roomHasRoof, roomIsComodo } from './roomOps'
 import { comPiso, ehPiso, mapaDoPiso, pisoDe } from './pisos'
@@ -303,6 +303,70 @@ export interface PlayerMapView {
    * (`snapshot.porAtravessar`, `net/hostSession.ts`).
    */
   portasPorAtravessar: string[]
+  /**
+   * QUEDA DO ALCANCE (peça D das sombras): o olhar de cada ficha dele e quais
+   * anéis de `vision` são desse olhar (`olharesDaVisao`). Ausente = nenhuma
+   * ficha dele com anel de olho. SAI pela rede (`snapshot.olhares`).
+   */
+  olhares?: OlharDaVisao[]
+}
+
+/**
+ * QUEDA DO ALCANCE (peça D das sombras da caça de 12/11/2026, S4b; protótipo
+ * aprovado em `docs/design/sombras/prototipo-sombras.html`): a tela do jogador
+ * escurece os últimos 30% do alcance de cada olhar, e só os anéis do OLHO. Os
+ * anéis de luz (lampião, fogo, sala escura acesa), as frestas e os vislumbres
+ * não caem: o claro de uma luz além do raio continua aceso.
+ *
+ * Não revela nada: o centro é o da ficha DELE (que ele já tem no recorte), o
+ * raio é o do anel que ele já recebe, e os índices só dizem quais anéis que
+ * ele já tem são do olho.
+ */
+export interface OlharDaVisao {
+  /** O centro da ficha, em px de mundo. */
+  x: number
+  y: number
+  /** O alcance do olho, em px de mundo: o raio da ficha; na cena escura, o do anel de perto. */
+  raio: number
+  /** Índices, em `vision`, dos anéis deste olho. */
+  aneis: number[]
+}
+
+/** Folga, em px de mundo, para o anel do olho caber no alcance (o contorno sai arredondado). */
+const FOLGA_DO_ANEL_DO_OLHO_PX = 1
+
+/** O alcance do olho de uma ficha: o raio dela; na cena escura, o do anel de perto (`darkVision`). */
+export function raioDoOlho(raio: number, darkness: Darkness | null): number {
+  return darkness !== null && darkness.sceneDark ? Math.min(raio, darkness.cell * DARK_SIGHT_CELLS) : raio
+}
+
+/**
+ * Os olhares das fichas dele. `aneisPorFicha` tem o mesmo índice de `fichas`
+ * e, achatado, é o começo de `vision` (o que vem depois, frestas e vislumbres,
+ * é luz). De cada ficha, só o PRIMEIRO anel pode ser do olho: sem escuro é o
+ * único; com escuro (`darkVision`) é o de perto ou a visão de sempre, e os de
+ * luz vêm depois. Ele só conta se couber inteiro no alcance: é o que separa o
+ * olho de um anel de luz quando o de perto não saiu.
+ *
+ * Fica de fora, como luz (sem queda, como era): o claro de fora das salas
+ * escuras numa cena clara (`fillFromSeeds`), que `darkVision` devolve misturado
+ * aos anéis de luz. Separar esse precisa de `lib/darkness.ts` dizer quantos
+ * anéis são do olho.
+ */
+export function olharesDaVisao(fichas: readonly Token[], aneisPorFicha: readonly (readonly RegionPoint[][])[], alcanceDe: (ficha: Token) => number): OlharDaVisao[] {
+  const olhares: OlharDaVisao[] = []
+  let inicio = 0
+  fichas.forEach((ficha, i) => {
+    const aneis = aneisPorFicha[i]
+    const primeiro = aneis[0]
+    const raio = alcanceDe(ficha)
+    const cabe = (p: RegionPoint): boolean => Math.hypot(p.x - ficha.x, p.y - ficha.y) <= raio + FOLGA_DO_ANEL_DO_OLHO_PX
+    if (primeiro !== undefined && primeiro.length >= 3 && Number.isFinite(raio) && raio > 0 && primeiro.every(cabe)) {
+      olhares.push({ x: ficha.x, y: ficha.y, raio, aneis: [inicio] })
+    }
+    inicio += aneis.length
+  })
+  return olhares
 }
 
 /**
@@ -4663,6 +4727,8 @@ function recorteDoGrupo(
   const glimpseRects = cellRunRects(new Set(glimpseCells))
   const extraSight = [...sightRects, ...glimpseRects]
   const sentVision = extraSight.length > 0 ? [...vision, ...extraSight] : vision
+  // QUEDA DO ALCANCE: `vision` é `visionByTokenSent` achatado, então os índices valem em `sentVision`.
+  const olhares = olharesDaVisao(ownTokens, visionByTokenSent, (t) => raioDoOlho(radiusOf(t), darkness))
 
   /**
    * ZONA DE PERIGO. Primeiro, a sala tomada que o MESTRE esconde fica de fora
@@ -4805,6 +4871,7 @@ function recorteDoGrupo(
     glimpses: glimpseRects,
     plan,
     portasPorAtravessar,
+    ...(olhares.length > 0 ? { olhares } : {}),
   }
 }
 

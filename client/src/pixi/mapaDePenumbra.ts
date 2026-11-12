@@ -62,7 +62,20 @@ export const AJUSTE_DA_PENUMBRA = {
   curva: [0.23, 1, 0.32, 1] as const,
   /** Luz macia (peça E): desvio do borrão do mapa de luz, em px de mundo. */
   luzMaciaPx: 6,
+  /** Queda do alcance (peça D): o olho escurece nesta fração final do raio... */
+  quedaDoAlcance: 0.3,
+  /** ...com teto nesta largura, em casas (de dia, raio enorme: a queda fica longe e estreita). */
+  quedaMaximaEmCasas: 3,
+  /**
+   * Onde o canal da luz (B) segura a queda: cheio a partir de 0,25 do campo
+   * borrado. Mais baixo que a rampa da vista para o pé da parede e o canto da
+   * sala acesos não caírem (no canto o campo borrado fica perto de 0,25).
+   */
+  rampaDaLuz: [0, 0.25] as const,
 } as const
+
+/** Quantos olhos o shader da queda conhece; os de depois ficam sem queda (como luz). */
+export const OLHOS_NA_QUEDA = 8
 
 /** Folga dos campos em volta da vista, em frações dela: arrastar um pouco a câmera não refaz nada. */
 const FOLGA_DA_VISTA = 0.25
@@ -87,6 +100,46 @@ export function tintaDoLembrado(brilho: number): [number, number, number] {
 /** O desvio do borrão, em px de mundo. */
 export function desvioDaPenumbra(grid: number): number {
   return (AJUSTE_DA_PENUMBRA.larguraEmCasas / 1.5) * grid
+}
+
+/** O olho de uma ficha para a queda do alcance (px de mundo). */
+export interface OlhoDaPenumbra {
+  x: number
+  y: number
+  raio: number
+}
+
+/** O olhar como chega do host (`OlharDaVisao` de `lib/fogFilter.ts`): o olho e os índices dos anéis dele em `vision`. */
+export interface OlharDaPenumbra extends OlhoDaPenumbra {
+  aneis: readonly number[]
+}
+
+/** Os olhos da queda e os anéis que NÃO caem (luz, fresta, vislumbre, olho além do teto do shader). */
+export interface OlhosEluzes {
+  olhos: readonly OlhoDaPenumbra[]
+  luzes: readonly RegionPoint[][]
+}
+
+const SEM_OLHOS: OlhosEluzes = { olhos: [], luzes: [] }
+
+/**
+ * Separa a visão para a queda do alcance: os `OLHOS_NA_QUEDA` primeiros
+ * olhares caem; todo anel que não é de um deles vai para as luzes (canal B),
+ * que seguram a queda. Sem olhares, nada cai (e nem há luz a desenhar).
+ */
+export function separarOlhares(vision: readonly RegionPoint[][], olhares: readonly OlharDaPenumbra[] | undefined): OlhosEluzes {
+  if (olhares === undefined || olhares.length === 0) return SEM_OLHOS
+  const usados = olhares.slice(0, OLHOS_NA_QUEDA)
+  const doOlho = new Set(usados.flatMap((o) => o.aneis))
+  return {
+    olhos: usados.map((o) => ({ x: o.x, y: o.y, raio: o.raio })),
+    luzes: vision.filter((anel, i) => !doOlho.has(i) && anel.length >= 3),
+  }
+}
+
+/** A largura da queda de um olho, em px de mundo: a fração final do raio, com teto em casas. */
+export function larguraDaQueda(raio: number, grid: number): number {
+  return Math.min(AJUSTE_DA_PENUMBRA.quedaDoAlcance * raio, AJUSTE_DA_PENUMBRA.quedaMaximaEmCasas * grid)
 }
 
 /** A câmera do jogador como a penumbra a vê (px CSS; `resolucao` = px físicos por px CSS). */
@@ -293,6 +346,13 @@ void main() {
  * `uRegua`: xy = a rampa; z = a mistura da troca do passo (1 = sem troca).
  * `uCampo` e `uCaixaAntes`: x, y, 1 / largura, 1 / altura (px de mundo) da
  * textura dos campos e da foto do escuro de antes.
+ *
+ * QUEDA DO ALCANCE (peça D): `uOlhos[i]` = x, y, raio e largura da queda (px
+ * de mundo) dos `uNOlhos` primeiros olhos. Por dentro do visto, `v` cai para
+ * zero na faixa final do raio de cada olho (`q` é o maior entre os olhos), a
+ * não ser onde o canal B (luz, fresta, vislumbre) cobre:
+ * `v * max(q, luz)`. Só escurece (multiplica por no máximo 1); sem olhos, `v`
+ * fica o de antes.
  */
 const FATOR = `#version 300 es
 precision highp float;
@@ -305,6 +365,8 @@ uniform vec4 uCaixaAntes;
 uniform vec3 uTinta;
 uniform vec4 uRegua;
 uniform float uModo;
+uniform vec4 uOlhos[${OLHOS_NA_QUEDA}];
+uniform float uNOlhos;
 out vec4 finalColor;
 void main() {
   vec4 c = texture(uCampos, (vPos - uCampo.xy) * uCampo.zw);
@@ -312,6 +374,16 @@ void main() {
   vec3 f = uTinta * k;
   if (uModo > 0.5) {
     float v = smoothstep(uRegua.x, uRegua.y, c.r);
+    if (uNOlhos > 0.5) {
+      float q = 0.0;
+      for (int i = 0; i < ${OLHOS_NA_QUEDA}; i++) {
+        if (float(i) >= uNOlhos) break;
+        vec4 o = uOlhos[i];
+        q = max(q, 1.0 - smoothstep(o.z - o.w, o.z, distance(vPos, o.xy)));
+      }
+      float luz = smoothstep(${AJUSTE_DA_PENUMBRA.rampaDaLuz[0].toFixed(3)}, ${AJUSTE_DA_PENUMBRA.rampaDaLuz[1].toFixed(3)}, c.b);
+      v *= max(q, luz);
+    }
     f = (uTinta + (1.0 - uTinta) * v) * k;
   }
   if (uRegua.z < 1.0) {
@@ -432,6 +504,9 @@ export interface CamposDaPenumbra {
   paredes: readonly ParedeDaPenumbra[]
   /** Há visão agora? Sem ela, o lembrado cobre tudo (como o `fogDim` sem máscara). */
   temVisao: boolean
+  /** QUEDA DO ALCANCE (`separarOlhares`): os olhos que caem e os anéis que seguram a queda (canal B). Vazios = sem queda. */
+  olhos: readonly OlhoDaPenumbra[]
+  luzes: readonly RegionPoint[][]
 }
 
 export interface MedidasDaPenumbra {
@@ -490,11 +565,12 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
   const borrao = criarBorrao(renderizador)
   const medidas: MedidasDaPenumbra = { refeitos: 0, trocas: 0, ultimoMs: 0, maiorMs: 0 }
 
-  // Os campos: R = vejo agora, G = conheço. Somados em `add` sobre o preto.
+  // Os campos: R = vejo agora, G = conheço, B = luz que segura a queda do alcance. Somados em `add` sobre o preto.
   const campos = novaTextura(1, 1)
   const camposTemp = novaTextura(1, 1)
   const borrado = novaTextura(1, 1)
   const contextoDasParedes = new GraphicsContext()
+  const contextoDasLuzes = new GraphicsContext()
   const palcoDosCampos = new Container()
   const campo = (contexto: GraphicsContext, cor: number): Graphics => {
     const g = new Graphics(contexto)
@@ -507,6 +583,7 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
     campo(contextoDasParedes, 0xff0000),
     campo(opcoes.conhecido, 0x00ff00),
     campo(contextoDasParedes, 0x00ff00),
+    campo(contextoDasLuzes, 0x0000ff),
   )
 
   // A foto do escuro de antes (px físicos da tela) e a de troca.
@@ -519,6 +596,8 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
     uCaixaAntes: { value: new Float32Array([0, 0, 1, 1]), type: 'vec4<f32>' },
     uTinta: { value: new Float32Array(tintaDoLembrado(0.45)), type: 'vec3<f32>' },
     uRegua: { value: new Float32Array([AJUSTE_DA_PENUMBRA.rampa[0], AJUSTE_DA_PENUMBRA.rampa[1], 1, 0]), type: 'vec4<f32>' },
+    uOlhos: { value: new Float32Array(4 * OLHOS_NA_QUEDA), type: 'vec4<f32>', size: OLHOS_NA_QUEDA },
+    uNOlhos: { value: 0, type: 'f32' },
   })
   const geometria = quadrilatero()
   const shaderDoModo = (modo: number): Shader =>
@@ -560,6 +639,7 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
   let caixa: CaixaDosCampos | null = null
   let ultimos: CamposDaPenumbra | null = null
   let paredesDesenhadas: { paredes: readonly ParedeDaPenumbra[]; grid: number } | null = null
+  let luzesDesenhadas: readonly RegionPoint[][] | null = null
   let temVisao = false
   let aquecido = false
   /** A troca do passo: 1 = parada. */
@@ -603,6 +683,26 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
       algum = true
     }
     if (algum) contextoDasParedes.fill({ color: 0xffffff })
+  }
+
+  /** QUEDA DO ALCANCE: o canal B (as luzes) e os olhos no shader. */
+  function aplicarOlhares(olhos: readonly OlhoDaPenumbra[], luzes: readonly RegionPoint[][], grid: number): void {
+    if (luzesDesenhadas !== luzes) {
+      luzesDesenhadas = luzes
+      contextoDasLuzes.clear()
+      for (const anel of luzes) contextoDasLuzes.poly(anel, true)
+      if (luzes.length > 0) contextoDasLuzes.fill({ color: 0xffffff })
+    }
+    const dados = regua.uniforms.uOlhos as Float32Array // criado acima como Float32Array (4 por olho)
+    dados.fill(0)
+    const usados = olhos.slice(0, OLHOS_NA_QUEDA)
+    usados.forEach((o, i) => {
+      dados[4 * i] = o.x
+      dados[4 * i + 1] = o.y
+      dados[4 * i + 2] = o.raio
+      dados[4 * i + 3] = larguraDaQueda(o.raio, grid)
+    })
+    regua.uniforms.uNOlhos = usados.length
   }
 
   /** Redesenha os dois campos na caixa da vista de agora e borra. */
@@ -696,13 +796,16 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
         anterior.mapaId !== estado.mapaId ||
         anterior.largura !== estado.largura ||
         anterior.altura !== estado.altura ||
-        anterior.temVisao !== estado.temVisao
+        anterior.temVisao !== estado.temVisao ||
+        anterior.olhos !== estado.olhos ||
+        anterior.luzes !== estado.luzes
       ultimos = estado
       if (!mudou) return
       const inicio = performance.now()
       temVisao = estado.temVisao
       aplicarVisao()
       redesenharParedes(estado.paredes, estado.grid)
+      aplicarOlhares(estado.olhos, estado.luzes, estado.grid)
       const vista = opcoes.vista()
       ultimaVista = chaveDaVista(vista)
       refazerCampos(estado, vista)
@@ -746,6 +849,7 @@ export function criarMapaDePenumbra(opcoes: OpcoesDaPenumbra): MapaDePenumbra {
       palcoDaFoto.destroy({ children: true })
       palcoDosCampos.destroy({ children: true })
       contextoDasParedes.destroy()
+      contextoDasLuzes.destroy()
       shaderDentro.destroy()
       shaderFora.destroy()
       geometria.destroy()
