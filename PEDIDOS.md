@@ -2457,3 +2457,11 @@ Literal do mestre:
 
 O que ele pediu: água animada e fluida; dois tipos (rio e mar); cor trocável (um mar verde, por exemplo). Fila: perguntas pelo grilling, protótipo antes do app (como as sombras e o chão), Opus 5.5 xhigh. Entra no app depois da versão da caça, junto com o chão novo (a água deve ser parte da mesma ferramenta de terreno, se ele aprovar).
 Decisões do mestre sobre a água, por pergunta: ferramenta PRÓPRIA "Água" na barra (eu recomendei material do Chão novo; ele escolheu ferramenta própria); cada rio, mar ou lago tem a chave "Barra a passagem", desligada de fábrica; cores prontas (azul de rio, azul de mar fundo, verde-mar, turquesa, pântano, barrenta) mais cor livre; protótipo antes do app. Designer Opus 5.5 xhigh lançado às 18h39 (`docs/design/agua/`).
+
+## 12/11/2026, 18h41 (relógio): FERRAMENTA AMBIENTE (pedido novo)
+
+Literal do mestre:
+
+> Sobre a neblina, eu acho interessantes esses efeitos, adicione na parte da neblina poder colocar efeito de chuva ou efeito de brasas na verda a ferramente de neblina pode ser tornar ferramenta ambiente.
+
+Decisões do mestre, por pergunta: a ferramenta Neblina vira "Ambiente", com neblina, CHUVA, BRASAS, NEVE e FOLHAS E CINZAS (ele marcou todos); cada efeito vai no mapa inteiro (chave) ou por pincel numa área, com intensidade, como a neblina de hoje; chuva, neve e folhas não caem dentro de casa de teto fechado nem de cômodo fechado (brasas e neblina entram por porta aberta); protótipo antes do app. Fila: designer Opus 5.5 xhigh assim que abrir vaga (há 5 agentes em voo); entra no app depois da versão da caça, com o chão novo, as construções e a água.
