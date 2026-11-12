@@ -439,6 +439,26 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   blocoDeInscricoesAzul: [],
   blocoDeInscricoesVermelho: [],
   blocoDeInscricoesDourado: [],
+  // Lote 14 dos objetos novos (11/11/2026), a sala de tortura. No potro e no tronco, a madeira do quadro e das
+  // pranchas e as ferragens (cintas, cantoneiras, dobradiça, ferrolho); na dama de ferro, o ferro do corpo e a
+  // pedra do plinto; na gaiola suspensa, a madeira do poste, do braço e da cruz; na cadeira de interrogatório, a
+  // dos postes, dos braços e do assento; na mesa de instrumentos, a do tampo e das pernas. Fixos: a corda e o
+  // couro do potro; o ferro, a corrente e o cadeado da gaiola; a chapa, as cintas e as algemas da cadeira; o
+  // couro, o ferro dos instrumentos, a corda e a ampulheta da mesa. O sangue no chão não tem lugar.
+  potroDeTortura: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
+  damaDeFerro: [lugar('metal', 'Ferro', METAIS, 'ferro'), lugar('pedra', 'Plinto', PEDRAS, 'granito')],
+  troncoDePrisioneiro: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
+  gaiolaSuspensa: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  cadeiraDeInterrogatorio: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  mesaDeInstrumentos: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  sangueNoChao: [],
+  // Os três últimos do lote 13 (11/11/2026), a magia e a alquimia: a madeira da estante de poções (como a
+  // estante de livros) e a pedra do pedestal (como o pilar). Fixos: os vidros, os líquidos, o barro e o latão da
+  // estante; o couro, as folhas, a fita, o latão e a corrente do livro. A bola de cristal não tem lugar: o veludo
+  // (o pano da tenda de adivinha), o latão do suporte, o quartzo do pêndulo e o vidro são fixos.
+  estanteDePocoes: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  bolaDeCristal: [],
+  pedestalComLivro: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

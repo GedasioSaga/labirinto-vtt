@@ -156,6 +156,16 @@ import { montarCirculoMagico } from './circuloMagico'
 import { montarBlocoDeInscricoesAzul } from './blocoDeInscricoesAzul'
 import { montarBlocoDeInscricoesVermelho } from './blocoDeInscricoesVermelho'
 import { montarBlocoDeInscricoesDourado } from './blocoDeInscricoesDourado'
+import { montarPotroDeTortura } from './potroDeTortura'
+import { montarDamaDeFerro } from './damaDeFerro'
+import { montarTroncoDePrisioneiro } from './troncoDePrisioneiro'
+import { montarGaiolaSuspensa } from './gaiolaSuspensa'
+import { montarCadeiraDeInterrogatorio } from './cadeiraDeInterrogatorio'
+import { montarMesaDeInstrumentos } from './mesaDeInstrumentos'
+import { montarSangueNoChao } from './sangueNoChao'
+import { montarEstanteDePocoes } from './estanteDePocoes'
+import { montarBolaDeCristal } from './bolaDeCristal'
+import { montarPedestalComLivro } from './pedestalComLivro'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -364,6 +374,21 @@ const MONTADORES = {
   blocoDeInscricoesAzul: montarBlocoDeInscricoesAzul,
   blocoDeInscricoesVermelho: montarBlocoDeInscricoesVermelho,
   blocoDeInscricoesDourado: montarBlocoDeInscricoesDourado,
+  // Lote 14 dos objetos novos (11/11/2026), a sala de tortura, e os três últimos do lote 13, a magia e a
+  // alquimia: um desenho por arquivo. O potro, a dama de ferro, o tronco, a gaiola suspensa, a cadeira de
+  // interrogatório, a bola de cristal e o pedestal leem o `giro` (o quarto de volta que a 3/4 pinta); a mesa de
+  // instrumentos, o sangue no chão e a estante de poções, não. A estante lê a `variante`, como a estante de
+  // livros, que não chega ligada a nada: as duas ficam sempre na arrumação 0.
+  potroDeTortura: montarPotroDeTortura,
+  damaDeFerro: montarDamaDeFerro,
+  troncoDePrisioneiro: montarTroncoDePrisioneiro,
+  gaiolaSuspensa: montarGaiolaSuspensa,
+  cadeiraDeInterrogatorio: montarCadeiraDeInterrogatorio,
+  mesaDeInstrumentos: montarMesaDeInstrumentos,
+  sangueNoChao: montarSangueNoChao,
+  estanteDePocoes: montarEstanteDePocoes,
+  bolaDeCristal: montarBolaDeCristal,
+  pedestalComLivro: montarPedestalComLivro,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -413,6 +438,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+  'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
+  'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

@@ -413,17 +413,20 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * o balde ou o baú que o mestre põe dentro saem por cima das lajes; o preço é
  * o mesmo, o que está dentro também sai por cima da grade da frente), a
  * armadilha de espinhos (11/11/2026: como a horta, o que o mestre põe em cima
- * dela, os ossos ou a armadura despedaçada, sai por cima dos espinhos) e o
+ * dela, os ossos ou a armadura despedaçada, sai por cima dos espinhos), o
  * círculo mágico (11/11/2026: o giz no chão, rente como o campinho, em que o
- * mestre põe o altar, o braseiro ou as fichas). O píer não é a ponte: o que é
+ * mestre põe o altar, o braseiro ou as fichas) e o sangue no chão (11/11/2026:
+ * a poça e o rastro, rentes como o círculo; o potro, a cadeira ou a ficha que
+ * o mestre põe em cima saem por cima da mancha). O píer não é a ponte: o que é
  * só da ponte (as formas Madeira, Pedra e Corda, o material de cada forma)
  * pergunta por `'ponte'` pelo nome.
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
- * ringue, o píer, a cela, a armadilha e o círculo por último) leem esta lista.
+ * ringue, o píer, a cela, a armadilha, o círculo e o sangue por último) leem
+ * esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao'
 }
 
 /**

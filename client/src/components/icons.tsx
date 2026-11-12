@@ -1896,6 +1896,121 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2.5 20.5h19M4 20.5l-.6-1.8M20 20.5l.6-1.8" />
         </>
       )
+    case 'potroDeTortura':
+      // De lado: o estrado comprido em cima dos pés, um rolo em cada cabeceira com a corda saindo para o meio e a cruz da catraca no rolo da direita (a mesa e o catre não têm rolos nem catraca).
+      return (
+        <>
+          <rect x="3" y="11" width="18" height="3" />
+          <path d="M5 14v6M19 14v6" />
+          <circle cx="5.5" cy="8.5" r="2" />
+          <circle cx="18.5" cy="8.5" r="2" />
+          <path d="M15.5 5.5l6 6M21.5 5.5l-6 6" />
+          <path d="M7.5 8.5h3M13.5 8.5h3" />
+        </>
+      )
+    case 'damaDeFerro':
+      // De frente: o corpo alto de ombros redondos, a cabeça em cúpula, a porta da direita aberta para fora com os espigões, os espigões do vão e o plinto (o sarcófago não tem cabeça; o guarda-roupa é reto e tem duas portas).
+      return (
+        <>
+          <path d="M4 21.5h13" />
+          <path d="M5.5 20.5V11c0-2.7 1.8-4 4-4.3h1c2.2.3 4 1.6 4 4.3v9.5" />
+          <circle cx="10" cy="4.5" r="2.3" />
+          <path d="M10 7v13.5" />
+          <path d="M14.5 10.5l5.5-2.5v11l-5.5 2.5" />
+          <path d="M11.5 12.5h1.5M11.5 15.5h1.5M11.5 18.5h1.5M17.5 12l-1.4.5M17.5 15l-1.4.5M17.5 18l-1.4.5" />
+        </>
+      )
+    case 'troncoDePrisioneiro':
+      // De frente: os dois mourões nos pés e a soleira, a prancha de baixo com os três meios-furos (o do pescoço maior) e a de cima erguida em diagonal na dobradiça da esquerda (a cela tem grade; o potro é deitado).
+      return (
+        <>
+          <path d="M4.5 21V5M19.5 21V5M2.5 21h4M17.5 21h4M4.5 19h15" />
+          <path d="M4.5 15h15M4.5 12h2.1a1.4 1.4 0 0 0 2.8 0h.4a2.2 2.2 0 0 0 4.4 0h.4a1.4 1.4 0 0 0 2.8 0h2.1" />
+          <path d="M4.5 8.5 17 3.9l1 2.7L4.5 11.5" />
+        </>
+      )
+    case 'gaiolaSuspensa':
+      // De frente: o poste com a cruz no pé, o braço no alto com a mão-francesa, a corrente e a gaiola em sino pendurada, com o domo, duas tiras do meio e o aro da cintura.
+      return (
+        <>
+          <path d="M5 21.5V2.5M2.5 21.5h5M5 3h12.5M5 8l4.5-5" />
+          <path d="M16 3v4" />
+          <path d="M12.5 20.5 13 10a3 3 0 0 1 6 0l.5 10.5z" />
+          <path d="M15 7.2v13.3M17 7.2v13.3M12.8 15h6.4" />
+        </>
+      )
+    case 'cadeiraDeInterrogatorio':
+      // De frente: os dois postes altos do encosto descendo até o chão, o espaldar de chapa com a cinta e a fivela, os braços com uma algema pendurada em cada ponta, o assento e a gaveta embaixo dele.
+      return (
+        <>
+          <path d="M5 2.5v19M19 2.5v19" />
+          <rect x="7.5" y="3.5" width="9" height="7.5" />
+          <path d="M7.5 6.8h9M3 11h4M17 11h4M5 14.5h14" />
+          <rect x="11" y="5.6" width="2" height="2.4" />
+          <circle cx="3.6" cy="13" r="1.3" />
+          <circle cx="20.4" cy="13" r="1.3" />
+          <rect x="9" y="16" width="6" height="3" />
+        </>
+      )
+    case 'mesaDeInstrumentos':
+      // De cima: o tampo comprido, a tenaz aberta e um ferro de marcar à esquerda, a máscara de ferro redonda no meio com as frestas dos olhos, o rolo de corda e a ampulheta à direita.
+      return (
+        <>
+          <rect x="1.5" y="6" width="21" height="12" />
+          <path d="M3.6 8.2 5 11.6l1.4-3.4M5 11.6v4.6M9 8.2v8M7.8 8.2h2.4" />
+          <circle cx="13" cy="12" r="2.8" />
+          <path d="M11.8 11.2h.9M13.3 11.2h.9" />
+          <circle cx="18.6" cy="9.6" r="1.7" />
+          <path d="M17.3 13.6h2.6l-2.6 2.8h2.6z" />
+        </>
+      )
+    case 'sangueNoChao':
+      // De cima: a poça de lóbulos, o rastro arrastado saindo dela para a esquerda e para baixo, a pegada de bota saindo para a direita e as gotas espirradas em volta.
+      return (
+        <>
+          <path d="M7.4 9.6c.6-2.4 3.6-3.2 5.2-1.6 1.8-.6 3.6.8 3 2.6-.4 1.2-1.6 1.6-1.8 2.8-.4 2-3 2.8-4.6 1.6-1.8.4-3.4-1.2-2.6-2.8.2-.8.6-1.6.8-2.6z" />
+          <path d="M7 14.5 2.5 18M8.4 15.8l-3.6 3" />
+          <ellipse cx="19" cy="8.2" rx="2.3" ry="1.1" transform="rotate(-24 19 8.2)" />
+          <circle cx="17" cy="15.5" r=".9" />
+          <circle cx="5.5" cy="6" r=".8" />
+          <circle cx="20" cy="12.6" r=".6" />
+        </>
+      )
+    case 'estanteDePocoes':
+      // De frente: o armário com a prateleira do meio e a fileira de gavetas; em cima o balão de fundo redondo, a garrafa de ombro e o frasco cônico; no meio os tubos de ensaio no suporte e um pote de pano amarrado; embaixo as três gavetas com os puxadores (a estante de livros tem lombadas em pé; a prateleira de potes são tábuas na parede, sem armário).
+      return (
+        <>
+          <rect x="3" y="2.5" width="18" height="19" />
+          <path d="M3 12h18M3 17h18M9 17v4.5M15 17v4.5" />
+          <path d="M5.6 3.8h3M6.1 3.8V6a2.6 2.6 0 1 0 2 0V3.8" />
+          <path d="M11.2 12V7.8l.9-1.3V3.8h1.3v2.7l.9 1.3V12M15.9 12l1.3-3.8V5.6h1.3v2.6l1.3 3.8" />
+          <path d="M5 14.4h7.5M6.5 13.2V16M9 13.2V16M11.5 13.2V16M15 17v-2.4h4.5V17M14.5 14.6h5.5" />
+          <path d="M6 19.3h.01M12 19.3h.01M18 19.3h.01" />
+        </>
+      )
+    case 'bolaDeCristal':
+      // De frente: a bola grande com o reflexo, a taça de latão em garra que a segura e a mesinha coberta pelo pano até o chão, com as pregas e a franja (o caldeirão é uma barriga com orelhas e vapor; a tenda de adivinha, um cone com porta).
+      return (
+        <>
+          <circle cx="12" cy="7" r="4.6" />
+          <path d="M9.6 6.2a2.6 2.6 0 0 1 2-2" />
+          <path d="M9.4 11 8.5 13.2h7l-.9-2.2" />
+          <path d="M4.5 13.2h15M4.5 13.2C4 16 3.4 18.6 2.6 21h18.8c-.8-2.4-1.4-5-1.9-7.8" />
+          <path d="M8.6 14.2 8 21M12 14.2V21M15.4 14.2 16 21" />
+          <path d="M4 21v1.5M7 21v1.5M10 21v1.5M14 21v1.5M17 21v1.5M20 21v1.5" />
+        </>
+      )
+    case 'pedestalComLivro':
+      // De frente: o livro aberto com as folhas abrindo da lombada, a tábua por baixo, o fuste com uma canelura e o plinto em dois degraus (o pilar não tem livro e leva o capitel largo; o altar é um bloco comprido com o pano).
+      return (
+        <>
+          <path d="M3.5 4.5c3-1 6-.8 8.5 1.2c2.5-2 5.5-2.2 8.5-1.2v5.2c-3-1-6-.8-8.5 1.2c-2.5-2-5.5-2.2-8.5-1.2z" />
+          <path d="M12 5.7v5.2" />
+          <path d="M4.5 10.6h15l-1 2h-13z" />
+          <path d="M9.5 12.6v5.2M14.5 12.6v5.2M12 13.6v3.2" />
+          <path d="M5 21.5h14v-2H5zM7 19.5v-1.7h10v1.7" />
+        </>
+      )
   }
 }
 

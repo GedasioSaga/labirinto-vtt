@@ -46,6 +46,7 @@ import { ESPESSURA_DO_TAMPO_DA_MESA_DE_CORTE } from './mesaDeCorte'
 import { ESPESSURA_DA_TRAVE_DO_GANCHO } from './ganchoComCarne'
 import { ESPESSURA_DA_FIADA_DO_MURO } from './muroBaixoDePedra'
 import { ESPESSURA_DA_ESPIRA } from './colmeia'
+import { ESPESSURA_DA_VIGA_DO_POTRO } from './potroDeTortura'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -452,6 +453,26 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   blocoDeInscricoesAzul: { modo: 'derivado', espessura: 0 },
   blocoDeInscricoesVermelho: { modo: 'derivado', espessura: 0 },
   blocoDeInscricoesDourado: { modo: 'derivado', espessura: 0 },
+  // Lote 14 dos objetos novos (11/11/2026), a sala de tortura. No potro o quadro é um tampo no ar e a beirada é
+  // a viga dele, e TEM de ser a `ESPESSURA_DA_VIGA_DO_POTRO` do desenho (0,16 casa). Na dama de ferro e no
+  // tronco nada é estrutura: tudo é pintado na tela da 3/4.
+  potroDeTortura: { modo: 'derivado', espessura: ESPESSURA_DA_VIGA_DO_POTRO },
+  damaDeFerro: DERIVADO,
+  troncoDePrisioneiro: DERIVADO,
+  // A gaiola suspensa é desenhada inteira na tela e fatiada em faixas presas a pinos, como a placa de loja: com
+  // beirada, os pinos pintariam riscos de madeira.
+  gaiolaSuspensa: { modo: 'derivado', espessura: 0 },
+  cadeiraDeInterrogatorio: DERIVADO,
+  mesaDeInstrumentos: DERIVADO,
+  // O sangue no chão mora no chão e é rente, como o círculo mágico: nada sobe e a 3/4 sai igual à vista de cima
+  // (`tresQuartos.test.ts` o dispensa das regras de subir, na lista dos rentes).
+  sangueNoChao: DERIVADO,
+  // Os três últimos do lote 13, a magia e a alquimia. A estante de poções sobe como a estante de livros. A bola de
+  // cristal e a tábua do pedestal são tampos soltos na altura do meio deles, sem beirada: com ela, a bola ganharia
+  // uma tira por baixo e viraria um disco, e a tábua, uma tira a mais debaixo dos dentículos do desenho.
+  estanteDePocoes: DERIVADO,
+  bolaDeCristal: { modo: 'derivado', espessura: 0 },
+  pedestalComLivro: { modo: 'derivado', espessura: 0 },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

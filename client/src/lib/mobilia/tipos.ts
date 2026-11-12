@@ -80,6 +80,12 @@ export const TIPOS_MOBILIA = [
   // altura), a corrente, o círculo mágico (no chão, rente como o campinho) e os três blocos de inscrições, o
   // azul, o vermelho e o dourado.
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+  // Lote 14 dos objetos novos (11/11/2026), a sala de tortura, toda vazia e parada: o potro de tortura, a dama
+  // de ferro, o tronco de prisioneiro, a gaiola suspensa, a cadeira de interrogatório, a mesa de instrumentos
+  // de tortura e o sangue no chão (que mora no chão, rente como o círculo mágico). E os três últimos do lote
+  // 13, a magia e a alquimia: a estante de poções, a bola de cristal e o pedestal com livro aberto.
+  'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
+  'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

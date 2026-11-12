@@ -262,6 +262,19 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       blocoDeInscricoesAzul: [],
       blocoDeInscricoesVermelho: [],
       blocoDeInscricoesDourado: [],
+      // Lote 14 dos objetos novos (11/11/2026): o potro e o tronco com a madeira e as ferragens, a dama de ferro
+      // com o ferro e a pedra do plinto; o sangue no chão sem lugar. Os três últimos do lote 13: a estante de
+      // poções com a madeira, o pedestal com a pedra; a bola de cristal sem lugar.
+      potroDeTortura: ['madeira:carvalho', 'ferragens:ferro'],
+      damaDeFerro: ['metal:ferro', 'pedra:granito'],
+      troncoDePrisioneiro: ['madeira:carvalho', 'ferragens:ferro'],
+      gaiolaSuspensa: ['madeira:carvalho'],
+      cadeiraDeInterrogatorio: ['madeira:carvalho'],
+      mesaDeInstrumentos: ['madeira:nogueira'],
+      sangueNoChao: [],
+      estanteDePocoes: ['madeira:nogueira'],
+      bolaDeCristal: [],
+      pedestalComLivro: ['pedra:granito'],
     })
   })
 

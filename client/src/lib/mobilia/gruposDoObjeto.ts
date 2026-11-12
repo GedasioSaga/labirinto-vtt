@@ -28,6 +28,8 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'esporteELazer', titulo: 'Esporte e lazer' },
   { id: 'portoENavio', titulo: 'Porto e navio' },
   { id: 'temploEMasmorra', titulo: 'Templo e masmorra' },
+  { id: 'salaDeTortura', titulo: 'Sala de tortura' },
+  { id: 'magiaEAlquimia', titulo: 'Magia e alquimia' },
   { id: 'outros', titulo: 'Outros' },
 ] as const
 
@@ -215,6 +217,19 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   blocoDeInscricoesAzul: 'temploEMasmorra',
   blocoDeInscricoesVermelho: 'temploEMasmorra',
   blocoDeInscricoesDourado: 'temploEMasmorra',
+  // Sala de tortura (11/11/2026): o lote 14 dos objetos novos, do potro de tortura ao sangue no chão.
+  potroDeTortura: 'salaDeTortura',
+  damaDeFerro: 'salaDeTortura',
+  troncoDePrisioneiro: 'salaDeTortura',
+  gaiolaSuspensa: 'salaDeTortura',
+  cadeiraDeInterrogatorio: 'salaDeTortura',
+  mesaDeInstrumentos: 'salaDeTortura',
+  sangueNoChao: 'salaDeTortura',
+  // Magia e alquimia (11/11/2026): os três últimos do lote 13 dos objetos novos, da estante de poções ao pedestal
+  // com livro aberto. O círculo mágico ficou em Templo e masmorra, com o altar e o braseiro.
+  estanteDePocoes: 'magiaEAlquimia',
+  bolaDeCristal: 'magiaEAlquimia',
+  pedestalComLivro: 'magiaEAlquimia',
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

@@ -152,7 +152,22 @@ export interface ContextoDoMovel {
    * o tonel: a coluna, a face da frente com o texto dela, a lasca que o giro
    * leva para a frente e o capim de pé são montados na tela e devolvidos ao
    * objeto com `desgirarCena`; a face de cima, a terra e o capim do chão giram
-   * com o objeto). Os outros desenhos não leem.
+   * com o objeto). Do lote 14 (11/11/2026) leem o potro de tortura (girado, não
+   * põe as peças da tela: a 3/4 varre a face lisa da viga, e a roda e a cruz da
+   * catraca vistas do alto sobem até o eixo), a dama de ferro (girada, gira a
+   * planta e põe na tela, desgirado, o que fica à vista daquele lado: as costas
+   * rebitadas ou o lado do vão com a porta aberta; a máscara e o ferrolho só de
+   * frente), o tronco de prisioneiro (de costas, o desenho espelhado sem o ferro
+   * da frente; de lado, cada prisma vira a faixa da beira de cima), a gaiola
+   * suspensa (a 3/4 sai da pegada girada: o braço aponta para o lado, para a
+   * frente ou para trás, a ordem de pintura troca quando a gaiola fica na
+   * frente ou atrás do poste, e as sombras pintadas são desgiradas) e a cadeira
+   * de interrogatório (a cinta, a fivela, os rebites e a argola da gaveta só
+   * entram no giro 0). Dos três últimos do lote 13 (11/11/2026) leem a bola de
+   * cristal (o lado claro da bola, a janela de luz e a sombra dela no pano
+   * ficam no lugar na tela, `desgirado`, a conta do altar) e o pedestal com
+   * livro aberto (a sombra da tábua nos degraus cai para o mesmo lado na tela).
+   * Os outros desenhos não leem.
    */
   readonly giro: number
 }

@@ -43,6 +43,8 @@ export const PECAS_NOVAS = [
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+  'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
+  'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -343,6 +345,26 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   blocoDeInscricoesAzul: { rotulo: 'Bloco de inscrições azul', artigo: 'um bloco de inscrições azul', tamanho: { largura: 2, altura: 2 }, redonda: false },
   blocoDeInscricoesVermelho: { rotulo: 'Bloco de inscrições vermelho', artigo: 'um bloco de inscrições vermelho', tamanho: { largura: 2, altura: 2 }, redonda: false },
   blocoDeInscricoesDourado: { rotulo: 'Bloco de inscrições dourado', artigo: 'um bloco de inscrições dourado', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // Lote 14 dos objetos novos (11/11/2026), a sala de tortura, cada um com o próprio desenho; esticam e giram
+  // como todo objeto. Os equipamentos estão VAZIOS e parados: sem gente e sem sangue pintado neles; a história
+  // fica no ferro gasto, na ferrugem, na madeira alisada e nas correias. A gaiola suspensa pende do braço de um
+  // poste com a cruz no pé. O sangue no chão (a poça, o rastro, as gotas e uma pegada de bota) mora no chão,
+  // rente como o círculo mágico (`ehMovelDoChao` em `lib/mobilia.ts`): o que o mestre põe em cima sai por cima
+  // dele; o artigo diz "uma mancha de sangue no chão" porque "um sangue no chão" soa errado.
+  potroDeTortura: { rotulo: 'Potro de tortura', artigo: 'um potro de tortura', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  damaDeFerro: { rotulo: 'Dama de ferro', artigo: 'uma dama de ferro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  troncoDePrisioneiro: { rotulo: 'Tronco de prisioneiro', artigo: 'um tronco de prisioneiro', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
+  gaiolaSuspensa: { rotulo: 'Gaiola suspensa', artigo: 'uma gaiola suspensa', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  cadeiraDeInterrogatorio: { rotulo: 'Cadeira de interrogatório', artigo: 'uma cadeira de interrogatório', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  mesaDeInstrumentos: { rotulo: 'Mesa de instrumentos de tortura', artigo: 'uma mesa de instrumentos de tortura', tamanho: { largura: 1.5, altura: 0.8 }, redonda: false },
+  sangueNoChao: { rotulo: 'Sangue no chão', artigo: 'uma mancha de sangue no chão', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  // Os três últimos do lote 13 dos objetos novos (11/11/2026), a magia e a alquimia. A estante de poções é a
+  // montagem da estante de livros com vidros, potes e o almofariz. A bola de cristal fica na mesinha redonda
+  // coberta de veludo até o chão; o brilho em volta dela é pintado e não ilumina nada. O pedestal é o atril de
+  // pedra com o livro grande aberto. Nenhum dos dez tem luz nem chama.
+  estanteDePocoes: { rotulo: 'Estante de poções', artigo: 'uma estante de poções', tamanho: { largura: 1.5, altura: 0.5 }, redonda: false },
+  bolaDeCristal: { rotulo: 'Bola de cristal', artigo: 'uma bola de cristal', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  pedestalComLivro: { rotulo: 'Pedestal com livro aberto', artigo: 'um pedestal com livro aberto', tamanho: { largura: 0.8, altura: 0.8 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -489,6 +511,16 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     blocoDeInscricoesAzul: valor(f.blocoDeInscricoesAzul),
     blocoDeInscricoesVermelho: valor(f.blocoDeInscricoesVermelho),
     blocoDeInscricoesDourado: valor(f.blocoDeInscricoesDourado),
+    potroDeTortura: valor(f.potroDeTortura),
+    damaDeFerro: valor(f.damaDeFerro),
+    troncoDePrisioneiro: valor(f.troncoDePrisioneiro),
+    gaiolaSuspensa: valor(f.gaiolaSuspensa),
+    cadeiraDeInterrogatorio: valor(f.cadeiraDeInterrogatorio),
+    mesaDeInstrumentos: valor(f.mesaDeInstrumentos),
+    sangueNoChao: valor(f.sangueNoChao),
+    estanteDePocoes: valor(f.estanteDePocoes),
+    bolaDeCristal: valor(f.bolaDeCristal),
+    pedestalComLivro: valor(f.pedestalComLivro),
   }
 }
 
@@ -521,8 +553,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cataVento', 'moinho', 'cataVentoBrinquedo',
   // Destroços, sucata e o campinho (10/11/2026), sem parente antigo.
   'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-  // Lotes 1 a 12, 15 e 16 e os cinco primeiros do lote 13 dos 95 objetos novos (11/11/2026), sem parente
-  // antigo: fecham o catálogo. A ordem em que o mestre os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
+  // Lotes 1 a 16 dos objetos novos (11/11/2026), sem parente antigo: fecham o catálogo. A ordem em que o mestre
+  // os acha é a dos grupos (`gruposDoObjeto.ts`), não esta.
   'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
   'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
   'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
@@ -536,6 +568,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+  'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
+  'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
 ]
 
 /**
@@ -2152,6 +2186,134 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...quadro(-hw * 0.5, hh * 0.12, -hw * 0.12, hh * 0.5),
         ...quadro(hw * 0.12, hh * 0.12, hw * 0.5, hh * 0.5),
       ]
+    case 'potroDeTortura': {
+      // O quadro de vigas, os dois rolos atravessados nas cabeceiras e a barra da catraca saindo do rolo da direita para a frente.
+      const frente = hh - altura * 0.134
+      const rolo = hw * 0.77
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.96, hw * 0.98, frente),
+        { x1: -rolo, y1: -hh * 0.84, x2: -rolo, y2: hh * 0.6 },
+        { x1: rolo, y1: -hh * 0.84, x2: rolo, y2: hh * 0.6 },
+        { x1: rolo, y1: frente, x2: rolo, y2: hh * 0.95 },
+      ]
+    }
+    case 'damaDeFerro': {
+      // O plinto, o bojo do corpo e a cabeça em cima dele (dois ovais) e a porta aberta saindo do lado direito em curva para a frente.
+      return [
+        ...quadro(-hw * 0.89, -hh * 0.89, hw * 0.75, hh * 0.75),
+        ...aro(largura * 0.68, altura * 0.5, -hw * 0.125, -hh * 0.107),
+        ...aro(largura * 0.36, altura * 0.3, -hw * 0.125, -hh * 0.16),
+        { x1: hw * 0.48, y1: hh * 0.07, x2: hw * 0.8, y2: hh * 0.28 },
+        { x1: hw * 0.8, y1: hh * 0.28, x2: hw * 0.93, y2: hh * 0.55 },
+      ]
+    }
+    case 'troncoDePrisioneiro': {
+      // As duas beiras da prancha entre os mourões, os dois pés atravessados e o cadeado pendurado na frente.
+      return [
+        linha(-hw * 0.7, -hh * 0.18, hw * 0.7),
+        linha(-hw * 0.7, hh * 0.18, hw * 0.7),
+        { x1: -hw * 0.79, y1: -hh * 0.79, x2: -hw * 0.79, y2: hh * 0.79 },
+        { x1: hw * 0.79, y1: -hh * 0.79, x2: hw * 0.79, y2: hh * 0.79 },
+        { x1: hw * 0.49, y1: hh * 0.18, x2: hw * 0.49, y2: hh * 0.45 },
+      ]
+    }
+    case 'gaiolaSuspensa': {
+      // De cima: a viga de través da cruz do pé e o braço seguindo na mesma linha até passar do meio da gaiola, a outra viga da cruz e os dois aros da gaiola, o do fundo (o mais largo) e o do ombro.
+      const menor = Math.min(largura, altura)
+      return [
+        linha(-hw * 0.97, -hh * 0.25, hw * 0.24),
+        { x1: -hw * 0.66, y1: -hh * 0.56, x2: -hw * 0.66, y2: hh * 0.06 },
+        ...aro(menor * 0.41, menor * 0.41, hw * 0.12, -hh * 0.25),
+        ...aro(menor * 0.33, menor * 0.33, hw * 0.12, -hh * 0.25),
+      ]
+    }
+    case 'cadeiraDeInterrogatorio': {
+      // De cima: os dois postes e o espaldar de chapa no fundo (um quadro só), o assento, as algemas de ferro atravessando os dois braços e a gaveta saindo na frente do assento.
+      const algema = Math.min(largura, altura) * 0.11
+      return [
+        ...quadro(-hw * 0.86, -hh * 0.9, hw * 0.86, -hh * 0.64),
+        ...quadro(-hw * 0.6, -hh * 0.64, hw * 0.6, hh * 0.54),
+        ...aro(algema, algema, -hw * 0.715, hh * 0.2),
+        ...aro(algema, algema, hw * 0.715, hh * 0.2),
+        ...quadro(-hw * 0.38, hh * 0.54, hw * 0.38, hh * 0.76),
+      ]
+    }
+    case 'mesaDeInstrumentos': {
+      // De cima: o pano de couro aberto no tampo, o rolo dele na ponta direita, os quatro cabos de pé à esquerda (tenaz, alicate e os dois ferros de marcar), a máscara de ferro no meio e o rolo de corda no alto à direita.
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.9, -hh * 0.86, hw * 0.79, hh * 0.86),
+        { x1: hw * 0.86, y1: -hh * 0.9, x2: hw * 0.86, y2: hh * 0.9 },
+        ...[-0.77, -0.62, -0.48, -0.35].map((x): Traco => ({ x1: hw * x, y1: -hh * 0.74, x2: hw * x, y2: hh * 0.6 })),
+        ...aro(menor * 0.4, menor * 0.5, -hw * 0.05, 0),
+        ...aro(menor * 0.26, menor * 0.26, hw * 0.56, -hh * 0.2),
+      ]
+    }
+    case 'sangueNoChao': {
+      // De cima: a poça (um aro só, por fora dos três lóbulos maiores), o rastro arrastado saindo dela para a esquerda e para baixo, a pegada saindo para a direita (do salto aos dedos) e as duas gotas maiores.
+      const gota = Math.min(largura, altura) * 0.08
+      return [
+        ...aro(hw * 0.84, hh * 0.96, -hw * 0.15, 0),
+        { x1: -hw * 0.5, y1: hh * 0.2, x2: -hw * 0.93, y2: hh * 0.52 },
+        { x1: hw * 0.36, y1: -hh * 0.12, x2: hw * 0.66, y2: -hh * 0.32 },
+        ...aro(gota, gota, hw * 0.34, hh * 0.44),
+        ...aro(gota, gota, -hw * 0.64, -hh * 0.36),
+      ]
+    }
+    case 'estanteDePocoes': {
+      // A beira do tampo com o balão (o bojo e a boca) e o almofariz com o pilão em cima e, na frente, a prateleira de cima com balões de gargalo comprido entre garrafas retas (a estante de livros tem só lombadas; a prateleira de potes, as bocas dos potes, sem tampo).
+      const menor = Math.min(largura, altura)
+      const r = Math.min(menor * 0.13, hw * 0.07)
+      const balao = (cx: number): Traco[] => [...aro(r * 2, r * 2, cx, hh * 0.86 - r), { x1: cx, y1: hh * 0.86 - r * 2, x2: cx, y2: hh * 0.08 }]
+      const garrafa = (cx: number): Traco[] => [...quadro(cx - r * 0.6, hh * 0.3, cx + r * 0.6, hh * 0.86), { x1: cx, y1: hh * 0.3, x2: cx, y2: hh * 0.06 }]
+      return [
+        linha(-hw, -hh * 0.1, hw),
+        ...aro(menor * 0.3, menor * 0.3, -hw * 0.6, -hh * 0.55),
+        ...aro(menor * 0.1, menor * 0.1, -hw * 0.6, -hh * 0.55),
+        ...aro(menor * 0.26, menor * 0.26, hw * 0.4, -hh * 0.55),
+        { x1: hw * 0.4, y1: -hh * 0.55, x2: hw * 0.58, y2: -hh * 0.92 },
+        ...[-0.72, -0.24, 0.24, 0.72].flatMap((f) => balao(hw * f)),
+        ...[-0.48, 0, 0.48].flatMap((f) => garrafa(hw * f)),
+      ]
+    }
+    case 'bolaDeCristal': {
+      // A bainha redonda do pano e a beira do tampo debaixo dele, a bola no meio dentro do aro da base de latão, duas cartas do leque na frente à esquerda e o pêndulo na corrente atrás à direita (a tenda de adivinha tem os gomos do telhado até o mastro; o tapete redondo, só a beira).
+      const r = Math.min(largura, altura) / 2
+      const carta = (a: number): Traco[] => {
+        const [cx, cy, cos, sen] = [-r * 0.37, r * 0.34, Math.cos(a), Math.sin(a)]
+        const [u, v] = [r * 0.08, r * 0.122]
+        const canto = (x: number, y: number): readonly [number, number] => [cx + x * cos - y * sen, cy + x * sen + y * cos]
+        return fechado([canto(-u, -v), canto(u, -v), canto(u, v), canto(-u, v)])
+      }
+      return [
+        ...aro(r * 1.68, r * 1.68),
+        ...aro(r * 1.2, r * 1.2),
+        ...aro(r * 0.7, r * 0.7),
+        ...aro(r * 0.54, r * 0.54),
+        ...carta(-0.35),
+        ...carta(0.2),
+        { x1: r * 0.05, y1: -r * 0.43, x2: r * 0.24, y2: -r * 0.5 },
+        { x1: r * 0.24, y1: -r * 0.5, x2: r * 0.39, y2: -r * 0.35 },
+        ...fechado([[r * 0.39, -r * 0.35], [r * 0.45, -r * 0.27], [r * 0.4, -r * 0.18], [r * 0.34, -r * 0.27]]),
+      ]
+    }
+    case 'pedestalComLivro': {
+      // O degrau de baixo do plinto onde a tábua não o cobre, a tábua por cima e, nela, o livro aberto: as duas folhas com a lombada no meio e duas linhas de escrita em cada uma, e a fita caindo pela frente (o pilar é um alvo redondo no plinto; o altar, um tampo comprido com o pano atravessado).
+      const m = Math.min(largura, altura) / 2
+      const p = m * 0.7
+      const [bw, yN, yS] = [m * 0.9, -m * 0.48, m * 0.42]
+      const [lw, lN, lS] = [m * 0.76, -m * 0.42, m * 0.3]
+      return [
+        linha(-p, -p, p),
+        linha(-p, p, p),
+        ...[-p, p].flatMap((x) => [{ x1: x, y1: -p, x2: x, y2: yN }, { x1: x, y1: yS, x2: x, y2: p }]),
+        ...quadro(-bw, yN, bw, yS),
+        ...quadro(-lw, lN, lw, lS),
+        { x1: 0, y1: lN, x2: 0, y2: lS },
+        ...[-m * 0.2, m * 0.02].flatMap((y) => [linha(-lw * 0.82, y, -lw * 0.16), linha(lw * 0.16, y, lw * 0.82)]),
+        { x1: m * 0.06, y1: lS - m * 0.08, x2: m * 0.1, y2: yS + m * 0.14 },
+      ]
+    }
   }
 }
 
