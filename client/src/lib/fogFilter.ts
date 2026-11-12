@@ -3155,7 +3155,7 @@ function recorteDoGrupo(
   const authorityVision = authorityByToken.flat()
   const rings = boxRings(authorityVision)
   // Anéis por ficha, para "ler só de perto".
-  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, sight: boxRings(authorityByToken[i]) }))
+  const pinReaders: PinReader[] = ownTokens.map((t, i) => ({ x: t.x, y: t.y, piso: t.piso, sight: boxRings(authorityByToken[i]) }))
   /** Parede de zona oculta: sai inteira fora da zona, só no pedaço pintado dentro dela. */
   const zoneCutWall = (w: Wall): Wall[] => {
     if (zones.length === 0 || !insideZone(w)) return [w]
@@ -4618,7 +4618,7 @@ function recorteDoGrupo(
       const known = memoryMode ? recalledPinIds.has(p.id) : isPointKnown(point)
       const reached = p.marco === true ? !hiddenByZone(point) : known
       if (!reached) return []
-      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone), known, oneWayExits?.get(p.id), pelosObjetos)]
+      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone, pelosObjetos), known, oneWayExits?.get(p.id), pelosObjetos)]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
     // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —
@@ -5095,6 +5095,8 @@ const PIN_READ_SLACK_CELLS = 0.5
 interface PinReader {
   readonly x: number
   readonly y: number
+  /** O piso da ficha: o alcance pelo objeto só conta objeto do mesmo piso. */
+  readonly piso?: number
   readonly sight: readonly BoxedRing[]
 }
 
@@ -5105,17 +5107,30 @@ interface PinReader {
  * anel (fora de zona oculta) — explorado não basta
  * (o "Revelar planta" marca tudo) e parede no meio não deixa ler. Grade
  * inválida nunca libera: na dúvida, o texto fica no host.
+ *
+ * ALCANCE PELO OBJETO (caça de 12/11/2026, J9, nota do escritor B): o pino no
+ * meio de um objeto grande que barra a passagem (a torre) se lê de quem encosta
+ * no objeto, com a mesma régua de N casas medida até o contorno dele.
+ * `pelosObjetos` lê os MESMOS objetos que o recorte entrega: objeto escondido
+ * do jogador não conta. Enxergar o pino pelo anel continua obrigatório.
  */
-function canReadPin(pin: Pin, readers: readonly PinReader[], grid: number, hiddenByZone: (point: RegionPoint) => boolean): boolean {
+function canReadPin(
+  pin: Pin,
+  readers: readonly PinReader[],
+  grid: number,
+  hiddenByZone: (point: RegionPoint) => boolean,
+  pelosObjetos?: AlcancePeloObjeto,
+): boolean {
   if (!isPinReadDistance(pin.lerDePerto)) return true
   if (!Number.isFinite(grid) || grid <= 0) return false
   const point = { x: pin.x, y: pin.y }
   if (hiddenByZone(point)) return false
   const reach = (pin.lerDePerto + PIN_READ_SLACK_CELLS) * grid
+  const perto = (r: PinReader): boolean => Math.hypot(r.x - pin.x, r.y - pin.y) <= reach || (pelosObjetos !== undefined && pelosObjetos(r, point, reach))
   // A MESMA ficha: perto E enxergando pelo anel dela. Com o anel somado de
   // todas, a ficha colada atrás da parede "leria" pelo olho do cão a 5 casas.
   // O pincel da zona não conta: ele mostra a casa, não põe o olho da ficha lá.
-  return readers.some((r) => Math.hypot(r.x - pin.x, r.y - pin.y) <= reach && inAnyRing(r.sight, point))
+  return readers.some((r) => perto(r) && inAnyRing(r.sight, point))
 }
 
 /**
