@@ -662,6 +662,47 @@ export function isShapeExplored(exp: Exploration, points: readonly RegionPoint[]
   return points.some((p) => isPointExplored(exp, p))
 }
 
+/**
+ * Alguma célula EXPLORADA com o centro DENTRO do polígono `ring` e aceita por
+ * `counts`. É o explorado "por dentro" de uma forma grande (o cais pintado, a
+ * área fechada por paredes), onde as amostras do contorno não chegam.
+ *
+ * Varredura por linha de células: os cruzamentos do polígono com a linha do
+ * centro dão os trechos de dentro (par-ímpar, como `pointInRing`), e só as
+ * células desses trechos são lidas. Custo: vértices x linhas da caixa, mais as
+ * células de dentro; para na primeira que conta.
+ */
+export function exploredCellInside(exp: Exploration, ring: readonly RegionPoint[], counts: (p: RegionPoint) => boolean): boolean {
+  if (ring.length < 3 || !ring.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))) return false
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const p of ring) {
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  const firstRow = Math.max(0, Math.floor(minY / exp.cell))
+  const lastRow = Math.min(exp.rows - 1, Math.floor(maxY / exp.cell))
+  const crossings: number[] = []
+  for (let row = firstRow; row <= lastRow; row += 1) {
+    const y = (row + 0.5) * exp.cell
+    crossings.length = 0
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+      const a = ring[j]
+      const b = ring[i]
+      if (a.y > y !== b.y > y) crossings.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y))
+    }
+    crossings.sort((m, n) => m - n)
+    for (let k = 0; k + 1 < crossings.length; k += 2) {
+      const firstCol = Math.max(0, Math.ceil(crossings[k] / exp.cell - 0.5))
+      const lastCol = Math.min(exp.cols - 1, Math.floor(crossings[k + 1] / exp.cell - 0.5))
+      for (let col = firstCol; col <= lastCol; col += 1) {
+        if (isCellSet(exp, col, row) && counts({ x: (col + 0.5) * exp.cell, y })) return true
+      }
+    }
+  }
+  return false
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''
   for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {

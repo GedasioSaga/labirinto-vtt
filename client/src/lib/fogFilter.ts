@@ -19,7 +19,7 @@ import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenC
 import { carrierIdOf } from './carry'
 import { driverOf, vehicleCarrying, vehicleOf } from './vehicle'
 import { guardAlerts, tokenWatchOf } from './npcWatch'
-import { isPointExplored, isShapeExplored, type Exploration } from './exploration'
+import { exploredCellInside, isPointExplored, isShapeExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
 import { LAYER_IDS } from '../types/map'
@@ -3304,7 +3304,8 @@ function recorteDoGrupo(
    * Forma com extensão: a caixa da forma precisa cruzar a caixa de algum anel
    * e algum ponto amostrado (fora de zona oculta) precisa estar dentro dele.
    * Forma que só atravessa a visão sem nenhum ponto amostrado dentro fica de
-   * fora (aceito).
+   * fora aqui; o desenho com área e a área de paredes da textura têm, além
+   * disso, a visão que ENTRA nelas (`knownFromInside`).
    */
   const isShapeVisible = (open: readonly RegionPoint[]): boolean => {
     const box = boxOf(open)
@@ -3400,6 +3401,62 @@ function recorteDoGrupo(
   const drawingInHiddenPlace = (samples: readonly RegionPoint[]): boolean =>
     samples.some((p) => inSecretRoom(p) || inUnseenComodo(p)) || mostly(samples, roofHides)
 
+  /**
+   * A VISÃO ENTRA NA FORMA FECHADA `points`: vértice ou meio de aresta de algum
+   * anel de visão ESTRITAMENTE dentro dela, fora de zona oculta e de lugar
+   * escondido (`ringReachesInto`). É a régua da Sala vista pela fresta
+   * (`ringEntersRegion`), que agora vale também para o desenho com área e para
+   * a área de paredes da textura (`knownFromInside`).
+   */
+  const ringEntersShape = (points: readonly RegionPoint[]): boolean => {
+    const box = boxOf(points)
+    if (box === null) return false
+    const shape: BoxedRoom = { id: '', points: [...points], ...box }
+    return rings.some(
+      (b) =>
+        b.maxX >= box.minX &&
+        b.minX <= box.maxX &&
+        b.maxY >= box.minY &&
+        b.minY <= box.maxY &&
+        ringReachesInto(b.ring, shape, (p) => !hiddenByZone(p) && !inHiddenPlace(p)),
+    )
+  }
+  /** Algum vértice da forma dentro (ou em cima da borda) de sala secreta fechada ou de zona oculta. */
+  const touchesSecretOrZone = (points: readonly RegionPoint[]): boolean =>
+    points.some(
+      (p) =>
+        inZoneRing(p) ||
+        secretRoomRings.some(
+          (b) =>
+            p.x >= b.minX - NESTING_TOLERANCE &&
+            p.x <= b.maxX + NESTING_TOLERANCE &&
+            p.y >= b.minY - NESTING_TOLERANCE &&
+            p.y <= b.maxY + NESTING_TOLERANCE &&
+            pointInPolygonInclusive(p, b.ring),
+        ),
+    )
+  /**
+   * FORMA FECHADA CONHECIDA POR DENTRO (modo teste do mestre, 12/11/2026: a
+   * ficha em cima do cais não recebia o cais). As amostras de uma forma grande
+   * ficam junto do contorno, e a visão curta no meio dela não pega nenhuma.
+   * Conta a visão que entra nela agora e, com `comExplorado`, a célula
+   * explorada dentro dela (`exploredCellInside`). Nunca perto de sala secreta
+   * ou zona oculta (`touchesSecretOrZone`): o contorno que segue as paredes
+   * delas levaria a silhueta do que escondem; lá vale só a regra das amostras.
+   */
+  const knownFromInside = (points: readonly RegionPoint[], comExplorado: boolean): boolean => {
+    if (points.length < 3 || touchesSecretOrZone(points)) return false
+    if (ringEntersShape(points)) return true
+    return comExplorado && explored !== undefined && exploredCellInside(explored, points, (p) => !hiddenByZone(p) && !inHiddenPlace(p))
+  }
+  /** O contorno do desenho PINTADO com área (polígono, retângulo, círculo, elipse); traço, texto e forma vazada não têm. */
+  const filledDrawingArea = (d: Drawing): readonly RegionPoint[] | null =>
+    (d.kind === 'polygon' || d.kind === 'rect' || d.kind === 'circle' || d.kind === 'ellipse') && d.filled ? drawingOutline(d).points : null
+  const drawingKnownFromInside = (d: Drawing, comExplorado: boolean): boolean => {
+    const area = filledDrawingArea(d)
+    return area !== null && knownFromInside(area, comExplorado)
+  }
+
   const drawings = recallItems(map.drawings, remembered?.drawings, {
     allowed: (d) => !d.secret,
     shown: (d) => jogadorVeItem('desenho', d),
@@ -3410,7 +3467,7 @@ function recorteDoGrupo(
       if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
       return outsideZones(samples).length > 0
     },
-    seenNow: (d) => isShapeVisible(drawingSamplePoints(d)) || comodoSeenShape(drawingSamplePoints(d)),
+    seenNow: (d) => isShapeVisible(drawingSamplePoints(d)) || comodoSeenShape(drawingSamplePoints(d)) || drawingKnownFromInside(d, false),
     unseenOk: (d) => exploredShape(drawingSamplePoints(d)),
   })
 
@@ -3426,19 +3483,7 @@ function recorteDoGrupo(
    * meio de aresta do anel ESTRITAMENTE dentro; em cima da parede não conta,
    * senão a sala do outro lado vazaria. Teto fechado segue só o contorno.
    */
-  const ringEntersRegion = (r: Region): boolean => {
-    if (closedRoofIds.has(r.id)) return false
-    const room = boxRooms([r])[0]
-    if (room === undefined) return false
-    return rings.some(
-      (b) =>
-        b.maxX >= room.minX &&
-        b.minX <= room.maxX &&
-        b.maxY >= room.minY &&
-        b.minY <= room.maxY &&
-        ringReachesInto(b.ring, room, (p) => !hiddenByZone(p) && !inHiddenPlace(p)),
-    )
-  }
+  const ringEntersRegion = (r: Region): boolean => !closedRoofIds.has(r.id) && ringEntersShape(r.points)
   const regions = recallItems(map.regions, remembered?.regions, {
     // DENTRO DA SALA SECRETA: a secreta aberta para ESTE jogador (ficha dentro,
     // ou já descoberta por ele) é Sala comum para ele (`isClosedSecret`).
@@ -4150,7 +4195,7 @@ function recorteDoGrupo(
       if (drawingInHiddenPlace(samples)) return false
       // Traço com uma ponta na zona desenharia o que ela esconde.
       if (isStrokeDrawing(d) && anyInConcealZone(samples)) return false
-      return memoryMode || isShapeKnown(samples, drawingOutline(d))
+      return memoryMode || isShapeKnown(samples, drawingOutline(d)) || drawingKnownFromInside(d, true)
     }),
     // Cômodo lembrado sai pela regra dele, na versão de agora (`recalledList`).
     regions: naCamadaDoJogador('regiao', recalledList(map.regions, regions, memoryMode, (r) => knownComodoIds.has(r.id)))
