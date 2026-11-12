@@ -76,16 +76,25 @@ function useNomeCortado(texto: RefObject<HTMLSpanElement | null>, nome: string):
     const no = texto.current
     if (no === null) return
     const medir = () => setCortado(no.scrollWidth > no.clientWidth)
-    medir()
-    // A fonte de título pode chegar depois do primeiro desenho e mudar a largura do nome.
     let vivo = true
-    if ('fonts' in document) {
+    // Caça 12/11 (O9): ler a largura aqui, logo depois de montar a página, obrigava o navegador a calcular o layout
+    // inteiro dentro do commit (46 a 91 ms por abertura de cena). O observador entrega a primeira medida depois do
+    // layout que o navegador já ia fazer; o balão do nome cortado aparece um quadro depois. Sem ele (jsdom), mede já.
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      if (vivo) medir()
+    })
+    if (observador === null) medir()
+    else observador.observe(no)
+    // A fonte de título pode chegar depois do primeiro desenho e mudar a largura do nome. Já carregada, o `ready`
+    // voltaria nesta mesma tarefa e a leitura forçaria o layout de novo: aí quem mede é só o observador.
+    if ('fonts' in document && (observador === null || document.fonts.status !== 'loaded')) {
       void document.fonts.ready.then(() => {
         if (vivo) medir()
       })
     }
     return () => {
       vivo = false
+      observador?.disconnect()
     }
   }, [texto, nome])
   return cortado
