@@ -36,7 +36,8 @@ import { rampaGuardada } from '../texturas/desenhado/tingir'
  * ~55 ms na CPU 1x e passava dos 200 ms na CPU 4x do jogador. Ela é pintada em
  * fatias de `FATIA_DA_PINTURA_MS` (uma tarefa por fatia, linha a linha, com os
  * mesmos bytes de pintar de uma vez: `comecarTelhado`). Telha e madeira
- * continuam numa tarefa só, como antes.
+ * continuam numa tarefa só, como antes. Ardósia, metal e tabuinhas (12/11/2026)
+ * custam ~2 vezes a telha por pixel na folha de contato: em fatias, como a palha.
  */
 
 export const DURACAO_DO_TELHADO_MS = 300
@@ -222,7 +223,10 @@ const GRADE_PADRAO = 64
  */
 function desenhadoDoTelhado(t: Pick<TelhadoParaDesenhar, 'modelo' | 'chamine'>, cor: string, mapaId: string, grid: number): PedidoDesenhado | undefined {
   if (!desenhadoLigado()) return undefined
-  const telhado = pedirItemDoTelhado(idDoTelhadoDoModelo(t.modelo), mapaId)
+  // Modelo sem arte no pacote (ardósia, metal, tabuinhas): o desenho por código, sempre.
+  const id = idDoTelhadoDoModelo(t.modelo)
+  if (id === null) return undefined
+  const telhado = pedirItemDoTelhado(id, mapaId)
   const objeto = t.chamine === true ? pedirItemDoTelhado('chamine', mapaId) : null
   if (telhado === null || telhado.tipo !== 'telhado') return undefined
   let faixa = telhado.faixa
@@ -437,10 +441,10 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     agendarPintura()
   }
 
-  /** Telha e madeira de uma vez (o caminho de antes); a palha uma fatia por chamada (`undefined` = ainda falta). */
+  /** Telha e madeira de uma vez (o caminho de antes); os outros uma fatia por chamada (`undefined` = ainda falta). */
   function pintarDoPedido(chave: string, pedido: PedidoDeTelhado): TexturaDoTelhado | null | undefined {
     // O Desenhado lê a arte por pixel (2 bases, 2 ruídos, a faixa): sempre em fatias, como a palha.
-    if (pedido.modelo !== 'palha' && pedido.desenhado === undefined) {
+    if ((pedido.modelo === 'telhas' || pedido.modelo === 'madeira') && pedido.desenhado === undefined) {
       const subir = opcoes.subirTextura
       if (subir === undefined) return gerarTexturaDoTelhado(pedido.points, pedido.modelo, pedido.cor, pedido.extras)
       return subirSeTiver(subir, pintarTelhado(pedido.points, pedido.modelo, pedido.cor, escalaDaTexturaDoTelhado(pedido.points), pedido.extras))

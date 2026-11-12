@@ -313,7 +313,8 @@ test('painel a 1280: Palha no Modelo do telhado, com miniatura; o clique grava p
   })
   const modelos = page.getByRole('radiogroup', { name: 'Modelo do telhado' })
   await expect(modelos).toBeVisible()
-  await expect(modelos.getByRole('radio')).toHaveCount(3)
+  // 6 desde 12/11/2026 (ardósia, metal e tabuinhas, em linhas de 3): o laço de baixo confere o nome de cada um.
+  await expect(modelos.getByRole('radio')).toHaveCount(6)
   const palha = modelos.getByRole('radio', { name: 'Palha' })
   await expect(palha).toHaveAttribute('aria-checked', 'false')
   // A miniatura da palha é o desenho de verdade: o canvas dela tem pixels.

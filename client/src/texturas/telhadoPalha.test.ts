@@ -84,7 +84,8 @@ function vDaFileira(coordenada: (v: number) => number, alvo: number, v0: number,
 
 describe('palha: o 3º modelo do telhado', () => {
   it('está na lista, com nome e 6 cores; a padrão é a palha do estilo', () => {
-    expect(MODELOS_DO_TETO).toEqual(['telhas', 'madeira', 'palha'])
+    // Os 3 de 12/11/2026 vêm depois (`lib/telhado/paletas.test.ts`); a palha segue o 3º.
+    expect(MODELOS_DO_TETO.slice(0, 3)).toEqual(['telhas', 'madeira', 'palha'])
     expect(NOME_DO_MODELO.palha).toBe('Palha')
     expect(PALETA_DO_TETO.palha).toHaveLength(6)
     expect(corPadraoDoModelo('palha')).toBe(PALHA_DO_ESTILO)

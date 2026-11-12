@@ -91,6 +91,25 @@ describe('RoomControls — modelo e cor do telhado', () => {
     expect(miniaturaDoTelhado('palha', '#d6b56a').largura).toBeGreaterThan(0)
   })
 
+  it('Ardósia, Metal e Tabuinhas (12/11) trocam o modelo; as cores passam a ser as 6 deles, com a padrão marcada', () => {
+    const casos = [
+      ['Ardósia', 'ardosia', 'Cinza-azulado', '#5b6670'],
+      ['Metal', 'metal', 'Cobre novo', '#9c6a4e'],
+      ['Tabuinhas', 'tabuinhas', 'Cedro', '#8e6045'],
+    ] as const
+    for (const [nome, modelo, corPadrao, hex] of casos) {
+      const props = render()
+      act(() => radio('Modelo do telhado', nome).click())
+      expect(props.onRoofStyleChange).toHaveBeenCalledWith({ modelo })
+      render({ modeloDoTeto: modelo })
+      expect(radio('Modelo do telhado', nome).getAttribute('aria-checked')).toBe('true')
+      expect(radio('Cor do telhado', corPadrao).getAttribute('aria-checked')).toBe('true')
+      expect(() => radio('Cor do telhado', 'Barro')).toThrow()
+      expect(corAoTrocarDeModelo('telhas', '#8a5a46', modelo)).toBe(hex)
+      expect(miniaturaDoTelhado(modelo, hex).largura).toBeGreaterThan(0)
+    }
+  })
+
   it('a bolinha grava a cor; "Cor padrão" grava null', () => {
     const props = render({ modeloDoTeto: 'madeira', corDoTeto: '#4d5f4f' })
     expect(radio('Cor do telhado', 'Verde').getAttribute('aria-checked')).toBe('true')

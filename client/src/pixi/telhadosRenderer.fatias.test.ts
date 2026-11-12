@@ -81,6 +81,18 @@ describe('palha em fatias', () => {
     })
   }
 
+  it('ardósia, metal e tabuinhas (12/11) também saem em fatias, com a imagem de pintar de uma vez', () => {
+    trocarObraNoTeste(false)
+    for (const modelo of ['ardosia', 'metal', 'tabuinhas'] as const) {
+      const m = montar()
+      const cor = PALETA_DO_TETO[modelo][1].hex
+      desenharUma(m, modelo, cor)
+      expect(m.rodarTudo(), modelo).toBeGreaterThanOrEqual(3)
+      expect(m.subidas, modelo).toHaveLength(1)
+      expect(digital(m.subidas[0].pixels), modelo).toBe(digital(pintarTelhado(SALA, modelo, cor, escalaDaTexturaDoTelhado(SALA)).pixels))
+    }
+  })
+
   it('telha e madeira continuam numa tarefa só', () => {
     for (const modelo of ['telhas', 'madeira'] as const) {
       const m = montar()

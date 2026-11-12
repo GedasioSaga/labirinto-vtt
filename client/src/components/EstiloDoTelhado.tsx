@@ -10,7 +10,8 @@ import { pintarTelhado, type ImagemDoTelhado } from '../texturas/telhado'
 /*
  * MODELO E COR DO TELHADO, no painel da Sala, logo abaixo de "Teto fechado
  * para jogadores" (só com o teto ligado): Telhas | Madeira | Palha (a palha
- * em espinha entrou na MT6 do Meio-Termo), cada um com a
+ * em espinha entrou na MT6 do Meio-Termo) e, embaixo, Ardósia | Metal |
+ * Tabuinhas (12/11/2026; a grade de 3 por linha é de `RoomControls.css`), cada um com a
  * miniatura do próprio desenho (`texturas/telhado.ts`), e as 6 cores do
  * modelo mais "Outra cor…" com a pipeta e "Cor padrão" — o mesmo padrão da cor
  * do pino (`livro/CorETamanhoDoPino.tsx`). "Cor padrão" grava AUSENTE.

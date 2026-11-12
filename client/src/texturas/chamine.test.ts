@@ -36,8 +36,8 @@ function sala(casasW: number, casasH: number): readonly PontoDoTelhado[] {
   return [{ x: 0, y: 0 }, { x: casasW * CASA, y: 0 }, { x: casasW * CASA, y: casasH * CASA }, { x: 0, y: casasH * CASA }]
 }
 const EL: readonly PontoDoTelhado[] = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 150 }, { x: 150, y: 150 }, { x: 150, y: 300 }, { x: 0, y: 300 }]
-const COR: Record<ModeloDoTeto, string> = { telhas: PALETA_DO_TETO.telhas[0].hex, madeira: PALETA_DO_TETO.madeira[0].hex, palha: PALETA_DO_TETO.palha[0].hex }
-const MODELOS: readonly ModeloDoTeto[] = ['telhas', 'madeira', 'palha']
+const MODELOS: readonly ModeloDoTeto[] = ['telhas', 'madeira', 'palha', 'ardosia', 'metal', 'tabuinhas']
+const COR = Object.fromEntries(MODELOS.map((m) => [m, PALETA_DO_TETO[m][0].hex])) as Record<ModeloDoTeto, string>
 
 /** Percorre os pixels da imagem cujo centro (em px do mapa) cai dentro de `caixa` (ou fora, com `fora`). */
 function cadaPixel(img: ImagemDoTelhado, caixa: CaixaNoMapa, fora: boolean, visita: (o: number) => void): void {

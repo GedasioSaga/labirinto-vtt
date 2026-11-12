@@ -35,11 +35,17 @@ export function ehItemDoTelhado(id: string): id is IdDoTelhadoDesenhado {
   return IDS_DA_ONDA_2.has(id)
 }
 
-/** O telhado do pacote para o modelo do app. */
-export function idDoTelhadoDoModelo(modelo: ModeloDoTeto): IdDoTelhadoDesenhado {
+/**
+ * O telhado do pacote para o modelo do app, ou `null` quando o pacote não tem
+ * arte dele: ardósia, metal e tabuinhas (12/11/2026) nasceram depois da onda 2
+ * e, no Desenhado, saem pelo desenho por código (`texturas/telhado.ts`), como
+ * no Meio-Termo, em vez de virar telha tingida.
+ */
+export function idDoTelhadoDoModelo(modelo: ModeloDoTeto): IdDoTelhadoDesenhado | null {
+  if (modelo === 'telhas') return 'telhado-telhas'
   if (modelo === 'madeira') return 'telhado-madeira'
   if (modelo === 'palha') return 'telhado-palha'
-  return 'telhado-telhas'
+  return null
 }
 
 /** RGBA de alfa reto (como a tela 2D devolve), de qualquer forma. */

@@ -11,9 +11,14 @@
  * cores e cor livre. A padrão é o token `palha` do estilo (`#d6b56a`,
  * `docs/design/vila-meio-termo/README.md`); as outras 5 têm croma menor que
  * ela no OKLab (palha velha, sapé, musgo), para nenhuma gritar mais que o token.
+ * Pedido do mestre (12/11/2026, "mais versões de telhados"): ardósia, metal e
+ * tabuinhas, 6 cores cada mais cor livre. Mesma régua das de telha e madeira:
+ * croma OKLab de 0,004 a 0,076 (telha e madeira vão de 0,008 a 0,078) e luz
+ * OKLab de 0,34 a 0,64 (lá também). A ardósia é quase cinza (até
+ * 0,024); o cobre novo é a mais forte (0,076) e fica abaixo do vermelho celeiro.
  */
 
-export type ModeloDoTeto = 'telhas' | 'madeira' | 'palha'
+export type ModeloDoTeto = 'telhas' | 'madeira' | 'palha' | 'ardosia' | 'metal' | 'tabuinhas'
 
 export interface CorDoTeto {
   readonly id: string
@@ -22,12 +27,16 @@ export interface CorDoTeto {
   readonly hex: string
 }
 
-export const MODELOS_DO_TETO: readonly ModeloDoTeto[] = ['telhas', 'madeira', 'palha']
+/** A ordem do painel (grade de 3 por linha): os três de antes e, embaixo, os de 12/11/2026. */
+export const MODELOS_DO_TETO: readonly ModeloDoTeto[] = ['telhas', 'madeira', 'palha', 'ardosia', 'metal', 'tabuinhas']
 
 export const NOME_DO_MODELO: Readonly<Record<ModeloDoTeto, string>> = {
   telhas: 'Telhas',
   madeira: 'Madeira',
   palha: 'Palha',
+  ardosia: 'Ardósia',
+  metal: 'Metal',
+  tabuinhas: 'Tabuinhas',
 }
 
 export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>> = {
@@ -56,6 +65,37 @@ export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>
     { id: 'sape', nome: 'Sapé', hex: '#9a8155' },
     { id: 'palha-velha', nome: 'Palha velha', hex: '#a39478' },
     { id: 'musgo', nome: 'Palha com musgo', hex: '#7d7a5a' },
+  ],
+  // Croma OKLab de 0,004 a 0,024. Nenhuma se chama "Ardósia": essa é a cor da telha (o painel
+  // mostraria "Modelo Ardósia / Cor Ardósia").
+  ardosia: [
+    { id: 'cinza-azulado', nome: 'Cinza-azulado', hex: '#5b6670' },
+    { id: 'grafite', nome: 'Grafite', hex: '#45484e' },
+    { id: 'cinza-quente', nome: 'Cinza quente', hex: '#6f6963' },
+    { id: 'verde-acinzentado', nome: 'Verde-acinzentado', hex: '#5e6a63' },
+    { id: 'roxo-apagado', nome: 'Roxo apagado', hex: '#625b69' },
+    { id: 'pedra-lavada', nome: 'Pedra lavada', hex: '#898c8c' },
+  ],
+  // Croma OKLab: cobre novo 0,076, cobre escurecido 0,053, azinhavre 0,027, ferro oxidado 0,060,
+  // chumbo e zinco 0,009. O azinhavre e o zinco desceram de luz na folha de 12/11 (o metal
+  // clareia mais a água virada para a luz, e o verde-água claro gritava na vila).
+  metal: [
+    { id: 'cobre-novo', nome: 'Cobre novo', hex: '#9c6a4e' },
+    { id: 'cobre-escurecido', nome: 'Cobre escurecido', hex: '#6e4b3d' },
+    { id: 'azinhavre', nome: 'Azinhavre', hex: '#5c716b' },
+    { id: 'chumbo', nome: 'Chumbo', hex: '#56595e' },
+    { id: 'ferro-oxidado', nome: 'Ferro oxidado', hex: '#7a5242' },
+    { id: 'zinco-claro', nome: 'Zinco claro', hex: '#848a8e' },
+  ],
+  // Croma OKLab: cedro 0,072, mel 0,075, castanho 0,054, verde-musgo 0,045, cinza de chuva e
+  // queimado 0,013.
+  tabuinhas: [
+    { id: 'cedro', nome: 'Cedro', hex: '#8e6045' },
+    { id: 'mel', nome: 'Mel', hex: '#a68556' },
+    { id: 'castanho', nome: 'Castanho', hex: '#6b4c36' },
+    { id: 'cinza-de-chuva', nome: 'Cinza de chuva', hex: '#858078' },
+    { id: 'verde-musgo', nome: 'Verde-musgo', hex: '#5e6649' },
+    { id: 'queimado', nome: 'Queimado', hex: '#3d3631' },
   ],
 }
 

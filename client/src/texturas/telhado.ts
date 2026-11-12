@@ -18,6 +18,10 @@
  *   deriva do bico com a altura tiram o risco e a grade (regra do estilo: sem
  *   hachura). Cada metade do V pega a luz de um lado, os fios descem inclinados
  *   e a ponta do beiral é franjada (a borda da imagem avança e recua).
+ * - Ardósia, metal e tabuinhas (12/11/2026): o material no ponto mora em
+ *   `telhadoMateriais.ts`; aqui, a mesma água, cumeeira e chaminé, o musgo
+ *   da ardósia junto à cumeeira, a pátina (o claro que puxa para o cinza da
+ *   cor) e o metal com mais diferença de luz entre as águas.
  * - Luz por água vinda de cima à esquerda (como o protótipo de 18/10), cumeeira
  *   e espigão um pouco mais claros, rincão e ponta do beiral mais escuros.
  *
@@ -42,8 +46,22 @@ import {
   type GeometriaDasAguas,
   type PontoDoTelhado,
 } from '../lib/telhado/aguas'
-import { corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
+import { corDoTetoOuPadrao, MODELOS_DO_TETO, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { hash, passoSuave, rgb } from './ruido'
+import { PALETA_MEIO_TERMO } from './meioTermo/paleta'
+import {
+  ALCANCE_DO_MUSGO_PX,
+  BRILHO_DA_AGUA_DO_METAL,
+  esquecerMateriais,
+  luzDaArdosia,
+  luzDasTabuinhas,
+  luzDoMetal,
+  musgoDaArdosia,
+  SAIDA_DO_MATERIAL,
+  S_PARA_O_NEUTRO,
+  S_SORTEIO_DA_PECA,
+  type LuzDoMaterial,
+} from './telhadoMateriais'
 import { pintarChamineNaLinha, posicaoDaChamine, type ChamineNoTelhado } from './meioTermo/chamine'
 import {
   coberturaDaCumeeira,
@@ -414,6 +432,10 @@ interface Pincel {
    * calculada (os mesmos bytes, mais rápido).
    */
   readonly alcanceDaFranja: number
+  /** Ardósia, metal ou tabuinhas (`telhadoMateriais.ts`); `null` = telha, madeira ou palha, pelo caminho de antes. */
+  readonly luzNova: LuzDoMaterial | null
+  /** Só a ardósia: o musgo junto à cumeeira. */
+  readonly musgo: boolean
   readonly k: number
   readonly baseR: number
   readonly baseG: number
@@ -582,7 +604,125 @@ function pintarCorridaDaPalha(
 }
 
 function pintarDaAmostra(pincel: Pincel, o: number, x: number, y: number, a: AmostraDaAgua): void {
-  pintarPixel(pincel, o, x, y, a.agua, a.dist + BEIRAL_PX, a.aoLongo + pincel.geo.regua[a.agua], a.vizinha, a.ateEmenda, a.rincao)
+  if (pincel.luzNova !== null) pintarPixelNovo(pincel, o, x, y, a.agua, a.dist + BEIRAL_PX, a.aoLongo + pincel.geo.regua[a.agua], a.vizinha, a.ateEmenda, a.rincao)
+  else pintarPixel(pincel, o, x, y, a.agua, a.dist + BEIRAL_PX, a.aoLongo + pincel.geo.regua[a.agua], a.vizinha, a.ateEmenda, a.rincao)
+}
+
+/** O musgo do Meio-Termo (`PALETA_MEIO_TERMO.musgo`), para onde a ardósia puxa junto à cumeeira. */
+const [MUSGO_R, MUSGO_G, MUSGO_B] = rgb(PALETA_MEIO_TERMO.musgo.base)
+
+/**
+ * A cor do pixel dos modelos de 12/11: a cor escolhida, puxada para o cinza dela
+ * (`paraNeutro`, a pátina e a madeira lavada), com a luz pela mesma conta da
+ * telha; o musgo (`musgo`, 0 a ~0,5) mistura por cima, com a mesma luz.
+ */
+function porCorNova(pincel: Pincel, o: number, luz: number, paraNeutro: number, musgo: number): void {
+  const p = pincel.pixels
+  const { baseR, baseG, baseB, neutro } = pincel
+  const somada = LUZ_SOMADA * luz
+  const r = (baseR + (neutro - baseR) * paraNeutro) * (1 + luz) + somada
+  const g = (baseG + (neutro - baseG) * paraNeutro) * (1 + luz) + somada
+  const b = (baseB + (neutro - baseB) * paraNeutro) * (1 + luz) + somada
+  if (musgo > 0) {
+    p[o] = r + (MUSGO_R * (1 + luz) + somada - r) * musgo
+    p[o + 1] = g + (MUSGO_G * (1 + luz) + somada - g) * musgo
+    p[o + 2] = b + (MUSGO_B * (1 + luz) + somada - b) * musgo
+  } else {
+    p[o] = r
+    p[o + 1] = g
+    p[o + 2] = b
+  }
+}
+
+/** `pintarPixel` dos modelos de 12/11 (ardósia, metal, tabuinhas): a mesma emenda e beiral, mais o musgo. */
+function pintarPixelNovo(
+  pincel: Pincel,
+  o: number,
+  x: number,
+  y: number,
+  agua: number,
+  v: number,
+  u: number,
+  vizinha: number,
+  ate: number,
+  rincao: boolean,
+): void {
+  const luzDoMaterial = pincel.luzNova as LuzDoMaterial
+  let luz = pincel.luzDaAgua[agua] + luzDoMaterial(v, u, pincel.luzAoLongo[agua])
+  // Lidos agora: a água vizinha (logo abaixo) reescreve a saída do material.
+  const paraNeutro = SAIDA_DO_MATERIAL[S_PARA_O_NEUTRO]
+  const sorteio = SAIDA_DO_MATERIAL[S_SORTEIO_DA_PECA]
+  let musgo = 0
+  if (vizinha >= 0 && ate < FAIXA_DA_CUMEEIRA_PX) {
+    const k = pincel.k
+    if (ate * k < 0.5) {
+      // Na emenda o pixel mistura as duas águas pela área que cada uma cobre (como em `pintarPixel`).
+      const g = pincel.geo
+      const peso = 0.5 + ate * k
+      const outra = pincel.luzDaAgua[vizinha] + luzDoMaterial(g.s[vizinha] + BEIRAL_PX, g.t[vizinha] + g.regua[vizinha], pincel.luzAoLongo[vizinha])
+      luz = luz * peso + outra * (1 - peso)
+    }
+    if (rincao) luz -= 0.12 * (1 - passoSuave(0.4, 1.7, ate))
+    else luz += 0.1 * (1 - passoSuave(0.9, FAIXA_DA_CUMEEIRA_PX, ate))
+  }
+  if (pincel.musgo && vizinha >= 0 && !rincao && ate < ALCANCE_DO_MUSGO_PX && ehCumeeira(pincel.geo, agua, vizinha)) musgo = musgoDaArdosia(ate, u, sorteio)
+  if (v < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, v)) // ponta do beiral escura
+  luz += GRAO[(Math.floor(y * 2) & (LADO_DO_GRAO - 1)) * LADO_DO_GRAO + (Math.floor(x * 2) & (LADO_DO_GRAO - 1))]
+  porCorNova(pincel, o, luz, paraNeutro, musgo)
+  const cobertura = v * pincel.k + 0.5
+  pincel.pixels[o + 3] = cobertura >= 1 ? 255 : cobertura * 255
+}
+
+/**
+ * `pintarCorrida` dos modelos de 12/11: longe de emenda, a altura e a régua
+ * andam por soma. Na ardósia junto à CUMEEIRA, a distância até ela também
+ * (`ate`, `passoAte`: com a mesma dona e a mesma vizinha nas duas pontas ela é
+ * linear no bloco), para o musgo descer além da faixa do pixel a pixel.
+ * `ate` = `Infinity` (ou vizinha que não é cumeeira): sem musgo.
+ */
+function pintarCorridaNova(
+  pincel: Pincel,
+  o: number,
+  x: number,
+  y: number,
+  passo: number,
+  agua: number,
+  v: number,
+  u: number,
+  passoV: number,
+  passoU: number,
+  quantos: number,
+  ate: number,
+  passoAte: number,
+): void {
+  const p = pincel.pixels
+  const k = pincel.k
+  const luzDoMaterial = pincel.luzNova as LuzDoMaterial
+  const luzDaAgua = pincel.luzDaAgua[agua]
+  const luzAoLongo = pincel.luzAoLongo[agua]
+  const linhaDoGrao = (Math.floor(y * 2) & (LADO_DO_GRAO - 1)) * LADO_DO_GRAO
+  let gx = x * 2
+  const passoDoGrao = passo * 2
+  for (let i = 0; i < quantos; i += 1, o += 4) {
+    let luz = luzDaAgua + luzDoMaterial(v, u, luzAoLongo)
+    if (v < 2.2) luz -= 0.3 * (1 - passoSuave(0, 2.2, v)) // ponta do beiral escura
+    luz += GRAO[linhaDoGrao + (Math.floor(gx) & (LADO_DO_GRAO - 1))]
+    const musgo = ate < ALCANCE_DO_MUSGO_PX ? musgoDaArdosia(ate, u, SAIDA_DO_MATERIAL[S_SORTEIO_DA_PECA]) : 0
+    porCorNova(pincel, o, luz, SAIDA_DO_MATERIAL[S_PARA_O_NEUTRO], musgo)
+    const cobertura = v * k + 0.5
+    p[o + 3] = cobertura >= 1 ? 255 : cobertura * 255
+    v += passoV
+    u += passoU
+    gx += passoDoGrao
+    ate += passoAte
+  }
+}
+
+/** O material de cada modelo de 12/11; os de antes não estão aqui (seguem pelo caminho deles). */
+const LUZ_DO_MODELO_NOVO: Readonly<Partial<Record<ModeloDoTeto, LuzDoMaterial>>> = {
+  ardosia: luzDaArdosia,
+  metal: luzDoMetal,
+  tabuinhas: luzDasTabuinhas,
 }
 
 /**
@@ -665,8 +805,11 @@ export function comecarTelhado(
     const vazia = { largura: 0, altura: 0, origemX: 0, origemY: 0, escala: escalaDoTelhado(1, 1, escala), pixels: new Uint8ClampedArray(0) }
     return { imagem: vazia, pintarLinhas: () => true }
   }
-  const modeloUsado: ModeloDoTeto = modelo === 'madeira' || modelo === 'palha' ? modelo : 'telhas'
+  const modeloUsado: ModeloDoTeto = MODELOS_DO_TETO.includes(modelo) ? modelo : 'telhas'
   const [baseR, baseG, baseB] = rgb(corDoTetoOuPadrao(modeloUsado, corHex))
+  const luzNova = LUZ_DO_MODELO_NOVO[modeloUsado] ?? null
+  // O metal reflete: mais diferença de luz entre as águas. Nos outros, × 1 (os mesmos bytes de antes).
+  const brilhoDaAgua = modeloUsado === 'metal' ? BRILHO_DA_AGUA_DO_METAL : 1
 
   const margem = BEIRAL_PX + 1
   const origemX = Math.floor(geo.minX - margem)
@@ -683,10 +826,26 @@ export function comecarTelhado(
   const luzAoLongo = new Float64Array(n)
   for (let i = 0; i < n; i += 1) {
     // A água desce para fora (contra a normal de dentro); virada para a luz, clareia.
-    luzDaAgua[i] = (-geo.nx[i] * LUZ_X - geo.ny[i] * LUZ_Y) * FORCA_DA_LUZ_NA_AGUA
+    luzDaAgua[i] = (-geo.nx[i] * LUZ_X - geo.ny[i] * LUZ_Y) * FORCA_DA_LUZ_NA_AGUA * brilhoDaAgua
     luzAoLongo[i] = geo.dx[i] * LUZ_X + geo.dy[i] * LUZ_Y
   }
-  const pincel: Pincel = { geo, madeira: modeloUsado === 'madeira', palha: modeloUsado === 'palha', neutro: (baseR + baseG + baseB) / 3, alcanceDaFranja: FRANJA_MAXIMA_PX + Math.max(2.2, 0.5 / k), k, baseR, baseG, baseB, luzDaAgua, luzAoLongo, pixels }
+  const musgo = modeloUsado === 'ardosia'
+  const pincel: Pincel = {
+    geo,
+    madeira: modeloUsado === 'madeira',
+    palha: modeloUsado === 'palha',
+    neutro: (baseR + baseG + baseB) / 3,
+    alcanceDaFranja: FRANJA_MAXIMA_PX + Math.max(2.2, 0.5 / k),
+    luzNova,
+    musgo,
+    k,
+    baseR,
+    baseG,
+    baseB,
+    luzDaAgua,
+    luzAoLongo,
+    pixels,
+  }
   const passo = 1 / k
   const estado: EstadoDaPintura = {
     geo,
@@ -718,6 +877,7 @@ export function comecarTelhado(
       if (linha < ate) {
         // A memória curta só lembra sorteios puros: outra pintura no meio não muda nada, mas começa limpa.
         esquecer()
+        esquecerMateriais()
         pintarAsLinhas(estado, linha, ate)
         linha = ate
       }
@@ -768,6 +928,14 @@ function pintarAsLinhas(estado: EstadoDaPintura, py0: number, py1: number): void
         const a = ponta.agua
         const o = (py * largura + px0) * 4
         if (palha) pintarCorridaDaPalha(pincel, o, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1)
+        else if (pincel.luzNova !== null) {
+          // Musgo da ardósia: só junto a uma cumeeira (a mesma vizinha nas duas pontas, então a distância é linear).
+          const comMusgo = pincel.musgo && ponta.vizinha >= 0 && !ponta.rincao && Math.min(ponta.ateEmenda, outraPonta.ateEmenda) < ALCANCE_DO_MUSGO_PX && ehCumeeira(geo, a, ponta.vizinha)
+          const quantos = px1 - px0 + 1
+          const ate = comMusgo ? ponta.ateEmenda : Number.POSITIVE_INFINITY
+          const passoAte = comMusgo && quantos > 1 ? (outraPonta.ateEmenda - ponta.ateEmenda) / (quantos - 1) : 0
+          pintarCorridaNova(pincel, o, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, quantos, ate, passoAte)
+        }
         else pintarCorrida(pincel, o, x0, y, passo, a, ponta.dist + BEIRAL_PX, ponta.aoLongo + regua[a], nx[a] * passo, dx[a] * passo, px1 - px0 + 1)
         px0 = px1 + 1
         continue

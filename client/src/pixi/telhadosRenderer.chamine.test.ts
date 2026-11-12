@@ -60,7 +60,7 @@ function igual(a: ImagemDoTelhado, b: ImagemDoTelhado): boolean {
   return mesmosBytes(a.pixels, b.pixels)
 }
 
-const COR: Record<ModeloDoTeto, string> = { telhas: PALETA_DO_TETO.telhas[0].hex, madeira: PALETA_DO_TETO.madeira[0].hex, palha: PALETA_DO_TETO.palha[0].hex }
+const COR = Object.fromEntries(Object.entries(PALETA_DO_TETO).map(([m, paleta]) => [m, paleta[0].hex])) as Record<ModeloDoTeto, string>
 const ESCALA = escalaDaTexturaDoTelhado(CASA)
 
 describe('telhadosRenderer: chaminé e cumeeira amarrada', () => {

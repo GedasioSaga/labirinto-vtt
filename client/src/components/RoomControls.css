@@ -149,6 +149,13 @@
   padding-top: var(--lb-space-2);
 }
 
+/* Os 6 modelos (12/11/2026) em linhas de 3: os de antes em cima, ardósia, metal e tabuinhas
+   embaixo. A coluna nunca fica abaixo dos 64 px da grade (o "Tabuinhas" inteiro); painel
+   estreito demais para 3 cai para 2 por linha, sem estourar. */
+.lb-telhado .gr-seg--grade {
+  grid-template-columns: repeat(auto-fill, minmax(max(64px, calc((100% - 4px) / 3)), 1fr));
+}
+
 .lb-telhado__miniatura {
   display: block;
   width: 33px;
