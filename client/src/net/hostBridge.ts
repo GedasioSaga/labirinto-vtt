@@ -1183,10 +1183,10 @@ function errorText(error: unknown): string {
 }
 
 /** CHAT SALVO: o disco recusou gravar (cheio, sem permissão). Uma vez por sala: o chat segue em memória. */
-export const CHAT_SAVE_FAILED_TEXT = 'O chat não está sendo salvo no disco. A conversa continua, mas não volta quando a sala reabrir.'
+export const CHAT_SAVE_FAILED_TEXT = 'O chat não está sendo salvo no disco. A conversa continua, mas não volta quando a mesa online reabrir.'
 
 /** CHAT SALVO: o histórico guardado não abriu. */
-export const CHAT_LOAD_FAILED_TEXT = 'Não deu para ler o chat salvo desta mesa. A sala abriu sem o histórico.'
+export const CHAT_LOAD_FAILED_TEXT = 'Não deu para ler o chat salvo desta mesa. A mesa online abriu sem o histórico.'
 
 export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const now = deps.now ?? Date.now
@@ -1473,7 +1473,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Rejeição de tentativa já encerrada (ou sala fechada) é esperada, não é falha.
       if (attempt !== activeTunnelAttempt) return
       setTunnel({ kind: 'error', message: errorText(error) })
-      reportError('Não foi possível tornar a sala pública', error)
+      reportError('Não foi possível tornar a mesa online pública', error)
     } finally {
       if (attempt === activeTunnelAttempt) activeTunnelAttempt = null
     }
@@ -2455,7 +2455,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const text =
       player.status === 'waiting'
         ? `${player.name} entrou e está sem personagem. Abra o Grupo, no livro da mesa, para atribuir um.`
-        : `${player.name} voltou para a sala.`
+        : `${player.name} voltou para a mesa online.`
     toastSink.push('info', text, PLAYER_JOINED_TOAST_MS)
   }
 
@@ -4214,7 +4214,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       removeListeners()
       stopLivenessSweep()
       session = null
-      reportError('Não foi possível abrir a sala', error)
+      reportError('Não foi possível abrir a mesa online', error)
       throw error
     }
   }
@@ -4296,7 +4296,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       try {
         await deps.invoke('net_stop_room')
       } catch (error) {
-        reportError('Não foi possível fechar a sala', error)
+        reportError('Não foi possível fechar a mesa online', error)
       }
     },
 
@@ -4972,7 +4972,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (currentRoom === null) {
         // Pede uma ação (abrir a sala) antes do gesto poder acontecer: aviso que
         // ensina, fica até o mestre dispensar (fronteira em `lib/erroQueEnsina.ts`).
-        toastSink.push('instrucao', 'Abra a sala antes de torná-la pública')
+        toastSink.push('instrucao', 'Abra a mesa online antes de torná-la pública')
         return Promise.resolve()
       }
       if (tunnelState.kind === 'ready') return Promise.resolve()

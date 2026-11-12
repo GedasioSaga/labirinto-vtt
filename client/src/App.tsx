@@ -1367,7 +1367,7 @@ function App() {
     room === null ? (
       <section className="lb-mchat-vazio" aria-label="Chat dos jogadores">
         <div className="gr-vazio">
-          <p className="gr-vazio__tit">O chat abre junto com a sala</p>
+          <p className="gr-vazio__tit">O chat abre junto com a mesa online</p>
           <p>Quando os jogadores entrarem, a conversa de cada cena aparece aqui.</p>
           <Acoes>
             <OpenRoom
@@ -3916,7 +3916,7 @@ function App() {
                   senders={room === null ? undefined : sendCandidates(partyMembers(roomPlayers, roomPanelWorld()))}
                   onSendHere={(playerId, target) => {
                     const bridge = hostBridgeRef.current
-                    if (bridge === null) return { ok: false, mensagem: 'A sala não está aberta.' }
+                    if (bridge === null) return { ok: false, mensagem: 'A mesa online não está aberta.' }
                     return mandarFichaPara(playerId, target, bridge)
                   }}
                 />
