@@ -19,6 +19,7 @@ import type { Rgb } from '../lib/minimapRaster'
 import { compileFloor } from '../lib/floorSdf'
 import { countExploredCells, forEachExploredNotch, forEachExploredRun } from '../lib/exploration'
 import type { Exploration } from '../lib/exploration'
+import { corposComTextura, faixasDaParede, paredesQueSeguram, presoNaParede, type CorpoDaParede } from '../lib/faixasDaParede'
 import { computeAlignedGridLines } from '../lib/gridAlign'
 import { roomHasRoof } from '../lib/roomOps'
 import { createTelhadosRenderer, telhadoParaDesenhar, type TelhadosRenderer } from '../pixi/telhadosRenderer'
@@ -1281,6 +1282,23 @@ interface Scene {
   propLabels: Container
   propLooksRenderer: PropLooksRenderer
   propLooksCount: PropLooksCount
+  /**
+   * OBJETO PRESO NA PAREDE (decisão 20 do mestre, achado N4 da caça de
+   * 12/11/2026): o móvel com o centro a até meia espessura + 3 px de uma parede
+   * do pacote (`lib/faixasDaParede.ts`) sai deste container, por cima das
+   * paredes e sob a névoa, com silhueta, chama, imagem e rótulo próprios. Fora
+   * da lista de camadas (faixa fixa): a opacidade de camada não chega aqui.
+   */
+  naParede: {
+    silhuetas: Graphics
+    chamasNo: Container
+    chamas: ChamasDasFogueiras
+    imagens: Container
+    rotulos: Container
+    looks: PropLooksRenderer
+    /** Os ids presos, pelo pacote de objetos, de paredes, pelas camadas e pela grade. */
+    presos: { props: readonly Prop[]; walls: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; ids: ReadonlySet<string> } | null
+  }
   /** Chama e imagem/rótulo de móvel por nó da pilha: o de hoje no container de hoje, o de um nó criado nasce na primeira pintura. */
   chamasPorNo: PorNo<Container, ChamasDasFogueiras>
   looksPorNo: PorNo<Container, PropLooksRenderer>
@@ -1411,6 +1429,10 @@ interface Scene {
   visionMask: Graphics
   lastExplored: Exploration | undefined
   lastVision: RegionPoint[][] | null
+  /** As paredes com textura do último `redrawFog`: lista nova (o recorte do desenho mudou) refaz as máscaras. */
+  lastFogCorpos: readonly CorpoDaParede[] | null
+  /** O corpo das paredes com textura do desenho, pela lista do recorte, camadas e grade (`corposDaNevoa`). */
+  corposDaNevoa: { fonte: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; corpos: CorpoDaParede[] } | null
   exploredCells: number
   /** Pinos de ponto de interesse, acima da névoa: o jogador toca para ler o cartão. */
   pins: Container
@@ -1820,16 +1842,56 @@ function redrawNomesDosLugares(
   scene.nomesDosLugares.atualizar({ cena: map.id, lugares: lugaresConhecidos(scene.lugares, opcoes.conhecido, opcoes.ocultos), animar: opcoes.animar })
 }
 
-function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, brightness: number): void {
+/**
+ * OBJETO PRESO NA PAREDE (decisão 20, achado N4): os ids dos móveis do pacote
+ * com o centro a até meia espessura + 3 px de uma parede do pacote (nas camadas
+ * visíveis), pela régua de `lib/faixasDaParede.ts`. Memorizado pelas duas
+ * listas, pelas camadas e pela grade: o passo da ficha e o zoom não refazem.
+ */
+function presosNaParede(scene: Scene, map: MapData): ReadonlySet<string> {
+  const memo = scene.naParede.presos
+  if (memo !== null && memo.props === map.props && memo.walls === map.walls && memo.hidden === map.hiddenLayers && memo.grid === map.grid) return memo.ids
+  const paredes = paredesQueSeguram(wallsOnVisibleLayers(map.walls, map.hiddenLayers), map.grid)
+  const ids = new Set<string>()
+  if (paredes.length > 0) {
+    for (const prop of map.props) if (presoNaParede(prop, paredes)) ids.add(prop.id)
+  }
+  scene.naParede.presos = { props: map.props, walls: map.walls, hidden: map.hiddenLayers, grid: map.grid, ids }
+  return ids
+}
+
+/**
+ * As PAREDES COM TEXTURA que a névoa mostra inteiras (achado N1 da caça de
+ * 12/11/2026): as mesmas do desenho (o recorte de `playerCulling.ts`, nas
+ * camadas visíveis), como corpo. Memorizadas pela lista do recorte, pelas
+ * camadas e pela grade: o zoom e o slider de brilho não refazem nada.
+ */
+function corposDaNevoa(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined): CorpoDaParede[] {
+  const fonte = scene.culler.cull(map, vision, explored).walls
+  const memo = scene.corposDaNevoa
+  if (memo !== null && memo.fonte === fonte && memo.hidden === map.hiddenLayers && memo.grid === map.grid) return memo.corpos
+  const corpos = corposComTextura(wallsOnVisibleLayers(fonte, map.hiddenLayers), map.grid)
+  scene.corposDaNevoa = { fonte, hidden: map.hiddenLayers, grid: map.grid, corpos }
+  return corpos
+}
+
+/**
+ * `corpos`: as paredes com textura do desenho (`corposDaNevoa`). A névoa corta
+ * no EIXO da parede que barra a vista; sem as faixas do corpo, a metade de lá
+ * da parede com textura ficava sob o preto (o print 21 do mestre). As faixas
+ * da visão entram nas duas máscaras; as do contorno lembrado, só na do conhecido.
+ */
+function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored: Exploration | undefined, brightness: number, corpos: readonly CorpoDaParede[]): void {
   const width = map.width * map.grid
   const height = map.height * map.grid
   scene.fogUnknown.clear().rect(0, 0, width, height).fill({ color: 0x000000, alpha: 1 })
   scene.fogDim.clear().rect(0, 0, width, height).fill({ color: 0x000000, alpha: 1 - brightness })
 
-  // As máscaras só mudam com snapshot novo; o slider de brilho só repinta a camada acima.
-  if (vision === scene.lastVision && explored === scene.lastExplored) return
+  // As máscaras só mudam com snapshot novo (ou paredes novas); o slider de brilho só repinta a camada acima.
+  if (vision === scene.lastVision && explored === scene.lastExplored && corpos === scene.lastFogCorpos) return
   scene.lastVision = vision
   scene.lastExplored = explored
+  scene.lastFogCorpos = corpos
 
   const polygons = vision.filter((poly) => poly.length >= 3)
   scene.visionMask.clear()
@@ -1837,6 +1899,11 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
   for (const poly of polygons) {
     scene.visionMask.poly(poly, true).fill({ color: 0xffffff })
     scene.knownMask.poly(poly, true).fill({ color: 0xffffff })
+  }
+  // O CORPO INTEIRO da parede com textura que encosta no que ele vê (`lib/faixasDaParede.ts`).
+  for (const faixa of faixasDaParede(polygons, corpos)) {
+    scene.visionMask.poly(faixa, true).fill({ color: 0xffffff })
+    scene.knownMask.poly(faixa, true).fill({ color: 0xffffff })
   }
   let runs = 0
   let memoryRings = 0
@@ -1846,6 +1913,11 @@ function redrawFog(scene: Scene, map: MapData, vision: RegionPoint[][], explored
     // o bitset perde por só marcar célula inteira (lib/exploration.ts).
     for (const ring of explored.rings) {
       scene.knownMask.poly(ring.points, true).fill({ color: 0xffffff })
+      memoryRings += 1
+    }
+    // A parede com textura na borda do lembrado também sai inteira (escurecida, como o resto do lembrado).
+    for (const faixa of faixasDaParede(explored.rings.map((ring) => ring.points), corpos)) {
+      scene.knownMask.poly(faixa, true).fill({ color: 0xffffff })
       memoryRings += 1
     }
     const cell = explored.cell
@@ -2727,21 +2799,24 @@ function PlayerViewDoCanvas({
     const nos = FAIXAS_DOS_MOVEIS.map((faixa) => scene.pilha.assinaturaDa(faixa)).join(';')
     // VISTA DOS MÓVEIS (Meio-Termo): a da cena, como no editor; trocar repinta.
     const vistaDosMoveis = currentMap.vistaDosMoveis
-    const key = JSON.stringify([props, scale, res, currentMap.grid, nos, vistaDosMoveis ?? null])
+    const presos = presosNaParede(scene, currentMap)
+    const key = JSON.stringify([props, scale, res, currentMap.grid, nos, vistaDosMoveis ?? null, [...presos]])
     if (key === scene.lastPropsKey) return
     scene.lastPropsKey = key
     const camadas = contextoDoJogador(currentMap)
     const deObjeto = (p: Prop) => camadas.camadaDe('objeto', p)
+    // OBJETO PRESO NA PAREDE (N4): sai do container de cima das paredes; o resto segue pelas camadas.
+    const naParede = presos.size === 0 ? [] : props.filter((p) => presos.has(p.id))
+    const doChao = presos.size === 0 ? props : props.filter((p) => !presos.has(p.id))
     // ITEM NO CHÃO com imagem: a imagem do item é o desenho — a silhueta chapada
     // por baixo faria a poção virar um caixote escuro.
-    const silhuetas = props.filter((p) => p.item?.imagem === undefined)
+    const silhuetas = doChao.filter((p) => p.item?.imagem === undefined)
     // Cada nó das quatro faixas com os móveis da camada dele (Decoração com
     // opacidade própria separa dos de Objetos); mapa de hoje = um nó por faixa.
     let desenhadas = 0
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('props'), deObjeto)) {
       if (no instanceof Graphics) desenhadas += drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis, currentMap.grid)
     }
-    scene.propsCount = desenhadas
     // Fogueira que sai da visão (ou da camada visível) leva a chama junto.
     for (const { no, itens } of distribuir(silhuetas, scene.pilha.nosDaFaixa('chamasCamada'), deObjeto)) {
       sincronizarChamas(scene.chamasPorNo.de(no), no, itens, { cameraScale: scale, vistaDosMoveis })
@@ -2750,12 +2825,22 @@ function PlayerViewDoCanvas({
     scene.fogos.sincronizar(props, { cameraScale: scale, grade: currentMap.grid })
     const pares = nosEmPar(scene.pilha.nosDaFaixa('propImages'), scene.pilha.nosDaFaixa('propLabels'))
     const contagem: PropLooksCount = { images: 0, labels: 0 }
-    distribuir(props, pares.map((par) => par.imagem), deObjeto).forEach(({ itens }, i) => {
+    distribuir(doChao, pares.map((par) => par.imagem), deObjeto).forEach(({ itens }, i) => {
       const { imagem, rotulo } = pares[i]
       const feito = scene.looksPorNo.de(imagem.no).draw(imagem.no, rotulo.no, itens, currentMap.grid, scale, latestRef.current.imagemDaMesa)
       contagem.images += feito.images
       contagem.labels += feito.labels
     })
+    // Os presos na parede: a mesma silhueta, chama, imagem e rótulo, no container de cima das paredes.
+    // Lista vazia também passa: limpa o que saiu.
+    const { naParede: noDaParede } = scene
+    const silhuetasNaParede = naParede.filter((p) => p.item?.imagem === undefined)
+    desenhadas += drawPropSilhouettes(noDaParede.silhuetas, silhuetasNaParede, scale, res, vistaDosMoveis, currentMap.grid)
+    sincronizarChamas(noDaParede.chamas, noDaParede.chamasNo, silhuetasNaParede, { cameraScale: scale, vistaDosMoveis })
+    const feitoNaParede = noDaParede.looks.draw(noDaParede.imagens, noDaParede.rotulos, naParede, currentMap.grid, scale, latestRef.current.imagemDaMesa)
+    contagem.images += feitoNaParede.images
+    contagem.labels += feitoNaParede.labels
+    scene.propsCount = desenhadas
     scene.propLooksCount = contagem
   }
 
@@ -3386,11 +3471,12 @@ function PlayerViewDoCanvas({
     scene.textLabels.visible = currentSettings.showNames
     // O rótulo de um nó criado (camada com opacidade própria) segue o mesmo "Mostrar nomes".
     for (const { no } of scene.pilha.nosDaFaixa('propLabels')) no.visible = currentSettings.showNames
+    scene.naParede.rotulos.visible = currentSettings.showNames
 
     redrawLights(scene)
     redrawHazards(scene, currentHazards, currentVision)
     redrawTriggers(scene, currentTriggers)
-    redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness)
+    redrawFog(scene, currentMap, currentVision, currentExplored, currentSettings.exploredBrightness, corposDaNevoa(scene, currentMap, currentVision, currentExplored))
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
     redrawRoofs(scene, regions, currentPeek, currentMap.id, currentMap.grid)
@@ -3745,6 +3831,16 @@ function PlayerViewDoCanvas({
       const walls = new Container()
       const doorHints = new Graphics()
       const doors = new Graphics()
+      // OBJETO PRESO NA PAREDE (N4): silhueta, chama, imagem e rótulo próprios, por cima das paredes.
+      const objetosNaParede = new Container()
+      objetosNaParede.label = 'objetosNaParede'
+      objetosNaParede.eventMode = 'none'
+      const silhuetasNaParede = new Graphics()
+      const chamasNaParede = new Container()
+      chamasNaParede.label = 'chamas'
+      const imagensNaParede = new Container()
+      const rotulosNaParede = new Container()
+      objetosNaParede.addChild(silhuetasNaParede, chamasNaParede, imagensNaParede, rotulosNaParede)
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
@@ -3936,6 +4032,9 @@ function PlayerViewDoCanvas({
         walls,
         doorHints,
         doors,
+        // OBJETO PRESO NA PAREDE (decisão 20, N4): por cima da parede com textura
+        // (12 a 32 px, opaca), que antes cobria a tocha, e ainda SOB a névoa.
+        objetosNaParede,
         // NUVENS sobre a planta e SOB a névoa e os nomes: só passam pelo que o
         // jogador conhece, e o nome do lugar segue legível por cima delas.
         nuvens: nuvens.camada,
@@ -4150,6 +4249,15 @@ function PlayerViewDoCanvas({
         propLabels,
         propLooksRenderer: looksPorNo.de(propImages),
         looksPorNo,
+        naParede: {
+          silhuetas: silhuetasNaParede,
+          chamasNo: chamasNaParede,
+          chamas: createChamasDasFogueiras({ movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion } }),
+          imagens: imagensNaParede,
+          rotulos: rotulosNaParede,
+          looks: createPropLooksRenderer(),
+          presos: null,
+        },
         pilha,
         paresDoMapa: criarParesDoJogador(),
         entradaDaPilha: null,
@@ -4208,6 +4316,8 @@ function PlayerViewDoCanvas({
         visionMask,
         lastExplored: undefined,
         lastVision: null,
+        lastFogCorpos: null,
+        corposDaNevoa: null,
         exploredCells: 0,
         pins,
         pinsRenderer: pinosPorNo.de(pins),
@@ -5062,6 +5172,7 @@ function PlayerViewDoCanvas({
         // Os nós criados da pilha (e as chamas deles) antes da de hoje.
         scene.pilha.destruir()
         scene.chamas.destruir()
+        scene.naParede.chamas.destruir()
         scene.fogos.destruir()
         scene.judge.destruir()
       }

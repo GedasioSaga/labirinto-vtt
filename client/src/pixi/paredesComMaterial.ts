@@ -1,10 +1,12 @@
 import { Container, ImageSource, Mesh, MeshGeometry, Texture, type Graphics } from 'pixi.js'
-import type { MaterialDaParede, Wall } from '../types/map'
-import { ehMaterialDaParede, FORMATO_DA_IMAGEM } from '../texturas/paredes/catalogo'
+import { escalaDaGrade, espessuraDoMaterial, paredeComMaterial, type ParedeComMaterial } from '../lib/faixasDaParede'
 import { imagemDoMaterial } from '../texturas/paredes/materiais'
 import { SELECTION_COLOR } from './constants'
-import { clampWallWidth, groupWallChains, selectionOutlineWidth, traceWallChain, wallAlphaFor, type WallWithStyle } from './drawWalls'
+import { groupWallChains, selectionOutlineWidth, traceWallChain, wallAlphaFor, type WallWithStyle } from './drawWalls'
 import { CONTORNO_PX, montarParedes, type MalhaEmPecas, type TriangulosDaParede } from './paredeEmPecas'
+
+// A espessura e o "sai com textura" moram em `lib/faixasDaParede.ts` (o recorte do mestre mede a mesma parede sem o Pixi).
+export { ESPESSURA_DO_MATERIAL_PX, espessuraDoMaterial, paredeComMaterial, type ParedeComMaterial } from '../lib/faixasDaParede'
 
 /**
  * A PAREDE COM TEXTURA (pedido de 07/11/2026, `Wall.material`; refeita em
@@ -27,28 +29,6 @@ import { CONTORNO_PX, montarParedes, type MalhaEmPecas, type TriangulosDaParede 
  *   jogador, que só desenha as de perto, vê os mesmos cantos e os mesmos blocos
  *   do mestre.
  */
-
-/** Espessura em px do mundo por degrau, a 64 px por casa (a mesma proposta do Desenhado, CONTRATO 11.15). */
-export const ESPESSURA_DO_MATERIAL_PX = { thin: 12, medium: 20, thick: 32 } as const
-
-export type ParedeComMaterial = WallWithStyle & { material: MaterialDaParede }
-
-/** A parede sai com textura: material do catálogo, sem porta, nem janela, nem invisível (essas têm desenho próprio). */
-export function paredeComMaterial(w: WallWithStyle): w is ParedeComMaterial {
-  return ehMaterialDaParede(w.material) && w.door === null && w.hidden !== true && w.janela !== true
-}
-
-/** A escala da grade: quantos px do mundo vale 1 px da casa de 64. */
-function escalaDaGrade(grid: number): number {
-  return Number.isFinite(grid) && grid > 0 ? grid / FORMATO_DA_IMAGEM.casa : 1
-}
-
-/** A espessura da parede com textura em px do mundo. */
-export function espessuraDoMaterial(w: Pick<Wall, 'thickness'>, grid: number): number {
-  const t = w.thickness
-  if (typeof t === 'number' && Number.isFinite(t)) return clampWallWidth(t)
-  return (t === 'thin' || t === 'thick' ? ESPESSURA_DO_MATERIAL_PX[t] : ESPESSURA_DO_MATERIAL_PX.medium) * escalaDaGrade(grid)
-}
 
 /**
  * As malhas das paredes com textura de um nó, duas por material e opacidade.

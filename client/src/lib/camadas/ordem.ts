@@ -123,7 +123,8 @@ const SOB: ZonaDaNevoa = 'sob-a-nevoa'
 const SOBRE: ZonaDaNevoa = 'sobre-a-nevoa'
 
 /**
- * Jogador (`player/PlayerView.tsx` ~3055-3138): a planta sob a névoa, as 5
+ * Jogador (`player/PlayerView.tsx` ~3055-3138): a planta sob a névoa (com os
+ * objetos presos na parede por cima das paredes), as 5
  * faixas da névoa (fixas, sem zona) e, por cima, luz de longe, telhados,
  * porta no telhado, pílulas, marcas, pinos e fichas. As máscaras andam com o
  * container que recortam. `walls` com paredes e portas por analogia com o
@@ -157,6 +158,10 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('walls', ['parede'], ['paredes', 'portas'], SOB),
   faixa('doorHints', ['parede'], ['portas'], SOB),
   faixa('doors', ['parede'], ['portas'], SOB),
+  // OBJETO PRESO NA PAREDE (decisão 20 do mestre, achado N4): a tocha e a armadura
+  // atravessadas na parede, com a chama, logo acima das paredes e ainda sob a
+  // névoa. Fixa: os móveis presos ficam neste container, fora da lista de camadas.
+  faixa('objetosNaParede', [], FIXA, SOB),
   faixa('nuvens', [], ['terreno'], SOB),
   faixa('roomNames', ['regiao'], ['salas'], SOB),
   faixa('textLabels', ['desenho'], ['anotacoes'], SOB),
