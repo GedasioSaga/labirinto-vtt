@@ -1,3 +1,4 @@
+import { setTokenPosition } from '../../lib/mapFactory'
 import type { Personagem } from '../../lib/personagem'
 import type { MapData } from '../../types/map'
 import type { HostScene, HostWorld } from '../hostSession'
@@ -28,6 +29,17 @@ import type { FantasmaDeTeste } from './tipos'
  * (`registrarPersonagem`), por id, por cima dos personagens da aventura: a
  * janela vê a ficha como o teste a deixou, e a aventura do mestre nem sabe.
  *
+ * O MESTRE MOVER A FICHA ganha do teste (decisão 32, 12/11/2026): cada ficha
+ * que o teste tirou do lugar guarda onde ela estava no mundo VIVO quando o
+ * teste a moveu (a âncora). Se, numa leitura, o mundo vivo a mostra noutro
+ * ponto (arrastar no editor, "Levar para", "Reunir grupo"…), o lugar que o
+ * teste deu a ela cede: os passos dela saem, e outra mudança que a tenha
+ * levado junto (o salto do veículo, descer dele) passa a deixá-la onde estava.
+ * Ela segue o mundo vivo até o jogador de teste a mover de novo. Só a POSIÇÃO
+ * daquela ficha cede: porta, mochila, marca e o resto do teste continuam.
+ * Fica de fora a ficha que o teste fez trocar de cena (`applyTransfer`): ela
+ * sai de uma cena e chega noutra, e não há "lugar de antes" numa cena só.
+ *
  * Este módulo é puro: não importa store nenhuma, não lê nem grava nada fora
  * dele. Quem o liga à ponte de teste é `escritoresDeTeste.ts`.
  */
@@ -37,6 +49,14 @@ interface Entrada {
   transform: MapTransform
   /** Passo da ficha com este id: o próximo passo dela, logo em seguida na mesma cena, toma o lugar deste. */
   passoDe?: string
+  /** As fichas que esta mudança tirou do lugar, medidas na primeira aplicação; ausente = ainda não aplicada. */
+  movidas?: ReadonlySet<string>
+}
+
+/** Onde uma ficha estava no mundo vivo (px). */
+interface Ponto {
+  x: number
+  y: number
 }
 
 /** O resultado da última aplicação numa cena: vale enquanto a base e a versão da cena forem as mesmas. */
@@ -76,23 +96,117 @@ function personagensComOsDoTeste(base: readonly Personagem[], doTeste: ReadonlyM
   return [...trocados, ...[...doTeste.values()].filter((personagem) => !daBase.has(personagem.id))]
 }
 
+/** As fichas que estavam em `antes` e ficaram noutro ponto em `depois` (a que sumiu ou chegou não conta). */
+function fichasTiradasDoLugar(antes: MapData, depois: MapData): ReadonlySet<string> {
+  const movidas = new Set<string>()
+  if (antes.tokens === depois.tokens) return movidas
+  const deAntes = new Map(antes.tokens.map((t) => [t.id, t]))
+  for (const token of depois.tokens) {
+    const anterior = deAntes.get(token.id)
+    if (anterior !== undefined && (anterior.x !== token.x || anterior.y !== token.y)) movidas.add(token.id)
+  }
+  return movidas
+}
+
+/** A mudança `entrada` sem mover as fichas `cedem`: elas ficam onde estavam antes dela (o resto da mudança vale). */
+function semMoverAs(entrada: Entrada, cedem: readonly string[]): Entrada {
+  const movidas = new Set([...(entrada.movidas ?? [])].filter((id) => !cedem.includes(id)))
+  const transform: MapTransform = (antes) => {
+    let depois = entrada.transform(antes)
+    for (const id of cedem) {
+      const ondeEstava = antes.tokens.find((t) => t.id === id)
+      // `setTokenPosition` leva junto a tocha e quem ela carrega, como o passo que a tirou do lugar.
+      if (ondeEstava !== undefined) depois = setTokenPosition(depois, id, ondeEstava.x, ondeEstava.y)
+    }
+    return depois
+  }
+  return entrada.passoDe === undefined ? { transform, movidas } : { transform, passoDe: entrada.passoDe, movidas }
+}
+
 export function criarCamadaDeTeste(): CamadaDeTeste {
   const porCena = new Map<string, Entrada[]>()
   const personagens = new Map<string, Personagem>()
-  /** Versão de cada cena com mudança: muda a cada registro nela, e só nela (as outras cenas guardam o resultado). */
+  /** Versão de cada cena com mudança: muda a cada registro nela e quando o mestre move uma ficha dela que o teste moveu. */
   const versoes = new Map<string, number>()
   const memos = new Map<string, Memo>()
+  /** Por cena: cada ficha que o teste tirou do lugar e onde ela estava no mundo vivo quando ele a moveu. */
+  const ancoras = new Map<string, Map<string, Ponto>>()
   /** Contador único da vida da camada: versão nunca se repete, nem depois de `limpar`. */
   let contador = 0
 
+  const novaVersao = (mapId: string) => {
+    contador += 1
+    versoes.set(mapId, contador)
+  }
+
+  const esquecerCena = (mapId: string) => {
+    porCena.delete(mapId)
+    versoes.delete(mapId)
+    memos.delete(mapId)
+    ancoras.delete(mapId)
+  }
+
+  /**
+   * DECISÃO 32: as fichas que o mestre moveu de verdade desde que o teste as
+   * moveu (o mundo vivo não está mais na âncora) cedem o lugar do teste. A
+   * ficha que sumiu do mundo vivo não conta: a mudança sobre ela já não faz nada.
+   */
+  function cederAoMestre(base: MapData, entradas: readonly Entrada[]): readonly Entrada[] {
+    const daCena = ancoras.get(base.id)
+    if (daCena === undefined || daCena.size === 0) return entradas
+    const vivas = new Map(base.tokens.map((t) => [t.id, t]))
+    const cedem = [...daCena].filter(([id, ancora]) => {
+      const viva = vivas.get(id)
+      return viva !== undefined && (viva.x !== ancora.x || viva.y !== ancora.y)
+    }).map(([id]) => id)
+    if (cedem.length === 0) return entradas
+    for (const id of cedem) daCena.delete(id)
+    novaVersao(base.id)
+    return entradas.flatMap((entrada) => {
+      const tiradas = cedem.filter((id) => entrada.movidas?.has(id) === true)
+      if (tiradas.length === 0) return [entrada]
+      // O passo da ficha que o mestre moveu sai inteiro (a tocha e quem ela leva voltam com ela).
+      if (entrada.passoDe !== undefined && tiradas.includes(entrada.passoDe)) return []
+      return [semMoverAs(entrada, tiradas)]
+    })
+  }
+
+  /** As mudanças sobre `base`, medindo quem cada mudança nova tirou do lugar (a âncora é o ponto vivo dela agora). */
+  function reaplicar(base: MapData, entradas: Entrada[]): MapData {
+    let mapa = base
+    entradas.forEach((entrada, i) => {
+      const depois = entrada.transform(mapa)
+      if (entrada.movidas === undefined) {
+        const movidas = fichasTiradasDoLugar(mapa, depois)
+        entradas[i] = { ...entrada, movidas }
+        const daCena = ancoras.get(base.id) ?? new Map<string, Ponto>()
+        for (const id of movidas) {
+          const viva = base.tokens.find((t) => t.id === id)
+          // Só a ficha que existe no mundo vivo tem âncora: a que só existe no teste o mestre não move.
+          if (viva !== undefined) daCena.set(id, { x: viva.x, y: viva.y })
+        }
+        if (daCena.size > 0) ancoras.set(base.id, daCena)
+      }
+      mapa = depois
+    })
+    return mapa
+  }
+
   function aplicarNoMapa(base: MapData): MapData {
-    const entradas = porCena.get(base.id)
-    if (entradas === undefined) return base
-    const versao = versoes.get(base.id)
+    const registradas = porCena.get(base.id)
+    if (registradas === undefined) return base
     const memo = memos.get(base.id)
     // A MESMA referência enquanto nada muda: os caches do recorte da névoa são por referência do mapa.
-    if (memo !== undefined && memo.base === base && memo.versao === versao) return memo.resultado
-    const resultado = entradas.reduce((mapa, entrada) => entrada.transform(mapa), base)
+    if (memo !== undefined && memo.base === base && memo.versao === versoes.get(base.id)) return memo.resultado
+    const entradas = [...cederAoMestre(base, registradas)]
+    if (entradas.length === 0) {
+      // Só havia o lugar da ficha que o mestre moveu: a cena volta a ser a de verdade.
+      esquecerCena(base.id)
+      return base
+    }
+    porCena.set(base.id, entradas)
+    const resultado = reaplicar(base, entradas)
+    const versao = versoes.get(base.id)
     if (versao !== undefined) memos.set(base.id, { base, versao, resultado })
     return resultado
   }
@@ -111,8 +225,7 @@ export function criarCamadaDeTeste(): CamadaDeTeste {
       if (passoDe !== undefined && ultima !== undefined && ultima.passoDe === passoDe) entradas[entradas.length - 1] = entrada
       else entradas.push(entrada)
       porCena.set(mapId, entradas)
-      contador += 1
-      versoes.set(mapId, contador)
+      novaVersao(mapId)
     },
     registrarPersonagem(personagem) {
       personagens.set(personagem.id, personagem)
@@ -136,6 +249,7 @@ export function criarCamadaDeTeste(): CamadaDeTeste {
       porCena.clear()
       versoes.clear()
       memos.clear()
+      ancoras.clear()
       personagens.clear()
     },
   }

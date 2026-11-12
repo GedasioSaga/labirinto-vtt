@@ -191,6 +191,71 @@ describe('camada de teste: as mudanças do teste por cima do mundo vivo', () => 
   })
 })
 
+describe('decisão 32: o mestre mover a ficha de verdade ganha do lugar que o teste deu a ela', () => {
+  it('a janela segue o mestre, a porta aberta no teste continua, e andar de novo vale a partir dali', () => {
+    let mapas = { salao: salao(), cripta: cripta() }
+    const { camada, escritores } = teste(() => mundo(true, mapas))
+    const visto = () => camada.aplicarNoMundo(mundo(true, mapas)).open.map
+    const fantasma = () => {
+      const real = mundo(true, mapas)
+      return fantasmaDaFicha(real, camada.aplicarNoMundo(real), ANA.id)
+    }
+    const mestreLeva = (tokenId: string, x: number, y: number) => {
+      mapas = { ...mapas, salao: { ...mapas.salao, tokens: mapas.salao.tokens.map((t) => (t.id === tokenId ? { ...t, x, y } : t)) } }
+    }
+
+    escritores.applyMove(ANA.id, 175, 125)
+    escritores.applyDoor(PORTA.id, true)
+    escritores.applyMove(ANA.id, 225, 125)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 225, y: 125 })
+
+    // O mestre arrasta OUTRA ficha: o lugar da Ana no teste fica.
+    mestreLeva(SEVERA.id, 225, 325)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 225, y: 125 })
+
+    // O mestre leva a Ana: a janela mostra onde ele a pôs, e ela não está mais fora do lugar.
+    mestreLeva(ANA.id, 375, 375)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 375, y: 375 })
+    expect(fantasma()).toBeNull()
+    // A porta aberta no teste continua aberta no teste, e só nele.
+    expect(portaAberta(visto())).toBe(true)
+    expect(portaAberta(mapas.salao)).toBe(false)
+
+    // O jogador de teste anda de novo: vale a partir de onde o mestre a pôs, e a leitura seguinte não o desfaz.
+    escritores.applyMove(ANA.id, 425, 375)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 425, y: 375 })
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 425, y: 375 })
+    expect(fantasma()).toEqual({ tokenId: ANA.id, mapId: 'm-salao', x: 425, y: 375 })
+
+    // E o mestre ganha outra vez.
+    mestreLeva(ANA.id, 75, 75)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 75, y: 75 })
+    expect(portaAberta(visto())).toBe(true)
+    // O mapa do mestre nunca recebeu nada do teste.
+    expect(portaAberta(mapas.salao)).toBe(false)
+    expect(fichaEm(mapas.salao, SEVERA.id)).toMatchObject({ x: 225, y: 325 })
+  })
+
+  it('a mudança que levou a ficha junto (descer do veículo) a deixa onde o mestre a pôs, e o resto dela continua', () => {
+    const CARROCA: Token = { id: 'carroca', characterId: null, name: 'Carroça', x: 125, y: 175, size: 1, image: null, veiculo: { lugares: 2, passageiros: [ANA.id] } }
+    let mapas = { salao: salao({ tokens: [ANA, SEVERA, CARROCA] }), cripta: cripta() }
+    const { camada, escritores } = teste(() => mundo(true, mapas))
+    const visto = () => camada.aplicarNoMundo(mundo(true, mapas)).open.map
+
+    escritores.applyVehicle({ op: 'leave', tokenId: ANA.id, x: 175, y: 275 })
+    escritores.applyDoor(PORTA.id, true)
+    expect(fichaEm(visto(), ANA.id)).toMatchObject({ x: 175, y: 275 })
+
+    mapas = { ...mapas, salao: { ...mapas.salao, tokens: mapas.salao.tokens.map((t) => (t.id === ANA.id ? { ...t, x: 325, y: 325 } : t)) } }
+    const depois = visto()
+    expect(fichaEm(depois, ANA.id)).toMatchObject({ x: 325, y: 325 })
+    // No teste ela continua fora da carroça e a porta aberta; na carroça do mestre ela segue a bordo.
+    expect(fichaEm(depois, CARROCA.id).veiculo?.passageiros ?? []).not.toContain(ANA.id)
+    expect(portaAberta(depois)).toBe(true)
+    expect(fichaEm(mapas.salao, CARROCA.id).veiculo?.passageiros).toEqual([ANA.id])
+  })
+})
+
 describe('fantasma da ficha de teste', () => {
   it('só existe enquanto o teste tirou a ficha do lugar de verdade', () => {
     let mapas = { salao: salao(), cripta: cripta() }
