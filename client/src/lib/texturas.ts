@@ -1,5 +1,6 @@
 import type { AlvoDoBalde, AlvoDoBaldePorId, MapData, PinceladaDeTextura, RegionPoint, TexturaImportada, Wall } from '../types/map'
 import { distanceToWall } from './doorReach'
+import { pointInRing } from './floorContour'
 import { caminhosParaJogador, passoDoRisco, tracosSeTocam } from './penhasco'
 import { comPiso, pisoDe, pisoLido } from './pisos'
 
@@ -415,6 +416,53 @@ export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: read
   })
 }
 
+/** Quanto, em px de mundo, o canto do contorno da ÁREA é puxado para DENTRO dela antes de perguntar se o jogador o conhece. */
+const RECUO_DO_CANTO_PX = 2
+
+/**
+ * O jogador conhece algum CANTO da área POR DENTRO: o canto do contorno puxado
+ * `RECUO_DO_CANTO_PX` para dentro dela, pela bissetriz. O contorno corre no
+ * eixo das paredes, e o canto em cima da parede contava como conhecido para
+ * quem só via a parede pelo lado de FORA: a área do cômodo fechado ao lado ia
+ * inteira no pacote (12/11/2026).
+ *
+ * "Dentro" é perguntado ao polígono (par-ímpar), não ao sentido do contorno:
+ * no canto reentrante e no contorno de um buraco, dentro da área é para o
+ * outro lado da bissetriz, então os dois lados são tentados e só vale o que
+ * cai na área. O canto sem lado de dentro (ponto repetido, lados um sobre o
+ * outro) não conta.
+ */
+function conheceUmCantoPorDentro(pontos: readonly RegionPoint[], conhece: (p: RegionPoint) => boolean): boolean {
+  const n = pontos.length
+  if (n < 3) return false
+  const anel = [...pontos]
+  for (let i = 0; i < n; i += 1) {
+    const p = anel[i]
+    const antes = anel[(i + n - 1) % n]
+    const depois = anel[(i + 1) % n]
+    const atras = Math.hypot(antes.x - p.x, antes.y - p.y)
+    const adiante = Math.hypot(depois.x - p.x, depois.y - p.y)
+    if (atras === 0 || adiante === 0) continue
+    // A bissetriz: a soma dos rumos (de tamanho 1) do canto aos dois vizinhos.
+    let dx = (antes.x - p.x) / atras + (depois.x - p.x) / adiante
+    let dy = (antes.y - p.y) / atras + (depois.y - p.y) / adiante
+    const soma = Math.hypot(dx, dy)
+    if (soma > 2 - 1e-9) continue
+    // Lados em linha reta: não há bissetriz, vale a perpendicular ao lado.
+    if (soma < 1e-9) {
+      dx = -(depois.y - p.y) / adiante
+      dy = (depois.x - p.x) / adiante
+    }
+    const escala = RECUO_DO_CANTO_PX / Math.hypot(dx, dy)
+    for (const lado of [1, -1]) {
+      const q = { x: p.x + lado * dx * escala, y: p.y + lado * dy * escala }
+      // `conhece` primeiro: a conta do polígono (o contorno inteiro) só roda para o ponto que ele conhece.
+      if (conhece(q) && pointInRing(q, anel)) return true
+    }
+  }
+  return false
+}
+
 /**
  * Os passos que vão ao jogador:
  * - pincel e borracha: só os pedaços cujo disco encosta no que ele conhece
@@ -423,7 +471,8 @@ export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: read
  * - balde (e o esvaziar dele): só se a forma que ele enche chegou no recorte
  *   (`formaNoRecorte`). A forma já está com ele; o balde não diz nada que ela
  *   não diga. A ÁREA fechada por paredes não é forma do mapa: vai quando ele
- *   conhece algum ponto do contorno dela (as paredes que ele já viu) ou,
+ *   conhece algum canto dela POR DENTRO (`conheceUmCantoPorDentro`: a parede
+ *   vista só pelo lado de fora não conta) ou,
  *   com `conhecidaPorDentro`, quando ele a conhece POR DENTRO (a visão entra
  *   nela, ou o explorado tem ponto dentro; ver `knownFromInside` no recorte):
  *   o contorno são só os cantos, e no meio de um salão grande ele não via
@@ -443,7 +492,7 @@ export function texturasParaJogador(
   if (lista === undefined || lista.length === 0) return undefined
   const noRecorte = (alvo: AlvoDoBalde): boolean =>
     alvo.tipo === 'area'
-      ? !denunciaSegredo(alvo.pontos) && (alvo.pontos.some(conhece) || conhecidaPorDentro(alvo.pontos))
+      ? !denunciaSegredo(alvo.pontos) && (conheceUmCantoPorDentro(alvo.pontos, conhece) || conhecidaPorDentro(alvo.pontos))
       : formaNoRecorte(alvo)
   const saida: PinceladaDeTextura[] = []
   for (const item of lista) {
