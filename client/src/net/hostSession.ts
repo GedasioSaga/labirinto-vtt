@@ -849,6 +849,14 @@ export interface AppliedTransfer {
    * jogador.
    */
   veiculo?: { motoristaId: string; nome: string }
+  /**
+   * TAMANHO AO ENTRAR, FORÇADO: o "Desfazer" de uma viagem (`returnPlayer`)
+   * devolve a ficha com o lado (em casas) que ela tinha antes da ida, não com
+   * o padrão da cena (`lib/tamanhoAoEntrar.ts`). O integrador o passa a
+   * `adventureStore.transferToken`. Só a ficha da frente; quem vai junto chega
+   * como entra lá. Ausente = o lado de chegada de sempre.
+   */
+  tamanho?: number
 }
 
 /** Um ajudante que atravessa junto com o dono, e onde ele assenta na cena de destino. */
@@ -2444,9 +2452,11 @@ export interface HostSession {
    * par do "Mandar para…" (`applyTransfer` + `scene.changed` `by: 'master'`,
    * só ao dono). Nada: jogador desconhecido ou esperando, ficha que não é
    * dele ou que não está na cena em que ele está, cena de volta sumida ou a
-   * mesma cena.
+   * mesma cena. `back.size`: o lado que ela tinha antes da ida; a casa livre
+   * é procurada nele e ele volta junto (`AppliedTransfer.tamanho`). Ausente =
+   * o lado com que ela entra lá.
    */
-  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, source: HostMapSource): HostResult
+  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number; size?: number }, source: HostMapSource): HostResult
   /**
    * CARAVANA NO MAPA-MUNDI: em cada cena marcada como mapa-mundi, as fichas do
    * grupo seguem a que o mestre arrastou (`caravanStep`) e ficam empilhadas no
@@ -9121,7 +9131,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const destination = seenOnArrival(transfer.playerId, to, lead, transfer, going)
     // TAMANHO AO ENTRAR: dono e séquito no lado com que chegam (no atalho, o de sempre).
     const lado = (t: Token): number => noLadoDeChegada(t, to, transfer.fromSceneId !== transfer.toSceneId).size
-    const seats = entourageSeats(destination, transfer, [{ x: transfer.x, y: transfer.y, size: lado(lead) }, ...taken], near.map(lado), keepClear)
+    // O dono que volta pelo Desfazer chega com o lado de antes (`transfer.tamanho`): o séquito assenta em volta dele.
+    const seats = entourageSeats(destination, transfer, [{ x: transfer.x, y: transfer.y, size: transfer.tamanho ?? lado(lead) }, ...taken], near.map(lado), keepClear)
     const entourage: EntourageSeat[] = []
     const used: Seat[] = []
     near.forEach((token, index) => {
@@ -11115,8 +11126,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const to = allScenes(world).find((scene) => scene.sceneId === back.sceneId)
       if (to === undefined || to.sceneId === null) return { outbound: [] }
       // Alguém parou na casa dela enquanto isso: volta ao lado, sem empilhar (a de baixo sumia).
-      // TAMANHO AO ENTRAR: a volta também é entrar na cena de origem (o padrão dela, se tiver).
-      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, noLadoDeChegada(token, to.map, true).size, tokenId)
+      // TAMANHO AO ENTRAR: a volta também é entrar na cena de origem (o padrão dela, se tiver),
+      // a não ser que quem desfaz saiba o lado de antes da ida (`back.size`): aí volta com ele.
+      const ladoDeAntes = back.size !== undefined && Number.isFinite(back.size) && back.size > 0 ? back.size : undefined
+      const spot = freeSeatNear(to.map, { x: back.x, y: back.y }, ladoDeAntes ?? noLadoDeChegada(token, to.map, true).size, tokenId)
       currentScene.set(playerId, sceneKey(to))
       // O `scene.changed` sai daqui: o broadcast seguinte não o repete.
       tellScene(playerId, to)
@@ -11131,6 +11144,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         toSceneName: to.name,
         x: spot.x,
         y: spot.y,
+        ...(ladoDeAntes === undefined ? {} : { tamanho: ladoDeAntes }),
       }
       // Quem foi junto volta junto: o "Desfazer" não deixa o pônei na cena errada.
       withEntourage(applyTransfer, from.map, token, to.map, [], null)

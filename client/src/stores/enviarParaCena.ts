@@ -162,7 +162,8 @@ function volta(envio: Envio): FichaEnviada[] {
     const { tokenId, playerId, antes } = ficha
     const foi =
       playerId !== null && ponte !== null
-        ? ponte.returnPlayer(playerId, tokenId, { sceneId: envio.origemId, x: antes.x, y: antes.y })
+        ? // A ficha de jogador também volta com o tamanho de antes (a ponte o passa adiante).
+          ponte.returnPlayer(playerId, tokenId, { sceneId: envio.origemId, x: antes.x, y: antes.y, size: antes.size })
         : // O tamanho de antes volta junto: a origem pode não ter padrão, ou ter outro.
           useAdventureStore.getState().transferToken(tokenId, envio.destinoId, envio.origemId, antes.x, antes.y, antes.piso, undefined, antes.size)
     if (foi) voltaram.push(ficha)

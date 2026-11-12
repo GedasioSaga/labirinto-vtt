@@ -18,6 +18,12 @@ export interface TravelLogEntry {
   /** A casa de partida, na cena de origem. */
   fromX: number
   fromY: number
+  /**
+   * O lado (em casas) da ficha na partida: o "Desfazer" a devolve com ele, não
+   * com o padrão da cena (`tamanhoDaFichaAoEntrar`). Ausente (linha montada à
+   * mão, testes) = volta como entra lá.
+   */
+  fromSize?: number
   toSceneId: string
   toSceneName: string
 }
@@ -50,6 +56,7 @@ export function travelLogEntry(transfer: AppliedTransfer, world: HostWorld, at: 
     fromSceneName: from.name,
     fromX: token.x,
     fromY: token.y,
+    fromSize: token.size,
     toSceneId: transfer.toSceneId,
     toSceneName: transfer.toSceneName,
   }

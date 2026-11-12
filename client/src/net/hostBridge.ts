@@ -663,8 +663,10 @@ export interface HostBridge extends RedeDosSons {
    * tela dele volta junto (`scene.changed` `by: 'master'`). Se a última viagem
    * dele no diário foi essa ida, a linha sai. `false` quando não deu (sala
    * fechada, ficha que não é dele ou já saiu da cena dele, cena sumida).
+   * `back.size`: o lado que ela tinha antes da ida (volta com ele, não com o
+   * padrão da cena); ausente = volta como entra lá.
    */
-  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }): boolean
+  returnPlayer(playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number; size?: number }): boolean
   /**
    * "Guardar ficha" do card de quem foi embora: as fichas dele saem do mapa
    * (param de ocupar o corredor) e voltam sozinhas, no mesmo lugar e de novo
@@ -1382,7 +1384,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * e tira a linha `entryId` do diário (`null` = nenhuma). A volta é a
    * correção de um engano, não viagem nova: não entra no diário.
    */
-  const returnAlong = (playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number }, entryId: string | null): boolean => {
+  const returnAlong = (playerId: string, tokenId: string, back: { sceneId: string; x: number; y: number; size?: number }, entryId: string | null): boolean => {
     if (session === null) return false
     const result = session.returnPlayer(playerId, tokenId, back, world())
     const transfer = result.applyTransfer
@@ -3353,7 +3355,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     // (`moveWithinScene`); a troca de cena da store recusaria origem e destino iguais.
     const apply = transfer.fromSceneId === transfer.toSceneId ? moveWithinScene : deps.applyTransfer
     if (apply === undefined) return false
-    const { companions = [], junto, entourage, ...alone } = transfer
+    // `tamanho` (Desfazer) é só da ficha da frente: quem vai junto chega como entra lá.
+    const { companions = [], junto, entourage, tamanho, ...alone } = transfer
     // VEÍCULO: quem vem a bordo da principal (`adventureStore.transferToken`)
     // não senta na casa já dada a quem atravessa depois dela, logo abaixo.
     const current = world()
@@ -3362,7 +3365,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     const to =
       transfer.fromSceneId === transfer.toSceneId ? undefined : [current.open, ...current.background].find((scene) => scene.sceneId === transfer.toSceneId)
     const hold = from === undefined ? alone.hold : holdAlongSeats(alone.hold, [...companions, ...(junto ?? []), ...(entourage ?? [])], from.map, to?.map)
-    if (!apply(hold === undefined ? alone : { ...alone, hold })) return false
+    const frente = hold === undefined ? alone : { ...alone, hold }
+    if (!apply(tamanho === undefined ? frente : { ...frente, tamanho })) return false
     // Ausente é o caso comum (ninguém acompanha), não falha.
     for (const companion of companions) apply({ ...alone, tokenId: companion.tokenId, x: companion.x, y: companion.y })
     for (const carried of junto ?? []) apply({ ...alone, tokenId: carried.tokenId, x: carried.x, y: carried.y })
@@ -4500,7 +4504,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (session === null) return false
       const entry = travelLog.find((e) => e.id === entryId)
       if (entry === undefined || !undoableTravelIds(travelLog).has(entryId)) return false
-      const back = { sceneId: entry.fromSceneId, x: entry.fromX, y: entry.fromY }
+      // O "Desfazer" do diário devolve também o tamanho que ela tinha na partida.
+      const back = { sceneId: entry.fromSceneId, x: entry.fromX, y: entry.fromY, size: entry.fromSize }
       return returnAlong(entry.playerId, entry.tokenId, back, entryId)
     },
 

@@ -100,13 +100,14 @@ export function criarEscritoresDeTeste(camada: CamadaDeTeste, mundoBase: () => H
      * sem a troca de id fora do mapa (iniciativa, seleção do editor): isso é
      * da mesa de verdade.
      */
-    applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) => {
+    applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold, tamanho }) => {
       if (fromSceneId === toSceneId) return false
       const mundo = camada.aplicarNoMundo(mundoBase())
       const origem = cenaDoMundo(mundo, fromSceneId)
       const chegada = cenaDoMundo(mundo, toSceneId)
       if (origem === null || chegada === null) return false
-      const plano = planoDaTravessia(origem.map, chegada.map, { tokenId, x, y, piso, hold })
+      // `tamanho`: o Desfazer de uma viagem devolve a ficha com o lado de antes, como na mesa de verdade.
+      const plano = planoDaTravessia(origem.map, chegada.map, { tokenId, x, y, piso, hold, ...(tamanho === undefined ? {} : { tamanho }) })
       if (plano === null) return false
       camada.registrar(origem.map.id, (map) => saidaDaTravessia(semDesfazer(map), plano).map)
       camada.registrar(chegada.map.id, (map) => chegadaDaTravessia(semDesfazer(map), plano, idDoTeste).history.map)

@@ -996,8 +996,9 @@ function App() {
           applyItemsInScene(change)
         },
         // "Deixar ir": o token troca de cena fora do desfazer das duas (ver `transferToken`).
-        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold }) =>
-          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold),
+        // `tamanho`: o Desfazer de uma viagem devolve a ficha com o lado de antes.
+        applyTransfer: ({ tokenId, fromSceneId, toSceneId, x, y, piso, hold, tamanho }) =>
+          useAdventureStore.getState().transferToken(tokenId, fromSceneId, toSceneId, x, y, piso, hold, tamanho),
         // CABINE DE TRANSPORTE: quem passou pela parada levou a cabine junto.
         applyCabine: ({ cabineId, parada }) => {
           useAdventureStore.getState().moverCabine(cabineId, parada)
