@@ -10,7 +10,8 @@ import { PlayerInventory } from './PlayerInventory'
 /**
  * INVENTÁRIO ESTILO RESIDENT EVIL, a tela: retrato à esquerda com a faixa da
  * condição, a grade de itens com a quantidade, o item escolhido com o que dá
- * para fazer, e o "Sim/Não" do RE antes de dar ou pagar. Modal de verdade:
+ * para fazer. Dar e pagar vão no toque do colega, sem o "Sim/Não" (decisão 8
+ * do mestre, 12/11/2026), e a frase de depois diz o que foi. Modal de verdade:
  * o foco entra na grade, as setas andam, Esc volta um passo ou fecha, e o Tab
  * não sai.
  */
@@ -280,54 +281,61 @@ describe('PlayerInventory', () => {
     render(personagens([JILL, DIEGO], ['jill']))
     act(() => vaga('Chave do Escudo').focus())
     tecla('Enter')
-    expect(document.activeElement).toBe(botao('Dar a…'))
+    expect(document.activeElement).toBe(botao('Dar item'))
   })
 
-  it('"Dar a…" sem colega encostado fica desligado e diz por quê', () => {
+  it('"Dar item" sem colega encostado fica desligado e diz por quê', () => {
     render(personagens([JILL], ['jill'], []))
     act(() => vaga('Chave do Escudo').click())
-    expect(botao('Dar a…').disabled).toBe(true)
+    expect(botao('Dar item').disabled).toBe(true)
     expect(detalhe()).toContain('Para dar, encoste a sua ficha na de um colega.')
   })
 
-  it('"Dar a…" → colega → "Dar Chave do Escudo a Diego?" → Sim manda o item e o resultado aparece', () => {
+  /** Sem a pergunta "Sim/Não" (decisão 8 do mestre, 12/11/2026): tocar no colega já dá. */
+  const semSimNemNao = (): void => {
+    const textos = Array.from(dialogo().querySelectorAll('button')).map((b) => b.textContent?.trim())
+    expect(textos).not.toContain('Sim')
+    expect(textos).not.toContain('Não')
+  }
+
+  it('"Dar item" → colega manda o item no toque, sem "Sim", e o resultado aparece', () => {
     const onGive = vi.fn(() => true)
     const lista = personagens([JILL, DIEGO], ['jill'])
     render(lista, { onGive })
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     expect(detalhe()).toContain('Dar a quem?')
     expect(document.activeElement).toBe(botao('Diego'))
+    expect(onGive).not.toHaveBeenCalled()
     act(() => botao('Diego').click())
-    expect(detalhe()).toContain('Dar Chave do Escudo a Diego?')
-    expect(document.activeElement).toBe(botao('Sim'))
-    act(() => botao('Sim').click())
+    expect(onGive).toHaveBeenCalledTimes(1)
     expect(onGive).toHaveBeenCalledWith('chave-1', 'diego')
-    expect(status()).toBe('Entregando a Diego…')
+    semSimNemNao()
+    expect(detalhe()).not.toContain('Dar Chave do Escudo a Diego?')
+    expect(status()).toBe('Dando Chave do Escudo a Diego…')
     // O host tirou o item da mochila: chegou o mapa novo.
     const depois = personagens([{ ...JILL, mochila: JILL.mochila?.filter((i) => i.id !== 'chave-1') }, DIEGO], ['jill'])
     render(depois, { onGive })
-    expect(status()).toBe('Chave do Escudo foi para Diego.')
+    expect(status()).toBe('Você deu Chave do Escudo a Diego.')
   })
 
-  it('"Não" volta sem dar nada', () => {
+  it('"Voltar" em "Dar a quem?" volta sem dar nada', () => {
     const onGive = vi.fn(() => true)
     render(personagens([JILL, DIEGO], ['jill']), { onGive })
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
-    act(() => botao('Diego').click())
-    act(() => botao('Não').click())
+    act(() => botao('Dar item').click())
+    act(() => botao('Voltar').click())
     expect(onGive).not.toHaveBeenCalled()
-    expect(document.activeElement).toBe(botao('Dar a…'))
+    expect(detalhe()).not.toContain('Dar a quem?')
+    expect(document.activeElement).toBe(botao('Dar item'))
   })
 
   it('a recusa do host aparece dentro do inventário (o aviso de baixo fica atrás do véu)', () => {
     const lista = personagens([JILL, DIEGO], ['jill'])
     render(lista, { notice: { id: 3, phase: 'taken', nome: 'Faca' } })
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     act(() => botao('Diego').click())
-    act(() => botao('Sim').click())
     render(lista, { notice: { id: 4, phase: 'give_rejected', reason: 'far' } })
     expect(status()).toBe('Chegue mais perto para dar')
   })
@@ -336,16 +344,15 @@ describe('PlayerInventory', () => {
     vi.useFakeTimers()
     render(personagens([JILL, DIEGO], ['jill']))
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     act(() => botao('Diego').click())
-    act(() => botao('Sim').click())
     act(() => {
       vi.advanceTimersByTime(10_000)
     })
     expect(status()).toBe('A mesa não respondeu. Confira a conexão e tente de novo.')
   })
 
-  it('"Pagar a…" na bolsa: quantas moedas, a quem, "Pagar 5 moedas a Diego?" → Sim paga', () => {
+  it('"Pagar a…" na bolsa: quantas moedas, a quem, e tocar no Diego paga, sem "Sim"', () => {
     const onPay = vi.fn(() => true)
     render(personagens([JILL, DIEGO], ['jill']), { onPay })
     act(() => botao('Pagar a…').click())
@@ -357,9 +364,10 @@ describe('PlayerInventory', () => {
     expect(detalhe()).toContain('Use um número inteiro de 1 a 15')
     digita(campo, '5')
     act(() => botao('Diego').click())
-    expect(detalhe()).toContain('Pagar 5 moedas a Diego?')
-    act(() => botao('Sim').click())
+    expect(onPay).toHaveBeenCalledTimes(1)
     expect(onPay).toHaveBeenCalledWith('diego', 5)
+    semSimNemNao()
+    expect(status()).toBe('Pagando 5 moedas a Diego…')
   })
 
   describe('"Pagar a…" com duas fichas dele encostadas no colega: quem paga é quem o host escolhe', () => {
@@ -380,11 +388,15 @@ describe('PlayerInventory', () => {
       act(() => botao('Diego').click())
     }
 
-    it('a pergunta Sim/Não diz de qual bolsa sai quando não é a da ficha aberta', () => {
-      render(mesa(20))
+    // Sem a pergunta (decisão 8 do mestre, 12/11/2026), a bolsa de outra ficha vai na frase de depois.
+    it('a frase de depois diz de qual bolsa saiu quando não é a da ficha aberta', () => {
+      const onPay = vi.fn(() => true)
+      render(mesa(20), { onPay })
       pagaTresAoDiego()
-      expect(detalhe()).toContain('Pagar 3 moedas a Diego?')
-      expect(detalhe()).toContain('Sai da bolsa de Carlos.')
+      expect(onPay).toHaveBeenCalledWith('diego', 3)
+      expect(status()).toBe('Pagando 3 moedas a Diego…')
+      render(mesa(17), { onPay })
+      expect(status()).toBe('Você pagou 3 moedas a Diego. Sai da bolsa de Carlos.')
     })
 
     it('o host cobrou do Carlos: o pagamento conta como feito, e nunca vira "a mesa não respondeu"', () => {
@@ -392,14 +404,14 @@ describe('PlayerInventory', () => {
       const onPay = vi.fn(() => true)
       render(mesa(20), { onPay })
       pagaTresAoDiego()
-      act(() => botao('Sim').click())
+      expect(onPay).toHaveBeenCalledTimes(1)
       expect(onPay).toHaveBeenCalledWith('diego', 3)
       render(mesa(17), { onPay })
-      expect(status()).toBe('Você pagou 3 moedas a Diego.')
+      expect(status()).toBe('Você pagou 3 moedas a Diego. Sai da bolsa de Carlos.')
       act(() => {
         vi.advanceTimersByTime(10_000)
       })
-      expect(status()).toBe('Você pagou 3 moedas a Diego.')
+      expect(status()).toBe('Você pagou 3 moedas a Diego. Sai da bolsa de Carlos.')
     })
 
     it('o mestre encerra o empréstimo do Carlos antes de o host cobrar: ficha que sai do recorte não é pagamento, e o "short" do host ainda aparece', () => {
@@ -412,7 +424,6 @@ describe('PlayerInventory', () => {
       if (campo === null) throw new Error('sem o campo de moedas')
       digita(campo, '3')
       act(() => botao('Diego').click())
-      act(() => botao('Sim').click())
       expect(onPay).toHaveBeenCalledWith('diego', 3)
       // O mapa novo chega antes da resposta: o Carlos voltou ao mestre, saiu das
       // fichas dele e a bolsa não viaja mais. A soma cai de 22 para 2 — e ninguém pagou.
@@ -424,11 +435,14 @@ describe('PlayerInventory', () => {
       expect(status()).toBe('A sua ficha ao lado dele não tem tantas moedas')
     })
 
-    it('quando quem paga é a própria ficha aberta, a pergunta não fala de outra bolsa', () => {
-      render(mesa(2))
+    it('quando quem paga é a própria ficha aberta, a frase de depois não fala de outra bolsa', () => {
+      const onPay = vi.fn(() => true)
+      render(mesa(2), { onPay })
       pagaTresAoDiego()
-      expect(detalhe()).toContain('Pagar 3 moedas a Diego?')
-      expect(detalhe()).not.toContain('Sai da bolsa')
+      expect(onPay).toHaveBeenCalledWith('diego', 3)
+      render(mesa(2, 2), { onPay })
+      expect(status()).toBe('Você pagou 3 moedas a Diego.')
+      expect(status()).not.toContain('Sai da bolsa')
     })
   })
 
@@ -436,7 +450,7 @@ describe('PlayerInventory', () => {
     const onClose = vi.fn()
     render(personagens([JILL, DIEGO], ['jill']), { onClose })
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     tecla('Escape')
     expect(onClose).not.toHaveBeenCalled()
     expect(detalhe()).not.toContain('Dar a quem?')
@@ -447,11 +461,11 @@ describe('PlayerInventory', () => {
   it('o Tab não sai do inventário', () => {
     render(personagens([JILL, DIEGO], ['jill']))
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').focus())
+    act(() => botao('Dar item').focus())
     tecla('Tab')
     expect(document.activeElement).toBe(botao('Fechar'))
     tecla('Tab', { shiftKey: true })
-    expect(document.activeElement).toBe(botao('Dar a…'))
+    expect(document.activeElement).toBe(botao('Dar item'))
   })
 
   it('fechado, o foco volta para quem abriu', () => {
@@ -576,7 +590,8 @@ describe('PlayerInventory', () => {
     })
   })
 
-  it('ver o item, "Dar a quem?", "Pagar" e a pergunta trocam só o miolo da caixa de ações: a caixa (altura reservada) e a linha do resultado ficam no lugar', () => {
+  // Sem a pergunta "Sim/Não" desde a decisão 8 do mestre (12/11/2026): tocar no colega já paga.
+  it('ver o item, "Dar a quem?", "Pagar" e o pagamento feito trocam só o miolo da caixa de ações: a caixa (altura reservada) e a linha do resultado ficam no lugar', () => {
     render(personagens([JILL, DIEGO], ['jill']))
     const caixa = dialogo().querySelector('.pp-inv__passos')
     const linha = dialogo().querySelector('[role="status"]')
@@ -595,43 +610,45 @@ describe('PlayerInventory', () => {
     expect(topoPagar).not.toBeNull()
     expect(botao('Voltar').closest('.pp-inv__passo-topo')).toBe(topoPagar)
     noLugar()
-    act(() => botao('Diego').click())
-    expect(detalhe()).toContain('Pagar 5 moedas a Diego?')
+    act(() => botao('Voltar').click())
     noLugar()
-    act(() => botao('Não').click())
     // Dar: a pergunta e o "Voltar" na mesma fileira.
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     const pergunta = Array.from(dialogo().querySelectorAll('.pp-inv__pergunta')).find((p) => p.textContent === 'Dar a quem?')
     expect(pergunta?.closest('.pp-inv__passo-topo')).not.toBeNull()
     expect(botao('Voltar').closest('.pp-inv__passo-topo')).toBe(pergunta?.closest('.pp-inv__passo-topo'))
     noLugar()
+    // Tocar no colega dá na hora: a caixa e a linha do resultado continuam as mesmas.
+    act(() => botao('Diego').click())
+    expect(status()).toBe('Dando Chave do Escudo a Diego…')
+    noLugar()
   })
 
-  it('Dar, Pagar e a pergunta final têm a mesma forma, duas fileiras: em cima o que se pergunta (e o "Voltar"), embaixo as respostas; o molde que reserva a altura tem essa forma também', () => {
-    render(personagens([JILL, DIEGO], ['jill']))
+  it('Dar e Pagar têm a mesma forma, duas fileiras: em cima o que se pergunta (e o "Voltar"), embaixo os colegas; nenhum passo de "Sim/Não" depois; o molde que reserva a altura tem essa forma também', () => {
+    const onGive = vi.fn(() => true)
+    render(personagens([JILL, DIEGO], ['jill']), { onGive })
     const vivo = () => Array.from(dialogo().querySelectorAll('.pp-inv__passo')).find((passo) => passo.closest('.pp-inv__molde') === null)
     const fileiras = (passo: Element | null | undefined) => Array.from(passo?.children ?? []).map((filho) => filho.className)
     const respostas = () => Array.from(vivo()?.querySelectorAll('.pp-inv__passo-escolhas button') ?? []).map((b) => b.textContent)
     const forma: Record<string, unknown> = {}
     act(() => botao('Pagar a…').click())
     forma.pagar = [fileiras(vivo()), respostas()]
-    act(() => botao('Diego').click())
-    forma.confirmarPagar = [fileiras(vivo()), respostas()]
-    act(() => botao('Não').click())
+    act(() => botao('Voltar').click())
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     forma.dar = [fileiras(vivo()), respostas()]
-    act(() => botao('Diego').click())
-    forma.confirmarDar = [fileiras(vivo()), respostas()]
     forma.molde = fileiras(dialogo().querySelector('.pp-inv__molde .pp-inv__passo'))
+    // Depois do colega, a caixa volta às ações do item (sem pergunta) e o item já foi.
+    act(() => botao('Diego').click())
+    expect(onGive).toHaveBeenCalledWith('chave-1', 'diego')
+    forma.depoisDoColega = respostas()
     const DUAS = ['pp-inv__passo-topo', 'pp-inv__passo-escolhas']
     expect(forma).toEqual({
       pagar: [DUAS, ['Diego']],
-      confirmarPagar: [DUAS, ['Sim', 'Não']],
       dar: [DUAS, ['Diego']],
-      confirmarDar: [DUAS, ['Sim', 'Não']],
       molde: DUAS,
+      depoisDoColega: [],
     })
   })
 
@@ -642,7 +659,7 @@ describe('PlayerInventory', () => {
     expect(document.activeElement?.closest('.pp-inv__passo-topo')).toBe(botao('Voltar').closest('.pp-inv__passo-topo'))
     act(() => botao('Voltar').click())
     act(() => vaga('Chave do Escudo').click())
-    act(() => botao('Dar a…').click())
+    act(() => botao('Dar item').click())
     expect(document.activeElement).toBe(botao('Diego'))
     expect(document.activeElement?.closest('.pp-inv__passo-escolhas')).not.toBeNull()
   })
@@ -700,7 +717,9 @@ describe('PlayerInventory', () => {
       botao('Diego').dispatchEvent(toqueBom)
     })
     expect(toqueBom.defaultPrevented).toBe(false)
+    // Valor bom: o toque paga na hora (decisão 8 do mestre, sem "Sim").
     act(() => botao('Diego').click())
-    expect(detalhe()).toContain('Pagar 5 moedas a Diego?')
+    expect(onPay).toHaveBeenCalledTimes(1)
+    expect(onPay).toHaveBeenCalledWith('diego', 5)
   })
 })
