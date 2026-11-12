@@ -13,9 +13,10 @@ import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGA
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire, type MemoryRing } from '../lib/exploration'
+import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, forgetOutsideFloor, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire, type MemoryRing } from '../lib/exploration'
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
-import { pointInRing } from '../lib/floorContour'
+import { buildFloorOutline, pointInRing } from '../lib/floorContour'
+import { chaoQueLimita, foraDoChaoLivre } from '../lib/offFloor'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
   abaloSetaForPlayer,
@@ -2856,6 +2857,13 @@ interface SceneMemory {
    * POR FICHA soma memórias do mesmo jeito.
    */
   doorSeen: Map<string, number>
+  /**
+   * FORA DO CHÃO (caça de 12/11/2026, N6): o Chão limitava a visão na última
+   * vez que esta memória foi conferida (`esquecerForaDoChao`). Ausente = nunca
+   * conferida (memória nova ou da mesa retomada). Quando a cena passa de
+   * "Livre" para "Bloqueado", o que ela lembra fora do Chão é apagado.
+   */
+  chaoLimitava?: boolean
 }
 
 /**
@@ -4143,6 +4151,28 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * FORA DO CHÃO voltou a BLOQUEADO (caça de 12/11/2026, N6): em "Livre" o
+   * jogador via e lembrava além da borda do Chão; de volta a "Bloqueado", lá
+   * fora é preto sempre, e a lembrança cinza de antes não pode sobrar até um
+   * "Esquecer tudo". Na primeira conferência depois da troca (e na de uma
+   * memória nova ou retomada), apaga o que está fora do Chão que limita
+   * (`forgetOutsideFloor`) no explorado e, na do jogador, também no que ele
+   * viu (`seen`, o que "Dar o que o grupo viu" repassa). Só apaga, nunca marca.
+   * Cena sem peça de Chão: nenhum anel, nada muda. `floorMap` é o piso dele.
+   */
+  const esquecerForaDoChao = (memory: SceneMemory, floorMap: MapData, seen?: Exploration): void => {
+    const limita = !foraDoChaoLivre(floorMap)
+    if (limita && memory.chaoLimitava !== true) {
+      const aneis = buildFloorOutline(chaoQueLimita(floorMap)).flatMap((poligono) => [poligono.outer, ...poligono.holes])
+      if (aneis.length > 0) {
+        forgetOutsideFloor(memory.exp, aneis)
+        if (seen !== undefined) forgetOutsideFloor(seen, aneis)
+      }
+    }
+    memory.chaoLimitava = limita
+  }
+
+  /**
    * MEMÓRIA POR FICHA — antes do recorte, o jogador soma à memória dele o que
    * cada ficha que é OLHO dele neste mapa já viu. Ajudante sem visão, ficha
    * escondida e ficha de outra cena não entram. Célula que hoje é área
@@ -4155,6 +4185,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     for (const t of playerEyeTokens(floorMap, playerId, ownership, loansFor(playerId))) {
       const source = existingTokenMemory(t.id, map)
       if (source === undefined) continue
+      // FORA DO CHÃO (N6): a ficha que viu lá fora em "Livre" não devolve isso ao jogador em "Bloqueado".
+      esquecerForaDoChao(source, floorMap)
       forbidden ??= playerBlockedRings(floorMap)
       inheritMemory(memory, source, forbidden)
     }
@@ -4595,6 +4627,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = allScenes(world).find((s) => s.map.id === map.id) ?? { sceneId: null, name: map.name, map }
     const memory = memoryFor(playerId, map, world)
     const exp = memory.exp
+    // FORA DO CHÃO (N6): de "Livre" para "Bloqueado", o que ele lembra fora do Chão sai antes do recorte.
+    esquecerForaDoChao(memory, floorMapOf(playerId, map), memory.seen)
     // MEMÓRIA POR FICHA: o que as fichas que são olho dele já viram entra antes do recorte.
     inheritFromTokens(playerId, map, memory)
     // Planta revelada (cena conhecida por todos, ou "Revelar planta para…"):
@@ -9350,6 +9384,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (given === undefined) return false
     const memory = memoryFor(toPlayerId, map, world)
     if (!mergeExploration(memory.exp, given.seen, playerBlockedRings(floorMapOf(toPlayerId, map)))) return false
+    // FORA DO CHÃO (N6): o doador pode lembrar o lado de fora de quando a cena era "Livre"; o próximo recorte confere de novo.
+    memory.chaoLimitava = undefined
     for (const [wallId, door] of given.doors) {
       if (!memory.doors.has(wallId)) rememberDoor(memory, wallId, door, given.doorSeen.get(wallId) ?? 0)
     }
