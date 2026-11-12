@@ -64,7 +64,7 @@ function dispararEventos(disparados: readonly EventoDaAgenda[], onAlarm: SoarAla
     push('info', avisoDoEvento(evento), null, AVISO_NA_CAIXA)
     if (evento.efeito === undefined) continue
     const enviados = onAlarm === undefined ? null : onAlarm([...evento.efeito.cenas], evento.efeito.texto)
-    if (enviados === null) push('error', `Alarme de "${evento.titulo}" não soou: a sala não está aberta.`, null, AVISO_NA_CAIXA)
+    if (enviados === null) push('error', `Alarme de "${evento.titulo}" não soou: a mesa online não está aberta.`, null, AVISO_NA_CAIXA)
   }
 }
 

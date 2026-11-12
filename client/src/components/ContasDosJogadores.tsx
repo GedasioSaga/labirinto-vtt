@@ -92,8 +92,8 @@ export function ContasDosJogadores(props: ContasDosJogadoresProps) {
           </label>
           <p id={`${soComContaId}-dica`} className="lb-field__hint">
             {contas.length === 0
-              ? 'Crie uma conta antes de fechar a sala para quem não tem.'
-              : 'Ligado, quem entra só digitando o nome é recusado. Quem já está na sala continua.'}
+              ? 'Crie uma conta antes de fechar a mesa online para quem não tem.'
+              : 'Ligado, quem entra só digitando o nome é recusado. Quem já está na mesa online continua.'}
           </p>
         </div>
         {contas.length === 0 ? (
@@ -382,7 +382,7 @@ function EmailDaConta({ conta, contas, podeGravar, onTrocar }: EmailDaContaProps
         />
       </div>
       <p id={`${id}-dica`} className="lb-field__hint">
-        Com o e-mail, {conta.nome} entra no site do Lobby e edita as fichas dele. Sem e-mail, joga só pela sala.
+        Com o e-mail, {conta.nome} entra no site do Lobby e edita as fichas dele. Sem e-mail, joga só pela mesa online.
       </p>
       {erro !== null && (
         <p id={`${id}-erro`} className="lb-field__error" role="alert">

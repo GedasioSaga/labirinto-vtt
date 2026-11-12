@@ -18,7 +18,7 @@ export interface EstadoAoFechar {
 /** Pergunta do diálogo, ou `null` quando nada se perde e a janela fecha direto. */
 export function perguntaAoFechar({ alteracoesNaoSalvas, jogadoresNaSala }: EstadoAoFechar): string | null {
   if (jogadoresNaSala <= 0) return alteracoesNaoSalvas ? 'Há alterações não salvas neste mapa. Fechar mesmo assim?' : null
-  const quem = jogadoresNaSala === 1 ? 'Há 1 jogador na sala' : `Há ${jogadoresNaSala} jogadores na sala`
+  const quem = jogadoresNaSala === 1 ? 'Há 1 jogador na mesa online' : `Há ${jogadoresNaSala} jogadores na mesa online`
   const tambem = alteracoesNaoSalvas ? ' e alterações não salvas neste mapa' : ''
   const quemCai = jogadoresNaSala === 1 ? 'esse jogador' : 'todos'
   return `${quem}${tambem}. Fechar o Labirinto desconecta ${quemCai}. Fechar mesmo assim?`

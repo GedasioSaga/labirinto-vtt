@@ -104,7 +104,7 @@ export const NOTE_LABEL = 'Recado'
 export function playerNoteFeedbackText(name: string, delivery: PlayerNoteDelivery): string {
   if (delivery === 'sent') return `Recado enviado a ${name}`
   if (delivery === 'queued') return `${name} recebe ao voltar`
-  return 'Não deu para enviar: a sala não está aberta.'
+  return 'Não deu para enviar: a mesa online não está aberta.'
 }
 
 /** O "fora há 0:10" anda de segundo em segundo no primeiro minuto. */

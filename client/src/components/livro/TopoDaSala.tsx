@@ -57,7 +57,7 @@ function PlacaDoCodigo({ codigo }: { codigo: string }) {
   const [brilhar, setBrilhar] = useState(true)
   const copiar = () => {
     const avisos = useToastStore.getState()
-    const naoDeu = () => avisos.push('error', `Não deu para copiar. O código da sala é ${codigo}.`)
+    const naoDeu = () => avisos.push('error', `Não deu para copiar. O código da mesa online é ${codigo}.`)
     // Fora de contexto seguro o navegador não dá a área de transferência.
     if (navigator.clipboard === undefined) {
       naoDeu()
@@ -71,7 +71,7 @@ function PlacaDoCodigo({ codigo }: { codigo: string }) {
         <button
           type="button"
           className={classes('gr-placa-codigo', brilhar && 'gr-brilha')}
-          aria-label={`Código da sala ${codigo}. Clique para copiar`}
+          aria-label={`Código da mesa online ${codigo}. Clique para copiar`}
           {...gatilho}
           onClick={copiar}
           onAnimationEnd={() => setBrilhar(false)}
@@ -151,14 +151,14 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
   return (
     <>
       <div className="gr-linha">
-        <h2 className="gr-sala-titulo">Sala</h2>
+        <h2 className="gr-sala-titulo">Mesa online</h2>
         <PlacaDoCodigo codigo={room.code} />
-        <Balao texto="Mais da sala">
+        <Balao texto="Mais da mesa online">
           {(gatilho) => (
             <Botao
               soIcone
               className="gr-empurra"
-              aria-label="Mais da sala"
+              aria-label="Mais da mesa online"
               aria-haspopup="menu"
               aria-expanded={menuAberto}
               {...juntarRefs(gatilho, gatilhoDoMenu)}
@@ -180,7 +180,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
           <ControleDeSom variante="ficha" />
         </BotaoComPop>
         <BotaoComPop rotulo="Convidar jogadores" texto="Convidar" icone={<IconeDoLivro nome="convidar" />} lado="esq">
-          {tunnel.kind !== 'ready' && <img className="lb-room__qr" src={qrDataUrl(room.qrSvg)} alt="QR da sala" />}
+          {tunnel.kind !== 'ready' && <img className="lb-room__qr" src={qrDataUrl(room.qrSvg)} alt="QR da mesa online" />}
           <TunnelSection tunnel={tunnel} onStartTunnel={onStartTunnel} onStopTunnel={onStopTunnel} />
           <div className="gr-campo">
             <span className="gr-campo__rot">Endereços na rede local</span>
@@ -193,7 +193,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
           <FirewallHint />
         </BotaoComPop>
       </div>
-      <Pop aberto={menuAberto} gatilho={gatilhoDoMenu} onFechar={() => setMenuAberto(false)} rotulo="Mais da sala">
+      <Pop aberto={menuAberto} gatilho={gatilhoDoMenu} onFechar={() => setMenuAberto(false)} rotulo="Mais da mesa online">
         {visaoDeJogador !== undefined && (
           <MenuItem icone={<IconeDoLivro nome="olho" />} onClick={verComoJogador}>
             Visão de jogador…
@@ -206,7 +206,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
         )}
         <MenuSeparador />
         <MenuItem perigo icone={<IconeDoLivro nome="dispensar" />} onClick={() => setConfirmando(true)}>
-          Fechar sala…
+          Fechar mesa online…
         </MenuItem>
       </Pop>
       {visaoDeJogador !== undefined && escolha !== null && !visaoDeJogador.aberta && (
@@ -222,7 +222,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
         />
       )}
       {/* Fechar a sala tira todo mundo da mesa: pergunta antes, com o foco no "Continuar jogando". */}
-      <Dialogo aberto={confirmando} titulo="Fechar a sala?" onFechar={() => setConfirmando(false)} pequeno alerta focoInicial={continuar}>
+      <Dialogo aberto={confirmando} titulo="Fechar a mesa online?" onFechar={() => setConfirmando(false)} pequeno alerta focoInicial={continuar}>
         <p className="lb-room__fechar-aviso">{avisoDeFecharASala(players.filter((player) => player.connected).length)}</p>
         <Acoes>
           <Botao
@@ -232,7 +232,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
               onStop()
             }}
           >
-            Fechar sala
+            Fechar mesa online
           </Botao>
           <Botao ref={continuar} variante="fantasma" onClick={() => setConfirmando(false)}>
             Continuar jogando
@@ -255,7 +255,7 @@ export function TopoDaSala(props: TopoDaSalaProps) {
   return (
     <>
       <div className="gr-linha gr-linha--entre">
-        <h2 className="gr-sala-titulo">Sala</h2>
+        <h2 className="gr-sala-titulo">Mesa online</h2>
         <span className="gr-sala-estado">
           <span className="gr-ponto-off" aria-hidden="true" />
           Fechada

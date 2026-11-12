@@ -62,7 +62,7 @@ export class PlayerErrorBoundary extends Component<PlayerErrorBoundaryProps, Pla
             <p className="pe-notice pe-notice--error">O mapa parou de ser desenhado.</p>
             <p className="pe-hint">
               O desenho do mapa falhou neste navegador — costuma ser falta de memória no aparelho. A página parou nesta
-              tela em vez de apagar, e você continua na sala.
+              tela em vez de apagar, e você continua na mesa online.
             </p>
           </div>
           <div className="pe-actions">

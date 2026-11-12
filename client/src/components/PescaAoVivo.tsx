@@ -40,7 +40,7 @@ export interface PescaAoVivoProps {
 export const CHAMAR_PARA_PESCAR = 'Chamar para pescar'
 
 export function textoDoConviteRecusado(resultado: PescaConviteResultado | null): string | null {
-  if (resultado === null) return 'Não deu: a sala não está aberta.'
+  if (resultado === null) return 'Não deu: a mesa online não está aberta.'
   if (resultado.ok) return null
   if (resultado.motivo === 'pino') return 'Este pino não está mais no mapa, ou não é mais de pesca.'
   return 'Ninguém marcado está jogando agora.'
@@ -197,7 +197,7 @@ export function PescaAoVivoPainel({ pinId, entrada, players, pesca, onConvidar, 
     if (recusa === null) voltarAoChamar()
   }
 
-  const pedir = (feito: boolean) => setAviso(feito ? null : 'Não deu: a pesca já acabou ou a sala fechou.')
+  const pedir = (feito: boolean) => setAviso(feito ? null : 'Não deu: a pesca já acabou ou a mesa online fechou.')
 
   return (
     <section className="lb-pesca-vivo" aria-labelledby={headingId}>

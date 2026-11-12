@@ -173,15 +173,15 @@ const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
 
 const REASON_TEXT: Record<string, string> = {
-  bad_code: 'Código de sala incorreto. Confira com o mestre e tente de novo.',
+  bad_code: 'Código da mesa online incorreto. Confira com o mestre e tente de novo.',
   not_joined: 'O mestre não reconheceu a entrada. Tente entrar de novo.',
-  already_joined: 'Esta conexão já entrou na sala.',
+  already_joined: 'Esta conexão já entrou na mesa online.',
   // CONTAS DOS JOGADORES: nome errado e PIN errado são a mesma frase (o mestre não diz qual).
-  account_required: 'Esta sala só aceita jogadores com conta. Peça ao mestre o seu nome e PIN.',
+  account_required: 'Esta mesa online só aceita jogadores com conta. Peça ao mestre o seu nome e PIN.',
   account_invalid: 'Nome ou PIN incorretos. Confira com o mestre e tente de novo.',
   account_locked: 'Muitas tentativas com esse nome. Espere um pouco e tente de novo.',
   account_device: 'Este aparelho não está mais lembrado. Entre com o seu nome e PIN.',
-  account_unavailable: 'Esta sala não aceita entrar com conta. Entre só com o nome.',
+  account_unavailable: 'Esta mesa online não aceita entrar com conta. Entre só com o nome.',
   invalid_message: 'O mestre recusou uma mensagem inválida.',
   connection_lost: 'A conexão com o mestre caiu.',
 }
@@ -202,7 +202,7 @@ interface Notice {
   reason?: string
 }
 
-const JOIN_NOTICE: Notice = { text: 'O código da sala vem do mestre.', tone: 'info' }
+const JOIN_NOTICE: Notice = { text: 'O código da mesa online vem do mestre.', tone: 'info' }
 
 /** A escolha pura do "Dar item" (`giveChoiceFor`) com o envio de verdade. */
 function withGive(choice: GiveChoice, onGive: (itemId: string) => void): TokenCardGive {
@@ -474,7 +474,7 @@ const CONVITE_SEM_RESPOSTA = 'sem_resposta'
 /** O mesmo aviso da sessão ("A sala … não respondeu."), com o caminho de volta do convite. */
 function conviteSemResposta(code: string): Notice {
   return {
-    text: `A sala ${code} não respondeu. O Labirinto precisa estar aberto no computador do mestre, com a sala no ar: volte ao Lobby e clique de novo.`,
+    text: `A mesa online ${code} não respondeu. O Labirinto precisa estar aberto no computador do mestre, com a mesa online no ar: volte ao Lobby e clique de novo.`,
     tone: 'error',
   }
 }
@@ -619,7 +619,7 @@ function pinDigits(text: string): string {
 const RECUSAS_QUE_PEDEM_PIN: ReadonlySet<string> = new Set(['account_required', 'account_invalid', 'account_device', 'account_locked'])
 /** A sala recusa conta: o PIN volta recolhido, e o Entrar entra só pelo nome. */
 const SALA_SEM_CONTA = 'account_unavailable'
-const LINK_SEM_CODIGO = 'Esse link abre esta página, mas não traz o código da sala. Peça o código ao mestre.'
+const LINK_SEM_CODIGO = 'Esse link abre esta página, mas não traz o código da mesa online. Peça o código ao mestre.'
 
 function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onForgetAccount }: JoinFormProps) {
   const [code, setCode] = useState(initial.code)
@@ -703,7 +703,7 @@ function JoinForm({ initial, notice, remembered, onJoin, onJoinRemembered, onFor
       <form onSubmit={submit} className="pe-form">
         <div className="pe-field">
           <label className="pe-label" htmlFor="lb-join-code">
-            Código da sala
+            Código da mesa online
           </label>
           <input
             id="lb-join-code"
@@ -872,19 +872,19 @@ function WaitingScreen({ code, typedName, hostName, seatOptions, seatClaim, onCl
       <dl className="pe-id">
         <dt>Você é</dt>
         <dd>{shownName}</dd>
-        <dt>Sala</dt>
+        <dt>Mesa online</dt>
         <dd className="pe-code">{code}</dd>
       </dl>
       {renamed && (
         <p role="alert" className="pe-notice">
-          Já havia um “{typedName}” nesta sala. Para o mestre e os outros jogadores você é <strong>{shownName}</strong>.
+          Já havia um “{typedName}” nesta mesa online. Para o mestre e os outros jogadores você é <strong>{shownName}</strong>.
         </p>
       )}
       {/* O ponto que pulsa é a única prova de vida numa tela que não muda: sem
           ele, "aguardando" e "travado" têm exatamente a mesma aparência. */}
       <p className="pe-live">
         <span className="pe-dot" aria-hidden="true" />
-        <span>Conectado à sala do mestre.</span>
+        <span>Conectado à mesa online do mestre.</span>
       </p>
       <p role="status" aria-live="polite" className="pe-waiting">
         Aguardando o mestre atribuir um personagem.
@@ -901,7 +901,7 @@ function WaitingScreen({ code, typedName, hostName, seatOptions, seatClaim, onCl
           Trocar de nome
         </button>
         <button type="button" className="pe-btn" onClick={onLeave}>
-          Sair da sala
+          Sair da mesa online
         </button>
       </div>
     </Screen>
@@ -2787,7 +2787,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         // tela não tem como saber QUAL das causas é, então lista as três e
         // deixa o jogador conferir — chutar uma delas seria mentir.
         tone = 'error'
-        message = `A sala ${code} não respondeu.`
+        message = `A mesa online ${code} não respondeu.`
         detail = (
           <div className="pe-explain">
             <p className="pe-hint">
@@ -2795,7 +2795,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               {Math.round(HANDSHAKE_DEADLINE_MS / 1000)} segundos.
             </p>
             <ul className="pe-checklist">
-              <li>O Labirinto precisa estar aberto no computador do mestre, com a sala no ar.</li>
+              <li>O Labirinto precisa estar aberto no computador do mestre, com a mesa online no ar.</li>
               <li>Você e ele precisam estar na mesma rede — o mesmo Wi-Fi da casa.</li>
               <li>Confira o código com ele: você entrou com {code}.</li>
             </ul>
@@ -2811,7 +2811,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             connection.reconnect()
           },
         })
-        actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
+        actions.push({ label: 'Entrar em outra mesa online', run: () => onQuit() })
         // "Reconectar" e a sala não voltou: as pistas e os recados estão só no guardado da queda.
         offerNotebook()
       } else {
@@ -2819,7 +2819,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         detail = (
           <p className="pe-live">
             <span className="pe-dot" aria-hidden="true" />
-            <span>Procurando a sala {code} na rede.</span>
+            <span>Procurando a mesa online {code} na rede.</span>
           </p>
         )
         // Desistir no meio da espera é direito dele, e volta ao formulário com
@@ -2828,12 +2828,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       }
       break
     case 'kicked':
-      message = 'Você foi removido da sala pelo mestre.'
+      message = 'Você foi removido da mesa online pelo mestre.'
       actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
       break
     case 'closed':
       // Sem Reconectar: a sala não existe mais.
-      message = 'O mestre encerrou a sala.'
+      message = 'O mestre encerrou a mesa online.'
       actions.push({ label: 'Voltar', primary: true, run: () => onLeave() })
       offerNotebook()
       break
@@ -2841,7 +2841,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       // A mesma pessoa, noutra aba: a mesa segue lá. "Usar aqui" traz a
       // sessão para esta aba (e a outra recebe este mesmo aviso). Sair não
       // esquece o resume: ele é o da outra aba também.
-      message = 'Você abriu a sala em outra aba ou aparelho.'
+      message = 'Você abriu a mesa online em outra aba ou aparelho.'
       detail = <p className="pe-hint">Sua ficha e o que você já explorou continuam lá. Para jogar por esta tela, toque em Usar aqui.</p>
       actions.push({ label: 'Usar aqui', primary: true, run: () => connection.reconnect() })
       actions.push({ label: 'Sair', run: () => onLeave() })
@@ -2856,7 +2856,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         // ela não existe mais (o mestre fechou o app, o Wi-Fi do celular mudou)
         // o jogador ficava preso na mensagem, sem caminho de volta. Esquece o
         // resume: retomar aquela sessão é justamente o que não funciona mais.
-        actions.push({ label: 'Entrar em outra sala', run: () => onQuit() })
+        actions.push({ label: 'Entrar em outra mesa online', run: () => onQuit() })
         offerNotebook()
       } else {
         // Código errado volta ao formulário COM o que ele digitou: o nome estava certo.

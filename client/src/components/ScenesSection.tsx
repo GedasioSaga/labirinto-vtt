@@ -167,8 +167,8 @@ export interface PlanPlayer {
 
 /** O aviso depois de "Revelar": para quantos, ou por que não deu. */
 export function planRevealFeedbackText(granted: number | null): string {
-  if (granted === null) return 'Não deu para revelar: a sala não está aberta.'
-  if (granted === 0) return 'Nenhum jogador recebeu: a cena ou os jogadores não estão mais na sala.'
+  if (granted === null) return 'Não deu para revelar: a mesa online não está aberta.'
+  if (granted === 0) return 'Nenhum jogador recebeu: a cena ou os jogadores não estão mais na mesa online.'
   return granted === 1 ? 'Planta revelada para 1 jogador' : `Planta revelada para ${granted} jogadores`
 }
 
@@ -239,7 +239,7 @@ function PlanPanel({ scene, onTogglePlanKnown, players, onReveal, onClose }: Pla
           <fieldset className="lb-cenas__planta-quem">
             <legend className="lb-label">Revelar planta para…</legend>
             {players === undefined || players.length === 0 ? (
-              <p className="lb-label">Nenhum jogador na sala.</p>
+              <p className="lb-label">Nenhum jogador na mesa online.</p>
             ) : (
               <>
                 {players.map((player) => (
@@ -314,7 +314,7 @@ const COLLAPSED_STORAGE_PREFIX = 'lb-cenas-recolhidas:'
 
 /** O aviso depois de enviar: quantos leram, ou que ninguém estava lá para ler. */
 export function noteFeedbackText(sent: number | null): string {
-  if (sent === null) return 'Não deu para enviar: a sala não está aberta.'
+  if (sent === null) return 'Não deu para enviar: a mesa online não está aberta.'
   if (sent === 0) return 'Ninguém está nesta cena'
   return sent === 1 ? 'Recado enviado a 1 jogador' : `Recado enviado a ${sent} jogadores`
 }
@@ -324,7 +324,7 @@ export type AbaloEnvio = (origem: AbaloOrigem, textos: AbaloTextos, vizinhas: st
 
 /** O aviso depois do abalo: quantos ouviram em cada faixa (faixa sem ninguém fica de fora). */
 export function abaloFeedbackText(porFaixa: AbaloContagem | null): string {
-  if (porFaixa === null) return 'Não deu para enviar: a sala não está aberta.'
+  if (porFaixa === null) return 'Não deu para enviar: a mesa online não está aberta.'
   const partes = [
     porFaixa.perto > 0 ? `${porFaixa.perto} nesta cena` : '',
     porFaixa.andar > 0 ? `${porFaixa.andar} nas vizinhas` : '',

@@ -829,7 +829,7 @@ function PainelDaPesca({ pinId, minigame, onChange, aoVivoDaPesca }: PainelDaPes
         <span className="lb-label">Só texto: aparece no convite e no cesto do jogador. A pesca não abre porta nem entrega item; o peixe fica no cesto.</span>
       </fieldset>
       {aoVivoDaPesca === null || aoVivoDaPesca === undefined ? (
-        <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar a pesca{minigame.entrada === 'mestre' ? ' e chamar quem pesca' : ''}.</span>
+        <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para acompanhar a pesca{minigame.entrada === 'mestre' ? ' e chamar quem pesca' : ''}.</span>
       ) : (
         <PescaAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDaPesca} />
       )}
@@ -902,7 +902,7 @@ function PainelDoTiro({ pinId, minigame, onChange, aoVivoDoTiro }: PainelDoTiroP
         <span className="lb-label">Só texto: aparece no convite e no resultado do jogador. O tiro não abre porta nem entrega item.</span>
       </fieldset>
       {aoVivoDoTiro === null || aoVivoDoTiro === undefined ? (
-        <span className="lb-label lb-minigame__sem-sala">Abra a sala para acompanhar o placar{minigame.entrada === 'mestre' ? ' e chamar para a barraca' : ''}.</span>
+        <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para acompanhar o placar{minigame.entrada === 'mestre' ? ' e chamar para a barraca' : ''}.</span>
       ) : (
         <TiroAoVivoPainel pinId={pinId} entrada={minigame.entrada} {...aoVivoDoTiro} />
       )}
@@ -964,7 +964,7 @@ function PainelDoFogo({ pinId, minigame, onChange, aoVivoDoFogo }: PainelDoFogoP
       </fieldset>
       <PacoteDoMinigame jogo="fogo" ocupado={fogoAberto}>
         {aoVivoDoFogo === null || aoVivoDoFogo === undefined ? (
-          <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para o fogo.</span>
+          <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para o fogo.</span>
         ) : (
           <FogoAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDoFogo} />
         )}
@@ -1033,7 +1033,7 @@ function PainelDaBolha({ pinId, minigame, onChange, aoVivoDaBolha }: PainelDaBol
       </fieldset>
       <PacoteDoMinigame jogo="bolha" ocupado={bolhaAberta}>
         {aoVivoDaBolha === null || aoVivoDaBolha === undefined ? (
-          <span className="lb-label lb-minigame__sem-sala">Abra a sala para chamar para a bolha.</span>
+          <span className="lb-label lb-minigame__sem-sala">Abra a mesa online para chamar para a bolha.</span>
         ) : (
           <BolhaAoVivoPainel pinId={pinId} permitida={minigame.permitida} {...aoVivoDaBolha} />
         )}
@@ -1154,7 +1154,7 @@ function PainelDaDanca({ pinId, minigame, onChange, porta, aoVivo, caminho = CAM
         <span className="lb-label">A consequência nunca tranca a história: a porta sempre aceita outra tentativa.</span>
       </fieldset>
       {aoVivo === null ? (
-        <span className="lb-label lb-minigame__sem-sala">Abra a sala, ou a Visão de jogador para testar sozinho, para chamar para dançar.</span>
+        <span className="lb-label lb-minigame__sem-sala">Abra a mesa online, ou a Visão de jogador para testar sozinho, para chamar para dançar.</span>
       ) : (
         <DancaAoVivoPainel pinId={pinId} {...aoVivo} />
       )}

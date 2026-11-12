@@ -93,7 +93,7 @@ export function RevealToControls({ players, chosen, onChange }: RevealToControls
     onChange(players.filter((p) => next.has(p.playerId)).map((p) => p.playerId))
   }
 
-  if (players.length === 0) return <span className="lb-label">Nenhum jogador na sala.</span>
+  if (players.length === 0) return <span className="lb-label">Nenhum jogador na mesa online.</span>
   return (
     <>
       <span className="lb-label">Revelar para…</span>
@@ -149,7 +149,7 @@ function PinAudienceControls({ players, chosen, onChange }: PinAudienceControlsP
       </div>
       {onlyThese &&
         (players.length === 0 ? (
-          <span className="lb-label">Nenhum jogador na sala.</span>
+          <span className="lb-label">Nenhum jogador na mesa online.</span>
         ) : (
           <>
             <ul className="lb-gather__list" aria-label="Quem vê este pino" aria-describedby={chosenSet.size === 0 ? hintId : undefined}>

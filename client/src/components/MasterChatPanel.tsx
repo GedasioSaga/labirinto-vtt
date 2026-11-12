@@ -52,7 +52,7 @@ type LocalAlert = 'empty' | 'long' | 'failed'
 const ALERT_TEXT: Record<LocalAlert, string> = {
   empty: 'Escreva a mensagem antes de mandar.',
   long: `Passou de ${CHAT_TEXT_MAX_LENGTH} caracteres. Corte um pouco e mande de novo.`,
-  failed: 'A mensagem não saiu: a sala está fechada.',
+  failed: 'A mensagem não saiu: a mesa online está fechada.',
 }
 
 /** Até esta distância do fim, em px, o log acompanha a mensagem nova; mais acima, quem lê não é empurrado. */

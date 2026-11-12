@@ -101,7 +101,7 @@ export function textoDaRecusaDaBolha(motivo: BolhaMotivoDaRecusa): string {
     case 'longe':
       return 'Chegue mais perto do pino para apagar com bolhas.'
     case 'ocupado':
-      return 'Já tem um fogo sendo apagado com bolhas nesta sala. Espere ele acabar.'
+      return 'Já tem um fogo sendo apagado com bolhas nesta mesa online. Espere ele acabar.'
     case 'indisponivel':
       return 'Não dá para apagar com bolhas aí agora.'
   }

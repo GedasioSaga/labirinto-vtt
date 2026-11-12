@@ -60,7 +60,7 @@ const NOME_DO_STATUS: Record<FogoStatus, string> = {
 const MOTIVO_DA_RECUSA: Record<Extract<FogoConviteResultado, { ok: false }>['motivo'], string> = {
   pino: 'Este pino não é mais do Fogo na Floresta.',
   ocupada: 'Já há um incêndio em andamento: encerre o outro antes.',
-  ninguem: 'Ninguém escolhido está na sala agora.',
+  ninguem: 'Ninguém escolhido está na mesa online agora.',
 }
 
 /** A ferramenta sugerida para o n-ésimo da lista: Bolha, Mangueira, Areia, e de novo (cobre as 3 alturas). */
@@ -139,11 +139,11 @@ function Chamar({ players, onConvidar }: Pick<FogoAoVivoProps, 'players' | 'onCo
       return ferramenta === undefined ? [] : [{ playerId: p.playerId, ferramenta }]
     })
     const resultado = onConvidar(convidados, modo)
-    if (resultado === null) setAviso('A sala fechou: abra a sala para chamar.')
+    if (resultado === null) setAviso('A mesa online fechou: abra a mesa online para chamar.')
     else if (!resultado.ok) setAviso(MOTIVO_DA_RECUSA[resultado.motivo])
     else setAviso(null)
   }
-  if (players.length === 0) return <span className="lb-label">Ninguém jogando na sala agora.</span>
+  if (players.length === 0) return <span className="lb-label">Ninguém jogando na mesa online agora.</span>
   return (
     <div className="lb-fogo-vivo__chamar">
       <Pastilhas<ModoFogo> rotulo="Como jogam" opcoes={MODOS} valor={modo} onChange={setModo} />

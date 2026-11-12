@@ -336,7 +336,7 @@ export function PaginaJogadores({ personagens, sistema, mapas }: PaginaJogadores
           Entraram na mesa e não têm ficha {semFicha.length > 0 && <small>{semFicha.length}</small>}
         </h3>
         {semFicha.length === 0 ? (
-          <p className="mu-pg-nota">{vistos.length === 0 ? 'Quando alguém entrar na sala, o nome dele aparece aqui.' : 'Todo mundo que já entrou na mesa tem ficha.'}</p>
+          <p className="mu-pg-nota">{vistos.length === 0 ? 'Quando alguém entrar na mesa online, o nome dele aparece aqui.' : 'Todo mundo que já entrou na mesa tem ficha.'}</p>
         ) : (
           <ul className="mu-linhas">
             {semFicha.map((visto) => (

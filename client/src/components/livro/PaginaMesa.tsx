@@ -16,7 +16,7 @@ export type PaginaMesaProps = Pick<RoomPanelProps, 'room' | 'players' | 'secretC
 }
 
 /** O que fica no lugar da ferramenta que só existe com a sala aberta. */
-const SO_COM_A_SALA = 'Abre junto com a sala.'
+const SO_COM_A_SALA = 'Abre junto com a mesa online.'
 
 const contar = (n: number, um: string, varios: string): string => (n === 1 ? `1 ${um}` : `${n} ${varios}`)
 
@@ -43,7 +43,7 @@ export function PaginaMesa({ room, players, secretCheck, visaoDeJogador, noise, 
               <SecretCheckSection {...secretCheck} semTitulo />
             ) : (
               <>
-                <p className="gr-nota">Precisa de jogadores na sala.</p>
+                <p className="gr-nota">Precisa de jogadores na mesa online.</p>
                 <Acoes>
                   <Botao tamanho="p" disabled>
                     Pedir teste

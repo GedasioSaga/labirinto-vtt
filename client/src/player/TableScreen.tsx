@@ -54,11 +54,11 @@ function CodeForm({ initial, onSubmit }: { initial: string; onSubmit: (code: str
   }
   return (
     <TableCard>
-      <p className="pe-lead">Esta tela mostra o mapa para a mesa inteira, sem ficha. O código da sala vem do mestre.</p>
+      <p className="pe-lead">Esta tela mostra o mapa para a mesa inteira, sem ficha. O código da mesa online vem do mestre.</p>
       <form onSubmit={submit} className="pe-form">
         <div className="pe-field">
           <label className="pe-label" htmlFor="lb-table-code">
-            Código da sala
+            Código da mesa online
           </label>
           <input
             id="lb-table-code"

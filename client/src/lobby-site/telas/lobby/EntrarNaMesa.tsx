@@ -126,7 +126,7 @@ function SalaDoMestre({ sala, entra }: { sala: SalaDaMesa; entra: boolean }) {
           Sua mesa está aberta
         </h2>
         <p className="lo-entrar__sub">
-          Os jogadores veem aqui o botão Entrar na mesa agora e entram com a conta deles, sem código nem PIN. Código da sala: <b className="lo-entrar__codigo">{sala.codigo}</b>.
+          Os jogadores veem aqui o botão Entrar na mesa agora e entram com a conta deles, sem código nem PIN. Código da mesa online: <b className="lo-entrar__codigo">{sala.codigo}</b>.
         </p>
       </div>
       {soNaRedeLocal(sala) && <p className="lo-entrar__rede">{AVISO_AO_MESTRE}</p>}

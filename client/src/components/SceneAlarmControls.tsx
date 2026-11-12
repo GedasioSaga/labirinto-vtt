@@ -22,7 +22,7 @@ export const ALARM_FEEDBACK_MS = 4000
 
 /** O aviso depois de soar: quantos receberam, ou que ninguém está lá ainda (o alarme fica para quem chegar). */
 export function alarmFeedbackText(sent: number | null): string {
-  if (sent === null) return 'Não deu para soar: a sala não está aberta.'
+  if (sent === null) return 'Não deu para soar: a mesa online não está aberta.'
   if (sent === 0) return 'Ninguém está nessas cenas agora: quem chegar verá o alarme'
   return sent === 1 ? 'Alarme soou para 1 jogador' : `Alarme soou para ${sent} jogadores`
 }

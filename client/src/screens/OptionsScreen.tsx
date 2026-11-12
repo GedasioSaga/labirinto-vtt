@@ -67,7 +67,7 @@ export function OptionsScreen({ onBack }: OptionsScreenProps) {
       <div className="lb-options">
         <fieldset className="lb-optiongroup lb-card" disabled>
           <legend className="lb-optiongroup__legend">
-            <span className="lb-eyebrow">Sala e jogadores</span>
+            <span className="lb-eyebrow">Mesa online e jogadores</span>
             <span className="lb-badge">Fase 1</span>
           </legend>
 
@@ -85,7 +85,7 @@ export function OptionsScreen({ onBack }: OptionsScreenProps) {
             <input className="lb-input" placeholder="ws://192.168.0.10:8080" readOnly />
           </OptionRow>
 
-          <OptionRow label="Código da sala">
+          <OptionRow label="Código da mesa online">
             <input className="lb-input" placeholder="——————" readOnly />
           </OptionRow>
 

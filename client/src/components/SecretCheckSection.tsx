@@ -29,7 +29,7 @@ export const SECRET_CHECK_ERRORS: Readonly<{ label: string; who: string }> = {
 
 /** O aviso depois de "Pedir teste": para quantos foi, ou por que não foi. */
 export function secretCheckFeedbackText(asked: number | null): string {
-  if (asked === null) return 'Não deu: a sala não está aberta.'
+  if (asked === null) return 'Não deu: a mesa online não está aberta.'
   if (asked === 0) return 'Ninguém escolhido está jogando agora.'
   return asked === 1 ? 'Teste pedido a 1 jogador' : `Teste pedido a ${asked} jogadores`
 }

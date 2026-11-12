@@ -40,7 +40,7 @@ export interface TiroAoVivoProps {
 export const CHAMAR_PARA_A_BARRACA = 'Chamar para a barraca'
 
 export function textoDoConviteRecusado(resultado: TiroConviteResultado | null): string | null {
-  if (resultado === null) return 'Não deu: a sala não está aberta.'
+  if (resultado === null) return 'Não deu: a mesa online não está aberta.'
   if (resultado.ok) return null
   if (resultado.motivo === 'pino') return 'Este pino não está mais no mapa, ou não é mais de tiro.'
   return 'Ninguém marcado está jogando agora.'
@@ -213,7 +213,7 @@ export function TiroAoVivoPainel({ pinId, entrada, players, tiro, onConvidar, on
     if (recusa === null) voltarAoChamar()
   }
 
-  const pedir = (feito: boolean) => setAviso(feito ? null : 'Não deu: a barraca já fechou ou a sala fechou.')
+  const pedir = (feito: boolean) => setAviso(feito ? null : 'Não deu: a barraca já fechou ou a mesa online fechou.')
 
   return (
     <section className="lb-tiro-vivo" aria-labelledby={headingId}>

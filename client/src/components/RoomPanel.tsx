@@ -187,7 +187,7 @@ export const GROUP_VIEW_FEEDBACK_MS = 4000
 
 /** O aviso depois de "Dar o que o grupo viu": de quantos colegas veio, ou por que não veio nada. */
 export function groupViewFeedbackText(name: string, colleagues: number | null): string {
-  if (colleagues === null) return 'Não deu: a sala não está aberta.'
+  if (colleagues === null) return 'Não deu: a mesa online não está aberta.'
   if (colleagues === 0) return `Ninguém mais explorou a cena de ${name}`
   return colleagues === 1 ? `${name} recebeu o que 1 colega viu` : `${name} recebeu o que ${colleagues} colegas viram`
 }
@@ -195,8 +195,8 @@ export const SHARE_MAP_HINT = 'Passa o que ele já explorou na cena onde está. 
 export const GIVE_MAP_HINT = 'Só quem recebe passa a conhecer essas salas, de qualquer cena, como um mapa achado. Salas ocultas, com teto ou em zona oculta ficam de fora.'
 export const LASER_HINT ='Ligado (ou segurando L), clique e arraste com o botão esquerdo sobre o mapa. Todos os jogadores veem o laser.'
 export const FIREWALL_HINT = 'Se o celular não abrir o link, libere o app no Firewall do Windows (rede Privada)'
-export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na sala. Encerre ao terminar o jogo.'
-export const EMPTY_GROUP_HINT = 'Nenhum jogador ainda. Passe o código da sala ou mostre o QR do Convidar, no alto.'
+export const TUNNEL_WARNING = 'Quem tiver o link e o código entra na mesa online. Encerre ao terminar o jogo.'
+export const EMPTY_GROUP_HINT = 'Nenhum jogador ainda. Passe o código da mesa online ou mostre o QR do Convidar, no alto.'
 export const NO_TOKENS_HINT = 'Nenhuma ficha no mapa para dar. Crie uma com "Adicionar token", na aba Mapa.'
 
 /** SVG vindo do Rust vira data URL: `<img>` não executa script do SVG. */
@@ -759,11 +759,11 @@ export function OpenRoom({ savedTableNames, onStart, convite = false }: Pick<Roo
     // No topo da Sala é a ação da folha (latão, alto, a linha toda); no Chat sem sala, o convite pequeno.
     return convite ? (
       <Botao ref={openRef} variante="latao" tamanho="p" onClick={abrir}>
-        Abrir sala
+        Abrir mesa online
       </Botao>
     ) : (
       <Botao ref={openRef} variante="primario" tamanho="alto" largo onClick={abrir}>
-        Abrir sala
+        Abrir mesa online
       </Botao>
     )
   }
@@ -991,7 +991,7 @@ function giveMapStatus(playerName: string, outcome: GiveMapOutcome): string {
   }
   return outcome > 0
     ? `Mapa entregue a ${playerName}: ${roomsLabel(outcome)}.`
-    : 'Nada foi: essas salas estão ocultas para jogadores agora, ou a sala da mesa fechou.'
+    : 'Nada foi: essas salas estão ocultas para jogadores agora, ou a mesa online fechou.'
 }
 
 /**
@@ -1655,7 +1655,7 @@ export function RoomPanel({
       <section className="lb-section lb-room">
         <div className="gr-vazio">
           <p className="gr-vazio__tit">A mesa está vazia</p>
-          <p>Abra a sala e passe o código para os jogadores entrarem pelo celular.</p>
+          <p>Abra a mesa online e passe o código para os jogadores entrarem pelo celular.</p>
         </div>
         {/* Ficha e regra também valem sem sala: o mestre prepara antes de abrir a mesa. */}
         {rpg}

@@ -55,7 +55,7 @@ const NOME_DO_RESULTADO: Record<BolhaResultado, string> = {
 const MOTIVO_DA_RECUSA: Record<Extract<BolhaConviteResultado, { ok: false }>['motivo'], string> = {
   pino: "Este pino não é mais da Bolha d'Água.",
   ocupada: 'Já há uma partida da bolha em andamento: encerre a outra antes.',
-  ninguem: 'Ninguém escolhido está na sala agora.',
+  ninguem: 'Ninguém escolhido está na mesa online agora.',
 }
 
 /** Escolha única em pastilhas: o mesmo `.lb-seg` do painel do minigame. */
@@ -99,11 +99,11 @@ function Chamar({ players, onConvidar }: Pick<BolhaAoVivoProps, 'players' | 'onC
     // Só quem ainda está na lista: quem saiu da sala desde a marcação não vai.
     const playerIds = players.filter((p) => escolhidos.has(p.playerId)).map((p) => p.playerId)
     const resultado = onConvidar(playerIds, modo)
-    if (resultado === null) setAviso('A sala fechou: abra a sala para chamar.')
+    if (resultado === null) setAviso('A mesa online fechou: abra a mesa online para chamar.')
     else if (!resultado.ok) setAviso(MOTIVO_DA_RECUSA[resultado.motivo])
     else setAviso(null)
   }
-  if (players.length === 0) return <span className="lb-label">Ninguém jogando na sala agora.</span>
+  if (players.length === 0) return <span className="lb-label">Ninguém jogando na mesa online agora.</span>
   return (
     <div className="lb-fogo-vivo__chamar">
       <Pastilhas<ModoBolha> rotulo="Como jogam" opcoes={MODOS} valor={modo} onChange={setModo} />

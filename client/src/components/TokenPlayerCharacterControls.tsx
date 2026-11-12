@@ -7,7 +7,7 @@ export interface TokenPlayerCharacterControlsProps {
 }
 
 /** O porquê do interruptor, lido pelo leitor de tela junto do rótulo. */
-export const PLAYER_CHARACTER_HINT = 'Quem entrar na sala sem personagem pode pedir esta ficha enquanto ela não tiver dono. Você confirma o pedido.'
+export const PLAYER_CHARACTER_HINT = 'Quem entrar na mesa online sem personagem pode pedir esta ficha enquanto ela não tiver dono. Você confirma o pedido.'
 
 /**
  * "Ficha de jogador": o que põe a ficha na lista de quem chega no meio da

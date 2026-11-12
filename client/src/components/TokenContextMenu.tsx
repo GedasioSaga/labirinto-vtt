@@ -39,7 +39,7 @@ const EDGE_GAP_PX = 8
 export function mensagemDoTokenFeedback(name: string, delivery: PlayerNoteDelivery): string {
   if (delivery === 'sent') return `Mensagem enviada a ${name}`
   if (delivery === 'queued') return `${name} recebe a mensagem ao voltar`
-  return 'Não deu para enviar: a sala não está aberta.'
+  return 'Não deu para enviar: a mesa online não está aberta.'
 }
 
 /**

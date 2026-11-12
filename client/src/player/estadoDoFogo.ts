@@ -104,7 +104,7 @@ export function textoDaRecusaDoFogo(motivo: FogoMotivoDaRecusa): string {
     case 'longe':
       return 'Chegue mais perto do pino para apagar o fogo.'
     case 'ocupado':
-      return 'Já tem um incêndio aceso nesta sala. Espere ele acabar.'
+      return 'Já tem um incêndio aceso nesta mesa online. Espere ele acabar.'
     case 'indisponivel':
       return 'Não dá para apagar o fogo aí agora.'
   }
