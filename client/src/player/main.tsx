@@ -2637,12 +2637,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </p>
         )}
         {/* Porta e movimento avisam no mesmo lugar: vale o mais novo (`latestActionNotice`).
-            A porta "Trancada" traz os botões do pedido (Bater, Forçar, Usar chave). */}
+            A porta "Trancada" traz o "Pedir ao mestre" com o "o que você faz?" (e o "Usar <chave>" de quem a tem). */}
         {state.doorNotice && !moveNoticeShown && (
           <PlayerDoorNotice
             key={state.doorNotice.id}
             notice={state.doorNotice}
-            onRequest={(wallId, how) => connection.requestDoor(wallId, how)}
+            onRequest={(wallId, how, texto) => connection.requestDoor(wallId, how, texto)}
             onUseKey={(wallId) => connection.useDoorKey(wallId)}
             onClose={() => connection.dismissDoorNotice()}
           />

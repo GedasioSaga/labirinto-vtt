@@ -26,6 +26,8 @@ import {
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   isDoorRequestHow,
+  isDoorToggleRejection,
+  DOOR_REQUEST_TEXT_MAX_LENGTH,
   type DoorRequestAnswer,
   type DoorRequestHow,
   type DoorRequestRejection,
@@ -505,7 +507,7 @@ export interface PlayerState {
   /**
    * Recusa do mestre ao pedido de porta (trancada, longe, não visível). `id`
    * novo repete o aviso. Longe e não visível somem sozinhos; "Trancada" fica
-   * até o jogador escolher (Bater, Forçar, Usar chave) ou fechar, e guarda
+   * até o jogador pedir ao mestre (ou usar a chave que tem) ou fechar, e guarda
    * `wallId` para o pedido saber de que porta é.
    */
   doorNotice?: DoorNotice
@@ -1326,11 +1328,13 @@ export interface PlayerConnection {
   /** "Espiar" pela porta fechada (`door.peek`). `false` se não está jogando, sem porta ou com o socket fechado. */
   peekDoor(wallId: string): boolean
   /**
-   * Pede ao mestre para passar pela porta trancada `wallId` — Bater, Forçar ou
-   * Usar chave. Troca o "Trancada" por "Pedido enviado". `false` se não está
-   * jogando, o pedido é malformado ou o socket não está aberto.
+   * Pede ao mestre para abrir a porta trancada `wallId` ("Pedir ao mestre",
+   * decisão 1). `texto`: o "o que você faz?" (opcional; "Bater" e "Forçar" o
+   * preenchem); vazio não vai, e o mestre lê "<ficha> quer abrir a porta".
+   * Troca o "Trancada" por "Pedido enviado". `false` se não está jogando, o
+   * pedido é malformado ou o socket não está aberto.
    */
-  requestDoor(wallId: string, how: DoorRequestHow): boolean
+  requestDoor(wallId: string, how: DoorRequestHow, texto?: string): boolean
   /**
    * "Esconder": pede ao mestre para a PRÓPRIA ficha `tokenId` sumir dos outros
    * jogadores. `false` se não está jogando, se a ficha não é dele (ou já está
@@ -5103,7 +5107,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         // Aviso sem mapa na tela não tem onde aparecer.
         if (state.status !== 'playing') return
         const { reason } = data
-        if (reason !== 'locked' && reason !== 'far' && reason !== 'not_visible' && reason !== 'wrong_side' && reason !== 'blocked' && reason !== 'no_peek') return
+        // A lista do protocolo (com o `ja_trancada` do J8): motivo novo não precisa ser repetido aqui.
+        if (!isDoorToggleRejection(reason)) return
         if (typeof data.wallId !== 'string' || data.wallId.length === 0) return
         // A chave só vale no "Trancada" e só como texto curto: é o nome de um item da mochila.
         const key = reason === 'locked' ? cleanItemName(typeof data.key === 'string' ? data.key : '') : ''
@@ -5717,9 +5722,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       return true
     },
 
-    requestDoor(wallId, how) {
+    requestDoor(wallId, how, texto) {
       if (state.status !== 'playing' || wallId.length === 0 || !isDoorRequestHow(how)) return false
-      if (!send({ type: 'door.request', wallId, how })) return false
+      // O "o que você faz?", aparado e no teto do protocolo; vazio não vai (o host lê ausente como vazio).
+      const oQueFaz = (texto ?? '').trim().slice(0, DOOR_REQUEST_TEXT_MAX_LENGTH)
+      if (!send({ type: 'door.request', wallId, how, ...(oQueFaz !== '' ? { texto: oQueFaz } : {}) })) return false
       showDoorRequest('sent')
       return true
     },
