@@ -160,7 +160,10 @@ interface Telhado {
   cor: string
   camada: Container
   raiz: Container
-  /** Sombra e corpo trocam de Graphics chapado para Sprite quando a textura fica pronta. */
+  /**
+   * Sombra e corpo trocam de Graphics chapado para Sprite quando a textura fica pronta. A sombra com textura é
+   * o embrulho do sprite (`sombraDa`): a posição dela é só o deslocamento, nos dois casos.
+   */
   sombra: Container
   topo: Container
   corpo: Container
@@ -325,6 +328,19 @@ function spriteDa(textura: TexturaDoTelhado): Sprite {
   return sprite
 }
 
+/**
+ * A sombra com textura: o sprite (na origem da imagem, com a tinta escura) dentro de um embrulho. `aplicar`
+ * move o EMBRULHO pelo deslocamento da sombra; mover o sprite apagava a origem e mandava a sombra de todo
+ * telhado para o canto do mapa (print 17 do mestre, achados N2 e V1 de 12/11/2026).
+ */
+function sombraDa(textura: TexturaDoTelhado): Container {
+  const sprite = spriteDa(textura)
+  sprite.tint = COR_DA_SOMBRA
+  const embrulho = semEvento(new Container())
+  embrulho.addChild(sprite)
+  return embrulho
+}
+
 export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): TelhadosRenderer {
   const { movimento } = opcoes
   const gerar = opcoes.gerarTextura ?? gerarTexturaDoTelhado
@@ -473,8 +489,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   /** Troca o chapado pela textura (ou fica no chapado, se a pintura deu vazio). */
   function vestir(t: Telhado, textura: TexturaDoTelhado | null | undefined): void {
     const corpo = textura ? spriteDa(textura) : chapado(t.points, corNumerica(t.cor))
-    const sombra = textura ? spriteDa(textura) : chapado(t.points, COR_DA_SOMBRA)
-    if (sombra instanceof Sprite) sombra.tint = COR_DA_SOMBRA
+    // O chapado é desenhado em coordenadas do mundo; o sprite vai embrulhado (`sombraDa`): os dois andam só o deslocamento.
+    const sombra = textura ? sombraDa(textura) : chapado(t.points, COR_DA_SOMBRA)
     t.topo.removeChild(t.corpo)
     t.corpo.destroy({ children: true })
     t.topo.addChild(corpo)
