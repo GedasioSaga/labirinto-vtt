@@ -6918,12 +6918,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
-    // Trancada antes de longe: "Trancada" é a informação útil, e é dela que sai o pedido ao mestre.
+    // Longe antes de trancada (caça J7): de longe nada do que sai do "Trancada"
+    // funciona (o pedido ao mestre também exige a ficha encostada), e responder
+    // "Trancada" contava, sem sair do lugar, quais portas da rua estão trancadas.
+    if (!seen.near) return reject('far')
     // Quem encosta com a chave lê o nome dela: é o item que ele já carrega, não o que a porta pede.
     if (seen.door.locked) {
       return seen.key === null ? reject('locked') : reply(clientId, { type: 'door.toggle.rejected', wallId: msg.wallId, reason: 'locked', key: seen.key })
     }
-    if (!seen.near) return reject('far')
     // FERROLHO de um jogador: do outro lado, "Trancada" — o mesmo motivo da
     // porta do mestre — e a tentativa vira disputa na Caixa. Do lado dele,
     // abrir é tirar o ferrolho e abrir (só se a porta abrir de fato, abaixo).
@@ -7038,8 +7040,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     const seen = doorSeenBy(playerId, scene.map, msg.wallId, world)
     if (seen === null) return reject('not_visible')
-    if (seen.door.locked) return reject('locked')
+    // Longe antes de trancada, como no toque (caça J7).
     if (!seen.near) return reject('far')
+    // Trancar a porta que o mestre trancou (caça J8): "Já está trancada", e não
+    // o "Trancada" do toque, que traz os botões de quem quer ENTRAR.
+    if (seen.door.locked) return reject('ja_trancada')
     const { wall } = seen
     const grid = scene.map.grid
     const ferrolho = ferrolhoAtivo(scene.map, wall)
@@ -7053,7 +7058,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       tirarFerrolho(sceneKey(scene), wall.id)
       return { outbound: [], trancaAviso: aviso('destrancou') }
     }
-    if (ferrolho !== undefined) return doMeuLado(ferrolho.lado) ? { outbound: [] } : reject('locked')
+    // Ferrolho de colega do outro lado: a mesma resposta da porta do mestre
+    // ("Já está trancada"); um texto diferente contaria quem trancou.
+    if (ferrolho !== undefined) return doMeuLado(ferrolho.lado) ? { outbound: [] } : reject('ja_trancada')
     // Fechar em cima de quem está no vão não vale, como no toque.
     if (seen.door.open && seen.inDoorway) return reject('blocked')
     // O lado da ficha mais perto; a que está no vão (sem lado) não decide.

@@ -11,4 +11,6 @@ export const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   blocked: 'Tem alguém no vão da porta',
   // Porta que o mestre marcou sem espiar: nada do outro lado, nem o porquê.
   no_peek: 'Não dá para espiar aqui',
+  // "Trancar deste lado" numa porta que já está trancada: só isso, sem os botões de quem quer entrar.
+  ja_trancada: 'Já está trancada',
 }

@@ -9,6 +9,8 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   wrong_side: 'Não dá para abrir por este lado',
   blocked: 'Tem alguém no vão da porta',
   no_peek: 'Não dá para espiar aqui',
+  // O "Trancar deste lado" numa porta já trancada: uma linha só, sem os botões de quem quer entrar.
+  ja_trancada: 'Já está trancada',
 }
 
 /** Os três jeitos de pedir ao mestre, na ordem dos botões. */

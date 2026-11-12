@@ -1406,9 +1406,19 @@ export interface SecretCheckAnswerMessage {
  * fechar com uma ficha que ele VÊ no vão (nunca diz qual). Também aditivo.
  * `no_peek`: o "Espiar pela porta" numa porta que o mestre marcou sem espiar
  * (`DoorState.semEspiar`) — só "não dá para espiar aqui", nada do outro lado.
- * Aditivo como os outros.
+ * Aditivo como os outros. `ja_trancada`: o "Trancar deste lado" numa porta
+ * que já está trancada (pelo mestre ou pelo ferrolho de um colega, a mesma
+ * resposta para os dois): só "Já está trancada", sem os botões do pedido de
+ * quem quer entrar. Aditivo: jogador antigo descarta e não vê aviso.
  */
-export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked' | 'no_peek'
+export type DoorToggleRejection = 'locked' | 'far' | 'not_visible' | 'wrong_side' | 'blocked' | 'no_peek' | 'ja_trancada'
+
+/** Os motivos que esta versão conhece: o jogador descarta o resto (`isDoorToggleRejection`). */
+export const DOOR_TOGGLE_REJECTIONS: readonly DoorToggleRejection[] = ['locked', 'far', 'not_visible', 'wrong_side', 'blocked', 'no_peek', 'ja_trancada']
+
+export function isDoorToggleRejection(value: unknown): value is DoorToggleRejection {
+  return DOOR_TOGGLE_REJECTIONS.some((reason) => reason === value)
+}
 
 /**
  * Por que o "Pagar a…" não valeu: `short` = a bolsa das fichas dele encostadas

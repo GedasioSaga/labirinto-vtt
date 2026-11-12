@@ -12,6 +12,7 @@ const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   wrong_side: 'Não dá para abrir por este lado',
   blocked: 'Tem alguém no vão da porta',
   no_peek: 'Não dá para espiar aqui',
+  ja_trancada: 'Já está trancada',
 }
 
 /**
