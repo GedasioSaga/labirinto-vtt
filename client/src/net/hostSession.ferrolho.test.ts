@@ -173,19 +173,23 @@ describe('hostSession: ferrolho na porta', () => {
     expect(portaNoRecorte(snapshotPara(s, 'c1', map))).toEqual({ open: false, locked: false, kind: 'normal' })
   })
 
-  it('Bruno não passa um segundo ferrolho do lado dele numa porta já trancada por Ana: "Trancada"', () => {
+  // Caça J8 (12/11/2026): trancar porta já trancada responde "Já está trancada"
+  // (`ja_trancada`), o mesmo para o ferrolho do colega e para a porta do mestre,
+  // para não contar quem trancou.
+  it('Bruno não passa um segundo ferrolho do lado dele numa porta já trancada por Ana: "Já está trancada"', () => {
     const map = corredor()
     const { s } = anaTrancou(map)
     const r = s.handleMessage('c2', { type: 'door.bar', wallId: 'porta', on: true }, map)
-    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } }])
+    expect(r.outbound).toEqual([{ clientId: 'c2', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'ja_trancada' } }])
     expect(r.trancaAviso).toBeUndefined()
   })
 
   it('porta trancada pelo mestre e porta longe não aceitam ferrolho', () => {
     const trancada = corredor({ locked: true })
     const t = mesa(trancada)
+    // A mesma resposta do ferrolho do colega: o jogador não sabe quem trancou.
     expect(t.s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, trancada).outbound).toEqual([
-      { clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } },
+      { clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'ja_trancada' } },
     ])
     const longe: MapData = { ...corredor(), tokens: [ficha('ficha-ana', 'Heroina', 200, 250), ficha('ficha-bruno', 'Guarda', 800, 250)] }
     const l = mesa(longe)
@@ -207,9 +211,9 @@ describe('hostSession: ferrolho na porta', () => {
     expect(portaNoRecorte(snap)).toEqual({ open: false, locked: false, kind: 'normal' })
     const acao = acaoDeFerrolho(snap.map, snap.ownTokens)
     expect(acao).toEqual({ wallId: 'porta', acao: 'passar', aberta: false })
-    // O que o botão manda agora tem resposta do host ("Trancada"), em vez de silêncio.
+    // O que o botão manda agora tem resposta do host ("Já está trancada", caça J8), em vez de silêncio.
     const r = m.s.handleMessage('c1', { type: 'door.bar', wallId: 'porta', on: true }, depois)
-    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'locked' } }])
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'porta', reason: 'ja_trancada' } }])
   })
 
   it('o mestre abre a porta pelo editor: o ferrolho não vale mais, nem depois que ela fecha', () => {

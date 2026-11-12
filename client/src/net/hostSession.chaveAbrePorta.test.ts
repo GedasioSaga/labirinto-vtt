@@ -140,7 +140,9 @@ describe('hostSession: a chave na mochila abre a porta sem pedir ao mestre', () 
     expect(usar.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'escritorio', reason: 'far' } }])
     t.advance(DOOR_TOGGLE_MIN_INTERVAL_MS)
     const toque = t.s.handleMessage('c1', { type: 'door.toggle', wallId: 'escritorio' }, t.world)
-    expect(toque.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'escritorio', reason: 'locked' } }])
+    // Caça J7 (12/11/2026): de longe o toque também diz só "far" (nem "Trancada", nem a chave).
+    expect(toque.outbound).toEqual([{ clientId: 'c1', msg: { type: 'door.toggle.rejected', wallId: 'escritorio', reason: 'far' } }])
+    expect(JSON.stringify([usar.outbound, toque.outbound])).not.toContain(CHAVE)
   })
 
   it('porta que ele não vê ou que não existe: "Usar" responde not_visible, sem abrir', () => {

@@ -106,7 +106,8 @@ describe('hostSession door.request (pedido ao mestre)', () => {
   it('Forçar a porta trancada: vira pedido ao mestre, com o nome da cena só para ele; o jogador não recebe nada ainda', () => {
     const t = mesa()
     const r = t.s.handleMessage('c1', { type: 'door.request', wallId: 'escritorio', how: 'force' }, t.world)
-    expect(r.doorRequest).toEqual({ requestId: expect.any(String), playerId: t.playerId, playerName: 'Ana', how: 'force', sceneName: 'Mansão' })
+    // Caça J3 (12/11/2026): o mestre lê a ficha encostada ("<ficha> quer abrir a porta"), do mapa dele.
+    expect(r.doorRequest).toEqual({ requestId: expect.any(String), playerId: t.playerId, playerName: 'Ana', how: 'force', tokenName: 'nome-lirio', sceneName: 'Mansão' })
     expect(r.outbound).toEqual([])
     expect(r.applyDoor).toBeUndefined()
     expect(t.s.isDoorRequestPending(r.doorRequest?.requestId ?? '')).toBe(true)
@@ -119,7 +120,7 @@ describe('hostSession door.request (pedido ao mestre)', () => {
     if (joined?.type !== 'welcome') throw new Error('esperava welcome')
     s.assignToken(joined.playerId, 'lirio')
     const pedido = s.handleMessage('c1', { type: 'door.request', wallId: 'escritorio', how: 'force' }, map).doorRequest
-    expect(pedido).toEqual({ requestId: expect.any(String), playerId: joined.playerId, playerName: 'Ana', how: 'force' })
+    expect(pedido).toEqual({ requestId: expect.any(String), playerId: joined.playerId, playerName: 'Ana', how: 'force', tokenName: 'nome-lirio' })
     expect(s.approveDoorRequest(pedido?.requestId ?? '', map).applyDoor).toEqual({ wallId: 'escritorio', open: true, unlock: true, playerId: joined.playerId, playerName: 'Ana' })
   })
 

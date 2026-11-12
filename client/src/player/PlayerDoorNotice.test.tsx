@@ -21,17 +21,46 @@ describe('PlayerDoorNotice (aviso da porta na tela do jogador)', () => {
 
   const botoes = () => [...container.querySelectorAll('button')].map((b) => b.getAttribute('aria-label') ?? b.textContent)
 
-  it('"Trancada" oferece Bater, Forçar e Usar chave, e cada botão pede do seu jeito', () => {
+  const botao = (texto: string): HTMLButtonElement => {
+    const achado = [...container.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') ?? b.textContent) === texto)
+    if (achado === undefined) throw new Error(`sem o botão "${texto}" em: ${botoes().join(' | ')}`)
+    return achado
+  }
+  const campo = (): HTMLInputElement | null => container.querySelector('input[type="text"]')
+
+  /**
+   * Decisão 1 do mestre (12/11/2026): UM "Pedir ao mestre", que abre o campo
+   * "O que você faz?" (opcional) com os atalhos "Bater" e "Forçar" que só
+   * preenchem o campo; o pedido sai em "Enviar ao mestre", sempre `ask`.
+   */
+  it('"Trancada" oferece "Pedir ao mestre": o campo é opcional, e "Bater" e "Forçar" só preenchem o texto', () => {
     const onRequest = vi.fn()
     const onClose = vi.fn()
     act(() => root.render(<PlayerDoorNotice notice={{ id: 1, reason: 'locked', wallId: 'escritorio' }} onRequest={onRequest} onClose={onClose} />))
     expect(container.textContent).toContain('Trancada')
-    expect(botoes()).toEqual(['Bater', 'Forçar', 'Usar chave', 'Fechar aviso'])
-    const forcar = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Forçar')
-    act(() => forcar?.click())
-    expect(onRequest).toHaveBeenCalledWith('escritorio', 'force')
-    const fechar = container.querySelector('button[aria-label="Fechar aviso"]')
-    act(() => (fechar instanceof HTMLButtonElement ? fechar.click() : undefined))
+    expect(botoes()).toEqual(['Pedir ao mestre', 'Fechar aviso'])
+
+    act(() => botao('Pedir ao mestre').click())
+    expect(container.textContent).toContain('O que você faz?')
+    expect(container.textContent).toContain('(opcional)')
+    expect(botoes()).toEqual(['Bater', 'Forçar', 'Enviar ao mestre', 'Voltar', 'Fechar aviso'])
+    act(() => botao('Forçar').click())
+    expect(campo()?.value).toBe('Tento forçar a porta')
+    // O atalho não manda nada sozinho: o pedido só sai no "Enviar ao mestre".
+    expect(onRequest).not.toHaveBeenCalled()
+    act(() => botao('Enviar ao mestre').click())
+    expect(onRequest).toHaveBeenCalledTimes(1)
+    expect(onRequest).toHaveBeenCalledWith('escritorio', 'ask', 'Tento forçar a porta')
+
+    // Voltar limpa o campo; vazio também vale (o mestre lê "<ficha> quer abrir a porta").
+    act(() => botao('Voltar').click())
+    expect(botoes()).toEqual(['Pedir ao mestre', 'Fechar aviso'])
+    act(() => botao('Pedir ao mestre').click())
+    expect(campo()?.value).toBe('')
+    act(() => botao('Enviar ao mestre').click())
+    expect(onRequest).toHaveBeenLastCalledWith('escritorio', 'ask', '')
+
+    act(() => botao('Fechar aviso').click())
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -50,7 +79,8 @@ describe('PlayerDoorNotice (aviso da porta na tela do jogador)', () => {
   it('textos da resposta do pedido', () => {
     expect(doorRequestText('sent')).toBe('Pedido enviado')
     expect(doorRequestText('opened')).toBe('O mestre abriu')
-    expect(doorRequestText('denied')).toBe('O mestre disse não')
+    // Caça J14 (12/11/2026): o que aconteceu, não "o mestre disse não".
+    expect(doorRequestText('denied')).toBe('A porta não abre')
     expect(doorRequestText('pending')).toBe('Seu pedido anterior ainda espera o mestre')
   })
 })

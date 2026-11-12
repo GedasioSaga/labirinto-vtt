@@ -130,8 +130,16 @@ describe('hostSession: dentro da sala secreta', () => {
     const { s } = mesa(map)
     s.broadcast(map)
     const r = s.handleMessage('c-ana', { type: 'door.toggle', wallId: 'estante' }, map)
-    // A estante é porta do próprio quarto: de dentro ela é vista; recusa por trancada, não por invisível.
-    expect(r.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'estante', reason: 'locked' } }])
+    // A estante é porta do próprio quarto: de dentro ela é vista. Caça J7 (12/11/2026):
+    // de longe a recusa é só "far" (o host confere "não visível" ANTES do "far").
+    expect(r.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'estante', reason: 'far' } }])
+
+    // Encostada na estante, por dentro: recusa por trancada, não por invisível.
+    const encostada = mansao({ x: 940, y: 275 })
+    const perto = mesa(encostada)
+    perto.s.broadcast(encostada)
+    const toque = perto.s.handleMessage('c-ana', { type: 'door.toggle', wallId: 'estante' }, encostada)
+    expect(toque.outbound).toEqual([{ clientId: 'c-ana', msg: { type: 'door.toggle.rejected', wallId: 'estante', reason: 'locked' } }])
   })
 })
 

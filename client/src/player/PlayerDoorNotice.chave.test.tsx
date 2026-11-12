@@ -31,16 +31,17 @@ describe('PlayerDoorNotice com chave na mochila', () => {
       ),
     )
     expect(container.textContent).toContain('Trancada')
-    expect(botoes()).toEqual(['Usar Chave do Escudo', 'Bater', 'Forçar', 'Usar chave', 'Fechar aviso'])
+    // Decisão 1 do mestre (12/11/2026): a chave primeiro, depois UM "Pedir ao mestre".
+    expect(botoes()).toEqual(['Usar Chave do Escudo', 'Pedir ao mestre', 'Fechar aviso'])
     const usar = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Usar Chave do Escudo')
     act(() => usar?.click())
     expect(onUseKey).toHaveBeenCalledWith('escritorio')
     expect(onRequest).not.toHaveBeenCalled()
   })
 
-  it('Ana sem a chave: "Trancada" só com os pedidos ao mestre', () => {
+  it('Ana sem a chave: "Trancada" só com o pedido ao mestre', () => {
     act(() => root.render(<PlayerDoorNotice notice={{ id: 2, reason: 'locked', wallId: 'escritorio' }} onRequest={vi.fn()} onUseKey={vi.fn()} onClose={vi.fn()} />))
-    expect(botoes()).toEqual(['Bater', 'Forçar', 'Usar chave', 'Fechar aviso'])
+    expect(botoes()).toEqual(['Pedir ao mestre', 'Fechar aviso'])
     expect(container.textContent).not.toContain('Escudo')
   })
 })

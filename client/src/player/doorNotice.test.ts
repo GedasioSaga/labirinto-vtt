@@ -16,6 +16,8 @@ describe('doorNotice: a recusa da porta em uma linha', () => {
       blocked: 'Tem alguém no vão da porta',
       // Porta que o mestre marcou sem espiar: só que não dá, nada do outro lado.
       no_peek: 'Não dá para espiar aqui',
+      // Caça J8 (12/11/2026): "Trancar deste lado" numa porta já trancada.
+      ja_trancada: 'Já está trancada',
     })
   })
 })
