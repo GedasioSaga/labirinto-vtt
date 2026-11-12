@@ -150,7 +150,7 @@ function SalaAberta({ room, players, onStop, tunnel, onStartTunnel, onStopTunnel
 
   return (
     <>
-      <div className="gr-linha">
+      <div className="gr-linha gr-linha--sala-aberta">
         <h2 className="gr-sala-titulo">Mesa online</h2>
         <PlacaDoCodigo codigo={room.code} />
         <Balao texto="Mais da mesa online">

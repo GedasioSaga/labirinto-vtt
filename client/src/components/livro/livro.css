@@ -299,7 +299,11 @@
 /* o topo da Sala */
 .gr-linha--entre { justify-content: space-between; }
 .gr-linha--quebra { flex-wrap: wrap; row-gap: 6px; }
-.gr-sala-titulo { font: 400 19px/1.1 var(--lb-font-display); margin: 0; color: var(--lb-color-parchment); }
+/* "Mesa online" numa linha só (decisão 29): na mesa aberta divide a linha com a placa e o "..." */
+.gr-sala-titulo { font: 400 19px/1.1 var(--lb-font-display); margin: 0; color: var(--lb-color-parchment); white-space: nowrap; flex: none; }
+/* a linha da mesa aberta cabe inteira na página mais estreita (262): título 87, placa ~104, "..." 28 (a largura que ele já tinha espremido) */
+.gr-linha--sala-aberta { gap: 6px; }
+.gr-linha--sala-aberta .gr-bt--ic { width: 28px; }
 .gr-sala-estado { display: flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
 .gr-ponto-off { width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--lb-color-parchment-faint); flex: none; }
 
@@ -309,15 +313,16 @@
   overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  /* 6 e 8, não 8 e 12: na largura mínima da página (262) a linha "Mesa online" + placa + "..." não cabia e o ícone de copiar era cortado */
+  gap: 6px;
   min-height: 34px;
-  padding: 0 12px;
+  padding: 0 8px;
   border-radius: 8px;
   background: linear-gradient(180deg, #3b4248, #2a3035 60%, #22272b);
   border: 1px solid rgba(0, 0, 0, 0.5);
   box-shadow: inset 0 1px 0 rgba(199, 209, 217, 0.25), 0 1px 2px rgba(0, 0, 0, 0.5);
   font: 600 16px/1 var(--lb-font-utility);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: #e8eef2;
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.6);
   cursor: pointer;
