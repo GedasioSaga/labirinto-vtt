@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { MapData, Wall } from '../types/map'
-import { useMapStore } from './mapStore'
+import { PORTA_TIRADA_TEXT, useMapStore } from './mapStore'
+import { useToastStore } from './toastStore'
 import * as mapFactory from '../lib/mapFactory'
 import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { selectionOfItem } from '../lib/selectionModel'
@@ -48,6 +49,17 @@ describe('Delete com a porta selecionada sozinha', () => {
     expect(useMapStore.getState().past).toHaveLength(1)
     useMapStore.getState().undo()
     expect(useMapStore.getState().map).toBe(comPorta)
+  })
+
+  // Prova de 11/11/2026: o aviso saía só pelo teclado; o botão "Tirar porta" chama `removeSelected` direto.
+  it('o aviso de porta tirada sai de removeSelected, o mesmo caminho do teclado e do botão', () => {
+    const comPorta = mapFactory.addDoorOnWall(mapFactory.addWall(mapFactory.createEmptyMap('m', 'M', 10, 10, 64), PAREDE), 'parede', { x: 128, y: 0 }, 32, 'normal')
+    selecionarAPorta(comPorta)
+    useToastStore.setState({ toasts: [] })
+
+    useMapStore.getState().removeSelected()
+
+    expect(useToastStore.getState().toasts.map((t) => t.text)).toEqual([PORTA_TIRADA_TEXT])
   })
 
   it('parede de sala: a porta sai e a aresta continua fechada, presa à sala', () => {

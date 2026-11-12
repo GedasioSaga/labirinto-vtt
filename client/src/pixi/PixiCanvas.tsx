@@ -9330,9 +9330,8 @@ function PixiCanvasDoContexto({
             // O mapa é lido ANTES da remoção: depois dela não há como saber se
             // a região apagada era uma Sala (ver `describeDeletion`).
             const { map: mapaAntes, selection: apagados } = useMapStore.getState()
-            // A porta sozinha não some: sai a porta e a parede fica inteira (`removeSelected`).
-            const oQueSumiu =
-              portaSozinhaNaSelecao(mapaAntes, apagados) !== null ? 'Porta tirada; a parede ficou inteira' : describeDeletion(mapaAntes, apagados)
+            // A porta sozinha não some: `removeSelected` a tira e dá o aviso dela (o mesmo do botão "Tirar porta").
+            const oQueSumiu = portaSozinhaNaSelecao(mapaAntes, apagados) !== null ? null : describeDeletion(mapaAntes, apagados)
             useMapStore.getState().removeSelected()
             if (oQueSumiu !== null) useToastStore.getState().push('info', `${oQueSumiu} — Ctrl+Z desfaz`)
             break

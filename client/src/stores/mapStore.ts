@@ -1670,6 +1670,8 @@ const initialMap = mapFactory.createEmptyMap('map_local', 'Mapa sem título', 30
 export const GROUP_CREATED_TEXT = 'Grupo criado: um clique em qualquer parte pega tudo. Ctrl+Shift+G desfaz'
 export const GROUP_NEEDS_TWO_TEXT = 'Selecione 2 ou mais itens para agrupar'
 export const GROUP_UNDONE_TEXT = 'Grupo desfeito'
+/** O aviso de tirar a porta sozinha (`removeSelected`), o mesmo para o teclado e o botão "Tirar porta". */
+export const PORTA_TIRADA_TEXT = 'Porta tirada; a parede ficou inteira — Ctrl+Z desfaz'
 export const UNGROUP_NOTHING_TEXT = 'Nada do que está selecionado faz parte de um grupo'
 
 /**
@@ -2169,6 +2171,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (porta !== null) {
         withHistory((map) => mapFactory.setWallDoor(map, porta.id, null))
         set({ selection: EMPTY_SELECTION })
+        // Daqui, e não de quem chama: Delete, Backspace e o botão "Tirar porta" passam todos por aqui.
+        useToastStore.getState().push('info', PORTA_TIRADA_TEXT)
         return
       }
       // Um `withHistory` só para o conjunto inteiro (1 entrada de undo pro
