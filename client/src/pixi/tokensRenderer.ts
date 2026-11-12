@@ -112,6 +112,48 @@ function strokeDashedCircle(graphics: Graphics, radius: number): void {
 export const TOKEN_LABEL_FONT_SIZE = 12
 
 /**
+ * NOMES ENCOSTADOS (achado V6 de 12/11/2026): duas fichas no mesmo lugar tinham os nomes um por cima do outro
+ * ("VinceNav"). A caixa do nome é ESTIMADA pelas letras, sem medir o texto (medir pede o canvas do texto a cada
+ * passo do arrasto): a largura média de uma letra e a altura da linha, em fração da fonte. Pouco a mais só faz um
+ * nome descer quando os dois quase se tocam.
+ */
+const LARGURA_MEDIA_DA_LETRA = 0.6
+const ALTURA_DA_LINHA_DO_NOME = 1.25
+
+/** A caixa do nome de uma ficha no mundo, para ver se ela cruza a de outra. */
+interface CaixaDoNome {
+  label: Text
+  /** O y do nome sem o desvio (`TokenEntry.nomeTopo`). */
+  topo: number
+  tamanho: number
+  /** A posição da ficha na lista do `draw`: no empate de tamanho, desce o nome da que vem depois. */
+  ordem: number
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+  desce: boolean
+}
+
+/**
+ * Quais nomes descem uma linha: quando a caixa de um cruza a de outro, o da ficha MENOR desce (mesmo tamanho: o
+ * da que vem depois na lista). Uma passada só. Varre pela beira esquerda: só compara caixas que se cruzam no x.
+ */
+function marcarNomesQueDescem(caixas: CaixaDoNome[]): void {
+  caixas.sort((a, b) => a.x0 - b.x0)
+  for (let i = 0; i < caixas.length; i += 1) {
+    const a = caixas[i]
+    for (let j = i + 1; j < caixas.length && caixas[j].x0 < a.x1; j += 1) {
+      const b = caixas[j]
+      if (b.y0 >= a.y1 || a.y0 >= b.y1) continue
+      const desceB = b.tamanho < a.tamanho || (b.tamanho === a.tamanho && b.ordem > a.ordem)
+      if (desceB) b.desce = true
+      else a.desce = true
+    }
+  }
+}
+
+/**
  * FICHA NA MÃO — quanto a ficha cresce enquanto o mestre a arrasta: sai da
  * mesa sem cobrir a vizinha. É o que diferencia "segurando" de "selecionada"
  * (o anel amarelo já diz a segunda).
@@ -344,6 +386,8 @@ interface TokenEntry {
    *  com os mesmos 4 filhos (visual, anel, nome, marcas) de antes da barra existir. */
   bar: Graphics | null
   label: Text
+  /** O y do nome embaixo do disco (`tokenLabelTop`), sem o desvio do vizinho: `separarNomes` desce dele uma linha. */
+  nomeTopo: number
   /** Marcas de condição (envenenado, caído...) em cima da ficha. Existe
    *  sempre, vazia quando não há condição — é o último slot desenhado, por
    *  cima do disco, do anel e do nome. Filha do wrapper e não do visual: o
@@ -423,6 +467,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   // uma vez só, não duas.
   const warnedImagePaths = new Set<string>()
   let lastCameraScale = 1
+  /** As fichas do último `draw`: `setCameraScale` separa os nomes de novo com elas. */
+  let ultimasFichas: readonly Token[] = []
 
   // ── Animação ──────────────────────────────────────────────────────────
   const clock = motion?.now ?? (() => performance.now())
@@ -661,6 +707,29 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
     for (const entry of cache.values()) applyLabelSizing(entry)
+    // O nome tem tamanho fixo na tela: o zoom muda a caixa dele no mundo, e quem se cruza.
+    separarNomes(ultimasFichas)
+  }
+
+  /**
+   * NOMES ENCOSTADOS (V6): cada nome volta ao lugar dele e, se a caixa cruza a de outro nome à vista, o da ficha
+   * menor desce uma linha (`marcarNomesQueDescem`). Pela posição final da ficha: o deslize em curso não conta.
+   */
+  function separarNomes(fichas: readonly Token[]): void {
+    const caixas: CaixaDoNome[] = []
+    fichas.forEach((token, ordem) => {
+      const entry = cache.get(token.id)
+      if (entry === undefined) return
+      entry.label.y = entry.nomeTopo
+      if (!entry.label.visible || entry.label.text === '') return
+      const escala = entry.label.scale.y
+      const meiaLargura = (entry.label.text.length * TOKEN_LABEL_FONT_SIZE * LARGURA_MEDIA_DA_LETRA * escala) / 2
+      const y0 = token.y + entry.nomeTopo
+      const y1 = y0 + TOKEN_LABEL_FONT_SIZE * ALTURA_DA_LINHA_DO_NOME * escala
+      caixas.push({ label: entry.label, topo: entry.nomeTopo, tamanho: token.size, ordem, x0: token.x - meiaLargura, x1: token.x + meiaLargura, y0, y1, desce: false })
+    })
+    marcarNomesQueDescem(caixas)
+    for (const c of caixas) if (c.desce) c.label.y = c.topo + (c.y1 - c.y0)
   }
 
   /**
@@ -881,6 +950,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           turnRing: null,
           bar: null,
           label,
+          nomeTopo: 0,
           marks,
           selos: null,
           alerta: null,
@@ -1063,7 +1133,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // Barra de vida SOB o disco, e o nome logo abaixo dela. A vida é a da
       // ficha do sistema ligada ao token (`vidas`); sem ficha, sem barra.
       syncHealthBar(entry, vida === null ? null : { current: vida.atual, max: vida.maximo }, outlineRadius)
-      entry.label.position.set(0, tokenLabelTop(outlineRadius, vida !== null))
+      entry.nomeTopo = tokenLabelTop(outlineRadius, vida !== null)
+      entry.label.position.set(0, entry.nomeTopo)
 
       // hidden === "Oculto no editor" (organização de cena do mestre). Antes
       // o token sumia de vez e não havia como clicar nele para desfazer; agora
@@ -1104,6 +1175,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       entry.painted = pintura
       applyLabelSizing(entry)
     }
+    // Depois de toda ficha no lugar e com o nome no tamanho do zoom: nenhum nome por cima do outro.
+    ultimasFichas = tokens
+    separarNomes(tokens)
     if (glides.size > 0 || pinosGirando.size > 0) startTicking()
     // Depois da pintura: o anel da vez nova já existe. Movimento reduzido (lido só na troca): o anel aparece parado.
     if (vezMudou && vezTokenId !== null) pulsar(vezTokenId, 'chegada')
