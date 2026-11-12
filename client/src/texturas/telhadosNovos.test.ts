@@ -46,8 +46,8 @@ const DIGITAIS: Readonly<Record<string, string>> = {
   'ardosia L 2x': 'aa35f43a',
   'metal ret 1x': '1e0ab002',
   'metal L 2x': '0f000992',
-  'tabuinhas ret 1x': 'dbd0783a',
-  'tabuinhas L 2x livre': '506f4cbe',
+  'tabuinhas ret 1x': 'bc66ee85',
+  'tabuinhas L 2x livre': 'd4e8c23c',
 }
 
 describe('ardósia, metal e tabuinhas: o desenho', () => {

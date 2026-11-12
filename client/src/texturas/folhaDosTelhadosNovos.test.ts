@@ -228,7 +228,7 @@ it.skipIf(!PEDIDA)('gera a folha dos seis modelos nas 6 cores (casa média e peq
     { poligono: sala(270, 30, 3, 3), modelo: 'ardosia', cor: 0 },
     { poligono: sala(430, 40, 4, 2), modelo: 'telhas', cor: 0 },
     { poligono: salaGirada(130, 250, 4, 2), modelo: 'metal', cor: 2 },
-    { poligono: sala(260, 200, 3, 4), modelo: 'madeira', cor: 3 },
+    { poligono: sala(260, 200, 3, 4), modelo: 'madeira', cor: 0 },
     { poligono: salaGirada(505, 275, 4, 3), modelo: 'palha', cor: 4 },
     { poligono: sala(30, 360, 3, 2), modelo: 'ardosia', cor: 4 },
     { poligono: sala(420, 400, 4, 2), modelo: 'metal', cor: 3 },

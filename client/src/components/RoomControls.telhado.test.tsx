@@ -95,7 +95,7 @@ describe('RoomControls — modelo e cor do telhado', () => {
     const casos = [
       ['Ardósia', 'ardosia', 'Cinza-azulado', '#5b6670'],
       ['Metal', 'metal', 'Cobre novo', '#9c6a4e'],
-      ['Tabuinhas', 'tabuinhas', 'Cedro', '#8e6045'],
+      ['Tabuinhas', 'tabuinhas', 'Madeira curtida', '#7f7062'],
     ] as const
     for (const [nome, modelo, corPadrao, hex] of casos) {
       const props = render()

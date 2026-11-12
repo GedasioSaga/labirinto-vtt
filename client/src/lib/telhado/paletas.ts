@@ -87,11 +87,13 @@ export const PALETA_DO_TETO: Readonly<Record<ModeloDoTeto, readonly CorDoTeto[]>
     { id: 'ferro-oxidado', nome: 'Ferro oxidado', hex: '#7a5242' },
     { id: 'zinco-claro', nome: 'Zinco claro', hex: '#848a8e' },
   ],
-  // Croma OKLab: cedro 0,072, mel 0,075, castanho 0,054, verde-musgo 0,045, cinza de chuva e
-  // queimado 0,013.
+  // Croma OKLab: madeira curtida 0,028, cedro 0,045, castanho 0,054, verde-musgo 0,045, cinza de
+  // chuva e queimado 0,013. 2ª rodada (12/11): a padrão era o Cedro #8e6045, que caía em cima do
+  // Barro das telhas (distância OKLab 0,019); a Madeira curtida fica a 0,061 dele e mais clara. O
+  // Cedro perdeu o laranja (0,072 para 0,045) e o Mel (0,075, o mais laranja) saiu.
   tabuinhas: [
-    { id: 'cedro', nome: 'Cedro', hex: '#8e6045' },
-    { id: 'mel', nome: 'Mel', hex: '#a68556' },
+    { id: 'curtida', nome: 'Madeira curtida', hex: '#7f7062' },
+    { id: 'cedro', nome: 'Cedro', hex: '#745649' },
     { id: 'castanho', nome: 'Castanho', hex: '#6b4c36' },
     { id: 'cinza-de-chuva', nome: 'Cinza de chuva', hex: '#858078' },
     { id: 'verde-musgo', nome: 'Verde-musgo', hex: '#5e6649' },

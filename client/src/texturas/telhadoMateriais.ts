@@ -18,10 +18,13 @@ import { hash } from './ruido'
  *   em pé entre elas (um fio de luz do lado virado para a luz, sombra do outro),
  *   a emenda de topo desencontrada com uma fileira de rebites, e a pátina
  *   escorrida no sentido da água (riscos compridos que puxam para o cinza).
- * - TABUINHAS: telhinhas curtas de madeira rachada, fiadas de 6,5 px bem
- *   desencontradas, larguras de 3 a 11 px, pontas gastas e arredondadas (o canto
- *   de baixo de cada uma é comido, e ali aparece a sombra da fiada de baixo),
- *   umas empenadas, umas rachadas, sombra grossa debaixo de cada fiada.
+ * - TABUINHAS: tabuinhas de madeira rachada, compridas e estreitas (11 px à
+ *   mostra no sentido da água, larguras desiguais de 2,5 a 7,5 px), fiadas bem
+ *   desencontradas. O veio desce cada uma (fio escuro e faixa clara, uns 25% de
+ *   luz); a ponta de baixo é irregular (mais compridas, mais curtas, lascadas,
+ *   cantos gastos) e a sombra grossa debaixo de cada fiada a deixa serrilhada.
+ *   Umas empenadas, umas rachadas ao comprido. (2ª rodada, 12/11: na 1ª eram
+ *   quase quadradas e liam como tijolinho.)
  *
  * Puro e sem `Math.random`: todo sorteio é `hash`. O que o material diz além
  * da luz (quanto o pixel puxa para o cinza da própria cor, e o sorteio da
@@ -327,15 +330,27 @@ export const BRILHO_DA_AGUA_DO_METAL = 1.15
 
 // ---------- tabuinhas ----------
 
-/** Altura de uma fiada de tabuinhas (a parte à mostra), px do mapa. */
-export const CURSO_DAS_TABUINHAS_PX = 7
-/** Largura média da tabuinha; cada borda sai do lugar até 25% disso (de 3,75 a 11,25 px). */
-export const LARGURA_DA_TABUINHA_PX = 7.5
+/**
+ * Comprimento à mostra de uma fiada de tabuinhas, no sentido da água, px do mapa.
+ * A tabuinha é COMPRIDA e estreita (2,2 vezes mais comprida que larga, em média):
+ * na 1ª rodada (7 x 7,5 px) ela era quase quadrada e a casa lia como tijolinho
+ * ou telha miúda de barro (folha de 12/11).
+ */
+export const CURSO_DAS_TABUINHAS_PX = 11
+/** Largura média da tabuinha; cada borda sai do lugar até 25% disso (de 2,5 a 7,5 px, desiguais). */
+export const LARGURA_DA_TABUINHA_PX = 5
 const SEMENTE_DAS_TABUINHAS = 8837
 const INVERSO_DO_CURSO_DAS_TABUINHAS = 1 / CURSO_DAS_TABUINHAS_PX
-/** O raio da ponta gasta: o canto de baixo de cada tabuinha é comido até esta altura. */
-const RAIO_DA_PONTA_PX = 1.5
+/** O canto gasto: o canto de baixo de cada tabuinha é comido até esta altura (arredondado de leve, não escama). */
+const RAIO_DA_PONTA_PX = 0.9
 const INVERSO_DO_RAIO_DA_PONTA = 1 / RAIO_DA_PONTA_PX
+/** A ponta de baixo fica de 0,2 a 2,4 px acima da linha da fiada: umas mais compridas, outras mais curtas. */
+const PONTA_MAIS_CURTA_PX = 2.2
+/** A lasca: um canto de baixo quebrado em diagonal, até esta fração da largura. */
+const LARGURA_DA_LASCA = 0.5
+/** A sombra grossa que a fiada de cima joga no alto desta (rampa em px). */
+const SOMBRA_DA_FIADA_PX = 2.8
+const INVERSO_DA_SOMBRA_DA_FIADA = 1 / SOMBRA_DA_FIADA_PX
 
 /** Tabuinhas no ponto. Devolve a variação de luz; a madeira lavada de chuva vai para `SAIDA_DO_MATERIAL`. */
 export function luzDasTabuinhas(v: number, u: number, luzAoLongo: number): number {
@@ -358,8 +373,9 @@ export function luzDasTabuinhas(v: number, u: number, luzAoLongo: number): numbe
     m[M_TIPO] = hash(n, j, SEMENTE_DAS_TABUINHAS + 2)
     m[M_A] = hash(n, j, SEMENTE_DAS_TABUINHAS + 3)
     m[M_FASE] = hash(n, j, SEMENTE_DAS_TABUINHAS + 4) * TAU * 3
-    // A ponta de umas é mais curta (gasta): a beira de baixo sobe até 0,9 px.
-    m[M_B] = hash(n, j, SEMENTE_DAS_TABUINHAS + 5) * 0.9
+    // A PONTA DE BAIXO IRREGULAR: cada tabuinha termina numa altura (umas mais compridas, outras mais curtas),
+    // e a fiada fica serrilhada em vez da linha reta do tijolo.
+    m[M_B] = 0.2 + hash(n, j, SEMENTE_DAS_TABUINHAS + 5) * PONTA_MAIS_CURTA_PX
     // Umas tabuinhas (20%) lavadas de chuva: puxam para o cinza da própria cor.
     m[M_SECO] = m[M_FASE] > TAU * 2.4 ? 0.22 : 0
   }
@@ -369,46 +385,54 @@ export function luzDasTabuinhas(v: number, u: number, luzAoLongo: number): numbe
   const x = u - inicio
   const largura = fim - inicio
   const canto = x < largura - x ? x : largura - x
-  // A PONTA GASTA E ARREDONDADA: perto da junta a beira de baixo sobe; abaixo dela aparece a sombra.
+  const tipo = m[M_TIPO]
+  const a = m[M_A]
+  // O canto gasto: perto da junta a beira de baixo sobe um pouco; abaixo dela aparece a sombra.
   let beira = m[M_B]
   if (canto < RAIO_DA_PONTA_PX) {
     const c = 1 - canto * INVERSO_DO_RAIO_DA_PONTA
     beira += RAIO_DA_PONTA_PX * c * c
+  }
+  if (tipo >= 0.3 && tipo < 0.45) {
+    // Lascada (15%): um canto de baixo quebrado em diagonal, do lado sorteado.
+    const lasca = largura * LARGURA_DA_LASCA
+    const lado = a < 0.5 ? x : largura - x
+    if (lado < lasca) beira += (lasca - lado) * 1.1
   }
   const acimaDaBeira = y - beira
   if (acimaDaBeira < 0) {
     // Debaixo da ponta: o alto da fiada de baixo, na sombra; a beira da ponta, suave (meio px).
     return -0.3 + 0.24 * rampa(-0.5, 2, acimaDaBeira)
   }
-  const tipo = m[M_TIPO]
   const fase = m[M_FASE]
-  // O VEIO desce a tabuinha, ondulado, em fios escuros finos a cada ~3 px (a fase é de cada uma, então
-  // os fios não se alinham de uma para outra). É ele que diz "madeira rachada", e não pedra.
-  const veio = seno(x * 2 + fase + 0.5 * seno(y * 0.4 + fase))
-  const fio = veio > 0 ? veio * veio * veio * veio : 0
+  // O VEIO desce a tabuinha no sentido da água, serpenteando, num passo de ~2,7 px que muda de uma para
+  // outra (a fase e o passo são de cada uma: os fios não se alinham entre vizinhas). Fio escuro fino
+  // onde o seno chega ao topo, faixa clara no fundo: de -0,18 a +0,07 de luz. É ele que diz "madeira".
+  const veio = seno(x * (1.9 + 0.6 * a) + fase + 1.1 * seno(y * 0.3 + fase))
+  const fio = veio > 0 ? veio * veio * veio * veio * veio * veio : 0
   let luz =
-    0.085 + // devolve a média ao tom escolhido (a sombra da fiada escurece bastante em média)
-    (sorteio - 0.5) * 0.08 + // cada tabuinha um tom, pouco (muito tom vira calçada de pedra, folha de 12/11)
-    veio * 0.03 -
-    fio * 0.16
+    0.12 + // devolve a média ao tom escolhido (sombra da fiada, fresta e veio escurecem bastante em média)
+    (sorteio - 0.5) * 0.08 - // cada tabuinha um tom, pouco (muito tom vira calçada de pedra, folha de 12/11)
+    veio * 0.07 -
+    fio * 0.11
   // A ponta, de topo, pega luz.
-  if (acimaDaBeira < 0.9) luz += 0.05 * (1 - rampa(0, 1 / 0.9, acimaDaBeira))
-  // SOMBRA GROSSA: a fiada de cima cobre o alto desta (2,4 px de rampa).
+  if (acimaDaBeira < 0.9) luz += 0.06 * (1 - rampa(0, 1 / 0.9, acimaDaBeira))
+  // SOMBRA GROSSA: a fiada de cima cobre o alto desta.
   const ateTopo = CURSO_DAS_TABUINHAS_PX - y
-  if (ateTopo < 2.8) luz -= 0.3 * (1 - rampa(0.3, 1 / 2.4, ateTopo))
+  if (ateTopo < SOMBRA_DA_FIADA_PX + 0.3) luz -= 0.25 * (1 - rampa(0.3, INVERSO_DA_SOMBRA_DA_FIADA, ateTopo))
   // Fresta entre tabuinhas, a beira virada para a luz um tico mais clara.
   if (canto < 1.4) {
-    luz -= 0.3 * (1 - rampa(0.1, 1 / 0.5, canto))
+    luz -= 0.32 * (1 - rampa(0.05, 1 / 0.4, canto))
     luz += luzAoLongo * 0.04 * (rampa(0.4, 1, x) - rampa(0.4, 1, largura - x))
   }
-  if (tipo < 0.18) {
+  if (tipo < 0.16) {
     // Empenada: a tabuinha torce e a luz corre de um lado para o outro.
-    luz += (x / largura - 0.5) * 0.16 * (m[M_A] < 0.5 ? 1 : -1)
+    luz += (x / largura - 0.5) * 0.18 * (a < 0.5 ? 1 : -1)
   } else if (tipo < 0.3) {
-    // Rachada no sentido do veio, da ponta até três quartos da altura.
-    const xr = largura * (0.3 + 0.4 * m[M_A]) + (m[M_A] - 0.5) * 0.4 * y
+    // Rachada ao comprido (14%), no sentido do veio, da ponta até quase o alto.
+    const xr = largura * (0.3 + 0.4 * a) + (a - 0.5) * 0.25 * y
     const ate = Math.abs(x - xr)
-    if (ate < 0.55 && y < CURSO_DAS_TABUINHAS_PX * 0.75) luz -= 0.24 * (1 - rampa(0.08, 1 / 0.4, ate))
+    if (ate < 0.6 && y < CURSO_DAS_TABUINHAS_PX * 0.85) luz -= 0.4 * (1 - rampa(0.1, 1 / 0.45, ate))
   }
   return luz
 }
