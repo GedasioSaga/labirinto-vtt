@@ -300,16 +300,43 @@ function maisPertoNoEixo(p: RegionPoint, w: ParedeQueSegura): { x: number; y: nu
   return { x, y, distancia: Math.hypot(p.x - x, p.y - y) }
 }
 
-/**
- * O objeto está PRESO NA PAREDE: o centro a até meia espessura + 3 px de uma
- * das `paredes`. O que mora no chão (tapete, ponte, monte de ouro) nunca: ele
- * fica por baixo de tudo, inclusive de parede.
- */
+/** A parede segura o objeto deste centro: dentro da caixa e a até `alcance` do eixo. */
+function segura(centro: RegionPoint, w: ParedeQueSegura): boolean {
+  return centro.x >= w.minX && centro.x <= w.maxX && centro.y >= w.minY && centro.y <= w.maxY && maisPertoNoEixo(centro, w).distancia <= w.alcance
+}
+
+/** O centro do objeto, ou `null` quando ele mora no chão (tapete, ponte, monte de ouro: por baixo de tudo, inclusive de parede) ou não é finito. */
+function centroQuePrende(prop: Pick<Prop, 'x' | 'y' | 'mobilia'>): RegionPoint | null {
+  if (ehMovelDoChao(prop.mobilia)) return null
+  if (!Number.isFinite(prop.x) || !Number.isFinite(prop.y)) return null
+  return { x: prop.x, y: prop.y }
+}
+
+/** O objeto está PRESO NA PAREDE: o centro a até meia espessura + 3 px de uma das `paredes`. */
 export function presoNaParede(prop: Pick<Prop, 'x' | 'y' | 'mobilia'>, paredes: readonly ParedeQueSegura[]): boolean {
-  if (ehMovelDoChao(prop.mobilia)) return false
-  if (!Number.isFinite(prop.x) || !Number.isFinite(prop.y)) return false
-  const centro = { x: prop.x, y: prop.y }
-  return paredes.some(
-    (w) => centro.x >= w.minX && centro.x <= w.maxX && centro.y >= w.minY && centro.y <= w.maxY && maisPertoNoEixo(centro, w).distancia <= w.alcance,
-  )
+  const centro = centroQuePrende(prop)
+  return centro !== null && paredes.some((w) => segura(centro, w))
+}
+
+/**
+ * Os LADOS do objeto preso: para cada parede que o segura, os dois pontos a
+ * meia espessura + 3 px do eixo, um de cada lado, na altura do centro dele. O
+ * recorte do mestre (`lib/fogFilter.ts`) conta o objeto como visto quando um
+ * deles está à vista (decisão 20: quem vê a parede vê o que está preso nela,
+ * dos dois lados). Lista vazia = não está preso.
+ */
+export function ladosDoObjetoNaParede(prop: Pick<Prop, 'x' | 'y' | 'mobilia'>, paredes: readonly ParedeQueSegura[]): RegionPoint[] {
+  const centro = centroQuePrende(prop)
+  if (centro === null) return []
+  const lados: RegionPoint[] = []
+  for (const w of paredes) {
+    if (!segura(centro, w)) continue
+    const comp = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
+    if (!(comp > 0)) continue
+    const nx = (-(w.y2 - w.y1) / comp) * w.alcance
+    const ny = ((w.x2 - w.x1) / comp) * w.alcance
+    const pe = maisPertoNoEixo(centro, w)
+    lados.push({ x: pe.x + nx, y: pe.y + ny }, { x: pe.x - nx, y: pe.y - ny })
+  }
+  return lados
 }
