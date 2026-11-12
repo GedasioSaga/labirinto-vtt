@@ -54,6 +54,36 @@ describe('SceneSettingsDialog', () => {
     expect(document.body.querySelector('figcaption')?.textContent).toContain('raio padrão')
   })
 
+  // Pedido de 11/11/2026: no andar de cima o mestre não achava onde mudar o tamanho.
+  it('Tamanho do mapa: a seção mostra o tamanho da cena e Aplicar manda o novo', () => {
+    const onApply = vi.fn()
+    act(() =>
+      root.render(
+        <SceneSettingsDialog
+          sceneName="Caverna – andar de cima"
+          cellPx={70}
+          vision={{ visionCells: 3, onVisionCellsChange: vi.fn(), dark: false, onDarkChange: vi.fn() }}
+          mapSize={{ width: 30, height: 10, onApply }}
+          onClose={vi.fn()}
+        />,
+      ),
+    )
+    const secoes = Array.from(document.body.querySelectorAll('nav.gr-nav-vertical button')).map((secao) => secao.textContent)
+    expect(secoes).toEqual(['Visão', 'Tamanho do mapa'])
+    const largura = document.body.querySelector<HTMLInputElement>('#lb-mapsize-width')
+    if (largura === null) throw new Error('campo da largura ausente')
+    expect(largura.value).toBe('30')
+    expect(document.body.querySelector<HTMLInputElement>('#lb-mapsize-height')?.value).toBe('10')
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(largura, '40')
+      largura.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => document.body.querySelector<HTMLButtonElement>('#lb-mapsize-apply')?.click())
+    expect(onApply).toHaveBeenCalledTimes(1)
+    expect(onApply).toHaveBeenCalledWith(40, 10)
+  })
+
   it('mudar o campo grava; Esc fecha', () => {
     const onVisionCellsChange = vi.fn()
     const onClose = vi.fn()

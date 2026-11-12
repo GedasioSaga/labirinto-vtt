@@ -3488,6 +3488,12 @@ function App() {
           dark: sceneMap.dark === true,
           onDarkChange: aberta ? setSceneDark : (dark) => mudarFundo((m) => mapFactory.setSceneDark(m, dark)),
         }}
+        // O mesmo tamanho das Configurações do mapa: a cena aberta pela ação da store (1 Ctrl+Z), a de fundo pelo cache.
+        mapSize={{
+          width: sceneMap.width,
+          height: sceneMap.height,
+          onApply: aberta ? setMapSize : (width, height) => mudarFundo((m) => mapFactory.setMapSize(m, width, height)),
+        }}
         mapType={{
           tipo: isContinente(sceneMap) ? 'continente' : 'normal',
           onTipoChange: aberta ? setTipoDeMapa : (tipo) => mudarFundo((m) => mapFactory.setTipoDeMapa(m, tipo)),
