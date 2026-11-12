@@ -55,5 +55,6 @@ export function comHoraDoSalvar(textoDoMapa: string, horaMs: number): string {
     return textoDoMapa
   }
   if (typeof mapa !== 'object' || mapa === null || Array.isArray(mapa)) return textoDoMapa
-  return JSON.stringify({ ...mapa, [CAMPO_DA_HORA_DO_SALVAR]: hora }, null, 2)
+  // Sem indentação, como `serializeMap` (caça 12/11/2026, O8).
+  return JSON.stringify({ ...mapa, [CAMPO_DA_HORA_DO_SALVAR]: hora })
 }

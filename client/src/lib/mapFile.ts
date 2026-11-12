@@ -130,11 +130,16 @@ export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeCol
  */
 export const LEGACY_FLOOR_STYLE: FloorStyle = { fillColor: '#006b00', strokeColor: null, strokeWidth: 1 }
 
+/**
+ * O texto do `map.json`, SEM indentação (caça 12/11/2026, O8: o Reino de Goa
+ * caía de 2031 para 1442 kB, e a cópia de recuperação a cada 10 s junto). É o
+ * mesmo JSON: o app de qualquer versão lê igual.
+ */
 export function serializeMap(map: MapData): string {
   // CAMADAS: `modeloCamadas` é cópia em memória do modelo da aventura (para o Ctrl+Z); não vai ao arquivo.
-  if (map.modeloCamadas === undefined) return JSON.stringify(map, null, 2)
+  if (map.modeloCamadas === undefined) return JSON.stringify(map)
   const { modeloCamadas: _soEmMemoria, ...semModelo } = map
-  return JSON.stringify(semModelo, null, 2)
+  return JSON.stringify(semModelo)
 }
 
 export function deserializeMap(json: string): MapData {
