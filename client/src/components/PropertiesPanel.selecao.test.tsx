@@ -375,7 +375,7 @@ describe('painel de propriedades — faixa da seleção e ordem por tarefa', () 
     const faixa = corpo()?.firstElementChild
     expect(faixa?.textContent).toContain('Salao')
     expect(faixa?.textContent).toContain('Sala')
-    expect(botoesComTexto(/^Apagar região selecionada$/)).toHaveLength(1)
+    expect(botoesComTexto(/^Apagar sala selecionada$/)).toHaveLength(1)
   })
 
   it('peça do chão selecionada: sem "Chão do mapa" nem Camadas, mas "Camadas do chão" (das peças) fica; nada selecionado, os três moram na página Cena', () => {

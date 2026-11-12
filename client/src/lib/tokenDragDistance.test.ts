@@ -6,42 +6,42 @@ const GRID = 64
 
 describe('formatarQuadrados', () => {
   it('inteiro sai sem casa decimal e no plural', () => {
-    expect(formatarQuadrados(5)).toBe('5 quadrados')
-    expect(formatarQuadrados(12)).toBe('12 quadrados')
+    expect(formatarQuadrados(5)).toBe('5 casas')
+    expect(formatarQuadrados(12)).toBe('12 casas')
   })
 
-  it('um quadrado sai no singular', () => {
-    expect(formatarQuadrados(1)).toBe('1 quadrado')
+  it('uma casa sai no singular', () => {
+    expect(formatarQuadrados(1)).toBe('1 casa')
   })
 
   it('fração usa vírgula decimal (pt-BR) e uma casa', () => {
-    expect(formatarQuadrados(1.5)).toBe('1,5 quadrados')
-    expect(formatarQuadrados(2.44)).toBe('2,4 quadrados')
+    expect(formatarQuadrados(1.5)).toBe('1,5 casas')
+    expect(formatarQuadrados(2.44)).toBe('2,4 casas')
   })
 
-  it('zero continua no plural — "0 quadrado" seria errado em português', () => {
-    expect(formatarQuadrados(0)).toBe('0 quadrados')
+  it('zero continua no plural — "0 casa" seria errado em português', () => {
+    expect(formatarQuadrados(0)).toBe('0 casas')
   })
 
   it('não põe separador de milhar num mapa gigante', () => {
-    expect(formatarQuadrados(1500)).toBe('1500 quadrados')
+    expect(formatarQuadrados(1500)).toBe('1500 casas')
   })
 })
 
 describe('rotuloDeQuadradosAndados', () => {
-  it('5 células à direita, grade quadrada, dá "5 quadrados"', () => {
+  it('5 células à direita, grade quadrada, dá "5 casas"', () => {
     expect(rotuloDeQuadradosAndados({ x: 416, y: 672 }, { x: 736, y: 672 }, GRID, 'square', 'chessboard')).toBe(
-      '5 quadrados',
+      '5 casas',
     )
   })
 
-  it('1 célula à direita dá "1 quadrado" — o caso que a jornada compara com o de 5', () => {
+  it('1 célula à direita dá "1 casa" — o caso que a jornada compara com o de 5', () => {
     expect(rotuloDeQuadradosAndados({ x: 672, y: 672 }, { x: 736, y: 672 }, GRID, 'square', 'chessboard')).toBe(
-      '1 quadrado',
+      '1 casa',
     )
   })
 
-  it('ficha parada não mostra nada, em vez de escrever "0 quadrados" por cima do gesto', () => {
+  it('ficha parada não mostra nada, em vez de escrever "0 casas" por cima do gesto', () => {
     expect(rotuloDeQuadradosAndados({ x: 736, y: 672 }, { x: 736, y: 672 }, GRID, 'square', 'chessboard')).toBeNull()
   })
 
@@ -70,8 +70,8 @@ describe('rotuloDeQuadradosAndados', () => {
   it('respeita o modo da mesa: 3.5e (5-10-5) cobra a diagonal diferente de 5e', () => {
     const origem = { x: 0, y: 0 }
     const atual = { x: GRID * 3, y: GRID * 3 }
-    expect(rotuloDeQuadradosAndados(origem, atual, GRID, 'square', 'chessboard')).toBe('3 quadrados')
-    expect(rotuloDeQuadradosAndados(origem, atual, GRID, 'square', 'alternating')).toBe('4 quadrados')
+    expect(rotuloDeQuadradosAndados(origem, atual, GRID, 'square', 'chessboard')).toBe('3 casas')
+    expect(rotuloDeQuadradosAndados(origem, atual, GRID, 'square', 'alternating')).toBe('4 casas')
   })
 
   it('grade hexagonal usa a distância de hex, não a de quadrado', () => {

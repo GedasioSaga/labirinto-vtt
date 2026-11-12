@@ -37,10 +37,10 @@ describe('SceneVisionControls', () => {
     })
   }
 
-  it('campo rotulado, em quadrados, vazio quando a cena não tem valor', () => {
+  it('campo rotulado, em casas, vazio quando a cena não tem valor', () => {
     act(() => root.render(<SceneVisionControls visionCells={undefined} onVisionCellsChange={vi.fn()} />))
     const label = container.querySelector('label[for="lb-scene-vision"]')
-    expect(label?.textContent).toBe('Visão nesta cena (quadrados)')
+    expect(label?.textContent).toBe('Visão nesta cena (casas)')
     expect(input().value).toBe('')
     expect(input().type).toBe('number')
   })

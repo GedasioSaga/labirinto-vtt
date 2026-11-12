@@ -94,7 +94,7 @@ describe('FichaDoObjeto', () => {
 
   it('tapete: Tipo e Forma no essencial; Aparência fechada; No mapa aberta com a camada; Para os jogadores fechada', () => {
     montar(<FichaDoObjeto prop={criarMovel('tapete', { x: 300, y: 200 }, 64, 't1')} {...ligacoes()} />)
-    expect(tituloOculto()).toBe('Móvel')
+    expect(tituloOculto()).toBe('Objeto')
     const essencial = container.querySelector('.gr-essencial')
     expect(essencial?.querySelector('select')).not.toBeNull()
     expect(essencial?.querySelector('[role="radiogroup"][aria-label="Forma"]')).not.toBeNull()

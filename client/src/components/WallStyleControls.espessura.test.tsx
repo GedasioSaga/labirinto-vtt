@@ -17,7 +17,7 @@ import { WallStyleControls, type WallStyleControlsProps } from './WallStyleContr
  * `aria-describedby`, e abre ao pairar ou ao chegar pelo teclado.
  */
 
-const FRASE = `No ajuste fino a parede vai até ${WALL_WIDTH_WORLD_MAX} px, uma célula inteira de muralha. Acompanha o zoom do mapa.`
+const FRASE = `No ajuste fino a parede vai até ${WALL_WIDTH_WORLD_MAX} px, uma casa inteira de muralha. Acompanha o zoom do mapa.`
 
 let corpo: HTMLDivElement
 let root: Root

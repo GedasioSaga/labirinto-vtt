@@ -254,20 +254,20 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
       act(() => form.requestSubmit())
     }
 
-    it('abre com o tamanho atual em quadros, rótulos ligados aos campos e a explicação de onde entra o espaço novo', () => {
+    it('abre com o tamanho atual em casas, rótulos ligados aos campos e a explicação de onde entra o espaço novo', () => {
       render(makeProps().props)
       openDialog()
       expect(field('lb-mapsize-width').value).toBe('30')
       expect(field('lb-mapsize-height').value).toBe('10')
-      expect(document.body.querySelector('label[for="lb-mapsize-width"]')?.textContent).toBe('Largura (quadros)')
-      expect(document.body.querySelector('label[for="lb-mapsize-height"]')?.textContent).toBe('Altura (quadros)')
+      expect(document.body.querySelector('label[for="lb-mapsize-width"]')?.textContent).toBe('Largura (casas)')
+      expect(document.body.querySelector('label[for="lb-mapsize-height"]')?.textContent).toBe('Altura (casas)')
       expect(dialog()?.textContent).toContain('Tamanho do mapa')
       expect(document.body.querySelector('#lb-mapsize-hint')?.textContent).toContain('à direita e embaixo')
       // Nada mudou ainda: não há o que aplicar.
       expect(applyButton().disabled).toBe(true)
     })
 
-    it('Mina +20 quadrados: largura 50 e Aplicar chama onApply(50, 10) uma vez', () => {
+    it('Mina +20 casas: largura 50 e Aplicar chama onApply(50, 10) uma vez', () => {
       const { props, onMapSizeApply } = makeProps()
       render(props)
       openDialog()
@@ -308,7 +308,7 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
       expect(width.getAttribute('aria-invalid')).toBe('true')
       const errorId = width.getAttribute('aria-describedby') ?? ''
       expect(errorId).toContain('lb-mapsize-width-error')
-      expect(document.getElementById('lb-mapsize-width-error')?.textContent).toBe('Use um número inteiro de 1 para cima.')
+      expect(document.getElementById('lb-mapsize-width-error')?.textContent).toBe('Use um número inteiro de 1 a 500.')
       expect(document.activeElement).toBe(width)
 
       // O erro some assim que o valor fica válido.
@@ -319,17 +319,25 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
       expect(onMapSizeApply).toHaveBeenCalledWith(42, 10)
     })
 
-    it('campo vazio ou com fração também não aplica', () => {
+    it('campo vazio, com fração ou acima do teto de 500 casas também não aplica', () => {
       const { props, onMapSizeApply } = makeProps()
       render(props)
       openDialog()
       type(field('lb-mapsize-height'), '')
       submit()
-      expect(document.getElementById('lb-mapsize-height-error')?.textContent).toBe('Use um número inteiro de 1 para cima.')
+      expect(document.getElementById('lb-mapsize-height-error')?.textContent).toBe('Use um número inteiro de 1 a 500.')
       type(field('lb-mapsize-height'), '2.5')
       submit()
       expect(onMapSizeApply).not.toHaveBeenCalled()
       expect(field('lb-mapsize-height').value).toBe('2.5')
+      // O teto da decisão 18 (E15): 501 recusa com a mesma frase; 500 passa.
+      type(field('lb-mapsize-height'), '501')
+      submit()
+      expect(onMapSizeApply).not.toHaveBeenCalled()
+      expect(document.getElementById('lb-mapsize-height-error')?.textContent).toBe('Use um número inteiro de 1 a 500.')
+      type(field('lb-mapsize-height'), '500')
+      submit()
+      expect(onMapSizeApply).toHaveBeenCalledWith(30, 500)
     })
 
     it('quando o mapa muda de tamanho por fora, os campos acompanham', () => {

@@ -100,12 +100,12 @@ function clicar(alvo: HTMLElement | null | undefined, detail = 1) {
 }
 
 describe('FichaDoPino: essencial', () => {
-  it('abre com o título de antes, o Tipo com "!" e "?" só de ícone e os campos do local', () => {
+  it('abre com o título "Pino", o Tipo com "!" e "?" só de ícone e os campos do local', () => {
     const props = propsDoPino('exclamacao', 'p-essencial')
     montar(<FichaDoPino {...props} />)
     const ficha = container.querySelector('section.lb-ficha-do-pino')
     // O primeiro título da ficha: as jornadas acham o painel por ele.
-    expect(ficha?.querySelector('h2, h3')?.textContent).toBe('Ponto de interesse')
+    expect(ficha?.querySelector('h2, h3')?.textContent).toBe('Pino')
     const tipo = container.querySelector('[role="radiogroup"][aria-label="Tipo do pino"]')
     const radios = [...(tipo?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])]
     expect(radios.map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Exclamação (!)', 'Interrogação (?)', 'Viagem', 'Alavanca', 'Minigame'])
@@ -241,7 +241,7 @@ describe('FichaDoPino: recursos', () => {
 })
 
 describe('CabecaDaSelecao do pino', () => {
-  it('a medalha do tipo, o nome do local, o tipo embaixo e o Excluir de antes', () => {
+  it('a medalha do tipo, o nome do local, o tipo embaixo e o Apagar', () => {
     const onApagar = vi.fn()
     montar(
       <CabecaDaSelecao identidade={pinIdentity('viagem', 'Subida para a Cidade Alta')} rotuloApagar={EXCLUIR_PINO.viagem} onApagar={onApagar} acoes={[]} notaDasAcoes={null} />,
@@ -249,13 +249,13 @@ describe('CabecaDaSelecao do pino', () => {
     expect(container.textContent).toContain('Subida para a Cidade Alta')
     expect(container.textContent).toContain('Pino de viagem')
     expect(container.querySelector('.gr-cabeca__med svg')).not.toBeNull()
-    clicar(container.querySelector<HTMLButtonElement>('button[aria-label="Excluir pino de viagem"]'))
+    clicar(container.querySelector<HTMLButtonElement>('button[aria-label="Apagar pino de viagem"]'))
     expect(onApagar).toHaveBeenCalledTimes(1)
     // Sem ação rara no pino: o "Mais ações" não aparece (menu sem ação é controle falso).
     expect(container.querySelector('button[aria-label="Mais ações"]')).toBeNull()
   })
 
   it('pino sem nome: a cabeça diz o tipo', () => {
-    expect(pinIdentity('exclamacao', '   ')).toEqual({ icon: 'pin', type: 'Ponto de interesse', name: null, pinKind: 'exclamacao' })
+    expect(pinIdentity('exclamacao', '   ')).toEqual({ icon: 'pin', type: 'Pino', name: null, pinKind: 'exclamacao' })
   })
 })

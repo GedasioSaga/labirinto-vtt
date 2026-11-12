@@ -60,12 +60,12 @@ describe('selectionIdentity — o que a cabeça diz', () => {
     expect(selectionIdentity({ kind: 'token', count: 3 }, NADA)).toEqual({ icon: 'several', type: 'Seleção', name: '3 itens' })
   })
 
-  it('móvel diz o que é ("Mesa", "Cama"); peça de imagem é "Peça"', () => {
+  it('móvel diz o que é ("Mesa", "Cama"); objeto de imagem é "Objeto de imagem"', () => {
     const deImagem: Prop = { id: 'o', src: 'x.png', x: 0, y: 0, width: 40, height: 40, linkedMapPath: null }
     const movel = (mobilia: Prop['mobilia']): Prop => ({ ...deImagem, src: '', mobilia })
     expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('mesa') })).toEqual({ icon: 'mobilia', type: 'Mesa', name: null, mobilia: 'mesa' })
     expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: movel('catre') })).toEqual({ icon: 'mobilia', type: 'Cama', name: null, mobilia: 'catre' })
-    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: deImagem })).toEqual({ icon: 'prop', type: 'Peça', name: null })
+    expect(selectionIdentity({ kind: 'prop', count: 1 }, { ...NADA, prop: deImagem })).toEqual({ icon: 'prop', type: 'Objeto de imagem', name: null })
   })
 
   it('o tipo repete, letra por letra, o botão da ferramenta que cria a coisa', () => {

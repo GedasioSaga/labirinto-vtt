@@ -45,7 +45,7 @@ describe('SceneSettingsDialog', () => {
     abrir(3)
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('Configurar Mina')
     expect(document.body.querySelector<HTMLInputElement>('#lb-scene-vision')?.value).toBe('3')
-    expect(radar()?.getAttribute('aria-label')).toBe('Prévia: o jogador vê 3 quadrados em volta')
+    expect(radar()?.getAttribute('aria-label')).toBe('Prévia: o jogador vê 3 casas em volta')
   })
 
   it('cena escura aparece no radar; sem valor, a legenda fala do raio padrão', () => {

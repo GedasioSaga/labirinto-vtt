@@ -108,9 +108,9 @@ describe('painel de propriedades — o móvel selecionado', () => {
   it('a mesa: o cabeçalho diz "Mesa"; o essencial (Tipo) vem antes das fichas Aparência e No mapa', () => {
     renderObjeto(MESA)
     expect(cabecalho()).toBe('Mesa')
-    // O título "Móvel" fica só para o leitor de tela; o "Objeto" de antes virou a ficha "No mapa".
-    expect(h2('Móvel')).not.toBeNull()
-    expect(h2('Objeto')).toBeNull()
+    // O título só para o leitor de tela é "Objeto" também no móvel desenhado (caça 12/11, E20: um nome só).
+    expect(h2('Objeto')).not.toBeNull()
+    expect(h2('Móvel')).toBeNull()
     expect(antes(campo('Tipo'), interruptor('Preencher'))).toBe(true)
     expect(antes(interruptor('Preencher'), interruptor('Travado'))).toBe(true)
   })
@@ -209,9 +209,9 @@ describe('painel de propriedades — o móvel selecionado', () => {
     expect(opcao('Frente')?.getAttribute('aria-checked')).toBe('false')
   })
 
-  it('objeto de imagem: cabeçalho "Peça" e nada de seção "Móvel"', () => {
+  it('objeto de imagem: cabeçalho "Objeto de imagem" e nada de seção "Móvel"', () => {
     renderObjeto(DE_IMAGEM)
-    expect(cabecalho()).toBe('Peça')
+    expect(cabecalho()).toBe('Objeto de imagem')
     expect(h2('Objeto')).not.toBeNull()
     expect(h2('Móvel')).toBeNull()
     expect(campo('Tipo')).toBeNull()

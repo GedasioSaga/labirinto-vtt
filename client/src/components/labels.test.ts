@@ -49,7 +49,7 @@ describe('deleteSelectionLabel', () => {
     expect(deleteSelectionLabel('wall')).toBe('Apagar parede selecionada')
     expect(deleteSelectionLabel('light')).toBe('Apagar luz selecionada')
     expect(deleteSelectionLabel('region')).toBe('Apagar região selecionada')
-    expect(deleteSelectionLabel('prop')).toBe('Apagar peça selecionada')
+    expect(deleteSelectionLabel('prop')).toBe('Apagar objeto selecionado')
     expect(deleteSelectionLabel('drawing')).toBe('Apagar desenho selecionado')
     expect(deleteSelectionLabel('floor')).toBe('Apagar peça de chão selecionada')
   })

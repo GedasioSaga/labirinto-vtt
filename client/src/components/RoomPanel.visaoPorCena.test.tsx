@@ -70,11 +70,11 @@ describe('RoomPanel — fator de visão', () => {
     }
   })
 
-  it('cena com "Visão nesta cena": mostra os quadrados dele ali e esconde o raio em px', () => {
+  it('cena com "Visão nesta cena": mostra as casas dele ali e esconde o raio em px', () => {
     const { container, fechar } = comMaisAberto(player({ visionFactor: 1.5, sceneVisionCells: 6 }))
     try {
       const out = container.innerHTML
-      expect(out).toContain('Nesta cena: 9 quadrados')
+      expect(out).toContain('Nesta cena: 9 casas')
       expect(out).not.toContain('Raio de visão')
       expect(out).not.toContain('700 px')
     } finally {

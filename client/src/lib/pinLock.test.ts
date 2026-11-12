@@ -96,19 +96,19 @@ describe('lockDoorOptions', () => {
     return { id, x1: x, y1: 75, x2: x, y2: 125, blocksLight: true, blocksMove: true, door: { open: false, locked, kind: 'normal' } }
   }
 
-  it('só as trancadas, da mais perto para a mais longe, pela distância em quadros', () => {
+  it('só as trancadas, da mais perto para a mais longe, pela distância em casas', () => {
     const parede: Wall = { id: 'parede', x1: 150, y1: 0, x2: 150, y2: 50, blocksLight: true, blocksMove: true, door: null }
     const m = mapa([cofre()], [portaEm('longe', 450, true), portaEm('livre', 200, false), portaEm('perto', 200, true), parede])
     expect(lockDoorOptions(m, cofre())).toEqual([
-      { id: 'perto', label: 'Porta trancada a 2 quadros' },
-      { id: 'longe', label: 'Porta trancada a 7 quadros' },
+      { id: 'perto', label: 'Porta trancada a 2 casas' },
+      { id: 'longe', label: 'Porta trancada a 7 casas' },
     ])
   })
 
   it('a já ligada entra mesmo destrancada', () => {
     const pino = cofre({ segredo: { resposta: '1', forma: 'teclado', abrePorta: 'livre' } })
     const m = mapa([pino], [portaEm('livre', 150, false)])
-    expect(lockDoorOptions(m, pino)).toEqual([{ id: 'livre', label: 'Porta a 1 quadro (já destrancada)' }])
+    expect(lockDoorOptions(m, pino)).toEqual([{ id: 'livre', label: 'Porta a 1 casa (já destrancada)' }])
   })
 })
 

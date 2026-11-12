@@ -97,7 +97,7 @@ describe('TokenWatchControls', () => {
     expect(opcao('Para onde olha', 'Leste').getAttribute('aria-checked')).toBe('false')
     expect(grupo('Para onde olha').querySelectorAll('button')).toHaveLength(8)
     expect(opcao('Abertura do olhar', '60 graus').getAttribute('aria-checked')).toBe('true')
-    expect(opcao('Alcance', '9 quadrados').getAttribute('aria-checked')).toBe('true')
+    expect(opcao('Alcance', '9 casas').getAttribute('aria-checked')).toBe('true')
   })
 
   it('cada escolha pede a vigia inteira com só aquele campo trocado', () => {
@@ -107,7 +107,7 @@ describe('TokenWatchControls', () => {
     expect(onWatchChange).toHaveBeenLastCalledWith({ ...NORTE_60, direcao: 135 })
     act(() => opcao('Abertura do olhar', 'Em volta').click())
     expect(onWatchChange).toHaveBeenLastCalledWith({ ...NORTE_60, abertura: 360 })
-    act(() => opcao('Alcance', '3 quadrados').click())
+    act(() => opcao('Alcance', '3 casas').click())
     expect(onWatchChange).toHaveBeenLastCalledWith({ ...NORTE_60, alcance: 3 })
   })
 

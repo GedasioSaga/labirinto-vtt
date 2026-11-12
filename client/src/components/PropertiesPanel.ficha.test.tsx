@@ -129,7 +129,7 @@ describe('painel de propriedades — a ficha do token (fatia 9)', () => {
   it('Nome e Condições nascem abertas; No mapa e Levar, fechadas com o resumo; a escolha vale para o próximo token', () => {
     renderFicha(GUARDA, daAventura(GUARDA))
     expect(cabecalhos().map((b) => b.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'false', 'false'])
-    expect(texto(cabecalho('No mapa')?.querySelector('.gr-ficha__resumo'))).toBe('1 quadrado')
+    expect(texto(cabecalho('No mapa')?.querySelector('.gr-ficha__resumo'))).toBe('1 casa')
     expect(corpoDa('No mapa')?.hasAttribute('inert')).toBe(true)
     act(() => cabecalho('No mapa')?.click())
     expect(cabecalho('No mapa')?.getAttribute('aria-expanded')).toBe('true')

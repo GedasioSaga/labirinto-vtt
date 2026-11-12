@@ -1,6 +1,6 @@
 /**
- * "Carregar Mapa": o "Excluir" troca a linha por uma pergunta. O Esc nela só
- * cancela — o mestre continua na lista, com o foco de volta no Excluir daquela
+ * "Carregar Mapa": o "Apagar" troca a linha por uma pergunta. O Esc nela só
+ * cancela — o mestre continua na lista, com o foco de volta no Apagar daquela
  * linha —, o foco começa no botão seguro, e apagar e duplicar avisam que
  * deu certo.
  */
@@ -87,9 +87,9 @@ function teclar(alvo: Element | null, key: string): void {
 }
 
 describe('LoadMapScreen: a pergunta "Apagar mapa?"', () => {
-  it('Excluir abre a pergunta como alertdialog, com nome, e o foco no Cancelar', async () => {
+  it('Apagar abre a pergunta como alertdialog, com nome, e o foco no Cancelar', async () => {
     await abrirTela()
-    act(() => botao(linha('Cripta'), 'Excluir').click())
+    act(() => botao(linha('Cripta'), 'Apagar').click())
     const caixa = pergunta()
     expect(caixa).not.toBeNull()
     const titulo = document.getElementById(caixa?.getAttribute('aria-labelledby') ?? '')
@@ -97,25 +97,25 @@ describe('LoadMapScreen: a pergunta "Apagar mapa?"', () => {
     expect(document.activeElement).toBe(caixa === null ? null : botao(caixa, 'Cancelar'))
   })
 
-  it('Esc na pergunta só cancela: o mestre continua na lista e o foco volta ao Excluir da linha', async () => {
+  it('Esc na pergunta só cancela: o mestre continua na lista e o foco volta ao Apagar da linha', async () => {
     const onBack = vi.fn()
     await abrirTela(onBack)
-    act(() => botao(linha('Cripta'), 'Excluir').click())
+    act(() => botao(linha('Cripta'), 'Apagar').click())
     teclar(document.activeElement, 'Escape')
     expect(onBack).not.toHaveBeenCalled()
     expect(pergunta()).toBeNull()
-    expect(document.activeElement).toBe(botao(linha('Cripta'), 'Excluir'))
+    expect(document.activeElement).toBe(botao(linha('Cripta'), 'Apagar'))
     expect(arquivos.deleteMap).not.toHaveBeenCalled()
   })
 
-  it('Cancelar no clique também devolve o foco ao Excluir daquela linha', async () => {
+  it('Cancelar no clique também devolve o foco ao Apagar daquela linha', async () => {
     await abrirTela()
-    act(() => botao(linha('Cripta'), 'Excluir').click())
+    act(() => botao(linha('Cripta'), 'Apagar').click())
     const caixa = pergunta()
     if (caixa === null) throw new Error('sem a pergunta')
     act(() => botao(caixa, 'Cancelar').click())
     expect(pergunta()).toBeNull()
-    expect(document.activeElement).toBe(botao(linha('Cripta'), 'Excluir'))
+    expect(document.activeElement).toBe(botao(linha('Cripta'), 'Apagar'))
   })
 
   it('controle: sem pergunta aberta, o Esc continua voltando ao menu', async () => {
@@ -130,7 +130,7 @@ describe('LoadMapScreen: apagar e duplicar avisam', () => {
   it('Apagar confirmado avisa "<nome>" apagado.', async () => {
     arquivos.deleteMap.mockResolvedValue(undefined)
     await abrirTela()
-    act(() => botao(linha('Cripta'), 'Excluir').click())
+    act(() => botao(linha('Cripta'), 'Apagar').click())
     arquivos.listSavedMaps.mockResolvedValue([TAVERNA])
     const caixa = pergunta()
     if (caixa === null) throw new Error('sem a pergunta')
@@ -154,7 +154,7 @@ describe('LoadMapScreen: apagar e duplicar avisam', () => {
   it('apagar que falha não avisa sucesso: só o erro', async () => {
     arquivos.deleteMap.mockRejectedValue(new Error('arquivo em uso'))
     await abrirTela()
-    act(() => botao(linha('Cripta'), 'Excluir').click())
+    act(() => botao(linha('Cripta'), 'Apagar').click())
     const caixa = pergunta()
     if (caixa === null) throw new Error('sem a pergunta')
     act(() => botao(caixa, 'Apagar').click())

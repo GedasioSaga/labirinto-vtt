@@ -176,7 +176,7 @@ describe('Carregar Mapa: pastas', () => {
     await criarPastaCampanha()
     await soltar('taverna', secao('Pasta Campanha'))
     const cabecalho = secao('Pasta Campanha')
-    await clicar(botao('Excluir', cabecalho))
+    await clicar(botao('Apagar', cabecalho))
     expect(container.querySelector('[role="alertdialog"]')?.textContent).toContain('nenhum mapa é apagado')
     await clicar(botao('Apagar pasta'))
     expect(container.querySelector('section[aria-label="Pasta Campanha"]')).toBeNull()

@@ -71,7 +71,7 @@ function ficha(titulo: string): HTMLElement {
 describe('FichaDoPino: o ícone do marcador', () => {
   it('um título só; o ícone mora na Aparência, depois do Tipo, que fica no essencial', () => {
     act(() => root.render(<FichaDoPino {...props()} />))
-    expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toEqual(['Ponto de interesse'])
+    expect(Array.from(container.querySelectorAll('h2')).map((h) => h.textContent)).toEqual(['Pino'])
     const tipo = grupo('Tipo do pino')
     const icone = grupo('Ícone no mapa')
     const aparencia = ficha('Aparência')
@@ -112,6 +112,6 @@ describe('PinControls: a ferramenta Pino armada, sem pino aberto', () => {
       root.render(<PinControls {...props()} description={null} onDelete={() => {}} iconChoice={{ icon: null, onIconChange: () => {}, pinSelected: false }} />),
     )
     expect(grupo('Ícone no mapa')).not.toBeNull()
-    expect(container.textContent).toContain('Vale para o próximo ponto de interesse que você cravar.')
+    expect(container.textContent).toContain('Vale para o próximo pino que você cravar.')
   })
 })
