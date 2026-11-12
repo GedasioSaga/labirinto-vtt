@@ -1137,6 +1137,18 @@ export function setGridCellSize(map: MapData, cellSize: number): MapData {
 /** Teto do lado do mapa, em casas (caça de 12/11/2026, E15, decisão 18: o mestre escolheu 500). */
 export const MAP_SIDE_MAX = 500
 
+/**
+ * Lado digitado acima do teto vira o teto (caça 12/11, P22): "Criar mapa" e a
+ * janela "Tamanho do mapa" criam ou aplicam com 500 e dizem isto, em vez de
+ * recusar. Abaixo do teto o valor passa como veio (quem valida é o chamador).
+ */
+export function ladoNoTeto(value: number): number {
+  return value > MAP_SIDE_MAX ? MAP_SIDE_MAX : value
+}
+
+/** O aviso de quando o lado digitado passou do teto e virou `MAP_SIDE_MAX`. */
+export const AVISO_DO_TETO_DO_MAPA = `O mapa tem no máximo ${MAP_SIDE_MAX} casas de lado.`
+
 /** Lado do mapa aceito por `setMapSize`: inteiro de 1 a `MAP_SIDE_MAX` casas. */
 export function isValidMapSide(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= MAP_SIDE_MAX

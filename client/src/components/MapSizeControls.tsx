@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { MAP_SIDE_MAX, isValidMapSide } from '../lib/mapFactory'
+import { AVISO_DO_TETO_DO_MAPA, MAP_SIDE_MAX, isValidMapSide, ladoNoTeto } from '../lib/mapFactory'
 
 export interface MapSizeControlsProps {
   /** `MapData.width` atual, em quadros. */
@@ -14,11 +14,20 @@ export interface MapSizeControlsProps {
 
 const SIDE_ERROR = `Use um número inteiro de 1 a ${MAP_SIDE_MAX}.`
 
-/** Texto do campo como lado do mapa; `null` = vazio, zero, negativo, fração ou lixo. */
+/**
+ * Texto do campo como lado do mapa; `null` = vazio, zero, negativo, fração ou
+ * lixo. Inteiro acima do teto vira o teto (caça 12/11, P22: aplica 500 e avisa).
+ */
 function parseSide(text: string): number | null {
   if (text.trim() === '') return null
-  const value = Number(text)
+  const value = passaDoTeto(text) ? ladoNoTeto(Number(text)) : Number(text)
   return isValidMapSide(value) ? value : null
+}
+
+/** O campo pede mais que o teto (e `parseSide` o trouxe para 500). */
+function passaDoTeto(text: string): boolean {
+  const value = Number(text)
+  return Number.isInteger(value) && value > MAP_SIDE_MAX
 }
 
 /**
@@ -49,6 +58,10 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
   const widthError = showErrors && nextWidth === null
   const heightError = showErrors && nextHeight === null
   const unchanged = nextWidth === width && nextHeight === height
+  // Aplicado com o teto: os campos voltam a dizer 500 (efeito acima), e o aviso
+  // fica até a próxima tecla, para o mestre saber por que não é o que digitou.
+  const [tetoAplicado, setTetoAplicado] = useState(false)
+  const avisoDoTeto = passaDoTeto(widthText) || passaDoTeto(heightText) || tetoAplicado
 
   function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -56,6 +69,11 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
       setShowErrors(true)
       ;(nextWidth === null ? widthRef : heightRef).current?.focus()
       return
+    }
+    if (passaDoTeto(widthText) || passaDoTeto(heightText)) {
+      setWidthText(String(nextWidth))
+      setHeightText(String(nextHeight))
+      setTetoAplicado(true)
     }
     if (unchanged) return
     // O botão desabilita quando o tamanho novo chega: o foco não pode ficar
@@ -83,7 +101,10 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
             value={widthText}
             aria-invalid={widthError || undefined}
             aria-describedby={widthError ? 'lb-mapsize-width-error lb-mapsize-hint' : 'lb-mapsize-hint'}
-            onChange={(event) => setWidthText(event.target.value)}
+            onChange={(event) => {
+              setWidthText(event.target.value)
+              setTetoAplicado(false)
+            }}
           />
           {widthError && (
             <p id="lb-mapsize-width-error" className="lb-field__error">
@@ -107,13 +128,20 @@ export function MapSizeControls({ width, height, onApply }: MapSizeControlsProps
             value={heightText}
             aria-invalid={heightError || undefined}
             aria-describedby={heightError ? 'lb-mapsize-height-error lb-mapsize-hint' : 'lb-mapsize-hint'}
-            onChange={(event) => setHeightText(event.target.value)}
+            onChange={(event) => {
+              setHeightText(event.target.value)
+              setTetoAplicado(false)
+            }}
           />
           {heightError && (
             <p id="lb-mapsize-height-error" className="lb-field__error">
               {SIDE_ERROR}
             </p>
           )}
+        </div>
+
+        <div id="lb-mapsize-teto" role="status">
+          {avisoDoTeto && <p className="lb-field__hint">{AVISO_DO_TETO_DO_MAPA}</p>}
         </div>
 
         <p id="lb-mapsize-hint" className="lb-field__hint">

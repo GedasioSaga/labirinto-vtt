@@ -37,4 +37,27 @@ describe('NewDungeonMap', () => {
     expect(onCreate).toHaveBeenCalledTimes(1)
     expect(onCreate.mock.calls[0]?.[0].offFloor).toBe('free')
   })
+
+  it('caça 12/11 (P22): 2000 casas viram 500, o app avisa e o campo não fica barrado pelo navegador', () => {
+    const onCreate = vi.fn<(map: MapData) => void>()
+    act(() => root.render(<NewDungeonMap onCreate={onCreate} onBack={vi.fn()} />))
+    const largura = container.querySelector<HTMLInputElement>('#lb-map-width')
+    const form = container.querySelector('form')
+    if (largura === null || form === null) throw new Error('formulário do mapa novo ausente')
+    const aviso = () => container.querySelector('#lb-map-teto')?.textContent
+    expect(aviso()).toBe('')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(largura, '2000')
+      largura.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(aviso()).toBe('O mapa tem no máximo 500 casas de lado.')
+    // Sem `max`, o navegador não barra o envio (rangeOverflow era o que impedia o mapa de nascer).
+    expect(largura.validity.valid).toBe(true)
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    expect(onCreate.mock.calls[0]?.[0].width).toBe(500)
+  })
 })

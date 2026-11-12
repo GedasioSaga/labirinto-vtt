@@ -44,8 +44,18 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
 
   // Normalização única, usada pela prévia E pela criação — campo vazio ou
   // inválido mostra o mapa que realmente vai nascer.
-  const safeWidth = Math.min(mapFactory.MAP_SIDE_MAX, Math.max(1, Math.round(width) || 30))
-  const safeHeight = Math.min(mapFactory.MAP_SIDE_MAX, Math.max(1, Math.round(height) || 20))
+  const safeWidth = mapFactory.ladoNoTeto(Math.max(1, Math.round(width) || 30))
+  const safeHeight = mapFactory.ladoNoTeto(Math.max(1, Math.round(height) || 20))
+  // Caça 12/11 (P22): lado acima do teto vira 500 e o app diz isso, em vez do
+  // navegador barrar o "Criar mapa" calado. O aviso fica enquanto o campo passa
+  // do teto e, depois que o campo volta a 500 ao sair dele, até a próxima tecla.
+  const [tetoAplicado, setTetoAplicado] = useState(false)
+  const passouDoTeto = width > mapFactory.MAP_SIDE_MAX || height > mapFactory.MAP_SIDE_MAX || tetoAplicado
+  const prenderNoTeto = (valor: number, definir: (lado: number) => void) => {
+    if (valor <= mapFactory.MAP_SIDE_MAX) return
+    definir(mapFactory.MAP_SIDE_MAX)
+    setTetoAplicado(true)
+  }
   const safeGrid = Math.max(1, Math.round(gridSize) || 64)
 
   /**
@@ -110,9 +120,13 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
                 className="lb-input"
                 type="number"
                 min={1}
-                max={mapFactory.MAP_SIDE_MAX}
                 value={width}
-                onChange={(event) => setWidth(Number(event.target.value))}
+                aria-describedby="lb-map-teto"
+                onChange={(event) => {
+                  setWidth(Number(event.target.value))
+                  setTetoAplicado(false)
+                }}
+                onBlur={() => prenderNoTeto(width, setWidth)}
               />
             </div>
             <div className="lb-field">
@@ -124,11 +138,21 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
                 className="lb-input"
                 type="number"
                 min={1}
-                max={mapFactory.MAP_SIDE_MAX}
                 value={height}
-                onChange={(event) => setHeight(Number(event.target.value))}
+                aria-describedby="lb-map-teto"
+                onChange={(event) => {
+                  setHeight(Number(event.target.value))
+                  setTetoAplicado(false)
+                }}
+                onBlur={() => prenderNoTeto(height, setHeight)}
               />
             </div>
+          </div>
+          {/* Sem `max` nos campos: com ele o navegador barrava o envio acima de
+              500 com a frase dele, e o mapa não nascia. A região viva existe
+              sempre, para o leitor de tela anunciar quando a frase aparece. */}
+          <div id="lb-map-teto" role="status">
+            {passouDoTeto && <p className="lb-field__hint">{mapFactory.AVISO_DO_TETO_DO_MAPA}</p>}
           </div>
 
           <div className="lb-field">

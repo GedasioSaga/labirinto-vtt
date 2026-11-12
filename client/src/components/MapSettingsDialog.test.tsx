@@ -319,7 +319,7 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
       expect(onMapSizeApply).toHaveBeenCalledWith(42, 10)
     })
 
-    it('campo vazio, com fração ou acima do teto de 500 casas também não aplica', () => {
+    it('campo vazio ou com fração não aplica; acima do teto de 500 casas aplica 500 e avisa', () => {
       const { props, onMapSizeApply } = makeProps()
       render(props)
       openDialog()
@@ -330,14 +330,18 @@ describe('MapSettingsButton / MapSettingsDialog', () => {
       submit()
       expect(onMapSizeApply).not.toHaveBeenCalled()
       expect(field('lb-mapsize-height').value).toBe('2.5')
-      // O teto da decisão 18 (E15): 501 recusa com a mesma frase; 500 passa.
-      type(field('lb-mapsize-height'), '501')
-      submit()
-      expect(onMapSizeApply).not.toHaveBeenCalled()
-      expect(document.getElementById('lb-mapsize-height-error')?.textContent).toBe('Use um número inteiro de 1 a 500.')
-      type(field('lb-mapsize-height'), '500')
+      // O teto da decisão 18 (E15), caça 12/11 P22: 2000 vira 500, com o aviso do app, e aplica.
+      type(field('lb-mapsize-height'), '2000')
+      expect(document.getElementById('lb-mapsize-teto')?.textContent).toBe('O mapa tem no máximo 500 casas de lado.')
+      expect(applyButton().textContent).toBe('Aplicar 30 × 500')
       submit()
       expect(onMapSizeApply).toHaveBeenCalledWith(30, 500)
+      expect(document.getElementById('lb-mapsize-height-error')).toBeNull()
+      expect(field('lb-mapsize-height').value).toBe('500')
+      expect(document.getElementById('lb-mapsize-teto')?.textContent).toBe('O mapa tem no máximo 500 casas de lado.')
+      // A próxima tecla tira o aviso.
+      type(field('lb-mapsize-height'), '40')
+      expect(document.getElementById('lb-mapsize-teto')?.textContent).toBe('')
     })
 
     it('quando o mapa muda de tamanho por fora, os campos acompanham', () => {
