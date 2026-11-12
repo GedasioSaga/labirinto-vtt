@@ -22,6 +22,7 @@ import { congelarNoMapa, descongelarTudoNoMapa } from '../lib/congelar'
 import type { SeatHold } from '../lib/gatherParty'
 import type { Bounds, Camera, Point } from '../pixi/world'
 import * as mapFactory from '../lib/mapFactory'
+import { comForaDoChaoDeCenaNova, type OffFloor } from '../lib/offFloor'
 import { moverNaCena, planejarRotina, type CenaDaRotina, type MovimentoDaRotina } from '../lib/rotinaDoNpc'
 import { pisoDe } from '../lib/pisos'
 import { travessiaDaFicha, type SceneHistory } from '../lib/travessiaDaFicha'
@@ -1361,6 +1362,9 @@ function aventuraDoMapaSolto(
  * abri-la. No mapa solto a aventura nasce aqui, com ele como primeira cena.
  * `besideOpen`: a cena nova entra na pasta da cena aberta; senão, no primeiro
  * nível. Devolve o id e o que gravar no estado.
+ *
+ * A cena nasce com "Fora do Chão" LIVRE (`lib/offFloor.ts`); `offFloorHerdado`
+ * é o valor da cena de onde o andar novo sai, quando ela tem o campo.
  */
 function withEmptyScene(
   state: AdventureState,
@@ -1368,6 +1372,7 @@ function withEmptyScene(
   name: string,
   loosePath: string | null,
   besideOpen: boolean,
+  offFloorHerdado?: OffFloor,
 ): { id: string; patch: Partial<AdventureState> } {
   const { adventure, activeSceneId, nascimento } =
     state.adventure === null || state.activeSceneId === null
@@ -1375,7 +1380,10 @@ function withEmptyScene(
       : { adventure: state.adventure, activeSceneId: state.activeSceneId, nascimento: {} }
   const id = newSceneId()
   const sceneName = cleanSceneName(name)
-  const map = mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, sceneName, live.width, live.height, live.grid)
+  const map = comForaDoChaoDeCenaNova(
+    mapFactory.createEmptyMap(`map_${crypto.randomUUID()}`, sceneName, live.width, live.height, live.grid),
+    offFloorHerdado,
+  )
   const openId = activeSceneId
   const parentId = besideOpen ? adventure.scenes.find((entry) => entry.id === openId)?.parentId : undefined
   const entry: SceneEntry = { id, name: sceneName, file: sceneFileFor(id), ...(parentId === undefined ? {} : { parentId }) }
@@ -2178,7 +2186,8 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const building = buildingOfStair(live, stair)
     const openName = state.adventure.scenes.find((entry) => entry.id === state.activeSceneId)?.name ?? live.name
     const base = building?.room !== undefined && building.room.name.trim().length > 0 ? building.room.name : openName
-    const { id, patch } = withEmptyScene(state, live, newFloorName(base, floorSideOf(stair.direction)), null, true)
+    // FORA DO CHÃO: o andar novo segue a escolha da cena de onde a escada sai, se ela tem o campo.
+    const { id, patch } = withEmptyScene(state, live, newFloorName(base, floorSideOf(stair.direction)), null, true, live.offFloor)
     set(patch)
     if (building !== null) get().updateBackgroundScene(id, (map) => withBuildingContour(map, live, building, () => crypto.randomUUID()))
     // A escada par no MESMO ponto: o contorno é o mesmo, então quem sobe chega onde estava.

@@ -11,6 +11,7 @@ import type {
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
 import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
+import type { OffFloor } from '../lib/offFloor'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -1469,6 +1470,8 @@ interface MapStoreState {
   setSceneVisionCells: (cells: number | undefined) => void
   /** "Cena escura" (`MapData.dark`). Com histórico. */
   setSceneDark: (dark: boolean) => void
+  /** "Fora do Chão" da cena aberta (`MapData.offFloor`, `lib/offFloor.ts`). Com histórico; escolher o que já vale não cria passo. */
+  setSceneOffFloor: (offFloor: OffFloor) => void
   /** "Rostos só de perto: N casas" da cena; `null` desliga. Ver `mapFactory.setFaceRangeCells`. */
   setFaceRangeCells: (cells: number | null) => void
   setScenarioLink: (value: string | null) => void
@@ -3394,6 +3397,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (mapFactory.setSceneDark(get().map, dark) === get().map) return
       withHistory((map) => mapFactory.setSceneDark(map, dark))
     },
+    setSceneOffFloor: (offFloor) => passoSeMudou((map) => mapFactory.setSceneOffFloor(map, offFloor)),
     setFaceRangeCells: (cells) => withHistory((map) => mapFactory.setFaceRangeCells(map, cells)),
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({

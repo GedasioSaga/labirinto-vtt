@@ -48,6 +48,15 @@ export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'>): FloorPi
 }
 
 /**
+ * A cena tem Chão de verdade: alguma peça que soma e não está escondida, a
+ * mesma conta de `compileFloor` (`bounds`). Sem nenhuma, a borda não existe e
+ * a opção não muda nada: a janela da cena mostra o controle desligado.
+ */
+export function cenaTemChao(map: Pick<MapData, 'floor'>): boolean {
+  return map.floor.some((peca) => peca.op === 'add' && peca.hidden !== true)
+}
+
+/**
  * O valor do arquivo, só se servir. O resto (texto qualquer, booleano, arquivo
  * editado à mão) é AUSENTE, que é bloqueado: valor torto nunca abre a visão.
  */

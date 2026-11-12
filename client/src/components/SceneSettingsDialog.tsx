@@ -76,7 +76,8 @@ export function VisionPreview({ cells, dark }: { cells: number; dark: boolean })
 export const SECAO_MAPA_VIVO = 'mapa-vivo'
 
 /**
- * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena,
+ * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena
+ * (com o "Fora do Chão" de 12/11/2026, `SceneVisionControls`),
  * com o radar ao lado, o "Tamanho do mapa" (11/11/2026), o "Tipo de mapa" (09/10/2026) e o "Mapa vivo" (fatia
  * 20: Relevo, Nomes dos lugares, Nuvens). Abre pelo botão de engrenagem na
  * linha da cena, e pelo "Mapa vivo" da página Cena.

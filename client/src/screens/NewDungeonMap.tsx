@@ -2,6 +2,7 @@ import './MainMenu.css'
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { MapData, GridShape } from '../types/map'
 import * as mapFactory from '../lib/mapFactory'
+import { comForaDoChaoDeCenaNova } from '../lib/offFloor'
 import { GridShapePicker } from '../components/GridShapePicker'
 import { MapPreview } from '../components/MapPreview'
 import { Toggle } from '../components/Toggle'
@@ -55,13 +56,16 @@ export function NewDungeonMap({ onCreate, onBack }: NewDungeonMapProps) {
    * (largura, altura, quadro, formato) e desenhava a grade SEMPRE, enquanto o
    * mapa nascia com `showGrid: false`. Com um objeto só não há onde divergir —
    * o que a prévia mostra é literalmente o que vai ser criado.
+   *
+   * Mapa novo nasce com "Fora do Chão" livre (`lib/offFloor.ts`).
    */
   const draftMap = useMemo<MapData>(
-    () => ({
-      ...mapFactory.createEmptyMap(mapId, name.trim() || 'Mapa sem título', safeWidth, safeHeight, safeGrid),
-      gridShape,
-      showGrid,
-    }),
+    () =>
+      comForaDoChaoDeCenaNova({
+        ...mapFactory.createEmptyMap(mapId, name.trim() || 'Mapa sem título', safeWidth, safeHeight, safeGrid),
+        gridShape,
+        showGrid,
+      }),
     [mapId, name, safeWidth, safeHeight, safeGrid, gridShape, showGrid],
   )
 

@@ -43,6 +43,7 @@ import { isContinente } from './lib/marcadorDeContinente'
 import { relevoLigado } from './lib/relevo'
 import { nomesDosLugaresLigados } from './lib/nomesDosLugares'
 import { nuvensLigadas } from './lib/nuvens'
+import { cenaTemChao, foraDoChaoLivre } from './lib/offFloor'
 import { laserStrokeEnded, useLaserStore } from './stores/laserStore'
 import { usePlayerLaserStore } from './stores/playerLaserStore'
 import { useMedidasDosJogadoresStore } from './stores/medidasDosJogadoresStore'
@@ -755,6 +756,7 @@ function App() {
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setSceneDark = useMapStore((state) => state.setSceneDark)
+  const setSceneOffFloor = useMapStore((state) => state.setSceneOffFloor)
   const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
   const setRelevo = useMapStore((state) => state.setRelevo)
   const setNomesDosLugares = useMapStore((state) => state.setNomesDosLugares)
@@ -3488,6 +3490,10 @@ function App() {
           onVisionCellsChange: aberta ? setSceneVisionCells : (cells) => mudarFundo((m) => mapFactory.setSceneVisionCells(m, cells)),
           dark: sceneMap.dark === true,
           onDarkChange: aberta ? setSceneDark : (dark) => mudarFundo((m) => mapFactory.setSceneDark(m, dark)),
+          // "Fora do Chão": cena sem o campo é bloqueada; sem peça de Chão o controle aparece desligado.
+          offFloor: foraDoChaoLivre(sceneMap) ? 'free' : 'blocked',
+          temChao: cenaTemChao(sceneMap),
+          onOffFloorChange: aberta ? setSceneOffFloor : (offFloor) => mudarFundo((m) => mapFactory.setSceneOffFloor(m, offFloor)),
         }}
         // O mesmo tamanho das Configurações do mapa: a cena aberta pela ação da store (1 Ctrl+Z), a de fundo pelo cache.
         mapSize={{

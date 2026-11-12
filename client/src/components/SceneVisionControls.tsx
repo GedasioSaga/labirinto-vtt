@@ -1,3 +1,4 @@
+import type { OffFloor } from '../lib/offFloor'
 import { SCENE_VISION_CELLS_MAX, SCENE_VISION_CELLS_MIN, readSceneVisionCells } from '../lib/sceneVision'
 import { Toggle } from './Toggle'
 
@@ -8,6 +9,28 @@ export interface SceneVisionControlsProps {
   /** "Cena escura" (`MapData.dark`). Ausente omite o toggle. */
   dark?: boolean
   onDarkChange?: (dark: boolean) => void
+  /**
+   * "Fora do Chão" da cena (`MapData.offFloor`, `lib/offFloor.ts`), já
+   * resolvido: cena sem o campo chega aqui como `'blocked'`. Sem
+   * `onOffFloorChange` o controle não aparece.
+   */
+  offFloor?: OffFloor
+  onOffFloorChange?: (offFloor: OffFloor) => void
+  /** A cena tem alguma peça de Chão? Sem nenhuma não há borda para barrar, e o controle fica desligado. */
+  temChao?: boolean
+}
+
+const OPCOES_DO_FORA_DO_CHAO: readonly { valor: OffFloor; rotulo: string }[] = [
+  { valor: 'blocked', rotulo: 'Bloqueado' },
+  { valor: 'free', rotulo: 'Livre' },
+]
+
+/** A linha embaixo do "Fora do Chão": o que a escolha faz, ou por que não há o que escolher. */
+function dicaDoForaDoChao(offFloor: OffFloor, temChao: boolean): string {
+  if (!temChao) return 'Esta cena não tem Chão: a ficha já anda e enxerga em qualquer lugar.'
+  return offFloor === 'free'
+    ? 'A ficha anda e enxerga em qualquer lugar. Só parede, porta, escuridão e o alcance da visão limitam.'
+    : 'A ficha do jogador só anda e enxerga dentro do Chão desta cena.'
 }
 
 /**
@@ -18,8 +41,20 @@ export interface SceneVisionControlsProps {
  *
  * "Cena escura": o jogador só vê a casa em volta da ficha e o que uma Luz
  * ilumina, mesmo além do raio (`lib/darkness.ts`).
+ *
+ * "Fora do Chão" (pedido de 12/11/2026): Bloqueado, a ficha do jogador só anda
+ * e enxerga dentro das peças de Chão da cena; Livre, o Chão vira só pintura
+ * (`lib/offFloor.ts`). Escolha única no padrão `lb-seg` do "Tipo de mapa".
  */
-export function SceneVisionControls({ visionCells, onVisionCellsChange, dark, onDarkChange }: SceneVisionControlsProps) {
+export function SceneVisionControls({
+  visionCells,
+  onVisionCellsChange,
+  dark,
+  onDarkChange,
+  offFloor,
+  onOffFloorChange,
+  temChao = true,
+}: SceneVisionControlsProps) {
   function change(text: string) {
     if (text.trim() === '') {
       onVisionCellsChange(undefined)
@@ -61,6 +96,30 @@ export function SceneVisionControls({ visionCells, onVisionCellsChange, dark, on
             O jogador só vê a casa em volta da ficha e o que uma Luz ilumina, mesmo de longe. Você continua vendo tudo.
           </p>
         </>
+      )}
+      {offFloor !== undefined && onOffFloorChange !== undefined && (
+        <div className="lb-field">
+          <span className="lb-label">Fora do Chão</span>
+          <div className="lb-seg" role="radiogroup" aria-label="Fora do Chão" aria-describedby="lb-scene-offfloor-hint">
+            {OPCOES_DO_FORA_DO_CHAO.map((opcao) => (
+              <button
+                key={opcao.valor}
+                type="button"
+                role="radio"
+                // Sem Chão nenhuma opção acende: o marcado pintaria de latão um controle que não vale nada aqui.
+                aria-checked={temChao && offFloor === opcao.valor}
+                className="lb-seg__option"
+                disabled={!temChao}
+                onClick={() => onOffFloorChange(opcao.valor)}
+              >
+                {opcao.rotulo}
+              </button>
+            ))}
+          </div>
+          <p id="lb-scene-offfloor-hint" className="lb-field__hint">
+            {dicaDoForaDoChao(offFloor, temChao)}
+          </p>
+        </div>
       )}
     </section>
   )
