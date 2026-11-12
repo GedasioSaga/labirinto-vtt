@@ -34,8 +34,8 @@ import {
  *     ├ chamas   (as línguas de cada fogo, de trás para a frente, e as fagulhas)
  *     └ fumaça   (as nuvens de cada fogo)
  *
- * Na tela do jogador, brilho e fumaça passam pelo recorte do que ele enxerga
- * (`recortar`, achado V4 da caça de 12/11/2026); as línguas não.
+ * Na tela do jogador, brilho, línguas, fagulhas e fumaça passam pelo recorte do
+ * que ele enxerga (`recortar`, achados V4 e P33 da caça de 12/11/2026).
  *
  * Três subcamadas: a fumaça de um fogo não fica embaixo da chama do vizinho. As
  * formas são as da fogueira, desenhadas UMA vez por tela; por quadro só mudam
@@ -95,9 +95,10 @@ export interface OpcoesDosFogos {
 }
 
 /**
- * Onde o BRILHO e a FUMAÇA aparecem na tela do jogador, em px de mundo (caça de
- * 12/11/2026, achado V4). A camada fica acima da névoa (a casa queimando vista
- * de fora); sem o recorte, a fumaça e o clarão subiam por cima do preto.
+ * Onde o fogo (brilho, línguas, fagulhas e fumaça) aparece na tela do jogador,
+ * em px de mundo (caça de 12/11/2026, achados V4 e P33). A camada fica acima da
+ * névoa (a casa queimando vista de fora); sem o recorte, a fumaça, o clarão, a
+ * ponta da chama e a fagulha subiam por cima do preto.
  */
 export interface RecorteDosFogos {
   /** Os anéis da visão e os telhados que ele recebeu (o telhado fica acima da névoa): só aí. */
@@ -117,10 +118,10 @@ export interface FogosDoMapa {
   /** A câmera andou: o fogo fora de `vista` sai do relógio (`null` = sem recorte). */
   ajustarAVista: (vista: CaixaDaVista | null) => void
   /**
-   * O recorte da tela do JOGADOR: brilho e fumaça só onde ele enxerga (ou em
-   * cima de um telhado), nunca no preto da zona oculta; as línguas ficam como
-   * estão (só chega fogo que o recorte do mestre deixou passar). `null` (a tela
-   * do mestre) = sem recorte. Só refaz quando alguma lista muda.
+   * O recorte da tela do JOGADOR: brilho, línguas, fagulhas e fumaça só onde
+   * ele enxerga (ou em cima de um telhado), nunca no preto da zona oculta (caça
+   * 12/11, P33: a ponta da chama e a fagulha passavam para o preto). `null` (a
+   * tela do mestre) = sem recorte. Só refaz quando alguma lista muda.
    */
   recortar: (recorte: RecorteDosFogos | null) => void
   estado: () => EstadoDosFogos
@@ -276,10 +277,13 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
   // de fora com a máscara do que ele vê e o de dentro sem o preto das zonas
   // ocultas (o molde de `particulasDoMapa.ts`). As máscaras moram na camada e
   // andam com o mundo; as do mesmo par dividem o desenho (o mesmo contexto).
-  // As línguas (`chamas`) não entram: o fogo que chega é o que o mestre deixou passar.
+  // As línguas e as fagulhas (`chamas`) vão no embrulho do brilho, por cima dele
+  // (caça 12/11, P33): a ponta da chama que passa da parede e a fagulha que voa
+  // para o preto não aparecem; em cima do telhado que ele recebeu, sim (o
+  // telhado entra no que ele vê). Nenhuma máscara a mais por quadro.
   const brilhosNoQueVe = new Container()
   const brilhosForaDoOculto = new Container()
-  brilhosForaDoOculto.addChild(brilhos)
+  brilhosForaDoOculto.addChild(brilhos, chamas)
   brilhosNoQueVe.addChild(brilhosForaDoOculto)
   const fumacaNoQueVe = new Container()
   const fumacaForaDoOculto = new Container()
@@ -290,7 +294,7 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
   const ocultoDoBrilho = new Graphics()
   const ocultoDaFumaca = new Graphics(ocultoDoBrilho.context)
   for (const mascara of [mascaraDoBrilho, mascaraDaFumaca, ocultoDoBrilho, ocultoDaFumaca]) mascara.visible = false
-  camada.addChild(brilhosNoQueVe, chamas, fumacaNoQueVe, mascaraDoBrilho, mascaraDaFumaca, ocultoDoBrilho, ocultoDaFumaca)
+  camada.addChild(brilhosNoQueVe, fumacaNoQueVe, mascaraDoBrilho, mascaraDaFumaca, ocultoDoBrilho, ocultoDaFumaca)
 
   const fogos = new Map<string, FogoNoPalco>()
   const pose: PoseReescrita = novaPose()

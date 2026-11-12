@@ -16,7 +16,7 @@ function fogo(id: string, x: number, y: number, width: number, height: number): 
 }
 
 function linguasNaCamada(camada: Container, id: string): number {
-  const chamas = camada.children.find((no) => no.label === 'chamas')
+  const chamas = camada.getChildByLabel('chamas', true)
   const doFogo = chamas?.children.find((no) => no.label === `fogo:${id}`)
   return (doFogo?.children ?? []).filter((no) => no instanceof Graphics && no.label === 'borda').length
 }
@@ -48,7 +48,7 @@ describe('fogosDoMapa', () => {
     fogos.ajustarAVista({ minX: 20000, minY: 20000, maxX: 20800, maxY: 20600 })
     expect(fogos.estado()).toEqual({ fogos: 2, naVista: 0, animando: false })
     expect(ticker.remove).toHaveBeenCalledTimes(1)
-    const chamas = fogos.camada.children.find((no) => no.label === 'chamas')
+    const chamas = fogos.camada.getChildByLabel('chamas', true)
     expect(chamas?.children.every((no) => no.renderable === false)).toBe(true)
 
     // Volta para o perto: só ele desenha e o relógio volta.
@@ -61,6 +61,31 @@ describe('fogosDoMapa', () => {
     // O fogo apagado do mapa sai; sem fogo nenhum, o relógio sai também.
     fogos.sincronizar([], TELA)
     expect(fogos.estado()).toEqual({ fogos: 0, naVista: 0, animando: false })
+    fogos.destruir()
+  })
+
+  it('caça 12/11 (P33): na tela do jogador as línguas e as fagulhas passam pelo recorte da visão e da zona oculta; no mestre, não', () => {
+    /** As máscaras acima do nó, até a camada (a do que ele vê e a da zona oculta, invertida). */
+    const mascarasAcima = (no: Container | null): unknown[] => {
+      const out: unknown[] = []
+      // Sem máscara o Pixi devolve `undefined` ou `null`, conforme o nó já teve uma.
+      for (let n = no; n !== null && n !== undefined; n = n.parent) if (n.mask !== null && n.mask !== undefined) out.push(n.mask)
+      return out
+    }
+    const fogos = createFogosDoMapa()
+    fogos.sincronizar([fogo('lareira', 100, 100, 50, 50)], TELA)
+    const chamas = fogos.camada.getChildByLabel('chamas', true)
+    const brilhos = fogos.camada.getChildByLabel('brilhos', true)
+    expect(mascarasAcima(chamas)).toEqual([])
+    const anel = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }]
+    fogos.recortar({ ver: [anel], esconder: [anel] })
+    // As mesmas duas máscaras do brilho: o que ele vê e, invertida, a zona oculta.
+    expect(mascarasAcima(chamas)).toHaveLength(2)
+    expect(mascarasAcima(chamas)).toEqual(mascarasAcima(brilhos))
+    // A ordem fica: brilho embaixo, línguas por cima dele.
+    expect(chamas?.parent?.children.indexOf(chamas)).toBeGreaterThan(brilhos?.parent?.children.indexOf(brilhos) ?? Infinity)
+    fogos.recortar(null)
+    expect(mascarasAcima(chamas)).toEqual([])
     fogos.destruir()
   })
 })

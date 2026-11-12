@@ -3577,9 +3577,9 @@ function PlayerViewDoCanvas({
     redrawConcealed(scene, currentConcealed)
     redrawFarLights(scene)
     redrawRoofs(scene, regions, currentPeek, currentMap.id, currentMap.grid)
-    // FOGO (V4): o brilho e a fumaça só onde ele enxerga, ou em cima de um
-    // telhado que ele recebeu (o telhado fica acima da névoa: a casa queimando
-    // vista de fora); nunca no preto da zona oculta. As línguas ficam como estão.
+    // FOGO (V4, P33): o brilho, as línguas, as fagulhas e a fumaça só onde ele
+    // enxerga, ou em cima de um telhado que ele recebeu (o telhado fica acima da
+    // névoa: a casa queimando vista de fora); nunca no preto da zona oculta.
     scene.fogos.recortar({
       ver: [...currentVision, ...regions.filter((r) => roomHasRoof(r.room) && r.points.length >= 3).map((r) => r.points)],
       esconder: currentConcealed,
