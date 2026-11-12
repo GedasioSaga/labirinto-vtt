@@ -39,8 +39,12 @@ export function moveNoticeText(reason: TokenMoveRejection): string {
   return MOVE_NOTICE_TEXT[reason]
 }
 
-/** CLICAR PARA ANDAR: por que a caminhada não saiu (ou parou no host). O cercado reusa "Lugar ocupado". */
-type AvisoDaCaminhada = MotivoDaCaminhada | Exclude<AvisoDoClique, 'occupied'>
+/**
+ * CLICAR PARA ANDAR: por que a caminhada não saiu (ou parou no host). O cercado
+ * reusa "Lugar ocupado" e o destino fora do Chão reusa "Fora do chão", as
+ * frases da recusa do host (`MOVE_NOTICE_TEXT`).
+ */
+type AvisoDaCaminhada = MotivoDaCaminhada | Exclude<AvisoDoClique, 'occupied' | 'outside_floor'>
 const CAMINHADA_NOTICE_TEXT: Record<AvisoDaCaminhada, string> = {
   caminhada_desligada: 'O mestre desligou o clicar para andar nesta cena',
   // A mesma frase do item "Andar até aqui" esmaecido no menu do toque longo.

@@ -296,6 +296,23 @@ export function findKnownPath(map: PathMap, from: Point, target: Point, area: Kn
   return r.tipo === 'caminho' ? r.trechos : null
 }
 
+/**
+ * O destino é um ponto que o jogador CONHECE, mas fica fora do Chão que limita
+ * a cena (`chaoQueLimita`)? É o que separa o aviso "Fora do chão" do "Você não
+ * conhece o caminho" no clique que não saiu.
+ *
+ * Só responde sim no conhecido: no escuro e em zona oculta a resposta é não, e
+ * o aviso continua o de antes. Senão o texto contaria ao jogador onde o Chão
+ * acaba debaixo da névoa.
+ */
+export function destinoConhecidoForaDoChao(map: PathMap, target: Point, area: KnownArea): boolean {
+  if (![target.x, target.y].every(Number.isFinite) || !mapaValido(map)) return false
+  const to = roundPoint(target)
+  const chao = chaoDe(chaoQueLimita(map))
+  if (chao.bounds === null || chao.sample(to.x, to.y) <= 0) return false
+  return isPointKnown(area, to)
+}
+
 function roundPoint(p: Point): Point {
   return { x: Math.round(p.x), y: Math.round(p.y) }
 }

@@ -1,6 +1,6 @@
 import type { MapData, Token } from '../types/map'
 import type { Point } from '../pixi/world'
-import { caminhoConhecido, isPointKnown, type KnownArea } from './knownPath'
+import { caminhoConhecido, destinoConhecidoForaDoChao, isPointKnown, type KnownArea } from './knownPath'
 import { mapaParaAndar } from './barranco'
 import { pisoDe } from './pisos'
 import { MAX_PATH_SAMPLES } from './moveValidation'
@@ -18,8 +18,12 @@ import { findOccupant, tokensOccupy } from './movementRules'
 /** As recusas que só o trecho marcado recebe do host. */
 export type MotivoDaCaminhada = 'caminhada_desligada' | 'nevoa'
 
-/** Por que o clique não virou caminhada (o aviso do rodapé). */
-export type AvisoDoClique = 'caminhada_desligada' | 'caminho_desconhecido' | 'occupied'
+/**
+ * Por que o clique não virou caminhada (o aviso do rodapé). `outside_floor` é
+ * o destino que ele vê, mas fica fora do Chão de uma cena em "Fora do Chão:
+ * bloqueado" (`lib/offFloor.ts`): a mesma recusa que o arrasto recebe do host.
+ */
+export type AvisoDoClique = 'caminhada_desligada' | 'caminho_desconhecido' | 'occupied' | 'outside_floor'
 
 export type PlanoDaCaminhada = { tipo: 'andar'; trechos: Point[]; destino: Point } | { tipo: 'aviso'; motivo: AvisoDoClique }
 
@@ -104,7 +108,9 @@ export function planejarCaminhada(map: MapData, quemAnda: Token, alvo: Point, ar
   const mapaQueAnda = mapaParaAndar(map, pisoDe(quemAnda))
   if (!ocupado(destinoPedido)) {
     const r = caminhoConhecido(mapaQueAnda, quemAnda, destinoPedido, area)
-    return r.tipo === 'caminho' ? { tipo: 'andar', trechos: r.trechos, destino: destinoPedido } : { tipo: 'aviso', motivo: 'caminho_desconhecido' }
+    if (r.tipo === 'caminho') return { tipo: 'andar', trechos: r.trechos, destino: destinoPedido }
+    // Ele conhece o ponto; quem barra é a borda do Chão. No escuro, a frase de sempre.
+    return { tipo: 'aviso', motivo: destinoConhecidoForaDoChao(mapaQueAnda, destinoPedido, area) ? 'outside_floor' : 'caminho_desconhecido' }
   }
   let tentadas = 0
   for (const casa of casasEmVolta(map, alvo)) {
