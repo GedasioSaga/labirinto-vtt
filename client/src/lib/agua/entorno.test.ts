@@ -21,11 +21,11 @@ const sala = (id: string, pontos: RegionPoint[], extra: Partial<Region> = {}): R
 const entornoDe = (regioes: Region[], lado = 20): ReturnType<typeof entornoDaAgua> => entornoDaAgua({ largura: lado * G, altura: lado * G, regioes, ocultas: [], chao: [], props: [] })
 
 /** O valor do campo no ponto (px de mundo): a distância com sinal até a margem, ou o buraco (0 a 255). */
-function noPonto(c: CampoComposto | null, px: number, py: number, canal: 'sd' | 'buraco'): number {
+function noPonto(c: CampoComposto | null, px: number, py: number, canal: 'sd' | 'buraco' | 'semAreia'): number {
   if (c === null) return Number.NaN
   const k = 40 / G
   const i = (Math.floor((py * k) / c.texel) - c.y0) * c.w + (Math.floor((px * k) / c.texel) - c.x0)
-  return canal === 'sd' ? c.f1[i * 4] : c.f4[i * 4]
+  return canal === 'sd' ? c.f1[i * 4] : canal === 'buraco' ? c.f4[i * 4] : c.f4[i * 4 + 1]
 }
 
 describe('o mar e o mapa em volta', () => {
@@ -56,6 +56,19 @@ describe('o mar e o mapa em volta', () => {
     // Na beira junto da sala (0,2 casa dela) não há margem: a água ali não é rasa; longe dela, é como antes.
     for (const c of [comPier, semFundo]) expect(noPonto(c, 9.3 * G, 10.1 * G, 'sd')).toBeGreaterThan(noPonto(semNada, 9.3 * G, 10.1 * G, 'sd') + 5)
     expect(noPonto(comPier, 5 * G, 10.1 * G, 'sd')).toBe(noPonto(semNada, 5 * G, 10.1 * G, 'sd'))
+  })
+
+  it('a faixa de areia não contorna a ponta da margem: sem areia a menos de meia casa da sala, areia além', () => {
+    // Construção de salas entrando meia casa no mar (beira de cima em y = 10): a beira de x 7,5 a 12,5 não é margem.
+    const a = mar(rect(0, 10, 20, 20))
+    const c = campoDasAguas([a], G, entornoDe([sala('doca', rect(8, 6, 12, 10.5))]))
+    // Na areia (0,3 casa acima da beira): a 0,25 casa da sala, sem areia; a 1 e a 2 casas, areia como antes.
+    expect(noPonto(c, 7.75 * G, 9.7 * G, 'semAreia')).toBeGreaterThanOrEqual(250)
+    expect(noPonto(c, 12.3 * G, 9.7 * G, 'semAreia')).toBeGreaterThanOrEqual(250)
+    expect(noPonto(c, 7 * G, 9.7 * G, 'semAreia')).toBe(0)
+    expect(noPonto(c, 6 * G, 9.7 * G, 'semAreia')).toBe(0)
+    // Sem nada em volta a areia é a de sempre (o canal só nasce com o pincel ou com beira que não é margem).
+    expect(noPonto(campoDasAguas([a], G), 7.75 * G, 9.7 * G, 'semAreia')).toBe(0)
   })
 
   it('o Chão Liso fica por cima de uma água só com mais da metade dele nela; o de fundo fica por baixo, e a peça vale só naquela água', () => {

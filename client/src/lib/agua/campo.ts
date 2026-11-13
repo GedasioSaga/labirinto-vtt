@@ -75,7 +75,7 @@ export interface CaixaEmTexels {
 
 export interface CampoDoCorpo extends CaixaEmTexels {
   sd: Float32Array
-  /** Só lago e mar com pincel de areia: 0 (com areia) a 255 (sem), da margem mais perto. */
+  /** Só lago e mar com pincel de areia ou com beira que não é margem: 0 (com areia) a 255 (sem), da beira mais perto. */
   semAreia?: Uint8Array
   /** Só rio. */
   s?: Float32Array
@@ -260,7 +260,11 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   const comMarca = c.margem !== undefined && c.margem.some((m) => m !== null)
   const ladoAParte = comMarca && !fechado
   const dm = new Float32Array(n).fill(1e9)
-  const dTodas = ladoAParte ? new Float32Array(n).fill(1e9) : dm
+  const dTodas = comMarca ? new Float32Array(n).fill(1e9) : dm
+  // Com marca, a beira mais perto de cada texel (margem ou não), 0 a 255 = quanto ela é margem: a faixa de areia de um
+  // trecho de margem só vai até onde ele é a beira mais perto. Sem isto a areia contornava a ponta do trecho e encostava
+  // na sala, no Chão Liso e na construção (a beira a menos de meia casa deles não é margem, `entorno.ts`).
+  const margemPerto = comMarca ? new Uint8Array(n).fill(255) : null
   const lado = new Int8Array(n)
   // A areia tirada pelo pincel: o valor da margem mais perto, ao longo do segmento (só até PERTO; além nada se vê).
   const comAreia = c.semAreia !== undefined && c.semAreia.some((s) => s !== null)
@@ -274,7 +278,7 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
     for (let i = 0; i < segmentos; i += 1) {
       const j = (i + 1) % m
       const ehMargem = marca === null || (marca[i] === 1 && marca[j] === 1)
-      if (!ehMargem && !ladoAParte) continue
+      if (!ehMargem && !comMarca) continue
       const ax = xy[i * 2]
       const ay = xy[i * 2 + 1]
       const bx = xy[j * 2]
@@ -299,9 +303,10 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
           const dy = qy - uy * L * t
           const d2 = dx * dx + dy * dy
           const k = (ty - cx.y0) * w + (tx - cx.x0)
-          if (ladoAParte && d2 < dTodas[k]) {
+          if (margemPerto !== null && d2 < dTodas[k]) {
             dTodas[k] = d2
-            lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
+            if (ladoAParte) lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
+            margemPerto[k] = marca === null ? 255 : Math.round(255 * (marca[i] + (marca[j] - marca[i]) * t))
           }
           if (ehMargem && d2 < dm[k]) {
             dm[k] = d2
@@ -362,9 +367,10 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
     const v = Math.min(dm[k], FUNDO)
     sd[k] = dentro[k] === 1 ? v : -v
   }
-  if (sa === null) return { ...cx, sd }
+  if (sa === null && margemPerto === null) return { ...cx, sd }
+  // Sem areia: a tirada pelo pincel e, junto do trecho que não é margem, a que ele não tem (a regra automática vence o "Pôr areia").
   const semAreia = new Uint8Array(n)
-  for (let k = 0; k < n; k += 1) semAreia[k] = Math.round(255 * grampo(sa[k], 0, 1))
+  for (let k = 0; k < n; k += 1) semAreia[k] = Math.max(sa === null ? 0 : Math.round(255 * grampo(sa[k], 0, 1)), margemPerto === null ? 0 : 255 - margemPerto[k])
   return { ...cx, sd, semAreia }
 }
 
