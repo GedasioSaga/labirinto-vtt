@@ -17,6 +17,7 @@ import { createExploration, decodeExploration, encodeExploration, forgetBlocked,
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import { buildFloorOutline, pointInRing } from '../lib/floorContour'
 import { chaoQueLimita, foraDoChaoLivre } from '../lib/offFloor'
+import { comAsAguasDoJogador } from '../lib/agua/comoChao'
 import { cabineAposViagem, cabineDaParada, cabineNaParada, type CabineDeTransporte, type ChamadaAceita, type MovimentoDeCabine } from '../lib/cabine'
 import {
   abaloSetaForPlayer,
@@ -4252,7 +4253,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const esquecerForaDoChao = (memory: SceneMemory, floorMap: MapData, seen?: Exploration): void => {
     const limita = !foraDoChaoLivre(floorMap)
     if (limita && memory.chaoLimitava !== true) {
-      const aneis = buildFloorOutline(chaoQueLimita(floorMap)).flatMap((poligono) => [poligono.outer, ...poligono.holes])
+      // A água conta como Chão só a que ele recebe: a secreta e a da camada Chão escondida não seguram lembrança.
+      const aneis = buildFloorOutline(chaoQueLimita(comAsAguasDoJogador(floorMap))).flatMap((poligono) => [poligono.outer, ...poligono.holes])
       if (aneis.length > 0) {
         forgetOutsideFloor(memory.exp, aneis)
         if (seen !== undefined) forgetOutsideFloor(seen, aneis)

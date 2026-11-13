@@ -1,4 +1,5 @@
-import type { Agua, FloorPiece } from '../../types/map'
+import type { Agua, FloorPiece, MapData } from '../../types/map'
+import { contextoDeCamadas, type CamposDeCamadas } from '../camadas/consulta'
 import { larguraDoRio, pontosMinimos } from './dados'
 import { curvaGuardada } from './forma'
 
@@ -47,6 +48,20 @@ export function aguasDaVisaoDoJogador(aguas: Agua[] | undefined, chaoAVista: boo
   const sem = aguas.filter((a) => a.secret !== true)
   semAsSecretas.set(aguas, sem)
   return sem
+}
+
+/**
+ * O mapa com as águas que limitam o JOGADOR (`aguasDaVisaoDoJogador`), para quem
+ * conta o Chão dele fora do recorte: a lembrança que sobra fora do Chão quando a
+ * cena volta a "Bloqueado" (`hostSession.esquecerForaDoChao`). A água secreta e
+ * a da camada Chão escondida dele não seguram lembrança: contadas, o cinza
+ * lembrado ficava no formato delas (FX-NEVOA2-062). O mesmo mapa quando nada sai.
+ */
+export function comAsAguasDoJogador<M extends Pick<MapData, 'aguas'> & CamposDeCamadas>(map: M): M {
+  // A régua do recorte (`fogFilter.ts`): só o mapa v2 esconde a camada Chão do jogador.
+  const chaoAVista = map.versaoDasCamadas !== 2 || contextoDeCamadas(map).jogadorVe('chao')
+  const aguas = aguasDaVisaoDoJogador(map.aguas, chaoAVista)
+  return aguas === map.aguas ? map : { ...map, aguas }
 }
 
 const guardadas = new WeakMap<readonly FloorPiece[], WeakMap<readonly Agua[], { grid: number; pecas: FloorPiece[] }>>()
