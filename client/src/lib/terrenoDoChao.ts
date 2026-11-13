@@ -33,17 +33,19 @@ export interface MaterialDoChao {
   readonly pedras: boolean
   /** A cor da amostra no painel (a média do material, do protótipo aprovado). */
   readonly amostra: string
+  /** A cor lisa com que o app de antes pintava esse chão (Caminho e tintas do Chão): o "Dar material" acha o material por ela. */
+  readonly hoje: string
 }
 
 /** Os materiais do painel, na ordem do protótipo aprovado. */
 export const MATERIAIS_DO_CHAO: readonly MaterialDoChao[] = [
-  { textura: 'calcamento', nome: 'Calçamento', pedras: true, amostra: '#c9c4b8' },
-  { textura: 'terra', nome: 'Terra batida', pedras: false, amostra: '#977b55' },
-  { textura: 'cascalho', nome: 'Cascalho', pedras: true, amostra: '#b2a68e' },
-  { textura: 'areia', nome: 'Areia', pedras: false, amostra: '#cfbb82' },
-  { textura: 'conves', nome: 'Tábuas', pedras: false, amostra: '#8d6239' },
-  { textura: 'grama', nome: 'Grama', pedras: false, amostra: '#7fc468' },
-  { textura: null, nome: 'Liso', pedras: false, amostra: '#a8776a' },
+  { textura: 'calcamento', nome: 'Calçamento', pedras: true, amostra: '#c9c4b8', hoje: '#6e6e72' },
+  { textura: 'terra', nome: 'Terra batida', pedras: false, amostra: '#977b55', hoje: '#8a6a45' },
+  { textura: 'cascalho', nome: 'Cascalho', pedras: true, amostra: '#b2a68e', hoje: '#8f8a80' },
+  { textura: 'areia', nome: 'Areia', pedras: false, amostra: '#cfbb82', hoje: '#cbb57e' },
+  { textura: 'conves', nome: 'Tábuas', pedras: false, amostra: '#8d6239', hoje: '#8d6239' },
+  { textura: 'grama', nome: 'Grama', pedras: false, amostra: '#7fc468', hoje: '#4a6b35' },
+  { textura: null, nome: 'Liso', pedras: false, amostra: '#a8776a', hoje: '#a8776a' },
 ]
 
 /** Teto do id do material no arquivo (os ids da biblioteca e da importada cabem com folga). */
@@ -234,7 +236,7 @@ const ONDA_FINA_DA_GRAMA = { amplitude: 0.09, escala: 0.12 }
 /** Pedras soltas: lado da célula em que cada uma pode cair, raio, e até onde saem da forma limpa (casas). */
 const PEDRA = { celula: 0.42, raioMin: 0.07, raioVar: 0.07, alcance: 0.4, chance: 0.6 }
 /** Passo da grade do contorno do terreno, em px de mundo (o do Chão). */
-const PASSO_DO_CONTORNO = 2
+const PASSO_DO_CONTORNO = 3
 /** Folga do descarte por caixa, além da fusão. */
 const FOLGA_DO_DESCARTE = 8
 /** Inclinação do `valueNoise` por unidade de entrada, com folga (a mesma conta de `floorSdf.ts`). */
@@ -377,8 +379,8 @@ function campoDoMaterial(floor: readonly FloorPiece[], textura: string, grid: nu
   const bounds = { minX: caixa.minX - folga, minY: caixa.minY - folga, maxX: caixa.maxX + folga, maxY: caixa.maxY + folga }
   const inclinacaoDaBorda =
     bordaMaxima * INCLINACAO_DO_RUIDO * (ONDA_LARGA.amplitude / ONDA_LARGA.escala + fina.amplitude / fina.escala)
-  // A troca de peça mais perto em `bordaPerto` muda a borda aos saltos: a folga de 2 cobre o salto entre dois traços.
-  return { sample, bounds, lipschitz: (1 + inclinacao + inclinacaoDaBorda) * 1.25 * (bordaMaxima > 0 ? 2 : 1) }
+  // A troca de peça mais perto em `bordaPerto` muda a borda aos saltos entre dois traços de borda diferente: a folga de 1,25 cobre o salto pequeno.
+  return { sample, bounds, lipschitz: (1 + inclinacao + inclinacaoDaBorda) * 1.25 }
 }
 
 /** A forma de um material, pronta para o balde: os anéis dele e a posição da peça mais nova. */
@@ -397,14 +399,44 @@ export function formasDoTerreno(floor: readonly FloorPiece[], grid: number, clip
   })
   const formas: FormaDoTerreno[] = []
   for (const [textura, ultima] of ultimas) {
-    const pedras = MATERIAIS_DO_CHAO.some((m) => m.textura === textura && m.pedras)
-    const campo = campoDoMaterial(floor, textura, grid, pedras)
-    if (campo === null || campo.bounds === null) continue
-    const passo = floorSampleStep(campo.bounds, PASSO_DO_CONTORNO)
-    const aneis = aneisDoCampo(campo, { step: passo, clip }).filter((anel) => anel.length >= 3)
+    const aneis = aneisDoMaterial(floor, textura, grid, clip)
     if (aneis.length > 0) formas.push({ textura, aneis, ultima })
   }
   return formas.sort((a, b) => a.ultima - b.ultima)
+}
+
+/** Quantos contornos de material ficam guardados (mexer num caminho não reconta os outros materiais). */
+const CONTORNOS_GUARDADOS = 16
+const contornosRecentes: Array<{ chave: string; aneis: RegionPoint[][] }> = []
+
+/**
+ * Os anéis de um material, guardados pelo DESENHO das peças que contam para
+ * ele (as dele e os buracos depois da primeira), a grade e o recorte: mexer
+ * numa trilha de terra não reconta o calçamento. A conta (o contorno) é a
+ * parte cara do terreno.
+ */
+function aneisDoMaterial(floor: readonly FloorPiece[], textura: string, grid: number, clip?: FloorClip): RegionPoint[][] {
+  const contam: unknown[] = []
+  for (const p of floor) {
+    if (p.hidden === true) continue
+    if (p.op === 'add' ? p.material === textura : contam.length > 0) contam.push([p.shape, p.op, p.rotation ?? 0, p.modifiers, p.borda ?? 0])
+  }
+  const chave = `${textura}|${grid}|${clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''}|${JSON.stringify(contam)}`
+  const k = contornosRecentes.findIndex((e) => e.chave === chave)
+  if (k >= 0) {
+    const [achado] = contornosRecentes.splice(k, 1)
+    contornosRecentes.push(achado)
+    return achado.aneis
+  }
+  const pedras = MATERIAIS_DO_CHAO.some((m) => m.textura === textura && m.pedras)
+  const campo = campoDoMaterial(floor, textura, grid, pedras)
+  const aneis =
+    campo === null || campo.bounds === null
+      ? []
+      : aneisDoCampo(campo, { step: floorSampleStep(campo.bounds, PASSO_DO_CONTORNO), clip }).filter((anel) => anel.length >= 3)
+  contornosRecentes.push({ chave, aneis })
+  if (contornosRecentes.length > CONTORNOS_GUARDADOS) contornosRecentes.shift()
+  return aneis
 }
 
 /**
@@ -464,7 +496,7 @@ export function materialPelaCor(cor: string): string {
   let menor = Infinity
   for (const m of MATERIAIS_DO_CHAO) {
     if (m.textura === null) continue
-    const [mr, mg, mb] = componentes(m.amostra)
+    const [mr, mg, mb] = componentes(m.hoje)
     const d = (r - mr) ** 2 + (g - mg) ** 2 + (b - mb) ** 2
     if (d < menor) {
       menor = d

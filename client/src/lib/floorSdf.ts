@@ -22,8 +22,8 @@ const CULL_MARGIN = 8
 
 type PontoDoCorredor = { x: number; y: number; width: number }
 
-/** Comprimento máximo de um trecho da curva amostrada, em px de mundo (6 px: a curva lê lisa a qualquer zoom). */
-const TRECHO_DA_CURVA = 6
+/** Comprimento máximo de um trecho da curva amostrada, em px de mundo (10 px: lisa na largura de um caminho, e barata na conta do contorno). */
+const TRECHO_DA_CURVA = 10
 /** Teto de trechos por segmento: um segmento enorme não vira milhares de pontos. */
 const TRECHOS_MAXIMOS = 32
 const curvaDoCorredor = new WeakMap<object, PontoDoCorredor[]>()
