@@ -2,7 +2,8 @@ import { BufferImageSource, Container, Geometry, GlProgram, Mesh, Shader, Unifor
 import type { Agua, Periodo } from '../types/map'
 import type { Caixa } from '../lib/texturas'
 import { CASA_U, FORA, campoDoCorpo, comporCampo, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from '../lib/agua/campo'
-import { chaveDaForma, corpoDaAgua, texelDasAguas } from '../lib/agua/corpos'
+import { chaveDoCorpo, corpoDaAgua, texelDasAguas } from '../lib/agua/corpos'
+import type { EntornoDaAgua } from '../lib/agua/entorno'
 import { aquecerPrograma, programaPronto } from './aquecerPrograma'
 
 /**
@@ -291,6 +292,8 @@ export interface EntradaDaAgua {
   cena: string
   aguas: readonly Agua[]
   grid: number
+  /** O mapa e o que está em volta (`lib/agua/entorno.ts`): a água não passa do mapa. Ausente = como antes. */
+  entorno?: EntornoDaAgua
 }
 
 export interface AguaDoMapa {
@@ -361,7 +364,7 @@ export function criarAguaDoMapa(dep: {
   /** A lista do último campo pedido: o recorte do jogador chega novo a cada passo, quase sempre igual. */
   let assinaturaPedida = ''
   let destruido = false
-  /** Campo de cada água já feito: chave da forma + texel. */
+  /** Campo de cada água já feito: chave do corpo + texel. */
   const feitos = new Map<string, { chave: string; texel: number; campo: CampoDoCorpo }>()
 
   function montarCopia(alvo: Container): Copia | null {
@@ -472,9 +475,15 @@ export function criarAguaDoMapa(dep: {
   }
 
   /** O campo pronto: sobe as texturas, acerta o retângulo e liga o tempo. */
-  function aplicar(c: CampoComposto | null, grid: number): void {
+  function aplicar(c: CampoComposto | null, grid: number, mapa: EntornoDaAgua['mapa'] = null): void {
     campo = c
-    if (c === null || c.w <= 0 || c.h <= 0) {
+    const k = uPorPx(grid)
+    // O retângulo do campo em px de mundo, cortado ao mapa: o que passa da borda não é desenhado.
+    const x = c === null ? 0 : Math.max((c.x0 * c.texel) / k, mapa === null ? -Infinity : 0)
+    const y = c === null ? 0 : Math.max((c.y0 * c.texel) / k, mapa === null ? -Infinity : 0)
+    const x1 = c === null ? 0 : Math.min(((c.x0 + c.w) * c.texel) / k, mapa === null ? Infinity : mapa.largura)
+    const y1 = c === null ? 0 : Math.min(((c.y0 + c.h) * c.texel) / k, mapa === null ? Infinity : mapa.altura)
+    if (c === null || c.w <= 0 || c.h <= 0 || x1 <= x || y1 <= y) {
       campo = null
       caixaNoMundo = null
       camada.visible = false
@@ -485,12 +494,8 @@ export function criarAguaDoMapa(dep: {
     }
     if (!garantirCopias()) return
     trocarFontes(c)
-    const k = uPorPx(grid)
-    // O retângulo do campo em px de mundo.
-    const x = (c.x0 * c.texel) / k
-    const y = (c.y0 * c.texel) / k
-    const largura = (c.w * c.texel) / k
-    const altura = (c.h * c.texel) / k
+    const largura = x1 - x
+    const altura = y1 - y
     caixaNoMundo = { minX: x, minY: y, maxX: x + largura, maxY: y + altura }
     medidas.texels = c.w * c.h
     for (const copia of copias) {
@@ -515,7 +520,11 @@ export function criarAguaDoMapa(dep: {
   function refazer(entrada: EntradaDaAgua): void {
     geracao += 1
     const minha = geracao
-    const corpos = entrada.aguas.map((a) => ({ agua: a, corpo: corpoDaAgua(a, entrada.grid) })).filter((x): x is { agua: Agua; corpo: CorpoDoCampo } => x.corpo !== null)
+    const corpos = entrada.aguas
+      .map((a) => ({ agua: a, corpo: corpoDaAgua(a, entrada.grid, entrada.entorno) }))
+      .filter((x): x is { agua: Agua; corpo: CorpoDoCampo } => x.corpo !== null)
+      .map((x) => ({ ...x, chave: chaveDoCorpo(x.agua, x.corpo) }))
+    const mapa = entrada.entorno?.mapa ?? null
     if (corpos.length === 0) {
       feitos.clear()
       aplicar(null, entrada.grid)
@@ -525,16 +534,16 @@ export function criarAguaDoMapa(dep: {
     const texel = texelDasAguas(corpos.map((x) => x.corpo))
     const vivos = new Set(corpos.map((x) => x.agua.id))
     for (const id of [...feitos.keys()]) if (!vivos.has(id)) feitos.delete(id)
-    const fila = corpos.filter(({ agua }) => {
+    const fila = corpos.filter(({ agua, chave }) => {
       const feito = feitos.get(agua.id)
-      return feito === undefined || feito.chave !== chaveDaForma(agua) || feito.texel !== texel
+      return feito === undefined || feito.chave !== chave || feito.texel !== texel
     })
     const t0 = performance.now()
     const vale = (): boolean => minha === geracao && !destruido
     const subir = (composto: CampoComposto | null): void => {
       void compilou.then(() => {
         if (!vale()) return
-        aplicar(composto, entrada.grid)
+        aplicar(composto, entrada.grid, mapa)
         medidas.campos += 1
         medidas.ultimoCampoMs = performance.now() - t0
       })
@@ -567,7 +576,7 @@ export function criarAguaDoMapa(dep: {
         juntar()
         return
       }
-      feitos.set(item.agua.id, { chave: chaveDaForma(item.agua), texel, campo: campoDoCorpo(item.corpo, texel) })
+      feitos.set(item.agua.id, { chave: item.chave, texel, campo: campoDoCorpo(item.corpo, texel) })
       setTimeout(proximo, 0)
     }
     proximo()
@@ -592,7 +601,8 @@ export function criarAguaDoMapa(dep: {
         aplicar(null, entrada?.grid ?? 1)
         return
       }
-      const assinatura = `${entrada.grid}|${JSON.stringify(entrada.aguas)}`
+      // O entorno entra pelo conteúdo (`chave`): o recorte do jogador chega novo a cada passo, quase sempre igual.
+      const assinatura = `${entrada.grid}|${JSON.stringify(entrada.entorno?.mapa ?? null)}|${entrada.entorno?.chave ?? ''}|${JSON.stringify(entrada.aguas)}`
       // A mesma lista do pedido de antes (o feito ou o que está na espera): nada muda.
       if (!cenaNova && assinatura === assinaturaPedida) return
       assinaturaPedida = assinatura

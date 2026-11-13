@@ -71,6 +71,8 @@ import { pisoDoRecorte } from '../lib/barranco'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
 import { criarAguaDoMapa, type AguaDoMapa } from '../pixi/aguaDoMapa'
+import { entornoDaAgua } from '../lib/agua/entorno'
+import type { FloorPolygon } from '../lib/floorContour'
 import { pecasLisas } from '../lib/terrenoDoChao'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
@@ -560,6 +562,9 @@ type Drag =
 function safeRgb(hex: string | null, fallback: Rgb): Rgb {
   return hex && HEX_COLOR.test(hex) ? hexToRgb(hex) : fallback
 }
+
+/** Sem Chão Liso desenhado (modo imagem, Salas escondidas): a mesma lista vazia, para o entorno da água ficar guardado. */
+const SEM_CHAO_DA_AGUA: readonly FloorPolygon[] = []
 
 function isRasterMode(map: MapData): boolean {
   return map.floorStyle.renderMode === 'raster'
@@ -3482,7 +3487,17 @@ function PlayerViewDoCanvas({
     )
     // ÁGUA: só a do recorte (a camada Chão escondida dos jogadores já não manda nenhuma). Sem os
     // efeitos do mapa ela fica parada, como a fumaça; o campo só se refaz quando a lista muda.
-    scene.agua.atualizar({ cena: currentMap.id, aguas: currentMap.aguas ?? [], grid: currentMap.grid })
+    // O entorno sai SÓ do que o jogador recebe (as salas, o Chão Liso desenhado e as construções do recorte):
+    // a sala secreta que não chega a ele não abre buraco na água nem tira a margem da beira.
+    const entornoDaAguaDoJogador = entornoDaAgua({
+      largura: currentMap.width * currentMap.grid,
+      altura: currentMap.height * currentMap.grid,
+      regioes: currentMap.regions,
+      ocultas: hidden,
+      chao: isRasterMode(currentMap) || hidden.includes('salas') ? SEM_CHAO_DA_AGUA : scene.floorRenderer.polygons(),
+      props: currentMap.props,
+    })
+    scene.agua.atualizar({ cena: currentMap.id, aguas: currentMap.aguas ?? [], grid: currentMap.grid, entorno: entornoDaAguaDoJogador })
     scene.agua.setAnimar(efeitosDoMapaLigados(currentSettings) && !modoLeve)
 
     const regions = visibleRegions(currentMap.regions, hidden)

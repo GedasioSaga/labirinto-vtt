@@ -50,7 +50,18 @@ export interface CorpoDoCampo {
   margens?: number[][]
   /** Lago e mar no jogador: as células conhecidas com água (lado em u, "col,lin"). */
   celulas?: { lado: number; chaves: ReadonlySet<string> }
+  /**
+   * Lago e mar: por ponto de cada linha (o contorno, ou cada margem do jogador, na mesma ordem), 1 = margem e
+   * 0 = não (borda do mapa, perto de sala; `lib/agua/entorno.ts`). O trecho que não é margem não dá raso, espuma
+   * nem areia: a água segue funda até ele. Ausente = tudo margem, como antes.
+   */
+  margem?: readonly (Uint8Array | null)[]
+  /** O retângulo do mapa (u): o campo não passa dele (mais 2 texels, para o filtro da borda). Ausente = sem corte. */
+  limite?: { x0: number; y0: number; x1: number; y1: number }
 }
+
+/** Texels além do retângulo do mapa que o campo ainda guarda (o filtro linear da borda). */
+const ALEM_DO_LIMITE = 2
 
 /** Retângulo em texels do campo (a origem do mundo é o texel 0). */
 export interface CaixaEmTexels {
@@ -100,19 +111,34 @@ function caixaDosPontos(listas: readonly (readonly number[])[], folga: number, t
   return { x0: a, y0: b, w: Math.max(0, Math.ceil((x1 + folga) / texel) - a), h: Math.max(0, Math.ceil((y1 + folga) / texel) - b) }
 }
 
+/**
+ * A caixa cortada ao retângulo do mapa (e os 2 texels do filtro). A margem do
+ * campo mora toda dentro do mapa (a beira de fora não é margem), e o caminho
+ * mais curto entre dois pontos de um retângulo fica nele: cortar não muda
+ * nenhuma distância que se vê.
+ */
+function cortarAoLimite(caixa: CaixaEmTexels, limite: CorpoDoCampo['limite'], texel: number): CaixaEmTexels {
+  if (limite === undefined || caixa.w <= 0 || caixa.h <= 0) return caixa
+  const x0 = Math.max(caixa.x0, Math.floor(limite.x0 / texel) - ALEM_DO_LIMITE)
+  const y0 = Math.max(caixa.y0, Math.floor(limite.y0 / texel) - ALEM_DO_LIMITE)
+  const x1 = Math.min(caixa.x0 + caixa.w, Math.ceil(limite.x1 / texel) + ALEM_DO_LIMITE)
+  const y1 = Math.min(caixa.y0 + caixa.h, Math.ceil(limite.y1 / texel) + ALEM_DO_LIMITE)
+  return x1 <= x0 || y1 <= y0 ? { x0: 0, y0: 0, w: 0, h: 0 } : { x0, y0, w: x1 - x0, h: y1 - y0 }
+}
+
 /** A caixa (texels) que o corpo ocupa no campo, com a margem de fora. */
 export function caixaDoCorpo(c: CorpoDoCampo, texel: number): CaixaEmTexels {
-  if (c.tipo === 'rio') return caixaDosPontos((c.trechos ?? []).map((t) => t.xy), (c.meia ?? 0) + FORA, texel)
+  if (c.tipo === 'rio') return cortarAoLimite(caixaDosPontos((c.trechos ?? []).map((t) => t.xy), (c.meia ?? 0) + FORA, texel), c.limite, texel)
   const listas = c.contorno !== undefined ? [c.contorno] : (c.margens ?? [])
   const caixa = caixaDosPontos(listas, FORA + 4, texel)
-  if (c.celulas === undefined) return caixa
+  if (c.celulas === undefined) return cortarAoLimite(caixa, c.limite, texel)
   // No jogador a água também vai até a beira das células conhecidas (a margem pode não ter vindo).
   const pontos: number[] = []
   for (const chave of c.celulas.chaves) {
     const [col, lin] = chave.split(',').map(Number)
     pontos.push(col * c.celulas.lado, lin * c.celulas.lado, (col + 1) * c.celulas.lado, (lin + 1) * c.celulas.lado)
   }
-  return unirCaixas(caixa, caixaDosPontos([pontos], FORA + 4, texel)) ?? caixa
+  return cortarAoLimite(unirCaixas(caixa, caixaDosPontos([pontos], FORA + 4, texel)) ?? caixa, c.limite, texel)
 }
 
 export function unirCaixas(a: CaixaEmTexels | null, b: CaixaEmTexels | null): CaixaEmTexels | null {
@@ -215,16 +241,26 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   // margem que ele não conhece não conta: nem o raso nem a espuma entregam onde está a terra.
   const fechado = c.contorno !== undefined
   const linhas = fechado ? [c.contorno ?? []] : (c.margens ?? [])
+  // A distância vai só até a MARGEM; no jogador o lado da água sai de todas as linhas (a beira que não é margem
+  // continua dizendo de que lado está a água). Sem marca, as duas contas são a mesma, como antes.
+  const comMarca = c.margem !== undefined && c.margem.some((m) => m !== null)
+  const ladoAParte = comMarca && !fechado
   const dm = new Float32Array(n).fill(1e9)
+  const dTodas = ladoAParte ? new Float32Array(n).fill(1e9) : dm
   const lado = new Int8Array(n)
-  for (const xy of linhas) {
+  for (let li = 0; li < linhas.length; li += 1) {
+    const xy = linhas[li]
+    const marca = comMarca ? (c.margem?.[li] ?? null) : null
     const m = xy.length / 2
     const segmentos = fechado ? m : m - 1
     for (let i = 0; i < segmentos; i += 1) {
+      const j = (i + 1) % m
+      const ehMargem = marca === null || (marca[i] === 1 && marca[j] === 1)
+      if (!ehMargem && !ladoAParte) continue
       const ax = xy[i * 2]
       const ay = xy[i * 2 + 1]
-      const bx = xy[((i + 1) % m) * 2]
-      const by = xy[((i + 1) % m) * 2 + 1]
+      const bx = xy[j * 2]
+      const by = xy[j * 2 + 1]
       const vx = bx - ax
       const vy = by - ay
       const L = Math.hypot(vx, vy) || 1e-6
@@ -245,9 +281,13 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
           const dy = qy - uy * L * t
           const d2 = dx * dx + dy * dy
           const k = (ty - cx.y0) * w + (tx - cx.x0)
-          if (d2 < dm[k]) {
-            dm[k] = d2
+          if (ladoAParte && d2 < dTodas[k]) {
+            dTodas[k] = d2
             lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
+          }
+          if (ehMargem && d2 < dm[k]) {
+            dm[k] = d2
+            if (!ladoAParte) lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
           }
         }
       }
