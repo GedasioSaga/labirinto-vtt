@@ -2,10 +2,13 @@
    Um controle só na linha: os passos ganham a altura do campo (38 px, 44 no
    dedo) e a mesma moldura afundada dele, e o número encosta na unidade, à
    direita, como se lê ("1,5 casa"). */
+/* Teto de largura: no rail (264 px) a linha enche o painel; na janela larga da cena ela não estica até o
+   número ficar longe do − (o "6" encostado na borda direita de um campo de 400 px lia como solto). */
 .lb-tamanho__linha {
   display: flex;
   align-items: stretch;
   gap: var(--lb-space-1);
+  max-width: 260px;
 }
 
 .lb-tamanho__passo {
