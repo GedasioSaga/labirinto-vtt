@@ -4159,7 +4159,9 @@ function recorteDoGrupo(
   const talvezConheca = (p: RegionPoint): boolean =>
     (explored !== undefined && isPointExplored(explored, p)) || inAnyRing(rings, p) || inBrushReveal(p) || knownComodos.some((room) => inRoomStrictly(room, p))
   const conheceOTerreno = (p: RegionPoint): boolean => talvezConheca(p) && isPointKnown(p) && !inHiddenPlace(p) && !inConcealZone(p)
-  const terrenoConhecido = (f: FloorPiece): boolean => floorSeenNow(f) || amostrasDoTerreno(f, map.grid).some(conheceOTerreno)
+  // "Vista agora" é a resposta de `floorSeenNow` que `recallItems` já deu (`floor`): não refaz a conta.
+  const chaoVistoAgora = new Set(floor.items.filter((i) => i.source === 'agora').map((i) => i.item.id))
+  const terrenoConhecido = (f: FloorPiece): boolean => chaoVistoAgora.has(f.id) || amostrasDoTerreno(f, map.grid).some(conheceOTerreno)
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
   // CAMADAS: chão de camada escondida dos jogadores não sai (antes saía e só a tela dele escondia).
   const floorForPlayer = (f: FloorPiece): FloorPiece[] => {
