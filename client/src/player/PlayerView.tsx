@@ -72,7 +72,7 @@ import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '..
 import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
 import { criarAguaDoMapa, type AguaDoMapa } from '../pixi/aguaDoMapa'
 import { entornoDaAgua } from '../lib/agua/entorno'
-import type { FloorPolygon } from '../lib/floorContour'
+import type { FloorPiece } from '../types/map'
 import { pecasLisas } from '../lib/terrenoDoChao'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
@@ -564,7 +564,7 @@ function safeRgb(hex: string | null, fallback: Rgb): Rgb {
 }
 
 /** Sem Chão Liso desenhado (modo imagem, Salas escondidas): a mesma lista vazia, para o entorno da água ficar guardado. */
-const SEM_CHAO_DA_AGUA: readonly FloorPolygon[] = []
+const SEM_CHAO_DA_AGUA: readonly FloorPiece[] = []
 
 function isRasterMode(map: MapData): boolean {
   return map.floorStyle.renderMode === 'raster'
@@ -3494,7 +3494,9 @@ function PlayerViewDoCanvas({
       altura: currentMap.height * currentMap.grid,
       regioes: currentMap.regions,
       ocultas: hidden,
-      chao: isRasterMode(currentMap) || hidden.includes('salas') ? SEM_CHAO_DA_AGUA : scene.floorRenderer.polygons(),
+      // As peças lisas que ele recebe e o Chão desenha (`redrawFloor`): a conta da metade só com elas.
+      chao: isRasterMode(currentMap) || hidden.includes('salas') ? SEM_CHAO_DA_AGUA : comTerreno ? pecasLisas(drawnFloor) : drawnFloor,
+      passo: currentMap.floorStyle.sampleStep,
       props: currentMap.props,
     })
     scene.agua.atualizar({ cena: currentMap.id, aguas: currentMap.aguas ?? [], grid: currentMap.grid, entorno: entornoDaAguaDoJogador })

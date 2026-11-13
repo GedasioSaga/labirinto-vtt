@@ -127,7 +127,7 @@ import {
 } from '../lib/floorTool'
 import type { FloorShapeKind } from '../lib/floorTool'
 import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
-import { mapFloorClip, type FloorPolygon } from '../lib/floorContour'
+import { mapFloorClip } from '../lib/floorContour'
 import { buildCaminhoShape, comTerreno, PASSO_DO_TRACO_EM_CASAS, pecasLisas } from '../lib/terrenoDoChao'
 import { useTerrenoStore } from '../stores/terrenoStore'
 import { criarTerrenoDoChao } from './terrenoDoChao'
@@ -137,7 +137,7 @@ import { corDoPincel } from '../lib/camadasDoPincel'
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
 /** Sem Chão Liso desenhado (modo imagem): a mesma lista vazia, para o entorno da água ficar guardado. */
-const SEM_CHAO_DA_AGUA: readonly FloorPolygon[] = []
+const SEM_CHAO_DA_AGUA: readonly FloorPiece[] = []
 /** CAMADAS: faixas cujo renderer é um só (cache por id) e só MUDA a vista de nó; o nó criado que sai devolve as vistas ao de hoje. */
 const FAIXAS_DE_VISTA_UNICA: ReadonlySet<string> = new Set(['tokensContainer', 'telhadosContainer'])
 /** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
@@ -3136,7 +3136,9 @@ function PixiCanvasDoContexto({
                 altura: map.height * map.grid,
                 regioes: doPisoDaAgua.regions,
                 ocultas: doPisoDaAgua.hiddenLayers,
-                chao: map.floorStyle.renderMode === 'raster' ? SEM_CHAO_DA_AGUA : floorRenderer.polygons(),
+                // As peças lisas que o Chão desenha (`paintFloor`): cada uma fica por cima só da água em que mais da metade dela está.
+                chao: map.floorStyle.renderMode === 'raster' ? SEM_CHAO_DA_AGUA : pecasLisas(doPisoDaAgua.floor),
+                passo: map.floorStyle.sampleStep,
                 props: doPisoDaAgua.props,
               })
         if (aguasDoPiso !== aguasLidas.aguas || map.id !== aguasLidas.cena || pisoAtivo !== aguasLidas.piso || map.grid !== aguasLidas.grid || entornoDasAguas !== aguasLidas.entorno) {

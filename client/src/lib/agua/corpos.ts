@@ -1,8 +1,8 @@
 import type { Agua } from '../../types/map'
 import { ajustesDaAgua, larguraDoRio } from './dados'
 import { curvaGuardada } from './forma'
-import { formasNaCaixa, margemDaBeira, semAreiaDaBeira, type EntornoDaAgua } from './entorno'
-import { CASA_U, buracoDoCampo, caixaDoCorpo, campoDoCorpo, comporCampo, porOBuraco, texelParaCaber, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from './campo'
+import { formaDaLisa, formasNaCaixa, lisasDaAgua, margemDaBeira, semAreiaDaBeira, type EntornoDaAgua, type PecaLisa } from './entorno'
+import { CASA_U, buracoDoCampo, caixaDoCorpo, campoDoCorpo, comporCampo, porOBuraco, texelParaCaber, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CorpoDoCampo, type FormaDoBuraco } from './campo'
 
 /**
  * ÁGUA: cada `Agua` do mapa (ou do recorte do jogador) vira o corpo do campo
@@ -30,10 +30,10 @@ function limiteEmU(entorno: EntornoDaAgua | undefined, k: number): CorpoDoCampo[
   return m === null ? undefined : { x0: 0, y0: 0, x1: m.largura * k, y1: m.altura * k }
 }
 
-/** A marca de margem de cada linha (px de mundo), ou nada quando toda a beira é margem. */
-function margemDasLinhas(linhas: readonly (readonly number[])[], entorno: EntornoDaAgua | undefined, grid: number): (Uint8Array | null)[] | undefined {
+/** A marca de margem de cada linha (px de mundo), ou nada quando toda a beira é margem. `lisas`: o Chão Liso por cima desta água. */
+function margemDasLinhas(linhas: readonly (readonly number[])[], entorno: EntornoDaAgua | undefined, grid: number, lisas: readonly PecaLisa[]): (Uint8Array | null)[] | undefined {
   if (entorno === undefined) return undefined
-  const marcas = linhas.map((xy) => margemDaBeira(xy, entorno, grid))
+  const marcas = linhas.map((xy) => margemDaBeira(xy, entorno, grid, lisas))
   return marcas.some((m) => m !== null) ? marcas : undefined
 }
 
@@ -60,17 +60,19 @@ export function corpoDaAgua(agua: Agua, grid: number, entorno?: EntornoDaAgua): 
     const xy = escalar(curvaGuardada(agua, grid), k)
     return xy.length < 4 ? null : { ...base, meia, trechos: [{ xy, s: aoLongo(xy, 0) }] }
   }
+  // O Chão Liso que fica por cima DESTA água (mais da metade dele nela), como quem vê a recebe.
+  const lisas = lisasDaAgua(agua, grid, entorno)
   if (recorte !== undefined) {
     const chaves = new Set(recorte.celulas ?? [])
     if (chaves.size === 0) return null
     const linhas = (recorte.margens ?? []).filter((m) => m.length >= 4)
-    const margem = margemDasLinhas(linhas, entorno, grid)
+    const margem = margemDasLinhas(linhas, entorno, grid, lisas)
     const semAreia = semAreiaDasLinhas(linhas, agua, grid)
     return { ...base, margens: linhas.map((m) => escalar(m, k)), celulas: { lado: recorte.celula * k, chaves }, ...(margem === undefined ? {} : { margem }), ...(semAreia === undefined ? {} : { semAreia }) }
   }
   const curva = curvaGuardada(agua, grid)
   if (curva.length < 6) return null
-  const margem = margemDasLinhas([curva], entorno, grid)
+  const margem = margemDasLinhas([curva], entorno, grid, lisas)
   const semAreia = semAreiaDasLinhas([curva], agua, grid)
   return { ...base, contorno: escalar(curva, k), ...(margem === undefined ? {} : { margem }), ...(semAreia === undefined ? {} : { semAreia }) }
 }
@@ -124,28 +126,46 @@ export function texelDasAguas(corpos: readonly CorpoDoCampo[]): number {
 
 /** Tudo de uma vez (a imagem exportada, o teste): o campo composto das águas, ou `null` sem água. */
 export function campoDasAguas(aguas: readonly Agua[], grid: number, entorno?: EntornoDaAgua): CampoComposto | null {
-  const corpos = aguas.map((a) => corpoDaAgua(a, grid, entorno)).filter((c): c is CorpoDoCampo => c !== null)
+  const corpos = aguas.flatMap((agua) => {
+    const corpo = corpoDaAgua(agua, grid, entorno)
+    return corpo === null ? [] : [{ agua, corpo }]
+  })
   if (corpos.length === 0) return null
-  const texel = texelDasAguas(corpos)
-  const lista: { corpo: CorpoDoCampo; campo: CampoDoCorpo }[] = corpos.map((corpo) => ({ corpo, campo: campoDoCorpo(corpo, texel) }))
+  const texel = texelDasAguas(corpos.map((c) => c.corpo))
+  const lista = corpos.map(({ agua, corpo }) => ({ agua, corpo, campo: campoDoCorpo(corpo, texel) }))
   let caixa: CaixaEmTexels | null = null
   for (const { campo } of lista) caixa = unirCaixas(caixa, campo)
   if (caixa === null) return null
-  const composto = comporCampo(lista, caixa, texel)
-  porOBuraco(composto.f4, buracoDoCampo(composto, texel, formasDoBuraco(composto, entorno, grid)))
+  const formas = formasDoBuraco({ ...caixa, texel }, entorno, grid, lista)
+  const composto = comporCampo(lista, caixa, texel, formas.some((f) => f.soNas !== undefined))
+  porOBuraco(composto.f4, buracoDoCampo(composto, texel, formas, composto.dono))
   return composto
 }
 
 /**
- * As formas do chão por cima da água (salas e Chão Liso, `EntornoDaAgua.porCima`)
- * que tocam a caixa do campo, em u: o buraco que a água abre (`buracoDoCampo`).
+ * As formas do chão por cima da água que tocam a caixa do campo, em u: o
+ * buraco que a água abre (`buracoDoCampo`). As salas (`EntornoDaAgua.porCima`)
+ * em toda água; cada peça de Chão Liso só nas águas em que mais da metade dela
+ * está (`lisasDaAgua`): `soNas` diz quais (a posição em `corpos`, a ordem do
+ * campo composto) quando ela também toca outra água, que segue por cima dela.
  */
-export function formasDoBuraco(caixa: CaixaEmTexels & { texel: number }, entorno: EntornoDaAgua | undefined, grid: number): number[][][] {
-  if (entorno === undefined || entorno.porCima.length === 0 || caixa.w <= 0 || caixa.h <= 0) return []
+export function formasDoBuraco(caixa: CaixaEmTexels & { texel: number }, entorno: EntornoDaAgua | undefined, grid: number, corpos: readonly { agua: Agua; campo: CaixaEmTexels }[] = []): FormaDoBuraco[] {
+  if (entorno === undefined || caixa.w <= 0 || caixa.h <= 0) return []
   const k = uPorPx(grid)
-  const x0 = (caixa.x0 * caixa.texel) / k
-  const y0 = (caixa.y0 * caixa.texel) / k
-  const x1 = ((caixa.x0 + caixa.w) * caixa.texel) / k
-  const y1 = ((caixa.y0 + caixa.h) * caixa.texel) / k
-  return formasNaCaixa(entorno.porCima, x0, y0, x1, y1).map((f) => f.aneis.map((anel) => escalar(anel, k)))
+  const emPx = (c: CaixaEmTexels): { x0: number; y0: number; x1: number; y1: number } => ({ x0: (c.x0 * caixa.texel) / k, y0: (c.y0 * caixa.texel) / k, x1: ((c.x0 + c.w) * caixa.texel) / k, y1: ((c.y0 + c.h) * caixa.texel) / k })
+  const r = emPx(caixa)
+  const saida: FormaDoBuraco[] = formasNaCaixa(entorno.porCima, r.x0, r.y0, r.x1, r.y1).map((f) => ({ aneis: f.aneis.map((anel) => escalar(anel, k)) }))
+  if (entorno.lisas.length === 0) return saida
+  const nasAguas = new Map<PecaLisa, number[]>()
+  corpos.forEach(({ agua }, i) => {
+    for (const lisa of lisasDaAgua(agua, grid, entorno)) nasAguas.set(lisa, [...(nasAguas.get(lisa) ?? []), i])
+  })
+  const caixas = corpos.map(({ campo }) => emPx(campo))
+  for (const [lisa, nas] of nasAguas) {
+    const forma = formaDaLisa(lisa, entorno)
+    if (forma === null || formasNaCaixa([forma], r.x0, r.y0, r.x1, r.y1).length === 0) continue
+    const tocaOutra = caixas.some((c, i) => !nas.includes(i) && c.x1 >= forma.x0 && c.x0 <= forma.x1 && c.y1 >= forma.y0 && c.y0 <= forma.y1)
+    saida.push({ aneis: forma.aneis.map((anel) => escalar(anel, k)), ...(tocaOutra ? { soNas: nas } : {}) })
+  }
+  return saida
 }

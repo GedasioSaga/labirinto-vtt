@@ -90,6 +90,14 @@ export interface CampoComposto extends CaixaEmTexels {
   f3: Uint8Array
   /** Vermelho: o chão por cima da água (cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). Verde: a areia tirada pelo pincel (0 = com areia). */
   f4: Uint8Array
+  /** Só quando pedido (`comporCampo`): por texel, a posição na lista do corpo que manda ali (a água mais funda), -1 = nenhum. */
+  dono?: Int16Array
+}
+
+/** Uma forma do buraco (anéis em u, par ou ímpar). `soNas`: só onde manda um destes corpos (a posição na lista do campo composto). */
+export interface FormaDoBuraco {
+  aneis: readonly (readonly number[])[]
+  soNas?: readonly number[]
 }
 
 const grampo = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v)
@@ -371,16 +379,20 @@ export function campoDoCorpo(c: CorpoDoCampo, texel: number): CampoDoCorpo {
  * Na terra, a beira mais perto ganha (barro do rio ou areia da praia), sem
  * corte reto entre elas.
  */
-export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoDoCorpo }[], r: CaixaEmTexels, texel: number): CampoComposto {
+export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoDoCorpo }[], r: CaixaEmTexels, texel: number, comDono = false): CampoComposto {
   const n = Math.max(0, r.w * r.h)
   const f1 = new Float32Array(n * 4)
   const f2 = new Uint8Array(n * 4)
   const f3 = new Uint8Array(n * 4)
   const f4 = new Uint8Array(n * 4)
-  const presentes = lista.filter(({ campo: k }) => k.w > 0 && k.h > 0 && k.x0 < r.x0 + r.w && k.x0 + k.w > r.x0 && k.y0 < r.y0 + r.h && k.y0 + k.h > r.y0)
+  const dono = comDono ? new Int16Array(n).fill(-1) : null
+  const presentes = lista
+    .map((item, posicao) => ({ ...item, posicao }))
+    .filter(({ campo: k }) => k.w > 0 && k.h > 0 && k.x0 < r.x0 + r.w && k.x0 + k.w > r.x0 && k.y0 < r.y0 + r.h && k.y0 + k.h > r.y0)
   for (let y = r.y0; y < r.y0 + r.h; y += 1) {
     for (let x = r.x0; x < r.x0 + r.w; x += 1) {
       let melhor = -1e9
+      let quem = -1
       let rio: CorpoDoCampo | null = null
       let vRio = -1e9
       let sRio = 0
@@ -388,11 +400,14 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       let area: CorpoDoCampo | null = null
       let vArea = -1e9
       let saArea = 0
-      for (const { corpo, campo: k } of presentes) {
+      for (const { corpo, campo: k, posicao } of presentes) {
         if (x < k.x0 || y < k.y0 || x >= k.x0 + k.w || y >= k.y0 + k.h) continue
         const i = (y - k.y0) * k.w + (x - k.x0)
         const v = k.sd[i]
-        if (v > melhor) melhor = v
+        if (v > melhor) {
+          melhor = v
+          quem = posicao
+        }
         if (corpo.tipo === 'rio') {
           if (v > vRio) {
             vRio = v
@@ -411,6 +426,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
         f1[p] = -FORA - 1
         continue
       }
+      if (dono !== null) dono[p / 4] = quem
       const pr = rio !== null ? (area !== null ? Math.min(passo(-12, 12, vRio - vArea), 1 - passo(-4, 16, vArea)) : 1) : 0
       f1[p] = area !== null && vArea > 0 ? vArea + (melhor - vArea) * pr : melhor
       f1[p + 1] = sRio
@@ -427,7 +443,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       f4[p + 1] = saArea
     }
   }
-  return { ...r, texel, f1, f2, f3, f4 }
+  return { ...r, texel, f1, f2, f3, f4, ...(dono === null ? {} : { dono }) }
 }
 
 /** Sublinhas por texel na cobertura do buraco (na horizontal a conta é exata). */
@@ -438,14 +454,17 @@ const SUBLINHAS_DO_BURACO = 4
  * fica por cima da água. Quanto de cada texel da caixa o chão cobre (0 a 255,
  * `null` = nada), que vai no vermelho de `f4`; o shader lê a cobertura como distância (meio = a borda)
  * e corta fino em qualquer zoom. Cada forma são anéis em u (par ou ímpar entre
- * eles); formas que se sobrepõem somam (até cobrir tudo).
+ * eles); formas que se sobrepõem somam (até cobrir tudo). A forma com `soNas`
+ * só cobre o texel cujo `dono` (`comporCampo`) é um daqueles corpos.
  */
-export function buracoDoCampo(r: CaixaEmTexels, texel: number, formas: readonly (readonly (readonly number[])[])[]): Uint8Array | null {
+export function buracoDoCampo(r: CaixaEmTexels, texel: number, formas: readonly FormaDoBuraco[], dono?: Int16Array): Uint8Array | null {
   const n = Math.max(0, r.w * r.h)
   if (n === 0 || formas.length === 0) return null
   const cob = new Float32Array(n)
   const cortes: number[] = []
-  for (const aneis of formas) {
+  for (const { aneis, soNas } of formas) {
+    // Sem o dono (quem chamou não pediu), a forma cobre como as outras.
+    const restrita = soNas !== undefined && dono !== undefined ? soNas : null
     let y0 = Infinity
     let y1 = -Infinity
     for (const a of aneis) {
@@ -491,7 +510,7 @@ export function buracoDoCampo(r: CaixaEmTexels, texel: number, formas: readonly 
           const ultima = Math.min(r.w - 1, Math.ceil(fb) - 1)
           for (let col = Math.floor(fa); col <= ultima; col += 1) {
             const cobre = Math.min(col + 1, fb) - Math.max(col, fa)
-            if (cobre > 0) cob[base + col] += cobre / SUBLINHAS_DO_BURACO
+            if (cobre > 0 && (restrita === null || (dono !== undefined && restrita.includes(dono[base + col])))) cob[base + col] += cobre / SUBLINHAS_DO_BURACO
           }
         }
       }

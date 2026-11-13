@@ -1,7 +1,7 @@
 import { BufferImageSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type TextureSource, type Ticker } from 'pixi.js'
 import type { Agua, Periodo } from '../types/map'
 import type { Caixa } from '../lib/texturas'
-import { CASA_U, FORA, buracoDoCampo, campoDoCorpo, comporCampo, porOBuraco, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from '../lib/agua/campo'
+import { CASA_U, FORA, buracoDoCampo, campoDoCorpo, comporCampo, porOBuraco, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo, type FormaDoBuraco } from '../lib/agua/campo'
 import { chaveDoCorpo, corpoDaAgua, formasDoBuraco, texelDasAguas } from '../lib/agua/corpos'
 import type { EntornoDaAgua } from '../lib/agua/entorno'
 import { aquecerPrograma, programaPronto } from './aquecerPrograma'
@@ -567,26 +567,28 @@ export function criarAguaDoMapa(dep: {
     const juntar = (): void => {
       if (!vale()) return
       let caixa: CaixaEmTexels | null = null
-      const lista: { corpo: CorpoDoCampo; campo: CampoDoCorpo }[] = []
+      const lista: { agua: Agua; corpo: CorpoDoCampo; campo: CampoDoCorpo }[] = []
       for (const { agua, corpo } of corpos) {
         const feito = feitos.get(agua.id)
         if (feito === undefined) continue
-        lista.push({ corpo, campo: feito.campo })
+        lista.push({ agua, corpo, campo: feito.campo })
         caixa = unirCaixas(caixa, feito.campo)
       }
-      // O chão por cima (salas e Chão Liso) que toca a caixa: o buraco só é refeito quando ele muda.
-      const formas = caixa === null ? [] : formasDoBuraco({ ...caixa, texel }, entrada.entorno, entrada.grid)
-      const chaveDoBuraco = caixa === null ? '' : `${caixa.x0},${caixa.y0},${caixa.w},${caixa.h},${texel}|${JSON.stringify(formas)}`
+      // O chão por cima (salas e o Chão Liso de cada água) que toca a caixa: o buraco só é refeito quando ele muda.
+      const formas = caixa === null ? [] : formasDoBuraco({ ...caixa, texel }, entrada.entorno, entrada.grid, lista)
+      // A peça de Chão Liso que só fica por cima de uma das águas que toca depende de quem manda em cada texel (as formas das águas).
+      const comDono = formas.some((f) => f.soNas !== undefined)
+      const chaveDoBuraco = caixa === null ? '' : `${caixa.x0},${caixa.y0},${caixa.w},${caixa.h},${texel}|${JSON.stringify(formas)}${comDono ? `|${corpos.map((c) => c.chave).join(';')}` : ''}`
       const chaveDoComposto = JSON.stringify([texel, mapa, corpos.map(({ chave, corpo }) => [chave, corpo.cor, corpo.velocidade, corpo.ondas, corpo.espuma]), chaveDoBuraco])
       // Nada mudou no que está na placa (uma sala mexida longe da água, o mesmo recorte de novo).
       if (campo !== null && chaveDoComposto === compostoAplicado) return
-      const composto = caixa === null ? null : comporCampo(lista, caixa, texel)
+      const composto = caixa === null ? null : comporCampo(lista, caixa, texel, comDono)
       setTimeout(() => furar(composto, formas, chaveDoBuraco, chaveDoComposto), 0)
     }
-    const furar = (composto: CampoComposto | null, formas: number[][][], chaveDoBuraco: string, chaveDoComposto: string): void => {
+    const furar = (composto: CampoComposto | null, formas: FormaDoBuraco[], chaveDoBuraco: string, chaveDoComposto: string): void => {
       if (!vale()) return
       if (composto !== null && formas.length > 0) {
-        if (buracoFeito === null || buracoFeito.chave !== chaveDoBuraco) buracoFeito = { chave: chaveDoBuraco, buraco: buracoDoCampo(composto, texel, formas) }
+        if (buracoFeito === null || buracoFeito.chave !== chaveDoBuraco) buracoFeito = { chave: chaveDoBuraco, buraco: buracoDoCampo(composto, texel, formas, composto.dono) }
         porOBuraco(composto.f4, buracoFeito.buraco)
       }
       setTimeout(() => subir(composto, chaveDoComposto), 0)
