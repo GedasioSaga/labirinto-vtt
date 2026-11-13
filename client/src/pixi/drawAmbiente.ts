@@ -664,8 +664,12 @@ export function createAmbienteRenderer(
   const chao = criarChaoMolhado()
   let niveisDoChao: NiveisDoChao = CHAO_SECO
   let alvoDoChaoAtual: NiveisDoChao = CHAO_SECO
-  /** A primeira entrada chega pronta: quem abre um mapa com chuva já vê o chão molhado. */
+  /**
+   * A PRIMEIRA entrada chega pronta: quem abre a tela num mapa com chuva já vê o
+   * chão molhado. Depois, ligar a chuva molha devagar.
+   */
   let chaoComecou = false
+  let pularChao = false
   let ultimoChaoMs = 0
   let timerDoChao: ReturnType<typeof setTimeout> | null = null
   let telhados: TelhadosDoClima | null = null
@@ -768,11 +772,15 @@ export function createAmbienteRenderer(
     ultimaDoChao = doChao
     if (doChao !== null) chao.definir(doChao)
     // O que cai em cada telhado só muda com a chave e o pincel: a mesma função = o telhado não reconta.
-    const coberta = molha && (novoAlvo.molhado > 0 || novoAlvo.neve > 0)
-    coberturaDosTelhados = coberta ? (pontos) => climaNoPonto(inteira, pintada, meioDoPoligono(pontos)) : null
+    // Parou de chover: o telhado seca devagar com o que caía antes, como o chão.
+    if (novoAlvo.molhado > 0 || novoAlvo.neve > 0) {
+      coberturaDosTelhados = (pontos) => climaNoPonto(inteira, pintada, meioDoPoligono(pontos))
+    } else if (niveisDoChao.molhado === 0 && niveisDoChao.neve === 0) {
+      coberturaDosTelhados = null
+    }
     alvoDoChaoAtual = novoAlvo
-    if (!chaoComecou && e !== null) {
-      chaoComecou = true
+    if (pularChao) {
+      pularChao = false
       niveisDoChao = novoAlvo
       chao.niveis(niveisDoChao)
     }
@@ -1082,6 +1090,10 @@ export function createAmbienteRenderer(
     camada,
     atualizar(nova) {
       entrada = nova !== null && nova.largura > 0 && nova.altura > 0 ? nova : null
+      if (!chaoComecou) {
+        chaoComecou = true
+        pularChao = true
+      }
       if (entrada !== null && !pronto && !compilando) {
         compilando = true
         void aquecerAmbiente(renderer).then((ok) => {

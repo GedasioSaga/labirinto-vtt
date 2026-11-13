@@ -3052,6 +3052,8 @@ function PixiCanvasDoContexto({
         mundo: world,
         // CHÃO MOLHADO: a faixa logo acima do terreno; o chão secando pede quadro sozinho (sem desenhar todo quadro).
         chao: chaoMolhadoContainer,
+        // TELHADO MOLHADO: o Ambiente veste a chuva e a neve nos telhados (o mesmo nível do chão).
+        telhados: telhadosRenderer,
         pedir: () => desenho.pedir(),
         aoMudar: (estado) => {
           el.dataset.neblina = estado.ligada ? (estado.movendo ? 'andando' : 'parada') : 'desligada'

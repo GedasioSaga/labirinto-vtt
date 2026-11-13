@@ -1,5 +1,6 @@
-import { CanvasSource, Container, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
+import { CanvasSource, Container, FillGradient, Graphics, Sprite, Texture, type Ticker } from 'pixi.js'
 import type { Region, RegionPoint } from '../types/map'
+import { AJUSTE_DO_CHAO_MOLHADO, type ClimaDosTelhados } from '../lib/chaoMolhado'
 import { CURVAS } from '../cenario/revelacao/tempo'
 import { BEIRAL_PX } from '../lib/telhado/aguas'
 import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
@@ -150,6 +151,12 @@ export interface TelhadosRenderer {
   idsVisiveis: () => ReadonlySet<string>
   /** Texturas pintadas desde a criação (para o teste do cache). */
   pintadas: () => number
+  /**
+   * A CHUVA BATE NO TELHADO (Ambiente, decisão do mestre de 12/11/2026): molha
+   * (escurece e brilha um pouco) e junta neve, devagar, onde a chuva e a neve
+   * caem (`lib/chaoMolhado.ts`). `null` = telhados secos.
+   */
+  setClima: (clima: ClimaDosTelhados | null) => void
   destruir: () => void
 }
 
@@ -181,6 +188,66 @@ interface Telhado {
   progresso: number
   caminho: Caminho | null
   saindo: boolean
+  /** O que cai neste telhado (contado pelos pontos dele) e as duas camadas do clima, por cima do corpo. */
+  clima: ClimaDoTelhado | null
+}
+
+interface ClimaDoTelhado {
+  de: ClimaDosTelhados['cobertura']
+  pontos: readonly RegionPoint[]
+  chuva: number
+  neve: number
+  /** A faixa de luz da telha molhada (em add). */
+  brilho: Graphics | null
+  /** A neve juntada (em normal). */
+  manta: Graphics | null
+}
+
+let gradienteDoBrilho: FillGradient | null = null
+let gradienteDaNeve: FillGradient | null = null
+
+/** A faixa de luz na diagonal (a telha molhada pega o céu), no espaço da forma (0 a 1). */
+function brilhoDoTelhado(): FillGradient {
+  const { brilho } = AJUSTE_DO_CHAO_MOLHADO.telhado
+  gradienteDoBrilho ??= new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 1 },
+    textureSpace: 'local',
+    colorStops: [
+      { offset: 0, color: 'rgba(214,228,255,0)' },
+      { offset: 0.34, color: 'rgba(214,228,255,0)' },
+      { offset: 0.46, color: `rgba(214,228,255,${brilho})` },
+      { offset: 0.58, color: 'rgba(214,228,255,0)' },
+      { offset: 0.72, color: `rgba(214,228,255,${brilho * 0.4})` },
+      { offset: 0.8, color: 'rgba(214,228,255,0)' },
+      { offset: 1, color: 'rgba(214,228,255,0)' },
+    ],
+  })
+  return gradienteDoBrilho
+}
+
+/** A neve no telhado: mais clara no alto (o lado do sol), sem ser um branco chapado. */
+function neveDoTelhado(): FillGradient {
+  gradienteDaNeve ??= new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: 0 },
+    end: { x: 0.35, y: 1 },
+    textureSpace: 'local',
+    colorStops: [
+      { offset: 0, color: 'rgba(246,248,252,0.95)' },
+      { offset: 0.5, color: 'rgba(236,241,248,0.82)' },
+      { offset: 1, color: 'rgba(222,229,240,0.7)' },
+    ],
+  })
+  return gradienteDaNeve
+}
+
+/** A tinta da telha molhada no nível `molhado` (0 = sem tinta). */
+function tintaMolhada(molhado: number): number {
+  const [r, g, b] = AJUSTE_DO_CHAO_MOLHADO.telhado.tintaMolhada
+  const canal = (alvo: number) => Math.round(255 * (1 - (1 - alvo) * Math.min(1, Math.max(0, molhado))))
+  return (canal(r) << 16) | (canal(g) << 8) | canal(b)
 }
 
 interface Entrada {
@@ -385,6 +452,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   let ligado = false
   let destruido = false
   let pintadas = 0
+  /** O clima de agora (`setClima`): cada telhado novo já nasce molhado ou com neve. */
+  let clima: ClimaDosTelhados | null = null
   /** O último `desenhar`: quando um item do Desenhado chega, os telhados que estavam no Atual pintam de novo. */
   let ultimoDesenho: { lista: readonly TelhadoParaDesenhar[]; mapaId: string; grid: number } | null = null
   const pararDeOuvirDesenhado = assinarDesenhado(() => {
@@ -517,6 +586,8 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     const corpo = textura ? spriteDa(textura) : chapado(t.points, corNumerica(t.cor))
     // O chapado é desenhado em coordenadas do mundo; o sprite vai embrulhado (`sombraDa`): os dois andam só o deslocamento.
     const sombra = textura ? sombraDa(textura) : chapado(t.points, COR_DA_SOMBRA)
+    // O clima sai junto (os pontos podem ter mudado) e volta por cima do corpo novo.
+    tirarClima(t)
     t.topo.removeChild(t.corpo)
     t.corpo.destroy({ children: true })
     t.topo.addChild(corpo)
@@ -525,7 +596,68 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     t.sombra.destroy({ children: true })
     t.raiz.addChildAt(sombra, t.foto === null ? 0 : 1)
     t.sombra = sombra
+    vestirClima(t)
     aplicar(t)
+  }
+
+  // ---------- o clima (a chuva bate no telhado) ----------
+
+  function tirarClima(t: Telhado): void {
+    const c = t.clima
+    if (c === null) return
+    for (const g of [c.brilho, c.manta]) if (g !== null) g.destroy()
+    t.clima = null
+    t.corpo.tint = 0xffffff
+  }
+
+  /** Uma camada do clima sobre o corpo, na forma da sala: andam juntas na subida e no desbotar do telhado. */
+  function camadaDoClima(t: Telhado, preenchimento: FillGradient, modo: 'add' | 'normal'): Graphics {
+    const g = semEvento(new Graphics())
+    g.poly(
+      t.points.map((p) => ({ x: p.x, y: p.y })),
+      true,
+    ).fill(preenchimento)
+    g.blendMode = modo
+    t.topo.addChild(g)
+    return g
+  }
+
+  /**
+   * Molha e cobre de neve um telhado no nível de agora. O que cai nele é
+   * contado uma vez por `cobertura` (o meio do telhado); o nível de cada
+   * quadro só muda a tinta e a transparência das duas camadas.
+   */
+  function vestirClima(t: Telhado): void {
+    const c = clima
+    if (c === null || t.points.length < 3) {
+      tirarClima(t)
+      return
+    }
+    let cobre = t.clima
+    if (cobre === null || cobre.de !== c.cobertura || cobre.pontos !== t.points) {
+      const cai = c.cobertura(t.points)
+      cobre = { de: c.cobertura, pontos: t.points, chuva: cai.chuva, neve: cai.neve, brilho: cobre?.brilho ?? null, manta: cobre?.manta ?? null }
+      t.clima = cobre
+    }
+    const molhado = cobre.chuva * c.niveis.molhado
+    const neve = cobre.neve * c.niveis.neve
+    t.corpo.tint = molhado > 0 ? tintaMolhada(molhado) : 0xffffff
+    if (molhado > 0 && cobre.brilho === null) cobre.brilho = camadaDoClima(t, brilhoDoTelhado(), 'add')
+    if (cobre.brilho !== null) {
+      cobre.brilho.visible = molhado > 0
+      cobre.brilho.alpha = molhado
+    }
+    if (neve > 0 && cobre.manta === null) cobre.manta = camadaDoClima(t, neveDoTelhado(), 'normal')
+    if (cobre.manta !== null) {
+      cobre.manta.visible = neve > 0
+      cobre.manta.alpha = neve * AJUSTE_DO_CHAO_MOLHADO.telhado.neve
+    }
+  }
+
+  function setClima(novo: ClimaDosTelhados | null): void {
+    if (destruido) return
+    clima = novo
+    for (const t of telhados.values()) if (!t.raiz.destroyed) vestirClima(t)
   }
 
   // ---------- telhados ----------
@@ -559,6 +691,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
       progresso,
       caminho: null,
       saindo: false,
+      clima: null,
     }
     vestir(novo, pegarTextura(t, chave).textura)
     return novo
@@ -748,6 +881,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     animando: () => [...telhados.values()].filter((t) => t.caminho !== null).length,
     idsVisiveis: () => new Set([...telhados.values()].filter((t) => t.progresso > 0 && !t.raiz.destroyed).map((t) => t.id)),
     pintadas: () => pintadas,
+    setClima,
     destruir: () => {
       pararDeOuvirDesenhado()
       ultimoDesenho = null
