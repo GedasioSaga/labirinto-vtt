@@ -135,11 +135,30 @@ function recorteDoRio(
     for (let j = i - 1; j >= 0 && s[i] - s[j] <= folga && deFora(j); j -= 1) marcado[j] = true
     for (let j = i + 1; j < n && s[j] - s[i] <= folga && deFora(j); j += 1) marcado[j] = true
   }
+  // A FASE da correnteza (`s0` do trecho) mede o rio só pelo que não está escondido: o pedaço escondido entra
+  // pela reta entre as pontas de fora dele. Medido pela curva, trocar só o miolo escondido mudava a correnteza
+  // visível rio abaixo (F-N05 da 0.5.62). Sem nada escondido, a fase é a própria `s`.
+  const fase: number[] = [0]
+  let ultimoDeFora = deFora(0) ? 0 : -1
+  for (let i = 1; i < n; i += 1) {
+    if (!deFora(i)) {
+      fase.push(fase[i - 1])
+      continue
+    }
+    const k = ultimoDeFora
+    ultimoDeFora = i
+    if (k < 0) {
+      fase.push(0)
+      continue
+    }
+    // Depois de um ponto de fora, a curva; saindo do escondido, a reta desde o último ponto de fora.
+    fase.push(fase[k] + (k === i - 1 ? s[i] - s[k] : Math.hypot(xy[i * 2] - xy[k * 2], xy[i * 2 + 1] - xy[k * 2 + 1])))
+  }
   const trechos: { s0: number; pontos: number[] }[] = []
   let atual: { s0: number; pontos: number[] } | null = null
   for (let i = 0; i < n; i += 1) {
     if (marcado[i]) {
-      atual ??= { s0: arred(s[i]), pontos: [] }
+      atual ??= { s0: arred(fase[i]), pontos: [] }
       atual.pontos.push(arred(xy[i * 2]), arred(xy[i * 2 + 1]))
     } else if (atual !== null) {
       if (atual.pontos.length >= 4) trechos.push(atual)
