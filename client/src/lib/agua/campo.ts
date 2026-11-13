@@ -261,7 +261,7 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   const ladoAParte = comMarca && !fechado
   const dm = new Float32Array(n).fill(1e9)
   const dTodas = comMarca ? new Float32Array(n).fill(1e9) : dm
-  // Com marca, a beira mais perto de cada texel (margem ou não), 0 a 255 = quanto ela é margem: a faixa de areia de um
+  // Com marca, a beira mais perto de cada texel (margem ou não), 255 = margem, 0 = não: a faixa de areia de um
   // trecho de margem só vai até onde ele é a beira mais perto. Sem isto a areia contornava a ponta do trecho e encostava
   // na sala, no Chão Liso e na construção (a beira a menos de meia casa deles não é margem, `entorno.ts`).
   const margemPerto = comMarca ? new Uint8Array(n).fill(255) : null
@@ -306,7 +306,8 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
           if (margemPerto !== null && d2 < dTodas[k]) {
             dTodas[k] = d2
             if (ladoAParte) lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
-            margemPerto[k] = marca === null ? 255 : Math.round(255 * (marca[i] + (marca[j] - marca[i]) * t))
+            // O segmento é margem ou não, como na distância (`ehMargem`): a areia para onde o raso e a espuma param.
+            margemPerto[k] = ehMargem ? 255 : 0
           }
           if (ehMargem && d2 < dm[k]) {
             dm[k] = d2

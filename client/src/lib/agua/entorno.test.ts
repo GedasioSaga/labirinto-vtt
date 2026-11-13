@@ -86,9 +86,12 @@ describe('o mar e o mapa em volta', () => {
     expect(noPonto(comPier, 10 * G, 12 * G, 'buraco'), 'o píer cobre a água').toBe(255)
     expect(noPonto(comPier, 5 * G, 12 * G, 'buraco'), 'o fundo não').toBe(0)
     expect(noPonto(comPier, 9.3 * G, 10.1 * G, 'sd'), 'sem margem junto do píer').toBeGreaterThan(noPonto(semNada, 9.3 * G, 10.1 * G, 'sd') + 5)
-    // Mar grande (80% do fundo nele): o fundo guarda a água toda, é o chão debaixo dela, e fica por baixo.
+    // O chão debaixo da água fica por baixo: a faixa de borda a borda toda no mar e, longe da borda, a peça que guarda
+    // mais da metade do mar (83% dela no mar grande).
     const grande = mar(rect(0, 4, 20, 20))
-    expect(campoDasAguas([grande], G, comChao([fundo]))?.f4).toEqual(campoDasAguas([grande], G, entornoDe([]))?.f4)
+    const semChaoNoGrande = campoDasAguas([grande], G, entornoDe([]))?.f4
+    expect(campoDasAguas([grande], G, comChao([liso('faixa', 0, 15, 20, 18)]))?.f4).toEqual(semChaoNoGrande)
+    expect(campoDasAguas([grande], G, comChao([liso('terra', 1, 1, 19, 19)]))?.f4).toEqual(semChaoNoGrande)
     // Duas lagoas: a peça tem 3/4 na primeira e 1/8 na segunda. Abre buraco só na primeira; na segunda a água segue por cima.
     const l1 = mar(rect(2, 2, 6, 6), { id: 'l1', tipo: 'lago' })
     const l2 = mar(rect(6.5, 2, 10, 6), { id: 'l2', tipo: 'lago' })

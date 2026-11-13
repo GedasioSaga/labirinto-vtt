@@ -17,7 +17,7 @@ import { curvaGuardada } from './forma'
  *
  * CHÃO LISO (decisão de 13/11, 11h30): a peça fica por cima de UMA água só
  * quando mais da metade dela está dentro dessa água (píer, plataforma, ponte);
- * a peça de fundo ou de terra fica por baixo, como na 0.5.62 (`lisasDaAgua`).
+ * a peça de fundo ou de terra fica por baixo, como na 0.5.62 (`lisasPorCima`).
  *
  * No jogador o entorno sai só do que ele recebe (as salas e o Chão do recorte):
  * a sala secreta que não chega a ele não abre buraco nem tira margem. A conta
@@ -42,6 +42,8 @@ export interface PecaLisa {
   y0: number
   x1: number
   y1: number
+  /** A peça vai até a borda do mapa (ou passa dela): é chão de fundo, nunca fica por cima da água. */
+  naBorda: boolean
 }
 
 export interface EntornoDaAgua {
@@ -117,6 +119,8 @@ const guardados = new WeakMap<readonly Region[], Guardado>()
 /** As peças lisas que somam chão (com as que as apagam depois) e o desenho delas para a chave. */
 function lisasDoChao(chao: readonly FloorPiece[], mapa: EntornoDaAgua['mapa'], partes: unknown[]): PecaLisa[] {
   const lisas: PecaLisa[] = []
+  /** px: a peça que chega a isto da borda do mapa vai até ela (o retângulo preso à grade cai exato na borda). */
+  const folga = 1
   for (let i = 0; i < chao.length; i += 1) {
     const peca = chao[i]
     if (peca.hidden === true) continue
@@ -129,7 +133,8 @@ function lisasDoChao(chao: readonly FloorPiece[], mapa: EntornoDaAgua['mapa'], p
     const y1 = mapa === null ? b.maxY : Math.min(mapa.altura, b.maxY)
     if (!(x1 > x0 && y1 > y0)) continue
     const buracos = chao.slice(i + 1).filter((p) => p.op === 'subtract' && p.hidden !== true)
-    lisas.push({ pecas: [peca, ...buracos], x0, y0, x1, y1 })
+    const naBorda = mapa !== null && (x0 <= folga || y0 <= folga || x1 >= mapa.largura - folga || y1 >= mapa.altura - folga)
+    lisas.push({ pecas: [peca, ...buracos], x0, y0, x1, y1, naBorda })
   }
   return lisas
 }
@@ -229,13 +234,17 @@ function amostrasDaPeca(lisa: PecaLisa, grid: number): AmostrasDaPeca {
 
 /**
  * As peças de Chão Liso que ficam por cima DESTA água: mais da metade da peça
- * dentro dela (píer, plataforma, ponte). A peça que guarda mais da metade da
- * água é o chão debaixo dela (o fundo do mapa com um mar grande) e fica por
- * baixo, como a peça de terra.
+ * dentro dela (píer, plataforma, ponte). Ficam por baixo, como a peça de terra,
+ * as que são o chão debaixo dela (decisão do consertador, 13/11: só a metade
+ * deixava o fundo dos mapas reais por cima de um mar grande): a que vai até a
+ * borda do mapa e a que guarda mais da metade da água.
  */
 export function lisasPorCima(entorno: EntornoDaAgua, agua: AguaParaMetade, grid: number): PecaLisa[] {
   const saida: PecaLisa[] = []
   for (const lisa of entorno.lisas) {
+    // A peça que vai até a borda do mapa é o chão de fundo (Goa: três faixas de borda a borda; a de baixo inteira num
+    // mar grande teria mais da metade nele): fica por baixo, como na 0.5.62.
+    if (lisa.naBorda) continue
     if (lisa.x1 <= agua.x0 || lisa.x0 >= agua.x1 || lisa.y1 <= agua.y0 || lisa.y0 >= agua.y1) continue
     const a = amostrasDaPeca(lisa, grid)
     if (a.total === 0) continue
