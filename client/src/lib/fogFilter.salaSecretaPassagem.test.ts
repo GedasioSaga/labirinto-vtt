@@ -7,7 +7,21 @@
  * escondida dele e a secreta (F-N13).
  */
 import { describe, expect, it } from 'vitest'
-import type { Agua, FloorPiece, MapData, PinceladaDeAmbiente, PinceladaDeTextura, Region, RegionPoint, Token, Wall } from '../types/map'
+import type {
+  Agua,
+  FloorPiece,
+  MapData,
+  PinceladaDeAmbiente,
+  PinceladaDeTextura,
+  QuadradoAlto,
+  RampaDeBarranco,
+  Region,
+  RegionPoint,
+  RiscoDeBarranco,
+  Token,
+  TracoDePenhasco,
+  Wall,
+} from '../types/map'
 import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 import { mapForImageExport } from './mapImageExport'
@@ -74,6 +88,47 @@ describe('o que só passa pela sala secreta fechada sai inteiro', () => {
     expect(filterMapForPlayer(comSala, 'ana', POSSE, VISAO).map.texturas?.map((t) => t.id), 'jogador').toEqual(['faixa'])
     expect(filterMapForPlayer(cena(false), 'ana', POSSE, VISAO).map.texturas?.map((t) => t.id), 'controle sem a sala').toEqual(['faixa'])
     expect(mapForImageExport(comSala, SEM_O_MESTRE).texturas?.map((t) => t.id), 'imagem').toEqual(['faixa'])
+  })
+})
+
+describe('o barranco e o penhasco que só passam pela sala secreta fechada (FX-BARRANCO-062)', () => {
+  /** Barranco e penhasco que atravessam S; com a sala, também o que mora nela. */
+  function terreno(comSala: boolean): MapData {
+    const quadrados: QuadradoAlto[] = []
+    // Platô 5x3 ao norte de S: a última fila (y = 6) tem 2 quadrados dentro dela (x 12 e 13).
+    for (let x = 9; x <= 13; x += 1) for (let y = 4; y <= 6; y += 1) quadrados.push({ x, y, alturas: ['medio'] })
+    const riscos: RiscoDeBarranco[] = [{ id: 'barr-passa', pontos: [P(6, 7.5), P(10, 7.6), P(14, 7.8), P(18, 8), P(21, 8)], lado: 1 }]
+    const rampas: RampaDeBarranco[] = [{ id: 'rampa-passa', x: 14 * GRID, y: 7.8 * GRID }]
+    const penhascos: TracoDePenhasco[] = [{ id: 'pen-passa', modo: 'riscar', raio: 0.4 * GRID, pontos: [P(6, 9.5), P(10, 9.5), P(14, 9.5), P(18, 9.5)] }]
+    if (comSala) {
+      riscos.push({ id: 'barr-mora', pontos: [P(13, 10), P(15.5, 10.4)], lado: 1 })
+      quadrados.push({ x: 13, y: 8, alturas: ['medio'] }, { x: 14, y: 8, alturas: ['medio'] })
+      rampas.push({ id: 'rampa-mora', x: 14 * GRID, y: 10.2 * GRID })
+      penhascos.push({ id: 'pen-mora', modo: 'riscar', raio: 0.4 * GRID, pontos: [P(14.5, 7), P(15, 8.5)] })
+    }
+    return {
+      ...createEmptyMap('m', 'M', 30, 20, GRID),
+      ...(comSala ? salaSecreta() : { regions: [], walls: [] }),
+      barranco: { quadrado: GRID, origem: { x: 0, y: 0 }, riscos, quadrados, rampas },
+      penhascos,
+      tokens: [ficha(10, 8.5)],
+    }
+  }
+
+  it('o barranco que atravessa a sala sai como sem a sala (risco, platô e rampa); o que mora nela não sai', () => {
+    const com = filterMapForPlayer(terreno(true), 'ana', POSSE, VISAO).map.barranco
+    const sem = filterMapForPlayer(terreno(false), 'ana', POSSE, VISAO).map.barranco
+    expect(sem?.quadrados.some((c) => c.y === 6 && c.x >= 12), 'controle: o platô entra na sala').toBe(true)
+    expect(com, 'com a sala = sem a sala').toEqual(sem)
+    expect(com?.riscos.map((r) => r.id), 'o risco passa inteiro').toEqual(['barr-passa~0'])
+    expect(com?.rampas.map((r) => r.id), 'a rampa da sala que só passa').toEqual(['rampa-passa'])
+  })
+
+  it('o penhasco que atravessa a sala sai como sem a sala; o que mora nela não sai', () => {
+    const com = filterMapForPlayer(terreno(true), 'ana', POSSE, VISAO).map.penhascos
+    const sem = filterMapForPlayer(terreno(false), 'ana', POSSE, VISAO).map.penhascos
+    expect(com?.map((t) => t.id), 'só o que passa, inteiro').toEqual(['pen-passa~0'])
+    expect(com).toEqual(sem)
   })
 })
 

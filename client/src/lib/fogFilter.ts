@@ -4679,20 +4679,17 @@ function recorteDoGrupo(
     // névoa diriam onde há costa (`penhascosParaJogador`). Ponto em lugar
     // escondido ou zona oculta corta o risco, como corta uma linha. A tela dele
     // ainda corta a parede pelo conhecido e a guarda sob a máscara da névoa.
+    // O que atravessa a sala secreta fechada passa inteiro; o que mora nela não sai (FX-BARRANCO-062).
     ...(map.penhascos === undefined
       ? {}
       : {
-          penhascos: terrenoVisivel
-            ? penhascosParaJogador(
-                map.penhascos,
-                (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-                (p) => inHiddenPlace(p) || inConcealZone(p),
-              )
-            : undefined,
+          penhascos: terrenoVisivel ? penhascosParaJogador(map.penhascos, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom) : undefined,
         }),
     // BARRANCO: o mesmo molde do penhasco (`barrancoParaJogador`): só o que
     // encosta no que ele conhece, do piso do grupo; o resto diria na névoa onde
-    // há parte alta. Terreno escondido dos jogadores: nada.
+    // há parte alta. Terreno escondido dos jogadores: nada. O que atravessa a sala
+    // secreta fechada passa inteiro (cortado na parede, desenhava a sala); o risco,
+    // o platô e a rampa que moram nela não saem (FX-BARRANCO-062).
     ...(map.barranco === undefined
       ? {}
       : {
@@ -4701,8 +4698,9 @@ function recorteDoGrupo(
                 map.barranco,
                 pisoDoGrupo(mapaInteiro, viewers, loans),
                 map.grid,
-                (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-                (p) => inHiddenPlace(p) || inConcealZone(p),
+                conhecidoSemASalaSecreta,
+                escondidoSemASalaSecreta,
+                inSecretRoom,
               )
             : undefined,
         }),

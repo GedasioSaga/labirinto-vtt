@@ -1,5 +1,5 @@
 import type { AlturaDoBarranco, BarrancoDoMapa, MapData, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco, Wall } from '../types/map'
-import { caminhosParaJogador } from './penhasco'
+import { caminhoMoraEm, caminhosParaJogador, maioriaEm } from './penhasco'
 import { pisoDe, pisoLido } from './pisos'
 
 /**
@@ -965,6 +965,12 @@ const VIZINHOS: readonly (readonly [number, number])[] = [
  * vizinho é conhecido (a folga põe a beira inventada pelo corte dentro da
  * névoa); a rampa, se o vão encosta no conhecido. Ponto em lugar escondido
  * nunca sai. O resto ficaria dizendo onde há barranco na névoa.
+ *
+ * `mora` (a sala secreta fechada, que para o jogador é chão aberto; fica fora de
+ * `escondido`): o barranco que só PASSA por ela vai inteiro, também por dentro
+ * dela; o que MORA nela não sai: o risco com a maioria dos pontos lá, o platô
+ * (quadrados vizinhos pelo lado) com a maioria dos quadrados lá e a rampa lá
+ * dentro aberta num deles.
  */
 export function barrancoParaJogador(
   b: BarrancoDoMapa | undefined,
@@ -972,6 +978,7 @@ export function barrancoParaJogador(
   grid: number,
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
+  mora: (p: RegionPoint) => boolean = () => false,
 ): BarrancoDoMapa | undefined {
   if (b === undefined) return undefined
   const escala = escalaDoBarranco(grid)
@@ -979,20 +986,68 @@ export function barrancoParaJogador(
   const raio = ESPESSURA_DO_PROTOTIPO.alto * escala
   // Só o piso do grupo: o barranco do andar de cima não existe na tela dele.
   const doPiso = <T extends { piso?: number }>(item: T): boolean => pisoDe(item) === piso
-  const riscos = caminhosParaJogador(
-    b.riscos.filter(doPiso).map((r) => ({ ...r, raio })),
-    conhece,
-    escondido,
-  )
+  const riscosDoPiso = b.riscos.filter(doPiso).map((r) => ({ ...r, raio }))
+  const riscos = caminhosParaJogador(riscosDoPiso, conhece, escondido, mora)
     .filter((r) => r.pontos.length >= 2)
     .map(({ raio: _raio, ...r }) => r)
   const q = b.quadrado
   const centro = (x: number, y: number): RegionPoint => ({ x: b.origem.x + (x + 0.5) * q, y: b.origem.y + (y + 0.5) * q })
-  const quadrados = b.quadrados.filter((c) => doPiso(c) && !escondido(centro(c.x, c.y)) && VIZINHOS.some(([dx, dy]) => conhece(centro(c.x + dx, c.y + dy))))
+  const quadradosDoPiso = b.quadrados.filter(doPiso)
+  const moram = quadradosQueMoram(quadradosDoPiso, centro, mora)
+  const quadrados = quadradosDoPiso.filter((c) => !moram.has(c) && !escondido(centro(c.x, c.y)) && VIZINHOS.some(([dx, dy]) => conhece(centro(c.x + dx, c.y + dy))))
   const meioVao = (RAMPA_EM_QUADRADOS * QUADRADO_DO_PROTOTIPO * escala) / 2
-  const rampas = b.rampas.filter((r) => doPiso(r) && !escondido(r) && (conhece(r) || conhece({ x: r.x - meioVao, y: r.y }) || conhece({ x: r.x + meioVao, y: r.y }) || conhece({ x: r.x, y: r.y - meioVao }) || conhece({ x: r.x, y: r.y + meioVao })))
+  // A rampa vai com o barranco em que se abre (`geosDoBarranco`): a de dentro da sala, só se ele não mora lá
+  // (o risco pela régua do corte dos riscos, o platô pelo contorno). Sem barranco em que se abrir, não sai.
+  const geoMora = (g: GeoDoBarranco): boolean => {
+    if (g.tipo === 'area') return maioriaEm(g.lip.map((p) => ({ x: p[0], y: p[1] })), mora)
+    const risco = riscosDoPiso.find((r) => r.id === g.id)
+    return risco === undefined || caminhoMoraEm(risco, mora)
+  }
+  const rampaMora = (r: RampaDeBarranco): boolean => {
+    if (!mora(r)) return false
+    const g = geosDoBarranco(b, piso, grid).find((geo) => geo.vaos.some((v) => v.rampaId === r.id))
+    return g === undefined || geoMora(g)
+  }
+  const rampas = b.rampas.filter(
+    (r) =>
+      doPiso(r) &&
+      !escondido(r) &&
+      (conhece(r) || conhece({ x: r.x - meioVao, y: r.y }) || conhece({ x: r.x + meioVao, y: r.y }) || conhece({ x: r.x, y: r.y - meioVao }) || conhece({ x: r.x, y: r.y + meioVao })) &&
+      !rampaMora(r),
+  )
   const recorte = { quadrado: b.quadrado, origem: b.origem, riscos, quadrados, rampas }
   return barrancoEstaVazio(recorte) ? undefined : recorte
+}
+
+/** Os quatro vizinhos pelo lado: os do platô (o de quina fica em laço separado, `lacosDoNivel`). */
+const LADOS: readonly (readonly [number, number])[] = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+/**
+ * Os quadrados dos platôs que MORAM em `mora`: cada platô (quadrados vizinhos
+ * pelo lado) com a maioria dos centros lá sai inteiro da conta. Sem centro
+ * nenhum em `mora` (o mapa sem sala secreta), nada a juntar.
+ */
+function quadradosQueMoram(quadrados: readonly QuadradoAlto[], centro: (x: number, y: number) => RegionPoint, mora: (p: RegionPoint) => boolean): Set<QuadradoAlto> {
+  const moram = new Set<QuadradoAlto>()
+  if (!quadrados.some((c) => mora(centro(c.x, c.y)))) return moram
+  const porChave = new Map(quadrados.map((c) => [`${c.x},${c.y}`, c]))
+  const visto = new Set<QuadradoAlto>()
+  for (const inicio of quadrados) {
+    if (visto.has(inicio)) continue
+    visto.add(inicio)
+    const plato = [inicio]
+    for (let i = 0; i < plato.length; i += 1) {
+      for (const [dx, dy] of LADOS) {
+        const vizinho = porChave.get(`${plato[i].x + dx},${plato[i].y + dy}`)
+        if (vizinho !== undefined && !visto.has(vizinho)) {
+          visto.add(vizinho)
+          plato.push(vizinho)
+        }
+      }
+    }
+    if (maioriaEm(plato.map((c) => centro(c.x, c.y)), mora)) for (const c of plato) moram.add(c)
+  }
+  return moram
 }
 
 /** O piso do barranco do RECORTE (todos os itens são do piso do grupo, `barrancoParaJogador`); 0 sem item. */

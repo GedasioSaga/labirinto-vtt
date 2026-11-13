@@ -328,6 +328,18 @@ function discoConhecido(p: RegionPoint, raio: number, conhece: (p: RegionPoint) 
   return conhece(p) || EM_VOLTA.some(([dx, dy]) => conhece({ x: p.x + dx * raio, y: p.y + dy * raio }))
 }
 
+/** Mais da metade dos pontos cai em `lugar` (a régua de `mostly` do recorte do jogador). */
+export function maioriaEm(pontos: readonly RegionPoint[], lugar: (p: RegionPoint) => boolean): boolean {
+  let dentro = 0
+  for (const p of pontos) if (lugar(p)) dentro += 1
+  return pontos.length > 0 && dentro * 2 > pontos.length
+}
+
+/** O caminho MORA em `lugar`: a régua de `caminhosParaJogador`, nos mesmos pontos (o caminho denso). */
+export function caminhoMoraEm(traco: CaminhoDePincel, lugar: (p: RegionPoint) => boolean): boolean {
+  return maioriaEm(caminhoDenso(traco.pontos, passoDoRisco(traco.raio)), lugar)
+}
+
 /**
  * O caminho com os lados longos divididos de `passo` em `passo`. O pincel só
  * impõe distância MÍNIMA entre pontos: um arrasto rápido com o mapa afastado
@@ -372,14 +384,16 @@ function folgaDaPonta(
  * A tela dele ainda corta a parede pelo conhecido e a guarda sob a máscara da
  * névoa (`ConhecidoDoRelevo`); isto aqui é o que viaja pela rede.
  * Borracha sem risco antes dela no que sobrou não muda nada e fica de fora.
+ * `mora`: o lugar que só esconde o risco que MORA nele (`caminhosParaJogador`).
  */
 export function penhascosParaJogador(
   lista: readonly TracoDePenhasco[] | undefined,
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
+  mora?: (p: RegionPoint) => boolean,
 ): TracoDePenhasco[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
-  const saida = caminhosParaJogador(lista, conhece, escondido)
+  const saida = caminhosParaJogador(lista, conhece, escondido, mora)
   const primeiroRisco = saida.findIndex((t) => t.modo === 'riscar')
   if (primeiroRisco < 0) return undefined
   return saida.slice(primeiroRisco)
@@ -398,15 +412,22 @@ export interface CaminhoDePincel {
  * cujo disco encosta no que o jogador conhece, com a folga de um raio em cada
  * ponta, e o resto do item (modo, textura, força) igual. Id do pedaço =
  * `<id>~<n>`.
+ *
+ * `mora` (a sala secreta fechada, que para o jogador é chão aberto): o caminho
+ * que só PASSA por ela vai por dentro dela como pelo chão (`escondido` não a
+ * conta); o que MORA nela (a maioria dos pontos lá dentro) não sai.
  */
 export function caminhosParaJogador<T extends CaminhoDePincel>(
   lista: readonly T[],
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
+  mora: (p: RegionPoint) => boolean = () => false,
 ): T[] {
   const saida: T[] = []
   for (const traco of lista) {
+    // A mesma conta de `caminhoMoraEm`, sem adensar o caminho duas vezes.
     const pontos = caminhoDenso(traco.pontos, passoDoRisco(traco.raio))
+    if (maioriaEm(pontos, mora)) continue
     let pedaco = 0
     let inicio = -1
     const fechar = (fim: number) => {
