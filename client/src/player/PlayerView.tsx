@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
-import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
+import { AlphaFilter, Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import type { FederatedPointerEvent } from 'pixi.js'
 import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
@@ -103,6 +103,7 @@ import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
 import { ehConstrucao } from '../lib/mobilia/construcoes'
+import { ALFA_DA_CONSTRUCAO_COM_FICHA_ATRAS, construcoesComFichaAtras } from '../lib/mobilia/construcaoComFichaAtras'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
 import { createJudgeDoMapa, type JudgeDoMapa } from '../pixi/judgeDoMapa'
@@ -1351,6 +1352,17 @@ interface Scene {
     imagens: Container
     rotulos: Container
     looks: PropLooksRenderer
+    /**
+     * As construções com ficha atrás na 3/4 (F4, `lib/mobilia/construcaoComFichaAtras.ts`): o mesmo trio num
+     * container por cima das outras, meio transparente por um filtro só (o desenho inteiro some junto, sem
+     * mostrar as próprias partes umas através das outras).
+     */
+    atras: {
+      silhuetas: Graphics
+      imagens: Container
+      rotulos: Container
+      looks: PropLooksRenderer
+    }
   }
   /** Chama e imagem/rótulo de móvel por nó da pilha: o de hoje no container de hoje, o de um nó criado nasce na primeira pintura. */
   chamasPorNo: PorNo<Container, ChamasDasFogueiras>
@@ -2923,7 +2935,9 @@ function PlayerViewDoCanvas({
     // VISTA DOS MÓVEIS (Meio-Termo): a da cena, como no editor; trocar repinta.
     const vistaDosMoveis = currentMap.vistaDosMoveis
     const presos = presosNaParede(scene, currentMap)
-    const key = JSON.stringify([props, scale, res, currentMap.grid, nos, vistaDosMoveis ?? null, [...presos]])
+    // FICHA ATRÁS DA CONSTRUÇÃO (3/4): só os ids entram na chave; a ficha andando sem mudar quem está atrás não repinta.
+    const comFichaAtras = construcoesComFichaAtras(props, currentMap.tokens, currentMap.grid, vistaDosMoveis)
+    const key = JSON.stringify([props, scale, res, currentMap.grid, nos, vistaDosMoveis ?? null, [...presos], [...comFichaAtras]])
     if (key === scene.lastPropsKey) return
     scene.lastPropsKey = key
     const camadas = contextoDoJogador(currentMap)
@@ -2967,11 +2981,19 @@ function PlayerViewDoCanvas({
     contagem.images += feitoNaParede.images
     contagem.labels += feitoNaParede.labels
     // As construções, inteiras, acima da névoa. Lista vazia também passa: limpa o que saiu.
+    // As de ficha atrás saem no container meio transparente, por cima das outras.
     const { construcoes: noDasConstrucoes } = scene
-    desenhadas += drawPropSilhouettes(noDasConstrucoes.silhuetas, construcoes.filter((p) => p.item?.imagem === undefined), scale, res, vistaDosMoveis, currentMap.grid)
-    const feitoNasConstrucoes = noDasConstrucoes.looks.draw(noDasConstrucoes.imagens, noDasConstrucoes.rotulos, construcoes, currentMap.grid, scale, latestRef.current.imagemDaMesa)
-    contagem.images += feitoNasConstrucoes.images
-    contagem.labels += feitoNasConstrucoes.labels
+    const naFrente = comFichaAtras.size === 0 ? construcoes : construcoes.filter((p) => !comFichaAtras.has(p.id))
+    const atras = comFichaAtras.size === 0 ? [] : construcoes.filter((p) => comFichaAtras.has(p.id))
+    for (const [no, lista] of [[noDasConstrucoes, naFrente], [noDasConstrucoes.atras, atras]] as const) {
+      desenhadas += drawPropSilhouettes(no.silhuetas, lista.filter((p) => p.item?.imagem === undefined), scale, res, vistaDosMoveis, currentMap.grid)
+      const feito = no.looks.draw(no.imagens, no.rotulos, lista, currentMap.grid, scale, latestRef.current.imagemDaMesa)
+      contagem.images += feito.images
+      contagem.labels += feito.labels
+    }
+    // Sem ficha atrás, o filtro nem roda.
+    const containerDasDeTras = noDasConstrucoes.atras.silhuetas.parent
+    if (containerDasDeTras !== null) containerDasDeTras.visible = atras.length > 0
     scene.propsCount = desenhadas
     scene.propLooksCount = contagem
   }
@@ -3627,6 +3649,7 @@ function PlayerViewDoCanvas({
     for (const { no } of scene.pilha.nosDaFaixa('propLabels')) no.visible = currentSettings.showNames
     scene.naParede.rotulos.visible = currentSettings.showNames
     scene.construcoes.rotulos.visible = currentSettings.showNames
+    scene.construcoes.atras.rotulos.visible = currentSettings.showNames
 
     redrawLights(scene)
     redrawHazards(scene, currentHazards, currentVision)
@@ -4010,7 +4033,15 @@ function PlayerViewDoCanvas({
       const silhuetasDasConstrucoes = new Graphics()
       const imagensDasConstrucoes = new Container()
       const rotulosDasConstrucoes = new Container()
-      construcoesAcima.addChild(silhuetasDasConstrucoes, imagensDasConstrucoes, rotulosDasConstrucoes)
+      // A construção com ficha atrás (3/4): o mesmo trio, meio transparente por um filtro só, por cima das outras.
+      const construcoesComFichaAtrasNo = new Container()
+      construcoesComFichaAtrasNo.label = 'construcoes-com-ficha-atras'
+      construcoesComFichaAtrasNo.filters = [new AlphaFilter({ alpha: ALFA_DA_CONSTRUCAO_COM_FICHA_ATRAS, resolution: 'inherit' })]
+      const silhuetasAtras = new Graphics()
+      const imagensAtras = new Container()
+      const rotulosAtras = new Container()
+      construcoesComFichaAtrasNo.addChild(silhuetasAtras, imagensAtras, rotulosAtras)
+      construcoesAcima.addChild(silhuetasDasConstrucoes, imagensDasConstrucoes, rotulosDasConstrucoes, construcoesComFichaAtrasNo)
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
@@ -4497,6 +4528,7 @@ function PlayerViewDoCanvas({
           imagens: imagensDasConstrucoes,
           rotulos: rotulosDasConstrucoes,
           looks: createPropLooksRenderer(),
+          atras: { silhuetas: silhuetasAtras, imagens: imagensAtras, rotulos: rotulosAtras, looks: createPropLooksRenderer() },
         },
         pilha,
         paresDoMapa: criarParesDoJogador(),
