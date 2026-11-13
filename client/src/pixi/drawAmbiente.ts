@@ -13,7 +13,8 @@ import {
   type ClimaDosTelhados,
   type NiveisDoChao,
 } from '../lib/chaoMolhado'
-import { criarChaoMolhado, type EntradaDoChaoMolhado, type PincelDoChao } from './chaoMolhado'
+import { aquecerChaoMolhado, criarChaoMolhado, type EntradaDoChaoMolhado, type PincelDoChao } from './chaoMolhado'
+import { aquecerPrograma } from './aquecerPrograma'
 import { BORDA_DA_MASCARA, caixaDaMascara, pintarMascara, telaVazia, type CaixaDaMascara } from './drawNeblina'
 
 /**
@@ -406,73 +407,16 @@ function programaDoAmbiente(): GlProgram {
 
 // ---------- compilar cedo, sem travar ----------
 
-/** O estado da compilação por renderer: `true` pronto, `false` falhou, uma promessa enquanto compila. */
-const compilacao = new WeakMap<object, boolean | Promise<boolean>>()
-const ESPERA_DA_COMPILACAO_MS = 50
-/** `COMPLETION_STATUS_KHR` da extensão `KHR_parallel_shader_compile`. */
-const COMPLETION_STATUS_KHR = 0x91b1
-
 /**
- * Compila o shader do Ambiente EM SEGUNDO PLANO (`KHR_parallel_shader_compile`):
- * no protótipo, compilar na hora do primeiro desenho travou a tela 721 ms.
- * Chamado ao montar a cena; o mesmo texto que o Pixi vai compilar depois (o já
- * processado pelo `GlProgram`), para o driver reaproveitar o que compilou.
- * Sem a extensão, compila na primeira folga do navegador. `false` = a placa
- * não compila: sem Ambiente (com aviso), o resto do mapa segue igual.
+ * Compila o shader do Ambiente EM SEGUNDO PLANO (`aquecerPrograma.ts`): no
+ * protótipo, compilar na hora do primeiro desenho travou a tela 721 ms.
+ * Chamado ao montar a cena. Aquece junto o do chão molhado, que aparece com a
+ * chuva (`aquecerChaoMolhado`). `false` = a placa não compila: sem Ambiente
+ * (com aviso), o resto do mapa segue igual.
  */
 export function aquecerAmbiente(renderer: Renderer): Promise<boolean> {
-  const sabido = compilacao.get(renderer)
-  if (sabido !== undefined) return Promise.resolve(sabido)
-  if (!('gl' in renderer)) {
-    compilacao.set(renderer, false)
-    return Promise.resolve(false)
-  }
-  const gl = renderer.gl
-  const prog = programaDoAmbiente()
-  const promessa = new Promise<boolean>((resolver) => {
-    const terminar = (erro: string | null): void => {
-      const ok = erro === null
-      compilacao.set(renderer, ok)
-      if (!ok) console.warn(`[ambiente] o shader não compilou nesta placa; o Ambiente não aparece (${erro})`)
-      resolver(ok)
-    }
-    const comecar = (): void => {
-      if (gl.isContextLost()) return terminar('contexto perdido')
-      const paralela = gl.getExtension('KHR_parallel_shader_compile') !== null
-      const vs = gl.createShader(gl.VERTEX_SHADER)
-      const fs = gl.createShader(gl.FRAGMENT_SHADER)
-      const p = gl.createProgram()
-      const { vertex, fragment } = prog
-      if (vertex === undefined || fragment === undefined) return terminar('sem fonte')
-      if (vs === null || fs === null || p === null) return terminar('o contexto não criou o shader')
-      gl.shaderSource(vs, vertex)
-      gl.compileShader(vs)
-      gl.shaderSource(fs, fragment)
-      gl.compileShader(fs)
-      gl.attachShader(p, vs)
-      gl.attachShader(p, fs)
-      gl.linkProgram(p)
-      const conferir = (): void => {
-        if (paralela && gl.getProgramParameter(p, COMPLETION_STATUS_KHR) !== true) {
-          setTimeout(conferir, ESPERA_DA_COMPILACAO_MS)
-          return
-        }
-        const ligou = gl.getProgramParameter(p, gl.LINK_STATUS) === true
-        const erro = ligou ? null : `${gl.getShaderInfoLog(vs) ?? ''} ${gl.getShaderInfoLog(fs) ?? ''} ${gl.getProgramInfoLog(p) ?? ''}`.trim()
-        gl.deleteProgram(p)
-        gl.deleteShader(vs)
-        gl.deleteShader(fs)
-        terminar(erro)
-      }
-      conferir()
-    }
-    // Sem a extensão, a conferência trava até o fim: que trave numa folga, não num clique.
-    if (gl.getExtension('KHR_parallel_shader_compile') !== null) comecar()
-    else if (typeof requestIdleCallback === 'function') requestIdleCallback(comecar, { timeout: 2000 })
-    else setTimeout(comecar, 0)
-  })
-  compilacao.set(renderer, promessa)
-  return promessa
+  void aquecerChaoMolhado(renderer)
+  return aquecerPrograma(renderer, programaDoAmbiente(), '[ambiente] o shader não compilou nesta placa; o Ambiente não aparece')
 }
 
 // ---------- as máscaras do abrigo ----------
@@ -662,6 +606,12 @@ export function createAmbienteRenderer(
 
   // ---------- o chão molhado, a neve acumulada e o telhado ----------
   const chao = criarChaoMolhado()
+  // O chão molhado só se mostra com o shader dele pronto (compilado em segundo plano, sem travar o ligar da chuva).
+  void aquecerChaoMolhado(renderer).then((ok) => {
+    if (destruido || !ok) return
+    chao.shaderPronto()
+    movimento.pedir?.()
+  })
   let niveisDoChao: NiveisDoChao = CHAO_SECO
   let alvoDoChaoAtual: NiveisDoChao = CHAO_SECO
   /**

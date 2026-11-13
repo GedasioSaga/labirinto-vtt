@@ -1,5 +1,6 @@
-import { CanvasSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type TextureSource } from 'pixi.js'
+import { CanvasSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type TextureSource } from 'pixi.js'
 import { AJUSTE_DO_CHAO_MOLHADO, type NiveisDoChao, type PassoDaPoca } from '../lib/chaoMolhado'
+import { aquecerPrograma } from './aquecerPrograma'
 import { telaVazia } from './drawNeblina'
 
 /**
@@ -112,6 +113,15 @@ function programaDoChao(): GlProgram {
   return programa
 }
 
+/**
+ * Compila o shader do chão em segundo plano (`aquecerPrograma.ts`): compilado
+ * no primeiro desenho, ele travava o ligar da chuva (262 ms no Goa). `false` =
+ * a placa não compila: sem chão molhado (com aviso), o resto segue igual.
+ */
+export function aquecerChaoMolhado(renderer: Renderer): Promise<boolean> {
+  return aquecerPrograma(renderer, programaDoChao(), '[chão molhado] o shader não compilou nesta placa; o chão não molha')
+}
+
 /** A máscara de um efeito pintado: a tela e a caixa dela (x, y, texels por px em x e em y), como a das partículas. */
 export interface PincelDoChao {
   fonte: TextureSource
@@ -139,6 +149,8 @@ export interface ChaoMolhado {
   niveis: (niveis: NiveisDoChao) => void
   /** Onde a chuva forte abre poça; `null` ou vazio = em lugar nenhum. */
   pocas: (passos: readonly PassoDaPoca[] | null, largura: number, altura: number, grid: number) => void
+  /** O shader compilou (`aquecerChaoMolhado`): antes disso a camada não aparece, para o Pixi não compilar travando. */
+  shaderPronto: () => void
   destruir: () => void
 }
 
@@ -204,6 +216,7 @@ export function criarChaoMolhado(): ChaoMolhado {
   const vazia = telaVazia()
   let poca: CanvasSource = telaVazia()
   let temPoca = false
+  let compilado = false
 
   function criarPasso(passo: 0 | 1): Mesh<Geometry, Shader> {
     const ajustes = new UniformGroup({ uPasso: { value: passo, type: 'f32' } })
@@ -236,7 +249,7 @@ export function criarChaoMolhado(): ChaoMolhado {
     const neve = nivel[1] > 0
     escurecer.visible = molhado
     cobrir.visible = (molhado && temPoca) || neve
-    camada.visible = escurecer.visible || cobrir.visible
+    camada.visible = compilado && (escurecer.visible || cobrir.visible)
   }
 
   return {
@@ -264,6 +277,10 @@ export function criarChaoMolhado(): ChaoMolhado {
       comum.uniforms.uRegua[1] = temPoca ? 1 : 0
       usar('uPoca', poca)
       velha.destroy()
+      mostrar()
+    },
+    shaderPronto() {
+      compilado = true
       mostrar()
     },
     destruir() {
