@@ -1,0 +1,105 @@
+/* O CAMPO DO TAMANHO DA FICHA (pedido de 12/11/2026): [−] [ 1,5 casa ] [+].
+   Um controle só na linha: os passos ganham a altura do campo (38 px, 44 no
+   dedo) e a mesma moldura afundada dele, e o número encosta na unidade, à
+   direita, como se lê ("1,5 casa"). */
+.lb-tamanho__linha {
+  display: flex;
+  align-items: stretch;
+  gap: var(--lb-space-1);
+}
+
+.lb-tamanho__passo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  color: var(--lb-color-parchment);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-md);
+  font-weight: var(--lb-font-weight-semibold);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Resposta à pressão: o botão afunda e volta, sem atraso (uso repetido, nada de movimento longo). */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-tamanho__passo:active:not([aria-disabled='true']) {
+  transform: scale(0.95);
+}
+
+/* No limite (0,25 ou 6 casas): continua focável, para o foco não sumir no meio do teclado; só não faz nada. */
+.lb-tamanho__passo[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-tamanho__passo:hover:not([aria-disabled='true']) {
+    border-color: var(--lb-color-line-strong);
+    background: var(--lb-color-stone-hover);
+  }
+}
+
+.lb-tamanho__caixa {
+  /* A largura reservada à unidade: "casas" inteira, mais o respiro até o número. */
+  --lb-tamanho-unidade: 48px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.lb-tamanho__campo.lb-input {
+  padding-right: var(--lb-tamanho-unidade);
+  font-family: var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--lb-font-tracking-wide);
+  text-align: right;
+}
+
+.lb-tamanho__unidade {
+  position: absolute;
+  top: 50%;
+  left: calc(100% - var(--lb-tamanho-unidade) + 6px);
+  transform: translateY(-50%);
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  pointer-events: none;
+}
+
+/* O aviso curto ("Ficou 6 casas, o maior tamanho."). Vazio, não ocupa lugar. */
+.lb-tamanho__aviso {
+  margin: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: var(--lb-font-leading-normal);
+  color: var(--lb-color-brass);
+}
+
+.lb-tamanho__aviso:not(:empty) {
+  margin-top: var(--lb-space-1);
+}
+
+/* No dedo: alvo de 44 px, e campo a 16 px para o iPhone não dar zoom ao tocar. */
+@media (pointer: coarse) {
+  .lb-tamanho__passo {
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .lb-tamanho__campo.lb-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}

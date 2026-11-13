@@ -1,9 +1,9 @@
-import { TOKEN_SIZE_OPTIONS } from '../lib/tokenSize'
+import { selectedTokenSize, TOKEN_SIZE_OPTIONS } from '../lib/tokenSize'
+import { CampoDoTamanho } from './CampoDoTamanho'
 
 export interface TokenSizeControlsProps {
-  /** Lado marcado, em quadrados; `null` = a ficha está num tamanho que não é
-   *  nenhum dos três (esticada pela alça de canto). */
-  size: number | null
+  /** Lado da ficha, em casas, com o de fábrica já resolvido (`tokenSizeInSquares`): 1,5 digitado, 1,37 da alça de canto. */
+  size: number
   onSizeChange: (size: number) => void
 }
 
@@ -18,7 +18,7 @@ const CELULA = 6
  * `aria-hidden`: o nome acessível do botão já diz "2 quadrados", e anunciar a
  * arte de novo só atrapalharia — mesma regra da amostra de cor
  * (`TokenColorControls`). Exportada para o "Tamanho da ficha ao entrar" da
- * cena (`SceneTokenSizeControls`), que oferece os mesmos botões.
+ * cena (`SceneTokenSizeControls`), que oferece os mesmos atalhos.
  */
 export function TokenSizeArt({ cells }: { cells: number }) {
   const meio = (CELULA * 3) / 2
@@ -37,30 +37,38 @@ export function TokenSizeArt({ cells }: { cells: number }) {
 }
 
 /**
- * Tamanho da ficha EM QUADRADOS DA GRADE — para o dragão não ficar do tamanho
- * do rato. O campo `Token.size` já existia e o desenho já o obedecia
+ * Tamanho da ficha EM CASAS DA GRADE — para o dragão não ficar do tamanho do
+ * rato. O campo `Token.size` já existia e o desenho já o obedecia
  * (`pixi/tokensRenderer.ts`); o que faltava era um jeito de dizer o número, em
  * vez de puxar a alça de canto no olhômetro.
  *
- * Mesma pastilha `lb-seg` do "Sentido da escada" (`StairControls`): três
- * opções numa fila só, `role="radio"` dentro de um `radiogroup`, com alvo de
- * toque, estado marcado e navegação por teclado já prontos.
+ * Em cima, o campo (`CampoDoTamanho`, pedido de 12/11/2026): o número que o
+ * mestre digita, 0,5 ou 1,5 também, com − e + de 0,1 casa — o mesmo do
+ * "Tamanho da ficha ao entrar" da cena. Embaixo, os atalhos 1, 2 e 3 com a
+ * arte da grade, na pastilha `lb-seg` de sempre (`role="radio"` num
+ * `radiogroup`); ao lado do campo não cabem sem apertar a largura do rail.
+ * Lado que não é atalho (1,5) deixa nenhum marcado, e o campo diz o número.
  *
- * O texto visível é só o número, e o nome acessível é "2 quadrados": o visível
- * continua contido no acessível, então leitor de tela e comando de voz
- * concordam com o que está escrito na tela.
+ * O texto visível do atalho é só o número, e o nome acessível é "2 casas": o
+ * visível continua contido no acessível, então leitor de tela e comando de
+ * voz concordam com o que está escrito na tela.
+ *
+ * Quem usa remonta isto a cada ficha (`key`): o número digitado e não
+ * confirmado não passa para a ficha seguinte.
  */
 export function TokenSizeControls({ size, onSizeChange }: TokenSizeControlsProps) {
+  const atalhoMarcado = selectedTokenSize({ size })
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Tamanho da ficha</h2>
+      <CampoDoTamanho casas={size} onTrocar={onSizeChange} rotulo="Tamanho da ficha em casas" nomeDoPasso="o tamanho da ficha" />
       <div className="lb-seg" role="radiogroup" aria-label="Tamanho da ficha">
         {TOKEN_SIZE_OPTIONS.map((option) => (
           <button
             key={option.value}
             type="button"
             role="radio"
-            aria-checked={size === option.value}
+            aria-checked={atalhoMarcado === option.value}
             aria-label={option.label}
             className="lb-seg__option"
             onClick={() => onSizeChange(option.value)}

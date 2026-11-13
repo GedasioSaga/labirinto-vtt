@@ -10,7 +10,7 @@ import { condicoesPropriasOf } from '../../lib/condicoesProprias'
 import { selectedTokenColor } from '../../lib/tokenColor'
 import { tokenPhotoRef } from '../../lib/tokenPhoto'
 import { tokenPublicNameMode } from '../../lib/tokenPublicName'
-import { selectedTokenSize, TOKEN_SIZE_OPTIONS } from '../../lib/tokenSize'
+import { nomeDoTamanho, tokenSizeInSquares } from '../../lib/tokenSize'
 import { vehicleOf } from '../../lib/vehicle'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { Cartao, Cartoes, SubFicha } from '../grimorio/Cartoes'
@@ -251,10 +251,9 @@ function resumoDoNome(token: Token): string {
   return 'O mesmo'
 }
 
-/** Fora dos três tamanhos da grade (redimensionada à mão, 1,37 quadrado): "Outro tamanho", como o seg sem nada marcado. */
+/** O lado da ficha pelo nome, como o campo o mostra: "1 casa", "1,5 casa", "2 casas" (o 1,3712 da alça de canto, "1,37 casa"). */
 function resumoDoTamanho(token: Token): string {
-  const tamanho = selectedTokenSize(token)
-  return TOKEN_SIZE_OPTIONS.find((opcao) => opcao.value === tamanho)?.label ?? 'Outro tamanho'
+  return nomeDoTamanho(tokenSizeInSquares(token))
 }
 
 /**
@@ -371,7 +370,8 @@ export function FichaDoToken(props: FichaDoTokenProps) {
         </FichaDoTokenLembrada>
         <FichaDoTokenLembrada id="no-mapa" titulo="No mapa" icone="cena" padrao={false} resumo={resumoDoTamanho(token)}>
           {props.comTrava && <ItemTransformControls key={`trava-${token.id}`} {...transformacao} parte="trava" />}
-          <TokenSizeControls size={selectedTokenSize(token)} {...props.tokenSize} />
+          {/* `key`: o número digitado e não confirmado vai para a ficha em que foi digitado, nunca para a seguinte. */}
+          <TokenSizeControls key={`tamanho-${token.id}`} size={tokenSizeInSquares(token)} {...props.tokenSize} />
           <TokenColorControls color={selectedTokenColor(token)} {...props.tokenColor} />
           {/* `tokenPhotoRef`: a foto escolhida pelo JOGADOR vive em `imageData`; sem isto o painel ofereceria "Escolher imagem..." num token que já tem foto. */}
           <TokenImageControls image={tokenPhotoRef(token)} {...props.tokenImage} />

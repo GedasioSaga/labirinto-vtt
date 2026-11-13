@@ -7,9 +7,26 @@
  */
 export const TOKEN_SIZE_DEFAULT = 1
 
-/** Menor e maior lado, em quadrados, que o painel oferece. */
-export const TOKEN_SIZE_MIN_SQUARES = 1
-export const TOKEN_SIZE_MAX_SQUARES = 3
+/**
+ * Menor e maior lado, em casas, que o campo do tamanho aceita (pedido do
+ * mestre de 12/11/2026: "eu quero dizer o quanto tem que mudar" — 0,5 numa
+ * cidade grande, 1,5 num bicho médio). O menor é o mesmo da alça de canto
+ * (`MIN_TOKEN_SIZE` em `lib/objectTransform.ts`); número fora da faixa vira o
+ * limite mais perto (`limitarTamanho`).
+ */
+export const TOKEN_SIZE_MIN_SQUARES = 0.25
+export const TOKEN_SIZE_MAX_SQUARES = 6
+
+/** Quanto o − e o + do campo (e as setas do teclado) mudam o lado: um décimo de casa. */
+export const TOKEN_SIZE_STEP = 0.1
+
+/** Casas decimais que o campo guarda: 0,25 cabe, e 0,7 + 0,1 não vira 0,7999999999999999 no arquivo. */
+const CENTESIMOS = 100
+
+/** O lado com duas casas decimais: o que o campo mostra e o que vai gravado. */
+function arredondarTamanho(casas: number): number {
+  return Math.round(casas * CENTESIMOS) / CENTESIMOS
+}
 
 export interface TokenSizeOption {
   /** O que vai gravado em `Token.size`: multiplicador de célula da grade. */
@@ -24,11 +41,10 @@ export interface TokenSizeOption {
 }
 
 /**
- * Os tamanhos do painel. Três, não um campo livre: na mesa existe gente
- * (1 quadrado), bicho grande (2) e o que mal cabe no corredor (3) — e o
- * arrasto pela alça de canto continua lá para o caso raro de um tamanho
- * quebrado. Todos são INTEIROS porque é assim que a peça assenta na grade
- * (ver `seatTokenCenter`).
+ * Os ATALHOS do tamanho, ao lado do campo (`CampoDoTamanho`): na mesa existe
+ * gente (1 casa), bicho grande (2) e o que mal cabe no corredor (3). O lado
+ * quebrado (0,5, 1,5) se digita no campo desde 12/11/2026; antes só a alça de
+ * canto o fazia.
  */
 export const TOKEN_SIZE_OPTIONS: readonly TokenSizeOption[] = [
   { value: 1, label: '1 casa' },
@@ -53,15 +69,92 @@ export function tokenSizeInSquares(token: { size?: unknown } | undefined): numbe
 }
 
 /**
- * Qual botão do painel está marcado, ou `null` quando a ficha está num tamanho
- * que o painel não oferece — o caso real é a ficha esticada pela alça de canto
- * (`resizeTokenSize`, que produz fração como 1,37). Nesse caso nenhum botão
- * fica marcado, em vez de mentir que ela tem 1 quadrado: a pessoa vê que o
- * tamanho é "outro" e escolhe um dos três se quiser voltar para a grade.
+ * Qual atalho do painel está marcado, ou `null` quando a ficha está num
+ * tamanho que não é atalho — digitado no campo (1,5) ou esticado pela alça de
+ * canto (`resizeTokenSize`, que produz fração como 1,37). Nesse caso nenhum
+ * atalho fica marcado, em vez de mentir que ela tem 1 casa: o número certo
+ * está no campo ao lado.
  */
 export function selectedTokenSize(token: { size?: unknown }): number | null {
   const size = tokenSizeInSquares(token)
   return TOKEN_SIZE_OPTIONS.some((option) => option.value === size) ? size : null
+}
+
+/**
+ * O lado como o campo o mostra: vírgula, até duas casas decimais, sem zero
+ * sobrando ("1,5", "0,25", "2"). O 1,3712 da alça de canto aparece "1,37".
+ */
+export function formatarTamanho(casas: number): string {
+  return String(arredondarTamanho(casas)).replace('.', ',')
+}
+
+/**
+ * "1 casa", "0,5 casa", "1,5 casa", "2 casas", "2,5 casas": o plural começa
+ * no 2, como em "1,5 milhão" e "2 milhões". Para 1, 2 e 3 é o mesmo nome dos
+ * atalhos (`TOKEN_SIZE_OPTIONS`).
+ */
+export function nomeDoTamanho(casas: number): string {
+  const redondo = arredondarTamanho(casas)
+  return `${formatarTamanho(redondo)} ${redondo < 2 ? 'casa' : 'casas'}`
+}
+
+/** Um lado já arredondado e dentro da faixa do campo. */
+export interface TamanhoLimitado {
+  casas: number
+  /** O aviso curto quando o número saiu da faixa e virou o limite mais perto; `null` = coube como veio. */
+  aviso: string | null
+}
+
+/**
+ * O lado que o campo grava: duas casas decimais e dentro de 0,25 a 6. Fora da
+ * faixa (10, 0,1, -1) vira o limite mais perto, com o aviso que o campo mostra
+ * embaixo — o número digitado nunca some sem explicação.
+ */
+export function limitarTamanho(casas: number): TamanhoLimitado {
+  const redondo = arredondarTamanho(casas)
+  if (redondo < TOKEN_SIZE_MIN_SQUARES) {
+    return { casas: TOKEN_SIZE_MIN_SQUARES, aviso: `Ficou ${nomeDoTamanho(TOKEN_SIZE_MIN_SQUARES)}, o menor tamanho.` }
+  }
+  if (redondo > TOKEN_SIZE_MAX_SQUARES) {
+    return { casas: TOKEN_SIZE_MAX_SQUARES, aviso: `Ficou ${nomeDoTamanho(TOKEN_SIZE_MAX_SQUARES)}, o maior tamanho.` }
+  }
+  return { casas: redondo, aviso: null }
+}
+
+/** "1,5", "1.5", ",5", "-1", "2 casas": número com vírgula OU ponto, com o nome da unidade opcional no fim. */
+const NUMERO_DIGITADO = /^-?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/
+const UNIDADE_NO_FIM = /\s*casas?$/i
+
+/**
+ * O número que a pessoa digitou no campo, em casas, ainda SEM limitar (quem
+ * limita é `limitarTamanho`, que também diz o aviso). Vírgula e ponto valem
+ * como decimal. Texto que não é número (vazio, "dois", "1,5,2") = `null`: o
+ * campo não grava lixo.
+ */
+export function lerTamanhoDigitado(texto: string): number | null {
+  const limpo = texto.trim().replace(UNIDADE_NO_FIM, '')
+  if (!NUMERO_DIGITADO.test(limpo)) return null
+  const casas = Number(limpo.replace(',', '.'))
+  return Number.isFinite(casas) ? casas : null
+}
+
+/** 10 passos de 0,1 numa casa: a conta do passo anda em inteiros, e a divisão no fim dá o décimo exato. */
+const PASSOS_POR_CASA = Math.round(1 / TOKEN_SIZE_STEP)
+
+/** Folga para o lado que é décimo a menos de um resto de conta (1,3000000001 vindo da alça) não contar como "entre dois décimos". */
+const FOLGA_DO_DECIMO = 1e-6
+
+/**
+ * O lado depois de um − (`-1`) ou + (`1`): um décimo de casa, já limitado.
+ * Lado fora da grade de décimos (1,37 da alça de canto) vai primeiro ao
+ * décimo vizinho naquele sentido (1,4 no +, 1,3 no −), como o passo de um
+ * campo de número do navegador — e não a 1,47, que nunca mais cairia num
+ * número redondo.
+ */
+export function passoDoTamanho(casas: number, sentido: 1 | -1): TamanhoLimitado {
+  const passos = casas * PASSOS_POR_CASA
+  const base = sentido > 0 ? Math.floor(passos + FOLGA_DO_DECIMO) : Math.ceil(passos - FOLGA_DO_DECIMO)
+  return limitarTamanho((base + sentido) / PASSOS_POR_CASA)
 }
 
 export interface Point {
@@ -85,8 +178,11 @@ export interface Point {
  * meia célula para o mesmo lado, porque o centro de célula está exatamente no
  * meio do caminho entre duas linhas.
  *
- * Tamanho fracionário (a ficha esticada pela alça de canto) não é par nem
- * ímpar: segue o snap de sempre.
+ * Tamanho fracionário (0,5 ou 1,5 digitado no campo, 1,37 da alça de canto)
+ * não é par nem ímpar: segue o snap de sempre, com o centro NO MEIO DA CASA —
+ * a meia casa fica dentro de uma casa, a de 1,5 cobre a casa inteira e um
+ * quarto de cada vizinha, por igual. É o mesmo ponto no arrasto, na chegada
+ * (`lib/tamanhoAoEntrar.ts`) e no "Reunir o grupo", então a ficha não pula.
  */
 export function seatTokenCenter(raw: Point, snapped: Point, gridSize: number, cells: number): Point {
   if (gridSize <= 0) return snapped

@@ -1072,8 +1072,8 @@ function deserializeMapFields(json: string): MapData {
     // o resto (texto, fração, arquivo editado à mão) volta AUSENTE — a cena de
     // sempre, com o rosto de todo mundo à vista.
     faceRangeCells: faceRangeCellsOrNull(parsed.faceRangeCells) ?? undefined,
-    // "Tamanho da ficha ao entrar": campo NOVO e OPCIONAL. Só 1, 2 ou 3 voltam;
-    // ausente (ou torto) abre SEM o campo — "Não mudar", a cena de sempre (`lib/tamanhoAoEntrar.ts`).
+    // "Tamanho da ficha ao entrar": campo NOVO e OPCIONAL. Volta o número de casas (0,25 a 6, fora disso o
+    // limite mais perto); ausente (ou torto) abre SEM o campo — "Não mudar", a cena de sempre (`lib/tamanhoAoEntrar.ts`).
     ...tamanhoAoEntrarField(parsed.tamanhoDaFichaAoEntrar),
     ownerId: parsed.ownerId ?? null,
     scenarioLink: parsed.scenarioLink ?? null,
@@ -1149,7 +1149,7 @@ function offFloorField(raw: unknown): Pick<MapData, 'offFloor'> {
   return offFloor === undefined ? {} : { offFloor }
 }
 
-/** `tamanhoDaFichaAoEntrar` só entra no mapa quando o arquivo traz um dos botões: mapa de antes não ganha campo. */
+/** `tamanhoDaFichaAoEntrar` só entra no mapa quando o arquivo traz um tamanho (`lerTamanhoAoEntrar`): mapa de antes não ganha campo. */
 function tamanhoAoEntrarField(raw: unknown): Pick<MapData, 'tamanhoDaFichaAoEntrar'> {
   const tamanhoDaFichaAoEntrar = lerTamanhoAoEntrar(raw)
   return tamanhoDaFichaAoEntrar === undefined ? {} : { tamanhoDaFichaAoEntrar }
