@@ -79,6 +79,9 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   // TERRENO DO CHÃO (CHÃO E CAMINHO, 12/11/2026): a peça de Chão com material, ACIMA
   // das Texturas e abaixo da luz do relevo (`pixi/terrenoDoChao.ts`). O Liso fica no `floorGraphics`.
   faixa('terrenoDoChao', [], ['chao']),
+  // CHÃO MOLHADO (Ambiente, 12/11/2026): a chuva escurece o chão e a neve junta, por cima do
+  // chão, das Texturas e do terreno, abaixo da luz do relevo (`pixi/chaoMolhado.ts`). Clima: fixa.
+  faixa('chaoMolhado', [], FIXA),
   faixa('relevoContainer', [], ['terreno']),
   faixa('regionStrokesContainer', ['regiao'], ['salas']),
   faixa('pathsGraphics', ['desenho'], ['anotacoes']),

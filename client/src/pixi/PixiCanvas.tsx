@@ -1417,6 +1417,12 @@ function PixiCanvasDoContexto({
         },
       })
       pisosNaVista.push(terreno)
+      // CHÃO MOLHADO (Ambiente, `chaoMolhado.ts`): a chuva escurece o chão e abre poças, a neve junta
+      // devagar; logo acima do terreno e abaixo do relevo. A camada vem do Ambiente (`neblinaNoEditor.ts`).
+      const chaoMolhadoContainer = new Container()
+      chaoMolhadoContainer.label = 'chaoMolhado'
+      chaoMolhadoContainer.eventMode = 'none'
+      chaoMolhadoContainer.interactiveChildren = false
       // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
       const fogos = createFogosDoMapa({
         movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
@@ -1626,6 +1632,7 @@ function PixiCanvasDoContexto({
         secretDrawingsGraphics,
         texturas: texturas.camada,
         terrenoDoChao: terreno.camada,
+        chaoMolhado: chaoMolhadoContainer,
         relevoContainer,
         regionStrokesContainer,
         pathsGraphics: pathsContainer,
@@ -3040,6 +3047,9 @@ function PixiCanvasDoContexto({
         ticker: desenho.relogio,
         reducedMotion: prefersReducedMotion,
         mundo: world,
+        // CHÃO MOLHADO: a faixa logo acima do terreno; o chão secando pede quadro sozinho (sem desenhar todo quadro).
+        chao: chaoMolhadoContainer,
+        pedir: () => desenho.pedir(),
         aoMudar: (estado) => {
           el.dataset.neblina = estado.ligada ? (estado.movendo ? 'andando' : 'parada') : 'desligada'
           el.dataset.neblinaMascara = estado.mascara
@@ -3361,6 +3371,8 @@ function PixiCanvasDoContexto({
           mapaDeLuz.sprite,
           // A NEBLINA também: é clima andando, como as nuvens.
           neblinaDoEditor.renderer.camada,
+          // E o CHÃO MOLHADO e a neve juntada: é a chuva de agora, não o chão.
+          chaoMolhadoContainer,
           // E as PARTÍCULAS: fumaça e brasa são um instante, e moram no palco, na câmera do editor.
           particulasDoMapa.camada,
         ]

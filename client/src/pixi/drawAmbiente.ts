@@ -1,7 +1,19 @@
 import { CanvasSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type Ticker, type TextureSource } from 'pixi.js'
-import type { EfeitoDoAmbiente, FrequenciaDoRelampago, Periodo, PinceladaDeAmbiente, TipoDeFolhas } from '../types/map'
+import type { EfeitoDoAmbiente, FloorPiece, FrequenciaDoRelampago, MapData, Periodo, PinceladaDeAmbiente, TipoDeFolhas } from '../types/map'
 import type { SomDaChuva } from '../lib/sons/somDaChuva'
 import { chaveDoAbrigo, type AbrigoDoAmbiente } from '../lib/abrigoDoAmbiente'
+import {
+  AJUSTE_DO_CHAO_MOLHADO,
+  CHAO_SECO,
+  alvoDoChao,
+  climaNoPonto,
+  meioDoPoligono,
+  niveisDepois,
+  passosDasPocas,
+  type ClimaDosTelhados,
+  type NiveisDoChao,
+} from '../lib/chaoMolhado'
+import { criarChaoMolhado, type EntradaDoChaoMolhado, type PincelDoChao } from './chaoMolhado'
 import { BORDA_DA_MASCARA, caixaDaMascara, pintarMascara, telaVazia, type CaixaDaMascara } from './drawNeblina'
 
 /**
@@ -531,6 +543,16 @@ export interface EntradaDoAmbiente {
   relampago: FrequenciaDoRelampago
   /** O mestre deixou o som da chuva ligado (cada um ainda tem o volume e o mudo dele). */
   somDaChuva: boolean
+  /** "Chão molha e junta neve" (`chaoMolhaLigado`): o chão e o telhado molham e juntam neve (`pixi/chaoMolhado.ts`). */
+  chaoMolha: boolean
+}
+
+/** De onde saem as poças (`passosDasPocas`): as Texturas e o terreno que ESTA tela desenha. */
+export interface EntradaDasPocas {
+  mapa: Pick<MapData, 'width' | 'height' | 'grid' | 'regions'>
+  texturas: MapData['texturas']
+  /** A MESMA lista que o terreno desenha (o contorno guardado é por lista: outra lista recontaria). */
+  floor: FloorPiece[]
 }
 
 export interface MovimentoDoAmbiente {
@@ -538,6 +560,13 @@ export interface MovimentoDoAmbiente {
   reducedMotion: () => boolean
   /** Relógio de PAREDE em ms (padrão `Date.now()`): a chuva cai igual no mestre e no jogador. */
   agora?: () => number
+  /** Pede um quadro (`desenhoSobPedido`): o chão secando sozinho, sem nada mais animando. Sem isto, o pulso da tela faz o mesmo, mais devagar. */
+  pedir?: () => void
+}
+
+/** Quem recebe o clima dos telhados (`pixi/telhadosRenderer.ts`). */
+export interface TelhadosDoClima {
+  setClima: (clima: ClimaDosTelhados | null) => void
 }
 
 export interface EstadoDoAmbiente {
@@ -549,8 +578,17 @@ export interface EstadoDoAmbiente {
 
 export interface AmbienteRenderer {
   readonly camada: Container
-  /** `null` = sem Ambiente (as partículas somem de leve e o relógio sai). */
+  /**
+   * O CHÃO MOLHADO E A NEVE ACUMULADA (`pixi/chaoMolhado.ts`): quem monta a tela
+   * põe esta camada logo acima do terreno do chão (no jogador, com a máscara do conhecido).
+   */
+  readonly chao: Container
+  /** `null` = sem Ambiente (as partículas somem de leve e o relógio sai; o chão seca devagar). */
   atualizar: (entrada: EntradaDoAmbiente | null) => void
+  /** De onde saem as poças; refeitas sem pressa (`esperaDasPocasMs`) e só com chuva. */
+  setPocas: (entrada: EntradaDasPocas | null) => void
+  /** Os telhados que molham e juntam neve com o chão; `null` = nenhum. */
+  ligarTelhados: (telhados: TelhadosDoClima | null) => void
   /** As salas secas e as portas (refaz as máscaras só quando mudam). */
   setAbrigo: (abrigo: AbrigoDoAmbiente, largura: number, altura: number, grid: number) => void
   /** A máscara do ar, para a neblina entrar só pela porta; `null` = nenhuma sala seca. */
@@ -621,6 +659,149 @@ export function createAmbienteRenderer(
   let ultimoClarao = -1
   /** A vista em px de mundo no último desenho: o véu cobre só ela. */
   const vista = { x: 0, y: 0, largura: 1, altura: 1 }
+
+  // ---------- o chão molhado, a neve acumulada e o telhado ----------
+  const chao = criarChaoMolhado()
+  let niveisDoChao: NiveisDoChao = CHAO_SECO
+  let alvoDoChaoAtual: NiveisDoChao = CHAO_SECO
+  /** A primeira entrada chega pronta: quem abre um mapa com chuva já vê o chão molhado. */
+  let chaoComecou = false
+  let ultimoChaoMs = 0
+  let timerDoChao: ReturnType<typeof setTimeout> | null = null
+  let telhados: TelhadosDoClima | null = null
+  let coberturaDosTelhados: ClimaDosTelhados['cobertura'] | null = null
+  let climaAvisado: { cobertura: ClimaDosTelhados['cobertura'] | null; molhado: number; neve: number } | null = null
+  let pocasPedidas: EntradaDasPocas | null = null
+  let pocasFeitas: EntradaDasPocas | null | undefined
+  let timerDasPocas: ReturnType<typeof setTimeout> | null = null
+
+  const chaoNoAlvo = (): boolean => niveisDoChao.molhado === alvoDoChaoAtual.molhado && niveisDoChao.neve === alvoDoChaoAtual.neve
+  /** O chão anda devagar; com "menos movimento" ou os efeitos parados, vai direto ao alvo (o protótipo deixa o molhado à vista). */
+  const chaoAnda = (): boolean => !movimento.reducedMotion() && (entrada?.animar ?? true)
+
+  /** O clima dos telhados: só manda quando o nível andou um passo ou o que cai mudou (cada mudança custa uma volta nos telhados). */
+  function avisarTelhados(): void {
+    if (telhados === null) return
+    const seco = niveisDoChao.molhado === 0 && niveisDoChao.neve === 0
+    const cobertura = seco ? null : coberturaDosTelhados
+    const passo = AJUSTE_DO_CHAO_MOLHADO.passoDoNivel
+    const antes = climaAvisado
+    if (
+      antes !== null &&
+      antes.cobertura === cobertura &&
+      (cobertura === null ||
+        (Math.abs(antes.molhado - niveisDoChao.molhado) < passo && Math.abs(antes.neve - niveisDoChao.neve) < passo && (niveisDoChao.molhado !== 0) === (antes.molhado !== 0) && (niveisDoChao.neve !== 0) === (antes.neve !== 0)))
+    ) {
+      return
+    }
+    climaAvisado = { cobertura, molhado: niveisDoChao.molhado, neve: niveisDoChao.neve }
+    telhados.setClima(cobertura === null ? null : { cobertura, niveis: niveisDoChao })
+  }
+
+  /** Anda o nível do chão pelo relógio de parede (do relógio do desenho com chuva caindo, do temporizador secando). */
+  function andarChao(): void {
+    const t = performance.now()
+    const dt = ultimoChaoMs === 0 ? 0 : Math.min(5, (t - ultimoChaoMs) / 1000)
+    ultimoChaoMs = t
+    const antes = niveisDoChao
+    niveisDoChao = chaoAnda() ? niveisDepois(niveisDoChao, alvoDoChaoAtual, dt) : alvoDoChaoAtual
+    if (niveisDoChao.molhado !== antes.molhado || niveisDoChao.neve !== antes.neve) chao.niveis(niveisDoChao)
+    avisarTelhados()
+    if (chaoNoAlvo()) ultimoChaoMs = 0
+  }
+
+  /**
+   * Sem chuva caindo (o relógio do desenho já saiu), o chão secando pede um
+   * quadro a cada `quadroSecandoMs`: a tela não redesenha todo quadro por ele.
+   */
+  function agendarChao(): void {
+    if (timerDoChao !== null || destruido || noRelogio || chaoNoAlvo()) return
+    timerDoChao = setTimeout(() => {
+      timerDoChao = null
+      if (destruido || noRelogio) return
+      andarChao()
+      movimento.pedir?.()
+      agendarChao()
+    }, AJUSTE_DO_CHAO_MOLHADO.quadroSecandoMs)
+  }
+
+  function pincelDoChao(tipo: 'chuva' | 'neve'): PincelDoChao | null {
+    const m = malhas.get(tipo)
+    if (m === undefined || m.caixa === null || m.alvoPincel <= 0) return null
+    const caixa = m.ajustes.uniforms.uCaixaDoPincel as Float32Array // UniformGroup sem genérico tipa uniforms como any; o valor é o Float32Array(4) do criarMalha
+    return { fonte: m.mascara, caixa, aparecido: 1 }
+  }
+
+  /** O que o chão desenhou por último: secando (sem chuva), ele continua com a chuva de antes enquanto o nível desce. */
+  let ultimaDoChao: EntradaDoChaoMolhado | null = null
+
+  /** O pincel de antes, se a máscara dele ainda é a da malha (a borracha que tirou tudo destrói a máscara: aí some na hora). */
+  function pincelQueFica(tipo: 'chuva' | 'neve', anterior: PincelDoChao | null): PincelDoChao | null {
+    return anterior !== null && malhas.get(tipo)?.mascara === anterior.fonte ? anterior : null
+  }
+
+  /** O que o chão recebe desta entrada e para onde o nível vai. Chamado depois de cada `aplicar` e quando o abrigo muda. */
+  function aplicarChao(): void {
+    const e = entrada
+    const inteira = e === null ? { chuva: 0, neve: 0 } : { chuva: Math.min(1, Math.max(0, e.inteira.chuva)), neve: Math.min(1, Math.max(0, e.inteira.neve)) }
+    const pintada = e?.pintada ?? []
+    const chuvaPintada = pintada.some((p) => p.efeito === 'chuva' && p.tipo === 'pincel')
+    const nevePintada = pintada.some((p) => p.efeito === 'neve' && p.tipo === 'pincel')
+    const molha = e?.chaoMolha ?? false
+    const novoAlvo = alvoDoChao(molha, { inteira: inteira.chuva, pintada: chuvaPintada }, { inteira: inteira.neve, pintada: nevePintada })
+    // Chovendo, o chão desenha a chuva de agora; parou, fica com a de antes e só o nível desce (seca devagar).
+    const antes = ultimaDoChao
+    const chovendo = novoAlvo.molhado > 0 || antes === null
+    const nevando = novoAlvo.neve > 0 || antes === null
+    const doChao: EntradaDoChaoMolhado | null =
+      e === null && antes === null
+        ? null
+        : {
+            largura: e?.largura ?? antes?.largura ?? 1,
+            altura: e?.altura ?? antes?.altura ?? 1,
+            grid: e?.grid ?? antes?.grid ?? 1,
+            inteira: { chuva: chovendo ? inteira.chuva : antes.inteira.chuva, neve: nevando ? inteira.neve : antes.inteira.neve },
+            chuva: chovendo ? pincelDoChao('chuva') : pincelQueFica('chuva', antes.chuva),
+            neve: nevando ? pincelDoChao('neve') : pincelQueFica('neve', antes.neve),
+            seco,
+          }
+    ultimaDoChao = doChao
+    if (doChao !== null) chao.definir(doChao)
+    // O que cai em cada telhado só muda com a chave e o pincel: a mesma função = o telhado não reconta.
+    const coberta = molha && (novoAlvo.molhado > 0 || novoAlvo.neve > 0)
+    coberturaDosTelhados = coberta ? (pontos) => climaNoPonto(inteira, pintada, meioDoPoligono(pontos)) : null
+    alvoDoChaoAtual = novoAlvo
+    if (!chaoComecou && e !== null) {
+      chaoComecou = true
+      niveisDoChao = novoAlvo
+      chao.niveis(niveisDoChao)
+    }
+    andarChao()
+    movimento.pedir?.()
+    agendarChao()
+    pedirPocas()
+  }
+
+  /** As poças só se fazem com chuva (e depois de o chão parar de mudar): sem chuva, a conta fica para quando chover. */
+  function pedirPocas(): void {
+    if (pocasPedidas === pocasFeitas || (alvoDoChaoAtual.molhado === 0 && niveisDoChao.molhado === 0)) return
+    if (timerDasPocas !== null) clearTimeout(timerDasPocas)
+    timerDasPocas = setTimeout(() => {
+      timerDasPocas = null
+      if (destruido) return
+      const pedidas = pocasPedidas
+      pocasFeitas = pedidas
+      if (pedidas === null) {
+        chao.pocas(null, 1, 1, 1)
+        return
+      }
+      const { mapa } = pedidas
+      const largura = mapa.width * mapa.grid
+      const altura = mapa.height * mapa.grid
+      chao.pocas(passosDasPocas(mapa, pedidas.texturas, pedidas.floor), largura, altura, mapa.grid)
+      movimento.pedir?.()
+    }, AJUSTE_DO_CHAO_MOLHADO.esperaDasPocasMs)
+  }
 
   function criarVeu(): { mesh: Mesh<Geometry, Shader>; caixa: Float32Array; cor: Float32Array } {
     // O grupo guarda os próprios arrays: mudar os valores no lugar é o que sobe para a GPU.
@@ -824,6 +1005,8 @@ export function createAmbienteRenderer(
       tempoParado = tempoAgora()
       movendo = false
     }
+    // O chão anda junto com a chuva caindo (o quadro já desenha); não segura o relógio sozinho.
+    andarChao()
     if (!movendo && !animando) sairDoRelogio()
   }
 
@@ -838,6 +1021,8 @@ export function createAmbienteRenderer(
     if (!noRelogio) return
     noRelogio = false
     movimento.ticker.remove(passo)
+    // O chão que ainda seca (ou junta neve parada) segue no temporizador, sem desenhar todo quadro.
+    agendarChao()
   }
 
   function aplicar(): void {
@@ -852,6 +1037,8 @@ export function createAmbienteRenderer(
       opcoes.som?.atualizar(0, false)
       if (malhas.size > 0) entrarNoRelogio()
       avisar()
+      // O chão não espera o shader das partículas: a chuva do mapa inteiro já molha.
+      aplicarChao()
       return
     }
     comum.uniforms.uMundo.set([Math.max(1, e.largura), Math.max(1, e.altura)])
@@ -886,6 +1073,7 @@ export function createAmbienteRenderer(
     opcoes.som?.atualizar(chuva, e.somDaChuva && e.animar)
     entrarNoRelogio()
     avisar()
+    aplicarChao()
   }
 
   camada.onRender = antesDoDesenho
@@ -924,6 +1112,12 @@ export function createAmbienteRenderer(
         m.mesh.shader.resources.uSeco = seco
         m.mesh.shader.resources.uAr = ar
       }
+      // O chão também não molha dentro de casa: troca o seco dele no mesmo passo.
+      if (ultimaDoChao !== null) {
+        ultimaDoChao = { ...ultimaDoChao, seco }
+        chao.definir(ultimaDoChao)
+        movimento.pedir?.()
+      }
       // A neblina lê o ar antes da troca chegar a ela: destrói depois do quadro.
       setTimeout(() => {
         for (const velho of velhos) velho.destroy()
@@ -936,14 +1130,43 @@ export function createAmbienteRenderer(
       periodo = proximo
       comum.uniforms.uNoite = AJUSTE_DO_AMBIENTE.noite[periodo]
     },
+    chao: chao.camada,
+    setPocas(nova) {
+      const atual = pocasPedidas
+      // A mesma forma do chão (as mesmas listas): nada a refazer.
+      const igual =
+        nova !== null &&
+        atual !== null &&
+        nova.floor === atual.floor &&
+        nova.texturas === atual.texturas &&
+        nova.mapa.regions === atual.mapa.regions &&
+        nova.mapa.width === atual.mapa.width &&
+        nova.mapa.height === atual.mapa.height &&
+        nova.mapa.grid === atual.mapa.grid
+      if (igual || (nova === null && atual === null)) return
+      pocasPedidas = nova
+      pedirPocas()
+    },
+    ligarTelhados(novos) {
+      if (novos === telhados) return
+      telhados?.setClima(null)
+      telhados = novos
+      climaAvisado = null
+      avisarTelhados()
+    },
     destruir() {
       destruido = true
       sairDoRelogio()
+      if (timerDoChao !== null) clearTimeout(timerDoChao)
+      if (timerDasPocas !== null) clearTimeout(timerDasPocas)
+      telhados?.setClima(null)
+      telhados = null
       opcoes.som?.destruir()
       camada.onRender = null
       for (const m of malhas.values()) m.mascara.destroy()
       malhas.clear()
       camada.destroy({ children: true })
+      chao.destruir()
       seco.destroy()
       ar.destroy()
     },

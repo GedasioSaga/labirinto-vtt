@@ -1,10 +1,20 @@
 import type { Container, Graphics, Renderer, Ticker } from 'pixi.js'
 import type { EfeitoDoAmbiente, MapData, PinceladaDeAmbiente, RegionPoint } from '../types/map'
-import { EFEITOS_DO_AMBIENTE, intensidadeNoMapaInteiro, relampagoDoMapa, somDaChuvaLigado, tipoDeFolhas, ventoDoMapa, vetorDoVento, type EfeitoDoPainel } from '../lib/ambiente'
+import {
+  EFEITOS_DO_AMBIENTE,
+  chaoMolhaLigado,
+  intensidadeNoMapaInteiro,
+  relampagoDoMapa,
+  somDaChuvaLigado,
+  tipoDeFolhas,
+  ventoDoMapa,
+  vetorDoVento,
+  type EfeitoDoPainel,
+} from '../lib/ambiente'
 import { criarSomDaChuva } from '../lib/sons/somDaChuva'
 import { abrigoDoMestre } from '../lib/abrigoDoAmbiente'
 import { cenaTemFogo } from '../lib/particulasDaCena'
-import { aquecerAmbiente, createAmbienteRenderer, type EntradaDoAmbiente, type EstadoDoAmbiente } from './drawAmbiente'
+import { aquecerAmbiente, createAmbienteRenderer, type EntradaDoAmbiente, type EstadoDoAmbiente, type TelhadosDoClima } from './drawAmbiente'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, PINCELADAS_MAX, type ResultadoDaNeblina } from '../lib/neblina'
 import { mapaDoPiso } from '../lib/pisos'
 import { unidadeDoRelevo } from '../lib/relevo'
@@ -55,13 +65,26 @@ export function criarNeblinaDoEditor(dep: {
   ticker: Pick<Ticker, 'add' | 'remove'>
   reducedMotion: () => boolean
   mundo: Container
+  /** A faixa do chão molhado (`chaoMolhado`, logo acima do terreno): a camada do chão mora nela. */
+  chao?: Container
+  /** Os telhados do palco: molham e juntam neve com o chão. */
+  telhados?: TelhadosDoClima
+  /** Pede um quadro (o chão secando sem nada mais animando). */
+  pedir?: () => void
   aoMudar?: (estado: EstadoDaNeblina) => void
   aoMudarAmbiente?: (estado: EstadoDoAmbiente) => void
 }): NeblinaDoEditor {
   const neblina = createNeblinaRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudar })
   // AMBIENTE (`drawAmbiente.ts`): as partículas logo acima da neblina. O shader compila já, em segundo plano.
-  const ambiente = createAmbienteRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudarAmbiente, som: criarSomDaChuva() })
+  const ambiente = createAmbienteRenderer(
+    dep.renderer,
+    { ticker: dep.ticker, reducedMotion: dep.reducedMotion, pedir: dep.pedir },
+    { aoMudar: dep.aoMudarAmbiente, som: criarSomDaChuva() },
+  )
   void aquecerAmbiente(dep.renderer)
+  // CHÃO MOLHADO: a camada vai para a faixa dela (o mestre vê tudo: sem máscara); os telhados molham junto.
+  dep.chao?.addChild(ambiente.chao)
+  ambiente.ligarTelhados(dep.telhados ?? null)
   // O período vai para os dois: a tela chama `renderer.setPeriodo` como antes.
   const renderer: NeblinaRenderer = {
     camada: neblina.camada,
@@ -95,6 +118,8 @@ export function criarNeblinaDoEditor(dep: {
       if (antes === null || antes.ambiente !== doPiso.ambiente || antes.ambientePintado !== doPiso.ambientePintado || antes.props !== doPiso.props || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height) {
         ambiente.atualizar(entradaDoAmbiente(map, doPiso.ambientePintado, !cenaTemFogo(map.props), true))
       }
+      // AS POÇAS saem das Texturas e do terreno do piso à vista: a MESMA lista de peças que o terreno desenha (`sceneState`).
+      ambiente.setPocas({ mapa: doPiso, texturas: doPiso.texturas, floor: doPiso.floor })
       // Só a neblina importa daqui para baixo: o resto do mapa mudou e ela não, nada a refazer.
       if (antes !== null && antes.neblina === doPiso.neblina && antes.neblinaPintada === doPiso.neblinaPintada && antes.width === doPiso.width && antes.height === doPiso.height && antes.grid === doPiso.grid) {
         return neblina.camada
@@ -144,6 +169,7 @@ export function entradaDoAmbiente(map: MapData, pintada: readonly PinceladaDeAmb
     animar,
     relampago: relampagoDoMapa(map),
     somDaChuva: somDaChuvaLigado(map),
+    chaoMolha: chaoMolhaLigado(map),
   }
 }
 

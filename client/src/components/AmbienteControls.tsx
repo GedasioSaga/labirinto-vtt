@@ -6,6 +6,7 @@ import {
   FORCA_DO_VENTO_MIN,
   INTENSIDADE_MAX,
   INTENSIDADE_MIN,
+  chaoMolhaLigado,
   efeitoDoMapa,
   nomeDaIntensidade,
   nomeDoVento,
@@ -412,6 +413,7 @@ function OpcoesDaChuva() {
   const setAmbiente = useMapStore((s) => s.setAmbiente)
   const relampago = relampagoDoMapa({ ambiente })
   const relampagoDicaId = useId()
+  const chaoDicaId = useId()
   return (
     <>
       <h2 className="lb-eyebrow">Chuva e neve</h2>
@@ -437,6 +439,12 @@ function OpcoesDaChuva() {
       </div>
       <div className="lb-field">
         <Toggle label="Som da chuva" checked={somDaChuvaLigado({ ambiente })} onChange={(somDaChuva) => setAmbiente({ somDaChuva })} />
+      </div>
+      <div className="lb-field">
+        <Toggle label="Chão molha e junta neve" checked={chaoMolhaLigado({ ambiente })} onChange={(chaoMolha) => setAmbiente({ chaoMolha })} describedBy={chaoDicaId} />
+        <p id={chaoDicaId} className="lb-field__hint">
+          Com chuva, o chão e o telhado escurecem e abrem poças; com neve, juntam branco devagar. Dentro de casa fechada, nada.
+        </p>
       </div>
     </>
   )
