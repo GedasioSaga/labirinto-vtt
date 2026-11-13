@@ -13,7 +13,7 @@ import * as perigo from '../lib/perigo'
 import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
 import type { OffFloor } from '../lib/offFloor'
 import { comFichasNoPadrao, comTamanhoAoEntrar, fichasForaDoPadrao } from '../lib/tamanhoAoEntrar'
-import { comBarraPassagemNoMapa } from '../lib/obstaculosDeObjeto'
+import { comBarraPassagemNoMapa, comTapaVisaoNoMapa } from '../lib/obstaculosDeObjeto'
 import type { Camera, Point } from '../pixi/world'
 import type { DoorMode, DrawingTool, RoomFreeKind, Selection } from '../types/tools'
 import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
@@ -1544,6 +1544,8 @@ interface MapStoreState {
   setPropLinkedPath: (id: string, path: string | null) => void
   /** "Barra a passagem" do objeto (`Prop.barraPassagem`, `lib/obstaculosDeObjeto.ts`). Com histórico; escolher o que já vale não cria passo. */
   setPropBarraPassagem: (id: string, barra: boolean) => void
+  /** "Tapa a visão" da construção (`Prop.tapaVisao`, `lib/obstaculosDeObjeto.ts`). Com histórico; escolher o que já vale não cria passo. */
+  setPropTapaVisao: (id: string, tapa: boolean) => void
   updateCurvePoint: (drawingId: string, index: number, x: number, y: number) => void
   insertCurvePoint: (drawingId: string, afterIndex: number, x: number, y: number) => void
   removeCurvePoint: (drawingId: string, index: number) => void
@@ -3539,6 +3541,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setScenarioLink: (value) => withHistory((map) => mapFactory.setScenarioLink(map, value)),
     setPropBarraPassagem: (id, barra) => passoSeMudou((map) => comBarraPassagemNoMapa(map, id, barra)),
+    setPropTapaVisao: (id, tapa) => passoSeMudou((map) => comTapaVisaoNoMapa(map, id, tapa)),
     setPropLinkedPath: (id, path) => withHistory((map) => ({
       ...map,
       props: map.props.map((p) => (p.id === id ? { ...p, linkedMapPath: path } : p)),

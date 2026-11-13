@@ -4,7 +4,7 @@ import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { nomeDaCamada } from '../../lib/camadas/mover'
 import { meioTermoLigado } from '../../lib/estiloDoMapa'
 import { saiComTextura } from '../../lib/mobilia/desenhoDoMovel'
-import { barraPassagemEscolhida, objetoPodeBarrar } from '../../lib/obstaculosDeObjeto'
+import { barraPassagemEscolhida, objetoPodeBarrar, objetoPodeTapar, tapaVisaoEscolhida } from '../../lib/obstaculosDeObjeto'
 import { useMapStore } from '../../stores/mapStore'
 import { Toggle } from '../Toggle'
 import { Essencial } from '../grimorio/Cartoes'
@@ -75,6 +75,9 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
   // "Barra a passagem" vai direto à cena aberta (a mesma de onde a camada acima é lida), com um Ctrl+Z.
   const setPropBarraPassagem = useMapStore((state) => state.setPropBarraPassagem)
   const explicacaoDaPassagemId = useId()
+  // "Tapa a visão" (construções, 12/11/2026): também direto à cena aberta, com um Ctrl+Z.
+  const setPropTapaVisao = useMapStore((state) => state.setPropTapaVisao)
+  const explicacaoDaVisaoId = useId()
   const ehItem = prop.item !== undefined
   // A mesma escolha de antes: o item no chão com a ligação montada mostra o item; o resto, o móvel (se for móvel).
   const item = ehItem && itemNoChao !== undefined ? prop.item : undefined
@@ -117,6 +120,15 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
               <Toggle label="Barra a passagem" checked={barraPassagemEscolhida(prop)} onChange={(barra) => setPropBarraPassagem(prop.id, barra)} describedBy={explicacaoDaPassagemId} />
               <p id={explicacaoDaPassagemId} className="lb-field__hint">
                 A ficha do jogador não atravessa este objeto. Você, mestre, atravessa sempre.
+              </p>
+            </div>
+          )}
+          {/* TAPA A VISÃO: só a construção tem a chave (decisão do mestre de 12/11/2026). */}
+          {objetoPodeTapar(prop) && (
+            <div className="lb-field">
+              <Toggle label="Tapa a visão" checked={tapaVisaoEscolhida(prop)} onChange={(tapa) => setPropTapaVisao(prop.id, tapa)} describedBy={explicacaoDaVisaoId} />
+              <p id={explicacaoDaVisaoId} className="lb-field__hint">
+                Os jogadores não veem o que está atrás desta construção, como numa parede. Escondida, ela não tapa nada.
               </p>
             </div>
           )}
