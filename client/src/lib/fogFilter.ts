@@ -4922,11 +4922,18 @@ function recorteDoGrupo(
     (w) => (w.regionId !== undefined && secretRoomIds.has(w.regionId)) || w.hidden === true || !jogadorVeItem('parede', w),
   )
   // Textura mora em Terreno: com a camada escondida dos jogadores, nenhuma sai.
+  // O PINCEL e a BORRACHA que atravessam a sala secreta fechada passam por ela como pelo chão aberto, como o
+  // Ambiente pintado (F-N08); os que moram nela (a maioria dos pontos lá dentro) não saem (FX-NEVOA2-062). Cortado
+  // na parede, o caminho pintado desenhava o retângulo da sala. Para a área, `denunciaSegredo` olha a sala antes.
+  const texturasForaDaSalaSecreta =
+    map.texturas === undefined || secretRoomRings.length === 0
+      ? map.texturas
+      : map.texturas.filter((t) => !((t.tipo === 'pincel' || t.tipo === 'borracha') && mostly(t.pontos, inSecretRoom)))
   const texturasDoJogador = terrenoVisivel
     ? texturasParaJogador(
-        map.texturas,
-        (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-        (p) => inHiddenPlace(p) || inConcealZone(p),
+        texturasForaDaSalaSecreta,
+        conhecidoSemASalaSecreta,
+        escondidoSemASalaSecreta,
         (alvo) => (alvo.tipo === 'regiao' ? regioesDoRecorte.has(alvo.id) : desenhosDoRecorte.has(alvo.id)),
         // A área de paredes como o desenho com área: a visão que entra nela, ou o explorado de dentro (como `conhece`, com ou sem memória).
         (pontos) => knownFromInside(pontos, true),
