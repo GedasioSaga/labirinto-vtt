@@ -71,7 +71,7 @@ import { setaDoAbalo, type AbaloSeta } from './abalo'
 import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
-import { espessuraDoMaterial, ladosDoObjetoNaParede, paredeComMaterial, paredesQueSeguram, type ParedeQueSegura } from './faixasDaParede'
+import { espessuraDoMaterial, ladosDoObjetoNaParede, paredeComMaterial, paredesQueSeguram, presoNaParede, type ParedeQueSegura } from './faixasDaParede'
 import { alcancePeloObjeto, type AlcancePeloObjeto } from './obstaculosDeObjeto'
 
 /**
@@ -2988,8 +2988,10 @@ function recorteDoGrupo(
    * - luz que o jogador não recebe não ilumina: a da camada escondida, a
    *   oculta, a de dentro de sala secreta, teto fechado ou zona, e a tocha presa
    *   numa ficha que o mestre esconde (o claro andando entregaria o NPC);
-   * - luz atrás de parede de camada escondida dos jogadores só clareia se ele
-   *   vê a fonte (`atrasDeParedeSoDaAutoridade`, caça de 12/11/2026, F03(d)).
+   * - a tocha presa SÓ em parede de camada escondida dos jogadores mora na
+   *   camada dela e não clareia (`objetosDoJogador`, caça de 12/11/2026, F03(d)
+   *   e FX-SEG-A); a parede escondida e a de dentro de zona oculta não seguram
+   *   o claro de ninguém (`authorityWalls`).
    */
   const darkRoomsOnLayer = regioesNaCamada.filter(
     (r) => r.room?.dark === true && !r.hidden && !r.secret && !secretRoomIds.has(r.id) && isUsablePolygon(r.points),
@@ -3016,17 +3018,7 @@ function recorteDoGrupo(
       // pela porta sai da visão, e a visão precisa DESTE escuro — usar
       // `roofHides` aqui lia a constante antes de ela existir (TDZ). Luz sob
       // teto fechado fica fora do escuro mesmo espiada: nada vaza.
-      return (
-        !l.hidden &&
-        l.apagada !== true &&
-        Number.isFinite(l.radius) &&
-        l.radius > 0 &&
-        !inSecretRoom(at) &&
-        !inClosedRoof(at) &&
-        !hiddenByZone(at) &&
-        !carriedByHidden(l) &&
-        !atrasDeParedeSoDaAutoridade(at, l.radius)
-      )
+      return !l.hidden && l.apagada !== true && Number.isFinite(l.radius) && l.radius > 0 && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at) && !carriedByHidden(l)
     })
     // O OBJETO DE LUZ É LUZ (pedidos de 09/11/2026, `lib/luzDoFogo.ts`): o fogo, a
     // fogueira, a lareira, a fornalha e o lampião que o jogador pode receber
@@ -3035,14 +3027,13 @@ function recorteDoGrupo(
     // teto fechado ou em zona não ilumina. Sala secreta e teto pela SILHUETA
     // (`propSamplePoints`), como o pacote (`propsDoRecorte`): o objeto com uma
     // ponta na sala secreta fechada não sai, e o claro dele sairia sem fonte
-    // (caça de 12/11/2026, F03).
-    const luzesDeObjeto = naCamadaDoJogador('objeto', map.props).flatMap((p) => {
+    // (caça de 12/11/2026, F03). A tocha presa só em parede de camada escondida
+    // dos jogadores mora na camada dela (`objetosDoJogador`).
+    const luzesDeObjeto = objetosDoJogador.flatMap((p) => {
       const luz = luzDoObjeto(p)
       const at = { x: p.x, y: p.y }
       if (luz === null || p.secret || hiddenByZone(at) || propSamplePoints(p).some((q) => inSecretRoom(q) || inClosedRoof(q))) return []
-      const radius = raioDaLuzDoObjeto(p, luz, map.grid)
-      if (atrasDeParedeSoDaAutoridade(at, radius)) return []
-      return [{ x: p.x, y: p.y, radius, capped: true }]
+      return [{ x: p.x, y: p.y, radius: raioDaLuzDoObjeto(p, luz, map.grid), capped: true }]
     })
     return {
       sceneDark: map.dark === true,
@@ -3072,6 +3063,14 @@ function recorteDoGrupo(
    * `isShapeVisible` não contam ponto em sala secreta fechada; `inHiddenPlace`
    * e as regras de cada tipo seguem), e o OLHO DO GUARDA continua parando nas
    * paredes dela (`guardSegments`): a sala existe para quem está no mapa.
+   *
+   * A MESMA REGRA para a parede de camada escondida dos jogadores e para a
+   * parede ou porta inteira dentro de zona oculta ativa (caça de 12/11/2026,
+   * FX-SEG-A): o que mora lá não existe para o jogador — não tapa e não
+   * aparece. A enviada já passava por elas e a autoridade parava: atrás delas a
+   * tela dizia "vejo" e o pacote vinha vazio (e o claro de uma luz, sem nada
+   * nele), o vazio desenhando a parede escondida. O de dentro da zona segue
+   * escondido pela zona (`hiddenByZone`); o guarda continua parando nelas.
    *
    * PINCEL: parede ou porta inteira dentro da zona entra na enviada SÓ no
    * trecho pintado (`wallRunsWhere`, o mesmo recorte que o jogador recebe). O
@@ -3141,11 +3140,46 @@ function recorteDoGrupo(
       return (wallStepSamples(w) ?? wallSamples(w)).every((p) => pointInPolygonInclusive(p, b.ring))
     })
   }
-  /** As paredes da autoridade: as que existem, menos as que moram na sala secreta fechada (F09, acima). Mesma referência quando nada sai. */
+  /**
+   * CAMADAS NA VISÃO ENVIADA (ver o comentário longo mais abaixo, em `pecasForaDaCamada`): parede de camada
+   * escondida dos jogadores sai da visão enviada e, desde o FX-SEG-A, também da autoridade ("Duas visões"). Só no
+   * mapa v2.
+   */
+  const cortaVisaoPorCamada = map.versaoDasCamadas === 2 && !nadaOcultoDoJogador
+  const foraDaCamadaDoJogador = (w: Wall): boolean => cortaVisaoPorCamada && !camadas.jogadorVeItem('parede', w)
+  /**
+   * O pedaço que o pincel pintou, ANTES do cone de quem espia pela porta: `inBrushReveal` pergunta pelo teto espiado,
+   * que sai da visão da autoridade (ainda não existe aqui). A sala que o pincel não abre conta como pintada, e a parede
+   * dela segura a autoridade: erra para o lado de tapar.
+   */
+  const pintadoAntesDoCone = (p: RegionPoint): boolean => inZoneRing(p) && !inConcealZone(p)
+  /**
+   * As paredes da autoridade: as que existem para o jogador ("Duas visões", acima). Saem as que moram na sala secreta
+   * fechada (F09), as de camada escondida dos jogadores e as inteiras dentro de zona oculta ativa (fica só o pedaço
+   * pintado pelo pincel, como na enviada, `zoneCutWall`). Mesma referência quando nada sai.
+   */
   const authorityWalls = ((): Wall[] => {
-    if (secretRoomRings.length === 0) return knownWalls
-    const semSala = knownWalls.filter((w) => !naSalaSecretaFechada(w))
-    return semSala.length === knownWalls.length ? knownWalls : semSala
+    if (secretRoomRings.length === 0 && zones.length === 0 && !cortaVisaoPorCamada) return knownWalls
+    const ficam = knownWalls.flatMap((w): Wall[] => {
+      if (naSalaSecretaFechada(w) || foraDaCamadaDoJogador(w)) return []
+      if (zones.length === 0 || !insideZone(w)) return [w]
+      return brushed ? wallRunsWhere(w, pintadoAntesDoCone) : []
+    })
+    return ficam.length === knownWalls.length && ficam.every((w, i) => w === knownWalls[i]) ? knownWalls : ficam
+  })()
+  /**
+   * OBJETO PRESO SÓ EM PAREDE DE CAMADA ESCONDIDA DOS JOGADORES (caça de 12/11/2026, FX-SEG-A): mora na camada dela e
+   * some junto, com o claro, como na imagem exportada (`lib/mapImageExport.ts`). A parede não tapa nem aparece, e a
+   * tocha presa nela boiaria na linha dela (dos dois lados, agora que nada tapa) e a entregaria. Preso também numa
+   * parede que o jogador vê, fica. Só no mapa v2, como a parede.
+   */
+  const objetosDoJogador = ((): MapData['props'] => {
+    const naCamada = naCamadaDoJogador('objeto', map.props)
+    if (!cortaVisaoPorCamada) return naCamada
+    const seguramEscondidas = paredesQueSeguram(map.walls.filter(foraDaCamadaDoJogador), map.grid)
+    if (seguramEscondidas.length === 0) return naCamada
+    const seguramVistas = paredesQueSeguram(map.walls.filter((w) => !foraDaCamadaDoJogador(w)), map.grid)
+    return naCamada.filter((p) => !presoNaParede(p, seguramEscondidas) || presoNaParede(p, seguramVistas))
   })()
   const segmentsOfWalls = (walls: Wall[]): Segment[] => visionSegments(walls === map.walls ? map : { ...map, walls }, peekDoorIds)
   const authoritySegments = ownTokens.length > 0 ? segmentsOfWalls(authorityWalls) : []
@@ -3203,31 +3237,7 @@ function recorteDoGrupo(
   const authoritySeeThrough = new Map<string, Segment[]>()
   /** Os obstáculos da autoridade para a ficha `i` (as paredes que ela atravessa fora). */
   const authoritySegmentsOf = (i: number): Segment[] => seeThroughSegments(authoritySeeThrough, authoritySegments, authorityWalls, map.floor, i)
-  /**
-   * CAMADAS NA VISÃO ENVIADA (ver o comentário longo mais abaixo, em `pecasForaDaCamada`): parede de camada
-   * escondida dos jogadores sai da visão enviada e fica na da autoridade. Só no mapa v2.
-   */
-  const cortaVisaoPorCamada = map.versaoDasCamadas === 2 && !nadaOcultoDoJogador
-  /** As caixas dessas paredes (só a autoridade as tem): `atrasDeParedeSoDaAutoridade`. */
-  const paredesSoDaAutoridade = cortaVisaoPorCamada
-    ? knownWalls
-        .filter((w) => !camadas.jogadorVeItem('parede', w))
-        .map((w) => ({ minX: Math.min(w.x1, w.x2), maxX: Math.max(w.x1, w.x2), minY: Math.min(w.y1, w.y2), maxY: Math.max(w.y1, w.y2) }))
-    : []
-  /**
-   * LUZ ATRÁS DE PAREDE QUE SÓ A AUTORIDADE TEM (caça de 12/11/2026, P-NEVOA F03(d)): o claro entra na visão
-   * enviada calculado com as paredes DELA, e a parede de camada escondida dos jogadores não está lá. A tocha presa
-   * do outro lado dela não vai no pacote (a autoridade não a vê), mas o claro atravessava a parede e aparecia na rua
-   * como um anel de luz sem fonte. Luz cujo alcance encosta numa parede dessas só clareia quando alguma ficha do
-   * jogador tem linha de visão até ela pelas paredes da autoridade, como a luz vista de longe (`isSeenFromAfar`): o
-   * jogador vê a fonte. Sem parede escondida por perto, nada muda (o claro que dobra a esquina continua).
-   */
-  const atrasDeParedeSoDaAutoridade = (at: RegionPoint, radius: number): boolean => {
-    if (paredesSoDaAutoridade.length === 0) return false
-    const perto = paredesSoDaAutoridade.some((b) => b.maxX >= at.x - radius && b.minX <= at.x + radius && b.maxY >= at.y - radius && b.minY <= at.y + radius)
-    return perto && !ownTokens.some((t, i) => hasLineOfSight({ x: t.x, y: t.y }, at, authoritySegmentsOf(i)))
-  }
-  // O escuro lê `atrasDeParedeSoDaAutoridade`, que pede os obstáculos da autoridade: só depois deles.
+  // O escuro lê `objetosDoJogador`, que mora junto das paredes da autoridade: só depois deles.
   const darkness = darknessForPlayer(openDarkRooms)
   const authorityByToken = visionByToken(authoritySegmentsOf)
   /**
@@ -3266,10 +3276,11 @@ function recorteDoGrupo(
    * para a visão DELE. Peça de chão e parede de camada escondida dos jogadores
    * saem dos segmentos da visão enviada — senão o polígono `vision` desenha o
    * contorno delas, embora o pacote venha sem nenhuma. A autoridade (o que
-   * entra no pacote) segue com todas (a sala secreta fechada não: ver "Duas
-   * visões"). Só no mapa v2: o recorte do mapa de antes é o de b934f2a1 byte
-   * a byte (`fogFilter.camadas.test.ts`), e lá a camada oculta some para
-   * todos. `cortaVisaoPorCamada` mora lá em cima, junto do escuro.
+   * entra no pacote) fica sem a parede também (`authorityWalls`, a regra da
+   * decisão 30, FX-SEG-A); a peça de chão segue nela. Só no mapa v2: o recorte
+   * do mapa de antes é o de b934f2a1 byte a byte (`fogFilter.camadas.test.ts`),
+   * e lá a camada oculta some para todos. `cortaVisaoPorCamada` mora lá em
+   * cima, junto das paredes da autoridade.
    */
   const pecasForaDaCamada = cortaVisaoPorCamada ? new Set(map.floor.filter((f) => !camadas.jogadorVeItem('peca', f)).map((f) => f.id)) : new Set<string>()
   const playerFloorForVision = floorWithout(map.floor, pecasForaDaCamada.size === 0 ? hiddenFloorIds : new Set([...hiddenFloorIds, ...pecasForaDaCamada]))
@@ -4430,7 +4441,7 @@ function recorteDoGrupo(
   // fechado leva junto o objeto com qualquer amostra dela lá dentro
   // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
   // preso na parede sai também pelos lados dela (`presoNaParedeAVista`).
-  const propsDoRecorte = naCamadaDoJogador('objeto', map.props)
+  const propsDoRecorte = objetosDoJogador
     .filter(
       (p) =>
         !p.hidden &&
