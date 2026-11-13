@@ -3,9 +3,9 @@ import type { Agua, RegionPoint } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { mapaDoPiso } from '../lib/pisos'
-import { larguraDoRio, pontosMinimos } from '../lib/agua/dados'
-import { aguaNoPonto, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
-import { cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
+import { larguraDoRio, pontosMinimos, PONTOS_MAX } from '../lib/agua/dados'
+import { aguaNoPonto, curvaDaAgua, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
+import { aguaComPincel, cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
 import { arrastarBolinha, bolinhasDaForma, meiosDasBolinhas, moverForma, pontoDoMeio, pontoNoMeio, tirarBolinha } from '../lib/agua/bolinhas'
 import { findNearestVertexHandleAt } from '../lib/handleHitArea'
 import { mapBoundsRect } from './drawMapBounds'
@@ -27,6 +27,11 @@ import { CORNER_HANDLE_KEYLINE_COLOR, CORNER_HANDLE_KEYLINE_WIDTH, HANDLE_MIDPOI
  * inteira (`lib/agua/bolinhas.ts`). Cada arrasto é UM passo do desfazer, e o
  * mapa muda no máximo uma vez por quadro durante ele.
  *
+ * Com o pincel "Mais água / Menos água" do painel (lago e mar escolhidos), o
+ * traço junta ou come área da escolhida ao soltar (`aguaComPincel`): a forma
+ * volta a ser curva suave, sem buraco, e, se partir, fica o pedaço maior. Alt
+ * troca o modo só no traço.
+ *
  * O rascunho e o contorno da escolhida vão no `draftGraphics` do palco (fora
  * da imagem exportada), só com a ferramenta Água na mão.
  */
@@ -39,6 +44,8 @@ const CLIQUE_ATE = 0.3
 const CANTOS_JUNTOS_PX = 8
 /** O contorno da água escolhida: latão, como no protótipo. */
 const COR_DA_ESCOLHIDA = 0xf3ba66
+/** O rascunho do "Menos água": o escuro que come. */
+const COR_DO_MENOS = 0x1b2a33
 
 export interface GestoDaAgua {
   /** `alt`: o Alt segurado no começo do gesto. */
@@ -63,6 +70,8 @@ export interface GestoDaAgua {
   apagarEscolhida: () => boolean
   /** Esc com a ferramenta Água: solta a escolhida. `false` = nenhuma. */
   soltarEscolhida: () => boolean
+  /** O raio (px de mundo) do pincel na mão, para o anel em volta do ponteiro; `null` = sem pincel. */
+  raioDoPincel: () => number | null
   destruir: () => void
 }
 
@@ -81,6 +90,8 @@ type Gesto =
   | { tipo: 'mover'; id: string; base: RegionPoint[]; antes: RegionPoint[]; marcadas: number[]; de: RegionPoint; chave: string; mexeu: boolean }
   /** O apertar já fez o que tinha de fazer (Alt+clique tirou a bolinha): o soltar não faz nada. */
   | { tipo: 'feito' }
+  /** O traço do pincel "Mais água / Menos água" na escolhida. */
+  | { tipo: 'pincel-agua'; id: string; mais: boolean; raio: number; traco: RegionPoint[] }
 
 function corEmNumero(hex: string): number {
   const v = Number.parseInt(hex.slice(1, 7), 16)
@@ -147,7 +158,8 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     return f.tipo === 'rio' ? 'mao' : f.forma
   }
   /** O rascunho é do gesto (traço, retângulo, cantos): o contorno da escolhida espera. A bolinha e o mover desenham a escolhida. */
-  const temRascunho = (): boolean => cantos.length > 0 || gesto.tipo === 'mao' || gesto.tipo === 'retangulo' || gesto.tipo === 'canto'
+  const temRascunho = (): boolean =>
+    cantos.length > 0 || gesto.tipo === 'mao' || gesto.tipo === 'retangulo' || gesto.tipo === 'canto' || gesto.tipo === 'pincel-agua'
 
   const escolhidaNoPiso = (): Agua | undefined => {
     const id = useFerramentaDaAgua.getState().escolhida
@@ -335,6 +347,44 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     }
   }
 
+  /** O pincel do painel na escolhida: qual, e o raio em px de mundo. `null` = bolinhas (ou o rio). */
+  function pincelNaMao(): { qual: 'agua'; agua: Agua; raio: number } | null {
+    const agua = escolhidaNoPiso()
+    const f = useFerramentaDaAgua.getState()
+    if (agua === undefined || agua.tipo === 'rio' || f.pincel !== 'agua') return null
+    return { qual: f.pincel, agua, raio: (f.tamanho * grid()) / 2 }
+  }
+
+  /** A escolhida e, por cima, o traço do pincel (mais: a cor da água; menos: o escuro). */
+  function desenharPincelada(traco: readonly RegionPoint[], raio: number, mais: boolean): void {
+    desenharEscolhida()
+    const g = dep.rascunho
+    const agua = escolhidaNoPiso()
+    const cor = mais ? corEmNumero(agua?.cor ?? useFerramentaDaAgua.getState().cor) : COR_DO_MENOS
+    if (traco.length === 1) {
+      g.circle(traco[0].x, traco[0].y, raio).fill({ color: cor, alpha: 0.5 })
+      return
+    }
+    g.moveTo(traco[0].x, traco[0].y)
+    for (const q of traco.slice(1)) g.lineTo(q.x, q.y)
+    g.stroke({ width: raio * 2, color: cor, alpha: 0.5, cap: 'round', join: 'round' })
+  }
+
+  /** O traço solto: a forma nova da escolhida, num passo do desfazer, com o porquê quando algo não ficou. */
+  function aplicarPincelDeAgua(id: string, mais: boolean, raio: number, traco: readonly RegionPoint[]): void {
+    const agua = aguasDoPiso().find((a) => a.id === id)
+    if (agua === undefined) return
+    const nome = agua.tipo === 'mar' ? 'O mar' : 'O lago'
+    const r = aguaComPincel(curvaDaAgua(agua, grid()), traco, raio, mais, grid(), borda(), PONTOS_MAX)
+    if (r.pontos === null) {
+      dep.avisar(`${nome} sumiria inteiro. Para tirar a água, use Apagar.`)
+      return
+    }
+    useMapStore.getState().mudarAgua(id, { pontos: r.pontos, reto: undefined })
+    if (r.partiu) dep.avisar(`${nome} partiu em pedaços: ficou o maior.`)
+    else if (r.buraco) dep.avisar(`${nome} não fica com buraco no meio: o furo foi fechado.`)
+  }
+
   function escolherNoPonto(p: RegionPoint): void {
     const agua = aguaNoPonto(aguasDoPiso(), grid(), p.x, p.y)
     useFerramentaDaAgua.getState().escolher(agua === null ? null : agua.id)
@@ -414,6 +464,14 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
 
   return {
     comecar(p, alt) {
+      const pincel = cantos.length === 0 ? pincelNaMao() : null
+      if (pincel !== null) {
+        // Alt troca o modo do painel só neste traço, lido no começo.
+        const mais = (useFerramentaDaAgua.getState().modoDaAgua === 'mais') !== alt
+        gesto = { tipo: 'pincel-agua', id: pincel.agua.id, mais, raio: pincel.raio, traco: [{ x: p.x, y: p.y }] }
+        desenharPincelada(gesto.traco, gesto.raio, gesto.mais)
+        return
+      }
       if (cantos.length === 0 && comecarNaEscolhida(p, alt)) return
       const forma = formaDoTipo()
       if (forma === 'pontos') {
@@ -457,6 +515,12 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
         const pontos = arrastarBolinha(gesto.base, gesto.marcadas, gesto.k, naBordaDoMapa(p, borda()), gesto.fechada)
         marcarBolinhas(pontos, gesto.marcadas)
         mudarNoQuadro(gesto.id, pontos, gesto.chave)
+      } else if (gesto.tipo === 'pincel-agua') {
+        const u = gesto.traco[gesto.traco.length - 1]
+        // Um ponto a cada quarto de raio: o traço não guarda cada passo do mouse.
+        if (Math.hypot(p.x - u.x, p.y - u.y) < gesto.raio / 4) return
+        gesto.traco.push({ x: p.x, y: p.y })
+        desenharPincelada(gesto.traco, gesto.raio, gesto.mais)
       } else if (gesto.tipo === 'mover') {
         if (!gesto.mexeu && Math.hypot(p.x - gesto.de.x, p.y - gesto.de.y) < grid() * CLIQUE_ATE) return
         gesto.mexeu = true
@@ -476,6 +540,12 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
         descarregar()
         // O mover sem mexer é um clique: escolhe a água de cima no ponto (pode ser outra).
         if (g.tipo === 'mover' && !g.mexeu) escolherNoPonto(g.de)
+        desenharEscolhida()
+        return
+      }
+      if (g.tipo === 'pincel-agua') {
+        if (p !== null) g.traco.push({ x: p.x, y: p.y })
+        aplicarPincelDeAgua(g.id, g.mais, g.raio, g.traco)
         desenharEscolhida()
         return
       }
@@ -545,6 +615,10 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       useMapStore.getState().apagarAgua(id)
       useFerramentaDaAgua.getState().escolher(null)
       return true
+    },
+    raioDoPincel() {
+      const pincel = pincelNaMao()
+      return pincel === null ? null : pincel.raio
     },
     soltarEscolhida() {
       if (useFerramentaDaAgua.getState().escolhida === null) return false

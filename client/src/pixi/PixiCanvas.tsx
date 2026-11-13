@@ -5594,7 +5594,10 @@ function PixiCanvasDoContexto({
               ? raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
               : activeTool === 'neblina'
                 ? raioDoPincelDeNeblina(map, usePincelDaNeblina.getState().tamanho)
-                : null
+                : activeTool === 'agua'
+                  ? // Água: o pincel da escolhida (Mais/Menos água, areia); sem pincel, as bolinhas, sem anel.
+                    gestoDaAgua.raioDoPincel()
+                  : null
         if (raio === null) return
         const px = 1 / camera.scale
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 3 * px, color: 0x000000, alpha: 0.4 })
@@ -8992,7 +8995,9 @@ function PixiCanvasDoContexto({
         }
 
         if (mode === 'painting-agua') {
-          gestoDaAgua.mover(toWorldPoint(event.global.x, event.global.y))
+          const pontoDaAgua = toWorldPoint(event.global.x, event.global.y)
+          desenharAnelDoPincel(pontoDaAgua)
+          gestoDaAgua.mover(pontoDaAgua)
           return
         }
 

@@ -1,5 +1,5 @@
 import { useMapStore } from '../stores/mapStore'
-import { useFerramentaDaAgua, type FormaDaAgua } from '../stores/ferramentaDaAgua'
+import { TAMANHO_DO_PINCEL_DA_AGUA, useFerramentaDaAgua, type FormaDaAgua } from '../stores/ferramentaDaAgua'
 import type { Agua, CorProntaDaAgua, TipoDeAgua } from '../types/map'
 import { AJUSTE_PADRAO, CORES_DA_AGUA, LARGURA_DO_RIO, NOME_DO_TIPO_DE_AGUA, larguraDoRio, nomeDaAgua } from '../lib/agua/dados'
 import { mapaDoPiso } from '../lib/pisos'
@@ -158,6 +158,56 @@ function Medidas(props: {
   )
 }
 
+const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste o meio de uma linha para criar outra. Alt+clique tira. Arraste por dentro para mover tudo.'
+
+/** Como mexer na forma da escolhida: as bolinhas do contorno ou um pincel (lago e mar). */
+function MexerNaForma({ agua }: { agua: Agua }) {
+  const f = useFerramentaDaAgua()
+  if (agua.tipo === 'rio') return <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>
+  const pincel = f.pincel
+  return (
+    <div className="lb-field">
+      <span className="lb-label" id="lb-agua-mexer">
+        Mexer na forma
+      </span>
+      <div className="lb-seg" role="radiogroup" aria-labelledby="lb-agua-mexer">
+        <button type="button" role="radio" aria-checked={pincel === null} className="lb-seg__option" onClick={() => f.setPincel(null)}>
+          Bolinhas
+        </button>
+        <button type="button" role="radio" aria-checked={pincel === 'agua'} className="lb-seg__option" onClick={() => f.setPincel('agua')}>
+          Pincel de água
+        </button>
+      </div>
+      {pincel === null && <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>}
+      {pincel === 'agua' && (
+        <>
+          <div className="lb-seg" role="radiogroup" aria-label="O que o pincel de água faz">
+            <button type="button" role="radio" aria-checked={f.modoDaAgua === 'mais'} className="lb-seg__option" onClick={() => f.setModoDaAgua('mais')}>
+              Mais água
+            </button>
+            <button type="button" role="radio" aria-checked={f.modoDaAgua === 'menos'} className="lb-seg__option" onClick={() => f.setModoDaAgua('menos')}>
+              Menos água
+            </button>
+          </div>
+          <p className="lb-field__hint">Pinte na beira para a água crescer ou encolher. Alt troca só neste traço.</p>
+        </>
+      )}
+      {pincel !== null && (
+        <Deslizador
+          id="lb-agua-pincel-tamanho"
+          rotulo="Tamanho do pincel"
+          valor={f.tamanho}
+          min={TAMANHO_DO_PINCEL_DA_AGUA.min}
+          max={TAMANHO_DO_PINCEL_DA_AGUA.max}
+          passo={0.5}
+          texto={casas(f.tamanho)}
+          onChange={f.setTamanho}
+        />
+      )}
+    </div>
+  )
+}
+
 /** A água escolhida no mapa. */
 function AguaEscolhida({ agua, todas }: { agua: Agua; todas: readonly Agua[] }) {
   const mudarAgua = useMapStore((s) => s.mudarAgua)
@@ -167,6 +217,7 @@ function AguaEscolhida({ agua, todas }: { agua: Agua; todas: readonly Agua[] }) 
   return (
     <section className="lb-section" aria-label={`Água escolhida: ${nome}`}>
       <h2 className="lb-eyebrow">{nome}</h2>
+      <MexerNaForma agua={agua} />
       {agua.tipo !== 'rio' && (
         <div className="lb-field">
           <span className="lb-label" id="lb-agua-escolhida-tipo">
