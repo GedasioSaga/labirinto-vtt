@@ -84,6 +84,7 @@ import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
+import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
 import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
 import { criarParticulasDoMapa } from './particulasDoMapa'
@@ -125,7 +126,7 @@ import {
 } from '../lib/floorTool'
 import type { FloorShapeKind } from '../lib/floorTool'
 import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
-import { mapFloorClip } from '../lib/floorContour'
+import { mapFloorClip, type FloorPolygon } from '../lib/floorContour'
 import { buildCaminhoShape, comTerreno, PASSO_DO_TRACO_EM_CASAS, pecasLisas } from '../lib/terrenoDoChao'
 import { useTerrenoStore } from '../stores/terrenoStore'
 import { criarTerrenoDoChao } from './terrenoDoChao'
@@ -134,6 +135,8 @@ import { corDoPincel } from '../lib/camadasDoPincel'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
+/** Sem Chão Liso desenhado (modo imagem): a mesma lista vazia, para o entorno da água ficar guardado. */
+const SEM_CHAO_DA_AGUA: readonly FloorPolygon[] = []
 /** CAMADAS: faixas cujo renderer é um só (cache por id) e só MUDA a vista de nó; o nó criado que sai devolve as vistas ao de hoje. */
 const FAIXAS_DE_VISTA_UNICA: ReadonlySet<string> = new Set(['tokensContainer', 'telhadosContainer'])
 /** Grade FORA do piso no editor: bem apagada e clara. A cor do usuário (escura,
@@ -3101,7 +3104,7 @@ function PixiCanvasDoContexto({
       /** O que a neblina leu no último quadro: mudou, o quadro desenha (O10). */
       let neblinaLida: { map: MapData | null; piso: number; periodo: string | null } = { map: null, piso: -1, periodo: null }
       /** As águas que a água leu no último quadro (`aguaDoMapa.ts`): a lista nova refaz o campo. */
-      let aguasLidas: { aguas: MapData['aguas']; cena: string; piso: number; grid: number } = { aguas: undefined, cena: '', piso: -1, grid: 0 }
+      let aguasLidas: { aguas: MapData['aguas']; cena: string; piso: number; grid: number; entorno: EntornoDaAgua | undefined } = { aguas: undefined, cena: '', piso: -1, grid: 0, entorno: undefined }
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
         if (particulasLidas === null || particulasLidas.cena !== map.id || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
@@ -3121,9 +3124,23 @@ function PixiCanvasDoContexto({
         neblinaDoEditor.renderer.setPeriodo(periodoDaNeblina)
         // ÁGUA: as do piso em edição (a camada Chão escondida do mestre esconde a água); só refaz o campo quando a lista muda.
         const aguasDoPiso = contextoDeCamadas(map).mestreVe('chao') ? mapaDoPiso(map, pisoAtivo).aguas : undefined
-        if (aguasDoPiso !== aguasLidas.aguas || map.id !== aguasLidas.cena || pisoAtivo !== aguasLidas.piso || map.grid !== aguasLidas.grid) {
-          aguasLidas = { aguas: aguasDoPiso, cena: map.id, piso: pisoAtivo, grid: map.grid }
-          aguaDoMapa.atualizar({ cena: `${map.id}|${pisoAtivo}`, aguas: aguasDoPiso ?? [], grid: map.grid })
+        // O mapa e o que fica por cima da água (as salas e o Chão Liso desenhados, as construções): guardado
+        // pela referência, só muda quando um deles muda (`lib/agua/entorno.ts`).
+        const doPisoDaAgua = mapaDoPiso(map, pisoAtivo)
+        const entornoDasAguas =
+          aguasDoPiso === undefined
+            ? undefined
+            : entornoDaAgua({
+                largura: map.width * map.grid,
+                altura: map.height * map.grid,
+                regioes: doPisoDaAgua.regions,
+                ocultas: doPisoDaAgua.hiddenLayers,
+                chao: map.floorStyle.renderMode === 'raster' ? SEM_CHAO_DA_AGUA : floorRenderer.polygons(),
+                props: doPisoDaAgua.props,
+              })
+        if (aguasDoPiso !== aguasLidas.aguas || map.id !== aguasLidas.cena || pisoAtivo !== aguasLidas.piso || map.grid !== aguasLidas.grid || entornoDasAguas !== aguasLidas.entorno) {
+          aguasLidas = { aguas: aguasDoPiso, cena: map.id, piso: pisoAtivo, grid: map.grid, entorno: entornoDasAguas }
+          aguaDoMapa.atualizar({ cena: `${map.id}|${pisoAtivo}`, aguas: aguasDoPiso ?? [], grid: map.grid, entorno: entornoDasAguas })
         }
         aguaDoMapa.setPeriodo(periodoDaNeblina)
         // O10: a neblina muda por número de shader (cor do período, densidade), que o Pixi não vê: pede o quadro.
