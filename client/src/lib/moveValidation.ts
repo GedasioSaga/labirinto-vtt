@@ -1,4 +1,4 @@
-import type { MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
+import type { Agua, MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
 import { paredesParaAndar } from './barranco'
@@ -7,7 +7,7 @@ import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
-import { objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
+import { aguaEscondidaDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
 import { paredesParaAndarDoJogador, semParedesDeObjeto } from './obstaculosDeObjeto'
 import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
@@ -102,6 +102,13 @@ export interface TokenMoveOptions {
    * recebem. Sem `isHost` não muda nada (o jogador já é barrado).
    */
   objetosBarram?: boolean
+  /**
+   * ÁGUA QUE BARRA (`lib/agua/regra.ts`), o par de `objetoAVista`: o HOST diz quais águas ESTE jogador está
+   * recebendo (as da última tela dele). A que está fora dela (névoa, escuro, teto fechado) barra do mesmo
+   * jeito, mas a recusa é `wall`: `agua` contaria que ali há água. Ausente = toda água do mapa está à vista.
+   * A que o recorte nunca entrega (camada, zona oculta, sala secreta) nem barra (`aguaEscondidaDosJogadores`).
+   */
+  aguaAVista?: (agua: Agua) => boolean
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -430,12 +437,21 @@ export function validateTokenMove(
     if (!pathStaysOnFloor(map, compiled, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
   }
 
-  // ÁGUA QUE BARRA (`lib/agua/regra.ts`): só o JOGADOR; o mestre atravessa, como nos objetos.
+  // ÁGUA QUE BARRA (`lib/agua/regra.ts`): só o JOGADOR; o mestre atravessa, como nos objetos. A que o
+  // recorte nunca entrega a ele não barra (a recusa contaria que ela existe), e a que ele não está vendo
+  // agora barra com a recusa da parede que ele não vê.
   if (!options.isHost || options.objetosBarram === true) {
-    for (let i = 1; i < path.length; i += 1) {
-      const a = path[i - 1]
-      const b = path[i]
-      if (a !== undefined && b !== undefined && aguaQueBarra(map, pisoDe(token), a, b) !== null) return { ok: false, reason: 'agua' }
+    let testeDaAgua: ((agua: Agua, p: RegionPoint) => boolean) | null = null
+    const aguaEscondida = (agua: Agua, p: RegionPoint): boolean => (testeDaAgua ??= aguaEscondidaDosJogadores(map))(agua, p)
+    const barraNoCaminho = (escondida: (agua: Agua, p: RegionPoint) => boolean): boolean =>
+      path.some((b, i) => {
+        const a = i > 0 ? path[i - 1] : undefined
+        return a !== undefined && aguaQueBarra(map, pisoDe(token), a, b, escondida) !== null
+      })
+    if (barraNoCaminho(aguaEscondida)) {
+      const aVista = options.aguaAVista
+      const foiUmaQueEleVe = aVista === undefined || barraNoCaminho((agua, p) => !aVista(agua) || aguaEscondida(agua, p))
+      return { ok: false, reason: foiUmaQueEleVe ? 'agua' : 'wall' }
     }
   }
 

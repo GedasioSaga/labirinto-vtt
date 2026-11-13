@@ -6,7 +6,7 @@ import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
-import type { AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
+import type { Agua, AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
@@ -6353,6 +6353,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return (prop) => (ids ??= new Set(recorte.props.map((p) => p.id))).has(prop.id)
   }
 
+  /**
+   * ÁGUA QUE BARRA: o par de `objetoNaTela` — a água está na última tela que saiu para o jogador da cena
+   * `mapId`? Se não está (névoa, escuro, teto fechado), a recusa do passo é a da parede que ele não vê
+   * (`aguaAVista` em `lib/moveValidation.ts`): "A água barra a passagem" contaria que ali há água.
+   */
+  function aguaNaTela(playerId: string, mapId: string): (agua: Agua) => boolean {
+    const recorte = telaDoJogador.get(playerId)
+    if (recorte === undefined || recorte.id !== mapId) return () => false
+    let ids: Set<string> | null = null
+    return (agua) => (ids ??= new Set((recorte.aguas ?? []).map((a) => a.id))).has(agua.id)
+  }
+
   function handleMove(clientId: string, msg: TokenMoveMessage, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -6398,7 +6410,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       : undefined
     // "Objeto no caminho" só do objeto que está na tela DELE; o que ele não vê barra igual e responde como parede.
     const objetoAVista = objetoNaTela(playerId, scene.map.id)
-    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha, objetoAVista })
+    // A água também: a que ele não está vendo barra igual, sem dizer que é água.
+    const aguaAVista = aguaNaTela(playerId, scene.map.id)
+    const result = validateTokenMove(floorMap, { playerId, tokenId: msg.tokenId, x: msg.x, y: msg.y }, ownership, { occupants, batalha, objetoAVista, aguaAVista })
     if (!result.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: result.reason })
     // CLICAR PARA ANDAR: o trecho marcado anda só no que ele conhece (a conta da
     // tela dele, aqui no host). Depois de todas as recusas de sempre: a marca só acrescenta.
@@ -6411,7 +6425,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ali, o passo inteiro não vale. Depois da posse: a ficha de outro já leu `not_owner`.
     if (congeladaPresaA(scene.map, [msg.tokenId]) !== null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'congelado' })
     // VEÍCULO: o passo do motorista vira o passo do veículo (`driveTarget`).
-    const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y, objetoAVista)
+    const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y, objetoAVista, aguaAVista)
     if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
     // MODO BATALHA: os blocos aceitos somam no caminho andado (no mestre) e vão na resposta.
     const blocos = result.blocos === undefined ? {} : { blocos: result.blocos }
@@ -6461,7 +6475,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * (`moveTokenWithVehicle`). `null` = a ficha não é motorista.
    * CONSTRUÇÕES (12/11/2026, decisão do mestre): o objeto que barra a ficha do
    * jogador barra também o veículo que ele dirige (`objetosBarram`); a recusa
-   * "Objeto no caminho" só do objeto que está na tela dele (`objetoAVista`).
+   * "Objeto no caminho" só do objeto que está na tela dele (`objetoAVista`); a água que barra, também
+   * (`aguaAVista`).
    */
   function driveVehicleStep(
     map: MapData,
@@ -6469,13 +6484,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     x: number,
     y: number,
     objetoAVista: TokenMoveOptions['objetoAVista'],
+    aguaAVista: TokenMoveOptions['aguaAVista'],
   ): { ok: true; vehicleId: string; x: number; y: number } | { ok: false; reason: TokenMoveRejection } | null {
     const target = driveTarget(map, driverId, x, y)
     const vehicle = target === null ? undefined : map.tokens.find((t) => t.id === target.vehicleId)
     if (target === null || vehicle === undefined) return null
     if (vehicle.locked === true) return { ok: false, reason: 'locked' }
     if (estaCongelada(vehicle) || congeladaPresaA(map, [vehicle.id]) !== null) return { ok: false, reason: 'congelado' }
-    const step = validateTokenMove(mapaDoPiso(map, pisoDe(vehicle)), { playerId: '', tokenId: vehicle.id, x: target.x, y: target.y }, {}, { isHost: true, objetosBarram: true, objetoAVista })
+    const step = validateTokenMove(mapaDoPiso(map, pisoDe(vehicle)), { playerId: '', tokenId: vehicle.id, x: target.x, y: target.y }, {}, { isHost: true, objetosBarram: true, objetoAVista, aguaAVista })
     if (!step.ok) return { ok: false, reason: step.reason }
     return { ok: true, ...target }
   }

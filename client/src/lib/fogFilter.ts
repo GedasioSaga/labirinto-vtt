@@ -1,4 +1,4 @@
-import type { CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
+import type { Agua, CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
 import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoObjeto, raioDaLuzDoObjeto } from './luzDoFogo'
 import { cenaTemFogo, temParticulas } from './particulasDaCena'
@@ -8,7 +8,8 @@ import { barrancoParaJogador } from './barranco'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
 import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
-import { aguasParaJogador, chaveDoEscondido } from './agua/recorte'
+import { aguasParaJogador, chaveDoEscondido, moraEm } from './agua/recorte'
+import { curvaGuardada } from './agua/forma'
 import { aguasDaVisaoDoJogador } from './agua/comoChao'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
@@ -552,6 +553,40 @@ export function objetoEscondidoDosJogadores(map: MapData): (prop: MapData['props
   const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
   const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
   return (prop) => !camadas.jogadorVeItem('objeto', prop) || (aneis.length > 0 && propSamplePoints(prop).some((p) => aneis.some((anel) => pointInRing(p, anel))))
+}
+
+/**
+ * ÁGUA QUE BARRA A PASSAGEM (`lib/agua/regra.ts`), no molde do objeto acima: o
+ * ponto de uma água que o host NÃO pode usar para segurar o passo do jogador,
+ * porque o recorte (`aguasParaJogador`) nunca o entrega e a recusa "A água barra
+ * a passagem" contaria que ela existe:
+ * - a água toda, com a camada Chão escondida dos jogadores ou apagada a 0% (a
+ *   água mora em Chão: sem ela, nenhuma sai);
+ * - a água toda que MORA numa sala secreta (a maioria da curva lá, `moraEm`); a
+ *   que só passa por ela sai inteira (a sala fechada é chão aberto para ele) e
+ *   barra também lá dentro;
+ * - o ponto em zona oculta ativa.
+ * A secreta fica com `aguaQueBarra`. O teto fica de fora, como no objeto: a água
+ * sob o teto fechado barra, e a recusa dela é a da parede que ele não vê
+ * (`TokenMoveOptions.aguaAVista`). As contas do mapa são feitas uma vez.
+ */
+export function aguaEscondidaDosJogadores(map: MapData): (agua: Agua, p: RegionPoint) => boolean {
+  if (!contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map)).jogadorVe('chao')) return () => true
+  const zonas = activeConcealRings(map).filter((anel) => anel.length >= 3)
+  const salas = secretRoomsOf(map)
+    .map((r) => r.points)
+    .filter((anel) => anel.length >= 3)
+  const naSala = (p: RegionPoint): boolean => salas.some((anel) => pointInRing(p, anel))
+  const moraNaSala = new Map<string, boolean>()
+  const mora = (agua: Agua): boolean => {
+    if (salas.length === 0) return false
+    const ja = moraNaSala.get(agua.id)
+    if (ja !== undefined) return ja
+    const agora = moraEm(curvaGuardada(agua, map.grid), naSala)
+    moraNaSala.set(agua.id, agora)
+    return agora
+  }
+  return (agua, p) => mora(agua) || (zonas.length > 0 && zonas.some((anel) => pointInRing(p, anel)))
 }
 
 /**

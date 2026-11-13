@@ -261,8 +261,8 @@ function recorteDoRio(xy: readonly number[], meia: number, grid: number, livre: 
   return trechos.length === 0 ? null : { celula: grid, trechos }
 }
 
-/** A maioria dos pontos da curva cai em `lugar`: a água MORA lá. */
-function moraEm(xy: readonly number[], lugar: (p: RegionPoint) => boolean): boolean {
+/** A maioria dos pontos da curva cai em `lugar`: a água MORA lá. A água que barra usa a mesma conta (`aguaEscondidaDosJogadores`). */
+export function moraEm(xy: readonly number[], lugar: (p: RegionPoint) => boolean): boolean {
   let dentro = 0
   for (let i = 0; i + 1 < xy.length; i += 2) if (lugar({ x: xy[i], y: xy[i + 1] })) dentro += 1
   return xy.length > 0 && dentro * 2 > xy.length / 2
