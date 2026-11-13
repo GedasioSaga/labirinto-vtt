@@ -3,6 +3,7 @@ import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
 import { readMoedas } from './troca'
+import { aguasDoArquivo } from './agua/dados'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
@@ -1115,6 +1116,8 @@ function deserializeMapFields(json: string): MapData {
     // PARTÍCULAS: campo NOVO e OPCIONAL. Quantidade torta sai; ausente = sem partículas (`lib/particulasDaCena.ts`).
     // AMBIENTE: campos NOVOS e OPCIONAIS; as `particulas` de antes viram a chave de fumaça e brasas e voltam derivadas dela (`lib/ambiente.ts`).
     ...ambienteDoArquivo(parsed.ambiente, parsed.ambientePintado, parsed.particulas),
+    // ÁGUA: campo NOVO e OPCIONAL. Água torta sai; vazia abre sem o campo; o recorte do jogador nunca vem do arquivo (`lib/agua/dados.ts`).
+    ...aguasDoArquivo(parsed.aguas),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),

@@ -2135,6 +2135,59 @@ export interface FloorPiece extends NoPiso, NaCamada {
   soPintura?: true
 }
 
+/** ÁGUA (`lib/agua/`): o rio é um traço; o lago e o mar, áreas fechadas. */
+export type TipoDeAgua = 'rio' | 'lago' | 'mar'
+
+/** As cores prontas da Água (`CORES_DA_AGUA` em `lib/agua/dados.ts`). */
+export type CorProntaDaAgua = 'rio' | 'mar' | 'verde' | 'turquesa' | 'pantano' | 'barrenta'
+
+/**
+ * SÓ NO RECORTE DO JOGADOR (`lib/agua/recorte.ts`), nunca no arquivo: a água
+ * cortada ao que ele conhece. Os `pontos` da água vão vazios; a forma de
+ * verdade nunca sai.
+ */
+export interface RecorteDaAgua {
+  /** Lado da célula do corte (px de mundo). */
+  celula: number
+  /** Lago e mar: as células conhecidas com água ("col,lin"). */
+  celulas?: string[]
+  /** Lago e mar: os trechos da margem que ele conhece (x, y, x, y...), com a água à esquerda de quem anda neles. */
+  margens?: number[][]
+  /** Rio: os trechos do traço perto do que ele conhece (x, y, x, y...) e a distância, ao longo do rio, do primeiro ponto. */
+  trechos?: { s0: number; pontos: number[] }[]
+}
+
+/**
+ * ÁGUA (pedido de 12/11/2026, protótipo `docs/design/agua/`): um rio, um lago
+ * ou um mar da ferramenta Água. A forma são os pontos de controle; a curva
+ * suave sai deles (`lib/agua/forma.ts`). Campo novo e opcional: o app antigo
+ * (0.5.61) ignora a lista e, se salvar, a perde.
+ */
+export interface Agua extends PlayerSecret, NoPiso {
+  id: string
+  tipo: TipoDeAgua
+  /** Pontos de controle (px de mundo). Rio: o traço, no sentido da correnteza; lago e mar: o contorno. */
+  pontos: RegionPoint[]
+  /** Base da cor (#rrggbb): o meio da profundidade; o raso e o fundo saem dela. */
+  cor: string
+  /** A cor pronta escolhida; ausente = cor livre. */
+  corPronta?: CorProntaDaAgua
+  /** Só rio: largura em casas (0,5 a 6). Ausente = 2. */
+  largura?: number
+  /** "Barra a passagem": a ficha do jogador não entra (a visão passa). Ausente = desligada. */
+  barra?: true
+  /** Correnteza do rio, 0 a 100. Ausente = 45. */
+  velocidade?: number
+  /** Tamanho das ondas, 0 a 100. Ausente = 50. */
+  ondas?: number
+  /** Espuma, 0 a 100. Ausente = 60. */
+  espuma?: number
+  /** Nome que o mestre deu ("Rio Grande"). Só do mestre: o recorte do jogador tira. */
+  nome?: string
+  /** SÓ NO RECORTE DO JOGADOR: a água cortada ao que ele conhece. */
+  recorte?: RecorteDaAgua
+}
+
 export interface FloorStyle {
   fillColor: string
   /** `null` = sem contorno. */
@@ -2524,6 +2577,13 @@ export interface MapData {
    * ele conhece (`ambienteParaJogador`), como a neblina pintada.
    */
   ambientePintado?: PinceladaDeAmbiente[]
+  /**
+   * ÁGUA (pedido de 12/11/2026, `lib/agua/`): rios, lagos e mares animados da
+   * ferramenta Água, desenhados acima das Texturas e do terreno. Ausente =
+   * nenhuma, sem linha de migração. No recorte do jogador sai só o que ele
+   * conhece, já cortado (`Agua.recorte`).
+   */
+  aguas?: Agua[]
   /**
    * SÓ NO RECORTE DO JOGADOR (`lib/fogFilter.ts`), nunca no arquivo: as salas
    * do recorte em que chuva, neve, folhas e cinzas não caem (a casa de teto
