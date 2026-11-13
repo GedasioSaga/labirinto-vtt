@@ -4914,21 +4914,14 @@ function recorteDoGrupo(
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
   // NEBLINA pintada: o mesmo corte do pincel de Texturas (a chave do mapa inteiro não tem forma e vai como está).
+  // A pincelada que atravessa a sala secreta fechada passa por ela como pelo chão aberto; a que mora nela
+  // (a maioria dos pontos lá dentro, pincel ou borracha) não sai (`conhecidoSemASalaSecreta`, F-N08).
+  const foraDaSalaSecreta = <T extends { pontos: readonly RegionPoint[] }>(lista: readonly T[] | undefined): readonly T[] | undefined =>
+    lista === undefined || secretRoomRings.length === 0 ? lista : lista.filter((t) => !mostly(t.pontos, inSecretRoom))
   const comNeblinaDoJogador = comAmbientePintado(
-    comNeblinaPintada(
-      comPerigos,
-      neblinaParaJogador(
-        map.neblinaPintada,
-        (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-        (p) => inHiddenPlace(p) || inConcealZone(p),
-      ) ?? [],
-    ),
+    comNeblinaPintada(comPerigos, neblinaParaJogador(foraDaSalaSecreta(map.neblinaPintada), conhecidoSemASalaSecreta, escondidoSemASalaSecreta) ?? []),
     // AMBIENTE pintado (chuva, brasas, neve, folhas, fumaça): o mesmo corte da neblina pintada.
-    ambienteParaJogador(
-      map.ambientePintado,
-      (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-      (p) => inHiddenPlace(p) || inConcealZone(p),
-    ) ?? [],
+    ambienteParaJogador(foraDaSalaSecreta(map.ambientePintado), conhecidoSemASalaSecreta, escondidoSemASalaSecreta) ?? [],
   )
   const semCamadaTorta: MapData = recorteSemCamadaTorta(
     texturasDoJogador === undefined
