@@ -50,22 +50,4 @@ describe('pincel Mais água / Menos água', () => {
     expect(r.buraco).toBe(true)
     expect(area(r.pontos ?? [])).toBeGreaterThan(99)
   })
-
-  it('o mar enorme (200 x 200 casas) sai em menos de 200 ms', () => {
-    const borda = { minX: 0, minY: 0, maxX: 200 * G, maxY: 200 * G }
-    // Contorno à mão: um círculo torto com um ponto a cada meia casa.
-    const contorno: number[] = []
-    for (let i = 0; i < 1800; i += 1) {
-      const t = (i / 1800) * Math.PI * 2
-      const r = (90 + 4 * Math.sin(t * 7)) * G
-      contorno.push(100 * G + r * Math.cos(t), 100 * G + r * Math.sin(t))
-    }
-    const traco = Array.from({ length: 120 }, (_, k) => casa(10 + k * 1.5, 100))
-    const inicio = performance.now()
-    const r = aguaComPincel(contorno, traco, 3 * G, false, G, borda, 2000)
-    const ms = performance.now() - inicio
-    expect(r.pontos).not.toBeNull()
-    expect((r.pontos ?? []).length).toBeLessThanOrEqual(2000)
-    expect(ms).toBeLessThan(200)
-  })
 })

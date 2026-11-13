@@ -8,9 +8,11 @@ import { Toggle } from './Toggle'
 /**
  * Painel da ferramenta ÁGUA (pedido de 12/11/2026, protótipo
  * `docs/design/agua/`): sem água escolhida, o que o PRÓXIMO traço faz (tipo,
- * cor, largura do rio, ajustes); com uma água escolhida (clique nela), a
- * própria água, com "Barra a passagem", Apagar e Soltar. O que não vale para
- * o tipo fica desligado, com o motivo escrito embaixo.
+ * cor, largura do rio, ajustes e, no lago e no mar, a forma: à mão, retângulo
+ * ou ponto a ponto); com uma água escolhida (clique nela), a própria água:
+ * como mexer na forma (bolinhas, pincel de água, pincel de areia no mar),
+ * "Barra a passagem", Apagar e Soltar. O que não vale para o tipo fica
+ * desligado, com o motivo escrito embaixo.
  */
 
 const TIPOS: readonly TipoDeAgua[] = ['rio', 'lago', 'mar']
@@ -158,6 +160,8 @@ function Medidas(props: {
   )
 }
 
+const AREIA_SOZINHA = 'O mar ganha areia sozinho na beira, menos junto de sala, de chão liso e na borda do mapa.'
+
 const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste o meio de uma linha para criar outra. Alt+clique tira. Arraste por dentro para mover tudo.'
 
 /** Como mexer na forma da escolhida: as bolinhas do contorno ou um pincel (lago e mar). */
@@ -249,7 +253,7 @@ function AguaEscolhida({ agua, todas }: { agua: Agua; todas: readonly Agua[] }) 
               </button>
             ))}
           </div>
-          {agua.tipo === 'mar' && <p className="lb-field__hint">O mar ganha praia de areia sozinho.</p>}
+          {agua.tipo === 'mar' && <p className="lb-field__hint">{AREIA_SOZINHA}</p>}
         </div>
       )}
       <SeletorDeCor id="lb-agua-escolhida-cor" cor={agua.cor} corPronta={agua.corPronta ?? null} onChange={(cor, corPronta) => mudarAgua(agua.id, { cor, corPronta: corPronta ?? undefined }, 'cor')} />
@@ -320,7 +324,7 @@ export function AguaControls() {
           </div>
           <p className="lb-field__hint">
             {FORMAS.find((forma) => forma.id === f.forma)?.dica}
-            {f.tipo === 'mar' ? ' O mar ganha praia de areia sozinho.' : ''}
+            {f.tipo === 'mar' ? ` ${AREIA_SOZINHA}` : ''}
           </p>
         </div>
       )}
@@ -335,7 +339,7 @@ export function AguaControls() {
         onLargura={f.setLargura}
         onAjuste={f.setAjuste}
       />
-      <p className="lb-field__hint">Clique numa água para escolhê-la. "Barra a passagem" fica na água escolhida, desligada de fábrica.</p>
+      <p className="lb-field__hint">Clique numa água para escolher e mexer nela: forma, cor e "Barra a passagem".</p>
     </section>
   )
 }

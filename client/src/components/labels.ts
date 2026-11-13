@@ -125,7 +125,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   neblina:
     'Neblina, chuva, brasas, neve, folhas e cinzas e fumaça: escolha o efeito no painel e pinte por cima do mapa, ou ligue no mapa inteiro. O vento é um só para a cena. Chuva, neve e folhas não caem dentro de casa de teto fechado. Segure Alt para apagar.',
   agua:
-    'Escolha Rio, Lago ou Mar no painel. Rio: arraste o traço no sentido da correnteza. Lago e Mar: arraste o contorno; ao soltar, a área fecha. Clique numa água para escolhê-la; Delete apaga, Esc solta.',
+    'Escolha Rio, Lago ou Mar no painel. Rio: arraste o traço no sentido da correnteza. Lago e Mar: escolha a forma (à mão, retângulo ou ponto a ponto); o que passa da borda do mapa fica na borda. Clique numa água para escolhê-la: arraste as bolinhas para mudar a forma, ou use o pincel de água ou de areia do painel. Delete apaga, Esc solta.',
   carimbos:
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   barranco:
@@ -184,7 +184,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
   neblina: 'Pinte o efeito do ambiente por cima do mapa.',
-  agua: 'Trace o rio ou contorne o lago e o mar.',
+  agua: 'Trace a água; clique nela para mexer.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
   mobilia: 'Clique no mapa para colocar.',
