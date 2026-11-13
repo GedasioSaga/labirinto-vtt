@@ -1,6 +1,7 @@
 import type { Agua, RecorteDaAgua, RegionPoint } from '../../types/map'
 import { larguraDoRio } from './dados'
 import { curvaGuardada, dentroDoContorno } from './forma'
+import { areiaParaJogador } from './entorno'
 
 /**
  * ÁGUA NO RECORTE DO JOGADOR (pedido de 12/11/2026, `PROPOSTA.md` peça 5): a
@@ -302,6 +303,9 @@ export function aguaParaJogador(
   if (agua.velocidade !== undefined) saida.velocidade = agua.velocidade
   if (agua.ondas !== undefined) saida.ondas = agua.ondas
   if (agua.espuma !== undefined) saida.espuma = agua.espuma
+  // A areia tirada pelo pincel não é segredo: vai o pedaço dos traços que alcança a beira que ele conhece.
+  const areia = agua.tipo === 'rio' ? undefined : areiaParaJogador(agua.areia, recorte.margens ?? [], grid)
+  if (areia !== undefined) saida.areia = areia
   if (agua.piso !== undefined) saida.piso = agua.piso
   return saida
 }

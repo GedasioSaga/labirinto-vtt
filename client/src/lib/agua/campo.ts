@@ -56,6 +56,8 @@ export interface CorpoDoCampo {
    * nem areia: a água segue funda até ele. Ausente = tudo margem, como antes.
    */
   margem?: readonly (Uint8Array | null)[]
+  /** Mar: por ponto de cada linha, 0 (com areia) a 1 (sem areia), do pincel de areia (`semAreiaDaBeira`). Ausente = areia em toda a margem. */
+  semAreia?: readonly (Float32Array | null)[]
   /** O retângulo do mapa (u): o campo não passa dele (mais 2 texels, para o filtro da borda). Ausente = sem corte. */
   limite?: { x0: number; y0: number; x1: number; y1: number }
 }
@@ -73,6 +75,8 @@ export interface CaixaEmTexels {
 
 export interface CampoDoCorpo extends CaixaEmTexels {
   sd: Float32Array
+  /** Só lago e mar com pincel de areia: 0 (com areia) a 255 (sem), da margem mais perto. */
+  semAreia?: Uint8Array
   /** Só rio. */
   s?: Float32Array
   n?: Float32Array
@@ -84,7 +88,7 @@ export interface CampoComposto extends CaixaEmTexels {
   f1: Float32Array
   f2: Uint8Array
   f3: Uint8Array
-  /** O chão por cima da água (vermelho: cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). */
+  /** Vermelho: o chão por cima da água (cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). Verde: a areia tirada pelo pincel (0 = com areia). */
   f4: Uint8Array
 }
 
@@ -250,9 +254,13 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   const dm = new Float32Array(n).fill(1e9)
   const dTodas = ladoAParte ? new Float32Array(n).fill(1e9) : dm
   const lado = new Int8Array(n)
+  // A areia tirada pelo pincel: o valor da margem mais perto, ao longo do segmento (só até PERTO; além nada se vê).
+  const comAreia = c.semAreia !== undefined && c.semAreia.some((s) => s !== null)
+  const sa = comAreia ? new Float32Array(n) : null
   for (let li = 0; li < linhas.length; li += 1) {
     const xy = linhas[li]
     const marca = comMarca ? (c.margem?.[li] ?? null) : null
+    const areia = comAreia ? (c.semAreia?.[li] ?? null) : null
     const m = xy.length / 2
     const segmentos = fechado ? m : m - 1
     for (let i = 0; i < segmentos; i += 1) {
@@ -290,6 +298,7 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
           if (ehMargem && d2 < dm[k]) {
             dm[k] = d2
             if (!ladoAParte) lado[k] = ux * qy - uy * qx >= 0 ? 1 : -1
+            if (sa !== null) sa[k] = areia === null ? 0 : areia[i] + (areia[j] - areia[i]) * t
           }
         }
       }
@@ -345,7 +354,10 @@ function campoDaArea(c: CorpoDoCampo, texel: number): CampoDoCorpo {
     const v = Math.min(dm[k], FUNDO)
     sd[k] = dentro[k] === 1 ? v : -v
   }
-  return { ...cx, sd }
+  if (sa === null) return { ...cx, sd }
+  const semAreia = new Uint8Array(n)
+  for (let k = 0; k < n; k += 1) semAreia[k] = Math.round(255 * grampo(sa[k], 0, 1))
+  return { ...cx, sd, semAreia }
 }
 
 /** O campo de um corpo, sozinho (a distância; a junção com os outros é `comporCampo`). */
@@ -375,6 +387,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       let nRio = 0
       let area: CorpoDoCampo | null = null
       let vArea = -1e9
+      let saArea = 0
       for (const { corpo, campo: k } of presentes) {
         if (x < k.x0 || y < k.y0 || x >= k.x0 + k.w || y >= k.y0 + k.h) continue
         const i = (y - k.y0) * k.w + (x - k.x0)
@@ -390,6 +403,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
         } else if (v > vArea) {
           vArea = v
           area = corpo
+          saArea = k.semAreia === undefined ? 0 : k.semAreia[i]
         }
       }
       const p = ((y - r.y0) * r.w + (x - r.x0)) * 4
@@ -410,6 +424,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       f3[p] = Math.round(255 * pb.velocidade)
       f3[p + 1] = Math.round(255 * (pa.ondas + (pb.ondas - pa.ondas) * pr))
       f3[p + 2] = Math.round(255 * (pa.espuma + (pb.espuma - pa.espuma) * pr))
+      f4[p + 1] = saArea
     }
   }
   return { ...r, texel, f1, f2, f3, f4 }

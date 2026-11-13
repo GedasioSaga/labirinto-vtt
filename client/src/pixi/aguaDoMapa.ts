@@ -120,7 +120,9 @@ void main() {
   vec4 acc = vec4(0.0);
   vec3 areia = mix(vec3(214., 194., 134.) / 255., vec3(191., 167., 116.) / 255., contraste(R(w / 30.0).b, 1.6));
   float bordaDaPraia = -d + (nl.a - 0.5) * 26.0 + (nm.b - 0.5) * 12.0 + (R(w / 6.0).g - 0.5) * 7.0 - smoothstep(0.6, 0.8, tufo) * 6.0;
-  float praia = mar * (1.0 - smoothstep(33.0, 37.0, bordaDaPraia));
+  // O pincel "Tirar areia" (verde do uF4): a areia some no trecho tirado, com a beira quebrada pelo ruído; a água e a espuma ficam.
+  float semAreia = texture(uF4, uv).g;
+  float praia = mar * (1.0 - smoothstep(33.0, 37.0, bordaDaPraia)) * (1.0 - smoothstep(0.25, 0.75, semAreia + (nm.r - 0.5) * 0.4 * step(0.002, semAreia)));
   acc = sobre(acc, areia + graoDoPapel(w), praia);
   float molhadaDoMar = mar * smoothstep(-sobe * 0.85, -sobe * 0.85 + 6.0, d);
   acc = sobre(acc, vec3(0.0), molhadaDoMar * 0.2);

@@ -1,7 +1,7 @@
 import type { Agua } from '../../types/map'
 import { ajustesDaAgua, larguraDoRio } from './dados'
 import { curvaGuardada } from './forma'
-import { formasNaCaixa, margemDaBeira, type EntornoDaAgua } from './entorno'
+import { formasNaCaixa, margemDaBeira, semAreiaDaBeira, type EntornoDaAgua } from './entorno'
 import { CASA_U, buracoDoCampo, caixaDoCorpo, campoDoCorpo, comporCampo, porOBuraco, texelParaCaber, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from './campo'
 
 /**
@@ -65,12 +65,21 @@ export function corpoDaAgua(agua: Agua, grid: number, entorno?: EntornoDaAgua): 
     if (chaves.size === 0) return null
     const linhas = (recorte.margens ?? []).filter((m) => m.length >= 4)
     const margem = margemDasLinhas(linhas, entorno, grid)
-    return { ...base, margens: linhas.map((m) => escalar(m, k)), celulas: { lado: recorte.celula * k, chaves }, ...(margem === undefined ? {} : { margem }) }
+    const semAreia = semAreiaDasLinhas(linhas, agua, grid)
+    return { ...base, margens: linhas.map((m) => escalar(m, k)), celulas: { lado: recorte.celula * k, chaves }, ...(margem === undefined ? {} : { margem }), ...(semAreia === undefined ? {} : { semAreia }) }
   }
   const curva = curvaGuardada(agua, grid)
   if (curva.length < 6) return null
   const margem = margemDasLinhas([curva], entorno, grid)
-  return { ...base, contorno: escalar(curva, k), ...(margem === undefined ? {} : { margem }) }
+  const semAreia = semAreiaDasLinhas([curva], agua, grid)
+  return { ...base, contorno: escalar(curva, k), ...(margem === undefined ? {} : { margem }), ...(semAreia === undefined ? {} : { semAreia }) }
+}
+
+/** A areia tirada pelo pincel em cada ponto de cada linha (px de mundo), ou nada sem pincel. */
+function semAreiaDasLinhas(linhas: readonly (readonly number[])[], agua: Agua, grid: number): (Float32Array | null)[] | undefined {
+  if (agua.areia === undefined || agua.areia.length === 0) return undefined
+  const valores = linhas.map((xy) => semAreiaDaBeira(xy, agua.areia, grid))
+  return valores.some((v) => v !== null) ? valores : undefined
 }
 
 /** Uma lista de marcas em texto curto (trechos iguais juntos), para a chave do campo. */
@@ -98,7 +107,7 @@ function resumoDasMarcas(marcas: readonly (ArrayLike<number> | null)[] | undefin
 
 /** A chave do campo DESTE corpo: a forma da água e o que o entorno mudou nele (corte do mapa, margens). */
 export function chaveDoCorpo(agua: Agua, corpo: CorpoDoCampo): string {
-  return `${chaveDaForma(agua)}|${JSON.stringify(corpo.limite ?? null)}|${resumoDasMarcas(corpo.margem)}`
+  return `${chaveDaForma(agua)}|${JSON.stringify(corpo.limite ?? null)}|${resumoDasMarcas(corpo.margem)}|${resumoDasMarcas(corpo.semAreia)}`
 }
 
 /** A chave que muda quando o campo desta água muda (forma, largura, linha reta, pincel de areia, recorte); cor e ajustes só recompõem. */
