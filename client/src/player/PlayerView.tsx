@@ -69,6 +69,8 @@ import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
 import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarranco'
 import { pisoDoRecorte } from '../lib/barranco'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
+import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
+import { pecasLisas } from '../lib/terrenoDoChao'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
 import { createNomesDosLugaresRenderer, type NomesDosLugaresRenderer } from '../pixi/drawNomesDosLugares'
@@ -1393,6 +1395,8 @@ interface Scene {
    * recortadas pelo que ele conhece, debaixo do relevo.
    */
   texturas: TexturasRenderer
+  /** TERRENO DO CHÃO (`pixi/terrenoDoChao.ts`): as peças com material do recorte, acima das texturas e com a máscara do conhecido. */
+  terreno: TerrenoDoChao
   /** MODO BATALHA (B5): a grade de batalha, recortada à vista com folga (`pixi/gradeDaBatalha.ts`). */
   gradeDaBatalha: GradeDaBatalha
   /**
@@ -1662,6 +1666,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.world.scale.set(scene.camera.scale)
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.terreno.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
@@ -1830,10 +1835,10 @@ function esquecerChavesDoEstilo(scene: Scene): void {
   scene.lastPortasNoTelhadoKey = null
 }
 
-function redrawFloor(scene: Scene, map: MapData): void {
+function redrawFloor(scene: Scene, map: MapData, comTerreno: boolean): void {
   // CAMADAS (fatia 4b): a linha e o marcador de camada escolhida vão ao nó dela; o nó novo repinta pela assinatura da faixa.
   const nosDasLinhas = scene.pilha.nosDaFaixa('mapLines')
-  const key = `${floorKey(map)}|${scene.pilha.assinaturaDa('mapLines')}`
+  const key = `${floorKey(map)}|${scene.pilha.assinaturaDa('mapLines')}|${comTerreno ? 't' : 'l'}`
   if (key === scene.lastFloorKey) return
   scene.lastFloorKey = key
   const hidden = map.hiddenLayers
@@ -1846,7 +1851,9 @@ function redrawFloor(scene: Scene, map: MapData): void {
   } else {
     scene.raster.texture = Texture.EMPTY
     // Mesma regra do editor (PixiCanvas redrawShapes): chão na camada 'salas'.
-    scene.floorRenderer.draw(scene.floor, hidden.includes('salas') ? [] : map.floor, map.floorStyle, mapFloorClip(map))
+    // Com o terreno ligado, a peça com material sai daqui (vai para o terreno, acima das texturas).
+    const chao = hidden.includes('salas') ? [] : map.floor
+    scene.floorRenderer.draw(scene.floor, comTerreno ? pecasLisas(chao) : chao, map.floorStyle, mapFloorClip(map))
     // Desenhado: o mesmo contorno e as mesmas camadas de cor, com o piso tingido (igual ao editor).
     const contexto = contextoDoPiso(scene, map)
     scene.pisoDoChao.atualizar(contexto === null ? [] : formasDoPisoDoChao(scene.floorRenderer.polygons(), scene.floorRenderer.camadas(), map.floorStyle.fillColor), contexto)
@@ -3411,7 +3418,15 @@ function PlayerViewDoCanvas({
       ? currentMap.floor
       : scene.culler.cull(currentMap, currentVision, currentExplored).floor
     scene.floorDrawn = drawnFloor.length
-    redrawFloor(scene, { ...currentMap, floor: drawnFloor })
+    // TERRENO DO CHÃO: com os efeitos do mapa, a peça com material vai para o terreno (acima das
+    // texturas, só no conhecido); no modo leve e no render fiel ela volta à cor lisa, no chão de baixo.
+    const comTerreno = efeitosDoMapaLigados(currentSettings) && !modoLeve && !isRasterMode(currentMap)
+    redrawFloor(scene, { ...currentMap, floor: drawnFloor }, comTerreno)
+    scene.terreno.atualizar(
+      comTerreno && !currentMap.hiddenLayers.includes('salas')
+        ? { cena: `${currentMap.id}|${pisoDe(drawnFloor[0] ?? {})}`, mapa: currentMap, floor: drawnFloor, importadas: currentMap.texturasImportadas }
+        : null,
+    )
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.pisoDaCena.contexto = contextoDoPiso(scene, currentMap)
@@ -4005,6 +4020,21 @@ function PlayerViewDoCanvas({
       })
       texturasContainer.addChild(texturas.camada)
       texturasContainer.mask = texturasMask
+      // TERRENO DO CHÃO (CHÃO E CAMINHO, 12/11/2026): o mesmo molde das texturas, logo acima
+      // delas: o caminho com material aparece só onde o jogador já viu (máscara do conhecido).
+      const terrenoMask = new Graphics(knownMask.context)
+      const terrenoContainer = new Container()
+      terrenoContainer.eventMode = 'none'
+      terrenoContainer.visible = false
+      const terreno = criarTerrenoDoChao({
+        palco: { renderer: app.renderer, ticker: app.ticker },
+        cacheDoChao: texturas.cacheDoChao(),
+        aoMudarVisibilidade: (visivel) => {
+          if (!terrenoContainer.destroyed) terrenoContainer.visible = visivel
+        },
+      })
+      terrenoContainer.addChild(terreno.camada)
+      terrenoContainer.mask = terrenoMask
       // CARIMBOS: o mesmo molde (máscara do conhecido compartilhada, contêiner
       // escondido enquanto não há objeto). O desenho de cada objeto fica na
       // resolução cheia também no celular: o zoom de partida do jogador é
@@ -4141,6 +4171,8 @@ function PlayerViewDoCanvas({
         // (a luz cai por cima delas) — como no editor.
         texturasMask,
         texturasContainer,
+        terrenoMask,
+        terrenoContainer,
         relevoMask,
         relevoContainer,
         barrancoMask,
@@ -4436,6 +4468,7 @@ function PlayerViewDoCanvas({
         barranco,
         barrancoContainer,
         texturas,
+        terreno,
         gradeDaBatalha,
         judge: judgeDoMapa,
         anelDaVez: novoAnelDaVez(),
@@ -5342,6 +5375,7 @@ function PlayerViewDoCanvas({
         scene.pisoDoChao.destruir()
         scene.caminhos.destruir()
         scene.texturas.destruir()
+        scene.terreno.destruir()
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()
@@ -5365,6 +5399,7 @@ function PlayerViewDoCanvas({
         // Tela que cresce sem a câmera mudar (girar o celular, janela maior): a
         // textura repetida acompanha a vista nova (`ajustarAVista`, drawTexturas.ts).
         scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
+        scene.terreno.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, app.screen))
         scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, app.screen))

@@ -1528,7 +1528,13 @@ function floorInCells(piece: FloorPiece, cells: readonly string[]): FloorPiece |
   }
   if (blocos.length === 0) return null
   const out: FloorPiece = { id: `${piece.id}~pincel`, shape: { kind: 'blocos', cell: REVEAL_BRUSH_CELL, cells: blocos }, op: piece.op, modifiers: {} }
-  return piece.fillColor === undefined ? out : { ...out, fillColor: piece.fillColor }
+  if (piece.fillColor !== undefined) out.fillColor = piece.fillColor
+  // TERRENO (CHÃO E CAMINHO, 12/11/2026): o pedaço revelado guarda o material e o
+  // "Conta como Chão" desligado — sem ele, um caminho que não limita passaria a limitar
+  // nas células reveladas. A borda decorativa fica: a forma aqui é de células.
+  if (piece.material !== undefined) out.material = piece.material
+  if (piece.soPintura === true) out.soPintura = true
+  return out
 }
 
 /**

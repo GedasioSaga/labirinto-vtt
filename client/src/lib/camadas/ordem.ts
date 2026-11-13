@@ -145,6 +145,9 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('drawings', ['desenho'], ['desenhos'], SOB),
   faixa('texturasMask', [], ['terreno'], SOB),
   faixa('texturasContainer', [], ['terreno'], SOB),
+  // TERRENO DO CHÃO (CHÃO E CAMINHO, 12/11/2026): a peça com material, acima das texturas, com a máscara do conhecido.
+  faixa('terrenoMask', [], ['chao'], SOB),
+  faixa('terrenoContainer', [], ['chao'], SOB),
   faixa('relevoMask', [], ['terreno'], SOB),
   faixa('relevoContainer', [], ['terreno'], SOB),
   // BARRANCO: em Terreno, logo acima do relevo, com a máscara do conhecido (no editor mora dentro do relevoContainer).
