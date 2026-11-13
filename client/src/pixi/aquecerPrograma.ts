@@ -88,6 +88,7 @@ export function aquecerPrograma(renderer: Renderer, programa: GlProgram, aviso: 
     else if (typeof requestIdleCallback === 'function') requestIdleCallback(comecar, { timeout: 2000 })
     else setTimeout(comecar, 0)
   })
-  porPrograma.set(programa, promessa)
+  // A placa pode responder na hora (o programa já ligado antes): aí `terminar` já guardou o resultado, que fica.
+  if (!porPrograma.has(programa)) porPrograma.set(programa, promessa)
   return promessa.then((erro) => erro === null)
 }
