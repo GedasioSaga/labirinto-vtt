@@ -10,6 +10,8 @@ import { roomHasRoof } from './roomOps'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import { areaPassaPorParede, comTexturas, comTexturasImportadas, importadasParaJogador } from './texturas'
 import { comCarimbos, comCarimbosImportados, importadosParaJogador } from './carimbos'
+import { amostrasDaCercaCurva } from './cercaCurva'
+import { objetoEscondidoDosJogadores } from './fogFilter'
 
 /**
  * "Exportar imagem": o que o mestre escolhe no diálogo antes de salvar o PNG.
@@ -87,7 +89,7 @@ export function mapForImageExport(map: MapData, options: ImageExportOptions): Ma
     walls: map.walls.filter((w) => !isHidden(w)),
     regions: map.regions.filter((r) => !isHidden(r)),
   }
-  return options.masterOnly ? shown : withoutMasterOnly(shown, map.walls.filter(isHidden))
+  return options.masterOnly ? shown : withoutMasterOnly(shown, map.walls.filter(isHidden), new Set(map.tokens.map((t) => t.id)))
 }
 
 /**
@@ -126,7 +128,11 @@ function puxarParaDentro(p: RegionPoint, c: RegionPoint, px: number): RegionPoin
   return { x: p.x + ((c.x - p.x) / d) * px, y: p.y + ((c.y - p.y) / d) * px }
 }
 
-/** O centro e os cantos da pegada do objeto (girados, 1 px para dentro: encostar na parede por fora não conta). */
+/**
+ * O centro e os cantos da pegada do objeto (girados, 1 px para dentro: encostar
+ * na parede por fora não conta) e o arco da cerca curva, que sai da caixa reta
+ * (`amostrasDaCercaCurva`, o mesmo do recorte do jogador).
+ */
 function pontosDoObjeto(p: Prop): RegionPoint[] {
   const centro = { x: p.x, y: p.y }
   const giro = rotationTrig(p.rotation ?? 0)
@@ -138,7 +144,7 @@ function pontosDoObjeto(p: Prop): RegionPoint[] {
     { x: p.x + meiaL, y: p.y + meiaA },
     { x: p.x - meiaL, y: p.y + meiaA },
   ].map((canto) => puxarParaDentro(rotatePointAround(canto, centro, giro), centro, 1))
-  return [centro, ...cantos.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y))]
+  return [centro, ...cantos.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y)), ...amostrasDaCercaCurva(p)]
 }
 
 /**
@@ -191,9 +197,19 @@ function semOInteriorDosTetos(map: MapData): MapData {
  * Tudo que o jogador nunca recebe por decisão do mestre, fora do mapa.
  * `paredesInvisiveis`: as que `mapForImageExport` já tirou de `map`; contam
  * como paredes tiradas para a textura por área que acaba nelas (as de camada
- * escondida dos jogadores também).
+ * escondida dos jogadores também). `todasAsFichas`: os ids de TODAS as fichas
+ * da cena, também as "Ocultas no editor" que já saíram de `inteiro` (a tocha
+ * presa numa delas sai junto).
+ *
+ * PELA SILHUETA, NÃO PELO CENTRO (caça de 12/11/2026, decisão 36 do mestre):
+ * sala secreta e zona oculta levam junto o objeto com QUALQUER ponta lá dentro
+ * (as amostras do recorte do jogador, `objetoEscondidoDosJogadores`, e os
+ * cantos de `pontosDoObjeto`) e o desenho com qualquer amostra da forma lá
+ * dentro (`pontosQueEncostam`); a luz presa numa ficha que não sai também não
+ * sai (a do recorte, `masterHiddenTokenIds` em `lib/fogFilter.ts`). Pelo centro,
+ * o armário com o centro no corredor e a ponta na sala secreta saía no PNG.
  */
-function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[]): MapData {
+function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[], todasAsFichas: ReadonlySet<string>): MapData {
   const naCamadaDosJogadores = soOQueOsJogadoresVeem(inteiro)
   const naCamada = new Set(naCamadaDosJogadores.walls)
   const paredesForaDaCamada = inteiro.walls.filter((w) => !naCamada.has(w))
@@ -215,7 +231,8 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[])
   const hiddenAreas = [...secretRooms.map((r) => r.points), ...activeZoneRings(map.concealZones)]
   const hidden = (point: RegionPoint): boolean => hiddenAreas.some((ring) => pointInPolygonInclusive(point, ring))
   const anyHidden = (points: readonly RegionPoint[]): boolean => hiddenAreas.length > 0 && points.some(hidden)
-  const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(drawingPoints(d)))
+  const escondidoPelaSilhueta = objetoEscondidoDosJogadores(map)
+  const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(pontosQueEncostam(d)))
   const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
   const ficam = new Set(walls)
   const paredesTiradas = [...paredesInvisiveis, ...paredesForaDaCamada, ...map.walls.filter((w) => !ficam.has(w))]
@@ -226,7 +243,7 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[])
     regions: map.regions.filter((r) => !goneRegionIds.has(r.id)).map(withoutHiddenRoomName),
     walls,
     tokens: map.tokens.filter((t) => !t.secret && !anyHidden([t])),
-    props: map.props.filter((p) => !p.secret && !anyHidden([p])),
+    props: map.props.filter((p) => !p.secret && !anyHidden(pontosDoObjeto(p)) && !escondidoPelaSilhueta(p)),
     pins: map.pins.filter((p) => !p.secret && !isArrivalOnly(p) && !anyHidden([p])),
     lights: map.lights.filter((l) => !anyHidden([l])),
     stairs: map.stairs.filter((s) => !s.secret && !anyHidden(stairPoints(s))),
@@ -241,9 +258,15 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[])
   // (um oásis, a mata que esconde a entrada). O de fora fica.
   // Teto fechado por último: o interior sai depois do segredo (decisão 31, `semOInteriorDosTetos`).
   const semTeto = semOInteriorDosTetos({ ...semSegredo, carimbos: (map.carimbos ?? []).filter((c) => !anyHidden([c])) })
+  // TOCHA PRESA NA FICHA que não sai (oculta, secreta, na sala secreta, na zona, sob o teto, na camada escondida):
+  // a luz sai junto, mesmo afastada dela. O halo no lugar diria onde a ficha está. Vínculo com ficha que não existe fica.
+  const fichasQueSaem = new Set(semTeto.tokens.map((t) => t.id))
+  const presaEmFichaQueNaoSai = (l: MapData['lights'][number]): boolean =>
+    l.attachedTokenId !== undefined && todasAsFichas.has(l.attachedTokenId) && !fichasQueSaem.has(l.attachedTokenId)
+  const semLuzDeFichaEscondida: MapData = { ...semTeto, lights: semTeto.lights.filter((l) => !presaEmFichaQueNaoSai(l)) }
   const carimbos = semTeto.carimbos ?? []
   // Das importadas, só as que os passos que ficaram usam: o nome e a imagem das outras são do mestre.
-  const comPintura = comTexturasImportadas(comTexturas(semTeto, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
+  const comPintura = comTexturasImportadas(comTexturas(semLuzDeFichaEscondida, texturas), importadasParaJogador(map.texturasImportadas, texturas) ?? [])
   return comCarimbosImportados(comCarimbos(comPintura, carimbos), importadosParaJogador(map.carimbosImportados, carimbos) ?? [])
 }
 
@@ -311,7 +334,10 @@ function stairPoints(stair: Stair): RegionPoint[] {
   ])
 }
 
-/** Pontos que dizem onde o desenho está: basta um escondido para ele não sair. */
+/**
+ * Pontos que dizem onde o desenho está. O teto fechado conta a maioria deles;
+ * sala secreta e zona oculta contam a forma inteira (`pontosQueEncostam`).
+ */
 function drawingPoints(drawing: Drawing): RegionPoint[] {
   switch (drawing.kind) {
     case 'freehand':
@@ -332,4 +358,87 @@ function drawingPoints(drawing: Drawing): RegionPoint[] {
     case 'rect':
       return [{ x: drawing.x + drawing.w / 2, y: drawing.y + drawing.h / 2 }]
   }
+}
+
+/** Recuo das amostras internas: os MESMOS números de `interiorSamples` (`INTERIOR_PULL`, `INTERIOR_PULL_MIN`, `lib/fogFilter.ts`). */
+const RECUO_DA_AMOSTRA = 0.15
+const RECUO_MINIMO_DA_AMOSTRA_PX = 4
+/** Pontos do contorno do círculo e da elipse que contam (a cada 45 graus). */
+const PONTOS_NO_CONTORNO_DA_ELIPSE = 8
+
+/**
+ * Amostras internas de uma forma, a conta do recorte do jogador
+ * (`interiorSamples` em `lib/fogFilter.ts`, que não é exportada): o centróide
+ * e cada vértice puxado em direção a ele. Com `anel`, só as que caem dentro
+ * dele (o centróide do polígono côncavo cai fora); nenhuma dentro, todas.
+ */
+function amostrasInternas(pontos: readonly RegionPoint[], anel?: readonly RegionPoint[]): RegionPoint[] {
+  if (pontos.length === 0) return []
+  const c = { x: pontos.reduce((s, p) => s + p.x, 0) / pontos.length, y: pontos.reduce((s, p) => s + p.y, 0) / pontos.length }
+  const amostras = [c]
+  for (const p of pontos) {
+    const d = Math.hypot(c.x - p.x, c.y - p.y)
+    if (!(d > 0)) continue
+    const passo = Math.min(d, Math.max(d * RECUO_DA_AMOSTRA, RECUO_MINIMO_DA_AMOSTRA_PX))
+    amostras.push({ x: p.x + ((c.x - p.x) * passo) / d, y: p.y + ((c.y - p.y) * passo) / d })
+  }
+  if (anel === undefined || anel.length < 3) return amostras
+  const dentro = amostras.filter((q) => pointInPolygonInclusive(q, anel))
+  return dentro.length > 0 ? dentro : amostras
+}
+
+/** O contorno da elipse (a cada 45 graus), 1 px para dentro como os cantos do objeto. */
+function contornoDaElipse(cx: number, cy: number, rx: number, ry: number): RegionPoint[] {
+  const centro = { x: cx, y: cy }
+  return Array.from({ length: PONTOS_NO_CONTORNO_DA_ELIPSE }, (_, i) => {
+    const angulo = (i * 2 * Math.PI) / PONTOS_NO_CONTORNO_DA_ELIPSE
+    return puxarParaDentro({ x: cx + rx * Math.cos(angulo), y: cy + ry * Math.sin(angulo) }, centro, 1)
+  })
+}
+
+/**
+ * O DESENHO QUE ENCOSTA no lugar escondido (caça de 12/11/2026, decisão 36):
+ * os pontos de `drawingPoints` mais a forma inteira — as amostras do recorte do
+ * jogador (`drawingSamplePoints`), os cantos do retângulo e o contorno do
+ * círculo e da elipse, 1 px para dentro, e o meio da linha. Basta um lá dentro
+ * para o desenho não sair: o retângulo com o centro no corredor e um canto na
+ * sala secreta saía no PNG.
+ */
+function pontosQueEncostam(drawing: Drawing): RegionPoint[] {
+  const base = drawingPoints(drawing)
+  switch (drawing.kind) {
+    case 'line':
+      return [...base, { x: (drawing.x1 + drawing.x2) / 2, y: (drawing.y1 + drawing.y2) / 2 }]
+    case 'polygon':
+      return [...base, ...amostrasInternas(drawing.points, drawing.points)]
+    case 'rect': {
+      const cantos = [
+        { x: drawing.x, y: drawing.y },
+        { x: drawing.x + drawing.w, y: drawing.y },
+        { x: drawing.x + drawing.w, y: drawing.y + drawing.h },
+        { x: drawing.x, y: drawing.y + drawing.h },
+      ]
+      const centro = { x: drawing.x + drawing.w / 2, y: drawing.y + drawing.h / 2 }
+      return [...base, ...cantos.map((p) => puxarParaDentro(p, centro, 1)), ...amostrasInternas(cantos)]
+    }
+    case 'circle':
+      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius), ...amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius))]
+    case 'ellipse':
+      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry), ...amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry))]
+    case 'freehand':
+    case 'curve':
+    case 'path':
+    case 'text':
+      return base
+  }
+}
+
+/** Os quatro extremos da elipse, como `ellipseExtremes` do recorte. */
+function extremosDaElipse(cx: number, cy: number, rx: number, ry: number): RegionPoint[] {
+  return [
+    { x: cx - rx, y: cy },
+    { x: cx + rx, y: cy },
+    { x: cx, y: cy - ry },
+    { x: cx, y: cy + ry },
+  ]
 }
