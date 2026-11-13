@@ -4153,7 +4153,12 @@ function recorteDoGrupo(
    * as beiradas do terreno visível (a escala da máscara e a ordem dos
    * materiais saem do terreno inteiro, `lib/terrenoDoChao.ts`).
    */
-  const conheceOTerreno = (p: RegionPoint): boolean => isPointKnown(p) && !inHiddenPlace(p) && !inConcealZone(p)
+  // Antes de `isPointKnown` (que varre zonas, salas secretas e cômodos), o que ele exige: explorado, num anel de
+  // visão, no pincel de revelar ou num cômodo conhecido. O resultado é o mesmo; a estrada que ele nunca viu não
+  // paga a varredura inteira em cada amostra (no Goa, ~8 ms a mais por recorte sem isto).
+  const talvezConheca = (p: RegionPoint): boolean =>
+    (explored !== undefined && isPointExplored(explored, p)) || inAnyRing(rings, p) || inBrushReveal(p) || knownComodos.some((room) => inRoomStrictly(room, p))
+  const conheceOTerreno = (p: RegionPoint): boolean => talvezConheca(p) && isPointKnown(p) && !inHiddenPlace(p) && !inConcealZone(p)
   const terrenoConhecido = (f: FloorPiece): boolean => floorSeenNow(f) || amostrasDoTerreno(f, map.grid).some(conheceOTerreno)
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
   // CAMADAS: chão de camada escondida dos jogadores não sai (antes saía e só a tela dele escondia).
