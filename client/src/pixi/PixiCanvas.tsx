@@ -82,6 +82,7 @@ import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
+import { criarAguaDoMapa } from './aguaDoMapa'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
 import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
 import { criarParticulasDoMapa } from './particulasDoMapa'
@@ -1424,6 +1425,19 @@ function PixiCanvasDoContexto({
       chaoMolhadoContainer.label = 'chaoMolhado'
       chaoMolhadoContainer.eventMode = 'none'
       chaoMolhadoContainer.interactiveChildren = false
+      // ÁGUA (`aguaDoMapa.ts`): rios, lagos e mares num shader só, acima do terreno e do chão molhado e
+      // abaixo do relevo. Fora do `relogio`: a água pede o quadro a 30 por segundo, e parada não pede nada.
+      const aguaDoMapa = criarAguaDoMapa({
+        renderer: app.renderer,
+        ticker: app.ticker,
+        pedir: () => desenho.pedir(),
+        reducedMotion: prefersReducedMotion,
+        aoMudar: (estado) => {
+          el.dataset.aguas = String(estado.aguas)
+          el.dataset.aguaAnimando = String(estado.animando)
+        },
+      })
+      pisosNaVista.push(aguaDoMapa)
       // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
       const fogos = createFogosDoMapa({
         movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
@@ -1642,6 +1656,7 @@ function PixiCanvasDoContexto({
         texturas: texturas.camada,
         terrenoDoChao: terreno.camada,
         chaoMolhado: chaoMolhadoContainer,
+        aguaDoMapa: aguaDoMapa.camada,
         relevoContainer,
         regionStrokesContainer,
         pathsGraphics: pathsContainer,
@@ -3084,6 +3099,8 @@ function PixiCanvasDoContexto({
       let ultimaTintaEscrita = ''
       /** O que a neblina leu no último quadro: mudou, o quadro desenha (O10). */
       let neblinaLida: { map: MapData | null; piso: number; periodo: string | null } = { map: null, piso: -1, periodo: null }
+      /** As águas que a água leu no último quadro (`aguaDoMapa.ts`): a lista nova refaz o campo. */
+      let aguasLidas: { aguas: MapData['aguas']; cena: string; piso: number; grid: number } = { aguas: undefined, cena: '', piso: -1, grid: 0 }
       const tickMapaDeLuz = () => {
         const map = useMapStore.getState().map
         if (particulasLidas === null || particulasLidas.cena !== map.id || particulasLidas.particulas !== map.particulas || particulasLidas.props !== map.props || particulasLidas.grid !== map.grid) {
@@ -3101,6 +3118,13 @@ function PixiCanvasDoContexto({
         const tetoDaTinta = neblinaDoEditor.quadro(map, pisoAtivo, fantasmaDeTesteContainer)
         const periodoDaNeblina = tinta?.periodo ?? null
         neblinaDoEditor.renderer.setPeriodo(periodoDaNeblina)
+        // ÁGUA: as do piso em edição (a camada Chão escondida do mestre esconde a água); só refaz o campo quando a lista muda.
+        const aguasDoPiso = contextoDeCamadas(map).mestreVe('chao') ? mapaDoPiso(map, pisoAtivo).aguas : undefined
+        if (aguasDoPiso !== aguasLidas.aguas || map.id !== aguasLidas.cena || pisoAtivo !== aguasLidas.piso || map.grid !== aguasLidas.grid) {
+          aguasLidas = { aguas: aguasDoPiso, cena: map.id, piso: pisoAtivo, grid: map.grid }
+          aguaDoMapa.atualizar({ cena: `${map.id}|${pisoAtivo}`, aguas: aguasDoPiso ?? [], grid: map.grid })
+        }
+        aguaDoMapa.setPeriodo(periodoDaNeblina)
         // O10: a neblina muda por número de shader (cor do período, densidade), que o Pixi não vê: pede o quadro.
         if (map !== neblinaLida.map || pisoAtivo !== neblinaLida.piso || periodoDaNeblina !== neblinaLida.periodo) {
           neblinaLida = { map, piso: pisoAtivo, periodo: periodoDaNeblina }
@@ -3387,6 +3411,8 @@ function PixiCanvasDoContexto({
           neblinaDoEditor.renderer.camada,
           // E o CHÃO MOLHADO e a neve juntada: é a chuva de agora, não o chão.
           chaoMolhadoContainer,
+          // E a ÁGUA animada: a do mestre tem a água secreta, e a imagem dos jogadores não pode levá-la.
+          aguaDoMapa.camada,
           // E as PARTÍCULAS: fumaça e brasa são um instante, e moram no palco, na câmera do editor.
           particulasDoMapa.camada,
         ]
@@ -9862,6 +9888,7 @@ function PixiCanvasDoContexto({
         pisoDoChao.destruir()
         caminhos.destruir()
         terreno.destruir()
+        aguaDoMapa.destruir()
         texturas.destruir()
         // Os desenhos e as sombras dos carimbos também.
         carimbos.destruir()

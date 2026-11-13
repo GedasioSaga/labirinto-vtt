@@ -82,6 +82,9 @@ export const FAIXAS_EDITOR: readonly Faixa[] = [
   // CHÃO MOLHADO (Ambiente, 12/11/2026): a chuva escurece o chão e a neve junta, por cima do
   // chão, das Texturas e do terreno, abaixo da luz do relevo (`pixi/chaoMolhado.ts`). Clima: fixa.
   faixa('chaoMolhado', [], FIXA),
+  // ÁGUA (pedido de 12/11/2026, `pixi/aguaDoMapa.ts`): rios, lagos e mares ACIMA das Texturas, do
+  // terreno e do chão molhado (a grama pintada não cobre a água), abaixo da luz do relevo. Conta como Chão.
+  faixa('aguaDoMapa', [], ['chao']),
   faixa('relevoContainer', [], ['terreno']),
   faixa('regionStrokesContainer', ['regiao'], ['salas']),
   faixa('pathsGraphics', ['desenho'], ['anotacoes']),
