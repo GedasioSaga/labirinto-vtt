@@ -1,4 +1,4 @@
-# CAÇA DE 12/11/2026 (bugs visuais, otimização, interações estranhas) EM FASE DE TESTES + 4 PEDIDOS NOVOS COM PROTÓTIPO; estado de 12/11 19h43 (relógio; o mais recente)
+# CAÇA DE 12/11/2026 (bugs visuais, otimização, interações estranhas) PUBLICADA A 0.5.61 + 4 PEDIDOS NOVOS APROVADOS; estado de 12/11 19h43 (relógio; o mais recente)
 
 ## Objetivo
 Publicar UMA versão (0.5.61) com tudo o que o mestre pediu na caça de 12/11 ("resolva todos os concertos. Faça o recomendado.") mais o tamanho da ficha por cena, depois de testes só no fim (ordem dele: "faça teste somente no final de tudo"). Depois, fazer os 4 pedidos novos já aprovados em protótipo ou por pergunta: chão e caminho (aprovado), construções (decidido), água (aprovado), ferramenta Ambiente (protótipo em andamento). Todo literal, toda decisão do mestre (numeradas de 1 a 32) e toda escolha do Claude estão no fim do `PEDIDOS.md`.
@@ -16,11 +16,11 @@ Publicar UMA versão (0.5.61) com tudo o que o mestre pediu na caça de 12/11 ("
 - Servidor de desenvolvimento na porta 1610 (em segundo plano nesta sessão). Cópia de segurança dos dados do app (o mestre abriu pelo Tauri dev): `tmp/backup-appdata-20261112-1559`.
 - Protótipos aprovados: sombras (`docs/design/sombras/`, JÁ no app), chão e caminho (`docs/design/chao-e-caminho/`), água (`docs/design/agua/`). Construções: proposta em `tmp/novos-2026-11-12/construcoes/PROPOSTA.md` com as decisões do mestre no PEDIDOS.
 
-## Próximos passos (estado de 21h35)
-O MESTRE MANDOU PUBLICAR JÁ (21h3x: "ja chega publica logo"). EM VOO: operário Opus publicando a 0.5.61 do HEAD (último código 5c4b8807) por worktree limpo `C:/dev/labirinto-rel061` (branch release/0.5.61), notas `tmp/caca-2026-11-12/release-0.5.61/notas-0.5.61.md`, log `tmp/caca-2026-11-12/release-0.5.61/publicar-0.5.61.log`. Disco: 12 GB livres antes do build (o mestre autorizou apagar `desktop/src-tauri/target` de hoje).
-1. Quando o operário voltar: conferir `gh release view v0.5.61`, o latest.json, o bump na main e o push; junções desfeitas e worktree removido; contar ao mestre.
-2. Ficou sem fazer (ordem do mestre): e2e inválidos de novo (os e2e acertados estão SEM COMMIT em client/e2e/, uns 55 arquivos; o selo das 43 jornadas espera conferência: `tmp/caca-2026-11-12/testes/E2E/seladas.patch`); 9 testes longos sozinhos; 3 medidas; 3ª suíte; volta da auditoria. Retomar depois da versão.
-3. Depois: os 4 pedidos novos aprovados (chão e caminho, construções, água, Ambiente), um escritor Opus por pedido, com prova.
+## Próximos passos (estado de 21h48)
+v0.5.61 PUBLICADA às 21h45 (bump 33789eda na main, latest.json 0.5.61, conferido). O que fica:
+1. OS 4 PEDIDOS NOVOS APROVADOS, nesta ordem sugerida (eles se cruzam em types/tools.ts, Toolbar, lib/camadas/ordem.ts, PlayerView.tsx e fogFilter.ts: no máximo 2 escritores ao mesmo tempo, com donos de arquivo separados, ou um depois do outro): (a) CHÃO E CAMINHO (`docs/design/chao-e-caminho/`, `tmp/novos-2026-11-12/chao-e-caminho/PROPOSTA.md` e ACHADOS.md com o plano em 6 peças; decisões no PEDIDOS de 15h34); (b) ÁGUA (`docs/design/agua/`, `tmp/novos-2026-11-12/agua/PROPOSTA.md`, plano em 7 peças; decisões no PEDIDOS de 18h39 e 19h42); (c) AMBIENTE (`docs/design/ambiente/`, `tmp/novos-2026-11-12/ambiente/PROPOSTA.md`, plano em 6 peças; decisões no PEDIDOS de 18h41 e 20h06); (d) CONSTRUÇÕES (`tmp/novos-2026-11-12/construcoes/PROPOSTA.md`, plano F1 a F5, a F3 de visão é de risco alto; decisões no PEDIDOS de 14h58 e 15h31). Cada um: escritor Opus 5.5 xhigh (NADA de Fable nesta sessão), prova na tela com "igual com e sem a coisa escondida" onde tocar o que o jogador vê, auditoria e versão.
+2. Pendências da 0.5.61 que o mestre pulou: os e2e acertados SEM COMMIT em client/e2e/ (uns 55; rodar de novo os inválidos e fazer o commit); o selo das 43 jornadas (`tmp/caca-2026-11-12/testes/E2E/seladas.patch`, decisão 34: conferir e renovar); os 9 testes longos sozinhos; as 3 medidas (decisão 33); a 3ª suíte; a volta da auditoria.
+3. Para depois (anotados no PEDIDOS e nos NOTAS.md): decisão 25 em 3 itens que mudam comportamento; o resto das medidas; luz macia no editor; queda do alcance na cena clara com sala escura; Reunir com fichas de 2 casas sentando no pino; objeto com ponta em zona oculta na tela do jogador; ficha que no teste mudou de cena.
 
 ## Critério de pronto (da versão)
 - Toda decisão 1 a 32 com commit, ou marcada "para depois" com o motivo no PEDIDOS.
