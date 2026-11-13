@@ -14,7 +14,7 @@
   margin: 0;
 }
 
-/* Os grupos de efeito (fumaça, brasas): rótulo em cima, segmentado embaixo. */
+/* A linha dos efeitos: diz que a fumaça e as brasas agora ficam no Ambiente. */
 .lb-luz-da-cena__efeitos {
   display: flex;
   flex-direction: column;
