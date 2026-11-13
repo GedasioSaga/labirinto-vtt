@@ -1,4 +1,4 @@
-import type { Agua, CorProntaDaAgua, MapData, RegionPoint, TipoDeAgua } from '../../types/map'
+import type { Agua, CorProntaDaAgua, MapData, RegionPoint, TipoDeAgua, TracoDeAreia } from '../../types/map'
 import { pisoLido } from '../pisos'
 
 /**
@@ -28,6 +28,11 @@ export const AJUSTE_PADRAO = { velocidade: 45, ondas: 50, espuma: 60 } as const
 /** Teto de águas por mapa e de pontos por água: o arquivo torto não vira campo gigante. */
 export const AGUAS_MAX = 200
 export const PONTOS_MAX = 2000
+/** Teto do pincel de areia por água, e de pontos por traço. */
+export const TRACOS_DE_AREIA_MAX = 200
+export const PONTOS_DO_TRACO_MAX = 2000
+/** O raio do traço de areia em px de mundo, grampeado na leitura (o arquivo torto não vira pincel do tamanho do mapa). */
+export const RAIO_DA_AREIA = { min: 1, max: 2000 } as const
 
 const TIPOS: readonly TipoDeAgua[] = ['rio', 'lago', 'mar']
 const COR_HEX = /^#[0-9a-f]{6}$/i
@@ -80,6 +85,8 @@ export function semCamposVazios(agua: Agua): Agua {
   if (agua.ondas !== undefined) limpa.ondas = agua.ondas
   if (agua.espuma !== undefined) limpa.espuma = agua.espuma
   if (agua.nome !== undefined && agua.nome.trim() !== '') limpa.nome = agua.nome
+  if (agua.tipo !== 'rio' && agua.areia !== undefined && agua.areia.length > 0) limpa.areia = agua.areia
+  if (agua.tipo !== 'rio' && agua.reto === true) limpa.reto = true
   if (agua.secret === true) limpa.secret = true
   if (agua.piso !== undefined) limpa.piso = agua.piso
   return limpa
@@ -102,6 +109,32 @@ function lerPonto(raw: unknown): RegionPoint | null {
 function numeroEntre(raw: unknown, min: number, max: number): number | undefined {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined
   return Math.min(max, Math.max(min, raw))
+}
+
+/** Um traço do pincel de areia, ou `null` (modo fora da lista, raio torto, sem ponto). */
+function lerTracoDeAreia(raw: unknown): TracoDeAreia | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown> // objeto não nulo: cada campo é lido como unknown e conferido abaixo
+  if (r.modo !== 'tirar' && r.modo !== 'por') return null
+  const raio = numeroEntre(r.raio, RAIO_DA_AREIA.min, RAIO_DA_AREIA.max)
+  if (raio === undefined || !Array.isArray(r.pontos)) return null
+  const pontos: RegionPoint[] = []
+  for (const p of r.pontos.slice(0, PONTOS_DO_TRACO_MAX)) {
+    const ponto = lerPonto(p)
+    if (ponto !== null) pontos.push(ponto)
+  }
+  return pontos.length === 0 ? null : { modo: r.modo, raio, pontos }
+}
+
+/** Os traços de areia do arquivo, na ordem; torto sai, vazio = ausente. */
+function lerAreia(raw: unknown): TracoDeAreia[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const tracos: TracoDeAreia[] = []
+  for (const item of raw.slice(0, TRACOS_DE_AREIA_MAX)) {
+    const traco = lerTracoDeAreia(item)
+    if (traco !== null) tracos.push(traco)
+  }
+  return tracos.length === 0 ? undefined : tracos
 }
 
 /** Uma água do arquivo, ou `null` (tipo fora da lista, cor torta, pontos de menos). O que é opcional e torto sai. */
@@ -131,6 +164,11 @@ export function lerAgua(raw: unknown): Agua | null {
   const espuma = numeroEntre(r.espuma, 0, 100)
   if (espuma !== undefined) agua.espuma = espuma
   if (typeof r.nome === 'string' && r.nome.trim() !== '') agua.nome = r.nome.slice(0, 80)
+  if (tipo !== 'rio') {
+    const areia = lerAreia(r.areia)
+    if (areia !== undefined) agua.areia = areia
+    if (r.reto === true) agua.reto = true
+  }
   if (r.secret === true) agua.secret = true
   return { ...agua, ...pisoLido(r) }
 }

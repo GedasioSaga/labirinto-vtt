@@ -39,8 +39,30 @@ export function curvaPelosPontos(ctrl: readonly RegionPoint[], fechada: boolean,
   return out
 }
 
-/** A curva desta água em px de mundo (o rio aberto; o lago e o mar fechados, sem repetir o primeiro ponto). */
-export function curvaDaAgua(agua: Pick<Agua, 'tipo' | 'pontos'>, grid: number): number[] {
+/** A linha reta de ponto a ponto, amostrada a cada `amostra` px, no formato de `curvaPelosPontos` (cada canto é uma amostra). */
+function retaPelosPontos(ctrl: readonly RegionPoint[], fechada: boolean, amostra: number): number[] {
+  const n = ctrl.length
+  if (n === 0) return []
+  if (n === 1) return [ctrl[0].x, ctrl[0].y]
+  const vaos = fechada ? n : n - 1
+  const out: number[] = []
+  const passo = Math.max(0.5, amostra)
+  for (let i = 0; i < vaos; i += 1) {
+    const a = ctrl[i]
+    const b = ctrl[(i + 1) % n]
+    const k = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / passo))
+    for (let j = 0; j < k; j += 1) out.push(a.x + ((b.x - a.x) * j) / k, a.y + ((b.y - a.y) * j) / k)
+  }
+  if (!fechada) out.push(ctrl[n - 1].x, ctrl[n - 1].y)
+  return out
+}
+
+/**
+ * A curva desta água em px de mundo (o rio aberto; o lago e o mar fechados, sem repetir o primeiro ponto).
+ * Lago e mar com `reto` (retângulo, ponto a ponto): linha reta entre os pontos, sem a curva que viraria bolha.
+ */
+export function curvaDaAgua(agua: Pick<Agua, 'tipo' | 'pontos' | 'reto'>, grid: number): number[] {
+  if (agua.tipo !== 'rio' && agua.reto === true) return retaPelosPontos(agua.pontos, true, grid * AMOSTRA_DA_CURVA)
   return curvaPelosPontos(agua.pontos, agua.tipo !== 'rio', grid * AMOSTRA_DA_CURVA)
 }
 

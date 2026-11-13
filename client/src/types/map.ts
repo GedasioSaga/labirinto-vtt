@@ -2167,6 +2167,19 @@ export interface RecorteDaAgua {
 }
 
 /**
+ * Um traço do pincel "Tirar areia / Pôr areia" do mar (MAR MAIS FÁCIL,
+ * 13/11/2026). Os traços valem na ordem da lista: o último que passa por um
+ * trecho do contorno manda.
+ */
+export interface TracoDeAreia {
+  modo: 'tirar' | 'por'
+  /** Raio do pincel (px de mundo). */
+  raio: number
+  /** O traço (px de mundo). */
+  pontos: RegionPoint[]
+}
+
+/**
  * ÁGUA (pedido de 12/11/2026, protótipo `docs/design/agua/`): um rio, um lago
  * ou um mar da ferramenta Água. A forma são os pontos de controle; a curva
  * suave sai deles (`lib/agua/forma.ts`). Campo novo e opcional: o app antigo
@@ -2193,6 +2206,10 @@ export interface Agua extends PlayerSecret, NoPiso {
   espuma?: number
   /** Nome que o mestre deu ("Rio Grande"). Só do mestre: o recorte do jogador tira. */
   nome?: string
+  /** Lago e mar: os traços do pincel de areia (13/11/2026). Ausente = a areia automática. Teto: 200 traços, 2000 pontos cada. */
+  areia?: TracoDeAreia[]
+  /** Lago e mar: o contorno liga os pontos por linhas retas (retângulo, ponto a ponto). Ausente = curva suave. */
+  reto?: true
   /** SÓ NO RECORTE DO JOGADOR: a água cortada ao que ele conhece. */
   recorte?: RecorteDaAgua
 }

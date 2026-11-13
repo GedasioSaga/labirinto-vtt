@@ -50,9 +50,9 @@ export function corpoDaAgua(agua: Agua, grid: number): CorpoDoCampo | null {
   return contorno.length < 6 ? null : { ...base, contorno }
 }
 
-/** A chave que muda quando o campo desta água muda (forma, largura, recorte); cor e ajustes só recompõem. */
+/** A chave que muda quando o campo desta água muda (forma, largura, linha reta, pincel de areia, recorte); cor e ajustes só recompõem. */
 export function chaveDaForma(agua: Agua): string {
-  return JSON.stringify([agua.tipo, agua.pontos, agua.tipo === 'rio' ? larguraDoRio(agua) : 0, agua.recorte ?? null])
+  return JSON.stringify([agua.tipo, agua.pontos, agua.tipo === 'rio' ? larguraDoRio(agua) : 0, agua.reto === true, agua.areia ?? null, agua.recorte ?? null])
 }
 
 /** O texel (u) que cabe todas as águas desta lista no teto de memória. */
