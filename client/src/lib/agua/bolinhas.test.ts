@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RegionPoint } from '../../types/map'
-import { arrastarBolinha, bolinhasDaForma, meiosDasBolinhas, tirarBolinha } from './bolinhas'
+import { apertoNaLinha, arrastarBolinha, bolinhaNaLinha, bolinhasDaForma, meiosDasBolinhas, tirarBolinha } from './bolinhas'
 
 /** MAR MAIS FÁCIL (13/11/2026): as bolinhas da água escolhida. */
 const G = 40
@@ -56,6 +56,22 @@ describe('bolinhas da água', () => {
     const sem = tirarBolinha(quadrado, [0, 1, 2, 3], 1, true, 3)
     expect(sem?.pontos).toEqual([quadrado[0], quadrado[2], quadrado[3]])
     expect(sem === null ? null : tirarBolinha(sem.pontos, sem.marcadas, 0, true, 3)).toBeNull()
+  })
+
+  it('apertar a linha longe das bolinhas cria a bolinha no trecho certo, sem mudar a forma; longe da linha, nada', () => {
+    const quadrado = [
+      { x: 0, y: 0 },
+      { x: 14 * G, y: 0 },
+      { x: 14 * G, y: 4 * G },
+      { x: 0, y: 4 * G },
+    ]
+    const aperto = apertoNaLinha(quadrado, true, true, { x: 4 * G, y: 4 * G + 3 }, 8)
+    expect(aperto?.depoisDe).toBe(2)
+    const nova = aperto === null ? null : bolinhaNaLinha(quadrado, [0, 1, 2, 3], aperto, true)
+    expect(nova?.pontos).toEqual([...quadrado.slice(0, 3), { x: 4 * G, y: 4 * G }, quadrado[3]])
+    expect(nova?.marcadas).toEqual([0, 1, 2, 3, 4])
+    expect(nova?.k).toBe(3)
+    expect(apertoNaLinha(quadrado, true, true, { x: 4 * G, y: 2 * G }, 8)).toBeNull()
   })
 
   it('o meio da linha reta fica no meio do segmento; o rio não liga a última bolinha à primeira', () => {

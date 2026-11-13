@@ -197,6 +197,84 @@ export function pontoNoMeio(pontos: readonly RegionPoint[], i: number, fechada: 
   return { x: (-p0.x + 9 * p1.x + 9 * p2.x - p3.x) / 16, y: (-p0.y + 9 * p1.y + 9 * p2.y - p3.y) / 16 }
 }
 
+/** Amostras por trecho entre dois pontos de controle, na procura do aperto na linha. */
+const AMOSTRAS_POR_TRECHO = 12
+
+/**
+ * O aperto em cima da LINHA (o contorno; no rio, o traço), a até `alcance` px
+ * dela: o trecho (entre os pontos `depoisDe` e o seguinte), onde nele (`t`, de
+ * 0 a 1) e o ponto da curva ali. `null` = longe da linha. A curva é a mesma de
+ * `curvaPelosPontos` (`forma.ts`); `reto`, a reta.
+ */
+export function apertoNaLinha(
+  pontos: readonly RegionPoint[],
+  fechada: boolean,
+  reto: boolean,
+  p: RegionPoint,
+  alcance: number,
+): { depoisDe: number; t: number; ponto: RegionPoint } | null {
+  const n = pontos.length
+  if (n < 2) return null
+  const pega = (j: number): RegionPoint => (fechada ? pontos[((j % n) + n) % n] : pontos[Math.min(n - 1, Math.max(0, j))])
+  const naCurva = (i: number, t: number): RegionPoint => {
+    const p1 = pega(i)
+    const p2 = pega(i + 1)
+    if (reto) return { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t }
+    const p0 = pega(i - 1)
+    const p3 = pega(i + 2)
+    const t2 = t * t
+    const t3 = t2 * t
+    const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3)
+    return { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) }
+  }
+  let melhor: { depoisDe: number; t: number; ponto: RegionPoint } | null = null
+  let menor = alcance
+  const trechos = fechada ? n : n - 1
+  for (let i = 0; i < trechos; i += 1) {
+    let a = naCurva(i, 0)
+    for (let k = 1; k <= AMOSTRAS_POR_TRECHO; k += 1) {
+      const b = naCurva(i, k / AMOSTRAS_POR_TRECHO)
+      const vx = b.x - a.x
+      const vy = b.y - a.y
+      const l2 = vx * vx + vy * vy
+      const u = l2 === 0 ? 0 : Math.min(1, Math.max(0, ((p.x - a.x) * vx + (p.y - a.y) * vy) / l2))
+      const d = Math.hypot(p.x - a.x - vx * u, p.y - a.y - vy * u)
+      if (d <= menor) {
+        menor = d
+        const t = (k - 1 + u) / AMOSTRAS_POR_TRECHO
+        melhor = { depoisDe: i, t, ponto: naCurva(i, t) }
+      }
+      a = b
+    }
+  }
+  return melhor
+}
+
+/**
+ * A bolinha nova no aperto da linha: o ponto de controle sem bolinha ali perto
+ * ganha a bolinha (a forma não muda), ou entra um ponto novo na curva, no
+ * trecho certo. `marcadas` sai em ordem, com a posição `k` da bolinha nova.
+ */
+export function bolinhaNaLinha(
+  pontos: readonly RegionPoint[],
+  marcadas: readonly number[],
+  aperto: { depoisDe: number; t: number; ponto: RegionPoint },
+  fechada: boolean,
+): { pontos: RegionPoint[]; marcadas: number[]; k: number } {
+  const n = pontos.length
+  const comBolinha = new Set(marcadas)
+  const perto = aperto.t < 0.25 ? aperto.depoisDe : aperto.t > 0.75 ? (fechada ? (aperto.depoisDe + 1) % n : Math.min(n - 1, aperto.depoisDe + 1)) : null
+  if (perto !== null && !comBolinha.has(perto)) {
+    const novas = [...marcadas, perto].sort((a, b) => a - b)
+    return { pontos: pontos.slice(), marcadas: novas, k: novas.indexOf(perto) }
+  }
+  const novo = { x: Math.round(aperto.ponto.x * 10) / 10, y: Math.round(aperto.ponto.y * 10) / 10 }
+  const i = aperto.depoisDe + 1
+  const base = [...pontos.slice(0, i), novo, ...pontos.slice(i)]
+  const novas = [...marcadas.map((m) => (m >= i ? m + 1 : m)), i].sort((a, b) => a - b)
+  return { pontos: base, marcadas: novas, k: novas.indexOf(i) }
+}
+
 /** Onde desenhar o meio de cada linha entre bolinhas (o rio não liga a última à primeira). */
 export function meiosDasBolinhas(pontos: readonly RegionPoint[], marcadas: readonly number[], fechada: boolean, reto: boolean): RegionPoint[] {
   const m = marcadas.length

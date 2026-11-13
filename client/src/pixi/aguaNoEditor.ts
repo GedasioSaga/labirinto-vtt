@@ -6,8 +6,8 @@ import { mapaDoPiso } from '../lib/pisos'
 import { larguraDoRio, pontosMinimos, PONTOS_DO_TRACO_MAX, PONTOS_MAX, TRACOS_DE_AREIA_MAX } from '../lib/agua/dados'
 import { aguaNoPonto, curvaDaAgua, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
 import { aguaComPincel, cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
-import { arrastarBolinha, bolinhasDaForma, meiosDasBolinhas, moverForma, pontoDoMeio, pontoNoMeio, tirarBolinha } from '../lib/agua/bolinhas'
-import { findNearestVertexHandleAt } from '../lib/handleHitArea'
+import { apertoNaLinha, arrastarBolinha, bolinhaNaLinha, bolinhasDaForma, meiosDasBolinhas, moverForma, pontoDoMeio, pontoNoMeio, tirarBolinha } from '../lib/agua/bolinhas'
+import { findNearestVertexHandleAt, VERTEX_HANDLE_TOLERANCE } from '../lib/handleHitArea'
 import { mapBoundsRect } from './drawMapBounds'
 import { CORNER_HANDLE_KEYLINE_COLOR, CORNER_HANDLE_KEYLINE_WIDTH, HANDLE_MIDPOINT_RADIUS, HANDLE_VISUAL_RADIUS, SELECTION_COLOR, STROKE_WEIGHT } from './constants'
 
@@ -281,6 +281,14 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
         const novas = [...deslocadas.slice(0, naLinha + 1), depoisDe + 1, ...deslocadas.slice(naLinha + 1)]
         gesto = { tipo: 'bolinha', id: agua.id, base, antes: agua.pontos, marcadas: novas, k: naLinha + 1, fechada, chave, mexeu: false }
       }
+      return true
+    }
+    // Em cima da linha, longe das bolinhas (a costa reta tem bolinhas a até ~14 casas, Floresta 13/11): nasce
+    // a bolinha ali, no trecho certo da curva, e já arrasta. A mesma folga de clique da bolinha.
+    const aperto = alt ? null : apertoNaLinha(agua.pontos, fechada, reto, p, VERTEX_HANDLE_TOLERANCE / escala())
+    if (aperto !== null) {
+      const nova = bolinhaNaLinha(agua.pontos, marcadas, aperto, fechada)
+      gesto = { tipo: 'bolinha', id: agua.id, base: nova.pontos, antes: agua.pontos, marcadas: nova.marcadas, k: nova.k, fechada, chave, mexeu: false }
       return true
     }
     if (pontoNaAgua(agua, grid(), p.x, p.y)) {

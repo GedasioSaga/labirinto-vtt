@@ -105,6 +105,23 @@ describe('bolinhas e pincéis na escolhida', () => {
     expect(primeira().pontos).toEqual([casa(4, 4), casa(12, 4), casa(4, 12)])
   })
 
+  it('na água à mão, apertar a linha longe das bolinhas dobra a água (não nasce rio), num passo do desfazer', () => {
+    // Costa reta de 16 casas com um ponto a cada meia casa: só as pontas seguram a forma.
+    const costa = Array.from({ length: 33 }, (_, i) => casa(2 + i * 0.5, 15))
+    const mar: Agua = { id: 'c', tipo: 'mar', pontos: [...costa, casa(18, 19), casa(2, 19)], cor: '#2d5f8c' }
+    useMapStore.getState().loadMap({ ...createEmptyMap('m', 'M', 20, 20, G), aguas: [mar] })
+    useMapStore.setState({ activeTool: 'agua', camera: { x: 0, y: 0, scale: 1 } })
+    useFerramentaDaAgua.setState({ tipo: 'rio', escolhida: 'c', pincel: null })
+    const passos = useMapStore.getState().past.length
+    gesto.comecar(casa(9.2, 15), false)
+    gesto.mover(casa(9.2, 13))
+    gesto.mover(casa(9.2, 12))
+    gesto.soltar(casa(9.2, 12))
+    expect(aguas().map((a) => a.tipo)).toEqual(['mar'])
+    expect(Math.min(...primeira().pontos.map((p) => p.y))).toBeLessThan(12.5 * G)
+    expect(useMapStore.getState().past.length).toBe(passos + 1)
+  })
+
   it('Mais água cresce o mar e o deixa curva suave; Tirar areia entra na lista do mar', () => {
     useFerramentaDaAgua.setState({ pincel: 'agua' })
     gesto.comecar(casa(12, 6), false)

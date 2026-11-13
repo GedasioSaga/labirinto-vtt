@@ -172,7 +172,7 @@ function Medidas(props: {
 
 const AREIA_SOZINHA = 'O mar ganha areia sozinho na beira, menos junto de sala, de chão liso e na borda do mapa.'
 
-const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste o meio de uma linha para criar outra. Alt+clique tira. Arraste por dentro para mover tudo.'
+const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste a linha para criar outra. Alt+clique tira. Arraste por dentro para mover tudo.'
 
 /** Como mexer na forma da escolhida: as bolinhas do contorno ou um pincel (lago e mar). */
 function MexerNaForma({ agua }: { agua: Agua }) {
