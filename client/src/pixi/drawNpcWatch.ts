@@ -74,13 +74,14 @@ const CONE_STROKE_WIDTH = 1
  * cada quadro do arrasto, e o contorno do chão (`visionSegments`) é caro: só
  * recalcula quando paredes ou chão mudam de referência (a store é imutável).
  */
-let cached: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
+let cached: { walls: MapData['walls']; floor: MapData['floor']; props: MapData['props']; segments: Segment[] } | null = null
 
 function segmentsOf(map: MapData): Segment[] {
   // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena troca a referência, e o cone é refeito.
   const floor = chaoQueLimita(map)
-  if (cached === null || cached.walls !== map.walls || cached.floor !== floor) {
-    cached = { walls: map.walls, floor, segments: visionSegments(map) }
+  // CONSTRUÇÕES (12/11/2026): a construção que tapa a visão segura o olhar do guarda; mexer nos objetos refaz.
+  if (cached === null || cached.walls !== map.walls || cached.floor !== floor || cached.props !== map.props) {
+    cached = { walls: map.walls, floor, props: map.props, segments: visionSegments(map) }
   }
   return cached.segments
 }

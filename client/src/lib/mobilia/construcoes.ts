@@ -68,13 +68,19 @@ export function ehConstrucao(tipo: TipoMobilia | undefined): tipo is TipoDeConst
 interface RegraDeFabrica {
   readonly barra: boolean
   readonly peloMenorLado?: true
+  /**
+   * TAPA A VISÃO de fábrica (decisão do mestre de 12/11/2026): só quem é fechado de alvenaria do chão ao alto e mais
+   * alto que uma pessoa — a torre de pedra, o moinho, o mausoléu e os 3 blocos de inscrições ("da altura do
+   * mausoléu"). Vale também para os que já estão nos mapas (nos dele, só as 8 torres de pedra passam a tapar).
+   */
+  readonly tapa?: true
 }
 
 const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
-  torreDePedra: { barra: true, peloMenorLado: true },
+  torreDePedra: { barra: true, peloMenorLado: true, tapa: true },
   torreDeVigia: { barra: true, peloMenorLado: true },
-  moinho: { barra: true, peloMenorLado: true },
-  mausoleu: { barra: true },
+  moinho: { barra: true, peloMenorLado: true, tapa: true },
+  mausoleu: { barra: true, tapa: true },
   galinheiro: { barra: false },
   barraca: { barra: true },
   poco: { barra: true },
@@ -84,9 +90,9 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
   estatua: { barra: true },
   anjoDePedra: { barra: true },
   pilar: { barra: true },
-  blocoDeInscricoesAzul: { barra: true },
-  blocoDeInscricoesVermelho: { barra: true },
-  blocoDeInscricoesDourado: { barra: true },
+  blocoDeInscricoesAzul: { barra: true, tapa: true },
+  blocoDeInscricoesVermelho: { barra: true, tapa: true },
+  blocoDeInscricoesDourado: { barra: true, tapa: true },
   arcoDoPortao: { barra: false },
   tenda: { barra: false },
   tendaDeAdivinha: { barra: false },
@@ -95,6 +101,11 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
 /** A construção barra a passagem de fábrica? */
 export function construcaoBarraDeFabrica(tipo: TipoDeConstrucao): boolean {
   return REGRA_DE_FABRICA[tipo].barra
+}
+
+/** A construção tapa a visão de fábrica? */
+export function construcaoTapaDeFabrica(tipo: TipoDeConstrucao): boolean {
+  return REGRA_DE_FABRICA[tipo].tapa === true
 }
 
 /** A colisão (e o desenho) da construção é medida pelo menor lado da caixa? Não-construção: não. */

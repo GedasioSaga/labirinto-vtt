@@ -3,6 +3,7 @@ import { isDoorPassable } from './collision'
 import { buildFloorOutline } from './floorContour'
 import { mesmaGeometriaDoChao } from './floorGeometry'
 import { chaoQueLimita } from './offFloor'
+import { construcoesQueTapam } from './obstaculosDeObjeto'
 import { simplifyRing } from './refineFloor'
 
 /**
@@ -264,9 +265,21 @@ export function wallLetsSightThrough(wall: Wall, peekDoorIds?: ReadonlySet<strin
  * A borda do chão só entra na cena de "Fora do Chão" bloqueado (`chaoQueLimita`):
  * na cena livre os obstáculos são os da mesma cena sem nenhuma peça de Chão.
  */
-export function visionSegments(map: MapData, peekDoorIds?: ReadonlySet<string>): Segment[] {
+export function visionSegments(map: MapData, peekDoorIds?: ReadonlySet<string>, naoTapam?: ReadonlySet<string>): Segment[] {
   const walls = map.walls
     .filter((w) => !wallLetsSightThrough(w, peekDoorIds))
     .map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
-  return [...walls, ...floorSegments(chaoQueLimita(map))]
+  return [...walls, ...floorSegments(chaoQueLimita(map)), ...segmentosDasConstrucoes(map, naoTapam)]
+}
+
+/**
+ * CONSTRUÇÃO QUE TAPA A VISÃO (12/11/2026, `lib/obstaculosDeObjeto.ts`): a PORTA ÚNICA por onde a chave "Tapa a
+ * visão" entra no motor. Toda conta de olhar (a visão da autoridade e a enviada, a luz, o guarda NPC, a "Visão" da
+ * batalha) passa por `visionSegments`, e as duas visões do recorte recebem a MESMA lista de objetos (o recorte tira
+ * antes o que o jogador não recebe: camada, zona oculta, sala secreta). `naoTapam`: as que contêm quem olha.
+ */
+function segmentosDasConstrucoes(map: MapData, naoTapam: ReadonlySet<string> | undefined): Segment[] {
+  const tapam = construcoesQueTapam(map.props, map.grid)
+  if (tapam.length === 0) return []
+  return tapam.flatMap((c) => (naoTapam?.has(c.prop.id) === true ? [] : c.trechos.map((t) => ({ x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2 }))))
 }

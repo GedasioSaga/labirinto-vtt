@@ -2,7 +2,7 @@ import type { MapData, Prop, RegionPoint, TipoMobilia, Token, Wall } from '../ty
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
-import { medidaPeloMenorLado } from './mobilia/construcoes'
+import { construcaoTapaDeFabrica, ehConstrucao, medidaPeloMenorLado } from './mobilia/construcoes'
 import { pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
@@ -119,6 +119,129 @@ export function lerBarraPassagem(prop: Prop): Prop {
   if (typeof valor === 'boolean' && objetoPodeBarrar(prop) && valor !== ehMovelQueBarra(prop.mobilia)) return prop
   const { barraPassagem: _torto, ...resto } = prop
   return resto
+}
+
+/**
+ * TAPA A VISÃO (construções, 12/11/2026, decisão do mestre: "Deve ter a opção de que sim e de que não"). Só a
+ * construção (`lib/mobilia/construcoes.ts`) pode tapar; para as outras a chave nem aparece. A forma é a MESMA da
+ * colisão (`contornoDoObjeto`: caixa girada ou polígono da elipse, pegada sólida, menor lado), e mesmo a
+ * construção que não barra a passagem pode tapar (o mestre liga as duas chaves como quiser).
+ */
+export function objetoPodeTapar(prop: Pick<Prop, 'mobilia' | 'item'>): boolean {
+  return prop.item === undefined && ehConstrucao(prop.mobilia)
+}
+
+/** O que a chave "Tapa a visão" mostra: a escolha do mestre (`Prop.tapaVisao`), senão o padrão do tipo. */
+export function tapaVisaoEscolhida(prop: Pick<Prop, 'mobilia' | 'item' | 'tapaVisao'>): boolean {
+  if (prop.item !== undefined || !ehConstrucao(prop.mobilia)) return false
+  return typeof prop.tapaVisao === 'boolean' ? prop.tapaVisao : construcaoTapaDeFabrica(prop.mobilia)
+}
+
+/**
+ * A construção tapa a visão AGORA? A escolha acima, menos a escondida (`hidden`) e a secreta (`secret`): a sombra
+ * dela contaria que ela existe. O lugar escondido (camada, zona oculta, sala secreta) é o RECORTE quem tira
+ * (`lib/fogFilter.ts`): na tela do jogador o mapa já é o recorte.
+ */
+export function objetoTapaVisao(prop: Prop): boolean {
+  if (prop.hidden === true || prop.secret === true) return false
+  return tapaVisaoEscolhida(prop)
+}
+
+/** O padrão do tipo para a chave (só construção tem padrão ligado). */
+function tapaDeFabrica(prop: Pick<Prop, 'mobilia'>): boolean {
+  return ehConstrucao(prop.mobilia) && construcaoTapaDeFabrica(prop.mobilia)
+}
+
+/** A construção com a chave em `tapa`; o campo só fica quando difere do padrão. O que já vale devolve o MESMO objeto. */
+export function comTapaVisao(prop: Prop, tapa: boolean): Prop {
+  const { tapaVisao: antes, ...resto } = prop
+  const gravado = objetoPodeTapar(prop) && tapa !== tapaDeFabrica(prop) ? tapa : undefined
+  if (gravado === antes) return prop
+  return gravado === undefined ? resto : { ...resto, tapaVisao: gravado }
+}
+
+/** O mapa com a chave da construção `id` em `tapa`; sem a construção, ou sem nada a mudar, o MESMO mapa. */
+export function comTapaVisaoNoMapa(map: MapData, id: string, tapa: boolean): MapData {
+  const antes = map.props.find((p) => p.id === id)
+  if (antes === undefined) return map
+  const depois = comTapaVisao(antes, tapa)
+  return depois === antes ? map : { ...map, props: map.props.map((p) => (p === antes ? depois : p)) }
+}
+
+/** Leitura do disco: só booleano, em construção e diferente do padrão fica; o resto some. Sem nada a consertar, o mesmo objeto. */
+export function lerTapaVisao(prop: Prop): Prop {
+  if (!Object.hasOwn(prop, 'tapaVisao')) return prop
+  const valor: unknown = prop.tapaVisao
+  if (typeof valor === 'boolean' && objetoPodeTapar(prop) && valor !== tapaDeFabrica(prop)) return prop
+  const { tapaVisao: _torto, ...resto } = prop
+  return resto
+}
+
+/** Um trecho que segura o olhar (o `Segment` de `lib/visibility.ts`, sem importá-lo: ela importa daqui). */
+export interface TrechoQueTapa {
+  readonly x1: number
+  readonly y1: number
+  readonly x2: number
+  readonly y2: number
+}
+
+/** Uma construção que tapa: o objeto, o contorno (o mesmo da colisão) e os trechos dele. */
+export interface ConstrucaoQueTapa {
+  readonly prop: Prop
+  readonly contorno: readonly RegionPoint[]
+  readonly trechos: readonly TrechoQueTapa[]
+}
+
+const SEM_CONSTRUCOES: readonly ConstrucaoQueTapa[] = []
+const cacheDasQueTapam = new WeakMap<readonly Prop[], Map<number, readonly ConstrucaoQueTapa[]>>()
+
+/**
+ * As construções de `props` que tapam a visão agora (`objetoTapaVisao`), com o contorno e os trechos. Guardado pela
+ * lista de objetos e pela grade: a mesma lista devolve a MESMA resposta. NÃO filtra piso nem lugar escondido: quem
+ * chama passa a lista do piso de quem olha, já sem o que o jogador não recebe (o recorte, `lib/fogFilter.ts`).
+ */
+export function construcoesQueTapam(props: readonly Prop[], grid: number): readonly ConstrucaoQueTapa[] {
+  if (props.length === 0) return SEM_CONSTRUCOES
+  let porGrade = cacheDasQueTapam.get(props)
+  if (porGrade === undefined) {
+    porGrade = new Map()
+    cacheDasQueTapam.set(props, porGrade)
+  }
+  const guardado = porGrade.get(grid)
+  if (guardado !== undefined) return guardado
+  const feitas: ConstrucaoQueTapa[] = []
+  for (const prop of props) {
+    if (!objetoTapaVisao(prop)) continue
+    const contorno = contornoDoObjeto(prop, grid * FOLGA_DO_OBJETO_EM_CASAS)
+    if (contorno === null) continue
+    const trechos = contorno.map((a, k): TrechoQueTapa => {
+      const b = contorno[(k + 1) % contorno.length] ?? a
+      return { x1: a.x, y1: a.y, x2: b.x, y2: b.y }
+    })
+    feitas.push({ prop, contorno, trechos })
+  }
+  const resposta = feitas.length === 0 ? SEM_CONSTRUCOES : feitas
+  porGrade.set(grid, resposta)
+  return resposta
+}
+
+/**
+ * O contorno de uma construção em px de mundo (a forma da colisão e da sombra), para o recorte medir se o jogador
+ * vê uma ponta dela (`lib/fogFilter.ts`, a construção como o telhado). Vale para toda construção, tape ou não;
+ * `null` para o que não é construção ou tem medida estragada.
+ */
+export function contornoDaConstrucao(prop: Prop, grid: number): RegionPoint[] | null {
+  return ehConstrucao(prop.mobilia) ? contornoDoObjeto(prop, grid * FOLGA_DO_OBJETO_EM_CASAS) : null
+}
+
+/**
+ * Os ids das construções que tapam e CONTÊM o ponto (quem olha de dentro da torre não fica cego: a construção que o
+ * contém não tapa para ele). Vazio = nenhuma.
+ */
+export function construcoesQueContem(props: readonly Prop[], grid: number, p: Point): string[] {
+  return construcoesQueTapam(props, grid)
+    .filter((c) => pontoNoObstaculo({ prop: c.prop, contorno: c.contorno, paredes: [] }, p))
+    .map((c) => c.prop.id)
 }
 
 /** O id é de uma parede de objeto (e não de uma parede do mapa)? */

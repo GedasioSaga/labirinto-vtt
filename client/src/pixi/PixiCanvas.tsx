@@ -2420,13 +2420,16 @@ function PixiCanvasDoContexto({
        * de luzes pular o halo inteiro e refazer só o marcador.
        */
       const SEM_OBSTACULOS_DE_LUZ: Segment[] = []
-      let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; segments: Segment[] } | null = null
+      let lightOccluders: { walls: MapData['walls']; floor: MapData['floor']; props: MapData['props']; segments: Segment[] } | null = null
       const lightOccludersOf = (map: MapData): Segment[] => {
         // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena troca a referência e refaz.
         const floor = chaoQueLimita(map)
-        if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === floor) return lightOccluders.segments
+        // CONSTRUÇÕES (12/11/2026): a construção que tapa a visão segura a luz; mexer num objeto (a chave, o lugar) refaz.
+        if (lightOccluders !== null && lightOccluders.walls === map.walls && lightOccluders.floor === floor && lightOccluders.props === map.props) {
+          return lightOccluders.segments
+        }
         const segments = visionSegments(map)
-        lightOccluders = { walls: map.walls, floor, segments }
+        lightOccluders = { walls: map.walls, floor, props: map.props, segments }
         return segments
       }
 
@@ -3116,7 +3119,7 @@ function PixiCanvasDoContexto({
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
           tinta,
-          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, chaoQueLimita(map), map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
+          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, chaoQueLimita(map), map.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
             const camadas = contextoDeCamadas(map)
             const daCamada = comoJogador ? map.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(map.lights, map)

@@ -102,6 +102,7 @@ import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
 import { drawDrawings } from '../pixi/drawDrawings'
 import { drawStairs } from '../pixi/drawStairs'
 import { drawPropSilhouettes } from '../pixi/drawPropSilhouettes'
+import { ehConstrucao } from '../lib/mobilia/construcoes'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
 import { createJudgeDoMapa, type JudgeDoMapa } from '../pixi/judgeDoMapa'
@@ -660,7 +661,8 @@ function visibleWalls(map: MapData): Wall[] {
  */
 function obstaculosDasLuzes(scene: Pick<Scene, 'revisaoDosObstaculos' | 'obstaculosDasLuzes'>, map: MapData): Segment[] {
   // O chão que LIMITA (`chaoQueLimita`): o mestre trocar o "Fora do Chão" da cena refaz os obstáculos.
-  const revisao = scene.revisaoDosObstaculos.de([map.walls, chaoQueLimita(map), map.hiddenLayers])
+  // CONSTRUÇÕES (12/11/2026): a construção que tapa a visão (a que ele recebe) segura a luz; os objetos entram na revisão.
+  const revisao = scene.revisaoDosObstaculos.de([map.walls, chaoQueLimita(map), map.hiddenLayers, map.props])
   if (scene.obstaculosDasLuzes !== null && scene.obstaculosDasLuzes.revisao === revisao) return scene.obstaculosDasLuzes.segmentos
   const segmentos = visionSegments({ ...map, walls: visibleWalls(map) })
   scene.obstaculosDasLuzes = { revisao, segmentos }
@@ -1337,6 +1339,18 @@ interface Scene {
     looks: PropLooksRenderer
     /** Os ids presos, pelo pacote de objetos, de paredes, pelas camadas e pela grade. */
     presos: { props: readonly Prop[]; walls: readonly Wall[]; hidden: MapData['hiddenLayers']; grid: number; ids: ReadonlySet<string> } | null
+  }
+  /**
+   * CONSTRUÇÕES (12/11/2026, decisão do mestre: "como o telhado da casa"): a construção que chegou no pacote (vista
+   * por uma ponta do contorno, ou lembrada) sai inteira deste container, ACIMA da névoa e abaixo dos telhados
+   * (`lib/camadas/ordem.ts`, faixa `construcoes`). A que tapa a visão fica dentro da própria sombra: sob a névoa
+   * ela seria um buraco preto. Fora da lista de camadas (faixa fixa).
+   */
+  construcoes: {
+    silhuetas: Graphics
+    imagens: Container
+    rotulos: Container
+    looks: PropLooksRenderer
   }
   /** Chama e imagem/rótulo de móvel por nó da pilha: o de hoje no container de hoje, o de um nó criado nasce na primeira pintura. */
   chamasPorNo: PorNo<Container, ChamasDasFogueiras>
@@ -2915,8 +2929,11 @@ function PlayerViewDoCanvas({
     const camadas = contextoDoJogador(currentMap)
     const deObjeto = (p: Prop) => camadas.camadaDe('objeto', p)
     // OBJETO PRESO NA PAREDE (N4): sai do container de cima das paredes; o resto segue pelas camadas.
-    const naParede = presos.size === 0 ? [] : props.filter((p) => presos.has(p.id))
-    const doChao = presos.size === 0 ? props : props.filter((p) => !presos.has(p.id))
+    // CONSTRUÇÕES (12/11/2026): saem do container de cima da névoa, como o telhado (`scene.construcoes`).
+    const construcoes = props.filter((p) => ehConstrucao(p.mobilia))
+    const semConstrucoes = construcoes.length === 0 ? props : props.filter((p) => !ehConstrucao(p.mobilia))
+    const naParede = presos.size === 0 ? [] : semConstrucoes.filter((p) => presos.has(p.id))
+    const doChao = presos.size === 0 ? semConstrucoes : semConstrucoes.filter((p) => !presos.has(p.id))
     // ITEM NO CHÃO com imagem: a imagem do item é o desenho — a silhueta chapada
     // por baixo faria a poção virar um caixote escuro.
     const silhuetas = doChao.filter((p) => p.item?.imagem === undefined)
@@ -2949,6 +2966,12 @@ function PlayerViewDoCanvas({
     const feitoNaParede = noDaParede.looks.draw(noDaParede.imagens, noDaParede.rotulos, naParede, currentMap.grid, scale, latestRef.current.imagemDaMesa)
     contagem.images += feitoNaParede.images
     contagem.labels += feitoNaParede.labels
+    // As construções, inteiras, acima da névoa. Lista vazia também passa: limpa o que saiu.
+    const { construcoes: noDasConstrucoes } = scene
+    desenhadas += drawPropSilhouettes(noDasConstrucoes.silhuetas, construcoes.filter((p) => p.item?.imagem === undefined), scale, res, vistaDosMoveis, currentMap.grid)
+    const feitoNasConstrucoes = noDasConstrucoes.looks.draw(noDasConstrucoes.imagens, noDasConstrucoes.rotulos, construcoes, currentMap.grid, scale, latestRef.current.imagemDaMesa)
+    contagem.images += feitoNasConstrucoes.images
+    contagem.labels += feitoNasConstrucoes.labels
     scene.propsCount = desenhadas
     scene.propLooksCount = contagem
   }
@@ -3594,6 +3617,7 @@ function PlayerViewDoCanvas({
     // O rótulo de um nó criado (camada com opacidade própria) segue o mesmo "Mostrar nomes".
     for (const { no } of scene.pilha.nosDaFaixa('propLabels')) no.visible = currentSettings.showNames
     scene.naParede.rotulos.visible = currentSettings.showNames
+    scene.construcoes.rotulos.visible = currentSettings.showNames
 
     redrawLights(scene)
     redrawHazards(scene, currentHazards, currentVision)
@@ -3970,6 +3994,14 @@ function PlayerViewDoCanvas({
       const imagensNaParede = new Container()
       const rotulosNaParede = new Container()
       objetosNaParede.addChild(silhuetasNaParede, chamasNaParede, imagensNaParede, rotulosNaParede)
+      // CONSTRUÇÕES (12/11/2026): silhueta, imagem e rótulo próprios, acima da névoa e abaixo dos telhados.
+      const construcoesAcima = new Container()
+      construcoesAcima.label = 'construcoes'
+      construcoesAcima.eventMode = 'none'
+      const silhuetasDasConstrucoes = new Graphics()
+      const imagensDasConstrucoes = new Container()
+      const rotulosDasConstrucoes = new Container()
+      construcoesAcima.addChild(silhuetasDasConstrucoes, imagensDasConstrucoes, rotulosDasConstrucoes)
       const roomNames = new Container()
       const textLabels = new Container()
       const lights = new Container()
@@ -4223,6 +4255,8 @@ function PlayerViewDoCanvas({
         fogDim,
         visionMask,
         concealed,
+        // CONSTRUÇÕES acima da névoa, como o telhado (decisão do mestre de 12/11/2026).
+        construcoes: construcoesAcima,
         // Luz vista de longe ACIMA da névoa: é o ponto aceso no escuro. O
         // recorte do mestre só manda o ponto (raio 0), nunca o que ele ilumina.
         farLights,
@@ -4441,6 +4475,12 @@ function PlayerViewDoCanvas({
           rotulos: rotulosNaParede,
           looks: createPropLooksRenderer(),
           presos: null,
+        },
+        construcoes: {
+          silhuetas: silhuetasDasConstrucoes,
+          imagens: imagensDasConstrucoes,
+          rotulos: rotulosDasConstrucoes,
+          looks: createPropLooksRenderer(),
         },
         pilha,
         paresDoMapa: criarParesDoJogador(),

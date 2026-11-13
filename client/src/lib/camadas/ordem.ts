@@ -189,6 +189,10 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   faixa('fogDim', [], FIXA),
   faixa('visionMask', [], FIXA),
   faixa('concealed', [], FIXA),
+  // CONSTRUÇÕES (12/11/2026, decisão do mestre: "como o telhado da casa"): a torre, o moinho, o poço... que o
+  // jogador viu saem inteiros e lembrados ACIMA da névoa, logo abaixo dos telhados (o telhado de uma casa continua
+  // cobrindo o pilar de dentro dela). Só na tela do jogador; no editor ficam com os objetos. Fixa: fora das camadas.
+  faixa('construcoes', [], FIXA, SOBRE),
   faixa('farLights', ['luz'], ['iluminacao'], SOBRE),
   faixa('roofCut', ['telhado'], ['telhados'], SOBRE),
   faixa('roofs', ['telhado'], ['telhados'], SOBRE),

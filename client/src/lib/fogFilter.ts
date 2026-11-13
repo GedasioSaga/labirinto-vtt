@@ -73,7 +73,11 @@ import { faceRangeCellsOrNull, isFaceInReach, tokenAsVulto } from './tokenVulto'
 import { clampDaVista, clipRingToCircle, clipSegmentToCircle, isDaVista, type Espiada, type EspiadaParede } from './espiar'
 import { fichaDoLadoAlcanca, type LadoDaPorta } from './ferrolho'
 import { espessuraDoMaterial, ladosDoObjetoNaParede, paredeComMaterial, paredesQueSeguram, presoNaParede, type ParedeQueSegura } from './faixasDaParede'
-import { alcancePeloObjeto, type AlcancePeloObjeto } from './obstaculosDeObjeto'
+import { alcancePeloObjeto, construcoesQueContem, contornoDaConstrucao, objetoTapaVisao, type AlcancePeloObjeto } from './obstaculosDeObjeto'
+import { ehConstrucao } from './mobilia/construcoes'
+
+/** Lista vazia de objetos: a visão sem construção que tape (`mapaDaVisao`). */
+const SEM_PROPS: MapData['props'] = []
 
 /**
  * Recorte do mapa que um jogador pode receber. Tudo que sai daqui vai pela
@@ -2033,6 +2037,11 @@ export interface PlanMemory {
   lines: ReadonlyMap<string, MapLine>
   stairs: ReadonlyMap<string, Stair>
   pins: ReadonlyMap<string, Pin>
+  /**
+   * CONSTRUÇÕES (12/11/2026): a torre que o jogador viu fica lembrada, como o telhado da casa. Opcional: a memória
+   * de antes (mesa retomada, `lib/savedTable.ts`) abre sem ela, e a torre volta à memória na próxima vez que ele a vê.
+   */
+  construcoes?: ReadonlyMap<string, MapData['props'][number]>
 }
 
 export function emptyPlanMemory(): PlanMemory {
@@ -2076,6 +2085,8 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     lines: byId(map.lines),
     stairs: byId(map.stairs),
     pins: byId(map.pins ?? []),
+    // CONSTRUÇÕES (12/11/2026): a planta revelada mostra as construções como mostra os telhados.
+    construcoes: byId(map.props.filter((p) => ehConstrucao(p.mobilia))),
   }
   const { map: shown } = filterMapForPlayer({ ...map, hiddenLayers: [], ocultasDoJogador: [] }, '', {}, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, everything)
   return {
@@ -2087,6 +2098,7 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     lines: keepSent(everything.lines, shown.lines),
     stairs: keepSent(everything.stairs, shown.stairs),
     pins: keepSent(everything.pins, shown.pins),
+    construcoes: keepSent(everything.construcoes ?? new Map(), shown.props),
   }
 }
 
@@ -3208,7 +3220,20 @@ function recorteDoGrupo(
     const seguramVistas = paredesQueSeguram(map.walls.filter((w) => !foraDaCamadaDoJogador(w)), map.grid)
     return naCamada.filter((p) => !presoNaParede(p, seguramEscondidas) || presoNaParede(p, seguramVistas))
   })()
-  const segmentsOfWalls = (walls: Wall[]): Segment[] => visionSegments(walls === map.walls ? map : { ...map, walls }, peekDoorIds)
+  /**
+   * CONSTRUÇÃO QUE TAPA A VISÃO (12/11/2026, decisão do mestre; `lib/obstaculosDeObjeto.ts`). Entra no motor por
+   * `visionSegments`, que lê os objetos do mapa que recebe: TODA conta de olhar deste recorte (a autoridade, a
+   * enviada, a espiada, o cone pelo vão, o claro das luzes) recebe `mapaDaVisao`, com a MESMA lista. Senão vaza:
+   * só a autoridade tapando, o jogador veria o chão de trás aceso e vazio e o explorado guardaria a planta de trás;
+   * só a enviada, iria no pacote o que está atrás.
+   * A REGRA DE OURO, como a da parede de camada escondida (FX-SEG-A): a construção que o jogador não recebe (camada
+   * escondida dele, alguma amostra em sala secreta fechada ou em zona oculta; escondida e secreta já não tapam em
+   * `objetoTapaVisao`) não tapa — a sombra contaria que ela existe. A que contém quem olha não tapa para ele
+   * (`dentroDeConstrucao`, abaixo). Sem construção que tape, `mapaDaVisao` é o próprio `map` (nada muda).
+   */
+  const propsQueTapam = objetosDoJogador.filter((p) => objetoTapaVisao(p) && !propSamplePoints(p).some((q) => inSecretRoom(q) || hiddenByZone(q)))
+  const mapaDaVisao: MapData = propsQueTapam.length === 0 ? (map.props.length === 0 ? map : { ...map, props: SEM_PROPS }) : { ...map, props: propsQueTapam }
+  const segmentsOfWalls = (walls: Wall[]): Segment[] => visionSegments(walls === map.walls ? mapaDaVisao : { ...mapaDaVisao, walls }, peekDoorIds)
   const authoritySegments = ownTokens.length > 0 ? segmentsOfWalls(authorityWalls) : []
   /** O olho do guarda (`guardAlerts`): todas as paredes, a da sala secreta inclusive. */
   const guardSegments = (): Segment[] => (authorityWalls === knownWalls ? authoritySegments : segmentsOfWalls(knownWalls))
@@ -3246,18 +3271,27 @@ function recorteDoGrupo(
   /** Por ficha (mesmo índice de `ownTokens`); vazio = enxerga como sempre. */
   const seeThroughByToken: readonly string[][] = knownSeeThroughRooms.length === 0 ? [] : ownTokens.map(seeThroughIdsOf)
   /**
-   * Os obstáculos de `walls` sem as paredes das Salas `ids`. Cacheado pelo
-   * conjunto: fichas na mesma situação dividem a lista, e o contorno do chão
-   * vem do cache de `visionSegments` (mesma referência de `floor`).
+   * A CONSTRUÇÃO QUE CONTÉM QUEM OLHA não tapa para ele (12/11/2026): a ficha posta dentro da torre (pino de
+   * viagem, o mestre a pôs lá) não fica cega. Por ficha, mesmo índice de `ownTokens`; vazio = nenhuma.
+   */
+  const dentroDeConstrucao: readonly string[][] =
+    propsQueTapam.length === 0 ? [] : ownTokens.map((t) => construcoesQueContem(propsQueTapam, map.grid, { x: t.x, y: t.y }))
+  /**
+   * Os obstáculos de `walls` sem as paredes das Salas `ids` e sem as construções
+   * que contêm a ficha. Cacheado pelo conjunto: fichas na mesma situação dividem
+   * a lista, e o contorno do chão vem do cache de `visionSegments` (mesma
+   * referência de `floor`).
    */
   const seeThroughSegments = (cache: Map<string, Segment[]>, base: Segment[], walls: readonly Wall[], floor: FloorPiece[], i: number): Segment[] => {
-    const ids = seeThroughByToken[i]
-    if (ids === undefined || ids.length === 0) return base
-    const key = ids.join('|')
+    const ids = seeThroughByToken[i] ?? []
+    const dentro = dentroDeConstrucao[i] ?? []
+    if (ids.length === 0 && dentro.length === 0) return base
+    const key = `${ids.join('|')}#${dentro.join('|')}`
     const cached = cache.get(key)
     if (cached !== undefined) return cached
     const through = new Set(ids)
-    const segments = visionSegments({ ...map, walls: walls.filter((w) => w.regionId === undefined || !through.has(w.regionId)), floor }, peekDoorIds)
+    const paredes = ids.length === 0 ? walls : walls.filter((w) => w.regionId === undefined || !through.has(w.regionId))
+    const segments = visionSegments({ ...mapaDaVisao, walls: [...paredes], floor }, peekDoorIds, dentro.length === 0 ? undefined : new Set(dentro))
     cache.set(key, segments)
     return segments
   }
@@ -3348,7 +3382,8 @@ function recorteDoGrupo(
       segmentsFor: (roof) =>
         visionSegments(
           {
-            ...map,
+            // As construções que tapam (`mapaDaVisao`), as mesmas das duas visões.
+            ...mapaDaVisao,
             walls: knownWalls.filter((w) => !isSecretRoomWall(w) && (interiorRoofOf(w) ?? roof) === roof).flatMap(zoneCutWall),
             floor: floorForGlimpse(roof),
           },
@@ -3427,7 +3462,8 @@ function recorteDoGrupo(
   let visionByTokenSent: RegionPoint[][][] = authorityByToken
   let vision = authorityVision
   if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0 || pecasForaDaCamada.size > 0)) {
-    const playerSegments = visionSegments({ ...map, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
+    // As construções que tapam: as MESMAS da autoridade (`mapaDaVisao`), senão as duas visões divergem e vaza.
+    const playerSegments = visionSegments({ ...mapaDaVisao, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
     /**
      * Quem espia enxerga com as paredes de dentro do prédio espiado INTEIRAS e
      * com o chão dele: são elas que param o raio no cômodo da frente. Sem elas
@@ -3444,7 +3480,7 @@ function recorteDoGrupo(
             map.floor,
             new Set(map.floor.filter((f) => pecasForaDaCamada.has(f.id) || mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
           )
-    const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...map, walls: peekWalls, floor: peekFloor }, peekDoorIds)
+    const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...mapaDaVisao, walls: peekWalls, floor: peekFloor }, peekDoorIds)
     // VER ATRAVÉS DAS PAREDES: a visão enviada atravessa as MESMAS paredes que a da autoridade.
     const playerSeeThrough = new Map<string, Segment[]>()
     const peekSeeThrough = new Map<string, Segment[]>()
@@ -4335,7 +4371,7 @@ function recorteDoGrupo(
   const litBy = (l: Light, at: RegionPoint): boolean => {
     let area = litAreas.get(l.id)
     if (area === undefined) {
-      lightSegments ??= visionSegments(knownWalls === map.walls ? map : { ...map, walls: knownWalls })
+      lightSegments ??= visionSegments(knownWalls === map.walls ? mapaDaVisao : { ...mapaDaVisao, walls: knownWalls })
       area = computeVisibility({ x: l.x, y: l.y }, lightSegments, l.radius)
       litAreas.set(l.id, area)
     }
@@ -4464,18 +4500,47 @@ function recorteDoGrupo(
     if (propSamplePoints(p).some((q) => inHiddenPlace(q) || hiddenByZone(q))) return false
     return lados.some(isVisible)
   }
+  /**
+   * CONSTRUÇÃO COMO O TELHADO DA CASA (12/11/2026, decisão do mestre): viu uma ponta do contorno, ela sai INTEIRA e
+   * fica LEMBRADA. O contorno é a forma da colisão (`contornoDaConstrucao`), e as amostras andam para fora dele
+   * (`contourSamples`, a régua do teto fechado): a torre que tapa fica dentro da própria sombra, e pelo centro ela
+   * sumiria justamente quando passa a tapar. Mesma guarda de lugar escondido dos outros objetos (alguma amostra em
+   * sala secreta, sob teto fechado, em cômodo não visto ou em zona oculta: não sai, e a lembrança fica guardada sem
+   * sair). Camada escondida dele: não sai, a lembrança fica (`recallItems`). Vale para as 19 construções.
+   */
+  const idsDosObjetosDoJogador = new Set(objetosDoJogador.map((p) => p.id))
+  const amostrasDaConstrucao = (p: MapData['props'][number]): RegionPoint[] => {
+    const contorno = contornoDaConstrucao(p, map.grid)
+    return contorno === null ? [] : contourSamples(contorno)
+  }
+  const construcoes = recallItems(
+    map.props.filter((p) => ehConstrucao(p.mobilia)),
+    remembered?.construcoes,
+    {
+      allowed: (p) => !p.hidden && !p.secret,
+      shown: (p) => idsDosObjetosDoJogador.has(p.id),
+      placeOk: (p) => !propSamplePoints(p).some((q) => inHiddenPlace(q) || hiddenByZone(q)),
+      seenNow: (p) => amostrasDaConstrucao(p).some(isVisible),
+      // Objeto nunca sai pelo explorado: só visto agora ou lembrado.
+      unseenOk: () => false,
+    },
+  )
+  const construcoesDoRecorte = construcoes.items.map(({ item }) => item)
   // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
   // fechado leva junto o objeto com qualquer amostra dela lá dentro
   // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
   // preso na parede sai também pelos lados dela (`presoNaParedeAVista`).
-  const propsDoRecorte = objetosDoJogador
-    .filter(
+  // A construção sai pela regra dela, acima.
+  const propsDoRecorte = [
+    ...objetosDoJogador.filter(
       (p) =>
+        !ehConstrucao(p.mobilia) &&
         !p.hidden &&
         !p.secret &&
         ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
-    )
-    .map(propForPlayer)
+    ),
+    ...construcoesDoRecorte,
+  ].map(propForPlayer)
   /**
    * ALCANCE PELO OBJETO (caça de 12/11/2026, J9): o "Usar <chave>" de uma
    * passagem trancada no meio de um objeto que barra aparece para quem encosta
@@ -5000,6 +5065,7 @@ function recorteDoGrupo(
     lines: lines.plan,
     stairs: stairs.plan,
     pins: pins.plan,
+    construcoes: construcoes.plan,
   }
   // Só a visão de AGORA: pino que saiu por explorado, lembrado ou por cômodo
   // lembrado leva a barra lembrada, nunca a viva (`marcarTrancasParaJogador`).
@@ -5827,6 +5893,9 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   // caminho com a mesma escolha do mestre. Só booleano (a travessia não confia
   // no mapa do mestre); do objeto que ele já vê, não conta nada além disso.
   if (typeof prop.barraPassagem === 'boolean') forPlayer.barraPassagem = prop.barraPassagem
+  // TAPA A VISÃO (construções, 12/11/2026): a luz e a "Visão" da batalha na tela dele são contadas com o recorte,
+  // com a mesma escolha do mestre. Só booleano; da construção que ele já recebe, não conta nada além disso.
+  if (typeof prop.tapaVisao === 'boolean') forPlayer.tapaVisao = prop.tapaVisao
   return forPlayer
 }
 

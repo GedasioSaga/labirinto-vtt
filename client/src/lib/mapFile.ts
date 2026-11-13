@@ -108,7 +108,7 @@ import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
 import { perigosFromFile } from './perigo'
 import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
-import { lerBarraPassagem } from './obstaculosDeObjeto'
+import { lerBarraPassagem, lerTapaVisao } from './obstaculosDeObjeto'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
@@ -876,7 +876,8 @@ function deserializeMapFields(json: string): MapData {
     // ausente. Só booleano que difere do padrão do tipo fica (`lerBarraPassagem`,
     // depois do tipo e do item, que decidem o padrão).
     props: entityList(parsed.props).map((p) =>
-      lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })))),
+      // TAPA A VISÃO (`tapaVisao`, construções de 12/11/2026): a mesma regra, só construção e só o que difere do padrão.
+      lerTapaVisao(lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null }))))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
     stairs: entityList(parsed.stairs).map((s) => semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) })),
