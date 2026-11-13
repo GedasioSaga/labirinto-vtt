@@ -83,6 +83,8 @@ import {
 import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens, type NuvensRenderer } from '../pixi/drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
 import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
+import { aquecerAmbiente, createAmbienteRenderer, type AmbienteRenderer } from '../pixi/drawAmbiente'
+import { atualizarAmbienteDoJogador, juntarNeblinaEAmbiente } from '../pixi/ambienteDoJogador'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
 import { atualizarParticulasDoJogador, criarParticulasDoMapa, type ParticulasDoMapa } from '../pixi/particulasDoMapa'
 import { particulasDoJogador } from '../lib/particulasDaCena'
@@ -1436,6 +1438,11 @@ interface Scene {
    * escuro. Só cobre; a pintada já chega cortada ao conhecido (`neblinaParaJogador`).
    */
   neblina: NeblinaRenderer
+  /**
+   * AMBIENTE (`pixi/drawAmbiente.ts`): chuva, neve, brasas, folhas, cinzas e fumaça, na
+   * mesma camada da neblina (`juntarNeblinaEAmbiente`), logo acima dela.
+   */
+  ambiente: AmbienteRenderer
   /** PARTÍCULAS DA CENA (`pixi/particulasDoMapa.ts`): fumaça e brasas dos fogos, no palco logo acima do mundo. */
   particulas: ParticulasDoMapa
   /** As pílulas do último recorte, antes do filtro do conhecido: o pacote novo com a mesma assinatura reusa a lista. */
@@ -3490,6 +3497,9 @@ function PlayerViewDoCanvas({
             animar: efeitosDoMapaLigados(currentSettings),
           },
     )
+    // AMBIENTE: as partículas são movimento (saem no modo leve e sem "Efeitos do mapa"); o
+    // abrigo vale também para a neblina. O seco vem SÓ das salas que o host pôs no recorte.
+    atualizarAmbienteDoJogador(scene.ambiente, scene.neblina, currentMap, !modoLeve, !modoLeve && efeitosDoMapaLigados(currentSettings))
     // PARTÍCULAS DA CENA: são só movimento, então saem sem "Efeitos do mapa" e no modo leve.
     // Só aparecem onde o jogador enxerga (a camada fica acima da névoa), e quem
     // diz se a cena não tem fogo é o host (`particulasDoJogador`). Ligar e
@@ -4044,7 +4054,7 @@ function PlayerViewDoCanvas({
           },
         },
       )
-      const neblina = createNeblinaRenderer(
+      const soNeblina = createNeblinaRenderer(
         app.renderer,
         { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         {
@@ -4054,6 +4064,19 @@ function PlayerViewDoCanvas({
           },
         },
       )
+      // AMBIENTE: o shader compila já, em segundo plano, e não no primeiro desenho (no protótipo travava 721 ms).
+      const ambiente = createAmbienteRenderer(
+        app.renderer,
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
+        {
+          aoMudar: (estado) => {
+            el.dataset.ambiente = estado.ligado ? (estado.movendo ? 'andando' : 'parado') : 'desligado'
+            el.dataset.ambienteInstancias = estado.instancias
+          },
+        },
+      )
+      void aquecerAmbiente(app.renderer)
+      const neblina = juntarNeblinaEAmbiente(soNeblina, ambiente)
       const particulas = criarParticulasDoMapa(
         { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, mundo: world, tela: () => app.screen },
         {
@@ -4426,6 +4449,7 @@ function PlayerViewDoCanvas({
         fogos,
         nuvens,
         neblina,
+        ambiente,
         particulas,
         lugaresKey: emptyContentKey(),
         lugares: [],

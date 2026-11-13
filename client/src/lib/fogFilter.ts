@@ -6,8 +6,8 @@ import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf }
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
-import { comNeblinaPintada, neblinaParaJogador } from './neblina'
-import { ambienteParaJogador, comAmbientePintado } from './ambiente'
+import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
+import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -489,6 +489,26 @@ function isUsablePolygon(points: readonly RegionPoint[]): boolean {
  */
 function roofRoomsOf(regions: readonly Region[]): Region[] {
   return regions.filter((r) => roomHasRoof(r.room))
+}
+
+/**
+ * AMBIENTE (`lib/abrigoDoAmbiente.ts`): os ids das salas do recorte que são
+ * secas para este jogador — teto de construção ABERTO para ele (fechado vai
+ * como silhueta, e a chuva bate no telhado) ou cômodo que ele já recebeu.
+ * Decide pelo mapa do mestre (o recorte não leva o `comodo`), mas só entre as
+ * salas que o recorte manda. `undefined` = nenhuma.
+ */
+function salasSecasDoRecorte(doMapa: readonly Region[], doRecorte: readonly Region[], tetosFechados: ReadonlySet<string>): string[] | undefined {
+  const doMestre = new Map(doMapa.map((r) => [r.id, r]))
+  const ids = doRecorte
+    .filter((r) => {
+      const original = doMestre.get(r.id)
+      if (original === undefined || r.points.length < 3) return false
+      if (roomIsComodo(original.room)) return true
+      return roomHasRoof(original.room) && !tetosFechados.has(r.id)
+    })
+    .map((r) => r.id)
+  return ids.length > 0 ? ids : undefined
 }
 
 /**
@@ -4829,7 +4849,12 @@ function recorteDoGrupo(
   )
   // CAMADAS DA TELA DO JOGADOR: depois do corte, para a camada livre só ir com item dela no pacote.
   const camadasDoJogador = camadasDoJogadorDoMapa(map, livresNoPacote(semCamadaTorta))
-  const recorte: MapData = camadasDoJogador === undefined ? semCamadaTorta : { ...semCamadaTorta, camadasDoJogador }
+  const comCamadas: MapData = camadasDoJogador === undefined ? semCamadaTorta : { ...semCamadaTorta, camadasDoJogador }
+  // AMBIENTE: as salas DO RECORTE em que chuva, neve e folhas não caem (a casa de teto
+  // aberta para ele, o cômodo que ele já viu). Sala que ele não recebeu nunca entra: o
+  // seco dela desenharia a forma. Só com Ambiente ou neblina ligados; sempre presente,
+  // para nunca vir pelo `...map`.
+  const recorte: MapData = { ...comCamadas, ambienteSeco: temAmbiente(map) || temNeblina(map) ? salasSecasDoRecorte(map.regions, comCamadas.regions, closedRoofIds) : undefined }
 
   /**
    * O mesmo pedaço entra na VISÃO enviada. Sem isto o buraco no preto
