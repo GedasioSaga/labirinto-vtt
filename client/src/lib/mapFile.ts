@@ -83,6 +83,7 @@ import { sanitizeRoomLabelStyle } from './roomLabelStyle'
 import { MODELOS_DO_TETO, corDoTetoValida } from './telhado/paletas'
 import { normalizarCorDaPorta } from './corDaPorta'
 import { readPinColecao } from './colecao'
+import { terrenoDoArquivo } from './terrenoDoChao'
 import { cleanExitLabel, readPinDestination, readPinExits } from './pinTravel'
 import { readSceneVisionCells } from './sceneVision'
 import { readOffFloor } from './offFloor'
@@ -897,8 +898,11 @@ function deserializeMapFields(json: string): MapData {
     // estouraria no render e levaria o mapa inteiro junto.
     // `FloorPiece.nome` (camadas do pincel, 03/10/2026): mesma regra. Ausente
     // = nome automático ("Camada 1"); nome que não é texto sai do arquivo.
+    // TERRENO (CHÃO E CAMINHO, 12/11/2026): `material`, `borda`, `soPintura` e
+    // o `suave` do corredor são novos e opcionais; ausentes continuam ausentes
+    // (a peça Lisa de sempre). Torto sai em vez de ir para a tela (`terrenoDoArquivo`).
     floor: entityList(parsed.floor).map(semCamadaTorta).map((f) => {
-      const comCor = typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined }
+      const comCor = terrenoDoArquivo(typeof f.fillColor === 'string' ? f : { ...f, fillColor: undefined })
       if (comCor.nome === undefined || typeof comCor.nome === 'string') return comCor
       const semNome = { ...comCor }
       delete semNome.nome

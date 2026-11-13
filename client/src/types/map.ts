@@ -2050,7 +2050,13 @@ export type FloorShape =
   | { kind: 'rect'; cx: number; cy: number; w: number; h: number }
   | { kind: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
   | { kind: 'polygon'; cx: number; cy: number; radius: number; sides: number }
-  | { kind: 'corridor'; points: { x: number; y: number; width: number }[] }
+  /**
+   * `suave` (CHÃO E CAMINHO, 12/11/2026): o traço passa por uma curva suave
+   * (Catmull-Rom) pelos pontos, em vez das retas entre eles
+   * (`pontosDoCorredor`, `lib/floorSdf.ts`). Ausente = retas, como todo mapa
+   * de antes; o app antigo abre a peça nova em retas.
+   */
+  | { kind: 'corridor'; points: { x: number; y: number; width: number }[]; suave?: true }
   /**
    * Blocos presos à grade (pincel de blocos e balde). Cada célula é um quadrado
    * de `cell` px alinhado à origem do mundo, e o que fica guardado é COLUNA e
@@ -2111,6 +2117,22 @@ export interface FloorPiece extends NoPiso, NaCamada {
    * "Camada 1".
    */
   nome?: string
+  /**
+   * TERRENO (pedido CHÃO E CAMINHO de 12/11/2026, `lib/terrenoDoChao.ts`): o
+   * id da textura da biblioteca que a peça mostra (calçamento, terra,
+   * cascalho, areia, tábuas, grama). Com material, a peça sai da cor lisa e é
+   * desenhada ACIMA das Texturas; ausente = Liso, a cor de sempre, embaixo
+   * delas (todo mapa de antes). O app antigo abre a peça nova lisa.
+   */
+  material?: string
+  /** Borda irregular SÓ DE APARÊNCIA do terreno, 0 a 1 (pedras soltas, beira ondulada). Ausente = 0. Não muda o limite. */
+  borda?: number
+  /**
+   * "Conta como Chão" desligado: a peça é só pintura, não limita a visão nem
+   * o passo do jogador ("Fora do Chão", `chaoQueLimita`). Ausente = limita,
+   * como toda peça de antes.
+   */
+  soPintura?: true
 }
 
 export interface FloorStyle {

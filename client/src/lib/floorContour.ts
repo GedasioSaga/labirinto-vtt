@@ -308,8 +308,16 @@ export function floorSampleStep(bounds: FloorClip, step: number, maxSamples = MA
 
 /** Anéis fechados do chão, sem agrupar. Externos e buracos têm sinal de área oposto. */
 export function extractFloorRings(pieces: FloorPiece[], options: ContourOptions = {}): RegionPoint[][] {
+  return aneisDoCampo(compileFloor(pieces), options)
+}
+
+/**
+ * Os anéis de um campo de distância já montado: o mesmo contorno do Chão para
+ * quem combina as peças de outro jeito (o terreno com material,
+ * `lib/terrenoDoChao.ts`, funde o mesmo material e ondula a borda).
+ */
+export function aneisDoCampo(compiled: CompiledFloor, options: ContourOptions = {}): RegionPoint[][] {
   const tolerance = options.tolerance ?? DEFAULT_TOLERANCE
-  const compiled = compileFloor(pieces)
   const { clip } = options
   const bounds = clip && compiled.bounds ? intersectBounds(compiled.bounds, clip) : compiled.bounds
   if (!bounds) return []
