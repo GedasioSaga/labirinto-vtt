@@ -74,6 +74,8 @@ export type PropertyGroupId =
   | 'neblina'
   /** Carimbos: o modo (Carimbo | Borracha), a biblioteca, tamanho, largura e densidade do PRÓXIMO gesto (`CarimbosControls`). */
   | 'carimbos'
+  /** Água: o tipo, a cor e as medidas do PRÓXIMO traço, ou a água escolhida (`AguaControls`). */
+  | 'agua'
   /** PAREDES AO REDOR do desenho selecionado (`ParedesAoRedorControls`). */
   | 'paredesAoRedor'
   /** Parede presa a um desenho selecionada: o aviso (`AvisoParedePresa`) no lugar dos controles de parede. */
@@ -87,7 +89,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'lightPreset', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'penhasco', 'barranco', 'texturas', 'neblina', 'carimbos', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'barranco', 'texturas', 'neblina', 'carimbos', 'agua', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -380,6 +382,8 @@ export function relevantPropertyGroups(
   if (activeTool === 'neblina') groups.add('neblina')
   // Carimbos: idem — a biblioteca de objetos e o que o PRÓXIMO gesto faz.
   if (activeTool === 'carimbos') groups.add('carimbos')
+  // Água: idem — o próximo traço ou a água escolhida.
+  if (activeTool === 'agua') groups.add('agua')
 
   // Pino e zona oculta abertos contam: o painel é o cartão deles, e o mapa
   // inteiro embaixo seria o mesmo vazamento da Sala.

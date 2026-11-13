@@ -104,7 +104,7 @@ import * as modeloDeCamadas from '../lib/camadas/modelo'
 import { avisoDoMover, moverParaCamada as moverItensParaCamada, MOTIVO_CAMADA_PADRAO, nomeDaCamada, type RefDeItem, type ResultadoDeMover } from '../lib/camadas/mover'
 import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
 import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
-import type { CamadaId } from '../types/map'
+import type { Agua, CamadaId } from '../types/map'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
@@ -131,6 +131,7 @@ import {
   type ResultadoDaTextura,
 } from '../lib/texturas'
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
+import { comAguas, semCamposVazios } from '../lib/agua/dados'
 import { type EfeitoDeParticula } from '../lib/particulasDaCena'
 import { INTENSIDADE_DA_QUANTIDADE, comAmbiente, comAmbientePintado, somarPinceladaDeAmbiente, temPincelDoEfeito, type MudancaDoAmbiente } from '../lib/ambiente'
 import { alvoComParedes, caixaDoAlvo } from '../lib/baldeDeTextura'
@@ -1461,6 +1462,12 @@ interface MapStoreState {
   removerTexturaImportada: (id: string) => void
   /** Tira tudo o que a ferramenta Texturas pintou na cena aberta (as importadas ficam na biblioteca). Com desfazer. */
   apagarTodasAsTexturas: () => void
+  /** ÁGUA (`lib/agua/`): põe um rio, lago ou mar no piso em edição. Com desfazer. */
+  porAgua: (agua: Agua) => void
+  /** ÁGUA: muda uma água (cor, tipo, largura, ajustes, nome, "Barra a passagem"). `juntar` junta o arrasto de um controle num passo só. */
+  mudarAgua: (id: string, mudanca: Partial<Omit<Agua, 'id'>>, juntar?: string) => void
+  /** ÁGUA: tira uma água. Com desfazer. */
+  apagarAgua: (id: string) => void
   /** NEBLINA (`lib/neblina.ts`): UMA pincelada do pincel de Neblina no piso em edição, um passo no desfazer (mesmo dividida em pedaços). */
   pintarNeblina: (pincelada: { tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[]; densidade?: number }) => ResultadoDaNeblina
   /** Tira a neblina pintada do piso em edição (a chave do mapa inteiro fica). Com desfazer. */
@@ -3348,6 +3355,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if ((mapaDoPiso(map, pisoAtivo).texturas ?? []).length === 0) return
       if (terrenoBarrado()) return
       withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], [], pisoAtivo)))
+    },
+    porAgua: (agua) => {
+      const { pisoAtivo } = get()
+      withHistory((m) => comAguas(m, [...(m.aguas ?? []), comPiso(agua, pisoAtivo)]))
+    },
+    mudarAgua: (id, mudanca, juntar) => {
+      const antes = get().map.aguas ?? []
+      if (!antes.some((a) => a.id === id)) return
+      withHistory(
+        (m) => comAguas(m, (m.aguas ?? []).map((a) => (a.id === id ? semCamposVazios({ ...a, ...mudanca }) : a))),
+        juntar === undefined ? undefined : `agua-${id}-${juntar}`,
+      )
+    },
+    apagarAgua: (id) => {
+      if (!(get().map.aguas ?? []).some((a) => a.id === id)) return
+      withHistory((m) => comAguas(m, (m.aguas ?? []).filter((a) => a.id !== id)))
     },
     pintarNeblina: (pincelada) => {
       const { map, pisoAtivo } = get()

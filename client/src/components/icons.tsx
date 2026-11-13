@@ -178,6 +178,16 @@ export function NeblinaIcon(props: IconProps) {
   )
 }
 
+/** Água: duas ondas, uma sobre a outra (rio, lago e mar animados, `lib/agua/`). */
+export function AguaIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 10c1.4-1.3 2.8-1.3 4.2 0s2.8 1.3 4.3 0 2.8-1.3 4.3 0 2.8 1.3 4.2 0" />
+      <path d="M3.5 15c1.4-1.3 2.8-1.3 4.2 0s2.8 1.3 4.3 0 2.8-1.3 4.3 0 2.8 1.3 4.2 0" />
+    </Icon>
+  )
+}
+
 /**
  * Carimbos: um pinheiro de dois andares em pé no chão, com as pintinhas do
  * spray em volta — o objeto que se solta (ou se espalha) no mapa.

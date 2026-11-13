@@ -70,6 +70,21 @@ export function comAguas(map: MapData, aguas: Agua[]): MapData {
   return { ...map, aguas }
 }
 
+/** A água sem os campos opcionais que a mudança deixou `undefined` (o arquivo não guarda chave vazia). */
+export function semCamposVazios(agua: Agua): Agua {
+  const limpa: Agua = { id: agua.id, tipo: agua.tipo, pontos: agua.pontos, cor: agua.cor }
+  if (agua.corPronta !== undefined) limpa.corPronta = agua.corPronta
+  if (agua.tipo === 'rio' && agua.largura !== undefined) limpa.largura = agua.largura
+  if (agua.barra === true) limpa.barra = true
+  if (agua.velocidade !== undefined) limpa.velocidade = agua.velocidade
+  if (agua.ondas !== undefined) limpa.ondas = agua.ondas
+  if (agua.espuma !== undefined) limpa.espuma = agua.espuma
+  if (agua.nome !== undefined && agua.nome.trim() !== '') limpa.nome = agua.nome
+  if (agua.secret === true) limpa.secret = true
+  if (agua.piso !== undefined) limpa.piso = agua.piso
+  return limpa
+}
+
 /** Menor número de pontos de controle que forma cada tipo. */
 export function pontosMinimos(tipo: TipoDeAgua): number {
   return tipo === 'rio' ? 2 : 3

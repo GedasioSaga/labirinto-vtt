@@ -107,6 +107,7 @@ import { PenhascoControls } from './PenhascoControls'
 import { BarrancoControls } from './BarrancoControls'
 import { TexturasControls } from './TexturasControls'
 import { AmbienteControls } from './AmbienteControls'
+import { AguaControls } from './AguaControls'
 import { CarimbosControls } from './CarimbosControls'
 import { PinControls, type PinControlsProps } from './PinControls'
 import type { PinIconControlsProps } from './PinIconControls'
@@ -844,6 +845,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="neblina" groups={groups}>
           <AmbienteControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="agua" groups={groups}>
+          <AguaControls />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="carimbos" groups={groups}>
           <CarimbosControls />

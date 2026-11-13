@@ -243,6 +243,8 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   texturas: 'Shift+T',
   // Neblina: sem letra por enquanto (a barra a alcança, no grupo Terreno, ao lado das Texturas).
   neblina: '',
+  // Água nasce SEM letra, como o Barranco e o Ambiente: não sobrou nenhuma livre.
+  agua: '',
   // Carimbos: a mesma família de Shift+letra. O A sozinho é do Polígono;
   // Shift+A estava livre e é o A de "árvore", o carimbo mais usado.
   carimbos: 'Shift+A',

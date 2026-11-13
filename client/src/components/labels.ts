@@ -45,6 +45,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   barranco: 'Barranco',
   texturas: 'Texturas',
   neblina: 'Ambiente',
+  agua: 'Água',
   carimbos: 'Carimbos',
   pin: 'Pino',
   mobilia: 'Objeto',
@@ -123,6 +124,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche com um clique uma área fechada por paredes, uma região ou um desenho, a borracha tira. Segure Alt para apagar, com o pincel ou no clique do balde.',
   neblina:
     'Neblina, chuva, brasas, neve, folhas e cinzas e fumaça: escolha o efeito no painel e pinte por cima do mapa, ou ligue no mapa inteiro. O vento é um só para a cena. Chuva, neve e folhas não caem dentro de casa de teto fechado. Segure Alt para apagar.',
+  agua:
+    'Escolha Rio, Lago ou Mar no painel. Rio: arraste o traço no sentido da correnteza. Lago e Mar: arraste o contorno; ao soltar, a área fecha. Clique numa água para escolhê-la; Delete apaga, Esc solta.',
   carimbos:
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   barranco:
@@ -181,6 +184,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
   neblina: 'Pinte o efeito do ambiente por cima do mapa.',
+  agua: 'Trace o rio ou contorne o lago e o mar.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
   mobilia: 'Clique no mapa para colocar.',
@@ -249,7 +253,7 @@ export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   // CONSTRUÇÕES (12/11/2026, decisão do mestre): a Construção tem botão próprio, colado no Objeto.
   { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'cluster:objeto', 'construcao', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
-  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos', 'neblina'] },
+  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'agua', 'carimbos', 'neblina'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
   { nome: 'Esconder e revelar', slots: ['concealZone', 'revealBrush'] },

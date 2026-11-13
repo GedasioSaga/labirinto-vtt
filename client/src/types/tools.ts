@@ -61,6 +61,8 @@ export type DrawingTool =
    * neblina no mapa inteiro (`lib/neblina.ts`). Não é a névoa de guerra.
    */
   | 'neblina'
+  // ÁGUA (pedido de 12/11/2026, `lib/agua/`): rio, lago e mar animados.
+  | 'agua'
   /**
    * Carimbos: o mestre solta objetos da biblioteca (pinheiro, palmeira,
    * pedras, poça...) — o clique solta um, arrastar espalha vários, a
