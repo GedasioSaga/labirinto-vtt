@@ -587,24 +587,54 @@ export function pontosDosAneis(aneis: readonly RegionPoint[][]): RegionPoint[] {
   return pontos
 }
 
+/** O passo de balde de um material: a forma dele (`pontosDosAneis`) cheia com a textura. O worker e a página montam por aqui. */
+export function passoDoTerreno(textura: string, pontos: RegionPoint[]): PinceladaDeTextura {
+  return { id: `terreno:${textura}`, tipo: 'balde', textura, forca: 1, alvo: { tipo: 'area', pontos } }
+}
+
+/** A grade e o recorte num texto (a outra metade da chave dos passos guardados). */
+export function chaveDaGradeDoTerreno(grid: number, clip?: FloorClip): string {
+  return `${grid}|${clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''}`
+}
+
+/**
+ * Só as peças que CONTAM para o contorno do terreno, na ordem: as visíveis com
+ * material e os buracos visíveis depois da primeira delas (o buraco de antes
+ * não tira nada de material nenhum, `campoDoMaterial`). Os passos destas são
+ * os MESMOS da lista inteira: a peça Lisa e a escondida não entram em conta
+ * nenhuma, e a ordem dos materiais sai da ordem relativa das peças, que fica.
+ * É o que vai ao worker do contorno (`terrenoNoWorker.ts`), e nada além.
+ */
+export function pecasDoContorno(floor: readonly FloorPiece[]): FloorPiece[] {
+  const contam: FloorPiece[] = []
+  for (const p of floor) {
+    if (p.hidden === true) continue
+    if (p.op === 'add' ? temMaterial(p) : contam.length > 0) contam.push(p)
+  }
+  return contam
+}
+
+/** O desenho das peças que contam (as de `pecasDoContorno`), com a grade e o recorte: a mesma chave = os mesmos passos. */
+export function chaveDoTerreno(contam: readonly FloorPiece[], grid: number, clip?: FloorClip): string {
+  const desenho = contam.map((p) => [p.op === 'add' ? (p.material ?? '') : '', p.shape, p.op, p.rotation ?? 0, p.modifiers, p.borda ?? 0])
+  return `${chaveDaGradeDoTerreno(grid, clip)}|${JSON.stringify(desenho)}`
+}
+
 const passosPorLista = new WeakMap<readonly FloorPiece[], { chave: string; passos: PinceladaDeTextura[] }>()
 
 /**
  * Os passos de balde do terreno: um por material, na ordem das peças mais
  * novas. Guardados pela lista e pela grade/recorte (a store é imutável: a
  * mesma lista é o mesmo terreno). Lista vazia = nada a pintar.
+ *
+ * Conta na hora, na thread de quem chama: a tela pede pelo worker
+ * (`terrenoNoWorker.ts`, `pedirTerreno`), que roda esta mesma conta fora dela.
  */
 export function passosDoTerreno(floor: readonly FloorPiece[], grid: number, clip?: FloorClip): PinceladaDeTextura[] {
-  const chave = `${grid}|${clip ? `${clip.minX},${clip.minY},${clip.maxX},${clip.maxY}` : ''}`
+  const chave = chaveDaGradeDoTerreno(grid, clip)
   const guardado = passosPorLista.get(floor)
   if (guardado !== undefined && guardado.chave === chave) return guardado.passos
-  const passos: PinceladaDeTextura[] = formasDoTerreno(floor, grid, clip).map((forma) => ({
-    id: `terreno:${forma.textura}`,
-    tipo: 'balde',
-    textura: forma.textura,
-    forca: 1,
-    alvo: { tipo: 'area', pontos: pontosDosAneis(forma.aneis) },
-  }))
+  const passos = formasDoTerreno(floor, grid, clip).map((forma) => passoDoTerreno(forma.textura, pontosDosAneis(forma.aneis)))
   passosPorLista.set(floor, { chave, passos })
   return passos
 }

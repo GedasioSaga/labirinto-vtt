@@ -756,7 +756,15 @@ export function createAmbienteRenderer(
       const { mapa } = pedidas
       const largura = mapa.width * mapa.grid
       const altura = mapa.height * mapa.grid
-      chao.pocas(passosDasPocas(mapa, pedidas.texturas, pedidas.floor), largura, altura, mapa.grid)
+      const passos = passosDasPocas(mapa, pedidas.texturas, pedidas.floor, () => {
+        // O terreno voltou do worker: as poças saem de novo, agora com ele (se ainda são estas as pedidas).
+        if (destruido || pocasPedidas !== pedidas) return
+        pocasFeitas = undefined
+        pedirPocas()
+      })
+      // O terreno ainda está sendo contado (`lib/terrenoNoWorker.ts`): as poças de agora ficam até ele chegar.
+      if (passos === null) return
+      chao.pocas(passos, largura, altura, mapa.grid)
       movimento.pedir?.()
     }, AJUSTE_DO_CHAO_MOLHADO.esperaDasPocasMs)
   }

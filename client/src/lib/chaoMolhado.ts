@@ -1,5 +1,6 @@
 import type { AlvoDoBalde, EfeitoDoAmbiente, FloorPiece, PinceladaDeAmbiente, PinceladaDeTextura, Region, RegionPoint } from '../types/map'
-import { passosDoTerreno, temMaterial } from './terrenoDoChao'
+import { temMaterial } from './terrenoDoChao'
+import { pedirTerreno } from './terrenoNoWorker'
 import { mapFloorClip } from './floorContour'
 
 /**
@@ -193,17 +194,31 @@ function passosDasTexturas(texturas: readonly PinceladaDeTextura[], regioes: rea
  * Onde a chuva forte pode abrir poça, na ordem do desenho: primeiro as
  * Texturas (abaixo), depois o terreno das peças de Chão com material (acima,
  * o mais novo por cima, `lib/terrenoDoChao.ts`). O contorno do terreno é o
- * mesmo que o pintor do terreno conta e guarda (`passosDoTerreno`, pela lista).
- * Vazio = nenhuma poça.
+ * mesmo que o pintor do terreno pede ao worker (`pedirTerreno`, guardado pelo
+ * desenho das peças). Vazio = nenhuma poça.
+ *
+ * `null` = o terreno ainda está sendo contado no worker: as poças de agora
+ * ficam (nada pisca) e `aoContarOTerreno` avisa quando ele chegar, para pedir
+ * de novo. Sem worker (os testes), o terreno conta na hora, como antes.
  */
 export function passosDasPocas(
   mapa: { width: number; height: number; grid: number; regions: readonly Pick<Region, 'id' | 'points'>[] },
   texturas: readonly PinceladaDeTextura[] | undefined,
   floor: FloorPiece[],
-): PassoDaPoca[] {
+  aoContarOTerreno?: () => void,
+): PassoDaPoca[] | null {
   const passos = passosDasTexturas(texturas ?? [], mapa.regions)
   if (floor.some(temMaterial)) {
-    for (const t of passosDoTerreno(floor, mapa.grid, mapFloorClip(mapa))) {
+    const terreno = pedirTerreno(floor, mapa.grid, mapFloorClip(mapa))
+    if (!Array.isArray(terreno)) {
+      // Falhou: o pintor do terreno avisa no console; as poças ficam como estão (pedir de novo contaria de novo, sem fim).
+      terreno.then(
+        () => aoContarOTerreno?.(),
+        () => {},
+      )
+      return null
+    }
+    for (const t of terreno) {
       if (t.tipo !== 'balde' || t.alvo.tipo !== 'area' || t.alvo.pontos.length < 3) continue
       passos.push({ modo: seguraAgua(t.textura) ? 'poe' : 'tira', forma: 'area', forca: 1, pontos: t.alvo.pontos })
     }
