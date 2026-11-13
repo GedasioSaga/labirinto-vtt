@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js'
-import type { MapData } from '../types/map'
+import type { FloorPiece, MapData } from '../types/map'
 import { abrigoDoJogador, SEM_ABRIGO, type AbrigoDoAmbiente } from '../lib/abrigoDoAmbiente'
 import type { AmbienteRenderer } from './drawAmbiente'
 import type { NeblinaRenderer } from './drawNeblina'
@@ -52,10 +52,23 @@ function abrigoDoRecorte(ambiente: AmbienteRenderer, recorte: MapData): AbrigoDo
  * Brasas e fumaça do mapa inteiro só saem daqui quando o host diz que a cena
  * não tem fogo (`particulasSemFogo`); com fogo, nascem dos fogos.
  */
-export function atualizarAmbienteDoJogador(ambiente: AmbienteRenderer, neblina: NeblinaRenderer, recorte: MapData, abrigoLigado: boolean, particulas: boolean): void {
+export function atualizarAmbienteDoJogador(
+  ambiente: AmbienteRenderer,
+  neblina: NeblinaRenderer,
+  recorte: MapData,
+  abrigoLigado: boolean,
+  particulas: boolean,
+  floorDoTerreno: FloorPiece[] = SEM_PECAS,
+): void {
   const largura = recorte.width * recorte.grid
   const altura = recorte.height * recorte.grid
   ambiente.setAbrigo(abrigoLigado ? abrigoDoRecorte(ambiente, recorte) : SEM_ABRIGO, largura, altura, recorte.grid)
   neblina.setAbrigo(ambiente.ar(), largura, altura)
   ambiente.atualizar(particulas ? entradaDoAmbiente(recorte, recorte.ambientePintado, recorte.particulasSemFogo === true, true) : null)
+  // CHÃO MOLHADO: as poças saem só do que o recorte traz (Texturas e as peças do terreno que esta tela desenha, já
+  // cortadas ao que o jogador conhece), e a camada mora sob a máscara do conhecido: nada de fora aparece.
+  ambiente.setPocas(particulas ? { mapa: recorte, texturas: recorte.texturas, floor: floorDoTerreno } : null)
 }
+
+/** Sem terreno (modo leve, render fiel): nenhuma peça para as poças. Uma lista só, para a comparação por referência. */
+const SEM_PECAS: FloorPiece[] = []

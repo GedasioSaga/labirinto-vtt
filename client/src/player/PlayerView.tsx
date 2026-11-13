@@ -3538,7 +3538,16 @@ function PlayerViewDoCanvas({
     )
     // AMBIENTE: as partículas são movimento (saem no modo leve e sem "Efeitos do mapa"); o
     // abrigo vale também para a neblina. O seco vem SÓ das salas que o host pôs no recorte.
-    atualizarAmbienteDoJogador(scene.ambiente, scene.neblina, currentMap, !modoLeve, !modoLeve && efeitosDoMapaLigados(currentSettings))
+    // As poças do terreno saem só das peças já cortadas ao conhecido, e só quando o terreno se
+    // desenha (a mesma lista e a mesma condição do `scene.terreno` acima: camada escondida, nada).
+    atualizarAmbienteDoJogador(
+      scene.ambiente,
+      scene.neblina,
+      currentMap,
+      !modoLeve,
+      !modoLeve && efeitosDoMapaLigados(currentSettings),
+      comTerreno && !currentMap.hiddenLayers.includes('salas') ? drawnFloor : undefined,
+    )
     // PARTÍCULAS DA CENA: são só movimento, então saem sem "Efeitos do mapa" e no modo leve.
     // Só aparecem onde o jogador enxerga (a camada fica acima da névoa), e quem
     // diz se a cena não tem fogo é o host (`particulasDoJogador`). Ligar e
@@ -4068,6 +4077,9 @@ function PlayerViewDoCanvas({
       })
       terrenoContainer.addChild(terreno.camada)
       terrenoContainer.mask = terrenoMask
+      // CHÃO MOLHADO (Ambiente): a camada do Ambiente mora logo acima do terreno, com a mesma
+      // máscara do conhecido: fora do que o jogador viu não molha nem junta neve.
+      const chaoMolhadoMask = new Graphics(knownMask.context)
       // CARIMBOS: o mesmo molde (máscara do conhecido compartilhada, contêiner
       // escondido enquanto não há objeto). O desenho de cada objeto fica na
       // resolução cheia também no celular: o zoom de partida do jogador é
@@ -4130,16 +4142,18 @@ function PlayerViewDoCanvas({
       // AMBIENTE: o shader compila já, em segundo plano, e não no primeiro desenho (no protótipo travava 721 ms).
       const ambiente = createAmbienteRenderer(
         app.renderer,
-        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
+        // O chão secando pede um quadro a cada tanto (`pedir`), sem desenhar todo quadro.
+        { ticker: desenho.relogio, reducedMotion: prefersReducedMotion, pedir: () => desenho.pedir() },
         {
           aoMudar: (estado) => {
-            el.dataset.ambiente = estado.ligado ? (estado.movendo ? 'andando' : 'parado') : 'desligado'
+            el.dataset.ambiente =estado.ligado ? (estado.movendo ? 'andando' : 'parado') : 'desligado'
             el.dataset.ambienteInstancias = estado.instancias
           },
           // O som da chuva segue o volume e o mudo da mesa deste jogador.
           som: criarSomDaChuva(),
         },
       )
+      ambiente.chao.mask = chaoMolhadoMask
       void aquecerAmbiente(app.renderer)
       const neblina = juntarNeblinaEAmbiente(soNeblina, ambiente)
       const particulas = criarParticulasDoMapa(
@@ -4208,6 +4222,8 @@ function PlayerViewDoCanvas({
         texturasContainer,
         terrenoMask,
         terrenoContainer,
+        chaoMolhadoMask,
+        chaoMolhadoContainer: ambiente.chao,
         relevoMask,
         relevoContainer,
         barrancoMask,
@@ -4641,6 +4657,8 @@ function PlayerViewDoCanvas({
         reportZoomLimits(scene.camera.scale)
       }
       sceneRef.current = scene
+      // TELHADO MOLHADO: os telhados que o jogador vê molham e juntam neve junto com o chão.
+      scene.ambiente.ligarTelhados(scene.telhados)
       ajustarGradeDaBatalhaAVista(scene)
 
       // Degrau dos botões + e −. Primeiro ticker de propósito: sinais, laser e
