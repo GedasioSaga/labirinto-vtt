@@ -362,6 +362,8 @@ export function criarAguaDoMapa(dep: {
   let pendente: ReturnType<typeof setTimeout> | null = null
   let geracao = 0
   let cenaPedida: string | null = null
+  /** A lista do último campo pedido: o recorte do jogador chega novo a cada passo, quase sempre igual. */
+  let assinaturaPedida = ''
   let destruido = false
   /** Campo de cada água já feito: chave da forma + texel. */
   const feitos = new Map<string, { chave: string; texel: number; campo: CampoDoCorpo }>()
@@ -559,16 +561,25 @@ export function criarAguaDoMapa(dep: {
     medidas,
     atualizar(entrada) {
       if (destruido) return
-      if (pendente !== null) clearTimeout(pendente)
-      pendente = null
       const cenaNova = (entrada?.cena ?? null) !== cenaPedida
       cenaPedida = entrada?.cena ?? null
       if (entrada === null || entrada.aguas.length === 0) {
+        // Já sem água e sem nada na espera: o jogador sem água no recorte não pede quadro a cada passo.
+        if (campo === null && pendente === null && assinaturaPedida === '') return
+        assinaturaPedida = ''
+        if (pendente !== null) clearTimeout(pendente)
+        pendente = null
         geracao += 1
         feitos.clear()
         aplicar(null, entrada?.grid ?? 1)
         return
       }
+      const assinatura = `${entrada.grid}|${JSON.stringify(entrada.aguas)}`
+      // A mesma lista do pedido de antes (o feito ou o que está na espera): nada muda.
+      if (!cenaNova && assinatura === assinaturaPedida) return
+      assinaturaPedida = assinatura
+      if (pendente !== null) clearTimeout(pendente)
+      pendente = null
       if (cenaNova) {
         feitos.clear()
         refazer(entrada)

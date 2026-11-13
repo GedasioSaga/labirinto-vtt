@@ -8,6 +8,7 @@ import { barrancoParaJogador } from './barranco'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
 import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
+import { aguasParaJogador } from './agua/recorte'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -4615,6 +4616,17 @@ function recorteDoGrupo(
               )
             : undefined,
         }),
+    // ÁGUA (`lib/agua/recorte.ts`): só o pedaço que ele conhece, sem a forma de verdade (os
+    // `pontos` vão vazios), fora de lugar escondido e de zona oculta; a secreta nunca. Mora em
+    // Chão: com a camada escondida dos jogadores, nenhuma sai. Sempre presente, para nunca vir pelo `...map`.
+    aguas: camadas.jogadorVe('chao')
+      ? aguasParaJogador(
+          map.aguas,
+          map.grid,
+          (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+          (p) => inHiddenPlace(p) || inConcealZone(p),
+        )
+      : undefined,
     // TEXTURAS: as do mestre NUNCA saem daqui (o recorte delas depende das
     // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
     texturas: undefined,

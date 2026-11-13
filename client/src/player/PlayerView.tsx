@@ -70,6 +70,7 @@ import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarr
 import { pisoDoRecorte } from '../lib/barranco'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
+import { criarAguaDoMapa, type AguaDoMapa } from '../pixi/aguaDoMapa'
 import { pecasLisas } from '../lib/terrenoDoChao'
 import { createCarimbosRenderer, LADO_DA_ARTE, TEXELS_DO_PEDACO, type CarimbosRenderer } from '../pixi/drawCarimbos'
 import { regioesDaTerra, relevoLigado, type ConhecidoDoRelevo } from '../lib/relevo'
@@ -1424,6 +1425,11 @@ interface Scene {
   texturas: TexturasRenderer
   /** TERRENO DO CHÃO (`pixi/terrenoDoChao.ts`): as peças com material do recorte, acima das texturas e com a máscara do conhecido. */
   terreno: TerrenoDoChao
+  /**
+   * ÁGUA (`pixi/aguaDoMapa.ts`): rios, lagos e mares só do recorte deste jogador
+   * (`lib/agua/recorte.ts`). Viva onde ele vê agora; parada no que ele só lembra.
+   */
+  agua: AguaDoMapa
   /** MODO BATALHA (B5): a grade de batalha, recortada à vista com folga (`pixi/gradeDaBatalha.ts`). */
   gradeDaBatalha: GradeDaBatalha
   /**
@@ -1694,6 +1700,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   // A textura repetida cobre só o que está à vista (`ajustarAVista`, drawTexturas.ts).
   scene.texturas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.terreno.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.agua.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.pisoDoChao.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
@@ -3473,6 +3480,10 @@ function PlayerViewDoCanvas({
         ? { cena: `${currentMap.id}|${pisoDe(drawnFloor[0] ?? {})}`, mapa: currentMap, floor: drawnFloor, importadas: currentMap.texturasImportadas }
         : null,
     )
+    // ÁGUA: só a do recorte (a camada Chão escondida dos jogadores já não manda nenhuma). Sem os
+    // efeitos do mapa ela fica parada, como a fumaça; o campo só se refaz quando a lista muda.
+    scene.agua.atualizar({ cena: currentMap.id, aguas: currentMap.aguas ?? [], grid: currentMap.grid })
+    scene.agua.setAnimar(efeitosDoMapaLigados(currentSettings) && !modoLeve)
 
     const regions = visibleRegions(currentMap.regions, hidden)
     scene.pisoDaCena.contexto = contextoDoPiso(scene, currentMap)
@@ -4197,6 +4208,32 @@ function PlayerViewDoCanvas({
       )
       const fogDim = new Graphics()
       const visionMask = new Graphics()
+      // ÁGUA (12/11/2026): a viva só na visão de agora; a parada (o tempo congelado) em todo o
+      // resto, sob a névoa do lembrado, que a escurece. O nunca visto fica sob o preto da névoa, e o
+      // recorte nem manda a água de lá. As duas máscaras são a visão (contexto compartilhado).
+      const aguaParadaMask = new Graphics(visionMask.context)
+      const aguaParadaContainer = new Container()
+      aguaParadaContainer.eventMode = 'none'
+      aguaParadaContainer.interactiveChildren = false
+      const aguaVivaMask = new Graphics(visionMask.context)
+      const aguaContainer = new Container()
+      aguaContainer.eventMode = 'none'
+      aguaContainer.interactiveChildren = false
+      const agua = criarAguaDoMapa({
+        renderer: app.renderer,
+        ticker: app.ticker,
+        pedir: () => desenho.pedir(),
+        reducedMotion: prefersReducedMotion,
+        comCopiaParada: true,
+        aoMudar: (estado) => {
+          el.dataset.aguas = String(estado.aguas)
+          el.dataset.aguaAnimando = String(estado.animando)
+        },
+      })
+      aguaContainer.addChild(agua.camada)
+      aguaContainer.mask = aguaVivaMask
+      if (agua.camadaParada !== null) aguaParadaContainer.addChild(agua.camadaParada)
+      aguaParadaContainer.setMask({ mask: aguaParadaMask, inverse: true })
       // PENUMBRA POR DENTRO: a faixa existe sempre (a conta das faixas cobra); vazia no modo leve e sem WebGL2.
       const penumbraCamada = new Container()
       penumbraCamada.label = 'penumbra'
@@ -4255,6 +4292,10 @@ function PlayerViewDoCanvas({
         terrenoContainer,
         chaoMolhadoMask,
         chaoMolhadoContainer: ambiente.chao,
+        aguaParadaMask,
+        aguaParadaContainer,
+        aguaVivaMask,
+        aguaContainer,
         relevoMask,
         relevoContainer,
         barrancoMask,
@@ -4560,6 +4601,7 @@ function PlayerViewDoCanvas({
         barrancoContainer,
         texturas,
         terreno,
+        agua,
         gradeDaBatalha,
         judge: judgeDoMapa,
         anelDaVez: novoAnelDaVez(),
@@ -4975,6 +5017,7 @@ function PlayerViewDoCanvas({
         const tinta = tintaDoJogador(luz)
         // NEBLINA: a cor da bruma segue o período; de dia ela é o último filho do mundo.
         scene.neblina.setPeriodo(tinta?.periodo ?? null)
+        scene.agua.setPeriodo(tinta?.periodo ?? null)
         // A troca de período ligou ou desligou a tinta: o halo de sempre volta ou some junto.
         if ((tinta !== null) !== scene.lightsSemHalo) redrawLights(scene)
         if (tinta === null) {
@@ -5469,6 +5512,7 @@ function PlayerViewDoCanvas({
         scene.caminhos.destruir()
         scene.texturas.destruir()
         scene.terreno.destruir()
+        scene.agua.destruir()
         scene.carimbos.destruir()
         // Sai do relógio antes de o app (e o ticker) morrer.
         scene.nomesDosLugares.destruir()

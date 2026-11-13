@@ -157,6 +157,12 @@ export const FAIXAS_JOGADOR: readonly Faixa[] = [
   // CHÃO MOLHADO (Ambiente, 12/11/2026): o molhado e a neve sobre o chão, só no que o jogador conhece.
   faixa('chaoMolhadoMask', [], FIXA, SOB),
   faixa('chaoMolhadoContainer', [], FIXA, SOB),
+  // ÁGUA (12/11/2026, `pixi/aguaDoMapa.ts`): a parada no lembrado (fora da visão) e a viva na
+  // visão de agora, cada uma com a sua máscara. Mora em Chão, como no editor.
+  faixa('aguaParadaMask', [], ['chao'], SOB),
+  faixa('aguaParadaContainer', [], ['chao'], SOB),
+  faixa('aguaVivaMask', [], ['chao'], SOB),
+  faixa('aguaContainer', [], ['chao'], SOB),
   faixa('relevoMask', [], ['terreno'], SOB),
   faixa('relevoContainer', [], ['terreno'], SOB),
   // BARRANCO: em Terreno, logo acima do relevo, com a máscara do conhecido (no editor mora dentro do relevoContainer).
