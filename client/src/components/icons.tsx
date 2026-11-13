@@ -168,13 +168,12 @@ export function TexturasIcon(props: IconProps) {
   )
 }
 
-/** Neblina: três faixas de bruma onduladas, desencontradas como névoa passando. */
+/** Ambiente (era Neblina): uma nuvem com três riscos de chuva saindo dela. */
 export function NeblinaIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="M4 7.5c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0c1.4-1 2.8-1.2 4-.6" />
-      <path d="M3 12c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0 3.7-1.3 5.5 0" />
-      <path d="M6 16.5c1.8-1.3 3.7-1.3 5.5 0s3.7 1.3 5.5 0" />
+      <path d="M7 14.5h10a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1 3 3 0 0 0-.8 6Z" />
+      <path d="M9 17.5 8 20M13 17.5l-1 2.5M17 17.5l-1 2.5" />
     </Icon>
   )
 }

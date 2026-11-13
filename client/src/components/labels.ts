@@ -44,7 +44,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Penhasco',
   barranco: 'Barranco',
   texturas: 'Texturas',
-  neblina: 'Neblina',
+  neblina: 'Ambiente',
   carimbos: 'Carimbos',
   pin: 'Pino',
   mobilia: 'Objeto',
@@ -121,7 +121,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   texturas:
     'Escolha uma textura no painel e pinte por cima do mapa: o pincel arrasta, o balde enche com um clique uma área fechada por paredes, uma região ou um desenho, a borracha tira. Segure Alt para apagar, com o pincel ou no clique do balde.',
   neblina:
-    'Pinte uma bruma lenta por cima do mapa: ela fica à vista de noite e no escuro, por cima da névoa dos jogadores, e nunca mostra o que está embaixo. Segure Alt para apagar. No painel, ligue a neblina no mapa inteiro.',
+    'Neblina, chuva, brasas, neve, folhas e cinzas e fumaça: escolha o efeito no painel e pinte por cima do mapa, ou ligue no mapa inteiro. O vento é um só para a cena. Chuva, neve e folhas não caem dentro de casa de teto fechado. Segure Alt para apagar.',
   carimbos:
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   barranco:
@@ -177,7 +177,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
-  neblina: 'Pinte a neblina por cima do mapa.',
+  neblina: 'Pinte o efeito do ambiente por cima do mapa.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
   mobilia: 'Clique no mapa para colocar.',

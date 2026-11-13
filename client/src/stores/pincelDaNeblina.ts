@@ -8,6 +8,7 @@ import {
   type ModoDaNeblina,
 } from '../lib/neblina'
 import { TAMANHO_DO_PINCEL_MAX, TAMANHO_DO_PINCEL_MIN } from '../lib/texturas'
+import type { EfeitoDoPainel } from '../lib/ambiente'
 
 /**
  * O PINCEL DE NEBLINA do mestre (`lib/neblina.ts`): o que o PRÓXIMO gesto faz
@@ -17,6 +18,12 @@ import { TAMANHO_DO_PINCEL_MAX, TAMANHO_DO_PINCEL_MIN } from '../lib/texturas'
  * estado das outras ferramentas.
  */
 interface PincelDaNeblina {
+  /**
+   * AMBIENTE (`lib/ambiente.ts`): o efeito que o painel e o pincel mexem agora.
+   * A ferramenta Neblina virou Ambiente; a neblina é o primeiro dos seis.
+   */
+  efeito: EfeitoDoPainel
+  setEfeito: (efeito: EfeitoDoPainel) => void
   modo: ModoDaNeblina
   tamanho: number
   forca: number
@@ -33,6 +40,8 @@ function limitar(valor: number, min: number, max: number): number {
 }
 
 export const usePincelDaNeblina = create<PincelDaNeblina>((set) => ({
+  efeito: 'neblina',
+  setEfeito: (efeito) => set({ efeito }),
   modo: 'pincel',
   tamanho: TAMANHO_DA_NEBLINA_PADRAO,
   forca: FORCA_DA_NEBLINA_PADRAO,

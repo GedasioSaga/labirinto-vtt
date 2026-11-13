@@ -1,5 +1,6 @@
 import type { Container, Graphics, Renderer, Ticker } from 'pixi.js'
-import type { MapData, RegionPoint } from '../types/map'
+import type { EfeitoDoAmbiente, MapData, RegionPoint } from '../types/map'
+import type { EfeitoDoPainel } from '../lib/ambiente'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, PINCELADAS_MAX, type ResultadoDaNeblina } from '../lib/neblina'
 import { mapaDoPiso } from '../lib/pisos'
 import { unidadeDoRelevo } from '../lib/relevo'
@@ -18,6 +19,15 @@ import { createNeblinaRenderer, logoAbaixoDe, type EstadoDaNeblina, type Neblina
 export const AVISOS_DA_NEBLINA: Record<Exclude<ResultadoDaNeblina, 'ok' | 'vazio'>, string> = {
   'sem-neblina': 'Não há neblina pintada aqui para a borracha tirar.',
   cheio: `Este mapa já tem ${PINCELADAS_MAX.toLocaleString('pt-BR')} pinceladas de neblina, o máximo. Use "Apagar toda a neblina pintada" ou a chave do mapa inteiro.`,
+}
+
+/** O nome do efeito pintado no aviso da borracha ("Não há chuva pintada aqui..."). */
+const NOME_PINTADO: Record<EfeitoDoAmbiente, string> = {
+  chuva: 'chuva',
+  brasas: 'brasa',
+  neve: 'neve',
+  folhas: 'folha nem cinza',
+  fumaca: 'fumaça',
 }
 
 /** O raio do pincel de Neblina neste mapa (a mesma régua do pincel de Texturas). */
@@ -94,6 +104,8 @@ export function criarGestoDaNeblina(dep: { rascunho: Graphics; avisar: (texto: s
   let raio = 0
   let forca = 0
   let densidade = 0
+  /** O efeito da pincelada, fixo do começo ao fim (trocar no painel no meio não a divide). */
+  let efeito: EfeitoDoPainel = 'neblina'
 
   function desenhar(): void {
     const g = dep.rascunho
@@ -121,7 +133,8 @@ export function criarGestoDaNeblina(dep: { rascunho: Graphics; avisar: (texto: s
 
   return {
     comecar(p, altKey) {
-      const { modo, tamanho, forca: daMao, densidade: densidadeDaMao } = usePincelDaNeblina.getState()
+      const { modo, tamanho, forca: daMao, densidade: densidadeDaMao, efeito: daVez } = usePincelDaNeblina.getState()
+      efeito = daVez
       const borracha = modo === 'borracha'
       tipo = borracha !== altKey ? 'borracha' : 'pincel'
       raio = raioDoPincelDeNeblina(useMapStore.getState().map, tamanho)
@@ -139,8 +152,13 @@ export function criarGestoDaNeblina(dep: { rascunho: Graphics; avisar: (texto: s
       pontos = []
       dep.rascunho.clear()
       if (feitos.length === 0) return
-      const resultado = useMapStore.getState().pintarNeblina({ tipo, forca, raio, pontos: feitos, densidade })
-      if (resultado === 'sem-neblina' || resultado === 'cheio') dep.avisar(AVISOS_DA_NEBLINA[resultado])
+      // AMBIENTE: o pincel pinta o efeito escolhido no painel; a neblina segue nos campos dela.
+      const resultado =
+        efeito === 'neblina'
+          ? useMapStore.getState().pintarNeblina({ tipo, forca, raio, pontos: feitos, densidade })
+          : useMapStore.getState().pintarAmbiente({ efeito, tipo, forca, raio, pontos: feitos })
+      if (resultado === 'sem-neblina') dep.avisar(efeito === 'neblina' ? AVISOS_DA_NEBLINA[resultado] : `Não há ${NOME_PINTADO[efeito]} pintada aqui para a borracha tirar.`)
+      if (resultado === 'cheio') dep.avisar(AVISOS_DA_NEBLINA[resultado])
     },
     cancelar() {
       if (pontos.length === 0) return
