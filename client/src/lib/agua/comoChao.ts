@@ -30,6 +30,25 @@ function pecaDaAgua(agua: Agua, grid: number): FloorPiece | null {
   return pontos.length < 3 ? null : { ...base, shape: { kind: 'poly', points: pontos } }
 }
 
+const semAsSecretas = new WeakMap<readonly Agua[], Agua[]>()
+
+/**
+ * As águas que limitam a VISÃO ENVIADA ao jogador (F-N13 da 0.5.62): nenhuma
+ * com a camada Chão escondida dele (a água mora no Chão; as peças dela já saem
+ * da visão dele, `pecasForaDaCamada` no recorte), e nunca a secreta. Contadas
+ * como Chão, a visão dele saía recortada no formato da água que ele não recebe.
+ * A mesma lista quando nada sai: o contorno do chão é guardado pela referência.
+ */
+export function aguasDaVisaoDoJogador(aguas: Agua[] | undefined, chaoAVista: boolean): Agua[] | undefined {
+  if (!chaoAVista) return undefined
+  if (aguas === undefined || !aguas.some((a) => a.secret === true)) return aguas
+  const guardada = semAsSecretas.get(aguas)
+  if (guardada !== undefined) return guardada
+  const sem = aguas.filter((a) => a.secret !== true)
+  semAsSecretas.set(aguas, sem)
+  return sem
+}
+
 const guardadas = new WeakMap<readonly FloorPiece[], WeakMap<readonly Agua[], { grid: number; pecas: FloorPiece[] }>>()
 
 /**

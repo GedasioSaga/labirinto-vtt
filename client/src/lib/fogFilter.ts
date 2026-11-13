@@ -9,6 +9,7 @@ import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from '
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
 import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
 import { aguasParaJogador } from './agua/recorte'
+import { aguasDaVisaoDoJogador } from './agua/comoChao'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -3284,7 +3285,7 @@ function recorteDoGrupo(
    * a lista, e o contorno do chão vem do cache de `visionSegments` (mesma
    * referência de `floor`).
    */
-  const seeThroughSegments = (cache: Map<string, Segment[]>, base: Segment[], walls: readonly Wall[], floor: FloorPiece[], i: number): Segment[] => {
+  const seeThroughSegments = (cache: Map<string, Segment[]>, base: Segment[], walls: readonly Wall[], floor: FloorPiece[], i: number, mapa: MapData = mapaDaVisao): Segment[] => {
     const ids = seeThroughByToken[i] ?? []
     const dentro = dentroDeConstrucao[i] ?? []
     if (ids.length === 0 && dentro.length === 0) return base
@@ -3293,7 +3294,7 @@ function recorteDoGrupo(
     if (cached !== undefined) return cached
     const through = new Set(ids)
     const paredes = ids.length === 0 ? walls : walls.filter((w) => w.regionId === undefined || !through.has(w.regionId))
-    const segments = visionSegments({ ...mapaDaVisao, walls: [...paredes], floor }, peekDoorIds, dentro.length === 0 ? undefined : new Set(dentro))
+    const segments = visionSegments({ ...mapa, walls: [...paredes], floor }, peekDoorIds, dentro.length === 0 ? undefined : new Set(dentro))
     cache.set(key, segments)
     return segments
   }
@@ -3347,6 +3348,10 @@ function recorteDoGrupo(
    */
   const pecasForaDaCamada = cortaVisaoPorCamada ? new Set(map.floor.filter((f) => !camadas.jogadorVeItem('peca', f)).map((f) => f.id)) : new Set<string>()
   const playerFloorForVision = floorWithout(map.floor, pecasForaDaCamada.size === 0 ? hiddenFloorIds : new Set([...hiddenFloorIds, ...pecasForaDaCamada]))
+  // A ÁGUA conta como Chão (`chaoQueLimita`) e segue o Chão dela na visão enviada: nenhuma com a camada Chão
+  // escondida dos jogadores, nunca a secreta (`aguasDaVisaoDoJogador`, F-N13 da 0.5.62). A autoridade fica com todas.
+  const aguasDaVisao = aguasDaVisaoDoJogador(map.aguas, !cortaVisaoPorCamada || camadas.jogadorVe('chao'))
+  const mapaDaVisaoDoJogador: MapData = aguasDaVisao === map.aguas ? mapaDaVisao : { ...mapaDaVisao, aguas: aguasDaVisao }
   /**
    * Chão da conta do cone DESTE prédio: o do jogador mais as peças que só o
    * teto dele escondia (o chão que o balde cria ao encher o interior). Sem
@@ -3463,9 +3468,9 @@ function recorteDoGrupo(
   // Por ficha (mesmo índice de `ownTokens`) para a MEMÓRIA POR FICHA (`eyes`); `vision` é a união.
   let visionByTokenSent: RegionPoint[][][] = authorityByToken
   let vision = authorityVision
-  if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0 || pecasForaDaCamada.size > 0)) {
+  if (ownTokens.length > 0 && (wallsChanged || hiddenFloorIds.size > 0 || pecasForaDaCamada.size > 0 || aguasDaVisao !== map.aguas)) {
     // As construções que tapam: as MESMAS da autoridade (`mapaDaVisao`), senão as duas visões divergem e vaza.
-    const playerSegments = visionSegments({ ...mapaDaVisao, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
+    const playerSegments = visionSegments({ ...mapaDaVisaoDoJogador, walls: playerWalls, floor: playerFloorForVision }, peekDoorIds)
     /**
      * Quem espia enxerga com as paredes de dentro do prédio espiado INTEIRAS e
      * com o chão dele: são elas que param o raio no cômodo da frente. Sem elas
@@ -3482,14 +3487,14 @@ function recorteDoGrupo(
             map.floor,
             new Set(map.floor.filter((f) => pecasForaDaCamada.has(f.id) || mostly(floorPieceSamples(f), (p) => inAnyRing(hiddenAreas, p) || inUnpeekedRoof(p))).map((f) => f.id)),
           )
-    const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...mapaDaVisao, walls: peekWalls, floor: peekFloor }, peekDoorIds)
+    const peekSegments = peekerIndexes.size === 0 ? playerSegments : visionSegments({ ...mapaDaVisaoDoJogador, walls: peekWalls, floor: peekFloor }, peekDoorIds)
     // VER ATRAVÉS DAS PAREDES: a visão enviada atravessa as MESMAS paredes que a da autoridade.
     const playerSeeThrough = new Map<string, Segment[]>()
     const peekSeeThrough = new Map<string, Segment[]>()
     const sentSegmentsOf = (i: number): Segment[] =>
       peekerIndexes.has(i)
-        ? seeThroughSegments(peekSeeThrough, peekSegments, peekWalls, peekFloor, i)
-        : seeThroughSegments(playerSeeThrough, playerSegments, playerWalls, playerFloorForVision, i)
+        ? seeThroughSegments(peekSeeThrough, peekSegments, peekWalls, peekFloor, i, mapaDaVisaoDoJogador)
+        : seeThroughSegments(playerSeeThrough, playerSegments, playerWalls, playerFloorForVision, i, mapaDaVisaoDoJogador)
     visionByTokenSent = ownTokens.map((t, i) => sightFrom(t, sentSegmentsOf(i), darkness))
     vision = visionByTokenSent.flat()
   }
