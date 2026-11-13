@@ -3,7 +3,7 @@ import type { Agua, Periodo } from '../types/map'
 import type { Caixa } from '../lib/texturas'
 import { CASA_U, FORA, campoDoCorpo, comporCampo, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from '../lib/agua/campo'
 import { chaveDaForma, corpoDaAgua, texelDasAguas } from '../lib/agua/corpos'
-import { erroNoContexto } from './malhaDoTraco'
+import { aquecerPrograma, programaPronto } from './aquecerPrograma'
 
 /**
  * ÁGUA no palco (pedido de 12/11/2026, protótipo aprovado
@@ -216,17 +216,13 @@ function programaDaAgua(): GlProgram {
   return programa
 }
 
-const compilou = new WeakMap<object, boolean>()
-/** O shader da água compila nesta placa? Uma vez por renderer. Não compilou = sem água animada (com aviso). */
-export function aguaCompila(renderer: Renderer): boolean {
-  const sabido = compilou.get(renderer)
-  if (sabido !== undefined) return sabido
-  let erro: string | null = 'o renderer não é WebGL'
-  if ('gl' in renderer) erro = renderer.gl.isContextLost() ? 'contexto perdido' : erroNoContexto(renderer.gl, programaDaAgua())
-  const ok = erro === null
-  compilou.set(renderer, ok)
-  if (!ok) console.warn(`[agua] o shader não compilou nesta placa; a água não aparece (${erro})`)
-  return ok
+/**
+ * O shader da água compila nesta placa? Uma vez por renderer, EM SEGUNDO PLANO
+ * (`aquecerPrograma.ts`): a conferência na hora travava a primeira água
+ * (517 ms no Goa). Não compilou = sem água animada (com aviso).
+ */
+function aquecerAgua(renderer: Renderer): Promise<boolean> {
+  return aquecerPrograma(renderer, programaDaAgua(), '[agua] o shader não compilou nesta placa; a água não aparece')
 }
 
 /** O float com filtro linear existe? Sem ele o campo vai sem filtro (a beira fica um pouco mais dura). */
@@ -369,7 +365,8 @@ export function criarAguaDoMapa(dep: {
   const feitos = new Map<string, { chave: string; texel: number; campo: CampoDoCorpo }>()
 
   function montarCopia(alvo: Container): Copia | null {
-    if (!aguaCompila(dep.renderer)) return null
+    // Só depois do `aquecerAgua` (o `refazer` espera por ele): compilado ou não, já se sabe.
+    if (programaPronto(dep.renderer, programaDaAgua()) !== true) return null
     ruido ??= new BufferImageSource({
       resource: pixelsDoRuidoDaAgua(),
       width: LADO_DO_RUIDO,
@@ -510,7 +507,11 @@ export function criarAguaDoMapa(dep: {
     avisar()
   }
 
-  /** Refaz o campo: um corpo por tarefa (nada trava a tela), e junta no fim. */
+  /**
+   * Refaz o campo sem travar a tela: um corpo por tarefa, o ruído (a primeira
+   * vez) noutra, a junção noutra e a subida para a placa noutra, essa só com o
+   * shader já compilado (ele compila em segundo plano enquanto os corpos se fazem).
+   */
   function refazer(entrada: EntradaDaAgua): void {
     geracao += 1
     const minha = geracao
@@ -520,6 +521,7 @@ export function criarAguaDoMapa(dep: {
       aplicar(null, entrada.grid)
       return
     }
+    const compilou = aquecerAgua(dep.renderer)
     const texel = texelDasAguas(corpos.map((x) => x.corpo))
     const vivos = new Set(corpos.map((x) => x.agua.id))
     for (const id of [...feitos.keys()]) if (!vivos.has(id)) feitos.delete(id)
@@ -528,8 +530,17 @@ export function criarAguaDoMapa(dep: {
       return feito === undefined || feito.chave !== chaveDaForma(agua) || feito.texel !== texel
     })
     const t0 = performance.now()
+    const vale = (): boolean => minha === geracao && !destruido
+    const subir = (composto: CampoComposto | null): void => {
+      void compilou.then(() => {
+        if (!vale()) return
+        aplicar(composto, entrada.grid)
+        medidas.campos += 1
+        medidas.ultimoCampoMs = performance.now() - t0
+      })
+    }
     const juntar = (): void => {
-      if (minha !== geracao || destruido) return
+      if (!vale()) return
       let caixa: CaixaEmTexels | null = null
       const lista: { corpo: CorpoDoCampo; campo: CampoDoCorpo }[] = []
       for (const { agua, corpo } of corpos) {
@@ -538,14 +549,21 @@ export function criarAguaDoMapa(dep: {
         lista.push({ corpo, campo: feito.campo })
         caixa = unirCaixas(caixa, feito.campo)
       }
-      aplicar(caixa === null ? null : comporCampo(lista, caixa, texel), entrada.grid)
-      medidas.campos += 1
-      medidas.ultimoCampoMs = performance.now() - t0
+      const composto = caixa === null ? null : comporCampo(lista, caixa, texel)
+      setTimeout(() => subir(composto), 0)
     }
+    let ruidoFeito = ruido !== null
     const proximo = (): void => {
-      if (minha !== geracao || destruido) return
+      if (!vale()) return
       const item = fila.shift()
       if (item === undefined) {
+        // O ruído da primeira água (feito uma vez por página) numa tarefa só dele.
+        if (!ruidoFeito) {
+          ruidoFeito = true
+          pixelsDoRuidoDaAgua()
+          setTimeout(proximo, 0)
+          return
+        }
         juntar()
         return
       }
