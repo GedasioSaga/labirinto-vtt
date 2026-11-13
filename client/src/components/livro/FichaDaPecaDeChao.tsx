@@ -3,6 +3,7 @@ import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
 import { FloorPieceControls, SHAPE_TITLES, type FloorPieceControlsProps } from '../FloorPieceControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
+import { VirarAgua } from '../VirarAgua'
 import './fichaDoItem.css'
 
 /*
@@ -43,6 +44,8 @@ export function FichaDaPecaDeChao({ controles }: FichaDaPecaDeChaoProps) {
       <Essencial>
         <FloorPieceControls {...controles} parte="essencial" />
       </Essencial>
+      {/* ÁGUA: a peça antiga pintada com a tinta Mar vira lago ou mar (`VirarAgua`). */}
+      <VirarAgua piece={piece} />
       <Fichas>
         <FichaDaPecaLembrada id="medidas" titulo="Medidas" icone="regua" padrao resumo={forma}>
           <FloorPieceControls {...controles} parte="medidas" />

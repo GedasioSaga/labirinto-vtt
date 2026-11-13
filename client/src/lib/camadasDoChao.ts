@@ -28,6 +28,20 @@ export const CAMADAS_DO_CHAO: readonly CamadaDoChaoInfo[] = [
   { id: 'lava', label: 'Lava', color: '#b0431c', description: 'Rio ou poça de lava.' },
 ]
 
+/**
+ * ÁGUA (decisão do mestre de 12/11/2026): a tinta Mar sai da LISTA de tintas
+ * (a água agora é a ferramenta Água). Ela continua em `CAMADAS_DO_CHAO`: a
+ * peça antiga de Mar desenha igual, continua se chamando "Mar" e ganha o
+ * "Virar água" na ficha (`components/VirarAgua.tsx`).
+ */
+export const CAMADAS_DO_CHAO_NA_LISTA: readonly CamadaDoChaoInfo[] = CAMADAS_DO_CHAO.filter((c) => c.id !== 'mar')
+
+/** A peça é a tinta Mar de antes (soma chão, com a cor do Mar)? */
+export function ehTintaMar(piece: FloorPiece): boolean {
+  const mar = corDaCamada('mar')
+  return piece.op === 'add' && mar !== null && piece.fillColor !== undefined && piece.fillColor.toLowerCase() === mar.toLowerCase()
+}
+
 export function corDaCamada(camada: CamadaDoChao): string | null {
   return CAMADAS_DO_CHAO.find((c) => c.id === camada)?.color ?? null
 }

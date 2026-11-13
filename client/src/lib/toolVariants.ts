@@ -4,7 +4,7 @@ import { MATERIAIS_DA_PAREDE } from '../texturas/paredes/catalogo'
 import type { StairSizePreset } from './stairs'
 import type { FloorShapeKind } from './floorTool'
 import { TAMANHOS_DE_PINCEL, type TamanhoDePincel } from './floorBlocks'
-import { CAMADAS_DO_CHAO, type CamadaDoChao } from './camadasDoChao'
+import { CAMADAS_DO_CHAO_NA_LISTA, type CamadaDoChao } from './camadasDoChao'
 import { TOOL_SHORTCUTS } from './keymap'
 import type { BrushMode } from './baldeDeTinta'
 import type { ToolClusterId } from '../components/labels'
@@ -351,7 +351,8 @@ const FLOOR_BRUSH_SIZE_GROUP: ToolVariantGroup = {
 const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
   storeKey: 'floorCamada',
   label: 'Tinta',
-  options: CAMADAS_DO_CHAO.map((camada) => ({ id: camada.id, label: camada.label, value: camada.id, description: camada.description })),
+  // ÁGUA (12/11/2026): sem a tinta Mar, que virou a ferramenta Água (`CAMADAS_DO_CHAO_NA_LISTA`).
+  options: CAMADAS_DO_CHAO_NA_LISTA.map((camada) => ({ id: camada.id, label: camada.label, value: camada.id, description: camada.description })),
 }
 
 /**
