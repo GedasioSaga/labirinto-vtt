@@ -164,7 +164,8 @@ const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste o mei
 function MexerNaForma({ agua }: { agua: Agua }) {
   const f = useFerramentaDaAgua()
   if (agua.tipo === 'rio') return <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>
-  const pincel = f.pincel
+  // O pincel de areia é só do mar: no lago (o mar que virou lago) ficam as bolinhas.
+  const pincel = f.pincel === 'areia' && agua.tipo !== 'mar' ? null : f.pincel
   return (
     <div className="lb-field">
       <span className="lb-label" id="lb-agua-mexer">
@@ -177,6 +178,11 @@ function MexerNaForma({ agua }: { agua: Agua }) {
         <button type="button" role="radio" aria-checked={pincel === 'agua'} className="lb-seg__option" onClick={() => f.setPincel('agua')}>
           Pincel de água
         </button>
+        {agua.tipo === 'mar' && (
+          <button type="button" role="radio" aria-checked={pincel === 'areia'} className="lb-seg__option" onClick={() => f.setPincel('areia')}>
+            Pincel de areia
+          </button>
+        )}
       </div>
       {pincel === null && <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>}
       {pincel === 'agua' && (
@@ -190,6 +196,19 @@ function MexerNaForma({ agua }: { agua: Agua }) {
             </button>
           </div>
           <p className="lb-field__hint">Pinte na beira para a água crescer ou encolher. Alt troca só neste traço.</p>
+        </>
+      )}
+      {pincel === 'areia' && (
+        <>
+          <div className="lb-seg" role="radiogroup" aria-label="O que o pincel de areia faz">
+            <button type="button" role="radio" aria-checked={f.modoDaAreia === 'tirar'} className="lb-seg__option" onClick={() => f.setModoDaAreia('tirar')}>
+              Tirar areia
+            </button>
+            <button type="button" role="radio" aria-checked={f.modoDaAreia === 'por'} className="lb-seg__option" onClick={() => f.setModoDaAreia('por')}>
+              Pôr areia
+            </button>
+          </div>
+          <p className="lb-field__hint">Pinte na beira do mar. Sem areia, a água encosta direto na grama. Alt troca só neste traço.</p>
         </>
       )}
       {pincel !== null && (
