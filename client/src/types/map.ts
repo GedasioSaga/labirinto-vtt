@@ -1830,6 +1830,15 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  padrão apaga o campo. Mapa de antes abre e salva igual. Vai ao jogador
    *  junto do objeto que ele enxerga: a tela dele planeja o caminho com ele. */
   barraPassagem?: boolean
+  /** TAPA A VISÃO (construções, 12/11/2026, `lib/obstaculosDeObjeto.ts`): a
+   *  construção segura o olhar do jogador como parede (a forma da colisão), e
+   *  aparece para ele como o telhado da casa (viu um pedaço, sai inteira e fica
+   *  lembrada). Só construção tem a chave (`lib/mobilia/construcoes.ts`). Só é
+   *  gravado quando difere do padrão do tipo (liga na torre de pedra, moinho,
+   *  mausoléu e blocos de inscrições): ausente = o padrão. Mapa de antes abre
+   *  e salva igual; a 0.5.61 ignora o campo. Vai ao jogador junto da construção
+   *  que ele recebe: a luz da tela dele é contada com ele. */
+  tapaVisao?: boolean
 }
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */
