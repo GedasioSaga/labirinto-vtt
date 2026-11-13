@@ -19,6 +19,11 @@ import { curvaGuardada } from './forma'
  * quando mais da metade dela está dentro dessa água (píer, plataforma, ponte);
  * a peça de fundo ou de terra fica por baixo, como na 0.5.62 (`lisasPorCima`).
  *
+ * SALA DE FUNDO (decisão de 13/11, PEDIDOS 38b2fedf): a sala que chega na borda
+ * do mapa, ou que guarda mais da metade da área de uma água, fica por baixo
+ * dela, como o Chão Liso de fundo (sem buraco e sem tirar a margem). As outras
+ * salas seguem por cima de toda água (`salasDeFundo`).
+ *
  * No jogador o entorno sai só do que ele recebe (as salas e o Chão do recorte):
  * a sala secreta que não chega a ele não abre buraco nem tira margem. A conta
  * da metade também: a peça e a água que ele recebe, nunca as do mestre.
@@ -49,10 +54,12 @@ export interface PecaLisa {
 export interface EntornoDaAgua {
   /** O mapa (px de mundo): a água não passa dele, e a beira na borda não é margem. `null` = mapa sem tamanho. */
   mapa: { largura: number; altura: number } | null
-  /** Por cima de toda água: o fundo das salas. */
+  /** Por cima de toda água: o fundo das salas (menos a de fundo, `salas` e `salasDeFundo`). */
   porCima: readonly FormaDoEntorno[]
   /** A beira por baixo ou perto destas não é margem em toda água: salas e construções. */
   semMargem: readonly FormaDoEntorno[]
+  /** As salas de `semMargem` (com e sem fundo), sem a que chega na borda do mapa: a conta da metade da água (`salasDeFundo`). */
+  salas: readonly FormaDoEntorno[]
   /** O Chão Liso desenhado: cada peça vale só na água em que mais da metade dela está. */
   lisas: readonly PecaLisa[]
   /** O passo do contorno do Chão (`FloorStyle.sampleStep`): o buraco da peça segue a borda que o Chão desenha. */
@@ -68,7 +75,14 @@ export const NA_BORDA = 0.05
 /** O pincel de areia esmaece nesta distância (em casas): a areia some aos poucos, sem corte reto. */
 export const ESMAECER_DA_AREIA = 0.5
 
-export const SEM_ENTORNO: EntornoDaAgua = { mapa: null, porCima: [], semMargem: [], lisas: [], passo: undefined, chave: '' }
+export const SEM_ENTORNO: EntornoDaAgua = { mapa: null, porCima: [], semMargem: [], salas: [], lisas: [], passo: undefined, chave: '' }
+
+/** px: o que chega a isto da borda do mapa vai até ela (o retângulo preso à grade cai exato na borda). */
+const FOLGA_DA_BORDA = 1
+
+/** A caixa (px de mundo) chega na borda do mapa ou passa dela: é fundo, fica por baixo da água. */
+const chegaNaBorda = (mapa: EntornoDaAgua['mapa'], x0: number, y0: number, x1: number, y1: number): boolean =>
+  mapa !== null && (x0 <= FOLGA_DA_BORDA || y0 <= FOLGA_DA_BORDA || x1 >= mapa.largura - FOLGA_DA_BORDA || y1 >= mapa.altura - FOLGA_DA_BORDA)
 
 const arred = (v: number): number => Math.round(v * 2) / 2
 
@@ -119,8 +133,6 @@ const guardados = new WeakMap<readonly Region[], Guardado>()
 /** As peças lisas que somam chão (com as que as apagam depois) e o desenho delas para a chave. */
 function lisasDoChao(chao: readonly FloorPiece[], mapa: EntornoDaAgua['mapa'], partes: unknown[]): PecaLisa[] {
   const lisas: PecaLisa[] = []
-  /** px: a peça que chega a isto da borda do mapa vai até ela (o retângulo preso à grade cai exato na borda). */
-  const folga = 1
   for (let i = 0; i < chao.length; i += 1) {
     const peca = chao[i]
     if (peca.hidden === true) continue
@@ -133,8 +145,7 @@ function lisasDoChao(chao: readonly FloorPiece[], mapa: EntornoDaAgua['mapa'], p
     const y1 = mapa === null ? b.maxY : Math.min(mapa.altura, b.maxY)
     if (!(x1 > x0 && y1 > y0)) continue
     const buracos = chao.slice(i + 1).filter((p) => p.op === 'subtract' && p.hidden !== true)
-    const naBorda = mapa !== null && (x0 <= folga || y0 <= folga || x1 >= mapa.largura - folga || y1 >= mapa.altura - folga)
-    lisas.push({ pecas: [peca, ...buracos], x0, y0, x1, y1, naBorda })
+    lisas.push({ pecas: [peca, ...buracos], x0, y0, x1, y1, naBorda: chegaNaBorda(mapa, x0, y0, x1, y1) })
   }
   return lisas
 }
@@ -146,15 +157,21 @@ export function entornoDaAgua(pecas: PecasDoEntorno): EntornoDaAgua {
   const salas = visibleRegions([...pecas.regioes], pecas.ocultas).filter((r) => r.points.length >= 3 && r.agua !== true)
   const porCima: FormaDoEntorno[] = []
   const semMargem: FormaDoEntorno[] = []
+  const formasDasSalas: FormaDoEntorno[] = []
   const partes: unknown[] = [pecas.largura, pecas.altura]
+  const mapa = pecas.largura > 0 && pecas.altura > 0 ? { largura: pecas.largura, altura: pecas.altura } : null
   for (const sala of salas) {
     const anel = plano(sala.points)
     const forma = formaDosAneis([anel])
     if (forma === null) continue
+    partes.push(sala.filled === false ? 0 : 1, anel)
+    // A sala que chega na borda do mapa é o chão de fundo (Floresta: uma sala cheia do tamanho do mapa): por baixo de
+    // toda água, sem buraco e sem tirar a margem.
+    if (chegaNaBorda(mapa, forma.x0, forma.y0, forma.x1, forma.y1)) continue
     semMargem.push(forma)
+    formasDasSalas.push(forma)
     // A sala sem fundo não tem chão para mostrar: a água segue por baixo dela.
     if (sala.filled !== false) porCima.push(forma)
-    partes.push(sala.filled === false ? 0 : 1, anel)
   }
   for (const prop of pecas.props) {
     if (!ehConstrucao(prop.mobilia)) continue
@@ -164,11 +181,10 @@ export function entornoDaAgua(pecas: PecasDoEntorno): EntornoDaAgua {
     semMargem.push(forma)
     partes.push(3, anel)
   }
-  const mapa = pecas.largura > 0 && pecas.altura > 0 ? { largura: pecas.largura, altura: pecas.altura } : null
   // O Chão Liso não entra em `porCima` nem em `semMargem`: cada peça vale só na água em que mais da metade dela está.
   const lisas = lisasDoChao(pecas.chao, mapa, partes)
   partes.push(pecas.passo ?? null)
-  const entorno: EntornoDaAgua = { mapa, porCima, semMargem, lisas, passo: pecas.passo, chave: JSON.stringify(partes) }
+  const entorno: EntornoDaAgua = { mapa, porCima, semMargem, salas: formasDasSalas, lisas, passo: pecas.passo, chave: JSON.stringify(partes) }
   guardados.set(pecas.regioes, { ocultas: pecas.ocultas, chao: pecas.chao, passo: pecas.passo, props: pecas.props, largura: pecas.largura, altura: pecas.altura, entorno })
   return entorno
 }
@@ -371,6 +387,19 @@ export function aguaParaMetade(agua: Agua, grid: number, mapa: EntornoDaAgua['ma
   return { dentro: (x, y) => dentroDaForma(indexada, x, y), x0: forma.x0, y0: forma.y0, x1: forma.x1, y1: forma.y1, area: areaNoMapa(xy, mapa) }
 }
 
+const medidasGuardadas = new WeakMap<Agua, { grid: number; largura: number; altura: number; medida: AguaParaMetade | null }>()
+
+/** `aguaParaMetade` guardado pela água (o objeto muda quando ela muda): o Chão Liso e as salas medem a mesma água. */
+function medidaDaAgua(agua: Agua, grid: number, mapa: EntornoDaAgua['mapa']): AguaParaMetade | null {
+  const largura = mapa?.largura ?? 0
+  const altura = mapa?.altura ?? 0
+  const ja = medidasGuardadas.get(agua)
+  if (ja !== undefined && ja.grid === grid && ja.largura === largura && ja.altura === altura) return ja.medida
+  const medida = aguaParaMetade(agua, grid, mapa)
+  medidasGuardadas.set(agua, { grid, largura, altura, medida })
+  return medida
+}
+
 const SEM_LISAS: readonly PecaLisa[] = []
 const lisasGuardadas = new WeakMap<Agua, { entorno: EntornoDaAgua; grid: number; lisas: readonly PecaLisa[] }>()
 
@@ -379,11 +408,63 @@ export function lisasDaAgua(agua: Agua, grid: number, entorno: EntornoDaAgua | u
   if (entorno === undefined || entorno.lisas.length === 0) return SEM_LISAS
   const ja = lisasGuardadas.get(agua)
   if (ja !== undefined && ja.entorno === entorno && ja.grid === grid) return ja.lisas
-  const medida = aguaParaMetade(agua, grid, entorno.mapa)
+  const medida = medidaDaAgua(agua, grid, entorno.mapa)
   const achadas = medida === null ? [] : lisasPorCima(entorno, medida, grid)
   const lisas = achadas.length === 0 ? SEM_LISAS : achadas
   lisasGuardadas.set(agua, { entorno, grid, lisas })
   return lisas
+}
+
+const SEM_FORMAS: readonly FormaDoEntorno[] = []
+const salasIndexadas = new WeakMap<FormaDoEntorno, FormaIndexada>()
+
+/** A sala guarda mais da metade da área desta água? Amostras na grade presa à origem, com o passo pela caixa da sala. */
+function guardaAMetade(sala: FormaDoEntorno, agua: AguaParaMetade, mapa: EntornoDaAgua['mapa'], grid: number): boolean {
+  const sx0 = mapa === null ? sala.x0 : Math.max(0, sala.x0)
+  const sy0 = mapa === null ? sala.y0 : Math.max(0, sala.y0)
+  const sx1 = mapa === null ? sala.x1 : Math.min(mapa.largura, sala.x1)
+  const sy1 = mapa === null ? sala.y1 : Math.min(mapa.altura, sala.y1)
+  const x0 = Math.max(sx0, agua.x0)
+  const y0 = Math.max(sy0, agua.y0)
+  const x1 = Math.min(sx1, agua.x1)
+  const y1 = Math.min(sy1, agua.y1)
+  // Nem toda a caixa em comum daria a metade da água: nem conta (quase toda sala sai aqui).
+  if (!(x1 > x0 && y1 > y0) || (x1 - x0) * (y1 - y0) * 2 <= agua.area) return false
+  const lado = Math.max(grid * GRADE_DA_METADE, Math.sqrt(((sx1 - sx0) * (sy1 - sy0)) / AMOSTRAS_DA_METADE), 1)
+  let indexada = salasIndexadas.get(sala)
+  if (indexada === undefined || indexada.faixa !== Math.max(1, grid)) {
+    indexada = indexarForma(sala, Math.max(1, grid))
+    salasIndexadas.set(sala, indexada)
+  }
+  let naAgua = 0
+  for (let j = Math.floor(y0 / lado); (j + 0.5) * lado <= y1; j += 1) {
+    const y = (j + 0.5) * lado
+    if (y < y0) continue
+    for (let i = Math.floor(x0 / lado); (i + 0.5) * lado <= x1; i += 1) {
+      const x = (i + 0.5) * lado
+      if (x >= x0 && dentroDaForma(indexada, x, y) && agua.dentro(x, y)) naAgua += 1
+    }
+  }
+  return naAgua * lado * lado * 2 > agua.area
+}
+
+const fundosGuardados = new WeakMap<Agua, { entorno: EntornoDaAgua; grid: number; salas: readonly FormaDoEntorno[] }>()
+
+/**
+ * As salas que ficam POR BAIXO desta água por guardarem mais da metade da área
+ * dela (a que chega na borda do mapa já saiu do entorno): sem buraco e sem
+ * tirar a margem nesta água; nas outras seguem por cima. Guardado pela água e
+ * pelo entorno.
+ */
+export function salasDeFundo(agua: Agua, grid: number, entorno: EntornoDaAgua | undefined): readonly FormaDoEntorno[] {
+  if (entorno === undefined || entorno.salas.length === 0) return SEM_FORMAS
+  const ja = fundosGuardados.get(agua)
+  if (ja !== undefined && ja.entorno === entorno && ja.grid === grid) return ja.salas
+  const medida = medidaDaAgua(agua, grid, entorno.mapa)
+  const achadas = medida === null ? [] : entorno.salas.filter((sala) => guardaAMetade(sala, medida, entorno.mapa, grid))
+  const salas = achadas.length === 0 ? SEM_FORMAS : achadas
+  fundosGuardados.set(agua, { entorno, grid, salas })
+  return salas
 }
 
 const formasDasLisas = new WeakMap<PecaLisa, FormaDoEntorno | null>()
@@ -537,6 +618,16 @@ function indiceDaEstrutura(entorno: EntornoDaAgua, grid: number): IndiceDaEstrut
   return indice
 }
 
+/** As estruturas sem as salas de fundo de uma água (a lista de `salasDeFundo`, guardada por ela). */
+const indicesSemFundo = new WeakMap<readonly FormaDoEntorno[], { entorno: EntornoDaAgua; indice: IndiceDaEstrutura }>()
+function indiceSemFundo(entorno: EntornoDaAgua, fundo: readonly FormaDoEntorno[], grid: number): IndiceDaEstrutura {
+  const ja = indicesSemFundo.get(fundo)
+  if (ja !== undefined && ja.entorno === entorno && ja.indice.grid === grid) return ja.indice
+  const indice = indexarEstruturas(entorno.semMargem.filter((f) => !fundo.includes(f)), grid)
+  indicesSemFundo.set(fundo, { entorno, indice })
+  return indice
+}
+
 /** O Chão Liso por cima de uma água (a lista de `lisasDaAgua`, guardada por ela). */
 const indicesDasLisas = new WeakMap<readonly PecaLisa[], IndiceDaEstrutura>()
 function indiceDasLisas(lisas: readonly PecaLisa[], entorno: EntornoDaAgua, grid: number): IndiceDaEstrutura | null {
@@ -555,17 +646,18 @@ const pertoDe = (indice: IndiceDaEstrutura | null, x: number, y: number, raio: n
  * Por ponto da linha da beira (x, y, ... em px de mundo): 1 = margem (raso,
  * espuma e areia, como antes); 0 = na borda do mapa ou fora dele, ou por baixo
  * / a menos de meia casa de sala, construção ou de peça de Chão Liso que fica
- * por cima DESTA água (`lisas`, de `lisasDaAgua`). `null` = tudo margem (nada
- * muda no campo).
+ * por cima DESTA água (`lisas`, de `lisasDaAgua`); a sala de fundo DESTA água
+ * (`fundo`, de `salasDeFundo`) não conta. `null` = tudo margem (nada muda no
+ * campo).
  */
-export function margemDaBeira(xy: readonly number[], entorno: EntornoDaAgua | undefined, grid: number, lisas: readonly PecaLisa[] = SEM_LISAS): Uint8Array | null {
+export function margemDaBeira(xy: readonly number[], entorno: EntornoDaAgua | undefined, grid: number, lisas: readonly PecaLisa[] = SEM_LISAS, fundo: readonly FormaDoEntorno[] = SEM_FORMAS): Uint8Array | null {
   if (entorno === undefined || (entorno.mapa === null && entorno.semMargem.length === 0 && lisas.length === 0)) return null
   const n = xy.length / 2
   const marca = new Uint8Array(n).fill(1)
   let algum = false
   const folga = grid * NA_BORDA
   const raio = grid * PERTO_DA_ESTRUTURA
-  const indice = entorno.semMargem.length > 0 ? indiceDaEstrutura(entorno, grid) : null
+  const indice = entorno.semMargem.length === 0 ? null : fundo.length === 0 ? indiceDaEstrutura(entorno, grid) : indiceSemFundo(entorno, fundo, grid)
   const doChao = indiceDasLisas(lisas, entorno, grid)
   for (let i = 0; i < n; i += 1) {
     const x = xy[i * 2]

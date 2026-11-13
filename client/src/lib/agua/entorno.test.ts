@@ -101,6 +101,24 @@ describe('o mar e o mapa em volta', () => {
     expect(noPonto(ponte, 6.8 * G, 4 * G, 'sd'), 'na segunda lagoa a água continua').toBeGreaterThan(0)
   })
 
+  it('a sala de fundo fica por baixo da água (a que chega na borda do mapa e a que guarda mais da metade dela); as outras seguem por cima', () => {
+    // Floresta: uma sala cheia do tamanho do mapa (passa da borda) e o mar que sai dele.
+    const a = mar(rect(-2, 12, 22, 25))
+    const semSala = campoDasAguas([a], G, entornoDe([]))
+    const doMapa = campoDasAguas([a], G, entornoDe([sala('fundo', rect(-0.2, -0.2, 20.2, 20.2))]))
+    expect(doMapa?.f1).toEqual(semSala?.f1)
+    expect(doMapa?.f4).toEqual(semSala?.f4)
+    // Longe da borda: o salão guarda o lago l1 inteiro (fica por baixo dele) e 1/4 do l2 (por cima dele, como sempre).
+    const l1 = mar(rect(4, 4, 8, 8), { id: 'l1', tipo: 'lago' })
+    const l2 = mar(rect(11, 4, 15, 8), { id: 'l2', tipo: 'lago' })
+    const lagos = campoDasAguas([l1, l2], G, entornoDe([sala('salao', rect(2, 2, 12, 10))]))
+    const lagosSem = campoDasAguas([l1, l2], G, entornoDe([]))
+    expect(noPonto(lagos, 6 * G, 6 * G, 'buraco'), 'no l1 a água fica por cima').toBe(0)
+    expect(noPonto(lagos, 4.3 * G, 6 * G, 'sd'), 'a beira do l1 segue margem').toBe(noPonto(lagosSem, 4.3 * G, 6 * G, 'sd'))
+    expect(noPonto(lagos, 11.5 * G, 6 * G, 'buraco'), 'no l2 o salão fica por cima').toBe(255)
+    expect(noPonto(lagos, 13 * G, 6 * G, 'buraco')).toBe(0)
+  })
+
   it('o pincel de areia: o último traço manda; o jogador recebe só o pedaço que alcança a beira que conhece, com a mesma conta', () => {
     const a = mar(rect(0, 10, 20, 20), {
       areia: [
@@ -164,6 +182,16 @@ describe('névoa: a sala secreta por cima do mar', () => {
     const doMestre = cena(true)
     const mestre = campoDasAguas(doMestre.aguas ?? [], G, entornoDaAgua({ largura: 20 * G, altura: 20 * G, regioes: doMestre.regions, ocultas: [], chao: [], props: [] }))
     expect(noPonto(mestre, 10 * G, 12 * G, 'buraco')).toBe(255)
+  })
+
+  it('a sala do tamanho do mapa (Floresta) que ele recebe fica por baixo do mar na tela dele: mar e areia na beira', () => {
+    const floresta = (comSala: boolean): MapData => ({ ...createEmptyMap('m3', 'M3', 20, 20, G), offFloor: 'free', regions: comSala ? [sala('fundo', rect(-0.2, -0.2, 20.2, 20.2))] : [], aguas: [mar(rect(-2, 12, 22, 25))], tokens: [{ ...ficha, x: 10 * G, y: 11 * G }] })
+    const com = filterMapForPlayer(floresta(true), 'ana', POSSE, 10 * G).map
+    expect(com.regions.some((r) => r.id === 'fundo'), 'premissa: ele recebe a sala').toBe(true)
+    const c = campoDoJogador(com)
+    expect(noPonto(c, 10 * G, 14 * G, 'buraco'), 'o mar por cima da sala').toBe(0)
+    expect(noPonto(c, 10 * G, 12.2 * G, 'semAreia'), 'areia na beira').toBe(0)
+    expect(c?.f4).toEqual(campoDoJogador(filterMapForPlayer(floresta(false), 'ana', POSSE, 10 * G).map)?.f4)
   })
 
   it('igual com e sem a peça de Chão Liso numa camada escondida: a conta da metade só com o que ele recebe', () => {
