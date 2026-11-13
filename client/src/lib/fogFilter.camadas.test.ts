@@ -402,7 +402,15 @@ function semCamposDaCaca(view: unknown): Record<string, unknown> {
   const visao: unknown[] = Array.isArray(view.vision) ? view.vision : []
   if (olho === undefined || visao.length === 0) expect(olhares, 'olhares').toBeUndefined()
   else expect(olhares, 'olhares').toStrictEqual([{ x: olho.x, y: olho.y, raio: RAIO, aneis: [0] }])
-  return resto
+  // CONSTRUÇÕES (0.5.62, `dff4162e`): a memória da planta ganhou a lista das construções vistas. Nenhum mapa congelado
+  // tem construção, então ela sai vazia (nada lembrado que não foi visto); o resto do plano é o de antes.
+  if (!ehRegistro(resto.plan)) throw new Error('recorte sem plano')
+  const { construcoes, ...planoDeAntes } = resto.plan
+  expect(construcoes, 'plan.construcoes').toStrictEqual({ mapa: [] })
+  // Os campos novos do mapa da 0.5.62 (`aguas`, `ambienteSeco`) vão sempre presentes e, sem água nem Ambiente, vazios:
+  // o JSON do fio nem os escreve.
+  expect(Object.keys(view.map).filter((k) => k === 'aguas' || k === 'ambienteSeco'), 'campos novos no fio').toEqual([])
+  return { ...resto, plan: planoDeAntes }
 }
 
 /** O recorte sem a lista `chave` no mapa e na memória da planta. */
