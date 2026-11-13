@@ -33,8 +33,8 @@ function distanciaAoSegmento(p: RegionPoint, a: RegionPoint, b: RegionPoint): nu
 /** Douglas-Peucker sobre os índices [de, ate] (inclusive), marcando os que ficam. */
 function marcarPorDesvio(pontos: readonly RegionPoint[], de: number, ate: number, tolerancia: number, ficam: boolean[]): void {
   const pilha: [number, number][] = [[de, ate]]
-  while (pilha.length > 0) {
-    const [a, b] = pilha.pop() as [number, number]
+  for (let par = pilha.pop(); par !== undefined; par = pilha.pop()) {
+    const [a, b] = par
     if (b - a < 2) continue
     let pior = -1
     let maior = tolerancia

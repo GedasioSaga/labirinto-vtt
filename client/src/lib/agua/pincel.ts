@@ -212,8 +212,8 @@ function simplificarAnel(anel: readonly RegionPoint[], tolerancia: number): Regi
     [0, longe],
     [longe, n],
   ]
-  while (pilha.length > 0) {
-    const [a, b] = pilha.pop() as [number, number]
+  for (let par = pilha.pop(); par !== undefined; par = pilha.pop()) {
+    const [a, b] = par
     if (b - a < 2) continue
     let pior = -1
     let maior = tolerancia
