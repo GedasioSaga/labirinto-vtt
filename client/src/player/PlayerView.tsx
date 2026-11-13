@@ -86,6 +86,7 @@ import { createNuvensRenderer, definirOpacidadeDasNuvens, lerOpacidadeDasNuvens,
 import { nuvensLigadas } from '../lib/nuvens'
 import { createNeblinaRenderer, type NeblinaRenderer } from '../pixi/drawNeblina'
 import { aquecerAmbiente, createAmbienteRenderer, type AmbienteRenderer } from '../pixi/drawAmbiente'
+import { criarSomDaChuva } from '../lib/sons/somDaChuva'
 import { atualizarAmbienteDoJogador, juntarNeblinaEAmbiente } from '../pixi/ambienteDoJogador'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, temNeblina } from '../lib/neblina'
 import { atualizarParticulasDoJogador, criarParticulasDoMapa, type ParticulasDoMapa } from '../pixi/particulasDoMapa'
@@ -4103,6 +4104,8 @@ function PlayerViewDoCanvas({
             el.dataset.ambiente = estado.ligado ? (estado.movendo ? 'andando' : 'parado') : 'desligado'
             el.dataset.ambienteInstancias = estado.instancias
           },
+          // O som da chuva segue o volume e o mudo da mesa deste jogador.
+          som: criarSomDaChuva(),
         },
       )
       void aquecerAmbiente(app.renderer)

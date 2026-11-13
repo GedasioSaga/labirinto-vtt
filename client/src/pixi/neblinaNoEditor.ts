@@ -1,6 +1,7 @@
 import type { Container, Graphics, Renderer, Ticker } from 'pixi.js'
 import type { EfeitoDoAmbiente, MapData, PinceladaDeAmbiente, RegionPoint } from '../types/map'
-import { EFEITOS_DO_AMBIENTE, intensidadeNoMapaInteiro, tipoDeFolhas, ventoDoMapa, vetorDoVento, type EfeitoDoPainel } from '../lib/ambiente'
+import { EFEITOS_DO_AMBIENTE, intensidadeNoMapaInteiro, relampagoDoMapa, somDaChuvaLigado, tipoDeFolhas, ventoDoMapa, vetorDoVento, type EfeitoDoPainel } from '../lib/ambiente'
+import { criarSomDaChuva } from '../lib/sons/somDaChuva'
 import { abrigoDoMestre } from '../lib/abrigoDoAmbiente'
 import { cenaTemFogo } from '../lib/particulasDaCena'
 import { aquecerAmbiente, createAmbienteRenderer, type EntradaDoAmbiente, type EstadoDoAmbiente } from './drawAmbiente'
@@ -59,7 +60,7 @@ export function criarNeblinaDoEditor(dep: {
 }): NeblinaDoEditor {
   const neblina = createNeblinaRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudar })
   // AMBIENTE (`drawAmbiente.ts`): as partículas logo acima da neblina. O shader compila já, em segundo plano.
-  const ambiente = createAmbienteRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudarAmbiente })
+  const ambiente = createAmbienteRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudarAmbiente, som: criarSomDaChuva() })
   void aquecerAmbiente(dep.renderer)
   // O período vai para os dois: a tela chama `renderer.setPeriodo` como antes.
   const renderer: NeblinaRenderer = {
@@ -141,6 +142,8 @@ export function entradaDoAmbiente(map: MapData, pintada: readonly PinceladaDeAmb
     folhas: tipoDeFolhas(map),
     vento: vetorDoVento(ventoDoMapa(map)),
     animar,
+    relampago: relampagoDoMapa(map),
+    somDaChuva: somDaChuvaLigado(map),
   }
 }
 

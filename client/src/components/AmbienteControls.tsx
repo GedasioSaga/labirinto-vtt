@@ -6,7 +6,6 @@ import {
   FORCA_DO_VENTO_MIN,
   INTENSIDADE_MAX,
   INTENSIDADE_MIN,
-  chaoMolhaLigado,
   efeitoDoMapa,
   nomeDaIntensidade,
   nomeDoVento,
@@ -438,9 +437,6 @@ function OpcoesDaChuva() {
       </div>
       <div className="lb-field">
         <Toggle label="Som da chuva" checked={somDaChuvaLigado({ ambiente })} onChange={(somDaChuva) => setAmbiente({ somDaChuva })} />
-      </div>
-      <div className="lb-field">
-        <Toggle label="Chão molha e junta neve" checked={chaoMolhaLigado({ ambiente })} onChange={(chaoMolha) => setAmbiente({ chaoMolha })} />
       </div>
     </>
   )

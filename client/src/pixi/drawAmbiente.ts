@@ -1,5 +1,6 @@
 import { CanvasSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type Ticker, type TextureSource } from 'pixi.js'
-import type { EfeitoDoAmbiente, Periodo, PinceladaDeAmbiente, TipoDeFolhas } from '../types/map'
+import type { EfeitoDoAmbiente, FrequenciaDoRelampago, Periodo, PinceladaDeAmbiente, TipoDeFolhas } from '../types/map'
+import type { SomDaChuva } from '../lib/sons/somDaChuva'
 import { chaveDoAbrigo, type AbrigoDoAmbiente } from '../lib/abrigoDoAmbiente'
 import { BORDA_DA_MASCARA, caixaDaMascara, pintarMascara, telaVazia, type CaixaDaMascara } from './drawNeblina'
 
@@ -55,6 +56,14 @@ export const AJUSTE_DO_AMBIENTE = {
   /** Texels do abrigo por casa e o teto do lado da máscara. */
   texelsDoAbrigoPorCasa: 4,
   ladoMaximoDoAbrigo: 1024,
+  /**
+   * RELÂMPAGO (decisão do mestre: raro, respeitando o menos movimento): só com a chuva do mapa
+   * inteiro a partir de 70%. Um clarão por janela de tempo (s), num instante sorteado pelo número
+   * da janela: cai igual no mestre e nos jogadores, pelo relógio de parede.
+   */
+  relampago: { chuvaMinima: 0.7, janelaS: { raro: 25, frequente: 8.5 }, duracaoS: 0.7, forcaDia: 0.22, forcaNoite: 0.3 },
+  /** O som de quem só pintou chuva numa área (sem a chuva do mapa inteiro): uma garoa. */
+  chuvaDoPincelNoSom: 0.4,
   /** O relógio volta a zero a cada hora (a precisão do float da placa). */
   voltaDoRelogioS: 3600,
 } as const
@@ -329,6 +338,50 @@ void main() {
 }
 `
 
+/** O VÉU DO RELÂMPAGO: um retângulo claro sobre a vista. Não tem forma: não revela nada do escuro. */
+const VERTICE_DO_VEU = `#version 300 es
+precision highp float;
+in vec2 aPosition;
+uniform mat3 uProjectionMatrix;
+uniform mat3 uWorldTransformMatrix;
+uniform mat3 uTransformMatrix;
+uniform vec4 uCaixa;
+void main() {
+  vec2 p = uCaixa.xy + aPosition * uCaixa.zw;
+  mat3 mvp = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
+  gl_Position = vec4((mvp * vec3(p, 1.0)).xy, 0.0, 1.0);
+}
+`
+
+const PIXEL_DO_VEU = `#version 300 es
+precision highp float;
+uniform vec4 uCorDoVeu;
+out vec4 finalColor;
+void main() { finalColor = uCorDoVeu; }
+`
+
+/** O brilho do clarão `t` segundos depois de começar (dois pulsos e a cauda, como no protótipo). */
+export function brilhoDoRelampago(t: number): number {
+  if (t < 0 || t > AJUSTE_DO_AMBIENTE.relampago.duracaoS) return 0
+  const pulso = (centro: number, largura: number) => Math.max(0, 1 - Math.abs(t - centro) / largura)
+  return Math.max(pulso(0.05, 0.06), 0.7 * pulso(0.22, 0.07), t > 0.22 ? 0.35 * Math.max(0, 1 - (t - 0.22) / 0.48) : 0)
+}
+
+function sorteioDaJanela(janela: number): number {
+  let x = Math.imul(janela ^ 0x5bd1e995, 0x9e3779b1) >>> 0
+  x ^= x >>> 15
+  x = Math.imul(x, 0x85ebca77) >>> 0
+  x ^= x >>> 13
+  return (x >>> 8) / 16777216
+}
+
+/** O instante (s do relógio) do clarão da janela em que `t` está, e a força dele. */
+export function relampagoDaJanela(t: number, frequencia: Exclude<FrequenciaDoRelampago, 'nao'>): { inicio: number; forca: number } {
+  const janela = AJUSTE_DO_AMBIENTE.relampago.janelaS[frequencia]
+  const n = Math.floor(t / janela)
+  return { inicio: n * janela + sorteioDaJanela(n) * (janela - 1), forca: 0.4 + 0.6 * sorteioDaJanela(n + 7919) }
+}
+
 const NUMERO_DO_TIPO: Record<TipoDeParticula, number> = { chuva: 0, neve: 1, brasas: 2, folhas: 3, cinzas: 4, fumaca: 5 }
 /** De qual efeito do mapa cada tipo de partícula lê a chave e o pincel (folhas e cinzas são um efeito só). */
 const EFEITO_DO_TIPO: Record<TipoDeParticula, EfeitoDoAmbiente> = { chuva: 'chuva', neve: 'neve', brasas: 'brasas', folhas: 'folhas', cinzas: 'folhas', fumaca: 'fumaca' }
@@ -475,6 +528,9 @@ export interface EntradaDoAmbiente {
   vento: readonly [number, number]
   /** `false` = partículas paradas ("Efeitos do mapa" desligado no jogador). */
   animar: boolean
+  relampago: FrequenciaDoRelampago
+  /** O mestre deixou o som da chuva ligado (cada um ainda tem o volume e o mudo dele). */
+  somDaChuva: boolean
 }
 
 export interface MovimentoDoAmbiente {
@@ -527,7 +583,7 @@ function aproximar(atual: number, alvo: number, dt: number): number {
 export function createAmbienteRenderer(
   renderer: Renderer,
   movimento: MovimentoDoAmbiente,
-  opcoes: { aoMudar?: (estado: EstadoDoAmbiente) => void } = {},
+  opcoes: { aoMudar?: (estado: EstadoDoAmbiente) => void; som?: SomDaChuva } = {},
 ): AmbienteRenderer {
   const agora = movimento.agora ?? Date.now
   const camada = new Container()
@@ -560,6 +616,59 @@ export function createAmbienteRenderer(
   let ultimoPasso = 0
   let periodo: Periodo = 'dia'
   let avisado = ''
+  /** O VÉU DO RELÂMPAGO, criado no primeiro clarão; o último filho da camada. */
+  let veu: { mesh: Mesh<Geometry, Shader>; caixa: Float32Array; cor: Float32Array } | null = null
+  let ultimoClarao = -1
+  /** A vista em px de mundo no último desenho: o véu cobre só ela. */
+  const vista = { x: 0, y: 0, largura: 1, altura: 1 }
+
+  function criarVeu(): { mesh: Mesh<Geometry, Shader>; caixa: Float32Array; cor: Float32Array } {
+    // O grupo guarda os próprios arrays: mudar os valores no lugar é o que sobe para a GPU.
+    const caixa = new Float32Array(4)
+    const cor = new Float32Array(4)
+    const ajustes = new UniformGroup({
+      uCaixa: { value: caixa, type: 'vec4<f32>' },
+      uCorDoVeu: { value: cor, type: 'vec4<f32>' },
+    })
+    const shader = new Shader({ glProgram: new GlProgram({ vertex: VERTICE_DO_VEU, fragment: PIXEL_DO_VEU, name: 'ambiente-veu' }), resources: { veu: ajustes } })
+    const geometria = new Geometry({
+      attributes: { aPosition: { buffer: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), format: 'float32x2' } },
+      indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]),
+    })
+    const mesh = new Mesh<Geometry, Shader>({ geometry: geometria, shader })
+    mesh.eventMode = 'none'
+    mesh.visible = false
+    camada.addChild(mesh)
+    return { mesh, caixa, cor }
+  }
+
+  /**
+   * O clarão deste instante: só com a chuva do mapa inteiro a partir de 70% e
+   * com movimento (o "menos movimento" e os efeitos desligados não piscam). É
+   * um véu sem forma sobre a vista: não acende nada nem revela o escuro.
+   */
+  function relampago(e: EntradaDoAmbiente, t: number): void {
+    const { chuvaMinima, forcaDia, forcaNoite } = AJUSTE_DO_AMBIENTE.relampago
+    const frequencia = e.relampago
+    if (frequencia === 'nao' || !movendo || e.inteira.chuva < chuvaMinima) {
+      if (veu !== null) veu.mesh.visible = false
+      return
+    }
+    const { inicio, forca } = relampagoDaJanela(t, frequencia)
+    const brilho = brilhoDoRelampago(t - inicio) * forca
+    if (brilho > 0 && inicio !== ultimoClarao) {
+      ultimoClarao = inicio
+      opcoes.som?.trovao(forca)
+    }
+    const v = veu ?? criarVeu()
+    veu = v
+    const noite = AJUSTE_DO_AMBIENTE.noite[periodo]
+    const clarao = brilho * (forcaDia + (forcaNoite - forcaDia) * noite)
+    v.mesh.visible = clarao > 0.002
+    if (!v.mesh.visible) return
+    v.caixa.set([vista.x, vista.y, vista.largura, vista.altura])
+    v.cor.set([0.85 * clarao, 0.9 * clarao, clarao, clarao])
+  }
 
   function avisar(): void {
     const contagem = TIPOS_DE_PARTICULA.map((tipo) => `${tipo}:${malhas.get(tipo)?.geometria.instanceCount ?? 0}`).join(' ')
@@ -611,7 +720,7 @@ export function createAmbienteRenderer(
     m.mascara = nova
     if (m.mesh.shader !== null) m.mesh.shader.resources.uPincel = nova
     velha.destroy()
-    const v = m.ajustes.uniforms.uCaixaDoPincel as Float32Array
+    const v = m.ajustes.uniforms.uCaixaDoPincel as Float32Array // UniformGroup sem genérico tipa uniforms como any; o valor é o Float32Array(4) do criarMalha
     if (m.caixa === null) {
       v.set([0, 0, 1, 1])
       return
@@ -635,7 +744,15 @@ export function createAmbienteRenderer(
     const tela = renderer.screen
     const a = camada.toLocal({ x: 0, y: 0 })
     const b = camada.toLocal({ x: tela.width, y: tela.height })
+    vista.x = 0
+    vista.y = 0
+    vista.largura = e.largura
+    vista.altura = e.altura
     if ([a.x, a.y, b.x, b.y].every(Number.isFinite) && b.x > a.x && b.y > a.y) {
+      vista.x = a.x
+      vista.y = a.y
+      vista.largura = b.x - a.x
+      vista.altura = b.y - a.y
       // Uma margem para o que cai de fora para dentro (a chuva nasce acima, a folha voa de longe).
       const folga = 12 * e.grid
       x0 = Math.max(0, a.x - folga)
@@ -647,9 +764,9 @@ export function createAmbienteRenderer(
     const ty0 = Math.floor(y0 / lh)
     const nx = Math.max(1, Math.ceil(x1 / lw) - tx0)
     const ny = Math.max(1, Math.ceil(y1 / lh) - ty0)
-    const ladrilho = comum.uniforms.uLadrilho as Float32Array
+    const ladrilho = comum.uniforms.uLadrilho
     ladrilho.set([lw, lh, tx0, ty0])
-    const grade = comum.uniforms.uGrade as Float32Array
+    const grade = comum.uniforms.uGrade
     grade[0] = nx
     grade[2] = e.grid / AJUSTE_DO_AMBIENTE.casaDoPrototipo
     // 1 px de tela na régua do protótipo (o serrilhado das bordas).
@@ -662,7 +779,7 @@ export function createAmbienteRenderer(
       m.geometria.instanceCount = ativo ? porLadrilho * nx * ny : 0
       // O número de partículas por ladrilho é por malha: mora no grupo do efeito, junto com o quanto já apareceu.
       m.ajustes.uniforms.uPorLadrilho = porLadrilho
-      const intensidade = m.ajustes.uniforms.uInt as Float32Array
+      const intensidade = m.ajustes.uniforms.uInt as Float32Array // UniformGroup sem genérico tipa uniforms como any; o valor é o Float32Array(2) do criarMalha
       intensidade[0] = m.inteira
       intensidade[1] = m.pincel
     }
@@ -682,10 +799,11 @@ export function createAmbienteRenderer(
     const [vx, vy] = e.vento
     const forca = Math.hypot(vx, vy)
     const rajada = forca > 0.3 ? 1 + AJUSTE_DO_AMBIENTE.rajada * Math.sin(t * 0.7) * Math.sin(t * 0.31 + 1) : 1
-    const vento = comum.uniforms.uVento as Float32Array
+    const vento = comum.uniforms.uVento
     vento[0] = vx * rajada
     vento[1] = vy * rajada
     ladrilhosAVista(e)
+    relampago(e, t)
     avisar()
   }
 
@@ -730,11 +848,13 @@ export function createAmbienteRenderer(
         m.alvoPincel = 0
       }
       movendo = false
+      if (veu !== null) veu.mesh.visible = false
+      opcoes.som?.atualizar(0, false)
       if (malhas.size > 0) entrarNoRelogio()
       avisar()
       return
     }
-    ;(comum.uniforms.uMundo as Float32Array).set([Math.max(1, e.largura), Math.max(1, e.altura)])
+    comum.uniforms.uMundo.set([Math.max(1, e.largura), Math.max(1, e.altura)])
     comum.uniforms.uNoite = AJUSTE_DO_AMBIENTE.noite[periodo]
     let algum = false
     for (const tipo of TIPOS_DE_PARTICULA) {
@@ -759,6 +879,11 @@ export function createAmbienteRenderer(
     const andar = e.animar && !movimento.reducedMotion()
     if (!andar && movendo) tempoParado = tempoAgora()
     movendo = andar && algum
+    if (!movendo && veu !== null) veu.mesh.visible = false
+    // O som segue a chuva que está na cena: a do mapa inteiro, ou uma garoa de quem pintou chuva numa área.
+    const chuvaPintada = (e.pintada ?? []).some((p) => p.efeito === 'chuva' && p.tipo === 'pincel')
+    const chuva = Math.max(Math.min(1, Math.max(0, e.inteira.chuva)), chuvaPintada ? AJUSTE_DO_AMBIENTE.chuvaDoPincelNoSom : 0)
+    opcoes.som?.atualizar(chuva, e.somDaChuva && e.animar)
     entrarNoRelogio()
     avisar()
   }
@@ -814,6 +939,7 @@ export function createAmbienteRenderer(
     destruir() {
       destruido = true
       sairDoRelogio()
+      opcoes.som?.destruir()
       camada.onRender = null
       for (const m of malhas.values()) m.mascara.destroy()
       malhas.clear()
