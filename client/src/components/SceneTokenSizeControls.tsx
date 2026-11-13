@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { fichasForaDoPadrao, tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import { TOKEN_SIZE_OPTIONS } from '../lib/tokenSize'
 import { useAdventureStore } from '../stores/adventureStore'
@@ -40,6 +41,7 @@ export function SceneTokenSizeControls({ sceneId }: SceneTokenSizeControlsProps)
   const slot = useAdventureStore((state) => state.cache[sceneId])
   const definirTamanhoAoEntrar = useAdventureStore((state) => state.definirTamanhoAoEntrar)
   const aplicarTamanhoAsFichasDaCena = useAdventureStore((state) => state.aplicarTamanhoAsFichasDaCena)
+  const grupoRef = useRef<HTMLDivElement>(null)
   const map = aberta ? mapaAberto : slot !== undefined && slot.status === 'ok' ? slot.map : null
   // Cena de fundo ainda vindo do disco: a janela nem abre (`renderSceneSettings`); aqui só não desenha.
   if (map === null) return null
@@ -53,7 +55,7 @@ export function SceneTokenSizeControls({ sceneId }: SceneTokenSizeControlsProps)
         <span className="lb-label" id="lb-scene-tokensize-label">
           Tamanho da ficha ao entrar
         </span>
-        <div className="lb-seg" role="radiogroup" aria-labelledby="lb-scene-tokensize-label" aria-describedby="lb-scene-tokensize-hint">
+        <div ref={grupoRef} className="lb-seg" role="radiogroup" aria-labelledby="lb-scene-tokensize-label" aria-describedby="lb-scene-tokensize-hint">
           <button type="button" role="radio" aria-checked={padrao === null} className="lb-seg__option" onClick={() => definirTamanhoAoEntrar(sceneId, undefined)}>
             Não mudar
           </button>
@@ -85,7 +87,12 @@ export function SceneTokenSizeControls({ sceneId }: SceneTokenSizeControlsProps)
                 ? 'Todas as fichas desta cena já estão neste tamanho.'
                 : `Põe ${nomeDoTamanho(padrao)} nas fichas que já estão nesta cena. ${aberta ? 'Ctrl+Z desfaz.' : 'Ctrl+Z desfaz quando a cena estiver aberta.'}`
             }
-            onClick={() => aplicarTamanhoAsFichasDaCena(sceneId)}
+            onClick={() => {
+              aplicarTamanhoAsFichasDaCena(sceneId)
+              // O botão se desliga ("(0)") e o foco cairia no corpo da página, fora da janela: o Esc
+              // deixava de fechá-la e o teclado perdia o lugar. O foco vai ao tamanho escolhido.
+              grupoRef.current?.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]')?.focus()
+            }}
           >
             Aplicar às fichas desta cena ({mudam})
           </button>
