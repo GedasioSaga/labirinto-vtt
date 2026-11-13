@@ -7,6 +7,7 @@ import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador } from './neblina'
+import { ambienteParaJogador, comAmbientePintado } from './ambiente'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -4804,10 +4805,18 @@ function recorteDoGrupo(
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)
   // NEBLINA pintada: o mesmo corte do pincel de Texturas (a chave do mapa inteiro não tem forma e vai como está).
-  const comNeblinaDoJogador = comNeblinaPintada(
-    comPerigos,
-    neblinaParaJogador(
-      map.neblinaPintada,
+  const comNeblinaDoJogador = comAmbientePintado(
+    comNeblinaPintada(
+      comPerigos,
+      neblinaParaJogador(
+        map.neblinaPintada,
+        (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+        (p) => inHiddenPlace(p) || inConcealZone(p),
+      ) ?? [],
+    ),
+    // AMBIENTE pintado (chuva, brasas, neve, folhas, fumaça): o mesmo corte da neblina pintada.
+    ambienteParaJogador(
+      map.ambientePintado,
       (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
       (p) => inHiddenPlace(p) || inConcealZone(p),
     ) ?? [],

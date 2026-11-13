@@ -2487,6 +2487,29 @@ export interface MapData {
    */
   particulasSemFogo?: true
   /**
+   * AMBIENTE (`lib/ambiente.ts`, pedido de 12/11/2026): o vento da cena e a
+   * chave do mapa inteiro de chuva, brasas, neve, folhas e cinzas e fumaça. A
+   * neblina continua nos campos dela (`neblina`, `neblinaPintada`): mapa de
+   * antes abre igual. Ausente = nenhum efeito, sem linha de migração (a não ser
+   * `particulas`, que a leitura traz para cá). Atravessa inteiro no recorte do
+   * jogador: o mapa inteiro não tem forma.
+   */
+  ambiente?: AmbienteDoMapa
+  /**
+   * AMBIENTE PINTADO (`lib/ambiente.ts`): as pinceladas do pincel do Ambiente
+   * de cada efeito (menos a neblina, que segue em `neblinaPintada`), na ordem
+   * em que o mestre as fez. Sai no recorte do jogador só o que encosta no que
+   * ele conhece (`ambienteParaJogador`), como a neblina pintada.
+   */
+  ambientePintado?: PinceladaDeAmbiente[]
+  /**
+   * SÓ NO RECORTE DO JOGADOR (`lib/fogFilter.ts`), nunca no arquivo: as salas
+   * do recorte em que chuva, neve, folhas e cinzas não caem (a casa de teto
+   * aberta para ele, o cômodo que ele já viu). Sala que ele não recebeu nunca
+   * entra: o seco dela desenharia a forma. Ausente = nenhuma.
+   */
+  ambienteSeco?: string[]
+  /**
    * CLICAR PARA ANDAR (`lib/cliqueParaAndar.ts`): a chave do mestre nesta cena.
    * Ausente = LIGADA (mapa de antes abre e salva igual, sem linha de migração);
    * só `false` desliga, e aí o host recusa todo trecho de caminhada
@@ -2768,6 +2791,55 @@ export interface ParticulasDaCena {
  * passo foi feito; ausente = térreo.
  */
 export type PinceladaDeNeblina = NoPiso & { id: string; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: RegionPoint[]; densidade?: number }
+
+/**
+ * Os efeitos de partícula da ferramenta Ambiente (`lib/ambiente.ts`). A
+ * neblina é o sexto efeito do painel, mas mora nos campos dela.
+ */
+export type EfeitoDoAmbiente = 'chuva' | 'brasas' | 'neve' | 'folhas' | 'fumaca'
+
+/** A chave do mapa inteiro de um efeito: ligada e a intensidade (0 a 100). */
+export interface EfeitoNoMapa {
+  ligada: boolean
+  intensidade: number
+}
+
+/** O que cai no efeito "Folhas e cinzas". Ausente = folhas. */
+export type TipoDeFolhas = 'folhas' | 'cinzas' | 'duas'
+
+/** As 8 direções do vento, para onde ele sopra (N = para cima na tela). */
+export type DirecaoDoVento = 'NO' | 'N' | 'NE' | 'O' | 'L' | 'SO' | 'S' | 'SE'
+
+/** O vento da cena: um só para todos os efeitos. `forca` de 0 (calmo) a 100 (ventania). */
+export interface VentoDaCena {
+  direcao: DirecaoDoVento
+  forca: number
+}
+
+/** Relâmpago na chuva forte. Ausente = raro (decisão do mestre de 12/11/2026). */
+export type FrequenciaDoRelampago = 'nao' | 'raro' | 'frequente'
+
+/**
+ * O ambiente da cena (`lib/ambiente.ts`). Efeito ausente = desligado; as
+ * opções ausentes valem o padrão aprovado (relâmpago raro, som da chuva
+ * ligado, chão que molha e junta neve).
+ */
+export interface AmbienteDoMapa {
+  vento?: VentoDaCena
+  chuva?: EfeitoNoMapa
+  brasas?: EfeitoNoMapa
+  neve?: EfeitoNoMapa
+  folhas?: EfeitoNoMapa & { tipo?: TipoDeFolhas }
+  fumaca?: EfeitoNoMapa
+  relampago?: FrequenciaDoRelampago
+  /** `false` = sem o som da chuva. */
+  somDaChuva?: boolean
+  /** `false` = o chão não molha nem junta neve. */
+  chaoMolha?: boolean
+}
+
+/** Um passo do pincel do Ambiente: o passo da neblina com o efeito dele. */
+export type PinceladaDeAmbiente = PinceladaDeNeblina & { efeito: EfeitoDoAmbiente }
 
 /**
  * A forma que o balde enche: uma região (pelo id) ou um desenho pintado (pelo

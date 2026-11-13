@@ -98,6 +98,7 @@ import { lerBarranco } from './barranco'
 import { lerTexturas, lerTexturasImportadas } from './texturas'
 import { lerNeblina, lerNeblinaPintada } from './neblina'
 import { lerParticulas } from './particulasDaCena'
+import { lerAmbiente, lerAmbientePintado, particulasDoAmbiente } from './ambiente'
 import { lerCarimbos, lerCarimbosImportados } from './carimbos'
 import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
@@ -1108,7 +1109,8 @@ function deserializeMapFields(json: string): MapData {
     // NEBLINA: campos NOVOS e OPCIONAIS. Chave ou passo torto sai; ausente = sem neblina (`lib/neblina.ts`).
     ...neblinaDoArquivo(parsed.neblina, parsed.neblinaPintada),
     // PARTÍCULAS: campo NOVO e OPCIONAL. Quantidade torta sai; ausente = sem partículas (`lib/particulasDaCena.ts`).
-    ...particulasDoArquivo(parsed.particulas),
+    // AMBIENTE: campos NOVOS e OPCIONAIS; as `particulas` de antes viram a chave de fumaça e brasas e voltam derivadas dela (`lib/ambiente.ts`).
+    ...ambienteDoArquivo(parsed.ambiente, parsed.ambientePintado, parsed.particulas),
     // TEXTO DE CHEGADA: campo NOVO e OPCIONAL. Texto vazio ou o que não é
     // texto (editado à mão) abre sem o campo — ver `readArrivalText`.
     ...arrivalTextField(parsed.textoChegada),
@@ -1201,10 +1203,20 @@ function areaTriggersField(raw: unknown): Pick<MapData, 'gatilhos'> {
   return gatilhos === undefined ? {} : { gatilhos }
 }
 
-/** PARTÍCULAS: o campo só entra com algum efeito lido inteiro (`lib/particulasDaCena.ts`). */
-function particulasDoArquivo(bruto: unknown): Pick<MapData, 'particulas'> {
-  const particulas = lerParticulas(bruto)
-  return particulas === undefined ? {} : { particulas }
+/**
+ * AMBIENTE (`lib/ambiente.ts`): cada campo só entra quando lido. As `particulas` de antes (fumaça e
+ * brasas da Luz da cena) migram para a chave do Ambiente e voltam DERIVADAS dela, na mesma
+ * quantidade: o app de antes continua lendo, e as partículas dos fogos continuam como eram.
+ */
+function ambienteDoArquivo(chave: unknown, pintado: unknown, particulasAntigas: unknown): Pick<MapData, 'ambiente' | 'ambientePintado' | 'particulas'> {
+  const ambiente = lerAmbiente(chave, lerParticulas(particulasAntigas))
+  const ambientePintado = lerAmbientePintado(pintado)
+  const particulas = particulasDoAmbiente(ambiente)
+  return {
+    ...(ambiente === undefined ? {} : { ambiente }),
+    ...(ambientePintado === undefined ? {} : { ambientePintado }),
+    ...(particulas === undefined ? {} : { particulas }),
+  }
 }
 
 /** NEBLINA: cada campo só entra quando lido inteiro (`lib/neblina.ts`). */

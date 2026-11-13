@@ -85,7 +85,7 @@ function listasDe(map: MapData): readonly NoPiso[][] {
  * continuam ausentes no recorte: o editor e a tela do jogador leem `undefined`
  * como "nada pintado" e não ganham chave nova.
  */
-type ListasDoRelevo = Pick<MapData, 'texturas' | 'carimbos' | 'penhascos' | 'neblinaPintada'>
+type ListasDoRelevo = Pick<MapData, 'texturas' | 'carimbos' | 'penhascos' | 'neblinaPintada' | 'ambientePintado'>
 
 function listasDoRelevo(map: MapData, f: <T extends NoPiso & { id: string }>(list: T[]) => T[]): ListasDoRelevo {
   return {
@@ -94,13 +94,15 @@ function listasDoRelevo(map: MapData, f: <T extends NoPiso & { id: string }>(lis
     ...(map.penhascos === undefined ? {} : { penhascos: f(map.penhascos) }),
     // NEBLINA pintada: a do 1º piso não cobre o térreo.
     ...(map.neblinaPintada === undefined ? {} : { neblinaPintada: f(map.neblinaPintada) }),
+    // AMBIENTE pintado: idem, por piso.
+    ...(map.ambientePintado === undefined ? {} : { ambientePintado: f(map.ambientePintado) }),
   }
 }
 
 /** O mapa tem mais de um piso? Alguma entidade fora do térreo, ou escada que liga pisos. */
 export function temPisos(map: MapData): boolean {
   const fora = (item: NoPiso): boolean => pisoDe(item) !== 0
-  const doRelevo = [map.texturas, map.carimbos, map.penhascos, map.neblinaPintada].some((list) => (list ?? []).some(fora))
+  const doRelevo = [map.texturas, map.carimbos, map.penhascos, map.neblinaPintada, map.ambientePintado].some((list) => (list ?? []).some(fora))
   return doRelevo || listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
 }
 

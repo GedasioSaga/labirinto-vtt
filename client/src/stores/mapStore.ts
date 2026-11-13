@@ -6,7 +6,7 @@ import type {
   FloorPiece, FloorStyle, MapLine, MapMarker, MapFrame, PinIcon, PinKind, RoomMeta, TokenCondition, CondicaoPropria, MovementRules, HazardKind, AreaTriggerKind, SceneFloor, NivelAlerta,
   TipoDePerigo, RotinaDoNpc, TipoMobilia, VistaMobilia, FormaDoTapete, FormaDosPratos, FogoDoMovel, FormaDaPilha, FormaDoChafariz, AguaDoChafariz, VentoDoMovel, FormaDaPonte, FormaDaCova, FormaDoMoinho, PassoDaPatrulha, RegionSplit, ParedesDoDesenho,
   AlturaDoPenhasco, ModoDoPenhasco, TracoDePenhasco,
-  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa, QuantidadeDeParticulas,
+  PinceladaDeTextura, RegionPoint as PontoDoMundo, Carimbo, Periodo, AmbienteDoPeriodo, NeblinaDoMapa, QuantidadeDeParticulas, EfeitoDoAmbiente,
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
@@ -130,7 +130,8 @@ import {
   type ResultadoDaTextura,
 } from '../lib/texturas'
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
-import { comParticulas, type EfeitoDeParticula } from '../lib/particulasDaCena'
+import { type EfeitoDeParticula } from '../lib/particulasDaCena'
+import { INTENSIDADE_DA_QUANTIDADE, comAmbiente, comAmbientePintado, somarPinceladaDeAmbiente, temPincelDoEfeito, type MudancaDoAmbiente } from '../lib/ambiente'
 import { alvoComParedes, caixaDoAlvo } from '../lib/baldeDeTextura'
 import { texturaDoCatalogo } from '../texturas/catalogo'
 import {
@@ -1460,6 +1461,15 @@ interface MapStoreState {
   setNeblinaDoMapa: (neblina: NeblinaDoMapa, juntar?: 'intensidade' | 'densidade') => void
   /** PARTÍCULAS DA CENA (`lib/particulasDaCena.ts`): a quantidade de um efeito (`null` = desligado). Com desfazer. */
   setParticulasDaCena: (efeito: EfeitoDeParticula, quantidade: QuantidadeDeParticulas | null) => void
+  /**
+   * AMBIENTE (`lib/ambiente.ts`): a chave do mapa inteiro, o vento e as opções.
+   * `juntar`: o arrasto daquele controle vira um passo só no desfazer.
+   */
+  setAmbiente: (mudanca: MudancaDoAmbiente, juntar?: string) => void
+  /** AMBIENTE: UMA pincelada do pincel do Ambiente (um efeito) no piso em edição, um passo no desfazer. */
+  pintarAmbiente: (pincelada: { efeito: EfeitoDoAmbiente; tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[] }) => ResultadoDaNeblina
+  /** Tira o efeito pintado do piso em edição (a chave do mapa inteiro fica). Com desfazer. */
+  apagarTodoOAmbientePintado: (efeito: EfeitoDoAmbiente) => void
   /**
    * CARIMBOS (`lib/carimbos.ts`): grava os objetos que UM gesto soltou (um
    * clique ou um spray inteiro) — um passo no desfazer. Acima do teto da cena
@@ -3344,9 +3354,34 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => comNeblina(map, neblina), juntar === undefined ? undefined : `neblina-${juntar}`)
     },
     setParticulasDaCena: (efeito, quantidade) => {
+      // AMBIENTE: fumaça e brasas moram na chave do Ambiente; `particulas` é derivado dela (`lib/ambiente.ts`).
+      const mudanca: MudancaDoAmbiente = { [efeito]: quantidade === null ? null : { ligada: true, intensidade: INTENSIDADE_DA_QUANTIDADE[quantidade] } }
+      if (comAmbiente(get().map, mudanca) === get().map) return
+      withHistory((map) => comAmbiente(map, mudanca))
+    },
+    setAmbiente: (mudanca, juntar) => {
       // O mesmo valor devolve o mesmo mapa: sem passo vazio no desfazer.
-      if (comParticulas(get().map, efeito, quantidade) === get().map) return
-      withHistory((map) => comParticulas(map, efeito, quantidade))
+      if (comAmbiente(get().map, mudanca) === get().map) return
+      withHistory((map) => comAmbiente(map, mudanca), juntar === undefined ? undefined : `ambiente-${juntar}`)
+    },
+    pintarAmbiente: (pincelada) => {
+      const { map, pisoAtivo } = get()
+      const antes = mapaDoPiso(map, pisoAtivo).ambientePintado ?? []
+      const passo = { ...pincelada, id: crypto.randomUUID() }
+      // O teto conta o mapa todo (todos os pisos e efeitos): é o que a leitura do arquivo aplica.
+      const { lista, resultado } = somarPinceladaDeAmbiente(antes, passo, (map.ambientePintado ?? []).length)
+      if (lista !== antes) {
+        const comOPiso = lista.map((p, i) => (i >= antes.length ? comPiso(p, pisoAtivo) : p))
+        withHistory((m) => comAmbientePintado(m, comListaDoPiso(m.ambientePintado ?? [], comOPiso, pisoAtivo)))
+      }
+      return resultado
+    },
+    apagarTodoOAmbientePintado: (efeito) => {
+      const { map, pisoAtivo } = get()
+      const doPiso = mapaDoPiso(map, pisoAtivo).ambientePintado ?? []
+      if (!temPincelDoEfeito(doPiso, efeito)) return
+      const fica = doPiso.filter((p) => p.efeito !== efeito)
+      withHistory((m) => comAmbientePintado(m, comListaDoPiso(m.ambientePintado ?? [], fica, pisoAtivo)))
     },
     carimbar: (novos) => {
       const { map } = get()
