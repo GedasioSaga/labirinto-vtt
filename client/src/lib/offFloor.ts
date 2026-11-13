@@ -1,4 +1,5 @@
 import type { FloorPiece, MapData } from '../types/map'
+import { pecasQueLimitam } from './terrenoDoChao'
 
 /**
  * FORA DO CHÃO: LIVRE / BLOQUEADO, por cena (`MapData.offFloor`, pedido do
@@ -40,20 +41,23 @@ export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'>): boolean {
 
 /**
  * As peças de Chão que LIMITAM a visão e o passo do jogador nesta cena: as da
- * cena, ou nenhuma quando ela está livre. Devolve a própria `map.floor` (a
- * mesma referência) na cena bloqueada.
+ * cena menos as de "Conta como Chão" desligado (`soPintura`, CHÃO E CAMINHO
+ * de 12/11/2026), ou nenhuma quando ela está livre. Na cena bloqueada sem
+ * nenhuma `soPintura`, a própria `map.floor` (a mesma referência); com
+ * alguma, uma lista guardada por `map.floor` (`pecasQueLimitam`).
  */
 export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'>): FloorPiece[] {
-  return foraDoChaoLivre(map) ? SEM_CHAO_QUE_LIMITE : map.floor
+  return foraDoChaoLivre(map) ? SEM_CHAO_QUE_LIMITE : pecasQueLimitam(map.floor)
 }
 
 /**
- * A cena tem Chão de verdade: alguma peça que soma e não está escondida, a
- * mesma conta de `compileFloor` (`bounds`). Sem nenhuma, a borda não existe e
- * a opção não muda nada: a janela da cena mostra o controle desligado.
+ * A cena tem Chão de verdade: alguma peça que soma, não está escondida e conta
+ * como Chão (sem `soPintura`), a mesma conta de `compileFloor` (`bounds`).
+ * Sem nenhuma, a borda não existe e a opção não muda nada: a janela da cena
+ * mostra o controle desligado.
  */
 export function cenaTemChao(map: Pick<MapData, 'floor'>): boolean {
-  return map.floor.some((peca) => peca.op === 'add' && peca.hidden !== true)
+  return map.floor.some((peca) => peca.op === 'add' && peca.hidden !== true && peca.soPintura !== true)
 }
 
 /**

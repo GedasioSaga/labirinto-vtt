@@ -20,6 +20,46 @@ export interface Bounds {
 /** Folga somada ao retângulo de cada peça para o descarte por distância. */
 const CULL_MARGIN = 8
 
+type PontoDoCorredor = { x: number; y: number; width: number }
+
+/** Comprimento máximo de um trecho da curva amostrada, em px de mundo (6 px: a curva lê lisa a qualquer zoom). */
+const TRECHO_DA_CURVA = 6
+/** Teto de trechos por segmento: um segmento enorme não vira milhares de pontos. */
+const TRECHOS_MAXIMOS = 32
+const curvaDoCorredor = new WeakMap<object, PontoDoCorredor[]>()
+
+/**
+ * CURVA SUAVE (pedido CHÃO E CAMINHO de 12/11/2026): o corredor com
+ * `suave` passa por uma curva de Catmull-Rom pelos pontos da mão, amostrada
+ * numa polilinha densa — o resto do motor (distância, contorno, limite) não
+ * muda. Sem `suave`, os próprios pontos (as retas de sempre). Guardado pela
+ * referência da forma (a store é imutável).
+ */
+export function pontosDoCorredor(shape: Extract<FloorShape, { kind: 'corridor' }>): PontoDoCorredor[] {
+  if (shape.suave !== true || shape.points.length < 3) return shape.points
+  const guardada = curvaDoCorredor.get(shape)
+  if (guardada !== undefined) return guardada
+  const p = shape.points
+  const curva: PontoDoCorredor[] = [p[0]]
+  for (let i = 0; i + 1 < p.length; i += 1) {
+    const p0 = p[Math.max(0, i - 1)]
+    const p1 = p[i]
+    const p2 = p[i + 1]
+    const p3 = p[Math.min(p.length - 1, i + 2)]
+    const n = Math.min(TRECHOS_MAXIMOS, Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / TRECHO_DA_CURVA)))
+    for (let k = 1; k <= n; k += 1) {
+      const t = k / n
+      const t2 = t * t
+      const t3 = t2 * t
+      const x = 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3)
+      const y = 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+      curva.push({ x, y, width: p1.width + (p2.width - p1.width) * t })
+    }
+  }
+  curvaDoCorredor.set(shape, curva)
+  return curva
+}
+
 /** Centro de corredor/polígono livre por referência da forma: entra em toda amostra do campo. */
 const centroDosPontos = new WeakMap<object, { x: number; y: number }>()
 
@@ -28,7 +68,7 @@ export function shapeCenter(shape: FloorShape): { x: number; y: number } {
   if (shape.kind !== 'corridor' && shape.kind !== 'poly') return { x: shape.cx, y: shape.cy }
   let centro = centroDosPontos.get(shape)
   if (centro === undefined) {
-    const b = pointsBounds(shape.points)
+    const b = pointsBounds(shape.kind === 'corridor' ? pontosDoCorredor(shape) : shape.points)
     centro = { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }
     centroDosPontos.set(shape, centro)
   }
@@ -66,7 +106,7 @@ export function pieceBounds(piece: FloorPiece): Bounds {
     halfW = b ? (b.maxX - b.minX) / 2 : 0
     halfH = b ? (b.maxY - b.minY) / 2 : 0
   } else if (shape.kind === 'corridor' || shape.kind === 'poly') {
-    const b = pointsBounds(shape.points)
+    const b = pointsBounds(shape.kind === 'corridor' ? pontosDoCorredor(shape) : shape.points)
     halfW = (b.maxX - b.minX) / 2
     halfH = (b.maxY - b.minY) / 2
   } else if (shape.kind === 'rect') {
@@ -216,7 +256,7 @@ export function pieceDistance(piece: FloorPiece, x: number, y: number): number {
   } else if (shape.kind === 'blocos') {
     d = blocosDistance(shape, px + center.x, py + center.y) - rounding
   } else {
-    d = sdCorridor(px + center.x, py + center.y, shape.points) - rounding
+    d = sdCorridor(px + center.x, py + center.y, pontosDoCorredor(shape)) - rounding
   }
   const noise = modifiers.noise
   if (noise && noise.amplitude > 0 && noise.scale > 0) {
