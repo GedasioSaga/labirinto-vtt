@@ -4,9 +4,12 @@ import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { mapaDoPiso } from '../lib/pisos'
 import { larguraDoRio, pontosMinimos } from '../lib/agua/dados'
-import { aguaNoPonto, curvaGuardada, curvaPelosPontos, decimarTraco, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
+import { aguaNoPonto, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
 import { cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
+import { arrastarBolinha, bolinhasDaForma, meiosDasBolinhas, moverForma, pontoDoMeio, pontoNoMeio, tirarBolinha } from '../lib/agua/bolinhas'
+import { findNearestVertexHandleAt } from '../lib/handleHitArea'
 import { mapBoundsRect } from './drawMapBounds'
+import { CORNER_HANDLE_KEYLINE_COLOR, CORNER_HANDLE_KEYLINE_WIDTH, HANDLE_MIDPOINT_RADIUS, HANDLE_VISUAL_RADIUS, SELECTION_COLOR, STROKE_WEIGHT } from './constants'
 
 /**
  * ÁGUA no editor: os gestos da ferramenta (pedido de 12/11/2026, protótipo
@@ -17,6 +20,12 @@ import { mapBoundsRect } from './drawMapBounds'
  * Esc cancela). O ponto que passa da borda do mapa fica na borda. Um clique
  * (sem arrastar) escolhe a água de cima no ponto, ou solta a escolhida. Delete
  * apaga a escolhida e Esc a solta.
+ *
+ * Na água escolhida (lago, mar e rio), BOLINHAS no contorno (no rio, no
+ * traço): arrastar a bolinha muda a forma, arrastar o meio da linha cria uma
+ * bolinha e já a arrasta, Alt+clique tira, arrastar dentro da água move a água
+ * inteira (`lib/agua/bolinhas.ts`). Cada arrasto é UM passo do desfazer, e o
+ * mapa muda no máximo uma vez por quadro durante ele.
  *
  * O rascunho e o contorno da escolhida vão no `draftGraphics` do palco (fora
  * da imagem exportada), só com a ferramenta Água na mão.
@@ -66,6 +75,12 @@ type Gesto =
   | { tipo: 'canto' }
   /** O ponto a ponto sem traçado aberto, apertado numa água (ou com uma escolhida): o soltar escolhe ou solta. */
   | { tipo: 'escolher'; em: RegionPoint }
+  /** Uma bolinha da escolhida na mão (`base` = os pontos do começo do arrasto, já com a bolinha nova do meio). */
+  | { tipo: 'bolinha'; id: string; base: RegionPoint[]; antes: RegionPoint[]; marcadas: number[]; k: number; fechada: boolean; chave: string; mexeu: boolean }
+  /** A escolhida inteira na mão; sem mexer, o soltar é um clique (escolhe no ponto). */
+  | { tipo: 'mover'; id: string; base: RegionPoint[]; antes: RegionPoint[]; marcadas: number[]; de: RegionPoint; chave: string; mexeu: boolean }
+  /** O apertar já fez o que tinha de fazer (Alt+clique tirou a bolinha): o soltar não faz nada. */
+  | { tipo: 'feito' }
 
 function corEmNumero(hex: string): number {
   const v = Number.parseInt(hex.slice(1, 7), 16)
@@ -75,8 +90,43 @@ function corEmNumero(hex: string): number {
 /** O retângulo e o ponto a ponto nascem de linhas retas: a curva suave de 4 pontos viraria uma bolha. */
 const FORMA_RETA: Partial<Agua> = { reto: true }
 
+/**
+ * Os pontos que têm bolinha, pela identidade do objeto: o arrasto troca só os
+ * pontos que mexeu, e o desfazer devolve os objetos de antes, então as
+ * bolinhas não pulam de lugar depois de um arrasto nem de um Ctrl+Z.
+ */
+const comBolinha = new WeakSet<RegionPoint>()
+
+/** Quais pontos da água têm bolinha, na ordem do contorno. Só olhar não muda ponto nenhum. */
+function bolinhasDa(agua: Agua, grid: number): number[] {
+  const fechada = agua.tipo !== 'rio'
+  if (agua.reto === true) return agua.pontos.map((_, i) => i)
+  const marcadas: number[] = []
+  agua.pontos.forEach((p, i) => {
+    if (comBolinha.has(p)) marcadas.push(i)
+  })
+  const ultimo = agua.pontos.length - 1
+  if (marcadas.length >= (fechada ? 3 : 2) && (fechada || (marcadas[0] === 0 && marcadas[marcadas.length - 1] === ultimo))) return marcadas
+  const novas = bolinhasDaForma(agua.pontos, fechada, grid, false)
+  marcarBolinhas(agua.pontos, novas)
+  return novas
+}
+
+/** Lembra quais pontos da lista nova têm bolinha. */
+function marcarBolinhas(pontos: readonly RegionPoint[], marcadas: readonly number[]): void {
+  for (const i of marcadas) {
+    const p = pontos[i]
+    if (p !== undefined) comBolinha.add(p)
+  }
+}
+
 export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: string) => void }): GestoDaAgua {
   let gesto: Gesto = { tipo: 'nenhum' }
+  /** A forma que espera o próximo quadro para entrar no mapa (no máximo uma mudança por quadro). */
+  let pendente: { id: string; pontos: RegionPoint[]; chave: string } | null = null
+  let quadro: number | null = null
+  /** Cada arrasto tem a sua chave: é um passo só do desfazer, separado do arrasto seguinte. */
+  let arrastos = 0
   /** Os cantos do ponto a ponto em construção (fica entre um clique e outro). */
   let cantos: RegionPoint[] = []
   /** Onde o ponteiro estava por último: a prévia do ponto a ponto vai até ele. */
@@ -96,7 +146,114 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     const f = useFerramentaDaAgua.getState()
     return f.tipo === 'rio' ? 'mao' : f.forma
   }
-  const temRascunho = (): boolean => gesto.tipo !== 'nenhum' || cantos.length > 0
+  /** O rascunho é do gesto (traço, retângulo, cantos): o contorno da escolhida espera. A bolinha e o mover desenham a escolhida. */
+  const temRascunho = (): boolean => cantos.length > 0 || gesto.tipo === 'mao' || gesto.tipo === 'retangulo' || gesto.tipo === 'canto'
+
+  const escolhidaNoPiso = (): Agua | undefined => {
+    const id = useFerramentaDaAgua.getState().escolhida
+    return id === null ? undefined : aguasDoPiso().find((a) => a.id === id)
+  }
+
+  /** O pincel do painel vale para esta água? Sem ele (ou no rio), a água mostra as bolinhas. */
+  const comBolinhas = (agua: Agua): boolean => agua.tipo === 'rio' || useFerramentaDaAgua.getState().pincel === null
+
+  const nomeDoTipo = (agua: Agua): string => (agua.tipo === 'rio' ? 'O rio' : agua.tipo === 'mar' ? 'O mar' : 'O lago')
+
+  function descarregar(): void {
+    if (quadro !== null) {
+      cancelAnimationFrame(quadro)
+      quadro = null
+    }
+    const x = pendente
+    pendente = null
+    if (x !== null) useMapStore.getState().mudarAgua(x.id, { pontos: x.pontos }, x.chave)
+  }
+
+  /** A forma nova entra no mapa no próximo quadro (a de antes, ainda esperando, é trocada por esta). */
+  function mudarNoQuadro(id: string, pontos: RegionPoint[], chave: string): void {
+    pendente = { id, pontos, chave }
+    if (quadro === null)
+      quadro = requestAnimationFrame(() => {
+        quadro = null
+        descarregar()
+      })
+  }
+
+  function desenharBolinhas(agua: Agua): void {
+    const g = dep.rascunho
+    const s = escala()
+    const marcadas = bolinhasDa(agua, grid())
+    const fechada = agua.tipo !== 'rio'
+    const faixa = CORNER_HANDLE_KEYLINE_WIDTH / s
+    const raio = HANDLE_VISUAL_RADIUS / s
+    const raioDoMeio = HANDLE_MIDPOINT_RADIUS / s
+    const anel = STROKE_WEIGHT.thin / s
+    for (const p of meiosDasBolinhas(agua.pontos, marcadas, fechada, agua.reto === true)) {
+      g.circle(p.x, p.y, raioDoMeio + anel / 2 + faixa).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
+      g.circle(p.x, p.y, raioDoMeio).stroke({ width: anel, color: SELECTION_COLOR })
+    }
+    for (const i of marcadas) {
+      const p = agua.pontos[i]
+      g.circle(p.x, p.y, raio + faixa).fill({ color: CORNER_HANDLE_KEYLINE_COLOR })
+      g.circle(p.x, p.y, raio).fill({ color: SELECTION_COLOR })
+    }
+  }
+
+  /**
+   * Com a escolhida: a bolinha (Alt tira), o meio da linha (cria e arrasta) ou
+   * o miolo da água (move tudo). `false` = o apertar não foi em nada dela.
+   */
+  function comecarNaEscolhida(p: RegionPoint, alt: boolean): boolean {
+    const agua = escolhidaNoPiso()
+    if (agua === undefined || !comBolinhas(agua)) return false
+    const fechada = agua.tipo !== 'rio'
+    const reto = agua.reto === true
+    const marcadas = bolinhasDa(agua, grid())
+    arrastos += 1
+    const chave = `forma-${arrastos}`
+    const naBolinha = findNearestVertexHandleAt(
+      marcadas.map((i) => agua.pontos[i]),
+      p,
+      escala(),
+    )
+    if (naBolinha !== null) {
+      if (alt) {
+        const sem = tirarBolinha(agua.pontos, marcadas, naBolinha, fechada, pontosMinimos(agua.tipo))
+        if (sem === null) dep.avisar(`${nomeDoTipo(agua)} precisa de pelo menos ${pontosMinimos(agua.tipo)} bolinhas.`)
+        else {
+          marcarBolinhas(sem.pontos, sem.marcadas)
+          useMapStore.getState().mudarAgua(agua.id, { pontos: sem.pontos })
+        }
+        gesto = { tipo: 'feito' }
+        return true
+      }
+      gesto = { tipo: 'bolinha', id: agua.id, base: agua.pontos, antes: agua.pontos, marcadas, k: naBolinha, fechada, chave, mexeu: false }
+      return true
+    }
+    const naLinha = alt ? null : findNearestVertexHandleAt(meiosDasBolinhas(agua.pontos, marcadas, fechada, reto), p, escala())
+    if (naLinha !== null) {
+      const meio = pontoDoMeio(agua.pontos, marcadas, naLinha, fechada)
+      if (meio !== null) {
+        // Um ponto sem bolinha no meio do caminho: ele ganha a bolinha.
+        const novas = [...marcadas.slice(0, naLinha + 1), meio, ...marcadas.slice(naLinha + 1)]
+        gesto = { tipo: 'bolinha', id: agua.id, base: agua.pontos, antes: agua.pontos, marcadas: novas, k: naLinha + 1, fechada, chave, mexeu: false }
+      } else {
+        // As duas bolinhas são vizinhas na lista: um ponto novo entre elas (só entra no mapa se arrastar).
+        const depoisDe = marcadas[naLinha]
+        const novo = pontoNoMeio(agua.pontos, depoisDe, fechada, reto)
+        const base = [...agua.pontos.slice(0, depoisDe + 1), novo, ...agua.pontos.slice(depoisDe + 1)]
+        const deslocadas = marcadas.map((i) => (i > depoisDe ? i + 1 : i))
+        const novas = [...deslocadas.slice(0, naLinha + 1), depoisDe + 1, ...deslocadas.slice(naLinha + 1)]
+        gesto = { tipo: 'bolinha', id: agua.id, base, antes: agua.pontos, marcadas: novas, k: naLinha + 1, fechada, chave, mexeu: false }
+      }
+      return true
+    }
+    if (pontoNaAgua(agua, grid(), p.x, p.y)) {
+      gesto = { tipo: 'mover', id: agua.id, base: agua.pontos, antes: agua.pontos, marcadas, de: { x: p.x, y: p.y }, chave, mexeu: false }
+      return true
+    }
+    return false
+  }
 
   /** O contorno da água escolhida (com a ferramenta Água na mão e sem gesto). */
   function desenharEscolhida(): void {
@@ -116,6 +273,7 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       for (let i = 2; i + 1 < xy.length; i += 2) g.lineTo(xy[i], xy[i + 1])
     } else g.closePath()
     g.stroke({ width: Math.max(1.5, grid() * 0.04), color: COR_DA_ESCOLHIDA, alpha: 0.95, join: 'round' })
+    if (comBolinhas(agua)) desenharBolinhas(agua)
   }
 
   /** A área do rascunho (lago e mar): preenchida e contornada na cor do painel. */
@@ -244,16 +402,19 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
   // O contorno da escolhida segue o mapa, a escolha e a ferramenta.
   const soltarMapa = useMapStore.subscribe((s, antes) => {
     if (temRascunho()) return
-    if (s.map !== antes.map || s.pisoAtivo !== antes.pisoAtivo || s.activeTool !== antes.activeTool) {
+    // O zoom muda o tamanho das bolinhas no mundo (elas têm tamanho fixo na tela).
+    const zoom = s.camera.scale !== antes.camera.scale && s.activeTool === 'agua' && useFerramentaDaAgua.getState().escolhida !== null
+    if (zoom || s.map !== antes.map || s.pisoAtivo !== antes.pisoAtivo || s.activeTool !== antes.activeTool) {
       if (s.activeTool === 'agua' || antes.activeTool === 'agua') desenharEscolhida()
     }
   })
   const soltarEscolha = useFerramentaDaAgua.subscribe((s, antes) => {
-    if (!temRascunho() && s.escolhida !== antes.escolhida) desenharEscolhida()
+    if (!temRascunho() && (s.escolhida !== antes.escolhida || s.pincel !== antes.pincel)) desenharEscolhida()
   })
 
   return {
-    comecar(p) {
+    comecar(p, alt) {
+      if (cantos.length === 0 && comecarNaEscolhida(p, alt)) return
       const forma = formaDoTipo()
       if (forma === 'pontos') {
         if (cantos.length === 0) {
@@ -290,6 +451,18 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       } else if (gesto.tipo === 'canto') {
         cursor = { x: p.x, y: p.y }
         desenharCantos()
+      } else if (gesto.tipo === 'bolinha') {
+        gesto.mexeu = true
+        // A bolinha para na borda do mapa, como o ponto do traço novo.
+        const pontos = arrastarBolinha(gesto.base, gesto.marcadas, gesto.k, naBordaDoMapa(p, borda()), gesto.fechada)
+        marcarBolinhas(pontos, gesto.marcadas)
+        mudarNoQuadro(gesto.id, pontos, gesto.chave)
+      } else if (gesto.tipo === 'mover') {
+        if (!gesto.mexeu && Math.hypot(p.x - gesto.de.x, p.y - gesto.de.y) < grid() * CLIQUE_ATE) return
+        gesto.mexeu = true
+        const pontos = moverForma(gesto.base, p.x - gesto.de.x, p.y - gesto.de.y)
+        marcarBolinhas(pontos, gesto.marcadas)
+        mudarNoQuadro(gesto.id, pontos, gesto.chave)
       }
     },
     soltar(p) {
@@ -297,6 +470,17 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       gesto = { tipo: 'nenhum' }
       if (g.tipo === 'canto') {
         desenharCantos()
+        return
+      }
+      if (g.tipo === 'bolinha' || g.tipo === 'mover') {
+        descarregar()
+        // O mover sem mexer é um clique: escolhe a água de cima no ponto (pode ser outra).
+        if (g.tipo === 'mover' && !g.mexeu) escolherNoPonto(g.de)
+        desenharEscolhida()
+        return
+      }
+      if (g.tipo === 'feito') {
+        desenharEscolhida()
         return
       }
       if (g.tipo === 'mao') {
@@ -338,7 +522,14 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       else desenharEscolhida()
     },
     cancelar() {
-      if (!temRascunho()) return
+      const g = gesto
+      if (g.tipo === 'bolinha' || g.tipo === 'mover') {
+        // Esc no meio do arrasto: a forma volta à do começo, no mesmo passo do desfazer.
+        pendente = null
+        descarregar()
+        if (g.mexeu) useMapStore.getState().mudarAgua(g.id, { pontos: g.antes }, g.chave)
+      }
+      if (!temRascunho() && g.tipo === 'nenhum') return
       gesto = { tipo: 'nenhum' }
       cantos = []
       desenharEscolhida()
@@ -361,6 +552,9 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       return true
     },
     destruir() {
+      if (quadro !== null) cancelAnimationFrame(quadro)
+      quadro = null
+      pendente = null
       soltarMapa()
       soltarEscolha()
       gesto = { tipo: 'nenhum' }
