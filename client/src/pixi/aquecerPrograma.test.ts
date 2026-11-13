@@ -45,8 +45,7 @@ function placa(perguntasAteTerminar: number, liga: boolean) {
     deleteProgram: () => {},
     deleteShader: () => {},
   }
-  // Só o `gl` do renderer é usado aqui; o resto do Renderer do Pixi não entra no aquecimento.
-  const renderer = { gl } as unknown as Renderer
+  const renderer = { gl } as unknown as Renderer // placa de mentira: o aquecimento só lê `renderer.gl`, o resto do Renderer não entra
   return { renderer, lidas, programasCriados: () => programas }
 }
 
