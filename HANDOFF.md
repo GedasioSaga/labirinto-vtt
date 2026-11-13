@@ -16,14 +16,15 @@ Publicar UMA versão (0.5.61) com tudo o que o mestre pediu na caça de 12/11 ("
 - Servidor de desenvolvimento na porta 1610 (em segundo plano nesta sessão). Cópia de segurança dos dados do app (o mestre abriu pelo Tauri dev): `tmp/backup-appdata-20261112-1559`.
 - Protótipos aprovados: sombras (`docs/design/sombras/`, JÁ no app), chão e caminho (`docs/design/chao-e-caminho/`), água (`docs/design/agua/`). Construções: proposta em `tmp/novos-2026-11-12/construcoes/PROPOSTA.md` com as decisões do mestre no PEDIDOS.
 
-## Próximos passos
-1. DECISÃO 32 (nesta versão): na janela de teste, mover a ficha de verdade no mapa faz a janela mostrar a ficha onde o mestre a pôs (`client/src/net/visaoDeTeste/camadaDeTeste.ts`; nota em `tmp/caca-2026-11-12/testes/FX-NEVOA/NOTAS.md`). Um consertador quando abrir vaga.
-2. Esperar FX-EDITOR, FX-ROTA e E2E (PRONTO.txt nas pastas deles). O E2E faz commit dos e2e acertados; levar ao mestre o que ele listar de jornada com hash e golden.
-3. (20h25, decisão 33 do mestre) Com a máquina quieta: SÓ os 9 testes longos e 3 medidas (O1 tranco do mestre com 4 jogadores, O3 abrir Goa, sombras com o jogador andando); as outras 16 medidas depois da versão. Texto antigo deste passo: os 9 arquivos que estouraram o tempo, sozinhos (`rasterDosMoveis.sementesMt4/Mt5`, `hostSession.periodo.desempenho`, `carimbos/embutidos`, `PropertiesPanel.mobilia`, `hostBridge.ajudante`, `hostSession.visaoPorPeriodo`); se repetirem, timeout próprio no teste. Depois as medidas M01 a M19 do `PLANO-DE-TESTES.md` seção 1(f) (otimização e sombras: antes e depois).
-4. tsc e uma 3ª rodada da suíte inteira só se algum conserto mexer em código depois da 2ª.
-5. Auditoria só de leitura (verificador-realidade, Opus) contra os literais e as decisões 1 a 32 do `PEDIDOS.md` e contra as provas.
-6. Versão 0.5.61 por `scripts/publicar-versao.cjs`, de worktree limpo (disco de 15 GB ou mais e 3 GB de memória antes de compilar; junções antes de `git worktree remove`); conferir release, `latest.json`, bump na main, push.
-7. Depois da versão, os pedidos novos, cada um com um escritor Opus e prova: chão e caminho; construções; água; Ambiente (quando o mestre aprovar o protótipo).
+## Próximos passos (estado de 21h22)
+FEITO DESDE 19h43: FX-EDITOR, FX-TESTE (decisão 32), FX-ROTA; AUDITORIA (`tmp/caca-2026-11-12/auditoria/AUDITORIA.md`: "não publicar ainda"); decisões 33 a 36 do mestre; FX-SEG-A (`59914c11`: provas de sala secreta refeitas, parede de camada escondida e luz atrás de zona oculta consertadas), FX-SEG-B (`4adbfef8` imagem exportada pela silhueta, `7d82fcfe` mesa retomada com prova F20), FX-FICHA (`892b43ca` 14 testes e prova na tela do tamanho da ficha; `d27460a7` foco do "Aplicar"; `f061d5b2` teste vazio). Os 4 protótipos novos (chão e caminho, construções por decisão, água, Ambiente) APROVADOS.
+EM VOO: FX-PNG (desenho que só atravessa sala secreta sai inteiro na imagem exportada; decisão do Claude pela coerência com a 21) e o E2E (rodou os 54 às 21h16, mas vários ficaram "INVÁLIDO, código mudou no meio" por causa dos consertos; precisa rodar de novo os inválidos com o código parado).
+1. Quando o FX-PNG terminar: código parado. O E2E roda de novo os inválidos e faz o commit dos e2e acertados; depois um agente confere o `tmp/caca-2026-11-12/testes/E2E/seladas.patch` (43 jornadas seladas: só texto e clique que o mestre mandou mudar) e renova o selo (decisão 34).
+2. Decisão 33, com a máquina quieta: os 9 testes longos sozinhos e as 3 medidas (O1 tranco do mestre com 4 jogadores, O3 abrir Goa, sombras com o jogador andando).
+3. tsc e a suíte inteira uma 3ª vez (houve código novo depois da 2ª).
+4. Auditoria de volta (o mesmo auditor ou outro), só nos pontos que ele pediu, antes de publicar.
+5. Versão 0.5.61 por `scripts/publicar-versao.cjs`, de worktree limpo (disco de 15 GB ou mais e 3 GB de memória; junções antes de remover o worktree); conferir release, `latest.json`, bump na main, push.
+6. Depois: chão e caminho; construções; água; Ambiente (um escritor Opus por pedido, com prova).
 
 ## Critério de pronto (da versão)
 - Toda decisão 1 a 32 com commit, ou marcada "para depois" com o motivo no PEDIDOS.
