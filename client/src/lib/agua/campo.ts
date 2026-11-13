@@ -84,6 +84,8 @@ export interface CampoComposto extends CaixaEmTexels {
   f1: Float32Array
   f2: Uint8Array
   f3: Uint8Array
+  /** O chão por cima da água (vermelho: cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). */
+  f4: Uint8Array
 }
 
 const grampo = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v)
@@ -362,6 +364,7 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
   const f1 = new Float32Array(n * 4)
   const f2 = new Uint8Array(n * 4)
   const f3 = new Uint8Array(n * 4)
+  const f4 = new Uint8Array(n * 4)
   const presentes = lista.filter(({ campo: k }) => k.w > 0 && k.h > 0 && k.x0 < r.x0 + r.w && k.x0 + k.w > r.x0 && k.y0 < r.y0 + r.h && k.y0 + k.h > r.y0)
   for (let y = r.y0; y < r.y0 + r.h; y += 1) {
     for (let x = r.x0; x < r.x0 + r.w; x += 1) {
@@ -409,5 +412,88 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       f3[p + 2] = Math.round(255 * (pa.espuma + (pb.espuma - pa.espuma) * pr))
     }
   }
-  return { ...r, texel, f1, f2, f3 }
+  return { ...r, texel, f1, f2, f3, f4 }
+}
+
+/** Sublinhas por texel na cobertura do buraco (na horizontal a conta é exata). */
+const SUBLINHAS_DO_BURACO = 4
+
+/**
+ * O BURACO da água (MAR MAIS FÁCIL, 13/11/2026): o chão das salas e do Chão Liso
+ * fica por cima da água. Quanto de cada texel da caixa o chão cobre (0 a 255,
+ * `null` = nada), que vai no vermelho de `f4`; o shader lê a cobertura como distância (meio = a borda)
+ * e corta fino em qualquer zoom. Cada forma são anéis em u (par ou ímpar entre
+ * eles); formas que se sobrepõem somam (até cobrir tudo).
+ */
+export function buracoDoCampo(r: CaixaEmTexels, texel: number, formas: readonly (readonly (readonly number[])[])[]): Uint8Array | null {
+  const n = Math.max(0, r.w * r.h)
+  if (n === 0 || formas.length === 0) return null
+  const cob = new Float32Array(n)
+  const cortes: number[] = []
+  for (const aneis of formas) {
+    let y0 = Infinity
+    let y1 = -Infinity
+    for (const a of aneis) {
+      for (let i = 1; i < a.length; i += 2) {
+        y0 = Math.min(y0, a[i])
+        y1 = Math.max(y1, a[i])
+      }
+    }
+    const ty0 = Math.max(0, Math.floor(y0 / texel) - r.y0)
+    const ty1 = Math.min(r.h - 1, Math.floor(y1 / texel) - r.y0)
+    if (!(ty1 >= ty0)) continue
+    // Os segmentos de cada linha de texels: a sublinha só olha os que passam por ela.
+    const porLinha: number[][] = Array.from({ length: ty1 - ty0 + 1 }, () => [])
+    for (const a of aneis) {
+      const m = a.length / 2
+      for (let i = 0; i < m; i += 1) {
+        const j = (i + 1) % m
+        const ay = a[i * 2 + 1]
+        const by = a[j * 2 + 1]
+        const l0 = Math.max(ty0, Math.floor(Math.min(ay, by) / texel) - r.y0)
+        const l1 = Math.min(ty1, Math.floor(Math.max(ay, by) / texel) - r.y0)
+        for (let l = l0; l <= l1; l += 1) porLinha[l - ty0].push(a[i * 2], ay, a[j * 2], by)
+      }
+    }
+    for (let ty = ty0; ty <= ty1; ty += 1) {
+      const segs = porLinha[ty - ty0]
+      if (segs.length < 8) continue
+      const base = ty * r.w
+      for (let sub = 0; sub < SUBLINHAS_DO_BURACO; sub += 1) {
+        const py = (r.y0 + ty + (sub + 0.5) / SUBLINHAS_DO_BURACO) * texel
+        cortes.length = 0
+        for (let i = 0; i + 3 < segs.length; i += 4) {
+          const ay = segs[i + 1]
+          const by = segs[i + 3]
+          if (ay > py !== by > py) cortes.push(segs[i] + ((py - ay) * (segs[i + 2] - segs[i])) / (by - ay))
+        }
+        if (cortes.length < 2) continue
+        cortes.sort((a, b) => a - b)
+        for (let c = 0; c + 1 < cortes.length; c += 2) {
+          const fa = Math.max(0, cortes[c] / texel - r.x0)
+          const fb = Math.min(r.w, cortes[c + 1] / texel - r.x0)
+          if (fb <= fa) continue
+          const ultima = Math.min(r.w - 1, Math.ceil(fb) - 1)
+          for (let col = Math.floor(fa); col <= ultima; col += 1) {
+            const cobre = Math.min(col + 1, fb) - Math.max(col, fa)
+            if (cobre > 0) cob[base + col] += cobre / SUBLINHAS_DO_BURACO
+          }
+        }
+      }
+    }
+  }
+  const saida = new Uint8Array(n)
+  let algum = false
+  for (let k = 0; k < n; k += 1) {
+    if (cob[k] <= 0) continue
+    saida[k] = Math.round(255 * Math.min(1, cob[k]))
+    algum = true
+  }
+  return algum ? saida : null
+}
+
+/** O buraco (`buracoDoCampo`) no vermelho do `f4` do campo composto. */
+export function porOBuraco(f4: Uint8Array, buraco: Uint8Array | null): void {
+  if (buraco === null) return
+  for (let k = 0; k < buraco.length; k += 1) f4[k * 4] = buraco[k]
 }

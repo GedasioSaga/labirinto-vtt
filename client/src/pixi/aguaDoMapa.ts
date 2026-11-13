@@ -1,8 +1,8 @@
 import { BufferImageSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type TextureSource, type Ticker } from 'pixi.js'
 import type { Agua, Periodo } from '../types/map'
 import type { Caixa } from '../lib/texturas'
-import { CASA_U, FORA, campoDoCorpo, comporCampo, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from '../lib/agua/campo'
-import { chaveDoCorpo, corpoDaAgua, texelDasAguas } from '../lib/agua/corpos'
+import { CASA_U, FORA, buracoDoCampo, campoDoCorpo, comporCampo, porOBuraco, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo } from '../lib/agua/campo'
+import { chaveDoCorpo, corpoDaAgua, formasDoBuraco, texelDasAguas } from '../lib/agua/corpos'
 import type { EntornoDaAgua } from '../lib/agua/entorno'
 import { aquecerPrograma, programaPronto } from './aquecerPrograma'
 
@@ -60,6 +60,8 @@ in vec2 vPos;
 uniform sampler2D uF1;
 uniform sampler2D uF2;
 uniform sampler2D uF3;
+// O chão das salas e do Chão Liso por cima da água (vermelho = cobertura).
+uniform sampler2D uF4;
 uniform sampler2D uRuido;
 // u por px de mundo, tempo (s), noite (0 ou 1), u por texel do campo.
 uniform vec4 uAgua;
@@ -206,6 +208,10 @@ void main() {
   float cobre = smoothstep(-aa, aa, de) * mix(0.62, 1.0, smoothstep(0.0, 7.0, de));
   acc = sobre(acc, agua, cobre);
   acc = sobre(acc, corDaEspuma, clamp(rendaMar, 0.0, 1.0) * 0.9);
+  // O chão das salas e do Chão Liso por cima: a cobertura lida como distância (meio = a borda), fina em qualquer zoom.
+  float cob = texture(uF4, uv).r;
+  float aaDoChao = max(fwidth(cob), 0.001) * 0.7;
+  acc *= 1.0 - smoothstep(0.5 - aaDoChao, 0.5 + aaDoChao, cob);
   if (acc.a <= 0.002) discard;
   finalColor = acc;
 }
@@ -364,6 +370,10 @@ export function criarAguaDoMapa(dep: {
   /** A lista do último campo pedido: o recorte do jogador chega novo a cada passo, quase sempre igual. */
   let assinaturaPedida = ''
   let destruido = false
+  /** O que foi para a placa da última vez (corpos, cores, mapa e buraco): igual, nada a juntar nem a subir. */
+  let compostoAplicado = ''
+  /** O buraco do último campo: a mesma caixa com as mesmas formas reaproveita a conta. */
+  let buracoFeito: { chave: string; buraco: Uint8Array | null } | null = null
   /** Campo de cada água já feito: chave do corpo + texel. */
   const feitos = new Map<string, { chave: string; texel: number; campo: CampoDoCorpo }>()
 
@@ -389,7 +399,7 @@ export function criarAguaDoMapa(dep: {
       uCampo: { value: campoU, type: 'vec4<f32>' },
     })
     const vazio = fontes[0] ?? ruido
-    const shader = new Shader({ glProgram: programaDaAgua(), resources: { uRuido: ruido, uF1: fontes[0] ?? vazio, uF2: fontes[1] ?? vazio, uF3: fontes[2] ?? vazio, agua: ajustes } })
+    const shader = new Shader({ glProgram: programaDaAgua(), resources: { uRuido: ruido, uF1: fontes[0] ?? vazio, uF2: fontes[1] ?? vazio, uF3: fontes[2] ?? vazio, uF4: fontes[3] ?? vazio, agua: ajustes } })
     const geometria = new Geometry({
       attributes: { aPosition: { buffer: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), format: 'float32x2' } },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]),
@@ -463,6 +473,7 @@ export function criarAguaDoMapa(dep: {
       new BufferImageSource({ resource: c.f1, width: c.w, height: c.h, format: 'rgba32float', scaleMode: linear ? 'linear' : 'nearest', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' }),
       new BufferImageSource({ resource: c.f2, width: c.w, height: c.h, format: 'rgba8unorm', scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' }),
       new BufferImageSource({ resource: c.f3, width: c.w, height: c.h, format: 'rgba8unorm', scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' }),
+      new BufferImageSource({ resource: c.f4, width: c.w, height: c.h, format: 'rgba8unorm', scaleMode: 'linear', addressMode: 'clamp-to-edge', alphaMode: 'no-premultiply-alpha' }),
     ]
     for (const copia of copias) {
       const recursos = copia.mesh.shader?.resources
@@ -470,6 +481,7 @@ export function criarAguaDoMapa(dep: {
       recursos.uF1 = fontes[0]
       recursos.uF2 = fontes[1]
       recursos.uF3 = fontes[2]
+      recursos.uF4 = fontes[3]
     }
     for (const f of velhas) f.destroy()
   }
@@ -527,6 +539,7 @@ export function criarAguaDoMapa(dep: {
     const mapa = entrada.entorno?.mapa ?? null
     if (corpos.length === 0) {
       feitos.clear()
+      compostoAplicado = ''
       aplicar(null, entrada.grid)
       return
     }
@@ -540,9 +553,10 @@ export function criarAguaDoMapa(dep: {
     })
     const t0 = performance.now()
     const vale = (): boolean => minha === geracao && !destruido
-    const subir = (composto: CampoComposto | null): void => {
+    const subir = (composto: CampoComposto | null, chaveDoComposto: string): void => {
       void compilou.then(() => {
         if (!vale()) return
+        compostoAplicado = chaveDoComposto
         aplicar(composto, entrada.grid, mapa)
         medidas.campos += 1
         medidas.ultimoCampoMs = performance.now() - t0
@@ -558,8 +572,22 @@ export function criarAguaDoMapa(dep: {
         lista.push({ corpo, campo: feito.campo })
         caixa = unirCaixas(caixa, feito.campo)
       }
+      // O chão por cima (salas e Chão Liso) que toca a caixa: o buraco só é refeito quando ele muda.
+      const formas = caixa === null ? [] : formasDoBuraco({ ...caixa, texel }, entrada.entorno, entrada.grid)
+      const chaveDoBuraco = caixa === null ? '' : `${caixa.x0},${caixa.y0},${caixa.w},${caixa.h},${texel}|${JSON.stringify(formas)}`
+      const chaveDoComposto = JSON.stringify([texel, mapa, corpos.map(({ chave, corpo }) => [chave, corpo.cor, corpo.velocidade, corpo.ondas, corpo.espuma]), chaveDoBuraco])
+      // Nada mudou no que está na placa (uma sala mexida longe da água, o mesmo recorte de novo).
+      if (campo !== null && chaveDoComposto === compostoAplicado) return
       const composto = caixa === null ? null : comporCampo(lista, caixa, texel)
-      setTimeout(() => subir(composto), 0)
+      setTimeout(() => furar(composto, formas, chaveDoBuraco, chaveDoComposto), 0)
+    }
+    const furar = (composto: CampoComposto | null, formas: number[][][], chaveDoBuraco: string, chaveDoComposto: string): void => {
+      if (!vale()) return
+      if (composto !== null && formas.length > 0) {
+        if (buracoFeito === null || buracoFeito.chave !== chaveDoBuraco) buracoFeito = { chave: chaveDoBuraco, buraco: buracoDoCampo(composto, texel, formas) }
+        porOBuraco(composto.f4, buracoFeito.buraco)
+      }
+      setTimeout(() => subir(composto, chaveDoComposto), 0)
     }
     let ruidoFeito = ruido !== null
     const proximo = (): void => {
