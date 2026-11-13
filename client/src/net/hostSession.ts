@@ -68,6 +68,7 @@ import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
+import { ehConstrucao } from '../lib/mobilia/construcoes'
 import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveOptions, type TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
@@ -3320,7 +3321,16 @@ function samePlan(a: PlanMemory, b: PlanMemory): boolean {
     if (left.size !== right.size) return false
     for (const [id, item] of left) if (right.get(id) !== item) return false
     return true
-  })
+  }) && sameConstrucoes(a.construcoes, b.construcoes)
+}
+
+/** CONSTRUÇÕES lembradas (12/11/2026, campo opcional da planta): ausente conta como vazio. */
+function sameConstrucoes(a: PlanMemory['construcoes'], b: PlanMemory['construcoes']): boolean {
+  const left = a ?? new Map()
+  const right = b ?? new Map()
+  if (left.size !== right.size) return false
+  for (const [id, item] of left) if (right.get(id) !== item) return false
+  return true
 }
 
 /**
@@ -3384,6 +3394,8 @@ function planOfSent(map: MapData, sent: MapData): PlanMemory {
     lines: keep(map.lines, sent.lines),
     stairs: keep(map.stairs, sent.stairs),
     pins: keep(map.pins ?? [], sent.pins ?? []),
+    // CONSTRUÇÕES (12/11/2026): a que saiu no recorte fica lembrada, como o telhado.
+    construcoes: keep(map.props.filter((p) => ehConstrucao(p.mobilia)), sent.props),
   }
 }
 
