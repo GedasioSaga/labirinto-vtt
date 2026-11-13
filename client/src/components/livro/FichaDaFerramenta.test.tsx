@@ -111,8 +111,10 @@ describe('FichaDaFerramenta — as variantes', () => {
     const comBlocos = preferencias({ floorShapeKind: 'blocos' }, 'floor')
     act(() => root.render(<FichaDaFerramenta ferramenta="floor" variantes={comBlocos.bindings} />))
     expect(grupo('Tamanho do pincel')).not.toBeNull()
-    act(() => radios('Tinta').find((r) => r.textContent === 'Mar')?.click())
-    expect(comBlocos.espiao).toHaveBeenCalledWith('floorCamada', 'mar')
+    // ÁGUA (12/11/2026, decisão do mestre, `e11dbed4`): a tinta Mar saiu da lista (a água é a ferramenta Água).
+    expect(radios('Tinta').map((r) => r.textContent)).not.toContain('Mar')
+    act(() => radios('Tinta').find((r) => r.textContent === 'Lava')?.click())
+    expect(comBlocos.espiao).toHaveBeenCalledWith('floorCamada', 'lava')
   })
 
   it('sem as preferências (quem não passa a store), só os controles de sempre', () => {

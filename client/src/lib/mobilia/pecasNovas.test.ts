@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { aceitaVista, criarMovel, ehMovelRedondo, ehTipoMobilia, movelComOutraVista, NOME_COM_ARTIGO, ROTULO_MOBILIA, TIPOS_MOBILIA, tracosDoGlifo } from '../mobilia'
 import { TIPOS_COM_TEXTURA } from '../../texturas/meioTermo/moveis'
 import { acharObjetos, GRUPOS_DE_OBJETO, grupoDoObjeto } from './gruposDoObjeto'
-import { ehPecaNova, PECAS_NOVAS, TIPOS_NO_CATALOGO, varianteDaLapide } from './pecasNovas'
+import { ehPecaNova, PECAS_NOVAS, TIPOS_DA_CONSTRUCAO, TIPOS_DO_OBJETO, TIPOS_NO_CATALOGO, varianteDaLapide } from './pecasNovas'
+import type { TipoMobilia } from './tipos'
 
 /**
  * Registro das PEÇAS NOVAS do lote 1 (MT4): tamanho padrão em casas (o do
@@ -496,13 +497,19 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     ])
   })
 
-  it('a busca da ficha acha os objetos dos quatro grupos novos de 11/11/2026 pelo título do grupo: "navio" traz o canhão e o lote 12, "templo", o pilar, o altar, a armadura do lote 15 e os dos lotes 13 e 16, "tortura", o lote 14, e "alquimia", os três últimos do lote 13', () => {
-    const itens = TIPOS_NO_CATALOGO.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
+  it('a busca da ficha acha os objetos dos quatro grupos novos de 11/11/2026 pelo título do grupo: "navio" traz o canhão e o lote 12, "templo", o altar, a armadura do lote 15 e os dos lotes 13 e 16, "tortura", o lote 14, e "alquimia", os três últimos do lote 13', () => {
+    // CONSTRUÇÕES (12/11/2026, `14fef595`): a ficha do Objeto busca no catálogo DELE (`TIPOS_DO_OBJETO`, sem as
+    // 19 construções). O pilar e os três blocos de inscrições moram em "Monumentos e colunas", na Construção.
+    const itens = TIPOS_DO_OBJETO.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
     expect(acharObjetos(itens, 'navio').map((item) => item.tipo)).toEqual(['canhao', 'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe'])
     expect(acharObjetos(itens, 'templo').map((item) => item.tipo)).toEqual([
-      'pilar', 'altar', 'armadura',
-      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+      'altar', 'armadura',
+      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe',
+    ])
+    const monumentos: TipoMobilia[] = ['pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado']
+    expect(monumentos.map((tipo) => GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo)).toEqual([
+      'Monumentos e colunas', 'Monumentos e colunas', 'Monumentos e colunas', 'Monumentos e colunas',
     ])
     // Por "tortura": o potro e a mesa de instrumentos pelo nome, os outros cinco pelo título do grupo.
     expect(acharObjetos(itens, 'tortura').map((item) => item.tipo)).toEqual([
@@ -511,11 +518,17 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     ])
     expect(acharObjetos(itens, 'alquimia').map((item) => item.tipo)).toEqual(['estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro'])
     // Os grupos novos entram antes de "Outros", que continua no fim; o Tesouro (12/11/2026) logo depois da Magia.
-    expect(GRUPOS_DE_OBJETO.slice(-6).map((g) => g.titulo)).toEqual(['Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Outros'])
+    // E os 4 grupos da Construção (12/11/2026, `construcoes.ts`) depois do Tesouro, ainda antes de "Outros".
+    expect(GRUPOS_DE_OBJETO.slice(-10).map((g) => g.titulo)).toEqual([
+      'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro',
+      'Torres e prédios', 'Praça, rua e campo', 'Monumentos e colunas', 'Abrigos e passagens', 'Outros',
+    ])
   })
 
   it('a busca da ficha acha o lote 17 (12/11/2026): "tesouro" traz as oito peças do grupo novo pelo título, "ouro", as quatro de ouro pelo nome e as pedras pelo grupo, e "torre" e "tocha", as duas de cada', () => {
-    const itens = TIPOS_NO_CATALOGO.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
+    const dasFichas = (tipos: readonly TipoMobilia[]) =>
+      tipos.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
+    const itens = dasFichas(TIPOS_NO_CATALOGO)
     expect(acharObjetos(itens, 'tesouro').map((item) => item.tipo)).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
     ])
@@ -523,7 +536,13 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     expect(acharObjetos(itens, 'ouro').map((item) => item.tipo)).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
     ])
-    expect(acharObjetos(itens, 'torre').map((item) => item.tipo)).toEqual(['torreDePedra', 'torreDeVigia'])
+    // CONSTRUÇÕES (12/11/2026): as duas torres são construções. A ficha do Objeto não as tem; a da Construção acha as
+    // duas pelo nome e, depois, o resto de "Torres e prédios" pelo título do grupo (como "templo" acha o grupo dele).
+    expect(acharObjetos(dasFichas(TIPOS_DO_OBJETO), 'torre')).toEqual([])
+    expect(acharObjetos(dasFichas(TIPOS_DA_CONSTRUCAO), 'torre').map((item) => item.tipo)).toEqual([
+      'torreDePedra', 'torreDeVigia',
+      'barraca', 'moinho', 'mausoleu', 'galinheiro',
+    ])
     expect(acharObjetos(itens, 'tocha').map((item) => item.tipo)).toEqual(['tochaDeParede', 'tochaDePe'])
     expect(acharObjetos(itens, 'joia').map((item) => item.tipo)).toEqual(['joia', 'monteDeJoias'])
     expect(acharObjetos(itens, 'diamante').map((item) => item.tipo)).toEqual(['diamante', 'monteDeDiamantes'])

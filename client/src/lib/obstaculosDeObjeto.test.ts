@@ -230,9 +230,11 @@ describe('o botão "Barra a passagem" (`Prop.barraPassagem`)', () => {
   it('o jogador recebe o campo junto do objeto que ele vê, e a tela dele planeja com ele', () => {
     const map = cena({ props: [{ ...MOINHO, barraPassagem: false }, { ...MESA, id: 'mesa', x: 480, y: 700, barraPassagem: true }] })
     const { map: recorte } = filterMapForPlayer(map, 'p1', POSSE, 700)
+    // CONSTRUÇÕES (12/11/2026, `dff4162e`): o moinho é construção e sai pela regra dela (inteiro e lembrado, como o
+    // telhado), DEPOIS dos outros objetos do recorte; a tela do jogador o desenha na faixa própria, acima da névoa.
     expect(recorte.props.map((p) => [p.id, p.barraPassagem])).toEqual([
-      ['moinho', false],
       ['mesa', true],
+      ['moinho', false],
     ])
     // O moinho solto: o clique passa reto por ele. A mesa que barra: o clique nela avisa.
     const heroi = recorte.tokens.find((t) => t.id === 'heroi') ?? HEROI

@@ -28,12 +28,15 @@ describe('botão Desenho e posições da barra', () => {
     expect(DRAWING_SHAPE_GROUP.options.map((o) => o.value)).toEqual(TOOL_CLUSTERS.drawing.tools)
   })
 
-  it('TOOLBAR_SLOTS cobre cada ferramenta visível exatamente 1 vez (token escondido fica fora)', () => {
+  it('TOOLBAR_SLOTS cobre cada ferramenta visível exatamente 1 vez (token escondido e Caminho fora da barra)', () => {
     const inBar = TOOLBAR_SLOTS.flat().flatMap(toolsOfSlot)
     expect(new Set(inBar).size).toBe(inBar.length)
-    const visible = (Object.keys(TOOL_LABELS) as DrawingTool[]).filter((tool) => tool !== 'token')
+    // CHÃO E CAMINHO (12/11/2026, decisão do mestre): a ferramenta Caminho saiu da barra (o Chão traça o caminho);
+    // o rótulo fica para o caminho antigo selecionado.
+    const visible = (Object.keys(TOOL_LABELS) as DrawingTool[]).filter((tool) => tool !== 'token' && tool !== 'path')
     expect([...inBar].sort()).toEqual([...visible].sort())
     expect(inBar).not.toContain('token')
+    expect(inBar).not.toContain('path')
   })
 })
 

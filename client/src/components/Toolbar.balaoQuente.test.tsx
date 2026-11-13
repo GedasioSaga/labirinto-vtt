@@ -118,10 +118,11 @@ describe('Toolbar — balão com atalho', () => {
   })
 
   it('ferramenta sem letra não promete tecla', () => {
+    // O Caminho (sem letra) saiu da barra em 12/11/2026; a Construção nasceu sem letra, ao lado do Objeto.
     montar()
-    mover(null, icone('Caminho'))
+    mover(null, icone('Construção'))
     esperar(ESPERA_DO_BALAO_MS)
-    expect(parte('span')).toBe('Caminho')
+    expect(parte('span')).toBe('Construção')
     expect(balao()?.querySelector('kbd')).toBeNull()
   })
 

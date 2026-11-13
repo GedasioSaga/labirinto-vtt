@@ -114,8 +114,10 @@ describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
     const nomes = grupos.map((g) => Array.from(g.querySelectorAll('.lb-ferr')).map((b) => b.getAttribute('aria-label')))
     expect(nomes).toEqual([
       ['Selecionar'],
-      ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Caminho', 'Objeto', 'Luz'],
-      ['Penhasco', 'Barranco', 'Texturas', 'Carimbos', 'Neblina'],
+      // 12/11/2026 (decisões do mestre): o Caminho saiu da barra (o Chão traça o caminho), a Construção
+      // tem botão próprio colado no Objeto, a Água entra depois das Texturas e a Neblina virou Ambiente.
+      ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Objeto', 'Construção', 'Luz'],
+      ['Penhasco', 'Barranco', 'Texturas', 'Água', 'Carimbos', 'Ambiente'],
       ['Zona oculta', 'Pincel de revelar'],
       ['Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'],
     ])
@@ -227,8 +229,10 @@ describe('Toolbar — dica de ferramenta sem atalho', () => {
   // "Sala: Sala livre ()": o parêntese vazio sugeria um atalho que não existe.
   it.each<[DrawingTool, string]>([
     ['roomFree', 'Sala'],
-    ['path', 'Caminho'],
+    // O Caminho saiu da barra em 12/11/2026; a Construção e a Água nasceram sem letra.
     ['mobilia', 'Objeto'],
+    ['construcao', 'Construção'],
+    ['agua', 'Água'],
   ])('%s: o balão não promete tecla', (tool, nomeDoBotao) => {
     render(tool, 'brush')
     const lido = balaoDe(botao(nomeDoBotao))
@@ -286,13 +290,15 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 176 objetos nas 15 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 157 objetos nas 15 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
     expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
     const radios = radiosDoObjeto()
     // As mesmas partes da ficha da ferramenta (10/11/2026): a casa em Sala e quarto, Cozinha e banheiro e Armazenagem.
+    // CONSTRUÇÕES (12/11/2026, decisão do mestre): as 19 construções (torres, moinho, mausoléu, poço, chafariz,
+    // estátua, tendas...) saíram do Objeto para a ferramenta Construção (`lib/mobilia/construcoes.ts`): 176 - 19 = 157.
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
       'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Cama', 'Aparador', 'Tapete', 'Tapete longo', 'Lareira', 'Estante de livros', 'Guarda-roupa',
       'Escrivaninha', 'Criado-mudo com vela', 'Cama de casal', 'Berço', 'Banqueta', 'Biombo', 'Piano', 'Candelabro de chão',
@@ -300,17 +306,16 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Banheira', 'Tina de madeira', 'Lavatório com jarro', 'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Arco do portão', 'Placa de seta', 'Poço', 'Chafariz', 'Lampião', 'Fogueira', 'Fogo', 'Ponte', 'Banco de praça', 'Estátua', 'Pedras e rochas', 'Antena parabólica',
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
-      'Tenda', 'Torre de pedra', 'Torre de vigia',
-      'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Mausoléu',
-      'Cruz de madeira', 'Anjo de pedra', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
-      'Barraca de feira', 'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
-      'Balança de mercador', 'Tenda de adivinha', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
+      'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
+      'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
+      'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
+      'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas',
       'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra',
-      'Troncos', 'Feno', 'Cata-vento de fazenda', 'Moinho de vento', 'Espantalho', 'Cocho',
-      'Galinheiro', 'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
+      'Troncos', 'Feno', 'Espantalho', 'Cocho',
+      'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
       'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada', 'Crânio',
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
@@ -319,8 +324,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       // altar, a armadura do lote 15 e os dos lotes 13 e 16), Sala de tortura (o lote 14) e Magia e alquimia (os
       // três últimos do lote 13). E o Tesouro (12/11/2026), com os oito do lote 17 que não foram para um grupo antigo.
       'Canhão', 'Âncora', 'Cordas enroladas', 'Timão', 'Bote', 'Rede de pesca', 'Píer', 'Caixote de peixe',
-      'Pilar', 'Altar', 'Armadura',
-      'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico', 'Bloco de inscrições azul', 'Bloco de inscrições vermelho', 'Bloco de inscrições dourado',
+      'Altar', 'Armadura',
+      'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico',
       'Teia de aranha', 'Tocha de parede', 'Tocha de pé',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
@@ -328,7 +333,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(176)
+    expect(new Set(desenhos).size).toBe(157)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

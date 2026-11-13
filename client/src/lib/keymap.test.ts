@@ -61,9 +61,12 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // Penhasco, Texturas e Carimbos, da família de Shift+letra (testes próprios abaixo).
     // E o NONO, Barranco (28/10/2026), também sem letra: os dígitos são os sons.
     // E o DÉCIMO, Neblina (06/11/2026), sem letra por enquanto: a barra a alcança no grupo Terreno.
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 10)
+    // E o 11º e o 12º (12/11/2026): Construção, ao lado do Objeto, e Água, no Terreno; nenhuma letra livre.
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 12)
     expect(TOOL_SHORTCUTS.barranco).toBe('')
     expect(TOOL_SHORTCUTS.neblina).toBe('')
+    expect(TOOL_SHORTCUTS.construcao).toBe('')
+    expect(TOOL_SHORTCUTS.agua).toBe('')
     expect(TOOL_SHORTCUTS.penhasco).toBe('Shift+C')
     expect(TOOL_SHORTCUTS.texturas).toBe('Shift+T')
     expect(TOOL_SHORTCUTS.carimbos).toBe('Shift+A')

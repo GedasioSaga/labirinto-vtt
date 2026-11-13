@@ -25,6 +25,8 @@ const ALL_TOOLS: DrawingTool[] = [
   'select', 'wall', 'door', 'light', 'region', 'room', 'roomCircle', 'roomPolygon', 'roomFree',
   'stair', 'token', 'prop', 'brush', 'line', 'circle', 'ellipse', 'rect', 'polygon',
   'curve', 'text', 'measure', 'eraser', 'floor', 'mobilia',
+  // Construção (12/11/2026): ferramenta própria, com o catálogo das 19 construções.
+  'construcao',
 ]
 
 describe('TOOL_VARIANTS', () => {
@@ -78,6 +80,8 @@ describe('TOOL_VARIANTS', () => {
       'stairSizePreset', 'drawTexture', 'brushMode', 'eraseMode',
       'floorShapeKind', 'floorOp', 'floorPolygonSides', 'floorBrushSize', 'floorCamada',
       'roomFreeKind', 'roomFreeRounded', 'mobiliaTipo', 'wallFeitio', 'wallAcabamento', 'wallMaterial',
+      // Construção (12/11/2026): eixo próprio, separado do Objeto.
+      'construcaoTipo',
     ]
     for (const entry of readyToolVariants()) {
       for (const group of entry.groups) {
@@ -216,57 +220,61 @@ describe('TOOL_VARIANTS', () => {
     const [grupo] = entry.groups
     expect(grupo.storeKey).toBe('mobiliaTipo')
     expect(grupo.label).toBe('Objeto')
+    // CONSTRUÇÕES (12/11/2026, decisão do mestre, `14fef595`): as 19 construções (poço, chafariz, barraca, arco do
+    // portão, cata-vento, moinho, pilar, estátua, mausoléu, antena, anjo de pedra, tenda de adivinha, galinheiro, os
+    // três blocos de inscrições, tenda e as duas torres) saíram do Objeto para a ferramenta Construção, na mesma
+    // ordem do catálogo. Ponte, píer, palco e ringue ficam (anda-se em cima deles). 176 - 19 = 157.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
-      'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca', 'arcoDoPortao', 'placaDeSeta', 'troncos', 'feno',
-      'cataVento', 'moinho', 'cataVentoBrinquedo',
+      'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'ponte', 'carroca', 'placaDeSeta', 'troncos', 'feno',
+      'cataVentoBrinquedo',
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
-      'bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
-      'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha',
-      'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica',
+      'bonecoDeTreino', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao',
+      'guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'pedrasERochas', 'alvoDeArcoEFlecha',
+      'bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos',
       'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
       'banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
       'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
       'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
-      'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
-      'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
-      'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+      'cruzDeMadeira', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
+      'balancaDeMercador', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
+      'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
       'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
       'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
-      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
       'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
-      'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+      'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio',
     ])
-    expect(grupo.options).toHaveLength(176)
+    expect(grupo.options).toHaveLength(157)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
-      'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Poço', 'Chafariz', 'Ponte', 'Barraca de feira', 'Carroça', 'Arco do portão', 'Placa de seta', 'Troncos', 'Feno',
-      'Cata-vento de fazenda', 'Moinho de vento', 'Cata-vento de brinquedo',
+      'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Ponte', 'Carroça', 'Placa de seta', 'Troncos', 'Feno',
+      'Cata-vento de brinquedo',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Campinho de futebol',
-      'Boneco de treino', 'Pilar', 'Altar', 'Estante de livros', 'Sacos de grão', 'Banco de praça', 'Escombros de pedra', 'Canhão',
-      'Guarda-roupa', 'Caldeirão', 'Forno de pão', 'Prateleira de depósito', 'Estátua', 'Pedras e rochas', 'Mausoléu', 'Alvo de arco e flecha',
-      'Banca de frutas', 'Toldo listrado', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas', 'Espantalho', 'Cocho', 'Ossos', 'Antena parabólica',
+      'Boneco de treino', 'Altar', 'Estante de livros', 'Sacos de grão', 'Banco de praça', 'Escombros de pedra', 'Canhão',
+      'Guarda-roupa', 'Caldeirão', 'Forno de pão', 'Prateleira de depósito', 'Pedras e rochas', 'Alvo de arco e flecha',
+      'Banca de frutas', 'Toldo listrado', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas', 'Espantalho', 'Cocho', 'Ossos',
       'Escrivaninha', 'Criado-mudo com vela', 'Cama de casal', 'Berço', 'Banqueta', 'Biombo', 'Piano', 'Candelabro de chão',
       'Banheira', 'Tina de madeira', 'Lavatório com jarro', 'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
-      'Cruz de madeira', 'Anjo de pedra', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
-      'Balança de mercador', 'Tenda de adivinha', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
-      'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra', 'Galinheiro', 'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
+      'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
+      'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
+      'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra', 'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       'Âncora', 'Cordas enroladas', 'Timão', 'Bote', 'Rede de pesca', 'Píer', 'Caixote de peixe', 'Armadura despedaçada', 'Armadura',
-      'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico', 'Bloco de inscrições azul', 'Bloco de inscrições vermelho', 'Bloco de inscrições dourado',
+      'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
-      'Teia de aranha', 'Tocha de parede', 'Tocha de pé', 'Crânio', 'Tenda', 'Torre de pedra', 'Torre de vigia',
+      'Teia de aranha', 'Tocha de parede', 'Tocha de pé', 'Crânio',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
-    const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'barraca', 'carroca']
+    const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
     expect(novas.map((v) => grupo.options.find((o) => o.value === v)?.description)).toEqual([
       'Clique no mapa para pôr uma mesa quadrada.',
       'Clique no mapa para pôr uma mesa redonda.',
@@ -274,45 +282,54 @@ describe('TOOL_VARIANTS', () => {
       'Clique no mapa para pôr um vaso de planta.',
       'Clique no mapa para pôr um lampião.',
       'Clique no mapa para pôr um quadro de avisos.',
-      'Clique no mapa para pôr um poço.',
-      'Clique no mapa para pôr uma barraca de feira.',
       'Clique no mapa para pôr uma carroça.',
     ])
-    const mt5 = ['sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta']
+    const mt5 = ['sebe', 'jardineira', 'tapeteLongo', 'placaDeSeta']
     expect(mt5.map((v) => grupo.options.find((o) => o.value === v)?.description)).toEqual([
       'Clique no mapa para pôr uma sebe.',
       'Clique no mapa para pôr uma jardineira.',
       'Clique no mapa para pôr um tapete longo.',
-      'Clique no mapa para pôr um arco do portão.',
       'Clique no mapa para pôr uma placa de seta.',
     ])
+    // O poço, a barraca e o arco do portão continuam com a mesma frase, agora na ferramenta Construção.
+    const construcao = TOOL_VARIANTS.construcao
+    if (!construcao || !construcao.available) throw new Error('construcao deveria estar disponível')
+    const [daConstrucao] = construcao.groups
+    expect(['poco', 'barraca', 'arcoDoPortao'].map((v) => daConstrucao.options.find((o) => o.value === v)?.description)).toEqual([
+      'Clique no mapa para pôr um poço.',
+      'Clique no mapa para pôr uma barraca de feira.',
+      'Clique no mapa para pôr um arco do portão.',
+    ])
+    expect(grupo.options.some((o) => ['poco', 'barraca', 'arcoDoPortao'].includes(String(o.value)))).toBe(false)
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 15 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 26, Cemitério 11, Feira 12, Oficina 10, Fazenda 11, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Tesouro 8; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 15 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
+    // CONSTRUÇÕES (12/11/2026): as 19 construções saíram das partes do Objeto (Rua e jardim -8, Cemitério -2,
+    // Feira -2, Fazenda -3, Templo e masmorra -4) para as 4 partes da ferramenta Construção; nenhuma parte esvazia.
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
       ['Sala e quarto', 21],
       ['Cozinha e banheiro', 15],
       ['Armazenagem', 11],
-      ['Rua e jardim', 26],
-      ['Cemitério', 11],
-      ['Feira', 12],
+      ['Rua e jardim', 18],
+      ['Cemitério', 9],
+      ['Feira', 10],
       ['Oficina', 10],
-      ['Fazenda', 11],
+      ['Fazenda', 8],
       ['Destroços e sucata', 12],
       ['Esporte e lazer', 7],
       ['Porto e navio', 8],
-      ['Templo e masmorra', 14],
+      ['Templo e masmorra', 10],
       ['Sala de tortura', 7],
       ['Magia e alquimia', 3],
       ['Tesouro', 8],
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual([
-      'lapide', 'cova', 'caixao', 'caixaoAberto', 'mausoleu',
-      'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
+      'lapide', 'cova', 'caixao', 'caixaoAberto',
+      'cruzDeMadeira', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual([
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos',
@@ -337,8 +354,8 @@ describe('TOOL_VARIANTS', () => {
       'canhao', 'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Templo e masmorra')?.tipos).toEqual([
-      'pilar', 'altar', 'armadura',
-      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
+      'altar', 'armadura',
+      'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Tesouro')?.tipos).toEqual([
@@ -357,22 +374,21 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.slice(-8)).toEqual([
       'sacosDeGrao', 'prateleiraDeDeposito', 'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-14)).toEqual([
-      'bancoDePraca', 'estatua', 'pedrasERochas', 'antenaParabolica',
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-9)).toEqual([
+      'bancoDePraca', 'pedrasERochas',
       'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja',
-      'tenda', 'torreDePedra', 'torreDeVigia',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Feira')?.tipos).toEqual([
-      'barraca', 'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo', 'bancaDeFrutas', 'toldoListrado',
-      'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
+      'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo', 'bancaDeFrutas', 'toldoListrado',
+      'balancaDeMercador', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Oficina')?.tipos).toEqual([
       'fornalha', 'bigorna', 'balde', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas',
       'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Fazenda')?.tipos).toEqual([
-      'troncos', 'feno', 'cataVento', 'moinho', 'espantalho', 'cocho',
-      'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
+      'troncos', 'feno', 'espantalho', 'cocho',
+      'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
     ])
     const nasPartes = PARTES_DO_MENU_DE_OBJETO.flatMap((p) => p.tipos)
     expect(new Set(nasPartes).size).toBe(nasPartes.length)

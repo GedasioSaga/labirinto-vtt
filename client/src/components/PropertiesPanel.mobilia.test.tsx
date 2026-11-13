@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { trocarObraNoTeste } from '../lib/estiloDoMapa'
 import { createEmptyMap } from '../lib/mapFactory'
 import { criarMovel, ROTULO_MOBILIA, TIPOS_MOBILIA } from '../lib/mobilia'
-import { TIPOS_NO_CATALOGO } from '../lib/mobilia/pecasNovas'
+import { TIPOS_DO_OBJETO } from '../lib/mobilia/pecasNovas'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
 import { relevantPropertyGroups } from '../lib/toolProperties'
 import { useMapStore } from '../stores/mapStore'
@@ -119,9 +119,11 @@ describe('painel de propriedades — o móvel selecionado', () => {
     renderObjeto(MESA)
     const tipo = campo('Tipo')
     if (!(tipo instanceof HTMLSelectElement)) throw new Error('"Tipo" devia ser um select')
-    // O catálogo inteiro, na ordem e com os nomes do catálogo: peça nova pronta entra aqui sozinha
-    // (a ordem e a contagem são conferidas em `lib/mobilia/pecasNovas.test.ts`).
-    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(TIPOS_NO_CATALOGO.map((t) => ROTULO_MOBILIA[t]))
+    // O catálogo do Objeto, na ordem e com os nomes do catálogo: peça nova pronta entra aqui sozinha
+    // (a ordem e a contagem são conferidas em `lib/mobilia/pecasNovas.test.ts`). CONSTRUÇÕES (12/11/2026,
+    // `14fef595`): um móvel só troca por outro móvel; as 19 construções ficam no seletor das construções.
+    expect(Array.from(tipo.options).map((o) => texto(o))).toEqual(TIPOS_DO_OBJETO.map((t) => ROTULO_MOBILIA[t]))
+    expect(Array.from(tipo.options).some((o) => texto(o) === 'Torre de pedra')).toBe(false)
     expect(tipo.value).toBe('mesa')
 
     escolhe(tipo, 'bau')
