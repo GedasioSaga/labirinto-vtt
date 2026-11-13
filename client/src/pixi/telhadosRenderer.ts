@@ -157,6 +157,8 @@ export interface TelhadosRenderer {
    * caem (`lib/chaoMolhado.ts`). `null` = telhados secos.
    */
   setClima: (clima: ClimaDosTelhados | null) => void
+  /** O clima de agora (a imagem exportada sai com os telhados secos e o palco volta a ele). */
+  clima: () => ClimaDosTelhados | null
   destruir: () => void
 }
 
@@ -882,6 +884,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     idsVisiveis: () => new Set([...telhados.values()].filter((t) => t.progresso > 0 && !t.raiz.destroyed).map((t) => t.id)),
     pintadas: () => pintadas,
     setClima,
+    clima: () => clima,
     destruir: () => {
       pararDeOuvirDesenhado()
       ultimoDesenho = null

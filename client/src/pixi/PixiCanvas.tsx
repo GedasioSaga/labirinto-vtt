@@ -3415,8 +3415,13 @@ function PixiCanvasDoContexto({
           aguaDoMapa.camada,
           // E as PARTÍCULAS: fumaça e brasa são um instante, e moram no palco, na câmera do editor.
           particulasDoMapa.camada,
+          // E a CHUVA, a NEVE e o resto do Ambiente, pelo mesmo motivo; e o pincel do Ambiente que mora na sala
+          // secreta, na zona oculta ou na casa de teto fechado sairia desenhado na imagem dos jogadores (FX-NEVOA2-062).
+          neblinaDoEditor.ambiente,
         ]
         const wasVisible = overlays.map((overlay) => overlay.visible)
+        // O TELHADO sai seco, como o chão: a neve do pincel que mora dentro da casa cobria o telhado dela na imagem.
+        const climaDosTelhados = telhadosRenderer.clima()
         let pending: Promise<string>
         try {
           exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height }, paraJogadores }
@@ -3433,6 +3438,7 @@ function PixiCanvasDoContexto({
           nomesDosLugares.setCameraScale(scale)
           nomesDosLugares.concluirAparicao()
           for (const overlay of overlays) overlay.visible = false
+          telhadosRenderer.setClima(null)
           redrawScene()
           // Telhado cheio na imagem dos jogadores: a pilha (`atualizarPilha`, em `redrawTokens`) pode repor o alfa do
           // "Transparente" do editor depois de `paintTelhados`; aqui vale a opacidade da camada, como na tela deles.
@@ -3471,6 +3477,7 @@ function PixiCanvasDoContexto({
           overlays.forEach((overlay, i) => {
             overlay.visible = wasVisible[i]
           })
+          telhadosRenderer.setClima(climaDosTelhados)
           redrawScene()
           // E de volta à resolução do zoom do editor.
           syncTextResolution()

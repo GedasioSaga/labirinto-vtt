@@ -51,6 +51,8 @@ export function raioDoPincelDeNeblina(map: Pick<MapData, 'width' | 'height' | 'g
 
 export interface NeblinaDoEditor {
   readonly renderer: NeblinaRenderer
+  /** As partículas do Ambiente (chuva, neve, brasas, folhas, fumaça): a imagem exportada as deixa de fora. */
+  readonly ambiente: Container
   /**
    * Por quadro (no relógio do mapa de luz): confere se o mapa ou o piso mudou
    * (só referência) e põe a neblina logo abaixo de `acima`. Devolve a camada,
@@ -100,6 +102,7 @@ export function criarNeblinaDoEditor(dep: {
   let doPisoAnterior: MapData | null = null
   return {
     renderer,
+    ambiente: ambiente.camada,
     quadro(map, piso, acima) {
       logoAbaixoDe(dep.mundo, ambiente.camada, acima)
       logoAbaixoDe(dep.mundo, neblina.camada, ambiente.camada)
