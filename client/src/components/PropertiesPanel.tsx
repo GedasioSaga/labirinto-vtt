@@ -2,6 +2,7 @@ import type { DrawingTool } from '../types/tools'
 import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } from '../types/map'
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { PathStyleControls, type PathStyleControlsProps } from './PathStyleControls'
+import { TerrenoControls } from './TerrenoControls'
 import type { GridControlsProps } from './GridControls'
 import { CollapsibleSection } from './CollapsibleSection'
 import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
@@ -886,6 +887,9 @@ export function PropertiesPanel({
         <ToolPropertiesSection group="pathStyle" groups={groups}>
           <PathStyleControls {...pathStyle} />
         </ToolPropertiesSection>
+        {/* CHÃO E CAMINHO (12/11/2026): com a ferramenta Chão na mão, o terreno da
+            próxima peça (material, largura do Caminho, borda, "Conta como Chão"). */}
+        {activeTool === 'floor' && !algoSelecionado && <TerrenoControls />}
         {/* DESENHO SELECIONADO (fatia 16b): a ficha própria — o essencial (Cor,
             Espessura, Formato, Preenchido, Opacidade e o Oculto) e as fichas
             Traço e Paredes. Com a ferramenta armada, os blocos soltos. */}

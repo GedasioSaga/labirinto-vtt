@@ -39,7 +39,7 @@ export type FloorDragShapeKind = 'rect' | 'ellipse' | 'polygon'
  * enche a área fechada de uma vez; os dois desenham a mesma `FloorShape`
  * (`kind: 'blocos'`), a diferença está no gesto.
  */
-export type FloorShapeKind = FloorDragShapeKind | 'corridor' | 'blocos' | 'balde'
+export type FloorShapeKind = FloorDragShapeKind | 'corridor' | 'caminho' | 'blocos' | 'balde'
 
 /** Estreita para as formas de arrasto — usado onde o corredor/pincel/balde não cabem. */
 export function isFloorDragShape(kind: FloorShapeKind): kind is FloorDragShapeKind {

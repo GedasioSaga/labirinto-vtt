@@ -105,11 +105,11 @@ import { pixelGrid, snapToPhysicalPixel } from './pixelAlign'
 import { buildFloorMask } from './floorMask'
 import { layoutMapFrame } from '../lib/mapFrame'
 import { hexToRgb, rasterizeMinimap } from '../lib/minimapRaster'
-import { compileFloor, pieceBounds, shapeCenter } from '../lib/floorSdf'
+import { compileFloor, pieceBounds, pontosDoCorredor, shapeCenter } from '../lib/floorSdf'
 
 /** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
 const MINIMAP_RASTER_SAMPLES = 4
-import type { FloorPiece, MapFrame } from '../types/map'
+import type { FloorPiece, FloorShape, MapFrame } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
   buildCorridorShape,
@@ -120,9 +120,11 @@ import {
   isFloorDragShape,
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
+import type { FloorShapeKind } from '../lib/floorTool'
 import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 import { mapFloorClip } from '../lib/floorContour'
-import { pecasLisas } from '../lib/terrenoDoChao'
+import { buildCaminhoShape, comTerreno, PASSO_DO_TRACO_EM_CASAS, pecasLisas } from '../lib/terrenoDoChao'
+import { useTerrenoStore } from '../stores/terrenoStore'
 import { criarTerrenoDoChao } from './terrenoDoChao'
 import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
 import { corDoPincel } from '../lib/camadasDoPincel'
@@ -3930,6 +3932,10 @@ function PixiCanvasDoContexto({
       /** Último ponto do ponteiro, para amostrar o caminho entre dois pointermove. */
       let blocoUltimoPonto: Point | null = null
       let corridorDraftPoints: Point[] = []
+      // CAMINHO do Chão (CHÃO E CAMINHO, 12/11/2026): os mesmos pontos do corredor, mas o
+      // botão apertado arrastando também traça; soltar depois de arrastar termina o caminho.
+      let caminhoArrastando = false
+      let caminhoPontosNoArrasto = 0
       // Estado do arrasto de canto de Sala retangular (resize) — mesmo padrão
       // de curveDragSnapshot/lightRadiusDragSnapshot: `roomCornerDragSnapshot`
       // é o `map` de ANTES do gesto (pointerdown), usado só pra fechar um
@@ -5831,14 +5837,41 @@ function PixiCanvasDoContexto({
 
       /** Prévia do corredor: pontos já clicados + cursor; com 1 ponto só marca o ponto. */
       const drawCorridorDraft = (cursor: Point | null) => {
-        const { map, floorOp, floorCamada } = useMapStore.getState()
+        const { map, floorOp, floorCamada, floorShapeKind } = useMapStore.getState()
         const points = cursor ? [...corridorDraftPoints, cursor] : corridorDraftPoints
-        const shape = buildCorridorShape(points, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
+        const shape = formaDoTraco(points)
         if (!shape) {
           drawRegionDraft(draftGraphics, corridorDraftPoints, null)
           return
         }
+        // CAMINHO: a prévia é a faixa da curva, sem contorno (barata a cada movimento da mão).
+        if (floorShapeKind === 'caminho' && shape.kind === 'corridor') {
+          const curva = pontosDoCorredor(shape)
+          draftGraphics.clear()
+          draftGraphics.moveTo(curva[0].x, curva[0].y)
+          for (let i = 1; i < curva.length; i += 1) draftGraphics.lineTo(curva[i].x, curva[i].y)
+          draftGraphics.stroke({ width: shape.points[0].width, color: map.floorStyle.fillColor, alpha: 0.45, cap: 'round', join: 'round' })
+          return
+        }
         drawFloorDraft(draftGraphics, pecaNaCamada(buildFloorPiece('draft', shape, floorOp), floorCamada), map.floorStyle.fillColor)
+      }
+
+      /** A forma do traço ponto a ponto: o Caminho (curva, largura e terreno da ferramenta) ou o Corredor de sempre. */
+      const formaDoTraco = (points: readonly Point[], forma: FloorShapeKind = useMapStore.getState().floorShapeKind): FloorShape | null => {
+        const { map } = useMapStore.getState()
+        return forma === 'caminho'
+          ? buildCaminhoShape(points, useTerrenoStore.getState().larguraEmCasas * map.grid, map.grid)
+          : buildCorridorShape(points, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
+      }
+
+      /** Mão arrastando no Caminho: o ponto entra se andou o bastante desde o último. */
+      const acrescentarAoCaminho = (ponto: Point) => {
+        const { map } = useMapStore.getState()
+        const ultimo = corridorDraftPoints[corridorDraftPoints.length - 1]
+        if (ultimo !== undefined && Math.hypot(ponto.x - ultimo.x, ponto.y - ultimo.y) < PASSO_DO_TRACO_EM_CASAS * map.grid) return
+        corridorDraftPoints = [...corridorDraftPoints, ponto]
+        caminhoPontosNoArrasto += 1
+        drawCorridorDraft(null)
       }
 
       /**
@@ -5960,11 +5993,14 @@ function PixiCanvasDoContexto({
       }
 
       /** Duplo clique ou Enter: vira peça se houver 2+ pontos distintos; sempre limpa o rascunho. */
-      const finishCorridor = () => {
-        const { map, floorOp, floorCamada, addFloorPiece } = useMapStore.getState()
-        const shape = buildCorridorShape(corridorDraftPoints, map.grid * FLOOR_CORRIDOR_WIDTH_RATIO)
-        if (shape) addFloorPiece(pecaNaCamada(buildFloorPiece(crypto.randomUUID(), shape, floorOp), floorCamada))
+      const finishCorridor = (forma?: FloorShapeKind) => {
+        const { floorOp, floorCamada, addFloorPiece } = useMapStore.getState()
+        // Na troca de forma com o traço aberto, vale a forma em que ele foi feito.
+        const shape = formaDoTraco(corridorDraftPoints, forma)
+        if (shape) addFloorPiece(comTerreno(pecaNaCamada(buildFloorPiece(crypto.randomUUID(), shape, floorOp), floorCamada), useTerrenoStore.getState()))
         corridorDraftPoints = []
+        caminhoArrastando = false
+        caminhoPontosNoArrasto = 0
         draftGraphics.clear()
       }
 
@@ -6373,10 +6409,10 @@ function PixiCanvasDoContexto({
       // o traço na hora — vira chão se já é corredor (a mesma saída do Enter),
       // ou some COM aviso se tinha um ponto só. A regra é pura e testada em
       // `corridorDraftOnShapeChange`.
-      const unsubscribeFloorShape = useMapStore.subscribe((state) => state.floorShapeKind, () => {
+      const unsubscribeFloorShape = useMapStore.subscribe((state) => state.floorShapeKind, (_forma, formaAnterior) => {
         const decisao = corridorDraftOnShapeChange(corridorDraftPoints)
         if (decisao === 'finalizar') {
-          finishCorridor()
+          finishCorridor(formaAnterior)
           return
         }
         if (decisao === 'descartar') {
@@ -6935,6 +6971,16 @@ function PixiCanvasDoContexto({
           // Balde é um clique só: não há arrasto para acompanhar.
           if (floorShapeKind === 'balde') {
             if (event.button === 0) encherAreaFechada(worldPoint)
+            return
+          }
+          // CAMINHO: o ponto da mão, sem ímã (a curva segue o gesto). Apertar começa um
+          // arrasto; soltar sem ter andado deixa o ponto, como o clique do corredor.
+          if (floorShapeKind === 'caminho') {
+            if (event.button !== 0) return
+            corridorDraftPoints = [...corridorDraftPoints, worldPoint]
+            caminhoArrastando = true
+            caminhoPontosNoArrasto = 0
+            drawCorridorDraft(null)
             return
           }
           const point = applySnap(worldPoint, map.grid, 'wall', event.altKey)
@@ -7889,11 +7935,17 @@ function PixiCanvasDoContexto({
           finishBlocos()
         }
 
+        // CAMINHO arrastado: soltar termina o traço; o clique parado só deixou um ponto.
+        if (caminhoArrastando) {
+          caminhoArrastando = false
+          if (caminhoPontosNoArrasto >= 2) finishCorridor()
+        }
+
         if (mode === 'drawing-floor' && floorDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const draft = floorDraftFromDrag(floorDraftStart, worldPoint, event.shiftKey, event.altKey)
-          // Clique sem arrasto dá `piece: null` — nada nasce.
-          if (draft?.piece) useMapStore.getState().addFloorPiece({ ...draft.piece, id: crypto.randomUUID() })
+          // Clique sem arrasto dá `piece: null` — nada nasce. A peça leva o terreno da ferramenta (material, borda).
+          if (draft?.piece) useMapStore.getState().addFloorPiece(comTerreno({ ...draft.piece, id: crypto.randomUUID() }, useTerrenoStore.getState()))
           floorDraftStart = null
           draftGraphics.clear()
         }
@@ -8226,6 +8278,11 @@ function PixiCanvasDoContexto({
         // foi pintado vira peça, em vez de sumir sem explicação. Precisa vir
         // ANTES do `mode = 'idle'` lá embaixo, como os commits vizinhos.
         if (mode === 'painting-floor-blocks') finishBlocos()
+        // CAMINHO arrastado e solto fora do canvas: o que já foi traçado vira caminho.
+        if (caminhoArrastando) {
+          caminhoArrastando = false
+          if (caminhoPontosNoArrasto >= 2) finishCorridor()
+        }
         // Pincel de revelar solto fora do canvas: o que já foi pintado vale,
         // como no pincel de blocos acima (o ponto de fora não entra no traço).
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
@@ -8442,7 +8499,9 @@ function PixiCanvasDoContexto({
           // Corredor em construção não tem `mode` (cliques soltos), então a
           // prévia até o cursor mora aqui, no pointermove ocioso.
           if (corridorDraftPoints.length > 0 && useMapStore.getState().activeTool === 'floor') {
-            drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
+            if (caminhoArrastando) acrescentarAoCaminho(worldPoint)
+            else if (useMapStore.getState().floorShapeKind === 'caminho') drawCorridorDraft(worldPoint)
+            else drawCorridorDraft(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
           }
           // Região e Sala livre também são feitas de cliques soltos (`mode`
           // nunca sai de 'idle'), e por isso a prévia delas precisa morar aqui:

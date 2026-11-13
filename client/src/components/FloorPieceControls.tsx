@@ -2,6 +2,7 @@ import type { FloorPiece, FloorShape } from '../types/map'
 import { Toggle } from './Toggle'
 import { FLOOR_POLYGON_SIDES_MAX, FLOOR_POLYGON_SIDES_MIN, clampFloorPolygonSides } from '../lib/floorTool'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
+import { CampoDaBorda, SeletorDeMaterial } from './TerrenoControls'
 
 export type FloorPiecePatch = Partial<Omit<FloorPiece, 'id'>>
 
@@ -149,6 +150,14 @@ function ShapeFields({ shape, onShapeChange }: { shape: FloorShape; onShapeChang
   }
 }
 
+/** O corredor com ou sem a curva suave (sem ela, o campo sai: as retas de sempre). */
+function corredorSuave(shape: Extract<FloorShape, { kind: 'corridor' }>, suave: boolean): FloorShape {
+  if (suave) return { ...shape, suave: true }
+  const reto = { ...shape }
+  delete reto.suave
+  return reto
+}
+
 /** Trechos da ficha da peça de chão (fatia 16b). Ausente, a seção inteira de antes. */
 export type ParteDaPecaDeChao = 'essencial' | 'medidas' | 'borda' | 'ordem'
 
@@ -171,6 +180,7 @@ export function FloorPieceControls({
   parte,
 }: FloorPieceControlsProps & { parte?: ParteDaPecaDeChao }) {
   const noise = piece.modifiers.noise
+  const corredor = piece.shape.kind === 'corridor' ? piece.shape : null
   // Sem `parte`, tudo, na ordem de sempre; com ela, só os campos daquele trecho.
   const mostra = (trecho: ParteDaPecaDeChao) => parte === undefined || parte === trecho
 
@@ -215,13 +225,33 @@ export function FloorPieceControls({
         </div>
       )}
 
+      {/* TERRENO (CHÃO E CAMINHO, 12/11/2026): o material, a borda só de aparência e o
+          "Conta como Chão". O buraco (Subtrair) não tem material: ele tira o que está embaixo. */}
+      {mostra('essencial') && piece.op === 'add' && (
+        <>
+          <SeletorDeMaterial
+            id="lb-floor-piece-material"
+            material={piece.material ?? null}
+            onChange={(material) => onChange(material === null ? { material: undefined, borda: undefined } : { material })}
+          />
+          {piece.material !== undefined && (
+            <CampoDaBorda id="lb-floor-piece-borda" borda={piece.borda ?? 0} onChange={(borda) => onChange({ borda: borda > 0 ? borda : undefined })} />
+          )}
+          <Toggle label="Conta como Chão" checked={piece.soPintura !== true} onChange={(conta) => onChange({ soPintura: conta ? undefined : true })} />
+        </>
+      )}
+
       {mostra('medidas') && <ShapeFields shape={piece.shape} onShapeChange={(shape) => onChange({ shape })} />}
+      {mostra('medidas') && corredor !== null && (
+        <Toggle label="Curva suave" checked={corredor.suave === true} onChange={(suave) => onChange({ shape: corredorSuave(corredor, suave) })} />
+      )}
 
       {/* Cor SÓ desta peça — é o que faz um caminho ter uma cor e o chão em
           volta ter outra. Enquanto ela não existe, o swatch mostra a cor do
           chão do mapa (o que está na tela), para a pessoa mexer a partir do
-          que vê em vez de partir de um preto vindo do nada. */}
-      {mostra('essencial') && (
+          que vê em vez de partir de um preto vindo do nada. Com material, a
+          cor não aparece: a peça mostra o material. */}
+      {mostra('essencial') && piece.material === undefined && (
         <>
           <div className="lb-field">
             <label className="lb-label" htmlFor="lb-floor-piece-color">

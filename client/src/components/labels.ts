@@ -239,10 +239,10 @@ export interface ToolbarGroup {
  */
 export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   { nome: 'Escolher', slots: ['select'] },
-  // Caminho fica com a construção, e NÃO dentro do Desenho: quem quer uma
-  // trilha de terra procura onde mora o piso, não onde moram linha e polígono
-  // — e, ao contrário das formas do Desenho, cada caminho carrega a própria cor.
-  { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'path', 'cluster:objeto', 'light'] },
+  // CHÃO E CAMINHO (12/11/2026, decisão do mestre): a ferramenta Caminho saiu da barra; o
+  // Chão traça o caminho (forma Caminho, com material, curva suave e borda). Caminho antigo
+  // continua no mapa e ganha material pelo botão "Dar material" da ficha dele.
+  { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'cluster:objeto', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
   { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos', 'neblina'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é

@@ -302,6 +302,13 @@ const FLOOR_SHAPE_GROUP: ToolVariantGroup = {
   storeKey: 'floorShapeKind',
   label: 'Forma',
   options: [
+    // CHÃO E CAMINHO (12/11/2026): o Caminho de antes virou forma do Chão, com material, curva suave e borda.
+    {
+      id: 'caminho',
+      label: 'Caminho',
+      value: 'caminho',
+      description: 'Arraste para traçar, ou clique ponto a ponto (duplo clique ou Enter termina). A curva segue a mão.',
+    },
     { id: 'rect', label: 'Retângulo', value: 'rect', description: 'Arraste de um canto ao outro. Shift faz quadrado.' },
     { id: 'ellipse', label: 'Elipse', value: 'ellipse', description: 'Arraste do centro para fora. Shift faz círculo.' },
     { id: 'polygon', label: 'Polígono regular', value: 'polygon', description: 'Arraste do centro até um vértice.' },

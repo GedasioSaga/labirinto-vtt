@@ -1,4 +1,4 @@
-import type { FloorPiece, PinceladaDeTextura, RegionPoint } from '../types/map'
+import type { FloorPiece, FloorShape, PinceladaDeTextura, RegionPoint } from '../types/map'
 import { aneisDoCampo, floorSampleStep, type FloorClip } from './floorContour'
 import { pieceBounds, pieceDistance, valueNoise, type Bounds, type CompiledFloor } from './floorSdf'
 
@@ -31,17 +31,19 @@ export interface MaterialDoChao {
   readonly nome: string
   /** Solta pedras inteiras na borda (calçamento, cascalho). */
   readonly pedras: boolean
+  /** A cor da amostra no painel (a média do material, do protótipo aprovado). */
+  readonly amostra: string
 }
 
 /** Os materiais do painel, na ordem do protótipo aprovado. */
 export const MATERIAIS_DO_CHAO: readonly MaterialDoChao[] = [
-  { textura: 'calcamento', nome: 'Calçamento', pedras: true },
-  { textura: 'terra', nome: 'Terra batida', pedras: false },
-  { textura: 'cascalho', nome: 'Cascalho', pedras: true },
-  { textura: 'areia', nome: 'Areia', pedras: false },
-  { textura: 'conves', nome: 'Tábuas', pedras: false },
-  { textura: 'grama', nome: 'Grama', pedras: false },
-  { textura: null, nome: 'Liso', pedras: false },
+  { textura: 'calcamento', nome: 'Calçamento', pedras: true, amostra: '#c9c4b8' },
+  { textura: 'terra', nome: 'Terra batida', pedras: false, amostra: '#977b55' },
+  { textura: 'cascalho', nome: 'Cascalho', pedras: true, amostra: '#b2a68e' },
+  { textura: 'areia', nome: 'Areia', pedras: false, amostra: '#cfbb82' },
+  { textura: 'conves', nome: 'Tábuas', pedras: false, amostra: '#8d6239' },
+  { textura: 'grama', nome: 'Grama', pedras: false, amostra: '#7fc468' },
+  { textura: null, nome: 'Liso', pedras: false, amostra: '#a8776a' },
 ]
 
 /** Teto do id do material no arquivo (os ids da biblioteca e da importada cabem com folga). */
@@ -122,6 +124,101 @@ export function pecasQueLimitam(floor: FloorPiece[]): FloorPiece[] {
     limitamPorLista.set(floor, limitam)
   }
   return limitam
+}
+
+// ---------------------------------------------------------------------------
+// A ferramenta: o terreno da próxima peça e o traço do Caminho
+
+/** O terreno da PRÓXIMA peça (`stores/terrenoStore.ts`). `material: null` = Liso. */
+export interface TerrenoDaFerramenta {
+  material: string | null
+  larguraEmCasas: number
+  borda: number
+  contaComoChao: boolean
+}
+
+/** Os padrões do protótipo aprovado: Calçamento, 2 casas, borda de 60%. */
+export const MATERIAL_PADRAO = 'calcamento'
+export const LARGURA_PADRAO_EM_CASAS = 2
+export const BORDA_PADRAO = 0.6
+/** A faixa de largura do Caminho de antes (`lib/drawingFactory.ts`): meia casa a quatro. */
+export const LARGURA_MINIMA_EM_CASAS = 0.5
+export const LARGURA_MAXIMA_EM_CASAS = 4
+
+/** A peça com o terreno da ferramenta: material, borda (só com material) e "Conta como Chão". */
+export function comTerreno(peca: FloorPiece, terreno: TerrenoDaFerramenta): FloorPiece {
+  const nova: FloorPiece = { ...peca }
+  // Buraco não tem material nem deixa de limitar: ele tira o que está embaixo.
+  if (peca.op !== 'add') return nova
+  if (terreno.material !== null) {
+    nova.material = terreno.material
+    const borda = Math.round(Math.min(1, Math.max(0, terreno.borda)) * 100) / 100
+    if (borda > 0) nova.borda = borda
+  }
+  if (!terreno.contaComoChao) nova.soPintura = true
+  return nova
+}
+
+/** Mão parada no traço arrastado: pontos mais perto que isto (em casas) não entram. */
+export const PASSO_DO_TRACO_EM_CASAS = 0.2
+/** Desvio aceito ao enxugar o traço arrastado, em casas: a curva sai lisa, sem o tremor da mão. */
+const TOLERANCIA_DO_TRACO_EM_CASAS = 0.12
+
+interface Ponto {
+  x: number
+  y: number
+}
+
+/** Douglas-Peucker numa linha aberta: fica o primeiro, o último e os pontos que desviam mais que `tolerancia`. */
+function enxugar(pontos: readonly Ponto[], tolerancia: number): Ponto[] {
+  if (pontos.length <= 2) return [...pontos]
+  const manter = new Array<boolean>(pontos.length).fill(false)
+  manter[0] = true
+  manter[pontos.length - 1] = true
+  const pilha: Array<[number, number]> = [[0, pontos.length - 1]]
+  while (pilha.length > 0) {
+    const trecho = pilha.pop()
+    if (trecho === undefined) break
+    const [i0, i1] = trecho
+    const a = pontos[i0]
+    const b = pontos[i1]
+    const ex = b.x - a.x
+    const ey = b.y - a.y
+    const tamanho = Math.hypot(ex, ey)
+    let pior = -1
+    let indice = -1
+    for (let i = i0 + 1; i < i1; i += 1) {
+      const p = pontos[i]
+      const d = tamanho === 0 ? Math.hypot(p.x - a.x, p.y - a.y) : Math.abs((p.x - a.x) * ey - (p.y - a.y) * ex) / tamanho
+      if (d > pior) {
+        pior = d
+        indice = i
+      }
+    }
+    if (indice >= 0 && pior > tolerancia) {
+      manter[indice] = true
+      pilha.push([i0, indice], [indice, i1])
+    }
+  }
+  return pontos.filter((_, i) => manter[i])
+}
+
+/**
+ * O traço da forma CAMINHO do Chão: um corredor `suave` (curva pelos pontos),
+ * com a mesma largura em todos. Repetição seguida (o duplo clique) sai; o
+ * traço arrastado é enxugado para a curva não tremer. Menos de 2 pontos
+ * distintos não é caminho.
+ */
+export function buildCaminhoShape(pontos: readonly Ponto[], largura: number, grid: number): FloorShape | null {
+  if (!(largura > 0)) return null
+  const distintos: Ponto[] = []
+  for (const p of pontos) {
+    const ultimo = distintos[distintos.length - 1]
+    if (ultimo === undefined || ultimo.x !== p.x || ultimo.y !== p.y) distintos.push({ x: p.x, y: p.y })
+  }
+  if (distintos.length < 2) return null
+  const enxuto = enxugar(distintos, TOLERANCIA_DO_TRACO_EM_CASAS * grid)
+  return { kind: 'corridor', suave: true, points: enxuto.map((p) => ({ x: p.x, y: p.y, width: largura })) }
 }
 
 // ---------------------------------------------------------------------------
