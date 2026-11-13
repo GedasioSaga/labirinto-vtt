@@ -1,3 +1,4 @@
+import { GRUPOS_DE_CONSTRUCAO, GRUPO_DA_CONSTRUCAO } from './construcoes'
 import type { TipoMobilia } from './tipos'
 
 /**
@@ -31,6 +32,10 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'salaDeTortura', titulo: 'Sala de tortura' },
   { id: 'magiaEAlquimia', titulo: 'Magia e alquimia' },
   { id: 'tesouro', titulo: 'Tesouro' },
+  // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
+  // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
+  // Objeto cai neles, nenhuma construção cai nos de cima.
+  ...GRUPOS_DE_CONSTRUCAO,
   { id: 'outros', titulo: 'Outros' },
 ] as const
 
@@ -98,24 +103,20 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   cestoDeVime: 'armazenagem',
   cofre: 'armazenagem',
   // Rua e jardim (no cantinho da barra, o atalho da árvore fecha esta parte); o lote 7 dos objetos novos
-  // (11/11/2026), do varal de roupa à placa de loja pendurada; e, do lote 17 (12/11/2026), a tenda de
-  // acampamento e as torres de pedra e de vigia.
+  // (11/11/2026), do varal de roupa à placa de loja pendurada. As construções que moravam aqui (o arco do
+  // portão, o poço, o chafariz, a estátua, a antena, a tenda e as duas torres) foram para a ferramenta
+  // Construção em 12/11/2026 (`construcoes.ts`, no fim deste mapa).
   cerca: 'ruaEJardim',
   sebe: 'ruaEJardim',
   jardineira: 'ruaEJardim',
   vaso: 'ruaEJardim',
-  arcoDoPortao: 'ruaEJardim',
   placaDeSeta: 'ruaEJardim',
-  poco: 'ruaEJardim',
-  chafariz: 'ruaEJardim',
   lampiao: 'ruaEJardim',
   fogueira: 'ruaEJardim',
   fogo: 'ruaEJardim',
   ponte: 'ruaEJardim',
   bancoDePraca: 'ruaEJardim',
-  estatua: 'ruaEJardim',
   pedrasERochas: 'ruaEJardim',
-  antenaParabolica: 'ruaEJardim',
   varalDeRoupa: 'ruaEJardim',
   horta: 'ruaEJardim',
   canteiroDeFlores: 'ruaEJardim',
@@ -123,31 +124,25 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   tocoDeArvore: 'ruaEJardim',
   carrinhoDeMao: 'ruaEJardim',
   placaDeLoja: 'ruaEJardim',
-  tenda: 'ruaEJardim',
-  torreDePedra: 'ruaEJardim',
-  torreDeVigia: 'ruaEJardim',
-  // Cemitério; e o lote 8 dos objetos novos (11/11/2026), da cruz de madeira à árvore seca.
+  // Cemitério; e o lote 8 dos objetos novos (11/11/2026), da cruz de madeira à árvore seca. O mausoléu e o anjo
+  // de pedra são construções desde 12/11/2026.
   lapide: 'cemiterio',
   cova: 'cemiterio',
   caixao: 'cemiterio',
   caixaoAberto: 'cemiterio',
-  mausoleu: 'cemiterio',
   cruzDeMadeira: 'cemiterio',
-  anjoDePedra: 'cemiterio',
   cercaDeFerro: 'cemiterio',
   paCravada: 'cemiterio',
   velasEOferendas: 'cemiterio',
   arvoreSeca: 'cemiterio',
   // Feira; a banca de frutas e o toldo listrado (11/11/2026); e o lote 9 dos objetos novos (11/11/2026), da
-  // balança de mercador ao barril de peixe.
-  barraca: 'feira',
+  // balança de mercador ao barril de peixe. A barraca e a tenda de adivinha são construções desde 12/11/2026.
   carroca: 'feira',
   quadroDeAvisos: 'feira',
   cataVentoBrinquedo: 'feira',
   bancaDeFrutas: 'feira',
   toldoListrado: 'feira',
   balancaDeMercador: 'feira',
-  tendaDeAdivinha: 'feira',
   gaiolaComAves: 'feira',
   rolosDeTecido: 'feira',
   palcoDeBardo: 'feira',
@@ -165,14 +160,11 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   pilhaDeLingotes: 'oficina',
   serra: 'oficina',
   // Fazenda; o espantalho e o cocho (11/11/2026); e o lote 10 dos objetos novos (11/11/2026), do galinheiro à
-  // plantação em fileiras.
+  // plantação em fileiras. O cata-vento, o moinho e o galinheiro são construções desde 12/11/2026.
   troncos: 'fazenda',
   feno: 'fazenda',
-  cataVento: 'fazenda',
-  moinho: 'fazenda',
   espantalho: 'fazenda',
   cocho: 'fazenda',
-  galinheiro: 'fazenda',
   colmeia: 'fazenda',
   arado: 'fazenda',
   tocoComMachado: 'fazenda',
@@ -212,8 +204,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   caixoteDePeixe: 'portoENavio',
   // Templo e masmorra (11/11/2026): o pilar e o altar; a armadura de pé do lote 15 (11/11/2026); os do lote 13
   // e do lote 16 dos objetos novos (11/11/2026), do braseiro aos três blocos de inscrições; e, do lote 17
-  // (12/11/2026), a teia de aranha e as tochas de parede e de pé.
-  pilar: 'temploEMasmorra',
+  // (12/11/2026), a teia de aranha e as tochas de parede e de pé. O pilar e os três blocos de inscrições são
+  // construções desde 12/11/2026.
   altar: 'temploEMasmorra',
   armadura: 'temploEMasmorra',
   braseiro: 'temploEMasmorra',
@@ -221,9 +213,6 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   corrente: 'temploEMasmorra',
   armadilhaDeEspinhos: 'temploEMasmorra',
   circuloMagico: 'temploEMasmorra',
-  blocoDeInscricoesAzul: 'temploEMasmorra',
-  blocoDeInscricoesVermelho: 'temploEMasmorra',
-  blocoDeInscricoesDourado: 'temploEMasmorra',
   teiaDeAranha: 'temploEMasmorra',
   tochaDeParede: 'temploEMasmorra',
   tochaDePe: 'temploEMasmorra',
@@ -250,6 +239,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   monteDeDiamantes: 'tesouro',
   joia: 'tesouro',
   monteDeJoias: 'tesouro',
+  // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
+  ...GRUPO_DA_CONSTRUCAO,
 }
 
 export function grupoDoObjeto(tipo: TipoMobilia): IdDoGrupoDeObjeto {

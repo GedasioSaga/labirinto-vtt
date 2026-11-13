@@ -47,6 +47,7 @@ function bindings(onSelectTool: (tool: DrawingTool) => void): ToolVariantBinding
     floorBrushSize: { value: 1, onChange: vi.fn() },
     floorCamada: { value: 'chao', onChange: vi.fn() },
     mobiliaTipo: { value: 'mesa', onChange: vi.fn() },
+    construcaoTipo: { value: 'torreDePedra', onChange: vi.fn() },
     roomFreeKind: { value: 'sala', onChange: vi.fn() },
     roomFreeRounded: { value: false, onChange: vi.fn() },
     drawShape: { value: 'mobilia', onChange: onSelectTool },

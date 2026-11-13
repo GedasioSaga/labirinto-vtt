@@ -15,6 +15,7 @@ import {
   MeasureIcon,
   NeblinaIcon,
   ObjetosIcon,
+  ConstrucaoIcon,
   PathIcon,
   PenhascoIcon,
   BarrancoIcon,
@@ -78,4 +79,5 @@ export const TOOL_ICONS: Partial<Record<DrawingTool, ComponentType<{ size?: numb
   carimbos: CarimbosIcon,
   pin: PinIcon,
   mobilia: ObjetosIcon,
+  construcao: ConstrucaoIcon,
 }

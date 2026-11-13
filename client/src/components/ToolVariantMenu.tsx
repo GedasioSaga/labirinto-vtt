@@ -11,6 +11,7 @@ import type { BrushMode } from '../lib/baldeDeTinta'
 import {
   ATALHO_DA_ARVORE,
   PARTE_COM_O_ATALHO_DA_ARVORE,
+  PARTES_DO_MENU_DE_CONSTRUCAO,
   PARTES_DO_MENU_DE_OBJETO,
   type ToolVariantGroup,
   type ToolVariantGroupInativo,
@@ -78,6 +79,8 @@ export interface ToolVariantBindings {
   roomFreeRounded: { value: boolean; onChange: (value: boolean) => void }
   /** Objetos — o móvel que o próximo clique no mapa põe. */
   mobiliaTipo: { value: TipoMobilia; onChange: (value: TipoMobilia) => void }
+  /** Construção — a construção que o próximo clique no mapa põe (12/11/2026). */
+  construcaoTipo: { value: TipoMobilia; onChange: (value: TipoMobilia) => void }
   /** Botão Desenho — forma ativa (`value` = ferramenta ativa) e a ação que troca de ferramenta. */
   drawShape: { value: DrawingTool; onChange: (value: DrawingTool) => void }
 }
@@ -300,6 +303,10 @@ export function eixoDaVariante(
       return eixo(group.options, bindings.mobiliaTipo.value, bindings.mobiliaTipo.onChange, (tipo) => ({
         icon: <MobiliaIcon tipo={tipo} size={MOBILIA_ICON_SIZE} />,
       }))
+    case 'construcaoTipo':
+      return eixo(group.options, bindings.construcaoTipo.value, bindings.construcaoTipo.onChange, (tipo) => ({
+        icon: <MobiliaIcon tipo={tipo} size={MOBILIA_ICON_SIZE} />,
+      }))
     case 'drawShape':
       return eixo(group.options, bindings.drawShape.value, bindings.drawShape.onChange, (tool) => ({
         icon: iconFor?.(tool),
@@ -463,6 +470,8 @@ function IconeDaArvoreRedonda() {
  * escrevem o mesmo `mobiliaTipo`. Tipo do catálogo sem parte (peça nova de um
  * lote futuro) não some: entra no fim da última. O atalho da árvore fecha a
  * parte "Rua e jardim", com a legenda "carimbo" (ele arma outra ferramenta).
+ * A Construção (`construcaoTipo`, 12/11/2026) usa o mesmo desenho com as 4
+ * partes dela (`PARTES_DO_MENU_DE_CONSTRUCAO`), sem o atalho da árvore.
  */
 function PartesDoObjeto({
   group,
@@ -476,13 +485,14 @@ function PartesDoObjeto({
   onAtalho: () => void
 }) {
   const { opcoes, marcada, escolher } = eixoDaVariante(group, bindings)
+  const partes = group.storeKey === 'construcaoTipo' ? PARTES_DO_MENU_DE_CONSTRUCAO : PARTES_DO_MENU_DE_OBJETO
   const porId = new Map(opcoes.map((opcao) => [opcao.id, opcao]))
-  const nasPartes = new Set<string>(PARTES_DO_MENU_DE_OBJETO.flatMap((parte) => parte.tipos))
+  const nasPartes = new Set<string>(partes.flatMap((parte) => parte.tipos))
   const sobra = opcoes.filter((opcao) => !nasPartes.has(opcao.id))
-  const ultima = PARTES_DO_MENU_DE_OBJETO.length - 1
+  const ultima = partes.length - 1
   return (
     <>
-      {PARTES_DO_MENU_DE_OBJETO.map((parte, indice) => {
+      {partes.map((parte, indice) => {
         const daParte = [...parte.tipos.flatMap((tipo) => porId.get(tipo) ?? []), ...(indice === ultima ? sobra : [])]
         return (
           <div className="lb-toolvariant-menu__group lb-toolvariant-menu__parte-do-objeto" key={parte.titulo}>
@@ -501,7 +511,7 @@ function PartesDoObjeto({
                 />
               ))}
             </div>
-            {parte.titulo === PARTE_COM_O_ATALHO_DA_ARVORE && <AtalhoDaArvore bindings={bindings} onPicked={onAtalho} />}
+            {group.storeKey === 'mobiliaTipo' && parte.titulo === PARTE_COM_O_ATALHO_DA_ARVORE && <AtalhoDaArvore bindings={bindings} onPicked={onAtalho} />}
           </div>
         )
       })}
@@ -656,7 +666,7 @@ export function ToolVariantMenu({ title, groups, bindings, onClose, onChoose, ic
         <div className="lb-toolvariant-menu__coluna" key={grupos[0]?.storeKey ?? indice}>
           {grupos.map((group) => (
             <Fragment key={group.storeKey}>
-              {group.storeKey === 'mobiliaTipo' ? (
+              {group.storeKey === 'mobiliaTipo' || group.storeKey === 'construcaoTipo' ? (
                 <PartesDoObjeto
                   group={group}
                   bindings={bindings}

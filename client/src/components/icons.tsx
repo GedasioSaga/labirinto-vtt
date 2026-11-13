@@ -360,6 +360,21 @@ export function ObjetosIcon(props: IconProps) {
 }
 
 /**
+ * Construção (12/11/2026): uma torre de pedra de frente — o corpo, as ameias
+ * no alto e a porta em arco embaixo. De frente como o baú do Objeto, para os
+ * dois botões vizinhos lerem como irmãos: o objeto que se carrega e o prédio.
+ */
+export function ConstrucaoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 20V8h12v12z" />
+      <path d="M6 8V4.5h2.4V6.5h2.4V4.5h2.4V6.5h2.4V4.5H18V8" />
+      <path d="M10 20v-3.5a2 2 0 0 1 4 0V20" />
+    </Icon>
+  )
+}
+
+/**
  * Um móvel visto de cima, com a silhueta e os poucos traços finos que o mapa
  * desenha nele (`tracosDoGlifo`, lib/mobilia.ts), nas mesmas proporções: a
  * opção da setinha lembra o que o clique vai pôr.

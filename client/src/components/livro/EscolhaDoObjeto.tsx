@@ -52,8 +52,28 @@ function consumir(evento: KeyboardEvent<HTMLElement>): void {
   evento.stopPropagation()
 }
 
-function contagem(n: number): string {
-  return n === 1 ? '1 objeto' : `${n} objetos`
+function contagem(n: number, palavra: { singular: string; plural: string } = { singular: 'objeto', plural: 'objetos' }): string {
+  return n === 1 ? `1 ${palavra.singular}` : `${n} ${palavra.plural}`
+}
+
+/** As opções com o título do grupo de cada uma, para a busca achar também pelo lugar ("cozinha", "feira"). */
+function itensDaBusca(opcoes: readonly OpcaoDoEixo[]) {
+  const tituloDoGrupo = new Map<string, string>()
+  for (const parte of partesDoObjeto(opcoes.map((opcao) => opcao.id).filter(ehTipo))) for (const tipo of parte.tipos) tituloDoGrupo.set(tipo, parte.titulo)
+  // O tipo leva às palavras do dia a dia (`PALAVRAS_DO_OBJETO`): "cripta" acha o mausoléu.
+  return opcoes.map((opcao) => ({ opcao, rotulo: opcao.label, grupo: tituloDoGrupo.get(opcao.id) ?? '', tipo: ehTipo(opcao.id) ? opcao.id : undefined }))
+}
+
+/**
+ * O catálogo de OUTRA ferramenta que a busca também acha (decisão do mestre de 12/11/2026: a busca do Objeto
+ * acha as construções). Cada achado sai numa linha "Torre de pedra — em Construção"; escolher leva à outra
+ * ferramenta com ele escolhido (quem chama troca a ferramenta).
+ */
+export interface DaOutraFerramenta {
+  /** O nome da outra ferramenta, como na barra ("Construção"). */
+  nome: string
+  opcoes: readonly OpcaoDoEixo[]
+  escolher: (id: string) => void
 }
 
 export interface EscolhaDoObjetoProps {
@@ -63,6 +83,12 @@ export interface EscolhaDoObjetoProps {
   opcoes: readonly OpcaoDoEixo[]
   marcada: string | null
   escolher: (id: string) => void
+  daOutraFerramenta?: DaOutraFerramenta
+}
+
+/** O que dá para pôr nesta escolha, no singular e no plural ("objeto", "construção"), pelo rótulo do eixo. */
+function palavraDoItem(rotulo: string): { singular: string; plural: string } {
+  return rotulo === 'Construção' ? { singular: 'construção', plural: 'construções' } : { singular: 'objeto', plural: 'objetos' }
 }
 
 /**
@@ -79,7 +105,8 @@ export interface EscolhaDoObjetoProps {
  * escolhem (`andarPelosRadios`) e digitar uma letra volta à busca com ela;
  * nos títulos dos grupos as setas passam de um título ao outro.
  */
-export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDoObjetoProps) {
+export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher, daOutraFerramenta }: EscolhaDoObjetoProps) {
+  const palavra = palavraDoItem(rotulo)
   const ids = useId()
   const entradaRef = useRef<HTMLInputElement | null>(null)
   const listaRef = useRef<HTMLDivElement | null>(null)
@@ -97,8 +124,6 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
 
   const porId = new Map(opcoes.map((opcao) => [opcao.id, opcao]))
   const partes = partesDoObjeto(opcoes.map((opcao) => opcao.id).filter(ehTipo))
-  const tituloDoGrupo = new Map<string, string>()
-  for (const parte of partes) for (const tipo of parte.tipos) tituloDoGrupo.set(tipo, parte.titulo)
   const escolhida = marcada === null ? undefined : porId.get(marcada)
   const grupoDaEscolhida = marcada !== null && ehTipo(marcada) ? grupoDoObjeto(marcada) : null
   // O grupo do escolhido QUANDO A FICHA ABRIU: escolher outro objeto depois não
@@ -114,13 +139,8 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
 
   const consulta = busca.trim()
   const filtrando = consulta !== ''
-  const achados = filtrando
-    ? acharObjetos(
-        // O tipo leva às palavras do dia a dia (`PALAVRAS_DO_OBJETO`): "cripta" acha o mausoléu.
-        opcoes.map((opcao) => ({ opcao, rotulo: opcao.label, grupo: tituloDoGrupo.get(opcao.id) ?? '', tipo: ehTipo(opcao.id) ? opcao.id : undefined })),
-        consulta,
-      ).map((achado) => achado.opcao)
-    : []
+  const achados = filtrando ? acharObjetos(itensDaBusca(opcoes), consulta).map((achado) => achado.opcao) : []
+  const achadosDaOutra = filtrando && daOutraFerramenta !== undefined ? acharObjetos(itensDaBusca(daOutraFerramenta.opcoes), consulta).map((achado) => achado.opcao) : []
   const opcoesUsadas = usados.flatMap((tipo) => porId.get(tipo) ?? [])
 
   // "/" de qualquer lugar: o cursor na busca. Só com a ficha à vista e sem
@@ -142,7 +162,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
   }, [])
 
   const focarPrimeiroDaLista = (): boolean => {
-    const primeiro = listaRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"], [data-cabeca-do-grupo]')
+    const primeiro = listaRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"], [data-cabeca-do-grupo], [data-da-outra]')
     primeiro?.focus()
     return primeiro !== undefined && primeiro !== null
   }
@@ -153,10 +173,18 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
       return
     }
     if (evento.key === 'Enter') {
+      if (evento.nativeEvent.isComposing) return
       const primeiro = achados[0]
-      if (evento.nativeEvent.isComposing || primeiro === undefined) return
+      if (primeiro !== undefined) {
+        consumir(evento)
+        escolher(primeiro.id)
+        return
+      }
+      // Nada neste catálogo: o Enter leva ao primeiro achado da outra ferramenta ("torre" no Objeto).
+      const daOutra = achadosDaOutra[0]
+      if (daOutra === undefined || daOutraFerramenta === undefined) return
       consumir(evento)
-      escolher(primeiro.id)
+      daOutraFerramenta.escolher(daOutra.id)
       return
     }
     if (evento.key === 'Escape') {
@@ -172,7 +200,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
   // de ferramenta.
   const aoTeclarNaLista = (evento: KeyboardEvent<HTMLDivElement>) => {
     const alvo = evento.target
-    if (!(alvo instanceof HTMLElement) || (alvo.getAttribute('role') !== 'radio' && !alvo.hasAttribute('data-cabeca-do-grupo'))) return
+    if (!(alvo instanceof HTMLElement) || (alvo.getAttribute('role') !== 'radio' && !alvo.hasAttribute('data-cabeca-do-grupo') && !alvo.hasAttribute('data-da-outra'))) return
     if (evento.key.length !== 1 || evento.key.trim() === '' || evento.ctrlKey || evento.metaKey || evento.altKey) return
     consumir(evento)
     mudarBusca(busca + evento.key)
@@ -219,7 +247,7 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
     <div className="gr-campo lb-escolha-objeto">
       <span className="gr-campo__rot">
         {rotulo}
-        {escolhida !== undefined && <b title={`Próximo objeto: ${escolhida.label}`}>{escolhida.label}</b>}
+        {escolhida !== undefined && <b title={`Próxim${palavra.singular === 'objeto' ? 'o' : 'a'} ${palavra.singular}: ${escolhida.label}`}>{escolhida.label}</b>}
       </span>
       <div className="lb-escolha-objeto__busca">
         <IconeDoLivro nome="busca" />
@@ -230,10 +258,10 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
           autoComplete="off"
           spellCheck={false}
           maxLength={40}
-          aria-label="Procurar objeto"
+          aria-label={`Procurar ${palavra.singular}`}
           aria-keyshortcuts={TECLA_DA_BUSCA}
           aria-controls={`${ids}-lista`}
-          placeholder="Procurar objeto"
+          placeholder={`Procurar ${palavra.singular}`}
           value={busca}
           onChange={(evento) => mudarBusca(evento.currentTarget.value)}
           onKeyDown={aoTeclarNaBusca}
@@ -253,17 +281,50 @@ export function EscolhaDoObjeto({ rotulo, opcoes, marcada, escolher }: EscolhaDo
         {filtrando ? (
           <>
             <p className="lb-escolha-objeto__resumo" role="status">
-              {achados.length === 0 ? `Nenhum objeto com “${consulta}”.` : contagem(achados.length)}
+              {achados.length === 0 ? `Nenhum${palavra.singular === 'objeto' ? '' : 'a'} ${palavra.singular} com “${consulta}”.` : contagem(achados.length, palavra)}
+              {achadosDaOutra.length > 0 && daOutraFerramenta !== undefined ? ` Em ${daOutraFerramenta.nome}: ${achadosDaOutra.length}.` : ''}
             </p>
             {achados.length > 0 ? (
-              <CampoSeg nomeAcessivel={`Objetos com “${consulta}”`} forma="grade" opcoes={paraOSeg(achados)} valor={marcada ?? undefined} onChange={escolher} />
+              <CampoSeg
+                nomeAcessivel={`${palavra.plural[0]?.toUpperCase() ?? ''}${palavra.plural.slice(1)} com “${consulta}”`}
+                forma="grade"
+                opcoes={paraOSeg(achados)}
+                valor={marcada ?? undefined}
+                onChange={escolher}
+              />
             ) : (
-              <div className="lb-escolha-objeto__vazio">
-                <span>Tente só o começo do nome, ou o lugar: “cozinha”, “feira”.</span>
-                <Botao variante="fantasma" tamanho="p" onClick={limparBusca}>
-                  Limpar busca
-                </Botao>
-              </div>
+              achadosDaOutra.length === 0 && (
+                <div className="lb-escolha-objeto__vazio">
+                  <span>Tente só o começo do nome, ou o lugar: “cozinha”, “feira”.</span>
+                  <Botao variante="fantasma" tamanho="p" onClick={limparBusca}>
+                    Limpar busca
+                  </Botao>
+                </div>
+              )
+            )}
+            {achadosDaOutra.length > 0 && daOutraFerramenta !== undefined && (
+              <section className="lb-escolha-objeto__outra" aria-labelledby={`${ids}-outra`}>
+                <h3 className="lb-escolha-objeto__legenda" id={`${ids}-outra`}>
+                  Em {daOutraFerramenta.nome}
+                </h3>
+                <ul className="lb-escolha-objeto__outra-lista">
+                  {achadosDaOutra.map((opcao) => (
+                    <li key={opcao.id}>
+                      <button
+                        type="button"
+                        className="lb-escolha-objeto__outra-linha"
+                        data-da-outra=""
+                        title={`Abre a ferramenta ${daOutraFerramenta.nome} com ${opcao.label} escolhida`}
+                        onClick={() => daOutraFerramenta.escolher(opcao.id)}
+                      >
+                        {opcao.icon !== undefined && <span className="lb-escolha-objeto__outra-icone" aria-hidden="true">{opcao.icon}</span>}
+                        <span>{opcao.label}</span>
+                        <small>— em {daOutraFerramenta.nome}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </>
         ) : (

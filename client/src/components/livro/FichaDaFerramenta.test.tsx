@@ -53,6 +53,7 @@ function preferencias(mudar: Partial<{ [K in keyof ToolVariantBindings]: ToolVar
     roomFreeKind: eixo('roomFreeKind', mudar.roomFreeKind ?? 'sala'),
     roomFreeRounded: eixo('roomFreeRounded', mudar.roomFreeRounded ?? false),
     mobiliaTipo: eixo('mobiliaTipo', mudar.mobiliaTipo ?? 'barril'),
+    construcaoTipo: eixo('construcaoTipo', mudar.construcaoTipo ?? 'torreDePedra'),
     drawShape: eixo('drawShape', ativa),
   }
   return { bindings, espiao }

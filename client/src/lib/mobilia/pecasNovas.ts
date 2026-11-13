@@ -13,6 +13,7 @@
  *
  * Sem import de `types/map.ts` (o tipo vem de `tipos.ts`), para não criar ciclo.
  */
+import { ehConstrucao } from './construcoes'
 import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 
 /**
@@ -647,9 +648,22 @@ export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [
   ...PECAS_NOVAS_PRONTAS.filter((tipo) => !COM_PARENTE.includes(tipo)),
 ]
 
-/** O catálogo e, se não estiver nele, o tipo do móvel selecionado (o seletor sempre mostra o que o móvel é). */
+/**
+ * O catálogo da ferramenta Objeto: o catálogo inteiro menos as construções, que moram na ferramenta Construção
+ * desde 12/11/2026 (`construcoes.ts`). Mesma ordem.
+ */
+export const TIPOS_DO_OBJETO: readonly TipoMobilia[] = TIPOS_NO_CATALOGO.filter((tipo) => !ehConstrucao(tipo))
+
+/** O catálogo da ferramenta Construção: as construções prontas, na ordem do catálogo (a ficha arruma por grupo). */
+export const TIPOS_DA_CONSTRUCAO: readonly TipoMobilia[] = TIPOS_NO_CATALOGO.filter((tipo) => ehConstrucao(tipo))
+
+/**
+ * O catálogo do tipo (o do Objeto ou o da Construção) e, se não estiver nele, o próprio tipo: o seletor da
+ * ficha sempre mostra o que o móvel é, e troca uma construção só por outra construção (um móvel só por outro).
+ */
 export function catalogoComOTipo(tipo: TipoMobilia): readonly TipoMobilia[] {
-  return TIPOS_NO_CATALOGO.includes(tipo) ? TIPOS_NO_CATALOGO : [...TIPOS_NO_CATALOGO, tipo]
+  const catalogo = ehConstrucao(tipo) ? TIPOS_DA_CONSTRUCAO : TIPOS_DO_OBJETO
+  return catalogo.includes(tipo) ? catalogo : [...catalogo, tipo]
 }
 
 // ---------- variação da lápide ----------

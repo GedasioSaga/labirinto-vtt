@@ -109,7 +109,7 @@ import { compileFloor, pieceBounds, pontosDoCorredor, shapeCenter } from '../lib
 
 /** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
 const MINIMAP_RASTER_SAMPLES = 4
-import type { FloorPiece, FloorShape, MapFrame } from '../types/map'
+import type { FloorPiece, FloorShape, MapFrame, TipoMobilia } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
   buildCorridorShape,
@@ -2164,7 +2164,15 @@ function PixiCanvasDoContexto({
       const objetoPrendeOCliqueDePor = (map: MapData, ponto: Point): boolean => {
         const alvo = findSelectableAt(clickSelectMap(map), ponto, pinosNoToque(map))
         if (alvo?.kind !== 'prop') return false
-        return !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia) || ehMovelDoChao(useMapStore.getState().mobiliaTipo)
+        return !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia) || ehMovelDoChao(tipoQueOCliquePoe() ?? useMapStore.getState().mobiliaTipo)
+      }
+
+      /** O tipo que o clique da ferramenta ativa põe: o do Objeto, o da Construção (12/11/2026), ou nenhum. */
+      const tipoQueOCliquePoe = (): TipoMobilia | null => {
+        const estado = useMapStore.getState()
+        if (estado.activeTool === 'mobilia') return estado.mobiliaTipo
+        if (estado.activeTool === 'construcao') return estado.construcaoTipo
+        return null
       }
 
       const sceneState = () => {
@@ -6783,7 +6791,7 @@ function PixiCanvasDoContexto({
         // Alças do objeto selecionado: com o Selecionar e, desde a caça de 12/11 (E9), com a
         // ferramenta Objeto, que já está com a peça na mão. ANTES do ramo que põe objeto: a
         // bolinha de girar fica fora do corpo, e o clique nela poria outro objeto ali.
-        if ((activeTool === 'select' || activeTool === 'mobilia') && single?.kind === 'prop') {
+        if ((activeTool === 'select' || activeTool === 'mobilia' || activeTool === 'construcao') && single?.kind === 'prop') {
           const prop = map.props.find((p) => p.id === single.id)
           if (prop && canInteract(prop)) {
             const corner = findPropCornerHandleAt(prop, worldPoint, camera.scale)
@@ -6822,14 +6830,16 @@ function PixiCanvasDoContexto({
         // prende: píer em píer abre a ficha); e Ctrl (Cmd no Mac) + clique põe
         // por cima de qualquer objeto. Não é o Alt: neste gesto ele já inverte
         // o encaixe.
-        if (activeTool === 'mobilia' && !(event.button === 0 && !isFreeMoveModifier(event) && objetoPrendeOCliqueDePor(map, worldPoint))) {
+        if ((activeTool === 'mobilia' || activeTool === 'construcao') && !(event.button === 0 && !isFreeMoveModifier(event) && objetoPrendeOCliqueDePor(map, worldPoint))) {
           // Objetos: o móvel da setinha nasce no clique, com o MESMO encaixe da
           // Peça (os dois são objeto do mapa; Alt inverte). Giro da sala,
           // seleção, camada e o passo do desfazer moram em `porMovelNoPonto`.
           // Só o botão esquerdo põe, como no Balde: um clique só, sem arrasto,
           // e o direito não pode largar um móvel por baixo do menu do navegador.
-          if (event.button === 0) {
-            porMovelNoPonto(useMapStore.getState().mobiliaTipo, applySnap(worldPoint, map.grid, 'prop', event.altKey))
+          // A Construção (12/11/2026) põe do mesmo jeito, com a escolha dela.
+          const tipo = tipoQueOCliquePoe()
+          if (event.button === 0 && tipo !== null) {
+            porMovelNoPonto(tipo, applySnap(worldPoint, map.grid, 'prop', event.altKey))
           }
           return
         }

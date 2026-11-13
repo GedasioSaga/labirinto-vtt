@@ -706,6 +706,10 @@ interface MapStoreState {
    *  desfazer — mesma classe de `floorCamada`. */
   mobiliaTipo: TipoMobilia
   setMobiliaTipo: (tipo: TipoMobilia) => void
+  /** Construção (12/11/2026): a construção que o próximo clique da ferramenta Construção põe. Preferência de
+   *  sessão, separada do `mobiliaTipo` (voltar ao Objeto encontra o móvel que estava lá). */
+  construcaoTipo: TipoMobilia
+  setConstrucaoTipo: (tipo: TipoMobilia) => void
   /** Recorta um Drawing freehand/curve/line pela parte dentro do círculo
    *  (center, radius) — COM histórico, 0 a N `Drawing` novos (ver
    *  `eraseFromDrawing`, lib/eraseGeometry.ts). Sem efeito (nenhuma entrada
@@ -2194,6 +2198,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     floorCamada: 'chao',
     camadaDoPincelId: null,
     mobiliaTipo: 'mesa',
+    construcaoTipo: 'torreDePedra',
     regionFillColor: '#3a7ad0',
     // Marrom, igual ao chão do mapa novo (minimapa do RE4): Sala nova não nasce azul.
     roomFillColor: '#a8776a',
@@ -2433,6 +2438,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setFloorCamada: (camada) => set({ floorCamada: camada }),
     setCamadaDoPincel: (id) => set({ camadaDoPincelId: id }),
     setMobiliaTipo: (tipo) => set({ mobiliaTipo: tipo }),
+    setConstrucaoTipo: (tipo) => set({ construcaoTipo: tipo }),
     erasePartOfDrawing: (drawingId, center, radius) => {
       const { map } = get()
       const drawing = map.drawings.find((d) => d.id === drawingId)

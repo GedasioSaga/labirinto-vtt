@@ -48,6 +48,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   carimbos: 'Carimbos',
   pin: 'Pino',
   mobilia: 'Objeto',
+  construcao: 'Construção',
 }
 
 export interface SelectionNoun {
@@ -130,6 +131,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um pino. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
   mobilia: 'Escolha o objeto e clique no mapa para pôr; em cima de tapete, píer ou palco ele já nasce por cima (outro tapete, píer ou palco, não), e Ctrl + clique o põe em cima de qualquer objeto. Clique num objeto posto abre a ficha dele; o botão direito o põe por cima ou por baixo.',
+  construcao:
+    'Escolha a construção e clique no mapa para pôr: torre, moinho, poço, estátua... A maioria barra a passagem dos jogadores (você sempre atravessa). Clique numa construção posta abre a ficha dela.',
 }
 
 /**
@@ -181,6 +184,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
   mobilia: 'Clique no mapa para colocar.',
+  construcao: 'Clique no mapa para colocar.',
 }
 
 /** A Sala livre em "Criar: Parede" (a setinha ou a ficha): o mesmo traçado, com outro fim. */
@@ -242,7 +246,8 @@ export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   // CHÃO E CAMINHO (12/11/2026, decisão do mestre): a ferramenta Caminho saiu da barra; o
   // Chão traça o caminho (forma Caminho, com material, curva suave e borda). Caminho antigo
   // continua no mapa e ganha material pelo botão "Dar material" da ficha dele.
-  { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'cluster:objeto', 'light'] },
+  // CONSTRUÇÕES (12/11/2026, decisão do mestre): a Construção tem botão próprio, colado no Objeto.
+  { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'cluster:objeto', 'construcao', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
   { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'carimbos', 'neblina'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é

@@ -9,7 +9,7 @@ import { TOOL_SHORTCUTS } from './keymap'
 import type { BrushMode } from './baldeDeTinta'
 import type { ToolClusterId } from '../components/labels'
 import { NOME_COM_ARTIGO, ROTULO_MOBILIA } from './mobilia'
-import { TIPOS_NO_CATALOGO } from './mobilia/pecasNovas'
+import { TIPOS_DA_CONSTRUCAO, TIPOS_DO_OBJETO } from './mobilia/pecasNovas'
 import { partesDoObjeto } from './mobilia/gruposDoObjeto'
 
 /**
@@ -117,6 +117,8 @@ export type ToolVariantGroup = (
   | { storeKey: 'roomFreeRounded'; label: string; options: ToolVariantOption<boolean>[] }
   /** Objetos: o móvel que o próximo clique no mapa põe (Barril, Mesa...). */
   | { storeKey: 'mobiliaTipo'; label: string; options: ToolVariantOption<TipoMobilia>[] }
+  /** Construção: a construção que o próximo clique no mapa põe (Torre de pedra, Poço...). */
+  | { storeKey: 'construcaoTipo'; label: string; options: ToolVariantOption<TipoMobilia>[] }
   /** Forma do botão "Desenho": escolher ATIVA a ferramenta (não é preferência da próxima entidade). */
   | { storeKey: 'drawShape'; label: string; options: ToolVariantOption<DrawingTool>[] }
 ) & { inativoQuando?: ToolVariantGroupInativo }
@@ -354,14 +356,29 @@ const FLOOR_CAMADA_GROUP: ToolVariantGroup = {
 
 /**
  * O móvel que o próximo clique da ferramenta Objetos põe no mapa, na ordem do
- * catálogo (`TIPOS_NO_CATALOGO`: os 11 de antes e as peças novas já prontas).
- * Preferência de sessão, como a camada do chão: escolher aqui não muda móvel
- * nenhum já posto.
+ * catálogo (`TIPOS_DO_OBJETO`: os 11 de antes e as peças novas já prontas, sem
+ * as construções). Preferência de sessão, como a camada do chão: escolher aqui
+ * não muda móvel nenhum já posto.
  */
 const MOBILIA_TIPO_GROUP: ToolVariantGroup = {
   storeKey: 'mobiliaTipo',
   label: 'Objeto',
-  options: TIPOS_NO_CATALOGO.map((tipo) => ({
+  options: TIPOS_DO_OBJETO.map((tipo) => ({
+    id: tipo,
+    label: ROTULO_MOBILIA[tipo],
+    value: tipo,
+    description: `Clique no mapa para pôr ${NOME_COM_ARTIGO[tipo]}.`,
+  })),
+}
+
+/**
+ * A construção que o próximo clique da ferramenta Construção põe no mapa (12/11/2026, `construcoes.ts`). Eixo
+ * próprio, separado do `mobiliaTipo`: voltar ao Objeto encontra o móvel que estava escolhido lá.
+ */
+export const CONSTRUCAO_TIPO_GROUP: Extract<ToolVariantGroup, { storeKey: 'construcaoTipo' }> = {
+  storeKey: 'construcaoTipo',
+  label: 'Construção',
+  options: TIPOS_DA_CONSTRUCAO.map((tipo) => ({
     id: tipo,
     label: ROTULO_MOBILIA[tipo],
     value: tipo,
@@ -485,6 +502,8 @@ export const TOOL_VARIANTS: Partial<Record<DrawingTool, ToolVariantEntry>> = {
   // Objetos: o catálogo (lib/mobilia.ts) e o móvel no mapa já existiam; a
   // setinha escolhe qual deles o clique põe (stores/mobiliaNoPonto.ts).
   mobilia: { available: true, tool: 'mobilia', groups: [MOBILIA_TIPO_GROUP] },
+  // Construção (12/11/2026): o mesmo clique que põe, com o catálogo das construções.
+  construcao: { available: true, tool: 'construcao', groups: [CONSTRUCAO_TIPO_GROUP] },
 
   // ---- pedida pelo usuário, capacidade existe mas SEM eixo próprio ------
   line: {
@@ -591,14 +610,19 @@ export const ATALHO_DA_ARVORE: {
  * O menu do Objeto em partes, as MESMAS da ficha da ferramenta: os grupos moram
  * em `lib/mobilia/gruposDoObjeto.ts` (`GRUPO_DO_OBJETO`, uma linha por tipo) e
  * as duas telas leem de lá. Só a ARRUMAÇÃO muda: o eixo continua um só
- * (`mobiliaTipo`) e o catálogo (`TIPOS_NO_CATALOGO`) segue na ordem dele. Grupo
+ * (`mobiliaTipo`) e o catálogo (`TIPOS_DO_OBJETO`) segue na ordem dele. Grupo
  * sem peça não vira parte; tipo sem grupo cai em "Outros". O teste prende que
  * todo tipo do catálogo cai em exatamente uma parte; o atalho da árvore fecha a
  * parte "Rua e jardim".
  */
-export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = partesDoObjeto(TIPOS_NO_CATALOGO).map(
+export const PARTES_DO_MENU_DE_OBJETO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = partesDoObjeto(TIPOS_DO_OBJETO).map(
   ({ titulo, tipos }) => ({ titulo, tipos }),
 )
+
+/** O menu da Construção nas 4 partes de `construcoes.ts` (Torres e prédios...), pela mesma conta do Objeto. */
+export const PARTES_DO_MENU_DE_CONSTRUCAO: readonly { readonly titulo: string; readonly tipos: readonly TipoMobilia[] }[] = partesDoObjeto(
+  TIPOS_DA_CONSTRUCAO,
+).map(({ titulo, tipos }) => ({ titulo, tipos }))
 
 /** A parte do menu que termina com o atalho da árvore. */
 export const PARTE_COM_O_ATALHO_DA_ARVORE = 'Rua e jardim'
@@ -672,6 +696,7 @@ const VARIANT_ECHO_SUBJECT: Partial<Record<ToolVariantStoreKey, string>> = {
   roomFreeKind: 'Traçado vira',
   roomFreeRounded: 'Arredondar',
   mobiliaTipo: 'Próximo objeto',
+  construcaoTipo: 'Próxima construção',
 }
 
 /** Todos os grupos por eixo — a barra precisa achar o RÓTULO da opção a partir
@@ -696,6 +721,7 @@ const GROUP_BY_STORE_KEY: Record<ToolVariantStoreKey, ToolVariantGroup> = {
   roomFreeKind: ROOM_FREE_KIND_GROUP,
   roomFreeRounded: ROOM_FREE_ROUNDED_GROUP,
   mobiliaTipo: MOBILIA_TIPO_GROUP,
+  construcaoTipo: CONSTRUCAO_TIPO_GROUP,
   drawShape: DRAWING_SHAPE_GROUP,
 }
 

@@ -53,6 +53,7 @@ function bindings(): ToolVariantBindings {
     floorBrushSize: { value: 1, onChange: vazio },
     floorCamada: { value: 'chao', onChange: vazio },
     mobiliaTipo: { value: 'mesa', onChange: vazio },
+    construcaoTipo: { value: 'torreDePedra', onChange: vazio },
     roomFreeKind: { value: 'sala', onChange: vazio },
     roomFreeRounded: { value: false, onChange: vazio },
     drawShape: { value: 'brush', onChange: vazio },

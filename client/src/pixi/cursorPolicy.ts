@@ -236,6 +236,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'carimbos',
   // Objetos: o clique põe um móvel novo no ponto.
   'mobilia',
+  // Construção: o clique põe uma construção nova no ponto.
+  'construcao',
 ])
 
 function resizeCursorForCorner(corner: ResizeCorner | null): string {

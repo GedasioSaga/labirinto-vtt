@@ -279,7 +279,8 @@ function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, v
  * regra: se as duas divergem, a camada não repinta e a alça fica invisível.
  */
 export function alcasAparecem(activeTool: DrawingTool, kind: NonNullable<Selection>['kind']): boolean {
-  return activeTool === 'select' || (activeTool === 'mobilia' && kind === 'prop')
+  // A ferramenta Construção (12/11/2026) põe o mesmo tipo de peça e tem as mesmas alças.
+  return activeTool === 'select' || ((activeTool === 'mobilia' || activeTool === 'construcao') && kind === 'prop')
 }
 
 export function drawEditHandles(

@@ -74,6 +74,13 @@ export type DrawingTool =
    * mestre clica (`stores/mobiliaNoPonto.ts`).
    */
   | 'mobilia'
+  /**
+   * Construção (12/11/2026): torre, moinho, poço, estátua... — as 19 construções de
+   * `lib/mobilia/construcoes.ts`, que saíram do Objeto e têm regras próprias. Põe o
+   * mesmo `Prop` com `mobilia` do Objeto; a escolha (`construcaoTipo`, no mapStore) é
+   * separada da do Objeto.
+   */
+  | 'construcao'
 
 /**
  * O que o clique da ferramenta "Porta" abre na parede:

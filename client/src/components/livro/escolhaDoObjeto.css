@@ -190,3 +190,58 @@
     transition-duration: 0ms;
   }
 }
+
+/* "Em Construção" (12/11/2026): o que a busca do Objeto acha na ferramenta Construção. Cada linha é um botão
+   que leva à outra ferramenta com o achado escolhido; o "— em Construção" diz para onde o clique leva. */
+.lb-escolha-objeto__outra {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.lb-escolha-objeto__outra-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-escolha-objeto__outra-linha {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: var(--lb-font-size-sm);
+  text-align: left;
+  color: var(--lb-color-parchment);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-md);
+  cursor: pointer;
+}
+
+.lb-escolha-objeto__outra-linha:hover {
+  border-color: var(--lb-gr-filete);
+}
+
+.lb-escolha-objeto__outra-linha:focus-visible {
+  outline: 2px solid var(--lb-color-parchment);
+  outline-offset: 1px;
+}
+
+.lb-escolha-objeto__outra-linha > small {
+  color: var(--lb-color-parchment-faint);
+}
+
+.lb-escolha-objeto__outra-icone {
+  flex: none;
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}

@@ -3,7 +3,8 @@ import type { DrawingTool } from '../../types/tools'
 import { TOOL_SHORTCUTS } from '../../lib/keymap'
 import { CAMADAS_DO_CHAO } from '../../lib/camadasDoChao'
 import { BaldeIcon, EllipseIcon, FloorIcon, PathIcon, RegularPolygonIcon, RoomIcon } from '../icons'
-import { TOOL_VARIANTS, clusterVariantGroups, type ToolVariantGroup, type ToolVariantStoreKey } from '../../lib/toolVariants'
+import { CONSTRUCAO_TIPO_GROUP, TOOL_VARIANTS, clusterVariantGroups, type ToolVariantGroup, type ToolVariantStoreKey } from '../../lib/toolVariants'
+import { NOME_DA_FERRAMENTA_CONSTRUCAO } from '../../lib/mobilia/construcoes'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { DICAS_DA_FICHA, DICA_DA_FICHA_PENHASCO_FORA_DO_CONTINENTE, DICA_DA_FICHA_SALA_LIVRE_PAREDE, TOOL_LABELS, clusterOfTool } from '../labels'
 import { isContinente } from '../../lib/marcadorDeContinente'
@@ -128,7 +129,25 @@ function grupoValeAgora(grupo: ToolVariantGroup, variantes: ToolVariantBindings)
 function CampoDaVariante({ grupo, variantes }: { grupo: ToolVariantGroup; variantes: ToolVariantBindings }) {
   const { opcoes, marcada, escolher } = eixoDaVariante(grupo, variantes, iconeDaOpcao)
   // Os 48 objetos não cabem numa grade só: grupos, busca e "Usados há pouco" (pedido de 10/11/2026).
-  if (grupo.storeKey === 'mobiliaTipo') return <EscolhaDoObjeto rotulo={grupo.label} opcoes={opcoes} marcada={marcada} escolher={escolher} />
+  if (grupo.storeKey === 'mobiliaTipo') {
+    // Decisão do mestre (12/11/2026): a busca do Objeto também acha as construções; escolher uma leva à
+    // ferramenta Construção com ela escolhida, para quem procura "torre" onde sempre procurou não achar que sumiu.
+    const construcoes = eixoDaVariante(CONSTRUCAO_TIPO_GROUP, variantes, iconeDaOpcao)
+    const levarParaAConstrucao = (id: string) => {
+      construcoes.escolher(id)
+      variantes.drawShape.onChange('construcao')
+    }
+    return (
+      <EscolhaDoObjeto
+        rotulo={grupo.label}
+        opcoes={opcoes}
+        marcada={marcada}
+        escolher={escolher}
+        daOutraFerramenta={{ nome: NOME_DA_FERRAMENTA_CONSTRUCAO, opcoes: construcoes.opcoes, escolher: levarParaAConstrucao }}
+      />
+    )
+  }
+  if (grupo.storeKey === 'construcaoTipo') return <EscolhaDoObjeto rotulo={grupo.label} opcoes={opcoes} marcada={marcada} escolher={escolher} />
 
   const comIcone = opcoes.map((opcao) => ({ ...opcao, icon: opcao.icon ?? iconeDaFicha(grupo, opcao.id) }))
   // Com ícone, três opções já pedem a grade (ícone em cima do nome, como as formas do protótipo).

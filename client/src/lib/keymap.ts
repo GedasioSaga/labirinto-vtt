@@ -229,6 +229,8 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // (F é "enquadrar tudo" e Z fica reservada ao Ctrl+Z). A barra o alcança, no
   // grupo só dele.
   mobilia: '',
+  // Construção (12/11/2026): sem letra, pelo mesmo motivo do Objeto; mora ao lado dele na barra.
+  construcao: '',
   // Penhasco: letra sozinha não sobrou nenhuma, então ele abre a família das
   // ferramentas de Shift+letra (a mesma dos atalhos do mestre, Shift+P/J).
   // C de "costa", onde o pincel risca; Shift+C estava livre.

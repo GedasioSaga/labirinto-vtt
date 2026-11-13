@@ -820,6 +820,8 @@ function App() {
   const setCamadaDoPincel = useMapStore((state) => state.setCamadaDoPincel)
   const mobiliaTipo = useMapStore((state) => state.mobiliaTipo)
   const setMobiliaTipo = useMapStore((state) => state.setMobiliaTipo)
+  const construcaoTipo = useMapStore((state) => state.construcaoTipo)
+  const setConstrucaoTipo = useMapStore((state) => state.setConstrucaoTipo)
   const updateFloorPiece = useMapStore((state) => state.updateFloorPiece)
   const reorderFloorPiece = useMapStore((state) => state.reorderFloorPiece)
   const setFloorStyle = useMapStore((state) => state.setFloorStyle)
@@ -3585,6 +3587,7 @@ function App() {
     floorBrushSize: { value: floorBrushSize, onChange: setFloorBrushSize },
     floorCamada: { value: floorCamada, onChange: setFloorCamada },
     mobiliaTipo: { value: mobiliaTipo, onChange: setMobiliaTipo },
+    construcaoTipo: { value: construcaoTipo, onChange: setConstrucaoTipo },
     roomFreeKind: { value: roomFreeKind, onChange: setRoomFreeKind },
     roomFreeRounded: { value: roomFreeRounded, onChange: setRoomFreeRounded },
     drawShape: { value: activeTool, onChange: armarPelaBarra },
