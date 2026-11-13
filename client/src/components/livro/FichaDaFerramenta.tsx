@@ -77,6 +77,8 @@ function iconeDaOpcao(ferramenta: DrawingTool): ReactNode {
 
 /** As formas do Chão com os desenhos do protótipo (sala, elipse, polígono, caminho, blocos, balde). */
 const ICONES_DA_FORMA_DO_CHAO: Partial<Record<string, ComponentType<{ size?: number }>>> = {
+  // CHÃO E CAMINHO (12/11/2026): a forma Caminho leva o desenho da ferramenta Caminho que saiu da barra.
+  caminho: PathIcon,
   rect: RoomIcon,
   ellipse: EllipseIcon,
   polygon: RegularPolygonIcon,
