@@ -163,7 +163,8 @@ describe('mapForImageExport', () => {
         { id: 'b-mancha', tipo: 'balde', textura: 'pantano', forca: 1, alvo: { tipo: 'desenho', id: 'mancha' } },
         // Pincelada de lava dentro da zona oculta.
         { id: 'p-lava', tipo: 'pincel', textura: 'importada:lava', forca: 1, raio: 20, pontos: [{ x: 700, y: 100 }] },
-        // Pincelada que passa a menos de um raio da borda da sala secreta: encosta nela.
+        // Pincelada que passa a menos de um raio da borda da sala secreta: FICA. A sala fechada é chão aberto para
+        // o jogador, e o caminho que encosta nela ou a atravessa sai inteiro, como na tela dele (FX-NEVOA2-062).
         { id: 'p-borda', tipo: 'pincel', textura: 'terra', forca: 1, raio: 40, pontos: [{ x: 230, y: 100 }] },
         { id: 'b-salao', tipo: 'balde', textura: 'campo', forca: 1, alvo: { tipo: 'regiao', id: 'salao' } },
         { id: 'p-longe', tipo: 'pincel', textura: 'terra', forca: 1, raio: 20, pontos: [{ x: 300, y: 500 }] },
@@ -171,7 +172,7 @@ describe('mapForImageExport', () => {
       texturasImportadas: [{ id: 'importada:lava', nome: 'Lava do covil', imagem: 'data:image/webp;base64,AAAA' }],
     })
     const out = mapForImageExport(map, SEM_MESTRE)
-    expect(out.texturas?.map((p) => p.id)).toEqual(['b-salao', 'p-longe'])
+    expect(out.texturas?.map((p) => p.id)).toEqual(['p-borda', 'b-salao', 'p-longe'])
     // A importada que só a pincelada escondida usava também fica.
     expect(out.texturasImportadas).toBeUndefined()
     expect(mapForImageExport(map, COM_MESTRE).texturas).toHaveLength(6)

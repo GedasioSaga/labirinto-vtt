@@ -252,7 +252,7 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[],
   const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
   const ficam = new Set(walls)
   const paredesTiradas = [...paredesInvisiveis, ...paredesForaDaCamada, ...map.walls.filter((w) => !ficam.has(w))]
-  const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), hiddenAreas, paredesTiradas)
+  const texturas = texturasSemSegredo(map, goneRegionIds, new Set(drawings.map((d) => d.id)), aneisDasSalasSecretas, aneisDasZonas, paredesTiradas)
 
   const semSegredo: MapData = {
     ...map,
@@ -289,26 +289,27 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[],
 /**
  * TEXTURAS sem o que é do mestre: o balde enche a forma do alvo, então o
  * balde de uma sala secreta (ou de um desenho que não sai) desenharia a
- * silhueta dela; a pincelada que encosta (a menos de um raio) numa sala
- * secreta ou numa zona oculta entrega o que tem lá. A borracha fica: ela só
- * tira tinta, não mostra nada.
+ * silhueta dela; a pincelada que encosta (a menos de um raio) numa zona
+ * oculta entrega o que tem lá (a imagem não tem a névoa que, na tela, cobre o
+ * trecho de dentro). A borracha fica: ela só tira tinta, não mostra nada.
+ *
+ * SALA SECRETA, A RÉGUA DA TELA DO JOGADOR (FX-NEVOA2-062): o caminho pintado
+ * que só ATRAVESSA a sala sai inteiro, também no trecho de dentro, como o
+ * desenho (decisão 21) e como na tela do jogador; tirado, a falta dele entregava
+ * a sala. O pincel e a borracha que MORAM nela (a maioria dos pontos lá dentro)
+ * não saem. O balde continua pela forma: a área que encosta na sala sai.
  */
 function texturasSemSegredo(
   map: MapData,
   goneRegionIds: ReadonlySet<string>,
   drawingIds: ReadonlySet<string>,
-  hiddenAreas: readonly (readonly RegionPoint[])[],
+  aneisDasSalasSecretas: readonly (readonly RegionPoint[])[],
+  aneisDasZonas: readonly (readonly RegionPoint[])[],
   paredesTiradas: readonly Wall[],
 ): PinceladaDeTextura[] {
-  const encosta = (p: RegionPoint, raio: number): boolean =>
-    hiddenAreas.some(
-      (ring) =>
-        pointInPolygonInclusive(p, ring) ||
-        ring.some((a, i) => {
-          const b = ring[(i + 1) % ring.length]
-          return distanceToWall(p, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }) <= raio
-        }),
-    )
+  const hiddenAreas = [...aneisDasSalasSecretas, ...aneisDasZonas]
+  const naSalaSecreta = (p: RegionPoint): boolean => aneisDasSalasSecretas.some((ring) => pointInPolygonInclusive(p, ring))
+  const encosta = (p: RegionPoint, raio: number): boolean => encostaEm(hiddenAreas, p, raio)
   // A ÁREA fechada por paredes não é forma do mapa: sai se o contorno encosta numa sala secreta ou zona
   // oculta, ou se corre numa parede que a imagem tira (a do cofre, mesmo fora da borda dele): o contorno a desenharia.
   const alvoFica = (alvo: AlvoDoBalde): boolean =>
@@ -321,8 +322,21 @@ function texturasSemSegredo(
     if (passo.tipo === 'balde' || passo.tipo === 'esvaziar') return alvoFica(passo.alvo)
     // A sala secreta não abre buraco na textura: o buraco desenharia a silhueta dela.
     if (passo.tipo === 'sala') return !goneRegionIds.has(passo.regiao)
-    return passo.tipo === 'borracha' || !passo.pontos.some((p) => encosta(p, passo.raio))
+    if (aneisDasSalasSecretas.length > 0 && maioriaDentro(passo.pontos, naSalaSecreta)) return false
+    return passo.tipo === 'borracha' || !passo.pontos.some((p) => encostaEm(aneisDasZonas, p, passo.raio))
   })
+}
+
+/** O ponto cai em algum dos anéis ou passa a até `raio` da borda de um deles. */
+function encostaEm(aneis: readonly (readonly RegionPoint[])[], p: RegionPoint, raio: number): boolean {
+  return aneis.some(
+    (ring) =>
+      pointInPolygonInclusive(p, ring) ||
+      ring.some((a, i) => {
+        const b = ring[(i + 1) % ring.length]
+        return distanceToWall(p, { x1: a.x, y1: a.y, x2: b.x, y2: b.y }) <= raio
+      }),
+  )
 }
 
 function activeZoneRings(zones: readonly ConcealZone[]): RegionPoint[][] {
