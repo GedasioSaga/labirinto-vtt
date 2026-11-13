@@ -52,7 +52,8 @@ describe('TexturasControls', () => {
   it('mostra a biblioteca inteira, com a escolhida marcada, e um só ponto de Tab no grupo', () => {
     montar()
     const opcoes = radios('Textura')
-    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra', 'Calçamento', 'Chão de metal'])
+    // O Cascalho (CHÃO E CAMINHO, 12/11/2026, `b5c3469d`) também se vende nas Texturas, depois da Terra.
+    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Cascalho', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra', 'Calçamento', 'Chão de metal'])
     expect(opcoes.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['Floresta'])
     expect(opcoes.filter((b) => b.tabIndex === 0)).toHaveLength(1)
   })

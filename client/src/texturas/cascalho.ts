@@ -41,16 +41,22 @@ function pedrinhaEm(u: number, v: number): Pedrinha | null {
   return achada
 }
 
-/** A cor do cascalho no ponto (u, v) do ladrilho. */
+/**
+ * A cor do cascalho no ponto (u, v) do ladrilho.
+ * SEM LISTRA FINA (fase de testes da 0.5.62, 13/11/2026): o primeiro cascalho variava 0,040 de pixel a pixel, quatro
+ * vezes a Terra (0,011) e acima da régua da biblioteca (`embutidas.test.ts`: 0,035, e 0,0175 para textura medida em
+ * casas). Conserto com o mesmo desenho: ladrilho de 1024 (`embutidas.ts`), grão de 0,08 para 0,04, sombra da
+ * pedrinha de 0,16 para 0,12 e luz dela de 0,35 para 0,25. Medido: 0,0172.
+ */
 export function cascalho(u: number, v: number): number {
   let fundo = misturar(FUNDO, FUNDO_ESCURO, passoSuave(0.35, 0.8, fbm(u, v, 6, 3, 505) * 0.5 + 0.5))
-  fundo = luz(fundo, (valor(u * 200, v * 200, 200, 506) - 0.5) * 0.08)
+  fundo = luz(fundo, (valor(u * 200, v * 200, 200, 506) - 0.5) * 0.04)
   const pedra = pedrinhaEm(u, v)
   if (pedra === null) {
     const sombra = pedrinhaEm(u - 0.004, v - 0.004)
-    return empacotar(sombra === null ? fundo : luz(fundo, -0.16 * passoSuave(1, 0.55, sombra.t)))
+    return empacotar(sombra === null ? fundo : luz(fundo, -0.12 * passoSuave(1, 0.55, sombra.t)))
   }
   const brilho = luzNaInclinacao(pedra.nx * 1.3, pedra.ny * 1.3) - LUZ_NO_PLANO
-  const cor = luz(pedra.tom, brilho * 0.35 - pedra.t * pedra.t * 0.06)
+  const cor = luz(pedra.tom, brilho * 0.25 - pedra.t * pedra.t * 0.06)
   return empacotar(misturar(fundo, cor, passoSuave(1, 0.82, pedra.t)))
 }

@@ -25,6 +25,9 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'chao-de-floresta': 'cb19d3330ebcf5285aacac502e0acce26aef645b6f623ead0f9da972b9c8a3d4',
   pantano: 'f07e90c5c5685fe828b29fbad4081aa173b899f7ce9ff6e35264aa269f4ee780',
   terra: 'f8b057f72fe1b374def89e9ba3e5054101cfb4b20693f29dcd7036f3dc73ec82',
+  // O Cascalho nasceu depois da F5 (CHÃO E CAMINHO, 12/11/2026, `b5c3469d`), já com o conserto da listra fina da
+  // fase de testes da 0.5.62 (ladrilho de 1024 e pedrinha mais macia): o hash é o do código que o criou.
+  cascalho: '3368d32172600513dcebd3fa339c09814dc32870752358b9b75165172a4814e2',
   pedra: '4d518949913ec7f1937ef4d734b07e1fc1bde309ae8a705ee1499e286451ce12',
   neve: '4fb13c25326a3ea80e3f28b516f5b022d1420903ca5821b0ce9b1b7d53415ee1',
   conves: 'e4807562aa43b41a7fa8ea9762f41915dbb684ade3a7bc70bdc77f24caaae4ed',

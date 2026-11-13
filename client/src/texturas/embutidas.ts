@@ -1378,7 +1378,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'pantano', nome: 'Pântano', escala: PANTANO_ESCALA, lado: LADO_GRANDE, cor: pantano },
   { id: 'terra', nome: 'Terra', escala: TERRA_ESCALA, lado: LADO_GRANDE, cor: terra },
   // Cascalho (pedido CHÃO E CAMINHO de 12/11/2026, `cascalho.ts`): medido em casas, a pedrinha tem o tamanho certo contra a casa.
-  { id: 'cascalho', nome: 'Cascalho', escala: 64, casas: CASCALHO_CASAS, lado: LADO_GRANDE, cor: cascalho },
+  // Ladrilho de 1024 (256 px por casa): no de 512 a pedrinha miúda ficava com 3 px de raio e virava listra fina.
+  { id: 'cascalho', nome: 'Cascalho', escala: 64, casas: CASCALHO_CASAS, lado: LADO_MAIOR, cor: cascalho },
   { id: 'pedra', nome: 'Serra', escala: 56, cor: pedra },
   { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
   // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
