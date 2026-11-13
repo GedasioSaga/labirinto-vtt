@@ -95,6 +95,7 @@ import {
 } from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
 import { useToastStore } from './toastStore'
+import { caminhosComMaterial } from '../lib/terrenoDoChao'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
@@ -829,6 +830,12 @@ interface MapStoreState {
   addFloorPiece: (piece: FloorPiece) => void
   /** Várias peças numa entrada de histórico só ("Chão a partir da imagem de fundo"). */
   addFloorPieces: (pieces: FloorPiece[]) => void
+  /**
+   * DAR MATERIAL (CHÃO E CAMINHO, 12/11/2026): troca os caminhos antigos `ids` por peças de
+   * Chão com material que não limitam (`caminhosComMaterial`), num passo de desfazer só.
+   * Devolve quantos trocou (0 = nada mudou, nada entra no Ctrl+Z).
+   */
+  darMaterialAosCaminhos: (ids: readonly string[]) => number
   updateFloorPiece: (id: string, patch: Partial<Omit<FloorPiece, 'id'>>) => void
   /** Sem histórico — arrasto chama isto a cada pointermove e `commitDragHistory` no fim. */
   updateFloorPieceLive: (id: string, patch: Partial<Omit<FloorPiece, 'id'>>) => void
@@ -2479,6 +2486,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       },
     })),
     addFloorPiece: (piece) => withHistory((map) => mapFactory.addFloorPiece(map, piece)),
+    darMaterialAosCaminhos: (ids) => {
+      const troca = caminhosComMaterial(get().map, ids)
+      if (troca === null) return 0
+      const primeiro = get().map.drawings.find((d) => ids.includes(d.id))
+      // A peça nasce no piso do caminho, não no da tela.
+      withHistory(() => troca.map, undefined, primeiro?.piso ?? 0)
+      return troca.quantos
+    },
     addFloorPieces: (pieces) => {
       // Lista vazia não gasta entrada de undo que não desfaz nada.
       if (pieces.length === 0) return

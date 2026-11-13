@@ -3,6 +3,7 @@ import type { Drawing, FloorPiece, Light, Prop, Region, Stair, Token, Wall } fro
 import { DrawingStyleControls, type DrawingStyleControlsProps } from './DrawingStyleControls'
 import { PathStyleControls, type PathStyleControlsProps } from './PathStyleControls'
 import { TerrenoControls } from './TerrenoControls'
+import { DarMaterialAoCaminho } from './DarMaterialAoCaminho'
 import type { GridControlsProps } from './GridControls'
 import { CollapsibleSection } from './CollapsibleSection'
 import type { TokenPersonagemControlsProps } from './TokenPersonagemControls'
@@ -893,6 +894,8 @@ export function PropertiesPanel({
         {/* DESENHO SELECIONADO (fatia 16b): a ficha própria — o essencial (Cor,
             Espessura, Formato, Preenchido, Opacidade e o Oculto) e as fichas
             Traço e Paredes. Com a ferramenta armada, os blocos soltos. */}
+        {/* CHÃO E CAMINHO (12/11/2026): o caminho antigo selecionado ganha o "Dar material". */}
+        {desenhoSelecionado && <DarMaterialAoCaminho />}
         {desenhoSelecionado ? (
           <FichaDoDesenho
             estilo={drawingStyle}

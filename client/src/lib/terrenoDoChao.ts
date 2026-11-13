@@ -1,4 +1,4 @@
-import type { FloorPiece, FloorShape, PinceladaDeTextura, RegionPoint } from '../types/map'
+import type { Drawing, FloorPiece, FloorShape, MapData, PinceladaDeTextura, RegionPoint } from '../types/map'
 import { aneisDoCampo, floorSampleStep, type FloorClip } from './floorContour'
 import { pieceBounds, pieceDistance, valueNoise, type Bounds, type CompiledFloor } from './floorSdf'
 
@@ -444,4 +444,69 @@ export function passosDoTerreno(floor: readonly FloorPiece[], grid: number, clip
   }))
   passosPorLista.set(floor, { chave, passos })
   return passos
+}
+
+// ---------------------------------------------------------------------------
+// Caminhos antigos: "Dar material"
+
+/** A cor `#rrggbb` em componentes; texto torto vira cinza médio. */
+function componentes(cor: string): [number, number, number] {
+  const m = /^#([0-9a-f]{6})$/i.exec(cor.trim())
+  if (m === null) return [128, 128, 128]
+  const n = Number.parseInt(m[1], 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/** O material de cor mais perto da cor do caminho antigo (marrom vira terra, cinza vira pedra). */
+export function materialPelaCor(cor: string): string {
+  const [r, g, b] = componentes(cor)
+  let melhor = MATERIAL_PADRAO
+  let menor = Infinity
+  for (const m of MATERIAIS_DO_CHAO) {
+    if (m.textura === null) continue
+    const [mr, mg, mb] = componentes(m.amostra)
+    const d = (r - mr) ** 2 + (g - mg) ** 2 + (b - mb) ** 2
+    if (d < menor) {
+      menor = d
+      melhor = m.textura
+    }
+  }
+  return melhor
+}
+
+/** Um caminho antigo (desenho `path`) que pode ganhar material: não secreto e com comprimento. */
+export function caminhoQueGanhaMaterial(d: Drawing): d is Extract<Drawing, { kind: 'path' }> {
+  return d.kind === 'path' && d.secret !== true && d.points.length >= 2
+}
+
+/**
+ * DAR MATERIAL (decisão do mestre de 12/11/2026: os caminhos antigos ficam
+ * como estão, com o botão na ficha): troca os caminhos `ids` por peças de
+ * Chão com material, na mesma rota (curva suave pelos mesmos pontos), na
+ * mesma largura e no mesmo piso, com `soPintura` (o caminho nunca foi
+ * limite: a regra da cena não muda). O material sai da cor do caminho. O
+ * caminho SECRETO fica como está: a peça de Chão iria para o jogador.
+ * `null` = nada a trocar.
+ */
+export function caminhosComMaterial(map: MapData, ids: readonly string[], novoId: () => string = () => crypto.randomUUID()): { map: MapData; quantos: number } | null {
+  const alvo = new Set(ids)
+  const pecas: FloorPiece[] = []
+  const trocados = new Set<string>()
+  for (const d of map.drawings) {
+    if (!alvo.has(d.id) || !caminhoQueGanhaMaterial(d)) continue
+    const peca: FloorPiece = {
+      id: novoId(),
+      shape: { kind: 'corridor', suave: true, points: d.points.map((p) => ({ x: p.x, y: p.y, width: d.width })) },
+      op: 'add',
+      modifiers: {},
+      material: materialPelaCor(d.color),
+      borda: BORDA_PADRAO,
+      soPintura: true,
+    }
+    if (d.piso !== undefined) peca.piso = d.piso
+    pecas.push(peca)
+    trocados.add(d.id)
+  }
+  if (pecas.length === 0) return null
+  return { map: { ...map, floor: [...map.floor, ...pecas], drawings: map.drawings.filter((d) => !trocados.has(d.id)) }, quantos: pecas.length }
 }
