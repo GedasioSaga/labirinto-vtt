@@ -8,7 +8,7 @@ import { barrancoParaJogador } from './barranco'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
 import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
-import { aguasParaJogador } from './agua/recorte'
+import { aguasParaJogador, chaveDoEscondido } from './agua/recorte'
 import { aguasDaVisaoDoJogador } from './agua/comoChao'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
@@ -3652,10 +3652,28 @@ function recorteDoGrupo(
    * fechado, cômodo não visto e zona oculta seguem escondendo. Fora da sala, a mesma conta de `isPointKnown`.
    */
   const escondidoSemASalaSecreta = (p: RegionPoint): boolean => roofHides(p) || inUnseenComodo(p) || inConcealZone(p)
-  const conhecidoSemASalaSecreta = (p: RegionPoint): boolean =>
-    !escondidoSemASalaSecreta(p) &&
-    !hiddenByZone(p) &&
-    (inAnyRing(rings, p) || inBrushReveal(p) || (explored !== undefined && isPointExplored(explored, p)) || inKnownComodo(p))
+  /** `conhecidoSemASalaSecreta` sem perguntar `escondidoSemASalaSecreta`: para quem já perguntou (o recorte da água). */
+  const conhecidoForaDoEscondido = (p: RegionPoint): boolean =>
+    !hiddenByZone(p) && (inAnyRing(rings, p) || inBrushReveal(p) || (explored !== undefined && isPointExplored(explored, p)) || inKnownComodo(p))
+  const conhecidoSemASalaSecreta = (p: RegionPoint): boolean => !escondidoSemASalaSecreta(p) && conhecidoForaDoEscondido(p)
+  /**
+   * A CHAVE DO ESCONDIDO DA ÁGUA (M05 da 0.5.62): `escondidoSemASalaSecreta` e `inSecretRoom` só mudam com as salas,
+   * as paredes, o grid, os tetos fechados, os cômodos não vistos, as zonas dele e as salas secretas fechadas: a ficha
+   * andando não muda nada disso, e o recorte da água lembra a resposta de cada ponto (`lib/agua/recorte.ts`). Com o
+   * cone pelo vão ou alguém espiando pela porta o teto depende da visão: sem chave, conta tudo de novo.
+   */
+  const chaveDoEscondidoDaAgua = (): string | undefined =>
+    cacheDoRecorte.ligado && glimpses.length === 0 && peekRings.length === 0
+      ? chaveDoEscondido([
+          map.regions,
+          map.walls,
+          map.grid,
+          [...closedRoofIds].join(','),
+          unseenComodos.map((r) => r.id).join(','),
+          secretRooms.map((r) => r.id).join(','),
+          ...playerConcealZones,
+        ])
+      : undefined
 
   /**
    * LUZ VISTA DE LONGE, fora da visão: marcada pelo mestre, fora de zona
@@ -4657,7 +4675,10 @@ function recorteDoGrupo(
     // `pontos` vão vazios), fora de lugar escondido e de zona oculta; a secreta nunca. Mora em
     // Chão: com a camada escondida dos jogadores, nenhuma sai. Sempre presente, para nunca vir pelo `...map`.
     // A que atravessa a sala secreta fechada passa inteira; a que mora nela não sai (`conhecidoSemASalaSecreta`).
-    aguas: camadas.jogadorVe('chao') ? aguasParaJogador(map.aguas, map.grid, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom) : undefined,
+    // O `conhece` vai sem o escondido: o recorte já pergunta o escondido antes, e lembra a resposta pela chave.
+    aguas: camadas.jogadorVe('chao')
+      ? aguasParaJogador(map.aguas, map.grid, conhecidoForaDoEscondido, escondidoSemASalaSecreta, inSecretRoom, chaveDoEscondidoDaAgua())
+      : undefined,
     // TEXTURAS: as do mestre NUNCA saem daqui (o recorte delas depende das
     // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
     texturas: undefined,
