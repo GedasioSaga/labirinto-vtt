@@ -122,6 +122,8 @@ import {
 } from '../lib/floorTool'
 import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 import { mapFloorClip } from '../lib/floorContour'
+import { pecasLisas } from '../lib/terrenoDoChao'
+import { criarTerrenoDoChao } from './terrenoDoChao'
 import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
 import { corDoPincel } from '../lib/camadasDoPincel'
 
@@ -1402,6 +1404,17 @@ function PixiCanvasDoContexto({
           el.dataset.texturasPixels = String(medida.pixels)
         },
       })
+      // TERRENO DO CHÃO (CHÃO E CAMINHO, 12/11/2026, `terrenoDoChao.ts`): a peça de Chão com
+      // material, ACIMA das texturas e abaixo do relevo; o mesmo motor e o mesmo cache de pedaços.
+      const terreno = criarTerrenoDoChao({
+        palco: { renderer: app.renderer, ticker: app.ticker },
+        cacheDoChao: texturas.cacheDoChao(),
+        aoGerar: (medida) => {
+          el.dataset.terrenoMs = String(Math.round(medida.ms))
+          el.dataset.terrenoCamadas = String(medida.camadas)
+        },
+      })
+      pisosNaVista.push(terreno)
       // FOGOS (objeto Fogo, `fogosDoMapa.ts`): as chamas por cima dos telhados, só as da vista animam.
       const fogos = createFogosDoMapa({
         movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
@@ -1610,6 +1623,7 @@ function PixiCanvasDoContexto({
         drawingsGraphics,
         secretDrawingsGraphics,
         texturas: texturas.camada,
+        terrenoDoChao: terreno.camada,
         relevoContainer,
         regionStrokesContainer,
         pathsGraphics: pathsContainer,
@@ -2560,9 +2574,16 @@ function PixiCanvasDoContexto({
           floorGraphics.clear()
           redrawMapRaster(map)
           pisoDoChao.atualizar([], null)
+          terreno.atualizar(null)
         } else {
           clearMapRaster()
-          floorRenderer.draw(floorGraphics, contextoDeCamadas(map).mestreVe('chao') ? map.floor : EMPTY_FLOOR, map.floorStyle, mapFloorClip(map))
+          const chaoVisivel = contextoDeCamadas(map).mestreVe('chao') ? map.floor : EMPTY_FLOOR
+          // O Liso aqui embaixo; a peça com material vai para o terreno, acima das texturas.
+          floorRenderer.draw(floorGraphics, pecasLisas(chaoVisivel), map.floorStyle, mapFloorClip(map))
+          // A exportação pinta o terreno da imagem à parte (`exportImage`), como as texturas.
+          if (exportScene === null) {
+            terreno.atualizar({ cena: `${map.id}|${useMapStore.getState().pisoAtivo}`, mapa: map, floor: chaoVisivel, importadas: map.texturasImportadas })
+          }
           // Desenhado: o mesmo contorno e as mesmas camadas de cor, agora com o piso tingido.
           const contexto = contextoDoPiso()
           pisoDoChao.atualizar(contexto === null ? [] : formasDoPisoDoChao(floorRenderer.polygons(), floorRenderer.camadas(), map.floorStyle.fillColor), contexto)
@@ -3289,12 +3310,15 @@ function PixiCanvasDoContexto({
         // à parte ANTES de trocar a cena: da troca ao `extract` não há `await`.
         // `allSettled`: um dos dois que falhe não derruba a exportação (o PNG sai sem
         // ele, como antes), e o que deu certo ainda chega ao `finally` e é destruído.
-        const [relevoGerado, texturasPintadas] = await Promise.allSettled([
+        const [relevoGerado, texturasPintadas, terrenoPintado] = await Promise.allSettled([
           relevoLigado(mapaDaImagem) ? relevo.gerarAParte(entradaDoRelevo(mapaDaImagem)) : Promise.resolve(null),
           mapaDaImagem.texturas === undefined ? Promise.resolve(null) : texturas.pintarAParte(entradaDasTexturas(mapaDaImagem)),
+          // TERRENO DO CHÃO: o da imagem sai das peças DELA (sem as escondidas e as da zona oculta).
+          terreno.pintarAParte({ cena: `${mapaDaImagem.id}|imagem`, mapa: mapaDaImagem, floor: contextoDeCamadas(mapaDaImagem).mestreVe('chao') ? mapaDaImagem.floor : EMPTY_FLOOR, importadas: mapaDaImagem.texturasImportadas }),
         ])
         const relevoDaImagem = valorOuNada(relevoGerado, '[exportar] o relevo da imagem falhou')
         const texturasDaImagem = valorOuNada(texturasPintadas, '[exportar] as texturas da imagem falharam')
+        const terrenoDaImagem = valorOuNada(terrenoPintado, '[exportar] o terreno do chão da imagem falhou')
         // A espera acima deixa a montagem da cena andar: ela termina aqui, perto da troca.
         if (paintedTextLayer(montagemDaCena.concluir())) syncTextResolution()
         const width = source.width * source.grid
@@ -3316,6 +3340,7 @@ function PixiCanvasDoContexto({
           laserLayer,
           // O relevo e as texturas do palco são os do mestre: na imagem entram os gerados à parte.
           texturas.camada,
+          terreno.camada,
           relevo.camada,
           // A parede Desenhada do palco também é a do mestre: a imagem leva a do relevo gerado à parte (no Atual).
           relevo.penhasco,
@@ -3335,6 +3360,7 @@ function PixiCanvasDoContexto({
           exportScene = { map: mapaDaImagem, viewport: { left: 0, top: 0, right: width, bottom: height }, paraJogadores }
           // No lugar das camadas do mestre, na mesma altura: a textura por baixo da luz do relevo.
           if (texturasDaImagem !== null) texturas.camada.parent?.addChildAt(texturasDaImagem, texturas.camada.parent.getChildIndex(texturas.camada) + 1)
+          if (terrenoDaImagem !== null) terreno.camada.parent?.addChildAt(terrenoDaImagem, terreno.camada.parent.getChildIndex(terreno.camada) + 1)
           if (relevoDaImagem !== null) relevoContainer.addChild(relevoDaImagem)
           camera = { x: 0, y: 0, scale }
           world.position.set(0, 0)
@@ -3364,6 +3390,10 @@ function PixiCanvasDoContexto({
           if (texturasDaImagem !== null) {
             soltarPintura(texturasDaImagem)
             texturasDaImagem.destroy()
+          }
+          if (terrenoDaImagem !== null) {
+            soltarPintura(terrenoDaImagem)
+            terrenoDaImagem.destroy()
           }
           if (relevoDaImagem !== null) {
             const textura = relevoDaImagem.texture
@@ -9712,6 +9742,7 @@ function PixiCanvasDoContexto({
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
         pisoDoChao.destruir()
         caminhos.destruir()
+        terreno.destruir()
         texturas.destruir()
         // Os desenhos e as sombras dos carimbos também.
         carimbos.destruir()

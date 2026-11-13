@@ -1,3 +1,4 @@
+import { CASCALHO_CASAS, cascalho } from './cascalho'
 import { METAL_CASAS, metalEmChapaXadrez, metalEmGrade, metalEmPaineis, metalEmPlacas } from './chaoDeMetal'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
@@ -1376,6 +1377,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'chao-de-floresta', nome: 'Chão de floresta', escala: CHAO_ESCALA, lado: LADO_GRANDE, cor: chaoDaFloresta },
   { id: 'pantano', nome: 'Pântano', escala: PANTANO_ESCALA, lado: LADO_GRANDE, cor: pantano },
   { id: 'terra', nome: 'Terra', escala: TERRA_ESCALA, lado: LADO_GRANDE, cor: terra },
+  // Cascalho (pedido CHÃO E CAMINHO de 12/11/2026, `cascalho.ts`): medido em casas, a pedrinha tem o tamanho certo contra a casa.
+  { id: 'cascalho', nome: 'Cascalho', escala: 64, casas: CASCALHO_CASAS, lado: LADO_GRANDE, cor: cascalho },
   { id: 'pedra', nome: 'Serra', escala: 56, cor: pedra },
   { id: 'neve', nome: 'Neve', escala: 56, cor: neve },
   // Chão de masmorra (medido em casas da grade): a escala só serve à miniatura.
