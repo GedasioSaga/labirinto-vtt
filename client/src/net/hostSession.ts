@@ -68,7 +68,7 @@ import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
-import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveRejection } from '../lib/moveValidation'
+import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveOptions, type TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
@@ -6397,7 +6397,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ali, o passo inteiro não vale. Depois da posse: a ficha de outro já leu `not_owner`.
     if (congeladaPresaA(scene.map, [msg.tokenId]) !== null) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: 'congelado' })
     // VEÍCULO: o passo do motorista vira o passo do veículo (`driveTarget`).
-    const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y)
+    const drive = carrier === null ? null : driveVehicleStep(scene.map, msg.tokenId, result.x, result.y, objetoAVista)
     if (drive !== null && !drive.ok) return reply(clientId, { type: 'token.move.rejected', reqId: msg.reqId, reason: drive.reason })
     // MODO BATALHA: os blocos aceitos somam no caminho andado (no mestre) e vão na resposta.
     const blocos = result.blocos === undefined ? {} : { blocos: result.blocos }
@@ -6445,19 +6445,23 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * ou congelado pelo mestre, ou uma ficha congelada a bordo, também seguram.
    * Quem vai a bordo e a parede barra fica e desce, como no arrasto do veículo
    * (`moveTokenWithVehicle`). `null` = a ficha não é motorista.
+   * CONSTRUÇÕES (12/11/2026, decisão do mestre): o objeto que barra a ficha do
+   * jogador barra também o veículo que ele dirige (`objetosBarram`); a recusa
+   * "Objeto no caminho" só do objeto que está na tela dele (`objetoAVista`).
    */
   function driveVehicleStep(
     map: MapData,
     driverId: string,
     x: number,
     y: number,
+    objetoAVista: TokenMoveOptions['objetoAVista'],
   ): { ok: true; vehicleId: string; x: number; y: number } | { ok: false; reason: TokenMoveRejection } | null {
     const target = driveTarget(map, driverId, x, y)
     const vehicle = target === null ? undefined : map.tokens.find((t) => t.id === target.vehicleId)
     if (target === null || vehicle === undefined) return null
     if (vehicle.locked === true) return { ok: false, reason: 'locked' }
     if (estaCongelada(vehicle) || congeladaPresaA(map, [vehicle.id]) !== null) return { ok: false, reason: 'congelado' }
-    const step = validateTokenMove(mapaDoPiso(map, pisoDe(vehicle)), { playerId: '', tokenId: vehicle.id, x: target.x, y: target.y }, {}, { isHost: true })
+    const step = validateTokenMove(mapaDoPiso(map, pisoDe(vehicle)), { playerId: '', tokenId: vehicle.id, x: target.x, y: target.y }, {}, { isHost: true, objetosBarram: true, objetoAVista })
     if (!step.ok) return { ok: false, reason: step.reason }
     return { ok: true, ...target }
   }

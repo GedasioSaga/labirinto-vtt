@@ -2,6 +2,7 @@ import type { MapData, Prop, RegionPoint, TipoMobilia, Token, Wall } from '../ty
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
+import { medidaPeloMenorLado } from './mobilia/construcoes'
 import { pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
@@ -135,8 +136,11 @@ function contornoDoObjeto(prop: Prop, folga: number): RegionPoint[] | null {
   if (![prop.x, prop.y, prop.width, prop.height].every(Number.isFinite) || !(prop.width > 0) || !(prop.height > 0)) return null
   // A pegada sólida do tipo encolhe a forma antes de ela virar parede (a torre de pedra: só até a parede desenhada).
   const pegada = pegadaSolidaDoTipo(prop.mobilia)
-  const meiaLargura = (prop.width / 2) * pegada + folga
-  const meiaAltura = (prop.height / 2) * pegada + folga
+  // CONSTRUÇÕES (12/11/2026, achado A5): a torre de pedra, a de vigia e o moinho se desenham pelo MENOR lado da
+  // caixa, centrados; esticados, a colisão segue o desenho, e não a caixa inteira.
+  const menor = medidaPeloMenorLado(prop.mobilia) ? Math.min(prop.width, prop.height) : null
+  const meiaLargura = ((menor ?? prop.width) / 2) * pegada + folga
+  const meiaAltura = ((menor ?? prop.height) / 2) * pegada + folga
   const centro = { x: prop.x, y: prop.y }
   const retos: RegionPoint[] = ehMovelRedondo(prop.mobilia, vistaDoMovel(prop))
     ? Array.from({ length: LADOS_DA_ELIPSE }, (_, k) => {

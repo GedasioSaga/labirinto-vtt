@@ -56,5 +56,51 @@ export function ehConstrucao(tipo: TipoMobilia | undefined): tipo is TipoDeConst
   return tipo !== undefined && TIPOS_DE_CONSTRUCAO.has(tipo)
 }
 
+/**
+ * AS REGRAS DE FÁBRICA de cada construção (a chave da ficha vence, gravada só quando difere daqui):
+ * - `barra`: barra a passagem da ficha do jogador, do NPC de rotina, da batalha e do veículo que o jogador dirige
+ *   (o mestre atravessa sempre). Não barram as em que se entra ou se passa por baixo (o arco do portão, as duas
+ *   tendas) e o galinheiro (o terreiro cercado é parte da pegada), como já era. A antena parabólica passa a barrar
+ *   (2 x 2, sólida; decisão do mestre de 12/11/2026, a lista recomendada).
+ * - `peloMenorLado`: o desenho é medido pelo MENOR lado da caixa (`Math.min(hw, hh)` no desenho do Meio-Termo), e
+ *   a colisão também (achado A5: a torre esticada barrava 1 casa de parede invisível além do desenho).
+ */
+interface RegraDeFabrica {
+  readonly barra: boolean
+  readonly peloMenorLado?: true
+}
+
+const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
+  torreDePedra: { barra: true, peloMenorLado: true },
+  torreDeVigia: { barra: true, peloMenorLado: true },
+  moinho: { barra: true, peloMenorLado: true },
+  mausoleu: { barra: true },
+  galinheiro: { barra: false },
+  barraca: { barra: true },
+  poco: { barra: true },
+  chafariz: { barra: true },
+  cataVento: { barra: true },
+  antenaParabolica: { barra: true },
+  estatua: { barra: true },
+  anjoDePedra: { barra: true },
+  pilar: { barra: true },
+  blocoDeInscricoesAzul: { barra: true },
+  blocoDeInscricoesVermelho: { barra: true },
+  blocoDeInscricoesDourado: { barra: true },
+  arcoDoPortao: { barra: false },
+  tenda: { barra: false },
+  tendaDeAdivinha: { barra: false },
+}
+
+/** A construção barra a passagem de fábrica? */
+export function construcaoBarraDeFabrica(tipo: TipoDeConstrucao): boolean {
+  return REGRA_DE_FABRICA[tipo].barra
+}
+
+/** A colisão (e o desenho) da construção é medida pelo menor lado da caixa? Não-construção: não. */
+export function medidaPeloMenorLado(tipo: TipoMobilia | undefined): boolean {
+  return ehConstrucao(tipo) && REGRA_DE_FABRICA[tipo].peloMenorLado === true
+}
+
 /** O nome da ferramenta onde a construção mora, para a busca do Objeto dizer "em Construção". */
 export const NOME_DA_FERRAMENTA_CONSTRUCAO = 'Construção'

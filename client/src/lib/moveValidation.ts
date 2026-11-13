@@ -92,6 +92,13 @@ export interface TokenMoveOptions {
    * que o host monta com os objetos dessa mesma tela.
    */
   objetoAVista?: (prop: Prop) => boolean
+  /**
+   * VEÍCULO DIRIGIDO PELO JOGADOR (construções, 12/11/2026, decisão do mestre): o passo do veículo é o do mestre
+   * (`isHost`: sem passo máximo, sem ocupação), mas os objetos que barram seguram o veículo como seguram a ficha
+   * do jogador, com o mesmo "nunca prender" (pela posição do veículo) e o mesmo filtro do que os jogadores não
+   * recebem. Sem `isHost` não muda nada (o jogador já é barrado).
+   */
+  objetosBarram?: boolean
 }
 
 /** Fração da célula entre amostras do trajeto: garante corredor de 1/4 de célula detectado. */
@@ -361,7 +368,7 @@ export function validateTokenMove(
   // entrega a ele (camada, zona oculta, sala secreta) não barra: a recusa contaria que ele existe.
   let testeDoEscondido: ((prop: Prop) => boolean) | null = null
   const escondido = (prop: Prop): boolean => (testeDoEscondido ??= objetoEscondidoDosJogadores(map))(prop)
-  const paredes = options.isHost ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido)
+  const paredes = options.isHost && options.objetosBarram !== true ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido)
 
   // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
   // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto

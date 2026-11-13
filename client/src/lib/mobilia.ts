@@ -1,6 +1,7 @@
 import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, MapData, Prop, TipoMobilia, VistaMobilia } from '../types/map'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcOf, stairArcPoint, STAIR_CURVE_MAX_TURN_DEGREES, type StairArc } from './stairCurve'
 import { TIPOS_MOBILIA } from './mobilia/tipos'
+import { construcaoBarraDeFabrica, ehConstrucao } from './mobilia/construcoes'
 import {
   contornoDaPecaNovaDeLado,
   ehPecaNova,
@@ -447,9 +448,13 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * `PEGADA_SOLIDA` em `lib/obstaculosDeObjeto.ts`).
  * A TENDA de acampamento (`tenda`) NÃO barra de saída, como a tenda de
  * adivinha: dá para entrar, e o mestre liga "Barra a passagem" se quiser.
+ * CONSTRUÇÕES (12/11/2026): o padrão das 19 construções vem da regra de
+ * fábrica delas (`lib/mobilia/construcoes.ts`; a antena parabólica passou a
+ * barrar); aqui ficam só os 5 obstáculos grandes do Objeto que barram.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'moinho' || tipo === 'cataVento' || tipo === 'mausoleu' || tipo === 'poco' || tipo === 'chafariz' || tipo === 'estatua' || tipo === 'anjoDePedra' || tipo === 'pilar' || tipo === 'blocoDeInscricoesAzul' || tipo === 'blocoDeInscricoesVermelho' || tipo === 'blocoDeInscricoesDourado' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'barraca' || tipo === 'torreDePedra' || tipo === 'torreDeVigia'
+  if (ehConstrucao(tipo)) return construcaoBarraDeFabrica(tipo)
+  return tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega'
 }
 
 /**
