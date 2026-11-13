@@ -204,10 +204,16 @@ function semOInteriorDosTetos(map: MapData): MapData {
  * PELA SILHUETA, NÃO PELO CENTRO (caça de 12/11/2026, decisão 36 do mestre):
  * sala secreta e zona oculta levam junto o objeto com QUALQUER ponta lá dentro
  * (as amostras do recorte do jogador, `objetoEscondidoDosJogadores`, e os
- * cantos de `pontosDoObjeto`) e o desenho com qualquer amostra da forma lá
- * dentro (`pontosQueEncostam`); a luz presa numa ficha que não sai também não
+ * cantos de `pontosDoObjeto`); a luz presa numa ficha que não sai também não
  * sai (a do recorte, `masterHiddenTokenIds` em `lib/fogFilter.ts`). Pelo centro,
  * o armário com o centro no corredor e a ponta na sala secreta saía no PNG.
+ *
+ * O DESENHO segue a régua da tela do jogador (decisão 21 do mestre): a sala
+ * secreta leva só o que mora nela (a maioria das amostras de
+ * `amostrasDoDesenho` lá dentro, o `mostly` de `drawingInHiddenPlace`); a
+ * estrada que só atravessa sai inteira, também no trecho de dentro, sem corte
+ * na borda. A zona oculta leva o desenho com qualquer ponto lá dentro
+ * (`pontosQueEncostam`): a imagem não tem a névoa que cobre o trecho de dentro.
  */
 function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[], todasAsFichas: ReadonlySet<string>): MapData {
   const naCamadaDosJogadores = soOQueOsJogadoresVeem(inteiro)
@@ -228,11 +234,21 @@ function withoutMasterOnly(inteiro: MapData, paredesInvisiveis: readonly Wall[],
     ...secretRooms.flatMap((r) => [...subtreeIds(map.regions, r.id)]),
     ...map.regions.filter((r) => ancestorsOf(map.regions, r.id).some((a) => a.secret)).map((r) => r.id),
   ])
-  const hiddenAreas = [...secretRooms.map((r) => r.points), ...activeZoneRings(map.concealZones)]
+  const aneisDasSalasSecretas = secretRooms.map((r) => r.points)
+  const aneisDasZonas = activeZoneRings(map.concealZones)
+  const hiddenAreas = [...aneisDasSalasSecretas, ...aneisDasZonas]
   const hidden = (point: RegionPoint): boolean => hiddenAreas.some((ring) => pointInPolygonInclusive(point, ring))
   const anyHidden = (points: readonly RegionPoint[]): boolean => hiddenAreas.length > 0 && points.some(hidden)
+  const naSalaSecreta = (point: RegionPoint): boolean => aneisDasSalasSecretas.some((ring) => pointInPolygonInclusive(point, ring))
+  const naZona = (point: RegionPoint): boolean => aneisDasZonas.some((ring) => pointInPolygonInclusive(point, ring))
   const escondidoPelaSilhueta = objetoEscondidoDosJogadores(map)
-  const drawings = map.drawings.filter((d) => !d.secret && !anyHidden(pontosQueEncostam(d)))
+  // DESENHO (decisão 21 do mestre, a régua da tela do jogador): a sala secreta leva só o que MORA nela (a maioria
+  // das amostras lá dentro); o que só passa por ela (a estrada) sai inteiro. A zona oculta leva o que encosta nela:
+  // na tela a névoa da zona cobre o trecho de dentro, e a imagem não tem névoa.
+  const desenhoEscondido = (d: Drawing): boolean =>
+    (aneisDasSalasSecretas.length > 0 && maioriaDentro(amostrasDoDesenho(d), naSalaSecreta)) ||
+    (aneisDasZonas.length > 0 && pontosQueEncostam(d).some(naZona))
+  const drawings = map.drawings.filter((d) => !d.secret && !desenhoEscondido(d))
   const walls = map.walls.filter((w) => !(w.regionId !== undefined && goneRegionIds.has(w.regionId)) && !anyHidden(wallPoints(w)))
   const ficam = new Set(walls)
   const paredesTiradas = [...paredesInvisiveis, ...paredesForaDaCamada, ...map.walls.filter((w) => !ficam.has(w))]
@@ -336,7 +352,8 @@ function stairPoints(stair: Stair): RegionPoint[] {
 
 /**
  * Pontos que dizem onde o desenho está. O teto fechado conta a maioria deles;
- * sala secreta e zona oculta contam a forma inteira (`pontosQueEncostam`).
+ * a sala secreta conta a maioria de `amostrasDoDesenho`; a zona oculta, a
+ * forma inteira (`pontosQueEncostam`).
  */
 function drawingPoints(drawing: Drawing): RegionPoint[] {
   switch (drawing.kind) {
@@ -396,35 +413,71 @@ function contornoDaElipse(cx: number, cy: number, rx: number, ry: number): Regio
   })
 }
 
+/** Mais da metade das amostras passa no teste: o `mostly` do recorte do jogador (`lib/fogFilter.ts`). */
+function maioriaDentro(amostras: readonly RegionPoint[], dentro: (p: RegionPoint) => boolean): boolean {
+  return amostras.length > 0 && amostras.filter(dentro).length * 2 > amostras.length
+}
+
+function cantosDoRetangulo(rect: Extract<Drawing, { kind: 'rect' }>): RegionPoint[] {
+  return [
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.w, y: rect.y },
+    { x: rect.x + rect.w, y: rect.y + rect.h },
+    { x: rect.x, y: rect.y + rect.h },
+  ]
+}
+
 /**
- * O DESENHO QUE ENCOSTA no lugar escondido (caça de 12/11/2026, decisão 36):
- * os pontos de `drawingPoints` mais a forma inteira — as amostras do recorte do
- * jogador (`drawingSamplePoints`), os cantos do retângulo e o contorno do
- * círculo e da elipse, 1 px para dentro, e o meio da linha. Basta um lá dentro
- * para o desenho não sair: o retângulo com o centro no corredor e um canto na
- * sala secreta saía no PNG.
+ * As amostras do desenho na tela do jogador, a MESMA conta de
+ * `drawingSamplePoints` (`lib/fogFilter.ts`, que não é exportada): forma com
+ * área, as amostras internas; linha, as pontas e o meio; traço e texto, os
+ * pontos crus. É com elas que a sala secreta decide se o desenho mora nela.
+ */
+function amostrasDoDesenho(drawing: Drawing): RegionPoint[] {
+  switch (drawing.kind) {
+    case 'freehand':
+    case 'curve':
+    case 'path':
+      return drawing.points
+    case 'polygon':
+      return amostrasInternas(drawing.points, drawing.points)
+    case 'line':
+      return [
+        { x: drawing.x1, y: drawing.y1 },
+        { x: (drawing.x1 + drawing.x2) / 2, y: (drawing.y1 + drawing.y2) / 2 },
+        { x: drawing.x2, y: drawing.y2 },
+      ]
+    case 'circle':
+      return amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius))
+    case 'ellipse':
+      return amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry))
+    case 'text':
+      return [{ x: drawing.x, y: drawing.y }]
+    case 'rect':
+      return amostrasInternas(cantosDoRetangulo(drawing))
+  }
+}
+
+/**
+ * O DESENHO QUE ENCOSTA na zona oculta (caça de 12/11/2026, decisão 36): os
+ * pontos de `drawingPoints` mais a forma inteira — as amostras do recorte do
+ * jogador (`amostrasDoDesenho`), os cantos do retângulo e o contorno do
+ * círculo e da elipse, 1 px para dentro. Basta um lá dentro para o desenho não
+ * sair: a imagem não tem a névoa que, na tela, cobre o trecho de dentro.
  */
 function pontosQueEncostam(drawing: Drawing): RegionPoint[] {
-  const base = drawingPoints(drawing)
+  const base = [...drawingPoints(drawing), ...amostrasDoDesenho(drawing)]
   switch (drawing.kind) {
-    case 'line':
-      return [...base, { x: (drawing.x1 + drawing.x2) / 2, y: (drawing.y1 + drawing.y2) / 2 }]
-    case 'polygon':
-      return [...base, ...amostrasInternas(drawing.points, drawing.points)]
     case 'rect': {
-      const cantos = [
-        { x: drawing.x, y: drawing.y },
-        { x: drawing.x + drawing.w, y: drawing.y },
-        { x: drawing.x + drawing.w, y: drawing.y + drawing.h },
-        { x: drawing.x, y: drawing.y + drawing.h },
-      ]
       const centro = { x: drawing.x + drawing.w / 2, y: drawing.y + drawing.h / 2 }
-      return [...base, ...cantos.map((p) => puxarParaDentro(p, centro, 1)), ...amostrasInternas(cantos)]
+      return [...base, ...cantosDoRetangulo(drawing).map((p) => puxarParaDentro(p, centro, 1))]
     }
     case 'circle':
-      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius), ...amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius))]
+      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.radius, drawing.radius)]
     case 'ellipse':
-      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry), ...amostrasInternas(extremosDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry))]
+      return [...base, ...contornoDaElipse(drawing.cx, drawing.cy, drawing.rx, drawing.ry)]
+    case 'line':
+    case 'polygon':
     case 'freehand':
     case 'curve':
     case 'path':

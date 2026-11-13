@@ -5,12 +5,15 @@
  * tela do jogador (`propSamplePoints`, `objetoEscondidoDosJogadores` em
  * `lib/fogFilter.ts`). Antes a imagem olhava só o centro: o armário com o
  * centro no corredor e a ponta na sala secreta saía no PNG. Vale também para o
- * desenho que encosta no lugar escondido e para a luz presa numa ficha que não
- * sai. Prova: a imagem é IGUAL à da cena sem a sala, a zona e o que encosta nelas.
+ * desenho que encosta na zona oculta e para a luz presa numa ficha que não
+ * sai. O DESENHO na sala secreta segue a tela do jogador (decisão 21): some o
+ * que mora nela (a maioria das amostras); o que só atravessa sai inteiro.
+ * Prova: a imagem é IGUAL à da cena sem a sala, a zona e o que elas escondem.
  */
 import { describe, expect, it } from 'vitest'
-import type { ConcealZone, Drawing, Light, MapData, Prop, Region, Token, Wall } from '../types/map'
+import type { ConcealZone, Drawing, Light, MapData, PinceladaDeTextura, Prop, Region, Token, Wall } from '../types/map'
 import { amostrasDaCercaCurva } from './cercaCurva'
+import { filterMapForPlayer } from './fogFilter'
 import { createEmptyMap } from './mapFactory'
 import { mapForImageExport } from './mapImageExport'
 import { criarMovel } from './mobilia'
@@ -104,17 +107,18 @@ describe('imagem para os jogadores pela silhueta', () => {
     expect(mapForImageExport(com, COM_MESTRE).props.map((p) => p.id)).toEqual(['estante-encostada', 'armario-ponta', 'barril-ponta', 'banco-ponta', 'cerca-curva'])
   })
 
-  it('desenho que encosta na sala secreta ou na zona oculta e luz presa em ficha que não sai também não saem; o resto fica', () => {
+  it('desenho que mora na sala secreta ou encosta na zona oculta e luz presa em ficha que não sai também não saem; o resto fica', () => {
     const desenho = (d: Drawing): Drawing => d
     // Fica: longe de tudo.
     const rua = desenho({ id: 'rua', kind: 'rect', x: 2 * G, y: 8 * G, w: 6 * G, h: G, color: '#776655', width: 1, filled: true, fillAlpha: 1 })
-    // Retângulo com o centro no corredor e o canto nordeste meia casa dentro do cofre.
+    // Fica (decisão 21, a régua da tela do jogador): retângulo com o centro no corredor e o canto nordeste meia casa
+    // dentro do cofre. Só 2 das 5 amostras estão lá: ele não mora no cofre.
     const tapete = desenho({ id: 'tapete-canto', kind: 'rect', x: 8 * G, y: 4.5 * G, w: 2.5 * G, h: G, color: '#aa3333', width: 1, filled: true, fillAlpha: 1 })
-    // Círculo com o centro fora da zona e a borda leste 0,2 casa dentro dela.
+    // Círculo com o centro fora da zona e a borda leste 0,2 casa dentro dela: a zona leva o que encosta.
     const mancha = desenho({ id: 'mancha-zona', kind: 'circle', cx: 19 * G, cy: 4 * G, radius: 1.2 * G, color: '#335533', width: 1, filled: true, fillAlpha: 1 })
-    // Linha que atravessa o cofre: as duas pontas no corredor, o meio dentro.
+    // Fica: linha que atravessa o cofre, as duas pontas no corredor e o meio dentro.
     const trilha = desenho({ id: 'trilha', kind: 'line', x1: 9 * G, y1: 3 * G, x2: 15 * G, y2: 3 * G, color: '#000', width: 2 })
-    // O piso do cofre desenhado 2 px maior que ele: nenhum vértice dentro, a forma inteira em cima.
+    // O piso do cofre desenhado 2 px maior que ele: nenhum vértice dentro, mas todas as amostras: mora no cofre.
     const piso = desenho({
       id: 'piso-do-cofre',
       kind: 'polygon',
@@ -144,7 +148,7 @@ describe('imagem para os jogadores pela silhueta', () => {
     // Vínculo com ficha que não existe mais (mapa antigo): a luz fica.
     const orfa = luz('luz-orfa', 6, 18, { attachedTokenId: 'ficha-apagada' })
 
-    const sem = cena({ tokens: [heroi], lights: [lanterna, lampiao, orfa], drawings: [rua] })
+    const sem = cena({ tokens: [heroi], lights: [lanterna, lampiao, orfa], drawings: [rua, tapete, trilha] })
     const com = cena({
       regions: [COFRE],
       walls: PAREDES_DO_COFRE,
@@ -155,10 +159,41 @@ describe('imagem para os jogadores pela silhueta', () => {
     })
     const imagem = mapForImageExport(com, SEM_MESTRE)
     expect(imagem).toEqual(mapForImageExport(sem, SEM_MESTRE))
-    expect(imagem.drawings.map((d) => d.id)).toEqual(['rua'])
+    expect(imagem.drawings.map((d) => d.id)).toEqual(['rua', 'tapete-canto', 'trilha'])
     expect(imagem.lights.map((l) => l.id)).toEqual(['lanterna-do-heroi', 'lampiao-solto', 'luz-orfa'])
     const doMestre = mapForImageExport(com, COM_MESTRE)
     expect(doMestre.drawings.map((d) => d.id)).toEqual(['rua', 'tapete-canto', 'mancha-zona', 'trilha', 'piso-do-cofre'])
     expect(doMestre.lights.map((l) => l.id)).toEqual(['lanterna-do-heroi', 'lampiao-solto', 'tocha-do-guarda', 'lampiao-da-espia', 'vela-do-fantasma', 'luz-orfa'])
+  })
+
+  it('a estrada que só atravessa a sala secreta sai inteira, como na tela do jogador; o tapete que mora nela não sai', () => {
+    // Caminho de oeste a leste pelo meio do cofre (x de 10 a 14): 2 dos 5 pontos lá dentro.
+    const estrada: Drawing = {
+      id: 'estrada',
+      kind: 'path',
+      points: [4, 8, 11, 13, 18].map((x) => ({ x: x * G, y: 4 * G })),
+      color: '#8a7350',
+      width: 0.8 * G,
+    }
+    // Faixa de terra pintada que cruza o cofre: só o centróide das 5 amostras cai lá.
+    const faixa: Drawing = { id: 'faixa', kind: 'polygon', points: retangulo(6, 3.6, 18, 4.4), color: '#6b5a3a', width: 1, filled: true, fillAlpha: 1 }
+    // O tapete MORA no cofre e passa meia casa da parede leste: 3 das 5 amostras lá dentro.
+    const tapete: Drawing = { id: 'tapete', kind: 'rect', x: 11 * G, y: 3 * G, w: 3.5 * G, h: 2 * G, color: '#aa3333', width: 1, filled: true, fillAlpha: 1 }
+    const baldeNaFaixa: PinceladaDeTextura = { id: 'b-faixa', tipo: 'balde', textura: 'terra', forca: 1, alvo: { tipo: 'desenho', id: 'faixa' } }
+    const baldeNoTapete: PinceladaDeTextura = { id: 'b-tapete', tipo: 'balde', textura: 'campo', forca: 1, alvo: { tipo: 'desenho', id: 'tapete' } }
+    const heroi = ficha('heroi', 12, 9)
+
+    const sem = cena({ tokens: [heroi], drawings: [estrada, faixa], texturas: [baldeNaFaixa] })
+    const com = cena({ regions: [COFRE], walls: PAREDES_DO_COFRE, tokens: [heroi], drawings: [estrada, faixa, tapete], texturas: [baldeNaFaixa, baldeNoTapete] })
+    const imagem = mapForImageExport(com, SEM_MESTRE)
+    expect(imagem).toEqual(mapForImageExport(sem, SEM_MESTRE))
+    // Inteiras, sem corte na borda do cofre, e com a textura da faixa.
+    expect(imagem.drawings).toEqual([estrada, faixa])
+    expect(imagem.texturas?.map((p) => p.id)).toEqual(['b-faixa'])
+    // A tela do jogador, com o herói vendo o corredor, recebe os mesmos desenhos.
+    const tela = filterMapForPlayer(com, 'p1', { p1: ['heroi'] }, 20 * G).map
+    expect(tela.drawings.map((d) => d.id)).toEqual(['estrada', 'faixa'])
+    // O mestre leva o tapete.
+    expect(mapForImageExport(com, COM_MESTRE).drawings.map((d) => d.id)).toEqual(['estrada', 'faixa', 'tapete'])
   })
 })
