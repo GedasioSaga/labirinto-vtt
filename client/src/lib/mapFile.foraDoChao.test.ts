@@ -24,7 +24,9 @@ describe('offFloor no arquivo da cena', () => {
   })
 
   it('cena salva antes do campo abre sem ele e grava sem ele; valor torto volta ausente', () => {
-    const antiga = deserializeMap('{"id": "antiga"}')
+    // Cena de antes COM Chão de antes (peça lisa): sem o campo, vale bloqueada (`foraDoChaoLivre`).
+    const antiga = deserializeMap('{"id": "antiga", "floor": [{"id": "chao", "op": "add", "modifiers": {}, "shape": {"kind": "rect", "cx": 100, "cy": 100, "w": 200, "h": 200}}]}')
+    expect(antiga.floor).toHaveLength(1)
     expect('offFloor' in antiga).toBe(false)
     expect(serializeMap(antiga)).not.toContain('offFloor')
     for (const torto of ['true', '1', '"livre"', '"FREE"', 'null', '{}']) {

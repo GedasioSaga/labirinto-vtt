@@ -11,8 +11,8 @@ import { comAguasComoChao } from './agua/comoChao'
  * não são Chão: numa cena com alguma peça de Chão, o jogador não enxergava nem
  * andava além da borda dela, mesmo com "piso" pintado lá.
  *
- * - BLOQUEADO (`'blocked'`, e campo AUSENTE: todo mapa de antes): a regra de
- *   sempre. A borda do Chão barra a visão e o passo do jogador. É o que serve
+ * - BLOQUEADO (`'blocked'`, e campo AUSENTE numa cena com Chão de antes, ver
+ *   `foraDoChaoLivre`): a regra de sempre. A borda do Chão barra a visão e o passo do jogador. É o que serve
  *   ao convés do barco, à lagoa e ao subterrâneo, onde a borda é o limite.
  * - LIVRE (`'free'`): para limite de visão e de movimento a cena se comporta
  *   EXATAMENTE como uma cena sem nenhuma peça de Chão. As peças continuam no
@@ -35,9 +35,38 @@ export type OffFloor = NonNullable<MapData['offFloor']>
  */
 const SEM_CHAO_QUE_LIMITE: FloorPiece[] = []
 
-/** A cena está em "Fora do Chão: livre"? Ausente e `'blocked'` = bloqueado. */
-export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'>): boolean {
-  return map.offFloor === 'free'
+/**
+ * Uma peça de Chão "de antes": soma, não está escondida, conta como Chão e não
+ * tem material. A pintura de pedra, terra, cascalho etc. da ferramenta Chão e
+ * caminho (0.5.62, `material`) não conta.
+ */
+function ehChaoDeAntes(peca: FloorPiece): boolean {
+  return peca.op === 'add' && peca.hidden !== true && peca.soPintura !== true && peca.material === undefined
+}
+
+const chaoDeAntesGuardado = new WeakMap<readonly FloorPiece[], boolean>()
+
+function temChaoDeAntes(floor: readonly FloorPiece[]): boolean {
+  let tem = chaoDeAntesGuardado.get(floor)
+  if (tem === undefined) {
+    tem = floor.some(ehChaoDeAntes)
+    chaoDeAntesGuardado.set(floor, tem)
+  }
+  return tem
+}
+
+/**
+ * A cena está em "Fora do Chão: livre"? `'free'` = livre e `'blocked'` =
+ * bloqueado, sempre. Campo AUSENTE (cena de antes da opção): bloqueado só se a
+ * cena tem Chão de antes (`ehChaoDeAntes`). A cena antiga SEM Chão sempre foi
+ * livre; com a pintura de material ela virava um cercado do tamanho da pintura,
+ * e a ficha não andava fora dele (pedido do mestre de 13/11/2026: "O Token não
+ * consegue andar sem chão"). A água também não cerca essa cena: ela só conta
+ * como Chão onde a cena é bloqueada. Sem `floor` na mão, ausente = bloqueado.
+ */
+export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'> & Partial<Pick<MapData, 'floor'>>): boolean {
+  if (map.offFloor !== undefined) return map.offFloor === 'free'
+  return map.floor !== undefined && !temChaoDeAntes(map.floor)
 }
 
 /**

@@ -54,7 +54,9 @@ function mapaDoFundo(sceneId: string): MapData {
   return slot.map
 }
 
-const terreoDeAntes = (): MapData => createEmptyMap('map_raiz', 'Térreo', 30, 20, 64)
+// A cena de antes COM Chão de antes (peça lisa): é ela que vale bloqueada sem o campo (`foraDoChaoLivre`).
+const CHAO_DE_ANTES = { id: 'chao-de-antes', op: 'add' as const, modifiers: {}, shape: { kind: 'rect' as const, cx: 960, cy: 640, w: 1920, h: 1280 } }
+const terreoDeAntes = (): MapData => ({ ...createEmptyMap('map_raiz', 'Térreo', 30, 20, 64), floor: [CHAO_DE_ANTES] })
 
 beforeEach(() => {
   useAdventureStore.getState().reset()

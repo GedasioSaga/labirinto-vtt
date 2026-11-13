@@ -12,7 +12,7 @@
  * a metade esquerda (x de 0 a 500); a ficha fica em (200, 200), dentro dele.
  */
 import { describe, expect, it } from 'vitest'
-import type { FloorPiece, MapData, Token } from '../types/map'
+import type { Agua, FloorPiece, MapData, Token } from '../types/map'
 import { createExploration, markAll } from './exploration'
 import { pointInRing } from './floorContour'
 import { filterMapForPlayer } from './fogFilter'
@@ -140,5 +140,30 @@ describe('LIVRE: o guarda NPC enxerga além da borda do Chão', () => {
     const alvos = new Set(['heroi'])
     expect(guardSightings(livre({ tokens }), alvos).map((v) => v.tokenId)).toEqual(['heroi'])
     expect(guardSightings(cena({ tokens }), alvos)).toEqual([])
+  })
+})
+
+describe('cena antiga sem o campo, só com pintura de material (pedido de 13/11/2026: "O Token não consegue andar sem chão")', () => {
+  // A faixa de calçamento é o Chão da cena; à direita, um lago (a água conta como Chão só na cena bloqueada).
+  const PEDRA: FloorPiece = { ...CHAO, id: 'pedra', material: 'calcamento' }
+  const LAGO: Agua = { id: 'lago', tipo: 'lago', cor: '#3a7ca5', pontos: [{ x: 600, y: 600 }, { x: 900, y: 600 }, { x: 900, y: 900 }, { x: 600, y: 900 }] }
+  const soPintura = (patch: Partial<MapData> = {}): MapData => cena({ floor: [PEDRA], aguas: [LAGO], ...patch })
+  const pedido = { playerId: 'p1', tokenId: 'heroi', x: LA_FORA.x, y: LA_FORA.y }
+
+  it('vale livre e a ficha anda fora da pintura; Bloqueado gravado e Chão de antes junto continuam recusando', () => {
+    expect(foraDoChaoLivre(soPintura())).toBe(true)
+    expect(validateTokenMove(soPintura(), pedido, posse)).toEqual({ ok: true, x: LA_FORA.x, y: LA_FORA.y })
+    expect(validateTokenMove(soPintura({ offFloor: 'blocked' }), pedido, posse)).toEqual({ ok: false, reason: 'outside_floor' })
+    expect(validateTokenMove(soPintura({ floor: [PEDRA, { ...CHAO, id: 'liso' }] }), pedido, posse)).toEqual({ ok: false, reason: 'outside_floor' })
+  })
+
+  it('o recorte do jogador vale o mesmo que o host, também quando ele não vê o Chão de antes', () => {
+    expect(foraDoChaoLivre(filterMapForPlayer(soPintura(), 'p1', posse, RAIO).map)).toBe(true)
+    // O Chão liso numa zona oculta: o host vale bloqueado, e o recorte, que não leva a peça, também.
+    const longe: FloorPiece = { ...CHAO, id: 'liso-longe', shape: { kind: 'rect', cx: 900, cy: 900, w: 100, h: 100 } }
+    const zona = { id: 'zona', name: 'Tesouro', revealed: false, points: [{ x: 800, y: 800 }, { x: 1000, y: 800 }, { x: 1000, y: 1000 }, { x: 800, y: 1000 }] }
+    const visto = filterMapForPlayer(cena({ floor: [PEDRA, longe], concealZones: [zona] }), 'p1', posse, RAIO).map
+    expect(visto.floor.map((f) => f.id)).not.toContain('liso-longe')
+    expect(foraDoChaoLivre(visto)).toBe(false)
   })
 })

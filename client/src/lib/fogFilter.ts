@@ -11,6 +11,7 @@ import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente
 import { aguasParaJogador, chaveDoEscondido, moraEm } from './agua/recorte'
 import { curvaGuardada } from './agua/forma'
 import { aguasDaVisaoDoJogador } from './agua/comoChao'
+import { foraDoChaoLivre } from './offFloor'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
@@ -4944,6 +4945,11 @@ function recorteDoGrupo(
     // Metadado do mestre: nome, estado e células do pincel das zonas não saem; só `concealed` (geometria).
     concealZones: [],
   }
+  // FORA DO CHÃO: na cena antiga sem o campo, o que vale depende do Chão inteiro
+  // (`foraDoChaoLivre`), e o jogador recebe só o Chão que vê. O recorte leva
+  // SEMPRE o valor do host gravado: mandado só quando a conta dele desse outro,
+  // a presença do campo contaria que há Chão numa camada ou zona escondida.
+  filtered.offFloor = foraDoChaoLivre(map) ? 'free' : 'blocked'
 
   /**
    * PERIGO QUE SE ALASTRA — só a Sala que saiu no recorte E que o jogador vê

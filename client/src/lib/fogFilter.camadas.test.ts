@@ -410,7 +410,12 @@ function semCamposDaCaca(view: unknown): Record<string, unknown> {
   // Os campos novos do mapa da 0.5.62 (`aguas`, `ambienteSeco`) vão sempre presentes e, sem água nem Ambiente, vazios:
   // o JSON do fio nem os escreve.
   expect(Object.keys(view.map).filter((k) => k === 'aguas' || k === 'ambienteSeco'), 'campos novos no fio').toEqual([])
-  return { ...resto, plan: planoDeAntes }
+  // FORA DO CHÃO (13/11/2026): o recorte leva sempre o valor que vale no host, tirado do Chão inteiro dele
+  // (`foraDoChaoLivre`), o mesmo com qualquer camada escondida. O resto do mapa é o de antes.
+  if (!ehRegistro(resto.map)) throw new Error('recorte sem mapa')
+  const { offFloor, ...mapaDeAntes } = resto.map
+  expect(['free', 'blocked'], 'offFloor').toContain(offFloor)
+  return { ...resto, map: mapaDeAntes, plan: planoDeAntes }
 }
 
 /** O recorte sem a lista `chave` no mapa e na memória da planta. */
