@@ -148,7 +148,10 @@ describe('PlayerView — a tinta do período e a luz quente (mapa de luz)', () =
     quadro()
     // Só a NEBLINA (c8cae0ff) fica acima do mapa de luz, de propósito: a bruma que o mestre pôs segue
     // à vista de noite. O contorno da ficha continua por cima de tudo.
-    expect(rotulos().slice(-3)).toEqual(['mapaDeLuz', 'neblina', 'contornoDaFicha'])
+    // AMBIENTE (12/11/2026, `119d1b82`): a neblina e as partículas do Ambiente andam juntas na camada "clima"
+    // (`pixi/ambienteDoJogador.ts`), no mesmo lugar em que a neblina estava.
+    expect(rotulos().slice(-3)).toEqual(['mapaDeLuz', 'clima', 'contornoDaFicha'])
+    expect(mundo().children.at(-2)?.children.map((c) => c.label)).toEqual(['neblina', 'ambiente'])
     expect(halosVisiveis(mundo())).toBe(0)
     expect(tela.redesenhos).toBe(1)
     quadro()

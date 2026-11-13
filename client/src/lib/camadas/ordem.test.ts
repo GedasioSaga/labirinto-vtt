@@ -30,6 +30,11 @@ const EDITOR_HOJE: [string, string[]][] = [
   ['drawingsGraphics', ['desenhos']],
   ['secretDrawingsGraphics', ['desenhos']],
   ['texturas', ['terreno']],
+  // 12/11/2026: o TERRENO DO CHÃO (`b5c3469d`, peça com material acima das Texturas), o CHÃO MOLHADO (`58354715`,
+  // clima, fixa) e a ÁGUA (`306f4bcb`, em Chão), nessa ordem, acima das Texturas e abaixo da luz do relevo.
+  ['terrenoDoChao', ['chao']],
+  ['chaoMolhado', []],
+  ['aguaDoMapa', ['chao']],
   ['relevoContainer', ['terreno']],
   ['regionStrokesContainer', ['salas']],
   ['pathsGraphics', ['anotacoes']],
@@ -82,6 +87,16 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['drawings', ['desenhos']],
   ['texturasMask', ['terreno']],
   ['texturasContainer', ['terreno']],
+  // 12/11/2026: o terreno do chão (`a996b022`), o chão molhado (`05835764`) e a água parada (lembrada) e viva
+  // (`fbe828ab`), cada um com a máscara do conhecido, todos sob a névoa.
+  ['terrenoMask', ['chao']],
+  ['terrenoContainer', ['chao']],
+  ['chaoMolhadoMask', []],
+  ['chaoMolhadoContainer', []],
+  ['aguaParadaMask', ['chao']],
+  ['aguaParadaContainer', ['chao']],
+  ['aguaVivaMask', ['chao']],
+  ['aguaContainer', ['chao']],
   ['relevoMask', ['terreno']],
   ['relevoContainer', ['terreno']],
   // BARRANCO (28/10): logo acima do relevo, com a máscara do conhecido.
@@ -115,6 +130,8 @@ const JOGADOR_HOJE: [string, string[]][] = [
   ['fogDim', []],
   ['visionMask', []],
   ['concealed', []],
+  // CONSTRUÇÕES (12/11/2026, `dff4162e`): a torre vista sai inteira e lembrada ACIMA da névoa, como o telhado. Fixa.
+  ['construcoes', []],
   ['farLights', ['iluminacao']],
   ['roofCut', ['telhados']],
   ['roofs', ['telhados']],
@@ -156,7 +173,12 @@ describe('FAIXAS de hoje', () => {
   it('no jogador, tudo da planta fica sob a névoa e só luz de longe, telhado, porta no telhado, pílula, marca, pino, ficha e o Judge ficam por cima', () => {
     const sobre = FAIXAS_JOGADOR.filter((f) => f.zona === 'sobre-a-nevoa').map((f) => f.id)
     const semZona = FAIXAS_JOGADOR.filter((f) => f.zona === undefined).map((f) => f.id)
-    expect(sobre).toEqual(['farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens', 'judge'])
+    // As construções (12/11/2026) também, logo abaixo dos telhados: o telhado da casa cobre o pilar de dentro dela.
+    expect(sobre).toEqual(['construcoes', 'farLights', 'roofCut', 'roofs', 'peekedRoofs', 'peekMask', 'portasNoTelhado', 'fogos', 'gradeDaBatalha', 'nomesDosLugares', 'marks', 'pins', 'lastSeen', 'tokens', 'judge'])
+    // E nada novo de Chão (terreno, chão molhado, água) escapa da névoa.
+    for (const id of ['terrenoMask', 'terrenoContainer', 'chaoMolhadoMask', 'chaoMolhadoContainer', 'aguaParadaMask', 'aguaParadaContainer', 'aguaVivaMask', 'aguaContainer']) {
+      expect(FAIXAS_JOGADOR.find((f) => f.id === id)?.zona, id).toBe('sob-a-nevoa')
+    }
     // A penumbra (sombras, `3733856b`) é fixa e sem zona como a névoa: só escurece, debaixo do nunca visto e da zona oculta.
     expect(semZona).toEqual(['penumbra', 'fogUnknown', 'knownMask', 'fogDim', 'visionMask', 'concealed'])
     // E o objeto preso na parede (N4) continua sob a névoa, logo acima das portas.
@@ -296,7 +318,8 @@ describe('ordemDeRender', () => {
   it('no jogador, reordenar só permuta dentro da zona: Tokens no fundo vai para o começo do que fica sobre a névoa', () => {
     const ordem = pares(ordemDeRender(modelo(moverPara('tokens', null)), FAIXAS_JOGADOR)).map(([id]) => id)
     const i = ordem.indexOf('concealed')
-    expect(ordem.slice(i, i + 4)).toEqual(['concealed', 'lastSeen', 'tokens', 'farLights'])
+    // As construções (12/11/2026) são faixa fixa no começo do que fica sobre a névoa: não saem do lugar.
+    expect(ordem.slice(i, i + 5)).toEqual(['concealed', 'construcoes', 'lastSeen', 'tokens', 'farLights'])
     expect(ordem.slice(0, i)).toEqual(JOGADOR_HOJE.slice(0, i).map(([id]) => id))
   })
 
@@ -328,8 +351,9 @@ describe('ordemDeRender: a lista manda, mesmo com Salas dona de faixas lá no al
     for (const faixa of ['wallsGraphics', 'doorsGraphics', 'propsContainer', 'lightsContainer', 'tokensContainer']) {
       expect(chao, faixa).toBeLessThan(ids(editor).indexOf(faixa))
     }
-    // O bloco do Chão cai entre a última faixa de Salas antes de Desenhos e a primeira de Desenhos.
-    expect(ids(editor).slice(chao - 2, chao + 2)).toEqual(['conveyorsGraphics', 'mapRasterSprite', 'floorGraphics', 'drawingsGraphics'])
+    // O bloco do Chão cai entre a última faixa de Salas antes de Desenhos e a primeira de Desenhos. Desde 12/11/2026
+    // o bloco leva junto o terreno do chão e a água (moram em Chão); o chão molhado é fixo e fica no lugar.
+    expect(ids(editor).slice(chao - 2, chao + 4)).toEqual(['conveyorsGraphics', 'mapRasterSprite', 'floorGraphics', 'terrenoDoChao', 'aguaDoMapa', 'drawingsGraphics'])
 
     const jogador = ordemDeRender(m, FAIXAS_JOGADOR)
     const chaoJ = onde(jogador, 'floor', 'chao')

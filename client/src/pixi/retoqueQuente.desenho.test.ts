@@ -96,6 +96,7 @@ describe('guardas no fonte: editor e jogador pelo mesmo caminho', () => {
     // Desde o Desenhado (29/10) o móvel mede na grade do mapa: a grade vai junto da vista.
     expect(fonte).toContain('drawPropSilhouettes(no, itens, scale, res, vistaDosMoveis, currentMap.grid)')
     // Desde o N4 (caça de 12/11/2026, `1ed102ea`) os objetos presos na parede vão junto na chave, depois da vista.
-    expect(fonte).toContain('nos, vistaDosMoveis ?? null, [...presos]])')
+    // E desde as CONSTRUÇÕES (12/11/2026, `e5730e6f`) as construções com ficha atrás (3/4) também, depois dos presos.
+    expect(fonte).toContain('nos, vistaDosMoveis ?? null, [...presos], [...comFichaAtras]])')
   })
 })

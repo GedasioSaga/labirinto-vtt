@@ -114,9 +114,12 @@ function mundo(): Container {
   return world
 }
 
-/** A NEBLINA (c8cae0ff) não conta na posição: de dia ela vai para o topo do mundo a cada quadro. */
+/**
+ * A NEBLINA (c8cae0ff) não conta na posição: de dia ela vai para o topo do mundo a cada quadro. Desde o Ambiente
+ * (12/11/2026, `119d1b82`) ela anda dentro da camada "clima", junto com as partículas.
+ */
 function fichaDaAna(): Container {
-  const ficha = mundo().children.filter((c) => c.label !== 'neblina').at(-2)?.children[0] // a última faixa é a do Judge (BATALHA F3), por cima das fichas
+  const ficha = mundo().children.filter((c) => c.label !== 'clima').at(-2)?.children[0] // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(ficha instanceof Container)) throw new Error('a ficha da Ana não está no mundo')
   return ficha
 }

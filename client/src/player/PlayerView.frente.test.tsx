@@ -118,7 +118,8 @@ function mundo(): Container {
  * entre o mapa de luz e o contorno da ficha (ordem de propósito, ver PlayerView.mapaDeLuz.test.tsx).
  */
 function camadaDasFichas(): Container {
-  const camada = mundo().children.filter((c) => c.label !== 'neblina').at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
+  // Desde o Ambiente (12/11/2026, `119d1b82`) a neblina anda dentro da camada "clima", junto com as partículas.
+  const camada = mundo().children.filter((c) => c.label !== 'clima').at(-2) // a última faixa é a do Judge (BATALHA F3), por cima das fichas
   if (!(camada instanceof Container)) throw new Error('a PlayerView não montou a camada das fichas')
   return camada
 }

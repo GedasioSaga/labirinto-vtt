@@ -117,7 +117,8 @@ function mundo(): Container {
  * A NEBLINA (c8cae0ff) não conta: de dia ela vai para o topo do mundo a cada quadro.
  */
 function desenhoDosPinos(): Graphics {
-  const desenho = mundo().children.filter((c) => c.label !== 'neblina').at(-4)?.children[0]
+  // Desde o Ambiente (12/11/2026, `119d1b82`) a neblina anda dentro da camada "clima", junto com as partículas.
+  const desenho = mundo().children.filter((c) => c.label !== 'clima').at(-4)?.children[0]
   if (!(desenho instanceof Graphics)) throw new Error('a camada de pinos não tem o Graphics dos pinos')
   return desenho
 }
