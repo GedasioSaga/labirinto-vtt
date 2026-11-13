@@ -442,16 +442,25 @@ function aneisDoMaterial(floor: readonly FloorPiece[], textura: string, grid: nu
 /**
  * Os anéis de uma forma numa lista só de pontos, para o balde (`AlvoDoBalde`
  * de área, preenchido com par-ímpar): cada anel fecha nele mesmo e a ponte
- * entre um e o outro é percorrida ida e volta, o que não muda nada no
- * par-ímpar. Assim os buracos (praça com canteiro) e as pedras soltas vão
- * num passo só.
+ * até ele sai do primeiro ponto do primeiro anel (a ÂNCORA) e volta para lá
+ * pelo mesmo traço, ida e volta, o que não muda nada no par-ímpar. Assim os
+ * buracos (praça com canteiro) e as pedras soltas vão num passo só.
+ *
+ * A ponte ligando o fim de um anel direto ao começo do seguinte NÃO volta: as
+ * pontes de todos os anéis formam um polígono a mais (o dos primeiros pontos),
+ * e o par-ímpar o inverte por cima do caminho. Era o E01 da 0.5.62: cunhas e
+ * fiapos ligando as pedras soltas e grama por dentro do caminho.
  */
 export function pontosDosAneis(aneis: readonly RegionPoint[][]): RegionPoint[] {
   const pontos: RegionPoint[] = []
+  let ancora: RegionPoint | null = null
   for (const anel of aneis) {
     if (anel.length === 0) continue
     for (const p of anel) pontos.push({ x: p.x, y: p.y })
     pontos.push({ x: anel[0].x, y: anel[0].y })
+    if (ancora === null) ancora = anel[0]
+    // De volta à âncora pelo mesmo traço da ida; o primeiro anel já começa e acaba nela.
+    else pontos.push({ x: ancora.x, y: ancora.y })
   }
   return pontos
 }
