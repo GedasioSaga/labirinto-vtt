@@ -81,9 +81,14 @@ function particulasDaTela(map: CenaComParticulas, espalhar: boolean): Particulas
   return { cena: map.id, fumaca: tetoDoEfeito(map, 'fumaca'), brasas: tetoDoEfeito(map, 'brasas'), objetos: map.props, espalhar, grid: map.grid }
 }
 
-/** As partículas na tela do mestre: ele tem a cena inteira, então ele mesmo vê se há fogo. `null` = desligadas. */
+/**
+ * As partículas na tela do mestre: só as que nascem dos fogos. AMBIENTE
+ * (12/11/2026): sem fogo na cena, a fumaça e as brasas do mapa inteiro são do
+ * `pixi/drawAmbiente.ts`, que cobre o mapa (e não a vista, que espalhava
+ * brasa fora da beira). `null` = desligadas.
+ */
 export function particulasDoMestre(map: CenaComParticulas): ParticulasDaTela | null {
-  return particulasDaTela(map, !cenaTemFogo(map.props))
+  return particulasDaTela(map, false)
 }
 
 /**
@@ -94,7 +99,8 @@ export function particulasDoMestre(map: CenaComParticulas): ParticulasDaTela | n
  * (`MapData.particulasSemFogo`). `null` = desligadas.
  */
 export function particulasDoJogador(recorte: CenaComParticulas & Pick<MapData, 'particulasSemFogo'>): ParticulasDaTela | null {
-  return particulasDaTela(recorte, recorte.particulasSemFogo === true)
+  // AMBIENTE: sem fogo na cena (`particulasSemFogo`), quem desenha é o `drawAmbiente.ts`; aqui, só dos fogos.
+  return particulasDaTela(recorte, false)
 }
 
 /**

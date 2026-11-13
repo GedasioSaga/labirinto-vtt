@@ -1,6 +1,9 @@
 import type { Container, Graphics, Renderer, Ticker } from 'pixi.js'
-import type { EfeitoDoAmbiente, MapData, RegionPoint } from '../types/map'
-import type { EfeitoDoPainel } from '../lib/ambiente'
+import type { EfeitoDoAmbiente, MapData, PinceladaDeAmbiente, RegionPoint } from '../types/map'
+import { EFEITOS_DO_AMBIENTE, intensidadeNoMapaInteiro, tipoDeFolhas, ventoDoMapa, vetorDoVento, type EfeitoDoPainel } from '../lib/ambiente'
+import { abrigoDoMestre } from '../lib/abrigoDoAmbiente'
+import { cenaTemFogo } from '../lib/particulasDaCena'
+import { aquecerAmbiente, createAmbienteRenderer, type EntradaDoAmbiente, type EstadoDoAmbiente } from './drawAmbiente'
 import { densidadeDoMapaInteiro, intensidadeDoMapaInteiro, PINCELADAS_MAX, type ResultadoDaNeblina } from '../lib/neblina'
 import { mapaDoPiso } from '../lib/pisos'
 import { unidadeDoRelevo } from '../lib/relevo'
@@ -52,34 +55,92 @@ export function criarNeblinaDoEditor(dep: {
   reducedMotion: () => boolean
   mundo: Container
   aoMudar?: (estado: EstadoDaNeblina) => void
+  aoMudarAmbiente?: (estado: EstadoDoAmbiente) => void
 }): NeblinaDoEditor {
-  const renderer = createNeblinaRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudar })
+  const neblina = createNeblinaRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudar })
+  // AMBIENTE (`drawAmbiente.ts`): as partículas logo acima da neblina. O shader compila já, em segundo plano.
+  const ambiente = createAmbienteRenderer(dep.renderer, { ticker: dep.ticker, reducedMotion: dep.reducedMotion }, { aoMudar: dep.aoMudarAmbiente })
+  void aquecerAmbiente(dep.renderer)
+  // O período vai para os dois: a tela chama `renderer.setPeriodo` como antes.
+  const renderer: NeblinaRenderer = {
+    camada: neblina.camada,
+    atualizar: neblina.atualizar,
+    setAbrigo: neblina.setAbrigo,
+    setPeriodo(periodo) {
+      neblina.setPeriodo(periodo)
+      ambiente.setPeriodo(periodo)
+    },
+    destruir: neblina.destruir,
+  }
   let ultimo: { map: MapData; piso: number } | null = null
+  let doPisoAnterior: MapData | null = null
   return {
     renderer,
     quadro(map, piso, acima) {
-      logoAbaixoDe(dep.mundo, renderer.camada, acima)
-      if (ultimo !== null && ultimo.map === map && ultimo.piso === piso) return renderer.camada
-      const anterior = ultimo
+      logoAbaixoDe(dep.mundo, ambiente.camada, acima)
+      logoAbaixoDe(dep.mundo, neblina.camada, ambiente.camada)
+      if (ultimo !== null && ultimo.map === map && ultimo.piso === piso) return neblina.camada
       ultimo = { map, piso }
-      // Só a neblina importa: o resto do mapa mudou e ela não, nada a refazer.
-      if (anterior !== null && anterior.piso === piso && anterior.map.neblina === map.neblina && anterior.map.neblinaPintada === map.neblinaPintada && anterior.map.width === map.width && anterior.map.height === map.height && anterior.map.grid === map.grid) {
-        return renderer.camada
+      const doPiso = mapaDoPiso(map, piso)
+      const antes = doPisoAnterior
+      doPisoAnterior = doPiso
+      const largura = map.width * map.grid
+      const altura = map.height * map.grid
+      // O abrigo só muda com sala, parede ou porta: o resto do mapa mudou e ele não, nada a refazer.
+      if (antes === null || antes.regions !== doPiso.regions || antes.walls !== doPiso.walls || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height) {
+        ambiente.setAbrigo(abrigoDoMestre(doPiso), largura, altura, map.grid)
+        neblina.setAbrigo(ambiente.ar(), largura, altura)
       }
-      renderer.atualizar({
+      if (antes === null || antes.ambiente !== doPiso.ambiente || antes.ambientePintado !== doPiso.ambientePintado || antes.props !== doPiso.props || antes.grid !== doPiso.grid || antes.width !== doPiso.width || antes.height !== doPiso.height) {
+        ambiente.atualizar(entradaDoAmbiente(map, doPiso.ambientePintado, !cenaTemFogo(map.props), true))
+      }
+      // Só a neblina importa daqui para baixo: o resto do mapa mudou e ela não, nada a refazer.
+      if (antes !== null && antes.neblina === doPiso.neblina && antes.neblinaPintada === doPiso.neblinaPintada && antes.width === doPiso.width && antes.height === doPiso.height && antes.grid === doPiso.grid) {
+        return neblina.camada
+      }
+      neblina.atualizar({
         largura: map.width * map.grid,
         altura: map.height * map.grid,
         grid: map.grid,
         inteira: intensidadeDoMapaInteiro(map),
         densidade: densidadeDoMapaInteiro(map),
-        pintada: mapaDoPiso(map, piso).neblinaPintada,
+        pintada: doPiso.neblinaPintada,
         animar: true,
       })
-      return renderer.camada
+      return neblina.camada
     },
     destruir() {
-      renderer.destruir()
+      neblina.destruir()
+      ambiente.destruir()
     },
+  }
+}
+
+/**
+ * O que a tela entrega ao `drawAmbiente.ts`, igual no mestre e no jogador.
+ * `semFogo` = a cena não tem fogo: só então brasas e fumaça do mapa inteiro
+ * saem daqui; com fogo, elas nascem dos fogos (`particulasDoMapa.ts`). O
+ * pincel vale sempre.
+ */
+export function entradaDoAmbiente(map: MapData, pintada: readonly PinceladaDeAmbiente[] | undefined, semFogo: boolean, animar: boolean): EntradaDoAmbiente | null {
+  const inteira: Record<EfeitoDoAmbiente, number> = {
+    chuva: intensidadeNoMapaInteiro(map, 'chuva'),
+    brasas: semFogo ? intensidadeNoMapaInteiro(map, 'brasas') : 0,
+    neve: intensidadeNoMapaInteiro(map, 'neve'),
+    folhas: intensidadeNoMapaInteiro(map, 'folhas'),
+    fumaca: semFogo ? intensidadeNoMapaInteiro(map, 'fumaca') : 0,
+  }
+  const temAlgo = EFEITOS_DO_AMBIENTE.some((e) => inteira[e] > 0) || (pintada ?? []).some((p) => p.tipo === 'pincel')
+  if (!temAlgo) return null
+  return {
+    largura: map.width * map.grid,
+    altura: map.height * map.grid,
+    grid: map.grid,
+    inteira,
+    pintada,
+    folhas: tipoDeFolhas(map),
+    vento: vetorDoVento(ventoDoMapa(map)),
+    animar,
   }
 }
 

@@ -70,7 +70,7 @@ export const LADO_MAXIMO_DA_MASCARA = 512
 /** Folga transparente em volta da máscara: fora da caixa, o `clamp` lê zero. */
 // Três vezes o desfoque (uma célula = 2 texels): a cauda macia cabe inteira na
 // máscara e o quadrado desenhado não corta a beirada em linha reta.
-const BORDA_DA_MASCARA = 6
+export const BORDA_DA_MASCARA = 6
 /** De quanto em quanto tempo, com a bruma andando, o renderer confere se a pessoa passou a pedir menos movimento. */
 const CONFERIR_MOVIMENTO_MS = 1000
 
@@ -112,6 +112,10 @@ uniform vec4 uBordas;
 // bordas na densidade 0,5 (xy); z = piso da bruma na densidade 1.
 uniform vec4 uBordaMedia;
 uniform vec3 uCor;
+// AMBIENTE (lib/abrigoDoAmbiente.ts): o abrigo do ar (alfa = casa fechada, menos o degradê da
+// porta aberta). xy = largura e altura do mapa; z = tem abrigo (0 = a neblina de sempre, igual).
+uniform sampler2D uAr;
+uniform vec4 uAbrigo;
 out vec4 finalColor;
 const mat2 GIRO = mat2(0.8, -0.6, 0.6, 0.8);
 void main() {
@@ -135,6 +139,7 @@ void main() {
     : mix(uBordaMedia.xy, uBordas.zw, densidade * 2.0 - 1.0);
   float bruma = smoothstep(bordas.x, bordas.y, largo * 0.5 + medio * 0.35 + fino * 0.15);
   float a = area * mix(uBordaMedia.z * densidade, 1.0, bruma) * uMapa.z * uDetalhe.w;
+  if (uAbrigo.z > 0.5) a *= 1.0 - texture(uAr, clamp(vPos / uAbrigo.xy, 0.0, 1.0)).a;
   if (a <= 0.003) discard;
   finalColor = vec4(uCor * a, a) * uColor.a;
 }
@@ -289,7 +294,7 @@ function corDaDensidade(densidade: number): string {
  * desfoque de uma célula no fim. Sobe pré-multiplicada: o shader lê a
  * densidade como `r / a`.
  */
-function pintarMascara(lista: readonly PinceladaDeNeblina[], caixa: CaixaDaMascara, grid: number): HTMLCanvasElement | null {
+export function pintarMascara(lista: readonly PinceladaDeNeblina[], caixa: CaixaDaMascara, grid: number): HTMLCanvasElement | null {
   const nitida = document.createElement('canvas')
   nitida.width = caixa.texelsX
   nitida.height = caixa.texelsY
@@ -336,7 +341,7 @@ function quadroDaMascara(caixa: CaixaDaMascara, largura: number, altura: number)
   return [x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0)]
 }
 
-function telaVazia(): CanvasSource {
+export function telaVazia(): CanvasSource {
   const tela = document.createElement('canvas')
   tela.width = 1
   tela.height = 1
@@ -381,6 +386,11 @@ export interface NeblinaRenderer {
   atualizar: (entrada: EntradaDaNeblina | null) => void
   /** O período da tinta à vista (`null` = dia): só a cor da bruma muda. */
   setPeriodo: (periodo: Periodo | null) => void
+  /**
+   * AMBIENTE: a máscara do ar (casa de teto ou cômodo seco, com o degradê da
+   * porta aberta), de `drawAmbiente.ts`. `null` = nenhuma: a neblina de sempre.
+   */
+  setAbrigo: (ar: TextureSource | null, largura: number, altura: number) => void
   destruir: () => void
 }
 
@@ -424,6 +434,19 @@ export function createNeblinaRenderer(
   let fadeDesde: { t: number; de: number } | null = null
   let periodo: Periodo = 'dia'
   let avisado = ''
+  /** AMBIENTE: a máscara do ar (de `drawAmbiente.ts`, que é dona dela) e o tamanho do mapa; `null` = sem casa fechada. */
+  let ar: TextureSource | null = null
+  let tamanhoDoAr: [number, number] = [1, 1]
+  const semAr = telaVazia()
+
+  function pintarAbrigo(): void {
+    if (ajustes === null) return
+    const v = ajustes.uniforms.uAbrigo as Float32Array
+    v[0] = Math.max(1, tamanhoDoAr[0])
+    v[1] = Math.max(1, tamanhoDoAr[1])
+    v[2] = ar === null ? 0 : 1
+    if (mesh !== null && mesh.shader !== null) mesh.shader.resources.uAr = ar ?? semAr
+  }
 
   function montar(): boolean {
     if (mesh !== null) return true
@@ -438,8 +461,10 @@ export function createNeblinaRenderer(
       uBordas: { value: new Float32Array([...AJUSTE_DA_NEBLINA.bordasRala, ...AJUSTE_DA_NEBLINA.bordasDensa]), type: 'vec4<f32>' },
       uBordaMedia: { value: new Float32Array([...AJUSTE_DA_NEBLINA.bordasMedia, AJUSTE_DA_NEBLINA.pisoNaDensidadeMaxima, 0]), type: 'vec4<f32>' },
       uCor: { value: new Float32Array(AJUSTE_DA_NEBLINA.cor.dia), type: 'vec3<f32>' },
+      uAbrigo: { value: new Float32Array([1, 1, ar === null ? 0 : 1, 0]), type: 'vec4<f32>' },
     })
-    const shader = new Shader({ glProgram: programaDaNeblina(), resources: { uRuido: ruido, uMascara: mascara, neblina: ajustes } })
+    const shader = new Shader({ glProgram: programaDaNeblina(), resources: { uRuido: ruido, uMascara: mascara, uAr: ar ?? semAr, neblina: ajustes } })
+    pintarAbrigo()
     const geometria = new Geometry({
       attributes: { aPosition: { buffer: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), format: 'float32x2' } },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]),
@@ -616,9 +641,16 @@ export function createNeblinaRenderer(
       periodo = proximo
       pintarCor()
     },
+    setAbrigo(fonte, largura, altura) {
+      if (fonte === ar && largura === tamanhoDoAr[0] && altura === tamanhoDoAr[1]) return
+      ar = fonte
+      tamanhoDoAr = [largura, altura]
+      pintarAbrigo()
+    },
     destruir() {
       sairDoRelogio()
       camada.destroy({ children: true })
+      semAr.destroy()
       mascara.destroy()
       ruido?.destroy()
       ruido = null
