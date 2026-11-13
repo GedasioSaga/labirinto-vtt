@@ -354,20 +354,28 @@ const SENO_DE_QUASE_PARALELA = Math.sin((15 * Math.PI) / 180)
 type TracoDeParede = Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>
 
 /**
- * A parede CORRE JUNTO do lado `a`-`b` do contorno: é mais ou menos paralela a
- * ele e tem um trecho, com comprimento ao longo do lado, a até `folga` dele.
- * A que só encosta a ponta no lado, ou o cruza de través, não corre junto.
+ * A fração do lado que as paredes que correm junto dele precisam cobrir para o
+ * lado ser FEITO por elas. O contorno do balde segue as paredes que o cercam,
+ * então o lado de uma área de verdade corre em parede (comum ou escondida) de
+ * ponta a ponta, tirando a fresta da simplificação.
  */
-function paredeCorreNoLado(w: TracoDeParede, a: RegionPoint, b: RegionPoint, folga: number): boolean {
+const LADO_FEITO_DE_PAREDE = 0.5
+
+/**
+ * O trecho do lado `a`-`b` do contorno (de, até: posição ao longo dele) em que
+ * a parede CORRE JUNTO dele: mais ou menos paralela e a até `folga` dele. A que
+ * só encosta a ponta no lado, ou o cruza de través, não corre junto (`null`).
+ */
+function trechoJuntoDoLado(w: TracoDeParede, a: RegionPoint, b: RegionPoint, folga: number): readonly [number, number] | null {
   // Caixa primeiro: quase nenhuma parede chega perto deste lado.
-  if (Math.max(w.x1, w.x2) < Math.min(a.x, b.x) - folga || Math.min(w.x1, w.x2) > Math.max(a.x, b.x) + folga) return false
-  if (Math.max(w.y1, w.y2) < Math.min(a.y, b.y) - folga || Math.min(w.y1, w.y2) > Math.max(a.y, b.y) + folga) return false
+  if (Math.max(w.x1, w.x2) < Math.min(a.x, b.x) - folga || Math.min(w.x1, w.x2) > Math.max(a.x, b.x) + folga) return null
+  if (Math.max(w.y1, w.y2) < Math.min(a.y, b.y) - folga || Math.min(w.y1, w.y2) > Math.max(a.y, b.y) + folga) return null
   const lado = Math.hypot(b.x - a.x, b.y - a.y)
   const comprimento = Math.hypot(w.x2 - w.x1, w.y2 - w.y1)
-  if (lado === 0 || comprimento === 0) return false
+  if (lado === 0 || comprimento === 0) return null
   const ux = (b.x - a.x) / lado
   const uy = (b.y - a.y) / lado
-  if (Math.abs(ux * (w.y2 - w.y1) - uy * (w.x2 - w.x1)) > comprimento * SENO_DE_QUASE_PARALELA) return false
+  if (Math.abs(ux * (w.y2 - w.y1) - uy * (w.x2 - w.x1)) > comprimento * SENO_DE_QUASE_PARALELA) return null
   // Cada ponta da parede: a posição ao longo do lado (`t`) e o afastamento da reta dele (`o`).
   const t1 = (w.x1 - a.x) * ux + (w.y1 - a.y) * uy
   const t2 = (w.x2 - a.x) * ux + (w.y2 - a.y) * uy
@@ -379,40 +387,72 @@ function paredeCorreNoLado(w: TracoDeParede, a: RegionPoint, b: RegionPoint, fol
   // ...e, dele, o pedaço a até `folga` da reta (o afastamento muda em linha reta ao longo da parede).
   const inclinacao = (o2 - o1) / (t2 - t1)
   if (inclinacao === 0) {
-    if (Math.abs(o1) > folga) return false
+    if (Math.abs(o1) > folga) return null
   } else {
     const entra = t1 + (-folga - o1) / inclinacao
     const sai = t1 + (folga - o1) / inclinacao
     de = Math.max(de, Math.min(entra, sai))
     ate = Math.min(ate, Math.max(entra, sai))
   }
-  return ate > de
+  return ate > de ? [de, ate] : null
+}
+
+/** O lado `a`-`b` é FEITO pelas `paredes`: as que correm junto dele cobrem `LADO_FEITO_DE_PAREDE` dele ou mais. */
+function ladoFeitoDeParede(paredes: readonly TracoDeParede[], a: RegionPoint, b: RegionPoint, folga: number): boolean {
+  const trechos = paredes
+    .flatMap((w) => {
+      const trecho = trechoJuntoDoLado(w, a, b, folga)
+      return trecho === null ? [] : [trecho]
+    })
+    .sort((p, q) => p[0] - q[0])
+  let coberto = 0
+  let fim = -Infinity
+  for (const [de, ate] of trechos) {
+    if (ate <= fim) continue
+    coberto += ate - Math.max(de, fim)
+    fim = ate
+  }
+  return coberto >= Math.hypot(b.x - a.x, b.y - a.y) * LADO_FEITO_DE_PAREDE
+}
+
+/** As paredes que chegam na caixa (a conta fina só roda para elas). */
+function paredesNaCaixa(paredes: readonly TracoDeParede[], caixa: Caixa): TracoDeParede[] {
+  return paredes.filter(
+    (w) => Math.max(w.x1, w.x2) >= caixa.minX && Math.min(w.x1, w.x2) <= caixa.maxX && Math.max(w.y1, w.y2) >= caixa.minY && Math.min(w.y1, w.y2) <= caixa.maxY,
+  )
 }
 
 /**
  * O contorno da ÁREA fechada por paredes passa por alguma das `paredes`: um
  * canto dele a até `FOLGA_DA_AREA_NA_PAREDE` quadrado do eixo dela, ou um LADO
- * dele correndo junto dela na mesma folga (`paredeCorreNoLado`: o trecho de
+ * dele correndo junto dela na mesma folga (`trechoJuntoDoLado`: o trecho de
  * parede escondida no meio de uma reta, entre duas paredes comuns, longe de
  * todo canto). O contorno segue o eixo das paredes que cercam a área, então a
  * parede que quem recebe o passo NÃO recebe (a de sala secreta fechada, a
  * invisível, a de camada escondida dos jogadores, a que a imagem exportada
  * tira) sairia desenhada nele: o buraco no formato do cofre no meio do salão,
  * onde quer que o mestre tenha posto a parede dele (12/11/2026).
+ *
+ * Com `todas` (as paredes do mapa, as escondidas também), o LADO só conta se
+ * for feito de parede (`ladoFeitoDeParede`): a faixa que atravessa a sala
+ * secreta e passa a meia casa da parede dela por 6 de 44 casas não foi feita
+ * por ela e não a desenha. Sem isto a faixa inteira sumia para o jogador, e a
+ * falta dela entregava a sala (F-N09 da 0.5.62). O canto em cima da parede
+ * escondida continua segurando a área sempre.
  */
-export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: readonly TracoDeParede[], grid: number): boolean {
+export function areaPassaPorParede(pontos: readonly RegionPoint[], paredes: readonly TracoDeParede[], grid: number, todas?: readonly TracoDeParede[]): boolean {
   if (paredes.length === 0 || pontos.length === 0) return false
   const folga = grid * FOLGA_DA_AREA_NA_PAREDE
   // Caixa primeiro: só a parede que chega perto da caixa do contorno entra na conta fina.
   const caixa = caixaDoCaminho(pontos, folga)
-  const perto = paredes.filter(
-    (w) => Math.max(w.x1, w.x2) >= caixa.minX && Math.min(w.x1, w.x2) <= caixa.maxX && Math.max(w.y1, w.y2) >= caixa.minY && Math.min(w.y1, w.y2) <= caixa.maxY,
-  )
+  const perto = paredesNaCaixa(paredes, caixa)
   if (perto.length === 0) return false
   if (pontos.some((p) => perto.some((w) => distanceToWall(p, w) <= folga))) return true
+  const todasPerto = todas === undefined ? null : paredesNaCaixa(todas, caixa)
   return pontos.some((b, i) => {
     const a = pontos[(i + pontos.length - 1) % pontos.length]
-    return perto.some((w) => paredeCorreNoLado(w, a, b, folga))
+    if (!perto.some((w) => trechoJuntoDoLado(w, a, b, folga) !== null)) return false
+    return todasPerto === null || ladoFeitoDeParede(todasPerto, a, b, folga)
   })
 }
 

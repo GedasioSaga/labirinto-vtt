@@ -4922,7 +4922,8 @@ function recorteDoGrupo(
         // oculta, ou que corre numa parede escondida dele (a da sala secreta, mesmo fora da borda dela;
         // a invisível; a de camada escondida), levaria a silhueta dela ou desenharia a parede pela
         // borda da textura. Descoberta (aberta para ele), a sala sai de `secretRoomIds` e a área volta.
-        (pontos) => touchesSecretOrZone(pontos) || areaPassaPorParede(pontos, paredesEscondidasDele, map.grid),
+        // O lado só conta se for feito de parede (`todas`): a faixa que só passa rente à sala vai (F-N09).
+        (pontos) => touchesSecretOrZone(pontos) || areaPassaPorParede(pontos, paredesEscondidasDele, map.grid, map.walls),
       )
     : undefined
   const importadasDoJogador = importadasParaJogador(map.texturasImportadas, texturasDoJogador)

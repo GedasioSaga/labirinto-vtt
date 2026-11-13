@@ -313,7 +313,7 @@ function texturasSemSegredo(
   // oculta, ou se corre numa parede que a imagem tira (a do cofre, mesmo fora da borda dele): o contorno a desenharia.
   const alvoFica = (alvo: AlvoDoBalde): boolean =>
     alvo.tipo === 'area'
-      ? !alvo.pontos.some((p) => encosta(p, 0)) && !areaPassaPorParede(alvo.pontos, paredesTiradas, map.grid)
+      ? !alvo.pontos.some((p) => encosta(p, 0)) && !areaPassaPorParede(alvo.pontos, paredesTiradas, map.grid, map.walls)
       : alvo.tipo === 'regiao'
       ? !goneRegionIds.has(alvo.id)
       : drawingIds.has(alvo.id)
