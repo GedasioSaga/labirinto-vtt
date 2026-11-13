@@ -94,6 +94,8 @@ export type GestureMode =
   | 'painting-penhasco'
   // Barranco: arrasto que risca a beira ou pinta a área alta.
   | 'painting-barranco'
+  // Água: o traço do rio ou o contorno do lago e do mar.
+  | 'painting-agua'
   // Texturas: arrasto do pincel (ou da borracha) de textura.
   | 'painting-textura'
   // Neblina: arrasto do pincel (ou da borracha) de neblina.
@@ -230,6 +232,8 @@ const CREATION_TOOLS = new Set<DrawingTool>([
   'revealBrush',
   'penhasco',
   'barranco',
+  // Água: o arrasto traça, o clique escolhe.
+  'agua',
   // Texturas: o clique pinta (pincel) ou enche (balde).
   'texturas',
   // Carimbos: o clique solta um objeto (ou apaga, com a borracha).
@@ -350,6 +354,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     // Penhasco: idem, riscando ou apagando.
     case 'painting-penhasco':
     case 'painting-barranco':
+    case 'painting-agua':
     case 'painting-textura':
     case 'painting-neblina':
     case 'painting-carimbo':

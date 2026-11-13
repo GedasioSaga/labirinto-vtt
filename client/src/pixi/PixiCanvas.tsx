@@ -81,6 +81,7 @@ import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
+import { criarGestoDaAgua } from './aguaNoEditor'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
 import { usePincelDaNeblina } from '../stores/pincelDaNeblina'
 import { criarParticulasDoMapa } from './particulasDoMapa'
@@ -1573,6 +1574,14 @@ function PixiCanvasDoContexto({
       })
       // NEBLINA: o gesto do pincel (`neblinaNoEditor.ts`); o rascunho da pincelada usa o draft.
       const gestoDaNeblina = criarGestoDaNeblina({
+        rascunho: draftGraphics,
+        avisar: (texto) => {
+          const toasts = useToastStore.getState()
+          if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
+        },
+      })
+      // ÁGUA (`aguaNoEditor.ts`): traçar rio, lago e mar e escolher a água; o rascunho e o contorno da escolhida usam o draft.
+      const gestoDaAgua = criarGestoDaAgua({
         rascunho: draftGraphics,
         avisar: (texto) => {
           const toasts = useToastStore.getState()
@@ -3786,6 +3795,8 @@ function PixiCanvasDoContexto({
         | 'painting-penhasco'
         // Barranco: risco, traço da área alta ou clique de rampa (`barrancoNoEditor.ts`).
         | 'painting-barranco'
+        // Água: o traço do rio ou o contorno do lago e do mar (`aguaNoEditor.ts`).
+        | 'painting-agua'
         // Texturas: arrasto do pincel (ou da borracha) de textura.
         | 'painting-textura'
         // Neblina: arrasto do pincel (ou da borracha) de neblina (`neblinaNoEditor.ts`).
@@ -5748,6 +5759,9 @@ function PixiCanvasDoContexto({
         // Barranco: idem — o traço da área cancelado não vira passo, e o risco cancelado não entra.
         gestoDoBarranco.cancelar()
         if (mode === 'painting-barranco') mode = 'idle'
+        // Água: idem — o traço cancelado não vira água.
+        gestoDaAgua.cancelar()
+        if (mode === 'painting-agua') mode = 'idle'
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
         texturaStroke = []
         if (mode === 'painting-textura') mode = 'idle'
@@ -6716,6 +6730,13 @@ function PixiCanvasDoContexto({
         if (activeTool === 'barranco') {
           // BARRANCO (`barrancoNoEditor.ts`): risco, área alta ou rampa, pelo modo do painel; Alt desce a área.
           if (gestoDoBarranco.comecar(worldPoint, event.altKey)) mode = 'painting-barranco'
+          return
+        }
+
+        if (activeTool === 'agua') {
+          // ÁGUA (`aguaNoEditor.ts`): arrastar traça a água do tipo do painel; clicar escolhe a água no ponto.
+          gestoDaAgua.comecar(worldPoint)
+          mode = 'painting-agua'
           return
         }
 
@@ -7897,6 +7918,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-agua') gestoDaAgua.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
@@ -8315,6 +8337,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
+        if (mode === 'painting-agua') gestoDaAgua.soltar(null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(null)
         // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
@@ -8916,6 +8939,11 @@ function PixiCanvasDoContexto({
 
         if (mode === 'painting-reveal-brush') {
           extendRevealStroke(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-agua') {
+          gestoDaAgua.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -9527,6 +9555,8 @@ function PixiCanvasDoContexto({
             clearDrafts()
             // Barranco: Esc solta o risco escolhido.
             useMapStore.getState().setBarrancoEscolhido(null)
+            // Água: Esc solta a água escolhida.
+            gestoDaAgua.soltarEscolhida()
             // Onda 4, item 24 — Esc cancela um marquee aberto e limpa a
             // seleção, de QUALQUER tamanho.
             //
@@ -9563,6 +9593,8 @@ function PixiCanvasDoContexto({
           case 'deleteSelected': {
             // Barranco: com um risco escolhido na ferramenta, Delete apaga o risco.
             if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.apagarEscolhido()) break
+            // Água: com uma água escolhida na ferramenta, Delete apaga a água.
+            if (useMapStore.getState().activeTool === 'agua' && gestoDaAgua.apagarEscolhida()) break
             // O pino de ponto de interesse vive FORA de `selection` (estado
             // próprio, `selectedPinId`), então Delete nunca o alcançava: dava
             // para colocar e não dava para tirar sem achar "Excluir ponto de
@@ -9823,6 +9855,7 @@ function PixiCanvasDoContexto({
         relevo.destruir()
         gestoDoBarranco.cancelar()
         desenhoDoBarranco.destroy()
+        gestoDaAgua.destruir()
         // O pintor das paredes do nó de hoje (o dos nós criados sai com a pilha).
         paredesPorNo.de(wallsGraphics).destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.
