@@ -12,6 +12,7 @@ import { currentRendererResolution, watchDevicePixelRatio } from './rendererReso
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
+import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { criarCamadaDePiso, formasDoPisoDoChao, type ContextoDoPiso } from './pisoDesenhado'
 import { criarCaminhosDesenhados } from './caminhoDesenhado'
@@ -5833,6 +5834,8 @@ function PixiCanvasDoContexto({
         const comGuiaDeDesenho = draftGuide !== null || pathGuide !== null
         pathGuide = null
         if (comGuiaDeDesenho) endGuides()
+        // Água: o rascunho limpo acima levava junto o contorno da escolhida (e as bolinhas); a ferramenta Água o põe de volta.
+        gestoDaAgua.redesenhar()
       }
 
       /**
@@ -6232,7 +6235,11 @@ function PixiCanvasDoContexto({
 
       /** Rascunho feito clique a clique aberto: Região, Área poligonal, Caminho ou Chão corredor. */
       const hasPointDraft = () =>
-        regionDraftPoints.length > 0 || polygonDraftPoints.length > 0 || pathDraftPoints.length > 0 || corridorDraftPoints.length > 0
+        regionDraftPoints.length > 0 ||
+        polygonDraftPoints.length > 0 ||
+        pathDraftPoints.length > 0 ||
+        corridorDraftPoints.length > 0 ||
+        gestoDaAgua.cantosDoTracado() > 0
 
       /**
        * Quantos cantos o traçado ABERTO desta ferramenta ainda tem, e quantos
@@ -6251,7 +6258,7 @@ function PixiCanvasDoContexto({
        * um arrasto e simplesmente não têm traçado aberto para fechar.
        */
       const fazTracadoPontoAPonto = (tool: DrawingTool): boolean =>
-        tool === 'path' || tool === 'polygon' || tool === 'floor' || usaTracadoPontoAPonto(tool)
+        tool === 'path' || tool === 'polygon' || tool === 'floor' || tool === 'agua' || usaTracadoPontoAPonto(tool)
 
       const contagemDoTracado = (tool: DrawingTool): { tem: number; minimo: number; oQue: string } | null => {
         if (tool === 'path') {
@@ -6265,6 +6272,11 @@ function PixiCanvasDoContexto({
         if (tool === 'floor') {
           const tem = normalizeDraftPolygonPoints(corridorDraftPoints).length
           return tem > 0 ? { tem, minimo: 2, oQue: 'O corredor' } : null
+        }
+        if (tool === 'agua') {
+          // Água ponto a ponto (`aguaNoEditor.ts`): o lago e o mar fecham com 3 cantos.
+          const tem = gestoDaAgua.cantosDoTracado()
+          return tem > 0 ? { tem, minimo: 3, oQue: useFerramentaDaAgua.getState().tipo === 'mar' ? 'O mar' : 'O lago' } : null
         }
         if (usaTracadoPontoAPonto(tool)) {
           const tem = normalizeDraftPolygonPoints(regionDraftPoints).length
@@ -6322,6 +6334,7 @@ function PixiCanvasDoContexto({
         if (tool === 'path') finishPath()
         else if (tool === 'polygon') finishPolygon()
         else if (tool === 'floor') finishCorridor()
+        else if (tool === 'agua') gestoDaAgua.fecharPontoAPonto()
         else finishRegion()
         return true
       }
@@ -6382,6 +6395,7 @@ function PixiCanvasDoContexto({
           corridorDraftPoints = corridorDraftPoints.slice(0, -1)
           if (corridorDraftPoints.length > 0) drawCorridorDraft(cursor)
         }
+        gestoDaAgua.tirarUltimoCanto()
       }
 
       // Onda 1, item 1 (Frente A, "cursor vivo") — `updateCursor` não recebe
@@ -6767,8 +6781,8 @@ function PixiCanvasDoContexto({
         }
 
         if (activeTool === 'agua') {
-          // ÁGUA (`aguaNoEditor.ts`): arrastar traça a água do tipo do painel; clicar escolhe a água no ponto.
-          gestoDaAgua.comecar(worldPoint)
+          // ÁGUA (`aguaNoEditor.ts`): a forma do painel traça a água (à mão, retângulo, ponto a ponto); clicar escolhe a água no ponto.
+          gestoDaAgua.comecar(worldPoint, event.altKey)
           mode = 'painting-agua'
           return
         }
@@ -8566,6 +8580,8 @@ function PixiCanvasDoContexto({
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           // BARRANCO: a prévia da rampa segue o ponteiro ocioso.
           if (useMapStore.getState().activeTool === 'barranco') gestoDoBarranco.pairar(worldPoint)
+          // ÁGUA: a prévia do ponto a ponto vai até o ponteiro ocioso.
+          if (useMapStore.getState().activeTool === 'agua') gestoDaAgua.pairar(worldPoint)
           const hover = resolveHoverAtIdle(worldPoint)
           hoverKind = hover.kind
           hoverCorner = hover.corner
@@ -9540,6 +9556,8 @@ function PixiCanvasDoContexto({
           if (!editable) {
             event.preventDefault()
             if (corridorDraftPoints.length > 0) finishCorridor()
+            // Água: com menos de 3 cantos o Enter avisa e deixa o traçado aberto, como o do Polígono.
+            else if (gestoDaAgua.cantosDoTracado() > 0) gestoDaAgua.fecharPontoAPonto()
             else if (polygonDraftPoints.length > 0) finishPolygon()
             else if (pathDraftPoints.length > 0) finishPath()
             else finishRegion()

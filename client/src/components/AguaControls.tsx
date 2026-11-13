@@ -1,5 +1,5 @@
 import { useMapStore } from '../stores/mapStore'
-import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
+import { useFerramentaDaAgua, type FormaDaAgua } from '../stores/ferramentaDaAgua'
 import type { Agua, CorProntaDaAgua, TipoDeAgua } from '../types/map'
 import { AJUSTE_PADRAO, CORES_DA_AGUA, LARGURA_DO_RIO, NOME_DO_TIPO_DE_AGUA, larguraDoRio, nomeDaAgua } from '../lib/agua/dados'
 import { mapaDoPiso } from '../lib/pisos'
@@ -14,6 +14,13 @@ import { Toggle } from './Toggle'
  */
 
 const TIPOS: readonly TipoDeAgua[] = ['rio', 'lago', 'mar']
+
+/** Como o lago e o mar nascem; o rio é sempre à mão. */
+const FORMAS: readonly { id: FormaDaAgua; nome: string; dica: string }[] = [
+  { id: 'mao', nome: 'À mão', dica: 'Arraste o contorno; ao soltar, a área fecha.' },
+  { id: 'retangulo', nome: 'Retângulo', dica: 'Arraste de um canto ao outro.' },
+  { id: 'pontos', nome: 'Ponto a ponto', dica: 'Clique em cada canto. Duplo clique ou Enter fecha; Esc cancela.' },
+]
 /** Lista vazia fixa: o seletor da store não pode devolver um array novo a cada leitura. */
 const NENHUMA: readonly Agua[] = []
 
@@ -227,11 +234,26 @@ export function AguaControls() {
             </button>
           ))}
         </div>
-        <p className="lb-field__hint">
-          {f.tipo === 'rio' ? 'Arraste o traço no sentido da correnteza.' : 'Arraste o contorno; ao soltar, a área fecha.'}
-          {f.tipo === 'mar' ? ' O mar ganha praia de areia sozinho.' : ''}
-        </p>
+        {f.tipo === 'rio' && <p className="lb-field__hint">Arraste o traço no sentido da correnteza.</p>}
       </div>
+      {f.tipo !== 'rio' && (
+        <div className="lb-field">
+          <span className="lb-label" id="lb-agua-forma">
+            Forma
+          </span>
+          <div className="lb-seg" role="radiogroup" aria-labelledby="lb-agua-forma">
+            {FORMAS.map((forma) => (
+              <button key={forma.id} type="button" role="radio" aria-checked={f.forma === forma.id} className="lb-seg__option" onClick={() => f.setForma(forma.id)}>
+                {forma.nome}
+              </button>
+            ))}
+          </div>
+          <p className="lb-field__hint">
+            {FORMAS.find((forma) => forma.id === f.forma)?.dica}
+            {f.tipo === 'mar' ? ' O mar ganha praia de areia sozinho.' : ''}
+          </p>
+        </div>
+      )}
       <SeletorDeCor id="lb-agua-cor" cor={f.cor} corPronta={f.corPronta} onChange={f.setCor} />
       <Medidas
         prefixo="lb-agua"
