@@ -1,6 +1,6 @@
 import type { Drawing, FloorPiece, FloorShape, MapData, PinceladaDeTextura, RegionPoint } from '../types/map'
 import { aneisDoCampo, floorSampleStep, type FloorClip } from './floorContour'
-import { pieceBounds, pieceDistance, valueNoise, type Bounds, type CompiledFloor } from './floorSdf'
+import { pieceBounds, pieceDistance, pontosDoCorredor, valueNoise, type Bounds, type CompiledFloor } from './floorSdf'
 
 /**
  * TERRENO DO CHÃO (pedido CHÃO E CAMINHO de 12/11/2026, aprovado com "perfeito
@@ -91,6 +91,97 @@ export function terrenoDoArquivo<T extends FloorPiece>(peca: T): T {
 /** A peça é terreno (tem material)? */
 export function temMaterial(peca: FloorPiece): boolean {
   return peca.material !== undefined && peca.material !== ''
+}
+
+const lisaPorPeca = new WeakMap<FloorPiece, FloorPiece>()
+
+/**
+ * A peça como Chão LISO: sem o material e sem a borda (que só vale com
+ * material). O recorte do jogador manda assim a peça de que ele não conhece
+ * pedaço nenhum (`lib/fogFilter.ts`): a forma vai, como o chão de todo lugar
+ * ainda não visto, e o material, que é a textura dela, segue a regra das
+ * Texturas, que não saem do lugar que ele não conhece. Guardada pela peça (a
+ * store é imutável): a mesma peça volta o MESMO objeto, e o "só o que mudou"
+ * do pacote não a reenvia a cada recorte.
+ */
+export function semMaterial(peca: FloorPiece): FloorPiece {
+  if (peca.material === undefined && peca.borda === undefined) return peca
+  let lisa = lisaPorPeca.get(peca)
+  if (lisa === undefined) {
+    lisa = { ...peca }
+    delete lisa.material
+    delete lisa.borda
+    lisaPorPeca.set(peca, lisa)
+  }
+  return lisa
+}
+
+/** Teto de amostras de uma peça para o recorte: peça enorme não vira milhares de perguntas por recorte. */
+const AMOSTRAS_MAXIMAS = 512
+/** Divisões por lado da grade de amostras das formas de área (retângulo, elipse, polígono, livre). */
+const DIVISOES_DA_AREA = 24
+/** Fração da meia largura do caminho onde ficam as amostras das beiras (dentro dele). */
+const BEIRA_DAS_AMOSTRAS = 0.8
+
+/** Só uma a cada `passo`, para caber no teto. */
+function rarear<T>(lista: readonly T[], teto: number): T[] {
+  if (lista.length <= teto) return [...lista]
+  const passo = lista.length / teto
+  const saida: T[] = []
+  for (let i = 0; i < teto; i += 1) saida.push(lista[Math.floor(i * passo)])
+  return saida
+}
+
+/** O caminho: a linha do meio e as duas beiras de dentro, a cada meia casa. */
+function amostrasDoCorredor(shape: Extract<FloorShape, { kind: 'corridor' }>, grid: number): RegionPoint[] {
+  const linha = pontosDoCorredor(shape)
+  const passo = Math.max(1, grid / 2)
+  const saida: RegionPoint[] = []
+  for (let i = 0; i < linha.length; i += 1) {
+    const a = linha[i]
+    const b = linha[Math.min(linha.length - 1, i + 1)]
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const tamanho = Math.hypot(dx, dy)
+    const n = i + 1 < linha.length ? Math.max(1, Math.ceil(tamanho / passo)) : 1
+    // Rumo do trecho (o último ponto usa o do trecho de antes); trecho parado: só o ponto.
+    const ref = tamanho > 0 ? { dx, dy, tamanho } : null
+    for (let k = 0; k < n; k += 1) {
+      const t = i + 1 < linha.length ? k / n : 0
+      const x = a.x + dx * t
+      const y = a.y + dy * t
+      saida.push({ x, y })
+      if (ref === null) continue
+      const meia = ((a.width + (b.width - a.width) * t) / 2) * BEIRA_DAS_AMOSTRAS
+      const nx = (-ref.dy / ref.tamanho) * meia
+      const ny = (ref.dx / ref.tamanho) * meia
+      saida.push({ x: x + nx, y: y + ny }, { x: x - nx, y: y - ny })
+    }
+  }
+  return saida
+}
+
+/**
+ * Pontos DENTRO da peça para o recorte perguntar se o jogador conhece algum
+ * pedaço dela (`lib/fogFilter.ts`): no caminho, a linha do meio e as duas
+ * beiras de dentro a cada meia casa; nos blocos, o meio de cada célula; nas
+ * outras formas, uma grade na caixa. Até `AMOSTRAS_MAXIMAS` pontos.
+ */
+export function amostrasDoTerreno(peca: FloorPiece, grid: number): RegionPoint[] {
+  const shape = peca.shape
+  const girada = (peca.rotation ?? 0) !== 0
+  let pontos: RegionPoint[]
+  if (shape.kind === 'corridor' && !girada) pontos = amostrasDoCorredor(shape, grid)
+  else if (shape.kind === 'blocos' && !girada) pontos = shape.cells.map((c) => ({ x: (c.col + 0.5) * shape.cell, y: (c.row + 0.5) * shape.cell }))
+  else {
+    const b = pieceBounds(peca)
+    const passo = Math.max(grid / 2, (b.maxX - b.minX) / DIVISOES_DA_AREA, (b.maxY - b.minY) / DIVISOES_DA_AREA, 1)
+    pontos = []
+    for (let y = b.minY + passo / 2; y < b.maxY; y += passo) {
+      for (let x = b.minX + passo / 2; x < b.maxX; x += passo) if (pieceDistance(peca, x, y) <= 0) pontos.push({ x, y })
+    }
+  }
+  return rarear(pontos, AMOSTRAS_MAXIMAS)
 }
 
 const lisasPorLista = new WeakMap<FloorPiece[], FloorPiece[]>()

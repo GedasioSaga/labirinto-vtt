@@ -24,6 +24,7 @@ import { guardAlerts, tokenWatchOf } from './npcWatch'
 import { exploredCellInside, isPointExplored, type Exploration } from './exploration'
 import { pointInRing, signedArea } from './floorContour'
 import { pieceBounds, pieceDistance, shapeCenter } from './floorSdf'
+import { amostrasDoTerreno, semMaterial, temMaterial } from './terrenoDoChao'
 import { LAYER_IDS } from '../types/map'
 import { contextoDeCamadas, type ContextoDeCamadas } from './camadas/consulta'
 import { camadasDoJogadorDoMapa } from './camadas/doJogador'
@@ -4137,11 +4138,23 @@ function recorteDoGrupo(
    */
   // O cone pelo vão e a espiada devolvem o chão do prédio do mesmo jeito: só nas células deles.
   const floorCells = peekCells.length === 0 && glimpseCells.length === 0 ? shownCells : [...new Set([...shownCells, ...peekCells, ...glimpseCells])]
+  /**
+   * TERRENO onde ele não conhece nada (F-N02 e F-N14 da 0.5.62): o chão do
+   * lugar ainda não visto vai (a forma, como o Liso de lá), mas o MATERIAL é a
+   * textura dele e segue a regra das Texturas, que não saem do lugar que ele
+   * não conhece (`texturasDoJogador`). A peça vai Lisa até ele conhecer algum
+   * pedaço dela: vista agora, explorada ou num cômodo lembrado. Sem isso a
+   * praça do cômodo nunca visto viajava com o material, e trocar só ele mudava
+   * as beiradas do terreno visível (a escala da máscara e a ordem dos
+   * materiais saem do terreno inteiro, `lib/terrenoDoChao.ts`).
+   */
+  const conheceOTerreno = (p: RegionPoint): boolean => isPointKnown(p) && !inHiddenPlace(p) && !inConcealZone(p)
+  const terrenoConhecido = (f: FloorPiece): boolean => floorSeenNow(f) || amostrasDoTerreno(f, map.grid).some(conheceOTerreno)
   // MEMÓRIA SEM SPOILER: com memória, o chão sai na versão lembrada (`floor`); o recortado pelo pincel é o de agora.
   // CAMADAS: chão de camada escondida dos jogadores não sai (antes saía e só a tela dele escondia).
   const floorForPlayer = (f: FloorPiece): FloorPiece[] => {
     if (f.hidden) return []
-    if (!hiddenFloorIds.has(f.id)) return [floorPieceForPlayer(f)]
+    if (!hiddenFloorIds.has(f.id)) return [temMaterial(f) && !terrenoConhecido(f) ? semMaterial(floorPieceForPlayer(f)) : floorPieceForPlayer(f)]
     const clipped = floorCells.length > 0 ? floorInCells(f, floorCells) : null
     return clipped === null ? [] : [clipped]
   }
