@@ -2,6 +2,7 @@ import type { MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
 import { paredesParaAndar } from './barranco'
+import { aguaQueBarra } from './agua/regra'
 import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
@@ -47,6 +48,8 @@ export type TokenMoveRejection =
   | 'occupied'
   | 'a_bordo'
   | 'objeto'
+  /** ÁGUA com "Barra a passagem" no caminho (`lib/agua/regra.ts`). */
+  | 'agua'
 
 /**
  * Por que o movimento aceito parou em outro lugar que não o pedido.
@@ -425,6 +428,15 @@ export function validateTokenMove(
     const b = path[i]
     if (a === undefined || b === undefined) continue
     if (!pathStaysOnFloor(map, compiled, a.x, a.y, b.x, b.y)) return { ok: false, reason: 'outside_floor' }
+  }
+
+  // ÁGUA QUE BARRA (`lib/agua/regra.ts`): só o JOGADOR; o mestre atravessa, como nos objetos.
+  if (!options.isHost || options.objetosBarram === true) {
+    for (let i = 1; i < path.length; i += 1) {
+      const a = path[i - 1]
+      const b = path[i]
+      if (a !== undefined && b !== undefined && aguaQueBarra(map, pisoDe(token), a, b) !== null) return { ok: false, reason: 'agua' }
+    }
   }
 
   // "Lugar ocupado" só depois de saber que o caminho existe, senão

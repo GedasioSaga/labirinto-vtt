@@ -1,5 +1,6 @@
 import type { FloorPiece, MapData } from '../types/map'
 import { pecasQueLimitam } from './terrenoDoChao'
+import { comAguasComoChao } from './agua/comoChao'
 
 /**
  * FORA DO CHÃO: LIVRE / BLOQUEADO, por cena (`MapData.offFloor`, pedido do
@@ -46,8 +47,9 @@ export function foraDoChaoLivre(map: Pick<MapData, 'offFloor'>): boolean {
  * nenhuma `soPintura`, a própria `map.floor` (a mesma referência); com
  * alguma, uma lista guardada por `map.floor` (`pecasQueLimitam`).
  */
-export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'>): FloorPiece[] {
-  return foraDoChaoLivre(map) ? SEM_CHAO_QUE_LIMITE : pecasQueLimitam(map.floor)
+export function chaoQueLimita(map: Pick<MapData, 'floor' | 'offFloor'> & Partial<Pick<MapData, 'aguas' | 'grid'>>): FloorPiece[] {
+  // ÁGUA (decisão do mestre de 12/11/2026): rio, lago e mar contam como Chão (`lib/agua/comoChao.ts`).
+  return foraDoChaoLivre(map) ? SEM_CHAO_QUE_LIMITE : comAguasComoChao(pecasQueLimitam(map.floor), map.aguas, map.grid)
 }
 
 /**

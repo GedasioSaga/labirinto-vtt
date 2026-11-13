@@ -2010,6 +2010,7 @@ const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
   'occupied',
   'a_bordo',
   'objeto',
+  'agua',
   'caminhada_desligada',
   'nevoa',
 ]

@@ -32,6 +32,8 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   unknown_token: 'Essa ficha não está mais aqui',
   // "Fichas ocupam espaço": não diz QUEM está lá.
   occupied: 'Lugar ocupado',
+  // ÁGUA com "Barra a passagem" (`lib/agua/regra.ts`).
+  agua: 'A água barra a passagem',
   // VEÍCULO: passageiro que não dirige não anda — desce primeiro (ou espera o motorista).
   a_bordo: 'A bordo: desça para andar',
   // OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`): o moinho, o poço, o pilar no meio do passo.
