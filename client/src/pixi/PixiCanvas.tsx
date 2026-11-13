@@ -13,6 +13,7 @@ import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Pr
 import type { DrawingTool } from '../types/tools'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
+import { pontosMinimos } from '../lib/agua/dados'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { criarCamadaDePiso, formasDoPisoDoChao, type ContextoDoPiso } from './pisoDesenhado'
 import { criarCaminhosDesenhados } from './caminhoDesenhado'
@@ -6294,9 +6295,10 @@ function PixiCanvasDoContexto({
           return tem > 0 ? { tem, minimo: 2, oQue: 'O corredor' } : null
         }
         if (tool === 'agua') {
-          // Água ponto a ponto (`aguaNoEditor.ts`): o lago e o mar fecham com 3 cantos.
+          // Água ponto a ponto (`aguaNoEditor.ts`): o lago e o mar fecham com 3 cantos, o rio termina com 2 pontos.
           const tem = gestoDaAgua.cantosDoTracado()
-          return tem > 0 ? { tem, minimo: 3, oQue: useFerramentaDaAgua.getState().tipo === 'mar' ? 'O mar' : 'O lago' } : null
+          const tipo = useFerramentaDaAgua.getState().tipo
+          return tem > 0 ? { tem, minimo: pontosMinimos(tipo), oQue: tipo === 'rio' ? 'O rio' : tipo === 'mar' ? 'O mar' : 'O lago' } : null
         }
         if (usaTracadoPontoAPonto(tool)) {
           const tem = normalizeDraftPolygonPoints(regionDraftPoints).length

@@ -172,7 +172,8 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
   }
   const formaDoTipo = (): 'mao' | 'retangulo' | 'pontos' => {
     const f = useFerramentaDaAgua.getState()
-    return f.tipo === 'rio' ? 'mao' : f.forma
+    // O rio é à mão ou ponto a ponto (pedido de 13/11/2026); o retângulo é só do lago e do mar.
+    return f.tipo === 'rio' && f.forma === 'retangulo' ? 'mao' : f.forma
   }
   /** O rascunho é do gesto (traço, retângulo, cantos): o contorno da escolhida espera. A bolinha e o mover desenham a escolhida. */
   const temRascunho = (): boolean =>
@@ -357,10 +358,21 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     const b = borda()
     const pts = cantos.map((c) => naBordaDoMapa(c, b))
     if (cursor !== null) pts.push(naBordaDoMapa(cursor, b))
-    const cor = corEmNumero(useFerramentaDaAgua.getState().cor)
-    const xy = pts.flatMap((p) => [p.x, p.y])
-    if (pts.length >= 3) desenharArea(xy, true)
-    else if (pts.length === 2) desenharArea(xy, false)
+    const f = useFerramentaDaAgua.getState()
+    const cor = corEmNumero(f.cor)
+    if (f.tipo === 'rio') {
+      // O rio ponto a ponto sai em curva suave pelos pontos, na largura do painel.
+      const curva = curvaPelosPontos(pts, false, grid() * AMOSTRA_DA_CURVA)
+      if (curva.length >= 4) {
+        g.moveTo(curva[0], curva[1])
+        for (let i = 2; i + 1 < curva.length; i += 2) g.lineTo(curva[i], curva[i + 1])
+        g.stroke({ width: f.largura * grid(), color: cor, alpha: 0.55, cap: 'round', join: 'round' })
+      }
+    } else {
+      const xy = pts.flatMap((p) => [p.x, p.y])
+      if (pts.length >= 3) desenharArea(xy, true)
+      else if (pts.length === 2) desenharArea(xy, false)
+    }
     const raio = 3.5 / escala()
     for (const c of cantos) {
       const p = naBordaDoMapa(c, b)
@@ -488,7 +500,8 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     return Math.max(x1 - x0, y1 - y0)
   }
 
-  const cantosFechados = (): RegionPoint[] => cantosDoPontoAPonto(cantos, borda(), CANTOS_JUNTOS_PX / escala())
+  const cantosFechados = (): RegionPoint[] =>
+    cantosDoPontoAPonto(cantos, borda(), CANTOS_JUNTOS_PX / escala(), useFerramentaDaAgua.getState().tipo !== 'rio')
 
   // O contorno da escolhida segue o mapa, a escolha e a ferramenta.
   const soltarMapa = useMapStore.subscribe((s, antes) => {
@@ -619,14 +632,17 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       if (cantos.length === 0) return
       const pontos = cantosFechados()
       const f = useFerramentaDaAgua.getState()
-      if (pontos.length < 3) {
-        const faltam = 3 - pontos.length
-        dep.avisar(`O ${f.tipo === 'mar' ? 'mar' : 'lago'} precisa de 3 cantos para fechar: ${faltam === 1 ? 'falta 1' : `faltam ${faltam}`}.`)
+      const minimo = pontosMinimos(f.tipo)
+      if (pontos.length < minimo) {
+        const faltam = minimo - pontos.length
+        const oQue = f.tipo === 'rio' ? 'O rio precisa de 2 pontos para terminar' : `O ${f.tipo === 'mar' ? 'mar' : 'lago'} precisa de 3 cantos para fechar`
+        dep.avisar(`${oQue}: ${faltam === 1 ? 'falta 1' : `faltam ${faltam}`}.`)
         return
       }
       cantos = []
       gesto = { tipo: 'nenhum' }
-      porAguaNova(pontos, FORMA_RETA)
+      // O rio segue a ordem dos cliques (a correnteza) e é curva suave; o lago e o mar de cantos são retos.
+      porAguaNova(pontos, f.tipo === 'rio' ? {} : FORMA_RETA)
       desenharEscolhida()
     },
     tirarUltimoCanto() {

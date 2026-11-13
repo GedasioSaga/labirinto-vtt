@@ -38,8 +38,12 @@ export function retanguloDaAgua(a: RegionPoint, b: RegionPoint, borda: Retangulo
   ]
 }
 
-/** Os cantos do ponto a ponto: presos no mapa, sem dois no mesmo lugar (o duplo clique repete o último). */
-export function cantosDoPontoAPonto(cantos: readonly RegionPoint[], borda: RetanguloDoMapa | null, juntos: number): RegionPoint[] {
+/**
+ * Os cantos do ponto a ponto: presos no mapa, sem dois no mesmo lugar (o
+ * duplo clique repete o último). `fechada` (lago e mar): o último em cima do
+ * primeiro sai; o rio é aberto e fica com ele.
+ */
+export function cantosDoPontoAPonto(cantos: readonly RegionPoint[], borda: RetanguloDoMapa | null, juntos: number, fechada = true): RegionPoint[] {
   const out: RegionPoint[] = []
   for (const c of cantos) {
     const p = naBordaDoMapa(c, borda)
@@ -50,7 +54,7 @@ export function cantosDoPontoAPonto(cantos: readonly RegionPoint[], borda: Retan
   }
   const primeiro = out[0]
   const ultimo = out[out.length - 1]
-  if (out.length > 1 && Math.hypot(primeiro.x - ultimo.x, primeiro.y - ultimo.y) <= juntos) out.pop()
+  if (fechada && out.length > 1 && Math.hypot(primeiro.x - ultimo.x, primeiro.y - ultimo.y) <= juntos) out.pop()
   return out
 }
 

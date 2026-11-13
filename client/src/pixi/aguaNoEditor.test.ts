@@ -62,6 +62,25 @@ describe('formas novas', () => {
   })
 })
 
+describe('rio ponto a ponto', () => {
+  it('o rio segue a ordem dos cliques, em curva suave (sem reto), e termina com 2 pontos', () => {
+    useFerramentaDaAgua.setState({ tipo: 'rio', forma: 'pontos' })
+    gesto.comecar(casa(3, 3), false)
+    gesto.soltar(casa(3, 3))
+    gesto.fecharPontoAPonto()
+    expect(aguas()).toHaveLength(0)
+    expect(avisos[0]).toContain('2 pontos')
+    for (const p of [casa(9, 4), casa(25, 6)]) {
+      gesto.comecar(p, false)
+      gesto.soltar(p)
+    }
+    gesto.fecharPontoAPonto()
+    expect(primeira().tipo).toBe('rio')
+    expect(primeira().pontos).toEqual([casa(3, 3), casa(9, 4), casa(20, 6)])
+    expect(primeira().reto).toBeUndefined()
+  })
+})
+
 describe('bolinhas e pincéis na escolhida', () => {
   const quadrado = (): Agua => ({ id: 'q', tipo: 'mar', pontos: [casa(4, 4), casa(12, 4), casa(12, 12), casa(4, 12)], cor: '#2d5f8c', reto: true })
 

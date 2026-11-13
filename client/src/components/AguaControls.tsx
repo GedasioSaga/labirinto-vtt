@@ -8,8 +8,8 @@ import { Toggle } from './Toggle'
 /**
  * Painel da ferramenta ÁGUA (pedido de 12/11/2026, protótipo
  * `docs/design/agua/`): sem água escolhida, o que o PRÓXIMO traço faz (tipo,
- * cor, largura do rio, ajustes e, no lago e no mar, a forma: à mão, retângulo
- * ou ponto a ponto); com uma água escolhida (clique nela), a própria água:
+ * cor, largura do rio, ajustes e a forma: à mão, retângulo (lago e mar) ou
+ * ponto a ponto); com uma água escolhida (clique nela), a própria água:
  * como mexer na forma (bolinhas, pincel de água, pincel de areia no mar),
  * "Barra a passagem", Apagar e Soltar. O que não vale para o tipo fica
  * desligado, com o motivo escrito embaixo.
@@ -17,12 +17,22 @@ import { Toggle } from './Toggle'
 
 const TIPOS: readonly TipoDeAgua[] = ['rio', 'lago', 'mar']
 
-/** Como o lago e o mar nascem; o rio é sempre à mão. */
-const FORMAS: readonly { id: FormaDaAgua; nome: string; dica: string }[] = [
-  { id: 'mao', nome: 'À mão', dica: 'Arraste o contorno; ao soltar, a área fecha.' },
-  { id: 'retangulo', nome: 'Retângulo', dica: 'Arraste de um canto ao outro.' },
-  { id: 'pontos', nome: 'Ponto a ponto', dica: 'Clique em cada canto. Duplo clique ou Enter fecha; Esc cancela.' },
+/** Como a água nasce: o lago e o mar com as três formas, o rio à mão ou ponto a ponto (13/11/2026). */
+const FORMAS: readonly { id: FormaDaAgua; nome: string }[] = [
+  { id: 'mao', nome: 'À mão' },
+  { id: 'retangulo', nome: 'Retângulo' },
+  { id: 'pontos', nome: 'Ponto a ponto' },
 ]
+
+function dicaDaForma(tipo: TipoDeAgua, forma: FormaDaAgua): string {
+  if (tipo === 'rio')
+    return forma === 'pontos'
+      ? 'Clique cada ponto do rio, no sentido da correnteza. Duplo clique ou Enter termina; Esc cancela.'
+      : 'Arraste o traço no sentido da correnteza.'
+  if (forma === 'retangulo') return 'Arraste de um canto ao outro.'
+  if (forma === 'pontos') return 'Clique em cada canto. Duplo clique ou Enter fecha; Esc cancela.'
+  return 'Arraste o contorno; ao soltar, a área fecha.'
+}
 /** Lista vazia fixa: o seletor da store não pode devolver um array novo a cada leitura. */
 const NENHUMA: readonly Agua[] = []
 
@@ -294,6 +304,9 @@ export function AguaControls() {
   const todas = useMapStore((s) => mapaDoPiso(s.map, s.pisoAtivo).aguas ?? NENHUMA)
   const escolhida = f.escolhida === null ? undefined : todas.find((a) => a.id === f.escolhida)
   if (escolhida !== undefined) return <AguaEscolhida agua={escolhida} todas={todas} />
+  // O rio não tem retângulo: com ele na preferência, o rio traça à mão (o mesmo de `aguaNoEditor.ts`).
+  const formas = f.tipo === 'rio' ? FORMAS.filter((forma) => forma.id !== 'retangulo') : FORMAS
+  const formaVista: FormaDaAgua = f.tipo === 'rio' && f.forma === 'retangulo' ? 'mao' : f.forma
   return (
     <section className="lb-section" aria-label="Próxima água">
       <h2 className="lb-eyebrow">Próxima água</h2>
@@ -308,26 +321,23 @@ export function AguaControls() {
             </button>
           ))}
         </div>
-        {f.tipo === 'rio' && <p className="lb-field__hint">Arraste o traço no sentido da correnteza.</p>}
       </div>
-      {f.tipo !== 'rio' && (
-        <div className="lb-field">
-          <span className="lb-label" id="lb-agua-forma">
-            Forma
-          </span>
-          <div className="lb-seg" role="radiogroup" aria-labelledby="lb-agua-forma">
-            {FORMAS.map((forma) => (
-              <button key={forma.id} type="button" role="radio" aria-checked={f.forma === forma.id} className="lb-seg__option" onClick={() => f.setForma(forma.id)}>
-                {forma.nome}
-              </button>
-            ))}
-          </div>
-          <p className="lb-field__hint">
-            {FORMAS.find((forma) => forma.id === f.forma)?.dica}
-            {f.tipo === 'mar' ? ` ${AREIA_SOZINHA}` : ''}
-          </p>
+      <div className="lb-field">
+        <span className="lb-label" id="lb-agua-forma">
+          Forma
+        </span>
+        <div className="lb-seg" role="radiogroup" aria-labelledby="lb-agua-forma">
+          {formas.map((forma) => (
+            <button key={forma.id} type="button" role="radio" aria-checked={forma.id === formaVista} className="lb-seg__option" onClick={() => f.setForma(forma.id)}>
+              {forma.nome}
+            </button>
+          ))}
         </div>
-      )}
+        <p className="lb-field__hint">
+          {dicaDaForma(f.tipo, formaVista)}
+          {f.tipo === 'mar' ? ` ${AREIA_SOZINHA}` : ''}
+        </p>
+      </div>
       <SeletorDeCor id="lb-agua-cor" cor={f.cor} corPronta={f.corPronta} onChange={f.setCor} />
       <Medidas
         prefixo="lb-agua"

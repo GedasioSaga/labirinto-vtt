@@ -41,8 +41,9 @@ const botao = (texto: string): HTMLButtonElement => {
 }
 
 describe('AguaControls', () => {
-  it('a forma (à mão, retângulo, ponto a ponto) aparece no lago e no mar, não no rio', () => {
+  it('a forma (à mão, retângulo, ponto a ponto) aparece no lago e no mar; o rio tem à mão e ponto a ponto', () => {
     act(() => raiz.render(<AguaControls />))
+    expect(rotulos()).toEqual(expect.arrayContaining(['À mão', 'Ponto a ponto']))
     expect(rotulos()).not.toContain('Retângulo')
     act(() => botao('Mar').click())
     expect(rotulos()).toEqual(expect.arrayContaining(['À mão', 'Retângulo', 'Ponto a ponto']))
