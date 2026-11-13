@@ -10,8 +10,10 @@ import { Container, Graphics, Sprite, Ticker } from 'pixi.js'
 import type { MapData, Prop, RegionPoint, TipoMobilia, Token } from '../types/map'
 import { filterMapForPlayer } from '../lib/fogFilter'
 import { createEmptyMap } from '../lib/mapFactory'
-import { particulasDoJogador, particulasDoMestre } from '../lib/particulasDaCena'
+import { cenaTemFogo, particulasDoJogador, particulasDoMestre } from '../lib/particulasDaCena'
+import { lerAmbiente } from '../lib/ambiente'
 import { atualizarParticulasDoJogador, criarParticulasDoMapa, type ParticulasDoMapa } from './particulasDoMapa'
+import { entradaDoAmbiente } from './neblinaNoEditor'
 
 const GRID = 50
 const HEROI = { x: 600, y: 400 }
@@ -35,6 +37,11 @@ function fogo(id: string, x: number, y: number): Prop {
 
 function floresta(props: Prop[]): MapData {
   return { ...createEmptyMap('floresta', 'Floresta', 120, 40, GRID), tokens: [ficha('heroi', HEROI.x, HEROI.y)], props, particulas: { fumaca: 'muita', brasas: 'muita' } }
+}
+
+/** A cena como o arquivo a abre desde o Ambiente (12/11/2026): `particulas` de antes migradas para `ambiente`. */
+function comAmbienteMigrado(map: MapData): MapData {
+  return { ...map, ambiente: lerAmbiente(undefined, map.particulas) }
 }
 
 /** O recorte que o host manda ao jogador dono do herói. */
@@ -70,18 +77,26 @@ describe('partículas na tela do jogador', () => {
     particulas.destruir()
   })
 
-  it('cena SEM fogo: o host avisa no recorte e elas nascem espalhadas; com fogo à vista, nascem só dele', () => {
-    const semFogo = recorteDoJogador(floresta([]))
+  it('cena SEM fogo: o host avisa no recorte e a fumaça e as brasas vão para o Ambiente, no mapa inteiro; com fogo à vista, nascem só dele', () => {
+    // AMBIENTE (12/11/2026, `75f230b6`, `119d1b82`): sem fogo na cena, a fumaça e as brasas do mapa inteiro são do
+    // `drawAmbiente.ts` (cobre o mapa, não a vista); esta camada só solta dos fogos e não espalha mais nada.
+    const semFogo = recorteDoJogador(comAmbienteMigrado(floresta([])))
     expect(semFogo.particulasSemFogo).toBe(true)
+    expect(particulasDoJogador(semFogo)?.espalhar).toBe(false)
     const espalhadas = tela()
     espalhadas.particulas.atualizar(semFogo.id, particulasDoJogador(semFogo))
     espalhadas.bater(QUADROS)
-    const larguraDasEspalhadas = Math.max(...sprites(espalhadas.particulas.camada).map((s) => s.x)) - Math.min(...sprites(espalhadas.particulas.camada).map((s) => s.x))
-    expect(larguraDasEspalhadas).toBeGreaterThan(800)
+    expect(sprites(espalhadas.particulas.camada)).toEqual([])
     espalhadas.particulas.destruir()
+    // O mesmo aviso do host liga a fumaça e as brasas do Ambiente na tela dele (`ambienteDoJogador.ts`).
+    const doAmbiente = entradaDoAmbiente(semFogo, semFogo.ambientePintado, semFogo.particulasSemFogo === true, true)
+    expect(doAmbiente?.inteira.fumaca).toBeGreaterThan(0)
+    expect(doAmbiente?.inteira.brasas).toBeGreaterThan(0)
 
-    const comFogo = recorteDoJogador(floresta([fogo('perto', HEROI.x + 2 * GRID, HEROI.y)]))
+    const comFogo = recorteDoJogador(comAmbienteMigrado(floresta([fogo('perto', HEROI.x + 2 * GRID, HEROI.y)])))
     expect(comFogo.particulasSemFogo).toBeUndefined()
+    // Com fogo, o Ambiente não solta fumaça nem brasas pelo mapa: elas nascem só do fogo, aqui embaixo.
+    expect(entradaDoAmbiente(comFogo, comFogo.ambientePintado, comFogo.particulasSemFogo === true, true)).toBeNull()
     const doFogo = tela()
     doFogo.particulas.atualizar(comFogo.id, particulasDoJogador(comFogo))
     doFogo.bater(QUADROS)
@@ -119,9 +134,14 @@ describe('fogueira, lareira, fornalha, forno de pão, braseiro e tocha de pé so
       expect(vivas.every((s) => Math.abs(s.x - PERTO.x) < 4 * GRID && s.y < PERTO.y + GRID), tipo).toBe(true)
       particulas.destruir()
     }
-    // O lampião e a tocha de parede só iluminam: a cena só com um deles segue sem fogo.
-    expect(particulasDoMestre(floresta([movel('lampiao', 'lampiao', PERTO.x, PERTO.y)]))?.espalhar).toBe(true)
-    expect(particulasDoMestre(floresta([movel('tocha', 'tochaDeParede', PERTO.x, PERTO.y)]))?.espalhar).toBe(true)
+    // O lampião e a tocha de parede só iluminam: a cena só com um deles segue sem fogo. AMBIENTE (12/11/2026): nesta
+    // camada nada espalha; a fumaça e as brasas da cena sem fogo saem do Ambiente (`neblinaNoEditor.ts`).
+    for (const [id, tipo] of [['lampiao', 'lampiao'], ['tocha', 'tochaDeParede']] as const) {
+      const cena = comAmbienteMigrado(floresta([movel(id, tipo, PERTO.x, PERTO.y)]))
+      expect(particulasDoMestre(cena)?.espalhar, tipo).toBe(false)
+      expect(cenaTemFogo(cena.props), tipo).toBe(false)
+      expect(entradaDoAmbiente(cena, cena.ambientePintado, !cenaTemFogo(cena.props), true)?.inteira.fumaca, tipo).toBeGreaterThan(0)
+    }
   })
 
   it('jogador sem a fogueira à vista: o host não diz "cena sem fogo" e nada é desenhado', () => {
