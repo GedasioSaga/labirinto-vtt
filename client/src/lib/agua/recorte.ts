@@ -150,15 +150,31 @@ function recorteDoRio(
   return trechos.length === 0 ? null : { celula: grid, trechos }
 }
 
+/** A maioria dos pontos da curva cai em `lugar`: a água MORA lá. */
+function moraEm(xy: readonly number[], lugar: (p: RegionPoint) => boolean): boolean {
+  let dentro = 0
+  for (let i = 0; i + 1 < xy.length; i += 2) if (lugar({ x: xy[i], y: xy[i + 1] })) dentro += 1
+  return xy.length > 0 && dentro * 2 > xy.length / 2
+}
+
 /**
  * A água como o jogador a recebe, ou `null` (secreta, ou nada dela no que ele
  * conhece). `conhece`: o ponto é dele (visto, explorado); `escondido`: sala
- * escondida dele ou zona oculta.
+ * escondida dele ou zona oculta. `mora`: o lugar que não esconde o que só PASSA
+ * por ele, mas esconde a água que mora nele (a maioria da curva lá): a sala
+ * secreta fechada, que para o jogador é chão aberto (F-N04 da 0.5.62).
  */
-export function aguaParaJogador(agua: Agua, grid: number, conhece: (p: RegionPoint) => boolean, escondido: (p: RegionPoint) => boolean): Agua | null {
+export function aguaParaJogador(
+  agua: Agua,
+  grid: number,
+  conhece: (p: RegionPoint) => boolean,
+  escondido: (p: RegionPoint) => boolean,
+  mora: (p: RegionPoint) => boolean = () => false,
+): Agua | null {
   if (agua.secret === true || grid <= 0) return null
   const livre = (p: RegionPoint): boolean => !escondido(p) && conhece(p)
   const xy = curvaGuardada(agua, grid)
+  if (moraEm(xy, mora)) return null
   const recorte = agua.tipo === 'rio' ? recorteDoRio(xy, (larguraDoRio(agua) * grid) / 2, grid, livre, escondido) : recorteDaArea(xy, grid, livre)
   if (recorte === null) return null
   // Sem nome (é do mestre) e sem a forma: só o que o desenho precisa.
@@ -178,8 +194,9 @@ export function aguasParaJogador(
   grid: number,
   conhece: (p: RegionPoint) => boolean,
   escondido: (p: RegionPoint) => boolean,
+  mora?: (p: RegionPoint) => boolean,
 ): Agua[] | undefined {
   if (aguas === undefined || aguas.length === 0) return undefined
-  const saida = aguas.map((a) => aguaParaJogador(a, grid, conhece, escondido)).filter((a): a is Agua => a !== null)
+  const saida = aguas.map((a) => aguaParaJogador(a, grid, conhece, escondido, mora)).filter((a): a is Agua => a !== null)
   return saida.length > 0 ? saida : undefined
 }

@@ -3638,6 +3638,18 @@ function recorteDoGrupo(
     comodosSeenNow.some((room) => inRoomStrictly(room, p) && !inNestedRoomOfComodo(room, p))
   /** Ponto que o jogador não recebe por causa da SALA: secreta, de teto fechado ou cômodo ainda não visto. */
   const inHiddenPlace = (p: RegionPoint): boolean => inRoomHiddenFromPlayer(p) || inUnseenComodo(p)
+  /**
+   * SALA SECRETA FECHADA PARA O QUE SÓ PASSA POR ELA (0.5.62, F-N04 e F-N08): o rio, o lago e o pincel do Ambiente
+   * ou da neblina que ATRAVESSAM a sala vão por dentro dela como pelo chão aberto, que é o que ela é para o jogador
+   * (a autoridade já olha através dela, "Duas visões"). Cortados na parede, desenhavam o retângulo da sala. O que
+   * MORA nela (a maioria das amostras lá dentro) continua escondido, como o desenho (`drawingInHiddenPlace`). Teto
+   * fechado, cômodo não visto e zona oculta seguem escondendo. Fora da sala, a mesma conta de `isPointKnown`.
+   */
+  const escondidoSemASalaSecreta = (p: RegionPoint): boolean => roofHides(p) || inUnseenComodo(p) || inConcealZone(p)
+  const conhecidoSemASalaSecreta = (p: RegionPoint): boolean =>
+    !escondidoSemASalaSecreta(p) &&
+    !hiddenByZone(p) &&
+    (inAnyRing(rings, p) || inBrushReveal(p) || (explored !== undefined && isPointExplored(explored, p)) || inKnownComodo(p))
 
   /**
    * LUZ VISTA DE LONGE, fora da visão: marcada pelo mestre, fora de zona
@@ -4619,14 +4631,8 @@ function recorteDoGrupo(
     // ÁGUA (`lib/agua/recorte.ts`): só o pedaço que ele conhece, sem a forma de verdade (os
     // `pontos` vão vazios), fora de lugar escondido e de zona oculta; a secreta nunca. Mora em
     // Chão: com a camada escondida dos jogadores, nenhuma sai. Sempre presente, para nunca vir pelo `...map`.
-    aguas: camadas.jogadorVe('chao')
-      ? aguasParaJogador(
-          map.aguas,
-          map.grid,
-          (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
-          (p) => inHiddenPlace(p) || inConcealZone(p),
-        )
-      : undefined,
+    // A que atravessa a sala secreta fechada passa inteira; a que mora nela não sai (`conhecidoSemASalaSecreta`).
+    aguas: camadas.jogadorVe('chao') ? aguasParaJogador(map.aguas, map.grid, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom) : undefined,
     // TEXTURAS: as do mestre NUNCA saem daqui (o recorte delas depende das
     // regiões e dos desenhos que saíram, e entra logo abaixo, em `recorte`).
     texturas: undefined,
