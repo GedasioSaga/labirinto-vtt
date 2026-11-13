@@ -333,6 +333,10 @@ const FOLGA_DO_DESCARTE = 8
 /** Inclinação do `valueNoise` por unidade de entrada, com folga (a mesma conta de `floorSdf.ts`). */
 const INCLINACAO_DO_RUIDO = 6.5
 const SEMENTE_DA_BORDA = 7121
+/** Folga da grade das pedras além da área do contorno, em px (a moldura de amostras e a volta de 3×3 células cabem). */
+const MARGEM_DA_GRADE_DE_PEDRAS = 128
+/** Teto de células da grade das pedras (~8 MB): acima disso, só o mapa por texto. */
+const CELULAS_MAXIMAS_DA_GRADE_DE_PEDRAS = 1_000_000
 
 /** Mínimo suave polinomial: igual ao `min` longe da junta, arredonda o canto onde as duas se cruzam. */
 function minSuave(a: number, b: number, k: number): number {
@@ -423,11 +427,25 @@ function campoDoMaterial(floor: readonly FloorPiece[], textura: string, grid: nu
     return borda
   }
 
+  const folga = bordaMaxima * grid * (ONDA_LARGA.amplitude + fina.amplitude + (comPedras ? PEDRA.alcance + PEDRA.raioMin + PEDRA.raioVar : 0)) + fusao
+  const bounds = { minX: caixa.minX - folga, minY: caixa.minY - folga, maxX: caixa.maxX + folga, maxY: caixa.maxY + folga }
+
   const lado = PEDRA.celula * grid
+  // A pedra de cada célula guardada numa grade densa sobre a área do contorno (com folga); fora dela, no mapa
+  // por texto de sempre. A pedra só depende da célula: muda onde se guarda, não o que se guarda (FX-CAMINHO-062).
+  const celulaMinX = Math.floor((bounds.minX - MARGEM_DA_GRADE_DE_PEDRAS) / lado)
+  const celulaMinY = Math.floor((bounds.minY - MARGEM_DA_GRADE_DE_PEDRAS) / lado)
+  const colunasDaGrade = Math.floor((bounds.maxX + MARGEM_DA_GRADE_DE_PEDRAS) / lado) - celulaMinX + 1
+  const linhasDaGrade = Math.floor((bounds.maxY + MARGEM_DA_GRADE_DE_PEDRAS) / lado) - celulaMinY + 1
+  const temGrade = comPedras && colunasDaGrade > 0 && linhasDaGrade > 0 && colunasDaGrade * linhasDaGrade <= CELULAS_MAXIMAS_DA_GRADE_DE_PEDRAS
+  const gradeDePedras: Array<Pedra | null | undefined> = temGrade ? new Array<Pedra | null | undefined>(colunasDaGrade * linhasDaGrade) : []
   const pedrasPorCelula = new Map<string, Pedra | null>()
   const pedraDaCelula = (ix: number, iy: number): Pedra | null => {
-    const chave = `${ix},${iy}`
-    const guardada = pedrasPorCelula.get(chave)
+    const gx = ix - celulaMinX
+    const gy = iy - celulaMinY
+    const naGrade = temGrade && gx >= 0 && gy >= 0 && gx < colunasDaGrade && gy < linhasDaGrade ? gy * colunasDaGrade + gx : -1
+    const chave = naGrade >= 0 ? '' : `${ix},${iy}`
+    const guardada = naGrade >= 0 ? gradeDePedras[naGrade] : pedrasPorCelula.get(chave)
     if (guardada !== undefined) return guardada
     let pedra: Pedra | null = null
     const x = (ix + 0.2 + 0.6 * hashDaCelula(ix, iy, 11)) * lado
@@ -439,9 +457,16 @@ function campoDoMaterial(floor: readonly FloorPiece[], textura: string, grid: nu
       // Só a pedra que cai FORA da forma limpa e perto dela: dentro, ela já é caminho.
       if (d > r * 0.3 && d < PEDRA.alcance * grid * borda + r) pedra = { x, y, r }
     }
-    pedrasPorCelula.set(chave, pedra)
+    if (naGrade >= 0) gradeDePedras[naGrade] = pedra
+    else pedrasPorCelula.set(chave, pedra)
     return pedra
   }
+
+  // As 9 pedras em volta da última célula pedida, na ordem de sempre: o contorno anda 3 px por amostra e a célula
+  // tem ~27, então a mesma volta serve às amostras seguidas (eram 9 buscas por texto a cada amostra; FX-CAMINHO-062).
+  let celulaX = Number.NaN
+  let celulaY = Number.NaN
+  const pedrasEmVolta: Array<Pedra | null> = new Array<Pedra | null>(9).fill(null)
 
   const sample = (x: number, y: number): number => {
     let d = limpa(x, y)
@@ -456,18 +481,24 @@ function campoDoMaterial(floor: readonly FloorPiece[], textura: string, grid: nu
     if (comPedras) {
       const ix = Math.floor(x / lado)
       const iy = Math.floor(y / lado)
-      for (let oy = -1; oy <= 1; oy += 1) {
-        for (let ox = -1; ox <= 1; ox += 1) {
-          const pedra = pedraDaCelula(ix + ox, iy + oy)
-          if (pedra !== null) d = Math.min(d, Math.hypot(x - pedra.x, y - pedra.y) - pedra.r)
+      if (ix !== celulaX || iy !== celulaY) {
+        celulaX = ix
+        celulaY = iy
+        let k = 0
+        for (let oy = -1; oy <= 1; oy += 1) {
+          for (let ox = -1; ox <= 1; ox += 1) {
+            pedrasEmVolta[k] = pedraDaCelula(ix + ox, iy + oy)
+            k += 1
+          }
         }
+      }
+      for (const pedra of pedrasEmVolta) {
+        if (pedra !== null) d = Math.min(d, Math.hypot(x - pedra.x, y - pedra.y) - pedra.r)
       }
     }
     return d
   }
 
-  const folga = bordaMaxima * grid * (ONDA_LARGA.amplitude + fina.amplitude + (comPedras ? PEDRA.alcance + PEDRA.raioMin + PEDRA.raioVar : 0)) + fusao
-  const bounds = { minX: caixa.minX - folga, minY: caixa.minY - folga, maxX: caixa.maxX + folga, maxY: caixa.maxY + folga }
   const inclinacaoDaBorda =
     bordaMaxima * INCLINACAO_DO_RUIDO * (ONDA_LARGA.amplitude / ONDA_LARGA.escala + fina.amplitude / fina.escala)
   // A troca de peça mais perto em `bordaPerto` muda a borda aos saltos entre dois traços de borda diferente: a folga de 1,25 cobre o salto pequeno.

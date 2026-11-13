@@ -171,20 +171,213 @@ function sdPolygon(px: number, py: number, vertices: { x: number; y: number }[])
   return inside ? -best : best
 }
 
-function sdCorridor(px: number, py: number, points: { x: number; y: number; width: number }[]): number {
+/**
+ * Distância assinada ao trecho a→b do corredor (a largura varia ao longo
+ * dele), ou `Infinity` quando ela não fica abaixo de `melhor`: a conta do
+ * quadrado poda antes da raiz (`Math.hypot` é o que pesa). Quando volta
+ * número, é a MESMA conta, na mesma ordem, da volta inteira de sempre.
+ */
+function distanciaAoTrecho(px: number, py: number, a: PontoDoCorredor, b: PontoDoCorredor, melhor: number): number {
+  const ex = b.x - a.x
+  const ey = b.y - a.y
+  const lengthSq = ex * ex + ey * ey
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * ex + (py - a.y) * ey) / lengthSq))
+  const radius = (a.width + (b.width - a.width) * t) / 2
+  const qx = px - a.x - ex * t
+  const qy = py - a.y - ey * t
+  // hypot >= 0 e hypot² ≈ qx² + qy² (erro relativo ~1e-16): o trecho podado mede mais que o melhor por ~FOLGA_DA_PODA.
+  const limite = melhor + radius + FOLGA_DA_PODA
+  if (limite <= 0 || qx * qx + qy * qy >= limite * limite) return Infinity
+  return Math.hypot(qx, qy) - radius
+}
+
+/** Trechos por folha da árvore do corredor. */
+const TRECHOS_POR_FOLHA = 4
+/** Abaixo disto o corredor é medido trecho a trecho, como sempre: a árvore não paga. */
+const TRECHOS_PARA_ARVORE = 16
+/**
+ * Folga da poda, em px: muito acima do erro de arredondamento da conta de um
+ * trecho (~1e-11 px nas coordenadas de um mapa), e muito abaixo de qualquer
+ * coisa que se veja. O trecho podado mede MAIS que o melhor por pelo menos isto.
+ */
+const FOLGA_DA_PODA = 1e-6
+
+/**
+ * ÁRVORE DE CAIXAS do corredor longo (FX-CAMINHO-062: o caminho de ~90 casas
+ * com curva suave tem ~600 trechos, e cada amostra do contorno media a
+ * distância a todos: 11 s numa tarefa só no Goa). Cada nó guarda a caixa dos
+ * pontos de uma faixa de trechos seguidos e a maior meia largura deles; a
+ * distância à caixa menos essa meia largura é um limite inferior de qualquer
+ * trecho do nó. Nó cujo limite não chega no melhor já achado é pulado inteiro.
+ * O mínimo é o MESMO da volta inteira, número por número: o trecho pulado mede
+ * mais que o melhor (por `FOLGA_DA_PODA`), e o resto usa a mesma conta.
+ */
+interface ArvoreDoCorredor {
+  /** minX, minY, maxX, maxY de cada nó. */
+  caixas: Float64Array
+  /** Maior meia largura dos pontos de cada nó. */
+  raios: Float64Array
+  /** Faixa de trechos [inicio, fim) de cada folha. */
+  inicio: Int32Array
+  fim: Int32Array
+  /** Filhos do nó interno; -1 na folha. */
+  esquerda: Int32Array
+  direita: Int32Array
+  /** Pilha de trabalho da busca (nó e distância quadrada até a caixa dele). */
+  pilha: Int32Array
+  pilhaDaDistancia: Float64Array
+  /**
+   * A folha do melhor trecho da última busca: o contorno pergunta pontos
+   * vizinhos em sequência, e começar por ela já dá um melhor que poda quase
+   * tudo. Só muda a ordem da conta, não o mínimo.
+   */
+  ultimaFolha: number
+}
+
+function montarArvore(points: readonly PontoDoCorredor[]): ArvoreDoCorredor | null {
+  // Número que não é finito: a volta inteira de sempre (a conta de caixa não vale para ele).
+  for (const p of points) if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.width)) return null
+  const trechos = points.length - 1
+  // Cada folha tem ao menos um trecho e a árvore é binária: menos de 2 nós por trecho.
+  const maxNos = 2 * trechos
+  const caixas = new Float64Array(maxNos * 4)
+  const raios = new Float64Array(maxNos)
+  const inicio = new Int32Array(maxNos)
+  const fim = new Int32Array(maxNos)
+  const esquerda = new Int32Array(maxNos).fill(-1)
+  const direita = new Int32Array(maxNos).fill(-1)
+  let nos = 0
+  let profundidade = 0
+  const montar = (i0: number, i1: number, nivel: number): number => {
+    const n = nos
+    nos += 1
+    profundidade = Math.max(profundidade, nivel)
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    let raio = -Infinity
+    // Os pontos dos trechos i0..i1-1 são os de índice i0..i1.
+    for (let i = i0; i <= i1; i += 1) {
+      const p = points[i]
+      minX = Math.min(minX, p.x)
+      minY = Math.min(minY, p.y)
+      maxX = Math.max(maxX, p.x)
+      maxY = Math.max(maxY, p.y)
+      raio = Math.max(raio, p.width / 2)
+    }
+    caixas[n * 4] = minX
+    caixas[n * 4 + 1] = minY
+    caixas[n * 4 + 2] = maxX
+    caixas[n * 4 + 3] = maxY
+    raios[n] = raio
+    inicio[n] = i0
+    fim[n] = i1
+    if (i1 - i0 > TRECHOS_POR_FOLHA) {
+      const meio = (i0 + i1) >> 1
+      esquerda[n] = montar(i0, meio, nivel + 1)
+      direita[n] = montar(meio, i1, nivel + 1)
+    }
+    return n
+  }
+  montar(0, trechos, 1)
+  // Cada nó tirado da pilha põe no máximo dois: a pilha nunca passa de 2 por nível.
+  const tamanhoDaPilha = 2 * profundidade + 2
+  return {
+    caixas,
+    raios,
+    inicio,
+    fim,
+    esquerda,
+    direita,
+    pilha: new Int32Array(tamanhoDaPilha),
+    pilhaDaDistancia: new Float64Array(tamanhoDaPilha),
+    ultimaFolha: -1,
+  }
+}
+
+/** O corredor pronto para medir: centro, curva (`pontosDoCorredor`) e a árvore dos trechos (`null` = volta inteira). */
+interface CorredorPronto {
+  centro: { x: number; y: number }
+  pontos: readonly PontoDoCorredor[]
+  arvore: ArvoreDoCorredor | null
+}
+
+/** Guardado pela referência da forma (a store é imutável), como a curva e o centro. */
+const corredorPorForma = new WeakMap<object, CorredorPronto>()
+
+function corredorPronto(shape: Extract<FloorShape, { kind: 'corridor' }>): CorredorPronto {
+  let pronto = corredorPorForma.get(shape)
+  if (pronto === undefined) {
+    const pontos = pontosDoCorredor(shape)
+    pronto = { centro: shapeCenter(shape), pontos, arvore: pontos.length > TRECHOS_PARA_ARVORE ? montarArvore(pontos) : null }
+    corredorPorForma.set(shape, pronto)
+  }
+  return pronto
+}
+
+function distanciaQuadradaACaixa(caixas: Float64Array, n: number, px: number, py: number): number {
+  const dx = Math.max(caixas[n * 4] - px, 0, px - caixas[n * 4 + 2])
+  const dy = Math.max(caixas[n * 4 + 1] - py, 0, py - caixas[n * 4 + 3])
+  return dx * dx + dy * dy
+}
+
+function sdCorridorPelaArvore(px: number, py: number, points: readonly PontoDoCorredor[], arvore: ArvoreDoCorredor): number {
+  const { caixas, raios, inicio, fim, esquerda, direita, pilha, pilhaDaDistancia } = arvore
+  let best = Infinity
+  // Começa pela folha da busca anterior (a vizinha): o trecho dela é de verdade, então o mínimo não muda.
+  const semente = arvore.ultimaFolha
+  let folhaDoMelhor = semente
+  if (semente >= 0) {
+    for (let i = inicio[semente]; i < fim[semente]; i += 1) best = Math.min(best, distanciaAoTrecho(px, py, points[i], points[i + 1], best))
+  }
+  pilha[0] = 0
+  pilhaDaDistancia[0] = distanciaQuadradaACaixa(caixas, 0, px, py)
+  let topo = 1
+  while (topo > 0) {
+    topo -= 1
+    const n = pilha[topo]
+    // Nenhum trecho do nó mede menos que (distância à caixa − maior meia largura): pula se isso não ganha do melhor.
+    const limite = best + raios[n] + FOLGA_DA_PODA
+    if (limite <= 0 || pilhaDaDistancia[topo] >= limite * limite) continue
+    const e = esquerda[n]
+    if (e < 0) {
+      // A semente já entrou no melhor.
+      if (n === semente) continue
+      for (let i = inicio[n]; i < fim[n]; i += 1) {
+        const v = distanciaAoTrecho(px, py, points[i], points[i + 1], best)
+        if (v < best) folhaDoMelhor = n
+        best = Math.min(best, v)
+      }
+      continue
+    }
+    const d = direita[n]
+    const de = distanciaQuadradaACaixa(caixas, e, px, py)
+    const dd = distanciaQuadradaACaixa(caixas, d, px, py)
+    // O mais perto sai primeiro (fica no topo): o melhor cai cedo e poda mais.
+    if (de <= dd) {
+      pilha[topo] = d
+      pilhaDaDistancia[topo] = dd
+      pilha[topo + 1] = e
+      pilhaDaDistancia[topo + 1] = de
+    } else {
+      pilha[topo] = e
+      pilhaDaDistancia[topo] = de
+      pilha[topo + 1] = d
+      pilhaDaDistancia[topo + 1] = dd
+    }
+    topo += 2
+  }
+  arvore.ultimaFolha = folhaDoMelhor
+  return best
+}
+
+function sdCorridor(px: number, py: number, points: readonly PontoDoCorredor[], arvore: ArvoreDoCorredor | null): number {
   if (points.length === 0) return Infinity
   if (points.length === 1) return Math.hypot(px - points[0].x, py - points[0].y) - points[0].width / 2
+  if (arvore !== null) return sdCorridorPelaArvore(px, py, points, arvore)
   let best = Infinity
-  for (let i = 0; i + 1 < points.length; i += 1) {
-    const a = points[i]
-    const b = points[i + 1]
-    const ex = b.x - a.x
-    const ey = b.y - a.y
-    const lengthSq = ex * ex + ey * ey
-    const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * ex + (py - a.y) * ey) / lengthSq))
-    const radius = (a.width + (b.width - a.width) * t) / 2
-    best = Math.min(best, Math.hypot(px - a.x - ex * t, py - a.y - ey * t) - radius)
-  }
+  for (let i = 0; i + 1 < points.length; i += 1) best = Math.min(best, distanciaAoTrecho(px, py, points[i], points[i + 1], best))
   return best
 }
 
@@ -195,19 +388,21 @@ function hash2(ix: number, iy: number, seed: number): number {
   return ((h >>> 0) / 4294967295) * 2 - 1
 }
 
+/** Uma oitava do ruído de valor (fora de `valueNoise`: era um fecho novo a cada amostra do contorno). */
+function octave(fx: number, fy: number, s: number): number {
+  const ix = Math.floor(fx)
+  const iy = Math.floor(fy)
+  const tx = fx - ix
+  const ty = fy - iy
+  const sx = tx * tx * (3 - 2 * tx)
+  const sy = ty * ty * (3 - 2 * ty)
+  const top = hash2(ix, iy, s) + (hash2(ix + 1, iy, s) - hash2(ix, iy, s)) * sx
+  const bottom = hash2(ix, iy + 1, s) + (hash2(ix + 1, iy + 1, s) - hash2(ix, iy + 1, s)) * sx
+  return top + (bottom - top) * sy
+}
+
 /** Ruído de valor 2D suavizado, em [-1, 1], duas oitavas. */
 export function valueNoise(x: number, y: number, seed: number): number {
-  const octave = (fx: number, fy: number, s: number) => {
-    const ix = Math.floor(fx)
-    const iy = Math.floor(fy)
-    const tx = fx - ix
-    const ty = fy - iy
-    const sx = tx * tx * (3 - 2 * tx)
-    const sy = ty * ty * (3 - 2 * ty)
-    const top = hash2(ix, iy, s) + (hash2(ix + 1, iy, s) - hash2(ix, iy, s)) * sx
-    const bottom = hash2(ix, iy + 1, s) + (hash2(ix + 1, iy + 1, s) - hash2(ix, iy + 1, s)) * sx
-    return top + (bottom - top) * sy
-  }
   return (octave(x, y, seed) * 2 + octave(x * 2.3, y * 2.3, seed + 7919)) / 3
 }
 
@@ -229,7 +424,9 @@ function polygonDistanceFor(shape: Extract<FloorShape, { kind: 'poly' }>): Polyg
 /** Distância assinada de uma peça isolada (sem combinar com as outras). */
 export function pieceDistance(piece: FloorPiece, x: number, y: number): number {
   const { shape, modifiers } = piece
-  const center = shapeCenter(shape)
+  // Corredor: centro, curva e árvore numa consulta só (eram três, a cada amostra do contorno).
+  const corredor = shape.kind === 'corridor' ? corredorPronto(shape) : undefined
+  const center = corredor !== undefined ? corredor.centro : shapeCenter(shape)
   let px = x - center.x
   let py = y - center.y
   const rotation = piece.rotation ?? 0
@@ -256,7 +453,8 @@ export function pieceDistance(piece: FloorPiece, x: number, y: number): number {
   } else if (shape.kind === 'blocos') {
     d = blocosDistance(shape, px + center.x, py + center.y) - rounding
   } else {
-    d = sdCorridor(px + center.x, py + center.y, pontosDoCorredor(shape)) - rounding
+    const pronto = corredor ?? corredorPronto(shape)
+    d = sdCorridor(px + center.x, py + center.y, pronto.pontos, pronto.arvore) - rounding
   }
   const noise = modifiers.noise
   if (noise && noise.amplitude > 0 && noise.scale > 0) {
