@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { PlayerMeasureLabel, writeMeasureText } from './PlayerMeasureLabel'
 import { theme } from '../theme'
 import { AlphaFilter, Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
-import type { FederatedPointerEvent } from 'pixi.js'
+import type { FederatedPointerEvent, Renderer } from 'pixi.js'
 import type { CamadaId, Drawing, Light, MapData, Pin, Prop, Region, RegionPoint, Stair, Token, TokenCompanion, Wall } from '../types/map'
 import { FAIXAS_JOGADOR, type ParDeFaixa } from '../lib/camadas/ordem'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa } from '../lib/estiloDoMapa'
@@ -99,6 +99,7 @@ import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
 import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, separarOlhares, type MapaDePenumbra, type OlhosEluzes, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
+import { multiplySemTamparOFundo } from '../pixi/multiplySemTamparOFundo'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from '../pixi/desenhoSobPedido'
 import type { LuzDoJogador } from '../lib/periodo'
 import { drawFarLights, farLightPoints } from '../pixi/drawFarLights'
@@ -533,6 +534,18 @@ function prefersReducedMotion(): boolean {
 const MAP_BACKGROUND_RGB: Rgb = [0x2b, 0x2b, 0x2b]
 /** Fora do retângulo do mapa: mais escuro que o fundo, para a borda do mapa ler. */
 const OUTSIDE_BACKGROUND = 0x111111
+
+/**
+ * TERRENO ALTO: o fundo do canvas, opaco (o de sempre) ou transparente (a tela de cima, com a vista do piso
+ * de baixo por trás). Transparente é PRETO com alfa 0: o Pixi limpa com a cor sem multiplicar pelo alfa, e o
+ * cinza de fora com alfa 0 somava 17 a cada canal da vista de baixo (o canvas é de alfa pré-multiplicado).
+ * O multiply também passa a guardar o alfa (`multiplySemTamparOFundo`). Opaco: tudo como antes.
+ */
+function aplicarFundoDoCanvas(renderer: Renderer, transparente: boolean): void {
+  renderer.background.color = transparente ? 0x000000 : OUTSIDE_BACKGROUND
+  renderer.background.alpha = transparente ? 0 : 1
+  multiplySemTamparOFundo(renderer, transparente)
+}
 export const OWN_TOKEN_COLOR = 0x3b82f6
 export const OWN_TOKEN_CSS = `#${OWN_TOKEN_COLOR.toString(16).padStart(6, '0')}`
 const OTHER_TOKEN_COLOR = 0x9ca3af
@@ -4101,7 +4114,7 @@ function PlayerViewDoCanvas({
         return
       }
       initialized = true
-      app.renderer.background.alpha = latestRef.current.fundoTransparente ? 0 : 1
+      aplicarFundoDoCanvas(app.renderer, latestRef.current.fundoTransparente)
       // TERRENO ALTO: a vista do piso de baixo não toma a sonda da tela do jogador (o `ux-driver` mede a de cima).
       const ehVistaDeBaixo = latestRef.current.vistaDeBaixo !== undefined
       if (!ehVistaDeBaixo) registrarNaSonda('appJogador', app)
@@ -5734,7 +5747,7 @@ function PlayerViewDoCanvas({
   useEffect(() => {
     const scene = sceneRef.current
     if (scene === null) return
-    scene.app.renderer.background.alpha = fundoTransparente ? 0 : 1
+    aplicarFundoDoCanvas(scene.app.renderer, fundoTransparente)
     scene.lastGridKey = ''
     redraw(scene)
   }, [fundoTransparente])
