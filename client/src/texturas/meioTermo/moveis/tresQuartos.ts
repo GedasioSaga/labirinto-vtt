@@ -65,6 +65,19 @@ import { ESPESSURA_DO_PEBOLIM } from './pebolim'
 import { ESPESSURA_DA_TRAVE_DE_AMARRAR } from './posteDeAmarrarCavalos'
 import { ESPESSURA_DO_RELOGIO_DE_SOL } from './relogioDeSol'
 import { ESPESSURA_DO_SINO } from './sinoNoSuporte'
+import { ESPESSURA_DA_FIADA_DO_PORTAO } from './portaoComGradeLevadica'
+import { ESPESSURA_DA_FIADA_DA_TORRE_DE_CERCO } from './torreDeCerco'
+import { ESPESSURA_DA_FATIA_DA_ESTATUA } from './estatuaEquestre'
+import { ESPESSURA_DO_FUSTE_DO_OBELISCO } from './obelisco'
+import { ESPESSURA_DA_TRAVE_DA_FORCA } from './forcaComCadafalso'
+import { ESPESSURA_DA_FIADA_DO_SINO } from './torreDoSino'
+import { ESPESSURA_DO_BEIRAL_DA_GUARITA } from './guarita'
+import { ESPESSURA_DA_LAJE_DO_BUNKER } from './bunkerDeConcreto'
+import { ESPESSURA_DA_CANTONEIRA_DO_CONTEINER } from './conteiner'
+import { ESPESSURA_DA_AGUA_DA_TENDA_MILITAR } from './tendaMilitar'
+import { ESPESSURA_DA_CAIXA_D_AGUA } from './caixaDAguaElevada'
+import { ESPESSURA_DA_TORRE_DE_RADIO } from './torreDeRadio'
+import { ESPESSURA_DA_FATIA_DO_TANQUE } from './tanqueDeCombustivel'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -672,6 +685,31 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // A ponte levadiça (lote L02, item 81 da lista do dia) fica como de cima, como a ponte: anda-se em cima, e as
   // correntes sobem da argola da ponta até o eixo, cada elo com a sua sombra solta.
   ponteLevadica: EM_PE,
+  // As construções de 14/11/2026. Lotes L15 e L16, o castelo e a base militar: derivados, cada um copiando a beirada da
+  // espessura que o próprio desenho exporta (uma fiada, uma fatia, a trave, a laje, o beiral; no obelisco, o fuste
+  // inteiro, fatiado em 14 tampos).
+  portaoComGradeLevadica: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DO_PORTAO },
+  torreDeCerco: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE_DE_CERCO },
+  estatuaEquestre: { modo: 'derivado', espessura: ESPESSURA_DA_FATIA_DA_ESTATUA },
+  obelisco: { modo: 'derivado', espessura: ESPESSURA_DO_FUSTE_DO_OBELISCO },
+  forcaComCadafalso: { modo: 'derivado', espessura: ESPESSURA_DA_TRAVE_DA_FORCA },
+  torreDoSino: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DO_SINO },
+  guarita: { modo: 'derivado', espessura: ESPESSURA_DO_BEIRAL_DA_GUARITA },
+  bunkerDeConcreto: { modo: 'derivado', espessura: ESPESSURA_DA_LAJE_DO_BUNKER },
+  conteiner: { modo: 'derivado', espessura: ESPESSURA_DA_CANTONEIRA_DO_CONTEINER },
+  tendaMilitar: { modo: 'derivado', espessura: ESPESSURA_DA_AGUA_DA_TENDA_MILITAR },
+  caixaDAguaElevada: { modo: 'derivado', espessura: ESPESSURA_DA_CAIXA_D_AGUA },
+  torreDeRadio: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_RADIO },
+  tanqueDeCombustivel: { modo: 'derivado', espessura: ESPESSURA_DA_FATIA_DO_TANQUE },
+  // Lote L19, o parque: o desenho já traz a 3/4 pronta nas âncoras (o palco de `duasVistasDoParque.ts`, a técnica da
+  // tenda de adivinha), sem beirada para não ganhar parede a mais. A roda gigante é desenhada de frente nas duas
+  // vistas, como o moinho.
+  carrossel: { modo: 'derivado', espessura: 0 },
+  tendaDeCirco: { modo: 'derivado', espessura: 0 },
+  rodaGigante: EM_PE,
+  casaNaArvore: { modo: 'derivado', espessura: 0 },
+  pergolaComTrepadeira: { modo: 'derivado', espessura: 0 },
+  portalTorii: { modo: 'derivado', espessura: 0 },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

@@ -42,9 +42,9 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'tavernaEFesta', titulo: 'Taverna e festa' },
   { id: 'descansoEBrincadeira', titulo: 'Descanso e brincadeira' },
   { id: 'cidadeEVila', titulo: 'Cidade e vila' },
-  // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
-  // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
-  // Objeto cai neles, nenhuma construção cai nos de cima.
+  // Os grupos da ferramenta Construção (4 de 12/11/2026 e 3 de 14/11/2026) moram em `construcoes.ts`; entram aqui
+  // para a ficha e o cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo
+  // do Objeto cai neles, nenhuma construção cai nos de cima.
   ...GRUPOS_DE_CONSTRUCAO,
   { id: 'outros', titulo: 'Outros' },
 ] as const
@@ -350,7 +350,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   lagarDeUva: 'cidadeEVila',
   moDePedra: 'cidadeEVila',
   liteira: 'cidadeEVila',
-  // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
+  // As construções (19 de 12/11/2026 e 19 de 14/11/2026), nos 7 grupos da ferramenta Construção, na ordem de
+  // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }
 

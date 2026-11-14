@@ -82,6 +82,11 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // barateado leva ~2 s sozinho; com a suíte inteira carregando a máquina, passava dos 5 s do padrão e
   // falhava por tempo, não por imagem. Só ele ganha o teto maior.
   const TETO_DO_CAMPINHO_MS = 20_000
+  // Quem mais ganha o teto do campinho (o porquê de cada um, no laço abaixo).
+  const LENTOS: readonly TipoMobilia[] = [
+    'campinho', 'torreDePedra', 'camaDeDossel', 'arquibancadaDeTorneio', 'barracaDeJogosDaFeira',
+    'portaoComGradeLevadica', 'obelisco', 'torreDoSino', 'torreDeCerco', 'conteiner', 'estatuaEquestre', 'torreDeRadio', 'forcaComCadafalso',
+  ]
   // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras, o círculo mágico e o sangue no chão,
   // 11/11/2026, e a teia de aranha, 12/11/2026): nenhuma sombra deles tem altura, então nada sobe e a 3/4 sai
   // igual à vista de cima. Seguem as regras de cor e a de "mesma entrada, mesma imagem", mas ficam fora da troca
@@ -104,7 +109,10 @@ describe('vista 3/4: o catálogo inteiro', () => {
     // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
     // E a arquibancada de torneio (14/11/2026), que o portão da folha mediu em 1,6 s.
     // E a barraca de jogos da feira (14/11/2026), que a folha mediu em 0,7 s e, com a máquina carregada, em 1,4 s.
-    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' || tipo === 'arquibancadaDeTorneio' || tipo === 'barracaDeJogosDaFeira' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
+    // E as construções de 14/11/2026 que o portão da folha mediu acima de 1 s: o portão com grade levadiça (4,3 s), o
+    // obelisco (3,7 s), a torre do sino (3,0 s), a torre de cerco (2,5 s), o contêiner (2,2 s), a estátua equestre
+    // (2,1 s), a torre de rádio (1,8 s) e a forca (1,5 s).
+    const teto = LENTOS.includes(tipo) ? { timeout: TETO_DO_CAMPINHO_MS } : {}
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, teto, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)

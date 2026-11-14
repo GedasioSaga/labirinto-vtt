@@ -3194,6 +3194,220 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M3 22.8c1.3-.8 2.7-.8 4 0s2.7.8 4 0" />
         </>
       )
+    // As construções de 14/11/2026 (lotes L15, L16 e L19): os glifos dos desenhistas.
+    case 'portaoComGradeLevadica':
+      // De frente: as duas torres com ameias, o corpo mais baixo entre elas e o arco com a grade erguida (as barras só no alto).
+      return (
+        <>
+          <path d="M2.5 21V5h1.8v1.6h1.6V5h1.8v16" />
+          <path d="M16.3 21V5h1.8v1.6h1.6V5h1.8v16" />
+          <path d="M7.7 9h8.6M2.5 21h19" />
+          <path d="M9.5 21v-5.5a2.5 2.5 0 0 1 5 0V21" />
+          <path d="M10.8 13.4v2.6M12 13v3M13.2 13.4v2.6M9.6 15h4.8" />
+        </>
+      )
+    case 'torreDeCerco':
+      // De frente: a torre que afina para cima, as cruzes do vigamento, a ponte erguida no alto e as duas rodas embaixo.
+      return (
+        <>
+          <path d="M5.5 19L8 4h8l2.5 15z" />
+          <path d="M6.8 11.5h10.4M6.5 11.5l10.4 7.2M17.5 11.5L7 18.7" />
+          <path d="M9.5 4V1.8h5V4" />
+          <circle cx="5.2" cy="20.3" r="1.7" />
+          <circle cx="18.8" cy="20.3" r="1.7" />
+        </>
+      )
+    case 'estatuaEquestre':
+      // De lado: o pedestal comprido e, em cima, o cavalo a passo com o cavaleiro de elmo (a estátua de pé, o de cima, é só a figura).
+      return (
+        <>
+          <path d="M3 21h18M4.5 21v-4h15v4" />
+          <path d="M7 17v-3.5M9 17v-3M15 17v-3M17 17v-3.5" />
+          <path d="M6.5 13.5c0-2 1.5-3 4-3h4.5l2.5-3.5 2 1-1.5 3c0 1.5-.8 2.5-2.5 2.5H6.5z" />
+          <path d="M5 12l1.5 1" />
+          <path d="M11.5 10.5V7.5" />
+          <circle cx="11.5" cy="6.2" r="1.3" />
+        </>
+      )
+    case 'obelisco':
+      // De frente: o fuste alto que afina até a pontinha em pirâmide, o dado e os dois degraus.
+      return (
+        <>
+          <path d="M10.2 15.5L11 4.5 12 2.5l1 2 .8 11z" />
+          <path d="M11 4.5h2" />
+          <path d="M8.5 19.5v-4h7v4" />
+          <path d="M6.5 21v-1.5h11V21M4.5 21h15" />
+        </>
+      )
+    case 'forcaComCadafalso':
+      // De frente: o tablado com a escada, o poste e a trave com a mão-francesa, e a corda com o laço.
+      return (
+        <>
+          <path d="M3 21h18M5 21v-6h14v6" />
+          <path d="M7 15V3h10M7 6.5L10.5 3" />
+          <path d="M15 3v5.5" />
+          <ellipse cx="15" cy="10" rx="1.2" ry="1.5" />
+          <path d="M2 21l3-3.5" />
+        </>
+      )
+    case 'torreDoSino':
+      // De frente: o corpo com a porta em arco, a cornija, os dois pilares do campanário aberto com o sino pendurado e o frontão em degraus.
+      return (
+        <>
+          <path d="M7 21V11h10v10M6 11h12" />
+          <path d="M10.5 21v-3a1.5 1.5 0 0 1 3 0v3" />
+          <path d="M7.5 11V6M16.5 11V6M6.5 6h11" />
+          <path d="M10.4 9.6a1.6 1.6 0 0 1 3.2 0l.4 1.2h-4z" />
+          <path d="M8.5 6V4.5h7V6M10.5 4.5V3h3v1.5" />
+        </>
+      )
+    case 'guarita':
+      // De frente: o telhado de beiral largo com o giroflex, a parede com a janela larga e a porta, no chão.
+      return (
+        <>
+          <path d="M3.5 9.5h17l-2.5-3H6Z" />
+          <path d="M12 6.5V4.5M10.6 4.5h2.8" />
+          <path d="M5.5 9.5V20h13V9.5" />
+          <path d="M7.5 12h5v3.5h-5Z" />
+          <path d="M14.5 20v-7h2.5v7" />
+          <path d="M2.5 20h19" />
+        </>
+      )
+    case 'bunkerDeConcreto':
+      // De frente: o aterro em rampa dos dois lados, o bloco de concreto com a seteira e a cúpula em cima.
+      return (
+        <>
+          <path d="M2.5 19.5h19" />
+          <path d="M3 19.5 6.5 13h11l3.5 6.5" />
+          <path d="M7 19.5V9.5h10v10" />
+          <path d="M9 12.5h6" />
+          <path d="M13 9.5a2 2 0 0 1 4 0" />
+          <path d="M10.5 19.5v-3.5h3v3.5" />
+        </>
+      )
+    case 'conteiner':
+      // De lado: a caixa comprida com as nervuras da chapa e a ponta da porta com as duas trancas.
+      return (
+        <>
+          <path d="M2.5 7.5h19v11h-19Z" />
+          <path d="M5.5 9.5v7M8.5 9.5v7M11.5 9.5v7M14.5 9.5v7" />
+          <path d="M17.5 7.5v11" />
+          <path d="M19 9.5v7M20.2 9.5v7" />
+          <path d="M2.5 20.5h19" />
+        </>
+      )
+    case 'tendaMilitar':
+      // De frente pela empena: as paredes baixas, o telhado de duas águas, a porta de pano aberta e a chaminé.
+      return (
+        <>
+          <path d="M2.5 20h19" />
+          <path d="M4 20v-6L12 6.5l8 7.5v6" />
+          <path d="M4 14h16" />
+          <path d="M10 20l2-4.5 2 4.5" />
+          <path d="M16.5 10.2V5.5" />
+        </>
+      )
+    case 'caixaDAguaElevada':
+      // De frente: o tanque de aduelas com o cone em cima, o assoalho, as quatro pernas com o X e a escada.
+      return (
+        <>
+          <path d="M7 4.5 12 2l5 2.5" />
+          <path d="M7.5 4.5h9v5.5h-9Z" />
+          <path d="M5.5 11.5h13" />
+          <path d="M7.5 11.5 6 21.5M16.5 11.5l1.5 10" />
+          <path d="M7 15l10 5M17 15 7 20" />
+          <path d="M11 11.5v10M13 11.5v10" />
+        </>
+      )
+    case 'torreDeRadio':
+      // De frente: as duas pernas que afinam para o alto, as travessas com os X, o prato de lado e o mastro com a luz.
+      return (
+        <>
+          <path d="M6.5 21.5 10.8 6.5M17.5 21.5 13.2 6.5" />
+          <path d="M8 16.5h8M9.4 11.5h5.2" />
+          <path d="M8 16.5l7.2-5M16 16.5l-7.2-5" />
+          <path d="M15.2 13.5a2.2 2.2 0 0 0 3 2.6" />
+          <path d="M12 6.5V3" />
+          <circle cx="12" cy="2.4" r="0.6" />
+        </>
+      )
+    case 'tanqueDeCombustivel':
+      // De lado: o cilindro deitado de pontas redondas nos dois berços, a boca de visita e o losango de perigo.
+      return (
+        <>
+          <path d="M2.5 20.5h19" />
+          <path d="M6 9h12a4 4 0 0 1 0 8H6a4 4 0 0 1 0-8Z" />
+          <path d="M7.5 17v3.5M16.5 17v3.5" />
+          <path d="M10.5 9V7h3v2" />
+          <path d="M12 11.3l1.7 1.7-1.7 1.7-1.7-1.7Z" />
+        </>
+      )
+    case 'carrossel':
+      // De frente: o telhado em cone com a flâmula, a sanefa em bicos, os varões com um cavalinho no meio e o estrado.
+      return (
+        <>
+          <path d="M12 5V1.8l3 1-3 1" />
+          <path d="M12 5L3 10.5h18z" />
+          <path d="M3 10.5l1.5 1.6 1.5-1.6 1.5 1.6 1.5-1.6 1.5 1.6 1.5-1.6 1.5 1.6 1.5-1.6 1.5 1.6 1.5-1.6 1.5 1.6 1.5-1.6" />
+          <path d="M6 12v7.5M18 12v7.5M12 12v3" />
+          <path d="M9.5 16.5h4l1.2-1.5M10 16.5v2M13.5 16.5v2" />
+          <path d="M2.5 19.5h19v2h-19z" />
+        </>
+      )
+    case 'tendaDeCirco':
+      // De frente: a lona comprida de dois mastros com as flâmulas, a parede com as listras e a entrada de toldo no meio.
+      return (
+        <>
+          <path d="M8 6V2.5l2.6.9L8 4.3M16 6V2.5l2.6.9-2.6.9" />
+          <path d="M2 13.5L8 6h8l6 7.5z" />
+          <path d="M3 13.5v7.5h18v-7.5" />
+          <path d="M6.5 13.5v7.5M17.5 13.5v7.5" />
+          <path d="M9.5 21v-5l2.5-2.5 2.5 2.5v5" />
+        </>
+      )
+    case 'rodaGigante':
+      // De frente: o aro com os raios até o cubo, as cadeirinhas em volta e o cavalete em A até o chão.
+      return (
+        <>
+          <circle cx="12" cy="10" r="8" />
+          <path d="M12 2v16M4 10h16M6.3 4.3l11.4 11.4M17.7 4.3L6.3 15.7" />
+          <path d="M12 10l-5 11.5M12 10l5 11.5M3.5 21.5h17" />
+          <path d="M18.7 9.8h2.4v1.9h-2.4zM2.9 9.8h2.4v1.9H2.9zM10.8 0.9h2.4v1.9h-2.4z" />
+        </>
+      )
+    case 'casaNaArvore':
+      // A copa redonda, o tronco até o chão, a casinha de telhado em bico presa nele e a escada de mão até o chão.
+      return (
+        <>
+          <path d="M6.5 13a4.5 4.5 0 1 1 3-8.2 4 4 0 0 1 7 1.2 3.5 3.5 0 0 1-1.5 6.7" />
+          <path d="M9 13v8.5M7 21.5h4" />
+          <path d="M11 13.5l4.5-3.5 4.5 3.5M12 13.5v4.5h7v-4.5M10 18h11" />
+          <path d="M14.8 18v-2.4h2v2.4" />
+          <path d="M13 18l-1.5 3.5M15 18l-1.5 3.5M12.6 19.5h1.6" />
+        </>
+      )
+    case 'pergolaComTrepadeira':
+      // De frente: os dois esteios, a viga com as pontas das ripas por cima, a trepadeira subindo um esteio e os cachos pendentes.
+      return (
+        <>
+          <path d="M5 9v12M19 9v12" />
+          <path d="M2 7.5h20v1.8H2z" />
+          <path d="M4 7.5V5.5M8 7.5V5.5M12 7.5V5.5M16 7.5V5.5M20 7.5V5.5" />
+          <path d="M5 20c1.5-1.5-1.5-3 0-4.5s-1.5-3 0-4.5" />
+          <path d="M9 9.3v3M12 9.3v2.2M15 9.3v3.4" />
+        </>
+      )
+    case 'portalTorii':
+      // De frente: a viga de cima com as pontas viradas para o alto, a travessa de cima, a placa no meio, a travessa de baixo e os dois pilares.
+      return (
+        <>
+          <path d="M2 3.5c3 1.5 17 1.5 20 0l-.6 2.2c-3 1-15.8 1-18.8 0z" />
+          <path d="M4 7.5h16" />
+          <path d="M10.5 7.5h3v3h-3z" />
+          <path d="M3.5 10.5h17" />
+          <path d="M6.5 6v15.5M17.5 6v15.5" />
+        </>
+      )
   }
 }
 

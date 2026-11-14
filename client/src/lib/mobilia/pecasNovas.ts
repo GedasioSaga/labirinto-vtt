@@ -64,6 +64,9 @@ export const PECAS_NOVAS = [
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
+  'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
+  'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -534,6 +537,28 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão e anda-se em cima, como a ponte; a tora do
   // eixo fica na ponta da esquerda, o lado da muralha, e em pé a régua gira como na ponte.
   ponteLevadica: { rotulo: 'Ponte levadiça', artigo: 'uma ponte levadiça', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  // As construções de 14/11/2026 (lotes L15, L16 e L19, itens 82 a 94 e 105 a 110 da lista do dia), na ferramenta
+  // Construção (`construcoes.ts`). O portão está aberto (a grade erguida) e o contêiner deita ao comprido; o carrossel
+  // é o único redondo; a roda gigante é desenhada de frente nas duas vistas, como o moinho.
+  portaoComGradeLevadica: { rotulo: 'Portão com grade levadiça', artigo: 'um portão com grade levadiça', tamanho: { largura: 4, altura: 2 }, redonda: false },
+  torreDeCerco: { rotulo: 'Torre de cerco', artigo: 'uma torre de cerco', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  estatuaEquestre: { rotulo: 'Estátua equestre', artigo: 'uma estátua equestre', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  obelisco: { rotulo: 'Obelisco', artigo: 'um obelisco', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  forcaComCadafalso: { rotulo: 'Forca', artigo: 'uma forca', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  torreDoSino: { rotulo: 'Torre do sino', artigo: 'uma torre do sino', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  guarita: { rotulo: 'Guarita', artigo: 'uma guarita', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  bunkerDeConcreto: { rotulo: 'Bunker de concreto', artigo: 'um bunker de concreto', tamanho: { largura: 3, altura: 3 }, redonda: false },
+  conteiner: { rotulo: 'Contêiner', artigo: 'um contêiner', tamanho: { largura: 4, altura: 1.5 }, redonda: false },
+  tendaMilitar: { rotulo: 'Tenda militar', artigo: 'uma tenda militar', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  caixaDAguaElevada: { rotulo: "Caixa d'água elevada", artigo: "uma caixa d'água elevada", tamanho: { largura: 2, altura: 2 }, redonda: false },
+  torreDeRadio: { rotulo: 'Torre de rádio', artigo: 'uma torre de rádio', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  tanqueDeCombustivel: { rotulo: 'Tanque de combustível', artigo: 'um tanque de combustível', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  carrossel: { rotulo: 'Carrossel', artigo: 'um carrossel', tamanho: { largura: 3, altura: 3 }, redonda: true },
+  tendaDeCirco: { rotulo: 'Tenda de circo', artigo: 'uma tenda de circo', tamanho: { largura: 5, altura: 4 }, redonda: false },
+  rodaGigante: { rotulo: 'Roda gigante de madeira', artigo: 'uma roda gigante de madeira', tamanho: { largura: 4, altura: 4 }, redonda: false },
+  casaNaArvore: { rotulo: 'Casa na árvore', artigo: 'uma casa na árvore', tamanho: { largura: 3, altura: 3 }, redonda: false },
+  pergolaComTrepadeira: { rotulo: 'Pérgola com trepadeira', artigo: 'uma pérgola com trepadeira', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  portalTorii: { rotulo: 'Portal torii', artigo: 'um portal torii', tamanho: { largura: 3, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -788,6 +813,25 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     moDePedra: valor(f.moDePedra),
     liteira: valor(f.liteira),
     ponteLevadica: valor(f.ponteLevadica),
+    portaoComGradeLevadica: valor(f.portaoComGradeLevadica),
+    torreDeCerco: valor(f.torreDeCerco),
+    estatuaEquestre: valor(f.estatuaEquestre),
+    obelisco: valor(f.obelisco),
+    forcaComCadafalso: valor(f.forcaComCadafalso),
+    torreDoSino: valor(f.torreDoSino),
+    guarita: valor(f.guarita),
+    bunkerDeConcreto: valor(f.bunkerDeConcreto),
+    conteiner: valor(f.conteiner),
+    tendaMilitar: valor(f.tendaMilitar),
+    caixaDAguaElevada: valor(f.caixaDAguaElevada),
+    torreDeRadio: valor(f.torreDeRadio),
+    tanqueDeCombustivel: valor(f.tanqueDeCombustivel),
+    carrossel: valor(f.carrossel),
+    tendaDeCirco: valor(f.tendaDeCirco),
+    rodaGigante: valor(f.rodaGigante),
+    casaNaArvore: valor(f.casaNaArvore),
+    pergolaComTrepadeira: valor(f.pergolaComTrepadeira),
+    portalTorii: valor(f.portalTorii),
   }
 }
 
@@ -856,6 +900,11 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
+  // As construções de 14/11/2026 (lotes L15, L16 e L19), na ordem da lista do dia: a ferramenta Construção as arruma
+  // pelos grupos de `construcoes.ts`.
+  'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
+  'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ]
 
 /**
@@ -3749,6 +3798,206 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...corrente(-meiaL * 0.72),
         ...corrente(meiaL * 0.72),
         traco(meioC * 0.92, -meiaL * 0.9, meioC * 0.92, meiaL * 0.9),
+      ]
+    }
+    // As construções de 14/11/2026 (lotes L15, L16 e L19): os traços dos desenhistas.
+    case 'portaoComGradeLevadica': {
+      // As duas torres, o adarve entre elas, a fenda da grade atravessando o adarve e o calçamento saindo pela frente.
+      const torre = hw * 0.49
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.94, -hw * 0.98 + torre, hh * 0.94),
+        ...quadro(hw * 0.98 - torre, -hh * 0.94, hw * 0.98, hh * 0.94),
+        { x1: -hw * 0.49, y1: -hh * 0.62, x2: hw * 0.49, y2: -hh * 0.62 },
+        { x1: -hw * 0.2, y1: hh * 0.24, x2: hw * 0.2, y2: hh * 0.24 },
+        { x1: -hw * 0.2, y1: hh * 0.5, x2: -hw * 0.2, y2: hh }, { x1: hw * 0.2, y1: hh * 0.5, x2: hw * 0.2, y2: hh },
+      ]
+    }
+    case 'torreDeCerco': {
+      // A beira do pé, a plataforma de cima (as quinas inclinadas ligando as duas), a ponte de pé na frente e as rodas nos lados.
+      const alto = 0.74
+      return [
+        ...quadro(-hw * 0.86, -hh * 0.86, hw * 0.86, hh * 0.86),
+        ...quadro(-hw * alto * 0.86, -hh * alto * 0.86, hw * alto * 0.86, hh * alto * 0.86),
+        { x1: -hw * 0.42, y1: hh * 0.6, x2: hw * 0.42, y2: hh * 0.6 },
+        { x1: -hw * 0.92, y1: -hh * 0.76, x2: -hw * 0.92, y2: -hh * 0.16 }, { x1: hw * 0.92, y1: hh * 0.16, x2: hw * 0.92, y2: hh * 0.76 },
+      ]
+    }
+    case 'estatuaEquestre': {
+      // A moldura do pedestal e, dentro, o cavalo ao comprido: o lombo, o pescoço até a cabeça na direita, o rabo na esquerda e o elmo do cavaleiro.
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.86, -hh * 0.76, hw * 0.86, hh * 0.76),
+        ...aro(menor * 1, menor * 0.33),
+        { x1: menor * 0.36, y1: 0, x2: menor * 0.84, y2: menor * 0.12 },
+        { x1: -menor * 0.5, y1: 0, x2: -menor * 0.66, y2: menor * 0.03 },
+        ...aro(menor * 0.14, menor * 0.14, -menor * 0.02, 0),
+      ]
+    }
+    case 'obelisco': {
+      // Os dois degraus, o dado e, no meio, a pirâmide da ponta com as quatro arestas.
+      const m = Math.min(hw, hh)
+      return [
+        ...quadro(-m * 0.97, -m * 0.97, m * 0.97, m * 0.97),
+        ...quadro(-m * 0.5, -m * 0.5, m * 0.5, m * 0.5),
+        { x1: -m * 0.27, y1: -m * 0.27, x2: m * 0.27, y2: m * 0.27 }, { x1: m * 0.27, y1: -m * 0.27, x2: -m * 0.27, y2: m * 0.27 },
+        { x1: -m * 0.12, y1: m * 0.63, x2: m * 0.12, y2: m * 0.63 },
+      ]
+    }
+    case 'forcaComCadafalso':
+      // O tablado, a escada na frente à esquerda, a trave saindo do poste e o alçapão debaixo do laço.
+      return [
+        ...quadro(-hw * 0.92, -hh * 0.66, hw * 0.92, hh * 0.48),
+        ...quadro(-hw * 0.86, hh * 0.48, -hw * 0.36, hh),
+        { x1: -hw * 0.62, y1: -hh * 0.5, x2: hw * 0.44, y2: -hh * 0.5 },
+        ...quadro(hw * 0.3 - hw * 0.24, -hh * 0.62, hw * 0.3 + hw * 0.24, -hh * 0.22),
+      ]
+    case 'torreDoSino': {
+      // O rodapé, o peitoril em volta do piso do alto, os dois pilares da espadana e a roda do sino no meio.
+      const m = Math.min(hw, hh)
+      return [
+        ...quadro(-m * 0.84, -m * 0.84, m * 0.84, m * 0.84),
+        ...quadro(-m * 0.64, -m * 0.64, m * 0.64, m * 0.64),
+        { x1: -m * 0.48, y1: -m * 0.1, x2: -m * 0.48, y2: m * 0.1 }, { x1: m * 0.48, y1: -m * 0.1, x2: m * 0.48, y2: m * 0.1 },
+        ...aro(m * 0.6, m * 0.6),
+      ]
+    }
+    case 'guarita': {
+      // A laje, o beiral do telhado de quatro águas com as arestas até o giroflex no meio e o degrau da porta na frente.
+      const [bx, by] = [hw * 0.76, hh * 0.76]
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96),
+        ...quadro(-bx, -by, bx, by),
+        { x1: -bx, y1: -by, x2: bx, y2: by }, { x1: bx, y1: -by, x2: -bx, y2: by },
+        linha(hw * 0.06, hh * 0.9, hw * 0.5),
+      ]
+    }
+    case 'bunkerDeConcreto': {
+      // O aterro em volta, o teto de concreto com a cúpula de observação, e a vala com a escada descendo pela frente.
+      const cupula = Math.min(hw, hh) * 0.3
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.97, hw * 0.97, hh * 0.97),
+        ...quadro(-hw * 0.7, -hh * 0.6, hw * 0.7, hh * 0.56),
+        ...aro(cupula, cupula, hw * 0.32, -hh * 0.16),
+        { x1: hw * 0.15, y1: hh * 0.56, x2: hw * 0.15, y2: hh * 0.95 }, { x1: hw * 0.41, y1: hh * 0.56, x2: hw * 0.41, y2: hh * 0.95 },
+      ]
+    }
+    case 'conteiner': {
+      // A caixa ao comprido, três cristas da chapa de través e a fresta das duas folhas da porta na ponta.
+      const deitado = hw >= hh
+      const [u, v] = deitado ? [hw * 0.97, hh * 0.94] : [hh * 0.97, hw * 0.94]
+      const traves = (t: number): Traco => (deitado ? { x1: t, y1: -v, x2: t, y2: v } : { x1: -v, y1: t, x2: v, y2: t })
+      return [...quadro(-hw * 0.97, -hh * 0.94, hw * 0.97, hh * 0.94), ...[-0.5, 0, 0.5].map((t) => traves(t * u)), traves(u * 0.86)]
+    }
+    case 'tendaMilitar': {
+      // A lona ao comprido com a cumeeira no meio e a chaminé do fogareiro no lado da luz.
+      const deitado = hw >= hh
+      const [u, v] = deitado ? [hw * 0.8, hh * 0.6] : [hh * 0.8, hw * 0.6]
+      const chamine = Math.min(hw, hh) * 0.07
+      return [
+        ...(deitado ? quadro(-u, -v, u, v) : quadro(-v, -u, v, u)),
+        deitado ? linha(-u, 0, u) : { x1: 0, y1: -u, x2: 0, y2: u },
+        ...(deitado ? aro(chamine, chamine, -u * 0.52, -v * 0.38) : aro(chamine, chamine, -v * 0.38, -u * 0.52)),
+      ]
+    }
+    case 'caixaDAguaElevada': {
+      // O assoalho quadrado nos quatro postes, o tanque redondo no meio com as arestas do cone e a escada pela frente.
+      const r = Math.min(hw, hh)
+      const arestas = [0, 1, 2, 3].map((i) => {
+        const a = (i * Math.PI) / 4
+        return { x1: -Math.cos(a) * r * 0.5, y1: -Math.sin(a) * r * 0.5, x2: Math.cos(a) * r * 0.5, y2: Math.sin(a) * r * 0.5 }
+      })
+      return [...quadro(-r * 0.68, -r * 0.68, r * 0.68, r * 0.68), ...aro(r, r), ...arestas, { x1: -r * 0.12, y1: r * 0.68, x2: -r * 0.12, y2: r * 0.97 }, { x1: r * 0.12, y1: r * 0.68, x2: r * 0.12, y2: r * 0.97 }]
+    }
+    case 'torreDeRadio': {
+      // A brita redonda, o triângulo das três sapatas e as três pernas subindo até o alto no meio.
+      const r = Math.min(hw, hh)
+      const pes = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6].map((a): readonly [number, number] => [Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62])
+      return [...aro(r * 1.94, r * 1.94), ...fechado(pes), ...pes.map(([x, y]) => ({ x1: x, y1: y, x2: x * 0.18, y2: y * 0.18 }))]
+    }
+    case 'tanqueDeCombustivel': {
+      // O dique em volta e o cilindro deitado ao comprido, com as duas pontas abauladas e a costura de cima.
+      const deitado = hw >= hh
+      const [u, r] = [(deitado ? hw : hh) * 0.6, Math.min(hw, hh) * 0.6]
+      const ponta = u + r * 0.32
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.97, hw * 0.97, hh * 0.97),
+        ...(deitado ? quadro(-ponta, -r, ponta, r) : quadro(-r, -ponta, r, ponta)),
+        deitado ? linha(-u, 0, u) : { x1: 0, y1: -u, x2: 0, y2: u },
+      ]
+    }
+    case 'carrossel': {
+      // O estrado redondo, a beira do telhado com oito emendas até o pináculo e os oito cavalos em volta (traços de través no anel).
+      const a = (i: number): number => (i * Math.PI) / 4
+      return [
+        ...aro(largura * 0.97, altura * 0.97),
+        ...aro(largura * 0.6, altura * 0.6),
+        ...Array.from({ length: 8 }, (_, i) => ({ x1: 0, y1: 0, x2: hw * 0.6 * Math.cos(a(i)), y2: hh * 0.6 * Math.sin(a(i)) })),
+        ...Array.from({ length: 8 }, (_, i) => ({ x1: hw * 0.76 * Math.cos(a(i) + 0.25), y1: hh * 0.76 * Math.sin(a(i) + 0.25), x2: hw * 0.76 * Math.cos(a(i) + 0.53), y2: hh * 0.76 * Math.sin(a(i) + 0.53) })),
+      ]
+    }
+    case 'tendaDeCirco': {
+      // A beira comprida da lona, o cume entre os dois mastros, as emendas em leque de cada mastro e a entrada ao sul.
+      const d = largura >= altura
+      const [ma, mb] = d ? [hw * 0.22, 0] : [0, hh * 0.22]
+      const leque = (s: number, t: number): Traco => ({ x1: s * ma, y1: s * mb, x2: d ? s * hw * 0.86 * Math.cos(t) : hw * 0.86 * Math.sin(t), y2: d ? hh * 0.86 * Math.sin(t) : s * hh * 0.86 * Math.cos(t) })
+      return [
+        ...aro(largura * 0.86, altura * 0.86),
+        { x1: -ma, y1: -mb, x2: ma, y2: mb },
+        ...[-1, 1].flatMap((s) => [-0.6, 0, 0.6].map((t) => leque(s, t))),
+        ...quadro(-hw * 0.08, hh * 0.86, hw * 0.08, hh * 0.98),
+      ]
+    }
+    case 'rodaGigante': {
+      // De frente: o aro com oito raios até o cubo, as duas pernas do cavalete abertas até o estrado e o estrado no pé.
+      const r = Math.min(hw, hh) * 0.78
+      const cy = -hh * 0.12
+      return [
+        ...aro(r * 2, r * 2, 0, cy),
+        ...Array.from({ length: 8 }, (_, i) => ({ x1: 0, y1: cy, x2: r * Math.cos((i * Math.PI) / 4), y2: cy + r * Math.sin((i * Math.PI) / 4) })),
+        { x1: 0, y1: cy, x2: -hw * 0.5, y2: hh * 0.86 },
+        { x1: 0, y1: cy, x2: hw * 0.5, y2: hh * 0.86 },
+        linha(-hw * 0.8, hh * 0.9, hw * 0.8),
+      ]
+    }
+    case 'casaNaArvore':
+      // A copa redonda a noroeste, a plataforma a sudeste com o cume do telhado no meio e os dois banzos da escada que desce ao sul.
+      return [
+        ...aro(largura * 0.5, altura * 0.5, -hw * 0.36, -hh * 0.36),
+        ...quadro(-hw * 0.36, -hh * 0.31, hw * 0.67, hh * 0.52),
+        linha(-hw * 0.05, hh * 0.02, hw * 0.69),
+        { x1: -hw * 0.23, y1: hh * 0.52, x2: -hw * 0.23, y2: hh * 0.83 },
+        { x1: -hw * 0.12, y1: hh * 0.52, x2: -hw * 0.12, y2: hh * 0.83 },
+      ]
+    case 'pergolaComTrepadeira': {
+      // As duas vigas ao comprido, as seis ripas de través passando delas e a trepadeira em dois tufos nos cantos opostos.
+      const d = largura >= altura
+      const [a, b] = d ? [hw, hh] : [hh, hw]
+      const pt = (u: number, v: number): [number, number] => (d ? [u, v] : [v, u])
+      const reta = (u1: number, v1: number, u2: number, v2: number): Traco => {
+        const [x1, y1] = pt(u1, v1)
+        const [x2, y2] = pt(u2, v2)
+        return { x1, y1, x2, y2 }
+      }
+      return [
+        ...[-0.6, 0.6].map((v) => reta(-a * 0.98, v * b, a * 0.98, v * b)),
+        ...[-0.75, -0.45, -0.15, 0.15, 0.45, 0.75].map((u) => reta(u * a, -b * 0.96, u * a, b * 0.96)),
+        ...aro(b, b, ...pt(-a * 0.66, b * 0.4)),
+        ...aro(b * 0.9, b * 0.9, ...pt(a * 0.7, -b * 0.45)),
+      ]
+    }
+    case 'portalTorii': {
+      // A viga de cima de ponta a ponta com a quina no meio e as pedras dos dois pilares espiando dos lados.
+      const d = largura >= altura
+      const [a, b] = d ? [hw, hh] : [hh, hw]
+      const pt = (u: number, v: number): [number, number] => (d ? [u, v] : [v, u])
+      const [x0, y0] = pt(-a * 0.99, -b * 0.17)
+      const [x1, y1] = pt(a * 0.99, b * 0.17)
+      const [cx, cy] = pt(a * 0.99, 0)
+      return [
+        ...quadro(Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)),
+        { x1: -cx, y1: -cy, x2: cx, y2: cy },
+        ...aro(b * 0.6, b * 0.6, ...pt(-a * 0.6, 0)),
+        ...aro(b * 0.6, b * 0.6, ...pt(a * 0.6, 0)),
       ]
     }
   }

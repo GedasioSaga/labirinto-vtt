@@ -264,6 +264,25 @@ import { montarLagarDeUva } from './lagarDeUva'
 import { montarMoDePedra } from './moDePedra'
 import { montarLiteira } from './liteira'
 import { montarPonteLevadica } from './ponteLevadica'
+import { montarPortaoComGradeLevadica } from './portaoComGradeLevadica'
+import { montarTorreDeCerco } from './torreDeCerco'
+import { montarEstatuaEquestre } from './estatuaEquestre'
+import { montarObelisco } from './obelisco'
+import { montarForcaComCadafalso } from './forcaComCadafalso'
+import { montarTorreDoSino } from './torreDoSino'
+import { montarGuarita } from './guarita'
+import { montarBunkerDeConcreto } from './bunkerDeConcreto'
+import { montarConteiner } from './conteiner'
+import { montarTendaMilitar } from './tendaMilitar'
+import { montarCaixaDAguaElevada } from './caixaDAguaElevada'
+import { montarTorreDeRadio } from './torreDeRadio'
+import { montarTanqueDeCombustivel } from './tanqueDeCombustivel'
+import { montarCarrossel } from './carrossel'
+import { montarTendaDeCirco } from './tendaDeCirco'
+import { montarRodaGigante } from './rodaGigante'
+import { montarCasaNaArvore } from './casaNaArvore'
+import { montarPergolaComTrepadeira } from './pergolaComTrepadeira'
+import { montarPortalTorii } from './portalTorii'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -590,6 +609,25 @@ const MONTADORES = {
   moDePedra: montarMoDePedra,
   liteira: montarLiteira,
   ponteLevadica: montarPonteLevadica,
+  portaoComGradeLevadica: montarPortaoComGradeLevadica,
+  torreDeCerco: montarTorreDeCerco,
+  estatuaEquestre: montarEstatuaEquestre,
+  obelisco: montarObelisco,
+  forcaComCadafalso: montarForcaComCadafalso,
+  torreDoSino: montarTorreDoSino,
+  guarita: montarGuarita,
+  bunkerDeConcreto: montarBunkerDeConcreto,
+  conteiner: montarConteiner,
+  tendaMilitar: montarTendaMilitar,
+  caixaDAguaElevada: montarCaixaDAguaElevada,
+  torreDeRadio: montarTorreDeRadio,
+  tanqueDeCombustivel: montarTanqueDeCombustivel,
+  carrossel: montarCarrossel,
+  tendaDeCirco: montarTendaDeCirco,
+  rodaGigante: montarRodaGigante,
+  casaNaArvore: montarCasaNaArvore,
+  pergolaComTrepadeira: montarPergolaComTrepadeira,
+  portalTorii: montarPortalTorii,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -659,6 +697,9 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
+  'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
+  'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

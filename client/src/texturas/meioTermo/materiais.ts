@@ -623,6 +623,37 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // A ponte levadiça (lote L02, item 81 da lista do dia): as ferragens valem para as cintas, os rebites, as chapas, as
   // dobradiças, as pontas do eixo e as correntes.
   ponteLevadica: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
+  // As construções de 14/11/2026, na ordem das fichas. Lote L15, o castelo: a pedra do portão, da estátua equestre e do
+  // obelisco é granito (o arenito lia como madeira), a torre do sino troca a pedra e a madeira, e a torre de cerco e a
+  // forca, a madeira. Fixos: o ferro da grade e o escuro da abóbada do portão; o bronze e a pátina da estátua; a placa
+  // e a ponta dourada do obelisco; a corda e o ferro da forca; o bronze do sino; os cubos das rodas da torre de cerco.
+  portaoComGradeLevadica: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  torreDeCerco: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  estatuaEquestre: [lugar('pedra', 'Pedestal', PEDRAS, 'granito')],
+  obelisco: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  forcaComCadafalso: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  torreDoSino: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  // Lote L16, a base militar. O contêiner troca a pintura (um tecido da tabela pintado como metal, como o escudo da
+  // panóplia: vinho é o óxido de porto, musgo o do exército), a tenda militar a lona (musgo é o verde-oliva) e a caixa
+  // d'água a madeira dos postes, do assoalho, das aduelas e da escada. A guarita, o bunker, a torre de rádio e o tanque
+  // têm as cores fixas do concreto, da caiação, da chapa, do aço e das listras.
+  guarita: [],
+  bunkerDeConcreto: [],
+  conteiner: [lugar('pintura', 'Pintura', TECIDOS, 'vinho')],
+  tendaMilitar: [lugar('lona', 'Lona', TECIDOS, 'musgo')],
+  caixaDAguaElevada: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  torreDeRadio: [],
+  tanqueDeCombustivel: [],
+  // Lote L19, o parque. O carrossel e a roda gigante trocam a madeira e o pano (as listras claras são creme fixo); a
+  // tenda de circo, a lona e a madeira dos mastros e das estacas; a casa na árvore, a madeira (a casca, a folha e a
+  // telha são fixas); a pérgola, a madeira e a pedra das lajes do caminho. O portal torii não troca nada: o zarcão, a
+  // laca preta, o dourado da placa e a pedra da base são o que faz um torii.
+  carrossel: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pano', 'Pano', TECIDOS, 'azul')],
+  tendaDeCirco: [lugar('pano', 'Lona', TECIDOS, 'vinho'), lugar('madeira', 'Mastros e estacas', MADEIRAS, 'pinho')],
+  rodaGigante: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pano', 'Toldos', TECIDOS, 'vinho')],
+  casaNaArvore: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  pergolaComTrepadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Lajes', PEDRAS, 'arenito')],
+  portalTorii: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

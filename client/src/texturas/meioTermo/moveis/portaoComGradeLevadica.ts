@@ -301,7 +301,6 @@ export const montarPortaoComGradeLevadica: MontarMovel = (c, cena) => {
 
   // ---------- as torres: o terraço de lajes com a sombra do parapeito, o parapeito e as ameias ----------
   torres.forEach((t, it) => {
-    const anelDaTorre = anelRetangular(t.x0, tTras, t.x1, tFrente, fundo)
     const ameiasDaTorre = [
       ameias(t.x0, tTras, t.x1, tTras + fundo, q(AMEIA.largura), q(AMEIA.vao), true),
       ameias(t.x0, tFrente - fundo, t.x1, tFrente, q(AMEIA.largura), q(AMEIA.vao), true),

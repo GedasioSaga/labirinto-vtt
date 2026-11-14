@@ -97,8 +97,8 @@ export const TIPOS_MOBILIA = [
   // de parede, o lustre de velas (que ilumina) e a panóplia. Vem antes do L03 para a ordem seguir a da lista do dia.
   'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
   // Lote L02 dos objetos de 14/11/2026, o resto do castelo: a mesa de banquete posta, os bancos de capela, a mesa de
-  // guerra, o poleiro de falcão e as aljavas e feixes de flechas. A ponte levadiça, do mesmo lote, vem no fim: é o
-  // item 81 da lista do dia.
+  // guerra, o poleiro de falcão e as aljavas e feixes de flechas. A ponte levadiça, do mesmo lote, vem depois do L14:
+  // é o item 81 da lista do dia.
   'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
   // Lote L03 dos objetos de 14/11/2026, o cerco e a defesa: a catapulta, a balista, o aríete com teto e a
   // escada de cerco.
@@ -141,6 +141,15 @@ export const TIPOS_MOBILIA = [
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão, como a ponte, e fica no castelo.
   'ponteLevadica',
+  // Lotes L15, L16 e L19 dos objetos de 14/11/2026, as construções (moram na ferramenta Construção, `construcoes.ts`),
+  // na ordem da lista do dia (itens 82 a 94 e 105 a 110). Do castelo (L15): o portão com grade levadiça, a torre de
+  // cerco, a estátua equestre, o obelisco, a forca e a torre do sino. Da base militar (L16): a guarita, o bunker de
+  // concreto, o contêiner, a tenda militar, a caixa d'água elevada, a torre de rádio e o tanque de combustível. Do
+  // lazer (L19): o carrossel, a tenda de circo, a roda gigante de madeira, a casa na árvore, a pérgola com trepadeira e
+  // o portal torii.
+  'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
+  'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

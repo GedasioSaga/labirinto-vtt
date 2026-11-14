@@ -195,7 +195,13 @@ export interface ContextoDoMovel {
    * degrau vai em duas metades cortadas pela frente NA TELA, de pé no giro
    * ímpar, a regra do pilar), o lagar (o tabuleiro vira duas colunas cortadas
    * do lado que fica embaixo na tela, e a âncora vai para a parte de trás) e a
-   * liteira (a face da porta só entra no giro 0, como no trono). Os outros
+   * liteira (a face da porta só entra no giro 0, como no trono). Das
+   * construções de 14/11/2026 leem o obelisco e a torre do sino (montados na
+   * tela e desgirados pelo `montadaNaTela` de `andaimeDaTresQuartos.ts`:
+   * iguais dos quatro lados), os sete da base militar (o que fica no alto é
+   * pintado na ordem da tela; no contêiner, as cristas só saem na face da
+   * frente) e os cinco do palco do parque (`duasVistasDoParque.ts` gira os
+   * pontos 3D: de lado, o torii e a pérgola ficam de perfil). Os outros
    * desenhos não leem.
    */
   readonly giro: number
