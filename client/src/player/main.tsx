@@ -2786,6 +2786,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onLeave={onQuit}
         />
         <PlayerScreenAwake active={screenAwake} />
+        {/* CUTSCENE EM VÍDEO: quem ainda espera um personagem também está na conta da mesa (baixa e avisa "pronta"); tem de ver o vídeo. */}
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
       </>
     )
   }
