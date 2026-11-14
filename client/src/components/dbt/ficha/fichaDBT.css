@@ -1737,6 +1737,38 @@ label.dbf-sk__n {
   gap: 8px;
 }
 
+/* MUDAR FICHA: a imagem que o token mostra nesta forma (só o mestre escolhe). */
+.dbf-tr__imagem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dbf-tr__imagem-rotulo {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.dbf-tr__imagem-edit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dbf-tr__foto {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  font-size: 11px;
+}
+.dbf-tr__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* inventário */
 .dbf-item {
   display: grid;

@@ -11,6 +11,7 @@ import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
 import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
 import { useMapStore } from '../stores/mapStore'
+import { ItensDaAparenciaDaFicha, type AparenciaAberta } from './ItensDaAparenciaDaFicha'
 import { SubmenuDeCenas } from './SubmenuDeCenas'
 import { SubmenuLigarFicha } from './SubmenuLigarFicha'
 import type { ComSaidaFilho } from './grimorio/ComSaida'
@@ -94,6 +95,10 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  * objetos vão ao topo ou ao fundo da pilha da faixa deles (o chão entre o
  * chão, `mapFactory.reordenarObjetos`), num passo do Ctrl+Z. Na 3/4 o móvel
  * comum vai pela base: o item aparece desligado, com o porquê.
+ *
+ * MUDAR FICHA e AURA (pedido de 14/11/2026): com UM token só na seleção, no
+ * fim do menu, "Mudar ficha ›" e "Aura ›" com as miniaturas ao lado
+ * (`ItensDaAparenciaDaFicha`).
  */
 export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoProps & ComSaidaFilho) {
   const map = useMapStore((state) => state.map)
@@ -112,6 +117,10 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const personagens = useAdventureStore(personagensAtivos)
   const fichaRef = useRef<HTMLButtonElement | null>(null)
   const desligarRef = useRef<HTMLButtonElement | null>(null)
+  // "Mudar ficha ›" ou "Aura ›" aberto (um token só na seleção).
+  const [aparenciaAberta, setAparenciaAberta] = useState<AparenciaAberta | null>(null)
+  const formaRef = useRef<HTMLButtonElement | null>(null)
+  const auraRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -187,11 +196,19 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     setSubmenuAberto(false)
     setCenasAbertas(null)
     setFichasAbertas(null)
+    setAparenciaAberta(null)
+  }
+
+  /** "Mudar ficha ›" e "Aura ›": abrir um fecha os outros submenus; `null` fecha só os dois. */
+  const abrirAparencia = (aberta: AparenciaAberta | null) => {
+    if (aberta !== null) fecharSubmenus()
+    setAparenciaAberta(aberta)
   }
 
   const abrirSubmenu = (focar: boolean) => {
     setCenasAbertas(null)
     setFichasAbertas(null)
+    setAparenciaAberta(null)
     if (motivo !== null) return
     setSubmenuAberto(true)
     if (!focar) return
@@ -212,12 +229,14 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
     if (envio.motivo !== null) return
     setSubmenuAberto(false)
     setFichasAbertas(null)
+    setAparenciaAberta(null)
     setCenasAbertas({ focar })
   }
 
   const abrirFichas = (focar: boolean) => {
     setSubmenuAberto(false)
     setCenasAbertas(null)
+    setAparenciaAberta(null)
     setFichasAbertas({ focar })
   }
 
@@ -273,7 +292,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, cenaRef.current, fichaRef.current, desligarRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -494,6 +513,9 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
           >
             <span>{ligados.length > 1 ? `Desligar ficha dos ${ligados.length}` : 'Desligar ficha'}</span>
           </button>
+          {fichas.length === 1 && (
+            <ItensDaAparenciaDaFicha tokenId={fichas[0]} aberta={aparenciaAberta} onAbrir={abrirAparencia} formaRef={formaRef} auraRef={auraRef} onClose={onClose} />
+          )}
         </>
       )}
     </div>

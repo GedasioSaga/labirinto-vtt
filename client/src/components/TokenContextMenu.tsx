@@ -4,6 +4,7 @@ import { opcoesDoEnvio } from '../lib/enviarParaCena'
 import { useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
 import { useToastStore } from '../stores/toastStore'
+import { ItensDaAparenciaDaFicha, type AparenciaAberta } from './ItensDaAparenciaDaFicha'
 import { NoteForm } from './ScenesSection'
 import { SubmenuDeCenas } from './SubmenuDeCenas'
 import { classes } from './grimorio/comum'
@@ -54,6 +55,9 @@ export function mensagemDoTokenFeedback(name: string, delivery: PlayerNoteDelive
  * "Enviar para cena ›" abre ao lado as outras cenas do mapa (`SubmenuDeCenas`):
  * o token vai ao pino de chegada de lá e a tela do jogador vai junto
  * (`stores/enviarParaCena.ts`), num passo do Ctrl+Z.
+ * "Mudar ficha ›" e "Aura ›" (pedido de 14/11/2026), embaixo: os mesmos do
+ * menu da seleção (`ItensDaAparenciaDaFicha`), porque no token de jogador o
+ * botão direito abre ESTE menu.
  */
 export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongelar, jogadores, onMensagem, onClose, saindo = false }: TokenContextMenuProps & ComSaidaFilho) {
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -64,6 +68,10 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
   // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
   const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
   const cenaRef = useRef<HTMLButtonElement | null>(null)
+  // "Mudar ficha ›" ou "Aura ›" aberto.
+  const [aparenciaAberta, setAparenciaAberta] = useState<AparenciaAberta | null>(null)
+  const formaRef = useRef<HTMLButtonElement | null>(null)
+  const auraRef = useRef<HTMLButtonElement | null>(null)
   const adventure = useAdventureStore((state) => state.adventure)
   const cenaAberta = useAdventureStore((state) => state.activeSceneId)
   const situacao = useAdventureStore((state) => state.cache)
@@ -106,7 +114,14 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
   }
 
   const abrirCenas = (focar: boolean) => {
+    setAparenciaAberta(null)
     if (envio.motivo === null) setCenasAbertas({ focar })
+  }
+
+  /** "Mudar ficha ›" e "Aura ›": abrir um fecha o "Enviar para cena ›". */
+  const abrirAparencia = (aberta: AparenciaAberta | null) => {
+    if (aberta !== null) setCenasAbertas(null)
+    setAparenciaAberta(aberta)
   }
 
   const fecharCenas = () => {
@@ -134,7 +149,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
     // Nenhuma tecla do menu vale como atalho do editor (Esc largaria a seleção, setas moveriam o token).
     event.stopPropagation()
     if (escrevendoPara !== null) return
-    const list = itemRefs.current.filter((el): el is HTMLButtonElement => el !== null)
+    const list = [...itemRefs.current, formaRef.current, auraRef.current].filter((el): el is HTMLButtonElement => el !== null)
     const current = list.findIndex((el) => el === document.activeElement)
     const focusAt = (index: number) => {
       event.preventDefault()
@@ -200,6 +215,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
             onPointerEnter={(event) => {
               event.currentTarget.focus()
               setCenasAbertas(null)
+              setAparenciaAberta(null)
             }}
             onClick={item.onSelect}
           >
@@ -249,6 +265,7 @@ export function TokenContextMenu({ tokenId, tokenName, x, y, congelado, onCongel
               onSair={onClose}
             />
           )}
+          <ItensDaAparenciaDaFicha tokenId={tokenId} aberta={aparenciaAberta} onAbrir={abrirAparencia} formaRef={formaRef} auraRef={auraRef} onClose={onClose} />
         </>
       )}
     </div>

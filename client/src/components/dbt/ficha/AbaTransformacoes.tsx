@@ -2,6 +2,8 @@ import { useId, useState, type FormEvent } from 'react'
 import { TRANSFORMACOES_DE_EXEMPLO } from '../../../lib/dbt/dados/transformacoes'
 import { LIMITES_DBT, type TransformacaoDBT, type TransformacaoDaFichaDBT } from '../../../lib/dbt/modelo'
 import { divergenciaDaRegra, novaTransformacao, regraDoEstagio, transformacaoDoCatalogo } from '../../../lib/dbt/regras/transformacoes'
+import { CampoQueColaImagem } from '../../CampoQueColaImagem'
+import { ImagemOuIniciais } from '../../FichaPecas'
 import { useFichaDBT } from './contexto'
 import { desligarForma, ligarForma } from './edicaoDaFicha'
 import { Stepper, TextoQueAbre } from './pecas'
@@ -16,7 +18,7 @@ const ESTAGIO_MAX = 10
 const EP_MAX = 20
 const KI_MAX = 999
 
-export function AbaTransformacoes() {
+export function AbaTransformacoes({ escolherImagem }: { escolherImagem: EscolherImagem }) {
   const { ficha, raca, editando, mudarFicha } = useFichaDBT()
   const formas = ficha.transformacoes
   const cheia = formas.length >= LIMITES_DBT.transformacoes
@@ -45,7 +47,7 @@ export function AbaTransformacoes() {
       {formas.length > 0 && (
         <div className="dbf-sec">
           {formas.map((forma) => (
-            <CartaoDaForma key={forma.id} forma={forma} />
+            <CartaoDaForma key={forma.id} forma={forma} escolherImagem={escolherImagem} />
           ))}
         </div>
       )}
@@ -93,9 +95,13 @@ export function AbaTransformacoes() {
   )
 }
 
-function CartaoDaForma({ forma }: { forma: TransformacaoDaFichaDBT }) {
-  const { ficha, editando, pkAtual, mudar, mudarFicha } = useFichaDBT()
+/** Pede uma imagem ao mestre (o seletor de arquivo da janela da ficha); `null` = ele desistiu. */
+type EscolherImagem = () => Promise<string | null>
+
+function CartaoDaForma({ forma, escolherImagem }: { forma: TransformacaoDaFichaDBT; escolherImagem: EscolherImagem }) {
+  const { ficha, editando, ehMestre, pkAtual, mudar, mudarFicha } = useFichaDBT()
   const idBase = useId()
+  const [erroDaImagem, setErroDaImagem] = useState<string | null>(null)
   const ativa = ficha.transformacaoAtiva === forma.id
   const outraAtiva = ficha.transformacaoAtiva !== null && !ativa
   const faltaKi = forma.custoKi - pkAtual
@@ -105,10 +111,34 @@ function CartaoDaForma({ forma }: { forma: TransformacaoDaFichaDBT }) {
   const tirar = () =>
     mudarFicha((f) => ({ ...f, transformacoes: f.transformacoes.filter((t) => t.id !== forma.id), transformacaoAtiva: f.transformacaoAtiva === forma.id ? null : f.transformacaoAtiva }))
   const motivo = ativa ? null : faltaKi > 0 ? `Falta ${faltaKi} Ki para ligar` : null
+  // MUDAR FICHA: a imagem que o token mostra nesta forma. Sem imagem o campo sai da ficha (não vira `null`).
+  const tirarImagem = () =>
+    mudarFicha((f) => ({
+      ...f,
+      transformacoes: f.transformacoes.map((t) => {
+        if (t.id !== forma.id) return t
+        const { imagem: _imagem, ...semImagem } = t
+        return semImagem
+      }),
+    }))
+  const pedirImagem = async () => {
+    setErroDaImagem(null)
+    try {
+      const imagem = await escolherImagem()
+      if (imagem !== null) trocar({ imagem })
+    } catch (erro) {
+      setErroDaImagem(erro instanceof Error ? erro.message : String(erro))
+    }
+  }
 
   return (
     <article className={`dbf-tr${ativa ? ' dbf-tr--on' : ''}`} aria-labelledby={`${idBase}-n`}>
       <div className="dbf-tr__head">
+        {!editando && forma.imagem !== undefined && (
+          <span className="dbf-tr__foto" aria-hidden="true">
+            <ImagemOuIniciais imagem={forma.imagem} nome={forma.nome} />
+          </span>
+        )}
         {editando ? (
           <label className="dbf-fld dbf-tr__nome">
             <span className="lb-sr-only">Nome da forma</span>
@@ -166,6 +196,29 @@ function CartaoDaForma({ forma }: { forma: TransformacaoDaFichaDBT }) {
           <TextoQueAbre texto={forma.efeitos} className="dbf-tr__ef" />
           {forma.origem.trim() !== '' && <p className="dbf-tr__or">Origem: {forma.origem}</p>}
         </>
+      )}
+      {editando && ehMestre && (
+        <div className="dbf-tr__imagem">
+          <span className="dbf-tr__imagem-rotulo">Imagem do token nesta forma</span>
+          <CampoQueColaImagem className="dbf-tr__imagem-edit" rotulo={`Imagem de ${forma.nome}: clique e cole com Ctrl+V`} onImagem={(imagem) => trocar({ imagem })} onAviso={setErroDaImagem}>
+            <span className="dbf-tr__foto" aria-hidden="true">
+              <ImagemOuIniciais imagem={forma.imagem} nome={forma.nome} />
+            </span>
+            <button type="button" className="dbf-btn dbf-btn--sm" onClick={() => void pedirImagem()}>
+              {forma.imagem === undefined ? 'Escolher imagem…' : 'Trocar imagem…'}
+            </button>
+            {forma.imagem !== undefined && (
+              <button type="button" className="dbf-btn dbf-btn--sm dbf-btn--ghost" onClick={tirarImagem}>
+                Tirar
+              </button>
+            )}
+          </CampoQueColaImagem>
+          {erroDaImagem !== null && (
+            <p className="dbf-motivo" role="alert">
+              {erroDaImagem}
+            </p>
+          )}
+        </div>
       )}
       {editando && (
         <div className="dbf-tr__acts">

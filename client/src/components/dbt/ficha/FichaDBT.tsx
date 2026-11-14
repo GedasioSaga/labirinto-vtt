@@ -118,7 +118,7 @@ export function FichaDBT({ personagem, editando, onChange, escolherImagem, titul
               <AbasDaFicha aba={aba} onAba={setAba} idBase={painelId} />
               <div className="dbf-panel" id={`${painelId}-painel`} role="tabpanel" aria-labelledby={`${painelId}-aba-${aba}`} tabIndex={0}>
                 {aba === 'tecnicas' && <AbaTecnicas />}
-                {aba === 'transformacoes' && <AbaTransformacoes />}
+                {aba === 'transformacoes' && <AbaTransformacoes escolherImagem={escolherImagem} />}
                 {aba === 'talentos' && <AbaTalentos />}
                 {aba === 'inventario' && <AbaInventario mochila={editando ? undefined : inventario} />}
                 {aba === 'raca' && <AbaRaca />}
