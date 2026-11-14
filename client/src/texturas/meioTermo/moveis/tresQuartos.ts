@@ -58,6 +58,7 @@ import { ESPESSURA_DO_TAMBOR_DO_HOLOFOTE } from './holofote'
 import { ESPESSURA_DA_REDE_DE_CAMUFLAGEM } from './redeDeCamuflagem'
 import { ESPESSURA_DA_BANDEIRA } from './mastroComBandeira'
 import { ESPESSURA_DA_COPA_DA_LARANJEIRA } from './laranjeiraEmCanteiro'
+import { ESPESSURA_DO_TELHADO_DA_LANTERNA } from './lanternaDePedra'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -589,6 +590,29 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   bandeiraPirata: { modo: 'em-pe', forcaDaSombraDeBaixo: 0.16 },
   mesaDeNavegacao: DERIVADO,
   laranjeiraEmCanteiro: { modo: 'derivado', espessura: ESPESSURA_DA_COPA_DA_LARANJEIRA },
+  // Lote L08 de 14/11/2026, o resto do mar e dos piratas. O prato de carne é mesa posta, como os pratos: o desenho
+  // inteiro sobe a altura do tampo, a sombra junto. A prancha é derivada (as tábuas são a coluna baixa; o pino da
+  // dobradiça, outra um pouco mais alta). O esqueleto de peixe é derivado com os ossos deitados quase rentes, como os
+  // ossos. O navio na garrafa e a concha mágica ficam como de cima: volume redondo que encosta no chão (derivado, a
+  // garrafa virava um bloco). Na lanterna de pedra, a base e o poste são colunas e o telhado é a tampa solta, com a
+  // beirada da espessura que o desenho exporta.
+  pratoDeCarne: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },
+  pranchaDoNavio: DERIVADO,
+  esqueletoDePeixe: { modo: 'derivado', alturaSolta: 0.04 * G },
+  navioNaGarrafa: EM_PE,
+  conchaMagica: EM_PE,
+  lanternaDePedra: { modo: 'derivado', espessura: ESPESSURA_DO_TELHADO_DA_LANTERNA },
+  // Lote L09 de 14/11/2026, a taverna e a festa. O alvo de dardos é desenho de frente nas duas vistas, como a
+  // tapeçaria de parede (a parede é a beira de cima). Os outros cinco são derivados sem beirada copiada: o tampo do
+  // balcão e os assentos das banquetas são soltos com a espessura pintada; a mesa sobe com o que está em cima; nos
+  // varais, a corda e o que pende dela são estruturas soltas na altura dos mastros; no mastro de fitas, cada fita é
+  // cortada em pedaços que descem do topo até a estaca.
+  balcaoDeTaverna: { modo: 'derivado', espessura: 0 },
+  alvoDeDardos: EM_PE,
+  mesaDeQuedaDeBraco: { modo: 'derivado', espessura: 0 },
+  varalDeBandeirinhas: { modo: 'derivado', espessura: 0 },
+  varalDeLanternas: { modo: 'derivado', espessura: 0 },
+  mastroDeFitas: { modo: 'derivado', espessura: 0 },
   // A ponte levadiça (lote L02, item 81 da lista do dia) fica como de cima, como a ponte: anda-se em cima, e as
   // correntes sobem da argola da ponta até o eixo, cada elo com a sua sombra solta.
   ponteLevadica: EM_PE,

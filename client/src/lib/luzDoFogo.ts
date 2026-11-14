@@ -87,6 +87,10 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // redonda do meio, como a de toda peça (a tabela não tem facho). Sempre aceso: o painel ainda não oferece Aceso |
   // Apagado para ele (o Apagado do fogo de casa traz a chama animada junto); o desenho já tem o apagado (variante 1).
   holofote: { alcanceEmCasas: 5, cor: 0xfff6e6, forca: 0.9, fumacaEBrasas: false },
+  // O varal de lanternas de papel (14/11/2026): uma fila de lanternas acesas entre dois mastros, luz quente e fraca de
+  // papel, sem fumaça. A fila tem 4 casas no tamanho de partida; a luz nasce do meio dela, e o alcance cobre as pontas.
+  // O brilho do papel é pintado, sem chama animada.
+  varalDeLanternas: { alcanceEmCasas: 3, cor: 0xffdcb0, forca: 0.7, fumacaEBrasas: false },
 }
 
 /**

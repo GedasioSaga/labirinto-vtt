@@ -56,6 +56,8 @@ export const PECAS_NOVAS = [
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
   'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
+  'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
   'ponteLevadica',
 ] as const satisfies readonly TipoMobilia[]
 
@@ -463,6 +465,24 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   bandeiraPirata: { rotulo: 'Bandeira pirata', artigo: 'uma bandeira pirata', tamanho: { largura: 0.9, altura: 0.9 }, redonda: false },
   mesaDeNavegacao: { rotulo: 'Mesa de navegação', artigo: 'uma mesa de navegação', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   laranjeiraEmCanteiro: { rotulo: 'Laranjeira em canteiro', artigo: 'uma laranjeira em canteiro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lote L08 de 14/11/2026, o resto do mar e dos piratas. O prato de carne é mesa posta, como os pratos; a prancha
+  // mora no chão e estica em linha, como o píer; o prato e a lanterna de pedra têm a silhueta de cima mais elipse que
+  // retângulo (a travessa oval e o telhado sextavado).
+  pratoDeCarne: { rotulo: 'Prato de carne no osso', artigo: 'um prato de carne no osso', tamanho: { largura: 0.8, altura: 0.6 }, redonda: true },
+  pranchaDoNavio: { rotulo: 'Prancha do navio', artigo: 'uma prancha do navio', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  esqueletoDePeixe: { rotulo: 'Esqueleto de peixe gigante', artigo: 'um esqueleto de peixe gigante', tamanho: { largura: 3, altura: 1.25 }, redonda: false },
+  navioNaGarrafa: { rotulo: 'Navio na garrafa', artigo: 'um navio na garrafa', tamanho: { largura: 1, altura: 0.45 }, redonda: false },
+  conchaMagica: { rotulo: 'Concha mágica', artigo: 'uma concha mágica', tamanho: { largura: 0.5, altura: 0.4 }, redonda: false },
+  lanternaDePedra: { rotulo: 'Lanterna de pedra japonesa', artigo: 'uma lanterna de pedra japonesa', tamanho: { largura: 0.9, altura: 0.9 }, redonda: true },
+  // Lote L09 de 14/11/2026, a taverna e a festa. O balcão e a mesa de queda de braço trazem as banquetas na pegada; o
+  // alvo é o armário de parede (a parede é a beira de cima); os dois varais esticam em linha e ganham bandeirinhas e
+  // lanternas, nunca maiores; o mastro de fitas faz a roda pelo lado menor.
+  balcaoDeTaverna: { rotulo: 'Balcão de taverna', artigo: 'um balcão de taverna', tamanho: { largura: 3, altura: 1.6 }, redonda: false },
+  alvoDeDardos: { rotulo: 'Alvo de dardos', artigo: 'um alvo de dardos', tamanho: { largura: 1.3, altura: 0.9 }, redonda: false },
+  mesaDeQuedaDeBraco: { rotulo: 'Mesa de queda de braço', artigo: 'uma mesa de queda de braço', tamanho: { largura: 2.2, altura: 1.1 }, redonda: false },
+  varalDeBandeirinhas: { rotulo: 'Varal de bandeirinhas', artigo: 'um varal de bandeirinhas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
+  varalDeLanternas: { rotulo: 'Varal de lanternas', artigo: 'um varal de lanternas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
+  mastroDeFitas: { rotulo: 'Mastro de fitas', artigo: 'um mastro de fitas', tamanho: { largura: 2.2, altura: 2.2 }, redonda: true },
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão e anda-se em cima, como a ponte; a tora do
   // eixo fica na ponta da esquerda, o lado da muralha, e em pé a régua gira como na ponte.
   ponteLevadica: { rotulo: 'Ponte levadiça', artigo: 'uma ponte levadiça', tamanho: { largura: 3, altura: 2 }, redonda: false },
@@ -678,6 +698,18 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     bandeiraPirata: valor(f.bandeiraPirata),
     mesaDeNavegacao: valor(f.mesaDeNavegacao),
     laranjeiraEmCanteiro: valor(f.laranjeiraEmCanteiro),
+    pratoDeCarne: valor(f.pratoDeCarne),
+    pranchaDoNavio: valor(f.pranchaDoNavio),
+    esqueletoDePeixe: valor(f.esqueletoDePeixe),
+    navioNaGarrafa: valor(f.navioNaGarrafa),
+    conchaMagica: valor(f.conchaMagica),
+    lanternaDePedra: valor(f.lanternaDePedra),
+    balcaoDeTaverna: valor(f.balcaoDeTaverna),
+    alvoDeDardos: valor(f.alvoDeDardos),
+    mesaDeQuedaDeBraco: valor(f.mesaDeQuedaDeBraco),
+    varalDeBandeirinhas: valor(f.varalDeBandeirinhas),
+    varalDeLanternas: valor(f.varalDeLanternas),
+    mastroDeFitas: valor(f.mastroDeFitas),
     ponteLevadica: valor(f.ponteLevadica),
   }
 }
@@ -739,6 +771,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
   'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
+  'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
   'ponteLevadica',
 ]
 
@@ -3209,6 +3243,134 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(largura * 0.1, altura * 0.1, hw * 0.25, hh * 0.2),
         ...aro(largura * 0.1, altura * 0.1, hw * 0.2, -hh * 0.35),
       ]
+    // Lote L08 de 14/11/2026 (o resto do mar e dos piratas): os traços do desenhista.
+    case 'pratoDeCarne':
+      // De cima: a travessa oval, a carne grande da frente e a pequena de trás, e o osso atravessado com o nó na ponta (os pratos têm o prato redondo e a caneca).
+      return [
+        ...aro(largura * 0.94, altura * 0.9),
+        ...aro(largura * 0.46, altura * 0.44, -hw * 0.09, hh * 0.14),
+        ...aro(largura * 0.3, altura * 0.3, hw * 0.38, -hh * 0.31),
+        { x1: -hw * 0.73, y1: hh * 0.42, x2: hw * 0.55, y2: -hh * 0.14 },
+        ...aro(altura * 0.14, altura * 0.14, -hw * 0.76, hh * 0.44),
+      ]
+    case 'pranchaDoNavio':
+      // De cima: as duas tábuas compridas com a fresta no meio, as travessas de través, o pino da dobradiça numa ponta e a cinta de ferro na outra (o píer tem as estacas; a escada de cerco, o vão entre os banzos).
+      return [
+        ...quadro(-hw + altura * 0.2, -hh * 0.86, hw - altura * 0.04, hh * 0.86),
+        linha(-hw + altura * 0.2, 0, hw - altura * 0.04),
+        { x1: -hw + altura * 0.1, y1: -hh * 0.9, x2: -hw + altura * 0.1, y2: hh * 0.9 },
+        ...[0, 1, 2, 3].map((i) => ({ x1: -hw + altura * 1.12 + ((largura - altura * 1.67) * i) / 3, y1: -hh * 0.76, x2: -hw + altura * 1.12 + ((largura - altura * 1.67) * i) / 3, y2: hh * 0.76 })),
+        { x1: hw - altura * 0.165, y1: -hh * 0.82, x2: hw - altura * 0.165, y2: hh * 0.82 },
+      ]
+    case 'esqueletoDePeixe':
+      // De cima, de lado: a coluna comprida, as costelas da barriga e os espinhos de cima inclinados para o rabo, o crânio grande à direita com a órbita e o rabo em V à esquerda (os ossos têm o crânio redondo e o osso solto).
+      return [
+        linha(-hw * 0.7, 0, hw * 0.47),
+        ...[0, 1, 2, 3].map((i) => ({ x1: hw * (0.4 - i * 0.18), y1: 0, x2: hw * (0.3 - i * 0.18), y2: hh * (0.8 - i * 0.1) })),
+        ...[0, 1, 2, 3].map((i) => ({ x1: hw * (0.4 - i * 0.26), y1: 0, x2: hw * (0.33 - i * 0.26), y2: -hh * (0.5 - i * 0.06) })),
+        ...fechado([[hw * 0.47, -hh * 0.43], [hw * 0.67, -hh * 0.6], [hw * 0.95, -hh * 0.19], [hw * 0.97, hh * 0.2], [hw * 0.55, hh * 0.55]]),
+        ...aro(altura * 0.16, altura * 0.16, hw * 0.71, -hh * 0.26),
+        { x1: -hw * 0.7, y1: 0, x2: -hw, y2: -hh * 0.9 },
+        { x1: -hw * 0.7, y1: 0, x2: -hw, y2: hh * 0.9 },
+      ]
+    case 'navioNaGarrafa':
+      // De cima: a tábua, a garrafa deitada (o corpo, o ombro e o gargalo com a rolha) e, dentro dela, o casco em ponta com os três mastros atravessados (a bola de cristal é redonda, no pé).
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.96, hw * 0.98, hh * 0.96),
+        ...fechado([[-hw * 0.86, -hh * 0.67], [hw * 0.39, -hh * 0.67], [hw * 0.62, -hh * 0.28], [hw * 0.97, -hh * 0.28], [hw * 0.97, hh * 0.28], [hw * 0.62, hh * 0.28], [hw * 0.39, hh * 0.67], [-hw * 0.86, hh * 0.67]]),
+        ...fechado([[-hw * 0.64, -hh * 0.3], [hw * 0.2, -hh * 0.3], [hw * 0.36, 0], [hw * 0.2, hh * 0.3], [-hw * 0.64, hh * 0.3]]),
+        ...[-0.39, -0.13, 0.12].map((x) => ({ x1: hw * x, y1: -hh * 0.5, x2: hw * x, y2: hh * 0.5 })),
+      ]
+    case 'conchaMagica':
+      // De cima: o corpo da concha, o cone da espiral à esquerda com uma volta marcada, a boca comprida aberta embaixo e o canal à direita (o caracol tem o corpo do bicho e as hastes).
+      return [
+        ...aro(largura * 0.7, altura * 0.68, hw * 0.07, -hh * 0.05),
+        { x1: -hw * 0.36, y1: -hh * 0.6, x2: -hw * 0.96, y2: -hh * 0.25 },
+        { x1: -hw * 0.36, y1: hh * 0.32, x2: -hw * 0.96, y2: -hh * 0.18 },
+        { x1: -hw * 0.62, y1: -hh * 0.48, x2: -hw * 0.62, y2: hh * 0.1 },
+        ...fechado([[-hw * 0.3, hh * 0.04], [hw * 0.43, -hh * 0.11], [hw * 0.83, hh * 0.23], [hw * 0.5, hh * 0.32], [-hw * 0.26, hh * 0.23]]),
+        { x1: hw * 0.64, y1: hh * 0.14, x2: hw * 0.94, y2: hh * 0.32 },
+      ]
+    case 'lanternaDePedra': {
+      // De cima: o telhado de seis águas (o sextavado com as seis arestas até a joia) e a joia redonda no alto (o pilar é quadrado; o poço, redondo e cheio).
+      const quina = (i: number, k: number): readonly [number, number] => [hw * k * Math.cos((i * Math.PI) / 3), hh * k * Math.sin((i * Math.PI) / 3)]
+      const quinas = [0, 1, 2, 3, 4, 5]
+      return [
+        ...fechado(quinas.map((i) => quina(i, 0.97))),
+        ...quinas.map((i) => {
+          const [x1, y1] = quina(i, 0.97)
+          const [x2, y2] = quina(i, 0.12)
+          return { x1, y1, x2, y2 }
+        }),
+        ...aro(largura * 0.22, altura * 0.22),
+      ]
+    }
+    // Lote L09 de 14/11/2026 (a taverna e a festa): os traços do desenhista.
+    case 'balcaoDeTaverna': {
+      // O balcão no fundo com o barril deitado da chopeira na ponta, a barra de pé na frente e três banquetas redondas.
+      const frente = -hh + altura * 0.575
+      const banqueta = altura * 0.22
+      return [
+        ...quadro(-hw, -hh, hw, frente),
+        ...quadro(-hw * 0.94, -hh + altura * 0.14, -hw * 0.52, frente - altura * 0.14),
+        linha(-hw * 0.96, frente + altura * 0.05, hw * 0.96),
+        ...[-hw * 0.66, 0, hw * 0.66].flatMap((x) => aro(banqueta, banqueta, x, hh * 0.6)),
+      ]
+    }
+    case 'alvoDeDardos': {
+      // Em pé, de frente: o armário, as duas portas abertas dos lados e o alvo redondo com o anel triplo e a mosca.
+      const k = Math.min(largura / 72.8, altura / 50.4)
+      const meio = -1.6 * k
+      return [
+        ...quadro(-19 * k, -24.2 * k, 19 * k, 23.2 * k),
+        ...quadro(-35.6 * k, -23.2 * k, -19 * k, 22.2 * k),
+        ...quadro(19 * k, -23.2 * k, 35.6 * k, 22.2 * k),
+        ...aro(31.2 * k, 31.2 * k, 0, meio),
+        ...aro(15.8 * k, 15.8 * k, 0, meio),
+        ...aro(2.6 * k, 2.6 * k, 0, meio),
+      ]
+    }
+    case 'mesaDeQuedaDeBraco': {
+      // A mesa no meio com o risco escavado e as duas almofadas de cotovelo, os dois pinos de pegada e uma banqueta de cada lado.
+      const banqueta = altura * 0.29
+      return [
+        ...quadro(-hw * 0.5, -hh * 0.86, hw * 0.5, hh * 0.86),
+        { x1: 0, y1: -hh * 0.38, x2: 0, y2: hh * 0.38 },
+        ...quadro(-hw * 0.32, -hh * 0.17, -hw * 0.12, hh * 0.17),
+        ...quadro(hw * 0.12, -hh * 0.17, hw * 0.32, hh * 0.17),
+        ...aro(altura * 0.08, altura * 0.08, -hw * 0.36, -hh * 0.55),
+        ...aro(altura * 0.08, altura * 0.08, hw * 0.36, hh * 0.55),
+        ...aro(banqueta, banqueta, -hw * 0.72, 0),
+        ...aro(banqueta, banqueta, hw * 0.72, 0),
+      ]
+    }
+    case 'varalDeBandeirinhas': {
+      // Os dois mastros nas pontas, a corda entre eles e seis bandeirinhas penduradas, com o recorte em V embaixo.
+      const corda = -hh * 0.6
+      const passo = (largura * 0.86) / 6
+      const bandeira = (i: number): Traco[] => {
+        const x0 = -hw * 0.86 + (i + 0.12) * passo
+        const x1 = x0 + passo * 0.76
+        return fechado([[x0, corda], [x1, corda], [x1, hh * 0.3], [(x0 + x1) / 2, 0], [x0, hh * 0.3]])
+      }
+      return [...aro(altura * 0.16, altura * 0.16, -hw * 0.95, corda), ...aro(altura * 0.16, altura * 0.16, hw * 0.95, corda), linha(-hw * 0.95, corda, hw * 0.95), ...[0, 1, 2, 3, 4, 5].flatMap(bandeira)]
+    }
+    case 'varalDeLanternas': {
+      // Os dois mastros nas pontas, a corda entre eles e sete lanternas redondas penduradas logo abaixo dela.
+      const corda = -hh * 0.6
+      const lanterna = Math.min(altura * 0.7, largura * 0.09)
+      const meios = [-3, -2, -1, 0, 1, 2, 3].map((i) => i * largura * 0.12)
+      return [...aro(altura * 0.16, altura * 0.16, -hw * 0.95, corda), ...aro(altura * 0.16, altura * 0.16, hw * 0.95, corda), linha(-hw * 0.95, corda, hw * 0.95), ...meios.flatMap((x) => aro(lanterna, lanterna, x, corda + lanterna / 2))]
+    }
+    case 'mastroDeFitas': {
+      // A coroa no meio e as doze fitas em raio até as estacas em roda, de cima.
+      const r = Math.min(hw, hh)
+      const fita = (i: number): Traco => {
+        const a = (i + 0.5) * (Math.PI / 6)
+        return { x1: Math.cos(a) * r * 0.17, y1: Math.sin(a) * r * 0.17, x2: Math.cos(a) * r * 0.8, y2: Math.sin(a) * r * 0.8 }
+      }
+      return [...aro(r * 0.34, r * 0.34), ...aro(r * 0.14, r * 0.14), ...Array.from({ length: 12 }, (_, i) => fita(i))]
+    }
     // A ponte levadiça (lote L02, item 81 da lista do dia): os traços do desenhista.
     case 'ponteLevadica': {
       // O tabuleiro com a tora do eixo atravessada na ponta da muralha e as duas correntes em zigue-zague pelas beiras

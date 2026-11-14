@@ -222,6 +222,18 @@ import { montarFrutaDeEspirais } from './frutaDeEspirais'
 import { montarBandeiraPirata } from './bandeiraPirata'
 import { montarMesaDeNavegacao } from './mesaDeNavegacao'
 import { montarLaranjeiraEmCanteiro } from './laranjeiraEmCanteiro'
+import { montarPratoDeCarne } from './pratoDeCarne'
+import { montarPranchaDoNavio } from './pranchaDoNavio'
+import { montarEsqueletoDePeixe } from './esqueletoDePeixe'
+import { montarNavioNaGarrafa } from './navioNaGarrafa'
+import { montarConchaMagica } from './conchaMagica'
+import { montarLanternaDePedra } from './lanternaDePedra'
+import { montarBalcaoDeTaverna } from './balcaoDeTaverna'
+import { montarAlvoDeDardos } from './alvoDeDardos'
+import { montarMesaDeQuedaDeBraco } from './mesaDeQuedaDeBraco'
+import { montarVaralDeBandeirinhas } from './varalDeBandeirinhas'
+import { montarVaralDeLanternas } from './varalDeLanternas'
+import { montarMastroDeFitas } from './mastroDeFitas'
 import { montarPonteLevadica } from './ponteLevadica'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
@@ -507,6 +519,18 @@ const MONTADORES = {
   bandeiraPirata: montarBandeiraPirata,
   mesaDeNavegacao: montarMesaDeNavegacao,
   laranjeiraEmCanteiro: montarLaranjeiraEmCanteiro,
+  pratoDeCarne: montarPratoDeCarne,
+  pranchaDoNavio: montarPranchaDoNavio,
+  esqueletoDePeixe: montarEsqueletoDePeixe,
+  navioNaGarrafa: montarNavioNaGarrafa,
+  conchaMagica: montarConchaMagica,
+  lanternaDePedra: montarLanternaDePedra,
+  balcaoDeTaverna: montarBalcaoDeTaverna,
+  alvoDeDardos: montarAlvoDeDardos,
+  mesaDeQuedaDeBraco: montarMesaDeQuedaDeBraco,
+  varalDeBandeirinhas: montarVaralDeBandeirinhas,
+  varalDeLanternas: montarVaralDeLanternas,
+  mastroDeFitas: montarMastroDeFitas,
   ponteLevadica: montarPonteLevadica,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
@@ -569,6 +593,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
   'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
+  'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
   'ponteLevadica',
 ]
 

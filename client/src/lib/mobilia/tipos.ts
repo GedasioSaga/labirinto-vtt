@@ -116,6 +116,12 @@ export const TIPOS_MOBILIA = [
   // canteiro.
   'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  // Lote L08 dos objetos de 14/11/2026, o resto do mar e dos piratas: o prato de carne no osso, a prancha do navio, o
+  // esqueleto de peixe gigante, o navio na garrafa, a concha mágica e a lanterna de pedra japonesa.
+  'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
+  // Lote L09 dos objetos de 14/11/2026, a taverna e a festa: o balcão de taverna, o alvo de dardos, a mesa de queda de
+  // braço, o varal de bandeirinhas, o varal de lanternas de papel (que ilumina) e o mastro de fitas.
+  'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão, como a ponte, e fica no castelo.
   'ponteLevadica',
 ] as const

@@ -553,6 +553,25 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   bandeiraPirata: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   mesaDeNavegacao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
   laranjeiraEmCanteiro: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  // Lote L08 de 14/11/2026, o resto do mar e dos piratas. O prato de carne, o esqueleto de peixe e a concha mágica não
+  // trocam nada (a comida, os ossos e a casca são as cores que dizem o que são). A prancha troca a madeira das tábuas e
+  // das travessas (o ferro é fixo); o navio na garrafa, a da tábua e dos berços (o vidro, o mar, o navio e o latão são
+  // fixos); a lanterna, a pedra.
+  pratoDeCarne: [],
+  pranchaDoNavio: [lugar('madeira', 'Tábuas', MADEIRAS, 'carvalho')],
+  esqueletoDePeixe: [],
+  navioNaGarrafa: [lugar('madeira', 'Base', MADEIRAS, 'nogueira')],
+  conchaMagica: [],
+  lanternaDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  // Lote L09 de 14/11/2026, a taverna e a festa. Todos trocam a madeira (o balcão e as banquetas, o armário do alvo, a
+  // mesa e as banquetas, os mastros dos varais, o mastro de fitas); o balcão troca também o metal da barra de pé. O
+  // barril da chopeira, as canecas, o alvo, o couro, as bandeirinhas, o papel aceso e as fitas são fixos.
+  balcaoDeTaverna: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('barra', 'Barra de pé', METAIS, 'latao')],
+  alvoDeDardos: [lugar('madeira', 'Armário', MADEIRAS, 'nogueira')],
+  mesaDeQuedaDeBraco: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  varalDeBandeirinhas: [lugar('madeira', 'Mastros', MADEIRAS, 'pinho')],
+  varalDeLanternas: [lugar('madeira', 'Mastros', MADEIRAS, 'nogueira')],
+  mastroDeFitas: [lugar('madeira', 'Mastro', MADEIRAS, 'pinho')],
   // A ponte levadiça (lote L02, item 81 da lista do dia): as ferragens valem para as cintas, os rebites, as chapas, as
   // dobradiças, as pontas do eixo e as correntes.
   ponteLevadica: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],

@@ -39,6 +39,7 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'cercoEDefesa', titulo: 'Cerco e defesa' },
   { id: 'baseMilitar', titulo: 'Base militar' },
   { id: 'marEPiratas', titulo: 'Mar e piratas' },
+  { id: 'tavernaEFesta', titulo: 'Taverna e festa' },
   // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
   // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
   // Objeto cai neles, nenhuma construção cai nos de cima.
@@ -288,8 +289,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   paletesDeMadeira: 'baseMilitar',
   gerador: 'baseMilitar',
   mastroComBandeira: 'baseMilitar',
-  // Mar e piratas (14/11/2026): o lote L07, do caracol-telefone à laranjeira em canteiro. A âncora, o canhão e o timão
-  // continuam no porto e navio.
+  // Mar e piratas (14/11/2026): o lote L07, do caracol-telefone à laranjeira em canteiro, e o L08, do prato de carne no
+  // osso à lanterna de pedra japonesa. A âncora, o canhão e o timão continuam no porto e navio.
   caracolTelefone: 'marEPiratas',
   caracolTelefoneCamera: 'marEPiratas',
   caracolTelefoneDourado: 'marEPiratas',
@@ -298,6 +299,20 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   bandeiraPirata: 'marEPiratas',
   mesaDeNavegacao: 'marEPiratas',
   laranjeiraEmCanteiro: 'marEPiratas',
+  pratoDeCarne: 'marEPiratas',
+  pranchaDoNavio: 'marEPiratas',
+  esqueletoDePeixe: 'marEPiratas',
+  navioNaGarrafa: 'marEPiratas',
+  conchaMagica: 'marEPiratas',
+  lanternaDePedra: 'marEPiratas',
+  // Taverna e festa (14/11/2026): o lote L09, do balcão de taverna ao mastro de fitas. O balcão comum, a mesa de jogo e
+  // o varal de roupa, os parentes, ficam onde estavam.
+  balcaoDeTaverna: 'tavernaEFesta',
+  alvoDeDardos: 'tavernaEFesta',
+  mesaDeQuedaDeBraco: 'tavernaEFesta',
+  varalDeBandeirinhas: 'tavernaEFesta',
+  varalDeLanternas: 'tavernaEFesta',
+  mastroDeFitas: 'tavernaEFesta',
   // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }
@@ -371,7 +386,8 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   candelabroDeChao: ['castiçal', 'velas', 'luz'],
   // Cozinha e banheiro
   armario: ['guarda-louça', 'louceiro'],
-  balcao: ['balcão de bar', 'balcão de taverna'],
+  // "balcão de taverna" saiu em 14/11/2026: é o nome do balcão de taverna (lote L09), que a busca acha pelo nome.
+  balcao: ['balcão de bar'],
   fogao: ['fogão a lenha', 'fogão de ferro'],
   geladeira: ['refrigerador', 'freezer'],
   pia: ['torneira'],

@@ -334,6 +334,18 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       bandeiraPirata: ['madeira:carvalho'],
       mesaDeNavegacao: ['madeira:nogueira'],
       laranjeiraEmCanteiro: ['madeira:pinho'],
+      pratoDeCarne: [],
+      pranchaDoNavio: ['madeira:carvalho'],
+      esqueletoDePeixe: [],
+      navioNaGarrafa: ['madeira:nogueira'],
+      conchaMagica: [],
+      lanternaDePedra: ['pedra:granito'],
+      balcaoDeTaverna: ['madeira:nogueira', 'barra:latao'],
+      alvoDeDardos: ['madeira:nogueira'],
+      mesaDeQuedaDeBraco: ['madeira:carvalho'],
+      varalDeBandeirinhas: ['madeira:pinho'],
+      varalDeLanternas: ['madeira:nogueira'],
+      mastroDeFitas: ['madeira:pinho'],
       ponteLevadica: ['madeira:carvalho', 'ferragens:ferro'],
     })
   })

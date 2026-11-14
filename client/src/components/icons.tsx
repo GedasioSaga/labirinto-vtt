@@ -2711,6 +2711,144 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <circle cx="13" cy="14.6" r="1.2" />
         </>
       )
+    // Lote L08 de 14/11/2026 (o resto do mar e dos piratas): os ícones do desenhista.
+    case 'pratoDeCarne':
+      // De lado: a travessa rasa embaixo e, em cima, a carne gorda com o osso saindo pelas duas pontas, cada ponta com os dois nós (os pratos têm o prato visto de cima e o garfo).
+      return (
+        <>
+          <path d="M2.5 18.5h19l-2 2.5h-15z" />
+          <ellipse cx="12" cy="12" rx="6.2" ry="4.4" transform="rotate(-20 12 12)" />
+          <path d="M3.6 15 6.2 14.1M17.8 9.9 20.4 9M9.6 10.4c1.2-1 2.8-1.4 4.2-1.2" />
+          <circle cx="3.9" cy="16" r="1.1" />
+          <circle cx="3.3" cy="14" r="1.1" />
+          <circle cx="20.7" cy="10" r="1.1" />
+          <circle cx="20.1" cy="8" r="1.1" />
+        </>
+      )
+    case 'pranchaDoNavio':
+      // De lado: o costado do navio à esquerda, com a amurada, e a prancha saindo dela por cima do mar, com as travessas em cima e as ondas embaixo (o píer tem as estacas na água).
+      return (
+        <>
+          <path d="M2 5h5.5v5.5c0 4-1.8 7.2-4.5 9.5H2" />
+          <path d="M7.5 8.2h14.5v2.4H7.5z" />
+          <path d="M11 8.2V7h1.6v1.2M15 8.2V7h1.6v1.2M19 8.2V7h1.6v1.2" />
+          <path d="M10 18.5c1.3-1.1 2.7-1.1 4 0s2.7 1.1 4 0 2.7-1.1 4 0" />
+        </>
+      )
+    case 'esqueletoDePeixe':
+      // De lado: a espinha de peixe clássica, com a coluna, as costelas em cima e embaixo inclinadas para o rabo, o rabo em V à esquerda e a cabeça em D à direita com o olho (os ossos têm o crânio de gente e o osso).
+      return (
+        <>
+          <path d="M5.5 12h10" />
+          <path d="M8 12 6.6 8M10.6 12 9.2 7.6M13.2 12l-1.4-4.6M8 12l-1.4 4M10.6 12l-1.4 4.4M13.2 12l-1.4 4.6" />
+          <path d="M5.5 12 2 8.5M5.5 12 2 15.5" />
+          <path d="M15.5 7.5c3.5 0 6.5 2.2 6.5 4.5s-3 4.5-6.5 4.5z" />
+          <circle cx="18.4" cy="10.8" r="1" />
+          <path d="M19 14.2h2.4" />
+        </>
+      )
+    case 'navioNaGarrafa':
+      // De lado: a garrafa deitada (o corpo, o ombro, o gargalo e a rolha) com o barquinho de duas velas dentro, e os dois berços embaixo (a bola de cristal é a esfera no pé).
+      return (
+        <>
+          <path d="M4 7.5h10.5l3 2.7h2v3.6h-2l-3 2.7H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z" />
+          <path d="M19.5 10.6h2v2.8h-2" />
+          <path d="M4.5 13.4h8.5l-1.3 1.6H5.8z" />
+          <path d="M7.2 13.4V9.2M10.6 13.4V9.2M7.6 9.6l2 1.8-2 1.4M11 9.6l2 1.8-2 1.4" />
+          <path d="M5 16.5v2.5M13 16.5v2.5M3 19h12" />
+        </>
+      )
+    case 'conchaMagica':
+      // De lado: o búzio com a ponta da espiral à esquerda, as voltas marcadas, os nós do ombro, a boca aberta embaixo e a faísca de quatro pontas em cima (a luz guardada).
+      return (
+        <>
+          <path d="M3 12.5 9 9.2c3-1.6 7.6-1.7 10.6.4 2.4 1.7 2.2 5-.6 6.2l-4.2 1.8c-2.6 1.1-5.6.6-7.6-.8z" />
+          <path d="M9 9.2l.8 3.6M6 10.9l.6 2.6" />
+          <path d="M11.5 14.2c2-1.6 5-1.8 7.2-.6" />
+          <path d="M12.4 8.4l.5-1.9M15.6 8.2l.8-1.8" />
+          <path d="M19 2.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" />
+        </>
+      )
+    case 'lanternaDePedra':
+      // De lado: a joia em gota no alto, o telhado largo com as pontas viradas para cima, a casa do fogo com a janela, a mesa, o poste e a base (o lampião é a lanterna de pendurar, com a argola).
+      return (
+        <>
+          <path d="M12 2.4a1.4 1.4 0 0 1 1.2 2.2h-2.4A1.4 1.4 0 0 1 12 2.4z" />
+          <path d="M3.5 8.6 9 5.4h6l5.5 3.2zM3.5 8.6l-.9-1.1M20.5 8.6l.9-1.1" />
+          <rect x="8" y="8.6" width="8" height="4.4" />
+          <rect x="10.3" y="9.8" width="3.4" height="2.2" />
+          <path d="M6.5 13h11l-1 1.6h-9zM10.6 14.6V19M13.4 14.6V19" />
+          <path d="M7 21.5h10L15.6 19H8.4z" />
+        </>
+      )
+    // Lote L09 de 14/11/2026 (a taverna e a festa): os ícones do desenhista.
+    case 'balcaoDeTaverna':
+      // De frente: o tampo e o corpo, o barril deitado da chopeira em cima com os aros e a torneira, a caneca com a asa e a barra de pé.
+      return (
+        <>
+          <path d="M2 11h20M3.5 11v9.5h17V11" />
+          <rect x="3.5" y="4.5" width="7" height="5" rx="2" />
+          <path d="M6 4.5v5M8 4.5v5" />
+          <path d="M10.5 7.5h2v1.8" />
+          <path d="M15 6.5h3.5V10H15zM18.5 7.3h1.3v2h-1.3" />
+          <path d="M3.5 17.5h17" />
+        </>
+      )
+    case 'alvoDeDardos':
+      // De frente: o armário aberto com o alvo redondo e a mosca, um dardo cravado, o placar em riscos na porta da esquerda e a contagem na da direita.
+      return (
+        <>
+          <rect x="7.5" y="4.5" width="9" height="15" />
+          <path d="M7.5 5.5h-5v13h5M16.5 5.5h5v13h-5" />
+          <circle cx="12" cy="11.5" r="3.6" />
+          <circle cx="12" cy="11.5" r="1.3" />
+          <path d="M13 10.5 15.8 7.7M15.8 6.6v1.1h1.1" />
+          <path d="M4 8.5h2M4 11h2M4 13.5h2" />
+          <path d="M18.3 8.5v3M19.5 8.5v3M20.7 8.5v3" />
+        </>
+      )
+    case 'mesaDeQuedaDeBraco':
+      // De frente: a mesa com as pernas, as almofadas de cotovelo, os dois antebraços que sobem e as mãos agarradas no meio, e uma banqueta de cada lado.
+      return (
+        <>
+          <path d="M5 14h14M6.5 14v7M17.5 14v7" />
+          <path d="M6.5 12.5h3.5M14 12.5h3.5" />
+          <path d="M8.3 12.5 10.6 7.8M15.7 12.5l-2.3-4.7" />
+          <circle cx="12" cy="6.4" r="2.1" />
+          <path d="M1.5 17h3M2.2 17v4.5M3.8 17v4.5M19.5 17h3M20.2 17v4.5M21.8 17v4.5" />
+        </>
+      )
+    case 'varalDeBandeirinhas':
+      // De frente: os dois mastros, a corda com barriga e quatro bandeirinhas de festa junina penduradas nela, com o recorte em V embaixo.
+      return (
+        <>
+          <path d="M3 3v18.5M21 3v18.5" />
+          <path d="M3 5c4 3 14 3 18 0" />
+          <path d="M4.7 6.1v4.4l1.3-1.2 1.3 1.2V6.7M8.6 6.9v4.4l1.3-1.2 1.3 1.2V7.2M12.8 7.2v4.4l1.3-1.2 1.3 1.2V6.9M16.7 6.7v4.4l1.3-1.2 1.3 1.2V6.1" />
+        </>
+      )
+    case 'varalDeLanternas':
+      // De frente: os dois mastros, a corda com barriga e três lanternas redondas penduradas nela, cada uma com o aro do meio.
+      return (
+        <>
+          <path d="M3 3v18.5M21 3v18.5" />
+          <path d="M3 5c4 3 14 3 18 0" />
+          <circle cx="7.2" cy="9" r="2.1" />
+          <circle cx="12" cy="9.5" r="2.1" />
+          <circle cx="16.8" cy="9" r="2.1" />
+          <path d="M5.1 9h4.2M9.9 9.5h4.2M14.7 9h4.2" />
+        </>
+      )
+    case 'mastroDeFitas':
+      // De frente: o mastro com a coroa no alto e quatro fitas que descem abertas até o chão, presas em estacas.
+      return (
+        <>
+          <ellipse cx="12" cy="4" rx="3" ry="1.4" />
+          <path d="M12 5.4v15.6" />
+          <path d="M11 5.2 3.5 19.5M11.5 5.4 8 20.5M12.5 5.4 16 20.5M13 5.2l7.5 14.3" />
+          <path d="M2 21h20" />
+        </>
+      )
     // A ponte levadiça (lote L02, item 81 da lista do dia).
     case 'ponteLevadica':
       // De lado: a muralha com o portão em arco, o tabuleiro abaixado sobre o fosso e a corrente do alto da muralha à

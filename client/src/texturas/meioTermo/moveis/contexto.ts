@@ -185,7 +185,13 @@ export interface ContextoDoMovel {
    * de velas (as chamas apontam para cima na tela, `desgirado`, a conta do
    * candelabro de chão) e os sacos de areia (com a mureta de topo na tela, as
    * duas fiadas de baixo ganham o tampo da faixa da ponta que fica embaixo).
-   * Os outros desenhos não leem.
+   * Dos lotes L08 e L09 leem o esqueleto de peixe (a sombra de cada osso cai
+   * para baixo à direita na tela, como nos ossos), a lanterna de pedra
+   * (desenhada na tela e devolvida ao objeto, como a pipa deitada), o balcão de
+   * taverna e a mesa de queda de braço (a sombra do assento das banquetas,
+   * `desgirado`), os dois varais (a sombra dos mastros e da corda, e o
+   * pendurado de lado nos giros ímpares) e o mastro de fitas (a sombra e a
+   * correção das fitas na 3/4). Os outros desenhos não leem.
    */
   readonly giro: number
 }

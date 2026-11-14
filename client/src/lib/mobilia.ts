@@ -423,18 +423,19 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * altura, como a armadilha; o baú, o trono ou a ficha que o mestre põe em cima
  * saem por cima do monte) e a ponte levadiça (14/11/2026: como a ponte, o
  * token anda no tabuleiro e o que o mestre põe em cima sai por cima; as
- * correntes sobem até o eixo, mas ficam nas beiras). O píer e a ponte levadiça
- * não são a ponte: o que é só da ponte (as
+ * correntes sobem até o eixo, mas ficam nas beiras) e a prancha do navio
+ * (14/11/2026: como o píer, o token anda por cima das tábuas). O píer, a ponte
+ * levadiça e a prancha não são a ponte: o que é só da ponte (as
  * formas Madeira, Pedra e Corda, o material de cada forma) pergunta por
  * `'ponte'` pelo nome. A teia de aranha é rente, mas NÃO mora aqui: fica por
  * cima do móvel em que o mestre a encosta.
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
- * ringue, o píer, a cela, a armadilha, o círculo, o sangue, os montes e a
- * ponte levadiça por último) leem esta lista.
+ * ringue, o píer, a cela, a armadilha, o círculo, o sangue, os montes, a
+ * ponte levadiça e a prancha por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio'
 }
 
 /**
@@ -466,12 +467,13 @@ export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
 
 /**
  * Móveis que moram EM CIMA da mesa, por cima de todo objeto: os Pratos (a mesa
- * posta, 28/10/2026). O avesso do tapete: a ordem de desenho (de cima e 3/4),
- * o contêiner da mesa posta do editor e o clique (que pega os pratos primeiro)
- * leem esta lista.
+ * posta, 28/10/2026) e o prato de carne no osso (14/11/2026: mesa posta como
+ * os pratos, com o mesmo perfil da 3/4, que sobe a altura do tampo). O avesso
+ * do tapete: a ordem de desenho (de cima e 3/4), o contêiner da mesa posta do
+ * editor e o clique (que pega os pratos primeiro) leem esta lista.
  */
 export function ehMovelDeCimaDaMesa(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'pratos'
+  return tipo === 'pratos' || tipo === 'pratoDeCarne'
 }
 
 /**
