@@ -141,14 +141,17 @@ export const TIPOS_MOBILIA = [
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão, como a ponte, e fica no castelo.
   'ponteLevadica',
-  // Lotes L15, L16 e L19 dos objetos de 14/11/2026, as construções (moram na ferramenta Construção, `construcoes.ts`),
-  // na ordem da lista do dia (itens 82 a 94 e 105 a 110). Do castelo (L15): o portão com grade levadiça, a torre de
-  // cerco, a estátua equestre, o obelisco, a forca e a torre do sino. Da base militar (L16): a guarita, o bunker de
-  // concreto, o contêiner, a tenda militar, a caixa d'água elevada, a torre de rádio e o tanque de combustível. Do
-  // lazer (L19): o carrossel, a tenda de circo, a roda gigante de madeira, a casa na árvore, a pérgola com trepadeira e
-  // o portal torii.
+  // Lotes L15 a L19 dos objetos de 14/11/2026, as construções (moram na ferramenta Construção, `construcoes.ts`), na
+  // ordem da lista do dia (itens 82 a 110). Do castelo (L15): o portão com grade levadiça, a torre de cerco, a estátua
+  // equestre, o obelisco, a forca e a torre do sino. Da base militar (L16): a guarita, o bunker de concreto, o
+  // contêiner, a tenda militar, a caixa d'água elevada, a torre de rádio e o tanque de combustível. Da cidade e porto
+  // (L17): o farol (que ilumina), o coreto, o guindaste de porto, o poste com relógio e o quiosque. Da vila e campo
+  // (L18): a roda d'água, o pombal, a baia de cavalo, o silo e o chiqueiro cercado. Do lazer (L19): o carrossel, a tenda
+  // de circo, a roda gigante de madeira, a casa na árvore, a pérgola com trepadeira e o portal torii.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
   'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
+  'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ] as const
 

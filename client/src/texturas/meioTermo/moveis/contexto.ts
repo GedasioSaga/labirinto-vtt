@@ -200,9 +200,16 @@ export interface ContextoDoMovel {
    * tela e desgirados pelo `montadaNaTela` de `andaimeDaTresQuartos.ts`:
    * iguais dos quatro lados), os sete da base militar (o que fica no alto é
    * pintado na ordem da tela; no contêiner, as cristas só saem na face da
-   * frente) e os cinco do palco do parque (`duasVistasDoParque.ts` gira os
-   * pontos 3D: de lado, o torii e a pérgola ficam de perfil). Os outros
-   * desenhos não leem.
+   * frente), os cinco da cidade e porto (o farol, o coreto, o guindaste de
+   * porto, o poste com relógio e o quiosque: o lado da luz, a ordem na 3/4 e o
+   * que fica na frente são escolhidos pela tela, `apoioDaCidadeEPorto.ts`),
+   * quatro da vila e campo (na roda d'água os raios só entram na face da
+   * frente NA TELA; no pombal a face da frente, os buracos, os pousos, a porta
+   * e as frestas do telhado e do lanternim; na baia as faixas do telhado,
+   * esticadas até a frente NA TELA; no silo a porta, os aros, a escada e a luz
+   * dos gomos da cúpula; o chiqueiro não lê) e os cinco do palco do parque
+   * (`duasVistasDoParque.ts` gira os pontos 3D: de lado, o torii e a pérgola
+   * ficam de perfil). Os outros desenhos não leem.
    */
   readonly giro: number
 }

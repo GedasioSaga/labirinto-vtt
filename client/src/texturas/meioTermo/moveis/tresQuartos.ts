@@ -78,6 +78,16 @@ import { ESPESSURA_DA_AGUA_DA_TENDA_MILITAR } from './tendaMilitar'
 import { ESPESSURA_DA_CAIXA_D_AGUA } from './caixaDAguaElevada'
 import { ESPESSURA_DA_TORRE_DE_RADIO } from './torreDeRadio'
 import { ESPESSURA_DA_FATIA_DO_TANQUE } from './tanqueDeCombustivel'
+import { ESPESSURA_DO_FAROL } from './farol'
+import { ESPESSURA_DO_CORETO } from './coreto'
+import { ESPESSURA_DO_GUINDASTE } from './guindasteDePorto'
+import { ESPESSURA_DO_POSTE_COM_RELOGIO } from './posteComRelogio'
+import { ESPESSURA_DO_QUIOSQUE } from './quiosque'
+import { ESPESSURA_DA_RODA_DAGUA } from './rodaDagua'
+import { ESPESSURA_DO_POMBAL } from './pombal'
+import { ESPESSURA_DA_BAIA } from './baiaDeCavalo'
+import { ESPESSURA_DO_SILO } from './siloDeGraos'
+import { ESPESSURA_DA_TABUA_DO_CHIQUEIRO } from './chiqueiroCercado'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -701,6 +711,18 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   caixaDAguaElevada: { modo: 'derivado', espessura: ESPESSURA_DA_CAIXA_D_AGUA },
   torreDeRadio: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_RADIO },
   tanqueDeCombustivel: { modo: 'derivado', espessura: ESPESSURA_DA_FATIA_DO_TANQUE },
+  // Lotes L17 e L18, a cidade e porto e a vila e campo: derivados, cada um com a espessura que o próprio desenho
+  // exporta (a beirada de um degrau da torre, do pódio, das vigas, da tábua).
+  farol: { modo: 'derivado', espessura: ESPESSURA_DO_FAROL },
+  coreto: { modo: 'derivado', espessura: ESPESSURA_DO_CORETO },
+  guindasteDePorto: { modo: 'derivado', espessura: ESPESSURA_DO_GUINDASTE },
+  posteComRelogio: { modo: 'derivado', espessura: ESPESSURA_DO_POSTE_COM_RELOGIO },
+  quiosque: { modo: 'derivado', espessura: ESPESSURA_DO_QUIOSQUE },
+  rodaDagua: { modo: 'derivado', espessura: ESPESSURA_DA_RODA_DAGUA },
+  pombal: { modo: 'derivado', espessura: ESPESSURA_DO_POMBAL },
+  baiaDeCavalo: { modo: 'derivado', espessura: ESPESSURA_DA_BAIA },
+  siloDeGraos: { modo: 'derivado', espessura: ESPESSURA_DO_SILO },
+  chiqueiroCercado: { modo: 'derivado', espessura: ESPESSURA_DA_TABUA_DO_CHIQUEIRO },
   // Lote L19, o parque: o desenho já traz a 3/4 pronta nas âncoras (o palco de `duasVistasDoParque.ts`, a técnica da
   // tenda de adivinha), sem beirada para não ganhar parede a mais. A roda gigante é desenhada de frente nas duas
   // vistas, como o moinho.

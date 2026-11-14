@@ -66,6 +66,8 @@ export const PECAS_NOVAS = [
   'ponteLevadica',
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
   'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
+  'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ] as const satisfies readonly TipoMobilia[]
 
@@ -537,9 +539,10 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão e anda-se em cima, como a ponte; a tora do
   // eixo fica na ponta da esquerda, o lado da muralha, e em pé a régua gira como na ponte.
   ponteLevadica: { rotulo: 'Ponte levadiça', artigo: 'uma ponte levadiça', tamanho: { largura: 3, altura: 2 }, redonda: false },
-  // As construções de 14/11/2026 (lotes L15, L16 e L19, itens 82 a 94 e 105 a 110 da lista do dia), na ferramenta
-  // Construção (`construcoes.ts`). O portão está aberto (a grade erguida) e o contêiner deita ao comprido; o carrossel
-  // é o único redondo; a roda gigante é desenhada de frente nas duas vistas, como o moinho.
+  // As construções de 14/11/2026 (lotes L15 a L19, itens 82 a 110 da lista do dia), na ferramenta Construção
+  // (`construcoes.ts`). O portão está aberto (a grade erguida) e o contêiner deita ao comprido; o farol, o coreto, o
+  // quiosque, o silo (como a torre de pedra) e o carrossel são redondos; a roda gigante é desenhada de frente nas duas
+  // vistas, como o moinho. O quiosque é redondo e fechado para não se confundir com o coreto, octogonal e aberto.
   portaoComGradeLevadica: { rotulo: 'Portão com grade levadiça', artigo: 'um portão com grade levadiça', tamanho: { largura: 4, altura: 2 }, redonda: false },
   torreDeCerco: { rotulo: 'Torre de cerco', artigo: 'uma torre de cerco', tamanho: { largura: 2, altura: 2 }, redonda: false },
   estatuaEquestre: { rotulo: 'Estátua equestre', artigo: 'uma estátua equestre', tamanho: { largura: 2, altura: 1 }, redonda: false },
@@ -553,6 +556,16 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   caixaDAguaElevada: { rotulo: "Caixa d'água elevada", artigo: "uma caixa d'água elevada", tamanho: { largura: 2, altura: 2 }, redonda: false },
   torreDeRadio: { rotulo: 'Torre de rádio', artigo: 'uma torre de rádio', tamanho: { largura: 2, altura: 2 }, redonda: false },
   tanqueDeCombustivel: { rotulo: 'Tanque de combustível', artigo: 'um tanque de combustível', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  farol: { rotulo: 'Farol', artigo: 'um farol', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  coreto: { rotulo: 'Coreto', artigo: 'um coreto', tamanho: { largura: 3, altura: 3 }, redonda: true },
+  guindasteDePorto: { rotulo: 'Guindaste de porto', artigo: 'um guindaste de porto', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  posteComRelogio: { rotulo: 'Poste com relógio', artigo: 'um poste com relógio', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  quiosque: { rotulo: 'Quiosque', artigo: 'um quiosque', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  rodaDagua: { rotulo: "Roda d'água", artigo: "uma roda d'água", tamanho: { largura: 3, altura: 2 }, redonda: false },
+  pombal: { rotulo: 'Pombal', artigo: 'um pombal', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  baiaDeCavalo: { rotulo: 'Baia de cavalo', artigo: 'uma baia de cavalo', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  siloDeGraos: { rotulo: 'Silo', artigo: 'um silo', tamanho: { largura: 2, altura: 2 }, redonda: true },
+  chiqueiroCercado: { rotulo: 'Chiqueiro', artigo: 'um chiqueiro', tamanho: { largura: 3, altura: 2 }, redonda: false },
   carrossel: { rotulo: 'Carrossel', artigo: 'um carrossel', tamanho: { largura: 3, altura: 3 }, redonda: true },
   tendaDeCirco: { rotulo: 'Tenda de circo', artigo: 'uma tenda de circo', tamanho: { largura: 5, altura: 4 }, redonda: false },
   rodaGigante: { rotulo: 'Roda gigante de madeira', artigo: 'uma roda gigante de madeira', tamanho: { largura: 4, altura: 4 }, redonda: false },
@@ -826,6 +839,16 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     caixaDAguaElevada: valor(f.caixaDAguaElevada),
     torreDeRadio: valor(f.torreDeRadio),
     tanqueDeCombustivel: valor(f.tanqueDeCombustivel),
+    farol: valor(f.farol),
+    coreto: valor(f.coreto),
+    guindasteDePorto: valor(f.guindasteDePorto),
+    posteComRelogio: valor(f.posteComRelogio),
+    quiosque: valor(f.quiosque),
+    rodaDagua: valor(f.rodaDagua),
+    pombal: valor(f.pombal),
+    baiaDeCavalo: valor(f.baiaDeCavalo),
+    siloDeGraos: valor(f.siloDeGraos),
+    chiqueiroCercado: valor(f.chiqueiroCercado),
     carrossel: valor(f.carrossel),
     tendaDeCirco: valor(f.tendaDeCirco),
     rodaGigante: valor(f.rodaGigante),
@@ -900,10 +923,12 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
-  // As construções de 14/11/2026 (lotes L15, L16 e L19), na ordem da lista do dia: a ferramenta Construção as arruma
+  // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
   'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
+  'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ]
 
@@ -3925,6 +3950,91 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         deitado ? linha(-u, 0, u) : { x1: 0, y1: -u, x2: 0, y2: u },
       ]
     }
+    // Lotes L17 e L18 (a cidade e porto e a vila e campo): os traços dos desenhistas.
+    case 'farol':
+      // A plataforma, a galeria e a cúpula da lanterna em anéis, e a porta na frente.
+      return [
+        ...aro(largura * 0.97, altura * 0.97),
+        ...aro(largura * 0.545, altura * 0.545),
+        ...aro(largura * 0.29, altura * 0.29),
+        linha(-hw * 0.12, hh * 0.72, hw * 0.12),
+      ]
+    case 'coreto': {
+      // O beiral de oito lados, as oito cumeeiras até o pináculo e os degraus saindo pela frente.
+      const cantos = Array.from({ length: 8 }, (_, i): [number, number] => {
+        const a = ((22.5 + i * 45) * Math.PI) / 180
+        return [Math.cos(a) * hw * 0.8, Math.sin(a) * hh * 0.8]
+      })
+      return [...fechado(cantos), ...cantos.map(([x, y]) => ({ x1: x, y1: y, x2: 0, y2: 0 })), ...quadro(-hw * 0.24, hh * 0.84, hw * 0.24, hh * 0.99)]
+    }
+    case 'guindasteDePorto':
+      // O cais, os dois aros da roda (de cima, duas vigas) com o eixo, a lança e o caixote na ponta.
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.9, hw * 0.6, hh * 0.9),
+        linha(-hw * 0.95, -hh * 0.3, hw * 0.23),
+        linha(-hw * 0.95, hh * 0.3, hw * 0.23),
+        { x1: -hw * 0.36, y1: -hh * 0.55, x2: -hw * 0.36, y2: hh * 0.55 },
+        linha(hw * 0.33, 0, hw * 0.86),
+        ...quadro(hw * 0.77, -hh * 0.26, hw * 0.95, hh * 0.26),
+      ]
+    case 'posteComRelogio':
+      // A base quadrada em degrau, a cornija redonda da cabeça e os dois ponteiros (dez para as dez).
+      return [
+        ...quadro(-hw * 0.92, -hh * 0.92, hw * 0.92, hh * 0.92),
+        ...aro(largura * 0.46, altura * 0.46),
+        { x1: 0, y1: 0, x2: -hw * 0.15, y2: -hh * 0.09 },
+        { x1: 0, y1: 0, x2: hw * 0.1, y2: -hh * 0.17 },
+      ]
+    case 'quiosque':
+      // A cúpula redonda, o anel do pedestal, o toldo listrado na frente e a beira do balcão.
+      return [
+        ...aro(largura * 0.79, altura * 0.79),
+        ...aro(largura * 0.9, altura * 0.9),
+        ...quadro(-hw * 0.34, hh * 0.62, hw * 0.34, hh * 0.86),
+        linha(-hw * 0.27, hh * 0.92, hw * 0.27),
+      ]
+    case 'rodaDagua':
+      // De cima: as duas margens do canal, a roda atravessada com as pás (mais juntas nas pontas), o eixo de ponta a ponta e o pilar de pedra atrás.
+      return [
+        linha(-hw, -hh * 0.3, hw), linha(-hw, hh * 0.42, hw),
+        ...quadro(-hw * 0.68, -hh * 0.07, hw * 0.68, hh * 0.19),
+        ...[-0.67, -0.57, -0.38, -0.13, 0.13, 0.38, 0.57, 0.67].map((t) => ({ x1: hw * t, y1: -hh * 0.07, x2: hw * t, y2: hh * 0.19 })),
+        { x1: 0, y1: -hh * 0.74, x2: 0, y2: hh * 0.7 },
+        ...quadro(-hw * 0.16, -hh * 0.98, hw * 0.16, -hh * 0.48),
+      ]
+    case 'pombal': {
+      // De cima: o beiral quadrado do telhado de quatro águas, as arestas das quinas até o lanternim quadradinho no meio e os dois pombos no chão da frente.
+      const [bx, by, lx, ly] = [hw * 0.9, hh * 0.9, hw * 0.22, hh * 0.22]
+      return [
+        ...quadro(-bx, -by, bx, by), ...quadro(-lx, -ly, lx, ly),
+        { x1: -bx, y1: -by, x2: -lx, y2: -ly }, { x1: bx, y1: -by, x2: lx, y2: -ly },
+        { x1: bx, y1: by, x2: lx, y2: ly }, { x1: -bx, y1: by, x2: -lx, y2: ly },
+        ...aro(hw * 0.14, hh * 0.08, -hw * 0.62, hh * 0.95), ...aro(hw * 0.14, hh * 0.08, hw * 0.46, hh * 0.93),
+      ]
+    }
+    case 'baiaDeCavalo':
+      // De cima: o telhado de duas águas comprido com a cumeeira de ponta a ponta, a cabeça do cavalo saindo por baixo do beiral à direita e, no terreiro, o fardo de feno, a sela no cavalete e o balde.
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.98, hw * 0.97, hh * 0.34), linha(-hw * 0.97, -hh * 0.34, hw * 0.97),
+        { x1: hw * 0.475, y1: hh * 0.34, x2: hw * 0.475, y2: hh * 0.8 },
+        ...quadro(-hw * 0.9, hh * 0.55, -hw * 0.57, hh * 0.85), ...quadro(-hw * 0.33, hh * 0.54, -hw * 0.07, hh * 0.86),
+        ...aro(hw * 0.14, hh * 0.21, hw * 0.82, hh * 0.76),
+      ]
+    case 'siloDeGraos':
+      // De cima: a parede redonda, a beira da cúpula, o respiro no meio, a escada de fora descendo pela frente e o saco em pé ao lado.
+      return [
+        ...aro(largura * 0.84, altura * 0.84), ...aro(largura * 0.78, altura * 0.78), ...aro(largura * 0.12, altura * 0.12),
+        { x1: -hw * 0.1, y1: hh * 0.84, x2: -hw * 0.1, y2: hh * 0.98 }, { x1: hw * 0.1, y1: hh * 0.84, x2: hw * 0.1, y2: hh * 0.98 },
+        ...aro(hw * 0.3, hh * 0.28, hw * 0.74, hh * 0.78),
+      ]
+    case 'chiqueiroCercado':
+      // De cima: a cerca retangular, o abrigo de tábuas no canto do fundo à esquerda, o cocho comprido à direita e os três porcos (a porca deitada na lama, um no cocho e o leitão).
+      return [
+        ...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95),
+        ...quadro(-hw * 0.93, -hh * 0.93, -hw * 0.22, -hh * 0.12), ...quadro(hw * 0.7, -hh * 0.62, hw * 0.88, hh * 0.12),
+        ...aro(hw * 0.36, hh * 0.36, hw * 0.18, hh * 0.34), ...aro(hw * 0.3, hh * 0.28, hw * 0.5, -hh * 0.3),
+        ...aro(hw * 0.2, hh * 0.2, -hw * 0.18, hh * 0.12),
+      ]
     case 'carrossel': {
       // O estrado redondo, a beira do telhado com oito emendas até o pináculo e os oito cavalos em volta (traços de través no anel).
       const a = (i: number): number => (i * Math.PI) / 4

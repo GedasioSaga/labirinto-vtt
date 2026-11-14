@@ -17,8 +17,9 @@ export const GRUPOS_DE_CONSTRUCAO = [
   { id: 'pracaRuaECampo', titulo: 'Praça, rua e campo' },
   { id: 'monumentosEColunas', titulo: 'Monumentos e colunas' },
   { id: 'abrigosEPassagens', titulo: 'Abrigos e passagens' },
-  // Os grupos das construções de 14/11/2026 (lotes L15, L16 e L19), na ordem da lista do dia: os fortes da base militar
-  // vão com os do castelo; a caixa d'água vai para as torres e a estátua equestre e o obelisco, para os monumentos.
+  // Os grupos das construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: os fortes da base militar
+  // vão com os do castelo; a caixa d'água, o pombal e o silo vão para as torres, a estátua equestre e o obelisco, para
+  // os monumentos, e a roda d'água, a baia de cavalo e o chiqueiro, para a praça, rua e campo.
   { id: 'fortesECastelos', titulo: 'Fortes e castelos' },
   { id: 'cidadeEPorto', titulo: 'Cidade e porto' },
   { id: 'parqueEDiversao', titulo: 'Parque e diversão' },
@@ -27,9 +28,9 @@ export const GRUPOS_DE_CONSTRUCAO = [
 export type IdDoGrupoDeConstrucao = (typeof GRUPOS_DE_CONSTRUCAO)[number]['id']
 
 /**
- * O grupo de cada construção, na ordem em que ela aparece dentro do grupo. As 19 da lista aprovada e as 19 de
- * 14/11/2026 (lotes L15, L16 e L19, na ordem da lista do dia); tipo novo de construção entra com uma linha aqui (e sai
- * do Objeto sozinho, por `ehConstrucao`).
+ * O grupo de cada construção, na ordem em que ela aparece dentro do grupo. As 19 da lista aprovada e as 29 de
+ * 14/11/2026 (lotes L15 a L19, na ordem da lista do dia); tipo novo de construção entra com uma linha aqui (e sai do
+ * Objeto sozinho, por `ehConstrucao`).
  */
 export const GRUPO_DA_CONSTRUCAO = {
   torreDePedra: 'torresEPredios',
@@ -39,10 +40,15 @@ export const GRUPO_DA_CONSTRUCAO = {
   galinheiro: 'torresEPredios',
   barraca: 'torresEPredios',
   caixaDAguaElevada: 'torresEPredios',
+  pombal: 'torresEPredios',
+  siloDeGraos: 'torresEPredios',
   poco: 'pracaRuaECampo',
   chafariz: 'pracaRuaECampo',
   cataVento: 'pracaRuaECampo',
   antenaParabolica: 'pracaRuaECampo',
+  rodaDagua: 'pracaRuaECampo',
+  baiaDeCavalo: 'pracaRuaECampo',
+  chiqueiroCercado: 'pracaRuaECampo',
   estatua: 'monumentosEColunas',
   anjoDePedra: 'monumentosEColunas',
   pilar: 'monumentosEColunas',
@@ -64,6 +70,11 @@ export const GRUPO_DA_CONSTRUCAO = {
   torreDeRadio: 'fortesECastelos',
   tanqueDeCombustivel: 'fortesECastelos',
   torreDoSino: 'cidadeEPorto',
+  farol: 'cidadeEPorto',
+  coreto: 'cidadeEPorto',
+  guindasteDePorto: 'cidadeEPorto',
+  posteComRelogio: 'cidadeEPorto',
+  quiosque: 'cidadeEPorto',
   carrossel: 'parqueEDiversao',
   tendaDeCirco: 'parqueEDiversao',
   rodaGigante: 'parqueEDiversao',
@@ -87,11 +98,12 @@ export function ehConstrucao(tipo: TipoMobilia | undefined): tipo is TipoDeConst
  *   (o mestre atravessa sempre). Não barram as em que se entra ou se passa por baixo (o arco do portão, as duas
  *   tendas) e o galinheiro (o terreiro cercado é parte da pegada), como já era. A antena parabólica passa a barrar
  *   (2 x 2, sólida; decisão do mestre de 12/11/2026, a lista recomendada). Das construções de 14/11/2026 (decisão
- *   do Claude, pelo mesmo critério) não barram o portão com a grade erguida, a tenda militar, a tenda de circo e o
- *   carrossel (entra-se neles), a pérgola e o portal torii (passa-se por baixo); as outras barram.
+ *   do Claude, pelo mesmo critério) não barram o portão com a grade erguida, a tenda militar, a tenda de circo, o
+ *   carrossel, o coreto, a baia de cavalo e o chiqueiro cercado (entra-se neles), a pérgola e o portal torii
+ *   (passa-se por baixo); as outras barram.
  * - `peloMenorLado`: o desenho é medido pelo MENOR lado da caixa (`Math.min(hw, hh)` no desenho do Meio-Termo), e
  *   a colisão também (achado A5: a torre esticada barrava 1 casa de parede invisível além do desenho). Das de
- *   14/11/2026, as torres finas e altas: a torre do sino e a torre de rádio.
+ *   14/11/2026, as torres finas e altas: a torre do sino, a torre de rádio, o farol e o poste com relógio.
  */
 interface RegraDeFabrica {
   readonly barra: boolean
@@ -101,7 +113,7 @@ interface RegraDeFabrica {
    * alto que uma pessoa — a torre de pedra, o moinho, o mausoléu e os 3 blocos de inscrições ("da altura do
    * mausoléu"). Vale também para os que já estão nos mapas (nos dele, só as 8 torres de pedra passam a tapar).
    * Das de 14/11/2026 (decisão do Claude), as fechadas e mais altas que uma pessoa: a torre do sino, o bunker de
-   * concreto e o contêiner.
+   * concreto, o contêiner, o farol e o silo.
    */
   readonly tapa?: true
 }
@@ -139,6 +151,16 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
   caixaDAguaElevada: { barra: true },
   torreDeRadio: { barra: true, peloMenorLado: true },
   tanqueDeCombustivel: { barra: true },
+  farol: { barra: true, peloMenorLado: true, tapa: true },
+  coreto: { barra: false },
+  guindasteDePorto: { barra: true },
+  posteComRelogio: { barra: true, peloMenorLado: true },
+  quiosque: { barra: true },
+  rodaDagua: { barra: true },
+  pombal: { barra: true },
+  baiaDeCavalo: { barra: false },
+  siloDeGraos: { barra: true, tapa: true },
+  chiqueiroCercado: { barra: false },
   carrossel: { barra: false },
   tendaDeCirco: { barra: false },
   rodaGigante: { barra: true },

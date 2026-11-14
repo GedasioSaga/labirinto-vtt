@@ -350,7 +350,7 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   lagarDeUva: 'cidadeEVila',
   moDePedra: 'cidadeEVila',
   liteira: 'cidadeEVila',
-  // As construções (19 de 12/11/2026 e 19 de 14/11/2026), nos 7 grupos da ferramenta Construção, na ordem de
+  // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 7 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }

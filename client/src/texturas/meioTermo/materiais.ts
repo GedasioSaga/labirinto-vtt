@@ -644,6 +644,24 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   caixaDAguaElevada: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   torreDeRadio: [],
   tanqueDeCombustivel: [],
+  // Lote L17, a cidade e porto. O farol troca a pedra da torre, o pano das faixas e o metal da lanterna; o coreto, a
+  // pedra do pódio, a madeira do assoalho e o telhado (um tecido da tabela pintado como chapa lisa); o quiosque, a
+  // pintura da parede e da cúpula (só a cor do pano, pintada como madeira), o toldo (as listras claras são linho fixo) e
+  // a pedra do pedestal. Fixos: a corda e o ferro do gancho do guindaste; o mostrador, as marcas e os ponteiros do
+  // relógio; o latão, o vidro, os jornais e os cartazes do quiosque.
+  farol: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('faixa', 'Faixas', TECIDOS, 'vinho'), lugar('metal', 'Lanterna', METAIS, 'ferro')],
+  coreto: [lugar('pedra', 'Pódio', PEDRAS, 'granito'), lugar('madeira', 'Assoalho', MADEIRAS, 'pinho'), lugar('telhado', 'Telhado', TECIDOS, 'vinho')],
+  guindasteDePorto: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Cais', PEDRAS, 'granito')],
+  posteComRelogio: [lugar('metal', 'Poste', METAIS, 'ferro'), lugar('pedra', 'Base', PEDRAS, 'granito')],
+  quiosque: [lugar('pintura', 'Pintura', TECIDOS, 'musgo'), lugar('toldo', 'Toldo', TECIDOS, 'vinho'), lugar('pedra', 'Pedestal', PEDRAS, 'granito')],
+  // Lote L18, a vila e campo. A cal da parede do pombal é fixa (a pedra é a soleira e os pousos); o silo troca a parede
+  // (barro ou pedra) e a cúpula (chapa ou madeira), e o ferro dos aros, da escada e da porta, os sacos, a corda e o grão
+  // são fixos; no chiqueiro, os porcos, a lama, a palha, a lavagem e os restos são fixos.
+  rodaDagua: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  pombal: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('telhado', 'Telhado', ['barro', 'ardosia', ...MADEIRAS], 'barro')],
+  baiaDeCavalo: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('telhado', 'Telhado', [...MADEIRAS, 'ardosia'], 'nogueira')],
+  siloDeGraos: [lugar('pedra', 'Parede', ['barro', ...PEDRAS], 'barro'), lugar('telhado', 'Cúpula', ['ferro', 'latao', ...MADEIRAS], 'ferro')],
+  chiqueiroCercado: [lugar('madeira', 'Madeira', MADEIRAS, 'velha')],
   // Lote L19, o parque. O carrossel e a roda gigante trocam a madeira e o pano (as listras claras são creme fixo); a
   // tenda de circo, a lona e a madeira dos mastros e das estacas; a casa na árvore, a madeira (a casca, a folha e a
   // telha são fixas); a pérgola, a madeira e a pedra das lajes do caminho. O portal torii não troca nada: o zarcão, a

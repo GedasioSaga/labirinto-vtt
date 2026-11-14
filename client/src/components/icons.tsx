@@ -3342,6 +3342,115 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M12 11.3l1.7 1.7-1.7 1.7-1.7-1.7Z" />
         </>
       )
+    // Lotes L17 e L18 (a cidade e porto e a vila e campo): os glifos dos desenhistas.
+    case 'farol':
+      // De frente: a torre que afina com duas faixas, a galeria, a lanterna com a cúpula e os raios de luz.
+      return (
+        <>
+          <path d="M4.5 21h15M8 21l1.5-11h5L16 21" />
+          <path d="M8.6 17h6.8M9.1 13.5h5.8" />
+          <path d="M8 10h8M9.5 10V6.5h5V10M9 6.5L12 4l3 2.5" />
+          <path d="M3.5 7.5l3 .7M20.5 7.5l-3 .7M4 4l3 1.6M20 4l-3 1.6" />
+        </>
+      )
+    case 'coreto':
+      // De frente: o telhado em ponta com o pináculo, as colunas, o guarda-corpo e o pódio com o degrau.
+      return (
+        <>
+          <path d="M12 2.5V4M3.5 10L12 4l8.5 6z" />
+          <path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8" />
+          <path d="M5 15h14M3.5 18h17v2.5h-17zM10 20.5v1h4v-1" />
+        </>
+      )
+    case 'guindasteDePorto':
+      // De frente: a roda de pisar com os raios, o mastro, a lança com a escora, o cabo e o caixote, no cais.
+      return (
+        <>
+          <circle cx="8" cy="12" r="6" />
+          <path d="M8 6v12M2 12h12M3.8 7.8l8.4 8.4M12.2 7.8l-8.4 8.4" />
+          <path d="M2 21h20M16 21V5l5.5 1.5M16 9l3-2.6" />
+          <path d="M21.5 6.5V13M20 13h3v3h-3z" />
+        </>
+      )
+    case 'posteComRelogio':
+      // De frente: a base em degrau, o poste fino, a caixa com o mostrador redondo e os ponteiros, e a cupulinha.
+      return (
+        <>
+          <path d="M8 21h8M9.5 21v-1.5h5V21M12 19.5V13" />
+          <path d="M8.5 13V5.5h7V13zM10 4l2-1.5L14 4" />
+          <path d="M15 9.2a3 3 0 1 1-6 0a3 3 0 1 1 6 0M12 9.2V7.6M12 9.2l1.2.8" />
+        </>
+      )
+    case 'quiosque':
+      // De frente: a cúpula com o pináculo, a parede redonda com o toldo listrado, o balcão e o pedestal.
+      return (
+        <>
+          <path d="M12 2v2M4.5 10a7.5 6 0 0 1 15 0z" />
+          <path d="M6 10v9M18 10v9M4.5 19h15v2h-15z" />
+          <path d="M8 11.5h8l1 3H7zM9.7 11.5l-.4 3M12 11.5v3M14.3 11.5l.4 3M8 17h8" />
+        </>
+      )
+    case 'rodaDagua':
+      // De frente: a roda de pás com o aro de dentro, os raios até o cubo, as pontas das pás em volta e a água correndo embaixo.
+      return (
+        <>
+          <circle cx="12" cy="11" r="8" />
+          <circle cx="12" cy="11" r="5" />
+          <circle cx="12" cy="11" r="1.3" />
+          <path d="M12 6v10M7 11h10M8.5 7.5l7 7M15.5 7.5l-7 7" />
+          <path d="M12 1.6v1.4M20.4 11h1.4M2.2 11h1.4M18 5l1-1M5 5 4 4M18 17l1 1" />
+          <path d="M1.5 19.5c1.6-1 3.2-1 4.8 0s3.2 1 4.8 0 3.2-1 4.8 0 3.2 1 4.8 0" />
+          <path d="M1.5 22.5h21" />
+        </>
+      )
+    case 'pombal':
+      // De frente: a torre caiada com as fiadas de buracos e os pousos, a porta embaixo, o telhado de quatro águas com o lanternim no alto e um pombo pousado na beira.
+      return (
+        <>
+          <path d="M6 21.5V11h12v10.5M3.5 21.5h17" />
+          <path d="M4 11 12 6l8 5Z" />
+          <path d="M10.6 6.9V4.6h2.8v2.3M10 4.6 12 3l2 1.6" />
+          <path d="M8.4 13.2h1M11.5 13.2h1M14.6 13.2h1M8 14.8h8M8.4 16.6h1M11.5 16.6h1M14.6 16.6h1M8 18.2h8" />
+          <path d="M10.6 21.5v-2.4h2.8v2.4" />
+          <path d="M17.6 9.4c.8-.9 2-.9 2.8 0l1.3-.4-.9 1.1M17.6 9.4l-1 .2" />
+        </>
+      )
+    case 'baiaDeCavalo':
+      // De frente: a baia comprida de tábuas com o telhado de duas águas, as duas meias-portas com o vão em cima e a cabeça do cavalo (as orelhas e a cara comprida) saindo pela da direita.
+      return (
+        <>
+          <path d="M1.5 9.5 5 4.5h14l3.5 5Z" />
+          <path d="M2.5 9.5v12M21.5 9.5v12M1.5 21.5h21" />
+          <path d="M4.5 21.5v-10h6v10M4.5 16h6M13.5 21.5v-10h6v10M13.5 16h6" />
+          <path d="M15.4 11.5v-1.4l.8.9.8-.9v1.4" />
+          <path d="M15.6 11.5c-.2 1.3-.1 2.6.5 3.6.6.6 1.3.6 1.6-.1.4-1 .4-2.3.1-3.5" />
+        </>
+      )
+    case 'siloDeGraos':
+      // De frente: o cilindro alto com os aros de ferro, a cúpula com o respiro, a escada de fora subindo pela frente e a portinha de chapa embaixo.
+      return (
+        <>
+          <path d="M6 21.5V7.5M18 21.5V7.5M3.5 21.5h17" />
+          <path d="M6 7.5C6 4.5 9 3 12 3s6 1.5 6 4.5Z" />
+          <path d="M11.2 3V1.6h1.6V3" />
+          <path d="M6 11h12M6 14.5h12M6 18h12" />
+          <path d="M9.5 7.5v14M11.5 7.5v14M9.5 9.5h2M9.5 12.5h2M9.5 16h2M9.5 19.5h2" />
+          <path d="M14 21.5v-3.2h2.4v3.2" />
+        </>
+      )
+    case 'chiqueiroCercado':
+      // De frente: a cerca de tábuas entre os mourões, o abrigo de uma água no canto e o porco na frente (o corpo, o focinho, a orelha, o rabinho enrolado e as pernas).
+      return (
+        <>
+          <path d="M2 21.5V8M22 21.5V8M12 21.5V10M1.5 21.5h21" />
+          <path d="M2 10.5h20M2 13.5h20" />
+          <path d="M1 8 9 5.5V8M3 8h6" />
+          <path d="M6 18.2c0-2 2-3.3 5-3.3s4.6 1.2 4.9 2.6l1.6-.2v1.6l-1.6.3c-.4 1.3-2.1 2.1-4.9 2.1s-5-1-5-3.1Z" />
+          <path d="M14.3 15.2l.9-1.3.4 1.6" />
+          <path d="M6 17.6c-.9-.3-1.4.3-1 .9s.9-.1.4-.6" />
+          <path d="M8.2 20.6v.9M13.6 20.6v.9" />
+        </>
+      )
     case 'carrossel':
       // De frente: o telhado em cone com a flâmula, a sanefa em bicos, os varões com um cavalinho no meio e o estrado.
       return (

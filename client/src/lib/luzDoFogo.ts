@@ -91,6 +91,11 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // papel, sem fumaça. A fila tem 4 casas no tamanho de partida; a luz nasce do meio dela, e o alcance cobre as pontas.
   // O brilho do papel é pintado, sem chama animada.
   varalDeLanternas: { alcanceEmCasas: 3, cor: 0xffdcb0, forca: 0.7, fumacaEBrasas: false },
+  // O farol (14/11/2026, construção): a lanterna acesa no alto, luz quente e forte de longe, sem fumaça, com o alcance
+  // que o desenhista propôs. A lista pedia luz que gira, mas a tabela não tem facho nem o motor de objeto tem animação:
+  // a lente é pintada acesa e a luz é redonda e parada, como a do holofote. A torre fica no meio da pegada, de onde a
+  // luz nasce.
+  farol: { alcanceEmCasas: 9, cor: 0xffe6b0, forca: 1, fumacaEBrasas: false },
 }
 
 /**

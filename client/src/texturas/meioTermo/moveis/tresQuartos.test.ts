@@ -86,6 +86,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
   const LENTOS: readonly TipoMobilia[] = [
     'campinho', 'torreDePedra', 'camaDeDossel', 'arquibancadaDeTorneio', 'barracaDeJogosDaFeira',
     'portaoComGradeLevadica', 'obelisco', 'torreDoSino', 'torreDeCerco', 'conteiner', 'estatuaEquestre', 'torreDeRadio', 'forcaComCadafalso',
+    'guindasteDePorto', 'coreto', 'quiosque', 'baiaDeCavalo', 'siloDeGraos', 'farol', 'posteComRelogio',
+    'chiqueiroCercado', 'rodaDagua', 'pombal',
   ]
   // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras, o círculo mágico e o sangue no chão,
   // 11/11/2026, e a teia de aranha, 12/11/2026): nenhuma sombra deles tem altura, então nada sobe e a 3/4 sai
@@ -112,6 +114,10 @@ describe('vista 3/4: o catálogo inteiro', () => {
     // E as construções de 14/11/2026 que o portão da folha mediu acima de 1 s: o portão com grade levadiça (4,3 s), o
     // obelisco (3,7 s), a torre do sino (3,0 s), a torre de cerco (2,5 s), o contêiner (2,2 s), a estátua equestre
     // (2,1 s), a torre de rádio (1,8 s) e a forca (1,5 s).
+    // E as cinco da cidade e porto e as cinco da vila e campo (lotes L17 e L18), que o portão da folha mediu com a
+    // máquina ocupada: o guindaste de porto (3,6 s), o coreto (3,5 s), o quiosque (2,8 s), a baia de cavalo (2,3 s), o
+    // silo (2,3 s), o farol (2,1 s), o poste com relógio (1,1 s) e, perto de 1 s como a barraca de jogos, o chiqueiro
+    // (0,9 s), a roda d'água (0,9 s) e o pombal (0,9 s); o teste pinta três vezes.
     const teto = LENTOS.includes(tipo) ? { timeout: TETO_DO_CAMPINHO_MS } : {}
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, teto, () => {
       const prop = movel(tipo)

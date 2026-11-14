@@ -277,6 +277,16 @@ import { montarTendaMilitar } from './tendaMilitar'
 import { montarCaixaDAguaElevada } from './caixaDAguaElevada'
 import { montarTorreDeRadio } from './torreDeRadio'
 import { montarTanqueDeCombustivel } from './tanqueDeCombustivel'
+import { montarFarol } from './farol'
+import { montarCoreto } from './coreto'
+import { montarGuindasteDePorto } from './guindasteDePorto'
+import { montarPosteComRelogio } from './posteComRelogio'
+import { montarQuiosque } from './quiosque'
+import { montarRodaDagua } from './rodaDagua'
+import { montarPombal } from './pombal'
+import { montarBaiaDeCavalo } from './baiaDeCavalo'
+import { montarSiloDeGraos } from './siloDeGraos'
+import { montarChiqueiroCercado } from './chiqueiroCercado'
 import { montarCarrossel } from './carrossel'
 import { montarTendaDeCirco } from './tendaDeCirco'
 import { montarRodaGigante } from './rodaGigante'
@@ -622,6 +632,16 @@ const MONTADORES = {
   caixaDAguaElevada: montarCaixaDAguaElevada,
   torreDeRadio: montarTorreDeRadio,
   tanqueDeCombustivel: montarTanqueDeCombustivel,
+  farol: montarFarol,
+  coreto: montarCoreto,
+  guindasteDePorto: montarGuindasteDePorto,
+  posteComRelogio: montarPosteComRelogio,
+  quiosque: montarQuiosque,
+  rodaDagua: montarRodaDagua,
+  pombal: montarPombal,
+  baiaDeCavalo: montarBaiaDeCavalo,
+  siloDeGraos: montarSiloDeGraos,
+  chiqueiroCercado: montarChiqueiroCercado,
   carrossel: montarCarrossel,
   tendaDeCirco: montarTendaDeCirco,
   rodaGigante: montarRodaGigante,
@@ -699,6 +719,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'ponteLevadica',
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
   'guarita', 'bunkerDeConcreto', 'conteiner', 'tendaMilitar', 'caixaDAguaElevada', 'torreDeRadio', 'tanqueDeCombustivel',
+  'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
+  'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
 ]
 
