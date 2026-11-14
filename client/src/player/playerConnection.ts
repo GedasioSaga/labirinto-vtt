@@ -2,6 +2,8 @@ import type { HazardKind, MapData, MarcaRumo, PinCard, RegionPoint, Token } from
 import { moveTokenCarryingLights } from '../lib/lightAttachment'
 import { comCamadasDoJogadorLidas } from '../lib/camadas/doJogador'
 import { parseTransicao, type TransicaoEscolhida } from '../transicoes/catalogo'
+import { URL_DA_MIDIA_NA_SALA } from '../lib/midia'
+import { baixarVideoDaCutscene, type BaixaDoVideo } from './baixarVideoDaCutscene'
 import { HAZARD_NOTICE_TTL_MS, isHazardKind, parsePlayerHazards, type PlayerHazard } from '../lib/hazards'
 import { parsePlayerAreaTriggers, type PlayerAreaTrigger } from '../lib/areaTriggers'
 import { decodeExploration, type Exploration, type ExploredWire } from '../lib/exploration'
@@ -177,6 +179,10 @@ import {
   VIEW_RESYNC_MIN_INTERVAL_MS,
   type CutsceneCarregandoMessage,
   type CutsceneProntaMessage,
+  type CutsceneVideoDoJogador,
+  type CutsceneVideoPrepararMessage,
+  lerCutsceneVideoOrdem,
+  lerCutsceneVideoPreparar,
   type SnapshotPlaces,
 } from '../net/protocol'
 import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
@@ -361,6 +367,26 @@ export function textoDaRecusaDaBatalha(motivo: string | undefined): string {
 /** BATALHA DBT: a chave dos pedidos DBT no mapa de pedidos no ar (o recorte DBT que some leva só os dele). */
 const PREFIXO_DO_PEDIDO_DBT = 'dbt|'
 
+/**
+ * CUTSCENE EM VÍDEO (14/11/2026): o vídeo do mestre nesta tela. Baixa inteiro
+ * (`pct`), avisa "pronta" e só toca com `largouEm` (a ordem do mestre chegou
+ * com o vídeo já aqui, ou o vídeo chegou com a mesa já largada).
+ */
+export interface CutsceneVideoNoJogador {
+  exibicao: number
+  /** `<sha256>.<mp4|webm>`, servido em `/media/<id>`. */
+  video: string
+  titulo: string
+  /** A mesa já largou: toca assim que o vídeo chegar, do início. */
+  jaLargou: boolean
+  pct: number
+  /** O vídeo inteiro, num `blob:` desta página. */
+  url?: string
+  falhou?: boolean
+  /** `performance.now()` de quando começou a tocar aqui. */
+  largouEm?: number
+}
+
 export interface PlayerState {
   status: PlayerStatus
   map?: MapData
@@ -428,6 +454,8 @@ export interface PlayerState {
    * mestre que não ouve a batida).
    */
   batalhaIniciada?: { id: number; transicao?: string; texto?: string; preparo?: number; largouEm?: number; batidaMs?: number }
+  /** CUTSCENE EM VÍDEO: o vídeo que o mestre disparou, baixando ou tocando nesta tela (ver `CutsceneVideoNoJogador`). */
+  cutsceneVideo?: CutsceneVideoNoJogador
   /**
    * BATALHA F1: a ordem dos turnos como o host deixa ele ver (`batalha.estado`,
    * `vistaParaJogador`): cartas, vez, rodada, o registro dele e as regras do
@@ -1310,6 +1338,8 @@ export interface PlayerConnection {
    * mestre que pediu a batida (`batalhaIniciada.batidaMs`). `false` = não saiu.
    */
   informarCutsceneCarregando(preparo: number): boolean
+  /** CUTSCENE EM VÍDEO: o vídeo chegou ao fim nesta tela: avisa o mestre e solta o vídeo. */
+  terminarCutsceneVideo(exibicao: number): void
   /**
    * SONS AO VIVO (F5): a chave que o servidor da sala deu ao socket de agora
    * (`midia.chave`, 64 hex), para o cabeçalho de `/sons/<id>`. `null` antes
@@ -2441,6 +2471,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
    * com o socket e nos fins de sessão. Nunca vai para log, aviso nem `som.falhou`.
    */
   let chaveDaMidia: string | null = null
+  /** CUTSCENE EM VÍDEO: a baixa do vídeo em curso nesta tela (uma por vez). */
+  let baixaDoVideo: BaixaDoVideo | null = null
   const pending = new Map<string, PendingMove>()
   /**
    * CHAT com mestre antigo: `reqId` do envio que estava no ar quando chegou um
@@ -3757,11 +3789,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return conferida !== null && send(conferida)
   }
 
-  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage | CutsceneCarregandoMessage): boolean {
+  function send(message: PlayerMessage | SomFalhouMessage | CutsceneProntaMessage | CutsceneCarregandoMessage | CutsceneVideoDoJogador): boolean {
     // Tela da mesa só olha: nenhum pedido sai dela, nem se o mestre errar e der uma ficha a ela.
     // A exceção é o `som.falhou` (a TV toca os sons, decisão de 23/10): o mestre precisa saber que ela não soou.
     // E o `cutscene.pronta` e o `cutscene.carregando` (09/11): a TV também toca a abertura, e a mesa espera por ela para largar.
-    const daTela = message.type === 'join' || message.type === 'ping' || message.type === 'som.falhou' || message.type === 'cutscene.pronta' || message.type === 'cutscene.carregando'
+    const daTela = message.type === 'join' || message.type === 'ping' || message.type === 'som.falhou' || message.type === 'cutscene.pronta' || message.type === 'cutscene.carregando' || message.type.startsWith('cutscene.video.')
     if (isTable && !daTela) return false
     if (!socket || socket.readyState !== SOCKET_OPEN) return false
     const texto = JSON.stringify(message)
@@ -3771,6 +3803,52 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (texto.length * 3 > PLAYER_MESSAGE_MAX_BYTES && utf8.encode(texto).length > PLAYER_MESSAGE_MAX_BYTES) return false
     socket.send(texto)
     return true
+  }
+
+  /** CUTSCENE EM VÍDEO: para a baixa e solta o vídeo (blob) desta tela. */
+  function soltarCutsceneVideo(): void {
+    baixaDoVideo?.cancelar()
+    baixaDoVideo = null
+    const url = state.cutsceneVideo?.url
+    if (url !== undefined) URL.revokeObjectURL(url)
+    if (state.cutsceneVideo !== undefined) setState({ cutsceneVideo: undefined })
+  }
+
+  /** CUTSCENE EM VÍDEO: muda o vídeo desta tela só se ainda for o da `exibicao`. */
+  function mudarCutsceneVideo(exibicao: number, mudanca: Partial<CutsceneVideoNoJogador>): void {
+    const atual = state.cutsceneVideo
+    if (atual === undefined || atual.exibicao !== exibicao) return
+    setState({ cutsceneVideo: { ...atual, ...mudanca } })
+  }
+
+  /** CUTSCENE EM VÍDEO: começa a baixar o vídeo inteiro de `/media/<id>`, contando o andamento ao mestre. */
+  function prepararCutsceneVideo(pedido: CutsceneVideoPrepararMessage): void {
+    soltarCutsceneVideo()
+    const { exibicao, video, titulo } = pedido
+    setState({ cutsceneVideo: { exibicao, video, titulo, jaLargou: pedido.jaLargou === true, pct: 0 } })
+    send({ type: 'cutscene.video.progresso', exibicao, pct: 0 })
+    baixaDoVideo = baixarVideoDaCutscene(`${URL_DA_MIDIA_NA_SALA}${video}`, video, {
+      aoAndar: (pct) => {
+        mudarCutsceneVideo(exibicao, { pct })
+        send({ type: 'cutscene.video.progresso', exibicao, pct })
+      },
+      aoTerminar: (url) => {
+        const atual = state.cutsceneVideo
+        if (atual === undefined || atual.exibicao !== exibicao) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        baixaDoVideo = null
+        // Com a mesa já largada (entrou depois, ou o mestre tocou agora), assiste do início, já.
+        setState({ cutsceneVideo: { ...atual, pct: 100, url, ...(atual.jaLargou ? { largouEm: performance.now() } : {}) } })
+        send({ type: 'cutscene.video.pronta', exibicao })
+      },
+      aoFalhar: () => {
+        baixaDoVideo = null
+        mudarCutsceneVideo(exibicao, { falhou: true })
+        send({ type: 'cutscene.video.progresso', exibicao, pct: state.cutsceneVideo?.pct ?? 0, falhou: true })
+      },
+    })
   }
 
   function clearWakeProbe(): void {
@@ -5411,6 +5489,26 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ aberturaParaAquecer: pedido.abertura })
         return
       }
+      case 'cutscene.video.preparar': {
+        // CUTSCENE EM VÍDEO: baixar o vídeo inteiro e avisar o andamento; toca na ordem do mestre (ou já, se ele largou).
+        const pedido = lerCutsceneVideoPreparar(data)
+        if (pedido !== null) prepararCutsceneVideo(pedido)
+        return
+      }
+      case 'cutscene.video.tocar':
+      case 'cutscene.video.parar': {
+        const ordem = lerCutsceneVideoOrdem(data)
+        const atual = state.cutsceneVideo
+        if (ordem === null || atual === undefined || atual.exibicao !== ordem.exibicao) return
+        if (ordem.type === 'cutscene.video.parar') {
+          soltarCutsceneVideo()
+          return
+        }
+        if (atual.jaLargou) return
+        // Ainda baixando (o mestre largou antes): toca do início quando terminar de baixar.
+        setState({ cutsceneVideo: { ...atual, jaLargou: true, ...(atual.url === undefined ? {} : { largouEm: performance.now() }) } })
+        return
+      }
       case 'cutscene.tocar': {
         // LARGADA COMBINADA: a mesa largou. Só vale para a abertura que esta tela prepara agora, uma vez.
         const ordem = lerCutsceneTocar(data)
@@ -5498,6 +5596,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
         writeResume(storage, null)
+        soltarCutsceneVideo()
         loopsVivos.clear()
         chaveDaMidia = null
         clearSignalTimers()
@@ -5751,6 +5850,11 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     informarCutscenePronta(preparo) {
       const conferida = lerCutscenePronta({ type: 'cutscene.pronta', preparo })
       return conferida !== null && send(conferida)
+    },
+    terminarCutsceneVideo(exibicao) {
+      if (state.cutsceneVideo?.exibicao !== exibicao) return
+      send({ type: 'cutscene.video.fim', exibicao })
+      soltarCutsceneVideo()
     },
     informarCutsceneCarregando(preparo) {
       const conferida = lerCutsceneCarregando({ type: 'cutscene.carregando', preparo })

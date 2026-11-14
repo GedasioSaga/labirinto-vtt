@@ -91,6 +91,8 @@ const TRACOS = {
   ),
   /** O duelo (H1): as duas lâminas cruzadas. */
   duelo: <path d="M4.5 4.5l10 10M4.5 4.5v3.5M4.5 4.5H8M19.5 4.5l-10 10M19.5 4.5v3.5M19.5 4.5H16M7 14l3 3M5 19l3-3M17 14l-3 3M19 19l-3-3" />,
+  /** A Galeria de cutscenes (14/11/2026): a tela com o play. */
+  filme: <path d="M3.5 5.5h17v13h-17zM10 9v6l5-3z" />,
 } as const
 
 export type NomeDoIcone = keyof typeof TRACOS

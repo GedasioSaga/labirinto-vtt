@@ -65,9 +65,9 @@ const marcadores = () =>
   [...container.querySelectorAll('[role="tablist"][aria-label="Páginas do livro da mesa"] [role="tab"]')].map((aba) => aba.textContent)
 
 describe('LivroDaMesa', () => {
-  it('seis marcadores: os quatro do protótipo, Batalha (F2) depois de Cenas e Sons no fim; só a folha aberta à vista, as outras montadas', () => {
+  it('sete marcadores: os quatro do protótipo, Batalha (F2) depois de Cenas, Sons e Cutscenes (14/11) no fim; só a folha aberta à vista, as outras montadas', () => {
     montar()
-    expect(marcadores()).toEqual(['Grupo', 'Chat', 'Cenas', 'Batalha', 'Mesa', 'Sons'])
+    expect(marcadores()).toEqual(['Grupo', 'Chat', 'Cenas', 'Batalha', 'Mesa', 'Sons', 'Cutscenes'])
     expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe('Páginas do livro da mesa')
     expect(folha('grupo')?.hidden).toBe(false)
     expect(folha('mesa')?.hidden).toBe(true)
@@ -141,9 +141,9 @@ describe('LivroDaMesa', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Recolher a página')
   })
 
-  it('sem sala possível (navegador puro): só as páginas Cenas, Batalha e Sons, sem topo, com a região "Cenas"', () => {
+  it('sem sala possível (navegador puro): só as páginas Cenas, Batalha, Sons e Cutscenes, sem topo, com a região "Cenas"', () => {
     montar({ topo: undefined, grupo: undefined, chat: undefined, mesa: undefined })
-    expect(marcadores()).toEqual(['Cenas', 'Batalha', 'Sons'])
+    expect(marcadores()).toEqual(['Cenas', 'Batalha', 'Sons', 'Cutscenes'])
     expect(container.querySelector('.gr-pagina__topo')).toBeNull()
     expect(container.querySelector('[role="region"][aria-label="Cenas"]')?.closest('[hidden]')).toBeNull()
     expect(container.querySelector('#lb-rail-panel-room')).toBeNull()

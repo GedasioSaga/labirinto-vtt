@@ -106,6 +106,11 @@ import {
   lerCutsceneAquecer,
   lerCutsceneCarregando,
   lerCutscenePronta,
+  lerCutsceneVideoDoJogador,
+  lerCutsceneVideoPreparar,
+  type CutsceneVideoDoJogador,
+  type CutsceneVideoPararMessage,
+  type CutsceneVideoTocarMessage,
   NOTE_MAX_LENGTH,
   parsePlayerMessage,
   parseSomFalhou,
@@ -122,7 +127,9 @@ import {
   type SomFalhouMessage,
   type SomHostMessage,
 } from './protocol'
-import { BATIDA_DE_CARREGANDO_MS, combinarLargada, type Combinado } from '../transicoes/largada'
+import { BATIDA_DE_CARREGANDO_MS, combinarLargada, combinarLargadaSemPrazo, type Combinado, type CombinadoSemPrazo } from '../transicoes/largada'
+import { registrarRedeDaCutscene, type CutsceneParaTocar, type RedeDaCutscene, type ResultadoDoTocar } from './redeDaCutscene'
+import { useCutscenesStore, type TelaDaExibicao } from '../stores/cutscenesStore'
 import { aberturaPretendida, assinarAberturaPretendida } from '../transicoes/intencao'
 import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
 import { avisarFalhaDeSom, registrarRedeDosSons, type PedidoDeSomAoVivo, type RedeDosSons, type ResultadoDoSomNaRede } from './ponteDosSons'
@@ -1317,6 +1324,18 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** LARGADA COMBINADA: as aberturas de batalha esperando as telas ficarem prontas, por número do preparo. */
   const largadasEmCurso = new Map<number, Combinado>()
   let proximoPreparo = 1
+  /** CUTSCENE EM VÍDEO: a exibição aberta (uma por vez), com as telas que a recebem. */
+  let exibicaoDeVideo: {
+    numero: number
+    cutscene: CutsceneParaTocar
+    combinado: CombinadoSemPrazo
+    largou: boolean
+    /** Alguma tela chegou ao fim: a exibição conta como feita (e a Galeria pode receber o vídeo). */
+    alguemTerminou: boolean
+    telas: Map<string, TelaDaExibicao>
+  } | null = null
+  let proximaExibicao = 1
+  let tirarRegistroDaCutscene: (() => void) | null = null
   /**
    * AQUECER PELA INTENÇÃO: a abertura que esta sala tocou por último (quem chega depois a aquece
    * para a próxima batalha), a que já foi avisada e a quem. Trocou a abertura, todos são avisados de novo.
@@ -1522,6 +1541,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     reconciliarSons()
     // AQUECER PELA INTENÇÃO: quem acabou de entrar (jogador ou TV) recebe a abertura a aquecer.
     reconciliarAquecimento()
+    // CUTSCENE EM VÍDEO: quem acabou de entrar (jogador ou TV) recebe o vídeo da exibição aberta.
+    reconciliarCutsceneDeVideo()
     const list = playerList()
     const key = JSON.stringify(list)
     if (key === lastPlayersKey) return
@@ -1939,6 +1960,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const tirarDasLargadas = (clientId: string) => {
     for (const combinado of [...largadasEmCurso.values()]) combinado.saiu(clientId)
     avisadosDaAbertura.delete(clientId)
+    tirarDaExibicaoDeVideo(clientId)
   }
 
   /**
@@ -1992,6 +2014,158 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const cancelarLargadas = () => {
     for (const combinado of [...largadasEmCurso.values()]) combinado.cancelar()
     largadasEmCurso.clear()
+    // CUTSCENE EM VÍDEO: o `room.closed` já tira o vídeo da tela do jogador; aqui só a conta some.
+    encerrarExibicaoDeVideo()
+  }
+
+  // ─── CUTSCENE EM VÍDEO (14/11/2026; `net/redeDaCutscene.ts`, `transicoes/largada.ts`) ───
+  // Todas as telas da sala (jogadores e TV) baixam o vídeo inteiro de `/media/<id>`; ele só toca
+  // quando a última avisou "pronta" (sem prazo) ou o mestre largou. Quem entra com o vídeo já
+  // tocando assiste do início; quem entra durante a espera passa a ser esperado também.
+
+  /** A tela de quem está na exibição: o nome que o painel do mestre mostra. */
+  const nomeDaTelaDoVideo = (clientId: string): string => {
+    const room = session
+    if (room === null) return 'Jogador'
+    if (room.isTable(clientId)) return 'Tela da mesa'
+    return room.listPlayers(world()).find((p) => p.clientId === clientId)?.name ?? 'Jogador'
+  }
+
+  /** Quem está na sala agora para ver o vídeo: todo jogador conectado e as telas da mesa. */
+  const publicoDoVideo = (): string[] => (session === null ? [] : destinatarios({ tipo: 'todos' }, session.listPlayers(world()), telasDaMesa()))
+
+  /** O painel do mestre lê a exibição pela loja (`cutscenesStore`). */
+  const publicarExibicaoDeVideo = () => {
+    const atual = exibicaoDeVideo
+    if (atual === null) {
+      useCutscenesStore.getState().definirExibicao(null)
+      return
+    }
+    useCutscenesStore.getState().definirExibicao({
+      numero: atual.numero,
+      cutsceneId: atual.cutscene.cutsceneId,
+      titulo: atual.cutscene.titulo,
+      fase: atual.largou ? 'tocando' : 'esperando',
+      telas: [...atual.telas.values()].map((tela) => ({ ...tela })),
+    })
+  }
+
+  /** Manda o `preparar` a quem ainda não o recebeu nesta exibição (o novo da sala). */
+  const prepararNoVideo = (clientIds: readonly string[]) => {
+    const atual = exibicaoDeVideo
+    if (atual === null || clientIds.length === 0) return
+    const msg = lerCutsceneVideoPreparar({
+      type: 'cutscene.video.preparar',
+      exibicao: atual.numero,
+      video: atual.cutscene.video,
+      titulo: atual.cutscene.titulo,
+      ...(atual.largou ? { jaLargou: true } : {}),
+    })
+    if (msg === null) return
+    for (const clientId of clientIds) {
+      atual.telas.set(clientId, { clientId, nome: nomeDaTelaDoVideo(clientId), pct: 0, pronta: false, falhou: false, terminou: false })
+      // Na espera, o novo também é esperado; depois da largada, ele assiste do início quando baixar.
+      if (!atual.largou) atual.combinado.incluir(clientId)
+    }
+    void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
+  }
+
+  /** Acabou para todo mundo (todas as telas terminaram ou saíram): a exibição fecha. */
+  const fecharExibicaoSeAcabou = () => {
+    const atual = exibicaoDeVideo
+    if (atual === null || !atual.largou) return
+    const vivas = [...atual.telas.values()].filter((tela) => !tela.terminou)
+    if (vivas.length > 0) return
+    encerrarExibicaoDeVideo()
+  }
+
+  /** Fecha a exibição sem mandar nada (a sala fechou, ou todos terminaram). A que chegou ao fim numa tela conta como exibida. */
+  const encerrarExibicaoDeVideo = () => {
+    const atual = exibicaoDeVideo
+    if (atual === null) return
+    exibicaoDeVideo = null
+    atual.combinado.cancelar()
+    publicarExibicaoDeVideo()
+    if (atual.alguemTerminou) useCutscenesStore.getState().marcarExibida(atual.cutscene.cutsceneId)
+  }
+
+  const abrirExibicaoDeVideo = (cutscene: CutsceneParaTocar): ResultadoDoTocar => {
+    const room = session
+    if (room === null) return 'sem-jogador'
+    if (exibicaoDeVideo !== null) return 'ja-tocando'
+    if (lerCutsceneVideoPreparar({ type: 'cutscene.video.preparar', exibicao: 1, video: cutscene.video, titulo: cutscene.titulo }) === null) return 'invalida'
+    const publico = publicoDoVideo()
+    if (publico.length === 0) return 'sem-jogador'
+    const numero = proximaExibicao++
+    const combinado = combinarLargadaSemPrazo({
+      telas: publico,
+      aoLargar: () => {
+        const atual = exibicaoDeVideo
+        if (atual === null || atual.numero !== numero || session === null) return
+        atual.largou = true
+        const ordem: CutsceneVideoTocarMessage = { type: 'cutscene.video.tocar', exibicao: numero }
+        const naSala = [...atual.telas.keys()].filter((clientId) => session !== null && entrouNaSala(session, clientId))
+        if (naSala.length > 0) void dispatch({ outbound: naSala.map((clientId) => ({ clientId, msg: ordem })) })
+        publicarExibicaoDeVideo()
+      },
+    })
+    exibicaoDeVideo = { numero, cutscene, combinado, largou: false, alguemTerminou: false, telas: new Map() }
+    prepararNoVideo(publico)
+    publicarExibicaoDeVideo()
+    return 'ok'
+  }
+
+  const pararExibicaoDeVideo = () => {
+    const atual = exibicaoDeVideo
+    if (atual === null) return
+    const ordem: CutsceneVideoPararMessage = { type: 'cutscene.video.parar', exibicao: atual.numero }
+    const conectados = new Set(publicoDoVideo())
+    const outbound = [...atual.telas.keys()].filter((clientId) => conectados.has(clientId)).map((clientId) => ({ clientId, msg: ordem }))
+    if (outbound.length > 0) void dispatch({ outbound })
+    encerrarExibicaoDeVideo()
+  }
+
+  /** O que a tela conta do vídeo: andamento, pronta, fim. Só da exibição em curso e de quem está nela. */
+  const receberDoVideo = (clientId: string, msg: CutsceneVideoDoJogador) => {
+    const atual = exibicaoDeVideo
+    const tela = atual?.telas.get(clientId)
+    if (atual === null || tela === undefined || msg.exibicao !== atual.numero) return
+    if (msg.type === 'cutscene.video.progresso') {
+      tela.pct = msg.pct
+      tela.falhou = msg.falhou === true
+    } else if (msg.type === 'cutscene.video.pronta') {
+      tela.pct = 100
+      tela.pronta = true
+      tela.falhou = false
+      atual.combinado.pronta(clientId)
+    } else {
+      tela.terminou = true
+      atual.alguemTerminou = true
+    }
+    publicarExibicaoDeVideo()
+    fecharExibicaoSeAcabou()
+  }
+
+  /** A conexão acabou: ninguém espera por ela, e ela sai do painel. */
+  const tirarDaExibicaoDeVideo = (clientId: string) => {
+    const atual = exibicaoDeVideo
+    if (atual === null || !atual.telas.delete(clientId)) return
+    atual.combinado.saiu(clientId)
+    publicarExibicaoDeVideo()
+    fecharExibicaoSeAcabou()
+  }
+
+  /** Quem entrou na sala (jogador ou TV) com uma exibição aberta recebe o vídeo. */
+  const reconciliarCutsceneDeVideo = () => {
+    const atual = exibicaoDeVideo
+    if (atual === null) return
+    prepararNoVideo(publicoDoVideo().filter((clientId) => !atual.telas.has(clientId)))
+  }
+
+  const redeDaCutsceneDestaPonte: RedeDaCutscene = {
+    tocar: abrirExibicaoDeVideo,
+    tocarAgora: () => exibicaoDeVideo?.combinado.largarJa(),
+    parar: pararExibicaoDeVideo,
   }
 
   /**
@@ -2159,6 +2333,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     salaDosSonsAberta = false
     tirarRegistroDosSons?.()
     tirarRegistroDosSons = null
+    tirarRegistroDaCutscene?.()
+    tirarRegistroDaCutscene = null
     loopsAoVivo.clear()
     efeitosAoVivo.clear()
     falhasDosSons.clear()
@@ -3778,6 +3954,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       if (falha !== null) receberFalhaDeSom(clientId, falha)
       return
     }
+    // CUTSCENE EM VÍDEO: andamento, pronta e fim do vídeo de quem ENTROU ficam fora da sessão, como o `som.falhou`.
+    if (isRecord(crua) && typeof crua.type === 'string' && crua.type.startsWith('cutscene.video.') && entrouNaSala(session, clientId)) {
+      const doVideo = lerCutsceneVideoDoJogador(crua)
+      if (doVideo !== null) receberDoVideo(clientId, doVideo)
+      return
+    }
     // LARGADA COMBINADA: o "pronta" de quem ENTROU também fica fora da sessão, como o `som.falhou`.
     // Só vale para um preparo em curso que espera por esta conexão; o resto (repetido, atrasado, inventado) some.
     if (isRecord(crua) && crua.type === 'cutscene.pronta' && entrouNaSala(session, clientId)) {
@@ -4215,6 +4397,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // SONS AO VIVO: a aba Sons passa a mandar som por esta sala (a Visão de jogador fica de fora).
       salaDosSonsAberta = true
       if (deps.redeDosSons !== false) tirarRegistroDosSons = registrarRedeDosSons(redeDosSonsDestaPonte)
+      // CUTSCENE EM VÍDEO: a página Cutscenes toca por esta sala; a Visão de jogador fica de fora, como dos sons.
+      if (deps.redeDosSons !== false) tirarRegistroDaCutscene = registrarRedeDaCutscene(redeDaCutsceneDestaPonte)
       notifyPlayersIfChanged()
       // A conversa guardada já está na tela do mestre ao abrir, sem contar como nova
       // (sem ela, a tela já está vazia: fechar a sala a esvaziou).

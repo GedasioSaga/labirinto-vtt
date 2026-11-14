@@ -59,6 +59,8 @@ pub fn run() {
             net::commands::animacoes_ler_arquivo,
             net::commands::minigames_atualizar,
             net::commands::minigames_ler_indice,
+            // Cutscene: o vídeo entra na mídia da mesa sem passar pela webview.
+            net::commands::midia_importar_video,
             visao_jogador::abrir_visao_jogador,
             visao_jogador::mostrar_visao_jogador,
             visao_jogador::fechar_visao_jogador,
@@ -74,6 +76,7 @@ pub fn run() {
             nuvem::nuvem_pedir,
             nuvem::nuvem_enviar_midia,
             nuvem::nuvem_baixar_midia,
+            nuvem::nuvem_enviar_video,
             // Prelúdio, cópia no Google Drive: só a janela main; os tokens nunca voltam.
             preludio::comandos::preludio_google_estado,
             preludio::comandos::preludio_google_entrar,

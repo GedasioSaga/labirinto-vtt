@@ -23,8 +23,15 @@
 //!  - os bytes precisam ser do tipo da extensão (assinatura) e ter o hash do
 //!    nome: arquivo posto à mão na pasta com nome bonito não sai, e imagem com
 //!    nome de áudio (ou o contrário) também não.
+//!
+//! VÍDEO DA CUTSCENE (14/11/2026): mp4/webm até 500 MB, com tipo próprio
+//! (`TipoDeVideo`) para nunca cair em `ler_midia`, que lê o arquivo inteiro na
+//! memória. Entra por `importar_video` (cópia em pedaços, com o hash calculado
+//! no caminho) e sai por `/media/{id}` em fluxo, com `Range` (`server.rs`). A
+//! conferência do hash também é em pedaços (`conferir_video`).
 
-use std::path::Path;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
@@ -97,6 +104,61 @@ impl TipoDeMidia {
     }
 }
 
+/// Teto de um vídeo da mesa (a cutscene): o mestre decidiu "sem comprimir,
+/// até 500 MB" (14/11/2026). O TS usa o mesmo número (`VIDEO_MAX_BYTES`).
+pub const MIDIA_VIDEO_MAX_BYTES: u64 = 500 * 1024 * 1024;
+/// Pedaço da cópia e da conferência do vídeo: a memória fica nisso, nunca no
+/// tamanho do arquivo.
+const PEDACO_DO_VIDEO: usize = 1024 * 1024;
+/// Até onde procurar o `DocType` do WebM no cabeçalho EBML.
+const CABECALHO_DO_WEBM: usize = 64;
+
+/// Os vídeos da cutscene. Tipo separado de `TipoDeMidia` de propósito: o teto
+/// de 500 MB nunca vale para quem lê o arquivo inteiro na memória.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TipoDeVideo {
+    Mp4,
+    Webm,
+}
+
+impl TipoDeVideo {
+    pub fn mime(self) -> &'static str {
+        match self {
+            Self::Mp4 => "video/mp4",
+            Self::Webm => "video/webm",
+        }
+    }
+
+    pub fn extensao(self) -> &'static str {
+        match self {
+            Self::Mp4 => "mp4",
+            Self::Webm => "webm",
+        }
+    }
+
+    fn pela_extensao(extensao: &str) -> Option<Self> {
+        match extensao {
+            "mp4" => Some(Self::Mp4),
+            "webm" => Some(Self::Webm),
+            _ => None,
+        }
+    }
+
+    /// O tipo pela assinatura. MP4: a primeira caixa é `ftyp` (a mesma família
+    /// do m4a; aqui só se pergunta "é vídeo mp4?", então basta). WebM: o
+    /// cabeçalho EBML com o `DocType` "webm" (um `.mkv` qualquer não passa).
+    pub fn dos_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.get(4..8) == Some(b"ftyp".as_slice()) {
+            return Some(Self::Mp4);
+        }
+        let cabeca = bytes.get(..CABECALHO_DO_WEBM.min(bytes.len())).unwrap_or_default();
+        if cabeca.starts_with(b"\x1A\x45\xDF\xA3") && cabeca.windows(4).any(|janela| janela == b"webm") {
+            return Some(Self::Webm);
+        }
+        None
+    }
+}
+
 /// Por que a mídia não saiu. A rota responde 404 para todos: dizer qual
 /// ensinaria a quem tenta quais ids existem.
 #[derive(Debug, PartialEq, Eq)]
@@ -111,11 +173,24 @@ pub enum ErroDeMidia {
 /// qualquer outra forma é `None`.
 pub fn tipo_do_id(id: &str) -> Option<TipoDeMidia> {
     let (hash, extensao) = id.split_once('.')?;
-    let hash_ok = hash.len() == TAMANHO_DO_HASH && hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
-    if !hash_ok {
+    if !hash_bem_formado(hash) {
         return None;
     }
     TipoDeMidia::pela_extensao(extensao)
+}
+
+/// O tipo de um id de vídeo válido (`<64 hex minúsculos>.<mp4|webm>`); a mesma
+/// forma estrita do `tipo_do_id`.
+pub fn tipo_do_video(id: &str) -> Option<TipoDeVideo> {
+    let (hash, extensao) = id.split_once('.')?;
+    if !hash_bem_formado(hash) {
+        return None;
+    }
+    TipoDeVideo::pela_extensao(extensao)
+}
+
+fn hash_bem_formado(hash: &str) -> bool {
+    hash.len() == TAMANHO_DO_HASH && hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// O tipo pela assinatura dos bytes (o começo do arquivo), não pelo nome.
@@ -187,6 +262,197 @@ pub async fn ler_midia(pasta: &Path, id: &str) -> Result<(Vec<u8>, TipoDeMidia),
         return Err(ErroDeMidia::ConteudoNaoConfere);
     }
     Ok((bytes, tipo))
+}
+
+/// O que sai de uma leitura em pedaços: quantos bytes, o hash e o começo do
+/// arquivo (para a assinatura).
+struct Lido {
+    tamanho: u64,
+    hash: String,
+    cabeca: Vec<u8>,
+}
+
+/// Lê `leitor` até o fim em pedaços de 1 MiB, calculando o SHA-256 no caminho
+/// e passando cada pedaço a `gravar`. Um byte além de `teto` (o arquivo cresceu
+/// depois do `metadata`) para a leitura: `Ok(None)`.
+fn ler_em_pedacos(
+    leitor: impl Read,
+    teto: u64,
+    mut gravar: impl FnMut(&[u8]) -> std::io::Result<()>,
+) -> std::io::Result<Option<Lido>> {
+    let mut leitor = leitor.take(teto.saturating_add(1));
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; PEDACO_DO_VIDEO];
+    let mut cabeca = Vec::with_capacity(CABECALHO_DO_WEBM);
+    let mut tamanho: u64 = 0;
+    loop {
+        let lidos = match leitor.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(lidos) => lidos,
+            Err(erro) if erro.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(erro) => return Err(erro),
+        };
+        let pedaco = buffer.get(..lidos).unwrap_or_default();
+        tamanho = tamanho.saturating_add(u64::try_from(lidos).unwrap_or(u64::MAX));
+        if tamanho > teto {
+            return Ok(None);
+        }
+        let falta_na_cabeca = CABECALHO_DO_WEBM.saturating_sub(cabeca.len());
+        cabeca.extend_from_slice(pedaco.get(..falta_na_cabeca.min(lidos)).unwrap_or_default());
+        hasher.update(pedaco);
+        gravar(pedaco)?;
+    }
+    let hash = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok(Some(Lido { tamanho, hash, cabeca }))
+}
+
+/// Um vídeo da pasta de mídia, conferido de ponta a ponta.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoConferido {
+    pub caminho: PathBuf,
+    pub tamanho: u64,
+    pub tipo: TipoDeVideo,
+}
+
+/// Confere o vídeo `id` da `pasta` lendo em pedaços: id estrito, arquivo
+/// comum, até 500 MB, assinatura do tipo do id e hash do nome. Bloqueante (lê
+/// o arquivo todo, ~1 s para 500 MB): chamar em `spawn_blocking`.
+pub fn conferir_video(pasta: &Path, id: &str) -> Result<VideoConferido, ErroDeMidia> {
+    let tipo = tipo_do_video(id).ok_or(ErroDeMidia::IdInvalido)?;
+    let caminho = pasta.join(id);
+    let arquivo = std::fs::File::open(&caminho).map_err(|_| ErroDeMidia::NaoEncontrada)?;
+    let info = arquivo.metadata().map_err(|_| ErroDeMidia::NaoEncontrada)?;
+    if !info.is_file() {
+        return Err(ErroDeMidia::NaoEncontrada);
+    }
+    if info.len() > MIDIA_VIDEO_MAX_BYTES {
+        return Err(ErroDeMidia::GrandeDemais);
+    }
+    let lido = ler_em_pedacos(arquivo, MIDIA_VIDEO_MAX_BYTES, |_| Ok(()))
+        .map_err(|_| ErroDeMidia::NaoEncontrada)?
+        .ok_or(ErroDeMidia::GrandeDemais)?;
+    let hash_ok = id.split_once('.').is_some_and(|(hash, _)| hash == lido.hash);
+    if TipoDeVideo::dos_bytes(&lido.cabeca) != Some(tipo) || !hash_ok {
+        return Err(ErroDeMidia::ConteudoNaoConfere);
+    }
+    Ok(VideoConferido { caminho, tamanho: lido.tamanho, tipo })
+}
+
+/// Por que o vídeo não entrou na mídia da mesa.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ErroDeImportacao {
+    /// O arquivo escolhido não abre ou não é arquivo comum.
+    Origem,
+    GrandeDemais,
+    /// Não é mp4 nem webm pela assinatura.
+    NaoEVideo,
+    /// Gravar na pasta de mídia falhou.
+    Disco,
+}
+
+/// O vídeo que entrou: o id é `<sha256>.<mp4|webm>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoImportado {
+    pub id: String,
+    pub tamanho: u64,
+    pub tipo: TipoDeVideo,
+}
+
+/// Copia o vídeo `origem` (escolhido pelo mestre no diálogo) para
+/// `pasta/<sha256>.<ext>` em pedaços, sem carregar o arquivo na memória. O
+/// tipo sai da assinatura, nunca do nome do arquivo de origem. Grava num nome
+/// temporário e troca, para nunca deixar meio vídeo com o nome certo; se o
+/// mesmo vídeo já está lá, só apaga a cópia. Bloqueante: `spawn_blocking`.
+pub fn importar_video(origem: &Path, pasta: &Path, sufixo: u64) -> Result<VideoImportado, ErroDeImportacao> {
+    let arquivo = std::fs::File::open(origem).map_err(|_| ErroDeImportacao::Origem)?;
+    let info = arquivo.metadata().map_err(|_| ErroDeImportacao::Origem)?;
+    if !info.is_file() {
+        return Err(ErroDeImportacao::Origem);
+    }
+    if info.len() > MIDIA_VIDEO_MAX_BYTES {
+        return Err(ErroDeImportacao::GrandeDemais);
+    }
+    std::fs::create_dir_all(pasta).map_err(|_| ErroDeImportacao::Disco)?;
+    let temporario = pasta.join(format!("importando-{sufixo:016x}.tmp"));
+    let resultado = copiar_conferindo(arquivo, &temporario, pasta);
+    if resultado.is_err() {
+        // Limpeza de melhor esforço: o erro que importa é o da cópia.
+        let _ = std::fs::remove_file(&temporario);
+    }
+    resultado
+}
+
+fn copiar_conferindo(arquivo: std::fs::File, temporario: &Path, pasta: &Path) -> Result<VideoImportado, ErroDeImportacao> {
+    let mut destino = std::io::BufWriter::new(std::fs::File::create(temporario).map_err(|_| ErroDeImportacao::Disco)?);
+    let lido = ler_em_pedacos(arquivo, MIDIA_VIDEO_MAX_BYTES, |pedaco| destino.write_all(pedaco))
+        .map_err(|_| ErroDeImportacao::Disco)?
+        .ok_or(ErroDeImportacao::GrandeDemais)?;
+    destino.flush().map_err(|_| ErroDeImportacao::Disco)?;
+    drop(destino);
+    let tipo = TipoDeVideo::dos_bytes(&lido.cabeca).ok_or(ErroDeImportacao::NaoEVideo)?;
+    let id = format!("{}.{}", lido.hash, tipo.extensao());
+    let no_lugar = pasta.join(&id);
+    if no_lugar.is_file() {
+        // O nome é o hash: o que já está lá é o mesmo vídeo.
+        let _ = std::fs::remove_file(temporario);
+    } else {
+        std::fs::rename(temporario, &no_lugar).map_err(|_| ErroDeImportacao::Disco)?;
+    }
+    Ok(VideoImportado { id, tamanho: lido.tamanho, tipo })
+}
+
+/// O pedaço do arquivo que o cabeçalho `Range` pede (RFC 9110, 14.1.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaixaPedida {
+    /// Sem `Range`, ou um que o servidor pode ignorar (outra unidade, várias
+    /// faixas, forma torta): `200` com o arquivo inteiro.
+    Inteiro,
+    /// `206`: de `inicio` até `fim`, os dois inclusos.
+    Parte { inicio: u64, fim: u64 },
+    /// `416`: a faixa começa no fim do arquivo ou depois.
+    ForaDoArquivo,
+}
+
+/// Lê o `Range` de um arquivo de `tamanho` bytes. Só `bytes=`, uma faixa só.
+pub fn faixa_pedida(cabecalho: Option<&str>, tamanho: u64) -> FaixaPedida {
+    let Some(faixa) = cabecalho.and_then(|valor| valor.trim().strip_prefix("bytes=")) else {
+        return FaixaPedida::Inteiro;
+    };
+    if faixa.contains(',') {
+        return FaixaPedida::Inteiro;
+    }
+    let Some((de, ate)) = faixa.split_once('-') else {
+        return FaixaPedida::Inteiro;
+    };
+    let (de, ate) = (de.trim(), ate.trim());
+    if de.is_empty() {
+        // Sufixo: os últimos `n` bytes.
+        let Ok(ultimos) = ate.parse::<u64>() else {
+            return FaixaPedida::Inteiro;
+        };
+        if ultimos == 0 || tamanho == 0 {
+            return FaixaPedida::ForaDoArquivo;
+        }
+        return FaixaPedida::Parte { inicio: tamanho.saturating_sub(ultimos), fim: tamanho.saturating_sub(1) };
+    }
+    let Ok(inicio) = de.parse::<u64>() else {
+        return FaixaPedida::Inteiro;
+    };
+    let fim = if ate.is_empty() {
+        u64::MAX
+    } else {
+        match ate.parse::<u64>() {
+            Ok(fim) => fim,
+            Err(_) => return FaixaPedida::Inteiro,
+        }
+    };
+    if fim < inicio {
+        return FaixaPedida::Inteiro;
+    }
+    if inicio >= tamanho {
+        return FaixaPedida::ForaDoArquivo;
+    }
+    FaixaPedida::Parte { inicio, fim: fim.min(tamanho.saturating_sub(1)) }
 }
 
 #[cfg(test)]
@@ -410,6 +676,81 @@ mod tests {
         std::fs::write(pasta.join(&outro), PNG_MINIMO)?;
         assert_eq!(ler_midia(&pasta, &outro).await, Err(ErroDeMidia::ConteudoNaoConfere));
         std::fs::remove_dir_all(&pasta)
+    }
+
+    /// MP4 mínimo: a primeira caixa é `ftyp` (com o tamanho dela antes).
+    const MP4_MINIMO: &[u8] = b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2";
+    /// WebM mínimo: cabeçalho EBML com o `DocType` "webm".
+    const WEBM_MINIMO: &[u8] = b"\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01\x42\x82\x84webm\x42\x87\x81\x04";
+
+    fn erro_de_importacao(erro: ErroDeImportacao) -> std::io::Error {
+        std::io::Error::other(format!("{erro:?}"))
+    }
+
+    /// Cutscene (14/11): o vídeo tem forma de id própria e sai pela assinatura,
+    /// nunca pelo nome; um `.mkv` (EBML de "matroska") não passa por webm.
+    #[test]
+    fn tipo_do_video_vem_da_forma_do_id_e_da_assinatura() {
+        let hash = hash_de_exemplo();
+        assert_eq!(tipo_do_video(&format!("{hash}.mp4")), Some(TipoDeVideo::Mp4));
+        assert_eq!(tipo_do_video(&format!("{hash}.webm")), Some(TipoDeVideo::Webm));
+        for ruim in [format!("{hash}.MP4"), format!("{hash}.mkv"), format!("{hash}.png"), format!("../{hash}.mp4"), format!("{}.mp4", &hash[1..])] {
+            assert_eq!(tipo_do_video(&ruim), None, "{ruim:?}");
+        }
+        // O vídeo nunca vira mídia comum (a que sai inteira da memória).
+        assert_eq!(tipo_do_id(&format!("{hash}.webm")), None);
+        assert_eq!(TipoDeVideo::dos_bytes(MP4_MINIMO), Some(TipoDeVideo::Mp4));
+        assert_eq!(TipoDeVideo::dos_bytes(WEBM_MINIMO), Some(TipoDeVideo::Webm));
+        for ruim in [b"\x1A\x45\xDF\xA3\xA3\x42\x86\x81\x01\x42\x82\x88matroska".as_slice(), b"<!doctype html><video>", PNG_MINIMO, b""] {
+            assert_eq!(TipoDeVideo::dos_bytes(ruim), None, "{ruim:?}");
+        }
+        assert_eq!((TipoDeVideo::Mp4.mime(), TipoDeVideo::Webm.mime()), ("video/mp4", "video/webm"));
+    }
+
+    /// O `Range` do `<video>` e da retomada da baixa: 200 (inteiro), 206 (faixa) e 416.
+    #[test]
+    fn faixa_do_range_vira_200_206_ou_416() {
+        let tamanho = 4096;
+        assert_eq!(faixa_pedida(None, tamanho), FaixaPedida::Inteiro);
+        assert_eq!(faixa_pedida(Some("bytes=0-"), tamanho), FaixaPedida::Parte { inicio: 0, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=1000-1999"), tamanho), FaixaPedida::Parte { inicio: 1000, fim: 1999 });
+        assert_eq!(faixa_pedida(Some("bytes=-500"), tamanho), FaixaPedida::Parte { inicio: 3596, fim: 4095 });
+        // Fim além do arquivo para no último byte; sufixo maior que o arquivo = o arquivo todo.
+        assert_eq!(faixa_pedida(Some("bytes=4000-99999"), tamanho), FaixaPedida::Parte { inicio: 4000, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=-99999"), tamanho), FaixaPedida::Parte { inicio: 0, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=4096-"), tamanho), FaixaPedida::ForaDoArquivo);
+        assert_eq!(faixa_pedida(Some("bytes=-0"), tamanho), FaixaPedida::ForaDoArquivo);
+        // O que o servidor pode ignorar (outra unidade, várias faixas, forma torta): 200 com tudo.
+        for ignoravel in ["items=0-1", "bytes=0-1,5-9", "bytes=9-1", "bytes=a-b", "bytes=1"] {
+            assert_eq!(faixa_pedida(Some(ignoravel), tamanho), FaixaPedida::Inteiro, "{ignoravel}");
+        }
+    }
+
+    /// A importação: acima de 500 MiB e o que não é vídeo pelos bytes ficam de
+    /// fora; o mesmo vídeo duas vezes dá o mesmo id e um arquivo só na pasta.
+    #[test]
+    fn importar_video_recusa_acima_de_500_mib_e_nao_duplica() -> Result<(), std::io::Error> {
+        let raiz = pasta_de_teste("importar-video")?;
+        let pasta = raiz.join(PASTA_DE_MIDIA);
+        // Só o tamanho (sem escrever os bytes): a recusa vem antes de ler.
+        let grande = raiz.join("grande.mp4");
+        std::fs::File::create(&grande)?.set_len(MIDIA_VIDEO_MAX_BYTES + 1)?;
+        assert_eq!(importar_video(&grande, &pasta, 1), Err(ErroDeImportacao::GrandeDemais));
+        std::fs::remove_file(&grande)?;
+        let html = raiz.join("falso.mp4");
+        std::fs::write(&html, b"<!doctype html><script>alert(1)</script>")?;
+        assert_eq!(importar_video(&html, &pasta, 2), Err(ErroDeImportacao::NaoEVideo));
+        let webm = raiz.join("abertura.webm");
+        std::fs::write(&webm, WEBM_MINIMO)?;
+        let primeiro = importar_video(&webm, &pasta, 3).map_err(erro_de_importacao)?;
+        let segundo = importar_video(&webm, &pasta, 4).map_err(erro_de_importacao)?;
+        assert_eq!(primeiro.id, format!("{}.webm", hash_hex(WEBM_MINIMO)));
+        assert_eq!(primeiro, segundo);
+        // Nem cópia dupla nem temporário largado (o HTML recusado também não ficou).
+        assert_eq!(std::fs::read_dir(&pasta)?.count(), 1);
+        let tamanho = u64::try_from(WEBM_MINIMO.len()).unwrap_or(u64::MAX);
+        assert_eq!(conferir_video(&pasta, &primeiro.id).map(|v| (v.tamanho, v.tipo)), Ok((tamanho, TipoDeVideo::Webm)));
+        std::fs::remove_dir_all(&raiz)
     }
 
     #[tokio::test]

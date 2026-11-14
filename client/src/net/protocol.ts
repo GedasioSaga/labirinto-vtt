@@ -1239,6 +1239,95 @@ export function lerCutsceneAquecer(value: unknown): CutsceneAquecerMessage | nul
   return { type: 'cutscene.aquecer', abertura: value.abertura }
 }
 
+/**
+ * CUTSCENE EM VÍDEO (14/11/2026). O mestre dispara um vídeo (mp4/webm da mídia da mesa, servido
+ * por `/media/<id>` com `Range`); cada tela (jogador e TV) baixa o arquivo INTEIRO, avisa o
+ * andamento (`cutscene.video.progresso`) e, no fim, `cutscene.video.pronta`. O vídeo só toca no
+ * `cutscene.video.tocar`, quando todas ficaram prontas ou o mestre largou ("Tocar agora"); sem
+ * prazo (`transicoes/largada.ts`, `combinarLargadaSemPrazo`). Quem entra com o vídeo já tocando
+ * recebe o `preparar` com `jaLargou` e assiste do início assim que baixar. O jogador não pula; o
+ * mestre para para todos (`cutscene.video.parar`). Jogador antigo ignora as três.
+ */
+export interface CutsceneVideoPrepararMessage {
+  type: 'cutscene.video.preparar'
+  /** O número desta exibição: as respostas e as ordens só valem para ele. */
+  exibicao: number
+  /** `<sha256>.<mp4|webm>`, o id da mídia da mesa. */
+  video: string
+  titulo: string
+  /** A mesa já largou: baixar e tocar do início, sem esperar ordem. */
+  jaLargou?: boolean
+}
+
+export interface CutsceneVideoTocarMessage {
+  type: 'cutscene.video.tocar'
+  exibicao: number
+}
+
+export interface CutsceneVideoPararMessage {
+  type: 'cutscene.video.parar'
+  exibicao: number
+}
+
+/** Do jogador (e da TV) ao mestre: quanto do vídeo já chegou (0 a 100) ou que a baixa falhou de vez. FORA da `PlayerMessage`. */
+export interface CutsceneVideoProgressoMessage {
+  type: 'cutscene.video.progresso'
+  exibicao: number
+  pct: number
+  falhou?: boolean
+}
+
+/** O vídeo inteiro chegou a esta tela. FORA da `PlayerMessage`. */
+export interface CutsceneVideoProntaMessage {
+  type: 'cutscene.video.pronta'
+  exibicao: number
+}
+
+/** O vídeo terminou nesta tela (chegou ao fim). FORA da `PlayerMessage`. */
+export interface CutsceneVideoFimMessage {
+  type: 'cutscene.video.fim'
+  exibicao: number
+}
+
+export type CutsceneVideoDoJogador = CutsceneVideoProgressoMessage | CutsceneVideoProntaMessage | CutsceneVideoFimMessage
+
+/** Título do vídeo na mesa e na Galeria, em caracteres. */
+export const CUTSCENE_TITULO_MAX = 80
+const FORMA_DO_ID_DE_VIDEO = /^[0-9a-f]{64}\.(mp4|webm)$/
+
+export function ehIdDeVideo(value: unknown): value is string {
+  return typeof value === 'string' && FORMA_DO_ID_DE_VIDEO.test(value)
+}
+
+/** Valida o `preparar` que o jogador recebe (e que o mestre monta antes de mandar). */
+export function lerCutsceneVideoPreparar(value: unknown): CutsceneVideoPrepararMessage | null {
+  if (!isRecord(value) || value.type !== 'cutscene.video.preparar' || !ehPreparoDeCutscene(value.exibicao)) return null
+  if (!ehIdDeVideo(value.video) || !textoCurto(value.titulo, CUTSCENE_TITULO_MAX)) return null
+  if (value.jaLargou !== undefined && typeof value.jaLargou !== 'boolean') return null
+  return { type: 'cutscene.video.preparar', exibicao: value.exibicao, video: value.video, titulo: value.titulo, ...(value.jaLargou === true ? { jaLargou: true } : {}) }
+}
+
+/** Valida a ordem de tocar ou de parar o vídeo (as duas só levam o número da exibição). */
+export function lerCutsceneVideoOrdem(value: unknown): CutsceneVideoTocarMessage | CutsceneVideoPararMessage | null {
+  if (!isRecord(value) || !ehPreparoDeCutscene(value.exibicao)) return null
+  if (value.type === 'cutscene.video.tocar') return { type: 'cutscene.video.tocar', exibicao: value.exibicao }
+  if (value.type === 'cutscene.video.parar') return { type: 'cutscene.video.parar', exibicao: value.exibicao }
+  return null
+}
+
+/** Valida o que a tela manda ao mestre sobre o vídeo (andamento, pronta, fim). */
+export function lerCutsceneVideoDoJogador(value: unknown): CutsceneVideoDoJogador | null {
+  if (!isRecord(value) || !ehPreparoDeCutscene(value.exibicao)) return null
+  const exibicao = value.exibicao
+  if (value.type === 'cutscene.video.pronta') return { type: 'cutscene.video.pronta', exibicao }
+  if (value.type === 'cutscene.video.fim') return { type: 'cutscene.video.fim', exibicao }
+  if (value.type !== 'cutscene.video.progresso') return null
+  const pct = value.pct
+  if (typeof pct !== 'number' || !Number.isInteger(pct) || pct < 0 || pct > 100) return null
+  if (value.falhou !== undefined && typeof value.falhou !== 'boolean') return null
+  return { type: 'cutscene.video.progresso', exibicao, pct, ...(value.falhou === true ? { falhou: true } : {}) }
+}
+
 /** Texto curto não vazio, sem quebra de linha, até `max` caracteres. */
 function textoCurto(value: unknown, max: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= max && !/[\r\n]/.test(value)
@@ -2122,6 +2211,10 @@ export type HostMessage =
   | CutsceneTocarMessage
   // AQUECER PELA INTENÇÃO: baixar e pré-compilar a abertura que o mestre escolheu (ver `CutsceneAquecerMessage`). Jogador antigo ignora.
   | CutsceneAquecerMessage
+  // CUTSCENE EM VÍDEO: baixar, tocar junto e parar o vídeo do mestre (ver `CutsceneVideoPrepararMessage`). Jogador antigo ignora.
+  | CutsceneVideoPrepararMessage
+  | CutsceneVideoTocarMessage
+  | CutsceneVideoPararMessage
   | { type: 'token.move.rejected'; reqId: string; reason: TokenMoveRejectionReason }
   // VEÍCULO: o "Subir"/"Descer" não valeu, e por quê (`VehicleRejection`). Aceito não tem resposta: vem no snapshot.
   | { type: 'vehicle.rejected'; reason: VehicleRejection }

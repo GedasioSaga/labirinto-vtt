@@ -48,6 +48,33 @@ export async function lerCorpo(request: Request, tetoEmBytes: number): Promise<u
   }
 }
 
+/**
+ * O corpo que a rota não leu (recusa antes de ler, ou rota que ignora o corpo, como o tirar
+ * da Galeria com `{}`) é lido e jogado fora antes da resposta, até `teto` bytes. Sem isso o
+ * repasse ao DO segue lendo o pedido depois da resposta e o runtime acusa "Can't read from
+ * request stream after response has been sent" (só cancelar não basta: conferido no
+ * `wrangler dev`). Passou do teto, cancela. Melhor esforço: corpo já lido ou travado fica
+ * como está, e erro de leitura não muda a resposta.
+ */
+export async function descartarCorpoNaoLido(request: Request, teto: number): Promise<void> {
+  if (request.body === null || request.bodyUsed || request.body.locked) return
+  const leitor = request.body.getReader()
+  let lidos = 0
+  try {
+    for (;;) {
+      const { done, value } = await leitor.read()
+      if (done) return
+      lidos += value.byteLength
+      if (lidos > teto) {
+        await leitor.cancel()
+        return
+      }
+    }
+  } catch {
+    // O cliente caiu no meio: não há o que descartar.
+  }
+}
+
 /** Inteiro não negativo de um parâmetro da URL; ausente = `padrao`. */
 export function inteiroDaUrl(url: URL, nome: string, padrao: number): number {
   const texto = url.searchParams.get(nome)
