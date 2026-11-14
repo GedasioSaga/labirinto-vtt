@@ -4153,6 +4153,8 @@ function PlayerViewDoCanvas({
       const carimbos = createCarimbosRenderer({
         ladoDaArte: modoLeve ? LADO_DA_ARTE / 2 : LADO_DA_ARTE,
         texelsDoPedaco: telaDeToque || modoLeve ? TEXELS_DO_PEDACO / 2 : TEXELS_DO_PEDACO,
+        // A brasa da rocha vulcânica pulsa no relógio das chamas, dentro da máscara do conhecido como os corpos.
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoMudarVisibilidade: (visivel) => {
           if (!carimbosContainer.destroyed) carimbosContainer.visible = visivel
         },
@@ -5064,6 +5066,8 @@ function PlayerViewDoCanvas({
           fichas,
           // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
           fogos: m.props,
+          // Os carimbos que iluminam, dos que ele recebeu (`carimbosParaJogador`): o que não chegou não ilumina.
+          carimbos: m.carimbos,
           casa: m.grid,
           // Com a penumbra: o claro só no conhecido (o nunca visto sai numa cor só) e a beira macia (peça E).
           conhecido: scene.penumbra === null ? null : { contexto: scene.knownMask.context, revisao: scene.revisaoDaNevoa },

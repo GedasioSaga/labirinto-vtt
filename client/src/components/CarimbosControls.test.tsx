@@ -97,6 +97,25 @@ describe('CarimbosControls', () => {
       'Arbusto com frutinhas',
       'Folhas secas',
       'Galhos caídos',
+      'Seixos de rio',
+      'Lama',
+      'Musgo',
+      'Vitória-régia',
+      'Conchas e estrela-do-mar',
+      'Algas na areia',
+      'Coral',
+      'Cacto',
+      'Cacto redondo',
+      'Arbusto seco que rola',
+      'Crânio de boi',
+      'Monte de neve',
+      'Árvore congelada',
+      'Bloco de gelo',
+      'Cristais',
+      'Estalagmite',
+      'Cogumelos que brilham',
+      'Rochedo com musgo',
+      'Rocha vulcânica',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -114,7 +133,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('galhos-caidos')
+    expect(useMapStore.getState().carimboEscolhido).toBe('rocha-vulcanica')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })

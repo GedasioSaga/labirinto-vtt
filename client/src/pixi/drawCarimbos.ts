@@ -15,6 +15,8 @@ import {
   silhuetaDaForma,
   type CarimboCarregado,
 } from '../texturas/desenhado/carimbos'
+import { createBrilhoDosCarimbos, type BrilhoNoPalco } from './brilhoDosCarimbos'
+import type { MovimentoDasChamas } from './chamasDasFogueiras'
 
 /**
  * CARIMBOS no palco (`lib/carimbos.ts`): os objetos que o mestre soltou,
@@ -29,7 +31,10 @@ import {
  *    no palco com a transparência uma vez só — duas sombras que se cruzam não
  *    escurecem duas vezes, e o palco desenha meia dúzia de imagens, não mil;
  * 3. os CORPOS: um sprite por objeto, todos da mesma textura por desenho (o
- *    Pixi os junta num lote), de trás (norte) para a frente (sul).
+ *    Pixi os junta num lote), de trás (norte) para a frente (sul);
+ * 4. o BRILHO (14/11/2026): a parte que acende do carimbo que tem `brilho` (a
+ *    brasa da rocha vulcânica), somada por cima dos corpos e pulsando
+ *    (`pixi/brilhoDosCarimbos.ts`).
  *
  * NADA é redesenhado por quadro: os sprites e os pedaços mudam só quando os
  * objetos mudam, e só o pedaço que mudou é pintado de novo. Troca de cena
@@ -72,6 +77,8 @@ export interface ArteNoPalco {
   chao: boolean
   /** A imagem vai transposta, (u, v) -> (v, u): o espelho diagonal do Desenhado (CONTRATO 9.4). */
   transposta?: boolean
+  /** A parte que acende (`DefinicaoDeCarimbo.brilho`), no mesmo quadro e lado do corpo; ausente = nada acende. */
+  brilho?: Texture
 }
 
 export interface EntradaDosCarimbos {
@@ -103,6 +110,8 @@ export interface OpcoesDosCarimbos {
   assar?: (tipo: string, variante: number, importado: CarimboImportado | undefined) => ArteNoPalco | null | Promise<ArteNoPalco | null>
   /** Os testes trocam a pintura do pedaço de sombra. */
   pintarPedaco?: (pedaco: PedacoDeSombra) => Texture | null
+  /** O relógio do brilho que pulsa (`brilhoDosCarimbos.ts`), o mesmo das chamas. Ausente = o brilho fica parado. */
+  movimento?: MovimentoDasChamas
 }
 
 /** Um pedaço da camada de sombras: a caixa no mundo e as sombras que caem nele. */
@@ -157,7 +166,12 @@ function assarPadrao(lado: number) {
     }
     const definicao = carimboDoCatalogo(tipo)
     if (definicao === null) return null
-    return paraOPalco(assarDesenho(definicao.desenhar, definicao.sombra, (variante * Math.PI) / 4, variante, lado))
+    const giro = (variante * Math.PI) / 4
+    const arte = paraOPalco(assarDesenho(definicao.desenhar, definicao.sombra, giro, variante, lado))
+    if (arte === null || definicao.brilho === undefined) return arte
+    // O brilho numa tela transparente própria, no mesmo quadro (o desenho dele apaga o que o corpo da frente cobre).
+    const brilho = assarDesenho(definicao.brilho, 'nenhuma', giro, variante, lado)
+    return brilho === null ? arte : { ...arte, brilho: texturaDaTela(brilho.corpo) }
   }
 }
 
@@ -208,7 +222,9 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   // A prévia muda a cada passo do spray: num grupo próprio, mexer nela não
   // obriga o Pixi a refazer os lotes do mapa inteiro (como o rascunho do editor).
   rascunho.enableRenderGroup()
-  camada.addChild(chao, sombras, corpos, rascunho)
+  // O brilho logo acima dos corpos: soma por cima do desenho de cada um.
+  const brilho = createBrilhoDosCarimbos({ movimento: opcoes.movimento })
+  camada.addChild(chao, sombras, corpos, brilho.camada, rascunho)
 
   const ladoDaArte = opcoes.ladoDaArte ?? LADO_DA_ARTE
   const texelsDoPedaco = opcoes.texelsDoPedaco ?? TEXELS_DO_PEDACO
@@ -257,6 +273,11 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   /** A cena e o estilo do último desenho (a prévia pede as artes no meio do traço). */
   let cenaAtual = ''
   let desenhadoAgora = false
+  /** O corpo e o brilho da arte saem da placa no próximo desenho (algum sprite ainda pode usá-los agora). */
+  function aposentarTexturas(arte: ArteNoPalco): void {
+    aposentadas.push(arte.corpo)
+    if (arte.brilho !== undefined) aposentadas.push(arte.brilho)
+  }
   function aposentarSombraDaPrevia(arte: ArteNoPalco): void {
     const textura = sombrasDaPrevia.get(arte)
     if (textura === undefined) return
@@ -272,7 +293,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       const tipo = chave.slice(0, chave.lastIndexOf('#'))
       if (ehTipoImportado(tipo) || carimboDoCatalogo(tipo)?.origem === 'embutido') continue
       if (guardada !== null && guardada !== 'assando') {
-        aposentadas.push(guardada.corpo)
+        aposentarTexturas(guardada)
         // Sem isto a silhueta da arte velha ficava na memória de vídeo até o palco morrer.
         aposentarSombraDaPrevia(guardada)
       }
@@ -294,7 +315,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       const guardada = artes.get(chave)
       if (guardada === undefined || guardada === 'assando') continue
       if (guardada !== null) {
-        aposentadas.push(guardada.corpo)
+        aposentarTexturas(guardada)
         aposentarSombraDaPrevia(guardada)
       }
       artes.delete(chave)
@@ -403,8 +424,9 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
    * invertido leva o texel (u, v) a (v, u); a âncora no texel (ancora.y,
    * ancora.x) põe o pé onde o contrato manda, (x + s·(v - ancora.x), y + s·(u - ancora.y)).
    */
-  function posicionar(sprite: Sprite, c: Carimbo, arte: ArteNoPalco): void {
-    if (sprite.texture !== arte.corpo) sprite.texture = arte.corpo
+  /** `textura`: a do corpo, ou a do brilho, que tem o mesmo quadro (o sprite do brilho fica em cima do corpo). */
+  function posicionar(sprite: Sprite, c: Carimbo, arte: ArteNoPalco, textura: Texture = arte.corpo): void {
+    if (sprite.texture !== textura) sprite.texture = textura
     const q = arte.quadro
     const transposta = arte.transposta === true
     const ancoraX = -q.esquerda / q.lado
@@ -413,7 +435,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     sprite.position.set(c.x, c.y)
     const lado = q.lado * c.tamanho
     // A escala sempre posta inteira (o `width` do Pixi guarda o sinal de antes: a forma transposta deixaria o y invertido).
-    sprite.scale.set(lado / arte.corpo.orig.width, (transposta ? -lado : lado) / arte.corpo.orig.height)
+    sprite.scale.set(lado / textura.orig.width, (transposta ? -lado : lado) / textura.orig.height)
     sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? Math.sin((c.giro * Math.PI) / 180) * INCLINACAO_DO_IMPORTADO : 0
   }
 
@@ -441,6 +463,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   function limparTudo(): void {
     for (const sprite of objetos.values()) sprite.destroy()
     objetos.clear()
+    brilho.sincronizar([])
     for (const chave of [...pedacos.keys()]) soltarPedaco(chave)
     limparPrevia()
     mudarVisibilidade(false)
@@ -530,6 +553,14 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       sprite.alpha = apagandoAgora.has(c.id) ? ALFA_DE_QUEM_SAI : 1
       ;(arte.chao ? chao : corpos).addChild(sprite)
     }
+    // O BRILHO dos que têm (antes de soltar as texturas aposentadas: o sprite do brilho troca para a nova aqui).
+    const comBrilho: BrilhoNoPalco[] = []
+    for (const { c, arte } of prontos) {
+      const textura = arte.brilho
+      if (textura !== undefined) comBrilho.push({ id: c.id, textura, posicionar: (sprite) => posicionar(sprite, c, arte, textura) })
+    }
+    brilho.sincronizar(comBrilho)
+    brilho.esmaecer(apagandoAgora, ALFA_DE_QUEM_SAI)
     if (entrada.sombras === false) for (const chave of [...pedacos.keys()]) soltarPedaco(chave)
     else desenharSombras(prontos, entrada.mapa)
     // Nenhum sprite do mapa usa mais as texturas que o pacote novo (ou o Desenhado que
@@ -587,6 +618,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     if (destruido) return
     if (apagando !== apagandoAgora) {
       for (const [id, sprite] of objetos) sprite.alpha = apagando.has(id) ? ALFA_DE_QUEM_SAI : 1
+      brilho.esmaecer(apagando, ALFA_DE_QUEM_SAI)
       apagandoAgora = apagando
     }
     const vivos = new Set(novos.map((c) => c.id))
@@ -630,6 +662,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     if (apagandoAgora.size > 0) {
       for (const sprite of objetos.values()) sprite.alpha = 1
       apagandoAgora = new Set()
+      brilho.esmaecer(apagandoAgora, ALFA_DE_QUEM_SAI)
     }
   }
 
@@ -643,7 +676,13 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       pararDeOuvir()
       pararDeOuvirODesenhado()
       limparTudo()
-      for (const guardada of artes.values()) if (guardada !== null && guardada !== 'assando') guardada.corpo.destroy(true)
+      // O brilho sai antes da camada (o `destroy` com filhos não o destrói de novo).
+      brilho.destruir()
+      for (const guardada of artes.values()) {
+        if (guardada === null || guardada === 'assando') continue
+        guardada.corpo.destroy(true)
+        guardada.brilho?.destroy(true)
+      }
       artes.clear()
       for (const textura of texturasDesenhadas.values()) textura.destroy(true)
       texturasDesenhadas.clear()

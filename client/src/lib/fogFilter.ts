@@ -1,6 +1,6 @@
 import type { Agua, CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
-import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoObjeto, raioDaLuzDoObjeto } from './luzDoFogo'
+import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoCarimbo, luzDoObjeto, luzesDosCarimbos, raioDaLuzDoObjeto, raioDaLuzDosCarimbos } from './luzDoFogo'
 import { cenaTemFogo, temParticulas } from './particulasDaCena'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
@@ -3113,12 +3113,20 @@ function recorteDoGrupo(
       if (luz === null || p.secret || hiddenByZone(at) || propSamplePoints(p).some((q) => inSecretRoom(q) || inClosedRoof(q))) return []
       return [{ x: p.x, y: p.y, radius: raioDaLuzDoObjeto(p, luz, map.grid), capped: true }]
     })
+    // O CARIMBO QUE ILUMINA (lote C6 de 14/11/2026, `LUZ_DOS_CARIMBOS`): o da camada dele clareia como o objeto de
+    // luz, até o teto, juntos por célula como no desenho (`luzesDosCarimbos`). O que mora em sala secreta, sob teto
+    // fechado ou em zona sai ANTES de juntar: senão puxaria o ponto da célula para dentro dela.
+    const carimbosQueIluminam = naCamadaDoJogador('carimbo', map.carimbos ?? []).filter((c) => {
+      const at = { x: c.x, y: c.y }
+      return luzDoCarimbo(c.tipo) !== null && !inSecretRoom(at) && !inClosedRoof(at) && !hiddenByZone(at)
+    })
+    const luzesDeCarimbo = luzesDosCarimbos(carimbosQueIluminam, map.grid).map((p) => ({ x: p.x, y: p.y, radius: raioDaLuzDosCarimbos(p, map.grid), capped: true }))
     return {
       sceneDark: map.dark === true,
       noite,
       rooms: darkRooms.map((r) => r.points),
       veils: veils.map((v) => v.ring),
-      lights: [...lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })), ...luzesDeObjeto],
+      lights: [...lights.map((l) => ({ x: l.x, y: l.y, radius: l.radius })), ...luzesDeObjeto, ...luzesDeCarimbo],
       cell: map.grid,
     }
   }

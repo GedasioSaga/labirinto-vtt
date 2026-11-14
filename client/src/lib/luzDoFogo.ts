@@ -1,4 +1,4 @@
-import type { Prop, TipoMobilia } from '../types/map'
+import type { Carimbo, Prop, TipoMobilia } from '../types/map'
 import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 
 /**
@@ -96,6 +96,103 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // a lente é pintada acesa e a luz é redonda e parada, como a do holofote. A torre fica no meio da pegada, de onde a
   // luz nasce.
   farol: { alcanceEmCasas: 9, cor: 0xffe6b0, forca: 1, fumacaEBrasas: false },
+}
+
+/** A luz de um CARIMBO: a do objeto, sem fumaça nem brasas, e se ela treme como a do fogo. */
+export type LuzDoCarimbo = Omit<LuzDoObjeto, 'fumacaEBrasas'> & {
+  /** Treme como o fogo (o tremor de `pixi/mapaDeLuz.ts`); senão, fica parada. */
+  treme: boolean
+}
+
+/**
+ * OS CARIMBOS QUE ILUMINAM (lote C6 de 14/11/2026), por id do carimbo da
+ * biblioteca. Carimbo fora desta tabela não ilumina, e o do PACOTE nunca (o id
+ * dele não pode ser um da biblioteca: o contrato do pacote não muda, como a
+ * sombra `deitada`). Os alcances contam do ponto de luz da célula (abaixo).
+ */
+export const LUZ_DOS_CARIMBOS: Readonly<Record<string, LuzDoCarimbo>> = {
+  // Os cogumelos que brilham: claro frio de musgo aceso, curto e parado. A luz multiplica o mapa (o tom claro acima).
+  'cogumelos-que-brilham': { alcanceEmCasas: 1.5, cor: 0xdcf2ea, forca: 0.55, treme: false },
+  // A rocha vulcânica: o tom do braseiro, curto, tremendo como brasa (a brasa do desenho pulsa no palco).
+  'rocha-vulcanica': { alcanceEmCasas: 1.5, cor: 0xffd29c, forca: 0.6, treme: true },
+}
+
+/** O carimbo do tipo ilumina? `Object.hasOwn`: o tipo vem do mapa, e `constructor` também tem a forma de um id. */
+export function luzDoCarimbo(tipo: string): LuzDoCarimbo | null {
+  return Object.hasOwn(LUZ_DOS_CARIMBOS, tipo) ? LUZ_DOS_CARIMBOS[tipo] : null
+}
+
+/** O que a luz lê do carimbo. */
+export type CarimboQueIlumina = Pick<Carimbo, 'tipo' | 'x' | 'y'>
+
+/** Um ponto de luz dos carimbos: os do mesmo tipo numa célula, somados. */
+export interface LuzDosCarimbosNaCelula extends LuzDoCarimbo {
+  /** `carimbos:<tipo>:<coluna>,<linha>`: o mesmo enquanto a célula tiver carimbo do tipo (o tremor e a cache leem). */
+  id: string
+  /** O centro de massa dos pés dos carimbos da célula, em px de mundo. */
+  x: number
+  y: number
+  /** Quantos carimbos a célula juntou. */
+  quantos: number
+}
+
+/** O lado da célula que junta os carimbos que iluminam, em casas do mapa. */
+export const CELULA_DA_LUZ_DOS_CARIMBOS_EM_CASAS = 3
+/**
+ * Teto de pontos de luz de carimbo por tela. O spray solta centenas, e cada
+ * luz custa um polígono de visibilidade (`computeVisibility`); acima do teto,
+ * as células com mais carimbos ganham.
+ */
+export const TETO_DE_LUZES_DE_CARIMBO = 32
+/** Cada carimbo a mais na célula reforça a força nisto (até 1). */
+const REFORCO_POR_CARIMBO = 0.25
+/** Cada vez que a célula dobra de carimbos, o alcance cresce isto, até `ALCANCE_A_MAIS_MAX`. */
+const ALCANCE_A_MAIS_POR_DOBRA = 0.5
+const ALCANCE_A_MAIS_MAX = 1.5
+
+/**
+ * As luzes dos carimbos que iluminam, JUNTAS por célula de 3 x 3 casas e por
+ * tipo (o cogumelo e a rocha têm tom e tremor diferentes): um ponto de luz por
+ * célula, no centro de massa dos pés, com a força `min(1, força x (1 + 0,25 x
+ * (n - 1)))` e o alcance + 0,5 casa a cada vez que n dobra (até + 1,5). No
+ * máximo `TETO_DE_LUZES_DE_CARIMBO`, as células mais cheias primeiro (no
+ * empate, pela chave, para as duas telas escolherem as mesmas). `grade` = a
+ * casa do mapa em px; sem ela (ou torta), a de referência dos móveis.
+ */
+export function luzesDosCarimbos(carimbos: readonly CarimboQueIlumina[] | undefined, grade?: number): LuzDosCarimbosNaCelula[] {
+  if (carimbos === undefined || carimbos.length === 0) return []
+  const casa = grade !== undefined && Number.isFinite(grade) && grade > 0 ? grade : CASA_DO_FOGO_PX
+  const lado = CELULA_DA_LUZ_DOS_CARIMBOS_EM_CASAS * casa
+  const celulas = new Map<string, { luz: LuzDoCarimbo; somaX: number; somaY: number; quantos: number }>()
+  for (const c of carimbos) {
+    const luz = luzDoCarimbo(c.tipo)
+    if (luz === null || !Number.isFinite(c.x) || !Number.isFinite(c.y)) continue
+    const chave = `${c.tipo}:${Math.floor(c.x / lado)},${Math.floor(c.y / lado)}`
+    const celula = celulas.get(chave)
+    if (celula === undefined) celulas.set(chave, { luz, somaX: c.x, somaY: c.y, quantos: 1 })
+    else {
+      celula.somaX += c.x
+      celula.somaY += c.y
+      celula.quantos += 1
+    }
+  }
+  const ordem = [...celulas].sort(([chaveA, a], [chaveB, b]) => b.quantos - a.quantos || (chaveA < chaveB ? -1 : chaveA > chaveB ? 1 : 0))
+  return ordem.slice(0, TETO_DE_LUZES_DE_CARIMBO).map(([chave, { luz, somaX, somaY, quantos }]) => ({
+    id: `carimbos:${chave}`,
+    x: somaX / quantos,
+    y: somaY / quantos,
+    quantos,
+    alcanceEmCasas: luz.alcanceEmCasas + Math.min(ALCANCE_A_MAIS_MAX, ALCANCE_A_MAIS_POR_DOBRA * Math.floor(Math.log2(quantos))),
+    cor: luz.cor,
+    forca: Math.min(1, luz.forca * (1 + REFORCO_POR_CARIMBO * (quantos - 1))),
+    treme: luz.treme,
+  }))
+}
+
+/** O alcance do ponto de luz dos carimbos em px de mundo: as casas dele, a partir do ponto (o carimbo é pequeno). */
+export function raioDaLuzDosCarimbos(luz: Pick<LuzDoCarimbo, 'alcanceEmCasas'>, casa?: number): number {
+  const grade = casa !== undefined && Number.isFinite(casa) && casa > 0 ? casa : CASA_DO_FOGO_PX
+  return luz.alcanceEmCasas * grade
 }
 
 /**

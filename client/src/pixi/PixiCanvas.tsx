@@ -1464,6 +1464,8 @@ function PixiCanvasDoContexto({
       // relevo, da borda das salas e dos caminhos (a árvore fica de pé por cima
       // da estrada) e ABAIXO de paredes, nomes, pinos e fichas.
       const carimbos = createCarimbosRenderer({
+        // A brasa da rocha vulcânica pulsa no relógio das chamas (`brilhoDosCarimbos.ts`).
+        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
         aoDesenhar: (medida) => {
           el.dataset.carimbosMs = String(Math.round(medida.ms))
           el.dataset.carimbos = String(medida.objetos)
@@ -3188,6 +3190,8 @@ function PixiCanvasDoContexto({
           fichas: [],
           // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
           fogos: map.props,
+          // Os carimbos que iluminam (os cogumelos que brilham, a rocha vulcânica), juntos por célula.
+          carimbos: map.carimbos,
           casa: map.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas

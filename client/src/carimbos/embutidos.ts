@@ -48,6 +48,13 @@ export interface DefinicaoDeCarimbo {
   tamanho: number
   sombra: SombraDoCarimbo
   desenhar: DesenhoDeCarimbo
+  /**
+   * A parte que ACENDE (a brasa da rocha vulcânica, 14/11/2026), no mesmo
+   * quadro do desenho: o palco a assa à parte e a soma por cima do corpo,
+   * pulsando (`pixi/brilhoDosCarimbos.ts`). Ausente = nada acende. Só a
+   * biblioteca tem: o contrato do pacote não muda.
+   */
+  brilho?: DesenhoDeCarimbo
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,15 @@
 import { BufferImageSource, Container, Graphics, GraphicsContext, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js'
 import type { Light, MapData, Periodo, RegionPoint } from '../types/map'
-import { fogoAcendeLuz, luzDoObjeto, raioDaLuzDoObjeto, type FogoQueIlumina } from '../lib/luzDoFogo'
+import {
+  fogoAcendeLuz,
+  luzDoObjeto,
+  luzesDosCarimbos,
+  raioDaLuzDoObjeto,
+  raioDaLuzDosCarimbos,
+  type CarimboQueIlumina,
+  type FogoQueIlumina,
+  type LuzDosCarimbosNaCelula,
+} from '../lib/luzDoFogo'
 import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
 import { computeVisibility, type Segment } from '../lib/visibility'
 import { AJUSTE_DA_PENUMBRA, type Borrao } from './mapaDePenumbra'
@@ -199,8 +208,8 @@ export function luzesDoMapa(luzes: readonly Light[], obstaculos: Segment[], fato
  */
 export { type FogoQueIlumina }
 
-/** FNV-1a do id, em [0, 1): o tremor de cada fogo no seu passo, igual nas duas telas. */
-function faseDoId(id: string): number {
+/** FNV-1a do id, em [0, 1): o tremor de cada fogo no seu passo, igual nas duas telas (a brasa dos carimbos também lê). */
+export function faseDoId(id: string): number {
   let hash = 0x811c9dc5
   for (let i = 0; i < id.length; i += 1) hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193)
   return (hash >>> 0) / 2 ** 32
@@ -239,6 +248,49 @@ export function luzesDosFogos(fogos: readonly FogoQueIlumina[], obstaculos: Segm
     cache?.set(chave, { obstaculos, poligono })
     if (poligono.length < 3) continue
     saida.push({ id: f.id, x: f.x, y: f.y, raio, cor: luz.cor, forca: luz.forca * fator, poligono, fase: faseDoId(f.id) })
+  }
+  return saida
+}
+
+/** Uma luz pronta no palco dos fogos: `treme` = segue o tremor do fogo (a da rocha vulcânica); senão, parada (a dos cogumelos). */
+export interface LuzQueTalvezTreme extends LuzDoFogo {
+  treme: boolean
+}
+
+/**
+ * O conteúdo que muda a luz dos carimbos: os pontos já juntados por célula
+ * (`luzesDosCarimbos`). Mexer num carimbo que não ilumina não muda nada aqui.
+ */
+function conteudoDosCarimbos(pontos: readonly LuzDosCarimbosNaCelula[]): string {
+  let chave = ''
+  for (const p of pontos) chave += `${p.id}|${p.x}|${p.y}|${p.alcanceEmCasas}|${p.forca};`
+  return chave
+}
+
+/**
+ * A LUZ DOS CARIMBOS QUE ILUMINAM (lote C6 de 14/11/2026): um ponto de luz por
+ * célula (`luzesDosCarimbos` em `lib/luzDoFogo.ts`), recortado pela parede como
+ * a do fogo e guardado na MESMA cache de polígono. `casa` = a grade do mapa em
+ * px de mundo: o alcance é em casas dele.
+ */
+export function luzesDosPontosDeCarimbo(
+  pontos: readonly LuzDosCarimbosNaCelula[],
+  obstaculos: Segment[],
+  fatorDaLuz: number,
+  cache?: CacheDePoligonos,
+  casa?: number,
+): LuzQueTalvezTreme[] {
+  const fator = grampear01(fatorDaLuz)
+  if (fator === 0) return []
+  const saida: LuzQueTalvezTreme[] = []
+  for (const p of pontos) {
+    const raio = raioDaLuzDosCarimbos(p, casa)
+    const chave = `${p.id}|${p.x}|${p.y}|${raio}`
+    const guardado = cache?.get(chave)
+    const poligono = guardado !== undefined && guardado.obstaculos === obstaculos ? guardado.poligono : computeVisibility({ x: p.x, y: p.y }, obstaculos, raio)
+    cache?.set(chave, { obstaculos, poligono })
+    if (poligono.length < 3) continue
+    saida.push({ id: p.id, x: p.x, y: p.y, raio, cor: p.cor, forca: p.forca * fator, poligono, fase: faseDoId(p.id), treme: p.treme })
   }
   return saida
 }
@@ -355,6 +407,12 @@ export interface QuadroDoMapaDeLuz {
    * (referência) entre quadros não refaz a geometria. Ausente = sem luz de fogo.
    */
   fogos?: readonly FogoQueIlumina[]
+  /**
+   * Os carimbos do mapa: os que estão em `LUZ_DOS_CARIMBOS` (`lib/luzDoFogo.ts`)
+   * acendem luz, juntos por célula (`luzesDosCarimbos`). No jogador, os que ele
+   * recebeu. Mesma regra de referência dos `fogos`. Ausente = sem luz de carimbo.
+   */
+  carimbos?: readonly CarimboQueIlumina[]
   /** A grade do mapa em px de mundo: o alcance da luz do fogo é em casas dele. Ausente = a grade de referência dos móveis. */
   casa?: number
   /**
@@ -474,9 +532,10 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   let texturasDaLuzMacia: { cru: RenderTexture; temp: RenderTexture; borrada: RenderTexture } | null = null
   let chaveDoConhecido = ''
   palco.addChild(fundo, recorte, mascaraDoConhecido)
-  let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
+  let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; treme: boolean; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
   const poligonosDosFogos: CacheDePoligonos = new Map()
   let fogosLidos: readonly FogoQueIlumina[] | undefined
+  let carimbosLidos: readonly CarimboQueIlumina[] | undefined
   let revisaoDosFogos: string | null = null
   let chaveDosFogos: string | null = null
   let versaoDosFogos = 0
@@ -510,27 +569,37 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     }
   }
 
-  /** A luz dos fogos: refeita só quando a lista, a parede ou o período mudam. */
+  /**
+   * A luz dos fogos e dos carimbos que iluminam: refeita só quando a lista, a
+   * parede ou o período mudam. As duas no mesmo palco e na mesma cache.
+   */
   function refazerFogos(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {
     const revisao = `${quadro.revisao}|${tinta.fatorDaLuz}|${quadro.casa ?? ''}`
-    if (quadro.fogos === fogosLidos && revisao === revisaoDosFogos) return
+    if (quadro.fogos === fogosLidos && quadro.carimbos === carimbosLidos && revisao === revisaoDosFogos) return
     fogosLidos = quadro.fogos
+    carimbosLidos = quadro.carimbos
     revisaoDosFogos = revisao
+    // Os carimbos que iluminam, já juntos por célula: o conteúdo deles entra na chave.
+    const pontosDosCarimbos = luzesDosCarimbos(quadro.carimbos, quadro.casa)
     // Lista nova com os mesmos fogos (snapshot novo do jogador, outro objeto que mudou): nada a refazer.
-    const chave = `${revisao}|${conteudoDosFogos(quadro.fogos)}`
+    const chave = `${revisao}|${conteudoDosFogos(quadro.fogos)}|${conteudoDosCarimbos(pontosDosCarimbos)}`
     if (chave === chaveDosFogos) return
     chaveDosFogos = chave
     versaoDosFogos += 1
     for (const luz of luzesDosFogosNoPalco) luz.desenho.destroy()
     luzesDosFogosNoPalco = []
     const lista = quadro.fogos ?? []
-    // Mapa sem objeto de luz não pede os obstáculos nem cria nada.
-    if (!lista.some(fogoAcendeLuz)) {
+    // Mapa sem objeto nem carimbo de luz não pede os obstáculos nem cria nada.
+    if (!lista.some(fogoAcendeLuz) && pontosDosCarimbos.length === 0) {
       poligonosDosFogos.clear()
       return
     }
     if (obstaculosGuardados === null || obstaculosGuardados.revisao !== quadro.revisao) obstaculosGuardados = { revisao: quadro.revisao, lista: quadro.obstaculos() }
-    const luzes = luzesDosFogos(lista, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa)
+    // O fogo sempre treme; do carimbo, só o que a tabela manda.
+    const luzes: LuzQueTalvezTreme[] = [
+      ...luzesDosFogos(lista, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa).map((luz) => ({ ...luz, treme: true })),
+      ...luzesDosPontosDeCarimbo(pontosDosCarimbos, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa),
+    ]
     const vivas = new Set(luzes.map((l) => `${l.id}|${l.x}|${l.y}|${l.raio}`))
     for (const chaveDaLuz of poligonosDosFogos.keys()) if (!vivas.has(chaveDaLuz)) poligonosDosFogos.delete(chaveDaLuz)
     for (const luz of luzes) {
@@ -539,14 +608,24 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
       desenho.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: 1 })
       desenho.alpha = luz.forca
       clarosDosFogos.addChild(desenho)
-      luzesDosFogosNoPalco.push({ desenho, fase: luz.fase, forca: luz.forca, caixa: { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio } })
+      luzesDosFogosNoPalco.push({
+        desenho,
+        fase: luz.fase,
+        forca: luz.forca,
+        treme: luz.treme,
+        caixa: { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio },
+      })
     }
     passoDoTremor = -1
   }
 
-  /** O tremor leve: com fogo aceso na vista e movimento normal, um passo a cada 100 ms; senão, a força parada. */
+  /**
+   * O tremor leve: com fogo (ou carimbo que treme) aceso na vista e movimento
+   * normal, um passo a cada 100 ms; senão, a força parada. A luz parada (os
+   * cogumelos) não segura o passo nem é reescrita.
+   */
   function tremer(quadro: QuadroDoMapaDeLuz): void {
-    if (luzesDosFogosNoPalco.length === 0) return
+    if (!luzesDosFogosNoPalco.some((luz) => luz.treme)) return
     const agora = performance.now()
     if (Math.abs(agora - movimentoConferidoEm) >= CONFERIR_MOVIMENTO_MS) {
       movimentoConferidoEm = agora
@@ -557,11 +636,13 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     const minY = -quadro.vista.y / escala
     const maxX = minX + quadro.vista.largura / escala
     const maxY = minY + quadro.vista.altura / escala
-    const naVista = luzesDosFogosNoPalco.some(({ caixa }) => caixa.minX <= maxX && caixa.maxX >= minX && caixa.minY <= maxY && caixa.maxY >= minY)
+    const naVista = luzesDosFogosNoPalco.some(({ treme, caixa }) => treme && caixa.minX <= maxX && caixa.maxX >= minX && caixa.minY <= maxY && caixa.maxY >= minY)
     const passo = reduzido || !naVista ? -1 : Math.floor(agora / QUADRO_DO_TREMOR_MS)
     if (passo === passoDoTremor) return
     passoDoTremor = passo
-    for (const luz of luzesDosFogosNoPalco) luz.desenho.alpha = passo < 0 ? luz.forca : luz.forca * tremorDoFogo(passo * QUADRO_DO_TREMOR_MS, luz.fase)
+    for (const luz of luzesDosFogosNoPalco) {
+      if (luz.treme) luz.desenho.alpha = passo < 0 ? luz.forca : luz.forca * tremorDoFogo(passo * QUADRO_DO_TREMOR_MS, luz.fase)
+    }
   }
 
   function refazerFundo(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {

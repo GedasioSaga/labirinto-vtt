@@ -78,6 +78,8 @@ const EMBUTIDAS = {
     'pinheiro', 'pinheiro-nevado', 'arvore', 'arvore-redonda', 'arvore-morta', 'arbusto', 'tronco-caido', 'toco-seco', 'palmeira', 'pedras', 'poca', 'juncos',
     'cerejeira', 'bambuzal', 'cogumelo-gigante', 'mangue', 'carvalho', 'arvore-de-outono', 'salgueiro', 'betula', 'macieira', 'ipe-amarelo', 'ipe-roxo',
     'araucaria', 'bananeira', 'samambaia', 'capim-alto', 'flores-do-campo', 'arbusto-com-frutinhas', 'folhas-secas', 'galhos-caidos',
+    'seixos', 'lama', 'musgo', 'vitoria-regia', 'conchas', 'algas', 'coral', 'cacto', 'cacto-redondo', 'arbusto-que-rola', 'cranio-de-boi',
+    'monte-de-neve', 'arvore-congelada', 'bloco-de-gelo', 'cristais', 'estalagmite', 'cogumelos-que-brilham', 'rochedo-com-musgo', 'rocha-vulcanica',
   ],
   batalha: [],
 }
