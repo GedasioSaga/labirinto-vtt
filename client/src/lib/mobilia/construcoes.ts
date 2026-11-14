@@ -17,12 +17,16 @@ export const GRUPOS_DE_CONSTRUCAO = [
   { id: 'pracaRuaECampo', titulo: 'Praça, rua e campo' },
   { id: 'monumentosEColunas', titulo: 'Monumentos e colunas' },
   { id: 'abrigosEPassagens', titulo: 'Abrigos e passagens' },
-  // Os grupos das construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: os fortes da base militar
-  // vão com os do castelo; a caixa d'água, o pombal e o silo vão para as torres, a estátua equestre e o obelisco, para
-  // os monumentos, e a roda d'água, a baia de cavalo e o chiqueiro, para a praça, rua e campo.
-  { id: 'fortesECastelos', titulo: 'Fortes e castelos' },
+  // Os grupos das construções de 14/11/2026 (lotes L15 a L19): os cinco títulos da lista aprovada, na ordem dela, e
+  // cada construção no grupo em que a lista a pôs (correção da auditoria de 14/11/2026: antes a base militar ia com o
+  // castelo e a vila e campo se espalhava pelas torres e pela praça). Os ids do castelo e da base militar levam
+  // "construções" porque `castelo` e `baseMilitar` já são grupos do Objeto, e os dois catálogos dividem a mesma
+  // lista de grupos (`GRUPOS_DE_OBJETO`); o título é o da lista, igual nas duas ferramentas.
+  { id: 'construcoesDoCastelo', titulo: 'Castelo' },
+  { id: 'construcoesDaBaseMilitar', titulo: 'Base militar' },
   { id: 'cidadeEPorto', titulo: 'Cidade e porto' },
-  { id: 'parqueEDiversao', titulo: 'Parque e diversão' },
+  { id: 'vilaECampo', titulo: 'Vila e campo' },
+  { id: 'lazer', titulo: 'Lazer' },
 ] as const
 
 export type IdDoGrupoDeConstrucao = (typeof GRUPOS_DE_CONSTRUCAO)[number]['id']
@@ -39,48 +43,48 @@ export const GRUPO_DA_CONSTRUCAO = {
   mausoleu: 'torresEPredios',
   galinheiro: 'torresEPredios',
   barraca: 'torresEPredios',
-  caixaDAguaElevada: 'torresEPredios',
-  pombal: 'torresEPredios',
-  siloDeGraos: 'torresEPredios',
   poco: 'pracaRuaECampo',
   chafariz: 'pracaRuaECampo',
   cataVento: 'pracaRuaECampo',
   antenaParabolica: 'pracaRuaECampo',
-  rodaDagua: 'pracaRuaECampo',
-  baiaDeCavalo: 'pracaRuaECampo',
-  chiqueiroCercado: 'pracaRuaECampo',
   estatua: 'monumentosEColunas',
   anjoDePedra: 'monumentosEColunas',
   pilar: 'monumentosEColunas',
   blocoDeInscricoesAzul: 'monumentosEColunas',
   blocoDeInscricoesVermelho: 'monumentosEColunas',
   blocoDeInscricoesDourado: 'monumentosEColunas',
-  estatuaEquestre: 'monumentosEColunas',
-  obelisco: 'monumentosEColunas',
   arcoDoPortao: 'abrigosEPassagens',
   tenda: 'abrigosEPassagens',
   tendaDeAdivinha: 'abrigosEPassagens',
-  portaoComGradeLevadica: 'fortesECastelos',
-  torreDeCerco: 'fortesECastelos',
-  forcaComCadafalso: 'fortesECastelos',
-  guarita: 'fortesECastelos',
-  bunkerDeConcreto: 'fortesECastelos',
-  conteiner: 'fortesECastelos',
-  tendaMilitar: 'fortesECastelos',
-  torreDeRadio: 'fortesECastelos',
-  tanqueDeCombustivel: 'fortesECastelos',
-  torreDoSino: 'cidadeEPorto',
+  portaoComGradeLevadica: 'construcoesDoCastelo',
+  torreDeCerco: 'construcoesDoCastelo',
+  estatuaEquestre: 'construcoesDoCastelo',
+  obelisco: 'construcoesDoCastelo',
+  forcaComCadafalso: 'construcoesDoCastelo',
+  torreDoSino: 'construcoesDoCastelo',
+  guarita: 'construcoesDaBaseMilitar',
+  bunkerDeConcreto: 'construcoesDaBaseMilitar',
+  conteiner: 'construcoesDaBaseMilitar',
+  tendaMilitar: 'construcoesDaBaseMilitar',
+  caixaDAguaElevada: 'construcoesDaBaseMilitar',
+  torreDeRadio: 'construcoesDaBaseMilitar',
+  tanqueDeCombustivel: 'construcoesDaBaseMilitar',
   farol: 'cidadeEPorto',
   coreto: 'cidadeEPorto',
   guindasteDePorto: 'cidadeEPorto',
   posteComRelogio: 'cidadeEPorto',
   quiosque: 'cidadeEPorto',
-  carrossel: 'parqueEDiversao',
-  tendaDeCirco: 'parqueEDiversao',
-  rodaGigante: 'parqueEDiversao',
-  casaNaArvore: 'parqueEDiversao',
-  pergolaComTrepadeira: 'parqueEDiversao',
-  portalTorii: 'parqueEDiversao',
+  rodaDagua: 'vilaECampo',
+  pombal: 'vilaECampo',
+  baiaDeCavalo: 'vilaECampo',
+  siloDeGraos: 'vilaECampo',
+  chiqueiroCercado: 'vilaECampo',
+  carrossel: 'lazer',
+  tendaDeCirco: 'lazer',
+  rodaGigante: 'lazer',
+  casaNaArvore: 'lazer',
+  pergolaComTrepadeira: 'lazer',
+  portalTorii: 'lazer',
 } as const satisfies Partial<Record<TipoMobilia, IdDoGrupoDeConstrucao>>
 
 export type TipoDeConstrucao = keyof typeof GRUPO_DA_CONSTRUCAO
@@ -113,7 +117,9 @@ interface RegraDeFabrica {
    * alto que uma pessoa — a torre de pedra, o moinho, o mausoléu e os 3 blocos de inscrições ("da altura do
    * mausoléu"). Vale também para os que já estão nos mapas (nos dele, só as 8 torres de pedra passam a tapar).
    * Das de 14/11/2026 (decisão do Claude), as fechadas e mais altas que uma pessoa: a torre do sino, o bunker de
-   * concreto, o contêiner, o farol e o silo.
+   * concreto, o contêiner, o farol, o silo, o pombal (a torre caiada, parede de 1,9 casa) e o quiosque (a banca
+   * fechada em gomos, parede de 1,15 casa, mais alta que o contêiner; a janela de atender é um vão de balcão, não se
+   * vê a praça através dela). Os dois entraram na correção da auditoria de 14/11/2026.
    */
   readonly tapa?: true
 }
@@ -155,9 +161,9 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
   coreto: { barra: false },
   guindasteDePorto: { barra: true },
   posteComRelogio: { barra: true, peloMenorLado: true },
-  quiosque: { barra: true },
+  quiosque: { barra: true, tapa: true },
   rodaDagua: { barra: true },
-  pombal: { barra: true },
+  pombal: { barra: true, tapa: true },
   baiaDeCavalo: { barra: false },
   siloDeGraos: { barra: true, tapa: true },
   chiqueiroCercado: { barra: false },

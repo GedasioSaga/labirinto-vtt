@@ -42,7 +42,7 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'tavernaEFesta', titulo: 'Taverna e festa' },
   { id: 'descansoEBrincadeira', titulo: 'Descanso e brincadeira' },
   { id: 'cidadeEVila', titulo: 'Cidade e vila' },
-  // Os grupos da ferramenta Construção (4 de 12/11/2026 e 3 de 14/11/2026) moram em `construcoes.ts`; entram aqui
+  // Os grupos da ferramenta Construção (4 de 12/11/2026 e 5 de 14/11/2026) moram em `construcoes.ts`; entram aqui
   // para a ficha e o cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo
   // do Objeto cai neles, nenhuma construção cai nos de cima.
   ...GRUPOS_DE_CONSTRUCAO,
@@ -249,9 +249,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   monteDeDiamantes: 'tesouro',
   joia: 'tesouro',
   monteDeJoias: 'tesouro',
-  // Castelo (14/11/2026): o lote L01, do trono à panóplia, e o L02, da mesa de banquete posta às aljavas, com a ponte
-  // levadiça no fim. A lista do dia pôs a ponte levadiça (item 81) em "Cidade e vila", mas o desenhista e a ficha a
-  // puseram aqui, com o resto do castelo dela.
+  // Castelo (14/11/2026): o lote L01, do trono à panóplia, e o L02, da mesa de banquete posta às aljavas. A ponte
+  // levadiça (item 81) mora em "Cidade e vila", onde a lista do dia a pôs (correção da auditoria de 14/11/2026).
   tronoReal: 'castelo',
   camaDeDossel: 'castelo',
   estandarteDePe: 'castelo',
@@ -263,7 +262,6 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   mesaDeGuerra: 'castelo',
   poleiroDeFalcao: 'castelo',
   aljavasEFlechas: 'castelo',
-  ponteLevadica: 'castelo',
   // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco, e a primeira metade do L04, do cavalo
   // de frisa ao tacho de óleo quente. O canhão continua no porto e navio.
   catapulta: 'cercoEDefesa',
@@ -339,8 +337,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   pebolim: 'descansoEBrincadeira',
   arquibancadaDeTorneio: 'descansoEBrincadeira',
   licaDeJusta: 'descansoEBrincadeira',
-  // Cidade e vila (14/11/2026): o resto do L13, do poste de amarrar cavalos ao sino no suporte, e o L14, do tear à
-  // liteira.
+  // Cidade e vila (14/11/2026): o resto do L13, do poste de amarrar cavalos ao sino no suporte, o L14, do tear à
+  // liteira, e a ponte levadiça do L02 no fim (item 81, o último do grupo na lista do dia).
   posteDeAmarrarCavalos: 'cidadeEVila',
   bueiro: 'cidadeEVila',
   relogioDeSol: 'cidadeEVila',
@@ -350,7 +348,8 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   lagarDeUva: 'cidadeEVila',
   moDePedra: 'cidadeEVila',
   liteira: 'cidadeEVila',
-  // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 7 grupos da ferramenta Construção, na ordem de
+  ponteLevadica: 'cidadeEVila',
+  // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }

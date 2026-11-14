@@ -330,12 +330,12 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
-      // Os grupos novos de 14/11/2026: Castelo (os lotes L01 e L02, com a ponte levadiça no fim), Cerco e defesa (o L03
-      // e a primeira metade do L04), Base militar (a segunda metade do L04, o L05 e o L06), Mar e piratas (o L07 e o
-      // L08), Taverna e festa (o L09 e o L10), Descanso e brincadeira (o L11, o L12 e o começo do L13) e Cidade e vila (o
-      // resto do L13 e o L14). 157 + 83 = 240.
+      // Os grupos novos de 14/11/2026: Castelo (os lotes L01 e L02), Cerco e defesa (o L03 e a primeira metade do L04),
+      // Base militar (a segunda metade do L04, o L05 e o L06), Mar e piratas (o L07 e o L08), Taverna e festa (o L09 e o
+      // L10), Descanso e brincadeira (o L11, o L12 e o começo do L13) e Cidade e vila (o resto do L13, o L14 e a ponte
+      // levadiça do L02 no fim, onde a lista do dia a pôs). 157 + 83 = 240.
       'Trono', 'Cama de dossel', 'Estandarte de pé', 'Tapeçaria de parede', 'Lustre de velas', 'Panóplia',
-      'Mesa de banquete posta', 'Bancos de capela', 'Mesa de guerra', 'Poleiro de falcão', 'Aljavas e feixes de flechas', 'Ponte levadiça',
+      'Mesa de banquete posta', 'Bancos de capela', 'Mesa de guerra', 'Poleiro de falcão', 'Aljavas e feixes de flechas',
       'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco', 'Cavalo de frisa', 'Pilha de balas de canhão', 'Tacho de óleo quente',
       'Sacos de areia', 'Caixas de munição', 'Ouriço antitanque',
       'Arame farpado em rolo', 'Barreira de concreto', 'Cancela listrada', 'Beliche', 'Armário de ferro', 'Rádio de campanha',
@@ -349,7 +349,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Escorregador', 'Aquário', 'Ofurô', 'Telescópio', 'Globo terrestre', 'Pebolim',
       'Arquibancada de torneio', 'Liça de justa',
       'Poste de amarrar cavalos', 'Bueiro', 'Relógio de sol', 'Sino no suporte',
-      'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira',
+      'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira', 'Ponte levadiça',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)

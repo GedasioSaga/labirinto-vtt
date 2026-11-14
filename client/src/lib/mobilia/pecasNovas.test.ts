@@ -778,13 +778,14 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // Os grupos novos entram antes de "Outros", que continua no fim; o Tesouro (12/11/2026) logo depois da Magia.
     // E os 4 grupos da Construção (12/11/2026, `construcoes.ts`) depois do Tesouro, ainda antes de "Outros". Os grupos
     // do Objeto de 14/11/2026 (o castelo, o cerco e a defesa, a base militar, o mar e piratas, a taverna e festa, o
-    // descanso e brincadeira e a cidade e vila) entram entre o Tesouro e os da Construção. Os 3 grupos da Construção
-    // de 14/11/2026 (os fortes e castelos, a cidade e porto e o parque e diversão) depois dos 4 dela, antes de "Outros".
-    expect(GRUPOS_DE_OBJETO.slice(-20).map((g) => g.titulo)).toEqual([
+    // descanso e brincadeira e a cidade e vila) entram entre o Tesouro e os da Construção. Os 5 grupos da Construção
+    // de 14/11/2026, com os títulos da lista do dia (castelo, base militar, cidade e porto, vila e campo e lazer), depois
+    // dos 4 dela, antes de "Outros". O castelo e a base militar têm o mesmo título nas duas ferramentas e ids diferentes.
+    expect(GRUPOS_DE_OBJETO.slice(-22).map((g) => g.titulo)).toEqual([
       'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa',
       'Descanso e brincadeira', 'Cidade e vila',
       'Torres e prédios', 'Praça, rua e campo', 'Monumentos e colunas', 'Abrigos e passagens',
-      'Fortes e castelos', 'Cidade e porto', 'Parque e diversão', 'Outros',
+      'Castelo', 'Base militar', 'Cidade e porto', 'Vila e campo', 'Lazer', 'Outros',
     ])
   })
 
@@ -802,11 +803,11 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // CONSTRUÇÕES (12/11/2026): as duas torres são construções. A ficha do Objeto não as tem; a da Construção acha as
     // duas pelo nome e, depois, o resto de "Torres e prédios" pelo título do grupo (como "templo" acha o grupo dele).
     expect(acharObjetos(dasFichas(TIPOS_DO_OBJETO), 'torre')).toEqual([])
-    // As três torres de 14/11/2026 (a de cerco, a do sino e a de rádio) também pelo nome, e a caixa d'água elevada, o
-    // pombal e o silo, que moram em "Torres e prédios", pelo título do grupo.
+    // As três torres de 14/11/2026 (a de cerco, a do sino e a de rádio) também pelo nome. A caixa d'água elevada, o
+    // pombal e o silo moram nos grupos da lista do dia (base militar e vila e campo), não em "Torres e prédios".
     expect(acharObjetos(dasFichas(TIPOS_DA_CONSTRUCAO), 'torre').map((item) => item.tipo)).toEqual([
       'torreDePedra', 'torreDeVigia', 'torreDeCerco', 'torreDoSino', 'torreDeRadio',
-      'barraca', 'moinho', 'mausoleu', 'galinheiro', 'caixaDAguaElevada', 'pombal', 'siloDeGraos',
+      'barraca', 'moinho', 'mausoleu', 'galinheiro',
     ])
     expect(acharObjetos(itens, 'tocha').map((item) => item.tipo)).toEqual(['tochaDeParede', 'tochaDePe'])
     expect(acharObjetos(itens, 'joia').map((item) => item.tipo)).toEqual(['joia', 'monteDeJoias'])
