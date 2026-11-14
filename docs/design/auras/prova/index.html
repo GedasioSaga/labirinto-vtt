@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auras da ficha: prova para aprovar</title>
+<style>
+/* Bancada escura dos outros protótipos do Labirinto (docs/design/objeto-fogo) e,
+   no menu de exemplo, os tokens do app (client/src/theme.ts, .lb-portamenu).
+   Sem rede: as fontes são as do próprio app, que o Windows já tem. */
+:root {
+  color-scheme: dark;
+  --fundo: #1c1b19;
+  --cartao: #232120;
+  --cartao-borda: #33302c;
+  --linha: #3b3833;
+  --tinta: #ece6da;
+  --tinta-2: #b9b1a3;
+  --tinta-3: #8f877b;
+  --controle: #232220;
+  --controle-borda: #45413b;
+  --controle-ativo: #45403a;
+  --latao: #e0a44a;
+  --violeta: #7c5cc4;
+  --pedra: #1a1a1e;
+  --pedra-hover: #2c2c33;
+  --linha-painel: rgba(255, 255, 255, 0.13);
+  --pergaminho: #eceae4;
+  --pergaminho-2: #a2a09a;
+  --pergaminho-3: #858480;
+  --sombra-painel: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --f-titulo: "Sitka Banner", "Sitka Display", Sitka, Constantia, Georgia, serif;
+  --f-texto: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-numero: Bahnschrift, "DIN Alternate", "Segoe UI Variable Small", "Segoe UI", system-ui, sans-serif;
+  /* O tempo e a curva do app (client/src/theme.ts, motion): o menu de prova responde como o de verdade */
+  --lb-motion-fast: 110ms;
+  --lb-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--fundo); color: var(--tinta); font: 15px/1.55 var(--f-texto); padding: 0 20px 104px; }
+.coluna { max-width: 1060px; margin-inline: auto; display: grid; gap: 52px; }
+h1, h2 { font-family: var(--f-titulo); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(34px, 5vw, 48px); line-height: 1.04; letter-spacing: -0.005em; }
+p { margin: 0; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: 0.88em; color: #d9d2c4; }
+
+/* Barra de cima: o que vale para a página toda */
+.barra { position: sticky; top: 0; z-index: 5; margin-inline: -20px; padding: 10px 20px; background: rgba(28, 27, 25, 0.96); border-bottom: 1px solid var(--linha); }
+.barra-dentro { max-width: 1060px; margin-inline: auto; display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; }
+.marca { font-family: var(--f-titulo); font-size: 17px; color: var(--tinta-2); }
+.barra-direita { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.grupo { display: flex; align-items: center; gap: 10px; }
+.grupo-nome { font-size: 13px; color: var(--tinta-3); }
+.segmentos { display: inline-flex; background: var(--controle); border: 1px solid var(--controle-borda); border-radius: 8px; padding: 3px; gap: 3px; }
+.segmentos label { position: relative; display: block; }
+/* O input fica por cima e recebe o toque; o span só desenha. */
+.segmentos input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.segmentos span { pointer-events: none; display: flex; align-items: center; min-height: 40px; padding: 0 13px; border-radius: 6px; font-weight: 500; font-size: 14px; color: var(--tinta-2); transition: background-color var(--lb-motion-fast) var(--lb-motion-ease), color var(--lb-motion-fast) var(--lb-motion-ease), transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.segmentos input:checked + span { background: var(--controle-ativo); color: var(--tinta); box-shadow: inset 0 0 0 1px #6a6259; }
+.segmentos input:focus-visible + span { outline: 2px solid var(--latao); outline-offset: 1px; }
+/* Apertou: afunda na hora e volta no tempo do tema, como as miniaturas do menu do app */
+.segmentos label:active span { transform: scale(0.97); transition-duration: 0ms; }
+@media (hover: hover) and (pointer: fine) { .segmentos input:not(:checked):hover + span { color: var(--tinta); background: #2f2d2a; } }
+.alternar { font: 500 14px/1.2 var(--f-texto); color: var(--tinta); background: #2b2b2b; border: 1px solid #4a4640; border-radius: 8px; padding: 0 15px; min-height: 46px; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; transition: transform var(--lb-motion-fast) var(--lb-motion-ease), background-color var(--lb-motion-fast) var(--lb-motion-ease), border-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.alternar:active { transform: scale(0.97); transition-duration: 0ms; }
+.alternar:focus-visible { outline: 2px solid var(--latao); outline-offset: 2px; }
+.alternar .luz { width: 10px; height: 10px; border-radius: 50%; background: #4a4640; flex: none; transition: background-color var(--lb-motion-fast) var(--lb-motion-ease); }
+.alternar[aria-pressed="true"] { border-color: var(--latao); }
+.alternar[aria-pressed="true"] .luz { background: var(--latao); }
+@media (hover: hover) and (pointer: fine) { .alternar:hover { background: #34322f; } }
+
+/* Abertura: o pedido à esquerda, o menu de botão direito à direita */
+.abertura { display: grid; grid-template-columns: minmax(0, 1fr) 334px; gap: 44px; align-items: start; padding-top: 38px; }
+.abertura-texto { display: grid; gap: 16px; max-width: 62ch; }
+.lead { color: var(--tinta-2); font-size: 16.5px; }
+blockquote { margin: 4px 0 0; padding: 2px 0 2px 16px; border-left: 3px solid var(--violeta); display: grid; gap: 6px; }
+blockquote p { font-size: 15px; }
+blockquote footer { font-size: 13px; color: var(--tinta-3); }
+.nota { font-size: 14px; color: var(--tinta-2); }
+
+.previa { display: grid; gap: 12px; justify-items: start; }
+.previa-titulo { font-family: var(--f-texto); font-size: 14px; font-weight: 600; color: var(--tinta-2); }
+.menu { width: 334px; padding: 4px; background: var(--pedra); border: 1px solid var(--linha-painel); border-radius: 14px; box-shadow: var(--sombra-painel); font-family: var(--f-texto); }
+.menu-titulo { padding: 4px 8px 4px; color: var(--pergaminho-3); font-size: 10.5px; }
+.menu-grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.menu-item { display: grid; justify-items: center; align-content: start; gap: 5px; min-height: 44px; padding: 7px 4px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--pergaminho-2); font: 11.5px/1.25 var(--f-texto); text-align: center; cursor: pointer; transition: transform var(--lb-motion-fast) var(--lb-motion-ease); }
+.menu-item:active { transform: scale(0.97); transition-duration: 0ms; }
+@media (hover: hover) and (pointer: fine) { .menu-item:hover { background: var(--pedra-hover); color: var(--pergaminho); } }
+.menu-item:focus-visible { outline: none; background: var(--pedra-hover); color: var(--pergaminho); box-shadow: 0 0 0 2px var(--pedra), 0 0 0 4px var(--latao); }
+.menu-item canvas { display: block; border-radius: 8px; }
+.legenda { font-size: 13px; color: var(--tinta-3); max-width: 334px; }
+
+/* Os nove cartões */
+.cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(322px, 1fr)); gap: 20px; }
+.cartao { position: relative; display: grid; justify-content: center; align-content: start; gap: 12px; padding: 18px 16px 15px; background: var(--cartao); border: 1px solid var(--cartao-borda); border-radius: 12px; outline: none; }
+.cartao > * { width: 288px; max-width: 100%; }
+/* A borda acende quando o menu leva até o cartão: entra rápido, sai devagar. Os 700 ms de
+   saída passam da régua de 300 ms de propósito: o olho chega ao cartão depois da rolagem,
+   e a borda ainda precisa estar lá. É ação rara (clique numa miniatura) e não segura nada. */
+.cartao::after { content: ""; position: absolute; inset: -1px; width: auto; border-radius: inherit; box-shadow: 0 0 0 2px var(--latao); opacity: 0; pointer-events: none; transition: opacity 700ms var(--lb-motion-ease); }
+.cartao.marcado::after { opacity: 1; transition-duration: var(--lb-motion-fast); }
+.cartao:focus-visible::after { opacity: 1; }
+.cartao h2 { font-size: 23px; line-height: 1.15; }
+.frase { color: var(--tinta-2); font-size: 14px; line-height: 1.5; margin-top: 4px; min-height: 4.5em; }
+figure { margin: 0; }
+.vista canvas { display: block; border-radius: 7px; }
+figcaption { margin-top: 6px; font-size: 12.5px; color: var(--tinta-3); line-height: 1.3; }
+.vistas-mapa { display: flex; gap: 8px; }
+.conta { font: 12.5px/1.4 var(--f-numero); font-variant-numeric: tabular-nums; color: var(--tinta-3); border-top: 1px solid var(--cartao-borda); padding-top: 10px; }
+
+/* Como entra no app */
+.como { display: grid; gap: 14px; }
+.como h2 { font-size: 27px; }
+.como ul { margin: 0; padding-left: 18px; display: grid; gap: 10px; color: var(--tinta-2); max-width: 74ch; }
+.como b { color: var(--tinta); font-weight: 600; }
+
+/* Medidor do canto */
+.medidor { position: fixed; right: 16px; bottom: 16px; z-index: 6; display: grid; gap: 2px; padding: 9px 13px 10px; background: rgba(19, 19, 23, 0.95); border: 1px solid var(--linha-painel); border-radius: 10px; box-shadow: var(--sombra-painel); font: 12.5px/1.4 var(--f-numero); font-variant-numeric: tabular-nums; color: var(--pergaminho-2); }
+.medidor b { color: var(--pergaminho); font-weight: 600; }
+
+@media (max-width: 860px) {
+  .abertura { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 380px) {
+  .menu { width: 100%; }
+  .vistas-mapa { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* O aperto ainda encolhe, mas sem transição (como .lb-minis__item no app); cor e
+     opacidade continuam, mais curtas: menos movimento, não zero */
+  .segmentos span { transition-property: background-color, color; }
+  .alternar { transition-property: background-color, border-color; }
+  .menu-item { transition: none; }
+  .cartao::after { transition-duration: 300ms; }
+  .cartao.marcado::after { transition-duration: 0ms; }
+}
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <div class="barra-dentro">
+    <span class="marca">Auras da ficha, prova para aprovar</span>
+    <span class="barra-direita">
+      <span class="grupo" role="radiogroup" aria-labelledby="t-ampliacao">
+        <span class="grupo-nome" id="t-ampliacao">Ampliação sobre</span>
+        <span class="segmentos">
+          <label><input type="radio" name="chao-grande" value="escuro" checked><span>Chão escuro</span></label>
+          <label><input type="radio" name="chao-grande" value="grama"><span>Grama</span></label>
+        </span>
+      </span>
+      <button class="alternar" id="movimento" type="button" aria-pressed="false"><span class="luz" aria-hidden="true"></span>Movimento reduzido</button>
+    </span>
+  </div>
+</div>
+
+<main class="coluna">
+  <header class="abertura">
+    <div class="abertura-texto">
+      <h1>Auras em volta da ficha</h1>
+      <p class="lead">Nove auras para a ficha no mapa. Cada cartão mostra a aura na ficha do tamanho de sempre (60 px), no chão escuro e na grama, e a mesma ficha ampliada duas vezes. A aura fica no anel em volta e atrás da ficha, então o rosto continua à mostra. Nada aqui mexe no app.</p>
+      <blockquote>
+        <p>“…crie aura envolta da ficha tipos efeitos, eu quero os seguintes efeitos: 1-Efeito de morte fica saindo almas envolta ficha são almas roxas 2-Chamas Negras Roxas 3-Fogo e raios roxos se misturando 4-Fogo 5-Uma aura escura das trevas 6-Uma Aura eletrica uma amarela e outra azul 7-Uma aura vermelha rebelde e intensa 8-Uma aura multicolorida…”</p>
+        <footer>O mestre, 14/11/2026</footer>
+      </blockquote>
+      <p class="nota">O item 6 virou duas auras, a elétrica amarela e a elétrica azul. Se preferir uma só, diga qual fica.</p>
+    </div>
+    <aside class="previa" aria-labelledby="t-menu">
+      <h2 class="previa-titulo" id="t-menu">No menu do botão direito</h2>
+      <div class="menu">
+        <p class="menu-titulo">Aura</p>
+        <div class="menu-grade" id="menu-grade"></div>
+      </div>
+      <p class="legenda">A miniatura é o quadro parado da aura e anima quando o mouse passa por cima. Clique numa para ir até ela.</p>
+    </aside>
+  </header>
+
+  <section class="cartoes" id="cartoes" aria-label="As nove auras"></section>
+
+  <section class="como" aria-labelledby="t-como">
+    <h2 id="t-como">Como isto entra no app</h2>
+    <ul>
+      <li><b>Cada aura é uma conta do tempo.</b> <code>estadoDaAura(tipo, t, raio, semente)</code>, em <code>auras.js</code>, devolve a lista de sprites do quadro: onde fica, tamanho, giro, ponto na rampa de cor, transparência, mistura e camada. No Pixi, cada item vira um <code>Sprite</code> de uma textura só por aura, tingido pela rampa (<code>tint</code>). As formas são geradas por código, como a bolha de <code>pixi/particulasDoMapa.ts</code>.</li>
+      <li><b>Duas misturas.</b> O corpo e o brilho de fundo usam a mistura normal, que lê na grama clara. Só as luzes pequenas por cima do corpo, como o miolo da chama, o raio e a faísca, usam a mistura somada, que acende no chão escuro. Com o brilho somado, a grama em volta virava um halo branco igual em todas as auras, e o preto das chamas negras e das trevas nem aparecia.</li>
+      <li><b>Um brilho por aura:</b> um sprite de anel com textura feita por código. Se o anel precisar de ruído, ele vira um shader leve depois.</li>
+      <li><b>Até 80 partículas por aura.</b> A conta de cada uma está no cartão. Quase tudo fica atrás da ficha. Na frente, só raio e faísca, sempre fora do rosto.</li>
+      <li><b>Laço de 12 s.</b> Tudo repete exatamente a cada 12 s, então o tempo pode ser guardado como t mod 12 sem salto, e o shader não perde precisão com as horas.</li>
+      <li><b>A semente vem do id da ficha.</b> Duas fichas com a mesma aura não mexem juntas, e o mestre e o jogador veem o mesmo quadro sem mandar nada pela rede.</li>
+      <li><b>Movimento reduzido:</b> cada aura para no quadro mais cheio do seu laço. A miniatura do menu é esse mesmo quadro.</li>
+      <li><b>O medidor do canto</b> mede o processador no canvas 2D desta página, com as 27 vistas desenhando juntas. No Pixi, o custo precisa ser medido de novo.</li>
+    </ul>
+  </section>
+</main>
+
+<div class="medidor" id="medidor">
+  <p id="m-linha-1">Preparando as auras…</p>
+  <p id="m-linha-2"></p>
+  <p id="m-linha-3"></p>
+</div>
+
+<script src="auras.js"></script>
+<script src="pagina.js"></script>
+</body>
+</html>
