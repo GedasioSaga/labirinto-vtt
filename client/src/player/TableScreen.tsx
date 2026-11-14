@@ -12,6 +12,7 @@ import { tableScreenText } from './tableScreenText'
 import { instalarSonsAoVivo, type SonsAoVivo } from './sonsAoVivoDoJogador'
 import { FaixaTocarParaOuvir } from './FaixaTocarParaOuvir'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { CutsceneDeVideoOverlay } from '../transicoes/CutsceneDeVideoOverlay'
 import { aquecerAbertura, aquecerMotorDasCutscenes } from '../transicoes/aquecimento'
 import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import { PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
@@ -138,6 +139,8 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)}
           aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
         />
+        {/* CUTSCENE EM VÍDEO: a TV também baixa e toca o vídeo do mestre, no volume fixo dela. */}
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} volume={PREFERENCIA_DE_SOM_PADRAO.volume} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
       </PlayerErrorBoundary>
     )
   }

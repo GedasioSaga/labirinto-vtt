@@ -75,6 +75,7 @@ import { lerBilheteSemConferir } from '../lib/nuvem/bilhete'
 import { ControleDeSom } from '../components/ControleDeSom'
 import { TransicaoOverlay } from '../transicoes/TransicaoOverlay'
 import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay'
+import { CutsceneDeVideoOverlay } from '../transicoes/CutsceneDeVideoOverlay'
 import { aquecerAbertura, aquecerMotorDasCutscenes, aquecerTransicao, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
 import { parseTransicao } from '../transicoes/catalogo'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
@@ -2760,6 +2761,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           aoFicarPronta={(preparo) => connection.informarCutscenePronta(preparo)}
           aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
         />
+        {/* CUTSCENE EM VÍDEO: o vídeo do mestre, no volume deste aparelho; sem pular. */}
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
         {reconnecting}
       </PlayerErrorBoundary>
     )

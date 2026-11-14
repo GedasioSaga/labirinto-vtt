@@ -9,7 +9,7 @@ import { create } from 'zustand'
  * direita que ele substitui.
  */
 
-export type PaginaDaMesa = 'grupo' | 'chat' | 'cenas' | 'batalha' | 'mesa' | 'sons'
+export type PaginaDaMesa = 'grupo' | 'chat' | 'cenas' | 'batalha' | 'mesa' | 'sons' | 'cutscenes'
 
 interface LivroDaMesaState {
   pagina: PaginaDaMesa

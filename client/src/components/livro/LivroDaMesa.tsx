@@ -10,6 +10,7 @@ import { BordaDaPagina } from './BordaDaPagina'
 import { entrarFolha } from './LivroDoMestre'
 import { PaginaAVistaProvider, usePaginaAVista } from './paginaAVista'
 import { PaginaSons } from './PaginaSons'
+import { PaginaCutscenes } from './PaginaCutscenes'
 import type { PausaDosNpcs } from './TopoDaSala'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import '../grimorio/grimorio.css'
@@ -131,10 +132,11 @@ const PAGINAS: readonly { id: PaginaDaMesa; rotulo: string; icone: NomeDoIcone }
   { id: 'batalha', rotulo: 'Batalha', icone: 'batalha' },
   { id: 'mesa', rotulo: 'Mesa', icone: 'mesa' },
   { id: 'sons', rotulo: 'Sons', icone: 'som' },
+  { id: 'cutscenes', rotulo: 'Cutscenes', icone: 'filme' },
 ]
 
 /** As páginas que existem sem sala: as Cenas, a Batalha (o mapa solto também luta) e os Sons (o som local não depende de sala). */
-const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'batalha', 'sons'])
+const PAGINAS_SEM_SALA: ReadonlySet<PaginaDaMesa> = new Set(['cenas', 'batalha', 'sons', 'cutscenes'])
 
 /**
  * Uma página do livro da mesa: todas ficam montadas (o rascunho do chat e o filtro das Cenas sobrevivem) e só a aberta fica à vista.
@@ -322,6 +324,10 @@ export function LivroDaMesa({ aberto, onAbertoChange, topo, grupo, chat, mesa, c
               {/* Sempre montada, com e sem sala: liga a biblioteca à aventura e ouve as teclas 1 a 9 com qualquer página à vista. */}
               <FolhaDaMesa pagina="sons" aberta={pagina === 'sons'}>
                 <PaginaSons />
+              </FolhaDaMesa>
+              {/* CUTSCENE EM VÍDEO: com e sem sala (sem sala, a lista e a Galeria; tocar pede a sala). */}
+              <FolhaDaMesa pagina="cutscenes" aberta={pagina === 'cutscenes'}>
+                <PaginaCutscenes />
               </FolhaDaMesa>
             </PaginaAVistaProvider>
           </div>
