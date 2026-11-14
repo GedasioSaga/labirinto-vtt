@@ -494,6 +494,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   tapecariaDeParede: [lugar('pano', 'Pano', TECIDOS, 'vinho'), lugar('metal', 'Fio e metal', METAIS, 'latao'), lugar('madeira', 'Vara', MADEIRAS, 'nogueira')],
   lustreDeVelas: [lugar('metal', 'Metal', METAIS, 'ferro')],
   panoplia: [lugar('escudo', 'Escudo', TECIDOS, 'azul'), lugar('metal', 'Metal', METAIS, 'latao')],
+  // Lote L02 de 14/11/2026, o resto do castelo, na ordem das fichas (a ponte levadiça fica no fim, na ordem da lista
+  // do dia). O caminho de mesa do banquete é a chave `toalha`, como a da banheira; as almofadas dos genuflexórios da
+  // capela, a chave `estofado`. Fixos: o bordado, os pratos, as taças e a comida do banquete; o livro de orações da
+  // capela; o mapa, as peças, o compasso e a adaga da mesa de guerra; o falcão e a corda do poleiro; o couro, o latão,
+  // as hastes e as penas das aljavas, que não trocam nada.
+  mesaDeBanquete: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('toalha', 'Caminho de mesa', TECIDOS, 'vinho')],
+  bancosDeCapela: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('estofado', 'Almofadas', TECIDOS, 'vinho')],
+  mesaDeGuerra: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  poleiroDeFalcao: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  aljavasEFlechas: [],
   // Lote L03 de 14/11/2026, o cerco e a defesa: os quatro só deixam trocar a madeira. Fixos: o ferro, a corda, o
   // couro, o pano, a pedra da concha e o virote. A escada de cerco sai de pinho (o claro destaca a escada fina no
   // chão de terra a 1x); as outras três, de carvalho.
@@ -511,6 +521,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   sacosDeAreia: [lugar('pano', 'Sacos', ['ocre', 'musgo', 'linho'], 'ocre')],
   caixasDeMunicao: [],
   ouricoAntitanque: [],
+  // Lote L05 de 14/11/2026. O arame, a barreira, a cancela e o armário têm as cores fixas do aço, do concreto, da
+  // vara vermelha e branca e da tinta oliva. O beliche troca a estrutura (metal ou madeira: com metal, tubos; com
+  // madeira, postes), o cobertor e o travesseiro, como a cama; o lençol é fixo. O rádio de campanha só troca o tampo da
+  // mesa; o rádio, os fones, o papel e a caneca são fixos.
+  arameFarpado: [],
+  barreiraDeConcreto: [],
+  cancelaListrada: [],
+  beliche: [lugar('estrutura', 'Estrutura', [...METAIS, ...MADEIRAS], 'ferro'), lugar('cobertor', 'Cobertor', TECIDOS, 'musgo'), lugar('travesseiro', 'Travesseiro', TECIDOS, 'linho')],
+  armarioDeFerro: [],
+  radioDeCampanha: [lugar('madeira', 'Tampo', MADEIRAS, 'pinho')],
   // Lote L06 de 14/11/2026. O holofote, a metralhadora e o gerador têm as cores fixas da tinta oliva, do aço e da
   // borracha. A rede de camuflagem e os paletes só trocam a madeira (as varas e as estacas; as tábuas); a rede tem
   // as manchas fixas. O mastro com bandeira troca o pano, o mastro (madeira ou metal: o desenho pinta qualquer
@@ -521,6 +541,21 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   paletesDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   gerador: [],
   mastroComBandeira: [lugar('bandeira', 'Bandeira', TECIDOS, 'vinho'), lugar('mastro', 'Mastro', [...MADEIRAS, ...METAIS], 'carvalho'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  // Lote L07 de 14/11/2026, o mar e os piratas. Os três caracóis não trocam nada: a casca, a pele e o fone são as
+  // cores que dizem qual versão é. A fruta de espirais troca a cor da casca (qualquer tecido; o cabo e a folha são
+  // fixos). O cartaz, a bandeira, a mesa de navegação e a laranjeira só trocam a madeira (o poste, o mastro, a mesa,
+  // o canteiro); o papel, o pano preto, a carta, o latão, a folhagem e as laranjas são fixos.
+  caracolTelefone: [],
+  caracolTelefoneCamera: [],
+  caracolTelefoneDourado: [],
+  cartazDeProcurado: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  frutaDeEspirais: [lugar('fruta', 'Fruta', TECIDOS, 'vinho')],
+  bandeiraPirata: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  mesaDeNavegacao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
+  laranjeiraEmCanteiro: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  // A ponte levadiça (lote L02, item 81 da lista do dia): as ferragens valem para as cintas, os rebites, as chapas, as
+  // dobradiças, as pontas do eixo e as correntes.
+  ponteLevadica: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -96,15 +96,28 @@ export const TIPOS_MOBILIA = [
   // Lote L01 dos objetos de 14/11/2026, o castelo: o trono, a cama de dossel, o estandarte de pé, a tapeçaria
   // de parede, o lustre de velas (que ilumina) e a panóplia. Vem antes do L03 para a ordem seguir a da lista do dia.
   'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
+  // Lote L02 dos objetos de 14/11/2026, o resto do castelo: a mesa de banquete posta, os bancos de capela, a mesa de
+  // guerra, o poleiro de falcão e as aljavas e feixes de flechas. A ponte levadiça, do mesmo lote, vem no fim: é o
+  // item 81 da lista do dia.
+  'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
   // Lote L03 dos objetos de 14/11/2026, o cerco e a defesa: a catapulta, a balista, o aríete com teto e a
   // escada de cerco.
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
-  // Lotes L04 e L06 dos objetos de 14/11/2026. No cerco e defesa: o cavalo de frisa, a pilha de balas de canhão e
-  // o tacho de óleo quente. Na base militar: os sacos de areia, as caixas de munição, o ouriço antitanque, o
-  // holofote (que ilumina), a rede de camuflagem, a metralhadora no tripé, os paletes de madeira, o gerador e o
-  // mastro com bandeira.
+  // Lotes L04, L05 e L06 dos objetos de 14/11/2026. No cerco e defesa (L04): o cavalo de frisa, a pilha de balas de
+  // canhão e o tacho de óleo quente. Na base militar: os sacos de areia, as caixas de munição e o ouriço antitanque
+  // (L04); o arame farpado em rolo, a barreira de concreto, a cancela listrada, o beliche, o armário de ferro e o
+  // rádio de campanha (L05); o holofote (que ilumina), a rede de camuflagem, a metralhadora no tripé, os paletes de
+  // madeira, o gerador e o mastro com bandeira (L06).
   'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'arameFarpado', 'barreiraDeConcreto', 'cancelaListrada', 'beliche', 'armarioDeFerro', 'radioDeCampanha',
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
+  // Lote L07 dos objetos de 14/11/2026, o mar e os piratas: o caracol-telefone nas três versões (comum, câmera e
+  // dourado), o cartaz de procurado, a fruta de espirais, a bandeira pirata, a mesa de navegação e a laranjeira em
+  // canteiro.
+  'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
+  'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão, como a ponte, e fica no castelo.
+  'ponteLevadica',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

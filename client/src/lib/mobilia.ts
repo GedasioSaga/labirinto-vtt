@@ -421,17 +421,20 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * o mestre põe em cima saem por cima da mancha) e os quatro montes do tesouro
  * (12/11/2026: o de ouro, o de moedas, o de diamantes e o de joias, chão COM
  * altura, como a armadilha; o baú, o trono ou a ficha que o mestre põe em cima
- * saem por cima do monte). O píer não é a ponte: o que é só da ponte (as
+ * saem por cima do monte) e a ponte levadiça (14/11/2026: como a ponte, o
+ * token anda no tabuleiro e o que o mestre põe em cima sai por cima; as
+ * correntes sobem até o eixo, mas ficam nas beiras). O píer e a ponte levadiça
+ * não são a ponte: o que é só da ponte (as
  * formas Madeira, Pedra e Corda, o material de cada forma) pergunta por
  * `'ponte'` pelo nome. A teia de aranha é rente, mas NÃO mora aqui: fica por
  * cima do móvel em que o mestre a encosta.
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
- * ringue, o píer, a cela, a armadilha, o círculo, o sangue e os montes por
- * último) leem esta lista.
+ * ringue, o píer, a cela, a armadilha, o círculo, o sangue, os montes e a
+ * ponte levadiça por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica'
 }
 
 /**

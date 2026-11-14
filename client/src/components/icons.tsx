@@ -2264,6 +2264,66 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <circle cx="12" cy="12.5" r="1.6" />
         </>
       )
+    // Lote L02 de 14/11/2026, o resto do castelo (a ponte levadiça, do mesmo lote, fica no fim, na ordem da lista do dia).
+    case 'mesaDeBanquete':
+      // De cima: a mesa comprida, o caminho de mesa, a travessa oval do assado no meio e dois pratos de cada lado.
+      return (
+        <>
+          <rect x="1.5" y="6" width="21" height="12" rx="1" />
+          <path d="M1.5 10.3h21M1.5 13.7h21" />
+          <ellipse cx="12" cy="12" rx="3.6" ry="1.4" />
+          <circle cx="5.5" cy="8.2" r="1.2" />
+          <circle cx="18.5" cy="8.2" r="1.2" />
+          <circle cx="5.5" cy="15.8" r="1.2" />
+          <circle cx="18.5" cy="15.8" r="1.2" />
+        </>
+      )
+    case 'bancosDeCapela':
+      // De cima: três bancos de igreja em fileira, cada um com o encosto (o traço), o assento e as volutas das cabeceiras (as bolinhas).
+      return (
+        <>
+          <path d="M4.5 3.5h15M4.5 10h15M4.5 16.5h15" />
+          <rect x="4.5" y="5" width="15" height="3" />
+          <rect x="4.5" y="11.5" width="15" height="3" />
+          <rect x="4.5" y="18" width="15" height="3" />
+          <path d="M1.8 3.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0M19.8 3.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0M1.8 10a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0M19.8 10a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0M1.8 16.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0M19.8 16.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0" />
+        </>
+      )
+    case 'mesaDeGuerra':
+      // De cima: o tampo, o mapa aberto com o rio, um peão de cada exército e a bandeirinha espetada.
+      return (
+        <>
+          <rect x="1.5" y="4" width="21" height="16" rx="1" />
+          <rect x="4.5" y="6.5" width="15" height="11" />
+          <path d="M4.5 14.5c3-.5 4.5-3.5 7.5-3.5s4.5-2.5 7.5-3" />
+          <circle cx="8.5" cy="9.3" r="1.3" />
+          <circle cx="16" cy="14.6" r="1.3" />
+          <path d="M11 16.8v-4l2.8 1.1-2.8 1.1" />
+        </>
+      )
+    case 'poleiroDeFalcao':
+      // De frente: o falcão de capuz pousado na trave (a cabeça, o corpo em gota e a cauda caindo), o poste e os pés abertos.
+      return (
+        <>
+          <circle cx="12" cy="3.7" r="1.8" />
+          <ellipse cx="12" cy="8.2" rx="2.9" ry="3.1" />
+          <path d="M11 11.3l-.5 3h3l-.5-3" />
+          <path d="M4.5 11.5h15" />
+          <path d="M12 14.3V19M12 19l-5.5 2.5M12 19l5.5 2.5" />
+        </>
+      )
+    case 'aljavasEFlechas':
+      // De frente: a aljava em pé (o tubo afinando, com a cinta) e as penas das flechas saindo pela boca; ao lado, o feixe amarrado de hastes.
+      return (
+        <>
+          <path d="M3.5 9h7.5l-1 12.5h-5.5z" />
+          <path d="M4 13.2h6.6" />
+          <path d="M5.5 9V4.5M7.25 9V3.5M9 9V4.5" />
+          <path d="M4.7 6l.8-1.5.8 1.5M6.45 5l.8-1.5.8 1.5M8.2 6l.8-1.5.8 1.5" />
+          <path d="M14.5 3v18.5M17 3v18.5M19.5 3v18.5" />
+          <path d="M13.5 9.5h7M13.5 15h7" />
+        </>
+      )
     // Lote L03 de 14/11/2026, o cerco e a defesa.
     case 'catapulta':
       // De lado: o chassi com as duas rodas, o braço armado para trás com a concha e a pedra, e o batente em A na frente.
@@ -2379,6 +2439,89 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2 21.5h20" />
         </>
       )
+    // Lote L05 de 14/11/2026, o meio da base militar.
+    case 'arameFarpado':
+      // De frente: o rolo deitado, três laços redondos encavalados, as farpas em X no alto deles e os dois piquetes de
+      // cantoneira atravessando o rolo até o chão (a cerca de ferro tem pilaretes e barras retas de ponta de lança).
+      return (
+        <>
+          <path d="M1.5 21.5h21" />
+          <circle cx="7" cy="14.5" r="5" />
+          <circle cx="12" cy="14.5" r="5" />
+          <circle cx="17" cy="14.5" r="5" />
+          <path d="M3.5 21.5V8M20.5 21.5V8" />
+          <path d="M6 8.7l2 1.6M8 8.7l-2 1.6M11 8.7l2 1.6M13 8.7l-2 1.6M16 8.7l2 1.6M18 8.7l-2 1.6" />
+        </>
+      )
+    case 'barreiraDeConcreto':
+      // De frente: o bloco comprido e baixo com o perfil nas pontas (o topo estreito, a face, a rampa e o pé largo), as
+      // quebras de uma parte para outra, o vão de escoamento no meio do pé e uma lasca na quina (o muro baixo de pedra
+      // tem as pedras e a capa).
+      return (
+        <>
+          <path d="M5 8.5h14l1 8 1.8 3.3v1.7H2.2v-1.7L4 16.5z" />
+          <path d="M4 16.5h16M2.2 19.8h19.6" />
+          <path d="M10.5 21.5V20h3v1.5" />
+          <path d="M16.5 8.5l.7 1.3 1-.6" />
+        </>
+      )
+    case 'cancelaListrada':
+      // De frente: o poste com a caixa do eixo no alto, o contrapeso curto atrás, a vara comprida com as listras de
+      // través e o garfo de descanso segurando a ponta dela (a cerca de ferro tem barras de pé; o arco do portão, a
+      // trave por cima dos dois postes).
+      return (
+        <>
+          <path d="M1.5 21.5h21" />
+          <rect x="5" y="11" width="3" height="10.5" />
+          <rect x="4" y="7.5" width="5" height="3.5" />
+          <rect x="1.5" y="8.3" width="2.5" height="2" />
+          <rect x="9" y="8.3" width="11.7" height="2" />
+          <path d="M12 8.3v2M15 8.3v2M18 8.3v2" />
+          <path d="M20.5 21.5V11.3M19 11.3h3M19 11.3V7.4M22 11.3V7.4" />
+        </>
+      )
+    case 'beliche':
+      // De frente, pelo pé: os dois postes altos, as duas camas uma em cima da outra (o estrado e o colchão de cada uma),
+      // a grade de proteção no alto e a escada descendo da cama de cima até o chão (o catre é uma cama baixa só; a cama
+      // de dossel tem o teto e as cortinas).
+      return (
+        <>
+          <path d="M3.5 21.5V2.5M20.5 21.5V2.5" />
+          <path d="M3.5 4.5h17M3.5 9.5h17M3.5 17h17" />
+          <path d="M5 9.5V8.3C5 7.6 5.5 7 6.3 7h11.4c.8 0 1.3.6 1.3 1.3v1.2M5 17v-1.2c0-.7.5-1.3 1.3-1.3h11.4c.8 0 1.3.6 1.3 1.3V17" />
+          <path d="M9 9.5v12M15 9.5v12M9 13h6M9 19.5h6" />
+        </>
+      )
+    case 'armarioDeFerro':
+      // De frente: o corpo alto com três portas estreitas, as aletas de ventilação no alto e embaixo de cada uma, a
+      // maçaneta de alavanca, o rodapé e, em cima, o saco de lona deitado e o capacete (o guarda-roupa tem duas portas
+      // largas com almofada; o cofre, a roda de segredo).
+      return (
+        <>
+          <rect x="4" y="4" width="16" height="16" />
+          <path d="M9.3 4v16M14.7 4v16" />
+          <path d="M5.5 6.3h2.4M5.5 7.8h2.4M10.8 6.3h2.4M10.8 7.8h2.4M16.1 6.3h2.4M16.1 7.8h2.4" />
+          <path d="M5.5 16.3h2.4M5.5 17.8h2.4M10.8 16.3h2.4M10.8 17.8h2.4M16.1 16.3h2.4M16.1 17.8h2.4" />
+          <path d="M8.3 11v2.5M13.7 11v2.5M19 11v2.5" />
+          <path d="M4 20v1.5h16V20" />
+          <path d="M5.8 4a1.5 1.5 0 0 1 0-3h3.4a1.5 1.5 0 0 1 0 3M14.6 4a2.3 2.3 0 0 1 4.6 0" />
+        </>
+      )
+    case 'radioDeCampanha':
+      // De frente: a mesa de campanha com as pernas de ferro, a caixa do rádio em cima com a janela do mostrador e os
+      // dois botões, a antena fina subindo do canto e os fones de ouvido ao lado (a escrivaninha tem gavetas; a mesa,
+      // só o tampo e as pernas).
+      return (
+        <>
+          <path d="M2 13.5h20M3.5 13.5v8M20.5 13.5v8" />
+          <rect x="4" y="6.5" width="9" height="7" />
+          <path d="M5.5 8.5h6" />
+          <circle cx="6.8" cy="11.2" r="1" />
+          <circle cx="10.2" cy="11.2" r="1" />
+          <path d="M5 6.5V1.5" />
+          <path d="M15.8 12.5v-2a2.4 2.4 0 0 1 4.8 0v2M15 11.5h1.6v2H15zM19.8 11.5h1.6v2h-1.6z" />
+        </>
+      )
     // Lote L06 de 14/11/2026, o resto da base militar.
     case 'holofote':
       // De frente: a lente redonda com as varetas em X, a alça em U em cima, o garfo segurando o tambor pelos munhões
@@ -2459,6 +2602,126 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6 4c2.8-1.1 5 .9 7.8 0s4.6-.8 7 0v7c-2.4-.8-4.2-.9-7 0s-5-1.1-7.8 0" />
           <circle cx="13.4" cy="7.5" r="1.5" />
           <path d="M2.5 21v-1.4h7V21zM3.8 19.6v-1.4h4.4v1.4" />
+        </>
+      )
+    // Lote L07 de 14/11/2026, o mar e os piratas.
+    case 'caracolTelefone':
+      // De lado: o corpo comprido no chão com a cabeça erguida e os dois olhos nas hastes, a casca redonda com a espiral
+      // e o fone deitado em cima da casca, com as duas conchas (a câmera tem a caixa com a lente; o dourado, o brilho de
+      // quatro pontas).
+      return (
+        <>
+          <path d="M1.5 19h15a3 3 0 0 0 3-3v-2.5" />
+          <path d="M18.6 13.6 17.4 9M20.4 13.6 21.8 9M17.4 9h.01M21.8 9h.01" />
+          <circle cx="10" cy="13" r="5.5" />
+          <path d="M10 13a1 1 0 1 1 1 1 2 2 0 0 1-2 2 3 3 0 0 1-3-3" />
+          <path d="M7.4 6.4h5.2" />
+          <circle cx="5.8" cy="6.6" r="1.6" />
+          <circle cx="14.2" cy="6.6" r="1.6" />
+        </>
+      )
+    case 'caracolTelefoneCamera':
+      // De lado: o mesmo caracol, com a caixa da câmera em cima da casca e a lente redonda saindo para a frente (o comum
+      // tem o fone; o dourado, o brilho).
+      return (
+        <>
+          <path d="M1.5 19h15a3 3 0 0 0 3-3v-2.5" />
+          <path d="M18.6 13.6 17.4 9M20.4 13.6 21.8 9M17.4 9h.01M21.8 9h.01" />
+          <circle cx="10" cy="13" r="5.5" />
+          <path d="M10 13a1 1 0 1 1 1 1 2 2 0 0 1-2 2 3 3 0 0 1-3-3" />
+          <path d="M6.5 3.5h7v4.2h-7z" />
+          <circle cx="15.1" cy="5.6" r="1.6" />
+        </>
+      )
+    case 'caracolTelefoneDourado':
+      // O caracol-telefone com o brilho de quatro pontas no alto, à direita (o ouro é o que o separa do comum).
+      return (
+        <>
+          <path d="M1.5 19h15a3 3 0 0 0 3-3v-2.5" />
+          <path d="M18.6 13.6 17.4 9M20.4 13.6 21.8 9M17.4 9h.01M21.8 9h.01" />
+          <circle cx="10" cy="13" r="5.5" />
+          <path d="M10 13a1 1 0 1 1 1 1 2 2 0 0 1-2 2 3 3 0 0 1-3-3" />
+          <path d="M7.4 6.4h5.2" />
+          <circle cx="5.8" cy="6.6" r="1.6" />
+          <circle cx="14.2" cy="6.6" r="1.6" />
+          <path d="M20.5 1.5v3.6M18.7 3.3h3.6" />
+        </>
+      )
+    case 'cartazDeProcurado':
+      // De frente: o papel com a quina de baixo rasgada, a linha do título, o quadro com a cabeça e os ombros da
+      // silhueta, a linha do valor e o pé do poste (o quadro de avisos tem dois papéis tortos numa moldura larga).
+      return (
+        <>
+          <path d="M5 2.5h14v14l-1.2 1.2.8 1.8H5z" />
+          <path d="M8 5.5h8M8 17h6" />
+          <rect x="8" y="8" width="8" height="6.5" />
+          <circle cx="12" cy="10.6" r="1.4" />
+          <path d="M9.5 14.5c.5-1.6 1.4-2.4 2.5-2.4s2 .8 2.5 2.4" />
+          <path d="M12 19.5v3" />
+        </>
+      )
+    case 'frutaDeEspirais':
+      // De frente: a fruta redonda com a espiral grande no meio e duas pequenas dos lados, o cabo com a gavinha enrolada
+      // e a folha (a moeda de ouro tem a coroa; o canteiro, as flores).
+      return (
+        <>
+          <circle cx="12" cy="14" r="7.5" />
+          <path d="M12 14a1 1 0 1 1 1 1 2 2 0 0 1-2 2 3 3 0 0 1-3-3" />
+          <path d="M7.2 11.6a.8.8 0 1 1 .8.8M16 12.4a.8.8 0 1 1 .8.8" />
+          <path d="M12 6.5l.6-3" />
+          <path d="M12.6 3.5a1.4 1.4 0 1 1 1.5 1.5" />
+          <path d="M11.4 5.2C9.8 3 7.2 2.6 5.6 3.5c1 2 3.4 3 5.8 1.7z" />
+        </>
+      )
+    case 'bandeiraPirata':
+      // De frente: o mastro com a bola no alto, o pano ondulado com a ponta em rabo, a caveira e os ossos cruzados, e as
+      // pedras do pé (o estandarte e o mastro com bandeira não têm caveira).
+      return (
+        <>
+          <path d="M4 22V3.5M2 22h4" />
+          <circle cx="4" cy="2.3" r="1" />
+          <path d="M4 4c3-1 5 1 8 0s5-1 8 0l-1.5 3.5L20 11c-3-1-5 1-8 0s-5 1-8 0" />
+          <circle cx="12" cy="7.3" r="1.8" />
+          <path d="M9.4 5.2l5.2 4.4M14.6 5.2l-5.2 4.4" />
+        </>
+      )
+    case 'mesaDeNavegacao':
+      // De cima: o tampo comprido, a carta aberta e torta, a bússola redonda no canto dela, a rota tracejada até o X, a
+      // carta enrolada no alto e o tinteiro à direita (a mesa de instrumentos tem a tenaz, a máscara e a ampulheta).
+      return (
+        <>
+          <rect x="1.5" y="6" width="21" height="12" />
+          <path d="M3.8 9.4l13-.6.4 7.6-13 .6z" />
+          <circle cx="6.6" cy="11.4" r="1.7" />
+          <path d="M8.6 15.4c1.6-.4 3-1.6 4.4-1.4" strokeDasharray="1.2 1" />
+          <path d="M13.8 12.4l1.6 1.6M15.4 12.4l-1.6 1.6" />
+          <path d="M11 7.6h8" />
+          <circle cx="20" cy="13.4" r="1" />
+        </>
+      )
+    case 'laranjeiraEmCanteiro':
+      // De cima: o canteiro quadrado, a copa de lóbulos e três laranjas (o canteiro de flores é a oval tracejada de pedras
+      // com três flores).
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="19" height="19" />
+          <path d="M12 4.5a3 3 0 0 1 4.6 1.8 3 3 0 0 1 2.6 4.4 3 3 0 0 1-1 4.8 3 3 0 0 1-4 2.8 3 3 0 0 1-4.4 0 3 3 0 0 1-4-2.8 3 3 0 0 1-1-4.8 3 3 0 0 1 2.6-4.4A3 3 0 0 1 12 4.5z" />
+          <circle cx="9.6" cy="10.2" r="1.2" />
+          <circle cx="14.4" cy="9.6" r="1.2" />
+          <circle cx="13" cy="14.6" r="1.2" />
+        </>
+      )
+    // A ponte levadiça (lote L02, item 81 da lista do dia).
+    case 'ponteLevadica':
+      // De lado: a muralha com o portão em arco, o tabuleiro abaixado sobre o fosso e a corrente do alto da muralha à
+      // ponta dele.
+      return (
+        <>
+          <path d="M15 20.5V2.5h7v18" />
+          <path d="M16.5 20.5v-4.5a2 2 0 0 1 4 0v4.5" />
+          <path d="M2 18.5h14.5v2H2z" />
+          <path d="M15 5 2.6 18.5" />
+          <path d="M3 22.8c1.3-.8 2.7-.8 4 0s2.7.8 4 0" />
         </>
       )
   }

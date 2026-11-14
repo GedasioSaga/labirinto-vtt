@@ -187,6 +187,11 @@ import { montarEstandarteDePe } from './estandarteDePe'
 import { montarTapecariaDeParede } from './tapecariaDeParede'
 import { montarLustreDeVelas } from './lustreDeVelas'
 import { montarPanoplia } from './panoplia'
+import { montarMesaDeBanquete } from './mesaDeBanquete'
+import { montarBancosDeCapela } from './bancosDeCapela'
+import { montarMesaDeGuerra } from './mesaDeGuerra'
+import { montarPoleiroDeFalcao } from './poleiroDeFalcao'
+import { montarAljavasEFlechas } from './aljavasEFlechas'
 import { montarCatapulta } from './catapulta'
 import { montarBalista } from './balista'
 import { montarArieteComTeto } from './arieteComTeto'
@@ -197,12 +202,27 @@ import { montarTachoDeOleoQuente } from './tachoDeOleoQuente'
 import { montarSacosDeAreia } from './sacosDeAreia'
 import { montarCaixasDeMunicao } from './caixasDeMunicao'
 import { montarOuricoAntitanque } from './ouricoAntitanque'
+import { montarArameFarpado } from './arameFarpado'
+import { montarBarreiraDeConcreto } from './barreiraDeConcreto'
+import { montarCancelaListrada } from './cancelaListrada'
+import { montarBeliche } from './beliche'
+import { montarArmarioDeFerro } from './armarioDeFerro'
+import { montarRadioDeCampanha } from './radioDeCampanha'
 import { montarHolofote } from './holofote'
 import { montarRedeDeCamuflagem } from './redeDeCamuflagem'
 import { montarMetralhadoraNoTripe } from './metralhadoraNoTripe'
 import { montarPaletesDeMadeira } from './paletesDeMadeira'
 import { montarGerador } from './gerador'
 import { montarMastroComBandeira } from './mastroComBandeira'
+import { montarCaracolTelefone } from './caracolTelefone'
+import { montarCaracolTelefoneCamera } from './caracolTelefoneCamera'
+import { montarCaracolTelefoneDourado } from './caracolTelefoneDourado'
+import { montarCartazDeProcurado } from './cartazDeProcurado'
+import { montarFrutaDeEspirais } from './frutaDeEspirais'
+import { montarBandeiraPirata } from './bandeiraPirata'
+import { montarMesaDeNavegacao } from './mesaDeNavegacao'
+import { montarLaranjeiraEmCanteiro } from './laranjeiraEmCanteiro'
+import { montarPonteLevadica } from './ponteLevadica'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -452,6 +472,11 @@ const MONTADORES = {
   tapecariaDeParede: montarTapecariaDeParede,
   lustreDeVelas: montarLustreDeVelas,
   panoplia: montarPanoplia,
+  mesaDeBanquete: montarMesaDeBanquete,
+  bancosDeCapela: montarBancosDeCapela,
+  mesaDeGuerra: montarMesaDeGuerra,
+  poleiroDeFalcao: montarPoleiroDeFalcao,
+  aljavasEFlechas: montarAljavasEFlechas,
   catapulta: montarCatapulta,
   balista: montarBalista,
   arieteComTeto: montarArieteComTeto,
@@ -462,12 +487,27 @@ const MONTADORES = {
   sacosDeAreia: montarSacosDeAreia,
   caixasDeMunicao: montarCaixasDeMunicao,
   ouricoAntitanque: montarOuricoAntitanque,
+  arameFarpado: montarArameFarpado,
+  barreiraDeConcreto: montarBarreiraDeConcreto,
+  cancelaListrada: montarCancelaListrada,
+  beliche: montarBeliche,
+  armarioDeFerro: montarArmarioDeFerro,
+  radioDeCampanha: montarRadioDeCampanha,
   holofote: montarHolofote,
   redeDeCamuflagem: montarRedeDeCamuflagem,
   metralhadoraNoTripe: montarMetralhadoraNoTripe,
   paletesDeMadeira: montarPaletesDeMadeira,
   gerador: montarGerador,
   mastroComBandeira: montarMastroComBandeira,
+  caracolTelefone: montarCaracolTelefone,
+  caracolTelefoneCamera: montarCaracolTelefoneCamera,
+  caracolTelefoneDourado: montarCaracolTelefoneDourado,
+  cartazDeProcurado: montarCartazDeProcurado,
+  frutaDeEspirais: montarFrutaDeEspirais,
+  bandeiraPirata: montarBandeiraPirata,
+  mesaDeNavegacao: montarMesaDeNavegacao,
+  laranjeiraEmCanteiro: montarLaranjeiraEmCanteiro,
+  ponteLevadica: montarPonteLevadica,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -522,9 +562,14 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
   'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
+  'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
   'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'arameFarpado', 'barreiraDeConcreto', 'cancelaListrada', 'beliche', 'armarioDeFerro', 'radioDeCampanha',
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
+  'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
+  'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'ponteLevadica',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

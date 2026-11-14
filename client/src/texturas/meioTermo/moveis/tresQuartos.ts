@@ -57,6 +57,7 @@ import { ESPESSURA_DA_FIADA_DE_SACOS } from './sacosDeAreia'
 import { ESPESSURA_DO_TAMBOR_DO_HOLOFOTE } from './holofote'
 import { ESPESSURA_DA_REDE_DE_CAMUFLAGEM } from './redeDeCamuflagem'
 import { ESPESSURA_DA_BANDEIRA } from './mastroComBandeira'
+import { ESPESSURA_DA_COPA_DA_LARANJEIRA } from './laranjeiraEmCanteiro'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -523,6 +524,18 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   tapecariaDeParede: EM_PE,
   lustreDeVelas: { modo: 'derivado', espessura: ALTURA_DA_VELA_DO_LUSTRE },
   panoplia: EM_PE,
+  // Lote L02 de 14/11/2026, o resto do castelo, todos derivados com a beirada padrão. A mesa de banquete é a da mesa
+  // com pernas: tudo o que está em cima sobe com o tampo. Nos bancos de capela, o genuflexório e as cabeceiras são
+  // colunas e o assento e o encosto, tampos soltos (o chão aparece debaixo deles); com a beirada de 0,34 casa a
+  // fileira virava estante maciça. No poleiro, os quatro pés em X são braços separados (inteiro, o meio do X ficava
+  // debaixo da ave e subia até ela), o poste é coluna até a trave e a ave, um tampo solto a 0,85 casa. Na aljava em
+  // pé, coluna de 0,6 casa; a deitada, o feixe e as flechas soltas ficam rentes. (A ponte levadiça, do mesmo lote,
+  // fica no fim, na ordem da lista do dia.)
+  mesaDeBanquete: DERIVADO,
+  bancosDeCapela: DERIVADO,
+  mesaDeGuerra: DERIVADO,
+  poleiroDeFalcao: DERIVADO,
+  aljavasEFlechas: DERIVADO,
   // Lote L03 de 14/11/2026, o cerco e a defesa. A catapulta e a balista ficam como de cima, como o canhão:
   // derivadas, as quatro rodas da catapulta viravam caixotes varridos até o chão (e os postes do batente,
   // pernas), e o pé em X da balista subia em bloco. O aríete sobe pelas sombras: o telhado é uma coluna alta
@@ -542,6 +555,16 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   sacosDeAreia: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DE_SACOS },
   caixasDeMunicao: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
   ouricoAntitanque: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // Lote L05 de 14/11/2026. O arame farpado fica como de cima: o rolo é uma renda de arame, e tampo solto não faz
+  // sentido nele. Os outros cinco são derivados com a beirada padrão; a barreira é feita de colunas (o pé, a rampa e
+  // o corpo), não de tampo solto, e as caixas declaradas maiores que a forma (as listras e a sapata da cancela, a cama
+  // de baixo do beliche) e as tiras da frente do armário escolhem em que estrutura cada peça sobe.
+  arameFarpado: EM_PE,
+  barreiraDeConcreto: DERIVADO,
+  cancelaListrada: DERIVADO,
+  beliche: DERIVADO,
+  armarioDeFerro: DERIVADO,
+  radioDeCampanha: DERIVADO,
   // Lote L06 de 14/11/2026. O holofote sobe pelo costado do tambor; a rede e a bandeira, pela beirada fina do
   // pano. A metralhadora fica como de cima, como o canhão (derivada, a arma fina virava um bloco); os paletes
   // também, como a pilha de caixas (derivada, a pilha subia num bloco e a frente lisa apagava as frestas).
@@ -551,6 +574,24 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   paletesDeMadeira: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
   gerador: DERIVADO,
   mastroComBandeira: { modo: 'derivado', espessura: ESPESSURA_DA_BANDEIRA },
+  // Lote L07 de 14/11/2026, o mar e os piratas. Os caracóis-telefone ficam como de cima: bicho baixo no chão (na
+  // primeira folha o perfil derivado fez da casca um tambor alto, um pote, debaixo do desenho). A fruta de espirais
+  // também, como a barra de ouro: é volume redondo no chão, e derivada a frente varrida virava um tambor debaixo
+  // dela. O cartaz de procurado e a bandeira pirata são desenho de frente, de pé num poste; a sombra de baixo cobre a
+  // largura das peças (o papel, o pano), e na força padrão era uma mancha larga debaixo de um poste fino. A mesa de
+  // navegação é derivada, como a mesa de instrumentos. Na laranjeira, o canteiro é a coluna baixa, o tronco sobe com
+  // ele e a copa é o tampo solto alto, com a beirada da espessura da folhagem.
+  caracolTelefone: EM_PE,
+  caracolTelefoneCamera: EM_PE,
+  caracolTelefoneDourado: EM_PE,
+  cartazDeProcurado: { modo: 'em-pe', forcaDaSombraDeBaixo: 0.16 },
+  frutaDeEspirais: EM_PE,
+  bandeiraPirata: { modo: 'em-pe', forcaDaSombraDeBaixo: 0.16 },
+  mesaDeNavegacao: DERIVADO,
+  laranjeiraEmCanteiro: { modo: 'derivado', espessura: ESPESSURA_DA_COPA_DA_LARANJEIRA },
+  // A ponte levadiça (lote L02, item 81 da lista do dia) fica como de cima, como a ponte: anda-se em cima, e as
+  // correntes sobem da argola da ponta até o eixo, cada elo com a sua sombra solta.
+  ponteLevadica: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

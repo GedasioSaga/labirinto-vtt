@@ -49,9 +49,14 @@ export const PECAS_NOVAS = [
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
   'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
+  'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
   'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'arameFarpado', 'barreiraDeConcreto', 'cancelaListrada', 'beliche', 'armarioDeFerro', 'radioDeCampanha',
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
+  'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
+  'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'ponteLevadica',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -406,6 +411,14 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   tapecariaDeParede: { rotulo: 'Tapeçaria de parede', artigo: 'uma tapeçaria de parede', tamanho: { largura: 1, altura: 1.6 }, redonda: false },
   lustreDeVelas: { rotulo: 'Lustre de velas', artigo: 'um lustre de velas', tamanho: { largura: 1.2, altura: 1.2 }, redonda: true },
   panoplia: { rotulo: 'Panóplia', artigo: 'uma panóplia', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lote L02 de 14/11/2026, o resto do castelo. A mesa de banquete deitada repete os lugares postos ao longo do
+  // comprimento (em pé a régua gira, como na ponte); os bancos de capela ganham um banco a cada 0,64 casa quando
+  // esticados para baixo; o poleiro e as aljavas são desenhados na casa e escalam pelo menor lado.
+  mesaDeBanquete: { rotulo: 'Mesa de banquete posta', artigo: 'uma mesa de banquete posta', tamanho: { largura: 3, altura: 1 }, redonda: false },
+  bancosDeCapela: { rotulo: 'Bancos de capela', artigo: 'uns bancos de capela', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  mesaDeGuerra: { rotulo: 'Mesa de guerra', artigo: 'uma mesa de guerra', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  poleiroDeFalcao: { rotulo: 'Poleiro de falcão', artigo: 'um poleiro de falcão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  aljavasEFlechas: { rotulo: 'Aljavas e feixes de flechas', artigo: 'umas aljavas e feixes de flechas', tamanho: { largura: 1, altura: 1 }, redonda: false },
   // Lote L03 de 14/11/2026, o cerco e a defesa. A catapulta e a balista ficam em pé na 3/4, como o canhão; o
   // aríete é a "tartaruga" de couro sobre rodas; a escada de cerco vem deitada, ganha degraus quando esticada
   // e os ganchos do alto não esticam.
@@ -422,6 +435,15 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   sacosDeAreia: { rotulo: 'Sacos de areia', artigo: 'uns sacos de areia', tamanho: { largura: 2, altura: 0.6 }, redonda: false },
   caixasDeMunicao: { rotulo: 'Caixas de munição', artigo: 'umas caixas de munição', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   ouricoAntitanque: { rotulo: 'Ouriço antitanque', artigo: 'um ouriço antitanque', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  // Lote L05 de 14/11/2026, o meio da base militar. O arame farpado e a barreira de concreto correm pelo lado maior
+  // e esticam em linha, como a cerca e o muro baixo (a barreira, um bloco a cada 2 casas); a cancela tem o poste a
+  // meia casa do começo; o armário ganha uma porta a cada 0,34 casa.
+  arameFarpado: { rotulo: 'Arame farpado em rolo', artigo: 'um arame farpado em rolo', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  barreiraDeConcreto: { rotulo: 'Barreira de concreto', artigo: 'uma barreira de concreto', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  cancelaListrada: { rotulo: 'Cancela listrada', artigo: 'uma cancela listrada', tamanho: { largura: 3, altura: 0.5 }, redonda: false },
+  beliche: { rotulo: 'Beliche', artigo: 'um beliche', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  armarioDeFerro: { rotulo: 'Armário de ferro', artigo: 'um armário de ferro', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  radioDeCampanha: { rotulo: 'Rádio de campanha', artigo: 'um rádio de campanha', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   // Lote L06 de 14/11/2026, o resto da base militar. O holofote ilumina (a lente aponta para a frente, mas a luz
   // nasce redonda do meio, como a de toda peça). A rede de camuflagem é alta e se passa por baixo dela.
   holofote: { rotulo: 'Holofote', artigo: 'um holofote', tamanho: { largura: 1, altura: 1 }, redonda: false },
@@ -430,6 +452,20 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   paletesDeMadeira: { rotulo: 'Paletes de madeira', artigo: 'uns paletes de madeira', tamanho: { largura: 1, altura: 1 }, redonda: false },
   gerador: { rotulo: 'Gerador', artigo: 'um gerador', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   mastroComBandeira: { rotulo: 'Mastro com bandeira', artigo: 'um mastro com bandeira', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // Lote L07 de 14/11/2026, o mar e os piratas (nome e desenho próprios, de nenhum personagem). Os três caracóis
+  // são o mesmo bicho, com o fone, com a câmera e de ouro; o cartaz e a bandeira são desenho de frente num poste e
+  // passam do alto da pegada, como os outros em pé.
+  caracolTelefone: { rotulo: 'Caracol-telefone', artigo: 'um caracol-telefone', tamanho: { largura: 0.6, altura: 0.45 }, redonda: false },
+  caracolTelefoneCamera: { rotulo: 'Caracol-câmera', artigo: 'um caracol-câmera', tamanho: { largura: 0.6, altura: 0.45 }, redonda: false },
+  caracolTelefoneDourado: { rotulo: 'Caracol-telefone dourado', artigo: 'um caracol-telefone dourado', tamanho: { largura: 0.6, altura: 0.45 }, redonda: false },
+  cartazDeProcurado: { rotulo: 'Cartaz de procurado', artigo: 'um cartaz de procurado', tamanho: { largura: 0.6, altura: 0.8 }, redonda: false },
+  frutaDeEspirais: { rotulo: 'Fruta de espirais', artigo: 'uma fruta de espirais', tamanho: { largura: 0.45, altura: 0.45 }, redonda: true },
+  bandeiraPirata: { rotulo: 'Bandeira pirata', artigo: 'uma bandeira pirata', tamanho: { largura: 0.9, altura: 0.9 }, redonda: false },
+  mesaDeNavegacao: { rotulo: 'Mesa de navegação', artigo: 'uma mesa de navegação', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  laranjeiraEmCanteiro: { rotulo: 'Laranjeira em canteiro', artigo: 'uma laranjeira em canteiro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão e anda-se em cima, como a ponte; a tora do
+  // eixo fica na ponta da esquerda, o lado da muralha, e em pé a régua gira como na ponte.
+  ponteLevadica: { rotulo: 'Ponte levadiça', artigo: 'uma ponte levadiça', tamanho: { largura: 3, altura: 2 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -607,6 +643,11 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     tapecariaDeParede: valor(f.tapecariaDeParede),
     lustreDeVelas: valor(f.lustreDeVelas),
     panoplia: valor(f.panoplia),
+    mesaDeBanquete: valor(f.mesaDeBanquete),
+    bancosDeCapela: valor(f.bancosDeCapela),
+    mesaDeGuerra: valor(f.mesaDeGuerra),
+    poleiroDeFalcao: valor(f.poleiroDeFalcao),
+    aljavasEFlechas: valor(f.aljavasEFlechas),
     catapulta: valor(f.catapulta),
     balista: valor(f.balista),
     arieteComTeto: valor(f.arieteComTeto),
@@ -617,12 +658,27 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     sacosDeAreia: valor(f.sacosDeAreia),
     caixasDeMunicao: valor(f.caixasDeMunicao),
     ouricoAntitanque: valor(f.ouricoAntitanque),
+    arameFarpado: valor(f.arameFarpado),
+    barreiraDeConcreto: valor(f.barreiraDeConcreto),
+    cancelaListrada: valor(f.cancelaListrada),
+    beliche: valor(f.beliche),
+    armarioDeFerro: valor(f.armarioDeFerro),
+    radioDeCampanha: valor(f.radioDeCampanha),
     holofote: valor(f.holofote),
     redeDeCamuflagem: valor(f.redeDeCamuflagem),
     metralhadoraNoTripe: valor(f.metralhadoraNoTripe),
     paletesDeMadeira: valor(f.paletesDeMadeira),
     gerador: valor(f.gerador),
     mastroComBandeira: valor(f.mastroComBandeira),
+    caracolTelefone: valor(f.caracolTelefone),
+    caracolTelefoneCamera: valor(f.caracolTelefoneCamera),
+    caracolTelefoneDourado: valor(f.caracolTelefoneDourado),
+    cartazDeProcurado: valor(f.cartazDeProcurado),
+    frutaDeEspirais: valor(f.frutaDeEspirais),
+    bandeiraPirata: valor(f.bandeiraPirata),
+    mesaDeNavegacao: valor(f.mesaDeNavegacao),
+    laranjeiraEmCanteiro: valor(f.laranjeiraEmCanteiro),
+    ponteLevadica: valor(f.ponteLevadica),
   }
 }
 
@@ -676,9 +732,14 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
   // Os objetos de 14/11/2026, também sem parente antigo, na ordem da lista do dia.
   'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
+  'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
   'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'arameFarpado', 'barreiraDeConcreto', 'cancelaListrada', 'beliche', 'armarioDeFerro', 'radioDeCampanha',
   'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
+  'caracolTelefone', 'caracolTelefoneCamera', 'caracolTelefoneDourado', 'cartazDeProcurado', 'frutaDeEspirais', 'bandeiraPirata',
+  'mesaDeNavegacao', 'laranjeiraEmCanteiro',
+  'ponteLevadica',
 ]
 
 /**
@@ -2676,6 +2737,64 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(r * 0.5, r * 0.5, 0, hh * 0.1),
       ]
     }
+    // Lote L02 de 14/11/2026, o resto do castelo: os traços que o desenhista entregou com o desenho (a ponte
+    // levadiça, do mesmo lote, fica no fim, na ordem da lista do dia).
+    case 'mesaDeBanquete': {
+      // O caminho de mesa ao comprido, a travessa oval do assado no meio e os pratos postos dos dois lados.
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const pt = (u: number, v: number): [number, number] => (deitada ? [u, v] : [v, u])
+      const prato = Math.min(largura, altura) * 0.22
+      const pratos = [-0.7, -0.24, 0.24, 0.7].flatMap((f) => [-1, 1].flatMap((s) => aro(prato, prato, ...pt(meioC * f, meiaL * 0.6 * s))))
+      const caminho = fechado([pt(-meioC * 0.92, -meiaL * 0.24), pt(meioC * 0.92, -meiaL * 0.24), pt(meioC * 0.92, meiaL * 0.24), pt(-meioC * 0.92, meiaL * 0.24)])
+      return [...caminho, ...(deitada ? aro(largura * 0.2, altura * 0.36) : aro(largura * 0.36, altura * 0.2)), ...pratos]
+    }
+    case 'bancosDeCapela': {
+      // A fileira de bancos de igreja: em cada um, o encosto (um traço), o assento (um quadro) e as duas bolas da voluta das cabeceiras.
+      const bola = Math.min(largura, altura) * 0.1
+      return [0.66, 0, -0.66].flatMap((f) => [
+        linha(-hw * 0.8, hh * (f - 0.22), hw * 0.8),
+        ...quadro(-hw * 0.8, hh * (f - 0.1), hw * 0.8, hh * (f + 0.2)),
+        ...aro(bola, bola, -hw * 0.9, hh * (f - 0.2)),
+        ...aro(bola, bola, hw * 0.9, hh * (f - 0.2)),
+      ])
+    }
+    case 'mesaDeGuerra': {
+      // O mapa aberto sobre o tampo, os dois rolos nas pontas, o rio cortando o mapa e uma peça de cada exército.
+      const peca = Math.min(largura, altura) * 0.14
+      return [
+        ...quadro(-hw * 0.72, -hh * 0.7, hw * 0.72, hh * 0.7),
+        { x1: -hw * 0.82, y1: -hh * 0.78, x2: -hw * 0.82, y2: hh * 0.78 },
+        { x1: hw * 0.82, y1: -hh * 0.78, x2: hw * 0.82, y2: hh * 0.78 },
+        { x1: -hw * 0.72, y1: hh * 0.3, x2: hw * 0.1, y2: -hh * 0.1 },
+        { x1: hw * 0.1, y1: -hh * 0.1, x2: hw * 0.72, y2: -hh * 0.5 },
+        ...aro(peca, peca, -hw * 0.3, -hh * 0.34),
+        ...aro(peca, peca, hw * 0.36, hh * 0.32),
+      ]
+    }
+    case 'poleiroDeFalcao': {
+      // Os quatro pés em X, a trave atravessada e o falcão pousado nela (o corpo comprido e a cabeça de capuz).
+      const menor = Math.min(largura, altura)
+      return [
+        { x1: -hw * 0.8, y1: -hh * 0.8, x2: hw * 0.8, y2: hh * 0.8 },
+        { x1: hw * 0.8, y1: -hh * 0.8, x2: -hw * 0.8, y2: hh * 0.8 },
+        linha(-hw * 0.7, hh * 0.1, hw * 0.7),
+        ...aro(menor * 0.3, menor * 0.62, 0, -hh * 0.12),
+        ...aro(menor * 0.2, menor * 0.2, 0, hh * 0.24),
+      ]
+    }
+    case 'aljavasEFlechas': {
+      // A boca redonda da aljava em pé, a aljava deitada atravessada e o feixe de flechas amarrado (duas hastes e a corda).
+      const menor = Math.min(largura, altura)
+      return [
+        ...aro(menor * 0.34, menor * 0.34, -hw * 0.4, -hh * 0.38),
+        ...fechado([[-hw * 0.87, hh * 0.5], [-hw * 0.21, hh * 0.2], [-hw * 0.05, hh * 0.56], [-hw * 0.71, hh * 0.86]]),
+        { x1: hw * 0.46, y1: -hh * 0.75, x2: hw * 0.6, y2: hh * 0.72 },
+        { x1: hw * 0.66, y1: -hh * 0.75, x2: hw * 0.8, y2: hh * 0.72 },
+        linha(hw * 0.44, 0, hw * 0.82),
+      ]
+    }
     // Lote L03 de 14/11/2026, o cerco e a defesa: os traços que o desenhista entregou com o desenho.
     case 'catapulta':
       // O chassi, o braço com a concha atrás, a meada atravessada no pé do braço e a trave alta do batente na frente.
@@ -2814,6 +2933,112 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       }
       return [...tracos, ...fechado(chapa)]
     }
+    // Lote L05 de 14/11/2026, o meio da base militar: os traços do desenhista.
+    case 'arameFarpado': {
+      // Ao longo do lado maior (como a imagem): os laços do rolo, argolas estreitas encavaladas umas nas outras, e o L
+      // do piquete em cada ponta (a cerca de ferro tem pilaretes e barras; o muro baixo, as duas beiras da capa; a
+      // barreira de concreto, o contorno com as faixas).
+      const deitado = largura >= altura
+      const meioC = deitado ? hw : hh
+      const meiaL = deitado ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitado ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const lacos = Math.min(14, Math.max(3, Math.round((2 * meioC) / (meiaL * 0.9))))
+      const passo = (2 * meioC - meiaL * 1.4) / (lacos - 1)
+      const laco = (u: number): Traco[] => (deitado ? aro(meiaL * 1.4, meiaL * 1.8, u, 0) : aro(meiaL * 1.8, meiaL * 1.4, 0, u))
+      const p = meiaL * 0.35
+      const piquete = (u: number): Traco[] => [traco(u - p, -p, u + p, -p), traco(u - p, -p, u - p, p)]
+      return [
+        ...Array.from({ length: lacos }, (_, i) => -meioC + meiaL * 0.7 + passo * i).flatMap(laco),
+        ...piquete(-meioC + meiaL * 0.5),
+        ...piquete(meioC - meiaL * 0.5),
+      ]
+    }
+    case 'barreiraDeConcreto': {
+      // Ao longo do lado maior (como a imagem): o contorno do pé, as duas beiras do corpo estreito no meio, os dois furos
+      // de içar no topo de cada bloco e a junta entre um bloco e outro, a cada quatro larguras (2 casas na barreira de
+      // 0,5; o muro baixo tem só as beiras da capa com as juntas tortas; o arame, os laços).
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitada ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const blocos = Math.max(1, Math.round((2 * meioC) / (meiaL * 8)))
+      const bloco = (2 * meioC) / blocos
+      const f = meiaL * 0.16
+      const furo = (u: number): Traco[] => [traco(u - f, -f, u + f, -f), traco(u + f, -f, u + f, f), traco(u + f, f, u - f, f), traco(u - f, f, u - f, -f)]
+      return [
+        traco(-meioC, -meiaL, meioC, -meiaL), traco(meioC, -meiaL, meioC, meiaL), traco(meioC, meiaL, -meioC, meiaL), traco(-meioC, meiaL, -meioC, -meiaL),
+        traco(-meioC, -meiaL * 0.4, meioC, -meiaL * 0.4), traco(-meioC, meiaL * 0.4, meioC, meiaL * 0.4),
+        ...Array.from({ length: blocos - 1 }, (_, i) => -meioC + bloco * (i + 1)).map((u) => traco(u, -meiaL, u, meiaL)),
+        ...Array.from({ length: blocos }, (_, i) => -meioC + bloco * i).flatMap((u0) => [...furo(u0 + bloco * 0.25), ...furo(u0 + bloco * 0.75)]),
+      ]
+    }
+    case 'cancelaListrada': {
+      // Ao longo do lado maior (como a imagem): o poste quadrado perto do começo com o contrapeso atrás dele, a vara (as
+      // duas beiras) com as listras de través e o garfo de descanso perto da outra ponta (a cerca de ferro tem um
+      // pilarete em cada ponta e barras; o arco do portão, os postes compridos e a trave).
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitada ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const p = meiaL * 0.6
+      const eixo = -meioC + meiaL * 2
+      const v = meiaL * 0.3
+      const fim = meioC - meiaL * 0.3
+      const listras = Math.max(3, Math.round((fim - eixo - p) / (meiaL * 1.2)))
+      const passo = (fim - eixo - p) / listras
+      return [
+        traco(eixo - p, -p, eixo + p, -p), traco(eixo + p, -p, eixo + p, p), traco(eixo + p, p, eixo - p, p), traco(eixo - p, p, eixo - p, -p),
+        traco(-meioC + meiaL * 0.2, -v * 1.6, eixo - p, -v * 1.6), traco(-meioC + meiaL * 0.2, v * 1.6, eixo - p, v * 1.6), traco(-meioC + meiaL * 0.2, -v * 1.6, -meioC + meiaL * 0.2, v * 1.6),
+        traco(eixo + p, -v, fim, -v), traco(eixo + p, v, fim, v),
+        ...Array.from({ length: listras - 1 }, (_, i) => eixo + p + passo * (i + 1)).map((u) => traco(u, -v, u, v)),
+        traco(fim - meiaL * 0.2, -meiaL * 0.8, fim - meiaL * 0.2, meiaL * 0.8),
+      ]
+    }
+    case 'beliche': {
+      // De cima, como a imagem: a cama de cima (o estrado, o travesseiro na cabeceira e a beira do cobertor), os quatro
+      // postes nos cantos e, no pé, a escada com os dois banzos e o degrau (o catre é uma cama só, sem poste nem
+      // escada; a cama de dossel tem o teto).
+      const yPe = hh - altura * 0.09
+      const q = Math.min(hw, hh) * 0.14
+      const poste = (x: number, y: number): Traco[] => quadro(x - q, y - q, x + q, y + q)
+      return [
+        ...quadro(-hw, -hh, hw, yPe),
+        ...quadro(-hw * 0.72, -hh * 0.9, hw * 0.72, -hh * 0.66),
+        linha(-hw, -hh * 0.4, hw),
+        ...poste(-hw + q, -hh + q), ...poste(hw - q, -hh + q), ...poste(-hw + q, yPe - q), ...poste(hw - q, yPe - q),
+        { x1: -hw * 0.5, y1: yPe, x2: -hw * 0.5, y2: hh }, { x1: hw * 0.5, y1: yPe, x2: hw * 0.5, y2: hh },
+        linha(-hw * 0.5, (yPe + hh) / 2, hw * 0.5),
+      ]
+    }
+    case 'armarioDeFerro': {
+      // De cima, como a imagem: a tampa com a emenda entre uma porta e outra, o saco de lona deitado em cima das
+      // primeiras e o capacete redondo na última (o armário de cozinha e o guarda-roupa têm a cornija de madeira; o
+      // cofre é uma caixa só).
+      const portas = Math.max(1, Math.round(largura / (altura * 0.68)))
+      const capacete = altura * 0.48
+      return [
+        ...quadro(-hw, -hh, hw, hh),
+        ...Array.from({ length: portas - 1 }, (_, i) => -hw + (largura * (i + 1)) / portas).map((x): Traco => ({ x1: x, y1: -hh, x2: x, y2: hh })),
+        ...(largura >= altura * 1.6 ? aro(altura * 1.1, altura * 0.42, -hw + altura * 0.65, -hh * 0.08) : []),
+        ...aro(capacete, capacete, hw - altura * 0.34, -hh * 0.08),
+      ]
+    }
+    case 'radioDeCampanha': {
+      // De cima, como a imagem: o tampo da mesa, a caixa do rádio no canto de trás com a janela do mostrador, os dois
+      // fones redondos ligados pelo arco e o bloco de notas torto na frente (a escrivaninha tem o forro, o livro aberto
+      // e o tinteiro).
+      const fone = Math.min(largura, altura) * 0.16
+      const yFone = -hh * 0.45
+      return [
+        ...quadro(-hw, -hh, hw, hh),
+        ...quadro(-hw * 0.88, -hh * 0.86, -hw * 0.05, -hh * 0.14),
+        linha(-hw * 0.78, -hh * 0.62, -hw * 0.3),
+        ...aro(fone, fone, hw * 0.22, yFone),
+        ...aro(fone, fone, hw * 0.62, yFone),
+        linha(hw * 0.22, yFone - fone * 0.5, hw * 0.62),
+        ...fechado([[-hw * 0.75, hh * 0.25], [-hw * 0.2, hh * 0.15], [-hw * 0.12, hh * 0.75], [-hw * 0.67, hh * 0.85]]),
+      ]
+    }
     // Lote L06 de 14/11/2026, o resto da base militar: os traços do desenhista.
     case 'holofote': {
       // A lente na frente (a elipse com as quatro varetas em X), a alça em U atrás e as sapatas quadradas das quatro
@@ -2888,6 +3113,118 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...quadro(px - 0.28 * r, py - 0.28 * r, px + 0.28 * r, py + 0.28 * r),
         ...fechado([...[0, 0.25, 0.5, 0.75, 1].map((t) => pano(t, -0.5)), pano(0.94, 0), ...[1, 0.75, 0.5, 0.25, 0].map((t) => pano(t, 0.5))]),
         ...aro(0.48 * r, 0.48 * r, ex, ey),
+      ]
+    }
+    // Lote L07 de 14/11/2026, o mar e os piratas: os traços do desenhista.
+    case 'caracolTelefone':
+      // De cima, de lado: a casca redonda com a volta de dentro, o fone deitado na diagonal com as duas conchas, as duas
+      // hastes dos olhos à direita e a ponta da cauda à esquerda (a câmera tem a caixa e a lente; o dourado, o brilho).
+      return [
+        ...aro(largura * 0.6, altura * 0.76, -hw * 0.14, -hh * 0.03),
+        ...aro(largura * 0.22, altura * 0.3, -hw * 0.3, hh * 0.05),
+        { x1: -hw * 0.05, y1: -hh * 0.57, x2: hw * 0.24, y2: hh * 0.5 },
+        ...aro(altura * 0.25, altura * 0.25, -hw * 0.05, -hh * 0.57),
+        ...aro(altura * 0.25, altura * 0.25, hw * 0.24, hh * 0.5),
+        { x1: hw * 0.74, y1: -hh * 0.16, x2: hw * 0.89, y2: -hh * 0.52 },
+        { x1: hw * 0.74, y1: hh * 0.2, x2: hw * 0.9, y2: hh * 0.56 },
+        linha(-hw * 0.92, hh * 0.09, -hw * 0.74),
+      ]
+    case 'caracolTelefoneCamera':
+      // De cima, de lado: a casca redonda, a caixa da câmera por cima dela e a lente redonda no meio da caixa, as duas
+      // hastes dos olhos e a ponta da cauda (o comum tem o fone com as conchas).
+      return [
+        ...aro(largura * 0.6, altura * 0.76, -hw * 0.14, -hh * 0.03),
+        ...quadro(-hw * 0.23, -hh * 0.43, hw * 0.35, hh * 0.37),
+        ...aro(altura * 0.31, altura * 0.31, hw * 0.06, hh * 0.03),
+        { x1: hw * 0.74, y1: -hh * 0.16, x2: hw * 0.89, y2: -hh * 0.52 },
+        { x1: hw * 0.74, y1: hh * 0.2, x2: hw * 0.9, y2: hh * 0.56 },
+        linha(-hw * 0.92, hh * 0.09, -hw * 0.74),
+      ]
+    case 'caracolTelefoneDourado':
+      // Os traços do caracol-telefone e o brilho de quatro pontas no alto, à esquerda (é o ouro que o separa do comum).
+      return [
+        ...aro(largura * 0.6, altura * 0.76, -hw * 0.14, -hh * 0.03),
+        ...aro(largura * 0.22, altura * 0.3, -hw * 0.3, hh * 0.05),
+        { x1: -hw * 0.05, y1: -hh * 0.57, x2: hw * 0.24, y2: hh * 0.5 },
+        ...aro(altura * 0.25, altura * 0.25, -hw * 0.05, -hh * 0.57),
+        ...aro(altura * 0.25, altura * 0.25, hw * 0.24, hh * 0.5),
+        { x1: hw * 0.74, y1: -hh * 0.16, x2: hw * 0.89, y2: -hh * 0.52 },
+        { x1: hw * 0.74, y1: hh * 0.2, x2: hw * 0.9, y2: hh * 0.56 },
+        { x1: -hw * 0.66, y1: -hh * 0.98, x2: -hw * 0.66, y2: -hh * 0.5 },
+        linha(-hw * 0.8, -hh * 0.74, -hw * 0.52),
+      ]
+    case 'cartazDeProcurado':
+      // De frente, num poste: o papel, a linha do título, o quadro com a cabeça da silhueta, a linha do valor e o pé do
+      // poste (o quadro de avisos é largo, com três papéis).
+      return [
+        ...quadro(-hw * 0.89, -hh * 0.8, hw * 0.89, hh * 0.68),
+        linha(-hw * 0.6, -hh * 0.66, hw * 0.6),
+        ...quadro(-hw * 0.65, -hh * 0.43, hw * 0.65, hh * 0.26),
+        ...aro(largura * 0.22, largura * 0.22, 0, -hh * 0.14),
+        linha(-hw * 0.3, hh * 0.53, hw * 0.6),
+        { x1: 0, y1: hh * 0.68, x2: 0, y2: hh },
+      ]
+    case 'frutaDeEspirais':
+      // De cima: o corpo redondo, três espirais (a do meio maior), o cabo e a folha no alto (a moeda de ouro tem os dois
+      // aros e a coroa).
+      return [
+        ...aro(largura * 0.87, altura * 0.83, 0, hh * 0.1),
+        ...aro(largura * 0.24, altura * 0.24, 0, hh * 0.25),
+        ...aro(largura * 0.18, altura * 0.18, -hw * 0.5, hh * 0.05),
+        ...aro(largura * 0.18, altura * 0.18, hw * 0.5, hh * 0.05),
+        { x1: 0, y1: -hh * 0.4, x2: hw * 0.07, y2: -hh * 0.65 },
+        { x1: -hw * 0.63, y1: -hh * 0.51, x2: hw * 0.01, y2: -hh * 0.79 },
+      ]
+    case 'bandeiraPirata':
+      // De frente: o mastro à esquerda, o pano com a ponta em rabo, a caveira e os dois ossos cruzados (o mastro com
+      // bandeira e o estandarte não têm caveira).
+      return [
+        { x1: -hw * 0.67, y1: -hh * 0.94, x2: -hw * 0.67, y2: hh },
+        ...fechado([[-hw * 0.63, -hh * 0.86], [hw * 0.97, -hh * 0.86], [hw * 0.82, -hh * 0.4], [hw * 0.97, hh * 0.07], [-hw * 0.63, hh * 0.07]]),
+        ...aro(largura * 0.2, altura * 0.2, hw * 0.17, -hh * 0.42),
+        { x1: -hw * 0.15, y1: -hh * 0.7, x2: hw * 0.5, y2: -hh * 0.12 },
+        { x1: hw * 0.5, y1: -hh * 0.7, x2: -hw * 0.15, y2: -hh * 0.12 },
+      ]
+    case 'mesaDeNavegacao': {
+      // De cima: o tampo, a carta aberta, a bússola redonda no canto da carta, a rota até o X, a carta enrolada atrás e
+      // o tinteiro (a mesa de instrumentos tem as ferramentas em fila).
+      const menor = Math.min(largura, altura)
+      return [
+        ...quadro(-hw * 0.95, -hh * 0.92, hw * 0.95, hh * 0.92),
+        ...quadro(-hw * 0.73, -hh * 0.6, hw * 0.56, hh * 0.75),
+        ...aro(menor * 0.25, menor * 0.25, -hw * 0.67, -hh * 0.45),
+        { x1: -hw * 0.4, y1: hh * 0.45, x2: hw * 0.3, y2: -hh * 0.05 },
+        linha(hw * 0.14, -hh * 0.79, hw * 0.71),
+        ...aro(menor * 0.1, menor * 0.1, hw * 0.81, hh * 0.32),
+      ]
+    }
+    case 'laranjeiraEmCanteiro':
+      // De cima: o canteiro quadrado (a borda e a boca), a copa redonda e três laranjas (o canteiro de flores é oval, de
+      // pedras).
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96),
+        ...quadro(-hw * 0.83, -hh * 0.83, hw * 0.83, hh * 0.83),
+        ...aro(largura * 0.72, altura * 0.72, -hw * 0.03, -hh * 0.05),
+        ...aro(largura * 0.1, altura * 0.1, -hw * 0.3, -hh * 0.2),
+        ...aro(largura * 0.1, altura * 0.1, hw * 0.25, hh * 0.2),
+        ...aro(largura * 0.1, altura * 0.1, hw * 0.2, -hh * 0.35),
+      ]
+    // A ponte levadiça (lote L02, item 81 da lista do dia): os traços do desenhista.
+    case 'ponteLevadica': {
+      // O tabuleiro com a tora do eixo atravessada na ponta da muralha e as duas correntes em zigue-zague pelas beiras
+      // (a ponte comum tem as bordas retas).
+      const deitada = largura >= altura
+      const meioC = deitada ? hw : hh
+      const meiaL = deitada ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitada ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: -v1, y1: u1, x2: -v2, y2: u2 })
+      const elo = meiaL * 0.06
+      const corrente = (v: number): Traco[] => Array.from({ length: 8 }, (_, i) => traco(-meioC * 0.7 + meioC * 0.2 * i, v - elo * (i % 2 === 0 ? 1 : -1), -meioC * 0.7 + meioC * 0.2 * (i + 1), v + elo * (i % 2 === 0 ? 1 : -1)))
+      return [
+        traco(-meioC * 0.86, -meiaL * 0.95, -meioC * 0.86, meiaL * 0.95),
+        traco(-meioC * 0.72, -meiaL * 0.95, -meioC * 0.72, meiaL * 0.95),
+        ...corrente(-meiaL * 0.72),
+        ...corrente(meiaL * 0.72),
+        traco(meioC * 0.92, -meiaL * 0.9, meioC * 0.92, meiaL * 0.9),
       ]
     }
   }

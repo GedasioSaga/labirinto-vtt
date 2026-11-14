@@ -38,6 +38,7 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'castelo', titulo: 'Castelo' },
   { id: 'cercoEDefesa', titulo: 'Cerco e defesa' },
   { id: 'baseMilitar', titulo: 'Base militar' },
+  { id: 'marEPiratas', titulo: 'Mar e piratas' },
   // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
   // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
   // Objeto cai neles, nenhuma construção cai nos de cima.
@@ -245,13 +246,21 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   monteDeDiamantes: 'tesouro',
   joia: 'tesouro',
   monteDeJoias: 'tesouro',
-  // Castelo (14/11/2026): o lote L01, do trono à panóplia.
+  // Castelo (14/11/2026): o lote L01, do trono à panóplia, e o L02, da mesa de banquete posta às aljavas, com a ponte
+  // levadiça no fim. A lista do dia pôs a ponte levadiça (item 81) em "Cidade e vila", mas o desenhista e a ficha a
+  // puseram aqui, com o resto do castelo dela.
   tronoReal: 'castelo',
   camaDeDossel: 'castelo',
   estandarteDePe: 'castelo',
   tapecariaDeParede: 'castelo',
   lustreDeVelas: 'castelo',
   panoplia: 'castelo',
+  mesaDeBanquete: 'castelo',
+  bancosDeCapela: 'castelo',
+  mesaDeGuerra: 'castelo',
+  poleiroDeFalcao: 'castelo',
+  aljavasEFlechas: 'castelo',
+  ponteLevadica: 'castelo',
   // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco, e a primeira metade do L04, do cavalo
   // de frisa ao tacho de óleo quente. O canhão continua no porto e navio.
   catapulta: 'cercoEDefesa',
@@ -261,18 +270,34 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   cavaloDeFrisa: 'cercoEDefesa',
   pilhaDeBalasDeCanhao: 'cercoEDefesa',
   tachoDeOleoQuente: 'cercoEDefesa',
-  // Base militar (14/11/2026): a segunda metade do L04, dos sacos de areia ao ouriço antitanque, e o L06, do holofote
-  // ao mastro com bandeira. O mastro serve também o castelo e a cidade, mas cada tipo cai num grupo só: fica aqui,
-  // onde a lista do dia o pôs.
+  // Base militar (14/11/2026): a segunda metade do L04, dos sacos de areia ao ouriço antitanque, o L05, do arame
+  // farpado ao rádio de campanha, e o L06, do holofote ao mastro com bandeira. O mastro serve também o castelo e a
+  // cidade, mas cada tipo cai num grupo só: fica aqui, onde a lista do dia o pôs.
   sacosDeAreia: 'baseMilitar',
   caixasDeMunicao: 'baseMilitar',
   ouricoAntitanque: 'baseMilitar',
+  arameFarpado: 'baseMilitar',
+  barreiraDeConcreto: 'baseMilitar',
+  cancelaListrada: 'baseMilitar',
+  beliche: 'baseMilitar',
+  armarioDeFerro: 'baseMilitar',
+  radioDeCampanha: 'baseMilitar',
   holofote: 'baseMilitar',
   redeDeCamuflagem: 'baseMilitar',
   metralhadoraNoTripe: 'baseMilitar',
   paletesDeMadeira: 'baseMilitar',
   gerador: 'baseMilitar',
   mastroComBandeira: 'baseMilitar',
+  // Mar e piratas (14/11/2026): o lote L07, do caracol-telefone à laranjeira em canteiro. A âncora, o canhão e o timão
+  // continuam no porto e navio.
+  caracolTelefone: 'marEPiratas',
+  caracolTelefoneCamera: 'marEPiratas',
+  caracolTelefoneDourado: 'marEPiratas',
+  cartazDeProcurado: 'marEPiratas',
+  frutaDeEspirais: 'marEPiratas',
+  bandeiraPirata: 'marEPiratas',
+  mesaDeNavegacao: 'marEPiratas',
+  laranjeiraEmCanteiro: 'marEPiratas',
   // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }
