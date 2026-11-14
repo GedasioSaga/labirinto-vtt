@@ -1,3 +1,5 @@
+import { ehImagemDaMesa } from '../midia'
+
 /**
  * DRAGON BALL TALES — o CONTRATO de tipos do sistema (fase 0 do plano
  * docs/planos/sistema-dragon-ball.md). Puro: sem React, sem store, sem rede,
@@ -627,6 +629,13 @@ export interface TransformacaoDaFichaDBT {
   efeitos: string
   /** Como destravou (raça, evento, treino): texto. */
   origem: string
+  /**
+   * A imagem da forma: referência de mídia (`midia:<id>`) ou, recém-escolhida,
+   * a embutida (`data:image/...`), que vira mídia assim que a aventura a vê
+   * (`lib/imagensDaFicha.ts`). É a imagem que o "Mudar ficha ›" do token
+   * oferece (`lib/mudarFicha.ts`). Ausente = forma sem imagem.
+   */
+  imagem?: string
 }
 
 export interface ItemDaFichaDBT {
@@ -954,6 +963,8 @@ function transformacaoDoArquivo(valor: unknown): TransformacaoDaFichaDBT | null 
     kiPorRodada: inteiro(valor.kiPorRodada, 0, KI_MAX, 0),
     efeitos: texto(valor.efeitos, LIMITES_DBT.texto),
     origem: texto(valor.origem, LIMITES_DBT.textoCurto),
+    // Só referência de mídia ou a embutida no teto: caminho de disco e URL de fora não entram na ficha.
+    ...(ehImagemDaMesa(valor.imagem) ? { imagem: valor.imagem } : {}),
   }
 }
 

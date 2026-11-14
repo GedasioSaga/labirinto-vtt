@@ -1,4 +1,5 @@
 import { isTokenPhotoData } from './tokenPhoto'
+import type { FichaDBT } from './dbt/modelo'
 import type { CartaoDaFicha, Personagem } from './personagem'
 
 /**
@@ -12,12 +13,13 @@ function imagensDoCartao(cartao: CartaoDaFicha, achadas: Set<string>): void {
   for (const sub of cartao.subcartoes) imagensDoCartao(sub, achadas)
 }
 
-/** As imagens embutidas da lista: retratos e imagens de cartão (subcartões inclusos), sem repetir. */
+/** As imagens embutidas da lista: retratos, imagens de cartão (subcartões inclusos) e das formas do Dragon Ball Tales, sem repetir. */
 export function imagensEmbutidas(personagens: readonly Personagem[]): string[] {
   const achadas = new Set<string>()
   for (const personagem of personagens) {
     if (isTokenPhotoData(personagem.retrato)) achadas.add(personagem.retrato)
     for (const cartoes of Object.values(personagem.abas)) for (const cartao of cartoes) imagensDoCartao(cartao, achadas)
+    for (const forma of personagem.dbt?.transformacoes ?? []) if (isTokenPhotoData(forma.imagem)) achadas.add(forma.imagem)
   }
   return [...achadas]
 }
@@ -40,6 +42,22 @@ export function personagemComMidia(personagem: Personagem, trocas: ReadonlyMap<s
       return [abaId, novos]
     }),
   )
-  if (retrato === personagem.retrato && !abasMudaram) return personagem
-  return { ...personagem, retrato, abas: abasMudaram ? abas : personagem.abas }
+  const dbt = fichaDBTComMidia(personagem.dbt, trocas)
+  if (retrato === personagem.retrato && !abasMudaram && dbt === personagem.dbt) return personagem
+  const trocado: Personagem = { ...personagem, retrato, abas: abasMudaram ? abas : personagem.abas }
+  if (dbt !== undefined) trocado.dbt = dbt
+  return trocado
+}
+
+/** As formas do Dragon Ball Tales com a imagem trocada; nada a trocar (ou ficha de outro motor) devolve o MESMO bloco. */
+function fichaDBTComMidia(ficha: FichaDBT | undefined, trocas: ReadonlyMap<string, string>): FichaDBT | undefined {
+  if (ficha === undefined) return undefined
+  let mudou = false
+  const transformacoes = ficha.transformacoes.map((forma) => {
+    const imagem = forma.imagem === undefined ? undefined : trocas.get(forma.imagem)
+    if (imagem === undefined) return forma
+    mudou = true
+    return { ...forma, imagem }
+  })
+  return mudou ? { ...ficha, transformacoes } : ficha
 }

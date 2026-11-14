@@ -106,6 +106,8 @@ import { lerLojaDoArquivo } from './loja'
 import { readHazards } from './hazards'
 import { withoutContract, withoutLentMark } from './tokenLoan'
 import { fichaComRotinaDoArquivo } from './rotinaDoNpc'
+import { fichaComAuraDoArquivo } from './auras'
+import { fichaComFormaDoArquivo } from './formaVisivel'
 import { perigosFromFile } from './perigo'
 import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
 import { lerBarraPassagem, lerTapaVisao } from './obstaculosDeObjeto'
@@ -852,8 +854,10 @@ function deserializeMapFields(json: string): MapData {
       // meio de uma fala, o mapa reaberto (patrulha parada) não a mostra.
       // `aBordo` e `embarcavel` (VEÍCULO na tela do jogador) são marcas de FIO: arquivo que as traga as perde.
       // `pino` (cor do pino no MAPA DE CONTINENTE, na tela do jogador) idem.
-      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, pino: _pino, ...t } = semCamadaTorta(fichaDoArquivo)
-      const lido = tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))
+      // `fotoDaForma` (MUDAR FICHA na tela do jogador) idem: a imagem da forma só o recorte escreve.
+      const { fala: _falaDaRonda, aBordo: _aBordo, embarcavel: _embarcavel, pino: _pino, fotoDaForma: _fotoDaForma, ...t } = semCamadaTorta(fichaDoArquivo)
+      // AURA e MUDAR FICHA (`aura`, `formaVisivel`): ausentes continuam ausentes; tortas somem e a ficha abre sem aura, na imagem base.
+      const lido = fichaComFormaDoArquivo(fichaComAuraDoArquivo(tokenVehicleFromFile(fichaComRotinaDoArquivo(withoutLentMark(withoutContract(tokenPublicNameFromFile({ ...t, image: t.image ?? null })))))))
       const comBolsa = bolsaDoArquivo(lido)
       if (!('mochila' in t)) return comBolsa
       const mochila = readCarriedItems(t.mochila)

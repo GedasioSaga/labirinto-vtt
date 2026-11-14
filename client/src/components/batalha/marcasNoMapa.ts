@@ -4,7 +4,9 @@ import type { TurnosDaCena } from '../../lib/batalha/turnos'
 import type { EstadoParaJogador } from '../../lib/batalha/vistaDoJogador'
 import type { ResolverDeImagem } from '../../lib/midia'
 import type { Personagem } from '../../lib/personagem'
+import type { FormasVisiveis } from '../../lib/mudarFicha'
 import type { FotosDaForma, SeloNaFicha, SelosNasFichas } from '../../pixi/tokenPhotoSprite'
+import type { Token } from '../../types/map'
 
 /**
  * BATALHA F3 (fatia T): o que a batalha pinta no MAPA, por ficha: a imagem da
@@ -40,6 +42,36 @@ export function fotosDaFormaDoJogador(estado: EstadoParaJogador | null | undefin
     if (src !== null) fotos.set(tokenId, src)
   }
   return fotos.size === 0 ? null : fotos
+}
+
+/**
+ * MUDAR FICHA: às fotos da batalha somam-se as imagens de forma que os tokens
+ * mostram FORA dela (`formas`: do mestre, `formasVisiveisDoMapa`; do jogador,
+ * `formasDoRecorte`). A da batalha vence no mesmo token. Nada a somar devolve
+ * o MESMO mapa da batalha (ou `null`).
+ */
+export function fotosComAFormaVisivel(daBatalha: FotosDaForma | null, formas: FormasVisiveis | undefined, resolver: ResolverDeImagem): FotosDaForma | null {
+  if (formas === undefined) return daBatalha
+  let fotos: Map<string, string> | null = null
+  for (const [tokenId, imagem] of formas) {
+    if (daBatalha !== null && daBatalha.has(tokenId)) continue
+    const src = resolver(imagem)
+    if (src === null) continue
+    fotos ??= new Map(daBatalha ?? [])
+    fotos.set(tokenId, src)
+  }
+  return fotos ?? daBatalha
+}
+
+/** Jogador: as imagens de forma que o recorte pendurou nos tokens que ele vê (`Token.fotoDaForma`). */
+export function formasDoRecorte(tokens: readonly Token[] | undefined): FormasVisiveis | undefined {
+  let formas: Map<string, string> | undefined
+  for (const token of tokens ?? []) {
+    if (typeof token.fotoDaForma !== 'string') continue
+    formas ??= new Map()
+    formas.set(token.id, token.fotoDaForma)
+  }
+  return formas
 }
 
 /** Mestre: os selos de cada ficha da ordem, na ordem em que foram postos. */

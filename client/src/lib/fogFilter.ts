@@ -18,6 +18,9 @@ import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { barraVistaPeloJogador, type BarrasParaJogador } from './vidaDaFicha'
+import { lerAura } from './auras'
+import { ehImagemDaMesa } from './midia'
+import type { FormasVisiveis } from './mudarFicha'
 import { tokenConditionsOf } from './tokenConditions'
 import { condicoesPropriasOf } from './condicoesProprias'
 import { parseHexColor, selectedTokenColor, TOKEN_COLOR_DEFAULT } from './tokenColor'
@@ -1801,9 +1804,10 @@ function shadowOfOtherPlayer(
   }
 }
 
-/** O vulto: a peça no lugar, sem nome, sem cor (cinza da mesa) e sem foto. */
+/** O vulto: a peça no lugar, sem nome, sem cor (cinza da mesa), sem foto (a da forma inclusive) e sem aura. */
 function asShadow(token: Token): Token {
-  return { ...token, name: '', color: null, image: null, imageData: null }
+  const { aura: _aura, fotoDaForma: _fotoDaForma, ...semAparencia } = token
+  return { ...semAparencia, name: '', color: null, image: null, imageData: null }
 }
 
 /**
@@ -1846,6 +1850,8 @@ interface TokenCut {
   pino?: string
   /** BARRA DE VIDA: a proporção que ESTE recorte decidiu (`barraVistaPeloJogador`); `undefined` = sem barra. */
   health?: TokenHealth
+  /** MUDAR FICHA: a imagem da forma que o host achou na ficha de personagem ligada (`formas`); `undefined` = a foto de sempre. */
+  fotoDaForma?: string
 }
 
 /**
@@ -1887,6 +1893,11 @@ interface TokenCut {
  *   vê — o botão "Subir"; lugares e passageiros, não.
  * - `pino`: só a cor que este recorte decidiu (`cut.pino`, MAPA DE CONTINENTE),
  *   na ficha de jogador que já sai; a lista de donos fica no mestre.
+ * - `aura`: o tipo da lista e o interruptor (`lerAura`), em toda ficha que ele
+ *   vê: é aparência, como a cor. O vulto sai sem ela (`asShadow`).
+ * - `fotoDaForma`: só a imagem deste recorte (`cut.fotoDaForma`, MUDAR FICHA),
+ *   e só referência de mídia ou a embutida. O id do cartão (`formaVisivel`) fica:
+ *   a ficha de personagem é do mestre.
  * Ficam de fora, entre outros: `vigia`, `patrulha` (por onde o NPC vai passar),
  * `rotina` (os postos, com a cena de cada um), `levadoPor` (aponta para ficha
  * que o recorte pode ter escondido), `veiculo` (lugares e a lista de quem vai
@@ -1943,6 +1954,11 @@ function tokenForPlayer(token: Token, cut: TokenCut): Token {
   if (cut.aBordo !== undefined) forPlayer.aBordo = { motorista: cut.aBordo.motorista }
   if (cut.embarcavel === true) forPlayer.embarcavel = true
   if (cut.pino !== undefined) forPlayer.pino = cut.pino
+  // AURA DA FICHA: aparência, vai com a ficha que ele vê; só o tipo da lista e o interruptor.
+  const aura = lerAura(token.aura)
+  if (aura !== null) forPlayer.aura = aura
+  // MUDAR FICHA: a imagem da forma que o host achou na ficha ligada; caminho de disco ou URL de fora não sai.
+  if (ehImagemDaMesa(cut.fotoDaForma)) forPlayer.fotoDaForma = cut.fotoDaForma
   // CAMADA: só o id (o nome fica no modelo do mestre), para a tela do jogador
   // pôr a ficha no nó da camada; a torta sai em `recorteSemCamadaTorta`.
   if (token.camada !== undefined) forPlayer.camada = token.camada
@@ -2417,6 +2433,9 @@ export function pisoDoGrupo(
  * `barras`: BARRA DE VIDA — por token, a proporção da ficha do sistema ligada
  * (`barrasParaJogador`, montado pelo host, que tem os personagens). Ausente =
  * nenhuma ficha sai com barra.
+ * `formas`: MUDAR FICHA — por token, a imagem da forma que ele mostra
+ * (`formasVisiveisDoMapa`, montado pelo host, que tem os personagens). Ausente =
+ * toda ficha sai com a foto de sempre.
  */
 export function filterMapForPlayer(
   mapaInteiro: MapData,
@@ -2437,6 +2456,7 @@ export function filterMapForPlayer(
   oneWayExits?: OneWayExits,
   companions?: CompanionMarks,
   barras?: BarrasParaJogador,
+  formas?: FormasVisiveis,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -2459,6 +2479,7 @@ export function filterMapForPlayer(
     // Só a cor sai, e só na ficha que já atravessa (`pino` em `tokenForPlayer`).
     pinoOf: coresDosPinos(mapaInteiro, ownership),
     barras,
+    formas,
   })
 }
 
@@ -2507,6 +2528,12 @@ export interface PlayerOnlyView {
    * não (decisão 4.3). Ausente = nenhuma ficha sai com barra.
    */
   barras?: BarrasParaJogador
+  /**
+   * MUDAR FICHA: a imagem da forma de cada token que mostra uma
+   * (`formasVisiveisDoMapa`). Sai em toda ficha que o recorte manda com rosto
+   * (o vulto e a sem rosto, não). Ausente = a foto de sempre.
+   */
+  formas?: FormasVisiveis
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -2575,7 +2602,7 @@ function recorteDoGrupo(
   explored: Exploration | undefined,
   seenDoors: ReadonlyMap<string, DoorState> | undefined,
   watchTargets: ReadonlySet<string> | undefined,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras }: PlayerOnlyView,
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas }: PlayerOnlyView,
   ceuDoMundi: boolean,
 ): PlayerMapView {
   /**
@@ -2589,7 +2616,7 @@ function recorteDoGrupo(
   // Luz L3: a luz apagada no período da cena sai antes de tudo (`soLuzesAcesas`).
   const map = comCamadaApagadaOcultaDoJogador(mapaDoPiso(soLuzesAcesas(mapaInteiro, viewers), pisoDoGrupo(mapaInteiro, viewers, loans)))
   if (isWorldMap(map))
-    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras })
+    return filterWorldMapForGroup(map, viewers, explored, seenDoors, watchTargets, { pinAudiences, enteredRooms, playerId, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas })
   // CAMADAS: tudo o que sai pergunta ao olho "Jogadores veem" da camada do item
   // (`lib/camadas/consulta.ts`), INCLUSIVE chão, linha e marcador — que antes
   // saíam pela rede e só a tela do jogador escondia. Nada oculto dos jogadores:
@@ -4530,6 +4557,7 @@ function recorteDoGrupo(
       // BARRA DE VIDA: a ficha de jogador (para todos) e a que ele controla. Vulto e
       // ficha disfarçada de outro saem sem ela: a barra diria que há um jogador por trás.
       health: own || !disfarcada ? barraVistaPeloJogador(barras?.get(t.id), own) : undefined,
+      fotoDaForma: formas?.get(t.id),
     })
     return shadow ? asShadow(seen) : seen
   })

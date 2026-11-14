@@ -67,6 +67,8 @@ import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { alternarCondicaoPropria, tirarCondicaoPropriaDasFichas, trocarCondicaoPropriaNasFichas } from '../lib/condicoesProprias'
 import { mapaComAsLigacoes, type MudancaDaLigacao } from '../lib/ligarFicha'
+import { mapaComAura, type TipoDeAura } from '../lib/auras'
+import { mapaComFormaVisivel } from '../lib/formaVisivel'
 import { attachCarried, carrierIdOf, releaseCarried } from '../lib/carry'
 import { boardVehicle, leaveVehicle, setVehicleSeats as setVehicleSeatsOnMap, vehicleCarrying } from '../lib/vehicle'
 import { advanceHazard as advanceHazardOnMap, setRoomHazard as setRoomHazardOnMap } from '../lib/hazards'
@@ -988,6 +990,10 @@ interface MapStoreState {
    * que não existe mais não gasta entrada de histórico.
    */
   ligarFichasAosTokens: (mudancas: readonly MudancaDaLigacao[]) => void
+  /** AURA DA FICHA: o mestre escolhe a aura do token (começa ligada); `null` = "Sem aura". Um passo do Ctrl+Z; a mesma aura já ligada não deixa passo. */
+  setTokenAura: (id: string, tipo: TipoDeAura | null) => void
+  /** MUDAR FICHA: o cartão de transformação cuja imagem o token mostra fora da batalha; `null` = a imagem base. Um passo do Ctrl+Z. */
+  setTokenFormaVisivel: (id: string, formaId: string | null) => void
   /**
    * CONDIÇÃO NA FICHA: marca a condição se ela não está na ficha, desmarca se
    * está (`lib/tokenConditions.ts`) — o clique do painel. Com histórico, mesmo
@@ -2702,6 +2708,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       tokens: map.tokens.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     })),
     ligarFichasAosTokens: (mudancas) => passoSeMudou((map) => mapaComAsLigacoes(map, mudancas)),
+    setTokenAura: (id, tipo) => passoSeMudou((map) => mapaComAura(map, id, tipo)),
+    setTokenFormaVisivel: (id, formaId) => passoSeMudou((map) => mapaComFormaVisivel(map, id, formaId)),
     toggleTokenCondition: (id, condition) => {
       const next = toggleConditionOnMap(get().map, id, condition)
       if (next !== get().map) withHistory(() => next)

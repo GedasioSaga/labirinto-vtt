@@ -1,6 +1,7 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
+import type { AuraDaFicha } from '../lib/auras'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -1671,6 +1672,30 @@ export interface Token extends PlayerSecret, NoPiso, NaCamada {
    * se um arquivo trouxer. Ausente = ficha de sempre (NPC, ou cena "Normal").
    */
   pino?: string
+  /**
+   * AURA DA FICHA (`lib/auras.ts`): o efeito em volta do disco. O mestre
+   * escolhe (botão direito, "Aura ›") e ela começa ligada; o jogador só liga e
+   * desliga a da própria ficha. Ausente = sem aura, sem linha de migração. O
+   * mapa do disco chega CRU: quem lê passa por `lerAura`. ATRAVESSA para o
+   * jogador junto com a ficha que ele vê (`lib/fogFilter.ts`): é aparência.
+   */
+  aura?: AuraDaFicha
+  /**
+   * MUDAR FICHA (`lib/mudarFicha.ts`): o id do cartão de transformação da
+   * ficha de personagem ligada cuja imagem o token mostra FORA da batalha (na
+   * batalha, a forma ligada dela vence). Ausente = a imagem base. Id que a
+   * ficha ligada não tem mais (cartão apagado, outra ficha ligada) = a base.
+   * NÃO atravessa para o jogador: ele recebe a imagem pronta em `fotoDaForma`.
+   */
+  formaVisivel?: string
+  /**
+   * MUDAR FICHA, na tela do jogador: a imagem da forma que o token mostra
+   * (referência de mídia ou a embutida, `lib/midia.ts`). Campo de FIO, como
+   * `pino`: só o recorte o escreve, com a imagem que o host achou na ficha de
+   * personagem (`formasParaJogador`); `deserializeMap` o descarta se um
+   * arquivo trouxer. Ausente = a foto de sempre.
+   */
+  fotoDaForma?: string
 }
 
 /** A ficha do jogador a bordo de um veículo, como a tela dele a lê. */
