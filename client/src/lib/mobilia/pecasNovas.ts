@@ -48,6 +48,7 @@ export const PECAS_NOVAS = [
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -393,6 +394,13 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   tenda: { rotulo: 'Tenda', artigo: 'uma tenda', tamanho: { largura: 2, altura: 2.5 }, redonda: false },
   torreDePedra: { rotulo: 'Torre de pedra', artigo: 'uma torre de pedra', tamanho: { largura: 3, altura: 3 }, redonda: true },
   torreDeVigia: { rotulo: 'Torre de vigia', artigo: 'uma torre de vigia', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  // Lote L03 de 14/11/2026, o cerco e a defesa. A catapulta e a balista ficam em pé na 3/4, como o canhão; o
+  // aríete é a "tartaruga" de couro sobre rodas; a escada de cerco vem deitada, ganha degraus quando esticada
+  // e os ganchos do alto não esticam.
+  catapulta: { rotulo: 'Catapulta', artigo: 'uma catapulta', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  balista: { rotulo: 'Balista', artigo: 'uma balista', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  arieteComTeto: { rotulo: 'Aríete com teto', artigo: 'um aríete com teto', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  escadaDeCerco: { rotulo: 'Escada de cerco', artigo: 'uma escada de cerco', tamanho: { largura: 4, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -564,6 +572,10 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     tenda: valor(f.tenda),
     torreDePedra: valor(f.torreDePedra),
     torreDeVigia: valor(f.torreDeVigia),
+    catapulta: valor(f.catapulta),
+    balista: valor(f.balista),
+    arieteComTeto: valor(f.arieteComTeto),
+    escadaDeCerco: valor(f.escadaDeCerco),
   }
 }
 
@@ -615,6 +627,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  // Os objetos de 14/11/2026, também sem parente antigo, na ordem da lista do dia.
+  'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
 ]
 
 /**
@@ -2544,6 +2558,46 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: dx, y1: dy, x2: -dx, y2: dy }, { x1: -dx, y1: dy, x2: -dx, y2: -dy },
         { x1: -tx, y1: -ty, x2: tx, y2: ty }, { x1: tx, y1: -ty, x2: -tx, y2: ty },
         { x1: -hw * 0.09, y1: dy, x2: -hw * 0.09, y2: hh * 0.97 }, { x1: hw * 0.09, y1: dy, x2: hw * 0.09, y2: hh * 0.97 },
+      ]
+    }
+    // Lote L03 de 14/11/2026, o cerco e a defesa: os traços que o desenhista entregou com o desenho.
+    case 'catapulta':
+      // O chassi, o braço com a concha atrás, a meada atravessada no pé do braço e a trave alta do batente na frente.
+      // A concha mede pelo menor lado (e não pela altura) para caber na caixa também com o objeto mais alto que largo.
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.74, hw * 0.94, hh * 0.74),
+        linha(-hw * 0.44, 0, hw * 0.34),
+        ...aro(Math.min(largura, altura) * 0.26, Math.min(largura, altura) * 0.26, -hw * 0.54, 0),
+        { x1: hw * 0.26, y1: -hh * 0.53, x2: hw * 0.26, y2: hh * 0.53 },
+        { x1: hw * 0.57, y1: -hh * 0.79, x2: hw * 0.57, y2: hh * 0.79 },
+      ]
+    case 'balista':
+      // O pé em X, o corpo com o virote até a ponta, o arco em ">" na frente e a corda armada em "<" até a garra.
+      return [
+        { x1: -hw * 0.91, y1: -hh * 0.91, x2: hw * 0.91, y2: hh * 0.91 },
+        { x1: -hw * 0.91, y1: hh * 0.91, x2: hw * 0.91, y2: -hh * 0.91 },
+        linha(-hw * 0.92, 0, hw * 0.98),
+        { x1: hw * 0.16, y1: -hh * 0.93, x2: hw * 0.52, y2: 0 },
+        { x1: hw * 0.52, y1: 0, x2: hw * 0.16, y2: hh * 0.93 },
+        { x1: hw * 0.16, y1: -hh * 0.93, x2: -hw * 0.43, y2: 0 },
+        { x1: -hw * 0.43, y1: 0, x2: hw * 0.16, y2: hh * 0.93 },
+      ]
+    case 'arieteComTeto':
+      // O telhado, a cumeeira ao comprido, uma amarra de través e a cabeça do aríete saindo pela frente.
+      return [
+        ...quadro(-hw * 0.85, -hh * 0.86, hw * 0.6, hh * 0.86),
+        linha(-hw * 0.92, 0, hw * 0.64),
+        { x1: -hw * 0.33, y1: -hh * 0.86, x2: -hw * 0.33, y2: hh * 0.86 },
+        { x1: hw * 0.62, y1: -hh * 0.18, x2: hw * 0.98, y2: 0 },
+        { x1: hw * 0.98, y1: 0, x2: hw * 0.62, y2: hh * 0.18 },
+      ]
+    case 'escadaDeCerco': {
+      // Os dois banzos, mais abertos no pé (à esquerda), e cinco degraus de través.
+      const degrau = (f: number): Traco => ({ x1: hw * f, y1: -hh * 0.66, x2: hw * f, y2: hh * 0.66 })
+      return [
+        { x1: -hw * 0.93, y1: -hh * 0.62, x2: hw * 0.86, y2: -hh * 0.47 },
+        { x1: -hw * 0.93, y1: hh * 0.62, x2: hw * 0.86, y2: hh * 0.47 },
+        ...[-0.7, -0.35, 0, 0.35, 0.7].map(degrau),
       ]
     }
   }

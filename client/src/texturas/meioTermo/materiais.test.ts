@@ -293,6 +293,10 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       tenda: ['lona:linho', 'madeira:nogueira'],
       torreDePedra: ['pedra:granito', 'madeira:carvalho'],
       torreDeVigia: ['madeira:carvalho', 'telhado:palha'],
+      catapulta: ['madeira:carvalho'],
+      balista: ['madeira:carvalho'],
+      arieteComTeto: ['madeira:carvalho'],
+      escadaDeCerco: ['madeira:pinho'],
     })
   })
 

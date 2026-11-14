@@ -32,6 +32,10 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'salaDeTortura', titulo: 'Sala de tortura' },
   { id: 'magiaEAlquimia', titulo: 'Magia e alquimia' },
   { id: 'tesouro', titulo: 'Tesouro' },
+  // Os grupos dos objetos de 14/11/2026 entram aqui, cada um quando chega o primeiro item dele, na ordem da lista
+  // do dia (castelo, cerco e defesa, base militar, mar e piratas, taverna e festa, descanso e brincadeira, cidade
+  // e vila).
+  { id: 'cercoEDefesa', titulo: 'Cerco e defesa' },
   // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
   // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
   // Objeto cai neles, nenhuma construção cai nos de cima.
@@ -239,6 +243,11 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   monteDeDiamantes: 'tesouro',
   joia: 'tesouro',
   monteDeJoias: 'tesouro',
+  // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco. O canhão continua no porto e navio.
+  catapulta: 'cercoEDefesa',
+  balista: 'cercoEDefesa',
+  arieteComTeto: 'cercoEDefesa',
+  escadaDeCerco: 'cercoEDefesa',
   // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }

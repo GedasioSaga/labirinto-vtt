@@ -2192,6 +2192,52 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M7.5 10V7.5M16.5 10V7.5M5 7.5 12 3l7 4.5Z" />
         </>
       )
+    // Lote L03 de 14/11/2026, o cerco e a defesa.
+    case 'catapulta':
+      // De lado: o chassi com as duas rodas, o braço armado para trás com a concha e a pedra, e o batente em A na frente.
+      return (
+        <>
+          <path d="M2.5 15.5h18" />
+          <circle cx="6" cy="18.5" r="2.2" />
+          <circle cx="17" cy="18.5" r="2.2" />
+          <path d="M12 15.5 5.6 8.6" />
+          <path d="M3 8.2a2.6 2.6 0 0 0 5.2 0z" />
+          <circle cx="5.6" cy="5.3" r="1.6" />
+          <path d="M14.5 15.5 17 7.5l2.5 8M15.6 11.5h2.8" />
+        </>
+      )
+    case 'balista':
+      // De cima, como uma besta grande: o corpo com o virote e a ponta, o arco curvo na frente e a corda armada até a garra.
+      return (
+        <>
+          <path d="M3 12h18" />
+          <path d="M18.5 10.2 21 12l-2.5 1.8" />
+          <path d="M8 3.5c4 1.5 6.5 4.5 7 8.5-.5 4-3 7-7 8.5" />
+          <path d="M8 3.5 4.5 12 8 20.5" />
+          <path d="M3 9.5v5" />
+        </>
+      )
+    case 'arieteComTeto':
+      // De lado: o telhado inclinado da tartaruga sobre as duas rodas e a tora saindo pela frente com a cabeça de ferro.
+      return (
+        <>
+          <path d="M2.5 14.5 7 5.5h8l4.5 9z" />
+          <path d="M17.7 11h3" />
+          <path d="M20.5 9l2 2-2 2z" />
+          <circle cx="7" cy="17.5" r="2.2" />
+          <circle cx="15" cy="17.5" r="2.2" />
+        </>
+      )
+    case 'escadaDeCerco':
+      // De pé: os dois banzos abrindo para baixo, quatro degraus e os dois ganchos curvos no alto.
+      return (
+        <>
+          <path d="M6 21 8 4.5M18 21 16 4.5" />
+          <path d="M6.4 17.5h11.2M6.9 13.5h10.2M7.4 9.5h9.2M7.8 5.8h8.4" />
+          <path d="M8 4.5V3a2 2 0 0 0-4 0v1" />
+          <path d="M16 4.5V3a2 2 0 0 1 4 0v1" />
+        </>
+      )
   }
 }
 

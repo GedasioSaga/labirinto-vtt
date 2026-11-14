@@ -93,6 +93,9 @@ export const TIPOS_MOBILIA = [
   // destroços, o crânio; na rua e jardim, a tenda e as torres de pedra e de vigia (que barram a passagem).
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  // Lote L03 dos objetos de 14/11/2026, o cerco e a defesa: a catapulta, a balista, o aríete com teto e a
+  // escada de cerco.
+  'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

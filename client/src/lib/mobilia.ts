@@ -450,11 +450,15 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * adivinha: dá para entrar, e o mestre liga "Barra a passagem" se quiser.
  * CONSTRUÇÕES (12/11/2026): o padrão das 19 construções vem da regra de
  * fábrica delas (`lib/mobilia/construcoes.ts`; a antena parabólica passou a
- * barrar); aqui ficam só os 5 obstáculos grandes do Objeto que barram.
+ * barrar); aqui ficam só os 7 obstáculos grandes do Objeto que barram.
+ * O CERCO de 14/11/2026: a catapulta e a balista barram, como a carroça (são
+ * máquinas cheias, sobre rodas ou num pé em X). O aríete com teto não barra
+ * de saída, como a tenda: a tartaruga é feita para se entrar debaixo dela; a
+ * escada de cerco também não, deitada no chão passa-se por cima.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
   if (ehConstrucao(tipo)) return construcaoBarraDeFabrica(tipo)
-  return tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega'
+  return tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista'
 }
 
 /**

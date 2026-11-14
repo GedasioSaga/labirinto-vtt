@@ -181,6 +181,10 @@ import { montarCranio } from './cranio'
 import { montarTenda } from './tenda'
 import { montarTorreDePedra } from './torreDePedra'
 import { montarTorreDeVigia } from './torreDeVigia'
+import { montarCatapulta } from './catapulta'
+import { montarBalista } from './balista'
+import { montarArieteComTeto } from './arieteComTeto'
+import { montarEscadaDeCerco } from './escadaDeCerco'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -424,6 +428,10 @@ const MONTADORES = {
   tenda: montarTenda,
   torreDePedra: montarTorreDePedra,
   torreDeVigia: montarTorreDeVigia,
+  catapulta: montarCatapulta,
+  balista: montarBalista,
+  arieteComTeto: montarArieteComTeto,
+  escadaDeCerco: montarEscadaDeCerco,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -477,6 +485,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

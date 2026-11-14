@@ -503,6 +503,16 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   tenda: { modo: 'derivado', espessura: 0 },
   torreDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE },
   torreDeVigia: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_VIGIA },
+  // Lote L03 de 14/11/2026, o cerco e a defesa. A catapulta e a balista ficam como de cima, como o canhão:
+  // derivadas, as quatro rodas da catapulta viravam caixotes varridos até o chão (e os postes do batente,
+  // pernas), e o pé em X da balista subia em bloco. O aríete sobe pelas sombras: o telhado é uma coluna alta
+  // e a parede de couro desce até o chão, com as rodas espiando por baixo; em pé reprovava no portão (sem
+  // sombra de baixo, porque a sombra do telhado já cobre a pegada inteira). A escada também: os banzos são
+  // uma coluna baixa e os degraus, a travessa e os ganchos, soltos por cima.
+  catapulta: EM_PE,
+  balista: EM_PE,
+  arieteComTeto: DERIVADO,
+  escadaDeCerco: DERIVADO,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

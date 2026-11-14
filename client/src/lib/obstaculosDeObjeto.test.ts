@@ -70,11 +70,13 @@ const BARROU = { ok: false, reason: 'objeto' }
 
 describe('quem barra', () => {
   it('a lista de saída: construções e objetos grandes de rua barram; chão, móvel de sala e imagem não', () => {
-    // As duas torres do lote 17 (12/11/2026) entraram quando foram registradas no catálogo.
-    const barram: TipoMobilia[] = ['moinho', 'cataVento', 'mausoleu', 'poco', 'chafariz', 'estatua', 'anjoDePedra', 'pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado', 'pedrasERochas', 'arvoreSeca', 'carroca', 'carrocaQuebrada', 'tonelDeAdega', 'barraca', 'torreDePedra', 'torreDeVigia']
+    // As duas torres do lote 17 (12/11/2026) entraram quando foram registradas no catálogo; a catapulta e a balista
+    // do cerco (14/11/2026) também.
+    const barram: TipoMobilia[] = ['moinho', 'cataVento', 'mausoleu', 'poco', 'chafariz', 'estatua', 'anjoDePedra', 'pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado', 'pedrasERochas', 'arvoreSeca', 'carroca', 'carrocaQuebrada', 'tonelDeAdega', 'barraca', 'torreDePedra', 'torreDeVigia', 'catapulta', 'balista']
     for (const tipo of barram) expect(ehMovelQueBarra(tipo), tipo).toBe(true)
     // A tenda de acampamento não barra de saída, como a de adivinha: dá para entrar (o mestre liga a chave se quiser).
-    const passam: TipoMobilia[] = ['tapete', 'mesa', 'cerca', 'tendaDeAdivinha', 'tenda', 'ponte']
+    // O aríete com teto também se entra debaixo, e a escada de cerco deitada passa-se por cima.
+    const passam: TipoMobilia[] = ['tapete', 'mesa', 'cerca', 'tendaDeAdivinha', 'tenda', 'ponte', 'arieteComTeto', 'escadaDeCerco']
     for (const tipo of passam) expect(ehMovelQueBarra(tipo), tipo).toBe(false)
     expect(ehMovelQueBarra(undefined)).toBe(false)
     expect(objetoBarraPassagem(MOINHO)).toBe(true)

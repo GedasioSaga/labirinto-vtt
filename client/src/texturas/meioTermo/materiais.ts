@@ -484,6 +484,13 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   tenda: [lugar('lona', 'Lona', TECIDOS, 'linho'), lugar('madeira', 'Mastros e estacas', MADEIRAS, 'nogueira')],
   torreDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   torreDeVigia: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('telhado', 'Telhado', ['palha', ...MADEIRAS], 'palha')],
+  // Lote L03 de 14/11/2026, o cerco e a defesa: os quatro só deixam trocar a madeira. Fixos: o ferro, a corda, o
+  // couro, o pano, a pedra da concha e o virote. A escada de cerco sai de pinho (o claro destaca a escada fina no
+  // chão de terra a 1x); as outras três, de carvalho.
+  catapulta: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  balista: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  arieteComTeto: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  escadaDeCerco: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */
