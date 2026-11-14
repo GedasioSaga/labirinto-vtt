@@ -4123,9 +4123,54 @@ function tracosDaVistaDeLado(tipo: PecaNovaComVista, largura: number, altura: nu
   return aro(roda, roda, hw * 0.12, hh - roda / 2)
 }
 
+/**
+ * O traço cortado na caixa do objeto, [-mx, mx] x [-my, my] (Liang-Barsky);
+ * `null` = todo fora. As pontas cortadas são presas na beira: a conta deixa
+ * um resto de vírgula flutuante além dela.
+ */
+function cortarNaCaixa(t: Traco, mx: number, my: number): Traco | null {
+  const dx = t.x2 - t.x1
+  const dy = t.y2 - t.y1
+  let entra = 0
+  let sai = 1
+  // (p, q) das beiras esquerda, direita, de cima e de baixo.
+  const beiras: ReadonlyArray<readonly [number, number]> = [
+    [-dx, t.x1 + mx],
+    [dx, mx - t.x1],
+    [-dy, t.y1 + my],
+    [dy, my - t.y1],
+  ]
+  for (const [p, q] of beiras) {
+    if (p === 0) {
+      if (q < 0) return null
+      continue
+    }
+    const r = q / p
+    if (p < 0) entra = Math.max(entra, r)
+    else sai = Math.min(sai, r)
+    if (entra > sai) return null
+  }
+  if (entra === 0 && sai === 1) return t
+  if (entra === sai) return null
+  const prender = (v: number, m: number) => Math.max(-m, Math.min(m, v))
+  return {
+    x1: prender(t.x1 + entra * dx, mx),
+    y1: prender(t.y1 + entra * dy, my),
+    x2: prender(t.x1 + sai * dx, mx),
+    y2: prender(t.y1 + sai * dy, my),
+  }
+}
+
 export function tracosDaPecaNova(tipo: PecaNova, largura: number, altura: number, deLado: boolean, variante = 0): Traco[] {
   if (deLado && (tipo === 'barraca' || tipo === 'carroca')) return tracosDaVistaDeLado(tipo, largura, altura)
-  return tracosDeFrente(tipo, largura, altura, variante)
+  // O glifo nunca vaza da silhueta: peça pensada para outra proporção (a prancha comprida esticada em pé) ou com um
+  // traço um tico além da caixa (o tacho de óleo, 3%) tem o traço cortado na beira do objeto (14/11/2026).
+  const tracos: Traco[] = []
+  for (const t of tracosDeFrente(tipo, largura, altura, variante)) {
+    const cortado = cortarNaCaixa(t, largura / 2, altura / 2)
+    if (cortado !== null) tracos.push(cortado)
+  }
+  return tracos
 }
 
 /** Contorno de lado (barraca e carroça): o retângulo do objeto, no sentido horário a partir do canto de cima à esquerda. */
