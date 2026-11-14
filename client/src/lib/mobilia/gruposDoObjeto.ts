@@ -35,7 +35,9 @@ export const GRUPOS_DE_OBJETO = [
   // Os grupos dos objetos de 14/11/2026 entram aqui, cada um quando chega o primeiro item dele, na ordem da lista
   // do dia (castelo, cerco e defesa, base militar, mar e piratas, taverna e festa, descanso e brincadeira, cidade
   // e vila).
+  { id: 'castelo', titulo: 'Castelo' },
   { id: 'cercoEDefesa', titulo: 'Cerco e defesa' },
+  { id: 'baseMilitar', titulo: 'Base militar' },
   // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
   // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
   // Objeto cai neles, nenhuma construção cai nos de cima.
@@ -243,11 +245,34 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   monteDeDiamantes: 'tesouro',
   joia: 'tesouro',
   monteDeJoias: 'tesouro',
-  // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco. O canhão continua no porto e navio.
+  // Castelo (14/11/2026): o lote L01, do trono à panóplia.
+  tronoReal: 'castelo',
+  camaDeDossel: 'castelo',
+  estandarteDePe: 'castelo',
+  tapecariaDeParede: 'castelo',
+  lustreDeVelas: 'castelo',
+  panoplia: 'castelo',
+  // Cerco e defesa (14/11/2026): o lote L03, da catapulta à escada de cerco, e a primeira metade do L04, do cavalo
+  // de frisa ao tacho de óleo quente. O canhão continua no porto e navio.
   catapulta: 'cercoEDefesa',
   balista: 'cercoEDefesa',
   arieteComTeto: 'cercoEDefesa',
   escadaDeCerco: 'cercoEDefesa',
+  cavaloDeFrisa: 'cercoEDefesa',
+  pilhaDeBalasDeCanhao: 'cercoEDefesa',
+  tachoDeOleoQuente: 'cercoEDefesa',
+  // Base militar (14/11/2026): a segunda metade do L04, dos sacos de areia ao ouriço antitanque, e o L06, do holofote
+  // ao mastro com bandeira. O mastro serve também o castelo e a cidade, mas cada tipo cai num grupo só: fica aqui,
+  // onde a lista do dia o pôs.
+  sacosDeAreia: 'baseMilitar',
+  caixasDeMunicao: 'baseMilitar',
+  ouricoAntitanque: 'baseMilitar',
+  holofote: 'baseMilitar',
+  redeDeCamuflagem: 'baseMilitar',
+  metralhadoraNoTripe: 'baseMilitar',
+  paletesDeMadeira: 'baseMilitar',
+  gerador: 'baseMilitar',
+  mastroComBandeira: 'baseMilitar',
   // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }

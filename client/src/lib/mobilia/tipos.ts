@@ -93,9 +93,18 @@ export const TIPOS_MOBILIA = [
   // destroços, o crânio; na rua e jardim, a tenda e as torres de pedra e de vigia (que barram a passagem).
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  // Lote L01 dos objetos de 14/11/2026, o castelo: o trono, a cama de dossel, o estandarte de pé, a tapeçaria
+  // de parede, o lustre de velas (que ilumina) e a panóplia. Vem antes do L03 para a ordem seguir a da lista do dia.
+  'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
   // Lote L03 dos objetos de 14/11/2026, o cerco e a defesa: a catapulta, a balista, o aríete com teto e a
   // escada de cerco.
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
+  // Lotes L04 e L06 dos objetos de 14/11/2026. No cerco e defesa: o cavalo de frisa, a pilha de balas de canhão e
+  // o tacho de óleo quente. Na base militar: os sacos de areia, as caixas de munição, o ouriço antitanque, o
+  // holofote (que ilumina), a rede de camuflagem, a metralhadora no tripé, os paletes de madeira, o gerador e o
+  // mastro com bandeira.
+  'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

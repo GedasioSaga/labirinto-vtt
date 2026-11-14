@@ -80,6 +80,13 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // As velas e oferendas do cemitério: sete velas em roda do pano, a luz do candelabro de chão. O centro dos
   // pavios (`LUZ_DAS_VELAS` em `texturas/meioTermo/moveis/velasEOferendas.ts`) fica a 0,01 da largura do meio.
   velasEOferendas: { alcanceEmCasas: 2.5, cor: 0xffe8c4, forca: 0.8, fumacaEBrasas: false },
+  // O lustre de velas (14/11/2026): oito velas na roda pendurada, a luz do candelabro de chão com mais alcance. A roda
+  // fica em volta do meio da pegada, de onde a luz nasce. A chama é pintada, sem animação, como a das outras velas.
+  lustreDeVelas: { alcanceEmCasas: 3.5, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
+  // O holofote (14/11/2026): luz branca fria de lâmpada, sem fumaça. A lente aponta para a frente, mas a luz nasce
+  // redonda do meio, como a de toda peça (a tabela não tem facho). Sempre aceso: o painel ainda não oferece Aceso |
+  // Apagado para ele (o Apagado do fogo de casa traz a chama animada junto); o desenho já tem o apagado (variante 1).
+  holofote: { alcanceEmCasas: 5, cor: 0xfff6e6, forca: 0.9, fumacaEBrasas: false },
 }
 
 /**

@@ -100,7 +100,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
   for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
     const rente = RENTES.includes(tipo)
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
-    const teto = tipo === 'campinho' || tipo === 'torreDePedra' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
+    // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
+    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, teto, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)

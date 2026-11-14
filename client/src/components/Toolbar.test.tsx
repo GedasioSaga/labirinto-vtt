@@ -102,7 +102,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Cerco e defesa']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -290,7 +290,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 161 objetos nas 16 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 179 objetos nas 18 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -330,12 +330,15 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
-      // O primeiro grupo novo de 14/11/2026: Cerco e defesa (o lote L03). 157 + 4 = 161.
-      'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco',
+      // Os grupos novos de 14/11/2026: Castelo (o lote L01), Cerco e defesa (o L03 e a primeira metade do L04) e
+      // Base militar (a segunda metade do L04 e o L06). 157 + 22 = 179.
+      'Trono', 'Cama de dossel', 'Estandarte de pé', 'Tapeçaria de parede', 'Lustre de velas', 'Panóplia',
+      'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco', 'Cavalo de frisa', 'Pilha de balas de canhão', 'Tacho de óleo quente',
+      'Sacos de areia', 'Caixas de munição', 'Ouriço antitanque', 'Holofote', 'Rede de camuflagem', 'Metralhadora no tripé', 'Paletes de madeira', 'Gerador', 'Mastro com bandeira',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(161)
+    expect(new Set(desenhos).size).toBe(179)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

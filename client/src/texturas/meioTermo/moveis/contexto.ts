@@ -180,6 +180,11 @@ export interface ContextoDoMovel {
    * na ponta; as águas e a empena pegam a luz pela direção na tela) e as duas
    * torres (a porta, as seteiras e a escada andam com o objeto; na de vigia, os
    * X de travamento ficam sempre nas faces da frente e de trás da tela).
+   * Dos objetos de 14/11/2026 leem o trono (a face guardada do espaldar só
+   * entra no giro 0; girado, a 3/4 varre a madeira da tábua de trás), o lustre
+   * de velas (as chamas apontam para cima na tela, `desgirado`, a conta do
+   * candelabro de chão) e os sacos de areia (com a mureta de topo na tela, as
+   * duas fiadas de baixo ganham o tampo da faixa da ponta que fica embaixo).
    * Os outros desenhos não leem.
    */
   readonly giro: number

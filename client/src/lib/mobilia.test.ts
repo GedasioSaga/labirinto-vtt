@@ -89,8 +89,8 @@ describe('silhueta redonda', () => {
     // MT4: mais a mesa redonda, o vaso e o poço, peças novas redondas; o balde de água (29/10), o moinho de vento (02/11), o caldeirão,
     // a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a
     // tenda de adivinha, a colmeia, o braseiro, o círculo mágico e a bola de cristal (11/11); a moeda de ouro, o
-    // diamante, a tocha de pé e a torre de pedra (12/11).
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra'])
+    // diamante, a tocha de pé e a torre de pedra (12/11); o lustre de velas e o ouriço antitanque (14/11).
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)

@@ -224,7 +224,8 @@ describe('TOOL_VARIANTS', () => {
     // portão, cata-vento, moinho, pilar, estátua, mausoléu, antena, anjo de pedra, tenda de adivinha, galinheiro, os
     // três blocos de inscrições, tenda e as duas torres) saíram do Objeto para a ferramenta Construção, na mesma
     // ordem do catálogo. Ponte, píer, palco e ringue ficam (anda-se em cima deles). 176 - 19 = 157. E os objetos de
-    // 14/11/2026 no fim, na ordem da lista do dia: os quatro do cerco e defesa (lote L03). 157 + 4 = 161.
+    // 14/11/2026 no fim, na ordem da lista do dia: os seis do castelo (lote L01), os quatro do cerco e defesa (lote
+    // L03) e os doze dos lotes L04 e L06 (o fim do cerco e a base militar). 157 + 22 = 179.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
@@ -248,9 +249,12 @@ describe('TOOL_VARIANTS', () => {
       'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio',
+      'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
+      'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+      'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
     ])
-    expect(grupo.options).toHaveLength(161)
+    expect(grupo.options).toHaveLength(179)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -274,7 +278,10 @@ describe('TOOL_VARIANTS', () => {
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
       'Teia de aranha', 'Tocha de parede', 'Tocha de pé', 'Crânio',
+      'Trono', 'Cama de dossel', 'Estandarte de pé', 'Tapeçaria de parede', 'Lustre de velas', 'Panóplia',
       'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco',
+      'Cavalo de frisa', 'Pilha de balas de canhão', 'Tacho de óleo quente', 'Sacos de areia', 'Caixas de munição', 'Ouriço antitanque',
+      'Holofote', 'Rede de camuflagem', 'Metralhadora no tripé', 'Paletes de madeira', 'Gerador', 'Mastro com bandeira',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
@@ -307,7 +314,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 16 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Cerco e defesa 4; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 18 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 6, Cerco e defesa 7, Base militar 9; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -329,7 +336,9 @@ describe('TOOL_VARIANTS', () => {
       ['Sala de tortura', 7],
       ['Magia e alquimia', 3],
       ['Tesouro', 8],
-      ['Cerco e defesa', 4],
+      ['Castelo', 6],
+      ['Cerco e defesa', 7],
+      ['Base militar', 9],
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual([
       'lapide', 'cova', 'caixao', 'caixaoAberto',
@@ -365,8 +374,13 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Tesouro')?.tipos).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
     ])
-    // O primeiro grupo novo de 14/11/2026, o cerco e a defesa (lote L03), logo depois do Tesouro.
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cerco e defesa')?.tipos).toEqual(['catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco'])
+    // Os grupos novos de 14/11/2026, logo depois do Tesouro, na ordem da lista do dia: o castelo (lote L01), o cerco e
+    // a defesa (lote L03 e a primeira metade do L04) e a base militar (a segunda metade do L04 e o L06).
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Castelo')?.tipos).toEqual(['tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cerco e defesa')?.tipos).toEqual(['catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco', 'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente'])
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Base militar')?.tipos).toEqual([
+      'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque', 'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
+    ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala de tortura')?.tipos).toEqual([
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
     ])

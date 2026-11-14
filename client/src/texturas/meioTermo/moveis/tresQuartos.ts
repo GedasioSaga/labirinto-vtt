@@ -51,6 +51,12 @@ import { ESPESSURA_DA_TOCHA_DE_PAREDE } from './tochaDeParede'
 import { ALTURA_DO_CESTO_DA_TOCHA } from './tochaDePe'
 import { ESPESSURA_DA_FIADA_DA_TORRE } from './torreDePedra'
 import { ESPESSURA_DA_TORRE_DE_VIGIA } from './torreDeVigia'
+import { ESPESSURA_DA_SANEFA_DO_DOSSEL } from './camaDeDossel'
+import { ALTURA_DA_VELA_DO_LUSTRE } from './lustreDeVelas'
+import { ESPESSURA_DA_FIADA_DE_SACOS } from './sacosDeAreia'
+import { ESPESSURA_DO_TAMBOR_DO_HOLOFOTE } from './holofote'
+import { ESPESSURA_DA_REDE_DE_CAMUFLAGEM } from './redeDeCamuflagem'
+import { ESPESSURA_DA_BANDEIRA } from './mastroComBandeira'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -503,6 +509,20 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   tenda: { modo: 'derivado', espessura: 0 },
   torreDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE },
   torreDeVigia: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_VIGIA },
+  // Lote L01 de 14/11/2026, o castelo. O trono é derivado SEM beirada: a face do espaldar (a moldura, o capitonê
+  // e as tachas) é desenhada de frente e guardada debaixo do assento e do espaldar, com a fresta dela (um tampo
+  // solto de um quarto de px, sem sombra, no meio do assento), o método da cama de casal; com a beirada padrão,
+  // a da fresta apareceria como uma tira no meio da face. Na cama de dossel, os quatro lados do dossel são
+  // tampos soltos e a beirada deles é a sanefa pendurada; os feixes de cortina e o pano da cabeceira são colunas
+  // do chão ao dossel. O lustre fica no ar, 1,5 casa acima do chão: a roda, as correntes e os pratinhos sobem com
+  // a argola do meio, e cada vela é um tampo um pouco mais alto, cuja beirada é o corpo de cera (a conta do
+  // candelabro de chão). O estandarte, a tapeçaria e a panóplia são desenhados de frente, como a lápide.
+  tronoReal: { modo: 'derivado', espessura: 0 },
+  camaDeDossel: { modo: 'derivado', espessura: ESPESSURA_DA_SANEFA_DO_DOSSEL },
+  estandarteDePe: EM_PE,
+  tapecariaDeParede: EM_PE,
+  lustreDeVelas: { modo: 'derivado', espessura: ALTURA_DA_VELA_DO_LUSTRE },
+  panoplia: EM_PE,
   // Lote L03 de 14/11/2026, o cerco e a defesa. A catapulta e a balista ficam como de cima, como o canhão:
   // derivadas, as quatro rodas da catapulta viravam caixotes varridos até o chão (e os postes do batente,
   // pernas), e o pé em X da balista subia em bloco. O aríete sobe pelas sombras: o telhado é uma coluna alta
@@ -513,6 +533,24 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   balista: EM_PE,
   arieteComTeto: DERIVADO,
   escadaDeCerco: DERIVADO,
+  // Lote L04 de 14/11/2026. Cinco ficam como de cima, com a sombra de baixo das pilhas. Os sacos de areia sobem
+  // fiada por fiada: cada saco é um tampo solto e a beirada dele é a face do saco (sem a espessura da fiada, a
+  // face sai errada).
+  cavaloDeFrisa: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  pilhaDeBalasDeCanhao: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  tachoDeOleoQuente: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  sacosDeAreia: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DE_SACOS },
+  caixasDeMunicao: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  ouricoAntitanque: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // Lote L06 de 14/11/2026. O holofote sobe pelo costado do tambor; a rede e a bandeira, pela beirada fina do
+  // pano. A metralhadora fica como de cima, como o canhão (derivada, a arma fina virava um bloco); os paletes
+  // também, como a pilha de caixas (derivada, a pilha subia num bloco e a frente lisa apagava as frestas).
+  holofote: { modo: 'derivado', espessura: ESPESSURA_DO_TAMBOR_DO_HOLOFOTE },
+  redeDeCamuflagem: { modo: 'derivado', espessura: ESPESSURA_DA_REDE_DE_CAMUFLAGEM },
+  metralhadoraNoTripe: EM_PE,
+  paletesDeMadeira: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  gerador: DERIVADO,
+  mastroComBandeira: { modo: 'derivado', espessura: ESPESSURA_DA_BANDEIRA },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

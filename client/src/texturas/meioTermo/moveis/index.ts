@@ -181,10 +181,28 @@ import { montarCranio } from './cranio'
 import { montarTenda } from './tenda'
 import { montarTorreDePedra } from './torreDePedra'
 import { montarTorreDeVigia } from './torreDeVigia'
+import { montarTronoReal } from './tronoReal'
+import { montarCamaDeDossel } from './camaDeDossel'
+import { montarEstandarteDePe } from './estandarteDePe'
+import { montarTapecariaDeParede } from './tapecariaDeParede'
+import { montarLustreDeVelas } from './lustreDeVelas'
+import { montarPanoplia } from './panoplia'
 import { montarCatapulta } from './catapulta'
 import { montarBalista } from './balista'
 import { montarArieteComTeto } from './arieteComTeto'
 import { montarEscadaDeCerco } from './escadaDeCerco'
+import { montarCavaloDeFrisa } from './cavaloDeFrisa'
+import { montarPilhaDeBalasDeCanhao } from './pilhaDeBalasDeCanhao'
+import { montarTachoDeOleoQuente } from './tachoDeOleoQuente'
+import { montarSacosDeAreia } from './sacosDeAreia'
+import { montarCaixasDeMunicao } from './caixasDeMunicao'
+import { montarOuricoAntitanque } from './ouricoAntitanque'
+import { montarHolofote } from './holofote'
+import { montarRedeDeCamuflagem } from './redeDeCamuflagem'
+import { montarMetralhadoraNoTripe } from './metralhadoraNoTripe'
+import { montarPaletesDeMadeira } from './paletesDeMadeira'
+import { montarGerador } from './gerador'
+import { montarMastroComBandeira } from './mastroComBandeira'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -428,10 +446,28 @@ const MONTADORES = {
   tenda: montarTenda,
   torreDePedra: montarTorreDePedra,
   torreDeVigia: montarTorreDeVigia,
+  tronoReal: montarTronoReal,
+  camaDeDossel: montarCamaDeDossel,
+  estandarteDePe: montarEstandarteDePe,
+  tapecariaDeParede: montarTapecariaDeParede,
+  lustreDeVelas: montarLustreDeVelas,
+  panoplia: montarPanoplia,
   catapulta: montarCatapulta,
   balista: montarBalista,
   arieteComTeto: montarArieteComTeto,
   escadaDeCerco: montarEscadaDeCerco,
+  cavaloDeFrisa: montarCavaloDeFrisa,
+  pilhaDeBalasDeCanhao: montarPilhaDeBalasDeCanhao,
+  tachoDeOleoQuente: montarTachoDeOleoQuente,
+  sacosDeAreia: montarSacosDeAreia,
+  caixasDeMunicao: montarCaixasDeMunicao,
+  ouricoAntitanque: montarOuricoAntitanque,
+  holofote: montarHolofote,
+  redeDeCamuflagem: montarRedeDeCamuflagem,
+  metralhadoraNoTripe: montarMetralhadoraNoTripe,
+  paletesDeMadeira: montarPaletesDeMadeira,
+  gerador: montarGerador,
+  mastroComBandeira: montarMastroComBandeira,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -485,7 +521,10 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
   'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
   'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
+  'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
   'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
+  'cavaloDeFrisa', 'pilhaDeBalasDeCanhao', 'tachoDeOleoQuente', 'sacosDeAreia', 'caixasDeMunicao', 'ouricoAntitanque',
+  'holofote', 'redeDeCamuflagem', 'metralhadoraNoTripe', 'paletesDeMadeira', 'gerador', 'mastroComBandeira',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

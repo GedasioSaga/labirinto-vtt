@@ -484,6 +484,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   tenda: [lugar('lona', 'Lona', TECIDOS, 'linho'), lugar('madeira', 'Mastros e estacas', MADEIRAS, 'nogueira')],
   torreDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   torreDeVigia: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('telhado', 'Telhado', ['palha', ...MADEIRAS], 'palha')],
+  // Lote L01 de 14/11/2026, o castelo, na ordem das fichas (o primeiro lugar vai na "Cor", o segundo na "Cor da
+  // linha"). O pano do estandarte é a cor trocável do pedido, por isso vem primeiro. O escudo da panóplia é um
+  // tecido da tabela pintado como madeira em tábuas. Fixos: o rubi do trono; o lençol e os travesseiros da cama;
+  // o aço das lâminas e o couro dos cabos da panóplia; a cera, o pavio e as chamas do lustre.
+  tronoReal: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('almofada', 'Almofada', TECIDOS, 'vinho'), lugar('metal', 'Metal', METAIS, 'latao')],
+  camaDeDossel: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('cortina', 'Cortina', TECIDOS, 'vinho'), lugar('cobertor', 'Colcha', TECIDOS, 'ocre')],
+  estandarteDePe: [lugar('pano', 'Pano', TECIDOS, 'azul'), lugar('metal', 'Metal', METAIS, 'latao'), lugar('madeira', 'Mastro', MADEIRAS, 'nogueira')],
+  tapecariaDeParede: [lugar('pano', 'Pano', TECIDOS, 'vinho'), lugar('metal', 'Fio e metal', METAIS, 'latao'), lugar('madeira', 'Vara', MADEIRAS, 'nogueira')],
+  lustreDeVelas: [lugar('metal', 'Metal', METAIS, 'ferro')],
+  panoplia: [lugar('escudo', 'Escudo', TECIDOS, 'azul'), lugar('metal', 'Metal', METAIS, 'latao')],
   // Lote L03 de 14/11/2026, o cerco e a defesa: os quatro só deixam trocar a madeira. Fixos: o ferro, a corda, o
   // couro, o pano, a pedra da concha e o virote. A escada de cerco sai de pinho (o claro destaca a escada fina no
   // chão de terra a 1x); as outras três, de carvalho.
@@ -491,6 +501,26 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   balista: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   arieteComTeto: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   escadaDeCerco: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  // Lote L04 de 14/11/2026. Fixos: a casca das estacas, as pontas cruas e as cintas do cavalo de frisa; as balas e as
+  // cantoneiras da pilha; o óleo, as bolhas e a fumaça do tacho; a amarra, a poeira e a costura dos sacos. Os sacos
+  // de areia só vêm nos tecidos de saco (vinho e azul não fazem sentido). As caixas de munição (o verde-oliva que o
+  // mestre pediu, como os sacos de grão) e o ouriço (o aço) não trocam nada.
+  cavaloDeFrisa: [lugar('madeira', 'Viga', MADEIRAS, 'carvalho')],
+  pilhaDeBalasDeCanhao: [lugar('madeira', 'Quadro', MADEIRAS, 'carvalho')],
+  tachoDeOleoQuente: [lugar('metal', 'Tacho', METAIS, 'ferro'), lugar('madeira', 'Postes', MADEIRAS, 'carvalho')],
+  sacosDeAreia: [lugar('pano', 'Sacos', ['ocre', 'musgo', 'linho'], 'ocre')],
+  caixasDeMunicao: [],
+  ouricoAntitanque: [],
+  // Lote L06 de 14/11/2026. O holofote, a metralhadora e o gerador têm as cores fixas da tinta oliva, do aço e da
+  // borracha. A rede de camuflagem e os paletes só trocam a madeira (as varas e as estacas; as tábuas); a rede tem
+  // as manchas fixas. O mastro com bandeira troca o pano, o mastro (madeira ou metal: o desenho pinta qualquer
+  // material, e o desenhista conferiu o de ferro) e a pedra dos degraus; o botão do topo é dourado fixo.
+  holofote: [],
+  redeDeCamuflagem: [lugar('madeira', 'Varas e estacas', MADEIRAS, 'pinho')],
+  metralhadoraNoTripe: [],
+  paletesDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  gerador: [],
+  mastroComBandeira: [lugar('bandeira', 'Bandeira', TECIDOS, 'vinho'), lugar('mastro', 'Mastro', [...MADEIRAS, ...METAIS], 'carvalho'), lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

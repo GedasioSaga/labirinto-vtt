@@ -2192,6 +2192,78 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M7.5 10V7.5M16.5 10V7.5M5 7.5 12 3l7 4.5Z" />
         </>
       )
+    // Lote L01 de 14/11/2026, o castelo.
+    case 'tronoReal':
+      // De frente: o espaldar alto com o frontão pontudo e a pedra, as duas pinhas, os braços, o assento e os pés.
+      return (
+        <>
+          <path d="M7 14V5.5l5-3 5 3V14" />
+          <circle cx="12" cy="6.8" r="1" />
+          <circle cx="5.5" cy="4" r="1" />
+          <circle cx="18.5" cy="4" r="1" />
+          <path d="M5.5 5v9M18.5 5v9" />
+          <path d="M3.5 11.5h2M18.5 11.5h2" />
+          <rect x="5.5" y="14" width="13" height="3" />
+          <path d="M6.5 17v4.5M17.5 17v4.5" />
+        </>
+      )
+    case 'camaDeDossel':
+      // De frente: o dossel com a sanefa em festões, as duas colunas com a cortina presa, o colchão e os travesseiros.
+      return (
+        <>
+          <path d="M3 3.5h18" />
+          <path d="M3 3.5v3c1.5 1.2 3 1.2 4.5 0 1.5 1.2 3 1.2 4.5 0 1.5 1.2 3 1.2 4.5 0 1.5 1.2 3 1.2 4.5 0v-3" />
+          <path d="M4 7v14.5M20 7v14.5" />
+          <path d="M4 7c2.5 3 2.5 6 0 9M20 7c-2.5 3-2.5 6 0 9" />
+          <rect x="4" y="14.5" width="16" height="4" />
+          <path d="M7 14.5v-2h3.5v2M13.5 14.5v-2H17v2" />
+        </>
+      )
+    case 'estandarteDePe':
+      // De frente: a ponta de lança, a travessa, o pano em rabo de andorinha com a asna, o mastro e o pé de cavalete.
+      return (
+        <>
+          <path d="M12 1.5l1.2 2h-2.4Z" />
+          <path d="M5.5 4.5h13" />
+          <path d="M7 4.5v10l5-2.5 5 2.5v-10" />
+          <path d="M9.5 9.5l2.5-2 2.5 2" />
+          <path d="M12 12v10M8 22h8M9 22l3-4 3 4" />
+        </>
+      )
+    case 'tapecariaDeParede':
+      // De frente: o gancho e o cordão em V, a vara com as ponteiras, o pano com o escudo e a franja embaixo.
+      return (
+        <>
+          <path d="M7 4.5l5-3 5 3" />
+          <path d="M3.5 4.5h17" />
+          <circle cx="3.5" cy="4.5" r=".8" />
+          <circle cx="20.5" cy="4.5" r=".8" />
+          <rect x="5.5" y="4.5" width="13" height="14" />
+          <path d="M9.5 8.5h5v3.5L12 14.5 9.5 12Z" />
+          <path d="M7 18.5v3M9.5 18.5v3M12 18.5v3M14.5 18.5v3M17 18.5v3" />
+        </>
+      )
+    case 'lustreDeVelas':
+      // De frente: a corrente do teto abrindo em duas até a roda vista de lado, as velas em pé com a chama e o pingente.
+      return (
+        <>
+          <path d="M12 1.5v6M12 7.5l-7.5 6.5M12 7.5l7.5 6.5" />
+          <ellipse cx="12" cy="16" rx="9" ry="2.5" />
+          <path d="M3 16v-3.5M7.5 14v-3.5M16.5 14v-3.5M21 16v-3.5" />
+          <path d="M3 10.5h.01M7.5 8h.01M16.5 8h.01M21 10.5h.01" />
+          <path d="M12 18.5v3" />
+        </>
+      )
+    case 'panoplia':
+      // De frente: as duas espadas cruzadas atrás do escudo redondo (o punho em cima, a ponta embaixo), a guarda e a bossa.
+      return (
+        <>
+          <path d="M3.5 3.5L8 8M16 17l4.5 4.5M20.5 3.5L16 8M8 17l-4.5 4.5" />
+          <path d="M3 7.5l4.5-4.5M16.5 3L21 7.5" />
+          <circle cx="12" cy="12.5" r="6" />
+          <circle cx="12" cy="12.5" r="1.6" />
+        </>
+      )
     // Lote L03 de 14/11/2026, o cerco e a defesa.
     case 'catapulta':
       // De lado: o chassi com as duas rodas, o braço armado para trás com a concha e a pedra, e o batente em A na frente.
@@ -2236,6 +2308,157 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6.4 17.5h11.2M6.9 13.5h10.2M7.4 9.5h9.2M7.8 5.8h8.4" />
           <path d="M8 4.5V3a2 2 0 0 0-4 0v1" />
           <path d="M16 4.5V3a2 2 0 0 1 4 0v1" />
+        </>
+      )
+    // Lote L04 de 14/11/2026, o fim do cerco e a defesa e o começo da base militar.
+    case 'cavaloDeFrisa':
+      // De lado: a viga deitada e as estacas em X passando por ela, pontudas nas quatro pontas (a armadilha de espinhos
+      // é uma laje com as pontas em pé).
+      return (
+        <>
+          <rect x="2" y="10.8" width="20" height="3.2" rx="1" />
+          <path d="M3.5 20.5 10 4M10 20.5 3.5 4M14 20.5 20.5 4M20.5 20.5 14 4" />
+        </>
+      )
+    case 'pilhaDeBalasDeCanhao':
+      // De lado: a pirâmide de balas, três, duas e uma, em cima do quadro de madeira (o canhão tem o cano e as rodas).
+      return (
+        <>
+          <circle cx="6.2" cy="16" r="2.9" />
+          <circle cx="12" cy="16" r="2.9" />
+          <circle cx="17.8" cy="16" r="2.9" />
+          <circle cx="9.1" cy="11" r="2.9" />
+          <circle cx="14.9" cy="11" r="2.9" />
+          <circle cx="12" cy="6" r="2.9" />
+          <path d="M2 19h20v2.5H2z" />
+        </>
+      )
+    case 'tachoDeOleoQuente':
+      // De frente: os dois postes, o eixo por cima deles, o tacho raso pendurado no eixo, a alavanca na ponta e o pingo
+      // de óleo (o caldeirão é bojudo, tem orelhas e três pés).
+      return (
+        <>
+          <path d="M3.5 21.5V7.5M20.5 21.5V7.5M2.5 7.5h19" />
+          <path d="M6.5 7.5h11c0 3.8-2.5 6.5-5.5 6.5s-5.5-2.7-5.5-6.5z" />
+          <path d="M20.5 7.5l2-5" />
+          <path d="M12 16.5v1.4M12 20.2h.01" />
+        </>
+      )
+    case 'sacosDeAreia':
+      // De lado: a mureta de sacos em duas fiadas desencontradas, cada saco uma almofada de pontas redondas (o muro
+      // baixo tem a capa de lajes por cima).
+      return (
+        <>
+          <rect x="2" y="15" width="6.4" height="5.5" rx="2.4" />
+          <rect x="8.8" y="15" width="6.4" height="5.5" rx="2.4" />
+          <rect x="15.6" y="15" width="6.4" height="5.5" rx="2.4" />
+          <path d="M2 9.5h1.6a2.4 2.4 0 0 1 0 5.5H2M22 9.5h-1.6a2.4 2.4 0 0 0 0 5.5H22" />
+          <rect x="5.4" y="9.5" width="6.4" height="5.5" rx="2.4" />
+          <rect x="12.2" y="9.5" width="6.4" height="5.5" rx="2.4" />
+        </>
+      )
+    case 'caixasDeMunicao':
+      // De frente: dois caixotes compridos no chão e um em cima, aberto, cada um com a faixa do estêncil, e as pontas de
+      // dois cartuchos saindo do de cima (a pilha de caixas tem os sarrafos em X).
+      return (
+        <>
+          <rect x="2" y="15" width="9.5" height="6" />
+          <rect x="12.5" y="15" width="9.5" height="6" />
+          <rect x="5" y="9" width="14" height="6" />
+          <path d="M8.5 15v6M19 15v6M15.5 9v6" />
+          <path d="M8.5 9V5.8a1 1 0 0 1 2 0V9M12 9V5.8a1 1 0 0 1 2 0V9" />
+        </>
+      )
+    case 'ouricoAntitanque':
+      // De lado: as três vigas de aço cruzadas no meio, duas em X e a terceira quase deitada, em pé sobre as pontas,
+      // com a chapa do cruzamento.
+      return (
+        <>
+          <path d="M4 21 20 4.5M20 21 4 4.5M2.5 14.2l19-3.4" />
+          <circle cx="12" cy="12.6" r="1.5" />
+          <path d="M2 21.5h20" />
+        </>
+      )
+    // Lote L06 de 14/11/2026, o resto da base militar.
+    case 'holofote':
+      // De frente: a lente redonda com as varetas em X, a alça em U em cima, o garfo segurando o tambor pelos munhões
+      // dos dois lados e o pé de três pernas.
+      return (
+        <>
+          <circle cx="12" cy="10" r="5.5" />
+          <path d="M8.6 6.6l6.8 6.8M15.4 6.6l-6.8 6.8" />
+          <path d="M9.8 4.5V2.8h4.4v1.7" />
+          <path d="M5 10h1.5M17.5 10H19M5 10v7h14v-7" />
+          <path d="M12 17v2M12 19l-7 2.5M12 19l7 2.5" />
+        </>
+      )
+    case 'redeDeCamuflagem':
+      // De frente: três varas até o chão, a rede subindo até o bico da vara do meio (atrás) e cedendo em barriga entre
+      // as varas da frente, a malha pendurada na beira, os estais das pontas até a estaca e dois retalhos no pano. O
+      // toldo são duas estacas com pano listrado; a tenda é o triângulo até o chão.
+      return (
+        <>
+          <path d="M4 9.5V21M12 9.5V21M20 9.5V21" />
+          <path d="M4 9.5L12 4.8l8 4.7" />
+          <path d="M4 9.5q4 3.2 8 0q4 3.2 8 0" />
+          <path d="M6 11v1.4M8 11.3v1.8M10 11v1.4M14 11v1.4M16 11.3v1.8M18 11v1.4" />
+          <path d="M4 9.5L1.5 21M20 9.5l2.5 11.5" />
+          <path d="M7.4 8.3l1.8-.8M14.8 7.5l1.8.8" />
+        </>
+      )
+    case 'metralhadoraNoTripe':
+      // De lado, apontada para a direita: a culatra com as manoplas atrás, a camisa com os furos, o cano com a boca, o
+      // tripé de três pernas e a caixa de munição no chão com a fita subindo até a arma.
+      return (
+        <>
+          <rect x="3" y="8.5" width="9.5" height="4" />
+          <path d="M3 9.5H1.8M3 11.5H1.8" />
+          <path d="M12.5 9h6v3h-6" />
+          <circle cx="14.3" cy="10.5" r=".5" />
+          <circle cx="16.6" cy="10.5" r=".5" />
+          <path d="M18.5 10.5H22M22 9.6v1.8" />
+          <path d="M8 12.5L2.5 21M8 12.5L7 21M8 12.5l11 8.5" />
+          <path d="M9.6 17.5H13V21H9.6z" />
+          <path d="M10.5 17.5c0-2.5.5-4 1-5" />
+        </>
+      )
+    case 'paletesDeMadeira':
+      // De lado: três paletes empilhados meio tortos, cada um com o tampo de tábua sobre os três tocos, e uma lasca da
+      // tábua quebrada espetada no de cima.
+      return (
+        <>
+          <path d="M3.5 6.5H21v1.6H3.5zM3.5 8.1v3h2v-3M11.3 8.1v3h2v-3M19 8.1v3h2v-3" />
+          <path d="M2.5 11.1H20v1.6H2.5zM2.5 12.7v3h2v-3M10.3 12.7v3h2v-3M18 12.7v3h2v-3" />
+          <path d="M3 15.7h17.5v1.6H3zM3 17.3v3h2v-3M10.8 17.3v3h2v-3M18.5 17.3v3h2v-3" />
+          <path d="M1.5 20.3h21" />
+          <path d="M14.5 6.5l1-1.6.6 1.6" />
+        </>
+      )
+    case 'gerador':
+      // De frente: a caixa sobre os dois trilhos, a grade do radiador à esquerda, dois mostradores e a fileira das
+      // tomadas no painel, o escapamento dobrado em cima e o galão ao lado com o X.
+      return (
+        <>
+          <rect x="2" y="8.5" width="15.5" height="10" />
+          <path d="M4.5 11v5M6.5 11v5M8.5 11v5" />
+          <circle cx="12.2" cy="12" r="1.2" />
+          <circle cx="15" cy="12" r="1.2" />
+          <path d="M11 15.8h5.5" />
+          <path d="M13.5 8.5V4.5H16" />
+          <path d="M1 20.5h17.5M3.5 18.5v2M16 18.5v2" />
+          <path d="M19 14h3.5v6.5H19zM19 14l3.5 6.5M22.5 14L19 20.5" />
+        </>
+      )
+    case 'mastroComBandeira':
+      // De frente: o mastro alto com o botão no topo, a bandeira ondulando para a direita com o anel do emblema e o
+      // pedestal de dois degraus no pé.
+      return (
+        <>
+          <path d="M6 19.6V3.2" />
+          <circle cx="6" cy="2.4" r=".8" />
+          <path d="M6 4c2.8-1.1 5 .9 7.8 0s4.6-.8 7 0v7c-2.4-.8-4.2-.9-7 0s-5-1.1-7.8 0" />
+          <circle cx="13.4" cy="7.5" r="1.5" />
+          <path d="M2.5 21v-1.4h7V21zM3.8 19.6v-1.4h4.4v1.4" />
         </>
       )
   }
