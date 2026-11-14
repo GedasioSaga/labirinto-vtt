@@ -55,4 +55,5 @@ de `src/carimbos/embutidos.ts` (`pinheiro`, `pinheiro-nevado`, `arvore`,
 `cacto`, `cacto-redondo`, `arbusto-que-rola`, `cranio-de-boi`,
 `monte-de-neve`, `arvore-congelada`, `bloco-de-gelo`, `cristais`,
 `estalagmite`, `cogumelos-que-brilham`, `rochedo-com-musgo`,
-`rocha-vulcanica`).
+`rocha-vulcanica`, `raiz-retorcida`, `planta-carnivora`, `flor-gigante`,
+`arvore-de-doces`).

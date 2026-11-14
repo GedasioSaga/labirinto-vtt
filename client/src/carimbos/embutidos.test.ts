@@ -134,6 +134,10 @@ describe('biblioteca de carimbos', () => {
       'cogumelos-que-brilham',
       'rochedo-com-musgo',
       'rocha-vulcanica',
+      'raiz-retorcida',
+      'planta-carnivora',
+      'flor-gigante',
+      'arvore-de-doces',
     ])
     for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
     expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)

@@ -37,6 +37,10 @@ import { carimbo as estalagmite, paleta as paletaDaEstalagmite } from './estalag
 import { carimbo as cogumelosQueBrilham, paleta as paletaDosCogumelosQueBrilham } from './cogumelosQueBrilham'
 import { carimbo as rochedoComMusgo, paleta as paletaDoRochedoComMusgo } from './rochedoComMusgo'
 import { carimbo as rochaVulcanica, brilho as brilhoDaRochaVulcanica, paleta as paletaDaRochaVulcanica } from './rochaVulcanica'
+import { carimbo as raizRetorcida, paleta as paletaDaRaizRetorcida } from './raizRetorcida'
+import { carimbo as plantaCarnivora, paleta as paletaDaPlantaCarnivora } from './plantaCarnivora'
+import { carimbo as florGigante, paleta as paletaDaFlorGigante } from './florGigante'
+import { carimbo as arvoreDeDoces, paleta as paletaDaArvoreDeDoces } from './arvoreDeDoces'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -63,7 +67,10 @@ import { carimbo as rochaVulcanica, brilho as brilhoDaRochaVulcanica, paleta as 
  *   neve, árvore congelada e bloco de gelo;
  * - C6: cristais, estalagmite, cogumelos que brilham, rochedo com musgo e
  *   rocha vulcânica (a rocha facetada dos três dividida em `_rochaFacetada.ts`,
- *   que não é carimbo, como o `_ipe.ts`).
+ *   que não é carimbo, como o `_ipe.ts`);
+ * - C7: raiz retorcida, planta carnívora, flor gigante (tamanho 11, não o 9
+ *   da tabela: com 9 lia como flor comum) e árvore de doces (a cor da copa
+ *   muda com a semente, de propósito).
  *
  * Dois do C6 fazem mais que o desenho: os cogumelos que brilham e a rocha
  * vulcânica ILUMINAM em volta (a tabela `LUZ_DOS_CARIMBOS` de
@@ -112,6 +119,10 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   rochedoComMusgo,
   // O desenhista exporta o brilho à parte (o pedido da folha o lê do módulo); o catálogo o leva na definição.
   { ...rochaVulcanica, brilho: brilhoDaRochaVulcanica },
+  raizRetorcida,
+  plantaCarnivora,
+  florGigante,
+  arvoreDeDoces,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -155,4 +166,8 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDoRochedoComMusgo,
   // Só as cores chapadas do corpo: as da brasa (o `brilho`) ficam fora, como pede o briefing do desenhista.
   ...paletaDaRochaVulcanica,
+  ...paletaDaRaizRetorcida,
+  ...paletaDaPlantaCarnivora,
+  ...paletaDaFlorGigante,
+  ...paletaDaArvoreDeDoces,
 ]

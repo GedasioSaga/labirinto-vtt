@@ -116,6 +116,10 @@ describe('CarimbosControls', () => {
       'Cogumelos que brilham',
       'Rochedo com musgo',
       'Rocha vulcânica',
+      'Raiz retorcida',
+      'Planta carnívora',
+      'Flor gigante',
+      'Árvore de doces',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -133,7 +137,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('rocha-vulcanica')
+    expect(useMapStore.getState().carimboEscolhido).toBe('arvore-de-doces')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })
