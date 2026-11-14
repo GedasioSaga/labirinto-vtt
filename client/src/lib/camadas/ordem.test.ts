@@ -11,6 +11,8 @@ import { CAMADAS_PADRAO, MODELO_PADRAO, ehCamadaPadrao } from './padrao'
  */
 const EDITOR_HOJE: [string, string[]][] = [
   ['backgroundSprite', []],
+  // TERRENO ALTO: a planta borrada do piso de baixo (`pixi/pisoDeBaixoNoEditor.ts`), logo acima do fundo.
+  ['pisoDeBaixoContainer', []],
   ['mapBoundsGraphics', []],
   ['mapFrameContainer', []],
   ['mapRasterSprite', ['chao']],
@@ -203,8 +205,9 @@ describe('ordemDeRender', () => {
 
   it('camada movida vira bloco inteiro logo acima da âncora da camada abaixo; no fundo, logo acima do fundo fixo', () => {
     const ordem = pares(ordemDeRender(modelo(moverPara('tokens', null)), FAIXAS_EDITOR))
-    expect(ordem.slice(0, 5)).toEqual([
+    expect(ordem.slice(0, 6)).toEqual([
       ['backgroundSprite', []],
+      ['pisoDeBaixoContainer', []],
       ['mapBoundsGraphics', []],
       ['mapFrameContainer', []],
       ['tokensContainer', ['tokens']],

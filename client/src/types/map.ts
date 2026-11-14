@@ -596,6 +596,19 @@ export interface NoPiso {
 }
 
 /**
+ * TERRENO ALTO (muralha, pedido de 14/11/2026): o quanto um piso fica acima do
+ * de baixo. Quem está nele vê o piso de baixo borrado e escurecido; mais alto,
+ * mais borrado e mais escuro (`lib/terrenoAlto.ts`). `'media'` é o padrão.
+ */
+export type AlturaDoPiso = 'baixa' | 'media' | 'alta'
+
+/** A altura de um piso que o mestre mudou do padrão (`MapData.alturaDosPisos`). */
+export interface AlturaDeUmPiso {
+  piso: number
+  altura: Exclude<AlturaDoPiso, 'media'>
+}
+
+/**
  * "!" (aqui tem algo), "?" (investigue aqui), o pino de VIAGEM (a passagem
  * que leva de uma cena da aventura para outra), a ALAVANCA (abre ou fecha a
  * porta ligada em `Pin.portaLigada`) e o MINIGAME (o desafio de dança gravado
@@ -2662,6 +2675,15 @@ export interface MapData {
    * continua. Atravessa no recorte do jogador: a tela dele avisa sem mandar nada.
    */
   cliqueParaAndar?: boolean
+  /**
+   * TERRENO ALTO (`lib/terrenoAlto.ts`): a "Altura" de cada piso que o mestre
+   * mudou do padrão (média). Só 'baixa' e 'alta' são gravadas, uma por piso;
+   * ausente = todo piso na média, inclusive em mapa de antes do campo, sem
+   * linha de migração. Leitura segura em `alturasDosPisosDoArquivo`. NUNCA sai
+   * no recorte do jogador (entregaria a lista de pisos da cena): ele recebe só
+   * a altura do piso dele, em `snapshot.alto`.
+   */
+  alturaDosPisos?: AlturaDeUmPiso[]
   /**
    * O CÉU das nuvens (`lib/nuvens.ts`, `ceuDoMapa`), em px de mundo. Só existe
    * no RECORTE do jogador, e só com as nuvens ligadas: o host o calcula SÓ do

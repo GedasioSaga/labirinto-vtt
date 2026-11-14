@@ -2604,7 +2604,19 @@ function recorteDoGrupo(
   watchTargets: ReadonlySet<string> | undefined,
   { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas }: PlayerOnlyView,
   ceuDoMundi: boolean,
+  /**
+   * TERRENO ALTO (`vistaDeCimaDoPiso`): as fichas do recorte são OLHOS DE
+   * OUTRO PISO. Nada DESTE piso barra o olhar: só `obstaculos` (as paredes do
+   * piso de quem olha), o raio e o escuro; e o que `cobre` esconde (o chão do
+   * piso de quem olha, por cima) não está à vista. A posição dos olhos não
+   * conta como "estar dentro": não abre teto, sala secreta, cômodo nem
+   * fumaça, não espia porta nem olha por vão. O resto da regra (névoa, zona
+   * oculta, sala secreta, teto fechado, camada, ficha oculta ou secreta) é a
+   * de sempre. `null` = o recorte de sempre.
+   */
+  deCima: OlharDeCima | null = null,
 ): PlayerMapView {
+  const olhoDeCima = deCima !== null
   /**
    * PISOS NA MESMA CENA — ANTES de qualquer outra regra: tudo daqui para baixo
    * (visão, raycast, teto, zona, sala secreta, memória) roda só sobre o piso
@@ -2718,7 +2730,7 @@ function recorteDoGrupo(
    * Geometria indecidível nunca abre. Os outros jogadores continuam sem ela.
    */
   const occupiedSecretIds = allSecretRooms
-    .filter((r) => isUsablePolygon(r.points) && ownTokens.some((t) => strictlyInside(r.points, { x: t.x, y: t.y })))
+    .filter((r) => !olhoDeCima && isUsablePolygon(r.points) && ownTokens.some((t) => strictlyInside(r.points, { x: t.x, y: t.y })))
     .map((r) => r.id)
   const openSecretIds = new Set([
     ...occupiedSecretIds,
@@ -2844,6 +2856,7 @@ function recorteDoGrupo(
     p.x >= roof.minX && p.x <= roof.maxX && p.y >= roof.minY && p.y <= roof.maxY && pointInPolygonInclusive(p, roof.points)
   /** Token EM CIMA do muro não abre o teto: para quem quer entrar, a borda conta como fora. */
   const opensRoof = (roof: ClosedRoof): boolean =>
+    !olhoDeCima &&
     ownTokens.some((t) => inRoof(roof, { x: t.x, y: t.y }) && !pointOnPolygonBorder({ x: t.x, y: t.y }, roof.points))
 
   // Sala quebrada nunca abre: quem não sabe onde estão as paredes não sabe dizer que o jogador entrou.
@@ -3206,7 +3219,9 @@ function recorteDoGrupo(
   /** Olhar de UMA ficha: um anel sem escuro; com escuro, vários (`darkVision`), a luz dos objetos só até o teto dela. */
   const sightFrom = (token: Token, segments: Segment[], dark: Darkness | null): RegionPoint[][] => {
     const origin = { x: token.x, y: token.y }
-    return dark === null ? [computeVisibility(origin, segments, radiusOf(token))] : darkVision(origin, segments, radiusOf(token), dark, tetoDaLuzDe(token))
+    // TERRENO ALTO: de outro piso, parede e borda do chão DESTE piso não seguram o olhar; as do piso de quem olha, sim.
+    const obstaculos = deCima === null ? segments : deCima.obstaculos
+    return dark === null ? [computeVisibility(origin, obstaculos, radiusOf(token))] : darkVision(origin, obstaculos, radiusOf(token), dark, tetoDaLuzDe(token))
   }
   /**
    * Anéis de visão de cada ficha (mesmo índice de `ownTokens`). As DUAS
@@ -3446,7 +3461,8 @@ function recorteDoGrupo(
       map,
       roofs: closedRoofs,
       walls: knownWalls,
-      tokens: ownTokens,
+      // TERRENO ALTO: de cima ninguém olha pela janela de baixo.
+      tokens: olhoDeCima ? [] : ownTokens,
       // Prédio sem cômodo escuro reaproveita o olhar da autoridade já calculado.
       authorityFor: (roof, token, i) => {
         const dark = glimpseDarknessOf(roof)
@@ -3483,7 +3499,7 @@ function recorteDoGrupo(
   const peekedRoofIds = new Set<string>()
   // Porta aberta ao alcance de alguma ficha do jogador: poucas, então o teste de contorno (o caro) só roda nelas.
   const doorsInReach =
-    ownTokens.length === 0 || closedRoofs.length === 0
+    olhoDeCima || ownTokens.length === 0 || closedRoofs.length === 0
       ? []
       : knownWalls.filter(
           (w) =>
@@ -3571,7 +3587,10 @@ function recorteDoGrupo(
   }
 
   // Ponto na sala secreta FECHADA nunca está à vista: a autoridade olha através dela (F09, "Duas visões"), e o de dentro continua escondido.
-  const isVisible = (point: RegionPoint): boolean => !hiddenByZone(point) && !inSecretRoom(point) && (inAnyRing(rings, point) || inBrushReveal(point))
+  // TERRENO ALTO: o que o chão do piso de quem olha cobre (debaixo da passarela, dentro da torre) não está à vista.
+  const cobertoDeCima = deCima === null ? null : deCima.cobre
+  const isVisible = (point: RegionPoint): boolean =>
+    !hiddenByZone(point) && !inSecretRoom(point) && (inAnyRing(rings, point) || inBrushReveal(point)) && (cobertoDeCima === null || !cobertoDeCima(point))
 
   /**
    * A ficha está DENTRO da Sala: estritamente dentro (em cima do muro ainda é
@@ -3610,9 +3629,11 @@ function recorteDoGrupo(
   const comodoSamples = (room: BoxedRoom): readonly RegionPoint[] => openSamples(interiorSamples(room.points, room.points), { points: room.points, closed: true })
   /** Ele vê dentro do cômodo AGORA: ficha dentro, amostra à vista ou anel de visão entrando nele (sem o explorado). */
   const seesIntoNow = (room: BoxedRoom): boolean => {
-    if (ownTokens.some((t) => isStrictlyInsideReadableRoom(room.points, { x: t.x, y: t.y }))) return true
+    if (!olhoDeCima && ownTokens.some((t) => isStrictlyInsideReadableRoom(room.points, { x: t.x, y: t.y }))) return true
     if (comodoSamples(room).some(isVisible)) return true
-    return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
+    // TERRENO ALTO: o anel de quem olha de cima entra no cômodo de baixo só por onde o chão dele não cobre
+    // (sem isto, do 1º piso de um prédio fechado saía o nome da sala do térreo).
+    return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p) && (cobertoDeCima === null || !cobertoDeCima(p))))
   }
   // Explorado dentro da sala secreta fechada não conta (N3: a memória a marca como chão vazio; ver `isPointExploredOpen`, definida mais abaixo).
   const seesInto = (room: BoxedRoom): boolean =>
@@ -3757,7 +3778,8 @@ function recorteDoGrupo(
     if (light.vistaDeLonge !== true) return false
     const point = { x: light.x, y: light.y }
     if (hiddenByZone(point) || inHiddenPlace(point)) return false
-    return ownTokens.some((t, i) => hasLineOfSight({ x: t.x, y: t.y }, point, authoritySegmentsOf(i)))
+    // TERRENO ALTO: de outro piso, o olhar só para nas paredes do piso de quem olha.
+    return ownTokens.some((t, i) => hasLineOfSight({ x: t.x, y: t.y }, point, deCima === null ? authoritySegmentsOf(i) : deCima.obstaculos))
   }
 
   /**
@@ -3778,7 +3800,10 @@ function recorteDoGrupo(
         box.minX <= b.maxX &&
         box.maxY >= b.minY &&
         box.minY <= b.maxY &&
-        open.some((p) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring) && !inSecretRoom(p)),
+        open.some(
+          (p) =>
+            p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY && pointInRing(p, b.ring) && !inSecretRoom(p) && (cobertoDeCima === null || !cobertoDeCima(p)),
+        ),
     )
   }
 
@@ -3896,7 +3921,8 @@ function recorteDoGrupo(
         b.minX <= box.maxX &&
         b.maxY >= box.minY &&
         b.minY <= box.maxY &&
-        ringReachesInto(b.ring, shape, (p) => !hiddenByZone(p) && !inHiddenPlace(p)),
+        // TERRENO ALTO: de cima, o ponto que o chão de quem olha cobre não diz que a visão entrou na forma.
+        ringReachesInto(b.ring, shape, (p) => !hiddenByZone(p) && !inHiddenPlace(p) && (cobertoDeCima === null || !cobertoDeCima(p))),
     )
   }
   /** Algum vértice da forma dentro (ou em cima da borda) de sala secreta fechada ou de zona oculta. */
@@ -4110,7 +4136,7 @@ function recorteDoGrupo(
     const near = rings.filter((r) => b.maxX >= r.minX && b.minX <= r.maxX && b.maxY >= r.minY && b.minY <= r.maxY)
     if (near.length === 0) return false
     if (floorPieceSamples(f).some(isVisible)) return true
-    if (ownTokens.some((t) => !inConcealZone({ x: t.x, y: t.y }) && pieceDistance(f, t.x, t.y) <= 0)) return true
+    if (!olhoDeCima && ownTokens.some((t) => !inConcealZone({ x: t.x, y: t.y }) && pieceDistance(f, t.x, t.y) <= 0)) return true
     return near.some((r) =>
       r.ring.some(
         (v) => v.x >= b.minX && v.x <= b.maxX && v.y >= b.minY && v.y <= b.maxY && !inConcealZone(v) && pieceDistance(f, v.x, v.y) < -FLOOR_SEEN_DEPTH,
@@ -4385,7 +4411,8 @@ function recorteDoGrupo(
     if (inRoomHiddenFromPlayer(center) || hiddenByZone(center)) return false
     const samples = [center, ...tokenRimSamples(t, map.grid).filter((p) => !inRoomHiddenFromPlayer(p) && !hiddenByZone(p))]
     // Anéis POR FICHA (`authorityByToken`): com escuro uma ficha tem vários, então `authorityVision[i]` não é o dela.
-    return ownTokens.some((eye, i) => {
+    // TERRENO ALTO: o olho de cima não está dentro da fumaça de baixo.
+    return !olhoDeCima && ownTokens.some((eye, i) => {
       const tokenRings = authorityByToken[i]
       if (tokenRings === undefined || !veilsOfToken.some((veil) => pointInRing({ x: eye.x, y: eye.y }, veil))) return false
       return samples.some((p) => tokenRings.some((ring) => pointInRing(p, ring)))
@@ -4691,6 +4718,8 @@ function recorteDoGrupo(
     // "Visão nesta cena" é regra do mestre: o jogador recebe o círculo já
     // cortado (`vision`), nunca o número que o desenhou.
     visionCells: undefined,
+    // TERRENO ALTO: a lista diria quais pisos a cena tem; a altura do piso dele vai à parte (`snapshot.alto`).
+    alturaDosPisos: undefined,
     // "Tamanho da ficha ao entrar" também é regra do mestre: o jogador recebe a ficha já no tamanho.
     tamanhoDaFichaAoEntrar: undefined,
     // "Cena escura" também: o escuro já vem aplicado na visão e no que sai.
@@ -5379,6 +5408,107 @@ export function filterFloorMemory(
 ): FloorMemoryView {
   const view = filterMapForGroup(map, [], explored, seenDoors, undefined, only)
   return { map: view.map, concealed: view.concealed }
+}
+
+/**
+ * TERRENO ALTO — como olham os olhos de OUTRO piso (`vistaDeOutroPiso`):
+ * `obstaculos` são as paredes do piso de quem olha (as do piso olhado não
+ * contam), e `cobre` diz o que o chão do piso de quem olha esconde por cima.
+ */
+export interface OlharDeCima {
+  readonly obstaculos: Segment[]
+  readonly cobre: ((p: RegionPoint) => boolean) | null
+}
+
+/** TERRENO ALTO: o recorte de um piso visto de outro — o que vai ao jogador. */
+export interface VistaDeOutroPiso {
+  map: MapData
+  vision: RegionPoint[][]
+  concealed: RegionPoint[][]
+}
+
+/** O que é DESTE jogador e vale no recorte de outro piso. Memória não entra: de lá, só o que ele vê agora. */
+export type SoDoJogadorNoOutroPiso = Pick<PlayerOnlyView, 'pinAudiences' | 'playerId' | 'secretReveals' | 'discoveredSecretRooms' | 'oneWayExits' | 'barras' | 'formas'> & {
+  /** A posse da mesa: com `playerId`, a ficha de colega sai com a marca dele e, no Continente, com a cor do pino (como em `filterMapForPlayer`). */
+  ownership?: Record<string, string[]>
+  companions?: CompanionMarks
+}
+
+/** Prefixo do olho de mentira (`vistaDeOutroPiso`): nenhum id do mapa começa com NUL. */
+const OLHO_DE_OUTRO_PISO = '\u0000olho-de-outro-piso:'
+/** O guarda não reage a olho de outro piso: ninguém vigiado. */
+const NINGUEM_VIGIADO: ReadonlySet<string> = new Set()
+
+/** O raio de cada olho de mentira é o da ficha de verdade dele, com a marca do período (a noite) preservada. */
+function raioPelaFichaDeVerdade(raio: VisionRadius, deVerdade: ReadonlyMap<string, string>): VisionRadius {
+  if (typeof raio === 'number') return raio
+  const porFicha = (tokenId: string): number => raio(deVerdade.get(tokenId) ?? tokenId)
+  const periodo = periodoDoRaio(raio)
+  return periodo === undefined ? porFicha : raioDoPeriodo(porFicha, periodo)
+}
+
+/**
+ * TERRENO ALTO — o piso `piso` como o veem as fichas `olhos`, que estão em
+ * OUTRO piso (o jogador em cima da muralha olhando o reino; o de baixo olhando
+ * a muralha). UMA regra de névoa só, como `espiadaPeloPino`: o recorte de
+ * sempre, com um olho de mentira no ponto de cada ficha, no piso olhado, e a
+ * regra de olhar de `olhar` (`recorteDoGrupo` com `deCima`). Sem memória:
+ * nada explorado nem porta lembrada entra, e nada daqui volta para a memória
+ * de ninguém. Os olhos de mentira não saem. Mapa-múndi ou sem olho: `null`.
+ */
+export function vistaDeOutroPiso(
+  mapaInteiro: MapData,
+  piso: number,
+  olhos: readonly Token[],
+  raio: VisionRadius,
+  olhar: OlharDeCima,
+  only: SoDoJogadorNoOutroPiso = {},
+): VistaDeOutroPiso | null {
+  if (olhos.length === 0 || isWorldMap(mapaInteiro)) return null
+  const deVerdade = new Map<string, string>()
+  const fantasmas = olhos.map((olho) => {
+    const id = `${OLHO_DE_OUTRO_PISO}${olho.id}`
+    deVerdade.set(id, olho.id)
+    return comPiso<Token>({ id, characterId: null, name: '', x: olho.x, y: olho.y, size: olho.size, image: null }, piso)
+  })
+  const comOlhos: MapData = { ...mapaInteiro, tokens: [...mapaInteiro.tokens, ...fantasmas] }
+  const viewers: GroupViewer[] = [{ tokenIds: fantasmas.map((t) => t.id), visionRadius: raioPelaFichaDeVerdade(raio, deVerdade) }]
+  const { ownership, companions, ...doJogador } = only
+  const marcas: Pick<PlayerOnlyView, 'companionOf' | 'pinoOf'> =
+    ownership === undefined
+      ? {}
+      : {
+          ...(doJogador.playerId === undefined ? {} : { companionOf: companionsByToken(ownership, doJogador.playerId, new Set(ownership[doJogador.playerId] ?? []), companions) }),
+          pinoOf: coresDosPinos(mapaInteiro, ownership),
+        }
+  const view = recorteDoGrupo(comOlhos, viewers, undefined, undefined, NINGUEM_VIGIADO, { ...doJogador, ...marcas }, false, olhar)
+  return { map: { ...view.map, tokens: view.map.tokens.filter((t) => !deVerdade.has(t.id)) }, vision: view.vision, concealed: view.concealed }
+}
+
+/**
+ * TERRENO ALTO — o olhar de quem está EMBAIXO para o piso de cima: nada do
+ * piso de cima segura (quem segura é a visão dele, aqui embaixo, em
+ * `fichasNaVisaoDeBaixo`), e nada cobre.
+ */
+export const OLHAR_PARA_CIMA: OlharDeCima = { obstaculos: [], cobre: null }
+
+/**
+ * Folga, em casas, de "a ficha lá em cima está na visão de quem está
+ * embaixo": a visão dele para na face da muralha, e quem está em cima pisa
+ * no meio dela, até uma casa além da face.
+ */
+const FOLGA_DE_CIMA_CASAS = 1
+
+/**
+ * TERRENO ALTO: as fichas do recorte do piso de cima (`vistaDeOutroPiso` com
+ * `OLHAR_PARA_CIMA`) que a visão `visao` do jogador, no piso dele, alcança —
+ * com a folga de uma casa além do raio da ficha.
+ */
+export function fichasNaVisaoDeBaixo(tokens: readonly Token[], visao: readonly RegionPoint[][], grid: number): Token[] {
+  return tokens.filter((t) => {
+    const folga = (Math.max(0, t.size) * grid) / 2 + FOLGA_DE_CIMA_CASAS * grid
+    return visao.some((ring) => inOrOnRing({ x: t.x, y: t.y }, ring, folga))
+  })
 }
 
 /**

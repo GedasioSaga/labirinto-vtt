@@ -28,6 +28,7 @@ vi.mock('pixi.js', async (importOriginal) => {
     readonly screen = new pixi.Rectangle(0, 0, 800, 600)
     readonly renderer = {
       resolution: 1,
+      background: { alpha: 1 },
       render: () => {
         tela.redesenhos += 1
       },

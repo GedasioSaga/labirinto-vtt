@@ -1,3 +1,5 @@
+import { criarPisoDeBaixoNoEditor } from './pisoDeBaixoNoEditor'
+import { alturaDoPiso } from '../lib/pisos'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
@@ -114,6 +116,8 @@ import { compileFloor, pieceBounds, pontosDoCorredor, shapeCenter } from '../lib
 
 /** Subamostras por eixo do render fiel: 4×4 é o que reproduz o antisserrilhado dos mapas de referência. */
 const MINIMAP_RASTER_SAMPLES = 4
+/** TERRENO ALTO: espera máxima para a ficha do térreo que anda aparecer na planta borrada do editor (fica borrada: não pede todo quadro). */
+const FOLGA_DA_PLANTA_MS = 200
 import type { FloorPiece, FloorShape, MapFrame, TipoMobilia } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
@@ -1343,6 +1347,7 @@ function PixiCanvasDoContexto({
       app.stage.hitArea = app.screen
 
       const backgroundSprite = new Sprite(Texture.EMPTY)
+      const pisoDeBaixo = criarPisoDeBaixoNoEditor()
       // Onda 3, item 21 (Frente E) — moldura do mapa. Fica atrás da grade e
       // do conteúdo, na frente só do fundo (mesma ordem do CONTRATO).
       const mapBoundsGraphics = new Graphics()
@@ -1628,6 +1633,7 @@ function PixiCanvasDoContexto({
       // mover uma camada só troca os containers de lugar (`pilhaDeCamadas.ts`).
       const containerDaFaixa = new Map<string, Container>(Object.entries({
         backgroundSprite,
+        pisoDeBaixoContainer: pisoDeBaixo.camada,
         mapBoundsGraphics,
         mapFrameContainer,
         mapRasterSprite,
@@ -2073,12 +2079,15 @@ function PixiCanvasDoContexto({
        * as camadas de trabalho do editor — seleção, alças, hover, guias,
        * sinais e laser, as mesmas que a "Exportar imagem" tira — para a
        * pipeta pegar a cor do MAPA, não a do contorno de seleção por cima.
+       * Sai também a planta borrada do piso de baixo (TERRENO ALTO): é guia,
+       * e no 1º piso sem chão a pipeta pegaria a cor borrada do térreo.
        */
       const lerCorDoPonto = (x: number, y: number): string | null => {
         const pixel = pixelDaTela(x, y, app.screen.width, app.screen.height)
         if (pixel === null) return null
         const camadasDeTrabalho = [
           gridAlignOverlayGraphics,
+          pisoDeBaixo.camada,
           // Pelo nome da faixa, não pela altura no `world`: a lista de camadas pode descer Anotações.
           ...nosDeTrabalho(FAIXAS_EDITOR, baseDaFaixa),
           // E o telhado de camada escolhida (fatia 3b), que mora num nó criado da mesma faixa.
@@ -3363,7 +3372,15 @@ function PixiCanvasDoContexto({
       lerFilaDoJudgeRef.current = (seq) => judgeDoMapa.lerFila(seq)
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
+      // TERRENO ALTO: editando o piso 1 ou acima, o piso de baixo borrado por baixo (pixi/pisoDeBaixoNoEditor.ts); no terreo, nada.
+      // Na "Exportar imagem" também nada: a planta é guia do editor, e o PNG é o piso em edição (o `redrawScene` de
+      // depois da exportação a põe de volta, sem refazer a textura).
+      const redrawPisoDeBaixo = () => {
+        const { map, pisoAtivo } = useMapStore.getState()
+        pisoDeBaixo.atualizar(pisoAtivo < 1 || exportScene !== null ? null : { mapa: mapaDoPiso(map, pisoAtivo - 1), altura: alturaDoPiso(map, pisoAtivo) })
+      }
       const redrawScene = () => {
+        redrawPisoDeBaixo()
         redrawGrid()
         redrawMapBounds()
         redrawShapes()
@@ -3772,6 +3789,21 @@ function PixiCanvasDoContexto({
       })
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
+      // TERRENO ALTO: a "Altura" do piso em edição (painel do piso, ou o Ctrl+Z dela) só muda a planta borrada de baixo.
+      const unsubscribeAlturaDoPiso = useMapStore.subscribe((state) => alturaDoPiso(state.map, state.pisoAtivo), () => redrawPisoDeBaixo())
+      // TERRENO ALTO: a ficha do térreo que anda (jogador, host) entra na planta de baixo com folga: no máximo uma
+      // vez a cada FOLGA_DA_PLANTA_MS, com o lugar mais novo, e só a textura das fichas (pixi/pisoDeBaixoNoEditor.ts).
+      let plantaDasFichasTimer: ReturnType<typeof setTimeout> | null = null
+      const unsubscribeFichasDaPlanta = useMapStore.subscribe(
+        (state) => state.map.tokens,
+        () => {
+          if (plantaDasFichasTimer !== null || useMapStore.getState().pisoAtivo < 1) return
+          plantaDasFichasTimer = setTimeout(() => {
+            plantaDasFichasTimer = null
+            redrawPisoDeBaixo()
+          }, FOLGA_DA_PLANTA_MS)
+        },
+      )
       // ENDIREITAR (pedido 5, fatia 4): a store não avisa que endireitou, então
       // cada mudança dela é comparada com a anterior (`tracosDoEndireitar`; o
       // caminho comum é comparação de referência). O `data-` conta os traços na
@@ -9925,6 +9957,9 @@ function PixiCanvasDoContexto({
         unsubscribeEstiloDoMapa()
         unsubscribeCamadas()
         unsubscribePisoAtivo()
+        unsubscribeAlturaDoPiso()
+        unsubscribeFichasDaPlanta()
+        if (plantaDasFichasTimer !== null) clearTimeout(plantaDasFichasTimer)
         unsubscribeStraightenGhost()
         straightenGhost.parar()
         unsubscribeActiveTool()

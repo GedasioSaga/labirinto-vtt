@@ -162,6 +162,7 @@ import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation
 import { cliqueParaAndarLigado, planejarCaminhada, type AvisoDoClique, type MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import { lembrar, mapaParaPlanejar, type ObjetosLembrados } from './objetosLembrados'
 import type { OlharDaVisao, RoofPeek } from '../lib/fogFilter'
+import { ehAlturaDoPiso, type TerrenoAlto } from '../lib/terrenoAlto'
 import { hasEnterText } from '../lib/roomText'
 import { isPointInsideMap, POINT_NOTICE_TTL_MS, type PointActionKind, type PointNotice } from '../lib/pointActions'
 import { LETTER_TEXT_MAX_LENGTH, type LetterVia } from '../lib/correio'
@@ -189,7 +190,7 @@ import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
-import { applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import { applyAltoPatch, applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type PatchDoAlto, type TokenChange, type TokenListPatch } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
@@ -433,6 +434,13 @@ export interface PlayerState {
    * queda (host antigo, nenhuma ficha com olho, pacote torto).
    */
   olhares?: OlharDaVisao[]
+  /**
+   * TERRENO ALTO (`snapshot.alto`, `lib/terrenoAlto.ts`): o piso de baixo visto
+   * de cima (borrado pela altura do piso dele) e as fichas do piso de cima que
+   * ele vê daqui. Cada snapshot substitui, e o patch muda só o que mudou
+   * (`PatchDoAlto`); ausente = nada de outro piso.
+   */
+  alto?: TerrenoAlto
   /** MODO BATALHA (B4): a cena dele está em batalha. Cada snapshot substitui; sem o campo, fora da batalha. */
   batalha?: true
   /**
@@ -2213,6 +2221,8 @@ interface ReceivedView {
   exploredWire: ExploredWire | undefined
   ownTokens: string[]
   concealed: RegionPoint[][]
+  /** TERRENO ALTO como chegou (já lido): base do `alto` do próximo `patch`. */
+  alto: TerrenoAlto | undefined
 }
 
 interface StoredResume {
@@ -2238,6 +2248,26 @@ function isVision(value: unknown): value is RegionPoint[][] {
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+/** Ficha no formato que a tela desenha: id e posição (a mesma conferência de `isMapShape`). */
+function ehListaDeFichas(value: unknown): value is Token[] {
+  return Array.isArray(value) && value.every((t) => isRecord(t) && typeof t.id === 'string' && isFiniteNumber(t.x) && isFiniteNumber(t.y))
+}
+
+/**
+ * TERRENO ALTO (`snapshot.alto`): o piso de baixo (mapa, visão, zonas e
+ * altura) e as fichas do piso de cima. Cada parte ausente é tolerada; parte
+ * presente e torta devolve `null` (a mensagem cai, como a de qualquer campo).
+ */
+function lerTerrenoAlto(value: unknown): TerrenoAlto | null {
+  if (!isRecord(value)) return null
+  const { abaixo, acima } = value
+  if (acima !== undefined && !ehListaDeFichas(acima)) return null
+  if (abaixo === undefined) return acima === undefined ? {} : { acima }
+  if (!isRecord(abaixo) || !isMapShape(abaixo.map) || !isVision(abaixo.vision) || !isVision(abaixo.concealed) || !ehAlturaDoPiso(abaixo.altura)) return null
+  const vistaDeBaixo = { map: comCamadasDoJogadorLidas(abaixo.map), vision: abaixo.vision, concealed: abaixo.concealed, altura: abaixo.altura }
+  return acima === undefined ? { abaixo: vistaDeBaixo } : { abaixo: vistaDeBaixo, acima }
 }
 
 /** Teto da lista de olhares aceita do host: um por ficha dele, muito acima de qualquer mesa. */
@@ -2361,13 +2391,42 @@ function isExploredEdits(value: unknown): value is ExploredEdits {
   return isRecord(value) && isStringEditList(value.bits) && isStringEditList(value.rings) && (value.ringsFar === undefined || isStringEditList(value.ringsFar))
 }
 
+function isTokenListPatch(value: unknown): value is TokenListPatch {
+  if (!isRecord(value) || !Array.isArray(value.change) || !value.change.every(isTokenChange)) return false
+  return isStringList(value.remove) && (value.order === undefined || isStringList(value.order))
+}
+
 function isMapPatchShape(value: unknown): value is MapPatch {
   if (!isRecord(value) || !isRecord(value.set)) return false
   const { tokens, items } = value
   if (items !== undefined && (!isRecord(items) || !Object.values(items).every(isItemListPatch))) return false
-  if (tokens === undefined) return true
-  if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
-  return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
+  return tokens === undefined || isTokenListPatch(tokens)
+}
+
+/**
+ * TERRENO ALTO no `patch` (`PatchDoAlto`): conferido no mesmo critério raso do
+ * patch do mapa e aplicado em cima do que chegou antes. O mapa de baixo que
+ * sai da aplicação passa por `isMapShape` e pela leitura das camadas, como o
+ * do snapshot (`lerTerrenoAlto`). `null` = torto ou de outra tela.
+ */
+function aplicarPatchDoAlto(antes: TerrenoAlto | undefined, value: unknown): TerrenoAlto | undefined | null {
+  if (!isRecord(value)) return null
+  const { inteiro, mapaDeBaixo, visaoDeBaixo, ocultoDeBaixo, altura, acima } = value
+  if (inteiro !== undefined) {
+    const lido = lerTerrenoAlto(inteiro)
+    return lido === null ? null : applyAltoPatch(antes, { inteiro: lido })
+  }
+  if (mapaDeBaixo !== undefined && !isMapPatchShape(mapaDeBaixo)) return null
+  if ((visaoDeBaixo !== undefined && !isVision(visaoDeBaixo)) || (ocultoDeBaixo !== undefined && !isVision(ocultoDeBaixo))) return null
+  if ((altura !== undefined && !ehAlturaDoPiso(altura)) || (acima !== undefined && !isTokenListPatch(acima))) return null
+  const patch: PatchDoAlto = { mapaDeBaixo, visaoDeBaixo, ocultoDeBaixo, altura, acima }
+  const depois = applyAltoPatch(antes, patch)
+  if (depois === null || depois === undefined) return depois
+  if (depois.acima !== undefined && !ehListaDeFichas(depois.acima)) return null
+  if (depois.abaixo === undefined || mapaDeBaixo === undefined) return depois
+  if (!isMapShape(depois.abaixo.map)) return null
+  const map = comCamadasDoJogadorLidas(depois.abaixo.map)
+  return map === depois.abaixo.map ? depois : { ...depois, abaixo: { ...depois.abaixo, map } }
 }
 
 function readResume(storage: StorageLike | null, code: string): string | undefined {
@@ -4153,6 +4212,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     waitingTokens: string[],
     porAtravessar: readonly string[],
     olhares: OlharDaVisao[] | undefined,
+    alto: TerrenoAlto | undefined,
     exploredWire?: ExploredWire,
   ): void {
     if (rev <= state.rev) return
@@ -4163,7 +4223,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
     // Base para o próximo `patch` (view.patch): sempre a última tela CHEIA do mestre.
-    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed }
+    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed, alto }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -4223,6 +4283,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       luz,
       porAtravessar: doorsToCross,
       olhares,
+      alto,
       batalha: batalha ? true : undefined,
       // MODO BATALHA (B6): fora da batalha não há caminho; o aviso do zerar só dentro da mesma batalha.
       caminhos: batalha ? caminhos : undefined,
@@ -4304,6 +4365,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (porAtravessar === null) return askResync()
     // QUEDA DO ALCANCE no patch: ausente = os mesmos de antes (conferidos de novo contra a visão nova); `[]` = nenhum.
     const olhares = lerOlhares(data.olhares === undefined ? state.olhares : data.olhares, vision.length)
+    // TERRENO ALTO no patch: ausente = o mesmo de antes; torto ou de outra tela = pede a inteira.
+    const alto = data.alto === undefined ? received.alto : aplicarPatchDoAlto(received.alto, data.alto)
+    if (alto === null) return askResync()
     applySnapshot(
       rev,
       map,
@@ -4326,6 +4390,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.waitingTokens ?? [],
       porAtravessar,
       olhares,
+      alto,
       exploredWire,
     )
   }
@@ -5425,7 +5490,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (porAtravessar === null) return
         // QUEDA DO ALCANCE: ausente ou torto = sem a queda; não derruba a mensagem (a tela fica a de antes).
         const olhares = lerOlhares(data.olhares, data.vision.length)
-        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
+        // TERRENO ALTO: ausente = nada de outro piso; malformado derruba a mensagem.
+        const alto = data.alto === undefined ? undefined : lerTerrenoAlto(data.alto)
+        if (alto === null) return
+        applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, alto, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou; a cena que esperava por ele pode tocar.
         soltarMapaDaTransicao?.()
         return
@@ -5821,7 +5889,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       clues: state.clues ?? state.keptNotebook?.clues ?? [],
       notes: state.notebook ?? state.keptNotebook?.notes ?? [],
     }
-    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, olhares: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+    setState({ keptNotebook, status: 'connecting', hide: undefined, compra: undefined, porAtravessar: undefined, olhares: undefined, alto: undefined, letterPeers: undefined, letterSend: undefined, selfName: undefined, chatSend: undefined, error: undefined, rev: -1, map: undefined, objetosLembrados: undefined, vision: undefined, explored: undefined, ownTokens: undefined, partyTokens: undefined, concealed: undefined, glimpses: undefined, elsewhere: undefined, peek: undefined, pinPeek: undefined, sceneName: undefined, place: undefined, destinations: undefined, hazards: undefined, hazardNotice: undefined, gatilhos: undefined, andares: undefined, luz: undefined, batalha: undefined, caminhos: undefined, caminhosZerados: undefined, batalhaIniciada: undefined, signals: undefined, laser: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, note: undefined, arrival: undefined, alarm: undefined, item: undefined, lever: undefined, roomText: undefined, notebook: undefined, unreadNotes: undefined, clues: undefined, colecoes: undefined, shownClue: undefined, shownPin: undefined, cluePeers: undefined, clueShow: undefined, paused: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapPeers: undefined, mapShare: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, waitingTokens: undefined, away: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
     open()
   }
 

@@ -1,4 +1,4 @@
-import type { Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
+import type { AlturaDeUmPiso, AlturaDoPiso, Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
@@ -433,6 +433,46 @@ export function comEscadaNosPisos(map: MapData, stairId: string, mudanca: { piso
   }
   if (pisoDe(next) === pisoDe(stair) && next.levaAoPiso === stair.levaAoPiso) return map
   return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? next : s)) }
+}
+
+/** TERRENO ALTO: a "Altura" do piso `piso` (`MapData.alturaDosPisos`); ausente é a média. */
+export function alturaDoPiso(map: Pick<MapData, 'alturaDosPisos'>, piso: number): AlturaDoPiso {
+  return map.alturaDosPisos?.find((a) => a.piso === piso)?.altura ?? 'media'
+}
+
+/**
+ * O mestre muda a "Altura" do piso `piso`. A média TIRA a entrada (e a lista
+ * vazia tira o campo): o arquivo fica como o de um mapa sem a opção. Nada
+ * muda: o próprio mapa.
+ */
+export function comAlturaDoPiso(map: MapData, piso: number, altura: AlturaDoPiso): MapData {
+  if (alturaDoPiso(map, piso) === altura) return map
+  const outras = (map.alturaDosPisos ?? []).filter((a) => a.piso !== piso)
+  const lista: AlturaDeUmPiso[] = altura === 'media' ? outras : [...outras, { piso, altura }]
+  if (lista.length > 0) return { ...map, alturaDosPisos: lista }
+  const copia = { ...map }
+  delete copia.alturaDosPisos
+  return copia
+}
+
+/**
+ * Leitura do arquivo: só entrada com piso inteiro na faixa e altura 'baixa'
+ * ou 'alta' fica, uma por piso (a primeira vale). Nada que sirva: `undefined`
+ * (o campo nem existe, como em mapa de antes dele).
+ */
+export function alturasDosPisosDoArquivo(valor: unknown): AlturaDeUmPiso[] | undefined {
+  if (!Array.isArray(valor)) return undefined
+  const vistos = new Set<number>()
+  const lista: AlturaDeUmPiso[] = []
+  for (const item of valor) {
+    if (typeof item !== 'object' || item === null) continue
+    const piso: unknown = 'piso' in item ? item.piso : undefined
+    const altura: unknown = 'altura' in item ? item.altura : undefined
+    if (!ehPiso(piso) || vistos.has(piso) || (altura !== 'baixa' && altura !== 'alta')) continue
+    vistos.add(piso)
+    lista.push({ piso, altura })
+  }
+  return lista.length === 0 ? undefined : lista
 }
 
 /** A entidade como o arquivo a traz: piso torto SAI, e ela volta ao térreo. */

@@ -11,6 +11,14 @@
  * filho direto de `.lb-editor` — ver CONTRATO no relatório do agente.
  */
 
+/* O degrau logo acima do zoom, para o que empilha no mesmo canto (o piso em
+   edição, PisoHud.css; os Dados da sala, Dice.css): a barra do pé, o zoom
+   (uma linha de texto pequeno com o respiro dele) e o vão. Um número só, para
+   os dois não discordarem de onde o zoom termina. */
+.lb-editor {
+  --lb-acima-do-zoom: calc(var(--lb-layout-edge-gap) * 2 + 36px + var(--lb-base-altura, 0px));
+}
+
 .lb-zoomhud {
   position: absolute;
   /* Ao lado da coluna da direita, nunca embaixo dela (livro/livro.css). */

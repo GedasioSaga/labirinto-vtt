@@ -130,7 +130,9 @@ import { alcancePeloObjeto, mapaParaAndarDoJogador } from '../lib/obstaculosDeOb
 import { mapaParaPlanejar } from './objetosLembrados'
 import { pisoDe } from '../lib/pisos'
 import { criarPreparoDoCaminho, type PreparoDoCaminho } from '../lib/preparoDoCaminho'
-import type { Pin, Stair } from '../types/map'
+import type { AlturaDoPiso, Pin, Stair, Token } from '../types/map'
+import { EFEITO_DA_ALTURA } from '../lib/terrenoAlto'
+import { criarEspelhoDaCamera } from './espelhoDaCamera'
 import { loadPlaceNames, savePlaceName, withPlaceName, type VisitedPlace } from './playerPlaces'
 import { PersonalNoteDraft } from './PlayerPersonalNotes'
 import { addPersonalNote, newPersonalNoteId, notesOnMap, removePersonalNote, type PersonalNote } from './personalNotes'
@@ -172,6 +174,14 @@ const NOTE_KEPT_HINT = 'Fica guardado no Caderno do Painel.'
 const NO_VISION: RegionPoint[][] = []
 /** Outro andar é só para olhar: arrastar ficha lá não pede nada ao mestre. */
 const IGNORE_MOVE = (): void => {}
+/** TERRENO ALTO: sem fichas do piso de cima (referência estável). */
+const SEM_FICHAS_DE_CIMA: readonly Token[] = []
+
+/** TERRENO ALTO: o filtro CSS da vista do piso de baixo — mais alto, mais borrado, mais escuro e com menos cor. */
+function filtroDaVistaDeBaixo(altura: AlturaDoPiso): string {
+  const efeito = EFEITO_DA_ALTURA[altura]
+  return `blur(${efeito.borraoPx}px) brightness(${efeito.brilho}) saturate(${efeito.saturacao})`
+}
 const AWAY_KEPT_HINT = 'Ficam guardados no Caderno do Painel.'
 /** O aviso do "Me avise quando der". */
 const PASSAGE_OPENED_TEXT = 'A passagem que você marcou abriu: já dá para passar.'
@@ -1350,6 +1360,16 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // ENCONTRO MARCADO: a marca "esperando". Mesma referência estável dos tokens: sem ninguém esperando, nada a redesenhar.
   const waitingTokens = state.waitingTokens ?? NO_TOKENS
   const map = state.map
+  // TERRENO ALTO (`lib/terrenoAlto.ts`): de cima, o piso de baixo numa segunda tela por trás, borrada pela
+  // altura e na mesma câmera (`espelhoDaCamera`); a visão de cima abre a névoa onde a de baixo alcança.
+  const espelhoDaCamera = useMemo(criarEspelhoDaCamera, [])
+  const vistaDeBaixo = state.alto?.abaixo
+  const visaoNaTela = useMemo(
+    () => (vistaDeBaixo === undefined || state.vision === undefined ? state.vision : [...state.vision, ...vistaDeBaixo.vision]),
+    [state.vision, vistaDeBaixo],
+  )
+  const filtroDaAltura = vistaDeBaixo === undefined ? null : filtroDaVistaDeBaixo(vistaDeBaixo.altura)
+  const fichasDeCima = state.alto?.acima ?? SEM_FICHAS_DE_CIMA
 
   // ATALHO NA MESMA CENA: o mapa não mudou, então a câmera não reenquadra
   // sozinha. Cada chegada assim centra a ficha que atravessou (não a primeira
@@ -1808,9 +1828,27 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onAcaoNoOlhar={onAcaoNoOlhar}
           />
         ) : (
+          <>
+          {/* TERRENO ALTO: o piso de baixo, só desenho, borrado e escurecido pela altura, por trás da tela dele (DOM antes = embaixo). */}
+          {vistaDeBaixo !== undefined && filtroDaAltura !== null && (
+            <PlayerView
+              map={vistaDeBaixo.map}
+              vision={vistaDeBaixo.vision}
+              concealed={vistaDeBaixo.concealed}
+              ownTokens={NO_TOKENS}
+              luz={state.luz}
+              settings={settings}
+              focusTokenId={null}
+              focusSeq={0}
+              onMove={IGNORE_MOVE}
+              arrivalKey={state.map.id}
+              vistaDeBaixo={{ filtro: filtroDaAltura }}
+              espelhoDaCamera={espelhoDaCamera}
+            />
+          )}
           <PlayerView
             map={state.map}
-            vision={state.vision}
+            vision={visaoNaTela ?? state.vision}
             explored={state.explored}
             concealed={state.concealed}
             peek={state.peek}
@@ -1919,7 +1957,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               consultaDaFicha.current = consulta
             }}
             aoEscolherFicha={mirandoNaBatalha && (state.batalhaEstado !== undefined || vistaDBT !== undefined) ? escolherNoMapa : undefined}
+            // TERRENO ALTO: com a vista do piso de baixo por trás, o fundo desta tela some e a câmera é publicada para ela.
+            fundoTransparente={vistaDeBaixo !== undefined}
+            espelhoDaCamera={espelhoDaCamera}
+            fichasDeCima={fichasDeCima}
           />
+          </>
         )}
         </div>
         {/*
