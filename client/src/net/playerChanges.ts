@@ -4,6 +4,7 @@ import { useMapStore } from '../stores/mapStore'
 import type { MapData, MarcaNoLugar } from '../types/map'
 import { openPinLock } from '../lib/pinLock'
 import { adicionarMarca, apagarMarca } from '../lib/marcas'
+import { mapaComAuraLigada } from '../lib/auras'
 import { comFichaNoPiso } from '../lib/pisos'
 import { comMovimentoRemoto } from '../lib/movimentoRemoto'
 import { boardVehicle, leaveVehicle } from '../lib/vehicle'
@@ -49,13 +50,15 @@ function setDoorOpen(wallId: string, open: boolean): MapTransform {
  * `image` chega como referência embutida: ela vira a cópia que viaja, e o
  * caminho do disco do mestre (se havia um) deixa de valer para este token.
  */
-function editToken({ tokenId, name, image }: AppliedTokenEdit): MapTransform {
+function editToken({ tokenId, name, image, auraLigada }: AppliedTokenEdit): MapTransform {
   return (map) => {
     const token = map.tokens.find((t) => t.id === tokenId)
     if (token === undefined) return map
     const renamed = name === undefined || token.name === name ? map : mapFactory.renameToken(map, tokenId, name)
     const sameImage = token.image === null && (token.imageData ?? null) === image
-    return image === undefined || sameImage ? renamed : mapFactory.setTokenImage(renamed, tokenId, null, image)
+    const comFoto = image === undefined || sameImage ? renamed : mapFactory.setTokenImage(renamed, tokenId, null, image)
+    // AURA DA FICHA: só o interruptor; num passo antigo do desfazer a ficha pode nem ter aura (`mapaComAuraLigada` devolve o mesmo mapa).
+    return auraLigada === undefined ? comFoto : mapaComAuraLigada(comFoto, tokenId, auraLigada)
   }
 }
 

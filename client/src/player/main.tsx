@@ -57,6 +57,8 @@ import { PlayerDoorNotice, doorRequestText } from './PlayerDoorNotice'
 import { PlayerCallButton } from './PlayerCallButton'
 import { ReconnectingOverlay } from './ReconnectingOverlay'
 import { PointActionMenu } from './PointActionMenu'
+import { MenuDaFichaDoJogador } from './MenuDaFichaDoJogador'
+import { auraQueOJogadorLiga } from '../lib/auras'
 import { isPointInsideMap, pointNoticeText } from '../lib/pointActions'
 import { PlayerSecretCheckCard, SECRET_CHECK_NOTICE_TEXT } from './PlayerSecretCheckCard'
 import { PlayerNoiseCue } from './PlayerNoiseCue'
@@ -86,7 +88,7 @@ import { lerFichaParaBatalha, type FichaLida } from '../lib/dbt/batalha/leitura'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
-import { fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
+import { formasDoRecorte, fotosComAFormaVisivel, fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
@@ -1021,7 +1023,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
   const resolverDaMesa = useImagemDaMesa()
   const batalhaEstado = state.batalhaEstado
-  const fotoDaForma = useFotosEstaveis(useMemo(() => fotosDaFormaDoJogador(batalhaEstado, resolverDaMesa), [batalhaEstado, resolverDaMesa]))
+  // MUDAR FICHA: fora da batalha, a imagem de forma que o recorte pendurou em cada token (`Token.fotoDaForma`); a da batalha vence.
+  const tokensDoRecorte = state.map?.tokens
+  const fotoDaForma = useFotosEstaveis(
+    useMemo(
+      () => fotosComAFormaVisivel(fotosDaFormaDoJogador(batalhaEstado, resolverDaMesa), formasDoRecorte(tokensDoRecorte), resolverDaMesa),
+      [batalhaEstado, tokensDoRecorte, resolverDaMesa],
+    ),
+  )
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoJogador(batalhaEstado), [batalhaEstado]))
   // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
   const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
@@ -1150,6 +1159,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   /** Menu do toque longo (ações no ponto e "Andar até aqui"); `null` = fechado. */
   const [pointMenu, setPointMenu] = useState<PointMenuState | null>(null)
   const closePointMenu = useCallback(() => setPointMenu(null), [])
+  /** AURA DA FICHA: o menu do botão direito (ou do toque longo) na própria ficha, em px da janela; `null` = fechado. */
+  const [menuDaFicha, setMenuDaFicha] = useState<{ tokenId: string; screenX: number; screenY: number; sceneEpoch: number } | null>(null)
+  const fecharMenuDaFicha = useCallback(() => setMenuDaFicha(null), [])
   /** CLICAR PARA ANDAR: o toque de agora começou com o menu do toque longo aberto (ele só fecha o menu). */
   const cliqueFechouMenu = useRef(false)
   /** A última ficha dele que ele arrastou: é ela que anda no clique (o NPC emprestado, se foi ele). */
@@ -1733,6 +1745,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // Trocou a cena ou saiu do jogo desde o toque longo: o ponto do menu é de
   // outro mapa, e o menu fecha em vez de pedir no lugar errado.
   const openPointMenu = pointMenu !== null && pointMenu.sceneEpoch === state.sceneEpoch ? pointMenu : null
+  // AURA DA FICHA: o menu só vale na cena em que abriu, e enquanto a ficha é dele e tem aura (o mestre pode tirar com o menu aberto).
+  const menuDaFichaAberto = menuDaFicha !== null && menuDaFicha.sceneEpoch === state.sceneEpoch && (state.ownTokens ?? []).includes(menuDaFicha.tokenId) ? menuDaFicha : null
+  const auraDoMenu = menuDaFichaAberto === null ? null : auraQueOJogadorLiga(state.map?.tokens.find((t) => t.id === menuDaFichaAberto.tokenId))
 
   // Queda com volta automática: a tela de baixo fica (esmaecida), o véu por cima.
   // O véu cobre o Painel: o "Guardar meu caderno" do fim de sessão vem nele.
@@ -1855,6 +1870,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onMapPointerDown={() => {
               cliqueFechouMenu.current = pointMenu !== null
               closePointMenu()
+            }}
+            onMenuDaFicha={(tokenId, screenX, screenY) => {
+              // Um menu por vez: o do ponto fecha.
+              closePointMenu()
+              setMenuDaFicha({ tokenId, screenX, screenY, sceneEpoch: state.sceneEpoch })
             }}
             destinations={state.destinations ?? NO_DESTINATIONS}
             destinationArmed={destinationArmed}
@@ -2636,6 +2656,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
                   }
             }
             onClose={closePointMenu}
+          />
+        )}
+        {menuDaFichaAberto !== null && auraDoMenu !== null && (
+          <MenuDaFichaDoJogador
+            // Outra ficha (ou a mesma de novo) remonta o menu, e o foco volta ao item.
+            key={`${menuDaFichaAberto.tokenId}-${menuDaFichaAberto.screenX}-${menuDaFichaAberto.screenY}`}
+            screenX={menuDaFichaAberto.screenX}
+            screenY={menuDaFichaAberto.screenY}
+            aura={auraDoMenu}
+            onAura={(ligada) => {
+              connection.setOwnTokenAura(menuDaFichaAberto.tokenId, ligada)
+              setMenuDaFicha(null)
+            }}
+            onClose={fecharMenuDaFicha}
           />
         )}
         {state.pointNotice && (

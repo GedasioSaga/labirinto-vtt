@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { JOIN_CODE_LENGTH } from '../net/protocol'
 import { pedeGzip } from '../net/pacoteComprimido'
@@ -15,6 +15,8 @@ import { AberturaDeBatalhaOverlay } from '../transicoes/AberturaDeBatalhaOverlay
 import { aquecerAbertura, aquecerMotorDasCutscenes } from '../transicoes/aquecimento'
 import { carregarPacoteDaPagina } from '../lib/pacoteDeAnimacoes'
 import { PREFERENCIA_DE_SOM_PADRAO } from '../stores/somStore'
+import { formasDoRecorte, fotosComAFormaVisivel, useFotosEstaveis } from '../components/batalha/marcasNoMapa'
+import { useImagemDaMesa } from '../components/ImagemDaMesa'
 
 /**
  * TELA DA MESA — a página de espectador para a TV ou o projetor. Mesmo
@@ -85,6 +87,10 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
   const state: PlayerState = useSyncExternalStore(connection.subscribe, connection.getState)
   const [settings] = useState<PlayerViewSettings>(() => loadPlayerSettings(null))
   const copy = tableScreenText(state, code)
+  // MUDAR FICHA: a TV mostra a imagem de forma que o recorte pendurou em cada token (`Token.fotoDaForma`).
+  const resolverDaMesa = useImagemDaMesa()
+  const tokensDoRecorte = state.map?.tokens
+  const fotoDaForma = useFotosEstaveis(useMemo(() => fotosComAFormaVisivel(null, formasDoRecorte(tokensDoRecorte), resolverDaMesa), [tokensDoRecorte, resolverDaMesa]))
 
   // PACOTE DE ANIMAÇÕES do mestre, pelo servidor da sala, como na página do jogador: toda abertura
   // de batalha vem dele, e sem ele a TV pulava a abertura (a cena "que este app não tem").
@@ -119,6 +125,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           porAtravessar={state.porAtravessar}
           ownTokens={NO_TOKENS}
           batalha={state.batalha === true}
+          fotoDaForma={fotoDaForma}
           settings={settings}
           focusTokenId={null}
           focusSeq={0}

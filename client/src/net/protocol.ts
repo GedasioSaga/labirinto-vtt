@@ -650,6 +650,21 @@ export interface TokenEditMessage {
 }
 
 /**
+ * AURA DA FICHA: o jogador liga (`ligada: true`) ou desliga a aura da PRÓPRIA
+ * ficha. Qual aura é, só o mestre escolhe: a mensagem leva só o interruptor,
+ * e o host recusa ficha sem aura, de outro, emprestada ou NPC (como o
+ * `token.edit`). Não tem resposta: a aura volta no recorte seguinte.
+ *
+ * Aditiva pelo mesmo critério de `token.edit`: mestre antigo responde `error
+ * invalid_message` (o jogador só não troca nada) e jogador antigo nunca a envia.
+ */
+export interface TokenAuraMessage {
+  type: 'token.aura'
+  tokenId: string
+  ligada: boolean
+}
+
+/**
  * Jogador pede ao mestre para passar pelo pino de viagem `pinId` da cena em que
  * está. Só o id do pino: o destino o jogador nem conhece (`lib/fogFilter.ts`).
  * O host valida e, se valer, pergunta ao mestre.
@@ -1288,6 +1303,7 @@ export type PlayerMessage =
   | DoorBarMessage
   | PinBarMessage
   | TokenEditMessage
+  | TokenAuraMessage
   | PinTravelRequestMessage
   | PinTakeMessage
   | PinBuyMessage
@@ -3644,6 +3660,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && typeof value.on === 'boolean' ? { type: 'pin.bar', pinId: value.pinId, on: value.on } : null
     case 'token.edit':
       return parseTokenEdit(value)
+    case 'token.aura':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && typeof value.ligada === 'boolean' ? { type: 'token.aura', tokenId: value.tokenId, ligada: value.ligada } : null
     case 'personagem.criar':
       return parsePersonagemCriar(value)
     case 'personagem.editar':

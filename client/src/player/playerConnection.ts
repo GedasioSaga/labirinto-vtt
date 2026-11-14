@@ -67,6 +67,7 @@ import { acharItemNoMapa } from '../lib/itemNoMapa'
 import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } from '../lib/troca'
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
+import { lerAura } from '../lib/auras'
 import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
 import { textoBlocos, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
 import { lerCaminhosDaBatalha, type CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
@@ -1406,6 +1407,12 @@ export interface PlayerConnection {
    * (`TOKEN_PHOTO_SEND_MAX_CHARS`) — foto que derrubaria o jogador nem sai.
    */
   setOwnTokenPhoto(tokenId: string, image: string): boolean
+  /**
+   * AURA DA FICHA: liga ou desliga a aura do PRÓPRIO token (qual aura é, só o
+   * mestre escolhe). Aplica na hora e envia. Mesmas recusas de
+   * `setOwnTokenName`, mais a ficha sem aura: o jogador não cria uma.
+   */
+  setOwnTokenAura(tokenId: string, ligada: boolean): boolean
   /**
    * FICHA DE PERSONAGEM — "Criar minha ficha" para a ficha (token) `tokenId`.
    * O host cria pelo sistema da aventura e responde em `envioDePersonagem`
@@ -6661,6 +6668,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       // deixa de valer para este token — a foto agora é a que o jogador
       // escolheu, e é a embutida que viaja. Mesma forma que o host vai gravar.
       return editOwnToken(tokenId, { type: 'token.edit', tokenId, image }, { image: null, imageData: image })
+    },
+
+    setOwnTokenAura(tokenId, ligada) {
+      const aura = lerAura(state.map?.tokens.find((t) => t.id === tokenId)?.aura)
+      if (aura === null) return false
+      return editOwnToken(tokenId, { type: 'token.aura', tokenId, ligada }, { aura: { tipo: aura.tipo, ligada } })
     },
 
     criarPersonagem(tokenId) {

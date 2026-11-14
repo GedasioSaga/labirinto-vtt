@@ -150,6 +150,7 @@ import {
   type SelosNasFichas,
 } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
+import { auraQueOJogadorLiga } from '../lib/auras'
 import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { condicoesPropriasOf } from '../lib/condicoesProprias'
@@ -384,6 +385,12 @@ interface PlayerViewProps {
   onLongPress?: (x: number, y: number, screenX: number, screenY: number) => void
   /** Qualquer toque no mapa: o menu do toque longo anterior fecha. */
   onMapPointerDown?: () => void
+  /**
+   * AURA DA FICHA: botão direito, ou toque longo parado (`SIGNAL_LONG_PRESS_MS`),
+   * na PRÓPRIA ficha que tem aura: quem monta abre o menu dela ("Aura: ligada /
+   * desligada") no ponto, em px da janela. Ausente = sem menu (a tela da mesa).
+   */
+  onMenuDaFicha?: (tokenId: string, screenX: number, screenY: number) => void
   /**
    * Botão "Medir" ligado: arrastar no mapa mede a distância em vez de mover a
    * câmera. A medida é só desta tela — nada vai pelo socket.
@@ -2456,6 +2463,7 @@ function PlayerViewDoCanvas({
   onSignal,
   onLongPress,
   onMapPointerDown,
+  onMenuDaFicha,
   destinations = NO_DESTINATIONS,
   destinationArmed = false,
   onDestination,
@@ -2533,6 +2541,7 @@ function PlayerViewDoCanvas({
     onSignal,
     onLongPress,
     onMapPointerDown,
+    onMenuDaFicha,
     destinations,
     destinationArmed,
     onDestination,
@@ -3915,7 +3924,19 @@ function PlayerViewDoCanvas({
     setCameraFromApp(scene, cameraOnResize(scene.camera, before, after, disc, readObstacles()))
   }
 
+  /** AURA DA FICHA: o botão direito que desceu na própria ficha com aura; o `contextmenu` do mesmo clique abre o menu dela. */
+  const direitoNaFichaRef = useRef<{ tokenId: string; x: number; y: number } | null>(null)
+  /** AURA DA FICHA: o relógio do toque longo na própria ficha com aura. */
+  const segurarNaFichaRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function pararDeSegurarAFicha(): void {
+    if (segurarNaFichaRef.current === null) return
+    clearTimeout(segurarNaFichaRef.current)
+    segurarNaFichaRef.current = null
+  }
+
   function startTokenDrag(scene: Scene, tokenId: string, event: FederatedPointerEvent): void {
+    // Toque novo: o botão direito de antes, que não virou menu, não vale mais.
+    direitoNaFichaRef.current = null
     // Alt+clique ou modo Sinalizar sobre um token: deixa o evento subir para o palco sinalizar.
     // Modo Medir também: medir a partir da própria ficha é o caso mais comum, e ela não pode andar.
     // Modo Laser também: apontar a partir da própria ficha não pode arrastá-la.
@@ -3934,6 +3955,13 @@ function PlayerViewDoCanvas({
     if (scene.drag !== null) return
     const view = scene.tokenViews.get(tokenId)?.wrapper
     if (!view) return
+    // AURA DA FICHA: a própria ficha com aura tem menu (ligar e desligar); a emprestada e a sem aura, não.
+    const temMenu = current.onMenuDaFicha !== undefined && current.ownTokens.includes(tokenId) && auraQueOJogadorLiga(current.map.tokens.find((t) => t.id === tokenId)) !== null
+    // Botão direito nela: quem abre o menu é o `contextmenu` deste clique, e a ficha não anda.
+    if (temMenu && event.button === 2) {
+      direitoNaFichaRef.current = { tokenId, x: event.global.x, y: event.global.y }
+      return
+    }
     const world = scene.world.toLocal(event.global)
     // Pegou a ficha no meio de um deslize: ela para onde está e passa a seguir o dedo.
     scene.tokenGlides.delete(tokenId)
@@ -3968,6 +3996,25 @@ function PlayerViewDoCanvas({
     syncTokenLift(view, true, true)
     // Na tela também, com o mouse parado: o Pixi só trocaria o cursor no primeiro movimento.
     showCursorNow(event, TOKEN_HELD_CURSOR)
+    // AURA DA FICHA: dedo (ou caneta) parado na ficha pelo tempo do toque longo abre o menu dela; o mouse tem o botão direito.
+    pararDeSegurarAFicha()
+    if (!temMenu || event.pointerType === 'mouse') return
+    segurarNaFichaRef.current = setTimeout(() => {
+      segurarNaFichaRef.current = null
+      const arrasto = scene.drag
+      // Soltou, virou pinça, ou andou mais que a tremida de um toque: não é segurar parado.
+      if (arrasto === null || arrasto.kind !== 'token' || arrasto.screenStart !== screen || arrasto.edgeArmed) return
+      const caixa = containerRef.current
+      if (caixa === null) return
+      // O gesto acaba aqui, sem andar: a ficha volta ao tamanho e ao lugar do mapa.
+      scene.drag = null
+      releaseTokenLift(scene, tokenId)
+      const token = latestRef.current.map.tokens.find((t) => t.id === tokenId)
+      if (token) view.position.set(token.x, token.y)
+      syncTokenDrag(scene)
+      const rect = caixa.getBoundingClientRect()
+      latestRef.current.onMenuDaFicha?.(tokenId, rect.left + screen.x, rect.top + screen.y)
+    }, SIGNAL_LONG_PRESS_MS)
   }
 
   useEffect(() => {
@@ -5167,6 +5214,8 @@ function PlayerViewDoCanvas({
         // Dedo que a captura já fez pinça. Quando o alvo é o próprio palco, parar a propagação
         // lá não impede este ouvinte (o Pixi avisa captura e alvo na mesma volta).
         if (event.pointerType === 'touch' && scene.touch.pinch !== null) return
+        // Toque novo no mapa: o botão direito de antes na ficha, que não virou menu, não vale mais.
+        direitoNaFichaRef.current = null
         latestRef.current.onMapPointerDown?.()
         if (scene.drag) return
         const { x, y } = event.global
@@ -5466,6 +5515,18 @@ function PlayerViewDoCanvas({
         if (scene.drag?.pointerId === event.pointerId) abandonDrag()
       }
       app.canvas.addEventListener('pointercancel', onPointerCancel)
+      // AURA DA FICHA: o botão direito na própria ficha com aura abre o menu dela, no lugar do menu do navegador.
+      const onContextMenu = (event: MouseEvent) => {
+        const direito = direitoNaFichaRef.current
+        direitoNaFichaRef.current = null
+        if (direito === null) return
+        event.preventDefault()
+        const rect = app.canvas.getBoundingClientRect()
+        // No Windows o `contextmenu` vem ao soltar: soltou longe de onde apertou, não foi um clique na ficha.
+        if (Math.hypot(event.clientX - rect.left - direito.x, event.clientY - rect.top - direito.y) > SIGNAL_LONG_PRESS_TOLERANCE_PX) return
+        latestRef.current.onMenuDaFicha?.(direito.tokenId, event.clientX, event.clientY)
+      }
+      app.canvas.addEventListener('contextmenu', onContextMenu)
 
       const onWheel = (event: WheelEvent) => {
         event.preventDefault()
@@ -5495,7 +5556,9 @@ function PlayerViewDoCanvas({
         scene.textResolution.cancel()
         app.canvas.removeEventListener('wheel', onWheel)
         app.canvas.removeEventListener('pointercancel', onPointerCancel)
+        app.canvas.removeEventListener('contextmenu', onContextMenu)
         cancelLongPress()
+        pararDeSegurarAFicha()
         app.ticker.remove(tickZoom)
         app.ticker.remove(tickCameraGlide)
         app.ticker.remove(tickZoomLayers)

@@ -195,6 +195,7 @@ import {
   type SignalMessage,
   type TokenActionRequestMessage,
   type TokenEditMessage,
+  type TokenAuraMessage,
   type TokenHideRejection,
   type TokenHideRequestMessage,
   type VehicleBoardMessage,
@@ -239,6 +240,8 @@ import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, 
 import { personagensDoNome } from '../lib/livros/jogadores'
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
+import { formasVisiveisDoMapa, mesmasFormasVisiveis, type FormasVisiveis } from '../lib/mudarFicha'
+import { lerAura } from '../lib/auras'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -578,6 +581,8 @@ export interface AppliedTokenEdit {
   tokenId: string
   name?: string
   image?: string | null
+  /** AURA DA FICHA: o jogador ligou (`true`) ou desligou a aura da própria ficha (`token.aura`). */
+  auraLigada?: boolean
   sceneId?: string
 }
 
@@ -3038,6 +3043,12 @@ interface ViewInputs {
    */
   cabines: readonly CabineDeTransporte[] | undefined
   ocupadas: string
+  /**
+   * MUDAR FICHA: a imagem da forma de cada token da cena (`formasDoMapa`). Vem
+   * da ficha de personagem, não do mapa: trocar a imagem do cartão muda o
+   * recorte sem o mapa mudar. Comparada por conteúdo (`mesmasFormasVisiveis`).
+   */
+  formas: FormasVisiveis | undefined
 }
 
 function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
@@ -3048,6 +3059,7 @@ function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
     a.epoch === b.epoch &&
     a.cabines === b.cabines &&
     a.ocupadas === b.ocupadas &&
+    mesmasFormasVisiveis(a.formas, b.formas) &&
     a.elsewhere.length === b.elsewhere.length &&
     a.elsewhere.every((map, i) => map === b.elsewhere[i])
   )
@@ -4400,6 +4412,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     epoch: viewEpoch,
     cabines: world.cabines,
     ocupadas: ocupadasKey(playerId, world),
+    formas: formasDoMapa(here.map, world),
   })
 
   /** CABINE DE TRANSPORTE: as cabines que outro jogador ocupa, como chave de comparação. */
@@ -4718,6 +4731,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       : barrasParaJogador(map.tokens, world.rpg.personagens, world.rpg.sistema, playerId === undefined ? undefined : (personagensDaEquipe(playerId, world) ?? undefined))
 
   /**
+   * MUDAR FICHA: por token deste mapa, a imagem da forma que ele mostra fora da
+   * batalha (`Token.formaVisivel`, pela ficha de personagem ligada). O recorte
+   * a pendura só em ficha que o jogador já recebe. Sem ficha no mundo, ou sem
+   * token mostrando forma: nada.
+   */
+  const formasDoMapa = (map: MapData, world: HostWorld): FormasVisiveis | undefined =>
+    world.rpg === undefined ? undefined : formasVisiveisDoMapa(map.tokens, world.rpg.personagens, world.rpg.sistema)
+
+  /**
    * BATALHA F1 (seção 3.2): os personagens cuja barra este jogador vê em
    * qualquer ficha — os dele e os dos aliados da equipe (`aliadosDe`). `null` =
    * a mesa não tem equipe: vale a regra de antes (toda ficha de jogador), e
@@ -4805,6 +4827,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         oneWay,
         companionMarks(),
         barrasDoMapa(map, world, playerId),
+        formasDoMapa(map, world),
       )
     let cut = recortar()
     // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
@@ -5434,7 +5457,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // cor automática de cada um (`corDoDono: false`): na mesa ela denunciaria quem
     // é quem, como a do sinal (`SIGNAL_NEUTRAL_COLOR`). A "Cor" da ficha vale.
     const pinoOf = coresDosPinos(map, ownership, { corDoDono: false })
-    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf, barras: barrasDoMapa(map, world) })
+    const view = filterMapForGroup(map, viewers, merged, doors, allPlayerTokens(ownership), { pinAudiences, loans: loaned, pinoOf, barras: barrasDoMapa(map, world), formas: formasDoMapa(map, world) })
     // Mesmas regras de `snapshotFor`: a visão de agora entra na memória que
     // viaja, fora de zona oculta (a sala secreta fechada é chão vazio, N3: o
     // recorte do grupo responde "não explorado" lá dentro), e o interior de
@@ -8047,6 +8070,34 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * AURA DA FICHA: o jogador liga ou desliga a aura da PRÓPRIA ficha (o mestre
+   * é quem escolhe qual). Mesma autoridade do `token.edit`: só o dono, nunca a
+   * emprestada nem o NPC do mestre dado pelo "Atribuir". Ficha sem aura (o
+   * mestre não deu, ou tirou nesse meio-tempo) recusa: o jogador não cria aura.
+   * Recusa em silêncio, com o recorte dele saindo de novo (a tela dele já
+   * trocou o interruptor, otimista).
+   */
+  function handleTokenAura(clientId: string, msg: TokenAuraMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const refuse = (): HostResult => {
+      lastViews.delete(playerId)
+      return { outbound: [] }
+    }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
+    if (helperLoans.has(msg.tokenId) || loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
+    const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
+    const token = scene?.map.tokens.find((t) => t.id === msg.tokenId)
+    if (scene === undefined || token === undefined || token.npc === true) return refuse()
+    const aura = lerAura(token.aura)
+    if (aura === null) return refuse()
+    // Já está como ele pediu: nada a gravar, nada a mandar.
+    if (aura.ligada === msg.ligada) return { outbound: [] }
+    return { outbound: [], applyTokenEdit: { tokenId: msg.tokenId, auraLigada: msg.ligada, ...backgroundSceneId(scene, world) } }
+  }
+
+  /**
    * FICHA DE PERSONAGEM — as fichas (tokens) do jogador que podem ter a ficha
    * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
    * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
@@ -10370,6 +10421,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handlePinBar(clientId, msg, world)
       case 'token.edit':
         return handleTokenEdit(clientId, msg, world)
+      case 'token.aura':
+        return handleTokenAura(clientId, msg, world)
       case 'personagem.criar':
         return handlePersonagemCriar(clientId, msg, world)
       case 'personagem.editar':

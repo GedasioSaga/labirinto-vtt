@@ -188,7 +188,8 @@ import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { consultaDoMestre, escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
 import { AvisoDaColocacao } from './components/batalha/InvocacoesDoMestre'
-import { fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
+import { fotosComAFormaVisivel, fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
+import { formasVisiveisDoMapa } from './lib/mudarFicha'
 import { useImagemDaMesa } from './components/ImagemDaMesa'
 import { MarcasDaCena } from './components/MarcasDaCena'
 import { PlaceTreeSection } from './components/PlaceTreeSection'
@@ -1610,9 +1611,7 @@ function App() {
   // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
   const turnosDaCenaAberta = useBatalhaStore((state) => (Object.hasOwn(state.cenas, chaveDaCenaAberta) ? state.cenas[chaveDaCenaAberta].turnos : undefined))
   const resolverDaMesa = useImagemDaMesa()
-  const fotoDaForma = useFotosEstaveis(
-    useMemo(() => fotosDaFormaDoMestre(turnosDaCenaAberta, personagensEmUso, resolverDaMesa), [turnosDaCenaAberta, personagensEmUso, resolverDaMesa]),
-  )
+  const fotosDaBatalha = useMemo(() => fotosDaFormaDoMestre(turnosDaCenaAberta, personagensEmUso, resolverDaMesa), [turnosDaCenaAberta, personagensEmUso, resolverDaMesa])
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoMestre(turnosDaCenaAberta), [turnosDaCenaAberta]))
   const aventuraDoJudge = adventure?.id ?? null
   // A batalha ligou sem Judge: ele nasce onde o mestre o deixou neste mapa, senão 2 casas ao norte da primeira ficha da ordem.
@@ -1653,6 +1652,14 @@ function App() {
    * Escolhe a página Batalha do livro; sem sistema ou em outro motor, é a do One Piece de sempre.
    */
   const idDoSistemaDaMesa = useAdventureStore(sistemaAtivo)
+  // MUDAR FICHA: fora da batalha, o token mostra a imagem do cartão `formaVisivel` da ficha ligada (a da batalha vence).
+  const sistemaDaMesa = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistemaDaMesa))
+  const fotoDaForma = useFotosEstaveis(
+    useMemo(
+      () => fotosComAFormaVisivel(fotosDaBatalha, formasVisiveisDoMapa(map.tokens, personagensEmUso, sistemaDaMesa), resolverDaMesa),
+      [fotosDaBatalha, map.tokens, personagensEmUso, sistemaDaMesa, resolverDaMesa],
+    ),
+  )
   const mesaDragonBall = useRpgStore((state) => motorDoSistema(sistemaPorId(state.biblioteca, idDoSistemaDaMesa)) === MOTOR_DRAGON_BALL)
   /**
    * BATALHA DBT: as peças Dragon Ball do mapa (faixa, efeitos, Judge) só com a
