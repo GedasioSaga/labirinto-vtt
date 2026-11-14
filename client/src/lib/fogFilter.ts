@@ -3631,7 +3631,9 @@ function recorteDoGrupo(
   const seesIntoNow = (room: BoxedRoom): boolean => {
     if (!olhoDeCima && ownTokens.some((t) => isStrictlyInsideReadableRoom(room.points, { x: t.x, y: t.y }))) return true
     if (comodoSamples(room).some(isVisible)) return true
-    return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p)))
+    // TERRENO ALTO: o anel de quem olha de cima entra no cômodo de baixo só por onde o chão dele não cobre
+    // (sem isto, do 1º piso de um prédio fechado saía o nome da sala do térreo).
+    return authorityVision.some((ring) => ringReachesInto(ring, room, (p) => !inConcealZone(p) && !inSecretRoom(p) && (cobertoDeCima === null || !cobertoDeCima(p))))
   }
   // Explorado dentro da sala secreta fechada não conta (N3: a memória a marca como chão vazio; ver `isPointExploredOpen`, definida mais abaixo).
   const seesInto = (room: BoxedRoom): boolean =>
@@ -3919,7 +3921,8 @@ function recorteDoGrupo(
         b.minX <= box.maxX &&
         b.maxY >= box.minY &&
         b.minY <= box.maxY &&
-        ringReachesInto(b.ring, shape, (p) => !hiddenByZone(p) && !inHiddenPlace(p)),
+        // TERRENO ALTO: de cima, o ponto que o chão de quem olha cobre não diz que a visão entrou na forma.
+        ringReachesInto(b.ring, shape, (p) => !hiddenByZone(p) && !inHiddenPlace(p) && (cobertoDeCima === null || !cobertoDeCima(p))),
     )
   }
   /** Algum vértice da forma dentro (ou em cima da borda) de sala secreta fechada ou de zona oculta. */
