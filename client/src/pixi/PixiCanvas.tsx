@@ -3368,7 +3368,12 @@ function PixiCanvasDoContexto({
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
       // TERRENO ALTO: editando o piso 1 ou acima, o piso de baixo borrado por baixo (pixi/pisoDeBaixoNoEditor.ts); no terreo, nada.
-      const redrawPisoDeBaixo = () => { const { map, pisoAtivo } = useMapStore.getState(); pisoDeBaixo.atualizar(pisoAtivo < 1 ? null : { mapa: mapaDoPiso(map, pisoAtivo - 1), altura: alturaDoPiso(map, pisoAtivo) }) }
+      // Na "Exportar imagem" também nada: a planta é guia do editor, e o PNG é o piso em edição (o `redrawScene` de
+      // depois da exportação a põe de volta, sem refazer a textura).
+      const redrawPisoDeBaixo = () => {
+        const { map, pisoAtivo } = useMapStore.getState()
+        pisoDeBaixo.atualizar(pisoAtivo < 1 || exportScene !== null ? null : { mapa: mapaDoPiso(map, pisoAtivo - 1), altura: alturaDoPiso(map, pisoAtivo) })
+      }
       const redrawScene = () => {
         redrawPisoDeBaixo()
         redrawGrid()
