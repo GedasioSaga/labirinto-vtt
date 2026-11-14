@@ -10,6 +10,7 @@ import {
   type FogoQueIlumina,
   type LuzDosCarimbosNaCelula,
 } from '../lib/luzDoFogo'
+import { anguloDoFacho, cunhasDoFacho, type FachoQueGira } from '../lib/fachoDoFarol'
 import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
 import { computeVisibility, type Segment } from '../lib/visibility'
 import { AJUSTE_DA_PENUMBRA, type Borrao } from './mapaDePenumbra'
@@ -215,9 +216,10 @@ export function faseDoId(id: string): number {
   return (hash >>> 0) / 2 ** 32
 }
 
-/** Uma luz de fogo pronta: a luz de sempre e a fase do tremor. */
+/** Uma luz de fogo pronta: a luz de sempre, a fase do tremor e, no farol, os fachos que giram. */
 export interface LuzDoFogo extends LuzNoMapa {
   fase: number
+  facho?: FachoQueGira
 }
 
 /** A luz de cada fogo (`hidden` não ilumina), recortada pela parede como as outras luzes. */
@@ -247,7 +249,17 @@ export function luzesDosFogos(fogos: readonly FogoQueIlumina[], obstaculos: Segm
     const poligono = guardado !== undefined && guardado.obstaculos === obstaculos ? guardado.poligono : computeVisibility({ x: f.x, y: f.y }, obstaculos, raio)
     cache?.set(chave, { obstaculos, poligono })
     if (poligono.length < 3) continue
-    saida.push({ id: f.id, x: f.x, y: f.y, raio, cor: luz.cor, forca: luz.forca * fator, poligono, fase: faseDoId(f.id) })
+    saida.push({
+      id: f.id,
+      x: f.x,
+      y: f.y,
+      raio,
+      cor: luz.cor,
+      forca: luz.forca * fator,
+      poligono,
+      fase: faseDoId(f.id),
+      ...(luz.facho !== undefined ? { facho: luz.facho } : {}),
+    })
   }
   return saida
 }
@@ -450,6 +462,13 @@ export interface MapaDeLuz {
 
 /** O tremor da luz do fogo é redesenhado a 10 quadros por segundo, e só com fogo aceso na vista. */
 const QUADRO_DO_TREMOR_MS = 100
+/**
+ * O facho do farol anda a 20 quadros por segundo, e só com farol na vista: a 10, a ponta do facho de 9 casas pulava
+ * quase meia casa por quadro. Com menos movimento, o facho fica parado no ângulo da fase dele.
+ */
+const QUADRO_DO_GIRO_MS = 50
+/** O passo do giro que obriga a redesenhar (lista de fachos nova). */
+const GIRO_POR_DESENHAR = -2
 /** De quanto em quanto tempo o mapa de luz relê o "menos movimento" do sistema (com ele, o tremor para). */
 const CONFERIR_MOVIMENTO_MS = 1000
 
@@ -533,6 +552,9 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   let chaveDoConhecido = ''
   palco.addChild(fundo, recorte, mascaraDoConhecido)
   let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; treme: boolean; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
+  // Os fachos do farol, um Graphics por farol (as cunhas dele), redesenhado a cada passo do giro.
+  let fachosNoPalco: { desenho: Graphics; luz: LuzDoFogo; facho: FachoQueGira; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
+  let passoDoGiro = GIRO_POR_DESENHAR
   const poligonosDosFogos: CacheDePoligonos = new Map()
   let fogosLidos: readonly FogoQueIlumina[] | undefined
   let carimbosLidos: readonly CarimboQueIlumina[] | undefined
@@ -588,6 +610,9 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     versaoDosFogos += 1
     for (const luz of luzesDosFogosNoPalco) luz.desenho.destroy()
     luzesDosFogosNoPalco = []
+    for (const facho of fachosNoPalco) facho.desenho.destroy()
+    fachosNoPalco = []
+    passoDoGiro = GIRO_POR_DESENHAR
     const lista = quadro.fogos ?? []
     // Mapa sem objeto nem carimbo de luz não pede os obstáculos nem cria nada.
     if (!lista.some(fogoAcendeLuz) && pontosDosCarimbos.length === 0) {
@@ -595,9 +620,9 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
       return
     }
     if (obstaculosGuardados === null || obstaculosGuardados.revisao !== quadro.revisao) obstaculosGuardados = { revisao: quadro.revisao, lista: quadro.obstaculos() }
-    // O fogo sempre treme; do carimbo, só o que a tabela manda.
+    // O fogo sempre treme, menos a lanterna do farol (o facho é o movimento dela); do carimbo, só o que a tabela manda.
     const luzes: LuzQueTalvezTreme[] = [
-      ...luzesDosFogos(lista, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa).map((luz) => ({ ...luz, treme: true })),
+      ...luzesDosFogos(lista, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa).map((luz) => ({ ...luz, treme: luz.facho === undefined })),
       ...luzesDosPontosDeCarimbo(pontosDosCarimbos, obstaculosGuardados.lista, tinta.fatorDaLuz, poligonosDosFogos, quadro.casa),
     ]
     const vivas = new Set(luzes.map((l) => `${l.id}|${l.x}|${l.y}|${l.raio}`))
@@ -608,15 +633,55 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
       desenho.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: 1 })
       desenho.alpha = luz.forca
       clarosDosFogos.addChild(desenho)
-      luzesDosFogosNoPalco.push({
-        desenho,
-        fase: luz.fase,
-        forca: luz.forca,
-        treme: luz.treme,
-        caixa: { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio },
-      })
+      const caixa = { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio }
+      luzesDosFogosNoPalco.push({ desenho, fase: luz.fase, forca: luz.forca, treme: luz.treme, caixa })
+      if (luz.facho === undefined) continue
+      // O facho por cima do claro redondo, no mesmo tom e na mesma queda; a força dele também segue o período.
+      const desenhoDoFacho = new Graphics()
+      desenhoDoFacho.blendMode = 'add'
+      desenhoDoFacho.alpha = luz.facho.forca * grampear01(tinta.fatorDaLuz)
+      clarosDosFogos.addChild(desenhoDoFacho)
+      fachosNoPalco.push({ desenho: desenhoDoFacho, luz, facho: luz.facho, caixa })
     }
     passoDoTremor = -1
+  }
+
+  /** Relê o "menos movimento" do sistema a cada `CONFERIR_MOVIMENTO_MS` (o tremor e o giro leem o mesmo). */
+  function conferirMovimento(agora: number): void {
+    if (Math.abs(agora - movimentoConferidoEm) < CONFERIR_MOVIMENTO_MS) return
+    movimentoConferidoEm = agora
+    reduzido = prefereMenosMovimento()
+  }
+
+  /** Alguma caixa está na vista de agora? */
+  function algumaNaVista(quadro: QuadroDoMapaDeLuz, caixas: readonly { minX: number; minY: number; maxX: number; maxY: number }[]): boolean {
+    const escala = quadro.vista.escala > 0 && Number.isFinite(quadro.vista.escala) ? quadro.vista.escala : 1
+    const minX = -quadro.vista.x / escala
+    const minY = -quadro.vista.y / escala
+    const maxX = minX + quadro.vista.largura / escala
+    const maxY = minY + quadro.vista.altura / escala
+    return caixas.some((caixa) => caixa.minX <= maxX && caixa.maxX >= minX && caixa.minY <= maxY && caixa.maxY >= minY)
+  }
+
+  /**
+   * O giro dos fachos do farol: com farol na vista e movimento normal, um passo a cada `QUADRO_DO_GIRO_MS`; com
+   * menos movimento (ou fora da vista), o facho parado no ângulo da fase dele, sem segurar quadro nenhum.
+   */
+  function girar(quadro: QuadroDoMapaDeLuz): void {
+    if (fachosNoPalco.length === 0) return
+    const agora = performance.now()
+    conferirMovimento(agora)
+    const naVista = algumaNaVista(quadro, fachosNoPalco.map((f) => f.caixa))
+    const passo = reduzido || !naVista ? -1 : Math.floor(agora / QUADRO_DO_GIRO_MS)
+    if (passo === passoDoGiro) return
+    passoDoGiro = passo
+    for (const { desenho, luz, facho } of fachosNoPalco) {
+      const angulo = anguloDoFacho(passo < 0 ? 0 : passo * QUADRO_DO_GIRO_MS, facho, luz.fase)
+      desenho.clear()
+      for (const cunha of cunhasDoFacho(luz, luz.poligono, luz.raio, facho, angulo)) {
+        desenho.poly(cunha, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: 1 })
+      }
+    }
   }
 
   /**
@@ -627,16 +692,8 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   function tremer(quadro: QuadroDoMapaDeLuz): void {
     if (!luzesDosFogosNoPalco.some((luz) => luz.treme)) return
     const agora = performance.now()
-    if (Math.abs(agora - movimentoConferidoEm) >= CONFERIR_MOVIMENTO_MS) {
-      movimentoConferidoEm = agora
-      reduzido = prefereMenosMovimento()
-    }
-    const escala = quadro.vista.escala > 0 && Number.isFinite(quadro.vista.escala) ? quadro.vista.escala : 1
-    const minX = -quadro.vista.x / escala
-    const minY = -quadro.vista.y / escala
-    const maxX = minX + quadro.vista.largura / escala
-    const maxY = minY + quadro.vista.altura / escala
-    const naVista = luzesDosFogosNoPalco.some(({ treme, caixa }) => treme && caixa.minX <= maxX && caixa.maxX >= minX && caixa.minY <= maxY && caixa.maxY >= minY)
+    conferirMovimento(agora)
+    const naVista = algumaNaVista(quadro, luzesDosFogosNoPalco.filter((luz) => luz.treme).map((luz) => luz.caixa))
     const passo = reduzido || !naVista ? -1 : Math.floor(agora / QUADRO_DO_TREMOR_MS)
     if (passo === passoDoTremor) return
     passoDoTremor = passo
@@ -714,7 +771,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   function desenhar(quadro: QuadroDoMapaDeLuz): void {
     recortarPeloConhecido(quadro.conhecido)
     const macia = borrao !== null && quadro.luzMacia === true
-    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}|${versaoDosFogos}|${passoDoTremor}|${chaveDoConhecido}|${macia}`
+    const chave = `${chaveDaGeometria}|${chaveDoFundo}|${chaveDaVista(quadro.vista)}|${versaoDosFogos}|${passoDoTremor}|${passoDoGiro}|${chaveDoConhecido}|${macia}`
     if (chave === chaveDoDesenho) return
     chaveDoDesenho = chave
     const largura = Math.max(1, Math.ceil(quadro.vista.largura * ESCALA_DO_MAPA_DE_LUZ))
@@ -760,6 +817,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     refazerGeometria(quadro, tinta)
     refazerFogos(quadro, tinta)
     tremer(quadro)
+    girar(quadro)
     refazerFundo(quadro, tinta)
     desenhar(quadro)
     posicionarSprite(quadro.vista)
@@ -792,6 +850,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     poligonos.clear()
     poligonosDosFogos.clear()
     luzesDosFogosNoPalco = []
+    fachosNoPalco = []
     obstaculosGuardados = null
   }
 

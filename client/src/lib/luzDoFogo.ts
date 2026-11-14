@@ -1,4 +1,5 @@
 import type { Carimbo, Prop, TipoMobilia } from '../types/map'
+import type { FachoQueGira } from './fachoDoFarol'
 import { CASA_DO_FOGO_PX } from './mobilia/fogo'
 
 /**
@@ -37,6 +38,8 @@ export interface LuzDoObjeto {
   forca: number
   /** Solta a fumaça preta e as brasas da cena (`pixi/particulasDoMapa.ts`). */
   fumacaEBrasas: boolean
+  /** Os fachos que giram por cima do claro redondo (só o farol, `lib/fachoDoFarol.ts`); ausente = luz parada. */
+  facho?: FachoQueGira
 }
 
 /**
@@ -84,18 +87,26 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // fica em volta do meio da pegada, de onde a luz nasce. A chama é pintada, sem animação, como a das outras velas.
   lustreDeVelas: { alcanceEmCasas: 3.5, cor: 0xffe8c4, forca: 0.85, fumacaEBrasas: false },
   // O holofote (14/11/2026): luz branca fria de lâmpada, sem fumaça. A lente aponta para a frente, mas a luz nasce
-  // redonda do meio, como a de toda peça (a tabela não tem facho). Sempre aceso: o painel ainda não oferece Aceso |
-  // Apagado para ele (o Apagado do fogo de casa traz a chama animada junto); o desenho já tem o apagado (variante 1).
+  // redonda do meio, como a de toda peça. Acende e apaga como a tocha: o painel dá "Luz" (Aceso | Apagado,
+  // `ehMovelQueAcende` em `lib/mobilia/fogoDeCasa.ts`), e apagado ele sai desta conta (`luzDoObjeto`) e o desenho
+  // troca para a lente escura (variante 1).
   holofote: { alcanceEmCasas: 5, cor: 0xfff6e6, forca: 0.9, fumacaEBrasas: false },
   // O varal de lanternas de papel (14/11/2026): uma fila de lanternas acesas entre dois mastros, luz quente e fraca de
   // papel, sem fumaça. A fila tem 4 casas no tamanho de partida; a luz nasce do meio dela, e o alcance cobre as pontas.
   // O brilho do papel é pintado, sem chama animada.
   varalDeLanternas: { alcanceEmCasas: 3, cor: 0xffdcb0, forca: 0.7, fumacaEBrasas: false },
-  // O farol (14/11/2026, construção): a lanterna acesa no alto, luz quente e forte de longe, sem fumaça, com o alcance
-  // que o desenhista propôs. A lista pedia luz que gira, mas a tabela não tem facho nem o motor de objeto tem animação:
-  // a lente é pintada acesa e a luz é redonda e parada, como a do holofote. A torre fica no meio da pegada, de onde a
-  // luz nasce.
-  farol: { alcanceEmCasas: 9, cor: 0xffe6b0, forca: 1, fumacaEBrasas: false },
+  // O farol (14/11/2026, construção): a lanterna acesa no alto, luz quente de longe, sem fumaça, com o alcance que o
+  // desenhista propôs. A "luz que gira" da lista são os dois FACHOS opostos que dão a volta em 10 s por cima do claro
+  // redondo (correção da auditoria de 14/11/2026, `lib/fachoDoFarol.ts`); o claro redondo ficou mais fraco (0,55) para
+  // o facho se ver passando, e os dois somados no centro chegam perto do 1 de antes. A torre fica no meio da pegada,
+  // de onde a luz nasce. RASCUNHO, como o resto da tabela: a abertura, a volta e as forças são números para o mestre.
+  farol: {
+    alcanceEmCasas: 9,
+    cor: 0xffe6b0,
+    forca: 0.55,
+    fumacaEBrasas: false,
+    facho: { fachos: 2, abertura: 0.42, voltaEmSegundos: 10, forca: 0.6 },
+  },
 }
 
 /** A luz de um CARIMBO: a do objeto, sem fumaça nem brasas, e se ela treme como a do fogo. */
