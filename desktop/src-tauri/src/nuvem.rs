@@ -28,6 +28,14 @@
 //! | `nuvem_pedir` | `pedido` (abaixo) | o JSON da resposta (`null` se vazia) |
 //! | `nuvem_enviar_midia` | `campanhaId`, `pastaId`, `midiaId` | o JSON da resposta do PUT |
 //! | `nuvem_baixar_midia` | `campanhaId`, `midiaId` | `null`; a imagem fica em `<appData>/midia/<midiaId>` |
+//! | `nuvem_enviar_video` | `campanhaId`, `videoId`, `titulo`, `progresso` (Channel) | o JSON do "fechar" (cutscene, 14/11/2026) |
+//!
+//! O vídeo da Galeria (`<sha256>.<mp4|webm>`, até 150 MB) sobe em pedaços de
+//! 4 MiB: `PUT /api/c/:id/video/:videoId/parte/:n?tamanho=` e, no fim,
+//! `POST /api/c/:id/video/:videoId/fechar` com `{titulo}`. A Galeria também
+//! tem rotas do `nuvem_pedir`: `{rota:'galeria', campanhaId}` →
+//! `GET /api/c/:id/galeria` e `{rota:'tirarDaGaleria', campanhaId, videoId}` →
+//! `POST /api/c/:id/galeria/:videoId/tirar`.
 //!
 //! `pedido` é um objeto com o campo `rota` (seção 5.4):
 //! - `{rota:'eu'}` → `GET /api/eu`
@@ -90,7 +98,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
-use crate::net::media::{self, ErroDeMidia, TipoDeMidia};
+use sha2::{Digest, Sha256};
+
+use crate::net::media::{self, ErroDeMidia, TipoDeMidia, TipoDeVideo};
 
 /// Única janela autorizada a falar com a nuvem.
 const ROTULO_MAIN: &str = "main";
@@ -105,6 +115,8 @@ const TEMPO_TOTAL: Duration = Duration::from_secs(15);
 const CABECALHO_CLIENT_ID: &str = "cf-access-client-id";
 const CABECALHO_CLIENT_SECRET: &str = "cf-access-client-secret";
 const TIPO_JSON: &str = "application/json";
+/// O pedaço do vídeo da Galeria.
+const TIPO_BINARIO: &str = "application/octet-stream";
 
 /// Forma do Service Token: Client ID = 32 caracteres + `.access`, Client
 /// Secret = 64 caracteres. A faixa folga para não recusar uma mudança de
@@ -436,6 +448,27 @@ impl IdDeImagem {
     }
 }
 
+/// Id de vídeo conferido (`<64 hex>.<mp4|webm>`): o vídeo da cutscene que vai
+/// para a Galeria do site (14/11/2026).
+struct IdDeVideo {
+    id: String,
+    tipo: TipoDeVideo,
+}
+
+impl IdDeVideo {
+    fn validar(bruto: &str) -> Result<Self, ErroNuvem> {
+        match media::tipo_do_video(bruto) {
+            Some(tipo) => Ok(Self {
+                id: bruto.to_owned(),
+                tipo,
+            }),
+            None => Err(pedido_invalido(
+                "O vídeo da Galeria é mp4 ou webm com o nome pelo hash.",
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Metodo {
     Get,
@@ -479,6 +512,26 @@ enum Rota {
         campanha: CampanhaId,
         midia: IdDeImagem,
     },
+    /// Um pedaço do vídeo da Galeria (`parte` conta de 0; `tamanho` é o do
+    /// vídeo inteiro, para o Worker conferir o teto já no primeiro).
+    EnviarParteDoVideo {
+        campanha: CampanhaId,
+        video: IdDeVideo,
+        parte: u64,
+        tamanho: u64,
+    },
+    /// Todos os pedaços subiram: o Worker confere o hash e põe na Galeria.
+    FecharVideo {
+        campanha: CampanhaId,
+        video: IdDeVideo,
+    },
+    /// A lista da Galeria (os vídeos que estão no site).
+    Galeria(CampanhaId),
+    /// O mestre tira o vídeo da Galeria (o Worker apaga os bytes).
+    TirarDaGaleria {
+        campanha: CampanhaId,
+        video: IdDeVideo,
+    },
 }
 
 impl Rota {
@@ -488,13 +541,16 @@ impl Rota {
             | Self::Desde { .. }
             | Self::Exportar { .. }
             | Self::SalaDoChat { .. }
-            | Self::BaixarMidia { .. } => Metodo::Get,
+            | Self::BaixarMidia { .. }
+            | Self::Galeria(_) => Metodo::Get,
             Self::Publicar(_)
             | Self::Membros(_)
             | Self::Ops(_)
             | Self::AbrirSala(_)
-            | Self::FecharSala(_) => Metodo::Post,
-            Self::EnviarMidia { .. } => Metodo::Put,
+            | Self::FecharSala(_)
+            | Self::FecharVideo { .. }
+            | Self::TirarDaGaleria { .. } => Metodo::Post,
+            Self::EnviarMidia { .. } | Self::EnviarParteDoVideo { .. } => Metodo::Put,
         }
     }
 
@@ -540,6 +596,22 @@ impl Rota {
             Self::FecharSala(campanha) => format!("/api/c/{}/sala/fechar", campanha.0),
             Self::EnviarMidia { campanha, midia } | Self::BaixarMidia { campanha, midia } => {
                 format!("/api/c/{}/midia/{}", campanha.0, midia.id)
+            }
+            Self::EnviarParteDoVideo {
+                campanha,
+                video,
+                parte,
+                tamanho,
+            } => format!(
+                "/api/c/{}/video/{}/parte/{parte}?tamanho={tamanho}",
+                campanha.0, video.id
+            ),
+            Self::FecharVideo { campanha, video } => {
+                format!("/api/c/{}/video/{}/fechar", campanha.0, video.id)
+            }
+            Self::Galeria(campanha) => format!("/api/c/{}/galeria", campanha.0),
+            Self::TirarDaGaleria { campanha, video } => {
+                format!("/api/c/{}/galeria/{}/tirar", campanha.0, video.id)
             }
         }
     }
@@ -598,6 +670,15 @@ pub enum PedidoNuvem {
     /// B3: sem corpo da webview (vai o `{}` fixo).
     FecharSala {
         campanha_id: String,
+    },
+    /// Cutscene: a lista da Galeria do site.
+    Galeria {
+        campanha_id: String,
+    },
+    /// Cutscene: o mestre tira o vídeo da Galeria pelo app (vai o `{}` fixo).
+    TirarDaGaleria {
+        campanha_id: String,
+        video_id: String,
     },
 }
 
@@ -687,6 +768,19 @@ impl PedidoNuvem {
             ),
             Self::FecharSala { campanha_id } => (
                 Rota::FecharSala(CampanhaId::validar(&campanha_id)?),
+                Some(Value::Object(serde_json::Map::new())),
+            ),
+            Self::Galeria { campanha_id } => {
+                (Rota::Galeria(CampanhaId::validar(&campanha_id)?), None)
+            }
+            Self::TirarDaGaleria {
+                campanha_id,
+                video_id,
+            } => (
+                Rota::TirarDaGaleria {
+                    campanha: CampanhaId::validar(&campanha_id)?,
+                    video: IdDeVideo::validar(&video_id)?,
+                },
                 Some(Value::Object(serde_json::Map::new())),
             ),
         })
@@ -841,6 +935,19 @@ async fn enviar(
     corpo: Option<Corpo>,
     teto: usize,
 ) -> Result<Vec<u8>, ErroNuvem> {
+    enviar_com_prazo(ponte, credencial, rota, corpo, teto, None).await
+}
+
+/// `enviar` com outro prazo total para ESTE pedido (o pedaço de 4 MiB do vídeo
+/// não sobe em 15 s numa internet lenta). `None` = o prazo da ponte.
+async fn enviar_com_prazo(
+    ponte: &Ponte,
+    credencial: &Credencial,
+    rota: &Rota,
+    corpo: Option<Corpo>,
+    teto: usize,
+    prazo: Option<Duration>,
+) -> Result<Vec<u8>, ErroNuvem> {
     let url = format!("{}{}", ponte.base, rota.caminho());
     let mut pedido = match rota.metodo() {
         Metodo::Get => ponte.cliente.get(url),
@@ -849,6 +956,9 @@ async fn enviar(
     }
     .header(CABECALHO_CLIENT_ID, cabecalho_sensivel(&credencial.client_id)?)
     .header(CABECALHO_CLIENT_SECRET, cabecalho_sensivel(&credencial.client_secret)?);
+    if let Some(prazo) = prazo {
+        pedido = pedido.timeout(prazo);
+    }
     if let Some(corpo) = corpo {
         // `from_static` só recebe as constantes de `Corpo::tipo` (ASCII
         // visível, válidas como cabeçalho).
@@ -1006,6 +1116,128 @@ async fn baixar_imagem(
     gravar_imagem_baixada(pasta_da_mesa, midia, &bytes).await
 }
 
+// ---------------------------------------------------------------------------
+// Vídeo da Galeria (cutscene, 14/11/2026)
+// ---------------------------------------------------------------------------
+
+/// Teto do vídeo que vai para a Galeria do site (decisão do mestre: 150 MB;
+/// acima disso o app avisa e não sobe). O Worker confere o mesmo número.
+pub const GALERIA_VIDEO_MAX_BYTES: u64 = 150 * 1024 * 1024;
+/// Um pedido por pedaço de 4 MiB: o Worker e o DO têm 128 MB de memória, então
+/// o vídeo nunca sobe num corpo só (tmp/cutscene-2026-11-14/LIMITES.md).
+const PEDACO_DO_VIDEO_NA_NUVEM: usize = 4 * MIB;
+/// Prazo de UM pedaço (4 MiB a 1 Mbit/s = ~34 s).
+const PRAZO_DO_PEDACO: Duration = Duration::from_secs(120);
+/// Título do vídeo na Galeria.
+const TITULO_MAX_CARACTERES: usize = 80;
+
+/// O andamento da subida (`{enviados, total}` em bytes), um por pedaço.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressoDoVideo {
+    enviados: u64,
+    total: u64,
+}
+
+fn titulo_valido(bruto: &str) -> Result<String, ErroNuvem> {
+    let titulo = bruto.trim();
+    let quantos = titulo.chars().count();
+    if quantos == 0 || quantos > TITULO_MAX_CARACTERES || titulo.chars().any(char::is_control) {
+        return Err(pedido_invalido(format!(
+            "O título do vídeo vai de 1 a {TITULO_MAX_CARACTERES} letras, sem quebra de linha."
+        )));
+    }
+    Ok(titulo.to_owned())
+}
+
+/// Lê até encher `buffer` (ou o arquivo acabar). Devolve quantos bytes leu.
+async fn ler_pedaco(arquivo: &mut tokio::fs::File, buffer: &mut [u8]) -> Result<usize, ErroNuvem> {
+    let mut lidos = 0;
+    while lidos < buffer.len() {
+        let resto = buffer.get_mut(lidos..).unwrap_or_default();
+        let agora = tokio::io::AsyncReadExt::read(arquivo, resto)
+            .await
+            .map_err(erro_disco)?;
+        if agora == 0 {
+            break;
+        }
+        lidos += agora;
+    }
+    Ok(lidos)
+}
+
+/// Sobe o vídeo `<appData>/midia/<id>` em pedaços de 4 MiB, com o hash
+/// calculado no caminho; só pede o "fechar" (o Worker confere o hash de novo e
+/// põe na Galeria) se o arquivo bate com o nome. Nada do vídeo passa pela
+/// webview.
+async fn enviar_video(
+    ponte: &Ponte,
+    credencial: &Credencial,
+    campanha: CampanhaId,
+    video: IdDeVideo,
+    titulo: String,
+    pasta_da_mesa: &Path,
+    avisar: &(dyn Fn(ProgressoDoVideo) + Sync),
+) -> Result<Value, ErroNuvem> {
+    let caminho = pasta_da_mesa.join(&video.id);
+    let mut arquivo = tokio::fs::File::open(&caminho).await.map_err(|_| {
+        ErroNuvem::novo("midia_ausente", "O vídeo não está na mídia do app.")
+    })?;
+    let info = arquivo.metadata().await.map_err(erro_disco)?;
+    let total = info.len();
+    if !info.is_file() || total == 0 {
+        return Err(midia_invalida("O arquivo do vídeo está vazio ou não é arquivo."));
+    }
+    if total > GALERIA_VIDEO_MAX_BYTES {
+        return Err(midia_invalida(format!(
+            "O vídeo passa de {} MB: ele fica só na mesa e não vai para a Galeria.",
+            GALERIA_VIDEO_MAX_BYTES / (1024 * 1024)
+        )));
+    }
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; PEDACO_DO_VIDEO_NA_NUVEM];
+    let mut enviados: u64 = 0;
+    let mut parte: u64 = 0;
+    while enviados < total {
+        let lidos = ler_pedaco(&mut arquivo, &mut buffer).await?;
+        if lidos == 0 {
+            return Err(midia_invalida("O vídeo encurtou enquanto subia."));
+        }
+        let pedaco = buffer.get(..lidos).unwrap_or_default();
+        if parte == 0 && TipoDeVideo::dos_bytes(pedaco) != Some(video.tipo) {
+            return Err(midia_invalida("O arquivo do vídeo não é do tipo do nome."));
+        }
+        hasher.update(pedaco);
+        let rota = Rota::EnviarParteDoVideo {
+            campanha: CampanhaId(campanha.0.clone()),
+            video: IdDeVideo {
+                id: video.id.clone(),
+                tipo: video.tipo,
+            },
+            parte,
+            tamanho: total,
+        };
+        let corpo = Corpo {
+            bytes: pedaco.to_vec(),
+            tipo: TIPO_BINARIO,
+        };
+        enviar_com_prazo(ponte, credencial, &rota, Some(corpo), RESPOSTA_MAX_BYTES, Some(PRAZO_DO_PEDACO)).await?;
+        enviados = enviados.saturating_add(u64::try_from(lidos).unwrap_or(u64::MAX));
+        parte += 1;
+        avisar(ProgressoDoVideo { enviados, total });
+    }
+    let hash: String = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    if video.id.split_once('.').map(|(nome, _)| nome) != Some(hash.as_str()) {
+        return Err(midia_invalida("O arquivo do vídeo não confere com o nome (hash)."));
+    }
+    let corpo = corpo_json(&serde_json::json!({ "titulo": titulo }))?;
+    pedir_json(ponte, credencial, &Rota::FecharVideo { campanha, video }, Some(corpo)).await
+}
+
 fn dados_do_app(app: &AppHandle) -> Result<PathBuf, ErroNuvem> {
     app.path()
         .app_data_dir()
@@ -1087,6 +1319,33 @@ pub async fn nuvem_enviar_midia(
     let credencial = estado.credencial().await?;
     let ponte = estado.ponte().await?;
     enviar_imagem(ponte, &credencial, campanha, midia, bytes).await
+}
+
+/// Cutscene: sobe o vídeo `videoId` de `<appData>/midia` para a Galeria da
+/// campanha, com o título que aparece no site. O andamento vai por
+/// `progresso` (`{enviados, total}`), um aviso por pedaço de 4 MiB.
+#[tauri::command]
+pub async fn nuvem_enviar_video(
+    app: AppHandle,
+    window: WebviewWindow,
+    estado: State<'_, NuvemEstado>,
+    campanha_id: String,
+    video_id: String,
+    titulo: String,
+    progresso: tauri::ipc::Channel<ProgressoDoVideo>,
+) -> Result<Value, ErroNuvem> {
+    exigir_main(&window)?;
+    let campanha = CampanhaId::validar(&campanha_id)?;
+    let video = IdDeVideo::validar(&video_id)?;
+    let titulo = titulo_valido(&titulo)?;
+    let pasta_da_mesa = dados_do_app(&app)?.join(media::PASTA_DE_MIDIA);
+    let credencial = estado.credencial().await?;
+    let ponte = estado.ponte().await?;
+    let avisar = move |valor: ProgressoDoVideo| {
+        // Janela fechada no meio: a subida segue, só ninguém vê a barra.
+        let _ = progresso.send(valor);
+    };
+    enviar_video(ponte, &credencial, campanha, video, titulo, &pasta_da_mesa, &avisar).await
 }
 
 /// Baixa a imagem `midiaId` da campanha para `<appData>/midia` (se ainda não
