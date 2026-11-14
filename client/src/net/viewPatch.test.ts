@@ -5,8 +5,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
-import type { MapData, Token } from '../types/map'
-import { applyMapPatch, diffMap, diffView, isEmptyMapPatch, isEmptyViewPatch, type MapPatch, type PlayerViewContent } from './viewPatch'
+import type { TerrenoAlto } from '../lib/terrenoAlto'
+import type { AlturaDoPiso, MapData, RegionPoint, Token } from '../types/map'
+import { applyAltoPatch, applyMapPatch, applyViewPatch, diffMap, diffView, isEmptyMapPatch, isEmptyViewPatch, type MapPatch, type PlayerViewContent } from './viewPatch'
 
 const FOTO = `data:image/webp;base64,${'A'.repeat(50_000)}`
 
@@ -125,5 +126,58 @@ describe('diffView', () => {
     const patch = diffView(tela([ficha('a', 100)], 300), tela([ficha('a', 100)], 300))
     expect(patch).toEqual({})
     expect(patch !== null && isEmptyViewPatch(patch)).toBe(true)
+  })
+})
+
+describe('terreno alto no patch (`alto`)', () => {
+  const explorado = { cell: 40, cols: 30, rows: 30, bits: 'AAAA', rings: '' }
+  const anel = (lado: number): RegionPoint[][] => [[{ x: 0, y: 0 }, { x: lado, y: 0 }, { x: lado, y: lado }]]
+  function tela(alto: TerrenoAlto | undefined): PlayerViewContent {
+    const base: PlayerViewContent = { map: mapa([ficha('a', 100)]), vision: anel(300), explored: explorado, ownTokens: ['a'], concealed: [] }
+    return alto === undefined ? base : { ...base, alto }
+  }
+  const deBaixo = (xs: number[], altura: AlturaDoPiso = 'media', visao = 300): TerrenoAlto['abaixo'] => ({
+    map: mapa(xs.map((x, i) => ficha(`baixo-${i}`, x))),
+    vision: anel(visao),
+    concealed: [],
+    altura,
+  })
+  /** O que o jogador deve ter: `acima` vazia é o mesmo que nada de cima, e nada é nada (o host nem manda o campo). */
+  function esperado(alto: TerrenoAlto | undefined): TerrenoAlto | null {
+    if (alto === undefined) return null
+    const { acima, ...resto } = alto
+    const limpo: TerrenoAlto = acima === undefined || acima.length === 0 ? resto : alto
+    return limpo.abaixo === undefined && limpo.acima === undefined ? null : limpo
+  }
+
+  it('applyViewPatch(antes, diffView(antes, depois)) é `depois` no fio, com e sem `abaixo`, `acima` vazia, aparecendo e sumindo', () => {
+    const casos: [string, TerrenoAlto | undefined, TerrenoAlto | undefined][] = [
+      ['subiu à muralha', undefined, { abaixo: deBaixo([100, 200]) }],
+      ['desceu dela', { abaixo: deBaixo([100, 200]) }, undefined],
+      ['ficha de baixo andou', { abaixo: deBaixo([100, 200]) }, { abaixo: deBaixo([140, 200]) }],
+      ['altura e visão mudaram', { abaixo: deBaixo([100]) }, { abaixo: deBaixo([100], 'alta', 340) }],
+      ['guarda apareceu em cima', undefined, { acima: [ficha('guarda', 300)] }],
+      ['guarda andou em cima', { acima: [ficha('guarda', 300)] }, { acima: [ficha('guarda', 340)] }],
+      ['acima ficou vazia', { acima: [ficha('guarda', 300)] }, { acima: [] }],
+      ['de baixo e de cima juntos', { abaixo: deBaixo([100]) }, { abaixo: deBaixo([100]), acima: [ficha('guarda', 300)] }],
+    ]
+    for (const [nome, antes, depois] of casos) {
+      const patch = diffView(tela(antes), tela(depois))
+      if (patch === null) throw new Error(`${nome}: o terreno alto não coube num patch`)
+      const montada = applyViewPatch(tela(antes), patch)
+      expect(montada, nome).not.toBeNull()
+      expect(peloFio(montada?.alto ?? null), nome).toEqual(peloFio(esperado(depois)))
+    }
+    // O passo da ficha de baixo leva só o x dela, sem foto e sem o mapa de baixo inteiro.
+    const passo = diffView(tela({ abaixo: deBaixo([100, 200]) }), tela({ abaixo: deBaixo([140, 200]) }))
+    expect(passo?.alto).toEqual({ mapaDeBaixo: { set: {}, tokens: { change: [{ id: 'baixo-0', set: { x: 140 } }], remove: [] } } })
+    expect(JSON.stringify(passo)).not.toContain('data:image')
+  })
+
+  it('pedaço do piso de baixo para quem não o tem, ou ficha de cima que o jogador não tem: o patch não encaixa', () => {
+    expect(applyAltoPatch(undefined, { altura: 'alta' })).toBeNull()
+    expect(applyAltoPatch({ acima: [ficha('guarda', 300)] }, { mapaDeBaixo: { set: {} } })).toBeNull()
+    expect(applyAltoPatch({ acima: [ficha('guarda', 300)] }, { acima: { change: [{ id: 'fantasma', set: { x: 1 } }], remove: [] } })).toBeNull()
+    expect(applyViewPatch(tela(undefined), { alto: { visaoDeBaixo: anel(10) } })).toBeNull()
   })
 })

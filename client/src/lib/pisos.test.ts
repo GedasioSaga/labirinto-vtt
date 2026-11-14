@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
-import { comEscadaNosPisos, comFichaNoPiso, comSelecaoNoPiso, escadaDaFicha, mapaDoPiso, nascemNoPiso, nomeDoPiso, pisoDe, pisoDigitado, pisosDoArquivo, temPisos } from './pisos'
+import {
+  alturaDoPiso,
+  alturasDosPisosDoArquivo,
+  comAlturaDoPiso,
+  comEscadaNosPisos,
+  comFichaNoPiso,
+  comSelecaoNoPiso,
+  escadaDaFicha,
+  mapaDoPiso,
+  nascemNoPiso,
+  nomeDoPiso,
+  pisoDe,
+  pisoDigitado,
+  pisosDoArquivo,
+  temPisos,
+} from './pisos'
 import type { MapData, Region, Stair, Token, Wall } from '../types/map'
 
 /**
@@ -336,5 +351,30 @@ describe('pisos — o que anda com a ficha sobe com ela', () => {
     const juntos = comSelecaoNoPiso(grupo(), [{ kind: 'token', id: 'ferido' }, { kind: 'token', id: 'lia' }], 1)
     expect(juntos.tokens[1].levadoPor).toBe('lia')
     expect(pisoDe(juntos.tokens[1])).toBe(1)
+  })
+})
+
+describe('TERRENO ALTO — a "Altura" de cada piso no arquivo', () => {
+  it('Alta e Baixa vão e voltam do arquivo; a Média tira a entrada, e sem entrada nenhuma o campo some', () => {
+    const base = createEmptyMap('m', 'M', 10, 10, 40)
+    const alturas = comAlturaDoPiso(comAlturaDoPiso(base, 1, 'alta'), 2, 'baixa')
+    const lido = deserializeMap(serializeMap(alturas))
+    expect(alturaDoPiso(lido, 1)).toBe('alta')
+    expect(alturaDoPiso(lido, 2)).toBe('baixa')
+    expect(alturaDoPiso(lido, 3)).toBe('media')
+    // A mesma altura não muda nada (o desfazer não gasta passo).
+    expect(comAlturaDoPiso(alturas, 1, 'alta')).toBe(alturas)
+    const deVolta = comAlturaDoPiso(comAlturaDoPiso(alturas, 1, 'media'), 2, 'media')
+    expect('alturaDosPisos' in deVolta).toBe(false)
+    expect(serializeMap(deVolta)).not.toContain('alturaDosPisos')
+  })
+
+  it('arquivo de antes do campo abre com todo piso na média; entrada torta é jogada fora', () => {
+    const velho = deserializeMap(serializeMap(createEmptyMap('m', 'M', 10, 10, 40)))
+    expect('alturaDosPisos' in velho).toBe(false)
+    expect(alturaDoPiso(velho, 1)).toBe('media')
+    expect(alturasDosPisosDoArquivo('alta')).toBeUndefined()
+    expect(alturasDosPisosDoArquivo([{ piso: 1, altura: 'media' }, { piso: 1.5, altura: 'alta' }, { piso: 2, altura: 'gigante' }, null])).toBeUndefined()
+    expect(alturasDosPisosDoArquivo([{ piso: 1, altura: 'alta' }, { piso: 1, altura: 'baixa' }])).toEqual([{ piso: 1, altura: 'alta' }])
   })
 })

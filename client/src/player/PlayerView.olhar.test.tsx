@@ -26,7 +26,7 @@ vi.mock('pixi.js', async (importOriginal) => {
   class ApplicationSemGpu {
     readonly stage = new pixi.Container()
     readonly screen = new pixi.Rectangle(0, 0, tela.largura, tela.altura)
-    readonly renderer = { resolution: 1 }
+    readonly renderer = { resolution: 1, background: { alpha: 1 } }
     readonly ticker = { add: () => {}, remove: () => {} }
     readonly canvas = document.createElement('canvas')
     constructor() {
