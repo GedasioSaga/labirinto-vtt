@@ -94,8 +94,10 @@ export interface MaterialDoCatalogo {
 }
 
 /**
- * A ordem é a da tela: o castelo primeiro (o pedido do usuário), as pedras, o barro, as fibras, o metal e, no fim,
- * a base militar (concreto e sacos de areia, pedido de 14/11/2026: "texturas novas de madeira, pedra, base militar").
+ * A ordem é a da tela: o castelo primeiro (o pedido do usuário), as pedras, o barro, as madeiras (a nova, a velha e
+ * os troncos), as fibras, o metal e, no fim, a base militar (concreto e sacos de areia). As quatro de 14/11/2026 (a
+ * pedra com musgo, a madeira velha, os troncos e as duas da base militar) são do pedido "texturas novas de madeira,
+ * pedra, base militar".
  */
 export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
   {
@@ -128,6 +130,24 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     nome: 'Madeira',
     descricao: 'Tábuas ao longo da parede, com emendas, pregos e esteio nos cantos.',
     receita: { fiadasAte: [15, 27], passo: { porFundura: 0, min: 118, max: 118 }, varia: 0.4, funde: 0.25, junta: 0.9, tremor: 0, bisel: 1.2, luz: 0.3, sombra: 0.32, face: 'reta', tampaComBisel: true, detalhe: 'pregos' },
+  },
+  // A Madeira velha (14/11/2026, a parede do chão `madeira-gasta`) parte da Madeira: as mesmas tábuas com pregos e o
+  // esteio serrado no canto, a tábua um pouco mais curta e mais desencontrada (a parede remendada de celeiro e ruína).
+  {
+    id: 'madeira-gasta',
+    nome: 'Madeira velha',
+    descricao: 'Tábuas acinzentadas pelo tempo, com rachas, nós escuros e uma ou outra úmida.',
+    receita: { fiadasAte: [15, 27], passo: { porFundura: 0, min: 96, max: 96 }, varia: 0.4, funde: 0.2, junta: 1, tremor: 0, bisel: 1.2, luz: 0.28, sombra: 0.32, face: 'reta', tampaComBisel: true, detalhe: 'pregos' },
+  },
+  // Os Troncos (14/11/2026, a parede do chão `troncos`): a cabana de TRONCOS DEITADOS, vista de cima. Roliça como o
+  // bambu, mas um tronco só na grossura toda, comprido e emendado de ponta a ponta; na ponta e no canto, a tampa é o
+  // topo serrado (o corte com os anéis e o anel de casca), sem bisel. A paliçada em pé lia como lajota sem um detalhe
+  // novo na montagem, e detalhe novo não entra (briefing do integrador de texturas).
+  {
+    id: 'troncos',
+    nome: 'Troncos',
+    descricao: 'Troncos deitados com casca, a ponta serrada à mostra nos cantos.',
+    receita: { fiadasAte: [], passo: { porFundura: 0, min: 170, max: 250 }, varia: 0.25, funde: 0.1, junta: 1.2, tremor: 0, bisel: 0, luz: 0.3, sombra: 0.36, face: 'rolica', tampaComBisel: false, detalhe: 'nenhum' },
   },
   {
     id: 'bambu',
