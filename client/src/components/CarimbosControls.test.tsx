@@ -94,6 +94,8 @@ describe('CarimbosControls', () => {
       'Samambaia',
       'Capim alto',
       'Flores do campo',
+      'Girassóis',
+      'Girassol',
       'Arbusto com frutinhas',
       'Folhas secas',
       'Galhos caídos',

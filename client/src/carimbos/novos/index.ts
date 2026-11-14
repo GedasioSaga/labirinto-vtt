@@ -15,6 +15,8 @@ import { carimbo as bananeira, paleta as paletaDaBananeira } from './bananeira'
 import { carimbo as samambaia, paleta as paletaDaSamambaia } from './samambaia'
 import { carimbo as capimAlto, paleta as paletaDoCapimAlto } from './capimAlto'
 import { carimbo as floresDoCampo, paleta as paletaDasFloresDoCampo } from './floresDoCampo'
+import { carimbo as girassois, paleta as paletaDosGirassois } from './girassois'
+import { carimbo as girassol, paleta as paletaDoGirassol } from './girassol'
 import { carimbo as arbustoComFrutinhas, paleta as paletaDoArbustoComFrutinhas } from './arbustoComFrutinhas'
 import { carimbo as folhasSecas, paleta as paletaDasFolhasSecas } from './folhasSecas'
 import { carimbo as galhosCaidos, paleta as paletaDosGalhosCaidos } from './galhosCaidos'
@@ -44,10 +46,14 @@ import { carimbo as arvoreDeDoces, paleta as paletaDaArvoreDeDoces } from './arv
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
- * `tmp/objetos-2026-11-14/LISTA.md`; o 126 Girassóis não entra, já é do
- * pacote): um arquivo por carimbo nesta pasta, desenhado pelo desenhista do
- * lote, e registrado AQUI pelo integrador. Moram fora de `embutidos.ts`
- * porque importam `css`/`misturar` de lá: registrar lá seria import circular.
+ * `tmp/objetos-2026-11-14/LISTA.md`): um arquivo por carimbo nesta pasta,
+ * desenhado pelo desenhista do lote, e registrado AQUI pelo integrador. Moram
+ * fora de `embutidos.ts` porque importam `css`/`misturar` de lá: registrar lá
+ * seria import circular. O 126, Girassóis, e o par dele, o Girassol, entraram
+ * na correção da auditoria de 14/11/2026, com o desenho do pacote (os ids
+ * `girassois` e `girassol` de `animacoes/carimbo/`, importados de lá): a
+ * biblioteca ganha do pacote, e o pacote continua levando os dois para o app
+ * mais velho.
  *
  * O catálogo (`catalogo.ts`) põe estes depois dos 12 de hoje, na ordem da
  * lista, e todos contam como biblioteca: o pacote não pode repetir o id.
@@ -96,6 +102,8 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   samambaia,
   capimAlto,
   floresDoCampo,
+  girassois,
+  girassol,
   arbustoComFrutinhas,
   folhasSecas,
   galhosCaidos,
@@ -143,6 +151,8 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDaSamambaia,
   ...paletaDoCapimAlto,
   ...paletaDasFloresDoCampo,
+  ...paletaDosGirassois,
+  ...paletaDoGirassol,
   ...paletaDoArbustoComFrutinhas,
   ...paletaDasFolhasSecas,
   ...paletaDosGalhosCaidos,

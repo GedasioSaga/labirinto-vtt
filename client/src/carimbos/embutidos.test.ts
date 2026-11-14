@@ -112,6 +112,9 @@ describe('biblioteca de carimbos', () => {
       'samambaia',
       'capim-alto',
       'flores-do-campo',
+      // O 126 e o par dele, com o desenho do pacote (correção da auditoria de 14/11/2026).
+      'girassois',
+      'girassol',
       'arbusto-com-frutinhas',
       'folhas-secas',
       'galhos-caidos',

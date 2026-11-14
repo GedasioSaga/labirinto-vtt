@@ -74,6 +74,8 @@ const EMBUTIDAS = {
   cenario: ['panoramica'],
   textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
   // Os 12 de carimbos/embutidos.ts e, depois, os novos de 14/11/2026 (carimbos/novos/index.ts), na ordem do catálogo.
+  // Menos `girassois` e `girassol`, de propósito: a biblioteca os tem desde 14/11/2026 (o app pula a entrada do
+  // pacote, a embutida ganha), mas o pacote continua levando os dois para o app mais velho, que não os tem embutidos.
   carimbo: [
     'pinheiro', 'pinheiro-nevado', 'arvore', 'arvore-redonda', 'arvore-morta', 'arbusto', 'tronco-caido', 'toco-seco', 'palmeira', 'pedras', 'poca', 'juncos',
     'cerejeira', 'bambuzal', 'cogumelo-gigante', 'mangue', 'carvalho', 'arvore-de-outono', 'salgueiro', 'betula', 'macieira', 'ipe-amarelo', 'ipe-roxo',
