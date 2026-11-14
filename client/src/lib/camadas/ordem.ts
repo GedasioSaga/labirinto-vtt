@@ -57,6 +57,7 @@ function faixa(id: string, tipos: readonly TipoDeObjeto[], camadas: readonly Cam
  */
 export const FAIXAS_EDITOR: readonly Faixa[] = [
   faixa('backgroundSprite', [], FIXA),
+  faixa('pisoDeBaixoContainer', [], FIXA),
   faixa('mapBoundsGraphics', [], FIXA),
   faixa('mapFrameContainer', [], FIXA),
   faixa('mapRasterSprite', ['peca'], ['chao']),

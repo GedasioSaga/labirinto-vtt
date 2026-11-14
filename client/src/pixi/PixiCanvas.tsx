@@ -1,3 +1,5 @@
+import { criarPisoDeBaixoNoEditor } from './pisoDeBaixoNoEditor'
+import { alturaDoPiso } from '../lib/pisos'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
@@ -1343,6 +1345,7 @@ function PixiCanvasDoContexto({
       app.stage.hitArea = app.screen
 
       const backgroundSprite = new Sprite(Texture.EMPTY)
+      const pisoDeBaixo = criarPisoDeBaixoNoEditor()
       // Onda 3, item 21 (Frente E) — moldura do mapa. Fica atrás da grade e
       // do conteúdo, na frente só do fundo (mesma ordem do CONTRATO).
       const mapBoundsGraphics = new Graphics()
@@ -1628,6 +1631,7 @@ function PixiCanvasDoContexto({
       // mover uma camada só troca os containers de lugar (`pilhaDeCamadas.ts`).
       const containerDaFaixa = new Map<string, Container>(Object.entries({
         backgroundSprite,
+        pisoDeBaixoContainer: pisoDeBaixo.camada,
         mapBoundsGraphics,
         mapFrameContainer,
         mapRasterSprite,
@@ -3363,7 +3367,10 @@ function PixiCanvasDoContexto({
       lerFilaDoJudgeRef.current = (seq) => judgeDoMapa.lerFila(seq)
 
       /** Tudo o que depende do mapa ou da câmera, na ordem da montagem. */
+      // TERRENO ALTO: editando o piso 1 ou acima, o piso de baixo borrado por baixo (pixi/pisoDeBaixoNoEditor.ts); no terreo, nada.
+      const redrawPisoDeBaixo = () => { const { map, pisoAtivo } = useMapStore.getState(); pisoDeBaixo.atualizar(pisoAtivo < 1 ? null : { mapa: mapaDoPiso(map, pisoAtivo - 1), altura: alturaDoPiso(map, pisoAtivo) }) }
       const redrawScene = () => {
+        redrawPisoDeBaixo()
         redrawGrid()
         redrawMapBounds()
         redrawShapes()
