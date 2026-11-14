@@ -2,14 +2,34 @@
  * Piso em edição — no canto inferior direito do canvas, logo acima do HUD de
  * zoom (`ZoomHud.css`), com a mesma chrome de `.lb-panel`. Só `var(--lb-*)`.
  * Monta como filho direto de `.lb-editor` (`position: relative`), como o zoom.
+ *
+ * O canto empilha, de baixo para cima: a barra de ferramentas do pé
+ * (`--lb-base-altura`, medida pelo App), o zoom, o piso e os Dados da sala
+ * (Dice.css). O piso toma o degrau onde os Dados começavam e os empurra para
+ * cima o tanto dele, com a mesa aberta ou fechada e com a barra em quantas
+ * fileiras ela quebrar: ninguém tapa ninguém.
  */
+
+/* Só enquanto o piso está no mapa: o que ele toma do canto, para os Dados subirem. */
+.lb-editor:has(> .lb-pisohud) {
+  --lb-pisohud-altura: 2.5rem;
+  --lb-pisohud-espaco: calc(var(--lb-pisohud-altura) + var(--lb-space-3));
+}
 
 .lb-pisohud {
   position: absolute;
   /* Ao lado da coluna da direita, nunca embaixo dela (livro/livro.css). */
   right: calc(var(--lb-layout-edge-gap) + var(--lb-coldir-espaco, 0px));
-  /* A altura do zoom (uma linha de texto pequeno + o respiro dele) mais um vão. */
-  bottom: calc(var(--lb-layout-edge-gap) + 2.75rem);
+  /* Acima da barra do pé e do zoom (ZoomHud.css), no degrau dos Dados. */
+  bottom: var(--lb-acima-do-zoom);
+  /* Altura fixa, a que os Dados reservam: com a Altura do 1º piso ao lado, o
+     HUD não cresce para cima nem desloca quem está acima dele. */
+  height: var(--lb-pisohud-altura);
+  /* O balão da ferramenta ativa (`.lb-hint`, z-index 1, main.css) ocupa a
+     mesma faixa acima da barra e vem antes no DOM: no mesmo 1, o piso pinta
+     por cima dele, como os Dados (z-index 2) já pintam. A barra, os balões e
+     os menus dela (z-index 2) seguem por cima do piso. */
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: var(--lb-space-1);

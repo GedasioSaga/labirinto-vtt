@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { PISO_MAX, PISO_MIN, alturaDoPiso, nomeDoPiso } from '../lib/pisos'
 import { NOME_DA_ALTURA } from '../lib/terrenoAlto'
 import { useMapStore } from '../stores/mapStore'
@@ -51,6 +52,29 @@ function AlturaDoPisoHud({ piso }: { piso: number }) {
 }
 
 /**
+ * A largura do HUD no `.lb-editor` onde ele mora (`--lb-pisohud-largura`),
+ * enquanto ele está no mapa: os avisos dos NPCs, no mesmo pé do mapa, param
+ * antes dele (AvisoDaRotina.css). Medida, porque muda com a Altura (do 1º
+ * piso para cima) e com o nome do piso. Antes da pintura, para o aviso não
+ * passar um quadro por cima.
+ */
+function usePublicarLargura() {
+  const ref = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const hud = ref.current
+    const editor = hud?.parentElement ?? null
+    if (hud === null || editor === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => editor.style.setProperty('--lb-pisohud-largura', `${hud.offsetWidth}px`))
+    observer.observe(hud)
+    return () => {
+      observer.disconnect()
+      editor.style.removeProperty('--lb-pisohud-largura')
+    }
+  }, [])
+  return ref
+}
+
+/**
  * PISOS NA MESMA CENA — o piso em edição, no canto do canvas, acima do zoom.
  * O editor desenha e mira só este piso, e tudo que o mestre cria nasce nele;
  * os botões sobem e descem um piso (o de cima pode estar vazio: é assim que
@@ -58,10 +82,11 @@ function AlturaDoPisoHud({ piso }: { piso: number }) {
  * Plano em `docs/planos/pisos-na-mesma-cena.md`.
  */
 export function PisoHud({ piso, onPisoChange }: PisoHudProps) {
+  const ref = usePublicarLargura()
   const acima = piso + 1
   const abaixo = piso - 1
   return (
-    <div className="lb-panel lb-pisohud" role="group" aria-label="Piso em edição">
+    <div ref={ref} className="lb-panel lb-pisohud" role="group" aria-label="Piso em edição">
       {piso >= 1 && (
         <>
           <AlturaDoPisoHud piso={piso} />

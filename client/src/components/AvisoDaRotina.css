@@ -21,6 +21,14 @@
   container: lb-aviso-rotina / inline-size;
 }
 
+/* O piso em edição (PisoHud.css) mora no mesmo pé, no canto da direita, e
+   publica a largura dele: os avisos param um vão antes. A 1366 com os dois
+   livros abertos, 360 px de aviso e o HUD do 1º piso não cabem lado a lado,
+   e o aviso tapava a ponta do HUD. */
+.lb-editor:has(> .lb-pisohud) .lb-aviso-rotina {
+  right: calc(var(--lb-coldir-espaco, 0px) + var(--lb-layout-edge-gap) * 2 + var(--lb-pisohud-largura, 0px));
+}
+
 .lb-aviso-rotina__lista {
   list-style: none;
   margin: 0;
