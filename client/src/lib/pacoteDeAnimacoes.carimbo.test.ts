@@ -9,7 +9,8 @@ import { carimboDoCatalogo, listarCarimbos } from '../carimbos/catalogo'
 import { carregarPacoteDeAnimacoes, esquecerPacoteCarregado, lerEntradaDoPacote, type OrigemDoPacote } from './pacoteDeAnimacoes'
 
 const ARQUIVOS = new Set(['carimbo-cacto.js'])
-const CACTO = { id: 'cacto', tipo: 'carimbo', nome: 'Cacto', arquivo: 'carimbo-cacto.js', tamanho: 10, sombra: 'em-pe' }
+// Não 'cacto': desde o lote C5 (14/11/2026) ele é carimbo da biblioteca, e o pacote recusa id da biblioteca.
+const CACTO = { id: 'cacto-do-pacote', tipo: 'carimbo', nome: 'Cacto', arquivo: 'carimbo-cacto.js', tamanho: 10, sombra: 'em-pe' }
 
 function indice(animacoes: unknown[]): string {
   return JSON.stringify({ formato: 1, versao: 2, motorMinimo: '0.4.21', arquivos: [...ARQUIVOS].map((nome) => ({ nome, sha256: 'a'.repeat(64), tamanho: 10 })), animacoes })
@@ -32,23 +33,23 @@ afterEach(() => {
 describe('pacote — tipo carimbo', () => {
   it('lê a entrada com o tamanho e a sombra; fora da faixa, sombra estranha e id da biblioteca ficam de fora', () => {
     expect(lerEntradaDoPacote(CACTO, ARQUIVOS)).toEqual({ entrada: CACTO })
-    expect(lerEntradaDoPacote({ ...CACTO, tamanho: 1 }, ARQUIVOS)).toEqual({ motivo: 'cacto: tamanho' })
-    expect(lerEntradaDoPacote({ ...CACTO, tamanho: 'grande' }, ARQUIVOS)).toEqual({ motivo: 'cacto: tamanho' })
-    expect(lerEntradaDoPacote({ ...CACTO, sombra: 'comprida' }, ARQUIVOS)).toEqual({ motivo: 'cacto: sombra' })
+    expect(lerEntradaDoPacote({ ...CACTO, tamanho: 1 }, ARQUIVOS)).toEqual({ motivo: 'cacto-do-pacote: tamanho' })
+    expect(lerEntradaDoPacote({ ...CACTO, tamanho: 'grande' }, ARQUIVOS)).toEqual({ motivo: 'cacto-do-pacote: tamanho' })
+    expect(lerEntradaDoPacote({ ...CACTO, sombra: 'comprida' }, ARQUIVOS)).toEqual({ motivo: 'cacto-do-pacote: sombra' })
     expect(lerEntradaDoPacote({ ...CACTO, id: 'pinheiro' }, ARQUIVOS)).toEqual({ motivo: 'pinheiro: id de animação embutida' })
   })
 
   it('o módulo entra no catálogo com o desenho dele, e sai quando o pacote é esquecido', async () => {
     const chamadas: Array<[number, number]> = []
     const resultado = await carregarPacoteDeAnimacoes(origem({ default: (_g: unknown, giro: number, semente: number) => chamadas.push([giro, semente]) }))
-    expect(resultado.registradas.map((e) => e.id)).toEqual(['cacto'])
-    const cacto = carimboDoCatalogo('cacto')
+    expect(resultado.registradas.map((e) => e.id)).toEqual(['cacto-do-pacote'])
+    const cacto = carimboDoCatalogo('cacto-do-pacote')
     expect(cacto).toMatchObject({ nome: 'Cacto', tamanho: 10, sombra: 'em-pe', origem: 'pacote' })
     cacto?.desenhar({} as CanvasRenderingContext2D, 1.5, 3)
     expect(chamadas).toEqual([[1.5, 3]])
-    expect(listarCarimbos().map((c) => c.id)).toContain('cacto')
+    expect(listarCarimbos().map((c) => c.id)).toContain('cacto-do-pacote')
     esquecerPacoteCarregado()
-    expect(carimboDoCatalogo('cacto')).toBeNull()
+    expect(carimboDoCatalogo('cacto-do-pacote')).toBeNull()
     expect(listarCarimbos().some((c) => c.origem === 'pacote')).toBe(false)
   })
 
