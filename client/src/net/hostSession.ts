@@ -3304,7 +3304,10 @@ type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
 function contentOf(msg: SnapshotMessage): PlayerViewContent {
   // Caça 12/11 (O2): as portas por atravessar mudam a cada passo na cidade; nos extras, cada passo ia inteiro (~300 kB).
   // QUEDA DO ALCANCE (peça D das sombras): os olhares mudam a cada passo, como a visão; vão no patch junto dela.
-  return { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
+  const tela: PlayerViewContent = { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
+  // TERRENO ALTO: no patch, não nos extras — o passo de uma ficha do piso de baixo ia como a tela inteira, com as fotos.
+  if (msg.alto !== undefined) tela.alto = msg.alto
+  return tela
 }
 
 /**
@@ -3323,6 +3326,7 @@ function extrasOf(msg: SnapshotMessage): string {
   delete rest.concealed
   delete rest.porAtravessar
   delete rest.olhares
+  delete rest.alto
   return JSON.stringify(rest)
 }
 

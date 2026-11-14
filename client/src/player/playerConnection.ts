@@ -184,7 +184,7 @@ import { APARELHO_TOKEN_PADRAO } from '../lib/contasDosJogadores'
 import { rememberPlace, type VisitedPlace } from './playerPlaces'
 import { parseArrivalText } from '../lib/arrivalText'
 import { NOISE_CUE_TTL_MS, type NoiseDirection } from '../lib/noise'
-import { applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type TokenChange } from '../net/viewPatch'
+import { applyAltoPatch, applyExploredEdits, applyMapPatch, type ExploredEdits, type ItemListPatch, type MapPatch, type PatchDoAlto, type TokenChange, type TokenListPatch } from '../net/viewPatch'
 import { LOCK_ANSWER_MAX_LENGTH } from '../lib/pinLock'
 import { TOKEN_ACTION_TEXT_MAX_LENGTH, type TokenAction } from '../lib/tokenActions'
 import { MY_NOTES_SEND_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
@@ -411,7 +411,8 @@ export interface PlayerState {
   /**
    * TERRENO ALTO (`snapshot.alto`, `lib/terrenoAlto.ts`): o piso de baixo visto
    * de cima (borrado pela altura do piso dele) e as fichas do piso de cima que
-   * ele vê daqui. Cada snapshot substitui; ausente = nada de outro piso.
+   * ele vê daqui. Cada snapshot substitui, e o patch muda só o que mudou
+   * (`PatchDoAlto`); ausente = nada de outro piso.
    */
   alto?: TerrenoAlto
   /** MODO BATALHA (B4): a cena dele está em batalha. Cada snapshot substitui; sem o campo, fora da batalha. */
@@ -2190,6 +2191,8 @@ interface ReceivedView {
   exploredWire: ExploredWire | undefined
   ownTokens: string[]
   concealed: RegionPoint[][]
+  /** TERRENO ALTO como chegou (já lido): base do `alto` do próximo `patch`. */
+  alto: TerrenoAlto | undefined
 }
 
 interface StoredResume {
@@ -2358,13 +2361,42 @@ function isExploredEdits(value: unknown): value is ExploredEdits {
   return isRecord(value) && isStringEditList(value.bits) && isStringEditList(value.rings) && (value.ringsFar === undefined || isStringEditList(value.ringsFar))
 }
 
+function isTokenListPatch(value: unknown): value is TokenListPatch {
+  if (!isRecord(value) || !Array.isArray(value.change) || !value.change.every(isTokenChange)) return false
+  return isStringList(value.remove) && (value.order === undefined || isStringList(value.order))
+}
+
 function isMapPatchShape(value: unknown): value is MapPatch {
   if (!isRecord(value) || !isRecord(value.set)) return false
   const { tokens, items } = value
   if (items !== undefined && (!isRecord(items) || !Object.values(items).every(isItemListPatch))) return false
-  if (tokens === undefined) return true
-  if (!isRecord(tokens) || !Array.isArray(tokens.change) || !tokens.change.every(isTokenChange)) return false
-  return isStringList(tokens.remove) && (tokens.order === undefined || isStringList(tokens.order))
+  return tokens === undefined || isTokenListPatch(tokens)
+}
+
+/**
+ * TERRENO ALTO no `patch` (`PatchDoAlto`): conferido no mesmo critério raso do
+ * patch do mapa e aplicado em cima do que chegou antes. O mapa de baixo que
+ * sai da aplicação passa por `isMapShape` e pela leitura das camadas, como o
+ * do snapshot (`lerTerrenoAlto`). `null` = torto ou de outra tela.
+ */
+function aplicarPatchDoAlto(antes: TerrenoAlto | undefined, value: unknown): TerrenoAlto | undefined | null {
+  if (!isRecord(value)) return null
+  const { inteiro, mapaDeBaixo, visaoDeBaixo, ocultoDeBaixo, altura, acima } = value
+  if (inteiro !== undefined) {
+    const lido = lerTerrenoAlto(inteiro)
+    return lido === null ? null : applyAltoPatch(antes, { inteiro: lido })
+  }
+  if (mapaDeBaixo !== undefined && !isMapPatchShape(mapaDeBaixo)) return null
+  if ((visaoDeBaixo !== undefined && !isVision(visaoDeBaixo)) || (ocultoDeBaixo !== undefined && !isVision(ocultoDeBaixo))) return null
+  if ((altura !== undefined && !ehAlturaDoPiso(altura)) || (acima !== undefined && !isTokenListPatch(acima))) return null
+  const patch: PatchDoAlto = { mapaDeBaixo, visaoDeBaixo, ocultoDeBaixo, altura, acima }
+  const depois = applyAltoPatch(antes, patch)
+  if (depois === null || depois === undefined) return depois
+  if (depois.acima !== undefined && !ehListaDeFichas(depois.acima)) return null
+  if (depois.abaixo === undefined || mapaDeBaixo === undefined) return depois
+  if (!isMapShape(depois.abaixo.map)) return null
+  const map = comCamadasDoJogadorLidas(depois.abaixo.map)
+  return map === depois.abaixo.map ? depois : { ...depois, abaixo: { ...depois.abaixo, map } }
 }
 
 function readResume(storage: StorageLike | null, code: string): string | undefined {
@@ -4113,7 +4145,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (state.map !== undefined && state.map.id !== map.id) stopWalk()
     else if (walkMovedByOthers(map)) stopWalk()
     // Base para o próximo `patch` (view.patch): sempre a última tela CHEIA do mestre.
-    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed }
+    received = { rev, map, vision, explored, exploredWire, ownTokens, concealed, alto }
     let next = map
     // Reaplica, em ordem, só os movimentos ainda não confirmados pelo mestre.
     for (const [reqId, move] of pending) {
@@ -4255,6 +4287,9 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     if (porAtravessar === null) return askResync()
     // QUEDA DO ALCANCE no patch: ausente = os mesmos de antes (conferidos de novo contra a visão nova); `[]` = nenhum.
     const olhares = lerOlhares(data.olhares === undefined ? state.olhares : data.olhares, vision.length)
+    // TERRENO ALTO no patch: ausente = o mesmo de antes; torto ou de outra tela = pede a inteira.
+    const alto = data.alto === undefined ? received.alto : aplicarPatchDoAlto(received.alto, data.alto)
+    if (alto === null) return askResync()
     applySnapshot(
       rev,
       map,
@@ -4277,8 +4312,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       state.waitingTokens ?? [],
       porAtravessar,
       olhares,
-      // TERRENO ALTO: o patch não leva o campo (vai nos extras do host): mudou, o snapshot vem inteiro.
-      state.alto,
+      alto,
       exploredWire,
     )
   }

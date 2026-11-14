@@ -1,7 +1,8 @@
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { ExploredWire } from '../lib/exploration'
 import type { OlharDaVisao } from '../lib/fogFilter'
-import type { MapData, RegionPoint, Token } from '../types/map'
+import type { TerrenoAlto } from '../lib/terrenoAlto'
+import type { AlturaDoPiso, MapData, RegionPoint, Token } from '../types/map'
 
 /**
  * SÓ O QUE MUDOU na tela do jogador. O host guarda, por conexão, a última tela
@@ -85,6 +86,27 @@ export interface PlayerViewContent {
    * da ficha): viaja no patch junto da visão, senão cada passo mandaria a tela inteira.
    */
   olhares?: OlharDaVisao[]
+  /**
+   * TERRENO ALTO (`snapshot.alto`), ausente = nada de outro piso. Antes ia nos "extras": cada passo de uma ficha
+   * do piso de baixo mandava a tela inteira, com as fotos das fichas. Agora viaja no patch (`PatchDoAlto`).
+   */
+  alto?: TerrenoAlto
+}
+
+/**
+ * TERRENO ALTO no patch. `inteiro` troca o campo todo (nasceu, sumiu = `{}`,
+ * o piso de baixo apareceu ou sumiu, ou o mapa dele não cabe num patch); sem
+ * ele vêm só os pedaços que mudaram: o passo de uma ficha de baixo manda `x`/`y`.
+ */
+export interface PatchDoAlto {
+  inteiro?: TerrenoAlto
+  /** O mapa do piso de baixo, só o que mudou (`diffMap`). */
+  mapaDeBaixo?: MapPatch
+  visaoDeBaixo?: RegionPoint[][]
+  ocultoDeBaixo?: RegionPoint[][]
+  altura?: AlturaDoPiso
+  /** As fichas do piso de cima, ficha a ficha como as do mapa; aplicado sobre a lista de antes (ausente = nenhuma). */
+  acima?: TokenListPatch
 }
 
 /** Só os pedaços da tela que mudaram; tudo ausente = a tela é a mesma. */
@@ -100,6 +122,8 @@ export interface ViewPatch {
   porAtravessar?: string[]
   /** A lista inteira de agora; `[]` = nenhum olhar (vazia viaja, ausente = a mesma de antes). */
   olhares?: OlharDaVisao[]
+  /** Ausente = o mesmo terreno alto de antes. */
+  alto?: PatchDoAlto
 }
 
 /**
@@ -149,9 +173,28 @@ function sameValue(a: unknown, b: unknown): boolean {
  * conteúdo: só troca array por outro com os mesmos itens.
  */
 export function reuseUnchanged(prev: PlayerViewContent, next: PlayerViewContent): PlayerViewContent {
-  if (!cacheDoRecorte.ligado || prev.map === next.map) return next
-  const before = prev.map as unknown as Record<string, unknown>
-  const after = next.map as unknown as Record<string, unknown>
+  if (!cacheDoRecorte.ligado) return next
+  const map = reuseMapUnchanged(prev.map, next.map)
+  // TERRENO ALTO: o mapa do piso de baixo passa pela mesma troca (o passo da ficha de baixo resolve o resto por identidade).
+  const alto = reuseAltoUnchanged(prev.alto, next.alto)
+  if (map === next.map && alto === next.alto) return next
+  return alto === undefined ? { ...next, map } : { ...next, map, alto }
+}
+
+/** TERRENO ALTO: `next` com o mapa do piso de baixo passado por `reuseMapUnchanged`; o mesmo `next` quando nada troca. */
+function reuseAltoUnchanged(prev: TerrenoAlto | undefined, next: TerrenoAlto | undefined): TerrenoAlto | undefined {
+  const antes = prev?.abaixo
+  const agora = next?.abaixo
+  if (next === undefined || antes === undefined || agora === undefined) return next
+  const map = reuseMapUnchanged(antes.map, agora.map)
+  return map === agora.map ? next : { ...next, abaixo: { ...agora, map } }
+}
+
+/** `next` com cada campo de mesmos itens trocado pelo array de `prev`; o mesmo `next` quando nenhum troca. */
+function reuseMapUnchanged(prev: MapData, next: MapData): MapData {
+  if (prev === next) return next
+  const before = prev as unknown as Record<string, unknown> // as: leitura genérica campo a campo de um objeto de JSON (veio de `reuseUnchanged`)
+  const after = next as unknown as Record<string, unknown> // as: idem
   let map: Record<string, unknown> | null = null
   for (const key in after) {
     const old = before[key]
@@ -168,7 +211,7 @@ export function reuseUnchanged(prev: PlayerViewContent, next: PlayerViewContent)
     map ??= { ...after }
     map[key] = old
   }
-  return map === null ? next : { ...next, map: map as unknown as MapData }
+  return map === null ? next : (map as unknown as MapData) // as: as mesmas chaves de `next`, cada array trocado por outro com os mesmos itens
 }
 
 /**
@@ -369,10 +412,16 @@ export function applyMapPatch(prev: MapData, patch: MapPatch): MapData | null {
     }
   }
   if (patch.tokens === undefined) return merged
-  const changed = applyTokenChanges(prev.tokens, patch.tokens)
+  const tokens = applyTokenListPatch(prev.tokens, patch.tokens)
+  return tokens === null ? null : { ...merged, tokens }
+}
+
+/** As fichas depois do patch delas, na ordem do mestre. `null` = o patch é de outra lista. */
+function applyTokenListPatch(prev: readonly Token[], patch: TokenListPatch): Token[] | null {
+  const changed = applyTokenChanges(prev, patch)
   if (changed === null) return null
-  const { order } = patch.tokens
-  if (order === undefined) return { ...merged, tokens: changed }
+  const { order } = patch
+  if (order === undefined) return changed
   const byId = uniqueIds(changed)
   if (byId === null || byId.size !== order.length) return null
   const ordered: Token[] = []
@@ -381,7 +430,7 @@ export function applyMapPatch(prev: MapData, patch: MapPatch): MapData | null {
     if (token === undefined) return null
     ordered.push(token)
   }
-  return { ...merged, tokens: ordered }
+  return ordered
 }
 
 /** Bloco do base64 (4 letras = 3 bytes): a diferença anda de bloco em bloco. */
@@ -495,7 +544,64 @@ export function diffView(prev: PlayerViewContent, next: PlayerViewContent): View
   if (!sameValue(prev.porAtravessar ?? [], porAtravessar)) patch.porAtravessar = porAtravessar
   const olhares = next.olhares ?? []
   if (!sameValue(prev.olhares ?? [], olhares)) patch.olhares = olhares
+  const alto = diffAlto(prev.alto, next.alto)
+  if (alto !== undefined) patch.alto = alto
   return patch
+}
+
+/** TERRENO ALTO: o que mudou de uma tela para a outra (`PatchDoAlto`); `undefined` = o mesmo. Ausente vale `{}`. */
+function diffAlto(prev: TerrenoAlto | undefined, next: TerrenoAlto | undefined): PatchDoAlto | undefined {
+  if (prev === next) return undefined
+  const antes: TerrenoAlto = prev ?? {}
+  const agora: TerrenoAlto = next ?? {}
+  const patch: PatchDoAlto = {}
+  if (antes.abaixo !== undefined && agora.abaixo !== undefined) {
+    const mapa = diffMap(antes.abaixo.map, agora.abaixo.map)
+    if (mapa === null) return { inteiro: agora }
+    if (!isEmptyMapPatch(mapa)) patch.mapaDeBaixo = mapa
+    if (!sameValue(antes.abaixo.vision, agora.abaixo.vision)) patch.visaoDeBaixo = agora.abaixo.vision
+    if (!sameValue(antes.abaixo.concealed, agora.abaixo.concealed)) patch.ocultoDeBaixo = agora.abaixo.concealed
+    if (antes.abaixo.altura !== agora.abaixo.altura) patch.altura = agora.abaixo.altura
+  } else if (antes.abaixo !== undefined || agora.abaixo !== undefined) {
+    // O piso de baixo apareceu ou sumiu (subiu à muralha, desceu dela): vai inteiro.
+    return { inteiro: agora }
+  }
+  const acima = diffTokens(antes.acima ?? [], agora.acima ?? [])
+  if (acima === null) return { inteiro: agora }
+  if (acima !== undefined) patch.acima = acima
+  return Object.keys(patch).length === 0 ? undefined : patch
+}
+
+/**
+ * TERRENO ALTO depois do patch (o mesmo que `playerConnection.applyPatch` faz).
+ * `undefined` = nada de outro piso; `null` = o patch não encaixa nesta tela.
+ * A parte que não mudou mantém a MESMA referência.
+ */
+export function applyAltoPatch(prev: TerrenoAlto | undefined, patch: PatchDoAlto): TerrenoAlto | undefined | null {
+  if (patch.inteiro !== undefined) return altoOuNada(patch.inteiro)
+  const antes: TerrenoAlto = prev ?? {}
+  let abaixo = antes.abaixo
+  const mexeEmbaixo = patch.mapaDeBaixo !== undefined || patch.visaoDeBaixo !== undefined || patch.ocultoDeBaixo !== undefined || patch.altura !== undefined
+  if (mexeEmbaixo) {
+    // Pedaço do piso de baixo para quem não o tem: patch de outra tela.
+    if (abaixo === undefined) return null
+    const map = patch.mapaDeBaixo === undefined ? abaixo.map : applyMapPatch(abaixo.map, patch.mapaDeBaixo)
+    if (map === null) return null
+    abaixo = { map, vision: patch.visaoDeBaixo ?? abaixo.vision, concealed: patch.ocultoDeBaixo ?? abaixo.concealed, altura: patch.altura ?? abaixo.altura }
+  }
+  const acima = patch.acima === undefined ? antes.acima : applyTokenListPatch(antes.acima ?? [], patch.acima)
+  if (acima === null) return null
+  if (abaixo === antes.abaixo && acima === antes.acima) return prev
+  return altoOuNada({ ...(abaixo === undefined ? {} : { abaixo }), ...(acima === undefined ? {} : { acima }) })
+}
+
+/** O terreno alto sem nada dentro é o mesmo que nenhum (o host nem manda o campo). */
+function altoOuNada(alto: TerrenoAlto): TerrenoAlto | undefined {
+  const temAcima = alto.acima !== undefined && alto.acima.length > 0
+  if (alto.abaixo === undefined && !temAcima) return undefined
+  if (temAcima || alto.acima === undefined) return alto
+  const { acima: _vazia, ...resto } = alto
+  return resto
 }
 
 /**
@@ -516,6 +622,9 @@ export function applyViewPatch(prev: PlayerViewContent, patch: ViewPatch): Playe
   if (porAtravessar !== undefined) tela.porAtravessar = porAtravessar
   const olhares = patch.olhares ?? prev.olhares
   if (olhares !== undefined) tela.olhares = olhares
+  const alto = patch.alto === undefined ? prev.alto : applyAltoPatch(prev.alto, patch.alto)
+  if (alto === null) return null
+  if (alto !== undefined) tela.alto = alto
   return tela
 }
 
@@ -528,6 +637,7 @@ export function isEmptyViewPatch(patch: ViewPatch): boolean {
     patch.ownTokens === undefined &&
     patch.concealed === undefined &&
     patch.porAtravessar === undefined &&
-    patch.olhares === undefined
+    patch.olhares === undefined &&
+    patch.alto === undefined
   )
 }

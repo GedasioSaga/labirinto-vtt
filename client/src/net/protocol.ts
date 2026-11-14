@@ -2104,6 +2104,8 @@ export type HostMessage =
   // para ele (`PlayerMapView.portasPorAtravessar`), só quando há alguma. Jogador antigo ignora; mestre antigo não manda.
   // `olhares` (QUEDA DO ALCANCE, peça D das sombras): o centro e o alcance de cada olhar das fichas DELE e quais anéis
   // de `vision` são do olho (`PlayerMapView.olhares`), só quando há algum; viaja no `patch`. Jogador antigo ignora.
+  // `alto` (TERRENO ALTO, `lib/terrenoAlto.ts`): o piso de baixo visto de cima e as fichas do piso de cima, só quando
+  // há algo; no `patch` vai só o que mudou (`PatchDoAlto`, `net/viewPatch.ts`). Jogador antigo ignora.
   | { type: 'snapshot'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; batalha?: true; caminhos?: CaminhosDaBatalha; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[]; olhares?: OlharDaVisao[]; alto?: TerrenoAlto }
   | { type: 'delta'; rev: number; map: MapData; vision: RegionPoint[][]; explored: ExploredWire; ownTokens: string[]; concealed: RegionPoint[][]; partyTokens?: string[]; hazards?: PlayerHazard[]; sceneName?: string; place?: string; places?: string[]; gatilhos?: PlayerAreaTrigger[]; andares?: FloorsWire; luz?: LuzDoJogador; glimpses?: RegionPoint[][]; elsewhere?: OwnTokenElsewhere[]; peek?: RoofPeek; waiting?: string[]; porAtravessar?: string[]; olhares?: OlharDaVisao[]; alto?: TerrenoAlto }
   // Só o que mudou desde a tela `base` desta conexão (ver o topo do arquivo).
