@@ -34,7 +34,7 @@ import { MATERIAL_PADRAO } from '../texturas/paredes/catalogo'
 import { areaFechadaPorParedes, inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
 import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteNaParede } from '../lib/abrirVao'
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
-import { comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
+import { comAlturaDoPiso, comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
 import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
 import type { TamanhoDoFogo } from '../lib/mobilia/fogo'
@@ -112,7 +112,7 @@ import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoC
 import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { barrancoOuVazio, comBarranco, ehParedeDoBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
-import type { AlturaDoBarranco, BarrancoDoMapa } from '../types/map'
+import type { AlturaDoBarranco, AlturaDoPiso, BarrancoDoMapa } from '../types/map'
 import {
   comTexturas,
   comTexturasImportadas,
@@ -1234,6 +1234,12 @@ interface MapStoreState {
   setPisoAtivo: (piso: number) => void
   /** "Levar ao piso" da seleção inteira (sala com paredes e sub-salas, ficha com a luz presa). Com histórico; o editor vai junto, com a seleção. */
   moverSelecaoAoPiso: (piso: number) => void
+  /**
+   * TERRENO ALTO: a "Altura" do piso `piso` sobre o de baixo (`MapData.alturaDosPisos`),
+   * que borra e escurece a vista de baixo no editor e no jogador. Com histórico; a
+   * mesma altura não gasta passo, e a média tira a entrada (`comAlturaDoPiso`).
+   */
+  definirAlturaDoPiso: (piso: number, altura: AlturaDoPiso) => void
   setRoomName: (id: string, name: string) => void
   /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
@@ -3037,6 +3043,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (!ehPiso(piso) || comSelecaoNoPiso(map, selection, piso) === map) return
       withHistory((current) => comSelecaoNoPiso(current, selection, piso))
       set({ pisoAtivo: piso, pendingParentRoomId: null })
+    },
+    definirAlturaDoPiso: (piso, altura) => {
+      if (!ehPiso(piso)) return
+      passoSeMudou((map) => comAlturaDoPiso(map, piso, altura))
     },
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),

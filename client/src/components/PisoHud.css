@@ -17,6 +17,51 @@
   color: var(--lb-color-parchment);
 }
 
+/*
+ * TERRENO ALTO — "Altura" do piso em edição (1º piso para cima), à esquerda
+ * dos degraus: a mesma pastilha do `.lb-seg` (latão no marcado), achatada
+ * na altura dos botões do HUD para a pílula não crescer para cima. Classe
+ * dupla: vence o `.lb-seg` do main.css seja qual for a ordem das folhas.
+ */
+.lb-seg.lb-pisohud__altura {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+}
+
+.lb-pisohud__rotulo {
+  padding: 0 var(--lb-space-1);
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-seg__option.lb-pisohud__opcao {
+  flex-direction: row;
+  justify-content: center;
+  height: 1.5rem;
+  padding: 0 var(--lb-space-2);
+  font-size: var(--lb-font-size-xs);
+  /* A escolha responde à pressão na hora e volta sozinha, como o liga/desliga das pastilhas. */
+  transition:
+    background var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-seg__option.lb-pisohud__opcao:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Fio entre a Altura e os degraus do piso. */
+.lb-pisohud__divisa {
+  align-self: stretch;
+  width: 1px;
+  margin: 2px var(--lb-space-1);
+  background: var(--lb-color-line);
+}
+
 .lb-pisohud__value {
   min-width: 5.5rem;
   text-align: center;

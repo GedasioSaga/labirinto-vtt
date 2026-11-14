@@ -3779,6 +3779,8 @@ function PixiCanvasDoContexto({
       })
       // PISOS NA MESMA CENA: outro piso em edição é outra planta inteira na tela.
       const unsubscribePisoAtivo = useMapStore.subscribe((state) => state.pisoAtivo, () => redrawScene())
+      // TERRENO ALTO: a "Altura" do piso em edição (painel do piso, ou o Ctrl+Z dela) só muda a planta borrada de baixo.
+      const unsubscribeAlturaDoPiso = useMapStore.subscribe((state) => alturaDoPiso(state.map, state.pisoAtivo), () => redrawPisoDeBaixo())
       // ENDIREITAR (pedido 5, fatia 4): a store não avisa que endireitou, então
       // cada mudança dela é comparada com a anterior (`tracosDoEndireitar`; o
       // caminho comum é comparação de referência). O `data-` conta os traços na
@@ -9932,6 +9934,7 @@ function PixiCanvasDoContexto({
         unsubscribeEstiloDoMapa()
         unsubscribeCamadas()
         unsubscribePisoAtivo()
+        unsubscribeAlturaDoPiso()
         unsubscribeStraightenGhost()
         straightenGhost.parar()
         unsubscribeActiveTool()
