@@ -37,12 +37,12 @@ import {
   type SalaDoDuelo,
 } from './duelo'
 import { criarEsquemaDaCampanha } from './esquema'
-import { ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
+import { descartarCorpoNaoLido, ErroDoPedido, inteiroDaUrl, json, lerCorpo, naoExiste, respostaDoErro } from './http'
 import { chaveDoRitmoDaFoto, conferirRitmoDaFoto, lerFotoDoPedido, trocarFotoDaConta, type RitmoDaFoto } from './fotoDePerfil'
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { atenderPedidoDaLuta, contaSaiuDasLutas, lutasNoOla, proximoPrazoDasLutas, recusarLutaPorRitmo, recusarPedidoDaLuta, vencerPrazosDasLutas, type SalaDaLuta } from './luta'
 import { receberMidia, servirMidia } from './midia'
-import { fecharVideo, listarGaleria, receberParteDoVideo, servirVideo, tirarDaGaleria } from './galeria'
+import { fecharVideo, listarGaleria, PEDACO_DO_ENVIO, receberParteDoVideo, servirVideo, tirarDaGaleria } from './galeria'
 import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, estadoDoMuralPara, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
   assinarBilhete,
@@ -534,9 +534,18 @@ export class Campanha extends DurableObject<Env> {
   /**
    * Só o app do mestre sobe o vídeo (PUT dos pedaços e o fechar); todo membro
    * ativo vê a lista e assiste (site e app); tirar da Galeria é só do mestre,
-   * pelo app ou pelo site (o papel relido de `membros` agora).
+   * pelo app ou pelo site (o papel relido de `membros` agora). Toda resposta
+   * daqui, recusa incluída, sai com o corpo não lido já cancelado.
    */
   private async galeria(request: Request, url: URL, rota: RotaDoVideo | { campanhaId: string; nome: 'galeria' }, identidade: IdentidadeDoPortao): Promise<Response> {
+    try {
+      return await this.rotaDaGaleria(request, url, rota, identidade)
+    } finally {
+      await descartarCorpoNaoLido(request, PEDACO_DO_ENVIO)
+    }
+  }
+
+  private async rotaDaGaleria(request: Request, url: URL, rota: RotaDoVideo | { campanhaId: string; nome: 'galeria' }, identidade: IdentidadeDoPortao): Promise<Response> {
     const agora = Date.now()
     switch (rota.nome) {
       case 'galeria':

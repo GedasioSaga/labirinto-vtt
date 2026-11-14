@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { descartarCorpoNaoLido } from '../../../../lobby/nuvem/src/http'
 import { rotaDaCampanha } from '../../../../lobby/nuvem/src/rotas'
 import { caminhoDaRota, lerRota } from './rotas'
 
@@ -38,5 +39,34 @@ describe('Galeria: rotas do vídeo no Worker', () => {
     ]) {
       expect(rotaDaCampanha(torto)).toBeNull()
     }
+  })
+})
+
+describe('Galeria: o corpo que a rota não leu', () => {
+  it('é lido até o fim antes da resposta; passou do teto, cancela; corpo já lido fica como está', async () => {
+    const tirar = new Request('http://127.0.0.1/api/c/camp_1/galeria/x/tirar', { method: 'POST', body: '{}' })
+    await descartarCorpoNaoLido(tirar, 1024)
+    expect(tirar.bodyUsed).toBe(true)
+
+    let puxados = 0
+    let cancelado = false
+    const semFim = new ReadableStream<Uint8Array>({
+      pull(controle) {
+        puxados += 1
+        controle.enqueue(new Uint8Array(100))
+      },
+      cancel() {
+        cancelado = true
+      },
+    })
+    // `duplex` é exigido pelo fetch do Node para corpo em fluxo; a lib DOM do tsconfig não tem o campo.
+    const grande = new Request('http://127.0.0.1/api/c/camp_1/video/x/parte/0', { method: 'PUT', body: semFim, duplex: 'half' } as RequestInit)
+    await descartarCorpoNaoLido(grande, 250)
+    expect(cancelado).toBe(true)
+    expect(puxados).toBeLessThan(10)
+
+    const lido = new Request('http://127.0.0.1/api/c/camp_1/video/x/fechar', { method: 'POST', body: '{"titulo":"a"}' })
+    expect(await lido.text()).toBe('{"titulo":"a"}')
+    await expect(descartarCorpoNaoLido(lido, 1024)).resolves.toBeUndefined()
   })
 })
