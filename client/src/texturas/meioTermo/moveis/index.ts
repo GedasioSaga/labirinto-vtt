@@ -234,12 +234,24 @@ import { montarMesaDeQuedaDeBraco } from './mesaDeQuedaDeBraco'
 import { montarVaralDeBandeirinhas } from './varalDeBandeirinhas'
 import { montarVaralDeLanternas } from './varalDeLanternas'
 import { montarMastroDeFitas } from './mastroDeFitas'
+import { montarCaixaDeFogosDeArtificio } from './caixaDeFogosDeArtificio'
+import { montarBarracaDeJogosDaFeira } from './barracaDeJogosDaFeira'
+import { montarBarracaDeEspetinho } from './barracaDeEspetinho'
+import { montarChurrasqueira } from './churrasqueira'
+import { montarHarpa } from './harpa'
+import { montarTambores } from './tambores'
 import { montarRedeDeDormir } from './redeDeDormir'
 import { montarGuardaSolComEspreguicadeira } from './guardaSolComEspreguicadeira'
 import { montarToalhaDePiquenique } from './toalhaDePiquenique'
 import { montarXadrezDeJardim } from './xadrezDeJardim'
 import { montarBolicheDeGrama } from './bolicheDeGrama'
 import { montarGangorra } from './gangorra'
+import { montarEscorregador } from './escorregador'
+import { montarAquario } from './aquario'
+import { montarOfuro } from './ofuro'
+import { montarTelescopio } from './telescopio'
+import { montarGloboTerrestre } from './globoTerrestre'
+import { montarPebolim } from './pebolim'
 import { montarArquibancadaDeTorneio } from './arquibancadaDeTorneio'
 import { montarLicaDeJusta } from './licaDeJusta'
 import { montarPosteDeAmarrarCavalos } from './posteDeAmarrarCavalos'
@@ -548,12 +560,24 @@ const MONTADORES = {
   varalDeBandeirinhas: montarVaralDeBandeirinhas,
   varalDeLanternas: montarVaralDeLanternas,
   mastroDeFitas: montarMastroDeFitas,
+  caixaDeFogosDeArtificio: montarCaixaDeFogosDeArtificio,
+  barracaDeJogosDaFeira: montarBarracaDeJogosDaFeira,
+  barracaDeEspetinho: montarBarracaDeEspetinho,
+  churrasqueira: montarChurrasqueira,
+  harpa: montarHarpa,
+  tambores: montarTambores,
   redeDeDormir: montarRedeDeDormir,
   guardaSolComEspreguicadeira: montarGuardaSolComEspreguicadeira,
   toalhaDePiquenique: montarToalhaDePiquenique,
   xadrezDeJardim: montarXadrezDeJardim,
   bolicheDeGrama: montarBolicheDeGrama,
   gangorra: montarGangorra,
+  escorregador: montarEscorregador,
+  aquario: montarAquario,
+  ofuro: montarOfuro,
+  telescopio: montarTelescopio,
+  globoTerrestre: montarGloboTerrestre,
+  pebolim: montarPebolim,
   arquibancadaDeTorneio: montarArquibancadaDeTorneio,
   licaDeJusta: montarLicaDeJusta,
   posteDeAmarrarCavalos: montarPosteDeAmarrarCavalos,
@@ -629,7 +653,9 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
   'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',

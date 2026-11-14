@@ -198,7 +198,7 @@ function montarBomba(c: ContextoDoMovel, L: Peca[], x: number, y: number, r: num
   const P = c.peca
   const bola = elipse(x, y, r, r)
   if (noChao !== null) noChao.sombras.push(sombraRasteira(bola, r * 1.6), contato(elipse(x, y, r * 0.8, r * 0.8), 0.3))
-  L.push(P(bola, PARDO, { tabua: 0, bisel: r * 0.75, contorno: 0.28, textura: texturaDaClasse('tecido'), semente: sem, projeta: { dist: 1.4, forca: 0.38, suave: 0.9 } }))
+  L.push(P(bola, PARDO, { tabua: 0, bisel: r * 0.75, contorno: 0.28, textura: texturaDaClasse('tecido') ?? undefined, semente: sem, projeta: { dist: 1.4, forca: 0.38, suave: 0.9 } }))
   const fio = { tabua: 0, bisel: 0.3, contorno: 0.24, semente: sem + 1 }
   L.push(P(capsula(x - r * 0.92, y - r * 0.18, x + r * 0.92, y + r * 0.18, 0.36), BARBANTE, { ...fio, eixo: 0.2 }))
   L.push(P(capsula(x - r * 0.18, y + r * 0.92, x + r * 0.18, y - r * 0.92, 0.36), BARBANTE, { ...fio, eixo: QUARTO }))

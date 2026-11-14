@@ -90,8 +90,8 @@ describe('silhueta redonda', () => {
     // a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a
     // tenda de adivinha, a colmeia, o braseiro, o círculo mágico e a bola de cristal (11/11); a moeda de ouro, o
     // diamante, a tocha de pé e a torre de pedra (12/11); o lustre de velas, o ouriço antitanque, a fruta de espirais, o
-    // prato de carne no osso, a lanterna de pedra japonesa, o mastro de fitas e o relógio de sol (14/11).
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'relogioDeSol'])
+    // prato de carne no osso, a lanterna de pedra japonesa, o mastro de fitas, o globo terrestre e o relógio de sol (14/11).
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'globoTerrestre', 'relogioDeSol'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)

@@ -59,6 +59,9 @@ import { ESPESSURA_DA_REDE_DE_CAMUFLAGEM } from './redeDeCamuflagem'
 import { ESPESSURA_DA_BANDEIRA } from './mastroComBandeira'
 import { ESPESSURA_DA_COPA_DA_LARANJEIRA } from './laranjeiraEmCanteiro'
 import { ESPESSURA_DO_TELHADO_DA_LANTERNA } from './lanternaDePedra'
+import { ESPESSURA_DO_TANQUE_DO_AQUARIO } from './aquario'
+import { ESPESSURA_DO_GLOBO } from './globoTerrestre'
+import { ESPESSURA_DO_PEBOLIM } from './pebolim'
 import { ESPESSURA_DA_TRAVE_DE_AMARRAR } from './posteDeAmarrarCavalos'
 import { ESPESSURA_DO_RELOGIO_DE_SOL } from './relogioDeSol'
 import { ESPESSURA_DO_SINO } from './sinoNoSuporte'
@@ -616,6 +619,17 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   varalDeBandeirinhas: { modo: 'derivado', espessura: 0 },
   varalDeLanternas: { modo: 'derivado', espessura: 0 },
   mastroDeFitas: { modo: 'derivado', espessura: 0 },
+  // Lote L10 de 14/11/2026, o resto da taverna e da festa. A harpa é desenho de frente nas duas vistas, como a lápide,
+  // com a sombra de baixo mais fraca que a padrão porque o pé é estreito (o jeito do cartaz e da bandeira pirata). Os
+  // outros cinco são derivados. Nas duas barracas a estrutura do toldo (ou da lona) tem um vão, de sombra de força 0, em
+  // cima da prateleira ou da mesa de trás, e as peças do pano têm a caixa esticada até a faixa da frente: a 3/4 sobe o
+  // pano sem levar junto a mesa e o que está nela. Tudo isso mora nos desenhos; o motor não mudou.
+  caixaDeFogosDeArtificio: DERIVADO,
+  barracaDeJogosDaFeira: DERIVADO,
+  barracaDeEspetinho: DERIVADO,
+  churrasqueira: DERIVADO,
+  harpa: { modo: 'em-pe', forcaDaSombraDeBaixo: 0.2 },
+  tambores: DERIVADO,
   // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede, a gangorra e o guarda-sol com espreguiçadeira sobem em
   // fatias, como o balanço: as fatias dão a altura e não há beirada copiada. A toalha (no chão, com a cesta e a comida
   // em colunas próprias), o xadrez (as peças em pé nos discos) e o boliche (os pinos em duas colunas) são derivados.
@@ -625,6 +639,19 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   xadrezDeJardim: DERIVADO,
   bolicheDeGrama: DERIVADO,
   gangorra: { modo: 'derivado', espessura: 0 },
+  // Lote L12 de 14/11/2026, o resto do descanso e da brincadeira. O escorregador e o telescópio são derivados sem
+  // beirada, como o balanço: as peças inclinadas sobem em fatias, e com beirada cada fatia ganhava um dente (pente na
+  // calha, corrente nas pernas, tubo serrilhado) e a âncora sem peça pintava beirada solta no ar; a grossura da
+  // plataforma e da calha é pintada. O aquário (o tanque solto na altura da boca, a beirada é a frente de vidro), o
+  // globo (o anel em oito setores soltos) e o pebolim (a caixa solta na altura da borda, a beirada é a lateral) copiam a
+  // beirada da espessura que cada desenho exporta. O ofurô é derivado: a tina, o balde e o banquinho são colunas, o
+  // estrado fica no chão.
+  escorregador: { modo: 'derivado', espessura: 0 },
+  aquario: { modo: 'derivado', espessura: ESPESSURA_DO_TANQUE_DO_AQUARIO },
+  ofuro: DERIVADO,
+  telescopio: { modo: 'derivado', espessura: 0 },
+  globoTerrestre: { modo: 'derivado', espessura: ESPESSURA_DO_GLOBO },
+  pebolim: { modo: 'derivado', espessura: ESPESSURA_DO_PEBOLIM },
   // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada (um degrau por coluna), a liça e o bueiro são
   // derivados; o bueiro é rente e sai igual à vista de cima. O poste de amarrar, o relógio de sol e o sino copiam a
   // beirada da espessura que cada desenho exporta (a grossura da trave, a do capitel, um degrau do sino).

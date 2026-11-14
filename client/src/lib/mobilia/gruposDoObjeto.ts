@@ -307,22 +307,36 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   navioNaGarrafa: 'marEPiratas',
   conchaMagica: 'marEPiratas',
   lanternaDePedra: 'marEPiratas',
-  // Taverna e festa (14/11/2026): o lote L09, do balcão de taverna ao mastro de fitas. O balcão comum, a mesa de jogo e
-  // o varal de roupa, os parentes, ficam onde estavam.
+  // Taverna e festa (14/11/2026): o lote L09, do balcão de taverna ao mastro de fitas, e o L10, da caixa de fogos aos
+  // tambores. O balcão comum, a mesa de jogo, o varal de roupa, a barraca de feira e o braseiro, os parentes, ficam onde
+  // estavam.
   balcaoDeTaverna: 'tavernaEFesta',
   alvoDeDardos: 'tavernaEFesta',
   mesaDeQuedaDeBraco: 'tavernaEFesta',
   varalDeBandeirinhas: 'tavernaEFesta',
   varalDeLanternas: 'tavernaEFesta',
   mastroDeFitas: 'tavernaEFesta',
-  // Descanso e brincadeira (14/11/2026): o lote L11, da rede de dormir à gangorra, e a arquibancada de torneio e a liça
-  // de justa, do L13. O balanço, a mesa de jogo e o ringue, os parentes, continuam no esporte e lazer.
+  caixaDeFogosDeArtificio: 'tavernaEFesta',
+  barracaDeJogosDaFeira: 'tavernaEFesta',
+  barracaDeEspetinho: 'tavernaEFesta',
+  churrasqueira: 'tavernaEFesta',
+  harpa: 'tavernaEFesta',
+  tambores: 'tavernaEFesta',
+  // Descanso e brincadeira (14/11/2026): o lote L11, da rede de dormir à gangorra, o L12, do escorregador ao pebolim, e
+  // a arquibancada de torneio e a liça de justa, do L13. O balanço, a mesa de jogo, o ringue, a mesa de sinuca e a tina
+  // de madeira, os parentes, continuam onde estavam.
   redeDeDormir: 'descansoEBrincadeira',
   guardaSolComEspreguicadeira: 'descansoEBrincadeira',
   toalhaDePiquenique: 'descansoEBrincadeira',
   xadrezDeJardim: 'descansoEBrincadeira',
   bolicheDeGrama: 'descansoEBrincadeira',
   gangorra: 'descansoEBrincadeira',
+  escorregador: 'descansoEBrincadeira',
+  aquario: 'descansoEBrincadeira',
+  ofuro: 'descansoEBrincadeira',
+  telescopio: 'descansoEBrincadeira',
+  globoTerrestre: 'descansoEBrincadeira',
+  pebolim: 'descansoEBrincadeira',
   arquibancadaDeTorneio: 'descansoEBrincadeira',
   licaDeJusta: 'descansoEBrincadeira',
   // Cidade e vila (14/11/2026): o resto do L13, do poste de amarrar cavalos ao sino no suporte, e o L14, do tear à
@@ -418,8 +432,9 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],
   caldeirao: ['panela', 'tacho', 'sopa', 'bruxa'],
   fornoDePao: ['padaria', 'padeiro'],
-  banheira: ['banho', 'ofurô'],
-  tinaDeMadeira: ['banho', 'ofurô', 'banheira de madeira'],
+  // "ofurô" saiu das duas em 14/11/2026: é o nome do ofurô (lote L12), que a busca acha pelo nome.
+  banheira: ['banho'],
+  tinaDeMadeira: ['banho', 'banheira de madeira'],
   lavatorioComJarro: ['lavabo', 'bacia', 'pia antiga', 'jarra'],
   prateleiraDePotes: ['despensa', 'conservas', 'temperos', 'estante de potes'],
   mesaDeCorte: ['açougue', 'açougueiro', 'tábua de corte', 'cutelo'],

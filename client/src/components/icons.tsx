@@ -2849,6 +2849,84 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2 21h20" />
         </>
       )
+    // Lote L10 de 14/11/2026 (o resto da taverna e da festa): os ícones do desenhista.
+    case 'caixaDeFogosDeArtificio':
+      // De frente: o caixote aberto com três foguetes de ponta cônica saindo dele, o estopim de um e a estrela do estouro no alto.
+      return (
+        <>
+          <rect x="3" y="13" width="18" height="8" />
+          <path d="M3 16h18" />
+          <path d="M6.5 13V7.5l1.5-2.5 1.5 2.5V13M11 13V9l1.5-2.5L14 9v4M15.5 13V8.5l1.5-2.5 1.5 2.5V13" />
+          <path d="M12.5 6.5c0-1.2.8-1.6.8-2.6" />
+          <path d="M19 2.5v3M17.5 4h3" />
+        </>
+      )
+    case 'barracaDeJogosDaFeira':
+      // De frente: o toldo listrado nos dois esteios, a pirâmide de seis latas e a garrafa com a argola enfiada, no balcão.
+      return (
+        <>
+          <path d="M2.5 3.5h19V7h-19zM8.8 3.5V7M15.2 3.5V7" />
+          <path d="M3.5 7v14M20.5 7v14" />
+          <path d="M3.5 18h17" />
+          <rect x="5" y="14.5" width="2.4" height="3.5" />
+          <rect x="7.4" y="14.5" width="2.4" height="3.5" />
+          <rect x="9.8" y="14.5" width="2.4" height="3.5" />
+          <rect x="6.2" y="11" width="2.4" height="3.5" />
+          <rect x="8.6" y="11" width="2.4" height="3.5" />
+          <rect x="7.4" y="7.5" width="2.4" height="3.5" />
+          <path d="M16.5 18v-4.5a1.5 1.5 0 0 1 .8-1.3V10h1.4v2.2a1.5 1.5 0 0 1 .8 1.3V18" />
+          <ellipse cx="18" cy="12.5" rx="2.2" ry="0.8" />
+        </>
+      )
+    case 'barracaDeEspetinho':
+      // De frente: a lona reta nos dois esteios, o fogareiro comprido nas pernas com três espetos e a fumaça subindo em dois fios.
+      return (
+        <>
+          <path d="M2.5 3.5h19V6h-19z" />
+          <path d="M3.5 6v15M20.5 6v15" />
+          <path d="M6 14h12l-1 3H7z" />
+          <path d="M8 17v4M16 17v4" />
+          <path d="M8.5 14V9.5M12 14V9M15.5 14V9.5" />
+          <path d="M7.7 11h1.6M11.2 10.8h1.6M14.7 11h1.6" />
+          <path d="M10 8.5c-.8-.8.4-1.4-.2-2.2M14 8.3c-.8-.8.4-1.4-.2-2.2" />
+        </>
+      )
+    case 'churrasqueira':
+      // De frente: a caixa de tijolo com as fiadas, a boca com a grelha, duas linguiças e a brasa, e a bancada de granito ao lado.
+      return (
+        <>
+          <rect x="2" y="8" width="13" height="13" />
+          <path d="M2 10h13M6 8v2M11 8v2M2 19.5h13M8.5 19.5V21" />
+          <rect x="4.5" y="11.5" width="8" height="6.5" />
+          <path d="M4.5 13.5h8" />
+          <path d="M5.5 13.5c.5-1.5 2.5-1.5 3 0M9 13.5c.5-1.5 2.5-1.5 3 0" />
+          <path d="M6 16.5h1.5M9.5 16.5H11" />
+          <path d="M15 12.5h7V21h-7M15 14h7" />
+        </>
+      )
+    case 'harpa':
+      // De frente: a coluna reta à esquerda com a coroa e o pé, o pescoço em S no alto, a caixa na diagonal e quatro cordas de pé.
+      return (
+        <>
+          <path d="M5 4v17M3.5 21h8" />
+          <path d="M4 3.5h2" />
+          <path d="M5 4c3 .5 5 1.8 8 2.5s5 .5 6 3" />
+          <path d="M8.5 21 19.5 9.5" />
+          <path d="M8 5.2v15.3M11 6.2v11.6M14 6.8v7.9M17 7.3v4.3" />
+        </>
+      )
+    case 'tambores':
+      // De frente: o tambor grande com as cordas em V entre os aros, o pequeno ao lado e as duas baquetas cruzadas por cima.
+      return (
+        <>
+          <ellipse cx="9" cy="10" rx="6.5" ry="2" />
+          <path d="M2.5 10v9c0 1.1 2.9 2 6.5 2s6.5-.9 6.5-2v-9" />
+          <path d="M2.5 18.5 5 11.8l2.5 8 2.5-7.8 2.5 7.6 2.5-8" />
+          <ellipse cx="18.5" cy="14" rx="3.5" ry="1.2" />
+          <path d="M15 14v5.5c0 .7 1.6 1.2 3.5 1.2s3.5-.5 3.5-1.2V14" />
+          <path d="M5 2.5l8 6M13 2.5l-8 6" />
+        </>
+      )
     // Lote L11 de 14/11/2026 (o descanso e a brincadeira): os ícones do desenhista.
     case 'redeDeDormir':
       // De frente: os dois postes, as cordas descendo até as pontas do pano e o pano caído entre elas, com a beira de cima reta (o balanço tem a trave em cima e os assentos pendurados).
@@ -2914,6 +2992,72 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2.5 18 21.5 8" />
           <path d="M12 13 9 21.5h6z" />
           <path d="M5.5 16.4v-4.2M18.5 9.6V5.4" />
+        </>
+      )
+    // Lote L12 de 14/11/2026 (o resto do descanso e da brincadeira): os ícones do desenhista.
+    case 'escorregador':
+      // De frente (de lado): a escada inclinada com os degraus à esquerda, a plataforma no alto com o poste e o guarda-corpo e a calha que desce em curva até rente ao chão à direita (o balanço é um A com tábuas penduradas).
+      return (
+        <>
+          <path d="M1.8 21.5 6 7M4.2 21.5 8.4 7" />
+          <path d="M3.3 17h2.4M4.5 13h2.4M5.7 9.2h2.4" />
+          <path d="M6.5 7h5.5M12 7v14.5M7.2 7V3.2M11.3 7V3.2M7.2 4h4.1" />
+          <path d="M12 7c3.2 0 4.2 3.4 6 8.6.8 2.3 1.8 3.4 4.2 3.4" />
+          <path d="M12 9.6c2.4 0 3.2 2.8 4.6 6.8 1 2.8 2.4 4.4 5.6 4.4" />
+        </>
+      )
+    case 'aquario':
+      // De frente: o tanque de vidro com a linha da água, um peixe de rabo em V e uma planta ondulada no fundo, em cima do móvel de duas portas (a vitrine não tem água; o barril é bojudo).
+      return (
+        <>
+          <path d="M2.5 3.5h19v11h-19z" />
+          <path d="M2.5 6.2h19" />
+          <path d="M8.6 10.2c1.6-1.7 3.8-1.7 5.3 0-1.5 1.7-3.7 1.7-5.3 0zM13.9 10.2l2.3-1.5v3z" />
+          <path d="M5 14.5c-.8-1 .6-1.8-.2-2.8s.6-1.8-.2-2.8" />
+          <path d="M3.5 14.5h17v7h-17zM12 14.5v7M10.6 18h.01M13.4 18h.01" />
+        </>
+      )
+    case 'ofuro':
+      // De frente: a caixa quadrada de tábuas em pé, com a borda grossa e as juntas, três fios de vapor em S subindo e o balde de aro ao lado (a tina de madeira é um balde largo de aduelas com banquinho de degraus).
+      return (
+        <>
+          <path d="M2 10h14.5v11.5H2z" />
+          <path d="M2 12.6h14.5M6.8 12.6v8.9M11.7 12.6v8.9" />
+          <path d="M5.4 8.2c-1-1.2 1-2.1 0-3.6M9.2 8.2c-1-1.2 1-2.1 0-3.6M13 8.2c-1-1.2 1-2.1 0-3.6" />
+          <path d="M18 15.5h4.2l-.6 6h-3z" />
+          <path d="M18.2 17.6h3.8" />
+        </>
+      )
+    case 'telescopio':
+      // De frente: o tubo inclinado para o alto à direita, mais largo na boca, com a ocular embaixo, a cabeça redonda e as três pernas do tripé abertas até o chão (o globo é uma bola num anel com pernas).
+      return (
+        <>
+          <path d="M3.2 15.6 19.2 4.4l2.2 3.2-16.6 10.2z" />
+          <path d="M1.8 16.6l1.4-1M18 5.2l2.4 3.4" />
+          <circle cx="11" cy="11.6" r="1.3" />
+          <path d="M11 12.9 6 21.5M11 12.9l5 8.6M11 12.9v8.6" />
+        </>
+      )
+    case 'globoTerrestre':
+      // De frente: a bola com o equador e uma terra, o meridiano em arco de lado a lado por cima, o anel do horizonte achatado na cintura e as pernas com a travessa até o chão (a bola de cristal fica numa mesinha de pano).
+      return (
+        <>
+          <circle cx="12" cy="8.8" r="5.6" />
+          <path d="M6.6 9.8c2 1.3 8.8 1.3 10.8 0M10 5.6c1.4.4 1.6 2 .6 2.8" />
+          <path d="M5.9 3.6a7.4 7.4 0 0 1 11.4 9.6" />
+          <path d="M2.5 13.4h19v1.6h-19z" />
+          <path d="M4.5 15 3.5 21.5M19.5 15l1 6.5M4.2 18.6h15.6" />
+        </>
+      )
+    case 'pebolim':
+      // De frente: a caixa da mesa em cima de quatro pernas, duas varetas atravessando de lado a lado com o punho de fora em cada ponta e dois bonecos pendurados nelas (a mesa de sinuca tem caçapas e pés torneados).
+      return (
+        <>
+          <path d="M4.5 7.5h15v6h-15z" />
+          <path d="M5.5 13.5v8M18.5 13.5v8M9 13.5v5M15 13.5v5" />
+          <path d="M1.5 9.4h21M1.5 11.8h21" />
+          <path d="M.8 8.6h1.8v1.6H.8zM21.4 11h1.8v1.6h-1.8z" />
+          <path d="M9.5 9.4v2.6M14.5 11.8V9.2" />
         </>
       )
     // Lote L13 de 14/11/2026 (o torneio e a cidade): os ícones do desenhista.

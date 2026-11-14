@@ -572,6 +572,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   varalDeBandeirinhas: [lugar('madeira', 'Mastros', MADEIRAS, 'pinho')],
   varalDeLanternas: [lugar('madeira', 'Mastros', MADEIRAS, 'nogueira')],
   mastroDeFitas: [lugar('madeira', 'Mastro', MADEIRAS, 'pinho')],
+  // Lote L10 de 14/11/2026, o resto da taverna e da festa. As duas barracas trocam o toldo (as listras saem dele, como na
+  // barraca de feira) e a madeira; a caixa de fogos e a harpa, a madeira; os tambores, a madeira dos aros. A churrasqueira
+  // não lê material, como o fogo: o tijolo, o granito, a grelha e a brasa são fixos. Os papéis dos fogos, o fogareiro, a
+  // comida, os prêmios, as cordas da harpa e os cascos pintados dos tambores também.
+  caixaDeFogosDeArtificio: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  barracaDeJogosDaFeira: [lugar('toldo', 'Toldo', TECIDOS, 'vinho'), lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  barracaDeEspetinho: [lugar('toldo', 'Lona', TECIDOS, 'ocre'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  churrasqueira: [],
+  harpa: [lugar('madeira', 'Madeira', MADEIRAS, 'cerejeira')],
+  tambores: [lugar('madeira', 'Aros', MADEIRAS, 'nogueira')],
   // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede troca o pano e a lenha dos postes (as listras, a varanda
   // de crochê e as cordas são fixas); o guarda-sol, o pano do guarda-sol e da lona e a madeira; a toalha, a cor do
   // xadrez vichy (o fundo de linho, a cesta e a comida são fixos); o xadrez, a pedra das casas escuras e a madeira das
@@ -583,6 +593,16 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   xadrezDeJardim: [lugar('pedra', 'Casas escuras', PEDRAS, 'ardosia'), lugar('madeira', 'Peças escuras', MADEIRAS, 'nogueira')],
   bolicheDeGrama: [lugar('madeira', 'Pinos', MADEIRAS, 'pinho'), lugar('bola', 'Bola', MADEIRAS, 'nogueira')],
   gangorra: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('metal', 'Ferragens', METAIS, 'ferro')],
+  // Lote L12 de 14/11/2026, o resto do descanso e da brincadeira. Todos trocam a madeira (a escada e a plataforma, o
+  // móvel do aquário, as tábuas do ofurô, o tripé, o anel e as pernas do globo, a caixa do pebolim); o escorregador
+  // troca também a chapa da calha, o aquário a moldura, o telescópio o tubo e o globo o meridiano. A água, o vidro, os
+  // peixes, o vapor, a carta do céu, o mapa do globo, o campo e os bonecos do pebolim são fixos.
+  escorregador: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('calha', 'Calha', METAIS, 'ferro')],
+  aquario: [lugar('madeira', 'Móvel', MADEIRAS, 'nogueira'), lugar('moldura', 'Moldura', METAIS, 'latao')],
+  ofuro: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  telescopio: [lugar('madeira', 'Tripé', MADEIRAS, 'nogueira'), lugar('tubo', 'Tubo', METAIS, 'latao')],
+  globoTerrestre: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('meridiano', 'Meridiano', METAIS, 'latao')],
+  pebolim: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada e a liça trocam a madeira e o pano (a listra clara e as
   // borlas são de linho fixo); o poste de amarrar, só a madeira (o ferro, a corda e a palha são fixos); o bueiro, a
   // pedra da moldura e a grade; o relógio de sol, a pedra e o mostrador; o sino, a madeira do suporte e o metal do sino.

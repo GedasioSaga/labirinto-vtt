@@ -290,7 +290,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 228 objetos nas 22 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 240 objetos nas 22 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -332,8 +332,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
       // Os grupos novos de 14/11/2026: Castelo (os lotes L01 e L02, com a ponte levadiça no fim), Cerco e defesa (o L03
       // e a primeira metade do L04), Base militar (a segunda metade do L04, o L05 e o L06), Mar e piratas (o L07 e o
-      // L08), Taverna e festa (o L09), Descanso e brincadeira (o L11 e o começo do L13) e Cidade e vila (o resto do L13
-      // e o L14). 157 + 71 = 228.
+      // L08), Taverna e festa (o L09 e o L10), Descanso e brincadeira (o L11, o L12 e o começo do L13) e Cidade e vila (o
+      // resto do L13 e o L14). 157 + 83 = 240.
       'Trono', 'Cama de dossel', 'Estandarte de pé', 'Tapeçaria de parede', 'Lustre de velas', 'Panóplia',
       'Mesa de banquete posta', 'Bancos de capela', 'Mesa de guerra', 'Poleiro de falcão', 'Aljavas e feixes de flechas', 'Ponte levadiça',
       'Catapulta', 'Balista', 'Aríete com teto', 'Escada de cerco', 'Cavalo de frisa', 'Pilha de balas de canhão', 'Tacho de óleo quente',
@@ -344,14 +344,16 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Mesa de navegação', 'Laranjeira em canteiro',
       'Prato de carne no osso', 'Prancha do navio', 'Esqueleto de peixe gigante', 'Navio na garrafa', 'Concha mágica', 'Lanterna de pedra japonesa',
       'Balcão de taverna', 'Alvo de dardos', 'Mesa de queda de braço', 'Varal de bandeirinhas', 'Varal de lanternas', 'Mastro de fitas',
+      'Caixa de fogos de artifício', 'Barraca de jogos da feira', 'Barraca de comida com fogareiro', 'Churrasqueira', 'Harpa', 'Tambores',
       'Rede de dormir', 'Guarda-sol com espreguiçadeira', 'Toalha de piquenique', 'Xadrez gigante de jardim', 'Boliche de grama', 'Gangorra',
+      'Escorregador', 'Aquário', 'Ofurô', 'Telescópio', 'Globo terrestre', 'Pebolim',
       'Arquibancada de torneio', 'Liça de justa',
       'Poste de amarrar cavalos', 'Bueiro', 'Relógio de sol', 'Sino no suporte',
       'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(228)
+    expect(new Set(desenhos).size).toBe(240)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

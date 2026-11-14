@@ -227,8 +227,9 @@ describe('TOOL_VARIANTS', () => {
     // 14/11/2026 no fim, na ordem da lista do dia: os seis do castelo (lote L01), os cinco do resto do castelo (lote
     // L02), os quatro do cerco e defesa (lote L03), os dezoito dos lotes L04, L05 e L06 (o fim do cerco e a base militar),
     // os oito do mar e piratas (lote L07), os seis do resto do mar e piratas (lote L08), os seis da taverna e festa (lote
-    // L09), os seis do descanso e brincadeira (lote L11), os seis do torneio e da cidade (lote L13), os cinco do resto da
-    // cidade e vila (lote L14) e a ponte levadiça do L02 (o item 81 da lista). 157 + 71 = 228.
+    // L09), os seis do resto da taverna e festa (lote L10), os seis do descanso e brincadeira (lote L11), os seis do resto
+    // do descanso e brincadeira (lote L12), os seis do torneio e da cidade (lote L13), os cinco do resto da cidade e vila
+    // (lote L14) e a ponte levadiça do L02 (o item 81 da lista). 157 + 83 = 240.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
@@ -262,12 +263,14 @@ describe('TOOL_VARIANTS', () => {
       'mesaDeNavegacao', 'laranjeiraEmCanteiro',
       'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
       'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+      'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
       'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+      'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
       'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
       'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
       'ponteLevadica',
     ])
-    expect(grupo.options).toHaveLength(228)
+    expect(grupo.options).toHaveLength(240)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -301,7 +304,9 @@ describe('TOOL_VARIANTS', () => {
       'Mesa de navegação', 'Laranjeira em canteiro',
       'Prato de carne no osso', 'Prancha do navio', 'Esqueleto de peixe gigante', 'Navio na garrafa', 'Concha mágica', 'Lanterna de pedra japonesa',
       'Balcão de taverna', 'Alvo de dardos', 'Mesa de queda de braço', 'Varal de bandeirinhas', 'Varal de lanternas', 'Mastro de fitas',
+      'Caixa de fogos de artifício', 'Barraca de jogos da feira', 'Barraca de comida com fogareiro', 'Churrasqueira', 'Harpa', 'Tambores',
       'Rede de dormir', 'Guarda-sol com espreguiçadeira', 'Toalha de piquenique', 'Xadrez gigante de jardim', 'Boliche de grama', 'Gangorra',
+      'Escorregador', 'Aquário', 'Ofurô', 'Telescópio', 'Globo terrestre', 'Pebolim',
       'Arquibancada de torneio', 'Liça de justa', 'Poste de amarrar cavalos', 'Bueiro', 'Relógio de sol', 'Sino no suporte',
       'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira',
       'Ponte levadiça',
@@ -337,7 +342,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 22 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 12, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 6, Descanso e brincadeira 8, Cidade e vila 9; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 22 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 12, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 9; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -363,8 +368,8 @@ describe('TOOL_VARIANTS', () => {
       ['Cerco e defesa', 7],
       ['Base militar', 15],
       ['Mar e piratas', 14],
-      ['Taverna e festa', 6],
-      ['Descanso e brincadeira', 8],
+      ['Taverna e festa', 12],
+      ['Descanso e brincadeira', 14],
       ['Cidade e vila', 9],
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual([
@@ -403,8 +408,8 @@ describe('TOOL_VARIANTS', () => {
     ])
     // Os grupos novos de 14/11/2026, logo depois do Tesouro, na ordem da lista do dia: o castelo (lotes L01 e L02, com a
     // ponte levadiça no fim), o cerco e a defesa (lote L03 e a primeira metade do L04), a base militar (a segunda metade
-    // do L04, o L05 e o L06), o mar e piratas (lotes L07 e L08), a taverna e festa (lote L09), o descanso e brincadeira
-    // (lote L11 e o começo do L13) e a cidade e vila (o resto do L13 e o L14).
+    // do L04, o L05 e o L06), o mar e piratas (lotes L07 e L08), a taverna e festa (lotes L09 e L10), o descanso e
+    // brincadeira (lotes L11 e L12 e o começo do L13) e a cidade e vila (o resto do L13 e o L14).
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Castelo')?.tipos).toEqual([
       'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas', 'ponteLevadica',
@@ -420,9 +425,11 @@ describe('TOOL_VARIANTS', () => {
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Taverna e festa')?.tipos).toEqual([
       'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+      'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Descanso e brincadeira')?.tipos).toEqual([
       'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+      'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
       'arquibancadaDeTorneio', 'licaDeJusta',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cidade e vila')?.tipos).toEqual([

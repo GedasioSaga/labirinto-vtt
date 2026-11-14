@@ -122,9 +122,16 @@ export const TIPOS_MOBILIA = [
   // Lote L09 dos objetos de 14/11/2026, a taverna e a festa: o balcão de taverna, o alvo de dardos, a mesa de queda de
   // braço, o varal de bandeirinhas, o varal de lanternas de papel (que ilumina) e o mastro de fitas.
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  // Lote L10 dos objetos de 14/11/2026, o resto da taverna e da festa: a caixa de fogos de artifício, a barraca de
+  // jogos da feira, a barraca de comida com fogareiro, a churrasqueira (a brasa das duas é pintada, não ilumina), a
+  // harpa e os tambores.
+  'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
   // Lote L11 dos objetos de 14/11/2026, o descanso e a brincadeira: a rede de dormir, o guarda-sol com
   // espreguiçadeira, a toalha de piquenique, o xadrez gigante de jardim, o boliche de grama e a gangorra.
   'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  // Lote L12 dos objetos de 14/11/2026, o resto do descanso e da brincadeira: o escorregador, o aquário, o ofurô (o
+  // vapor é pintado), o telescópio, o globo terrestre e o pebolim.
+  'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
   // Lote L13 dos objetos de 14/11/2026, o torneio e a cidade: a arquibancada de torneio (onde se anda, como o palco) e
   // a liça de justa, do descanso e brincadeira; o poste de amarrar cavalos, o bueiro (rente ao chão), o relógio de
   // sol e o sino no suporte, da cidade e vila.

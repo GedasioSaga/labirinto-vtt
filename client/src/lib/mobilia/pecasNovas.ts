@@ -58,7 +58,9 @@ export const PECAS_NOVAS = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
   'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
@@ -486,6 +488,15 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   varalDeBandeirinhas: { rotulo: 'Varal de bandeirinhas', artigo: 'um varal de bandeirinhas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
   varalDeLanternas: { rotulo: 'Varal de lanternas', artigo: 'um varal de lanternas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
   mastroDeFitas: { rotulo: 'Mastro de fitas', artigo: 'um mastro de fitas', tamanho: { largura: 2.2, altura: 2.2 }, redonda: true },
+  // Lote L10 de 14/11/2026, o resto da taverna e da festa. As duas barracas têm o toldo (ou a lona) no fundo, a beira
+  // de cima, e o balcão na frente; a churrasqueira tem a parede de tijolo na beira de cima; a harpa é desenhada de
+  // frente nas duas vistas, como a lápide; os tambores são três de pé e um pandeiro deitado.
+  caixaDeFogosDeArtificio: { rotulo: 'Caixa de fogos de artifício', artigo: 'uma caixa de fogos de artifício', tamanho: { largura: 1, altura: 0.8 }, redonda: false },
+  barracaDeJogosDaFeira: { rotulo: 'Barraca de jogos da feira', artigo: 'uma barraca de jogos da feira', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
+  barracaDeEspetinho: { rotulo: 'Barraca de comida com fogareiro', artigo: 'uma barraca de comida com fogareiro', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  churrasqueira: { rotulo: 'Churrasqueira', artigo: 'uma churrasqueira', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  harpa: { rotulo: 'Harpa', artigo: 'uma harpa', tamanho: { largura: 0.8, altura: 1 }, redonda: false },
+  tambores: { rotulo: 'Tambores', artigo: 'uns tambores', tamanho: { largura: 1, altura: 1 }, redonda: false },
   // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede e a gangorra correm sempre pelo lado x (os postes e os
   // pegadores nas pontas leste e oeste); o boliche não tem pista, só os pinos em losango e a bola; o xadrez é um
   // tabuleiro quadrado no meio da pegada.
@@ -495,6 +506,15 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   xadrezDeJardim: { rotulo: 'Xadrez gigante de jardim', artigo: 'um xadrez gigante de jardim', tamanho: { largura: 3, altura: 3 }, redonda: false },
   bolicheDeGrama: { rotulo: 'Boliche de grama', artigo: 'um boliche de grama', tamanho: { largura: 1, altura: 1 }, redonda: false },
   gangorra: { rotulo: 'Gangorra', artigo: 'uma gangorra', tamanho: { largura: 2.4, altura: 0.6 }, redonda: false },
+  // Lote L12 de 14/11/2026, o resto do descanso e da brincadeira. O escorregador corre sempre pelo lado x (a escada no
+  // poente, a calha até o nascente; esticado, só a calha cresce); o ofurô é a tina quadrada de tábuas, diferente da
+  // tina de madeira redonda; o globo tem o anel do horizonte redondo.
+  escorregador: { rotulo: 'Escorregador', artigo: 'um escorregador', tamanho: { largura: 2.5, altura: 1 }, redonda: false },
+  aquario: { rotulo: 'Aquário', artigo: 'um aquário', tamanho: { largura: 1.2, altura: 0.6 }, redonda: false },
+  ofuro: { rotulo: 'Ofurô', artigo: 'um ofurô', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
+  telescopio: { rotulo: 'Telescópio', artigo: 'um telescópio', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  globoTerrestre: { rotulo: 'Globo terrestre', artigo: 'um globo terrestre', tamanho: { largura: 0.8, altura: 0.8 }, redonda: true },
+  pebolim: { rotulo: 'Pebolim', artigo: 'um pebolim', tamanho: { largura: 1.2, altura: 0.9 }, redonda: false },
   // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada ganha degraus esticada para baixo e anda-se em cima
   // (mora no chão, como o palco); a liça estica em linha como a cerca, um painel a cada casa; o bueiro é rente; o
   // relógio de sol tem o degrau oitavado, quase redondo.
@@ -738,12 +758,24 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     varalDeBandeirinhas: valor(f.varalDeBandeirinhas),
     varalDeLanternas: valor(f.varalDeLanternas),
     mastroDeFitas: valor(f.mastroDeFitas),
+    caixaDeFogosDeArtificio: valor(f.caixaDeFogosDeArtificio),
+    barracaDeJogosDaFeira: valor(f.barracaDeJogosDaFeira),
+    barracaDeEspetinho: valor(f.barracaDeEspetinho),
+    churrasqueira: valor(f.churrasqueira),
+    harpa: valor(f.harpa),
+    tambores: valor(f.tambores),
     redeDeDormir: valor(f.redeDeDormir),
     guardaSolComEspreguicadeira: valor(f.guardaSolComEspreguicadeira),
     toalhaDePiquenique: valor(f.toalhaDePiquenique),
     xadrezDeJardim: valor(f.xadrezDeJardim),
     bolicheDeGrama: valor(f.bolicheDeGrama),
     gangorra: valor(f.gangorra),
+    escorregador: valor(f.escorregador),
+    aquario: valor(f.aquario),
+    ofuro: valor(f.ofuro),
+    telescopio: valor(f.telescopio),
+    globoTerrestre: valor(f.globoTerrestre),
+    pebolim: valor(f.pebolim),
     arquibancadaDeTorneio: valor(f.arquibancadaDeTorneio),
     licaDeJusta: valor(f.licaDeJusta),
     posteDeAmarrarCavalos: valor(f.posteDeAmarrarCavalos),
@@ -818,7 +850,9 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'caixaDeFogosDeArtificio', 'barracaDeJogosDaFeira', 'barracaDeEspetinho', 'churrasqueira', 'harpa', 'tambores',
   'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'escorregador', 'aquario', 'ofuro', 'telescopio', 'globoTerrestre', 'pebolim',
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
@@ -3419,6 +3453,74 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       }
       return [...aro(r * 0.34, r * 0.34), ...aro(r * 0.14, r * 0.14), ...Array.from({ length: 12 }, (_, i) => fita(i))]
     }
+    // Lote L10 de 14/11/2026 (o resto da taverna e da festa): os traços do desenhista.
+    case 'caixaDeFogosDeArtificio': {
+      // O caixote aberto com a roda de fogo (dois aros) e uma fileira de tubos, e os dois foguetes de vara fora, à direita.
+      const roda = largura * 0.4
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.93, hw * 0.44, hh * 0.9),
+        ...aro(roda, roda, -hw * 0.46, -hh * 0.16),
+        ...aro(roda * 0.35, roda * 0.35, -hw * 0.46, -hh * 0.16),
+        linha(-hw * 0.9, hh * 0.62, hw * 0.38),
+        { x1: hw * 0.53, y1: hh * 0.54, x2: hw * 0.87, y2: -hh * 0.5 },
+        { x1: hw * 0.92, y1: hh * 0.92, x2: hw * 0.72, y2: -hh * 0.28 },
+      ]
+    }
+    case 'barracaDeJogosDaFeira':
+      // O toldo no fundo, a pirâmide de latas no pedestal à esquerda, a mesa das argolas com uma argola à direita e o balcão na frente.
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.99, hw * 0.98, -hh * 0.52),
+        ...fechado([[-hw * 0.61, -hh * 0.3], [-hw * 0.82, hh * 0.16], [-hw * 0.4, hh * 0.16]]),
+        ...quadro(hw * 0.04, -hh * 0.38, hw * 0.92, hh * 0.48),
+        ...aro(largura * 0.12, largura * 0.12, hw * 0.48, hh * 0.05),
+        ...quadro(-hw * 0.97, hh * 0.64, hw * 0.97, hh * 0.97),
+      ]
+    case 'barracaDeEspetinho': {
+      // A lona no fundo, o fogareiro comprido com três espetos atravessados, o saco de carvão redondo à esquerda e a bancada à direita.
+      const saco = Math.min(largura, altura) * 0.27
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.98, hw * 0.98, -hh * 0.2),
+        ...quadro(-hw * 0.66, 0, hw * 0.36, hh * 0.46),
+        ...[-0.42, -0.15, 0.12].map((f) => ({ x1: hw * f, y1: -hh * 0.08, x2: hw * f, y2: hh * 0.54 })),
+        ...aro(saco, saco, -hw * 0.82, hh * 0.6),
+        ...quadro(hw * 0.46, -hh * 0.06, hw * 0.97, hh * 0.95),
+      ]
+    }
+    case 'churrasqueira':
+      // A caixa de tijolo e a bancada lado a lado, a boca da caixa, três varetas da grelha no vão e a tábua na bancada.
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.95, hw * 0.97, hh * 0.95),
+        ...quadro(-hw * 0.8, -hh * 0.6, hw * 0.2, hh * 0.95),
+        { x1: hw * 0.37, y1: -hh * 0.95, x2: hw * 0.37, y2: hh * 0.95 },
+        ...[-0.55, -0.3, -0.05].map((f) => ({ x1: hw * f, y1: -hh * 0.5, x2: hw * f, y2: hh * 0.85 })),
+        ...quadro(hw * 0.5, -hh * 0.8, hw * 0.84, -hh * 0.3),
+      ]
+    case 'harpa': {
+      // De frente (em pé, como a lápide): a coluna à esquerda, o pescoço em S no alto, a caixa na diagonal, o pé e três cordas.
+      const corda = (u: number, topo: number, base: number): Traco => ({ x1: hw * u, y1: hh * topo, x2: hw * u, y2: hh * base })
+      return [
+        { x1: -hw * 0.65, y1: hh * 0.94, x2: -hw * 0.65, y2: -hh * 0.94 },
+        { x1: -hw * 0.64, y1: -hh * 0.94, x2: -hw * 0.29, y2: -hh * 0.84 },
+        { x1: -hw * 0.29, y1: -hh * 0.84, x2: hw * 0.38, y2: -hh * 0.66 },
+        { x1: hw * 0.38, y1: -hh * 0.66, x2: hw * 0.83, y2: -hh * 0.41 },
+        { x1: -hw * 0.25, y1: hh * 0.78, x2: hw * 0.79, y2: -hh * 0.44 },
+        linha(-hw * 0.85, hh * 0.94, hw * 0.1),
+        corda(-0.1, -0.79, 0.6), corda(0.25, -0.7, 0.19), corda(0.55, -0.57, -0.16),
+      ]
+    }
+    case 'tambores': {
+      // Os três tambores (aros do tamanho de cada pele), o pandeiro (aro duplo) na frente e as duas baquetas cruzadas no grande.
+      const tambor = (x: number, y: number, r: number): Traco[] => aro(largura * r, altura * r, hw * x, hh * y)
+      return [
+        ...tambor(-0.34, -0.34, 0.57),
+        ...tambor(0.61, -0.43, 0.36),
+        ...tambor(-0.43, 0.61, 0.33),
+        ...tambor(0.47, 0.53, 0.36),
+        ...tambor(0.47, 0.53, 0.26),
+        { x1: -hw * 0.75, y1: -hh * 0.6, x2: hw * 0.05, y2: -hh * 0.1 },
+        { x1: -hw * 0.75, y1: -hh * 0.1, x2: hw * 0.05, y2: -hh * 0.6 },
+      ]
+    }
     // Lote L11 de 14/11/2026 (o descanso e a brincadeira): os traços do desenhista.
     case 'redeDeDormir': {
       // De cima: os dois postes nas pontas, as cordas e os punhos até o pano, e o pano em fuso, com a faixa do meio ao comprido.
@@ -3463,6 +3565,75 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       // De cima: a tábua comprida, os dois pilares do eixo ao norte e ao sul do meio, e as barras dos pegadores de través perto das pontas.
       const p = Math.min(largura, altura) * 0.1
       return [...quadro(-hw * 0.97, -hh * 0.33, hw * 0.97, hh * 0.33), ...quadro(-p, -hh * 0.8, p, -hh * 0.38), ...quadro(-p, hh * 0.38, p, hh * 0.8), { x1: -hw * 0.8, y1: -hh * 0.72, x2: -hw * 0.8, y2: hh * 0.72 }, { x1: hw * 0.8, y1: -hh * 0.72, x2: hw * 0.8, y2: hh * 0.72 }]
+    }
+    // Lote L12 de 14/11/2026 (o resto do descanso e da brincadeira): os traços do desenhista.
+    case 'escorregador': {
+      // De cima, comprido em x: a escada de dois banzos com cinco degraus no poente, a plataforma quadrada no meio e a calha comprida até o nascente, com as duas beiras de madeira.
+      const pe = -hw + altura * 0.04
+      const p0 = pe + altura * 0.52
+      const p1 = p0 + altura * 0.56
+      return [
+        linha(pe, -altura * 0.27, p0),
+        linha(pe, altura * 0.27, p0),
+        ...[1, 2, 3, 4, 5].map((i): Traco => ({ x1: pe + ((p0 - pe) * i) / 6, y1: -altura * 0.27, x2: pe + ((p0 - pe) * i) / 6, y2: altura * 0.27 })),
+        ...quadro(p0, -altura * 0.42, p1, altura * 0.42),
+        ...quadro(p1, -altura * 0.22, hw - altura * 0.02, altura * 0.22),
+        linha(p1, -altura * 0.15, hw - altura * 0.04),
+        linha(p1, altura * 0.15, hw - altura * 0.04),
+      ]
+    }
+    case 'aquario':
+      // De cima: o móvel, o tanque com a moldura por dentro, um peixe de rabo em leque no meio e duas ondas da areia no fundo.
+      return [
+        ...quadro(-hw * 0.98, -hh * 0.96, hw * 0.98, hh * 0.96),
+        ...quadro(-hw * 0.88, -hh * 0.78, hw * 0.88, hh * 0.78),
+        ...aro(largura * 0.16, altura * 0.2, -hw * 0.04, hh * 0.08),
+        ...fechado([[hw * 0.04, hh * 0.08], [hw * 0.2, -hh * 0.1], [hw * 0.2, hh * 0.26]]),
+        linha(-hw * 0.7, hh * 0.52, -hw * 0.3),
+        linha(hw * 0.32, -hh * 0.48, hw * 0.7),
+      ]
+    case 'ofuro':
+      // De cima: a tina quadrada no canto de trás, a água por dentro da borda, a beira da tampa de tábuas sobre a parte de trás, o balde redondo no canto da frente e as ripas do estrado no lado livre.
+      return [
+        ...quadro(-hw * 0.97, -hh * 0.97, hw * 0.49, hh * 0.49),
+        ...quadro(-hw * 0.84, -hh * 0.84, hw * 0.36, hh * 0.36),
+        linha(-hw * 0.97, -hh * 0.36, hw * 0.49),
+        linha(-hw * 0.97, -hh * 0.56, hw * 0.49),
+        ...aro(largura * 0.2, altura * 0.2, hw * 0.75, hh * 0.74),
+        linha(hw * 0.58, -hh * 0.6, hw * 0.97),
+        linha(hw * 0.58, -hh * 0.2, hw * 0.97),
+        linha(hw * 0.58, hh * 0.2, hw * 0.97),
+      ]
+    case 'telescopio':
+      // De cima: o tubo comprido na diagonal, fino na ocular embaixo à esquerda e largo no para-sol em cima à direita, as três pernas abertas da cabeça e a carta do céu no canto de trás.
+      return [
+        ...fechado([[-hw * 0.69, hh * 0.43], [hw * 0.54, -hh * 0.68], [hw * 0.74, -hh * 0.43], [-hw * 0.56, hh * 0.58]]),
+        { x1: -hw * 0.12, y1: hh * 0.08, x2: hw * 0.38, y2: hh * 0.68 },
+        { x1: -hw * 0.12, y1: hh * 0.08, x2: -hw * 0.9, y2: hh * 0.01 },
+        { x1: -hw * 0.12, y1: hh * 0.08, x2: -hw * 0.05, y2: -hh * 0.7 },
+        ...quadro(-hw * 0.81, -hh * 0.78, -hw * 0.29, -hh * 0.42),
+      ]
+    case 'globoTerrestre': {
+      // De cima: a esfera, o anel do horizonte em volta dela (beira de dentro e de fora), o meridiano atravessado no rumo do polo e os quatro pés saindo nas diagonais.
+      const m = Math.min(hw, hh)
+      return [
+        ...aro(m * 1.32, m * 1.32),
+        ...aro(m * 1.45, m * 1.45),
+        ...aro(m * 1.87, m * 1.87),
+        { x1: m * 0.3, y1: m * 0.74, x2: -m * 0.3, y2: -m * 0.74 },
+        ...[1, 3, 5, 7].map((i): Traco => ({ x1: Math.cos((i * Math.PI) / 4) * m * 0.94, y1: Math.sin((i * Math.PI) / 4) * m * 0.94, x2: Math.cos((i * Math.PI) / 4) * m * 1.04, y2: Math.sin((i * Math.PI) / 4) * m * 1.04 })),
+      ]
+    }
+    case 'pebolim': {
+      // De cima: a caixa de borda grossa, o campo com a linha e o círculo do meio e as oito varetas atravessadas de lado a lado, saindo da caixa para os punhos.
+      const campo = hw * 0.88
+      return [
+        ...quadro(-hw * 0.99, -hh * 0.62, hw * 0.99, hh * 0.62),
+        ...quadro(-campo, -hh * 0.48, campo, hh * 0.48),
+        { x1: 0, y1: -hh * 0.48, x2: 0, y2: hh * 0.48 },
+        ...aro(altura * 0.26, altura * 0.26),
+        ...[0, 1, 2, 3, 4, 5, 6, 7].map((i): Traco => ({ x1: -campo + (campo * (i + 0.5)) / 4, y1: -hh * 0.96, x2: -campo + (campo * (i + 0.5)) / 4, y2: hh * 0.96 })),
+      ]
     }
     // Lote L13 de 14/11/2026 (o torneio e a cidade): os traços do desenhista.
     case 'arquibancadaDeTorneio': {

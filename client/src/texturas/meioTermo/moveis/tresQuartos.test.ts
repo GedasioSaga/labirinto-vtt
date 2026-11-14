@@ -103,7 +103,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
     // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
     // E a arquibancada de torneio (14/11/2026), que o portão da folha mediu em 1,6 s.
-    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' || tipo === 'arquibancadaDeTorneio' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
+    // E a barraca de jogos da feira (14/11/2026), que a folha mediu em 0,7 s e, com a máquina carregada, em 1,4 s.
+    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' || tipo === 'arquibancadaDeTorneio' || tipo === 'barracaDeJogosDaFeira' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, teto, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)
