@@ -10,7 +10,8 @@
 //!   ([`PedidoNuvem`]) e os ids dela, nunca a URL nem cabeçalho; a base é fixa
 //!   ([`URL_BASE`]), só HTTPS, sem seguir redirecionamento (o Access redireciona
 //!   para o login quando recusa o token: segui-lo levaria a credencial embora);
-//! - cada pedido tem 15 s no total ([`TEMPO_TOTAL`]);
+//! - cada pedido tem 15 s no total ([`TEMPO_TOTAL`]); o pedaço de 4 MiB do
+//!   vídeo tem 120 s ([`PRAZO_DO_PEDACO`]), e o erro de rede diz o prazo que valeu;
 //! - a mídia sobe lida do disco por aqui, com o id conferido (forma, tipo pelos
 //!   bytes, hash) antes de sair; a webview não manda bytes de imagem;
 //! - todos os comandos recusam janela que não seja a `main` (a visão de jogador
@@ -794,6 +795,9 @@ impl PedidoNuvem {
 struct Ponte {
     base: String,
     cliente: reqwest::Client,
+    /// O prazo total de cada pedido; um pedido pode pedir outro (o pedaço do
+    /// vídeo), e a mensagem de erro de rede diz o prazo que valeu.
+    tempo: Duration,
 }
 
 impl Ponte {
@@ -816,7 +820,7 @@ impl Ponte {
         let cliente = construtor
             .build()
             .map_err(|_| ErroNuvem::novo("rede", "Não deu para preparar a conexão com o Lobby."))?;
-        Ok(Self { base, cliente })
+        Ok(Self { base, cliente, tempo })
     }
 }
 
@@ -851,13 +855,15 @@ fn cabecalho_sensivel(texto: &str) -> Result<HeaderValue, ErroNuvem> {
     Ok(valor)
 }
 
-fn erro_rede(erro: &reqwest::Error) -> ErroNuvem {
+/// `prazo` = o prazo total que valeu para ESTE pedido (15 s no comum, 120 s
+/// no pedaço de vídeo), para a mensagem não mentir o tempo.
+fn erro_rede(erro: &reqwest::Error, prazo: Duration) -> ErroNuvem {
     // Sem o texto do erro do reqwest: não é preciso, e assim nada do pedido
     // escapa por ele.
     let mensagem = if erro.is_timeout() {
         format!(
             "O Lobby demorou mais de {} s para responder. Tente de novo.",
-            TEMPO_TOTAL.as_secs()
+            prazo.as_secs()
         )
     } else if erro.is_connect() {
         "Sem conexão com o Lobby. Confira a internet.".to_owned()
@@ -902,7 +908,11 @@ fn erro_http(status: u16, corpo: &[u8], credencial: &Credencial) -> ErroNuvem {
 }
 
 /// Lê o corpo em pedaços e para no teto, sem confiar no Content-Length.
-async fn ler_limitado(resposta: &mut reqwest::Response, teto: usize) -> Result<Vec<u8>, ErroNuvem> {
+async fn ler_limitado(
+    resposta: &mut reqwest::Response,
+    teto: usize,
+    prazo: Duration,
+) -> Result<Vec<u8>, ErroNuvem> {
     let grande = || {
         resposta_invalida(format!(
             "A resposta do Lobby veio grande demais (mais de {} KiB).",
@@ -916,7 +926,7 @@ async fn ler_limitado(resposta: &mut reqwest::Response, teto: usize) -> Result<V
         return Err(grande());
     }
     let mut corpo = Vec::new();
-    while let Some(pedaco) = resposta.chunk().await.map_err(|e| erro_rede(&e))? {
+    while let Some(pedaco) = resposta.chunk().await.map_err(|e| erro_rede(&e, prazo))? {
         // Saturar aqui é a resposta certa: passou do teto de qualquer jeito.
         if corpo.len().saturating_add(pedaco.len()) > teto {
             return Err(grande());
@@ -959,6 +969,7 @@ async fn enviar_com_prazo(
     if let Some(prazo) = prazo {
         pedido = pedido.timeout(prazo);
     }
+    let prazo = prazo.unwrap_or(ponte.tempo);
     if let Some(corpo) = corpo {
         // `from_static` só recebe as constantes de `Corpo::tipo` (ASCII
         // visível, válidas como cabeçalho).
@@ -966,14 +977,14 @@ async fn enviar_com_prazo(
             .header(CONTENT_TYPE, HeaderValue::from_static(corpo.tipo))
             .body(corpo.bytes);
     }
-    let mut resposta = pedido.send().await.map_err(|e| erro_rede(&e))?;
+    let mut resposta = pedido.send().await.map_err(|e| erro_rede(&e, prazo))?;
     let status = resposta.status().as_u16();
     if (200..300).contains(&status) {
-        return ler_limitado(&mut resposta, teto).await;
+        return ler_limitado(&mut resposta, teto, prazo).await;
     }
     // O detalhe é só ajuda: corpo grande demais ou que cai no meio fica vazio,
     // e o status continua dizendo o que houve.
-    let corpo_do_erro = ler_limitado(&mut resposta, CORPO_DE_ERRO_MAX_BYTES)
+    let corpo_do_erro = ler_limitado(&mut resposta, CORPO_DE_ERRO_MAX_BYTES, prazo)
         .await
         .unwrap_or_default();
     Err(erro_http(status, &corpo_do_erro, credencial))
@@ -1781,6 +1792,30 @@ mod testes {
         mudo.abort();
         assert_eq!(erro.codigo, "rede");
         assert!(erro.mensagem.contains("demorou"), "{}", erro.mensagem);
+        Ok(())
+    }
+
+    /// Cutscene (14/11): o pedaço do vídeo tem prazo próprio (120 s em produção,
+    /// não os 15 s da ponte); o erro de tempo diz o prazo que valeu para ele.
+    #[tokio::test]
+    async fn tempo_estourado_diz_o_prazo_do_proprio_pedido() -> Resultado {
+        let ouvinte = TcpListener::bind("127.0.0.1:0").await?;
+        let base = format!("http://{}", ouvinte.local_addr()?);
+        let mudo = tokio::spawn(async move {
+            if let Ok((conexao, _)) = ouvinte.accept().await {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                drop(conexao);
+            }
+        });
+        let ponte = ponte_local(base, Duration::from_secs(7)).map_err(|e| e.mensagem)?;
+        let pedido = enviar_com_prazo(&ponte, &credencial(), &Rota::Eu, None, RESPOSTA_MAX_BYTES, Some(Duration::from_secs(1))).await;
+        mudo.abort();
+        let Err(erro) = pedido else {
+            return Err("o servidor mudo devia estourar o prazo do pedido".into());
+        };
+        assert_eq!(erro.codigo, "rede");
+        assert!(erro.mensagem.contains("mais de 1 s"), "{}", erro.mensagem);
+        assert_eq!(PRAZO_DO_PEDACO.as_secs(), 120);
         Ok(())
     }
 
