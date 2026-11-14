@@ -187,11 +187,13 @@
   gap: 4px;
   padding: 6px 2px;
   /* Só a resposta ao toque: a grade abre sem animação, como os outros submenus. */
-  transition: transform 120ms ease-out;
+  transition: transform var(--lb-motion-fast, 110ms) var(--lb-motion-ease, ease);
 }
 
+/* Apertou: afunda na hora e volta no tempo do tema, como os itens do menu do jogador (`.pp-pointmenu__item`). */
 .lb-minis__item:active {
   transform: scale(0.97);
+  transition-duration: 0ms;
 }
 
 .lb-minis__foto {
