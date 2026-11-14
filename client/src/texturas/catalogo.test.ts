@@ -11,7 +11,7 @@ function textura(id: string, forma?: { grupo: string; nome: string }): TexturaDo
 }
 
 describe('agruparPorForma', () => {
-  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de três, o Chão de metal de quatro, o resto fica de uma', () => {
+  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de três, o Chão de metal de quatro, a Base militar de cinco, os Pisos de madeira e de pedra de seis, o resto fica de uma', () => {
     const grupos = agruparPorForma(listarTexturas())
     const lajotas = grupos.find((g) => g.grupo === 'lajotas')
     expect(lajotas?.nome).toBe('Lajotas de pedra')
@@ -22,9 +22,19 @@ describe('agruparPorForma', () => {
     const metal = grupos.find((g) => g.grupo === 'chao-de-metal')
     expect(metal?.nome).toBe('Chão de metal')
     expect(metal?.formas.map((t) => t.forma?.nome)).toEqual(['Placas', 'Chapa xadrez', 'Grade', 'Painéis de nave'])
-    expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(3)
-    // O Cascalho (CHÃO E CAMINHO, 12/11/2026) é cartão de uma forma, depois da Terra.
-    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal'])
+    // Os três cartões de 14/11/2026 ("texturas novas de madeira, pedra, base militar").
+    const madeira = grupos.find((g) => g.grupo === 'pisos-de-madeira')
+    expect(madeira?.nome).toBe('Pisos de madeira')
+    expect(madeira?.formas.map((t) => t.forma?.nome)).toEqual(['Assoalho claro', 'Tábua envernizada', 'Taco em espinha', 'Parquê em cesta', 'Madeira velha', 'Troncos'])
+    const pedra = grupos.find((g) => g.grupo === 'pisos-de-pedra')
+    expect(pedra?.nome).toBe('Pisos de pedra')
+    expect(pedra?.formas.map((t) => t.forma?.nome)).toEqual(['Paralelepípedo', 'Mármore', 'Pedra com musgo', 'Laje de templo', 'Rocha de caverna', 'Basalto em colunas'])
+    const militar = grupos.find((g) => g.grupo === 'base-militar')
+    expect(militar?.nome).toBe('Base militar')
+    expect(militar?.formas.map((t) => t.forma?.nome)).toEqual(['Concreto', 'Asfalto com faixa', 'Lona camuflada', 'Piso de borracha', 'Chapa de pouso'])
+    expect(grupos.filter((g) => g.formas.length > 1)).toHaveLength(6)
+    // O Cascalho (CHÃO E CAMINHO, 12/11/2026) é cartão de uma forma, depois da Terra; os três de 14/11/2026 no fim.
+    expect(grupos.map((g) => g.formas[0].id)).toEqual(['areia', 'duna', 'grama', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'calcamento', 'chao-de-metal', 'assoalho-claro', 'paralelepipedo', 'concreto'])
   })
 
   it('mantém a ordem da lista: o grupo fica onde a sua primeira forma aparece', () => {

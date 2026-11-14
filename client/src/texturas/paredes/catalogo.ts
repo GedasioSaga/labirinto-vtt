@@ -93,7 +93,10 @@ export interface MaterialDoCatalogo {
   readonly receita: ReceitaDaParede
 }
 
-/** A ordem é a da tela: o castelo primeiro (o pedido do usuário), as pedras, o barro, as fibras, o metal. */
+/**
+ * A ordem é a da tela: o castelo primeiro (o pedido do usuário), as pedras, o barro, as fibras, o metal e, no fim,
+ * a base militar (concreto e sacos de areia, pedido de 14/11/2026: "texturas novas de madeira, pedra, base militar").
+ */
 export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
   {
     id: 'castelo',
@@ -106,6 +109,13 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     nome: 'Pedra rústica',
     descricao: 'Pedras irregulares, fenda escura entre elas.',
     receita: { fiadasAte: [15, 36], passo: { porFundura: 1.5, min: 11, max: 30 }, varia: 0.4, funde: 0.12, junta: 1.6, tremor: 1.7, bisel: 2.4, luz: 0.4, sombra: 0.44, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // A Pedra com musgo (14/11/2026) parte da Pedra rústica: a laje é mais chata, a pedra um pouco maior e menos torta.
+  {
+    id: 'pedra-musgo',
+    nome: 'Pedra com musgo',
+    descricao: 'Pedras cinza e frias, com musgo nas juntas e em manchas no topo.',
+    receita: { fiadasAte: [15, 36], passo: { porFundura: 1.7, min: 13, max: 34 }, varia: 0.4, funde: 0.15, junta: 1.8, tremor: 1.3, bisel: 2.2, luz: 0.38, sombra: 0.42, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
   {
     id: 'tijolo',
@@ -136,6 +146,21 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     nome: 'Ferro',
     descricao: 'Chapas de ferro rebitadas.',
     receita: { fiadasAte: [], passo: { porFundura: 0, min: 78, max: 78 }, varia: 0.35, funde: 0.15, junta: 1, tremor: 0, bisel: 1.3, luz: 0.4, sombra: 0.46, face: 'reta', tampaComBisel: true, detalhe: 'rebites' },
+  },
+  // O Concreto (14/11/2026) parte do Ferro: uma fiada de painéis compridos, sem enfeite por cima.
+  {
+    id: 'concreto',
+    nome: 'Concreto',
+    descricao: 'Painéis de concreto moldado, junta fina e pilar de concreto nos cantos.',
+    receita: { fiadasAte: [], passo: { porFundura: 0, min: 72, max: 72 }, varia: 0.2, funde: 0.1, junta: 1, tremor: 0, bisel: 1.2, luz: 0.32, sombra: 0.38, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // Os Sacos de areia (14/11/2026) partem da Palha (face roliça, sem bisel), com um pouco de tremor porque o saco não
+  // assenta reto; o amarrado das pontas é o barbante, o detalhe mais parecido que existe.
+  {
+    id: 'sacos-de-areia',
+    nome: 'Sacos de areia',
+    descricao: 'Sacos de juta cor de areia empilhados em fiadas desencontradas, amarrados nas pontas.',
+    receita: { fiadasAte: [15, 36], passo: { porFundura: 0, min: 32, max: 32 }, varia: 0.3, funde: 0, junta: 1.4, tremor: 1, bisel: 0, luz: 0.2, sombra: 0.26, face: 'rolica', tampaComBisel: false, detalhe: 'barbante' },
   },
 ]
 

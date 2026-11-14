@@ -1,5 +1,22 @@
 import { CASCALHO_CASAS, cascalho } from './cascalho'
 import { METAL_CASAS, metalEmChapaXadrez, metalEmGrade, metalEmPaineis, metalEmPlacas } from './chaoDeMetal'
+import { texturaAsfaltoFaixa } from './chaos/asfaltoFaixa'
+import { texturaAssoalhoClaro } from './chaos/assoalhoClaro'
+import { texturaBasaltoHexagonal } from './chaos/basaltoHexagonal'
+import { texturaChapaDePouso } from './chaos/chapaDePouso'
+import { texturaConcreto } from './chaos/concreto'
+import { texturaLajeDeTemplo } from './chaos/lajeDeTemplo'
+import { texturaLonaCamuflagem } from './chaos/lonaCamuflagem'
+import { texturaMadeiraGasta } from './chaos/madeiraGasta'
+import { texturaMarmore } from './chaos/marmore'
+import { texturaParalelepipedo } from './chaos/paralelepipedo'
+import { texturaParqueCesta } from './chaos/parqueCesta'
+import { texturaPedraMusgo } from './chaos/pedraMusgo'
+import { texturaPisoDeBorracha } from './chaos/pisoDeBorracha'
+import { texturaRochaDeCaverna } from './chaos/rochaDeCaverna'
+import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
+import { texturaTacoEspinha } from './chaos/tacoEspinha'
+import { texturaTroncos } from './chaos/troncos'
 import { cobertura, espalhar, naVolta, pontosPerto, pontosQueAlcancam, sorteador, type Cobertura, type Espalhamento } from './espalhar'
 import type { VidaDoChao } from './meioTermo/chaoNoMundo'
 import {
@@ -75,6 +92,8 @@ export interface DefinicaoDeTextura {
 const LADO_GRANDE = 512
 /** O ladrilho dos chãos de masmorra (8 casas): 128 px por casa, a tábua nítida de perto. */
 const LADO_MAIOR = 1024
+/** Os chãos de `chaos/` (14/11/2026) desenham 8 casas por ladrilho: a tábua, a pedra e a placa contam contra a casa. */
+const CASAS_DOS_CHAOS = 8
 
 // ---------------------------------------------------------------------------
 // Areia: o bege claro das praias do mapa, manchado de leve, com grão fino e
@@ -1392,6 +1411,27 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'chao-de-metal-xadrez', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Chapa xadrez' }, cor: metalEmChapaXadrez },
   { id: 'chao-de-metal-grade', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Grade' }, cor: metalEmGrade },
   { id: 'chao-de-metal-paineis', nome: 'Chão de metal', escala: 64, casas: METAL_CASAS, lado: LADO_MAIOR, forma: { grupo: 'chao-de-metal', nome: 'Painéis de nave' }, cor: metalEmPaineis },
+  // Pisos de madeira (pedido de 14/11/2026, "texturas novas de madeira, pedra, base militar"; `chaos/`): seis formas, o Assoalho claro é a padrão.
+  { id: 'assoalho-claro', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Assoalho claro' }, cor: texturaAssoalhoClaro },
+  { id: 'tabua-envernizada', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Tábua envernizada' }, cor: texturaTabuaEnvernizada },
+  { id: 'taco-espinha', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Taco em espinha' }, cor: texturaTacoEspinha },
+  { id: 'parque-cesta', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Parquê em cesta' }, cor: texturaParqueCesta },
+  { id: 'madeira-gasta', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Madeira velha' }, cor: texturaMadeiraGasta },
+  { id: 'troncos', nome: 'Pisos de madeira', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-madeira', nome: 'Troncos' }, cor: texturaTroncos },
+  // Pisos de pedra (pedido de 14/11/2026, `chaos/`): seis formas, o Paralelepípedo é a padrão. O grupo não se chama
+  // `pedra` porque esse já é o id da Serra.
+  { id: 'paralelepipedo', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Paralelepípedo' }, cor: texturaParalelepipedo },
+  { id: 'marmore', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Mármore' }, cor: texturaMarmore },
+  { id: 'pedra-musgo', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Pedra com musgo' }, cor: texturaPedraMusgo },
+  { id: 'laje-de-templo', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Laje de templo' }, cor: texturaLajeDeTemplo },
+  { id: 'rocha-de-caverna', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Rocha de caverna' }, cor: texturaRochaDeCaverna },
+  { id: 'basalto-hexagonal', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Basalto em colunas' }, cor: texturaBasaltoHexagonal },
+  // Base militar (pedido de 14/11/2026, `chaos/`): cinco formas, o Concreto é a padrão.
+  { id: 'concreto', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Concreto' }, cor: texturaConcreto },
+  { id: 'asfalto-faixa', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Asfalto com faixa' }, cor: texturaAsfaltoFaixa },
+  { id: 'lona-camuflagem', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Lona camuflada' }, cor: texturaLonaCamuflagem },
+  { id: 'piso-de-borracha', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Piso de borracha' }, cor: texturaPisoDeBorracha },
+  { id: 'chapa-de-pouso', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Chapa de pouso' }, cor: texturaChapaDePouso },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */

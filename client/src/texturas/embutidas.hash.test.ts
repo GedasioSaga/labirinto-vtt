@@ -39,6 +39,25 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'chao-de-metal-xadrez': 'f4c4ebf80bf82a70f35d5119bf943a05a5ebeb3aafba6f39ef34dd6967dc5c68',
   'chao-de-metal-grade': 'c77f93fbf7a78aaa964f87cddb17f60607602409b3a42db76fe202516abda320',
   'chao-de-metal-paineis': 'c650081056857bd40519e4433f363e34d20697aee68cfaf7b9ad105aa601f7fe',
+  // Os Pisos de madeira, os Pisos de pedra e a Base militar nasceram depois da F5 (14/11/2026): o hash é o do código
+  // que os criou (`d89bff33`, `e624a372`, `dfb9ef2b`).
+  'assoalho-claro': '0879654fbfa33dbf4b5ae41817f1982c7ef51a3930bad17e9b3dcda6c18de8ec',
+  'tabua-envernizada': '193e9760a942becd21d46ee3bfc01d47b03758d51bed8112846468782e4c856b',
+  'taco-espinha': '4438778eacc8ebd7d723d6df2eb4f1a6e00516a5e84f6aff51bb0e110999e116',
+  'parque-cesta': 'bd408b6a8acb21bb1cc8c24393972f59b80430329eb9600424705fb0483deb86',
+  'madeira-gasta': '747a7b2cae63092bffa21ad4408e2e186e7be4288b12f8db3b9395f4d32fc0d9',
+  troncos: '5f277de7917df07e8d6ab648927e4919e1a02bf53331e6c27623d50cc0916669',
+  paralelepipedo: 'bc64ad924da97aba65219e174d77cb8d7f7cae23c206497ffb32a4beab31859d',
+  marmore: 'b4f78221139fa26fd5ee31ca1c6c5b851ca683dde59816c4412929ab96012d10',
+  'pedra-musgo': '69b39a9d431881b77d1d958f6ef5809de93242a8d793fb3bdba9d9574207b12a',
+  'laje-de-templo': '93d0bbbf0313773e33d0ca66d415c01a6bfc5ec15db7d8fb8df9732427f317d8',
+  'rocha-de-caverna': 'f490d3620e450abec9b000c371f2741d440ffdb8c6db7cb7187cf82929b1b824',
+  'basalto-hexagonal': '828f1a64fdd9ff872bac19ec609289f9f728a8c379ac3618c5df87eeae03b989',
+  concreto: 'cf339783f28235f312238e747c6ff58d2ff70a277054f90ac31e09f6296b0338',
+  'asfalto-faixa': 'e058b8bc85288cccd2befae472706709ed697588feebc7b0ddb899943b280926',
+  'lona-camuflagem': 'cafda43d227050997edded6730a2f11aa335e006e2cda1b51fbfbc27ac1e948e',
+  'piso-de-borracha': '307df1b0f6739e14c3a42325d74f4e16538ab2b08239dd4da932ca6f1f796136',
+  'chapa-de-pouso': '26dc64995856c3d309a6e7fe953a0ebe26e1a0aa1117d87cbeaf502a1cb09d2e',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

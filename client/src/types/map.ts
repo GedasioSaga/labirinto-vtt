@@ -105,7 +105,7 @@ export type FeitioDaParede = 'pedra' | 'linha'
  * material, feita no estúdio (`texturas/paredes/imagens/<material>.png`). Desde
  * 10/11/2026 a parede é montada em peças, vista de cima (`pixi/paredeEmPecas.ts`).
  */
-export type MaterialDaParede = 'castelo' | 'madeira' | 'ferro' | 'tijolo' | 'pedra-rustica' | 'bambu' | 'palha'
+export type MaterialDaParede = 'castelo' | 'madeira' | 'ferro' | 'tijolo' | 'pedra-rustica' | 'bambu' | 'palha' | 'pedra-musgo' | 'concreto' | 'sacos-de-areia'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'

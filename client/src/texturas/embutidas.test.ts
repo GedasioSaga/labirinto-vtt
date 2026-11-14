@@ -84,8 +84,14 @@ function rotulo(t: (typeof TEXTURAS_EMBUTIDAS)[number]): string {
 describe('biblioteca inicial de texturas', () => {
   it('tem as texturas pedidas (os chãos de masmorra no fim), com id e nome únicos', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
-    // O Cascalho (CHÃO E CAMINHO, 12/11/2026) logo depois da Terra.
-    expect(ids).toEqual(['areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis'])
+    // O Cascalho (CHÃO E CAMINHO, 12/11/2026) logo depois da Terra; os Pisos de madeira, os Pisos de pedra e a Base
+    // militar (14/11/2026) no fim, depois do Chão de metal.
+    expect(ids).toEqual([
+      'areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis',
+      'assoalho-claro', 'tabua-envernizada', 'taco-espinha', 'parque-cesta', 'madeira-gasta', 'troncos',
+      'paralelepipedo', 'marmore', 'pedra-musgo', 'laje-de-templo', 'rocha-de-caverna', 'basalto-hexagonal',
+      'concreto', 'asfalto-faixa', 'lona-camuflagem', 'piso-de-borracha', 'chapa-de-pouso',
+    ])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
   })
