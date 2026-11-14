@@ -35,7 +35,9 @@ const { useAdventureStore, personagensAtivos, sistemaAtivo } = await import('./a
 const { useMapStore } = await import('./mapStore')
 const { useSessionStore } = await import('./sessionStore')
 const { sistemaPorId, useRpgStore } = await import('./rpgStore')
-const { mudarFichaDoToken } = await import('./mudarFichaDoToken')
+const { mudarFichaDoToken, tokenDoMapaNaBatalha } = await import('./mudarFichaDoToken')
+const { useBatalhaStore } = await import('./batalhaStore')
+const { useBatalhaDBTStore } = await import('./batalhaDBTStore')
 const { formasVisiveisDoMapa } = await import('../lib/mudarFicha')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { personagemDoArquivo } = await import('../lib/personagem')
@@ -120,6 +122,8 @@ beforeEach(async () => {
   useAdventureStore.getState().reset()
   useMapStore.getState().loadMap(createEmptyMap('map_vazio', 'Vazio', 20, 16, 64))
   useSessionStore.getState().markSaved()
+  useBatalhaStore.getState().reset()
+  useBatalhaDBTStore.getState().reset()
   await abrirAventura()
 })
 
@@ -154,5 +158,29 @@ describe('Mudar ficha pelo botão direito do mestre (fora da batalha)', () => {
     useAdventureStore.getState().ajustarPersonagem('p_luffy', (atual) => ({ ...atual, cartoesAtivos: [] }))
     expect(tokenDoLuffy().formaVisivel).toBe(FORMA)
     expect(imagemVisivel()).toBeUndefined()
+  })
+})
+
+describe('Mudar ficha na batalha (decisão de 14/11/2026: apagado, a forma se troca pelo menu da batalha)', () => {
+  it('a cena em batalha One Piece, ou a ficha numa batalha Dragon Ball de outra cena: nada muda; sem batalha, volta a mudar', () => {
+    useBatalhaStore.getState().ligar(CENA)
+    expect(tokenDoMapaNaBatalha(TOKEN)).toBe(true)
+
+    mudarFichaDoToken(TOKEN, FORMA)
+
+    expect('formaVisivel' in tokenDoLuffy()).toBe(false)
+    expect(fichaDoLuffy().cartoesAtivos).toEqual([])
+
+    // Dragon Ball noutra cena, com o Luffy entre os combatentes: a ficha está na batalha, mesmo com o mapa aberto fora dela.
+    useBatalhaStore.getState().desligar(CENA)
+    useBatalhaDBTStore.getState().ligar('s_outra', {}, { entrantes: [{ tokenId: 't_outro', personagemId: 'p_luffy', nome: 'Luffy', lado: 'herois', npc: false }] })
+    expect(tokenDoMapaNaBatalha(TOKEN)).toBe(true)
+    mudarFichaDoToken(TOKEN, FORMA)
+    expect(fichaDoLuffy().cartoesAtivos).toEqual([])
+
+    useBatalhaDBTStore.getState().desligar('s_outra')
+    expect(tokenDoMapaNaBatalha(TOKEN)).toBe(false)
+    mudarFichaDoToken(TOKEN, FORMA)
+    expect(fichaDoLuffy().cartoesAtivos).toEqual([FORMA])
   })
 })
