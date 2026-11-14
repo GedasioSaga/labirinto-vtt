@@ -120,7 +120,7 @@ import { readSceneFloor } from './buildingFloors'
 import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { lerTamanhoAoEntrar } from './tamanhoAoEntrar'
-import { pisosDoArquivo } from './pisos'
+import { alturasDosPisosDoArquivo, pisosDoArquivo } from './pisos'
 import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
@@ -1139,6 +1139,9 @@ function deserializeMapFields(json: string): MapData {
     // MANCHAS DO CHÃO (Meio-Termo): campo NOVO e OPCIONAL, mesmo padrão de
     // `worldMap`. Só `true` vale; ausente (ou torto) abre sem manchas.
     ...(parsed.manchasDoChao === true ? { manchasDoChao: true } : {}),
+    // TERRENO ALTO: campo NOVO e OPCIONAL. Só 'baixa'/'alta' de piso válido voltam;
+    // ausente (ou torto) abre com todo piso na média, sem o campo (`alturasDosPisosDoArquivo`).
+    ...alturasDosPisosField(alturasDosPisosDoArquivo(parsed.alturaDosPisos)),
     // ESTILO DO MAPA: campo NOVO e OPCIONAL. Só 'simples' e 'desenhado' voltam;
     // ausente (ou torto) abre no Atual, sem o campo (`lib/estiloDoMapa.ts`).
     ...(parsed.estiloVisual === 'simples' || parsed.estiloVisual === 'desenhado' ? { estiloVisual: parsed.estiloVisual } : {}),
@@ -1229,6 +1232,11 @@ function ambienteDoArquivo(chave: unknown, pintado: unknown, particulasAntigas: 
     ...(ambientePintado === undefined ? {} : { ambientePintado }),
     ...(particulas === undefined ? {} : { particulas }),
   }
+}
+
+/** TERRENO ALTO: a lista lida, ou nenhuma chave (o mapa de antes do campo). */
+function alturasDosPisosField(lista: MapData['alturaDosPisos']): Pick<MapData, 'alturaDosPisos'> {
+  return lista === undefined ? {} : { alturaDosPisos: lista }
 }
 
 /** NEBLINA: cada campo só entra quando lido inteiro (`lib/neblina.ts`). */

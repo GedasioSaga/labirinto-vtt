@@ -74,6 +74,7 @@ import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveOptions, type T
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
 import { escadaDaFicha, mapaDoPiso, pisoDe } from '../lib/pisos'
+import { terrenoAltoDoJogador } from '../lib/terrenoAlto'
 import { paredesParaAndar } from '../lib/barranco'
 import { alcancePeloObjeto, paredesParaAndarDoJogador } from '../lib/obstaculosDeObjeto'
 import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from '../lib/doorReach'
@@ -4807,6 +4808,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const oneWay = oneWayExitsOf(map, scene.sceneId, travelLookup(allScenes(world)))
     // MODO BATALHA: a parede invisível em que ele esbarrou é parede comum PARA ELE (regra de 27/10).
     const mapaDoRecorte = comParedesReveladas(map, memory.paredesReveladas)
+    const barras = barrasDoMapa(map, world, playerId)
+    const formas = formasDoMapa(map, world)
     const recortar = (): PlayerMapView =>
       filterMapForPlayer(
         mapaDoRecorte,
@@ -4826,8 +4829,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         memory.marcas,
         oneWay,
         companionMarks(),
-        barrasDoMapa(map, world, playerId),
-        formasDoMapa(map, world),
+        barras,
+        formas,
       )
     let cut = recortar()
     // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
@@ -4961,6 +4964,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (porAtravessar.length > 0) base.porAtravessar = porAtravessar
     // MAPA POR ANDARES: o campo só existe quando há outro andar conhecido.
     if (andares !== undefined) base.andares = andares
+    // TERRENO ALTO: o piso de baixo visto de cima e as fichas do piso de cima vistas daqui (`lib/terrenoAlto.ts`).
+    // Cena sem pisos, ou nada a mostrar: o campo nem sai, e o snapshot fica igual ao de antes.
+    const alto = terrenoAltoDoJogador({
+      mapaInteiro: mapaDoRecorte,
+      playerId,
+      ownership,
+      raio: tokenRadiusIn(playerId, map),
+      loans: loansFor(playerId),
+      recorte: view,
+      only: { pinAudiences, playerId, secretReveals, discoveredSecretRooms: memory.secretRooms, oneWayExits: oneWay, barras, formas, ownership, companions: companionMarks() },
+    })
+    if (alto !== null) base.alto = alto
     // DIA/TARDE/NOITE: o período DESTA cena e a tinta dele. De dia (ou sem período no mestre) o campo nem sai.
     const luz = luzParaJogador(map, sessionPeriod())
     if (luz !== null) base.luz = luz
