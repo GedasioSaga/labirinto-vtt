@@ -46,6 +46,8 @@ import { drawFrostBadge } from './drawTokenFrozen'
 import { faseDoMarcador } from './drawMarcadorDeContinente'
 import { descidaDosNomes, type NomeNoMapa } from '../lib/nomesEncostados'
 import { criarVistaDoMarcador, escalarVistaDoMarcador, pintarVistaDoMarcador, posarVistaDoMarcador, type VistaDoMarcador } from './vistaDoMarcador'
+import { lerAura } from '../lib/auras'
+import { criarAurasNoMapa } from './auras/vistaDaAura'
 
 /** Token "Oculto no editor": fantasma bem transparente, mas ainda clicável. */
 const HIDDEN_TOKEN_GHOST_ALPHA = 0.3
@@ -165,6 +167,15 @@ export interface TokensMotion {
   reducedMotion: () => boolean
   /** Agora, em ms. Padrão `performance.now()`, o relógio do deslize (`player/tokenGlide.ts`). */
   now?: () => number
+  /**
+   * AURA DA FICHA (`pixi/auras/`): o relógio CRU (`app.ticker`, não o do
+   * desenho sob pedido) e o tamanho da tela. A aura bate nele só enquanto
+   * alguma ficha tem aura acesa, e só pinta a que está à vista: fora da tela
+   * nada muda, e a tela não desenha por causa dela. Omitidos = a aura fica no
+   * quadro parado da página de prova.
+   */
+  quadros?: Pick<Ticker, 'add' | 'remove'>
+  tela?: () => { width: number; height: number }
 }
 
 /**
@@ -428,6 +439,11 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   let lastCameraScale = 1
   /** As fichas do último `draw`: `setCameraScale` separa os nomes de novo com elas. */
   let ultimasFichas: readonly Token[] = []
+  /** AURA DA FICHA: as auras acesas, por ficha (`pixi/auras/vistaDaAura.ts`). */
+  const auras = criarAurasNoMapa(
+    () => lastCameraScale,
+    motion?.quadros !== undefined && motion.tela !== undefined ? { quadros: motion.quadros, reducedMotion: motion.reducedMotion, tela: motion.tela } : undefined,
+  )
 
   // ── Animação ──────────────────────────────────────────────────────────
   const clock = motion?.now ?? (() => performance.now())
@@ -604,6 +620,16 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     pulsoDaVez = null
     pararBatidas()
     stopTicking()
+    auras.destruir()
+  }
+
+  /**
+   * AURA DA FICHA: a aura acesa da ficha atrás do disco, e o raio e a faísca
+   * logo acima da moldura e dos aros (por baixo da barra, do nome e das
+   * marcas). Desligada ou sem aura: apaga. Volto já apaga a aura com a foto.
+   */
+  function syncAura(entry: TokenEntry, token: Token, outlineRadius: number, away: boolean): void {
+    auras.sincronizar(token.id, entry.wrapper, lerAura(token.aura), outlineRadius, entry.turnRing ?? entry.ring, away ? AWAY_TOKEN_ALPHA : 1)
   }
 
   /** O deslize em curso desta ficha já vai para `target`? (redesenho sem relação não o corta) */
@@ -666,6 +692,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   function setCameraScale(cameraScale: number): void {
     lastCameraScale = cameraScale
     for (const entry of cache.values()) applyLabelSizing(entry)
+    // A aura é contada em px de tela: no zoom novo, o mesmo quadro no tamanho novo.
+    auras.reescalar()
     // O nome tem tamanho fixo na tela: o zoom muda a caixa dele no mundo, e quem se cruza.
     separarNomes(ultimasFichas)
   }
@@ -863,6 +891,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
 
     for (const [id, entry] of cache) {
       if (!currentIds.has(id)) {
+        // A aura morre já, com o invólucro (sem apagar devagar numa ficha que não existe mais).
+        auras.esquecer(id)
         // A vista pode estar num nó de camada (`noDaFicha`), não só em `container`.
         entry.wrapper.removeFromParent()
         entry.wrapper.destroy({ children: true })
@@ -962,6 +992,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const ghost = isHidden(token)
       entry.wrapper.alpha = ghost ? HIDDEN_TOKEN_GHOST_ALPHA : token.secret ? SECRET_ITEM_ALPHA : 1
       if (pino !== null) {
+        // O pino não leva aura, como não leva vida nem condição.
+        auras.sincronizar(token.id, entry.wrapper, null, 0, entry.ring, 1)
         if (paintMarcador(entry, token, pino, selected)) changedLabels += 1
         // Já na pose de agora: o pino recém-nascido não espera o próximo quadro para ter pirâmide.
         // Parado (movimento reduzido, exportação), é a pose fixa, e só aqui ela é desenhada.
@@ -1125,6 +1157,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       // o mestre vê quem está segurado sem abrir painel. No anel, como o selo:
       // sem slot novo no wrapper. Travada também: no editor não há cadeado.
       if (estaCongelada(token)) drawFrostBadge(entry.ring, outlineRadius)
+      // AURA DA FICHA: depois do visual e dos aros, que ela envolve (atrás) e cruza (frente).
+      syncAura(entry, token, outlineRadius, away)
 
       // Nome novo (Text que acabou de nascer, na resolução do renderer) ou
       // trocado: o tamanho do texto entra no teto da resolução dele.

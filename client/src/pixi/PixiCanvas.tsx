@@ -3284,7 +3284,8 @@ function PixiCanvasDoContexto({
       }
       // Ficha na mão, anel da vez e passo do jogador animam no relógio do Pixi
       // — e só enquanto alguma coisa anima (tokensRenderer.ts).
-      const tokensRenderer = createTokensRenderer({ ticker: desenho.relogio, reducedMotion: prefersReducedMotion })
+      // A AURA DA FICHA bate no relógio cru: fora da tela ela não muda nada, e a tela não desenha por ela.
+      const tokensRenderer = createTokensRenderer({ ticker: desenho.relogio, reducedMotion: prefersReducedMotion, quadros: app.ticker, tela: () => app.screen })
       // D4 da batalha: o recuo e o tombo da ficha atingida (`impactoNasFichas.ts`).
       const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, desenho.relogio)
       const fantasmaRenderer = createFantasmaDeTesteRenderer(fantasmaDeTesteContainer, { ticker: desenho.relogio, reducedMotion: prefersReducedMotion })

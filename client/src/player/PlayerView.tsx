@@ -150,7 +150,8 @@ import {
   type SelosNasFichas,
 } from '../pixi/tokenPhotoSprite'
 import { isTokenPhotoData, tokenPhotoRef } from '../lib/tokenPhoto'
-import { auraQueOJogadorLiga } from '../lib/auras'
+import { auraQueOJogadorLiga, lerAura } from '../lib/auras'
+import { criarAurasNoMapa, type AurasNoMapa } from '../pixi/auras/vistaDaAura'
 import { playerTokenAlpha } from '../lib/tokenHiding'
 import { tokenConditionsOf } from '../lib/tokenConditions'
 import { condicoesPropriasOf } from '../lib/condicoesProprias'
@@ -1603,6 +1604,8 @@ interface Scene {
   tokenTurns: TokenTurns
   /** MAPA DE CONTINENTE: fichas à vista desenhadas como pino agora. Vazio = o ticker do pino não faz nada. */
   marcadores: Set<string>
+  /** AURA DA FICHA: as auras acesas das fichas à vista (`pixi/auras/vistaDaAura.ts`), o mesmo desenho do mestre. */
+  auras: AurasNoMapa
   camera: Camera
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
@@ -1779,7 +1782,8 @@ function syncAnelDaVez(scene: Scene, map: MapData, vezTokenId: string | null, no
     scene.pulsoDaVez = null
     return
   }
-  if (anel.parent !== view.wrapper) view.wrapper.addChildAt(anel, 0)
+  // Logo abaixo do disco: por baixo da foto e por cima da AURA DA FICHA (o filho 0, a camada mais de trás).
+  if (anel.parent !== view.wrapper) view.wrapper.addChildAt(anel, view.photoMask.parent === view.wrapper ? view.wrapper.getChildIndex(view.photoMask) : 0)
   const raio = tokenRadius(token, map.grid) + TURN_RING_GAP + TURN_RING_WIDTH / 2
   if (raio !== scene.raioDoAnel) {
     anel.clear().circle(0, 0, raio).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
@@ -3735,6 +3739,8 @@ function PlayerViewDoCanvas({
       scene.tokenGlides.delete(id)
       scene.tokenTurns.delete(id)
       scene.marcadores.delete(id)
+      // AURA DA FICHA: a ficha que saiu da visão leva a aura junto; voltando, ela acende de novo.
+      scene.auras.esquecer(id)
     }
     // Deslize só dentro da MESMA cena: a ficha que chega a outra cena (ou a
     // primeira desenhada) aparece no lugar, sem atravessar a tela.
@@ -3790,6 +3796,9 @@ function PlayerViewDoCanvas({
       // Esconder-se: a própria ficha escondida sai esmaecida (`lib/tokenHiding.ts`).
       view.wrapper.alpha = playerTokenAlpha(token, isOwn)
       view.wrapper.visible = true
+      // AURA DA FICHA: a mesma do mestre, atrás do disco e, o raio e a faísca, logo acima da moldura
+      // e do aro de dono (por baixo da barra e do nome). O pino do continente não leva aura.
+      scene.auras.sincronizar(token.id, view.wrapper, view.pino === null ? lerAura(token.aura) : null, view.radius, view.ring, 1)
       // A ficha sob o dedo é do arrasto (abaixo): não desliza atrás dele.
       const animate = sameScene && !reducedMotion && token.id !== draggedId
       const at = syncGlide(scene.tokenGlides, token.id, { shown, target: { x: token.x, y: token.y }, now, animate })
@@ -4752,6 +4761,8 @@ function PlayerViewDoCanvas({
         tokenGlides: createTokenGlides(),
         tokenTurns: createTokenTurns(),
         marcadores: new Set(),
+        // A aura bate no relógio cru e só pinta a ficha à vista: fora da tela não muda nada (desenho sob pedido).
+        auras: criarAurasNoMapa(() => scene.camera.scale, { quadros: app.ticker, reducedMotion: prefersReducedMotion, tela: () => app.screen }),
         camera: { x: 0, y: 0, scale: 1 },
         zoomScale: 1,
         onZoom: () => {},
@@ -5579,6 +5590,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickTokenTurns)
         app.ticker.remove(tickPulse)
         app.ticker.remove(tickMarcadores)
+        scene.auras.destruir()
         app.ticker.remove(tickRevisit)
         app.ticker.remove(tickMapaDeLuz)
         scene.mapaDeLuz.destruir()

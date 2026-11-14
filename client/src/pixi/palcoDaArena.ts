@@ -153,7 +153,8 @@ export function criarPalcoDaArena(el: HTMLElement, opcoes: OpcoesDoPalco): Palco
       },
     }
 
-    const tokensRenderer = createTokensRenderer({ ticker: relogio, reducedMotion: prefersReducedMotion })
+    // A AURA DA FICHA anda aqui também: no palco, o relógio é este mesmo (só roda com alguém inscrito).
+    const tokensRenderer = createTokensRenderer({ ticker: relogio, reducedMotion: prefersReducedMotion, quadros: relogio, tela: () => app.screen })
     // T3 (D4 da batalha, `impactoNasFichas.ts`): a ficha atingida recua e a que cai tomba também no palco da Arena.
     const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => tokensRenderer.involucroDe?.(tokenId) ?? null, relogio)
     const judge = createJudgeDoMapa({ movimento: { ticker: relogio, reducedMotion: prefersReducedMotion }, aoMudar: pedirQuadro })
