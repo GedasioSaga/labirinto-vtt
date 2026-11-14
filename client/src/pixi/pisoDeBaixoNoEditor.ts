@@ -31,7 +31,6 @@ export interface PisoDeBaixoNoEditor {
   readonly camada: Container
   /** O piso de baixo e a altura do piso em edição; `null` = nada por baixo (térreo, ou cena sem pisos). */
   atualizar(entrada: { mapa: MapData; altura: AlturaDoPiso } | null): void
-  destruir(): void
 }
 
 export function criarPisoDeBaixoNoEditor(): PisoDeBaixoNoEditor {
@@ -71,14 +70,8 @@ export function criarPisoDeBaixoNoEditor(): PisoDeBaixoNoEditor {
     camada.cacheAsTexture({ resolution: Math.min(1, LADO_MAXIMO_DA_PLANTA / lado), antialias: false })
   }
 
-  return {
-    camada,
-    atualizar,
-    destruir() {
-      camada.cacheAsTexture(false)
-      camada.destroy({ children: true })
-    },
-  }
+  // Sem `destruir`: a camada mora no palco do editor, e o `app.destroy` dele já a solta com os filhos.
+  return { camada, atualizar }
 }
 
 /** Os pontos de `pontos` girados `graus` em volta de (`cx`, `cy`), achatados para o `poly` do Pixi. */
