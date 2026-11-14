@@ -1951,4 +1951,122 @@ mod testes {
         std::fs::remove_dir_all(&raiz)?;
         Ok(())
     }
+
+    // --- Galeria no Worker de verdade (wrangler local) ----------------------
+
+    fn erro_legivel(erro: ErroNuvem) -> String {
+        format!(
+            "{} {:?}: {} {:?}",
+            erro.codigo, erro.status, erro.mensagem, erro.detalhe
+        )
+    }
+
+    /// Um pedido como o `nuvem_pedir` faz: o JSON da webview, a rota conferida
+    /// e o corpo fixo.
+    async fn pedir_como_a_webview(
+        ponte: &Ponte,
+        valor: Value,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
+        let (rota, corpo) = pedido(valor)?;
+        let corpo = corpo
+            .as_ref()
+            .map(corpo_json)
+            .transpose()
+            .map_err(erro_legivel)?;
+        pedir_json(ponte, &credencial(), &rota, corpo)
+            .await
+            .map_err(|e| erro_legivel(e).into())
+    }
+
+    /// `enviar_video` como o `nuvem_enviar_video` chama; devolve a resposta do
+    /// fechar e os avisos de andamento.
+    async fn subir_para_a_galeria(
+        ponte: &Ponte,
+        campanha_id: &str,
+        id: &str,
+        pasta: &Path,
+    ) -> Result<(Value, Vec<(u64, u64)>), Box<dyn std::error::Error>> {
+        let avisos = std::sync::Mutex::new(Vec::new());
+        let avisar = |andamento: ProgressoDoVideo| {
+            if let Ok(mut lista) = avisos.lock() {
+                lista.push((andamento.enviados, andamento.total));
+            }
+        };
+        let campanha = CampanhaId::validar(campanha_id).map_err(erro_legivel)?;
+        let video = IdDeVideo::validar(id).map_err(erro_legivel)?;
+        let titulo = "Abertura de teste".to_owned();
+        let resposta = enviar_video(ponte, &credencial(), campanha, video, titulo, pasta, &avisar)
+            .await
+            .map_err(erro_legivel)?;
+        let lista = avisos
+            .into_inner()
+            .map_err(|_| "a lista de avisos ficou envenenada")?;
+        Ok((resposta, lista))
+    }
+
+    fn ids_da_galeria(lista: &Value) -> Vec<String> {
+        lista["videos"]
+            .as_array()
+            .map(|videos| {
+                videos
+                    .iter()
+                    .filter_map(|v| v["id"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// O caminho do app até o Worker de verdade: `enviar_video` sobe o vídeo em
+    /// pedaços de 4 MiB, o vídeo aparece no `GET /galeria` e sai pelo
+    /// `tirarDaGaleria` do `nuvem_pedir`; subir de novo reabre. Precisa do
+    /// `wrangler dev` do Worker, do `wrangler pages dev` com o portão e de um
+    /// Access falso na frente, que confere a credencial INVENTADA deste módulo
+    /// e assina o JWT com o `common_name` dela (tmp/cutscene-2026-11-14/prova2).
+    /// Rodar: LOBBY_LOCAL_URL=http://127.0.0.1:<porta do Access falso>
+    /// LOBBY_LOCAL_CAMPANHA=<campanha publicada>
+    /// LOBBY_LOCAL_VIDEO=<um .webm de mais de 4 MiB>
+    /// cargo test --lib galeria_no_worker_local -- --ignored
+    #[tokio::test]
+    #[ignore = "precisa do wrangler local e do Access falso (ver o comentário)"]
+    async fn galeria_no_worker_local_sobe_em_pedacos_lista_e_tira() -> Resultado {
+        let base = std::env::var("LOBBY_LOCAL_URL")?;
+        let campanha_id = std::env::var("LOBBY_LOCAL_CAMPANHA")?;
+        let video = std::fs::read(std::env::var("LOBBY_LOCAL_VIDEO")?)?;
+        let id = id_de(&video, "webm");
+        let total = u64::try_from(video.len())?;
+        let pedacos = video.len().div_ceil(PEDACO_DO_VIDEO_NA_NUVEM);
+        assert!(pedacos >= 2, "o vídeo do teste tem de passar de um pedaço");
+        let raiz = pasta_de_teste("galeria-local")?;
+        std::fs::write(raiz.join(&id), &video)?;
+        let ponte = ponte_local(base, TEMPO_TOTAL).map_err(erro_legivel)?;
+        let lista = json!({ "rota": "galeria", "campanhaId": campanha_id });
+
+        let (fechado, avisos) = subir_para_a_galeria(&ponte, &campanha_id, &id, &raiz).await?;
+        println!("fechar: {fechado}; avisos: {avisos:?}");
+        assert_eq!(
+            (fechado["id"].as_str(), fechado["tamanho"].as_u64()),
+            (Some(id.as_str()), Some(total))
+        );
+        assert_eq!(avisos.len(), pedacos);
+        assert_eq!(avisos.last(), Some(&(total, total)));
+        let antes = pedir_como_a_webview(&ponte, lista.clone()).await?;
+        println!("galeria depois de subir: {antes}");
+        assert!(ids_da_galeria(&antes).contains(&id));
+
+        let tirar = json!({ "rota": "tirarDaGaleria", "campanhaId": campanha_id, "videoId": id });
+        let tirado = pedir_como_a_webview(&ponte, tirar).await?;
+        let depois = pedir_como_a_webview(&ponte, lista.clone()).await?;
+        println!("tirar: {tirado}; galeria depois de tirar: {depois}");
+        assert_eq!(tirado["tirado"], json!(true));
+        assert!(!ids_da_galeria(&depois).contains(&id));
+
+        // Subir de novo reabre (e deixa o vídeo na Galeria para a prova do site).
+        let (reaberto, _) = subir_para_a_galeria(&ponte, &campanha_id, &id, &raiz).await?;
+        let de_novo = pedir_como_a_webview(&ponte, lista).await?;
+        println!("reaberto: {reaberto}; galeria: {de_novo}");
+        assert_eq!(reaberto["novo"], json!(true));
+        assert!(ids_da_galeria(&de_novo).contains(&id));
+        std::fs::remove_dir_all(&raiz)?;
+        Ok(())
+    }
 }
