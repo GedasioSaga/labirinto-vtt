@@ -51,8 +51,11 @@ function criarParteBorrada(pai: Container): ParteBorrada {
   borrado.addChild(desenho)
   guardada.addChild(borrado)
   pai.addChild(guardada)
-  const borrao = new BlurFilter({ strength: 0, quality: 3, resolution: 'inherit' })
-  const cor = new ColorMatrixFilter()
+  // `clipToViewport: false`: guardando em textura, o Pixi 8 corta a área do filtro no tamanho da TELA
+  // (`rootViewPort`) dividido pela resolução da textura; com a planta reduzida (0,32 num mapa 100x100)
+  // só o canto de cima à esquerda do térreo saía, e o resto ficava vazio (o fundo cinza do editor).
+  const borrao = new BlurFilter({ strength: 0, quality: 3, resolution: 'inherit', clipToViewport: false })
+  const cor = new ColorMatrixFilter({ clipToViewport: false })
   borrado.filters = [borrao, cor]
   return { guardada, desenho, borrao, cor }
 }
