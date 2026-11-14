@@ -62,10 +62,42 @@ function mudarFaixa(rotulo: string, valor: number): void {
 }
 
 describe('CarimbosControls', () => {
-  it('mostra os doze objetos da biblioteca (com a árvore redonda da MT5, a árvore morta, o tronco caído e o toco seco), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
+  it('mostra os objetos da biblioteca (os doze, com a árvore redonda da MT5, a árvore morta, o tronco caído e o toco seco, e depois os novos de 14/11/2026), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
     montar()
     const objetos = radios('Objeto')
-    expect(objetos.map((b) => b.textContent)).toEqual(['Pinheiro', 'Pinheiro com neve', 'Árvore', 'Árvore redonda', 'Árvore morta', 'Arbusto', 'Tronco caído', 'Toco seco', 'Palmeira', 'Pedras', 'Poça', 'Juncos'])
+    expect(objetos.map((b) => b.textContent)).toEqual([
+      'Pinheiro',
+      'Pinheiro com neve',
+      'Árvore',
+      'Árvore redonda',
+      'Árvore morta',
+      'Arbusto',
+      'Tronco caído',
+      'Toco seco',
+      'Palmeira',
+      'Pedras',
+      'Poça',
+      'Juncos',
+      'Cerejeira florida',
+      'Bambuzal',
+      'Cogumelo gigante',
+      'Mangue',
+      'Carvalho grande',
+      'Árvore de outono',
+      'Salgueiro-chorão',
+      'Bétula',
+      'Macieira',
+      'Ipê amarelo',
+      'Ipê roxo',
+      'Araucária',
+      'Bananeira',
+      'Samambaia',
+      'Capim alto',
+      'Flores do campo',
+      'Arbusto com frutinhas',
+      'Folhas secas',
+      'Galhos caídos',
+    ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
     expect(objetos.filter((b) => b.tabIndex === 0)).toHaveLength(1)
@@ -82,7 +114,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('juncos')
+    expect(useMapStore.getState().carimboEscolhido).toBe('galhos-caidos')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })

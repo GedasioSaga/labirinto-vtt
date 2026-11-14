@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { CARIMBOS_EMBUTIDOS, IDS_DOS_EMBUTIDOS, PALETA_DOS_EMBUTIDOS, type Rgb } from './embutidos'
 import { QUADRO_DA_BIBLIOTECA } from './arte'
+import { IDS_DOS_EMBUTIDOS as IDS_DA_BIBLIOTECA } from './catalogo'
+import { CARIMBOS_NOVOS, PALETA_DOS_NOVOS } from './novos'
 
 /**
  * A BIBLIOTECA DE CARIMBOS não estoura (pedido de 10/10/2026, o mesmo das
  * texturas) e fica no quadro. Sem canvas no jsdom: cada desenho roda num
- * contexto falso que anota as cores e os pontos de cada caminho.
+ * contexto falso que anota as cores e os pontos de cada caminho. A régua vale
+ * para os 12 de `embutidos.ts` e para os novos de 14/11/2026 (`novos/`).
  */
+
+const TODOS = [...CARIMBOS_EMBUTIDOS, ...CARIMBOS_NOVOS]
+const PALETA_DE_TODOS = [...PALETA_DOS_EMBUTIDOS, ...PALETA_DOS_NOVOS]
 
 /** Saturação HSL de 0 a 1. */
 function saturacao([r, g, b]: Rgb): number {
@@ -87,16 +93,43 @@ describe('biblioteca de carimbos', () => {
     for (const id of IDS_DOS_EMBUTIDOS) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
   })
 
+  it('os novos de 14/11/2026 vêm depois dos doze, na ordem da lista, com ids da forma do pacote, nenhum repetido', () => {
+    expect(IDS_DA_BIBLIOTECA).toEqual([
+      ...IDS_DOS_EMBUTIDOS,
+      'cerejeira',
+      'bambuzal',
+      'cogumelo-gigante',
+      'mangue',
+      'carvalho',
+      'arvore-de-outono',
+      'salgueiro',
+      'betula',
+      'macieira',
+      'ipe-amarelo',
+      'ipe-roxo',
+      'araucaria',
+      'bananeira',
+      'samambaia',
+      'capim-alto',
+      'flores-do-campo',
+      'arbusto-com-frutinhas',
+      'folhas-secas',
+      'galhos-caidos',
+    ])
+    for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
+    expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)
+  })
+
   it('nenhuma cor estourada: canal até 245 e saturação contida', () => {
-    for (const cor of PALETA_DOS_EMBUTIDOS) {
+    for (const cor of PALETA_DE_TODOS) {
       expect(Math.max(...cor)).toBeLessThanOrEqual(245)
       expect(saturacao(cor)).toBeLessThanOrEqual(0.72)
     }
   })
 
-  for (const def of CARIMBOS_EMBUTIDOS) {
+  for (const def of TODOS) {
     it(`${def.nome}: desenha nos oito giros sem erro, dentro do quadro e só com as cores da paleta`, () => {
-      const paleta = new Set(PALETA_DOS_EMBUTIDOS.map((c) => c.join(',')))
+      const paleta = new Set(PALETA_DE_TODOS.map((c) => c.join(',')))
       const q = QUADRO_DA_BIBLIOTECA
       const desenhos: string[] = []
       for (let v = 0; v < 8; v++) {

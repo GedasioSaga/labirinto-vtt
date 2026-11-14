@@ -43,6 +43,11 @@ export default function desenhar(g: CanvasRenderingContext2D, giro: number, seme
 `tamanho`: o tamanho natural no mapa, em px do protótipo do relevo (2 a 80; o
 Pinheiro usa 14, o Arbusto 6). `sombra`: `em-pe` (alto, sombra comprida),
 `baixa` (rente ao chão) ou `nenhuma` (do chão, como a poça: vai por baixo das
-sombras dos outros). O id não pode ser o de um carimbo da biblioteca
-(`pinheiro`, `pinheiro-nevado`, `arvore`, `arbusto`, `palmeira`, `pedras`,
-`poca`, `juncos`).
+sombras dos outros). O id não pode ser o de um carimbo da biblioteca: os 12
+de `src/carimbos/embutidos.ts` (`pinheiro`, `pinheiro-nevado`, `arvore`,
+`arvore-redonda`, `arvore-morta`, `arbusto`, `tronco-caido`, `toco-seco`,
+`palmeira`, `pedras`, `poca`, `juncos`) e os novos de `src/carimbos/novos/`
+(`cerejeira`, `bambuzal`, `cogumelo-gigante`, `mangue`, `carvalho`,
+`arvore-de-outono`, `salgueiro`, `betula`, `macieira`, `ipe-amarelo`,
+`ipe-roxo`, `araucaria`, `bananeira`, `samambaia`, `capim-alto`,
+`flores-do-campo`, `arbusto-com-frutinhas`, `folhas-secas`, `galhos-caidos`).

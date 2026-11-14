@@ -1,10 +1,12 @@
-import { CARIMBOS_EMBUTIDOS, IDS_DOS_EMBUTIDOS, type DefinicaoDeCarimbo, type SombraDoCarimbo } from './embutidos'
+import { CARIMBOS_EMBUTIDOS, type DefinicaoDeCarimbo, type SombraDoCarimbo } from './embutidos'
+import { CARIMBOS_NOVOS } from './novos'
 
 /**
- * CATÁLOGO DE CARIMBOS: a biblioteca embutida (`embutidos.ts`) mais os que
- * chegam pelo pacote do GitHub (`lib/pacoteDeAnimacoes.ts`, tipo `carimbo`),
- * no mesmo molde do catálogo das texturas (`texturas/catalogo.ts`). Os
- * importados pelo mestre não moram aqui: são do mapa (`MapData.carimbosImportados`).
+ * CATÁLOGO DE CARIMBOS: a biblioteca embutida (`embutidos.ts`, e os novos de
+ * 14/11/2026 em `novos/`) mais os que chegam pelo pacote do GitHub
+ * (`lib/pacoteDeAnimacoes.ts`, tipo `carimbo`), no mesmo molde do catálogo
+ * das texturas (`texturas/catalogo.ts`). Os importados pelo mestre não moram
+ * aqui: são do mapa (`MapData.carimbosImportados`).
  */
 
 const ID_DO_PACOTE = /^[a-z0-9-]{1,40}$/
@@ -17,7 +19,13 @@ export interface CarimboDoCatalogo extends DefinicaoDeCarimbo {
   origem: 'embutido' | 'pacote'
 }
 
-const EMBUTIDOS: readonly CarimboDoCatalogo[] = CARIMBOS_EMBUTIDOS.map((c) => ({ ...c, origem: 'embutido' }))
+const EMBUTIDOS: readonly CarimboDoCatalogo[] = [...CARIMBOS_EMBUTIDOS, ...CARIMBOS_NOVOS].map((c) => ({ ...c, origem: 'embutido' }))
+
+/**
+ * Os ids da BIBLIOTECA: os 12 de `embutidos.ts` e os novos de `novos/`. O
+ * pacote recusa qualquer um deles (aqui e em `lib/pacoteDeAnimacoes.ts`).
+ */
+export const IDS_DOS_EMBUTIDOS: readonly string[] = EMBUTIDOS.map((c) => c.id)
 
 let lista: readonly CarimboDoCatalogo[] = EMBUTIDOS
 let versao = 0
@@ -100,5 +108,3 @@ export function esquecerCarimbosDeFora(): void {
   if (lista === EMBUTIDOS) return
   trocarLista(EMBUTIDOS)
 }
-
-export { IDS_DOS_EMBUTIDOS }

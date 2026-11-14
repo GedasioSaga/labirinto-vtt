@@ -67,13 +67,18 @@ const TEXTURA_ESCALA = [8, 200]
 const CARIMBO_TAMANHO = [2, 80]
 /** O jeito da sombra do carimbo (`SombraDoCarimbo` de carimbos/embutidos.ts). */
 const CARIMBO_SOMBRAS = ['em-pe', 'baixa', 'nenhuma']
-/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts, carimbos/embutidos.ts; abertura de batalha não tem embutida): a embutida ganha. */
+/** Ids embutidos no app (transicoes/catalogo.ts, portas/animacoesDePorta.ts, cenario/estilosDeCenario.ts, texturas/embutidas.ts, carimbos/embutidos.ts e carimbos/novos/; abertura de batalha não tem embutida): a embutida ganha. */
 const EMBUTIDAS = {
   transicao: ['porta', 'escada-pedra', 'escada-pedra-descendo'],
   porta: ['girar', 'deslizar'],
   cenario: ['panoramica'],
   textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
-  carimbo: ['pinheiro', 'pinheiro-nevado', 'arvore', 'arbusto', 'palmeira', 'pedras', 'poca', 'juncos'],
+  // Os 12 de carimbos/embutidos.ts e, depois, os novos de 14/11/2026 (carimbos/novos/index.ts), na ordem do catálogo.
+  carimbo: [
+    'pinheiro', 'pinheiro-nevado', 'arvore', 'arvore-redonda', 'arvore-morta', 'arbusto', 'tronco-caido', 'toco-seco', 'palmeira', 'pedras', 'poca', 'juncos',
+    'cerejeira', 'bambuzal', 'cogumelo-gigante', 'mangue', 'carvalho', 'arvore-de-outono', 'salgueiro', 'betula', 'macieira', 'ipe-amarelo', 'ipe-roxo',
+    'araucaria', 'bananeira', 'samambaia', 'capim-alto', 'flores-do-campo', 'arbusto-com-frutinhas', 'folhas-secas', 'galhos-caidos',
+  ],
   batalha: [],
 }
 const DURACAO_POR_TIPO = { transicao: TRANSICAO_DURACAO, cenario: CENARIO_DURACAO, batalha: BATALHA_DURACAO }
