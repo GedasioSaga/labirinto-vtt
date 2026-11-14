@@ -15,7 +15,7 @@ import { pintaOGiroNaTresQuartos } from '../texturas/meioTermo/moveis/tresQuarto
 import { G } from '../texturas/meioTermo/moveis/contexto'
 import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
 import { desenhadoLigado } from '../lib/estiloDoMapa'
-import { ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
+import { ehMovelQueAcende } from '../lib/mobilia/fogoDeCasa'
 import { CASA_DO_FOGO_PX, tamanhoDoFogo } from '../lib/mobilia/fogo'
 import { assinarMoveisDesenhados, BYTES_DE_TRABALHO_DO_DESENHADO, pedirMovelDesenhado, pintarMovelDesenhado, raioDoHaloDoLampiao, tomDoLugar, type HaloDoMovel } from '../texturas/desenhado/moveis'
 import { planejarMovel, type GeometriaDaCercaEmCasas, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
@@ -247,7 +247,8 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     // Os pratos: a forma (cheio, vazio, pilha) é a variante do desenho.
     ...(prop.mobilia === 'pratos' ? { variante: varianteDosPratos(prop) } : {}),
     // A lareira, a fornalha e o forno de pão: o fogo (aceso, apagado) é a variante do desenho (as brasas e o halo só no aceso).
-    ...(ehMovelComFogoDeCasa(prop.mobilia) ? { variante: varianteDoFogo(prop) } : {}),
+    // O holofote (14/11/2026) também: a lente acesa ou escura.
+    ...(ehMovelQueAcende(prop.mobilia) ? { variante: varianteDoFogo(prop) } : {}),
     // Os troncos e o feno: a forma (toras ou lenha; fardos ou monte) é a variante do desenho.
     ...(ehMovelDePilha(prop.mobilia) ? { variante: varianteDaPilha(prop.mobilia, prop.mobiliaForma) } : {}),
     // O chafariz: a forma e a água (o prato cheio ou seco, a espuma) são a variante do desenho.

@@ -12,7 +12,7 @@ import {
   tracosDaPecaNova,
 } from './mobilia/pecasNovas'
 import { ofereceDesenhoEmLinhas } from './mobilia/desenhoDoMovel'
-import { ehMovelComFogoDeCasa, FOGOS_DO_MOVEL, linguasDoFogoDeCasa } from './mobilia/fogoDeCasa'
+import { ehMovelComFogoDeCasa, ehMovelQueAcende, FOGOS_DO_MOVEL, linguasDoFogoDeCasa } from './mobilia/fogoDeCasa'
 import { CASAS_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, formaDoMovelDePilha, normalizarFormaDaPilha, type FormaDaPilha } from './mobilia/pilhas'
 import {
   aguaDoChafariz,
@@ -256,11 +256,13 @@ export function varianteDosPratos(prop: Pick<Prop, 'mobilia' | 'mobiliaForma'>):
 
 /**
  * O FOGO da lareira e da fornalha (29/10/2026) na forma única que o mapa
- * guarda: só `'apagado'`, e só nesses dois; o resto (o aceso, que é o padrão,
- * texto torto, outro tipo) vira `undefined`. A mesma porta da forma dos pratos.
+ * guarda: só `'apagado'`, e só nos móveis que acendem (os de fogo de casa e,
+ * desde 14/11/2026, o holofote, `ehMovelQueAcende`); o resto (o aceso, que é
+ * o padrão, texto torto, outro tipo) vira `undefined`. A mesma porta da forma
+ * dos pratos.
  */
 export function normalizarFogoDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 'apagado' | undefined {
-  return ehMovelComFogoDeCasa(tipo) && valor === 'apagado' ? valor : undefined
+  return ehMovelQueAcende(tipo) && valor === 'apagado' ? valor : undefined
 }
 
 /** O fogo que vale para a lareira e a fornalha: o gravado ou o aceso. */
@@ -1622,7 +1624,7 @@ export function pratosComOutraForma(prop: Prop, forma: FormaDosPratos): Prop {
  * tipo devolve o mesmo objeto.
  */
 export function movelComOutroFogo(prop: Prop, fogo: FogoDoMovel): Prop {
-  if (!ehMovelComFogoDeCasa(prop.mobilia)) return prop
+  if (!ehMovelQueAcende(prop.mobilia)) return prop
   return comFormaGravada(prop, fogo === 'apagado' ? 'apagado' : undefined)
 }
 

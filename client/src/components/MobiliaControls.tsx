@@ -28,7 +28,7 @@ import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
 import { useMapStore } from '../stores/mapStore'
 import { PROP_SILHOUETTE_EDGE_COLOR, PROP_SILHOUETTE_FILL_ALPHA, PROP_SILHOUETTE_FILL_COLOR } from '../pixi/drawPropSilhouettes'
 import type { FogoDoMovel, FormaDoTapete, FormaDosPratos, Prop, TipoMobilia, VistaMobilia } from '../types/map'
-import { FOGOS_DO_MOVEL, ROTULO_DO_FOGO_DO_MOVEL, ehMovelComFogoDeCasa } from '../lib/mobilia/fogoDeCasa'
+import { FOGOS_DO_MOVEL, ROTULO_DO_FOGO_DO_MOVEL, ehMovelQueAcende, rotuloDoAcender } from '../lib/mobilia/fogoDeCasa'
 import { FORMAS_DA_PILHA, ROTULO_DA_FORMA_DA_PILHA, ehMovelDePilha, formaDaPilha, type FormaDaPilha } from '../lib/mobilia/pilhas'
 import {
   AGUAS_DO_CHAFARIZ,
@@ -435,11 +435,12 @@ export function MobiliaControls({
             </div>
           </div>
         )}
-        {/* O fogo da lareira e da fornalha: o mesmo segmentado da forma dos pratos. Apagado, a chama e o brilho somem e sobra a lenha fria. */}
-        {ehMovelComFogoDeCasa(tipo) && onFogoChange !== undefined && (
+        {/* O fogo da lareira e da fornalha: o mesmo segmentado da forma dos pratos. Apagado, a chama e o brilho somem e sobra a lenha fria.
+            O holofote (14/11/2026) usa o mesmo, com o nome "Luz": apagado, a luz do mapa some e a lente fica escura. */}
+        {ehMovelQueAcende(tipo) && onFogoChange !== undefined && (
           <div className="lb-field">
-            <span className="lb-label">Fogo</span>
-            <div className="lb-seg" role="radiogroup" aria-label="Fogo">
+            <span className="lb-label">{rotuloDoAcender(tipo)}</span>
+            <div className="lb-seg" role="radiogroup" aria-label={rotuloDoAcender(tipo)}>
               {FOGOS_DO_MOVEL.map((opcao) => (
                 <button
                   key={opcao}

@@ -33,6 +33,23 @@ export function ehMovelComFogoDeCasa(tipo: string | undefined): tipo is MovelCom
   return tipo === 'lareira' || tipo === 'fornalha' || tipo === 'fornoDePao' || tipo === 'braseiro' || tipo === 'tochaDeParede' || tipo === 'tochaDePe'
 }
 
+/**
+ * Os móveis que ACENDEM E APAGAM no painel (Aceso | Apagado, gravado do mesmo jeito: só `'apagado'`): os de fogo de
+ * casa e o HOLOFOTE (14/11/2026, "acende e ilumina, como a tocha"; correção da auditoria de 14/11/2026). O holofote é
+ * de lâmpada: o controle dele se chama "Luz" e não tem chama animada (`temChama` continua só com o fogo de casa);
+ * apagado, a luz do mapa some (`luzDoObjeto`) e o desenho troca para a lente escura (a variante 1).
+ */
+export type MovelQueAcende = MovelComFogoDeCasa | 'holofote'
+
+export function ehMovelQueAcende(tipo: string | undefined): tipo is MovelQueAcende {
+  return ehMovelComFogoDeCasa(tipo) || tipo === 'holofote'
+}
+
+/** O nome do controle no painel: "Fogo" no que queima, "Luz" no de lâmpada. */
+export function rotuloDoAcender(tipo: MovelQueAcende): 'Fogo' | 'Luz' {
+  return ehMovelComFogoDeCasa(tipo) ? 'Fogo' : 'Luz'
+}
+
 /** Uma língua: a base em fração da pegada (x da largura, y da altura), a altura em fração do lado menor e o atraso de fase. */
 export interface LinguaDeCasa {
   readonly x: number
