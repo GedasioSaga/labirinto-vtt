@@ -4,7 +4,7 @@ import { AURAS, lerAura, type TipoDeAura } from '../lib/auras'
 import { ehImagemDaMesa } from '../lib/midia'
 import { formasParaMudar } from '../lib/mudarFicha'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
-import { miniaturaDaAura } from '../pixi/auras/miniatura'
+import { animarMiniaturaDaAura, aquecerMiniaturasDaAura, miniaturaDaAura } from '../pixi/auras/miniatura'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { useMapStore } from '../stores/mapStore'
 import { mudarFichaDoToken } from '../stores/mudarFichaDoToken'
@@ -39,6 +39,13 @@ const MOTIVO_SEM_FORMA = 'A ficha não tem transformação com imagem.'
 const LADO_DA_MINIATURA = 48
 /** Tela densa: o canvas dobra, e não mais (9 miniaturas, não precisa de 3x). */
 const DENSIDADE_MAXIMA = 2
+/** Os tipos na ordem do submenu: a ordem em que as miniaturas são preparadas. */
+const TIPOS_DE_AURA = AURAS.map((aura) => aura.tipo)
+
+/** O lado do canvas da miniatura, em px da tela. */
+function ladoDaMiniatura(): number {
+  return Math.round(LADO_DA_MINIATURA * Math.min(DENSIDADE_MAXIMA, window.devicePixelRatio || 1))
+}
 
 /** Caminho do disco → `src`. A ponte do Tauri não existe no navegador: lá, sem foto (as iniciais). */
 function fonteDoDisco(caminho: string): string | null {
@@ -57,10 +64,15 @@ function FotoBase({ token }: { token: Token }) {
   return <ImagemOuIniciais imagem={foto} nome={token.name} />
 }
 
-/** A miniatura da aura, copiada do canvas que `miniaturaDaAura` guarda. */
+/**
+ * A miniatura da aura: o quadro parado, copiado do canvas que `miniaturaDaAura`
+ * guarda. Sob o mouse ou com o foco no item (setas), ela anda, como o menu da
+ * página de prova; sai do item, volta ao quadro parado. O toque não anda: o
+ * toque já é a escolha.
+ */
 function MiniaturaDaAura({ tipo }: { tipo: TipoDeAura }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
-  const lado = Math.round(LADO_DA_MINIATURA * Math.min(DENSIDADE_MAXIMA, window.devicePixelRatio || 1))
+  const lado = ladoDaMiniatura()
   useEffect(() => {
     const canvas = ref.current
     if (canvas === null) return
@@ -68,6 +80,31 @@ function MiniaturaDaAura({ tipo }: { tipo: TipoDeAura }) {
     if (ctx === null) return
     ctx.clearRect(0, 0, lado, lado)
     ctx.drawImage(miniaturaDaAura(tipo, lado), 0, 0)
+    const item = canvas.closest<HTMLElement>('[role="menuitemradio"]')
+    if (item === null) return
+    let parar: (() => void) | null = null
+    const andar = () => {
+      if (parar === null) parar = animarMiniaturaDaAura(canvas, tipo)
+    }
+    const parado = () => {
+      parar?.()
+      parar = null
+    }
+    const aoEntrar = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse') andar()
+    }
+    item.addEventListener('pointerenter', aoEntrar)
+    item.addEventListener('pointerleave', parado)
+    item.addEventListener('focus', andar)
+    item.addEventListener('blur', parado)
+    if (document.activeElement === item) andar()
+    return () => {
+      item.removeEventListener('pointerenter', aoEntrar)
+      item.removeEventListener('pointerleave', parado)
+      item.removeEventListener('focus', andar)
+      item.removeEventListener('blur', parado)
+      parado()
+    }
   }, [tipo, lado])
   return <canvas ref={ref} width={lado} height={lado} />
 }
@@ -92,6 +129,10 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
   const personagens = useAdventureStore(personagensAtivos)
   const idDoSistema = useAdventureStore(sistemaAtivo)
   const sistema = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistema))
+  // O menu abriu: as 9 miniaturas ficam prontas nas folgas, antes de o mouse chegar em "Aura ›".
+  useEffect(() => {
+    aquecerMiniaturasDaAura(TIPOS_DE_AURA, ladoDaMiniatura())
+  }, [])
   if (token === undefined) return null
 
   const personagem = token.characterId === null ? undefined : personagens.find((p) => p.id === token.characterId)
