@@ -39,9 +39,25 @@ export function formasParaMudar(personagem: Personagem, sistema: SistemaDeRpg | 
   return cartoesQueLigam(personagem, sistema).flatMap((cartao) => (ehImagemDaMesa(cartao.imagem) ? [{ id: cartao.id, nome: cartao.nome, imagem: cartao.imagem }] : []))
 }
 
-/** A imagem que o token mostra fora da batalha: a do cartão `formaVisivel` da ficha ligada. `null` = a foto de sempre. */
+/**
+ * A transformação `formaId` está Ativa na ficha agora? Sistema padrão: o cartão
+ * em `cartoesAtivos`; Dragon Ball Tales: a forma ligada (`transformacaoAtiva`).
+ */
+export function formaAtivaNaFicha(personagem: Personagem, sistema: SistemaDeRpg | null | undefined, formaId: string): boolean {
+  if (ehDragonBall(sistema)) return personagem.dbt?.transformacaoAtiva === formaId
+  return personagem.cartoesAtivos.includes(formaId)
+}
+
+/**
+ * A imagem que o token mostra fora da batalha: a do cartão `formaVisivel` da
+ * ficha ligada, ENQUANTO a transformação estiver Ativa nela. Desligar a forma
+ * por qualquer caminho (a ficha, o fim da batalha, a forma que acaba sozinha,
+ * o jogador pelo site) volta o token à imagem base sem precisar mexer no
+ * token. `null` = a foto de sempre.
+ */
 export function imagemDaFormaVisivel(formaVisivel: string | undefined, personagem: Personagem | undefined, sistema: SistemaDeRpg | null | undefined): string | null {
   if (formaVisivel === undefined || personagem === undefined) return null
+  if (!formaAtivaNaFicha(personagem, sistema, formaVisivel)) return null
   return formasParaMudar(personagem, sistema).find((forma) => forma.id === formaVisivel)?.imagem ?? null
 }
 

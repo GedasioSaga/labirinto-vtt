@@ -2,7 +2,7 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { AURAS, lerAura, type TipoDeAura } from '../lib/auras'
 import { ehImagemDaMesa } from '../lib/midia'
-import { formasParaMudar } from '../lib/mudarFicha'
+import { formaAtivaNaFicha, formasParaMudar } from '../lib/mudarFicha'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { animarMiniaturaDaAura, aquecerMiniaturasDaAura, miniaturaDaAura } from '../pixi/auras/miniatura'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
@@ -138,8 +138,10 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
   const personagem = token.characterId === null ? undefined : personagens.find((p) => p.id === token.characterId)
   const formas = personagem === undefined ? [] : formasParaMudar(personagem, sistema)
   const motivoDaForma = personagem === undefined ? MOTIVO_SEM_FICHA : formas.length === 0 ? MOTIVO_SEM_FORMA : null
-  // Cartão apagado ou ficha trocada depois: a forma que não existe mais vale como a base.
-  const formaAtual = formas.find((forma) => forma.id === token.formaVisivel)?.id ?? null
+  // Cartão apagado, ficha trocada depois, ou forma desligada na ficha (ou no fim da batalha): vale a base,
+  // a mesma regra da imagem que o token mostra (`imagemDaFormaVisivel`).
+  const formaAtual =
+    personagem === undefined ? null : (formas.find((forma) => forma.id === token.formaVisivel && formaAtivaNaFicha(personagem, sistema, forma.id))?.id ?? null)
   const auraAtual = lerAura(token.aura)?.tipo ?? null
 
   const abrir = (qual: AparenciaAberta['qual'], focar: boolean) => {
