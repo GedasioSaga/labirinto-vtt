@@ -40,6 +40,8 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'baseMilitar', titulo: 'Base militar' },
   { id: 'marEPiratas', titulo: 'Mar e piratas' },
   { id: 'tavernaEFesta', titulo: 'Taverna e festa' },
+  { id: 'descansoEBrincadeira', titulo: 'Descanso e brincadeira' },
+  { id: 'cidadeEVila', titulo: 'Cidade e vila' },
   // Os 4 grupos da ferramenta Construção (12/11/2026) moram em `construcoes.ts`; entram aqui para a ficha e o
   // cantinho da barra arrumarem os dois catálogos com a mesma conta (`partesDoObjeto`). Nenhum tipo do
   // Objeto cai neles, nenhuma construção cai nos de cima.
@@ -313,6 +315,27 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   varalDeBandeirinhas: 'tavernaEFesta',
   varalDeLanternas: 'tavernaEFesta',
   mastroDeFitas: 'tavernaEFesta',
+  // Descanso e brincadeira (14/11/2026): o lote L11, da rede de dormir à gangorra, e a arquibancada de torneio e a liça
+  // de justa, do L13. O balanço, a mesa de jogo e o ringue, os parentes, continuam no esporte e lazer.
+  redeDeDormir: 'descansoEBrincadeira',
+  guardaSolComEspreguicadeira: 'descansoEBrincadeira',
+  toalhaDePiquenique: 'descansoEBrincadeira',
+  xadrezDeJardim: 'descansoEBrincadeira',
+  bolicheDeGrama: 'descansoEBrincadeira',
+  gangorra: 'descansoEBrincadeira',
+  arquibancadaDeTorneio: 'descansoEBrincadeira',
+  licaDeJusta: 'descansoEBrincadeira',
+  // Cidade e vila (14/11/2026): o resto do L13, do poste de amarrar cavalos ao sino no suporte, e o L14, do tear à
+  // liteira.
+  posteDeAmarrarCavalos: 'cidadeEVila',
+  bueiro: 'cidadeEVila',
+  relogioDeSol: 'cidadeEVila',
+  sinoNoSuporte: 'cidadeEVila',
+  tearDePedal: 'cidadeEVila',
+  rocaDeFiar: 'cidadeEVila',
+  lagarDeUva: 'cidadeEVila',
+  moDePedra: 'cidadeEVila',
+  liteira: 'cidadeEVila',
   // As 19 construções (12/11/2026), nos 4 grupos da ferramenta Construção, na ordem de `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
 }

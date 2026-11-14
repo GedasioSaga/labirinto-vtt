@@ -234,6 +234,23 @@ import { montarMesaDeQuedaDeBraco } from './mesaDeQuedaDeBraco'
 import { montarVaralDeBandeirinhas } from './varalDeBandeirinhas'
 import { montarVaralDeLanternas } from './varalDeLanternas'
 import { montarMastroDeFitas } from './mastroDeFitas'
+import { montarRedeDeDormir } from './redeDeDormir'
+import { montarGuardaSolComEspreguicadeira } from './guardaSolComEspreguicadeira'
+import { montarToalhaDePiquenique } from './toalhaDePiquenique'
+import { montarXadrezDeJardim } from './xadrezDeJardim'
+import { montarBolicheDeGrama } from './bolicheDeGrama'
+import { montarGangorra } from './gangorra'
+import { montarArquibancadaDeTorneio } from './arquibancadaDeTorneio'
+import { montarLicaDeJusta } from './licaDeJusta'
+import { montarPosteDeAmarrarCavalos } from './posteDeAmarrarCavalos'
+import { montarBueiro } from './bueiro'
+import { montarRelogioDeSol } from './relogioDeSol'
+import { montarSinoNoSuporte } from './sinoNoSuporte'
+import { montarTearDePedal } from './tearDePedal'
+import { montarRocaDeFiar } from './rocaDeFiar'
+import { montarLagarDeUva } from './lagarDeUva'
+import { montarMoDePedra } from './moDePedra'
+import { montarLiteira } from './liteira'
 import { montarPonteLevadica } from './ponteLevadica'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
@@ -531,6 +548,23 @@ const MONTADORES = {
   varalDeBandeirinhas: montarVaralDeBandeirinhas,
   varalDeLanternas: montarVaralDeLanternas,
   mastroDeFitas: montarMastroDeFitas,
+  redeDeDormir: montarRedeDeDormir,
+  guardaSolComEspreguicadeira: montarGuardaSolComEspreguicadeira,
+  toalhaDePiquenique: montarToalhaDePiquenique,
+  xadrezDeJardim: montarXadrezDeJardim,
+  bolicheDeGrama: montarBolicheDeGrama,
+  gangorra: montarGangorra,
+  arquibancadaDeTorneio: montarArquibancadaDeTorneio,
+  licaDeJusta: montarLicaDeJusta,
+  posteDeAmarrarCavalos: montarPosteDeAmarrarCavalos,
+  bueiro: montarBueiro,
+  relogioDeSol: montarRelogioDeSol,
+  sinoNoSuporte: montarSinoNoSuporte,
+  tearDePedal: montarTearDePedal,
+  rocaDeFiar: montarRocaDeFiar,
+  lagarDeUva: montarLagarDeUva,
+  moDePedra: montarMoDePedra,
+  liteira: montarLiteira,
   ponteLevadica: montarPonteLevadica,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
@@ -595,6 +629,9 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
+  'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
 ]
 

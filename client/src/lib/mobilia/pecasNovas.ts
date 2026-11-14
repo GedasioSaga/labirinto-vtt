@@ -58,6 +58,9 @@ export const PECAS_NOVAS = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
+  'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
 ] as const satisfies readonly TipoMobilia[]
 
@@ -483,6 +486,31 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   varalDeBandeirinhas: { rotulo: 'Varal de bandeirinhas', artigo: 'um varal de bandeirinhas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
   varalDeLanternas: { rotulo: 'Varal de lanternas', artigo: 'um varal de lanternas', tamanho: { largura: 4, altura: 0.6 }, redonda: false },
   mastroDeFitas: { rotulo: 'Mastro de fitas', artigo: 'um mastro de fitas', tamanho: { largura: 2.2, altura: 2.2 }, redonda: true },
+  // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede e a gangorra correm sempre pelo lado x (os postes e os
+  // pegadores nas pontas leste e oeste); o boliche não tem pista, só os pinos em losango e a bola; o xadrez é um
+  // tabuleiro quadrado no meio da pegada.
+  redeDeDormir: { rotulo: 'Rede de dormir', artigo: 'uma rede de dormir', tamanho: { largura: 3, altura: 1 }, redonda: false },
+  guardaSolComEspreguicadeira: { rotulo: 'Guarda-sol com espreguiçadeira', artigo: 'um guarda-sol com espreguiçadeira', tamanho: { largura: 2, altura: 2 }, redonda: false },
+  toalhaDePiquenique: { rotulo: 'Toalha de piquenique', artigo: 'uma toalha de piquenique', tamanho: { largura: 1.6, altura: 1.2 }, redonda: false },
+  xadrezDeJardim: { rotulo: 'Xadrez gigante de jardim', artigo: 'um xadrez gigante de jardim', tamanho: { largura: 3, altura: 3 }, redonda: false },
+  bolicheDeGrama: { rotulo: 'Boliche de grama', artigo: 'um boliche de grama', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  gangorra: { rotulo: 'Gangorra', artigo: 'uma gangorra', tamanho: { largura: 2.4, altura: 0.6 }, redonda: false },
+  // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada ganha degraus esticada para baixo e anda-se em cima
+  // (mora no chão, como o palco); a liça estica em linha como a cerca, um painel a cada casa; o bueiro é rente; o
+  // relógio de sol tem o degrau oitavado, quase redondo.
+  arquibancadaDeTorneio: { rotulo: 'Arquibancada de torneio', artigo: 'uma arquibancada de torneio', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  licaDeJusta: { rotulo: 'Liça de justa', artigo: 'uma liça de justa', tamanho: { largura: 4, altura: 0.5 }, redonda: false },
+  posteDeAmarrarCavalos: { rotulo: 'Poste de amarrar cavalos', artigo: 'um poste de amarrar cavalos', tamanho: { largura: 2, altura: 0.5 }, redonda: false },
+  bueiro: { rotulo: 'Bueiro', artigo: 'um bueiro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  relogioDeSol: { rotulo: 'Relógio de sol', artigo: 'um relógio de sol', tamanho: { largura: 1, altura: 1 }, redonda: true },
+  sinoNoSuporte: { rotulo: 'Sino no suporte', artigo: 'um sino no suporte', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
+  // Lote L14 de 14/11/2026, o resto da cidade e vila. A roca de fiar é desenhada de lado nas duas vistas, como a
+  // lápide; a liteira traz os dois varais na pegada.
+  tearDePedal: { rotulo: 'Tear', artigo: 'um tear', tamanho: { largura: 1.4, altura: 1.6 }, redonda: false },
+  rocaDeFiar: { rotulo: 'Roca de fiar', artigo: 'uma roca de fiar', tamanho: { largura: 1.4, altura: 1.2 }, redonda: false },
+  lagarDeUva: { rotulo: 'Lagar', artigo: 'um lagar', tamanho: { largura: 1.2, altura: 1.4 }, redonda: false },
+  moDePedra: { rotulo: 'Mó de pedra', artigo: 'uma mó de pedra', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  liteira: { rotulo: 'Liteira', artigo: 'uma liteira', tamanho: { largura: 1, altura: 2.2 }, redonda: false },
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão e anda-se em cima, como a ponte; a tora do
   // eixo fica na ponta da esquerda, o lado da muralha, e em pé a régua gira como na ponte.
   ponteLevadica: { rotulo: 'Ponte levadiça', artigo: 'uma ponte levadiça', tamanho: { largura: 3, altura: 2 }, redonda: false },
@@ -710,6 +738,23 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     varalDeBandeirinhas: valor(f.varalDeBandeirinhas),
     varalDeLanternas: valor(f.varalDeLanternas),
     mastroDeFitas: valor(f.mastroDeFitas),
+    redeDeDormir: valor(f.redeDeDormir),
+    guardaSolComEspreguicadeira: valor(f.guardaSolComEspreguicadeira),
+    toalhaDePiquenique: valor(f.toalhaDePiquenique),
+    xadrezDeJardim: valor(f.xadrezDeJardim),
+    bolicheDeGrama: valor(f.bolicheDeGrama),
+    gangorra: valor(f.gangorra),
+    arquibancadaDeTorneio: valor(f.arquibancadaDeTorneio),
+    licaDeJusta: valor(f.licaDeJusta),
+    posteDeAmarrarCavalos: valor(f.posteDeAmarrarCavalos),
+    bueiro: valor(f.bueiro),
+    relogioDeSol: valor(f.relogioDeSol),
+    sinoNoSuporte: valor(f.sinoNoSuporte),
+    tearDePedal: valor(f.tearDePedal),
+    rocaDeFiar: valor(f.rocaDeFiar),
+    lagarDeUva: valor(f.lagarDeUva),
+    moDePedra: valor(f.moDePedra),
+    liteira: valor(f.liteira),
     ponteLevadica: valor(f.ponteLevadica),
   }
 }
@@ -773,6 +818,9 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'mesaDeNavegacao', 'laranjeiraEmCanteiro',
   'pratoDeCarne', 'pranchaDoNavio', 'esqueletoDePeixe', 'navioNaGarrafa', 'conchaMagica', 'lanternaDePedra',
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
+  'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
 ]
 
@@ -3371,6 +3419,149 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       }
       return [...aro(r * 0.34, r * 0.34), ...aro(r * 0.14, r * 0.14), ...Array.from({ length: 12 }, (_, i) => fita(i))]
     }
+    // Lote L11 de 14/11/2026 (o descanso e a brincadeira): os traços do desenhista.
+    case 'redeDeDormir': {
+      // De cima: os dois postes nas pontas, as cordas e os punhos até o pano, e o pano em fuso, com a faixa do meio ao comprido.
+      const poste = Math.min(largura, altura) * 0.18
+      const fuso: readonly (readonly [number, number])[] = [[-hw * 0.6, 0], [-hw * 0.3, -hh * 0.6], [0, -hh * 0.68], [hw * 0.3, -hh * 0.6], [hw * 0.6, 0], [hw * 0.3, hh * 0.6], [0, hh * 0.68], [-hw * 0.3, hh * 0.6]]
+      return [...aro(poste, poste, -hw * 0.94, 0), ...aro(poste, poste, hw * 0.94, 0), linha(-hw * 0.88, 0, -hw * 0.6), linha(hw * 0.6, 0, hw * 0.88), ...fechado(fuso), linha(-hw * 0.4, -hh * 0.18, hw * 0.4), linha(-hw * 0.4, hh * 0.18, hw * 0.4)]
+    }
+    case 'guardaSolComEspreguicadeira': {
+      // De cima: o guarda-sol octógono a noroeste com os quatro diâmetros dos gomos e o mastro, e a espreguiçadeira a leste, comprida de norte a sul, com a dobra do encosto.
+      const [gx, gy, rx, ry] = [-hw * 0.27, -hh * 0.27, hw * 0.71, hh * 0.71]
+      const oito = Array.from({ length: 8 }, (_, i): readonly [number, number] => [gx + rx * Math.cos((i * Math.PI) / 4 + Math.PI / 8), gy + ry * Math.sin((i * Math.PI) / 4 + Math.PI / 8)])
+      const gomos = [0, 1, 2, 3].map((i): Traco => ({ x1: gx - rx * Math.cos((i * Math.PI) / 4), y1: gy - ry * Math.sin((i * Math.PI) / 4), x2: gx + rx * Math.cos((i * Math.PI) / 4), y2: gy + ry * Math.sin((i * Math.PI) / 4) }))
+      return [...fechado(oito), ...gomos, ...quadro(hw * 0.46, -hh * 0.54, hw * 0.9, hh * 0.93), linha(hw * 0.46, -hh * 0.11, hw * 0.9)]
+    }
+    case 'toalhaDePiquenique': {
+      // De cima: a toalha torta com a ponta do sudeste dobrada para cima, o prato a sudoeste, a cesta com a alça a nordeste e a garrafa deitada no sul.
+      const menor = Math.min(largura, altura)
+      return [
+        ...fechado([[-hw * 0.9, -hh * 0.82], [hw * 0.88, -hh * 0.92], [hw * 0.94, hh * 0.5], [hw * 0.6, hh * 0.9], [-hw * 0.86, hh * 0.92]]),
+        { x1: hw * 0.94, y1: hh * 0.5, x2: hw * 0.62, y2: hh * 0.52 },
+        ...aro(menor * 0.25, menor * 0.25, -hw * 0.44, hh * 0.22),
+        ...quadro(hw * 0.2, -hh * 0.66, hw * 0.76, -hh * 0.08),
+        { x1: hw * 0.48, y1: -hh * 0.66, x2: hw * 0.48, y2: -hh * 0.08 },
+        { x1: -hw * 0.11, y1: hh * 0.58, x2: hw * 0.32, y2: hh * 0.39 },
+      ]
+    }
+    case 'xadrezDeJardim': {
+      // De cima: o meio-fio quadrado e o tabuleiro de oito por oito dentro dele (a mesa de jogo tem só quatro casas, num tampo).
+      const m = Math.min(hw, hh) * 0.96
+      const d = m * 0.95
+      const grade = Array.from({ length: 7 }, (_, i): Traco[] => { const t = -d + ((i + 1) * 2 * d) / 8; return [linha(-d, t, d), { x1: t, y1: -d, x2: t, y2: d }] }).flat()
+      return [...quadro(-m, -m, m, m), ...quadro(-d, -d, d, d), ...grade]
+    }
+    case 'bolicheDeGrama': {
+      // De cima: os oito pinos em pé no losango (o nono, caído, é um risco na diagonal) e a bola grande no canto do sudoeste.
+      const R = Math.min(hw, hh)
+      const pino = R * 0.3
+      const lugares = [-1, 0, 1].flatMap((u) => [-1, 0, 1].map((v): readonly [number, number] => [u, v])).filter(([u, v]) => !(u === 1 && v === 0))
+      return [...lugares.flatMap(([u, v]) => aro(pino, pino, (u - v) * R * 0.3, -R * 0.1 + (u + v) * R * 0.3)), ...aro(R * 0.48, R * 0.48, -R * 0.55, R * 0.64), { x1: R * 0.36, y1: R * 0.42, x2: R * 0.84, y2: R * 0.84 }]
+    }
+    case 'gangorra': {
+      // De cima: a tábua comprida, os dois pilares do eixo ao norte e ao sul do meio, e as barras dos pegadores de través perto das pontas.
+      const p = Math.min(largura, altura) * 0.1
+      return [...quadro(-hw * 0.97, -hh * 0.33, hw * 0.97, hh * 0.33), ...quadro(-p, -hh * 0.8, p, -hh * 0.38), ...quadro(-p, hh * 0.38, p, hh * 0.8), { x1: -hw * 0.8, y1: -hh * 0.72, x2: -hw * 0.8, y2: hh * 0.72 }, { x1: hw * 0.8, y1: -hh * 0.72, x2: hw * 0.8, y2: hh * 0.72 }]
+    }
+    // Lote L13 de 14/11/2026 (o torneio e a cidade): os traços do desenhista.
+    case 'arquibancadaDeTorneio': {
+      // As beiras dos degraus de través, o corredor no meio, o guarda-corpo atrás e a barra em bicos do pano na frente (o palco de bardo é um tablado só, com a cortina franzida atrás).
+      const frente = hh * 0.76
+      const fundo = -hh * 0.86
+      const beiras = [1, 2, 3].map((i) => linha(-hw * 0.99, fundo + ((frente - fundo) * i) / 4, hw * 0.99))
+      const bicos = Array.from({ length: 12 }, (_, i) => ({ x1: -hw + (largura * i) / 12, y1: hh * (i % 2 === 0 ? 0.76 : 0.97), x2: -hw + (largura * (i + 1)) / 12, y2: hh * (i % 2 === 0 ? 0.97 : 0.76) }))
+      return [...quadro(-hw * 0.99, fundo, hw * 0.99, frente), ...beiras, { x1: -hw * 0.075, y1: fundo, x2: -hw * 0.075, y2: frente }, { x1: hw * 0.075, y1: fundo, x2: hw * 0.075, y2: frente }, linha(-hw * 0.97, -hh * 0.93, hw * 0.97), ...bicos]
+    }
+    case 'licaDeJusta': {
+      // Ao longo do lado maior: as duas beiras da trave no meio, os postes de través a cada painel e os bicos do pano nas duas beiras (o muro de pedra tem a capa de lajes; a cerca, mourões redondos e fio).
+      const deitado = largura >= altura
+      const meioC = deitado ? hw : hh
+      const meiaL = deitado ? hh : hw
+      const traco = (u1: number, v1: number, u2: number, v2: number): Traco => (deitado ? { x1: u1, y1: v1, x2: u2, y2: v2 } : { x1: v1, y1: u1, x2: v2, y2: u2 })
+      const paineis = Math.max(1, Math.round(meioC / (meiaL * 2)))
+      const dentes = paineis * 4
+      const bicos = (lado: number): Traco[] => Array.from({ length: dentes }, (_, i) => traco(-meioC + (2 * meioC * i) / dentes, lado * meiaL * (i % 2 === 0 ? 0.7 : 0.97), -meioC + (2 * meioC * (i + 1)) / dentes, lado * meiaL * (i % 2 === 0 ? 0.97 : 0.7)))
+      const postes = Array.from({ length: paineis + 1 }, (_, i) => traco(-meioC + (2 * meioC * i) / paineis, -meiaL * 0.75, -meioC + (2 * meioC * i) / paineis, meiaL * 0.75))
+      return [traco(-meioC, -meiaL * 0.2, meioC, -meiaL * 0.2), traco(-meioC, meiaL * 0.2, meioC, meiaL * 0.2), ...postes, ...bicos(-1), ...bicos(1)]
+    }
+    case 'posteDeAmarrarCavalos': {
+      // A trave deitada de ponta a ponta (duas linhas), os postes redondos debaixo das pontas, as duas argolas caídas para a frente e a ferradura no chão (a cerca tem mourões a cada casa e fio fino).
+      const r = Math.min(largura, altura)
+      const y = -hh * 0.12
+      return [linha(-hw * 0.98, y - r * 0.15, hw * 0.98), linha(-hw * 0.98, y + r * 0.15, hw * 0.98), ...aro(r * 0.42, r * 0.42, -hw * 0.86, y), ...aro(r * 0.42, r * 0.42, hw * 0.86, y), ...aro(r * 0.24, r * 0.2, -hw * 0.35, y + r * 0.17), ...aro(r * 0.24, r * 0.2, hw * 0.35, y + r * 0.17), ...fechado([[-hw * 0.36, hh * 0.85], [-hw * 0.3, hh * 0.45], [-hw * 0.24, hh * 0.85]]).slice(0, 2)]
+    }
+    case 'bueiro': {
+      // A moldura de pedra (dois quadrados), as barras de pé da grade e a travessa no meio (a cela com grade é alta e de pé; o bueiro é rente, com a moldura em volta).
+      const bx = hw * 0.7
+      const by = hh * 0.7
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-bx, -by, bx, by), ...[-0.66, -0.33, 0, 0.33, 0.66].map((f) => ({ x1: f * bx, y1: -by, x2: f * bx, y2: by })), linha(-bx, 0, bx)]
+    }
+    case 'relogioDeSol': {
+      // O degrau oitavado, o mostrador redondo, o gnômon do meio para o norte com a cunha da sombra e as linhas das horas em leque (o poço tem a boca escura; o pilar, o quadrado do plinto).
+      const r = Math.min(hw, hh)
+      const oitavado = fechado(Array.from({ length: 8 }, (_, k): readonly [number, number] => [Math.cos(Math.PI / 8 + (k * Math.PI) / 4) * r * 1.04, Math.sin(Math.PI / 8 + (k * Math.PI) / 4) * r * 1.04]))
+      const horas = [0, 2, 4, 8, 10, 12].map((k): Traco => { const a = Math.PI + (k * Math.PI) / 12; return { x1: Math.cos(a) * r * 0.38, y1: Math.sin(a) * r * 0.38, x2: Math.cos(a) * r * 0.5, y2: Math.sin(a) * r * 0.5 } })
+      return [...oitavado, ...aro(r * 1.2, r * 1.2), { x1: 0, y1: r * 0.1, x2: 0, y2: -r * 0.5 }, { x1: 0, y1: -r * 0.5, x2: r * 0.24, y2: -r * 0.31 }, ...horas]
+    }
+    case 'sinoNoSuporte': {
+      // A trave de ponta a ponta, as sapatas de norte a sul nas pontas e o sino debaixo da trave, a boca e a coroa em dois aros (o balanço tem cavaletes em A e dois assentos).
+      const r = Math.min(largura, altura) * 0.36
+      return [...quadro(-hw * 0.93, -hh * 0.12, hw * 0.93, hh * 0.12), { x1: -hw * 0.8, y1: -hh * 0.86, x2: -hw * 0.8, y2: hh * 0.86 }, { x1: hw * 0.8, y1: -hh * 0.86, x2: hw * 0.8, y2: hh * 0.86 }, ...aro(r * 2, r * 2), ...aro(r, r)]
+    }
+    // Lote L14 de 14/11/2026 (o resto da cidade e vila): os traços do desenhista.
+    case 'tearDePedal':
+      // De cima: o quadro com os dois trilhos, os fios do urdume de pé, a trave do castelo atravessada, o pano tecido e o banco do tecelão na frente.
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.98, hw * 0.94, hh * 0.38),
+        ...[-0.6, -0.36, -0.12, 0.12, 0.36, 0.6].map((t) => ({ x1: hw * t, y1: -hh * 0.78, x2: hw * t, y2: -hh * 0.06 })),
+        linha(-hw * 0.98, -hh * 0.53, hw * 0.98),
+        ...quadro(-hw * 0.72, -hh * 0.02, hw * 0.72, hh * 0.25),
+        ...quadro(-hw * 0.6, hh * 0.6, hw * 0.6, hh * 0.9),
+      ]
+    case 'rocaDeFiar':
+      // De lado, como o desenho: a roda à direita com dois raios cruzados, a mesa inclinada, as pernas, o pedal no chão e a vara da roca à esquerda com o rolo de lã.
+      return [
+        ...aro(altura * 0.54, altura * 0.54, hw * 0.48, -hh * 0.34),
+        { x1: hw * 0.48, y1: -hh * 0.88, x2: hw * 0.48, y2: hh * 0.2 },
+        linha(hw * 0.02, -hh * 0.34, hw * 0.94),
+        { x1: -hw * 0.94, y1: hh * 0.06, x2: hw * 0.96, y2: hh * 0.26 },
+        { x1: -hw * 0.78, y1: hh * 0.1, x2: -hw * 0.92, y2: hh * 0.9 },
+        { x1: hw * 0.72, y1: hh * 0.3, x2: hw * 0.8, y2: hh * 0.9 },
+        linha(-hw * 0.28, hh * 0.86, hw * 0.68),
+        { x1: -hw * 0.84, y1: hh * 0.06, x2: -hw * 0.84, y2: -hh * 0.94 },
+        ...aro(largura * 0.13, altura * 0.3, -hw * 0.84, -hh * 0.6),
+      ]
+    case 'lagarDeUva':
+      // De cima: o tabuleiro quadrado, o cesto redondo no meio com o prato dentro, a alavanca comprida atravessada e o balde na frente, debaixo da bica.
+      return [
+        ...quadro(-hw * 0.94, -hh * 0.98, hw * 0.94, hh * 0.52),
+        ...aro(largura * 0.63, largura * 0.63, 0, -hh * 0.23),
+        ...aro(largura * 0.42, largura * 0.42, 0, -hh * 0.23),
+        { x1: -hw * 0.76, y1: hh * 0.06, x2: hw * 0.76, y2: -hh * 0.52 },
+        { x1: 0, y1: hh * 0.52, x2: 0, y2: hh * 0.62 },
+        ...aro(largura * 0.22, largura * 0.22, 0, hh * 0.79),
+      ]
+    case 'moDePedra':
+      // De cima: o estrado, as duas pedras redondas (a de baixo maior) com o olho no meio, o cabo perto da beira, o saco e a gamela nos cantos de baixo.
+      return [
+        ...quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96),
+        ...aro(largura * 0.62, altura * 0.62, -hw * 0.16, -hh * 0.16),
+        ...aro(largura * 0.51, altura * 0.51, -hw * 0.16, -hh * 0.16),
+        ...aro(largura * 0.12, altura * 0.12, -hw * 0.16, -hh * 0.16),
+        ...aro(largura * 0.07, altura * 0.07, hw * 0.15, hh * 0.06),
+        ...aro(largura * 0.33, altura * 0.3, hw * 0.66, hh * 0.66),
+        ...aro(largura * 0.24, altura * 0.19, -hw * 0.68, hh * 0.7),
+      ]
+    case 'liteira':
+      // De cima: os dois varais compridos de ponta a ponta e a caixa no meio, com as quatro quinas do telhado subindo até a cumeeira curta.
+      return [
+        { x1: -hw * 0.89, y1: -hh * 0.98, x2: -hw * 0.89, y2: hh * 0.98 },
+        { x1: hw * 0.89, y1: -hh * 0.98, x2: hw * 0.89, y2: hh * 0.98 },
+        ...quadro(-hw * 0.74, -hh * 0.44, hw * 0.74, hh * 0.44),
+        { x1: 0, y1: -hh * 0.17, x2: 0, y2: hh * 0.17 },
+        ...[-1, 1].flatMap((sx) => [-1, 1].map((sy) => ({ x1: sx * hw * 0.74, y1: sy * hh * 0.44, x2: sx * hw * 0.12, y2: sy * hh * 0.17 }))),
+      ]
     // A ponte levadiça (lote L02, item 81 da lista do dia): os traços do desenhista.
     case 'ponteLevadica': {
       // O tabuleiro com a tora do eixo atravessada na ponta da muralha e as duas correntes em zigue-zague pelas beiras

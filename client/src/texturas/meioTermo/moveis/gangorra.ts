@@ -25,7 +25,7 @@
 import { barra, caixa, capsula, elipse, poligono, type Forma, type Ponto } from './formas'
 import { contato, ruido, SOMBRA_X, SOMBRA_Y, texturaDaClasse, type Cena, type MaterialDaPeca, type Textura } from './motor'
 import { QUARTO, type ContextoDoMovel, type MontarMovel } from './contexto'
-import { circulo, emFatias, noAr } from './tampoEmFatias'
+import { emFatias, noAr } from './tampoEmFatias'
 
 /** Alturas em casas: o eixo (o meio da tábua) e o quanto cada ponta desce ou sobe dele. */
 const ALTURA_DO_EIXO = 0.42

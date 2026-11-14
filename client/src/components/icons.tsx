@@ -2849,6 +2849,194 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M2 21h20" />
         </>
       )
+    // Lote L11 de 14/11/2026 (o descanso e a brincadeira): os ícones do desenhista.
+    case 'redeDeDormir':
+      // De frente: os dois postes, as cordas descendo até as pontas do pano e o pano caído entre elas, com a beira de cima reta (o balanço tem a trave em cima e os assentos pendurados).
+      return (
+        <>
+          <path d="M3 3.5v17M21 3.5v17" />
+          <path d="M3 6.5 6.5 9.5M21 6.5 17.5 9.5" />
+          <path d="M6.5 9.5h11" />
+          <path d="M6.5 9.5c2.5 6.5 8.5 6.5 11 0" />
+          <path d="M8.5 13.2c2 1.4 5 1.4 7 0" />
+        </>
+      )
+    case 'guardaSolComEspreguicadeira':
+      // De lado: a cúpula do guarda-sol no mastro fincado e, ao pé dele, a espreguiçadeira baixa com o encosto inclinado (o toldo listrado é uma lona reta presa na parede).
+      return (
+        <>
+          <path d="M2 9.5C3.5 4 13.5 4 15 9.5z" />
+          <path d="M5.2 9.5 8.5 6.2 11.8 9.5" />
+          <path d="M8.5 9.5v12" />
+          <path d="M13.5 17.5h8M14 17.5v3M21 17.5v3M13.5 17.5l-1.8-5.5" />
+        </>
+      )
+    case 'toalhaDePiquenique':
+      // De cima: a toalha um pouco torta, o xadrez de duas linhas de cada lado e a ponta de baixo dobrada (a mesa de jogo é um tampo com tabuleiro no meio).
+      return (
+        <>
+          <path d="M3 5.5 20 4l1 11-4 4-13 .5z" />
+          <path d="M21 15l-3.7.3-.3 3.7" />
+          <path d="M8.7 5 9.5 19.4M14.4 4.5l.7 14.8" />
+          <path d="M3.4 10.2l17.1-1.5M3.7 14.9l13.8-1.2" />
+        </>
+      )
+    case 'xadrezDeJardim':
+      // De lado: o rei grande de coroa e cruz e um peão ao lado, os dois de pé nas lajes do chão, desenhadas como uma faixa de casas.
+      return (
+        <>
+          <path d="M2 20.5h20M2 22.5h20M6 20.5v2M10 20.5v2M14 20.5v2M18 20.5v2" />
+          <path d="M5.8 20.5h6.4l-.7-2H6.5zM7.6 18.5l.9-8.5h1l.9 8.5M7.4 10h4.2l-.5-1.6H7.9z" />
+          <path d="M9.5 8.4V4.2M8.1 5.6h2.8" />
+          <path d="M14 20.5h5.2l-.6-1.7h-4zM15.3 18.8l.6-4.3h1.4l.6 4.3" />
+          <circle cx="16.6" cy="12.6" r="1.9" />
+        </>
+      )
+    case 'bolicheDeGrama':
+      // De lado: três pinos de cabeça redonda, pescoço e barriga, e a bola rolando para eles (o cesto de vime e a mesa de jogo não têm nada de pé assim).
+      return (
+        <>
+          <ellipse cx="4.5" cy="16.5" rx="2" ry="4" />
+          <ellipse cx="9.5" cy="16.5" rx="2" ry="4" />
+          <ellipse cx="14.5" cy="16.5" rx="2" ry="4" />
+          <circle cx="4.5" cy="9.6" r="1.4" />
+          <circle cx="9.5" cy="9.6" r="1.4" />
+          <circle cx="14.5" cy="9.6" r="1.4" />
+          <path d="M4.5 11v1.5M9.5 11v1.5M14.5 11v1.5" />
+          <circle cx="19.8" cy="18" r="2.6" />
+        </>
+      )
+    case 'gangorra':
+      // De lado: a tábua inclinada no cavalete do meio, os dois pegadores de pé perto das pontas e o chão (o balanço tem trave em cima e assentos pendurados).
+      return (
+        <>
+          <path d="M2 21.5h20" />
+          <path d="M2.5 18 21.5 8" />
+          <path d="M12 13 9 21.5h6z" />
+          <path d="M5.5 16.4v-4.2M18.5 9.6V5.4" />
+        </>
+      )
+    // Lote L13 de 14/11/2026 (o torneio e a cidade): os ícones do desenhista.
+    case 'arquibancadaDeTorneio':
+      // De lado: o perfil em escada dos degraus, a frente baixa à esquerda, o mastro no alto de trás com a flâmula de duas pontas.
+      return (
+        <>
+          <path d="M2 21.5V18h5v-4h5v-4h5V6h5v15.5z" />
+          <path d="M7 18v3.5M12 14v7.5M17 10v11.5" />
+          <path d="M22 6V1.5M22 1.8l-4.5 1.2 1.6 1-1.6 1L22 6" />
+        </>
+      )
+    case 'licaDeJusta':
+      // De frente: três postes com a bola no alto, a trave e os dois painéis de pano caindo dela com a barra em bicos, um deles com a divisa em V.
+      return (
+        <>
+          <path d="M2.5 21.5V9.5M12 21.5V9.5M21.5 21.5V9.5M2.5 11h19" />
+          <circle cx="2.5" cy="8" r="1.4" />
+          <circle cx="12" cy="8" r="1.4" />
+          <circle cx="21.5" cy="8" r="1.4" />
+          <path d="M3.5 11v6.5l1.25 1.5 1.25-1.5 1.25 1.5 1.25-1.5 1.25 1.5 1.25-1.5V11M13 11v6.5l1.25 1.5 1.25-1.5 1.25 1.5 1.25-1.5 1.25 1.5 1.25-1.5V11" />
+          <path d="M5 13l2.25 2 2.25-2" />
+        </>
+      )
+    case 'posteDeAmarrarCavalos':
+      // De frente: os dois postes, a trave grossa por cima, as duas argolas penduradas e a corda solta de uma delas.
+      return (
+        <>
+          <path d="M4.5 21.5V10.5M19.5 21.5V10.5" />
+          <path d="M2 8h20v2.5H2z" />
+          <circle cx="9" cy="12.6" r="1.6" />
+          <circle cx="15" cy="12.6" r="1.6" />
+          <path d="M15 14.2c.8 1.6-.6 2.8.4 4.6" />
+        </>
+      )
+    case 'bueiro':
+      // De cima: a moldura quadrada de pedra, a boca com as barras de pé e a travessa da grade.
+      return (
+        <>
+          <rect x="2.5" y="2.5" width="19" height="19" rx="1.5" />
+          <rect x="6" y="6" width="12" height="12" />
+          <path d="M8.4 6v12M10.8 6v12M13.2 6v12M15.6 6v12M6 12h12" />
+        </>
+      )
+    case 'relogioDeSol':
+      // De frente: o degrau, o fuste, o capitel com o mostrador e o gnômon em triângulo em cima, e o sol no canto.
+      return (
+        <>
+          <path d="M7.5 21.5h9M9 21.5V19h6v2.5" />
+          <path d="M10.2 19v-8.5h3.6V19" />
+          <path d="M6 10.5h12v-2H6z" />
+          <path d="M12 8.5V3l4.5 5.5" />
+          <circle cx="4.5" cy="4" r="1.5" />
+        </>
+      )
+    case 'sinoNoSuporte':
+      // De frente: os dois postes com as escoras no pé, a trave, o sino pendurado no meio e o badalo aparecendo na boca.
+      return (
+        <>
+          <path d="M3.5 21.5V4M20.5 21.5V4M2 4h20" />
+          <path d="M1.5 21.5l2-3 2 3M18.5 21.5l2-3 2 3" />
+          <path d="M12 4v4.3M8 15c0-1 .8-1.5.8-3.5a3.2 3.2 0 0 1 6.4 0c0 2 .8 2.5.8 3.5z" />
+          <circle cx="12" cy="16.5" r="1" />
+        </>
+      )
+    // Lote L14 de 14/11/2026 (o resto da cidade e vila): os ícones do desenhista.
+    case 'tearDePedal':
+      // De frente: os dois montantes com a trave do castelo em cima, os fios do urdume de pé, o pano tecido embaixo com uma listra e o banco na frente.
+      return (
+        <>
+          <path d="M3 21V3M21 21V3M2 4h20" />
+          <path d="M7 6v7M10 6v7M14 6v7M17 6v7" />
+          <rect x="5" y="13" width="14" height="4" />
+          <path d="M5 15h14" />
+          <path d="M7 21h10" />
+        </>
+      )
+    case 'rocaDeFiar':
+      // De lado: a roda grande de raios à direita, a mesa inclinada nas pernas abertas, o pedal no chão e a vara da roca à esquerda com o rolo de lã.
+      return (
+        <>
+          <circle cx="15.5" cy="8.5" r="6" />
+          <path d="M15.5 2.5v12M9.5 8.5h12M11.3 4.3l8.4 8.4M19.7 4.3l-8.4 8.4" />
+          <path d="M2.5 15l20 2.5M4 15.2 2.5 22M20.5 17.2l1 4.8M8 21.5h9" />
+          <path d="M4 15V3" />
+          <ellipse cx="4" cy="6" rx="1.8" ry="3" />
+        </>
+      )
+    case 'lagarDeUva':
+      // De frente: o cesto de aduelas em pé com os dois aros, o fuso subindo do meio com a alavanca atravessada, o tabuleiro embaixo e a bica pingando no balde.
+      return (
+        <>
+          <rect x="6" y="7" width="12" height="9" />
+          <path d="M9 7v9M12 7v9M15 7v9M6 9h12M6 14h12" />
+          <path d="M12 7V3M4.5 3h15" />
+          <path d="M2 16h20v3H2z" />
+          <path d="M12 19v1.5M9.5 22h5" />
+        </>
+      )
+    case 'moDePedra':
+      // De lado: as duas pedras, a de baixo mais larga, o cabo em pé na de cima, o grão caindo no olho e o montinho de farinha no pé, no estrado.
+      return (
+        <>
+          <rect x="3" y="15" width="15" height="4" rx="1" />
+          <rect x="5" y="11" width="11" height="4" rx="1" />
+          <path d="M13.5 11V4" />
+          <path d="M10.5 9h.01M9.5 7h.01M10.5 5h.01" />
+          <path d="M1.5 21h21" />
+          <path d="M18.5 21a2 1.8 0 0 1 4 0" />
+        </>
+      )
+    case 'liteira':
+      // De lado: a caixa com o telhado em arco e o remate, a janela, os pés e o varal comprido passando dos dois lados.
+      return (
+        <>
+          <path d="M7 8h10v11H7z" />
+          <path d="M6 8c0-3.5 12-3.5 12 0" />
+          <path d="M12 5.4V3.5" />
+          <rect x="9.5" y="9.5" width="5" height="3.5" />
+          <path d="M1 15h22" />
+          <path d="M8 19v2M16 19v2" />
+        </>
+      )
     // A ponte levadiça (lote L02, item 81 da lista do dia).
     case 'ponteLevadica':
       // De lado: a muralha com o portão em arco, o tabuleiro abaixado sobre o fosso e a corrente do alto da muralha à

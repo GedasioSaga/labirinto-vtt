@@ -122,6 +122,16 @@ export const TIPOS_MOBILIA = [
   // Lote L09 dos objetos de 14/11/2026, a taverna e a festa: o balcão de taverna, o alvo de dardos, a mesa de queda de
   // braço, o varal de bandeirinhas, o varal de lanternas de papel (que ilumina) e o mastro de fitas.
   'balcaoDeTaverna', 'alvoDeDardos', 'mesaDeQuedaDeBraco', 'varalDeBandeirinhas', 'varalDeLanternas', 'mastroDeFitas',
+  // Lote L11 dos objetos de 14/11/2026, o descanso e a brincadeira: a rede de dormir, o guarda-sol com
+  // espreguiçadeira, a toalha de piquenique, o xadrez gigante de jardim, o boliche de grama e a gangorra.
+  'redeDeDormir', 'guardaSolComEspreguicadeira', 'toalhaDePiquenique', 'xadrezDeJardim', 'bolicheDeGrama', 'gangorra',
+  // Lote L13 dos objetos de 14/11/2026, o torneio e a cidade: a arquibancada de torneio (onde se anda, como o palco) e
+  // a liça de justa, do descanso e brincadeira; o poste de amarrar cavalos, o bueiro (rente ao chão), o relógio de
+  // sol e o sino no suporte, da cidade e vila.
+  'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
+  // Lote L14 dos objetos de 14/11/2026, o resto da cidade e vila: o tear, a roca de fiar, o lagar, a mó de pedra e a
+  // liteira.
+  'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   // A ponte levadiça (lote L02, item 81 da lista do dia): mora no chão, como a ponte, e fica no castelo.
   'ponteLevadica',
 ] as const

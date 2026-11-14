@@ -85,8 +85,9 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // Os objetos RENTES ao chão, como o fogo (a plantação em fileiras, o círculo mágico e o sangue no chão,
   // 11/11/2026, e a teia de aranha, 12/11/2026): nenhuma sombra deles tem altura, então nada sobe e a 3/4 sai
   // igual à vista de cima. Seguem as regras de cor e a de "mesma entrada, mesma imagem", mas ficam fora da troca
-  // do desenho e do tampo que sobe. Objeto rente novo entra nesta lista.
-  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha']
+  // do desenho e do tampo que sobe. Objeto rente novo entra nesta lista (o bueiro, 14/11/2026: a moldura de pedra e a
+  // grade são rentes, e o buraco é pintado).
+  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha', 'bueiro']
   // Os quatro MONTES do tesouro (12/11/2026) são chão com altura: o anel e o miolo sobem em degraus baixos (a 3/4
   // muda o desenho), mas a beira de cima da imagem é uma peça solta no chão, que não sobe. A regra do tampo não
   // se aplica a eles, como ao campinho.
@@ -101,7 +102,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
     const rente = RENTES.includes(tipo)
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
     // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
-    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
+    // E a arquibancada de torneio (14/11/2026), que o portão da folha mediu em 1,6 s.
+    const teto = tipo === 'campinho' || tipo === 'torreDePedra' || tipo === 'camaDeDossel' || tipo === 'arquibancadaDeTorneio' ? { timeout: TETO_DO_CAMPINHO_MS } : {}
     it(rente ? `${tipo}: rente ao chão, a 3/4 segue as regras de cor` : `${tipo}: a 3/4 muda o desenho, sobe o tampo (ou ganha a sombra de baixo) e segue as regras de cor`, teto, () => {
       const prop = movel(tipo)
       const deCima = desenho(prop)

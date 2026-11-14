@@ -572,6 +572,34 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   varalDeBandeirinhas: [lugar('madeira', 'Mastros', MADEIRAS, 'pinho')],
   varalDeLanternas: [lugar('madeira', 'Mastros', MADEIRAS, 'nogueira')],
   mastroDeFitas: [lugar('madeira', 'Mastro', MADEIRAS, 'pinho')],
+  // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede troca o pano e a lenha dos postes (as listras, a varanda
+  // de crochê e as cordas são fixas); o guarda-sol, o pano do guarda-sol e da lona e a madeira; a toalha, a cor do
+  // xadrez vichy (o fundo de linho, a cesta e a comida são fixos); o xadrez, a pedra das casas escuras e a madeira das
+  // peças escuras (as claras são fixas); o boliche, a madeira dos pinos e a da bola; a gangorra, a madeira e as
+  // ferragens.
+  redeDeDormir: [lugar('pano', 'Pano', TECIDOS, 'azul'), lugar('lenha', 'Postes', ['lenhaCarvalho', 'lenhaPinho', 'lenhaBetula'], 'lenhaCarvalho')],
+  guardaSolComEspreguicadeira: [lugar('pano', 'Pano', TECIDOS, 'azul'), lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  toalhaDePiquenique: [lugar('pano', 'Xadrez', TECIDOS, 'vinho')],
+  xadrezDeJardim: [lugar('pedra', 'Casas escuras', PEDRAS, 'ardosia'), lugar('madeira', 'Peças escuras', MADEIRAS, 'nogueira')],
+  bolicheDeGrama: [lugar('madeira', 'Pinos', MADEIRAS, 'pinho'), lugar('bola', 'Bola', MADEIRAS, 'nogueira')],
+  gangorra: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('metal', 'Ferragens', METAIS, 'ferro')],
+  // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada e a liça trocam a madeira e o pano (a listra clara e as
+  // borlas são de linho fixo); o poste de amarrar, só a madeira (o ferro, a corda e a palha são fixos); o bueiro, a
+  // pedra da moldura e a grade; o relógio de sol, a pedra e o mostrador; o sino, a madeira do suporte e o metal do sino.
+  arquibancadaDeTorneio: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('pano', 'Pano', TECIDOS, 'vinho')],
+  licaDeJusta: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pano', 'Pano', TECIDOS, 'azul')],
+  posteDeAmarrarCavalos: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  bueiro: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('grade', 'Grade', METAIS, 'ferro')],
+  relogioDeSol: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('metal', 'Mostrador', METAIS, 'latao')],
+  sinoNoSuporte: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('sino', 'Sino', METAIS, 'latao')],
+  // Lote L14 de 14/11/2026, o resto da cidade e vila. O tear troca a madeira, o fio do urdume e o pano tecido; a roca, a
+  // madeira e a lã; o lagar, a madeira e as ferragens (o mosto e a uva são fixos); a mó, a pedra, a madeira do estrado
+  // e o saco; a liteira, a madeira, o forro e os metais (o vidro da janela é fixo).
+  tearDePedal: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('fio', 'Fio', TECIDOS, 'linho'), lugar('pano', 'Pano', TECIDOS, 'vinho')],
+  rocaDeFiar: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('fio', 'Lã', TECIDOS, 'linho')],
+  lagarDeUva: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('metal', 'Ferragens', METAIS, 'ferro')],
+  moDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('saco', 'Saco', TECIDOS, 'linho')],
+  liteira: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('pano', 'Forro', TECIDOS, 'vinho'), lugar('metal', 'Metais', METAIS, 'latao')],
   // A ponte levadiça (lote L02, item 81 da lista do dia): as ferragens valem para as cintas, os rebites, as chapas, as
   // dobradiças, as pontas do eixo e as correntes.
   ponteLevadica: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],

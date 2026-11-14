@@ -59,6 +59,9 @@ import { ESPESSURA_DA_REDE_DE_CAMUFLAGEM } from './redeDeCamuflagem'
 import { ESPESSURA_DA_BANDEIRA } from './mastroComBandeira'
 import { ESPESSURA_DA_COPA_DA_LARANJEIRA } from './laranjeiraEmCanteiro'
 import { ESPESSURA_DO_TELHADO_DA_LANTERNA } from './lanternaDePedra'
+import { ESPESSURA_DA_TRAVE_DE_AMARRAR } from './posteDeAmarrarCavalos'
+import { ESPESSURA_DO_RELOGIO_DE_SOL } from './relogioDeSol'
+import { ESPESSURA_DO_SINO } from './sinoNoSuporte'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -613,6 +616,32 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   varalDeBandeirinhas: { modo: 'derivado', espessura: 0 },
   varalDeLanternas: { modo: 'derivado', espessura: 0 },
   mastroDeFitas: { modo: 'derivado', espessura: 0 },
+  // Lote L11 de 14/11/2026, o descanso e a brincadeira. A rede, a gangorra e o guarda-sol com espreguiçadeira sobem em
+  // fatias, como o balanço: as fatias dão a altura e não há beirada copiada. A toalha (no chão, com a cesta e a comida
+  // em colunas próprias), o xadrez (as peças em pé nos discos) e o boliche (os pinos em duas colunas) são derivados.
+  redeDeDormir: { modo: 'derivado', espessura: 0 },
+  guardaSolComEspreguicadeira: { modo: 'derivado', espessura: 0 },
+  toalhaDePiquenique: DERIVADO,
+  xadrezDeJardim: DERIVADO,
+  bolicheDeGrama: DERIVADO,
+  gangorra: { modo: 'derivado', espessura: 0 },
+  // Lote L13 de 14/11/2026, o torneio e a cidade. A arquibancada (um degrau por coluna), a liça e o bueiro são
+  // derivados; o bueiro é rente e sai igual à vista de cima. O poste de amarrar, o relógio de sol e o sino copiam a
+  // beirada da espessura que cada desenho exporta (a grossura da trave, a do capitel, um degrau do sino).
+  arquibancadaDeTorneio: DERIVADO,
+  licaDeJusta: DERIVADO,
+  posteDeAmarrarCavalos: { modo: 'derivado', espessura: ESPESSURA_DA_TRAVE_DE_AMARRAR },
+  bueiro: DERIVADO,
+  relogioDeSol: { modo: 'derivado', espessura: ESPESSURA_DO_RELOGIO_DE_SOL },
+  sinoNoSuporte: { modo: 'derivado', espessura: ESPESSURA_DO_SINO },
+  // Lote L14 de 14/11/2026, o resto da cidade e vila. A roca de fiar é desenhada de lado nas duas vistas, como a lápide.
+  // A liteira leva a face da porta por uma fresta à frente da caixa, como o espaldar do trono, e por isso não copia
+  // beirada. O tear, o lagar e a mó são derivados.
+  tearDePedal: DERIVADO,
+  rocaDeFiar: EM_PE,
+  lagarDeUva: DERIVADO,
+  moDePedra: DERIVADO,
+  liteira: { modo: 'derivado', espessura: 0 },
   // A ponte levadiça (lote L02, item 81 da lista do dia) fica como de cima, como a ponte: anda-se em cima, e as
   // correntes sobem da argola da ponta até o eixo, cada elo com a sua sombra solta.
   ponteLevadica: EM_PE,

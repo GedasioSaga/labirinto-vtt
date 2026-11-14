@@ -191,7 +191,12 @@ export interface ContextoDoMovel {
    * taverna e a mesa de queda de braço (a sombra do assento das banquetas,
    * `desgirado`), os dois varais (a sombra dos mastros e da corda, e o
    * pendurado de lado nos giros ímpares) e o mastro de fitas (a sombra e a
-   * correção das fitas na 3/4). Os outros desenhos não leem.
+   * correção das fitas na 3/4). Dos lotes L13 e L14 leem o relógio de sol (o
+   * degrau vai em duas metades cortadas pela frente NA TELA, de pé no giro
+   * ímpar, a regra do pilar), o lagar (o tabuleiro vira duas colunas cortadas
+   * do lado que fica embaixo na tela, e a âncora vai para a parte de trás) e a
+   * liteira (a face da porta só entra no giro 0, como no trono). Os outros
+   * desenhos não leem.
    */
   readonly giro: number
 }
