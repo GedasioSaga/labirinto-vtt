@@ -1,3 +1,4 @@
+import { lerAura, type AuraDaFicha } from '../auras'
 import type { Personagem } from '../personagem'
 import { isTokenPhotoData } from '../tokenPhoto'
 import type { Token } from '../../types/map'
@@ -173,10 +174,25 @@ export function casaDoBoneco(grade: GradeDaArena): CasaDaArena {
   return { col: Math.min(grade.colunas - 1, Math.floor(grade.colunas / 2) + 2), row: Math.floor(grade.linhas / 2) }
 }
 
-/** Uma ficha que entra na grade: a cópia e de que lado ela é. */
+/** Uma ficha que entra na grade: a cópia, de que lado ela é e a aura herdada do mapa (ausente = sem aura). */
 export interface FichaNaGrade {
   personagem: Personagem
   lado: LadoDaArena | 'boneco'
+  aura?: AuraDaFicha
+}
+
+/**
+ * A AURA que a cópia herda do mapa (pedido do mestre, 14/11/2026: "Sim, herda
+ * do mapa"): a do token da MESMA ficha (`origem`) na cena aberta, tipo e
+ * interruptor. Ficha sem token na cena, ou token sem aura = `undefined`.
+ */
+export function auraDaFichaNaCena(tokens: readonly Pick<Token, 'characterId' | 'aura'>[], origem: string): AuraDaFicha | undefined {
+  for (const token of tokens) {
+    if (token.characterId !== origem) continue
+    const aura = lerAura(token.aura)
+    if (aura !== null) return aura
+  }
+  return undefined
 }
 
 /** Os tokens gerados e o lado de cada um. */
@@ -189,7 +205,7 @@ export interface TokensDaArena {
  * Um token por ficha, nas posições iniciais: id `arena_tok_<n>`,
  * `characterId` = a cópia, a cor do lado (o boneco na cor do Lado B), a foto
  * embutida do retrato quando houver (o retrato de mídia fica de fora: o disco
- * com a cor do lado).
+ * com a cor do lado) e a aura herdada do mapa, quando a ficha trouxer uma.
  */
 export function tokensDaArena(fichas: readonly FichaNaGrade[], grade: GradeDaArena): TokensDaArena {
   const doLado = (lado: LadoDaArena): FichaNaGrade[] => fichas.filter((ficha) => ficha.lado === lado)
@@ -220,6 +236,7 @@ export function tokensDaArena(fichas: readonly FichaNaGrade[], grade: GradeDaAre
       image: null,
       imageData: isTokenPhotoData(retrato) ? retrato : null,
       color: EQUIPE_DO_LADO[ficha.lado === 'boneco' ? 'b' : ficha.lado].cor,
+      ...(ficha.aura === undefined ? {} : { aura: { tipo: ficha.aura.tipo, ligada: ficha.aura.ligada } }),
     })
     ladoDe[id] = ficha.lado
   })

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { copiasDaMontagem, novoIdDeCopia } from '../lib/arena/copias'
 import {
+  auraDaFichaNaCena,
   CASA_DA_ARENA,
   centroDaCasaNaArena,
   EQUIPE_DO_LADO,
@@ -29,6 +30,7 @@ import { novoPersonagem, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { Token } from '../types/map'
 import { criarBatalhaDBTStore, type CenaDBT, type LojaDaBatalhaDBT } from './batalhaDBTStore'
+import { useMapStore } from './mapStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
 /**
@@ -455,7 +457,13 @@ export const useArenaDBTStore = create<ArenaDBTState>()((set, get) => {
     if (sistema === null || !montagemProntaDBT(sessao.montagem, fichas)) return false
     const copias = copiasDaMontagem(comoMontagemDaArena(sessao.montagem), fichas)
     const bonecos = sessao.montagem.bonecos.map((boneco) => ({ boneco, ficha: fichaDoBonecoDBT(sistema, bonecoValido(boneco), novoIdDeCopia()) }))
-    const naGrade: FichaNaGrade[] = [...copias.map((copia) => ({ personagem: copia.personagem, lado: copia.lado })), ...bonecos.map(({ boneco, ficha }) => ({ personagem: ficha, lado: boneco.lado }))]
+    // A aura vem do token da mesma ficha na cena aberta do mapa (pedido de 14/11/2026: "herda do mapa").
+    const tokensDaCena = useMapStore.getState().map.tokens
+    const comAura = (copia: (typeof copias)[number]): FichaNaGrade => {
+      const aura = auraDaFichaNaCena(tokensDaCena, copia.origem)
+      return aura === undefined ? { personagem: copia.personagem, lado: copia.lado } : { personagem: copia.personagem, lado: copia.lado, aura }
+    }
+    const naGrade: FichaNaGrade[] = [...copias.map(comAura), ...bonecos.map(({ boneco, ficha }) => ({ personagem: ficha, lado: boneco.lado }))]
     if (naGrade.length === 0) return false
     const grade = GRADES_DA_ARENA[sessao.montagem.grade]
     const gerados = tokensDaArena(naGrade, grade)
