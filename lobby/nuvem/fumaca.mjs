@@ -8,6 +8,12 @@
 //      node fumaca.mjs limites             -> o limitador: ritmo vira adiado; frames tortos fecham e bloqueiam
 //      node fumaca.mjs midia               -> o aceite da W3: PNG de 2 MiB sobe e volta com o mesmo sha256;
 //                                             hash errado = 400; .png com HTML dentro = 400
+//      node fumaca.mjs galeria             -> a Galeria de cutscenes (14/11): o vídeo sobe em pedaços de 4 MiB pelo app,
+//                                             o fechar confere o sha256 e a jogadora o vê na lista; Range = 206 de até
+//                                             4 MiB, 416 fora; pelo site = 404; pedaço torto/HTML = 400; 150 MiB+1 = 413;
+//                                             faltando = 409; hash errado = 400; tirar: jogadora 403, mestre tira
+//                                             (lápide) e subir de novo reabre; 5º vídeo de 150 MiB na campanha = 413
+//      node fumaca.mjs galeria-grande      -> um vídeo de 150 MiB inteiro: o fechar (DigestStream) termina com 200
 //      node fumaca.mjs foto                -> a foto de perfil (07/11): a Nami troca a própria (256 KiB exatos) e o
 //                                             Zoro a vê no estado; +1 byte = 413; HTML = 400; o DELETE do Zoro não
 //                                             mexe na da Nami; não membro = 404; tirar apaga a mídia; 4ª seguida = 429
@@ -2389,6 +2395,170 @@ async function listarOps(campanhaId) {
   }
 }
 
+// ── Galeria de cutscenes (14/11/2026) ───────────────────────────────────────
+
+/** O pedaço de cada PUT do vídeo (o mesmo do app e do `galeria.ts`). */
+const PEDACO_DO_VIDEO = 4 * MIB
+
+/** Um webm de mentira: o cabeçalho EBML com o DocType "webm" e um enchimento que muda com a semente. */
+function webmDe(tamanho, semente) {
+  const cabeca = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01, 0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d, 0x42, 0x87, 0x81, 0x04])
+  const resto = Buffer.alloc(tamanho - cabeca.length)
+  for (let i = 0; i < resto.length; i += 1) resto[i] = (i * 31 + semente) & 0xff
+  return Buffer.concat([cabeca, resto])
+}
+
+async function pedirVideo(metodo, caminho, eu, origem, { corpo, tipo, range } = {}) {
+  const headers = {}
+  if (tipo !== undefined) headers['content-type'] = tipo
+  if (range !== undefined) headers.range = range
+  const resposta = await fetch(enderecoDe(caminho, eu, origem), { method: metodo, headers, body: corpo })
+  const bytes = Buffer.from(await resposta.arrayBuffer())
+  let json = null
+  try {
+    json = JSON.parse(bytes.toString('utf8'))
+  } catch {
+    json = null
+  }
+  return { status: resposta.status, cabecalhos: resposta.headers, bytes, json }
+}
+
+const parteDoVideo = (campanhaId, id, parte, total, pedaco, { eu = MESTRE, origem = 'app' } = {}) =>
+  pedirVideo('PUT', `/api/c/${campanhaId}/video/${id}/parte/${parte}?tamanho=${total}`, eu, origem, { corpo: pedaco, tipo: 'application/octet-stream' })
+
+async function subirVideo(campanhaId, id, bytes) {
+  const status = []
+  for (let parte = 0; parte * PEDACO_DO_VIDEO < bytes.length; parte += 1) {
+    status.push((await parteDoVideo(campanhaId, id, parte, bytes.length, bytes.subarray(parte * PEDACO_DO_VIDEO, (parte + 1) * PEDACO_DO_VIDEO))).status)
+  }
+  return status
+}
+
+const fecharOVideo = (campanhaId, id, titulo) => pedirVideo('POST', `/api/c/${campanhaId}/video/${id}/fechar`, MESTRE, 'app', { corpo: JSON.stringify({ titulo }), tipo: 'application/json' })
+const verGaleria = (campanhaId, eu = NAMI, origem = 'site') => pedir('GET', `/api/c/${campanhaId}/galeria`, eu, origem)
+const assistir = (campanhaId, id, range) => pedirVideo('GET', `/api/c/${campanhaId}/video/${id}`, NAMI, 'site', range === undefined ? {} : { range })
+const tirarVideo = (campanhaId, id, eu, origem) => pedir('POST', `/api/c/${campanhaId}/galeria/${id}/tirar`, eu, origem, {})
+
+async function campanhaDaGaleria(nome) {
+  const campanhaId = `fumaca-${nome}-${Date.now().toString(36)}`
+  console.log(`campanha ${campanhaId} em ${BASE}`)
+  const publicada = await doApp('POST', `/api/c/${campanhaId}/publicar`, pedidoDePublicar([ficha('pers_nami', 'conta_nami')]))
+  if (publicada.status !== 200) throw new Error(`publicar falhou (${publicada.status}): ${JSON.stringify(publicada.corpo)}`)
+  return campanhaId
+}
+
+async function aceiteDaGaleria() {
+  const campanhaId = await campanhaDaGaleria('galeria')
+
+  // 1. Subir: 9 MiB + 123 bytes = 3 pedaços (4 + 4 + 1); fechar confere o sha256; só então a jogadora vê na lista.
+  const video = webmDe(9 * MIB + 123, 7)
+  const id = `${sha256(video)}.webm`
+  const pedacos = await subirVideo(campanhaId, id, video)
+  const antes = await verGaleria(campanhaId)
+  const fechado = await fecharOVideo(campanhaId, id, 'A chegada a Goa')
+  const lista = await verGaleria(campanhaId)
+  const item = lista.corpo.videos?.[0]
+  console.log(`        PUT ${pedacos.join(',')}; lista antes ${JSON.stringify(antes.corpo)}; fechar ${fechado.status} ${JSON.stringify(fechado.json)}`)
+  conferir(
+    'subir: 3 pedaços PUT 200, nada na lista antes do fechar, fechar 200 e o vídeo na lista da jogadora no site',
+    pedacos.length === 3 && pedacos.every((s) => s === 200) && antes.corpo.videos?.length === 0 && fechado.status === 200 && fechado.json?.novo === true && lista.corpo.videos?.length === 1 && item?.id === id && item?.titulo === 'A chegada a Goa' && item?.tamanho === video.length,
+    JSON.stringify(lista.corpo),
+  )
+
+  // 2. Assistir com Range (como o <video> da Galeria): 206 de no máximo 4 MiB; o fim; fora = 416; sem Range = tudo.
+  const comeco = await assistir(campanhaId, id, 'bytes=0-')
+  const meio = await assistir(campanhaId, id, 'bytes=5000000-5000999')
+  const ultimos = await assistir(campanhaId, id, 'bytes=-100')
+  const fora = await assistir(campanhaId, id, `bytes=${video.length}-`)
+  const inteiro = await assistir(campanhaId, id)
+  console.log(`        bytes=0- -> ${comeco.status} ${comeco.cabecalhos.get('content-range')} (${comeco.bytes.length} bytes, ${comeco.cabecalhos.get('content-type')})`)
+  conferir(
+    'Range bytes=0-: 206 de 4 MiB (não o vídeo todo), Content-Range certo, video/webm, os mesmos bytes',
+    comeco.status === 206 && comeco.bytes.length === 4 * MIB && comeco.cabecalhos.get('content-range') === `bytes 0-${4 * MIB - 1}/${video.length}` && comeco.cabecalhos.get('content-type') === 'video/webm' && comeco.bytes.equals(video.subarray(0, 4 * MIB)),
+  )
+  conferir(
+    'Range do meio e os últimos 100 bytes iguais ao arquivo; começar no fim = 416 com bytes */total; sem Range = 200 com o sha256 do vídeo',
+    meio.status === 206 && meio.bytes.equals(video.subarray(5000000, 5001000)) && ultimos.status === 206 && ultimos.bytes.equals(video.subarray(video.length - 100)) && fora.status === 416 && fora.cabecalhos.get('content-range') === `bytes */${video.length}` && inteiro.status === 200 && sha256(inteiro.bytes) === sha256(video),
+    `meio ${meio.status}, últimos ${ultimos.status}, fora ${fora.status} ${fora.cabecalhos.get('content-range')}, inteiro ${inteiro.status} ${inteiro.bytes.length}`,
+  )
+
+  // 3. Recusas da subida: pelo site, pedaço de tamanho errado, HTML no pedaço 0, total acima de 150 MiB.
+  const pequeno = webmDe(MIB, 9)
+  const idPequeno = `${sha256(pequeno)}.webm`
+  const pelaJogadora = await parteDoVideo(campanhaId, idPequeno, 0, pequeno.length, pequeno, { eu: NAMI, origem: 'site' })
+  const peloMestreNoSite = await parteDoVideo(campanhaId, idPequeno, 0, pequeno.length, pequeno, { origem: 'site' })
+  const cortado = await parteDoVideo(campanhaId, idPequeno, 0, pequeno.length, pequeno.subarray(0, pequeno.length - 1))
+  const html = Buffer.from('<!doctype html><html><body><script>alert(1)</script></body></html>', 'utf8')
+  const comHtml = await parteDoVideo(campanhaId, `${sha256(html)}.webm`, 0, html.length, html)
+  const grande = await parteDoVideo(campanhaId, idPequeno, 0, 150 * MIB + 1, pequeno)
+  console.log(`        site ${pelaJogadora.status}/${peloMestreNoSite.status}; cortado ${cortado.status} ${cortado.json?.erro}; html ${comHtml.status} ${comHtml.json?.erro}; 150 MiB+1 ${grande.status} ${grande.json?.erro}`)
+  conferir('PUT de pedaço pelo site (jogadora e mestre) = 404', pelaJogadora.status === 404 && peloMestreNoSite.status === 404)
+  conferir(
+    'pedaço do tamanho errado = 400 pedaco-incompleto; pedaço 0 com HTML = 400 tipo-errado; total acima de 150 MiB = 413',
+    cortado.status === 400 && cortado.json?.erro === 'pedaco-incompleto' && comHtml.status === 400 && comHtml.json?.erro === 'tipo-errado' && grande.status === 413,
+  )
+
+  // 4. Fechar: com pedaço faltando = 409; hash que não bate = 400 e os pedaços somem (fechar de novo = 409).
+  const dois = webmDe(5 * MIB, 3)
+  const idDois = `${sha256(dois)}.webm`
+  await parteDoVideo(campanhaId, idDois, 0, dois.length, dois.subarray(0, PEDACO_DO_VIDEO))
+  const faltando = await fecharOVideo(campanhaId, idDois, 'Faltando')
+  const errado = webmDe(MIB, 4)
+  const idErrado = `${sha256(Buffer.from('outro conteúdo'))}.webm`
+  await parteDoVideo(campanhaId, idErrado, 0, errado.length, errado)
+  const hashErrado = await fecharOVideo(campanhaId, idErrado, 'Errado')
+  const deNovo = await fecharOVideo(campanhaId, idErrado, 'Errado')
+  console.log(`        faltando ${faltando.status} ${faltando.json?.erro}; hash errado ${hashErrado.status} ${hashErrado.json?.erro}; de novo ${deNovo.status} ${deNovo.json?.erro}`)
+  conferir('fechar com pedaço faltando = 409', faltando.status === 409)
+  conferir('fechar com hash que não bate = 400 hash-errado e os pedaços somem (o 2º fechar = 409)', hashErrado.status === 400 && hashErrado.json?.erro === 'hash-errado' && deNovo.status === 409)
+
+  // 5. Tirar: a jogadora = 403; o mestre pelo site tira; de novo pelo app responde igual; some da lista e do Range.
+  const pelaNami = await tirarVideo(campanhaId, id, NAMI, 'site')
+  const peloMestre = await tirarVideo(campanhaId, id, MESTRE, 'site')
+  const outraVez = await tirarVideo(campanhaId, id, MESTRE, 'app')
+  const listaDepois = await verGaleria(campanhaId)
+  const depois = await assistir(campanhaId, id, 'bytes=0-')
+  console.log(`        tirar: Nami ${pelaNami.status}, mestre ${peloMestre.status} ${JSON.stringify(peloMestre.corpo)}, de novo ${outraVez.status}; lista ${JSON.stringify(listaDepois.corpo)}; Range depois ${depois.status}`)
+  conferir('tirar pela jogadora = 403; o mestre pelo site tira; tirar de novo pelo app = a mesma resposta', pelaNami.status === 403 && peloMestre.status === 200 && peloMestre.corpo.tirado === true && outraVez.status === 200 && outraVez.corpo.tirado === true)
+  conferir('tirado: some da lista (lápide fora) e o vídeo dá 404', listaDepois.corpo.videos?.length === 0 && depois.status === 404)
+  const reaberto = await subirVideo(campanhaId, id, video)
+  const fechadoDeNovo = await fecharOVideo(campanhaId, id, 'De volta')
+  const listaReaberta = await verGaleria(campanhaId, MESTRE, 'app')
+  conferir(
+    'subir o mesmo vídeo depois de tirado reabre a linha: volta à lista (pelo app também) com o título novo',
+    reaberto.every((s) => s === 200) && fechadoDeNovo.status === 200 && listaReaberta.corpo.videos?.length === 1 && listaReaberta.corpo.videos[0].titulo === 'De volta',
+    JSON.stringify(listaReaberta.corpo),
+  )
+
+  // 6. Teto da campanha: 4 vídeos de 150 MiB declarados (só o pedaço 0 de cada) somam 600 MiB; o 5º = 413 campanha-cheia.
+  const cheia = await campanhaDaGaleria('galeria-cheia')
+  const respostas = []
+  for (let n = 0; n < 5; n += 1) {
+    const pedaco = webmDe(PEDACO_DO_VIDEO, 40 + n)
+    respostas.push(await parteDoVideo(cheia, `${sha256(Buffer.from(`video ${n}`))}.webm`, 0, 150 * MIB, pedaco))
+  }
+  console.log(`        teto: ${respostas.map((r) => `${r.status}${r.json?.erro ? ` ${r.json.erro}` : ''}`).join(', ')}`)
+  conferir('teto da campanha: 4 x 150 MiB entram, o 5º = 413 campanha-cheia', respostas.slice(0, 4).every((r) => r.status === 200) && respostas[4].status === 413 && respostas[4].json?.erro === 'campanha-cheia')
+
+  console.log(falhas === 0 ? `GALERIA OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
+/** O vídeo de 150 MiB inteiro (38 pedaços): o fechar confere o sha256 pelo DigestStream do runtime sem estourar. */
+async function aceiteDaGaleriaGrande() {
+  const campanhaId = await campanhaDaGaleria('galeria-grande')
+  const video = webmDe(150 * MIB, 11)
+  const id = `${sha256(video)}.webm`
+  const inicio = Date.now()
+  const pedacos = await subirVideo(campanhaId, id, video)
+  const subiu = Date.now()
+  const fechado = await fecharOVideo(campanhaId, id, 'Cento e cinquenta')
+  const fechou = Date.now()
+  const fim = await assistir(campanhaId, id, `bytes=${150 * MIB - 4096}-`)
+  console.log(`        ${pedacos.length} pedaços em ${((subiu - inicio) / 1000).toFixed(1)} s; fechar ${fechado.status} em ${((fechou - subiu) / 1000).toFixed(1)} s; últimos 4 KiB ${fim.status}`)
+  conferir('150 MiB: 38 pedaços PUT 200, o fechar confere o hash e termina com 200, o fim sai por Range', pedacos.length === 38 && pedacos.every((s) => s === 200) && fechado.status === 200 && fim.status === 206 && fim.bytes.equals(video.subarray(150 * MIB - 4096)), JSON.stringify(fechado.json))
+  console.log(falhas === 0 ? `GALERIA GRANDE OK (campanha ${campanhaId})` : `${falhas} FALHA(S)`)
+}
+
 const [modo, campanha] = process.argv.slice(2)
 try {
   if (modo === 'exportar') {
@@ -2398,6 +2568,10 @@ try {
     await limites()
   } else if (modo === 'midia') {
     await aceiteDaMidia()
+  } else if (modo === 'galeria') {
+    await aceiteDaGaleria()
+  } else if (modo === 'galeria-grande') {
+    await aceiteDaGaleriaGrande()
   } else if (modo === 'foto') {
     await aceiteDaFoto()
   } else if (modo === 'vercomo') {

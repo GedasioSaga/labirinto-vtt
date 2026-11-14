@@ -181,6 +181,59 @@ export function combinarLargada({
   return combinado
 }
 
+export interface CombinadoSemPrazo extends Combinado {
+  /** Quem entrou na sala durante a espera: passa a ser esperado também. Depois da largada: nada. */
+  incluir(tela: string): void
+  /** "Tocar agora" do mestre: larga já, com quem estiver pronto. */
+  largarJa(): void
+  /** As telas que ainda faltam, para o painel do mestre. */
+  faltam(): readonly string[]
+}
+
+/**
+ * CUTSCENE EM VÍDEO (14/11/2026, "só pode tocar depois de carregar para todos
+ * os jogadores"): a mesma conta do `combinarLargada`, SEM prazo nenhum. A tela
+ * só sai da conta quando avisa "pronta" (o vídeo inteiro baixado) ou quando
+ * cai; quem decide largar antes é o mestre (`largarJa`). Fica FORA das
+ * largadas da batalha: o "Tocar agora" da abertura (`largarAgora`), o contador
+ * `telasQueFaltam` e a tela do mestre (`entrarNaLargadaDoMestre`) não a veem.
+ */
+export function combinarLargadaSemPrazo({ telas, aoLargar }: Pick<OpcoesDoCombinado, 'telas' | 'aoLargar'>): CombinadoSemPrazo {
+  const faltam = new Set(telas)
+  const esperadas = new Set(telas)
+  let aberto = true
+  const largar = (): void => {
+    if (!aberto) return
+    aberto = false
+    faltam.clear()
+    aoLargar()
+  }
+  const resolvida = (tela: string): void => {
+    if (!aberto || !faltam.delete(tela)) return
+    if (faltam.size === 0) largar()
+  }
+  const combinado: CombinadoSemPrazo = {
+    pronta: resolvida,
+    saiu: resolvida,
+    // Sem prazo, a batida não muda nada: quem carrega já está na conta até ficar pronta ou cair.
+    carregando: () => undefined,
+    cancelar: () => {
+      aberto = false
+      faltam.clear()
+    },
+    incluir: (tela) => {
+      if (!aberto || esperadas.has(tela)) return
+      esperadas.add(tela)
+      faltam.add(tela)
+    },
+    largarJa: largar,
+    faltam: () => [...faltam],
+  }
+  // Sem tela a esperar, larga na hora (no próximo passo, para quem chamou já ter o combinado em mãos).
+  if (faltam.size === 0) queueMicrotask(largar)
+  return combinado
+}
+
 /** Quantas telas (jogadores e TV) ainda não avisaram "pronta" nas largadas em curso. Serve de `getSnapshot`. */
 export function telasQueFaltam(): number {
   return telasPendentes

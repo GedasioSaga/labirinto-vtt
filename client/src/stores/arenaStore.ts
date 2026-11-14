@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import { ajustesValidos, comAjustesDoBoneco, fichaDoBoneco } from '../lib/arena/boneco'
 import { copiasDaMontagem, novoIdDeCopia } from '../lib/arena/copias'
 import { AUTOR_DA_ARENA, equipesDaArena } from '../lib/arena/estadoDaArena'
-import { CASA_DA_ARENA, casaLivrePertoDe, casaOcupadaNaArena, GRADES_DA_ARENA, tokensDaArena, type FichaNaGrade } from '../lib/arena/grade'
+import { auraDaFichaNaCena, CASA_DA_ARENA, casaLivrePertoDe, casaOcupadaNaArena, GRADES_DA_ARENA, tokensDaArena, type FichaNaGrade } from '../lib/arena/grade'
 import { comInvocadoNaArena, semInvocadoNaArena, semInvocadosDaCena } from '../lib/arena/invocados'
 import { comEscolha, judgeDoArbitro, montagemPronta, montagemVazia, semEscolha } from '../lib/arena/montagem'
 import { golpeNoPlacar, placarDoBoneco, type ContextoDoPlacar, type NomeDoGolpe } from '../lib/arena/placar'
@@ -33,6 +33,7 @@ import type { Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { recursoDeVida } from '../lib/vidaDaFicha'
 import { criarBatalhaStore, type AjusteDaColocacao, type LojaDaBatalha } from './batalhaStore'
+import { useMapStore } from './mapStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
 /**
@@ -270,7 +271,12 @@ export const useArenaStore = create<ArenaState>()((set, get) => {
     const copias = copiasDaMontagem(sessao.montagem, fichas)
     if (copias.length === 0) return false
     const grade = GRADES_DA_ARENA[sessao.montagem.grade]
-    const naGrade: FichaNaGrade[] = copias.map((copia) => ({ personagem: copia.personagem, lado: copia.lado }))
+    // A aura vem do token da mesma ficha na cena aberta do mapa (pedido de 14/11/2026: "herda do mapa").
+    const tokensDaCena = useMapStore.getState().map.tokens
+    const naGrade: FichaNaGrade[] = copias.map((copia) => {
+      const aura = auraDaFichaNaCena(tokensDaCena, copia.origem)
+      return aura === undefined ? { personagem: copia.personagem, lado: copia.lado } : { personagem: copia.personagem, lado: copia.lado, aura }
+    })
     const ajustes = ajustesValidos(sessao.montagem.boneco)
     const fichaBoneco = sessao.montagem.modo === 'boneco' ? fichaDoBoneco(sistema, ajustes, novoIdDeCopia()) : null
     if (fichaBoneco !== null) naGrade.push({ personagem: fichaBoneco, lado: 'boneco' })

@@ -94,6 +94,33 @@ export function mesmasFormasVisiveis(a: FormasVisiveis | undefined, b: FormasVis
 }
 
 /**
+ * O que "Mudar ficha" lê das batalhas da mesa: quem está em cada uma, por
+ * cena. One Piece: as cartas da ordem; Dragon Ball Tales: os combatentes. Só
+ * a forma, para esta regra não puxar as stores da batalha.
+ */
+export interface BatalhasDaMesa {
+  onePiece: Readonly<Record<string, { turnos: { cartas: readonly { personagemId: string | null }[] } }>>
+  dragonBall: Readonly<Record<string, { combatentes: Readonly<Record<string, { personagemId: string | null }>> }>>
+}
+
+/**
+ * O token está na batalha? A cena dele está numa batalha ligada (One Piece ou
+ * Dragon Ball Tales), ou a ficha ligada (`personagemId`) tem carta ou
+ * combatente numa batalha de outra cena. Lá, "Mudar ficha" fica apagado
+ * (decisão de 14/11/2026): o "Normal" desligaria as formas pagas na batalha e
+ * tiraria o HP/SP que elas deram (`desfazerFormasNoFim`); a forma se troca
+ * pelo menu da batalha.
+ */
+export function tokenNaBatalha(sceneKey: string, personagemId: string | null, batalhas: BatalhasDaMesa): boolean {
+  if (Object.hasOwn(batalhas.onePiece, sceneKey) || Object.hasOwn(batalhas.dragonBall, sceneKey)) return true
+  if (personagemId === null) return false
+  return (
+    Object.values(batalhas.onePiece).some((cena) => cena.turnos.cartas.some((carta) => carta.personagemId === personagemId)) ||
+    Object.values(batalhas.dragonBall).some((cena) => Object.values(cena.combatentes).some((combatente) => combatente.personagemId === personagemId))
+  )
+}
+
+/**
  * A ficha com a transformação `formaId` Ativa, SEM custo (resposta do mestre:
  * "Mudar ficha" marca a transformação como Ativa, também fora da batalha).
  * `null` = voltar ao normal: toda forma ligada desliga. Nada a mudar devolve

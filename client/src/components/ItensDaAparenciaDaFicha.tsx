@@ -2,12 +2,14 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { AURAS, lerAura, type TipoDeAura } from '../lib/auras'
 import { ehImagemDaMesa } from '../lib/midia'
-import { formaAtivaNaFicha, formasParaMudar } from '../lib/mudarFicha'
+import { formaAtivaNaFicha, formasParaMudar, tokenNaBatalha } from '../lib/mudarFicha'
 import { tokenPhotoRef } from '../lib/tokenPhoto'
 import { animarMiniaturaDaAura, aquecerMiniaturasDaAura, miniaturaDaAura } from '../pixi/auras/miniatura'
 import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
+import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
+import { useBatalhaStore } from '../stores/batalhaStore'
 import { useMapStore } from '../stores/mapStore'
-import { mudarFichaDoToken } from '../stores/mudarFichaDoToken'
+import { MOTIVO_NA_BATALHA, mudarFichaDoToken } from '../stores/mudarFichaDoToken'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
 import type { Token } from '../types/map'
 import { ImagemOuIniciais } from './FichaPecas'
@@ -118,8 +120,9 @@ function MiniaturaDaAura({ tipo }: { tipo: TipoDeAura }) {
  * "Mudar ficha ›": a imagem base e cada transformação com imagem da ficha de
  * personagem ligada. Escolher troca a imagem do token e marca a transformação
  * como Ativa na ficha, sem custo (`mudarFichaDoToken`); a base desmarca.
- * Token sem ficha, ou ficha sem transformação com imagem: desligado, com o
- * porquê embaixo.
+ * Token sem ficha, ficha sem transformação com imagem, ou token na batalha
+ * (`tokenNaBatalha`; lá a forma se troca pelo menu da batalha): desligado,
+ * com o porquê embaixo.
  *
  * "Aura ›": as 9 auras e "Sem aura". A escolhida começa ligada; o jogador dono
  * só liga e desliga (menu dele). Um passo do Ctrl+Z cada.
@@ -129,6 +132,11 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
   const personagens = useAdventureStore(personagensAtivos)
   const idDoSistema = useAdventureStore(sistemaAtivo)
   const sistema = useRpgStore((state) => sistemaPorId(state.biblioteca, idDoSistema))
+  // A cena aberta, como o `App.tsx` a chama (`chaveDaCenaAberta`), e as batalhas da mesa: na batalha, "Mudar ficha" apaga.
+  const idDaCena = useAdventureStore((state) => state.activeSceneId)
+  const idDoMapa = useMapStore((state) => state.map.id)
+  const batalhasOnePiece = useBatalhaStore((state) => state.cenas)
+  const batalhasDragonBall = useBatalhaDBTStore((state) => state.cenas)
   // O menu abriu: as 9 miniaturas ficam prontas nas folgas, antes de o mouse chegar em "Aura ›".
   useEffect(() => {
     aquecerMiniaturasDaAura(TIPOS_DE_AURA, ladoDaMiniatura())
@@ -137,7 +145,8 @@ export function ItensDaAparenciaDaFicha({ tokenId, aberta, onAbrir, formaRef, au
 
   const personagem = token.characterId === null ? undefined : personagens.find((p) => p.id === token.characterId)
   const formas = personagem === undefined ? [] : formasParaMudar(personagem, sistema)
-  const motivoDaForma = personagem === undefined ? MOTIVO_SEM_FICHA : formas.length === 0 ? MOTIVO_SEM_FORMA : null
+  const naBatalha = tokenNaBatalha(idDaCena ?? idDoMapa, token.characterId, { onePiece: batalhasOnePiece, dragonBall: batalhasDragonBall })
+  const motivoDaForma = personagem === undefined ? MOTIVO_SEM_FICHA : formas.length === 0 ? MOTIVO_SEM_FORMA : naBatalha ? MOTIVO_NA_BATALHA : null
   // Cartão apagado, ficha trocada depois, ou forma desligada na ficha (ou no fim da batalha): vale a base,
   // a mesma regra da imagem que o token mostra (`imagemDaFormaVisivel`).
   const formaAtual =

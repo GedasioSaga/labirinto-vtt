@@ -587,6 +587,46 @@ pub async fn minigames_ler_indice<R: Runtime>(app: AppHandle<R>, jogo: String) -
     pacote.ler_indice().await.ok().map(|verificado| verificado.texto)
 }
 
+/// O vídeo que entrou na mídia da mesa (`midia_importar_video`).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoNaMidia {
+    /// `<sha256>.<mp4|webm>`, o nome em `<appData>/midia`.
+    id: String,
+    tamanho: u64,
+    mime: &'static str,
+}
+
+/// CUTSCENE (14/11/2026): copia o vídeo que o mestre escolheu no diálogo para
+/// `<appData>/midia/<sha256>.<ext>` em pedaços (`media::importar_video`), sem
+/// passar os bytes pela webview nem carregar o arquivo na memória. Só a janela
+/// `main` (a Visão de jogador roda o mesmo front). `caminho` vem do diálogo
+/// nativo: qualquer arquivo é escolha legítima do mestre; o que entra é só
+/// mp4/webm pela assinatura, até 500 MB.
+#[tauri::command]
+pub async fn midia_importar_video<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    caminho: String,
+) -> Result<VideoNaMidia, String> {
+    if window.label() != "main" {
+        return Err("só a janela principal importa vídeo".to_owned());
+    }
+    let pasta = app.path().app_data_dir().map_err(|_| "não deu para achar a pasta de dados do app".to_owned())?.join(super::media::PASTA_DE_MIDIA);
+    let sufixo = rand::rng().random::<u64>();
+    let origem = PathBuf::from(caminho);
+    let importado = tauri::async_runtime::spawn_blocking(move || super::media::importar_video(&origem, &pasta, sufixo))
+        .await
+        .map_err(|_| "a cópia do vídeo parou no meio".to_owned())?;
+    match importado {
+        Ok(video) => Ok(VideoNaMidia { id: video.id, tamanho: video.tamanho, mime: video.tipo.mime() }),
+        Err(super::media::ErroDeImportacao::Origem) => Err("não deu para abrir o arquivo escolhido".to_owned()),
+        Err(super::media::ErroDeImportacao::GrandeDemais) => Err("o vídeo passa de 500 MB".to_owned()),
+        Err(super::media::ErroDeImportacao::NaoEVideo) => Err("o arquivo não é um vídeo mp4 nem webm".to_owned()),
+        Err(super::media::ErroDeImportacao::Disco) => Err("não deu para gravar o vídeo na pasta do app (disco cheio?)".to_owned()),
+    }
+}
+
 async fn active_room(state: &NetState) -> Result<Arc<Room>, String> {
     state.room.lock().await.as_ref().map(|open| open.room.clone()).ok_or_else(|| "nenhuma sala aberta".to_owned())
 }

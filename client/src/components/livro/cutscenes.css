@@ -1,0 +1,108 @@
+/* CUTSCENES (14/11/2026): a página do livro da mesa. */
+
+.lb-cutscenes {
+  display: grid;
+  gap: 12px;
+}
+
+.lb-cutscenes__lista,
+.lb-cutscenes__telas {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-cutscenes__item {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--gr-linha, rgb(0 0 0 / 0.12));
+  border-radius: 8px;
+}
+
+.lb-cutscenes__painel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--gr-papel-escuro, rgb(0 0 0 / 0.05));
+}
+
+.lb-cutscenes__painel-titulo {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.lb-cutscenes__tela {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  font-size: 13px;
+}
+
+.lb-cutscenes__tela[data-falhou='true'] .lb-cutscenes__tela-estado {
+  color: var(--gr-perigo, #a8321e);
+}
+
+.lb-cutscenes__tela-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-cutscenes__tela-estado {
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-cutscenes__barra {
+  grid-column: 1 / -1;
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.1);
+  overflow: hidden;
+}
+
+.lb-cutscenes__cheio {
+  display: block;
+  height: 100%;
+  background: var(--gr-latao, #b08a3e);
+  transform-origin: left center;
+  transition: transform 200ms ease-out;
+}
+
+.lb-cutscenes__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lb-cutscenes__nota {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.lb-cutscenes__nota--erro {
+  color: var(--gr-perigo, #a8321e);
+  opacity: 1;
+}
+
+.lb-cutscenes__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-cutscenes__cheio {
+    transition: none;
+  }
+}

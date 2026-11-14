@@ -106,6 +106,13 @@ pub struct Room {
     bad_codes: Mutex<BadCodeLimiter>,
     /// Pasta de onde `/media/{id}` lê (`<appData>/midia`); `None` = a rota só dá 404.
     media_dir: Mutex<Option<PathBuf>>,
+    /// Vídeos da cutscene já conferidos (hash e assinatura) nesta sala, com o
+    /// tamanho e a data do arquivo de quando foram: conferir 500 MB a cada
+    /// `Range` seria inviável. Arquivo mudou = confere de novo.
+    videos_conferidos: Mutex<HashMap<String, MarcaDoArquivo>>,
+    /// Uma conferência de vídeo por vez: dez jogadores pedindo o mesmo vídeo
+    /// ao mesmo tempo leem o arquivo uma vez só.
+    vez_de_conferir: tokio::sync::Mutex<()>,
     /// Pacote de onde `/animacoes/...` lê (`<appData>/animacoes`); `None` = só 404.
     animacoes: Mutex<Option<Pacote>>,
     /// Pacotes de onde `/minigames/{jogo}/...` lê (`<appData>/minigames/<jogo>`).
@@ -234,6 +241,8 @@ impl Room {
             tunnel_host: Mutex::new(None),
             bad_codes: Mutex::new(BadCodeLimiter::default()),
             media_dir: Mutex::new(None),
+            videos_conferidos: Mutex::new(HashMap::new()),
+            vez_de_conferir: tokio::sync::Mutex::new(()),
             animacoes: Mutex::new(None),
             minigames: Mutex::new(Vec::new()),
             sons: Mutex::new(SonsDaSala::default()),
@@ -300,6 +309,19 @@ impl Room {
 
     fn media_dir(&self) -> Option<PathBuf> {
         lock(&self.media_dir).clone()
+    }
+
+    fn video_ja_conferido(&self, id: &str, marca: &MarcaDoArquivo) -> bool {
+        lock(&self.videos_conferidos).get(id) == Some(marca)
+    }
+
+    fn marcar_video_conferido(&self, id: &str, marca: MarcaDoArquivo) {
+        let mut conferidos = lock(&self.videos_conferidos);
+        // Teto: a tabela não cresce sem fim numa sessão longa.
+        if conferidos.len() >= VIDEOS_CONFERIDOS_MAX {
+            conferidos.clear();
+        }
+        conferidos.insert(id.to_owned(), marca);
     }
 
     /// Passa a servir `/animacoes/...` deste pacote (ver `animacoes.rs`).
@@ -961,20 +983,25 @@ pub fn is_safe_asset_path(path: &str) -> bool {
         })
 }
 
-/// `/media/{id}`: SÓ a imagem de `<appData>/midia` (item do acervo, retrato da
-/// ficha). Toda recusa é o mesmo 404 — id torto, arquivo que falta, grande
-/// demais, que não confere ou de áudio —, para não ensinar quais ids existem.
+/// `/media/{id}`: a imagem de `<appData>/midia` (item do acervo, retrato da
+/// ficha) e o vídeo da cutscene (`video_file`, em fluxo e com `Range`). Toda
+/// recusa é o mesmo 404 — id torto, arquivo que falta, grande demais, que não
+/// confere ou de áudio —, para não ensinar quais ids existem.
 ///
 /// Áudio (SONS F5d, 24/10): nunca sai aqui, nem sem pasta de mídia. Sai só por
 /// `/sons/{id}`, com a chave da conexão e a liberação do host (a música da
 /// dança inclusive); o id de áudio nem toca o disco.
-async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>) -> Response {
+async fn media_file(State(room): State<Arc<Room>>, Path(id): Path<String>, headers: HeaderMap) -> Response {
     if super::media::tipo_do_id(&id).is_some_and(|tipo| tipo.eh_audio()) {
         return StatusCode::NOT_FOUND.into_response();
     }
     let Some(pasta) = room.media_dir() else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    if super::media::tipo_do_video(&id).is_some() {
+        let faixa = headers.get(header::RANGE).and_then(|valor| valor.to_str().ok());
+        return video_file(&room, &pasta, &id, faixa).await.unwrap_or_else(|| StatusCode::NOT_FOUND.into_response());
+    }
     match super::media::ler_midia(&pasta, &id).await {
         // `ler_midia` já exige o tipo dos bytes igual ao do id; o filtro é a
         // segunda trava contra áudio.
@@ -1002,6 +1029,104 @@ fn media_response(bytes: Vec<u8>, mime: &'static str) -> Response {
         bytes,
     )
         .into_response()
+}
+
+/// Tamanho e data do arquivo quando o vídeo foi conferido.
+type MarcaDoArquivo = (u64, Option<std::time::SystemTime>);
+/// Vídeos conferidos lembrados por sala (a tabela zera ao passar disso).
+const VIDEOS_CONFERIDOS_MAX: usize = 256;
+/// Pedaço de leitura do vídeo em fluxo.
+const PEDACO_DO_FLUXO: usize = 256 * 1024;
+
+/// O vídeo da cutscene (`<64 hex>.<mp4|webm>`), em fluxo e com `Range`: o
+/// `<video>` pede pedaços e o jogador que baixa tudo (para tocar junto com os
+/// outros) lê de uma vez, sem o arquivo inteiro na memória. A primeira vez de
+/// cada arquivo na sala confere hash e assinatura lendo o arquivo todo (em
+/// `spawn_blocking`); as seguintes só conferem que o tamanho e a data não
+/// mudaram. `None` = o mesmo 404 de toda recusa.
+async fn video_file(room: &Room, pasta: &std::path::Path, id: &str, faixa: Option<&str>) -> Option<Response> {
+    let caminho = pasta.join(id);
+    let info = tokio::fs::metadata(&caminho).await.ok()?;
+    if !info.is_file() || info.len() > super::media::MIDIA_VIDEO_MAX_BYTES {
+        return None;
+    }
+    let marca: MarcaDoArquivo = (info.len(), info.modified().ok());
+    let tipo = if room.video_ja_conferido(id, &marca) {
+        super::media::tipo_do_video(id)?
+    } else {
+        let _vez = room.vez_de_conferir.lock().await;
+        // Outro pedido pode ter conferido enquanto este esperava a vez.
+        if room.video_ja_conferido(id, &marca) {
+            super::media::tipo_do_video(id)?
+        } else {
+            let (pasta, id_da_tarefa) = (pasta.to_path_buf(), id.to_owned());
+            let conferido = tokio::task::spawn_blocking(move || super::media::conferir_video(&pasta, &id_da_tarefa)).await.ok()?.ok()?;
+            if conferido.tamanho != marca.0 {
+                return None;
+            }
+            room.marcar_video_conferido(id, marca);
+            conferido.tipo
+        }
+    };
+    let tamanho = marca.0;
+    let (status, inicio, quantos) = match super::media::faixa_pedida(faixa, tamanho) {
+        super::media::FaixaPedida::Inteiro => (StatusCode::OK, 0, tamanho),
+        super::media::FaixaPedida::Parte { inicio, fim } => (StatusCode::PARTIAL_CONTENT, inicio, fim.saturating_sub(inicio).saturating_add(1)),
+        super::media::FaixaPedida::ForaDoArquivo => {
+            let mut resposta = StatusCode::RANGE_NOT_SATISFIABLE.into_response();
+            resposta.headers_mut().insert(header::CONTENT_RANGE, HeaderValue::from_str(&format!("bytes */{tamanho}")).ok()?);
+            return Some(resposta);
+        }
+    };
+    let mut arquivo = tokio::fs::File::open(&caminho).await.ok()?;
+    if inicio > 0 {
+        tokio::io::AsyncSeekExt::seek(&mut arquivo, std::io::SeekFrom::Start(inicio)).await.ok()?;
+    }
+    let corpo = Body::from_stream(CorpoDoArquivo::novo(arquivo, quantos));
+    let mut resposta = Response::new(corpo);
+    *resposta.status_mut() = status;
+    let cabecalhos = resposta.headers_mut();
+    cabecalhos.insert(header::CONTENT_TYPE, HeaderValue::from_static(tipo.mime()));
+    cabecalhos.insert(header::CONTENT_LENGTH, HeaderValue::from(quantos));
+    cabecalhos.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    cabecalhos.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    cabecalhos.insert(header::CACHE_CONTROL, HeaderValue::from_static(CACHE_DA_MIDIA));
+    cabecalhos.insert(header::HeaderName::from_static("cross-origin-resource-policy"), HeaderValue::from_static("same-origin"));
+    if status == StatusCode::PARTIAL_CONTENT {
+        let fim = inicio.saturating_add(quantos).saturating_sub(1);
+        cabecalhos.insert(header::CONTENT_RANGE, HeaderValue::from_str(&format!("bytes {inicio}-{fim}/{tamanho}")).ok()?);
+    }
+    Some(resposta)
+}
+
+/// O corpo do vídeo: lê `restante` bytes do arquivo (já posicionado no começo
+/// da faixa) em pedaços de 256 KiB, um por vez, só quando o hyper pede. O
+/// arquivo encurtado no meio só termina antes: o `Content-Length` não fecha e
+/// o hyper derruba a conexão.
+struct CorpoDoArquivo {
+    leitor: tokio::io::Take<tokio::fs::File>,
+    buffer: Box<[u8]>,
+}
+
+impl CorpoDoArquivo {
+    fn novo(arquivo: tokio::fs::File, restante: u64) -> Self {
+        Self { leitor: tokio::io::AsyncReadExt::take(arquivo, restante), buffer: vec![0_u8; PEDACO_DO_FLUXO].into_boxed_slice() }
+    }
+}
+
+impl futures_core::Stream for CorpoDoArquivo {
+    type Item = Result<axum::body::Bytes, std::io::Error>;
+
+    fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<Self::Item>> {
+        let corpo = self.get_mut();
+        let mut lido = tokio::io::ReadBuf::new(&mut corpo.buffer);
+        match tokio::io::AsyncRead::poll_read(std::pin::Pin::new(&mut corpo.leitor), cx, &mut lido) {
+            std::task::Poll::Pending => std::task::Poll::Pending,
+            std::task::Poll::Ready(Err(erro)) => std::task::Poll::Ready(Some(Err(erro))),
+            std::task::Poll::Ready(Ok(())) if lido.filled().is_empty() => std::task::Poll::Ready(None),
+            std::task::Poll::Ready(Ok(())) => std::task::Poll::Ready(Some(Ok(axum::body::Bytes::copy_from_slice(lido.filled())))),
+        }
+    }
 }
 
 /// `/sons/{id}`: o áudio da aventura aberta, só para a conexão a quem o host o
@@ -1750,5 +1875,84 @@ mod tests {
         assert!(!lock(&room.sons).esta_liberado(7, &a));
         assert!(corte_do_7.cortada(), "a busca de quem levou kick seguiu no ar");
         assert!(!corte_de_outro.cortada());
+    }
+
+    /// Sala servindo `/media` da `pasta`, em 127.0.0.1.
+    async fn sala_com_midia(pasta: PathBuf) -> Result<SocketAddr, Erro> {
+        let room = Room::new("ABC234".to_owned(), Arc::new(SinkMudo), Arc::new(resolver_de_release));
+        room.set_media_dir(pasta);
+        let listener = bind(IpAddr::from([127, 0, 0, 1]), 0, 1).await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(serve(listener, room));
+        Ok(addr)
+    }
+
+    /// Um mp4 de mentira (`ftyp` no byte 4) de `tamanho` bytes na `pasta`, com o nome pelo hash.
+    fn mp4_na_pasta(pasta: &std::path::Path, tamanho: usize) -> Result<(String, Vec<u8>), Erro> {
+        let mut bytes = b"\x00\x00\x00\x18ftypisom".to_vec();
+        bytes.extend((0..tamanho.saturating_sub(bytes.len())).map(|i| u8::try_from(i % 251).unwrap_or(0)));
+        let id = format!("{}.mp4", crate::net::media::hash_hex(&bytes));
+        std::fs::write(pasta.join(&id), &bytes)?;
+        Ok((id, bytes))
+    }
+
+    /// `GET /media/<id>` com o `Range` dado: status, cabeçalhos e corpo.
+    async fn pedir_video(sala: SocketAddr, id: &str, faixa: Option<&str>) -> Result<(u16, reqwest::header::HeaderMap, Vec<u8>), Erro> {
+        let mut pedido = reqwest::Client::builder().no_proxy().build()?.get(format!("http://{sala}/media/{id}"));
+        if let Some(faixa) = faixa {
+            pedido = pedido.header(reqwest::header::RANGE, faixa);
+        }
+        let resposta = pedido.send().await?;
+        let (status, cabecalhos) = (resposta.status().as_u16(), resposta.headers().clone());
+        Ok((status, cabecalhos, resposta.bytes().await?.to_vec()))
+    }
+
+    fn cabecalho<'a>(cabecalhos: &'a reqwest::header::HeaderMap, nome: &str) -> &'a str {
+        cabecalhos.get(nome).and_then(|valor| valor.to_str().ok()).unwrap_or("")
+    }
+
+    /// Cutscene (14/11): o vídeo sai inteiro (200) ou pela faixa (206) com os
+    /// cabeçalhos certos, e a faixa que começa no fim é 416 com `bytes */<tamanho>`.
+    #[tokio::test]
+    async fn video_sai_em_200_206_e_416_com_os_cabecalhos_do_range() -> Result<(), Erro> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-video-range-{}", std::process::id()));
+        std::fs::create_dir_all(&pasta)?;
+        let (id, bytes) = mp4_na_pasta(&pasta, 4096)?;
+        let sala = sala_com_midia(pasta.clone()).await?;
+        let (status, cabecalhos, corpo) = pedir_video(sala, &id, None).await?;
+        assert_eq!((status, corpo.len()), (200, 4096));
+        assert_eq!(corpo, bytes);
+        assert_eq!(cabecalho(&cabecalhos, "content-length"), "4096");
+        assert_eq!(cabecalho(&cabecalhos, "accept-ranges"), "bytes");
+        assert_eq!(cabecalho(&cabecalhos, "content-type"), "video/mp4");
+        for (faixa, inicio, fim) in [("bytes=0-", 0, 4095), ("bytes=1000-1999", 1000, 1999), ("bytes=-500", 3596, 4095)] {
+            let (status, cabecalhos, corpo) = pedir_video(sala, &id, Some(faixa)).await?;
+            assert_eq!(status, 206, "{faixa}");
+            assert_eq!(cabecalho(&cabecalhos, "content-range"), format!("bytes {inicio}-{fim}/4096"), "{faixa}");
+            assert_eq!(corpo.as_slice(), bytes.get(inicio..=fim).unwrap_or_default(), "{faixa}");
+        }
+        let (status, cabecalhos, _) = pedir_video(sala, &id, Some("bytes=4096-")).await?;
+        assert_eq!((status, cabecalho(&cabecalhos, "content-range")), (416, "bytes */4096"));
+        std::fs::remove_dir_all(&pasta)?;
+        Ok(())
+    }
+
+    /// O hash é conferido uma vez por arquivo; trocado no disco com o mesmo
+    /// nome (tamanho e data mudam), confere de novo e o conteúdo que não bate é 404.
+    #[tokio::test]
+    async fn video_trocado_no_disco_e_conferido_de_novo() -> Result<(), Erro> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-video-trocado-{}", std::process::id()));
+        std::fs::create_dir_all(&pasta)?;
+        let (id, bytes) = mp4_na_pasta(&pasta, 2048)?;
+        let sala = sala_com_midia(pasta.clone()).await?;
+        assert_eq!(pedir_video(sala, &id, None).await?.0, 200);
+        let mut trocado = bytes.clone();
+        trocado.extend_from_slice(b"mais um pouco");
+        std::fs::write(pasta.join(&id), &trocado)?;
+        assert_eq!(pedir_video(sala, &id, None).await?.0, 404);
+        std::fs::write(pasta.join(&id), &bytes)?;
+        assert_eq!(pedir_video(sala, &id, Some("bytes=0-")).await?.0, 206);
+        std::fs::remove_dir_all(&pasta)?;
+        Ok(())
     }
 }
