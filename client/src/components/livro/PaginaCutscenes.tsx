@@ -130,6 +130,7 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada }: { cutscene: Cutscene; c
       await tirarDaGaleria(galeria.campanhaId, cutscene.video)
       loja().mudar(cutscene.id, { naGaleria: false, galeria: undefined })
       avisar('info', `"${cutscene.titulo}" saiu da Galeria do site.`)
+      void loja().conferirGaleria()
     } catch (erro) {
       avisar('error', mensagemDaFalha(erro))
     } finally {
@@ -188,8 +189,10 @@ export function PaginaCutscenes() {
   const rede = useSyncExternalStore(assinarRedeDaCutscene, redeDaCutscene)
   const [importando, setImportando] = useState(false)
 
+  // Ao abrir, relê a Galeria do site: o mestre pode ter tirado um vídeo por lá.
   useEffect(() => {
-    void useCutscenesStore.getState().carregar()
+    const loja = useCutscenesStore.getState()
+    void loja.carregar().then(() => loja.conferirGaleria())
   }, [])
 
   const adicionar = async () => {

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { CUTSCENE_TITULO_MAX, ehIdDeVideo } from '../net/protocol'
-import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES, mensagemDaFalha } from '../net/nuvem/galeriaNaNuvem'
+import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES, lerGaleria, mensagemDaFalha } from '../net/nuvem/galeriaNaNuvem'
 
 /**
  * CUTSCENES DO MESTRE (14/11/2026): a lista da página Cutscenes do livro da
@@ -66,6 +66,12 @@ interface CutscenesState {
   marcarExibida: (id: string) => void
   /** Sobe (ou tenta de novo) o vídeo para a Galeria da campanha da pasta aberta. */
   enviarParaAGaleria: (id: string) => Promise<void>
+  /**
+   * Relê a Galeria do site da campanha da pasta aberta e acerta a lista: o que
+   * o mestre tirou pelo site deixa de estar "Na Galeria"; o que está lá vira
+   * "enviado". Sem rede, sem credencial ou sem campanha: fica como estava.
+   */
+  conferirGaleria: () => Promise<void>
 }
 
 function ehRecord(valor: unknown): valor is Record<string, unknown> {
@@ -170,9 +176,39 @@ export const useCutscenesStore = create<CutscenesState>((set, get) => {
           set({ lista: get().lista.map((c) => (c.id === id ? { ...c, galeria: { estado: 'enviando', campanhaId: daCampanha, pct } } : c)) })
         })
         mudarGaleria(id, { estado: 'enviado', campanhaId: daCampanha })
+        void get().conferirGaleria()
       } catch (erro) {
         mudarGaleria(id, { estado: 'erro', campanhaId: daCampanha, erro: mensagemDaFalha(erro) })
       }
+    },
+    conferirGaleria: async () => {
+      let campanhaId: string | null
+      let noSite: Set<string>
+      try {
+        campanhaId = await campanhaDaPastaAberta()
+        if (campanhaId === null) return
+        noSite = await lerGaleria(campanhaId)
+      } catch {
+        return
+      }
+      const daCampanha = campanhaId
+      let mudou = false
+      // A lista de AGORA (a leitura levou tempo); o que está subindo não é tocado.
+      const lista = get().lista.map((c): Cutscene => {
+        const estado = c.galeria?.estado
+        if (estado === 'enviando') return c
+        const estaNoSite = noSite.has(c.video)
+        if (c.galeria?.estado === 'enviado' && c.galeria.campanhaId === daCampanha && !estaNoSite) {
+          mudou = true
+          return { ...c, naGaleria: false, galeria: undefined }
+        }
+        if (estaNoSite && estado !== 'enviado') {
+          mudou = true
+          return { ...c, naGaleria: true, galeria: { estado: 'enviado', campanhaId: daCampanha } }
+        }
+        return c
+      })
+      if (mudou) trocarLista(lista)
     },
   }
 })

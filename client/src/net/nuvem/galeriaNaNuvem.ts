@@ -41,6 +41,23 @@ export async function enviarVideoParaAGaleria(campanhaId: string, videoId: strin
   await invoke('nuvem_enviar_video', { campanhaId, videoId, titulo, progresso })
 }
 
+/**
+ * Os ids dos vídeos que estão na Galeria do site agora (`GET /api/c/:id/galeria`;
+ * as lápides ficam de fora). Lança com o `ErroNuvem` do Rust, ou se a resposta
+ * vier fora do formato.
+ */
+export async function lerGaleria(campanhaId: string): Promise<Set<string>> {
+  const resposta: unknown = await invoke('nuvem_pedir', { pedido: { rota: 'galeria', campanhaId } })
+  if (typeof resposta !== 'object' || resposta === null || !('videos' in resposta) || !Array.isArray(resposta.videos)) {
+    throw new Error('O Lobby devolveu a Galeria fora do formato.')
+  }
+  const ids = new Set<string>()
+  for (const video of resposta.videos as unknown[]) {
+    if (typeof video === 'object' && video !== null && 'id' in video && typeof video.id === 'string') ids.add(video.id)
+  }
+  return ids
+}
+
 /** O mestre tira o vídeo da Galeria pelo app (o Worker apaga os bytes). */
 export async function tirarDaGaleria(campanhaId: string, videoId: string): Promise<void> {
   await invoke('nuvem_pedir', { pedido: { rota: 'tirarDaGaleria', campanhaId, videoId } })
