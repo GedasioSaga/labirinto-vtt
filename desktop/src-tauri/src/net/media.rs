@@ -678,6 +678,81 @@ mod tests {
         std::fs::remove_dir_all(&pasta)
     }
 
+    /// MP4 mínimo: a primeira caixa é `ftyp` (com o tamanho dela antes).
+    const MP4_MINIMO: &[u8] = b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2";
+    /// WebM mínimo: cabeçalho EBML com o `DocType` "webm".
+    const WEBM_MINIMO: &[u8] = b"\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01\x42\x82\x84webm\x42\x87\x81\x04";
+
+    fn erro_de_importacao(erro: ErroDeImportacao) -> std::io::Error {
+        std::io::Error::other(format!("{erro:?}"))
+    }
+
+    /// Cutscene (14/11): o vídeo tem forma de id própria e sai pela assinatura,
+    /// nunca pelo nome; um `.mkv` (EBML de "matroska") não passa por webm.
+    #[test]
+    fn tipo_do_video_vem_da_forma_do_id_e_da_assinatura() {
+        let hash = hash_de_exemplo();
+        assert_eq!(tipo_do_video(&format!("{hash}.mp4")), Some(TipoDeVideo::Mp4));
+        assert_eq!(tipo_do_video(&format!("{hash}.webm")), Some(TipoDeVideo::Webm));
+        for ruim in [format!("{hash}.MP4"), format!("{hash}.mkv"), format!("{hash}.png"), format!("../{hash}.mp4"), format!("{}.mp4", &hash[1..])] {
+            assert_eq!(tipo_do_video(&ruim), None, "{ruim:?}");
+        }
+        // O vídeo nunca vira mídia comum (a que sai inteira da memória).
+        assert_eq!(tipo_do_id(&format!("{hash}.webm")), None);
+        assert_eq!(TipoDeVideo::dos_bytes(MP4_MINIMO), Some(TipoDeVideo::Mp4));
+        assert_eq!(TipoDeVideo::dos_bytes(WEBM_MINIMO), Some(TipoDeVideo::Webm));
+        for ruim in [b"\x1A\x45\xDF\xA3\xA3\x42\x86\x81\x01\x42\x82\x88matroska".as_slice(), b"<!doctype html><video>", PNG_MINIMO, b""] {
+            assert_eq!(TipoDeVideo::dos_bytes(ruim), None, "{ruim:?}");
+        }
+        assert_eq!((TipoDeVideo::Mp4.mime(), TipoDeVideo::Webm.mime()), ("video/mp4", "video/webm"));
+    }
+
+    /// O `Range` do `<video>` e da retomada da baixa: 200 (inteiro), 206 (faixa) e 416.
+    #[test]
+    fn faixa_do_range_vira_200_206_ou_416() {
+        let tamanho = 4096;
+        assert_eq!(faixa_pedida(None, tamanho), FaixaPedida::Inteiro);
+        assert_eq!(faixa_pedida(Some("bytes=0-"), tamanho), FaixaPedida::Parte { inicio: 0, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=1000-1999"), tamanho), FaixaPedida::Parte { inicio: 1000, fim: 1999 });
+        assert_eq!(faixa_pedida(Some("bytes=-500"), tamanho), FaixaPedida::Parte { inicio: 3596, fim: 4095 });
+        // Fim além do arquivo para no último byte; sufixo maior que o arquivo = o arquivo todo.
+        assert_eq!(faixa_pedida(Some("bytes=4000-99999"), tamanho), FaixaPedida::Parte { inicio: 4000, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=-99999"), tamanho), FaixaPedida::Parte { inicio: 0, fim: 4095 });
+        assert_eq!(faixa_pedida(Some("bytes=4096-"), tamanho), FaixaPedida::ForaDoArquivo);
+        assert_eq!(faixa_pedida(Some("bytes=-0"), tamanho), FaixaPedida::ForaDoArquivo);
+        // O que o servidor pode ignorar (outra unidade, várias faixas, forma torta): 200 com tudo.
+        for ignoravel in ["items=0-1", "bytes=0-1,5-9", "bytes=9-1", "bytes=a-b", "bytes=1"] {
+            assert_eq!(faixa_pedida(Some(ignoravel), tamanho), FaixaPedida::Inteiro, "{ignoravel}");
+        }
+    }
+
+    /// A importação: acima de 500 MiB e o que não é vídeo pelos bytes ficam de
+    /// fora; o mesmo vídeo duas vezes dá o mesmo id e um arquivo só na pasta.
+    #[test]
+    fn importar_video_recusa_acima_de_500_mib_e_nao_duplica() -> Result<(), std::io::Error> {
+        let raiz = pasta_de_teste("importar-video")?;
+        let pasta = raiz.join(PASTA_DE_MIDIA);
+        // Só o tamanho (sem escrever os bytes): a recusa vem antes de ler.
+        let grande = raiz.join("grande.mp4");
+        std::fs::File::create(&grande)?.set_len(MIDIA_VIDEO_MAX_BYTES + 1)?;
+        assert_eq!(importar_video(&grande, &pasta, 1), Err(ErroDeImportacao::GrandeDemais));
+        std::fs::remove_file(&grande)?;
+        let html = raiz.join("falso.mp4");
+        std::fs::write(&html, b"<!doctype html><script>alert(1)</script>")?;
+        assert_eq!(importar_video(&html, &pasta, 2), Err(ErroDeImportacao::NaoEVideo));
+        let webm = raiz.join("abertura.webm");
+        std::fs::write(&webm, WEBM_MINIMO)?;
+        let primeiro = importar_video(&webm, &pasta, 3).map_err(erro_de_importacao)?;
+        let segundo = importar_video(&webm, &pasta, 4).map_err(erro_de_importacao)?;
+        assert_eq!(primeiro.id, format!("{}.webm", hash_hex(WEBM_MINIMO)));
+        assert_eq!(primeiro, segundo);
+        // Nem cópia dupla nem temporário largado (o HTML recusado também não ficou).
+        assert_eq!(std::fs::read_dir(&pasta)?.count(), 1);
+        let tamanho = u64::try_from(WEBM_MINIMO.len()).unwrap_or(u64::MAX);
+        assert_eq!(conferir_video(&pasta, &primeiro.id).map(|v| (v.tamanho, v.tipo)), Ok((tamanho, TipoDeVideo::Webm)));
+        std::fs::remove_dir_all(&raiz)
+    }
+
     #[tokio::test]
     async fn pasta_com_nome_de_midia_e_arquivo_grande_nao_saem() -> Result<(), std::io::Error> {
         let pasta = pasta_de_teste("grande")?;

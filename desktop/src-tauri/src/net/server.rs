@@ -1876,4 +1876,83 @@ mod tests {
         assert!(corte_do_7.cortada(), "a busca de quem levou kick seguiu no ar");
         assert!(!corte_de_outro.cortada());
     }
+
+    /// Sala servindo `/media` da `pasta`, em 127.0.0.1.
+    async fn sala_com_midia(pasta: PathBuf) -> Result<SocketAddr, Erro> {
+        let room = Room::new("ABC234".to_owned(), Arc::new(SinkMudo), Arc::new(resolver_de_release));
+        room.set_media_dir(pasta);
+        let listener = bind(IpAddr::from([127, 0, 0, 1]), 0, 1).await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(serve(listener, room));
+        Ok(addr)
+    }
+
+    /// Um mp4 de mentira (`ftyp` no byte 4) de `tamanho` bytes na `pasta`, com o nome pelo hash.
+    fn mp4_na_pasta(pasta: &std::path::Path, tamanho: usize) -> Result<(String, Vec<u8>), Erro> {
+        let mut bytes = b"\x00\x00\x00\x18ftypisom".to_vec();
+        bytes.extend((0..tamanho.saturating_sub(bytes.len())).map(|i| u8::try_from(i % 251).unwrap_or(0)));
+        let id = format!("{}.mp4", crate::net::media::hash_hex(&bytes));
+        std::fs::write(pasta.join(&id), &bytes)?;
+        Ok((id, bytes))
+    }
+
+    /// `GET /media/<id>` com o `Range` dado: status, cabeçalhos e corpo.
+    async fn pedir_video(sala: SocketAddr, id: &str, faixa: Option<&str>) -> Result<(u16, reqwest::header::HeaderMap, Vec<u8>), Erro> {
+        let mut pedido = reqwest::Client::builder().no_proxy().build()?.get(format!("http://{sala}/media/{id}"));
+        if let Some(faixa) = faixa {
+            pedido = pedido.header(reqwest::header::RANGE, faixa);
+        }
+        let resposta = pedido.send().await?;
+        let (status, cabecalhos) = (resposta.status().as_u16(), resposta.headers().clone());
+        Ok((status, cabecalhos, resposta.bytes().await?.to_vec()))
+    }
+
+    fn cabecalho<'a>(cabecalhos: &'a reqwest::header::HeaderMap, nome: &str) -> &'a str {
+        cabecalhos.get(nome).and_then(|valor| valor.to_str().ok()).unwrap_or("")
+    }
+
+    /// Cutscene (14/11): o vídeo sai inteiro (200) ou pela faixa (206) com os
+    /// cabeçalhos certos, e a faixa que começa no fim é 416 com `bytes */<tamanho>`.
+    #[tokio::test]
+    async fn video_sai_em_200_206_e_416_com_os_cabecalhos_do_range() -> Result<(), Erro> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-video-range-{}", std::process::id()));
+        std::fs::create_dir_all(&pasta)?;
+        let (id, bytes) = mp4_na_pasta(&pasta, 4096)?;
+        let sala = sala_com_midia(pasta.clone()).await?;
+        let (status, cabecalhos, corpo) = pedir_video(sala, &id, None).await?;
+        assert_eq!((status, corpo.len()), (200, 4096));
+        assert_eq!(corpo, bytes);
+        assert_eq!(cabecalho(&cabecalhos, "content-length"), "4096");
+        assert_eq!(cabecalho(&cabecalhos, "accept-ranges"), "bytes");
+        assert_eq!(cabecalho(&cabecalhos, "content-type"), "video/mp4");
+        for (faixa, inicio, fim) in [("bytes=0-", 0, 4095), ("bytes=1000-1999", 1000, 1999), ("bytes=-500", 3596, 4095)] {
+            let (status, cabecalhos, corpo) = pedir_video(sala, &id, Some(faixa)).await?;
+            assert_eq!(status, 206, "{faixa}");
+            assert_eq!(cabecalho(&cabecalhos, "content-range"), format!("bytes {inicio}-{fim}/4096"), "{faixa}");
+            assert_eq!(corpo.as_slice(), bytes.get(inicio..=fim).unwrap_or_default(), "{faixa}");
+        }
+        let (status, cabecalhos, _) = pedir_video(sala, &id, Some("bytes=4096-")).await?;
+        assert_eq!((status, cabecalho(&cabecalhos, "content-range")), (416, "bytes */4096"));
+        std::fs::remove_dir_all(&pasta)?;
+        Ok(())
+    }
+
+    /// O hash é conferido uma vez por arquivo; trocado no disco com o mesmo
+    /// nome (tamanho e data mudam), confere de novo e o conteúdo que não bate é 404.
+    #[tokio::test]
+    async fn video_trocado_no_disco_e_conferido_de_novo() -> Result<(), Erro> {
+        let pasta = std::env::temp_dir().join(format!("labirinto-video-trocado-{}", std::process::id()));
+        std::fs::create_dir_all(&pasta)?;
+        let (id, bytes) = mp4_na_pasta(&pasta, 2048)?;
+        let sala = sala_com_midia(pasta.clone()).await?;
+        assert_eq!(pedir_video(sala, &id, None).await?.0, 200);
+        let mut trocado = bytes.clone();
+        trocado.extend_from_slice(b"mais um pouco");
+        std::fs::write(pasta.join(&id), &trocado)?;
+        assert_eq!(pedir_video(sala, &id, None).await?.0, 404);
+        std::fs::write(pasta.join(&id), &bytes)?;
+        assert_eq!(pedir_video(sala, &id, Some("bytes=0-")).await?.0, 206);
+        std::fs::remove_dir_all(&pasta)?;
+        Ok(())
+    }
 }
