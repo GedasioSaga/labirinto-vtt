@@ -1,4 +1,4 @@
-import { BlurFilter, Color, ColorMatrixFilter, Container, Graphics } from 'pixi.js'
+import { BlurFilter, Color, ColorMatrixFilter, Container, Graphics, Rectangle } from 'pixi.js'
 import type { AlturaDoPiso, FloorPiece, MapData } from '../types/map'
 import { EFEITO_DA_ALTURA } from '../lib/terrenoAlto'
 
@@ -9,10 +9,12 @@ import { EFEITO_DA_ALTURA } from '../lib/terrenoAlto'
  * paredes e fichas —, não a cena inteira: serve de guia, e borrada a
  * diferença some.
  *
- * Desempenho: a planta vira UMA textura (`cacheAsTexture`, lado máximo
- * `LADO_MAXIMO_DA_PLANTA`), refeita só quando o piso de baixo ou a altura
- * mudam (as listas do mapa são imutáveis: compara-se a referência). Cada
- * quadro do editor só desenha a textura, sem borrar de novo.
+ * Desempenho: a planta vira DUAS texturas (`cacheAsTexture`, lado máximo
+ * `LADO_MAXIMO_DA_PLANTA`): o chão (chão, salas, paredes), refeito só quando
+ * o piso de baixo ou a altura mudam (as listas do mapa são imutáveis:
+ * compara-se a referência), e as fichas, à parte, para a ficha do térreo que
+ * anda refazer só a textura pequena delas, sem redesenhar as paredes. Cada
+ * quadro do editor só desenha as texturas, sem borrar de novo.
  */
 
 /** Lado máximo da textura da planta, em pixels: borrada, mais resolução não aparece. */
@@ -33,21 +35,82 @@ export interface PisoDeBaixoNoEditor {
   atualizar(entrada: { mapa: MapData; altura: AlturaDoPiso } | null): void
 }
 
+/** Uma parte da planta guardada em textura, com o borrão e a cor da altura DENTRO do que é guardado. */
+interface ParteBorrada {
+  readonly guardada: Container
+  readonly desenho: Graphics
+  readonly borrao: BlurFilter
+  readonly cor: ColorMatrixFilter
+}
+
+function criarParteBorrada(pai: Container): ParteBorrada {
+  // Os filtros ficam DENTRO do que é guardado em textura: borra uma vez, não a cada quadro.
+  const guardada = new Container()
+  const borrado = new Container()
+  const desenho = new Graphics()
+  borrado.addChild(desenho)
+  guardada.addChild(borrado)
+  pai.addChild(guardada)
+  const borrao = new BlurFilter({ strength: 0, quality: 3, resolution: 'inherit' })
+  const cor = new ColorMatrixFilter()
+  borrado.filters = [borrao, cor]
+  return { guardada, desenho, borrao, cor }
+}
+
+/** Aplica o efeito da `altura` e guarda a parte de novo numa textura de `resolucao`. */
+function guardarBorrada(parte: ParteBorrada, altura: AlturaDoPiso, grade: number, resolucao: number): void {
+  const efeito = EFEITO_DA_ALTURA[altura]
+  parte.borrao.strength = BORRAO_EM_CASAS[altura] * grade
+  parte.cor.reset()
+  parte.cor.brightness(efeito.brilho, true)
+  parte.cor.saturate(efeito.saturacao - 1, true)
+  parte.guardada.cacheAsTexture(false)
+  parte.guardada.cacheAsTexture({ resolution: resolucao, antialias: false })
+}
+
+/** Lugar e tamanho de cada ficha, achatados: duas listas iguais aqui dão a mesma camada de fichas. */
+function assinaturaDasFichas(tokens: MapData['tokens']): number[] {
+  return tokens.flatMap((t) => [t.x, t.y, t.size])
+}
+
+function mesmaLista(a: readonly unknown[] | null, b: readonly unknown[]): boolean {
+  return a !== null && a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+/**
+ * A caixa das fichas com folga para o borrão: a textura guardada tem o tamanho
+ * do desenho (o Pixi não soma o `padding` do filtro), e sem folga o borrão de
+ * cada ficha sairia cortado num quadrado.
+ */
+function caixaDasFichas(tokens: MapData['tokens'], grade: number, folga: number): Rectangle {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const t of tokens) {
+    const raio = raioDaFicha(t.size, grade)
+    minX = Math.min(minX, t.x - raio)
+    minY = Math.min(minY, t.y - raio)
+    maxX = Math.max(maxX, t.x + raio)
+    maxY = Math.max(maxY, t.y + raio)
+  }
+  return new Rectangle(minX - folga, minY - folga, maxX - minX + folga * 2, maxY - minY + folga * 2)
+}
+
+function raioDaFicha(tamanho: number, grade: number): number {
+  return (Math.max(0.25, tamanho) * grade * 0.8) / 2
+}
+
 export function criarPisoDeBaixoNoEditor(): PisoDeBaixoNoEditor {
   const camada = new Container()
   camada.label = 'piso-de-baixo'
   camada.eventMode = 'none'
   camada.visible = false
   camada.alpha = ALFA_DA_PLANTA
-  // Os filtros ficam DENTRO do que é guardado em textura: borra uma vez, não a cada quadro.
-  const borrado = new Container()
-  const planta = new Graphics()
-  borrado.addChild(planta)
-  camada.addChild(borrado)
-  const borrao = new BlurFilter({ strength: 0, quality: 3, resolution: 'inherit' })
-  const cor = new ColorMatrixFilter()
-  borrado.filters = [borrao, cor]
-  let ultimaChave: readonly unknown[] | null = null
+  const chao = criarParteBorrada(camada)
+  const fichas = criarParteBorrada(camada)
+  let ultimaChaveDoChao: readonly unknown[] | null = null
+  let ultimaChaveDasFichas: readonly unknown[] | null = null
 
   const atualizar: PisoDeBaixoNoEditor['atualizar'] = (entrada) => {
     if (entrada === null) {
@@ -55,19 +118,29 @@ export function criarPisoDeBaixoNoEditor(): PisoDeBaixoNoEditor {
       return
     }
     const { mapa, altura } = entrada
-    const chave = [mapa.floor, mapa.regions, mapa.walls, mapa.tokens, mapa.grid, mapa.width, mapa.height, mapa.floorStyle.fillColor, altura]
     camada.visible = true
-    if (ultimaChave !== null && chave.length === ultimaChave.length && chave.every((v, i) => v === ultimaChave?.[i])) return
-    ultimaChave = chave
-    desenharPlanta(planta, mapa)
-    const efeito = EFEITO_DA_ALTURA[altura]
-    borrao.strength = BORRAO_EM_CASAS[altura] * mapa.grid
-    cor.reset()
-    cor.brightness(efeito.brilho, true)
-    cor.saturate(efeito.saturacao - 1, true)
     const lado = Math.max(1, mapa.width * mapa.grid, mapa.height * mapa.grid)
-    camada.cacheAsTexture(false)
-    camada.cacheAsTexture({ resolution: Math.min(1, LADO_MAXIMO_DA_PLANTA / lado), antialias: false })
+    const resolucao = Math.min(1, LADO_MAXIMO_DA_PLANTA / lado)
+    const chaveDoChao = [mapa.floor, mapa.regions, mapa.walls, mapa.grid, mapa.width, mapa.height, mapa.floorStyle.fillColor, altura]
+    if (!mesmaLista(ultimaChaveDoChao, chaveDoChao)) {
+      ultimaChaveDoChao = chaveDoChao
+      desenharChao(chao.desenho, mapa)
+      guardarBorrada(chao, altura, mapa.grid, resolucao)
+    }
+    // Pelo lugar das fichas, não pela referência da lista: a ficha do PISO DE CIMA que o mestre arrasta
+    // troca a lista inteira do mapa, mas não mexe na planta de baixo.
+    const chaveDasFichas = [mapa.grid, altura, resolucao, ...assinaturaDasFichas(mapa.tokens)]
+    if (mesmaLista(ultimaChaveDasFichas, chaveDasFichas)) return
+    ultimaChaveDasFichas = chaveDasFichas
+    desenharFichas(fichas.desenho, mapa)
+    fichas.guardada.visible = mapa.tokens.length > 0
+    if (mapa.tokens.length === 0) {
+      fichas.guardada.cacheAsTexture(false)
+      return
+    }
+    // Folga de 2x o borrão (o `padding` do `BlurFilter`), em casas do mundo mesmo com a textura reduzida.
+    fichas.guardada.boundsArea = caixaDasFichas(mapa.tokens, mapa.grid, (BORRAO_EM_CASAS[altura] * mapa.grid * 2) / resolucao)
+    guardarBorrada(fichas, altura, mapa.grid, resolucao)
   }
 
   // Sem `destruir`: a camada mora no palco do editor, e o `app.destroy` dele já a solta com os filhos.
@@ -144,8 +217,8 @@ function desenharPeca(g: Graphics, peca: FloorPiece, cor: number): void {
   }
 }
 
-/** A planta do piso de baixo: chão na ordem (o buraco por cima), salas, paredes e fichas. */
-function desenharPlanta(g: Graphics, mapa: MapData): void {
+/** O chão da planta do piso de baixo: chão na ordem (o buraco por cima), salas e paredes. */
+function desenharChao(g: Graphics, mapa: MapData): void {
   g.clear()
   const corDoChao = new Color(mapa.floorStyle.fillColor).toNumber()
   for (const peca of mapa.floor) {
@@ -160,6 +233,11 @@ function desenharPlanta(g: Graphics, mapa: MapData): void {
   const largura = Math.max(2, mapa.grid * 0.12)
   for (const w of mapa.walls) g.moveTo(w.x1, w.y1).lineTo(w.x2, w.y2)
   if (mapa.walls.length > 0) g.stroke({ width: largura, color: COR_DA_PAREDE, cap: 'round' })
-  for (const t of mapa.tokens) g.circle(t.x, t.y, (Math.max(0.25, t.size) * mapa.grid * 0.8) / 2)
+}
+
+/** As fichas da planta do piso de baixo, à parte do chão (`assinaturaDasFichas`). */
+function desenharFichas(g: Graphics, mapa: MapData): void {
+  g.clear()
+  for (const t of mapa.tokens) g.circle(t.x, t.y, raioDaFicha(t.size, mapa.grid))
   if (mapa.tokens.length > 0) g.fill({ color: COR_DA_FICHA })
 }
