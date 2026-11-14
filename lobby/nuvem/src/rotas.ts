@@ -5,7 +5,9 @@
  * com o id já na forma exata `<sha256>.<ext>`. A sala aberta no app e o
  * bilhete do jogador (`/sala`, `/sala/fechar`, `/bilhete`, fatia B2) estão em
  * `salaAberta.ts`. A foto de perfil da própria conta (`/foto`, PUT e DELETE,
- * 07/11/2026) está em `fotoDePerfil.ts`.
+ * 07/11/2026) está em `fotoDePerfil.ts`. O vídeo da Galeria de cutscenes
+ * (`/video/:id`, `/video/:id/parte/:n`, `/video/:id/fechar`, `/galeria`,
+ * `/galeria/:id/tirar`, 14/11/2026) está em `galeria.ts`.
  */
 
 export const ROTA_DO_EU = '/api/eu'
@@ -20,8 +22,11 @@ export type RotaDaCampanha =
   | { campanhaId: string; nome: 'sala' | 'salaFechar' | 'bilhete' }
   /** `foto` = a foto de perfil da própria conta (site): PUT troca, DELETE tira. */
   | { campanhaId: string; nome: 'foto' }
+  /** `galeria` = a lista dos vídeos da Galeria (site e app). */
+  | { campanhaId: string; nome: 'galeria' }
   | RotaDoDesde
   | RotaDaMidia
+  | RotaDoVideo
 
 export interface RotaDoDesde {
   campanhaId: string
@@ -36,13 +41,35 @@ export interface RotaDaMidia {
   midiaId: string
 }
 
+/**
+ * O vídeo da Galeria: `video` = GET com Range, `videoParte` = PUT de um
+ * pedaço (só o app), `videoFechar` = POST que confere o hash (só o app),
+ * `galeriaTirar` = POST que tira da Galeria (só o mestre).
+ */
+export type RotaDoVideo =
+  | { campanhaId: string; nome: 'video' | 'videoFechar' | 'galeriaTirar'; videoId: string }
+  | { campanhaId: string; nome: 'videoParte'; videoId: string; parte: number }
+
 const FORMA_DA_ROTA =
   /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(publicar|membros|ops|exportar|ws|chat\/sala|sala|sala\/fechar|bilhete|foto|desde\/(\d{1,15})|midia\/([0-9a-f]{64}\.(?:webp|png|jpg|gif)))$/
+
+/** `<sha256>.<mp4|webm>`, a mesma forma do Rust (`media::tipo_do_video`). */
+const FORMA_DO_VIDEO = /^\/api\/c\/([A-Za-z0-9_-]{1,80})\/(?:video\/([0-9a-f]{64}\.(?:mp4|webm))(\/fechar|\/parte\/(\d{1,4}))?|galeria(?:\/([0-9a-f]{64}\.(?:mp4|webm))\/tirar)?)$/
+
+function rotaDoVideo(caminho: string): RotaDaCampanha | null {
+  const achado = FORMA_DO_VIDEO.exec(caminho)
+  if (achado === null) return null
+  const [, campanhaId, videoId, sufixo, parte, tirarId] = achado
+  if (tirarId !== undefined) return { campanhaId, nome: 'galeriaTirar', videoId: tirarId }
+  if (videoId === undefined) return { campanhaId, nome: 'galeria' }
+  if (parte !== undefined) return { campanhaId, nome: 'videoParte', videoId, parte: Number(parte) }
+  return { campanhaId, nome: sufixo === '/fechar' ? 'videoFechar' : 'video', videoId }
+}
 
 /** A rota de campanha do caminho; `null` = não é rota de campanha (a resposta é "não existe"). */
 export function rotaDaCampanha(caminho: string): RotaDaCampanha | null {
   const achado = FORMA_DA_ROTA.exec(caminho)
-  if (achado === null) return null
+  if (achado === null) return rotaDoVideo(caminho)
   const [, campanhaId, trecho, rev, midiaId] = achado
   if (rev !== undefined) return { campanhaId, nome: 'desde', rev: Number(rev) }
   if (midiaId !== undefined) return { campanhaId, nome: 'midia', midiaId }

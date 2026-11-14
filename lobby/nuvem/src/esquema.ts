@@ -87,6 +87,19 @@ const TABELAS_DA_CAMPANHA = [
     enviadoPor TEXT NOT NULL,
     quando INTEGER NOT NULL
   )`,
+  // Galeria de cutscenes (14/11/2026; lobby/nuvem/src/galeria.ts). `video_parte.parte` = a linha de
+  // 512 KiB contada do início do vídeo. `estado`: subindo, pronto ou tirado (a lápide: sem bytes,
+  // com o título e `tiradoEm`).
+  `CREATE TABLE IF NOT EXISTS video_parte (hash TEXT NOT NULL, parte INTEGER NOT NULL, bytes BLOB NOT NULL, PRIMARY KEY (hash, parte))`,
+  `CREATE TABLE IF NOT EXISTS galeria (
+    hash TEXT PRIMARY KEY,
+    tipo TEXT NOT NULL,
+    tamanho INTEGER NOT NULL,
+    titulo TEXT NOT NULL,
+    estado TEXT NOT NULL,
+    quando INTEGER NOT NULL,
+    tiradoEm INTEGER
+  )`,
   // Chat (v2, fatia C1; lobby/nuvem/src/chat.ts). Sala e privado em tabelas separadas: o privado
   // fica fora do exportar e da cópia do app. `mudou` = cursor de mudança (criar ou apagar), um só
   // para as duas tabelas; `autorNome` = o nome de quando foi dita, como em `ops`. `emailA` e

@@ -136,7 +136,7 @@ export function Cabeca() {
   )
 }
 
-type ParteDaMesa = 'inicio' | 'fichas' | 'chat' | 'mural' | 'treino' | 'duelo'
+type ParteDaMesa = 'inicio' | 'fichas' | 'chat' | 'mural' | 'galeria' | 'treino' | 'duelo'
 
 /** Em que parte da mesa a rota está (a ficha, a mochila e o histórico moram em "Fichas"). */
 function parteDaRota(rota: Rota): ParteDaMesa | null {
@@ -150,6 +150,8 @@ function parteDaRota(rota: Rota): ParteDaMesa | null {
       return 'chat'
     case 'mural':
       return 'mural'
+    case 'galeria':
+      return 'galeria'
     case 'treino':
       return rota.parte === 'duelo' ? 'duelo' : 'treino'
     default:
@@ -227,6 +229,7 @@ function NavDaMesa({ rota, nomeDaMesa }: { rota: Rota; nomeDaMesa: string | null
           avisosNaoLidos > 0 ? String(avisosNaoLidos) : null,
           `${avisosNaoLidos} ${avisosNaoLidos === 1 ? 'aviso não lido' : 'avisos não lidos'}`,
         )}
+        {item('galeria', { tela: 'galeria', campanhaId }, 'filme', 'Galeria', null, '')}
         {TREINO_NO_SITE ? item('treino', { tela: 'treino', campanhaId, parte: 'lutas' }, 'treino', 'Treino', null, '') : parado('treino', 'Treino')}
         {TREINO_NO_SITE ? item('duelo', { tela: 'treino', campanhaId, parte: 'duelo' }, 'duelo', 'Duelo', null, '') : parado('duelo', 'Duelo')}
       </ul>

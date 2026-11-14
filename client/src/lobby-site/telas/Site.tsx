@@ -9,6 +9,7 @@ import { TelaChat } from './chat/TelaChat'
 import { AvisoDaPagina, Carregando } from './Estados'
 import { FaixaDeAvisos } from './mural/FaixaDeAvisos'
 import { TelaMural } from './mural/TelaMural'
+import { TelaGaleria } from './galeria/TelaGaleria'
 import { TelaAcesso } from './TelaAcesso'
 import { TelaCampanha } from './TelaCampanha'
 import { TelaCampanhas } from './TelaCampanhas'
@@ -109,6 +110,7 @@ export function Site() {
   else if (rota.tela === 'ficha') pagina = <TelaFicha rota={rota} />
   else if (rota.tela === 'chat') pagina = <TelaChat rota={rota} />
   else if (rota.tela === 'mural') pagina = <TelaMural rota={rota} />
+  else if (rota.tela === 'galeria') pagina = <TelaGaleria campanhaId={rota.campanhaId} />
   else {
     const mesas: Rota = { tela: 'campanhas' }
     pagina = (
@@ -157,6 +159,8 @@ function tituloDe(rota: Rota, nomeDaFicha: string | undefined, nomeDaMesa: strin
       return nomeDaMesa === undefined ? 'Chat' : `Chat de ${nomeDaMesa}`
     case 'mural':
       return nomeDaMesa === undefined ? 'Mural' : `Mural de ${nomeDaMesa}`
+    case 'galeria':
+      return nomeDaMesa === undefined ? 'Galeria' : `Galeria de ${nomeDaMesa}`
     case 'nao-achada':
       return 'Página não encontrada'
   }

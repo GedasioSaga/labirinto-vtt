@@ -42,6 +42,7 @@ import { chaveDoRitmoDaFoto, conferirRitmoDaFoto, lerFotoDoPedido, trocarFotoDaC
 import { lerIdentidade, type IdentidadeDoPortao } from './identidade'
 import { atenderPedidoDaLuta, contaSaiuDasLutas, lutasNoOla, proximoPrazoDasLutas, recusarLutaPorRitmo, recusarPedidoDaLuta, vencerPrazosDasLutas, type SalaDaLuta } from './luta'
 import { receberMidia, servirMidia } from './midia'
+import { fecharVideo, listarGaleria, receberParteDoVideo, servirVideo, tirarDaGaleria } from './galeria'
 import { atenderPedidoDoMural, enviarEstadoDoMural, esquecerRotulosDoMural, estadoDoMuralPara, muralParaExportar, recusarMuralPorRitmo, recusarPedidoDoMural } from './mural'
 import {
   assinarBilhete,
@@ -80,7 +81,7 @@ import {
 } from './nucleo'
 import { CORPO_MAX_MEMBROS, CORPO_MAX_OPS, CORPO_MAX_PUBLICAR, lerPedidoDeMembros, lerPedidoDeOps, lerPedidoDePublicar, versaoAceita } from './pedidos'
 import { entradasDoDiretorio, publicarFichas, publicarTreino, sincronizarMembros } from './publicar'
-import { NOME_DO_DIRETORIO, rotaDaCampanha, type RotaDaCampanha, type RotaDaMidia, type RotaDoDesde } from './rotas'
+import { NOME_DO_DIRETORIO, rotaDaCampanha, type RotaDaCampanha, type RotaDaMidia, type RotaDoDesde, type RotaDoVideo } from './rotas'
 import {
   enviar,
   fechar,
@@ -255,6 +256,12 @@ export class Campanha extends DurableObject<Env> {
         return this.bilhete(rota.campanhaId, identidade)
       case 'foto':
         return this.foto(request, rota.campanhaId, identidade)
+      case 'galeria':
+      case 'video':
+      case 'videoParte':
+      case 'videoFechar':
+      case 'galeriaTirar':
+        return this.galeria(request, url, rota, identidade)
     }
   }
 
@@ -520,6 +527,41 @@ export class Campanha extends DurableObject<Env> {
     if (request.method !== 'GET') throw new ErroDoPedido(405, 'metodo', 'Use GET ou PUT')
     this.acesso(rota.campanhaId, identidade)
     return servirMidia(this.sql, rota.midiaId)
+  }
+
+  // ── Galeria de cutscenes (14/11/2026) ─────────────────────────────────────
+
+  /**
+   * Só o app do mestre sobe o vídeo (PUT dos pedaços e o fechar); todo membro
+   * ativo vê a lista e assiste (site e app); tirar da Galeria é só do mestre,
+   * pelo app ou pelo site (o papel relido de `membros` agora).
+   */
+  private async galeria(request: Request, url: URL, rota: RotaDoVideo | { campanhaId: string; nome: 'galeria' }, identidade: IdentidadeDoPortao): Promise<Response> {
+    const agora = Date.now()
+    switch (rota.nome) {
+      case 'galeria':
+        exigirMetodo(request, 'GET')
+        this.acesso(rota.campanhaId, identidade)
+        return listarGaleria(this.sql)
+      case 'video':
+        exigirMetodo(request, 'GET')
+        this.acesso(rota.campanhaId, identidade)
+        return servirVideo(this.sql, rota.videoId, request.headers.get('Range'))
+      case 'videoParte':
+        if (request.method !== 'PUT') throw new ErroDoPedido(405, 'metodo', 'Use PUT')
+        this.acessoDoApp(rota.campanhaId, identidade)
+        return receberParteDoVideo(request, url, this.ctx.storage, rota.videoId, rota.parte, agora)
+      case 'videoFechar':
+        exigirMetodo(request, 'POST')
+        this.acessoDoApp(rota.campanhaId, identidade)
+        return fecharVideo(request, this.ctx.storage, rota.videoId, agora)
+      case 'galeriaTirar': {
+        exigirMetodo(request, 'POST')
+        const { membro } = this.acesso(rota.campanhaId, identidade)
+        if (membro.papel !== 'mestre') throw new ErroDoPedido(403, 'so-mestre', 'Só o mestre tira um vídeo da Galeria')
+        return tirarDaGaleria(this.ctx.storage, rota.videoId, agora)
+      }
+    }
   }
 
   // ── Depois de gravar ──────────────────────────────────────────────────────

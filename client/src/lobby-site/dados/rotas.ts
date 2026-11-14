@@ -18,6 +18,7 @@ import type { EnderecoDaMesa, SalaDaMesa } from './fonte'
  *   /c/:campanhaId/mural/modificacoes  o feed do que mudou nas fichas
  *   /c/:campanhaId/treino              o treino (T7)
  *   /c/:campanhaId/treino/duelo        o duelo com um colega (T7)
+ *   /c/:campanhaId/galeria             a Galeria: as cutscenes do mestre, para rever (14/11/2026)
  *
  * `?demo=1` liga a demo e viaja junto em toda navegação.
  */
@@ -38,6 +39,7 @@ export type Rota =
   /** `com` = o contaId do outro lado do privado; `null` = a sala. */
   | { tela: 'chat'; campanhaId: string; com: string | null }
   | { tela: 'mural'; campanhaId: string; aba: AbaDoMural }
+  | { tela: 'galeria'; campanhaId: string }
   | { tela: 'nao-achada' }
 
 const NAO_ACHADA: Rota = { tela: 'nao-achada' }
@@ -66,6 +68,7 @@ export function lerRota(caminho: string): Rota {
   if (c !== 'c' || !segmentoValido(campanhaId) || sobra.length > 0) return NAO_ACHADA
   if (f === undefined) return { tela: 'campanha', campanhaId }
   if (f === 'fichas') return fichaId === undefined ? { tela: 'fichas', campanhaId } : NAO_ACHADA
+  if (f === 'galeria') return fichaId === undefined ? { tela: 'galeria', campanhaId } : NAO_ACHADA
   if (f === 'treino') {
     if (parteDaAba !== undefined) return NAO_ACHADA
     if (fichaId === undefined) return { tela: 'treino', campanhaId, parte: 'lutas' }
@@ -95,6 +98,8 @@ export function caminhoDaRota(rota: Rota): string {
       return `/c/${encodeURIComponent(rota.campanhaId)}`
     case 'fichas':
       return `/c/${encodeURIComponent(rota.campanhaId)}/fichas`
+    case 'galeria':
+      return `/c/${encodeURIComponent(rota.campanhaId)}/galeria`
     case 'treino': {
       const doTreino = `/c/${encodeURIComponent(rota.campanhaId)}/treino`
       return rota.parte === 'lutas' ? doTreino : `${doTreino}/duelo`
