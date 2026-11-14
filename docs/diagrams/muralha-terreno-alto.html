@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Muralha e terreno alto</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Arquitetura · Muralha / terreno alto</p>
+    <h1>Do piso do jogador à vista borrada de baixo, no jogador e no editor</h1>
+
+    <svg viewBox="0 0 1200 432" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="muralha-terreno-alto-title muralha-terreno-alto-desc">
+      <title id="muralha-terreno-alto-title">Muralha e terreno alto: do piso do jogador à tela</title>
+      <desc id="muralha-terreno-alto-desc">O host recorta, para cada jogador, o piso de baixo visto de cima e as fichas do piso de cima a partir do piso da ficha dele e da altura escolhida no painel; a vista de baixo vai no snapshot e depois só no patch para uma segunda PlayerView por trás, borrada pelo filtro da altura, e o editor mostra o mesmo piso de baixo como planta borrada, fora da imagem exportada.</desc>
+      <defs>
+        <marker id="muralha-terreno-alto-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="muralha-terreno-alto-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Conectores primeiro (ficam atrás das caixas) -->
+      <!-- Piso do jogador -> Recorte -->
+      <line x1="240" y1="80" x2="320" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <!-- Altura -> Recorte -->
+      <path d="M240 304 H272 A8 8 0 0 0 280 296 V112 A8 8 0 0 1 288 104 H320" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <rect x="288" y="196" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="308" y="205" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ALTURA</text>
+      <!-- Altura -> Editor -->
+      <line x1="240" y1="328" x2="320" y2="328" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <!-- Recorte -> Vista de baixo (o caminho principal) -->
+      <line x1="540" y1="80" x2="640" y2="80" stroke="#eb6c36" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow-accent)"/>
+      <rect x="552" y="60" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="590" y="69" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SNAPSHOT·PATCH</text>
+      <!-- Recorte -> Fichas de cima -->
+      <path d="M540 104 H584 A8 8 0 0 1 592 112 V196 A8 8 0 0 0 600 204 H640" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <!-- Vista de baixo -> Segunda PlayerView -->
+      <line x1="840" y1="80" x2="940" y2="80" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <rect x="856" y="60" width="68" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="890" y="69" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">MAPA E VISÃO</text>
+      <!-- Vista de baixo -> Filtro por altura -->
+      <path d="M840 104 H884 A8 8 0 0 1 892 112 V196 A8 8 0 0 0 900 204 H940" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <rect x="844" y="148" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="864" y="157" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ALTURA</text>
+      <!-- Filtro -> Segunda PlayerView -->
+      <line x1="1050" y1="172" x2="1050" y2="124" stroke="#4f5d75" stroke-width="1" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <rect x="1058" y="142" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="1088" y="151" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FILTRO CSS</text>
+      <!-- Filtro -> Editor (a mesma tabela de efeito) -->
+      <path d="M1050 236 V308 A8 8 0 0 1 1042 316 H540" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <rect x="752" y="296" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="790" y="305" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">BRILHO E COR</text>
+
+      <!-- Entradas -->
+      <rect x="40" y="60" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="60" width="200" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="140" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Piso do jogador</text>
+      <text x="140" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">a ficha dele no piso N</text>
+      <text x="140" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lib/pisos.ts · pisoDe</text>
+
+      <rect x="40" y="284" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="284" width="200" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="140" y="308" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Altura no painel</text>
+      <text x="140" y="324" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Baixa · Média · Alta, Ctrl+Z</text>
+      <text x="140" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">PisoHud → alturaDosPisos</text>
+
+      <!-- Host (foco) -->
+      <rect x="320" y="60" width="220" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="320" y="60" width="220" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="430" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Recorte no host</text>
+      <text x="430" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">terrenoAltoDoJogador, por jogador</text>
+      <text x="430" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lib/terrenoAlto.ts</text>
+
+      <!-- Editor -->
+      <rect x="320" y="284" width="220" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="320" y="284" width="220" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="430" y="308" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor, do 1º piso para cima</text>
+      <text x="430" y="324" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">planta borrada, fora do PNG</text>
+      <text x="430" y="336" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">pixi/pisoDeBaixoNoEditor.ts</text>
+
+      <!-- O que viaja -->
+      <rect x="640" y="60" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="640" y="60" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="740" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Vista de baixo</text>
+      <text x="740" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">piso N−1 pela visão de cima</text>
+      <text x="740" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">snapshot.alto.abaixo</text>
+
+      <rect x="640" y="172" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="640" y="172" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="740" y="196" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fichas de cima</text>
+      <text x="740" y="212" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">piso N+1, céu aberto, sem borrão</text>
+      <text x="740" y="224" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">snapshot.alto.acima</text>
+
+      <!-- Tela do jogador -->
+      <rect x="940" y="60" width="220" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="940" y="60" width="220" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="1050" y="84" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Segunda PlayerView</text>
+      <text x="1050" y="100" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">por trás, na mesma câmera</text>
+      <text x="1050" y="112" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">player/main.tsx · espelhoDaCamera</text>
+
+      <rect x="940" y="172" width="220" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="940" y="172" width="220" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="1050" y="196" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Filtro por altura</text>
+      <text x="1050" y="212" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">borrão, brilho e saturação</text>
+      <text x="1050" y="224" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">EFEITO_DA_ALTURA</text>
+
+      <!-- Legenda: faixa horizontal no pé -->
+      <line x1="24" y1="380" x2="1176" y2="380" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="24" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <rect x="120" y="394" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="144" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">entrada</text>
+      <rect x="220" y="394" width="16" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="244" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">foco: a regra e o efeito</text>
+      <rect x="420" y="394" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="444" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">o que viaja ao jogador</text>
+      <rect x="620" y="394" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="644" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">tela que desenha</text>
+      <line x1="788" y1="400" x2="820" y2="400" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#muralha-terreno-alto-arrow)"/>
+      <text x="832" y="404" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">mesma tabela de efeito, borrão próprio</text>
+    </svg>
+  </div>
+</body>
+</html>
