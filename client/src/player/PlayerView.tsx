@@ -242,6 +242,7 @@ import { reachOutline } from '../lib/movementRules'
 import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
 import { applyRoofCut } from './roofCut'
+import type { EspelhoDaCamera } from './espelhoDaCamera'
 import { rotuloDaFicha } from '../lib/encontroMarcado'
 import { createRevisitMemory, observeRevisit } from './revisitChanges'
 import { REVISIT_NOTE, REVISIT_PAD_PX, drawRevisitPulse } from './revisitPulse'
@@ -494,7 +495,29 @@ interface PlayerViewProps {
    * dela. Ausente, vale o id do mapa.
    */
   arrivalKey?: string
+  /**
+   * TERRENO ALTO (`lib/terrenoAlto.ts`): esta tela é a VISTA DO PISO DE BAIXO,
+   * por trás da tela do jogador que está em cima: só desenha (nenhum toque,
+   * nenhum rótulo, nenhuma sonda), com o `filtro` CSS da altura (borrado e
+   * escurecido), e segue a câmera de `espelhoDaCamera`. Ausente = a tela de sempre.
+   */
+  vistaDeBaixo?: { filtro: string }
+  /**
+   * TERRENO ALTO: a câmera repetida entre a tela de cima (publica) e a vista
+   * do piso de baixo (segue, com `vistaDeBaixo`). Referência estável. Ausente = câmera só desta tela.
+   */
+  espelhoDaCamera?: EspelhoDaCamera
+  /** TERRENO ALTO: fundo do canvas e do mapa transparentes, para a vista do piso de baixo aparecer por trás. */
+  fundoTransparente?: boolean
+  /**
+   * TERRENO ALTO: as fichas do piso de cima que ele vê daqui (`snapshot.alto.acima`).
+   * Só desenhadas, com as do recorte: nenhuma conta de passo (prévia, casa ocupada) as vê.
+   */
+  fichasDeCima?: readonly Token[]
 }
+
+/** TERRENO ALTO: referência estável para "nenhuma ficha do piso de cima". */
+const SEM_FICHAS_DE_CIMA: readonly Token[] = []
 
 const RASTER_SAMPLES = 4
 const FIT_MARGIN = 24
@@ -1607,6 +1630,8 @@ interface Scene {
   /** AURA DA FICHA: as auras acesas das fichas à vista (`pixi/auras/vistaDaAura.ts`), o mesmo desenho do mestre. */
   auras: AurasNoMapa
   camera: Camera
+  /** TERRENO ALTO: a câmera repetida com a outra tela (`EspelhoDaCamera`); `null` = só desta tela. */
+  espelho: { modo: 'publica' | 'segue'; espelho: EspelhoDaCamera } | null
   /** Escala para a qual grade, escadas e rótulos foram ajustados por último. */
   zoomScale: number
   /** Ajusta o que depende só do zoom (grade, escadas, rótulos); montado no setup. */
@@ -1707,6 +1732,9 @@ const OWN_LASER_LABEL = 'Você'
 type ZoomLayersTiming = 'agora' | 'noQuadro'
 
 function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void {
+  // TERRENO ALTO: a vista do piso de baixo fica na câmera da tela de cima, venha de onde vier a mudança (o encaixe da chegada, o teclado).
+  const seguida = scene.espelho?.modo === 'segue' ? scene.espelho.espelho.atual() : null
+  if (seguida !== null) scene.camera = { ...seguida }
   const res = scene.app.renderer.resolution
   // Pixel físico inteiro: traço fino alinhado (pixelAlign.ts) não depende do pan.
   scene.world.position.set(snapToPhysicalPixel(scene.camera.x, res), snapToPhysicalPixel(scene.camera.y, res))
@@ -1724,6 +1752,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.judge.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
+  if (scene.espelho?.modo === 'publica') scene.espelho.espelho.publicar(scene.camera)
 }
 
 /** MODO BATALHA (B5): a grade de batalha segue a câmera; dentro da folga já desenhada, não refaz nada. */
@@ -2501,6 +2530,10 @@ function PlayerViewDoCanvas({
   onZoomLimitsChange,
   onAcaoNoOlhar,
   arrivalKey,
+  vistaDeBaixo,
+  espelhoDaCamera,
+  fundoTransparente = false,
+  fichasDeCima = SEM_FICHAS_DE_CIMA,
 }: PlayerViewProps & { onContextoPerdido: () => void; onNaoIniciou: (motivo: string) => void; modoLeve: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const measureLabelRef = useRef<HTMLDivElement | null>(null)
@@ -2578,6 +2611,10 @@ function PlayerViewDoCanvas({
     onZoomLimitsChange,
     onAcaoNoOlhar,
     arrivalKey,
+    vistaDeBaixo,
+    espelhoDaCamera,
+    fundoTransparente,
+    fichasDeCima,
   }
   const latestRef = useRef(latest)
   latestRef.current = latest
@@ -2927,7 +2964,9 @@ function PlayerViewDoCanvas({
     const gridKey = JSON.stringify([worldWidth, worldHeight, currentMap.grid, currentMap.gridOffset, currentMap.gridShape, currentMap.gridSettings, showGrid, pixel])
     if (gridKey === scene.lastGridKey) return
     scene.lastGridKey = gridKey
-    scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
+    // TERRENO ALTO: no alto, o fundo do mapa é a vista do piso de baixo (a outra tela, por trás): nada aqui.
+    if (latestRef.current.fundoTransparente) scene.mapBackground.clear()
+    else scene.mapBackground.clear().rect(0, 0, worldWidth, worldHeight).fill({ color: MAP_BACKGROUND })
     if (showGrid) drawPlayerGrid(scene.grid, currentMap, pixel)
     else scene.grid.clear()
     // DESEMPENHO (F8): grade desligada fora do desenho; vazia, ainda pagava a máscara de stencil do piso a cada quadro.
@@ -3732,7 +3771,10 @@ function PlayerViewDoCanvas({
     // memória fica limitada ao número de tokens já vistos; tudo morre no app.destroy.
     const ownSet = new Set(own)
     const waitingSet = new Set(waiting)
-    const currentIds = new Set(currentMap.tokens.map((t) => t.id))
+    // TERRENO ALTO: as fichas do piso de cima que ele vê daqui entram só no desenho (o arrasto e a prévia leem `map`).
+    const { fichasDeCima: deCimaAgora } = latestRef.current
+    const fichasNaTela = deCimaAgora.length === 0 ? currentMap.tokens : [...currentMap.tokens, ...deCimaAgora]
+    const currentIds = new Set(fichasNaTela.map((t) => t.id))
     for (const [id, view] of scene.tokenViews) {
       if (currentIds.has(id)) continue
       view.wrapper.visible = false
@@ -3755,7 +3797,7 @@ function PlayerViewDoCanvas({
     const noDaFicha = noDoItem(scene.pilha.nosDaFaixa('tokens'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
     // BATALHA F3 (fatia T): a imagem da forma e os selos que o recorte da batalha mandou (só de fichas que ele vê).
     const { fotoDaForma, selosNasFichas } = latestRef.current
-    for (const token of currentMap.tokens) {
+    for (const token of fichasNaTela) {
       const isOwn = ownSet.has(token.id)
       const isWaiting = waitingSet.has(token.id)
       // O pino do continente não leva a forma (nem o selo, abaixo), como não leva a vida.
@@ -4034,6 +4076,7 @@ function PlayerViewDoCanvas({
     const app = new Application()
     let removeWheel: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
+    let pararDeSeguir: (() => void) | null = null
 
     const setup = async () => {
       // Densidade do monitor/celular: backbuffer em pixels físicos, canvas no tamanho CSS.
@@ -4045,6 +4088,9 @@ function PlayerViewDoCanvas({
         // o init lança e o `catch` de `setup` leva à tela de erro do mapa.
         preference: ['webgl'],
         backgroundColor: OUTSIDE_BACKGROUND,
+        // TERRENO ALTO: o canvas nasce com transparência (o Pixi não muda isto depois) e o fundo
+        // fica opaco logo abaixo; só a tela de quem está no alto o deixa transparente (`fundoTransparente`).
+        backgroundAlpha: 0,
         resizeTo: el,
         resolution: currentRendererResolution(),
         autoDensity: true,
@@ -4055,11 +4101,14 @@ function PlayerViewDoCanvas({
         return
       }
       initialized = true
-      registrarNaSonda('appJogador', app)
+      app.renderer.background.alpha = latestRef.current.fundoTransparente ? 0 : 1
+      // TERRENO ALTO: a vista do piso de baixo não toma a sonda da tela do jogador (o `ux-driver` mede a de cima).
+      const ehVistaDeBaixo = latestRef.current.vistaDeBaixo !== undefined
+      if (!ehVistaDeBaixo) registrarNaSonda('appJogador', app)
       // O10 (caça de 12/11/2026): parado, a tela não redesenha; o relógio
       // continua batendo. Logo depois do init: o desenho fica no mesmo lugar do tique.
       const desenho = criarDesenhoSobPedido(app)
-      registrarNaSonda('desenhoJogador', desenho.medidas)
+      if (!ehVistaDeBaixo) registrarNaSonda('desenhoJogador', desenho.medidas)
       el.appendChild(app.canvas)
       // Contexto perdido: quem está em volta (`PlayerView`) troca este Pixi por
       // um novo. `onContextoPerdido` é estável (useCallback) e cada geração
@@ -4764,6 +4813,10 @@ function PlayerViewDoCanvas({
         // A aura bate no relógio cru e só pinta a ficha à vista: fora da tela não muda nada (desenho sob pedido).
         auras: criarAurasNoMapa(() => scene.camera.scale, { quadros: app.ticker, reducedMotion: prefersReducedMotion, tela: () => app.screen }),
         camera: { x: 0, y: 0, scale: 1 },
+        espelho:
+          latestRef.current.espelhoDaCamera === undefined
+            ? null
+            : { modo: latestRef.current.vistaDeBaixo === undefined ? 'publica' : 'segue', espelho: latestRef.current.espelhoDaCamera },
         zoomScale: 1,
         onZoom: () => {},
         fittedMapId: null,
@@ -4808,6 +4861,13 @@ function PlayerViewDoCanvas({
         reportZoomLimits(scene.camera.scale)
       }
       sceneRef.current = scene
+      // TERRENO ALTO: a vista do piso de baixo segue cada câmera que a tela de cima publica.
+      if (scene.espelho?.modo === 'segue') {
+        pararDeSeguir = scene.espelho.espelho.ouvir(() => {
+          if (!destroyed) applyCamera(scene)
+        })
+        applyCamera(scene)
+      }
       // TELHADO MOLHADO: os telhados que o jogador vê molham e juntam neve junto com o chão.
       scene.ambiente.ligarTelhados(scene.telhados)
       ajustarGradeDaBatalhaAVista(scene)
@@ -5655,6 +5715,7 @@ function PlayerViewDoCanvas({
     return () => {
       destroyed = true
       sceneRef.current = null
+      pararDeSeguir?.()
       removeWheel?.()
       resizeObserver?.disconnect()
       if (initialized) app.destroy({ removeView: true }, { children: true }) // `true` limparia o TexturePool GLOBAL e quebraria Text de outro app vivo
@@ -5667,7 +5728,16 @@ function PlayerViewDoCanvas({
     if (scene) redraw(scene)
     // `arrivalKey` também: a chegada que só muda a chave (levado enquanto olhava outro andar) fica registrada já.
     // BATALHA F3: a forma que liga ou desliga e o selo que entra, conta ou sai repintam as fichas (raro: um por ação).
-  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, olhares, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas])
+  }, [map, vision, explored, concealed, glimpses, hazards, gatilhos, peek, porAtravessar, olhares, ownTokens, waitingTokens, settings, arrivalKey, fotoDaForma, selosNasFichas, fichasDeCima])
+
+  // TERRENO ALTO: fundo transparente (a vista do piso de baixo por trás) ou o de sempre. O fundo do mapa se refaz na grade.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (scene === null) return
+    scene.app.renderer.background.alpha = fundoTransparente ? 0 : 1
+    scene.lastGridKey = ''
+    redraw(scene)
+  }, [fundoTransparente])
 
   // MODO BATALHA (B5): ligar ou desligar a batalha só mexe na grade de batalha, sem redesenhar a cena.
   useEffect(() => {
@@ -5832,6 +5902,11 @@ function PlayerViewDoCanvas({
     sceneRef.current?.desenho.pedir()
   })
 
+  // TERRENO ALTO: a vista do piso de baixo é só o desenho, borrado pela altura, por trás da tela de cima.
+  // Sem véu nem rótulos: os ids de teste e a fala da régua são da tela de cima.
+  if (vistaDeBaixo !== undefined) {
+    return <div ref={containerRef} aria-hidden="true" data-vista-de-baixo="" className="pp-vista-de-baixo" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', filter: vistaDeBaixo.filtro }} />
+  }
   return (
     <>
       <div

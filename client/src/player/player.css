@@ -7771,3 +7771,29 @@ button.pp-colecao__casa:focus-visible {
     transition: background-color 160ms ease;
   }
 }
+
+/*
+ * TERRENO ALTO: a vista do piso de baixo (a segunda tela, por trás). Ao subir
+ * à muralha ela surge em 220ms, saída rápida (ease-out forte), e a troca da
+ * altura muda o borrão e o escuro em 260ms. Só opacidade e filtro, no
+ * compositor. Movimento reduzido: a opacidade fica (ajuda a entender o que
+ * apareceu), o filtro troca de uma vez.
+ */
+.pp-vista-de-baixo {
+  opacity: 1;
+  transition:
+    opacity 220ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    filter 260ms var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@starting-style {
+  .pp-vista-de-baixo {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-vista-de-baixo {
+    transition: opacity 160ms ease;
+  }
+}
