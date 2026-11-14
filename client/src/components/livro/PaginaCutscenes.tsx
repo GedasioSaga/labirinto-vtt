@@ -190,9 +190,13 @@ export function PaginaCutscenes() {
   const [importando, setImportando] = useState(false)
 
   // Ao abrir, relê a Galeria do site: o mestre pode ter tirado um vídeo por lá.
+  // Sem o disco do app (navegador puro), a lista fica vazia sem erro solto.
   useEffect(() => {
     const loja = useCutscenesStore.getState()
-    void loja.carregar().then(() => loja.conferirGaleria())
+    loja
+      .carregar()
+      .then(() => loja.conferirGaleria())
+      .catch(() => undefined)
   }, [])
 
   const adicionar = async () => {
