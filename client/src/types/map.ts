@@ -1819,6 +1819,12 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  de sempre — sem linha de migração. Vale só na cerca (`lib/mobilia.ts`
    *  recusa o resto na leitura e na travessia); vai ao jogador junto do tipo. */
   mobiliaCurva?: number
+  /** MURO DE FOGO (pedido de 15/11/2026): a linha traçada pelo mestre (à mão
+   *  ou ponto a ponto), em frações 0..1 da caixa do objeto, sem girar; mover,
+   *  esticar e girar com as alças de sempre levam o traço junto. Aberto (não
+   *  fecha), 2 pontos ou mais. Vale só em `mobilia === 'muroDeFogo'`; ausente
+   *  = reta pelo meio da caixa, no lado comprido. */
+  tracado?: RegionPoint[]
   /** TAPETE (pedido de 15/10/2026): a "Forma" do tapete. Só `'redondo'` é
    *  gravado; ausente = retangular — sem linha de migração. Vale só no tapete
    *  (`lib/mobilia.ts` recusa o resto na leitura e na travessia); vai ao
@@ -2246,8 +2252,10 @@ export interface Agua extends PlayerSecret, NoPiso {
   corPronta?: CorProntaDaAgua
   /** Só rio: largura em casas (0,5 a 6). Ausente = 2. */
   largura?: number
-  /** "Barra a passagem": a ficha do jogador não entra (a visão passa). Ausente = desligada. */
+  /** "Barra a passagem": a ficha do jogador não entra (a visão passa). Ausente = desligada; a lava nasce ligada. */
   barra?: true
+  /** LAVA (pedido de 15/11/2026): o líquido do rio, lago ou mar. Ausente = água. */
+  liquido?: 'lava'
   /** Correnteza do rio, 0 a 100. Ausente = 45. */
   velocidade?: number
   /** Tamanho das ondas, 0 a 100. Ausente = 50. */
