@@ -27,33 +27,41 @@ const COR_DA_CINZA_CLARA: Rgb3 = [0x9c, 0x94, 0x8b]
 /** A tora carbonizada: quase preta, com a luz do motor dando o volume. */
 const CARVAO: MaterialDaPeca = { classe: 'liso', rgb: [0x3a, 0x2e, 0x27] }
 /** Raio da brasa no pé de uma língua de 1 casa, em px do protótipo (56 por casa). */
-const RAIO_DA_BRASA = 2.6
+export const RAIO_DA_BRASA = 2.6
 
 function misturar(a: Rgb3, b: Rgb3, t: number): [number, number, number] {
   const k = Math.min(1, Math.max(0, t))
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]
 }
 
-/** Uma mancha de fuligem centrada em (cx, cy), raios rx e ry: a borda é corroída pelo ruído e some suave. */
+/**
+ * A fuligem num ponto: `q` = o quadrado da distância ao miolo sobre o alcance
+ * (0 no miolo, 1 na borda). A borda é corroída pelo ruído e some suave. O muro
+ * de fogo (`muroDeFogo.ts`) pinta a faixa dele com a mesma conta.
+ */
+export function pintarFuligem(x: number, y: number, q: number, s: Float32Array): void {
+  // A borda anda para dentro e para fora com o ruído: nada de elipse lisa.
+  const limite = 0.62 + ruido(x * 0.16 + 5, y * 0.16) * 0.5 + ruido(x * 0.5, y * 0.5 + 9) * 0.18
+  const borda = Math.min(1, Math.max(0, (1 - q) / Math.max(0.05, 1 - limite)))
+  const c = misturar(FULIGEM_ESCURA, FULIGEM_CLARA, 0.35 + q * 0.45 + ruido(x * 0.3, y * 0.3) * 0.5)
+  s[0] = c[0]
+  s[1] = c[1]
+  s[2] = c[2]
+  s[4] = 1
+  s[5] = ALFA_DA_FULIGEM * borda * borda
+}
+
+/** Uma mancha de fuligem centrada em (cx, cy), raios rx e ry. */
 function texFuligem(cx: number, cy: number, rx: number, ry: number): Textura {
   return (_u, _v, x, y, _p, s) => {
     const dx = (x - cx) / rx
     const dy = (y - cy) / ry
-    const q = dx * dx + dy * dy
-    // A borda anda para dentro e para fora com o ruído: nada de elipse lisa.
-    const limite = 0.62 + ruido(x * 0.16 + 5, y * 0.16) * 0.5 + ruido(x * 0.5, y * 0.5 + 9) * 0.18
-    const borda = Math.min(1, Math.max(0, (1 - q) / Math.max(0.05, 1 - limite)))
-    const c = misturar(FULIGEM_ESCURA, FULIGEM_CLARA, 0.35 + q * 0.45 + ruido(x * 0.3, y * 0.3) * 0.5)
-    s[0] = c[0]
-    s[1] = c[1]
-    s[2] = c[2]
-    s[4] = 1
-    s[5] = ALFA_DA_FULIGEM * borda * borda
+    pintarFuligem(x, y, dx * dx + dy * dy, s)
   }
 }
 
 /** Uma brasa redonda: miolo quente, borda vermelha apagada, toda emissão (a da fogueira). */
-function texBrasa(cx: number, cy: number, r: number): Textura {
+export function texBrasa(cx: number, cy: number, r: number): Textura {
   return (_u, _v, x, y, _p, s) => {
     const q = Math.min(1, Math.hypot(x - cx, y - cy) / r)
     const c = misturar(BRASA_QUENTE, BRASA_VIVA, q * q)
@@ -65,7 +73,7 @@ function texBrasa(cx: number, cy: number, r: number): Textura {
 }
 
 /** Um ponto de cinza clara, chapado. */
-const texCinzaClara: Textura = (_u, _v, _x, _y, _p, s) => {
+export const texCinzaClara: Textura = (_u, _v, _x, _y, _p, s) => {
   s[0] = COR_DA_CINZA_CLARA[0]
   s[1] = COR_DA_CINZA_CLARA[1]
   s[2] = COR_DA_CINZA_CLARA[2]

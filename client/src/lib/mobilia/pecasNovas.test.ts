@@ -316,6 +316,8 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   casaNaArvore: [3, 3],
   pergolaComTrepadeira: [3, 2],
   portalTorii: [3, 1],
+  // O muro de fogo (15/11/2026) nasce do traço; este é o tamanho da troca de tipo no painel.
+  muroDeFogo: [3, 1],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -596,6 +598,7 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   casaNaArvore: ['Casa na árvore', 'uma casa na árvore'],
   pergolaComTrepadeira: ['Pérgola com trepadeira', 'uma pérgola com trepadeira'],
   portalTorii: ['Portal torii', 'um portal torii'],
+  muroDeFogo: ['Muro de fogo', 'um muro de fogo'],
 }
 
 describe('peças novas: registro', () => {
@@ -737,7 +740,8 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
     const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
     expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
-    expect(TIPOS_NO_CATALOGO).toHaveLength(288)
+    // E o muro de fogo de 15/11/2026, logo depois do fogo.
+    expect(TIPOS_NO_CATALOGO).toHaveLength(289)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })

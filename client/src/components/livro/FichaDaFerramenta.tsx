@@ -15,6 +15,7 @@ import { Cabeca, CabecaMedalha } from '../grimorio/Cabeca'
 import { CampoSeg } from '../grimorio/CampoSeg'
 import { Nota } from '../grimorio/Nota'
 import { EscolhaDoObjeto } from './EscolhaDoObjeto'
+import { TracadoDoMuroDeFogo } from './TracadoDoMuroDeFogo'
 import './fichaDaFerramenta.css'
 
 /** O ícone da medalha (o CSS da cabeça fixa 22 px; o tamanho aqui é só o desenho de partida). */
@@ -138,13 +139,17 @@ function CampoDaVariante({ grupo, variantes }: { grupo: ToolVariantGroup; varian
       variantes.drawShape.onChange('construcao')
     }
     return (
-      <EscolhaDoObjeto
-        rotulo={grupo.label}
-        opcoes={opcoes}
-        marcada={marcada}
-        escolher={escolher}
-        daOutraFerramenta={{ nome: NOME_DA_FERRAMENTA_CONSTRUCAO, opcoes: construcoes.opcoes, escolher: levarParaAConstrucao }}
-      />
+      <>
+        {/* O muro de fogo (15/11/2026) é traçado, não posto: o jeito de traçar fica em cima da lista, à vista sem rolar. */}
+        {marcada === 'muroDeFogo' && <TracadoDoMuroDeFogo />}
+        <EscolhaDoObjeto
+          rotulo={grupo.label}
+          opcoes={opcoes}
+          marcada={marcada}
+          escolher={escolher}
+          daOutraFerramenta={{ nome: NOME_DA_FERRAMENTA_CONSTRUCAO, opcoes: construcoes.opcoes, escolher: levarParaAConstrucao }}
+        />
+      </>
     )
   }
   if (grupo.storeKey === 'construcaoTipo') return <EscolhaDoObjeto rotulo={grupo.label} opcoes={opcoes} marcada={marcada} escolher={escolher} />

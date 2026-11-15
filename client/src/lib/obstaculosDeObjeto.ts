@@ -3,6 +3,7 @@ import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
 import { construcaoTapaDeFabrica, ehConstrucao, medidaPeloMenorLado } from './mobilia/construcoes'
+import { contornoDaFaixa, distanciaAoEixo, eixoDoMuro, simplificarEixo, TOLERANCIA_DO_CONTORNO } from './mobilia/muroDeFogo'
 import { pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
@@ -56,6 +57,13 @@ export interface ObstaculoDeObjeto {
   readonly prop: Prop
   readonly contorno: readonly RegionPoint[]
   readonly paredes: readonly Wall[]
+  /**
+   * Só no MURO DE FOGO (15/11/2026): a linha do traço em px de mundo e a meia
+   * grossura. "Dentro" do muro é estar a até `meia` da linha, além do
+   * par-ímpar do contorno: o muro que cruza a si mesmo engana o par-ímpar
+   * bem onde as duas voltas se cobrem, e a ficha ali ficaria presa.
+   */
+  readonly faixa?: { readonly pontos: readonly RegionPoint[]; readonly meia: number }
 }
 
 /**
@@ -282,14 +290,33 @@ function contornoDoObjeto(prop: Prop, folga: number): RegionPoint[] | null {
   return retos.map((ponto) => rotatePointAround(ponto, centro, trig))
 }
 
+/**
+ * A faixa do MURO DE FOGO em px de mundo: a linha do traço (afinada: a colisão
+ * não precisa de um ponto a cada poucos px), girada com o objeto, e a meia
+ * grossura. `null` quando as medidas não servem (arquivo estragado).
+ */
+function faixaDoMuroDeFogo(prop: Prop, folga: number): { pontos: RegionPoint[]; meia: number } | null {
+  if (![prop.x, prop.y].every(Number.isFinite)) return null
+  const eixo = eixoDoMuro(prop.width, prop.height, prop.tracado)
+  if (eixo === null) return null
+  const giro = prop.rotation !== undefined && Number.isFinite(prop.rotation) ? prop.rotation : 0
+  const trig = rotationTrig(giro)
+  const centro = { x: prop.x, y: prop.y }
+  const pontos = simplificarEixo(eixo.pontos, eixo.meia * TOLERANCIA_DO_CONTORNO).map((p) => rotatePointAround({ x: prop.x + p.x, y: prop.y + p.y }, centro, trig))
+  return { pontos, meia: eixo.meia + folga }
+}
+
 function obstaculoDe(prop: Prop, grid: number, piso: number): ObstaculoDeObjeto | null {
-  const contorno = contornoDoObjeto(prop, grid * FOLGA_DO_OBJETO_EM_CASAS)
-  if (contorno === null) return null
+  // O muro de fogo barra pela faixa em volta do traço (paredes dos dois lados e pontas redondas), não pela caixa.
+  const faixa = prop.mobilia === 'muroDeFogo' ? faixaDoMuroDeFogo(prop, grid * FOLGA_DO_OBJETO_EM_CASAS) : null
+  if (prop.mobilia === 'muroDeFogo' && faixa === null) return null
+  const contorno = faixa !== null ? contornoDaFaixa(faixa.pontos, faixa.meia) : contornoDoObjeto(prop, grid * FOLGA_DO_OBJETO_EM_CASAS)
+  if (contorno === null || contorno.length === 0) return null
   const paredes = contorno.map((a, k): Wall => {
     const b = contorno[(k + 1) % contorno.length] ?? a
     return { id: `${PREFIXO_DO_ID}${prop.id}:${k}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y, blocksLight: false, blocksMove: true, door: null, ...(piso !== 0 ? { piso } : {}) }
   })
-  return { prop, contorno, paredes }
+  return faixa !== null ? { prop, contorno, paredes, faixa } : { prop, contorno, paredes }
 }
 
 const SEM_OBSTACULOS: readonly ObstaculoDeObjeto[] = []
@@ -331,6 +358,8 @@ function distanciaAoLado(p: Point, a: RegionPoint, b: RegionPoint): number {
 
 /** O ponto está DENTRO da forma do obstáculo, ou em cima da borda dela? */
 export function pontoNoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): boolean {
+  const { faixa } = obstaculo
+  if (faixa !== undefined && distanciaAoEixo(faixa.pontos, p.x, p.y) <= faixa.meia + TOLERANCIA_DA_BORDA) return true
   const anel = obstaculo.contorno
   let dentro = false
   for (let i = 0, j = anel.length - 1; i < anel.length; j = i, i += 1) {

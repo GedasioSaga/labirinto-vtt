@@ -14,6 +14,7 @@
  * Sem import de `types/map.ts` (o tipo vem de `tipos.ts`), para não criar ciclo.
  */
 import { ehConstrucao } from './construcoes'
+import { tracosDoMuroDeFogo } from './muroDeFogo'
 import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
 
 /**
@@ -69,6 +70,8 @@ export const PECAS_NOVAS = [
   'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
   'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
+  // O muro de fogo (15/11/2026): o fogo traçado (`lib/mobilia/muroDeFogo.ts`).
+  'muroDeFogo',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -572,6 +575,9 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   casaNaArvore: { rotulo: 'Casa na árvore', artigo: 'uma casa na árvore', tamanho: { largura: 3, altura: 3 }, redonda: false },
   pergolaComTrepadeira: { rotulo: 'Pérgola com trepadeira', artigo: 'uma pérgola com trepadeira', tamanho: { largura: 3, altura: 2 }, redonda: false },
   portalTorii: { rotulo: 'Portal torii', artigo: 'um portal torii', tamanho: { largura: 3, altura: 1 }, redonda: false },
+  // O muro de fogo (15/11/2026) nasce do traço do mestre, com o tamanho que o traço der; este é o da troca de tipo
+  // no painel (a reta de 3 casas, 1 de grossura).
+  muroDeFogo: { rotulo: 'Muro de fogo', artigo: 'um muro de fogo', tamanho: { largura: 3, altura: 1 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -855,6 +861,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     casaNaArvore: valor(f.casaNaArvore),
     pergolaComTrepadeira: valor(f.pergolaComTrepadeira),
     portalTorii: valor(f.portalTorii),
+    muroDeFogo: valor(f.muroDeFogo),
   }
 }
 
@@ -879,7 +886,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   // A ponte (03/11/2026) logo depois do chafariz: o caminho por cima da água.
   // A cova e os caixões (07/11/2026) logo depois da lápide: o cemitério junto.
   'mesaQuadrada', 'mesaRedonda', 'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'poco', 'chafariz', 'ponte', 'barraca', 'carroca',
-  'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo',
+  // O muro de fogo (15/11/2026) logo depois do fogo: os dois fogos soltos juntos.
+  'sebe', 'jardineira', 'tapeteLongo', 'arcoDoPortao', 'placaDeSeta', 'fogo', 'muroDeFogo',
   'fogao', 'geladeira', 'pia', 'balcao', 'pratos', 'privada', 'sofa', 'poltrona',
   'lareira', 'fornalha', 'bigorna', 'balde',
   'troncos', 'feno',
@@ -948,7 +956,7 @@ const DEPOIS_DE: Readonly<Partial<Record<TipoMobilia, readonly PecaNova[]>>> = {
   cerca: ['sebe', 'jardineira'],
   tapete: ['tapeteLongo'],
   // O fogo de casa fica com a fogueira e o fogo (a mesma chama), a bigorna com a fornalha e o balde com o barril.
-  fogueira: ['fogo', 'lareira', 'fornalha', 'bigorna'],
+  fogueira: ['fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna'],
   barril: ['balde'],
 }
 const COM_PARENTE: readonly PecaNova[] = Object.values(DEPOIS_DE).flat()
@@ -4110,6 +4118,10 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(b * 0.6, b * 0.6, ...pt(a * 0.6, 0)),
       ]
     }
+    case 'muroDeFogo':
+      // Sem o traço do mestre (que só o objeto guarda): a faixa reta pelo lado comprido. Com o traço, quem desenha
+      // é `tracosDoGlifo` de `lib/mobilia.ts`, pela conta de `muroDeFogo.ts`.
+      return tracosDoMuroDeFogo(largura, altura, undefined)
   }
 }
 

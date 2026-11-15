@@ -96,6 +96,8 @@ export type GestureMode =
   | 'painting-barranco'
   // Água: o traço do rio ou o contorno do lago e do mar.
   | 'painting-agua'
+  // Muro de fogo: o traço à mão ou o canto do ponto a ponto.
+  | 'painting-muro-de-fogo'
   // Texturas: arrasto do pincel (ou da borracha) de textura.
   | 'painting-textura'
   // Neblina: arrasto do pincel (ou da borracha) de neblina.
@@ -355,6 +357,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'painting-penhasco':
     case 'painting-barranco':
     case 'painting-agua':
+    case 'painting-muro-de-fogo':
     case 'painting-textura':
     case 'painting-neblina':
     case 'painting-carimbo':

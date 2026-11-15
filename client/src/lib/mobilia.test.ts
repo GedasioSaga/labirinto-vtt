@@ -202,7 +202,9 @@ describe('cerca — mourões redondos ligados por um fio', () => {
   it('a cerca e a sebe (MT5, a mesma geometria) são os móveis vazados: sem caixa de silhueta atrás, o chão aparece entre os mourões', () => {
     expect(ehMovelVazado('cerca')).toBe(true)
     expect(ehMovelVazado('sebe')).toBe(true)
-    for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'cerca' && t !== 'sebe')) expect(ehMovelVazado(tipo)).toBe(false)
+    // O muro de fogo (15/11/2026) também: a caixa dele é a do traço inteiro, e o muro é só a faixa em volta da linha.
+    expect(ehMovelVazado('muroDeFogo')).toBe(true)
+    for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'cerca' && t !== 'sebe' && t !== 'muroDeFogo')) expect(ehMovelVazado(tipo)).toBe(false)
     expect(ehMovelVazado(undefined)).toBe(false)
   })
 

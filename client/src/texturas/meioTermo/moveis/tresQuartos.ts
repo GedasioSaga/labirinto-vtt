@@ -160,6 +160,8 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   tapeteLongo: { modo: 'derivado', alturaSolta: SOMBRA_DO_TAPETE.z },
   // O chão queimado do fogo é rente ao chão, como o tapete sem espessura: nada sobe.
   fogo: DERIVADO,
+  // O chão queimado do muro de fogo (15/11/2026), rente ao chão como o do fogo.
+  muroDeFogo: DERIVADO,
   // Móveis de casa (28/10/2026): as alturas saem das sombras de cada um, como o armário.
   fogao: DERIVADO,
   geladeira: DERIVADO,

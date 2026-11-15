@@ -9,6 +9,16 @@ import {
   linguasDoFogo,
   linguasMaisAltas,
 } from '../lib/mobilia/fogo'
+import {
+  ALTURA_MAXIMA_DA_LINGUA_DO_MURO_EM_GROSSURAS,
+  TOLERANCIA_DO_CONTORNO,
+  chaveDoTracado,
+  eixoDoMuro,
+  linguasComFagulhaDoMuro,
+  linguasComFumacaDoMuro,
+  linguasDoMuro,
+  simplificarEixo,
+} from '../lib/mobilia/muroDeFogo'
 import { rotatePointAround, rotationTrig } from '../lib/roomRotation'
 import {
   ALTURA_DE_REFERENCIA,
@@ -54,7 +64,7 @@ import {
  */
 
 /** O que o fogo lê do objeto. */
-export type PropDoFogo = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'hidden' | 'secret'>
+export type PropDoFogo = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'hidden' | 'secret' | 'tracado'>
 
 /** O pedaço do mundo à vista (`vistaDaCamera` de `drawTexturas.ts`). */
 export interface CaixaDaVista {
@@ -144,6 +154,8 @@ const ALFA_DO_BRILHO = 0.62
 const PISCAR_MINIMO = 0.84
 const PULSO_DA_ESCALA = 0.03
 const RESPIRAR_MINIMO = 0.93
+/** O brilho do muro de fogo: até onde ele vai para cada lado da linha, em meias grossuras (1,2 casa no muro de 1 casa). */
+const BRILHO_DO_MURO_EM_MEIAS = 2.4
 /** Raio do disco do brilho e da nuvem de fumaça na unidade das formas. */
 const RAIO_DO_BRILHO = 64
 const RAIO_DA_NUVEM = 32
@@ -221,6 +233,8 @@ interface FogoNoPalco {
   /** Escala de repouso do brilho (x, y). */
   brilhoX: number
   brilhoY: number
+  /** Quanto a escala do brilho pulsa (`PULSO_DA_ESCALA` no fogo; 0 no muro, em que só a transparência pisca). */
+  pulso: number
   fase: number
   /** Medidas da fumaça em px de mundo e ms. */
   medidasDaFumaca: { s0: number; s1: number; sobe: number; vento: number; alfa: number; vida: number }
@@ -232,9 +246,96 @@ interface FogoNoPalco {
   naVista: boolean
 }
 
+/** O que `montar` precisa saber de um fogo antes de criar os nós: onde nasce cada língua, quais soltam fagulha e fumaça, e o brilho. */
+interface PlantaDoFogo {
+  /** O pé de cada língua em px de mundo, em volta do centro do objeto (já girado com ele), e a altura dela. */
+  bases: { x: number; y: number; altura: number }[]
+  /** As línguas que soltam fagulha e as de onde sobe um fio de fumaça (índices de `bases`). */
+  comFagulha: number[]
+  comFumaca: number[]
+  /** O tamanho da fumaça: a língua mais alta sobre a da Chama de 1 casa. */
+  fumaca: number
+  brilho: Graphics
+  brilhoX: number
+  brilhoY: number
+  pulso: number
+  /** O retângulo do brilho em volta do centro do objeto. */
+  caixaDoBrilho: CaixaDaVista
+}
+
+/** O objeto Fogo: as línguas pela pegada em espiral (`linguasDoFogo`) e o brilho num disco. */
+function plantaDoFogo(prop: PropDoFogo, discoDoBrilho: GraphicsContext): PlantaDoFogo {
+  const casasW = prop.width / CASA_DO_FOGO_PX
+  const casasH = prop.height / CASA_DO_FOGO_PX
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const origem = { x: 0, y: 0 }
+  const disposicao = linguasDoFogo(casasW, casasH)
+  const bases = disposicao.map((lingua) => ({
+    ...rotatePointAround({ x: lingua.x * CASA_DO_FOGO_PX, y: lingua.y * CASA_DO_FOGO_PX }, origem, trig),
+    altura: lingua.altura * CASA_DO_FOGO_PX,
+  }))
+  const brilhoDaPegada = brilhoDoFogo(casasW, casasH)
+  const deLado = Math.abs(trig.sin) > Math.abs(trig.cos)
+  const rx = (deLado ? brilhoDaPegada.ry : brilhoDaPegada.rx) * CASA_DO_FOGO_PX
+  const ry = (deLado ? brilhoDaPegada.rx : brilhoDaPegada.ry) * CASA_DO_FOGO_PX
+  const centro = rotatePointAround({ x: 0, y: brilhoDaPegada.cy * CASA_DO_FOGO_PX }, origem, trig)
+  const brilho = new Graphics(discoDoBrilho)
+  brilho.position.set(centro.x, centro.y)
+  return {
+    bases,
+    comFagulha: linguasMaisAltas(disposicao, linguasComFagulha(disposicao.length)),
+    comFumaca: linguasMaisAltas(disposicao, fiosDeFumaca(disposicao.length)),
+    fumaca: alturaMaximaDaLingua(casasW, casasH) / alturaMaximaDaLingua(1, 1),
+    brilho,
+    brilhoX: rx / RAIO_DO_BRILHO,
+    brilhoY: ry / RAIO_DO_BRILHO,
+    pulso: PULSO_DA_ESCALA,
+    caixaDoBrilho: { minX: centro.x - rx, minY: centro.y - ry, maxX: centro.x + rx, maxY: centro.y + ry },
+  }
+}
+
+/**
+ * O MURO DE FOGO (15/11/2026): as línguas ao longo do traço (`linguasDoMuro`,
+ * a mesma disposição das brasas da imagem) e o brilho numa faixa em volta da
+ * linha, com as cores dos anéis do disco. O brilho do muro é um desenho
+ * próprio (cada traço é um), destruído com os nós do fogo. `null` com medida
+ * que não se desenha.
+ */
+function plantaDoMuro(prop: PropDoFogo): PlantaDoFogo | null {
+  const eixo = eixoDoMuro(prop.width, prop.height, prop.tracado)
+  if (eixo === null) return null
+  const trig = rotationTrig(prop.rotation ?? 0)
+  const origem = { x: 0, y: 0 }
+  const bases = linguasDoMuro(eixo).map((lingua) => ({ ...rotatePointAround({ x: lingua.x, y: lingua.y }, origem, trig), altura: lingua.altura }))
+  const linha = simplificarEixo(eixo.pontos, eixo.meia * TOLERANCIA_DO_CONTORNO).map((p) => rotatePointAround({ x: p.x, y: p.y }, origem, trig))
+  const raio = eixo.meia * BRILHO_DO_MURO_EM_MEIAS
+  const brilho = new Graphics()
+  for (const [fracaoDoRaio, cor, alpha] of ANEIS_DO_BRILHO) {
+    linha.forEach((p, i) => (i === 0 ? brilho.moveTo(p.x, p.y) : brilho.lineTo(p.x, p.y)))
+    brilho.stroke({ width: 2 * raio * fracaoDoRaio, color: cor, alpha, cap: 'round', join: 'round' })
+  }
+  return {
+    bases,
+    comFagulha: linguasComFagulhaDoMuro(eixo),
+    comFumaca: linguasComFumacaDoMuro(eixo),
+    fumaca: (ALTURA_MAXIMA_DA_LINGUA_DO_MURO_EM_GROSSURAS * 2 * eixo.meia) / CASA_DO_FOGO_PX / alturaMaximaDaLingua(1, 1),
+    brilho,
+    brilhoX: 1,
+    brilhoY: 1,
+    // A escala pulsando em volta do centro faria as pontas de um muro comprido andarem: no muro só a transparência pisca.
+    pulso: 0,
+    caixaDoBrilho: {
+      minX: Math.min(...linha.map((p) => p.x)) - raio,
+      minY: Math.min(...linha.map((p) => p.y)) - raio,
+      maxX: Math.max(...linha.map((p) => p.x)) + raio,
+      maxY: Math.max(...linha.map((p) => p.y)) + raio,
+    },
+  }
+}
+
 function ehFogoDesenhavel(prop: PropDoFogo): boolean {
   return (
-    prop.mobilia === 'fogo' &&
+    (prop.mobilia === 'fogo' || prop.mobilia === 'muroDeFogo') &&
     Number.isFinite(prop.x) &&
     Number.isFinite(prop.y) &&
     Number.isFinite(prop.width) &&
@@ -350,24 +451,19 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
   function montar(prop: PropDoFogo, anterior: FogoNoPalco | undefined): FogoNoPalco {
     if (anterior !== undefined) remover(prop.id)
     const f = asFormas()
-    const casasW = prop.width / CASA_DO_FOGO_PX
-    const casasH = prop.height / CASA_DO_FOGO_PX
-    const trig = rotationTrig(prop.rotation ?? 0)
-    const origem = { x: 0, y: 0 }
     const fase = faseDaFogueira(prop.id)
-    const disposicao = linguasDoFogo(casasW, casasH)
+    const planta = (prop.mobilia === 'muroDeFogo' ? plantaDoMuro(prop) : null) ?? plantaDoFogo(prop, f.brilho)
     // A base gira com o chão queimado; a chama não gira (fica sempre em pé na tela).
-    const linguas: LinguaNoPalco[] = disposicao.map((lingua, i) => {
-      const base = rotatePointAround({ x: lingua.x * CASA_DO_FOGO_PX, y: lingua.y * CASA_DO_FOGO_PX }, origem, trig)
+    const linguas: LinguaNoPalco[] = planta.bases.map((base, i) => {
       const borda = new Graphics(f.borda)
       borda.label = 'borda'
       const miolo = new Graphics(f.miolo)
       miolo.label = 'miolo'
       borda.position.set(base.x, base.y)
       miolo.position.set(base.x, base.y)
-      return { borda, miolo, x: base.x, y: base.y, altura: lingua.altura * CASA_DO_FOGO_PX, fase: fase + i * PASSO_ENTRE_LINGUAS, fagulhas: [] }
+      return { borda, miolo, x: base.x, y: base.y, altura: base.altura, fase: fase + i * PASSO_ENTRE_LINGUAS, fagulhas: [] }
     })
-    for (const i of linguasMaisAltas(disposicao, linguasComFagulha(disposicao.length))) {
+    for (const i of planta.comFagulha) {
       linguas[i].fagulhas = [0, 1, 2].map(() => {
         const fagulha = new Graphics(f.fagulha)
         fagulha.label = 'fagulha'
@@ -381,19 +477,13 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
     for (const lingua of [...linguas].sort((a, b) => a.y - b.y)) chamasNo.addChild(lingua.borda, lingua.miolo)
     for (const lingua of linguas) if (lingua.fagulhas.length > 0) chamasNo.addChild(...lingua.fagulhas)
 
-    const brilhoDaPegada = brilhoDoFogo(casasW, casasH)
-    const deLado = Math.abs(trig.sin) > Math.abs(trig.cos)
-    const rx = (deLado ? brilhoDaPegada.ry : brilhoDaPegada.rx) * CASA_DO_FOGO_PX
-    const ry = (deLado ? brilhoDaPegada.rx : brilhoDaPegada.ry) * CASA_DO_FOGO_PX
-    const centroDoBrilho = rotatePointAround({ x: 0, y: brilhoDaPegada.cy * CASA_DO_FOGO_PX }, origem, trig)
-    const brilho = new Graphics(f.brilho)
+    const { brilho } = planta
     brilho.label = 'brilho'
-    brilho.position.set(centroDoBrilho.x, centroDoBrilho.y)
     const brilhosNo = new Container()
     brilhosNo.label = `brilho:${prop.id}`
     brilhosNo.addChild(brilho)
 
-    const k = alturaMaximaDaLingua(casasW, casasH) / alturaMaximaDaLingua(1, 1)
+    const k = planta.fumaca
     const medidas = {
       s0: FUMACA.s0 * k * CASA_DO_FOGO_PX,
       s1: FUMACA.s1 * k * CASA_DO_FOGO_PX,
@@ -402,11 +492,11 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
       alfa: FUMACA.alfa + 0.04 * (k - 1),
       vida: FUMACA.vida + 1000 * (k - 1),
     }
-    const nuvensPorFio = disposicao.length >= 5 ? NUVENS_POR_FIO : NUVENS_POR_FIO_PEQUENO
+    const nuvensPorFio = linguas.length >= 5 ? NUVENS_POR_FIO : NUVENS_POR_FIO_PEQUENO
     const fumacaNo = new Container()
     fumacaNo.label = `fumaca:${prop.id}`
     const nuvens: NuvemNoPalco[] = []
-    linguasMaisAltas(disposicao, fiosDeFumaca(disposicao.length)).forEach((indice, fio) => {
+    planta.comFumaca.forEach((indice, fio) => {
       for (let i = 0; i < nuvensPorFio; i += 1) {
         const desenho = new Graphics(f.nuvem)
         desenho.label = 'nuvem'
@@ -417,10 +507,7 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
     })
 
     // O retângulo inteiro: brilho, línguas com fagulha (sobem ~1,6 H) e a fumaça que sobe e vai com o vento.
-    let minX = centroDoBrilho.x - rx
-    let maxX = centroDoBrilho.x + rx
-    let minY = centroDoBrilho.y - ry
-    let maxY = centroDoBrilho.y + ry
+    let { minX, maxX, minY, maxY } = planta.caixaDoBrilho
     for (const lingua of linguas) {
       minX = Math.min(minX, lingua.x - 0.45 * lingua.altura)
       maxX = Math.max(maxX, lingua.x + 0.45 * lingua.altura)
@@ -443,8 +530,9 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
       linguas,
       nuvens,
       nuvensPorFio,
-      brilhoX: rx / RAIO_DO_BRILHO,
-      brilhoY: ry / RAIO_DO_BRILHO,
+      brilhoX: planta.brilhoX,
+      brilhoY: planta.brilhoY,
+      pulso: planta.pulso,
       fase,
       medidasDaFumaca: medidas,
       forma: '',
@@ -473,7 +561,7 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
     const u = fracao(t / CICLO_DA_CHAMA_MS + fogo.fase)
     const piscar = 0.5 + 0.35 * Math.sin(volta * 4 * u + 0.7) + 0.15 * Math.sin(volta * 9 * u + 2.2)
     fogo.brilho.alpha = ALFA_DO_BRILHO * (PISCAR_MINIMO + (1 - PISCAR_MINIMO) * piscar)
-    const pulso = 1 + PULSO_DA_ESCALA * Math.sin(volta * 2 * u + 1.1)
+    const pulso = 1 + fogo.pulso * Math.sin(volta * 2 * u + 1.1)
     fogo.brilho.scale.set(fogo.brilhoX * pulso, fogo.brilhoY * pulso)
     const m = fogo.medidasDaFumaca
     for (const nuvem of fogo.nuvens) {
@@ -640,7 +728,8 @@ export function createFogosDoMapa(opcoes: OpcoesDosFogos = {}): FogosDoMapa {
       for (const prop of props) {
         if (!ehFogoDesenhavel(prop)) continue
         presentes.add(prop.id)
-        const forma = `${prop.width}|${prop.height}|${prop.rotation ?? 0}`
+        // No muro de fogo o traço entra na leitura: mexer num ponto dele muda as línguas de lugar.
+        const forma = `${prop.width}|${prop.height}|${prop.rotation ?? 0}${prop.mobilia === 'muroDeFogo' ? `|${chaveDoTracado(prop.tracado)}` : ''}`
         let fogo = fogos.get(prop.id)
         if (fogo === undefined || fogo.chamas.destroyed || fogo.forma !== forma) {
           // Pegada ou giro novos: as línguas mudam de número e de lugar, os nós são refeitos.

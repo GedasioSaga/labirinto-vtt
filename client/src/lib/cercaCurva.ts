@@ -3,6 +3,7 @@ import type { Point } from '../pixi/world'
 import { aceitaCurva, CERCA_VOLTA_MAXIMA, comCurvaGravada, contornoDaCerca, cordaDaCerca, geometriaDaCerca, normalizarCurvaDaCerca, voltaDaCerca } from './mobilia'
 import { clampStairCurve, CURVE_EPSILON_PX, curvaForTurnDegrees, stairArcPoint, turnDegreesForCurva, type StairArc } from './stairCurve'
 import { curveTurnLabel } from './stairHandles'
+import { contornoDaFaixa, eixoDoMuro, pontoNoEixo, simplificarEixo, TOLERANCIA_DO_CONTORNO } from './mobilia/muroDeFogo'
 import { rotatePointAround, rotationTrig } from './roomRotation'
 
 /**
@@ -35,8 +36,8 @@ const PASSO_DA_VOLTA_EM_GRAUS = 15
  */
 export const ENCAIXE_DA_RETA_PX_DE_TELA = 4
 
-/** O que a cerca curva usa do objeto: lugar, tamanho, giro, tipo e volta. */
-export type CercaNoMapa = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaCurva'>
+/** O que a cerca curva usa do objeto: lugar, tamanho, giro, tipo e volta (e, no muro de fogo, o traço). */
+export type CercaNoMapa = Pick<Prop, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaCurva' | 'tracado'>
 
 /** Pontos do referencial do objeto (centro na origem, sem giro) no mundo. */
 function paraOMundo(prop: CercaNoMapa, locais: readonly Point[]): Point[] {
@@ -72,6 +73,13 @@ function voltaVisivel(prop: CercaNoMapa): number {
  * retângulo de sempre, sem mudar nada.
  */
 export function contornoDaCercaCurva(prop: CercaNoMapa): Point[] | null {
+  // O MURO DE FOGO (15/11/2026) também sai da caixa reta: a caixa dele é a do traço inteiro, e o muro é só a
+  // faixa em volta da linha. O clique, o contorno da seleção, o cursor, a borracha e a seleção por área leem
+  // esta função, então pegam o muro pela faixa (a caixa de um muro em diagonal roubaria o clique do que há em volta).
+  if (prop.mobilia === 'muroDeFogo') {
+    const eixo = eixoDoMuro(prop.width, prop.height, prop.tracado)
+    return eixo === null ? null : paraOMundo(prop, contornoDaFaixa(simplificarEixo(eixo.pontos, eixo.meia * TOLERANCIA_DO_CONTORNO), eixo.meia))
+  }
   const volta = voltaVisivel(prop)
   if (volta === 0) return null
   return paraOMundo(prop, contornoDaCerca(prop.width, prop.height, volta))
@@ -83,6 +91,11 @@ export function contornoDaCercaCurva(prop: CercaNoMapa): Point[] | null {
  * arco igual, `stairCenterlineSamples`). Vazio na reta e fora da cerca.
  */
 export function amostrasDaCercaCurva(prop: CercaNoMapa): Point[] {
+  // O muro de fogo: as pontas, os quartos e o meio da linha traçada, como o arco da cerca.
+  if (prop.mobilia === 'muroDeFogo') {
+    const eixo = eixoDoMuro(prop.width, prop.height, prop.tracado)
+    return eixo === null ? [] : paraOMundo(prop, [0, 0.25, 0.5, 0.75, 1].map((t) => pontoNoEixo(eixo, eixo.comprimento * t)))
+  }
   const visivel = arcoVisivel(prop)
   if (visivel === null) return []
   return paraOMundo(

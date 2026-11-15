@@ -605,6 +605,14 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M3 20.5h18" />
         </>
       )
+    case 'muroDeFogo':
+      // Uma fileira de línguas em pé sobre a linha do traço (curva, como o mestre risca).
+      return (
+        <>
+          <path d="M5 6.5c1 1.9 2.2 3.2 2.2 5.4a2.2 2.2 0 0 1-4.4 0c0-2.2 1.2-3.5 2.2-5.4zM12 4c1.2 2.3 2.6 3.8 2.6 6.4a2.6 2.6 0 0 1-5.2 0c0-2.6 1.4-4.1 2.6-6.4zM19 6.5c1 1.9 2.2 3.2 2.2 5.4a2.2 2.2 0 0 1-4.4 0c0-2.2 1.2-3.5 2.2-5.4z" />
+          <path d="M2.5 18.5c3-2.2 6-2.2 9.5 0s6.5 2.2 9.5 0" />
+        </>
+      )
     // Móveis de casa (28/10/2026), de frente, como a lápide e a jardineira: de cima eles liam como caixas.
     case 'fogao':
       // O corpo sobre os pés, a chapa, o cano subindo e a portinha da lenha.

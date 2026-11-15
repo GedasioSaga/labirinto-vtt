@@ -4616,7 +4616,8 @@ function recorteDoGrupo(
    * continuam escondendo o fogo como escondem qualquer objeto.
    */
   const fogoNoTelhadoAVista = (p: MapData['props'][number]): boolean => {
-    if (p.mobilia !== 'fogo') return false
+    // O muro de fogo (15/11/2026) é fogo também: sob teto fechado, aparece como o Fogo.
+    if (p.mobilia !== 'fogo' && p.mobilia !== 'muroDeFogo') return false
     const centro = { x: p.x, y: p.y }
     const telhado = closedRoofs.find((roof) => inRoof(roof, centro))
     if (telhado === undefined) return false

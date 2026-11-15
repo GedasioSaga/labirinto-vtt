@@ -86,6 +86,7 @@ import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
+import { criarGestoDoMuroDeFogo } from './muroDeFogoNoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -339,7 +340,8 @@ import {
   visibleWalls, visibleRegions, visibleStairs, visibleLights, visibleDrawings, visibleTokens, visibleProps, visiblePins,
 } from '../lib/layers'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
-import { encostarTochaArrastadaNaParede, porMovelNoPonto } from '../stores/mobiliaNoPonto'
+import { encostarTochaArrastadaNaParede, porMovelNoPonto, porMuroDeFogoNoTraco } from '../stores/mobiliaNoPonto'
+import { useFerramentaDoMuroDeFogo } from '../stores/ferramentaDoMuroDeFogo'
 import { ehMovelDoChao } from '../lib/mobilia'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { gestoNoPino } from '../lib/camadas/trava'
@@ -1614,6 +1616,20 @@ function PixiCanvasDoContexto({
           if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
         },
       })
+      // MURO DE FOGO (`muroDeFogoNoEditor.ts`, 15/11/2026): com ele escolhido na ferramenta Objeto, o canvas traça
+      // (à mão ou ponto a ponto) em vez de pôr caixa; o rascunho usa o draft. `clearDrafts` é declarado mais abaixo:
+      // a função só é chamada depois da montagem.
+      const gestoDoMuroDeFogo = criarGestoDoMuroDeFogo({
+        rascunho: draftGraphics,
+        escala: () => camera.scale,
+        // Camada travada ou oculta tem o aviso dela (`porMuroDeFogoNoTraco`): só o traço curto é avisado pelo gesto.
+        criar: (pontos) => porMuroDeFogoNoTraco(pontos).kind !== 'curto',
+        avisar: (texto) => {
+          const toasts = useToastStore.getState()
+          if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
+        },
+        descartar: () => clearDrafts(),
+      })
       // TEXTURAS: o anel do pincel (o tamanho dele) segue o ponteiro, acima do rascunho.
       const anelDoPincelGraphics = new Graphics()
       const angleIndicatorContainer = new Container()
@@ -2212,6 +2228,16 @@ function PixiCanvasDoContexto({
         const alvo = findSelectableAt(clickSelectMap(map), ponto, pinosNoToque(map))
         if (alvo?.kind !== 'prop') return false
         return !ehMovelDoChao(map.props.find((p) => p.id === alvo.id)?.mobilia) || ehMovelDoChao(tipoQueOCliquePoe() ?? useMapStore.getState().mobiliaTipo)
+      }
+
+      /**
+       * MURO DE FOGO: o botão esquerdo com ele na mão começa o arrasto à mão ou o canto do ponto a ponto
+       * (o canto entra ao SOLTAR, com o encaixe do Objeto; Alt inverte).
+       */
+      const comecarMuroDeFogo = (ponto: Point, alt: boolean) => {
+        gestoDoMuroDeFogo.comecar(ponto, applySnap(ponto, useMapStore.getState().map.grid, 'prop', alt))
+        mode = 'painting-muro-de-fogo'
+        updateCursor()
       }
 
       /** O tipo que o clique da ferramenta ativa põe: o do Objeto, o da Construção (12/11/2026), ou nenhum. */
@@ -3888,6 +3914,8 @@ function PixiCanvasDoContexto({
         | 'painting-barranco'
         // Água: o traço do rio ou o contorno do lago e do mar (`aguaNoEditor.ts`).
         | 'painting-agua'
+        // Muro de fogo: o traço à mão ou o canto do ponto a ponto (`muroDeFogoNoEditor.ts`).
+        | 'painting-muro-de-fogo'
         // Texturas: arrasto do pincel (ou da borracha) de textura.
         | 'painting-textura'
         // Neblina: arrasto do pincel (ou da borracha) de neblina (`neblinaNoEditor.ts`).
@@ -5856,6 +5884,9 @@ function PixiCanvasDoContexto({
         // Água: idem — o traço cancelado não vira água.
         gestoDaAgua.cancelar()
         if (mode === 'painting-agua') mode = 'idle'
+        // Muro de fogo: idem — o traço cancelado não vira muro.
+        gestoDoMuroDeFogo.cancelar()
+        if (mode === 'painting-muro-de-fogo') mode = 'idle'
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
         texturaStroke = []
         if (mode === 'painting-textura') mode = 'idle'
@@ -6299,7 +6330,12 @@ function PixiCanvasDoContexto({
         polygonDraftPoints.length > 0 ||
         pathDraftPoints.length > 0 ||
         corridorDraftPoints.length > 0 ||
-        gestoDaAgua.cantosDoTracado() > 0
+        gestoDaAgua.cantosDoTracado() > 0 ||
+        gestoDoMuroDeFogo.pontosDoTracado() > 0
+
+      /** O Muro de fogo ponto a ponto está na mão (a ferramenta Objeto com ele escolhido e a forma "Ponto a ponto")? */
+      const tracaMuroDeFogoPontoAPonto = (): boolean =>
+        useMapStore.getState().mobiliaTipo === 'muroDeFogo' && useFerramentaDoMuroDeFogo.getState().forma === 'pontos'
 
       /**
        * Quantos cantos o traçado ABERTO desta ferramenta ainda tem, e quantos
@@ -6318,9 +6354,14 @@ function PixiCanvasDoContexto({
        * um arrasto e simplesmente não têm traçado aberto para fechar.
        */
       const fazTracadoPontoAPonto = (tool: DrawingTool): boolean =>
-        tool === 'path' || tool === 'polygon' || tool === 'floor' || tool === 'agua' || usaTracadoPontoAPonto(tool)
+        tool === 'path' || tool === 'polygon' || tool === 'floor' || tool === 'agua' || usaTracadoPontoAPonto(tool) || (tool === 'mobilia' && tracaMuroDeFogoPontoAPonto())
 
       const contagemDoTracado = (tool: DrawingTool): { tem: number; minimo: number; oQue: string } | null => {
+        if (tool === 'mobilia') {
+          // Muro de fogo ponto a ponto (`muroDeFogoNoEditor.ts`): dois cantos já dão um muro.
+          const tem = gestoDoMuroDeFogo.pontosDoTracado()
+          return tem > 0 ? { tem, minimo: 2, oQue: 'O muro de fogo' } : null
+        }
         if (tool === 'path') {
           const tem = normalizeDraftPolygonPoints(pathDraftPoints).length
           return tem > 0 ? { tem, minimo: 2, oQue: 'O caminho' } : null
@@ -6396,6 +6437,7 @@ function PixiCanvasDoContexto({
         else if (tool === 'polygon') finishPolygon()
         else if (tool === 'floor') finishCorridor()
         else if (tool === 'agua') gestoDaAgua.fecharPontoAPonto()
+        else if (tool === 'mobilia') gestoDoMuroDeFogo.fechar()
         else finishRegion()
         return true
       }
@@ -6457,6 +6499,7 @@ function PixiCanvasDoContexto({
           if (corridorDraftPoints.length > 0) drawCorridorDraft(cursor)
         }
         gestoDaAgua.tirarUltimoCanto()
+        gestoDoMuroDeFogo.tirarUltimoPonto()
       }
 
       // Onda 1, item 1 (Frente A, "cursor vivo") — `updateCursor` não recebe
@@ -6934,6 +6977,14 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // MURO DE FOGO ponto a ponto com o traçado ABERTO (15/11/2026): o clique é mais um canto, mesmo em cima de
+        // uma alça ou de outro objeto — o mestre está no meio do traço, e largar o traço para selecionar o que
+        // está embaixo perderia os cantos já postos.
+        if (event.button === 0 && activeTool === 'mobilia' && gestoDoMuroDeFogo.pontosDoTracado() > 0) {
+          comecarMuroDeFogo(worldPoint, event.altKey)
+          return
+        }
+
         // Alças do objeto selecionado: com o Selecionar e, desde a caça de 12/11 (E9), com a
         // ferramenta Objeto, que já está com a peça na mão. ANTES do ramo que põe objeto: a
         // bolinha de girar fica fora do corpo, e o clique nela poria outro objeto ali.
@@ -6984,7 +7035,9 @@ function PixiCanvasDoContexto({
           // e o direito não pode largar um móvel por baixo do menu do navegador.
           // A Construção (12/11/2026) põe do mesmo jeito, com a escolha dela.
           const tipo = tipoQueOCliquePoe()
-          if (event.button === 0 && tipo !== null) {
+          // O Muro de fogo (15/11/2026) não nasce de um clique: é traçado, à mão ou ponto a ponto.
+          if (event.button === 0 && tipo === 'muroDeFogo') comecarMuroDeFogo(worldPoint, event.altKey)
+          else if (event.button === 0 && tipo !== null) {
             porMovelNoPonto(tipo, applySnap(worldPoint, map.grid, 'prop', event.altKey))
           }
           return
@@ -8027,6 +8080,10 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-agua') gestoDaAgua.soltar(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-muro-de-fogo') {
+          const pontoDoMuro = toWorldPoint(event.global.x, event.global.y)
+          gestoDoMuroDeFogo.soltar(pontoDoMuro, applySnap(pontoDoMuro, useMapStore.getState().map.grid, 'prop', event.altKey))
+        }
         if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
@@ -8446,6 +8503,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
         if (mode === 'painting-agua') gestoDaAgua.soltar(null)
+        if (mode === 'painting-muro-de-fogo') gestoDoMuroDeFogo.soltar(null, null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(null)
         // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
@@ -8643,6 +8701,8 @@ function PixiCanvasDoContexto({
           if (useMapStore.getState().activeTool === 'barranco') gestoDoBarranco.pairar(worldPoint)
           // ÁGUA: a prévia do ponto a ponto vai até o ponteiro ocioso.
           if (useMapStore.getState().activeTool === 'agua') gestoDaAgua.pairar(worldPoint)
+          // MURO DE FOGO: a prévia do ponto a ponto vai até o ponteiro ocioso (com o encaixe do próximo canto).
+          if (gestoDoMuroDeFogo.pontosDoTracado() > 0) gestoDoMuroDeFogo.pairar(applySnap(worldPoint, useMapStore.getState().map.grid, 'prop', event.altKey))
           const hover = resolveHoverAtIdle(worldPoint)
           hoverKind = hover.kind
           hoverCorner = hover.corner
@@ -9056,6 +9116,12 @@ function PixiCanvasDoContexto({
           const pontoDaAgua = toWorldPoint(event.global.x, event.global.y)
           desenharAnelDoPincel(pontoDaAgua)
           gestoDaAgua.mover(pontoDaAgua)
+          return
+        }
+
+        if (mode === 'painting-muro-de-fogo') {
+          const pontoDoMuro = toWorldPoint(event.global.x, event.global.y)
+          gestoDoMuroDeFogo.mover(pontoDoMuro, applySnap(pontoDoMuro, useMapStore.getState().map.grid, 'prop', event.altKey))
           return
         }
 
@@ -9621,6 +9687,8 @@ function PixiCanvasDoContexto({
             if (corridorDraftPoints.length > 0) finishCorridor()
             // Água: com menos de 3 cantos o Enter avisa e deixa o traçado aberto, como o do Polígono.
             else if (gestoDaAgua.cantosDoTracado() > 0) gestoDaAgua.fecharPontoAPonto()
+            // Muro de fogo: pela saída única do traçado (com 1 canto só, avisa o que faltou e descarta).
+            else if (gestoDoMuroDeFogo.pontosDoTracado() > 0) fecharTracadoPontoAPonto('mobilia')
             else if (polygonDraftPoints.length > 0) finishPolygon()
             else if (pathDraftPoints.length > 0) finishPath()
             else finishRegion()
@@ -9973,6 +10041,7 @@ function PixiCanvasDoContexto({
         gestoDoBarranco.cancelar()
         desenhoDoBarranco.destroy()
         gestoDaAgua.destruir()
+        gestoDoMuroDeFogo.destruir()
         // O pintor das paredes do nó de hoje (o dos nós criados sai com a pilha).
         paredesPorNo.de(wallsGraphics).destroy()
         // As máscaras e os ladrilhos das texturas também: são deste palco só.

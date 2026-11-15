@@ -173,6 +173,8 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   tapeteLongo: [lugar('tecido', 'Tecido', TECIDOS, 'vinho')],
   // Objeto Fogo: sem material (o chão queimado e as brasas têm cor própria, como a chama da fogueira).
   fogo: [],
+  // Muro de fogo (15/11/2026): sem material, como o Fogo.
+  muroDeFogo: [],
   // Móveis de casa (28/10/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha".
   fogao: [lugar('metal', 'Corpo', METAIS, 'ferro'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
   geladeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'latao')],

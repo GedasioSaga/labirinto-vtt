@@ -153,6 +153,9 @@ export const TIPOS_MOBILIA = [
   'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
   'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
+  // O muro de fogo (15/11/2026): o fogo TRAÇADO pelo mestre (à mão ou ponto a ponto), com 1 casa de grossura,
+  // que barra a passagem de saída. A linha mora em `Prop.tracado`; a conta dela em `lib/mobilia/muroDeFogo.ts`.
+  'muroDeFogo',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

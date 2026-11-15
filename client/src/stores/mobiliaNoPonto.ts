@@ -4,6 +4,7 @@ import { compileFloor } from '../lib/floorSdf'
 import { isLayerLocked, isLayerVisible } from '../lib/layers'
 import { criarMovel } from '../lib/mobilia'
 import { TOCHA_DE_PAREDE } from '../lib/mobilia/fogoDeCasa'
+import { muroDoTraco } from '../lib/mobilia/muroDeFogo'
 import { cenaTemChao } from '../lib/offFloor'
 import { mapaDoPiso } from '../lib/pisos'
 import { findContainingRoom, pointInPolygonInclusive } from '../lib/roomNesting'
@@ -68,6 +69,41 @@ export function porMovelNoPonto(
   store.setSelectedConcealZone(null)
   // "Usados há pouco" da ficha da ferramenta: conta o móvel posto, não a escolha.
   lembrarObjetoUsado(tipo)
+  return { kind: 'posto', id: movel.id }
+}
+
+/** O que o traço do Muro de fogo fez: o muro posto ou por que não pôs. */
+export type ResultadoDoMuroDeFogo = ResultadoDoMovel | { kind: 'curto' }
+
+/**
+ * MURO DE FOGO (pedido do mestre de 15/11/2026): o traço da ferramenta Objeto
+ * com o Muro de fogo escolhido (`pixi/muroDeFogoNoEditor.ts`) vira UM objeto,
+ * num passo só do desfazer. `pontos` em px de mundo, já na forma final (a
+ * curva da mão ou os cantos do ponto a ponto). A caixa é o contorno do traço
+ * mais meia casa (`muroDoTraco`); o muro nasce sem giro (o traço já está no
+ * mundo) e barrando a passagem, que é o padrão do tipo (`ehMovelQueBarra`).
+ * As camadas, a seleção e os "usados há pouco" seguem `porMovelNoPonto`.
+ * Traço com menos de 1 casa não vira muro (`curto`).
+ */
+export function porMuroDeFogoNoTraco(pontos: readonly { x: number; y: number }[], novoId: () => string = () => crypto.randomUUID()): ResultadoDoMuroDeFogo {
+  const store = useMapStore.getState()
+  const { map } = store
+  if (isLayerLocked(map.lockedLayers, CAMADA_DO_MOVEL)) {
+    avisarCamadaTravada(CAMADA_DO_MOVEL)
+    return { kind: 'camada-travada' }
+  }
+  if (!isLayerVisible(map.hiddenLayers, CAMADA_DO_MOVEL)) {
+    avisarCamadaOculta(CAMADA_DO_MOVEL)
+    return { kind: 'camada-oculta' }
+  }
+  const muro = muroDoTraco(pontos, map.grid)
+  if (muro === null) return { kind: 'curto' }
+  const movel: Prop = { ...criarMovel('muroDeFogo', { x: muro.x, y: muro.y }, map.grid, novoId()), width: muro.width, height: muro.height, tracado: muro.tracado }
+  store.addProp(movel)
+  store.setSelection(EMPTY_SELECTION)
+  store.setSelectedPin(null)
+  store.setSelectedConcealZone(null)
+  lembrarObjetoUsado('muroDeFogo')
   return { kind: 'posto', id: movel.id }
 }
 

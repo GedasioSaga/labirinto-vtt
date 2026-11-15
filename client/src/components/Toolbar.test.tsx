@@ -290,7 +290,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 240 objetos nas 22 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 241 objetos nas 22 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -306,7 +306,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Banheira', 'Tina de madeira', 'Lavatório com jarro', 'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
       'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
@@ -353,7 +353,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(240)
+    expect(new Set(desenhos).size).toBe(241)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

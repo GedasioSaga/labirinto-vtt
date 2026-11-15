@@ -9,6 +9,7 @@
  * imagem pronta para o tamanho do objeto no mapa (`pixi/rasterDosMoveis.ts`).
  */
 import type { FormaDoTapete } from '../../../types/map'
+import type { PontoDoMuro } from '../../../lib/mobilia/muroDeFogo'
 import { MATERIAIS, oklabDoRgb, tomDoMeio, type IdDoMaterial } from '../materiais'
 import { rgb, type Rgb } from '../../ruido'
 import { contato, TOM_DA_CORDA, type Cena, type ClasseDaPeca, type CriarPeca, type MaterialDaPeca } from './motor'
@@ -212,6 +213,8 @@ export interface ContextoDoMovel {
    * ficam de perfil). Os outros desenhos não leem.
    */
   readonly giro: number
+  /** Só o muro de fogo lê: o traço do mestre, em frações 0..1 da pegada (ausente = a reta pelo meio). */
+  readonly tracado?: readonly PontoDoMuro[]
 }
 
 /** O que monta as peças de um tipo na cena. */

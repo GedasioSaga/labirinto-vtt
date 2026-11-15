@@ -119,6 +119,8 @@ export type PropSilhouette = Pick<
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
   | 'mobiliaDesenho'
+  // O traço do muro de fogo (15/11/2026): a imagem e o desenho de linhas seguem a linha do mestre.
+  | 'tracado'
 > &
   // O id só escolhe a variação da lápide (`varianteDaLapide`); quem chama passa o objeto inteiro.
   Partial<Pick<Prop, 'id'>>
@@ -355,7 +357,7 @@ function varianteDoGlifo(mobilia: NonNullable<PropSilhouette['mobilia']>, forma:
 function strokeFurnitureGlyph(graphics: Graphics, prop: PropSilhouette, edgeWidth: number, edge: SilhouettePaint): void {
   if (prop.mobilia === undefined) return
   const variante = varianteDoGlifo(prop.mobilia, prop.mobiliaForma)
-  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), variante)
+  const segments = tracosDoGlifo(prop.mobilia, prop.width, prop.height, vistaDoMovel(prop), voltaDaCerca(prop), formaDoTapete(prop), variante, prop.tracado)
   if (segments.length === 0) return
   const trig = rotationTrig(prop.rotation ?? 0)
   const center = { x: prop.x, y: prop.y }

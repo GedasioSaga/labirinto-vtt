@@ -26,6 +26,7 @@ import {
 import { ehMovelDeVento, formaDoMoinho, gravarFormaDoVento, normalizarFormaDoVento, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { ehCova, gravarFormaDaCova, normalizarFormaDaCova, type FormaDaCova } from './mobilia/cova'
+import { lerTracadoDoMuro, tracosDoMuroDeFogo } from './mobilia/muroDeFogo'
 
 /**
  * MOBÍLIA DESENHADA — barril, caixa, baú, cama, mesa, cadeira, cerca, armário
@@ -384,7 +385,8 @@ export function ehMovelRedondo(tipo: TipoMobilia | undefined, vista: VistaMobili
  */
 export function ehMovelVazado(tipo: TipoMobilia | undefined): boolean {
   // A sebe (MT5) também: o provisório dela é só a faixa (`tracosDoGlifo`), sem a caixa reta atrás da curva.
-  return tipo === 'cerca' || tipo === 'sebe'
+  // O muro de fogo (15/11/2026) também: a caixa dele é a do traço inteiro, e o muro é só a faixa em volta da linha.
+  return tipo === 'cerca' || tipo === 'sebe' || tipo === 'muroDeFogo'
 }
 
 /**
@@ -465,10 +467,12 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * máquinas cheias, sobre rodas ou num pé em X). O aríete com teto não barra
  * de saída, como a tenda: a tartaruga é feita para se entrar debaixo dela; a
  * escada de cerco também não, deitada no chão passa-se por cima.
+ * O MURO DE FOGO (15/11/2026) barra de saída, por decisão do mestre: é para
+ * isso que ele serve; a chave do painel o deixa atravessável.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
   if (ehConstrucao(tipo)) return construcaoBarraDeFabrica(tipo)
-  return tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista'
+  return tipo === 'muroDeFogo' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista'
 }
 
 /**
@@ -1491,8 +1495,12 @@ export function tracosDoGlifo(
   forma: FormaDoTapete = 'retangular',
   /** Só nos troncos e no feno: a forma (0 a de partida, 1 a outra; `varianteDaPilha`). */
   variante = 0,
+  /** Só no muro de fogo: o traço do mestre (`Prop.tracado`); ausente = a reta pelo meio. */
+  tracado?: Prop['tracado'],
 ): TracoDoGlifo[] {
   if (!tamanhoDesenhavel(largura, altura)) return []
+  // O muro de fogo (15/11/2026): o provisório é o contorno da faixa em volta do traço.
+  if (tipo === 'muroDeFogo') return tracosDoMuroDeFogo(largura, altura, tracado)
   if (vista === 'lado' && aceitaVista(tipo)) return tracosDeLado(tipo, largura, altura, forma)
   // A sebe (MT5) tem a geometria da cerca: o provisório é a faixa dela, reta ou dobrada no arco.
   if (tipo === 'sebe') return contorno(contornoDaCerca(largura, altura, voltaDaCerca))
@@ -1582,7 +1590,9 @@ export function movelComOutroTipo(prop: Prop, tipo: TipoMobilia, grade: number):
   )
   // As cores de tecido são só das camas: outro tipo não tem travesseiro nem cobertor (da de solteiro para a de
   // casal, e de volta, elas ficam).
-  const curvado = semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva)))
+  // O traço é só do muro de fogo, e é do tamanho que ele tinha: com o tamanho padrão do tipo novo, sai (o muro
+  // que vem de outro tipo nasce reto).
+  const curvado = comTracadoGravado(semTecidoForaDaCama(comCurvaGravada(trocado, normalizarCurvaDaCerca(tipo, prop.mobiliaCurva))), undefined)
   // A versão em linhas só existe nos 11 de antes (MT12): a peça nova sai sempre com textura.
   const movel = ofereceDesenhoEmLinhas(tipo) ? curvado : comDesenhoGravado(curvado, undefined)
   if (!ehPecaNova(tipo) || !('mobiliaPreenchido' in movel)) return movel
@@ -1857,12 +1867,26 @@ function semTecidoForaDaCama(prop: Prop): Prop {
   return semTecido
 }
 
+/** O TRAÇO do muro de fogo no disco: só no muro, e só o que `lerTracadoDoMuro` aceita; limpo, é o mesmo array. */
+export function normalizarTracadoDoMuro(tipo: TipoMobilia | undefined, tracado: unknown): Prop['tracado'] {
+  return tipo === 'muroDeFogo' ? lerTracadoDoMuro(tracado) : undefined
+}
+
+/** O objeto com este traço (`undefined` = sem o campo). O mesmo traço devolve o mesmo objeto. */
+function comTracadoGravado(prop: Prop, tracado: Prop['tracado']): Prop {
+  if (tracado !== undefined) return prop.tracado === tracado ? prop : { ...prop, tracado }
+  if (!('tracado' in prop)) return prop
+  const { tracado: _tracado, ...semTracado } = prop
+  return semTracado
+}
+
 /**
  * Objeto comum: tira o tipo, a aparência e a vista de móvel, se houver (sem
  * tipo, a aparência não tem o que pintar nem a vista o que virar).
  */
 function semNadaDeMovel(prop: Prop): Prop {
   if (
+    !('tracado' in prop) &&
     !('mobilia' in prop) &&
     !('mobiliaPreenchido' in prop) &&
     !('mobiliaCor' in prop) &&
@@ -1887,6 +1911,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaCorDoTravesseiro: _corDoTravesseiro,
     mobiliaCorDoCobertor: _corDoCobertor,
     mobiliaDesenho: _desenho,
+    tracado: _tracado,
     ...comum
   } = prop
   return comum
@@ -1903,8 +1928,9 @@ function semNadaDeMovel(prop: Prop): Prop {
  */
 export function propMobiliaFromFile(prop: Prop): Prop {
   if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
+  // MURO DE FOGO: o traço só no muro, só pontos de 0 a 1, até o teto; o torto some.
   // DESENHO (Meio-Termo): só `'linhas'`; o resto some.
-  const lido = comDesenhoGravado(comFormaGravada(
+  const lido = comTracadoGravado(comDesenhoGravado(comFormaGravada(
     comCurvaGravada(
       comVistaGravada(
         comAparenciaGravada(prop, {
@@ -1922,8 +1948,9 @@ export function propMobiliaFromFile(prop: Prop): Prop {
     ),
     // TAPETE: só `'redondo'`, e só no tapete; PRATOS: só `'vazio'` e `'pilha'`; o resto some.
     normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma),
-  ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho))
+  ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)), normalizarTracadoDoMuro(prop.mobilia, prop.tracado))
   const mesmo =
+    lido.tracado === prop.tracado &&
     mesmaAparenciaDoMovel(lido, prop) &&
     lido.mobiliaVista === prop.mobiliaVista &&
     lido.mobiliaCurva === prop.mobiliaCurva &&
@@ -1962,6 +1989,9 @@ export function mobiliaParaJogador(prop: Prop): Partial<Prop> {
   if (corDoTravesseiro !== undefined) paraJogador.mobiliaCorDoTravesseiro = corDoTravesseiro
   const corDoCobertor = normalizarCorDeTecido(prop.mobilia, prop.mobiliaCorDoCobertor)
   if (corDoCobertor !== undefined) paraJogador.mobiliaCorDoCobertor = corDoCobertor
+  // O TRAÇO do muro de fogo: só no muro e só o que a leitura aceita; sem ele o jogador veria a reta pelo meio.
+  const tracado = normalizarTracadoDoMuro(prop.mobilia, prop.tracado)
+  if (tracado !== undefined) paraJogador.tracado = tracado
   // O DESENHO (Meio-Termo): só `'linhas'` num tipo do catálogo.
   const desenho = normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)
   if (desenho !== undefined) paraJogador.mobiliaDesenho = desenho

@@ -6,6 +6,7 @@
  * cerca, semente).
  */
 import type { TipoMobilia } from '../../../lib/mobilia/tipos'
+import type { PontoDoMuro } from '../../../lib/mobilia/muroDeFogo'
 import type { FormaDoTapete } from '../../../types/map'
 import { LUGARES_DE_MATERIAL, ehMaterial, type OpcaoDeMaterial } from '../materiais'
 import { G, materialDaPeca, type LadoDoMovel, type MateriaisDoMovel, type MontarMovel } from './contexto'
@@ -293,6 +294,7 @@ import { montarRodaGigante } from './rodaGigante'
 import { montarCasaNaArvore } from './casaNaArvore'
 import { montarPergolaComTrepadeira } from './pergolaComTrepadeira'
 import { montarPortalTorii } from './portalTorii'
+import { montarMuroDeFogo } from './muroDeFogo'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -648,6 +650,8 @@ const MONTADORES = {
   casaNaArvore: montarCasaNaArvore,
   pergolaComTrepadeira: montarPergolaComTrepadeira,
   portalTorii: montarPortalTorii,
+  // Muro de fogo (15/11/2026): só a faixa de chão queimado ao longo do traço; as chamas são `pixi/fogosDoMapa.ts`.
+  muroDeFogo: montarMuroDeFogo,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -722,6 +726,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'farol', 'coreto', 'guindasteDePorto', 'posteComRelogio', 'quiosque',
   'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
+  'muroDeFogo',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {
@@ -757,6 +762,8 @@ export interface DesenhoDoMovel {
    * aparece embaixo. Ausente = "de cima com volume".
    */
   readonly vista?: 'tres-quartos'
+  /** Só no muro de fogo: o traço do mestre, em frações 0..1 da pegada (ausente = a reta pelo meio). */
+  readonly tracado?: readonly PontoDoMuro[]
 }
 
 /**
@@ -787,7 +794,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0 }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0, tracado: d.tracado }
   MONTADORES[d.tipo](contexto, cena)
   // O quarto de volta é pintado NAS DUAS VISTAS (achado V2 de 12/11/2026): a forma das sombras gira com a cena e o
   // deslocamento delas entra depois, na pintura, então a sombra cai sempre para baixo à direita. Na 3/4 é pintado

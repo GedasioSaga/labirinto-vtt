@@ -17,6 +17,7 @@ import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Ce
 import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { ehMovelQueAcende } from '../lib/mobilia/fogoDeCasa'
 import { CASA_DO_FOGO_PX, tamanhoDoFogo } from '../lib/mobilia/fogo'
+import { chaveDoTracado } from '../lib/mobilia/muroDeFogo'
 import { assinarMoveisDesenhados, BYTES_DE_TRABALHO_DO_DESENHADO, pedirMovelDesenhado, pintarMovelDesenhado, raioDoHaloDoLampiao, tomDoLugar, type HaloDoMovel } from '../texturas/desenhado/moveis'
 import { planejarMovel, type GeometriaDaCercaEmCasas, type MovelCarregado, type Pedido } from '../texturas/desenhado/movel'
 import { pedirTrechoDesenhado, planejarTrecho, type PlanoDaPlanta } from '../texturas/desenhado/trecho'
@@ -76,7 +77,8 @@ export const PASSO_DA_FLECHA = 0.02
  * vez de 2,68 (mourão e fio viravam borrão) e a de 100 no nível 1, com 0,18.
  * A sebe e o tapete longo (MT5) também têm comprimento livre e saem do mesmo jeito.
  */
-const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca', 'sebe', 'tapeteLongo'])
+// O muro de fogo (15/11/2026) também: o traço do mestre atravessa o mapa, e a caixa dele é a do traço inteiro.
+const TIPOS_EM_LADRILHOS: ReadonlySet<string> = new Set(['cerca', 'sebe', 'tapeteLongo', 'muroDeFogo'])
 const MEGABYTE = 1024 * 1024
 export const TETO_NO_COMPUTADOR = 64 * MEGABYTE
 export const TETO_NO_TOQUE = 24 * MEGABYTE
@@ -114,7 +116,7 @@ export interface ChaveDoMovel {
 /** O que a silhueta passa para cá: o tamanho e a aparência do móvel. */
 export type MovelParaImagem = Pick<
   Prop,
-  'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor'
+  'width' | 'height' | 'mobilia' | 'mobiliaCor' | 'mobiliaCorDaLinha' | 'mobiliaVista' | 'mobiliaCurva' | 'mobiliaForma' | 'mobiliaCorDoTravesseiro' | 'mobiliaCorDoCobertor' | 'tracado'
 > &
   // Só a lápide lê o id: a variação do desenho sai dele (`varianteDaLapide`).
   // O giro: o quarto de volta é pintado na imagem (`giroDaImagem`).
@@ -261,8 +263,12 @@ export function chaveDoMovel(prop: MovelParaImagem, cameraScale: number, rendere
     ...(prop.mobilia === 'moinho' && formaDoMoinho(prop.mobiliaForma) === 'torre' ? { variante: 1 } : {}),
     // Na semente o giro entra só na placa de seta, como sempre: girar a cama não troca o veio dela.
     ...(prop.mobilia === 'placaDeSeta' && giro !== 0 ? { giro } : {}),
+    // O muro de fogo (15/11/2026): o traço do mestre é o desenho inteiro.
+    ...(prop.mobilia === 'muroDeFogo' && prop.tracado !== undefined ? { tracado: prop.tracado } : {}),
   }
-  const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop) }
+  // O traço do muro entra na chave no lugar da curva da cerca (o muro não tem volta): muros de traços diferentes
+  // não dividem a imagem, e os de traço igual (o copiado e colado), sim.
+  const parcial = { vistaDoMapa: 'de-cima' as VistaDoMapa, forma: formaDoTapete(prop), ...curvaDaCerca(prop), ...(prop.mobilia === 'muroDeFogo' ? { chaveDaCurva: chaveDoTracado(prop.tracado) } : {}) }
   // A semente sai sempre do desenho "de cima": o mesmo móvel tem o mesmo veio nas duas vistas.
   const semente = sementeDoTexto(textoDoDesenho({ ...parcial, desenho: semSemente }))
   // O desenho leva a forma do tapete, a volta da cerca (já quantizada pela flecha) e o quarto de volta pintado

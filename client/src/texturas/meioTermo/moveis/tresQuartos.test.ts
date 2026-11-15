@@ -105,7 +105,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // protótipo aceita 0,03); o cata-vento de brinquedo e a ponte ganham ~1% de sombra embaixo na 3/4 (a régua pedia 2%).
   const FOLGA_DO_PISO: Partial<Record<TipoMobilia, number>> = { chafariz: 0.004, cova: 0.004 }
   const GANHO_DA_SOMBRA: Partial<Record<TipoMobilia, number>> = { cataVentoBrinquedo: 1.005, ponte: 1.005 }
-  for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo')) {
+  // O muro de fogo (15/11/2026) fica de fora como o fogo: só chão queimado, plano, sem contorno nem tampo.
+  for (const tipo of TIPOS_MOBILIA.filter((t) => t !== 'fogo' && t !== 'muroDeFogo')) {
     const rente = RENTES.includes(tipo)
     // A torre de pedra (12/11/2026) pinta em 2,3 s com a máquina livre e 4,8 s ocupada: o teto do campinho, para falhar por imagem e não por tempo.
     // A cama de dossel (14/11/2026) também: o portão da folha mediu 1,7 s por pintura da 3/4, e o teste pinta mais de uma.
