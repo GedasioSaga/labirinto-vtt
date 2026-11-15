@@ -5234,8 +5234,11 @@ function PixiCanvasDoContexto({
        * toggles do painel para destravar ou mostrar. Travado não se move (o
        * arrasto abaixo já checa `canInteract`); oculto aparece como fantasma
        * (`tokensRenderer.ts`). Só a camada travada tira o token do clique.
-       * Objeto oculto no editor também fica clicável (fantasma em drawProps.ts);
-       * objeto travado segue a regra de antes (`podeMexer`).
+       * Objeto oculto no editor também fica clicável (fantasma em drawProps.ts),
+       * e objeto TRAVADO também (bug de 15/11/2026: a geladeira travada saía
+       * do clique, o clique pegava a sala de baixo e não sobrava caminho para
+       * o cadeado). Travado abre a ficha mas não se move: arrasto, alças e
+       * giro já checam `canInteract`. Só a camada travada tira o objeto.
        */
       /**
        * Pino sob o ponto do mundo, respeitando camada oculta e o "oculto no
@@ -5295,7 +5298,7 @@ function PixiCanvasDoContexto({
         return {
           ...interagiveis(map),
           tokens: map.tokens.filter((token) => !camadas.travada(camadas.camadaDe('ficha', token))),
-          props: map.props.filter((prop) => camadas.podeMexer('objeto', prop)),
+          props: map.props.filter((prop) => !camadas.travada(camadas.camadaDe('objeto', prop))),
           // Região/Sala TRAVADA continua clicável, pelo mesmo motivo do token
           // travado acima — e por um que só aparece aqui: Região é o kind mais
           // EMBAIXO da cadeia de prioridade (selectionHitTest.ts), então tirá-la
