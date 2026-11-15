@@ -1,7 +1,7 @@
 import { BufferImageSource, Container, Geometry, GlProgram, Mesh, Shader, UniformGroup, type Renderer, type TextureSource, type Ticker } from 'pixi.js'
 import type { Agua, Periodo } from '../types/map'
 import type { Caixa } from '../lib/texturas'
-import { CASA_U, FORA, buracoDoCampo, campoDoCorpo, comporCampo, porOBuraco, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo, type FormaDoBuraco } from '../lib/agua/campo'
+import { CASA_U, FORA, PASSO_DA_MEIA_U, buracoDoCampo, campoDoCorpo, comporCampo, porOBuraco, unirCaixas, uPorPx, type CaixaEmTexels, type CampoComposto, type CampoDoCorpo, type CorpoDoCampo, type FormaDoBuraco } from '../lib/agua/campo'
 import { chaveDoCorpo, corpoDaAgua, formasDoBuraco, texelDasAguas } from '../lib/agua/corpos'
 import type { EntornoDaAgua } from '../lib/agua/entorno'
 import { aquecerPrograma, programaPronto } from './aquecerPrograma'
@@ -66,7 +66,7 @@ in vec2 vPos;
 uniform sampler2D uF1;
 uniform sampler2D uF2;
 uniform sampler2D uF3;
-// O chão das salas e do Chão Liso por cima da água (vermelho = cobertura).
+// O chão das salas e do Chão Liso por cima da água (vermelho = cobertura), a areia tirada (verde) e a meia largura do rio (azul).
 uniform sampler2D uF4;
 uniform sampler2D uRuido;
 // u por px de mundo, tempo (s), noite (0 ou 1), u por texel do campo.
@@ -243,7 +243,8 @@ void main() {
   vec4 acc = vec4(0.0);
   // O pincel "Tirar areia" (verde do uF4): a areia some no trecho tirado, com a beira quebrada pelo ruído; a água e a espuma ficam.
   // Também é a beira que não é margem (borda do mapa, junto de sala): ali nem areia nem rocha.
-  float semAreia = texture(uF4, uv).g;
+  vec4 f4 = texture(uF4, uv);
+  float semAreia = f4.g;
   if (lava < 0.99) {
     vec3 areia = mix(vec3(214., 194., 134.) / 255., vec3(191., 167., 116.) / 255., contraste(R(w / 30.0).b, 1.6));
     float bordaDaPraia = -d + (nl.a - 0.5) * 26.0 + (nm.b - 0.5) * 12.0 + (R(w / 6.0).g - 0.5) * 7.0 - smoothstep(0.6, 0.8, tufo) * 6.0;
@@ -361,7 +362,12 @@ void main() {
       float rapidezDaLava = mix(3.0, 24.0, vel);
       vec2 qr = vec2(f1.y - rapidezDaLava * t, f1.z);
       float calorR = clamp(smoothstep(0.38, 0.75, R(qr / 170.0 + 2.0).a * 0.65 + R(qr / 61.0 + 5.0).b * 0.35) + miolo * 0.6, 0.0, 1.0) * perto;
-      corL += rio * corDaLava(qr, 1.35, clamp(meiaLargura * 0.85, 14.0, 34.0), base, calorR, t, ondas, noite, uPx);
+      // O tamanho das placas sai da meia largura DO RIO (o azul do uF4, igual nele inteiro). Da medida no pixel
+      // (meiaLargura) não: ela encolhe na ponta redonda e treme no eixo, a grade das placas mudava de escala ali e a
+      // crosta virava um leque de riscos na ponta e um risco ao longo do meio (a grade é dividida pelo tamanho da
+      // placa, e a coordenada dela cresce com o tempo de correnteza: o desvio crescia junto).
+      float meiaDoRio = f4.b * ${(255 * PASSO_DA_MEIA_U).toFixed(1)};
+      corL += rio * corDaLava(qr, 1.35, clamp(meiaDoRio * 0.85, 14.0, 34.0), base, calorR, t, ondas, noite, uPx);
     }
     if (rio < 0.99) {
       vec2 qa = w + mix(vec2(2.2, 1.1), vec2(-1.3, 1.9), mar) * t;
@@ -378,7 +384,7 @@ void main() {
   acc = sobre(acc, agua, cobre);
   acc = sobre(acc, corDaEspuma, clamp(rendaMar, 0.0, 1.0) * 0.9 * (1.0 - lava));
   // O chão das salas e do Chão Liso por cima: a cobertura lida como distância (meio = a borda), fina em qualquer zoom.
-  float cob = texture(uF4, uv).r;
+  float cob = f4.r;
   float aaDoChao = max(fwidth(cob), 0.001) * 0.7;
   acc *= 1.0 - smoothstep(0.5 - aaDoChao, 0.5 + aaDoChao, cob);
   if (acc.a <= 0.002) discard;

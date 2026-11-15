@@ -26,6 +26,8 @@ export const PERTO = 56
 export const TEXEL_U = 4
 /** Teto de texels do campo composto: acima disso o texel cresce (mar enorme fica mais macio, nunca estoura memória). */
 export const TEXELS_MAX = 1_200_000
+/** u por passo do byte da meia largura do rio (o azul de `f4`): de 0 a 127,5 u, e o rio mais largo (6 casas) tem 120. */
+export const PASSO_DA_MEIA_U = 0.5
 
 export function uPorPx(grid: number): number {
   return CASA_U / Math.max(1, grid)
@@ -82,6 +84,8 @@ export interface CampoDoCorpo extends CaixaEmTexels {
   /** Só rio. */
   s?: Float32Array
   n?: Float32Array
+  /** Só rio: quanto o texel passa da ponta solta do trecho, no rumo dele (u): negativo antes do começo, positivo depois do fim, 0 ao lado do rio. */
+  alem?: Float32Array
 }
 
 export interface CampoComposto extends CaixaEmTexels {
@@ -90,7 +94,11 @@ export interface CampoComposto extends CaixaEmTexels {
   f1: Float32Array
   f2: Uint8Array
   f3: Uint8Array
-  /** Vermelho: o chão por cima da água (cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). Verde: a areia tirada pelo pincel (0 = com areia). */
+  /**
+   * Vermelho: o chão por cima da água (cobertura do buraco das salas e do Chão Liso, 0 = água a 1 = chão). Verde: a
+   * areia tirada pelo pincel (0 = com areia). Azul: a meia largura do rio que manda no texel, em passos de
+   * `PASSO_DA_MEIA_U` (0 = sem rio); a mesma no rio inteiro, ponta inclusive.
+   */
   f4: Uint8Array
   /** Só quando pedido (`comporCampo`): por texel, a posição na lista do corpo que manda ali (a água mais funda), -1 = nenhum. */
   dono?: Int16Array
@@ -179,9 +187,16 @@ function campoDoRio(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   const dm = new Float32Array(n).fill(1e18)
   const S = new Float32Array(n)
   const N = new Float32Array(n)
+  const alem = new Float32Array(n)
   const alcance = meia + FORA
   for (const trecho of c.trechos ?? []) {
     const { xy, s } = trecho
+    // As pontas soltas do trecho: o primeiro e o último lance com comprimento (ponto repetido não tem rumo).
+    const temRumo = (i: number): boolean => xy[i] !== xy[i + 2] || xy[i + 1] !== xy[i + 3]
+    let primeiro = 0
+    let ultimo = xy.length - 4
+    while (primeiro < ultimo && !temRumo(primeiro)) primeiro += 2
+    while (ultimo > primeiro && !temRumo(ultimo)) ultimo -= 2
     for (let i = 0; i + 3 < xy.length; i += 2) {
       const ax = xy[i]
       const ay = xy[i + 1]
@@ -203,7 +218,8 @@ function campoDoRio(c: CorpoDoCampo, texel: number): CampoDoCorpo {
           const px = (tx + 0.5) * texel
           const qx = px - ax
           const qy = py - ay
-          const t = grampo((qx * ux + qy * uy) / L, 0, 1)
+          const andado = qx * ux + qy * uy
+          const t = grampo(andado / L, 0, 1)
           const ex = qx - ux * L * t
           const ey = qy - uy * L * t
           const d2 = ex * ex + ey * ey
@@ -213,6 +229,8 @@ function campoDoRio(c: CorpoDoCampo, texel: number): CampoDoCorpo {
             dm[k] = d2
             S[k] = s0 + t * L
             N[k] = ux * qy - uy * qx
+            // Depois da ponta solta o comprimento para (`S`); o quanto o texel passa dela, no rumo do lance, fica à parte.
+            alem[k] = i === primeiro && andado < 0 ? andado : i === ultimo && andado > L ? andado - L : 0
           }
         }
       }
@@ -220,7 +238,7 @@ function campoDoRio(c: CorpoDoCampo, texel: number): CampoDoCorpo {
   }
   const sd = new Float32Array(n)
   for (let k = 0; k < n; k += 1) sd[k] = dm[k] > 1e17 ? -1e9 : grampo(meia - Math.sqrt(dm[k]), -1e9, FUNDO)
-  return { ...cx, sd, s: S, n: N }
+  return { ...cx, sd, s: S, n: N, alem }
 }
 
 /** Dentro do contorno, linha por linha (par ou ímpar), no centro de cada texel. */
@@ -421,7 +439,10 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
           if (v > vRio) {
             vRio = v
             rio = corpo
-            sRio = k.s === undefined ? 0 : k.s[i]
+            // O rio de LAVA segue contando o comprimento depois da ponta solta (`alem`): as placas da crosta são um
+            // desenho nítido, e com o comprimento parado na ponta se esticavam em riscos. A água fica como sempre foi.
+            const depoisDaPonta = (corpo.lava ?? 0) > 0 && k.alem !== undefined ? k.alem[i] : 0
+            sRio = k.s === undefined ? 0 : k.s[i] + depoisDaPonta
             nRio = k.n === undefined ? 0 : k.n[i]
           }
         } else if (v > vArea) {
@@ -453,6 +474,9 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       const lavaA = pa.lava ?? 0
       f3[p + 3] = Math.round(255 * (lavaA + ((pb.lava ?? 0) - lavaA) * pr))
       f4[p + 1] = saArea
+      // A meia largura do rio, igual em todo texel dele: o shader tira dela o tamanho das placas da lava. Medida no
+      // texel (distância + lado), ela encolhe na ponta redonda e treme no eixo, e a placa mudava de tamanho ali.
+      if (rio !== null) f4[p + 2] = Math.round(Math.min(255, (rio.meia ?? 0) / PASSO_DA_MEIA_U))
     }
   }
   return { ...r, texel, f1, f2, f3, f4, ...(dono === null ? {} : { dono }) }
