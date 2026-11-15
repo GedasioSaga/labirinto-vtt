@@ -177,7 +177,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   muroDeFogo: [],
   // Móveis de casa (28/10/2026). O primeiro lugar vai na "Cor"; o segundo, na "Cor da linha".
   fogao: [lugar('metal', 'Corpo', METAIS, 'ferro'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
-  geladeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('ferragens', 'Ferragens', METAIS, 'latao')],
+  // A geladeira de inox (15/11/2026) não tem escolha: o aço é fixo, como a louça dos pratos. O mapa antigo com
+  // madeira e latão escolhidos para a caixa de gelo de antes abre de inox.
+  geladeira: [],
   pia: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   balcao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('barra', 'Barra de pé', METAIS, 'latao')],
   // A mesa posta: a louça, a comida e a caneca têm cor própria (como as flores da jardineira); o que muda é a forma.

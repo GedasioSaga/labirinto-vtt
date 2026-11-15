@@ -51,9 +51,12 @@ const LARGURA_DA_FOLHA = 0.75
 
 // ---------- a frente em faixas ----------
 
-/** A fresta de cada faixa (px do protótipo) e as cantoneiras que fecham as frestas dos dois lados, como na estante. */
-const FRESTA = 0.25
-const CANTONEIRA = 0.5
+/**
+ * A fresta de cada faixa (px do protótipo) e as cantoneiras que fecham as frestas dos dois lados, como na estante.
+ * A frente em faixas (`fatiar`, `naFaixa`) também serve à geladeira, ao baú e ao balcão (15/11/2026).
+ */
+export const FRESTA = 0.25
+export const CANTONEIRA = 0.5
 /** A faixa guardada fica a esta distância do fundo da pegada, no mínimo, e as frestas cabem nesta sobra da frente. */
 const FOLGA_DO_GUARDADO = 2.5
 const SOBRA_DAS_FRESTAS = 2.5
@@ -70,7 +73,7 @@ const FOLGA_DO_CORTE = 3
 const FORA_DA_FAIXA = 1e3
 
 /** Uma faixa da frente: as alturas que ela cobre (px do protótipo a partir do chão) e onde fica guardada. */
-interface Faixa {
+export interface Faixa {
   readonly pe: number
   readonly topo: number
   /** O y da vista de cima em que o pé da faixa fica: o começo da fresta dela. */
@@ -80,10 +83,10 @@ interface Faixa {
 }
 
 /** A peça da frente não projeta sombra nem tem deslocamento: a cópia de uma faixa escureceria a da outra. */
-type OpcoesDaFrente = Omit<OpcoesDaPeca, 'dx' | 'dy' | 'projeta' | 'polar' | 'arco' | 'ruga' | 'curvaY'>
+export type OpcoesDaFrente = Omit<OpcoesDaPeca, 'dx' | 'dy' | 'projeta' | 'polar' | 'arco' | 'ruga' | 'curvaY'>
 
 /** Uma peça desenhada DE FRENTE: x como na pegada, y = 0 no chão e negativo para cima. */
-interface PecaDaFrente {
+export interface PecaDaFrente {
   readonly forma: Forma
   readonly mat: MaterialDaPeca
   readonly o: OpcoesDaFrente
@@ -97,7 +100,7 @@ interface PecaDaFrente {
  * saber em que estrutura a peça está. A textura esconde o que passa da faixa e
  * devolve ao material as coordenadas da frente, para o veio não quebrar no corte.
  */
-function naFaixa(P: CriarPeca, peca: PecaDaFrente, fx: Faixa): Peca | null {
+export function naFaixa(P: CriarPeca, peca: PecaDaFrente, fx: Faixa): Peca | null {
   const f = peca.forma
   const desce = fx.base + fx.pe
   const visivel0 = Math.max(fx.base - (fx.topo - fx.pe), f.b[1] + desce) - EMENDA
@@ -125,7 +128,7 @@ function naFaixa(P: CriarPeca, peca: PecaDaFrente, fx: Faixa): Peca | null {
 }
 
 /** As faixas da frente, de baixo para cima (a última é a de cima), e onde o corpo acaba e as frestas começam. */
-function fatiar(H: number, pe: number, deCima: number, h: number, hh: number): { faixas: Faixa[]; frente: number } {
+export function fatiar(H: number, pe: number, deCima: number, h: number, hh: number): { faixas: Faixa[]; frente: number } {
   const maxima = Math.max(FAIXA_MINIMA, h - FOLGA_DO_GUARDADO - SOBRA_DAS_FRESTAS)
   const guardadas = Math.max(1, Math.ceil((H - deCima - pe) / maxima))
   const passo = (H - deCima - pe) / guardadas
@@ -158,8 +161,11 @@ const TOM_DO_CORPO = 0.84
 const TOM_DA_MOLDURA = 0.8
 const TOM_DO_PAINEL = 1.05
 const TOM_DO_VAO = 0.52
-/** A sombra que a cornija faz no alto das portas: o escuro quente da nogueira, meio transparente. */
-const SOMBRA: MaterialDaPeca = { classe: 'liso', rgb: [0x2e, 0x21, 0x18] }
+/**
+ * A sombra que a cornija faz no alto das portas: o escuro quente da nogueira, meio transparente. A tampa do baú e a
+ * beira do tampo do balcão fazem a mesma na frente deles.
+ */
+export const SOMBRA_DA_MADEIRA: MaterialDaPeca = { classe: 'liso', rgb: [0x2e, 0x21, 0x18] }
 const ALTO_DA_SOMBRA_DA_CORNIJA = 2.6
 /** O puxador: o raio do botão e a altura dele na folha, em fração da altura dela. */
 const RAIO_DO_PUXADOR = 1.6
@@ -232,7 +238,7 @@ function desenharFrente(hw: number, w: number, g: number, mad: MaterialDaPeca, p
   }
 
   // A cornija de frente: a gola recuada, o friso que avança por cima dela e a sombra que os dois fazem nas folhas.
-  por(caixa(-hw + 1.2, -H + cornija - ALTO_DA_SOMBRA_DA_CORNIJA * 0.2, hw - 1.2, -H + cornija + ALTO_DA_SOMBRA_DA_CORNIJA), SOMBRA, { bisel: 0, contorno: 0, alfa: 0.3, suave: 1.6 })
+  por(caixa(-hw + 1.2, -H + cornija - ALTO_DA_SOMBRA_DA_CORNIJA * 0.2, hw - 1.2, -H + cornija + ALTO_DA_SOMBRA_DA_CORNIJA), SOMBRA_DA_MADEIRA, { bisel: 0, contorno: 0, alfa: 0.3, suave: 1.6 })
   por(caixa(-hw + 0.9, -H + cornija * 0.42, hw - 0.9, -H + cornija, 0.4), mad, { tabua: 0, bisel: 0.7, tom: 0.88, semente: 713 })
   por(caixa(-hw, -H, hw, -H + cornija * 0.5, 0.7), mad, { tabua: 0, bisel: 1.3, tom: 1.03, semente: 714 })
   return { pecas, puxadores, alturaDoPuxador }

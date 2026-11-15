@@ -114,7 +114,8 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       fogo: [],
       // Móveis de casa (28/10/2026).
       fogao: ['metal:ferro', 'puxadores:latao'],
-      geladeira: ['madeira:carvalho', 'ferragens:latao'],
+      // A geladeira de inox (15/11/2026): sem escolha, o aço é fixo.
+      geladeira: [],
       pia: ['pedra:granito', 'madeira:carvalho'],
       balcao: ['madeira:nogueira', 'barra:latao'],
       pratos: [],

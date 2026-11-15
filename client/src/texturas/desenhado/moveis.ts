@@ -39,10 +39,13 @@ import {
  * outros, de propósito: cada um guarda a forma que a sua conta lê.
  */
 
-/** F3a: os 25 que não esticam, e os 2 caixões do cemitério (07/11/2026). */
+/**
+ * F3a: os que não esticam, e os 2 caixões do cemitério (07/11/2026). A geladeira saiu em 15/11/2026: o pacote tem a
+ * caixa de gelo de madeira de antes, e a geladeira agora é de inox; na cena Desenhada ela fica com o desenho do Atual.
+ */
 const TIPOS_DA_F3A = [
   'armario', 'balde', 'barraca', 'barril', 'bau', 'bigorna', 'cadeira', 'caixa', 'carroca', 'catre', 'feno', 'fogao', 'fogo',
-  'fogueira', 'fornalha', 'geladeira', 'lampiao', 'lareira', 'pia', 'placaDeSeta', 'poco', 'poltrona', 'pratos', 'privada',
+  'fogueira', 'fornalha', 'lampiao', 'lareira', 'pia', 'placaDeSeta', 'poco', 'poltrona', 'pratos', 'privada',
   'quadroDeAvisos',
   'caixao', 'caixaoAberto',
 ] as const

@@ -131,7 +131,8 @@ const EM_PE: PerfilDoTresQuartos = { modo: 'em-pe' }
 export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   barril: DERIVADO,
   caixa: DERIVADO,
-  bau: DERIVADO,
+  // O baú tem a frente desenhada em faixas (15/11/2026): o perfil sem beirada fica junto da geladeira, logo abaixo.
+  bau: { modo: 'derivado', espessura: 0 },
   catre: DERIVADO,
   mesa: DERIVADO,
   cadeira: DERIVADO,
@@ -164,9 +165,13 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   muroDeFogo: DERIVADO,
   // Móveis de casa (28/10/2026): as alturas saem das sombras de cada um, como o armário.
   fogao: DERIVADO,
-  geladeira: DERIVADO,
+  // A geladeira de inox, o baú e o balcão (15/11/2026, "o 3/4 do baú é estranho", "o balcão em 3/4 fica estranho") têm
+  // a frente desenhada em faixas, como o guarda-roupa: as portas, as cintas e o fecho, e os painéis do balcão. Sem
+  // beirada: a faixa de baixo começa no chão (a grade da geladeira, o pé das cintas) e a barra de pé do balcão, um
+  // tampo solto na altura dela, sobe sem ganhar uma tira de latão por baixo.
+  geladeira: { modo: 'derivado', espessura: 0 },
   pia: DERIVADO,
-  balcao: DERIVADO,
+  balcao: { modo: 'derivado', espessura: 0 },
   // A mesa posta sobe a altura do tampo, com a sombra junto: ela está em cima da mesa.
   pratos: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },
   privada: DERIVADO,

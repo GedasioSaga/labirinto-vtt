@@ -624,11 +624,11 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
         </>
       )
     case 'geladeira':
-      // O armário alto em duas portas (a do gelo em cima, menor), com os trincos.
+      // A geladeira de inox de duas portas lado a lado (15/11/2026): a fresta no meio e os dois puxadores retos junto dela.
       return (
         <>
-          <rect x="6" y="3" width="12" height="18" rx="1" />
-          <path d="M6 9.5h12M15 5.2v2.2M15 11.8v3.4" />
+          <rect x="5.5" y="3" width="13" height="18" rx="1.2" />
+          <path d="M12 3v18M10.2 8v5.5M13.8 8v5.5" />
         </>
       )
     case 'pia':
