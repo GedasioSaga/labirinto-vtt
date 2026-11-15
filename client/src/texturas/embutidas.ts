@@ -12,6 +12,7 @@ import { texturaMarmore } from './chaos/marmore'
 import { texturaParalelepipedo } from './chaos/paralelepipedo'
 import { texturaParqueCesta } from './chaos/parqueCesta'
 import { texturaPedraMusgo } from './chaos/pedraMusgo'
+import { texturaPedrasComLama } from './chaos/pedrasComLama'
 import { texturaPisoDeBorracha } from './chaos/pisoDeBorracha'
 import { texturaRochaDeCaverna } from './chaos/rochaDeCaverna'
 import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
@@ -1426,6 +1427,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'laje-de-templo', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Laje de templo' }, cor: texturaLajeDeTemplo },
   { id: 'rocha-de-caverna', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Rocha de caverna' }, cor: texturaRochaDeCaverna },
   { id: 'basalto-hexagonal', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Basalto em colunas' }, cor: texturaBasaltoHexagonal },
+  // Pedras com lama (pedido de 15/11/2026: "chão de tijolos de pedra com terra lamacenta cinza"): a sétima forma, no fim do cartão.
+  { id: 'pedras-com-lama', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Pedras com lama' }, cor: texturaPedrasComLama },
   // Base militar (pedido de 14/11/2026, `chaos/`): cinco formas, o Concreto é a padrão.
   { id: 'concreto', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Concreto' }, cor: texturaConcreto },
   { id: 'asfalto-faixa', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Asfalto com faixa' }, cor: texturaAsfaltoFaixa },

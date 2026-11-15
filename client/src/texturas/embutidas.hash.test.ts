@@ -53,6 +53,8 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'laje-de-templo': '93d0bbbf0313773e33d0ca66d415c01a6bfc5ec15db7d8fb8df9732427f317d8',
   'rocha-de-caverna': 'f490d3620e450abec9b000c371f2741d440ffdb8c6db7cb7187cf82929b1b824',
   'basalto-hexagonal': '828f1a64fdd9ff872bac19ec609289f9f728a8c379ac3618c5df87eeae03b989',
+  // As Pedras com lama nasceram depois da F5 (15/11/2026): o hash é o do código que as criou.
+  'pedras-com-lama': 'fbcdef106776ad415f39dfec0c4744ab5bc880274ec3bd30828bde26de9717a9',
   concreto: 'cf339783f28235f312238e747c6ff58d2ff70a277054f90ac31e09f6296b0338',
   'asfalto-faixa': 'e058b8bc85288cccd2befae472706709ed697588feebc7b0ddb899943b280926',
   'lona-camuflagem': 'cafda43d227050997edded6730a2f11aa335e006e2cda1b51fbfbc27ac1e948e',

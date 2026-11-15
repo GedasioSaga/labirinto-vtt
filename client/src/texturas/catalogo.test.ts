@@ -11,7 +11,7 @@ function textura(id: string, forma?: { grupo: string; nome: string }): TexturaDo
 }
 
 describe('agruparPorForma', () => {
-  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de três, o Chão de metal de quatro, a Base militar de cinco, os Pisos de madeira e de pedra de seis, o resto fica de uma', () => {
+  it('a biblioteca embutida: as Lajotas viram cartão de duas formas, o Campo de três, o Chão de metal de quatro, a Base militar de cinco, os Pisos de madeira de seis, os de pedra de sete, o resto fica de uma', () => {
     const grupos = agruparPorForma(listarTexturas())
     const lajotas = grupos.find((g) => g.grupo === 'lajotas')
     expect(lajotas?.nome).toBe('Lajotas de pedra')
@@ -28,7 +28,8 @@ describe('agruparPorForma', () => {
     expect(madeira?.formas.map((t) => t.forma?.nome)).toEqual(['Assoalho claro', 'Tábua envernizada', 'Taco em espinha', 'Parquê em cesta', 'Madeira velha', 'Troncos'])
     const pedra = grupos.find((g) => g.grupo === 'pisos-de-pedra')
     expect(pedra?.nome).toBe('Pisos de pedra')
-    expect(pedra?.formas.map((t) => t.forma?.nome)).toEqual(['Paralelepípedo', 'Mármore', 'Pedra com musgo', 'Laje de templo', 'Rocha de caverna', 'Basalto em colunas'])
+    // As Pedras com lama (15/11/2026) entraram no fim do cartão.
+    expect(pedra?.formas.map((t) => t.forma?.nome)).toEqual(['Paralelepípedo', 'Mármore', 'Pedra com musgo', 'Laje de templo', 'Rocha de caverna', 'Basalto em colunas', 'Pedras com lama'])
     const militar = grupos.find((g) => g.grupo === 'base-militar')
     expect(militar?.nome).toBe('Base militar')
     expect(militar?.formas.map((t) => t.forma?.nome)).toEqual(['Concreto', 'Asfalto com faixa', 'Lona camuflada', 'Piso de borracha', 'Chapa de pouso'])
