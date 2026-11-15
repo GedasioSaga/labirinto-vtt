@@ -1,4 +1,23 @@
-# TOPO 15/11/2026 14h56: GELADEIRA DE METAL, BAÚ E BALCÃO EM 3/4, GELADEIRA TRAVADA, 3/4 POR OBJETO (investigando)
+# TOPO 15/11/2026 20h36: MINIGAME DE BAÚ/CAIXA/BARRIL COM ITENS E ARMADILHAS (começando)
+
+## Objetivo
+Pedido literal em PEDIDOS.md "PEDIDO NOVO (15/11/2026 20h36)": baú, caixa e barril guardam itens e armadilhas (cobra, aranha: dano ou envenenamento) alocados pelo mestre; o jogador joga um minigame para abrir o baú ou quebrar caixa/barril; jumpscare de cobra. Ele pediu IDEIAS MELHORES que "apertar o mesmo botão várias vezes", e que use a skill game-studios com Opus 5.5 max. Fable proibido até o fim da sessão.
+
+## Estado atual
+Nada feito ainda. 0.5.71 publicada (seção abaixo). Próximo: invocar skill game-studios, dar ideias, plan mode + grilling (CLAUDE.md §1), e só então construir.
+
+## Próximos passos
+1. Skill game-studios (adotar o projeto ou usar o estúdio `~/jogos/texturas-labirinto`?) + ideias de minigame com recomendação.
+2. Plano: onde mora o conteúdo (itens + armadilhas no Prop do baú/caixa/barril), quem joga (jogador na tela dele, mestre vê), dano/debuff na ficha, jumpscare (respeitar movimento reduzido), som.
+3. Construir com agentes Opus max; teste de jogos pela regra global.
+
+## Critério de pronto
+A definir no plano (com números para o robô antes de codar).
+
+## Evidência
+(nenhuma ainda)
+
+# (anterior) 15/11/2026 14h56: GELADEIRA DE METAL, BAÚ E BALCÃO EM 3/4, GELADEIRA TRAVADA, 3/4 POR OBJETO (investigando)
 
 ## Objetivo
 Pedido de 15/11 14h56 (PEDIDOS.md, "PEDIDO NOVO (15/11/2026 14h56)"): (1) geladeira de metal no lugar da caixa de gelo de madeira; (2) baú em 3/4 refeito; (3) BUG objeto travado não dá para acessar; (4) balcão em 3/4 refeito; (5) "Vista 3/4" muda todos os móveis do mapa (hoje é `MapData.vistaDosMoveis`, chave no painel do objeto `components/MobiliaControls.tsx:289`), ele quer por objeto.
