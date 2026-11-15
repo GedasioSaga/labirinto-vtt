@@ -96,15 +96,22 @@ export const OCULTO_NO_EDITOR_HINT = 'No editor, a ficha vira um fantasma transp
 /** O que separa "Congelado" do "Travado" logo acima: este segura o mestre também; aquele, só o jogador. */
 export const CONGELADO_HINT = 'O jogador não move esta ficha; você continua movendo.'
 
+/** Por que a Rotação não edita: o "Travado" segura o giro, como já segura o arrasto e a seta. */
+export const ROTACAO_TRAVADA_HINT = 'Travado: destrave para girar.'
+
 interface CampoDeRotacaoProps {
   id: string
   rotation: number
   onRotationChange: (rotation: number) => void
   describedBy?: string
+  /** O item está travado: o campo fica desabilitado e diz por quê. */
+  travado: boolean
 }
 
-/** Graus inteiros, com o "°" dentro do campo. */
-function CampoDeRotacao({ id, rotation, onRotationChange, describedBy }: CampoDeRotacaoProps) {
+/** Graus inteiros, com o "°" dentro do campo. Travado, só mostra o giro (o mapa já recusa mover). */
+function CampoDeRotacao({ id, rotation, onRotationChange, describedBy, travado }: CampoDeRotacaoProps) {
+  const travadoHintId = `${id}-travado`
+  const descricao = [describedBy, travado ? travadoHintId : undefined].filter((parte) => parte !== undefined).join(' ')
   return (
     <div className="lb-field">
       <label className="lb-label" htmlFor={id}>
@@ -117,11 +124,17 @@ function CampoDeRotacao({ id, rotation, onRotationChange, describedBy }: CampoDe
           type="number"
           step={1}
           value={Math.round(rotation)}
-          aria-describedby={describedBy}
+          disabled={travado}
+          aria-describedby={descricao === '' ? undefined : descricao}
           onChange={(event) => onRotationChange(Number(event.target.value))}
         />
         <span className="lb-inputgroup__suffix">°</span>
       </div>
+      {travado && (
+        <p id={travadoHintId} className="lb-field__hint">
+          {ROTACAO_TRAVADA_HINT}
+        </p>
+      )}
     </div>
   )
 }
@@ -164,7 +177,7 @@ export function ItemTransformControls({
   const rotationId = useId()
   const campoDeRotacao = (describedBy?: string) =>
     rotation !== undefined && onRotationChange !== undefined ? (
-      <CampoDeRotacao id={rotationId} rotation={rotation} onRotationChange={onRotationChange} describedBy={describedBy} />
+      <CampoDeRotacao id={rotationId} rotation={rotation} onRotationChange={onRotationChange} describedBy={describedBy} travado={locked} />
     ) : null
   const chaveOcultoNoEditor = (describedBy?: string) =>
     hidden !== undefined && onHiddenChange !== undefined ? (
