@@ -104,6 +104,30 @@ export function amostrasDaCercaCurva(prop: CercaNoMapa): Point[] {
   )
 }
 
+/** Teto de pontos de `amostrasAoLongoDoMuro`: o muro que atravessa um mapa de 200 casas, a meia casa por ponto. */
+const AMOSTRAS_AO_LONGO_MAX = 401
+
+/**
+ * O muro de fogo de ponta a ponta, para a névoa decidir se o jogador o VÊ
+ * (auditoria de 15/11/2026): a linha traçada a cada `passo` px de mundo, as
+ * duas pontas inclusive. A caixa do muro é a do traço inteiro, e o centro dela
+ * pode ficar a dezenas de casas da linha (muro comprido, em L, em U); as cinco
+ * amostras de `amostrasDaCercaCurva` ficam a um quarto do muro uma da outra, e
+ * quem para entre duas delas não veria o muro que o barra. Acima de
+ * `AMOSTRAS_AO_LONGO_MAX` pontos o passo cresce por igual. Vazio fora do muro
+ * de fogo e com medida que não se desenha.
+ */
+export function amostrasAoLongoDoMuro(prop: CercaNoMapa, passo: number): Point[] {
+  if (prop.mobilia !== 'muroDeFogo') return []
+  const eixo = eixoDoMuro(prop.width, prop.height, prop.tracado)
+  if (eixo === null) return []
+  const trechos = passo > 0 ? Math.min(AMOSTRAS_AO_LONGO_MAX - 1, Math.max(1, Math.ceil(eixo.comprimento / passo))) : 1
+  return paraOMundo(
+    prop,
+    Array.from({ length: trechos + 1 }, (_ponto, i) => pontoNoEixo(eixo, (eixo.comprimento * i) / trechos)),
+  )
+}
+
 /**
  * A alça de curvar: o meio do fio — o centro do objeto na reta, o meio do arco
  * na curva (a uma flecha do meio da corda, na normal, como `stairMidpoint`).

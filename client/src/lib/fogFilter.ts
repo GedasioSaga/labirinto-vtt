@@ -50,7 +50,7 @@ import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { marcaParaJogador } from './marcas'
 import { mobiliaParaJogador, vistaDosMoveisParaJogador } from './mobilia'
-import { amostrasDaCercaCurva } from './cercaCurva'
+import { amostrasAoLongoDoMuro, amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
 import { readMoedas } from './troca'
@@ -4682,6 +4682,17 @@ function recorteDoGrupo(
     },
   )
   const construcoesDoRecorte = construcoes.items.map(({ item }) => item)
+  /**
+   * MURO DE FOGO VISTO PELO TRAÇO (auditoria de 15/11/2026): a caixa dele é a do traço inteiro, e o centro dela pode
+   * ficar a dezenas de casas da linha (muro comprido, em L, em U). Pelo centro, o muro sumia para quem parava junto da
+   * ponta e seguia barrando: parede que não se vê. Conta como visto quando ALGUM ponto ao longo do traço está à vista
+   * (`amostrasAoLongoDoMuro`, a meia casa um do outro). Os outros objetos seguem pelo centro, como antes; o muro de
+   * medida que não se desenha (sem amostra) também.
+   */
+  const objetoAVista = (p: MapData['props'][number]): boolean => {
+    const aoLongo = p.mobilia === 'muroDeFogo' ? amostrasAoLongoDoMuro(p, map.grid / 2) : []
+    return aoLongo.length > 0 ? aoLongo.some(isVisible) : isVisible({ x: p.x, y: p.y })
+  }
   // A silhueta inteira responde à sala, não só o centro: sala secreta ou teto
   // fechado leva junto o objeto com qualquer amostra dela lá dentro
   // (`propSamplePoints`), como já leva escada, desenho e linha. O objeto
@@ -4693,7 +4704,7 @@ function recorteDoGrupo(
         !ehConstrucao(p.mobilia) &&
         !p.hidden &&
         !p.secret &&
-        ((!propSamplePoints(p).some(inHiddenPlace) && isVisible({ x: p.x, y: p.y })) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
+        ((!propSamplePoints(p).some(inHiddenPlace) && objetoAVista(p)) || fogoNoTelhadoAVista(p) || presoNaParedeAVista(p)),
     ),
     ...construcoesDoRecorte,
   ].map(propForPlayer)
