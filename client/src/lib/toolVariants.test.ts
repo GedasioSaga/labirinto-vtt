@@ -229,10 +229,11 @@ describe('TOOL_VARIANTS', () => {
     // os oito do mar e piratas (lote L07), os seis do resto do mar e piratas (lote L08), os seis da taverna e festa (lote
     // L09), os seis do resto da taverna e festa (lote L10), os seis do descanso e brincadeira (lote L11), os seis do resto
     // do descanso e brincadeira (lote L12), os seis do torneio e da cidade (lote L13), os cinco do resto da cidade e vila
-    // (lote L14) e a ponte levadiça do L02 (o item 81 da lista). 157 + 83 = 240.
+    // (lote L14) e a ponte levadiça do L02 (o item 81 da lista). 157 + 83 = 240. O muro de fogo (15/11/2026) entra
+    // logo depois do Fogo, na conta da fogueira (`pecasNovas.ts`): 241.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
-      'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
+      'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
       'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'ponte', 'carroca', 'placaDeSeta', 'troncos', 'feno',
       'cataVentoBrinquedo',
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho',
@@ -270,10 +271,10 @@ describe('TOOL_VARIANTS', () => {
       'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
       'ponteLevadica',
     ])
-    expect(grupo.options).toHaveLength(240)
+    expect(grupo.options).toHaveLength(241)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
-      'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
+      'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Ponte', 'Carroça', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de brinquedo',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Campinho de futebol',
@@ -342,17 +343,18 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 22 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 18, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 10; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 22 partes da ficha (Sala e quarto 21, Cozinha e banheiro 15, Armazenagem 11, Rua e jardim 19, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 10; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
     // CONSTRUÇÕES (12/11/2026): as 19 construções saíram das partes do Objeto (Rua e jardim -8, Cemitério -2,
     // Feira -2, Fazenda -3, Templo e masmorra -4) para as 4 partes da ferramenta Construção; nenhuma parte esvazia.
+    // O muro de fogo (15/11/2026) entra em Rua e jardim, junto do Fogo (`gruposDoObjeto.ts`): 18 + 1.
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
       ['Sala e quarto', 21],
       ['Cozinha e banheiro', 15],
       ['Armazenagem', 11],
-      ['Rua e jardim', 18],
+      ['Rua e jardim', 19],
       ['Cemitério', 9],
       ['Feira', 10],
       ['Oficina', 10],

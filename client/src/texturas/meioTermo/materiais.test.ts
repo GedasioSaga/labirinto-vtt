@@ -112,6 +112,8 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       tapeteLongo: ['tecido:vinho'],
       // Objeto Fogo (27/10/2026): sem material, como a chama da fogueira (o chão queimado tem cor própria).
       fogo: [],
+      // Muro de fogo (15/11/2026): sem material, como o Fogo.
+      muroDeFogo: [],
       // Móveis de casa (28/10/2026).
       fogao: ['metal:ferro', 'puxadores:latao'],
       // A geladeira de inox (15/11/2026): sem escolha, o aço é fixo.
