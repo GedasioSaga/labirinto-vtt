@@ -29,8 +29,9 @@
  * Materiais: `madeira` e `puxadores`.
  */
 import { caixa, capsula, elipse, uniao, type Forma } from './formas'
-import { contato, texturaDaClasse, type CriarPeca, type MaterialDaPeca, type OpcoesDaPeca, type Peca, type Textura } from './motor'
+import { contato, texturaDaClasse, type Cena, type CriarPeca, type MaterialDaPeca, type OpcoesDaPeca, type Peca, type Textura } from './motor'
 import { BURACO, QUARTO, type MontarMovel } from './contexto'
+import { desgirarCena } from './pipaDeitada'
 
 /** Altura do guarda-roupa em casas (a sombra; na 3/4, a frente). */
 const ALTURA = 1.7
@@ -142,6 +143,47 @@ export function fatiar(H: number, pe: number, deCima: number, h: number, hh: num
   }
   faixas.push({ pe: H - deCima, topo: H, base: frente, z: H - deCima })
   return { faixas, frente }
+}
+
+/** O corpo NA TELA (com o giro já pintado): de `xa` a `xb` de lado a lado, do fundo `y0` à beira de baixo `y1`. */
+export interface CorpoNaTela {
+  readonly xa: number
+  readonly xb: number
+  readonly y0: number
+  readonly y1: number
+  /** O raio do canto da sombra do corpo (px do protótipo). */
+  readonly raio: number
+}
+
+/**
+ * A FACE QUE O GIRO PÕE EMBAIXO NA TELA (15/11/2026): a lateral ou as costas da geladeira, do baú e do balcão
+ * girados. Sem ela a 3/4 varria a lateral lisa: a laje cinza da geladeira, a madeira sem ferragem do baú e do
+ * balcão. A face é desenhada de frente como a frente sem giro (`desenho`: x NA TELA, y = 0 no chão e negativo para
+ * cima) e guardada em faixas debaixo do tampo do mesmo jeito (o corpo até as frestas, as cantoneiras dos dois lados
+ * e a fresta de cada faixa, sem sombra no chão), só que montada na tela e devolvida ao referencial do objeto
+ * (`desgirarCena`, a conta do tonel): o quarto de volta que as duas vistas pintam a traz de volta e a face fica
+ * embaixo. Vem antes do tampo na lista, para ele a cobrir na vista de cima.
+ *
+ * Regra do desenho: o meio da caixa de cada peça fica entre as cantoneiras (mais de `CANTONEIRA` para dentro de `xa`
+ * e de `xb`). A 3/4 sobe a peça com a estrutura que contém o meio dela; um fio colado na quina cairia na cantoneira,
+ * subiria a altura inteira e apareceria solto na beira do tampo.
+ */
+export function guardarFaceGirada(P: CriarPeca, cena: Cena, quartos: number, H: number, corpo: CorpoNaTela, desenho: readonly PecaDaFrente[]): void {
+  const { xa, xb, y0, y1, raio } = corpo
+  const { faixas, frente } = fatiar(H, 0, 0, y1 - y0, y1)
+  const tela: Cena = { partes: [], sombras: [] }
+  tela.sombras.push({ forma: caixa(xa, y0, xb, frente, raio), z: H })
+  for (const x of [xa, xb - CANTONEIRA]) tela.sombras.push({ forma: caixa(x, frente, x + CANTONEIRA, y1), z: H })
+  for (const fx of faixas) {
+    if (fx.topo > fx.pe) tela.sombras.push({ forma: caixa(xa + CANTONEIRA, fx.base, xb - CANTONEIRA, fx.base + FRESTA), z: fx.z, solta: true, forca: 0 })
+  }
+  for (const fx of faixas) {
+    for (const peca of desenho) {
+      const copia = naFaixa(P, peca, fx)
+      if (copia !== null) tela.partes.push(copia)
+    }
+  }
+  desgirarCena(tela, quartos, cena)
 }
 
 // ---------- o desenho da frente ----------

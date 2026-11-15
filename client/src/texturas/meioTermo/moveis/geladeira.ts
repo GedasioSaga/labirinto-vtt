@@ -22,14 +22,23 @@
  * cada faixa tem a sua fresta, e a 3/4 a põe na altura dela. O perfil da 3/4 é
  * sem beirada (`tresQuartos.ts`), para a grade do rodapé chegar ao chão.
  *
+ * GIRADA, a 3/4 mostra embaixo a LATERAL (um quarto de volta) ou as COSTAS
+ * (meia volta), desenhadas e guardadas debaixo do tampo do mesmo jeito
+ * (`guardarFaceGirada`), no lugar da laje cinza lisa que a 3/4 varria: de lado,
+ * a chapa de aço escovado com o brilho largo, a beira das portas na quina da
+ * frente com a junta escura e o fio de luz na quina, e o pé escuro; de costas,
+ * a chapa mais escura, a serpentina do condensador (os tubos em zigue-zague e
+ * os arames de pé) e a tampa do motor com as frestas de ar. A beira clara do
+ * tampo corre em cima das três faces.
+ *
  * Sem material escolhido: o aço, a grade e o vão do dispenser são fixos (o mapa
  * antigo com madeira e latão escolhidos na geladeira abre de inox).
  */
 import type { Rgb } from '../../ruido'
-import { caixa, capsula, type Forma } from './formas'
+import { anel, caixa, capsula, dentroDe, type Forma } from './formas'
 import { contato, ruido, type MaterialDaPeca, type Textura } from './motor'
 import { QUARTO, type MontarMovel } from './contexto'
-import { CANTONEIRA, FRESTA, fatiar, naFaixa, type Faixa, type OpcoesDaFrente, type PecaDaFrente } from './guardaRoupa'
+import { CANTONEIRA, FRESTA, fatiar, guardarFaceGirada, naFaixa, type Faixa, type OpcoesDaFrente, type PecaDaFrente } from './guardaRoupa'
 import { quartosDeVolta } from './varalDeBandeirinhas'
 
 /** Altura da geladeira em casas (a sombra; na 3/4, a frente). */
@@ -72,6 +81,26 @@ const texEscovado: Textura = (u, v, _x, _y, p, s, escala) => {
   s[3] += (ruido(u * 0.03, v * 0.9) * 0.09 + ruido(u * 0.012, v * 0.33) * 0.045) * risco + ruido(u * 0.06 + p.semente * 3, v * 0.06) * 0.06
 }
 
+/** A chapa de pé do inox, com o escovado correndo de cima a baixo. */
+const chapaDePe = (tom: number, semente: number, bisel: number): OpcoesDaFrente => ({ eixo: QUARTO, tabua: 0, bisel, tom, metal: BRILHO_DA_CHAPA, textura: texEscovado, semente })
+
+/**
+ * O brilho largo da chapa grande de lado e de trás: uma faixa clara no alto (o teto refletido no aço) e o pé mais
+ * escuro (o chão). É o que diz "metal" na chapa lisa, de onde a 3/4 tirava a laje cinza. Alturas em fração da altura.
+ */
+const BRILHO_LARGO = { meio: 0.7, largura: 0.2, forca: 0.08, pe: 0.08 } as const
+
+/** O escovado com o brilho largo; `forca` = quanto do brilho (as costas pegam menos). `y` chega na altura da face. */
+function texChapaGrande(H: number, forca: number): Textura {
+  return (u, v, x, y, p, s, escala) => {
+    texEscovado(u, v, x, y, p, s, escala)
+    const t = -y / H
+    const d = (t - BRILHO_LARGO.meio) / BRILHO_LARGO.largura
+    const pe = 1 - t
+    s[3] += forca * (BRILHO_LARGO.forca * Math.exp(-d * d) - BRILHO_LARGO.pe * pe * pe * pe)
+  }
+}
+
 // ---------- a frente, desenhada de frente ----------
 
 /** O rodapé (a grade, em casas), a beira clara do tampo e a folga das portas em cima e embaixo (px do protótipo). */
@@ -97,7 +126,6 @@ function desenharFrente(hw: number, H: number, g: number): PecaDaFrente[] {
   const por = (forma: Forma, mat: MaterialDaPeca, o: OpcoesDaFrente): void => {
     pecas.push({ forma, mat, o })
   }
-  const chapaDePe = (tom: number, semente: number, bisel: number): OpcoesDaFrente => ({ eixo: QUARTO, tabua: 0, bisel, tom, metal: BRILHO_DA_CHAPA, textura: texEscovado, semente })
   const rodape = g * RODAPE
   const peDaPorta = rodape + FOLGA
   const topoDaPorta = H - BEIRA_DE_CIMA - FOLGA
@@ -140,6 +168,120 @@ function desenharFrente(hw: number, H: number, g: number): PecaDaFrente[] {
   return pecas
 }
 
+// ---------- girada: a lateral e as costas, desenhadas de frente ----------
+
+/** A chapa do lado (a luz de frente, como as portas) e a das costas, um degrau mais escura. */
+const TOM_DA_LATERAL = 0.8
+const TOM_DAS_COSTAS = 0.68
+/**
+ * De lado, na quina da frente: a espessura das portas, a junta de borracha entre elas e o corpo, e o fio de luz da
+ * beira redonda da porta (px do protótipo). As portas vão da folga de cima à de baixo, como na frente.
+ */
+const PORTA_DE_LADO = 2.8
+const JUNTA = 0.6
+const FIO_DE_LUZ = 0.8
+/**
+ * O fio de luz recua isto da quina (px): o meio da caixa dele tem de ficar entre as cantoneiras (0,5 px), senão a
+ * 3/4 o sobe com a cantoneira até a altura inteira e ele aparece solto na beira do tampo.
+ */
+const RECUO_DO_FIO = 0.3
+const TOM_DA_PORTA_DE_LADO = 0.86
+const TOM_DO_FIO_DE_LUZ = 1.38
+/** O pé escuro recua isto das pontas da face (px), como a grade da frente. */
+const RECUO_DO_PE = 1.2
+
+/** A caixa entre dois x quaisquer (a quina pode ficar à esquerda ou à direita). */
+function entre(xa: number, xb: number, y0: number, y1: number, raio: number): Forma {
+  return caixa(Math.min(xa, xb), y0, Math.max(xa, xb), y1, raio)
+}
+
+/** O que corre em cima e embaixo das três faces: o pé escuro recuado e, por cima de tudo, a beira clara do tampo. */
+function peEBeira(hw: number, H: number, g: number, semente: number): PecaDaFrente[] {
+  return [
+    { forma: caixa(-hw + RECUO_DO_PE, -g * RODAPE, hw - RECUO_DO_PE, 0, 0.4), mat: ESCURO, o: { tabua: 0, bisel: 0.5, contorno: 0.1, recesso: { k: 1.2, forca: 0.3 }, semente } },
+    { forma: caixa(-hw, -H, hw, -H + BEIRA_DE_CIMA, 0.5), mat: INOX, o: { eixo: 0, tabua: 0, bisel: 0.7, tom: TOM_DA_BEIRA, contorno: 0.16, metal: 0.4, textura: texEscovado, semente: semente + 1 } },
+  ]
+}
+
+/**
+ * A LATERAL, de frente (x na tela, y = 0 no chão e negativo para cima): a chapa de aço escovado com o brilho largo,
+ * a beira das portas na quina da frente (`quina` = -1 à esquerda na tela, 1 à direita) com a junta escura e o fio
+ * de luz, o pé escuro e a beira do tampo.
+ */
+function desenharLateral(hw: number, H: number, g: number, quina: -1 | 1): PecaDaFrente[] {
+  const pecas: PecaDaFrente[] = []
+  const por = (forma: Forma, mat: MaterialDaPeca, o: OpcoesDaFrente): void => {
+    pecas.push({ forma, mat, o })
+  }
+  const peDaPorta = g * RODAPE + FOLGA
+  const topoDaPorta = H - BEIRA_DE_CIMA - FOLGA
+  por(caixa(-hw, -H, hw, 0, 0.6), INOX, { ...chapaDePe(TOM_DA_LATERAL, 860, 0.9), textura: texChapaGrande(H, 1) })
+  const xq = quina * hw
+  const xPorta = xq - quina * PORTA_DE_LADO
+  por(entre(xPorta, xPorta - quina * JUNTA, -topoDaPorta, -peDaPorta, 0), ESCURO, { tabua: 0, bisel: 0, contorno: 0, semente: 861 })
+  por(entre(xq, xPorta, -topoDaPorta, -peDaPorta, 0.5), INOX, { ...chapaDePe(TOM_DA_PORTA_DE_LADO, 862, 0.6), contorno: 0.16 })
+  const xFio = xq - quina * RECUO_DO_FIO
+  por(entre(xFio, xFio - quina * FIO_DE_LUZ, -topoDaPorta + 0.4, -peDaPorta - 0.4, 0.3), INOX, { eixo: QUARTO, tabua: 0, bisel: 0.3, tom: TOM_DO_FIO_DE_LUZ, contorno: 0, metal: 0.6, semente: 863 })
+  pecas.push(...peEBeira(hw, H, g, 864))
+  return pecas
+}
+
+/**
+ * A serpentina do condensador nas costas: a margem dela até a beira da chapa e as alturas de baixo e de cima
+ * (frações da altura), o raio do tubo e o passo mais curto entre dois tubos (px). Os tubos se ligam nas pontas por
+ * meias voltas, um zigue-zague só, e três arames de pé passam por cima deles.
+ */
+const SERPENTINA = { margem: 4.6, de: 0.34, ate: 0.86, raio: 0.7, passo: 3.1 } as const
+const ARAME = { raio: 0.32, partes: [-0.5, 0, 0.5] } as const
+/** A tampa do motor, embaixo da serpentina: a margem (px), a altura do alto dela (fração) e as frestas de ar. */
+const TAMPA_DO_MOTOR = { margem: 3, alto: 0.25, frestas: 3, meioComprimento: 0.55 } as const
+
+/** As COSTAS, de frente: a chapa mais escura, a serpentina do condensador, a tampa do motor com as frestas, o pé e a beira. */
+function desenharCostas(hw: number, H: number, g: number): PecaDaFrente[] {
+  const pecas: PecaDaFrente[] = []
+  const por = (forma: Forma, mat: MaterialDaPeca, o: OpcoesDaFrente): void => {
+    pecas.push({ forma, mat, o })
+  }
+  por(caixa(-hw, -H, hw, 0, 0.6), INOX, { ...chapaDePe(TOM_DAS_COSTAS, 870, 0.9), textura: texChapaGrande(H, 0.6) })
+
+  // A serpentina: o vão escuro, os tubos deitados, as meias voltas nas pontas e os arames por cima.
+  const yAlto = -H * SERPENTINA.ate
+  const yBaixo = -H * SERPENTINA.de
+  por(caixa(-hw + SERPENTINA.margem, yAlto, hw - SERPENTINA.margem, yBaixo, 0.8), ESCURO, { tabua: 0, bisel: 0.4, contorno: 0.14, recesso: { k: 1.6, forca: 0.35 }, semente: 871 })
+  const r = SERPENTINA.raio
+  const dentroDoVao = 1.3 + r
+  const espaco = yBaixo - yAlto - 2 * dentroDoVao
+  const tubos = Math.max(2, Math.floor(espaco / SERPENTINA.passo) + 1)
+  const passo = espaco / (tubos - 1)
+  const curva = passo / 2
+  const xt = hw - SERPENTINA.margem - dentroDoVao - curva
+  const yTubo = (i: number): number => yAlto + dentroDoVao + i * passo
+  const tubo: OpcoesDaFrente = { eixo: 0, tabua: 0, bisel: r * 0.9, tom: 1.55, contorno: 0.2, metal: 0.35, semente: 872 }
+  for (let i = 0; i < tubos; i += 1) por(capsula(-xt, yTubo(i), xt, yTubo(i), r), ESCURO, tubo)
+  for (let i = 0; i + 1 < tubos; i += 1) {
+    const lado = i % 2 === 0 ? 1 : -1
+    const cy = yTubo(i) + curva
+    const meiaVolta = dentroDe(anel(lado * xt, cy, curva + r, curva + r, curva - r, curva - r), entre(lado * xt, lado * (xt + curva + r + 0.2), cy - curva - r - 0.2, cy + curva + r + 0.2, 0))
+    por(meiaVolta, ESCURO, { ...tubo, eixo: QUARTO })
+  }
+  for (const f of ARAME.partes) {
+    const x = f * xt
+    por(capsula(x, yAlto + 0.7, x, yBaixo - 0.7, ARAME.raio), ESCURO, { eixo: QUARTO, tabua: 0, bisel: ARAME.raio, tom: 1.3, contorno: 0.1, metal: 0.25, semente: 873 })
+  }
+
+  // A tampa do motor, com as frestas de ar deitadas.
+  const yTampa = -H * TAMPA_DO_MOTOR.alto
+  const peDaTampa = -g * RODAPE - 0.8
+  por(caixa(-hw + TAMPA_DO_MOTOR.margem, yTampa, hw - TAMPA_DO_MOTOR.margem, peDaTampa, 0.8), INOX, { ...chapaDePe(0.62, 874, 0.8), contorno: 0.2 })
+  const meioComprimento = hw * TAMPA_DO_MOTOR.meioComprimento
+  for (let k = 1; k <= TAMPA_DO_MOTOR.frestas; k += 1) {
+    const y = yTampa + ((peDaTampa - yTampa) * k) / (TAMPA_DO_MOTOR.frestas + 1)
+    por(caixa(-meioComprimento, y - 0.45, meioComprimento, y + 0.45, 0.45), ESCURO, { tabua: 0, bisel: 0.3, contorno: 0.1, recesso: { k: 0.8, forca: 0.3 }, semente: 875 })
+  }
+  pecas.push(...peEBeira(hw, H, g, 876))
+  return pecas
+}
+
 // ---------- o tampo ----------
 
 /** A beira de trás do tampo, um degrau mais escura (px do protótipo), e as tampas das dobradiças nos cantos da frente. */
@@ -155,16 +297,21 @@ export const montarGeladeira: MontarMovel = (c, cena) => {
   cena.corDoPiso = ESCURO_DO_INOX
 
   // Sem giro, o corpo dá a sombra comprida e a frente lisa por baixo das faixas; as cantoneiras fecham as frestas dos
-  // dois lados e a fresta de cada faixa não faz sombra no chão: só diz à 3/4 a altura da faixa. Girado, a frente fica
-  // de lado ou atrás na 3/4, que só varre o inox: o corpo vai até a beira e só entra a faixa de cima (a que se vê de
-  // cima), que sobe com ele. A frente guardada ali só deixaria um fio dela na beira da lateral.
-  const deFrente = quartosDeVolta(c.giro) === 0
+  // dois lados e a fresta de cada faixa não faz sombra no chão: só diz à 3/4 a altura da faixa. Girada, a frente fica
+  // de lado ou atrás na 3/4 e não é guardada (deixaria só um fio dela na beira da lateral): a face que fica embaixo na
+  // tela é a lateral ou as costas, guardadas do mesmo jeito, e da frente só entra a faixa de cima (o alto das portas,
+  // que se vê de cima), que sobe com o corpo. Com um quarto de volta a pegada fica deitada na tela, e a frente da
+  // geladeira, à esquerda (90 graus) ou à direita (270).
+  const quartos = quartosDeVolta(c.giro)
+  const deFrente = quartos === 0
   if (deFrente) {
     cena.sombras.push({ forma: caixa(-hw, -hh, hw, frente, 1), z: H })
     for (const xa of [-hw, hw - CANTONEIRA]) cena.sombras.push({ forma: caixa(xa, frente, xa + CANTONEIRA, hh), z: H })
     for (const fx of faixas) cena.sombras.push({ forma: caixa(-hw + CANTONEIRA, fx.base, hw - CANTONEIRA, fx.base + FRESTA), z: fx.z, solta: true, forca: 0 })
+  } else if (quartos % 2 === 1) {
+    guardarFaceGirada(P, cena, quartos, H, { xa: -hh, xb: hh, y0: -hw, y1: hw, raio: 1 }, desenharLateral(hh, H, g, quartos === 1 ? -1 : 1))
   } else {
-    cena.sombras.push({ forma: caixa(-hw, -hh, hw, hh, 1), z: H })
+    guardarFaceGirada(P, cena, quartos, H, { xa: -hw, xb: hw, y0: -hh, y1: hh, raio: 1 }, desenharCostas(hw, H, g))
   }
   cena.sombras.push(contato(caixa(-hw, -hh, hw, hh, 1)))
 

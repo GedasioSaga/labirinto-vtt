@@ -17,11 +17,17 @@
  * tampo na vista de cima. A barra de pé fica no ar, presa na frente do corpo
  * por braços, como a do balcão de taverna: na 3/4 os braços aparecem saindo
  * da frente até ela.
+ *
+ * GIRADO, CADA LADO TEM A SUA FACE (15/11/2026): a 90 e a 270 graus o que fica
+ * para baixo é a ponta do balcão, o mesmo quadro com almofada da frente; a 180 graus é
+ * o lado de dentro, o do taberneiro, com os vãos abertos e uma prateleira em
+ * cada um. As duas saem pela mesma `guardarFaceGirada` do guarda-roupa. A barra
+ * de pé continua presa na frente, que girada fica de lado.
  */
 import { barra, caixa, capsula, type Forma } from './formas'
 import { contato, type Cena, type MaterialDaPeca } from './motor'
 import { QUARTO, type ContextoDoMovel, type MontarMovel } from './contexto'
-import { CANTONEIRA, FRESTA, SOMBRA_DA_MADEIRA, fatiar, naFaixa, type OpcoesDaFrente, type PecaDaFrente } from './guardaRoupa'
+import { CANTONEIRA, FRESTA, SOMBRA_DA_MADEIRA, fatiar, guardarFaceGirada, naFaixa, type OpcoesDaFrente, type PecaDaFrente } from './guardaRoupa'
 import { comMeioEm, quartosDeVolta } from './varalDeBandeirinhas'
 
 /** Altura do balcão em casas (a do aparador). */
@@ -51,9 +57,22 @@ const TOM_DO_PAINEL = 1.04
 const TOM_DO_RODAPE = 0.64
 const TOM_DA_BEIRA = 1.02
 
-/** A frente inteira, de frente (x como na pegada, y = 0 no chão e negativo para cima). */
-function desenharFrente(c: ContextoDoMovel, H: number): PecaDaFrente[] {
-  const { hw, w, g } = c
+/** O vão aberto das costas: o fundo na sombra do tampo, a prateleira no meio (grossura) e a sombra dela embaixo (px). */
+const TOM_DO_VAO = 0.5
+const PRATELEIRA = { grossura: 2, sombra: 1.8, tom: 0.98 } as const
+
+/**
+ * O que vai entre os montantes do quadro: as almofadas em relevo (a frente, do lado do freguês, e as pontas) ou os
+ * vãos abertos com a prateleira (as costas, o lado de quem serve, que de cima já mostra a prateleira de trás).
+ */
+type Recheio = 'almofadas' | 'prateleiras'
+
+/**
+ * Uma face inteira, de frente (x de `xa` a `xb`, y = 0 no chão e negativo para cima): a beira do tampo com a sombra
+ * dela, o quadro em pé com o recheio (um vão a cada 2/3 de casa, correndo com o comprimento) e o rodapé escuro.
+ */
+function desenharFace(c: ContextoDoMovel, H: number, xa: number, xb: number, recheio: Recheio): PecaDaFrente[] {
+  const { g } = c
   const mad = c.m.madeira
   const pecas: PecaDaFrente[] = []
   const por = (forma: Forma, mat: MaterialDaPeca, o: OpcoesDaFrente): void => {
@@ -61,26 +80,37 @@ function desenharFrente(c: ContextoDoMovel, H: number): PecaDaFrente[] {
   }
   const dePe = (tom: number, semente: number, bisel: number): OpcoesDaFrente => ({ eixo: QUARTO, tabua: 0, bisel, tom, semente })
   const alto = -H + BEIRA_DO_TAMPO
+  const comprimento = xb - xa
   // O quadro em pé, da beira do tampo ao rodapé (passa um pouco por baixo dos dois).
-  por(caixa(-hw, alto - 0.5, hw, -RODAPE + 0.4, 0.5), mad, dePe(TOM_DO_QUADRO, 670, 0.9))
-  // As almofadas: o fundo afundado e o painel em relevo, que corre com o comprimento.
-  const almofadas = Math.max(1, Math.round(w / (g * LARGURA_DA_ALMOFADA)))
-  const largura = (w - 2 * LATERAL - (almofadas - 1) * MONTANTE) / almofadas
+  por(caixa(xa, alto - 0.5, xb, -RODAPE + 0.4, 0.5), mad, dePe(TOM_DO_QUADRO, 670, 0.9))
+  // Os vãos, que correm com o comprimento.
+  const vaos = Math.max(1, Math.round(comprimento / (g * LARGURA_DA_ALMOFADA)))
+  const largura = (comprimento - 2 * LATERAL - (vaos - 1) * MONTANTE) / vaos
   const topo = alto + TRAVESSA
   const pe = -RODAPE - TRAVESSA
   if (largura > 2 * RECUO_DO_PAINEL + 1) {
-    for (let i = 0; i < almofadas; i += 1) {
-      const x0 = -hw + LATERAL + i * (largura + MONTANTE)
+    for (let i = 0; i < vaos; i += 1) {
+      const x0 = xa + LATERAL + i * (largura + MONTANTE)
       const x1 = x0 + largura
-      por(caixa(x0, topo, x1, pe, 0.5), mad, { ...dePe(TOM_DO_FUNDO, 671 + i * 2, 0.3), recesso: { k: 2.4, forca: 0.36 }, contorno: 0.12 })
-      por(caixa(x0 + RECUO_DO_PAINEL, topo + RECUO_DO_PAINEL, x1 - RECUO_DO_PAINEL, pe - RECUO_DO_PAINEL, 0.6), mad, { ...dePe(TOM_DO_PAINEL, 672 + i * 2, 2.1), contorno: 0.14 })
+      if (recheio === 'almofadas') {
+        // O fundo afundado e o painel em relevo.
+        por(caixa(x0, topo, x1, pe, 0.5), mad, { ...dePe(TOM_DO_FUNDO, 671 + i * 2, 0.3), recesso: { k: 2.4, forca: 0.36 }, contorno: 0.12 })
+        por(caixa(x0 + RECUO_DO_PAINEL, topo + RECUO_DO_PAINEL, x1 - RECUO_DO_PAINEL, pe - RECUO_DO_PAINEL, 0.6), mad, { ...dePe(TOM_DO_PAINEL, 672 + i * 2, 2.1), contorno: 0.14 })
+      } else {
+        // O fundo do vão na sombra do tampo e a prateleira no meio, com a sombra dela embaixo.
+        const yp = (topo + pe) / 2
+        const meia = PRATELEIRA.grossura / 2
+        por(caixa(x0, topo, x1, pe, 0.5), mad, { ...dePe(TOM_DO_VAO, 675 + i * 3, 0.3), recesso: { k: 3.2, forca: 0.5 }, contorno: 0.16 })
+        por(caixa(x0 + 0.3, yp + meia, x1 - 0.3, yp + meia + PRATELEIRA.sombra, 0), SOMBRA_DA_MADEIRA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.35, suave: 1.1, semente: 676 + i * 3 })
+        por(caixa(x0, yp - meia, x1, yp + meia, 0.3), mad, { eixo: 0, tabua: 0, bisel: 0.7, tom: PRATELEIRA.tom, contorno: 0.14, semente: 677 + i * 3 })
+      }
     }
   }
   // O rodapé escuro, rente ao chão.
-  por(caixa(-hw, -RODAPE, hw, 0, 0.4), mad, { eixo: 0, tabua: 0, bisel: 0.8, tom: TOM_DO_RODAPE, semente: 690 })
+  por(caixa(xa, -RODAPE, xb, 0, 0.4), mad, { eixo: 0, tabua: 0, bisel: 0.8, tom: TOM_DO_RODAPE, semente: 690 })
   // A sombra que a beira do tampo faz no alto do quadro e, por cima de tudo, a beira.
-  por(caixa(-hw + 0.6, alto - 0.4, hw - 0.6, alto + ALTO_DA_SOMBRA_DO_TAMPO, 0), SOMBRA_DA_MADEIRA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.3, suave: 1.4, semente: 691 })
-  por(caixa(-hw, -H, hw, alto, 0.6), mad, { eixo: 0, tabua: 0, bisel: 1.1, tom: TOM_DA_BEIRA, luz: 0.06, semente: 692 })
+  por(caixa(xa + 0.6, alto - 0.4, xb - 0.6, alto + ALTO_DA_SOMBRA_DO_TAMPO, 0), SOMBRA_DA_MADEIRA, { tabua: 0, bisel: 0, contorno: 0, alfa: 0.3, suave: 1.4, semente: 691 })
+  por(caixa(xa, -H, xb, alto, 0.6), mad, { eixo: 0, tabua: 0, bisel: 1.1, tom: TOM_DA_BEIRA, luz: 0.06, semente: 692 })
   return pecas
 }
 
@@ -97,7 +127,7 @@ function guardarAFrente(c: ContextoDoMovel, cena: Cena, H: number, fimDoTampo: n
   for (const fx of faixas) {
     if (fx.topo > fx.pe) cena.sombras.push({ forma: caixa(-hw + CANTONEIRA, fx.base, hw - CANTONEIRA, fx.base + FRESTA), z: fx.z, solta: true, forca: 0 })
   }
-  const desenho = desenharFrente(c, H)
+  const desenho = desenharFace(c, H, -hw, hw, 'almofadas')
   for (const fx of faixas) {
     for (const peca of desenho) {
       const copia = naFaixa(c.peca, peca, fx)
@@ -113,10 +143,18 @@ export const montarBalcao: MontarMovel = (c, cena) => {
   // O tampo vai até a moldura; entre ela e a beira da frente fica a barra de pé.
   const fimDoTampo = hh - 0.24 * h
   const tampo = caixa(-hw, -hh, hw, fimDoTampo, 1.4)
-  // Sem giro, a frente desenhada. Girado, ela fica de lado ou atrás na 3/4, que só varre a madeira, como antes: a
-  // frente guardada ali só deixaria um fio dela na beira da lateral.
-  if (quartosDeVolta(c.giro) === 0) guardarAFrente(c, cena, H, fimDoTampo)
-  else cena.sombras.push({ forma: tampo, z: H })
+  // Sem giro, a frente desenhada. Girado, a frente fica de lado ou atrás na 3/4 e não é guardada (deixaria só um fio
+  // dela na beira da lateral): a face que fica embaixo na tela é a ponta (um quarto de volta, com a almofada) ou as
+  // costas (meia volta, os vãos com a prateleira), guardadas do mesmo jeito. Na tela, o corpo vai da frente (onde fica
+  // a barra) às costas: com um quarto de volta a frente fica à esquerda (90 graus) ou à direita (270).
+  const quartos = quartosDeVolta(c.giro)
+  if (quartos === 0) guardarAFrente(c, cena, H, fimDoTampo)
+  else if (quartos % 2 === 1) {
+    const [xa, xb] = quartos === 1 ? [-fimDoTampo, hh] : [-hh, fimDoTampo]
+    guardarFaceGirada(P, cena, quartos, H, { xa, xb, y0: -hw, y1: hw, raio: 1.4 }, desenharFace(c, H, xa, xb, 'almofadas'))
+  } else {
+    guardarFaceGirada(P, cena, quartos, H, { xa: -hw, xb: hw, y0: -fimDoTampo, y1: hh, raio: 1.4 }, desenharFace(c, H, -hw, hw, 'prateleiras'))
+  }
   cena.sombras.push(contato(tampo))
   // A barra de pé de latão, no ar, rente ao chão.
   const yBarra = hh - 0.09 * h

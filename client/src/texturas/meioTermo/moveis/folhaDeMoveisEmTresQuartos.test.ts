@@ -284,16 +284,28 @@ it.skipIf(!PEDIDA)('gera a folha de antes e depois do baú, do balcão e da gela
   if (!existsSync(arquivoDoAntes)) throw new Error(`falta ${arquivoDoAntes}: rode antes com FOLHA_MOVEIS_34=antes`)
   const antes = lerPaineis(fs, arquivoDoAntes)
   writeFileSync(join(PASTA, 'folha.png'), emPng(montarFolha(antes, agora)))
-  // Um bloco por arquivo também, e o depois no giro 0 no nível 3 (zoom 300%), para olhar de perto.
+  // Um bloco por arquivo também, e o depois nos quatro giros no nível 3 (zoom 300%), para olhar de perto.
   for (const item of TIPOS) {
     writeFileSync(join(PASTA, `folha-${item[0]}.png`), emPng(montarFolha(antes, agora, [item])))
-    const deCima = pintar(movel(item[0], 0), 'de-cima', 3)
-    const tres = pintar(movel(item[0], 0), 'tres-quartos', 3)
-    const [mx, my] = meias(deCima)
-    const [tx, ty] = meias(tres)
-    const tela = novaTela(2 * (mx + tx) + 3 * VAO, 2 * Math.max(my, ty) + 2 * VAO, CHAO_CLARO)
-    colarNoMeio(tela, deCima, VAO + mx, VAO + Math.max(my, ty))
-    colarNoMeio(tela, tres, 2 * VAO + 2 * mx + tx, VAO + Math.max(my, ty))
-    writeFileSync(join(PASTA, `perto-${item[0]}.png`), emPng(tela))
+    writeFileSync(join(PASTA, `perto-${item[0]}.png`), emPng(pertoNosQuatroGiros(item[0])))
   }
 }, 10 * 60_000)
+
+/** O nível do olhar de perto (zoom 300%). */
+const NIVEL_DE_PERTO = 3
+
+/** O depois no nível 3, nos quatro giros (0, 90, 180 e 270 da esquerda para a direita): de cima em cima, a 3/4 embaixo. */
+function pertoNosQuatroGiros(tipo: TipoMobilia): Tela {
+  const linhas = VISTAS.map((vista) => GIROS.map((giro) => pintar(movel(tipo, giro), vista, NIVEL_DE_PERTO)))
+  const meiaColuna = Math.max(...linhas.flat().map((p) => meias(p)[0]))
+  const meiasDaLinha = linhas.map((linha) => Math.max(...linha.map((p) => meias(p)[1])))
+  const largura = GIROS.length * (2 * meiaColuna + VAO) + VAO
+  const altura = meiasDaLinha.reduce((soma, m) => soma + 2 * m + VAO, VAO)
+  const tela = novaTela(largura, altura, CHAO_CLARO)
+  let y = VAO
+  linhas.forEach((linha, li) => {
+    linha.forEach((p, gi) => colarNoMeio(tela, p, VAO + gi * (2 * meiaColuna + VAO) + meiaColuna, y + meiasDaLinha[li]))
+    y += 2 * meiasDaLinha[li] + VAO
+  })
+  return tela
+}
