@@ -3228,12 +3228,15 @@ function App() {
    * desatualizada salvaria no caminho ou conteúdo ERRADO — o mesmo cuidado que
    * o app já toma em `pixi/PixiCanvas.tsx` lendo `useMapStore.getState()` fresco
    * a cada gesto. Em campo de texto os dois ficam com o comportamento nativo.
+   * "Campo de texto" é o de `isEditableTarget` (onde a tecla vira texto): no
+   * interruptor, no rádio e no botão o Ctrl+S salva. Antes todo INPUT barrava,
+   * e o Ctrl+S logo depois de ligar o "Travado" ou a "Vista 3/4" não fazia nada.
    */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (screen !== 'editor') return
-      const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return
+      const alvo = event.target instanceof HTMLElement ? event.target : null
+      if (alvo !== null && isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
       const ctrlOrCmd = event.ctrlKey || event.metaKey
       if (!ctrlOrCmd || event.shiftKey || event.altKey) return
       const key = event.key.toLowerCase()
