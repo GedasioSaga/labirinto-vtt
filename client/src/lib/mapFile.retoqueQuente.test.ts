@@ -107,4 +107,24 @@ describe('retoque Q no arquivo: leitura estrita', () => {
     const lido = deserializeMap(JSON.stringify({ id: 'x', props: [{ ...MESA, mobilia: 'trono' }, { ...MESA, id: 'img', mobilia: undefined }] }))
     for (const p of lido.props) expect('mobiliaDesenho' in p).toBe(false)
   })
+
+  it('vista 3/4 por objeto: true e false fazem ida e volta; o torto e o do objeto sem tipo saem; o mapa de antes não ganha o campo', () => {
+    const comEscolhas: MapData = { ...comOsQuatro(), props: [{ ...MESA, mobiliaTresQuartos: false }, { ...MESA, id: 'bau', mobilia: 'bau', mobiliaTresQuartos: true }] }
+    const uma = serializeMap(deserializeMap(serializeMap(comEscolhas)))
+    expect(serializeMap(deserializeMap(uma))).toBe(uma)
+    const lido = deserializeMap(uma)
+    expect(lido.props.map((p) => p.mobiliaTresQuartos)).toEqual([false, true])
+    expect(lido.vistaDosMoveis).toBe('tres-quartos')
+    // O mapa só com a vista do mapa inteiro (o de antes do campo) abre e salva sem a chave nova.
+    expect(serializeMap(deserializeMap(serializeMap(comOsQuatro())))).not.toContain('"mobiliaTresQuartos"')
+    for (const torto of ['"sim"', '"true"', '1', '0', 'null', '{}', '[true]']) {
+      const json = serializeMap(comEscolhas).replace('"mobiliaTresQuartos":false', `"mobiliaTresQuartos":${torto}`).replace('"mobiliaTresQuartos":true', `"mobiliaTresQuartos":${torto}`)
+      expect(json).toContain(`"mobiliaTresQuartos":${torto}`)
+      const props = deserializeMap(json).props
+      expect(props).toHaveLength(2)
+      for (const p of props) expect('mobiliaTresQuartos' in p).toBe(false)
+    }
+    const semTipo = deserializeMap(JSON.stringify({ id: 'x', props: [{ ...MESA, mobilia: 'trono', mobiliaTresQuartos: true }, { ...MESA, id: 'img', mobilia: undefined, mobiliaTresQuartos: true }] }))
+    for (const p of semTipo.props) expect('mobiliaTresQuartos' in p).toBe(false)
+  })
 })

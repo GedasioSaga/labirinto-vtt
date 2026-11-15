@@ -1261,8 +1261,10 @@ interface MapStoreState {
   definirFeitioDaParede: (id: string, feitio: FeitioDaParede) => void
   /** TEXTURA da parede (`Wall.material`): o material, ou `null` para Só linhas, com os pedaços da mesma parede partida por porta. Com histórico; o que não muda nada não gasta entrada. */
   definirMaterialDaParede: (id: string, material: MaterialDaParede | null) => void
-  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". */
+  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo), com histórico; `undefined` = "de cima". Apaga as escolhas por objeto no mesmo passo do desfazer. */
   definirVistaDosMoveis: (vista: MapData['vistaDosMoveis']) => void
+  /** VISTA 3/4 POR OBJETO (`Prop.mobiliaTresQuartos`): os móveis de `ids` em 3/4 ou de cima, num passo só do desfazer; o que não muda nada não gasta entrada. */
+  definirTresQuartosDosMoveis: (ids: readonly string[], ligada: boolean) => void
   /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo), com histórico; desligar tira o campo. */
   definirManchasDoChao: (ligadas: boolean) => void
   /** ESTILO DO MAPA da cena (`MapData.estiloVisual`: Atual, Simples ou Desenhado), com histórico; o Atual tira o campo. */
@@ -3091,6 +3093,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirVistaDosMoveis: (vista) => {
       if (mapFactory.definirVistaDosMoveis(get().map, vista) === get().map) return
       withHistory((map) => mapFactory.definirVistaDosMoveis(map, vista))
+    },
+    definirTresQuartosDosMoveis: (ids, ligada) => {
+      if (mapFactory.definirTresQuartosDosMoveis(get().map, ids, ligada) === get().map) return
+      withHistory((map) => mapFactory.definirTresQuartosDosMoveis(map, ids, ligada))
     },
     definirManchasDoChao: (ligadas) => {
       if (mapFactory.definirManchasDoChao(get().map, ligadas) === get().map) return

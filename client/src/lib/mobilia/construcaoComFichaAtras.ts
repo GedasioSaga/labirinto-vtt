@@ -21,18 +21,19 @@ type FichaNaTela = Pick<Token, 'x' | 'y' | 'size'>
 /**
  * Os ids das construções que têm ficha atrás: a base da ficha (o y mais ao sul do círculo) fica ao norte da
  * base da construção, e o círculo encosta no retângulo que a construção ocupa na tela (a caixa girada mais a
- * subida da 3/4). Fora da 3/4, ou sem construção, nenhuma. Número estragado (NaN) não conta.
+ * subida da 3/4). Só a construção que está em 3/4 (a escolha dela ou, sem escolha, a do mapa `vistaDoMapa`);
+ * de cima, ou sem construção, nenhuma. Número estragado (NaN) não conta.
  */
 export function construcoesComFichaAtras(
   props: readonly Prop[],
   fichas: readonly FichaNaTela[],
   grade: number,
-  vista: MapData['vistaDosMoveis'] | undefined,
+  vistaDoMapa: MapData['vistaDosMoveis'] | undefined,
 ): ReadonlySet<string> {
   const ids = new Set<string>()
-  if (!tresQuartosAtivo(vista) || fichas.length === 0 || !(grade > 0)) return ids
+  if (fichas.length === 0 || !(grade > 0)) return ids
   for (const prop of props) {
-    if (!ehConstrucao(prop.mobilia)) continue
+    if (!ehConstrucao(prop.mobilia) || !tresQuartosAtivo(prop, vistaDoMapa)) continue
     if (fichas.some((ficha) => fichaAtras(prop, ficha, grade))) ids.add(prop.id)
   }
   return ids

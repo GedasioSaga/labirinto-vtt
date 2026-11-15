@@ -39,9 +39,10 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
   aceitaCurva, aceitaVista, comAparenciaDoMovel, fogoDoMovel, formaDaPilhaDoMovel, formaDosPratos, movelComOutraFormaDaPilha, movelComOutroFogo, pratosComOutraForma, comCurvaGravada, formaDoTapete, mesmaAparenciaDoMovel, movelComOutraForma, movelComOutraVista,
   movelComOutroTipo, normalizarCurvaDaCerca, vistaDoMovel, movelComOutraFormaDoChafariz, movelComOutraAguaDoChafariz, movelComOutroVento,
-  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho, movelComOutraFormaDaCova,
+  movelComOutraFormaDaPonte, movelComOutraFormaDoMoinho, movelComOutraFormaDaCova, comTresQuartosGravado,
   type AparenciaDoMovelPatch,
 } from './mobilia'
+import { aceitaTresQuartos } from './mobilia/vistaTresQuartos'
 import { ehPonte, formaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { ehCova, formaDaCova, type FormaDaCova } from './mobilia/cova'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
@@ -2424,11 +2425,37 @@ export function definirChamine(map: MapData, id: string, ligada: boolean): MapDa
 }
 
 /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo). `undefined`
- * volta ao padrão "de cima" e TIRA o campo; a mesma vista devolve o mesmo `map`. */
+ * volta ao padrão "de cima" e TIRA o campo. Ligar ou desligar o mapa inteiro
+ * APAGA as escolhas feitas objeto por objeto (`Prop.mobiliaTresQuartos`), no
+ * mesmo mapa devolvido (um passo só do desfazer). A mesma vista, sem escolha
+ * por objeto para apagar, devolve o mesmo `map`. */
 export function definirVistaDosMoveis(map: MapData, vista: MapData['vistaDosMoveis']): MapData {
-  if (map.vistaDosMoveis === vista) return map
+  const comEscolha = map.props.some((p) => 'mobiliaTresQuartos' in p)
+  if (map.vistaDosMoveis === vista && !comEscolha) return map
   const { vistaDosMoveis: _antes, ...semVista } = map
-  return vista === undefined ? semVista : { ...semVista, vistaDosMoveis: vista }
+  const semEscolhas: Omit<MapData, 'vistaDosMoveis'> = comEscolha ? { ...semVista, props: map.props.map((p) => comTresQuartosGravado(p, undefined)) } : semVista
+  return vista === undefined ? semEscolhas : { ...semEscolhas, vistaDosMoveis: vista }
+}
+
+/**
+ * VISTA 3/4 POR OBJETO (pedido de 15/11/2026: "quando escolhe um objeto de
+ * 3/4 ele não pode mudar os outros"): põe os móveis de `ids` em 3/4 (`true`)
+ * ou de cima (`false`). `Prop.mobiliaTresQuartos` só é gravado quando difere
+ * da vista do mapa; igual a ela, o campo SAI (o móvel volta a seguir o mapa).
+ * Fica de fora o que a vista não muda (`aceitaTresQuartos`: objeto de imagem,
+ * tapete, desenho em linhas). Nada a mudar devolve o MESMO mapa.
+ */
+export function definirTresQuartosDosMoveis(map: MapData, ids: readonly string[], ligada: boolean): MapData {
+  const gravado = ligada === (map.vistaDosMoveis === 'tres-quartos') ? undefined : ligada
+  const alvos = new Set(ids)
+  let mudou = false
+  const props = map.props.map((p) => {
+    if (!alvos.has(p.id) || !aceitaTresQuartos(p)) return p
+    const novo = comTresQuartosGravado(p, gravado)
+    if (novo !== p) mudou = true
+    return novo
+  })
+  return mudou ? { ...map, props } : map
 }
 
 /** MANCHAS DO CHÃO da cena (`MapData.manchasDoChao`, Meio-Termo). Desligar

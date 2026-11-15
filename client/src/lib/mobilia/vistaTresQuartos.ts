@@ -1,6 +1,6 @@
 import type { MapData, Prop } from '../../types/map'
 import { meioTermoLigado } from '../estiloDoMapa'
-import { ehMovelDeCimaDaMesa, ehMovelDoChao } from '../mobilia'
+import { ehMovelDeCimaDaMesa, ehMovelDoChao, emOrdemDeDesenho } from '../mobilia'
 import { desenhaEmLinhas } from './desenhoDoMovel'
 import { rotationTrig } from '../roomRotation'
 import { BRASEIRO, FORNALHA, fogoDaTochaDePe, fogoDaTochaDeParede } from './fogoDeCasa'
@@ -10,13 +10,37 @@ import { BRASEIRO, FORNALHA, fogoDaTochaDePe, fogoDaTochaDeParede } from './fogo
  * dela sem carregar o motor dos móveis (o chunk `rasterDosMoveis`). O desenho
  * em si mora em `texturas/meioTermo/moveis/tresQuartos.ts`.
  *
- * Vale só com a chave de obra LIGADA e o mapa em 3/4 (`MapData.vistaDosMoveis`);
- * sem um dos dois, a tela é a de antes: a mesma ordem, a mesma imagem, a mesma chama.
+ * A vista é POR MÓVEL (pedido de 15/11/2026): a escolha dele
+ * (`Prop.mobiliaTresQuartos`) ou, sem escolha, a do mapa (`MapData.vistaDosMoveis`).
+ * Vale só com a chave de obra LIGADA; sem ela, ou sem nenhum móvel em 3/4, a
+ * tela é a de antes: a mesma ordem, a mesma imagem, a mesma chama.
  */
 
-/** A vista 3/4 está valendo nesta tela: chave de obra ligada e o mapa em 3/4. */
-export function tresQuartosAtivo(vista: MapData['vistaDosMoveis'] | undefined): boolean {
-  return vista === 'tres-quartos' && meioTermoLigado()
+/** A vista do mapa, como quem desenha a recebe (`MapData.vistaDosMoveis`). */
+type VistaDoMapa = MapData['vistaDosMoveis'] | undefined
+
+/**
+ * A VISTA EFETIVA deste móvel, a única conta dela: a escolha do móvel ou, sem
+ * escolha, a do mapa. Só o dado, sem a chave de obra. Escolha que não é
+ * booleano (colado, acervo, arquivo torto que não passou pela leitura) vale
+ * como ausente.
+ */
+export function movelEmTresQuartos(prop: Pick<Prop, 'mobiliaTresQuartos'>, vistaDoMapa: VistaDoMapa): boolean {
+  return typeof prop.mobiliaTresQuartos === 'boolean' ? prop.mobiliaTresQuartos : vistaDoMapa === 'tres-quartos'
+}
+
+/** A vista 3/4 está valendo NESTE móvel nesta tela: chave de obra ligada e o móvel em 3/4. */
+export function tresQuartosAtivo(prop: Pick<Prop, 'mobiliaTresQuartos'>, vistaDoMapa: VistaDoMapa): boolean {
+  return meioTermoLigado() && movelEmTresQuartos(prop, vistaDoMapa)
+}
+
+/**
+ * A chave "Vista 3/4" muda o desenho deste móvel? No chão (tapete, tapete
+ * longo) e no desenho EM LINHAS não muda nada: a ficha e o menu escondem o
+ * controle, e a ação em lote não grava escolha neles.
+ */
+export function aceitaTresQuartos(prop: Pick<Prop, 'mobilia' | 'mobiliaDesenho'>): boolean {
+  return prop.mobilia !== undefined && !ehMovelDoChao(prop.mobilia) && !desenhaEmLinhas(prop)
 }
 
 /**
@@ -44,10 +68,10 @@ export const DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS = -(ALTURA_DA_LENHA_EM_TRES_Q
  * um pouco com a pegada, porque o cesto tem altura fixa em casas.
  */
 export function deslocamentoDaChama(
-  prop: Pick<Prop, 'mobilia' | 'mobiliaVista' | 'mobiliaDesenho'> & Partial<Pick<Prop, 'width' | 'height'>>,
-  vista: MapData['vistaDosMoveis'] | undefined,
+  prop: Pick<Prop, 'mobilia' | 'mobiliaVista' | 'mobiliaDesenho' | 'mobiliaTresQuartos'> & Partial<Pick<Prop, 'width' | 'height'>>,
+  vistaDoMapa: VistaDoMapa,
 ): number {
-  if (!tresQuartosAtivo(vista) || desenhaEmLinhas(prop)) return 0
+  if (!tresQuartosAtivo(prop, vistaDoMapa) || desenhaEmLinhas(prop)) return 0
   if (prop.mobilia === 'lareira' || prop.mobilia === 'fornoDePao') return 0
   if (prop.mobilia === 'fornalha' || prop.mobilia === 'braseiro' || prop.mobilia === 'tochaDeParede' || prop.mobilia === 'tochaDePe') {
     const menor = Math.min(prop.width ?? 0, prop.height ?? 0)
@@ -74,16 +98,36 @@ export function baseDoMovel(prop: Pick<Prop, 'y' | 'width' | 'height' | 'rotatio
   return prop.y + (Math.abs(cos) * prop.height + Math.abs(sin) * prop.width) / 2
 }
 
+/** O que a ordem de desenho lê do objeto: o tipo, a escolha da vista e a pegada. */
+type PropNaOrdem = Pick<Prop, 'mobilia' | 'mobiliaTresQuartos' | 'y' | 'width' | 'height' | 'rotation'>
+
 /**
- * A ordem de desenho na 3/4: o chão (tapete, tapete longo) primeiro, na ordem
- * da lista, como sempre; o resto pela base, do norte para o sul (empate: a
- * ordem da lista). Base que não é número (arquivo estragado) vai para o fim.
+ * A ORDEM DE DESENHO COM A VISTA POR OBJETO. O chão (tapete, tapete longo)
+ * primeiro, na ordem da lista, como sempre. No resto, o objeto visto de cima
+ * fica onde a lista manda, e os que estão em 3/4 trocam de lugar só ENTRE SI,
+ * pela base (do norte para o sul; empate: a ordem da lista), nas posições que
+ * já ocupavam. A mesa posta (os Pratos) fica por cima de tudo, com a mesma
+ * regra entre ela: a base dela cai dentro da mesa.
+ *
+ * Nenhum em 3/4: a ordem de sempre (`emOrdemDeDesenho`, a mesma lista). Todos
+ * em 3/4: a ordem pela base inteira, como era com o mapa em 3/4. Objeto sem
+ * escolha segue o mapa (`movelEmTresQuartos`). Sem a chave de obra: quem
+ * desenha não chama esta função.
  */
-export function emOrdemDoTresQuartos<T extends Pick<Prop, 'mobilia' | 'y' | 'width' | 'height' | 'rotation'>>(props: readonly T[]): T[] {
+export function emOrdemDasVistas<T extends PropNaOrdem>(props: readonly T[], vistaDoMapa: VistaDoMapa): readonly T[] {
+  const emTresQuartos = (prop: T): boolean => movelEmTresQuartos(prop, vistaDoMapa)
+  if (!props.some(emTresQuartos)) return emOrdemDeDesenho(props)
   const chao = props.filter((p) => ehMovelDoChao(p.mobilia))
-  // A mesa posta (os Pratos) fica por cima de tudo, pela base entre ela: a base dela cai dentro da mesa.
-  const deCima = props.filter((p) => ehMovelDeCimaDaMesa(p.mobilia))
-  return [...chao, ...pelaBase(props.filter((p) => !ehMovelDoChao(p.mobilia) && !ehMovelDeCimaDaMesa(p.mobilia))), ...pelaBase(deCima)]
+  const doMeio = props.filter((p) => !ehMovelDoChao(p.mobilia) && !ehMovelDeCimaDaMesa(p.mobilia))
+  const deCimaDaMesa = props.filter((p) => ehMovelDeCimaDaMesa(p.mobilia))
+  return [...chao, ...comOsTresQuartosPelaBase(doMeio, emTresQuartos), ...comOsTresQuartosPelaBase(deCimaDaMesa, emTresQuartos)]
+}
+
+/** Os da faixa que estão em 3/4 trocam de lugar entre si, pela base, nas posições que já ocupavam; o resto não sai do lugar. */
+function comOsTresQuartosPelaBase<T extends PropNaOrdem>(faixa: readonly T[], emTresQuartos: (prop: T) => boolean): T[] {
+  const ordenados = pelaBase(faixa.filter(emTresQuartos))
+  let proximo = 0
+  return faixa.map((prop) => (emTresQuartos(prop) ? ordenados[proximo++] : prop))
 }
 
 /** Do norte para o sul pela base (empate: a ordem da lista); base que não é número vai para o fim. */

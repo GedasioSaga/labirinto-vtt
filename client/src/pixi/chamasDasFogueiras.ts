@@ -258,15 +258,16 @@ export function criarFormasDaChama(): FormasDaChama {
 }
 
 /** O que a chama lê do objeto. */
-export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista' | 'mobiliaForma'>
+export type PropDaChama = Pick<Prop, 'id' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'mobilia' | 'mobiliaVista' | 'mobiliaForma' | 'mobiliaTresQuartos'>
 
 /** Zoom do quadro: a fagulha tem um raio mínimo em px de tela. */
 export interface TelaDasChamas {
   cameraScale: number
   /**
-   * Vista dos móveis do mapa (MT11). Na 3/4, com a chave de obra ligada, a
-   * lenha sobe na imagem e a chama sobe junto (`deslocamentoDaChama`).
-   * Ausente = "de cima", a chama no lugar de sempre.
+   * Vista dos móveis do mapa (MT11). No móvel em 3/4 (a escolha dele ou, sem
+   * escolha, esta), com a chave de obra ligada, a lenha sobe na imagem e a
+   * chama sobe junto (`deslocamentoDaChama`). Ausente = "de cima", a chama no
+   * lugar de sempre.
    */
   vistaDosMoveis?: MapData['vistaDosMoveis']
 }

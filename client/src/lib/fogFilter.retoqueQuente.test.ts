@@ -132,6 +132,27 @@ describe('recorte do jogador — vistaDosMoveis', () => {
     const { vistaDosMoveis: _vista, ...deCima } = mapa()
     expect('vistaDosMoveis' in recorte(deCima)).toBe(false)
   })
+
+  it('vista por objeto: a escolha do móvel à vista atravessa (true e false); a do móvel escondido e a torta, não', () => {
+    // Mapa de cima com a mesa em 3/4: a escolha vai no móvel e o mapa segue sem o campo; o baú de trás da parede nem chega.
+    const escolhidos = [movel('mesa', 250, 800, { mobiliaTresQuartos: true }), movel('bau', 800, 800, { mobilia: 'bau', mobiliaTresQuartos: true })]
+    const { vistaDosMoveis: _vista, ...deCima } = mapa({ props: escolhidos })
+    const r = recorte(deCima)
+    expect(r.props.map((p) => [p.id, p.mobiliaTresQuartos])).toEqual([['mesa', true]])
+    expect('vistaDosMoveis' in r).toBe(false)
+    // Mapa em 3/4 com a mesa de cima: o `false` vai junto da vista da cena.
+    const comExcecao = recorte(mapa({ props: [movel('mesa', 250, 800, { mobiliaTresQuartos: false })] }))
+    expect(comExcecao.props[0]?.mobiliaTresQuartos).toBe(false)
+    expect(comExcecao.vistaDosMoveis).toBe('tres-quartos')
+    const tortos: unknown[] = ['sim', 'true', 1, null, {}]
+    for (const torto of tortos) {
+      // FORJADO: o tipo do arquivo não deixaria, o mapa em memória pode.
+      const props = [{ ...movel('mesa', 250, 800), mobiliaTresQuartos: torto }] as Prop[] // forjado de propósito: o teste é o valor fora do tipo
+      expect('mobiliaTresQuartos' in (recorte(mapa({ props })).props[0] ?? {})).toBe(false)
+    }
+    const semTipo = recorte(mapa({ props: [movel('img', 250, 800, { mobilia: undefined, mobiliaTresQuartos: true })] })).props[0]
+    expect(semTipo !== undefined && 'mobiliaTresQuartos' in semTipo).toBe(false)
+  })
 })
 
 describe('recorte do jogador — chaminé', () => {

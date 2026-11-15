@@ -5,8 +5,9 @@ import { opcoesDoEnvio } from '../lib/enviarParaCena'
 import { reordenarObjetos, type LadoDaPilha } from '../lib/mapFactory'
 import { propBoundingBox } from '../lib/objectTransform'
 import type { MapData, Prop } from '../types/map'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { ehMovelDoChao } from '../lib/mobilia'
-import { tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
+import { aceitaTresQuartos, movelEmTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
 import { personagensAtivos, useAdventureStore } from '../stores/adventureStore'
 import { enviarParaCena } from '../stores/enviarParaCena'
 import { desligarFichaDosTokens, ligarFichaAosTokens } from '../stores/ligarFichaNoToken'
@@ -27,7 +28,7 @@ export interface MenuDaSelecaoProps {
 /** Folga entre o menu e a borda do canvas quando o clique foi rente a ela. */
 const FOLGA_DA_BORDA = 8
 
-/** Na 3/4 o móvel comum vai pela base (`emOrdemDoTresQuartos`): a pilha da lista não manda nele. */
+/** O móvel comum em 3/4 vai pela base entre os que estão em 3/4 (`emOrdemDasVistas`): a pilha da lista não manda nele. */
 const MOTIVO_DA_PILHA_NA_3_4 = 'Na vista 3/4, o objeto mais ao sul fica por cima.'
 
 /** As caixas de dois objetos se cruzam (sem giro: basta para dizer "um está sobre o outro"). */
@@ -93,8 +94,14 @@ function focarItem(itens: readonly HTMLButtonElement[], indice: number, passo: 1
  *
  * PÔR POR CIMA / POR BAIXO (pedido de 12/11/2026): com objeto na seleção, os
  * objetos vão ao topo ou ao fundo da pilha da faixa deles (o chão entre o
- * chão, `mapFactory.reordenarObjetos`), num passo do Ctrl+Z. Na 3/4 o móvel
- * comum vai pela base: o item aparece desligado, com o porquê.
+ * chão, `mapFactory.reordenarObjetos`), num passo do Ctrl+Z. O móvel comum em
+ * 3/4 vai pela base: com um deles na seleção, o item aparece desligado, com o
+ * porquê.
+ *
+ * VISTA 3/4 (pedido de 15/11/2026): com móvel na seleção e o Meio-Termo
+ * ligado, "Vista 3/4" põe em 3/4 (ou de volta de cima, se todos já estão) os
+ * móveis selecionados em que a vista muda o desenho, num passo do Ctrl+Z; os
+ * outros objetos do mapa não mudam.
  *
  * MUDAR FICHA e AURA (pedido de 14/11/2026): com UM token só na seleção, no
  * fim do menu, "Mudar ficha ›" e "Aura ›" com as miniaturas ao lado
@@ -109,6 +116,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const [objetos] = useState(() => selection.filter((item) => item.kind === 'prop').map((item) => item.id))
   const porCimaRef = useRef<HTMLButtonElement | null>(null)
   const porBaixoRef = useRef<HTMLButtonElement | null>(null)
+  const tresQuartosRef = useRef<HTMLButtonElement | null>(null)
   const [submenuAberto, setSubmenuAberto] = useState(false)
   // "Enviar para cena ›" aberto; `focar` = abriu pelo teclado.
   const [cenasAbertas, setCenasAbertas] = useState<{ focar: boolean } | null>(null)
@@ -182,12 +190,22 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
   const envio = opcoesDoEnvio(adventure, cenaAberta, situacao)
 
   const ligados = fichas.filter((id) => map.tokens.some((token) => token.id === id && token.characterId !== null))
-  const pilhaPelaBase = tresQuartosAtivo(map.vistaDosMoveis) && map.props.some((p) => objetos.includes(p.id) && p.mobilia !== undefined && !ehMovelDoChao(p.mobilia))
+  // Só o móvel selecionado que está em 3/4 trava a pilha; o de cima segue a lista, mesmo num mapa com outros em 3/4.
+  const pilhaPelaBase = map.props.some((p) => objetos.includes(p.id) && p.mobilia !== undefined && !ehMovelDoChao(p.mobilia) && tresQuartosAtivo(p, map.vistaDosMoveis))
   const motivoDaPilha = pilhaPelaBase ? MOTIVO_DA_PILHA_NA_3_4 : motivoDaOutraCamada(map, objetos)
+  // VISTA 3/4: os móveis da seleção em que a vista muda o desenho. Sem a chave de obra a vista não desenha nada, e o item não entra.
+  const moveisComVista = meioTermoLigado() ? map.props.filter((p) => objetos.includes(p.id) && aceitaTresQuartos(p)) : []
+  const todosEmTresQuartos = moveisComVista.length > 0 && moveisComVista.every((p) => movelEmTresQuartos(p, map.vistaDosMoveis))
 
   const porNaPilha = (lado: LadoDaPilha) => {
     if (motivoDaPilha !== null) return
     useMapStore.getState().reordenarObjetos(objetos, lado)
+    onClose()
+  }
+
+  /** "Vista 3/4": todos já em 3/4 voltam a de cima; senão, todos vão para 3/4. Um passo do Ctrl+Z. */
+  const alternarTresQuartos = () => {
+    useMapStore.getState().definirTresQuartosDosMoveis(moveisComVista.map((p) => p.id), !todosEmTresQuartos)
     onClose()
   }
 
@@ -292,7 +310,7 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
       return
     }
     if (!noSubmenu) {
-      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
+      const pais = [itemRef.current, porCimaRef.current, porBaixoRef.current, tresQuartosRef.current, cenaRef.current, fichaRef.current, desligarRef.current, formaRef.current, auraRef.current].filter((item): item is HTMLButtonElement => item !== null)
       const noPai = pais.findIndex((item) => item === document.activeElement)
       if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -300,6 +318,8 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
         else if (document.activeElement === fichaRef.current) abrirFichas(true)
         else if (document.activeElement === porCimaRef.current || document.activeElement === porBaixoRef.current) {
           if (event.key !== 'ArrowRight') porNaPilha(document.activeElement === porCimaRef.current ? 'cima' : 'baixo')
+        } else if (document.activeElement === tresQuartosRef.current) {
+          if (event.key !== 'ArrowRight') alternarTresQuartos()
         } else if (document.activeElement === desligarRef.current) {
           if (event.key !== 'ArrowRight') desligar()
         } else abrirSubmenu(true)
@@ -433,6 +453,26 @@ export function MenuDaSelecao({ x, y, onClose, saindo = false }: MenuDaSelecaoPr
             <span>Pôr por baixo</span>
           </button>
           {motivoDaPilha !== null && <p className="lb-menusel__motivo">{motivoDaPilha}</p>}
+          {moveisComVista.length > 0 && (
+            <button
+              ref={tresQuartosRef}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={todosEmTresQuartos}
+              tabIndex={-1}
+              className="lb-portamenu__item lb-menusel__pai"
+              onPointerEnter={(event) => {
+                event.currentTarget.focus()
+                fecharSubmenus()
+              }}
+              onClick={alternarTresQuartos}
+            >
+              <span>Vista 3/4</span>
+              <span className="lb-menusel__marca" aria-hidden="true">
+                {todosEmTresQuartos ? '✓' : ''}
+              </span>
+            </button>
+          )}
         </>
       )}
       {fichas.length > 0 && (

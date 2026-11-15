@@ -22,6 +22,7 @@ import {
 import { catalogoComOTipo } from '../lib/mobilia/pecasNovas'
 import { ROTULO_DO_TAMANHO_DO_FOGO, TAMANHOS_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from '../lib/mobilia/fogo'
 import { ofereceDesenhoEmLinhas, saiComTextura } from '../lib/mobilia/desenhoDoMovel'
+import { aceitaTresQuartos, movelEmTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { DEFAULT_FLOOR_STYLE } from '../lib/mapFile'
 import { parseHexColor } from '../lib/tokenColor'
 import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
@@ -286,23 +287,25 @@ const DESENHOS_DO_MOVEL: readonly { rotulo: string; desenho: 'linhas' | null }[]
 ]
 
 /**
- * O interruptor "Vista 3/4" do MAPA (`MapData.vistaDosMoveis`): lê e grava
- * direto na store, com desfazer (`definirVistaDosMoveis`), como a "Chaminé"
- * da Sala. Desligar volta a "de cima" (o campo sai do mapa).
+ * O interruptor "Vista 3/4" DESTE MÓVEL (`Prop.mobiliaTresQuartos`, pedido de
+ * 15/11/2026: ligar num objeto mudava todos). Mostra a vista que vale para ele
+ * (a escolha dele ou, sem escolha, a do mapa) e grava direto na store, com
+ * desfazer (`definirTresQuartosDosMoveis`), só neste objeto. O mapa inteiro
+ * muda nas Configurações do mapa ("Todos os móveis em 3/4").
  */
-function VistaTresQuartosDoMapa() {
+function VistaTresQuartosDoMovel({ prop }: { prop: Prop }) {
   const ajudaId = useId()
-  const ligada = useMapStore((state) => state.map.vistaDosMoveis === 'tres-quartos')
+  const vistaDoMapa = useMapStore((state) => state.map.vistaDosMoveis)
   return (
     <div className="lb-switch-com-ajuda">
       <Toggle
         label="Vista 3/4"
-        checked={ligada}
-        onChange={(ligar) => useMapStore.getState().definirVistaDosMoveis(ligar ? 'tres-quartos' : undefined)}
+        checked={movelEmTresQuartos(prop, vistaDoMapa)}
+        onChange={(ligar) => useMapStore.getState().definirTresQuartosDosMoveis([prop.id], ligar)}
         describedBy={ajudaId}
       />
       <p className="gr-nota" id={ajudaId}>
-        Vale para todos os móveis deste mapa: a frente de cada um aparece embaixo do tampo.
+        Só este objeto: a frente aparece embaixo do tampo.
       </p>
     </div>
   )
@@ -643,10 +646,10 @@ export function MobiliaControls({
             </div>
           </div>
         )}
-        {/* VISTA 3/4 DO MAPA (Meio-Termo, MT11): vale para todos os móveis do mapa, então mora
-            no fim do essencial, depois do que é só desta peça. Só com a chave de obra: sem ela a
-            vista não desenha nada, e controle sem efeito não entra. */}
-        {meioTermoLigado() && <VistaTresQuartosDoMapa />}
+        {/* VISTA 3/4 DESTE MÓVEL (Meio-Termo, MT11; por objeto desde 15/11/2026): no fim do essencial.
+            Só com a chave de obra (sem ela a vista não desenha nada) e só onde a vista muda o desenho:
+            no tapete e no desenho de linhas, controle sem efeito não entra. */}
+        {meioTermoLigado() && aceitaTresQuartos(prop) && <VistaTresQuartosDoMovel prop={prop} />}
       </section>
     )
   }

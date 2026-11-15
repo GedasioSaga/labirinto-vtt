@@ -15,6 +15,8 @@ import { Dialogo } from './grimorio/Dialogo'
 import { NavegacaoVertical, type SecaoDaNavegacao } from './grimorio/NavegacaoVertical'
 import { IconeDoLivro } from './livro/icones'
 import { SistemaDeRpgDoMapa } from './SistemaDeRpgControls'
+import { VistaDosMoveisDoMapa } from './VistaDosMoveisControls'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { FEATURES } from '../lib/features'
 
 export interface MapSettingsProps {
@@ -99,6 +101,9 @@ export function MapSettingsDialog({
   if (showSceneFloor && sceneFloor) secoes.push({ id: 'andar', rotulo: 'Andar do prédio', conteudo: <SceneFloorControls {...sceneFloor} /> })
   if (faceRange !== undefined) secoes.push({ id: 'rostos', rotulo: 'Rostos', conteudo: <FaceRangeControls {...faceRange} /> })
   if (showScenarioLink) secoes.push({ id: 'cenario', rotulo: 'Link de cenário', conteudo: <ScenarioLinkControls {...scenarioLink} /> })
+  // VISTA DOS MÓVEIS (Meio-Termo): o padrão do mapa inteiro; a de cada objeto fica na ficha dele.
+  // Só com a chave de obra: sem ela a vista não desenha nada, e controle sem efeito não entra.
+  if (meioTermoLigado()) secoes.push({ id: 'moveis', rotulo: 'Móveis', conteudo: <VistaDosMoveisDoMapa /> })
   // Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela.
   secoes.push({ id: 'sistema', rotulo: 'Sistema de RPG', conteudo: <SistemaDeRpgDoMapa /> })
 

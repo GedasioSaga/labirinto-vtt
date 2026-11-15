@@ -5,13 +5,13 @@ import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
 import { ALFA_DA_SOMBRA_DOS_MOVEIS, drawPropSilhouettes } from './drawPropSilhouettes'
-import { desenhadoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
+import { desenhadoLigado, meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
 import { contornoDaCercaCurva } from '../lib/cercaCurva'
 import { propCorners } from '../lib/objectTransform'
 import { ehMovelDeCimaDaMesa, ehMovelDoChao, temParteAnimada } from '../lib/mobilia'
-import { emOrdemDoTresQuartos, tresQuartosAtivo } from '../lib/mobilia/vistaTresQuartos'
+import { emOrdemDasVistas, movelEmTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
 
 /**
@@ -108,7 +108,7 @@ function fileBaseName(path: string): string {
 export interface PropsView {
   cameraScale: number
   rendererResolution: number
-  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo): segue para `drawPropSilhouettes`, como no jogador. */
+  /** VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo): segue para `drawPropSilhouettes`, como no jogador. A escolha de cada móvel (`Prop.mobiliaTresQuartos`) vai no próprio objeto. */
   vistaDosMoveis?: MapData['vistaDosMoveis']
   /** A grade do mapa (`MapData.grid`): o Desenhado mede as pontas esticadas em casas dela. */
   gradeDoMapa?: number
@@ -282,9 +282,9 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
     // Fogueira, lareira ou fornalha que sumiu (outro tipo, camada oculta) leva a chama; apagada, `colocar` já a tirou.
     chamas.podar(fogueiras)
-    // A lista é a pilha, o último por cima, como no jogador e no clique; na 3/4, os móveis depois pela base.
+    // A lista é a pilha, o último por cima, como no jogador e no clique; os móveis em 3/4, depois, pela base entre si.
     reordenar(container, nosNaOrdemDaLista(container, props))
-    if (tresQuartosAtivo(view.vistaDosMoveis)) ordenarPelaBase(container, props)
+    if (meioTermoLigado() && props.some((p) => movelEmTresQuartos(p, view.vistaDosMoveis))) ordenarPelaBase(container, props, view.vistaDosMoveis)
     // O chão volta ao fundo: o que entrou agora com `addChildAt(…, 0)` passou por
     // baixo dele. Mapa sem tapete nunca ganha o chão (a lista de filhos fica a de sempre).
     if (floor.children.length > 0) {
@@ -357,14 +357,16 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   }
 
   /**
-   * VISTA 3/4 (MT11): os móveis dos objetos (o chão fica como está) trocam de
-   * lugar entre si pela BASE, o mais ao sul por cima, cada chama logo acima da
-   * sua fogueira. As imagens de objeto e o destaque não saem do lugar: os
-   * móveis só ocupam, na nova ordem, os mesmos índices que já tinham.
+   * VISTA 3/4 (MT11, por objeto desde 15/11/2026): entre os móveis dos objetos
+   * (o chão fica como está), os que estão em 3/4 trocam de lugar entre si pela
+   * BASE, o mais ao sul por cima; o móvel de cima fica onde a lista manda
+   * (`emOrdemDasVistas`). Cada chama segue logo acima da sua fogueira. As
+   * imagens de objeto e o destaque não saem do lugar: os móveis só ocupam, na
+   * nova ordem, os mesmos índices que já tinham.
    */
-  function ordenarPelaBase(container: Container, props: readonly Prop[]): void {
+  function ordenarPelaBase(container: Container, props: readonly Prop[], vistaDoMapa: MapData['vistaDosMoveis']): void {
     const nos: Container[] = []
-    for (const prop of emOrdemDoTresQuartos(props.filter((p) => p.mobilia !== undefined && !ehMovelDoChao(p.mobilia)))) {
+    for (const prop of emOrdemDasVistas(props.filter((p) => p.mobilia !== undefined && !ehMovelDoChao(p.mobilia)), vistaDoMapa)) {
       const entry = furnitureCache.get(prop.id)
       if (entry === undefined || entry.drawing.parent !== container) continue
       nos.push(entry.drawing)

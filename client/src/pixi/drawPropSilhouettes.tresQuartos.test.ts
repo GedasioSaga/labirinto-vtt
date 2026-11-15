@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Container, Graphics } from 'pixi.js'
 import type { Prop } from '../types/map'
 import { trocarObraNoTeste } from '../lib/estiloDoMapa'
-import { DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS, emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
+import { DESLOCAMENTO_DA_CHAMA_EM_TRES_QUARTOS, emOrdemDasVistas } from '../lib/mobilia/vistaTresQuartos'
 import { carregarMoveisDoMeioTermo, drawPropSilhouettes } from './drawPropSilhouettes'
 import { createChamasDasFogueiras } from './chamasDasFogueiras'
 import { createPropsRenderer } from './drawProps'
@@ -82,8 +82,43 @@ describe('a ordem pela base na 3/4', () => {
   it('a base é a da pegada GIRADA: a cama de 1 x 3 deitada 90° tem a base mais ao norte', () => {
     const cama = movel('cama', 'catre', 200, { width: 50, height: 150 })
     const caixa = movel('caixa', 'caixa', 230, { width: 50, height: 50 })
-    expect(emOrdemDoTresQuartos([caixa, cama]).map((p) => p.id)).toEqual(['caixa', 'cama'])
-    expect(emOrdemDoTresQuartos([caixa, { ...cama, rotation: 90 }]).map((p) => p.id)).toEqual(['cama', 'caixa'])
+    expect(emOrdemDasVistas([caixa, cama], 'tres-quartos').map((p) => p.id)).toEqual(['caixa', 'cama'])
+    expect(emOrdemDasVistas([caixa, { ...cama, rotation: 90 }], 'tres-quartos').map((p) => p.id)).toEqual(['cama', 'caixa'])
+  })
+
+  it('ordem mista (vista por objeto): os em 3/4 trocam só entre si pela base; o de cima fica onde a lista manda', async () => {
+    // A lista: baú (sul), barril (norte), caixa (meio). Só a caixa fica de cima.
+    const bau = movel('bau', 'bau', 230)
+    const barril = movel('barril', 'barril', 180)
+    const caixa = movel('caixa', 'caixa', 200)
+    const ids = (lista: readonly Prop[]): string[] => lista.map((p) => p.id)
+    const escolhidos = [{ ...bau, mobiliaTresQuartos: true }, { ...barril, mobiliaTresQuartos: true }, caixa]
+    // Mapa de cima com dois escolhidos, e mapa em 3/4 com a caixa de fora: a mesma ordem.
+    expect(ids(emOrdemDasVistas(escolhidos, undefined))).toEqual(['barril', 'bau', 'caixa'])
+    expect(ids(emOrdemDasVistas([bau, barril, { ...caixa, mobiliaTresQuartos: false }], 'tres-quartos'))).toEqual(['barril', 'bau', 'caixa'])
+    // Tudo em 3/4 e nada em 3/4: as ordens de antes (pela base inteira; a própria lista).
+    expect(ids(emOrdemDasVistas([bau, barril, caixa], 'tres-quartos'))).toEqual(['barril', 'caixa', 'bau'])
+    const semNenhum = [bau, barril, caixa]
+    expect(emOrdemDasVistas(semNenhum, undefined)).toBe(semNenhum)
+    // Na tela do jogador: a mesma ordem, e só os escolhidos saem na imagem 3/4 (mais alta que a de cima).
+    await carregarMoveisDoMeioTermo()
+    trocarObraNoTeste(true)
+    const { rodar } = rasterComFila()
+    const misto = new Graphics()
+    const deCima = new Graphics()
+    const pintar = (): void => {
+      drawPropSilhouettes(misto, escolhidos, 1, 1)
+      drawPropSilhouettes(deCima, [barril, bau, caixa], 1, 1)
+    }
+    pintar()
+    rodar()
+    pintar()
+    expect(ordemPintada(misto)).toEqual([180, 230, 200])
+    const [barrilMisto, bauMisto, caixaMista] = texturas(misto)
+    const [barrilDeCima, bauDeCima, caixaDeCima] = texturas(deCima)
+    expect(caixaMista.data.image).toBe(caixaDeCima.data.image)
+    expect(barrilMisto.data.image).not.toBe(barrilDeCima.data.image)
+    expect(bauMisto.data.dy).toBeLessThan(bauDeCima.data.dy)
   })
 
   it('editor: os desenhos dos móveis trocam de lugar pela base, sem mexer no chão nem nas imagens', async () => {

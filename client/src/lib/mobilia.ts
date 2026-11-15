@@ -350,6 +350,24 @@ function comDesenhoGravado(prop: Prop, desenho: 'linhas' | undefined): Prop {
 }
 
 /**
+ * A VISTA 3/4 DESTE MÓVEL (`Prop.mobiliaTresQuartos`, pedido de 15/11/2026) na
+ * forma única que o mapa guarda: só `true` ou `false`, e só num tipo do
+ * catálogo; o resto (texto, número, arquivo editado à mão) vira `undefined`,
+ * e o móvel segue o mapa. Mesma porta na leitura do arquivo e na travessia
+ * para o jogador.
+ */
+export function normalizarTresQuartosDoMovel(tipo: unknown, valor: unknown): boolean | undefined {
+  return typeof valor === 'boolean' && ehTipoMobilia(tipo) ? valor : undefined
+}
+
+/** `prop` com a vista 3/4 dele na forma que o mapa guarda (`undefined` = sem o campo, segue o mapa). Mesma referência se nada muda. */
+export function comTresQuartosGravado(prop: Prop, tresQuartos: boolean | undefined): Prop {
+  if (prop.mobiliaTresQuartos === tresQuartos) return prop
+  const { mobiliaTresQuartos: _tresQuartos, ...semTresQuartos } = prop
+  return tresQuartos === undefined ? semTresQuartos : { ...semTresQuartos, mobiliaTresQuartos: tresQuartos }
+}
+
+/**
  * A VISTA DOS MÓVEIS da cena (`MapData.vistaDosMoveis`, Meio-Termo) na forma
  * única que o mapa guarda: só `'tres-quartos'`; o resto (o padrão "de cima",
  * texto torto, arquivo editado à mão) vira `undefined`.
@@ -361,7 +379,8 @@ export function lerVistaDosMoveis(valor: unknown): MapData['vistaDosMoveis'] {
 /**
  * A vista dos móveis como o jogador a recebe: só quando o recorte dele leva
  * algum móvel (é o único desenho que a lê). Sem móvel à vista, ou com a camada
- * dos objetos escondida, o campo nem sai.
+ * dos objetos escondida, o campo nem sai. A escolha de cada móvel
+ * (`Prop.mobiliaTresQuartos`) vai com o próprio móvel (`mobiliaParaJogador`).
  */
 export function vistaDosMoveisParaJogador(valor: unknown, propsDoRecorte: readonly Pick<Prop, 'mobilia'>[]): MapData['vistaDosMoveis'] {
   const vista = lerVistaDosMoveis(valor)
@@ -1848,7 +1867,7 @@ function desenhoDepoisDoPedido(prop: Prop, pedido: 'linhas' | null | undefined):
   return ofereceDesenhoEmLinhas(prop.mobilia) ? 'linhas' : prop.mobiliaDesenho
 }
 
-/** Os dois objetos têm a mesma aparência de móvel ("Preencher", as três cores da cama, "Cor da linha"). */
+/** Os dois objetos têm a mesma aparência de móvel ("Preencher", as três cores da cama, "Cor da linha", o desenho e a vista 3/4). */
 export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
   return (
     a.mobiliaPreenchido === b.mobiliaPreenchido &&
@@ -1856,7 +1875,8 @@ export function mesmaAparenciaDoMovel(a: Prop, b: Prop): boolean {
     a.mobiliaCorDaLinha === b.mobiliaCorDaLinha &&
     a.mobiliaCorDoTravesseiro === b.mobiliaCorDoTravesseiro &&
     a.mobiliaCorDoCobertor === b.mobiliaCorDoCobertor &&
-    a.mobiliaDesenho === b.mobiliaDesenho
+    a.mobiliaDesenho === b.mobiliaDesenho &&
+    a.mobiliaTresQuartos === b.mobiliaTresQuartos
   )
 }
 
@@ -1896,7 +1916,8 @@ function semNadaDeMovel(prop: Prop): Prop {
     !('mobiliaForma' in prop) &&
     !('mobiliaCorDoTravesseiro' in prop) &&
     !('mobiliaCorDoCobertor' in prop) &&
-    !('mobiliaDesenho' in prop)
+    !('mobiliaDesenho' in prop) &&
+    !('mobiliaTresQuartos' in prop)
   ) {
     return prop
   }
@@ -1911,6 +1932,7 @@ function semNadaDeMovel(prop: Prop): Prop {
     mobiliaCorDoTravesseiro: _corDoTravesseiro,
     mobiliaCorDoCobertor: _corDoCobertor,
     mobiliaDesenho: _desenho,
+    mobiliaTresQuartos: _tresQuartos,
     tracado: _tracado,
     ...comum
   } = prop
@@ -1930,7 +1952,8 @@ export function propMobiliaFromFile(prop: Prop): Prop {
   if (!ehTipoMobilia(prop.mobilia)) return semNadaDeMovel(prop)
   // MURO DE FOGO: o traço só no muro, só pontos de 0 a 1, até o teto; o torto some.
   // DESENHO (Meio-Termo): só `'linhas'`; o resto some.
-  const lido = comTracadoGravado(comDesenhoGravado(comFormaGravada(
+  // VISTA 3/4 DESTE MÓVEL: só `true` ou `false`; o resto some (o móvel segue o mapa).
+  const lido = comTresQuartosGravado(comTracadoGravado(comDesenhoGravado(comFormaGravada(
     comCurvaGravada(
       comVistaGravada(
         comAparenciaGravada(prop, {
@@ -1948,7 +1971,7 @@ export function propMobiliaFromFile(prop: Prop): Prop {
     ),
     // TAPETE: só `'redondo'`, e só no tapete; PRATOS: só `'vazio'` e `'pilha'`; o resto some.
     normalizarFormaDoMovel(prop.mobilia, prop.mobiliaForma),
-  ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)), normalizarTracadoDoMuro(prop.mobilia, prop.tracado))
+  ), normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)), normalizarTracadoDoMuro(prop.mobilia, prop.tracado)), normalizarTresQuartosDoMovel(prop.mobilia, prop.mobiliaTresQuartos))
   const mesmo =
     lido.tracado === prop.tracado &&
     mesmaAparenciaDoMovel(lido, prop) &&
@@ -1995,5 +2018,8 @@ export function mobiliaParaJogador(prop: Prop): Partial<Prop> {
   // O DESENHO (Meio-Termo): só `'linhas'` num tipo do catálogo.
   const desenho = normalizarDesenhoDoMovel(prop.mobilia, prop.mobiliaDesenho)
   if (desenho !== undefined) paraJogador.mobiliaDesenho = desenho
+  // A VISTA 3/4 DESTE MÓVEL: `true` e `false` vão (o `false` é o móvel de cima num mapa em 3/4); sem escolha, nada.
+  const tresQuartos = normalizarTresQuartosDoMovel(prop.mobilia, prop.mobiliaTresQuartos)
+  if (tresQuartos !== undefined) paraJogador.mobiliaTresQuartos = tresQuartos
   return paraJogador
 }

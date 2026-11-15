@@ -25,7 +25,7 @@ import { varianteDaPilha } from '../lib/mobilia/pilhas'
 import { formaDoChafariz, varianteDaFormaDoChafariz } from '../lib/mobilia/chafariz'
 import { varianteDaPonte } from '../lib/mobilia/ponte'
 import { formaDoMoinho } from '../lib/mobilia/cataVento'
-import { emOrdemDoTresQuartos } from '../lib/mobilia/vistaTresQuartos'
+import { emOrdemDasVistas, movelEmTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { WALL_COLOR } from './drawWalls'
 import { alignToPixel, pixelGrid, strokeWidthInWorld, type PixelGrid } from './pixelAlign'
 // Só o tipo: o raster dos móveis do Meio-Termo (o motor e as tabelas de ruído) carrega sob demanda.
@@ -119,6 +119,8 @@ export type PropSilhouette = Pick<
   | 'mobiliaCorDoTravesseiro'
   | 'mobiliaCorDoCobertor'
   | 'mobiliaDesenho'
+  // A vista 3/4 deste móvel (15/11/2026): a escolha dele vence a do mapa (`movelEmTresQuartos`).
+  | 'mobiliaTresQuartos'
   // O traço do muro de fogo (15/11/2026): a imagem e o desenho de linhas seguem a linha do mestre.
   | 'tracado'
 > &
@@ -545,11 +547,14 @@ function drawTexturedFurniture(
  * chave ligada (`saiComTextura`).
  *
  * `vistaDosMoveis` é a vista da cena (`MapData.vistaDosMoveis`, Meio-Termo),
- * que o editor e o jogador passam igual. Com a chave de obra LIGADA e a cena
- * em 3/4 (MT11), cada móvel com textura sai na imagem 3/4 (o tampo sobe, a
- * frente aparece embaixo) e a ordem passa a ser pela BASE (o móvel mais ao sul
- * por cima, `emOrdemDoTresQuartos`), dentro desta lista (a faixa da camada).
- * Sem a chave, a vista é ignorada: a ordem e as imagens são as de antes.
+ * que o editor e o jogador passam igual. A vista de CADA móvel é a escolha
+ * dele (`Prop.mobiliaTresQuartos`) ou, sem escolha, a da cena
+ * (`movelEmTresQuartos`). Com a chave de obra LIGADA, o móvel em 3/4 (MT11)
+ * com textura sai na imagem 3/4 (o tampo sobe, a frente aparece embaixo), e os
+ * que estão em 3/4 trocam de lugar entre si pela BASE (o mais ao sul por cima);
+ * o móvel de cima fica onde a lista manda (`emOrdemDasVistas`), dentro desta
+ * lista (a faixa da camada). Sem a chave, a vista é ignorada: a ordem e as
+ * imagens são as de antes.
  */
 export function drawPropSilhouettes(
   graphics: Graphics,
@@ -579,14 +584,15 @@ export function drawPropSilhouettes(
   const raster = obraLigada || props.some(comTextura) ? rasterParaPassada(graphics, repintar) : null
   const modulo = moduloDoRaster
   // A 3/4 só com a chave de obra: desligada, a vista do arquivo não muda nada na tela.
-  const vista = obraLigada && vistaDosMoveis === 'tres-quartos' ? vistaDosMoveis : undefined
+  // A vista é de cada móvel: a escolha dele ou, sem escolha, a da cena.
+  const vistaDe = (prop: PropSilhouette): 'tres-quartos' | undefined => (obraLigada && movelEmTresQuartos(prop, vistaDosMoveis) ? 'tres-quartos' : undefined)
   raster?.abrirPassada(graphics, repintar)
   try {
     let drawn = 0
-    // O tapete fica no chão: pintado antes, por baixo de todo objeto. Na 3/4, o resto pela base.
-    for (const prop of vista === undefined ? emOrdemDeDesenho(props) : emOrdemDoTresQuartos(props)) {
+    // O tapete fica no chão: pintado antes, por baixo de todo objeto. Os que estão em 3/4, pela base entre si.
+    for (const prop of obraLigada ? emOrdemDasVistas(props, vistaDosMoveis) : emOrdemDeDesenho(props)) {
       if (!hasDrawableGeometry(prop)) continue
-      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vista, gradeDoMapa, sombra)) {
+      if (raster === null || modulo === null || !comTextura(prop) || !drawTexturedFurniture(graphics, prop, raster, modulo, cameraScale, rendererResolution, grid, edgeWidth, vistaDe(prop), gradeDoMapa, sombra)) {
         drawSilhouette(graphics, prop, grid, edgeWidth)
       }
       drawn += 1
