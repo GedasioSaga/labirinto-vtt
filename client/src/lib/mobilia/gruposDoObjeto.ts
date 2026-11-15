@@ -427,7 +427,8 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   // "balcão de taverna" saiu em 14/11/2026: é o nome do balcão de taverna (lote L09), que a busca acha pelo nome.
   balcao: ['balcão de bar'],
   fogao: ['fogão a lenha', 'fogão de ferro'],
-  geladeira: ['refrigerador', 'freezer'],
+  // A geladeira é de inox desde 15/11/2026 (era a caixa de gelo de madeira).
+  geladeira: ['refrigerador', 'freezer', 'inox'],
   pia: ['torneira'],
   pratos: ['louça', 'comida', 'refeição', 'banquete', 'talheres'],
   privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],

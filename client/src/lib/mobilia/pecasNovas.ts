@@ -122,7 +122,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // Objeto Fogo (27/10/2026): o tamanho padrão é o da Chama; o painel troca para Fogaréu e Incêndio (`TAMANHOS_DO_FOGO`).
   fogo: { rotulo: 'Fogo', artigo: 'um fogo', tamanho: { largura: 1, altura: 1 }, redonda: false },
   // Móveis de casa (28/10/2026), época "Fantasia, como os de hoje". A cozinha: o fogão de ferro a lenha,
-  // a geladeira de madeira (a caixa de gelo), a pia de pedra e o balcão, esticável como o aparador.
+  // a geladeira moderna de inox de duas portas lado a lado (era a caixa de gelo de madeira até 15/11/2026),
+  // a pia de pedra e o balcão, esticável como o aparador.
   fogao: { rotulo: 'Fogão', artigo: 'um fogão', tamanho: { largura: 1, altura: 1 }, redonda: false },
   geladeira: { rotulo: 'Geladeira', artigo: 'uma geladeira', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
   pia: { rotulo: 'Pia', artigo: 'uma pia', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
@@ -1133,9 +1134,19 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
     case 'fogao':
       // As duas bocas no fundo da chapa e a portinha da lenha na frente.
       return [...aro(largura * 0.3, altura * 0.3, -hw * 0.42, -hh * 0.22), ...aro(largura * 0.3, altura * 0.3, hw * 0.42, -hh * 0.22), linha(-hw * 0.4, hh * 0.62, hw * 0.4)]
-    case 'geladeira':
-      // A tampa de zinco da caixa de gelo e o fecho da frente.
-      return [...quadro(-hw * 0.62, -hh * 0.62, hw * 0.62, hh * 0.3), { x1: 0, y1: hh * 0.3, x2: 0, y2: hh }]
+    case 'geladeira': {
+      // A geladeira de inox de duas portas lado a lado (15/11/2026), como o ícone: a beira de trás do tampo, o alto
+      // das portas na frente, a fresta do meio e os dois puxadores retos junto dela.
+      const portas = hh * 0.3
+      const puxador = hw * 0.18
+      return [
+        linha(-hw * 0.9, -hh * 0.62, hw * 0.9),
+        linha(-hw, portas, hw),
+        { x1: 0, y1: portas, x2: 0, y2: hh },
+        { x1: -puxador, y1: hh * 0.5, x2: -puxador, y2: hh * 0.86 },
+        { x1: puxador, y1: hh * 0.5, x2: puxador, y2: hh * 0.86 },
+      ]
+    }
     case 'pia': {
       // A cuba de pedra à esquerda e o balde à direita. O balde tem teto pela
       // largura: na pia esticada estreita e alta ele não sai da caixa (centro
