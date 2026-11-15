@@ -619,17 +619,20 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     next = moveStair(next, stairId, dx, dy)
   }
 
-  if (selection.lights.length > 0) {
-    const lightIds = new Set(selection.lights)
+  // Nada andou (tudo travado) → o MESMO `map` volta: a seta e o arrasto em
+  // item travado não gastam passo no Ctrl+Z (`moveSelectionBy` compara a
+  // referência). Por isso cada tipo abaixo só recria a lista se algo dele anda.
+  const lightIds = new Set(selection.lights)
+  if (next.lights.some((l) => lightIds.has(l.id) && canInteract(l))) {
     next = {
       ...next,
       lights: next.lights.map((l) => (lightIds.has(l.id) && canInteract(l) ? { ...l, x: l.x + dx, y: l.y + dy } : l)),
     }
   }
 
-  if (selection.tokens.length > 0) {
-    const tokenIds = new Set(selection.tokens)
-    const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
+  const tokenIds = new Set(selection.tokens)
+  const movedTokenIds = next.tokens.filter((t) => tokenIds.has(t.id) && canInteract(t)).map((t) => t.id)
+  if (movedTokenIds.length > 0) {
     // VEÍCULO: o veículo da seleção leva quem está a bordo, esteja ou não na
     // seleção — cada um anda UMA vez, o passo inteiro (vai dentro do veículo).
     // Quem só vai a bordo tem o trajeto checado nas paredes de ANTES (`map`),
@@ -662,16 +665,16 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     if (dx !== 0 || dy !== 0) next = leaveVehiclesLeftBehind({ ...next, tokens: tokensBefore }, next, movedIds)
   }
 
-  if (selection.props.length > 0) {
-    const propIds = new Set(selection.props)
+  const propIds = new Set(selection.props)
+  if (next.props.some((p) => propIds.has(p.id) && canInteract(p))) {
     next = {
       ...next,
       props: next.props.map((p) => (propIds.has(p.id) && canInteract(p) ? { ...p, x: p.x + dx, y: p.y + dy } : p)),
     }
   }
 
-  if (selection.drawings.length > 0) {
-    const drawingIds = new Set(selection.drawings)
+  const drawingIds = new Set(selection.drawings)
+  if (next.drawings.some((d) => drawingIds.has(d.id) && canInteract(d))) {
     next = {
       ...next,
       drawings: next.drawings.map((d) => (drawingIds.has(d.id) && canInteract(d) ? moveDrawingItem(d, dx, dy) : d)),
