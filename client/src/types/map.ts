@@ -1860,6 +1860,14 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  num tipo do catálogo é lido e atravessa (`lib/mobilia.ts`); vai ao jogador
    *  junto do tipo. */
   mobiliaDesenho?: 'linhas'
+  /** VISTA 3/4 DESTE MÓVEL (pedido de 15/11/2026: ligar 3/4 num objeto mudava
+   *  todos). `true` = este móvel em 3/4, `false` = este móvel de cima, mesmo
+   *  com o mapa em 3/4. Ausente = segue `MapData.vistaDosMoveis`, então mapa
+   *  antigo abre igual, sem linha de migração. Só existe quando difere do mapa;
+   *  ligar ou desligar o mapa inteiro apaga as escolhas por objeto. A vista
+   *  efetiva sai de uma função só (`lib/mobilia/vistaTresQuartos.ts`); vai ao
+   *  jogador junto do tipo. */
+  mobiliaTresQuartos?: boolean
   /** "Rótulo para jogadores": nome curto escrito na silhueta que o jogador vê
    *  ("Guarda-roupa"). Ausente = só a silhueta, como antes deste campo — sem
    *  linha de migração. ATRAVESSA para o jogador só junto com o objeto, aparado
