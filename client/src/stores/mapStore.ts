@@ -3383,8 +3383,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     mudarAgua: (id, mudanca, juntar) => {
       const antes = get().map.aguas ?? []
       if (!antes.some((a) => a.id === id)) return
+      // LAVA (decisão do mestre de 15/11/2026): a água que vira lava passa a barrar a passagem, no mesmo passo do
+      // desfazer (um Ctrl+Z volta a água e a chave juntas). Ele desliga no painel; a lava que volta a ser água fica como está.
+      const viraLava = (a: Agua): boolean => mudanca.liquido === 'lava' && a.liquido !== 'lava'
       withHistory(
-        (m) => comAguas(m, (m.aguas ?? []).map((a) => (a.id === id ? semCamposVazios({ ...a, ...mudanca }) : a))),
+        (m) => comAguas(m, (m.aguas ?? []).map((a) => (a.id === id ? semCamposVazios({ ...a, ...mudanca, ...(viraLava(a) ? { barra: true as const } : {}) }) : a))),
         juntar === undefined ? undefined : `agua-${id}-${juntar}`,
       )
     },

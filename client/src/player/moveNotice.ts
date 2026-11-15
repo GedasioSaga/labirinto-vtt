@@ -4,6 +4,9 @@ import { TEXTO_CONGELADO } from '../lib/congelar'
 import type { AvisoDoClique, MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import { MOVE_NOTICE_TEXT as LANDING_NOTICE_TEXT, VEHICLE_NOTICE_TEXT, type MoveNoticeReason, type VehicleNotice } from './playerConnection'
 
+/** LAVA (15/11/2026): a recusa `agua` quando a que barrou é lava (`AvisoDaLava`, achado na tela do jogador). */
+const TEXTO_DA_LAVA = 'A lava barra a passagem'
+
 /** Recusa do mestre ao toque na porta, em uma linha curta. */
 const DOOR_NOTICE_TEXT: Record<DoorToggleRejection, string> = {
   locked: 'Trancada',
@@ -79,6 +82,7 @@ function isVehicleNotice(reason: MoveNoticeReason): reason is VehicleNotice {
  * lugar (moveu, mas não onde pedido) ou a recusa do "Subir" no veículo.
  */
 function moveActionText(reason: MoveNoticeReason): string {
+  if (reason === 'lava') return TEXTO_DA_LAVA
   if (isLanding(reason)) return LANDING_NOTICE_TEXT[reason]
   if (isAvisoDaCaminhada(reason)) return CAMINHADA_NOTICE_TEXT[reason]
   return isVehicleNotice(reason) ? VEHICLE_NOTICE_TEXT[reason] : MOVE_NOTICE_TEXT[reason]

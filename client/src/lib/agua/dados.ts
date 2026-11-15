@@ -22,6 +22,44 @@ export const NOME_DO_TIPO_DE_AGUA: Record<TipoDeAgua, string> = { rio: 'Rio', la
 /** A cor pronta com que cada tipo nasce. */
 export const COR_PRONTA_DO_TIPO: Record<TipoDeAgua, CorProntaDaAgua> = { rio: 'rio', lago: 'rio', mar: 'mar' }
 
+/**
+ * LAVA (pedido de 15/11/2026): o mesmo rio, lago ou mar, com outro líquido.
+ * `Agua.liquido` ausente = água; no painel e na ferramenta, 'agua' | 'lava'.
+ */
+export type Liquido = 'agua' | 'lava'
+
+export function liquidoDa(agua: Pick<Agua, 'liquido'>): Liquido {
+  return agua.liquido === 'lava' ? 'lava' : 'agua'
+}
+
+/**
+ * As cores prontas da lava: a base é o fundido; o miolo amarelo e a crosta
+ * escura saem dela no shader. Contidas como as da água (Meio-Termo): o laranja
+ * vivo só aparece nas rachaduras e nas bolhas, nunca neon.
+ */
+export type CorProntaDaLava = 'lavaViva' | 'lavaEscura' | 'magma'
+export const CORES_DA_LAVA: readonly { id: CorProntaDaLava; nome: string; cor: string }[] = [
+  { id: 'lavaViva', nome: 'Lava viva', cor: '#c65a28' },
+  { id: 'lavaEscura', nome: 'Lava escura', cor: '#8f3a22' },
+  { id: 'magma', nome: 'Magma', cor: '#b13a2e' },
+]
+/** A cor com que toda lava nasce (rio, lago ou mar). */
+export const COR_PRONTA_DA_LAVA: CorProntaDaLava = 'lavaViva'
+
+export function corProntaDaLava(id: CorProntaDaLava): string {
+  return CORES_DA_LAVA.find((c) => c.id === id)?.cor ?? CORES_DA_LAVA[0].cor
+}
+
+/**
+ * A cor pronta da lava com esta cor, ou `null` (cor livre). O arquivo não
+ * guarda o id da cor da lava (`Agua.corPronta` só conhece as da água): o
+ * painel acha a amostra pela própria cor.
+ */
+export function corProntaDaLavaPelaCor(cor: string): CorProntaDaLava | null {
+  const hex = cor.toLowerCase()
+  return CORES_DA_LAVA.find((c) => c.cor === hex)?.id ?? null
+}
+
 export const LARGURA_DO_RIO = { min: 0.5, max: 6, padrao: 2 } as const
 export const AJUSTE_PADRAO = { velocidade: 45, ondas: 50, espuma: 60 } as const
 
@@ -41,6 +79,11 @@ export function corProntaDaAgua(id: CorProntaDaAgua): string {
   return CORES_DA_AGUA.find((c) => c.id === id)?.cor ?? CORES_DA_AGUA[0].cor
 }
 
+/** É uma das cores prontas da água (e não uma da lava)? */
+export function ehCorProntaDaAgua(id: string): id is CorProntaDaAgua {
+  return CORES_DA_AGUA.some((c) => c.id === id)
+}
+
 /** A largura do rio em casas, grampeada; ausente = 2. */
 export function larguraDoRio(agua: Pick<Agua, 'largura'>): number {
   const v = agua.largura ?? LARGURA_DO_RIO.padrao
@@ -57,12 +100,13 @@ export function ajustesDaAgua(agua: Pick<Agua, 'velocidade' | 'ondas' | 'espuma'
   }
 }
 
-/** O nome que aparece no painel: o do mestre, ou "Rio 2", "Lago 1"... pela ordem no mapa. */
+/** O nome que aparece no painel: o do mestre, ou "Rio 2", "Lago 1", "Rio de lava 1"... pela ordem no mapa (a lava conta à parte). */
 export function nomeDaAgua(agua: Agua, todas: readonly Agua[]): string {
   if (agua.nome !== undefined && agua.nome.trim() !== '') return agua.nome
-  const doTipo = todas.filter((a) => a.tipo === agua.tipo)
+  const liquido = liquidoDa(agua)
+  const doTipo = todas.filter((a) => a.tipo === agua.tipo && liquidoDa(a) === liquido)
   const i = doTipo.findIndex((a) => a.id === agua.id)
-  return `${NOME_DO_TIPO_DE_AGUA[agua.tipo]} ${i < 0 ? doTipo.length + 1 : i + 1}`
+  return `${NOME_DO_TIPO_DE_AGUA[agua.tipo]}${liquido === 'lava' ? ' de lava' : ''} ${i < 0 ? doTipo.length + 1 : i + 1}`
 }
 
 /** O mapa com esta lista de águas; vazia tira o campo (o mapa volta a ser o de antes). */
@@ -78,9 +122,11 @@ export function comAguas(map: MapData, aguas: Agua[]): MapData {
 /** A água sem os campos opcionais que a mudança deixou `undefined` (o arquivo não guarda chave vazia). */
 export function semCamposVazios(agua: Agua): Agua {
   const limpa: Agua = { id: agua.id, tipo: agua.tipo, pontos: agua.pontos, cor: agua.cor }
-  if (agua.corPronta !== undefined) limpa.corPronta = agua.corPronta
+  // A cor pronta da água não vale na lava (a da lava é achada pela cor, `corProntaDaLavaPelaCor`).
+  if (agua.corPronta !== undefined && agua.liquido !== 'lava') limpa.corPronta = agua.corPronta
   if (agua.tipo === 'rio' && agua.largura !== undefined) limpa.largura = agua.largura
   if (agua.barra === true) limpa.barra = true
+  if (agua.liquido === 'lava') limpa.liquido = 'lava'
   if (agua.velocidade !== undefined) limpa.velocidade = agua.velocidade
   if (agua.ondas !== undefined) limpa.ondas = agua.ondas
   if (agua.espuma !== undefined) limpa.espuma = agua.espuma
@@ -153,7 +199,9 @@ export function lerAgua(raw: unknown): Agua | null {
   }
   if (pontos.length < pontosMinimos(tipo)) return null
   const agua: Agua = { id: r.id, tipo, pontos, cor: r.cor.toLowerCase() }
-  if (typeof r.corPronta === 'string' && CORES_DA_AGUA.some((c) => c.id === r.corPronta)) agua.corPronta = r.corPronta as CorProntaDaAgua
+  // Só 'lava' vale; outro valor é água. O app antigo (0.5.68) ignora o campo: mostra água na cor da lava.
+  if (r.liquido === 'lava') agua.liquido = 'lava'
+  if (agua.liquido !== 'lava' && typeof r.corPronta === 'string' && CORES_DA_AGUA.some((c) => c.id === r.corPronta)) agua.corPronta = r.corPronta as CorProntaDaAgua
   const largura = numeroEntre(r.largura, LARGURA_DO_RIO.min, LARGURA_DO_RIO.max)
   if (tipo === 'rio' && largura !== undefined) agua.largura = largura
   if (r.barra === true) agua.barra = true

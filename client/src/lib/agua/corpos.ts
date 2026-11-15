@@ -49,7 +49,16 @@ export function corpoDaAgua(agua: Agua, grid: number, entorno?: EntornoDaAgua): 
   const k = uPorPx(grid)
   const ajustes = ajustesDaAgua(agua)
   const limite = limiteEmU(entorno, k)
-  const base = { id: agua.id, tipo: agua.tipo, cor: rgbDe(agua.cor), velocidade: ajustes.velocidade, ondas: ajustes.ondas, espuma: ajustes.espuma, ...(limite === undefined ? {} : { limite }) }
+  const base = {
+    id: agua.id,
+    tipo: agua.tipo,
+    cor: rgbDe(agua.cor),
+    velocidade: ajustes.velocidade,
+    ondas: ajustes.ondas,
+    espuma: ajustes.espuma,
+    ...(agua.liquido === 'lava' ? { lava: 1 } : {}),
+    ...(limite === undefined ? {} : { limite }),
+  }
   const recorte = agua.recorte
   if (agua.tipo === 'rio') {
     const meia = (larguraDoRio(agua) * CASA_U) / 2
@@ -82,9 +91,12 @@ export function corpoDaAgua(agua: Agua, grid: number, entorno?: EntornoDaAgua): 
   return { ...base, contorno: escalar(curva, k), ...(margem === undefined ? {} : { margem }), ...(semAreia === undefined ? {} : { semAreia }) }
 }
 
-/** A areia tirada pelo pincel em cada ponto de cada linha (px de mundo), ou nada sem pincel. */
+/**
+ * A areia tirada pelo pincel em cada ponto de cada linha (px de mundo), ou nada sem pincel. A lava não tem
+ * areia (a beira dela é rocha queimada): o pincel de antes, do tempo em que era água, fica guardado e não vale.
+ */
 function semAreiaDasLinhas(linhas: readonly (readonly number[])[], agua: Agua, grid: number): (Float32Array | null)[] | undefined {
-  if (agua.areia === undefined || agua.areia.length === 0) return undefined
+  if (agua.liquido === 'lava' || agua.areia === undefined || agua.areia.length === 0) return undefined
   const valores = linhas.map((xy) => semAreiaDaBeira(xy, agua.areia, grid))
   return valores.some((v) => v !== null) ? valores : undefined
 }

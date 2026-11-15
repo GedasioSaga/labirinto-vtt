@@ -1,13 +1,16 @@
 import { create } from 'zustand'
 import type { CorProntaDaAgua, TipoDeAgua } from '../types/map'
-import { AJUSTE_PADRAO, COR_PRONTA_DO_TIPO, LARGURA_DO_RIO, corProntaDaAgua } from '../lib/agua/dados'
+import { AJUSTE_PADRAO, COR_PRONTA_DA_LAVA, COR_PRONTA_DO_TIPO, LARGURA_DO_RIO, corProntaDaAgua, corProntaDaLava, type CorProntaDaLava, type Liquido } from '../lib/agua/dados'
 
 /**
- * ÁGUA: o que o PRÓXIMO traço da ferramenta Água faz (tipo, cor, largura,
- * ajustes, forma) e a água escolhida no mapa, com o jeito de mexer nela
- * (bolinhas ou um dos pincéis). Preferência da ferramenta, fora do mapa e do
- * desfazer, no molde do `pincelDaNeblina`.
+ * ÁGUA: o que o PRÓXIMO traço da ferramenta Água faz (tipo, líquido, cor,
+ * largura, ajustes, forma) e a água escolhida no mapa, com o jeito de mexer
+ * nela (bolinhas ou um dos pincéis). Preferência da ferramenta, fora do mapa e
+ * do desfazer, no molde do `pincelDaNeblina`.
  */
+
+/** A cor pronta escolhida no painel: uma das da água ou uma das da lava. */
+export type CorPronta = CorProntaDaAgua | CorProntaDaLava
 
 /** Como o lago e o mar nascem (pedido "MAR MAIS FÁCIL", 13/11/2026). O rio é sempre à mão. */
 export type FormaDaAgua = 'mao' | 'retangulo' | 'pontos'
@@ -22,9 +25,11 @@ export const TAMANHO_DO_PINCEL_DA_AGUA = { min: 0.5, max: 12, padrao: 2 } as con
 
 interface FerramentaDaAgua {
   tipo: TipoDeAgua
+  /** LAVA (15/11/2026): água ou lava, para rio, lago e mar. */
+  liquido: Liquido
   cor: string
   /** `null` = cor livre. */
-  corPronta: CorProntaDaAgua | null
+  corPronta: CorPronta | null
   /** Casas, só rio. */
   largura: number
   velocidade: number
@@ -41,7 +46,8 @@ interface FerramentaDaAgua {
   /** Diâmetro dos dois pincéis, em casas. */
   tamanho: number
   setTipo: (tipo: TipoDeAgua) => void
-  setCor: (cor: string, corPronta: CorProntaDaAgua | null) => void
+  setLiquido: (liquido: Liquido) => void
+  setCor: (cor: string, corPronta: CorPronta | null) => void
   setLargura: (largura: number) => void
   setAjuste: (qual: 'velocidade' | 'ondas' | 'espuma', valor: number) => void
   setForma: (forma: FormaDaAgua) => void
@@ -56,6 +62,7 @@ const limitar = (v: number, min: number, max: number): number => Math.min(max, M
 
 export const useFerramentaDaAgua = create<FerramentaDaAgua>((set, get) => ({
   tipo: 'rio',
+  liquido: 'agua',
   cor: corProntaDaAgua('rio'),
   corPronta: 'rio',
   largura: LARGURA_DO_RIO.padrao,
@@ -69,10 +76,17 @@ export const useFerramentaDaAgua = create<FerramentaDaAgua>((set, get) => ({
   modoDaAreia: 'tirar',
   tamanho: TAMANHO_DO_PINCEL_DA_AGUA.padrao,
   setTipo: (tipo) => {
-    // A cor pronta acompanha o tipo enquanto o mestre não escolheu outra (o mar nasce azul de mar fundo).
-    const { corPronta } = get()
-    const automatica = corPronta === null ? null : COR_PRONTA_DO_TIPO[tipo]
+    // A cor pronta acompanha o tipo enquanto o mestre não escolheu outra (o mar nasce azul de mar fundo). A lava nasce
+    // na mesma cor em todo tipo.
+    const { corPronta, liquido } = get()
+    const automatica = corPronta === null || liquido === 'lava' ? null : COR_PRONTA_DO_TIPO[tipo]
     set(automatica === null || (corPronta !== 'rio' && corPronta !== 'mar') ? { tipo } : { tipo, corPronta: automatica, cor: corProntaDaAgua(automatica) })
+  },
+  setLiquido: (liquido) => {
+    if (liquido === get().liquido) return
+    // Água para lava: a cor da lava; lava para água: a cor pronta do tipo (o mesmo da água escolhida no painel).
+    const doTipo = COR_PRONTA_DO_TIPO[get().tipo]
+    set(liquido === 'lava' ? { liquido, corPronta: COR_PRONTA_DA_LAVA, cor: corProntaDaLava(COR_PRONTA_DA_LAVA) } : { liquido, corPronta: doTipo, cor: corProntaDaAgua(doTipo) })
   },
   setCor: (cor, corPronta) => set({ cor: cor.toLowerCase(), corPronta }),
   setLargura: (largura) => {

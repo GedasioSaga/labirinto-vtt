@@ -36,10 +36,12 @@ export interface CorpoDoCampo {
   tipo: TipoDeAgua
   /** A base da cor, 0 a 255. */
   cor: [number, number, number]
-  /** Os ajustes, 0 a 1. */
+  /** Os ajustes, 0 a 1. Na lava, `ondas` é a quantidade de bolhas. */
   velocidade: number
   ondas: number
   espuma: number
+  /** LAVA (15/11/2026): 1 = lava; ausente = água. Vai no canal livre de `f3` e se mistura na foz como as ondas. */
+  lava?: number
   /** Rio: os trechos do traço (u) e a posição ao longo do rio de cada ponto (u). */
   trechos?: { xy: number[]; s: number[] }[]
   /** Rio: meia largura (u). */
@@ -447,6 +449,9 @@ export function comporCampo(lista: readonly { corpo: CorpoDoCampo; campo: CampoD
       f3[p] = Math.round(255 * pb.velocidade)
       f3[p + 1] = Math.round(255 * (pa.ondas + (pb.ondas - pa.ondas) * pr))
       f3[p + 2] = Math.round(255 * (pa.espuma + (pb.espuma - pa.espuma) * pr))
+      // O peso da lava: o rio de lava que desagua num lago de água vira água junto com a correnteza (e o contrário).
+      const lavaA = pa.lava ?? 0
+      f3[p + 3] = Math.round(255 * (lavaA + ((pb.lava ?? 0) - lavaA) * pr))
       f4[p + 1] = saArea
     }
   }

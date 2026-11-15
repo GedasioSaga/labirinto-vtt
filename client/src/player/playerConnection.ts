@@ -159,6 +159,7 @@ import type { AbaloSeta } from '../lib/abalo'
 import { isDaVista, type Espiada } from '../lib/espiar'
 import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { TokenMoveLanding, TokenMoveRejection } from '../lib/moveValidation'
+import { aguaDoRecorteQueBarra } from '../lib/agua/regra'
 import { cliqueParaAndarLigado, planejarCaminhada, type AvisoDoClique, type MotivoDaCaminhada } from '../lib/cliqueParaAndar'
 import { lembrar, mapaParaPlanejar, type ObjetosLembrados } from './objetosLembrados'
 import type { OlharDaVisao, RoofPeek } from '../lib/fogFilter'
@@ -2043,7 +2044,13 @@ export const VEHICLE_NOTICE_TEXT: Record<VehicleNotice, string> = {
  * recusas do trecho marcado (`MotivoDaCaminhada`) e o clique que nem saiu
  * (`AvisoDoClique`: chave desligada, caminho desconhecido, cercado, destino fora do Chão ou dentro de um objeto).
  */
-export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice | MotivoDaCaminhada | AvisoDoClique
+export type MoveNoticeReason = TokenMoveRejection | TokenMoveLanding | VehicleNotice | MotivoDaCaminhada | AvisoDoClique | AvisoDaLava
+/**
+ * LAVA (15/11/2026): a recusa `agua` do host quando a água do caminho, entre as
+ * que ele vê, é lava (`aguaDoRecorteQueBarra`). Só desta tela: o protocolo não
+ * mudou, o host segue mandando `agua`.
+ */
+export type AvisoDaLava = 'lava'
 const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
   'unknown_token',
   'not_owner',
@@ -4396,6 +4403,15 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** Desfaz o movimento recusado. `false` = pedido desconhecido (já resolvido, ou de antes de trocar de cena). */
+  /** LAVA: a água que barrou este passo (a primeira do trecho, entre as que ele vê) é lava? */
+  function lavaNoPasso(move: PendingMove): boolean {
+    const map = state.map
+    if (!map) return false
+    const token = map.tokens.find((t) => t.id === move.tokenId)
+    const piso = token?.piso ?? 0
+    return aguaDoRecorteQueBarra(map.aguas, map.grid, piso, { x: move.prevX, y: move.prevY }, { x: move.x, y: move.y })?.liquido === 'lava'
+  }
+
   function handleRejected(reqId: string, reason: unknown): boolean {
     const move = pending.get(reqId)
     if (!move) return false
@@ -4404,7 +4420,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const newer = hasNewerPending(reqId, move.tokenId)
     pending.delete(reqId)
     // Motivo que esta versão não conhece: desfaz igual, só não inventa frase.
-    if (isMoveRejection(reason)) showMoveNotice(reason)
+    if (isMoveRejection(reason)) showMoveNotice(reason === 'agua' && lavaNoPasso(move) ? 'lava' : reason)
     if (newer) {
       // Um movimento mais novo do mesmo token parte desta posição: herda o "anterior".
       newer.prevX = move.prevX

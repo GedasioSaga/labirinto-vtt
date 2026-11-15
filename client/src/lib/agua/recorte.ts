@@ -300,11 +300,13 @@ export function aguaParaJogador(
   const saida: Agua = { id: agua.id, tipo: agua.tipo, pontos: [], cor: agua.cor, recorte }
   if (agua.tipo === 'rio') saida.largura = larguraDoRio(agua)
   if (agua.barra === true) saida.barra = true
+  // LAVA: o jogador vê a lava como lava (e a recusa do passo diz "A lava barra a passagem").
+  if (agua.liquido === 'lava') saida.liquido = 'lava'
   if (agua.velocidade !== undefined) saida.velocidade = agua.velocidade
   if (agua.ondas !== undefined) saida.ondas = agua.ondas
   if (agua.espuma !== undefined) saida.espuma = agua.espuma
-  // A areia tirada pelo pincel não é segredo: vai o pedaço dos traços que alcança a beira que ele conhece.
-  const areia = agua.tipo === 'rio' ? undefined : areiaParaJogador(agua.areia, recorte.margens ?? [], grid)
+  // A areia tirada pelo pincel não é segredo: vai o pedaço dos traços que alcança a beira que ele conhece. A lava não tem areia.
+  const areia = agua.tipo === 'rio' || agua.liquido === 'lava' ? undefined : areiaParaJogador(agua.areia, recorte.margens ?? [], grid)
   if (areia !== undefined) saida.areia = areia
   if (agua.piso !== undefined) saida.piso = agua.piso
   return saida

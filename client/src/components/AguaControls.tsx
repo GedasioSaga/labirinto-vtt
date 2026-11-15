@@ -1,21 +1,46 @@
 import { useMapStore } from '../stores/mapStore'
-import { TAMANHO_DO_PINCEL_DA_AGUA, useFerramentaDaAgua, type FormaDaAgua } from '../stores/ferramentaDaAgua'
-import type { Agua, CorProntaDaAgua, TipoDeAgua } from '../types/map'
-import { AJUSTE_PADRAO, CORES_DA_AGUA, LARGURA_DO_RIO, NOME_DO_TIPO_DE_AGUA, larguraDoRio, nomeDaAgua } from '../lib/agua/dados'
+import { TAMANHO_DO_PINCEL_DA_AGUA, useFerramentaDaAgua, type CorPronta, type FormaDaAgua } from '../stores/ferramentaDaAgua'
+import type { Agua, TipoDeAgua } from '../types/map'
+import {
+  AJUSTE_PADRAO,
+  COR_PRONTA_DA_LAVA,
+  COR_PRONTA_DO_TIPO,
+  CORES_DA_AGUA,
+  CORES_DA_LAVA,
+  LARGURA_DO_RIO,
+  NOME_DO_TIPO_DE_AGUA,
+  corProntaDaAgua,
+  corProntaDaLava,
+  corProntaDaLavaPelaCor,
+  larguraDoRio,
+  liquidoDa,
+  nomeDaAgua,
+  type Liquido,
+} from '../lib/agua/dados'
 import { mapaDoPiso } from '../lib/pisos'
 import { Toggle } from './Toggle'
 
 /**
  * Painel da ferramenta ÁGUA (pedido de 12/11/2026, protótipo
  * `docs/design/agua/`): sem água escolhida, o que o PRÓXIMO traço faz (tipo,
- * cor, largura do rio, ajustes e a forma: à mão, retângulo (lago e mar) ou
- * ponto a ponto); com uma água escolhida (clique nela), a própria água:
- * como mexer na forma (bolinhas, pincel de água, pincel de areia no mar),
- * "Barra a passagem", Apagar e Soltar. O que não vale para o tipo fica
+ * líquido, cor, largura do rio, ajustes e a forma: à mão, retângulo (lago e
+ * mar) ou ponto a ponto); com uma água escolhida (clique nela), a própria
+ * água: como mexer na forma (bolinhas, pincel de água, pincel de areia no
+ * mar), "Barra a passagem", Apagar e Soltar. O que não vale para o tipo fica
  * desligado, com o motivo escrito embaixo.
+ *
+ * LAVA (pedido de 15/11/2026): "Líquido: Água | Lava" logo depois do Tipo.
+ * A lava não tem espuma nem areia (some o deslizador e o pincel de areia), as
+ * cores são as da lava e as "Ondas" viram "Borbulhas" (as bolhas que estouram,
+ * também no rio). Ela nasce barrando a passagem.
  */
 
 const TIPOS: readonly TipoDeAgua[] = ['rio', 'lago', 'mar']
+
+const LIQUIDOS: readonly { id: Liquido; nome: string }[] = [
+  { id: 'agua', nome: 'Água' },
+  { id: 'lava', nome: 'Lava' },
+]
 
 /** Como a água nasce: o lago e o mar com as três formas, o rio à mão ou ponto a ponto (13/11/2026). */
 const FORMAS: readonly { id: FormaDaAgua; nome: string }[] = [
@@ -40,22 +65,43 @@ function casas(v: number): string {
   return `${v.toLocaleString('pt-BR')} ${v === 1 ? 'casa' : 'casas'}`
 }
 
-interface SeletorDeCorProps {
-  id: string
-  cor: string
-  corPronta: CorProntaDaAgua | null
-  onChange: (cor: string, corPronta: CorProntaDaAgua | null) => void
+/** "Líquido: Água | Lava", do próximo traço ou da água escolhida. */
+function SeletorDeLiquido({ id, liquido, dica, onChange }: { id: string; liquido: Liquido; dica?: string; onChange: (liquido: Liquido) => void }) {
+  return (
+    <div className="lb-field">
+      <span className="lb-label" id={id}>
+        Líquido
+      </span>
+      <div className="lb-seg" role="radiogroup" aria-labelledby={id}>
+        {LIQUIDOS.map((l) => (
+          <button key={l.id} type="button" role="radio" aria-checked={liquido === l.id} className="lb-seg__option" onClick={() => onChange(l.id)}>
+            {l.nome}
+          </button>
+        ))}
+      </div>
+      {dica !== undefined && <p className="lb-field__hint">{dica}</p>}
+    </div>
+  )
 }
 
-/** As cores prontas em botões com amostra, mais a cor livre (o raso e o fundo saem dela). */
-function SeletorDeCor({ id, cor, corPronta, onChange }: SeletorDeCorProps) {
+interface SeletorDeCorProps {
+  id: string
+  liquido: Liquido
+  cor: string
+  corPronta: CorPronta | null
+  onChange: (cor: string, corPronta: CorPronta | null) => void
+}
+
+/** As cores prontas em botões com amostra (as da água ou as da lava), mais a cor livre (o raso e o fundo saem dela). */
+function SeletorDeCor({ id, liquido, cor, corPronta, onChange }: SeletorDeCorProps) {
+  const cores: readonly { id: CorPronta; nome: string; cor: string }[] = liquido === 'lava' ? CORES_DA_LAVA : CORES_DA_AGUA
   return (
     <div className="lb-field">
       <span className="lb-label" id={`${id}-rotulo`}>
-        Cor da água
+        {liquido === 'lava' ? 'Cor da lava' : 'Cor da água'}
       </span>
       <div className="lb-seg lb-seg--grid" role="radiogroup" aria-labelledby={`${id}-rotulo`}>
-        {CORES_DA_AGUA.map((c) => (
+        {cores.map((c) => (
           <button key={c.id} type="button" role="radio" aria-checked={corPronta === c.id} className="lb-seg__option" onClick={() => onChange(c.cor, c.id)}>
             <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, marginRight: 6, background: c.cor, verticalAlign: 'middle' }} />
             {c.nome}
@@ -117,10 +163,11 @@ function Deslizador({ id, rotulo, valor, min, max, passo, texto, desligado, onCh
 const SEM_CORRENTEZA = 'Só o rio tem correnteza.'
 const SEM_ONDAS = 'O rio não tem ondas: a correnteza é o movimento dele.'
 
-/** Os três ajustes e a largura, do próximo traço ou da água escolhida. */
+/** Os três ajustes e a largura, do próximo traço ou da água escolhida. Na lava: as bolhas no lugar das ondas, sem espuma. */
 function Medidas(props: {
   prefixo: string
   tipo: TipoDeAgua
+  liquido: Liquido
   largura: number
   velocidade: number
   ondas: number
@@ -129,6 +176,7 @@ function Medidas(props: {
   onAjuste: (qual: 'velocidade' | 'ondas' | 'espuma', v: number) => void
 }) {
   const { prefixo, tipo } = props
+  const lava = props.liquido === 'lava'
   return (
     <>
       {tipo === 'rio' && (
@@ -156,21 +204,24 @@ function Medidas(props: {
       />
       <Deslizador
         id={`${prefixo}-ondas`}
-        rotulo="Ondas"
+        rotulo={lava ? 'Borbulhas' : 'Ondas'}
         valor={props.ondas}
         min={0}
         max={100}
         passo={5}
         texto={`${props.ondas}%`}
-        desligado={tipo === 'rio' ? SEM_ONDAS : undefined}
+        desligado={tipo === 'rio' && !lava ? SEM_ONDAS : undefined}
         onChange={(v) => props.onAjuste('ondas', v)}
       />
-      <Deslizador id={`${prefixo}-espuma`} rotulo="Espuma" valor={props.espuma} min={0} max={100} passo={5} texto={`${props.espuma}%`} onChange={(v) => props.onAjuste('espuma', v)} />
+      {!lava && (
+        <Deslizador id={`${prefixo}-espuma`} rotulo="Espuma" valor={props.espuma} min={0} max={100} passo={5} texto={`${props.espuma}%`} onChange={(v) => props.onAjuste('espuma', v)} />
+      )}
     </>
   )
 }
 
 const AREIA_SOZINHA = 'O mar ganha areia sozinho na beira, menos junto de sala, de chão liso e na borda do mapa.'
+const LAVA_BARRA = 'A lava nasce com "Barra a passagem" ligada.'
 
 const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste a linha para criar outra. Alt+clique tira. Arraste por dentro para mover tudo.'
 
@@ -178,8 +229,10 @@ const DICA_DAS_BOLINHAS = 'Arraste uma bolinha para mudar a forma. Arraste a lin
 function MexerNaForma({ agua }: { agua: Agua }) {
   const f = useFerramentaDaAgua()
   if (agua.tipo === 'rio') return <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>
-  // O pincel de areia é só do mar: no lago (o mar que virou lago) ficam as bolinhas.
-  const pincel = f.pincel === 'areia' && agua.tipo !== 'mar' ? null : f.pincel
+  // O pincel de areia é só do mar de água: no lago (o mar que virou lago) e na lava ficam as bolinhas.
+  const comAreia = agua.tipo === 'mar' && agua.liquido !== 'lava'
+  const pincel = f.pincel === 'areia' && !comAreia ? null : f.pincel
+  const palavra = agua.liquido === 'lava' ? 'lava' : 'água'
   return (
     <div className="lb-field">
       <span className="lb-label" id="lb-agua-mexer">
@@ -190,9 +243,9 @@ function MexerNaForma({ agua }: { agua: Agua }) {
           Bolinhas
         </button>
         <button type="button" role="radio" aria-checked={pincel === 'agua'} className="lb-seg__option" onClick={() => f.setPincel('agua')}>
-          Pincel de água
+          Pincel de {palavra}
         </button>
-        {agua.tipo === 'mar' && (
+        {comAreia && (
           <button type="button" role="radio" aria-checked={pincel === 'areia'} className="lb-seg__option" onClick={() => f.setPincel('areia')}>
             Pincel de areia
           </button>
@@ -201,15 +254,15 @@ function MexerNaForma({ agua }: { agua: Agua }) {
       {pincel === null && <p className="lb-field__hint">{DICA_DAS_BOLINHAS}</p>}
       {pincel === 'agua' && (
         <>
-          <div className="lb-seg" role="radiogroup" aria-label="O que o pincel de água faz">
+          <div className="lb-seg" role="radiogroup" aria-label={`O que o pincel de ${palavra} faz`}>
             <button type="button" role="radio" aria-checked={f.modoDaAgua === 'mais'} className="lb-seg__option" onClick={() => f.setModoDaAgua('mais')}>
-              Mais água
+              Mais {palavra}
             </button>
             <button type="button" role="radio" aria-checked={f.modoDaAgua === 'menos'} className="lb-seg__option" onClick={() => f.setModoDaAgua('menos')}>
-              Menos água
+              Menos {palavra}
             </button>
           </div>
-          <p className="lb-field__hint">Pinte na beira para a água crescer ou encolher. Alt troca só neste traço.</p>
+          <p className="lb-field__hint">Pinte na beira para a {palavra} crescer ou encolher. Alt troca só neste traço.</p>
         </>
       )}
       {pincel === 'areia' && (
@@ -246,7 +299,28 @@ function AguaEscolhida({ agua, todas }: { agua: Agua; todas: readonly Agua[] }) 
   const mudarAgua = useMapStore((s) => s.mudarAgua)
   const apagarAgua = useMapStore((s) => s.apagarAgua)
   const escolher = useFerramentaDaAgua((s) => s.escolher)
+  const pincel = useFerramentaDaAgua((s) => s.pincel)
+  const setPincel = useFerramentaDaAgua((s) => s.setPincel)
   const nome = nomeDaAgua(agua, todas)
+  const liquido = liquidoDa(agua)
+  const lava = liquido === 'lava'
+  // Um passo do desfazer só: o líquido, a cor e (na lava nova) "Barra a passagem", que `mudarAgua` liga.
+  const trocarLiquido = (novo: Liquido): void => {
+    if (novo === liquido) return
+    if (novo === 'lava') {
+      // A lava não tem pincel de areia: a mão volta às bolinhas em vez de pintar sem efeito.
+      if (pincel === 'areia') setPincel(null)
+      mudarAgua(agua.id, { liquido: 'lava', cor: corProntaDaLava(COR_PRONTA_DA_LAVA), corPronta: undefined })
+      return
+    }
+    const doTipo = COR_PRONTA_DO_TIPO[agua.tipo]
+    mudarAgua(agua.id, { liquido: undefined, cor: corProntaDaAgua(doTipo), corPronta: doTipo })
+  }
+  const mudarCor = (cor: string, corPronta: CorPronta | null): void => {
+    // A lava guarda só a cor (o arquivo não conhece as cores prontas dela): a amostra é achada pela cor.
+    const pronta = lava || corPronta === null ? undefined : CORES_DA_AGUA.find((c) => c.id === corPronta)?.id
+    mudarAgua(agua.id, { cor, corPronta: pronta }, 'cor')
+  }
   return (
     <section className="lb-section" aria-label={`Água escolhida: ${nome}`}>
       <h2 className="lb-eyebrow">{nome}</h2>
@@ -263,15 +337,25 @@ function AguaEscolhida({ agua, todas }: { agua: Agua; todas: readonly Agua[] }) 
               </button>
             ))}
           </div>
-          {agua.tipo === 'mar' && <p className="lb-field__hint">{AREIA_SOZINHA}</p>}
+          {agua.tipo === 'mar' && !lava && <p className="lb-field__hint">{AREIA_SOZINHA}</p>}
         </div>
       )}
-      <SeletorDeCor id="lb-agua-escolhida-cor" cor={agua.cor} corPronta={agua.corPronta ?? null} onChange={(cor, corPronta) => mudarAgua(agua.id, { cor, corPronta: corPronta ?? undefined }, 'cor')} />
+      <SeletorDeLiquido id="lb-agua-escolhida-liquido" liquido={liquido} onChange={trocarLiquido} />
+      <SeletorDeCor
+        id="lb-agua-escolhida-cor"
+        liquido={liquido}
+        cor={agua.cor}
+        corPronta={lava ? corProntaDaLavaPelaCor(agua.cor) : (agua.corPronta ?? null)}
+        onChange={mudarCor}
+      />
       <Toggle label="Barra a passagem" checked={agua.barra === true} onChange={(liga) => mudarAgua(agua.id, { barra: liga ? true : undefined })} />
-      <p className="lb-field__hint">{agua.barra === true ? 'A ficha do jogador não entra; a visão passa por cima.' : 'Desligada, a ficha entra na água.'}</p>
+      <p className="lb-field__hint">
+        {agua.barra === true ? 'A ficha do jogador não entra; a visão passa por cima.' : lava ? 'Desligada, a ficha entra na lava.' : 'Desligada, a ficha entra na água.'}
+      </p>
       <Medidas
         prefixo="lb-agua-escolhida"
         tipo={agua.tipo}
+        liquido={liquido}
         largura={larguraDoRio(agua)}
         velocidade={agua.velocidade ?? AJUSTE_PADRAO.velocidade}
         ondas={agua.ondas ?? AJUSTE_PADRAO.ondas}
@@ -307,6 +391,7 @@ export function AguaControls() {
   // O rio não tem retângulo: com ele na preferência, o rio traça à mão (o mesmo de `aguaNoEditor.ts`).
   const formas = f.tipo === 'rio' ? FORMAS.filter((forma) => forma.id !== 'retangulo') : FORMAS
   const formaVista: FormaDaAgua = f.tipo === 'rio' && f.forma === 'retangulo' ? 'mao' : f.forma
+  const lava = f.liquido === 'lava'
   return (
     <section className="lb-section" aria-label="Próxima água">
       <h2 className="lb-eyebrow">Próxima água</h2>
@@ -322,6 +407,7 @@ export function AguaControls() {
           ))}
         </div>
       </div>
+      <SeletorDeLiquido id="lb-agua-liquido" liquido={f.liquido} dica={lava ? LAVA_BARRA : undefined} onChange={f.setLiquido} />
       <div className="lb-field">
         <span className="lb-label" id="lb-agua-forma">
           Forma
@@ -335,13 +421,14 @@ export function AguaControls() {
         </div>
         <p className="lb-field__hint">
           {dicaDaForma(f.tipo, formaVista)}
-          {f.tipo === 'mar' ? ` ${AREIA_SOZINHA}` : ''}
+          {f.tipo === 'mar' && !lava ? ` ${AREIA_SOZINHA}` : ''}
         </p>
       </div>
-      <SeletorDeCor id="lb-agua-cor" cor={f.cor} corPronta={f.corPronta} onChange={f.setCor} />
+      <SeletorDeCor id="lb-agua-cor" liquido={f.liquido} cor={f.cor} corPronta={f.corPronta} onChange={f.setCor} />
       <Medidas
         prefixo="lb-agua"
         tipo={f.tipo}
+        liquido={f.liquido}
         largura={f.largura}
         velocidade={f.velocidade}
         ondas={f.ondas}

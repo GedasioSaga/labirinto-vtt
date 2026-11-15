@@ -3,7 +3,7 @@ import type { Agua, RegionPoint } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { mapaDoPiso } from '../lib/pisos'
-import { larguraDoRio, pontosMinimos, PONTOS_DO_TRACO_MAX, PONTOS_MAX, TRACOS_DE_AREIA_MAX } from '../lib/agua/dados'
+import { ehCorProntaDaAgua, larguraDoRio, pontosMinimos, PONTOS_DO_TRACO_MAX, PONTOS_MAX, TRACOS_DE_AREIA_MAX } from '../lib/agua/dados'
 import { aguaNoPonto, curvaDaAgua, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
 import { aguaComPincel, cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
 import { apertoNaLinha, arrastarBolinha, bolinhaNaLinha, bolinhasDaForma, meiosDasBolinhas, moverForma, pontoDoMeio, pontoNoMeio, tirarBolinha } from '../lib/agua/bolinhas'
@@ -140,11 +140,11 @@ function marcarBolinhas(pontos: readonly RegionPoint[], marcadas: readonly numbe
   }
 }
 
-/** O pincel do painel que vale nesta água: o de água no lago e no mar, o de areia só no mar. `null` = bolinhas. */
+/** O pincel do painel que vale nesta água: o de água no lago e no mar, o de areia só no mar de água (a lava não tem areia). `null` = bolinhas. */
 function pincelDa(agua: Agua): 'agua' | 'areia' | null {
   const pincel = useFerramentaDaAgua.getState().pincel
   if (pincel === 'agua' && agua.tipo !== 'rio') return 'agua'
-  if (pincel === 'areia' && agua.tipo === 'mar') return 'areia'
+  if (pincel === 'areia' && agua.tipo === 'mar' && agua.liquido !== 'lava') return 'areia'
   return null
 }
 
@@ -451,7 +451,11 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     useFerramentaDaAgua.getState().escolher(agua === null ? null : agua.id)
   }
 
-  /** A água nova, com o que o painel diz, no mapa e escolhida. */
+  /**
+   * A água nova, com o que o painel diz, no mapa e escolhida. A LAVA nasce
+   * barrando a passagem (decisão do mestre de 15/11/2026; ele desliga no painel)
+   * e sem `corPronta` (o arquivo só guarda a da água; a da lava é a própria cor).
+   */
   function porAguaNova(pontos: RegionPoint[], extra: Partial<Agua>): void {
     const f = useFerramentaDaAgua.getState()
     const agua: Agua = {
@@ -459,7 +463,8 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       tipo: f.tipo,
       pontos: pontos.map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })),
       cor: f.cor,
-      ...(f.corPronta === null ? {} : { corPronta: f.corPronta }),
+      ...(f.liquido === 'lava' ? { liquido: 'lava' as const, barra: true as const } : {}),
+      ...(f.liquido !== 'lava' && f.corPronta !== null && ehCorProntaDaAgua(f.corPronta) ? { corPronta: f.corPronta } : {}),
       ...(f.tipo === 'rio' ? { largura: f.largura } : {}),
       velocidade: f.velocidade,
       ondas: f.ondas,

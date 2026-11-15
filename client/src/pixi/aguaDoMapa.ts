@@ -29,6 +29,12 @@ import { aquecerPrograma, programaPronto } from './aquecerPrograma'
  * A linha tracejada creme da beira do mar no protótipo é a marca de "Barra a
  * passagem" da visão do mestre (`desenharPorCima`), não espuma: não vem para
  * o app.
+ *
+ * LAVA (pedido de 15/11/2026): o mesmo programa (um aquecimento só), pelo
+ * peso da lava em cada texel (`f3.a`): placas de crosta que racham com fio de
+ * brasa, o fundido laranja com miolo amarelo, bolhas que estouram, e a beira
+ * de rocha queimada. Sem luz própria: de noite ela segue à vista, mas não
+ * acende o chão em volta.
  */
 
 /** 30 quadros por segundo quando só a água mexe. */
@@ -83,6 +89,117 @@ float cintila(vec2 c, float t) {
 // Uma camada por cima da que já está (cores pré-multiplicadas).
 vec4 sobre(vec4 baixo, vec3 c, float a) { return vec4(c * a, a) + baixo * (1.0 - a); }
 
+// ---------- LAVA (pedido de 15/11/2026): o mesmo programa, pelo peso da lava em cada texel ----------
+
+// Sorteio sem seno (Dave Hoskins): o mesmo número em toda placa de vídeo.
+vec2 sorteio(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xx + q.yz) * q.zy);
+}
+
+// As placas de crosta (Voronoi, F2 - F1): x = a distância (u) até a rachadura mais perto; y = a sorte da placa.
+vec2 placas(vec2 q, float lado) {
+  vec2 c = q / lado;
+  vec2 g = floor(c), f = c - g;
+  float d1 = 9.0, d2 = 9.0, sorte = 0.0;
+  for (int j = -1; j <= 1; j++) {
+    for (int i = -1; i <= 1; i++) {
+      vec2 o = vec2(float(i), float(j));
+      vec2 h = sorteio(g + o);
+      vec2 r = o + 0.12 + 0.76 * h - f;
+      float dd = dot(r, r);
+      if (dd < d1) { d2 = d1; d1 = dd; sorte = h.y; }
+      else if (dd < d2) { d2 = dd; }
+    }
+  }
+  return vec2((sqrt(d2) - sqrt(d1)) * 0.5 * lado, sorte);
+}
+
+// Uma bolha por célula de 1,4 casa, no máximo: incha devagar, estoura e some; na volta seguinte, outro lugar da
+// célula (ou nenhum). x = a cúpula, y = a altura da cúpula (0 na pele, 1 no alto), z = o anel do estouro, w = o clarão.
+vec4 bolha(vec2 q, float t, float quantas) {
+  const float LADO = 56.0, INCHA = 1.5, ESTOURA = 0.45;
+  vec2 g = floor(q / LADO);
+  vec2 h = sorteio(g + 37.0);
+  float periodo = mix(3.2, 7.5, h.x);
+  float tt = t + h.y * periodo;
+  float volta = floor(tt / periodo);
+  float tau = tt - volta * periodo;
+  vec2 k = sorteio(g + volta * vec2(7.31, 3.17));
+  if (k.x >= quantas || tau > INCHA + ESTOURA) return vec4(0.0);
+  vec2 m = sorteio(g * 1.7 + volta + 11.0);
+  vec2 centro = (g + 0.35 + 0.3 * m) * LADO;
+  float dist = length(q - centro);
+  float raio = mix(4.5, 8.5, k.y);
+  if (tau < INCHA) {
+    float rb = raio * (0.3 + 0.7 * sqrt(tau / INCHA));
+    float dentro = 1.0 - smoothstep(rb - 1.0, rb + 0.6, dist);
+    // A cúpula: alta no meio, com o reflexo da luz do mapa no alto à esquerda.
+    vec2 rel = (q - centro) / rb;
+    float alto = sqrt(max(0.0, 1.0 - dot(rel, rel)));
+    float realce = 1.0 - smoothstep(0.0, 0.5, length(rel + vec2(0.38, 0.38)));
+    return vec4(dentro * smoothstep(0.0, 0.2, tau), clamp(alto * 0.75 + realce * 0.5, 0.0, 1.0), 0.0, 0.0);
+  }
+  float e = (tau - INCHA) / ESTOURA;
+  // O anel abre rápido e assenta (ease-out): o estouro é a resposta, não um passeio.
+  float anelR = mix(raio, raio * 1.85, 1.0 - (1.0 - e) * (1.0 - e));
+  float anel = (1.0 - smoothstep(0.0, 1.8, abs(dist - anelR))) * (1.0 - e);
+  float clarao = (1.0 - smoothstep(0.0, anelR, dist)) * (1.0 - e) * (1.0 - e);
+  return vec4(0.0, 0.0, anel, clarao);
+}
+
+// A cor da lava num ponto. q: onde o ponto está NA LAVA (anda com ela, u); alongar: as placas compridas no rumo
+// de q.x (o rio); lado: o tamanho das placas (u); calor: 0 (crosta fechada, só a rachadura fina) a 1 (mancha
+// quente: ilhas de crosta no fundido); uPx: u por pixel da tela.
+// Tudo por mistura normal: nada aditivo (vira neon), como o objeto Fogo.
+vec3 corDaLava(vec2 q, float alongar, float lado, vec3 base, float calor, float t, float bolhas, float noite, float uPx) {
+  // O laranja do fundido puxa para o amarelo no quente, de qualquer base (o magma não vira salmão).
+  vec3 quente = mix(base, vec3(1.0, 0.72, 0.28), 0.6);
+  vec3 branco = mix(quente, vec3(1.0, 0.86, 0.52), 0.45);
+  vec3 escuro = base * vec3(0.55, 0.36, 0.3);
+  vec2 qp = vec2(q.x / alongar, q.y);
+  // O fundido: veios presos à lava, do vermelho escuro ao laranja; o brilho respira devagar, em manchas.
+  float veio = contraste(R(qp / 30.0 + 3.7).r * 0.6 + R(qp / 11.0 + 1.3).g * 0.4, 1.9);
+  float respira = 0.86 + 0.14 * sin(t * 0.9 + R(qp / 90.0).b * PI2);
+  vec3 fundido = mix(escuro, base, smoothstep(0.15, 0.6, veio));
+  fundido = mix(fundido, quente, smoothstep(0.55, 0.95, veio) * (0.35 + 0.65 * calor) * respira);
+  // As placas, com a beira torta em duas escalas (tamanhos desiguais, nada de favo); a folga entre elas é a
+  // rachadura fina na crosta fechada e abre nas manchas quentes.
+  vec2 torto = (R(qp / 23.0).ab - 0.5) * 12.0 + (R(qp / 71.0 + 4.0).rg - 0.5) * 22.0;
+  vec2 pl = placas(qp + torto, lado);
+  float borda = pl.x, sorte = pl.y;
+  float folga = mix(0.55, 6.5, pow(calor, 1.4)) * mix(0.75, 1.25, sorte);
+  float aaq = max(uPx, 0.3);
+  float naPlaca = smoothstep(folga - aaq, folga + aaq, borda);
+  // De longe a rachadura fica menor que o pixel: vira a média, sem chuvisco.
+  float longe = smoothstep(1.2, 3.5, uPx);
+  naPlaca = mix(naPlaca, clamp(1.0 - folga / (lado * 0.3), 0.0, 1.0), longe);
+  // A crosta: quase preta, marrom-avermelhada; a placa mais nova, na mancha quente, ainda guarda um vermelho apagado.
+  vec3 crosta = mix(vec3(0.085, 0.06, 0.052), vec3(0.165, 0.1, 0.08), R(qp / 4.5).a);
+  crosta = mix(crosta, base * 0.4, sorte * sorte * 0.5 * calor);
+  crosta = mix(crosta, escuro * 0.85, (1.0 - smoothstep(folga, folga + 2.5, borda)) * 0.55);
+  // Racha por dentro da placa: riscos finos que abrem (fio de brasa) e fecham devagar.
+  float risca = 1.0 - smoothstep(0.0, 0.035, abs(R(qp / 13.0 + 7.7).r - 0.5));
+  float abre = smoothstep(0.55, 0.85, R(qp / 70.0 + vec2(t * 0.03, -t * 0.02)).g);
+  crosta = mix(crosta, mix(escuro, base, 0.6), risca * abre * 0.75 * (1.0 - longe));
+  // A rachadura: o fio incandescente colado no meio dela; nas folgas largas, o fundido em volta.
+  float fio = 1.0 - smoothstep(0.0, max(folga * 0.55, 1.0), borda);
+  vec3 racha = mix(fundido, mix(quente, branco, fio), fio * 0.85 * respira);
+  vec3 cor = mix(racha, crosta, naPlaca);
+  // As bolhas (redondas: no espaço da lava, sem o alongar): a cúpula laranja que sobe, pele escura na volta;
+  // o clarão e o anel de respingos ao estourar.
+  vec4 b = bolha(q, t, bolhas);
+  vec3 cupula = mix(escuro * 0.8, quente, smoothstep(0.1, 0.75, b.y));
+  cupula = mix(cupula, branco, smoothstep(0.8, 1.0, b.y) * 0.8);
+  cor = mix(cor, cupula, b.x);
+  cor = mix(cor, branco, b.w * 0.8);
+  cor = mix(cor, crosta * 0.8, b.z * 0.7);
+  // De noite a lava continua à vista: o que é quente fica mais vivo, a crosta mais escura; ela não acende o chão.
+  float quentura = max(1.0 - naPlaca, max(b.x, b.w));
+  return cor * mix(1.0, mix(0.85, 1.2, quentura), noite);
+}
+
 void main() {
   vec2 w = vPos * uAgua.x;
   vec2 uv = (w / uAgua.w - uCampo.xy) * uCampo.zw;
@@ -96,6 +213,10 @@ void main() {
   vec3 base = f2.rgb;
   float mar = f2.a, rio = f1.w, lago = clamp(1.0 - mar - rio, 0.0, 1.0);
   float vel = f3.r, ondas = f3.g, espuma = f3.b;
+  // LAVA: o peso (1 = lava), misturado na foz como as ondas. Na lava, as "ondas" são as bolhas.
+  float lava = f3.a;
+  // u por pixel da tela, medido FORA dos ramos (derivada dentro de if de pixel é indefinida).
+  float uPx = length(fwidth(w)) * 0.7071;
   vec3 raso = clamp(base * 1.17 + vec3(0.03, 0.04, 0.035), 0.0, 1.0);
   vec3 fundo = base * 0.64;
   vec3 corDaEspuma = mix(vec3(0.94, 0.95, 0.92), base, 0.08);
@@ -115,20 +236,40 @@ void main() {
   float frente = sobe * e - sobe * 0.25;
   float deMar = d + frente + (nm.g - 0.5) * 4.0;
   de = mix(de, deMar, mar);
+  // LAVA: a beira não lambe nem sobe na areia; mexe quase nada (a lava esfria na margem).
+  de = mix(de, d + irregular * 0.7 + sin(t * 0.21 + nl.g * 9.0) * 0.5, lava);
 
   // O chão da beira, por cima do chão que já está: praia de areia no mar, barro no rio e no lago.
   vec4 acc = vec4(0.0);
-  vec3 areia = mix(vec3(214., 194., 134.) / 255., vec3(191., 167., 116.) / 255., contraste(R(w / 30.0).b, 1.6));
-  float bordaDaPraia = -d + (nl.a - 0.5) * 26.0 + (nm.b - 0.5) * 12.0 + (R(w / 6.0).g - 0.5) * 7.0 - smoothstep(0.6, 0.8, tufo) * 6.0;
   // O pincel "Tirar areia" (verde do uF4): a areia some no trecho tirado, com a beira quebrada pelo ruído; a água e a espuma ficam.
+  // Também é a beira que não é margem (borda do mapa, junto de sala): ali nem areia nem rocha.
   float semAreia = texture(uF4, uv).g;
-  float praia = mar * (1.0 - smoothstep(33.0, 37.0, bordaDaPraia)) * (1.0 - smoothstep(0.25, 0.75, semAreia + (nm.r - 0.5) * 0.4 * step(0.002, semAreia)));
-  acc = sobre(acc, areia + graoDoPapel(w), praia);
-  float molhadaDoMar = mar * smoothstep(-sobe * 0.85, -sobe * 0.85 + 6.0, d);
-  acc = sobre(acc, vec3(0.0), molhadaDoMar * 0.2);
-  float barro = (1.0 - mar) * (1.0 - smoothstep(0.0, 9.0 + nm.b * 8.0, -de));
-  acc = sobre(acc, vec3(0.2, 0.15, 0.03), barro * 0.85 * 0.4);
-  acc = sobre(acc, fundo * 0.85, (1.0 - mar) * (1.0 - smoothstep(0.0, 1.6, -de)) * 0.55);
+  if (lava < 0.99) {
+    vec3 areia = mix(vec3(214., 194., 134.) / 255., vec3(191., 167., 116.) / 255., contraste(R(w / 30.0).b, 1.6));
+    float bordaDaPraia = -d + (nl.a - 0.5) * 26.0 + (nm.b - 0.5) * 12.0 + (R(w / 6.0).g - 0.5) * 7.0 - smoothstep(0.6, 0.8, tufo) * 6.0;
+    float praia = mar * (1.0 - smoothstep(33.0, 37.0, bordaDaPraia)) * (1.0 - smoothstep(0.25, 0.75, semAreia + (nm.r - 0.5) * 0.4 * step(0.002, semAreia)));
+    acc = sobre(acc, areia + graoDoPapel(w), praia);
+    float molhadaDoMar = mar * smoothstep(-sobe * 0.85, -sobe * 0.85 + 6.0, d);
+    acc = sobre(acc, vec3(0.0), molhadaDoMar * 0.2);
+    float barro = (1.0 - mar) * (1.0 - smoothstep(0.0, 9.0 + nm.b * 8.0, -de));
+    acc = sobre(acc, vec3(0.2, 0.15, 0.03), barro * 0.85 * 0.4);
+    acc = sobre(acc, fundo * 0.85, (1.0 - mar) * (1.0 - smoothstep(0.0, 1.6, -de)) * 0.55);
+  }
+  // LAVA: a beira é rocha queimada (basalto) escura sobre uma fuligem rala, com um fio de brasa colado na lava.
+  if (lava > 0.01) {
+    vec4 accL = vec4(0.0);
+    float temBeira = 1.0 - smoothstep(0.25, 0.75, semAreia);
+    float largura = mix(11.0 + nm.b * 9.0, 22.0 + nm.b * 12.0, mar);
+    float fora = -de + (R(w / 7.0).g - 0.5) * 6.0 + (nl.a - 0.5) * 8.0;
+    accL = sobre(accL, vec3(0.17, 0.13, 0.11), (1.0 - smoothstep(largura, largura + 9.0, fora)) * 0.18 * temBeira);
+    vec3 basalto = mix(vec3(0.115, 0.098, 0.092), vec3(0.235, 0.2, 0.185), contraste(R(w / 8.0).b * 0.65 + R(w / 2.6).a * 0.35, 1.9));
+    accL = sobre(accL, basalto + graoDoPapel(w), (1.0 - smoothstep(largura * 0.82, largura, fora)) * 0.93 * temBeira);
+    // O fio de brasa: fino, vermelho-alaranjado, mais vivo onde a pedra ainda está quente, mudando devagar (nunca pisca).
+    float fio = 1.0 - smoothstep(0.1, 1.5 + nm.g * 1.2, -de);
+    float vivo = 0.55 + 0.45 * smoothstep(0.3, 0.7, R(w / 16.0 + vec2(t * 0.02, -t * 0.015)).r);
+    accL = sobre(accL, mix(base, vec3(0.8, 0.3, 0.12), 0.5) * mix(0.8, 1.0, vivo), fio * vivo * 0.85 * temBeira);
+    acc = mix(acc, accL, lava);
+  }
 
   // Profundidade em três tons macios.
   float meiaLargura = max(d + abs(f1.z), 4.0);
@@ -140,7 +281,8 @@ void main() {
   float luz = 0.0, risco = 0.0, brilho = 0.0;
 
   // RIO: correnteza no rumo do traço, mais rápida no meio (dois tempos que se trocam, sem esticar).
-  if (rio > 0.01) {
+  // Onde é só lava, o movimento da água nem é feito (a lava tem o dela, abaixo).
+  if (rio > 0.01 && lava < 0.99) {
     float s = f1.y, n = f1.z;
     float lado = clamp(abs(n) / meiaLargura, 0.0, 1.0);
     float rapidez = mix(6.0, 80.0, vel) * (0.3 + 0.7 * (1.0 - lado * lado));
@@ -162,7 +304,7 @@ void main() {
   }
   // LAGO: duas camadas lentas se cruzando.
   float tamanho = mix(0.6, 1.5, ondas);
-  if (lago > 0.01) {
+  if (lago > 0.01 && lava < 0.99) {
     float l1 = R((w + vec2(7.0, 3.0) * t) / (70.0 * tamanho)).r, l2 = R((w + vec2(-4.0, 6.0) * t) / (48.0 * tamanho) + 4.4).g;
     float ond = (l1 + l2) * 0.5;
     float lLuz = (contraste(ond, 2.0) - 0.5) * 0.07 * (0.6 + 0.6 * ondas);
@@ -172,7 +314,7 @@ void main() {
   }
   // MAR: ondas largas que andam para a praia, quebradas pelo ruído (nunca listras), espuma na arrebentação.
   float rendaMar = 0.0;
-  if (mar > 0.01) {
+  if (mar > 0.01 && lava < 0.99) {
     float dd = max(d, 0.0);
     float lambda = mix(48.0, 120.0, ondas);
     float torto = (nl.b - 0.5) * lambda * 1.3 + (nm.r - 0.5) * lambda * 0.25;
@@ -205,11 +347,36 @@ void main() {
   float limiar = noite > 0.5 ? 0.5 : 0.0;
   agua = mix(agua, corDoBrilho, smoothstep(limiar, 1.0, brilho) * forcaDoBrilho * smoothstep(1.0, 6.0, de));
   agua = clamp(agua + graoDoPapel(w), 0.0, 1.0);
-  // A beira rasa deixa ver o chão molhado por baixo.
+  // LAVA: no lugar da água (sem espuma, sem céu, sem sol nem lua refletidos). O rio de lava anda em bloco, viscoso:
+  // a mesma rapidez de margem a margem (as placas não esticam) e bem mais devagar que a água; no lago e no mar a
+  // crosta só deriva. As placas do rio são compridas no rumo da correnteza.
+  if (lava > 0.01) {
+    // O calor: manchas quentes que somem perto da margem. No lago e no mar ficam paradas no mundo (a crosta deriva
+    // por elas); no rio descem com a lava (parada, a mancha virava um risco claro fixo na correnteza).
+    // O miolo (longe da margem) é sempre um pouco quente: o canal do meio do rio, o centro do lago.
+    float perto = smoothstep(0.0, 0.55, prof);
+    float miolo = smoothstep(0.5, 1.0, prof);
+    vec3 corL = vec3(0.0);
+    if (rio > 0.01) {
+      float rapidezDaLava = mix(3.0, 24.0, vel);
+      vec2 qr = vec2(f1.y - rapidezDaLava * t, f1.z);
+      float calorR = clamp(smoothstep(0.38, 0.75, R(qr / 170.0 + 2.0).a * 0.65 + R(qr / 61.0 + 5.0).b * 0.35) + miolo * 0.6, 0.0, 1.0) * perto;
+      corL += rio * corDaLava(qr, 1.35, clamp(meiaLargura * 0.85, 14.0, 34.0), base, calorR, t, ondas, noite, uPx);
+    }
+    if (rio < 0.99) {
+      vec2 qa = w + mix(vec2(2.2, 1.1), vec2(-1.3, 1.9), mar) * t;
+      float calorA = clamp(smoothstep(0.38, 0.75, R(w / 170.0 + 2.0).a * 0.65 + R(w / 61.0 + 5.0).b * 0.35) + miolo * 0.4, 0.0, 1.0) * perto;
+      corL += (1.0 - rio) * corDaLava(qa, 1.0, mix(32.0, 40.0, mar), base, calorA, t, ondas, noite, uPx);
+    }
+    // Junto da margem a lava esfria: a crosta fecha.
+    corL = mix(corL, vec3(0.1, 0.07, 0.06), (1.0 - smoothstep(0.0, 4.5, de)) * 0.55);
+    agua = mix(agua, clamp(corL + graoDoPapel(w), 0.0, 1.0), lava);
+  }
+  // A beira rasa deixa ver o chão molhado por baixo; a lava cobre inteira.
   float aa = max(fwidth(de), 0.5);
-  float cobre = smoothstep(-aa, aa, de) * mix(0.62, 1.0, smoothstep(0.0, 7.0, de));
+  float cobre = smoothstep(-aa, aa, de) * mix(mix(0.62, 1.0, smoothstep(0.0, 7.0, de)), 1.0, lava);
   acc = sobre(acc, agua, cobre);
-  acc = sobre(acc, corDaEspuma, clamp(rendaMar, 0.0, 1.0) * 0.9);
+  acc = sobre(acc, corDaEspuma, clamp(rendaMar, 0.0, 1.0) * 0.9 * (1.0 - lava));
   // O chão das salas e do Chão Liso por cima: a cobertura lida como distância (meio = a borda), fina em qualquer zoom.
   float cob = texture(uF4, uv).r;
   float aaDoChao = max(fwidth(cob), 0.001) * 0.7;
@@ -579,7 +746,8 @@ export function criarAguaDoMapa(dep: {
       // A peça de Chão Liso que só fica por cima de uma das águas que toca depende de quem manda em cada texel (as formas das águas).
       const comDono = formas.some((f) => f.soNas !== undefined)
       const chaveDoBuraco = caixa === null ? '' : `${caixa.x0},${caixa.y0},${caixa.w},${caixa.h},${texel}|${JSON.stringify(formas)}${comDono ? `|${corpos.map((c) => c.chave).join(';')}` : ''}`
-      const chaveDoComposto = JSON.stringify([texel, mapa, corpos.map(({ chave, corpo }) => [chave, corpo.cor, corpo.velocidade, corpo.ondas, corpo.espuma]), chaveDoBuraco])
+      // O líquido entra (água ou lava): trocar só ele não refaz o campo do corpo, mas refaz a junção.
+      const chaveDoComposto = JSON.stringify([texel, mapa, corpos.map(({ chave, corpo }) => [chave, corpo.cor, corpo.velocidade, corpo.ondas, corpo.espuma, corpo.lava ?? 0]), chaveDoBuraco])
       // Nada mudou no que está na placa (uma sala mexida longe da água, o mesmo recorte de novo).
       if (campo !== null && chaveDoComposto === compostoAplicado) return
       const composto = caixa === null ? null : comporCampo(lista, caixa, texel, comDono)
