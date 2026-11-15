@@ -1,4 +1,29 @@
-# TOPO 15/11/2026: MURO DE FOGO + LAVA NA ÁGUA — PUBLICADOS NA 0.5.69
+# TOPO 15/11/2026 14h56: GELADEIRA DE METAL, BAÚ E BALCÃO EM 3/4, GELADEIRA TRAVADA, 3/4 POR OBJETO (investigando)
+
+## Objetivo
+Pedido de 15/11 14h56 (PEDIDOS.md, "PEDIDO NOVO (15/11/2026 14h56)"): (1) geladeira de metal no lugar da caixa de gelo de madeira; (2) baú em 3/4 refeito; (3) BUG objeto travado não dá para acessar; (4) balcão em 3/4 refeito; (5) "Vista 3/4" muda todos os móveis do mapa (hoje é `MapData.vistaDosMoveis`, chave no painel do objeto `components/MobiliaControls.tsx:289`), ele quer por objeto.
+
+## Estado atual
+- Investigação FEITA (3 agentes, só leitura; nada editado no código):
+  - TRAVA: causa `client/src/pixi/PixiCanvas.tsx:5298` (`clickSelectDoPiso`: `props: map.props.filter((prop) => camadas.podeMexer('objeto', prop))` tira objeto travado do clique; token/sala/desenho só saem por camada travada). Nenhum caminho de volta (clique, Ctrl+clique, botão direito, Ctrl+A, laço, lista "Objetos do mapa" sem objeto). Trava gravada só em `App.tsx:4175`. Conserto: filtrar só por camada travada (`!camadas.travada(camadas.camadaDe('objeto', prop))`) + corrigir comentário 5237-5238; arrasto/alças/giro já respeitam `locked`. Efeito: objeto travado volta a pegar o clique (tapete travado tampa a sala embaixo). Arquivo real: `%APPDATA%\com.labirinto.app\maps\map_1acb843c-...\scenes\scene_cbb72146-...\map.json` (Cemitério: Casa do Coveiro), geladeira `aa092634` locked; a sala embaixo também locked. Também `placaDeSeta` travada na cena Pescaria.
+  - 3/4 POR OBJETO (Fable): modelo `Prop.mobiliaTresQuartos?: boolean` (ausente = segue o mapa), vista efetiva numa função em `lib/mobilia/vistaTresQuartos.ts`; ~12 arquivos (types/map.ts, lib/mobilia.ts [mobiliaParaJogador, propMobiliaFromFile, semNadaDeMovel, mesmaAparenciaDoMovel], vistaTresQuartos.ts, construcaoComFichaAtras.ts, mapFactory.ts, mapStore.ts, pixi/drawPropSilhouettes.ts:587, pixi/drawProps.ts:287 [ordem mista: 3/4 trocam só entre si pela base], chamasDasFogueiras.ts, MobiliaControls.tsx:649, MenuDaSelecao.tsx:185, MapSettingsDialog.tsx:56). Quebram: `MobiliaControls.vistaTresQuartos.test.tsx` e e2e `task-meio-termo-tres-quartos.spec.ts` (sujo da outra frente: não tocar). Desenhado: objeto 3/4 cai no estilo Atual.
+  - DESENHO (batedor): baú, geladeira e balcão são `DERIVADO` (`tresQuartos.ts:134,167,169`); todo móvel = 1 coluna, frente = varredura lisa (`varrer`, :972), por isso baú "metade tampa/metade frente" e trincos da geladeira no topo. Balcão: barra de latão (`moveis/balcao.ts:26-27,35`) vira 2ª coluna fora do tampo e fica solta embaixo. Modelos de frente desenhada: `moveis/guardaRoupa.ts:8-24`, `cofre.ts:13-33`, `armarioDeFerro.ts`, `balcaoDeTaverna.ts` (barra com braços). Geladeira: NUNCA existiu de metal (d0ee3e67; mestre pediu madeira em 28/10). METAIS = ferro, latão só (`materiais.ts:137`); teste `materiais.test.ts:117` trava os padrões. Desenhado da geladeira (`godot/desenhado/exportado/movel-geladeira/`) exige ids de lugar `madeira,ferragens` (`pixi/rasterDosMoveis.ts:386-388`), senão some em silêncio.
+
+- DECISÕES DO MESTRE (15/11 ~15h20, em PEDIDOS.md): geladeira MODERNA DE INOX; 3/4 por objeto + padrão do mapa (modelo do Fable acima); travado = clique seleciona (conserto recomendado); publicar "Trava já, o resto depois".
+- TRAVA FEITA: `5a8a8715` (só `client/src/pixi/PixiCanvas.tsx`: linha 5298 + comentário). tsc 0. e2e `task-jornada-item-travado.spec.ts` NÃO rodou: falta o Chromium do Playwright (`ms-playwright\chromium-1234` não existe); não instalado (regra 12). Não visto no app.
+- 0.5.70 PUBLICADA: bump `e60fd989`, push 459f2255..e60fd989; https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.70 (setup.exe 28.426.028 B, .sig, .msi, latest.json = 0.5.70); log `tmp/trava-2026-11-15/publicar-0.5.70.log` (exit 0); worktree removido (junções antes), client/node_modules intacto; disco C: 42,8 GB livres.
+
+## Próximos passos
+1. Esperar a 0.5.70; registrar hash/URL em PEDIDOS e HANDOFF. Rascunho do plano do resto: `tmp/moveis-3-4-2026-11-15/plano-rascunho.md`.
+2. Plan mode para o resto: geladeira de inox (novo desenho Meio-Termo + 3/4 com portas; lugares de material e Desenhado: cuidado com `rasterDosMoveis.ts:386-388`), baú 3/4 (corpo + tampa, frente desenhada, padrão guardaRoupa/cofre), balcão 3/4 (barra com braços como `balcaoDeTaverna`), 3/4 por objeto (`Prop.mobiliaTresQuartos`). Desenho = designer-opus; 3/4 por objeto = programador-frontend. Mostra para ele ver; depois 0.5.71.
+
+## Critério de pronto
+tsc 0; vitest da área verde; prints/folha da geladeira, baú e balcão em 3/4; objeto travado acessível e destravável no app; ligar 3/4 num objeto não muda os outros; mapas antigos com 3/4 ligado abrem iguais.
+
+## Evidência
+(ainda nenhuma)
+
+# (anterior) 15/11/2026: MURO DE FOGO + LAVA NA ÁGUA — PUBLICADOS NA 0.5.69
 
 ## Objetivo
 Pedido de 15/11 10h18 (PEDIDOS.md, "PEDIDO NOVO (15/11/2026 10h18)"): objeto Muro de fogo traçado (à mão ou ponto a ponto, 1 casa, barra o jogador) e Lava como "Líquido: Água | Lava" na ferramenta Água (rio, lago, mar; nasce barrando). Plano aprovado: `C:\Users\gedasio.filho\.claude\plans\merry-finding-backus.md`.
