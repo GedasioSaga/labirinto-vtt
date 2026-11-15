@@ -177,6 +177,15 @@ export function materiaisDaPeca(prop: Prop, tipo: TipoMobilia): MaterialNoLugar[
 }
 
 /**
+ * Só os lugares que são ESCOLHA (mais de uma opção gravável): o que o painel
+ * mostra. Vazio = o móvel com textura não tem o que escolher na Aparência (a
+ * geladeira de inox, o fogo, o moinho de torre), e a ficha esconde a seção.
+ */
+export function materiaisAEscolher(prop: Prop, tipo: TipoMobilia): MaterialNoLugar[] {
+  return materiaisDaPeca(prop, tipo).filter(({ lugar }) => opcoesGravaveis(lugar).length > 1)
+}
+
+/**
  * O lugar vale na forma atual do móvel? A ponte de pedra não tem madeira, e a
  * de madeira e a de corda não têm pedra (`lugarDaPonteNaForma`); o moinho de
  * torre não usa nenhum dos dois do Clássico: o painel e a ficha só mostram o
@@ -214,17 +223,15 @@ export function MaterialDaPeca({ prop, tipo, onAparenciaChange }: MaterialDaPeca
   const tomDaMadeira = madeira !== undefined && ehMaterial(madeira) ? MATERIAIS[madeira].tom : MATERIAIS.carvalho.tom
   return (
     <section className="lb-section">
-      {materiais
-        .filter(({ lugar }) => opcoesGravaveis(lugar).length > 1)
-        .map(({ lugar, campo, material: marcado }) => (
-          <LugarDeMaterialCampo
-            key={lugar.id}
-            lugar={lugar}
-            marcado={marcado}
-            tomDaMadeira={tomDaMadeira}
-            onEscolher={(opcao) => onAparenciaChange(prop.id, pedidoDoCampo(campo, ehMaterial(opcao) ? MATERIAIS[opcao].hex : null))}
-          />
-        ))}
+      {materiaisAEscolher(prop, tipo).map(({ lugar, campo, material: marcado }) => (
+        <LugarDeMaterialCampo
+          key={lugar.id}
+          lugar={lugar}
+          marcado={marcado}
+          tomDaMadeira={tomDaMadeira}
+          onEscolher={(opcao) => onAparenciaChange(prop.id, pedidoDoCampo(campo, ehMaterial(opcao) ? MATERIAIS[opcao].hex : null))}
+        />
+      ))}
     </section>
   )
 }

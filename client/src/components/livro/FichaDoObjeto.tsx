@@ -11,7 +11,7 @@ import { Essencial } from '../grimorio/Cartoes'
 import { Fichas } from '../grimorio/Ficha'
 import { ItemNoChaoControls, type ItemNoChaoControlsProps } from '../ItemNoMapaControls'
 import { ItemTransformControls, type ItemTransformControlsProps } from '../ItemTransformControls'
-import { materiaisDaPeca, nomeDaOpcao } from '../MaterialDaPeca'
+import { materiaisAEscolher, materiaisDaPeca, nomeDaOpcao } from '../MaterialDaPeca'
 import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
@@ -57,6 +57,17 @@ function resumoDaAparencia(prop: Prop): string {
   return corPropria ? 'Cor própria' : 'Padrão'
 }
 
+/**
+ * A ficha Aparência tem o que mostrar? O desenho em linhas sempre tem (a "Cor da linha", no mínimo); o
+ * móvel com textura, só com um lugar que seja escolha (`materiaisAEscolher`). Sem nenhum (a geladeira de
+ * inox, o fogo, o muro de fogo, o moinho de torre), a seção não aparece: ficha vazia é controle morto.
+ */
+function aparenciaTemEscolha(prop: Prop): boolean {
+  if (prop.mobilia === undefined) return false
+  if (!saiComTextura(prop, meioTermoLigado())) return true
+  return materiaisAEscolher(prop, prop.mobilia).length > 0
+}
+
 /** O que pesa no mapa, numa palavra: oculto e travado antes da camada (a escolhida, que o seletor do topo da ficha troca). */
 function resumoNoMapa(prop: Prop, camada: string): string {
   if (prop.secret === true) return 'Oculto'
@@ -99,7 +110,7 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
         </Essencial>
       )}
       <Fichas>
-        {movel && (
+        {movel && aparenciaTemEscolha(prop) && (
           <FichaDoObjetoLembrada id="aparencia" titulo="Aparência" icone="imagem" padrao={false} resumo={resumoDaAparencia(prop)}>
             <MobiliaControls prop={prop} {...mobilia} parte="aparencia" />
           </FichaDoObjetoLembrada>
