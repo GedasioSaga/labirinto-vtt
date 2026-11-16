@@ -70,11 +70,14 @@ export function nomesDeMunicaoIguais(a: string, b: string): boolean {
  * (e as de mesmo nome sem item, pegas de um pino "!"): a bala está ligada
  * mesmo com 0 — é assim que o tiro sem munição fica bloqueado. Sem `itemId`,
  * só pelo nome; nenhuma vaga com o nome = a bala não está ligada
- * (`undefined`), e continua só texto.
+ * (`undefined`), e continua só texto — a não ser que ela já tenha gastado de
+ * uma vaga pelo nome (`ligadaPeloNome`, `CartaoDaFicha.municaoPeloNome`): aí a vaga
+ * que sumiu com a última unidade deixa a bala ligada com 0, e o tiro não sai
+ * de graça (D1 da auditoria de 16/11).
  */
-export function municaoNaMochila(mochila: readonly CarriedItem[], nome: string, itemId: string | undefined): MunicaoDaBala | undefined {
+export function municaoNaMochila(mochila: readonly CarriedItem[], nome: string, itemId: string | undefined, ligadaPeloNome = false): MunicaoDaBala | undefined {
   const vagas = mochila.filter((vaga) => (itemId !== undefined && vaga.itemId === itemId) || ((itemId === undefined || vaga.itemId === undefined) && nomesDeMunicaoIguais(vaga.nome, nome)))
-  if (itemId === undefined && vagas.length === 0) return undefined
+  if (itemId === undefined && !ligadaPeloNome && vagas.length === 0) return undefined
   const quantos = vagas.reduce((soma, vaga) => soma + quantidadeDe(vaga), 0)
   const primeira = vagas[0]
   const doItem = itemId ?? vagas.find((vaga) => vaga.itemId !== undefined)?.itemId

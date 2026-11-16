@@ -307,7 +307,7 @@ export function categoriaAtira(categoria: CategoriaDaArma | null): boolean {
 function balaDoCartao(cartao: CartaoDaFicha, mochila: readonly CarriedItem[]): BalaDaArma {
   const nome = cartao.nome.trim() || BALA_SEM_NOME
   // A bala sem nome não casa com vaga nenhuma pelo nome ("Bala sem nome" seria um item de verdade por acaso).
-  const municao = cartao.nome.trim() === '' && cartao.itemId === undefined ? undefined : municaoNaMochila(mochila, nome, cartao.itemId)
+  const municao = cartao.nome.trim() === '' && cartao.itemId === undefined ? undefined : municaoNaMochila(mochila, nome, cartao.itemId, cartao.municaoPeloNome === true)
   return {
     id: cartao.id,
     nome,

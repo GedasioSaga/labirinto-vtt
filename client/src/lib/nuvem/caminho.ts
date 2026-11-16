@@ -91,7 +91,18 @@ export type CampoSimplesDoCartao = Exclude<keyof CartaoDaFicha, 'id' | 'imagem' 
  * próprio app (`salvarPelaBase`); o caminho existe para a mescla não perder a marca.
  */
 export type CampoDeOculta = 'oculta' | 'revelaAoUsar'
-const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = { nome: true, aMao: true, extras: true, modificadores: true, atributos: true, mecanicaProposta: true, armaPadrao: true, itemId: true }
+const CAMPO_SIMPLES_DO_CARTAO: Record<CampoSimplesDoCartao, true> = {
+  nome: true,
+  aMao: true,
+  extras: true,
+  modificadores: true,
+  atributos: true,
+  mecanicaProposta: true,
+  armaPadrao: true,
+  itemId: true,
+  // D1 da auditoria de 16/11: a bala que gastou de vaga só pelo nome segue ligada com 0; sem a op, o Lobby a soltaria.
+  municaoPeloNome: true,
+}
 const ehCampoSimplesDoCartao = guardaDe(CAMPO_SIMPLES_DO_CARTAO)
 export const CAMPOS_SIMPLES_DO_CARTAO = chavesDe(CAMPO_SIMPLES_DO_CARTAO, ehCampoSimplesDoCartao)
 
@@ -202,7 +213,7 @@ export const ESQUEMA_DO_CAMINHO: Readonly<Record<NomeDaRegra, RegraDoEsquema>> =
   cartao: { caminho: "['abas', aba, cartaoId]", acoes: ['criar', 'apagar'], quem: 'donoOuMestre', visivelAoJogador: true },
   ordemDosCartoes: { caminho: "['abas', aba, '#ordem']", acoes: ['ordenar'], quem: 'donoOuMestre', visivelAoJogador: true },
   campoDoCartao: {
-    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta' | 'armaPadrao' | 'itemId']",
+    caminho: "['abas', aba, cartaoId, 'nome' | 'aMao' | 'extras' | 'modificadores' | 'atributos' | 'mecanicaProposta' | 'armaPadrao' | 'itemId' | 'municaoPeloNome']",
     acoes: ['definir'],
     quem: 'donoOuMestre',
     visivelAoJogador: true,
@@ -402,6 +413,8 @@ export type MudancaNoCartao =
   | { campo: 'armaPadrao'; valor: true | undefined }
   /** Fase 5 (coisa x regra): a coisa do Acervo de que o cartão da arma é a regra. */
   | { campo: 'itemId'; valor: string | undefined }
+  /** D1 da auditoria de 16/11: o tipo de bala ligado à mochila só pelo nome (`CartaoDaFicha.municaoPeloNome`). */
+  | { campo: 'municaoPeloNome'; valor: true | undefined }
 
 export type MudancaDoMestre =
   | { campo: 'dono'; valor: string | undefined }
@@ -730,6 +743,8 @@ function mudancaNoCartao(campo: CampoSimplesDoCartao, valor: Json | undefined): 
       return { campo, valor: lido.armaPadrao }
     case 'itemId':
       return { campo, valor: lido.itemId }
+    case 'municaoPeloNome':
+      return { campo, valor: lido.municaoPeloNome }
   }
 }
 

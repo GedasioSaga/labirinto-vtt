@@ -23,20 +23,29 @@ export interface MunicaoGasta {
 }
 
 /**
- * A bala de pé na aba Armas (subcartão "Tipos de bala") passa a apontar para o
- * item do Acervo da vaga que gastou. Sem isto, a bala ligada só pelo nome
- * perderia a ligação quando a última unidade sai (a vaga some), e o tiro com
- * 0 voltaria a sair. Bala que já tem `itemId`, ou vaga sem item: a MESMA ficha.
+ * A bala de pé na aba Armas (subcartão "Tipos de bala") fica ligada à vaga que
+ * gastou. Sem isto, a bala ligada só pelo nome perderia a ligação quando a
+ * última unidade sai (a vaga some), e o tiro com 0 voltaria a sair de graça.
+ * Vaga com item do Acervo (`itemId`): a bala passa a apontar para ele. Vaga
+ * só pelo nome (sem item: ficha de antes, digitado à mão, pino antigo): a
+ * bala fica marcada como ligada pelo nome (`municaoPeloNome`, D1 da auditoria
+ * de 16/11). Bala que já tem `itemId`, ou já marcada: a MESMA ficha.
  */
 export function comABalaLigada(personagem: Personagem, armaId: string, balaId: string, itemId: string | undefined): Personagem {
-  if (itemId === undefined) return personagem
   const cartoes = personagem.abas[ABA_DAS_ARMAS]
   if (cartoes === undefined) return personagem
   let mudou = false
   const ligar = (bala: CartaoDaFicha): CartaoDaFicha => {
     if (bala.id !== balaId || bala.itemId !== undefined) return bala
+    if (itemId === undefined) {
+      if (bala.municaoPeloNome === true) return bala
+      mudou = true
+      return { ...bala, municaoPeloNome: true }
+    }
     mudou = true
-    return { ...bala, itemId }
+    // Com o item, o `itemId` já a deixa ligada com 0: a marca pelo nome sai, e a ligação fica num lugar só.
+    const { municaoPeloNome: _peloNome, ...semMarca } = bala
+    return { ...semMarca, itemId }
   }
   const novos = cartoes.map((cartao) => (cartao.id === armaId ? { ...cartao, subcartoes: cartao.subcartoes.map(ligar) } : cartao))
   return mudou ? { ...personagem, abas: { ...personagem.abas, [ABA_DAS_ARMAS]: novos } } : personagem

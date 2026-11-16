@@ -105,6 +105,15 @@ export interface CartaoDaFicha {
    * (`armasDe`). Ausente = cartão solto, como antes (vale pelo nome).
    */
   itemId?: string
+  /**
+   * MUNIÇÃO (D1 da auditoria de 16/11): o tipo de bala (subcartão da aba Armas)
+   * já gastou de uma vaga da mochila ligada SÓ pelo nome (vaga sem `itemId`:
+   * ficha de antes, item digitado à mão, pino antigo). Fica ligada pelo nome
+   * mesmo depois que a vaga zera e some, e o tiro com 0 é bloqueado, como a bala
+   * com `itemId`. Quem grava é o tiro (`comABalaLigada`). Ausente = só texto
+   * enquanto nenhuma vaga casar pelo nome, como antes.
+   */
+  municaoPeloNome?: true
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -505,6 +514,8 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
     // Fase 5: só texto com cara de id; vazio ou torto = cartão solto.
     ...(typeof value.itemId === 'string' && ID_DO_ITEM_NO_CARTAO.test(value.itemId) ? { itemId: value.itemId } : {}),
+    // D1: só o `true` conta (como o `aMao`); sem ele, a bala volta a ser texto quando a vaga some.
+    ...(value.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
   }
 }
 

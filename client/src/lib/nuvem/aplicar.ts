@@ -389,6 +389,10 @@ function mudarCampoDoCartao(cartao: CartaoDaFicha, mudar: MudancaNoCartao): Pass
       const { itemId: antes, ...semCoisa } = cartao
       return { ok: true, novo: mudar.valor === undefined ? semCoisa : { ...semCoisa, itemId: mudar.valor }, antes, depois: mudar.valor }
     }
+    case 'municaoPeloNome': {
+      const { municaoPeloNome: antes, ...semMarca } = cartao
+      return { ok: true, novo: mudar.valor === true ? { ...semMarca, municaoPeloNome: true } : semMarca, antes, depois: mudar.valor }
+    }
   }
 }
 

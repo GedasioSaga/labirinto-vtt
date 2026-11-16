@@ -7,13 +7,16 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
 import { BALA_DE_PRATA, ROSA_FUNEBRE, ryokoCom, vincentCom } from '../lib/batalha/fichasDaFatiaE.testkit'
-import type { VezEsperada } from '../lib/batalha/ponte'
+import { armasDe, balaDaArma, motivoSemMunicao } from '../lib/batalha/leituraDaFicha'
+import type { PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { definirMunicoesDasArmas } from '../lib/batalha/municoesDoAcervo'
 import { nomesDeMunicaoIguais } from '../lib/mochila/municao'
-import type { Personagem } from '../lib/personagem'
+import { paraOFio, personagemDoArquivo, type Personagem } from '../lib/personagem'
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
 import { criarMesaEmMemoria, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
+import { criarBatalhaNoHost, type ConexaoNaBatalha } from '../net/batalhaNoHost'
+import { parseBatalhaAgir, parseBatalhaResultado } from '../net/protocoloDaBatalha'
 import type { CarriedItem } from '../types/map'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './batalhaFabrica'
 
@@ -28,8 +31,8 @@ function vincentComBalas(quantas: number): Personagem {
   return { ...vincentCom(), mochila: [{ id: 'vaga_corda', nome: 'Corda' }, vaga] }
 }
 
-function batalha(quantas: number): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
-  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincentComBalas(quantas), lado: 'a' }, { ficha: ryokoCom(), lado: 'b' }]))
+function batalha(quantas: number, vincent: Personagem = vincentComBalas(quantas)): { loja: LojaDaBatalha; mesa: MesaEmMemoria } {
+  const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincent, lado: 'a' }, { ficha: ryokoCom(), lado: 'b' }]))
   const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
   const tokens = mesa.tokens()
   const combatentes = combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id)))
@@ -98,9 +101,8 @@ describe('munição: a arma do Acervo que declara as munições', () => {
  * A aventura que não migrou a mochila para a ficha: a dona é a mochila do
  * boneco do Vincent (aqui, `noBoneco`); a ficha dele nem tem mochila.
  */
-function batalhaComAMochilaNoBoneco(quantas: number): { loja: LojaDaBatalha; mesa: MesaEmMemoria; noBoneco: () => readonly CarriedItem[] } {
-  const { mochila: comBalas = [] } = vincentComBalas(quantas)
-  const { mochila: _semMochila, ...vincent } = vincentComBalas(quantas)
+function batalhaComAMochilaNoBoneco(quantas: number, comMochila: Personagem = vincentComBalas(quantas)): { loja: LojaDaBatalha; mesa: MesaEmMemoria; noBoneco: () => readonly CarriedItem[] } {
+  const { mochila: comBalas = [], ...vincent } = comMochila
   const mesaDaFicha = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincent, lado: 'a' }, { ficha: ryokoCom(), lado: 'b' }]))
   const tokenDoVincent = mesaDaFicha.tokens().find((token) => token.name.startsWith('Vincent'))?.id
   let mochilaDoBoneco: readonly CarriedItem[] = comBalas
@@ -171,5 +173,98 @@ describe('munição: o tiro gasta da mochila da ficha', () => {
     expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(false)
     expect(loja.getState().desfazer(CENA, linha?.id ?? '', MESTRE)).toBe(true)
     expect([pratas(mesa), mochilaDoVincent(mesa).map((vaga) => vaga.id)]).toEqual([1, ['vaga_corda', 'vaga_prata']])
+  })
+})
+
+/**
+ * D1 da auditoria de 16/11 (tmp/auditoria-2026-11-16e/VEREDITO.md): a ficha de
+ * antes tem a vaga "Balas de prata" SEM item do Acervo (digitada à mão, pino
+ * antigo). A bala liga só pelo nome; quando a vaga zera e some, ela tem de
+ * continuar ligada, senão o 4º tiro sai de graça, e todos depois dele.
+ */
+function vincentComBalasSoPeloNome(quantas: number): Personagem {
+  const vaga: CarriedItem = { id: 'vaga_prata', nome: 'Balas de prata', ...(quantas > 1 ? { quantidade: quantas } : {}) }
+  return { ...vincentCom(), mochila: [{ id: 'vaga_corda', nome: 'Corda' }, vaga] }
+}
+
+const pratasPeloNome = (mochila: readonly CarriedItem[]): number => mochila.reduce((soma, vaga) => (nomesDeMunicaoIguais(vaga.nome, BALA_DE_PRATA.nome) ? soma + (vaga.quantidade ?? 1) : soma), 0)
+
+/** A store do mestre atrás do host, como a sessão a liga (`ponteDaBatalha` de `stores/batalhaStore.ts`). */
+function ponteDa(loja: LojaDaBatalha): PonteDaBatalha {
+  const s = () => loja.getState()
+  return {
+    cena: (sceneKey) => s().cenas[sceneKey] ?? null,
+    passarVez: (sceneKey, autor, esperado) => s().passarVez(sceneKey, autor, esperado),
+    desfazer: (sceneKey, linhaId, autor) => s().desfazer(sceneKey, linhaId, autor),
+    registrarAjuste: () => {},
+    agir: (sceneKey, autor, vez, pedido) => s().agir(sceneKey, autor, vez, pedido),
+    motivoDoAgir: (sceneKey, autor, vez, pedido) => s().motivoDoAgir(sceneKey, autor, vez, pedido),
+    reagir: (sceneKey, autor, pedido) => s().reagir(sceneKey, autor, pedido),
+    darDano: (sceneKey, autor, tokenId, valor) => s().darDano(sceneKey, autor, tokenId, valor),
+    escolherArmas: (sceneKey, autor, personagemId, armas) => s().escolherArmas(sceneKey, autor, personagemId, armas),
+    zerarCarga: (sceneKey, autor, personagemId) => s().zerarCarga(sceneKey, autor, personagemId),
+    evoluir: (sceneKey, autor, pedido) => s().evoluir(sceneKey, autor, pedido),
+    motivoDoEvoluir: (sceneKey, autor, pedido) => s().motivoDoEvoluir(sceneKey, autor, pedido),
+  }
+}
+
+/** O que a rede faz com a mensagem: vira texto e volta pelo leitor do protocolo. */
+function pelaRede<T>(mensagem: unknown, ler: (valor: unknown) => T | null): T {
+  const lida = ler(JSON.parse(JSON.stringify(mensagem)))
+  if (lida === null) throw new Error('a mensagem não passou pelo protocolo')
+  return lida
+}
+
+/** Por que a mira desabilita a Bala de Prata da Rosa Fúnebre nesta ficha, ou `null`. */
+function semMunicaoNaMira(ficha: Personagem | null | undefined): string | null {
+  const arma = ficha === null || ficha === undefined ? undefined : armasDe(ficha).find((candidata) => candidata.id === ROSA_FUNEBRE.id)
+  const bala = arma === undefined ? null : balaDaArma(arma, BALA_DE_PRATA.id)
+  return bala === null ? null : motivoSemMunicao(bala)
+}
+
+describe('munição só pelo nome (D1): a vaga sem item do Acervo', () => {
+  it('pelo host, o jogador dá 3 tiros (3 → 0); o 4º é recusado "Sem Bala de Prata" no mestre e no jogador, e o Desfazer recria a vaga pelo nome', () => {
+    const { loja, mesa } = batalha(3, vincentComBalasSoPeloNome(3))
+    const host = criarBatalhaNoHost({ ponte: ponteDa(loja), agora: () => 1_000, paraOFio: (personagem) => personagem })
+    const vincent = mesa.personagens().find((personagem) => personagem.nome.startsWith('Vincent'))
+    if (vincent === undefined) throw new Error('sem o Vincent')
+    const doVincent = tokenDe(loja, 'Vincent')
+    const ryoko = tokenDe(loja, 'Ryoko')
+    const jogador: ConexaoNaBatalha = {
+      clientId: 'c-jogador',
+      playerId: 'jogador_1',
+      nome: 'Jogador',
+      lugar: { sceneKey: CENA, meusTokens: new Set([doVincent]), fichasNaTela: mesa.tokens().map((token) => ({ id: token.id, name: token.name })), meusPersonagens: new Set([vincent.id]), personagemDaFicha: new Map([[doVincent, vincent.id]]) },
+    }
+    const resultados: unknown[] = []
+    for (const reqId of ['r1', 'r2', 'r3', 'r4']) {
+      if (reqId !== 'r1') naVezDe(loja, 'Ryoko')
+      const resposta = host.agir(jogador, pelaRede({ type: 'batalha.agir', reqId, vez: naVezDe(loja, 'Vincent'), pedido: tiro(ryoko) }, parseBatalhaAgir))
+      resultados.push(pelaRede(resposta.saidas[0]?.msg, parseBatalhaResultado))
+    }
+    expect(resultados).toEqual([
+      { type: 'batalha.resultado', reqId: 'r1', ok: true },
+      { type: 'batalha.resultado', reqId: 'r2', ok: true },
+      { type: 'batalha.resultado', reqId: 'r3', ok: true },
+      { type: 'batalha.resultado', reqId: 'r4', ok: false, motivo: 'Sem Bala de Prata' },
+    ])
+    expect([pratasPeloNome(mochilaDoVincent(mesa)), mochilaDoVincent(mesa).map((vaga) => vaga.id)]).toEqual([0, ['vaga_corda']])
+    // A mira do mestre e a do jogador (a ficha que vai pelo fio e é lida de novo lá) mostram a bala desabilitada.
+    const noMestre = mesa.personagens().find((personagem) => personagem.id === vincent.id)
+    const noJogador = noMestre === undefined ? null : personagemDoArquivo(JSON.parse(JSON.stringify(paraOFio(noMestre))))
+    expect([semMunicaoNaMira(noMestre), semMunicaoNaMira(noJogador)]).toEqual(['Sem Bala de Prata', 'Sem Bala de Prata'])
+    const terceiro = cena(loja).registro.filter((candidata) => candidata.tipo === 'golpe').at(-1)
+    expect(loja.getState().desfazer(CENA, terceiro?.id ?? '', MESTRE)).toBe(true)
+    expect([pratasPeloNome(mochilaDoVincent(mesa)), mochilaDoVincent(mesa).map((vaga) => vaga.id)]).toEqual([1, ['vaga_corda', 'vaga_prata']])
+  })
+
+  it('na aventura que não migrou (a mochila é do boneco): a última sai e o tiro seguinte é bloqueado com "Sem Bala de Prata"', () => {
+    const { loja, noBoneco } = batalhaComAMochilaNoBoneco(1, vincentComBalasSoPeloNome(1))
+    const ryoko = tokenDe(loja, 'Ryoko')
+    expect(loja.getState().agir(CENA, JOGADOR, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(true)
+    expect(pratasPeloNome(noBoneco())).toBe(0)
+    naVezDe(loja, 'Ryoko')
+    const vez = naVezDe(loja, 'Vincent')
+    expect([loja.getState().motivoDoAgir(CENA, MESTRE, vez, tiro(ryoko)), loja.getState().agir(CENA, MESTRE, vez, tiro(ryoko))]).toEqual(['Sem Bala de Prata', false])
   })
 })
