@@ -1,3 +1,4 @@
+import type { Token } from '../../../types/map'
 import type { FichaLida, TecnicaLida } from './leitura'
 import type { PosicoesDaCena } from './posicao'
 import {
@@ -27,6 +28,12 @@ export interface ContextoDBT {
   rolar: (lados: LadosDoDado) => number
   gerarId: () => string
   agora: number
+  /**
+   * Fase C (prazo das condições, `lib/prazoNaVez.ts`): a ficha do mapa de cada
+   * combatente que tem prazo, pelo id (o do token). O começo da vez tira a
+   * vida por turno; o fim desconta 1 turno. Ausente = ninguém com prazo.
+   */
+  prazos?: ReadonlyMap<IdDoCombatente, Token>
 }
 
 export interface Trabalho {
@@ -45,6 +52,10 @@ export interface Trabalho {
   tipo: TipoDaLinhaDBT | null
   /** Freio contra laço (vez que passa sozinha sem fim). */
   passos: number
+  /** Fase C: as fichas com prazo, como o comando as deixa (o fim da vez desconta aqui; a store grava no mapa). */
+  readonly prazos: Map<IdDoCombatente, Token>
+  /** Fase C: quem teve o prazo descontado neste comando. */
+  readonly prazosMudados: Set<IdDoCombatente>
 }
 
 export const PASSOS_MAX = 200
@@ -64,6 +75,8 @@ export function novoTrabalho(nucleo: NucleoDBT, ctx: ContextoDBT, autor: AutorDB
     comD20: false,
     tipo: null,
     passos: 0,
+    prazos: new Map(ctx.prazos ?? []),
+    prazosMudados: new Set(),
   }
 }
 

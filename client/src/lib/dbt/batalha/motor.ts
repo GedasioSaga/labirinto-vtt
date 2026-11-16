@@ -1,3 +1,4 @@
+import type { Token } from '../../../types/map'
 import { agir } from './acoes'
 import { resolverJanela } from './ataque'
 import { aplicarCondicao, pedirQueda, tirarCondicao } from './condicoes'
@@ -52,6 +53,8 @@ export interface ResultadoDBT {
   fichas: readonly { personagemId: string; pv: number; pk: number }[]
   linha: Omit<LinhaDBT, 'id' | 'seq' | 'quando' | 'reversao' | 'desfeita'> | null
   efeitos: readonly Omit<EfeitoDBT, 'seq'>[]
+  /** Fase C: as fichas do mapa cujo prazo o fim da vez descontou, como ficaram (a store grava). Vazio = nenhuma. */
+  prazos: readonly { tokenId: string; token: Token }[]
   /** Núcleo inalterado. */
   recusa?: string
 }
@@ -408,12 +411,16 @@ function linhaDoTrabalho(t: Trabalho): ResultadoDBT['linha'] {
 export function reduzir(nucleo: NucleoDBT, comando: ComandoDBT, autor: AutorDBT, ctx: ContextoDBT): ResultadoDBT {
   const t = novoTrabalho(nucleo, ctx, autor)
   const recusa = despachar(t, comando)
-  if (recusa !== null) return { nucleo, fichas: [], linha: null, efeitos: [], recusa }
+  if (recusa !== null) return { nucleo, fichas: [], linha: null, efeitos: [], prazos: [], recusa }
   const fichas = [...t.tocadas].flatMap((personagemId) => {
     const recursos = t.recursos.get(personagemId)
     return recursos === undefined ? [] : [{ personagemId, pv: recursos.pv, pk: recursos.pk }]
   })
-  return { nucleo: t.nucleo, fichas, linha: linhaDoTrabalho(t), efeitos: [...t.efeitos] }
+  const prazos = [...t.prazosMudados].flatMap((tokenId) => {
+    const token = t.prazos.get(tokenId)
+    return token === undefined ? [] : [{ tokenId, token }]
+  })
+  return { nucleo: t.nucleo, fichas, linha: linhaDoTrabalho(t), efeitos: [...t.efeitos], prazos }
 }
 
 /** Leitura sem efeito (opções para a tela e o host): um trabalho que nunca rola dado. */

@@ -26,6 +26,8 @@ import {
 } from '../lib/dbt/batalha/tipos'
 import { secureRollDie } from '../lib/dice'
 import type { Personagem } from '../lib/personagem'
+import { comCondicoes, condicoesDaFicha, type CondicoesDaFicha } from '../lib/turnoForaDaBatalha'
+import type { Token } from '../types/map'
 import { useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { mesaDaAventura } from './mesaDaAventura'
@@ -165,6 +167,34 @@ function estadoDaBatalhaDBT(
     return partesPorFicha
   }
 
+  /**
+   * Fase C: a ficha do mapa de cada combatente com prazo (o id do combatente
+   * é o do token). A mesa sem mapa (a arena) não lê: vazio.
+   */
+  const prazosDosCombatentes = (sceneKey: string, ids: readonly string[]): Map<string, Token> => {
+    const prazos = new Map<string, Token>()
+    const ler = mesa.fichaDaCena
+    if (ler === undefined) return prazos
+    for (const id of ids) {
+      const token = ler(sceneKey, id)
+      if (token !== null && Array.isArray(token.prazosDasCondicoes) && token.prazosDasCondicoes.length > 0) prazos.set(id, token)
+    }
+    return prazos
+  }
+
+  /** Fase C: grava o prazo que o fim da vez descontou e devolve as condições de antes (o Desfazer da linha). */
+  const gravarOsPrazos = (sceneKey: string, prazos: readonly { tokenId: string; token: Token }[]): { tokenId: string; antes: CondicoesDaFicha }[] => {
+    const { fichaDaCena, mudarFichaDaCena } = mesa
+    if (fichaDaCena === undefined || mudarFichaDaCena === undefined) return []
+    return prazos.flatMap(({ tokenId, token }) => {
+      const agora = fichaDaCena(sceneKey, tokenId)
+      if (agora === null) return []
+      const depois = condicoesDaFicha(token)
+      mudarFichaDaCena(sceneKey, tokenId, (ficha) => comCondicoes(ficha, depois))
+      return [{ tokenId, antes: condicoesDaFicha(agora) }]
+    })
+  }
+
   return {
     cenas: {},
     anuncio: null,
@@ -228,15 +258,18 @@ function estadoDaBatalhaDBT(
       const entrante = comando.tipo === 'mestre' && comando.acao.tipo === 'incluir' ? [comando.acao.entrante] : []
       const agora = deps.agora()
       const ctx: ContextoDBT = { fichas: lerFichas([...Object.values(cena.combatentes), ...entrante]), posicoes: deps.posicoes(sceneKey), rolar: deps.rolar, gerarId, agora }
+      const prazos = prazosDosCombatentes(sceneKey, Object.keys(cena.combatentes))
+      if (prazos.size > 0) ctx.prazos = prazos
       const resultado = reduzir(nucleoDe(cena), comando, autor, ctx)
       if (resultado.recusa !== undefined) return { ok: false, motivo: resultado.recusa }
       const partes = aplicarNasFichas(resultado.fichas, autor, agora)
+      const prazosAntes = gravarOsPrazos(sceneKey, resultado.prazos)
       // A cena pode ter mudado dentro do `ajustarPersonagem` (assinantes): relê antes de gravar.
       const atual = cenaDe(sceneKey) ?? cena
       let seq = atual.seq
       let registro: readonly LinhaDBT[] = atual.registro
       if (resultado.linha !== null) {
-        registro = comLinhaDBT(registro, { ...resultado.linha, id: gerarId(), seq, quando: agora, reversao: { nucleo: nucleoDe(cena), fichas: partes } })
+        registro = comLinhaDBT(registro, { ...resultado.linha, id: gerarId(), seq, quando: agora, reversao: { nucleo: nucleoDe(cena), fichas: partes, ...(prazosAntes.length === 0 ? {} : { prazos: prazosAntes }) } })
         seq += 1
       }
       const novos = resultado.efeitos.map((efeito) => {
@@ -260,6 +293,8 @@ function estadoDaBatalhaDBT(
           mesa.ajustarPersonagem(personagemId, (atual) => aplicarAjustes(atual, sistema, ajustesParaDesfazer(atual, partes), nomeDoDesfazer(autor), agora))
         }
       }
+      // Fase C: o prazo descontado na linha volta como estava, na ficha do mapa.
+      for (const { tokenId, antes } of linha.reversao.prazos ?? []) mesa.mudarFichaDaCena?.(sceneKey, tokenId, (token) => comCondicoes(token, antes))
       const atual = cenaDe(sceneKey) ?? cena
       const registro = atual.registro.map((candidata) => (candidata.id === linhaId ? { ...candidata, desfeita: { por: nomeNoHistorico(autor), quando: agora } } : candidata))
       gravarCena(sceneKey, { ...atual, ...linha.reversao.nucleo, registro, turnosRev: atual.turnosRev + 1 })

@@ -11,6 +11,7 @@ import {
 import { numeroDaFicha, type CartaoDaFicha, type Modificador, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Token } from '../../types/map'
+import type { CondicoesDaFicha } from '../turnoForaDaBatalha'
 import {
   combateVazio,
   type AlvoDoGolpe,
@@ -180,6 +181,12 @@ export type Reversao =
   | { tipo: 'linhaJunto'; linhaId: string }
   /** F3: a forma (e a imagem) de um personagem antes da linha. `null` = não tinha. */
   | { tipo: 'forma'; personagemId: string; antes: FormaNaBatalha | null }
+  /**
+   * Fase C: o prazo das condições da ficha `tokenId` descontou no fim da vez
+   * (`lib/prazoNaVez.ts`). Desfazer = as condições da ficha voltam como
+   * estavam, pela mesa (o mapa da cena, fora do Ctrl+Z do mestre).
+   */
+  | { tipo: 'prazo'; tokenId: string; antes: CondicoesDaFicha }
   /**
    * F3: um selo antes da linha (pôr = `null`; editar e tirar = o de antes).
    * `editado` = a linha trocou o selo sem tirá-lo: se ele sumiu depois
@@ -945,6 +952,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'equipe':
     case 'ficha':
     case 'regras':
+    // Fase C: o prazo mora na ficha do mapa e volta pela mesa (a store).
+    case 'prazo':
     case 'invocacaoPedida':
     case 'invocacaoColocada':
     case 'invocacaoCancelada':

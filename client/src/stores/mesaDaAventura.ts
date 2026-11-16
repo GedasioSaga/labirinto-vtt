@@ -3,6 +3,7 @@ import { temporariosDaCena } from '../lib/batalha/invocacao'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { casaDoToken } from '../lib/batalha/movimentoEmBatalha'
 import * as mapFactory from '../lib/mapFactory'
+import { mudarFichaNoMapa } from '../lib/prazoDaCondicao'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { MapData, Token } from '../types/map'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
@@ -120,6 +121,14 @@ export const mesaDaAventura: MesaDaBatalha = {
     const ids = new Set(temporarios.map((personagem) => personagem.id))
     for (const token of tokensDaCena(sceneKey)) if (token.characterId !== null && ids.has(token.characterId)) tirarToken(sceneKey, token.id)
     for (const personagem of temporarios) useAdventureStore.getState().apagarPersonagem(personagem.id)
+  },
+
+  fichaDaCena: (sceneKey, tokenId) => tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId) ?? null,
+
+  mudarFichaDaCena: (sceneKey, tokenId, mudar) => {
+    const naFicha = (map: MapData): MapData => mudarFichaNoMapa(map, tokenId, mudar)
+    if (cenaAberta(sceneKey)) useMapStore.getState().applyPlayerChange(naFicha)
+    else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneKey, naFicha)
   },
 
   posicaoDoToken: (sceneKey, tokenId) => {

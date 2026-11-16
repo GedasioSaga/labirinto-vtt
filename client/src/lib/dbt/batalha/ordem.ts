@@ -2,8 +2,10 @@ import { kiDaRecarga, modEfetivo } from './contas'
 import { expirarNaRodada, expirarNoFim, expirarNoInicio, testesDoInicio } from './condicoes'
 import { transformar } from './formas'
 import { avisosDaRodada } from './fim'
-import { pedirSalvaguarda, rolarSalvaguarda } from './morte'
+import { pedirSalvaguarda, rolarSalvaguarda, sofrerDano } from './morte'
 import { maisProximo } from './posicao'
+import { chaveDaCondicao } from '../../condicaoPorNome'
+import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../../prazoNaVez'
 import {
   aliadosDe,
   combatente,
@@ -12,6 +14,7 @@ import {
   fichaDe,
   foraDeCombate,
   mudarCombatente,
+  nomeDe,
   PASSOS_MAX,
   pkDe,
   porPendencia,
@@ -183,6 +186,8 @@ export function iniciarTurno(t: Trabalho, id: IdDoCombatente): void {
   escrever(t, `Vez de ${inicio.nome}`)
   // 2. Expira o que vence no início.
   expirarNoInicio(t, id)
+  // 2b. Fase C: a vida por turno do prazo da mesa (o Envenenado da armadilha), pelo caminho de dano de sempre.
+  vidaDoPrazoNoInicio(t, id)
   // 3. Recarga do Ki (a armadura e o débito do Choque saem dela).
   const c = combatente(t, id)
   const f = fichaDe(t, c)
@@ -237,7 +242,37 @@ export function iniciarTurno(t: Trabalho, id: IdDoCombatente): void {
 /** Fim do Turno de Ação (6.3). */
 export function terminarTurno(t: Trabalho, id: IdDoCombatente): void {
   expirarNoFim(t, id)
+  descontarPrazoNoFim(t, id)
   t.nucleo = { ...t.nucleo, turno: null }
+}
+
+/**
+ * Fase C (`lib/prazoNaVez.ts`): o começo da vez tira a vida por turno do
+ * prazo da ficha (o "Envenenado 3 x 4" da armadilha), por `sofrerDano`: a
+ * queda a 0 PV segue a regra de sempre. Sem prazo com vida: nada.
+ */
+function vidaDoPrazoNoInicio(t: Trabalho, id: IdDoCombatente): void {
+  const token = t.prazos.get(id)
+  const comeco = token === undefined ? null : comecoDoPrazoNaVez(token)
+  if (comeco === null) return
+  const motivo = motivoDoPrazo(comeco.danos)
+  sofrerDano(t, id, comeco.dano, motivo, motivo)
+}
+
+/**
+ * Fase C: o fim da vez desconta 1 turno de cada prazo da ficha. A condição do
+ * livro de mesmo nome ainda ativa SEGURA a pastilha acesa (o prazo sai, ela
+ * fica). A ficha descontada fica no trabalho; a store grava no mapa.
+ */
+function descontarPrazoNoFim(t: Trabalho, id: IdDoCombatente): void {
+  const token = t.prazos.get(id)
+  if (token === undefined) return
+  const seguradas = new Set((combatente(t, id)?.condicoes ?? []).map((ativa) => chaveDaCondicao(ativa.nome)))
+  const fim = fimDoPrazoNaVez(token, seguradas)
+  if (fim === null) return
+  t.prazos.set(id, fim.token)
+  t.prazosMudados.add(id)
+  if (fim.acabaram.length > 0) escrever(t, textoDosPrazosQueAcabaram(fim.acabaram, nomeDe(t, id)))
 }
 
 /** Fim da rodada (6.3): x2 do Atordoado, Ação Oculta vencida, rodada + 1. */

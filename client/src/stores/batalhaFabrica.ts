@@ -223,7 +223,10 @@ import {
 import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
 import { cartaoPorId as cartaoEmQualquerNivel, comAsMarcasDeOcultaDe, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { chavesDosSelos } from '../lib/ponteDasCondicoes'
+import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../lib/prazoNaVez'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import { comCondicoes, condicoesDaFicha } from '../lib/turnoForaDaBatalha'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -735,6 +738,14 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
     }
     case 'regras':
       return { cena: { ...cena, regras: reversao.antes }, emParte: false, ok: true }
+    case 'prazo': {
+      // Fase C: as condições da ficha voltam como estavam antes do desconto (a ficha fora de alcance fica: "em parte").
+      const { antes, tokenId } = reversao
+      const ficha = mesa.fichaDaCena?.(sceneKey, tokenId) ?? null
+      if (mesa.mudarFichaDaCena === undefined || ficha === null) return { cena, emParte: true, ok: true }
+      mesa.mudarFichaDaCena(sceneKey, tokenId, (token) => comCondicoes(token, antes))
+      return { cena, emParte: false, ok: true }
+    }
     case 'reacaoComTecnica': {
       // A linha do golpe já desfeita: o golpe não volta a esperar (o resto da reação, custo e selos, volta pelas outras partes).
       const linhaDoGolpe = cena.registro.find((linha) => linha.id === reversao.golpe.linhaId)
@@ -1407,6 +1418,63 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const linha = comMudanca(atual, novos, { tipo: 'acao', texto: `Fim da vez: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     avisarQuemCaiu(sceneKey, autor)
+  }
+
+  /**
+   * Fase C (prazo das condições, `lib/prazoNaVez.ts`): a vez passou de `de`
+   * para `para`. A ficha de `de` desconta 1 turno de cada prazo (o que a
+   * batalha ainda segura por selo de mesmo nome fica aceso); a de `para`
+   * perde a vida por turno, direto no HP (sem Escudo, sem redução: Envenenado
+   * 3 x 4 tira 12, como fora da batalha). Uma linha própria com Desfazer
+   * (o prazo volta pela mesa, o HP pela ficha), gravada depois da linha da
+   * vez. A mesa sem mapa (arena) não tem prazo; nada a fazer: nada muda.
+   */
+  const prazosDaVez = (sceneKey: string, de: CartaDaOrdem | null, para: CartaDaOrdem | null, autor: AutorDaAcao): void => {
+    const { fichaDaCena, mudarFichaDaCena } = mesa
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || fichaDaCena === undefined || mudarFichaDaCena === undefined) return
+    const { personagens } = mesaDoRpg()
+    const nomeDe = nomeDoTokenNa(cena.turnos, personagens)
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>()
+    const efeitos: EfeitoNovo[] = []
+    // Fim da vez de quem sai (a carta do bando não tem ficha própria no mapa).
+    const saindo = de === null || de.bando !== undefined ? null : fichaDaCena(sceneKey, de.tokenId)
+    const fim = saindo === null ? null : fimDoPrazoNaVez(saindo, chavesDosSelos(cena.turnos.selos).get(saindo.id))
+    if (saindo !== null && fim !== null) {
+      const depois = condicoesDaFicha(fim.token)
+      mudarFichaDaCena(sceneKey, saindo.id, (token) => comCondicoes(token, depois))
+      partes.push({ tipo: 'prazo', tokenId: saindo.id, antes: condicoesDaFicha(saindo) })
+      if (fim.acabaram.length > 0) {
+        textos.push(textoDosPrazosQueAcabaram(fim.acabaram, nomeDe(saindo.id)))
+        tokenIds.add(saindo.id)
+      }
+    }
+    // Começo da vez de quem entra: lida DEPOIS do desconto (a mesma ficha pode ter a vez de novo).
+    const entrando = para === null || para.bando !== undefined || para.personagemId === null ? null : fichaDaCena(sceneKey, para.tokenId)
+    const comeco = entrando === null ? null : comecoDoPrazoNaVez(entrando)
+    if (para !== null && para.personagemId !== null && comeco !== null) {
+      const feito = mexerNaFicha(mesa, para.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, comeco.dano, true), quemNaFicha(autor))
+      if (feito !== null && feito !== 'recusada' && feito.length > 0) {
+        partes.push(...reversaoDaFicha(para.personagemId, feito))
+        textos.push(`${nomeDe(para.tokenId)} perde ${comeco.dano} HP (${motivoDoPrazo(comeco.danos)})`)
+        tokenIds.add(para.tokenId)
+        efeitos.push({ tipo: 'dano', tokenId: para.tokenId, valor: comeco.dano, saida: 'direto' })
+      }
+    }
+    // Só o desconto, sem nada que acabou nem dano: não há o que dizer ao mestre (o número que falta está na pastilha).
+    if (textos.length === 0) return
+    const atual = cenaDe(sceneKey) ?? cena
+    const caidos = semOsCaidos(mesa, sceneKey, atual.turnos)
+    partes.push(...caidos.partes)
+    const semCaidos = caidos.partes.length === 0 ? caidos.turnos : comBandosEmDia(caidos.turnos, nomeDoBandoNa(caidos.turnos, mesa.personagens()))
+    const lembrados = lembrarDepoisDoDano(semCaidos)
+    partes.push(...partesDosLembretes(lembrados))
+    const texto = `Condições: ${textos.join(' · ')}${textoDosQueSairam(caidos.nomes)}`
+    const linha = comMudanca(atual, lembrados.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
+    if (efeitos.length > 0) avisarQuemCaiu(sceneKey, autor)
   }
 
   /**
@@ -2948,6 +3016,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Conserto das fichas F1 (resposta do Vincent): o Escudo de cada combatente volta cheio. Sem linha: o Iniciar não se desfaz.
       if (semSobras !== undefined) encherOsEscudos(semSobras.combatentes)
       set({ cenas: { ...get().cenas, [sceneKey]: semSobras === undefined ? CENA_NOVA : cenaDoInicio(mesa, semSobras, deps.rolarD20) }, anuncio: novo })
+      // Fase C: o Iniciar já abre a vez do primeiro; a vida por turno do prazo dele sai aqui (linha própria, com Desfazer).
+      if (semSobras !== undefined) prazosDaVez(sceneKey, null, cartaDaVez(get().cenas[sceneKey].turnos), MESTRE)
     },
 
     desligar: (sceneKey) => {
@@ -3064,6 +3134,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       gravarCena(sceneKey, { ...comMudanca(atual, comLembretes, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
       // F2 (fatia F): a Doença das Trevas e as Chamas Celestes de quem saiu, numa linha própria (com Desfazer).
       fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], turnos.rodada, autor)
+      // Fase C: o prazo das condições (o desconto de quem saiu, a vida por turno de quem entra).
+      prazosDaVez(sceneKey, de, para, autor)
       return true
     },
 
@@ -3109,6 +3181,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // F2b (revisão da fatia F): o "Dar a vez" do mestre também acaba a vez de quem estava nela (Doença, Chamas, duração da forma).
       const de = cartaDaVez(antes)
       if (de !== null && de.id !== para?.id) fimDaVezDasMecanicas(sceneKey, de, antes.gastos[de.id], antes.rodada, MESTRE)
+      // Fase C: o prazo das condições, como no "Passar a vez".
+      prazosDaVez(sceneKey, de !== null && de.id !== para?.id ? de : null, para, MESTRE)
       return true
     },
 

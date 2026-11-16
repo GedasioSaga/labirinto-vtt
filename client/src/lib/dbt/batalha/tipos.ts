@@ -8,6 +8,8 @@
  * transformação ativa, condições, voo, agarrão e morte.
  */
 
+import type { CondicoesDaFicha } from '../../turnoForaDaBatalha'
+
 export type IdDoCombatente = string
 /** equipe.id; sem equipe: 'npc' ou 'pj'. */
 export type Lado = string
@@ -382,7 +384,12 @@ export interface LinhaDBT {
   detalhesPublicos: readonly string[]
   envolve: { tokenIds: readonly string[]; personagemIds: readonly string[] }
   comD20: boolean
-  reversao: { nucleo: NucleoDBT; fichas: readonly { personagemId: string; partes: readonly ParteDaFichaDBT[] }[] }
+  reversao: {
+    nucleo: NucleoDBT
+    fichas: readonly { personagemId: string; partes: readonly ParteDaFichaDBT[] }[]
+    /** Fase C: as condições de cada ficha do mapa ANTES do desconto do prazo nesta linha. Ausente = nenhuma. */
+    prazos?: readonly { tokenId: string; antes: CondicoesDaFicha }[]
+  }
   desfeita?: { por: string; quando: number }
 }
 

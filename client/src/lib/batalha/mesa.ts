@@ -59,6 +59,19 @@ export interface MesaDaBatalha {
    * sabe onde ninguém está, e nada depende de "perto" lá.
    */
   posicaoDoToken?(sceneKey: string, tokenId: string): PosicaoNaGrade | null
+  /**
+   * Fase C (prazo das condições, `lib/prazoDaCondicao.ts`): a ficha `tokenId`
+   * da cena como está AGORA, para a vida por turno no começo da vez e o
+   * desconto do prazo no fim. `null` = ficha ou cena fora de alcance.
+   * Opcional: a mesa sem mapa (a arena, o duelo) não tem prazo.
+   */
+  fichaDaCena?(sceneKey: string, tokenId: string): Token | null
+  /**
+   * Fase C: troca a ficha pelo que `mudar` devolve, FORA do Ctrl+Z do mestre
+   * (como a ponte das condições). `mudar` é reaplicado nos passos guardados do
+   * Ctrl+Z: precisa valer para qualquer versão da ficha (pôr campos, não somar).
+   */
+  mudarFichaDaCena?(sceneKey: string, tokenId: string, mudar: (token: Token) => Token): void
 }
 
 /** F2 (fatia B): onde o token está na grade e para onde olha. */
