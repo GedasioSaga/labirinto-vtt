@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDeAcao } from '../lib/batalha/combate'
 import { BALA_DE_PRATA, ROSA_FUNEBRE, ryokoCom, vincentCom } from '../lib/batalha/fichasDaFatiaE.testkit'
-import { armasDe, balaDaArma, motivoSemMunicao } from '../lib/batalha/leituraDaFicha'
+import { ABA_DAS_ARMAS, armasDe, balaDaArma, motivoSemMunicao } from '../lib/batalha/leituraDaFicha'
 import type { PonteDaBatalha, VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
 import { definirMunicoesDasArmas } from '../lib/batalha/municoesDoAcervo'
@@ -16,6 +16,8 @@ import { paraOFio, personagemDoArquivo, type Personagem } from '../lib/personage
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
 import { criarMesaEmMemoria, type MesaEmMemoria } from '../lib/treino/mesaEmMemoria'
 import { criarBatalhaNoHost, type ConexaoNaBatalha } from '../net/batalhaNoHost'
+import { aplicarPartesPelaBase, mensagensDoSalvar } from '../net/edicaoDoPersonagem'
+import { parsePlayerMessage } from '../net/protocol'
 import { parseBatalhaAgir, parseBatalhaResultado } from '../net/protocoloDaBatalha'
 import type { CarriedItem } from '../types/map'
 import { criarBatalhaStore, type BatalhaDaCena, type LojaDaBatalha } from './batalhaFabrica'
@@ -266,5 +268,51 @@ describe('munição só pelo nome (D1): a vaga sem item do Acervo', () => {
     naVezDe(loja, 'Ryoko')
     const vez = naVezDe(loja, 'Vincent')
     expect([loja.getState().motivoDoAgir(CENA, MESTRE, vez, tiro(ryoko)), loja.getState().agir(CENA, MESTRE, vez, tiro(ryoko))]).toEqual(['Sem Bala de Prata', false])
+  })
+})
+
+/**
+ * O Salvar do jogador pela sala LAN (`personagem.editar`) leva a aba Armas
+ * inteira. A ligação da bala com a mochila (`itemId`, `municaoPeloNome`) tem
+ * de chegar ao host: sem ela, a bala zerada vira só texto e o tiro com 0 sai
+ * de graça de novo.
+ */
+describe('munição: o Salvar do jogador pela sala não solta a bala', () => {
+  it('3 tiros zeram a bala; o jogador salva a aba Armas; a ligação ao Acervo fica e o 4º tiro é recusado', () => {
+    const { loja, mesa } = batalha(3)
+    const ryoko = tokenDe(loja, 'Ryoko')
+    for (const vez of [1, 2, 3]) {
+      if (vez > 1) naVezDe(loja, 'Ryoko')
+      expect(loja.getState().agir(CENA, JOGADOR, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(true)
+    }
+    expect(pratas(mesa)).toBe(0)
+    // O que o host mandou ao jogador (a base da conexão) e a ficha que o jogador lê do fio.
+    const noHost = mesa.personagens().find((personagem) => personagem.nome.startsWith('Vincent'))
+    if (noHost === undefined) throw new Error('sem o Vincent')
+    const enviada = paraOFio(noHost)
+    const recebida = personagemDoArquivo(JSON.parse(JSON.stringify(enviada)))
+    if (recebida === null) throw new Error('a ficha não passou pelo fio')
+    // O jogador muda o dano da Rosa Fúnebre e salva: a aba Armas vai inteira, com o subcartão da bala.
+    const armas = (recebida.abas[ABA_DAS_ARMAS] ?? []).map((cartao) => (cartao.id === ROSA_FUNEBRE.id ? { ...cartao, campos: { ...cartao.campos, dano: '25' } } : cartao))
+    const salvar = mensagensDoSalvar(recebida, { ...recebida, abas: { ...recebida.abas, [ABA_DAS_ARMAS]: armas } }, { novoReqId: () => 'r-salvar', cabe: () => true }, recebida)
+    if (!salvar.ok) throw new Error(salvar.erro)
+    for (const mensagem of salvar.mensagens) {
+      const lida = parsePlayerMessage(JSON.stringify(mensagem))
+      if (lida?.type !== 'personagem.editar') throw new Error('o Salvar não passou pelo protocolo')
+      // O mesmo passo do host (`handlePersonagemEditar`): as partes entram na ficha de agora pela base da conexão.
+      expect(mesa.ajustarPersonagem(noHost.id, (atual) => aplicarPartesPelaBase(enviada, atual, lida.partes))).toBe(true)
+    }
+    const rosa = mesa
+      .personagens()
+      .find((personagem) => personagem.id === noHost.id)
+      ?.abas[ABA_DAS_ARMAS]?.find((cartao) => cartao.id === ROSA_FUNEBRE.id)
+    naVezDe(loja, 'Ryoko')
+    const vez = naVezDe(loja, 'Vincent')
+    expect([rosa?.campos.dano, rosa?.subcartoes.map((bala) => bala.itemId), loja.getState().motivoDoAgir(CENA, JOGADOR, vez, tiro(ryoko)), loja.getState().agir(CENA, JOGADOR, vez, tiro(ryoko))]).toEqual([
+      '25',
+      [ID_DA_PRATA],
+      'Sem Bala de Prata',
+      false,
+    ])
   })
 })

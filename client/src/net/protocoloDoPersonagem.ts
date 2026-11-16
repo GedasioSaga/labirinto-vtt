@@ -1,5 +1,5 @@
 import { NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { camposDBTDaRede, mecanicaDoArquivo, mecanicaPropostaDoArquivo, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
+import { camposDBTDaRede, ligacaoDoCartaoDoArquivo, mecanicaDoArquivo, mecanicaPropostaDoArquivo, PARTES_DO_AJUSTE, personagemDoArquivo, type CampoExtra, type CamposDaFichaDBT, type CartaoDaFicha, type Modificador, type Personagem } from '../lib/personagem'
 import { CATALOGOS_DO_LIVRO, type ChaveDoCatalogo, type ResumoDoLivro } from '../lib/livroDeRegras'
 import { idValido, lerSistemaDeRpg, LIVRO_CAPITULOS_MAX, type SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
@@ -88,6 +88,17 @@ export interface CartaoSemImagem {
    * e para a marca do jogador chegar ao host (mestre e dono editam).
    */
   armaPadrao?: true
+  /**
+   * `CartaoDaFicha.itemId` e `CartaoDaFicha.municaoPeloNome` (a arma e a bala
+   * ligadas à mochila): viajam com o cartão, como a `mecanica`, para a aba
+   * Armas que o jogador salva inteira chegar com a ligação. O host NÃO os
+   * aplica: guarda a ligação do cartão de mesmo id que já tinha (`aplicarPartes`).
+   * Sem isto a bala zerada voltava a ser só texto no host e o tiro com 0 saía
+   * de graça; e o jogador que mandasse o campo à mão criaria uma ligação que
+   * não tem, ou apagaria a do mestre.
+   */
+  itemId?: string
+  municaoPeloNome?: true
 }
 
 /**
@@ -301,6 +312,8 @@ function cartao(value: unknown, nivel: 1 | 2): CartaoSemImagem | null {
     ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
     ...mecanicaDoArquivo(value.mecanica),
     ...mecanicaPropostaDoArquivo(value.mecanicaProposta),
+    // O leitor do disco: a ligação torta sai calada (o host guarda a dele de qualquer jeito), sem recusar o Salvar inteiro.
+    ...ligacaoDoCartaoDoArquivo(value),
   }
 }
 
@@ -488,5 +501,7 @@ export function cartaoSemImagem(cartao: CartaoDaFicha): CartaoSemImagem {
     ...(cartao.armaPadrao === true ? { armaPadrao: true } : {}),
     ...(cartao.mecanica === undefined ? {} : { mecanica: cartao.mecanica }),
     ...(cartao.mecanicaProposta === undefined ? {} : { mecanicaProposta: cartao.mecanicaProposta }),
+    ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }),
+    ...(cartao.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
   }
 }

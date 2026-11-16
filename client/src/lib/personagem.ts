@@ -512,15 +512,26 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
     // Fatia C8: só o `true` conta (como o `aMao`).
     ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
-    // Fase 5: só texto com cara de id; vazio ou torto = cartão solto.
-    ...(typeof value.itemId === 'string' && ID_DO_ITEM_NO_CARTAO.test(value.itemId) ? { itemId: value.itemId } : {}),
-    // D1: só o `true` conta (como o `aMao`); sem ele, a bala volta a ser texto quando a vaga some.
-    ...(value.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
+    ...ligacaoDoCartaoDoArquivo(value),
   }
 }
 
 /** O `itemId` do cartão: a mesma forma dos ids do Acervo e dos pinos (`item_<uuid>`, `pin_…`). */
 const ID_DO_ITEM_NO_CARTAO = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,79}$/
+
+/**
+ * A ligação do cartão com a mochila, como o disco a lê: o `itemId` (Fase 5)
+ * só com cara de id — vazio ou torto = cartão solto — e o `municaoPeloNome`
+ * (D1) só no `true`, como o `aMao`; sem ele, a bala volta a ser texto quando a
+ * vaga some. O fio do jogador (`net/protocoloDoPersonagem.ts`) usa o mesmo
+ * leitor, para o Salvar dele trazer a ligação no mesmo formato do disco.
+ */
+export function ligacaoDoCartaoDoArquivo(value: Record<string, unknown>): Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome'> {
+  return {
+    ...(typeof value.itemId === 'string' && ID_DO_ITEM_NO_CARTAO.test(value.itemId) ? { itemId: value.itemId } : {}),
+    ...(value.municaoPeloNome === true ? { municaoPeloNome: true } : {}),
+  }
+}
 
 /** Teto do JSON da mecânica guardada: as peças cabem folgadas (8 efeitos, fórmulas de 200); mais que isto é lixo. */
 const MECANICA_GUARDADA_MAX = 16_000

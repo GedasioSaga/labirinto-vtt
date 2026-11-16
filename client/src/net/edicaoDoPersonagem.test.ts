@@ -5,7 +5,7 @@
  * mestre mudou em outra parte, e o cartão guarda a imagem que já tinha.
  */
 import { describe, expect, it } from 'vitest'
-import { novoCartao, novoPersonagem, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
+import { novoCartao, novoPersonagem, PERSONAGEM_SEM_NOME, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { SISTEMA_ONE_PIECE } from '../lib/sistemaOnePiece'
 import { PLAYER_MESSAGE_MAX_BYTES } from './protocol'
 import { aplicarImagem, aplicarPartes, aplicarPartesPelaBase, ERRO_ABA_GRANDE, ERRO_CAMPO_FORA_DO_TETO, mensagensDoSalvar, partesMudadas, type MensagemDoSalvar } from './edicaoDoPersonagem'
@@ -204,5 +204,47 @@ describe('construtor C8: a arma padrão na sala LAN (mestre e dono editam)', () 
       ['arma_espada', true],
       ['arma_lanca', undefined],
     ])
+  })
+})
+
+describe('munição na sala LAN: a ligação da arma e da bala com a mochila é do host', () => {
+  it('viaja no Salvar do jogador e fica no host; o fio forjado não cria, não troca nem apaga ligação', () => {
+    const balaDoAcervo: CartaoDaFicha = { ...novoCartao('Bala de Prata'), id: 'bala_prata', itemId: 'item_prata' }
+    const balaPeloNome: CartaoDaFicha = { ...novoCartao('Bala Comum'), id: 'bala_comum', municaoPeloNome: true }
+    const balaSolta: CartaoDaFicha = { ...novoCartao('Bala de Sal'), id: 'bala_sal' }
+    const garrucha: CartaoDaFicha = { ...novoCartao('Garrucha'), id: 'arma_garrucha', itemId: 'item_garrucha', subcartoes: [balaDoAcervo, balaPeloNome, balaSolta] }
+    const doMestre: Personagem = { ...luffy(), abas: { ...luffy().abas, armas: [garrucha] } }
+    const ligacoes = (personagem: Personagem) => (personagem.abas.armas ?? []).flatMap((arma) => [arma, ...arma.subcartoes]).map((cartao) => [cartao.id, cartao.itemId, cartao.municaoPeloNome])
+    const DO_MESTRE = [
+      ['arma_garrucha', 'item_garrucha', undefined],
+      ['bala_prata', 'item_prata', undefined],
+      ['bala_comum', undefined, true],
+      ['bala_sal', undefined, undefined],
+    ]
+    // Salvar de verdade: o jogador muda o texto da Garrucha; a aba vai inteira pelo fio, com as ligações, e o host as guarda.
+    const comTexto: Personagem = { ...doMestre, abas: { ...doMestre.abas, armas: [{ ...garrucha, campos: { ...garrucha.campos, descricao: 'Cano curto' } }] } }
+    const doFio = parsePartesDoPersonagem(JSON.parse(JSON.stringify(partesMudadas(doMestre, comTexto))))
+    expect(doFio?.abas?.armas?.[0]?.subcartoes.map((bala) => [bala.itemId, bala.municaoPeloNome])).toEqual([
+      ['item_prata', undefined],
+      [undefined, true],
+      [undefined, undefined],
+    ])
+    const salvo = aplicarPartesPelaBase(doMestre, doMestre, doFio ?? {})
+    expect([salvo.abas.armas?.[0]?.campos.descricao, ligacoes(salvo)]).toEqual(['Cano curto', DO_MESTRE])
+    // Fio forjado (sem a tela): a arma e a bala pelo nome sem ligação, a do Acervo apontando para outro item, a solta com item e marca que ele não tem.
+    const semLigacao = ({ imagem: _imagem, itemId: _itemId, municaoPeloNome: _peloNome, ...resto }: CartaoDaFicha) => resto
+    const forjado = parsePartesDoPersonagem({
+      abas: {
+        armas: [
+          {
+            ...semLigacao(garrucha),
+            subcartoes: [{ ...semLigacao(balaDoAcervo), itemId: 'item_outro' }, semLigacao(balaPeloNome), { ...semLigacao(balaSolta), itemId: 'item_que_ele_nao_tem', municaoPeloNome: true }],
+          },
+        ],
+      },
+    })
+    // A forja passa pelo protocolo (é ficha bem formada); quem a desarma é o host.
+    expect(forjado?.abas?.armas?.[0]?.subcartoes[2]?.itemId).toBe('item_que_ele_nao_tem')
+    expect(ligacoes(aplicarPartesPelaBase(doMestre, doMestre, forjado ?? {}))).toEqual(DO_MESTRE)
   })
 })

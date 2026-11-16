@@ -102,6 +102,21 @@ function mecanicasDosCartoes(abas: Record<string, CartaoDaFicha[]>, campo: 'meca
   return mecanicas
 }
 
+type LigacaoDoCartao = Pick<CartaoDaFicha, 'itemId' | 'municaoPeloNome'>
+
+/** A ligação com a mochila (`itemId`, `municaoPeloNome`) de cada cartão que tem uma, pelo id, subcartões juntos. */
+function ligacoesDosCartoes(abas: Record<string, CartaoDaFicha[]>): Map<string, LigacaoDoCartao> {
+  const ligacoes = new Map<string, LigacaoDoCartao>()
+  const visitar = (cartao: CartaoDaFicha): void => {
+    if (cartao.itemId !== undefined || cartao.municaoPeloNome === true) {
+      ligacoes.set(cartao.id, { ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }), ...(cartao.municaoPeloNome === true ? { municaoPeloNome: true } : {}) })
+    }
+    cartao.subcartoes.forEach(visitar)
+  }
+  for (const cartoes of Object.values(abas)) cartoes.forEach(visitar)
+  return ligacoes
+}
+
 /**
  * Fatia C2 (revisão): a proposta de mecânica de um cartão que o jogador NÃO
  * tocou desde que a edição abriu sai como a da ficha recebida por último, ou
@@ -214,13 +229,20 @@ export function mensagensDoSalvar(base: Personagem, rascunho: Personagem, opcoes
  * vale = não espera nada. Com `base` (a ficha que o host mandou por último a
  * ele), a proposta que o jogador não tocou é a de AGORA: a que o mestre acabou
  * de recusar não volta com o Salvar dele em outro cartão da aba.
+ *
+ * A ligação com a mochila (`itemId` da arma e da bala, `municaoPeloNome`) é a
+ * mesma regra da mecânica: a do cartão de mesmo id que já tinha. Quem a cria é
+ * o mestre ou o tiro no host (`comABalaLigada`); o Salvar do jogador não a cria
+ * (bala que aponta para item que ele não tem), não a troca e não a apaga — e a
+ * bala zerada continua bloqueando o tiro.
  */
 export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, base?: Personagem): Personagem {
   const imagens = imagensDosCartoes(atual.abas)
   const mecanicas = mecanicasDosCartoes(atual.abas)
+  const ligacoes = ligacoesDosCartoes(atual.abas)
   const propostasDeAgora = mecanicasDosCartoes(atual.abas, 'mecanicaProposta')
   const propostasDaBase = base === undefined ? null : mecanicasDosCartoes(base.abas, 'mecanicaProposta')
-  const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
+  const comImagem = ({ mecanica: _doJogador, mecanicaProposta: doJogador, itemId: _itemDoJogador, municaoPeloNome: _marcaDoJogador, ...cartao }: CartaoSemImagem): CartaoDaFicha => {
     const mecanica = mecanicas.get(cartao.id)
     const tocada = propostasDaBase === null || !mesmoTexto(doJogador, propostasDaBase.get(cartao.id))
     const proposta = tocada ? doJogador : propostasDeAgora.get(cartao.id)
@@ -231,6 +253,8 @@ export function aplicarPartes(atual: Personagem, partes: PartesDoPersonagem, bas
       subcartoes: cartao.subcartoes.map(comImagem),
       ...(mecanica === undefined ? {} : { mecanica }),
       ...(espera ? { mecanicaProposta: proposta } : {}),
+      // Cartão sem ligação no host (o novo também) fica solto, seja o que for que o jogador mandou.
+      ...ligacoes.get(cartao.id),
     }
   }
   // Fatia C7: a aba volta inteira do jogador, que nunca viu os cartões ocultos; eles voltam do personagem de AGORA.
