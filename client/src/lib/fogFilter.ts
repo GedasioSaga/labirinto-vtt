@@ -13,7 +13,7 @@ import { curvaGuardada } from './agua/forma'
 import { aguasDaVisaoDoJogador } from './agua/comoChao'
 import { foraDoChaoLivre } from './offFloor'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
-import { semCarimbosQueTapamEscondidos } from './carimbosQueBarram'
+import { pegadaDoCarimbo, semCarimbosQueTapamEscondidos } from './carimbosQueBarram'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
@@ -2580,10 +2580,42 @@ export interface GroupViewer {
 function carimbosDoRecorte(
   doMestre: MapData['carimbos'],
   importados: MapData['carimbosImportados'],
-  mostra: (p: RegionPoint) => boolean,
+  mostra: (c: Carimbo) => boolean,
 ): Pick<MapData, 'carimbos' | 'carimbosImportados'> {
   const carimbos = carimbosParaJogador(doMestre, mostra)
   return { carimbos, carimbosImportados: importadosDosCarimbos(importados, carimbos) }
+}
+
+/**
+ * As `amostras` dentro de algum anel, pela regra par-ímpar de `pointInRing` (a mesma conta, logo a mesma resposta),
+ * numa passada só pelas arestas de cada anel para todas elas: a aresta inteira acima ou abaixo da faixa de altura das
+ * amostras não cruza a linha de nenhuma e sai com duas comparações. Perguntar amostra a amostra relia o anel de visão
+ * (milhares de vértices numa mata que tapa) nove vezes por carimbo: medido em 16/11/2026 com 2.000 árvores que tapam,
+ * o recorte ia de ~5 ms (sem mandar nenhuma) a ~30 ms; em lote, ~10 a 15 ms (mandando as que ele vê).
+ */
+function amostrasNosAneis(amostras: readonly RegionPoint[], aneis: readonly BoxedRing[]): RegionPoint[] {
+  const caixa = boxOf(amostras)
+  if (caixa === null) return []
+  const dentro = amostras.map(() => false)
+  const paridade = amostras.map(() => false)
+  for (const b of aneis) {
+    if (caixa.maxX < b.minX || caixa.minX > b.maxX || caixa.maxY < b.minY || caixa.minY > b.maxY) continue
+    paridade.fill(false)
+    const anel = b.ring
+    for (let i = 0, j = anel.length - 1; i < anel.length; j = i, i += 1) {
+      const a = anel[j]
+      const d = anel[i]
+      if ((a.y > caixa.maxY && d.y > caixa.maxY) || (a.y < caixa.minY && d.y < caixa.minY)) continue
+      for (let k = 0; k < amostras.length; k += 1) {
+        const p = amostras[k]
+        if (a.y > p.y !== d.y > p.y && p.x < ((d.x - a.x) * (p.y - a.y)) / (d.y - a.y) + a.x) paridade[k] = !paridade[k]
+      }
+    }
+    paridade.forEach((dentroDeste, k) => {
+      if (dentroDeste) dentro[k] = true
+    })
+  }
+  return amostras.filter((_, k) => dentro[k])
 }
 
 /**
@@ -3861,6 +3893,31 @@ function recorteDoGrupo(
     // Cômodo lembrado: só pelas amostras que contam (`open`), como o resto.
     return isShapeVisible(open) || exploredShapeOpen(open) || open.some(inKnownComodo)
   }
+  /**
+   * CARIMBO QUE TAPA A VISÃO, À VISTA (auditoria de 16/11/2026): o pé dele (`x`, `y`) mora DENTRO da pegada que segura
+   * o olhar, e o raio para na borda dela; pelo pé, o carimbo nunca ficava à vista nem virava explorado, e o jogador
+   * recebia a sombra da árvore sem a árvore. Conhecido é o pé OU alguma amostra do contorno da pegada, um pouco para
+   * fora dela (`computeContourSamples`), como a construção que tapa (`amostrasDaConstrucao`): a borda virada para ele,
+   * vista agora ou lembrada. É `isPointKnown` no pé e em cada amostra, com cada anel lido uma vez para todos
+   * (`amostrasNosAneis`): fora do pincel, só o ponto dentro de algum anel de visão pode estar à vista; só o ponto com a
+   * célula marcada ou dentro de algum contorno lembrado pode estar explorado (`isPointExplored`). O escondido (camada,
+   * zona oculta, sala secreta) quem decide é o pé, antes desta pergunta, a mesma regra que tira o carimbo da visão
+   * (`semCarimbosQueTapamEscondidos`). O que não tapa segue só pelo pé, como antes.
+   */
+  let memoriaEmLote: { contornos: BoxedRing[]; soCelulas: Exploration } | null = null
+  const exploradoEmLote = (pontos: readonly RegionPoint[]): boolean => {
+    if (explored === undefined) return false
+    // A mesma memória sem os contornos: `isPointExplored` nela lê só o bit da célula.
+    memoriaEmLote ??= { contornos: explored.rings.map((r) => ({ ring: r.points, minX: r.minX, minY: r.minY, maxX: r.maxX, maxY: r.maxY })), soCelulas: { ...explored, rings: [] } }
+    const { contornos, soCelulas } = memoriaEmLote
+    return pontos.some((p) => isPointExplored(soCelulas, p) && isPointExploredOpen(p)) || amostrasNosAneis(pontos, contornos).some(isPointExploredOpen)
+  }
+  const carimboConhecido = (c: Carimbo): boolean => {
+    if (c.tapaVisao !== true) return isPointKnown(c)
+    const pontos: RegionPoint[] = [c, ...computeContourSamples(pegadaDoCarimbo(c))]
+    const talvezAVista = brushed ? pontos : amostrasNosAneis(pontos, rings)
+    return talvezAVista.some(isVisible) || pontos.some(inKnownComodo) || exploradoEmLote(pontos)
+  }
 
   /**
    * Planta estática: visível agora, ou lembrada (`recallItems`). Nunca usar
@@ -4849,12 +4906,13 @@ function recorteDoGrupo(
     texturasImportadas: undefined,
     // CARIMBOS: só os de base no que ele conhece, fora de lugar escondido e de
     // zona oculta — a mata na névoa diria o que há lá (`carimbosParaJogador`).
+    // O que tapa a visão também pela borda da pegada que ele vê (`carimboConhecido`).
     // Dos importados, só os que algum objeto dele usa, sem o nome do mestre.
     // Carimbo mora em Terreno, ou na camada que o mestre escolheu para ele.
     ...carimbosDoRecorte(
       map.carimbos === undefined ? undefined : naCamadaDoJogador('carimbo', map.carimbos),
       map.carimbosImportados,
-      (p) => !inHiddenPlace(p) && !inConcealZone(p) && isPointKnown(p),
+      (c) => !inHiddenPlace(c) && !inConcealZone(c) && carimboConhecido(c),
     ),
     tokens,
     // Marcador (camada Portas) e linha (camada Paredes) seguem o olho da camada, como o resto.

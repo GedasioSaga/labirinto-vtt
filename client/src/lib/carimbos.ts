@@ -570,9 +570,11 @@ export function criarSpray(opcoes: OpcoesDoSpray): Spray {
  * Os objetos que vão ao jogador: só os de base no que ele conhece, fora de
  * lugar escondido e de zona oculta (`mostra`). O objeto na névoa diria o que
  * há lá (a mata, o oásis). A tela dele ainda o guarda sob a máscara do
- * conhecido, então a copa que passa da borda não aparece.
+ * conhecido, então a copa que passa da borda não aparece. `mostra` recebe o
+ * carimbo inteiro: o que tapa a visão é medido também pela pegada
+ * (`lib/fogFilter.ts`), porque o pé dele mora atrás da borda que segura o olhar.
  */
-export function carimbosParaJogador(lista: readonly Carimbo[] | undefined, mostra: (p: RegionPoint) => boolean): Carimbo[] | undefined {
+export function carimbosParaJogador(lista: readonly Carimbo[] | undefined, mostra: (c: Carimbo) => boolean): Carimbo[] | undefined {
   if (lista === undefined || lista.length === 0) return undefined
   const vao = lista.filter((c) => mostra(c))
   return vao.length > 0 ? vao : undefined
