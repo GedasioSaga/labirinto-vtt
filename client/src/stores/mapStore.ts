@@ -1202,7 +1202,7 @@ interface MapStoreState {
   moveProp: (id: string, x: number, y: number) => void
   /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
    *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
-  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item' | 'conteudo' | 'mobilia'>>) => void
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item' | 'conteudo' | 'mobilia' | 'width' | 'height'>>) => void
   /**
    * ITEM NO MAPA: troca a forma do item `id` — imagem no chão ⇄ pino de item
    * (`lib/itemNoMapa.ts`) —, com histórico, e a seleção segue o item na forma

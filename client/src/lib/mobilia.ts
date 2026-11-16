@@ -202,6 +202,14 @@ function tamanhoPadrao(tipo: TipoMobilia, vista: VistaMobilia, grade: number, fo
   return { width: tamanho.largura * grade, height: tamanho.altura * grade }
 }
 
+/**
+ * A pegada de partida do tipo, em casas, de frente (o tapete, retangular). Os destroços do minigame
+ * (`lib/conteudoDoObjeto.ts`) leem a do objeto e a dos destroços para manter a proporção entre os dois.
+ */
+export function pegadaDePartidaEmCasas(tipo: TipoMobilia): { largura: number; altura: number } {
+  return tipo === 'tapete' ? TAMANHO_DO_TAPETE_EM_CASAS.retangular.frente : TAMANHO_EM_CASAS[tipo]
+}
+
 /** Ordem em que o painel oferece as formas do tapete. */
 export const FORMAS_DO_TAPETE: readonly FormaDoTapete[] = ['retangular', 'redondo']
 

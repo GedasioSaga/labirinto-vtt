@@ -1,11 +1,15 @@
-import type { AberturaDoObjeto, ArmadilhaDoObjeto, ConteudoDoObjeto, ItemNoConteudo, Prop, TipoDeArmadilha } from '../types/map'
+import type { AberturaDoObjeto, ArmadilhaDoObjeto, ConteudoDoObjeto, ItemNoConteudo, Prop, TipoDeArmadilha, TipoMobilia } from '../types/map'
 import { ITEM_QUANTIDADE_MAX, readPinItem, type ItemParaDar } from './items'
+import { pegadaDePartidaEmCasas } from './mobilia'
 
 /**
  * CONTEÚDO DE BAÚ, CAIXA E BARRIL (Fase C do pedido de 15/11/2026). O mestre
  * põe itens do Acervo, moedas e uma armadilha; o jogador encosta, joga o
  * minigame do tipo do objeto na tela dele e, ao vencer, leva o que há dentro.
- * O baú fica no mapa, aberto; a caixa e o barril viram destroços.
+ * O baú fica no mapa, aberto; a caixa e o barril viram destroços: o barril, o
+ * barril quebrado (o mesmo barril arrebentado, 16/11/2026), no mesmo centro,
+ * com os mesmos materiais e o tamanho na proporção do catálogo; a caixa, os
+ * destroços de madeira, do tamanho dela.
  *
  * Regras daqui (puras, sem store nem rede):
  * - Todo baú, caixa e barril se abre, com conteúdo ou sem (ausente = vazio).
@@ -20,8 +24,19 @@ import { ITEM_QUANTIDADE_MAX, readPinItem, type ItemParaDar } from './items'
 /** Os móveis que guardam conteúdo; o minigame vem do tipo. */
 export type MobiliaComConteudo = 'bau' | 'caixa' | 'barril'
 export const MOBILIAS_COM_CONTEUDO: readonly MobiliaComConteudo[] = ['bau', 'caixa', 'barril']
-/** A caixa e o barril quebrados viram este móvel do catálogo (destroços de madeira). */
-export const MOBILIA_DOS_DESTROCOS = 'destrocosDeMadeira'
+/** O que se quebra no minigame (o baú só se abre). */
+type MobiliaQueQuebra = Exclude<MobiliaComConteudo, 'bau'>
+/** Em que móvel do catálogo cada um vira quando quebra. */
+export const DESTROCOS_DO_OBJETO: Readonly<Record<MobiliaQueQuebra, TipoMobilia>> = { caixa: 'destrocosDeMadeira', barril: 'barrilQuebrado' }
+/**
+ * Os móveis que podem ser destroços de um objeto com conteúdo: os de hoje e os destroços de madeira, em que
+ * a caixa e o barril viravam antes de 16/11/2026 (o mapa antigo repõe pelo `quebradoDe`, como sempre).
+ */
+const MOBILIAS_DOS_DESTROCOS: readonly TipoMobilia[] = ['destrocosDeMadeira', 'barrilQuebrado']
+/** A pilha genérica não é o objeto arrebentado: fica do tamanho dele, como antes. */
+const DESTROCOS_SEM_PROPORCAO: TipoMobilia = 'destrocosDeMadeira'
+/** Os tamanhos dos destroços em px de mundo, em centésimos (sem a sujeira de 35 / 0,7 = 50,00000000000001). */
+const CENTESIMOS = 100
 
 /** Tetos dos números do mestre (a tela e a leitura do disco usam os mesmos). */
 export const MOEDAS_NO_CONTEUDO_MAX = 999_999
@@ -64,6 +79,11 @@ export function ehMobiliaComConteudo(tipo: unknown): tipo is MobiliaComConteudo 
   return tipo === 'bau' || tipo === 'caixa' || tipo === 'barril'
 }
 
+/** Os destroços em que a caixa ou o barril podem ter virado (os de hoje e os de antes). */
+function ehMobiliaDeDestrocos(tipo: Prop['mobilia']): boolean {
+  return MOBILIAS_DOS_DESTROCOS.some((destrocos) => destrocos === tipo)
+}
+
 /**
  * O tipo do objeto que guarda conteúdo: o baú, a caixa e o barril, e os
  * destroços que ERAM caixa ou barril (o tipo de antes). `null` = não guarda.
@@ -71,7 +91,7 @@ export function ehMobiliaComConteudo(tipo: unknown): tipo is MobiliaComConteudo 
 export function mobiliaDoConteudo(prop: Pick<Prop, 'mobilia' | 'conteudo'>): MobiliaComConteudo | null {
   if (ehMobiliaComConteudo(prop.mobilia)) return prop.mobilia
   const quebradoDe = prop.conteudo?.aberto?.quebradoDe
-  return prop.mobilia === MOBILIA_DOS_DESTROCOS && quebradoDe !== undefined ? quebradoDe : null
+  return ehMobiliaDeDestrocos(prop.mobilia) && quebradoDe !== undefined ? quebradoDe : null
 }
 
 /** O conteúdo do objeto; ausente = vazio. Objeto que não guarda: `null`. */
@@ -150,8 +170,15 @@ function lerAbertura(valor: unknown): AberturaDoObjeto | undefined {
   const por = typeof valor.por === 'string' ? valor.por.trim().slice(0, 64) : ''
   const em = typeof valor.em === 'number' && Number.isFinite(valor.em) ? valor.em : 0
   const abertura: AberturaDoObjeto = { por, em }
-  if (valor.quebradoDe === 'caixa' || valor.quebradoDe === 'barril') abertura.quebradoDe = valor.quebradoDe
+  if (valor.quebradoDe !== 'caixa' && valor.quebradoDe !== 'barril') return abertura
+  abertura.quebradoDe = valor.quebradoDe
+  const pegada = valor.pegadaDeAntes
+  if (isRecord(pegada) && ehTamanho(pegada.width) && ehTamanho(pegada.height)) abertura.pegadaDeAntes = { width: pegada.width, height: pegada.height }
   return abertura
+}
+
+function ehTamanho(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isFinite(valor) && valor > 0
 }
 
 /**
@@ -164,8 +191,11 @@ export function lerConteudoDoArquivo(valor: unknown, mobilia: Prop['mobilia']): 
   const aberto = lerAbertura(valor.aberto)
   const tipo = mobiliaDoConteudo({ mobilia, conteudo: aberto === undefined ? undefined : { ...conteudoVazio(), aberto } })
   if (tipo === null) return undefined
-  // A caixa que ainda é caixa não está quebrada: o "quebradoDe" só vale nos destroços.
-  if (aberto !== undefined && ehMobiliaComConteudo(mobilia)) delete aberto.quebradoDe
+  // A caixa que ainda é caixa não está quebrada: o "quebradoDe" (e o tamanho de antes) só vale nos destroços.
+  if (aberto !== undefined && ehMobiliaComConteudo(mobilia)) {
+    delete aberto.quebradoDe
+    delete aberto.pegadaDeAntes
+  }
   const itens = Array.isArray(valor.itens) ? valor.itens.flatMap((item) => lerItemNoConteudo(item) ?? []).slice(0, ITENS_NO_CONTEUDO_MAX) : []
   const conteudo: ConteudoDoObjeto = {
     itens,
@@ -204,24 +234,47 @@ export function jogoDoObjetoFechado(prop: Pick<Prop, 'mobilia' | 'conteudo'>): M
   return ehMobiliaComConteudo(prop.mobilia) && prop.conteudo?.aberto === undefined ? prop.mobilia : null
 }
 
-/** O objeto depois de aberto: marca quem e quando; a caixa e o barril viram destroços. */
+/**
+ * O tamanho dos destroços: o do objeto na proporção das pegadas de partida (o barril de 0,7 casa vira o
+ * barril quebrado de 1 casa; o barril esticado pelo mestre, os destroços esticados igual). `x`/`y` são o
+ * centro do objeto, então o centro fica onde estava.
+ */
+function pegadaDosDestrocos(prop: Pick<Prop, 'width' | 'height'>, tipo: MobiliaQueQuebra, destrocos: TipoMobilia): Pick<Prop, 'width' | 'height'> {
+  if (destrocos === DESTROCOS_SEM_PROPORCAO) return { width: prop.width, height: prop.height }
+  const inteiro = pegadaDePartidaEmCasas(tipo)
+  const quebrado = pegadaDePartidaEmCasas(destrocos)
+  const medir = (lado: number, de: number, para: number): number => Math.round(((lado * para) / de) * CENTESIMOS) / CENTESIMOS
+  return { width: medir(prop.width, inteiro.largura, quebrado.largura), height: medir(prop.height, inteiro.altura, quebrado.altura) }
+}
+
+/**
+ * O objeto depois de aberto: marca quem e quando; a caixa e o barril viram destroços (`DESTROCOS_DO_OBJETO`),
+ * no mesmo centro, com o mesmo giro e as mesmas cores (os materiais: os lugares são os mesmos). O tamanho de
+ * antes fica guardado para o "Fechar e repor".
+ */
 export function objetoAberto(prop: Prop, por: string, em: number): Prop {
   const tipo = jogoDoObjetoFechado(prop)
   if (tipo === null) return prop
   const aberto: AberturaDoObjeto = { por, em }
   const conteudo: ConteudoDoObjeto = { ...(prop.conteudo ?? conteudoVazio()), aberto }
   if (tipo === 'bau') return { ...prop, conteudo }
+  const destrocos = DESTROCOS_DO_OBJETO[tipo]
   aberto.quebradoDe = tipo
-  return { ...prop, mobilia: MOBILIA_DOS_DESTROCOS, conteudo }
+  aberto.pegadaDeAntes = { width: prop.width, height: prop.height }
+  return { ...prop, mobilia: destrocos, ...pegadaDosDestrocos(prop, tipo, destrocos), conteudo }
 }
 
-/** "Fechar e repor": o mesmo conteúdo de novo, fechado; os destroços voltam a ser a caixa ou o barril. */
+/**
+ * "Fechar e repor": o mesmo conteúdo de novo, fechado; os destroços voltam a ser a caixa ou o barril, com o
+ * tamanho de antes (os destroços de antes de 16/11/2026 não o guardam: já tinham o tamanho do objeto).
+ */
 export function objetoReposto(prop: Prop): Prop {
   const conteudo = prop.conteudo
   if (conteudo?.aberto === undefined) return prop
   const { aberto, ...fechado } = conteudo
   if (aberto.quebradoDe === undefined) return { ...prop, conteudo: fechado }
-  return { ...prop, mobilia: aberto.quebradoDe, conteudo: fechado }
+  const pegada = aberto.pegadaDeAntes === undefined ? {} : { width: aberto.pegadaDeAntes.width, height: aberto.pegadaDeAntes.height }
+  return { ...prop, mobilia: aberto.quebradoDe, ...pegada, conteudo: fechado }
 }
 
 /** O item do conteúdo pronto para a mochila (`darNaFicha`). */

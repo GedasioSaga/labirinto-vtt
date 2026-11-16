@@ -224,8 +224,9 @@ export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
           <Botao
             tamanho="p"
             onClick={() => {
+              // O tamanho volta junto: o barril quebrado é maior que o barril (os cacos em volta), no mesmo centro.
               const reposto = objetoReposto(prop)
-              updateProp(prop.id, { conteudo: reposto.conteudo, mobilia: reposto.mobilia })
+              updateProp(prop.id, { conteudo: reposto.conteudo, mobilia: reposto.mobilia, width: reposto.width, height: reposto.height })
             }}
           >
             Fechar e repor

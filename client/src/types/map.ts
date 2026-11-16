@@ -1875,8 +1875,17 @@ export interface AberturaDoObjeto {
   por: string
   /** Quando, em ms desde 1970 no relógio do mestre. */
   em: number
-  /** A caixa e o barril quebrados viram destroços (`mobilia: 'destrocosDeMadeira'`): o tipo de antes, para o "Fechar e repor". */
+  /**
+   * A caixa e o barril quebrados viram destroços (o barril, `mobilia: 'barrilQuebrado'`; a caixa,
+   * `'destrocosDeMadeira'`, como todo destroço de antes de 16/11/2026): o tipo de antes, para o "Fechar e repor".
+   */
   quebradoDe?: 'caixa' | 'barril'
+  /**
+   * O tamanho do objeto inteiro (px de mundo), só com `quebradoDe`: os destroços são maiores, no mesmo centro
+   * (`lib/conteudoDoObjeto.ts`), e o "Fechar e repor" devolve este. Ausente = os destroços têm o tamanho do
+   * objeto (os de antes de 16/11/2026), sem linha de migração.
+   */
+  pegadaDeAntes?: { width: number; height: number }
 }
 
 /**
