@@ -12,6 +12,7 @@
 import type { MapData, MovementRules, Token } from '../types/map'
 import type { Point } from '../pixi/world'
 import { measureCells } from './measurement'
+import { tokenConditionsOf } from './tokenConditions'
 
 /** Teto do passo máximo: acima disto a regra não limita nada numa mesa real. */
 export const MAX_STEP_CELLS_LIMIT = 99
@@ -60,6 +61,21 @@ export function maxStepOf(map: Pick<MapData, 'movement'>): number | null {
   return readMovementRules(map.movement)?.maxStepCells ?? null
 }
 
+/**
+ * LENTO (Fase 3, 15/11/2026): a ficha com a pastilha "Lento" anda METADE do
+ * passo da cena, para baixo, nunca menos de 1 quadrado (passo 5 vira 2; passo
+ * 1 fica 1). Vale fora e dentro da batalha, porque os dois caminhos do jogador
+ * passam por `validatePlayerMove`. Cena sem passo máximo continua livre: não
+ * há passo para cortar, e a pastilha só avisa. A pastilha vem à mão, da
+ * armadilha (com prazo, `lib/prazoDaCondicao.ts`) ou de um selo/condição
+ * "Lento" da batalha (`lib/ponteDasCondicoes.ts`).
+ */
+export function passoMaximoDaFicha(map: Pick<MapData, 'movement'>, token: { conditions?: unknown }): number | null {
+  const passo = maxStepOf(map)
+  if (passo === null || !tokenConditionsOf(token).includes('lento')) return passo
+  return Math.max(1, Math.floor(passo / 2))
+}
+
 /** A cena liga "Fichas ocupam espaço"? */
 export function tokensOccupy(map: Pick<MapData, 'movement'>): boolean {
   return readMovementRules(map.movement)?.tokensOccupy === true
@@ -94,9 +110,10 @@ function lastPointWithin(map: StepMap, from: Point, to: Point, max: number): Poi
  * alcance (ou sem passo máximo), senão o último ponto válido na mesma
  * direção, em coordenada inteira. Coordenada não finita passa intacta: quem
  * recusa ponto fora do mapa é a validação (`outside_map`), não esta função.
+ * `max`: o passo desta ficha (`passoMaximoDaFicha`, que corta o do Lento);
+ * ausente = o da cena.
  */
-export function clampToMaxStep(map: StepMap, from: Point, to: Point): Point {
-  const max = maxStepOf(map)
+export function clampToMaxStep(map: StepMap, from: Point, to: Point, max: number | null = maxStepOf(map)): Point {
   if (max === null) return to
   const wanted = cellsBetween(map, from, to)
   if (!(wanted > max + STEP_EPSILON_CELLS)) return to

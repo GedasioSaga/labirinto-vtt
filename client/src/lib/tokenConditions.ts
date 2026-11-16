@@ -10,8 +10,12 @@ import type { MapData, Token, TokenCondition } from '../types/map'
  * minimapa, sem brilho, sem degradê, sem ilustração.
  */
 
-/** As condições, na ordem em que aparecem no painel e em cima da ficha. */
-export const TOKEN_CONDITION_ORDER: readonly TokenCondition[] = ['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel']
+/**
+ * As condições, na ordem em que aparecem no painel e em cima da ficha. `lento`
+ * (Fase 3) entra no fim: a ficha de antes continua com as pastilhas na mesma
+ * ordem.
+ */
+export const TOKEN_CONDITION_ORDER: readonly TokenCondition[] = ['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel', 'lento']
 
 /** O nome que a pessoa lê — no botão do painel e no leitor de tela. */
 export const TOKEN_CONDITION_LABELS: Record<TokenCondition, string> = {
@@ -20,6 +24,7 @@ export const TOKEN_CONDITION_LABELS: Record<TokenCondition, string> = {
   dormindo: 'Dormindo',
   atordoado: 'Atordoado',
   invisivel: 'Invisível',
+  lento: 'Lento',
 }
 
 /** Guarda de leitura: id desconhecido (arquivo editado à mão, versão futura) não vira marca. */
@@ -140,7 +145,7 @@ export const CONDITION_GLYPH_STROKE_FRACTION = 0.19
 export const CONDITION_TEXT_FRACTION = 0.78
 
 /**
- * As cinco pastilhas. A COR separa uma condição da outra de relance, e o
+ * As pastilhas de fábrica. A COR separa uma condição da outra de relance, e o
  * DESENHO separa quando a cor não basta (daltonismo, chão da mesma cor): as
  * duas pistas juntas, nunca uma só.
  *
@@ -252,6 +257,37 @@ export const TOKEN_CONDITION_SYMBOLS: Record<TokenCondition, ConditionSymbol> = 
     dots: [
       { x: -0.25, y: -0.2, r: 0.16, hole: true },
       { x: 0.25, y: -0.2, r: 0.16, hole: true },
+    ],
+  },
+  // Ampulheta — o tempo arrastado de quem anda metade do passo. Dois
+  // triângulos cheios que se tocam no meio, com a tampa e o fundo em traço.
+  lento: {
+    fill: '#80cbc4',
+    strokes: [
+      {
+        points: [
+          { x: -0.7, y: -0.85 },
+          { x: 0.7, y: -0.85 },
+        ],
+      },
+      {
+        points: [
+          { x: -0.7, y: 0.85 },
+          { x: 0.7, y: 0.85 },
+        ],
+      },
+    ],
+    solids: [
+      [
+        { x: -0.55, y: -0.75 },
+        { x: 0.55, y: -0.75 },
+        { x: 0, y: 0 },
+      ],
+      [
+        { x: 0, y: 0 },
+        { x: 0.55, y: 0.75 },
+        { x: -0.55, y: 0.75 },
+      ],
     ],
   },
 }

@@ -27,9 +27,9 @@ function mapaCom(tokens: Token[]): MapData {
 }
 
 describe('a lista de condições', () => {
-  it('são as cinco do pedido, na ordem do painel, com o nome que a pessoa lê', () => {
-    expect(TOKEN_CONDITION_ORDER).toEqual(['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel'])
-    expect(TOKEN_CONDITION_ORDER.map((c) => TOKEN_CONDITION_LABELS[c])).toEqual(['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível'])
+  it('são as cinco do pedido e o Lento da Fase 3 no fim, na ordem do painel, com o nome que a pessoa lê', () => {
+    expect(TOKEN_CONDITION_ORDER).toEqual(['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel', 'lento'])
+    expect(TOKEN_CONDITION_ORDER.map((c) => TOKEN_CONDITION_LABELS[c])).toEqual(['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível', 'Lento'])
   })
 
   it('só reconhece os ids da lista', () => {
@@ -163,7 +163,7 @@ describe('conditionBadgeLayout — onde as marcas ficam, em cima da ficha', () =
     expect(radius).toBeLessThanOrEqual(RAIO_DA_FICHA / 2)
   })
 
-  it('as cinco juntas: todas na metade de cima, simétricas, sem uma encostar na outra', () => {
+  it('todas as de fábrica juntas: todas na metade de cima, simétricas, sem uma encostar na outra', () => {
     const { radius, badges } = conditionBadgeLayout(TOKEN_CONDITION_ORDER, RAIO_DA_FICHA, GRADE)
     expect(badges.map((b) => b.condition)).toEqual(TOKEN_CONDITION_ORDER)
     for (const b of badges) {
@@ -173,9 +173,9 @@ describe('conditionBadgeLayout — onde as marcas ficam, em cima da ficha', () =
     for (let i = 1; i < badges.length; i += 1) {
       expect(Math.hypot(badges[i].x - badges[i - 1].x, badges[i].y - badges[i - 1].y)).toBeGreaterThanOrEqual(2 * radius)
     }
+    // Leque simétrico: a primeira espelha a última, a segunda a penúltima, e assim por diante.
     const xs = badges.map((b) => b.x)
-    expect(xs[0]).toBeCloseTo(-xs[4], 6)
-    expect(xs[1]).toBeCloseTo(-xs[3], 6)
+    for (let i = 0; i < xs.length; i += 1) expect(xs[i]).toBeCloseTo(-xs[xs.length - 1 - i], 6)
   })
 
   it('a marca acompanha a GRADE, não o tamanho da ficha: o dragão não ganha pastilha gigante', () => {
