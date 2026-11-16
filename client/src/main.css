@@ -46,6 +46,32 @@ body {
   box-shadow: var(--lb-shadow-focus);
 }
 
+/*
+ * A lista aberta de um <select> nativo é pintada pelo sistema, não pela página:
+ * sem `color-scheme` o WebView2 a abre branca, e o texto claro que o campo
+ * herda (pergaminho) some no branco. Aqui ela abre escura, com o item escolhido
+ * em latão. Tudo dentro de `:where`, com peso zero: o campo que veste outro
+ * fundo (o papel da batalha, o Grimório, o Mundo do livro) continua mandando
+ * nas próprias opções.
+ */
+:where(select) {
+  color-scheme: dark;
+}
+
+:where(select) :where(option, optgroup) {
+  background-color: var(--lb-color-stone-solid);
+  color: var(--lb-color-parchment);
+}
+
+:where(select) :where(option:checked) {
+  background-color: var(--lb-color-stone-hover);
+  color: var(--lb-color-brass-bright);
+}
+
+:where(select) :where(option:disabled) {
+  color: var(--lb-color-parchment-faint);
+}
+
 /* ---------------------------------------------------------------- primitivas */
 
 /* Painel flutuante sobre o canvas. A elevação precisa ser lida contra o cinza
