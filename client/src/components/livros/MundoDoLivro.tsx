@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, type Keybo
 import { entraNaBatalha } from '../../lib/livros/combate'
 import { lerSaude } from '../../lib/livros/saude'
 import { MOTOR_DRAGON_BALL, motorDoSistema } from '../../lib/motores'
+import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useIaStore } from '../../stores/iaStore'
 import { useMundoDoLivroStore, usePersonagensDoMundo, type AbaDoMundo } from '../../stores/mundoDoLivroStore'
@@ -85,6 +86,8 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   const marcadores = dragonBall ? MARCADORES.filter((marcador) => !ABAS_SO_DO_MOTOR_PADRAO.includes(marcador.aba)) : MARCADORES
   /** As entradas do catálogo deste livro (as do mestre e as do livro), para o número do marcador Itens e habilidades. */
   const noCatalogo = useCatalogoStore((state) => (aberto !== null && state.sistemaId === aberto.sistemaId ? state.itens.length + state.doLivro.length : null))
+  /** As coisas do Acervo do app, que a página Itens lista junto (Fase 1). */
+  const noAcervo = useAcervoDeItensStore((state) => state.itens.length)
   /** Quantos campos a batalha não lê (o número do marcador Saúde da ficha, em latão quando há). */
   const naoLidos = useMemo(
     () => (personagens === null || sistema === undefined || dragonBall ? null : lerSaude(personagens, sistema).achados.filter((achado) => achado.leitura.estado === 'naoLe').length),
@@ -109,6 +112,11 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
   useEffect(() => {
     if (sistema !== undefined && useCatalogoStore.getState().sistemaId !== sistema.id) void useCatalogoStore.getState().abrir(sistema)
   }, [sistema])
+
+  // O Acervo de itens também (a página Itens o lista): é do app, e o mundo aberto pela tela inicial ainda não o leu.
+  useEffect(() => {
+    if (!useAcervoDeItensStore.getState().podeGravar) void useAcervoDeItensStore.getState().recarregar()
+  }, [])
 
   // A fita de latão vai até o marcador aberto: a primeira vez sem deslizar, depois a cada troca (e se a lombada encolher).
   useLayoutEffect(() => {
@@ -155,7 +163,7 @@ export function MundoDoLivro({ onFechar }: MundoDoLivroProps) {
     // As fichas escolhidas para comparar; nenhuma = sem número.
     comparar: comparando === 0 ? null : comparando,
     saude: naoLidos,
-    itens: noCatalogo,
+    itens: noCatalogo === null ? null : noCatalogo + noAcervo,
     anotacoes: personagens === null ? null : personagens.filter((personagem) => (personagem.notaDoMestre ?? '').trim().length > 0).length,
     // A Arena de testes não tem contagem.
     arena: null,

@@ -202,29 +202,49 @@ export function giveNewItemChange(token: Token, nome: string, itemId: string): I
 /** O item do acervo como ele é dado: o nome e os dados que vão para a mochila. */
 export type ItemParaDar = DadosDoItem & { nome: string }
 
+/** A mochila depois de receber um item do acervo (`mochilaComItemDoAcervo`). */
+export interface MochilaQueRecebeu {
+  mochila: CarriedItem[]
+  /** A vaga que recebeu: a da pilha que somou, ou a nova (`freshId`). */
+  vagaId: string
+  /** Quantos entraram de fato: a pilha para em `ITEM_QUANTIDADE_MAX`, então pode ser 0. */
+  entraram: number
+}
+
 /**
- * "Dar a…" do ACERVO DE ITENS (o mestre dá um item do acervo a um
- * personagem). Empilhável com o mesmo `itemId` já na mochila: soma na vaga
- * que existe (até `ITEM_QUANTIDADE_MAX`), com os dados de agora do acervo.
- * O resto abre vaga nova no fim, com `freshId`; o não empilhável vai sempre
- * um por vez. `null` = nome vazio.
+ * A regra do "Dar a…" do ACERVO DE ITENS, sobre uma mochila qualquer — a do
+ * boneco (`darDoAcervoChange`) ou a da ficha (`lib/mochila/darNaFicha.ts`):
+ * uma regra só para os dois. Empilhável com o mesmo `itemId` já na mochila:
+ * soma na vaga que existe (até `ITEM_QUANTIDADE_MAX`), com os dados de agora
+ * do acervo. O resto abre vaga nova no fim, com `freshId`; o não empilhável
+ * vai sempre um por vez. `null` = nome vazio.
  */
-export function darDoAcervoChange(token: Token, item: ItemParaDar, quantidade: number, freshId: string): ItemChange | null {
+export function mochilaComItemDoAcervo(mochila: readonly CarriedItem[], item: ItemParaDar, quantidade: number, freshId: string): MochilaQueRecebeu | null {
   const nome = cleanItemName(item.nome)
   if (nome === '') return null
   const { nome: _nome, quantidade: _quantidade, ...dados } = item
   const lidos = dadosDoItemLidos(dados)
-  const mochila = carriedItemsOf(token)
   const pedida = Number.isSafeInteger(quantidade) ? Math.min(Math.max(quantidade, 1), ITEM_QUANTIDADE_MAX) : 1
   const existente = lidos.empilhavel === true && lidos.itemId !== undefined ? mochila.find((carried) => carried.itemId === lidos.itemId) : undefined
   if (existente !== undefined) {
-    const soma = Math.min(quantidadeDe(existente) + pedida, ITEM_QUANTIDADE_MAX)
+    const antes = quantidadeDe(existente)
+    const soma = Math.min(antes + pedida, ITEM_QUANTIDADE_MAX)
     const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}) }
-    return { mochilas: [{ tokenId: token.id, mochila: mochila.map((carried) => (carried === existente ? atualizado : carried)) }] }
+    return { mochila: mochila.map((carried) => (carried === existente ? atualizado : carried)), vagaId: existente.id, entraram: soma - antes }
   }
   const quantos = lidos.empilhavel === true ? pedida : 1
   const novo: CarriedItem = { id: freshId, nome, ...lidos, ...(quantos > 1 ? { quantidade: quantos } : {}) }
-  return { mochilas: [{ tokenId: token.id, mochila: [...mochila, novo] }] }
+  return { mochila: [...mochila, novo], vagaId: freshId, entraram: quantos }
+}
+
+/**
+ * "Dar a…" do ACERVO DE ITENS (o mestre dá um item do acervo a um
+ * personagem): a regra de `mochilaComItemDoAcervo` na mochila do boneco.
+ * `null` = nome vazio.
+ */
+export function darDoAcervoChange(token: Token, item: ItemParaDar, quantidade: number, freshId: string): ItemChange | null {
+  const recebeu = mochilaComItemDoAcervo(carriedItemsOf(token), item, quantidade, freshId)
+  return recebeu === null ? null : { mochilas: [{ tokenId: token.id, mochila: recebeu.mochila }] }
 }
 
 /** Uma ficha a quem o jogador pode dar um item. */

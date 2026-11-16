@@ -90,6 +90,22 @@
 .mu-item__sem { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); text-align: right; }
 .mu-etiqueta--livro { background: var(--lb-gr-hover-forte); color: var(--lb-gr-gravado); }
 .mu-etiqueta--catalogo { background: var(--lb-color-online-soft); color: var(--lb-color-online); }
+/* A coisa do Acervo (Fase 1): latão, a cor do "é seu, do app" — o catálogo é verde e o livro é gravado. */
+.mu-etiqueta--acervo { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+/* A foto da coisa: quadrada e contida (a figura do item não se corta), no mesmo campo escuro das vagas da ficha. */
+.mu-item__foto {
+  flex: none;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-campo);
+}
+.mu-item__foto img { width: 100%; height: 100%; object-fit: contain; }
+.mu-item__foto .lb-ficha__iniciais { font: 600 12px / 1 var(--lb-font-utility); }
+.mu-item__foto + .mu-item__nome { flex: 1; align-self: center; }
 
 .mu-cat-mais { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 14px; }
 
@@ -144,6 +160,22 @@
 .mu-destino__secao li { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
 .mu-destino__secao li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-destino__dano { flex: none; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
+/* A mochila: foto pequena, nome que corta com reticências e a quantidade em números de mesma largura. */
+.mu-destino__mochila li { align-items: center; }
+.mu-destino__foto {
+  flex: none;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+  border: 1px solid var(--lb-gr-filete);
+  border-radius: 4px;
+  background: var(--lb-gr-campo);
+}
+.mu-destino__foto img { width: 100%; height: 100%; object-fit: contain; }
+.mu-destino__foto .lb-ficha__iniciais { font: 600 9px / 1 var(--lb-font-utility); }
+.mu-destino__vaga { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-destino__qtd { flex: none; font-family: var(--lb-font-utility); font-variant-numeric: tabular-nums; }
 .mu-destino__mais { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
 /* O que acabou de entrar fica em latão. Sem esmaecer: o "Pôr em" é o caminho do teclado, e a cor já conta o que mudou. */
 .mu-destino__secao li.mu-destino__novo { color: var(--lb-color-brass-bright); }

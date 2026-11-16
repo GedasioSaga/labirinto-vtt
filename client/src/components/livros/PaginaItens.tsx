@@ -1,6 +1,9 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { itemParaDar } from '../../lib/acervoDeItens'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
+import { quantidadeDe } from '../../lib/items'
+import { buscarNoAcervo, ehDoAcervo, entradaDoAcervo, type EntradaDoAcervo } from '../../lib/livros/acervoNoLivro'
 import { ehVariacao, entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
 import {
   abaDeDestino,
@@ -19,11 +22,16 @@ import {
   type TipoDeEntrada,
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
+import { darNaFicha, quantosNaFicha, tirarDaMochilaDaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
 import { cartoesDaAba, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
 import type { AbaDoSistema, CampoDoCartao, SistemaDeRpg } from '../../lib/sistemaDeRpg'
+import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
+import { itensPorCategoria } from '../AcervoDeItensPanel'
+import { ImagemOuIniciais } from '../FichaPecas'
+import { precoEmBerries } from '../InventarioDaFicha'
 import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } from './comum'
 import { EntradaDoCatalogoDialog, type ModoDaEntrada } from './EntradaDoCatalogoDialog'
 import { IconeDoMundo } from './icones'
@@ -41,6 +49,13 @@ import './itens.css'
  * vantagens e desvantagens do livro) é do `catalogoStore`; as regras de pôr e
  * tirar são de lib/livros/catalogo.ts; a gravação na ficha passa pelo funil
  * único do mundo (`mundo.mudar`).
+ *
+ * O ACERVO NA PÁGINA (Fase 1 da melhoria geral, lib/livros/acervoNoLivro.ts):
+ * as coisas do Acervo do app aparecem aqui também, com o selo "Do acervo",
+ * lidas do `acervoDeItensStore` (o Acervo continua o dono; nada é copiado
+ * para o catálogo). "Pôr em" e o arrasto de uma delas dão na MOCHILA da ficha
+ * (`darNaFicha`, a mesma regra de pilha do "Dar a…"), e a ficha que recebe
+ * mostra a mochila.
  */
 
 /** Cartões na tela por vez: um catálogo de 2000 entradas não vira 2000 cartões de uma vez. */
@@ -49,6 +64,11 @@ const PASSO_DA_LISTA = 120
 const DESTAQUE_MS = 1600
 /** Quantos cartões de cada seção a ficha que recebe mostra (os últimos: é onde o novo entra). */
 const ULTIMOS_NA_SECAO = 5
+/** Quantas vagas da mochila a ficha que recebe mostra (as últimas: é onde a coisa nova entra). */
+const ULTIMAS_DA_MOCHILA = 8
+
+/** O que a página lista: uma entrada do catálogo ou do livro (vira cartão numa aba) ou uma coisa do Acervo (vai para a mochila). */
+type EntradaDaPagina = EntradaParaFicha | EntradaDoAcervo
 
 type Filtro = TipoDeEntrada | 'todos'
 /** O que o "Pôr em" faz com a entrada e a ficha escolhida. */
@@ -135,6 +155,25 @@ function desfazerPor(fichaId: string, abaId: string, cartaoId: string): void {
     )
 }
 
+/** "Garrucha entrou na mochila de Aira." ou, na pilha, "Mais 1 Poção na mochila de Aira: agora são 2." */
+function fraseDoPorNaMochila(nome: string, ficha: Personagem, recebido: FichaQueRecebeu): string {
+  const vaga = (recebido.personagem.mochila ?? []).find((item) => item.id === recebido.vagaId)
+  const total = vaga === undefined ? recebido.entraram : quantidadeDe(vaga)
+  if (total > recebido.entraram) return `Mais ${formatarNumero(recebido.entraram)} ${nome} na mochila de ${ficha.nome}: agora são ${formatarNumero(total)}.`
+  return `${nome} entrou na mochila de ${ficha.nome}.`
+}
+
+/** O Desfazer do "Pôr" do acervo: tira da vaga só o que entrou, sobre a ficha como ela está agora (disco e editor). */
+function desfazerNaMochila(fichaId: string, vagaId: string, quantos: number): void {
+  useMundoDoLivroStore
+    .getState()
+    .mudar((lista) => trocarFicha(lista, fichaId, (atual) => tirarDaMochilaDaFicha(atual, vagaId, quantos)))
+    .then(
+      () => useToastStore.getState().push('info', 'Desfeito.'),
+      (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
+    )
+}
+
 interface LinhaDoCampo {
   rotulo: string
   valor: string
@@ -166,6 +205,8 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   const doLivro = useCatalogoStore((state) => state.doLivro)
   const aviso = useCatalogoStore((state) => state.aviso)
   const podeGravar = useCatalogoStore((state) => state.podeGravar)
+  const doAcervo = useAcervoDeItensStore((state) => state.itens)
+  const categoriasDoAcervo = useAcervoDeItensStore((state) => state.categorias)
   const doSistema = catalogoAberto === sistema.id
   const noAplicativo = isTauri()
   // A leitura do disco nunca lança: sem aviso e sem permissão de gravar, no aplicativo, é porque ainda está lendo.
@@ -178,12 +219,12 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   const [fichaId, setFichaId] = useState<string | null>(fichaEscolhidaAntes)
   const [dialogo, setDialogo] = useState<ModoDaEntrada | null>(null)
   const [juntando, setJuntando] = useState(false)
-  const [arrastando, setArrastando] = useState<EntradaParaFicha | null>(null)
+  const [arrastando, setArrastando] = useState<EntradaDaPagina | null>(null)
   const [sobre, setSobre] = useState(false)
-  /** Cartões postos nesta visita (`ficha:cartão`): a seção da ficha os mostra em latão. */
+  /** Cartões e vagas da mochila postos nesta visita (`ficha:cartão`, `ficha:vaga`): a seção da ficha os mostra em latão. */
   const [novos, setNovos] = useState<ReadonlySet<string>>(() => new Set())
   const [destacado, setDestacado] = useState<string | null>(null)
-  const arrastandoRef = useRef<EntradaParaFicha | null>(null)
+  const arrastandoRef = useRef<EntradaDaPagina | null>(null)
   /** Pôr em andamento (`ficha:entrada`): o clique duplo não grava duas vezes. */
   const pondo = useRef(new Set<string>())
   const buscaRef = useRef<HTMLInputElement>(null)
@@ -225,7 +266,13 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   // Armas, Habilidades e Itens sempre (o mestre cria); os do livro só quando o livro traz alguma.
   const filtros = useMemo<Filtro[]>(() => ['todos', ...TIPOS_DE_ENTRADA.filter((tipo) => ehDoCatalogo(tipo) || entradas.some((entrada) => entrada.tipo === tipo))], [entradas])
   const filtroAtivo: Filtro = filtros.includes(filtro) ? filtro : 'todos'
-  const lista = useMemo(() => buscarNoCatalogo(entradas, busca, filtroAtivo), [entradas, busca, filtroAtivo])
+  // Na ordem das categorias do Acervo, como o painel do mestre as mostra.
+  const entradasDoAcervo = useMemo(() => itensPorCategoria(doAcervo, categoriasDoAcervo).flatMap((grupo) => grupo.itens.map(entradaDoAcervo)), [doAcervo, categoriasDoAcervo])
+  const lista = useMemo<EntradaDaPagina[]>(() => {
+    const achadas = buscarNoCatalogo(entradas, busca, filtroAtivo)
+    // As coisas do Acervo depois das entradas do mestre e antes das do livro (perícias, vantagens, desvantagens).
+    return [...achadas.filter((entrada) => !ehDoLivro(entrada)), ...buscarNoAcervo(entradasDoAcervo, busca, filtroAtivo), ...achadas.filter(ehDoLivro)]
+  }, [entradas, entradasDoAcervo, busca, filtroAtivo])
 
   const abaPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, abaDeDestino(sistema, tipo)] as const)), [sistema])
   const camposPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, camposDoTipo(sistema, tipo)] as const)), [sistema])
@@ -251,8 +298,10 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     return mapa
   }, [destino, secoes])
 
-  const estadoDoPor = (entrada: EntradaParaFicha): EstadoDoPor => {
+  const estadoDoPor = (entrada: EntradaDaPagina): EstadoDoPor => {
     if (destino === undefined) return 'semFicha'
+    // A coisa do Acervo vai para a mochila, que toda ficha tem; ter uma não impede de levar outra (como o "Dar a…").
+    if (ehDoAcervo(entrada)) return 'pode'
     const aba = abaPorTipo.get(entrada.tipo)
     if (aba === undefined) return 'semAba'
     return nomesNaFicha.get(aba.id)?.has(chaveDoNomeDaEntrada(entrada.nome)) === true ? 'jaTem' : 'pode'
@@ -263,7 +312,52 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     setFichaId(id)
   }
 
-  const por = async (entrada: EntradaParaFicha) => {
+  /**
+   * "Pôr em" de uma coisa do Acervo: entra na MOCHILA da ficha (`darNaFicha`).
+   * A mudança roda no disco e depois na cópia do editor (`editarRpgDaPasta`);
+   * a vaga nova tem id fixo para as duas, e o aviso conta o que o disco (a
+   * primeira) recebeu. Sem trava de clique duplo: dois cliques são duas
+   * Poções, em fila no funil do mundo.
+   */
+  const porNaMochila = async (entrada: EntradaDoAcervo) => {
+    const ficha = destino
+    if (ficha === undefined) return
+    const toasts = useToastStore.getState()
+    const dados = itemParaDar(entrada.acervo)
+    const vagaNova = crypto.randomUUID()
+    if (darNaFicha(ficha, dados, 1, vagaNova) === null) {
+      toasts.push('info', `${ficha.nome} já carrega o máximo de ${entrada.nome}.`)
+      return
+    }
+    // Objeto, não `let`: o TypeScript não vê a atribuição feita dentro da mudança e trataria o valor como sempre nulo.
+    const doDisco: { recebido: FichaQueRecebeu | null } = { recebido: null }
+    try {
+      await useMundoDoLivroStore.getState().mudar((lista) =>
+        trocarFicha(lista, ficha.id, (atual) => {
+          const deu = darNaFicha(atual, dados, 1, vagaNova)
+          if (deu === null) return atual
+          doDisco.recebido ??= deu
+          return deu.personagem
+        }),
+      )
+    } catch (erro) {
+      toasts.push('error', `Não deu para pôr ${entrada.nome} na mochila de ${ficha.nome}: ${mensagemDoErro(erro)}`)
+      return
+    }
+    const recebido = doDisco.recebido
+    if (recebido === null) {
+      toasts.push('error', `Não deu para pôr ${entrada.nome}: a ficha de ${ficha.nome} não está mais nesta pasta.`)
+      return
+    }
+    const { vagaId, entraram } = recebido
+    setNovos((atuais) => new Set(atuais).add(`${ficha.id}:${vagaId}`))
+    toasts.push('info', fraseDoPorNaMochila(entrada.nome, ficha, recebido), undefined, {
+      actions: [{ label: 'Desfazer', run: () => desfazerNaMochila(ficha.id, vagaId, entraram) }],
+    })
+  }
+
+  const por = async (entrada: EntradaDaPagina) => {
+    if (ehDoAcervo(entrada)) return porNaMochila(entrada)
     const ficha = destino
     if (ficha === undefined) return
     const toasts = useToastStore.getState()
@@ -293,7 +387,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   }
 
   // ---- arrastar o cartão para a ficha ----
-  const comecarArrasto = (event: DragEvent<HTMLElement>, entrada: EntradaParaFicha) => {
+  const comecarArrasto = (event: DragEvent<HTMLElement>, entrada: EntradaDaPagina) => {
     event.dataTransfer.setData('text/plain', entrada.nome)
     event.dataTransfer.effectAllowed = 'copy'
     arrastandoRef.current = entrada
@@ -431,23 +525,36 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     corpo = (
       <>
         <ul className="mu-cat-lista" ref={listaRef} aria-label={`Catálogo, ${formatarNumero(lista.length)} ${lista.length === 1 ? 'entrada' : 'entradas'}`}>
-          {visiveis.map((entrada, indice) => (
-            <CartaoDaEntrada
-              key={entrada.id}
-              entrada={entrada}
-              linhas={linhasDaEntrada(entrada, camposPorTipo.get(entrada.tipo) ?? [], nomesDosAtributos)}
-              estado={estadoDoPor(entrada)}
-              destino={destino}
-              podeGravar={podeGravar}
-              arrastando={arrastando?.id === entrada.id}
-              destacado={destacado === entrada.id}
-              onPor={() => void por(entrada)}
-              onEditar={(item) => setDialogo({ tipo: 'editar', item })}
-              onApagar={(item) => void apagar(item, indice)}
-              onArrastar={comecarArrasto}
-              onSoltar={terminarArrasto}
-            />
-          ))}
+          {visiveis.map((entrada, indice) =>
+            ehDoAcervo(entrada) ? (
+              <CartaoDoAcervo
+                key={entrada.id}
+                entrada={entrada}
+                destino={destino}
+                naFicha={destino === undefined ? 0 : quantosNaFicha(destino, entrada.id)}
+                arrastando={arrastando?.id === entrada.id}
+                onPor={() => void por(entrada)}
+                onArrastar={comecarArrasto}
+                onSoltar={terminarArrasto}
+              />
+            ) : (
+              <CartaoDaEntrada
+                key={entrada.id}
+                entrada={entrada}
+                linhas={linhasDaEntrada(entrada, camposPorTipo.get(entrada.tipo) ?? [], nomesDosAtributos)}
+                estado={estadoDoPor(entrada)}
+                destino={destino}
+                podeGravar={podeGravar}
+                arrastando={arrastando?.id === entrada.id}
+                destacado={destacado === entrada.id}
+                onPor={() => void por(entrada)}
+                onEditar={(item) => setDialogo({ tipo: 'editar', item })}
+                onApagar={(item) => void apagar(item, indice)}
+                onArrastar={comecarArrasto}
+                onSoltar={terminarArrasto}
+              />
+            ),
+          )}
         </ul>
         {lista.length > visiveis.length && (
           <div className="mu-cat-mais">
@@ -508,8 +615,8 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
         <div className="mu-pg-cab__txt">
           <h2 className="mu-pg-titulo">Itens, armas e habilidades</h2>
           <p className="mu-pg-sub">
-            O catálogo do livro. Arraste para a ficha ao lado, ou use “Pôr em”. Perícias, vantagens e desvantagens vêm do livro; armas, habilidades e itens você cria ou junta das
-            fichas.
+            O catálogo do livro e os itens do acervo. Arraste para a ficha ao lado, ou use “Pôr em”: o que vem do acervo vai para a mochila. Perícias, vantagens e desvantagens vêm do
+            livro; armas, habilidades e itens você cria ou junta das fichas.
           </p>
         </div>
         <div className="mu-pg-acoes">
@@ -599,8 +706,11 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
           personagens={personagens}
           sistema={sistema}
           secoes={secoes}
-          abaDoArrasto={arrastando === null ? null : (abaPorTipo.get(arrastando.tipo)?.id ?? null)}
-          recusa={destino !== undefined && arrastando !== null && estadoDoArrasto !== 'pode' ? recusaDoArrasto(estadoDoArrasto, destino, arrastando) : null}
+          abaDoArrasto={arrastando === null || ehDoAcervo(arrastando) ? null : (abaPorTipo.get(arrastando.tipo)?.id ?? null)}
+          mochilaDoArrasto={arrastando !== null && ehDoAcervo(arrastando)}
+          recusa={
+            destino !== undefined && arrastando !== null && !ehDoAcervo(arrastando) && estadoDoArrasto !== 'pode' ? recusaDoArrasto(estadoDoArrasto, destino, arrastando) : null
+          }
           sobre={sobre && estadoDoArrasto === 'pode'}
           novos={novos}
           onEscolher={escolherFicha}
@@ -722,6 +832,80 @@ function CartaoDaEntrada({ entrada, linhas, estado, destino, podeGravar, arrasta
   )
 }
 
+interface CartaoDoAcervoProps {
+  entrada: EntradaDoAcervo
+  destino: Personagem | undefined
+  /** Quantos desta coisa a ficha escolhida já carrega na mochila (0 = nenhum). */
+  naFicha: number
+  arrastando: boolean
+  onPor: () => void
+  onArrastar: (event: DragEvent<HTMLElement>, entrada: EntradaDoAcervo) => void
+  onSoltar: () => void
+}
+
+/** A coisa do Acervo: foto, nome, categoria, preço e pilha. Edita-se no Acervo; aqui só se põe na mochila. */
+function CartaoDoAcervo({ entrada, destino, naFicha, arrastando, onPor, onArrastar, onSoltar }: CartaoDoAcervoProps) {
+  const { acervo } = entrada
+  const quem = destino === undefined ? '' : primeiroNome(destino.nome)
+  const categoria = acervo.categoria === '' ? 'Item' : acervo.categoria
+  const descricao = acervo.descricao.trim()
+  const classes = ['mu-cartao', 'mu-item']
+  if (arrastando) classes.push('mu-item--arrastando')
+
+  return (
+    <li>
+      <article
+        className={classes.join(' ')}
+        data-entrada={entrada.id}
+        draggable={destino !== undefined}
+        aria-label={`Item do acervo: ${acervo.nome}`}
+        onDragStart={(event) => onArrastar(event, entrada)}
+        onDragEnd={onSoltar}
+      >
+        <div className="mu-item__cab">
+          <span className="mu-item__foto" aria-hidden="true">
+            <ImagemOuIniciais imagem={acervo.imagem} nome={acervo.nome} />
+          </span>
+          <h3 className="mu-item__nome">{acervo.nome}</h3>
+          <span className="mu-etiqueta mu-etiqueta--acervo">Do acervo</span>
+        </div>
+        <p className="mu-item__txt" title={descricao.length > 0 ? descricao : undefined}>
+          {descricao.length === 0 ? categoria : `${categoria} · ${descricao}`}
+        </p>
+        {(acervo.preco !== null || acervo.empilhavel || naFicha > 0) && (
+          <p className="mu-item__campos">
+            {acervo.preco !== null && (
+              <span>
+                Preço <b>{precoEmBerries(acervo.preco)}</b>
+              </span>
+            )}
+            {acervo.empilhavel && <span>Empilhável</span>}
+            {naFicha > 0 && (
+              <span>
+                Com {quem} <b>×{formatarNumero(naFicha)}</b>
+              </span>
+            )}
+          </p>
+        )}
+        <div className="mu-item__pe">
+          {destino !== undefined && (
+            <span className="mu-item__alca" title="Arraste para a ficha" aria-hidden="true">
+              <IconeDoMundo nome="alca" />
+            </span>
+          )}
+          <span className="mu-item__acoes">
+            {destino !== undefined && (
+              <button type="button" className="mu-bt mu-bt--p" aria-label={`Pôr ${acervo.nome} na mochila de ${destino.nome}`} onClick={onPor}>
+                Pôr em {quem}
+              </button>
+            )}
+          </span>
+        </div>
+      </article>
+    </li>
+  )
+}
+
 interface PainelDoDestinoProps {
   grupos: readonly GrupoQueRecebe[]
   destino: Personagem | undefined
@@ -730,6 +914,8 @@ interface PainelDoDestinoProps {
   secoes: readonly AbaDoSistema[]
   /** A aba que recebe o cartão arrastado (a seção que acende); `null` sem arrasto. */
   abaDoArrasto: string | null
+  /** O arrastado é uma coisa do Acervo: quem acende é a Mochila. */
+  mochilaDoArrasto: boolean
   /** O cartão arrastado não entra nesta ficha: a frase do porquê. */
   recusa: string | null
   /** O arrasto está em cima do painel e pode soltar: a seção fica cheia de latão. */
@@ -741,10 +927,10 @@ interface PainelDoDestinoProps {
   onSoltar: (event: DragEvent<HTMLElement>) => void
 }
 
-function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoArrasto, recusa, sobre, novos, onEscolher, onPassar, onSair, onSoltar }: PainelDoDestinoProps) {
+function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoArrasto, mochilaDoArrasto, recusa, sobre, novos, onEscolher, onPassar, onSair, onSoltar }: PainelDoDestinoProps) {
   const seletorId = useId()
   const classes = ['mu-cartao', 'mu-destino']
-  if (abaDoArrasto !== null && recusa === null) classes.push('mu-destino--ativo')
+  if ((abaDoArrasto !== null || mochilaDoArrasto) && recusa === null) classes.push('mu-destino--ativo')
   if (sobre) classes.push('mu-destino--sobre')
 
   if (destino === undefined) {
@@ -799,6 +985,7 @@ function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoA
         </p>
       )}
       <div className="mu-destino__secoes">
+        <MochilaDaFicha ficha={destino} quem={quem} aceita={mochilaDoArrasto} novos={novos} />
         {secoes.map((aba) => {
           const cartoes = cartoesDaAba(destino, aba.id)
           const ultimos = cartoes.slice(-ULTIMOS_NA_SECAO)
@@ -832,5 +1019,53 @@ function PainelDoDestino({ grupos, destino, personagens, sistema, secoes, abaDoA
       </div>
       {temVariacao && <p className="mu-pg-nota">Variações de NPC herdam do modelo: escolha o modelo para dar a todas.</p>}
     </aside>
+  )
+}
+
+interface MochilaDaFichaProps {
+  ficha: Personagem
+  quem: string
+  /** Uma coisa do Acervo está sendo arrastada: a seção acende e convida a soltar. */
+  aceita: boolean
+  novos: ReadonlySet<string>
+}
+
+/**
+ * A MOCHILA da ficha que recebe: o que a ficha carrega (a dona é a ficha, o
+ * boneco no mapa só a mostra), com ou sem boneco. As últimas vagas, com a
+ * foto e a quantidade; a vaga que acabou de receber fica em latão.
+ */
+function MochilaDaFicha({ ficha, quem, aceita, novos }: MochilaDaFichaProps) {
+  const vagas = ficha.mochila ?? []
+  const ultimas = vagas.slice(-ULTIMAS_DA_MOCHILA)
+  const antes = vagas.length - ultimas.length
+  const total = vagas.reduce((soma, item) => soma + quantidadeDe(item), 0)
+  return (
+    <div className="mu-destino__secao mu-destino__mochila" data-aceita={aceita ? 'sim' : undefined}>
+      <h4>
+        <span>Mochila</span>
+        <small>{formatarNumero(total)}</small>
+      </h4>
+      {vagas.length === 0 ? (
+        <p className="mu-destino__vazio">Nada na mochila. Ponha um item do acervo.</p>
+      ) : (
+        <ul>
+          {antes > 0 && <li className="mu-destino__mais">Mais {formatarNumero(antes)} na mochila</li>}
+          {ultimas.map((item) => {
+            const quantidade = quantidadeDe(item)
+            return (
+              <li key={item.id} className={novos.has(`${ficha.id}:${item.id}`) ? 'mu-destino__novo' : undefined}>
+                <span className="mu-destino__foto" aria-hidden="true">
+                  <ImagemOuIniciais imagem={item.imagem} nome={item.nome} />
+                </span>
+                <span className="mu-destino__vaga">{item.nome}</span>
+                {quantidade > 1 && <span className="mu-destino__qtd">×{formatarNumero(quantidade)}</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <p className="mu-destino__solta">Solte para pôr na mochila de {quem}</p>
+    </div>
   )
 }

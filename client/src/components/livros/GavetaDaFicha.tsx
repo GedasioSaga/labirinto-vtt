@@ -6,13 +6,16 @@ import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useMundoDoLivroStore, usePersonagensDoMundo } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
 import { FichaDePersonagemDialog } from '../FichaDePersonagemDialog'
+import { InventarioDaFicha } from '../InventarioDaFicha'
 import { gravarNoMundo, trocarFicha } from './comum'
 
 /**
  * "Abrir ficha" no mundo do livro: a MESMA janela de ficha do app
  * (`FichaDePersonagemDialog`), só que o Salvar grava pelo funil do mundo
  * (`mundoDoLivroStore.mudar`, que passa por `editarRpgDaPasta`). Sem tokens
- * para ligar: o mundo não tem cena aberta.
+ * para ligar: o mundo não tem cena aberta. O Inventário mostra a mochila da
+ * FICHA (a dona; o boneco só a espelha), só para ler: o que entra vem de
+ * "Itens, armas e habilidades".
  */
 
 // O aviso usa as mesmas partes que `sincronizarVariacoes` copia (`mexeuNoQueVemDoModelo`, lib/livros/combate.ts): mexer nelas some no próximo sincronismo.
@@ -62,6 +65,7 @@ export function GavetaDaFicha({ sistema, sistemaId }: GavetaDaFichaProps) {
       outrasFichas={personagens}
       tokens={[]}
       onLigarToken={() => undefined}
+      inventario={<InventarioDaFicha itens={personagem.mochila ?? []} vazio={`Nada na mochila de ${personagem.nome}. Ponha um item do acervo em Itens, armas e habilidades.`} />}
       onAjustar={
         sistema === undefined
           ? undefined
