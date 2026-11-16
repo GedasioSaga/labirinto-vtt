@@ -129,9 +129,9 @@ export function clampToMaxStep(map: StepMap, from: Point, to: Point, max: number
  * máximo. Traçado com a MESMA régua do corte (raio a raio, até onde a ficha
  * pararia): na régua de tabuleiro sai um quadrado, na euclidiana um círculo —
  * nunca um círculo que promete um canto que a régua não deixa alcançar.
+ * `max`: o passo desta ficha (`passoMaximoDaFicha`, o do Lento); ausente = o da cena.
  */
-export function reachOutline(map: StepMap, from: Point): Point[] | null {
-  const max = maxStepOf(map)
+export function reachOutline(map: StepMap, from: Point, max: number | null = maxStepOf(map)): Point[] | null {
   if (max === null || map.grid <= 0) return null
   // Longe o bastante para toda régua passar do limite: a de tabuleiro conta
   // no mínimo 1/√2 da distância reta, então 2x o passo sempre sobra.

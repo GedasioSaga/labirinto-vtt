@@ -9,7 +9,7 @@
  */
 import type { MapData } from '../types/map'
 import type { Point } from '../pixi/world'
-import { clampToMaxStep } from '../lib/movementRules'
+import { clampToMaxStep, maxStepOf, passoMaximoDaFicha } from '../lib/movementRules'
 import { rotuloDeQuadradosAndados } from '../lib/tokenDragDistance'
 
 export interface TokenDragPreview {
@@ -21,7 +21,12 @@ export interface TokenDragPreview {
 
 type DragMap = Pick<MapData, 'grid' | 'gridShape' | 'measurementMode' | 'movement'>
 
-export function previewTokenDrag(map: DragMap, origin: Point, wanted: Point): TokenDragPreview {
-  const at = clampToMaxStep(map, origin, wanted)
+/**
+ * `ficha`: a ficha arrastada, como a tela a recebeu. Com a pastilha "Lento"
+ * (Fase 3), o alcance é a METADE do passo da cena (`passoMaximoDaFicha`), o
+ * mesmo corte que o host faz ao soltar. Ausente = o passo da cena.
+ */
+export function previewTokenDrag(map: DragMap, origin: Point, wanted: Point, ficha?: { conditions?: unknown }): TokenDragPreview {
+  const at = clampToMaxStep(map, origin, wanted, ficha === undefined ? maxStepOf(map) : passoMaximoDaFicha(map, ficha))
   return { at, label: rotuloDeQuadradosAndados(origin, at, map.grid, map.gridShape, map.measurementMode) }
 }
