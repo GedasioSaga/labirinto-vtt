@@ -70,6 +70,14 @@ export interface StairFlight {
   along: Point
   /** Unitário atravessando o lance (`along` girado 90 graus). */
   across: Point
+  /**
+   * ESCADA COM MATERIAL (`drawStairs.ts`): a borda do pé e a linha onde os
+   * degraus acabam (o começo do patamar, ou a moldura do topo), as duas de
+   * moldura a moldura como um degrau. Entre elas e os `treads` ficam as faixas
+   * de cada degrau. `null` quando o lance não tem miolo.
+   */
+  pe: [Point, Point] | null
+  fimDosDegraus: [Point, Point] | null
 }
 
 /** Profundidade do patamar: um degrau de largura, sem passar de um quarto do lance. */
@@ -264,7 +272,7 @@ export function planStairFlight(
   const innerU1 = u1 - frameWidth
   const innerV0 = v0 + frameWidth
   const innerV1 = v1 - frameWidth
-  if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null }
+  if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null, pe: null, fimDosDegraus: null }
 
   const run = topLanding ? length - landingDepth(length, width) : length
   const landingStart = Math.min(Math.max(snapU(run), innerU0), innerU1 - 1 / pxPerWorld)
@@ -282,7 +290,8 @@ export function planStairFlight(
     snapU,
   })
   const treads = starts.map((start): [Point, Point] => [at(start + treadWidth / 2, innerV0), at(start + treadWidth / 2, innerV1)])
-  return { ...base, treads, landing }
+  const fim = landing === null ? innerU1 : landingStart
+  return { ...base, treads, landing, pe: [at(innerU0, innerV0), at(innerU0, innerV1)], fimDosDegraus: [at(fim, innerV0), at(fim, innerV1)] }
 }
 
 /** Flecha máxima, em px físicos, entre o arco da escada curva e as cordas que o desenham. */
@@ -311,6 +320,9 @@ export interface CurvedStairFlight {
   treadWidth: number
   landing: Point[] | null
   center: Point
+  /** Como no lance reto (`StairFlight.pe`): a borda do pé e onde os degraus acabam; `null` sem miolo. */
+  pe: [Point, Point] | null
+  fimDosDegraus: [Point, Point] | null
   /** Raio da linha do meio. */
   radius: number
   halfWidth: number
@@ -404,7 +416,7 @@ export function planCurvedStairFlight(
   const innerU1 = length - frameWidth
   const innerV0 = -halfWidth + frameWidth
   const innerV1 = halfWidth - frameWidth
-  if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null }
+  if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null, pe: null, fimDosDegraus: null }
 
   const run = length - landingDepth(length, width)
   const landingStart = Math.min(Math.max(run, innerU0), innerU1 - 1 / pxPerWorld)
@@ -423,7 +435,8 @@ export function planCurvedStairFlight(
     innerGapScale: Math.max(0, radius - halfWidth) / radius,
   })
   const treads = starts.map((start): [Point, Point] => [at(start + treadWidth / 2, innerV0), at(start + treadWidth / 2, innerV1)])
-  return { ...base, treads, landing }
+  const fim = landing === null ? innerU1 : landingStart
+  return { ...base, treads, landing, pe: [at(innerU0, innerV0), at(innerU0, innerV1)], fimDosDegraus: [at(fim, innerV0), at(fim, innerV1)] }
 }
 
 /**

@@ -30,6 +30,7 @@ import type { RoomLabelStylePatch } from '../lib/roomLabelStyle'
 import type { AparenciaDoMovelPatch } from '../lib/mobilia'
 import { paintRevealBrush as paintRevealBrushOnMap, type RevealBrushMode, type RevealBrushWidth } from '../lib/concealBrush'
 import * as mapFactory from '../lib/mapFactory'
+import { mudarMaterialDaEscada, type MudancaDoMaterialDaEscada } from '../lib/materialDaEscada'
 import { estiloDoMapa, type EstiloVisual } from '../lib/estiloDoMapa'
 import { MATERIAL_PADRAO } from '../texturas/paredes/catalogo'
 import { areaFechadaPorParedes, inserirPinturaDeBalde, type BrushMode } from '../lib/baldeDeTinta'
@@ -1371,6 +1372,8 @@ interface MapStoreState {
   setStairDirection: (id: string, direction: StairDirection) => void
   /** "Reta" / "Espiral" da escada selecionada, com desfazer. */
   setStairShape: (id: string, shape: StairShape) => void
+  /** ESCADA COM MATERIAL (16/11/2026): "Só linhas" / "Com textura", o material, o tom e os feitios. Um Ctrl+Z por clique. */
+  setStairMaterial: (id: string, mudanca: MudancaDoMaterialDaEscada) => void
   /** PISOS NA MESMA CENA: o mestre põe a ficha em outro piso. Com histórico; nada muda, nenhuma entrada. */
   setTokenPiso: (id: string, piso: number) => void
   /** PISOS NA MESMA CENA: o piso da escada e/ou o piso a que ela leva (`null` = enfeite). Com histórico. */
@@ -3241,6 +3244,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     ),
     setStairDirection: (id, direction) => withHistory((map) => mapFactory.setStairDirection(map, id, direction)),
     setStairShape: (id, shape) => withHistory((map) => mapFactory.setStairShape(map, id, shape)),
+    setStairMaterial: (id, mudanca) => withHistory((map) => mudarMaterialDaEscada(map, id, mudanca)),
     // O editor vai junto com a ficha ou a escada que saiu do piso em edição:
     // sem isso ela sumia da tela e continuava selecionada, no painel.
     setTokenPiso: (id, piso) => {

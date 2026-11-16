@@ -9,6 +9,7 @@ import { Acoes, Botao } from './grimorio/Botao'
 import { CampoFaixa } from './grimorio/CampoFaixa'
 import { CampoNum } from './grimorio/CampoNum'
 import { CampoSeg, type OpcaoDoSeg } from './grimorio/CampoSeg'
+import { AcabamentoDaEscada, type AcabamentoDaEscadaProps } from './AcabamentoDaEscada'
 
 export type { StairTravelProps }
 
@@ -43,6 +44,12 @@ export interface StairControlsProps {
    * sem o campo (quem monta o painel sem essa ligação).
    */
   giro?: StairGiroProps
+  /**
+   * Material da escada SELECIONADA (pedido de 16/11/2026: "a opção da escada
+   * ter textura que nem a parede"). Ausente = sem o campo (quem monta o painel
+   * sem essa ligação).
+   */
+  acabamento?: AcabamentoDaEscadaProps
 }
 
 export interface StairGiroProps {
@@ -464,6 +471,7 @@ export function StairControls({
   travel,
   tamanho,
   giro,
+  acabamento,
   parte,
 }: StairControlsProps & {
   /**
@@ -545,6 +553,9 @@ export function StairControls({
 
       {/* Rotação (pedido de 12/11/2026): na reta e na espiral, onde girar leva a boca pela volta do círculo. */}
       {giro !== undefined && <CampoDeGiro {...giro} />}
+
+      {/* Material (16/11/2026): por último, porque é acabamento; Sentido, Forma e tamanho dizem o que a escada é. */}
+      {acabamento !== undefined && <AcabamentoDaEscada {...acabamento} />}
     </>
   )
   if (parte === 'essencial') return campos

@@ -1,0 +1,22 @@
+/* ACABAMENTO DA ESCADA (AcabamentoDaEscada): o "Só linhas" / "Com textura" com
+   a frase logo embaixo, colada no seletor como a dica do Grimório, e a grade
+   dos materiais com a amostra de cada um. */
+.lb-escada-acabamento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  min-width: 0;
+}
+
+.lb-escada-acabamento > .lb-field__hint {
+  margin: 0;
+}
+
+/* A amostra é uma escadinha vista de cima, do pé (esquerda) ao patamar
+   (direita), desenhada a 240 x 48 para a tela de densidade 2: aqui ela ocupa
+   a tira inteira em 120 x 24, sem repetir e sem cortar o patamar. */
+.lb-amostra-escada {
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: 0 0;
+}

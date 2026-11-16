@@ -2279,7 +2279,31 @@ export interface Stair extends PlayerSecret, NoPiso, NaCamada {
    *  tela/modo jogador, então essa promessa não existe. `undefined` === false
    *  (visível, comportamento idêntico ao de hoje) — sem linha de migração. */
   hidden?: boolean
+  /**
+   * ESCADA COM MATERIAL (pedido de 16/11/2026: "a opção da escada ter textura
+   * que nem a parede"): cada degrau pintado com a matéria do material
+   * (`lib/materialDaEscada.ts`, `pixi/drawStairs.ts`). Ausente = "Só linhas",
+   * a escada de sempre — mapa salvo antes abre igual, sem migração. Valor que
+   * esta versão não conhece cai fora ao abrir (`limparMaterialDaEscada`).
+   */
+  material?: MaterialDaEscada
+  /** Só vale com `material: 'madeira'`: o tom da madeira, os mesmos da mobília. Ausente = carvalho. */
+  tom?: TomDaMadeiraDaEscada
+  /**
+   * Só vale com `material: 'metal'`. Campo próprio (e não um "variante" único)
+   * para trocar para pedra e voltar trazer o metal de antes. Ausente = nova.
+   */
+  estadoDoMetal?: EstadoDoMetalDaEscada
+  /** Só vale com `material: 'pedra'`, pelo mesmo motivo. Ausente = cascalho. */
+  feitioDaPedra?: FeitioDaPedraDaEscada
 }
+
+/** Os materiais da escada, na ordem do pedido do mestre. */
+export type MaterialDaEscada = 'madeira' | 'metal' | 'pedra' | 'ceramica' | 'tijolo'
+/** Os tons da madeira da escada: os ids das madeiras da mobília (`texturas/meioTermo/materiais.ts`). */
+export type TomDaMadeiraDaEscada = 'carvalho' | 'nogueira' | 'pinho' | 'cerejeira' | 'velha'
+export type EstadoDoMetalDaEscada = 'nova' | 'enferrujada'
+export type FeitioDaPedraDaEscada = 'cascalho' | 'pedregulhos'
 
 /**
  * Chão construído por peças geométricas (etapa 1 do plano "chão por peças").

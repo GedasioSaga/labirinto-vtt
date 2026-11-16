@@ -133,6 +133,7 @@ import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogado
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
 import { pinWithCabin, readCabin } from './cabins'
+import { limparMaterialDaEscada } from './materialDaEscada'
 
 /** Chão de mapa NOVO: marrom chapado do minimapa do Resident Evil 4 (15/09/2026). */
 export const DEFAULT_FLOOR_STYLE: FloorStyle = { fillColor: '#a8776a', strokeColor: null, strokeWidth: 1 }
@@ -1093,7 +1094,8 @@ function deserializeMapFields(json: string): MapData {
       propComConteudoDoArquivo(lerTapaVisao(lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })))))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
-    stairs: entityList(parsed.stairs).map((s) => semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) })),
+    // ESCADA COM MATERIAL (16/11/2026): material, tom ou feitio que esta versão não conhece caem fora (a escada sai como linha).
+    stairs: entityList(parsed.stairs).map((s) => limparMaterialDaEscada(semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) }))),
     // MUDA de cru para .map(): PONTO DE MAIOR RISCO DE TODA A MIGRAÇÃO.
     // 0.5/0 é o alpha que drawDrawings.ts:50 já aplicava (filled ? 0.5 : 0);
     // sem esta linha, alpha: undefined vira 1 no Pixi e TODO círculo

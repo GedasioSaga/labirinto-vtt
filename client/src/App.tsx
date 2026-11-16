@@ -4736,6 +4736,11 @@ function App() {
                 selectedStair === null
                   ? undefined
                   : { degrees: stairRotationOf(selectedStair), onRotate: (delta) => useMapStore.getState().rotateStair(selectedStair.id, delta) },
+              // Material da escada já colocada ("Só linhas" / "Com textura", o material, a cor e o feitio), um Ctrl+Z por clique.
+              acabamento:
+                selectedStair === null
+                  ? undefined
+                  : { escada: selectedStair, onChange: (mudanca) => useMapStore.getState().setStairMaterial(selectedStair.id, mudanca) },
               // "Leva a…": `null` sem escada selecionada ou fora de uma aventura (a seção some).
               travel: selectedStair === null ? null : stairTravelPanel({ adventure, activeSceneId, cache: sceneCache }, map, selectedStair),
             }}

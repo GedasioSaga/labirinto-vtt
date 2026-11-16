@@ -19,6 +19,8 @@ import {
 } from './stairFlight'
 import type { Point } from './world'
 import { selectionOutlineWidth } from './drawWalls'
+import { aparenciaDaEscada, type AparenciaDaEscada } from '../lib/materialDaEscada'
+import { pintarDegrausComMaterial, type LanceComMaterial } from './degrausComMaterial'
 
 /** Degrau, moldura e contorno da espiral: logo abaixo da parede (que é alpha 1). É escada, não parede. */
 export const STAIR_RAIL_ALPHA = 0.85
@@ -131,9 +133,141 @@ export function drawStairs(
     }
   }
 
-  for (const entry of planned.flatMap((item) => item.flights)) paintFlight(graphics, entry.flight, opacity)
-  for (const { stair, plano } of folded) paintFolded(graphics, stair, plano, cameraScale, rendererResolution, opacity)
-  for (const { plan } of spirals) paintSpiral(graphics, plan, cameraScale, rendererResolution, opacity)
+  // ESCADA COM MATERIAL (16/11/2026): `aparenciaDaEscada` null = "Só linhas", o desenho de sempre, na mesma ordem.
+  for (const { stair, flights } of planned) {
+    const aparencia = aparenciaDaEscada(stair)
+    if (aparencia === null) for (const entry of flights) paintFlight(graphics, entry.flight, opacity)
+    else paintFlightsComMaterial(graphics, flights, aparencia, cameraScale, rendererResolution, opacity)
+  }
+  for (const { stair, plano } of folded) {
+    const aparencia = aparenciaDaEscada(stair)
+    if (aparencia === null) paintFolded(graphics, stair, plano, cameraScale, rendererResolution, opacity)
+    else paintFoldedComMaterial(graphics, stair, plano, aparencia, cameraScale, rendererResolution, opacity)
+  }
+  for (const { stair, plan } of spirals) {
+    const aparencia = aparenciaDaEscada(stair)
+    if (aparencia === null) paintSpiral(graphics, plan, cameraScale, rendererResolution, opacity)
+    else paintSpiralComMaterial(graphics, plan, aparencia, cameraScale, rendererResolution, opacity)
+  }
+}
+
+/**
+ * A ESCADA COM MATERIAL nas mesmas peças do desenho de linhas: a PLACA na cor
+ * do contorno do material (o que sobra dela em volta dos degraus é a borda),
+ * os DEGRAUS e o PATAMAR com a matéria (`degrausComMaterial.ts`) e a MOLDURA
+ * na cor do contorno, 1 px de tela como a de linhas. Opaca: é chão construído,
+ * não o chão um tom mais escuro.
+ */
+function paintFlightsComMaterial(
+  graphics: Graphics,
+  flights: readonly PlannedFlight[],
+  aparencia: AparenciaDaEscada,
+  cameraScale: number,
+  rendererResolution: number,
+  opacity: number,
+): void {
+  const [primeiro] = flights
+  if (primeiro === undefined) return
+  for (const { flight } of flights) graphics.poly(flight.plate, true)
+  graphics.fill({ color: aparencia.contorno, alpha: opacity })
+  const lances = flights.map(({ flight, curved }): LanceComMaterial => ({
+    linhas: linhasDoLance(flight),
+    centro: curved ? flight.center : null,
+    patamares: flight.landing === null ? [] : [flight.landing],
+  }))
+  const pxPerWorld = positiveOr(cameraScale, 1) * positiveOr(rendererResolution, 1)
+  pintarDegrausComMaterial(graphics, lances, aparencia, primeiro.flight.treadWidth, pxPerWorld, opacity)
+  for (const { flight } of flights) {
+    graphics.poly(flight.frame, true)
+    graphics.stroke({ width: flight.frameWidth, color: aparencia.contorno, alpha: opacity, join: 'miter' })
+  }
+}
+
+/** Do pé ao fim dos degraus: a borda do pé, cada degrau e onde os degraus acabam. Lance sem miolo: nenhuma. */
+function linhasDoLance(flight: Pick<StairFlight, 'pe' | 'fimDosDegraus' | 'treads'>): [Point, Point][] {
+  if (flight.pe === null || flight.fimDosDegraus === null) return []
+  return [flight.pe, ...flight.treads, flight.fimDosDegraus]
+}
+
+/** A L e a U com material: uma peça só, como no desenho de linhas; o patamar da volta segue o lance que chega nele. */
+function paintFoldedComMaterial(
+  graphics: Graphics,
+  stair: Stair,
+  plano: PlanoDaEscadaDobrada,
+  aparencia: AparenciaDaEscada,
+  cameraScale: number,
+  rendererResolution: number,
+  opacity: number,
+): void {
+  const scale = positiveOr(cameraScale, 1)
+  const resolution = positiveOr(rendererResolution, 1)
+  const frameWidth = strokeWidthInWorld(pixelGrid(scale, resolution, STROKE_WEIGHT.hairline))
+  const lances = plano.lances.flatMap((lance) => {
+    const flight = planStairFlight(lance.segmento, stair.stepWidth, stair.direction, cameraScale, rendererResolution, lance.patamarNoTopo)
+    return flight === null ? [] : [{ flight, chegaNaVolta: !lance.patamarNoTopo }]
+  })
+
+  graphics.poly(plano.contorno(0), true)
+  graphics.fill({ color: aparencia.contorno, alpha: opacity })
+
+  let voltaPintada = false
+  const pecas = lances.map(({ flight, chegaNaVolta }): LanceComMaterial => {
+    const patamares: Point[][] = []
+    if (chegaNaVolta && !voltaPintada) {
+      patamares.push(plano.patamar(frameWidth))
+      voltaPintada = true
+    }
+    if (flight.landing !== null) patamares.push(flight.landing)
+    return { linhas: linhasDoLance(flight), centro: null, patamares }
+  })
+  // Sem lance que chegue na volta (braço curto demais), o patamar ainda é chão: vai com o primeiro lance.
+  if (!voltaPintada && pecas[0] !== undefined) pecas[0] = { ...pecas[0], patamares: [plano.patamar(frameWidth), ...pecas[0].patamares] }
+  const [primeiro] = lances
+  const treadWidth = primeiro?.flight.treadWidth ?? frameWidth
+  pintarDegrausComMaterial(graphics, pecas, aparencia, treadWidth, scale * resolution, opacity)
+
+  graphics.poly(plano.contorno(-frameWidth / 2), true)
+  if (plano.divisa !== null) tracePath(graphics, plano.divisa)
+  graphics.stroke({ width: frameWidth, color: aparencia.contorno, alpha: opacity, join: 'miter' })
+}
+
+/** A espiral com material: o disco na cor do contorno, os degraus em cunha do poste ao aro, o patamar e o poste cheio. */
+function paintSpiralComMaterial(
+  graphics: Graphics,
+  plan: SpiralPlan,
+  aparencia: AparenciaDaEscada,
+  cameraScale: number,
+  rendererResolution: number,
+  opacity: number,
+): void {
+  const scale = positiveOr(cameraScale, 1)
+  const resolution = positiveOr(rendererResolution, 1)
+  const pxPerWorld = scale * resolution
+  const lineWidth = strokeWidthInWorld(pixelGrid(scale, resolution, STROKE_WEIGHT.hairline))
+  const { center, radius, postRadius } = plan
+
+  graphics.circle(center.x, center.y, radius)
+  graphics.fill({ color: aparencia.contorno, alpha: opacity })
+
+  const inner = postRadius + lineWidth
+  const outer = radius - lineWidth
+  if (outer > inner) {
+    const treadPhysical = hairlinePhysicalWidth(treadScreenCss(scale), resolution)
+    const sweeps = pickSpiralTreads(plan, inner, outer, treadPhysical, pxPerWorld, resolution)
+    const raio = (sweep: number): [Point, Point] => [spiralPoint(plan, sweep, inner), spiralPoint(plan, sweep, outer)]
+    const lance: LanceComMaterial = {
+      linhas: [raio(0), ...sweeps.map(raio), raio(plan.climbSweep)],
+      centro: center,
+      patamares: [landingSector(plan, inner, outer, pxPerWorld)],
+    }
+    pintarDegrausComMaterial(graphics, [lance], aparencia, treadPhysical / pxPerWorld, pxPerWorld, opacity)
+  }
+
+  // O poste cheio, na cor do contorno: a coluna em volta da qual a escada gira.
+  graphics.circle(center.x, center.y, postRadius + lineWidth)
+  graphics.fill({ color: aparencia.contorno, alpha: opacity })
+  graphics.circle(center.x, center.y, radius - lineWidth / 2)
+  graphics.stroke({ width: lineWidth, color: aparencia.contorno, alpha: opacity })
 }
 
 /**
