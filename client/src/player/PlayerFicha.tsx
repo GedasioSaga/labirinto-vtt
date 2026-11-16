@@ -46,6 +46,15 @@ export interface PlayerFichaProps {
    * encostados nesse token. `undefined` = o token não está no mapa desta tela.
    */
   inventarioDe?: (personagemId: string) => InventarioDoJogador | undefined
+  /**
+   * SALA LAN: a ficha que a mesa manda não traz a mochila (`paraOFio`); a do
+   * jogador é a do boneco (`inventarioDe`), migrada a aventura ou não. A aba
+   * Itens conta esta, e a edição não a troca pela cópia vazia do rascunho. Sem
+   * o "Passar para a mochila": o Salvar do jogador não leva mochila
+   * (`partesMudadas`), e os cartões sairiam da aba sem chegar a ela. Ausente =
+   * a ficha traz a mochila (o site do Lobby).
+   */
+  mochilaNoBoneco?: boolean
   /** "Dar a…" um colega encostado: o mesmo pedido do "Comigo" (`item.give`). */
   onDarItem?: (itemId: string, toTokenId: string) => void
   /**
@@ -84,6 +93,9 @@ const ERRO_SEM_CONEXAO = 'Não deu para pedir agora: confira a conexão com a me
 const AVISO_AJUSTE_FALHOU = 'A mesa não confirmou o último ajuste: a ficha mostra o que ela tem.'
 
 const SEM_AJUSTES: readonly AjustePendente[] = []
+
+/** O boneco fora desta tela: na sala LAN não há mochila a mostrar (a da ficha não vem pelo fio). */
+const SEM_ITENS: readonly CarriedItem[] = []
 
 /** A ficha em edição: `base` é como ela estava quando a edição abriu (o "Salvar" manda só o que mudou desde ela). */
 interface Edicao {
@@ -131,6 +143,7 @@ export function PlayerFicha({
   livroDeRegras,
   onPedirLivro,
   inventarioDe,
+  mochilaNoBoneco = false,
   onDarItem,
   somenteLeitura = false,
   aoAbrirEdicao,
@@ -471,6 +484,9 @@ export function PlayerFicha({
                     />
                   )
                 }
+                // Na sala LAN a mochila é a do boneco, também na edição (o rascunho não a tem: `paraOFio`).
+                mochilaDoBoneco={mochilaNoBoneco ? (inventario?.itens ?? SEM_ITENS) : undefined}
+                podePassarParaAMochila={!mochilaNoBoneco}
               />
             </>
           )}

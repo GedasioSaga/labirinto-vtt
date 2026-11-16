@@ -6,7 +6,9 @@
  * token), e o "+ Adicionar" e o Salvar não apagam nada dele. Depois dela a
  * FICHA é a dona: a grade da edição é o rascunho, conta igual à aba, e o
  * Salvar guarda o que entrou com a janela aberta e o que o "Passar para a
- * mochila" pôs. Dados inventados.
+ * mochila" pôs; a grade da edição já mostra o que entrou. Com o boneco dono,
+ * o "Passar para a mochila" leva as vagas a ELE no Salvar (a cópia da ficha
+ * não muda), e o Desfazer e o Cancelar não deixam nada nele. Dados inventados.
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -112,6 +114,11 @@ function contas(): { aba: string; grade: string } {
   }
 }
 
+/** O nome de cada vaga da grade, na ordem. */
+function vagasDaGrade(): string[] {
+  return Array.from(document.body.querySelectorAll<HTMLButtonElement>('.lb-inv__vaga')).map((vaga) => vaga.title)
+}
+
 function digitar(input: HTMLInputElement, valor: string): void {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
   act(() => {
@@ -207,5 +214,56 @@ describe('a mochila na ficha do mestre durante a edição', () => {
     expect(mochilaDaFicha()).toEqual(['Poção x1', 'Balas de prata x2', 'Corda x1'])
     expect(mochilaDoBoneco()).toEqual(['Poção x1', 'Balas de prata x2', 'Corda x1'])
     expect(contas()).toEqual({ aba: '4', grade: '4' })
+  })
+
+  it('depois da migração: o item que chega com a janela em edição aparece na grade antes do Salvar', async () => {
+    const corda = { ...novoCartao('Item'), nome: 'Corda' }
+    await abrir(luffy({ mochila: [POCAO], abas: { ...luffy().abas, itens: [corda] } }), true, [POCAO])
+    abrirAFicha()
+    clicar('Editar')
+    clicar('Passar para a mochila')
+    act(() => {
+      expect(applyItemsInScene({ mochilas: [{ tokenId: 't_luffy', mochila: [POCAO, BALAS] }] })).toBe(true)
+    })
+    // O que a grade mostra é o que o Salvar vai deixar: a de agora (com as Balas) mais a Corda passada.
+    expect(contas()).toEqual({ aba: '4', grade: '4' })
+    expect(vagasDaGrade()).toEqual(['Poção', 'Balas de prata', 'Corda'])
+  })
+
+  it('antes da migração: o Passar para a mochila leva as vagas ao boneco no Salvar, e a cópia da ficha não muda', async () => {
+    const corda = { ...novoCartao('Item'), nome: 'Corda' }
+    await abrir(luffy({ abas: { ...luffy().abas, itens: [corda] } }), false, [BALAS])
+    abrirAFicha()
+    clicar('Editar')
+    expect(contas()).toEqual({ aba: '3', grade: '2' })
+
+    clicar('Passar para a mochila')
+    // A grade mostra o que o Salvar deixa na mochila DELE, e o boneco ainda não mudou (o Cancelar devolveria tudo).
+    expect(contas()).toEqual({ aba: '3', grade: '3' })
+    expect(mochilaDoBoneco()).toEqual(['Balas de prata x2'])
+
+    clicar('Salvar')
+    expect(mochilaDoBoneco()).toEqual(['Balas de prata x2', 'Corda x1'])
+    expect(mochilaDaFicha()).toEqual([])
+    expect(personagensAtivos(useAdventureStore.getState()).find((personagem) => personagem.id === 'p_luffy')?.abas.itens).toEqual([])
+    expect(contas()).toEqual({ aba: '3', grade: '3' })
+  })
+
+  it('antes da migração: o Desfazer e o Cancelar devolvem os cartões, e o boneco não recebe nada', async () => {
+    const corda = { ...novoCartao('Item'), nome: 'Corda' }
+    await abrir(luffy({ abas: { ...luffy().abas, itens: [corda] } }), false, [BALAS])
+    abrirAFicha()
+    clicar('Editar')
+    clicar('Passar para a mochila')
+    clicar('Desfazer')
+    expect(contas()).toEqual({ aba: '3', grade: '2' })
+    // Sem vaga esperando o Salvar, a grade volta a ser a do boneco, viva (o "+ Adicionar" dele).
+    expect(botao('+ Adicionar')).toBeDefined()
+
+    clicar('Passar para a mochila')
+    clicar('Cancelar')
+    expect(mochilaDoBoneco()).toEqual(['Balas de prata x2'])
+    expect(personagensAtivos(useAdventureStore.getState()).find((personagem) => personagem.id === 'p_luffy')?.abas.itens.map((cartao) => cartao.nome)).toEqual(['Corda'])
+    expect(contas()).toEqual({ aba: '3', grade: '2' })
   })
 })

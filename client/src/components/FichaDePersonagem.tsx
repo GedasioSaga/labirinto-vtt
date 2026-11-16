@@ -52,6 +52,10 @@ export interface FichaDePersonagemProps {
   inventario?: ReactNode
   /** A mochila do boneco quando ELE é o dono dela (antes da migração): a aba Itens conta esta e não troca o `inventario` pelo rascunho na edição (`FichaAbas`). */
   mochilaDoBoneco?: readonly CarriedItem[]
+  /** Na edição: o que o Salvar vai deixar na mochila do dono, para a aba Itens contar e mostrar (`FichaAbas`). Ausente = a do rascunho. */
+  mochilaDaEdicao?: readonly CarriedItem[]
+  /** O "Passar para a mochila" dos cartões antigos da aba Itens (`FichaAbas`). Padrão: com. */
+  podePassarParaAMochila?: boolean
   /** Construtor de mecânicas C2: quem monta a mecânica da técnica. O mestre grava; o dono propõe. Padrão: mestre. */
   quemEditaAMecanica?: QuemEditaAMecanica
   /**
@@ -67,7 +71,24 @@ export interface FichaDePersonagemProps {
   outrasFichas?: readonly Personagem[]
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, mochilaDoBoneco, quemEditaAMecanica, onRevelar, outrasFichas }: FichaDePersonagemProps) {
+export function FichaDePersonagem({
+  personagem,
+  sistema,
+  editando,
+  onChange,
+  escolherImagem,
+  tituloId,
+  tipoEditavel = true,
+  livro,
+  onAjustar,
+  inventario,
+  mochilaDoBoneco,
+  mochilaDaEdicao,
+  podePassarParaAMochila,
+  quemEditaAMecanica,
+  onRevelar,
+  outrasFichas,
+}: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
   const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS)
@@ -96,6 +117,8 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
           outrasFichas={outrasFichas}
           inventario={inventario}
           mochilaDoBoneco={mochilaDoBoneco}
+          mochilaDaEdicao={mochilaDaEdicao}
+          podePassarParaAMochila={podePassarParaAMochila}
         />
       </div>
     </div>

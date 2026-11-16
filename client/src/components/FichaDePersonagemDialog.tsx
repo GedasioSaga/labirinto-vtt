@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { Ajuste } from '../lib/ajusteDaFicha'
+import { mochilaDoSalvar, vagasNovasDaEdicao, type Ajuste } from '../lib/ajusteDaFicha'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import type { CarriedItem } from '../types/map'
@@ -50,6 +50,18 @@ export interface FichaDePersonagemDialogProps {
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'
+
+/**
+ * A mochila que a aba Itens mostra na edição: o que o Salvar vai deixar com o
+ * dono (`mochilaDoSalvar`). Com a FICHA dona, a de agora — o item que chegou
+ * por outro caminho com a janela aberta aparece já — mais as vagas desta
+ * edição. Com o BONECO dono, `undefined` (a grade dele, viva, com as ações)
+ * até o "Passar para a mochila" deixar vagas que o Salvar leva a ele.
+ */
+function mochilaNaEdicao(base: Personagem, rascunho: Personagem, daFicha: readonly CarriedItem[] | undefined, doBoneco: readonly CarriedItem[] | undefined): readonly CarriedItem[] | undefined {
+  if (doBoneco === undefined) return mochilaDoSalvar(base, rascunho, daFicha)
+  return vagasNovasDaEdicao(base, rascunho, doBoneco).length === 0 ? undefined : mochilaDoSalvar(base, rascunho, doBoneco)
+}
 
 /**
  * Janela da FICHA DE PERSONAGEM. Lê por padrão; "Editar" troca a mesma ficha
@@ -156,6 +168,7 @@ export function FichaDePersonagemDialog({
   }
 
   const mostrado = editando ? rascunho : personagem
+  const mochilaDaEdicao = editando ? mochilaNaEdicao(base, rascunho, personagem.mochila, mochilaDoBoneco) : undefined
   const ligadosAqui = tokens.filter((token) => token.personagemId === personagem.id)
 
   return createPortal(
@@ -266,6 +279,7 @@ export function FichaDePersonagemDialog({
               onAjustar={onAjustar}
               inventario={inventario}
               mochilaDoBoneco={mochilaDoBoneco}
+              mochilaDaEdicao={mochilaDaEdicao}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
               outrasFichas={outrasFichas}
             />

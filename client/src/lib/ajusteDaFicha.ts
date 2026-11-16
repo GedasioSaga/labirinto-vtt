@@ -529,10 +529,33 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
  * só o que é novo desde a `base` conta.
  */
 function mochilaSobreAAtual(base: Personagem, rascunho: Personagem, atual: Personagem): CarriedItem[] | undefined {
-  const idsDaBase = new Set((base.mochila ?? []).map((vaga) => vaga.id))
-  const idsDeAgora = new Set((atual.mochila ?? []).map((vaga) => vaga.id))
-  const novas = (rascunho.mochila ?? []).filter((vaga) => !idsDaBase.has(vaga.id) && !idsDeAgora.has(vaga.id))
+  const novas = vagasNovasDaEdicao(base, rascunho, atual.mochila)
   return novas.length === 0 ? atual.mochila : [...(atual.mochila ?? []), ...novas]
+}
+
+/**
+ * As vagas que o RASCUNHO ganhou nesta edição (o "Passar para a mochila") e
+ * que a mochila de AGORA do dono (`deAgora`: a da ficha, ou a do boneco antes
+ * da migração) ainda não tem, pelo id. A regra de `mochilaSobreAAtual`, à
+ * parte para quem leva as vagas ao boneco e para a grade da edição.
+ */
+export function vagasNovasDaEdicao(base: Personagem, rascunho: Personagem, deAgora: readonly CarriedItem[] | undefined): CarriedItem[] {
+  const idsDaBase = new Set((base.mochila ?? []).map((vaga) => vaga.id))
+  const idsDeAgora = new Set((deAgora ?? []).map((vaga) => vaga.id))
+  return (rascunho.mochila ?? []).filter((vaga) => !idsDaBase.has(vaga.id) && !idsDeAgora.has(vaga.id))
+}
+
+const MOCHILA_VAZIA: readonly CarriedItem[] = []
+
+/**
+ * O que o Salvar vai deixar na mochila do dono: a de AGORA (o item que chegou
+ * por outro caminho com a janela aberta, o pego do pino, o dado pelo Acervo)
+ * mais as vagas novas do rascunho. É o que a grade da edição mostra: sem isso,
+ * o item que chegou depois só aparecia depois do Salvar (pedido de 16/11/2026).
+ */
+export function mochilaDoSalvar(base: Personagem, rascunho: Personagem, deAgora: readonly CarriedItem[] | undefined): readonly CarriedItem[] {
+  const novas = vagasNovasDaEdicao(base, rascunho, deAgora)
+  return novas.length === 0 ? (deAgora ?? MOCHILA_VAZIA) : [...(deAgora ?? MOCHILA_VAZIA), ...novas]
 }
 
 /** A proposta de mecânica de cada cartão, pelo id, subcartões juntos. */

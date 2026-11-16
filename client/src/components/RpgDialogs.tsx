@@ -131,6 +131,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
     personagem === undefined
       ? undefined
       : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens, mochilaNaFicha)
+  // Antes da migração, com o boneco dono, o Salvar leva a ele as vagas que a edição pôs na mochila (`salvarComAsVagasNoBoneco`).
+  const salvarFicha = doMestre?.salvar ?? ((salvo: Personagem) => useAdventureStore.getState().salvarPersonagem(salvo))
 
   return (
     <>
@@ -143,7 +145,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
           sistema={sistema}
           sistemaId={sistemaId}
           editandoNoInicio={abrirEditando}
-          onSalvar={(salvo) => useAdventureStore.getState().salvarPersonagem(salvo)}
+          onSalvar={salvarFicha}
           onClose={() => useRpgStore.getState().fecharFicha()}
           escolherImagem={escolherImagemDaFicha}
           // "Trazer de outra ficha": as fichas da pasta (jogadores e NPCs, as mesmas dos Livros de regras).
@@ -249,6 +251,40 @@ interface InventarioDoMestre {
   inventario: ReactNode
   /** Antes da migração (`mochilaNaFicha` falso) com token ligado: a mochila dele, a que a aba conta e a edição não troca pelo rascunho. */
   mochilaDoBoneco?: readonly CarriedItem[]
+  /** Com `mochilaDoBoneco`: o Salvar da ficha que leva a ele as vagas novas da edição (`salvarComAsVagasNoBoneco`). */
+  salvar?: (salvo: Personagem) => boolean
+}
+
+/**
+ * O SALVAR DA FICHA com o BONECO dono da mochila (antes da migração): as vagas
+ * que a edição pôs na mochila — o "Passar para a mochila" — vão para a mochila
+ * DELE, pelo caminho dos itens, e a cópia da ficha fica como está (ninguém a
+ * vê). Antes os cartões saíam da aba e as vagas paravam na cópia: o item
+ * sumia. As vagas são as que o Salvar da janela juntou à mochila da ficha de
+ * agora (`salvarSobreOAtual`); a que o boneco já tem (mesmo id) não duplica.
+ * Primeiro o boneco: se ele não recebe, a ficha não grava e a janela segue na
+ * edição, com os cartões ainda no rascunho; se a ficha é recusada, as vagas
+ * saem dele de novo — nada fica nos dois lugares, nada some.
+ */
+function salvarComAsVagasNoBoneco(salvo: Personagem, dono: string, mochilaDoBoneco: () => CarriedItem[], gravarNoBoneco: (mochila: CarriedItem[]) => boolean): boolean {
+  const aventura = useAdventureStore.getState()
+  const daFicha = personagensAtivos(aventura).find((candidato) => candidato.id === salvo.id)
+  const idsDaFicha = new Set((daFicha?.mochila ?? []).map((vaga) => vaga.id))
+  const novas = (salvo.mochila ?? []).filter((vaga) => !idsDaFicha.has(vaga.id))
+  if (novas.length === 0) return aventura.salvarPersonagem(salvo)
+  const { mochila: _comAsVagas, ...semMochila } = salvo
+  const fichaComACopia: Personagem = daFicha?.mochila === undefined ? semMochila : { ...semMochila, mochila: daFicha.mochila }
+  const antes = mochilaDoBoneco()
+  const idsDoBoneco = new Set(antes.map((vaga) => vaga.id))
+  const entram = novas.filter((vaga) => !idsDoBoneco.has(vaga.id))
+  if (entram.length > 0 && !gravarNoBoneco([...antes, ...entram])) {
+    useToastStore.getState().push('error', `Não deu para pôr os itens na mochila de ${dono}: a ficha continua em edição.`)
+    return false
+  }
+  if (useAdventureStore.getState().salvarPersonagem(fichaComACopia)) return true
+  const idsQueEntraram = new Set(entram.map((vaga) => vaga.id))
+  if (idsQueEntraram.size > 0) gravarNoBoneco(mochilaDoBoneco().filter((vaga) => !idsQueEntraram.has(vaga.id)))
+  return false
 }
 
 /**
@@ -264,7 +300,17 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
   const achado = tokenDoPersonagem(world, personagemId)
   if (achado === null) return { inventario: mochilaDaFichaSemBoneco(personagem) }
   const { token, sceneId } = achado
-  const doBoneco = mochilaNaFicha ? {} : { mochilaDoBoneco: carriedItemsOf(token) }
+  const dono = token.name || 'o token'
+  // O "Editar", o "+ Adicionar" e o Salvar da ficha (pedido de 16/11/2026): pelo caminho dos itens do boneco, que leva à
+  // ficha (a dona, depois da migração) e espelha nas outras cenas, como o "Usar" abaixo. A de agora é a do boneco lido na hora.
+  const gravar = (mochila: CarriedItem[]) => aplicarItens !== undefined && aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
+  const mochilaDeAgora = () => {
+    const agora = tokenDoPersonagem(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map), personagemId)
+    return agora === null ? [] : carriedItemsOf(agora.token)
+  }
+  const doBoneco: Omit<InventarioDoMestre, 'inventario'> = mochilaNaFicha
+    ? {}
+    : { mochilaDoBoneco: carriedItemsOf(token), salvar: (salvo) => salvarComAsVagasNoBoneco(salvo, dono, mochilaDeAgora, gravar) }
   const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
     const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
     if (change !== null && aplicarItens?.(change) === true) fechar()
@@ -283,21 +329,14 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
     if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
-  if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
-  // O "Editar" e o "+ Adicionar" do mestre (pedido de 16/11/2026): pelo caminho dos itens do boneco, que leva à ficha
-  // (a dona) e espelha nas outras cenas, como o "Usar" acima. A mochila de agora é a do boneco lido de novo na hora.
-  const gravar = (mochila: CarriedItem[]) => aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
-  const mochilaDeAgora = () => {
-    const agora = tokenDoPersonagem(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map), personagemId)
-    return agora === null ? [] : carriedItemsOf(agora.token)
-  }
+  if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
   const inventario = (
     <MochilaDoMestre
       itens={carriedItemsOf(token)}
-      dono={token.name || 'o token'}
+      dono={dono}
       gravar={gravar}
       mochilaDeAgora={mochilaDeAgora}
-      vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`}
+      vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`}
       acoes={(item, fechar) => (
         <>
           {itemQueSeUsa(item) && (

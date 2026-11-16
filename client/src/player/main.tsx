@@ -2480,6 +2480,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             livroDeRegras={state.livroDeRegras}
             onPedirLivro={() => connection.pedirLivro()}
             inventarioDe={inventarioDoPersonagem}
+            // A sala LAN não manda a mochila da ficha (`paraOFio`): a do jogador é a do boneco.
+            mochilaNoBoneco
             onDarItem={(itemId, toTokenId) => void connection.giveItem(itemId, toTokenId)}
           />
         )}
