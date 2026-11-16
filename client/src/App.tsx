@@ -126,6 +126,7 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
+import { abrirOPreludioEmJanela, janelaDoPreludioAberta } from './preludio/janela/portaDaJanela'
 import { RoteiroNoLivro, usePaginasDoPreludioNoLivro } from './preludio/roteiro/RoteiroNoLivro'
 import { PAGINA_DOS_JOGOS, PaginaJogos, sessoesAoVivo } from './components/livro/PaginaJogos'
 import type { LigaCena } from './lib/preparo/tipos'
@@ -3426,7 +3427,12 @@ function App() {
           onLoad={() => setScreen('load-map')}
           onOptions={() => setScreen('options')}
           onRoleplay={() => setScreen('roleplay')}
-          onPreludio={() => setScreen('preludio')}
+          // Com o Prelúdio aberto em janela própria, a porta traz a janela: duas telas do Prelúdio editariam os mesmos verbetes.
+          onPreludio={() =>
+            janelaDoPreludioAberta()
+              ? abrirOPreludioEmJanela(null, { abrirNaMesa: abrirNaMesaPeloRoteiro, avisar: (texto) => useToastStore.getState().push('error', texto) })
+              : setScreen('preludio')
+          }
           onLivros={() => setScreen('livros')}
           recovery={
             recoveryCopy && {

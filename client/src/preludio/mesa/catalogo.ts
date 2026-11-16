@@ -1,5 +1,5 @@
-import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
+import { exists, readTextFile } from '../../lib/fsDaJanela'
 import { useMemo } from 'react'
 import { create } from 'zustand'
 import { ADVENTURE_FILE, parseAdventure, type SceneEntry } from '../../lib/adventure'

@@ -1,0 +1,87 @@
+/*
+ * A JANELA DO PRELÚDIO (P1): a faixa "Mesa" em cima (o protótipo aprovado de
+ * 15/11, `pr-mesa-agora`) e a tela do Prelúdio ocupando o resto.
+ */
+
+.pr-janela {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+.pr-janela__tela {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * A tela do Prelúdio nasceu para ocupar a janela inteira, com a barra do topo
+ * fixa no alto da janela: aqui, ela ocupa o que sobra embaixo da faixa, e a
+ * barra entra no fluxo (fixa, ela cobriria a faixa).
+ */
+.pr-janela__tela > .pr-tela {
+  width: 100%;
+  height: 100%;
+  padding-top: 0;
+}
+
+.pr-janela__tela > .pr-tela > .lb-appbar {
+  position: static;
+  flex: none;
+}
+
+.pr-mesa-agora {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 4px var(--lb-space-3) 4px var(--lb-space-4);
+  border-bottom: 1px solid var(--lb-gr-filete);
+  background: linear-gradient(180deg, #1b160f, #15110c);
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.pr-mesa-agora__ponto {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lb-color-online);
+  box-shadow: 0 0 0 3px var(--lb-color-online-soft);
+  transition: background-color var(--lb-motion-fast) ease;
+}
+
+.pr-mesa-agora__txt {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-mesa-agora__txt b {
+  color: var(--lb-color-parchment);
+  font-weight: 600;
+}
+
+.pr-mesa-agora__aviso {
+  flex: none;
+  max-width: 45%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lb-color-brass-bright);
+}
+
+/* A principal não responde (recarregou, ou fechou no navegador): o ponto apaga. */
+.pr-mesa-agora--longe .pr-mesa-agora__ponto {
+  background: var(--lb-color-parchment-faint);
+  box-shadow: none;
+}
+
+.pr-inicio__so-na-principal {
+  max-width: var(--pr-medida);
+}

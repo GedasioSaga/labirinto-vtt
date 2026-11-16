@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "preludio",
+  "description": "Janela do Prelúdio (src/janela_preludio.rs): só resolver caminho, ouvir evento e se fechar depois de gravar. Disco pelos comandos de src/preludio/disco_da_janela.rs (preparo/ para gravar; preparo/, maps/ e pastas/ para ler). Sem fs, dialog, emitir evento, updater nem process.",
+  "windows": ["preludio"],
+  "permissions": [
+    "core:path:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-destroy"
+  ]
+}

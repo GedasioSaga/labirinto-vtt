@@ -1,0 +1,231 @@
+import { SESSAO_DA_JANELA_VALIDA } from '../../lib/janelaDoPreludio'
+import { idDoPreparoValido } from '../../lib/preparo/disco'
+import { ehRegistro } from '../../lib/preparo/molde'
+import type { LigaCena } from '../../lib/preparo/tipos'
+
+/**
+ * O FIO ENTRE A MESA (janela principal) E A JANELA DO PRELÚDIO, P1 do estudo
+ * de 15/11 (`tmp/preludio-integrado-2026-11-15/ESTUDO.md` §3).
+ *
+ * Uma janela, um papel: a mesa é a única que mexe no mapa, no desfazer e nos
+ * jogadores. O Prelúdio PEDE, numa lista fechada; a mesa confere a forma de
+ * tudo, aplica ou recusa com o motivo. O canal é um BroadcastChannel com o
+ * nome da sessão (o segredo que só as duas janelas conhecem: a visão de
+ * jogador, na mesma origem, não sabe o nome e não ouve), e cada mensagem
+ * repete a sessão. Mensagem torta, de outra sessão ou de tipo desconhecido é
+ * ignorada sem efeito nenhum.
+ *
+ * Do Prelúdio para a mesa: `ola` (abri ou recarreguei), `ping`, `ir-a-mesa`
+ * (cena e pino, como os links do roteiro), `mudou` (gravei algo em preparo/) e
+ * `gravou` (resposta ao `salvar-agora`).
+ * Da mesa para o Prelúdio: `estado` (mapa, cena e pino selecionado), `pong`,
+ * `abrir-verbete` (o "Abrir no Prelúdio" do mapa), `resposta` (ao
+ * `ir-a-mesa`), `mudou` (o Livro do mestre revelou) e `salvar-agora` (a janela
+ * principal vai fechar).
+ */
+
+export const VERSAO_DO_FIO = 1
+
+/** O canal desta sessão. O nome é o segredo: só quem abriu a janela sabe. */
+export function nomeDoCanal(sessao: string): string {
+  return `labirinto-preludio:${sessao}`
+}
+
+/** Teto de um nome que a mesa mostra (mapa, cena, pino) e de um motivo. */
+const NOME_MAX = 200
+const MOTIVO_MAX = 500
+/** Teto de um id do mapa (chave da pasta, cena, pino). */
+const ID_DO_MAPA_MAX = 200
+
+/** O que o Prelúdio gravou em preparo/: a outra janela relê só isso. */
+export type MudancaNoPreparo = { readonly o: 'revelado'; readonly campanhaId: string } | { readonly o: 'verbete'; readonly id: string } | { readonly o: 'tempo' }
+
+export type AbaDoVerbete = 'roteiro' | 'quadro'
+
+/** O que está em jogo na mesa agora (a faixa "Mesa" do Prelúdio). */
+export interface EstadoDaMesa {
+  /** `null` = nenhum mapa aberto no editor. */
+  readonly mapa: { readonly nome: string } | null
+  readonly cena: { readonly id: string; readonly nome: string } | null
+  /** O pino selecionado no mapa, se um pino (e só ele) está selecionado. */
+  readonly pino: { readonly id: string; readonly nome: string } | null
+}
+
+export type PedidoDoPreludio =
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ola' }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ping'; readonly n: number }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ir-a-mesa'; readonly pedido: number; readonly alvo: LigaCena }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'mudou'; readonly mudanca: MudancaNoPreparo }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'gravou'; readonly pedido: number; readonly motivo: string | null }
+
+export type RecadoDaMesa =
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'estado'; readonly estado: EstadoDaMesa }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'pong'; readonly n: number }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'abrir-verbete'; readonly verbeteId: string; readonly aba: AbaDoVerbete | null }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'resposta'; readonly pedido: number; readonly ok: boolean; readonly motivo: string | null }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'mudou'; readonly mudanca: MudancaNoPreparo }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'salvar-agora'; readonly pedido: number }
+
+// Distributiva: tira os campos do envelope de cada membro da união.
+type SemEnvelope<M> = M extends unknown ? Omit<M, 'de' | 'v' | 'sessao'> : never
+export type CorpoDoPedido = SemEnvelope<PedidoDoPreludio>
+export type CorpoDoRecado = SemEnvelope<RecadoDaMesa>
+
+export function pedidoDoPreludio(sessao: string, corpo: CorpoDoPedido): PedidoDoPreludio {
+  return { ...corpo, de: 'preludio', v: VERSAO_DO_FIO, sessao } as PedidoDoPreludio
+}
+
+export function recadoDaMesa(sessao: string, corpo: CorpoDoRecado): RecadoDaMesa {
+  return { ...corpo, de: 'mesa', v: VERSAO_DO_FIO, sessao } as RecadoDaMesa
+}
+
+// ─── Conferência ─────────────────────────────────────────────────────────────
+
+function temControle(texto: string): boolean {
+  for (const letra of texto) {
+    const codigo = letra.codePointAt(0) ?? 0
+    if (codigo < 0x20 || codigo === 0x7f) return true
+  }
+  return false
+}
+
+/** Texto de mostrar: até `max` caracteres, sem caractere de controle. */
+function nomeValido(valor: unknown, max: number): valor is string {
+  return typeof valor === 'string' && valor.length <= max && !temControle(valor)
+}
+
+/** Id do mapa: não vazio (a cena pode ser '' no link antigo, ver `idDaCena`). */
+function idDoMapaValido(valor: unknown): valor is string {
+  return nomeValido(valor, ID_DO_MAPA_MAX) && valor !== ''
+}
+
+function numeroValido(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isSafeInteger(valor) && valor >= 0
+}
+
+/** `null` = sem motivo; `undefined` = motivo torto (a mensagem inteira é ignorada). */
+function lerMotivo(valor: unknown): string | null | undefined {
+  if (valor === null) return null
+  return nomeValido(valor, MOTIVO_MAX) ? valor : undefined
+}
+
+/** O envelope: lado certo, versão certa, sessão desta janela. */
+function envelopeValido(dado: unknown, de: 'preludio' | 'mesa', sessao: string): dado is Record<string, unknown> {
+  return ehRegistro(dado) && dado.de === de && dado.v === VERSAO_DO_FIO && typeof dado.sessao === 'string' && SESSAO_DA_JANELA_VALIDA.test(dado.sessao) && dado.sessao === sessao
+}
+
+function lerMudanca(valor: unknown): MudancaNoPreparo | null {
+  if (!ehRegistro(valor)) return null
+  if (valor.o === 'revelado') return idDoPreparoValido(valor.campanhaId) ? { o: 'revelado', campanhaId: valor.campanhaId } : null
+  if (valor.o === 'verbete') return idDoPreparoValido(valor.id) ? { o: 'verbete', id: valor.id } : null
+  if (valor.o === 'tempo') return { o: 'tempo' }
+  return null
+}
+
+/** O alvo de um link do roteiro: a mesa ainda confere se o mapa, a cena e o pino existem. */
+export function lerAlvoNaMesa(valor: unknown): LigaCena | null {
+  if (!ehRegistro(valor)) return null
+  const { chave, sceneId, pinoId } = valor
+  // `sceneId` vazio = o link de quando o mapa não tinha cenas (`irNaCena`).
+  if (!idDoMapaValido(chave) || !nomeValido(sceneId, ID_DO_MAPA_MAX)) return null
+  if (pinoId === undefined) return { chave, sceneId }
+  return idDoMapaValido(pinoId) ? { chave, sceneId, pinoId } : null
+}
+
+/** A mesa lê o que veio do Prelúdio. `null` = ignorar. */
+export function lerPedidoDoPreludio(dado: unknown, sessao: string): PedidoDoPreludio | null {
+  if (!envelopeValido(dado, 'preludio', sessao)) return null
+  const envelope = { de: 'preludio', v: VERSAO_DO_FIO, sessao } as const
+  switch (dado.tipo) {
+    case 'ola':
+      return { ...envelope, tipo: 'ola' }
+    case 'ping':
+      return numeroValido(dado.n) ? { ...envelope, tipo: 'ping', n: dado.n } : null
+    case 'ir-a-mesa': {
+      const alvo = lerAlvoNaMesa(dado.alvo)
+      return alvo !== null && numeroValido(dado.pedido) ? { ...envelope, tipo: 'ir-a-mesa', pedido: dado.pedido, alvo } : null
+    }
+    case 'mudou': {
+      const mudanca = lerMudanca(dado.mudanca)
+      return mudanca === null ? null : { ...envelope, tipo: 'mudou', mudanca }
+    }
+    case 'gravou': {
+      const motivo = lerMotivo(dado.motivo)
+      return motivo === undefined || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'gravou', pedido: dado.pedido, motivo }
+    }
+    default:
+      return null
+  }
+}
+
+function lerEstado(valor: unknown): EstadoDaMesa | null {
+  if (!ehRegistro(valor)) return null
+  const { mapa, cena, pino } = valor
+  let mapaLido: EstadoDaMesa['mapa'] = null
+  if (mapa !== null) {
+    if (!ehRegistro(mapa) || !nomeValido(mapa.nome, NOME_MAX)) return null
+    mapaLido = { nome: mapa.nome }
+  }
+  let cenaLida: EstadoDaMesa['cena'] = null
+  if (cena !== null) {
+    if (!ehRegistro(cena) || !idDoMapaValido(cena.id) || !nomeValido(cena.nome, NOME_MAX)) return null
+    cenaLida = { id: cena.id, nome: cena.nome }
+  }
+  let pinoLido: EstadoDaMesa['pino'] = null
+  if (pino !== null) {
+    if (!ehRegistro(pino) || !idDoMapaValido(pino.id) || !nomeValido(pino.nome, NOME_MAX)) return null
+    pinoLido = { id: pino.id, nome: pino.nome }
+  }
+  return { mapa: mapaLido, cena: cenaLida, pino: pinoLido }
+}
+
+/** O Prelúdio lê o que veio da mesa. `null` = ignorar. */
+export function lerRecadoDaMesa(dado: unknown, sessao: string): RecadoDaMesa | null {
+  if (!envelopeValido(dado, 'mesa', sessao)) return null
+  const envelope = { de: 'mesa', v: VERSAO_DO_FIO, sessao } as const
+  switch (dado.tipo) {
+    case 'estado': {
+      const estado = lerEstado(dado.estado)
+      return estado === null ? null : { ...envelope, tipo: 'estado', estado }
+    }
+    case 'pong':
+      return numeroValido(dado.n) ? { ...envelope, tipo: 'pong', n: dado.n } : null
+    case 'abrir-verbete': {
+      if (!idDoPreparoValido(dado.verbeteId)) return null
+      const aba = dado.aba === 'roteiro' || dado.aba === 'quadro' ? dado.aba : dado.aba === null ? null : undefined
+      return aba === undefined ? null : { ...envelope, tipo: 'abrir-verbete', verbeteId: dado.verbeteId, aba }
+    }
+    case 'resposta': {
+      const motivo = lerMotivo(dado.motivo)
+      if (motivo === undefined || !numeroValido(dado.pedido) || typeof dado.ok !== 'boolean') return null
+      return { ...envelope, tipo: 'resposta', pedido: dado.pedido, ok: dado.ok, motivo }
+    }
+    case 'mudou': {
+      const mudanca = lerMudanca(dado.mudanca)
+      return mudanca === null ? null : { ...envelope, tipo: 'mudou', mudanca }
+    }
+    case 'salvar-agora':
+      return numeroValido(dado.pedido) ? { ...envelope, tipo: 'salvar-agora', pedido: dado.pedido } : null
+    default:
+      return null
+  }
+}
+
+function limparParaOFio(texto: string, max: number): string {
+  let limpo = ''
+  for (const letra of texto) {
+    const codigo = letra.codePointAt(0) ?? 0
+    limpo += codigo < 0x20 || codigo === 0x7f ? ' ' : letra
+  }
+  return limpo.length > max ? `${limpo.slice(0, max - 1)}…` : limpo
+}
+
+/** Nome de mostrar no teto do fio (quem manda corta; quem recebe recusa o que passar). */
+export function nomeParaOFio(nome: string): string {
+  return limparParaOFio(nome, NOME_MAX)
+}
+
+/** Motivo no teto do fio. */
+export function motivoParaOFio(motivo: string): string {
+  return limparParaOFio(motivo, MOTIVO_MAX)
+}

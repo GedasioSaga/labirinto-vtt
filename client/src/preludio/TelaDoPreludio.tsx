@@ -27,7 +27,15 @@ interface TelaDoPreludioProps {
   onBack: () => void
   /** Abre o mapa do link na cena e no pino (o App sabe trocar de mapa); sem ela, o link de cena só não abre. */
   aoAbrirNaMesa?: (alvo: LigaCena) => void
+  /**
+   * PRELÚDIO EM JANELA PRÓPRIA (P1): não há menu para onde voltar, e importar do
+   * Grimório e a cópia no Google Drive ficam no Prelúdio da janela principal
+   * (a janela do Prelúdio não tem esses comandos nem o plugin de arquivos).
+   */
+  naJanela?: boolean
 }
+
+const SO_NA_PRINCIPAL = 'Importar do Grimório e a cópia no Google Drive ficam no Prelúdio da janela principal do Labirinto.'
 
 const NADA_AINDA =
   'Nada preparado ainda. Aqui moram a Enciclopédia (personagens, lugares, itens, facções) e a Escrita das campanhas; dá para começar importando as campanhas do Grimório, logo abaixo.'
@@ -76,9 +84,10 @@ interface InicioProps {
   aoRestaurar: (restaurando: boolean) => void
   pedidoDeCopia: number
   aoPedirCopia: () => void
+  naJanela: boolean
 }
 
-function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCopia }: InicioProps) {
+function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCopia, naJanela }: InicioProps) {
   const carga = usePreludio((estado) => estado.carga)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const total = usePreludio((estado) => estado.verbetes.size)
@@ -121,28 +130,34 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
           )}
         </section>
       )}
-      <PainelDaImportacao
-        onAplicado={() => {
-          // A importação traz a tabela de mídia nova: o próximo quadro aberto a relê.
-          esquecerTabelaDeMidia()
-          void carregar()
-        }}
-        onPedirCopia={aoPedirCopia}
-        onGravando={aoImportar}
-      />
-      <PainelDaCopia
-        pedidoDeCopia={pedidoDeCopia}
-        travado={importando}
-        antesDeRestaurar={() => {
-          aoRestaurar(true)
-          return antesDeRestaurar()
-        }}
-        depoisDeRestaurar={async (restaurou) => {
-          if (restaurou) esquecerTabelaDeMidia()
-          await depoisDeRestaurar(restaurou)
-          aoRestaurar(false)
-        }}
-      />
+      {naJanela ? (
+        <p className="pr-quieto pr-inicio__so-na-principal">{SO_NA_PRINCIPAL}</p>
+      ) : (
+        <>
+          <PainelDaImportacao
+            onAplicado={() => {
+              // A importação traz a tabela de mídia nova: o próximo quadro aberto a relê.
+              esquecerTabelaDeMidia()
+              void carregar()
+            }}
+            onPedirCopia={aoPedirCopia}
+            onGravando={aoImportar}
+          />
+          <PainelDaCopia
+            pedidoDeCopia={pedidoDeCopia}
+            travado={importando}
+            antesDeRestaurar={() => {
+              aoRestaurar(true)
+              return antesDeRestaurar()
+            }}
+            depoisDeRestaurar={async (restaurou) => {
+              if (restaurou) esquecerTabelaDeMidia()
+              await depoisDeRestaurar(restaurou)
+              aoRestaurar(false)
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }
@@ -153,7 +168,7 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
  * cópia diária ao abrir), as Sessões, os Quadros, a Enciclopédia e a Escrita. Ctrl+K
  * busca em tudo.
  */
-export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
+export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: TelaDoPreludioProps) {
   const carga = usePreludio((estado) => estado.carga)
   const lugar = usePreludio((estado) => estado.lugar)
   const verbetes = usePreludio((estado) => estado.verbetes)
@@ -233,14 +248,14 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
         setBuscando(true)
         return
       }
-      // Esc volta ao menu só no Início, como nas outras telas de menu; nas outras seções ele é do texto e das janelas.
-      if (evento.key === 'Escape' && !evento.defaultPrevented && lugar.secao === 'inicio' && !buscando && !gravando && !emCampoDeTexto(evento.target) && document.querySelector('[role="dialog"]') === null) {
+      // Esc volta ao menu só no Início, como nas outras telas de menu; nas outras seções ele é do texto e das janelas. Na janela própria não há menu.
+      if (evento.key === 'Escape' && !naJanela && !evento.defaultPrevented && lugar.secao === 'inicio' && !buscando && !gravando && !emCampoDeTexto(evento.target) && document.querySelector('[role="dialog"]') === null) {
         void sair()
       }
     }
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
-  }, [carga.t, lugar.secao, buscando, gravando, sair])
+  }, [carga.t, lugar.secao, buscando, gravando, sair, naJanela])
 
   const trilha = trilhaDe(
     lugar,
@@ -272,7 +287,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
       </div>
       <div className="pr-corpo">
         <Lado
-          aoVoltar={gravando ? undefined : () => void sair()}
+          aoVoltar={gravando || naJanela ? undefined : () => void sair()}
           aoBuscar={() => setBuscando(true)}
           saida={pedindoSaida && naoSalvou && !gravando ? { aoSair: onBack, aoFicar: () => setPedindoSaida(false) } : undefined}
         />
@@ -285,6 +300,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa }: TelaDoPreludioProps) {
               aoRestaurar={setRestaurando}
               pedidoDeCopia={pedidoDeCopia}
               aoPedirCopia={() => setPedidoDeCopia((anterior) => anterior + 1)}
+              naJanela={naJanela}
             />
           </div>
           {lugar.secao === 'inicio' ? null : carga.t !== 'pronta' ? (

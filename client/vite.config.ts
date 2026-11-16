@@ -122,9 +122,10 @@ export default defineConfig({
     // repo continuar sendo workspace npm).
     fs: { allow: [searchForWorkspaceRoot(PASTA_DO_CLIENT), PASTA_DO_DESENHADO] },
   },
-  // Três páginas no mesmo build: o editor (index.html), a página do jogador
-  // (player.html), servida pelo servidor axum do app em /player, e a janela da
-  // Visão de jogador (visao-jogador.html), aberta pelo Rust dentro do app.
+  // Quatro páginas no mesmo build: o editor (index.html), a página do jogador
+  // (player.html), servida pelo servidor axum do app em /player, e as janelas
+  // da Visão de jogador (visao-jogador.html) e do Prelúdio (preludio.html),
+  // abertas pelo Rust dentro do app.
   build: {
     assetsInlineLimit: embutirAsset,
     rollupOptions: {
@@ -132,6 +133,7 @@ export default defineConfig({
         main: 'index.html',
         player: 'player.html',
         visaoJogador: 'visao-jogador.html',
+        preludio: 'preludio.html',
       },
     },
   },

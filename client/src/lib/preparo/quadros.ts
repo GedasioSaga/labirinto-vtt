@@ -1,6 +1,6 @@
 import { join } from '@tauri-apps/api/path'
-import { exists, readDir, readTextFile, remove, rename, writeFile } from '@tauri-apps/plugin-fs'
 import { FEATURES, type FeatureFlags } from '../features'
+import { exists, readDir, readTextFile, remove, rename, writeFile } from '../fsDaJanela'
 import { ensureDir } from '../mapFileIO'
 import { hashHex, tipoDosBytes } from '../midia'
 import { LUGARES, gravarNoPreparo, lerDoPreparo, listarNoPreparo, pastaDoPreparo, type DocumentoLido } from './disco'

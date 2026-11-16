@@ -7,6 +7,7 @@ import { useAdventureStore } from '../../stores/adventureStore'
 import { useLivroDoMestreStore } from '../../stores/livroDoMestreStore'
 import { useToastStore } from '../../stores/toastStore'
 import { usePreludio } from '../estado/preludio'
+import { abrirOPreludioEmJanela, type FocoNoPreludio } from '../janela/portaDaJanela'
 import { abrirFichaNaCena } from '../mesa/irParaAMesa'
 import { useCatalogoDaMesa } from '../mesa/catalogo'
 import { useRaizDaMidia } from '../midia'
@@ -34,6 +35,24 @@ interface PaginaRoteiroProps {
 
 function avisar(texto: string): void {
   useToastStore.getState().push('error', texto)
+}
+
+/**
+ * PRELÚDIO EM JANELA PRÓPRIA (P1): abre a janela do Prelúdio (ou a traz para a
+ * frente) já na sessão, com o quadro dela, o mapa mental do mestre. Sem
+ * sessão, abre onde a janela estiver.
+ */
+function AbrirOPreludio({ foco, aoAbrirNaMesa }: { foco: FocoNoPreludio | null; aoAbrirNaMesa: (alvo: LigaCena) => void }) {
+  return (
+    <button
+      type="button"
+      className="gr-bt gr-bt--latao gr-bt--p pr-roteiro__abrir"
+      title={foco === null ? 'Abre o Prelúdio numa janela própria' : 'Abre esta sessão no Prelúdio, numa janela própria, com o quadro dela'}
+      onClick={() => abrirOPreludioEmJanela(foco, { abrirNaMesa: aoAbrirNaMesa, avisar })}
+    >
+      Abrir o Prelúdio
+    </button>
+  )
 }
 
 /** O texto de uma sessão ou página: as seções da forma ativa, com o título de cada uma. */
@@ -125,6 +144,7 @@ function SessaoNoLivro({ sessoes, campanhas, comCampanha, campanhaDoMapa, aoAbri
       ) : (
         <h3 className="pr-roteiro__nome">{sessao.titulo || 'Sessão sem nome'}</h3>
       )}
+      <AbrirOPreludio foco={{ verbeteId: sessao.id, aba: 'quadro' }} aoAbrirNaMesa={aoAbrirNaMesa} />
 
       <div className="pr-roteiro__bloco">
         <RevelarHoje key={sessao.id} sessao={sessao} editavel={false} tituloId={tituloDoRevelar} campanha={campanha} />
@@ -189,7 +209,12 @@ export const PaginaRoteiro = memo(function PaginaRoteiro({ aoAbrirNaMesa }: Pagi
     <>
       <TituloDaPagina titulo="Roteiro" sub={SUB} />
       {sessoes.length === 0 ? (
-        <p className="pr-quieto pr-roteiro__aviso">{campanha === undefined ? 'Nenhuma sessão no Prelúdio. Crie a primeira em Sessões.' : `Nenhuma sessão de ${campanha.nome} no Prelúdio. Crie a primeira em Sessões.`}</p>
+        <>
+          <p className="pr-quieto pr-roteiro__aviso">{campanha === undefined ? 'Nenhuma sessão no Prelúdio. Crie a primeira em Sessões.' : `Nenhuma sessão de ${campanha.nome} no Prelúdio. Crie a primeira em Sessões.`}</p>
+          <div className="pr-roteiro">
+            <AbrirOPreludio foco={null} aoAbrirNaMesa={aoAbrirNaMesa} />
+          </div>
+        </>
       ) : (
         <>
           {campanha === undefined && campanhas.length > 1 && <p className="pr-quieto pr-roteiro__aviso">Este mapa não é da pasta de nenhuma campanha do Prelúdio: aparecem as sessões de todas.</p>}

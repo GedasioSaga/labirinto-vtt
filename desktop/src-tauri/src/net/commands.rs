@@ -226,8 +226,24 @@ pub fn kick(room: &Room, client_id: &str) -> Result<(), String> {
     room.kick(id).map_err(send_error)
 }
 
+/// Só a `main` fala com os jogadores. Comando do app vale para toda janela no
+/// Tauri 2, e a janela do Prelúdio guarda segredo: se ela pudesse chamar
+/// `net_send`, um texto torto lá dentro mandaria segredo à mesa.
+fn exigir_main<R: Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), String> {
+    if window.label() == "main" {
+        Ok(())
+    } else {
+        Err("só a janela principal fala com a mesa".to_owned())
+    }
+}
+
 #[tauri::command]
-pub async fn net_start_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>) -> Result<RoomInfo, String> {
+pub async fn net_start_room<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    state: State<'_, NetState>,
+) -> Result<RoomInfo, String> {
+    exigir_main(&window)?;
     close_tunnel_quietly(&app, &state);
     let mut slot = state.room.lock().await;
     if let Some(old) = slot.take() {
@@ -290,7 +306,12 @@ pub async fn net_room_open(state: State<'_, NetState>) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn net_stop_room<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>) -> Result<(), String> {
+pub async fn net_stop_room<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    state: State<'_, NetState>,
+) -> Result<(), String> {
+    exigir_main(&window)?;
     close_tunnel_quietly(&app, &state);
     if let Some(open) = state.room.lock().await.take() {
         open.room.shutdown();
@@ -320,7 +341,12 @@ enum StartError {
 /// Torna a sala aberta pública via Quick Tunnel. Se já há túnel pronto para
 /// esta sala, devolve o mesmo link.
 #[tauri::command]
-pub async fn net_start_tunnel<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>) -> Result<TunnelInfo, String> {
+pub async fn net_start_tunnel<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    state: State<'_, NetState>,
+) -> Result<TunnelInfo, String> {
+    exigir_main(&window)?;
     // Antes de qualquer `await`: um stop que chegue enquanto este start espera
     // na fila precisa ser visto.
     let ticket = state.start_ticket();
@@ -423,7 +449,12 @@ fn watch_tunnel<R: Runtime>(app: AppHandle<R>, child: SharedChild) {
 
 /// Encerra o link público. Idempotente: sem túnel, só confirma `closed`.
 #[tauri::command]
-pub async fn net_stop_tunnel<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>) -> Result<(), String> {
+pub async fn net_stop_tunnel<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    state: State<'_, NetState>,
+) -> Result<(), String> {
+    exigir_main(&window)?;
     state.kill_tunnel_now();
     emit_tunnel(&app, TunnelEvent::Closed { reason: CloseReason::Stopped });
     Ok(())
@@ -434,11 +465,13 @@ pub async fn net_stop_tunnel<R: Runtime>(app: AppHandle<R>, state: State<'_, Net
 /// vazio, o `net_send` é o de sempre.
 #[tauri::command]
 pub async fn net_send(
+    window: tauri::WebviewWindow,
     state: State<'_, NetState>,
     client_id: String,
     msg: Value,
     liberar: Option<Vec<String>>,
 ) -> Result<(), String> {
+    exigir_main(&window)?;
     let room = active_room(&state).await?;
     send_to_liberando(&room, &client_id, &msg, liberar.as_deref().unwrap_or_default())
 }
@@ -462,7 +495,13 @@ pub fn send_to_liberando(room: &Room, client_id: &str, msg: &Value, liberar: &[S
 /// global (`<dados>/sons`, desde 29/10/2026) ou a pasta de uma aventura;
 /// `null` = nenhuma (a rota só dá 404).
 #[tauri::command]
-pub async fn net_sons_aventura<R: Runtime>(app: AppHandle<R>, state: State<'_, NetState>, pasta: Option<String>) -> Result<(), String> {
+pub async fn net_sons_aventura<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    state: State<'_, NetState>,
+    pasta: Option<String>,
+) -> Result<(), String> {
+    exigir_main(&window)?;
     // Sem a pasta de dados, só a pasta de aventura passa, como antes da biblioteca global.
     let dados = app.path().app_data_dir().ok();
     sons_aventura_no_estado(&state, pasta, dados).await
@@ -515,7 +554,8 @@ where
 }
 
 #[tauri::command]
-pub async fn net_kick(state: State<'_, NetState>, client_id: String) -> Result<(), String> {
+pub async fn net_kick(window: tauri::WebviewWindow, state: State<'_, NetState>, client_id: String) -> Result<(), String> {
+    exigir_main(&window)?;
     let room = active_room(&state).await?;
     kick(&room, &client_id)
 }
