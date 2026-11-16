@@ -38,14 +38,23 @@ const MOTIVO_MAX = 500
 const ID_DO_MAPA_MAX = 200
 
 /** O que o Prelúdio gravou em preparo/: a outra janela relê só isso. */
-export type MudancaNoPreparo = { readonly o: 'revelado'; readonly campanhaId: string } | { readonly o: 'verbete'; readonly id: string } | { readonly o: 'tempo' }
+export type MudancaNoPreparo =
+  | { readonly o: 'revelado'; readonly campanhaId: string }
+  | { readonly o: 'verbete'; readonly id: string }
+  | { readonly o: 'tempo' }
+  /** O índice (preparo.json): campanhas e a sessão em jogo (P2). */
+  | { readonly o: 'indice' }
 
 export type AbaDoVerbete = 'roteiro' | 'quadro'
 
 /** O que está em jogo na mesa agora (a faixa "Mesa" do Prelúdio). */
 export interface EstadoDaMesa {
-  /** `null` = nenhum mapa aberto no editor. */
-  readonly mapa: { readonly nome: string } | null
+  /**
+   * `null` = nenhum mapa aberto no editor. `chave` = a pasta do mapa em
+   * `<appData>/maps`, a mesma dos links (`LigaCena.chave`); `null` = mapa novo,
+   * ainda sem pasta (não dá para ligar a sessão a ele).
+   */
+  readonly mapa: { readonly nome: string; readonly chave: string | null } | null
   readonly cena: { readonly id: string; readonly nome: string } | null
   /** O pino selecionado no mapa, se um pino (e só ele) está selecionado. */
   readonly pino: { readonly id: string; readonly nome: string } | null
@@ -119,6 +128,7 @@ function lerMudanca(valor: unknown): MudancaNoPreparo | null {
   if (valor.o === 'revelado') return idDoPreparoValido(valor.campanhaId) ? { o: 'revelado', campanhaId: valor.campanhaId } : null
   if (valor.o === 'verbete') return idDoPreparoValido(valor.id) ? { o: 'verbete', id: valor.id } : null
   if (valor.o === 'tempo') return { o: 'tempo' }
+  if (valor.o === 'indice') return { o: 'indice' }
   return null
 }
 
@@ -164,7 +174,8 @@ function lerEstado(valor: unknown): EstadoDaMesa | null {
   let mapaLido: EstadoDaMesa['mapa'] = null
   if (mapa !== null) {
     if (!ehRegistro(mapa) || !nomeValido(mapa.nome, NOME_MAX)) return null
-    mapaLido = { nome: mapa.nome }
+    if (mapa.chave !== null && !idDoMapaValido(mapa.chave)) return null
+    mapaLido = { nome: mapa.nome, chave: mapa.chave }
   }
   let cenaLida: EstadoDaMesa['cena'] = null
   if (cena !== null) {
@@ -223,6 +234,11 @@ function limparParaOFio(texto: string, max: number): string {
 /** Nome de mostrar no teto do fio (quem manda corta; quem recebe recusa o que passar). */
 export function nomeParaOFio(nome: string): string {
   return limparParaOFio(nome, NOME_MAX)
+}
+
+/** O id do mapa (chave, cena, pino) que cabe no fio; o que não cabe não vai (`null`). */
+export function idDoMapaParaOFio(id: string | null | undefined): string | null {
+  return idDoMapaValido(id) ? id : null
 }
 
 /** Motivo no teto do fio. */

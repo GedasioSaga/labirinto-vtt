@@ -82,17 +82,19 @@ interface SessaoNoLivroProps {
   comCampanha: boolean
   /** A campanha da pasta do mapa aberto: é nela que o Revelar vale, quando a sessão está nela. */
   campanhaDoMapa: string | null
+  /** A sessão marcada com "Jogar esta sessão" no Prelúdio (P2); `null` = nenhuma. */
+  emJogo: string | null
   aoAbrirNaMesa: (alvo: LigaCena) => void
 }
 
-function SessaoNoLivro({ sessoes, campanhas, comCampanha, campanhaDoMapa, aoAbrirNaMesa }: SessaoNoLivroProps) {
+function SessaoNoLivro({ sessoes, campanhas, comCampanha, campanhaDoMapa, emJogo, aoAbrirNaMesa }: SessaoNoLivroProps) {
   const verbetes = usePreludio((estado) => estado.verbetes)
   const raiz = useRaizDaMidia()
   const tituloDoRevelar = useId()
   const tituloDoRoteiro = useId()
-  // A mais recente, até o mestre escolher outra (vale enquanto o mapa está aberto).
+  // A sessão em jogo (P2), senão a mais recente, até o mestre escolher outra (vale enquanto o mapa está aberto).
   const [escolhida, setEscolhida] = useState<string | null>(null)
-  const sessao = sessoes.find((uma) => uma.id === escolhida) ?? sessoes[sessoes.length - 1]
+  const sessao = sessoes.find((uma) => uma.id === escolhida) ?? sessoes.find((uma) => uma.id === emJogo) ?? sessoes[sessoes.length - 1]
   // Uma campanha só para o "Revelar hoje" e as menções: o Revelar da menção vale onde a lista vale.
   const campanha = useCampanhaDaRevelacao(sessao, campanhaDoMapa)
   const campanhaId = campanha.campanhaId
@@ -132,7 +134,7 @@ function SessaoNoLivro({ sessoes, campanhas, comCampanha, campanhaDoMapa, aoAbri
     <div className="pr-roteiro">
       {sessoes.length > 1 ? (
         <label className="pr-roteiro__escolha">
-          <span className="pr-roteiro__rotulo">{sessao === ultima ? 'Sessão, a mais recente' : 'Sessão'}</span>
+          <span className="pr-roteiro__rotulo">{sessao.id === emJogo ? 'Sessão em jogo' : sessao === ultima ? 'Sessão, a mais recente' : 'Sessão'}</span>
           <select className="pr-revelar__escolha" value={sessao.id} onChange={(evento) => setEscolhida(evento.target.value)}>
             {sessoes.map((uma) => (
               <option key={uma.id} value={uma.id}>
@@ -142,7 +144,10 @@ function SessaoNoLivro({ sessoes, campanhas, comCampanha, campanhaDoMapa, aoAbri
           </select>
         </label>
       ) : (
-        <h3 className="pr-roteiro__nome">{sessao.titulo || 'Sessão sem nome'}</h3>
+        <h3 className="pr-roteiro__nome">
+          {sessao.titulo || 'Sessão sem nome'}
+          {sessao.id === emJogo && <span className="pr-roteiro__em-jogo"> · em jogo</span>}
+        </h3>
       )}
       <AbrirOPreludio foco={{ verbeteId: sessao.id, aba: 'quadro' }} aoAbrirNaMesa={aoAbrirNaMesa} />
 
@@ -176,6 +181,7 @@ export const PaginaRoteiro = memo(function PaginaRoteiro({ aoAbrirNaMesa }: Pagi
   const carga = usePreludio((estado) => estado.carga)
   const verbetes = usePreludio((estado) => estado.verbetes)
   const campanhas = usePreludio((estado) => estado.campanhas)
+  const emJogo = usePreludio((estado) => estado.emJogo)
   const pastaId = useAdventureStore((estado) => estado.pasta?.pastaId ?? null)
   const aberta = useLivroDoMestreStore((estado) => estado.pagina === 'roteiro' && !estado.recolhido)
 
@@ -192,7 +198,12 @@ export const PaginaRoteiro = memo(function PaginaRoteiro({ aoAbrirNaMesa }: Pagi
   }, [carga.t])
 
   const campanha = pastaId === null ? undefined : campanhas.find((uma) => uma.pastaId === pastaId)
-  const sessoes = useMemo(() => sessoesEmOrdem(verbetes.values(), campanha?.id ?? null), [verbetes, campanha])
+  // A sessão em jogo entra na lista mesmo se for de outra campanha: o mestre a marcou para esta mesa.
+  const sessoes = useMemo(() => {
+    const daCampanha = sessoesEmOrdem(verbetes.values(), campanha?.id ?? null)
+    const marcada = emJogo === null ? undefined : verbetes.get(emJogo)
+    return marcada === undefined || marcada.tipo !== 'sessao' || daCampanha.some((uma) => uma.id === marcada.id) ? daCampanha : [...daCampanha, marcada]
+  }, [verbetes, campanha, emJogo])
 
   if (carga.t !== 'pronta') {
     return (
@@ -219,11 +230,12 @@ export const PaginaRoteiro = memo(function PaginaRoteiro({ aoAbrirNaMesa }: Pagi
         <>
           {campanha === undefined && campanhas.length > 1 && <p className="pr-quieto pr-roteiro__aviso">Este mapa não é da pasta de nenhuma campanha do Prelúdio: aparecem as sessões de todas.</p>}
           <SessaoNoLivro
-            key={campanha?.id ?? 'todas'}
+            key={`${campanha?.id ?? 'todas'}\n${emJogo ?? ''}`}
             sessoes={sessoes}
             campanhas={campanhas}
             comCampanha={campanha === undefined && campanhas.length > 1}
             campanhaDoMapa={campanha?.id ?? null}
+            emJogo={emJogo}
             aoAbrirNaMesa={aoAbrirNaMesa}
           />
         </>

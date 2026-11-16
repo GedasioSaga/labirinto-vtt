@@ -84,6 +84,13 @@ export const CAMPANHA = objeto({
 export const INDICE_DO_PREPARO = objeto({
   formato: numero(),
   campanhas: lista(CAMPANHA),
+  /**
+   * A SESSÃO EM JOGO (P2 do estudo de 15/11): o id do verbete de sessão que o
+   * mestre marcou com "Jogar esta sessão". O Roteiro do Livro do mestre segue
+   * esta, sem adivinhar pela mais recente. Uma de cada vez. Ausente = nenhuma.
+   * Campo opcional novo: o formato fica.
+   */
+  emJogo: opcional(texto()),
 })
 
 // ─── Verbete: verbetes/<id>.json ─────────────────────────────────────────────

@@ -7,6 +7,7 @@ import { SecaoDoVerbete } from '../enciclopedia/PaginaDoVerbete'
 import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
 import { usePreludio, type AbaDaSessao } from '../estado/preludio'
 import { AbasDaSessao, ID_DO_PAINEL_DA_SESSAO, idDaAba } from './AbasDaSessao'
+import { CenasDaSessao, JogarEstaSessao } from './EmJogo'
 import { LadosDaSessao } from './LadosDaSessao'
 import { OQueAconteceu } from './OQueAconteceu'
 import { AbasDasNotas, abrirPaginaComOTituloSelecionado, guardarNotaDaSessao, ID_DO_PAINEL_DAS_NOTAS, idDaNota, NOTA_DA_SESSAO, notaDaSessao, PaginaAoLado } from './PaginaAoLado'
@@ -181,6 +182,7 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
                 </div>
               )}
             </div>
+            <JogarEstaSessao sessao={sessao} editavel={editavel} />
           </div>
         </header>
 
@@ -228,6 +230,7 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
       </article>
 
       <aside className="pr-trilho" aria-label={`Ao redor de ${sessao.titulo || 'sessão sem nome'}`}>
+        <CenasDaSessao sessao={sessao} editavel={editavel} />
         <div className="pr-trilho__bloco">
           <RevelarHoje sessao={sessao} editavel={editavel} mencionados={mencionados} aoAbrir={(verbete) => ir(lugarDoVerbete(verbete, verbetes))} tituloId="pr-hoje-titulo" />
         </div>

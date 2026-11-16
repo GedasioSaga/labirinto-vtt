@@ -7,6 +7,7 @@ import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
 import { usePreludio } from '../estado/preludio'
 import { TelaDoPreludio } from '../TelaDoPreludio'
 import { ligarFioDoPreludio, type FioDoPreludio } from './fioDaJanela'
+import { useMesaNaJanela } from './mesaNaJanela'
 import { definirAvisoDeMudanca } from './mudancas'
 import { nomeDoCanal, type AbaDoVerbete, type EstadoDaMesa } from './protocolo'
 import './janela.css'
@@ -102,11 +103,18 @@ export function JanelaDoPreludio({ sessao }: { sessao: string }) {
 
   useEffect(() => {
     const canal = abrirCanalDoNavegador(nomeDoCanal(sessao))
+    useMesaNaJanela.setState({ ligada: true })
     const ligado = ligarFioDoPreludio({
       sessao,
       canal,
-      aoEstado: setEstado,
-      aoViva: setViva,
+      aoEstado: (novo) => {
+        setEstado(novo)
+        useMesaNaJanela.setState({ estado: novo })
+      },
+      aoViva: (agora) => {
+        setViva(agora)
+        useMesaNaJanela.setState({ viva: agora })
+      },
       aoAviso: setAviso,
       aoAbrirVerbete: (verbeteId, aba) => irAoVerbete(verbeteId, aba, setAviso),
       aoMudar: (mudanca) => void usePreludio.getState().relerDoDisco(mudanca),
@@ -116,6 +124,7 @@ export function JanelaDoPreludio({ sessao }: { sessao: string }) {
     definirAvisoDeMudanca((mudanca) => ligado.avisarMudanca(mudanca))
     return () => {
       definirAvisoDeMudanca(null)
+      useMesaNaJanela.setState({ ligada: false, viva: false, estado: null })
       fio.current = null
       ligado.desligar()
       canal.fechar()

@@ -8,7 +8,8 @@ import { registrarSalvarNaJanela } from '../aoFechar'
 import { usePreludio } from '../estado/preludio'
 import { definirAvisoDeMudanca } from './mudancas'
 import { marcarJanelaDoPreludio, type DepsDaMesa, type FocoNoPreludio } from './portaDaJanela'
-import { lerPedidoDoPreludio, nomeDoCanal, nomeParaOFio, recadoDaMesa, type CorpoDoRecado, type EstadoDaMesa, type PedidoDoPreludio } from './protocolo'
+import { mapaNaMemoriaAgora } from '../mesa/catalogo'
+import { idDoMapaParaOFio, lerPedidoDoPreludio, nomeDoCanal, nomeParaOFio, recadoDaMesa, type CorpoDoRecado, type EstadoDaMesa, type PedidoDoPreludio } from './protocolo'
 
 /**
  * O FIO, VISTO DA MESA (a janela principal). Baixa no primeiro "Abrir o
@@ -84,7 +85,7 @@ export function estadoDaMesaAgora(): EstadoDaMesa {
   const pinoId = selectedPinId ?? (unico?.kind === 'pin' ? unico.id : null)
   const pino = pinoId === null ? undefined : map.pins.find((um) => um.id === pinoId)
   return {
-    mapa: { nome: nomeParaOFio(map.name.trim() || 'Mapa sem nome') },
+    mapa: { nome: nomeParaOFio(map.name.trim() || 'Mapa sem nome'), chave: idDoMapaParaOFio(mapaNaMemoriaAgora()?.chave) },
     cena: cena === undefined ? null : { id: cena.id, nome: nomeParaOFio(cena.name.trim() || 'Cena sem nome') },
     pino: pino === undefined ? null : { id: pino.id, nome: nomeParaOFio(nomeDoPino(pino.nome, pino.kind)) },
   }
@@ -211,8 +212,9 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   const conferirLojas = () => {
     if (!aberta) return
     const { map, selection, selectedPinId } = useMapStore.getState()
-    const { adventure, activeSceneId } = useAdventureStore.getState()
-    const agora = [map.name, map.pins, selection, selectedPinId, adventure, activeSceneId]
+    const { adventure, activeSceneId, pasta, dir } = useAdventureStore.getState()
+    // `map.id`, a pasta e o diretório dão a chave do mapa (a faixa "Ligar a cena aberta" da sessão).
+    const agora = [map.id, map.name, map.pins, selection, selectedPinId, adventure, activeSceneId, pasta, dir]
     if (agora.length === referencias.length && agora.every((valor, indice) => valor === referencias[indice])) return
     referencias = agora
     agendarEstado()

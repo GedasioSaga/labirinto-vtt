@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import { gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
+import { gravarIndiceDoPreparo, gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
 import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib/preparo/revelado'
 import { comEvento, semEvento, tempoVazio } from '../../lib/preparo/sessoes'
-import type { Campanha, Evento, Revelado, Tempo, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
+import { ARQUIVO_DO_INDICE, type Campanha, type Evento, type IndiceDoPreparo, type Revelado, type Tempo, type TipoDeVerbete, type Verbete } from '../../lib/preparo/tipos'
 import { registrarSalvarAoFechar } from '../aoFechar'
 import { avisarMudanca } from '../janela/mudancas'
 import type { MudancaNoPreparo } from '../janela/protocolo'
@@ -80,6 +80,8 @@ export interface RevelacoesDaCampanha {
 interface EstadoDoPreludio {
   carga: Carga
   campanhas: readonly Campanha[]
+  /** A sessão em jogo ("Jogar esta sessão", P2), do índice; `null` = nenhuma. */
+  emJogo: string | null
   verbetes: ReadonlyMap<string, Verbete>
   /** Id → por que abre só para leitura. */
   soLeitura: ReadonlyMap<string, string>
@@ -124,6 +126,12 @@ interface EstadoDoPreludio {
   salvarPendentes: () => Promise<boolean>
   /** A outra janela gravou isto: relê só isso do disco (o que esta janela ainda não gravou continua valendo). */
   relerDoDisco: (mudanca: MudancaNoPreparo) => Promise<void>
+  /**
+   * "JOGAR ESTA SESSÃO" (P2): marca a sessão em jogo no índice e grava na hora
+   * (`null` = parar de jogar). Relê o índice do disco antes, para não gravar
+   * por cima do que a outra janela mudou. Devolve o motivo quando não gravou.
+   */
+  jogarSessao: (sessaoId: string | null) => Promise<string | null>
   tentarDeNovo: () => void
   /**
    * A restauração vai trocar a pasta preparo/ (o Prelúdio de agora vai inteiro
@@ -141,6 +149,12 @@ const CHAVE_DA_CAMPANHA = 'lb-preparo:campanha'
 
 function motivo(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro)
+}
+
+/** A sessão em jogo do índice lido (`null` = nenhuma, ou o índice não abriu). */
+function emJogoDoIndice(indice: DocumentoLido<IndiceDoPreparo>): string | null {
+  if (indice.estado !== 'ok' && indice.estado !== 'somenteLeitura') return null
+  return indice.valor?.emJogo ?? null
 }
 
 function campanhaGuardada(): string | null {
@@ -458,6 +472,7 @@ const INICIO: Lugar = { secao: 'inicio' }
 export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   carga: { t: 'fechada' },
   campanhas: [],
+  emJogo: null,
   verbetes: new Map(),
   soLeitura: new Map(),
   avisos: [],
@@ -480,6 +495,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     try {
       const indice = await lerIndiceDoPreparo()
       const campanhas = indice.estado === 'ok' || (indice.estado === 'somenteLeitura' && indice.valor !== null) ? (indice.valor?.campanhas ?? []) : []
+      const emJogo = emJogoDoIndice(indice)
       const ids = await listarNoPreparo('verbetes')
       const lidos = await Promise.all(ids.map(async (id) => ({ id, lido: await lerVerbete(id) })))
       const verbetes = new Map<string, Verbete>()
@@ -513,7 +529,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       if (minha !== geracao) return
       const guardada = campanhaGuardada()
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
-      set({ carga: { t: 'pronta' }, campanhas, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
+      set({ carga: { t: 'pronta' }, campanhas, emJogo, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
     } catch (erro) {
       if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
     }
@@ -650,6 +666,31 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
         if (aindaValendo()) set({ tempo: tempoNaTela(lido) })
         return
       }
+      case 'indice': {
+        const lido = await lerIndiceDoPreparo()
+        if (!aindaValendo() || (lido.estado !== 'ok' && lido.estado !== 'somenteLeitura') || lido.valor === null) return
+        set({ campanhas: lido.valor.campanhas, emJogo: emJogoDoIndice(lido) })
+        return
+      }
+    }
+  },
+
+  async jogarSessao(sessaoId) {
+    if (get().carga.t !== 'pronta') return 'O Prelúdio ainda está abrindo.'
+    if (travas.size > 0) return 'O Prelúdio está gravando uma importação ou uma cópia restaurada. Tente de novo quando terminar.'
+    try {
+      const lido = await lerIndiceDoPreparo()
+      if (lido.estado === 'falhou' || lido.estado === 'somenteLeitura') return lido.aviso
+      const indice: IndiceDoPreparo = lido.estado === 'novo' ? { formato: ARQUIVO_DO_INDICE.formato, campanhas: [] } : lido.valor
+      // Parar de jogar tira o campo: o índice de quem nunca jogou fica como era.
+      const { emJogo: _antes, ...semEmJogo } = indice
+      const novo: IndiceDoPreparo = sessaoId === null ? semEmJogo : { ...semEmJogo, emJogo: sessaoId }
+      await gravarIndiceDoPreparo(novo)
+      set({ campanhas: novo.campanhas, emJogo: sessaoId })
+      avisarMudanca({ o: 'indice' })
+      return null
+    } catch (erro) {
+      return `Não deu para gravar a sessão em jogo: ${motivo(erro)}.`
     }
   },
 
