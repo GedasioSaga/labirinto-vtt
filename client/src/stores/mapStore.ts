@@ -68,6 +68,7 @@ import { applyPatrolOp, setPassosDoPonto, setPatrolConfig, type ConfigDaPatrulha
 import { nomesDosLugaresLigados, temPilula } from '../lib/nomesDosLugares'
 import { toggleTokenCondition as toggleConditionOnMap } from '../lib/tokenConditions'
 import { alternarCondicaoPropria, tirarCondicaoPropriaDasFichas, trocarCondicaoPropriaNasFichas } from '../lib/condicoesProprias'
+import { mudarFichaNoMapa } from '../lib/prazoDaCondicao'
 import { mapaComAsLigacoes, type MudancaDaLigacao } from '../lib/ligarFicha'
 import { mapaComAura, type TipoDeAura } from '../lib/auras'
 import { mapaComFormaVisivel } from '../lib/formaVisivel'
@@ -1012,6 +1013,13 @@ interface MapStoreState {
    * desfaz), e nenhuma quando nada muda.
    */
   alternarCondicaoPropria: (id: string, condicao: CondicaoPropria) => void
+  /**
+   * PRAZO DA CONDIÇÃO pela ficha "Condições" (Fase C: "Faltam", "Perde",
+   * "Tirar"): `mudar` recebe a ficha de AGORA e devolve a nova
+   * (`porCondicaoNaFicha`, `tirarCondicaoDaFicha`). Mesmo contrato de
+   * `toggleTokenCondition`: um passo do Ctrl+Z, nenhum quando nada muda.
+   */
+  mudarCondicoesDaFicha: (id: string, mudar: (token: Token) => Token) => void
   trocarCondicaoPropriaNasFichas: (condicao: CondicaoPropria) => void
   tirarCondicaoPropriaDasFichas: (condicaoId: string) => void
   /**
@@ -2734,6 +2742,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     trocarCondicaoPropriaNasFichas: (condicao) => {
       const next = trocarCondicaoPropriaNasFichas(get().map, condicao)
+    mudarCondicoesDaFicha: (id, mudar) => passoSeMudou((map) => mudarFichaNoMapa(map, id, mudar)),
       if (next !== get().map) withHistory(() => next)
     },
     tirarCondicaoPropriaDasFichas: (condicaoId) => {

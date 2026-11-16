@@ -3,6 +3,7 @@ import type { CondicaoPropria, TokenCondition } from '../types/map'
 import { TOKEN_CONDITION_LABELS, TOKEN_CONDITION_ORDER, TOKEN_CONDITION_SYMBOLS } from '../lib/tokenConditions'
 import { CondicoesProprias } from './CondicoesProprias'
 import { PastilhaDeCondicao } from './PastilhaDeCondicao'
+import { PrazosDaFicha } from './PrazosDaFicha'
 import './TokenControls.css'
 
 const SEM_PROPRIAS: readonly CondicaoPropria[] = []
@@ -213,6 +214,8 @@ export function TokenConditionControls({
             <CondicoesProprias key={tokenId} tokenId={tokenId} naFicha={proprias} classeDoChip={embutido ? 'gr-chip' : 'lb-seg__option'} />
           )}
         </div>
+        {/* Fase C: o prazo de cada pastilha acesa (Faltam, Perde, Tirar), sob as pastilhas. */}
+        {tokenId !== undefined && <PrazosDaFicha tokenId={tokenId} />}
       </OpcionalDaFicha>
       {/* Embutida, a nota fica à vista sob os chips (protótipo); solta, é a dica sob demanda da linha. */}
       <p id={dicaId} className={embutido ? 'gr-nota' : 'lb-field__hint'}>

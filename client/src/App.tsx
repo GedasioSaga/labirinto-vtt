@@ -107,6 +107,7 @@ import { chatFacesByName } from './lib/chat'
 import { applyGatherPlan, gatherCandidates, planGather, sendCandidates } from './lib/gatherParty'
 import { canShowPinNow, showPinNowCandidates, showPinNowWithNotice } from './components/ShowPinNowControls'
 import { AvisoDosNpcs, LivroDaMesa, useLivroDaMesaAberto } from './components/livro/LivroDaMesa'
+import { TurnoForaDaBatalha } from './components/TurnoForaDaBatalha'
 import { PaginaDaBatalha } from './components/livro/PaginaDaBatalha'
 import { AvisoDaRotina } from './components/AvisoDaRotina'
 import { PaginaMesa } from './components/livro/PaginaMesa'
@@ -4769,6 +4770,8 @@ function App() {
         grupo={
           sala === undefined ? undefined : (
             <>
+              {/* Fase C: o "Passar turno" fora da batalha, no topo do Grupo (some com batalha na cena). */}
+              <TurnoForaDaBatalha sceneKey={chaveDaCenaAberta} />
               {algumNpcAndando && <AvisoDosNpcs pausados={npcsPausados} onAlternar={alternarPausaDosNpcs} atalho={PAUSE_NPCS_SHORTCUT} />}
               <RoomPanel {...sala} />
             </>

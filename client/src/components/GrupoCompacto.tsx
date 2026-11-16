@@ -58,6 +58,7 @@ import { Balao } from './grimorio/Balao'
 import { Botao } from './grimorio/Botao'
 import { CampoSeg } from './grimorio/CampoSeg'
 import { IconeDoLivro, type NomeDoIcone } from './livro/icones'
+import { VidaNaLinhaDoGrupo } from './VidaNaLinhaDoGrupo'
 import './livro/grupo.css'
 
 /*
@@ -363,6 +364,8 @@ function LinhaDoJogador({ linha, estado, instantaneo, now, seguindo, onAlternar,
               <span className={personagem === null ? 'lb-grupo__personagem gr-item__sub lb-grupo__personagem--sem' : 'lb-grupo__personagem gr-item__sub'} title={personagem ?? undefined}>
                 {personagem ?? SEM_PERSONAGEM_LABEL}
               </span>
+              {/* Fase C: a vida (pontos, só o mestre) e as condições com os turnos que faltam. */}
+              {member !== undefined && member.token !== null && <VidaNaLinhaDoGrupo tokenId={member.token.id} sceneId={member.sceneId} />}
             </span>
             {/* Os espaços em texto separam as partes no nome acessível ("Adaga, fora", não "Adagafora"). */}
             {selos.length > 0 && (

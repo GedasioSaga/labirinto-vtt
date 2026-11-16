@@ -1,0 +1,42 @@
+/*
+ * CONDIÇÕES COM TURNOS (Fase C, item 4): o bloco "Passar turno" no topo do
+ * Grupo, a vida e as pastilhas na linha de cada jogador e o editor do prazo na
+ * ficha "Condições". Mesmas cores e cartão do grimório (grimorio.css, grupo.css).
+ */
+
+/* ------------------------------------------------------------------ o bloco do turno */
+.gr-turno {
+  display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; padding: 10px 12px;
+  background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md);
+}
+.gr-turno__cab { display: flex; align-items: center; gap: 9px; }
+.gr-turno__num { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.gr-turno__num small { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.gr-turno__num b { font-size: var(--lb-font-size-md); font-weight: 600; color: var(--lb-color-parchment); font-variant-numeric: tabular-nums; }
+.gr-turno__log { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+.gr-turno .gr-bt[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+
+/* ------------------------------------------------------------------ vida e pastilhas na linha do Grupo */
+.gr-vida-linha { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 3px; }
+.gr-vida-linha__pv { flex: none; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); font-variant-numeric: tabular-nums; }
+.gr-vida-linha__trilho { flex: 1; min-width: 24px; max-width: 120px; height: 4px; border-radius: var(--lb-radius-full); background: var(--lb-gr-filete); overflow: hidden; }
+/* scaleX e não width: a barra muda a cada golpe, e transform não refaz o layout da lista */
+.gr-vida-linha__trilho i {
+  display: block; height: 100%; background: var(--lb-color-online); transform-origin: left center;
+  transition: transform 200ms var(--lb-gr-ease-out);
+}
+.gr-vida-linha__trilho i[data-baixa] { background: var(--lb-color-ember); }
+.gr-vida-linha__conds { display: flex; flex: none; gap: 3px; }
+.gr-vida-linha__cond { display: inline-flex; align-items: center; gap: 1px; font: 600 10px/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+@media (prefers-reduced-motion: reduce) {
+  .gr-vida-linha__trilho i { transition: none; }
+}
+
+/* ------------------------------------------------------------------ o editor do prazo, na ficha "Condições" */
+.gr-prazos { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.gr-prazo {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md);
+}
+.gr-prazo__cab { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: var(--lb-font-size-md); }
+.gr-prazo__nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
