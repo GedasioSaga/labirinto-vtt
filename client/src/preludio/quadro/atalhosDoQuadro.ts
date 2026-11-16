@@ -39,31 +39,62 @@ function cartaoEscolhido(editor: Editor): { cartao: CartaoDeVerbete; verbete: Ve
 }
 
 /**
- * Copia a imagem para a área de transferência como PNG. O `ClipboardItem`
- * recebe a PROMESSA da imagem: `navigator.clipboard.write` é chamado na hora,
- * ainda dentro do gesto do Ctrl+C, senão o WebView recusa ("document is not
- * focused") depois do `fetch`. O PNG sai de um bitmap feito do Blob (sem tela
- * "suja" por origem) e qualquer formato vira PNG, que é o que a área aceita.
- * `junto` vai no mesmo item (a senha da imagem solta, `FORMATO_DA_SENHA`).
+ * Quanto a área de transferência tem para aceitar o PNG depois que ele fica
+ * pronto. No WebView2 do Tauri a escrita já ficou pendurada para sempre, sem
+ * erro (auditoria de 16/11, D2): sem prazo, o Ctrl+C some sem aviso.
  */
-export function copiarImagem(endereco: string | PromiseLike<string>, junto: Readonly<Record<string, Blob>> = {}): Promise<void> {
-  const png = (async (): Promise<Blob> => {
-    const resposta = await fetch(await endereco)
-    if (!resposta.ok) throw new Error(`a imagem não abriu (${resposta.status})`)
-    const bitmap = await createImageBitmap(await resposta.blob())
-    try {
-      const tela = document.createElement('canvas')
-      tela.width = bitmap.width
-      tela.height = bitmap.height
-      const contexto = tela.getContext('2d')
-      if (contexto === null) throw new Error('sem desenho 2D')
-      contexto.drawImage(bitmap, 0, 0)
-      return await new Promise<Blob>((resolve, reject) => tela.toBlob((blob) => (blob === null ? reject(new Error('o PNG não saiu')) : resolve(blob)), 'image/png'))
-    } finally {
-      bitmap.close()
-    }
-  })()
-  return navigator.clipboard.write([new ClipboardItem({ ...junto, 'image/png': png })])
+const PRAZO_DA_ESCRITA_MS = 2000
+/** Abrir e converter a imagem tem prazo próprio e largo: imagem grande demora para virar PNG, e isso não é a escrita pendurada. */
+const PRAZO_DO_PNG_MS = 20_000
+
+function comPrazo<T>(promessa: Promise<T>, ms: number, motivoDoAtraso: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const relogio = setTimeout(() => reject(new Error(motivoDoAtraso)), ms)
+    promessa.then(
+      (valor) => {
+        clearTimeout(relogio)
+        resolve(valor)
+      },
+      (erro: unknown) => {
+        clearTimeout(relogio)
+        reject(erro)
+      },
+    )
+  })
+}
+
+async function pngDoEndereco(endereco: string | PromiseLike<string>): Promise<Blob> {
+  const resposta = await fetch(await endereco)
+  if (!resposta.ok) throw new Error(`a imagem não abriu (${resposta.status})`)
+  const bitmap = await createImageBitmap(await resposta.blob())
+  try {
+    const tela = document.createElement('canvas')
+    tela.width = bitmap.width
+    tela.height = bitmap.height
+    const contexto = tela.getContext('2d')
+    if (contexto === null) throw new Error('sem desenho 2D')
+    contexto.drawImage(bitmap, 0, 0)
+    return await new Promise<Blob>((resolve, reject) => tela.toBlob((blob) => (blob === null ? reject(new Error('o PNG não saiu')) : resolve(blob)), 'image/png'))
+  } finally {
+    bitmap.close()
+  }
+}
+
+/**
+ * Copia a imagem para a área de transferência como PNG e devolve o PNG que
+ * foi para lá. O `ClipboardItem` recebe a PROMESSA da imagem:
+ * `navigator.clipboard.write` é chamado na hora, ainda dentro do gesto do
+ * Ctrl+C, senão o WebView recusa ("document is not focused") depois do
+ * `fetch`. O PNG sai de um bitmap feito do Blob (sem tela "suja" por origem) e
+ * qualquer formato vira PNG, que é o que a área aceita. Vai SÓ o `image/png`:
+ * com um formato próprio da web junto, o WebView2 nunca termina a escrita.
+ */
+export function copiarImagem(endereco: string | PromiseLike<string>): Promise<Blob> {
+  const png = comPrazo(pngDoEndereco(endereco), PRAZO_DO_PNG_MS, 'a imagem demorou demais para abrir')
+  const escrita = navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+  // Com o PNG falhando, a escrita falha junto; o motivo que vale é o do PNG, e este só não fica como rejeição solta.
+  void escrita.catch(() => undefined)
+  return png.then((pronto) => comPrazo(escrita, PRAZO_DA_ESCRITA_MS, 'a área de transferência não respondeu').then(() => pronto))
 }
 
 function motivo(erro: unknown): string {
@@ -76,21 +107,39 @@ function motivo(erro: unknown): string {
  * Ctrl+C numa IMAGEM SOLTA (que não virou Personagem, Lugar nem Item) põe o
  * PNG na área de transferência do Windows, para colar no Paint ou no Discord.
  * Só o PNG vai para fora: com o HTML do tldraw junto, o Word e o WhatsApp
- * colariam o texto dele no lugar da imagem. Para colar DE VOLTA num quadro
- * igual ao tldraw (o mesmo tamanho, recorte e arquivo, em vez de uma imagem
- * nova do PNG), a forma copiada fica aqui, e a área leva só uma senha num
- * formato próprio da web, que os outros programas ignoram. No Ctrl+V do
- * quadro, a senha igual devolve a forma; outra imagem segue como imagem nova.
+ * colariam o texto dele no lugar da imagem, e com um formato próprio da web
+ * junto o WebView2 do Tauri nunca termina a escrita (D2 de 16/11). Para colar
+ * DE VOLTA num quadro igual ao tldraw (o mesmo tamanho, recorte e arquivo, em
+ * vez de uma imagem nova do PNG), a forma copiada fica aqui com a assinatura
+ * do PNG que foi para a área. No Ctrl+V do quadro, o PNG com a mesma
+ * assinatura devolve a forma; outra imagem segue como imagem nova. O WebView2
+ * devolve na colagem os mesmos bytes que recebeu na escrita (sonda no app real).
  */
-const TIPO_DA_SENHA = 'application/x-labirinto-imagem-do-quadro'
-/** O nome do formato leva "web " na frente; o Blob dele, o tipo puro (o Chromium recusa a escrita se não baterem). */
-const FORMATO_DA_SENHA = `web ${TIPO_DA_SENHA}`
+interface AssinaturaDoPng {
+  readonly bytes: number
+  readonly resumo: number
+}
 
-let copiaDoQuadro: { readonly senha: string; readonly conteudo: TLContent } | null = null
+let copiaDoQuadro: { readonly assinatura: AssinaturaDoPng; readonly conteudo: TLContent } | null = null
 
-async function senhaNaArea(itens: readonly ClipboardItem[]): Promise<string | null> {
-  const item = itens.find((cada) => cada.types.includes(FORMATO_DA_SENHA))
-  return item === undefined ? null : (await item.getType(FORMATO_DA_SENHA)).text()
+/** FNV-1a de 32 bits: barato, e só precisa separar o PNG copiado de outra imagem do mesmo tamanho em bytes. */
+const FNV_INICIO = 0x811c9dc5
+const FNV_PRIMO = 0x01000193
+
+async function resumoDosBytes(png: Blob): Promise<number> {
+  const bytes = new Uint8Array(await png.arrayBuffer())
+  let resumo = FNV_INICIO
+  for (const byte of bytes) resumo = Math.imul(resumo ^ byte, FNV_PRIMO)
+  return resumo >>> 0
+}
+
+async function assinaturaDoPng(png: Blob): Promise<AssinaturaDoPng> {
+  return { bytes: png.size, resumo: await resumoDosBytes(png) }
+}
+
+/** O tamanho em bytes decide primeiro: outra imagem grande colada no quadro não é lida inteira à toa. */
+async function eOPngCopiado(arquivo: Blob, assinatura: AssinaturaDoPng): Promise<boolean> {
+  return arquivo.size === assinatura.bytes && (await resumoDosBytes(arquivo)) === assinatura.resumo
 }
 
 /** Onde a colagem cai, como no tldraw: Shift, ou o modo "colar no cursor", põem no ponteiro (um desliga o outro). */
@@ -110,23 +159,22 @@ function copiarImagemSolta(editor: Editor, avisar: AcoesDosAtalhos['avisar']): b
     if (url === null) throw new Error('a imagem não tem arquivo no Prelúdio')
     return url
   })
-  // Sem formato próprio da web (WebView velho), vai só o PNG: o Ctrl+V do quadro faz uma imagem nova dele.
-  const senha = ClipboardItem.supports(FORMATO_DA_SENHA) ? crypto.randomUUID() : null
-  const junto: Record<string, Blob> = senha === null ? {} : { [FORMATO_DA_SENHA]: new Blob([senha], { type: TIPO_DA_SENHA }) }
-  void copiarImagem(endereco, junto).then(
-    () => {
-      copiaDoQuadro = senha === null ? null : { senha, conteudo }
-      avisar(`${nome} copiada. Cole com Ctrl+V aqui ou em outro programa.`, false)
-    },
-    (erro: unknown) => avisar(`${nome} não foi copiada: ${motivo(erro)}.`, true),
-  )
+  void copiarImagem(endereco)
+    .then(assinaturaDoPng)
+    .then(
+      (assinatura) => {
+        copiaDoQuadro = { assinatura, conteudo }
+        avisar(`${nome} copiada. Cole com Ctrl+V aqui ou em outro programa.`, false)
+      },
+      (erro: unknown) => avisar(`${nome} não foi copiada: ${motivo(erro)}.`, true),
+    )
   return true
 }
 
 /**
  * O Ctrl+V do quadro, antes do tldraw: com a área só com uma imagem (o que o
- * Ctrl+C da imagem solta deixa) e a senha igual à da última cópia, cola a
- * forma copiada; com outra imagem, cola a imagem como o tldraw colaria.
+ * Ctrl+C da imagem solta deixa) e o PNG com a assinatura da última cópia,
+ * cola a forma copiada; com outra imagem, cola a imagem como o tldraw colaria.
  * Qualquer outra coisa (texto, formas copiadas pelo tldraw) segue para ele.
  */
 function colarImagemSolta(editor: Editor, evento: ClipboardEvent, avisar: AcoesDosAtalhos['avisar']): void {
@@ -134,17 +182,17 @@ function colarImagemSolta(editor: Editor, evento: ClipboardEvent, avisar: AcoesD
   const dados = evento.clipboardData
   if (copia === null || dados === null || !editor.getInstanceState().isFocused || editor.getEditingShapeId() !== null || digitando(evento.target)) return
   const arquivos = Array.from(dados.files)
+  const [arquivo] = arquivos
   if (arquivos.length !== 1 || dados.types.includes('text/html') || dados.types.includes('text/plain')) return
   evento.preventDefault()
   evento.stopImmediatePropagation()
   const ponto = pontoDaColagem(editor)
-  void navigator.clipboard
-    .read()
-    .then(senhaNaArea)
-    .catch(() => null)
-    .then((senha) => {
+  // Sem ler o arquivo (permissão, arquivo sumido), vale como outra imagem: cola uma imagem nova, como o tldraw.
+  void eOPngCopiado(arquivo, copia.assinatura)
+    .catch(() => false)
+    .then((mesmo) => {
       editor.markHistoryStoppingPoint('paste')
-      return editor.putExternalContent(senha === copia.senha ? { type: 'tldraw', content: copia.conteudo, point: ponto } : { type: 'files', files: arquivos, point: ponto })
+      return editor.putExternalContent(mesmo ? { type: 'tldraw', content: copia.conteudo, point: ponto } : { type: 'files', files: arquivos, point: ponto })
     })
     .catch((erro: unknown) => avisar(`Não colou: ${motivo(erro)}.`, true))
 }
