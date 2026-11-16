@@ -122,6 +122,36 @@ describe('bolinhas e pincéis na escolhida', () => {
     expect(useMapStore.getState().past.length).toBe(passos + 1)
   })
 
+  it('mover a escolhida leva a areia pintada junto (sem areia, nada nasce); Esc no meio devolve as duas', async () => {
+    const quadro = () => new Promise<void>((pronto) => requestAnimationFrame(() => pronto()))
+    // Sem areia: a água anda e o campo continua ausente.
+    gesto.comecar(casa(8, 8), false)
+    gesto.mover(casa(10, 9))
+    gesto.soltar(casa(10, 9))
+    expect(primeira().pontos[0]).toEqual(casa(6, 5))
+    expect(primeira().areia).toBeUndefined()
+    // Com areia: o traço anda o mesmo tanto, num passo só do desfazer (decisão de 16/11/2026, igual a `moverAguas`).
+    const areia = [{ modo: 'tirar' as const, raio: G, pontos: [casa(5, 5), casa(6, 6)] }]
+    useMapStore.getState().loadMap({ ...createEmptyMap('m', 'M', 20, 20, G), aguas: [{ ...quadrado(), areia }] })
+    useMapStore.setState({ activeTool: 'agua', camera: { x: 0, y: 0, scale: 1 } })
+    useFerramentaDaAgua.getState().escolher('q')
+    const passos = useMapStore.getState().past.length
+    gesto.comecar(casa(8, 8), false)
+    gesto.mover(casa(9, 8))
+    gesto.mover(casa(10, 9))
+    gesto.soltar(casa(10, 9))
+    expect(primeira().pontos[0]).toEqual(casa(6, 5))
+    expect(primeira().areia).toEqual([{ modo: 'tirar', raio: G, pontos: [casa(7, 6), casa(8, 7)] }])
+    expect(useMapStore.getState().past.length).toBe(passos + 1)
+    gesto.comecar(casa(10, 10), false)
+    gesto.mover(casa(13, 10))
+    await quadro()
+    expect(primeira().areia?.[0]?.pontos[0]).toEqual(casa(10, 6))
+    gesto.cancelar()
+    expect(primeira().pontos[0]).toEqual(casa(6, 5))
+    expect(primeira().areia).toEqual([{ modo: 'tirar', raio: G, pontos: [casa(7, 6), casa(8, 7)] }])
+  })
+
   it('Mais água cresce o mar e o deixa curva suave; Tirar areia entra na lista do mar', () => {
     useFerramentaDaAgua.setState({ pincel: 'agua' })
     gesto.comecar(casa(12, 6), false)

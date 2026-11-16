@@ -12,7 +12,7 @@
  *
  * Nenhum campo novo no arquivo: o mapa salvo antes abre e salva igual.
  */
-import type { Agua, BarrancoDoMapa, CamadaId, ConcealZone, MapData, Pin, RegionPoint, RiscoDeBarranco } from '../types/map'
+import type { Agua, BarrancoDoMapa, CamadaId, ConcealZone, MapData, Pin, RegionPoint, RiscoDeBarranco, TracoDeAreia } from '../types/map'
 import type { Selection } from '../types/tools'
 import { moverForma } from './agua/bolinhas'
 import { aguaNoPonto, caixaDaAgua } from './agua/forma'
@@ -124,9 +124,19 @@ export function moverAguas(aguas: Agua[], ids: ReadonlySet<string>, dx: number, 
     mudou = true
     const pontos = moverForma(agua.pontos, dx, dy)
     if (agua.areia === undefined) return { ...agua, pontos }
-    return { ...agua, pontos, areia: agua.areia.map((traco) => ({ ...traco, pontos: moverForma(traco.pontos, dx, dy) })) }
+    return { ...agua, pontos, areia: areiaMovida(agua.areia, dx, dy) }
   })
   return mudou ? depois : aguas
+}
+
+/**
+ * A areia pintada do mar andando (dx, dy) junto com ele, cada traço inteiro.
+ * Regra única dos dois caminhos que movem a água (decisão de 16/11/2026): o
+ * arrasto do conjunto (`moverAguas`) e o "mover" da ferramenta Água
+ * (`pixi/aguaNoEditor.ts`).
+ */
+export function areiaMovida(areia: readonly TracoDeAreia[], dx: number, dy: number): TracoDeAreia[] {
+  return areia.map((traco) => ({ ...traco, pontos: moverForma(traco.pontos, dx, dy) }))
 }
 
 /** Os riscos do Barranco de `ids` andam (dx, dy). A área alta e as rampas ficam (a rampa acha o barranco mais perto). */

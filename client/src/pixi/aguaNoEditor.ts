@@ -1,11 +1,11 @@
 import type { Graphics } from 'pixi.js'
-import type { Agua, RegionPoint } from '../types/map'
+import type { Agua, RegionPoint, TracoDeAreia } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { mapaDoPiso } from '../lib/pisos'
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada } from '../lib/camadas/trava'
-import { CAMADA_DA_AGUA } from '../lib/terrenoNaSelecao'
+import { areiaMovida, CAMADA_DA_AGUA } from '../lib/terrenoNaSelecao'
 import { ehCorProntaDaAgua, larguraDoRio, pontosMinimos, PONTOS_DO_TRACO_MAX, PONTOS_MAX, TRACOS_DE_AREIA_MAX } from '../lib/agua/dados'
 import { aguaNoPonto, curvaDaAgua, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
 import { aguaComPincel, cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
@@ -96,8 +96,11 @@ type Gesto =
   | { tipo: 'escolher'; em: RegionPoint }
   /** Uma bolinha da escolhida na mão (`base` = os pontos do começo do arrasto, já com a bolinha nova do meio). */
   | { tipo: 'bolinha'; id: string; base: RegionPoint[]; antes: RegionPoint[]; marcadas: number[]; k: number; fechada: boolean; chave: string; mexeu: boolean }
-  /** A escolhida inteira na mão; sem mexer, o soltar é um clique (escolhe no ponto). */
-  | { tipo: 'mover'; id: string; base: RegionPoint[]; antes: RegionPoint[]; marcadas: number[]; de: RegionPoint; chave: string; mexeu: boolean }
+  /**
+   * A escolhida inteira na mão; sem mexer, o soltar é um clique (escolhe no ponto).
+   * `areia`: a areia pintada do começo, que anda junto (a mesma regra do arrasto do conjunto, `moverAguas`).
+   */
+  | { tipo: 'mover'; id: string; base: RegionPoint[]; antes: RegionPoint[]; areia: TracoDeAreia[] | undefined; marcadas: number[]; de: RegionPoint; chave: string; mexeu: boolean }
   /** O apertar já fez o que tinha de fazer (Alt+clique tirou a bolinha): o soltar não faz nada. */
   | { tipo: 'feito' }
   /** O traço do pincel "Mais água / Menos água" na escolhida. */
@@ -153,8 +156,8 @@ function pincelDa(agua: Agua): 'agua' | 'areia' | null {
 
 export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: string) => void }): GestoDaAgua {
   let gesto: Gesto = { tipo: 'nenhum' }
-  /** A forma que espera o próximo quadro para entrar no mapa (no máximo uma mudança por quadro). */
-  let pendente: { id: string; pontos: RegionPoint[]; chave: string } | null = null
+  /** A forma que espera o próximo quadro para entrar no mapa (no máximo uma mudança por quadro); `areia` só no mover. */
+  let pendente: { id: string; pontos: RegionPoint[]; chave: string; areia: TracoDeAreia[] | undefined } | null = null
   let quadro: number | null = null
   /** Cada arrasto tem a sua chave: é um passo só do desfazer, separado do arrasto seguinte. */
   let arrastos = 0
@@ -204,12 +207,15 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
     }
     const x = pendente
     pendente = null
-    if (x !== null) useMapStore.getState().mudarAgua(x.id, { pontos: x.pontos }, x.chave)
+    if (x !== null) useMapStore.getState().mudarAgua(x.id, x.areia === undefined ? { pontos: x.pontos } : { pontos: x.pontos, areia: x.areia }, x.chave)
   }
 
-  /** A forma nova entra no mapa no próximo quadro (a de antes, ainda esperando, é trocada por esta). */
-  function mudarNoQuadro(id: string, pontos: RegionPoint[], chave: string): void {
-    pendente = { id, pontos, chave }
+  /**
+   * A forma nova entra no mapa no próximo quadro (a de antes, ainda esperando, é trocada por esta).
+   * `areia`: a areia deslocada do mover; sem ela, a areia do mapa fica como está (a bolinha muda só o contorno).
+   */
+  function mudarNoQuadro(id: string, pontos: RegionPoint[], chave: string, areia?: TracoDeAreia[]): void {
+    pendente = { id, pontos, chave, areia }
     if (quadro === null)
       quadro = requestAnimationFrame(() => {
         quadro = null
@@ -295,7 +301,7 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       return true
     }
     if (pontoNaAgua(agua, grid(), p.x, p.y)) {
-      gesto = { tipo: 'mover', id: agua.id, base: agua.pontos, antes: agua.pontos, marcadas, de: { x: p.x, y: p.y }, chave, mexeu: false }
+      gesto = { tipo: 'mover', id: agua.id, base: agua.pontos, antes: agua.pontos, areia: agua.areia, marcadas, de: { x: p.x, y: p.y }, chave, mexeu: false }
       return true
     }
     return false
@@ -602,9 +608,12 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
       } else if (gesto.tipo === 'mover') {
         if (!gesto.mexeu && Math.hypot(p.x - gesto.de.x, p.y - gesto.de.y) < grid() * CLIQUE_ATE) return
         gesto.mexeu = true
-        const pontos = moverForma(gesto.base, p.x - gesto.de.x, p.y - gesto.de.y)
+        const dx = p.x - gesto.de.x
+        const dy = p.y - gesto.de.y
+        const pontos = moverForma(gesto.base, dx, dy)
         marcarBolinhas(pontos, gesto.marcadas)
-        mudarNoQuadro(gesto.id, pontos, gesto.chave)
+        // A areia pintada anda com a água, sempre a partir da do começo (o arrasto não acumula erro).
+        mudarNoQuadro(gesto.id, pontos, gesto.chave, gesto.areia === undefined ? undefined : areiaMovida(gesto.areia, dx, dy))
       }
     },
     soltar(p) {
@@ -679,7 +688,9 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
         // Esc no meio do arrasto: a forma volta à do começo, no mesmo passo do desfazer.
         pendente = null
         descarregar()
-        if (g.mexeu) useMapStore.getState().mudarAgua(g.id, { pontos: g.antes }, g.chave)
+        // O mover devolve também a areia do começo.
+        const areiaDeAntes = g.tipo === 'mover' ? g.areia : undefined
+        if (g.mexeu) useMapStore.getState().mudarAgua(g.id, areiaDeAntes === undefined ? { pontos: g.antes } : { pontos: g.antes, areia: areiaDeAntes }, g.chave)
       }
       if (!temRascunho() && g.tipo === 'nenhum') return
       gesto = { tipo: 'nenhum' }
