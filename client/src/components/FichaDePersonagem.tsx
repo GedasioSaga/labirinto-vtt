@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import type { Personagem, TipoDePersonagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { CarriedItem } from '../types/map'
 import { HistoricoDaFicha } from './AjusteRapido'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import type { LivroDaFicha } from './EscolherDoLivro'
@@ -49,6 +50,8 @@ export interface FichaDePersonagemProps {
    * e o jogador oferecem ações diferentes. Ausente = sem a seção.
    */
   inventario?: ReactNode
+  /** A mochila do boneco quando ELE é o dono dela (antes da migração): a aba Itens conta esta e não troca o `inventario` pelo rascunho na edição (`FichaAbas`). */
+  mochilaDoBoneco?: readonly CarriedItem[]
   /** Construtor de mecânicas C2: quem monta a mecânica da técnica. O mestre grava; o dono propõe. Padrão: mestre. */
   quemEditaAMecanica?: QuemEditaAMecanica
   /**
@@ -64,7 +67,7 @@ export interface FichaDePersonagemProps {
   outrasFichas?: readonly Personagem[]
 }
 
-export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica, onRevelar, outrasFichas }: FichaDePersonagemProps) {
+export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, mochilaDoBoneco, quemEditaAMecanica, onRevelar, outrasFichas }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
   // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
   const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS)
@@ -92,6 +95,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
           onRevelar={onRevelar}
           outrasFichas={outrasFichas}
           inventario={inventario}
+          mochilaDoBoneco={mochilaDoBoneco}
         />
       </div>
     </div>

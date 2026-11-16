@@ -14,6 +14,7 @@ import {
   type RegistroDaFicha,
 } from './personagem'
 import type { SistemaDeRpg } from './sistemaDeRpg'
+import type { CarriedItem } from '../types/map'
 
 /** Os campos do mundo do livro que a ficha não edita (`salvarSobreOAtual`). */
 const CAMPOS_DO_MUNDO = ['combate', 'soCenario', 'nomeDoJogador', 'notaDoMestre'] as const
@@ -495,9 +496,11 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
   // CONTAS DOS JOGADORES: o dono muda na tela das contas, não na ficha — vale o de agora.
   if (atual.dono === undefined) delete salvo.dono
   else salvo.dono = atual.dono
-  // MOCHILA NA FICHA: muda no jogo (pegar, dar, trocar), não na edição — vale a de agora (a Poção pega com a janela aberta fica).
-  if (atual.mochila === undefined) delete salvo.mochila
-  else salvo.mochila = atual.mochila
+  // MOCHILA NA FICHA: muda no jogo (pegar, dar, trocar), não na edição — vale a de agora (a Poção pega com a janela aberta fica),
+  // mais as vagas que o "Passar para a mochila" pôs no rascunho.
+  const mochila = mochilaSobreAAtual(base, rascunho, atual)
+  if (mochila === undefined) delete salvo.mochila
+  else salvo.mochila = mochila
   if (atual.moedas === undefined) delete salvo.moedas
   else salvo.moedas = atual.moedas
   // MUNDO DO LIVRO: força, cenário, nome de entrada e nota mudam no mundo, não na ficha — vale o de agora.
@@ -515,6 +518,21 @@ export function salvarSobreOAtual(base: Personagem, rascunho: Personagem, atual:
   else salvo.dbt = dbt
   salvo.abas = propostasSobreOAtual(base, rascunho, atual, salvo.abas)
   return salvo
+}
+
+/**
+ * A mochila do Salvar do mestre: a de AGORA (o que entrou e saiu com a janela
+ * aberta fica como está) mais as vagas que o RASCUNHO ganhou nesta edição — o
+ * "Passar para a mochila" — e que a de agora ainda não tem. Sem as do
+ * rascunho, o Salvar tirava os cartões da aba e as vagas não chegavam à
+ * mochila: o item sumia (conserto de 16/11/2026). A edição não tira vaga, então
+ * só o que é novo desde a `base` conta.
+ */
+function mochilaSobreAAtual(base: Personagem, rascunho: Personagem, atual: Personagem): CarriedItem[] | undefined {
+  const idsDaBase = new Set((base.mochila ?? []).map((vaga) => vaga.id))
+  const idsDeAgora = new Set((atual.mochila ?? []).map((vaga) => vaga.id))
+  const novas = (rascunho.mochila ?? []).filter((vaga) => !idsDaBase.has(vaga.id) && !idsDeAgora.has(vaga.id))
+  return novas.length === 0 ? atual.mochila : [...(atual.mochila ?? []), ...novas]
 }
 
 /** A proposta de mecânica de cada cartão, pelo id, subcartões juntos. */

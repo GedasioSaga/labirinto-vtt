@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Ajuste } from '../lib/ajusteDaFicha'
 import { comNotaDoMestre, NOTA_DO_MESTRE_MAX, PERSONAGEM_SEM_NOME, type Personagem } from '../lib/personagem'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
+import type { CarriedItem } from '../types/map'
 import { comBase, marcaDaBase, salvarPelaBase } from '../net/nuvem/emissor'
 import { revelarCartao } from '../lib/habilidadeOculta'
 import { FichaDoSistema } from './dbt/registroDeFichas'
@@ -42,6 +43,8 @@ export interface FichaDePersonagemDialogProps {
   onAjustar?: (ajuste: Ajuste) => void
   /** O inventário do personagem (a mochila do token ligado), já com as ações do mestre. Ausente = sem token ligado. */
   inventario?: ReactNode
+  /** A mochila do token quando ELE é o dono dela (antes da migração): a edição da ficha não a troca pelo rascunho. Ausente = a ficha é a dona. */
+  mochilaDoBoneco?: readonly CarriedItem[]
   /** As fichas da mesma pasta, para o "Trazer de outra ficha" das Habilidades em edição. Ausente = sem o botão. */
   outrasFichas?: readonly Personagem[]
 }
@@ -69,6 +72,7 @@ export function FichaDePersonagemDialog({
   onLigarToken,
   onAjustar,
   inventario,
+  mochilaDoBoneco,
   outrasFichas,
 }: FichaDePersonagemDialogProps) {
   const tituloId = useId()
@@ -261,6 +265,7 @@ export function FichaDePersonagemDialog({
               tituloId={tituloId}
               onAjustar={onAjustar}
               inventario={inventario}
+              mochilaDoBoneco={mochilaDoBoneco}
               onRevelar={(cartaoId) => onSalvar(revelarCartao(personagem, cartaoId))}
               outrasFichas={outrasFichas}
             />

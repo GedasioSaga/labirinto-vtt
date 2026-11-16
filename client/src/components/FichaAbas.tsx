@@ -17,6 +17,7 @@ import { TrazerDeOutraFicha } from './TrazerDeOutraFicha'
 import { CampoQueColaImagem } from './CampoQueColaImagem'
 import { CampoNumero, ImagemOuIniciais } from './FichaPecas'
 import { MecanicaDaTecnica, MecanicaLida, type QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
+import type { CarriedItem } from '../types/map'
 import { PecaDoMestreNaForma } from './batalha/FormasDoMestre'
 import { CartoesOcultos, OcultaNoCartao, SeloDeOculta } from './batalha/HabilidadeOculta'
 import { ocultasDaAba } from '../lib/habilidadeOculta'
@@ -55,11 +56,19 @@ export interface FichaAbasProps {
    * jogador), mostrado DENTRO da aba Itens. Ausente = a mochila da ficha, só leitura.
    */
   inventario?: ReactNode
+  /**
+   * A mochila do BONECO quando ele é o dono dela (a aventura ainda não passou a
+   * mochila para a ficha: `mochilaMigrada` ausente). A aba conta esta, e a
+   * edição não troca o `inventario` pelo rascunho: a cópia da ficha não vale
+   * (mostrava "Inventário 0" com as Balas de prata no token), e o "+ Adicionar"
+   * e o "Usar" seguem indo ao boneco. Ausente = a ficha é a dona.
+   */
+  mochilaDoBoneco?: readonly CarriedItem[]
 }
 
-/** Quantos itens a mochila da ficha tem, somando as pilhas. */
-function totalDaMochila(personagem: Personagem): number {
-  return (personagem.mochila ?? []).reduce((soma, item) => soma + quantidadeDe(item), 0)
+/** Quantos itens a mochila tem, somando as pilhas. */
+function totalDaMochila(mochila: readonly CarriedItem[] | undefined): number {
+  return (mochila ?? []).reduce((soma, item) => soma + quantidadeDe(item), 0)
 }
 
 /**
@@ -74,6 +83,7 @@ function MochilaNaAbaItens({
   aba,
   inventario,
   editando,
+  donoEhOBoneco,
   cartoesAntigos,
   onChange,
 }: {
@@ -81,6 +91,8 @@ function MochilaNaAbaItens({
   aba: AbaDoSistema
   inventario: ReactNode | undefined
   editando: boolean
+  /** O boneco é o dono da mochila: a grade é sempre o `inventario`, na edição também. */
+  donoEhOBoneco: boolean
   cartoesAntigos: number
   onChange: (personagem: Personagem) => void
 }) {
@@ -97,9 +109,11 @@ function MochilaNaAbaItens({
     onChange(antes)
     setAntes(null)
   }
-  // Na edição, a grade é a do RASCUNHO, a mesma que a aba conta: depois do "Passar para a mochila" a aba dizia
-  // "Itens 10" e a grade (a mochila gravada, com as ações) mostrava 1 cartão até o Salvar (pedido de 16/11/2026).
-  const grade = editando ? (
+  // Na edição, com a FICHA dona da mochila, a grade é a do RASCUNHO, a mesma que a aba conta: depois do "Passar para a
+  // mochila" a aba dizia "Itens 10" e a grade (a mochila gravada, com as ações) mostrava 1 cartão até o Salvar (pedido de
+  // 16/11/2026). Com o BONECO dono, o rascunho é a cópia da ficha, que não vale: a grade continua a dele, com as ações.
+  const rascunhoNaGrade = editando && !donoEhOBoneco
+  const grade = rascunhoNaGrade ? (
     <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />
   ) : (
     (inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
@@ -107,7 +121,7 @@ function MochilaNaAbaItens({
   return (
     <div className="lb-ficha__mochila-na-aba">
       {grade}
-      {editando && inventario !== undefined && <p className="lb-ficha__vazio">Salve a ficha para usar, editar ou tirar itens da mochila.</p>}
+      {rascunhoNaGrade && inventario !== undefined && <p className="lb-ficha__vazio">Salve a ficha para usar, editar ou tirar itens da mochila.</p>}
       {cartoesAntigos > 0 && (
         <p className="lb-ficha__vazio">
           {cartoesAntigos === 1 ? '1 cartão antigo desta aba ainda não está na mochila.' : `${cartoesAntigos} cartões antigos desta aba ainda não estão na mochila.`}{' '}
@@ -132,7 +146,7 @@ function MochilaNaAbaItens({
   )
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar, outrasFichas, inventario }: FichaAbasProps) {
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar, outrasFichas, inventario, mochilaDoBoneco }: FichaAbasProps) {
   const idBase = useId()
   // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
@@ -162,8 +176,8 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       <div className="lb-ficha__abas-lista" role="tablist" aria-label={`Abas da ficha de ${personagem.nome}`} onKeyDown={onKeyDown}>
         {abas.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
-          // Fase 5: a aba Itens conta também a mochila (ela é a leitura da mochila).
-          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id) + (aba.id === ABA_DOS_ITENS ? totalDaMochila(personagem) : 0)
+          // Fase 5: a aba Itens conta também a mochila (ela é a leitura da mochila) — a do dono, a mesma que a grade mostra.
+          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id) + (aba.id === ABA_DOS_ITENS ? totalDaMochila(mochilaDoBoneco ?? personagem.mochila) : 0)
           return (
             <button
               key={aba.id}
@@ -188,7 +202,15 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       </div>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
         {ativa.id === ABA_DOS_ITENS && (
-          <MochilaNaAbaItens personagem={personagem} aba={ativa} inventario={inventario} editando={editando} cartoesAntigos={cartoes.length} onChange={onChange} />
+          <MochilaNaAbaItens
+            personagem={personagem}
+            aba={ativa}
+            inventario={inventario}
+            editando={editando}
+            donoEhOBoneco={mochilaDoBoneco !== undefined}
+            cartoesAntigos={cartoes.length}
+            onChange={onChange}
+          />
         )}
         {ativa.id === ABA_DOS_ITENS && cartoes.length === 0 && ocultas === 0 ? null : editando ? (
           <ListaEditavel

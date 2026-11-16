@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { escolherImagemDaFicha, escolherTextoJson, salvarTextoJson } from '../lib/arquivosDaFicha'
 import { ehEmbutido } from '../lib/bibliotecaDeSistemas'
 import { nomeDaCopia, rascunhoDaCopia, rascunhoDoSistema, rascunhoEmBranco, type RascunhoDoSistema } from '../lib/editorDeSistema'
 import { serializarSistema, type SistemaDeRpg } from '../lib/sistemaDeRpg'
-import { herdaDaPasta, hostWorldOf, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
+import { herdaDaPasta, hostWorldOf, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, temRpgNoMapa, useAdventureStore } from '../stores/adventureStore'
 import { useToastStore } from '../stores/toastStore'
 import { campanhaDaPasta } from './nuvem/ponteDoLobby'
 import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublicada'
@@ -58,6 +58,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const temRpg = useAdventureStore(temRpgNoMapa)
   const activeSceneId = useAdventureStore((state) => state.activeSceneId)
   const cache = useAdventureStore((state) => state.cache)
+  // Quem é o dono da mochila: a ficha (já migrou) ou o boneco ligado (ainda não). Muda o que a aba Itens mostra na edição.
+  const mochilaNaFicha = useAdventureStore(mochilaMoraNaFicha)
   const tokens = useMapStore((state) => state.map.tokens)
   const personagemAberto = useRpgStore((state) => state.personagemAberto)
   const abrirEditando = useRpgStore((state) => state.abrirEditando)
@@ -125,8 +127,10 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const sistema = sistemaPorId(biblioteca, sistemaId)
   const tokensParaLigar: TokenParaLigar[] = tokens.map((token) => ({ id: token.id, nome: token.name, personagemId: token.characterId }))
   // A mochila mora no token: o mapa aberto (assinado acima pelos tokens) e as cenas de fundo carregadas.
-  const inventario =
-    personagem === undefined ? undefined : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens)
+  const doMestre =
+    personagem === undefined
+      ? undefined
+      : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens, mochilaNaFicha)
 
   return (
     <>
@@ -168,7 +172,8 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
                   return ok
                 }
           }
-          inventario={inventario}
+          inventario={doMestre?.inventario}
+          mochilaDoBoneco={doMestre?.mochilaDoBoneco}
         />
       )}
       {/* Depois da ficha: abre por cima dela. */}
@@ -239,17 +244,27 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
   )
 }
 
+/** O que a ficha do mestre mostra na aba Itens: o inventário com as ações e, com o BONECO dono da mochila, a mochila dele. */
+interface InventarioDoMestre {
+  inventario: ReactNode
+  /** Antes da migração (`mochilaNaFicha` falso) com token ligado: a mochila dele, a que a aba conta e a edição não troca pelo rascunho. */
+  mochilaDoBoneco?: readonly CarriedItem[]
+}
+
 /**
  * O inventário do personagem na ficha do mestre: a mochila do token ligado,
  * com as ações que o Grupo já tem — largar no chão (vira pino pegável onde o
  * token está) e tirar — e o "Usar" do consumível (gasta 1; o que cura tira o
- * veneno). `undefined` = nenhum token ligado nas cenas carregadas.
+ * veneno). Sem token ligado nas cenas carregadas, a mochila da própria ficha.
+ * `mochilaNaFicha` = a aventura já passou a mochila para a ficha; falso = o
+ * token ligado é o dono, e a cópia da ficha não vale.
  */
-function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarItens: ((change: AppliedItems) => boolean) | undefined) {
+function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarItens: ((change: AppliedItems) => boolean) | undefined, mochilaNaFicha: boolean): InventarioDoMestre {
   const personagemId = personagem.id
   const achado = tokenDoPersonagem(world, personagemId)
-  if (achado === null) return mochilaDaFichaSemBoneco(personagem)
+  if (achado === null) return { inventario: mochilaDaFichaSemBoneco(personagem) }
   const { token, sceneId } = achado
+  const doBoneco = mochilaNaFicha ? {} : { mochilaDoBoneco: carriedItemsOf(token) }
   const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
     const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())
     if (change !== null && aplicarItens?.(change) === true) fechar()
@@ -268,7 +283,7 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
     if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
-  if (aplicarItens === undefined) return <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`} />
+  if (aplicarItens === undefined) return { inventario: <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`} />, ...doBoneco }
   // O "Editar" e o "+ Adicionar" do mestre (pedido de 16/11/2026): pelo caminho dos itens do boneco, que leva à ficha
   // (a dona) e espelha nas outras cenas, como o "Usar" acima. A mochila de agora é a do boneco lido de novo na hora.
   const gravar = (mochila: CarriedItem[]) => aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
@@ -276,7 +291,7 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     const agora = tokenDoPersonagem(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map), personagemId)
     return agora === null ? [] : carriedItemsOf(agora.token)
   }
-  return (
+  const inventario = (
     <MochilaDoMestre
       itens={carriedItemsOf(token)}
       dono={token.name || 'o token'}
@@ -300,4 +315,5 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
       )}
     />
   )
+  return { inventario, ...doBoneco }
 }
