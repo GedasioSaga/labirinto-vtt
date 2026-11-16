@@ -5,8 +5,8 @@ import type { TipoDeVerbete } from '../lib/preparo/tipos'
 import { Arvore, type ItemDaArvore } from './arvore/Arvore'
 import { useCadernos, useNovoCaderno } from './escrita/Escrita'
 import { usePreludio } from './estado/preludio'
-import { quadrosDaCampanha, useQuadros } from './quadro/estadoDosQuadros'
-import { useNovoQuadro } from './quadro/Quadros'
+import { useQuadros } from './quadro/estadoDosQuadros'
+import { useNovoQuadro, useQuadrosSoltos } from './quadro/Quadros'
 import { useNovaSessao, useSessoes } from './sessoes/Sessoes'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
@@ -101,6 +101,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const sessoes = useSessoes()
   const novaSessao = useNovaSessao()
   const listaDosQuadros = useQuadros((estado) => estado.lista)
+  const quadros = useQuadrosSoltos()
   const novoQuadro = useNovoQuadro()
   const titulo = useRef<HTMLHeadingElement>(null)
   const voltar = useRef<HTMLButtonElement>(null)
@@ -135,7 +136,6 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const itensDaEscrita = useMemo(() => itensDosCadernos(cadernos), [cadernos])
 
   const sessoesNaBarra = sessoes.slice(-SESSOES_NA_BARRA)
-  const quadros = quadrosDaCampanha(listaDosQuadros, campanhaId)
   const sessaoAberta = lugar.secao === 'sessoes' ? lugar.sessaoId : null
   const naEnciclopedia = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo && lugar.verbeteId === null
   const doTipoAberto = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo

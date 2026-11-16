@@ -228,6 +228,16 @@ export function quadrosDaCampanha(lista: ListaDosQuadros, campanhaId: string | n
   return lista.quadros.filter((quadro) => quadro.lixeira === null && noFiltro(quadro, campanhaId))
 }
 
+/**
+ * A lista "Quadros": os do filtro que não são de sessão, os lugares de rabiscar
+ * (Personagens, Mapa do Castelo). O quadro de sessão mora na aba Quadro dela.
+ * O de uma sessão que não existe mais volta para cá: sem a sessão, seria o
+ * único caminho até ele.
+ */
+export function quadrosSoltos(lista: ListaDosQuadros, campanhaId: string | null, sessaoExiste: (sessaoId: string) => boolean): readonly ResumoDoQuadro[] {
+  return quadrosDaCampanha(lista, campanhaId).filter((quadro) => quadro.sessaoId === null || !sessaoExiste(quadro.sessaoId))
+}
+
 /** Os quadros na lixeira (de todas as campanhas: o filtro não esconde o que foi jogado fora), o último a entrar primeiro. */
 export function quadrosNaLixeira(lista: ListaDosQuadros): readonly ResumoDoQuadro[] {
   if (lista.t !== 'pronta') return []

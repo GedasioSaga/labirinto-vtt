@@ -1,14 +1,23 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { usePreludio } from '../estado/preludio'
-import { quadroQueJaEstaNaSessao, quadrosDaCampanha, quadrosNaLixeira, resumoDaContagem, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
+import { quadroQueJaEstaNaSessao, quadrosNaLixeira, quadrosSoltos, resumoDaContagem, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
 import { QuadroSobDemanda } from './sobDemanda'
 
 /**
- * OS QUADROS (MAPA MENTAL) DO PRELÚDIO, fatia F3: a lista dos quadros do
- * filtro "Campanha" e, aberto, o quadro no tldraw (baixado só então).
+ * OS QUADROS (MAPA MENTAL) DO PRELÚDIO, fatia F3: a lista dos quadros soltos do
+ * filtro "Campanha" (o de sessão fica na aba Quadro dela; pedido de 16/11) e,
+ * aberto, o quadro no tldraw (baixado só então).
  * F3c, como na barra lateral do Grimório: cada quadro muda de campanha e vai
  * para a lixeira, de onde volta com "Restaurar" (ou com o "Desfazer" do aviso).
  */
+
+/** Os quadros da lista "Quadros" (a barra lateral conta os mesmos): os soltos do filtro. */
+export function useQuadrosSoltos(): readonly ResumoDoQuadro[] {
+  const lista = useQuadros((estado) => estado.lista)
+  const campanhaId = usePreludio((estado) => estado.campanhaId)
+  const verbetes = usePreludio((estado) => estado.verbetes)
+  return useMemo(() => quadrosSoltos(lista, campanhaId, (sessaoId) => verbetes.get(sessaoId)?.tipo === 'sessao'), [lista, campanhaId, verbetes])
+}
 
 /** Quanto tempo o aviso "foi para a lixeira — Desfazer" fica na lista. */
 const AVISO_DA_LISTA_MS = 8000
@@ -155,7 +164,6 @@ function EscolhaDaSessao({ quadro, atual, sessao, aoTrocar, aoSoltar, aoCancelar
 
 function ListaDeQuadros() {
   const lista = useQuadros((estado) => estado.lista)
-  const campanhaId = usePreludio((estado) => estado.campanhaId)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const travado = usePreludio((estado) => estado.travado)
   const ir = usePreludio((estado) => estado.ir)
@@ -168,7 +176,7 @@ function ListaDeQuadros() {
   const [escolha, setEscolha] = useState<{ readonly quadroId: string; readonly atualId: string } | null>(null)
   const verbetes = usePreludio((estado) => estado.verbetes)
   const botoesDeRestaurar = useRef(new Map<string, HTMLButtonElement>())
-  const quadros = quadrosDaCampanha(lista, campanhaId)
+  const quadros = useQuadrosSoltos()
   const jogados = quadrosNaLixeira(lista)
   const mostrados = naLixeira ? jogados : quadros
 
@@ -282,7 +290,9 @@ function ListaDeQuadros() {
         </p>
       ) : lista.t !== 'pronta' ? null : mostrados.length === 0 ? (
         <div className="pr-vazio">
-          <p className="pr-vazio__texto">Nenhum quadro ainda. Um quadro é o mapa mental da sessão: imagens, notas, cartões dos verbetes e setas entre eles.</p>
+          <p className="pr-vazio__texto">
+            Nenhum quadro solto ainda. Aqui ficam os quadros para rabiscar fora das sessões: imagens, notas, cartões dos verbetes e setas entre eles. O quadro de cada sessão fica dentro dela, na aba Quadro.
+          </p>
         </div>
       ) : naLixeira ? (
         <ul className="pr-cadernos">

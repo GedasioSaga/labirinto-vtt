@@ -19,6 +19,7 @@ import {
   quadrosNaLixeira,
   quadroQueJaEstaNaSessao,
   quadrosParaCitar,
+  quadrosSoltos,
   useQuadros,
   type ResumoDoQuadro,
 } from './estadoDosQuadros'
@@ -74,6 +75,24 @@ describe('o quadro da sessão e a lista do "Citar o quadro"', () => {
     expect(quadrosParaCitar(lista, 'cp-bruma', SESSAO).map((quadro) => quadro.id)).toEqual(['quadro-aaaa', 'quadro-zzzz', 'quadro-bruma', 'quadro-solto'])
     // Texto fora de sessão: só o filtro.
     expect(quadrosParaCitar(lista, 'cp-bruma', null).map((quadro) => quadro.id)).toEqual(['quadro-bruma', 'quadro-solto'])
+  })
+
+  it('a lista "Quadros" só tem os soltos (pedido de 16/11); o quadro de uma sessão que sumiu volta para ela', () => {
+    useQuadros.setState({
+      lista: {
+        t: 'pronta',
+        quadros: [
+          resumo('quadro-da-sessao', 'Alfa do farol', { sessaoId: SESSAO }),
+          resumo('quadro-orfao', 'Beta da sessão apagada', { sessaoId: 'vb-sessao-que-sumiu' }),
+          resumo('quadro-personagens', 'Personagens'),
+          resumo('quadro-lixo', 'Rabisco velho', { lixeira: '2026-11-09T12:00:00.000Z' }),
+        ],
+      },
+    })
+    const sessaoExiste = (sessaoId: string) => sessaoId === SESSAO
+    expect(quadrosSoltos(useQuadros.getState().lista, null, sessaoExiste).map((quadro) => quadro.id)).toEqual(['quadro-orfao', 'quadro-personagens'])
+    // A sessão continua achando o dela na aba Quadro.
+    expect(quadroDaSessao(useQuadros.getState().lista, SESSAO)?.id).toBe('quadro-da-sessao')
   })
 })
 
