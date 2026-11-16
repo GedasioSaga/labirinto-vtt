@@ -2,9 +2,10 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
-import { enterEditor } from '../e2e/helpers/enterEditor'
 import { createEmptyMap } from '../src/lib/mapFactory'
 import { criarMovel } from '../src/lib/mobilia'
+import type { useAdventureStore } from '../src/stores/adventureStore'
+import type { useMapStore } from '../src/stores/mapStore'
 import type { Agua, Carimbo, ConcealZone, MapData, Pin, RiscoDeBarranco } from '../src/types/map'
 
 /**
@@ -13,7 +14,14 @@ import type { Agua, Carimbo, ConcealZone, MapData, Pin, RiscoDeBarranco } from '
  * arrasto leva tudo num gesto, o Ctrl+Z desfaz num passo, sem tarefa longa de
  * 200 ms ou mais. Gesto de verdade no canvas (mouse), mapa sintético.
  *
- * Rodar (modo dev, a página importa a store pelo vite):
+ * As stores vêm da SONDA (`window.__labSonda`, src/lib/sondaDeDesempenho.ts),
+ * que existe no vite de desenvolvimento e no build feito com `VITE_LAB_SONDA=1`:
+ * o mesmo spec mede nos dois modos.
+ *
+ * Rodar em PRODUÇÃO (o número que vale; 16/11/2026), da pasta client:
+ *   VITE_LAB_SONDA=1 npx vite build --outDir <dist> --emptyOutDir --sourcemap --minify false
+ *   LAB_DES_DIST=<dist> npx playwright test -c playwright.desempenho.config.ts selecao-unica
+ * Em desenvolvimento (perfil com nomes do vite):
  *   LAB_DES_MODO=dev LAB_NAVEGADOR=msedge npx playwright test -c playwright.desempenho.config.ts selecao-unica
  * `LAB_FASE4_SAIDA`: pasta dos números e das fotos (padrão: tmp/fase-4-selecao da árvore).
  */
@@ -25,9 +33,29 @@ const TAREFA_LONGA_MAXIMA_MS = 200
 const QUANTOS = { carimbos: 5000, pinos: 300, aguas: 40, riscos: 200, zonas: 40 }
 const SAIDA = process.env.LAB_FASE4_SAIDA ?? join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'tmp', 'fase-4-selecao')
 
+/** O que a sonda do app pendura (`registrarNaSonda` em src/main.tsx). */
+interface Sonda {
+  mapStore: typeof useMapStore
+  adventureStore: typeof useAdventureStore
+}
+
 interface JanelaDaMedida {
   __longas?: number[][]
   __quadros?: number[]
+  __labSonda?: Sonda
+}
+
+/**
+ * Abre o editor pelo menu (o caminho do `enterEditor` das jornadas, sem o
+ * aquecimento por `import('/src/...')`, que no build de produção não existe).
+ */
+async function abrirOEditor(page: Page): Promise<void> {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Criar Mapas' }).click()
+  // exact: o cartão "Criar Mapas" do menu também casaria com "Criar mapa" por substring.
+  await page.getByRole('button', { name: 'Criar mapa', exact: true }).click()
+  await page.waitForSelector('canvas', { timeout: 120_000 })
+  await page.waitForFunction(() => (window as unknown as JanelaDaMedida).__labSonda?.mapStore !== undefined) // as: os campos da sonda pendurados no window
 }
 
 /** `n` pontos espalhados em grade pelo lado do mapa (o mesmo passo do teste do carimbo). */
@@ -142,8 +170,10 @@ async function medir(page: Page, gesto: () => Promise<void>, nome = 'gesto'): Pr
 
 /** O primeiro de cada tipo, para conferir que andou e voltou. */
 async function amostra(page: Page) {
-  return page.evaluate(async () => {
-    const loja = (await import('/src/stores/mapStore.ts')).useMapStore.getState()
+  return page.evaluate(() => {
+    const sonda = (window as unknown as JanelaDaMedida).__labSonda // as: os campos da sonda pendurados no window
+    if (sonda === undefined) throw new Error('sem a sonda do app')
+    const loja = sonda.mapStore.getState()
     const m = loja.map
     return {
       c0: m.carimbos?.[0]?.x,
@@ -161,19 +191,23 @@ test('fase 4: laço misto, arrasto e Ctrl+Z num mapa grande sem tarefa longa de 
   mkdirSync(SAIDA, { recursive: true })
   await page.setViewportSize({ width: 1440, height: 900 })
   await instalarColetor(page)
-  await enterEditor(page)
-  await page.evaluate(async (m) => {
-    const loja = await import('/src/stores/mapStore.ts')
-    loja.useMapStore.getState().loadMap(m)
-    loja.useMapStore.getState().setActiveTool('select')
-    const aventura = await import('/src/stores/adventureStore.ts')
-    aventura.useAdventureStore.setState({ cameraRequest: { camera: { x: 360, y: 40, scale: 0.18 } } })
+  await abrirOEditor(page)
+  await page.evaluate((m) => {
+    const sonda = (window as unknown as JanelaDaMedida).__labSonda // as: os campos da sonda pendurados no window
+    if (sonda === undefined) throw new Error('sem a sonda do app')
+    sonda.mapStore.getState().loadMap(m)
+    sonda.mapStore.getState().setActiveTool('select')
+    sonda.adventureStore.setState({ cameraRequest: { camera: { x: 360, y: 40, scale: 0.18 } } })
   }, mapaGrande())
   await page.waitForTimeout(4000)
   const canvas = page.locator('canvas').first()
   const caixa = await canvas.boundingBox()
   if (caixa === null) throw new Error('canvas sem caixa')
-  const camera = await page.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)
+  const camera = await page.evaluate(() => {
+    const sonda = (window as unknown as JanelaDaMedida).__labSonda // as: os campos da sonda pendurados no window
+    if (sonda === undefined) throw new Error('sem a sonda do app')
+    return sonda.mapStore.getState().camera
+  })
   const naTela = (x: number, y: number) => ({ x: caixa.x + camera.x + x * camera.scale, y: caixa.y + camera.y + y * camera.scale })
   const lado = CELULAS * GRADE
 
@@ -186,9 +220,11 @@ test('fase 4: laço misto, arrasto e Ctrl+Z num mapa grande sem tarefa longa de 
     for (let i = 1; i <= 20; i++) await page.mouse.move(de.x + ((ate.x - de.x) * i) / 20, de.y + ((ate.y - de.y) * i) / 20)
     await page.mouse.up()
   })
-  const porTipo = await page.evaluate(async () => {
+  const porTipo = await page.evaluate(() => {
+    const sonda = (window as unknown as JanelaDaMedida).__labSonda // as: os campos da sonda pendurados no window
+    if (sonda === undefined) throw new Error('sem a sonda do app')
     const contagem: Record<string, number> = {}
-    for (const item of (await import('/src/stores/mapStore.ts')).useMapStore.getState().selection) contagem[item.kind] = (contagem[item.kind] ?? 0) + 1
+    for (const item of sonda.mapStore.getState().selection) contagem[item.kind] = (contagem[item.kind] ?? 0) + 1
     return contagem
   })
   await page.screenshot({ path: join(SAIDA, '1-laco-misto.png') })
