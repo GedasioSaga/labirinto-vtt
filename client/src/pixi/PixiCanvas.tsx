@@ -404,7 +404,7 @@ import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRender
 // (areaSelectionBounds, moveAreaSelection — de lib/areaSelection.ts, também
 // fora da minha lista, CONTRATO diz "nenhuma mudança de assinatura").
 import {
-  EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems, toggleSelectionItem,
+  EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems,
   selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty, selectionHas,
   type SelectionItem, type SelectionSet,
 } from '../lib/selectionModel'
@@ -7740,7 +7740,7 @@ function PixiCanvasDoContexto({
           if (pin && event.shiftKey && event.button === 0) {
             const gesto = gestoNoPino(map, pin)
             if (gesto.tipo === 'barrado') avisarCamadaTravada(gesto.camada)
-            else if (!isStairPin(pin)) setSelection(toggleSelectionItem(selection, { kind: 'pin', id: pin.id }))
+            else if (!isStairPin(pin)) useMapStore.getState().alternarNaSelecao({ kind: 'pin', id: pin.id })
             mode = 'idle'
             lastPoint = { x: event.global.x, y: event.global.y }
             updateCursor()
@@ -7825,7 +7825,8 @@ function PixiCanvasDoContexto({
           // dentro do bounding box acima, ou Shift+arrastar pra somar uma
           // área inteira — ver 'area-marquee-drag' mais abaixo). `mode` fica
           // 'idle': nenhum branch de pointermove reage a um clique parado.
-          setSelection(toggleSelectionItem(selection, { kind: hit.kind, id: hit.id }))
+          // Fase 4: o pino e a zona abertos no painel entram no conjunto (`alternarNaSelecao`).
+          useMapStore.getState().alternarNaSelecao({ kind: hit.kind, id: hit.id })
           mode = 'idle'
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
@@ -8457,7 +8458,8 @@ function PixiCanvasDoContexto({
           const store = useMapStore.getState()
           if (gesture === 'click' && areaMarqueeClickItem !== null) {
             const item = areaMarqueeClickItem
-            store.setSelection(event.shiftKey ? toggleSelectionItem(store.selection, item) : selectionOnClick(store.map, item))
+            if (event.shiftKey) store.alternarNaSelecao(item)
+            else store.setSelection(selectionOnClick(store.map, item))
           } else if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
             // A zona aberta pelo Selecionar (ver `findConcealZoneForSelect` no
@@ -8466,9 +8468,8 @@ function PixiCanvasDoContexto({
           } else {
             // Só o piso em edição: o laço não leva o que está no mesmo lugar em outro piso.
             const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect, pinosNoToque(store.map))
-            store.setSelection(
-              gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
-            )
+            if (gesture === 'add') store.somarNaSelecao(encontrados)
+            else store.setSelection(selectionFromItems(encontrados))
           }
           areaMarqueeGraphics.clear()
         }

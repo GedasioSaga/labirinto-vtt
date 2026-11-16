@@ -102,7 +102,7 @@ import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } f
 import { useToastStore } from './toastStore'
 import { caminhosComMaterial } from '../lib/terrenoDoChao'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
-import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens } from '../lib/camadas/trava'
+import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens, gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { alternarOlhoDosJogadores, definirOpacidade } from '../lib/camadas/estado'
 import * as modeloDeCamadas from '../lib/camadas/modelo'
@@ -177,7 +177,7 @@ import { consultaDaTerra, regioesDaTerra } from '../lib/relevo'
 // paralelo) e vira UM `SelectionSet` só — ver CONTRATO no topo de
 // selectionModel.ts.
 import {
-  EMPTY_SELECTION, selectionOfItem, selectionToAreaSelection, isSelectionEmpty,
+  EMPTY_SELECTION, selectionOfItem, selectionToAreaSelection, isSelectionEmpty, selectionFromItems, toggleSelectionItem,
   type SelectionSet, type SelectionItem,
 } from '../lib/selectionModel'
 
@@ -376,9 +376,13 @@ function selecaoDepoisDoHistorico(
   const camadas = contextoDeCamadas(map)
   const selection = state.selection.filter((item) => itemDaSelecaoFica(map, item, (camada) => !camadas.mestreVe(camada) || camadas.travada(camada)))
   const patch: Partial<Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>> = {}
-  if (selection.length !== state.selection.length) patch.selection = selection.length === 0 ? EMPTY_SELECTION : selection
   if (state.selectedPinId !== null && !map.pins.some((pin) => pin.id === state.selectedPinId)) patch.selectedPinId = null
   if (state.selectedConcealZoneId !== null && !map.concealZones.some((zone) => zone.id === state.selectedConcealZoneId)) patch.selectedConcealZoneId = null
+  if (selection.length !== state.selection.length) {
+    patch.selection = selection.length === 0 ? EMPTY_SELECTION : selection
+    // O conjunto que encolheu até sobrar um pino ou uma zona abre no painel deles.
+    if (selection.length === 1) Object.assign(patch, selecaoNoPainel(selection))
+  }
   return patch
 }
 
@@ -388,6 +392,38 @@ function selecaoQueSobra(map: MapData, selection: SelectionSet, sai: (camada: Ca
     const camada = camadaDaSelecao(map, item)
     return camada === null || !sai(camada)
   })
+}
+
+type CamposDaSelecao = Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>
+
+/**
+ * FASE 4, UMA SELEÇÃO SÓ: o pino ou a zona oculta SOZINHOS no conjunto abrem
+ * no painel deles (a cabeça com o ícone e o nome próprios, a ficha do pino ou
+ * da zona), como no clique simples; o conjunto fica vazio. Com outro item
+ * junto, ficam no conjunto e o que estava aberto fecha. Conjunto vazio só
+ * limpa a seleção: o pino e a zona abertos continuam (fechar é do chamador).
+ */
+function selecaoNoPainel(selection: SelectionSet): Partial<CamposDaSelecao> {
+  if (selection.length === 0) return { selection }
+  const sozinho = selection.length === 1 ? selection[0] : undefined
+  if (sozinho?.kind === 'pin') return { selection: EMPTY_SELECTION, selectedPinId: sozinho.id, selectedConcealZoneId: null }
+  if (sozinho?.kind === 'zone') return { selection: EMPTY_SELECTION, selectedConcealZoneId: sozinho.id, selectedPinId: null }
+  return { selection, selectedPinId: null, selectedConcealZoneId: null }
+}
+
+/**
+ * O conjunto que o Shift soma: a seleção comum MAIS o pino e a zona abertos no
+ * painel (um pino sozinho mora lá, e o Shift seguinte o leva junto). Ficam de
+ * fora o pino da escada (anda com a escada) e o de camada travada, as mesmas
+ * barreiras do Shift+clique no próprio pino.
+ */
+function conjuntoDoShift(state: CamposDaSelecao & Pick<MapStoreState, 'map'>): SelectionSet {
+  const abertos: SelectionItem[] = []
+  const pino = state.selectedPinId === null ? undefined : state.map.pins.find((p) => p.id === state.selectedPinId)
+  if (pino !== undefined && !isStairPin(pino) && gestoNoPino(state.map, pino).tipo !== 'barrado') abertos.push({ kind: 'pin', id: pino.id })
+  const zonaId = state.selectedConcealZoneId
+  if (zonaId !== null && state.map.concealZones.some((zona) => zona.id === zonaId)) abertos.push({ kind: 'zone', id: zonaId })
+  return abertos.length === 0 ? state.selection : selectionFromItems([...abertos, ...state.selection])
 }
 
 /**
@@ -800,8 +836,15 @@ interface MapStoreState {
   setCamera: (camera: Camera) => void
   /** Substitui o conjunto inteiro — clique simples (`selectionOfItem`),
    *  Shift+clique (`toggleSelectionItem`) ou limpar (`EMPTY_SELECTION`),
-   *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava. */
+   *  sempre decididos no CHAMADOR (pixi/PixiCanvas.tsx); o store só grava.
+   *  Fase 4: um pino ou uma zona SOZINHOS abrem no painel deles
+   *  (`selectedPinId` / `selectedConcealZoneId`) e o conjunto fica vazio. */
   setSelection: (selection: SelectionSet) => void
+  /** Shift+clique: soma ou tira `item` do conjunto, contando o pino e a zona
+   *  abertos no painel como parte dele (Fase 4). Tirar o último fecha tudo. */
+  alternarNaSelecao: (item: SelectionItem) => void
+  /** Shift+laço: soma `itens` ao conjunto, com o pino e a zona abertos (Fase 4). */
+  somarNaSelecao: (itens: readonly SelectionItem[]) => void
   /**
    * Grupos do editor (Ctrl+G), por id de mapa — cada cena guarda os seus.
    * Fora de `MapData` de propósito: grupo é gesto do mestre, não conteúdo do
@@ -2323,10 +2366,21 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     regionStrokeJoin: 'miter',
     setCamera: (camera) => set({ camera }),
     // Selecionar algo no mapa fecha a zona oculta do painel; limpar a seleção não.
+    // O pino ou a zona sozinhos abrem no painel deles (`selecaoNoPainel`).
     setSelection: (selection) => {
       // Outro alvo selecionado: a próxima letra já é outra edição, outro passo.
       typingEdit = null
-      set(isSelectionEmpty(selection) ? { selection } : { selection, selectedConcealZoneId: null, selectedPinId: null })
+      set(selecaoNoPainel(selection))
+    },
+    alternarNaSelecao: (item) => {
+      typingEdit = null
+      const depois = toggleSelectionItem(conjuntoDoShift(get()), item)
+      // Saiu o último (o pino ou a zona abertos inclusive): nada fica aberto.
+      set(isSelectionEmpty(depois) ? { selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null } : selecaoNoPainel(depois))
+    },
+    somarNaSelecao: (itens) => {
+      typingEdit = null
+      set(selecaoNoPainel(selectionFromItems([...conjuntoDoShift(get()), ...itens])))
     },
     itemGroups: {},
     groupSelected: () => {
@@ -2420,7 +2474,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       })
       // Nenhum item existia mais no mapa (janela de corrida): mantém a
       // seleção antiga em vez de trocar por um conjunto vazio.
-      if (clonedItems.length > 0) set({ selection: clonedItems })
+      if (clonedItems.length > 0) set(selecaoNoPainel(clonedItems))
     },
     clipboard: null,
     copySelected: () => {
@@ -2449,7 +2503,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (result.items.length === 0) return false
       withHistory(() => result.map)
       // Depois da primeira colagem, o que foi recortado já voltou: as próximas são cópias.
-      set({ selection: result.items, ...(clipboard.cut ? { clipboard: { ...clipboard, cut: false } } : {}) })
+      // Um pino ou uma zona colados sozinhos abrem no painel deles (`selecaoNoPainel`).
+      set({ ...selecaoNoPainel(result.items), ...(clipboard.cut ? { clipboard: { ...clipboard, cut: false } } : {}) })
       return true
     },
     insertClonedEntityLive: (cloned, sourceRegionId) => set((state) => {
@@ -2924,7 +2979,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const { map, selection } = get()
       const camadas = contextoDeCamadas(map)
       const remaining = selecaoQueSobra(map, selection, (camada) => !camadas.mestreVe(camada))
-      if (remaining.length !== selection.length) set({ selection: remaining })
+      if (remaining.length !== selection.length) set(selecaoNoPainel(remaining))
     },
     toggleLayerLock: (id) => {
       const eraDeAntes = get().map.versaoDasCamadas !== 2
@@ -2933,7 +2988,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const { map, selection } = get()
       const camadas = contextoDeCamadas(map)
       const remaining = selecaoQueSobra(map, selection, (camada) => camadas.travada(camada))
-      if (remaining.length !== selection.length) set({ selection: remaining })
+      if (remaining.length !== selection.length) set(selecaoNoPainel(remaining))
     },
     alternarOlhoDosJogadores: (id) => withHistory((map) => alternarOlhoDosJogadores(map, id)),
     definirOpacidadeDaCamada: (id, opacidade, gesto) => {

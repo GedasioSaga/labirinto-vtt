@@ -79,6 +79,32 @@ describe('o laço com tipos misturados', () => {
   })
 })
 
+describe('o pino e a zona sozinhos abrem no painel deles', () => {
+  it('o laço que pega só o pino (ou só a zona) abre o pino (ou a zona), com o conjunto vazio', () => {
+    useMapStore.getState().setSelection([{ kind: 'pin', id: 'p1' }])
+    expect(useMapStore.getState()).toMatchObject({ selection: [], selectedPinId: 'p1', selectedConcealZoneId: null })
+    useMapStore.getState().setSelection([{ kind: 'zone', id: 'z1' }])
+    expect(useMapStore.getState()).toMatchObject({ selection: [], selectedPinId: null, selectedConcealZoneId: 'z1' })
+    // Com outro item junto, o conjunto fica e o que estava aberto fecha.
+    useMapStore.getState().setSelection([{ kind: 'zone', id: 'z1' }, { kind: 'carimbo', id: 'c1' }])
+    expect(useMapStore.getState()).toMatchObject({ selection: [{ kind: 'zone', id: 'z1' }, { kind: 'carimbo', id: 'c1' }], selectedPinId: null, selectedConcealZoneId: null })
+  })
+
+  it('o Shift+clique leva o pino aberto junto, e tirar o resto o devolve ao painel', () => {
+    useMapStore.getState().setSelectedPin('p1')
+    useMapStore.getState().alternarNaSelecao({ kind: 'carimbo', id: 'c1' })
+    expect(useMapStore.getState()).toMatchObject({ selection: [{ kind: 'pin', id: 'p1' }, { kind: 'carimbo', id: 'c1' }], selectedPinId: null })
+    useMapStore.getState().somarNaSelecao([{ kind: 'agua', id: 'a1' }])
+    expect(useMapStore.getState().selection).toHaveLength(3)
+    useMapStore.getState().alternarNaSelecao({ kind: 'carimbo', id: 'c1' })
+    useMapStore.getState().alternarNaSelecao({ kind: 'agua', id: 'a1' })
+    expect(useMapStore.getState()).toMatchObject({ selection: [], selectedPinId: 'p1' })
+    // Shift+clique no próprio pino aberto: sai, e nada fica aberto.
+    useMapStore.getState().alternarNaSelecao({ kind: 'pin', id: 'p1' })
+    expect(useMapStore.getState()).toMatchObject({ selection: [], selectedPinId: null, selectedConcealZoneId: null })
+  })
+})
+
 describe('a Borracha geral no Terreno', () => {
   it('acha o carimbo, o risco do Barranco e a água no ponto e os tira, um por passo', () => {
     const antes = useMapStore.getState().map
