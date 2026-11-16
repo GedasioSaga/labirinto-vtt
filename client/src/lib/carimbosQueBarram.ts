@@ -77,6 +77,33 @@ export function paredesDosCarimbosQueBarram(lista: readonly Carimbo[] | undefine
   return resposta
 }
 
+const semEscondidosPorLista = new WeakMap<readonly Carimbo[], Map<string, readonly Carimbo[]>>()
+
+/**
+ * A lista sem os carimbos que barram neste piso e que o recorte nunca entrega
+ * ao jogador (`escondido`, do host: `carimboEscondidoDosJogadores`). A recusa
+ * "Objeto no caminho" contaria que eles existem. Sem nenhum escondido, a MESMA
+ * lista; a mesma lista com os mesmos escondidos, o MESMO array (as paredes e as
+ * malhas guardam cache pela referência).
+ */
+export function semCarimbosEscondidos(lista: readonly Carimbo[] | undefined, piso: number, escondido: (c: Carimbo) => boolean): readonly Carimbo[] | undefined {
+  if (lista === undefined) return lista
+  const fora = lista.filter((c) => c.barra === true && pisoDe(c) === piso && escondido(c))
+  if (fora.length === 0) return lista
+  let porChave = semEscondidosPorLista.get(lista)
+  if (porChave === undefined) {
+    porChave = new Map()
+    semEscondidosPorLista.set(lista, porChave)
+  }
+  const chave = `${piso}:${fora.map((c) => c.id).join('|')}`
+  const guardada = porChave.get(chave)
+  if (guardada !== undefined) return guardada
+  const ids = new Set(fora.map((c) => c.id))
+  const ficam = lista.filter((c) => !ids.has(c.id))
+  porChave.set(chave, ficam)
+  return ficam
+}
+
 /** O id é de uma parede de carimbo? */
 export function ehParedeDeCarimbo(id: string): boolean {
   return id.startsWith(PREFIXO_DO_ID)

@@ -1,4 +1,4 @@
-import type { Agua, MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
+import type { Agua, Carimbo, MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
 import { paredesParaAndar } from './barranco'
@@ -7,7 +7,7 @@ import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
-import { aguaEscondidaDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
+import { aguaEscondidaDosJogadores, carimboEscondidoDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
 import { paredesParaAndarDoJogador, semParedesDeObjeto } from './obstaculosDeObjeto'
 import { clampToMaxStep, findOccupant, passoMaximoDaFicha, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
@@ -380,7 +380,11 @@ export function validateTokenMove(
   // entrega a ele (camada, zona oculta, sala secreta) não barra: a recusa contaria que ele existe.
   let testeDoEscondido: ((prop: Prop) => boolean) | null = null
   const escondido = (prop: Prop): boolean => (testeDoEscondido ??= objetoEscondidoDosJogadores(map))(prop)
-  const paredes = options.isHost && options.objetosBarram !== true ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido)
+  // O CARIMBO que barra segue a mesma regra (auditoria de 16/11/2026): o escondido dele não segura o passo.
+  let testeDoCarimbo: ((carimbo: Carimbo) => boolean) | null = null
+  const carimboEscondido = (carimbo: Carimbo): boolean => (testeDoCarimbo ??= carimboEscondidoDosJogadores(map))(carimbo)
+  const paredes =
+    options.isHost && options.objetosBarram !== true ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido, carimboEscondido)
 
   // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
   // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto
@@ -427,7 +431,8 @@ export function validateTokenMove(
     // E passaria só com os objetos que ele está VENDO (`objetoAVista`)? Então quem barrou foi um que ele
     // não vê: a recusa é a da parede que ele não vê, e não conta que ali há um objeto.
     const aVista = options.objetoAVista
-    const soOsQueEleVe = aVista === undefined ? paredes : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, (prop) => escondido(prop) || !aVista(prop))
+    const soOsQueEleVe =
+      aVista === undefined ? paredes : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, (prop) => escondido(prop) || !aVista(prop), carimboEscondido)
     const foiUmQueEleVe = soOsQueEleVe === paredes || findTokenPath(from, to, soOsQueEleVe, map.grid) === null
     return { ok: false, reason: foiUmQueEleVe ? 'objeto' : 'wall' }
   }

@@ -4,10 +4,10 @@
  * jogador recebe só o selo (o jogo e como ele começa), nunca o desafio.
  */
 import { describe, expect, it } from 'vitest'
-import type { Desafio, MapData, Pin, Token } from '../types/map'
+import type { Desafio, MapData, Pin, Prop, Token } from '../types/map'
 import { ehJogoDoRegistro, padraoDoJogo } from '../minigames/registro'
 import { comPinosDeMinigameComoDesafios, desafiosDo, novoDesafio, pinosDosDesafios } from './desafios'
-import { filterMapForPlayer } from './fogFilter'
+import { emptyPlanMemory, filterMapForPlayer, planOfWholeMap } from './fogFilter'
 import { buildPin, createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
 
@@ -105,5 +105,56 @@ describe('desafios — o recorte do jogador', () => {
   it('SEGURANÇA: nome do mestre, porta ligada e desafio não vão no pacote', () => {
     const texto = JSON.stringify(out)
     for (const segredo of ['Lago secreto do mestre', 'porta-cofre-9f3a', '"desafios"', '"lugar"']) expect(texto, segredo).not.toContain(segredo)
+  })
+})
+
+/**
+ * MEMÓRIA DA PLANTA (auditoria de 16/11/2026, bloqueante): numa sessão de
+ * verdade o host guarda a planta de cada jogador, e o selo do desafio nunca
+ * entrava nela — o recorte com memória o jogava fora, e o jogador não tocava
+ * no selo da pesca. O selo tem de passar pela memória como o pino ▷ de antes.
+ */
+describe('desafios — o recorte com a memória da planta', () => {
+  const PERTO = ficha('heroi', 180, 200)
+  const LONGE = ficha('heroi', 20000, 20000)
+  const POSSE = { p1: ['heroi'] }
+  const RAIO = 700
+  const pesca = (lugar: Desafio['lugar']): Desafio => ({ ...novoDesafio('d-pesca', 'pesca', lugar), minigame: { ...padraoDoJogo('pesca'), entrada: 'pino' } })
+  const cena = (desafio: Desafio, extra: Partial<MapData> = {}): MapData => ({ ...BASE, tokens: [PERTO], desafios: [desafio], ...extra })
+  const seloDe = (view: ReturnType<typeof filterMapForPlayer>): Pin | undefined => view.map.pins.find((p) => p.id === 'd-pesca')
+  const comMemoria = (map: MapData, plano: ReturnType<typeof emptyPlanMemory>) =>
+    filterMapForPlayer(map, 'p1', POSSE, RAIO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, plano)
+
+  it('o selo à vista chega e entra na planta; longe, chega lembrado', () => {
+    const mapa = cena(pesca({ tipo: 'ponto', x: 200, y: 200 }))
+    const visto = comMemoria(mapa, emptyPlanMemory())
+    expect(seloDe(visto)?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
+    expect(visto.plan.pins.has('d-pesca')).toBe(true)
+    const lembrado = comMemoria({ ...mapa, tokens: [LONGE] }, visto.plan)
+    expect(seloDe(lembrado)?.kind).toBe('minigame')
+  })
+
+  it('"Revelar planta" (planOfWholeMap) leva o selo, como levava o pino ▷', () => {
+    const mapa = cena(pesca({ tipo: 'ponto', x: 200, y: 200 }), { tokens: [LONGE] })
+    const plano = planOfWholeMap(mapa)
+    expect(plano.pins.has('d-pesca')).toBe(true)
+    expect(seloDe(comMemoria(mapa, plano))?.minigameVisivel).toEqual({ jogo: 'pesca', entrada: 'pino' })
+  })
+
+  it('SEGURANÇA: o selo num objeto escondido não chega, nem lembrado, nem pela planta revelada', () => {
+    const bau: Prop = { id: 'bau', src: '', x: 200, y: 200, width: 40, height: 40, linkedMapPath: null }
+    const mapa = cena(pesca({ tipo: 'objeto', propId: 'bau' }), { props: [bau] })
+    const visto = comMemoria(mapa, emptyPlanMemory())
+    expect(seloDe(visto), 'controle: o objeto à vista leva o selo').toBeDefined()
+    const escondido = { ...mapa, props: [{ ...bau, hidden: true }] }
+    const depois = comMemoria(escondido, visto.plan)
+    expect(seloDe(depois)).toBeUndefined()
+    expect(depois.plan.pins.has('d-pesca')).toBe(false)
+    expect(seloDe(comMemoria({ ...escondido, tokens: [LONGE] }, planOfWholeMap(escondido)))).toBeUndefined()
+  })
+
+  it('mapa sem desafio nem pino: a planta não ganha nada', () => {
+    expect(planOfWholeMap({ ...BASE, tokens: [LONGE] }).pins.size).toBe(0)
+    expect(comMemoria({ ...BASE, tokens: [PERTO] }, emptyPlanMemory()).map.pins).toEqual([])
   })
 })

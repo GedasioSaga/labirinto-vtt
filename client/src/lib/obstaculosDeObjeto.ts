@@ -1,7 +1,7 @@
 import type { Carimbo, MapData, Prop, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
-import { comParedesDosCarimbos } from './carimbosQueBarram'
+import { comParedesDosCarimbos, semCarimbosEscondidos } from './carimbosQueBarram'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
 import { construcaoTapaDeFabrica, ehConstrucao, medidaPeloMenorLado } from './mobilia/construcoes'
 import { contornoDaFaixa, distanciaAoEixo, eixoDoMuro, simplificarEixo, TOLERANCIA_DO_CONTORNO } from './mobilia/muroDeFogo'
@@ -412,15 +412,24 @@ function juntarParedes(base: Wall[], obstaculos: readonly ObstaculoDeObjeto[], v
  * `de` é onde a ficha está: o objeto que a contém fica de fora (nunca prender).
  * `escondido` é do HOST: o objeto que o recorte nunca entrega a este jogador
  * (camada que ele não vê, zona oculta, sala secreta) também fica de fora, senão
- * a recusa contaria que ele existe. Na tela do jogador o mapa já é o recorte.
+ * a recusa contaria que ele existe. `carimboEscondido`, a mesma regra para o
+ * carimbo que barra (auditoria de 16/11/2026). Na tela do jogador o mapa já é o recorte.
  *
  * As mesmas entradas devolvem o MESMO array (as malhas e os blocos da batalha
  * guardam cache pela referência das paredes). Sem objeto que barre, é a própria
  * lista de `paredesParaAndar`.
  */
-export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, piso: number, de: Point | null, escondido?: (prop: Prop) => boolean): Wall[] {
+export function paredesParaAndarDoJogador(
+  walls: Wall[],
+  map: MapaComObjetos,
+  piso: number,
+  de: Point | null,
+  escondido?: (prop: Prop) => boolean,
+  carimboEscondido?: (carimbo: Carimbo) => boolean,
+): Wall[] {
   // CARIMBO com "Barra a passagem" (Fase 2): entra junto com o barranco; sem nenhum, a mesma lista.
-  const base = comParedesDosCarimbos(paredesParaAndar(walls, map, piso), map.carimbos, piso, de)
+  const carimbos = carimboEscondido === undefined ? map.carimbos : semCarimbosEscondidos(map.carimbos, piso, carimboEscondido)
+  const base = comParedesDosCarimbos(paredesParaAndar(walls, map, piso), carimbos, piso, de)
   const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)
   if (obstaculos.length === 0) return base
   const valem = obstaculos.filter((o) => !(de !== null && pontoNoObstaculo(o, de)) && escondido?.(o.prop) !== true)

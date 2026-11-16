@@ -41,7 +41,7 @@ import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
 import type { MinigameVisivel } from '../minigames/tipos'
 import { recorteDoMinigame } from '../minigames/registro'
-import { pinosDosDesafios } from './desafios'
+import { desafiosDo, pinosDosDesafios } from './desafios'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
@@ -560,6 +560,23 @@ export function objetoEscondidoDosJogadores(map: MapData): (prop: MapData['props
   const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
   const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
   return (prop) => !camadas.jogadorVeItem('objeto', prop) || (aneis.length > 0 && propSamplePoints(prop).some((p) => aneis.some((anel) => pointInRing(p, anel))))
+}
+
+/**
+ * CARIMBO QUE BARRA A PASSAGEM (`lib/carimbosQueBarram.ts`), no molde do objeto
+ * acima (auditoria de 16/11/2026): o carimbo que o host NÃO pode usar para
+ * segurar o passo do jogador, porque o recorte (`carimbosParaJogador`) nunca o
+ * entrega e a recusa "Objeto no caminho" contaria que ele existe:
+ * - o de camada que os jogadores não veem (com a camada apagada a 0%);
+ * - o que tem o pé (`x`, `y`, o ponto que o recorte pergunta) em zona oculta
+ *   ativa ou em sala secreta (`playerHiddenRings`).
+ * O teto fica de fora, como no objeto: a árvore sob o teto fechado segura o
+ * passo como a parede da sala. As contas do mapa são feitas uma vez.
+ */
+export function carimboEscondidoDosJogadores(map: MapData): (carimbo: Carimbo) => boolean {
+  const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
+  const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
+  return (carimbo) => !camadas.jogadorVeItem('carimbo', carimbo) || (aneis.length > 0 && aneis.some((anel) => pointInRing(carimbo, anel)))
 }
 
 /**
@@ -2142,7 +2159,8 @@ export function planOfWholeMap(map: MapData): PlanMemory {
     markers: byId(map.markers),
     lines: byId(map.lines),
     stairs: byId(map.stairs),
-    pins: byId(map.pins ?? []),
+    // DESAFIOS: o selo entra na planta revelada como o pino ▷ de antes (o recorte decide se sai).
+    pins: byId([...(map.pins ?? []), ...pinosDosDesafios(map, 'mesa')]),
     // CONSTRUÇÕES (12/11/2026): a planta revelada mostra as construções como mostra os telhados.
     construcoes: byId(map.props.filter((p) => ehConstrucao(p.mobilia))),
   }
@@ -4155,17 +4173,9 @@ function recorteDoGrupo(
   }
   const floor = recallItems(map.floor, remembered?.floor, regrasDoChao)
 
-  // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
-  // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
-  // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
+  // A memória dos pinos (`pins`) é lida mais abaixo, depois dos objetos do
+  // recorte (`propsDoRecorte`): o selo de desafio posto num objeto depende deles.
   const pinPoint = (p: Pin): RegionPoint => ({ x: p.x, y: p.y })
-  const pins = recallItems(map.pins ?? [], remembered?.pins, {
-    allowed: (p) => !isArrivalOnly(p) && !p.hidden && !p.secret,
-    shown: (p) => jogadorVeItem('pino', p),
-    placeOk: (p) => !inRoomHiddenFromPlayer(pinPoint(p)) && !inConcealZone(pinPoint(p)),
-    seenNow: (p) => isVisible(pinPoint(p)) || comodoSeenPoint(pinPoint(p)),
-    unseenOk: (p) => exploredPoint(pinPoint(p)),
-  })
 
   /** Ponto no cone de quem espia e fora do que a zona esconde. */
   const seenByPeek = (point: RegionPoint): boolean => inPeekCone(point) && !hiddenByZone(point)
@@ -4450,8 +4460,6 @@ function recorteDoGrupo(
   // Para o pino PRESO a uma ficha (ver `pins`, abaixo): as fichas da cena e as
   // que este recorte entrega.
   const mapTokenIds = new Set(map.tokens.map((t) => t.id))
-  /** Pinos que a memória da planta devolveu (vistos agora, lembrados ou nunca vistos que podem sair): é o "conhecido" com memória. */
-  const recalledPinIds = new Set(pins.items.map(({ item }) => item.id))
   const deliveredTokenIds = new Set(playerTokens.map((t) => t.id))
   const watchable = watchTargets ?? owned
   const seenTargets = new Set(playerTokens.filter((t) => watchable.has(t.id)).map((t) => t.id))
@@ -4711,6 +4719,30 @@ function recorteDoGrupo(
     ),
     ...construcoesDoRecorte,
   ].map(propForPlayer)
+  /**
+   * PINOS DA MESA: os do mapa e os SELOS dos desafios (o pino derivado, de mesmo
+   * id, `lib/desafios.ts`). O selo passa pela memória da planta como passava o
+   * pino ▷ de antes: fora dela, com memória, ele nunca era lembrado e
+   * `recalledList` o jogava fora (auditoria de 16/11/2026, o jogador não tocava
+   * no selo da pesca). O posto num objeto que não chega a este jogador não sai,
+   * e a lembrança dele também não (`selosSemOObjeto`, em `allowed`): o selo
+   * contaria que o objeto existe, e lembrado sem o objeto ficaria solto na tela.
+   */
+  const objetoChega = (propId: string): boolean => propsDoRecorte.some((p) => p.id === propId)
+  const pinosDaMesa = [...(map.pins ?? []), ...pinosDosDesafios(map, 'mesa', objetoChega)]
+  const selosSemOObjeto = new Set(desafiosDo(map).flatMap((d) => (d.lugar.tipo === 'objeto' && !objetoChega(d.lugar.propId) ? [d.id] : [])))
+  // CHEGADA OCULTA (mão única) sai ANTES de qualquer outra regra: não é
+  // questão de névoa nem de explorado — o jogador nunca recebe o pino, nem o
+  // id dele, estando ou não em cima dele. Ver `isArrivalOnly`.
+  const pins = recallItems(pinosDaMesa, remembered?.pins, {
+    allowed: (p) => !isArrivalOnly(p) && !p.hidden && !p.secret && !selosSemOObjeto.has(p.id),
+    shown: (p) => jogadorVeItem('pino', p),
+    placeOk: (p) => !inRoomHiddenFromPlayer(pinPoint(p)) && !inConcealZone(pinPoint(p)),
+    seenNow: (p) => isVisible(pinPoint(p)) || comodoSeenPoint(pinPoint(p)),
+    unseenOk: (p) => exploredPoint(pinPoint(p)),
+  })
+  /** Pinos que a memória da planta devolveu (vistos agora, lembrados ou nunca vistos que podem sair): é o "conhecido" com memória. */
+  const recalledPinIds = new Set(pins.items.map(({ item }) => item.id))
   /**
    * ALCANCE PELO OBJETO (caça de 12/11/2026, J9): o "Usar <chave>" de uma
    * passagem trancada no meio de um objeto que barra aparece para quem encosta
@@ -4986,7 +5018,7 @@ function recorteDoGrupo(
     // antes, de mesmo id, pelas MESMAS regras abaixo (`lib/desafios.ts`). O
     // posto num objeto só chega com o objeto: o selo contaria que ele existe.
     pins: recalledList(
-      [...(map.pins ?? []), ...pinosDosDesafios(map, 'mesa', (propId) => propsDoRecorte.some((p) => p.id === propId))],
+      pinosDaMesa,
       pins,
       memoryMode,
       (p) => p.marco === true || p.escadaId !== undefined,

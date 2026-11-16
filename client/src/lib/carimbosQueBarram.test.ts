@@ -51,6 +51,17 @@ describe('Barra a passagem', () => {
     expect(comParedesDosCarimbos(m.walls, m.carimbos, 0, { x: 205, y: 195 })).toEqual(m.walls)
   })
 
+  it('o escondido do jogador (do host) sai das paredes; a mesma escolha, o mesmo array', () => {
+    const m = mapa([pinheiro('c1', 200, 200, { barra: true }), pinheiro('c2', 600, 600, { barra: true })])
+    const escondeC1 = (c: Carimbo): boolean => c.id === 'c1'
+    const semC1 = paredesParaAndarDoJogador(m.walls, m, 0, null, undefined, escondeC1)
+    expect(semC1.length).toBe(m.walls.length + 4)
+    expect(semC1.some((w) => w.id.startsWith('carimbo:c1:'))).toBe(false)
+    expect(paredesParaAndarDoJogador(m.walls, m, 0, null, undefined, escondeC1)).toBe(semC1)
+    expect(paredesParaAndarDoJogador(m.walls, m, 0, null, undefined, () => false)).toBe(paredesParaAndarDoJogador(m.walls, m, 0, null))
+    expect(paredesParaAndarDoJogador(m.walls, m, 0, null, undefined, () => true)).toBe(m.walls)
+  })
+
   it('o carimbo de outro piso não barra este', () => {
     const m = mapa([pinheiro('c1', 200, 200, { barra: true, piso: 1 })])
     expect(paredesParaAndarDoJogador(m.walls, m, 0, null)).toBe(m.walls)
