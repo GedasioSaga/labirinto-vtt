@@ -224,6 +224,7 @@ import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_
 import { cartaoPorId as cartaoEmQualquerNivel, comAsMarcasDeOcultaDe, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { chavesDosSelos } from '../lib/ponteDasCondicoes'
+import { condicoesQueACuraTirou, curarPeloItem } from '../lib/curaPeloItem'
 import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../lib/prazoNaVez'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { comCondicoes, condicoesDaFicha } from '../lib/turnoForaDaBatalha'
@@ -944,6 +945,14 @@ function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual
  */
 type Recusada = 'recusada'
 
+/** A cura pelo item num alvo, lida antes de gravar (`curaDoItemNoAlvo`): a ficha do mapa antes e depois, e os nomes que saíram. */
+interface CuraDoItemNoAlvo {
+  tokenId: string
+  antes: Token
+  depois: Token
+  curou: string[]
+}
+
 /** O miolo de `mexerNaFicha` e `trocarFicha`: `mudar` devolve `null` = não deu (a ficha fica). */
 function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: SistemaDeRpg, mudar: (atual: Personagem) => Personagem | null): ParteDaFicha[] | null | Recusada {
   // Num objeto: a atribuição dentro do callback não estreita a variável de fora (o TS a daria como sempre `null`).
@@ -1475,6 +1484,31 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const linha = comMudanca(atual, lembrados.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     if (efeitos.length > 0) avisarQuemCaiu(sceneKey, autor)
+  }
+
+  /**
+   * A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o que a cura pelo item tira
+   * da ficha `tokenId` no mapa, só lido (nada gravado). O selo de mesmo nome
+   * segura a pastilha (a Medicina só cura e deixa os debuffs). `null` = nada a
+   * tirar, ou a mesa sem mapa (arena).
+   */
+  const curaDoItemNoAlvo = (sceneKey: string, tokenId: string, selos: TurnosDaCena['selos']): CuraDoItemNoAlvo | null => {
+    const antes = mesa.fichaDaCena?.(sceneKey, tokenId) ?? null
+    if (antes === null || mesa.mudarFichaDaCena === undefined) return null
+    const depois = curarPeloItem(antes, chavesDosSelos(selos).get(tokenId))
+    if (depois === antes) return null
+    return { tokenId, antes, depois, curou: condicoesQueACuraTirou(antes, depois) }
+  }
+
+  /** Grava as curas pelo item (depois de todo alvo aceito) e devolve as partes do Desfazer: as condições voltam como estavam. */
+  const gravarCurasDoItem = (sceneKey: string, curas: readonly CuraDoItemNoAlvo[]): Reversao[] => {
+    const { mudarFichaDaCena } = mesa
+    if (mudarFichaDaCena === undefined) return []
+    return curas.map(({ tokenId, antes, depois }): Reversao => {
+      const campos = condicoesDaFicha(depois)
+      mudarFichaDaCena(sceneKey, tokenId, (token) => comCondicoes(token, campos))
+      return { tipo: 'prazo', tokenId, antes: condicoesDaFicha(antes) }
+    })
   }
 
   /**
@@ -2812,6 +2846,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // F2 (fatia D, Revigorar): tira os selos negativos (o cansaço do Overload junto) e cura, em cada alvo (ele ou um aliado).
       const limpeza = cartaoDoPedido === null ? null : limpezaDe(cartaoDoPedido)
       if (limpeza !== null && ctx.personagem !== null && ctx.sistema !== null) {
+        const curasDoItem: CuraDoItemNoAlvo[] = []
         for (const alvo of golpe.alvos) {
           // F2 (fatia F, Medicina): a que só cura deixa os debuffs.
           const tirados = limpeza.soCura === true ? [] : debuffsDoToken(novos.selos, alvo.tokenId)
@@ -2834,11 +2869,17 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
           if (curou !== null && alvo.personagemId !== null) partes.push(...reversaoDaFicha(alvo.personagemId, curou))
           // F2 (fatia F, Medicina): a nota diz o item gasto ("curou 100, gastou 1 Kit Médico").
           const item = pedido.tipo === 'habilidade' ? mecanicaDoCartao(pedido.cartaoId)?.gastaItem : undefined
-          const doItem = item === undefined ? '' : `, gastou 1 ${item}`
+          // A CURA TIRA O VENENO (`lib/curaPeloItem.ts`): o item gasto para curar tira o Envenenado do alvo ("..., tirou Envenenado").
+          const curaDoItem = item === undefined ? null : curaDoItemNoAlvo(sceneKey, alvo.tokenId, novos.selos)
+          if (curaDoItem !== null) curasDoItem.push(curaDoItem)
+          const doVeneno = curaDoItem === null || curaDoItem.curou.length === 0 ? '' : `, tirou ${curaDoItem.curou.join(', ')}`
+          const doItem = item === undefined ? '' : `, gastou 1 ${item}${doVeneno}`
           const daCura = `${notaDaCura(cura, coube)}${doItem}`
           const nota = limpeza.soCura === true ? daCura : `tirou ${tirados.length} ${tirados.length === 1 ? 'debuff' : 'debuffs'}, ${daCura}`
           golpe = golpeComOAlvo(golpe, { ...alvo, nota })
         }
+        // Só depois de todo alvo aceito: o pedido recusado no meio (acima) não deixa o veneno tirado de ninguém.
+        partes.push(...gravarCurasDoItem(sceneKey, curasDoItem))
       }
       novos = { ...novos, golpes: comGolpe(novos.golpes, golpe) }
     }
