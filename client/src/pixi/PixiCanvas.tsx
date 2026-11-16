@@ -357,6 +357,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
+import { pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
 import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, noDoItem, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
 import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
@@ -6979,7 +6980,9 @@ function PixiCanvasDoContexto({
             useMapStore.getState().pinIcon ?? undefined,
           )
           // Camada travada: o pino não nasce e nada fica selecionado (o aviso diz qual camada segurou).
-          cravarPinoPeloGesto(pin)
+          // "Pôr no mapa" do Prelúdio (P3): com uma seção esperando, o pino nasce ligado a ela.
+          const doPreludio = pinoDaColocacao(pin)
+          if (cravarPinoPeloGesto(doPreludio) && doPreludio !== pin) terminarColocacao('posto')
           return
         }
 

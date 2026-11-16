@@ -1,6 +1,18 @@
 import type { Canal } from '../../net/visaoDeTeste/canal'
 import type { LigaCena } from '../../lib/preparo/tipos'
-import { lerRecadoDaMesa, motivoParaOFio, pedidoDoPreludio, type AbaDoVerbete, type CorpoDoPedido, type EstadoDaMesa, type MudancaNoPreparo } from './protocolo'
+import {
+  lerRecadoDaMesa,
+  motivoParaOFio,
+  pedidoDoPreludio,
+  type AbaDoVerbete,
+  type AndamentoDoPor,
+  type CorpoDoPedido,
+  type EstadoDaMesa,
+  type ItemNaMesa,
+  type MudancaNoPreparo,
+  type SecaoParaOMapa,
+  type TipoParaOMapa,
+} from './protocolo'
 
 /**
  * O FIO, VISTO DA JANELA DO PRELÚDIO. Sem React e sem a loja: quem liga
@@ -25,7 +37,11 @@ export interface DepsDoFio {
   aoViva: (viva: boolean) => void
   /** O que a mesa recusou ou não conseguiu; `null` limpa. */
   aoAviso: (aviso: string | null) => void
-  aoAbrirVerbete: (verbeteId: string, aba: AbaDoVerbete | null) => void
+  aoAbrirVerbete: (verbeteId: string, aba: AbaDoVerbete | null, secaoId: string | null) => void
+  /** O andamento de um "Pôr no mapa" (P3). */
+  aoPondo: (pedido: number, andamento: AndamentoDoPor, motivo: string | null) => void
+  /** Os pinos ligados do mapa aberto (P3). */
+  aoNaMesa: (itens: readonly ItemNaMesa[]) => void
   aoMudar: (mudanca: MudancaNoPreparo) => void
   /** Grava o que falta; `null` = tudo no disco. */
   salvarTudo: () => Promise<string | null>
@@ -37,6 +53,9 @@ export interface FioDoPreludio {
   irAMesa(alvo: LigaCena): void
   /** Esta janela gravou algo em preparo/: a mesa relê. */
   avisarMudanca(mudanca: MudancaNoPreparo): void
+  /** "Pôr no mapa" (P3): a mesa espera o clique do mestre. Devolve o número do pedido. */
+  porNoMapa(fonte: SecaoParaOMapa, kind: TipoParaOMapa): number
+  cancelarPor(pedido: number): void
   desligar(): void
 }
 
@@ -70,7 +89,13 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
         conferirVida()
         return
       case 'abrir-verbete':
-        deps.aoAbrirVerbete(recado.verbeteId, recado.aba)
+        deps.aoAbrirVerbete(recado.verbeteId, recado.aba, recado.secaoId)
+        return
+      case 'pondo':
+        deps.aoPondo(recado.pedido, recado.andamento, recado.motivo)
+        return
+      case 'na-mesa':
+        deps.aoNaMesa(recado.itens)
         return
       case 'resposta':
         deps.aoAviso(recado.ok ? null : (recado.motivo ?? 'A mesa não abriu este link.'))
@@ -103,6 +128,14 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
     },
     avisarMudanca(mudanca) {
       enviar({ tipo: 'mudou', mudanca })
+    },
+    porNoMapa(fonte, kind) {
+      pedidos += 1
+      enviar({ tipo: 'por-no-mapa', pedido: pedidos, fonte, kind })
+      return pedidos
+    },
+    cancelarPor(pedido) {
+      enviar({ tipo: 'cancelar-por', pedido })
     },
     desligar() {
       ligado = false

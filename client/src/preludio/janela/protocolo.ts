@@ -16,12 +16,17 @@ import type { LigaCena } from '../../lib/preparo/tipos'
  * ignorada sem efeito nenhum.
  *
  * Do Prelúdio para a mesa: `ola` (abri ou recarreguei), `ping`, `ir-a-mesa`
- * (cena e pino, como os links do roteiro), `mudou` (gravei algo em preparo/) e
- * `gravou` (resposta ao `salvar-agora`).
+ * (cena e pino, como os links do roteiro), `mudou` (gravei algo em preparo/),
+ * `gravou` (resposta ao `salvar-agora`), `por-no-mapa` (P3: a seção que o
+ * mestre vai cravar no mapa com um clique) e `cancelar-por`.
  * Da mesa para o Prelúdio: `estado` (mapa, cena e pino selecionado), `pong`,
- * `abrir-verbete` (o "Abrir no Prelúdio" do mapa), `resposta` (ao
- * `ir-a-mesa`), `mudou` (o Livro do mestre revelou) e `salvar-agora` (a janela
- * principal vai fechar).
+ * `abrir-verbete` (o "Abrir no Prelúdio" do mapa, com a seção do pino ligado),
+ * `resposta` (ao `ir-a-mesa`), `mudou` (o Livro do mestre revelou),
+ * `salvar-agora` (a janela principal vai fechar), `pondo` (o andamento do
+ * "Pôr no mapa") e `na-mesa` (os pinos ligados do mapa aberto).
+ *
+ * O texto da seção nunca viaja pelo fio: a mesa o lê do disco, no próprio
+ * verbete, e confere ali que a seção não é segredo antes de cravar o pino.
  */
 
 export const VERSAO_DO_FIO = 1
@@ -60,8 +65,40 @@ export interface EstadoDaMesa {
   readonly pino: { readonly id: string; readonly nome: string } | null
 }
 
+/** A seção de um verbete que vai ao mapa ("Pôr no mapa", P3). */
+export interface SecaoParaOMapa {
+  readonly verbeteId: string
+  readonly formaId: string
+  readonly secaoId: string
+}
+
+/** Como a seção entra no mapa: "!" (cenário, para ler) ou "?" (fala ou pista). P4/P5 dão papel próprio a cada um. */
+export type TipoParaOMapa = 'exclamacao' | 'interrogacao'
+
+/** O andamento de um "Pôr no mapa": a mesa espera o clique, pôs, desistiu ou recusou. */
+export type AndamentoDoPor = 'esperando' | 'posto' | 'cancelado' | 'recusado'
+
+/** Uma coisa do mapa ligada a uma seção do Prelúdio (a lista "Na mesa"). Por ora, só pinos. */
+export interface ItemNaMesa {
+  readonly pinoId: string
+  /** O nome do pino como o mestre o lê no mapa. */
+  readonly nome: string
+  /** O tipo do pino; `'outro'` = viagem, alavanca ou minigame que ficou ligado depois de trocar de tipo. */
+  readonly kind: TipoParaOMapa | 'outro'
+  /** O endereço do pino, como os links do roteiro (`LigaCena`). */
+  readonly chave: string
+  readonly sceneId: string
+  /** O nome da cena; `''` = mapa sem cenas. */
+  readonly cena: string
+  readonly verbeteId: string
+  readonly formaId: string
+  readonly secaoId: string
+}
+
 export type PedidoDoPreludio =
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ola' }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'por-no-mapa'; readonly pedido: number; readonly fonte: SecaoParaOMapa; readonly kind: TipoParaOMapa }
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'cancelar-por'; readonly pedido: number }
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ping'; readonly n: number }
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ir-a-mesa'; readonly pedido: number; readonly alvo: LigaCena }
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'mudou'; readonly mudanca: MudancaNoPreparo }
@@ -70,7 +107,9 @@ export type PedidoDoPreludio =
 export type RecadoDaMesa =
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'estado'; readonly estado: EstadoDaMesa }
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'pong'; readonly n: number }
-  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'abrir-verbete'; readonly verbeteId: string; readonly aba: AbaDoVerbete | null }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'abrir-verbete'; readonly verbeteId: string; readonly aba: AbaDoVerbete | null; readonly secaoId: string | null }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'pondo'; readonly pedido: number; readonly andamento: AndamentoDoPor; readonly motivo: string | null }
+  | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'na-mesa'; readonly itens: readonly ItemNaMesa[] }
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'resposta'; readonly pedido: number; readonly ok: boolean; readonly motivo: string | null }
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'mudou'; readonly mudanca: MudancaNoPreparo }
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'salvar-agora'; readonly pedido: number }
@@ -142,6 +181,51 @@ export function lerAlvoNaMesa(valor: unknown): LigaCena | null {
   return idDoMapaValido(pinoId) ? { chave, sceneId, pinoId } : null
 }
 
+/** Teto da lista "Na mesa" (um mapa com mais pinos ligados que isso manda os primeiros). */
+export const NA_MESA_MAX = 500
+
+/** Id de forma ou de seção dentro do verbete: não vazio, no teto, sem controle. */
+function idDentroDoVerbete(valor: unknown): valor is string {
+  return idDoMapaValido(valor)
+}
+
+function lerTipoParaOMapa(valor: unknown): TipoParaOMapa | null {
+  return valor === 'exclamacao' || valor === 'interrogacao' ? valor : null
+}
+
+/** A seção que o Prelúdio quer no mapa. A mesa ainda confere no verbete se ela existe e não é segredo. */
+export function lerSecaoParaOMapa(valor: unknown): SecaoParaOMapa | null {
+  if (!ehRegistro(valor)) return null
+  const { verbeteId, formaId, secaoId } = valor
+  return idDoPreparoValido(verbeteId) && idDentroDoVerbete(formaId) && idDentroDoVerbete(secaoId) ? { verbeteId, formaId, secaoId } : null
+}
+
+function lerItemNaMesa(valor: unknown): ItemNaMesa | null {
+  if (!ehRegistro(valor)) return null
+  const { pinoId, nome, kind, chave, sceneId, cena } = valor
+  const fonte = lerSecaoParaOMapa(valor)
+  const tipo = kind === 'outro' ? 'outro' : lerTipoParaOMapa(kind)
+  if (fonte === null || tipo === null || !idDoMapaValido(pinoId) || !nomeValido(nome, NOME_MAX) || !idDoMapaValido(chave)) return null
+  if (!nomeValido(sceneId, ID_DO_MAPA_MAX) || !nomeValido(cena, NOME_MAX)) return null
+  return { pinoId, nome, kind: tipo, chave, sceneId, cena, ...fonte }
+}
+
+function lerItensNaMesa(valor: unknown): ItemNaMesa[] | null {
+  if (!Array.isArray(valor) || valor.length > NA_MESA_MAX) return null
+  const itens: ItemNaMesa[] = []
+  for (const bruto of valor) {
+    const item = lerItemNaMesa(bruto)
+    // Um item torto derruba a lista inteira: lista pela metade diria "não está no mapa" do que está.
+    if (item === null) return null
+    itens.push(item)
+  }
+  return itens
+}
+
+function lerAndamento(valor: unknown): AndamentoDoPor | null {
+  return valor === 'esperando' || valor === 'posto' || valor === 'cancelado' || valor === 'recusado' ? valor : null
+}
+
 /** A mesa lê o que veio do Prelúdio. `null` = ignorar. */
 export function lerPedidoDoPreludio(dado: unknown, sessao: string): PedidoDoPreludio | null {
   if (!envelopeValido(dado, 'preludio', sessao)) return null
@@ -149,6 +233,13 @@ export function lerPedidoDoPreludio(dado: unknown, sessao: string): PedidoDoPrel
   switch (dado.tipo) {
     case 'ola':
       return { ...envelope, tipo: 'ola' }
+    case 'por-no-mapa': {
+      const fonte = lerSecaoParaOMapa(dado.fonte)
+      const kind = lerTipoParaOMapa(dado.kind)
+      return fonte === null || kind === null || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'por-no-mapa', pedido: dado.pedido, fonte, kind }
+    }
+    case 'cancelar-por':
+      return numeroValido(dado.pedido) ? { ...envelope, tipo: 'cancelar-por', pedido: dado.pedido } : null
     case 'ping':
       return numeroValido(dado.n) ? { ...envelope, tipo: 'ping', n: dado.n } : null
     case 'ir-a-mesa': {
@@ -204,7 +295,17 @@ export function lerRecadoDaMesa(dado: unknown, sessao: string): RecadoDaMesa | n
     case 'abrir-verbete': {
       if (!idDoPreparoValido(dado.verbeteId)) return null
       const aba = dado.aba === 'roteiro' || dado.aba === 'quadro' ? dado.aba : dado.aba === null ? null : undefined
-      return aba === undefined ? null : { ...envelope, tipo: 'abrir-verbete', verbeteId: dado.verbeteId, aba }
+      const secaoId = dado.secaoId === null ? null : idDentroDoVerbete(dado.secaoId) ? dado.secaoId : undefined
+      return aba === undefined || secaoId === undefined ? null : { ...envelope, tipo: 'abrir-verbete', verbeteId: dado.verbeteId, aba, secaoId }
+    }
+    case 'pondo': {
+      const andamento = lerAndamento(dado.andamento)
+      const motivo = lerMotivo(dado.motivo)
+      return andamento === null || motivo === undefined || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'pondo', pedido: dado.pedido, andamento, motivo }
+    }
+    case 'na-mesa': {
+      const itens = lerItensNaMesa(dado.itens)
+      return itens === null ? null : { ...envelope, tipo: 'na-mesa', itens }
     }
     case 'resposta': {
       const motivo = lerMotivo(dado.motivo)

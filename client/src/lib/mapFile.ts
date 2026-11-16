@@ -10,6 +10,7 @@ import { aguasDoArquivo } from './agua/dados'
 import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, regraDoArquivo } from './estadoDoMundo'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
+import { readFonteNoPreludio } from './fonteNoPreludio'
 import { closeIfLocked } from './doorLock'
 import { lerMarcasDoArquivo } from './marcas'
 import { readTokenVehicle, withoutVehicleField } from './vehicle'
@@ -860,6 +861,10 @@ function lerPinoDoArquivo(p: Pin): Pin {
     icon: isPinIcon(p.icon) ? p.icon : undefined,
     description: typeof p.description === 'string' ? p.description : '',
     // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
+    // PINO LIGADO AO PRELÚDIO (P3): campo NOVO e OPCIONAL. Forma errada volta
+    // AUSENTE: o pino fica com a cópia de reserva (`description`), como um
+    // pino comum. Mapa de antes não tem o campo e abre e grava igual.
+    fonte: readFonteNoPreludio(p.fonte),
     // ou torto (número, arquivo editado à mão) volta AUSENTE.
     nome: cleanPinName(p.nome) || undefined,
     image: typeof p.image === 'string' ? p.image : null,

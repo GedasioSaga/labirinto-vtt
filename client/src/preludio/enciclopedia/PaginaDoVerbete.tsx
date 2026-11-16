@@ -6,6 +6,7 @@ import type { AlvoDaRevelacao, Forma, Secao, TextoRico, Verbete } from '../../li
 import { citadoEm, usePreludio, type Lugar } from '../estado/preludio'
 import { BarraDoTexto, TextoDoPreludio } from '../editor/sobDemanda'
 import { bloqueioDoVerbete, ControleDeRevelacao, RevelarVerbete, useCampanhaDaRevelacao, useRevelacoesDaCampanha } from '../revelar/Revelar'
+import { NaMesa, PorNoMapaDaSecao } from '../janela/NaMesaNoPreludio'
 import { FichaDoLivro } from './FichaDoLivro'
 import { Galeria, Retrato } from './Imagens'
 
@@ -108,16 +109,18 @@ interface SecaoProps {
   aoTornarSegredo?: () => void
   /** Os mencionados que o jogador lê só pelo nome no texto desta seção (F2c). */
   soNome?: ReadonlySet<string>
+  /** "Pôr no mapa" e as fichas "No mapa" desta seção (P3, só na janela do Prelúdio). */
+  naMesa?: ReactNode
 }
 
-export function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo, soNome }: SecaoProps) {
+export function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, montada, aoMudar, revelacao, aoTornarSegredo, soNome, naMesa }: SecaoProps) {
   const temTitulo = secao.titulo !== ''
   const rotulo = temTitulo ? `${secao.titulo} de ${dono}` : `Texto de ${dono}`
   // A cabeça (nome e segredo) não muda a cada tecla: apagar o nome para escrever outro não pode tirar o campo do lugar.
   const [cabecaAoAbrir] = useState(() => temTitulo || secao.segredo)
   const comCabeca = !documento || !primeira || cabecaAoAbrir
   return (
-    <section className={`pr-secao ${secao.segredo ? 'pr-secao--segredo' : ''}`} aria-label={rotulo}>
+    <section className={`pr-secao ${secao.segredo ? 'pr-secao--segredo' : ''}`} aria-label={rotulo} data-secao-id={secao.id}>
       {comCabeca && (
         <header className="pr-secao__cabeca">
           <input
@@ -145,6 +148,7 @@ export function SecaoDoVerbete({ secao, dono, documento, primeira, editavel, mon
           {!secao.segredo && revelacao}
         </header>
       )}
+      {comCabeca && naMesa}
       {montada ? (
         <TextoDoPreludio
           texto={secao.texto}
@@ -534,6 +538,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
               }
               aoTornarSegredo={revelavel ? () => ocultarEmTodas(alvoDaSecao(verbete.id, forma.id, secao.id)) : undefined}
               soNome={soNomeNasSecoes.get(chaveDaSecao(forma.id, secao.id))}
+              naMesa={documento ? undefined : <PorNoMapaDaSecao verbete={verbete} forma={forma} secao={secao} />}
             />
           ))}
           {forma.secoes.length === 0 && <p className="pr-quieto">Nenhum texto nesta forma ainda.</p>}
@@ -548,6 +553,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
       </article>
 
       <aside className="pr-trilho" aria-label={`Ao redor de ${verbete.titulo || 'sem nome'}`}>
+        {!documento && <NaMesa verbeteId={verbete.id} />}
         {(verbete.tipo === 'lugar' || documento) && (
           <section className="pr-trilho__bloco" aria-labelledby="pr-dentro-titulo">
             <h3 id="pr-dentro-titulo" className="pr-trilho__titulo">

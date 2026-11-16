@@ -97,3 +97,10 @@
 .lb-pin-outra-cor::-webkit-color-swatch { border: 0; border-radius: 50%; opacity: 0; }
 .lb-pin-outra-cor--marcada::-webkit-color-swatch { opacity: 1; }
 .lb-pin-outra-cor--marcada { outline: 1.5px solid var(--lb-color-brass); outline-offset: 2.5px; }
+
+/* PINO LIGADO AO PRELÚDIO (P3): o texto vem da seção, só leitura. */
+.lb-pino-ligado { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-sm); }
+.lb-pino-ligado__de { font-size: var(--lb-font-size-xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--lb-color-brass-bright); }
+.lb-pino-ligado__caminho { font-weight: 600; color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.lb-pino-ligado__texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12em; overflow: auto; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
+.lb-pino-ligado__ajuda { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }

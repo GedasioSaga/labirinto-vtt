@@ -7,7 +7,7 @@ import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
 import { usePreludio } from '../estado/preludio'
 import { TelaDoPreludio } from '../TelaDoPreludio'
 import { ligarFioDoPreludio, type FioDoPreludio } from './fioDaJanela'
-import { useMesaNaJanela } from './mesaNaJanela'
+import { aoPondo, definirFioDaMesa, useMesaNaJanela } from './mesaNaJanela'
 import { definirAvisoDeMudanca } from './mudancas'
 import { nomeDoCanal, type AbaDoVerbete, type EstadoDaMesa } from './protocolo'
 import './janela.css'
@@ -51,7 +51,28 @@ async function salvarTudo(): Promise<string | null> {
  * `decidir` não mexe na loja: o `ir` muda a loja, e a loja avisa quem escuta na
  * hora, então a ação só roda depois de parar de escutar (senão uma chama a outra sem fim).
  */
-function irAoVerbete(verbeteId: string, aba: AbaDoVerbete | null, avisar: (aviso: string | null) => void): void {
+/** A seção do pino ligado (P3): rola até ela e a marca por um instante, depois que a página desenha. */
+function marcarSecao(secaoId: string): void {
+  let tentativas = 0
+  const procurar = () => {
+    const secao = document.querySelector<HTMLElement>(`[data-secao-id="${CSS.escape(secaoId)}"]`)
+    if (secao === null) {
+      tentativas += 1
+      if (tentativas < MARCAR_TENTATIVAS) requestAnimationFrame(procurar)
+      return
+    }
+    secao.scrollIntoView({ block: 'center' })
+    secao.classList.add('e-marcada')
+    setTimeout(() => secao.classList.remove('e-marcada'), MARCADA_MS)
+  }
+  requestAnimationFrame(procurar)
+}
+
+/** Quantos quadros esperar a seção aparecer (as seções de um verbete grande entram uma por quadro). */
+const MARCAR_TENTATIVAS = 60
+const MARCADA_MS = 2000
+
+function irAoVerbete(verbeteId: string, aba: AbaDoVerbete | null, avisar: (aviso: string | null) => void, secaoId: string | null = null): void {
   const decidir = (): (() => void) | null => {
     const { carga, verbetes, ir } = usePreludio.getState()
     if (carga.t === 'falhou') return () => undefined
@@ -62,6 +83,7 @@ function irAoVerbete(verbeteId: string, aba: AbaDoVerbete | null, avisar: (aviso
       if (verbete.tipo === 'sessao') ir(aba === null ? { secao: 'sessoes', sessaoId: verbeteId } : { secao: 'sessoes', sessaoId: verbeteId, aba })
       else ir(lugarDoVerbete(verbete, verbetes))
       avisar(null)
+      if (secaoId !== null) marcarSecao(secaoId)
     }
   }
   const agora = decidir()
@@ -116,15 +138,18 @@ export function JanelaDoPreludio({ sessao }: { sessao: string }) {
         useMesaNaJanela.setState({ viva: agora })
       },
       aoAviso: setAviso,
-      aoAbrirVerbete: (verbeteId, aba) => irAoVerbete(verbeteId, aba, setAviso),
+      aoAbrirVerbete: (verbeteId, aba, secaoId) => irAoVerbete(verbeteId, aba, setAviso, secaoId),
+      aoPondo,
+      aoNaMesa: (itens) => useMesaNaJanela.setState({ naMesa: itens }),
       aoMudar: (mudanca) => void usePreludio.getState().relerDoDisco(mudanca),
       salvarTudo,
     })
     fio.current = ligado
+    definirFioDaMesa(ligado)
     definirAvisoDeMudanca((mudanca) => ligado.avisarMudanca(mudanca))
     return () => {
       definirAvisoDeMudanca(null)
-      useMesaNaJanela.setState({ ligada: false, viva: false, estado: null })
+      definirFioDaMesa(null)
       fio.current = null
       ligado.desligar()
       canal.fechar()

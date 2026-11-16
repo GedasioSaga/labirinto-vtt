@@ -126,7 +126,9 @@ import { LoadMapScreen } from './screens/LoadMapScreen'
 import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
-import { abrirOPreludioEmJanela, janelaDoPreludioAberta } from './preludio/janela/portaDaJanela'
+import { abrirOPreludioEmJanela, janelaDoPreludioAberta, registrarDepsDaMesa } from './preludio/janela/portaDaJanela'
+import { FaixaDaColocacao } from './components/FaixaDaColocacao'
+import { vigiarPinosLigados } from './lib/vigiaDosPinosLigados'
 import { RoteiroNoLivro, usePaginasDoPreludioNoLivro } from './preludio/roteiro/RoteiroNoLivro'
 import { PAGINA_DOS_JOGOS, PaginaJogos, sessoesAoVivo } from './components/livro/PaginaJogos'
 import type { LigaCena } from './lib/preparo/tipos'
@@ -1918,6 +1920,8 @@ function App() {
   // Pino de viagem: toda mudança de ligação na cena aberta (ligar, desligar,
   // apagar, Ctrl+Z) é espelhada no par da outra cena.
   useEffect(() => subscribeToTravelLinks(), [])
+  // P3 do Prelúdio: o pino ligado a um verbete segue o texto dele (só baixa com pino ligado no mapa).
+  useEffect(() => vigiarPinosLigados(), [])
 
   useEffect(() => {
     currentMapPathRef.current = currentMapPath
@@ -3183,6 +3187,10 @@ function App() {
       () => avisar('Não deu para abrir o mapa do link. Feche e abra o Labirinto de novo.', 'error'),
     )
   }
+  // P3: o "Abrir no Prelúdio" da ficha do pino ligado abre a janela sem receber isto por propriedade (sempre a função mais nova).
+  useEffect(() => {
+    registrarDepsDaMesa({ abrirNaMesa: abrirNaMesaPeloRoteiro, avisar: (texto) => useToastStore.getState().push('error', texto) })
+  })
 
   const handleOpen = () => askBeforeReplacingMap(openMapFromPicker)
 
@@ -3404,6 +3412,7 @@ function App() {
     <>
       <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
+      {screen === 'editor' && <FaixaDaColocacao />}
       {screen === 'editor' && ofertaDaBatalha !== null && (
         <RetomarBatalhaDialog
           oferta={ofertaDaBatalha}

@@ -8,8 +8,27 @@ import { registrarSalvarNaJanela } from '../aoFechar'
 import { usePreludio } from '../estado/preludio'
 import { definirAvisoDeMudanca } from './mudancas'
 import { marcarJanelaDoPreludio, type DepsDaMesa, type FocoNoPreludio } from './portaDaJanela'
+import { PIN_NOME_MAX_LENGTH } from '../../lib/pins'
+import { situacaoDaFonte } from '../../lib/preparo/pinoLigado'
+import { comecarColocacao, definirFimDaColocacao, terminarColocacao, useColocacaoDoPreludio } from '../../stores/colocacaoDoPreludio'
+import { sceneMaps } from '../../stores/adventureStore'
 import { mapaNaMemoriaAgora } from '../mesa/catalogo'
-import { idDoMapaParaOFio, lerPedidoDoPreludio, nomeDoCanal, nomeParaOFio, recadoDaMesa, type CorpoDoRecado, type EstadoDaMesa, type PedidoDoPreludio } from './protocolo'
+import {
+  idDoMapaParaOFio,
+  lerPedidoDoPreludio,
+  lerSecaoParaOMapa,
+  motivoParaOFio,
+  NA_MESA_MAX,
+  nomeDoCanal,
+  nomeParaOFio,
+  recadoDaMesa,
+  type CorpoDoRecado,
+  type EstadoDaMesa,
+  type ItemNaMesa,
+  type PedidoDoPreludio,
+  type SecaoParaOMapa,
+  type TipoParaOMapa,
+} from './protocolo'
 
 /**
  * O FIO, VISTO DA MESA (a janela principal). Baixa no primeiro "Abrir o
@@ -91,6 +110,39 @@ export function estadoDaMesaAgora(): EstadoDaMesa {
   }
 }
 
+/**
+ * "NA MESA" (P3): os pinos ligados a uma seção do Prelúdio, no mapa aberto e
+ * nas cenas dele que estão na memória, no tamanho do fio. Pino com id que não
+ * cabe no fio fica de fora (a lista inteira seria recusada do outro lado).
+ */
+export function itensNaMesaAgora(): ItemNaMesa[] {
+  const chave = idDoMapaParaOFio(mapaNaMemoriaAgora()?.chave)
+  if (chave === null) return []
+  const aventura = useAdventureStore.getState()
+  const nomeDaCena = (sceneId: string) => aventura.adventure?.scenes.find((cena) => cena.id === sceneId)?.name ?? ''
+  const itens: ItemNaMesa[] = []
+  for (const [sceneId, mapa] of sceneMaps(aventura, useMapStore.getState().map)) {
+    for (const pin of mapa.pins) {
+      const fonte = pin.fonte
+      // A cena vai como está ('' = mapa sem cenas): id torto não vai, senão o link não acharia a cena.
+      if (fonte === undefined || idDoMapaParaOFio(pin.id) === null || (sceneId !== '' && idDoMapaParaOFio(sceneId) === null)) continue
+      const fonteNoFio = lerSecaoParaOMapa(fonte)
+      if (fonteNoFio === null) continue
+      itens.push({
+        pinoId: pin.id,
+        nome: nomeParaOFio(nomeDoPino(pin.nome, pin.kind)),
+        kind: pin.kind === 'exclamacao' || pin.kind === 'interrogacao' ? pin.kind : 'outro',
+        chave,
+        sceneId,
+        cena: nomeParaOFio(nomeDaCena(sceneId)),
+        ...fonteNoFio,
+      })
+      if (itens.length >= NA_MESA_MAX) return itens
+    }
+  }
+  return itens
+}
+
 function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   const canal = abrirCanal(nomeDoCanal(sessao))
   let aberta = false
@@ -106,12 +158,20 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   const enviar = (corpo: CorpoDoRecado) => canal.enviar(recadoDaMesa(sessao, corpo))
   const viva = () => Date.now() - ultimoSinal < VIVA_MS
 
+  let ultimosNaMesa = ''
   const mandarEstado = (sempre: boolean) => {
     const estado = estadoDaMesaAgora()
     const texto = JSON.stringify(estado)
-    if (!sempre && texto === ultimoEstado) return
-    ultimoEstado = texto
-    enviar({ tipo: 'estado', estado })
+    if (sempre || texto !== ultimoEstado) {
+      ultimoEstado = texto
+      enviar({ tipo: 'estado', estado })
+    }
+    // "Na mesa" (P3): os pinos ligados do mapa aberto, só quando mudam.
+    const itens = itensNaMesaAgora()
+    const textoDosItens = JSON.stringify(itens)
+    if (!sempre && textoDosItens === ultimosNaMesa) return
+    ultimosNaMesa = textoDosItens
+    enviar({ tipo: 'na-mesa', itens })
   }
   const agendarEstado = () => {
     if (!aberta || relogioDoEstado !== null) return
@@ -122,7 +182,7 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   }
   const mandarFoco = () => {
     if (focoPendente === null) return
-    enviar({ tipo: 'abrir-verbete', verbeteId: focoPendente.verbeteId, aba: focoPendente.aba })
+    enviar({ tipo: 'abrir-verbete', verbeteId: focoPendente.verbeteId, aba: focoPendente.aba, secaoId: focoPendente.secaoId ?? null })
     focoPendente = null
   }
 
@@ -194,8 +254,51 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
         esperandoGravacao.get(pedido.pedido)?.(pedido.motivo)
         esperandoGravacao.delete(pedido.pedido)
         return
+      case 'por-no-mapa':
+        void porNoMapa(pedido.pedido, pedido.fonte, pedido.kind)
+        return
+      case 'cancelar-por':
+        if (useColocacaoDoPreludio.getState().pendente?.pedido === pedido.pedido) terminarColocacao('cancelado')
+        return
     }
   }
+
+  /**
+   * "PÔR NO MAPA" (P3): a mesa lê a seção do disco, no próprio verbete (o
+   * texto nunca vem pelo fio), confere que existe e não é segredo, e põe a
+   * ferramenta Pino na mão esperando o clique do mestre.
+   */
+  const porNoMapa = async (pedido: number, fonte: SecaoParaOMapa, kind: TipoParaOMapa) => {
+    const recusar = (motivo: string) => enviar({ tipo: 'pondo', pedido, andamento: 'recusado', motivo: motivoParaOFio(motivo) })
+    const preludio = usePreludio.getState()
+    if (preludio.carga.t === 'pronta') await preludio.relerDoDisco({ o: 'verbete', id: fonte.verbeteId })
+    else await preludio.carregar()
+    const { carga, verbetes } = usePreludio.getState()
+    if (carga.t !== 'pronta') {
+      recusar('A janela do mapa não conseguiu ler o Prelúdio.')
+      return
+    }
+    const situacao = situacaoDaFonte(fonte, verbetes)
+    if (situacao.t === 'sumiu') {
+      recusar(situacao.o === 'verbete' ? 'Este verbete ainda não está no disco. Espere o Prelúdio gravar e tente de novo.' : 'Esta seção ainda não está no disco. Espere o Prelúdio gravar e tente de novo.')
+      return
+    }
+    if (situacao.t === 'segredo') {
+      recusar('Seção de segredo não vai ao mapa.')
+      return
+    }
+    comecarColocacao({
+      pedido,
+      fonte: { ...fonte, verbete: situacao.verbete, secao: situacao.secao },
+      kind,
+      texto: situacao.texto,
+      nome: situacao.verbete.slice(0, PIN_NOME_MAX_LENGTH).trim(),
+    })
+    enviar({ tipo: 'pondo', pedido, andamento: 'esperando', motivo: null })
+  }
+  definirFimDaColocacao((pedido, fim) => {
+    if (aberta) enviar({ tipo: 'pondo', pedido, andamento: fim, motivo: null })
+  })
 
   canal.ouvir((dado) => {
     const pedido = lerPedidoDoPreludio(dado, sessao)
@@ -212,9 +315,10 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   const conferirLojas = () => {
     if (!aberta) return
     const { map, selection, selectedPinId } = useMapStore.getState()
-    const { adventure, activeSceneId, pasta, dir } = useAdventureStore.getState()
-    // `map.id`, a pasta e o diretório dão a chave do mapa (a faixa "Ligar a cena aberta" da sessão).
-    const agora = [map.id, map.name, map.pins, selection, selectedPinId, adventure, activeSceneId, pasta, dir]
+    const { adventure, activeSceneId, pasta, dir, cache } = useAdventureStore.getState()
+    // `map.id`, a pasta e o diretório dão a chave do mapa (a faixa "Ligar a cena aberta" da sessão);
+    // o `cache` traz os pinos ligados das cenas de fundo ("Na mesa").
+    const agora = [map.id, map.name, map.pins, selection, selectedPinId, adventure, activeSceneId, pasta, dir, cache]
     if (agora.length === referencias.length && agora.every((valor, indice) => valor === referencias[indice])) return
     referencias = agora
     agendarEstado()

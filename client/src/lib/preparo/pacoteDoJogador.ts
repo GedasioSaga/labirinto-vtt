@@ -301,6 +301,58 @@ function textoDoPacote(texto: TextoRico, contexto: ContextoDoTexto): TextoDoPaco
   return { type: 'doc', content: (texto.content ?? []).flatMap((filho) => noDoPacote(filho, contexto)) }
 }
 
+// ─── O texto de uma seção para o mapa (P3) ───────────────────────────────────
+
+/** Linhas de texto puro de um pedaço do texto já limpo; um bloco por linha. */
+function linhasDoPacote(nos: readonly NoDoPacote[], prefixo = ''): string[] {
+  const linhas: string[] = []
+  let linha = ''
+  const fecharLinha = () => {
+    if (linha.trim() !== '') linhas.push(prefixo + linha.trim())
+    linha = ''
+  }
+  for (const no of nos) {
+    switch (no.type) {
+      case 'text':
+        linha += no.text
+        break
+      case 'mencao':
+        linha += no.attrs.rotulo
+        break
+      case 'hardBreak':
+        fecharLinha()
+        break
+      case 'horizontalRule':
+      case 'image':
+        fecharLinha()
+        break
+      case 'listItem':
+        fecharLinha()
+        linhas.push(...linhasDoPacote(no.content, `${prefixo}• `))
+        break
+      default:
+        fecharLinha()
+        linhas.push(...linhasDoPacote(no.content, prefixo))
+    }
+  }
+  fecharLinha()
+  return linhas
+}
+
+/**
+ * O TEXTO DE UMA SEÇÃO PARA O MAPA (P3 do estudo de 15/11, o pino ligado a um
+ * verbete): o mesmo limpador do pacote, montado sem pacote nenhum. O jogador
+ * da mesa não vê a Enciclopédia, então toda menção vira o nome solto (a
+ * sessão e o verbete de formato mais novo somem inteiros, como no pacote); o
+ * bloco de segredo, o link da mesa, a citação do quadro e o nó ou a marca
+ * desconhecidos somem. Sai texto puro, um bloco por linha: o cartão do pino lê
+ * texto. Quem confere se a seção é de segredo é quem chama (`pinoLigado.ts`).
+ */
+export function textoDaSecaoParaOMapa(texto: TextoRico, todos: ReadonlyMap<string, Verbete>): string {
+  const contexto: ContextoDoTexto = { todos, noPacote: new Set(), midias: new Set(), mencionados: new Set(), nomesSemLink: [], verbeteId: '', formaId: '', secaoId: '' }
+  return linhasDoPacote(textoDoPacote(texto, contexto).content).join('\n')
+}
+
 // ─── A montagem ──────────────────────────────────────────────────────────────
 
 function porId(a: { readonly id: string }, b: { readonly id: string }): number {

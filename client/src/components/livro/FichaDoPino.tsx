@@ -5,6 +5,7 @@ import { CenarioSection } from '../../cenario/CenarioSection'
 import { useEstilosDeCenario, type EstiloDeCenario } from '../../cenario/estilosDeCenario'
 import { novaMercadoria } from '../../lib/loja'
 import { PIN_GLYPH, PIN_KIND_DO_NOVO_PINO, PIN_KIND_LABELS, PIN_NOME_MAX_LENGTH } from '../../lib/pins'
+import { useMapStore } from '../../stores/mapStore'
 import { useToastStore } from '../../stores/toastStore'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
@@ -38,6 +39,7 @@ import { ICONE_DO_PINO, TITULO_DO_PINO } from './CabecaDaSelecao'
 import { CorDoPino, TamanhoDoPino } from './CorETamanhoDoPino'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
+import { PinoLigadoAoPreludio } from './PinoLigadoAoPreludio'
 import './fichaDoPino.css'
 
 /*
@@ -295,6 +297,7 @@ export function FichaDoPino(props: FichaDoPinoProps) {
 }
 
 function EssencialDoPino({
+  pinId,
   kind,
   onKindChange,
   description,
@@ -310,6 +313,7 @@ function EssencialDoPino({
   lerDePerto,
   onLerDePertoChange,
 }: FichaDoPinoProps) {
+  const ligado = useMapStore((estado) => estado.map.pins.find((pino) => pino.id === pinId)?.fonte !== undefined)
   // As cenas onde mora um par que perde a volta se este pino sumir: o Apagar agora mora na cabeça.
   const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
   return (
@@ -327,15 +331,20 @@ function EssencialDoPino({
         <CampoTexto id="lb-pin-nome" rotulo="Nome do local" valor={nome} maxLength={PIN_NOME_MAX_LENGTH} onChange={onNomeChange} />
       )}
       {/* Também na viagem e na alavanca, ao contrário do protótipo: o cartão
-          do jogador mostra a descrição nos dois (PlayerPinCard, `pp-pincard__text`). */}
-      <CampoTexto
-        id="lb-pin-description"
-        rotulo="Descrição · o jogador lê"
-        placeholder="O que aparece no cartão do local"
-        valor={description}
-        onChange={onDescriptionChange}
-        multilinha
-      />
+          do jogador mostra a descrição nos dois (PlayerPinCard, `pp-pincard__text`).
+          Pino ligado ao Prelúdio (P3): o texto vem da seção e só se edita lá. */}
+      {ligado ? (
+        <PinoLigadoAoPreludio pinId={pinId} />
+      ) : (
+        <CampoTexto
+          id="lb-pin-description"
+          rotulo="Descrição · o jogador lê"
+          placeholder="O que aparece no cartão do local"
+          valor={description}
+          onChange={onDescriptionChange}
+          multilinha
+        />
+      )}
       {travel !== null && <PinTravelControls {...semPinId(travel)} parte="essencial" />}
       {kind === 'alavanca' && lever !== null && <PinLeverControls {...lever} />}
       {/* O rascunho e a prévia de música não passam de um desafio a outro. */}

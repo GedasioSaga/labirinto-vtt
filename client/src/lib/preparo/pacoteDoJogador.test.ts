@@ -7,6 +7,11 @@ import { describe, expect, it } from 'vitest'
 import { montarPacoteDoJogador, nomesSemLink, nomesSemLinkNasCampanhas, type NoDoPacote, type PacoteDoJogador } from './pacoteDoJogador'
 import { alvoDaForma, alvoDaLigacao, alvoDaSecao, alvoDoVerbete, comRevelacoes, paraDe, revelacoesPorAlvo, reveladoVazio, type ParaQuem } from './revelado'
 import type { AlvoDaRevelacao, Forma, Ligacao, Revelacao, Revelado, Secao, TextoRico, TipoDeVerbete, Verbete } from './tipos'
+import type { MapData, Pin } from '../../types/map'
+import { filterMapForPlayer } from '../fogFilter'
+import { TEXTO_INDISPONIVEL } from '../fonteNoPreludio'
+import { createEmptyMap } from '../mapFactory'
+import { pinosEmDia } from './pinoLigado'
 
 const SEGREDO = 'SEGREDO-XYZ'
 const MAR = 'camp-mar'
@@ -427,5 +432,86 @@ describe('revelado: o arquivo', () => {
     const repetida = revelado(revelacao(alvoDoVerbete('vb-a'), 'todos'), revelacao(alvoDoVerbete('vb-a'), []))
     expect(paraDe(revelacoesPorAlvo(repetida), alvoDoVerbete('vb-a'))).toBeNull()
     expect(() => comRevelacoes(reveladoVazio(), [{ alvo: { tipo: 'secao', id: 's', verbeteId: 'vb-a' }, para: 'todos' }], QUANDO)).toThrow()
+  })
+})
+
+// ─── O pino ligado ao Prelúdio (P3 do estudo de 15/11) ───────────────────────
+
+/**
+ * O teste de vazamento estendido ao PINO LIGADO: o texto da seção chega ao
+ * mapa do jogador pelo `description` que a janela do mapa mantém em dia
+ * (`pinosEmDia`) e pela lista do que vai da névoa (`filterMapForPlayer`).
+ * SEGREDO-XYZ no bloco de segredo da seção ligada, numa seção de segredo,
+ * numa seção que virou segredo depois de posta (com a cópia velha no pino),
+ * numa seção com chave desconhecida, no roteiro de uma sessão e nas cópias de
+ * nome da ligação: nada disso chega a jogador nenhum.
+ */
+describe('pino ligado a um verbete: o segredo não chega ao recorte do jogador (P3)', () => {
+  const { verbetes: lista } = campanhaComSegredos()
+  const roteiro = verbete({
+    id: 'vb-sessao-ligada',
+    titulo: 'Sessão 4',
+    tipo: 'sessao',
+    formas: [forma('forma-s', 'Sessão 4', [secao('secao-s', 'Roteiro', doc(p(t(`${SEGREDO} roteiro da sessão`))))])],
+  })
+  const capitao = lista.find((um) => um.id === 'vb-capitao')
+  if (capitao === undefined) throw new Error('a fixture mudou: falta o vb-capitao')
+  // A mesma seção comum, agora de segredo: o mestre a marcou depois de pôr o pino.
+  const capitaoComSegredo: Verbete = {
+    ...capitao,
+    id: 'vb-capitao-depois',
+    formas: capitao.formas.map((umaForma) => ({ ...umaForma, secoes: umaForma.secoes.map((umaSecao) => (umaSecao.id === 'secao-a' ? { ...umaSecao, segredo: true } : umaSecao)) })),
+  }
+  const verbetes = new Map([...lista, roteiro, capitaoComSegredo].map((um) => [um.id, um]))
+  const ligada = (id: string, verbeteId: string, formaId: string, secaoId: string, description = ''): Pin => ({
+    id,
+    x: 240,
+    y: 200,
+    kind: 'exclamacao',
+    description,
+    image: null,
+    nome: `Pino ${id}`,
+    fonte: { verbeteId, formaId, secaoId, verbete: `${SEGREDO} nome copiado`, secao: `${SEGREDO} seção copiada` },
+  })
+  const pinos: Pin[] = [
+    ligada('comum', 'vb-capitao', 'forma-1', 'secao-a'),
+    ligada('de-segredo', 'vb-capitao', 'forma-1', 'secao-b', `${SEGREDO} cópia de arquivo editado à mão`),
+    ligada('virou-segredo', 'vb-capitao-depois', 'forma-1', 'secao-a', `${SEGREDO} cópia de quando a seção era comum`),
+    ligada('chave-desconhecida', 'vb-capitao', 'forma-1', 'secao-d', `${SEGREDO} cópia velha`),
+    ligada('da-sessao', 'vb-sessao-ligada', 'forma-s', 'secao-s', `${SEGREDO} cópia velha`),
+    ligada('apagado', `vb-${SEGREDO}-apagado`, 'forma-1', 'secao-a', 'Cópia VISIVEL de reserva'),
+  ]
+  const mapa: MapData = {
+    ...createEmptyMap('m', 'M', 1000, 1000, 40),
+    tokens: [{ id: 'ficha-ana', characterId: null, name: 'Ana', x: 200, y: 200, size: 1, image: null }],
+    pins: pinos,
+  }
+  const emDia = pinosEmDia(mapa, verbetes)
+  const recorte = filterMapForPlayer(emDia, ANA, { [ANA]: ['ficha-ana'] }, 300)
+  const doJogador = (id: string) => recorte.map.pins.find((pino) => pino.id === id)
+
+  it('o texto de teste está mesmo em cada lugar perigoso do mapa do mestre', () => {
+    expect(JSON.stringify(mapa).split(SEGREDO).length - 1).toBeGreaterThanOrEqual(pinos.length * 2)
+  })
+
+  it('SEGREDO-XYZ não aparece no recorte do jogador, e a ligação (fonte) nunca vai', () => {
+    expect(recorte.map.pins).toHaveLength(pinos.length)
+    expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
+    for (const pino of recorte.map.pins) expect('fonte' in pino).toBe(false)
+  })
+
+  it('a seção comum chega limpa, e o que virou segredo vira "Texto indisponível."', () => {
+    expect(doJogador('comum')?.description).toContain('Texto VISIVEL')
+    for (const id of ['de-segredo', 'virou-segredo', 'chave-desconhecida', 'da-sessao']) expect(doJogador(id)?.description).toBe(TEXTO_INDISPONIVEL)
+  })
+
+  it('o verbete apagado deixa a cópia de reserva', () => {
+    expect(doJogador('apagado')?.description).toBe('Cópia VISIVEL de reserva')
+  })
+
+  it('pino sem ligação e mapa sem pino ligado ficam iguais (mesma referência)', () => {
+    const semLigacao: MapData = { ...mapa, pins: [{ id: 'velho', x: 0, y: 0, kind: 'interrogacao', description: 'Texto de sempre', image: null }] }
+    expect(pinosEmDia(semLigacao, verbetes)).toBe(semLigacao)
+    expect(pinosEmDia(emDia, verbetes)).toBe(emDia)
   })
 })

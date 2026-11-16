@@ -10,6 +10,8 @@ import type { AbaDoVerbete } from './protocolo'
 export interface FocoNoPreludio {
   readonly verbeteId: string
   readonly aba: AbaDoVerbete | null
+  /** A seção do pino ligado (P3): a janela rola até ela e a marca. */
+  readonly secaoId?: string
 }
 
 /** O que só o App sabe fazer pela janela do Prelúdio. */
@@ -29,6 +31,19 @@ export function janelaDoPreludioAberta(): boolean {
 /** Só o fio (`mesaDoPreludio.ts`) chama. */
 export function marcarJanelaDoPreludio(estado: boolean): void {
   aberta = estado
+}
+
+let depsDoApp: DepsDaMesa | null = null
+
+/** O App entrega, ao montar, como abrir um link na mesa e avisar: a ficha do pino ligado abre o Prelúdio sem receber isso por propriedade. */
+export function registrarDepsDaMesa(deps: DepsDaMesa | null): void {
+  depsDoApp = deps
+}
+
+/** "Abrir no Prelúdio" de uma coisa do mapa (P3): a janela do Prelúdio, no verbete e na seção. */
+export function abrirNoPreludio(foco: FocoNoPreludio): void {
+  if (depsDoApp === null) return
+  abrirOPreludioEmJanela(foco, depsDoApp)
 }
 
 /** Abre a janela do Prelúdio, ou traz para a frente a que existe, e leva ao `foco` (`null` = onde ela está). */

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, type FocusEvent } from 'react'
 import { useSvgExportContext } from 'tldraw'
+import { PorNoMapaDaSecao } from '../janela/NaMesaNoPreludio'
 import type { AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { precarregarEditor, TextoDoPreludio } from '../editor/sobDemanda'
@@ -183,7 +184,8 @@ export function TextoDoCartao({ verbete, forma, raiz, podeEscrever, editando, ao
   const lapis = useRef(new Map<string, HTMLButtonElement>())
   const nome = verbete.titulo || 'Sem nome'
   // Na exportação (PNG/SVG) o texto sai na hora; no quadro, espera a vez dele.
-  const vez = useVezDoTexto(useSvgExportContext() !== null || editando !== null)
+  const exportando = useSvgExportContext() !== null
+  const vez = useVezDoTexto(exportando || editando !== null)
 
   const contexto = useMemo<ContextoDoRoteiro>(
     () => ({
@@ -234,6 +236,7 @@ export function TextoDoCartao({ verbete, forma, raiz, podeEscrever, editando, ao
               {secao.segredo && <span className="pr-cartao__segredo">Segredo</span>}
               {vazia && !aberta && <span className="pr-cartao__secao-vazia">vazia</span>}
               {coluna !== null && <SetaDaColuna titulo={titulo} aoLado={coluna.aoLado} alternar={coluna.alternar} />}
+              {!exportando && <PorNoMapaDaSecao verbete={verbete} forma={forma} secao={secao} compacto />}
               {podeEscrever && (
                 <button
                   ref={(botao) => {

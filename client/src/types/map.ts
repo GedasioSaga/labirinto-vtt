@@ -835,6 +835,33 @@ export interface PinColecao {
 }
 
 /**
+ * DE ONDE VEM O TEXTO de uma coisa do mapa ligada ao Prelúdio (P3 do estudo
+ * de 15/11): o verbete e a seção. O texto mora no Prelúdio e é editado só lá;
+ * a coisa do mapa aponta. Hoje só o pino (`Pin.fonte`); objeto, sala e desafio
+ * ganham o mesmo campo, uma fatia cada.
+ *
+ * Só do mestre: NUNCA sai no recorte do jogador (`pinForPlayer` é lista do que
+ * vai, e este campo não está nela). O texto que o jogador lê continua sendo o
+ * `description` do pino, que a janela do mapa mantém em dia com a seção já
+ * passada pelo limpador do pacote do jogador (`lib/preparo/pinoLigado.ts`):
+ * sem bloco de segredo, sem link da mesa; seção que virou segredo vira "Texto
+ * indisponível.". O `description` é também a CÓPIA DE RESERVA: com o Prelúdio
+ * fechado (outro PC, chave desligada) ou o verbete apagado, o jogador lê o que
+ * estava. Ausente = o pino de sempre, com texto próprio — sem migração. O
+ * disco só aceita a forma certa (`readFonteNoPreludio`, `lib/mapFile.ts`).
+ */
+export interface FonteNoPreludio {
+  /** O verbete (`preparo/verbetes/<id>.json`). */
+  verbeteId: string
+  /** A forma do verbete onde a seção mora (Dia/Noite). */
+  formaId: string
+  secaoId: string
+  /** Cópia do nome do verbete e do título da seção: o mestre reconhece a ligação com o Prelúdio fechado. */
+  verbete: string
+  secao: string
+}
+
+/**
  * Ponto de interesse cravado pelo mestre. O jogador toca o pino no mapa e lê o
  * cartão: imagem em cima, descrição embaixo.
  *
@@ -855,8 +882,10 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
    * glifo de `kind`, que é a cara de todo pino já gravado. Sem migração.
    */
   icon?: PinIcon
-  /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. */
+  /** O que o jogador lê no cartão. Vazio = o mestre ainda não escreveu nada. No pino ligado ao Prelúdio (`fonte`), a cópia em dia da seção. */
   description: string
+  /** PINO LIGADO AO PRELÚDIO (P3): o verbete e a seção de onde vem o texto. Ver `FonteNoPreludio`. */
+  fonte?: FonteNoPreludio
   /**
    * NOME DO LOCAL ("Base da Marinha"): o que distingue sete "?" iguais no
    * editor — desenhado ao lado do pino e na lista "Pinos" — e o título que o

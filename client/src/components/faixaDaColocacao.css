@@ -1,0 +1,10 @@
+/* A faixa do "Pôr no mapa" do Prelúdio (P3): no alto do editor, sem tapar a barra. */
+.lb-faixa-colocacao {
+  position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 12px; max-width: min(720px, calc(100vw - 32px));
+  padding: 8px 10px 8px 14px; border: 1px dashed var(--lb-color-brass-bright); border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-color-ink, #1b1712); color: var(--lb-color-parchment, #efe6d2);
+  font: 400 var(--lb-font-size-sm, 14px)/1.4 var(--lb-font-sans, sans-serif);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
+}
+.lb-faixa-colocacao b { color: var(--lb-color-brass-bright); }
