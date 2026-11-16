@@ -93,7 +93,7 @@ const BRILHO: readonly [number, number, number] = [-0.344, -0.267, 0.9]
  * lado da luz (cresce com o quanto a superfície está deitada, até
  * `DEITADO_MAXIMO`).
  */
-interface LuzDoBojo {
+export interface LuzDoBojo {
   readonly forca: number
   readonly beira: number
 }
@@ -102,8 +102,9 @@ interface LuzDoBojo {
  * lado: com a força do chanfro do motor (0,9) o lado da sombra virava uma faixa
  * quase preta; com 0,4 fica perto do tom da frente da 3/4 (0,74). A beira é o
  * que arredonda a pipa vista de cima (só com a luz, o lado claro lia como tábua).
+ * O barril de pé (`barril.ts`) usa a mesma no corpo da 3/4, de eixo de pé na tela.
  */
-const LUZ_DE_PE: LuzDoBojo = { forca: 0.4, beira: 0.2 }
+export const LUZ_DE_PE: LuzDoBojo = { forca: 0.4, beira: 0.2 }
 /**
  * De lado na 3/4 metade do que se vê é a frente e a barriga, viradas para cá
  * e para baixo: com a luz de pé elas caíam abaixo do piso de luz e eram
@@ -132,9 +133,10 @@ const RAIZ_DE_2 = Math.SQRT2
  * com a vizinha), o aro de ferro se o ponto está debaixo de um, e a luz do
  * cilindro. `volta` = a posição em volta da pipa, em aduelas (0 de um lado, o
  * número de aduelas do outro); `ao` = px a partir da ponta; (nx, ny, nz) = a
- * normal da superfície na tela.
+ * normal da superfície na tela. O barril de pé (`barril.ts`) pinta o corpo dele
+ * com esta mesma conta: as mesmas aduelas e os mesmos aros da família.
  */
-function pintarBojo(pipa: Pipa, volta: number, ao: number, nx: number, ny: number, nz: number, daVista: LuzDoBojo, p: Peca, s: Float32Array): void {
+export function pintarBojo(pipa: Pipa, volta: number, ao: number, nx: number, ny: number, nz: number, daVista: LuzDoBojo, p: Peca, s: Float32Array): void {
   const larguraDaAduela = (Math.PI * pipa.raio) / pipa.aduelas
   const j = Math.floor(volta)
   const naAduela = volta - j
@@ -171,7 +173,7 @@ function pintarBojo(pipa: Pipa, volta: number, ao: number, nx: number, ny: numbe
 }
 
 /** O ângulo em volta da pipa (0 no alto, positivo para o lado de x maior) virado em aduelas. */
-function voltaDo(pipa: Pipa, seno: number): number {
+export function voltaDo(pipa: Pipa, seno: number): number {
   return ((Math.asin(seno) + QUARTO) / Math.PI) * pipa.aduelas
 }
 
