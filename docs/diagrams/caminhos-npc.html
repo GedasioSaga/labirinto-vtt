@@ -195,6 +195,7 @@
     <li>Pedido de "Andar até aqui" antes de a malha ficar pronta monta o resto de uma vez: até cerca de 450 ms num mapa de 300 x 300, medido no vitest. No browser não apareceu (0 tarefa longa na consulta). Se aparecer, o conserto é o menu esperar a malha em fatias.</li>
     <li>Destino ocupado: o clique (F2) procura a casa livre mais próxima, a até 2 casas, antes de mandar o trecho. O "Andar até aqui" do menu ainda leva <code>occupied</code> do host.</li>
     <li>A chave "Clicar para andar" desligada barra os dois gestos de caminhada, o clique e o "Andar até aqui" (<code>caminhada_desligada</code>); o arrasto da ficha, sem a marca, continua. A marca só acrescenta recusas: nunca afrouxa passo máximo, parede, trava nem vez. A névoa do host é mais frouxa que a máscara da tela, então um trecho que a tela calculou não volta com <code>nevoa</code>; sem snapshot, o host não considera nada conhecido.</li>
+    <li>Carimbo com "Barra a passagem" (Fase 2, 15/11/2026): a pegada (quadrado de meio tamanho em volta do pé) vira parede sintética para o jogador (<code>paredesParaAndarDoJogador</code>) e para o NPC (<code>paredesDoNpc</code>, via <code>lib/carimbosQueBarram.ts</code>); o carimbo onde a ficha já está fica de fora. Sem nenhum carimbo ligado, as listas de paredes são as de antes, pela mesma referência.</li>
     <li>Corrida entre NPC e jogador: se o NPC fecha a porta ou entra no trecho de quem caminha, o host recusa (<code>wall</code> ou <code>occupied</code>) e a caminhada para, sem replanejar. O plano propõe replanejar até 2 vezes.</li>
   </ul>
 

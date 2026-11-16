@@ -126,6 +126,19 @@ describe('mexer na seleção com carimbo', () => {
     expect(useMapStore.getState().map.carimbos?.[0]).not.toHaveProperty('locked')
   })
 
+  it('as chaves de jogo valem no carimbo travado e desligar tira o campo', () => {
+    const store = useMapStore.getState()
+    store.mudarCarimbo('c1', { locked: true })
+    useMapStore.getState().mudarCarimbo('c1', { barra: true, tapaVisao: true })
+    expect(useMapStore.getState().map.carimbos?.[0]).toMatchObject({ locked: true, barra: true, tapaVisao: true })
+    useMapStore.getState().mudarCarimbo('c1', { barra: false })
+    const c1 = useMapStore.getState().map.carimbos?.[0]
+    expect(c1).not.toHaveProperty('barra')
+    expect(c1?.tapaVisao).toBe(true)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.carimbos?.[0]?.barra).toBe(true)
+  })
+
   it('Ctrl+C e Ctrl+V colam o carimbo com o centro no ponto', () => {
     const store = useMapStore.getState()
     store.setSelection([{ kind: 'carimbo', id: 'c2' }])

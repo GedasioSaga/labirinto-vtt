@@ -3141,6 +3141,14 @@ export interface Carimbo extends NoPiso, NaCamada {
    * antes salva igual.
    */
   locked?: true
+  /**
+   * "Barra a passagem" (Fase 2): a ficha do jogador não atravessa a pegada do
+   * carimbo (`lib/carimbosQueBarram.ts`). Só existe ligado; ausente = não
+   * barra, então o mapa de antes joga igual.
+   */
+  barra?: true
+  /** "Tapa a visão" (Fase 2): a pegada do carimbo segura o olhar como parede. Só existe ligado. */
+  tapaVisao?: true
 }
 
 /** Um carimbo que o mestre trouxe de uma imagem dele (`lib/carimboImportado.ts`). */

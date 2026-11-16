@@ -180,6 +180,21 @@ test('5.000 carimbos: laço, arrasto e Ctrl+Z sem tarefa longa de 200 ms', async
     return { c0: m.carimbos?.[0], barril: m.props[0] }
   })
 
+  // 4. A FICHA: um carimbo sozinho na seleção abre a ficha no livro, com as duas chaves.
+  await page.evaluate(async () => {
+    ;(await import('/src/stores/mapStore.ts')).useMapStore.getState().setSelection([{ kind: 'carimbo', id: 'c0' }])
+  })
+  const chaveDaPassagem = page.getByRole('checkbox', { name: 'Barra a passagem' })
+  await expect(chaveDaPassagem).toBeVisible()
+  await chaveDaPassagem.check({ force: true })
+  await page.getByRole('button', { name: 'Girar 45° para a direita' }).click()
+  const ligou = await page.evaluate(async () => {
+    const c0 = (await import('/src/stores/mapStore.ts')).useMapStore.getState().map.carimbos?.[0]
+    return c0?.barra === true && c0.giro === 45
+  })
+  await expect(page.getByText('O carimbo fica sempre na camada Terreno.')).toBeVisible()
+  await page.screenshot({ path: join(SAIDA, '3-ficha-do-carimbo.png') })
+
   const numeros = {
     quando: new Date().toISOString(),
     carimbos: QUANTOS,
@@ -189,6 +204,7 @@ test('5.000 carimbos: laço, arrasto e Ctrl+Z sem tarefa longa de 200 ms', async
     carimbo_andou: { de: antes.c0, para: depois.c0 },
     barril_andou: { de: { x: antes.barril?.x, y: antes.barril?.y }, para: { x: depois.barril?.x, y: depois.barril?.y } },
     desfeito_igual_ao_antes: JSON.stringify(desfeito.c0) === JSON.stringify(antes.c0) && desfeito.barril?.x === antes.barril?.x,
+    ficha_ligou_barra_a_passagem: ligou,
     laco,
     arrasto,
     desfazer,
@@ -201,6 +217,7 @@ test('5.000 carimbos: laço, arrasto e Ctrl+Z sem tarefa longa de 200 ms', async
   expect(depois.c0?.x).not.toBe(antes.c0?.x)
   expect(depois.barril?.x).not.toBe(antes.barril?.x)
   expect(numeros.desfeito_igual_ao_antes).toBe(true)
+  expect(ligou).toBe(true)
   for (const [nome, m] of Object.entries({ laco, arrasto, desfazer })) {
     expect.soft(m.longtask_max_ms, `${nome}: nenhuma tarefa longa >= ${TAREFA_LONGA_MAXIMA_MS} ms`).toBeLessThan(TAREFA_LONGA_MAXIMA_MS)
   }

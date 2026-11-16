@@ -141,6 +141,9 @@ function numeroFinito(valor: unknown): valor is number {
 
 /** O cadeado ligado: o único jeito de o campo existir no carimbo. */
 const COM_CADEADO: Pick<Carimbo, 'locked'> = { locked: true }
+/** "Barra a passagem" e "Tapa a visão" ligados: só assim os campos existem. */
+const COM_BARRA: Pick<Carimbo, 'barra'> = { barra: true }
+const COM_TAPA: Pick<Carimbo, 'tapaVisao'> = { tapaVisao: true }
 
 function lerCarimbo(valor: unknown): Carimbo | null {
   if (typeof valor !== 'object' || valor === null) return null
@@ -155,7 +158,10 @@ function lerCarimbo(valor: unknown): Carimbo | null {
   // CAMADA (`lib/camadas`): campo novo e opcional; ausente ou torto = Terreno, a camada padrão do carimbo.
   // O cadeado (Fase 2) só fica quando é `true`: o resto some, e o mapa de antes abre igual.
   const travado = 'locked' in valor && valor.locked === true ? COM_CADEADO : {}
-  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor), ...travado }
+  // As chaves de jogo (Fase 2) também: só `true` fica.
+  const barra = 'barra' in valor && valor.barra === true ? COM_BARRA : {}
+  const tapa = 'tapaVisao' in valor && valor.tapaVisao === true ? COM_TAPA : {}
+  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor), ...travado, ...barra, ...tapa }
 }
 
 /** Os objetos do arquivo, ou `undefined` (sem o campo). Objeto quebrado ou repetido sai; o resto fica na ordem. */
@@ -247,7 +253,7 @@ export function mesmosCarimbos(a: readonly Carimbo[] | undefined, b: readonly Ca
   for (let i = 0; i < a.length; i++) {
     const p = a[i]
     const q = b[i]
-    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro || p.locked !== q.locked)) return false
+    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro || p.locked !== q.locked || p.barra !== q.barra || p.tapaVisao !== q.tapaVisao)) return false
   }
   return true
 }
@@ -360,6 +366,15 @@ export interface MudancaDoCarimbo {
   giro?: number
   /** `true` trava; `false` destrava (o campo sai). */
   locked?: boolean
+  /** "Barra a passagem": `false` tira o campo. */
+  barra?: boolean
+  /** "Tapa a visão": `false` tira o campo. */
+  tapaVisao?: boolean
+}
+
+/** A mudança só mexe nas chaves (cadeado, passagem, visão)? Essas valem também no carimbo travado. */
+export function soAsChaves(mudanca: MudancaDoCarimbo): boolean {
+  return mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined
 }
 
 /**
@@ -371,9 +386,12 @@ export function comMudancaDoCarimbo(c: Carimbo, mudanca: MudancaDoCarimbo): Cari
   const tamanho = mudanca.tamanho !== undefined && numeroFinito(mudanca.tamanho) && mudanca.tamanho > 0 ? Math.round(mudanca.tamanho * 10) / 10 : c.tamanho
   const giro = mudanca.giro !== undefined && numeroFinito(mudanca.giro) ? normalizarGiro(mudanca.giro) : c.giro
   const travado = mudanca.locked === undefined ? c.locked === true : mudanca.locked
-  if (tipo === c.tipo && tamanho === c.tamanho && giro === c.giro && travado === (c.locked === true)) return c
-  const { locked: _cadeado, ...resto } = c
-  return { ...resto, tipo, tamanho, giro, ...(travado ? COM_CADEADO : {}) }
+  const barra = mudanca.barra === undefined ? c.barra === true : mudanca.barra
+  const tapa = mudanca.tapaVisao === undefined ? c.tapaVisao === true : mudanca.tapaVisao
+  const chavesIguais = travado === (c.locked === true) && barra === (c.barra === true) && tapa === (c.tapaVisao === true)
+  if (tipo === c.tipo && tamanho === c.tamanho && giro === c.giro && chavesIguais) return c
+  const { locked: _cadeado, barra: _barra, tapaVisao: _tapa, ...resto } = c
+  return { ...resto, tipo, tamanho, giro, ...(travado ? COM_CADEADO : {}), ...(barra ? COM_BARRA : {}), ...(tapa ? COM_TAPA : {}) }
 }
 
 // ---------------------------------------------------------------------------

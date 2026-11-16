@@ -32,7 +32,7 @@ import { gradeDaParede } from './gradeDaParede'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { FichaDaPorta } from './livro/FichaDaPorta'
 import { FichaDoObjeto } from './livro/FichaDoObjeto'
-import { nomeDoTipoDeCarimbo, useCarimboSelecionado } from './livro/FichaDoCarimbo'
+import { FichaDoCarimbo, nomeDoTipoDeCarimbo, useCarimboSelecionado } from './livro/FichaDoCarimbo'
 import { FichaDoDesenho } from './livro/FichaDoDesenho'
 import { FichaDoTexto } from './livro/FichaDoTexto'
 import { FichaDaPecaDeChao } from './livro/FichaDaPecaDeChao'
@@ -1061,6 +1061,8 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
+        {/* O CARIMBO SELECIONADO sozinho (Fase 2): Tipo, Tamanho, Giro, cadeado e as chaves de jogo. */}
+        {carimboSelecionado !== null && <FichaDoCarimbo key={carimboSelecionado.id} carimbo={carimboSelecionado} />}
         {/* A FICHA DO TOKEN (fatia 9): tipo de ficha, as fichas Nome,
             Condições, No mapa e Levar para outra cena, e os cartões de
             Comportamento com a sub-ficha de cada um. Os controles e os

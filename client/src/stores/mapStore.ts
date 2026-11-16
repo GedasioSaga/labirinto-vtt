@@ -158,6 +158,7 @@ import {
   carimboPorId,
   carimboDestravado,
   comMudancaDoCarimbo,
+  soAsChaves,
   type MudancaDoCarimbo,
   TAMANHO_DO_CARIMBO_MAX,
   TAMANHO_DO_CARIMBO_MIN,
@@ -3541,9 +3542,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const { map } = get()
       const antes = carimboPorId(map.carimbos, id)
       if (antes === undefined) return
-      // O cadeado sozinho sempre passa (é como se destrava); o resto, só no destravado.
-      const soOCadeado = mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined
-      if (!soOCadeado && !carimboDestravado(antes)) return
+      // As chaves (cadeado, passagem, visão) sempre passam: é por elas que se destrava; o resto, só no destravado.
+      if (!soAsChaves(mudanca) && !carimboDestravado(antes)) return
       if (barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', [antes]))) return
       if (comMudancaDoCarimbo(antes, mudanca) === antes) return
       withHistory(
