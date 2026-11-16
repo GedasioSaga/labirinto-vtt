@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baú, caixa e barril · Sequência</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-soft:    #7a8399;
+      --color-rule:    rgba(45,49,66,0.10);
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; color: var(--color-ink); margin-bottom: 0.5rem; }
+    .sub { font-size: 0.9rem; color: var(--color-muted); max-width: 64ch; line-height: 1.5; margin-bottom: 1.5rem; }
+    .diagram { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; display: block; }
+    footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid var(--color-rule); font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-soft); letter-spacing: 0.04em; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Sequência · Objetos que se abrem · 15/11/2026</p>
+    <h1>Do toque no baú à mochila</h1>
+    <p class="sub">O mestre guarda itens do Acervo, moedas e uma armadilha num baú, caixa ou barril. O jogador só sabe que o objeto está fechado: o conteúdo nunca sai do host antes da vitória. Quem toca joga o minigame sozinho na tela dele; ao vencer, o host dá tudo de uma vez na ficha e o mestre vê ao vivo.</p>
+
+    <div class="diagram">
+    <svg viewBox="0 0 1000 840" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="bau-caixa-barril-title bau-caixa-barril-desc">
+      <title id="bau-caixa-barril-title">Do toque no baú à mochila</title>
+      <desc id="bau-caixa-barril-desc">Diagrama de sequência da abertura de baú, caixa ou barril: o jogador pede objeto.abrir, o host confere alcance, recorte e ficha congelada e devolve a recusa com o motivo ou objeto.jogo com a semente; o jogador joga na própria tela e manda objeto.venceu; o host manda o desfecho com itens, moedas e armadilha só nessa hora, entrega ao mestre a ficha nova, que salva o personagem e o mapa com o objeto aberto ou em destroços, manda o recorte novo a todos e mostra o aviso com Ver e a página Jogos ao vivo.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- LIFELINES -->
+      <line x1="140" y1="128" x2="140" y2="744" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="400" y1="128" x2="400" y2="744" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="660" y1="128" x2="660" y2="744" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="880" y1="128" x2="880" y2="744" stroke="rgba(45,49,66,0.22)" stroke-width="1" stroke-dasharray="3,3"/>
+
+      <!-- MESSAGES -->
+      <line x1="144" y1="200" x2="396" y2="200" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="396" y1="264" x2="144" y2="264" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+      <line x1="144" y1="376" x2="396" y2="376" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="396" y1="440" x2="144" y2="440" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <line x1="404" y1="504" x2="656" y2="504" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="664" y1="568" x2="876" y2="568" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <line x1="656" y1="632" x2="144" y2="632" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+
+      <!-- LABELS -->
+      <rect x="164" y="168" width="212" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="178" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OBJETO.ABRIR {PROPID}</text>
+      <text x="270" y="189" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TOQUE NO OBJETO · ABRIVEL: FECHADO</text>
+      <rect x="156" y="232" width="228" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="242" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OBJETO.JOGO {SESSAO, SEMENTE}</text>
+      <text x="270" y="253" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OU OBJETO.RECUSADO {LONGE · ABERTO · …}</text>
+      <rect x="160" y="344" width="220" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="354" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OBJETO.VENCEU {SESSAO, PROPID}</text>
+      <text x="270" y="365" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SESSÃO ERRADA MORRE CALADA</text>
+      <rect x="160" y="408" width="220" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="270" y="418" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OBJETO.DESFECHO</text>
+      <text x="270" y="429" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ITENS, MOEDAS, ARMADILHA · SÓ AGORA</text>
+      <rect x="420" y="472" width="220" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="482" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">APPLYOBJETOABERTO</text>
+      <text x="530" y="493" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">FICHA NOVA + REGISTRO · DE UMA VEZ</text>
+      <rect x="672" y="536" width="196" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="770" y="546" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SALVARPERSONAGEM</text>
+      <text x="770" y="557" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MAPACOMOBJETOABERTO</text>
+      <rect x="420" y="600" width="220" height="26" rx="2" fill="#f5f5f5"/>
+      <text x="530" y="610" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">BROADCASTNOW · RECORTE NOVO</text>
+      <text x="530" y="621" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ABRIVEL: ABERTO A TODOS</text>
+
+      <!-- NOTES -->
+      <rect x="64" y="292" width="152" height="40" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="292" width="152" height="40" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="140" y="308" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Joga na tela dele</text>
+      <text x="140" y="324" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">JogoDeAbrirOverlay</text>
+      <rect x="572" y="672" width="176" height="48" rx="6" fill="#f5f5f5"/>
+      <rect x="572" y="672" width="176" height="48" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="660" y="692" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Aviso 8 s com Ver</text>
+      <text x="660" y="708" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Jogos · Abertos agora</text>
+
+      <!-- HEADERS -->
+      <rect x="60" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="60" y="72" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="68" y="80" width="48" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="92" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">JOGADOR</text>
+      <text x="140" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Quem toca</text>
+      <text x="140" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">playerConnection.ts</text>
+      <rect x="320" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="320" y="72" width="160" height="56" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="328" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.50)" stroke-width="0.8"/>
+      <text x="344" y="89" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOST</text>
+      <text x="400" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Sessão do host</text>
+      <text x="400" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">objetoNoHost.ts</text>
+      <rect x="580" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="580" y="72" width="160" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="588" y="80" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="610" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MESTRE</text>
+      <text x="660" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ponte do mestre</text>
+      <text x="660" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">hostBridge.ts</text>
+      <rect x="800" y="72" width="160" height="56" rx="6" fill="#f5f5f5"/>
+      <rect x="800" y="72" width="160" height="56" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="808" y="80" width="40" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+      <text x="828" y="89" fill="rgba(79,93,117,0.90)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
+      <text x="880" y="104" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ficha e mapa</text>
+      <text x="880" y="119" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">playerChanges.ts</text>
+
+      <!-- LEGEND -->
+      <line x1="56" y1="780" x2="944" y2="780" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="56" y="796" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.18em">LEGENDA</text>
+      <line x1="56" y1="816" x2="84" y2="816" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="92" y="820" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Socket ou chamada da ponte</text>
+      <line x1="236" y1="816" x2="264" y2="816" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+      <text x="272" y="820" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Momento em que o conteúdo sai do host</text>
+      <line x1="472" y1="816" x2="500" y2="816" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+      <text x="508" y="820" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif">Resposta ou recorte do mapa</text>
+    </svg>
+    </div>
+
+    <footer>Fontes: client/src/net/protocoloDoObjeto.ts · net/objetoNoHost.ts · net/hostSession.ts · net/hostBridge.ts · net/playerChanges.ts · player/playerConnection.ts · minigames/abrir/tela/JogoDeAbrirOverlay.tsx · lib/conteudoDoObjeto.ts</footer>
+  </div>
+</body>
+</html>
