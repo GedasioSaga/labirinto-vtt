@@ -144,8 +144,15 @@ export function selectionOfItem(item: SelectionItem): SelectionSet {
  */
 export function selectionFromItems(items: readonly SelectionItem[]): SelectionSet {
   const result: SelectionItem[] = []
+  // Um conjunto de chaves em vez de `some` por item: o laço que pega 5.000
+  // carimbos (Fase 2, 15/11/2026) não pode virar 5.000 × 5.000 comparações.
+  // O tipo nunca tem dois-pontos, então `tipo:id` não colide entre tipos.
+  const vistos = new Set<string>()
   for (const item of items) {
-    if (!result.some((existing) => sameItem(existing, item))) result.push(item)
+    const chave = `${item.kind}:${item.id}`
+    if (vistos.has(chave)) continue
+    vistos.add(chave)
+    result.push(item)
   }
   return result
 }
@@ -251,6 +258,7 @@ export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
     ...area.props.map((id): SelectionItem => ({ kind: 'prop', id })),
     ...area.stairs.map((id): SelectionItem => ({ kind: 'stair', id })),
     ...area.drawings.map((id): SelectionItem => ({ kind: 'drawing', id })),
+    ...(area.carimbos ?? []).map((id): SelectionItem => ({ kind: 'carimbo', id })),
   ]
 }
 
@@ -268,6 +276,7 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
   const props: string[] = []
   const stairs: string[] = []
   const drawings: string[] = []
+  const carimbos: string[] = []
 
   for (const item of selection) {
     switch (item.kind) {
@@ -292,8 +301,12 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
       case 'drawing':
         drawings.push(item.id)
         break
+      case 'carimbo':
+        carimbos.push(item.id)
+        break
     }
   }
 
-  return { walls, regions, lights, tokens, props, stairs, drawings }
+  // Sem carimbo, sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
+  return { walls, regions, lights, tokens, props, stairs, drawings, ...(carimbos.length > 0 ? { carimbos } : {}) }
 }

@@ -4,6 +4,7 @@ import { buildFloorOutline } from './floorContour'
 import { mesmaGeometriaDoChao } from './floorGeometry'
 import { chaoQueLimita } from './offFloor'
 import { construcoesQueTapam } from './obstaculosDeObjeto'
+import { trechosDosCarimbosQueTapam } from './carimbosQueBarram'
 import { simplifyRing } from './refineFloor'
 
 /**
@@ -269,7 +270,8 @@ export function visionSegments(map: MapData, peekDoorIds?: ReadonlySet<string>, 
   const walls = map.walls
     .filter((w) => !wallLetsSightThrough(w, peekDoorIds))
     .map((w) => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 }))
-  return [...walls, ...floorSegments(chaoQueLimita(map)), ...segmentosDasConstrucoes(map, naoTapam)]
+  // CARIMBO com "Tapa a visão" (Fase 2): a pegada segura o olhar; sem nenhum, nada entra.
+  return [...walls, ...floorSegments(chaoQueLimita(map)), ...segmentosDasConstrucoes(map, naoTapam), ...trechosDosCarimbosQueTapam(map.carimbos)]
 }
 
 /**

@@ -34,6 +34,7 @@ import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehiclesLeftBehind, withRiders } from './vehicle'
+import { caixaDoCarimbo, moverCarimbos } from './carimbos'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -375,6 +376,12 @@ export interface AreaSelection {
   props: string[]
   stairs: string[]
   drawings: string[]
+  /**
+   * CARIMBOS (Fase 2, 15/11/2026): os objetos da ferramenta Carimbos
+   * (`MapData.carimbos`). Opcional de propósito: ausente = nenhum, e quem
+   * monta a seleção dos outros tipos à mão não precisa saber do carimbo.
+   */
+  carimbos?: string[]
 }
 
 export const EMPTY_AREA_SELECTION: AreaSelection = {
@@ -395,7 +402,8 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
     selection.tokens.length === 0 &&
     selection.props.length === 0 &&
     selection.stairs.length === 0 &&
-    selection.drawings.length === 0
+    selection.drawings.length === 0 &&
+    (selection.carimbos ?? []).length === 0
   )
 }
 
@@ -459,7 +467,12 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: Pinos
     .filter((drawing) => inArea(drawingEntity(drawing)))
     .map((drawing) => drawing.id)
 
-  return { walls, regions, lights, tokens, props, stairs, drawings }
+  // Carimbo pela caixa do corpo (`caixaDoCarimbo`), a mesma do clique.
+  const carimbos = alcancaveis(map, 'carimbo', map.carimbos ?? [])
+    .filter((carimbo) => inArea({ kind: 'rect', ...caixaDoCarimbo(carimbo) }))
+    .map((carimbo) => carimbo.id)
+
+  return { walls, regions, lights, tokens, props, stairs, drawings, ...(carimbos.length > 0 ? { carimbos } : {}) }
 }
 
 /**
@@ -510,6 +523,11 @@ export function areaSelectionBounds(map: MapData, selection: AreaSelection): Are
   for (const id of selection.drawings) {
     const drawing = map.drawings.find((d) => d.id === id)
     if (drawing) bounds.push(entityBounds(drawingEntity(drawing)))
+  }
+  // Carimbos aos milhares: um passo pela lista do mapa, nunca um `find` por id.
+  if (selection.carimbos !== undefined && selection.carimbos.length > 0) {
+    const ids = new Set(selection.carimbos)
+    for (const carimbo of map.carimbos ?? []) if (ids.has(carimbo.id)) bounds.push(caixaDoCarimbo(carimbo))
   }
 
   if (bounds.length === 0) return null
@@ -679,6 +697,12 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
       ...next,
       drawings: next.drawings.map((d) => (drawingIds.has(d.id) && canInteract(d) ? moveDrawingItem(d, dx, dy) : d)),
     }
+  }
+
+  // CARIMBOS: o travado fica (`moverCarimbos`); nada andou, a mesma lista e o mesmo mapa.
+  if (selection.carimbos !== undefined && selection.carimbos.length > 0 && next.carimbos !== undefined) {
+    const carimbos = moverCarimbos(next.carimbos, new Set(selection.carimbos), dx, dy)
+    if (carimbos !== next.carimbos) next = { ...next, carimbos }
   }
 
   return next

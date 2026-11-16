@@ -42,7 +42,7 @@ export function entradaDaFicha(map: MapData, tokenId: string, posicoes?: Readonl
   // objeto em que ele está agora fica de fora, para ele nunca ficar preso.
   const aqui = posicoes?.get(tokenId) ?? token
   return {
-    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui), grid: map.grid, width: map.width, height: map.height },
+    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui, map.carimbos), grid: map.grid, width: map.width, height: map.height },
     raio: raioDaFicha(token, map.grid),
     fichas,
   }

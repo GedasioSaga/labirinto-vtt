@@ -15,6 +15,7 @@ import { stairSpiralCircle } from './stairs'
 import { stairCenterline } from './stairCurve'
 import { desenhoFicaSobAsSalas } from './desenhoSobAsSalas'
 import { ehPinturaDeBalde } from './baldeDeTinta'
+import { carimboNoPonto } from './carimbos'
 
 export interface Point {
   x: number
@@ -411,6 +412,19 @@ function findStructureAt(map: MapData, point: Point): SelectableHit | null {
   return null
 }
 
+/**
+ * CARIMBO (Fase 2, 15/11/2026): o objeto da ferramenta Carimbos debaixo do
+ * ponto, o de cima na tela (`carimboNoPonto`). Só o que o mestre vê: a camada
+ * dele (Terreno, pelo ponto único) com o olho aberto. Anda pelo arrasto da
+ * seleção (`moveSelectionLive`), por isso `draggable`.
+ */
+function carimboHitAt(map: MapData, point: Point): SelectableHit | null {
+  if (map.carimbos === undefined || map.carimbos.length === 0) return null
+  const camadas = contextoDeCamadas(map)
+  const carimbo = carimboNoPonto(map.carimbos, point, (c) => camadas.mestreVe(camadas.camadaDe('carimbo', c)))
+  return carimbo === null ? null : { kind: 'carimbo', id: carimbo.id, draggable: true }
+}
+
 function regionHitAt(map: MapData, point: Point): SelectableHit | null {
   const region = findRegionAt(visibleRegions(map.regions, map.hiddenLayers), point)
   return region ? { kind: 'region', id: region.id, draggable: false } : null
@@ -457,6 +471,9 @@ export function findSelectableAt(map: MapData, point: Point, pinos?: PinosNoToqu
     findForegroundAt(map, point, pinos) ??
     drawingHitAt(drawings.filter((drawing) => !desenhoFicaSobAsSalas(drawing)), point) ??
     findStructureAt(map, point) ??
+    // O carimbo logo abaixo da parede, que é onde ele está na tela: a mata
+    // densa não engole o clique da parede nem o do objeto por cima.
+    carimboHitAt(map, point) ??
     drawingHitAt(sobAsSalas.filter((drawing) => !ehPinturaDeBalde(drawing)), point) ??
     regionHitAt(map, point) ??
     drawingHitAt(sobAsSalas.filter(ehPinturaDeBalde), point)
@@ -546,6 +563,10 @@ function camadaDoAcerto(map: MapData, hit: Selection): CamadaId | null {
     case 'region': {
       const region = map.regions.find((item) => item.id === hit.id)
       return region ? camadas.camadaDe('regiao', region) : null
+    }
+    case 'carimbo': {
+      const carimbo = map.carimbos?.find((item) => item.id === hit.id)
+      return carimbo ? camadas.camadaDe('carimbo', carimbo) : null
     }
     case 'floor':
       return null

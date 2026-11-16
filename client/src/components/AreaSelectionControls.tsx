@@ -28,6 +28,7 @@ const AREA_CATEGORY_LABELS: ReadonlyArray<{ key: keyof AreaSelection; singular: 
   { key: 'props', singular: 'objeto', plural: 'objetos' },
   { key: 'stairs', singular: 'escada', plural: 'escadas' },
   { key: 'drawings', singular: 'desenho', plural: 'desenhos' },
+  { key: 'carimbos', singular: 'carimbo', plural: 'carimbos' },
 ]
 
 /**
@@ -41,9 +42,10 @@ const AREA_CATEGORY_LABELS: ReadonlyArray<{ key: keyof AreaSelection; singular: 
 export function AreaSelectionControls({ selection, onClear, grouped = false, onGroup, onUngroup }: AreaSelectionControlsProps) {
   if (!selection || isAreaSelectionEmpty(selection)) return null
 
-  const total = AREA_CATEGORY_LABELS.reduce((sum, { key }) => sum + selection[key].length, 0)
-  const parts = AREA_CATEGORY_LABELS.filter(({ key }) => selection[key].length > 0).map(({ key, singular, plural }) => {
-    const count = selection[key].length
+  // `?? []`: os carimbos são opcionais na seleção (ausente = nenhum).
+  const total = AREA_CATEGORY_LABELS.reduce((sum, { key }) => sum + (selection[key] ?? []).length, 0)
+  const parts = AREA_CATEGORY_LABELS.filter(({ key }) => (selection[key] ?? []).length > 0).map(({ key, singular, plural }) => {
+    const count = (selection[key] ?? []).length
     return `${count} ${count === 1 ? singular : plural}`
   })
 

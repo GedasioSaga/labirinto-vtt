@@ -66,7 +66,9 @@ export type DrawingTool =
   /**
    * Carimbos: o mestre solta objetos da biblioteca (pinheiro, palmeira,
    * pedras, poça...) — o clique solta um, arrastar espalha vários, a
-   * borracha tira (`lib/carimbos.ts`). Cada objeto fica parado onde foi posto.
+   * borracha tira (`lib/carimbos.ts`). Depois de posto, o carimbo entra na
+   * seleção comum (`SelectionKind` 'carimbo', Fase 2 de 15/11/2026): o
+   * Selecionar o acha, move, gira e apaga como um objeto.
    */
   | 'carimbos'
   | 'pin'
@@ -106,7 +108,8 @@ export type DoorMode = 'porta' | 'vao'
  */
 export type RoomFreeKind = 'sala' | 'parede'
 
-export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor'
+/** 'carimbo': um objeto da ferramenta Carimbos (`MapData.carimbos`), editável desde a Fase 2 (15/11/2026). */
+export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'carimbo'
 
 export interface Selection {
   kind: SelectionKind

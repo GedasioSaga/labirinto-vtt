@@ -1,6 +1,7 @@
-import type { MapData, Prop, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../types/map'
+import type { Carimbo, MapData, Prop, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
+import { comParedesDosCarimbos } from './carimbosQueBarram'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
 import { construcaoTapaDeFabrica, ehConstrucao, medidaPeloMenorLado } from './mobilia/construcoes'
 import { contornoDaFaixa, distanciaAoEixo, eixoDoMuro, simplificarEixo, TOLERANCIA_DO_CONTORNO } from './mobilia/muroDeFogo'
@@ -374,8 +375,8 @@ export function pontoNoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): boolea
   return dentro
 }
 
-/** O que as contas de andar leem do mapa: as paredes vêm à parte (são as do piso). */
-type MapaComObjetos = Pick<MapData, 'barranco' | 'grid' | 'props'>
+/** O que as contas de andar leem do mapa: as paredes vêm à parte (são as do piso). `carimbos`: os que barram (Fase 2). */
+type MapaComObjetos = Pick<MapData, 'barranco' | 'grid' | 'props'> & Partial<Pick<MapData, 'carimbos'>>
 
 const cacheDeParedes = new WeakMap<Wall[], WeakMap<readonly ObstaculoDeObjeto[], Map<string, Wall[]>>>()
 
@@ -418,7 +419,8 @@ function juntarParedes(base: Wall[], obstaculos: readonly ObstaculoDeObjeto[], v
  * lista de `paredesParaAndar`.
  */
 export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, piso: number, de: Point | null, escondido?: (prop: Prop) => boolean): Wall[] {
-  const base = paredesParaAndar(walls, map, piso)
+  // CARIMBO com "Barra a passagem" (Fase 2): entra junto com o barranco; sem nenhum, a mesma lista.
+  const base = comParedesDosCarimbos(paredesParaAndar(walls, map, piso), map.carimbos, piso, de)
   const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)
   if (obstaculos.length === 0) return base
   const valem = obstaculos.filter((o) => !(de !== null && pontoNoObstaculo(o, de)) && escondido?.(o.prop) !== true)
@@ -436,10 +438,12 @@ export function paredesParaAndarDoJogador(walls: Wall[], map: MapaComObjetos, pi
  * `de` é onde o NPC está: o objeto que o contém fica de fora (NUNCA PRENDER: a
  * Vendedora dentro da barraca sai). As mesmas entradas devolvem o MESMO array.
  */
-export function paredesDoNpc(walls: Wall[], props: readonly Prop[], grid: number, piso: number, de: Point): Wall[] {
+export function paredesDoNpc(walls: Wall[], props: readonly Prop[], grid: number, piso: number, de: Point, carimbos?: readonly Carimbo[]): Wall[] {
+  // O carimbo com "Barra a passagem" (Fase 2) segura o NPC também: a mesma árvore não pode barrar só o jogador.
+  const base = comParedesDosCarimbos(walls, carimbos, piso, de)
   const obstaculos = obstaculosDeObjeto(props, grid, piso)
-  if (obstaculos.length === 0) return walls
-  return juntarParedes(walls, obstaculos, obstaculos.filter((o) => !pontoNoObstaculo(o, de)))
+  if (obstaculos.length === 0) return base
+  return juntarParedes(base, obstaculos, obstaculos.filter((o) => !pontoNoObstaculo(o, de)))
 }
 
 /** As paredes sem as de objeto: a conta de "passaria se não fosse o objeto?" da recusa `objeto`. */

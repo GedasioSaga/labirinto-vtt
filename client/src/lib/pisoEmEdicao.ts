@@ -34,8 +34,19 @@ export function selecaoNoPiso(map: MapData, piso: number, selection: SelectionSe
     prop: doPiso.props,
     drawing: doPiso.drawings,
     floor: doPiso.floor,
+    carimbo: doPiso.carimbos ?? [],
   }
-  const fica = selection.filter((item) => listas[item.kind].some((entidade) => entidade.id === item.id))
+  // Os ids de cada tipo num conjunto, só dos tipos que a seleção tem: o laço
+  // que pega 5.000 carimbos não pode virar 5.000 × 5.000 comparações.
+  const ids = new Map<SelectionKind, ReadonlySet<string>>()
+  const idsDo = (kind: SelectionKind): ReadonlySet<string> => {
+    const feitos = ids.get(kind)
+    if (feitos !== undefined) return feitos
+    const novos = new Set(listas[kind].map((entidade) => entidade.id))
+    ids.set(kind, novos)
+    return novos
+  }
+  const fica = selection.filter((item) => idsDo(item.kind).has(item.id))
   return fica.length === selection.length ? selection : fica
 }
 

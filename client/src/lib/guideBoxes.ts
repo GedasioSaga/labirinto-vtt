@@ -26,6 +26,7 @@ import type { MapData, Prop, Stair } from '../types/map'
 import type { SelectionItem } from './selectionModel'
 import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
 import { pieceBounds } from './floorSdf'
+import { caixaDoCarimbo, carimboDestravado } from './carimbos'
 import { canInteract } from './itemTransform'
 import { tokenBoundingBox } from './objectTransform'
 import { visibleDrawings, visibleProps, visibleRegions, visibleStairs, visibleTokens, visibleWalls } from './layers'
@@ -262,6 +263,13 @@ export function guideBoxOfSelection(map: MapData, selection: AreaSelection, piso
   for (const stair of visibleStairs(doPiso.stairs, hidden)) {
     if (selectedStairs.has(stair.id) && canInteract(stair)) add(guideBoxOfStair(stair))
   }
+  // Carimbos: a caixa do corpo, a mesma do clique (não são guia de ninguém, só andam).
+  if (selection.carimbos !== undefined && selection.carimbos.length > 0) {
+    const selectedCarimbos = new Set(selection.carimbos)
+    for (const carimbo of doPiso.carimbos ?? []) {
+      if (selectedCarimbos.has(carimbo.id) && carimboDestravado(carimbo)) add(caixaDoCarimbo(carimbo))
+    }
+  }
 
   return boxes.reduce<AreaBounds | null>((union, box) => (union === null ? box : unionBox(union, box)), null)
 }
@@ -300,6 +308,10 @@ function measureBoxOfItem(map: MapData, item: SelectionItem): AreaBounds | null 
     case 'floor': {
       const piece = map.floor.find((p) => p.id === item.id)
       return piece === undefined ? null : pieceBounds(piece)
+    }
+    case 'carimbo': {
+      const carimbo = map.carimbos?.find((c) => c.id === item.id)
+      return carimbo === undefined ? null : caixaDoCarimbo(carimbo)
     }
   }
 }

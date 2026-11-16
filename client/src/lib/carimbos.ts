@@ -139,6 +139,12 @@ function numeroFinito(valor: unknown): valor is number {
   return typeof valor === 'number' && Number.isFinite(valor)
 }
 
+/** O cadeado ligado: o único jeito de o campo existir no carimbo. */
+const COM_CADEADO: Pick<Carimbo, 'locked'> = { locked: true }
+/** "Barra a passagem" e "Tapa a visão" ligados: só assim os campos existem. */
+const COM_BARRA: Pick<Carimbo, 'barra'> = { barra: true }
+const COM_TAPA: Pick<Carimbo, 'tapaVisao'> = { tapaVisao: true }
+
 function lerCarimbo(valor: unknown): Carimbo | null {
   if (typeof valor !== 'object' || valor === null) return null
   const id = 'id' in valor ? valor.id : undefined
@@ -150,7 +156,12 @@ function lerCarimbo(valor: unknown): Carimbo | null {
   if (typeof id !== 'string' || !ID_DO_OBJETO.test(id) || !ehTipoDeCarimbo(tipo)) return null
   if (!numeroFinito(x) || !numeroFinito(y) || !numeroFinito(tamanho) || tamanho <= 0) return null
   // CAMADA (`lib/camadas`): campo novo e opcional; ausente ou torto = Terreno, a camada padrão do carimbo.
-  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor) }
+  // O cadeado (Fase 2) só fica quando é `true`: o resto some, e o mapa de antes abre igual.
+  const travado = 'locked' in valor && valor.locked === true ? COM_CADEADO : {}
+  // As chaves de jogo (Fase 2) também: só `true` fica.
+  const barra = 'barra' in valor && valor.barra === true ? COM_BARRA : {}
+  const tapa = 'tapaVisao' in valor && valor.tapaVisao === true ? COM_TAPA : {}
+  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor), ...travado, ...barra, ...tapa }
 }
 
 /** Os objetos do arquivo, ou `undefined` (sem o campo). Objeto quebrado ou repetido sai; o resto fica na ordem. */
@@ -242,9 +253,145 @@ export function mesmosCarimbos(a: readonly Carimbo[] | undefined, b: readonly Ca
   for (let i = 0; i < a.length; i++) {
     const p = a[i]
     const q = b[i]
-    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro)) return false
+    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro || p.locked !== q.locked || p.barra !== q.barra || p.tapaVisao !== q.tapaVisao)) return false
   }
   return true
+}
+
+// ---------------------------------------------------------------------------
+// Edição (Fase 2, 15/11/2026: "o carimbo porque não consigo editar?")
+//
+// O carimbo continua carimbo no arquivo (feito para milhares), e ganha a mão
+// dos objetos: o Selecionar o acha no ponto, o laço o pega, o arrasto o move.
+
+/** Uma caixa em px de mundo (a mesma forma de `AreaBounds`, sem importar a seleção daqui). */
+export interface CaixaDoCarimbo {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/**
+ * Onde o corpo da arte da biblioteca cai, em frações do `tamanho`, a partir do
+ * pé: o quadro da arte (`QUADRO_DA_BIBLIOTECA`, de -0,75 a 0,75 e de -1,2 a
+ * 0,3) tem folga em volta do desenho; o clique pega só o miolo, para a copa
+ * vizinha não roubar o clique da árvore de trás.
+ */
+const CORPO_DA_BIBLIOTECA: CorpoNoQuadro = { esquerda: -0.45, topo: -1.0, direita: 0.45, base: 0.2 }
+/** O importado se desenha centrado no ponto (`QUADRO_DO_IMPORTADO`). */
+const CORPO_DO_IMPORTADO: CorpoNoQuadro = { esquerda: -0.5, topo: -0.5, direita: 0.5, base: 0.5 }
+
+interface CorpoNoQuadro {
+  readonly esquerda: number
+  readonly topo: number
+  readonly direita: number
+  readonly base: number
+}
+
+/** A caixa do corpo do carimbo: o que o clique acha e o que o laço mede. */
+export function caixaDoCarimbo(c: Pick<Carimbo, 'tipo' | 'x' | 'y' | 'tamanho'>): CaixaDoCarimbo {
+  const q = ehTipoImportado(c.tipo) ? CORPO_DO_IMPORTADO : CORPO_DA_BIBLIOTECA
+  return { minX: c.x + q.esquerda * c.tamanho, maxX: c.x + q.direita * c.tamanho, minY: c.y + q.topo * c.tamanho, maxY: c.y + q.base * c.tamanho }
+}
+
+/**
+ * O carimbo debaixo do ponto, o de CIMA na tela: o palco desenha de trás para
+ * a frente pela base (`y`, depois `x`, depois a ordem da lista,
+ * `pixi/drawCarimbos.ts`), então ganha o de maior `y`. `alcancavel` tira o que
+ * o mestre não vê. Varre a lista uma vez: 5.000 caixas são ~0,1 ms, então não
+ * há índice para manter em dia a cada mudança.
+ */
+export function carimboNoPonto(lista: readonly Carimbo[] | undefined, p: RegionPoint, alcancavel?: (c: Carimbo) => boolean): Carimbo | null {
+  if (lista === undefined) return null
+  let achado: Carimbo | null = null
+  for (const c of lista) {
+    const caixa = caixaDoCarimbo(c)
+    if (p.x < caixa.minX || p.x > caixa.maxX || p.y < caixa.minY || p.y > caixa.maxY) continue
+    if (achado !== null && (c.y < achado.y || (c.y === achado.y && c.x < achado.x))) continue
+    if (alcancavel !== undefined && !alcancavel(c)) continue
+    achado = c
+  }
+  return achado
+}
+
+const indices = new WeakMap<readonly Carimbo[], ReadonlyMap<string, Carimbo>>()
+
+/**
+ * O carimbo pelo id, por um índice guardado pela LISTA (a mesma referência
+ * devolve o mesmo índice): a seleção de milhares pergunta um a um sem varrer
+ * a lista a cada vez. Sem a lista ou sem o id, `undefined`.
+ */
+export function carimboPorId(lista: readonly Carimbo[] | undefined, id: string): Carimbo | undefined {
+  if (lista === undefined) return undefined
+  let indice = indices.get(lista)
+  if (indice === undefined) {
+    indice = new Map(lista.map((c) => [c.id, c]))
+    indices.set(lista, indice)
+  }
+  return indice.get(id)
+}
+
+/** O mapa sem os carimbos de `ids`, num filtro só. Nenhum saiu: o MESMO mapa. */
+export function semCarimbos(map: MapData, ids: ReadonlySet<string>): MapData {
+  if (ids.size === 0 || map.carimbos === undefined) return map
+  const ficam = map.carimbos.filter((c) => !ids.has(c.id))
+  return ficam.length === map.carimbos.length ? map : comCarimbos(map, ficam)
+}
+
+/** O carimbo pode andar, girar e mudar? O cadeado do item segura (a camada travada é conferida por quem chama). */
+export function carimboDestravado(c: Pick<Carimbo, 'locked'>): boolean {
+  return c.locked !== true
+}
+
+/**
+ * A lista com os carimbos de `ids` deslocados por (dx, dy), menos os travados.
+ * Nada andou: a MESMA lista (o arrasto parado não vira passo no desfazer).
+ */
+export function moverCarimbos(lista: Carimbo[], ids: ReadonlySet<string>, dx: number, dy: number): Carimbo[] {
+  if ((dx === 0 && dy === 0) || ids.size === 0) return lista
+  let mudou = false
+  const nova = lista.map((c) => {
+    if (!ids.has(c.id) || !carimboDestravado(c)) return c
+    mudou = true
+    return { ...c, x: c.x + dx, y: c.y + dy }
+  })
+  return mudou ? nova : lista
+}
+
+/** O que a ficha do carimbo muda nele (o resto, posição e id, é do arrasto). */
+export interface MudancaDoCarimbo {
+  tipo?: string
+  tamanho?: number
+  giro?: number
+  /** `true` trava; `false` destrava (o campo sai). */
+  locked?: boolean
+  /** "Barra a passagem": `false` tira o campo. */
+  barra?: boolean
+  /** "Tapa a visão": `false` tira o campo. */
+  tapaVisao?: boolean
+}
+
+/** A mudança só mexe nas chaves (cadeado, passagem, visão)? Essas valem também no carimbo travado. */
+export function soAsChaves(mudanca: MudancaDoCarimbo): boolean {
+  return mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined
+}
+
+/**
+ * O carimbo com a mudança. O tamanho fica positivo e com uma casa decimal; o
+ * giro, de 0 a 359; o tipo torto não entra. Nada mudou: o MESMO carimbo.
+ */
+export function comMudancaDoCarimbo(c: Carimbo, mudanca: MudancaDoCarimbo): Carimbo {
+  const tipo = mudanca.tipo !== undefined && ehTipoDeCarimbo(mudanca.tipo) ? mudanca.tipo : c.tipo
+  const tamanho = mudanca.tamanho !== undefined && numeroFinito(mudanca.tamanho) && mudanca.tamanho > 0 ? Math.round(mudanca.tamanho * 10) / 10 : c.tamanho
+  const giro = mudanca.giro !== undefined && numeroFinito(mudanca.giro) ? normalizarGiro(mudanca.giro) : c.giro
+  const travado = mudanca.locked === undefined ? c.locked === true : mudanca.locked
+  const barra = mudanca.barra === undefined ? c.barra === true : mudanca.barra
+  const tapa = mudanca.tapaVisao === undefined ? c.tapaVisao === true : mudanca.tapaVisao
+  const chavesIguais = travado === (c.locked === true) && barra === (c.barra === true) && tapa === (c.tapaVisao === true)
+  if (tipo === c.tipo && tamanho === c.tamanho && giro === c.giro && chavesIguais) return c
+  const { locked: _cadeado, barra: _barra, tapaVisao: _tapa, ...resto } = c
+  return { ...resto, tipo, tamanho, giro, ...(travado ? COM_CADEADO : {}), ...(barra ? COM_BARRA : {}), ...(tapa ? COM_TAPA : {}) }
 }
 
 // ---------------------------------------------------------------------------

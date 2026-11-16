@@ -19,6 +19,7 @@
 import type { CamadaId, MapData, Prop, Region } from '../../types/map'
 import type { SelectionKind } from '../../types/tools'
 import { contextoDeCamadas } from './consulta'
+import { carimboPorId } from '../carimbos'
 import { ROTULOS_DAS_CAMADAS, camadaPadraoDe, ehCamadaPadrao, type ItemPorTipo, type TipoDeObjeto } from './padrao'
 
 /** Um item que o gesto quer mover: o tipo na camada e o id dele (o telhado usa o id da Sala). */
@@ -47,6 +48,8 @@ export interface ResultadoDeMover {
 
 /** O que a ficha e o menu dizem quando o tipo ainda não muda de camada. */
 export const MOTIVO_CAMADA_PADRAO = 'Sala e texto ficam sempre na camada deles.'
+/** O mesmo motivo, quando a seleção é só de carimbos. */
+export const MOTIVO_DO_CARIMBO = 'O carimbo fica sempre na camada Terreno.'
 
 /**
  * O tipo já desenha no nó da camada escolhida, no editor e no jogador. Ficam
@@ -68,6 +71,7 @@ const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto> = {
   prop: 'objeto',
   drawing: 'desenho',
   floor: 'peca',
+  carimbo: 'carimbo',
 }
 
 /** Os itens da seleção do editor (e o pino aberto, que mora fora dela) como refs de mover. */
@@ -112,7 +116,8 @@ export function itemDaRef(map: MapData, ref: RefDeItem): ParDeItem | undefined {
     case 'marcador':
       return par('marcador', porId(map.markers, ref.id))
     case 'carimbo':
-      return par('carimbo', porId(map.carimbos, ref.id))
+      // Pelo índice (`carimboPorId`): o laço pega milhares, e um `find` por item virava 5.000 × 5.000 (Fase 2, medido).
+      return par('carimbo', carimboPorId(map.carimbos, ref.id))
   }
 }
 
@@ -148,8 +153,10 @@ export function algumMudaDeCamada(map: MapData, refs: readonly RefDeItem[]): boo
  */
 export function motivoParaNaoMover(map: MapData, refs: readonly RefDeItem[]): string | null {
   const camadas = contextoDeCamadas(map)
-  const mudam = paresDe(map, refs).filter(tipoMudaDeCamada)
-  if (mudam.length === 0) return MOTIVO_CAMADA_PADRAO
+  const pares = paresDe(map, refs)
+  const mudam = pares.filter(tipoMudaDeCamada)
+  // O carimbo sozinho diz dele (Fase 2: agora ele é selecionável e a ficha mostra o seletor).
+  if (mudam.length === 0) return pares.length > 0 && pares.every((par) => par.tipo === 'carimbo') ? MOTIVO_DO_CARIMBO : MOTIVO_CAMADA_PADRAO
   if (mudam.some((par) => camadas.podeMexer(par.tipo, par.item))) return null
   const travada = mudam.map((par) => camadas.camadaDe(par.tipo, par.item)).find((id) => camadas.travada(id))
   return travada === undefined ? 'Travado: destrave para mudar de camada.' : `A camada ${nomeDaCamada(map, camadas.camadaQueManda(travada))} está travada.`
