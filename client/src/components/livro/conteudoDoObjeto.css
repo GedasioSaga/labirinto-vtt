@@ -69,11 +69,40 @@
   gap: 6px;
 }
 
+/*
+ * Como no protótipo aprovado (tela 2, `.mg-item`): o nome e a categoria em
+ * cima, com o tirar; a quantidade embaixo. Os três lado a lado deixavam ~60 px
+ * para o nome na ficha, e ele quebrava no meio da palavra ("Consumív el",
+ * auditoria de 16/11/2026).
+ */
 .lb-conteudo__item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'nome tirar'
+    'qtd .';
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 5px;
+}
+
+.lb-conteudo__item > .lb-conteudo__nome {
+  grid-area: nome;
+}
+
+.lb-conteudo__item > .lb-conteudo__passo {
+  grid-area: qtd;
+  justify-self: start;
+}
+
+.lb-conteudo__item > .lb-conteudo__tirar {
+  grid-area: tirar;
+  align-self: start;
+}
+
+.lb-conteudo__item + .lb-conteudo__item {
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .lb-conteudo__nome {

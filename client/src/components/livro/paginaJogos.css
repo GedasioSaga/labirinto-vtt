@@ -34,6 +34,14 @@
 .mg-linha__seta { grid-row: 1 / span 2; grid-column: 3; color: var(--lb-color-parchment-faint); display: grid; }
 .mg-linha__seta svg { width: 16px; height: 16px; }
 .mg-linha__tags { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+/*
+ * LINHA SEM MEDALHA (baú, caixa e barril): sem a medalha, o nome caía na coluna
+ * de 30 px dela e quebrava no meio da palavra ("Barri / l", auditoria de
+ * 16/11/2026). Aqui o texto fica com a largura toda.
+ */
+.mg-linha--sem-med { grid-template-columns: minmax(0, 1fr); }
+.mg-linha--sem-med .mg-linha__onde,
+.mg-linha--sem-med .mg-linha__tags { grid-column: 1; }
 
 .mg-tag { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); padding: 3px 6px; border-radius: 5px; background: rgba(236, 234, 228, 0.07); color: var(--lb-color-parchment-dim); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .mg-tag--latao { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }

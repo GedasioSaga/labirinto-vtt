@@ -80,7 +80,7 @@ export function ObjetosQueAbrem({ props }: { props: readonly Prop[] }) {
             const nome = prop.playerLabel?.trim() || NOME_DO_OBJETO[tipo]
             return (
               <li key={prop.id}>
-                <button type="button" className="mg-linha" onClick={() => abrirFichaDoObjeto(prop)}>
+                <button type="button" className="mg-linha mg-linha--sem-med" onClick={() => abrirFichaDoObjeto(prop)}>
                   <span className="mg-linha__nome">{nome}</span>
                   <span className="mg-linha__onde">{resumoDoConteudo(conteudo)}</span>
                   {conteudo.aberto !== undefined && (
