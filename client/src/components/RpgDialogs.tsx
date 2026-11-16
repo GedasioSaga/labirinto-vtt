@@ -7,7 +7,8 @@ import { herdaDaPasta, hostWorldOf, personagensAtivos, sistemaAtivo, temRpgNoMap
 import { useToastStore } from '../stores/toastStore'
 import { campanhaDaPasta } from './nuvem/ponteDoLobby'
 import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublicada'
-import { carriedItemsOf } from '../lib/items'
+import { carriedItemsOf, quantidadeDe } from '../lib/items'
+import { tirarDaMochilaDaFicha } from '../lib/mochila/darNaFicha'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
@@ -118,7 +119,7 @@ export function RpgDialogs({ aplicarItens, garantirAventura }: RpgDialogsProps) 
   const tokensParaLigar: TokenParaLigar[] = tokens.map((token) => ({ id: token.id, nome: token.name, personagemId: token.characterId }))
   // A mochila mora no token: o mapa aberto (assinado acima pelos tokens) e as cenas de fundo carregadas.
   const inventario =
-    personagem === undefined ? undefined : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem.id, aplicarItens)
+    personagem === undefined ? undefined : inventarioDoMestre(hostWorldOf({ adventure, activeSceneId, cache }, useMapStore.getState().map), personagem, aplicarItens)
 
   return (
     <>
@@ -201,13 +202,39 @@ function EditorDaBiblioteca({ abertura, biblioteca }: { abertura: AberturaDoEdit
 }
 
 /**
+ * FASE 5 (a ficha é a dona da mochila, `lib/mochila/espelho.ts`): sem boneco
+ * ligado nas cenas carregadas, a janela mostra a mochila da PRÓPRIA FICHA. Não
+ * há chão onde largar; o "Tirar" tira a vaga inteira da ficha, pelo funil da
+ * aventura (`ajustarPersonagem`), o mesmo do ajuste rápido.
+ */
+function mochilaDaFichaSemBoneco(personagem: Personagem) {
+  const tirar = (item: CarriedItem, fechar: () => void) => {
+    const ok = useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => tirarDaMochilaDaFicha(atual, item.id, quantidadeDe(item)))
+    if (ok) fechar()
+    else useToastStore.getState().push('error', `Não deu para tirar ${item.nome} de ${personagem.nome}.`)
+  }
+  return (
+    <InventarioDaFicha
+      itens={personagem.mochila ?? []}
+      vazio={`Nada com ${personagem.nome || 'o personagem'}. Dê um item pelo acervo de itens ou pelo livro.`}
+      acoes={(item, fechar) => (
+        <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => tirar(item, fechar)}>
+          Tirar
+        </button>
+      )}
+    />
+  )
+}
+
+/**
  * O inventário do personagem na ficha do mestre: a mochila do token ligado,
  * com as ações que o Grupo já tem — largar no chão (vira pino pegável onde o
  * token está) e tirar. `undefined` = nenhum token ligado nas cenas carregadas.
  */
-function inventarioDoMestre(world: HostWorld, personagemId: string, aplicarItens: ((change: AppliedItems) => boolean) | undefined) {
+function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarItens: ((change: AppliedItems) => boolean) | undefined) {
+  const personagemId = personagem.id
   const achado = tokenDoPersonagem(world, personagemId)
-  if (achado === null) return undefined
+  if (achado === null) return mochilaDaFichaSemBoneco(personagem)
   const { token, sceneId } = achado
   const agir = (kind: 'tirar' | 'devolver', item: CarriedItem, fechar: () => void) => {
     const change = partyItemChange(world, { kind, item: { ...item, tokenId: token.id, sceneId } }, crypto.randomUUID())

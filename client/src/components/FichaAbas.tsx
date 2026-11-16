@@ -1,4 +1,7 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { quantidadeDe } from '../lib/items'
+import { ABA_DOS_ITENS, passarAbaItensParaMochila } from '../lib/livros/coisaERegra'
+import { InventarioDaFicha } from './InventarioDaFicha'
 import { camposVisiveis, cartoesDaAba, novoCartao, paragrafosDoCartao, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { abaTemCatalogo, cartaoDoCatalogo, itensDaAba, type ItemEscolhivel } from '../lib/livroDeRegras'
 import { abaDoSistema, type AbaDoSistema, type CampoDoCartao, type SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -47,9 +50,81 @@ export interface FichaAbasProps {
    * Ausente = sem o botão.
    */
   outrasFichas?: readonly Personagem[]
+  /**
+   * Fase 5: o INVENTÁRIO de quem olha (a mochila com as ações do mestre ou do
+   * jogador), mostrado DENTRO da aba Itens. Ausente = a mochila da ficha, só leitura.
+   */
+  inventario?: ReactNode
 }
 
-export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar, outrasFichas }: FichaAbasProps) {
+/** Quantos itens a mochila da ficha tem, somando as pilhas. */
+function totalDaMochila(personagem: Personagem): number {
+  return (personagem.mochila ?? []).reduce((soma, item) => soma + quantidadeDe(item), 0)
+}
+
+/**
+ * UM INVENTÁRIO SÓ (Fase 5, decisão 2 do mestre de 15/11): a aba Itens é a
+ * LEITURA DA MOCHILA. Mostra o inventário de quem olha (`inventario`, com as
+ * ações do mestre ou do jogador) ou, sem ele, a mochila da ficha só para ler.
+ * Os cartões antigos da aba continuam embaixo, intactos, até o "Passar para a
+ * mochila" (na edição; o Cancelar e o Desfazer devolvem tudo).
+ */
+function MochilaNaAbaItens({
+  personagem,
+  aba,
+  inventario,
+  editando,
+  cartoesAntigos,
+  onChange,
+}: {
+  personagem: Personagem
+  aba: AbaDoSistema
+  inventario: ReactNode | undefined
+  editando: boolean
+  cartoesAntigos: number
+  onChange: (personagem: Personagem) => void
+}) {
+  // A ficha de antes da passagem: o Desfazer volta a ela (só nesta edição; o Cancelar também desfaz).
+  const [antes, setAntes] = useState<Personagem | null>(null)
+  const passar = () => {
+    const passagem = passarAbaItensParaMochila(personagem, aba)
+    if (passagem.passados === 0) return
+    setAntes(personagem)
+    onChange(passagem.personagem)
+  }
+  const desfazer = () => {
+    if (antes === null) return
+    onChange(antes)
+    setAntes(null)
+  }
+  return (
+    <div className="lb-ficha__mochila-na-aba">
+      {inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />}
+      {cartoesAntigos > 0 && (
+        <p className="lb-ficha__vazio">
+          {cartoesAntigos === 1 ? '1 cartão antigo desta aba ainda não está na mochila.' : `${cartoesAntigos} cartões antigos desta aba ainda não estão na mochila.`}{' '}
+          {editando ? (
+            <button type="button" className="lb-btn lb-btn--compact" onClick={passar}>
+              Passar para a mochila
+            </button>
+          ) : (
+            'Edite a ficha para passá-los.'
+          )}
+        </p>
+      )}
+      {editando && antes !== null && (
+        <p className="lb-ficha__vazio" role="status">
+          Os cartões foram para a mochila.{' '}
+          <button type="button" className="lb-btn lb-btn--compact" onClick={desfazer}>
+            Desfazer
+          </button>
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function FichaAbas({ personagem, sistema, editando, onChange, escolherImagem, livro, onAjustar, quemEditaAMecanica = 'mestre', onRevelar, outrasFichas, inventario }: FichaAbasProps) {
   const idBase = useId()
   // As balas moram dentro do cartão da arma ("Tipos de bala"): a aba só aparece na barra se alguma bala ficou solta nela.
   const abas = sistema.abas.filter((aba) => aba.id !== ABA_DAS_BALAS || cartoesDaAba(personagem, aba.id).length > 0)
@@ -79,7 +154,8 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
       <div className="lb-ficha__abas-lista" role="tablist" aria-label={`Abas da ficha de ${personagem.nome}`} onKeyDown={onKeyDown}>
         {abas.map((aba) => {
           // Fatia C7: o "???" que o mestre escondeu conta na aba do jogador, como um cartão.
-          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id)
+          // Fase 5: a aba Itens conta também a mochila (ela é a leitura da mochila).
+          const quantos = cartoesDaAba(personagem, aba.id).length + ocultasDaAba(personagem, aba.id) + (aba.id === ABA_DOS_ITENS ? totalDaMochila(personagem) : 0)
           return (
             <button
               key={aba.id}
@@ -103,7 +179,10 @@ export function FichaAbas({ personagem, sistema, editando, onChange, escolherIma
         })}
       </div>
       <div id={`${idBase}-painel`} className="lb-ficha__painel" role="tabpanel" aria-labelledby={`${idBase}-aba-${ativa.id}`}>
-        {editando ? (
+        {ativa.id === ABA_DOS_ITENS && (
+          <MochilaNaAbaItens personagem={personagem} aba={ativa} inventario={inventario} editando={editando} cartoesAntigos={cartoes.length} onChange={onChange} />
+        )}
+        {ativa.id === ABA_DOS_ITENS && cartoes.length === 0 && ocultas === 0 ? null : editando ? (
           <ListaEditavel
             key={ativa.id}
             aba={ativa}

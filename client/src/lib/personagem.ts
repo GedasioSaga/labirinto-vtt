@@ -97,6 +97,14 @@ export interface CartaoDaFicha {
    * esta marcada. O dono e o mestre marcam. Ausente = nenhuma (vale a ordem da ficha).
    */
   armaPadrao?: true
+  /**
+   * COISA x REGRA (Fase 5 da melhoria geral, tmp/auditoria-ferramentas-2026-11-15/
+   * 2-dados-que-nao-conversam.md §5.3): o item do Acervo (`item_<uuid>`) de que
+   * este cartão é a REGRA — o mesmo `itemId` que a vaga da mochila guarda. Só na
+   * aba Armas: a Garrucha da mochila com este id ataca por este cartão
+   * (`armasDe`). Ausente = cartão solto, como antes (vale pelo nome).
+   */
+  itemId?: string
 }
 
 /** A mecânica do cartão como o disco e o fio a guardam: um objeto JSON, conferido só por quem lê (`lerMecanica`). */
@@ -495,8 +503,13 @@ function cartaoDoArquivo(value: unknown): CartaoDaFicha | null {
     ...(value.oculta === true ? { oculta: true, ...(value.revelaAoUsar === true ? { revelaAoUsar: true } : {}) } : {}),
     // Fatia C8: só o `true` conta (como o `aMao`).
     ...(value.armaPadrao === true ? { armaPadrao: true } : {}),
+    // Fase 5: só texto com cara de id; vazio ou torto = cartão solto.
+    ...(typeof value.itemId === 'string' && ID_DO_ITEM_NO_CARTAO.test(value.itemId) ? { itemId: value.itemId } : {}),
   }
 }
+
+/** O `itemId` do cartão: a mesma forma dos ids do Acervo e dos pinos (`item_<uuid>`, `pin_…`). */
+const ID_DO_ITEM_NO_CARTAO = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,79}$/
 
 /** Teto do JSON da mecânica guardada: as peças cabem folgadas (8 efeitos, fórmulas de 200); mais que isto é lixo. */
 const MECANICA_GUARDADA_MAX = 16_000

@@ -1,4 +1,5 @@
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../personagem'
+import type { CarriedItem } from '../../types/map'
 import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
@@ -314,16 +315,80 @@ export function lerArma(cartao: CartaoDaFicha): ArmaDaFicha {
  * arma "nova" a cada desenho (antes das balas, `armasDe` devolvia a própria
  * lista da ficha). A lista devolvida é compartilhada: não a mude.
  */
-const ARMAS_LIDAS = new WeakMap<readonly CartaoDaFicha[], ArmaDaFicha[]>()
+const ARMAS_LIDAS = new WeakMap<readonly CartaoDaFicha[], WeakMap<readonly CarriedItem[], ArmaDaFicha[]>>()
 const SEM_ARMAS: readonly CartaoDaFicha[] = []
+const SEM_MOCHILA: readonly CarriedItem[] = []
 
-/** Os cartões da aba Armas, cada um com categoria, capacidade e balas (`lerArma`). */
+/** O id da arma que vem da mochila: `mochila:<id da vaga>`; nunca colide com o id de um cartão (sem dois-pontos). */
+export const PREFIXO_DA_ARMA_DA_MOCHILA = 'mochila:'
+/** As categorias do Acervo que contam como arma (sem acento, sem caixa), as mesmas do filtro do livro (`lib/livros/acervoNoLivro.ts`). */
+const CATEGORIAS_DO_ACERVO_QUE_SAO_ARMA: ReadonlySet<string> = new Set(['arma', 'armas'])
+
+/** A vaga da mochila é uma arma (categoria Arma do Acervo)? */
+export function ehArmaDaMochila(item: Pick<CarriedItem, 'categoria'>): boolean {
+  return item.categoria !== undefined && CATEGORIAS_DO_ACERVO_QUE_SAO_ARMA.has(normalizar(item.categoria).trim())
+}
+
+/**
+ * COISA x REGRA (Fase 5): a arma da mochila sem cartão na aba Armas, como
+ * cartão de leitura. Sem regra no livro, o dano é digitado na batalha
+ * (`aMao`), como a técnica à mão; a descrição e a foto vêm da coisa.
+ */
+function armaDaMochila(item: CarriedItem): CartaoDaFicha {
+  return {
+    id: `${PREFIXO_DA_ARMA_DA_MOCHILA}${item.id}`,
+    nome: item.nome,
+    campos: item.descricao === undefined ? {} : { descricao: item.descricao },
+    extras: [],
+    atributos: [],
+    imagem: item.imagem ?? null,
+    modificadores: [],
+    subcartoes: [],
+    aMao: true,
+    ...(item.itemId === undefined ? {} : { itemId: item.itemId }),
+  }
+}
+
+/**
+ * As armas da mochila que a aba Armas ainda não cobre: a vaga cujo `itemId`
+ * já está num cartão (a regra do livro) ou cujo nome já é de um cartão (a
+ * ficha de antes) fica de fora — ataca pelo cartão. Uma por coisa: duas
+ * Garruchas não empilháveis são uma arma só na escolha.
+ */
+function armasSoNaMochila(cartoes: readonly CartaoDaFicha[], mochila: readonly CarriedItem[]): CartaoDaFicha[] {
+  const ids = new Set(cartoes.flatMap((cartao) => (cartao.itemId === undefined ? [] : [cartao.itemId])))
+  const nomes = new Set(cartoes.map((cartao) => normalizar(cartao.nome).trim()))
+  const vistas = new Set<string>()
+  const armas: CartaoDaFicha[] = []
+  for (const item of mochila) {
+    if (!ehArmaDaMochila(item)) continue
+    const nome = normalizar(item.nome).trim()
+    if ((item.itemId !== undefined && ids.has(item.itemId)) || nomes.has(nome)) continue
+    const chave = item.itemId ?? `nome:${nome}`
+    if (vistas.has(chave)) continue
+    vistas.add(chave)
+    armas.push(armaDaMochila(item))
+  }
+  return armas
+}
+
+/**
+ * Os cartões da aba Armas, cada um com categoria, capacidade e balas
+ * (`lerArma`), e depois as armas da MOCHILA que nenhum cartão cobre
+ * (`armasSoNaMochila`): a Garrucha do Acervo dada à ficha ataca.
+ */
 export function armasDe(personagem: Personagem): ArmaDaFicha[] {
   const cartoes = personagem.abas[ABA_DAS_ARMAS] ?? SEM_ARMAS
-  const guardadas = ARMAS_LIDAS.get(cartoes)
+  const mochila = personagem.mochila ?? SEM_MOCHILA
+  let porMochila = ARMAS_LIDAS.get(cartoes)
+  if (porMochila === undefined) {
+    porMochila = new WeakMap()
+    ARMAS_LIDAS.set(cartoes, porMochila)
+  }
+  const guardadas = porMochila.get(mochila)
   if (guardadas !== undefined) return guardadas
-  const lidas = cartoes.map(lerArma)
-  ARMAS_LIDAS.set(cartoes, lidas)
+  const lidas = [...cartoes, ...armasSoNaMochila(cartoes, mochila)].map(lerArma)
+  porMochila.set(mochila, lidas)
   return lidas
 }
 

@@ -67,6 +67,15 @@ export interface ItemDoCatalogo {
    * ainda não edita balas): quem grava mantém as que já estavam.
    */
   balas?: BalaDoCatalogo[]
+  /**
+   * COISA x REGRA (Fase 5 da melhoria geral, tmp/auditoria-ferramentas-2026-11-15/
+   * 2-dados-que-nao-conversam.md §5.3): o item do Acervo do app (`item_<uuid>`)
+   * de que esta entrada é a REGRA. Só arma e item (habilidade não tem coisa).
+   * O "Pôr em" da arma ligada cria o cartão com o mesmo `itemId` e põe a coisa
+   * na mochila; o do item ligado dá a coisa inteira (foto, pilha). Ausente =
+   * entrada solta, como antes.
+   */
+  acervoId?: string
 }
 
 /** Um tipo de bala da arma do catálogo: nome e os campos da aba das balas (`dano`, `efeito`, `quantidade`). */
@@ -154,7 +163,7 @@ function camposLimpos(value: unknown): Record<string, string> {
  * campos limpos. `null` = sem nome (não entra). Funil único da leitura do
  * arquivo e do "Salvar" da janela de entrada.
  */
-export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown }): ItemDoCatalogo | null {
+export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; texto: unknown; campos: unknown; balas?: unknown; acervoId?: unknown }): ItemDoCatalogo | null {
   if (typeof item.id !== 'string' || !ID_DE_ENTRADA.test(item.id) || !ehTipoDoCatalogo(item.tipo) || typeof item.nome !== 'string') return null
   const nome = cortar(item.nome.trim(), ENTRADA_NOME_MAX).trim()
   if (nome.length === 0) return null
@@ -162,7 +171,42 @@ export function itemLimpo(item: { id: unknown; tipo: unknown; nome: unknown; tex
   const limpo: ItemDoCatalogo = { id: item.id, tipo: item.tipo, nome, texto, campos: camposLimpos(item.campos) }
   // Só a arma leva balas; lista que não é lista conta como "não diz".
   if (item.tipo === 'arma' && Array.isArray(item.balas)) limpo.balas = balasLimpas(item.balas)
+  // Fase 5: a ligação com a coisa do Acervo; habilidade não tem coisa, id torto sai.
+  if (item.tipo !== 'habilidade' && typeof item.acervoId === 'string' && ID_DE_ENTRADA.test(item.acervoId)) limpo.acervoId = item.acervoId
   return limpo
+}
+
+/**
+ * A entrada do catálogo ligada à coisa `acervoId` do Acervo (a primeira, se
+ * houver mais de uma). `undefined` = nenhuma regra neste livro para a coisa.
+ */
+export function regraDaCoisa(catalogo: readonly ItemDoCatalogo[], acervoId: string): ItemDoCatalogo | undefined {
+  return catalogo.find((entrada) => entrada.acervoId === acervoId)
+}
+
+/**
+ * "LIGAR PELO NOME": cada arma e item do catálogo ainda sem ligação ganha a
+ * coisa do Acervo de mesmo nome (sem acento, sem caixa: a chave do catálogo).
+ * Coisa que já é de outra entrada não liga de novo. Devolve o catálogo novo e
+ * quantas ligou; nada a ligar = a MESMA lista.
+ */
+export function ligarPeloNome(catalogo: readonly ItemDoCatalogo[], acervo: readonly { id: string; nome: string }[]): { itens: ItemDoCatalogo[]; ligadas: number } {
+  const usadas = new Set(catalogo.flatMap((entrada) => (entrada.acervoId === undefined ? [] : [entrada.acervoId])))
+  const porNome = new Map<string, string>()
+  for (const coisa of acervo) {
+    const chave = chaveDoNomeDaEntrada(coisa.nome)
+    if (!porNome.has(chave)) porNome.set(chave, coisa.id)
+  }
+  let ligadas = 0
+  const itens = catalogo.map((entrada) => {
+    if (entrada.tipo === 'habilidade' || entrada.acervoId !== undefined) return entrada
+    const acervoId = porNome.get(chaveDoNomeDaEntrada(entrada.nome))
+    if (acervoId === undefined || usadas.has(acervoId) || !ID_DE_ENTRADA.test(acervoId)) return entrada
+    usadas.add(acervoId)
+    ligadas += 1
+    return { ...entrada, acervoId }
+  })
+  return ligadas === 0 ? { itens: [...catalogo], ligadas } : { itens, ligadas }
 }
 
 /** As balas limpas: nome aparado e cortado (sem nome sai), campos como os da entrada, teto `BALAS_POR_ENTRADA_MAX`. */
@@ -185,7 +229,7 @@ export function catalogoDoArquivo(value: unknown): ItemDoCatalogo[] {
   for (const bruto of brutos) {
     if (itens.length === CATALOGO_MAX) break
     if (!isRecord(bruto)) continue
-    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas })
+    const item = itemLimpo({ id: bruto.id, tipo: bruto.tipo, nome: bruto.nome, texto: bruto.texto, campos: bruto.campos, balas: bruto.balas, acervoId: bruto.acervoId })
     if (item === null || ids.has(item.id)) continue
     ids.add(item.id)
     itens.push(item)
@@ -236,7 +280,9 @@ function cartaoDaEntrada(entrada: EntradaParaFicha, aba: AbaDoSistema, sistema: 
   }
   const idsDosAtributos = new Set(sistema.atributos.map((atributo) => atributo.id))
   const atributos = aba.atributos === true && ehDoLivro(entrada) ? entrada.atributos.filter((id) => idsDosAtributos.has(id)) : []
-  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema) }
+  // Fase 5: a arma ligada a uma coisa do Acervo leva o id dela; é por ele que a Garrucha da mochila acha esta regra.
+  const itemId = !ehDoLivro(entrada) && entrada.tipo === 'arma' ? entrada.acervoId : undefined
+  return { ...novoCartao(entrada.nome), campos, atributos, subcartoes: balasDaEntrada(entrada, aba, sistema), ...(itemId === undefined ? {} : { itemId }) }
 }
 
 /** As balas da arma do catálogo como subcartões da aba de destino; o campo que a aba das balas não tem fica de fora. */
