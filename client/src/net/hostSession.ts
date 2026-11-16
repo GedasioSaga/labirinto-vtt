@@ -131,6 +131,10 @@ import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import { linkedDoorOf } from '../lib/lever'
 import { carriedBy, carrierIdOf } from '../lib/carry'
 import { congeladaPresaA, estaCongelada, podeAcompanhar, semAsCongeladas } from '../lib/congelar'
+import { abrivelParaJogador, jogoDoObjetoFechado } from '../lib/conteudoDoObjeto'
+import { jogoDeObjetoDoMovel } from '../minigames/registro'
+import { abrirObjeto, fichaAlcancaObjeto, nomeDoJogoDoObjeto, sementeDoObjeto, type AppliedObjetoAberto, type ObjetoEmJogo } from './objetoNoHost'
+import type { ObjetoMotivoDaRecusa, ObjetoPlayerMessage } from './protocoloDoObjeto'
 import { companionArrivals, type CarriedArrival } from '../lib/carryArrival'
 import { VISION_FACTOR_DEFAULT, clampVisionFactor, playerVisionRadius, readSceneVisionCells } from '../lib/sceneVision'
 import { isLockClosed, lockAccepts } from '../lib/pinLock'
@@ -1286,6 +1290,13 @@ export interface HostResult {
    * (`net/dancaNoHost.ts`). Nada disto vai a jogador: o deles já está em `outbound`.
    */
   dancaDesfecho?: DancaDesfechoSinal
+  /**
+   * BAÚ, CAIXA E BARRIL: o jogador venceu o minigame do objeto. O integrador
+   * grava o objeto aberto (ou quebrado), a pastilha com o prazo, a mochila e
+   * a ficha de personagem (`playerChanges.applyObjetoAberto`), fora do Ctrl+Z
+   * do mestre, e avisa o mestre com "Ver" (página Jogos). O do jogador já está em `outbound`.
+   */
+  applyObjetoAberto?: AppliedObjetoAberto
   /**
    * CABINE DE TRANSPORTE: quem passou levou a cabine para a chegada. Vem só
    * junto de `applyTransfer`, e o integrador grava DEPOIS de a ficha mudar de
@@ -3558,6 +3569,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastHideRequestAt = new Map<string, number>()
   // Por playerId: o pedido de item que espera o mestre (no máximo um).
   const pendingItems = new Map<string, PendingItem>()
+  /** BAÚ, CAIXA E BARRIL: a abertura em jogo na tela de cada jogador (uma por vez; pedir outra troca). */
+  const objetosEmJogo = new Map<string, ObjetoEmJogo>()
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
   const lastItemTakeAt = new Map<string, number>()
   const lastItemGiveAt = new Map<string, number>()
@@ -10308,6 +10321,68 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * BAÚ, CAIXA E BARRIL (15/11/2026): `objeto.abrir` passa pelas regras do
+   * "Pegar" do item no chão (jogando, cena sem pausa, objeto no recorte DELE,
+   * uma ficha dele encostada e solta) e abre o minigame do tipo só na tela
+   * dele; `objeto.venceu` casa a sessão e devolve o desfecho. O conteúdo só
+   * sai aqui, depois da vitória. Falhar não manda nada.
+   */
+  function handleObjeto(clientId: string, msg: ObjetoPlayerMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    const record = players.get(playerId)
+    // Fora do jogo (mesa, removido) morre calado: não há tela para o aviso.
+    if (record === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const recusa = (motivo: ObjetoMotivoDaRecusa): HostResult => reply(clientId, { type: 'objeto.recusado', propId: msg.propId, motivo })
+    const scene = sceneFor(playerId, world)
+    if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
+    const map = scene.map
+    const prop = map.props.find((p) => p.id === msg.propId)
+    if (prop === undefined) return recusa('indisponivel')
+    const jogo = jogoDoObjetoFechado(prop)
+    if (jogo === null) return recusa(abrivelParaJogador(prop) === 'aberto' ? 'aberto' : 'indisponivel')
+    // O jogo do móvel tem de estar no app (`minigames/registro.ts`): sem ele, o objeto não abre.
+    if (jogoDeObjetoDoMovel(jogo) === null) return recusa('indisponivel')
+    if (msg.type === 'objeto.venceu') {
+      const emJogo = objetosEmJogo.get(playerId)
+      if (emJogo === undefined || emJogo.sessao !== msg.sessao || emJogo.propId !== msg.propId || emJogo.cena !== sceneKey(scene)) return { outbound: [] }
+      objetosEmJogo.delete(playerId)
+      const token = map.tokens.find((t) => t.id === emJogo.tokenId)
+      if (token === undefined) return recusa('indisponivel')
+      const personagem = token.characterId === null ? null : (world.rpg?.personagens.find((p) => p.id === token.characterId) ?? null)
+      const { desfecho, aplicado } = abrirObjeto({
+        prop,
+        jogo,
+        token,
+        personagem,
+        sistema: world.rpg?.sistema ?? null,
+        nomeDoJogador: record.name,
+        em: now(),
+        semJumpscare: map.semJumpscare === true,
+        novoId: randomId,
+      })
+      return {
+        outbound: [{ clientId, msg: { type: 'objeto.desfecho', sessao: emJogo.sessao, propId: prop.id, desfecho } }],
+        applyObjetoAberto: { ...backgroundSceneId(scene, world), ...aplicado },
+      }
+    }
+    const memory = memoryFor(playerId, map, world)
+    const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
+    if (!view.map.props.some((p) => p.id === prop.id)) return recusa('indisponivel')
+    const owned = new Set(ownership[playerId] ?? [])
+    const pelosObjetos = alcancePeloObjeto(view.map)
+    const encostadas = view.map.tokens.filter((t) => owned.has(t.id) && fichaAlcancaObjeto(t, prop, map.grid, pelosObjetos))
+    if (encostadas.length === 0) return recusa('longe')
+    // A ficha que recebe é a do MAPA DO MESTRE, a primeira encostada que não está parada.
+    const soltas = encostadas.filter((t) => congeladaPresaA(map, [t.id]) === null)
+    const token = soltas.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
+    if (token === undefined) return recusa('congelado')
+    const sessao = randomId()
+    objetosEmJogo.set(playerId, { sessao, propId: prop.id, cena: sceneKey(scene), tokenId: token.id })
+    return reply(clientId, { type: 'objeto.jogo', sessao, propId: prop.id, jogo, nome: nomeDoJogoDoObjeto(prop, jogo), semente: sementeDoObjeto(), dificuldade: 'normal' })
+  }
+
+  /**
    * PESCA: o pedido do pino ("Jogador toca no pino"), o Pronto, o vivo, cada
    * lance e o cesto. O pedido passa aqui pelas regras do pino: jogando, cena
    * sem pausa, pino de pesca que chega ao recorte DELE e uma ficha dele
@@ -10572,6 +10647,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       case 'pesca.lance':
       case 'pesca.fim':
         return handlePesca(clientId, msg, world)
+      case 'objeto.abrir':
+      case 'objeto.venceu':
+        return handleObjeto(clientId, msg, world)
       case 'tiro.pedir':
       case 'tiro.pronto':
       case 'tiro.vivo':

@@ -208,6 +208,7 @@ import type { DificuldadeBolha } from '../minigames/bolha/tipos'
 import { parseBolhaHostMessage, parseBolhaPlayerMessage, type BolhaMotivoDaRecusa, type BolhaPlacar, type BolhaPlayerMessage } from '../net/protocoloDaBolha'
 import { BOLHA_RECUSA_AVISO_MS, bolhaAceitaDesistir, bolhaAceitaPronto, bolhaEmJogo, receberBolha, type BolhaDoJogador } from './estadoDaBolha'
 import type { DificuldadePesca } from '../minigames/pesca/tipos'
+import { parseObjetoHostMessage, parseObjetoPlayerMessage, type DesfechoDoObjetoNoFio, type DificuldadeDoObjeto, type JogoDoObjetoNoFio, type ObjetoMotivoDaRecusa, type ObjetoPlayerMessage } from '../net/protocoloDoObjeto'
 import {
   parsePescaHostMessage,
   parsePescaPlayerMessage,
@@ -387,6 +388,25 @@ export interface CutsceneVideoNoJogador {
   falhou?: boolean
   /** `performance.now()` de quando começou a tocar aqui. */
   largouEm?: number
+}
+
+/** O aviso "Chegue mais perto para abrir" (e as outras recusas do objeto) some sozinho. */
+export const OBJETO_RECUSA_AVISO_MS = 4000
+
+/** BAÚ, CAIXA E BARRIL: o minigame do objeto nesta tela, do `objeto.jogo` ao desfecho. */
+export interface ObjetoDoJogador {
+  sessao: string
+  propId: string
+  jogo: JogoDoObjetoNoFio
+  nome: string
+  semente: number
+  dificuldade: DificuldadeDoObjeto
+  /** O `objeto.venceu` já saiu: a tela espera o desfecho. */
+  venceuEnviado: boolean
+  /** O que havia dentro e a armadilha; `null` até o host mandar. */
+  desfecho: DesfechoDoObjetoNoFio | null
+  /** O host recusou a vitória (alguém abriu antes); `null` = não. */
+  recusa: ObjetoMotivoDaRecusa | null
 }
 
 export interface PlayerState {
@@ -825,6 +845,14 @@ export interface PlayerState {
   pesca?: PescaDoJogador
   /** PESCA "Jogador toca no pino": o host não deixou (`pesca.recusado`); some sozinho em `PESCA_RECUSA_AVISO_MS`. */
   pescaRecusada?: { id: number; pinId: string; motivo: PescaMotivoDaRecusa }
+  /**
+   * BAÚ, CAIXA E BARRIL (15/11/2026): o minigame do objeto que o host abriu
+   * nesta tela (`objeto.jogo`) e, depois da vitória, o desfecho dele. Sai com
+   * `fecharObjeto`, ou com a sala.
+   */
+  objeto?: ObjetoDoJogador
+  /** O host não abriu o objeto (`objeto.recusado`); some sozinho em `OBJETO_RECUSA_AVISO_MS`. */
+  objetoRecusado?: { id: number; propId: string; motivo: ObjetoMotivoDaRecusa }
   /**
    * MINIGAME DE TIRO: o convite (do mestre, ou a volta do "Atirar" deste
    * jogador), as tentativas que o host contou, a rodada liberada e o que
@@ -1889,6 +1917,16 @@ export interface PlayerConnection {
    * (ele desistiu dos lances que faltavam); depois o estado da pesca sai.
    */
   fecharPesca(): void
+  /**
+   * BAÚ, CAIXA E BARRIL: pede ao mestre o minigame do objeto `propId` (que o
+   * recorte deu como `abrivel: 'fechado'`). `false` (nada sai) fora do jogo,
+   * com outro objeto em jogo na tela ou com o socket fechado.
+   */
+  abrirObjeto(propId: string): boolean
+  /** O minigame do objeto venceu: o host confere e manda o desfecho. Uma vez por jogo. */
+  venceuObjeto(): boolean
+  /** Fecha o minigame do objeto (antes de vencer = desiste, sem consequência e sem mensagem). */
+  fecharObjeto(): void
   /**
    * TIRO ("Jogador toca no pino"): pede para entrar na barraca do pino. O
    * convite volta do mestre se a ficha estiver encostada. `false` (nada sai)
@@ -3832,6 +3870,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   }
 
   /** PESCA: a mesma conferência do host antes de sair, como a dança. */
+  /** BAÚ, CAIXA E BARRIL: a mesma conferência do host antes de sair. */
+  function enviarObjeto(message: ObjetoPlayerMessage): boolean {
+    const conferida = parseObjetoPlayerMessage(message)
+    return conferida !== null && send(conferida)
+  }
+
   function enviarPesca(message: PescaPlayerMessage): boolean {
     const conferida = parsePescaPlayerMessage(message)
     return conferida !== null && send(conferida)
@@ -5211,6 +5255,37 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         if (pesca !== state.pesca) setState({ pesca })
         return
       }
+      case 'objeto.jogo':
+      case 'objeto.desfecho':
+      case 'objeto.recusado': {
+        // A tela da mesa só olha: o objeto é de quem encostou.
+        if (isTable) return
+        const msg = parseObjetoHostMessage(data)
+        if (msg === null || state.status !== 'playing') return
+        if (msg.type === 'objeto.recusado') {
+          const objetoAberto = state.objeto
+          // Recusa da vitória (alguém abriu antes): a tela do jogo mostra; a do pedido vira aviso.
+          if (objetoAberto !== undefined && objetoAberto.propId === msg.propId && objetoAberto.venceuEnviado) {
+            setState({ objeto: { ...objetoAberto, recusa: msg.motivo } })
+            return
+          }
+          const id = nextNoticeId++
+          setState({ objetoRecusado: { id, propId: msg.propId, motivo: msg.motivo } })
+          setTimeout(() => {
+            if (state.objetoRecusado?.id === id) setState({ objetoRecusado: undefined })
+          }, OBJETO_RECUSA_AVISO_MS)
+          return
+        }
+        if (msg.type === 'objeto.jogo') {
+          const { sessao, propId, jogo, nome, semente, dificuldade } = msg
+          setState({ objeto: { sessao, propId, jogo, nome, semente, dificuldade, venceuEnviado: false, desfecho: null, recusa: null }, objetoRecusado: undefined })
+          return
+        }
+        const emJogo = state.objeto
+        if (emJogo === undefined || emJogo.sessao !== msg.sessao) return
+        setState({ objeto: { ...emJogo, desfecho: msg.desfecho } })
+        return
+      }
       case 'tiro.convite':
       case 'tiro.estado':
       case 'tiro.inicio':
@@ -5675,7 +5750,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         loopsVivos.clear()
         chaveDaMidia = null
         clearReconnectTimers()
-        setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+        setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
         return
       case 'room.closed':
         // Sala encerrada: o resume não serve para mais nada, e sinal/laser não têm onde aparecer.
@@ -5710,7 +5785,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearSharedRouteTimer()
         clearPeekTimer()
         wantsBack = false
-        setState({ status: 'closed', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
+        setState({ status: 'closed', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, away: undefined, hide: undefined, playerLasers: undefined, doorNotice: undefined, doorRequest: undefined, moveNotice: undefined, travel: undefined, item: undefined, compra: undefined, lever: undefined, hazardNotice: undefined, call: undefined, reconnecting: undefined, pointNotice: undefined, noise: undefined, secretCheck: undefined, secretCheckNotice: undefined, mapShared: undefined, tokenAction: undefined, actedOn: undefined, doorReply: undefined, wait: undefined, waitEnded: undefined, pinPeek: undefined, ...NO_PASSAGE_WATCH, ...NO_ROUTE })
         return
       case 'session.replaced':
         // A sessão foi para outra aba (ou aparelho). O resume FICA: é o mesmo
@@ -5729,7 +5804,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         clearReconnectTimers()
         stopPing()
         clearPeekTimer()
-        setState({ status: 'replaced', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
+        setState({ status: 'replaced', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, hide: undefined, doorNotice: undefined, doorRequest: undefined, travel: undefined, call: undefined, reconnecting: undefined, pinPeek: undefined })
         return
       case 'account.device':
       case 'account.refused':
@@ -5742,7 +5817,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
           writeResume(storage, null)
           clearReconnectTimers()
           chaveDaMidia = null
-          setState({ status: 'kicked', danca: undefined, pesca: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
+          setState({ status: 'kicked', danca: undefined, pesca: undefined, objeto: undefined, tiro: undefined, fogo: undefined, bolha: undefined, reconnecting: undefined })
           return
         }
         // CHAT: o host de hoje recusa um `chat.send` torto com `chat.send.result`
@@ -6683,6 +6758,27 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (!pescaNaAgua(pesca) || !enviarPesca({ type: 'pesca.fim', sessao: pesca.sessao, cesto: pesca.cesto })) return false
       setState({ pesca: { ...pesca, fimEnviado: true } })
       return true
+    },
+
+    abrirObjeto(propId) {
+      if (state.status !== 'playing') return false
+      // Um objeto por vez: o que está aberto na tela fecha antes (ou termina).
+      if (state.objeto !== undefined) return false
+      const prop = state.map?.props.find((p) => p.id === propId)
+      if (prop?.abrivel !== 'fechado') return false
+      return enviarObjeto({ type: 'objeto.abrir', propId })
+    },
+
+    venceuObjeto() {
+      const objeto = state.objeto
+      if (objeto === undefined || objeto.venceuEnviado) return false
+      if (!enviarObjeto({ type: 'objeto.venceu', sessao: objeto.sessao, propId: objeto.propId })) return false
+      setState({ objeto: { ...objeto, venceuEnviado: true } })
+      return true
+    },
+
+    fecharObjeto() {
+      if (state.objeto !== undefined) setState({ objeto: undefined })
     },
 
     fecharPesca() {

@@ -20,6 +20,7 @@ import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from './fogo/tipos'
 import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
 import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
 import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
+import { JOGOS_PORTADOS, type JogoDoObjeto } from './abrir/objeto'
 
 /** O desafio gravado de cada jogo, pelo id do jogo. */
 export interface MinigamesPorJogo {
@@ -165,4 +166,37 @@ export function entradaDoMinigame(minigame: MinigameDoPino): EntradaDoDesafio {
 export function recorteDoMinigame(minigame: MinigameDoPino | undefined, legivel: boolean): MinigameVisivel {
   if (minigame === undefined || !ehJogoDoRegistro(minigame.jogo)) return { jogo: 'danca', entrada: 'mestre' }
   return recortePor(minigame.jogo, minigame, legivel)
+}
+
+/**
+ * JOGOS DE OBJETO (Fases C e D, 15/11/2026): abrir o baú, arrombar a caixa e
+ * quebrar o barril. Não moram em desafio nem em pino: a ENTRADA é o objeto (o
+ * jogador encosta no móvel e toca), o jogo vem do tipo do móvel e o conteúdo
+ * mora no próprio objeto (`Prop.conteudo`, `lib/conteudoDoObjeto.ts`). Por
+ * isso ficam fora de `MinigamesPorJogo`: não têm painel do mestre nem leitor
+ * no disco (a ficha do objeto, seção Conteúdo, faz as vezes do painel).
+ *
+ * O desfecho da vitória (itens para a mochila, a picada e a pastilha) é UMA
+ * gravação só no mapa e na ficha de personagem (`net/objetoNoHost.ts`,
+ * `applyObjetoAberto`): três aplicadores separados escreveriam a mesma ficha
+ * três vezes, e a última apagaria as outras.
+ */
+export interface DefinicaoDoJogoDeObjeto {
+  id: JogoDoObjeto
+  nome: string
+  /** O móvel do catálogo que abre com este jogo. */
+  objeto: JogoDoObjeto
+  entrada: 'objeto'
+  desfechos: readonly TipoDeDesfecho[]
+}
+
+export const REGISTRO_DE_JOGOS_DE_OBJETO: { readonly [J in JogoDoObjeto]: DefinicaoDoJogoDeObjeto & { id: J } } = {
+  bau: { id: 'bau', nome: 'Abrir o baú', objeto: 'bau', entrada: 'objeto', desfechos: ['dar itens', 'dano', 'efeito'] },
+  caixa: { id: 'caixa', nome: 'Arrombar a caixa', objeto: 'caixa', entrada: 'objeto', desfechos: ['dar itens', 'dano', 'efeito'] },
+  barril: { id: 'barril', nome: 'Quebrar o barril', objeto: 'barril', entrada: 'objeto', desfechos: ['dar itens', 'dano', 'efeito'] },
+}
+
+/** O jogo de objeto deste móvel, se está no app; `null` = o móvel não abre (ainda). */
+export function jogoDeObjetoDoMovel(tipo: string | undefined): JogoDoObjeto | null {
+  return JOGOS_PORTADOS.find((jogo) => jogo === tipo) ?? null
 }

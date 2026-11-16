@@ -3,11 +3,13 @@
  * minigame pode fazer no estado do jogo quando termina. O host aplica cada
  * desfecho pelo aplicador do tipo dele (`net/hostBridge.ts`).
  *
- * Hoje só a dança age: 'abrir porta' (a porta ligada abre quando todos
- * passam). 'dar itens', 'dano' e 'efeito' são da Fase C (baú, caixa, barril e
- * armadilhas) e esperam a decisão da auditoria que unifica itens e condições:
- * estão no tipo para o host ter o lugar deles, e o aplicador de cada um é
- * `null` até lá. Nada finge aplicar: sem aplicador, `aplicarDesfecho` devolve
+ * Hoje só a dança age por aqui: 'abrir porta' (a porta ligada abre quando
+ * todos passam). O baú, a caixa e o barril (Fase C, 15/11/2026) declaram
+ * 'dar itens', 'dano' e 'efeito' no registro (`REGISTRO_DE_JOGOS_DE_OBJETO`),
+ * mas gravam os três numa vez só (`net/objetoNoHost.ts`, `applyObjetoAberto`):
+ * a ficha de personagem é trocada inteira, e três aplicadores seguidos
+ * perderiam as duas primeiras mudanças. O aplicador de cada um segue `null`
+ * até um jogo precisar deles separados. Nada finge aplicar: sem aplicador, `aplicarDesfecho` devolve
  * `false` e quem chamou decide o aviso. A forma das três é provisória.
  */
 

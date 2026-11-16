@@ -13,6 +13,7 @@ import type { SeatHold } from '../lib/gatherParty'
 import type { Personagem } from '../lib/personagem'
 import type { AppliedLock, AppliedMark, AppliedPersonagem, AppliedPiso, AppliedTokenEdit, AppliedVehicle } from './hostSession'
 import { comAutor } from './nuvem/emissor'
+import { mapaComObjetoAberto, type AppliedObjetoAberto } from './objetoNoHost'
 
 /**
  * O que o JOGADOR muda no mapa do mestre (movimento, porta, nome/foto da
@@ -190,6 +191,11 @@ export function createPlayerChanges(destino: DestinoDasMudancas) {
     applyPersonagem: ({ personagem, ligarTokenId, sceneId, autoria }: AppliedPersonagem): void => {
       comAutor(autoria, () => destino.salvarPersonagem(personagem))
       if (ligarTokenId !== undefined) destino.aplicar(sceneId, ligarAoPersonagem(ligarTokenId, personagem.id))
+    },
+    // BAÚ, CAIXA E BARRIL: a ficha de personagem (itens, moedas, a picada) antes; o objeto aberto e a pastilha no mapa.
+    applyObjetoAberto: (aberto: AppliedObjetoAberto): void => {
+      if (aberto.personagem !== null) destino.salvarPersonagem(aberto.personagem)
+      destino.aplicar(aberto.sceneId, (map) => mapaComObjetoAberto(map, aberto))
     },
   }
 }

@@ -20,6 +20,7 @@ import type { Desafio, Prop, TipoDoLugarDoDesafio } from '../../types/map'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
 import { useMapStore } from '../../stores/mapStore'
+import { ObjetosQueAbrem } from './ObjetosQueAbrem'
 import './paginaJogos.css'
 
 /**
@@ -240,8 +241,7 @@ function ListaDosJogos({ desafios, props, aoVivo, mapaId, avisoDispensado }: Pro
         </Botao>
       </div>
 
-      <h3 className="mg-secao">Baús, caixas e barris</h3>
-      <p className="mg-vazio">Chegam na próxima fase: o que cada baú, caixa e barril guarda, a armadilha e o efeito dela.</p>
+      <ObjetosQueAbrem props={props} />
     </>
   )
 }

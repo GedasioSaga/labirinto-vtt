@@ -45,6 +45,7 @@ import {
 import { parseLivroPedir, type LivroHostMessage, type LivroPlayerMessage } from './protocoloDoLivro'
 import { parseDancaPlayerMessage, type DancaHostMessage, type DancaPlayerMessage } from './protocoloDaDanca'
 import { parsePescaPlayerMessage, type PescaHostMessage, type PescaPlayerMessage } from './protocoloDaPesca'
+import { parseObjetoPlayerMessage, type ObjetoHostMessage, type ObjetoPlayerMessage } from './protocoloDoObjeto'
 import { parseFogoPlayerMessage, type FogoHostMessage, type FogoPlayerMessage } from './protocoloDoFogo'
 import { parseBolhaPlayerMessage, type BolhaHostMessage, type BolhaPlayerMessage } from './protocoloDaBolha'
 import { parseTiroPlayerMessage, type TiroHostMessage, type TiroPlayerMessage } from './protocoloDoTiro'
@@ -1439,6 +1440,8 @@ export type PlayerMessage =
   | DancaPlayerMessage
   // MINIGAME DE PESCA: pedir, pronto, vivo, lance e cesto (`protocoloDaPesca.ts`).
   | PescaPlayerMessage
+  // BAÚ, CAIXA E BARRIL: abrir e venceu (`protocoloDoObjeto.ts`).
+  | ObjetoPlayerMessage
   // MINIGAME FOGO NA FLORESTA: pronto, entradas por tique, hash e placar (`protocoloDoFogo.ts`).
   | FogoPlayerMessage
   // MINIGAME BOLHA D'ÁGUA: pedir, pronto, placar e desistir (`protocoloDaBolha.ts`).
@@ -2325,6 +2328,8 @@ export type HostMessage =
   | DancaHostMessage
   // MINIGAME DE PESCA: convite, estado, pausa e encerramento (`protocoloDaPesca.ts`).
   | PescaHostMessage
+  // BAÚ, CAIXA E BARRIL: o jogo, o desfecho e a recusa (`protocoloDoObjeto.ts`).
+  | ObjetoHostMessage
   // MINIGAME FOGO NA FLORESTA: convite, começar, entradas dos colegas, sair, pausa e desfecho (`protocoloDoFogo.ts`).
   | FogoHostMessage
   // MINIGAME BOLHA D'ÁGUA: convite, estado, começar, pausa, desfecho e recusa (`protocoloDaBolha.ts`).
@@ -3824,6 +3829,9 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'pesca.lance':
     case 'pesca.fim':
       return parsePescaPlayerMessage(value)
+    case 'objeto.abrir':
+    case 'objeto.venceu':
+      return parseObjetoPlayerMessage(value)
     case 'tiro.pedir':
     case 'tiro.pronto':
     case 'tiro.vivo':

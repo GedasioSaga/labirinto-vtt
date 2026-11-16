@@ -54,3 +54,13 @@
   .mg-linha { transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease; }
   .mg-linha:active { transform: none; }
 }
+
+/* BAÚS, CAIXAS E BARRIS (15/11/2026): a abertura ao vivo, com o que levou e a armadilha. */
+.mg-abertura { list-style: none; padding: 10px 12px; border: 1px solid var(--lb-color-parchment-faint); border-radius: 8px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 3px; transition: border-color 200ms ease-out, background-color 200ms ease-out; }
+.mg-abertura--destaque { border-color: var(--lb-color-parchment); background: color-mix(in srgb, var(--lb-color-parchment) 8%, transparent); }
+.mg-abertura__titulo { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment); }
+.mg-abertura__titulo small { color: var(--lb-color-parchment-faint); margin-left: 4px; }
+.mg-abertura__linha { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.mg-abertura__linha--perigo { color: #e8a07a; }
+.mg-abertura__linha--aviso { font-style: italic; }
+@media (prefers-reduced-motion: reduce) { .mg-abertura { transition: none; } }

@@ -36,7 +36,7 @@ import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
-import { itemNoChaoNoPonto } from '../lib/itemNoMapa'
+import { distanciaAoObjeto, itemNoChaoNoPonto } from '../lib/itemNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
@@ -239,7 +239,7 @@ import {
 import { drawFacingNib, facingLabelOffset, tokenFacing } from './facingMarker'
 import { createTokenTurns, stepTurns, syncTurn, type TokenTurns } from './tokenTurn'
 import { previewTokenDrag } from './playerTokenDrag'
-import { reachOutline } from '../lib/movementRules'
+import { passoMaximoDaFicha, reachOutline } from '../lib/movementRules'
 import { personalNoteAtScreen, type PersonalNote } from './personalNotes'
 import { createPersonalNotesRenderer } from './drawPersonalNotes'
 import { applyRoofCut } from './roofCut'
@@ -423,6 +423,11 @@ interface PlayerViewProps {
   onTokenOpen?: (tokenId: string) => void
   /** ITEM NO MAPA: toque curto na imagem de um item no chão abre o cartão do item. Ausente = a imagem não é tocável. */
   onItemNoChaoOpen?: (propId: string) => void
+  /**
+   * BAÚ, CAIXA E BARRIL (15/11/2026): toque curto num objeto que se abre
+   * (`Prop.abrivel === 'fechado'`) pede ao mestre o minigame dele. Ausente = o objeto não é tocável.
+   */
+  onObjetoAbrir?: (propId: string) => void
   /**
    * Toque curto onde há MAIS DE UM pino (cravados no mesmo ponto, ou colados
    * dentro da folga do dedo): os ids, do mais perto ao mais longe, para o
@@ -2522,6 +2527,7 @@ function PlayerViewDoCanvas({
   onPinOpen,
   onTokenOpen,
   onItemNoChaoOpen,
+  onObjetoAbrir,
   onPinsChoose,
   onRoomOpen,
   onFloorClick,
@@ -2604,6 +2610,7 @@ function PlayerViewDoCanvas({
     onPinOpen,
     onTokenOpen,
     onItemNoChaoOpen,
+    onObjetoAbrir,
     onPinsChoose,
     onRoomOpen,
     onFloorClick,
@@ -2937,7 +2944,8 @@ function PlayerViewDoCanvas({
   function preverArrasto(drag: Extract<Drag, { kind: 'token' }>, wanted: Point): void {
     const { map, batalha: emBatalha } = latestRef.current
     if (!emBatalha) {
-      const preview = previewTokenDrag(map, drag.origin, wanted)
+      // LENTO (Fase 3): a ficha lenta anda metade do passo; a prévia mostra o mesmo corte que o host faz ao soltar.
+      const preview = previewTokenDrag(map, drag.origin, wanted, map.tokens.find((t) => t.id === drag.tokenId))
       drag.x = preview.at.x
       drag.y = preview.at.y
       drag.label = preview.label
@@ -3348,6 +3356,19 @@ function PlayerViewDoCanvas({
     return prop === null ? null : prop.id
   }
 
+  /** BAÚ, CAIXA E BARRIL: o objeto fechado sob o dedo (o de cima vence), com a folga do toque na porta. */
+  function objetoAbrivelAtScreen(scene: Scene, screenX: number, screenY: number): string | null {
+    const { map, onObjetoAbrir: abrir } = latestRef.current
+    if (abrir === undefined) return null
+    const point = scene.world.toLocal({ x: screenX, y: screenY })
+    const props = visibleProps(map.props, map.hiddenLayers)
+    for (let i = props.length - 1; i >= 0; i--) {
+      const prop = props[i]
+      if (prop.abrivel === 'fechado' && distanciaAoObjeto(prop, point) <= DOOR_TAP_TOLERANCE_PX / scene.camera.scale) return prop.id
+    }
+    return null
+  }
+
   /**
    * Pinta os pinos no tamanho deste zoom. `pins` já vem do recorte do mestre
    * (lib/fogFilter.ts) e das camadas ocultas: o que chega é o que se toca.
@@ -3438,6 +3459,7 @@ function PlayerViewDoCanvas({
       markAtScreen(scene, screenX, screenY) !== null ||
       otherTokenAtScreen(scene, screenX, screenY) !== null ||
       itemNoChaoAtScreen(scene, screenX, screenY) !== null ||
+      objetoAbrivelAtScreen(scene, screenX, screenY) !== null ||
       tapTargetAtScreen(scene, screenX, screenY).kind !== 'map' ||
       roomTextAtScreen(scene, screenX, screenY) !== null
     )
@@ -4042,7 +4064,8 @@ function PlayerViewDoCanvas({
       x: view.x,
       y: view.y,
       origin,
-      reach: reachOutline(latestRef.current.map, origin),
+      // O contorno do alcance também encolhe com o Lento (`passoMaximoDaFicha`).
+      reach: reachOutline(latestRef.current.map, origin, passoMaximoDaFicha(latestRef.current.map, latestRef.current.map.tokens.find((t) => t.id === tokenId) ?? {})),
       label: null,
       caminho: null,
       previaChave: null,
@@ -5528,6 +5551,12 @@ function PlayerViewDoCanvas({
           const itemNoChao = itemNoChaoAtScreen(scene, drag.startX, drag.startY)
           if (itemNoChao !== null) {
             latestRef.current.onItemNoChaoOpen?.(itemNoChao)
+            return
+          }
+          // BAÚ, CAIXA E BARRIL (15/11/2026): o objeto que se abre, depois do item no chão (mesma camada) e antes da porta.
+          const objetoAbrivel = objetoAbrivelAtScreen(scene, drag.startX, drag.startY)
+          if (objetoAbrivel !== null) {
+            latestRef.current.onObjetoAbrir?.(objetoAbrivel)
             return
           }
           const target = tapTargetAtScreen(scene, drag.startX, drag.startY)

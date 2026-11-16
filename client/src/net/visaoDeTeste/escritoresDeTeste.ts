@@ -44,6 +44,7 @@ export type EscritoresDeTeste = Required<
     | 'hideToken'
     | 'setPinPassage'
     | 'applyPersonagem'
+    | 'applyObjetoAberto'
   >
 >
 

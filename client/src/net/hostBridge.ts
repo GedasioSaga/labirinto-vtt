@@ -150,6 +150,12 @@ import type { DiceRequest } from '../lib/dice'
 import { areaTriggerEntryLine } from '../lib/areaTriggers'
 import { giveNewItemChange } from '../lib/items'
 import { aplicarDesfecho, type AplicadoresDeDesfecho } from '../minigames/desfecho'
+import type { AppliedObjetoAberto } from './objetoNoHost'
+import { useDesafiosStore } from '../stores/desafiosStore'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
+
+/** O aviso da abertura de baú, caixa ou barril fica mais que o comum: tem o que levou e a armadilha. */
+const OBJETO_ABERTO_TOAST_MS = 8000
 import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
@@ -252,6 +258,12 @@ export interface HostBridgeDeps {
    * mundo traz `rpg` (`getWorld`); quem serve `rpg` passa este retorno junto.
    */
   applyPersonagem?: (aplicado: AppliedPersonagem) => void
+  /**
+   * BAÚ, CAIXA E BARRIL: o jogador venceu o minigame do objeto (a sessão já
+   * conferiu). O integrador grava o objeto aberto, a pastilha, a mochila e a
+   * ficha de personagem, fora do Ctrl+Z do mestre. Opcional como `applyPersonagem`.
+   */
+  applyObjetoAberto?: (aplicado: AppliedObjetoAberto) => void
   /**
    * FECHADURA COM SEGREDO: o jogador acertou a combinação (a sessão já
    * conferiu). O integrador abre a fechadura e destranca a porta ligada.
@@ -1810,6 +1822,33 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     'dar itens': null,
     dano: null,
     efeito: null,
+  }
+
+  /**
+   * BAÚ, CAIXA E BARRIL: a vitória no mapa do mestre. O jogador já recebeu o
+   * desfecho no `outbound`; aqui o objeto abre (ou vira destroços), a ficha
+   * ganha a pastilha e a mochila, a ficha de personagem a picada, e o mestre
+   * lê o resultado ao vivo na página Jogos, com "Ver" no aviso.
+   */
+  const aplicarObjetoAberto = (aplicado: AppliedObjetoAberto) => {
+    if (deps.applyObjetoAberto === undefined) return
+    deps.applyObjetoAberto(aplicado)
+    broadcastNow()
+    const { registro } = aplicado
+    useDesafiosStore.getState().registrarAbertura(registro)
+    const detalhe = [registro.levou, registro.armadilha, ...registro.avisos].join(' ')
+    toastSink.push('info', `${registro.titulo}. ${detalhe}`, OBJETO_ABERTO_TOAST_MS, {
+      actions: [
+        {
+          label: 'Ver',
+          run: () => {
+            useDesafiosStore.getState().destacar(registro.propId)
+            useDesafiosStore.getState().abrir(null)
+            useLivroDoMestreStore.getState().abrirPagina('jogos')
+          },
+        },
+      ],
+    })
   }
 
   /**
@@ -4222,6 +4261,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       notifySecretChecksIfChanged()
     }
     if (result.dancaDesfecho !== undefined) aplicarDesfechoDaDanca(result.dancaDesfecho)
+    if (result.applyObjetoAberto !== undefined) aplicarObjetoAberto(result.applyObjetoAberto)
     if (result.waitsChanged === true) onWaitsChanged()
     if (result.applyPiso !== undefined && deps.applyPiso !== undefined) {
       // O jogador que subiu recebe o piso novo, e quem ficou deixa de vê-lo, no snapshot imediato.

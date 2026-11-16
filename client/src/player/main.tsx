@@ -100,6 +100,8 @@ import { FogoOverlay } from '../minigames/fogo/tela/FogoOverlay'
 import { aquecerJogoDaBolha } from '../minigames/bolha/aquecer'
 import { BolhaOverlay } from '../minigames/bolha/tela/BolhaOverlay'
 import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
+import { JogoDeAbrirOverlay } from '../minigames/abrir/tela/JogoDeAbrirOverlay'
+import { textoDaRecusaDoObjeto } from '../net/protocoloDoObjeto'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
 import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
@@ -1936,6 +1938,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onPinOpen={openPinCard}
             onTokenOpen={openTokenCard}
             onItemNoChaoOpen={openItemNoChao}
+            onObjetoAbrir={(propId) => connection.abrirObjeto(propId)}
             onPinsChoose={openPinChoice}
             onRoomOpen={(regionId) => connection.openRoomText(regionId)}
             onMarkOpen={setOpenMarkId}
@@ -2633,6 +2636,11 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </div>
         )}
         {/* PESCA no pino: o host não deixou (o cartão já fechou ao pedir). Some sozinho. */}
+        {state.objetoRecusado && (
+          <p key={state.objetoRecusado.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDoObjeto(state.objetoRecusado.motivo)}
+          </p>
+        )}
         {state.pescaRecusada && (
           <p key={state.pescaRecusada.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {textoDaRecusaDaPesca(state.pescaRecusada.motivo)}
@@ -2795,6 +2803,20 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         {/* BOLHA D'ÁGUA: o convite (do mestre ou do pino) abre por cima do mapa, até o resultado ou o encerramento. */}
         {state.bolha && <BolhaOverlay bolha={state.bolha} playerId={state.playerId} acoes={connection} />}
         {/* TIRO: o convite da barraca abre por cima do mapa, até o jogador sair. */}
+        {/* BAÚ, CAIXA E BARRIL: o minigame do objeto que o mestre abriu nesta tela, até o Fechar. */}
+        {state.objeto && (
+          <JogoDeAbrirOverlay
+            key={state.objeto.sessao}
+            jogo={state.objeto.jogo}
+            nomeDoObjeto={state.objeto.nome}
+            semente={state.objeto.semente}
+            dificuldade={state.objeto.dificuldade}
+            aoVencer={() => connection.venceuObjeto()}
+            aoFechar={() => connection.fecharObjeto()}
+            desfecho={state.objeto.desfecho}
+            recusa={state.objeto.recusa === null ? null : textoDaRecusaDoObjeto(state.objeto.recusa)}
+          />
+        )}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} antes={state.transicao.mapaNovo} />}

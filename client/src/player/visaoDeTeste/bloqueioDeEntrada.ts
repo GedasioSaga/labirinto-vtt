@@ -39,8 +39,11 @@ export const SELETOR_DA_PESCA = '.lb-pesca'
 /** MINIGAME DE TIRO: a raiz da barraca de tiro (`TiroOverlay.tsx`), livre no Olhar como a pesca. */
 export const SELETOR_DO_TIRO = '.lb-tiro'
 
+/** BAÚ, CAIXA E BARRIL: a raiz do jogo de abrir (`JogoDeAbrirOverlay.tsx`), livre no Olhar como a pesca. */
+export const SELETOR_DO_ABRIR = '.lb-abrir'
+
 /** As telas de minigame, livres no Olhar. */
-const SELETOR_DOS_MINIGAMES = `${SELETOR_DA_DANCA}, ${SELETOR_DA_PESCA}, ${SELETOR_DO_TIRO}`
+const SELETOR_DOS_MINIGAMES = `${SELETOR_DA_DANCA}, ${SELETOR_DA_PESCA}, ${SELETOR_DO_TIRO}, ${SELETOR_DO_ABRIR}`
 
 /** O alvo do evento é parte da câmera ou da tela de um minigame (livres no Olhar)? */
 export function alvoLivreNoOlhar(alvo: EventTarget | null): boolean {

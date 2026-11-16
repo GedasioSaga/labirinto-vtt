@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { RegistroDoObjetoAberto } from '../net/objetoNoHost'
 
 /**
  * A PÁGINA JOGOS do livro do mestre (desafios, 15/11/2026): qual desafio está
@@ -23,7 +24,20 @@ interface EstadoDosDesafios {
   marcar: (id: string, modo: ModoDeMarcar) => void
   pararDeMarcar: () => void
   dispensarAviso: (mapaId: string) => void
+  /**
+   * AO VIVO (baú, caixa e barril, 15/11/2026): as aberturas desta sessão, a
+   * mais nova primeiro (`AO_VIVO_MAX`). Só memória: o objeto aberto fica
+   * gravado no mapa, e a ficha dele diz quem abriu.
+   */
+  aoVivo: readonly RegistroDoObjetoAberto[]
+  /** O objeto que o "Ver" do aviso pediu para destacar na página Jogos. */
+  destacado: string | null
+  registrarAbertura: (registro: RegistroDoObjetoAberto) => void
+  destacar: (propId: string | null) => void
 }
+
+/** Quantas aberturas a lista "Ao vivo" guarda. */
+export const AO_VIVO_MAX = 20
 
 function armazem(): Pick<Storage, 'getItem' | 'setItem'> | null {
   try {
@@ -58,6 +72,10 @@ export const useDesafiosStore = create<EstadoDosDesafios>((set, get) => ({
   aberto: null,
   marcando: null,
   avisosDispensados: lerAvisosDispensados(armazem()),
+  aoVivo: [],
+  destacado: null,
+  registrarAbertura: (registro) => set({ aoVivo: [registro, ...get().aoVivo].slice(0, AO_VIVO_MAX) }),
+  destacar: (propId) => set({ destacado: propId }),
   abrir: (id) => set({ aberto: id }),
   marcar: (id, modo) => set({ marcando: { id, modo } }),
   pararDeMarcar: () => set({ marcando: null }),
