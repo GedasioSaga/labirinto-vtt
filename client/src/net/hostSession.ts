@@ -82,6 +82,7 @@ import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } f
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
 import { copiarMinigame, passageOf, pinSummary } from '../lib/pins'
+import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena } from '../lib/desafios'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
 import { criarDancaNoHost, type DancaAoVivo, type DancaConviteResultado, type DancaDesfechoSinal, type EfeitosDaDanca } from './dancaNoHost'
@@ -10252,7 +10253,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
     const map = scene.map
-    const pin = map.pins.find((p) => p.id === pinId)
+    const pin = pinoDeMinigameDoMapa(map, pinId)
     if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'fogo') return recusa('indisponivel')
     const memory = memoryFor(playerId, map, world)
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
@@ -10295,7 +10296,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
     const map = scene.map
-    const pin = map.pins.find((p) => p.id === pinId)
+    const pin = pinoDeMinigameDoMapa(map, pinId)
     if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'bolha' || pin.minigame.entrada !== 'pino') return recusa('indisponivel')
     const memory = memoryFor(playerId, map, world)
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
@@ -10340,7 +10341,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
     const map = scene.map
-    const pin = map.pins.find((p) => p.id === pinId)
+    const pin = pinoDeMinigameDoMapa(map, pinId)
     if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'pesca') return recusa('indisponivel')
     const memory = memoryFor(playerId, map, world)
     // "Quem vê" entra no recorte: pino que não chega a este jogador não se pede.
@@ -10382,7 +10383,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const scene = sceneFor(playerId, world)
     if (scene === null || inPausedScene(scene)) return recusa('indisponivel')
     const map = scene.map
-    const pin = map.pins.find((p) => p.id === pinId)
+    const pin = pinoDeMinigameDoMapa(map, pinId)
     if (pin === undefined || pin.kind !== 'minigame' || pin.minigame?.jogo !== 'tiro') return recusa('indisponivel')
     const memory = memoryFor(playerId, map, world)
     const view = filterMapForPlayer(map, playerId, ownership, tokenRadiusIn(playerId, map), memory.exp, memory.doors, pinAudiences, undefined, loansFor(playerId), memory.seenRooms)
@@ -10396,9 +10397,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
   /** O desafio de tiro gravado no pino `pinId` (cópia), em qualquer cena; `null` = não é pino de tiro. */
   function desafioDoTiro(pinId: string, source: HostMapSource): MinigameTiro | null {
-    const pin = allScenes(toWorld(source))
-      .flatMap((scene) => scene.map.pins)
-      .find((p) => p.id === pinId)
+    const pin = pinoDoConviteEmQualquerCena(allScenes(toWorld(source)), pinId)
     const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
     return desafio === undefined || desafio.jogo !== 'tiro' ? null : copiarMinigame(desafio)
   }
@@ -12268,8 +12267,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     convidarParaDanca(pinId, playerIds, source) {
       const world = toWorld(source)
-      const scene = allScenes(world).find((candidate) => candidate.map.pins.some((p) => p.id === pinId))
-      const pin = scene?.map.pins.find((p) => p.id === pinId)
+      // DESAFIOS: o minigame mora no desafio de mesmo id (`lib/desafios.ts`), com ou sem lugar no mapa.
+      const scene = allScenes(world).find((candidate) => pinoDoConvite(candidate.map, pinId) !== undefined)
+      const pin = scene === undefined ? undefined : pinoDoConvite(scene.map, pinId)
       // Pino de minigame sem desafio gravado joga o do protótipo, como o painel e o disco já fazem.
       // Só o pino de DANÇA chama para dançar: a pesca tem o convite dela.
       const desafio = pin?.kind === 'minigame' ? (pin.minigame ?? MINIGAME_PADRAO) : null
@@ -12315,9 +12315,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     convidarParaFogo(pinId, escolhidos, modo, source) {
       const world = toWorld(source)
-      const pin = allScenes(world)
-        .flatMap((scene) => scene.map.pins)
-        .find((p) => p.id === pinId)
+      const pin = pinoDoConviteEmQualquerCena(allScenes(world), pinId)
       const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
       if (desafio === undefined || desafio.jogo !== 'fogo') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
       const ferramentaDe = new Map(escolhidos.map((e) => [e.playerId, e.ferramenta]))
@@ -12367,9 +12365,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     convidarParaBolha(pinId, playerIds, modo, source) {
       const world = toWorld(source)
-      const pin = allScenes(world)
-        .flatMap((scene) => scene.map.pins)
-        .find((p) => p.id === pinId)
+      const pin = pinoDoConviteEmQualquerCena(allScenes(world), pinId)
       const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
       if (desafio === undefined || desafio.jogo !== 'bolha') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
       const convidados = inRoomOrder(new Set(playerIds))
@@ -12408,9 +12404,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     convidarParaPesca(pinId, playerIds, source) {
       const world = toWorld(source)
-      const pin = allScenes(world)
-        .flatMap((scene) => scene.map.pins)
-        .find((p) => p.id === pinId)
+      const pin = pinoDoConviteEmQualquerCena(allScenes(world), pinId)
       const desafio = pin?.kind === 'minigame' ? pin.minigame : undefined
       if (desafio === undefined || desafio.jogo !== 'pesca') return { outbound: [], convite: { ok: false, motivo: 'pino' } }
       const convidados = inRoomOrder(new Set(playerIds))

@@ -2455,12 +2455,53 @@ export interface AmbienteDoPeriodo {
   forca?: number
 }
 
+/**
+ * DESAFIO (minigame fora do pino, pedido de 15/11/2026): onde ele fica. Num
+ * PONTO do mapa (o selo de latão fica ali), num OBJETO (o selo vai com ele, e
+ * o alcance é o contorno do objeto, como o do pino posto em cima dele) ou em
+ * lugar NENHUM (não aparece no mapa: só começa quando o mestre convida).
+ */
+export type LugarDoDesafio = { tipo: 'ponto'; x: number; y: number } | { tipo: 'objeto'; propId: string } | { tipo: 'nenhum' }
+
+export type TipoDoLugarDoDesafio = LugarDoDesafio['tipo']
+
+/**
+ * DESAFIO: um minigame com lugar próprio, independente dos pinos (a página
+ * Jogos do livro do mestre). No mapa é um selo de latão em losango. Nada
+ * daqui vai ao jogador como está: o recorte (`lib/fogFilter.ts`) manda só o
+ * selo, como o pino de minigame de antes (`lib/desafios.ts` → `pinoDoDesafio`).
+ */
+export interface Desafio extends NoPiso {
+  id: string
+  /** O nome do mestre ("Pesca no cais"): lista, ficha e rótulo do selo. Nunca vai ao jogador. */
+  nome: string
+  lugar: LugarDoDesafio
+  /** O jogo e os campos dele (quem desafia, fala, música, dificuldade...), como o pino gravava. */
+  minigame: MinigameDoPino
+  /** Só da dança: a parede-porta deste mapa que abre quando todos passam. Nunca vai ao jogador. */
+  portaLigada?: string
+  /**
+   * Veio de um pino ▷ (migração de `lib/mapFile.ts`): o pino inteiro de antes,
+   * menos o desafio, que mora em `minigame`. Guarda o que o pino tinha e o
+   * desafio não tem (descrição, imagem, só de perto, marco, oculto, segredo,
+   * camada...), para nada se perder e o jogador ver o mesmo cartão. O id do
+   * desafio é o do pino: "Quem vê" e o que o jogador lembra seguem valendo.
+   */
+  eraPino?: Pin
+}
+
 export interface MapData {
   id: string
   name: string
   width: number
   height: number
   grid: number
+  /**
+   * DESAFIOS (minigames com lugar próprio, `Desafio`). `undefined` === `[]`:
+   * mapa sem minigame abre igual. Pino ▷ de mapa antigo vira desafio ao abrir
+   * (`lib/mapFile.ts`). NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
+   */
+  desafios?: Desafio[]
   /** Deslocamento da linha "0,0" da grade em relação à origem da imagem de
    *  fundo, em px de mundo (F3, "alinhar grade à imagem" — lib/gridAlign.ts).
    *  `undefined` === {x:0, y:0} (aparência idêntica à de hoje) — sem linha de

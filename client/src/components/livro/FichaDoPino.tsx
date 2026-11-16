@@ -4,7 +4,7 @@ import { movimentoInfo, type CenarioDoPino } from '../../cenario/catalogo'
 import { CenarioSection } from '../../cenario/CenarioSection'
 import { useEstilosDeCenario, type EstiloDeCenario } from '../../cenario/estilosDeCenario'
 import { novaMercadoria } from '../../lib/loja'
-import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_NOME_MAX_LENGTH } from '../../lib/pins'
+import { PIN_GLYPH, PIN_KIND_DO_NOVO_PINO, PIN_KIND_LABELS, PIN_NOME_MAX_LENGTH } from '../../lib/pins'
 import { useToastStore } from '../../stores/toastStore'
 import { Acoes, Botao } from '../grimorio/Botao'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
@@ -268,7 +268,7 @@ function ConteudoDoRecurso({ id, props }: { id: Recurso; props: FichaDoPinoProps
  */
 const TIPO_SO_DE_ICONE: ReadonlySet<PinKind> = new Set<PinKind>(['exclamacao', 'interrogacao', 'minigame'])
 
-const OPCOES_DO_TIPO: readonly OpcaoDoSeg<PinKind>[] = PIN_KIND_ORDER.map((kind) => {
+const OPCOES_DO_TIPO: readonly OpcaoDoSeg<PinKind>[] = PIN_KIND_DO_NOVO_PINO.map((kind) => {
   const soIcone = TIPO_SO_DE_ICONE.has(kind)
   return {
     valor: kind,

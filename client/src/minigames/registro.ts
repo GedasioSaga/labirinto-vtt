@@ -1,0 +1,168 @@
+/**
+ * REGISTRO ÚNICO DOS MINIGAMES (Fase B do pedido de 15/11/2026). Cada jogo
+ * declara aqui: id, nome, ícone, onde o desafio pode ficar, como ele pode
+ * começar, o desafio padrão, o recorte do jogador e os desfechos que produz.
+ * Os pontos que antes repetiam a união dos jogos (o padrão e o nome em
+ * `lib/pins.ts`, o recorte em `lib/fogFilter.ts`, a leitura em
+ * `lib/mapFile.ts`, a página Jogos) leem daqui.
+ *
+ * Só dados e funções puras, sem React: o disco, o recorte e o host importam
+ * este arquivo. O painel do mestre de cada jogo mora em
+ * `components/MinigameControls.tsx`, e a leitura campo a campo do disco em
+ * `lib/mapFile.ts`, cada um numa tabela com uma entrada por jogo deste
+ * registro (`MinigamesPorJogo`): jogo novo sem painel ou sem leitor não compila.
+ */
+import type { TipoDoLugarDoDesafio } from '../types/map'
+import { MINIGAME_BOLHA_PADRAO, type MinigameBolha } from './bolha/tipos'
+import { MINIGAME_PADRAO, type MinigameDanca } from './danca/tipos'
+import type { TipoDeDesfecho } from './desfecho'
+import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from './fogo/tipos'
+import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
+import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
+import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
+
+/** O desafio gravado de cada jogo, pelo id do jogo. */
+export interface MinigamesPorJogo {
+  danca: MinigameDanca
+  pesca: MinigamePesca
+  tiro: MinigameTiro
+  fogo: MinigameFogo
+  bolha: MinigameBolha
+}
+
+/** Como o desafio começa: o jogador encosta no selo e toca, ou o mestre convida. */
+export type EntradaDoDesafio = 'pino' | 'mestre'
+
+export interface DefinicaoDoMinigame<J extends JogoDoMinigame> {
+  id: J
+  /** O nome do jogo para o mestre e no cartão ("Pesca", "Fogo na Floresta"). */
+  nome: string
+  /** O símbolo do selo e da lista (`minigames/simbolosDosJogos.ts`), um por jogo. */
+  icone: J
+  /** Onde o desafio deste jogo pode ficar. */
+  lugares: readonly TipoDoLugarDoDesafio[]
+  /** Como ele pode começar. A dança sempre começa pelo mestre. */
+  entradas: readonly EntradaDoDesafio[]
+  /** Cópia nova do desafio do protótipo do jogo (nunca a constante). */
+  padrao: () => MinigamesPorJogo[J]
+  /** Como começa o desafio gravado (o jogador encosta, ou o mestre chama). */
+  entradaDe: (minigame: MinigamesPorJogo[J]) => EntradaDoDesafio
+  /**
+   * O pouco que vai ao JOGADOR (`MinigameVisivel`): o jogo e como começa; do
+   * fogo e da bolha também quem pede ajuda e a fala, só com o selo legível.
+   * Prêmio, consequência, música e porta nunca vão.
+   */
+  recorteDoJogador: (minigame: MinigamesPorJogo[J], legivel: boolean) => MinigameVisivel
+  /** O que o fim do jogo pode fazer no estado do jogo (`minigames/desfecho.ts`). */
+  desfechos: readonly TipoDeDesfecho[]
+}
+
+const TODOS_OS_LUGARES: readonly TipoDoLugarDoDesafio[] = ['ponto', 'objeto', 'nenhum']
+
+/** A fala e quem pede ajuda vão ao cartão só com o selo legível, e só com texto. */
+function comPedidoDeAjuda(visivel: MinigameVisivel, minigame: { npc: string; fala: string }, legivel: boolean): MinigameVisivel {
+  if (legivel && typeof minigame.npc === 'string' && minigame.npc.trim() !== '') visivel.npc = minigame.npc
+  if (legivel && typeof minigame.fala === 'string' && minigame.fala.trim() !== '') visivel.fala = minigame.fala
+  return visivel
+}
+
+export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoDoMinigame<J> } = {
+  danca: {
+    id: 'danca',
+    nome: 'Dança',
+    icone: 'danca',
+    lugares: TODOS_OS_LUGARES,
+    entradas: ['mestre'],
+    padrao: () => structuredClone(MINIGAME_PADRAO),
+    entradaDe: () => 'mestre',
+    recorteDoJogador: () => ({ jogo: 'danca', entrada: 'mestre' }),
+    desfechos: ['abrir porta'],
+  },
+  pesca: {
+    id: 'pesca',
+    nome: 'Pesca',
+    icone: 'pesca',
+    lugares: TODOS_OS_LUGARES,
+    entradas: ['pino', 'mestre'],
+    padrao: () => structuredClone(MINIGAME_PESCA_PADRAO),
+    entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
+    // O torto cai no mestre: o cartão nunca oferece começar sozinho por engano.
+    recorteDoJogador: (minigame) => ({ jogo: 'pesca', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    desfechos: [],
+  },
+  tiro: {
+    id: 'tiro',
+    nome: 'Tiro',
+    icone: 'tiro',
+    lugares: TODOS_OS_LUGARES,
+    entradas: ['pino', 'mestre'],
+    padrao: () => structuredClone(MINIGAME_TIRO_PADRAO),
+    entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
+    recorteDoJogador: (minigame) => ({ jogo: 'tiro', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }),
+    desfechos: [],
+  },
+  fogo: {
+    id: 'fogo',
+    nome: 'Fogo na Floresta',
+    icone: 'fogo',
+    lugares: TODOS_OS_LUGARES,
+    // "Apagar o fogo" começa sozinho no selo; a equipe vem do convite do mestre.
+    entradas: ['pino', 'mestre'],
+    padrao: () => structuredClone(MINIGAME_FOGO_PADRAO),
+    entradaDe: () => 'pino',
+    recorteDoJogador: (minigame, legivel) => comPedidoDeAjuda({ jogo: 'fogo', entrada: 'pino' }, minigame, legivel),
+    desfechos: [],
+  },
+  bolha: {
+    id: 'bolha',
+    nome: "Bolha d'Água",
+    icone: 'bolha',
+    lugares: TODOS_OS_LUGARES,
+    entradas: ['pino', 'mestre'],
+    padrao: () => structuredClone(MINIGAME_BOLHA_PADRAO),
+    entradaDe: (minigame) => (minigame.entrada === 'pino' ? 'pino' : 'mestre'),
+    recorteDoJogador: (minigame, legivel) =>
+      comPedidoDeAjuda({ jogo: 'bolha', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
+    desfechos: [],
+  },
+}
+
+/** A ordem dos jogos na escolha do mestre (a mesma de `JOGOS_DO_MINIGAME`). */
+export const ORDEM_DOS_JOGOS: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha']
+
+/** O jogo é um que este app conhece? (arquivo de versão futura pode trazer outro). */
+export function ehJogoDoRegistro(valor: unknown): valor is JogoDoMinigame {
+  return typeof valor === 'string' && Object.prototype.hasOwnProperty.call(REGISTRO_DE_MINIGAMES, valor)
+}
+
+export function nomeDoJogo(jogo: JogoDoMinigame): string {
+  return REGISTRO_DE_MINIGAMES[jogo].nome
+}
+
+/** Cópia nova do desafio padrão do jogo. */
+export function padraoDoJogo<J extends JogoDoMinigame>(jogo: J): MinigamesPorJogo[J] {
+  return REGISTRO_DE_MINIGAMES[jogo].padrao()
+}
+
+function entradaPor<J extends JogoDoMinigame>(jogo: J, minigame: MinigamesPorJogo[J]): EntradaDoDesafio {
+  return REGISTRO_DE_MINIGAMES[jogo].entradaDe(minigame)
+}
+
+function recortePor<J extends JogoDoMinigame>(jogo: J, minigame: MinigamesPorJogo[J], legivel: boolean): MinigameVisivel {
+  return REGISTRO_DE_MINIGAMES[jogo].recorteDoJogador(minigame, legivel)
+}
+
+/** Como começa o desafio gravado, pelo registro do jogo dele. */
+export function entradaDoMinigame(minigame: MinigameDoPino): EntradaDoDesafio {
+  return entradaPor(minigame.jogo, minigame)
+}
+
+/**
+ * O recorte do jogador de um desafio, pelo registro do jogo dele. Sem desafio
+ * gravado, ou com um jogo que este app não conhece (mapa montado sem passar
+ * pelo disco), vale a dança e o mestre: o cartão nunca oferece começar sozinho.
+ */
+export function recorteDoMinigame(minigame: MinigameDoPino | undefined, legivel: boolean): MinigameVisivel {
+  if (minigame === undefined || !ehJogoDoRegistro(minigame.jogo)) return { jogo: 'danca', entrada: 'mestre' }
+  return recortePor(minigame.jogo, minigame, legivel)
+}

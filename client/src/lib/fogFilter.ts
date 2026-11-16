@@ -40,6 +40,8 @@ import { cacheDoRecorte, porReferencia } from './cacheDoRecorte'
 import { stairCenterlineSamples, stairMidpoint } from './stairCurve'
 import { blockReasonOf, isPinEscala, isPinIcon, isPinReadDistance, isPlayerSafePinImage, normalizarCorDoPino, passageOf } from './pins'
 import type { MinigameVisivel } from '../minigames/tipos'
+import { recorteDoMinigame } from '../minigames/registro'
+import { pinosDosDesafios } from './desafios'
 import { CLUE_TITLE_ONLY_IMAGE, clampClueText, clueTitleFrom } from './clues'
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { exitLabelsOf, exitPassageOf, isArrivalOnly, isExitPassage, travelExitsOf, unreadExitLabels, type OneWayExits } from './pinTravel'
@@ -4736,6 +4738,9 @@ function recorteDoGrupo(
     tamanhoDaFichaAoEntrar: undefined,
     // "Cena escura" também: o escuro já vem aplicado na visão e no que sai.
     dark: undefined,
+    // DESAFIOS: a lista é do mestre (prêmio, porta, o pino de antes). O selo que o
+    // jogador vê sai pela lista dos pinos, com a regra deles (`pinosDosDesafios`).
+    desafios: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // NUVENS: o céu delas sai SÓ do chão que este recorte manda
@@ -4974,7 +4979,15 @@ function recorteDoGrupo(
     // (`validTravel` lê a marca neste mesmo recorte).
     // MEMÓRIA SEM SPOILER: com memória, o pino sai na versão lembrada (`pins`);
     // marco e pino de escada seguem a regra deles, na versão de agora.
-    pins: recalledList(map.pins ?? [], pins, memoryMode, (p) => p.marco === true || p.escadaId !== undefined).flatMap((p) => {
+    // DESAFIOS (minigames fora do pino): o selo chega como o pino de minigame de
+    // antes, de mesmo id, pelas MESMAS regras abaixo (`lib/desafios.ts`). O
+    // posto num objeto só chega com o objeto: o selo contaria que ele existe.
+    pins: recalledList(
+      [...(map.pins ?? []), ...pinosDosDesafios(map, 'mesa', (propId) => propsDoRecorte.some((p) => p.id === propId))],
+      pins,
+      memoryMode,
+      (p) => p.marco === true || p.escadaId !== undefined,
+    ).flatMap((p) => {
       if (isArrivalOnly(p)) return []
       if (!pinReachesPlayer(pinAudiences, p.id, playerId)) return []
       // Pino de escada: a escada manda (ver `playerStairIds`); o segredo do próprio pino também.
@@ -5976,21 +5989,11 @@ function pinForPlayer(
  * cai na dança e no mestre: o cartão nunca oferece começar sozinho por engano.
  */
 function minigameVisivelDe(pin: Pin, readable: boolean): MinigameVisivel {
-  const minigame = pin.minigame
-  // O fogo: "Apagar o fogo" começa sozinho no pino (a equipe vem do painel do
-  // mestre), e o pedido de ajuda do NPC é a fala do cartão. Pino "só de perto"
-  // visto de longe não leva a fala, como não leva a descrição.
-  // A bolha leva a fala igual, mas só começa no pino quando o mestre deixou.
-  if (minigame?.jogo === 'fogo' || minigame?.jogo === 'bolha') {
-    const entrada = minigame.jogo === 'fogo' || minigame.entrada === 'pino' ? 'pino' : 'mestre'
-    const visivel: MinigameVisivel = { jogo: minigame.jogo, entrada }
-    if (readable && typeof minigame.npc === 'string' && minigame.npc.trim() !== '') visivel.npc = minigame.npc
-    if (readable && typeof minigame.fala === 'string' && minigame.fala.trim() !== '') visivel.fala = minigame.fala
-    return visivel
-  }
-  if (minigame === undefined || (minigame.jogo !== 'pesca' && minigame.jogo !== 'tiro')) return { jogo: 'danca', entrada: 'mestre' }
-  // Pesca e tiro: o jogo, e a entrada pela lista (o torto cai no mestre).
-  return { jogo: minigame.jogo, entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }
+  // O recorte de cada jogo mora no registro (`minigames/registro.ts`): o fogo
+  // começa sozinho no selo e leva o pedido de ajuda; a bolha leva a fala e só
+  // começa sozinha quando o mestre deixou; selo "só de perto" visto de longe
+  // não leva a fala, como não leva a descrição.
+  return recorteDoMinigame(pin.minigame, readable)
 }
 
 /**

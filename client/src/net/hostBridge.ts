@@ -149,6 +149,7 @@ import { hazardEntryLine } from '../lib/hazards'
 import type { DiceRequest } from '../lib/dice'
 import { areaTriggerEntryLine } from '../lib/areaTriggers'
 import { giveNewItemChange } from '../lib/items'
+import { aplicarDesfecho, type AplicadoresDeDesfecho } from '../minigames/desfecho'
 import type { DancaAoVivo, DancaConviteResultado, DancaDesfechoSinal } from './dancaNoHost'
 import type { PescaAoVivo, PescaConviteResultado } from './pescaNoHost'
 import type { TiroAoVivo, TiroConviteResultado } from './tiroNoHost'
@@ -1794,6 +1795,24 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   /**
+   * DESFECHOS (desafios, 15/11/2026): o canal único do resultado de um jogo no
+   * mapa do mestre (`minigames/desfecho.ts`). Só a porta tem aplicador hoje;
+   * itens, dano e efeito ganham o seu na Fase C (baús e armadilhas) — até lá,
+   * o prêmio da dança segue pela mochila logo abaixo.
+   */
+  const aplicadoresDeDesfecho: AplicadoresDeDesfecho = {
+    'abrir porta': ({ wallId, sceneId }) => {
+      if (deps.unlockAndOpenDoor !== undefined) deps.unlockAndOpenDoor(wallId, sceneId)
+      else if (sceneId === undefined) deps.applyDoor(wallId, true)
+      else deps.applyDoor(wallId, true, sceneId)
+      return true
+    },
+    'dar itens': null,
+    dano: null,
+    efeito: null,
+  }
+
+  /**
    * DANÇA: o desfecho no mapa do mestre. A dança é a chave: com todos
    * passando, a porta ligada é destrancada e aberta (a alavanca, ao contrário,
    * não mexe em trancada). O item vai para a mochila de cada um, fora do
@@ -1802,11 +1821,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    */
   const aplicarDesfechoDaDanca = (sinal: DancaDesfechoSinal) => {
     const porta = sinal.porta
-    if (porta !== undefined) {
-      if (deps.unlockAndOpenDoor !== undefined) deps.unlockAndOpenDoor(porta.wallId, porta.sceneId)
-      else if (porta.sceneId === undefined) deps.applyDoor(porta.wallId, true)
-      else deps.applyDoor(porta.wallId, true, porta.sceneId)
-    }
+    if (porta !== undefined) aplicarDesfecho(aplicadoresDeDesfecho, { tipo: 'abrir porta', wallId: porta.wallId, sceneId: porta.sceneId })
     const semFicha: string[] = []
     for (const item of sinal.itens) {
       const alvo = fichaDoPremio(item.playerId)

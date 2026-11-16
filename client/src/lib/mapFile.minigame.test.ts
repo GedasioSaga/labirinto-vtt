@@ -4,6 +4,7 @@ import { LAGO_MAX_LENGTH, MINIGAME_PESCA_PADRAO, PESCA_TEXTO_MAX_LENGTH, type Mi
 import type { Pin } from '../types/map'
 import { createEmptyMap } from './mapFactory'
 import { deserializeMap, serializeMap } from './mapFile'
+import { desafiosDo, pinosDosDesafios } from './desafios'
 
 /**
  * MINIGAME no disco: `kind: 'minigame'` é o quinto tipo de pino e `minigame`
@@ -40,9 +41,14 @@ const IMPORTADO: MinigameDanca = {
   consequencia: { tipo: 'barulho', texto: 'Os guardas ouvem' },
 }
 
+/**
+ * O pino lido. Desde 15/11/2026 o pino de minigame vira DESAFIO ao abrir o
+ * mapa (`lib/desafios.ts`): o que o mestre vê dele é o selo, com o jogo lido.
+ */
 function lerPino(minigame: string, kind = 'minigame'): Pin {
   const json = `{"id": "torto", "pins": [{"id": "m", "x": 1, "y": 2, "kind": "${kind}", "description": "", "image": null${minigame === '' ? '' : `, "minigame": ${minigame}`}}]}`
-  return deserializeMap(json).pins[0]
+  const mapa = deserializeMap(json)
+  return pinosDosDesafios(mapa, 'mestre')[0] ?? mapa.pins[0]
 }
 
 function comMusica(musica: unknown): string {
@@ -317,7 +323,8 @@ describe('mapFile: minigame de pesca', () => {
   it('`minigameVisivel` vindo no arquivo não entra no mapa do mestre', () => {
     const json = `{"id": "x", "pins": [{"id": "m", "x": 1, "y": 2, "kind": "minigame", "description": "", "image": null, "minigameVisivel": {"jogo": "pesca", "entrada": "pino"}, "minigame": ${JSON.stringify(PESCA)}}]}`
     const lido = deserializeMap(json)
-    expect(lido.pins[0].minigameVisivel).toBeUndefined()
+    expect(desafiosDo(lido)[0].eraPino?.minigameVisivel).toBeUndefined()
+    expect(pinosDosDesafios(lido, 'mestre')[0].minigameVisivel).toBeUndefined()
     expect(serializeMap(lido)).not.toContain('minigameVisivel')
   })
 })

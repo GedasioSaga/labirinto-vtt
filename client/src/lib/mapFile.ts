@@ -1,4 +1,7 @@
-import type { CamadaId, ConcealZone, DoorState, FloorStyle, Light, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
+import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
+import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, nomePadraoDoDesafio } from './desafios'
+import { ehJogoDoRegistro, type MinigamesPorJogo } from '../minigames/registro'
+import type { JogoDoMinigame } from '../minigames/tipos'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -150,7 +153,8 @@ export function serializeMap(map: MapData): string {
 
 export function deserializeMap(json: string): MapData {
   // PISOS NA MESMA CENA: `piso`/`levaAoPiso` tortos saem aqui (`lib/pisos.ts`); ausentes continuam ausentes.
-  const map = pisosDoArquivo(deserializeMapFields(json))
+  // MINIGAMES FORA DO PINO (15/11/2026): todo pino ▷ vira desafio no mesmo lugar, com o mesmo id (`lib/desafios.ts`).
+  const map = comPinosDeMinigameComoDesafios(pisosDoArquivo(deserializeMapFields(json)))
   // PAREDES AO REDOR: parede presa a desenho que não existe (ou sem as paredes
   // ligadas) perde o vínculo e fica como parede comum (`lib/paredesPresas.ts`).
   // Mapa salvo antes de a porta manter o vínculo com a Sala: pedaços de parede
@@ -303,12 +307,78 @@ function lerMusicaDaDanca(valor: unknown): MusicaDaDanca {
 export function lerMinigameDoArquivo(valor: unknown): MinigameDoPino | undefined {
   if (!ehObjetoDoArquivo(valor)) return undefined
   const jogo = campoDoArquivo(valor, 'jogo')
-  if (jogo === 'danca') return lerDancaDoArquivo(valor)
-  if (jogo === 'pesca') return lerPescaDoArquivo(valor)
-  if (jogo === 'tiro') return lerTiroDoArquivo(valor)
-  if (jogo === 'fogo') return lerFogoDoArquivo(valor)
-  if (jogo === 'bolha') return lerBolhaDoArquivo(valor)
-  return undefined
+  return ehJogoDoRegistro(jogo) ? LEITORES_DO_ARQUIVO[jogo](valor) : undefined
+}
+
+/** Um leitor por jogo do registro (`minigames/registro.ts`): jogo novo sem leitor não compila. */
+const LEITORES_DO_ARQUIVO: { readonly [J in JogoDoMinigame]: (valor: object) => MinigamesPorJogo[J] } = {
+  danca: lerDancaDoArquivo,
+  pesca: lerPescaDoArquivo,
+  tiro: lerTiroDoArquivo,
+  fogo: lerFogoDoArquivo,
+  bolha: lerBolhaDoArquivo,
+}
+
+/**
+ * DESAFIOS do disco (minigames fora do pino): campo NOVO e OPCIONAL, lido
+ * desafio a desafio. O torto cai e os bons ficam: sem id ou com jogo que
+ * este app não conhece (versão futura) o desafio não entra; lugar torto vira
+ * "sem lugar" (o mestre ainda o convida); id repetido entra uma vez só.
+ */
+function desafiosDoArquivo(lista: readonly Desafio[] | undefined): { desafios?: Desafio[] } {
+  if (!Array.isArray(lista)) return {}
+  const desafios: Desafio[] = []
+  const ids = new Set<string>()
+  for (const cru of lista) {
+    const desafio = lerDesafioDoArquivo(cru)
+    if (desafio === null || ids.has(desafio.id)) continue
+    ids.add(desafio.id)
+    desafios.push(desafio)
+  }
+  return desafios.length === 0 ? {} : { desafios }
+}
+
+function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
+  if (!ehObjetoDoArquivo(cru) || typeof cru.id !== 'string' || cru.id === '') return null
+  const minigame = lerMinigameDoArquivo(cru.minigame)
+  if (minigame === undefined) return null
+  const portaLigada = readPinLeverDoor(cru.portaLigada)
+  const eraPino = lerPinoDeAntes(cru.eraPino, cru.id)
+  return {
+    id: cru.id,
+    nome: textoDoArquivo(cru.nome, DESAFIO_NOME_MAX_LENGTH, '') || nomePadraoDoDesafio(minigame),
+    lugar: lerLugarDoDesafio(cru.lugar),
+    minigame,
+    ...(portaLigada === undefined ? {} : { portaLigada }),
+    ...(Number.isInteger(cru.piso) ? { piso: cru.piso } : {}),
+    ...(eraPino === undefined ? {} : { eraPino }),
+  }
+}
+
+function lerLugarDoDesafio(valor: unknown): LugarDoDesafio {
+  if (!ehObjetoDoArquivo(valor)) return { tipo: 'nenhum' }
+  const tipo = campoDoArquivo(valor, 'tipo')
+  if (tipo === 'ponto') {
+    const x = campoDoArquivo(valor, 'x')
+    const y = campoDoArquivo(valor, 'y')
+    return typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y) ? { tipo: 'ponto', x, y } : { tipo: 'nenhum' }
+  }
+  if (tipo === 'objeto') {
+    const propId = campoDoArquivo(valor, 'propId')
+    return typeof propId === 'string' && propId !== '' ? { tipo: 'objeto', propId } : { tipo: 'nenhum' }
+  }
+  return { tipo: 'nenhum' }
+}
+
+/**
+ * O pino de antes de um desafio migrado, pela leitura de todo pino
+ * (`lerPinoDoArquivo`): o torto dele cai como cairia na lista `pins`. Fica
+ * com o id do desafio, e sem o desafio de jogo (que mora no próprio desafio).
+ */
+function lerPinoDeAntes(cru: Pin | undefined, id: string): Pin | undefined {
+  if (!ehObjetoDoArquivo(cru) || typeof cru.x !== 'number' || typeof cru.y !== 'number') return undefined
+  const { minigame: _doDesafio, minigameVisivel: _soDoRecorte, ...pino } = lerPinoDoArquivo(semCamadaTorta(semNotaDoMestre({ ...cru, id, kind: 'minigame' })))
+  return pino
 }
 
 const PERMITIDAS_BOLHA: readonly ('escolha' | DificuldadeBolha)[] = ['escolha', ...DIFICULDADES_BOLHA]
@@ -778,6 +848,124 @@ function movementField(raw: unknown): Pick<MapData, 'movement'> {
   return movement === undefined ? {} : { movement }
 }
 
+/**
+ * UM PINO do disco, campo a campo: a lista `pins` e o pino de antes de um
+ * desafio migrado (`Desafio.eraPino`) passam pela mesma leitura.
+ */
+function lerPinoDoArquivo(p: Pin): Pin {
+  return pinWithCabin({
+    ...p,
+    kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
+    icon: isPinIcon(p.icon) ? p.icon : undefined,
+    description: typeof p.description === 'string' ? p.description : '',
+    // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
+    // ou torto (número, arquivo editado à mão) volta AUSENTE.
+    nome: cleanPinName(p.nome) || undefined,
+    image: typeof p.image === 'string' ? p.image : null,
+    destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
+    // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
+    // ao mestre", o de sempre. Valor desconhecido (arquivo editado à mão,
+    // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
+    // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
+    passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
+    // PINO TRANCADO VIRA PEDIDO: `mudo` é campo NOVO e OPCIONAL. Só `true`
+    // vale; o resto volta AUSENTE — o trancado que aceita "Pedir ao mestre".
+    mudo: p.mudo === true ? true : undefined,
+    // MOTIVO DO BLOQUEIO: campo NOVO e OPCIONAL. Só um valor da lista
+    // volta; o resto (texto livre, número, arquivo editado à mão) volta
+    // AUSENTE — "Está trancada", o de sempre. O `...p` copiaria o valor cru.
+    motivo: isPinBlockReason(p.motivo) ? p.motivo : undefined,
+    // PASSE: campo NOVO e OPCIONAL. Forma errada volta ausente — ninguém
+    // tem passe e o pedido vai ao mestre, nunca uma catraca aberta a todos.
+    // `item` e `fichas` (as marcas do mestre) são conferidos em `readPinPass`.
+    passe: readPinPass(p.passe),
+    // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
+    // de antes não tem nenhum dos dois e abre como sempre, com a saída de
+    // `destino`. Saída extra fora da forma é descartada sozinha (ver
+    // `readPinExits`), e as boas ficam. `escolhas` é só do recorte do
+    // jogador: arquivo que o traga (editado à mão) não o põe no mapa do mestre.
+    rotulo: p.rotulo === undefined ? undefined : cleanExitLabel(p.rotulo) || undefined,
+    saidas: readPinExits(p.saidas),
+    // MÃO ÚNICA: `soChegada` é campo NOVO e OPCIONAL. Só `true` vale; o resto
+    // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
+    // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
+    soChegada: p.soChegada === true ? true : undefined,
+    // ESCADA QUE LEVA A OUTRO ANDAR: `escadaId` é campo NOVO e OPCIONAL. Só
+    // texto não vazio vale; o resto volta AUSENTE — o pino de sempre, que se
+    // desenha. O `...p` acima copiaria o valor cru.
+    escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
+    // PRESO À FICHA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+    // volta AUSENTE (pino parado, o de sempre) — ver `readPinAttachment`.
+    presoA: readPinAttachment(p.presoA),
+    // MARCO e LER SÓ DE PERTO: campos NOVOS e OPCIONAIS. Na dúvida, o pino
+    // de sempre: `marco` só com `true` (um valor torto não pode furar a
+    // névoa) e `lerDePerto` só com inteiro de casas na faixa do painel.
+    marco: p.marco === true ? true : undefined,
+    lerDePerto: isPinReadDistance(p.lerDePerto) ? p.lerDePerto : undefined,
+    // SÓ O CÍRCULO, SEM HASTE: campo NOVO e OPCIONAL. Só `true` vale; o resto
+    // volta AUSENTE — o pino de sempre, com haste. O `...p` acima copiaria o
+    // valor cru.
+    semHaste: p.semHaste === true ? true : undefined,
+    // COR E TAMANHO (fatia 14): campos NOVOS e OPCIONAIS. Cor só `#rrggbb`
+    // (gravada minúscula); tamanho só número na faixa e diferente de 1. O
+    // resto volta AUSENTE — o latão e o tamanho de sempre.
+    cor: normalizarCorDoPino(p.cor),
+    escala: isPinEscala(p.escala) && p.escala !== 1 ? p.escala : undefined,
+    // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
+    longe: undefined,
+    soMarco: undefined,
+    // ESPIAR: "Dá vista" é campo NOVO e OPCIONAL. Só inteiro dentro da faixa
+    // vale; o resto volta AUSENTE — na dúvida, o pino não deixa espiar.
+    daVista: isDaVista(p.daVista) ? p.daVista : undefined,
+    // TRANSIÇÃO ESPECIAL: campo NOVO e OPCIONAL. Id fora do catálogo volta
+    // ausente; duração fora do teto cai e fica a natural (`parseTransicao`).
+    transicao: parseTransicao(p.transicao),
+    // ANIMAÇÃO DO CENÁRIO: campo NOVO e OPCIONAL; forma errada volta ausente (`parseCenario`).
+    cenario: parseCenario(p.cenario),
+    escolhas: undefined,
+    // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
+    // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
+    item: readPinItem(p.item),
+    // CABINE DE TRANSPORTE: `cabine` é só do recorte do jogador (a cabine mora
+    // na aventura). Arquivo editado à mão que o traga não o põe no mapa do mestre.
+    cabine: undefined,
+    // ESTADO DO MUNDO: regra torta volta AUSENTE (o pino de sempre); o `...p` copiaria o valor cru.
+    porEstado: regraDePinoDoArquivo(p.porEstado),
+    // CHAVE ABRE PORTA no pino trancado: campo NOVO e OPCIONAL, com a mesma
+    // leitura do "Abre com" da porta. `chave` é só do recorte do jogador:
+    // arquivo que o traga não o põe no mapa do mestre.
+    abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
+    chave: undefined,
+    // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
+    // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
+    portaLigada: readPinLeverDoor(p.portaLigada),
+    // MINIGAME: campo NOVO e OPCIONAL, só do pino de minigame — conferido
+    // campo a campo por `lerMinigameDoArquivo`. Pino de minigame sem desafio
+    // que preste ganha o padrão (sem ele não haveria o que propor); em outro
+    // tipo de pino o campo é sobra e não entra (o `...p` copiaria o cru).
+    minigame: p.kind === 'minigame' ?(lerMinigameDoArquivo(p.minigame) ?? minigamePadrao()) : undefined,
+    // `minigameVisivel` é só do recorte do jogador: arquivo que o traga não o põe no mapa do mestre.
+    minigameVisivel: undefined,
+    // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
+    // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
+    // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`
+    // só texto; ausentes continuam ausentes. `fechadura` é só do recorte do
+    // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
+    segredo: readPinLock(p.segredo),
+    fechadura: undefined,
+    // SÓ IDA: `semVolta` é só do recorte do jogador, como `escolhas` (que
+    // leva o `soIda` de cada saída e já sai inteiro na linha de cima).
+    semVolta: undefined,
+    // COLEÇÃO DE PISTAS: campo NOVO e OPCIONAL, conferido por `readPinColecao`
+    // — forma errada volta ausente (pino avulso) em vez de derrubar o mapa.
+    colecao: readPinColecao(p.colecao),
+    // LOJA COM PREÇOS: campo NOVO e OPCIONAL, conferido item a item por
+    // `lerLojaDoArquivo` — o torto cai, o bom fica, campo desconhecido não
+    // entra. Nada que preste volta ausente (o `...p` acima copiaria o cru).
+    loja: lerLojaDoArquivo(p.loja),
+  }, readCabin(p.cabineContinua))
+}
+
 function deserializeMapFields(json: string): MapData {
   let parsed: Partial<MapData>
   try {
@@ -936,121 +1124,14 @@ function deserializeMapFields(json: string): MapData {
     // CABINE CONTÍNUA: campo NOVO e OPCIONAL. `pinWithCabin` tira a chave
     // quando o valor cru não é um id (o `...p` copiaria o lixo), então mapa de
     // antes abre sem o campo e cabine quebrada vira "pino sem cabine".
-    pins: entityList(parsed.pins).map(semNotaDoMestre).map(semCamadaTorta).map((p) => pinWithCabin({
-      ...p,
-      kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
-      icon: isPinIcon(p.icon) ? p.icon : undefined,
-      description: typeof p.description === 'string' ? p.description : '',
-      // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
-      // ou torto (número, arquivo editado à mão) volta AUSENTE.
-      nome: cleanPinName(p.nome) || undefined,
-      image: typeof p.image === 'string' ? p.image : null,
-      destino: p.destino === undefined ? undefined : readPinDestination(p.destino),
-      // `passagem` é campo NOVO e OPCIONAL do pino de viagem: ausente é "pede
-      // ao mestre", o de sempre. Valor desconhecido (arquivo editado à mão,
-      // versão futura) volta AUSENTE, e não como "livre": na dúvida, a porta
-      // pergunta ao mestre em vez de deixar o grupo passar sem ninguém ver.
-      passagem: isPinPassage(p.passagem) ? p.passagem : undefined,
-      // PINO TRANCADO VIRA PEDIDO: `mudo` é campo NOVO e OPCIONAL. Só `true`
-      // vale; o resto volta AUSENTE — o trancado que aceita "Pedir ao mestre".
-      mudo: p.mudo === true ? true : undefined,
-      // MOTIVO DO BLOQUEIO: campo NOVO e OPCIONAL. Só um valor da lista
-      // volta; o resto (texto livre, número, arquivo editado à mão) volta
-      // AUSENTE — "Está trancada", o de sempre. O `...p` copiaria o valor cru.
-      motivo: isPinBlockReason(p.motivo) ? p.motivo : undefined,
-      // PASSE: campo NOVO e OPCIONAL. Forma errada volta ausente — ninguém
-      // tem passe e o pedido vai ao mestre, nunca uma catraca aberta a todos.
-      // `item` e `fichas` (as marcas do mestre) são conferidos em `readPinPass`.
-      passe: readPinPass(p.passe),
-      // ENCRUZILHADA: `rotulo` e `saidas` são campos NOVOS e OPCIONAIS. Mapa
-      // de antes não tem nenhum dos dois e abre como sempre, com a saída de
-      // `destino`. Saída extra fora da forma é descartada sozinha (ver
-      // `readPinExits`), e as boas ficam. `escolhas` é só do recorte do
-      // jogador: arquivo que o traga (editado à mão) não o põe no mapa do mestre.
-      rotulo: p.rotulo === undefined ? undefined : cleanExitLabel(p.rotulo) || undefined,
-      saidas: readPinExits(p.saidas),
-      // MÃO ÚNICA: `soChegada` é campo NOVO e OPCIONAL. Só `true` vale; o resto
-      // (`false`, texto, número, arquivo editado à mão) volta AUSENTE — o par de
-      // sempre, visível. O `...p` acima copiaria o valor cru, por isso a linha.
-      soChegada: p.soChegada === true ? true : undefined,
-      // ESCADA QUE LEVA A OUTRO ANDAR: `escadaId` é campo NOVO e OPCIONAL. Só
-      // texto não vazio vale; o resto volta AUSENTE — o pino de sempre, que se
-      // desenha. O `...p` acima copiaria o valor cru.
-      escadaId: typeof p.escadaId === 'string' && p.escadaId !== '' ? p.escadaId : undefined,
-      // PRESO À FICHA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
-      // volta AUSENTE (pino parado, o de sempre) — ver `readPinAttachment`.
-      presoA: readPinAttachment(p.presoA),
-      // MARCO e LER SÓ DE PERTO: campos NOVOS e OPCIONAIS. Na dúvida, o pino
-      // de sempre: `marco` só com `true` (um valor torto não pode furar a
-      // névoa) e `lerDePerto` só com inteiro de casas na faixa do painel.
-      marco: p.marco === true ? true : undefined,
-      lerDePerto: isPinReadDistance(p.lerDePerto) ? p.lerDePerto : undefined,
-      // SÓ O CÍRCULO, SEM HASTE: campo NOVO e OPCIONAL. Só `true` vale; o resto
-      // volta AUSENTE — o pino de sempre, com haste. O `...p` acima copiaria o
-      // valor cru.
-      semHaste: p.semHaste === true ? true : undefined,
-      // COR E TAMANHO (fatia 14): campos NOVOS e OPCIONAIS. Cor só `#rrggbb`
-      // (gravada minúscula); tamanho só número na faixa e diferente de 1. O
-      // resto volta AUSENTE — o latão e o tamanho de sempre.
-      cor: normalizarCorDoPino(p.cor),
-      escala: isPinEscala(p.escala) && p.escala !== 1 ? p.escala : undefined,
-      // `longe` e `soMarco` são só do recorte do jogador, como `escolhas`.
-      longe: undefined,
-      soMarco: undefined,
-      // ESPIAR: "Dá vista" é campo NOVO e OPCIONAL. Só inteiro dentro da faixa
-      // vale; o resto volta AUSENTE — na dúvida, o pino não deixa espiar.
-      daVista: isDaVista(p.daVista) ? p.daVista : undefined,
-      // TRANSIÇÃO ESPECIAL: campo NOVO e OPCIONAL. Id fora do catálogo volta
-      // ausente; duração fora do teto cai e fica a natural (`parseTransicao`).
-      transicao: parseTransicao(p.transicao),
-      // ANIMAÇÃO DO CENÁRIO: campo NOVO e OPCIONAL; forma errada volta ausente (`parseCenario`).
-      cenario: parseCenario(p.cenario),
-      escolhas: undefined,
-      // ITEM PEGÁVEL: campo NOVO e OPCIONAL. Forma errada volta ausente (o
-      // pino só deixa de ser pegável); `livre` só vale `true` (`readPinItem`).
-      item: readPinItem(p.item),
-      // CABINE DE TRANSPORTE: `cabine` é só do recorte do jogador (a cabine mora
-      // na aventura). Arquivo editado à mão que o traga não o põe no mapa do mestre.
-      cabine: undefined,
-      // ESTADO DO MUNDO: regra torta volta AUSENTE (o pino de sempre); o `...p` copiaria o valor cru.
-      porEstado: regraDePinoDoArquivo(p.porEstado),
-      // CHAVE ABRE PORTA no pino trancado: campo NOVO e OPCIONAL, com a mesma
-      // leitura do "Abre com" da porta. `chave` é só do recorte do jogador:
-      // arquivo que o traga não o põe no mapa do mestre.
-      abreCom: p.abreCom === undefined ? undefined : readDoorKey(p.abreCom),
-      chave: undefined,
-      // ALAVANCA: campo NOVO e OPCIONAL. Só texto não vazio vale; o resto
-      // volta AUSENTE (alavanca solta, que não move nada) — ver `readPinLeverDoor`.
-      portaLigada: readPinLeverDoor(p.portaLigada),
-      // MINIGAME: campo NOVO e OPCIONAL, só do pino de minigame — conferido
-      // campo a campo por `lerMinigameDoArquivo`. Pino de minigame sem desafio
-      // que preste ganha o padrão (sem ele não haveria o que propor); em outro
-      // tipo de pino o campo é sobra e não entra (o `...p` copiaria o cru).
-      minigame: p.kind === 'minigame' ?(lerMinigameDoArquivo(p.minigame) ?? minigamePadrao()) : undefined,
-      // `minigameVisivel` é só do recorte do jogador: arquivo que o traga não o põe no mapa do mestre.
-      minigameVisivel: undefined,
-      // FECHADURA COM SEGREDO: campo NOVO e OPCIONAL, conferido campo a campo
-      // por `readPinLock` — `resposta` em texto (sem ela, sem fechadura),
-      // `forma` desconhecida volta 'teclado', `aberta` só `true` e `abrePorta`
-      // só texto; ausentes continuam ausentes. `fechadura` é só do recorte do
-      // jogador, como `escolhas`: arquivo que a traga não a põe no mapa do mestre.
-      segredo: readPinLock(p.segredo),
-      fechadura: undefined,
-      // SÓ IDA: `semVolta` é só do recorte do jogador, como `escolhas` (que
-      // leva o `soIda` de cada saída e já sai inteiro na linha de cima).
-      semVolta: undefined,
-      // COLEÇÃO DE PISTAS: campo NOVO e OPCIONAL, conferido por `readPinColecao`
-      // — forma errada volta ausente (pino avulso) em vez de derrubar o mapa.
-      colecao: readPinColecao(p.colecao),
-      // LOJA COM PREÇOS: campo NOVO e OPCIONAL, conferido item a item por
-      // `lerLojaDoArquivo` — o torto cai, o bom fica, campo desconhecido não
-      // entra. Nada que preste volta ausente (o `...p` acima copiaria o cru).
-      loja: lerLojaDoArquivo(p.loja),
-    }, readCabin(p.cabineContinua))),
+    pins: entityList(parsed.pins).map(semNotaDoMestre).map(semCamadaTorta).map(lerPinoDoArquivo),
     // BILHETE NO LUGAR: campo NOVO e OPCIONAL. Ausente continua ausente (sem a
     // chave, nem `undefined`): o round-trip de mapa antigo sai idêntico. Marca
     // torta cai sozinha e as boas ficam (`lerMarcasDoArquivo`).
     ...marcasDoArquivo(parsed.marcas),
+    // DESAFIOS: campo NOVO e OPCIONAL (ausente continua ausente). O pino ▷ de
+    // mapa antigo vira desafio logo depois, em `deserializeMap`.
+    ...desafiosDoArquivo(parsed.desafios),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: camadasDoArquivo(parsed.hiddenLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),

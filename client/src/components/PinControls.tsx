@@ -3,7 +3,7 @@ import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
 import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
-import { PIN_GLYPH, PIN_KIND_LABELS, PIN_KIND_ORDER, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, isPinReadDistance } from '../lib/pins'
+import { PIN_GLYPH, PIN_KIND_DO_NOVO_PINO, PIN_KIND_LABELS, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, isPinReadDistance } from '../lib/pins'
 import { GatherControls, type GatherControlsProps } from './GatherControls'
 import type { PinColecaoControlsProps } from './PinColecaoControls'
 import { PinIconControls, type PinIconControlsProps } from './PinIconControls'
@@ -361,7 +361,7 @@ export function PinControls({ kind, onKindChange, iconChoice }: PinControlsProps
     <section className="lb-section">
       <h2 className="lb-eyebrow">{viagem ? 'Pino de viagem' : alavanca ? 'Alavanca' : minigame ? 'Minigame' : 'Pino'}</h2>
       <div className="lb-seg lb-seg--rows" role="radiogroup" aria-label="Tipo do pino">
-        {PIN_KIND_ORDER.map((option) => (
+        {PIN_KIND_DO_NOVO_PINO.map((option) => (
           <button
             key={option}
             type="button"

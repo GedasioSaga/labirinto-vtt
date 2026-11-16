@@ -10,6 +10,8 @@ import type {
 } from '../types/map'
 import { aplicarParedesDoDesenho, sincronizarParedesDosDesenhos, soltarParedesDoDesenho as soltarParedesNoMapa } from '../lib/paredesPresas'
 import * as perigo from '../lib/perigo'
+import { adicionarDesafio, atualizarDesafio, removerDesafio, type PatchDoDesafio } from '../lib/desafios'
+import type { Desafio } from '../types/map'
 import { comCliqueParaAndar } from '../lib/cliqueParaAndar'
 import type { OffFloor } from '../lib/offFloor'
 import { comFichasNoPadrao, comTamanhoAoEntrar, fichasForaDoPadrao } from '../lib/tamanhoAoEntrar'
@@ -1348,6 +1350,10 @@ interface MapStoreState {
    *  pointerup, mesmo padrão de `moveTokenLive`/`movePropLive`. */
   movePinLive: (id: string, x: number, y: number) => void
   removePin: (id: string) => void
+  /** DESAFIOS (minigames fora do pino, página Jogos): criar, mudar e apagar, com Ctrl+Z. */
+  addDesafio: (desafio: Desafio) => void
+  updateDesafio: (id: string, patch: PatchDoDesafio) => void
+  removeDesafio: (id: string) => void
   setSelectedConcealZone: (id: string | null) => void
   addConcealZone: (zone: MapData['concealZones'][number]) => void
   updateConcealZone: (id: string, patch: Partial<Pick<MapData['concealZones'][number], 'name' | 'revealed'>>) => void
@@ -3220,6 +3226,17 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (mapFactory.removePin(get().map, id) === get().map) return
       withHistory((map) => mapFactory.removePin(map, id))
       if (get().selectedPinId === id) set({ selectedPinId: null })
+    },
+    addDesafio: (desafio) => withHistory((map) => adicionarDesafio(map, desafio)),
+    updateDesafio: (id, patch) => {
+      if (atualizarDesafio(get().map, id, patch) === get().map) return
+      // Digitar o nome é UM passo do desfazer, como o nome do pino.
+      const soONome = Object.keys(patch).length === 1 && 'nome' in patch
+      withHistory((map) => atualizarDesafio(map, id, patch), soONome ? `desafio-nome:${id}` : undefined)
+    },
+    removeDesafio: (id) => {
+      if (removerDesafio(get().map, id) === get().map) return
+      withHistory((map) => removerDesafio(map, id))
     },
     setSelectedConcealZone: (id) =>
       set(id === null ? { selectedConcealZoneId: null } : { selectedConcealZoneId: id, selection: EMPTY_SELECTION, selectedPinId: null }),

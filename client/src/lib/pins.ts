@@ -1,10 +1,11 @@
 import type { Pin, PinBlockReason, PinIcon, PinKind, PinPassage, RegionPoint } from '../types/map'
 import { MINIGAME_PADRAO, type MinigameDanca, type MusicaDaDanca } from '../minigames/danca/tipos'
-import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from '../minigames/pesca/tipos'
-import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from '../minigames/tiro/tipos'
-import { MINIGAME_FOGO_PADRAO, type MinigameFogo } from '../minigames/fogo/tipos'
-import { MINIGAME_BOLHA_PADRAO, type MinigameBolha } from '../minigames/bolha/tipos'
+import type { MinigamePesca } from '../minigames/pesca/tipos'
+import type { MinigameTiro } from '../minigames/tiro/tipos'
+import type { MinigameFogo } from '../minigames/fogo/tipos'
+import type { MinigameBolha } from '../minigames/bolha/tipos'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
+import { ehJogoDoRegistro, nomeDoJogo, padraoDoJogo } from '../minigames/registro'
 import { parseHexColor } from './tokenColor'
 
 /**
@@ -168,6 +169,14 @@ export const PIN_KIND_LABELS: Record<PinKind, string> = {
  */
 export const PIN_KIND_ORDER: readonly PinKind[] = ['exclamacao', 'interrogacao', 'viagem', 'alavanca', 'minigame']
 
+/**
+ * Os tipos que o mestre escolhe para um pino. O minigame saiu daqui em
+ * 15/11/2026: ele virou DESAFIO, com página própria (Jogos) e selo no mapa
+ * (`lib/desafios.ts`). `PIN_KIND_ORDER` continua com os cinco: é a lista que o
+ * disco aceita, e o pino ▷ de mapa antigo ainda precisa ser lido para migrar.
+ */
+export const PIN_KIND_DO_NOVO_PINO: readonly PinKind[] = PIN_KIND_ORDER.filter((kind) => kind !== 'minigame')
+
 /** O que `pinKindChangePatch` grava: o tipo novo e o que ele solta no mesmo passo do desfazer. */
 export type PinKindChangePatch = Pick<Pin, 'kind'> & Partial<Pick<Pin, 'destino' | 'presoA' | 'portaLigada' | 'minigame'>>
 
@@ -197,18 +206,7 @@ export function minigamePadrao(): MinigameDanca {
 
 /** Cópia nova do desafio do protótipo de cada jogo. */
 export function minigamePadraoDo(jogo: JogoDoMinigame): MinigameDoPino {
-  switch (jogo) {
-    case 'danca':
-      return minigamePadrao()
-    case 'pesca':
-      return copiarMinigame(MINIGAME_PESCA_PADRAO)
-    case 'tiro':
-      return copiarMinigame(MINIGAME_TIRO_PADRAO)
-    case 'fogo':
-      return copiarMinigame(MINIGAME_FOGO_PADRAO)
-    case 'bolha':
-      return copiarMinigame(MINIGAME_BOLHA_PADRAO)
-  }
+  return padraoDoJogo(jogo)
 }
 
 /**
@@ -834,7 +832,7 @@ export function pinSummary(pin: Pin): string {
   // O minigame também: o controle no mapa, e o nome do jogo quando há um.
   if (pin.kind === 'minigame') {
     const jogo = pin.minigame?.jogo
-    return jogo === 'danca' ? 'Dança' : jogo === 'pesca' ? 'Pesca' : jogo === 'tiro' ? 'Tiro' : jogo === 'fogo' ? 'Fogo na Floresta' : jogo === 'bolha' ? "Bolha d'Água" : 'Minigame'
+    return ehJogoDoRegistro(jogo) ? nomeDoJogo(jogo) : 'Minigame'
   }
   if (isPinIcon(pin.icon)) return `Ponto de interesse — ${PIN_ICON_LABELS[pin.icon]}`
   return `Ponto de interesse ${PIN_GLYPH[pin.kind]}`
