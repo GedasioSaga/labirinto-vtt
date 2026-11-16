@@ -18,7 +18,9 @@ import type { TipoMobilia } from './tipos'
  */
 export const GRUPOS_DE_OBJETO = [
   { id: 'salaEQuarto', titulo: 'Sala e quarto' },
-  { id: 'cozinhaEBanheiro', titulo: 'Cozinha e banheiro' },
+  // A cozinha e o banheiro se separaram em 15/11/2026, quando chegou o banheiro moderno (12 peças): juntos davam 27.
+  { id: 'cozinha', titulo: 'Cozinha' },
+  { id: 'banheiro', titulo: 'Banheiro' },
   { id: 'armazenagem', titulo: 'Armazenagem' },
   { id: 'ruaEJardim', titulo: 'Rua e jardim' },
   { id: 'cemiterio', titulo: 'Cemitério' },
@@ -55,9 +57,11 @@ export type IdDoGrupoDeObjeto = (typeof GRUPOS_DE_OBJETO)[number]['id']
 export const GRUPO_PADRAO: IdDoGrupoDeObjeto = 'outros'
 
 /**
- * O grupo de cada objeto. "Banheiro" sozinho teria só a privada: vai com a
- * cozinha (as peças de água da casa). O balde de água fica na oficina, com a
- * fornalha e a bigorna (a água da têmpera), como já estava no menu.
+ * O grupo de cada objeto. O banheiro morava com a cozinha ("Banheiro" sozinho
+ * teria só a privada) até chegar o banheiro moderno (15/11/2026): com as 12
+ * peças novas ele ganhou grupo próprio, e a privada, a banheira, a tina de
+ * madeira e o lavatório com jarro foram junto. O balde de água fica na oficina,
+ * com a fornalha e a bigorna (a água da têmpera), como já estava no menu.
  */
 export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeObjeto>>> = {
   // Sala e quarto: as mesas, os assentos, a cama, os tapetes e a lareira; a estante e o guarda-roupa (11/11/2026);
@@ -83,23 +87,39 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   biombo: 'salaEQuarto',
   piano: 'salaEQuarto',
   candelabroDeChao: 'salaEQuarto',
-  // Cozinha e banheiro; o caldeirão e o forno de pão (11/11/2026); e o lote 5 dos objetos novos (11/11/2026),
-  // da banheira ao gancho com carne pendurada.
-  armario: 'cozinhaEBanheiro',
-  balcao: 'cozinhaEBanheiro',
-  fogao: 'cozinhaEBanheiro',
-  geladeira: 'cozinhaEBanheiro',
-  pia: 'cozinhaEBanheiro',
-  pratos: 'cozinhaEBanheiro',
-  privada: 'cozinhaEBanheiro',
-  caldeirao: 'cozinhaEBanheiro',
-  fornoDePao: 'cozinhaEBanheiro',
-  banheira: 'cozinhaEBanheiro',
-  tinaDeMadeira: 'cozinhaEBanheiro',
-  lavatorioComJarro: 'cozinhaEBanheiro',
-  prateleiraDePotes: 'cozinhaEBanheiro',
-  mesaDeCorte: 'cozinhaEBanheiro',
-  ganchoComCarne: 'cozinhaEBanheiro',
+  // Cozinha; o caldeirão e o forno de pão (11/11/2026); e a cozinha do lote 5 dos objetos novos (11/11/2026), da
+  // prateleira de potes ao gancho com carne pendurada.
+  armario: 'cozinha',
+  balcao: 'cozinha',
+  fogao: 'cozinha',
+  geladeira: 'cozinha',
+  pia: 'cozinha',
+  pratos: 'cozinha',
+  caldeirao: 'cozinha',
+  fornoDePao: 'cozinha',
+  prateleiraDePotes: 'cozinha',
+  mesaDeCorte: 'cozinha',
+  ganchoComCarne: 'cozinha',
+  // Banheiro (15/11/2026), arrumado pelo uso, cada peça antiga com a moderna dela: o canto do vaso (a privada, o vaso
+  // moderno, o bidê e o suporte de papel), o banho (a banheira, a banheira moderna, a tina de madeira, o box, o tapete
+  // e o toalheiro), a pia (o lavatório com jarro e o gabinete) e o que se guarda (o armário, a prateleira de frascos, o
+  // cesto de roupa e a lixeira).
+  privada: 'banheiro',
+  vasoSanitarioModerno: 'banheiro',
+  bide: 'banheiro',
+  portaPapel: 'banheiro',
+  banheira: 'banheiro',
+  banheiraModerna: 'banheiro',
+  tinaDeMadeira: 'banheiro',
+  boxDeChuveiro: 'banheiro',
+  tapeteDeBanheiro: 'banheiro',
+  toalheiro: 'banheiro',
+  lavatorioComJarro: 'banheiro',
+  gabineteDeBanheiro: 'banheiro',
+  armarioDeBanheiro: 'banheiro',
+  prateleiraDeFrascos: 'banheiro',
+  cestoDeRoupa: 'banheiro',
+  lixeiraDePedal: 'banheiro',
   // Armazenagem; e o lote 6 dos objetos novos (11/11/2026), da pilha de caixas ao cofre.
   barril: 'armazenagem',
   caixa: 'armazenagem',
@@ -422,7 +442,7 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   biombo: ['divisória', 'paravento', 'anteparo'],
   piano: ['música', 'instrumento musical'],
   candelabroDeChao: ['castiçal', 'velas', 'luz'],
-  // Cozinha e banheiro
+  // Cozinha
   armario: ['guarda-louça', 'louceiro'],
   // "balcão de taverna" saiu em 14/11/2026: é o nome do balcão de taverna (lote L09), que a busca acha pelo nome.
   balcao: ['balcão de bar'],
@@ -431,16 +451,31 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   geladeira: ['refrigerador', 'freezer', 'inox'],
   pia: ['torneira', 'cuba', 'inox', 'bancada'],
   pratos: ['louça', 'comida', 'refeição', 'banquete', 'talheres'],
-  privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],
   caldeirao: ['panela', 'tacho', 'sopa', 'bruxa'],
   fornoDePao: ['padaria', 'padeiro'],
-  // "ofurô" saiu das duas em 14/11/2026: é o nome do ofurô (lote L12), que a busca acha pelo nome.
-  banheira: ['banho'],
-  tinaDeMadeira: ['banho', 'banheira de madeira'],
-  lavatorioComJarro: ['lavabo', 'bacia', 'pia antiga', 'jarra'],
   prateleiraDePotes: ['despensa', 'conservas', 'temperos', 'estante de potes'],
   mesaDeCorte: ['açougue', 'açougueiro', 'tábua de corte', 'cutelo'],
   ganchoComCarne: ['açougue', 'açougueiro'],
+  // Banheiro ("banheiro" acha todos pelo título do grupo). As palavras que já estão no nome ficam de fora ("cesto",
+  // "lixeira", "pedal", "tapete", "frasco", "chuveiro"); "coluna" (o pilar) e "roupeiro" (o guarda-roupa) também,
+  // para não levar ao objeto errado.
+  privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],
+  vasoSanitarioModerno: ['privada moderna', 'sanitário', 'toalete', 'louça'],
+  bide: ['louça', 'ducha higiênica'],
+  portaPapel: ['papel higiênico', 'rolo de papel', 'porta papel'],
+  // "ofurô" saiu das duas em 14/11/2026: é o nome do ofurô (lote L12), que a busca acha pelo nome.
+  banheira: ['banho'],
+  banheiraModerna: ['banho', 'hidromassagem'],
+  tinaDeMadeira: ['banho', 'banheira de madeira'],
+  boxDeChuveiro: ['ducha', 'banho', 'vidro'],
+  tapeteDeBanheiro: ['banho', 'toalha de piso'],
+  toalheiro: ['toalha', 'escada de toalha'],
+  lavatorioComJarro: ['lavabo', 'bacia', 'pia antiga', 'jarra'],
+  gabineteDeBanheiro: ['pia de banheiro', 'lavatório', 'cuba', 'espelho'],
+  armarioDeBanheiro: ['toalhas'],
+  prateleiraDeFrascos: ['xampu', 'shampoo', 'sabonete', 'creme'],
+  cestoDeRoupa: ['roupa suja', 'lavanderia'],
+  lixeiraDePedal: ['lixo', 'cesto de lixo', 'inox'],
   // Armazenagem ("barril" acha todos os barris: os três pelo nome e estes três pela palavra)
   barril: ['barrica', 'barril de cerveja', 'barril de vinho'],
   caixa: ['caixote', 'engradado', 'caixa de madeira'],

@@ -102,7 +102,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha e banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa', 'Descanso e brincadeira', 'Cidade e vila']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha', 'Banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa', 'Descanso e brincadeira', 'Cidade e vila']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -290,20 +290,25 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 241 objetos nas 22 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 253 objetos nas 23 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
     expect(radiosDe('Objeto', 'Colocar').map((r) => r.getAttribute('aria-label'))).toEqual(['Móvel', 'Imagem'])
     const radios = radiosDoObjeto()
-    // As mesmas partes da ficha da ferramenta (10/11/2026): a casa em Sala e quarto, Cozinha e banheiro e Armazenagem.
+    // As mesmas partes da ficha da ferramenta (10/11/2026): a casa em Sala e quarto, Cozinha (e, desde 15/11/2026, Banheiro) e Armazenagem.
     // CONSTRUÇÕES (12/11/2026, decisão do mestre): as 19 construções (torres, moinho, mausoléu, poço, chafariz,
     // estátua, tendas...) saíram do Objeto para a ferramenta Construção (`lib/mobilia/construcoes.ts`): 176 - 19 = 157.
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
       'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Cama', 'Aparador', 'Tapete', 'Tapete longo', 'Lareira', 'Estante de livros', 'Guarda-roupa',
       'Escrivaninha', 'Criado-mudo com vela', 'Cama de casal', 'Berço', 'Banqueta', 'Biombo', 'Piano', 'Candelabro de chão',
-      'Armário de cozinha', 'Balcão', 'Fogão', 'Geladeira', 'Pia', 'Pratos', 'Privada', 'Caldeirão', 'Forno de pão',
-      'Banheira', 'Tina de madeira', 'Lavatório com jarro', 'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
+      // A Cozinha e o Banheiro se separaram em 15/11/2026, com as 12 peças do banheiro moderno.
+      'Armário de cozinha', 'Balcão', 'Fogão', 'Geladeira', 'Pia', 'Pratos', 'Caldeirão', 'Forno de pão',
+      'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
+      'Privada', 'Vaso sanitário moderno', 'Bidê', 'Suporte de papel',
+      'Banheira', 'Banheira moderna', 'Tina de madeira', 'Box de chuveiro', 'Tapete de banheiro', 'Toalheiro',
+      'Lavatório com jarro', 'Gabinete de banheiro',
+      'Armário de banheiro', 'Prateleira de frascos', 'Cesto de roupa', 'Lixeira de pedal',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
       'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
@@ -353,7 +358,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(241)
+    expect(new Set(desenhos).size).toBe(253)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

@@ -295,6 +295,18 @@ import { montarCasaNaArvore } from './casaNaArvore'
 import { montarPergolaComTrepadeira } from './pergolaComTrepadeira'
 import { montarPortalTorii } from './portalTorii'
 import { montarMuroDeFogo } from './muroDeFogo'
+import { montarVasoSanitarioModerno } from './vasoSanitarioModerno'
+import { montarBide } from './bide'
+import { montarBoxDeChuveiro } from './boxDeChuveiro'
+import { montarBanheiraModerna } from './banheiraModerna'
+import { montarGabineteDeBanheiro } from './gabineteDeBanheiro'
+import { montarArmarioDeBanheiro } from './armarioDeBanheiro'
+import { montarToalheiro } from './toalheiro'
+import { montarCestoDeRoupa } from './cestoDeRoupa'
+import { montarPrateleiraDeFrascos } from './prateleiraDeFrascos'
+import { montarLixeiraDePedal } from './lixeiraDePedal'
+import { montarTapeteDeBanheiro } from './tapeteDeBanheiro'
+import { montarPortaPapel } from './portaPapel'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -652,6 +664,19 @@ const MONTADORES = {
   portalTorii: montarPortalTorii,
   // Muro de fogo (15/11/2026): só a faixa de chão queimado ao longo do traço; as chamas são `pixi/fogosDoMapa.ts`.
   muroDeFogo: montarMuroDeFogo,
+  // O banheiro moderno (15/11/2026): o lote A (as peças grandes) e o lote B (as pequenas).
+  vasoSanitarioModerno: montarVasoSanitarioModerno,
+  bide: montarBide,
+  boxDeChuveiro: montarBoxDeChuveiro,
+  banheiraModerna: montarBanheiraModerna,
+  gabineteDeBanheiro: montarGabineteDeBanheiro,
+  armarioDeBanheiro: montarArmarioDeBanheiro,
+  toalheiro: montarToalheiro,
+  cestoDeRoupa: montarCestoDeRoupa,
+  prateleiraDeFrascos: montarPrateleiraDeFrascos,
+  lixeiraDePedal: montarLixeiraDePedal,
+  tapeteDeBanheiro: montarTapeteDeBanheiro,
+  portaPapel: montarPortaPapel,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -727,6 +752,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'rodaDagua', 'pombal', 'baiaDeCavalo', 'siloDeGraos', 'chiqueiroCercado',
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
   'muroDeFogo',
+  'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
+  'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

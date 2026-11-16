@@ -408,6 +408,19 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       casaNaArvore: ['madeira:pinho'],
       pergolaComTrepadeira: ['madeira:carvalho', 'pedra:arenito'],
       portalTorii: [],
+      // O banheiro moderno (15/11/2026): a louça, o cromo, o vidro e o inox são fixos.
+      vasoSanitarioModerno: [],
+      bide: [],
+      boxDeChuveiro: [],
+      banheiraModerna: ['toalha:azul'],
+      gabineteDeBanheiro: ['madeira:carvalho'],
+      armarioDeBanheiro: ['madeira:carvalho', 'toalha:linho'],
+      toalheiro: ['toalha:azul'],
+      cestoDeRoupa: ['trama:linho', 'roupa:azul'],
+      prateleiraDeFrascos: [],
+      lixeiraDePedal: [],
+      tapeteDeBanheiro: ['tecido:azul'],
+      portaPapel: [],
     })
   })
 

@@ -72,6 +72,9 @@ export const PECAS_NOVAS = [
   'carrossel', 'tendaDeCirco', 'rodaGigante', 'casaNaArvore', 'pergolaComTrepadeira', 'portalTorii',
   // O muro de fogo (15/11/2026): o fogo traçado (`lib/mobilia/muroDeFogo.ts`).
   'muroDeFogo',
+  // O banheiro moderno (15/11/2026): o lote A (as peças grandes) e o lote B (as pequenas).
+  'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
+  'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -580,6 +583,25 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // O muro de fogo (15/11/2026) nasce do traço do mestre, com o tamanho que o traço der; este é o da troca de tipo
   // no painel (a reta de 3 casas, 1 de grossura).
   muroDeFogo: { rotulo: 'Muro de fogo', artigo: 'um muro de fogo', tamanho: { largura: 3, altura: 1 }, redonda: false },
+  // O banheiro moderno (15/11/2026), lote A. A caixa do vaso, o misturador do bidê, a parede da ducha, o espelho do
+  // gabinete e as costas do armário ficam na beira de cima (contra a parede); a frente de cada um é o lado de baixo. O
+  // vaso novo é mais baixo que a privada antiga, na escala da cadeira e do balcão. A banheira moderna tem o misturador
+  // na ponta da direita e a toalha dobrada na da esquerda.
+  vasoSanitarioModerno: { rotulo: 'Vaso sanitário moderno', artigo: 'um vaso sanitário moderno', tamanho: { largura: 0.5, altura: 0.7 }, redonda: false },
+  bide: { rotulo: 'Bidê', artigo: 'um bidê', tamanho: { largura: 0.42, altura: 0.6 }, redonda: false },
+  boxDeChuveiro: { rotulo: 'Box de chuveiro', artigo: 'um box de chuveiro', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  banheiraModerna: { rotulo: 'Banheira moderna', artigo: 'uma banheira moderna', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  gabineteDeBanheiro: { rotulo: 'Gabinete de banheiro', artigo: 'um gabinete de banheiro', tamanho: { largura: 1, altura: 0.55 }, redonda: false },
+  armarioDeBanheiro: { rotulo: 'Armário de banheiro', artigo: 'um armário de banheiro', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
+  // Lote B. O toalheiro e a prateleira encostam a beira de cima na parede; o cesto é redondo (a manga e a ponta da
+  // toalha que saem da tampa são miúdas); a lixeira recua para trás e deixa o pedal na frente, e o suporte de papel tem
+  // o braço do rolo de lado: os dois não são `redonda`. O tapete mora no chão, como o tapete da sala.
+  toalheiro: { rotulo: 'Toalheiro', artigo: 'um toalheiro', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  cestoDeRoupa: { rotulo: 'Cesto de roupa', artigo: 'um cesto de roupa', tamanho: { largura: 0.5, altura: 0.5 }, redonda: true },
+  prateleiraDeFrascos: { rotulo: 'Prateleira de frascos', artigo: 'uma prateleira de frascos', tamanho: { largura: 1, altura: 0.3 }, redonda: false },
+  lixeiraDePedal: { rotulo: 'Lixeira de pedal', artigo: 'uma lixeira de pedal', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  tapeteDeBanheiro: { rotulo: 'Tapete de banheiro', artigo: 'um tapete de banheiro', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
+  portaPapel: { rotulo: 'Suporte de papel', artigo: 'um suporte de papel', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -864,6 +886,18 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     pergolaComTrepadeira: valor(f.pergolaComTrepadeira),
     portalTorii: valor(f.portalTorii),
     muroDeFogo: valor(f.muroDeFogo),
+    vasoSanitarioModerno: valor(f.vasoSanitarioModerno),
+    bide: valor(f.bide),
+    boxDeChuveiro: valor(f.boxDeChuveiro),
+    banheiraModerna: valor(f.banheiraModerna),
+    gabineteDeBanheiro: valor(f.gabineteDeBanheiro),
+    armarioDeBanheiro: valor(f.armarioDeBanheiro),
+    toalheiro: valor(f.toalheiro),
+    cestoDeRoupa: valor(f.cestoDeRoupa),
+    prateleiraDeFrascos: valor(f.prateleiraDeFrascos),
+    lixeiraDePedal: valor(f.lixeiraDePedal),
+    tapeteDeBanheiro: valor(f.tapeteDeBanheiro),
+    portaPapel: valor(f.portaPapel),
   }
 }
 
@@ -933,6 +967,9 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'arquibancadaDeTorneio', 'licaDeJusta', 'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
   'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
   'ponteLevadica',
+  // O banheiro moderno (15/11/2026), lotes A e B, sem parente antigo: o último bloco do Objeto, antes das construções.
+  'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
+  'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
   // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
@@ -4138,6 +4175,72 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       // Sem o traço do mestre (que só o objeto guarda): a faixa reta pelo lado comprido. Com o traço, quem desenha
       // é `tracosDoGlifo` de `lib/mobilia.ts`, pela conta de `muroDeFogo.ts`.
       return tracosDoMuroDeFogo(largura, altura, undefined)
+    // O banheiro moderno (15/11/2026), lote A: os traços do desenhista.
+    case 'vasoSanitarioModerno':
+      // A caixa baixa no fundo e o assento oval na frente (como a privada, com a caixa mais rasa).
+      return [...quadro(-hw * 0.84, -hh * 0.96, hw * 0.84, -hh * 0.5), ...aro(largura * 0.8, altura * 0.62, 0, hh * 0.28)]
+    case 'bide':
+      // A bacia oval e o misturador no fundo.
+      return [...aro(largura * 0.84, altura * 0.78, 0, hh * 0.12), linha(-hw * 0.18, -hh * 0.8, hw * 0.18)]
+    case 'boxDeChuveiro':
+      // O vidro em volta do piso, a ducha redonda no fundo e a emenda da porta no meio da frente.
+      return [...quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96), ...aro(largura * 0.22, altura * 0.22, 0, -hh * 0.62), { x1: 0, y1: hh * 0.8, x2: 0, y2: hh * 0.96 }]
+    case 'banheiraModerna':
+      // A cuba de cantos redondos dentro do deque e o misturador na ponta da direita.
+      return [...quadro(-hw * 0.8, -hh * 0.66, hw * 0.7, hh * 0.66), ...aro(largura * 0.05, altura * 0.12, hw * 0.86, -hh * 0.3)]
+    case 'gabineteDeBanheiro':
+      // O espelho na beira de trás e a cuba oval no tampo.
+      return [linha(-hw * 0.82, -hh * 0.94, hw * 0.82), ...aro(largura * 0.66, altura * 0.52, 0, hh * 0.08)]
+    case 'armarioDeBanheiro':
+      // O tampo da coluna e o vasinho de planta no canto de trás.
+      return [...quadro(-hw * 0.9, -hh * 0.86, hw * 0.9, hh * 0.86), ...aro(largura * 0.24, largura * 0.24, -hw * 0.52, -hh * 0.42)]
+    // Lote B: as medidas saem das constantes de cada desenho (o toalheiro, a prateleira, a lixeira e o suporte de papel).
+    case 'toalheiro':
+      // Os dois banzos da escada correndo da frente para trás, o degrau de baixo e o de cima, a toalha de banho no
+      // degrau do meio e a de rosto, menor, no degrau da frente dela.
+      return [
+        { x1: -hw * 0.72, y1: hh * 0.58, x2: -hw * 0.72, y2: -hh * 0.64 },
+        { x1: hw * 0.72, y1: hh * 0.58, x2: hw * 0.72, y2: -hh * 0.64 },
+        linha(-hw * 0.72, hh * 0.36, hw * 0.72),
+        linha(-hw * 0.72, -hh * 0.45, hw * 0.72),
+        ...quadro(-hw * 0.5, -hh * 0.32, hw * 0.55, -hh * 0.04),
+        ...quadro(-hw * 0.61, 0, hw * 0.23, hh * 0.2),
+      ]
+    case 'cestoDeRoupa':
+      // A tampa redonda, a alça de couro no meio, a manga da camisa saindo na frente e a ponta da toalha atrás.
+      return [
+        ...aro(largura * 0.84, altura * 0.84),
+        linha(-hw * 0.2, 0, hw * 0.2),
+        { x1: hw * 0.42, y1: hh * 0.73, x2: hw * 0.5, y2: hh * 0.96 },
+        { x1: -hw * 0.6, y1: -hh * 0.6, x2: -hw * 0.74, y2: -hh * 0.82 },
+      ]
+    case 'prateleiraDeFrascos':
+      // A tábua de cima, da parede para a frente, com os três frascos; a beira da tábua de baixo, mais funda, com o
+      // sabonete e o pote.
+      return [
+        ...quadro(-hw * 0.93, -hh * 0.81, hw * 0.93, hh * 0.2),
+        linha(-hw * 0.93, hh * 0.88, hw * 0.93),
+        ...[-0.62, -0.4, 0.6].flatMap((f) => aro(altura * 0.5, altura * 0.5, hw * f, -hh * 0.3)),
+        ...[-0.3, 0.24].flatMap((f) => aro(altura * 0.5, altura * 0.5, hw * f, hh * 0.54)),
+      ]
+    case 'lixeiraDePedal':
+      // A tampa redonda recuada para trás, a dobradiça na beira de trás e o pedal saindo na frente.
+      return [
+        ...aro(largura * 0.74, altura * 0.74, 0, -hh * 0.08),
+        linha(-hw * 0.31, -hh * 0.8, hw * 0.31),
+        ...quadro(-hw * 0.22, hh * 0.66, hw * 0.22, hh * 0.92),
+      ]
+    case 'tapeteDeBanheiro':
+      // A beira onde o pelo cai, por dentro da borda (sem franja: é o que o separa do tapete da sala).
+      return quadro(-hw * 0.84, -hh * 0.76, hw * 0.84, hh * 0.76)
+    case 'portaPapel':
+      // A base redonda, o rolo de reserva de cima visto pela boca (com o furo) e o rolo em uso deitado no braço, ao lado.
+      return [
+        ...aro(largura * 0.75, altura * 0.75),
+        ...aro(largura * 0.33, altura * 0.33, -hw * 0.32, -hh * 0.07),
+        ...aro(largura * 0.12, altura * 0.12, -hw * 0.32, -hh * 0.07),
+        ...quadro(-hw * 0.05, -hh * 0.4, hw * 0.46, hh * 0.26),
+      ]
   }
 }
 
