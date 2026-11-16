@@ -204,9 +204,12 @@ test('Lampião criado no editor: de dia não chega à jogadora, à noite chega, 
   await mestre.locator('#lb-rail-panel-room .lb-field').filter({ hasText: 'Ana —' }).getByRole('button', { name: 'Atribuir Lanterna', exact: true }).click()
   await expect(ana.locator('.pp-estado')).toHaveAttribute('data-periodo', 'dia', { timeout: 15_000 })
 
-  // Gesto real: ferramenta Luz, clique no mapa. Desde a Fase 6 (16/11/2026) a ferramenta cria só a luz solta
-  // (4 casas); o lampião de chama é o objeto, e a luz vem dele.
+  // Gesto real: ferramenta Luz, preset Lampião no painel, clique no mapa.
   await pickTool(mestre, 'Luz')
+  const proxima = mestre.getByRole('radiogroup', { name: 'Próxima luz' })
+  if (!(await proxima.isVisible())) await mestre.getByRole('tab', { name: 'Mapa' }).click()
+  await proxima.getByRole('radio', { name: 'Lampião' }).click()
+  await expect(proxima.getByRole('radio', { name: 'Lampião' })).toHaveAttribute('aria-checked', 'true')
   const caixa = await mestre.locator('canvas').first().boundingBox()
   if (caixa === null) throw new Error('canvas sem caixa')
   const camera = await mestre.evaluate(async () => (await import('/src/stores/mapStore.ts')).useMapStore.getState().camera)
@@ -216,7 +219,7 @@ test('Lampião criado no editor: de dia não chega à jogadora, à noite chega, 
   expect(criadas).toHaveLength(1)
   const lampiao = criadas[0]
   expect(lampiao?.acesaEm).toEqual(['tarde', 'noite'])
-  expect(lampiao?.radius).toBe(4 * GRADE)
+  expect(lampiao?.radius).toBe(3.5 * GRADE)
   const idDoLampiao = lampiao?.id
 
   // De dia: a luz existe no mestre, mas não chega à Ana.
