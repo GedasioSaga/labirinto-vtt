@@ -6,6 +6,7 @@ import { buildRoomFromDraft } from '../lib/drawingFactory'
 import { EMPTY_SELECTION, selectionOfItem } from '../lib/selectionModel'
 import {
   SHAPES_LAYERS,
+  contornoDoGrupoAparece,
   createChangeGate,
   createShapesRedrawer,
   paintedTextLayer,
@@ -519,5 +520,29 @@ describe('createShapesRedrawer', () => {
   it('camada de texto pintada pede a sincronização da resolução dos Text', () => {
     expect(paintedTextLayer(['walls', 'roomNames'])).toBe(true)
     expect(paintedTextLayer(['walls', 'regions', 'lights'])).toBe(false)
+  })
+
+  it('um abismo sozinho na seleção ganha o contorno: aparece ao escolher, segue o arrasto e some ao soltar', () => {
+    // Antes o portão só abria com 2+ itens: o abismo (como o carimbo) escolhido sozinho ficava sem destaque nenhum.
+    const { redraw, take } = setup()
+    const boca = [
+      { x: 400, y: 400 },
+      { x: 560, y: 400 },
+      { x: 560, y: 560 },
+      { x: 400, y: 560 },
+    ]
+    const map: MapData = { ...buildMap(), abismos: [{ id: 'fenda', pontos: boca }] }
+    redraw(snapshot(map))
+    take()
+    const sozinho = selectionOfItem({ kind: 'abismo', id: 'fenda' })
+    expect(contornoDoGrupoAparece(sozinho)).toBe(true)
+    expect(redraw(snapshot(map, { selection: sozinho }))).toContain('areaOutline')
+    // O arrasto troca o mapa: o contorno vai junto.
+    const movido: MapData = { ...map, abismos: [{ id: 'fenda', pontos: boca.map((p) => ({ x: p.x + 40, y: p.y })) }] }
+    expect(redraw(snapshot(movido, { selection: sozinho }))).toContain('areaOutline')
+    // Soltar a seleção apaga o contorno.
+    expect(redraw(snapshot(movido))).toContain('areaOutline')
+    // A sala sozinha tem o destaque dela: nada de contorno do grupo.
+    expect(contornoDoGrupoAparece(selectRegion('r1'))).toBe(false)
   })
 })

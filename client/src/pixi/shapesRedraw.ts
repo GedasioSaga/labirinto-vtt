@@ -1,5 +1,5 @@
 import type { MapData } from '../types/map'
-import type { DrawingTool } from '../types/tools'
+import type { DrawingTool, SelectionKind } from '../types/tools'
 import { selectionSingle, type SelectionSet } from '../lib/selectionModel'
 import { pinSizeFloorFor, pinSizeScale } from '../lib/pins'
 import { resolveHighlightedRegionId } from './drawRegions'
@@ -52,6 +52,24 @@ export const SHAPES_LAYERS = [
 ] as const
 
 export type ShapesLayer = (typeof SHAPES_LAYERS)[number]
+
+/**
+ * Os tipos que, sozinhos na seleção, só têm o contorno do grupo como destaque
+ * (sem alça própria) e andam pelo arrasto da seleção (`moveSelectionLive`).
+ */
+export const TIPOS_SO_COM_CONTORNO: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['carimbo', 'pin', 'zone', 'agua', 'barranco', 'abismo'])
+
+/**
+ * O contorno do grupo (`areaOutline`) aparece: com 2+ itens, ou com um sozinho
+ * que não tem outro destaque (`TIPOS_SO_COM_CONTORNO`). O mesmo teste decide o
+ * que pintar e quando o portão abre: com só o de 2+ no portão, o abismo ou o
+ * carimbo escolhido sozinho nunca acordava a camada (16/11/2026).
+ */
+export function contornoDoGrupoAparece(selection: SelectionSet): boolean {
+  if (selection.length > 1) return true
+  const sozinho = selectionSingle(selection)
+  return sozinho !== null && TIPOS_SO_COM_CONTORNO.has(sozinho.kind)
+}
 
 /** Camadas que criam ou mexem em `Text`: pintar uma delas pede sincronizar a resolução dos textos. */
 const TEXT_LAYERS: ReadonlySet<ShapesLayer> = new Set<ShapesLayer>(['mapFrame', 'roomNames', 'nomesDosLugares', 'concealZones', 'pins', 'textLabels'])
@@ -272,7 +290,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
         ? ['alças', snapshot.activeTool, single.kind, single.id, map, cameraScale, rendererResolution, snapshot.rotatingRoom, snapshot.posseDasFichas]
         : ['sem alças']
     case 'areaOutline':
-      return selection.length > 1 ? ['grupo', selection, map] : ['sem grupo']
+      // O item sozinho só com contorno (o abismo, o carimbo, a água...) também: escolher, arrastar e soltar repintam.
+      return contornoDoGrupoAparece(selection) ? ['grupo', selection, map] : ['sem grupo']
   }
 }
 

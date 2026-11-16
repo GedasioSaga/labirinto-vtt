@@ -105,7 +105,7 @@ import { createNomesDosLugaresRenderer } from './drawNomesDosLugares'
 import { lugaresComNome, nomesDosLugaresLigados, regioesSemPilula } from '../lib/nomesDosLugares'
 import { createNuvensRenderer } from './drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
-import { createShapesRedrawer, paintedTextLayer, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
+import { contornoDoGrupoAparece, createShapesRedrawer, paintedTextLayer, TIPOS_SO_COM_CONTORNO, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
 import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
@@ -667,12 +667,6 @@ const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
   barranco: { um: 'risco de barranco', varios: 'riscos de barranco', feminino: false },
   abismo: { um: 'abismo', varios: 'abismos', feminino: false },
 }
-
-/**
- * Os tipos que, sozinhos na seleção, só têm o contorno do grupo como destaque
- * (sem alça própria) e andam pelo arrasto da seleção (`moveSelectionLive`).
- */
-const TIPOS_SO_COM_CONTORNO: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['carimbo', 'pin', 'zone', 'agua', 'barranco', 'abismo'])
 
 /** Os tipos que a cadeia da Borracha geral (`findErasableAt`) não devolve: o Terreno, o pino e a zona têm caminho próprio. */
 type TipoDoTerrenoNaBorracha = 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco' | 'abismo'
@@ -2931,12 +2925,11 @@ function PixiCanvasDoContexto({
         areaOutline: () => {
           const { map, selection } = sceneState()
           // O CARIMBO sozinho também (Fase 2): ele não tem alça nem destaque próprio.
-          // Fase 4: o pino, a zona, a água e o risco do Barranco da seleção comum, idem.
-          const sozinho = selectionSingle(selection)?.kind
-          const comContorno = selection.length > 1 || (sozinho !== undefined && TIPOS_SO_COM_CONTORNO.has(sozinho))
+          // Fase 4: o pino, a zona, a água e o risco do Barranco da seleção comum, idem; e o abismo.
+          // O mesmo teste abre o portão da camada (`shapesRedraw.ts`), senão o item sozinho nunca a acordava.
           drawAreaSelectionOutline(
             areaSelectionOutlineGraphics,
-            comContorno ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
+            contornoDoGrupoAparece(selection) ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
           )
         },
       })
