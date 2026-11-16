@@ -17,7 +17,7 @@ const LINHA_DO_RESUMO = 160
 const resumos = new WeakMap<Verbete, string>()
 
 /** O resumo da forma atual, ou o começo do primeiro texto quando não há resumo. */
-function resumoDe(verbete: Verbete): string {
+export function resumoDe(verbete: Verbete): string {
   const guardado = resumos.get(verbete)
   if (guardado !== undefined) return guardado
   const forma = verbete.formas.find((uma) => uma.id === verbete.formaAtivaId) ?? verbete.formas[0]

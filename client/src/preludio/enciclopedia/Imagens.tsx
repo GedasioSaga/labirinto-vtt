@@ -4,7 +4,7 @@ import type { ImagemDaForma } from '../../lib/preparo/tipos'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
 
 /** As iniciais do nome, para o retrato que não tem imagem ("Monkey D. Luffy" → "ML"). */
-function iniciais(nome: string): string {
+export function iniciais(nome: string): string {
   const palavras = nome.split(/\s+/).filter((palavra) => /\p{L}/u.test(palavra))
   const primeira = palavras[0]?.[0] ?? '?'
   const ultima = palavras.length > 1 ? (palavras[palavras.length - 1]?.[0] ?? '') : ''

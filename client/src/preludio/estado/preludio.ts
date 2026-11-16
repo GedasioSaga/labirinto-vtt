@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { gravarIndiceDoPreparo, gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
 import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib/preparo/revelado'
+import { indiceComAsPastas } from '../../lib/preparo/pastasDeVerbetes'
 import { comEvento, semEvento, tempoVazio } from '../../lib/preparo/sessoes'
-import { ARQUIVO_DO_INDICE, type Campanha, type Evento, type IndiceDoPreparo, type Revelado, type Tempo, type TipoDeVerbete, type Verbete } from '../../lib/preparo/tipos'
+import { ARQUIVO_DO_INDICE, type Campanha, type Evento, type IndiceDoPreparo, type PastaDeVerbetes, type Revelado, type Tempo, type TipoDeVerbete, type Verbete } from '../../lib/preparo/tipos'
 import { registrarSalvarAoFechar } from '../aoFechar'
 import { avisarMudanca } from '../janela/mudancas'
 import type { MudancaNoPreparo } from '../janela/protocolo'
@@ -45,6 +46,8 @@ export type Lugar =
   | { readonly secao: 'sessoes'; readonly sessaoId: string | null; readonly aba?: AbaDaSessao; readonly alvo?: string }
   /** Os quadros (mapa mental); `quadroId` = o quadro aberto no editor; `alvo` = a forma a mostrar ao abrir. */
   | { readonly secao: 'quadros'; readonly quadroId: string | null; readonly alvo?: string }
+  /** Campanhas e sistemas (E3): a pasta de mapas e o sistema de cada campanha. */
+  | { readonly secao: 'campanhas' }
 
 export type AbaDaSessao = 'roteiro' | 'quadro'
 
@@ -80,6 +83,8 @@ export interface RevelacoesDaCampanha {
 interface EstadoDoPreludio {
   carga: Carga
   campanhas: readonly Campanha[]
+  /** As pastas de verbetes guardadas no índice (E3); as do Grimório que ninguém mexeu saem dos verbetes (`pastasDoTipo`). */
+  pastas: readonly PastaDeVerbetes[]
   /** A sessão em jogo ("Jogar esta sessão", P2), do índice; `null` = nenhuma. */
   emJogo: string | null
   verbetes: ReadonlyMap<string, Verbete>
@@ -132,6 +137,17 @@ interface EstadoDoPreludio {
    * por cima do que a outra janela mudou. Devolve o motivo quando não gravou.
    */
   jogarSessao: (sessaoId: string | null) => Promise<string | null>
+  /**
+   * PASTAS DE VERBETES (E3): troca a lista na memória na hora e grava o índice
+   * pelo salvar automático (o mesmo rodapé e o mesmo "Tentar de novo" dos
+   * verbetes). Travado ou fechado: nada muda, e devolve `false`.
+   */
+  mudarPastas: (pastas: readonly PastaDeVerbetes[]) => boolean
+  /**
+   * Muda uma campanha do índice (a pasta de mapas, o sistema; E3) e grava na
+   * hora, sobre o índice relido do disco. Devolve o motivo quando não gravou.
+   */
+  mudarCampanha: (campanhaId: string, mudar: (campanha: Campanha) => Campanha) => Promise<string | null>
   tentarDeNovo: () => void
   /**
    * A restauração vai trocar a pasta preparo/ (o Prelúdio de agora vai inteiro
@@ -189,6 +205,8 @@ let geracao = 0
 const travas = new Set<MotivoDaTrava>()
 
 const AINDA_FALTA = 'Uma mudança do Prelúdio ainda não foi para o disco.'
+/** A chave das pastas em `sujos` (tem `:`, que id de verbete não tem: `gravadoresDeFora`). */
+const CHAVE_DAS_PASTAS = 'indice:pastas'
 
 function situacao(): Salvamento {
   if (ultimaFalha !== null) return { t: 'falhou', motivo: ultimaFalha }
@@ -296,6 +314,40 @@ export function agendarGravacaoDeFora(chave: string, gravarAgora: () => Promise<
  */
 export function gravacaoPendente(chave: string): boolean {
   return sujos.has(chave) || agendados.has(chave) || gravandoPorId.has(chave)
+}
+
+// ─── Índice ──────────────────────────────────────────────────────────────────
+
+/** Uma gravação do índice por vez nesta janela: as pastas e a campanha leem, mudam e gravam o mesmo arquivo. */
+let filaDoIndice: Promise<unknown> = Promise.resolve()
+
+function naVezDoIndice<T>(tarefa: () => Promise<T>): Promise<T> {
+  const minha = filaDoIndice.then(tarefa, tarefa)
+  filaDoIndice = minha.catch(() => undefined)
+  return minha
+}
+
+/** O índice do disco, para mudar e gravar por cima: o que a outra janela gravou nele fica. Lança quando não dá para gravar. */
+async function indiceParaMudar(): Promise<IndiceDoPreparo> {
+  const lido = await lerIndiceDoPreparo()
+  if (lido.estado === 'falhou' || lido.estado === 'somenteLeitura') throw new Error(lido.aviso)
+  return lido.estado === 'novo' ? { formato: ARQUIVO_DO_INDICE.formato, campanhas: [] } : lido.valor
+}
+
+/** As pastas da memória vão para o índice do disco (as campanhas e a sessão em jogo de lá ficam). */
+function gravarAsPastas(): Promise<void> {
+  return naVezDoIndice(async () => {
+    const indice = await indiceParaMudar()
+    await gravarIndiceDoPreparo(indiceComAsPastas(indice, usePreludio.getState().pastas))
+    avisarMudanca({ o: 'indice' })
+  })
+}
+
+/** As pastas do índice lido; as da memória que ainda não gravaram valem mais. */
+function pastasDoIndice(indice: DocumentoLido<IndiceDoPreparo>, naMemoria: readonly PastaDeVerbetes[]): readonly PastaDeVerbetes[] {
+  if (gravacaoPendente(CHAVE_DAS_PASTAS)) return naMemoria
+  if (indice.estado !== 'ok' && indice.estado !== 'somenteLeitura') return []
+  return indice.valor?.pastas ?? []
 }
 
 // ─── Revelado ────────────────────────────────────────────────────────────────
@@ -472,6 +524,7 @@ const INICIO: Lugar = { secao: 'inicio' }
 export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   carga: { t: 'fechada' },
   campanhas: [],
+  pastas: [],
   emJogo: null,
   verbetes: new Map(),
   soLeitura: new Map(),
@@ -496,6 +549,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       const indice = await lerIndiceDoPreparo()
       const campanhas = indice.estado === 'ok' || (indice.estado === 'somenteLeitura' && indice.valor !== null) ? (indice.valor?.campanhas ?? []) : []
       const emJogo = emJogoDoIndice(indice)
+      const pastas = pastasDoIndice(indice, get().pastas)
       const ids = await listarNoPreparo('verbetes')
       const lidos = await Promise.all(ids.map(async (id) => ({ id, lido: await lerVerbete(id) })))
       const verbetes = new Map<string, Verbete>()
@@ -529,7 +583,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       if (minha !== geracao) return
       const guardada = campanhaGuardada()
       const campanhaId = guardada !== null && campanhas.some((campanha) => campanha.id === guardada) ? guardada : null
-      set({ carga: { t: 'pronta' }, campanhas, emJogo, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
+      set({ carga: { t: 'pronta' }, campanhas, pastas, emJogo, verbetes, soLeitura, avisos, versao: get().versao + 1, campanhaId, revelados, avisoDoRevelado: null, tempo, avisoDoTempo: null, salvamento: situacao() })
     } catch (erro) {
       if (minha === geracao) set({ carga: { t: 'falhou', aviso: `Não deu para ler o Prelúdio: ${motivo(erro)}.` } })
     }
@@ -669,7 +723,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       case 'indice': {
         const lido = await lerIndiceDoPreparo()
         if (!aindaValendo() || (lido.estado !== 'ok' && lido.estado !== 'somenteLeitura') || lido.valor === null) return
-        set({ campanhas: lido.valor.campanhas, emJogo: emJogoDoIndice(lido) })
+        set({ campanhas: lido.valor.campanhas, emJogo: emJogoDoIndice(lido), pastas: pastasDoIndice(lido, get().pastas) })
         return
       }
     }
@@ -691,6 +745,30 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       return null
     } catch (erro) {
       return `Não deu para gravar a sessão em jogo: ${motivo(erro)}.`
+    }
+  },
+
+  mudarPastas(pastas) {
+    if (get().carga.t !== 'pronta' || get().travado) return false
+    set({ pastas })
+    return agendarGravacaoDeFora(CHAVE_DAS_PASTAS, gravarAsPastas)
+  },
+
+  async mudarCampanha(campanhaId, mudar) {
+    if (get().carga.t !== 'pronta') return 'O Prelúdio ainda está abrindo.'
+    if (travas.size > 0) return 'O Prelúdio está gravando uma importação ou uma cópia restaurada. Tente de novo quando terminar.'
+    try {
+      return await naVezDoIndice(async () => {
+        const indice = await indiceParaMudar()
+        if (!indice.campanhas.some((campanha) => campanha.id === campanhaId)) return 'Essa campanha não está mais no Prelúdio.'
+        const novo: IndiceDoPreparo = { ...indice, campanhas: indice.campanhas.map((campanha) => (campanha.id === campanhaId ? mudar(campanha) : campanha)) }
+        await gravarIndiceDoPreparo(novo)
+        set({ campanhas: novo.campanhas })
+        avisarMudanca({ o: 'indice' })
+        return null
+      })
+    } catch (erro) {
+      return `Não deu para gravar a campanha: ${motivo(erro)}.`
     }
   },
 

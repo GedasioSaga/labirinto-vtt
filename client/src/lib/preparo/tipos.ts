@@ -72,13 +72,38 @@ export const ORIGEM = objeto({
 
 // ─── Índice: preparo.json ────────────────────────────────────────────────────
 
+export const TIPO_DE_VERBETE = umDe('personagem', 'lugar', 'item', 'faccao', 'pagina', 'sessao')
+
 /** As campanhas são etiquetas (como o "participa" do Grimório); cada uma pode apontar para 1 pasta do Labirinto. */
 export const CAMPANHA = objeto({
   id: texto(),
   nome: texto(),
   /** A pasta de mapas (que é a campanha do Lobby). Ausente = "sem pasta". Só existe no Prelúdio: a reimportação nunca mexe. */
   pastaId: opcional(texto()),
+  /**
+   * O sistema de RPG da campanha SEM pasta de mapas (E3, decisão do mestre de
+   * 16/11): o sistema mora na pasta (`rpg.json`), e a campanha guarda o dela só
+   * enquanto não tem pasta, ou enquanto a pasta escolhida ainda não tem sistema
+   * (`lib/preparo/campanhaESistema.ts`). Id da biblioteca (`stores/rpgStore.ts`
+   * sistemaPorId). Ausente = nenhum. Como o `pastaId`, a reimportação não mexe.
+   */
+  sistemaId: opcional(texto()),
   origem: opcional(ORIGEM),
+})
+
+/**
+ * PASTA DE VERBETES (E3, 16/11): a pasta de verdade da lista de Personagens
+ * (e de Itens e Facções). Um nível só de subpasta. O verbete aponta para ela
+ * pelo `pastaId`; o que veio do Grimório sem `pastaId` mora na pasta que o
+ * `organizacao` dele descreve (`lib/preparo/pastasDeVerbetes.ts`).
+ */
+export const PASTA_DE_VERBETES = objeto({
+  id: texto(),
+  nome: texto(),
+  /** O tipo de verbete que a pasta guarda: a de personagens não aparece em Itens. */
+  tipo: TIPO_DE_VERBETE,
+  /** A pasta de cima; ausente = pasta de cima. */
+  paiId: opcional(texto()),
 })
 
 export const INDICE_DO_PREPARO = objeto({
@@ -91,11 +116,15 @@ export const INDICE_DO_PREPARO = objeto({
    * Campo opcional novo: o formato fica.
    */
   emJogo: opcional(texto()),
+  /**
+   * As pastas de verbetes que o mestre criou, renomeou ou já mexeu (E3). As do
+   * Grimório que ninguém mexeu nem precisam estar aqui: saem do `organizacao`
+   * dos verbetes. Ausente = nenhuma. Campo opcional novo: o formato fica.
+   */
+  pastas: opcional(lista(PASTA_DE_VERBETES)),
 })
 
 // ─── Verbete: verbetes/<id>.json ─────────────────────────────────────────────
-
-export const TIPO_DE_VERBETE = umDe('personagem', 'lugar', 'item', 'faccao', 'pagina', 'sessao')
 
 export const SECAO = objeto({
   /** A seção se revela sozinha (plano: "verbete e partes, uma a uma"), então tem id próprio. */
@@ -207,8 +236,15 @@ export const VERBETE = objeto({
   campanhas: lista(texto()),
   /** Lugar dentro de lugar, página dentro de página. */
   paiId: opcional(texto()),
-  /** No plano sem detalhe ainda: fica guardado como veio até a fatia que o usa. */
+  /** Os nomes das pastas do Grimório onde o verbete morava, de cima para baixo. Fica como veio: a pasta de agora é o `pastaId`. */
   organizacao: opcional(lista(qualquer())),
+  /**
+   * A pasta do verbete na lista (E3), id de `IndiceDoPreparo.pastas`. Ausente
+   * = a pasta que o `organizacao` descreve (o comportamento de antes); `''` =
+   * "Sem pasta" de propósito, mesmo com `organizacao`. Campo opcional novo: o
+   * formato fica.
+   */
+  pastaId: opcional(texto()),
   formas: lista(FORMA),
   formaAtivaId: texto(),
   liga: opcional(LIGA),
@@ -416,6 +452,7 @@ export type Teia = Valor<typeof TEIA>
 export type EntradaDaLixeiraNoPreludio = Valor<typeof ENTRADA_DA_LIXEIRA>
 export type VindosDoGrimorio = Valor<typeof VINDOS_DO_GRIMORIO>
 export type Campanha = Valor<typeof CAMPANHA>
+export type PastaDeVerbetes = Valor<typeof PASTA_DE_VERBETES>
 export type IndiceDoPreparo = Valor<typeof INDICE_DO_PREPARO>
 export type TipoDeVerbete = Valor<typeof TIPO_DE_VERBETE>
 export type Secao = Valor<typeof SECAO>

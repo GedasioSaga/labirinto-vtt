@@ -7,6 +7,7 @@ import { BuscaGeral } from './busca/BuscaGeral'
 import { PainelDaCopia } from './copia/PainelDaCopia'
 import { precarregarEditor } from './editor/sobDemanda'
 import { ListaDeVerbetes } from './enciclopedia/ListaDeVerbetes'
+import { TIPOS_COM_PASTAS, VerbetesEmPastas } from './enciclopedia/pastas/VerbetesEmPastas'
 import { PaginaDoVerbete } from './enciclopedia/PaginaDoVerbete'
 import { Escrita } from './escrita/Escrita'
 import { usePreludio, type Lugar } from './estado/preludio'
@@ -71,6 +72,8 @@ function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined, no
       const nome = lugar.quadroId === null ? undefined : (nomeDoQuadro(lugar.quadroId) ?? 'Quadro')
       return nome === undefined ? ['Quadros'] : ['Quadros', nome || 'Quadro sem nome']
     }
+    case 'campanhas':
+      return ['Campanhas e sistemas']
   }
 }
 
@@ -308,7 +311,11 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
             </p>
           ) : lugar.secao === 'enciclopedia' ? (
             lugar.verbeteId === null ? (
-              <ListaDeVerbetes key={lugar.tipo} tipo={lugar.tipo} />
+              lugar.tipo !== 'todos' && TIPOS_COM_PASTAS.includes(lugar.tipo) ? (
+                <VerbetesEmPastas key={lugar.tipo} tipo={lugar.tipo} />
+              ) : (
+                <ListaDeVerbetes key={lugar.tipo} tipo={lugar.tipo} />
+              )
             ) : (
               <PaginaDoVerbete key={lugar.verbeteId} id={lugar.verbeteId} />
             )
@@ -316,7 +323,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
             <Sessoes sessaoId={lugar.sessaoId} aba={lugar.aba ?? 'roteiro'} alvo={lugar.alvo} />
           ) : lugar.secao === 'quadros' ? (
             <Quadros quadroId={lugar.quadroId} alvo={lugar.alvo} />
-          ) : (
+          ) : lugar.secao === 'campanhas' ? null : (
             <Escrita paginaId={lugar.paginaId} />
           )}
         </main>
