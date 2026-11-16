@@ -1434,7 +1434,12 @@ function desenharJanela(tela: Tela, j: Janela, x: number, y: number, altura: num
   const oy = y + Math.floor((altura - j.h) / 2) - j.oy
   const q = QUADRO_DA_BIBLIOTECA
   const corpo = (p: Posto): [number, number, number, number] => [(p.x + q.esquerda * p.t) * j.escala + ox, (p.y + q.topo * p.t) * j.escala + oy, q.lado * p.t * j.escala, q.lado * p.t * j.escala]
-  for (const p of j.postos) if (p.arte.chao) colarMip(tela, p.arte.corpo, ...corpo(p), recorte, 1, false)
+  // O do chão também soma o brilho (a fenda em brasa, 15/11/2026): o palco soma o de todos (`drawCarimbos.ts`).
+  for (const p of j.postos) {
+    if (!p.arte.chao) continue
+    colarMip(tela, p.arte.corpo, ...corpo(p), recorte, 1, false)
+    if (p.arte.brilho !== null && p.brilho > 0) colarMip(tela, p.arte.brilho, ...corpo(p), recorte, p.brilho, true)
+  }
   const mascara = new Float32Array(j.w * altura)
   const s = QUADRO_DA_SOMBRA
   const amostra = [0, 0, 0, 0]

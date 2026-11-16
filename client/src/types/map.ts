@@ -119,6 +119,9 @@ export type MaterialDaParede =
   | 'sacos-de-areia'
   | 'madeira-gasta'
   | 'troncos'
+  | 'marmore-preto'
+  | 'rocha-de-caverna'
+  | 'azulejo-de-hospital'
 
 /** Preferência da PRÓXIMA parede na ferramenta: o traço de hoje ou a textura do material escolhido. Não vai para o mapa. */
 export type AcabamentoDaParede = 'linhas' | 'textura'

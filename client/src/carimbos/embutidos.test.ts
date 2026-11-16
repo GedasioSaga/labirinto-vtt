@@ -93,7 +93,7 @@ describe('biblioteca de carimbos', () => {
     for (const id of IDS_DOS_EMBUTIDOS) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
   })
 
-  it('os novos de 14/11/2026 vêm depois dos doze, na ordem da lista, com ids da forma do pacote, nenhum repetido', () => {
+  it('os novos de 14/11/2026 vêm depois dos doze, na ordem da lista, e os do lote L3 de 15/11/2026 no fim, com ids da forma do pacote, nenhum repetido', () => {
     expect(IDS_DA_BIBLIOTECA).toEqual([
       ...IDS_DOS_EMBUTIDOS,
       'cerejeira',
@@ -141,6 +141,11 @@ describe('biblioteca de carimbos', () => {
       'planta-carnivora',
       'flor-gigante',
       'arvore-de-doces',
+      // O lote L3 das referências de 15/11/2026.
+      'arbusto-azulado',
+      'cristais-verdes',
+      'fenda-em-brasa',
+      'pedras-de-passo',
     ])
     for (const id of IDS_DA_BIBLIOTECA) expect(id).toMatch(/^[a-z0-9-]{1,40}$/)
     expect(new Set(IDS_DA_BIBLIOTECA).size).toBe(IDS_DA_BIBLIOTECA.length)

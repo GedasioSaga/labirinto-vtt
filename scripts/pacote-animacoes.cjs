@@ -73,7 +73,8 @@ const EMBUTIDAS = {
   porta: ['girar', 'deslizar'],
   cenario: ['panoramica'],
   textura: ['areia', 'duna', 'grama', 'floresta', 'pinheiros', 'pantano', 'terra', 'pedra', 'neve'],
-  // Os 12 de carimbos/embutidos.ts e, depois, os novos de 14/11/2026 (carimbos/novos/index.ts), na ordem do catálogo.
+  // Os 12 de carimbos/embutidos.ts e, depois, os novos de 14/11/2026 e os do lote L3 de 15/11/2026
+  // (carimbos/novos/index.ts), na ordem do catálogo.
   // Menos `girassois` e `girassol`, de propósito: a biblioteca os tem desde 14/11/2026 (o app pula a entrada do
   // pacote, a embutida ganha), mas o pacote continua levando os dois para o app mais velho, que não os tem embutidos.
   carimbo: [
@@ -83,6 +84,7 @@ const EMBUTIDAS = {
     'seixos', 'lama', 'musgo', 'vitoria-regia', 'conchas', 'algas', 'coral', 'cacto', 'cacto-redondo', 'arbusto-que-rola', 'cranio-de-boi',
     'monte-de-neve', 'arvore-congelada', 'bloco-de-gelo', 'cristais', 'estalagmite', 'cogumelos-que-brilham', 'rochedo-com-musgo', 'rocha-vulcanica',
     'raiz-retorcida', 'planta-carnivora', 'flor-gigante', 'arvore-de-doces',
+    'arbusto-azulado', 'cristais-verdes', 'fenda-em-brasa', 'pedras-de-passo',
   ],
   batalha: [],
 }

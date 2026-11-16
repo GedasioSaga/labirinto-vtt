@@ -97,7 +97,10 @@ export interface MaterialDoCatalogo {
  * A ordem é a da tela: o castelo primeiro (o pedido do usuário), as pedras, o barro, as madeiras (a nova, a velha e
  * os troncos), as fibras, o metal e, no fim, a base militar (concreto e sacos de areia). As quatro de 14/11/2026 (a
  * pedra com musgo, a madeira velha, os troncos e as duas da base militar) são do pedido "texturas novas de madeira,
- * pedra, base militar".
+ * pedra, base militar". As três do lote L3 das referências de 15/11/2026 (o mármore preto, a rocha de caverna e o
+ * azulejo de hospital) entram no FIM, e não junto das pedras e do barro: a posição do material na lista entra na
+ * semente das juntas (`pixi/paredeEmPecas.ts`, `topoDoTrecho`), e um material no meio mudaria os blocos de toda
+ * parede já desenhada dos que vêm depois dele.
  */
 export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
   {
@@ -181,6 +184,32 @@ export const MATERIAIS_DA_PAREDE: readonly MaterialDoCatalogo[] = [
     nome: 'Sacos de areia',
     descricao: 'Sacos de juta cor de areia empilhados em fiadas desencontradas, amarrados nas pontas.',
     receita: { fiadasAte: [15, 36], passo: { porFundura: 0, min: 32, max: 32 }, varia: 0.3, funde: 0, junta: 1.4, tremor: 1, bisel: 0, luz: 0.2, sombra: 0.26, face: 'rolica', tampaComBisel: false, detalhe: 'barbante' },
+  },
+  // O Mármore preto (lote L3, 15/11/2026) parte do Castelo: blocos aparelhados, o bloco um pouco mais comprido (o
+  // mármore é serrado em placa), a junta fina e o bisel curto e brilhante da pedra polida.
+  {
+    id: 'marmore-preto',
+    nome: 'Mármore preto',
+    descricao: 'Blocos de mármore negro polido, com veios claros e junta fina.',
+    receita: { fiadasAte: [15, 44], passo: { porFundura: 2.4, min: 18, max: 44 }, varia: 0.35, funde: 0.15, junta: 1, tremor: 0, bisel: 1.4, luz: 0.42, sombra: 0.3, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // A Rocha de caverna (lote L3, 15/11/2026, a parede do chão `rocha-de-caverna`) parte da Pedra rústica, mas em
+  // massas maiores: menos fiadas, a pedra mais comprida e mais fundida com a vizinha, torta, e a luz mais fraca da
+  // rocha escura. Com a pedra menor e a fenda mais larga (a primeira folha, 16/11/2026) a parede lia como cascalho
+  // assentado, não como rocha.
+  {
+    id: 'rocha-de-caverna',
+    nome: 'Rocha de caverna',
+    descricao: 'Rocha bruta e escura, em massas tortas com fendas fundas entre elas.',
+    receita: { fiadasAte: [18, 44], passo: { porFundura: 2, min: 16, max: 44 }, varia: 0.4, funde: 0.3, junta: 1.6, tremor: 1.8, bisel: 2.6, luz: 0.3, sombra: 0.5, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
+  },
+  // O Azulejo de hospital (lote L3, 15/11/2026): azulejo de metro, peças pequenas de 2 por 1 em fiadas desencontradas
+  // (como o Bambu, até cinco fiadas na parede grossa), junta fina e reta, sem tremor, e o vidrado que brilha no bisel.
+  {
+    id: 'azulejo-de-hospital',
+    nome: 'Azulejo de hospital',
+    descricao: 'Azulejos verde-claros e gastos, com rejunte branco.',
+    receita: { fiadasAte: [9, 17, 26, 35], passo: { porFundura: 2, min: 12, max: 22 }, varia: 0.03, funde: 0, junta: 1, tremor: 0, bisel: 0.9, luz: 0.5, sombra: 0.3, face: 'reta', tampaComBisel: true, detalhe: 'nenhum' },
   },
 ]
 

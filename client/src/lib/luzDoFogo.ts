@@ -126,6 +126,13 @@ export const LUZ_DOS_CARIMBOS: Readonly<Record<string, LuzDoCarimbo>> = {
   'cogumelos-que-brilham': { alcanceEmCasas: 1.5, cor: 0xdcf2ea, forca: 0.55, treme: false },
   // A rocha vulcânica: o tom do braseiro, curto, tremendo como brasa (a brasa do desenho pulsa no palco).
   'rocha-vulcanica': { alcanceEmCasas: 1.5, cor: 0xffd29c, forca: 0.6, treme: true },
+  // Lote L3 das referências de 15/11/2026. Os cristais verdes: verde-claro de pedra acesa, parado (luz de cristal
+  // não treme), um tanto mais longe que o cogumelo (são a luz da caverna nas referências). Só tom claro: a luz
+  // multiplica o mapa.
+  'cristais-verdes': { alcanceEmCasas: 2, cor: 0xd4f4d8, forca: 0.6, treme: false },
+  // A fenda em brasa: o claro quente puxado para o vermelho (o pedido é o brilho VERMELHO), tremendo como a rocha.
+  // Mais vermelho que isto apagaria o verde do chão no breu (o recado do `cor` acima).
+  'fenda-em-brasa': { alcanceEmCasas: 1.5, cor: 0xffc8b0, forca: 0.6, treme: true },
 }
 
 /** O carimbo do tipo ilumina? `Object.hasOwn`: o tipo vem do mapa, e `constructor` também tem a forma de um id. */

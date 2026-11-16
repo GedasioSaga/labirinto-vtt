@@ -43,6 +43,10 @@ import { carimbo as raizRetorcida, paleta as paletaDaRaizRetorcida } from './rai
 import { carimbo as plantaCarnivora, paleta as paletaDaPlantaCarnivora } from './plantaCarnivora'
 import { carimbo as florGigante, paleta as paletaDaFlorGigante } from './florGigante'
 import { carimbo as arvoreDeDoces, paleta as paletaDaArvoreDeDoces } from './arvoreDeDoces'
+import { carimbo as arbustoAzulado, paleta as paletaDoArbustoAzulado } from './arbustoAzulado'
+import { carimbo as cristaisVerdes, paleta as paletaDosCristaisVerdes } from './cristaisVerdes'
+import { carimbo as fendaEmBrasa, brilho as brilhoDaFendaEmBrasa, paleta as paletaDaFendaEmBrasa } from './fendaEmBrasa'
+import { carimbo as pedrasDePasso, paleta as paletaDasPedrasDePasso } from './pedrasDePasso'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -83,6 +87,13 @@ import { carimbo as arvoreDeDoces, paleta as paletaDaArvoreDeDoces } from './arv
  * `lib/luzDoFogo.ts`, por id), e a rocha tem a BRASA QUE PULSA: o `brilho`, a
  * parte que acende, no mesmo quadro do desenho, somada por cima dele no palco
  * (`pixi/brilhoDosCarimbos.ts`).
+ *
+ * Depois deles, o lote L3 das referências de 15/11/2026 (o que faltava das 4
+ * referências que o mestre mandou, `tmp/referencias-2026-11-15/FALTA.md`,
+ * versões originais): arbusto azulado, cristais verdes, fenda em brasa e
+ * pedras de passo. Os cristais verdes iluminam parados, como os cogumelos (o
+ * brilho pintado no corpo); a fenda ilumina tremendo e tem o `brilho` que
+ * pulsa, como a rocha vulcânica.
  */
 
 export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
@@ -131,6 +142,11 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   plantaCarnivora,
   florGigante,
   arvoreDeDoces,
+  // Lote L3 das referências de 15/11/2026.
+  arbustoAzulado,
+  cristaisVerdes,
+  { ...fendaEmBrasa, brilho: brilhoDaFendaEmBrasa },
+  pedrasDePasso,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -180,4 +196,9 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   ...paletaDaPlantaCarnivora,
   ...paletaDaFlorGigante,
   ...paletaDaArvoreDeDoces,
+  ...paletaDoArbustoAzulado,
+  ...paletaDosCristaisVerdes,
+  // Como a da rocha: só o corpo, sem as cores do `brilho`.
+  ...paletaDaFendaEmBrasa,
+  ...paletaDasPedrasDePasso,
 ]
