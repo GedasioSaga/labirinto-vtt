@@ -19,6 +19,8 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'grama-amarela': 'dac9ac7c8515e7cf93f8d3ef22ac87c6214a501870389a7f5557f7123e3d6218',
   // O Campo morto nasceu depois da F5 (03/11/2026): o hash é o do código que o criou.
   'grama-morta': '89d65339098d4a091ee3b79160c87fc3f6a6db14be322ed30085437826c664f6',
+  // As texturas do lote das referências nasceram depois da F5 (16/11/2026): o hash é o do código que as criou.
+  'grama-escura': 'e32e84d8b1de7c2902a7d8ed8f569efccbe76e7387c92409f1e2e90096a71247',
   floresta: 'd3e6a04ed6ab39fb5d086bd9973bc369503cdbbc4fd011e3e8d594abbf35a9da',
   bosque: '5fc2a6a3de25c32017ab735a103db42cea789881da445e2b6324c5ec8564c95b',
   pinheiros: '279160d3a7f4eea0e5afdb2615b2094cd5752af3439255ac0c138e76c0158c04',
@@ -55,11 +57,22 @@ const HASH_ANTES_DA_F5: Record<string, string> = {
   'basalto-hexagonal': '828f1a64fdd9ff872bac19ec609289f9f728a8c379ac3618c5df87eeae03b989',
   // As Pedras com lama nasceram depois da F5 (15/11/2026): o hash é o do código que as criou.
   'pedras-com-lama': 'fbcdef106776ad415f39dfec0c4744ab5bc880274ec3bd30828bde26de9717a9',
+  'marmore-negro': '1239a9a39ea54e7615c48222f1829133b79222a14bf5c30c696a27143621720d',
+  'moldura-entalhada': '07bd36f0353642afaa1ecc3c5cc685b7bdecf56f2929053af1b6551560076b7e',
   concreto: 'cf339783f28235f312238e747c6ff58d2ff70a277054f90ac31e09f6296b0338',
   'asfalto-faixa': 'e058b8bc85288cccd2befae472706709ed697588feebc7b0ddb899943b280926',
   'lona-camuflagem': 'cafda43d227050997edded6730a2f11aa335e006e2cda1b51fbfbc27ac1e948e',
   'piso-de-borracha': '307df1b0f6739e14c3a42325d74f4e16538ab2b08239dd4da932ca6f1f796136',
   'chapa-de-pouso': '26dc64995856c3d309a6e7fe953a0ebe26e1a0aa1117d87cbeaf502a1cb09d2e',
+  'azulejo-verde': 'af7f6c2f9ddb754929076c175235c40a1586e31dfa9d1b94ca0e95ecbf2dd2c6',
+  'azulejo-branco': '0575f22946d0bfd92fba86a9838f8d89621f7c284fb4927d9e893470f367f3ed',
+  'losangos-bege': '9a7f725241100750c3b5d2b646fbcf0324bd8444321206e9fe7c12abe316f050',
+  'losangos-amarelos': '35cfb2b10296c4fa2122c6adc426be9976aecb3b349c7905c3e8562a8ce24130',
+  'escamas-cinza': 'd90414632024d12081badd756b5e96d8ca0f6ebe37a2a4931653485f42f906c8',
+  estrelinhas: 'ad0fa39a9f6710515a1c0beb05ee4c4c0e3d23b3f77cf1eae1c82e9987a85e32',
+  'bolinhas-pretas': 'e08b89cdfb64a56af870e62f6495ea17fb9c005370aa700a104cce1618716982',
+  'linoleo-verde': '6b738cc88316303b23bc140db5a40f591c96094a9e03de438d1d055306a602e2',
+  'rua-de-tijolos': '7f33a718cb7e4858dd6c09e0273a7dd454b9bee2543baa6658a67a3e508786ed',
 }
 
 async function sha256(bytes: Uint8ClampedArray): Promise<string> {

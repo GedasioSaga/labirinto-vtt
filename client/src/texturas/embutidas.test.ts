@@ -86,11 +86,15 @@ describe('biblioteca inicial de texturas', () => {
     const ids = TEXTURAS_EMBUTIDAS.map((t) => t.id)
     // O Cascalho (CHÃO E CAMINHO, 12/11/2026) logo depois da Terra; os Pisos de madeira, os Pisos de pedra e a Base
     // militar (14/11/2026) no fim, depois do Chão de metal; as Pedras com lama (15/11/2026) no fim dos Pisos de pedra.
+    // O lote das referências (15/11/2026): a Grama escura no fim do Campo, o Mármore negro e a Moldura entalhada no fim
+    // dos Pisos de pedra, e os Pisos de cerâmica, o Linóleo verde e a Rua de tijolos no fim da lista.
     expect(ids).toEqual([
-      'areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis',
+      'areia', 'duna', 'grama', 'grama-amarela', 'grama-morta', 'grama-escura', 'floresta', 'bosque', 'pinheiros', 'chao-de-floresta', 'pantano', 'terra', 'cascalho', 'pedra', 'neve', 'conves', 'lajotas', 'lajotas-escuras', 'calcamento', 'chao-de-metal', 'chao-de-metal-xadrez', 'chao-de-metal-grade', 'chao-de-metal-paineis',
       'assoalho-claro', 'tabua-envernizada', 'taco-espinha', 'parque-cesta', 'madeira-gasta', 'troncos',
-      'paralelepipedo', 'marmore', 'pedra-musgo', 'laje-de-templo', 'rocha-de-caverna', 'basalto-hexagonal', 'pedras-com-lama',
+      'paralelepipedo', 'marmore', 'pedra-musgo', 'laje-de-templo', 'rocha-de-caverna', 'basalto-hexagonal', 'pedras-com-lama', 'marmore-negro', 'moldura-entalhada',
       'concreto', 'asfalto-faixa', 'lona-camuflagem', 'piso-de-borracha', 'chapa-de-pouso',
+      'azulejo-verde', 'azulejo-branco', 'losangos-bege', 'losangos-amarelos', 'escamas-cinza', 'estrelinhas', 'bolinhas-pretas',
+      'linoleo-verde', 'rua-de-tijolos',
     ])
     // As formas de um grupo dividem o nome do cartão; o nome da forma as separa.
     expect(new Set(TEXTURAS_EMBUTIDAS.map(rotulo)).size).toBe(ids.length)
@@ -382,7 +386,7 @@ describe('Campo em duas formas, Verde e Amarelo (pedido de 13/10/2026)', () => {
   it('o ladrilho do Campo não tem marco: borrado em 8% do lado, quase não sobra mancha de luz nem de tom para repetir', () => {
     // O que tem o tamanho de uma moita volta a cada ladrilho (3 casas no mapa) e vira grade. Antes de 10/11/2026 o
     // ladrilho borrado guardava 1,49 nível de luz e 10,5 de tom (R - B) no Verde (4,3 no Amarelo): eram as manchas.
-    for (const id of ['grama', 'grama-amarela']) {
+    for (const id of ['grama', 'grama-amarela', 'grama-escura']) {
       const lado = 128
       const d = pixelsDoLadrilho(texturaDe(id).cor, lado)
       const luz = new Float64Array(lado * lado)
@@ -400,7 +404,28 @@ describe('Campo em duas formas, Verde e Amarelo (pedido de 13/10/2026)', () => {
   it('o Campo declara a vida que o ladrilho deixou de ter (tom largo, moitas e touceiras por posição), e só ele', () => {
     expect(texturaDe('grama').vida).toBeDefined()
     expect(texturaDe('grama-amarela').vida).toBeDefined()
-    expect(TEXTURAS_EMBUTIDAS.filter((t) => t.vida !== undefined).map((t) => t.id)).toEqual(['grama', 'grama-amarela'])
+    expect(texturaDe('grama-escura').vida).toBeDefined()
+    expect(TEXTURAS_EMBUTIDAS.filter((t) => t.vida !== undefined).map((t) => t.id)).toEqual(['grama', 'grama-amarela', 'grama-escura'])
+  })
+
+  it('a Escura (lote das referências, 15/11/2026) é a quarta forma: verde fundo e apagado, com o desenho da Verde', () => {
+    expect(texturaDe('grama-escura').forma).toEqual({ grupo: 'grama', nome: 'Escura' })
+    expect(texturaDe('grama-escura').nome).toBe(texturaDe('grama').nome)
+    expect(texturaDe('grama-escura').escala).toBe(texturaDe('grama').escala)
+    expect(texturaDe('grama-escura').lado).toBe(texturaDe('grama').lado)
+    const verde = mediaELuzes(pixelsDoLadrilho(texturaDe('grama').cor, 128))
+    const escura = mediaELuzes(pixelsDoLadrilho(texturaDe('grama-escura').cor, 128))
+    const luzMedia = (l: readonly number[]) => l.reduce((s, x) => s + x, 0) / l.length
+    // Fundo: bem mais escura que a Verde, sem chegar ao breu (a ficha e a árvore ainda leem por cima).
+    expect(luzMedia(escura.luzes)).toBeLessThan(luzMedia(verde.luzes) - 0.15)
+    expect(luzMedia(escura.luzes)).toBeGreaterThan(0.3)
+    // Verde de grama (nem a mata azulada da Floresta, ~160°, nem oliva), e apagada: no máximo a saturação da Verde.
+    const m = matiz(escura.r, escura.g, escura.b)
+    expect(m).toBeGreaterThan(95)
+    expect(m).toBeLessThan(130)
+    expect(escura.croma).toBeLessThanOrEqual(verde.croma)
+    // O mesmo desenho: tufos e domos nos mesmos lugares.
+    expect(correlacao(escura.luzes, verde.luzes)).toBeGreaterThan(0.85)
   })
 
   it('a Amarela é palha dourada contida (nem limão nem laranja), com a luz e o desenho da Verde', () => {

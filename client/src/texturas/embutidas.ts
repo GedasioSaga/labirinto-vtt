@@ -2,19 +2,28 @@ import { CASCALHO_CASAS, cascalho } from './cascalho'
 import { METAL_CASAS, metalEmChapaXadrez, metalEmGrade, metalEmPaineis, metalEmPlacas } from './chaoDeMetal'
 import { texturaAsfaltoFaixa } from './chaos/asfaltoFaixa'
 import { texturaAssoalhoClaro } from './chaos/assoalhoClaro'
+import { texturaAzulejoBranco, texturaAzulejoVerde } from './chaos/azulejo'
 import { texturaBasaltoHexagonal } from './chaos/basaltoHexagonal'
+import { texturaBolinhasPretas } from './chaos/bolinhas'
 import { texturaChapaDePouso } from './chaos/chapaDePouso'
 import { texturaConcreto } from './chaos/concreto'
+import { texturaEscamasCinza } from './chaos/escamas'
+import { texturaEstrelinhas } from './chaos/estrelinhas'
 import { texturaLajeDeTemplo } from './chaos/lajeDeTemplo'
+import { texturaLinoleoVerde } from './chaos/linoleo'
 import { texturaLonaCamuflagem } from './chaos/lonaCamuflagem'
+import { texturaLosangosAmarelos, texturaLosangosBege } from './chaos/losangos'
 import { texturaMadeiraGasta } from './chaos/madeiraGasta'
 import { texturaMarmore } from './chaos/marmore'
+import { texturaMarmoreNegro } from './chaos/marmoreNegro'
+import { texturaMolduraEntalhada } from './chaos/molduraEntalhada'
 import { texturaParalelepipedo } from './chaos/paralelepipedo'
 import { texturaParqueCesta } from './chaos/parqueCesta'
 import { texturaPedraMusgo } from './chaos/pedraMusgo'
 import { texturaPedrasComLama } from './chaos/pedrasComLama'
 import { texturaPisoDeBorracha } from './chaos/pisoDeBorracha'
 import { texturaRochaDeCaverna } from './chaos/rochaDeCaverna'
+import { texturaRuaDeTijolos } from './chaos/ruaDeTijolos'
 import { texturaTabuaEnvernizada } from './chaos/tabuaEnvernizada'
 import { texturaTacoEspinha } from './chaos/tacoEspinha'
 import { texturaTroncos } from './chaos/troncos'
@@ -190,6 +199,16 @@ const CAMPO_VERDE: CampoVivo = { meio: rgb('#7fc468'), base: rgb('#76c577'), man
  * mais funda. Saturação abaixo da do verde, para o campo seco não gritar.
  */
 const CAMPO_AMARELO: CampoVivo = { meio: rgb('#c4af6f'), base: rgb('#c0af74'), mancha: rgb('#c9b069'), moita: rgb('#a79665') }
+
+/**
+ * A quarta forma, a ESCURA (lote das referências, 15/11/2026: "grama escura"): o gramado úmido e fechado de
+ * cemitério e de quintal à sombra. O mesmo capim da Verde (tufos e domos nos mesmos lugares; a vida do campo por
+ * posição no mapa, como a Verde e a Amarela), num verde fundo e apagado: a luz média cai de ~0,68 para ~0,43 e a
+ * saturação para pouco mais da metade (croma ~0,2), para o campo escuro ler como grama à sombra e não como a mata
+ * azulada da Floresta. Cada cor guarda o papel da par dela na Verde: a base um nada mais azulada, a mancha mais
+ * amarelada, a moita mais funda.
+ */
+const CAMPO_ESCURO: CampoVivo = { meio: rgb('#4f7b49'), base: rgb('#4a7a4f'), mancha: rgb('#58803f'), moita: rgb('#3e6941') }
 
 /**
  * Tufos de lâminas: a grade deles no ladrilho, a chance de cada célula ter um,
@@ -1391,6 +1410,8 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'grama-amarela', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Amarelo' }, cor: gramaNoTom(CAMPO_AMARELO), vida: vidaDoCampo(CAMPO_AMARELO) },
   // O Morto tem o ladrilho maior (a falha não se repete em grade) e o capim na mesma resolução das outras duas.
   { id: 'grama-morta', nome: 'Campo', escala: CAMPO_MORTO_ESCALA, lado: LADO_MAIOR, forma: { grupo: 'grama', nome: 'Morto' }, cor: campoMorto },
+  // A Escura (lote das referências, 15/11/2026: "grama escura"): o capim da Verde num verde fundo, no fim do cartão.
+  { id: 'grama-escura', nome: 'Campo', escala: 30, forma: { grupo: 'grama', nome: 'Escura' }, cor: gramaNoTom(CAMPO_ESCURO), vida: vidaDoCampo(CAMPO_ESCURO) },
   { id: 'floresta', nome: 'Floresta', escala: 40, cor: (u, v) => copas(u, v, FLORESTA) },
   { id: 'bosque', nome: 'Bosque', escala: BOSQUE_ESCALA, lado: LADO_GRANDE, cor: bosque },
   { id: 'pinheiros', nome: 'Pinheiros', escala: 36, cor: (u, v) => copas(u, v, PINHEIROS) },
@@ -1429,12 +1450,27 @@ export const TEXTURAS_EMBUTIDAS: readonly DefinicaoDeTextura[] = [
   { id: 'basalto-hexagonal', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Basalto em colunas' }, cor: texturaBasaltoHexagonal },
   // Pedras com lama (pedido de 15/11/2026: "chão de tijolos de pedra com terra lamacenta cinza"): a sétima forma, no fim do cartão.
   { id: 'pedras-com-lama', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Pedras com lama' }, cor: texturaPedrasComLama },
+  // Lote das referências (15/11/2026, "mármore preto com veios" e "moldura de pedra entalhada"): a oitava e a nona formas.
+  // A Moldura cai na grade (um bloco por casa): pintada numa faixa de uma casa, é a borda lavrada em volta de outro chão.
+  { id: 'marmore-negro', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Mármore negro' }, cor: texturaMarmoreNegro },
+  { id: 'moldura-entalhada', nome: 'Pisos de pedra', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-pedra', nome: 'Moldura entalhada' }, cor: texturaMolduraEntalhada },
   // Base militar (pedido de 14/11/2026, `chaos/`): cinco formas, o Concreto é a padrão.
   { id: 'concreto', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Concreto' }, cor: texturaConcreto },
   { id: 'asfalto-faixa', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Asfalto com faixa' }, cor: texturaAsfaltoFaixa },
   { id: 'lona-camuflagem', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Lona camuflada' }, cor: texturaLonaCamuflagem },
   { id: 'piso-de-borracha', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Piso de borracha' }, cor: texturaPisoDeBorracha },
   { id: 'chapa-de-pouso', nome: 'Base militar', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'base-militar', nome: 'Chapa de pouso' }, cor: texturaChapaDePouso },
+  // Pisos de cerâmica (lote das referências, 15/11/2026, `chaos/`): sete formas, o Azulejo verde é a padrão.
+  { id: 'azulejo-verde', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Azulejo verde' }, cor: texturaAzulejoVerde },
+  { id: 'azulejo-branco', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Azulejo branco' }, cor: texturaAzulejoBranco },
+  { id: 'losangos-bege', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Losangos bege' }, cor: texturaLosangosBege },
+  { id: 'losangos-amarelos', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Losangos amarelos' }, cor: texturaLosangosAmarelos },
+  { id: 'escamas-cinza', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Escamas cinza' }, cor: texturaEscamasCinza },
+  { id: 'estrelinhas', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Estrelinhas' }, cor: texturaEstrelinhas },
+  { id: 'bolinhas-pretas', nome: 'Pisos de cerâmica', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, forma: { grupo: 'pisos-de-ceramica', nome: 'Bolinhas pretas' }, cor: texturaBolinhasPretas },
+  // Linóleo verde e Rua de tijolos (lote das referências, 15/11/2026, `chaos/`): cartões de uma forma (nem cerâmica nem pedra).
+  { id: 'linoleo-verde', nome: 'Linóleo verde', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaLinoleoVerde },
+  { id: 'rua-de-tijolos', nome: 'Rua de tijolos', escala: 64, casas: CASAS_DOS_CHAOS, lado: LADO_MAIOR, cor: texturaRuaDeTijolos },
 ]
 
 /** Ids da biblioteca: o pacote não pode usar (a embutida ganha, como nas animações). */
