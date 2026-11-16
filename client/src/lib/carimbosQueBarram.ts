@@ -77,7 +77,7 @@ export function paredesDosCarimbosQueBarram(lista: readonly Carimbo[] | undefine
   return resposta
 }
 
-const semEscondidosPorLista = new WeakMap<readonly Carimbo[], Map<string, readonly Carimbo[]>>()
+const semEscondidosPorLista = new WeakMap<readonly Carimbo[], Map<string, Carimbo[]>>()
 
 /**
  * A lista sem os carimbos que barram neste piso e que o recorte nunca entrega
@@ -88,14 +88,31 @@ const semEscondidosPorLista = new WeakMap<readonly Carimbo[], Map<string, readon
  */
 export function semCarimbosEscondidos(lista: readonly Carimbo[] | undefined, piso: number, escondido: (c: Carimbo) => boolean): readonly Carimbo[] | undefined {
   if (lista === undefined) return lista
-  const fora = lista.filter((c) => c.barra === true && pisoDe(c) === piso && escondido(c))
+  return semOsCarimbos(lista, lista.filter((c) => c.barra === true && pisoDe(c) === piso && escondido(c)), String(piso))
+}
+
+/**
+ * A lista sem os carimbos com "Tapa a visão" que o recorte nunca entrega ao
+ * jogador (`escondido`, do recorte: camada dele, zona oculta, sala secreta). A
+ * sombra deles contaria que existem (a regra de ouro de `propsQueTapam`, em
+ * `lib/fogFilter.ts`). Não filtra piso: o recorte já passa a lista do piso de
+ * quem olha. Sem nenhum escondido, a MESMA lista; a mesma lista com os mesmos
+ * escondidos, o MESMO array (`trechosDosCarimbosQueTapam` guarda pela referência).
+ */
+export function semCarimbosQueTapamEscondidos(lista: Carimbo[] | undefined, escondido: (c: Carimbo) => boolean): Carimbo[] | undefined {
+  if (lista === undefined) return lista
+  return semOsCarimbos(lista, lista.filter((c) => c.tapaVisao === true && escondido(c)), 'tapa')
+}
+
+/** `lista` sem `fora`, guardada pela lista e pela chave do caso (o piso, ou 'tapa'). Sem `fora`, a própria lista. */
+function semOsCarimbos<L extends readonly Carimbo[]>(lista: L, fora: readonly Carimbo[], caso: string): L | Carimbo[] {
   if (fora.length === 0) return lista
   let porChave = semEscondidosPorLista.get(lista)
   if (porChave === undefined) {
     porChave = new Map()
     semEscondidosPorLista.set(lista, porChave)
   }
-  const chave = `${piso}:${fora.map((c) => c.id).join('|')}`
+  const chave = `${caso}:${fora.map((c) => c.id).join('|')}`
   const guardada = porChave.get(chave)
   if (guardada !== undefined) return guardada
   const ids = new Set(fora.map((c) => c.id))
