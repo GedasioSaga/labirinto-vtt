@@ -21,6 +21,7 @@ import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
 import { useMapStore } from '../../stores/mapStore'
 import { ObjetosQueAbrem } from './ObjetosQueAbrem'
+import './paginas.css'
 import './paginaJogos.css'
 
 /**
@@ -151,97 +152,101 @@ function ListaDosJogos({ desafios, props, aoVivo, mapaId, avisoDispensado }: Pro
     abrir(primeiro.id)
   }
 
+  // A margem das páginas Cena, Aventura e Acervo (`.gr-paginas`): sem ela os títulos das seções e os cartões
+  // encostavam na borda do livro (auditoria de 16/11/2026).
   return (
     <>
       <TituloDaPagina titulo="Jogos" sub="Os desafios desta cena: dança, pesca, tiro, fogo e bolha." />
-      {migrados.length > 0 && !avisoDispensado && (
-        <div className="mg-aviso" role="status">
-          <p>
-            {migrados.length === 1 ? '1 pino ▷ deste mapa virou desafio.' : `${migrados.length} pinos ▷ deste mapa viraram desafios.`} Os jogos
-            moram aqui agora; no mapa, cada um aparece como um selo.
-          </p>
-          <Acoes>
-            <Botao variante="latao" tamanho="p" onClick={mostrarMigrados}>
-              Mostrar no mapa
-            </Botao>
-            <Botao variante="fantasma" tamanho="p" onClick={() => dispensarAviso(mapaId)}>
-              Entendi
-            </Botao>
-          </Acoes>
-        </div>
-      )}
+      <div className="lb-zona gr-paginas">
+        {migrados.length > 0 && !avisoDispensado && (
+          <div className="mg-aviso" role="status">
+            <p>
+              {migrados.length === 1 ? '1 pino ▷ deste mapa virou desafio.' : `${migrados.length} pinos ▷ deste mapa viraram desafios.`} Os jogos
+              moram aqui agora; no mapa, cada um aparece como um selo.
+            </p>
+            <Acoes>
+              <Botao variante="latao" tamanho="p" onClick={mostrarMigrados}>
+                Mostrar no mapa
+              </Botao>
+              <Botao variante="fantasma" tamanho="p" onClick={() => dispensarAviso(mapaId)}>
+                Entendi
+              </Botao>
+            </Acoes>
+          </div>
+        )}
 
-      {aoVivo.length > 0 && (
-        <>
-          <h3 className="mg-secao">
-            Ao vivo <small>{aoVivo.length}</small>
-          </h3>
-          <ul className="mg-vivo">
-            {aoVivo.map((s) => (
-              <li key={`${s.jogo}:${s.pinId}`}>
-                <button type="button" className="mg-linha" onClick={() => abrir(s.pinId)}>
-                  <span className="mg-linha__med">
-                    <IconeDoJogo jogo={s.jogo} />
-                  </span>
-                  <span className="mg-linha__nome">
-                    <span className="mg-pulsando" aria-hidden="true" /> {nomeDe(s.pinId) ?? nomeDoJogo(s.jogo)}
-                  </span>
-                  <span className="mg-linha__seta">
-                    <Seta />
-                  </span>
-                  <span className="mg-linha__onde">
-                    {TEXTO_DA_FASE[s.fase] ?? s.fase} · {s.jogadores === 1 ? '1 jogador' : `${s.jogadores} jogadores`}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <h3 className="mg-secao">
-        Desafios <small>{desafios.length}</small>
-      </h3>
-      {desafios.length === 0 ? (
-        <p className="mg-vazio">Nenhum desafio nesta cena. Crie um e marque onde ele acontece: um ponto do mapa ou um objeto.</p>
-      ) : (
-        <ul className="mg-lista">
-          {desafios.map((desafio) => {
-            const falta = faltaNoLugar(desafio, props)
-            const temTags = desafio.eraPino !== undefined || emJogo.has(desafio.id) || falta !== null
-            return (
-              <li key={desafio.id}>
-                <button type="button" className="mg-linha" onClick={() => abrir(desafio.id)}>
-                  <span className="mg-linha__med">
-                    <IconeDoJogo jogo={desafio.minigame.jogo} />
-                  </span>
-                  <span className="mg-linha__nome">{desafio.nome}</span>
-                  <span className="mg-linha__seta">
-                    <Seta />
-                  </span>
-                  <span className="mg-linha__onde">
-                    {nomeDoJogo(desafio.minigame.jogo)} · {textoDoLugar(desafio, props)}
-                  </span>
-                  {temTags && (
-                    <span className="mg-linha__tags">
-                      {desafio.eraPino !== undefined && <span className="mg-tag mg-tag--latao">Era pino ▷</span>}
-                      {emJogo.has(desafio.id) && <span className="mg-tag mg-tag--feito">Em jogo</span>}
-                      {falta !== null && <span className="mg-tag mg-tag--perigo">{falta}</span>}
+        {aoVivo.length > 0 && (
+          <>
+            <h3 className="mg-secao">
+              Ao vivo <small>{aoVivo.length}</small>
+            </h3>
+            <ul className="mg-vivo">
+              {aoVivo.map((s) => (
+                <li key={`${s.jogo}:${s.pinId}`}>
+                  <button type="button" className="mg-linha" onClick={() => abrir(s.pinId)}>
+                    <span className="mg-linha__med">
+                      <IconeDoJogo jogo={s.jogo} />
                     </span>
-                  )}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      <div className="mg-nota-pe">
-        <Botao variante="latao" largo onClick={criar}>
-          Novo desafio
-        </Botao>
-      </div>
+                    <span className="mg-linha__nome">
+                      <span className="mg-pulsando" aria-hidden="true" /> {nomeDe(s.pinId) ?? nomeDoJogo(s.jogo)}
+                    </span>
+                    <span className="mg-linha__seta">
+                      <Seta />
+                    </span>
+                    <span className="mg-linha__onde">
+                      {TEXTO_DA_FASE[s.fase] ?? s.fase} · {s.jogadores === 1 ? '1 jogador' : `${s.jogadores} jogadores`}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
 
-      <ObjetosQueAbrem props={props} />
+        <h3 className="mg-secao">
+          Desafios <small>{desafios.length}</small>
+        </h3>
+        {desafios.length === 0 ? (
+          <p className="mg-vazio">Nenhum desafio nesta cena. Crie um e marque onde ele acontece: um ponto do mapa ou um objeto.</p>
+        ) : (
+          <ul className="mg-lista">
+            {desafios.map((desafio) => {
+              const falta = faltaNoLugar(desafio, props)
+              const temTags = desafio.eraPino !== undefined || emJogo.has(desafio.id) || falta !== null
+              return (
+                <li key={desafio.id}>
+                  <button type="button" className="mg-linha" onClick={() => abrir(desafio.id)}>
+                    <span className="mg-linha__med">
+                      <IconeDoJogo jogo={desafio.minigame.jogo} />
+                    </span>
+                    <span className="mg-linha__nome">{desafio.nome}</span>
+                    <span className="mg-linha__seta">
+                      <Seta />
+                    </span>
+                    <span className="mg-linha__onde">
+                      {nomeDoJogo(desafio.minigame.jogo)} · {textoDoLugar(desafio, props)}
+                    </span>
+                    {temTags && (
+                      <span className="mg-linha__tags">
+                        {desafio.eraPino !== undefined && <span className="mg-tag mg-tag--latao">Era pino ▷</span>}
+                        {emJogo.has(desafio.id) && <span className="mg-tag mg-tag--feito">Em jogo</span>}
+                        {falta !== null && <span className="mg-tag mg-tag--perigo">{falta}</span>}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <div className="mg-nota-pe">
+          <Botao variante="latao" largo onClick={criar}>
+            Novo desafio
+          </Botao>
+        </div>
+
+        <ObjetosQueAbrem props={props} />
+      </div>
     </>
   )
 }
