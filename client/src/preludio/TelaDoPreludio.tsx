@@ -6,6 +6,7 @@ import type { Campanha, LigaCena } from '../lib/preparo/tipos'
 import { BuscaGeral } from './busca/BuscaGeral'
 import { PainelDaCopia } from './copia/PainelDaCopia'
 import { precarregarEditor } from './editor/sobDemanda'
+import { CampanhasESistemas } from './campanhas/CampanhasESistemas'
 import { ListaDeVerbetes } from './enciclopedia/ListaDeVerbetes'
 import { TIPOS_COM_PASTAS, VerbetesEmPastas } from './enciclopedia/pastas/VerbetesEmPastas'
 import { PaginaDoVerbete } from './enciclopedia/PaginaDoVerbete'
@@ -323,7 +324,9 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
             <Sessoes sessaoId={lugar.sessaoId} aba={lugar.aba ?? 'roteiro'} alvo={lugar.alvo} />
           ) : lugar.secao === 'quadros' ? (
             <Quadros quadroId={lugar.quadroId} alvo={lugar.alvo} />
-          ) : lugar.secao === 'campanhas' ? null : (
+          ) : lugar.secao === 'campanhas' ? (
+            <CampanhasESistemas naJanela={naJanela === true} />
+          ) : (
             <Escrita paginaId={lugar.paginaId} />
           )}
         </main>

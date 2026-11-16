@@ -162,17 +162,33 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
         <p className="pr-lado__subtitulo">{SUBTITULO_DO_PRELUDIO}</p>
       </div>
 
-      <label className="pr-campo">
-        <span className="pr-campo__rotulo">Campanha</span>
-        <select className="pr-campo__entrada" value={campanhaId ?? ''} disabled={campanhas.length === 0} onChange={(evento) => escolherCampanha(evento.target.value === '' ? null : evento.target.value)}>
-          <option value="">Todas</option>
-          {campanhas.map((campanha) => (
-            <option key={campanha.id} value={campanha.id}>
-              {campanha.nome}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="pr-lado__campanha">
+        <label className="pr-campo">
+          <span className="pr-campo__rotulo">Campanha</span>
+          <select className="pr-campo__entrada" value={campanhaId ?? ''} disabled={campanhas.length === 0} onChange={(evento) => escolherCampanha(evento.target.value === '' ? null : evento.target.value)}>
+            <option value="">Todas</option>
+            {campanhas.map((campanha) => (
+              <option key={campanha.id} value={campanha.id}>
+                {campanha.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="gr-bt gr-bt--ic pr-lado__engrenagem"
+          aria-label="Campanhas e sistemas"
+          title="Campanhas e sistemas"
+          aria-current={lugar.secao === 'campanhas' ? 'page' : undefined}
+          disabled={!pronta}
+          onClick={() => ir({ secao: 'campanhas' })}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="10" r="2.6" />
+            <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />
+          </svg>
+        </button>
+      </div>
 
       <button type="button" className="pr-lado__busca" onClick={aoBuscar} disabled={!pronta}>
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">

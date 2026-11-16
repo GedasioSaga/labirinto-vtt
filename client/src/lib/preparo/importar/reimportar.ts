@@ -25,7 +25,7 @@ import type { PlanoDaImportacao } from './relatorio'
  * `origem` (onde mora o próprio hash), `formato` e o que muda sem ser edição:
  * - no texto, o que o editor acrescenta sozinho ao abrir (`projetarDocumento`);
  * - no quadro, a vista do tldraw (`tldraw.session`: câmera, ferramenta escolhida);
- * - na campanha, o `pastaId`, que só existe no Prelúdio.
+ * - na campanha, o `pastaId` e o `sistemaId`, que só existem no Prelúdio.
  * Quem salva no Prelúdio (F2, F3) compara com estas mesmas funções.
  */
 
@@ -161,7 +161,7 @@ export function hashDaLigacao(ligacao: Ligacao): Promise<string> {
 }
 
 export function hashDaCampanha(campanha: Campanha): Promise<string> {
-  return hashDe(CAMPANHA.gravar(campanha), ['origem', 'pastaId'], false)
+  return hashDe(CAMPANHA.gravar(campanha), ['origem', 'pastaId', 'sistemaId'], false)
 }
 
 interface ComOrigem {
@@ -336,9 +336,10 @@ function mesclar<T>(atuais: readonly T[], novos: readonly T[], plano: Reimportac
   return saida
 }
 
-/** A campanha trocada guarda a pasta do Labirinto que o mestre ligou no Prelúdio (passo 8). */
+/** A campanha trocada guarda a pasta do Labirinto que o mestre ligou no Prelúdio (passo 8) e o sistema que ele escolheu (E3). */
 function comAPastaDoMestre(atual: Campanha, nova: Campanha): Campanha {
-  return atual.pastaId === undefined ? nova : { ...nova, pastaId: atual.pastaId }
+  const comPasta = atual.pastaId === undefined ? nova : { ...nova, pastaId: atual.pastaId }
+  return atual.sistemaId === undefined ? comPasta : { ...comPasta, sistemaId: atual.sistemaId }
 }
 
 /**
