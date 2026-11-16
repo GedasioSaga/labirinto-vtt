@@ -7,7 +7,7 @@ import { useCadernos, useNovoCaderno } from './escrita/Escrita'
 import { usePreludio } from './estado/preludio'
 import { useQuadros } from './quadro/estadoDosQuadros'
 import { useNovoQuadro, useQuadrosSoltos } from './quadro/Quadros'
-import { useNovaSessao, useSessoes } from './sessoes/Sessoes'
+import { useNovaSessao, useOrdemNaLista, useSessoes } from './sessoes/Sessoes'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
 /**
@@ -15,9 +15,6 @@ import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
  * a busca, as seções (Início, Sessões, Quadros, Enciclopédia por tipo, Escrita
  * em árvore) e, embaixo, se está tudo salvo.
  */
-
-/** Quantas sessões a barra mostra: as últimas, a mais recente embaixo, junto do "+ Nova sessão". */
-const SESSOES_NA_BARRA = 5
 
 function itensDosCadernos(nos: readonly NoDaArvore[]): ItemDaArvore[] {
   return nos.map((no) => ({ id: no.verbete.id, rotulo: no.verbete.titulo || 'Sem nome', filhos: itensDosCadernos(no.filhos) }))
@@ -105,10 +102,22 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const novoQuadro = useNovoQuadro()
   const titulo = useRef<HTMLHeadingElement>(null)
   const voltar = useRef<HTMLButtonElement>(null)
+  const listaDasSessoes = useRef<HTMLUListElement>(null)
+  const ordem = useOrdemNaLista(sessoes, listaDasSessoes)
+  const sessaoAberta = lugar.secao === 'sessoes' ? lugar.sessaoId : null
 
   useEffect(() => {
     titulo.current?.focus({ preventScroll: true })
   }, [])
+
+  // Todas as sessões, com rolagem própria (pedido de 16/11): a aberta fica à vista; sem nenhuma aberta, a lista mostra o fim (a mais recente, junto do "+ Nova sessão").
+  useEffect(() => {
+    const lista = listaDasSessoes.current
+    if (lista === null) return
+    const aberta = sessaoAberta === null ? undefined : [...lista.querySelectorAll<HTMLElement>('[data-sessao-id]')].find((botao) => botao.dataset.sessaoId === sessaoAberta)
+    if (aberta !== undefined) aberta.scrollIntoView({ block: 'nearest' })
+    else lista.scrollTop = lista.scrollHeight
+  }, [sessaoAberta, sessoes.length])
 
   // Ficar devolve o foco ao Voltar, de onde a pergunta saiu (senão ele cairia no body).
   const saidaDoRodape: SaidaPendente | undefined =
@@ -135,8 +144,6 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   }, [verbetes, campanhaId])
   const itensDaEscrita = useMemo(() => itensDosCadernos(cadernos), [cadernos])
 
-  const sessoesNaBarra = sessoes.slice(-SESSOES_NA_BARRA)
-  const sessaoAberta = lugar.secao === 'sessoes' ? lugar.sessaoId : null
   const naEnciclopedia = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo && lugar.verbeteId === null
   const doTipoAberto = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo
 
@@ -198,14 +205,29 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
               <span className="pr-nav__conta">{sessoes.length}</span>
             </button>
           </li>
-          {sessoesNaBarra.map((sessao) => (
-            <li key={sessao.id}>
-              <button type="button" className="pr-nav__item" aria-current={sessaoAberta === sessao.id ? 'page' : undefined} title={sessao.titulo || 'Sessão sem nome'} onClick={() => ir({ secao: 'sessoes', sessaoId: sessao.id })}>
-                <span className="pr-nav__nome">{sessao.titulo || 'Sessão sem nome'}</span>
-              </button>
-            </li>
-          ))}
         </ul>
+        {sessoes.length > 0 && (
+          <ul className="pr-nav__lista pr-nav__lista--sessoes" ref={listaDasSessoes} aria-label="Sessões, da primeira à mais recente">
+            {sessoes.map((sessao, indice) => (
+              <li key={sessao.id} className="pr-nav__linha" {...ordem.daLinha(sessao.id, indice)}>
+                <button
+                  type="button"
+                  className="pr-nav__item"
+                  data-sessao-id={sessao.id}
+                  aria-current={sessaoAberta === sessao.id ? 'page' : undefined}
+                  title={ordem.podeMover ? `${sessao.titulo || 'Sessão sem nome'} (arraste, ou Alt+↑/↓, para mudar a ordem)` : sessao.titulo || 'Sessão sem nome'}
+                  onClick={() => ir({ secao: 'sessoes', sessaoId: sessao.id })}
+                  onKeyDown={(evento) => ordem.aoTeclar(sessao.id, indice, evento)}
+                >
+                  <span className="pr-nav__nome">{sessao.titulo || 'Sessão sem nome'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="pr-sr" role="status">
+          {ordem.anuncio}
+        </p>
         <button type="button" className="pr-nav__novo" disabled={!pronta || travado} onClick={() => void novaSessao()}>
           + Nova sessão
         </button>

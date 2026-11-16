@@ -13,6 +13,10 @@
 .pr-sessoes__explica { margin: 0; max-width: 60ch; font-size: var(--lb-font-size-sm); line-height: 1.5; color: var(--lb-color-parchment-dim); }
 .pr-sessoes__lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--lb-gr-filete); }
 .pr-sessoes__lista > li { border-bottom: 1px solid var(--lb-gr-filete); }
+/* Organizar (pedido de 16/11), como na barra lateral: a linha levada apagada e o fio de latão onde ela cai, sem animação. */
+.pr-sessoes__lista > li[data-arrastada] { opacity: 0.45; }
+.pr-sessoes__lista > li[data-solta='antes'] { box-shadow: inset 0 2px 0 var(--lb-color-brass); }
+.pr-sessoes__lista > li[data-solta='depois'] { box-shadow: inset 0 -2px 0 var(--lb-color-brass); }
 .pr-sessoes__item {
   width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--lb-space-3); row-gap: 2px;
   padding: var(--lb-space-3) var(--lb-space-2); border: 0; border-radius: var(--lb-radius-sm);

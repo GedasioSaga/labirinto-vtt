@@ -54,6 +54,49 @@ export function ordemDaProximaSessao(verbetes: Iterable<Verbete>, agora: number)
   return Math.max(agora, maior + 1)
 }
 
+/**
+ * As réguas de uma lista já em ordem, crescentes e sem repetir: a que falta
+ * (sessão do Grimório sem data, sempre no começo) nasce logo antes da primeira
+ * que existe; a repetida anda 1 ms para frente. A ordem que se vê não muda.
+ */
+function reguasCrescentes(valores: readonly (number | undefined)[]): number[] {
+  const primeira = valores.findIndex((valor) => valor !== undefined)
+  const inicio = primeira === -1 ? 1 : (valores[primeira] ?? 0) - primeira
+  const reguas: number[] = []
+  for (const [indice, valor] of valores.entries()) {
+    const anterior = reguas[indice - 1]
+    const candidata = valor ?? (anterior === undefined ? inicio : anterior + 1)
+    reguas.push(anterior === undefined ? candidata : Math.max(candidata, anterior + 1))
+  }
+  return reguas
+}
+
+/**
+ * O mestre leva a sessão da posição `de` para `para` na lista que vê (pedido de
+ * 16/11: "quero poder organizar eu mesmo"). As sessões da lista trocam de lugar
+ * entre si usando as réguas que já tinham: com o filtro numa campanha, as de
+ * outra não mudam de posição em relação a elas, e a última da lista continua
+ * sendo a "Mais recente". Devolve só as que precisam gravar `extras.ordem`.
+ */
+export function ordensAoMover(sessoes: readonly Verbete[], de: number, para: number): Map<string, number> {
+  const novas = new Map<string, number>()
+  const levada = sessoes[de]
+  if (levada === undefined || para < 0 || para >= sessoes.length || de === para) return novas
+  const reguas = reguasCrescentes(sessoes.map(ordemDaSessao))
+  const movidas = sessoes.filter((_, indice) => indice !== de)
+  movidas.splice(para, 0, levada)
+  for (const [indice, sessao] of movidas.entries()) {
+    const regua = reguas[indice]
+    if (regua !== undefined && ordemDe(sessao) !== regua) novas.set(sessao.id, regua)
+  }
+  return novas
+}
+
+/** A sessão com a ordem gravada em `extras.ordem` (o resto dos extras fica como estava). */
+export function comOrdem(sessao: Verbete, ordem: number): Verbete {
+  return ordemDe(sessao) === ordem ? sessao : { ...sessao, extras: { ...sessao.extras, ordem } }
+}
+
 /** "Sessão 4" quando já há 3: o nome da próxima. */
 export function nomeDaProximaSessao(sessoes: readonly Verbete[]): string {
   return `Sessão ${sessoes.length + 1}`

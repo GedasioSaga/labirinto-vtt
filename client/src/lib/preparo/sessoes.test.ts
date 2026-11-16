@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { alvoDaForma, alvoDaSecao, alvoDoVerbete, revelacoesPorAlvo, reveladoVazio } from './revelado'
-import { alvoDaMesa, alvosParaRevelar, comEvento, eventoDoAcontecimento, ligacoesDaMesa, ordemDaProximaSessao, semEvento, sessoesEmOrdem, situacaoDoItem, tempoVazio } from './sessoes'
+import { alvoDaMesa, alvosParaRevelar, comEvento, comOrdem, eventoDoAcontecimento, ligacoesDaMesa, ordemDaProximaSessao, ordensAoMover, semEvento, sessoesEmOrdem, situacaoDoItem, tempoVazio } from './sessoes'
 import type { Forma, Revelacao, TextoRico, Verbete } from './tipos'
 
 const VAZIO: TextoRico = { type: 'doc', content: [] }
@@ -126,5 +126,47 @@ describe('Ordem das sessões', () => {
     expect(ordem).toBe(agora + 6)
     const nova = verbete('s10', 'A Fuga', { tipo: 'sessao', extras: { ordem } })
     expect(sessoesEmOrdem([...antigas, nova], 'camp-ilha').map((sessao) => sessao.id)).toEqual(['s9', 's10'])
+  })
+
+  /** Grava as ordens novas e relê a lista, como a tela faz depois de arrastar. */
+  function moverEReler(sessoes: readonly Verbete[], campanhaId: string | null, de: number, para: number): Verbete[] {
+    const naTela = sessoesEmOrdem(sessoes, campanhaId)
+    const novas = ordensAoMover(naTela, de, para)
+    return sessoesEmOrdem(
+      sessoes.map((sessao) => {
+        const ordem = novas.get(sessao.id)
+        return ordem === undefined ? sessao : comOrdem(sessao, ordem)
+      }),
+      campanhaId,
+    )
+  }
+
+  it('o mestre organiza (pedido de 16/11): a ordem nova fica gravada em extras.ordem, as do Grimório sem data e as repetidas incluídas, e a última é a mais recente', () => {
+    const sessoes = [
+      verbete('s2', 'Sessão 2', { tipo: 'sessao' }),
+      verbete('s10', 'Sessão 10', { tipo: 'sessao' }),
+      verbete('s-a', 'Alabasta', { tipo: 'sessao', extras: { ordem: 1000, criadoEm: 'fica' } }),
+      verbete('s-b', 'Baratie', { tipo: 'sessao', extras: { ordem: 1000 } }),
+    ]
+    // A primeira vai para o fim: vira a mais recente, e os outros extras do verbete ficam.
+    const depois = moverEReler(sessoes, 'camp-ilha', 0, 3)
+    expect(depois.map((sessao) => sessao.id)).toEqual(['s10', 's-a', 's-b', 's2'])
+    expect(depois.at(-1)?.extras).toEqual({ ordem: 1001 })
+    expect(depois.find((sessao) => sessao.id === 's-a')?.extras).toEqual({ ordem: 999, criadoEm: 'fica' })
+    // Relida do disco (só extras.ordem), continua igual; e devolver a mais recente para o começo também grava.
+    expect(moverEReler(depois, 'camp-ilha', 3, 0).map((sessao) => sessao.id)).toEqual(['s2', 's10', 's-a', 's-b'])
+    expect(ordensAoMover(depois, 1, 1).size).toBe(0)
+  })
+
+  it('com o filtro numa campanha, as sessões dela trocam de lugar entre si e a de outra campanha não muda de posição', () => {
+    const sessoes = [
+      verbete('s1', 'Sessão 1', { tipo: 'sessao', extras: { ordem: 10 } }),
+      verbete('s-fora', 'Outra', { tipo: 'sessao', campanhas: ['camp-outra'], extras: { ordem: 20 } }),
+      verbete('s2', 'Sessão 2', { tipo: 'sessao', extras: { ordem: 30 } }),
+      verbete('s3', 'Sessão 3', { tipo: 'sessao', extras: { ordem: 40 } }),
+    ]
+    const depois = moverEReler(sessoes, 'camp-ilha', 2, 0)
+    expect(depois.map((sessao) => sessao.id)).toEqual(['s3', 's1', 's2'])
+    expect(sessoesEmOrdem(depois.concat(sessoes.filter((sessao) => sessao.id === 's-fora')), null).map((sessao) => sessao.id)).toEqual(['s3', 's-fora', 's1', 's2'])
   })
 })
