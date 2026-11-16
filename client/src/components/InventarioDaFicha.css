@@ -188,6 +188,65 @@
   margin-top: var(--lb-space-1);
 }
 
+/* O MESTRE EDITA A MOCHILA (MochilaDoMestre.tsx): o "Editar" da vaga e o "+ Adicionar", no lugar, abaixo da grade. */
+.lb-inv-mestre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+}
+
+.lb-inv-mestre__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-2);
+  margin: 0 var(--lb-space-2);
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-raised);
+}
+
+.lb-inv-mestre__linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-2);
+}
+
+.lb-inv-mestre__linha > .lb-field {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.lb-inv-mestre__qtd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-inv-mestre__qtd .lb-input {
+  width: 72px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-inv-mestre__achados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb-inv-mestre__cat {
+  color: var(--lb-color-parchment-dim);
+}
+
+.lb-inv-mestre__mais {
+  align-self: flex-start;
+  margin: 0 var(--lb-space-2);
+}
+
 /* Telefone: a imagem grande vai para cima do texto. */
 @media (max-width: 420px) {
   .lb-inv__detalhe {

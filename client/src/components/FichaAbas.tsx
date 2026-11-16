@@ -97,9 +97,17 @@ function MochilaNaAbaItens({
     onChange(antes)
     setAntes(null)
   }
+  // Na edição, a grade é a do RASCUNHO, a mesma que a aba conta: depois do "Passar para a mochila" a aba dizia
+  // "Itens 10" e a grade (a mochila gravada, com as ações) mostrava 1 cartão até o Salvar (pedido de 16/11/2026).
+  const grade = editando ? (
+    <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />
+  ) : (
+    (inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />)
+  )
   return (
     <div className="lb-ficha__mochila-na-aba">
-      {inventario ?? <InventarioDaFicha itens={personagem.mochila ?? []} vazio="Nada na mochila. O mestre dá itens pelo Acervo ou pelo livro." />}
+      {grade}
+      {editando && inventario !== undefined && <p className="lb-ficha__vazio">Salve a ficha para usar, editar ou tirar itens da mochila.</p>}
       {cartoesAntigos > 0 && (
         <p className="lb-ficha__vazio">
           {cartoesAntigos === 1 ? '1 cartão antigo desta aba ainda não está na mochila.' : `${cartoesAntigos} cartões antigos desta aba ainda não estão na mochila.`}{' '}

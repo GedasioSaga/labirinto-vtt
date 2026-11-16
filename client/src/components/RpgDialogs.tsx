@@ -9,6 +9,9 @@ import { campanhaDaPasta } from './nuvem/ponteDoLobby'
 import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublicada'
 import { carriedItemsOf, quantidadeDe } from '../lib/items'
 import { tirarDaMochilaDaFicha } from '../lib/mochila/darNaFicha'
+import { fichaComMochila } from '../lib/mochila/juncao'
+import { moedasDe } from '../lib/troca'
+import { MochilaDoMestre } from './MochilaDoMestre'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
 import type { AppliedItems, HostWorld } from '../net/hostSession'
 import type { CarriedItem } from '../types/map'
@@ -217,9 +220,15 @@ function mochilaDaFichaSemBoneco(personagem: Personagem) {
     if (ok) fechar()
     else useToastStore.getState().push('error', `Não deu para tirar ${item.nome} de ${personagem.nome}.`)
   }
+  // O "Editar" e o "+ Adicionar" do mestre (pedido de 16/11/2026): direto na ficha, a dona da mochila.
+  const gravar = (mochila: CarriedItem[]) => useAdventureStore.getState().ajustarPersonagem(personagem.id, (atual) => fichaComMochila(atual, mochila, moedasDe(atual)))
+  const mochilaDeAgora = () => personagensAtivos(useAdventureStore.getState()).find((candidato) => candidato.id === personagem.id)?.mochila ?? []
   return (
-    <InventarioDaFicha
+    <MochilaDoMestre
       itens={personagem.mochila ?? []}
+      dono={personagem.nome || 'o personagem'}
+      gravar={gravar}
+      mochilaDeAgora={mochilaDeAgora}
       vazio={`Nada com ${personagem.nome || 'o personagem'}. Dê um item pelo acervo de itens ou pelo livro.`}
       acoes={(item, fechar) => (
         <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => tirar(item, fechar)}>
@@ -259,29 +268,36 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
     useToastStore.getState().push('info', uso.curou.length === 0 ? `${quem} usou ${item.nome}.` : `${quem} usou ${item.nome}: ${uso.curou.join(', ')} saiu.`)
     if (!uso.mochila.some((vaga) => vaga.id === item.id)) fechar()
   }
+  if (aplicarItens === undefined) return <InventarioDaFicha itens={carriedItemsOf(token)} vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`} />
+  // O "Editar" e o "+ Adicionar" do mestre (pedido de 16/11/2026): pelo caminho dos itens do boneco, que leva à ficha
+  // (a dona) e espelha nas outras cenas, como o "Usar" acima. A mochila de agora é a do boneco lido de novo na hora.
+  const gravar = (mochila: CarriedItem[]) => aplicarItens({ mochilas: [{ tokenId: token.id, mochila }], ...(sceneId === null ? {} : { sceneId }) })
+  const mochilaDeAgora = () => {
+    const agora = tokenDoPersonagem(hostWorldOf(useAdventureStore.getState(), useMapStore.getState().map), personagemId)
+    return agora === null ? [] : carriedItemsOf(agora.token)
+  }
   return (
-    <InventarioDaFicha
+    <MochilaDoMestre
       itens={carriedItemsOf(token)}
+      dono={token.name || 'o token'}
+      gravar={gravar}
+      mochilaDeAgora={mochilaDeAgora}
       vazio={`Nada com ${token.name || 'o token'}. Dê um item pelo acervo de itens.`}
-      acoes={
-        aplicarItens === undefined
-          ? undefined
-          : (item, fechar) => (
-              <>
-                {itemQueSeUsa(item) && (
-                  <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
-                    Usar
-                  </button>
-                )}
-                <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
-                  Largar no chão
-                </button>
-                <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => agir('tirar', item, fechar)}>
-                  Tirar
-                </button>
-              </>
-            )
-      }
+      acoes={(item, fechar) => (
+        <>
+          {itemQueSeUsa(item) && (
+            <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
+              Usar
+            </button>
+          )}
+          <button type="button" className="lb-btn lb-btn--compact" onClick={() => agir('devolver', item, fechar)}>
+            Largar no chão
+          </button>
+          <button type="button" className="lb-btn lb-btn--danger lb-btn--compact" onClick={() => agir('tirar', item, fechar)}>
+            Tirar
+          </button>
+        </>
+      )}
     />
   )
 }
