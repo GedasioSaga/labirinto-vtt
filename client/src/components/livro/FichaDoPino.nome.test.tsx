@@ -32,7 +32,8 @@ describe('FichaDoPino: nome do local', () => {
   function render(extra: Partial<FichaDoPinoProps>): void {
     const props: FichaDoPinoProps = {
       pinId: 'pin-1',
-      kind: 'interrogacao',
+      // "!": o "?" (P5) troca a descrição pelas entradas de Falas e pistas.
+      kind: 'exclamacao',
       onKindChange: () => {},
       description: 'Uma lâmina suja de sangue.',
       onDescriptionChange: () => {},

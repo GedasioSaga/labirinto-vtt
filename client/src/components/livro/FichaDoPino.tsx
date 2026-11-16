@@ -41,6 +41,7 @@ import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import { PinoLigadoAoPreludio } from './PinoLigadoAoPreludio'
 import { CenarioDoPinoNaFicha } from './CenarioDoPinoNaFicha'
+import { FalasDoPinoNaFicha } from './FalasDoPinoNaFicha'
 import './fichaDoPino.css'
 
 /*
@@ -348,8 +349,11 @@ function EssencialDoPino({
       {/* Também na viagem e na alavanca, ao contrário do protótipo: o cartão
           do jogador mostra a descrição nos dois (PlayerPinCard, `pp-pincard__text`).
           Pino ligado ao Prelúdio (P3): o texto vem da seção e só se edita lá. */}
+      {/* "?" FALAS E PISTAS (P5): o texto mora nas entradas, cada uma oculta até o mestre dizer. */}
       {ligado ? (
         <PinoLigadoAoPreludio pinId={pinId} />
+      ) : kind === 'interrogacao' ? (
+        <FalasDoPinoNaFicha pinId={pinId} candidatos={showNow === null ? null : showNow.candidates} />
       ) : (
         <CampoTexto
           id="lb-pin-description"

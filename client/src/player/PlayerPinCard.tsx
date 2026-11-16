@@ -716,7 +716,19 @@ export function PlayerPinCard({
               mestre ainda não escreveu nada" leria como ponto de interesse vazio.
               Pino "só de perto" visto de longe: "Chegue mais perto para ler".
               Passagem sem texto: sem parágrafo, pelo mesmo motivo da escada. */}
-          {(escada !== null || !passagemSemTexto) && <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>}
+          {/* "?" FALAS E PISTAS (P5): só as entradas ditas a ele ou livres, em ordem. */}
+          {pin.falasVisiveis !== undefined && pin.falasVisiveis.length > 0 ? (
+            <ul className="pp-pincard__falas">
+              {pin.falasVisiveis.map((fala) => (
+                <li key={fala.id}>
+                  <span className="pp-pincard__fala-quem">{fala.quem === undefined ? fala.etiqueta : `${fala.etiqueta} · ${fala.quem}`}</span>
+                  <span className="pp-pincard__fala-texto">{fala.texto}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            (escada !== null || !passagemSemTexto) && <p className="pp-pincard__text">{escada ?? textoDoCartao}</p>
+          )}
         </div>
         {mercadorias !== null && <PlayerLoja mercadorias={mercadorias} onBuy={onBuy} compra={compra} />}
         {item !== null && (

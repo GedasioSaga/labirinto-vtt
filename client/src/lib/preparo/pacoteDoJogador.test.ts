@@ -12,7 +12,8 @@ import { filterMapForPlayer } from '../fogFilter'
 import { TEXTO_INDISPONIVEL } from '../fonteNoPreludio'
 import { createEmptyMap } from '../mapFactory'
 import { pinosEmDia } from './pinoLigado'
-import type { LeiturasDoJogador } from '../../types/cenarioEFalas'
+import type { FalaDoPino, LeiturasDoJogador } from '../../types/cenarioEFalas'
+import { chaveDaFala } from '../falasDoPino'
 
 const SEGREDO = 'SEGREDO-XYZ'
 const MAR = 'camp-mar'
@@ -552,5 +553,46 @@ describe('"!" cenário: o texto não lido não chega ao recorte do jogador (P4)'
     const antigo = recorte.map.pins.find((pino) => pino.id === 'antigo')
     expect(antigo?.description).toContain('texto de antigo')
     expect(antigo?.abreAoChegar).toBeUndefined()
+  })
+})
+
+/**
+ * O teste de vazamento estendido ao "?" FALAS E PISTAS (P5): SEGREDO-XYZ numa
+ * entrada oculta não chega a ninguém; a entrada dita só à Ana chega só a ela;
+ * a livre chega a quem lê. Nunca a lista do mestre (`falas`) nem a contagem.
+ */
+describe('"?" falas: a entrada oculta não chega ao recorte do jogador (P5)', () => {
+  const falas: FalaDoPino[] = [
+    { id: 'oculta', etiqueta: 'Fala', quem: 'Bento', texto: `${SEGREDO} o que ele esconde`, quemVerbeteId: `vb-${SEGREDO}` },
+    { id: 'dita', etiqueta: 'Boato', texto: 'O moinho range à noite' },
+    { id: 'livre', etiqueta: 'Pista', texto: 'Pegadas de lama', livre: true },
+  ]
+  const mapa: MapData = {
+    ...createEmptyMap('m', 'M', 1000, 1000, 40),
+    tokens: [{ id: 'ficha-ana', characterId: null, name: 'Ana', x: 200, y: 200, size: 1, image: null }],
+    pins: [
+      { id: 'taverna', x: 240, y: 200, kind: 'interrogacao', description: '', image: null, falas },
+      { id: 'so-oculta', x: 260, y: 200, kind: 'interrogacao', description: '', image: null, falas: [falas[0]] },
+      { id: 'antigo', x: 280, y: 200, kind: 'interrogacao', description: 'Texto de sempre', image: null },
+    ],
+  }
+
+  it('sem nada dito: só a livre vai, o "?" só com oculta some, e SEGREDO-XYZ não aparece', () => {
+    const recorte = recorteDaAna(mapa)
+    expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
+    expect(recorte.map.pins.map((pino) => pino.id).sort()).toEqual(['antigo', 'taverna'])
+    const taverna = recorte.map.pins.find((pino) => pino.id === 'taverna')
+    expect(taverna?.falasVisiveis?.map((fala) => fala.id)).toEqual(['livre'])
+    expect(taverna !== undefined && 'falas' in taverna).toBe(false)
+    expect(recorte.map.pins.find((pino) => pino.id === 'antigo')?.description).toBe('Texto de sempre')
+  })
+
+  it('dita à Ana, a entrada chega a ela em ordem, sem o verbete; a oculta continua fora', () => {
+    const recorte = recorteDaAna(mapa, { cenarios: new Set(), falas: new Set([chaveDaFala('taverna', 'dita')]) })
+    expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
+    expect(recorte.map.pins.find((pino) => pino.id === 'taverna')?.falasVisiveis).toEqual([
+      { id: 'dita', etiqueta: 'Boato', texto: 'O moinho range à noite' },
+      { id: 'livre', etiqueta: 'Pista', texto: 'Pegadas de lama' },
+    ])
   })
 })

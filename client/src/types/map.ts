@@ -1,6 +1,6 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
-import type { QuandoDoCenario } from './cenarioEFalas'
+import type { FalaDoPino, FalaParaJogador, QuandoDoCenario } from './cenarioEFalas'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 /**
@@ -901,6 +901,17 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
    * nunca grava este campo.
    */
   abreAoChegar?: true
+  /**
+   * "?" FALAS E PISTAS (P5): as entradas, cada uma oculta até o mestre dizer
+   * (`lib/falasDoPino.ts`). Ausente = o "?" de sempre: o `description` é uma
+   * entrada livre, sem migração. Só do mestre: NUNCA sai no recorte.
+   */
+  falas?: FalaDoPino[]
+  /**
+   * SÓ NO RECORTE DO JOGADOR: as entradas do "?" ditas a ELE ou livres, em
+   * ordem. Nunca a contagem das ocultas. O mestre nunca grava este campo.
+   */
+  falasVisiveis?: FalaParaJogador[]
   /**
    * NOME DO LOCAL ("Base da Marinha"): o que distingue sete "?" iguais no
    * editor — desenhado ao lado do pino e na lista "Pinos" — e o título que o

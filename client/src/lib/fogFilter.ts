@@ -23,6 +23,7 @@ import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { barraVistaPeloJogador, type BarrasParaJogador } from './vidaDaFicha'
 import { lerAura } from './auras'
 import { cenarioParaJogador, pinoParaLeitura } from './cenarioDoPino'
+import { falasParaJogador } from './falasDoPino'
 import type { LeiturasDoJogador } from '../types/cenarioEFalas'
 import { ehImagemDaMesa } from './midia'
 import type { FormasVisiveis } from './mudarFicha'
@@ -5150,7 +5151,10 @@ function recorteDoGrupo(
       // "!" CENÁRIO (P4): o "Ao chegar" ainda não lido mede a leitura de perto, e
       // a regra do cenário só TIRA do que a lista do que vai já deixou passar.
       const legivel = canReadPin(pinoParaLeitura(p, leituras), pinReaders, map.grid, hiddenByZone, pelosObjetos)
-      return [cenarioParaJogador(pinForPlayer(p, ownTokens, map.grid, legivel, known, oneWayExits?.get(p.id), pelosObjetos), p, leituras)]
+      const recortado = cenarioParaJogador(pinForPlayer(p, ownTokens, map.grid, legivel, known, oneWayExits?.get(p.id), pelosObjetos), p, leituras)
+      // "?" FALAS E PISTAS (P5): só as entradas ditas a ele ou livres; sem nenhuma, o "?" não existe para ele.
+      const comFalasDele = falasParaJogador(recortado, p, leituras)
+      return comFalasDele === null ? [] : [comFalasDele]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
     // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —

@@ -6474,7 +6474,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       if (state.status !== 'playing') return false
       const pin = state.map?.pins.find((p) => p.id === pinId)
       // Cartão vazio ("O mestre ainda não escreveu nada") não é pista: nem pede.
-      if (pin === undefined || (pin.description.trim() === '' && !isPlayerSafePinImage(pin.image))) return false
+      // "?" FALAS (P5): o "?" com entradas tem o texto nelas, e o `description` vem vazio.
+      if (pin === undefined || (pin.description.trim() === '' && !isPlayerSafePinImage(pin.image) && pin.falasVisiveis === undefined)) return false
       return send({ type: 'clue.read', pinId })
     },
 

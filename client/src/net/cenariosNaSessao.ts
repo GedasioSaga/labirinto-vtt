@@ -1,4 +1,5 @@
-import type { LeituraDoCenario, LeiturasDoJogador, LeiturasDosCenarios } from '../types/cenarioEFalas'
+import type { FalasDitas, LeituraDoCenario, LeiturasDoJogador, LeiturasDosCenarios } from '../types/cenarioEFalas'
+import { chaveDaFala } from '../lib/falasDoPino'
 
 /**
  * "!" CENÁRIO NA SESSÃO DO HOST (P4): por pino, por jogador, se o mestre leu o
@@ -18,6 +19,10 @@ export interface CenariosNaSessao {
   tem(pinId: string, playerId: string): boolean
   /** Para a ficha do pino e o "Ler junto" do mestre. */
   todas(): LeiturasDosCenarios
+  /** "?" FALAS E PISTAS (P5): o mestre disse a entrada `falaId` do pino a este jogador. */
+  dita(pinId: string, falaId: string, playerId: string): void
+  /** Por pino, por entrada: a quem foi dita (na ordem em que foi dita). Para a ficha do "?". */
+  ditas(): FalasDitas
   /** O jogador saiu da sala (kick): some de todas as listas. */
   esquecer(playerId: string): void
   /** Sala nova: começa do zero. */
@@ -26,6 +31,8 @@ export interface CenariosNaSessao {
 
 export function criarCenariosNaSessao(): CenariosNaSessao {
   const porPino = new Map<string, Map<string, LeituraDoCenario>>()
+  // "?" (P5): por pino, por entrada, a quem foi dita.
+  const falas = new Map<string, Map<string, Set<string>>>()
   const marcar = (pinId: string, playerId: string, leitura: LeituraDoCenario) => {
     const doPino = porPino.get(pinId) ?? new Map<string, LeituraDoCenario>()
     doPino.set(playerId, leitura)
@@ -35,7 +42,9 @@ export function criarCenariosNaSessao(): CenariosNaSessao {
     doJogador(playerId) {
       const cenarios = new Set<string>()
       for (const [pinId, doPino] of porPino) if (doPino.has(playerId)) cenarios.add(pinId)
-      return { cenarios }
+      const ditasAEle = new Set<string>()
+      for (const [pinId, doPino] of falas) for (const [falaId, quem] of doPino) if (quem.has(playerId)) ditasAEle.add(chaveDaFala(pinId, falaId))
+      return { cenarios, falas: ditasAEle }
     },
     lendo(pinId, playerId, hora) {
       marcar(pinId, playerId, { estado: 'lendo', hora })
@@ -51,14 +60,34 @@ export function criarCenariosNaSessao(): CenariosNaSessao {
       for (const [pinId, doPino] of porPino) todas[pinId] = Object.fromEntries(doPino)
       return todas
     },
+    dita(pinId, falaId, playerId) {
+      const doPino = falas.get(pinId) ?? new Map<string, Set<string>>()
+      const quem = doPino.get(falaId) ?? new Set<string>()
+      quem.add(playerId)
+      doPino.set(falaId, quem)
+      falas.set(pinId, doPino)
+    },
+    ditas() {
+      const todas: Record<string, Record<string, string[]>> = {}
+      for (const [pinId, doPino] of falas) todas[pinId] = Object.fromEntries([...doPino].map(([falaId, quem]) => [falaId, [...quem]]))
+      return todas
+    },
     esquecer(playerId) {
       for (const [pinId, doPino] of porPino) {
         doPino.delete(playerId)
         if (doPino.size === 0) porPino.delete(pinId)
       }
+      for (const [pinId, doPino] of falas) {
+        for (const [falaId, quem] of doPino) {
+          quem.delete(playerId)
+          if (quem.size === 0) doPino.delete(falaId)
+        }
+        if (doPino.size === 0) falas.delete(pinId)
+      }
     },
     limpar() {
       porPino.clear()
+      falas.clear()
     },
   }
 }

@@ -1033,6 +1033,7 @@ function App() {
         onTravelLogChange: comSomDePassagem(setTravelLog),
         onPinCluesChange: setPinClues,
         onLeiturasDosCenariosChange: (leituras) => useMesaDoPino.setState({ leituras }),
+      onFalasDitasChange: (ditas) => useMesaDoPino.setState({ ditas }),
         onSecretRevealsChange: setSecretReveals,
         onSecretChecksChange: setSecretChecks,
         onDancaChange: setDanca,
@@ -1931,6 +1932,7 @@ function App() {
       acoes: {
         lerCenario: (pinId, playerIds) => hostBridgeRef.current?.lerCenario(pinId, playerIds) ?? null,
         jogadores: () => hostBridgeRef.current?.players() ?? [],
+        dizerFala: (pinId, falaId, playerIds) => hostBridgeRef.current?.dizerFala(pinId, falaId, playerIds) ?? null,
       },
     })
     return () => useMesaDoPino.setState({ acoes: null, lerJunto: null })

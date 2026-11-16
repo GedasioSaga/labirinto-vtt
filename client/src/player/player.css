@@ -7814,3 +7814,9 @@ button.pp-colecao__casa:focus-visible {
 }
 .pp-clues__reler:active { transform: scale(0.97); }
 .pp-clues__reler:focus-visible { outline: 2px solid var(--lb-color-brass, #e0a44a); outline-offset: 2px; }
+
+/* "?" FALAS E PISTAS (P5): as entradas ditas ao jogador, no cartão do pino. */
+.pp-pincard__falas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.pp-pincard__falas li { display: grid; gap: 2px; }
+.pp-pincard__fala-quem { font-size: 0.8em; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+.pp-pincard__fala-texto { white-space: pre-wrap; overflow-wrap: anywhere; }

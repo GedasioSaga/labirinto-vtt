@@ -126,3 +126,32 @@
 .lb-cenario-ficha__quem em { margin-left: auto; font-style: normal; color: var(--lb-color-parchment-faint); }
 .lb-cenario-ficha__quem em[data-estado='lendo'] { color: var(--lb-color-brass-bright); }
 .lb-cenario-ficha__quem em[data-estado='leu'] { color: rgb(170 214 170); }
+
+/* "?" FALAS E PISTAS (P5): as entradas, cada uma oculta até o mestre dizer. */
+.lb-falas-ficha { display: grid; gap: 10px; }
+.lb-falas-ficha__lista { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lb-falas-ficha__entrada {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px;
+}
+.lb-falas-ficha__entrada[data-livre] { border-style: dashed; }
+.lb-falas-ficha__cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lb-falas-ficha__numero { font-weight: 600; font-variant-numeric: tabular-nums; }
+.lb-falas-ficha__estado { font-size: 0.85em; opacity: 0.8; }
+.lb-falas-ficha__livre {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85em;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 160ms ease-out;
+}
+.lb-falas-ficha__livre[aria-pressed='true'] { background: color-mix(in srgb, currentColor 16%, transparent); }
+.lb-falas-ficha__livre:active { transform: scale(0.97); }
+.lb-falas-ficha__livre:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

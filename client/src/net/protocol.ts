@@ -1773,9 +1773,13 @@ export interface ClueEntry {
   place?: string
   /**
    * "!" CENÁRIO (P4): a pista é o texto de um lugar lido ("Ler de novo" abre
-   * a revelação outra vez). Ausente = a pista de sempre.
+   * a revelação outra vez). "?" FALAS (P5): `fala` = uma entrada que o mestre
+   * disse ou que o jogador leu livre, com o texto COMO FOI DITO (mudar depois
+   * no Prelúdio não reescreve o caderno). Ausente = a pista de sempre.
    */
-  tipo?: 'cenario'
+  tipo?: 'cenario' | 'fala'
+  /** Só na `fala`: quem disse ("Bento"). */
+  quem?: string
 }
 
 /**
@@ -3138,7 +3142,11 @@ function parseClueEntry(value: unknown): ClueEntry | null {
     if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
     entry.place = place
   }
-  if (value.tipo === 'cenario') entry.tipo = 'cenario'
+  if (value.tipo === 'cenario' || value.tipo === 'fala') entry.tipo = value.tipo
+  if (entry.tipo === 'fala' && value.quem !== undefined) {
+    if (!isBoundedString(value.quem, 1, CLUE_TITLE_MAX_LENGTH)) return null
+    entry.quem = value.quem
+  }
   if (from === undefined) return entry
   if (!isRoomName(from)) return null
   return { ...entry, from }

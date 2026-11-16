@@ -12,6 +12,7 @@ import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { readFonteNoPreludio } from './fonteNoPreludio'
 import { ehCasasAoChegar, ehQuandoDoCenario } from './cenarioDoPino'
+import { lerFalasDoArquivo } from './falasDoPino'
 import { closeIfLocked } from './doorLock'
 import { lerMarcasDoArquivo } from './marcas'
 import { readTokenVehicle, withoutVehicleField } from './vehicle'
@@ -872,6 +873,10 @@ function lerPinoDoArquivo(p: Pin): Pin {
     quando: p.kind === 'exclamacao' && ehQuandoDoCenario(p.quando) && p.quando !== 'tocar' ? p.quando : undefined,
     chegarCasas: p.kind === 'exclamacao' && ehCasasAoChegar(p.chegarCasas) ? p.chegarCasas : undefined,
     abreAoChegar: undefined,
+    // "?" FALAS E PISTAS (P5): campo NOVO e OPCIONAL, entrada a entrada
+    // (`lerFalasDoArquivo`). Ausente = o "?" de sempre. `falasVisiveis` é só do recorte.
+    falas: lerFalasDoArquivo(p.falas),
+    falasVisiveis: undefined,
     // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
     // ou torto (número, arquivo editado à mão) volta AUSENTE.
     nome: cleanPinName(p.nome) || undefined,

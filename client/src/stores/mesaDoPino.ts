@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LeiturasDosCenarios } from '../types/cenarioEFalas'
+import type { FalasDitas, LeiturasDosCenarios } from '../types/cenarioEFalas'
 import type { Pin } from '../types/map'
 import { useToastStore } from './toastStore'
 
@@ -18,6 +18,8 @@ export interface JogadorDaMesa {
 export interface AcoesDaMesaDoPino {
   /** "Ler agora": quem recebeu; `null` = sala fechada. `playerIds` `null` = todos na cena do pino. */
   lerCenario(pinId: string, playerIds: readonly string[] | null): string[] | null
+  /** "Dizer agora" de uma entrada do "?" (P5): quem ouviu; `null` = sala fechada. */
+  dizerFala(pinId: string, falaId: string, playerIds: readonly string[] | null): string[] | null
   /** Os jogadores da sala, para escrever o nome de quem lê. */
   jogadores(): readonly JogadorDaMesa[]
 }
@@ -33,11 +35,13 @@ export interface LerJunto {
 
 interface EstadoDaMesaDoPino {
   leituras: LeiturasDosCenarios
+  /** "?" (P5): por pino, por entrada, a quem foi dita nesta sala. */
+  ditas: FalasDitas
   acoes: AcoesDaMesaDoPino | null
   lerJunto: LerJunto | null
 }
 
-export const useMesaDoPino = create<EstadoDaMesaDoPino>()(() => ({ leituras: {}, acoes: null, lerJunto: null }))
+export const useMesaDoPino = create<EstadoDaMesaDoPino>()(() => ({ leituras: {}, ditas: {}, acoes: null, lerJunto: null }))
 
 /** O resultado de um "Ler agora", para quem pediu mostrar ao mestre (a ficha ou a janela do Prelúdio). */
 export type FimDoLerAgora = { readonly ok: true; readonly para: readonly string[] } | { readonly ok: false; readonly motivo: string }
@@ -58,6 +62,21 @@ export function lerCenarioAgora(pin: Pick<Pin, 'id' | 'nome' | 'description'>, p
     return { ok: false, motivo }
   }
   useMesaDoPino.setState({ lerJunto: { pinId: pin.id, nome: (pin.nome ?? '').trim(), texto: pin.description, para } })
+  return { ok: true, para }
+}
+
+const SEM_SALA_PARA_DIZER = 'Abra a sala para dizer aos jogadores.'
+const NINGUEM_OUVIU = 'Ninguém ouviu: nenhum jogador conectado está na cena deste pino.'
+
+/** "DIZER AGORA" de uma entrada do "?". Ninguém ouviu = aviso, nunca silêncio. */
+export function dizerFalaAgora(pinId: string, falaId: string, playerIds: readonly string[] | null): FimDoLerAgora {
+  const { acoes } = useMesaDoPino.getState()
+  const para = acoes === null ? null : acoes.dizerFala(pinId, falaId, playerIds)
+  if (para === null || para.length === 0) {
+    const motivo = para === null ? SEM_SALA_PARA_DIZER : NINGUEM_OUVIU
+    useToastStore.getState().push('info', motivo)
+    return { ok: false, motivo }
+  }
   return { ok: true, para }
 }
 

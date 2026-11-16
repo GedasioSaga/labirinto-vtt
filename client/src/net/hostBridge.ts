@@ -1,5 +1,5 @@
 import { isTauri, type InvokeArgs } from '@tauri-apps/api/core'
-import type { LeiturasDosCenarios } from '../types/cenarioEFalas'
+import type { FalasDitas, LeiturasDosCenarios } from '../types/cenarioEFalas'
 import { gravarJogadoresVistos, lerJogadoresVistos, registrarVistos, type JogadorVisto } from '../lib/livros/jogadoresVistos'
 import { findTokenSpawn, tokenRadiusFor } from '../lib/tokenPlacement'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
@@ -340,6 +340,8 @@ export interface HostBridgeDeps {
   onPinCluesChange?: (clues: Record<string, PinClueState>) => void
   /** "!" CENÁRIO (P4): quem está lendo ou leu cada "!" lido pela mesa, a cada mudança. Sala fechada = `{}`. */
   onLeiturasDosCenariosChange?: (leituras: LeiturasDosCenarios) => void
+  /** "?" FALAS E PISTAS (P5): a quem cada entrada foi dita, a cada mudança. Sala fechada = `{}`. */
+  onFalasDitasChange?: (ditas: FalasDitas) => void
   /** "Revelar para…" de cada ficha/escada/zona revelada a alguém (`itemId` -> jogadores). Sala fechada = `{}`. */
   onSecretRevealsChange?: (reveals: Record<string, string[]>) => void
   /** TESTES SECRETOS e as respostas, só para o painel do mestre. Sala fechada = `[]`. */
@@ -581,6 +583,12 @@ export interface HostBridge extends RedeDosSons {
    * sai antes, para o "!" "só quando eu mandar" já chegar com o texto.
    */
   lerCenario(pinId: string, playerIds: readonly string[] | null): string[] | null
+  /**
+   * "DIZER AGORA" de uma entrada do "?" (P5): a estes jogadores (`null` =
+   * todos na cena do pino). Devolve quem ouviu (vazio = ninguém) ou `null`
+   * com a sala fechada. O snapshot sai antes, já com a entrada no "?" deles.
+   */
+  dizerFala(pinId: string, falaId: string, playerIds: readonly string[] | null): string[] | null
   /**
    * "Revelar para…" da ficha secreta, escada secreta ou zona oculta: só
    * `playerIds` a recebem; `null` ou `[]` = segredo de todos. Snapshot na hora —
@@ -1648,6 +1656,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   }
 
   let lastLeiturasKey = '{}'
+  let lastDitasKey = '{}'
   const notifyPinCluesIfChanged = () => {
     // "!" CENÁRIO (P4): lendo/leu anda junto com o painel Pistas (as mesmas portas: o que sai e o que o jogador manda).
     const leituras = session?.leiturasDosCenarios() ?? {}
@@ -1655,6 +1664,12 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (leiturasKey !== lastLeiturasKey) {
       lastLeiturasKey = leiturasKey
       deps.onLeiturasDosCenariosChange?.(leituras)
+    }
+    const ditas = session?.falasDitas() ?? {}
+    const ditasKey = JSON.stringify(ditas)
+    if (ditasKey !== lastDitasKey) {
+      lastDitasKey = ditasKey
+      deps.onFalasDitasChange?.(ditas)
     }
     const clues = session?.pinClues() ?? {}
     const key = JSON.stringify(clues)
@@ -4648,6 +4663,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // O mapa sai antes da revelação: o "!" "só quando eu mandar" já chega com o texto.
       broadcastNow()
       void dispatch(result)
+      return para
+    },
+
+    dizerFala(pinId, falaId, playerIds) {
+      if (session === null) return null
+      const { result, para } = session.dizerFala(pinId, falaId, playerIds, world())
+      if (para.length === 0) return []
+      // O mapa sai antes: a entrada já está no "?" dele quando a pista chega ao caderno.
+      broadcastNow()
+      void dispatch(result)
+      notifyPinCluesIfChanged()
       return para
     },
 

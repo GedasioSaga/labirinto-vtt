@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token } from '../types/map'
+import type { FalaDoPino } from '../types/cenarioEFalas'
 import type { HostMessage } from './protocol'
 import { parsePlayerMessage } from './protocol'
 import { CLUE_SHOW_MIN_INTERVAL_MS, createHostSession, type HostResult, type HostScene, type HostWorld } from './hostSession'
@@ -406,5 +407,45 @@ describe('hostSession: quem recebeu e quem leu cada pista', () => {
     s.handleMessage('c-gabi', { type: 'pin.read', pinId: 'bilhete' }, w)
     s.kick('c-gabi')
     expect(s.pinClues().bilhete).toEqual({ received: [fabio], read: [] })
+  })
+})
+
+describe('"?" Falas e pistas (P5): Dizer agora e o caderno', () => {
+  const falas: FalaDoPino[] = [
+    { id: 'f1', etiqueta: 'Fala', quem: 'Bento', texto: 'SEGREDO-XYZ fala oculta' },
+    { id: 'f2', etiqueta: 'Boato', quem: 'Bento', texto: 'O moinho range à noite' },
+    { id: 'f3', etiqueta: 'Pista', texto: 'Pegadas de lama', livre: true },
+  ]
+  const comPergunta = () => mundo(casa([pino('taverna', 140, 140, '', { kind: 'interrogacao', falas })]))
+
+  it('dita só à Ana: só ela ouve, com o texto como foi dito; a oculta não sai a ninguém', () => {
+    const { s, world, ana, primeiro } = mesa(comPergunta())
+    expect(JSON.stringify(primeiro)).not.toContain('SEGREDO-XYZ')
+    expect(JSON.stringify(primeiro)).not.toContain('O moinho')
+    const { result, para } = s.dizerFala('taverna', 'f2', [ana.playerId], world)
+    expect(para).toEqual([ana.playerId])
+    expect(msgsPara(result, 'c-ana')).toEqual([
+      { type: 'clue.added', clue: expect.objectContaining({ title: 'Boato · Bento', text: 'O moinho range à noite', image: null, tipo: 'fala', quem: 'Bento' }) },
+    ])
+    expect(msgsPara(result, 'c-gabi')).toEqual([])
+    const depois = s.broadcast(world)
+    const daAna = JSON.stringify(msgsPara(depois, 'c-ana'))
+    const daGabi = JSON.stringify(msgsPara(depois, 'c-gabi'))
+    expect(daAna).toContain('O moinho range à noite')
+    // Gabi não muda de vista (nada novo para ela): a livre ela já tinha no primeiro mapa.
+    expect(daGabi).not.toContain('O moinho')
+    expect(JSON.stringify(msgsPara(primeiro, 'c-gabi'))).toContain('Pegadas de lama')
+    expect(JSON.stringify(depois)).not.toContain('SEGREDO-XYZ')
+    expect(JSON.stringify(depois)).not.toContain('"falas"')
+    expect(s.falasDitas()).toEqual({ taverna: { f2: [ana.playerId] } })
+  })
+
+  it('a livre entra no caderno de quem toca, uma vez; "?" de outra cena não vira fala', () => {
+    const { s, world, bruno } = mesa(comPergunta())
+    const lida = s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'taverna' }, world)
+    expect(msgsPara(lida, 'c-gabi')).toEqual([{ type: 'clue.added', clue: expect.objectContaining({ title: 'Pista', text: 'Pegadas de lama', tipo: 'fala' }) }])
+    expect(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'taverna' }, world).outbound).toEqual([])
+    expect(s.dizerFala('taverna', 'f2', [bruno.playerId], world).para).toEqual([])
+    expect(s.dizerFala('taverna', 'nao-existe', null, world).para).toEqual([])
   })
 })

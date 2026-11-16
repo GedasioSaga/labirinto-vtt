@@ -67,7 +67,8 @@ import { faixaDoAbalo, type AbaloContagem, type AbaloFaixa, type AbaloOrigem, ty
 import { MASTER_ROLLER_NAME, rollDice, secureRollDie, type DiceRequest, type HostDiceRoll, type RollDie } from '../lib/dice'
 import { ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, espiadaCabe, isDaVista } from '../lib/espiar'
 import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
-import { CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import { CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH, CLUEBOOK_MAX_CLUES } from '../lib/clues'
+import type { FalaParaJogador, FalasDitas } from '../types/cenarioEFalas'
 import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
@@ -2568,6 +2569,16 @@ export interface HostSession {
   /** Por pino, por jogador: lendo ou leu (com a hora). Para a ficha do "!" e o "Ler junto". */
   leiturasDosCenarios(): LeiturasDosCenarios
   /**
+   * "DIZER AGORA" de uma entrada do "?" Falas e pistas (P5): a entrada
+   * `falaId` do pino passa a ir a estes jogadores (`null` = todos na cena do
+   * pino), conectados e na cena DO PINO. Entra no caderno dele (Falas e
+   * pistas) com o texto COMO FOI DITO. Pino oculto, escondido, que não é "?"
+   * ou entrada vazia não sai. Não envia o snapshot. `para` = quem ouviu.
+   */
+  dizerFala(pinId: string, falaId: string, playerIds: readonly string[] | null, source: HostMapSource): { result: HostResult; para: string[] }
+  /** Por pino, por entrada: a quem foi dita. Para a ficha do "?". */
+  falasDitas(): FalasDitas
+  /**
    * "Revelar para…" da ficha secreta, da escada secreta ou da zona oculta
    * `itemId`: só estes jogadores a recebem (`lib/fogFilter.ts`; a ficha ainda
    * exige visão). `null` ou lista vazia = segredo de todos de novo. Id que não é
@@ -3482,6 +3493,18 @@ function encodeExplorationKept(exp: Exploration): ExploredWire {
   const wire = encodeExploration(exp)
   lastEncoded.set(exp, { cell: exp.cell, cols: exp.cols, rows: exp.rows, bits: exp.bits.slice(), rings: exp.rings, ringCount: exp.rings.length, wire })
   return wire
+}
+
+
+/** A chave do caderno de uma entrada do "?" (P5): dita de novo, troca; lida livre de novo, não duplica. */
+function fonteDaFala(mapId: string, pinId: string, falaId: string): string {
+  return `fala|${mapId}|${pinId}|${falaId}`
+}
+
+/** A entrada do "?" como pista do caderno: "Fala · Bento" de título, o texto como foi dito. */
+function conteudoDaFala(fala: FalaParaJogador): PlayerClueContent {
+  const title = fala.quem === undefined ? fala.etiqueta : `${fala.etiqueta} · ${fala.quem}`
+  return { title: title.slice(0, CLUE_TITLE_MAX_LENGTH), text: fala.texto.slice(0, CLUE_TEXT_MAX_LENGTH), image: null }
 }
 
 export function createHostSession(options: HostSessionOptions): HostSession {
@@ -4580,12 +4603,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     from?: string,
     peca: PecaDeColecao | null = null,
     tipo?: ClueEntry['tipo'],
+    quem?: string,
   ): ClueEntry => {
     const book = cluebooks.get(playerId) ?? []
     const previous = book.find((item) => item.source === source)
     const base: ClueEntry = { id: previous?.entry.id ?? randomId(), title: content.title, text: content.text, image: content.image, at: now() }
     // "!" CENÁRIO (P4): o caderno oferece "Ler de novo" no texto de um lugar.
     if (tipo !== undefined) base.tipo = tipo
+    // "?" FALAS (P5): quem disse vai junto, só na fala.
+    if (tipo === 'fala' && quem !== undefined) base.quem = quem
     // LUGARES: a memória usada por último é a da cena onde ele está agora (`memoryFor` a põe no fim).
     const place = [...(memories.get(playerId)?.values() ?? [])].at(-1)?.place
     if (place !== undefined) base.place = place
@@ -9625,6 +9651,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const masterPin = scene.map.pins.find((p) => p.id === msg.pinId)
     const stillThere = masterPin !== undefined && masterPin.hidden !== true && masterPin.secret !== true
     if (pin === undefined || !stillThere) return { outbound: [] }
+    // "?" FALAS E PISTAS (P5): cada entrada que ele tem no recorte (livre ou
+    // dita a ele) entra no caderno uma vez; a que já está fica como foi dita.
+    if (pin.falasVisiveis !== undefined) {
+      const book = cluebooks.get(playerId) ?? []
+      const outbound: Outbound[] = []
+      for (const fala of pin.falasVisiveis) {
+        const source = fonteDaFala(scene.map.id, pin.id, fala.id)
+        if (book.some((item) => item.source === source)) continue
+        outbound.push({ clientId, msg: { type: 'clue.added', clue: rememberClue(playerId, source, conteudoDaFala(fala), undefined, null, 'fala', fala.quem) } })
+      }
+      return { outbound }
+    }
     const content = pinClueForPlayer(pin)
     if (content === null) return { outbound: [] }
     // COLEÇÃO DE PISTAS: a peça sai do pino do MESTRE (o recorte não a leva),
@@ -11952,6 +11990,36 @@ export function createHostSession(options: HostSessionOptions): HostSession {
 
     leiturasDosCenarios() {
       return cenarios.todas()
+    },
+
+    dizerFala(pinId, falaId, playerIds, source) {
+      const world = toWorld(source)
+      const outbound: Outbound[] = []
+      const para: string[] = []
+      for (const record of players.values()) {
+        const { playerId, clientId } = record
+        if (clientId === null || statusOf(playerId) !== 'playing' || (playerIds !== null && !playerIds.includes(playerId))) continue
+        // A cena DELE: o pino tem de morar onde ele está (o id de outra cena não vira fala).
+        const map = sceneFor(playerId, world)?.map
+        const pin = map?.pins.find((p) => p.id === pinId)
+        if (map === undefined || pin === undefined || pin.kind !== 'interrogacao' || pin.secret === true || pin.hidden === true) continue
+        const fala = pin.falas?.find((umaFala) => umaFala.id === falaId)
+        if (fala === undefined || fala.texto.trim() === '') continue
+        cenarios.dita(pinId, falaId, playerId)
+        addToSet(pinReceived, pinId, playerId)
+        const quem = fala.quem?.trim()
+        const dita = { id: fala.id, etiqueta: fala.etiqueta, texto: fala.texto, ...(quem === undefined || quem === '' ? {} : { quem }) }
+        const clue = rememberClue(playerId, fonteDaFala(map.id, pin.id, fala.id), conteudoDaFala(dita), undefined, null, 'fala', dita.quem)
+        outbound.push({ clientId, msg: { type: 'clue.added', clue } })
+        para.push(playerId)
+      }
+      // A entrada passa a ir no "?" de quem ouviu: todos refazem no próximo broadcast.
+      if (para.length > 0) viewEpoch += 1
+      return { result: { outbound }, para: inRoomOrder(new Set(para)) }
+    },
+
+    falasDitas() {
+      return cenarios.ditas()
     },
 
     setSecretReveal(itemId, playerIds) {

@@ -54,8 +54,26 @@ interface PlayerCluesByPlaceProps {
  * embaixo, as pistas de cada lugar por onde ele passou. Tocar numa reabre o
  * cartão dela, como antes no Caderno.
  */
-export function PlayerCluesByPlace({ clues, colecoes, places, currentPlace, names, onOpen }: PlayerCluesByPlaceProps) {
+export function PlayerCluesByPlace({ clues: todas, colecoes, places, currentPlace, names, onOpen }: PlayerCluesByPlaceProps) {
+  // "?" FALAS E PISTAS (P5): o que o mestre disse fica numa seção própria, com
+  // o texto como foi dito, fora dos lugares.
+  const falas = todas.filter((clue) => clue.tipo === 'fala')
+  const clues = falas.length === 0 ? todas : todas.filter((clue) => clue.tipo !== 'fala')
+  const secaoDasFalas = falas.length > 0 && (
+    <section className="pp-place-clues" aria-label="Falas e pistas">
+      <h3 className="pp-subheading">Falas e pistas</h3>
+      <PlayerClueList clues={falas} onOpen={onOpen} />
+    </section>
+  )
   if (clues.length === 0) {
+    if (falas.length > 0) {
+      return (
+        <>
+          <PlayerColecaoList colecoes={colecoes} clues={todas} onOpen={onOpen} />
+          {secaoDasFalas}
+        </>
+      )
+    }
     return (
       <>
         <PlayerColecaoList colecoes={colecoes} clues={clues} onOpen={onOpen} />
@@ -65,7 +83,8 @@ export function PlayerCluesByPlace({ clues, colecoes, places, currentPlace, name
   }
   return (
     <>
-      <PlayerColecaoList colecoes={colecoes} clues={clues} onOpen={onOpen} />
+      <PlayerColecaoList colecoes={colecoes} clues={todas} onOpen={onOpen} />
+      {secaoDasFalas}
       {groupCluesByPlace(clues, places, currentPlace, names).map((group) => (
         <section key={group.key} className="pp-place-clues" aria-label={`Pistas: ${group.title}`}>
           <h3 className="pp-subheading">
