@@ -1,0 +1,355 @@
+/*
+ * TELA DOS JOGOS DE ABRIR (jogador): o porão da vitrine aprovada em 15/11/2026
+ * (~/jogos/bau-e-armadilhas). Cores e medidas do app vêm dos tokens --lb-*
+ * (theme.ts); as --ab-* são só desta tela. Tudo sob .lb-abrir, com classes
+ * ab-*, porque a página do jogador não carrega main.css (mesma regra da pesca).
+ */
+
+.lb-abrir {
+  --ab-porao: #1f1915;
+  --ab-ruim: #f0b3ad;
+  --ab-ouro: #f2c14e;
+  --ab-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 13px/1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  transition: opacity 180ms var(--ab-ease-out);
+}
+.lb-abrir[data-saindo='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lb-abrir {
+    animation: ab-aparece 200ms var(--ab-ease-out);
+  }
+}
+@keyframes ab-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+.lb-abrir *,
+.lb-abrir *::before,
+.lb-abrir *::after {
+  box-sizing: border-box;
+}
+.lb-abrir button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lb-abrir :focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.lb-abrir :is(p, h2, ul) {
+  margin: 0;
+}
+.lb-abrir ul {
+  padding: 0;
+  list-style: none;
+}
+.lb-abrir kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 4px;
+  font: 500 10.5px/16px var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  text-align: center;
+}
+.ab-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- botões */
+
+.ab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background-color var(--lb-motion-fast) var(--lb-motion-ease),
+    border-color var(--lb-motion-fast) var(--lb-motion-ease),
+    transform 140ms var(--ab-ease-out);
+}
+.ab-btn:active {
+  background: var(--lb-color-stone-sunken);
+  transform: scale(0.97);
+}
+.ab-btn--primario {
+  background: var(--lb-color-brass);
+  border-color: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font-weight: 600;
+}
+.ab-btn--primario:active {
+  background: var(--lb-color-brass);
+}
+.ab-btn--bloco {
+  width: 100%;
+  min-height: 44px;
+  font-size: 14px;
+}
+.ab-btn--sm {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ab-btn:hover {
+    background: var(--lb-color-stone-hover);
+    border-color: var(--lb-color-line-strong);
+  }
+  .ab-btn--primario:hover {
+    background: var(--lb-color-brass-bright);
+    border-color: var(--lb-color-brass-bright);
+  }
+}
+@media (pointer: coarse) {
+  .ab-btn--sm {
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------- topo e rodapé */
+
+.ab-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+.ab-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+}
+.ab-titulo b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.ab-dif {
+  font: 500 11.5px/1.3 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  letter-spacing: 0.02em;
+}
+.ab-hud {
+  display: flex;
+  gap: 6px;
+  font: 500 13px/1.3 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-color-parchment-dim);
+}
+.ab-acoes {
+  display: flex;
+  gap: 8px;
+}
+.ab-rodape {
+  min-height: 44px;
+  padding: 10px 14px 14px;
+}
+.ab-instrucao {
+  max-width: 62ch;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* ---------------------------------------------------------------- palco */
+
+.ab-palco {
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background: var(--ab-porao);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* O palco recebe o foco só para as teclas do jogo (fora da ordem do Tab): sem anel em volta da cena inteira. */
+.lb-abrir .ab-palco:focus-visible {
+  box-shadow: none;
+}
+/* A cena (canvas + dica) tem o tamanho da tela escalada (usarEncaixeDaCena) e fica no meio do palco. */
+.ab-cena {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.ab-cena canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+/*
+ * Dica de objetivo (ajuste 2 do estúdio): na parede livre da cena (left, top e
+ * max-* em % vêm do jogo), some no primeiro toque e não pega toque (na caixa e
+ * no barril a tela toda é alvo). Letra pela escala: 16 px a 4x, 12 px a 3x,
+ * nunca abaixo de 11 px. Entra e sai esmaecendo em 180 ms; no movimento
+ * reduzido, aparece e some na hora.
+ */
+.ab-dica {
+  position: absolute;
+  width: max-content;
+  padding: 0.3em 0.65em 0.35em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--lb-color-line);
+  border-left: 2px solid var(--ab-ouro);
+  border-radius: 6px;
+  background: rgb(20 16 12 / 0.86);
+  color: var(--lb-color-parchment);
+  font-size: clamp(11px, calc(var(--ab-escala, 3) * 4px), 16px);
+  line-height: 1.25;
+  text-wrap: pretty;
+  pointer-events: none;
+}
+.ab-dica[data-oculta='true'] {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ab-dica {
+    animation: ab-aparece 180ms var(--ab-ease-out);
+    transition:
+      opacity 180ms var(--ab-ease-out),
+      visibility 0s linear 0s;
+  }
+  .ab-dica[data-oculta='true'] {
+    transition:
+      opacity 180ms var(--ab-ease-out),
+      visibility 0s linear 180ms;
+  }
+}
+.ab-abrindo {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: var(--lb-radius-md);
+  background: rgb(18 13 10 / 0.7);
+  font-size: 12.5px;
+  color: var(--lb-color-parchment-dim);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Só aparece se a resposta do mestre demorar: some antes de piscar numa rede rápida. */
+  .ab-abrindo {
+    animation: ab-aparece 200ms var(--ab-ease-out) 400ms backwards;
+  }
+}
+
+/* ---------------------------------------------------------------- cartões */
+
+.ab-cartao {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  gap: 10px;
+  width: min(340px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+  transform: translate(-50%, -50%);
+  user-select: text;
+  -webkit-user-select: text;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ab-cartao {
+    animation: ab-cartao-entra 200ms var(--ab-ease-out);
+  }
+}
+@keyframes ab-cartao-entra {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+.ab-cartao__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.ab-nota {
+  font-size: 12px;
+  color: var(--lb-color-parchment-faint);
+}
+.ab-armadilha {
+  padding: 8px 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-ember-soft);
+  color: var(--ab-ruim);
+  font-size: 13px;
+}
+.ab-itens {
+  display: grid;
+  gap: 4px;
+}
+.ab-itens li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--lb-color-line);
+}
+.ab-itens li span {
+  overflow-wrap: anywhere;
+}
+.ab-itens li b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.ab-moedas {
+  color: var(--ab-ouro);
+  font-weight: 600;
+}
