@@ -708,6 +708,14 @@ interface MapStoreState {
   setCarimboLargura: (largura: number) => void
   carimboDensidade: number
   setCarimboDensidade: (densidade: number) => void
+  /**
+   * "Os próximos barram a passagem" (Fase 6, 16/11/2026): a natureza saiu do
+   * Objeto para o Carimbo, e a pedra que barrava como Objeto barra por aqui.
+   * Liga o `Carimbo.barra` em cada um que o PRÓXIMO gesto solta; o que já está
+   * no mapa não muda. Começa desligada: o carimbo de antes não barrava.
+   */
+  carimboBarra: boolean
+  setCarimboBarra: (barra: boolean) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
@@ -2339,6 +2347,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     carimboTamanho: TAMANHO_DO_CARIMBO_PADRAO,
     carimboLargura: LARGURA_DO_SPRAY_PADRAO,
     carimboDensidade: DENSIDADE_PADRAO,
+    carimboBarra: false,
     drawCap: 'round',
     lightPreset: PRESET_DE_LUZ_PADRAO,
     drawDash: 'solid',
@@ -2588,6 +2597,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setCarimboDensidade: (densidade) => {
       if (Number.isFinite(densidade)) set({ carimboDensidade: limitarCarimbo(Math.round(densidade * 100) / 100, DENSIDADE_MIN, DENSIDADE_MAX) })
     },
+    setCarimboBarra: (barra) => set({ carimboBarra: barra }),
     setDrawCap: (cap) => set({ drawCap: cap }),
     setLightPreset: (preset) => set({ lightPreset: preset }),
     setDrawDash: (dash) => set({ drawDash: dash }),
@@ -3665,7 +3675,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         return 'tipo-ausente'
       }
       const antes = map.carimbos ?? []
-      const entram = novos.slice(0, Math.max(0, TETO_DE_CARIMBOS - antes.length))
+      const cabem = novos.slice(0, Math.max(0, TETO_DE_CARIMBOS - antes.length))
+      // "Os próximos barram a passagem" (Fase 6): o campo só existe ligado, como na ficha do carimbo.
+      const entram = get().carimboBarra ? cabem.map((c): Carimbo => ({ ...c, barra: true })) : cabem
       if (entram.length > 0) withHistory((m) => comCarimbos(m, [...(m.carimbos ?? []), ...entram]))
       return entram.length < novos.length ? 'teto' : 'carimbou'
     },

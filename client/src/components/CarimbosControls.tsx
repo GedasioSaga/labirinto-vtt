@@ -18,6 +18,7 @@ import { editandoUmPiso, mapaDoPiso } from '../lib/pisos'
 import { useMapStore } from '../stores/mapStore'
 import { useToastStore } from '../stores/toastStore'
 import { PinImageDrop } from './PinImageDrop'
+import { Toggle } from './Toggle'
 import { BotaoProcurarAnimacoes } from './ProcurarAnimacoes'
 import './CarimbosControls.css'
 
@@ -125,6 +126,8 @@ export function CarimbosControls() {
   const setLargura = useMapStore((s) => s.setCarimboLargura)
   const densidade = useMapStore((s) => s.carimboDensidade)
   const setDensidade = useMapStore((s) => s.setCarimboDensidade)
+  const barra = useMapStore((s) => s.carimboBarra)
+  const setBarra = useMapStore((s) => s.setCarimboBarra)
   const importados = useMapStore((s) => s.map.carimbosImportados ?? SEM_IMPORTADOS)
   // PISOS: "apagar todos" só alcança o piso em edição; a contagem e o botão leem o mesmo recorte.
   const quantos = useMapStore((s) => mapaDoPiso(s.map, s.pisoAtivo).carimbos?.length ?? 0)
@@ -268,6 +271,12 @@ export function CarimbosControls() {
               value={tamanho}
               onChange={(event) => setTamanho(Number(event.target.value))}
             />
+          </div>
+          <div className="lb-field">
+            <Toggle label="Os próximos barram a passagem" checked={barra} onChange={setBarra} describedBy="lb-carimbo-barra-dica" />
+            <p id="lb-carimbo-barra-dica" className="lb-field__hint">
+              Para a pedra e a mata que seguram o grupo. Cada um posto ganha a chave “Barra a passagem” ligada; clique num carimbo para mudar só ele.
+            </p>
           </div>
         </>
       )}

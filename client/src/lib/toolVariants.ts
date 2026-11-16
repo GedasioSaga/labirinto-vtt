@@ -591,6 +591,10 @@ export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape
  * usuário): a árvore continua carimbo, e o atalho arma a ferramenta Carimbo
  * com a árvore redonda (`carimbos/embutidos.ts`). `components/ToolVariantMenu.tsx`
  * o mostra logo depois do grupo Objeto.
+ *
+ * Fase 6 (16/11/2026, "Carimbo coloque no carimbo tudo que é natural"): a pedra,
+ * o toco e a árvore seca saíram do Objeto (`lib/naturezaNoCarimbo.ts`). O atalho
+ * virou a placa que diz para onde foram, com o nome do que o mestre procura aqui.
  */
 export const ATALHO_DA_ARVORE: {
   readonly label: string
@@ -600,8 +604,8 @@ export const ATALHO_DA_ARVORE: {
   readonly carimbo: string
   readonly ferramenta: DrawingTool
 } = {
-  label: 'Árvore redonda',
-  description: 'Arma o Carimbo com a árvore redonda (a árvore é carimbo, não móvel).',
+  label: 'Árvores, pedras e tocos',
+  description: 'A natureza mora no Carimbo: abre o Carimbo com a árvore redonda escolhida.',
   legenda: 'carimbo',
   carimbo: 'arvore-redonda',
   ferramenta: 'carimbos',
