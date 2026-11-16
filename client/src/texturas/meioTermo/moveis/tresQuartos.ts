@@ -88,6 +88,8 @@ import { ESPESSURA_DO_POMBAL } from './pombal'
 import { ESPESSURA_DA_BAIA } from './baiaDeCavalo'
 import { ESPESSURA_DO_SILO } from './siloDeGraos'
 import { ESPESSURA_DA_TABUA_DO_CHIQUEIRO } from './chiqueiroCercado'
+import { ESPESSURA_DA_BORDA_DO_VASO_MODERNO } from './vasoSanitarioModerno'
+import { ESPESSURA_DA_BORDA_DO_BIDE } from './bide'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -744,6 +746,30 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   casaNaArvore: { modo: 'derivado', espessura: 0 },
   pergolaComTrepadeira: { modo: 'derivado', espessura: 0 },
   portalTorii: { modo: 'derivado', espessura: 0 },
+  // O banheiro moderno (15/11/2026), lote A. O vaso e o bidê: a borda da louça é um tampo solto da grossura da borda
+  // sobre o pé oval mais estreito, que dá a silhueta de louça (a caixa do vaso é coluna); derivado puro em todos os
+  // giros. O box já sai desenhado na tela em cada giro (`montadaNaTela`): o vidro da frente é uma face meio transparente
+  // guardada em faixas, cada uma pendurada numa fresta de espessura nenhuma (com a fresta de um quarto de px aparecia um
+  // risco escuro atrás do vidro), os vidros dos lados são colunas finas, o de trás só a linha de cima, e a ducha e o
+  // misturador sobem em pinos soltos. A banheira moderna guarda o saiote da frente em fatias penduradas em frestas
+  // (giro 0) e, girada, a face de baixo da tela com `guardarFaceGirada`. O gabinete guarda a frente debaixo do tampo
+  // como a pia moderna (`guardarAFrente`), com o espelho em coluna fina na beira de trás (no giro 2 só a tira de cima);
+  // o armário guarda a frente em faixas (as portas e o nicho das toalhas) e, girado, a lateral e as costas.
+  vasoSanitarioModerno: { modo: 'derivado', espessura: ESPESSURA_DA_BORDA_DO_VASO_MODERNO },
+  bide: { modo: 'derivado', espessura: ESPESSURA_DA_BORDA_DO_BIDE },
+  boxDeChuveiro: { modo: 'derivado', espessura: 0 },
+  banheiraModerna: { modo: 'derivado', espessura: 0 },
+  gabineteDeBanheiro: { modo: 'derivado', espessura: 0 },
+  armarioDeBanheiro: { modo: 'derivado', espessura: 0 },
+  // Lote B. O toalheiro, o cesto, a prateleira, a lixeira e o suporte de papel são desenhados em fatias
+  // (`pilhaDeFatias.ts`), sem beirada copiada: as fatias dão a altura. O tapete de banheiro sobe a grossura do pelo,
+  // como o tapete da sala.
+  toalheiro: { modo: 'derivado', espessura: 0 },
+  cestoDeRoupa: { modo: 'derivado', espessura: 0 },
+  prateleiraDeFrascos: { modo: 'derivado', espessura: 0 },
+  lixeiraDePedal: { modo: 'derivado', espessura: 0 },
+  tapeteDeBanheiro: { modo: 'derivado', alturaSolta: SOMBRA_DO_TAPETE.z },
+  portaPapel: { modo: 'derivado', espessura: 0 },
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

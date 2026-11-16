@@ -679,6 +679,24 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   casaNaArvore: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   pergolaComTrepadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('pedra', 'Lajes', PEDRAS, 'arenito')],
   portalTorii: [],
+  // O banheiro moderno (15/11/2026), lote A. A louça branca, o cromo, o vidro verde-água e a pedra clara do box são
+  // fixos (o estilo moderno, como o inox da geladeira): o vaso, o bidê e o box não trocam nada. A banheira troca a
+  // toalha dobrada; o gabinete, a madeira das portas; o armário, a madeira e as toalhas do nicho.
+  vasoSanitarioModerno: [],
+  bide: [],
+  boxDeChuveiro: [],
+  banheiraModerna: [lugar('toalha', 'Toalha', TECIDOS, 'azul')],
+  gabineteDeBanheiro: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  armarioDeBanheiro: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('toalha', 'Toalhas', TECIDOS, 'linho')],
+  // Lote B. O toalheiro troca a toalha de banho (e a barra da de rosto); o cesto, a corda da trama (também de palha) e
+  // a camisa que escapa da tampa; o tapete, a cor do pelo. A prateleira de frascos, a lixeira de pedal e o suporte de
+  // papel não trocam nada: o vidro, o cromo, o inox, o papel e as cores dos frascos são fixos.
+  toalheiro: [lugar('toalha', 'Toalha', TECIDOS, 'azul')],
+  cestoDeRoupa: [lugar('trama', 'Trama', [...TECIDOS, 'palha'], 'linho'), lugar('roupa', 'Roupa', TECIDOS, 'azul')],
+  prateleiraDeFrascos: [],
+  lixeiraDePedal: [],
+  tapeteDeBanheiro: [lugar('tecido', 'Tecido', TECIDOS, 'azul')],
+  portaPapel: [],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

@@ -156,6 +156,13 @@ export const TIPOS_MOBILIA = [
   // O muro de fogo (15/11/2026): o fogo TRAÇADO pelo mestre (à mão ou ponto a ponto), com 1 casa de grossura,
   // que barra a passagem de saída. A linha mora em `Prop.tracado`; a conta dela em `lib/mobilia/muroDeFogo.ts`.
   'muroDeFogo',
+  // O banheiro moderno (15/11/2026; o mestre pediu "vários mais utensílios para banheiro", no estilo da geladeira de
+  // inox). Lote A, as peças grandes: o vaso sanitário moderno, o bidê, o box de chuveiro, a banheira moderna, o
+  // gabinete de banheiro (pia com espelho) e o armário de banheiro. Lote B, as pequenas: o toalheiro de pé, o cesto de
+  // roupa suja, a prateleira de frascos, a lixeira de pedal, o tapete de banheiro (no chão, como o tapete) e o suporte
+  // de papel higiênico.
+  'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
+  'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

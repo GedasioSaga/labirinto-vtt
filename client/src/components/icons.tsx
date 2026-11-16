@@ -3525,6 +3525,114 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6.5 6v15.5M17.5 6v15.5" />
         </>
       )
+    // O banheiro moderno (15/11/2026), lote A: os glifos do desenhista.
+    case 'vasoSanitarioModerno':
+      // De lado: a caixa baixa e arredondada com o botão, o assento e a louça inteiriça até o chão.
+      return (
+        <>
+          <rect x="5" y="5" width="7" height="6" rx="1.5" />
+          <path d="M7.5 5V3.5h2V5M9 11v2M5 13h14a6 6 0 0 1-6 6v2H8v-8" />
+        </>
+      )
+    case 'bide':
+      // De lado: a bacia baixa até o chão e o misturador de bica curva no fundo.
+      return <path d="M4 12h16a6 6 0 0 1-6 6v3H9v-9M6 12V8h4v1.5" />
+    case 'boxDeChuveiro':
+      // De frente: o vidro, o cano subindo com o braço e o chuveiro, três gotas e o puxador da porta.
+      return (
+        <>
+          <rect x="4" y="3" width="16" height="18" rx="1" />
+          <path d="M7.5 21V6.5h4v2M9.5 8.5h4M10.5 11v1.5M12.5 11v1.5M11.5 13.5V15M16.5 10v4" />
+        </>
+      )
+    case 'banheiraModerna':
+      // De frente: o saiote reto até o chão, a beira, a bica na direita e a toalha caindo pela beira.
+      return (
+        <>
+          <rect x="2.5" y="11" width="19" height="8" rx="1" />
+          <path d="M2.5 13.5h19M18.5 11V7h-3v1.5M5 11v5h2.5v-5" />
+        </>
+      )
+    case 'gabineteDeBanheiro':
+      // De frente: o espelho com o reflexo, o tampo com a torneira e o gabinete de duas portas.
+      return (
+        <>
+          <rect x="6" y="2.5" width="12" height="5.5" rx="0.5" />
+          <path d="M8.5 6.5l3-3M3.5 11h17v2.5h-17zM4.5 13.5v7h15v-7M12 13.5v7M10 15.5H8.5M14 15.5h1.5M12 11V9.5h1.5" />
+        </>
+      )
+    case 'armarioDeBanheiro':
+      // De frente: a coluna, a porta de cima, o nicho com duas pilhas de toalhas, a porta de baixo e a planta no topo.
+      return (
+        <>
+          <rect x="7" y="5" width="10" height="16" rx="0.5" />
+          <path d="M7 10.5h10M7 14.5h10M8.5 12h3M12.5 12h3M8.5 13.5h3M12.5 13.5h3M15 7v2M15 16.5v2M8.5 5V3.5h3V5M10 3.5l-1.5-2M10 3.5V1.5M10 3.5l1.5-2" />
+        </>
+      )
+    // Lote B, de frente ou de lado como os do lote A.
+    case 'toalheiro':
+      // De frente: a escada de dois banzos, o degrau de cima, a toalha de banho dobrada no degrau do meio com a barra e
+      // as pontas do degrau de baixo saindo dos dois lados dela.
+      return (
+        <>
+          <path d="M6 3v18M18 3v18M6 6h12M6 16h2M16 16h2" />
+          <rect x="8" y="10" width="8" height="9" rx="0.5" />
+          <path d="M8 16.5h8M6 10h2M16 10h2" />
+        </>
+      )
+    case 'cestoDeRoupa':
+      // De frente: o cesto um nada mais largo em cima, a tampa com a alça no meio, duas fileiras da trama e a manga
+      // caindo pela frente.
+      return (
+        <>
+          <path d="M6 8.5h12l-1 12.5H7z" />
+          <path d="M5 7h14v1.5H5zM10.5 7V5.5h3V7" />
+          <path d="M7.4 13h9.2M7.7 17h8.6" />
+          <path d="M14.5 8.5v4.5l1.5 1.2" />
+        </>
+      )
+    case 'prateleiraDeFrascos':
+      // De frente: as duas tábuas, o xampu de tampa, o condicionador e a loção de bomba em cima; o sabonete de bomba e
+      // o pote de creme embaixo.
+      return (
+        <>
+          <path d="M3 11h18M3 20.5h18" />
+          <path d="M5 11V6h3v5M5.8 6V4.5h1.4V6M10 11V7.5h3V11M16 11V5.5h2.5V11M17.25 5.5V4h1.5" />
+          <path d="M6 20.5V15.5h3.5v5M7.75 15.5V14h1.4M13 20.5V17.5h4v3M12.6 17.5h4.8" />
+        </>
+      )
+    case 'lixeiraDePedal':
+      // De lado: a lata de inox, a tampa de beira cheia com a dobradiça atrás e o pedal saindo rente ao chão.
+      return (
+        <>
+          <path d="M7 8.5h10l-.5 12h-9z" />
+          <path d="M6.5 6.5h11v2h-11zM6.5 7.5H5" />
+          <path d="M16.6 19.5h3.4v1h-3.4" />
+        </>
+      )
+    case 'tapeteDeBanheiro':
+      // De cima: o retângulo de cantos bem redondos, sem franja nem medalhão, com os tufos do pelo.
+      return (
+        <>
+          <rect x="3" y="6.5" width="18" height="11" rx="4" />
+          <path d="M8 10v1M12 10v1M16 10v1M10 13v1M14 13v1" />
+        </>
+      )
+    case 'portaPapel':
+      // De lado: a base, a haste com os dois rolos de reserva enfiados, o bico no alto, o braço e o rolo em uso com a
+      // ponta do papel caindo.
+      return (
+        <>
+          <path d="M4 21h10M9 21V3.5" />
+          <circle cx="9" cy="2.8" r="0.8" />
+          <rect x="6" y="14.5" width="6" height="6" rx="1" />
+          <rect x="6" y="8.5" width="6" height="6" rx="1" />
+          <path d="M9 6h4" />
+          <circle cx="16" cy="6.5" r="3" />
+          <circle cx="16" cy="6.5" r="1" />
+          <path d="M19 6.5v5.5" />
+        </>
+      )
   }
 }
 

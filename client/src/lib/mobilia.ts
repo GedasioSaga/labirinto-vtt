@@ -449,8 +449,9 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * correntes sobem até o eixo, mas ficam nas beiras) e a prancha do navio
  * (14/11/2026: como o píer, o token anda por cima das tábuas), a arquibancada
  * de torneio (14/11/2026: como o palco, a ficha sentada nos degraus sai por
- * cima das tábuas) e o bueiro (14/11/2026: rente como o círculo, o token pisa
- * na grade). O píer, a ponte
+ * cima das tábuas), o bueiro (14/11/2026: rente como o círculo, o token pisa
+ * na grade) e o tapete de banheiro (15/11/2026: como o tapete, o token pisa no
+ * pelo e o vaso, a banheira ou o box que o mestre põe em cima sai por cima). O píer, a ponte
  * levadiça e a prancha não são a ponte: o que é só da ponte (as
  * formas Madeira, Pedra e Corda, o material de cada forma) pergunta por
  * `'ponte'` pelo nome. A teia de aranha é rente, mas NÃO mora aqui: fica por
@@ -458,11 +459,11 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
  * ringue, o píer, a cela, a armadilha, o círculo, o sangue, os montes, a
- * ponte levadiça, a prancha, a arquibancada e o bueiro por último) leem esta
- * lista.
+ * ponte levadiça, a prancha, a arquibancada, o bueiro e o tapete de banheiro
+ * por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'tapeteDeBanheiro' ||tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro'
 }
 
 /**
