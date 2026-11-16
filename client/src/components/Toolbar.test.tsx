@@ -102,7 +102,7 @@ const gruposDoMenu = (nome: string) =>
 const radiosDe = (nome: string, grupo: string) =>
   Array.from(menu(nome)?.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][aria-label="${grupo}"] [role="radio"]`) ?? [])
 /** As partes do menu do Objeto, as mesmas da ficha da ferramenta (10/11/2026). */
-const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha', 'Banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa', 'Descanso e brincadeira', 'Cidade e vila']
+const PARTES_DO_OBJETO = ['Sala e quarto', 'Cozinha', 'Banheiro', 'Armazenagem', 'Rua e jardim', 'Cemitério', 'Feira', 'Oficina', 'Fazenda', 'Destroços e sucata', 'Esporte e lazer', 'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Necrotério e laboratório', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa', 'Descanso e brincadeira', 'Cidade e vila']
 /** Os objetos do menu do Objeto, nas partes, na ordem de leitura. */
 const radiosDoObjeto = () => PARTES_DO_OBJETO.flatMap((parte) => radiosDe('Objeto', parte))
 
@@ -290,7 +290,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 253 objetos nas 23 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 275 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -302,6 +302,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([
       'Mesa', 'Cadeira', 'Mesa quadrada', 'Mesa redonda', 'Sofá', 'Poltrona', 'Cama', 'Aparador', 'Tapete', 'Tapete longo', 'Lareira', 'Estante de livros', 'Guarda-roupa',
       'Escrivaninha', 'Criado-mudo com vela', 'Cama de casal', 'Berço', 'Banqueta', 'Biombo', 'Piano', 'Candelabro de chão',
+      // As referências (16/11/2026) entram no fim do grupo onde o mestre as procuraria: aqui, as duas da sala de jantar.
+      'Cadeira de espaldar alto', 'Centro de mesa',
       // A Cozinha e o Banheiro se separaram em 15/11/2026, com as 12 peças do banheiro moderno.
       'Armário de cozinha', 'Balcão', 'Fogão', 'Geladeira', 'Pia', 'Pratos', 'Caldeirão', 'Forno de pão',
       'Prateleira de potes', 'Mesa de corte', 'Gancho com carne pendurada',
@@ -309,12 +311,15 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Banheira', 'Banheira moderna', 'Tina de madeira', 'Box de chuveiro', 'Tapete de banheiro', 'Toalheiro',
       'Lavatório com jarro', 'Gabinete de banheiro',
       'Armário de banheiro', 'Prateleira de frascos', 'Cesto de roupa', 'Lixeira de pedal',
+      'Prateleira de toalhas',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
       'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
       'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
+      'Deck de madeira',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
       'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
+      'Túmulo de pedra', 'Lápide torta',
       'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
       'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fornalha de ferreiro', 'Bigorna', 'Balde de água', 'Bancada de ferramentas', 'Pedra de amolar', 'Suporte de armas',
@@ -332,8 +337,12 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Altar', 'Armadura',
       'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico',
       'Teia de aranha', 'Tocha de parede', 'Tocha de pé',
+      'Coluna quebrada', 'Altar redondo', 'Laje de sacrifício', 'Alçapão',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
       'Estante de poções', 'Bola de cristal', 'Pedestal com livro aberto',
+      // O Necrotério e laboratório (16/11/2026), o lote L1 das referências.
+      'Mesa de autópsia', 'Maca com lençol', 'Câmara frigorífica', 'Bandeja de instrumentos', 'Esterilizador', 'Panelas e bacias',
+      'Mesa de laboratório', 'Luminária articulada', 'Cadeira giratória', 'Máquina de escrever',
       'Barra de ouro', 'Monte de ouro', 'Moeda de ouro', 'Monte de moedas de ouro', 'Diamante', 'Monte de diamantes', 'Joia', 'Monte de joias',
       // Os grupos novos de 14/11/2026: Castelo (os lotes L01 e L02), Cerco e defesa (o L03 e a primeira metade do L04),
       // Base militar (a segunda metade do L04, o L05 e o L06), Mar e piratas (o L07 e o L08), Taverna e festa (o L09 e o
@@ -355,10 +364,11 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Arquibancada de torneio', 'Liça de justa',
       'Poste de amarrar cavalos', 'Bueiro', 'Relógio de sol', 'Sino no suporte',
       'Tear', 'Roca de fiar', 'Lagar', 'Mó de pedra', 'Liteira', 'Ponte levadiça',
+      'Elevador antigo', 'Carro antigo',
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(253)
+    expect(new Set(desenhos).size).toBe(275)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

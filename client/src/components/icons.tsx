@@ -3633,6 +3633,202 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M19 6.5v5.5" />
         </>
       )
+    // As referências (16/11/2026), lote L1: os glifos do desenhista.
+    case 'mesaDeAutopsia':
+      // De lado: a bandeja de beira alta, o pedestal, a chapa da base e o cano do ralo no pé.
+      return (
+        <>
+          <path d="M2 8.5h20v2.5H2zM2 8.5V7M22 8.5V7" />
+          <path d="M10.5 11v7.5M13.5 11v7.5M7 21h10M8 18.5h8V21" />
+          <path d="M19 11v2.5h-1.5" />
+        </>
+      )
+    case 'macaComLencol':
+      // De lado: o lençol sobre o corpo (a cabeça, o peito, os pés), as pernas de tubo e as rodinhas.
+      return (
+        <>
+          <path d="M2 12.5h20" />
+          <path d="M3 12.5a2.5 2.5 0 0 1 4.5-1.5c1.5-1 4-1.2 6-.8 2 .3 4 .4 5.5-.4a1.5 1.5 0 0 1 2.5 1.5l.5 1.2" />
+          <path d="M4 12.5V19M20 12.5V19" />
+          <circle cx="4" cy="20.5" r="1.3" />
+          <circle cx="20" cy="20.5" r="1.3" />
+        </>
+      )
+    case 'camaraFrigorifica':
+      // De frente: as nove portas em três colunas e a casa de máquinas em cima.
+      return (
+        <>
+          <rect x="3" y="6" width="18" height="15" rx="1" />
+          <path d="M9 6v15M15 6v15M3 11h18M3 16h18" />
+          <path d="M8 6V3h8v3" />
+        </>
+      )
+    case 'esterilizador':
+      // De lado: o tambor com a tampa, o manômetro em cima, as asas e os três pés.
+      return (
+        <>
+          <path d="M5 8h14v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM4 8h16" />
+          <circle cx="12" cy="4.5" r="2" />
+          <path d="M12 6.5V8M3 11h2M19 11h2" />
+          <path d="M7 18l-1.5 3.5M17 18l1.5 3.5M12 18v3.5" />
+        </>
+      )
+    case 'luminariaArticulada':
+      // De lado: a base, a haste, o braço, a cúpula e a luz saindo da boca.
+      return (
+        <>
+          <path d="M4 21h8M8 21V4l7.5 2.5v2.5" />
+          <path d="M11.5 13a4 4 0 0 1 8 0z" />
+          <path d="M13 15.5l-.8 1.8M15.5 15.5v2M18 15.5l.8 1.8" />
+        </>
+      )
+    case 'bandejaDeInstrumentos':
+      // De lado: a bandeja com o frasco em cima, a haste, a base e as rodinhas.
+      return (
+        <>
+          <path d="M3 9h18v2H3zM16 9V6.5h2V9" />
+          <path d="M12 11v8M5 19h14" />
+          <circle cx="5.5" cy="20.5" r="1.2" />
+          <circle cx="18.5" cy="20.5" r="1.2" />
+        </>
+      )
+    case 'mesaDeLaboratorio':
+      // De lado: o tampo, as pernas e a prateleira de baixo, o frasco cônico e o balão no suporte.
+      return (
+        <>
+          <path d="M2 12.5h20M4 12.5V21M20 12.5V21M4 18h16" />
+          <path d="M8.5 4.5h3M9.2 4.5V8l-2.7 4.5M10.8 4.5V8l2.7 4.5" />
+          <circle cx="17" cy="8.5" r="2.5" />
+          <path d="M17 4v2M15 12.5h4" />
+        </>
+      )
+    case 'panelasEBacias':
+      // De lado: duas bacias empilhadas e a panela tampada com as alças.
+      return (
+        <>
+          <path d="M2 13.5h9l-1.2 3H3.2zM2 17h9l-1.2 3H3.2z" />
+          <path d="M13 11h8v8.5h-8zM12.3 11h9.4M15.5 8.5h3V11M11.5 13.5H13M21 13.5h1.5" />
+        </>
+      )
+    case 'cadeiraGiratoria':
+      // De lado: o assento, o encosto na haste, a coluna, os pés e as rodinhas.
+      return (
+        <>
+          <rect x="4" y="11" width="11" height="2.5" rx="1" />
+          <path d="M15.5 3h3.5v5.5h-3.5zM17 8.5v3.5h-2" />
+          <path d="M9.5 13.5V18M4 20l5.5-2 5.5 2" />
+          <circle cx="4" cy="21" r="1" />
+          <circle cx="15" cy="21" r="1" />
+        </>
+      )
+    case 'maquinaDeEscrever':
+      // De frente: a folha saindo do rolo, o carro, o corpo e as fileiras de teclas.
+      return (
+        <>
+          <path d="M7 9.5V4h10v5.5" />
+          <path d="M3 9.5h18V12H3z" />
+          <path d="M4 12h16l2 8H2z" />
+          <path d="M6 15h12M5 17.5h14" />
+        </>
+      )
+    // Lote L2.
+    case 'elevadorAntigo':
+      // De frente: a gaiola, a sanfona em X e o mostrador em cima.
+      return (
+        <>
+          <rect x="5" y="3" width="14" height="18" />
+          <path d="M5 7h14M8 7v14M16 7v14M8 10l8 8M16 10l-8 8" />
+          <circle cx="12" cy="5" r="1" />
+        </>
+      )
+    case 'alcapao':
+      // A tampa de tábuas com as duas cintas e a argola.
+      return (
+        <>
+          <rect x="4" y="4" width="16" height="16" rx="1" />
+          <path d="M9 4v16M15 4v16M7 7h4M13 7h4" />
+          <circle cx="12" cy="17" r="1.5" />
+        </>
+      )
+    case 'deckDeMadeira':
+      // As tábuas e os dois pilares de canto.
+      return (
+        <>
+          <path d="M3 10h18M3 14h18M3 18h18M3 10v8M21 10v8" />
+          <path d="M5 5v13M19 5v13" />
+        </>
+      )
+    case 'colunaQuebrada':
+      // O toco partido em pé e o tambor deitado.
+      return (
+        <>
+          <path d="M4 20h8M5 20V9l2 2 2-3 2 2v10" />
+          <rect x="13" y="15" width="8" height="5" rx="2.5" />
+        </>
+      )
+    case 'altarRedondo':
+      // O tambor com o friso, o cristal e as duas velas.
+      return (
+        <>
+          <path d="M5 11h14v9H5zM4 20h16M5 15h14" />
+          <path d="M12 3l2 4-2 4-2-4zM7 11V8M17 11V8" />
+        </>
+      )
+    case 'lajeDeSacrificio':
+      // A laje grossa sobre os dois blocos, com a calha.
+      return (
+        <>
+          <path d="M3 9h18v4H3zM6 13v7M18 13v7M5 20h3M16 20h3" />
+          <path d="M6 11h12" />
+        </>
+      )
+    case 'tumuloDePedra':
+      // A arca deitada com a tampa e o degrau.
+      return (
+        <>
+          <path d="M3 20h18M5 20v-8h14v8M4 12h16l-1-3H5z" />
+          <path d="M10 15h4" />
+        </>
+      )
+    case 'carroAntigo':
+      // De lado: a cabine alta, o capô baixo e as duas rodas.
+      return (
+        <>
+          <path d="M3 16V9h9v3h7l2 2v2zM6 9V6h5v3" />
+          <circle cx="7" cy="17" r="2" />
+          <circle cx="17" cy="17" r="2" />
+        </>
+      )
+    case 'prateleiraDeToalhas':
+      // A estante aberta com as pilhas dobradas.
+      return (
+        <>
+          <path d="M4 3v18M20 3v18M4 9h16M4 15h16M4 21h16" />
+          <path d="M6 9V7h5v2M13 15v-3h5v3M6 21v-2h6v2" />
+        </>
+      )
+    case 'cadeiraDeEspaldarAlto':
+      // De lado: o espaldar bem alto, o assento e as pernas.
+      return (
+        <>
+          <path d="M7 2v20M7 13h10v8M7 13h10" />
+          <path d="M7 4h3v9" />
+        </>
+      )
+    case 'centroDeMesa':
+      // A fruteira de pé entre as duas velas.
+      return (
+        <>
+          <path d="M3 19h18M8 15h8l-1 2h-6zM12 17v2" />
+          <circle cx="10.5" cy="12.5" r="2" />
+          <circle cx="13.5" cy="12" r="2" />
+          <path d="M4 19v-7M20 19v-7M4 10v-1M20 10v-1" />
+        </>
+      )
+    case 'lapideTorta':
+      // A lápide em arco tombada no monte de terra.
+      return <path d="M4 20h16M8 20l-1-9a5 5 0 0 1 9-2l1 11" />
+
   }
 }
 

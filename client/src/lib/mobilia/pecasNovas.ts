@@ -75,6 +75,11 @@ export const PECAS_NOVAS = [
   // O banheiro moderno (15/11/2026): o lote A (as peças grandes) e o lote B (as pequenas).
   'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
   'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+  // As referências (16/11/2026): o lote L1 (o necrotério e o laboratório) e o lote L2 (do elevador à lápide torta).
+  'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+  'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+  'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+  'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -602,6 +607,37 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   lixeiraDePedal: { rotulo: 'Lixeira de pedal', artigo: 'uma lixeira de pedal', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
   tapeteDeBanheiro: { rotulo: 'Tapete de banheiro', artigo: 'um tapete de banheiro', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
   portaPapel: { rotulo: 'Suporte de papel', artigo: 'um suporte de papel', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  // As referências (16/11/2026), lote L1: o necrotério e o laboratório. A mesa de autópsia e a maca têm a cabeça na
+  // ponta da esquerda (o ralo da mesa no pé, à direita); a câmara frigorífica tem as portas na frente; a luminária, a
+  // base no canto do fundo à esquerda e a cúpula no meio; a máquina de escrever, o carro atrás e as teclas na frente.
+  // O esterilizador e a cadeira giratória são redondos (as asas, os pés e as rodinhas saem um tico da roda).
+  mesaDeAutopsia: { rotulo: 'Mesa de autópsia', artigo: 'uma mesa de autópsia', tamanho: { largura: 2, altura: 0.9 }, redonda: false },
+  macaComLencol: { rotulo: 'Maca com lençol', artigo: 'uma maca com lençol', tamanho: { largura: 2, altura: 0.8 }, redonda: false },
+  camaraFrigorifica: { rotulo: 'Câmara frigorífica', artigo: 'uma câmara frigorífica', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  esterilizador: { rotulo: 'Esterilizador', artigo: 'um esterilizador', tamanho: { largura: 0.7, altura: 0.7 }, redonda: true },
+  luminariaArticulada: { rotulo: 'Luminária articulada', artigo: 'uma luminária articulada', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  bandejaDeInstrumentos: { rotulo: 'Bandeja de instrumentos', artigo: 'uma bandeja de instrumentos', tamanho: { largura: 0.8, altura: 0.6 }, redonda: false },
+  mesaDeLaboratorio: { rotulo: 'Mesa de laboratório', artigo: 'uma mesa de laboratório', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  panelasEBacias: { rotulo: 'Panelas e bacias', artigo: 'umas panelas e bacias', tamanho: { largura: 1, altura: 0.8 }, redonda: false },
+  cadeiraGiratoria: { rotulo: 'Cadeira giratória', artigo: 'uma cadeira giratória', tamanho: { largura: 0.6, altura: 0.6 }, redonda: true },
+  maquinaDeEscrever: { rotulo: 'Máquina de escrever', artigo: 'uma máquina de escrever', tamanho: { largura: 0.5, altura: 0.4 }, redonda: false },
+  // Lote L2. O elevador tem a grade sanfonada na frente (o sul da pegada); o alçapão, as dobradiças no norte e a
+  // argola no sul; o deck estica (tábuas, emendas e barrotes saem da medida); a coluna quebrada tem o toco na casa da
+  // esquerda e o tambor caído na da direita; o túmulo, a cabeceira no norte; o carro, o capô para a direita (3 casas,
+  // um sedã de uns 4,5 m); a prateleira de toalhas e a cadeira de espaldar alto encostam o fundo no norte. O altar
+  // redondo é redondo. O alçapão e o deck moram no chão (`ehMovelDoChao`).
+  elevadorAntigo: { rotulo: 'Elevador antigo', artigo: 'um elevador antigo', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  alcapao: { rotulo: 'Alçapão', artigo: 'um alçapão', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  deckDeMadeira: { rotulo: 'Deck de madeira', artigo: 'um deck de madeira', tamanho: { largura: 3, altura: 2 }, redonda: false },
+  colunaQuebrada: { rotulo: 'Coluna quebrada', artigo: 'uma coluna quebrada', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  altarRedondo: { rotulo: 'Altar redondo', artigo: 'um altar redondo', tamanho: { largura: 1.5, altura: 1.5 }, redonda: true },
+  lajeDeSacrificio: { rotulo: 'Laje de sacrifício', artigo: 'uma laje de sacrifício', tamanho: { largura: 2, altura: 1 }, redonda: false },
+  tumuloDePedra: { rotulo: 'Túmulo de pedra', artigo: 'um túmulo de pedra', tamanho: { largura: 1, altura: 2 }, redonda: false },
+  carroAntigo: { rotulo: 'Carro antigo', artigo: 'um carro antigo', tamanho: { largura: 3, altura: 1.5 }, redonda: false },
+  prateleiraDeToalhas: { rotulo: 'Prateleira de toalhas', artigo: 'uma prateleira de toalhas', tamanho: { largura: 1, altura: 0.4 }, redonda: false },
+  cadeiraDeEspaldarAlto: { rotulo: 'Cadeira de espaldar alto', artigo: 'uma cadeira de espaldar alto', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
+  centroDeMesa: { rotulo: 'Centro de mesa', artigo: 'um centro de mesa', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
 /** Um valor por peça nova, lido da ficha (o nome, o artigo, o tamanho), para juntar às tabelas de `lib/mobilia.ts`. */
@@ -898,6 +934,28 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     lixeiraDePedal: valor(f.lixeiraDePedal),
     tapeteDeBanheiro: valor(f.tapeteDeBanheiro),
     portaPapel: valor(f.portaPapel),
+    mesaDeAutopsia: valor(f.mesaDeAutopsia),
+    macaComLencol: valor(f.macaComLencol),
+    camaraFrigorifica: valor(f.camaraFrigorifica),
+    esterilizador: valor(f.esterilizador),
+    luminariaArticulada: valor(f.luminariaArticulada),
+    bandejaDeInstrumentos: valor(f.bandejaDeInstrumentos),
+    mesaDeLaboratorio: valor(f.mesaDeLaboratorio),
+    panelasEBacias: valor(f.panelasEBacias),
+    cadeiraGiratoria: valor(f.cadeiraGiratoria),
+    maquinaDeEscrever: valor(f.maquinaDeEscrever),
+    elevadorAntigo: valor(f.elevadorAntigo),
+    alcapao: valor(f.alcapao),
+    deckDeMadeira: valor(f.deckDeMadeira),
+    colunaQuebrada: valor(f.colunaQuebrada),
+    altarRedondo: valor(f.altarRedondo),
+    lajeDeSacrificio: valor(f.lajeDeSacrificio),
+    tumuloDePedra: valor(f.tumuloDePedra),
+    carroAntigo: valor(f.carroAntigo),
+    prateleiraDeToalhas: valor(f.prateleiraDeToalhas),
+    cadeiraDeEspaldarAlto: valor(f.cadeiraDeEspaldarAlto),
+    centroDeMesa: valor(f.centroDeMesa),
+    lapideTorta: valor(f.lapideTorta),
   }
 }
 
@@ -970,6 +1028,11 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   // O banheiro moderno (15/11/2026), lotes A e B, sem parente antigo: o último bloco do Objeto, antes das construções.
   'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
   'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+  // As referências (16/11/2026), lotes L1 e L2, depois do banheiro: o novo último bloco do Objeto, antes das construções.
+  'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+  'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+  'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+  'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
   // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
@@ -4241,6 +4304,79 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         ...aro(largura * 0.12, altura * 0.12, -hw * 0.32, -hh * 0.07),
         ...quadro(-hw * 0.05, -hh * 0.4, hw * 0.46, hh * 0.26),
       ]
+    // As referências (16/11/2026), lote L1: os traços do desenhista.
+    case 'mesaDeAutopsia':
+      // A bandeja com a beira, a plataforma com o sulco do meio e o poço do ralo no pé (à direita).
+      return [...quadro(-hw * 0.94, -hh * 0.9, hw * 0.94, hh * 0.9), ...quadro(-hw * 0.84, -hh * 0.7, hw * 0.62, hh * 0.7), linha(-hw * 0.7, 0, hw * 0.6), ...aro(altura * 0.16, altura * 0.16, hw * 0.78, 0)]
+    case 'macaComLencol':
+      // O lençol, a cabeça na ponta da esquerda e o corpo comprido até os pés.
+      return [...quadro(-hw * 0.86, -hh * 0.86, hw * 0.86, hh * 0.86), ...aro(altura * 0.26, altura * 0.26, -hw * 0.72, 0), linha(-hw * 0.56, -hh * 0.3, hw * 0.72), linha(-hw * 0.56, hh * 0.3, hw * 0.72)]
+    case 'camaraFrigorifica':
+      // De cima: o teto, a casa de máquinas no fundo e a beira da frente (a grelha das portas).
+      return [...quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96), ...quadro(-hw * 0.3, -hh * 0.9, hw * 0.3, -hh * 0.5), linha(-hw * 0.96, hh * 0.8, hw * 0.96)]
+    case 'esterilizador':
+      // O tambor redondo, o manômetro na tampa e as asas dos dois lados.
+      return [...aro(largura * 0.8, altura * 0.8), ...aro(largura * 0.26, altura * 0.26, hw * 0.2, -hh * 0.15), linha(-hw * 0.98, 0, -hw * 0.82), linha(hw * 0.82, 0, hw * 0.98)]
+    case 'luminariaArticulada':
+      // A base redonda no canto do fundo, o braço até o cotovelo, o segundo lance e a cúpula no meio.
+      return [
+        ...aro(largura * 0.36, altura * 0.36, -hw * 0.5, -hh * 0.5),
+        { x1: -hw * 0.5, y1: -hh * 0.5, x2: hw * 0.34, y2: -hh * 0.62 },
+        { x1: hw * 0.34, y1: -hh * 0.62, x2: hw * 0.04, y2: hh * 0.06 },
+        ...aro(largura * 0.42, altura * 0.34, hw * 0.04, hh * 0.06),
+      ]
+    case 'bandejaDeInstrumentos':
+      // A bandeja com a beira, o pano dos instrumentos à esquerda e a cuba-rim à direita.
+      return [...quadro(-hw * 0.93, -hh * 0.9, hw * 0.93, hh * 0.9), ...quadro(-hw * 0.82, -hh * 0.76, hw * 0.3, hh * 0.76), ...aro(largura * 0.17, altura * 0.38, hw * 0.62, -hh * 0.2)]
+    case 'mesaDeLaboratorio':
+      // O tampo com a beira, o balão no suporte no meio e o vidro de amostra à direita.
+      return [...quadro(-hw * 0.96, -hh * 0.94, hw * 0.96, hh * 0.94), ...aro(altura * 0.28, altura * 0.28, 0, -hh * 0.1), ...aro(altura * 0.3, altura * 0.3, hw * 0.7, -hh * 0.12)]
+    case 'panelasEBacias':
+      // A pilha de bacias à esquerda, a panela no fundo à direita e as cubas na frente.
+      return [...aro(altura * 0.56, altura * 0.56, -hh * 0.3, -hh * 0.12), ...aro(altura * 0.36, altura * 0.36, hh * 0.5, -hh * 0.48), ...aro(altura * 0.34, altura * 0.2, hh * 0.4, hh * 0.5)]
+    case 'cadeiraGiratoria':
+      // O assento redondo e o encosto atrás.
+      return [...aro(largura * 0.74, altura * 0.74, 0, hh * 0.06), linha(-hw * 0.55, -hh * 0.92, hw * 0.55)]
+    case 'maquinaDeEscrever':
+      // O corpo, o rolo de ponta a ponta atrás e duas fileiras de teclas.
+      return [...quadro(-hw * 0.84, -hh * 0.5, hw * 0.84, hh * 0.96), linha(-hw * 0.92, -hh * 0.62, hw * 0.92), linha(-hw * 0.7, hh * 0.34, hw * 0.7), linha(-hw * 0.6, hh * 0.68, hw * 0.6)]
+    // Lote L2.
+    case 'elevadorAntigo':
+      // A gaiola quadrada inteira e a grade na frente.
+      return [...quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95), ...quadro(-hw * 0.8, hh * 0.84, hw * 0.8, hh * 0.92)]
+    case 'alcapao':
+      // A tampa no batente.
+      return quadro(-hw * 0.96, -hh * 0.96, hw * 0.96, hh * 0.96)
+    case 'deckDeMadeira':
+      // O tablado inteiro e duas emendas das tábuas (só o quadro inteiro já é a sebe).
+      return [...quadro(-hw, -hh, hw, hh), linha(-hw, -hh / 3, hw), linha(-hw, hh / 3, hw)]
+    case 'colunaQuebrada':
+      // O toco na casa da esquerda e o tambor caído na da direita.
+      return [...quadro(-hw * 0.97, -hh * 0.97, 0, hh * 0.97), ...quadro(hw * 0.05, -hh * 0.5, hw * 0.95, hh * 0.5)]
+    case 'altarRedondo':
+      // O tambor redondo.
+      return aro(largura * 0.98, altura * 0.98, 0, 0)
+    case 'lajeDeSacrificio':
+      // A laje lavrada.
+      return quadro(-hw * 0.94, -hh * 0.86, hw * 0.94, hh * 0.86)
+    case 'tumuloDePedra':
+      // A arca deitada no basamento.
+      return quadro(-hw * 0.95, -hh * 0.95, hw * 0.95, hh * 0.95)
+    case 'carroAntigo':
+      // A carroceria de ponta a ponta.
+      return quadro(-hw * 0.98, -hh * 0.94, hw * 0.98, hh * 0.94)
+    case 'prateleiraDeToalhas':
+      // O tampo de tábua.
+      return quadro(-hw * 0.96, -hh * 0.9, hw * 0.96, hh * 0.9)
+    case 'cadeiraDeEspaldarAlto':
+      // O assento e a beira do espaldar no fundo (só o quadro já é a lápide torta).
+      return [...quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9), linha(-hw * 0.9, -hh * 0.6, hw * 0.9)]
+    case 'centroDeMesa':
+      // A bandeja oval.
+      return aro(largura * 0.94, altura * 0.84, 0, 0)
+    case 'lapideTorta':
+      // A lápide no monte de terra.
+      return quadro(-hw * 0.9, -hh * 0.9, hw * 0.9, hh * 0.9)
   }
 }
 

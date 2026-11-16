@@ -210,7 +210,10 @@ export interface ContextoDoMovel {
    * esticadas até a frente NA TELA; no silo a porta, os aros, a escada e a luz
    * dos gomos da cúpula; o chiqueiro não lê) e os cinco do palco do parque
    * (`duasVistasDoParque.ts` gira os pontos 3D: de lado, o torii e a pérgola
-   * ficam de perfil). Os outros desenhos não leem.
+   * ficam de perfil). Das referências (16/11/2026) leem a câmara frigorífica
+   * (girada, a face de baixo na tela é a lateral ou as costas, guardadas com
+   * `guardarFaceGirada`) e as sete pilhas de fatias do lote L2 (`novoFatiador`,
+   * para a luz desenhada ficar no lado certo da tela). Os outros desenhos não leem.
    */
   readonly giro: number
   /** Só o muro de fogo lê: o traço do mestre, em frações 0..1 da pegada (ausente = a reta pelo meio). */

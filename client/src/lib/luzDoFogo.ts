@@ -91,6 +91,12 @@ export const LUZ_DOS_OBJETOS: Readonly<Partial<Record<TipoMobilia, LuzDoObjeto>>
   // `ehMovelQueAcende` em `lib/mobilia/fogoDeCasa.ts`), e apagado ele sai desta conta (`luzDoObjeto`) e o desenho
   // troca para a lente escura (variante 1).
   holofote: { alcanceEmCasas: 5, cor: 0xfff6e6, forca: 0.9, fumacaEBrasas: false },
+  // A luminária articulada (16/11/2026, lote L1 das referências): lâmpada de mesa, luz amarelada e curta, sem fumaça.
+  // Acende e apaga como o holofote (`ehMovelQueAcende`); a cúpula fica no meio da pegada, de onde a luz nasce.
+  luminariaArticulada: { alcanceEmCasas: 3, cor: 0xfff2dc, forca: 0.85, fumacaEBrasas: false },
+  // O altar redondo (16/11/2026, lote L2): o brilho verde dos cristais no meio da laje, fraco e curto, sem fumaça (as
+  // cinco velas são pintadas, como as do lustre). O cacho fica no meio da pegada, de onde a luz nasce.
+  altarRedondo: { alcanceEmCasas: 2.5, cor: 0xc6f2d2, forca: 0.7, fumacaEBrasas: false },
   // O varal de lanternas de papel (14/11/2026): uma fila de lanternas acesas entre dois mastros, luz quente e fraca de
   // papel, sem fumaça. A fila tem 4 casas no tamanho de partida; a luz nasce do meio dela, e o alcance cobre as pontas.
   // O brilho do papel é pintado, sem chama animada.

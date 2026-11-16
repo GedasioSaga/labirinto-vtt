@@ -27,6 +27,7 @@ export type IdDoMaterial =
   | 'palha' | 'corda'
   | 'lenhaCarvalho' | 'lenhaPinho' | 'lenhaBetula'
   | 'buxo' | 'alfeneiro'
+  | 'inox' | 'marmore'
 
 /** Opções que usam a madeira do próprio móvel: o assento "Madeira" da cadeira e as "Varas" da cerca. Não têm cor própria. */
 export type ReferenciaAMadeira = 'mesma' | 'varas'
@@ -76,6 +77,13 @@ const TOM_DO_BARRO = '#a8735a'
 /** Folhas da sebe (MT5): o buxo é o verde escuro da vila mais calmo; o alfeneiro, o claro. */
 const TOM_DO_BUXO = '#557f57'
 const TOM_DO_ALFENEIRO = '#74955c'
+/**
+ * O inox e o mármore (16/11/2026, lista do que faltava nas referências: a bancada de inox, a mesa de metal e a coluna
+ * de mármore). O inox pinta o aço escovado da geladeira (`INOX` em `moveis/geladeira.ts`); o mármore é o branco
+ * quebrado e frio do chão de mármore, sem chegar ao branco do papel.
+ */
+const TOM_DO_INOX = '#a9adaf'
+const TOM_DO_MARMORE = '#cfcabf'
 
 /**
  * Carvalho e madeira velha no MÓVEL ficam mais escuros que o token da vila
@@ -118,6 +126,9 @@ export const MATERIAIS: Readonly<Record<IdDoMaterial, Material>> = {
   // antes da sombra; estes tons ficam em 0,35 e 0,40, contidos como o resto do mapa.
   buxo: materialDeTomProprio('buxo', 'Buxo', 'folha', '#3d5e40', TOM_DO_BUXO),
   alfeneiro: materialDeTomProprio('alfeneiro', 'Alfeneiro', 'folha', '#5a7a48', TOM_DO_ALFENEIRO),
+  // 16/11/2026: o inox entra nos metais e o mármore nas pedras, no FIM de cada lista (o padrão de cada lugar não muda).
+  inox: materialDeTomProprio('inox', 'Inox', 'metal', '#9da2a5', TOM_DO_INOX),
+  marmore: materialDeTomProprio('marmore', 'Mármore', 'pedra', '#d3cec4', TOM_DO_MARMORE),
 }
 
 /** A opção é um material com cor própria (e não a madeira do móvel)? */
@@ -134,9 +145,11 @@ export interface LugarDeMaterial {
 }
 
 const MADEIRAS: readonly OpcaoDeMaterial[] = ['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha']
-const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao']
+// O inox (16/11/2026) e o mármore entram no fim: o mapa que já escolheu ferro, latão, granito, arenito ou ardósia
+// grava o tom oficial dele, que continua voltando a ele mesmo (`materialMaisPerto`), e o padrão de cada lugar é o de antes.
+const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao', 'inox']
 const TECIDOS: readonly OpcaoDeMaterial[] = ['linho', 'vinho', 'azul', 'musgo', 'ocre']
-const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia']
+const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia', 'marmore']
 
 function lugar(id: string, nome: string, opcoes: readonly OpcaoDeMaterial[], padrao: OpcaoDeMaterial): LugarDeMaterial {
   return { id, nome, opcoes, padrao }
@@ -149,7 +162,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   bau: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('ferragens', 'Ferragens', METAIS, 'latao')],
   catre: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('cobertor', 'Cobertor', TECIDOS, 'vinho'), lugar('travesseiro', 'Travesseiro', TECIDOS, 'linho')],
   mesa: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
-  cadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('assento', 'Assento', ['mesma', 'palha'], 'palha')],
+  // O assento ESTOFADO (16/11/2026): os tecidos entram depois da palha, que segue o padrão; a cadeira sem cor gravada
+  // no assento (todas as de antes: só a palha dava para gravar) abre de palha como sempre.
+  cadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('assento', 'Assento', ['mesma', 'palha', ...TECIDOS], 'palha')],
   cerca: [lugar('madeira', 'Mourões', MADEIRAS, 'carvalho'), lugar('ligacao', 'Entre os mourões', ['varas', 'corda', 'arame'], 'varas')],
   armario: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('puxadores', 'Puxadores', METAIS, 'ferro')],
   aparador: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
@@ -697,6 +712,36 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   lixeiraDePedal: [],
   tapeteDeBanheiro: [lugar('tecido', 'Tecido', TECIDOS, 'azul')],
   portaPapel: [],
+  // As referências (16/11/2026), lote L1: o necrotério e o laboratório não trocam nada (o inox, o esmalte, a tinta de
+  // hospital, o lençol, a borracha, o níquel, o latão, o vidro e a laca são fixos, como a geladeira).
+  mesaDeAutopsia: [],
+  macaComLencol: [],
+  camaraFrigorifica: [],
+  esterilizador: [],
+  luminariaArticulada: [],
+  bandejaDeInstrumentos: [],
+  mesaDeLaboratorio: [],
+  panelasEBacias: [],
+  cadeiraGiratoria: [],
+  maquinaDeEscrever: [],
+  // Lote L2. O elevador troca a madeira da cabine e o metal da gaiola (o latão do mostrador é fixo); o alçapão, a
+  // madeira da tampa e as ferragens; o deck, a madeira; a coluna, o altar, a laje, o túmulo e a lápide, a pedra (o
+  // mármore também: a coluna de mármore da lista); o carro, a pintura da carroceria (vale o tom do material, pintado
+  // liso: o vinho, o verde do musgo, o azul e o cinza-escuro da ardósia; o preto, o níquel e os raios são fixos); a
+  // prateleira, a madeira e as toalhas coloridas (as brancas são fixas); a cadeira de espaldar alto, a madeira e o
+  // estofado; o centro de mesa, o metal da bandeja, da fruteira e dos castiçais.
+  elevadorAntigo: [lugar('madeira', 'Cabine', MADEIRAS, 'nogueira'), lugar('grade', 'Grade', METAIS, 'ferro')],
+  alcapao: [lugar('madeira', 'Madeira', MADEIRAS, 'velha'), lugar('ferragens', 'Ferragens', METAIS, 'ferro')],
+  deckDeMadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
+  colunaQuebrada: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  altarRedondo: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  lajeDeSacrificio: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  tumuloDePedra: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  carroAntigo: [lugar('pintura', 'Pintura', ['vinho', 'musgo', 'azul', 'ardosia'], 'vinho')],
+  prateleiraDeToalhas: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('toalha', 'Toalhas', TECIDOS, 'azul')],
+  cadeiraDeEspaldarAlto: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('estofado', 'Estofado', TECIDOS, 'vinho')],
+  centroDeMesa: [lugar('metal', 'Metal', METAIS, 'latao')],
+  lapideTorta: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

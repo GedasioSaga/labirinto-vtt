@@ -83,8 +83,8 @@ describe('MaterialDaPeca: o material da peça nova', () => {
     act(() => {
       marcada?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     })
-    // Depois da ardósia, a última, a seta volta à primeira (granito).
-    expect(pedidos).toEqual([{ cor: '#7e7b76' }])
+    // Depois da ardósia vem o mármore (16/11/2026, o último das pedras).
+    expect(pedidos).toEqual([{ cor: '#d3cec4' }])
   })
 
   it('a cama de casal (11/11/2026) tem os três lugares da cama: cobertor e travesseiro gravam nos campos de tecido, não na Cor da linha', () => {

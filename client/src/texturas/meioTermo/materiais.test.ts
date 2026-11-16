@@ -65,7 +65,8 @@ describe('materialMaisPerto (os 3 exemplos do plano)', () => {
   })
 
   it('opção que usa a madeira do próprio móvel (mesma, varas) não entra na conta de cor', () => {
-    expect(materialMaisPerto('#000000', lugar('cadeira', 'assento'))).toBe('palha')
+    // Desde 16/11/2026 o assento tem os tecidos do estofado: o preto vai à lã vinho, a mais escura, nunca à madeira.
+    expect(materialMaisPerto('#000000', lugar('cadeira', 'assento'))).toBe('vinho')
     expect(materialMaisPerto('#8b6b47', lugar('cerca', 'ligacao'))).toBe('corda')
   })
 })
@@ -421,7 +422,55 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       lixeiraDePedal: [],
       tapeteDeBanheiro: ['tecido:azul'],
       portaPapel: [],
+      // As referências (16/11/2026): o lote L1 não troca nada; o lote L2 troca a madeira, o metal, a pedra, a pintura do
+      // carro, as toalhas e o estofado.
+      mesaDeAutopsia: [],
+      macaComLencol: [],
+      camaraFrigorifica: [],
+      esterilizador: [],
+      luminariaArticulada: [],
+      bandejaDeInstrumentos: [],
+      mesaDeLaboratorio: [],
+      panelasEBacias: [],
+      cadeiraGiratoria: [],
+      maquinaDeEscrever: [],
+      elevadorAntigo: ['madeira:nogueira', 'grade:ferro'],
+      alcapao: ['madeira:velha', 'ferragens:ferro'],
+      deckDeMadeira: ['madeira:pinho'],
+      colunaQuebrada: ['pedra:granito'],
+      altarRedondo: ['pedra:granito'],
+      lajeDeSacrificio: ['pedra:granito'],
+      tumuloDePedra: ['pedra:granito'],
+      carroAntigo: ['pintura:vinho'],
+      prateleiraDeToalhas: ['madeira:pinho', 'toalha:azul'],
+      cadeiraDeEspaldarAlto: ['madeira:nogueira', 'estofado:vinho'],
+      centroDeMesa: ['metal:latao'],
+      lapideTorta: ['pedra:granito'],
     })
+  })
+
+  it('o inox, o mármore e o estofado (16/11/2026) entram no FIM das listas e o mapa de antes abre igual', () => {
+    // Os metais, as pedras e o assento da cadeira ganham a opção nova depois das que já existiam.
+    expect(lugar('barril', 'aros').opcoes).toEqual(['ferro', 'latao', 'inox'])
+    expect(lugar('lapide', 'pedra').opcoes).toEqual(['granito', 'arenito', 'ardosia', 'marmore'])
+    expect(lugar('cadeira', 'assento').opcoes).toEqual(['mesma', 'palha', 'linho', 'vinho', 'azul', 'musgo', 'ocre'])
+    // O padrão não muda: o mapa sem cor gravada abre como antes.
+    expect(materialMaisPerto(undefined, lugar('barril', 'aros'))).toBe('ferro')
+    expect(materialMaisPerto(undefined, lugar('lapide', 'pedra'))).toBe('granito')
+    expect(materialMaisPerto(undefined, lugar('cadeira', 'assento'))).toBe('palha')
+    // A escolha gravada de antes (o tom oficial de cada material) continua voltando a ela, em todo lugar que mudou.
+    for (const tipo of TIPOS_MOBILIA) {
+      for (const l of LUGARES_DE_MATERIAL[tipo]) {
+        const antigas = l.opcoes.filter(ehMaterial).filter((id) => id !== 'inox' && id !== 'marmore')
+        for (const id of antigas) expect(materialMaisPerto(MATERIAIS[id].hex, l), `${tipo}.${l.id}.${id}`).toBe(id)
+      }
+    }
+    expect(materialMaisPerto(MATERIAIS.palha.hex, lugar('cadeira', 'assento'))).toBe('palha')
+    // O inox é o aço claro da geladeira, o mármore o branco quebrado: os dois são os mais claros da lista deles.
+    expect(MATERIAIS.inox.classe).toBe('metal')
+    expect(MATERIAIS.marmore.classe).toBe('pedra')
+    expect(oklabDoHex(MATERIAIS.inox.hex)[0]).toBeGreaterThan(oklabDoHex(MATERIAIS.latao.hex)[0])
+    expect(oklabDoHex(MATERIAIS.marmore.hex)[0]).toBeGreaterThan(oklabDoHex(MATERIAIS.arenito.hex)[0])
   })
 
   it('o padrão de cada lugar está entre as opções dele', () => {

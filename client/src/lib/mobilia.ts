@@ -451,7 +451,10 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * de torneio (14/11/2026: como o palco, a ficha sentada nos degraus sai por
  * cima das tábuas), o bueiro (14/11/2026: rente como o círculo, o token pisa
  * na grade) e o tapete de banheiro (15/11/2026: como o tapete, o token pisa no
- * pelo e o vaso, a banheira ou o box que o mestre põe em cima sai por cima). O píer, a ponte
+ * pelo e o vaso, a banheira ou o box que o mestre põe em cima sai por cima), o
+ * alçapão (16/11/2026: rente como o bueiro, o token pisa na tampa e chega ao
+ * pino de viagem de mão única que ele marca) e o deck de madeira (16/11/2026:
+ * como o píer, o token anda nas tábuas; os pilares sobem, mas ficam nas beiras). O píer, a ponte
  * levadiça e a prancha não são a ponte: o que é só da ponte (as
  * formas Madeira, Pedra e Corda, o material de cada forma) pergunta por
  * `'ponte'` pelo nome. A teia de aranha é rente, mas NÃO mora aqui: fica por
@@ -459,11 +462,11 @@ export function aceitaCurva(tipo: TipoMobilia | undefined): boolean {
  * A ordem de desenho, o contêiner do chão do editor e o clique (que pega o
  * tapete, a ponte, o campinho, a horta, o canteiro, o palco, a plantação, o
  * ringue, o píer, a cela, a armadilha, o círculo, o sangue, os montes, a
- * ponte levadiça, a prancha, a arquibancada, o bueiro e o tapete de banheiro
- * por último) leem esta lista.
+ * ponte levadiça, a prancha, a arquibancada, o bueiro, o tapete de banheiro, o
+ * alçapão e o deck por último) leem esta lista.
  */
 export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'tapeteDeBanheiro' ||tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro'
+  return tipo === 'tapete' || tipo === 'tapeteLongo' || tipo === 'tapeteDeBanheiro' ||tipo === 'ponte' || tipo === 'campinho' || tipo === 'horta' || tipo === 'canteiroDeFlores' || tipo === 'palcoDeBardo' || tipo === 'plantacaoEmFileiras' || tipo === 'ringueDeLuta' || tipo === 'pier' || tipo === 'celaComGrade' || tipo === 'armadilhaDeEspinhos' || tipo === 'circuloMagico' || tipo === 'sangueNoChao' || tipo === 'monteDeOuro' || tipo === 'monteDeMoedasDeOuro' || tipo === 'monteDeDiamantes' || tipo === 'monteDeJoias' || tipo === 'ponteLevadica' || tipo === 'pranchaDoNavio' || tipo === 'arquibancadaDeTorneio' || tipo === 'bueiro' || tipo === 'alcapao' || tipo === 'deckDeMadeira'
 }
 
 /**
@@ -489,21 +492,26 @@ export function ehMovelDoChao(tipo: TipoMobilia | undefined): boolean {
  * escada de cerco também não, deitada no chão passa-se por cima.
  * O MURO DE FOGO (15/11/2026) barra de saída, por decisão do mestre: é para
  * isso que ele serve; a chave do painel o deixa atravessável.
+ * O CARRO ANTIGO (16/11/2026, lote L2 das referências) barra como a carroça:
+ * um veículo cheio de 3 casas. O elevador antigo NÃO barra: a ficha tem de
+ * pisar no pino da cabine de transporte que ele cobre.
  */
 export function ehMovelQueBarra(tipo: TipoMobilia | undefined): boolean {
   if (ehConstrucao(tipo)) return construcaoBarraDeFabrica(tipo)
-  return tipo === 'muroDeFogo' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista'
+  return tipo === 'muroDeFogo' || tipo === 'pedrasERochas' || tipo === 'arvoreSeca' || tipo === 'carroca' || tipo === 'carrocaQuebrada' || tipo === 'tonelDeAdega' || tipo === 'catapulta' || tipo === 'balista' || tipo === 'carroAntigo'
 }
 
 /**
  * Móveis que moram EM CIMA da mesa, por cima de todo objeto: os Pratos (a mesa
  * posta, 28/10/2026) e o prato de carne no osso (14/11/2026: mesa posta como
- * os pratos, com o mesmo perfil da 3/4, que sobe a altura do tampo). O avesso
+ * os pratos, com o mesmo perfil da 3/4, que sobe a altura do tampo), e a
+ * máquina de escrever e o centro de mesa (16/11/2026, lotes L1 e L2 das
+ * referências: mesa posta, com o mesmo perfil). O avesso
  * do tapete: a ordem de desenho (de cima e 3/4), o contêiner da mesa posta do
  * editor e o clique (que pega os pratos primeiro) leem esta lista.
  */
 export function ehMovelDeCimaDaMesa(tipo: TipoMobilia | undefined): boolean {
-  return tipo === 'pratos' || tipo === 'pratoDeCarne'
+  return tipo === 'pratos' || tipo === 'pratoDeCarne' || tipo === 'maquinaDeEscrever' || tipo === 'centroDeMesa'
 }
 
 /**

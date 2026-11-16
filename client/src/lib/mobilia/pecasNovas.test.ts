@@ -331,6 +331,29 @@ const TAMANHOS: Readonly<Record<string, readonly [number, number]>> = {
   lixeiraDePedal: [0.5, 0.5],
   tapeteDeBanheiro: [1, 0.6],
   portaPapel: [0.5, 0.5],
+  // As referências (16/11/2026): o lote L1 e o lote L2.
+  mesaDeAutopsia: [2, 0.9],
+  macaComLencol: [2, 0.8],
+  camaraFrigorifica: [2, 1],
+  esterilizador: [0.7, 0.7],
+  luminariaArticulada: [1, 1],
+  bandejaDeInstrumentos: [0.8, 0.6],
+  mesaDeLaboratorio: [2, 1],
+  panelasEBacias: [1, 0.8],
+  cadeiraGiratoria: [0.6, 0.6],
+  maquinaDeEscrever: [0.5, 0.4],
+  elevadorAntigo: [1, 1],
+  alcapao: [1, 1],
+  deckDeMadeira: [3, 2],
+  colunaQuebrada: [2, 1],
+  altarRedondo: [1.5, 1.5],
+  lajeDeSacrificio: [2, 1],
+  tumuloDePedra: [1, 2],
+  carroAntigo: [3, 1.5],
+  prateleiraDeToalhas: [1, 0.4],
+  cadeiraDeEspaldarAlto: [0.5, 0.5],
+  centroDeMesa: [1, 0.5],
+  lapideTorta: [0.6, 0.4],
 }
 
 const NOMES: Readonly<Record<string, readonly [string, string]>> = {
@@ -624,6 +647,28 @@ const NOMES: Readonly<Record<string, readonly [string, string]>> = {
   lixeiraDePedal: ['Lixeira de pedal', 'uma lixeira de pedal'],
   tapeteDeBanheiro: ['Tapete de banheiro', 'um tapete de banheiro'],
   portaPapel: ['Suporte de papel', 'um suporte de papel'],
+  mesaDeAutopsia: ['Mesa de autópsia', 'uma mesa de autópsia'],
+  macaComLencol: ['Maca com lençol', 'uma maca com lençol'],
+  camaraFrigorifica: ['Câmara frigorífica', 'uma câmara frigorífica'],
+  esterilizador: ['Esterilizador', 'um esterilizador'],
+  luminariaArticulada: ['Luminária articulada', 'uma luminária articulada'],
+  bandejaDeInstrumentos: ['Bandeja de instrumentos', 'uma bandeja de instrumentos'],
+  mesaDeLaboratorio: ['Mesa de laboratório', 'uma mesa de laboratório'],
+  panelasEBacias: ['Panelas e bacias', 'umas panelas e bacias'],
+  cadeiraGiratoria: ['Cadeira giratória', 'uma cadeira giratória'],
+  maquinaDeEscrever: ['Máquina de escrever', 'uma máquina de escrever'],
+  elevadorAntigo: ['Elevador antigo', 'um elevador antigo'],
+  alcapao: ['Alçapão', 'um alçapão'],
+  deckDeMadeira: ['Deck de madeira', 'um deck de madeira'],
+  colunaQuebrada: ['Coluna quebrada', 'uma coluna quebrada'],
+  altarRedondo: ['Altar redondo', 'um altar redondo'],
+  lajeDeSacrificio: ['Laje de sacrifício', 'uma laje de sacrifício'],
+  tumuloDePedra: ['Túmulo de pedra', 'um túmulo de pedra'],
+  carroAntigo: ['Carro antigo', 'um carro antigo'],
+  prateleiraDeToalhas: ['Prateleira de toalhas', 'uma prateleira de toalhas'],
+  cadeiraDeEspaldarAlto: ['Cadeira de espaldar alto', 'uma cadeira de espaldar alto'],
+  centroDeMesa: ['Centro de mesa', 'um centro de mesa'],
+  lapideTorta: ['Lápide torta', 'uma lápide torta'],
 }
 
 describe('peças novas: registro', () => {
@@ -664,9 +709,9 @@ describe('peças novas: registro', () => {
     expect([carroca.width / GRADE, carroca.height / GRADE]).toEqual([2, 1.25])
   })
 
-  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água, o moinho, o caldeirão, a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a tenda de adivinha, a colmeia, o braseiro, o círculo mágico, a bola de cristal, a moeda de ouro, o diamante, a tocha de pé, a torre de pedra, o lustre de velas, o ouriço antitanque, a fruta de espirais, o prato de carne no osso, a lanterna de pedra japonesa, o mastro de fitas, o globo terrestre, o relógio de sol, o farol, o coreto, o quiosque, o silo, o carrossel e o cesto de roupa; o resto é retângulo', () => {
+  it('silhueta redonda: a mesa redonda, o poço, o vaso, o balde de água, o moinho, o caldeirão, a banqueta, o candelabro de chão, o cesto de vime, o canteiro de flores, o toco de árvore, a árvore seca, a tenda de adivinha, a colmeia, o braseiro, o círculo mágico, a bola de cristal, a moeda de ouro, o diamante, a tocha de pé, a torre de pedra, o lustre de velas, o ouriço antitanque, a fruta de espirais, o prato de carne no osso, a lanterna de pedra japonesa, o mastro de fitas, o globo terrestre, o relógio de sol, o farol, o coreto, o quiosque, o silo, o carrossel, o cesto de roupa, o esterilizador, a cadeira giratória e o altar redondo; o resto é retângulo', () => {
     const redondos = PECAS_NOVAS.filter((tipo) => ehMovelRedondo(tipo))
-    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'globoTerrestre', 'relogioDeSol', 'farol', 'coreto', 'quiosque', 'siloDeGraos', 'carrossel', 'cestoDeRoupa'])
+    expect(redondos).toEqual(['mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'globoTerrestre', 'relogioDeSol', 'farol', 'coreto', 'quiosque', 'siloDeGraos', 'carrossel', 'cestoDeRoupa', 'esterilizador', 'cadeiraGiratoria', 'altarRedondo'])
   })
 
   it('cada peça tem desenho de linhas (o provisório antes da imagem), nas duas vistas quando tem vista', () => {
@@ -703,27 +748,28 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // Os troncos e o feno (29/10/2026), sem parente antigo, fecham o catálogo logo depois do arco e da placa.
     // Os objetos de vento (02/11/2026) depois deles, os destroços, as sucatas e o campinho (10/11/2026) em
     // seguida, os lotes 1 a 16 dos objetos novos (11/11/2026), o lote 17 (12/11/2026) e os de 14/11/2026 no fim.
-    // O banheiro moderno (15/11/2026) entra antes das construções: cada fatia abaixo andou 12 para trás.
-    expect(TIPOS_NO_CATALOGO.slice(-259, -252)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
-    expect(TIPOS_NO_CATALOGO.slice(-252, -247)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
-    expect(TIPOS_NO_CATALOGO.slice(-247, -239)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
-    expect(TIPOS_NO_CATALOGO.slice(-239, -231)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
-    expect(TIPOS_NO_CATALOGO.slice(-231, -222)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
-    expect(TIPOS_NO_CATALOGO.slice(-222, -214)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
-    expect(TIPOS_NO_CATALOGO.slice(-214, -208)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
-    expect(TIPOS_NO_CATALOGO.slice(-208, -202)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
-    expect(TIPOS_NO_CATALOGO.slice(-202, -195)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
-    expect(TIPOS_NO_CATALOGO.slice(-195, -189)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
-    expect(TIPOS_NO_CATALOGO.slice(-189, -183)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
-    expect(TIPOS_NO_CATALOGO.slice(-183, -174)).toEqual(['fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras'])
-    expect(TIPOS_NO_CATALOGO.slice(-174, -166)).toEqual(['carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca'])
-    expect(TIPOS_NO_CATALOGO.slice(-166, -157)).toEqual(['ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura'])
-    expect(TIPOS_NO_CATALOGO.slice(-157, -149)).toEqual(['braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado'])
-    expect(TIPOS_NO_CATALOGO.slice(-149, -139)).toEqual([
+    // O banheiro moderno (15/11/2026) entra antes das construções: cada fatia abaixo andou 12 para trás; as 22
+    // referências (16/11/2026), mais 22.
+    expect(TIPOS_NO_CATALOGO.slice(-281, -274)).toEqual(['arcoDoPortao', 'placaDeSeta', 'troncos', 'feno', 'cataVento', 'moinho', 'cataVentoBrinquedo'])
+    expect(TIPOS_NO_CATALOGO.slice(-274, -269)).toEqual(['destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'campinho'])
+    expect(TIPOS_NO_CATALOGO.slice(-269, -261)).toEqual(['bonecoDeTreino', 'pilar', 'altar', 'estanteDeLivros', 'sacosDeGrao', 'bancoDePraca', 'escombrosDePedra', 'canhao'])
+    expect(TIPOS_NO_CATALOGO.slice(-261, -253)).toEqual(['guardaRoupa', 'caldeirao', 'fornoDePao', 'prateleiraDeDeposito', 'estatua', 'pedrasERochas', 'mausoleu', 'alvoDeArcoEFlecha'])
+    expect(TIPOS_NO_CATALOGO.slice(-253, -244)).toEqual(['bancaDeFrutas', 'toldoListrado', 'bancadaDeFerramentas', 'pedraDeAmolar', 'suporteDeArmas', 'espantalho', 'cocho', 'ossos', 'antenaParabolica'])
+    expect(TIPOS_NO_CATALOGO.slice(-244, -236)).toEqual(['escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao'])
+    expect(TIPOS_NO_CATALOGO.slice(-236, -230)).toEqual(['banheira', 'tinaDeMadeira', 'lavatorioComJarro', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne'])
+    expect(TIPOS_NO_CATALOGO.slice(-230, -224)).toEqual(['pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre'])
+    expect(TIPOS_NO_CATALOGO.slice(-224, -217)).toEqual(['varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'tocoDeArvore', 'carrinhoDeMao', 'placaDeLoja'])
+    expect(TIPOS_NO_CATALOGO.slice(-217, -211)).toEqual(['cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca'])
+    expect(TIPOS_NO_CATALOGO.slice(-211, -205)).toEqual(['balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe'])
+    expect(TIPOS_NO_CATALOGO.slice(-205, -196)).toEqual(['fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras'])
+    expect(TIPOS_NO_CATALOGO.slice(-196, -188)).toEqual(['carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca'])
+    expect(TIPOS_NO_CATALOGO.slice(-188, -179)).toEqual(['ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura'])
+    expect(TIPOS_NO_CATALOGO.slice(-179, -171)).toEqual(['braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado'])
+    expect(TIPOS_NO_CATALOGO.slice(-171, -161)).toEqual([
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
       'estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro',
     ])
-    expect(TIPOS_NO_CATALOGO.slice(-139, -124)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-161, -146)).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe', 'cranio', 'tenda', 'torreDePedra', 'torreDeVigia',
     ])
@@ -732,7 +778,7 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // resto da base militar), o L07 e o L08 (o mar e os piratas), o L09 e o L10 (a taverna e a festa), o L11 e o L12 (o
     // descanso e a brincadeira), o L13 (o torneio e a cidade), o L14 (o resto da cidade e vila) e a ponte levadiça do
     // L02 (o item 81 da lista).
-    expect(TIPOS_NO_CATALOGO.slice(-124, -41)).toEqual([
+    expect(TIPOS_NO_CATALOGO.slice(-146, -63)).toEqual([
       'tronoReal', 'camaDeDossel', 'estandarteDePe', 'tapecariaDeParede', 'lustreDeVelas', 'panoplia',
       'mesaDeBanquete', 'bancosDeCapela', 'mesaDeGuerra', 'poleiroDeFalcao', 'aljavasEFlechas',
       'catapulta', 'balista', 'arieteComTeto', 'escadaDeCerco',
@@ -750,10 +796,18 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
       'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira',
       'ponteLevadica',
     ])
-    // O banheiro moderno de 15/11/2026, o lote A (as peças grandes) e o lote B (as pequenas), o último bloco do Objeto.
-    expect(TIPOS_NO_CATALOGO.slice(-41, -29)).toEqual([
+    // O banheiro moderno de 15/11/2026, o lote A (as peças grandes) e o lote B (as pequenas). As referências de
+    // 16/11/2026 entram depois dele: cada fatia acima andou mais 22 para trás.
+    expect(TIPOS_NO_CATALOGO.slice(-63, -51)).toEqual([
       'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
       'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+    ])
+    // As referências (16/11/2026), o lote L1 (o necrotério e o laboratório) e o lote L2, o último bloco do Objeto.
+    expect(TIPOS_NO_CATALOGO.slice(-51, -29)).toEqual([
+      'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+      'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+      'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+      'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
     ])
     // E, no fim, as construções de 14/11/2026, na ordem da lista do dia: o L15 (o castelo, itens 82 a 87), o L16 (a
     // base militar, itens 88 a 94), o L17 (a cidade e porto, itens 95 a 99), o L18 (a vila e campo, itens 100 a 104) e
@@ -771,8 +825,8 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // logo depois do chafariz. A cova e os dois caixões de 07/11/2026 logo depois da lápide.
     const lapide = TIPOS_NO_CATALOGO.indexOf('lapide')
     expect(TIPOS_NO_CATALOGO.slice(lapide, lapide + 4)).toEqual(['lapide', 'cova', 'caixao', 'caixaoAberto'])
-    // E o muro de fogo de 15/11/2026, logo depois do fogo, e as 12 peças do banheiro moderno.
-    expect(TIPOS_NO_CATALOGO).toHaveLength(301)
+    // E o muro de fogo de 15/11/2026, logo depois do fogo, as 12 peças do banheiro moderno e as 22 das referências.
+    expect(TIPOS_NO_CATALOGO).toHaveLength(323)
     for (const tipo of TIPOS_NO_CATALOGO) expect(TIPOS_COM_TEXTURA.some((t) => t === tipo), tipo).toBe(true)
     expect(new Set(TIPOS_NO_CATALOGO).size).toBe(TIPOS_NO_CATALOGO.length)
   })
@@ -795,10 +849,13 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     const itens = TIPOS_DO_OBJETO.map((tipo) => ({ tipo, rotulo: ROTULO_MOBILIA[tipo], grupo: GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo ?? '' }))
     // A prancha do navio e o navio na garrafa (lote L08, 14/11/2026) têm "navio" no nome: vêm primeiro, antes do grupo.
     expect(acharObjetos(itens, 'navio').map((item) => item.tipo)).toEqual(['pranchaDoNavio', 'navioNaGarrafa', 'canhao', 'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe'])
+    // E, das referências (16/11/2026), o alçapão, a coluna quebrada, o altar redondo e a laje de sacrifício no fim, na
+    // ordem do catálogo.
     expect(acharObjetos(itens, 'templo').map((item) => item.tipo)).toEqual([
       'altar', 'armadura',
       'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe',
+      'alcapao', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio',
     ])
     const monumentos: TipoMobilia[] = ['pilar', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado']
     expect(monumentos.map((tipo) => GRUPOS_DE_OBJETO.find((g) => g.id === grupoDoObjeto(tipo))?.titulo)).toEqual([
@@ -816,8 +873,9 @@ describe('catálogo do painel: só peça com desenho pronto', () => {
     // descanso e brincadeira e a cidade e vila) entram entre o Tesouro e os da Construção. Os 5 grupos da Construção
     // de 14/11/2026, com os títulos da lista do dia (castelo, base militar, cidade e porto, vila e campo e lazer), depois
     // dos 4 dela, antes de "Outros". O castelo e a base militar têm o mesmo título nas duas ferramentas e ids diferentes.
-    expect(GRUPOS_DE_OBJETO.slice(-22).map((g) => g.titulo)).toEqual([
-      'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa',
+    // O Necrotério e laboratório (16/11/2026) entra logo depois da Magia e alquimia.
+    expect(GRUPOS_DE_OBJETO.slice(-23).map((g) => g.titulo)).toEqual([
+      'Porto e navio', 'Templo e masmorra', 'Sala de tortura', 'Magia e alquimia', 'Necrotério e laboratório', 'Tesouro', 'Castelo', 'Cerco e defesa', 'Base militar', 'Mar e piratas', 'Taverna e festa',
       'Descanso e brincadeira', 'Cidade e vila',
       'Torres e prédios', 'Praça, rua e campo', 'Monumentos e colunas', 'Abrigos e passagens',
       'Castelo', 'Base militar', 'Cidade e porto', 'Vila e campo', 'Lazer', 'Outros',

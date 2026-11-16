@@ -33,6 +33,8 @@ export const GRUPOS_DE_OBJETO = [
   { id: 'temploEMasmorra', titulo: 'Templo e masmorra' },
   { id: 'salaDeTortura', titulo: 'Sala de tortura' },
   { id: 'magiaEAlquimia', titulo: 'Magia e alquimia' },
+  // O necrotério e o laboratório (16/11/2026, lote L1 das referências), vizinho da alquimia de fantasia.
+  { id: 'necroterioELaboratorio', titulo: 'Necrotério e laboratório' },
   { id: 'tesouro', titulo: 'Tesouro' },
   // Os grupos dos objetos de 14/11/2026 entram aqui, cada um quando chega o primeiro item dele, na ordem da lista
   // do dia (castelo, cerco e defesa, base militar, mar e piratas, taverna e festa, descanso e brincadeira, cidade
@@ -370,6 +372,36 @@ export const GRUPO_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, IdDoGrupoDeOb
   moDePedra: 'cidadeEVila',
   liteira: 'cidadeEVila',
   ponteLevadica: 'cidadeEVila',
+  // AS REFERÊNCIAS (16/11/2026), num bloco só, cada peça no grupo onde o mestre a procuraria (no fim do grupo dela).
+  // Lote L1: o grupo novo, arrumado pelo uso: o corpo (a mesa de autópsia, a maca, a câmara frigorífica), o que
+  // corta e ferve (a bandeja de instrumentos, o esterilizador, as panelas e bacias), a bancada (a mesa de
+  // laboratório, a luminária) e a escrivaninha do legista (a cadeira giratória, a máquina de escrever).
+  mesaDeAutopsia: 'necroterioELaboratorio',
+  macaComLencol: 'necroterioELaboratorio',
+  camaraFrigorifica: 'necroterioELaboratorio',
+  bandejaDeInstrumentos: 'necroterioELaboratorio',
+  esterilizador: 'necroterioELaboratorio',
+  panelasEBacias: 'necroterioELaboratorio',
+  mesaDeLaboratorio: 'necroterioELaboratorio',
+  luminariaArticulada: 'necroterioELaboratorio',
+  cadeiraGiratoria: 'necroterioELaboratorio',
+  maquinaDeEscrever: 'necroterioELaboratorio',
+  // Lote L2. A cadeira de espaldar alto e o centro de mesa na sala, com as mesas e a cadeira; a prateleira de toalhas
+  // no banheiro; o túmulo e a lápide torta no cemitério, com a lápide; a coluna quebrada, o altar redondo, a laje de
+  // sacrifício e o alçapão no templo e masmorra, com o pilar, o altar e a cela; o deck na rua e jardim; o elevador e o
+  // carro na cidade e vila (o prédio e a rua).
+  cadeiraDeEspaldarAlto: 'salaEQuarto',
+  centroDeMesa: 'salaEQuarto',
+  prateleiraDeToalhas: 'banheiro',
+  tumuloDePedra: 'cemiterio',
+  lapideTorta: 'cemiterio',
+  colunaQuebrada: 'temploEMasmorra',
+  altarRedondo: 'temploEMasmorra',
+  lajeDeSacrificio: 'temploEMasmorra',
+  alcapao: 'temploEMasmorra',
+  deckDeMadeira: 'ruaEJardim',
+  elevadorAntigo: 'cidadeEVila',
+  carroAntigo: 'cidadeEVila',
   // As construções (19 de 12/11/2026 e 29 de 14/11/2026), nos 9 grupos da ferramenta Construção, na ordem de
   // `construcoes.ts`.
   ...GRUPO_DA_CONSTRUCAO,
@@ -626,6 +658,33 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   monteDeDiamantes: ['poça de diamantes', 'pilha de diamantes', 'pedras preciosas', 'gemas', 'riqueza', 'fortuna'],
   joia: ['pingente', 'colar', 'medalhão', 'riqueza'],
   monteDeJoias: ['poça de joias', 'pilha de joias', 'riqueza', 'fortuna'],
+  // As referências (16/11/2026), num bloco só. As palavras que já estão no nome ficam de fora, e as dos títulos dos
+  // grupos também ("templo", "cemitério", "banheiro"; "necrotério" fica: a mesa e a maca são o necrotério).
+  // Lote L1: o necrotério e o laboratório.
+  mesaDeAutopsia: ['necrópsia', 'necrotério', 'legista', 'inox'],
+  macaComLencol: ['cadáver', 'corpo', 'necrotério', 'hospital'],
+  camaraFrigorifica: ['gavetas do necrotério', 'geladeira de corpos', 'necrotério', 'inox'],
+  esterilizador: ['autoclave', 'esterilização', 'hospital', 'manômetro'],
+  luminariaArticulada: ['abajur', 'lâmpada', 'luz de mesa', 'escritório'],
+  bandejaDeInstrumentos: ['bisturi', 'cirurgia', 'mesa de Mayo', 'carrinho de hospital'],
+  mesaDeLaboratorio: ['cientista', 'microscópio', 'frascos', 'química', 'experimento'],
+  panelasEBacias: ['ágata', 'louça esmaltada', 'cuba-rim', 'caneca'],
+  cadeiraGiratoria: ['cadeira de escritório', 'cadeira de rodinhas', 'escritório', 'consultório'],
+  maquinaDeEscrever: ['datilografia', 'escritório', 'jornal', 'detetive', 'repartição'],
+  // Lote L2. O elevador também pela "cabine de transporte" que ele desenha; a coluna quebrada também pelo "pilar"
+  // (o inteiro mora na Construção).
+  elevadorAntigo: ['ascensor', 'gaiola', 'monta-cargas', 'hotel', 'cabine de transporte'],
+  alcapao: ['porão', 'tampa no chão', 'passagem secreta'],
+  deckDeMadeira: ['tablado', 'varanda', 'terraço', 'pilares'],
+  colunaQuebrada: ['ruína', 'pilar quebrado', 'escombro'],
+  altarRedondo: ['cristal', 'velas', 'ritual', 'culto', 'santuário'],
+  lajeDeSacrificio: ['pedra de sacrifício', 'altar de pedra', 'ritual', 'culto'],
+  tumuloDePedra: ['sepultura', 'jazigo', 'sarcófago', 'cripta'],
+  carroAntigo: ['automóvel', 'anos 20', 'sedã', 'veículo'],
+  prateleiraDeToalhas: ['estante', 'rouparia', 'enfermaria'],
+  cadeiraDeEspaldarAlto: ['sala de jantar', 'mansão', 'trono'],
+  centroDeMesa: ['fruteira', 'castiçal', 'banquete', 'jantar'],
+  lapideTorta: ['túmulo', 'cova', 'abandonado'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu
