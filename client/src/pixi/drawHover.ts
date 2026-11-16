@@ -89,6 +89,13 @@ function assertNeverKind(value: never): never {
   throw new Error(`drawHover: SelectionKind sem geometria de hover definida: ${JSON.stringify(value)}`)
 }
 
+/** Os trechos de um traço aberto (rio, risco do Barranco), ponto a ponto. */
+function segmentosDoTraco(pontos: readonly Point[]): Array<{ a: Point; b: Point }> {
+  const segmentos: Array<{ a: Point; b: Point }> = []
+  for (let i = 0; i + 1 < pontos.length; i += 1) segmentos.push({ a: pontos[i], b: pontos[i + 1] })
+  return segmentos
+}
+
 function assertNeverDrawingKind(value: never): never {
   throw new Error(`drawHover: Drawing.kind sem geometria de hover definida: ${JSON.stringify(value)}`)
 }
@@ -205,6 +212,22 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: 
       const b = caixaDoCarimbo(carimbo)
       return { shape: 'rect', x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY }
     }
+    // Fase 4: a zona e o lago pelo contorno, o rio e o risco do Barranco pelo traço; o pino tem o anel dele.
+    case 'zone': {
+      const zona = map.concealZones.find((z) => z.id === target.id)
+      return zona === undefined || zona.points.length < 3 ? null : { shape: 'polygon', points: zona.points }
+    }
+    case 'agua': {
+      const agua = map.aguas?.find((a) => a.id === target.id)
+      if (agua === undefined || agua.pontos.length < 2) return null
+      return agua.tipo === 'rio' || agua.pontos.length < 3 ? { shape: 'segments', segments: segmentosDoTraco(agua.pontos) } : { shape: 'polygon', points: agua.pontos }
+    }
+    case 'barranco': {
+      const risco = map.barranco?.riscos.find((r) => r.id === target.id)
+      return risco === undefined || risco.pontos.length < 2 ? null : { shape: 'segments', segments: segmentosDoTraco(risco.pontos) }
+    }
+    case 'pin':
+      return null
     default:
       // `target` (HoverTarget) não é união discriminada — só `target.kind` é
       // o union exaustivo; passar `target` inteiro aqui não narrowia pra

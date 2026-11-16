@@ -82,6 +82,8 @@ import {
   type ResultadoDoCarimbo,
   type Spray,
 } from '../lib/carimbos'
+import { isStairPin } from '../lib/stairTravel'
+import { terrenoNoPonto } from '../lib/terrenoNaSelecao'
 import { carimboDoCatalogo } from '../carimbos/catalogo'
 import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
@@ -402,7 +404,7 @@ import { drawSelectionMarquee, drawAreaSelectionOutline, createMarqueeHintRender
 // (areaSelectionBounds, moveAreaSelection — de lib/areaSelection.ts, também
 // fora da minha lista, CONTRATO diz "nenhuma mudança de assinatura").
 import {
-  EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems, toggleSelectionItem,
+  EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionFromItems,
   selectionToAreaSelection, selectionFromAreaSelection, isSelectionEmpty, selectionHas,
   type SelectionItem, type SelectionSet,
 } from '../lib/selectionModel'
@@ -444,6 +446,8 @@ function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean, contin
     case 'riscou':
       return comRelevo ? null : AVISO_PENHASCO_SEM_RELEVO
     case 'apagou':
+    // O aviso da camada travada já saiu (com "Destravar"); outro por cima seria repetido.
+    case 'camada-travada':
       return null
   }
 }
@@ -651,6 +655,22 @@ const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
   drawing: { um: 'desenho', varios: 'desenhos', feminino: false },
   floor: { um: 'pedaço de chão', varios: 'pedaços de chão', feminino: false },
   carimbo: { um: 'carimbo', varios: 'carimbos', feminino: false },
+  pin: { um: 'pino', varios: 'pinos', feminino: false },
+  zone: { um: 'zona oculta', varios: 'zonas ocultas', feminino: true },
+  agua: { um: 'água', varios: 'águas', feminino: true },
+  barranco: { um: 'risco de barranco', varios: 'riscos de barranco', feminino: false },
+}
+
+/**
+ * Os tipos que, sozinhos na seleção, só têm o contorno do grupo como destaque
+ * (sem alça própria) e andam pelo arrasto da seleção (`moveSelectionLive`).
+ */
+const TIPOS_SO_COM_CONTORNO: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['carimbo', 'pin', 'zone', 'agua', 'barranco'])
+
+/** Os tipos que a cadeia da Borracha geral (`findErasableAt`) não devolve: o Terreno, o pino e a zona têm caminho próprio. */
+type TipoDoTerrenoNaBorracha = 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco'
+function ehTipoDoTerrenoNaBorracha(kind: SelectionKind): kind is TipoDoTerrenoNaBorracha {
+  return TIPOS_SO_COM_CONTORNO.has(kind)
 }
 
 interface EntityLabel {
@@ -2892,7 +2912,9 @@ function PixiCanvasDoContexto({
         areaOutline: () => {
           const { map, selection } = sceneState()
           // O CARIMBO sozinho também (Fase 2): ele não tem alça nem destaque próprio.
-          const comContorno = selection.length > 1 || selectionSingle(selection)?.kind === 'carimbo'
+          // Fase 4: o pino, a zona, a água e o risco do Barranco da seleção comum, idem.
+          const sozinho = selectionSingle(selection)?.kind
+          const comContorno = selection.length > 1 || (sozinho !== undefined && TIPOS_SO_COM_CONTORNO.has(sozinho))
           drawAreaSelectionOutline(
             areaSelectionOutlineGraphics,
             comContorno ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
@@ -5346,6 +5368,23 @@ function PixiCanvasDoContexto({
         return true
       }
 
+      /**
+       * FASE 4: o item do Terreno que o clique no "vazio" do Selecionar pega —
+       * a zona oculta (só com Shift: sem ele, a zona já abriu no painel), o
+       * risco do Barranco ou a água. Camada travada não entrega nada (o laço
+       * segue, como no vazio).
+       */
+      const itemDoTerrenoNoClique = (map: MapData, worldPoint: Point, comShift: boolean): SelectionItem | null => {
+        const doPiso = doPisoEmEdicao(map)
+        if (comShift) {
+          const zona = findConcealZoneForSelect(doPiso, worldPoint, pinosNoToque(map))
+          if (zona !== null) return { kind: 'zone', id: zona.id }
+        }
+        const achado = terrenoNoPonto(doPiso, useMapStore.getState().pisoAtivo, worldPoint, true)
+        if (achado === null || achado.travada !== null || achado.acerto.kind === 'carimbo') return null
+        return achado.acerto
+      }
+
       const clickSelectMap = (inteiro: MapData): MapData => clickSelectDoPiso(doPisoEmEdicao(inteiro))
       const clickSelectDoPiso = (map: MapData): MapData => {
         const camadas = contextoDeCamadas(map)
@@ -5380,7 +5419,7 @@ function PixiCanvasDoContexto({
       const selectionOnClick = (map: MapData, item: SelectionItem): SelectionSet => {
         const groups = useMapStore.getState().itemGroups[map.id] ?? NO_GROUPS
         if (groups.length === 0) return selectionOfItem(item)
-        const reachable = selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT))
+        const reachable = selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT, undefined, useMapStore.getState().pisoAtivo))
         return expandToGroup(groups, item, (member) => selectionHas(reachable, member))
       }
 
@@ -5477,6 +5516,23 @@ function PixiCanvasDoContexto({
           return
         }
         const hit = findErasableAt(hitTestMap(map), point, pinosNoToque(map))
+        // FASE 4 — A BORRACHA GERAL NO TERRENO: o carimbo e o risco do Barranco
+        // estão por cima da sala na tela, então ganham dela; a água (área
+        // grande, por baixo) só onde não há sala nem nada apagável. Camada
+        // travada é barreira, como no resto. No modo "Só uma parte" só o
+        // carimbo sai (pequeno, inteiro): a água e o risco esperam o modo
+        // "Objeto inteiro", ou a borracha da ferramenta deles.
+        if (hit === null || hit.kind === 'region') {
+          const terreno = terrenoNoPonto(doPisoEmEdicao(map), pisoAtivo, point, hit === null)
+          if (terreno !== null && terreno.travada !== null) {
+            avisarCamadaTravada(terreno.travada)
+            return
+          }
+          if (terreno !== null && (eraseMode !== 'parte' || terreno.acerto.kind === 'carimbo')) {
+            useMapStore.getState().apagarItemDoTerreno(terreno.acerto)
+            return
+          }
+        }
         if (!hit) {
           // Nada apagável aqui, mas pode haver CHÃO: `findErasableAt` nunca
           // devolve peça de chão, que só vira alvo por `floorHitAt`. A
@@ -5545,9 +5601,9 @@ function PixiCanvasDoContexto({
         // dia rodasse, contradiria a decisão de a borracha não apagar chão. O
         // `if` abaixo mantém a tabela exaustiva no tipo sem fingir que o caso
         // existe; chão é respondido pelo aviso no topo desta função.
-        // Sem `carimbo` também: a cadeia da borracha (`findErasableAt`) não o
-        // acha — o carimbo sai pela borracha da ferramenta Carimbos ou pelo Delete.
-        const removers: Record<Exclude<SelectionKind, 'floor' | 'carimbo'>, (id: string) => void> = {
+        // Sem o Terreno também: a cadeia da borracha (`findErasableAt`) não o
+        // acha — o carimbo, a água e o risco saem pelo ramo do Terreno, acima.
+        const removers: Record<Exclude<SelectionKind, 'floor' | TipoDoTerrenoNaBorracha>, (id: string) => void> = {
           token: useMapStore.getState().removeToken,
           wall: useMapStore.getState().removeWall,
           light: useMapStore.getState().removeLight,
@@ -5556,7 +5612,7 @@ function PixiCanvasDoContexto({
           prop: useMapStore.getState().removeProp,
           drawing: useMapStore.getState().removeDrawing,
         }
-        if (hit.kind === 'floor' || hit.kind === 'carimbo') return
+        if (hit.kind === 'floor' || ehTipoDoTerrenoNaBorracha(hit.kind)) return
         removers[hit.kind](hit.id)
       }
 
@@ -7678,6 +7734,18 @@ function PixiCanvasDoContexto({
             return
           }
           const pin = pinAt(map, worldPoint)
+          // FASE 4: Shift+clique no pino o soma (ou tira) da seleção comum, como
+          // qualquer item: pino, água e carimbo num conjunto só. O pino da
+          // escada anda com a escada e fica de fora; a camada travada barra.
+          if (pin && event.shiftKey && event.button === 0) {
+            const gesto = gestoNoPino(map, pin)
+            if (gesto.tipo === 'barrado') avisarCamadaTravada(gesto.camada)
+            else if (!isStairPin(pin)) useMapStore.getState().alternarNaSelecao({ kind: 'pin', id: pin.id })
+            mode = 'idle'
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
           if (pin) {
             const abriu = abrirETalvezArrastarPino(map, pin, worldPoint)
             // Pino de viagem: soltar sem arrastar atravessa a passagem (no
@@ -7757,7 +7825,8 @@ function PixiCanvasDoContexto({
           // dentro do bounding box acima, ou Shift+arrastar pra somar uma
           // área inteira — ver 'area-marquee-drag' mais abaixo). `mode` fica
           // 'idle': nenhum branch de pointermove reage a um clique parado.
-          setSelection(toggleSelectionItem(selection, { kind: hit.kind, id: hit.id }))
+          // Fase 4: o pino e a zona abertos no painel entram no conjunto (`alternarNaSelecao`).
+          useMapStore.getState().alternarNaSelecao({ kind: hit.kind, id: hit.id })
           mode = 'idle'
           lastPoint = { x: event.global.x, y: event.global.y }
           updateCursor()
@@ -7973,10 +8042,23 @@ function PixiCanvasDoContexto({
             tokenDragLifted = false
             startTokenGuides(selectedToken.id)
           } else if (activeTool === 'select') {
-            mode = 'area-marquee-drag'
-            areaMarqueeStart = worldPoint
-            areaMarqueeClickItem = null
-            ctrlTokenPress = null
+            // FASE 4: a água, o risco do Barranco e (com Shift) a zona debaixo do
+            // ponto. São áreas grandes: arrastar em cima deles continua sendo o
+            // laço; o CLIQUE os seleciona (`areaMarqueeClickItem`, no pointerup).
+            // Já selecionado sozinho, apertar nele e arrastar o move (um Ctrl+Z).
+            const doTerreno = itemDoTerrenoNoClique(map, worldPoint, event.shiftKey)
+            const jaEscolhido = doTerreno !== null && single !== null && single.kind === doTerreno.kind && single.id === doTerreno.id
+            if (jaEscolhido && !event.shiftKey) {
+              mode = 'dragging-area-selection'
+              areaSelectionDragBefore = map
+              segurarNoArrasto([])
+              bodyGuideDrag = startSelectionGuideDrag(worldPoint)
+            } else {
+              mode = 'area-marquee-drag'
+              areaMarqueeStart = worldPoint
+              areaMarqueeClickItem = doTerreno
+              ctrlTokenPress = null
+            }
           } else {
             // Nenhuma ferramenta de desenho chega aqui (todas saem com
             // `return` bem acima); sobra a Selecionar. Este ramo é a rede de
@@ -8376,7 +8458,8 @@ function PixiCanvasDoContexto({
           const store = useMapStore.getState()
           if (gesture === 'click' && areaMarqueeClickItem !== null) {
             const item = areaMarqueeClickItem
-            store.setSelection(event.shiftKey ? toggleSelectionItem(store.selection, item) : selectionOnClick(store.map, item))
+            if (event.shiftKey) store.alternarNaSelecao(item)
+            else store.setSelection(selectionOnClick(store.map, item))
           } else if (gesture === 'click') {
             if (!event.shiftKey && store.selection.length > 0) store.setSelection(EMPTY_SELECTION)
             // A zona aberta pelo Selecionar (ver `findConcealZoneForSelect` no
@@ -8385,9 +8468,8 @@ function PixiCanvasDoContexto({
           } else {
             // Só o piso em edição: o laço não leva o que está no mesmo lugar em outro piso.
             const encontrados = selecaoDoLacoNoPiso(store.map, store.pisoAtivo, rect, pinosNoToque(store.map))
-            store.setSelection(
-              gesture === 'add' ? selectionFromItems([...store.selection, ...encontrados]) : selectionFromItems(encontrados),
-            )
+            if (gesture === 'add') store.somarNaSelecao(encontrados)
+            else store.setSelection(selectionFromItems(encontrados))
           }
           areaMarqueeGraphics.clear()
         }
@@ -9959,8 +10041,9 @@ function PixiCanvasDoContexto({
           // Ctrl+A: tudo das camadas visíveis e destravadas, pelas mesmas
           // regras da seleção por área (item travado e token oculto ficam de fora).
           case 'selectAll': {
-            const { map, setSelection } = useMapStore.getState()
-            setSelection(selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT)))
+            const { map, setSelection, pisoAtivo } = useMapStore.getState()
+            // `pisoAtivo`: os riscos do Barranco do piso em edição (o mapa do piso não os recorta).
+            setSelection(selectionFromAreaSelection(selectEntitiesInArea(hitTestMap(map), SELECT_ALL_RECT, undefined, pisoAtivo)))
             break
           }
           // Agrupar objetos: o store guarda o grupo e avisa o que fez; o clique

@@ -73,6 +73,10 @@ export const SELECTION_LABELS: Record<SelectionKind, SelectionNoun> = {
   drawing: { noun: 'desenho', gender: 'm' },
   floor: { noun: 'peça de chão', gender: 'f' },
   carimbo: { noun: 'carimbo', gender: 'm' },
+  pin: { noun: 'pino', gender: 'm' },
+  zone: { noun: 'zona oculta', gender: 'f' },
+  agua: { noun: 'água', gender: 'f' },
+  barranco: { noun: 'risco de barranco', gender: 'm' },
 }
 
 /** "Apagar sala selecionada", "Apagar token selecionado". */

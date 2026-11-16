@@ -8,6 +8,7 @@ import { comPiso, mapaDoPiso, pisoDe } from './pisos'
 import { camadaTravadaNaBorracha, findLockedLayerAt, type Point } from './selectionHitTest'
 import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
 import type { SelectionKind } from '../types/tools'
+import { riscosDoPiso } from './terrenoNaSelecao'
 
 /**
  * PISOS NA MESMA CENA — as ferramentas do editor que MIRAM o mapa agem só no
@@ -35,6 +36,11 @@ export function selecaoNoPiso(map: MapData, piso: number, selection: SelectionSe
     drawing: doPiso.drawings,
     floor: doPiso.floor,
     carimbo: doPiso.carimbos ?? [],
+    pin: doPiso.pins,
+    zone: doPiso.concealZones,
+    agua: doPiso.aguas ?? [],
+    // O mapa do piso não recorta o barranco: os riscos do piso, pelo campo `piso` de cada um.
+    barranco: riscosDoPiso(map.barranco, piso),
   }
   // Os ids de cada tipo num conjunto, só dos tipos que a seleção tem: o laço
   // que pega 5.000 carimbos não pode virar 5.000 × 5.000 comparações.
@@ -63,7 +69,7 @@ export function pinoNoPiso(map: MapData, piso: number, pinId: string | null): st
 
 /** Laço (arrasto no vazio com Selecionar): só o que está no piso em edição. `pinos`: MAPA DE CONTINENTE, o pino inteiro conta. */
 export function selecaoDoLacoNoPiso(map: MapData, piso: number, rect: AreaRect, pinos?: PinosNoToque): SelectionSet {
-  return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect, pinos))
+  return selectionFromAreaSelection(selectEntitiesInArea(mapaDoPiso(map, piso), rect, pinos, piso))
 }
 
 /**

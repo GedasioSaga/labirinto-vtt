@@ -30,6 +30,11 @@ function secretKindOf(kind: SelectionKind): SecretKind | null {
     case 'floor':
     // O carimbo vai ao jogador pelo recorte do lugar (`carimbosParaJogador`), sem "oculto" próprio.
     case 'carimbo':
+    // Fase 4: o pino tem o "oculto" dele no painel do pino; a zona, a água e o risco vão pelo recorte do lugar.
+    case 'pin':
+    case 'zone':
+    case 'agua':
+    case 'barranco':
       return null
   }
 }

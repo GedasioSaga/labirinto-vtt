@@ -45,8 +45,12 @@ const NOUNS: Record<SelectionKind, string> = {
   drawing: 'Desenho',
   floor: 'Pedaço de chão',
   carimbo: 'Carimbo',
+  pin: 'Pino',
+  zone: 'Zona oculta',
+  agua: 'Água',
+  barranco: 'Risco de barranco',
 }
-const FEMININE: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['wall', 'region', 'stair', 'light'])
+const FEMININE: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['wall', 'region', 'stair', 'light', 'zone', 'agua'])
 
 /** "Sala "Despensa"", "Desenho", "3 itens" — o que o aviso diz que foi guardado. */
 function describeItems(map: MapData, items: SelectionSet): Noun {

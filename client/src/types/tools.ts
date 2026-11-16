@@ -108,8 +108,14 @@ export type DoorMode = 'porta' | 'vao'
  */
 export type RoomFreeKind = 'sala' | 'parede'
 
-/** 'carimbo': um objeto da ferramenta Carimbos (`MapData.carimbos`), editável desde a Fase 2 (15/11/2026). */
-export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'carimbo'
+/**
+ * 'carimbo': um objeto da ferramenta Carimbos (`MapData.carimbos`), editável desde a Fase 2 (15/11/2026).
+ * Fase 4 (15/11/2026, `lib/terrenoNaSelecao.ts`): 'pin' (`MapData.pins`), 'zone' (zona oculta,
+ * `MapData.concealZones`), 'agua' (água ou lava, `MapData.aguas`) e 'barranco' (um risco do Barranco,
+ * `MapData.barranco.riscos`). O pino e a zona abertos no painel continuam em `selectedPinId` e
+ * `selectedConcealZoneId`; estes entram pelo laço, pelo Shift+clique e pelo clique no Terreno.
+ */
+export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco'
 
 export interface Selection {
   kind: SelectionKind

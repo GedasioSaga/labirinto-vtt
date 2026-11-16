@@ -35,6 +35,19 @@ import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehiclesLeftBehind, withRiders } from './vehicle'
 import { caixaDoCarimbo, moverCarimbos } from './carimbos'
+import { isStairPin } from './stairTravel'
+import {
+  CAMADA_DA_AGUA,
+  CAMADA_DO_BARRANCO,
+  caixaDaAguaNaSelecao,
+  caixaDosPontos,
+  camadaMexivel,
+  moverAguas,
+  moverPinos,
+  moverRiscos,
+  moverZonas,
+  riscosDoPiso,
+} from './terrenoNaSelecao'
 
 // ─────────────────────────────────────────────────────────────
 // Geometria genérica: todo tipo de entidade do mapa se reduz a um destes 5
@@ -382,6 +395,15 @@ export interface AreaSelection {
    * monta a seleção dos outros tipos à mão não precisa saber do carimbo.
    */
   carimbos?: string[]
+  /**
+   * FASE 4 (15/11/2026, `lib/terrenoNaSelecao.ts`): pinos, zonas ocultas,
+   * águas (e lava) e riscos do Barranco. Opcionais pelo mesmo motivo do
+   * carimbo: ausente = nenhum.
+   */
+  pins?: string[]
+  zonas?: string[]
+  aguas?: string[]
+  riscosDoBarranco?: string[]
 }
 
 export const EMPTY_AREA_SELECTION: AreaSelection = {
@@ -403,7 +425,11 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
     selection.props.length === 0 &&
     selection.stairs.length === 0 &&
     selection.drawings.length === 0 &&
-    (selection.carimbos ?? []).length === 0
+    (selection.carimbos ?? []).length === 0 &&
+    (selection.pins ?? []).length === 0 &&
+    (selection.zonas ?? []).length === 0 &&
+    (selection.aguas ?? []).length === 0 &&
+    (selection.riscosDoBarranco ?? []).length === 0
   )
 }
 
@@ -426,7 +452,7 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
  * `isDegenerateRegion`) nunca entra — mesma guarda que `drawRegions.ts` usa
  * pra não desenhar uma região sem geometria válida.
  */
-export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: PinosNoToque): AreaSelection {
+export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: PinosNoToque, piso = 0): AreaSelection {
   if (Math.abs(rect.x2 - rect.x1) < AREA_SELECTION_MIN_DRAG && Math.abs(rect.y2 - rect.y1) < AREA_SELECTION_MIN_DRAG) {
     return EMPTY_AREA_SELECTION
   }
@@ -472,7 +498,34 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: Pinos
     .filter((carimbo) => inArea({ kind: 'rect', ...caixaDoCarimbo(carimbo) }))
     .map((carimbo) => carimbo.id)
 
-  return { walls, regions, lights, tokens, props, stairs, drawings, ...(carimbos.length > 0 ? { carimbos } : {}) }
+  // FASE 4: o pino pelo ponto em que ele finca (o da escada anda com a escada,
+  // fica de fora); a zona e o lago pelo contorno; o rio e o risco pelo traço.
+  // `piso`: o mapa do piso não recorta o barranco, então os riscos são filtrados aqui.
+  const pins = alcancaveis(map, 'pino', map.pins)
+    .filter((pin) => !isStairPin(pin) && inArea({ kind: 'point', x: pin.x, y: pin.y }))
+    .map((pin) => pin.id)
+  const zonas = map.concealZones.filter((zona) => zona.points.length >= 3 && inArea({ kind: 'polygon', points: zona.points })).map((zona) => zona.id)
+  const aguas = camadaMexivel(map, CAMADA_DA_AGUA)
+    ? (map.aguas ?? []).filter((agua) => agua.pontos.length > 0 && inArea({ kind: agua.tipo === 'rio' ? 'polyline' : 'polygon', points: agua.pontos })).map((agua) => agua.id)
+    : []
+  const riscosDoBarranco = camadaMexivel(map, CAMADA_DO_BARRANCO)
+    ? riscosDoPiso(map.barranco, piso).filter((risco) => risco.pontos.length > 0 && inArea({ kind: 'polyline', points: risco.pontos })).map((risco) => risco.id)
+    : []
+
+  return {
+    walls,
+    regions,
+    lights,
+    tokens,
+    props,
+    stairs,
+    drawings,
+    ...(carimbos.length > 0 ? { carimbos } : {}),
+    ...(pins.length > 0 ? { pins } : {}),
+    ...(zonas.length > 0 ? { zonas } : {}),
+    ...(aguas.length > 0 ? { aguas } : {}),
+    ...(riscosDoBarranco.length > 0 ? { riscosDoBarranco } : {}),
+  }
 }
 
 /**
@@ -528,6 +581,29 @@ export function areaSelectionBounds(map: MapData, selection: AreaSelection): Are
   if (selection.carimbos !== undefined && selection.carimbos.length > 0) {
     const ids = new Set(selection.carimbos)
     for (const carimbo of map.carimbos ?? []) if (ids.has(carimbo.id)) bounds.push(caixaDoCarimbo(carimbo))
+  }
+  // FASE 4: o mesmo passo único pela lista de cada tipo novo.
+  if (selection.pins !== undefined && selection.pins.length > 0) {
+    const ids = new Set(selection.pins)
+    for (const pin of map.pins) if (ids.has(pin.id)) bounds.push({ minX: pin.x, maxX: pin.x, minY: pin.y, maxY: pin.y })
+  }
+  if (selection.zonas !== undefined && selection.zonas.length > 0) {
+    const ids = new Set(selection.zonas)
+    for (const zona of map.concealZones) {
+      const caixa = ids.has(zona.id) ? caixaDosPontos(zona.points) : null
+      if (caixa !== null) bounds.push(caixa)
+    }
+  }
+  if (selection.aguas !== undefined && selection.aguas.length > 0) {
+    const ids = new Set(selection.aguas)
+    for (const agua of map.aguas ?? []) if (ids.has(agua.id) && agua.pontos.length > 0) bounds.push(caixaDaAguaNaSelecao(agua, map.grid))
+  }
+  if (selection.riscosDoBarranco !== undefined && selection.riscosDoBarranco.length > 0) {
+    const ids = new Set(selection.riscosDoBarranco)
+    for (const risco of map.barranco?.riscos ?? []) {
+      const caixa = ids.has(risco.id) ? caixaDosPontos(risco.pontos) : null
+      if (caixa !== null) bounds.push(caixa)
+    }
   }
 
   if (bounds.length === 0) return null
@@ -703,6 +779,28 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
   if (selection.carimbos !== undefined && selection.carimbos.length > 0 && next.carimbos !== undefined) {
     const carimbos = moverCarimbos(next.carimbos, new Set(selection.carimbos), dx, dy)
     if (carimbos !== next.carimbos) next = { ...next, carimbos }
+  }
+
+  // FASE 4 — PINOS: o pino preso a uma ficha que andou já andou com ela
+  // (`carryAttachedPins`, acima); o objeto dele mudou, e ele não anda de novo.
+  if (selection.pins !== undefined && selection.pins.length > 0) {
+    const ids = new Set(selection.pins)
+    const antes = new Map(map.pins.map((pin) => [pin.id, pin]))
+    const jaAndaram = new Set(next.pins.filter((pin) => ids.has(pin.id) && antes.get(pin.id) !== pin).map((pin) => pin.id))
+    const pins = moverPinos(next.pins, ids, dx, dy, jaAndaram)
+    if (pins !== next.pins) next = { ...next, pins }
+  }
+  if (selection.zonas !== undefined && selection.zonas.length > 0) {
+    const concealZones = moverZonas(next.concealZones, new Set(selection.zonas), dx, dy)
+    if (concealZones !== next.concealZones) next = { ...next, concealZones }
+  }
+  if (selection.aguas !== undefined && selection.aguas.length > 0 && next.aguas !== undefined) {
+    const aguas = moverAguas(next.aguas, new Set(selection.aguas), dx, dy)
+    if (aguas !== next.aguas) next = { ...next, aguas }
+  }
+  if (selection.riscosDoBarranco !== undefined && selection.riscosDoBarranco.length > 0 && next.barranco !== undefined) {
+    const barranco = moverRiscos(next.barranco, new Set(selection.riscosDoBarranco), dx, dy)
+    if (barranco !== next.barranco) next = { ...next, barranco }
   }
 
   return next
