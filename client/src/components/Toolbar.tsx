@@ -336,7 +336,7 @@ export function Toolbar({ activeTool, onSelectTool, lastDrawingTool, variantBind
    * troca por tecla: apertar J e voltar ao Selecionar deixa o botão Sala na
    * Circular, como o Desenho faz com a forma.
    */
-  const [ultimasLocais, setUltimasLocais] = useState<Omit<UltimaDoGrupo, 'drawing'>>({ sala: 'room', objeto: 'mobilia' })
+  const [ultimasLocais, setUltimasLocais] = useState<Omit<UltimaDoGrupo, 'drawing'>>({ sala: 'room', objeto: 'mobilia', desnivel: 'barranco' })
   const grupoDaAtiva = clusterOfTool(activeTool)
   if (grupoDaAtiva && grupoDaAtiva !== 'drawing' && ultimasLocais[grupoDaAtiva] !== activeTool) {
     setUltimasLocais({ ...ultimasLocais, [grupoDaAtiva]: activeTool })

@@ -297,7 +297,7 @@ test('painel a 1280: Objetos oferece as 5 peças do lote 2 com nome e dica; a se
     await expect(radio, nome).toBeVisible()
     await expect(radio, nome).toHaveAccessibleDescription(`Clique no mapa para pôr ${artigo}.`)
   }
-  const atalho = menu.getByRole('group', { name: 'Atalho' }).getByRole('button', { name: 'Árvore redonda', exact: true })
+  const atalho = menu.getByRole('group', { name: 'Atalho' }).getByRole('button', { name: 'Árvores, pedras e tocos', exact: true })
   await expect(atalho).toBeVisible()
   await expect(atalho).toHaveAccessibleDescription(/Carimbo/)
   await conferirQueCabe(page, menu, [...NOVAS.map(([nome]) => menu.getByRole('radio', { name: nome, exact: true })), atalho])
