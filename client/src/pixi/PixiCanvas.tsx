@@ -198,7 +198,7 @@ import {
 } from './drawDraft'
 import { findTokenAt, snapPointForTarget } from './tokenInteraction'
 import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
-import { luzDoPreset } from '../lib/presetsDeLuz'
+import { luzSolta } from '../lib/presetsDeLuz'
 import {
   isValidWallDraft,
   buildWallFromDraft,
@@ -8171,7 +8171,7 @@ function PixiCanvasDoContexto({
 
         if (mode === 'drawing-light' && lightDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addLight, lightPreset } = useMapStore.getState()
+          const { map, addLight } = useMapStore.getState()
           // Compara contra o ponto bruto do pointerdown (lightDraftRawStart), nao
           // contra lightDraftCenter (que pode estar snapado) — senao, com "Travar
           // na grade" ativo, um clique simples ja nasce com dragDistance inflado
@@ -8182,12 +8182,13 @@ function PixiCanvasDoContexto({
           // cair no centro snapado no pior caso ainda é o comportamento antigo.
           const dragOrigin = lightDraftRawStart ?? lightDraftCenter
           const dragDistance = Math.hypot(worldPoint.x - dragOrigin.x, worldPoint.y - dragOrigin.y)
-          // Clique simples (sem arrasto de verdade): o alcance do preset
-          // (Luz L3: Luz, Tocha, Lampião, Fogueira), proporcional ao grid.
-          // Arrasto real: usa a distancia arrastada como raio novo.
+          // Clique simples (sem arrasto de verdade): o alcance da luz solta
+          // (4 casas, proporcional ao grid; a tocha, o lampião e a fogueira
+          // acendem pelo objeto desde a Fase 6). Arrasto real: usa a distancia
+          // arrastada como raio novo.
           const light = dragDistance < LIGHT_CLICK_THRESHOLD
-            ? luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset)
-            : luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset, dragDistance)
+            ? luzSolta(crypto.randomUUID(), lightDraftCenter, map.grid)
+            : luzSolta(crypto.randomUUID(), lightDraftCenter, map.grid, dragDistance)
           addLight(light)
           lightDraftCenter = null
           lightDraftRawStart = null

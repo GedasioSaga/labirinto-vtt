@@ -22,7 +22,6 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
-import { PRESET_DE_LUZ_PADRAO, type PresetDeLuz } from '../lib/presetsDeLuz'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
@@ -722,10 +721,6 @@ interface MapStoreState {
    *  linha/pincel/curva JÁ CRIADA e selecionada. */
   drawCap: DrawingCap
   setDrawCap: (cap: DrawingCap) => void
-  /** Luz L3: o preset (Luz, Tocha, Lampião, Fogueira) da PRÓXIMA luz da
-   *  ferramenta Luz — preferência de ferramenta, mesma classe de `drawCap`. */
-  lightPreset: PresetDeLuz
-  setLightPreset: (preset: PresetDeLuz) => void
   /** Estilo do traço ("Contínua | Tracejada | Pontilhada") da PRÓXIMA linha
    *  ou curva — preferência de ferramenta, mesma classe de `drawCap`. É o que
    *  separa passagem secreta / limite sugerido de parede. Não confundir com
@@ -2349,7 +2344,6 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     carimboDensidade: DENSIDADE_PADRAO,
     carimboBarra: false,
     drawCap: 'round',
-    lightPreset: PRESET_DE_LUZ_PADRAO,
     drawDash: 'solid',
     drawTexture: 'pen',
     brushMode: 'traco',
@@ -2599,7 +2593,6 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     setCarimboBarra: (barra) => set({ carimboBarra: barra }),
     setDrawCap: (cap) => set({ drawCap: cap }),
-    setLightPreset: (preset) => set({ lightPreset: preset }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
     setBrushMode: (mode) => set({ brushMode: mode }),
