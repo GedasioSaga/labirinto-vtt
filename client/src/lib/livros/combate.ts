@@ -1,7 +1,8 @@
 import type { Token } from '../../types/map'
 import { maximoComposto } from '../ajusteDaFicha'
 import { CONTADOR_CHOQUE_USADO, CONTADOR_USOS_TRANSF_MAXIMA } from '../dbt/batalha/leitura'
-import { LIMITES_DBT, type ContadorDBT, type FichaDBT } from '../dbt/modelo'
+import { ATRIBUTO_DO_TIPO, fichaDBTVazia, LIMITES_DBT, novoIdDBT, type ContadorDBT, type FichaDBT, type TecnicaDBT } from '../dbt/modelo'
+import { MOTOR_DRAGON_BALL, motorDoSistema } from '../motores'
 import {
   FORCA_PADRAO,
   RECURSO_QUE_A_FORCA_MULTIPLICA,
@@ -12,7 +13,7 @@ import {
   novoPersonagem,
   type Personagem,
 } from '../personagem'
-import type { SistemaDeRpg } from '../sistemaDeRpg'
+import type { AbaDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 
 /**
@@ -270,23 +271,101 @@ export function sincronizarVariacoes(personagens: Personagem[]): Personagem[] {
 }
 
 /**
- * "Ficha mínima (HP 300, golpe 80)": NPC de combate com força 1, HP 300/300
- * no recurso da força e a técnica "Golpe" de dano 80, quando o sistema os
- * tem. Sistema sem esse recurso ou sem a aba das técnicas: o que faltar fica
+ * O recurso de vida da ficha mínima: o de tom "vida" com atual e máximo (o
+ * HP do One Piece, o PV do Dragon Ball, o de um sistema do mestre); sem ele,
+ * o `hp` de sempre, se o sistema o tem. `null` = o sistema não tem vida.
+ */
+function vidaDaFichaMinima(sistema: SistemaDeRpg): string | null {
+  const vida = recursoDeVida(sistema)
+  if (vida !== null) return vida.id
+  return sistema.recursos.some((recurso) => recurso.id === RECURSO_QUE_A_FORCA_MULTIPLICA) ? RECURSO_QUE_A_FORCA_MULTIPLICA : null
+}
+
+/** O campo do cartão pelo id ou pelo rótulo ("Dano" de um sistema do mestre com outro id), sem caixa nem acento. */
+function campoDaAba(aba: AbaDoSistema, id: string): string | null {
+  const porId = aba.campos.find((campo) => campo.id === id)
+  if (porId !== undefined) return porId.id
+  return aba.campos.find((campo) => semAcentoNemCaixa(campo.rotulo) === id)?.id ?? null
+}
+
+function semAcentoNemCaixa(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * A aba das técnicas da ficha mínima: a `habilidades` (a que a batalha lê);
+ * sem ela, a primeira aba com campo de dano (sistema do mestre). `null` = o
+ * sistema não tem onde guardar um golpe.
+ */
+function abaDasTecnicasMinima(sistema: SistemaDeRpg): { aba: AbaDoSistema; dano: string } | null {
+  const propria = sistema.abas.find((aba) => aba.id === ABA_DAS_TECNICAS)
+  const danoDaPropria = propria === undefined ? null : campoDaAba(propria, CAMPO_DO_DANO)
+  if (propria !== undefined && danoDaPropria !== null) return { aba: propria, dano: danoDaPropria }
+  for (const aba of sistema.abas) {
+    const dano = campoDaAba(aba, CAMPO_DO_DANO)
+    if (dano !== null) return { aba, dano }
+  }
+  return null
+}
+
+/** O golpe da ficha mínima no Dragon Ball: técnica física pronta para uso, com a faixa à mão (¼, ½ e o dano cheio, a proporção do livro). */
+function golpeMinimoDBT(): TecnicaDBT {
+  const dano = Number(FICHA_MINIMA_DANO)
+  return {
+    id: novoIdDBT('tec'),
+    nome: NOME_DO_GOLPE_MINIMO,
+    rank: 'E',
+    tipo: 'fisica',
+    atributo: ATRIBUTO_DO_TIPO.fisica,
+    rotulos: [],
+    alcance: '',
+    descricao: '',
+    // NPC não segue a regra de ST (Livro do Narrador 4.0.5): tudo pronto para uso.
+    ativa: true,
+    especial: null,
+    efeitoDaFaixa: 'dano',
+    kiManual: null,
+    danoManual: { minimo: Math.round(dano / 4), medio: Math.round(dano / 2), completo: dano },
+  }
+}
+
+/**
+ * "Ficha mínima (HP 300, golpe 80)": NPC de combate com força 1, a vida do
+ * sistema em 300/300 e a técnica "Golpe" de dano 80, em qualquer sistema:
+ * One Piece (HP e Habilidades), Dragon Ball (PV fixado à mão no bloco de NPC
+ * e a técnica na ficha estruturada, `Personagem.dbt`) e os do mestre (o
+ * recurso de vida e a aba com campo de dano). O que o sistema não tiver fica
  * de fora (a ficha vazia com o nome, no pior caso).
  */
 export function fichaMinima(sistema: SistemaDeRpg, nome: string): Personagem {
   const ficha: Personagem = { ...novoPersonagem(sistema, 'npc', nome), combate: { forca: FORCA_PADRAO } }
-  if (sistema.recursos.some((recurso) => recurso.id === RECURSO_QUE_A_FORCA_MULTIPLICA)) {
-    ficha.recursos = { ...ficha.recursos, [RECURSO_QUE_A_FORCA_MULTIPLICA]: FICHA_MINIMA_HP }
-    ficha.maximos = { [RECURSO_QUE_A_FORCA_MULTIPLICA]: FICHA_MINIMA_HP }
+  const vida = vidaDaFichaMinima(sistema)
+  if (vida !== null) {
+    ficha.recursos = { ...ficha.recursos, [vida]: FICHA_MINIMA_HP }
+    ficha.maximos = { [vida]: FICHA_MINIMA_HP }
   }
-  const aba = sistema.abas.find((candidata) => candidata.id === ABA_DAS_TECNICAS)
-  if (aba !== undefined && aba.campos.some((campo) => campo.id === CAMPO_DO_DANO)) {
+  if (motorDoSistema(sistema) === MOTOR_DRAGON_BALL) {
+    const base = ficha.dbt ?? fichaDBTVazia()
+    // O PV do NPC sai do ND; sem ND escolhido, o ajuste à mão segura os 300 (a regra grava o máximo de novo ao mexer na ficha).
+    ficha.dbt = {
+      ...base,
+      npc: { nd: null, categoria: 'comum', rank: 'E', passivas: [], prontoId: null },
+      ajustes: vida === null ? base.ajustes : { ...base.ajustes, pvMax: FICHA_MINIMA_HP },
+      tecnicas: [golpeMinimoDBT()],
+    }
+    return ficha
+  }
+  const tecnicas = abaDasTecnicasMinima(sistema)
+  if (tecnicas !== null) {
     const golpe = novoCartao(NOME_DO_GOLPE_MINIMO)
-    golpe.campos = { [CAMPO_DO_DANO]: FICHA_MINIMA_DANO }
-    if (aba.campos.some((campo) => campo.id === CAMPO_DA_ACAO)) golpe.campos[CAMPO_DA_ACAO] = ACAO_DO_GOLPE_MINIMO
-    ficha.abas = { ...ficha.abas, [ABA_DAS_TECNICAS]: [golpe] }
+    golpe.campos = { [tecnicas.dano]: FICHA_MINIMA_DANO }
+    const acao = campoDaAba(tecnicas.aba, CAMPO_DA_ACAO)
+    if (acao !== null) golpe.campos[acao] = ACAO_DO_GOLPE_MINIMO
+    ficha.abas = { ...ficha.abas, [tecnicas.aba.id]: [golpe] }
   }
   return ficha
 }
