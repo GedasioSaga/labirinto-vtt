@@ -13,6 +13,7 @@ import { iniciarNuvem } from './net/nuvem/nuvemNoApp'
 import { useAdventureStore } from './stores/adventureStore'
 import { useBatalhaStore } from './stores/batalhaStore'
 import { useMapStore } from './stores/mapStore'
+import { ligarPonteDasCondicoes } from './stores/ponteDasCondicoes'
 import { themeCss } from './theme'
 import './main.css'
 
@@ -51,6 +52,10 @@ instalarDicasDoPainel(document)
 // primeiro a ouvir, e nenhum outro esconde do detector a tecla ou o clique que
 // fazem do Alt um modificador (Alt+arrastar, Alt+setas).
 instalarEndireitarComAlt(window)
+
+// CONDIÇÃO ÚNICA (Fase 3): o selo do One Piece e a condição do Dragon Ball
+// acendem e apagam a pastilha de mesmo nome no token (`stores/ponteDasCondicoes.ts`).
+ligarPonteDasCondicoes()
 
 // Arquivo solto fora de uma área que o aceite (hoje só a imagem do pino) não
 // pode abrir na janela no lugar do app. O Tauri entrega o arrastar ao DOM
