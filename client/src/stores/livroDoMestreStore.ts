@@ -7,8 +7,11 @@ import { create } from 'zustand'
  * enquanto o app está aberto, como no protótipo; nada disso vai para o disco.
  */
 
-/** `roteiro` só existe com a chave do Prelúdio ligada (`preludio/roteiro/RoteiroNoLivro.tsx`). */
-export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo' | 'roteiro'
+/**
+ * `roteiro` só existe com a chave do Prelúdio ligada (`preludio/roteiro/RoteiroNoLivro.tsx`).
+ * `jogos` é a página dos desafios (minigames fora do pino, `components/livro/PaginaJogos.tsx`).
+ */
+export type PaginaDoMestre = 'ficha' | 'cena' | 'aventura' | 'acervo' | 'jogos' | 'roteiro'
 
 /**
  * A preferência "Categorias do painel" (esconder Aventura e Esta cena com uma

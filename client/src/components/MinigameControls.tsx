@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import type { MinigamesPorJogo } from '../minigames/registro'
 import type { LeverDoorOption } from '../lib/lever'
 import { lerAudioGuardado } from '../lib/midiaNoDisco'
 import { guardarMusicaDaDanca } from '../lib/musicaDaDancaNaAventura'
@@ -749,19 +750,25 @@ export function MinigameControls(props: MinigameControlsProps) {
           onChange={(jogo) => jogo !== minigame.jogo && onChange(trocarJogoDoMinigame(minigame, jogo))}
         />
       </fieldset>
-      {minigame.jogo === 'pesca' ? (
-        <PainelDaPesca {...props} minigame={minigame} />
-      ) : minigame.jogo === 'tiro' ? (
-        <PainelDoTiro {...props} minigame={minigame} />
-      ) : minigame.jogo === 'fogo' ? (
-        <PainelDoFogo {...props} minigame={minigame} />
-      ) : minigame.jogo === 'bolha' ? (
-        <PainelDaBolha {...props} minigame={minigame} />
-      ) : (
-        <PainelDaDanca {...props} minigame={minigame} />
-      )}
+      {painelDoJogo(minigame.jogo, props, minigame)}
     </div>
   )
+}
+
+/**
+ * O PAINEL DO MESTRE de cada jogo do registro (`minigames/registro.ts`): uma
+ * entrada por jogo, e jogo novo sem painel não compila.
+ */
+const PAINEL_DO_JOGO: { readonly [J in JogoDoMinigame]: (props: MinigameControlsProps, minigame: MinigamesPorJogo[J]) => ReactNode } = {
+  danca: (props, minigame) => <PainelDaDanca {...props} minigame={minigame} />,
+  pesca: (props, minigame) => <PainelDaPesca {...props} minigame={minigame} />,
+  tiro: (props, minigame) => <PainelDoTiro {...props} minigame={minigame} />,
+  fogo: (props, minigame) => <PainelDoFogo {...props} minigame={minigame} />,
+  bolha: (props, minigame) => <PainelDaBolha {...props} minigame={minigame} />,
+}
+
+function painelDoJogo<J extends JogoDoMinigame>(jogo: J, props: MinigameControlsProps, minigame: MinigamesPorJogo[J]): ReactNode {
+  return PAINEL_DO_JOGO[jogo](props, minigame)
 }
 
 type PainelDaPescaProps = Pick<MinigameControlsProps, 'pinId' | 'onChange' | 'aoVivoDaPesca'> & { minigame: MinigamePesca }

@@ -249,7 +249,18 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
       // O zoom só entra pelo fator de tamanho mínimo: 1 de perto (o zoom não
       // repinta), maior que 1 de longe (o pino cresce para não sumir). O piso do
       // pino reduzido (fatia 14) só entra quando há pino reduzido no mapa.
-      return [map.pins, map.marcas, hidden, snapshot.selectedPinId, pinSizeScale(cameraScale), pinSizeFloorFor(map.pins, cameraScale), ...snapshot.travel]
+      // DESAFIOS: o selo também é desenhado aqui; o posto num objeto anda com ele (`map.props`).
+      return [
+        map.pins,
+        map.marcas,
+        map.desafios,
+        map.desafios?.some((desafio) => desafio.lugar.tipo === 'objeto') === true ? map.props : null,
+        hidden,
+        snapshot.selectedPinId,
+        pinSizeScale(cameraScale),
+        pinSizeFloorFor(map.pins, cameraScale),
+        ...snapshot.travel,
+      ]
     case 'textLabels':
       return [map.drawings, hidden, selectedId('drawing')]
     case 'handles':

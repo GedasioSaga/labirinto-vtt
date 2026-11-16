@@ -251,6 +251,10 @@ import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
 import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
 import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
+import { pinosDosDesafios } from '../lib/desafios'
+import { useDesafiosStore } from '../stores/desafiosStore'
+import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
+import { findPropAt } from './propInteraction'
 import { buildConcealZoneFromDraft, buildPin, nextTokenName, portaSozinhaNaSelecao } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
@@ -2637,15 +2641,24 @@ function PixiCanvasDoContexto({
        * OUTRA cena, então quem pede este redesenho é também a assinatura da
        * aventura (ver `unsubscribeTravelLinks`), não só `map.pins`.
        */
+      /** O desafio aberto na ficha da página Jogos, com a página à vista: o selo dele acende. */
+      const seloAberto = (): string | null => (useLivroDoMestreStore.getState().pagina === 'jogos' ? useDesafiosStore.getState().aberto : null)
+      /** Os selos dos desafios do piso em edição, como pinos derivados (`lib/desafios.ts`). */
+      const selosDoPiso = (map: MapData): Pin[] => {
+        const piso = useMapStore.getState().pisoAtivo
+        return pinosDosDesafios(map, 'mestre').filter((pin) => (pin.piso ?? 0) === piso)
+      }
+
       const paintPins = () => {
         const { map, selectedPinId } = sceneState()
         const camadas = contextoDeCamadas(map)
         const semPar = unlinkedTravelPinIds(useAdventureStore.getState(), map)
         // CAMADAS (fatia 3b): o pino de camada escolhida desenha no nó dela, com renderer próprio.
-        const pinos = visiblePins(map.pins, map).filter((pin) => !pin.hidden)
+        // DESAFIOS: o selo de cada desafio com lugar no mapa sai junto, com o nome do mestre (`lib/desafios.ts`).
+        const pinos = visiblePins([...map.pins, ...selosDoPiso(map)], map).filter((pin) => !pin.hidden)
         for (const { no, itens } of distribuir(pinos, pilha.nosDaFaixa('pinsContainer'), (p: Pin) => camadas.camadaDe('pino', p))) {
           // O piso do pino reduzido segue o da assinatura (`shapesRedraw`): só com pino reduzido no mapa.
-          pinosPorNo.de(no).draw(no, itens, selectedPinId, semPar, pinSizeScale(camera.scale), pinSizeFloorFor(map.pins, camera.scale))
+          pinosPorNo.de(no).draw(no, itens, selectedPinId ?? seloAberto(), semPar, pinSizeScale(camera.scale), pinSizeFloorFor(map.pins, camera.scale))
         }
         // BILHETE NO LUGAR: o mestre vê toda marca que os jogadores deixaram,
         // por baixo dos pinos (índice 0 do mesmo container).
@@ -2717,7 +2730,8 @@ function PixiCanvasDoContexto({
           selection,
           activeTool,
           selectedConcealZoneId,
-          selectedPinId,
+          // O desafio aberto na página Jogos acende o selo como o pino selecionado.
+          selectedPinId: selectedPinId ?? seloAberto(),
           travel: [adventure.cache, adventure.adventure, adventure.activeSceneId],
           cameraScale: camera.scale,
           rendererResolution: app.renderer.resolution,
@@ -3629,6 +3643,13 @@ function PixiCanvasDoContexto({
         if (state.cache !== previous.cache || state.adventure !== previous.adventure || state.activeSceneId !== previous.activeSceneId) {
           redrawPins()
         }
+      })
+      // DESAFIOS: abrir ou fechar a ficha de um desafio (ou a página Jogos) acende ou apaga o selo dele.
+      const unsubscribeSeloAberto = useDesafiosStore.subscribe((state, previous) => {
+        if (state.aberto !== previous.aberto) redrawPins()
+      })
+      const unsubscribePaginaDoSelo = useLivroDoMestreStore.subscribe((state, previous) => {
+        if (state.pagina !== previous.pagina) redrawPins()
       })
       // FILTRO "QUEM MANDA AQUI": ligar ou desligar pinta a camada de facções
       // pelo mesmo portão do redesenho parcial (só ela repinta).
@@ -5249,6 +5270,33 @@ function PixiCanvasDoContexto({
        * dedo não encolhe junto. Mesma ideia do `DOOR_TAP_TOLERANCE_PX` do
        * lado do jogador.
        */
+      /** O selo de desafio sob o clique, com o mesmo alvo do pino (`findPinAt`). */
+      const seloAt = (map: MapData, point: Point): Pin | null => {
+        const selos = visiblePins(selosDoPiso(map), map).filter((pin) => !pin.hidden)
+        return findPinAt(selos, point, pinTapTolerance(PIN_TAP_TOLERANCE_PX, camera.scale), pinSizeScale(camera.scale), pinSizeFloor(camera.scale))
+      }
+
+      /**
+       * DESAFIOS: o clique do "Marcar no mapa" (um ponto) ou do "Escolher no
+       * mapa" (um objeto) da página Jogos. Sem marcação em curso, `false`: o
+       * gesto segue o de sempre. No modo objeto, clicar fora de um objeto não
+       * marca nada e o modo continua (o Esc da página cancela).
+       */
+      const marcarDesafioNoClique = (map: MapData, ponto: Point): boolean => {
+        const marcando = useDesafiosStore.getState().marcando
+        if (marcando === null) return false
+        const { pisoAtivo, updateDesafio } = useMapStore.getState()
+        if (marcando.modo === 'ponto') {
+          updateDesafio(marcando.id, { lugar: { tipo: 'ponto', x: Math.round(ponto.x), y: Math.round(ponto.y) }, piso: pisoAtivo === 0 ? undefined : pisoAtivo })
+        } else {
+          const prop = findPropAt(doPisoEmEdicao(map).props, ponto, map)
+          if (prop === null) return true
+          updateDesafio(marcando.id, { lugar: { tipo: 'objeto', propId: prop.id } })
+        }
+        useDesafiosStore.getState().pararDeMarcar()
+        return true
+      }
+
       const pinAt = (map: MapData, point: Point) => {
         // Com o mapa (não só `hiddenLayers`): o olho do mestre na camada do PINO, a escolhida ou Anotações.
         const clickable = visiblePins(doPisoEmEdicao(map).pins, map).filter((pin) => !pin.hidden)
@@ -6737,6 +6785,13 @@ function PixiCanvasDoContexto({
           return
         }
 
+        // DESAFIOS: "Marcar no mapa" da página Jogos. Com qualquer ferramenta,
+        // o clique marca o lugar do desafio e o gesto para aqui.
+        if (marcarDesafioNoClique(map, worldPoint)) {
+          mode = 'idle'
+          return
+        }
+
         // DUPLO CLIQUE QUE FECHA A FORMA, no ritmo de quem mira. A dica da
         // tela promete "Duplo clique fecha" (labels.ts) e até 21/09/2026 quem
         // cumpria a promessa era só o evento `dblclick` do navegador, de
@@ -7603,6 +7658,17 @@ function PixiCanvasDoContexto({
         // (igual à zona oculta), então abre o painel — e, destravado, o gesto
         // segue como arrasto do próprio pino em vez de encerrar aqui.
         if (activeTool === 'select') {
+          // DESAFIOS: o selo também é desenhado por cima de tudo; o clique abre a
+          // ficha dele na página Jogos. O selo não se arrasta: o lugar muda pelo
+          // "Marcar de novo" da ficha, como no protótipo aprovado.
+          const selo = seloAt(map, worldPoint)
+          if (selo !== null) {
+            useDesafiosStore.getState().abrir(selo.id)
+            useLivroDoMestreStore.getState().abrirPagina('jogos')
+            lastPoint = { x: event.global.x, y: event.global.y }
+            updateCursor()
+            return
+          }
           const pin = pinAt(map, worldPoint)
           if (pin) {
             const abriu = abrirETalvezArrastarPino(map, pin, worldPoint)
@@ -10010,6 +10076,8 @@ function PixiCanvasDoContexto({
         unsubscribeShapes()
         unsubscribeBarranco()
         unsubscribeTravelLinks()
+        unsubscribeSeloAberto()
+        unsubscribePaginaDoSelo()
         unsubscribeTerritorio()
         unsubscribeTelhados()
         telhadosRenderer.destruir()

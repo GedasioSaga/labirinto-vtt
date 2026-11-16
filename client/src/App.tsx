@@ -126,6 +126,7 @@ import { OptionsScreen } from './screens/OptionsScreen'
 import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
 import { RoteiroNoLivro, usePaginasDoPreludioNoLivro } from './preludio/roteiro/RoteiroNoLivro'
+import { PAGINA_DOS_JOGOS, PaginaJogos, sessoesAoVivo } from './components/livro/PaginaJogos'
 import type { LigaCena } from './lib/preparo/tipos'
 import { preludioDeixaFechar } from './preludio/aoFechar'
 import { LivrosScreen } from './screens/LivrosScreen'
@@ -1736,6 +1737,8 @@ function App() {
   const currentMapPathRef = useRef<string | null>(null)
   /** PRELÚDIO (F4): o marcador Roteiro do Livro do mestre, só com a chave preparo ligada. */
   const paginasDoPreludio = usePaginasDoPreludioNoLivro()
+  /** DESAFIOS: o marcador Jogos fica sempre no livro, antes do Roteiro do Prelúdio. */
+  const paginasExtras = useMemo(() => [PAGINA_DOS_JOGOS, ...(paginasDoPreludio ?? [])], [paginasDoPreludio])
   /**
    * Cópia de recuperação deixada por uma abertura anterior que fechou sem
    * salvar — vira a oferta "Recuperar" no menu inicial. Só vale até o mestre
@@ -2887,18 +2890,22 @@ function App() {
    * página aberta: a sessão recusaria o resto. Com a VISÃO DE JOGADOR aberta,
    * a dança, a pesca e o tiro ao vivo são os do teste, mesmo com a sala aberta ao lado.
    */
-  const minigamePanel = (pin: Pin) => ({
-    pinId: pin.id,
+  // DESAFIOS: serve ao desafio da página Jogos e ao pino ▷ antigo; as sessões ao vivo usam o id dele como `pinId`.
+  const minigamePanel = (
+    alvo: { id: string; minigame?: MinigameDoPino; portaLigada?: string },
+    gravar: (patch: { minigame?: MinigameDoPino; portaLigada?: string }) => void,
+  ) => ({
+    pinId: alvo.id,
     // Pino de minigame sem desafio gravado joga o do protótipo, como a sessão e o disco já fazem.
-    minigame: pin.minigame ?? MINIGAME_PADRAO,
-    onChange: (minigame: MinigameDoPino) => useMapStore.getState().updatePin(pin.id, { minigame }),
+    minigame: alvo.minigame ?? MINIGAME_PADRAO,
+    onChange: (minigame: MinigameDoPino) => gravar({ minigame }),
     porta: {
-      value: pin.portaLigada ?? null,
+      value: alvo.portaLigada ?? null,
       options: leverDoorOptions(map),
-      onChange: (wallId: string | null) => useMapStore.getState().updatePin(pin.id, { portaLigada: wallId ?? undefined }),
+      onChange: (wallId: string | null) => gravar({ portaLigada: wallId ?? undefined }),
     },
     aoVivo: dancaNoPainel(
-      pin.id,
+      alvo.id,
       // A ponte de teste é recriada a cada geração: lida na hora de cada comando.
       { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() },
       {
@@ -2908,30 +2915,30 @@ function App() {
         ponte: () => hostBridgeRef.current,
         // SONS F5d: a música importada sai para a mesa só da pasta da aventura (`/sons`); sem pasta, o convite não sai.
         prepararMusica: () => {
-          const minigame = pin.minigame ?? MINIGAME_PADRAO
+          const minigame = alvo.minigame ?? MINIGAME_PADRAO
           return minigame.jogo !== 'danca' || prepararMusicaDaDancaNaMesa(minigame.musica, useBibliotecaDeSonsStore.getState().pasta)
         },
       },
     ),
-    aoVivoDaPesca: pescaNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
+    aoVivoDaPesca: pescaNoPainel(alvo.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       pescas,
       ponte: () => hostBridgeRef.current,
     }),
-    aoVivoDoTiro: tiroNoPainel(pin.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
+    aoVivoDoTiro: tiroNoPainel(alvo.id, { estado: estadoDaVisao, ponte: () => visaoDeTeste.ponte() }, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       tiros,
       ponte: () => hostBridgeRef.current,
     }),
-    aoVivoDoFogo: fogoNoPainel(pin.id, {
+    aoVivoDoFogo: fogoNoPainel(alvo.id, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       fogo,
       ponte: () => hostBridgeRef.current,
     }),
-    aoVivoDaBolha: bolhaNoPainel(pin.id, {
+    aoVivoDaBolha: bolhaNoPainel(alvo.id, {
       aberta: room !== null,
       players: roomPlayers.filter((player) => player.connected && player.status === 'playing').map(({ playerId, name }) => ({ playerId, name })),
       bolha,
@@ -3725,7 +3732,7 @@ function App() {
           antiga barra de ações). Grupo, Chat, Cenas e Mesa moram no livro da mesa. */}
       <LivroDoMestre
         obstaculoRef={editorRailRef}
-        paginasExtras={paginasDoPreludio}
+        paginasExtras={paginasExtras}
         temSelecao={selection.length > 0 || selectedPinId !== null || selectedConcealZone !== null}
         onDesfazer={undo}
         onRefazer={redo}
@@ -4574,7 +4581,10 @@ function App() {
               // ALAVANCA: a porta que ela abre (desta cena, de qualquer sala) e o "Acionar agora" do mestre.
               lever: selectedPin && selectedPin.kind === 'alavanca' ? leverPanel(selectedPin) : null,
               // MINIGAME: o desafio de dança, a porta que ele abre e, com a sala aberta, a dança ao vivo.
-              desafio: selectedPin && selectedPin.kind === 'minigame' ? minigamePanel(selectedPin) : null,
+              desafio:
+                selectedPin && selectedPin.kind === 'minigame'
+                  ? minigamePanel(selectedPin, (patch) => useMapStore.getState().updatePin(selectedPin.id, patch))
+                  : null,
               // CABINE CONTÍNUA: o "!"/"?" leva ao próximo pino da cena; o de
               // viagem leva ao PAR (outra cena). A chegada oculta não leva de volta; alavanca e minigame não são parada.
               cabin:
@@ -4738,6 +4748,10 @@ function App() {
               onRename: (id, nome) => updateFloorPiece(id, { nome }),
               pincel: pincelNasCamadas,
             }}
+          />
+          <PaginaJogos
+            painelDoDesafio={(desafio) => minigamePanel(desafio, (patch) => useMapStore.getState().updateDesafio(desafio.id, patch))}
+            aoVivo={sessoesAoVivo({ danca, pescas, tiros, fogo, bolha })}
           />
           {paginasDoPreludio !== undefined && <RoteiroNoLivro aoAbrirNaMesa={abrirNaMesaPeloRoteiro} />}
       </LivroDoMestre>

@@ -16,6 +16,8 @@ import {
   type PinSymbolShape,
 } from '../lib/pins'
 import { contraste } from '../lib/nomesDosLugares'
+import { ehJogoDoRegistro } from '../minigames/registro'
+import { SIMBOLO_DO_JOGO } from '../minigames/simbolosDosJogos'
 import { SELECTION_COLOR } from './constants'
 
 export interface PinsRenderer {
@@ -158,10 +160,31 @@ function drawLeverHead(graphics: Graphics, pin: Pin, headY: number, k: number, c
   drawShape(graphics, PIN_LEVER_SYMBOL, pin.x, headY, cores.ink, k)
 }
 
-/** Cabeça do minigame: a mesma de latão, com o controle em traço escuro no lugar do glifo. */
-function drawControleHead(graphics: Graphics, pin: Pin, headY: number, k: number, cores: CoresDaCabeca): void {
-  drawFilledHead(graphics, pin, headY, k, cores)
-  drawShape(graphics, PIN_CONTROLE_SYMBOL, pin.x, headY, cores.ink, k)
+/*
+ * O SELO DO DESAFIO (minigame fora do pino, protótipo aprovado em 15/11/2026):
+ * losango de couro com aro de latão e o símbolo do jogo em latão claro,
+ * diferente do pino (cabeça redonda clara) e da ficha (círculo). Sem haste:
+ * o desafio não é um pino cravado. Fica na altura da cabeça do pino, onde o
+ * toque o procura (`findPinAt`). O mesmo desenho no mestre e no jogador.
+ */
+const SELO_COURO = 0x2a1d12
+const SELO_LATAO = 0xe0a44a
+const SELO_LATAO_CLARO = 0xf3ba66
+const SELO_ARO = 1.5
+/** Meia diagonal do losango: um pouco maior que a cabeça do pino, como no protótipo. */
+const SELO_MEIA_DIAGONAL = PIN_HEAD_RADIUS * 1.3
+
+function losango(graphics: Graphics, cx: number, cy: number, r: number): Graphics {
+  return graphics.poly([cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy], true)
+}
+
+function drawSeloHead(graphics: Graphics, pin: Pin, headY: number, k: number): void {
+  losango(graphics, pin.x, headY, SELO_MEIA_DIAGONAL * k)
+    .fill({ color: SELO_COURO })
+    .stroke({ width: SELO_ARO * k, color: SELO_LATAO, join: 'round' })
+  // O mestre tem o desafio inteiro; o jogador, só o recorte (`minigameVisivel`).
+  const jogo = pin.minigame?.jogo ?? pin.minigameVisivel?.jogo
+  drawShape(graphics, ehJogoDoRegistro(jogo) ? SIMBOLO_DO_JOGO[jogo] : PIN_CONTROLE_SYMBOL, pin.x, headY, SELO_LATAO_CLARO, k)
 }
 
 /**
@@ -281,7 +304,10 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       // reduzido descer do piso de tela.
       const kp = fatorDoPino(pin, k, sizeFloor)
       const headY = pin.y - PIN_HEAD_OFFSET * kp
-      if (pin.id === selectedId) {
+      const selo = pin.kind === 'minigame'
+      if (pin.id === selectedId && selo) {
+        losango(graphics, pin.x, headY, (SELO_MEIA_DIAGONAL + SELECTED_RING_GAP + 1) * kp).stroke({ width: SELECTED_RING_WIDTH * kp, color: SELECTION_COLOR, join: 'round' })
+      } else if (pin.id === selectedId) {
         graphics
           .circle(pin.x, headY, (PIN_HEAD_RADIUS + SELECTED_RING_GAP) * kp)
           .stroke({ width: SELECTED_RING_WIDTH * kp, color: SELECTION_COLOR })
@@ -290,8 +316,8 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       // O pino "só o círculo" (`semHaste`) pula a haste e NADA mais muda: a
       // cabeça fica no mesmo `headY`, então ligar e desligar não faz o pino
       // saltar em nenhum zoom, e o anel de seleção, o glifo e o nome seguem a
-      // cabeça como sempre.
-      if (pin.semHaste !== true) {
+      // cabeça como sempre. O selo do desafio nunca tem haste.
+      if (pin.semHaste !== true && !selo) {
         graphics
           .moveTo(pin.x, pin.y)
           .lineTo(pin.x, pin.y - (PIN_HEIGHT - PIN_HEAD_RADIUS) * kp)
@@ -309,7 +335,7 @@ export function createPinsRenderer(options: PinsRendererOptions = {}): PinsRende
       if (viagem && pin.soChegada === true) drawArrivalHead(graphics, pin, headY, kp)
       else if (viagem) drawTravelHead(graphics, pin, headY, unlinkedIds?.has(pin.id) === true, kp)
       else if (alavanca) drawLeverHead(graphics, pin, headY, kp, cores)
-      else if (minigame) drawControleHead(graphics, pin, headY, kp, cores)
+      else if (minigame) drawSeloHead(graphics, pin, headY, kp)
       else drawMarkerHead(graphics, pin, headY, kp, cores)
       drawName(container, pin, headY, k, kp)
 
