@@ -36,8 +36,8 @@
 import { hash, misturar, rgb } from '../../ruido'
 import { tomDoMeio } from '../materiais'
 import { anel, caixa, capsula, elipse, poligono, type Caixa, type Forma, type Ponto } from './formas'
-import { contato, texturaDaClasse, type MaterialDaPeca, type OpcoesDaPeca, type Sombra, type Textura } from './motor'
-import { BURACO, G, materialDaPeca, type MontarMovel } from './contexto'
+import { contato, texturaDaClasse, type Cena, type MaterialDaPeca, type OpcoesDaPeca, type Sombra, type Textura } from './motor'
+import { BURACO, G, materialDaPeca, type ContextoDoMovel, type MontarMovel } from './contexto'
 
 /** A altura de uma fiada (px do protótipo): a beirada de todo tampo da torre. O perfil usa este valor como espessura. */
 export const ESPESSURA_DA_FIADA_DA_TORRE = 0.18 * G
@@ -223,7 +223,13 @@ const texLajes: Textura = (u, v, x, y, p, s, escala) => {
   if (junta < 1) s[3] -= 0.3 * (1 - junta)
 }
 
-export const montarTorreDePedra: MontarMovel = (c, cena) => {
+export const montarTorreDePedra: MontarMovel = (c, cena) => desenharTorreDePedra(c, cena, true)
+
+/**
+ * A torre inteira na caixa de `c`. `comMastro` falso tira o mastro e a bandeira: a torre do dragão (16/11/2026) usa
+ * esta mesma torre, menor, com o dragão no lugar do mastro.
+ */
+export function desenharTorreDePedra(c: ContextoDoMovel, cena: Cena, comMastro: boolean): void {
   const P = c.peca
   const R = Math.min(c.hw, c.hh)
   const lado = 2 * R
@@ -315,19 +321,21 @@ export const montarTorreDePedra: MontarMovel = (c, cena) => {
   }
 
   // ---------- o mastro (antes das ameias da frente) com a bandeira ----------
-  const [mx, my] = [f(MASTRO[0]), f(MASTRO[1])]
-  const rMastro = f(RAIO_DO_MASTRO)
-  const niveis = Math.ceil((ALTURA_DO_MASTRO * lado) / e - 0.01)
-  for (let k = 0; k < niveis; k += 1) {
-    const ox = mx + 0.1 * k
-    S.push(solta(emCima(elipse(ox, my, rMastro, rMastro), 0.0001 * k), zTerraco + Math.min(ALTURA_DO_MASTRO * lado, e * (k + 1))))
-    // O pingo de madeira, dentro deste disco e fora dos de cima: a cara deste trecho sai madeira.
-    L.push(P(elipse(ox - rMastro + 0.05, my, 0.25, 0.25), madeira, { bisel: 0, contorno: 0, semente: 17970 + k }))
+  if (comMastro) {
+    const [mx, my] = [f(MASTRO[0]), f(MASTRO[1])]
+    const rMastro = f(RAIO_DO_MASTRO)
+    const niveis = Math.ceil((ALTURA_DO_MASTRO * lado) / e - 0.01)
+    for (let k = 0; k < niveis; k += 1) {
+      const ox = mx + 0.1 * k
+      S.push(solta(emCima(elipse(ox, my, rMastro, rMastro), 0.0001 * k), zTerraco + Math.min(ALTURA_DO_MASTRO * lado, e * (k + 1))))
+      // O pingo de madeira, dentro deste disco e fora dos de cima: a cara deste trecho sai madeira.
+      L.push(P(elipse(ox - rMastro + 0.05, my, 0.25, 0.25), madeira, { bisel: 0, contorno: 0, semente: 17970 + k }))
+    }
+    const topo: Ponto = [mx + 0.1 * (niveis - 1), my]
+    const bandeira = poligono(BANDEIRA.map(([x, y]): Ponto => [topo[0] + f(x), topo[1] + f(y)]))
+    L.push(P(comMeioEm(bandeira, topo[0], topo[1]), BANDEIRA_VINHO, { tabua: 0, bisel: 1, contorno: 0.32, tom: 0.95, projeta: { dist: 1.6, forca: 0.32 }, semente: 17980 }))
+    L.push(P(elipse(topo[0], topo[1], rMastro * 1.5, rMastro * 1.5), madeira, { tabua: 0, bisel: rMastro, contorno: 0.32, tom: 0.85, projeta: { dist: 1.2, forca: 0.3 }, semente: 17981 }))
   }
-  const topo: Ponto = [mx + 0.1 * (niveis - 1), my]
-  const bandeira = poligono(BANDEIRA.map(([x, y]): Ponto => [topo[0] + f(x), topo[1] + f(y)]))
-  L.push(P(comMeioEm(bandeira, topo[0], topo[1]), BANDEIRA_VINHO, { tabua: 0, bisel: 1, contorno: 0.32, tom: 0.95, projeta: { dist: 1.6, forca: 0.32 }, semente: 17980 }))
-  L.push(P(elipse(topo[0], topo[1], rMastro * 1.5, rMastro * 1.5), madeira, { tabua: 0, bisel: rMastro, contorno: 0.32, tom: 0.85, projeta: { dist: 1.2, forca: 0.3 }, semente: 17981 }))
 
   // ---------- as ameias: dois tampos cada, o de cima com a pedra do alto ----------
   // As do fundo NA TELA saem antes do mastro, as da frente depois; cada metade em dois tampos (a altura da ameia).

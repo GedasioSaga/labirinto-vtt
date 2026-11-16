@@ -732,6 +732,9 @@ function* pintarSombras(alvo: Alvo, sombras: readonly Sombra[], mapa: Float32Arr
     const oy = SOMBRA_Y * s.z
     const su = bordaDaSombra(s)
     const fo = s.forca ?? Math.max(0.16, 0.34 - 0.0022 * s.z)
+    // Força zero não escurece nada (`a` seria 0 em todo pixel): é o tampo que só dá a altura da 3/4 (as fiadas da
+    // torre, os estratos da montanha). Pular a passada não muda um pixel e poupa a conta da forma na caixa inteira.
+    if (fo <= 0) continue
     const n = s.solta !== true && s.z > PASSO_DA_SOMBRA ? Math.min(AMOSTRAS_MAXIMAS_DA_SOMBRA, Math.ceil(s.z / PASSO_DA_SOMBRA)) : 0
     const su0 = Math.min(su, BORDA_DA_SOMBRA_NO_PE)
     const b = s.forma.b

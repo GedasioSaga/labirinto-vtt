@@ -330,6 +330,8 @@ import { montarPrateleiraDeToalhas } from './prateleiraDeToalhas'
 import { montarCadeiraDeEspaldarAlto } from './cadeiraDeEspaldarAlto'
 import { montarCentroDeMesa } from './centroDeMesa'
 import { montarLapideTorta } from './lapideTorta'
+import { montarMontanhaGrande, montarMontanhaMedia, montarMontanhaPequena } from './montanha'
+import { montarTorreDoDragao } from './torreDoDragao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -724,6 +726,10 @@ const MONTADORES = {
   cadeiraDeEspaldarAlto: montarCadeiraDeEspaldarAlto,
   centroDeMesa: montarCentroDeMesa,
   lapideTorta: montarLapideTorta,
+  torreDoDragao: montarTorreDoDragao,
+  montanhaPequena: montarMontanhaPequena,
+  montanhaMedia: montarMontanhaMedia,
+  montanhaGrande: montarMontanhaGrande,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -805,6 +811,8 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
   'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
+  // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
+  'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

@@ -46,6 +46,8 @@ import {
 import { aceitaTresQuartos } from './mobilia/vistaTresQuartos'
 import { ehPonte, formaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { ehCova, formaDaCova, type FormaDaCova } from './mobilia/cova'
+import { ehMontanha, neveDaMontanha, type NeveDaMontanha } from './mobilia/montanha'
+import { movelComOutraNeveDaMontanha } from './mobilia'
 import { aguaDoChafariz, formaDoChafariz, type AguaDoChafariz, type FormaDoChafariz } from './mobilia/chafariz'
 import { ehMovelDeVento, formaDoMoinho, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { CASAS_DO_TAMANHO_DO_FOGO, tamanhoDoFogo, type TamanhoDoFogo } from './mobilia/fogo'
@@ -1046,6 +1048,16 @@ export function trocarFormaDaPonte(map: MapData, propId: string, forma: FormaDaP
  * (`movelComOutraFormaDaCova`). A mesma versão, outro tipo ou id que não
  * existe devolvem o MESMO mapa (a store não empilha passo vazio).
  */
+/**
+ * "Neve" do painel da MONTANHA (Sem | Com, 16/11/2026): só o desenho muda, a pegada fica. A mesma neve, outro
+ * tipo ou id que não existe devolvem o MESMO mapa (a store não empilha passo vazio).
+ */
+export function trocarNeveDaMontanha(map: MapData, propId: string, neve: NeveDaMontanha): MapData {
+  const alvo = map.props.find((p) => p.id === propId)
+  if (alvo === undefined || !ehMontanha(alvo.mobilia) || neveDaMontanha(alvo.mobiliaForma) === neve) return map
+  return { ...map, props: map.props.map((p) => (p === alvo ? movelComOutraNeveDaMontanha(p, neve) : p)) }
+}
+
 export function trocarFormaDaCova(map: MapData, propId: string, forma: FormaDaCova): MapData {
   const alvo = map.props.find((p) => p.id === propId)
   if (alvo === undefined || !ehCova(alvo.mobilia) || formaDaCova(alvo.mobiliaForma) === forma) return map

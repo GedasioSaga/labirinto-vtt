@@ -54,7 +54,16 @@ const TOLERANCIA_DA_BORDA = 0.01
  * desenho não a ocupa inteira. Quem não está aqui barra com a caixa toda (1).
  * `torreDePedra` 0,8: o raio da parede no desenho (`RAIO_SOLIDO_DA_TORRE` em `texturas/meioTermo/moveis/torreDePedra.ts`, que `lib` não importa).
  */
-const PEGADA_SOLIDA: Partial<Record<TipoMobilia, number>> = { torreDePedra: 0.8 }
+const PEGADA_SOLIDA: Partial<Record<TipoMobilia, number>> = {
+  torreDePedra: 0.8,
+  // A torre do dragão (16/11/2026): a parede da torre menor (`RAIO_SOLIDO_DA_TORRE_DO_DRAGAO`, 0,8 x 0,74); as asas
+  // e a cauda ficam no alto ou rente à parede.
+  torreDoDragao: 0.592,
+  // A montanha (16/11/2026): a elipse do pé (`RAIO_SOLIDO_DA_MONTANHA`); a beira da caixa fica para o cascalho.
+  montanhaPequena: 0.86,
+  montanhaMedia: 0.86,
+  montanhaGrande: 0.86,
+}
 
 /** O obstáculo de um objeto: o contorno fechado e as paredes dele. */
 export interface ObstaculoDeObjeto {

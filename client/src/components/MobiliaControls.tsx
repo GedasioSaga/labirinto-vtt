@@ -54,6 +54,7 @@ import {
 } from '../lib/mobilia/cataVento'
 import { FORMAS_DA_PONTE, ROTULO_DA_FORMA_DA_PONTE, formaDaPonte, type FormaDaPonte } from '../lib/mobilia/ponte'
 import { FORMAS_DA_COVA, ROTULO_DA_FORMA_DA_COVA, formaDaCova, type FormaDaCova } from '../lib/mobilia/cova'
+import { NEVES_DA_MONTANHA, ROTULO_DA_NEVE_DA_MONTANHA, ehMontanha, neveDaMontanha, type NeveDaMontanha } from '../lib/mobilia/montanha'
 import { Toggle } from './Toggle'
 import './MobiliaControls.css'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
@@ -127,6 +128,8 @@ export interface MobiliaControlsProps {
    * tamanho e o giro ficam. Ausente = o painel não oferece a versão.
    */
   onFormaDaCovaChange?: (id: string, forma: FormaDaCova) => void
+  /** "Neve" da montanha (Sem | Com). */
+  onNeveDaMontanhaChange?: (id: string, neve: NeveDaMontanha) => void
   /**
    * Moinho: troca a forma (Clássico | Torre) no lugar; o tamanho e o vento
    * ficam. Ausente = o painel não oferece a forma.
@@ -339,6 +342,7 @@ export function MobiliaControls({
   onVentoChange,
   onFormaDaPonteChange,
   onFormaDaCovaChange,
+  onNeveDaMontanhaChange,
   onFormaDoMoinhoChange,
   onAparenciaChange,
 }: MobiliaControlsProps & { parte: ParteDoMovel }) {
@@ -585,6 +589,27 @@ export function MobiliaControls({
         {/* A cova: as três versões do estúdio no estilo Atual (o monte fresco, o antigo com mato, a roda de
             pedras). Só onde o desenho as mostra: no Desenhado a cova é a arte do estúdio, uma só, e no
             Simples é a silhueta; lá o segmentado não teria efeito e some. A versão fica gravada. */}
+        {/* A NEVE da montanha (16/11/2026): Sem | Com. Só onde o desenho a mostra (o Atual sem o Desenhado), como a
+            versão da cova; a neve fica gravada e a pegada não muda. */}
+        {ehMontanha(tipo) && onNeveDaMontanhaChange !== undefined && meioTermoLigado() && !desenhadoLigado() && (
+          <div className="lb-field">
+            <span className="lb-label">Neve</span>
+            <div className="lb-seg" role="radiogroup" aria-label="Neve">
+              {NEVES_DA_MONTANHA.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  role="radio"
+                  aria-checked={neveDaMontanha(prop.mobiliaForma) === opcao}
+                  className="lb-seg__option"
+                  onClick={() => onNeveDaMontanhaChange(prop.id, opcao)}
+                >
+                  {ROTULO_DA_NEVE_DA_MONTANHA[opcao]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {tipo === 'cova' && onFormaDaCovaChange !== undefined && meioTermoLigado() && !desenhadoLigado() && (
           <div className="lb-field">
             <span className="lb-label">Versão</span>

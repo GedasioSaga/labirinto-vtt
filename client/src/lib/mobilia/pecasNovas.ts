@@ -81,6 +81,8 @@ export const PECAS_NOVAS = [
   'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
   'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
+  // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
+  'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
 ] as const satisfies readonly TipoMobilia[]
 
 export type PecaNova = (typeof PECAS_NOVAS)[number]
@@ -640,6 +642,11 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   prateleiraDeToalhas: { rotulo: 'Prateleira de toalhas', artigo: 'uma prateleira de toalhas', tamanho: { largura: 1, altura: 0.4 }, redonda: false },
   cadeiraDeEspaldarAlto: { rotulo: 'Cadeira de espaldar alto', artigo: 'uma cadeira de espaldar alto', tamanho: { largura: 0.5, altura: 0.5 }, redonda: false },
   centroDeMesa: { rotulo: 'Centro de mesa', artigo: 'um centro de mesa', tamanho: { largura: 1, altura: 0.5 }, redonda: false },
+  torreDoDragao: { rotulo: 'Torre do dragão', artigo: 'uma torre do dragão', tamanho: { largura: 3, altura: 3 }, redonda: true },
+  // A montanha conta como redonda: a pegada que barra é a elipse inscrita (o pé é redondo e ondulado, não a caixa).
+  montanhaPequena: { rotulo: 'Montanha pequena', artigo: 'uma montanha pequena', tamanho: { largura: 4, altura: 4 }, redonda: true },
+  montanhaMedia: { rotulo: 'Montanha média', artigo: 'uma montanha média', tamanho: { largura: 6, altura: 6 }, redonda: true },
+  montanhaGrande: { rotulo: 'Montanha grande', artigo: 'uma montanha grande', tamanho: { largura: 10, altura: 8 }, redonda: true },
   lapideTorta: { rotulo: 'Lápide torta', artigo: 'uma lápide torta', tamanho: { largura: 0.6, altura: 0.4 }, redonda: false },
 }
 
@@ -960,6 +967,10 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     cadeiraDeEspaldarAlto: valor(f.cadeiraDeEspaldarAlto),
     centroDeMesa: valor(f.centroDeMesa),
     lapideTorta: valor(f.lapideTorta),
+    torreDoDragao: valor(f.torreDoDragao),
+    montanhaPequena: valor(f.montanhaPequena),
+    montanhaMedia: valor(f.montanhaMedia),
+    montanhaGrande: valor(f.montanhaGrande),
   }
 }
 
@@ -1037,6 +1048,8 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
   'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
   'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
+  // Leva E2 de 16/11/2026: a torre do dragão (Castelo) e a montanha em três tamanhos (Natureza e relevo).
+  'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande',
   // As construções de 14/11/2026 (lotes L15 a L19), na ordem da lista do dia: a ferramenta Construção as arruma
   // pelos grupos de `construcoes.ts`.
   'portaoComGradeLevadica', 'torreDeCerco', 'estatuaEquestre', 'obelisco', 'forcaComCadafalso', 'torreDoSino',
@@ -2992,6 +3005,26 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         return { x1: Math.cos(a) * hw * 0.62, y1: Math.sin(a) * hh * 0.62, x2: Math.cos(a) * hw * 0.8, y2: Math.sin(a) * hh * 0.8 }
       }
       return [...aro(largura * 0.8, altura * 0.8), ...aro(largura * 0.62, altura * 0.62), ...Array.from({ length: 12 }, (_, i) => fresta(i))]
+    }
+    case 'torreDoDragao': {
+      // A parede e o terraço da torre (menor, no meio) e as duas asas abertas do dragão, do ombro à ponta.
+      const asa = (lado: number): Traco[] => [
+        { x1: lado * hw * 0.15, y1: hh * 0.06, x2: lado * hw * 0.55, y2: -hh * 0.16 },
+        { x1: lado * hw * 0.55, y1: -hh * 0.16, x2: lado * hw * 0.97, y2: -hh * 0.26 },
+        { x1: lado * hw * 0.55, y1: -hh * 0.16, x2: lado * hw * 0.79, y2: hh * 0.27 },
+      ]
+      return [...aro(largura * 0.59, altura * 0.59), ...aro(largura * 0.46, altura * 0.46), ...asa(1), ...asa(-1)]
+    }
+    case 'montanhaPequena':
+    case 'montanhaMedia':
+    case 'montanhaGrande': {
+      // O pé e as cristas do cume até a beira: quatro na pequena, cinco na média, sete no maciço da grande.
+      const crista = (graus: number): Traco => {
+        const a = (graus * Math.PI) / 180
+        return { x1: 0, y1: 0, x2: Math.cos(a) * hw * 0.8, y2: Math.sin(a) * hh * 0.8 }
+      }
+      const angulos = tipo === 'montanhaPequena' ? [30, 140, 215, 320] : tipo === 'montanhaMedia' ? [20, 100, 160, 230, 300] : [10, 60, 120, 170, 220, 280, 330]
+      return [...aro(largura * 0.9, altura * 0.9), ...angulos.map(crista)]
     }
     case 'torreDeVigia': {
       // O assoalho quadrado, as arestas do telhado de quatro águas até o meio e a escada saindo pela frente.

@@ -687,6 +687,10 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   cadeiraDeEspaldarAlto: ['sala de jantar', 'mansão', 'trono'],
   centroDeMesa: ['fruteira', 'castiçal', 'banquete', 'jantar'],
   lapideTorta: ['túmulo', 'cova', 'abandonado'],
+  torreDoDragao: ['dragão', 'torreão', 'castelo'],
+  montanhaPequena: ['monte', 'morro', 'pico', 'rocha', 'neve', 'relevo'],
+  montanhaMedia: ['monte', 'morro', 'pico', 'rocha', 'neve', 'relevo'],
+  montanhaGrande: ['monte', 'serra', 'cordilheira', 'pico', 'rocha', 'neve', 'relevo'],
 }
 
 const MARCA_DE_ACENTO = /\p{M}/gu

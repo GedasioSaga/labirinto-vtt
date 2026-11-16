@@ -763,6 +763,10 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   cadeiraDeEspaldarAlto: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('estofado', 'Estofado', TECIDOS, 'vinho')],
   centroDeMesa: [lugar('metal', 'Metal', METAIS, 'latao')],
   lapideTorta: [lugar('pedra', 'Pedra', PEDRAS, 'granito')],
+  torreDoDragao: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('dragao', 'Dragão', [...METAIS, ...PEDRAS], 'latao')],
+  montanhaPequena: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
+  montanhaMedia: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
+  montanhaGrande: [lugar('pedra', 'Rocha', PEDRAS, 'granito')],
 }
 
 /** [L, a, b] do OKLab: L de 0 (preto) a 1 (branco). */

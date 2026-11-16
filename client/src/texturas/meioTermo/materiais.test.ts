@@ -513,6 +513,10 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       cadeiraDeEspaldarAlto: ['madeira:nogueira', 'estofado:vinho'],
       centroDeMesa: ['metal:latao'],
       lapideTorta: ['pedra:granito'],
+      torreDoDragao: ['pedra:granito', 'madeira:carvalho', 'dragao:latao'],
+      montanhaPequena: ['pedra:granito'],
+      montanhaMedia: ['pedra:granito'],
+      montanhaGrande: ['pedra:granito'],
     })
   })
 

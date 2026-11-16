@@ -27,6 +27,8 @@ export const GRUPOS_DE_CONSTRUCAO = [
   { id: 'cidadeEPorto', titulo: 'Cidade e porto' },
   { id: 'vilaECampo', titulo: 'Vila e campo' },
   { id: 'lazer', titulo: 'Lazer' },
+  // Leva E2 de 16/11/2026: o relevo (a montanha em três tamanhos) não cabe em nenhum dos grupos de obra.
+  { id: 'naturezaERelevo', titulo: 'Natureza e relevo' },
 ] as const
 
 export type IdDoGrupoDeConstrucao = (typeof GRUPOS_DE_CONSTRUCAO)[number]['id']
@@ -62,6 +64,7 @@ export const GRUPO_DA_CONSTRUCAO = {
   obelisco: 'construcoesDoCastelo',
   forcaComCadafalso: 'construcoesDoCastelo',
   torreDoSino: 'construcoesDoCastelo',
+  torreDoDragao: 'construcoesDoCastelo',
   guarita: 'construcoesDaBaseMilitar',
   bunkerDeConcreto: 'construcoesDaBaseMilitar',
   conteiner: 'construcoesDaBaseMilitar',
@@ -85,6 +88,9 @@ export const GRUPO_DA_CONSTRUCAO = {
   casaNaArvore: 'lazer',
   pergolaComTrepadeira: 'lazer',
   portalTorii: 'lazer',
+  montanhaPequena: 'naturezaERelevo',
+  montanhaMedia: 'naturezaERelevo',
+  montanhaGrande: 'naturezaERelevo',
 } as const satisfies Partial<Record<TipoMobilia, IdDoGrupoDeConstrucao>>
 
 export type TipoDeConstrucao = keyof typeof GRUPO_DA_CONSTRUCAO
@@ -173,6 +179,12 @@ const REGRA_DE_FABRICA: Readonly<Record<TipoDeConstrucao, RegraDeFabrica>> = {
   casaNaArvore: { barra: true },
   pergolaComTrepadeira: { barra: false },
   portalTorii: { barra: false },
+  // Leva E2 de 16/11/2026 (decisão do Claude): a torre do dragão é a torre de pedra (barra, pelo menor lado, tapa);
+  // a montanha barra e tapa a visão (rocha maciça, bem mais alta que uma pessoa).
+  torreDoDragao: { barra: true, peloMenorLado: true, tapa: true },
+  montanhaPequena: { barra: true, tapa: true },
+  montanhaMedia: { barra: true, tapa: true },
+  montanhaGrande: { barra: true, tapa: true },
 }
 
 /** A construção barra a passagem de fábrica? */

@@ -2009,7 +2009,7 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  Clássico. A PONTE (03/11/2026) guarda `'pedra'` ou `'corda'`; ausente =
    *  a ponte de madeira. A COVA (07/11/2026) guarda a versão do Atual:
    *  `'antiga'` ou `'pedras'`; ausente = a fresca. */
-  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | FormaGravadaDoVento | FormaGravadaDaPonte | FormaGravadaDaCova
+  mobiliaForma?: Extract<FormaDoTapete, 'redondo'> | Exclude<FormaDosPratos, 'cheio'> | Exclude<FogoDoMovel, 'aceso'> | FormaGravadaDaPilha | FormaGravadaDoChafariz | FormaGravadaDoVento | FormaGravadaDaPonte | FormaGravadaDaCova | FormaGravadaDaMontanha
   /** CAMA EM TRÊS CORES (pedido de 15/10/2026): cor do travesseiro, `#rrggbb`
    *  minúsculo como `mobiliaCor`. Ausente = o travesseiro pinta com a cama,
    *  o desenho de sempre — sem linha de migração. Vale só nas camas (`catre`
@@ -2106,6 +2106,8 @@ export type FormaGravadaDaPonte = import('../lib/mobilia/ponte').FormaGravadaDaP
 /** A cova (`lib/mobilia/cova.ts`): Fresca, Antiga ou Com pedras; o mapa grava só a antiga e a com pedras. */
 export type FormaDaCova = import('../lib/mobilia/cova').FormaDaCova
 export type FormaGravadaDaCova = import('../lib/mobilia/cova').FormaGravadaDaCova
+/** A montanha (`lib/mobilia/montanha.ts`): sem neve ou com neve; o mapa grava só a com neve. */
+export type FormaGravadaDaMontanha = import('../lib/mobilia/montanha').FormaGravadaDaMontanha
 
 export interface DrawingPoint {
   x: number

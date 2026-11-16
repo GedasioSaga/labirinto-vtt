@@ -2204,6 +2204,40 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M11.2 7.2L1.4 17.6v3.2M12.8 7.2l9.8 10.4v3.2" />
         </>
       )
+    case 'torreDoDragao':
+      // De frente: a torre com as ameias e o dragão no alto, com o pescoço erguido e as duas asas abertas.
+      return (
+        <>
+          <path d="M3 21h18M8 21v-8.5M16 21v-8.5" />
+          <path d="M7 12.5h10M7 12.5V10h2v1.5h2V10h2v1.5h2V10h2v2.5" />
+          <path d="M11 10V6.5c0-1.2.6-2.2 1.8-2.6l1.7-.4l-1 1.4" />
+          <path d="M10.5 8.5L3.5 4.5l1.2 3.5L2.5 9.5l4 .5M13.5 8.5l7-4l-1.2 3.5l2.2 1.5l-4 .5" />
+        </>
+      )
+    case 'montanhaPequena':
+      // Um pico só, com a neve no cume.
+      return (
+        <>
+          <path d="M3 20.5L12 6l9 14.5z" />
+          <path d="M9.2 10.5L12 6l2.8 4.5l-1.5-.9l-1.3 1.2l-1.3-1.2z" />
+        </>
+      )
+    case 'montanhaMedia':
+      // Um pico e um ombro mais baixo.
+      return (
+        <>
+          <path d="M2 20.5L9.5 6.5l4.5 8l2.5-3.5l5.5 9.5z" />
+          <path d="M7.4 10.4l2.1-3.9l2.1 3.9l-1.2-.7l-.9 1l-.9-1z" />
+        </>
+      )
+    case 'montanhaGrande':
+      // O maciço: três picos em fila.
+      return (
+        <>
+          <path d="M1.5 20.5L6.5 12l2.5 3.5L13 5.5l3.5 7l1.5-2l4.5 10z" />
+          <path d="M11 9.5l2-4l2 4l-1.1-.7l-.9 1l-.9-1z" />
+        </>
+      )
     case 'torreDePedra':
       // De frente: o corpo de pedra, o parapeito com três ameias, a porta em arco, uma seteira e a bandeira no mastro.
       return (

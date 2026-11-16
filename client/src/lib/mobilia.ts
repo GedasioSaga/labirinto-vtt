@@ -26,6 +26,7 @@ import {
 import { ehMovelDeVento, formaDoMoinho, gravarFormaDoVento, normalizarFormaDoVento, ventoDoMovel, type FormaDoMoinho, type VentoDoMovel } from './mobilia/cataVento'
 import { ehPonte, gravarFormaDaPonte, normalizarFormaDaPonte, type FormaDaPonte } from './mobilia/ponte'
 import { ehCova, gravarFormaDaCova, normalizarFormaDaCova, type FormaDaCova } from './mobilia/cova'
+import { ehMontanha, gravarNeveDaMontanha, normalizarNeveDaMontanha, type NeveDaMontanha } from './mobilia/montanha'
 import { lerTracadoDoMuro, tracosDoMuroDeFogo } from './mobilia/muroDeFogo'
 
 /**
@@ -302,7 +303,9 @@ function normalizarFormaDoMovel(tipo: TipoMobilia | undefined, valor: unknown): 
     // A ponte (03/11/2026): a pedra ou a corda (ausente = madeira).
     normalizarFormaDaPonte(tipo, valor) ??
     // A cova (07/11/2026): a antiga ou a com pedras (ausente = fresca).
-    normalizarFormaDaCova(tipo, valor)
+    normalizarFormaDaCova(tipo, valor) ??
+    // A montanha (16/11/2026): com neve (ausente = sem neve).
+    normalizarNeveDaMontanha(tipo, valor)
   )
 }
 
@@ -1753,6 +1756,12 @@ export function movelComOutraFormaDaPonte(prop: Prop, forma: FormaDaPonte): Prop
  * versão, no MESMO tamanho (as três têm a pegada de 1 x 2, e o mestre pode ter
  * esticado). Outro tipo devolve o mesmo objeto.
  */
+/** A montanha com a neve escolhida (a pegada fica); outro tipo volta igual. */
+export function movelComOutraNeveDaMontanha(prop: Prop, neve: NeveDaMontanha): Prop {
+  if (!ehMontanha(prop.mobilia)) return prop
+  return comFormaGravada(prop, gravarNeveDaMontanha(neve))
+}
+
 export function movelComOutraFormaDaCova(prop: Prop, forma: FormaDaCova): Prop {
   if (!ehCova(prop.mobilia)) return prop
   return comFormaGravada(prop, gravarFormaDaCova(forma))

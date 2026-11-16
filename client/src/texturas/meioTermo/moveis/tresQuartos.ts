@@ -50,6 +50,7 @@ import { ESPESSURA_DA_VIGA_DO_POTRO } from './potroDeTortura'
 import { ESPESSURA_DA_TOCHA_DE_PAREDE } from './tochaDeParede'
 import { ALTURA_DO_CESTO_DA_TOCHA } from './tochaDePe'
 import { ESPESSURA_DA_FIADA_DA_TORRE } from './torreDePedra'
+import { CONTORNO_DO_ESTRATO, ESPESSURA_DO_ESTRATO } from './montanha'
 import { ESPESSURA_DA_TORRE_DE_VIGIA } from './torreDeVigia'
 import { ESPESSURA_DA_SANEFA_DO_DOSSEL } from './camaDeDossel'
 import { ALTURA_DA_VELA_DO_LUSTRE } from './lustreDeVelas'
@@ -128,6 +129,15 @@ export interface PerfilDoTresQuartos {
   readonly sombrasSobem?: boolean
   /** Força da sombra de baixo do móvel em pé, no lugar de `FORCA_DA_SOMBRA_DE_BAIXO` (as pilhas baixas e largas). */
   readonly forcaDaSombraDeBaixo?: number
+  /**
+   * As estruturas saem pela ALTURA, a mais baixa antes (a montanha, 16/11/2026): no relevo, o ponto mais alto é
+   * sempre o mais perto de quem olha na mesma linha da tela (a tela é y - z), então pintar de baixo para cima é a
+   * ordem certa em qualquer giro. Sem isto, cada estrato precisaria da caixa esticada até a frente só para sair
+   * depois do de baixo, e o pintor andaria o chão vazio de cada um.
+   */
+  readonly ordemPelaAltura?: true
+  /** O contorno da frente (o padrão é 0,2): os estratos da montanha usam um fio mais leve, senão viram listras. */
+  readonly contornoDaFrente?: number
 }
 
 /**
@@ -567,6 +577,11 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   cranio: EM_PE,
   tenda: { modo: 'derivado', espessura: 0 },
   torreDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE },
+  torreDoDragao: { modo: 'derivado', espessura: ESPESSURA_DA_FIADA_DA_TORRE },
+  // A montanha: os estratos saem pela altura (ver `ordemPelaAltura`) e com o fio da frente leve.
+  montanhaPequena: { modo: 'derivado', espessura: ESPESSURA_DO_ESTRATO, ordemPelaAltura: true, contornoDaFrente: CONTORNO_DO_ESTRATO },
+  montanhaMedia: { modo: 'derivado', espessura: ESPESSURA_DO_ESTRATO, ordemPelaAltura: true, contornoDaFrente: CONTORNO_DO_ESTRATO },
+  montanhaGrande: { modo: 'derivado', espessura: ESPESSURA_DO_ESTRATO, ordemPelaAltura: true, contornoDaFrente: CONTORNO_DO_ESTRATO },
   torreDeVigia: { modo: 'derivado', espessura: ESPESSURA_DA_TORRE_DE_VIGIA },
   // Lote L01 de 14/11/2026, o castelo. O trono é derivado SEM beirada: a face do espaldar (a moldura, o capitonê
   // e as tachas) é desenhada de frente e guardada debaixo do assento e do espaldar, com a fresta dela (um tampo
@@ -1047,15 +1062,16 @@ export function cenaEmTresQuartos(cena: Cena, perfil: PerfilDoTresQuartos, peca:
     else e.partes.push({ ...p, dy: p.dy - e.z })
   }
   // Do norte para o sul pela base da estrutura; na mesma base, a mais baixa antes (a cabeceira alta por cima do colchão).
+  const pelaAltura = perfil.ordemPelaAltura === true
   const ordem = estruturas
     .map((e, i) => ({ e, i }))
-    .sort((a, b) => a.e.forma.b[3] - b.e.forma.b[3] || a.e.z - b.e.z || a.i - b.i)
+    .sort((a, b) => (pelaAltura ? a.e.z - b.e.z : 0) || a.e.forma.b[3] - b.e.forma.b[3] || a.e.z - b.e.z || a.i - b.i)
     .map(({ e }) => e)
   const partes: Peca[] = [...soltas]
   const sombras: Sombra[] = perfil.sombrasSobem === true ? cena.sombras.map((s) => ({ ...s, forma: subida(s.forma, alturaSolta) })) : [...cena.sombras]
   ordem.forEach((e, i) => {
     const mat = materialDaFrente(e.partes, cena.partes)
-    const veio = { eixo: ehRedonda(e.forma) ? QUARTO : 0, tom: TOM_DA_FRENTE, bisel: 0.8, contorno: 0.2, semente: 900 + i }
+    const veio = { eixo: ehRedonda(e.forma) ? QUARTO : 0, tom: TOM_DA_FRENTE, bisel: 0.8, contorno: perfil.contornoDaFrente ?? 0.2, semente: 900 + i }
     if (e.coluna) {
       partes.push(peca(varrer(e.forma, e.z), e.partes.length > 0 ? mat : perfil.poste !== undefined ? PREGO : mat, veio))
       sombras.push(contato(e.forma, FORCA_DA_SOMBRA_DE_BAIXO))

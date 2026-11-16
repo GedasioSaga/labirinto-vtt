@@ -84,7 +84,7 @@ describe('vista 3/4: o catálogo inteiro', () => {
   const TETO_DO_CAMPINHO_MS = 20_000
   // Quem mais ganha o teto do campinho (o porquê de cada um, no laço abaixo).
   const LENTOS: readonly TipoMobilia[] = [
-    'campinho', 'torreDePedra', 'camaDeDossel', 'arquibancadaDeTorneio', 'barracaDeJogosDaFeira',
+    'campinho', 'torreDePedra', 'torreDoDragao', 'montanhaPequena', 'montanhaMedia', 'montanhaGrande', 'camaDeDossel', 'arquibancadaDeTorneio', 'barracaDeJogosDaFeira',
     'portaoComGradeLevadica', 'obelisco', 'torreDoSino', 'torreDeCerco', 'conteiner', 'estatuaEquestre', 'torreDeRadio', 'forcaComCadafalso',
     'guindasteDePorto', 'coreto', 'quiosque', 'baiaDeCavalo', 'siloDeGraos', 'farol', 'posteComRelogio',
     'chiqueiroCercado', 'rodaDagua', 'pombal',

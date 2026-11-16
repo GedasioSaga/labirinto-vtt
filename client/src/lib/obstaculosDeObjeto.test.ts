@@ -23,6 +23,8 @@ import { ehMovelQueBarra } from './mobilia'
 import { validateTokenMove } from './moveValidation'
 import { barraPassagemEscolhida, comBarraPassagemNoMapa, ehParedeDeObjeto, objetoBarraPassagem, paredesParaAndarDoJogador, pegadaSolidaDoTipo } from './obstaculosDeObjeto'
 import { RAIO_SOLIDO_DA_TORRE } from '../texturas/meioTermo/moveis/torreDePedra'
+import { RAIO_SOLIDO_DA_TORRE_DO_DRAGAO } from '../texturas/meioTermo/moveis/torreDoDragao'
+import { RAIO_SOLIDO_DA_MONTANHA } from '../texturas/meioTermo/moveis/montanha'
 
 const GRADE = 40
 const POSSE = { p1: ['heroi'] }
@@ -260,6 +262,20 @@ describe('pegada sólida por tipo', () => {
     expect(arrastar(map, { x: 440, y: 472 })).toEqual(BARROU)
     // O moinho do mesmo tamanho segue com a caixa inteira: o ponto do anel, nele, é barrado.
     expect(arrastar(cena({ props: [objeto('moinho-grande', 'moinho', 480, 480, 3)] }), NO_ANEL)).toEqual(BARROU)
+  })
+
+  it('a torre do dragão barra só a parede da torre menor e a montanha, a elipse do pé (16/11/2026)', () => {
+    // Os números moram em `lib`: têm de ser os do desenho.
+    expect(pegadaSolidaDoTipo('torreDoDragao')).toBeCloseTo(RAIO_SOLIDO_DA_TORRE_DO_DRAGAO, 6)
+    expect(pegadaSolidaDoTipo('montanhaPequena')).toBe(RAIO_SOLIDO_DA_MONTANHA)
+    // A torre do dragão, 3 x 3 casas (raio 60 px, parede a 35,5): a 45 px fica embaixo da asa, livre; a 20 px, barra.
+    const torre = cena({ props: [objeto('dragao', 'torreDoDragao', 480, 480, 3)] })
+    expect(arrastar(torre, { x: 435, y: 480 })).toEqual({ ok: true, x: 435, y: 480 })
+    expect(arrastar(torre, { x: 460, y: 480 })).toEqual(BARROU)
+    // A montanha pequena, 4 x 4 casas (raio 80 px, pé a 68,8): a 77 px é o cascalho da beira, livre; a 50 px, barra.
+    const montanha = cena({ props: [objeto('monte', 'montanhaPequena', 480, 480, 4)] })
+    expect(arrastar(montanha, { x: 403, y: 480 })).toEqual({ ok: true, x: 403, y: 480 })
+    expect(arrastar(montanha, { x: 430, y: 480 })).toEqual(BARROU)
   })
 })
 
