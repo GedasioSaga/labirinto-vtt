@@ -36,10 +36,16 @@ const REFEITOS: readonly (readonly [TipoMobilia, string])[] = [
   ['pia', 'PIA'],
   ['barril', 'BARRIL'],
 ]
-/** Os vizinhos do barril (a mesma família de aduelas e aros), só para comparar quando pedidos pelo id. */
+/**
+ * Os vizinhos do barril (a mesma família de aduelas e aros, e o barril quebrado, 16/11/2026), e a caixa com os
+ * destroços de madeira em que ela vira no minigame, só para comparar quando pedidos pelo id.
+ */
 const VIZINHOS: readonly (readonly [TipoMobilia, string])[] = [
   ['barrisDeitados', 'BARRIS DEITADOS'],
   ['tonelDeAdega', 'TONEL'],
+  ['barrilQuebrado', 'BARRIL QUEBRADO'],
+  ['caixa', 'CAIXA'],
+  ['destrocosDeMadeira', 'DESTROCOS DE MADEIRA'],
 ]
 const ESCOLHIDOS: unknown = import.meta.env.FOLHA_MOVEIS_34_TIPOS
 const TIPOS =

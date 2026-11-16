@@ -451,14 +451,15 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // A plantação mora no chão e é rente, como o fogo: nenhuma sombra dela tem altura, então nada sobe e a 3/4 sai
   // igual à vista de cima (`tresQuartos.test.ts` a dispensa das regras de subir, na lista dos rentes).
   plantacaoEmFileiras: DERIVADO,
-  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte. A carroça quebrada, o barril quebrado e
-  // a viga caída ficam como de cima, com a sombra de baixo das pilhas, como os destroços de madeira. A carroça
-  // inteira sobe derivada, mas a quebrada tem metade no chão (a roda deitada, as tábuas, o grão, o saco caído e
-  // o caixote); o barril inteiro é derivado, mas o quebrado é quase todo chão (o leque, a tampa, os aros e a
-  // poça); a viga é rente ao chão e espalhada. Derivados, as tábuas, a poça, as aduelas caídas, as telhas, as
-  // lascas e o pó subiriam junto como um bloco.
+  // Lote 11 dos 95 objetos novos (11/11/2026), os destroços e o esporte. A carroça quebrada e a viga caída ficam
+  // como de cima, com a sombra de baixo das pilhas, como os destroços de madeira. A carroça inteira sobe
+  // derivada, mas a quebrada tem metade no chão (a roda deitada, as tábuas, o grão, o saco caído e o caixote); a
+  // viga é rente ao chão e espalhada. Derivados, as tábuas, as telhas, as lascas e o pó subiriam junto como um bloco.
   carrocaQuebrada: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
-  barrilQuebrado: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
+  // O barril quebrado foi refeito em 16/11/2026 como o barril de pé arrebentado (`barrilQuebrado.ts`): o toco
+  // que ficou de pé é desenhado à parte, em fatias penduradas em pinos, como o barril. Sem beirada, como ele; os
+  // cacos do chão sobem só a grossura deles (as aduelas caídas) ou nada (a palha, as lascas e os aros).
+  barrilQuebrado: { modo: 'derivado', espessura: 0 },
   vigaCaida: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
   // A armadura enferrujada é rente ao chão e espalhada, como os ossos: as peças sobem inteiras a espessura de
   // uma placa de aço e a sombra fica onde está.
