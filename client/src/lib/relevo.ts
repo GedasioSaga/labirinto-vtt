@@ -2,6 +2,7 @@ import type { Drawing, MapData, Region, RegionPoint, TracoDePenhasco } from '../
 import { isPointExplored, type Exploration } from './exploration'
 import { alturaDoTraco, assinaturaDosPenhascos, temRiscoDePenhasco } from './penhasco'
 import { isContinente } from './marcadorDeContinente'
+import { COR_DA_SOMBRA_RGB } from './sombra'
 import { readRegionSplit, splitSecondPart } from './regionSplit'
 import { parseHexColor } from './tokenColor'
 
@@ -55,7 +56,8 @@ const ESCALA_MAXIMA = 1
  * filtro por quadro) — ver os comentários de cada um.
  */
 export const AJUSTE_DO_RELEVO = {
-  sombra: { cor: [0, 9, 20], alfa: 0.55, borrao: 18, dx: 7, dy: 11 },
+  // A cor da sombra única (`lib/sombra.ts`, Fase 6; era [0, 9, 20]); a força é a do rochedo, e a direção (7, 11) é a de todo o mapa.
+  sombra: { cor: [COR_DA_SOMBRA_RGB[0], COR_DA_SOMBRA_RGB[1], COR_DA_SOMBRA_RGB[2]], alfa: 0.55, borrao: 18, dx: 7, dy: 11 },
   /**
    * Fronteira: uma faixa de `largura` px sobre a divisa, borrada. No protótipo
    * era a vizinha inteira borrada (meio-plano, 0,34 × 50% = 0,17 na divisa); a

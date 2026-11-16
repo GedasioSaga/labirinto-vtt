@@ -6,6 +6,7 @@ import { BEIRAL_PX } from '../lib/telhado/aguas'
 import { MODELO_PADRAO_DO_TETO, corDoTetoOuPadrao, type ModeloDoTeto } from '../lib/telhado/paletas'
 import { comecarTelhado, pintarTelhado, type ExtrasDoTelhado, type ImagemDoTelhado, type PinturaDoTelhado } from '../texturas/telhado'
 import { desenhadoLigado, meioTermoLigado } from '../lib/estiloDoMapa'
+import { assinarPeriodoDaSombra, COR_DA_SOMBRA, DIRECAO_DA_SOMBRA, FORCA_DA_SOMBRA, forcaDaSombraAgora } from '../lib/sombra'
 import { assinarDesenhado, pedirItemDoTelhado } from '../texturas/desenhado/carregador'
 import { comecarTelhadoDesenhado, idDoTelhadoDoModelo, type DesenhoDoTelhado } from '../texturas/desenhado/telhado'
 import { rampaGuardada } from '../texturas/desenhado/tingir'
@@ -46,11 +47,11 @@ export const DURACAO_DO_TELHADO_MS = 300
 export const SUBIDA_DO_TELHADO_PX = 6
 /** E cresce isto, em volta do centro. */
 export const CRESCIMENTO_DO_TELHADO = 0.035
-export const ALFA_DA_SOMBRA_DO_TELHADO = 0.25
-/** Sombra no chão, em px do mapa (a do protótipo); ela se afasta mais um tanto igual enquanto o telhado sobe. */
-export const SOMBRA_DO_TELHADO_X = 6
-export const SOMBRA_DO_TELHADO_Y = 8
-const COR_DA_SOMBRA = 0x0a0c06
+/** A sombra única do mapa (`lib/sombra.ts`, Fase 6): a força, a cor e a direção dela (eram 0,25, `#0a0c06` e 6 × 8). */
+export const ALFA_DA_SOMBRA_DO_TELHADO = FORCA_DA_SOMBRA
+/** Sombra no chão, em px do mapa: 10 px na direção única; ela se afasta mais um tanto igual enquanto o telhado sobe. */
+export const SOMBRA_DO_TELHADO_X = 10 * DIRECAO_DA_SOMBRA.x
+export const SOMBRA_DO_TELHADO_Y = 10 * DIRECAO_DA_SOMBRA.y
 /** ~50 ms de pintura no pior caso medido (madeira, 1024 × 1024 a escala 1). */
 export const MAXIMO_DE_PIXELS_DA_TEXTURA = 1024 * 1024
 /** Tempo de pintura por tarefa na palha em fatias (a mesma fatia do relevo, `drawRelevo.ts`). */
@@ -436,6 +437,10 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
   const agendar = opcoes.agendar ?? ((tarefa: () => void) => void setTimeout(tarefa, 0))
   const relogio = movimento?.now ?? (() => performance.now())
   const telhados = new Map<string, Telhado>()
+  // A sombra única (`lib/sombra.ts`): trocou o período da tela, a sombra de cada telhado parado acompanha.
+  const pararDeOuvirOPeriodo = assinarPeriodoDaSombra(() => {
+    for (const t of telhados.values()) if (!t.raiz.destroyed) aplicar(t)
+  })
   /** Ids já desenhados neste mapa: só quem já esteve na tela aparece animando (o mapa abrindo não anima). */
   const conhecidos = new Set<string>()
   const fotos = new Map<string, Container>()
@@ -725,7 +730,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     t.topo.scale.set(1 + CRESCIMENTO_DO_TELHADO * subida)
     t.topo.alpha = p
     t.sombra.position.set(SOMBRA_DO_TELHADO_X * (1 + subida), SOMBRA_DO_TELHADO_Y * (1 + subida))
-    t.sombra.alpha = p * ALFA_DA_SOMBRA_DO_TELHADO
+    t.sombra.alpha = p * forcaDaSombraAgora(ALFA_DA_SOMBRA_DO_TELHADO)
     t.raiz.visible = p > 0 || t.foto !== null
   }
 
@@ -887,6 +892,7 @@ export function createTelhadosRenderer(opcoes: OpcoesDosTelhados = {}): Telhados
     clima: () => clima,
     destruir: () => {
       pararDeOuvirDesenhado()
+      pararDeOuvirOPeriodo()
       ultimoDesenho = null
       limpar()
       destruido = true

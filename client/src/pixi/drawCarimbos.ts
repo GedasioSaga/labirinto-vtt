@@ -3,6 +3,7 @@ import type { Carimbo, CarimboImportado, MapData } from '../types/map'
 import { ehTipoImportado, mesmosCarimbos, varianteDoGiro } from '../lib/carimbos'
 import { unidadeDoRelevo } from '../lib/relevo'
 import { desenhadoLigado } from '../lib/estiloDoMapa'
+import { assinarPeriodoDaSombra, forcaDaSombraAgora } from '../lib/sombra'
 import { assinarCarimbos, carimboDoCatalogo } from '../carimbos/catalogo'
 import { ALFA_DA_SOMBRA, assarDesenho, assarImagem, QUADRO_DA_SOMBRA, type ArteEmTela, type QuadroDaArte } from '../carimbos/arte'
 import {
@@ -210,7 +211,12 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   chao.label = 'carimbos-chao'
   const sombras = new Container()
   sombras.label = 'carimbos-sombras'
-  sombras.alpha = ALFA_DA_SOMBRA
+  // A força da sombra única no período da tela (`lib/sombra.ts`): mais fraca à tarde e à noite.
+  const aplicarForcaDaSombra = () => {
+    sombras.alpha = forcaDaSombraAgora(desenhadoAgora ? ALFA_DA_SOMBRA_DESENHADA : ALFA_DA_SOMBRA)
+  }
+  sombras.alpha = forcaDaSombraAgora(ALFA_DA_SOMBRA)
+  sombras.once('destroyed', assinarPeriodoDaSombra(aplicarForcaDaSombra))
   const corpos = new Container()
   corpos.label = 'carimbos-corpos'
   const rascunho = new Container()
@@ -526,7 +532,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     // Fora do Desenhado as imagens do pacote saem da placa (voltar a ele baixa do cache do carregador).
     if (!desenhadoAgora && texturasDesenhadas.size > 0) aposentarDesenhado()
     // Uma camada só para todas as sombras: no Desenhado, a transparência do contrato.
-    sombras.alpha = desenhadoAgora ? ALFA_DA_SOMBRA_DESENHADA : ALFA_DA_SOMBRA
+    aplicarForcaDaSombra()
     const lista = entrada.carimbos ?? []
     const prontos: Array<{ c: Carimbo; arte: ArteNoPalco }> = []
     for (const c of lista) {

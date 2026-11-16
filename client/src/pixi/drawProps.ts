@@ -5,6 +5,7 @@ import { SECRET_ITEM_ALPHA, SELECTION_COLOR } from './constants'
 import { isHidden, rotationToRadians } from '../lib/itemTransform'
 import { useToastStore } from '../stores/toastStore'
 import { ALFA_DA_SOMBRA_DOS_MOVEIS, drawPropSilhouettes } from './drawPropSilhouettes'
+import { assinarPeriodoDaSombra, forcaDaSombraAgora } from '../lib/sombra'
 import { desenhadoLigado, meioTermoLigado, versaoDoEstilo } from '../lib/estiloDoMapa'
 import { fitPropSprite } from './drawPropLooks'
 import { urlDaMidiaNoMestre } from '../lib/midiaNoDisco'
@@ -174,7 +175,12 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   // em dobro. Só entra no palco com o Desenhado: no Atual e no Simples a lista de filhos é a de sempre.
   const sombras = new Container()
   sombras.label = SOMBRAS_LABEL
-  sombras.filters = [new AlphaFilter({ alpha: ALFA_DA_SOMBRA_DOS_MOVEIS, resolution: 'inherit' })]
+  const forcaDasSombras = new AlphaFilter({ alpha: forcaDaSombraAgora(ALFA_DA_SOMBRA_DOS_MOVEIS), resolution: 'inherit' })
+  sombras.filters = [forcaDasSombras]
+  // A sombra única (`lib/sombra.ts`): mais fraca à tarde e à noite, na troca do período da tela.
+  sombras.once('destroyed', assinarPeriodoDaSombra(() => {
+    forcaDasSombras.alpha = forcaDaSombraAgora(ALFA_DA_SOMBRA_DOS_MOVEIS)
+  }))
   // Onda 2, item 12 — caminho de imagem já avisado, pra não empilhar o
   // mesmo toast de erro a cada `draw()` (chamado a cada mudança relevante do
   // mapa, não só uma vez). Fechado por closure igual `spriteCache`: nasce

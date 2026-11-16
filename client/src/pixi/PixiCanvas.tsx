@@ -199,6 +199,7 @@ import {
 import { findTokenAt, snapPointForTarget } from './tokenInteraction'
 import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
 import { luzSolta } from '../lib/presetsDeLuz'
+import { definirPeriodoDaSombra } from '../lib/sombra'
 import {
   isValidWallDraft,
   buildWallFromDraft,
@@ -3196,6 +3197,8 @@ function PixiCanvasDoContexto({
         // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
         const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
         const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        // A SOMBRA ÚNICA (Fase 6, `lib/sombra.ts`): mais fraca à tarde e à noite; sem tinta é dia.
+        definirPeriodoDaSombra(tinta?.periodo ?? 'dia')
         // A neblina fica logo abaixo do fantasma de teste, e a tinta logo abaixo dela.
         const pisoAtivo = useMapStore.getState().pisoAtivo
         const tetoDaTinta = neblinaDoEditor.quadro(map, pisoAtivo, fantasmaDeTesteContainer)

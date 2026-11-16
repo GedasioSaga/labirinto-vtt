@@ -1,4 +1,4 @@
-import { AJUSTE_DO_RELEVO } from '../lib/relevo'
+import { COR_DA_SOMBRA_RGB, DIRECAO_DA_SOMBRA, FORCA_DA_SOMBRA } from '../lib/sombra'
 import { css, type DesenhoDeCarimbo, type Rgb, type SombraDoCarimbo } from './embutidos'
 
 /**
@@ -35,9 +35,9 @@ export const QUADRO_DA_SOMBRA = { esquerda: -0.95, topo: -0.6, largura: 2.3, alt
 /** Resolução da silhueta: a sombra é macia, e a camada dela no palco é de baixa resolução. */
 export const TEXELS_DA_SOMBRA_POR_UNIDADE = 40
 
-/** Cor e transparência da sombra dos objetos (as do protótipo Diorama: `#0a1c28` a 30%, um pouco mais leve). */
-export const COR_DA_SOMBRA: Rgb = [10, 28, 40]
-export const ALFA_DA_SOMBRA = 0.28
+/** Cor e força da sombra dos objetos: as da sombra única do mapa (`lib/sombra.ts`, Fase 6; antes 28% aqui). */
+export const COR_DA_SOMBRA: Rgb = [...COR_DA_SOMBRA_RGB]
+export const ALFA_DA_SOMBRA = FORCA_DA_SOMBRA
 
 export type JeitoDaSombra = SombraDoCarimbo | 'solta'
 
@@ -55,12 +55,8 @@ export function multiplicar(p: Matriz, q: Matriz): Matriz {
   ]
 }
 
-/** A direção da sombra do relevo, de comprimento 1. */
-const DIRECAO = (() => {
-  const { dx, dy } = AJUSTE_DO_RELEVO.sombra
-  const n = Math.hypot(dx, dy)
-  return { x: dx / n, y: dy / n }
-})()
+/** A direção da sombra única do mapa (a do relevo), de comprimento 1. */
+const DIRECAO = DIRECAO_DA_SOMBRA
 
 /** Comprimento da sombra por unidade de altura: o sol da tarde do mapa, nem a pino nem rasante. */
 const COMPRIMENTO = { 'em-pe': 0.78, baixa: 0.4 } as const

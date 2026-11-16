@@ -1,5 +1,6 @@
 import { AlphaFilter, BlurFilter, Container, Graphics, type Geometry, type Mesh, type Renderer, type Shader, type TextureSource } from 'pixi.js'
 import { desenhadoLigado } from '../lib/estiloDoMapa'
+import { assinarPeriodoDaSombra, forcaDaSombraAgora } from '../lib/sombra'
 import { assinarTracosDesenhados, pedirFaceDoTraco, type FaceCarregada } from '../texturas/desenhado/carregadorDoTraco'
 import { rampaDoTom } from '../texturas/desenhado/movel'
 import { ITENS_DA_PAREDE, lerParamsDaParede, malhasDasParedes, type CadeiaDaParede, type FaceDaPorta, type ItemDaParede, type PapelDaParede, type ParamsDaParede, type PortaDaCadeia } from '../texturas/desenhado/parede'
@@ -275,7 +276,11 @@ export function criarPintorDeParedes(): PintorDeParedes {
   const sombraG = new Graphics()
   // A sombra é borrada: meia resolução basta e os alvos do filtro pesam um quarto na placa.
   const desfoque = new BlurFilter({ strength: 4, quality: 3, resolution: RESOLUCAO_DA_SOMBRA })
-  const alfaDaSombra = new AlphaFilter({ alpha: 0.25, resolution: RESOLUCAO_DA_SOMBRA })
+  // A força da sombra única (`lib/sombra.ts`, Fase 6; era 0,25), mais fraca à tarde e à noite.
+  const alfaDaSombra = new AlphaFilter({ alpha: forcaDaSombraAgora(), resolution: RESOLUCAO_DA_SOMBRA })
+  sombra.once('destroyed', assinarPeriodoDaSombra(() => {
+    alfaDaSombra.alpha = forcaDaSombraAgora()
+  }))
   for (const n of [vetor, abaixo, acima, desenhado, sombra, sombraG]) n.eventMode = 'none'
   sombra.addChild(sombraG)
   sombra.filters = [desfoque, alfaDaSombra]

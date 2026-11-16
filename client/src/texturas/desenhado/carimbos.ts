@@ -1,5 +1,6 @@
 import type { Matriz } from '../../carimbos/arte'
 import { abrirFonteDoDesenhado } from './fonte'
+import { FORCA_DA_SOMBRA } from '../../lib/sombra'
 
 /**
  * OS CARIMBOS DO DESENHADO (plano de 29/10/2026, F2b; CONTRATO.md seção 9):
@@ -45,8 +46,8 @@ const MEBIBYTE = 1024 * 1024
 export const TETO_POR_CARIMBO = Math.floor((8 * 256 * 256 * 4 * 4) / 3)
 /** Teto das imagens decodificadas de UM mapa: os 12 cabem juntos (cada um abaixo do teto dele). */
 export const TETO_DOS_CARIMBOS_POR_MAPA = CARIMBOS_DO_DESENHADO.length * TETO_POR_CARIMBO
-/** A transparência da camada de sombras do Desenhado (CONTRATO 9.1, item 3: `#0a1c28` a 0,25). */
-export const ALFA_DA_SOMBRA_DESENHADA = 0.25
+/** A transparência da camada de sombras do Desenhado: a força da sombra única (`lib/sombra.ts`, Fase 6; era 0,25). */
+export const ALFA_DA_SOMBRA_DESENHADA = FORCA_DA_SOMBRA
 /** Resolução da silhueta, em texels por unidade: a sombra é macia (borrão de 3% do tamanho). */
 export const TEXELS_DA_SILHUETA_POR_UNIDADE = 64
 
