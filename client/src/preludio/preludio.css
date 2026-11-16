@@ -92,6 +92,9 @@
 .pr-nav__item[aria-current='true'] { color: var(--lb-color-parchment); }
 .pr-nav__item:disabled, .pr-nav__grupo-bt:disabled, .pr-nav__novo:disabled { opacity: 0.5; cursor: default; }
 .pr-nav__conta { font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
+/* a Linha do tempo (E3c): o nome do grupo com o selo "Nova" até a primeira visita */
+.pr-nav__grupo-nome { display: flex; align-items: center; gap: var(--lb-space-2); min-width: 0; }
+.pr-nav__selo { font: 600 9.5px/1 var(--lb-font-utility); padding: 3px 5px; border-radius: 4px; background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); letter-spacing: 0.02em; }
 .pr-nav__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /*
  * Todas as sessões (pedido de 16/11): a lista rola sozinha, e Quadros e

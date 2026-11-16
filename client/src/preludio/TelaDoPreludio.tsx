@@ -20,6 +20,7 @@ import { Quadros } from './quadro/Quadros'
 import { precarregarQuadro } from './quadro/sobDemanda'
 import { definirAberturaNaMesa } from './mesa/ponte'
 import { Sessoes } from './sessoes/Sessoes'
+import { LinhaDoTempo } from './tempo/LinhaDoTempo'
 import { TITULO_DO_PRELUDIO } from './textos'
 import '../screens/MainMenu.css'
 import '../components/grimorio/grimorio.css'
@@ -75,6 +76,8 @@ function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined, no
     }
     case 'campanhas':
       return ['Campanhas e sistemas']
+    case 'tempo':
+      return ['Linha do tempo']
   }
 }
 
@@ -326,6 +329,8 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
             <Quadros quadroId={lugar.quadroId} alvo={lugar.alvo} />
           ) : lugar.secao === 'campanhas' ? (
             <CampanhasESistemas naJanela={naJanela === true} />
+          ) : lugar.secao === 'tempo' ? (
+            <LinhaDoTempo />
           ) : (
             <Escrita paginaId={lugar.paginaId} />
           )}

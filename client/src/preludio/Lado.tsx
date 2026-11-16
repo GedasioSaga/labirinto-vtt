@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, type KeyboardEvent } from 'react'
 import { BackIcon } from '../components/icons'
 import { ehDaEscrita, naCampanha, ROTULO_DO_TIPO, TIPOS_DA_ENCICLOPEDIA, type NoDaArvore } from '../lib/preparo/enciclopedia'
+import { campanhaDaSessaoEm, contarEventos } from '../lib/preparo/linhaDoTempo'
 import type { TipoDeVerbete } from '../lib/preparo/tipos'
 import { Arvore, type ItemDaArvore } from './arvore/Arvore'
 import { useCadernos, useNovoCaderno } from './escrita/Escrita'
@@ -8,12 +9,13 @@ import { usePreludio } from './estado/preludio'
 import { useQuadros } from './quadro/estadoDosQuadros'
 import { useNovoQuadro, useQuadrosSoltos } from './quadro/Quadros'
 import { useNovaSessao, useOrdemNaLista, useSessoes } from './sessoes/Sessoes'
+import { linhaDoTempoJaVista } from './tempo/LinhaDoTempo'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
 /**
  * A BARRA LATERAL DO PRELÚDIO: voltar, o filtro "Campanha" (como no Grimório),
- * a busca, as seções (Início, Sessões, Quadros, Enciclopédia por tipo, Escrita
- * em árvore) e, embaixo, se está tudo salvo.
+ * a busca, as seções (Início, Sessões, Quadros, Enciclopédia por tipo, Linha
+ * do tempo, Escrita em árvore) e, embaixo, se está tudo salvo.
  */
 
 function itensDosCadernos(nos: readonly NoDaArvore[]): ItemDaArvore[] {
@@ -89,6 +91,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   const campanhas = usePreludio((estado) => estado.campanhas)
   const campanhaId = usePreludio((estado) => estado.campanhaId)
   const verbetes = usePreludio((estado) => estado.verbetes)
+  const tempo = usePreludio((estado) => estado.tempo.tempo)
   const pronta = usePreludio((estado) => estado.carga.t === 'pronta')
   const travado = usePreludio((estado) => estado.travado)
   const ir = usePreludio((estado) => estado.ir)
@@ -143,6 +146,9 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
     return { porTipo, todos }
   }, [verbetes, campanhaId])
   const itensDaEscrita = useMemo(() => itensDosCadernos(cadernos), [cadernos])
+  // A conta da linha do tempo da campanha do filtro (em "Todas", de todas); o selo "Nova" some depois da primeira visita.
+  const eventosNaLinha = useMemo(() => (tempo === null ? '' : contarEventos(tempo, campanhaId, campanhaDaSessaoEm(verbetes))), [tempo, campanhaId, verbetes])
+  const selarNova = lugar.secao !== 'tempo' && !linhaDoTempoJaVista()
 
   const naEnciclopedia = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo && lugar.verbeteId === null
   const doTipoAberto = (tipo: TipoDeVerbete | 'todos') => lugar.secao === 'enciclopedia' && lugar.tipo === tipo
@@ -296,6 +302,16 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
             </li>
           ))}
         </ul>
+
+        <h2 className="pr-nav__grupo">
+          <button type="button" className="pr-nav__grupo-bt" aria-current={lugar.secao === 'tempo' ? 'page' : undefined} disabled={!pronta} onClick={() => ir({ secao: 'tempo' })}>
+            <span className="pr-nav__grupo-nome">
+              Linha do tempo
+              {selarNova && <span className="pr-nav__selo">Nova</span>}
+            </span>
+            <span className="pr-nav__conta">{eventosNaLinha}</span>
+          </button>
+        </h2>
 
         <h2 className="pr-nav__grupo">
           <button type="button" className="pr-nav__grupo-bt" aria-current={lugar.secao === 'escrita' && lugar.paginaId === null ? 'page' : undefined} disabled={!pronta} onClick={() => ir({ secao: 'escrita', paginaId: null })}>

@@ -276,10 +276,15 @@ export const LIGACOES = objeto({
 
 // ─── Linha do tempo: tempo.json ──────────────────────────────────────────────
 
-/** A ordem das eras é a ordem da lista. */
+/** A ordem das eras é a ordem da lista (a de cada campanha, filtrada dela). */
 export const ERA = objeto({
   id: texto(),
   nome: texto(),
+  /**
+   * A campanha dona da era (E3c: uma linha do tempo por campanha). Ausente =
+   * era de antes: fica na linha "Sem campanha". Campo opcional novo: o formato fica.
+   */
+  campanhaId: opcional(texto()),
 })
 
 export const FAIXA = objeto({
@@ -309,6 +314,13 @@ export const EVENTO = objeto({
   resumo: texto(),
   segredo: booleano(),
   sessaoId: opcional(texto()),
+  /**
+   * A campanha do evento (E3c). Ausente = evento de antes: vale a campanha da
+   * era, ou a da sessão de onde veio; sem nenhuma, "Sem campanha"
+   * (`linhaDoTempo.ts`). Dentro de um ano, a ordem é a da lista. Campo opcional
+   * novo: o formato fica.
+   */
+  campanhaId: opcional(texto()),
 })
 
 export const TEMPO = objeto({

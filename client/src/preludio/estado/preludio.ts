@@ -48,6 +48,8 @@ export type Lugar =
   | { readonly secao: 'quadros'; readonly quadroId: string | null; readonly alvo?: string }
   /** Campanhas e sistemas (E3): a pasta de mapas e o sistema de cada campanha. */
   | { readonly secao: 'campanhas' }
+  /** A linha do tempo (E3c): uma por campanha, a do filtro "Campanha" da barra. */
+  | { readonly secao: 'tempo' }
 
 export type AbaDaSessao = 'roteiro' | 'quadro'
 
@@ -126,6 +128,12 @@ interface EstadoDoPreludio {
   registrarEvento: (evento: Evento) => Promise<void>
   /** Tira o evento da linha do tempo e grava na hora. */
   tirarEvento: (eventoId: string) => Promise<void>
+  /**
+   * A tela da linha do tempo (E3c): muda eras e eventos de uma vez e grava na
+   * hora. Travado, ou arquivo só de leitura: nada acontece. Se o disco recusar,
+   * a tela volta ao que está gravado, com o `avisoDoTempo`.
+   */
+  mudarLinhaDoTempo: (mudar: (tempo: Tempo) => Tempo) => Promise<void>
   dispensarAvisoDoTempo: () => void
   /** Grava agora o que mudou. `true` = está tudo no disco. */
   salvarPendentes: () => Promise<boolean>
@@ -676,6 +684,10 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
 
   tirarEvento(eventoId) {
     return mudarTempo((tempo) => semEvento(tempo, eventoId))
+  },
+
+  mudarLinhaDoTempo(mudar) {
+    return mudarTempo(mudar)
   },
 
   dispensarAvisoDoTempo() {

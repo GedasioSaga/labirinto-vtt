@@ -7,8 +7,9 @@ import { usePreludio } from '../estado/preludio'
 /**
  * "O QUE ACONTECEU" (F4): depois do jogo, uma linha por acontecimento. Um
  * clique leva a linha para a lista de eventos da linha do tempo
- * (`preparo/tempo.json`), com o mesmo id; "Tirar" desfaz. A linha que está na
- * linha do tempo não muda por aqui: a edição dela será da linha do tempo (F7).
+ * (`preparo/tempo.json`), com o mesmo id e a campanha da sessão; "Tirar" desfaz.
+ * A linha que está na linha do tempo não muda por aqui: a edição dela é da
+ * Linha do tempo (E3c, `tempo/LinhaDoTempo.tsx`).
  */
 
 interface LinhaProps {
@@ -111,7 +112,7 @@ export function OQueAconteceu({ sessao, editavel }: { sessao: Verbete; editavel:
           </span>
         )}
       </header>
-      {editavel && <p className="pr-quieto">Depois do jogo, uma linha por acontecimento. Cada uma vira evento da linha do tempo com um clique, ainda sem data: a era e o ano entram quando a linha do tempo chegar.</p>}
+      {editavel && <p className="pr-quieto">Depois do jogo, uma linha por acontecimento. Cada uma vira evento da linha do tempo com um clique, ainda sem data: ele espera na bandeja da Linha do tempo da campanha, onde você dá a era e o ano.</p>}
       {parado !== null && editavel && (
         <p className="pr-aviso" role="note">
           {parado}

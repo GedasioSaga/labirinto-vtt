@@ -1,0 +1,156 @@
+/*
+ * A LINHA DO TEMPO (E3c), como no protótipo aprovado em 16/11 (tela 5): a
+ * bandeja tracejada do que chegou das sessões, as eras em letra de título, o
+ * ano em latão numa coluna de 100 px e os eventos pendurados no fio.
+ *
+ * Movimento: o formulário entra em 160 ms (ease-out, 4 px); o cartão que
+ * acabou de chegar acende um anel que some em 900 ms (só opacidade, uma vez,
+ * depois de soltar ou salvar; Alt+setas não acende: tecla repetida não anima).
+ * Com movimento reduzido, o formulário só aparece (opacidade).
+ */
+
+.lt { max-width: 940px; margin: 0 auto; padding: var(--lb-space-6) var(--lb-space-8) var(--lb-space-12); }
+
+/* ------------------------------------------------------------------ cabeça */
+.lt-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lb-space-4); flex-wrap: wrap; padding-bottom: var(--lb-space-4); border-bottom: 1px solid var(--lb-gr-filete); }
+.lt-cab__tit { margin: 0; font: 400 var(--lb-font-size-xxl)/1.1 var(--lb-font-display); color: var(--lb-color-parchment); }
+.lt-cab__conta { margin: 4px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lt-cab__acoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); align-items: center; }
+.lt-filtro { display: inline-flex; align-items: center; gap: 6px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lt-filtro select { min-height: 30px; max-width: 24ch; padding: 0 6px; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); color: var(--lb-color-parchment); font: inherit; color-scheme: dark; }
+.lt-filtro select option { background: #1e1912; }
+.lt-bt-segredo { gap: 6px; }
+.lt-bt-segredo svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lt-bt-segredo[aria-pressed='true'] { border-color: rgba(171, 147, 214, 0.5); color: var(--lb-color-arcane); }
+.lt-aviso { margin: var(--lb-space-4) 0 0; }
+.lt-aviso--disco { display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-3); }
+
+/* ------------------------------------------------------------------ bandeja */
+.lt-bandeja {
+  margin: var(--lb-space-5) 0 var(--lb-space-2); padding: 12px 14px 14px; border-radius: 12px;
+  border: 1px dashed var(--lb-gr-filete-latao); background: rgba(224, 164, 74, 0.035);
+  transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease;
+}
+.lt-bandeja.e-alvo { background: rgba(224, 164, 74, 0.1); border-color: var(--lb-color-brass); }
+.lt-bandeja__cab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lt-bandeja__tit { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-gr-gravado-forte); }
+.lt-bandeja__dica { margin: 0; }
+.lt-bandeja__lista { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lt-bandeja__vazia { margin: 8px 0 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lt-bandeja .lt-ev { margin: 0; }
+.lt-bandeja .lt-ev::before { display: none; }
+
+/* ------------------------------------------------------------------ eras e anos */
+.lt-era { margin-top: var(--lb-space-8); }
+.lt-era__cab { display: flex; align-items: baseline; gap: 12px; margin: 0 0 var(--lb-space-2); padding-left: 100px; }
+.lt-era__nome { margin: 0; min-width: 0; font: 400 26px/1.15 var(--lb-font-display); color: var(--lb-gr-gravado-forte); overflow-wrap: anywhere; }
+.lt-era__bt { margin: 0 -4px; padding: 0 4px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: text; transition: background-color var(--lb-motion-fast) ease; }
+.lt-era__entrada { width: min(22ch, 100%); padding: 0 8px; border: 1px solid var(--lb-color-brass); border-radius: 6px; background: var(--lb-gr-campo); color: inherit; font: inherit; }
+.lt-era__faixa { flex: none; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; }
+.lt-era__vazia { margin: 0 0 0 100px; padding: 12px 0 4px 22px; border-left: 1px dashed var(--lb-gr-filete-latao); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.lt-sem-eras { margin: var(--lb-space-8) 0 0 100px; padding: 14px 18px; border-left: 1px dashed var(--lb-gr-filete-latao); display: flex; flex-direction: column; align-items: flex-start; gap: var(--lb-space-3); }
+.lt-sem-eras__texto { margin: 0; max-width: 56ch; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); }
+
+.lt-ano { display: grid; grid-template-columns: 100px minmax(0, 1fr); }
+.lt-ano__num { padding: 14px 20px 0 0; text-align: right; font: 400 22px/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-brass); letter-spacing: 0.01em; transition: color var(--lb-motion-fast) ease; overflow-wrap: anywhere; }
+.lt-ano.e-alvo .lt-ano__num { color: var(--lb-color-brass-bright); }
+.lt-ano__eventos { position: relative; list-style: none; margin: 0; padding: 4px 0 10px 22px; border-left: 1px solid var(--lb-gr-filete-latao); min-height: 50px; }
+
+/* ------------------------------------------------------------------ evento */
+.lt-ev { position: relative; margin: 6px 0; }
+.lt-ev::before { content: ''; position: absolute; left: -28px; top: 17px; width: 11px; height: 11px; border-radius: 50%; background: var(--lb-gr-papel-alto); box-shadow: inset 0 0 0 2px var(--lb-color-brass); }
+.lt-ev--segredo::before { box-shadow: inset 0 0 0 2px var(--lb-color-arcane); }
+.lt-ev--aberto::before { top: 22px; }
+.lt-ev.e-arrastada { opacity: 0.35; }
+.lt-ev__cartao {
+  position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start;
+  padding: 9px 10px 10px 4px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete);
+  transition: border-color var(--lb-motion-fast) ease;
+}
+.lt-ev--segredo .lt-ev__cartao { background: linear-gradient(0deg, rgba(171, 147, 214, 0.07), rgba(171, 147, 214, 0.07)), var(--lb-gr-cartao); border-color: rgba(171, 147, 214, 0.3); }
+/* o anel de "chegou aqui": só opacidade, uma vez */
+.lt-ev__cartao::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; border: 1px solid var(--lb-color-brass); box-shadow: 0 0 0 3px rgba(243, 186, 102, 0.45); opacity: 0; pointer-events: none; }
+.lt-ev--chegou .lt-ev__cartao::after { animation: lt-chegou 900ms ease-out; }
+@keyframes lt-chegou { from { opacity: 1; } to { opacity: 0; } }
+
+.lt-alca { width: 22px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--lb-color-parchment-faint); cursor: grab; touch-action: none; user-select: none; transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.lt-alca svg { width: 14px; height: 14px; }
+.lt-alca svg circle { fill: currentColor; }
+.lt-alca:focus-visible { color: var(--lb-color-parchment); }
+.lt-ev__meio { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.lt-ev__abrir { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 2px 4px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; }
+button.lt-ev__abrir { cursor: pointer; transition: background-color var(--lb-motion-fast) ease; }
+.lt-ev__linha1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lt-ev__tit { min-width: 0; font: 400 var(--lb-font-size-lg)/1.25 var(--lb-font-display); color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.lt-ev__quando { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lt-ev__resumo { font: 400 13.5px/1.55 var(--pr-fonte-texto); color: var(--lb-color-parchment-dim); overflow-wrap: anywhere; white-space: pre-line; }
+.lt-ev__fichas { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; }
+.lt-ev__direita { display: flex; align-items: center; gap: 4px; }
+
+.lt-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 22px; max-width: 100%; padding: 0 9px;
+  border-radius: 999px; border: 1px solid var(--lb-gr-filete-forte); background: none;
+  font: inherit; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lt-chip svg { flex: none; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lt-chip--bt { cursor: pointer; transition: border-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.lt-chip--sessao { border-color: var(--lb-gr-filete-latao); color: var(--lb-gr-gravado); }
+.lt-chip--segredo { border-color: rgba(171, 147, 214, 0.45); color: var(--lb-color-arcane); }
+.lt-chip--sumiu { border-style: dashed; color: var(--lb-color-parchment-faint); }
+
+/* ------------------------------------------------------------------ arrastar */
+body.lt-arrastando, body.lt-arrastando * { cursor: grabbing !important; user-select: none; }
+.lt-marca { position: absolute; left: 14px; right: 0; top: 0; height: 2px; border-radius: 2px; background: var(--lb-color-brass-bright); box-shadow: 0 0 0 3px rgba(243, 186, 102, 0.18); pointer-events: none; z-index: 2; }
+.lt-marca::before { content: ''; position: absolute; left: -5px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--lb-color-brass-bright); }
+.lt-fantasma { position: fixed; left: 0; top: 0; z-index: 120; pointer-events: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; will-change: transform; }
+.lt-fantasma__pilha { max-width: 42ch; padding: 6px 12px; border-radius: 999px; background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-color-brass); box-shadow: var(--lb-shadow-float); color: var(--lb-color-parchment); font: 400 var(--lb-font-size-md, 15px)/1.2 var(--lb-font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lt-fantasma__alvo { padding: 3px 8px; border-radius: 5px; background: rgba(12, 10, 7, 0.92); color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); white-space: nowrap; }
+.lt-fantasma__alvo b { color: var(--lb-color-brass-bright); font-weight: 600; }
+
+/* ------------------------------------------------------------------ formulário */
+.lt-novo { list-style: none; margin: var(--lb-space-4) 0 0 100px; padding: 0; }
+.lt-novo .lt-ev::before { display: none; }
+.lt-form {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px;
+  padding: 12px 14px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-color-brass);
+  animation: lt-entra 160ms var(--lb-gr-ease-out);
+}
+@keyframes lt-entra { from { opacity: 0; transform: translateY(-4px); } }
+.lt-form__c2 { grid-column: span 2; }
+.lt-form__c3 { grid-column: span 3; }
+.lt-form__c6 { grid-column: 1 / -1; }
+.lt-form .pr-campo__entrada:disabled { opacity: 0.55; }
+.lt-form .pr-campo__entrada[aria-invalid='true'] { border-color: #f0897f; }
+.lt-form__texto { min-height: 64px; padding: 6px var(--lb-space-2); line-height: 1.5; resize: vertical; }
+.lt-form__segredo { align-self: end; padding-bottom: 7px; }
+.lt-form__pe { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.lt-form__esq { margin-right: auto; display: flex; align-items: center; gap: 8px; }
+.lt-form__pe .gr-kbd { margin-left: 6px; }
+.lt-check { display: inline-flex; align-items: center; gap: 8px; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); cursor: pointer; }
+.lt-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--lb-color-arcane); }
+.lt-erro { color: #f0897f; font-size: var(--lb-font-size-sm); line-height: 1.35; }
+
+/* durante o arrasto, só o ano e a bandeja acendem: o resto não reage ao ponteiro passando */
+@media (hover: hover) and (pointer: fine) {
+  body:not(.lt-arrastando) .lt-alca:hover { background: var(--lb-gr-hover-forte); color: var(--lb-color-parchment); }
+  body:not(.lt-arrastando) button.lt-ev__abrir:hover { background: var(--lb-gr-hover); }
+  body:not(.lt-arrastando) .lt-era__bt:hover { background: var(--lb-gr-hover); }
+  body:not(.lt-arrastando) .lt-chip--bt:hover { border-color: var(--lb-color-brass); color: var(--lb-color-parchment); }
+}
+
+/* palco estreito (a janela do Prelúdio): o ano numa coluna menor, o formulário em duas colunas */
+@media (max-width: 760px) {
+  .lt { padding-inline: var(--lb-space-4); }
+  .lt-ano { grid-template-columns: 64px minmax(0, 1fr); }
+  .lt-ano__num { padding-right: 12px; font-size: 18px; }
+  .lt-era__cab { padding-left: 64px; }
+  .lt-novo, .lt-era__vazia, .lt-sem-eras { margin-left: 64px; }
+  .lt-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lt-form__c2, .lt-form__c3, .lt-form__c6 { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-form { animation: lt-entra-quieto 160ms ease; }
+  .lt-bandeja, .lt-ano__num, .lt-alca, .lt-chip--bt, button.lt-ev__abrir, .lt-era__bt { transition: none; }
+}
+@keyframes lt-entra-quieto { from { opacity: 0; } }

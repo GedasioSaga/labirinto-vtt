@@ -182,12 +182,23 @@ export function comParaRevelar(dados: DadosDaSessao, verbeteId: string): DadosDa
 // ─── O que aconteceu ─────────────────────────────────────────────────────────
 
 /**
- * O evento que a linha "O que aconteceu" vira, com o mesmo id dela. A linha do
- * tempo (F7) ainda não existe: o evento nasce sem data (era vazia, ano 0) e
- * com o nome da sessão no rótulo, para a F7 pôr na era certa depois.
+ * O evento que a linha "O que aconteceu" vira, com o mesmo id dela. Ele nasce
+ * sem data (era vazia, ano 0), com o nome da sessão no rótulo, e na campanha
+ * da sessão: espera na bandeja da linha do tempo dessa campanha (E3c) até o
+ * mestre dar a data.
  */
 export function eventoDoAcontecimento(acontecimento: Acontecimento, sessao: Verbete): Evento {
-  return { id: acontecimento.id, titulo: acontecimento.texto.trim(), quando: { era: '', ano: 0, rotulo: sessao.titulo.trim() || 'Sessão sem nome' }, verbetes: [], resumo: '', segredo: false, sessaoId: sessao.id }
+  const campanhaId = sessao.campanhas[0]
+  return {
+    id: acontecimento.id,
+    titulo: acontecimento.texto.trim(),
+    quando: { era: '', ano: 0, rotulo: sessao.titulo.trim() || 'Sessão sem nome' },
+    verbetes: [],
+    resumo: '',
+    segredo: false,
+    sessaoId: sessao.id,
+    ...(campanhaId === undefined ? {} : { campanhaId }),
+  }
 }
 
 export function tempoVazio(): Tempo {

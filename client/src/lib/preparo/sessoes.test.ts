@@ -60,7 +60,7 @@ describe('Revelar hoje', () => {
 describe('O que aconteceu', () => {
   const sessao = verbete('vb-s3', 'Sessão 3', { tipo: 'sessao' })
 
-  it('a linha vira evento com o mesmo id, sem data e com o nome da sessão', () => {
+  it('a linha vira evento com o mesmo id, sem data, com o nome e a campanha da sessão', () => {
     expect(eventoDoAcontecimento({ id: 'ev-1', texto: '  O farol apagou  ' }, sessao)).toEqual({
       id: 'ev-1',
       titulo: 'O farol apagou',
@@ -69,6 +69,7 @@ describe('O que aconteceu', () => {
       resumo: '',
       segredo: false,
       sessaoId: 'vb-s3',
+      campanhaId: 'camp-ilha',
     })
   })
 
