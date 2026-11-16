@@ -259,6 +259,10 @@ export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
     ...area.stairs.map((id): SelectionItem => ({ kind: 'stair', id })),
     ...area.drawings.map((id): SelectionItem => ({ kind: 'drawing', id })),
     ...(area.carimbos ?? []).map((id): SelectionItem => ({ kind: 'carimbo', id })),
+    ...(area.pins ?? []).map((id): SelectionItem => ({ kind: 'pin', id })),
+    ...(area.zonas ?? []).map((id): SelectionItem => ({ kind: 'zone', id })),
+    ...(area.aguas ?? []).map((id): SelectionItem => ({ kind: 'agua', id })),
+    ...(area.riscosDoBarranco ?? []).map((id): SelectionItem => ({ kind: 'barranco', id })),
   ]
 }
 
@@ -277,6 +281,10 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
   const stairs: string[] = []
   const drawings: string[] = []
   const carimbos: string[] = []
+  const pins: string[] = []
+  const zonas: string[] = []
+  const aguas: string[] = []
+  const riscosDoBarranco: string[] = []
 
   for (const item of selection) {
     switch (item.kind) {
@@ -304,9 +312,34 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
       case 'carimbo':
         carimbos.push(item.id)
         break
+      case 'pin':
+        pins.push(item.id)
+        break
+      case 'zone':
+        zonas.push(item.id)
+        break
+      case 'agua':
+        aguas.push(item.id)
+        break
+      case 'barranco':
+        riscosDoBarranco.push(item.id)
+        break
     }
   }
 
-  // Sem carimbo, sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
-  return { walls, regions, lights, tokens, props, stairs, drawings, ...(carimbos.length > 0 ? { carimbos } : {}) }
+  // Sem carimbo (nem pino, zona, água ou risco), sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
+  return {
+    walls,
+    regions,
+    lights,
+    tokens,
+    props,
+    stairs,
+    drawings,
+    ...(carimbos.length > 0 ? { carimbos } : {}),
+    ...(pins.length > 0 ? { pins } : {}),
+    ...(zonas.length > 0 ? { zonas } : {}),
+    ...(aguas.length > 0 ? { aguas } : {}),
+    ...(riscosDoBarranco.length > 0 ? { riscosDoBarranco } : {}),
+  }
 }

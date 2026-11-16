@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo } from '../types/map'
+import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo, ConcealZone, Agua, RiscoDeBarranco } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { novoIdDeCarimbo } from './carimbos'
 import { moveBlocos } from './floorBlocks'
@@ -324,6 +324,38 @@ interface EntityByKind {
   drawing: Drawing
   floor: FloorPiece
   carimbo: Carimbo
+  pin: Pin
+  zone: ConcealZone
+  agua: Agua
+  barranco: RiscoDeBarranco
+}
+
+/**
+ * Pino (Fase 4): id novo, deslocado e SOLTO pela mesma regra da cena copiada
+ * (`cloneLoosePin`: sem a passagem de viagem) e sem a ficha a que estava
+ * preso (duas cópias presas à mesma ficha andariam juntas, uma sobre a outra).
+ */
+export function clonePin(pin: Pin, offset: Offset): Pin {
+  const { presoA: _presoA, ...solto } = cloneLoosePin(pin)
+  return { ...solto, x: pin.x + offset.dx, y: pin.y + offset.dy }
+}
+
+/** Zona oculta (Fase 4): id novo e deslocada; o que o pincel revelou nela fica para trás (outra zona, outra revelação). */
+export function cloneZone(zone: ConcealZone, offset: Offset): ConcealZone {
+  const { unveiledCells: _reveladas, ...resto } = zone
+  return { ...resto, id: crypto.randomUUID(), points: zone.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
+}
+
+/** Água ou lava (Fase 4): id novo; o contorno (ou o traço) e a areia pintada andam juntos. */
+export function cloneAgua(agua: Agua, offset: Offset): Agua {
+  const mover = (pontos: readonly RegionPoint[]): RegionPoint[] => pontos.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy }))
+  const copia: Agua = { ...agua, id: crypto.randomUUID(), pontos: mover(agua.pontos) }
+  return agua.areia === undefined ? copia : { ...copia, areia: agua.areia.map((traco) => ({ ...traco, pontos: mover(traco.pontos) })) }
+}
+
+/** Risco do Barranco (Fase 4): id novo e deslocado, com o mesmo lado alto e a mesma altura. */
+export function cloneRiscoDeBarranco(risco: RiscoDeBarranco, offset: Offset): RiscoDeBarranco {
+  return { ...risco, id: crypto.randomUUID(), pontos: risco.pontos.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
 }
 
 /** Carimbo (Fase 2): id curto de carimbo (`novoIdDeCarimbo`), que vai ao jogador a cada mensagem. */
@@ -364,6 +396,14 @@ export function cloneEntity(input: CloneableEntity, offset: Offset): CloneableEn
       return { kind: 'floor', entity: cloneFloorPiece(input.entity, offset) }
     case 'carimbo':
       return { kind: 'carimbo', entity: cloneCarimbo(input.entity, offset) }
+    case 'pin':
+      return { kind: 'pin', entity: clonePin(input.entity, offset) }
+    case 'zone':
+      return { kind: 'zone', entity: cloneZone(input.entity, offset) }
+    case 'agua':
+      return { kind: 'agua', entity: cloneAgua(input.entity, offset) }
+    case 'barranco':
+      return { kind: 'barranco', entity: cloneRiscoDeBarranco(input.entity, offset) }
     default:
       return assertNeverSelectionKind(input)
   }

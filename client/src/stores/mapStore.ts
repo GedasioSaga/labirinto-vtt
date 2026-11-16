@@ -137,6 +137,8 @@ import {
 } from '../lib/texturas'
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
 import { comAguas, semCamposVazios } from '../lib/agua/dados'
+import { CAMADA_DA_AGUA, CAMADA_DO_BARRANCO, semItensDoTerreno, type AcertoNoTerreno } from '../lib/terrenoNaSelecao'
+import { isStairPin } from '../lib/stairTravel'
 import { type EfeitoDeParticula } from '../lib/particulasDaCena'
 import { INTENSIDADE_DA_QUANTIDADE, comAmbiente, comAmbientePintado, somarPinceladaDeAmbiente, temPincelDoEfeito, type MudancaDoAmbiente } from '../lib/ambiente'
 import { alvoComParedes, caixaDoAlvo } from '../lib/baldeDeTextura'
@@ -338,9 +340,26 @@ function camadaDaSelecao(map: MapData, selection: Selection): CamadaId | null {
     case 'carimbo':
       // Pelo índice: depois do Ctrl+Z de um laço de milhares, um `find` por item pesaria.
       return daCamada('carimbo', carimboPorId(map.carimbos, selection.id))
+    // Fase 4: a água mora em Chão e o risco do Barranco em Terreno (sem camada por item).
+    case 'pin':
+      return daCamada('pino', map.pins.find((p) => p.id === selection.id))
+    case 'agua':
+      return (map.aguas ?? []).some((a) => a.id === selection.id) ? camadas.camadaQueManda(CAMADA_DA_AGUA) : null
+    case 'barranco':
+      return (map.barranco?.riscos ?? []).some((r) => r.id === selection.id) ? camadas.camadaQueManda(CAMADA_DO_BARRANCO) : null
     default:
       return null
   }
+}
+
+/**
+ * O item da seleção ainda está no mapa e o mestre pode mexer nele? A zona
+ * oculta (Fase 4) não mora em camada: vale existir. O resto, pela camada.
+ */
+function itemDaSelecaoFica(map: MapData, item: Selection, sai: (camada: CamadaId) => boolean): boolean {
+  if (item.kind === 'zone') return map.concealZones.some((zona) => zona.id === item.id)
+  const camada = camadaDaSelecao(map, item)
+  return camada !== null && !sai(camada)
 }
 
 /**
@@ -355,10 +374,7 @@ function selecaoDepoisDoHistorico(
   state: Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>,
 ): Partial<Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>> {
   const camadas = contextoDeCamadas(map)
-  const selection = state.selection.filter((item) => {
-    const camada = camadaDaSelecao(map, item)
-    return camada !== null && camadas.mestreVe(camada) && !camadas.travada(camada)
-  })
+  const selection = state.selection.filter((item) => itemDaSelecaoFica(map, item, (camada) => !camadas.mestreVe(camada) || camadas.travada(camada)))
   const patch: Partial<Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>> = {}
   if (selection.length !== state.selection.length) patch.selection = selection.length === 0 ? EMPTY_SELECTION : selection
   if (state.selectedPinId !== null && !map.pins.some((pin) => pin.id === state.selectedPinId)) patch.selectedPinId = null
@@ -424,6 +440,23 @@ function cloneSelectedEntity(map: MapData, selection: Selection, offset: Offset)
       const entity = map.carimbos?.find((c) => c.id === selection.id)
       return entity ? cloneEntity({ kind: 'carimbo', entity }, offset) : null
     }
+    case 'pin': {
+      // O pino da escada anda com a escada: não se copia sozinho.
+      const entity = map.pins.find((p) => p.id === selection.id)
+      return entity && !isStairPin(entity) ? cloneEntity({ kind: 'pin', entity }, offset) : null
+    }
+    case 'zone': {
+      const entity = map.concealZones.find((z) => z.id === selection.id)
+      return entity ? cloneEntity({ kind: 'zone', entity }, offset) : null
+    }
+    case 'agua': {
+      const entity = map.aguas?.find((a) => a.id === selection.id)
+      return entity ? cloneEntity({ kind: 'agua', entity }, offset) : null
+    }
+    case 'barranco': {
+      const entity = map.barranco?.riscos.find((r) => r.id === selection.id)
+      return entity ? cloneEntity({ kind: 'barranco', entity }, offset) : null
+    }
   }
 }
 
@@ -446,6 +479,13 @@ function addClonedEntity(map: MapData, cloned: CloneableEntity): MapData {
     case 'floor': return mapFactory.addFloorPiece(map, cloned.entity)
     // Carimbo: a cena cheia (`TETO_DE_CARIMBOS`) não ganha a cópia.
     case 'carimbo': return (map.carimbos?.length ?? 0) >= TETO_DE_CARIMBOS ? map : comCarimbos(map, [...(map.carimbos ?? []), cloned.entity])
+    case 'pin': return mapFactory.addPin(map, cloned.entity)
+    case 'zone': return mapFactory.addConcealZone(map, cloned.entity)
+    case 'agua': return comAguas(map, [...(map.aguas ?? []), cloned.entity])
+    case 'barranco': {
+      const barranco = barrancoOuVazio(map)
+      return comBarranco(map, { ...barranco, riscos: [...barranco.riscos, cloned.entity] })
+    }
   }
 }
 
@@ -2323,7 +2363,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => {
         let next = map
         // Carimbos aos milhares: juntos, um filtro só no fim (não um por item).
+        // Fase 4: águas e riscos do Barranco também, no mesmo passo.
         const carimbos = new Set<string>()
+        const aguas = new Set<string>()
+        const riscos = new Set<string>()
         for (const item of selection) {
           switch (item.kind) {
             case 'token': next = mapFactory.removeToken(next, item.id); break
@@ -2335,11 +2378,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
             case 'drawing': next = mapFactory.removeDrawing(next, item.id); break
             case 'floor': next = mapFactory.removeFloorPiece(next, item.id); break
             case 'carimbo': carimbos.add(item.id); break
+            case 'pin': next = mapFactory.removePin(next, item.id); break
+            case 'zone': next = mapFactory.removeConcealZone(next, item.id); break
+            case 'agua': aguas.add(item.id); break
+            case 'barranco': riscos.add(item.id); break
           }
         }
-        return semCarimbos(next, carimbos)
+        return semItensDoTerreno(semCarimbos(next, carimbos), aguas, riscos)
       })
-      set({ selection: EMPTY_SELECTION })
+      // O pino e a zona abertos no painel que saíram com o conjunto fecham.
+      const { selectedPinId, selectedConcealZoneId } = get()
+      const saiuOPino = selectedPinId !== null && selection.some((item) => item.kind === 'pin' && item.id === selectedPinId)
+      const saiuAZona = selectedConcealZoneId !== null && selection.some((item) => item.kind === 'zone' && item.id === selectedConcealZoneId)
+      set({ selection: EMPTY_SELECTION, ...(saiuOPino ? { selectedPinId: null } : {}), ...(saiuAZona ? { selectedConcealZoneId: null } : {}) })
     },
     duplicateSelected: () => {
       const { map, selection } = get()

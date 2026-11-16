@@ -62,7 +62,8 @@ export function tipoMudaDeCamada(par: ParDeItem): boolean {
   return true
 }
 
-const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto> = {
+/** `null`: o tipo não escolhe camada (Fase 4: a zona oculta, a água em Chão e o risco do Barranco em Terreno). */
+const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto | null> = {
   token: 'ficha',
   wall: 'parede',
   light: 'luz',
@@ -72,12 +73,20 @@ const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto> = {
   drawing: 'desenho',
   floor: 'peca',
   carimbo: 'carimbo',
+  pin: 'pino',
+  zone: null,
+  agua: null,
+  barranco: null,
 }
 
 /** Os itens da seleção do editor (e o pino aberto, que mora fora dela) como refs de mover. */
 export function refsDaSelecao(selection: readonly { kind: SelectionKind; id: string }[], pinoId: string | null): RefDeItem[] {
-  const refs: RefDeItem[] = selection.map((item) => ({ tipo: TIPO_DA_SELECAO[item.kind], id: item.id }))
-  if (pinoId !== null) refs.push({ tipo: 'pino', id: pinoId })
+  const refs: RefDeItem[] = selection.flatMap((item) => {
+    const tipo = TIPO_DA_SELECAO[item.kind]
+    return tipo === null ? [] : [{ tipo, id: item.id }]
+  })
+  // O pino aberto que também veio no laço não entra duas vezes.
+  if (pinoId !== null && !selection.some((item) => item.kind === 'pin' && item.id === pinoId)) refs.push({ tipo: 'pino', id: pinoId })
   return refs
 }
 

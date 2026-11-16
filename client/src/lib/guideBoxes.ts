@@ -24,7 +24,8 @@
  */
 import type { MapData, Prop, Stair } from '../types/map'
 import type { SelectionItem } from './selectionModel'
-import { boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
+import { areaSelectionBounds, boundsOfDrawing, boundsOfRegion, boundsOfWall, type AreaBounds, type AreaSelection } from './areaSelection'
+import { selectionToAreaSelection } from './selectionModel'
 import { pieceBounds } from './floorSdf'
 import { caixaDoCarimbo, carimboDestravado } from './carimbos'
 import { canInteract } from './itemTransform'
@@ -270,6 +271,22 @@ export function guideBoxOfSelection(map: MapData, selection: AreaSelection, piso
       if (selectedCarimbos.has(carimbo.id) && carimboDestravado(carimbo)) add(caixaDoCarimbo(carimbo))
     }
   }
+  // Fase 4: pino (o destravado), zona, água e risco do Barranco, pelas caixas do laço.
+  const terreno: AreaSelection = {
+    walls: [],
+    regions: [],
+    lights: [],
+    tokens: [],
+    props: [],
+    stairs: [],
+    drawings: [],
+    ...(selection.pins === undefined ? {} : { pins: selection.pins.filter((id) => doPiso.pins.some((pin) => pin.id === id && canInteract(pin))) }),
+    ...(selection.zonas === undefined ? {} : { zonas: selection.zonas }),
+    ...(selection.aguas === undefined ? {} : { aguas: selection.aguas }),
+    ...(selection.riscosDoBarranco === undefined ? {} : { riscosDoBarranco: selection.riscosDoBarranco }),
+  }
+  const caixaDoTerreno = areaSelectionBounds(doPiso, terreno)
+  if (caixaDoTerreno !== null) add(caixaDoTerreno)
 
   return boxes.reduce<AreaBounds | null>((union, box) => (union === null ? box : unionBox(union, box)), null)
 }
@@ -313,6 +330,12 @@ function measureBoxOfItem(map: MapData, item: SelectionItem): AreaBounds | null 
       const carimbo = map.carimbos?.find((c) => c.id === item.id)
       return carimbo === undefined ? null : caixaDoCarimbo(carimbo)
     }
+    // Fase 4: as mesmas caixas do laço (`areaSelectionBounds`).
+    case 'pin':
+    case 'zone':
+    case 'agua':
+    case 'barranco':
+      return areaSelectionBounds(map, selectionToAreaSelection([item]))
   }
 }
 

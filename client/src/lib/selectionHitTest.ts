@@ -568,6 +568,16 @@ function camadaDoAcerto(map: MapData, hit: Selection): CamadaId | null {
       const carimbo = map.carimbos?.find((item) => item.id === hit.id)
       return carimbo ? camadas.camadaDe('carimbo', carimbo) : null
     }
+    // Fase 4: o pino tem camada; a água mora em Chão e o risco do Barranco em Terreno; a zona não mora em camada.
+    case 'pin': {
+      const pin = map.pins.find((item) => item.id === hit.id)
+      return pin ? camadas.camadaDe('pino', pin) : null
+    }
+    case 'agua':
+      return 'chao'
+    case 'barranco':
+      return 'terreno'
+    case 'zone':
     case 'floor':
       return null
   }

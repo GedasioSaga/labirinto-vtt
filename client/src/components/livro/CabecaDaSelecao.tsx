@@ -14,7 +14,7 @@ import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorr
 import type { SelectionSummary } from '../SelectionControls'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, deleteSelectionLabel, rotuloAbrirParaOCorredor } from '../labels'
 import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
-import { BrushIcon, CarimbosIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
+import { AguaIcon, BarrancoIcon, BrushIcon, CarimbosIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
 import { Balao } from '../grimorio/Balao'
 import { Botao } from '../grimorio/Botao'
 import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
@@ -40,6 +40,8 @@ export type SelectionIconKind =
   | 'carimbo'
   | 'pin'
   | 'zona'
+  | 'agua'
+  | 'barranco'
   | 'several'
 
 /** O que a cabeça diz da seleção. */
@@ -125,6 +127,15 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
     case 'carimbo':
       // O tipo repete o botão da barra ("Carimbos"), no singular; o nome é o da biblioteca.
       return { icon: 'carimbo', type: 'Carimbo', name: nameOrNull(items.nomeDoCarimbo ?? undefined) }
+    // Fase 4: o pino e a zona sozinhos abrem no painel deles (`setSelection`); a cabeça só os vê no meio de um conjunto.
+    case 'pin':
+      return { icon: 'zona', type: 'Pino', name: null }
+    case 'zone':
+      return { icon: 'zona', type: 'Zona oculta', name: null }
+    case 'agua':
+      return { icon: 'agua', type: 'Água', name: null }
+    case 'barranco':
+      return { icon: 'barranco', type: 'Barranco', name: null }
   }
 }
 
@@ -597,6 +608,10 @@ function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
       return <IconeDoLivro nome={ICONE_DO_PINO[identidade.pinKind]} />
     case 'zona':
       return <ConcealZoneIcon />
+    case 'agua':
+      return <AguaIcon />
+    case 'barranco':
+      return <BarrancoIcon />
     case 'several':
       return <VariosIcon />
   }
