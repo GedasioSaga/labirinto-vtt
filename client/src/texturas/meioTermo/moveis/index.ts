@@ -880,7 +880,7 @@ export function montarCena(d: DesenhoDoMovel): Cena {
   const w = d.casasW * G
   const h = d.casasH * G
   const cena: Cena = { partes: [], sombras: [] }
-  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0, tracado: d.tracado }
+  const contexto = { w, h, hw: w / 2, hh: h / 2, g: G, lado: d.lado, m: materiaisDoDesenho(d), peca: criarPecas(d.semente), forma: d.forma ?? 'retangular', curva: d.curva ?? 0, variante: d.variante ?? 0, giro: d.giro ?? 0, tracado: d.tracado, vista: d.vista }
   MONTADORES[d.tipo](contexto, cena)
   // O quarto de volta é pintado NAS DUAS VISTAS (achado V2 de 12/11/2026): a forma das sombras gira com a cena e o
   // deslocamento delas entra depois, na pintura, então a sombra cai sempre para baixo à direita. Na 3/4 é pintado

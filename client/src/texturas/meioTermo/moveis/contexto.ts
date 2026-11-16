@@ -218,6 +218,11 @@ export interface ContextoDoMovel {
   readonly giro: number
   /** Só o muro de fogo lê: o traço do mestre, em frações 0..1 da pegada (ausente = a reta pelo meio). */
   readonly tracado?: readonly PontoDoMuro[]
+  /**
+   * A vista pedida (ausente = de cima). Só quem desenha a própria 3/4 lê (o perfil `propria` de `tresQuartos.ts`):
+   * a montanha (16/11/2026), cuja 3/4 é o relevo projetado, que não sai de tampos empilhados.
+   */
+  readonly vista?: 'tres-quartos'
 }
 
 /** O que monta as peças de um tipo na cena. */

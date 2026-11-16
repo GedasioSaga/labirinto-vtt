@@ -123,10 +123,15 @@ export const montarTorreDoDragao: MontarMovel = (c, cena) => {
   const doDragao = (semente: number, mais: OpcoesDaPeca = {}): OpcoesDaPeca => ({ bisel: 2, contorno: 0.3, metal, textura: texDoDragao, semente, ...mais })
 
   // Cada tampo do dragão sai na 3/4 depois da torre inteira (a caixa vai além da frente dela), na ordem da lista.
+  // O tronco, as patas de trás e a cauda do fundo ficam ATRÁS das ameias da frente: saem depois do terraço e das ameias do fundo
+  // (que vão até 0,93 do raio da torre) e antes das da frente (0,96); por cima delas, a parede do tronco tapava
+  // uns 3 px do alto das ameias da frente.
+  const raioDaTorre = Math.min(pequena.hw, pequena.hh)
   let ordem = 0
-  const tampo = (forma: Forma, z: number, forca = 0): void => {
+  const tampo = (forma: Forma, z: number, forca = 0, atrasDasAmeias = false): void => {
     ordem += 1
-    S.push({ forma: esticadaParaAFrente(forma, B * (0.8 + 0.004 * ordem), c.giro), z, solta: true, forca })
+    const ate = atrasDasAmeias ? raioDaTorre * (0.94 + 0.0005 * ordem) : B * (0.8 + 0.004 * ordem)
+    S.push({ forma: esticadaParaAFrente(forma, ate, c.giro), z, solta: true, forca })
   }
 
   // ---------- a cauda: da raiz (por cima do parapeito de trás) à ponta, descendo por fora da parede ----------
@@ -139,8 +144,9 @@ export const montarTorreDoDragao: MontarMovel = (c, cena) => {
     const gomo = capsula(a[0], a[1], b[0], b[1], raio)
     // Desce só depois do parapeito: até lá a cauda está deitada nele.
     const z = t1 <= 0.25 ? zDaRaiz : zDaRaiz + (zDaPonta - zDaRaiz) * ((t1 - 0.25) / 0.75)
-    tampo(gomo, z, 0.24)
     const meio: Ponto = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    // Os gomos do fundo (a raiz no parapeito e a volta por trás) saem com o tronco, antes dele: depois, tapavam o lombo.
+    tampo(gomo, z, 0.24, meio[1] < 0)
     L.push(P(comMeioEm(gomo, meio[0], meio[1]), bronze, doDragao(18100 + i, { tom: 0.92 + 0.04 * hash(i, 2, 1810), bisel: raio * 0.8 })))
   }
   // A ponta em lança, deitada na direção da volta.
@@ -159,13 +165,13 @@ export const montarTorreDoDragao: MontarMovel = (c, cena) => {
     const [ax, ay] = pt(espelho([0.12, -0.08], lado))
     const [bx, by] = pt(espelho([0.26, -0.22], lado))
     const coxa = uniao(capsula(ax, ay, bx, by, f(0.065)), elipse(bx, by + f(0.03), f(0.06), f(0.045)))
-    tampo(coxa, zTerraco + 2 * e)
+    tampo(coxa, zTerraco + 2 * e, 0, true)
     L.push(P(comMeioEm(coxa, (ax + bx) / 2, (ay + by) / 2), bronze, doDragao(18130 + lado, { tom: 0.86 })))
   }
 
   // ---------- o tronco: uma pilha de cinco tampos, o de cima com a sombra ----------
   const tronco = elipse(0, f(0.02), f(0.19), f(0.3))
-  for (let k = 1; k <= 5; k += 1) tampo(tronco, zTerraco + k * e, k === 5 ? 0.3 : 0)
+  for (let k = 1; k <= 5; k += 1) tampo(tronco, zTerraco + k * e, k === 5 ? 0.3 : 0, true)
 
   // ---------- as asas abertas, um pouco abaixo do alto do tronco ----------
   const zDaAsa = zTerraco + 4 * e
