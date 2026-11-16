@@ -44,6 +44,7 @@ const NOUNS: Record<SelectionKind, string> = {
   prop: 'Objeto',
   drawing: 'Desenho',
   floor: 'Pedaço de chão',
+  carimbo: 'Carimbo',
 }
 const FEMININE: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['wall', 'region', 'stair', 'light'])
 

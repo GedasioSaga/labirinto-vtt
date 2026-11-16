@@ -251,6 +251,7 @@ export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
     ...area.props.map((id): SelectionItem => ({ kind: 'prop', id })),
     ...area.stairs.map((id): SelectionItem => ({ kind: 'stair', id })),
     ...area.drawings.map((id): SelectionItem => ({ kind: 'drawing', id })),
+    ...(area.carimbos ?? []).map((id): SelectionItem => ({ kind: 'carimbo', id })),
   ]
 }
 
@@ -268,6 +269,7 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
   const props: string[] = []
   const stairs: string[] = []
   const drawings: string[] = []
+  const carimbos: string[] = []
 
   for (const item of selection) {
     switch (item.kind) {
@@ -292,8 +294,12 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
       case 'drawing':
         drawings.push(item.id)
         break
+      case 'carimbo':
+        carimbos.push(item.id)
+        break
     }
   }
 
-  return { walls, regions, lights, tokens, props, stairs, drawings }
+  // Sem carimbo, sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
+  return { walls, regions, lights, tokens, props, stairs, drawings, ...(carimbos.length > 0 ? { carimbos } : {}) }
 }

@@ -154,6 +154,8 @@ import {
   nomeDoCarimbo,
   PREFIXO_IMPORTADO,
   semCarimboImportado,
+  semCarimbos,
+  carimboPorId,
   TAMANHO_DO_CARIMBO_MAX,
   TAMANHO_DO_CARIMBO_MIN,
   TAMANHO_DO_CARIMBO_PADRAO,
@@ -328,6 +330,9 @@ function camadaDaSelecao(map: MapData, selection: Selection): CamadaId | null {
       return daCamada('desenho', map.drawings.find((d) => d.id === selection.id))
     case 'floor':
       return daCamada('peca', map.floor.find((p) => p.id === selection.id))
+    case 'carimbo':
+      // Pelo índice: depois do Ctrl+Z de um laço de milhares, um `find` por item pesaria.
+      return daCamada('carimbo', carimboPorId(map.carimbos, selection.id))
     default:
       return null
   }
@@ -410,6 +415,10 @@ function cloneSelectedEntity(map: MapData, selection: Selection, offset: Offset)
       const entity = map.floor.find((p) => p.id === selection.id)
       return entity ? cloneEntity({ kind: 'floor', entity }, offset) : null
     }
+    case 'carimbo': {
+      const entity = map.carimbos?.find((c) => c.id === selection.id)
+      return entity ? cloneEntity({ kind: 'carimbo', entity }, offset) : null
+    }
   }
 }
 
@@ -430,6 +439,8 @@ function addClonedEntity(map: MapData, cloned: CloneableEntity): MapData {
     case 'stair': return mapFactory.addStair(map, cloned.entity)
     case 'drawing': return mapFactory.addDrawing(map, cloned.entity)
     case 'floor': return mapFactory.addFloorPiece(map, cloned.entity)
+    // Carimbo: a cena cheia (`TETO_DE_CARIMBOS`) não ganha a cópia.
+    case 'carimbo': return (map.carimbos?.length ?? 0) >= TETO_DE_CARIMBOS ? map : comCarimbos(map, [...(map.carimbos ?? []), cloned.entity])
   }
 }
 
@@ -2290,6 +2301,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // baixo), sem passar pelas actions com histórico próprio.
       withHistory((map) => {
         let next = map
+        // Carimbos aos milhares: juntos, um filtro só no fim (não um por item).
+        const carimbos = new Set<string>()
         for (const item of selection) {
           switch (item.kind) {
             case 'token': next = mapFactory.removeToken(next, item.id); break
@@ -2300,9 +2313,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
             case 'prop': next = mapFactory.removeProp(next, item.id); break
             case 'drawing': next = mapFactory.removeDrawing(next, item.id); break
             case 'floor': next = mapFactory.removeFloorPiece(next, item.id); break
+            case 'carimbo': carimbos.add(item.id); break
           }
         }
-        return next
+        return semCarimbos(next, carimbos)
       })
       set({ selection: EMPTY_SELECTION })
     },

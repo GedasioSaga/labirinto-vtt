@@ -68,6 +68,7 @@ const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto> = {
   prop: 'objeto',
   drawing: 'desenho',
   floor: 'peca',
+  carimbo: 'carimbo',
 }
 
 /** Os itens da seleção do editor (e o pino aberto, que mora fora dela) como refs de mover. */

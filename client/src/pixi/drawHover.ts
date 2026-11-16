@@ -62,6 +62,7 @@ import { contornoDaCercaCurva } from '../lib/cercaCurva'
 import { LIGHT_HIT_RADIUS, estimateTextWidth } from '../lib/selectionHitTest'
 import { STROKE_WEIGHT } from './constants'
 import { pieceBounds } from '../lib/floorSdf'
+import { caixaDoCarimbo } from '../lib/carimbos'
 import { stairSpiralCircle } from '../lib/stairs'
 import { resolveCameraScale } from './drawWalls'
 import { areaDoPino, type PinosNoToque } from '../lib/marcadorDeContinente'
@@ -195,6 +196,13 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: 
       const piece = map.floor.find((p) => p.id === target.id)
       if (!piece) return null
       const b = pieceBounds(piece)
+      return { shape: 'rect', x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY }
+    }
+    case 'carimbo': {
+      // A caixa do corpo: a mesma que o clique acha (`caixaDoCarimbo`).
+      const carimbo = map.carimbos?.find((c) => c.id === target.id)
+      if (!carimbo) return null
+      const b = caixaDoCarimbo(carimbo)
       return { shape: 'rect', x: b.minX, y: b.minY, w: b.maxX - b.minX, h: b.maxY - b.minY }
     }
     default:

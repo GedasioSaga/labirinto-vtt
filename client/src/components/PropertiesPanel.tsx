@@ -32,6 +32,7 @@ import { gradeDaParede } from './gradeDaParede'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { FichaDaPorta } from './livro/FichaDaPorta'
 import { FichaDoObjeto } from './livro/FichaDoObjeto'
+import { nomeDoTipoDeCarimbo, useCarimboSelecionado } from './livro/FichaDoCarimbo'
 import { FichaDoDesenho } from './livro/FichaDoDesenho'
 import { FichaDoTexto } from './livro/FichaDoTexto'
 import { FichaDaPecaDeChao } from './livro/FichaDaPecaDeChao'
@@ -509,7 +510,11 @@ export function PropertiesPanel({
   // Campos da região que moram no Avançado (fatia 3), em consts para o TS estreitar dentro do render prop.
   const { strokeJoin, onStrokeJoinChange, onSmoothRegion, strokeWidth, onStrokeWidthChange, onLinkWalls } = regionStyle
   // A faixa da seleção remonta quando o item muda (o menu aberto não passa de um item para o outro).
-  const selectedItem = selectedRegion ?? selectedToken ?? selectedWall ?? selectedProp ?? selectedLight ?? selectedStair ?? selectedTextLabel ?? selectedFloorPiece
+  // CARIMBO (Fase 2): lido da store aqui, sem passar por App.tsx.
+  const carimboSelecionado = useCarimboSelecionado()
+  const carimbosImportados = useMapStore((state) => state.map.carimbosImportados)
+  const nomeDoCarimboSelecionado = carimboSelecionado === null ? null : nomeDoTipoDeCarimbo(carimboSelecionado.tipo, carimbosImportados)
+  const selectedItem = selectedRegion ?? selectedToken ?? selectedWall ?? selectedProp ?? selectedLight ?? selectedStair ?? selectedTextLabel ?? selectedFloorPiece ?? carimboSelecionado
   const selectionKey = selection.selection === null ? '' : `${selection.selection.kind}:${selection.selection.count}:${selectedItem?.id ?? ''}`
   // "Oculto para jogadores" da região selecionada: vai para o bloco do Travado.
   const regionSecret = selectedRegion !== null && groups.has('playerVisibility') ? playerSecret : null
@@ -705,6 +710,7 @@ export function PropertiesPanel({
               stair: selectedStair,
               textLabel: selectedTextLabel,
               floorPiece: selectedFloorPiece,
+              nomeDoCarimbo: nomeDoCarimboSelecionado,
             })}
             token={selection.selection.count === 1 && selection.selection.kind === 'token' ? selectedToken : null}
             porta={portaSelecionada}

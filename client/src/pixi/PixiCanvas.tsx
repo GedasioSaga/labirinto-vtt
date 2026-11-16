@@ -72,6 +72,8 @@ import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo, soltarP
 import { passoDaPincelada, raioDoPincelDeTextura, type ResultadoDaTextura } from '../lib/texturas'
 import { createCarimbosRenderer } from './drawCarimbos'
 import {
+  carimboDestravado,
+  carimboPorId,
   criarSpray,
   idsDebaixoDaBorracha,
   raioDoSpray,
@@ -648,6 +650,7 @@ const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
   prop: { um: 'objeto', varios: 'objetos', feminino: false },
   drawing: { um: 'desenho', varios: 'desenhos', feminino: false },
   floor: { um: 'pedaço de chão', varios: 'pedaços de chão', feminino: false },
+  carimbo: { um: 'carimbo', varios: 'carimbos', feminino: false },
 }
 
 interface EntityLabel {
@@ -2888,9 +2891,11 @@ function PixiCanvasDoContexto({
         // itens (1 item já tem o próprio destaque; 0 não desenha nada).
         areaOutline: () => {
           const { map, selection } = sceneState()
+          // O CARIMBO sozinho também (Fase 2): ele não tem alça nem destaque próprio.
+          const comContorno = selection.length > 1 || selectionSingle(selection)?.kind === 'carimbo'
           drawAreaSelectionOutline(
             areaSelectionOutlineGraphics,
-            selection.length > 1 ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
+            comContorno ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null,
           )
         },
       })
@@ -4666,7 +4671,7 @@ function PixiCanvasDoContexto({
       const guideSearch = (moving: Partial<AreaSelection>): GuideBoxesOptions => {
         const selecionado = selectionToAreaSelection(useMapStore.getState().selection)
         // `?? []`: o gesto só diz o tipo do que anda; os outros tipos não têm nada.
-        const junto = (tipo: keyof AreaSelection): string[] => [...selecionado[tipo], ...(moving[tipo] ?? [])]
+        const junto = (tipo: keyof AreaSelection): string[] => [...(selecionado[tipo] ?? []), ...(moving[tipo] ?? [])]
         return {
           ...guideReach(),
           exclude: {
@@ -4677,6 +4682,7 @@ function PixiCanvasDoContexto({
             props: junto('props'),
             stairs: junto('stairs'),
             drawings: junto('drawings'),
+            carimbos: junto('carimbos'),
           },
         }
       }
@@ -5539,7 +5545,9 @@ function PixiCanvasDoContexto({
         // dia rodasse, contradiria a decisão de a borracha não apagar chão. O
         // `if` abaixo mantém a tabela exaustiva no tipo sem fingir que o caso
         // existe; chão é respondido pelo aviso no topo desta função.
-        const removers: Record<Exclude<SelectionKind, 'floor'>, (id: string) => void> = {
+        // Sem `carimbo` também: a cadeia da borracha (`findErasableAt`) não o
+        // acha — o carimbo sai pela borracha da ferramenta Carimbos ou pelo Delete.
+        const removers: Record<Exclude<SelectionKind, 'floor' | 'carimbo'>, (id: string) => void> = {
           token: useMapStore.getState().removeToken,
           wall: useMapStore.getState().removeWall,
           light: useMapStore.getState().removeLight,
@@ -5548,7 +5556,7 @@ function PixiCanvasDoContexto({
           prop: useMapStore.getState().removeProp,
           drawing: useMapStore.getState().removeDrawing,
         }
-        if (hit.kind === 'floor') return
+        if (hit.kind === 'floor' || hit.kind === 'carimbo') return
         removers[hit.kind](hit.id)
       }
 
@@ -7865,6 +7873,17 @@ function PixiCanvasDoContexto({
             startPieceDrag(event, hit.id, piece === undefined ? null : { kind: 'floor', entity: piece }, (id) => {
               bodyGuideDrag = startFloorGuideDrag(id, worldPoint)
             })
+          } else if (hit.kind === 'carimbo') {
+            // CARIMBO (Fase 2, 15/11/2026): anda pelo MESMO arrasto da seleção de
+            // vários (`moveSelectionLive`), um passo no Ctrl+Z ao soltar. O
+            // travado é selecionado (o cadeado está na ficha) mas não anda.
+            const carimbo = carimboPorId(map.carimbos, hit.id)
+            if (carimbo !== undefined && carimboDestravado(carimbo)) {
+              mode = 'dragging-area-selection'
+              areaSelectionDragBefore = map
+              segurarNoArrasto([])
+              bodyGuideDrag = startSelectionGuideDrag(worldPoint)
+            }
           } else if (hit.kind === 'drawing') {
             // Caça 12/11 (E2): desenho travado é selecionado (o interruptor está na ficha) mas não anda.
             const drawing = map.drawings.find((d) => d.id === hit.id && canInteract(d))

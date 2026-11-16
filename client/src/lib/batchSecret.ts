@@ -28,6 +28,8 @@ function secretKindOf(kind: SelectionKind): SecretKind | null {
     case 'wall':
     case 'light':
     case 'floor':
+    // O carimbo vai ao jogador pelo recorte do lugar (`carimbosParaJogador`), sem "oculto" próprio.
+    case 'carimbo':
       return null
   }
 }

@@ -14,7 +14,7 @@ import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorr
 import type { SelectionSummary } from '../SelectionControls'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, deleteSelectionLabel, rotuloAbrirParaOCorredor } from '../labels'
 import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
-import { BrushIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
+import { BrushIcon, CarimbosIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
 import { Balao } from '../grimorio/Balao'
 import { Botao } from '../grimorio/Botao'
 import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
@@ -37,6 +37,7 @@ export type SelectionIconKind =
   | 'text'
   | 'drawing'
   | 'floor'
+  | 'carimbo'
   | 'pin'
   | 'zona'
   | 'several'
@@ -77,6 +78,8 @@ export interface SelectedItems {
   stair: Stair | null
   textLabel: Extract<Drawing, { kind: 'text' }> | null
   floorPiece: FloorPiece | null
+  /** CARIMBO (Fase 2): o nome que a biblioteca dá ao tipo dele ("Pinheiro"); ausente ou `null` = sem nome. */
+  nomeDoCarimbo?: string | null
 }
 
 /** Texto vazio (sala sem nome, rótulo em branco) não é nome: a cabeça cai no tipo. */
@@ -119,6 +122,9 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
         : { icon: 'drawing', type: 'Desenho', name: null }
     case 'floor':
       return { icon: 'floor', type: 'Peça de chão', name: null }
+    case 'carimbo':
+      // O tipo repete o botão da barra ("Carimbos"), no singular; o nome é o da biblioteca.
+      return { icon: 'carimbo', type: 'Carimbo', name: nameOrNull(items.nomeDoCarimbo ?? undefined) }
   }
 }
 
@@ -585,6 +591,8 @@ function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
       return <BrushIcon />
     case 'floor':
       return <FloorIcon />
+    case 'carimbo':
+      return <CarimbosIcon />
     case 'pin':
       return <IconeDoLivro nome={ICONE_DO_PINO[identidade.pinKind]} />
     case 'zona':

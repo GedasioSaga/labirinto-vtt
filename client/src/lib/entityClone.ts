@@ -1,5 +1,6 @@
-import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin } from '../types/map'
+import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo } from '../types/map'
 import type { SelectionKind } from '../types/tools'
+import { novoIdDeCarimbo } from './carimbos'
 import { moveBlocos } from './floorBlocks'
 import { isStairPin } from './stairTravel'
 import { withoutCarrier } from './carry'
@@ -322,6 +323,12 @@ interface EntityByKind {
   stair: Stair
   drawing: Drawing
   floor: FloorPiece
+  carimbo: Carimbo
+}
+
+/** Carimbo (Fase 2): id curto de carimbo (`novoIdDeCarimbo`), que vai ao jogador a cada mensagem. */
+export function cloneCarimbo(carimbo: Carimbo, offset: Offset): Carimbo {
+  return { ...carimbo, id: novoIdDeCarimbo(), x: carimbo.x + offset.dx, y: carimbo.y + offset.dy }
 }
 
 /**
@@ -355,6 +362,8 @@ export function cloneEntity(input: CloneableEntity, offset: Offset): CloneableEn
       return { kind: 'drawing', entity: cloneDrawing(input.entity, offset) }
     case 'floor':
       return { kind: 'floor', entity: cloneFloorPiece(input.entity, offset) }
+    case 'carimbo':
+      return { kind: 'carimbo', entity: cloneCarimbo(input.entity, offset) }
     default:
       return assertNeverSelectionKind(input)
   }

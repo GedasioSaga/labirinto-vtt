@@ -3135,6 +3135,12 @@ export interface Carimbo extends NoPiso, NaCamada {
   y: number
   tamanho: number
   giro: number
+  /**
+   * CARIMBO EDITÁVEL (Fase 2, 15/11/2026): o cadeado do item, como o de
+   * `Lockable`. Só existe ligado (`true`); ausente = destravado, e o mapa de
+   * antes salva igual.
+   */
+  locked?: true
 }
 
 /** Um carimbo que o mestre trouxe de uma imagem dele (`lib/carimboImportado.ts`). */
