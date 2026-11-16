@@ -55,6 +55,7 @@ import { mobiliaParaJogador, vistaDosMoveisParaJogador } from './mobilia'
 import { amostrasAoLongoDoMuro, amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
 import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
+import { abrivelParaJogador } from './conteudoDoObjeto'
 import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
 import { keyForPin } from './doorKey'
@@ -4741,6 +4742,8 @@ function recorteDoGrupo(
     // DESAFIOS: a lista é do mestre (prêmio, porta, o pino de antes). O selo que o
     // jogador vê sai pela lista dos pinos, com a regra deles (`pinosDosDesafios`).
     desafios: undefined,
+    // ARMADILHAS > Jumpscare: regra do mestre; o jogador só sabe no desfecho de uma armadilha.
+    semJumpscare: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // NUVENS: o céu delas sai SÓ do chão que este recorte manda
@@ -6181,6 +6184,10 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   // TAPA A VISÃO (construções, 12/11/2026): a luz e a "Visão" da batalha na tela dele são contadas com o recorte,
   // com a mesma escolha do mestre. Só booleano; da construção que ele já recebe, não conta nada além disso.
   if (typeof prop.tapaVisao === 'boolean') forPlayer.tapaVisao = prop.tapaVisao
+  // BAÚ, CAIXA E BARRIL (15/11/2026): só se abre com minigame ("fechado") ou já foi aberto. O conteúdo
+  // (itens, moedas, armadilha) nunca vai: o jogador só descobre ao vencer, pelo desfecho do host.
+  const abrivel = abrivelParaJogador(prop)
+  if (abrivel !== undefined) forPlayer.abrivel = abrivel
   return forPlayer
 }
 

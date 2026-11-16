@@ -15,6 +15,8 @@ import { materiaisAEscolher, materiaisDaPeca, nomeDaOpcao } from '../MaterialDaP
 import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
+import { ConteudoDoObjetoFicha } from './ConteudoDoObjetoFicha'
+import { conteudoDe, resumoDoConteudo } from '../../lib/conteudoDoObjeto'
 import './fichaDoItem.css'
 
 /*
@@ -94,6 +96,7 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
   const item = ehItem && itemNoChao !== undefined ? prop.item : undefined
   const movel = item === undefined && prop.mobilia !== undefined
   const titulo = ehItem ? 'Imagem no chão' : 'Objeto'
+  const conteudoDoObjeto = ehItem ? null : conteudoDe(prop)
   return (
     <section className="lb-ficha-do-objeto">
       {/* O título do bloco de antes, só para o leitor de tela: a cabeça já diz o tipo. */}
@@ -110,6 +113,12 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
         </Essencial>
       )}
       <Fichas>
+        {/* CONTEÚDO (baú, caixa, barril e os destroços deles, 15/11/2026): nasce aberta, como no protótipo. */}
+        {conteudoDoObjeto !== null && (
+          <FichaDoObjetoLembrada id="conteudo" titulo="Conteúdo" icone="joia" padrao resumo={resumoDoConteudo(conteudoDoObjeto)}>
+            <ConteudoDoObjetoFicha prop={prop} />
+          </FichaDoObjetoLembrada>
+        )}
         {movel && aparenciaTemEscolha(prop) && (
           <FichaDoObjetoLembrada id="aparencia" titulo="Aparência" icone="imagem" padrao={false} resumo={resumoDaAparencia(prop)}>
             <MobiliaControls prop={prop} {...mobilia} parte="aparencia" />

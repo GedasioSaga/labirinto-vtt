@@ -1058,7 +1058,7 @@ interface MapStoreState {
   moveProp: (id: string, x: number, y: number) => void
   /** Mesmo contrato de `updateToken`, para Prop. `playerLabel`/`playerImage`
    *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
-  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item'>>) => void
+  updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item' | 'conteudo' | 'mobilia'>>) => void
   /**
    * ITEM NO MAPA: troca a forma do item `id` — imagem no chão ⇄ pino de item
    * (`lib/itemNoMapa.ts`) —, com histórico, e a seleção segue o item na forma
@@ -1562,6 +1562,8 @@ interface MapStoreState {
    * `undefined` = "Não mudar". Com histórico; escolher o que já vale não cria passo.
    */
   setTamanhoDaFichaAoEntrar: (tamanho: number | undefined) => void
+  /** ARMADILHAS > Jumpscare (Configurações do mapa): `false` desliga o susto da cobra neste mapa. Com Ctrl+Z. */
+  setJumpscareDoMapa: (ligado: boolean) => void
   /**
    * "Aplicar às fichas desta cena (N)": toda ficha da cena aberta no padrão
    * dela, num passo só do Ctrl+Z. Devolve quantas mudaram (0 = nada mudou,
@@ -2740,9 +2742,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const next = alternarCondicaoPropria(get().map, id, condicao)
       if (next !== get().map) withHistory(() => next)
     },
+    mudarCondicoesDaFicha: (id, mudar) => passoSeMudou((map) => mudarFichaNoMapa(map, id, mudar)),
     trocarCondicaoPropriaNasFichas: (condicao) => {
       const next = trocarCondicaoPropriaNasFichas(get().map, condicao)
-    mudarCondicoesDaFicha: (id, mudar) => passoSeMudou((map) => mudarFichaNoMapa(map, id, mudar)),
       if (next !== get().map) withHistory(() => next)
     },
     tirarCondicaoPropriaDasFichas: (condicaoId) => {
@@ -3587,6 +3589,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setSceneOffFloor: (offFloor) => passoSeMudou((map) => mapFactory.setSceneOffFloor(map, offFloor)),
     setFaceRangeCells: (cells) => withHistory((map) => mapFactory.setFaceRangeCells(map, cells)),
     setTamanhoDaFichaAoEntrar: (tamanho) => passoSeMudou((map) => comTamanhoAoEntrar(map, tamanho)),
+    setJumpscareDoMapa: (ligado) =>
+      passoSeMudou((map) => {
+        if (ligado === (map.semJumpscare !== true)) return map
+        if (!ligado) return { ...map, semJumpscare: true }
+        const { semJumpscare: _desligado, ...semCampo } = map
+        return semCampo
+      }),
     aplicarTamanhoDaCenaAsFichas: () => {
       const quantas = fichasForaDoPadrao(get().map)
       if (quantas > 0) withHistory(comFichasNoPadrao)

@@ -1789,6 +1789,54 @@ export interface TokenContract {
   visao: boolean
 }
 
+/** A armadilha de um baú, caixa ou barril (pedido de 15/11/2026): surpresa total, só dispara ao abrir. */
+export type TipoDeArmadilha = 'cobra' | 'aranha'
+
+/**
+ * A ARMADILHA gravada no objeto, já com os números (o padrão do tipo só
+ * preenche; o mestre ajusta). `efeito` é o NOME da pastilha (`lib/condicaoPorNome.ts`):
+ * a cobra põe "Envenenado" (perde `porVez` de vida por turno), a aranha "Lento".
+ */
+export interface ArmadilhaDoObjeto {
+  tipo: TipoDeArmadilha
+  /** Vida tirada na picada, no ato. */
+  dano: number
+  efeito: string
+  /** Turnos do efeito (o prazo da pastilha, `Token.prazosDasCondicoes`). */
+  turnos: number
+  /** Vida tirada a cada turno do efeito; 0 = só conta os turnos (Lento). */
+  porVez: number
+}
+
+/** Um item do Acervo dentro do objeto: a cópia do que vai para a mochila (`itemParaDar`, com o `itemId`) e quantos. */
+export interface ItemNoConteudo {
+  item: PinItem
+  quantidade: number
+}
+
+/** Quem abriu (ou quebrou) o objeto, e quando. Ausente = fechado. */
+export interface AberturaDoObjeto {
+  /** O nome de quem abriu, para a ficha e a página Jogos do mestre. */
+  por: string
+  /** Quando, em ms desde 1970 no relógio do mestre. */
+  em: number
+  /** A caixa e o barril quebrados viram destroços (`mobilia: 'destrocosDeMadeira'`): o tipo de antes, para o "Fechar e repor". */
+  quebradoDe?: 'caixa' | 'barril'
+}
+
+/**
+ * CONTEÚDO de baú, caixa e barril (Fase C do pedido de 15/11/2026): itens do
+ * Acervo, moedas e a armadilha. Ausente = vazio (o objeto se abre do mesmo
+ * jeito, sem nada dentro); sem linha de migração. NUNCA vai ao jogador: o
+ * recorte (`lib/fogFilter.ts`) leva só `abrivel`. Regras em `lib/conteudoDoObjeto.ts`.
+ */
+export interface ConteudoDoObjeto {
+  itens: ItemNoConteudo[]
+  moedas: number
+  armadilha: ArmadilhaDoObjeto | null
+  aberto?: AberturaDoObjeto
+}
+
 export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   id: string
   src: string
@@ -1797,6 +1845,14 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   width: number
   height: number
   linkedMapPath: string | null
+  /** CONTEÚDO do baú, da caixa e do barril (`ConteudoDoObjeto`). Só do mestre: nunca sai no recorte. */
+  conteudo?: ConteudoDoObjeto
+  /**
+   * Campo de FIO, só no recorte do jogador: o objeto se abre com um minigame
+   * (`'fechado'`) ou já foi aberto ou quebrado (`'aberto'`). Nada do que há
+   * dentro. `deserializeMap` o descarta se um arquivo trouxer.
+   */
+  abrivel?: 'fechado' | 'aberto'
   /** ÚNICO override de camada do schema. 'objetos' vs 'decoracao' é a
    *  única distinção que o tipo da entidade não deriva sozinho.
    *  undefined = 'objetos'. */
@@ -2530,6 +2586,13 @@ export interface MapData {
    * (`lib/mapFile.ts`). NUNCA sai no recorte do jogador (`lib/fogFilter.ts`).
    */
   desafios?: Desafio[]
+  /**
+   * ARMADILHAS > Jumpscare (Configurações do mapa, 15/11/2026): `true` = o
+   * mestre desligou o susto da cobra neste mapa (o jogador vê a imagem parada,
+   * com o som). Ausente = ligado, o padrão. Só do mestre; o host manda ao
+   * jogador só no desfecho de uma armadilha.
+   */
+  semJumpscare?: true
   /** Deslocamento da linha "0,0" da grade em relação à origem da imagem de
    *  fundo, em px de mundo (F3, "alinhar grade à imagem" — lib/gridAlign.ts).
    *  `undefined` === {x:0, y:0} (aparência idêntica à de hoje) — sem linha de

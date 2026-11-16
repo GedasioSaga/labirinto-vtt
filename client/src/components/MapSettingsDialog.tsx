@@ -15,6 +15,7 @@ import { Dialogo } from './grimorio/Dialogo'
 import { NavegacaoVertical, type SecaoDaNavegacao } from './grimorio/NavegacaoVertical'
 import { IconeDoLivro } from './livro/icones'
 import { SistemaDeRpgDoMapa } from './SistemaDeRpgControls'
+import { ArmadilhasDoMapa } from './ArmadilhasDoMapa'
 import { VistaDosMoveisDoMapa } from './VistaDosMoveisControls'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { FEATURES } from '../lib/features'
@@ -104,6 +105,8 @@ export function MapSettingsDialog({
   // VISTA DOS MÓVEIS (Meio-Termo): o padrão do mapa inteiro; a de cada objeto fica na ficha dele.
   // Só com a chave de obra: sem ela a vista não desenha nada, e controle sem efeito não entra.
   if (meioTermoLigado()) secoes.push({ id: 'moveis', rotulo: 'Móveis', conteudo: <VistaDosMoveisDoMapa /> })
+  // ARMADILHAS de baú, caixa e barril (15/11/2026): o Jumpscare da cobra, por mapa.
+  secoes.push({ id: 'armadilhas', rotulo: 'Armadilhas', conteudo: <ArmadilhasDoMapa /> })
   // Vale para a mesa inteira, mapa solto incluído: a grade de sistemas abre por cima desta janela.
   secoes.push({ id: 'sistema', rotulo: 'Sistema de RPG', conteudo: <SistemaDeRpgDoMapa /> })
 

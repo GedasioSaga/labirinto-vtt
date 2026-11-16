@@ -114,6 +114,7 @@ import { fichaComFormaDoArquivo } from './formaVisivel'
 import { perigosFromFile } from './perigo'
 import { lerVistaDosMoveis, propMobiliaFromFile } from './mobilia'
 import { lerBarraPassagem, lerTapaVisao } from './obstaculosDeObjeto'
+import { propComConteudoDoArquivo } from './conteudoDoObjeto'
 import { readPinLeverDoor } from './lever'
 import { readAreaTriggers } from './areaTriggers'
 import { readArrivalText } from './arrivalText'
@@ -1069,7 +1070,9 @@ function deserializeMapFields(json: string): MapData {
     // depois do tipo e do item, que decidem o padrão).
     props: entityList(parsed.props).map((p) =>
       // TAPA A VISÃO (`tapaVisao`, construções de 12/11/2026): a mesma regra, só construção e só o que difere do padrão.
-      lerTapaVisao(lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null }))))),
+      // CONTEÚDO de baú, caixa e barril (15/11/2026): novo e opcional, lido depois do tipo do móvel (que decide se vale);
+      // `abrivel` é campo de fio e sai (`lib/conteudoDoObjeto.ts`).
+      propComConteudoDoArquivo(lerTapaVisao(lerBarraPassagem(propMobiliaFromFile(readPropItem(readPropPlayerLook({ ...p, linkedMapPath: p.linkedMapPath ?? null })))))),
     ),
     // TRANSIÇÃO ESPECIAL da escada: mesma regra do pino de viagem.
     stairs: entityList(parsed.stairs).map((s) => semCamadaTorta({ ...s, transicao: parseTransicao(s.transicao) })),
@@ -1132,6 +1135,8 @@ function deserializeMapFields(json: string): MapData {
     // DESAFIOS: campo NOVO e OPCIONAL (ausente continua ausente). O pino ▷ de
     // mapa antigo vira desafio logo depois, em `deserializeMap`.
     ...desafiosDoArquivo(parsed.desafios),
+    // ARMADILHAS > Jumpscare: só o `true` (o mestre desligou) é gravado; o resto é o padrão, ligado.
+    ...(parsed.semJumpscare === true ? { semJumpscare: true as const } : {}),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: camadasDoArquivo(parsed.hiddenLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),
