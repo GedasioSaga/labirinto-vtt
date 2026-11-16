@@ -4,10 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FichaDoPino, type FichaDoPinoProps } from './FichaDoPino'
 
 /**
- * O "Tipo do pino" com o MINIGAME: a opção aparece por último, com o controle
- * desenhado (o Tipo é só de ícone; o nome vai no balão e no leitor de tela), e
- * escolhê-la avisa o painel. Aberto como minigame, a ficha não oferece item nem
- * loja no "+ Adicionar ao pino" (o desafio não vai para a mochila nem vende).
+ * O "Tipo do pino" SEM o MINIGAME (15/11/2026): o minigame virou desafio, com
+ * página própria (Jogos) e selo no mapa (`lib/desafios.ts`), e o Tipo não o
+ * oferece mais a pino nenhum. Escolher um tipo continua avisando o painel. O
+ * pino ▷ de mapa antigo que ainda abra a ficha (antes da migração) mostra o
+ * título dele, não marca tipo falso e não oferece item nem loja no "+ Adicionar
+ * ao pino" (o desafio não vai para a mochila nem vende).
  */
 
 let container: HTMLDivElement
@@ -62,12 +64,16 @@ function oferecidos(): string[] {
   return Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent ?? '')
 }
 
+/** O nome de cada opção do Tipo: o do balão (só de ícone) ou o texto. */
+function nomesDasOpcoes(): string[] {
+  return opcoes().map((b) => b.getAttribute('aria-label') ?? b.textContent ?? '')
+}
+
 describe('FichaDoPino: tipo minigame', () => {
-  it('o minigame é a última opção, com o controle desenhado', () => {
+  it('o Tipo não oferece o minigame: a última opção é a Alavanca', () => {
     render({})
-    const ultima = opcoes().at(-1)
-    expect(ultima?.getAttribute('aria-label')).toBe('Minigame')
-    expect(ultima?.querySelector('svg')).not.toBeNull()
+    expect(nomesDasOpcoes()).not.toContain('Minigame')
+    expect(nomesDasOpcoes().at(-1)).toBe('Alavanca')
   })
 
   it('escolher a opção avisa o painel com o tipo novo', () => {
@@ -76,10 +82,11 @@ describe('FichaDoPino: tipo minigame', () => {
     const ultima = opcoes().at(-1)
     if (ultima === undefined) throw new Error('sem opções no Tipo do pino')
     act(() => ultima.click())
-    expect(onKindChange).toHaveBeenCalledWith('minigame')
+    expect(onKindChange).toHaveBeenCalledWith('alavanca')
+    expect(onKindChange).not.toHaveBeenCalledWith('minigame')
   })
 
-  it('aberto como minigame: título, opção marcada, sem item e sem loja', () => {
+  it('pino ▷ de antes aberto na ficha: título, nenhum tipo falso marcado, sem item e sem loja', () => {
     const comItemELoja: Partial<FichaDoPinoProps> = {
       item: { value: null, onChange: () => {}, onTrocarForma: () => {} },
       loja: { pinId: 'm', loja: null, onChange: () => {} },
@@ -92,7 +99,7 @@ describe('FichaDoPino: tipo minigame', () => {
 
     render({ ...comItemELoja, kind: 'minigame' })
     expect(container.querySelector('h2')?.textContent).toBe('Minigame')
-    expect(opcoes().find((b) => b.getAttribute('aria-checked') === 'true')?.getAttribute('aria-label')).toBe('Minigame')
+    expect(opcoes().filter((b) => b.getAttribute('aria-checked') === 'true')).toEqual([])
     const noMinigame = oferecidos()
     expect(noMinigame.some((item) => item.includes('Item pegável'))).toBe(false)
     expect(noMinigame.some((item) => item.includes('Loja com preços'))).toBe(false)

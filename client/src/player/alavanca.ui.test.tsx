@@ -131,9 +131,10 @@ describe('telas da alavanca', () => {
 
   it('painel: a alavanca é um dos tipos do pino', () => {
     act(() => root.render(<FichaDoPino {...painel(null)} />))
-    // O nome de cada tipo: no aria-label os só de ícone ("!", "?", minigame), no texto Viagem e Alavanca.
+    // O nome de cada tipo: no aria-label os só de ícone ("!", "?"), no texto Viagem e Alavanca. O minigame
+    // saiu do Tipo em 15/11/2026 (virou desafio, `lib/desafios.ts`).
     const radios = [...container.querySelectorAll('[role="radiogroup"][aria-label="Tipo do pino"] [role="radio"]')].map((r) => r.getAttribute('aria-label') ?? r.textContent)
     expect(radios).toContain('Alavanca')
-    expect(radios.length).toBe(5)
+    expect(radios.length).toBe(4)
   })
 })

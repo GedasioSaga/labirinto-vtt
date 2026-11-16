@@ -1,6 +1,7 @@
 import { act, useState, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { meioTermoLigado } from '../lib/estiloDoMapa'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { SceneListItem } from '../stores/adventureStore'
 import { MapSettingsDialog, type MapSettingsProps } from './MapSettingsDialog'
@@ -203,7 +204,9 @@ describe('as quatro janelas na casca do Grimório', () => {
   it('Configurações do mapa: as seções de antes, na mesma ordem, cada uma ligada ao seu trecho', () => {
     const aberta = abrir(JANELAS[0].abrir)
     const secoes = Array.from(aberta.querySelectorAll('nav.gr-nav-vertical button'))
-    expect(secoes.map((secao) => secao.textContent)).toEqual(['Grade', 'Alinhar à imagem', 'Medição', 'Tamanho do mapa', 'Sistema de RPG'])
+    // Móveis (a vista do Meio-Termo) só com a chave de obra ligada; Armadilhas (15/11/2026), o susto da cobra por mapa.
+    const moveis = meioTermoLigado() ? ['Móveis'] : []
+    expect(secoes.map((secao) => secao.textContent)).toEqual(['Grade', 'Alinhar à imagem', 'Medição', 'Tamanho do mapa', ...moveis, 'Armadilhas', 'Sistema de RPG'])
     for (const secao of secoes) expect(document.getElementById(secao.getAttribute('aria-controls') ?? '')).not.toBeNull()
   })
 

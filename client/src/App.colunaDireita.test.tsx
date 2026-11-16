@@ -103,11 +103,12 @@ describe('App: livro da mesa', () => {
     expect(livro()).not.toBeNull()
     expect(botao('Cenas', false, livro() ?? container)).toBeUndefined()
     const abas = Array.from(livro()?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)
-    expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo'])
-    // Navegador puro: sem sala, o livro da mesa só tem os marcadores Cenas, Batalha (F2) e Sons e nenhum topo da Sala.
+    // Jogos (15/11/2026): a página dos desafios e dos baús, caixas e barris (`components/livro/PaginaJogos`).
+    expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo', 'Jogos'])
+    // Navegador puro: sem sala, o livro da mesa só tem os marcadores Cenas, Batalha (F2), Sons e Cutscenes e nenhum topo da Sala.
     // Só a lista de marcadores: a página Sons tem abas próprias (Músicas e Efeitos sonoros).
     const marcadores = direita?.querySelectorAll('[role="tablist"][aria-label="Páginas do livro da mesa"] [role="tab"]')
-    expect(Array.from(marcadores ?? []).map((aba) => aba.textContent)).toEqual(['Cenas', 'Batalha', 'Sons'])
+    expect(Array.from(marcadores ?? []).map((aba) => aba.textContent)).toEqual(['Cenas', 'Batalha', 'Sons', 'Cutscenes'])
     expect(direita?.querySelector('.gr-pagina__topo')).toBeNull()
     expect(editor()?.dataset.coldir).toBe('aberta')
   })

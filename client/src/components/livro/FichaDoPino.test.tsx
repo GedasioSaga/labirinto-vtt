@@ -108,7 +108,8 @@ describe('FichaDoPino: essencial', () => {
     expect(ficha?.querySelector('h2, h3')?.textContent).toBe('Pino')
     const tipo = container.querySelector('[role="radiogroup"][aria-label="Tipo do pino"]')
     const radios = [...(tipo?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])]
-    expect(radios.map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Exclamação (!)', 'Interrogação (?)', 'Viagem', 'Alavanca', 'Minigame'])
+    // O minigame saiu do Tipo em 15/11/2026: virou desafio, na página Jogos (`lib/pins.ts`, `PIN_KIND_DO_NOVO_PINO`).
+    expect(radios.map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Exclamação (!)', 'Interrogação (?)', 'Viagem', 'Alavanca'])
     expect(radios[0].getAttribute('aria-checked')).toBe('true')
     clicar(radios[1])
     expect(props.onKindChange).toHaveBeenCalledWith('interrogacao')
@@ -134,10 +135,10 @@ describe('FichaDoPino: essencial', () => {
 })
 
 describe('FichaDoPino: a forma do protótipo', () => {
-  it('Tipo: "!", "?" e o minigame só de ícone; Viagem e Alavanca em texto', () => {
+  it('Tipo: "!" e "?" só de ícone; Viagem e Alavanca em texto', () => {
     montar(<FichaDoPino {...propsDoPino('exclamacao', 'p-forma-tipo')} />)
     const radios = [...container.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Tipo do pino"] [role="radio"]')]
-    expect(radios.map((r) => r.classList.contains('gr-seg__op--ic'))).toEqual([true, true, false, false, true])
+    expect(radios.map((r) => r.classList.contains('gr-seg__op--ic'))).toEqual([true, true, false, false])
     expect(radios[2].getAttribute('aria-label')).toBeNull()
     expect(radios[2].textContent).toBe('Viagem')
     expect(radios[3].textContent).toBe('Alavanca')
