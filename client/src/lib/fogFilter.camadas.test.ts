@@ -415,7 +415,23 @@ function semCamposDaCaca(view: unknown): Record<string, unknown> {
   if (!ehRegistro(resto.map)) throw new Error('recorte sem mapa')
   const { offFloor, ...mapaDeAntes } = resto.map
   expect(['free', 'blocked'], 'offFloor').toContain(offFloor)
-  return { ...resto, map: mapaDeAntes, plan: planoDeAntes }
+  // BAÚ, CAIXA E BARRIL (15/11/2026): o objeto que se abre leva `abrivel: 'fechado'` (os congelados não têm conteúdo,
+  // nenhum aberto); o resto do objeto é o de antes. Conferido e tirado do mapa e da memória da planta.
+  const plano: Record<string, unknown> = { ...planoDeAntes }
+  if (ehRegistro(plano.props) && Array.isArray(plano.props.mapa)) {
+    plano.props = { ...plano.props, mapa: plano.props.mapa.map((par: unknown) => (Array.isArray(par) ? [par[0], semAbrivel(par[1])] : par)) }
+  }
+  const props: unknown[] = Array.isArray(mapaDeAntes.props) ? mapaDeAntes.props : []
+  return { ...resto, map: { ...mapaDeAntes, props: props.map(semAbrivel) }, plan: plano }
+}
+
+/** O objeto do recorte sem `abrivel`, conferido antes: só baú, caixa e barril o têm, e fechados. */
+function semAbrivel(prop: unknown): unknown {
+  if (!ehRegistro(prop)) return prop
+  const { abrivel, ...resto } = prop
+  const abre = prop.mobilia === 'bau' || prop.mobilia === 'caixa' || prop.mobilia === 'barril'
+  expect(abrivel, `abrivel de ${String(prop.id)}`).toBe(abre ? 'fechado' : undefined)
+  return resto
 }
 
 /** O recorte sem a lista `chave` no mapa e na memória da planta. */
