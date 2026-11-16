@@ -449,12 +449,25 @@ export function paredesParaAndarDoJogador(
  * escondido (`hidden`) ou secreto continua sem barrar (`objetoBarraPassagem`):
  * o jogador veria o NPC desviar do nada.
  *
+ * O ABISMO do piso também segura (16/11/2026, `lib/abismo.ts`), todo ele: é um
+ * buraco, e o NPC não anda por cima dele nem quando o jogador não o vê.
+ *
  * `de` é onde o NPC está: o objeto que o contém fica de fora (NUNCA PRENDER: a
- * Vendedora dentro da barraca sai). As mesmas entradas devolvem o MESMO array.
+ * Vendedora dentro da barraca sai), e o abismo em que ele caiu também (ele sobe
+ * para fora). As mesmas entradas devolvem o MESMO array.
  */
-export function paredesDoNpc(walls: Wall[], props: readonly Prop[], grid: number, piso: number, de: Point, carimbos?: readonly Carimbo[]): Wall[] {
+export function paredesDoNpc(
+  walls: Wall[],
+  props: readonly Prop[],
+  grid: number,
+  piso: number,
+  de: Point,
+  carimbos?: readonly Carimbo[],
+  abismos?: readonly Abismo[],
+): Wall[] {
   // O carimbo com "Barra a passagem" (Fase 2) segura o NPC também: a mesma árvore não pode barrar só o jogador.
-  const base = comParedesDosCarimbos(walls, carimbos, piso, de)
+  // A beira do abismo, idem: a rota que o jogador não pode fazer o NPC também não faz.
+  const base = comParedesDosAbismos(comParedesDosCarimbos(walls, carimbos, piso, de), abismos, piso, de)
   const obstaculos = obstaculosDeObjeto(props, grid, piso)
   if (obstaculos.length === 0) return base
   return juntarParedes(base, obstaculos, obstaculos.filter((o) => !pontoNoObstaculo(o, de)))

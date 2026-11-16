@@ -8,7 +8,8 @@ import type { MapaDoCaminho } from './malha'
 
 /**
  * O que o motor precisa de uma cena para mover a ficha `tokenId`: as paredes
- * do piso dela (com as dos objetos que barram, `paredesDoNpc`), o raio dela e
+ * do piso dela (com as dos objetos e carimbos que barram e as beiras dos
+ * abismos, `paredesDoNpc`), o raio dela e
  * as outras fichas do mesmo piso. Ficha de outro piso não atrapalha, parede de
  * outro piso não barra.
  */
@@ -39,10 +40,11 @@ export function entradaDaFicha(map: MapData, tokenId: string, posicoes?: Readonl
     fichas.push({ id: t.id, x: onde.x, y: onde.y, raio: raioDaFicha(t, map.grid) })
   }
   // OBJETO QUE BARRA (decisão 7 do mestre): o NPC contorna o moinho e a torre; o
-  // objeto em que ele está agora fica de fora, para ele nunca ficar preso.
+  // objeto em que ele está agora fica de fora, para ele nunca ficar preso. O
+  // ABISMO (16/11/2026) entra igual: o NPC dá a volta na boca.
   const aqui = posicoes?.get(tokenId) ?? token
   return {
-    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui, map.carimbos), grid: map.grid, width: map.width, height: map.height },
+    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui, map.carimbos, map.abismos), grid: map.grid, width: map.width, height: map.height },
     raio: raioDaFicha(token, map.grid),
     fichas,
   }
