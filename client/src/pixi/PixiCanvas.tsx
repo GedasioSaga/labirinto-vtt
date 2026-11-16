@@ -5516,6 +5516,23 @@ function PixiCanvasDoContexto({
           return
         }
         const hit = findErasableAt(hitTestMap(map), point, pinosNoToque(map))
+        // FASE 4 — A BORRACHA GERAL NO TERRENO: o carimbo e o risco do Barranco
+        // estão por cima da sala na tela, então ganham dela; a água (área
+        // grande, por baixo) só onde não há sala nem nada apagável. Camada
+        // travada é barreira, como no resto. No modo "Só uma parte" só o
+        // carimbo sai (pequeno, inteiro): a água e o risco esperam o modo
+        // "Objeto inteiro", ou a borracha da ferramenta deles.
+        if (hit === null || hit.kind === 'region') {
+          const terreno = terrenoNoPonto(doPisoEmEdicao(map), pisoAtivo, point, hit === null)
+          if (terreno !== null && terreno.travada !== null) {
+            avisarCamadaTravada(terreno.travada)
+            return
+          }
+          if (terreno !== null && (eraseMode !== 'parte' || terreno.acerto.kind === 'carimbo')) {
+            useMapStore.getState().apagarItemDoTerreno(terreno.acerto)
+            return
+          }
+        }
         if (!hit) {
           // Nada apagável aqui, mas pode haver CHÃO: `findErasableAt` nunca
           // devolve peça de chão, que só vira alvo por `floorHitAt`. A

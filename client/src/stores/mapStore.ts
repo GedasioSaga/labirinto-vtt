@@ -1551,6 +1551,13 @@ interface MapStoreState {
   mudarAgua: (id: string, mudanca: Partial<Omit<Agua, 'id'>>, juntar?: string) => void
   /** ÁGUA: tira uma água. Com desfazer. */
   apagarAgua: (id: string) => void
+  /**
+   * BORRACHA GERAL NO TERRENO (Fase 4): tira o carimbo, a água ou o risco do
+   * Barranco que a Borracha achou (`terrenoNoPonto`). O carimbo travado fica;
+   * a camada travada barra com o aviso. Um passo no Ctrl+Z (a passada da
+   * Borracha junta os seus num só).
+   */
+  apagarItemDoTerreno: (item: AcertoNoTerreno) => void
   /** NEBLINA (`lib/neblina.ts`): UMA pincelada do pincel de Neblina no piso em edição, um passo no desfazer (mesmo dividida em pedaços). */
   pintarNeblina: (pincelada: { tipo: 'pincel' | 'borracha'; forca: number; raio: number; pontos: PontoDoMundo[]; densidade?: number }) => ResultadoDaNeblina
   /** Tira a neblina pintada do piso em edição (a chave do mapa inteiro fica). Com desfazer. */
@@ -3511,8 +3518,30 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         juntar === undefined ? undefined : `agua-${id}-${juntar}`,
       )
     },
+    apagarItemDoTerreno: (item) => {
+      const map = get().map
+      switch (item.kind) {
+        case 'carimbo': {
+          const carimbo = carimboPorId(map.carimbos, item.id)
+          if (carimbo === undefined || !carimboDestravado(carimbo)) return
+          if (barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', [carimbo]))) return
+          withHistory((m) => semCarimbos(m, new Set([item.id])))
+          return
+        }
+        case 'agua':
+          get().apagarAgua(item.id)
+          return
+        case 'barranco': {
+          if (!(map.barranco?.riscos ?? []).some((r) => r.id === item.id)) return
+          if (terrenoBarrado()) return
+          withHistory((m) => semItensDoTerreno(m, new Set(), new Set([item.id])))
+          return
+        }
+      }
+    },
     apagarAgua: (id) => {
       if (!(get().map.aguas ?? []).some((a) => a.id === id)) return
+      if (aguaBarrada()) return
       withHistory((m) => comAguas(m, (m.aguas ?? []).filter((a) => a.id !== id)))
     },
     pintarNeblina: (pincelada) => {
