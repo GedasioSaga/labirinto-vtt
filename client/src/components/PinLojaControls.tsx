@@ -1,6 +1,9 @@
 import type { LojaItem } from '../types/map'
 import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, LOJA_PRECO_MAX, novaMercadoria } from '../lib/loja'
 import { Toggle } from './Toggle'
+import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo } from '../lib/acervoDeItens'
+import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { precoEmBerries } from './InventarioDaFicha'
 
 export interface PinLojaControlsProps {
   /** As mercadorias do pino aberto no painel; `null` = sem loja. */
@@ -15,9 +18,23 @@ const HINT_ID = 'lb-pin-loja-hint'
 
 export const idAleatorio = (): string => `item_${crypto.randomUUID()}`
 
-/** A mercadoria sem o estoque: ausente é "sem conta", e ausente não é `undefined` gravado. */
+/** A mercadoria sem o estoque: ausente é "sem conta", e ausente não é `undefined` gravado. A coisa do Acervo fica. */
 function semEstoque(item: LojaItem): LojaItem {
-  return { id: item.id, nome: item.nome, preco: item.preco }
+  const { estoque: _estoque, ...resto } = item
+  return resto
+}
+
+/**
+ * Fase 5 (uma porta para criar item): a mercadoria vira a coisa do Acervo
+ * escolhida: nome, preço (o texto que o jogador lê e o número que a venda
+ * cobra da bolsa) e os dados da coisa. "" = volta a ser digitada (o nome fica).
+ */
+function comCoisa(item: LojaItem, coisa: ItemDoAcervo | undefined): LojaItem {
+  const { acervo: _antes, ...digitada } = item
+  if (coisa === undefined) return digitada
+  const { nome, ...dados } = itemParaDar(coisa)
+  const itemId = dados.itemId ?? coisa.id
+  return { ...digitada, nome: nome.slice(0, LOJA_NOME_MAX), preco: coisa.preco === null ? '' : precoEmBerries(coisa.preco).slice(0, LOJA_PRECO_MAX), acervo: { ...dados, itemId } }
 }
 
 /**
@@ -46,6 +63,7 @@ export function PinLojaControls({
   /** Dentro da ficha do recurso (fatia 12): sem o interruptor, que lá é o "Tirar do pino". */
   embutido?: boolean
 }) {
+  const doAcervo = useAcervoDeItensStore((state) => state.itens)
   const trocar = (indice: number, item: LojaItem) => {
     if (loja === null) return
     onChange(loja.map((atual, i) => (i === indice ? item : atual)))
@@ -85,6 +103,24 @@ export function PinLojaControls({
                     placeholder="Xarope de tosse"
                     onChange={(event) => trocar(indice, { ...item, nome: event.target.value })}
                   />
+                  <label className="lb-label" htmlFor={`${base}-acervo`}>
+                    {`Coisa do Acervo da mercadoria ${numero}`}
+                  </label>
+                  <select
+                    id={`${base}-acervo`}
+                    className="lb-input"
+                    value={item.acervo?.itemId ?? ''}
+                    onChange={(event) => trocar(indice, comCoisa(item, doAcervo.find((coisa) => coisa.id === event.target.value)))}
+                  >
+                    <option value="">Nenhuma (digitada)</option>
+                    {/* A coisa que saiu do Acervo continua escolhida: a mercadoria guarda a cópia dela. */}
+                    {item.acervo !== undefined && !doAcervo.some((coisa) => coisa.id === item.acervo?.itemId) && <option value={item.acervo.itemId}>{item.nome} (fora do Acervo)</option>}
+                    {doAcervo.map((coisa) => (
+                      <option key={coisa.id} value={coisa.id}>
+                        {coisa.preco === null ? coisa.nome : `${coisa.nome} (${precoEmBerries(coisa.preco)})`}
+                      </option>
+                    ))}
+                  </select>
                   <div className="lb-loja__linha">
                     <div className="lb-loja__campo">
                       <label className="lb-label" htmlFor={`${base}-preco`}>
@@ -138,7 +174,7 @@ export function PinLojaControls({
             + Mercadoria
           </button>
           <p className="lb-label" id={HINT_ID}>
-            O jogador vê nome, preço e estoque no cartão e toca “Quero”; o pedido chega a você com Vender e Não. Vender baixa o estoque e põe a mercadoria na mochila dele. Estoque vazio não acaba.
+            O jogador vê nome, preço e estoque no cartão e toca “Quero”; o pedido chega a você com Vender e Não. Vender baixa o estoque e põe a mercadoria na mochila dele. Estoque vazio não acaba. A coisa do Acervo chega com foto, empilha e o preço sai da bolsa dele.
           </p>
         </>
       )}

@@ -1518,11 +1518,12 @@ export const PIN_TAKE_REJECTIONS: readonly PinTakeRejection[] = ['unavailable', 
  * inexistente, no escuro, oculta, em outra cena, mercadoria inventada e que
  * acabou — um motivo por caso diria o que existe no escuro. `far`: nenhuma
  * ficha dele na banca. `pending`: um pedido de compra dele já espera.
- * `too_soon`: pediu de novo antes do intervalo mínimo.
+ * `too_soon`: pediu de novo antes do intervalo mínimo. `no_coins` (Fase 5):
+ * a mercadoria do Acervo custa mais que a bolsa da ficha dele.
  */
-export type PinBuyRejection = 'unavailable' | 'far' | 'pending' | 'too_soon'
+export type PinBuyRejection = 'unavailable' | 'far' | 'pending' | 'too_soon' | 'no_coins'
 
-export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'far', 'pending', 'too_soon']
+export const PIN_BUY_REJECTIONS: readonly PinBuyRejection[] = ['unavailable', 'far', 'pending', 'too_soon', 'no_coins']
 
 /** Por que o "Dar a…" não valeu: colega longe, ou item/ficha que não servem. */
 export type ItemGiveRejection = 'unavailable' | 'far'

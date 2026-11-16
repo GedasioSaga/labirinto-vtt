@@ -1,5 +1,5 @@
 import type { Token } from '../types/map'
-import { carriedItemsOf, cleanItemName, tokensTouch, type ItemChange } from './items'
+import { carriedItemsOf, cleanItemName, dadosDoItemLidos, mochilaComItemDoAcervo, tokensTouch, type ItemChange, type ItemParaDar } from './items'
 
 /**
  * MOEDAS E TROCA ENTRE FICHAS — regras puras, compartilhadas pelo host
@@ -28,6 +28,13 @@ export const TRADE_FROM_DEFAULT = 'Mestre'
 export interface TradeGive {
   itens: string[]
   moedas: number
+  /**
+   * Fase 5 (uma porta para criar item): as coisas do Acervo entre os `itens`,
+   * pelo nome. O item de mesmo nome chega inteiro (foto, pilha, `itemId`) pela
+   * regra do "Dar a…"; o resto, só com o nome, como antes. Fica no host: o
+   * jogador lê só os nomes.
+   */
+  doAcervo?: ItemParaDar[]
 }
 
 /** O que se PEDE à ficha: itens da mochila dela (pelo id) e moedas. */
@@ -124,7 +131,25 @@ export function cleanTradeTerms(raw: TradeProposal): TradeProposal | null {
   const itemIds = distinctIds(raw.peco.itemIds)
   const vazia = itens.length === 0 && raw.dou.moedas === 0 && itemIds.length === 0 && raw.peco.moedas === 0
   if (vazia) return null
-  return { de: cleanTradeFrom(raw.de), dou: { itens, moedas: raw.dou.moedas }, peco: { itemIds, moedas: raw.peco.moedas } }
+  const doAcervo = coisasDaTroca(raw.dou.doAcervo ?? [], itens)
+  const dou: TradeGive = doAcervo.length === 0 ? { itens, moedas: raw.dou.moedas } : { itens, moedas: raw.dou.moedas, doAcervo }
+  return { de: cleanTradeFrom(raw.de), dou, peco: { itemIds, moedas: raw.peco.moedas } }
+}
+
+/** As coisas do Acervo limpas como a mochila as lê, só as que têm nome entre os itens dados e com `itemId`; uma por nome. */
+function coisasDaTroca(brutas: readonly ItemParaDar[], itens: readonly string[]): ItemParaDar[] {
+  const nomes = new Set(itens)
+  const vistas = new Set<string>()
+  const coisas: ItemParaDar[] = []
+  for (const bruta of brutas) {
+    const nome = cleanItemName(bruta.nome)
+    const { nome: _nome, quantidade: _quantidade, ...resto } = bruta
+    const dados = dadosDoItemLidos(resto)
+    if (!nomes.has(nome) || vistas.has(nome) || dados.itemId === undefined) continue
+    vistas.add(nome)
+    coisas.push({ ...dados, nome })
+  }
+  return coisas
 }
 
 /**
@@ -171,7 +196,13 @@ export function tradeChange(token: Token, give: TradeGive, ask: TradeAsk, freshI
   const moedas = moedasDe(token) - ask.moedas + give.moedas
   if (moedas > MOEDAS_MAX) return null
   const pedidos = new Set(ask.itemIds)
-  const fica = carriedItemsOf(token).filter((item) => !pedidos.has(item.id))
-  const novos = give.itens.map((nome) => ({ id: freshId(), nome }))
-  return { mochilas: [{ tokenId: token.id, mochila: [...fica, ...novos] }], bolsas: [{ tokenId: token.id, moedas }] }
+  let mochila = carriedItemsOf(token).filter((item) => !pedidos.has(item.id))
+  const coisas = new Map((give.doAcervo ?? []).map((coisa) => [coisa.nome, coisa]))
+  for (const nome of give.itens) {
+    const coisa = coisas.get(nome)
+    // Fase 5: a coisa do Acervo pela regra do "Dar a…" (empilha com a que ele já tem); o nome solto, vaga nova como antes.
+    const recebeu = coisa === undefined ? null : mochilaComItemDoAcervo(mochila, coisa, 1, freshId())
+    mochila = recebeu === null ? [...mochila, { id: freshId(), nome }] : recebeu.mochila
+  }
+  return { mochilas: [{ tokenId: token.id, mochila }], bolsas: [{ tokenId: token.id, moedas }] }
 }

@@ -515,6 +515,21 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     }
   }
 
+  /** Fase 5, "Ligar pelo nome": a Garrucha do livro passa a apontar para a Garrucha do Acervo (foto, pilha; a regra fica no livro). */
+  const ligar = async () => {
+    if (juntando) return
+    setJuntando(true)
+    const toasts = useToastStore.getState()
+    try {
+      const n = await useCatalogoStore.getState().ligarPeloNome(doAcervo)
+      toasts.push('info', n > 0 ? `${formatarNumero(n)} ${n === 1 ? 'entrada ligada' : 'entradas ligadas'} à coisa do Acervo de mesmo nome.` : 'Nada a ligar: nenhuma arma ou item solto do livro tem o nome de uma coisa do Acervo.')
+    } catch (erro) {
+      toasts.push('error', `Não deu para ligar ao Acervo: ${mensagemDoErro(erro)}`)
+    } finally {
+      setJuntando(false)
+    }
+  }
+
   const buscando = busca.trim().length > 0
   const anuncio = buscando || filtroAtivo !== 'todos' ? `${formatarNumero(lista.length)} ${lista.length === 1 ? 'entrada' : 'entradas'}` : ''
   const visiveis = lista.slice(0, mostrar)
@@ -541,6 +556,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
               <CartaoDaEntrada
                 key={entrada.id}
                 entrada={entrada}
+                coisa={ehDoLivro(entrada) || entrada.acervoId === undefined ? undefined : doAcervo.find((item) => item.id === entrada.acervoId)}
                 linhas={linhasDaEntrada(entrada, camposPorTipo.get(entrada.tipo) ?? [], nomesDosAtributos)}
                 estado={estadoDoPor(entrada)}
                 destino={destino}
@@ -622,6 +638,9 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
         <div className="mu-pg-acoes">
           <button type="button" className="mu-bt" disabled={!podeGravar || juntando} onClick={() => void juntar()}>
             {juntando ? 'Juntando…' : 'Juntar das fichas da pasta'}
+          </button>
+          <button type="button" className="mu-bt" disabled={!podeGravar || juntando || doAcervo.length === 0} onClick={() => void ligar()} title="Liga cada arma e item do livro à coisa do Acervo de mesmo nome">
+            Ligar ao Acervo pelo nome
           </button>
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
@@ -734,6 +753,8 @@ function recusaDoArrasto(estado: EstadoDoPor | null, ficha: Personagem, entrada:
 
 interface CartaoDaEntradaProps {
   entrada: EntradaParaFicha
+  /** A coisa do Acervo ligada (`acervoId`); ausente = entrada solta, ou a coisa saiu do Acervo. */
+  coisa: { nome: string; imagem: string | null } | undefined
   linhas: readonly LinhaDoCampo[]
   estado: EstadoDoPor
   destino: Personagem | undefined
@@ -747,7 +768,7 @@ interface CartaoDaEntradaProps {
   onSoltar: () => void
 }
 
-function CartaoDaEntrada({ entrada, linhas, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
+function CartaoDaEntrada({ entrada, coisa, linhas, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
   const dados = DADOS_DO_TIPO[entrada.tipo]
   /** A entrada do mestre (editável); `null` = a do livro, só leitura. */
   const doMestre: ItemDoCatalogo | null = ehDoLivro(entrada) ? null : entrada
@@ -792,8 +813,19 @@ function CartaoDaEntrada({ entrada, linhas, estado, destino, podeGravar, arrasta
         onDragEnd={onSoltar}
       >
         <div className="mu-item__cab">
+          {/* Fase 5: a regra ligada a uma coisa do Acervo mostra a foto dela (a coisa é a dona da foto). */}
+          {coisa !== undefined && (
+            <span className="mu-item__foto" aria-hidden="true">
+              <ImagemOuIniciais imagem={coisa.imagem} nome={coisa.nome} />
+            </span>
+          )}
           <h3 className="mu-item__nome">{entrada.nome}</h3>
           <span className={doMestre === null ? 'mu-etiqueta mu-etiqueta--livro' : 'mu-etiqueta mu-etiqueta--catalogo'}>{doMestre === null ? 'Do livro' : 'Do catálogo'}</span>
+          {coisa !== undefined && (
+            <span className="mu-etiqueta mu-etiqueta--acervo" title={`Ligada à coisa ${coisa.nome} do Acervo`}>
+              Ligada ao acervo
+            </span>
+          )}
         </div>
         <p className="mu-item__txt" title={entrada.texto.length > 0 ? entrada.texto : undefined}>
           {entrada.texto.length === 0 ? dados.um : `${dados.um} · ${entrada.texto}`}
