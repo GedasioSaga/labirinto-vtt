@@ -67,8 +67,14 @@ beforeEach(() => {
 
 describe('leitura tolerante do índice', () => {
   it('lê o item inteiro e as categorias', () => {
-    const lido = acervoDoTexto(JSON.stringify({ version: 1, categorias: ['Arma', 'Fruta'], itens: [pocao()] }))
+    const lido = acervoDoTexto(JSON.stringify({ version: 2, categorias: ['Arma', 'Fruta'], itens: [pocao()] }))
     expect(lido).toEqual({ itens: [pocao()], categorias: ['Arma', 'Fruta'] })
+  })
+
+  it('MUNIÇÃO (16/11/2026): o índice de antes (versão 1) ganha a categoria Munição uma vez; o da versão 2 sem ela fica sem (o mestre a tirou)', () => {
+    const antigo = acervoDoTexto(JSON.stringify({ version: 1, categorias: ['Arma', 'Fruta'], itens: [] }))
+    const novo = acervoDoTexto(JSON.stringify({ version: 2, categorias: ['Arma', 'Fruta'], itens: [] }))
+    expect([antigo?.categorias, novo?.categorias]).toEqual([['Arma', 'Fruta', 'Munição'], ['Arma', 'Fruta']])
   })
 
   it('campo torto vira o padrão; item sem id e id repetido saem', () => {
@@ -88,7 +94,7 @@ describe('leitura tolerante do índice', () => {
   })
 
   it('categorias limpas, sem repetir por caixa', () => {
-    expect(acervoDoTexto(JSON.stringify({ itens: [], categorias: [' Arma ', 'arma', '', 3, 'Fruta'] }))?.categorias).toEqual(['Arma', 'Fruta'])
+    expect(acervoDoTexto(JSON.stringify({ version: 2, itens: [], categorias: [' Arma ', 'arma', '', 3, 'Fruta'] }))?.categorias).toEqual(['Arma', 'Fruta'])
   })
 
   it('o que não é acervo é null (vai para .invalido)', () => {

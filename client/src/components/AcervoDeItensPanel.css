@@ -315,6 +315,17 @@
   color: var(--lb-color-parchment);
 }
 
+/* MUNIÇÃO: as munições que a arma usa, uma marca por item da categoria Munição. */
+.lb-item-janela__municoes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  margin: 0;
+  padding: var(--lb-space-2);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+}
+
 .lb-item-janela__confirma {
   display: flex;
   flex-wrap: wrap;

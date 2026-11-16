@@ -347,7 +347,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
   const [erro, setErro] = useState<string | null>(null)
   // A bala da arma (Atacar com arma de fogo ou híbrida): `null` = sem bala especial, o dano da arma.
   const balas = golpe.balas ?? SEM_BALAS
-  const [balaId, setBalaId] = useState<string | null>(null)
+  // MUNIÇÃO: a arma do Acervo que exige munição abre com a primeira que a mochila tem (não há "Sem bala especial").
+  const [balaId, setBalaId] = useState<string | null>(() => (golpe.exigeMunicao === true ? (balas.find((bala) => (bala.municao ?? 0) > 0)?.id ?? null) : null))
   const balaEscolhida = balaId === null ? null : (balas.find((bala) => bala.id === balaId) ?? null)
   const danoAtual = balaEscolhida?.dano ?? danoDaOpcao
   const caixas = useRef<Map<string, HTMLInputElement>>(new Map())
@@ -669,15 +670,17 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
         {balas.length > 0 && (
           <fieldset className="bt-mira__balas">
             <legend>{golpe.tipo === 'habilidade' ? 'Bala · entra no "Dano da Bala" da técnica' : 'Bala · a conta do dano muda com ela'}</legend>
-            <OpcaoDeBala
-              nome={`${idBase}-bala`}
-              marcada={balaId === null}
-              titulo="Sem bala especial"
-              danoTexto={golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma'}
-              total={golpe.dano}
-              detalhe={golpe.tipo === 'habilidade' ? 'O "Dano da Bala" da fórmula vale 0.' : 'Atira com o dano da própria arma.'}
-              onEscolher={() => escolherBala(null)}
-            />
+            {golpe.exigeMunicao !== true && (
+              <OpcaoDeBala
+                nome={`${idBase}-bala`}
+                marcada={balaId === null}
+                titulo="Sem bala especial"
+                danoTexto={golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma'}
+                total={golpe.dano}
+                detalhe={golpe.tipo === 'habilidade' ? 'O "Dano da Bala" da fórmula vale 0.' : 'Atira com o dano da própria arma.'}
+                onEscolher={() => escolherBala(null)}
+              />
+            )}
             {balas.map((bala) => (
               <OpcaoDeBala
                 key={bala.id}

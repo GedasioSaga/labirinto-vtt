@@ -9,6 +9,7 @@ import type { PedidoDeAcao } from '../lib/batalha/combate'
 import { BALA_DE_PRATA, ROSA_FUNEBRE, ryokoCom, vincentCom } from '../lib/batalha/fichasDaFatiaE.testkit'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import { combatentesIniciais, type AutorDaAcao } from '../lib/batalha/turnos'
+import { definirMunicoesDasArmas } from '../lib/batalha/municoesDoAcervo'
 import { nomesDeMunicaoIguais } from '../lib/mochila/municao'
 import type { Personagem } from '../lib/personagem'
 import { lutadoresDe, SISTEMA_DO_TESTE } from '../lib/treino/fichasDeTreino.testkit'
@@ -67,6 +68,31 @@ function mochilaDoVincent(mesa: MesaEmMemoria): readonly CarriedItem[] {
 }
 
 const pratas = (mesa: MesaEmMemoria): number => mochilaDoVincent(mesa).reduce((soma, vaga) => (vaga.itemId === ID_DA_PRATA ? soma + (vaga.quantidade ?? 1) : soma), 0)
+
+describe('munição: a arma do Acervo que declara as munições', () => {
+  it('a Garrucha da mochila aceita Balas de prata: o tiro do jogador sem bala escolhida gasta a primeira que há; sem nenhuma, não atira', () => {
+    definirMunicoesDasArmas([
+      { id: 'item_garrucha', nome: 'Garrucha', municoes: [ID_DA_PRATA] },
+      { id: ID_DA_PRATA, nome: 'Balas de prata' },
+    ])
+    try {
+      const garrucha: CarriedItem = { id: 'vaga_garrucha', nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma' }
+      const vincent = { ...vincentComBalas(1), mochila: [garrucha, ...(vincentComBalas(1).mochila ?? [])] }
+      const mesa = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincent, lado: 'a' }, { ficha: ryokoCom(), lado: 'b' }]))
+      const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
+      const tokens = mesa.tokens()
+      loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id))), regras: null, desempate: 'd20' })
+      const ryoko = tokenDe(loja, 'Ryoko')
+      const comAGarrucha: PedidoDeAcao = { tipo: 'atacar', armaId: 'mochila:vaga_garrucha', alvos: [{ tokenId: ryoko, dano: 30 }], surpresa: false, perfurante: false }
+      expect(loja.getState().agir(CENA, JOGADOR, naVezDe(loja, 'Vincent'), comAGarrucha)).toBe(true)
+      expect(pratas(mesa)).toBe(0)
+      naVezDe(loja, 'Ryoko')
+      expect(loja.getState().agir(CENA, JOGADOR, naVezDe(loja, 'Vincent'), comAGarrucha)).toBe(false)
+    } finally {
+      definirMunicoesDasArmas([])
+    }
+  })
+})
 
 describe('munição: o nome liga a bala à vaga', () => {
   it('"Balas de prata" é a "Bala de Prata" do cartão; "Bala de RPG" não é', () => {

@@ -5,6 +5,7 @@ import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
 import { CAMPO_DO_DANO, normalizar } from './formula'
 import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
+import { municoesDaArma, versaoDasMunicoes, type MunicaoAceita } from './municoesDoAcervo'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -277,6 +278,12 @@ export interface ArmaDaFicha extends CartaoDaFicha {
   /** Texto livre ("6"), só mostra; vazio = `null`. */
   capacidade: string | null
   balas: BalaDaArma[]
+  /**
+   * MUNIÇÃO: a arma do Acervo declara as munições que aceita (`municoes`).
+   * Ela só atira gastando uma: sem a bala escolhida, vai a primeira que a
+   * mochila tem (`balaDoPedido`); sem nenhuma, o tiro não sai.
+   */
+  exigeMunicao?: true
 }
 
 export const BALA_SEM_NOME = 'Bala sem nome'
@@ -319,12 +326,27 @@ function balaDoCartao(cartao: CartaoDaFicha, mochila: readonly CarriedItem[]): B
  */
 export function lerArma(cartao: CartaoDaFicha, mochila: readonly CarriedItem[] = []): ArmaDaFicha {
   const capacidade = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim()
+  const doCartao = cartao.subcartoes.map((bala) => balaDoCartao(bala, mochila))
+  // MUNIÇÃO: a arma do Acervo (o cartão ligado a ela, ou a da mochila) traz as munições que aceita, menos as que um tipo de bala já cobre.
+  const aceitas = municoesDaArma(cartao.itemId)
+  const cobertas = new Set(doCartao.flatMap((bala) => [bala.itemId, bala.municao?.itemId]))
+  const doAcervo = aceitas.filter((municao) => !cobertas.has(municao.itemId)).map((municao) => balaDaMunicaoAceita(municao, mochila))
   return {
     ...cartao,
     categoria: lerCategoria(cartao.campos[CAMPO_DA_CATEGORIA] ?? ''),
     capacidade: capacidade.length === 0 ? null : capacidade,
-    balas: cartao.subcartoes.map((bala) => balaDoCartao(bala, mochila)),
+    balas: [...doCartao, ...doAcervo],
+    ...(aceitas.length > 0 ? { exigeMunicao: true as const } : {}),
   }
+}
+
+/** O id da bala que vem da munição do Acervo: `municao:<id do item>`; nunca colide com o id de um subcartão (sem dois-pontos). */
+export const PREFIXO_DA_MUNICAO = 'municao:'
+
+/** A munição do Acervo como bala da arma: o dano é o da arma, e a quantidade é a da mochila (0 = "Sem <nome>"). */
+function balaDaMunicaoAceita(municao: MunicaoAceita, mochila: readonly CarriedItem[]): BalaDaArma {
+  const naMochila = municaoNaMochila(mochila, municao.nome, municao.itemId)
+  return { id: `${PREFIXO_DA_MUNICAO}${municao.itemId}`, nome: municao.nome, dano: '', efeito: '', quantidade: '', itemId: municao.itemId, ...(naMochila === undefined ? {} : { municao: naMochila }) }
 }
 
 /** "Sem Balas de prata": por que o tiro com esta bala não sai, ou `null` (bala de texto, ou com munição na mochila). */
@@ -338,7 +360,9 @@ export function motivoSemMunicao(bala: Pick<BalaDaArma, 'nome' | 'municao'>): st
  * arma "nova" a cada desenho (antes das balas, `armasDe` devolvia a própria
  * lista da ficha). A lista devolvida é compartilhada: não a mude.
  */
-const ARMAS_LIDAS = new WeakMap<readonly CartaoDaFicha[], WeakMap<readonly CarriedItem[], ArmaDaFicha[]>>()
+let armasLidas = new WeakMap<readonly CartaoDaFicha[], WeakMap<readonly CarriedItem[], ArmaDaFicha[]>>()
+/** As munições do Acervo da leitura guardada: mudou a lista (`definirMunicoesDasArmas`), as armas são lidas de novo. */
+let versaoLida = versaoDasMunicoes()
 const SEM_ARMAS: readonly CartaoDaFicha[] = []
 const SEM_MOCHILA: readonly CarriedItem[] = []
 
@@ -403,10 +427,14 @@ function armasSoNaMochila(cartoes: readonly CartaoDaFicha[], mochila: readonly C
 export function armasDe(personagem: Personagem): ArmaDaFicha[] {
   const cartoes = personagem.abas[ABA_DAS_ARMAS] ?? SEM_ARMAS
   const mochila = personagem.mochila ?? SEM_MOCHILA
-  let porMochila = ARMAS_LIDAS.get(cartoes)
+  if (versaoLida !== versaoDasMunicoes()) {
+    armasLidas = new WeakMap()
+    versaoLida = versaoDasMunicoes()
+  }
+  let porMochila = armasLidas.get(cartoes)
   if (porMochila === undefined) {
     porMochila = new WeakMap()
-    ARMAS_LIDAS.set(cartoes, porMochila)
+    armasLidas.set(cartoes, porMochila)
   }
   const guardadas = porMochila.get(mochila)
   if (guardadas !== undefined) return guardadas
@@ -418,6 +446,17 @@ export function armasDe(personagem: Personagem): ArmaDaFicha[] {
 /** A bala da arma pelo id. `null` = a arma não tem essa bala. */
 export function balaDaArma(arma: ArmaDaFicha, balaId: string): BalaDaArma | null {
   return arma.balas.find((bala) => bala.id === balaId) ?? null
+}
+
+/**
+ * A bala do tiro: a escolhida; sem escolha, na arma que exige munição
+ * (`exigeMunicao`), a primeira que a mochila tem — é o tiro do jogador, cujo
+ * app não vê o Acervo do mestre. `null` = sem bala (o dano da arma).
+ */
+export function balaDoPedido(arma: ArmaDaFicha, balaId: string | undefined): BalaDaArma | null {
+  if (balaId !== undefined) return balaDaArma(arma, balaId)
+  if (arma.exigeMunicao !== true) return null
+  return arma.balas.find((bala) => bala.municao !== undefined && bala.municao.quantos > 0) ?? null
 }
 
 /** O limite da escolha "Armas por batalha", pelo número do começo ("2 armas" = 2). Vazio ou torto = sem limite (`null`). */

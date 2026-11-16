@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { categoriaLimpa, ITEM_SEM_NOME, type ItemDoCatalogo } from '../lib/acervoDeItens'
+import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_MAX, type ItemDoCatalogo } from '../lib/acervoDeItens'
+import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
 import { ImagemOuIniciais } from './FichaPecas'
@@ -47,6 +48,42 @@ function precoDoTexto(texto: string): number | null | undefined {
   if (!/^\d+$/.test(limpo)) return undefined
   const valor = Number(limpo)
   return Number.isSafeInteger(valor) && valor <= ITEM_PRECO_MAX ? valor : undefined
+}
+
+/** A categoria das armas do Acervo ("Arma", "armas"), a mesma que a batalha lê da mochila. */
+function ehCategoriaDeArma(categoria: string): boolean {
+  return /^armas?$/.test(categoria.trim().toLowerCase())
+}
+
+/** O item com a lista de munições; vazia tira o campo (ausente = a arma não declara). */
+function comMunicoes(item: ItemDoCatalogo, municoes: readonly string[]): ItemDoCatalogo {
+  const { municoes: _antes, ...semMunicoes } = item
+  return municoes.length === 0 ? semMunicoes : { ...semMunicoes, municoes: [...municoes] }
+}
+
+/**
+ * MUNIÇÃO (pedido de 16/11/2026: "cada arma pode usar certos de munição"):
+ * as munições do Acervo que esta arma aceita. Na batalha, cada marcada vira
+ * uma bala da arma, com a quantidade da mochila de quem atira.
+ */
+function MunicoesDaArma({ armaId, escolhidas, onMudar }: { armaId: string; escolhidas: readonly string[]; onMudar: (municoes: readonly string[]) => void }) {
+  const municoes = useAcervoDeItensStore((state) => state.itens).filter((candidato) => candidato.id !== armaId && ehCategoriaDeMunicao(candidato.categoria))
+  const marcar = (id: string, marcada: boolean) => onMudar(marcada ? [...escolhidas, id].slice(0, MUNICOES_POR_ARMA_MAX) : escolhidas.filter((escolhida) => escolhida !== id))
+  return (
+    <fieldset className="lb-item-janela__municoes">
+      <legend className="lb-label">Munições que a arma usa</legend>
+      {municoes.length === 0 ? (
+        <p className="lb-field__hint">Crie itens na categoria Munição (Balas, Balas de prata, Bala de RPG…) para escolher aqui.</p>
+      ) : (
+        municoes.map((municao) => (
+          <label key={municao.id} className="lb-item-janela__marca">
+            <input type="checkbox" checked={escolhidas.includes(municao.id)} onChange={(event) => marcar(municao.id, event.target.checked)} />
+            <span>{municao.nome}</span>
+          </label>
+        ))
+      )}
+    </fieldset>
+  )
 }
 
 function chaveDoAlvo(alvo: Pick<AlvoDoAcervo, 'tokenId' | 'sceneId'>): string {
@@ -206,7 +243,8 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
                 list={listaId}
                 value={rascunho.categoria}
                 placeholder="Sem categoria"
-                onChange={(event) => setRascunho({ ...rascunho, categoria: event.target.value })}
+                // MUNIÇÃO: bala empilha ("Balas de prata ×12"); escolher a categoria já liga o Empilhável.
+                onChange={(event) => setRascunho({ ...rascunho, categoria: event.target.value, ...(ehCategoriaDeMunicao(event.target.value) ? { empilhavel: true } : {}) })}
               />
               <datalist id={listaId}>
                 {categorias.map((categoria) => (
@@ -241,6 +279,9 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
             <input type="checkbox" checked={rascunho.empilhavel} onChange={(event) => setRascunho({ ...rascunho, empilhavel: event.target.checked })} />
             <span>Empilhável — dar de novo a quem já tem soma na quantidade</span>
           </label>
+          {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
+            <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
+          )}
           {erro !== null && (
             <p className="lb-field__error" role="alert">
               {erro}

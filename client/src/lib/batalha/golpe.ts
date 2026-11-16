@@ -49,6 +49,7 @@ import { armaSoDeEfeito, CAMPO_DO_DANO, danoDoAtaque, formulaUsaBala, lerDano, t
 import {
   armasDe,
   balaDaArma,
+  balaDoPedido,
   categoriaAtira,
   lerTempo,
   motivoSemMunicao,
@@ -284,10 +285,16 @@ function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): ArmaDaFicha 
   return armasDe(ctx.personagem).find((arma) => arma.id === armaId)
 }
 
-/** MUNIÇÃO: "Sem Balas de prata" quando a bala do pedido está ligada à mochila e acabou; `null` = pode atirar. */
+/**
+ * MUNIÇÃO: "Sem Balas de prata" quando a bala do pedido está ligada à mochila
+ * e acabou; "Sem munição para Garrucha" quando a arma do Acervo exige munição
+ * e a mochila não tem nenhuma das que ela aceita. `null` = pode atirar.
+ */
 function motivoSemMunicaoDoPedido(arma: ArmaDaFicha | null, balaId: string | undefined): string | null {
-  const bala = arma === null || balaId === undefined ? null : balaDaArma(arma, balaId)
-  return bala === null ? null : motivoSemMunicao(bala)
+  if (arma === null) return null
+  const bala = balaDoPedido(arma, balaId)
+  if (bala === null) return arma.exigeMunicao === true ? `Sem munição para ${arma.nome.trim() || 'a arma'}` : null
+  return motivoSemMunicao(bala)
 }
 
 function motivoDosAlvos(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], minimo: number): string | null {
@@ -867,7 +874,8 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     golpe.variante = 'com a Bênção'
   }
   // F2 (revisão da fatia E): a bala vem também na técnica que diz "Dano da Bala" (Desenhar o alvo).
-  const bala = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
+  // MUNIÇÃO: no Atacar com a arma que exige munição, sem bala escolhida vai a primeira que a mochila tem (o tiro do jogador).
+  const bala = arma === null ? null : pedido.tipo === 'atacar' ? balaDoPedido(arma, pedido.balaId) : pedido.balaId !== undefined ? balaDaArma(arma, pedido.balaId) : null
   if (bala !== null) golpe.bala = balaDoGolpe(bala)
   // F2 (fatia E, Bala de Prata): o selo da bala na tabela ("Ferido por prata") pega em quem o tiro acerta, à parte do selo
   // da mira, do da técnica e da marca (revisão da fatia E: no Desenhar o alvo a marca não o apaga mais).

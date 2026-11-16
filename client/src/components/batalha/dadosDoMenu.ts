@@ -161,6 +161,8 @@ export interface GolpeNaTela {
    * "Dano da Bala", os da arma que entra na conta.
    */
   balas?: readonly BalaNaTela[]
+  /** MUNIÇÃO: a arma do Acervo só atira gastando uma das munições que aceita; a mira tira o "Sem bala especial". */
+  exigeMunicao?: true
   /** Só na habilidade: o Tipo ("Reação"), o selo pequeno da tira. */
   tipoTexto?: string
   /** Só na habilidade: o Tipo veio da Ação, não do campo Tipo (o selo diz "pela Ação"). */
@@ -1106,6 +1108,7 @@ export function golpesDeAtaque(
       ...(categoria === null ? {} : { categoria }),
       ...(arma === null || arma.capacidade === null ? {} : { capacidade: arma.capacidade }),
       ...(balas.length === 0 ? {} : { balas }),
+      ...(arma?.exigeMunicao === true ? { exigeMunicao: true as const } : {}),
       chave: arma === null ? CHAVE_DA_MAO_NUA : `arma:${arma.id}`,
       tipo: 'atacar',
       cartaoId: null,

@@ -29,10 +29,29 @@ const PASTA_DO_ACERVO = 'itens'
 const ARQUIVO_DO_INDICE = 'itens.json'
 const ARQUIVO_INVALIDO = 'itens.json.invalido'
 const ARQUIVO_ANTERIOR = 'itens.json.anterior'
-const VERSAO_DO_INDICE = 1
+/** 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`). */
+const VERSAO_DO_INDICE = 2
+/** A versão que trouxe a categoria Munição. */
+const VERSAO_DA_MUNICAO = 2
+
+/** MUNIÇÃO (pedido de 16/11/2026): a categoria das balas, que empilham e que a arma de fogo declara que aceita (`municoes`). */
+export const CATEGORIA_DA_MUNICAO = 'Munição'
 
 /** As categorias de um acervo novo. A lista é do mestre: ele tira e põe. */
-export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consumível', 'Fruta', 'Chave', 'Tesouro']
+export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consumível', 'Munição', 'Fruta', 'Chave', 'Tesouro']
+/** Teto de munições que uma arma aceita (a lista do item vira rolagem sem fim). */
+export const MUNICOES_POR_ARMA_MAX = 20
+
+/** A categoria é a Munição, sem acento e sem caixa ("municao", "MUNIÇÕES"). */
+export function ehCategoriaDeMunicao(categoria: string): boolean {
+  return /^munic(ao|oes)$/.test(
+    categoria
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .trim(),
+  )
+}
 /** Teto de categorias na lista (o seletor do item vira lista de rolagem sem fim). */
 export const CATEGORIAS_MAX = 40
 export const ITEM_SEM_NOME = 'Item sem nome'
@@ -50,6 +69,13 @@ export interface ItemDoCatalogo {
   preco: number | null
   /** Dar de novo a quem já tem soma na mesma vaga ("Poção ×3"). */
   empilhavel: boolean
+  /**
+   * MUNIÇÃO (pedido de 16/11/2026: "cada arma pode usar certos de munição"):
+   * os ids dos itens de Munição que a arma de fogo aceita. A batalha mostra
+   * cada uma como bala da arma, com a quantidade da mochila. Ausente = a arma
+   * não declara munição.
+   */
+  municoes?: string[]
 }
 
 export interface AcervoDeItens {
@@ -111,7 +137,15 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     categoria: typeof value.categoria === 'string' ? categoriaLimpa(value.categoria) : '',
     preco: typeof preco === 'number' && Number.isSafeInteger(preco) && preco >= 0 && preco <= ITEM_PRECO_MAX ? preco : null,
     empilhavel: value.empilhavel === true,
+    ...municoesLidas(value.municoes, value.id),
   }
+}
+
+/** As munições da arma: ids com a forma dos do Acervo, sem repetir, sem a própria arma, no teto. Vazia = sem o campo. */
+function municoesLidas(value: unknown, armaId: string): { municoes?: string[] } {
+  if (!Array.isArray(value)) return {}
+  const ids = [...new Set(value.filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id) && id !== armaId))].slice(0, MUNICOES_POR_ARMA_MAX)
+  return ids.length === 0 ? {} : { municoes: ids }
 }
 
 /** A lista de categorias: textos limpos, sem repetir (sem diferença de caixa), no teto. */
@@ -148,7 +182,11 @@ export function acervoDoTexto(texto: string): AcervoDeItens | null {
     vistos.add(item.id)
     itens.push(item)
   }
-  return { itens, categorias: categoriasLidas(bruto.categorias) }
+  const categorias = categoriasLidas(bruto.categorias)
+  // O índice de antes da Munição a ganha UMA vez: gravado de novo com a versão nova, o mestre que a tirar não a vê voltar.
+  const antesDaMunicao = typeof bruto.version !== 'number' || bruto.version < VERSAO_DA_MUNICAO
+  const semMunicao = !categorias.some(ehCategoriaDeMunicao)
+  return { itens, categorias: antesDaMunicao && semMunicao && categorias.length < CATEGORIAS_MAX ? [...categorias, CATEGORIA_DA_MUNICAO] : categorias }
 }
 
 export function serializarAcervo(acervo: AcervoDeItens): string {
