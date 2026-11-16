@@ -98,6 +98,7 @@ import { desenhoFicaSobAsSalas } from '../lib/desenhoSobAsSalas'
 import { drawPerigos } from '../pixi/drawPerigos'
 import { createLightsRenderer } from '../pixi/drawLights'
 import { criarMapaDeLuz, criarRevisao, tintaDoJogador, type FichaComContorno, type MapaDeLuz, type Revisao } from '../pixi/mapaDeLuz'
+import { definirPeriodoDaSombra } from '../lib/sombra'
 import { AJUSTE_DA_PENUMBRA, criarBorrao, criarMapaDePenumbra, penumbraCompila, separarOlhares, type MapaDePenumbra, type OlhosEluzes, type ParedeDaPenumbra } from '../pixi/mapaDePenumbra'
 import { multiplySemTamparOFundo } from '../pixi/multiplySemTamparOFundo'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from '../pixi/desenhoSobPedido'
@@ -5188,6 +5189,8 @@ function PlayerViewDoCanvas({
       const tickMapaDeLuz = () => {
         const { map: m, luz, ownTokens: own } = latestRef.current
         const tinta = tintaDoJogador(luz)
+        // A SOMBRA ÚNICA (Fase 6, `lib/sombra.ts`): mais fraca à tarde e à noite; sem tinta é dia.
+        definirPeriodoDaSombra(tinta?.periodo ?? 'dia')
         // NEBLINA: a cor da bruma segue o período; de dia ela é o último filho do mundo.
         scene.neblina.setPeriodo(tinta?.periodo ?? null)
         scene.agua.setPeriodo(tinta?.periodo ?? null)

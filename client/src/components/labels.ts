@@ -44,7 +44,9 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Penhasco',
   barranco: 'Barranco',
   texturas: 'Texturas',
-  neblina: 'Ambiente',
+  // 16/11/2026 (decisão do mestre, Fase 6): "Ambiente vira Clima" — "Ambiente da cena" é a luz do
+  // período, e o mesmo nome para as duas confundia. O id continua 'neblina' (arquivos abrem igual).
+  neblina: 'Clima',
   agua: 'Água',
   carimbos: 'Carimbos',
   pin: 'Pino',
@@ -188,7 +190,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
-  neblina: 'Pinte o efeito do ambiente por cima do mapa.',
+  neblina: 'Pinte o efeito do clima por cima do mapa.',
   agua: 'Trace a água ou a lava; clique nela para mexer.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',
@@ -223,7 +225,7 @@ export interface ToolCluster {
   tools: DrawingTool[]
 }
 
-export type ToolClusterId = 'drawing' | 'sala' | 'objeto'
+export type ToolClusterId = 'drawing' | 'sala' | 'objeto' | 'desnivel'
 
 export const TOOL_CLUSTERS: Record<ToolClusterId, ToolCluster> = {
   // Ordem do usuário. Cada forma continua sendo uma ferramenta própria, com a
@@ -234,6 +236,9 @@ export const TOOL_CLUSTERS: Record<ToolClusterId, ToolCluster> = {
   sala: { label: 'Sala', tools: ['room', 'roomCircle', 'roomPolygon', 'roomFree', 'region'] },
   // O móvel desenhado e a imagem (Peça, B) são as duas maneiras de pôr um objeto.
   objeto: { label: 'Objeto', tools: ['mobilia', 'prop'] },
+  // DESNÍVEL (Fase 6, 16/11/2026, decisão do mestre "Penhasco + Barranco"): uma ferramenta de desnível com
+  // duas caras. Cada uma segue ferramenta própria, com o seu dado e a sua letra: o mapa salvo abre igual.
+  desnivel: { label: 'Desnível', tools: ['barranco', 'penhasco'] },
 }
 
 /** Uma posição da barra: uma ferramenta, ou um grupo (`cluster:<id>`). */
@@ -258,7 +263,7 @@ export const TOOLBAR_GROUPS: ToolbarGroup[] = [
   // CONSTRUÇÕES (12/11/2026, decisão do mestre): a Construção tem botão próprio, colado no Objeto.
   { nome: 'Construir', slots: ['wall', 'door', 'cluster:sala', 'floor', 'stair', 'cluster:objeto', 'construcao', 'light'] },
   // Decisão 6 do plano: o terreno aparece em todo mapa (Texturas serve em qualquer um).
-  { nome: 'Terreno', slots: ['penhasco', 'barranco', 'texturas', 'agua', 'carimbos', 'neblina'] },
+  { nome: 'Terreno', slots: ['cluster:desnivel', 'texturas', 'agua', 'carimbos', 'neblina'] },
   // O Pincel de revelar mora colado na Zona oculta: só age dentro de uma, e é
   // ali que o mestre procura "como mostro só um pedaço".
   { nome: 'Esconder e revelar', slots: ['concealZone', 'revealBrush'] },
@@ -276,6 +281,7 @@ const CLUSTER_OF_SLOT: Record<ClusterSlot, ToolClusterId> = {
   'cluster:drawing': 'drawing',
   'cluster:sala': 'sala',
   'cluster:objeto': 'objeto',
+  'cluster:desnivel': 'desnivel',
 }
 
 function isClusterSlot(slot: ToolbarSlot): slot is ClusterSlot {
@@ -287,7 +293,7 @@ export function clusterIdOf(slot: ToolbarSlot): ToolClusterId | null {
   return isClusterSlot(slot) ? CLUSTER_OF_SLOT[slot] : null
 }
 
-const CLUSTER_IDS: readonly ToolClusterId[] = ['drawing', 'sala', 'objeto']
+const CLUSTER_IDS: readonly ToolClusterId[] = ['drawing', 'sala', 'objeto', 'desnivel']
 
 /** O grupo de ferramentas que contém esta ferramenta, ou `null` se ela é avulsa. */
 export function clusterOfTool(tool: DrawingTool): ToolClusterId | null {

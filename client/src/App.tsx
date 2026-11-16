@@ -784,9 +784,6 @@ function App() {
   // e "dobrar a linha" (converter uma line selecionada em curve).
   const drawCap = useMapStore((state) => state.drawCap)
   const setDrawCap = useMapStore((state) => state.setDrawCap)
-  // Luz L3: o preset da próxima luz da ferramenta Luz.
-  const lightPreset = useMapStore((state) => state.lightPreset)
-  const setLightPreset = useMapStore((state) => state.setLightPreset)
   const setDrawingCap = useMapStore((state) => state.setDrawingCap)
   // "Estilo do traço" (contínuo/tracejado/pontilhado) — passagem secreta e
   // limite sugerido deixam de sair iguais a uma parede. Mesma dupla de
@@ -4679,7 +4676,7 @@ function App() {
               // Luz L3: "Acesa em: Dia / Tarde / Noite", com desfazer.
               onAcesaEmChange: (periodos) => selectedLight && useMapStore.getState().setLightAcesaEm(selectedLight.id, periodos),
             }}
-            presetDeLuz={activeTool === 'light' ? { preset: lightPreset, onPresetChange: setLightPreset } : null}
+            luzSolta={activeTool === 'light'}
             selectedStair={selectedStair}
             stairControls={{
               onDirectionChange: (direction) => selectedStair && setStairDirection(selectedStair.id, direction),

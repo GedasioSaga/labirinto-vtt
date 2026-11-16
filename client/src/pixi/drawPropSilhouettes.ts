@@ -20,6 +20,7 @@ import {
 } from '../lib/mobilia'
 import { parseHexColor } from '../lib/tokenColor'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
+import { COR_DA_SOMBRA, FORCA_DA_SOMBRA } from '../lib/sombra'
 import { saiComTextura } from '../lib/mobilia/desenhoDoMovel'
 import { varianteDaPilha } from '../lib/mobilia/pilhas'
 import { formaDoChafariz, varianteDaFormaDoChafariz } from '../lib/mobilia/chafariz'
@@ -395,9 +396,9 @@ function drawSilhouette(graphics: Graphics, prop: PropSilhouette, grid: PixelGri
 /** A imagem sai com a cor dela: sem tinta por cima e opaca (o alfa do último `fill` não vaza para a imagem). */
 const IMAGE_TINT = 0xffffff
 const IMAGE_ALPHA = 1
-/** A sombra dos móveis do Desenhado (CONTRATO 10.1, item 5: a dos carimbos): `#0a1c28` a 0,25, numa camada só. */
-export const COR_DA_SOMBRA_DOS_MOVEIS = 0x0a1c28
-export const ALFA_DA_SOMBRA_DOS_MOVEIS = 0.25
+/** A sombra dos móveis do Desenhado (CONTRATO 10.1, item 5: a dos carimbos): a sombra única (`lib/sombra.ts`), numa camada só. */
+export const COR_DA_SOMBRA_DOS_MOVEIS = COR_DA_SOMBRA
+export const ALFA_DA_SOMBRA_DOS_MOVEIS = FORCA_DA_SOMBRA
 
 type ModuloDoRaster = typeof import('./rasterDosMoveis')
 type CarregadorDoRaster = () => Promise<ModuloDoRaster>

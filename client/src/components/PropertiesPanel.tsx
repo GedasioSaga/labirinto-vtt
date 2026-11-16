@@ -74,7 +74,7 @@ import type { TokenPatrolControlsProps } from './TokenPatrolControls'
 import type { TokenCarryControlsProps } from './TokenCarryControls'
 import type { TokenVehicleControlsProps } from './TokenVehicleControls'
 import { LightControls, type LightControlsProps } from './LightControls'
-import { PresetDeLuzControls, type PresetDeLuzControlsProps } from './PresetDeLuzControls'
+import { PresetDeLuzControls } from './PresetDeLuzControls'
 import type { TokenLightsControlsProps } from './TokenLightsControls'
 import type { TokenSeenByProps } from './TokenSeenBy'
 import { FichaDoToken } from './livro/FichaDoToken'
@@ -311,8 +311,8 @@ interface PropertiesPanelProps {
   /** `onVistaDeLongeChange` obrigatória pelo mesmo motivo de `room.onRaioDeVisaoChange`. */
   lightControls: Omit<LightControlsProps, 'color' | 'intensity' | 'attachedTokenId' | 'vistaDeLonge' | 'porEstado' | 'acesaEm'> &
     Required<Pick<LightControlsProps, 'onVistaDeLongeChange'>>
-  /** Luz L3: o preset da próxima luz da ferramenta Luz. Ausente/`null` = a seção não aparece. */
-  presetDeLuz?: PresetDeLuzControlsProps | null
+  /** Luz L3 (Fase 6: a luz solta e os fogos que iluminam): com a ferramenta Luz na mão. Ausente/`false` = a seção não aparece. */
+  luzSolta?: boolean
   selectedStair: Stair | null
   stairControls: Omit<StairControlsProps, 'direction' | 'shape'>
   /**
@@ -428,7 +428,7 @@ export function PropertiesPanel({
   activeTool,
   groups,
   lineCap,
-  presetDeLuz,
+  luzSolta,
   paredesAoRedor,
   paredePresa,
   lineShape,
@@ -1095,10 +1095,10 @@ export function PropertiesPanel({
             />
           </ToolPropertiesSection>
         )}
-        {/* Luz L3: com a ferramenta Luz na mão, o preset da próxima luz. */}
-        {presetDeLuz && (
+        {/* Luz L3: com a ferramenta Luz na mão, a luz solta e os fogos que iluminam (Fase 6). */}
+        {luzSolta === true && (
           <ToolPropertiesSection group="lightPreset" groups={groups}>
-            <PresetDeLuzControls {...presetDeLuz} />
+            <PresetDeLuzControls />
           </ToolPropertiesSection>
         )}
         {selectedLight && (

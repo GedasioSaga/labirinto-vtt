@@ -22,7 +22,6 @@ import type { SnapTargetKind, SnapTargets } from '../pixi/grid'
 import type { RoomCorner } from '../lib/roomOps'
 import type { Corner, ResizeModifiers } from '../lib/objectTransform'
 import type { StairSizePreset } from '../lib/stairs'
-import { PRESET_DE_LUZ_PADRAO, type PresetDeLuz } from '../lib/presetsDeLuz'
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import { clampFloorPolygonSides, type FloorShapeKind } from '../lib/floorTool'
 import { clampTamanhoDePincel, type Bloco, type TamanhoDePincel } from '../lib/floorBlocks'
@@ -708,16 +707,20 @@ interface MapStoreState {
   setCarimboLargura: (largura: number) => void
   carimboDensidade: number
   setCarimboDensidade: (densidade: number) => void
+  /**
+   * "Os próximos barram a passagem" (Fase 6, 16/11/2026): a natureza saiu do
+   * Objeto para o Carimbo, e a pedra que barrava como Objeto barra por aqui.
+   * Liga o `Carimbo.barra` em cada um que o PRÓXIMO gesto solta; o que já está
+   * no mapa não muda. Começa desligada: o carimbo de antes não barrava.
+   */
+  carimboBarra: boolean
+  setCarimboBarra: (barra: boolean) => void
   /** Ponta do traço (N2/B2, "ponta da linha") da PRÓXIMA forma com traço
    *  (brush/line/curve) — preferência de ferramenta, mesma classe de
    *  `wallKind`/`doorKind`. Não confundir com `setDrawingCap`, que edita uma
    *  linha/pincel/curva JÁ CRIADA e selecionada. */
   drawCap: DrawingCap
   setDrawCap: (cap: DrawingCap) => void
-  /** Luz L3: o preset (Luz, Tocha, Lampião, Fogueira) da PRÓXIMA luz da
-   *  ferramenta Luz — preferência de ferramenta, mesma classe de `drawCap`. */
-  lightPreset: PresetDeLuz
-  setLightPreset: (preset: PresetDeLuz) => void
   /** Estilo do traço ("Contínua | Tracejada | Pontilhada") da PRÓXIMA linha
    *  ou curva — preferência de ferramenta, mesma classe de `drawCap`. É o que
    *  separa passagem secreta / limite sugerido de parede. Não confundir com
@@ -2339,8 +2342,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     carimboTamanho: TAMANHO_DO_CARIMBO_PADRAO,
     carimboLargura: LARGURA_DO_SPRAY_PADRAO,
     carimboDensidade: DENSIDADE_PADRAO,
+    carimboBarra: false,
     drawCap: 'round',
-    lightPreset: PRESET_DE_LUZ_PADRAO,
     drawDash: 'solid',
     drawTexture: 'pen',
     brushMode: 'traco',
@@ -2588,8 +2591,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setCarimboDensidade: (densidade) => {
       if (Number.isFinite(densidade)) set({ carimboDensidade: limitarCarimbo(Math.round(densidade * 100) / 100, DENSIDADE_MIN, DENSIDADE_MAX) })
     },
+    setCarimboBarra: (barra) => set({ carimboBarra: barra }),
     setDrawCap: (cap) => set({ drawCap: cap }),
-    setLightPreset: (preset) => set({ lightPreset: preset }),
     setDrawDash: (dash) => set({ drawDash: dash }),
     setDrawTexture: (texture) => set({ drawTexture: texture }),
     setBrushMode: (mode) => set({ brushMode: mode }),
@@ -3665,7 +3668,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         return 'tipo-ausente'
       }
       const antes = map.carimbos ?? []
-      const entram = novos.slice(0, Math.max(0, TETO_DE_CARIMBOS - antes.length))
+      const cabem = novos.slice(0, Math.max(0, TETO_DE_CARIMBOS - antes.length))
+      // "Os próximos barram a passagem" (Fase 6): o campo só existe ligado, como na ficha do carimbo.
+      const entram = get().carimboBarra ? cabem.map((c): Carimbo => ({ ...c, barra: true })) : cabem
       if (entram.length > 0) withHistory((m) => comCarimbos(m, [...(m.carimbos ?? []), ...entram]))
       return entram.length < novos.length ? 'teto' : 'carimbou'
     },

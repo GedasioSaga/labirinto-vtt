@@ -16,6 +16,7 @@
 import { ehConstrucao } from './construcoes'
 import { tracosDoMuroDeFogo } from './muroDeFogo'
 import { TIPOS_MOBILIA, type TipoMobilia } from './tipos'
+import { foiParaOCarimbo } from '../naturezaNoCarimbo'
 
 /**
  * As 9 peças do lote 1 (MT4) e as 5 do lote 2 (MT5: sebe, jardineira, arco do
@@ -1075,9 +1076,10 @@ export const TIPOS_NO_CATALOGO: readonly TipoMobilia[] = [
 
 /**
  * O catálogo da ferramenta Objeto: o catálogo inteiro menos as construções, que moram na ferramenta Construção
- * desde 12/11/2026 (`construcoes.ts`). Mesma ordem.
+ * desde 12/11/2026 (`construcoes.ts`), e menos a natureza que já tem carimbo (Fase 6, 16/11/2026,
+ * `lib/naturezaNoCarimbo.ts`): o objeto já posto fica igual. Mesma ordem.
  */
-export const TIPOS_DO_OBJETO: readonly TipoMobilia[] = TIPOS_NO_CATALOGO.filter((tipo) => !ehConstrucao(tipo))
+export const TIPOS_DO_OBJETO: readonly TipoMobilia[] = TIPOS_NO_CATALOGO.filter((tipo) => !ehConstrucao(tipo) && !foiParaOCarimbo(tipo))
 
 /** O catálogo da ferramenta Construção: as construções prontas, na ordem do catálogo (a ficha arruma por grupo). */
 export const TIPOS_DA_CONSTRUCAO: readonly TipoMobilia[] = TIPOS_NO_CATALOGO.filter((tipo) => ehConstrucao(tipo))

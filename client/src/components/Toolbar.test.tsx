@@ -117,7 +117,8 @@ describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
       // 12/11/2026 (decisões do mestre): o Caminho saiu da barra (o Chão traça o caminho), a Construção
       // tem botão próprio colado no Objeto, a Água entra depois das Texturas e a Neblina virou Ambiente.
       ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Objeto', 'Construção', 'Luz'],
-      ['Penhasco', 'Barranco', 'Texturas', 'Água', 'Carimbos', 'Ambiente'],
+      // 16/11/2026 (Fase 6): o Ambiente virou Clima, e o Penhasco e o Barranco viraram um botão, o Desnível.
+      ['Desnível', 'Texturas', 'Água', 'Carimbos', 'Clima'],
       ['Zona oculta', 'Pincel de revelar'],
       ['Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'],
     ])
@@ -224,6 +225,26 @@ describe('Toolbar — botão Sala (as quatro salas e a Região)', () => {
   })
 })
 
+describe('Toolbar — botão Desnível (Barranco e Penhasco, Fase 6)', () => {
+  it('um botão "Desnível" no lugar dos dois; o primeiro clique arma o Barranco', () => {
+    const onSelectTool = render('select', 'brush')
+    expect(buttonsNamed('Penhasco')).toHaveLength(0)
+    expect(buttonsNamed('Barranco')).toHaveLength(0)
+    act(() => botao('Desnível').click())
+    expect(onSelectTool).toHaveBeenCalledWith('barranco')
+  })
+
+  it('o menu oferece as duas caras; escolher Penhasco arma o Penhasco, e o botão fica marcado com ele', () => {
+    const onSelectTool = render('barranco', 'brush')
+    act(() => botao('Opções de Desnível').click())
+    expect(radiosDe('Desnível', 'Cara').map((r) => r.getAttribute('aria-label'))).toEqual(['Barranco', 'Penhasco'])
+    act(() => radiosDe('Desnível', 'Cara').find((r) => r.getAttribute('aria-label') === 'Penhasco')?.click())
+    expect(onSelectTool).toHaveBeenCalledWith('penhasco')
+    render('penhasco', 'brush', onSelectTool)
+    expect(botao('Desnível').getAttribute('aria-pressed')).toBe('true')
+  })
+})
+
 describe('Toolbar — dica de ferramenta sem atalho', () => {
   // Sala livre, Caminho e Objetos nasceram sem letra (lib/keymap.ts). A dica dizia
   // "Sala: Sala livre ()": o parêntese vazio sugeria um atalho que não existe.
@@ -290,7 +311,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 275 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 272 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -314,11 +335,12 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Prateleira de toalhas',
       'Barril', 'Caixa', 'Baú', 'Sacos de grão', 'Prateleira de depósito',
       'Pilha de caixas', 'Barris deitados', 'Tonel de adega', 'Ânforas de barro', 'Cesto de vime', 'Cofre',
-      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça', 'Pedras e rochas',
-      'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Toco de árvore', 'Carrinho de mão', 'Placa de loja pendurada',
+      // A natureza com carimbo (pedras e rochas, toco de árvore, árvore seca) saiu para o Carimbo na Fase 6.
+      'Cerca', 'Sebe', 'Jardineira', 'Vaso de planta', 'Placa de seta', 'Lampião', 'Fogueira', 'Fogo', 'Muro de fogo', 'Ponte', 'Banco de praça',
+      'Varal de roupa', 'Horta', 'Canteiro de flores', 'Muro baixo de pedra', 'Carrinho de mão', 'Placa de loja pendurada',
       'Deck de madeira',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto',
-      'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas', 'Árvore seca',
+      'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas',
       'Túmulo de pedra', 'Lápide torta',
       'Carroça', 'Quadro de avisos', 'Cata-vento de brinquedo', 'Banca de frutas', 'Toldo listrado',
       'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
@@ -368,7 +390,8 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    expect(new Set(desenhos).size).toBe(275)
+    // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca).
+    expect(new Set(desenhos).size).toBe(272)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

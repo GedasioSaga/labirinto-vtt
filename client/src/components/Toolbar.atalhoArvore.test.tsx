@@ -67,14 +67,15 @@ const botao = (nome: string): HTMLButtonElement => {
 const menuDeObjeto = () => document.body.querySelector('[role="group"][aria-label="Opções de Objeto"]:not(.gr-sai)')
 
 describe('MT5: atalho da árvore redonda no menu do Objeto', () => {
-  it('o menu do Objeto mostra o atalho "Árvore redonda" num grupo próprio, no fim da parte "Rua e jardim", com a legenda "carimbo"', () => {
+  // Fase 6 (16/11/2026): o atalho virou a placa da natureza ("Árvores, pedras e tocos"), que mora no Carimbo.
+  it('o menu do Objeto mostra o atalho "Árvores, pedras e tocos" num grupo próprio, no fim da parte "Rua e jardim", com a legenda "carimbo"', () => {
     render('mobilia', vi.fn())
     act(() => botao('Opções de Objeto').click())
     const atalhos = menuDeObjeto()?.querySelector('[role="group"][aria-label="Atalho"]')
     expect(atalhos).not.toBeNull()
     // Logo depois da grade de "Rua e jardim", fora dela (é ação, não rádio).
     expect(atalhos?.previousElementSibling?.getAttribute('aria-label')).toBe('Rua e jardim')
-    const arvore = atalhos?.querySelector<HTMLButtonElement>('button[aria-label="Árvore redonda"]')
+    const arvore = atalhos?.querySelector<HTMLButtonElement>('button[aria-label="Árvores, pedras e tocos"]')
     expect(arvore).not.toBeNull()
     expect(arvore?.getAttribute('role')).toBeNull()
     expect(arvore?.querySelector('.lb-toolvariant-menu__option-legenda')?.textContent).toBe('carimbo')
@@ -91,7 +92,7 @@ describe('MT5: atalho da árvore redonda no menu do Objeto', () => {
     const onSelectTool = vi.fn()
     render('mobilia', onSelectTool)
     act(() => botao('Opções de Objeto').click())
-    act(() => botao('Árvore redonda').click())
+    act(() => botao('Árvores, pedras e tocos').click())
     expect(onSelectTool).toHaveBeenCalledWith('carimbos')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-redonda')
     expect(menuDeObjeto()).toBeNull()
@@ -103,7 +104,7 @@ describe('MT5: atalho da árvore redonda no menu do Objeto', () => {
     const onSelectTool = vi.fn()
     render('mobilia', onSelectTool)
     act(() => botao('Opções de Objeto').click())
-    act(() => botao('Árvore redonda').click())
+    act(() => botao('Árvores, pedras e tocos').click())
     expect(onSelectTool).toHaveBeenCalledWith('carimbos')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-redonda')
     expect(useMapStore.getState().carimboModo).toBe('carimbo')

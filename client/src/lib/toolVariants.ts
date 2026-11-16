@@ -576,6 +576,22 @@ export const SALA_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape'
   ],
 }
 
+/**
+ * Grupo "Cara" do botão Desnível (Fase 6, 16/11/2026, "Penhasco + Barranco"): as duas
+ * ferramentas de altura num botão só. Mesmo eixo `drawShape`: escolher a cara ARMA a
+ * ferramenta dela, e cada uma guarda o seu dado como antes (o mapa salvo abre igual).
+ * A descrição diz a diferença que o mestre não via: o barranco segura o passo, o
+ * penhasco é só o desenho da costa.
+ */
+export const DESNIVEL_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
+  storeKey: 'drawShape',
+  label: 'Cara',
+  options: [
+    { id: 'barranco', label: 'Barranco', value: 'barranco', description: comAtalho('Beira de terra que segura o passo', 'barranco') },
+    { id: 'penhasco', label: 'Penhasco', value: 'penhasco', description: comAtalho('Rochedo na costa, só desenho', 'penhasco') },
+  ],
+}
+
 /** Grupo "Colocar" do botão Objeto: o móvel desenhado ou uma imagem (a Peça). Mesmo eixo `drawShape`. */
 export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape' }> = {
   storeKey: 'drawShape',
@@ -591,6 +607,10 @@ export const OBJETO_KIND_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawShape
  * usuário): a árvore continua carimbo, e o atalho arma a ferramenta Carimbo
  * com a árvore redonda (`carimbos/embutidos.ts`). `components/ToolVariantMenu.tsx`
  * o mostra logo depois do grupo Objeto.
+ *
+ * Fase 6 (16/11/2026, "Carimbo coloque no carimbo tudo que é natural"): a pedra,
+ * o toco e a árvore seca saíram do Objeto (`lib/naturezaNoCarimbo.ts`). O atalho
+ * virou a placa que diz para onde foram, com o nome do que o mestre procura aqui.
  */
 export const ATALHO_DA_ARVORE: {
   readonly label: string
@@ -600,8 +620,8 @@ export const ATALHO_DA_ARVORE: {
   readonly carimbo: string
   readonly ferramenta: DrawingTool
 } = {
-  label: 'Árvore redonda',
-  description: 'Arma o Carimbo com a árvore redonda (a árvore é carimbo, não móvel).',
+  label: 'Árvores, pedras e tocos',
+  description: 'A natureza mora no Carimbo: abre o Carimbo com a árvore redonda escolhida.',
   legenda: 'carimbo',
   carimbo: 'arvore-redonda',
   ferramenta: 'carimbos',
@@ -632,6 +652,7 @@ const CLUSTER_SHAPE_GROUP: Record<ToolClusterId, Extract<ToolVariantGroup, { sto
   drawing: DRAWING_SHAPE_GROUP,
   sala: SALA_SHAPE_GROUP,
   objeto: OBJETO_KIND_GROUP,
+  desnivel: DESNIVEL_SHAPE_GROUP,
 }
 
 /** O rótulo da ferramenta dentro do botão que a agrupa ("Circular" no botão Sala). */

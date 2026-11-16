@@ -198,7 +198,8 @@ import {
 } from './drawDraft'
 import { findTokenAt, snapPointForTarget } from './tokenInteraction'
 import { seatTokenCenter, tokenSizeInSquares } from '../lib/tokenSize'
-import { luzDoPreset } from '../lib/presetsDeLuz'
+import { luzSolta } from '../lib/presetsDeLuz'
+import { definirPeriodoDaSombra } from '../lib/sombra'
 import {
   isValidWallDraft,
   buildWallFromDraft,
@@ -3196,6 +3197,8 @@ function PixiCanvasDoContexto({
         // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
         const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
         const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        // A SOMBRA ÚNICA (Fase 6, `lib/sombra.ts`): mais fraca à tarde e à noite; sem tinta é dia.
+        definirPeriodoDaSombra(tinta?.periodo ?? 'dia')
         // A neblina fica logo abaixo do fantasma de teste, e a tinta logo abaixo dela.
         const pisoAtivo = useMapStore.getState().pisoAtivo
         const tetoDaTinta = neblinaDoEditor.quadro(map, pisoAtivo, fantasmaDeTesteContainer)
@@ -8171,7 +8174,7 @@ function PixiCanvasDoContexto({
 
         if (mode === 'drawing-light' && lightDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map, addLight, lightPreset } = useMapStore.getState()
+          const { map, addLight } = useMapStore.getState()
           // Compara contra o ponto bruto do pointerdown (lightDraftRawStart), nao
           // contra lightDraftCenter (que pode estar snapado) — senao, com "Travar
           // na grade" ativo, um clique simples ja nasce com dragDistance inflado
@@ -8182,12 +8185,13 @@ function PixiCanvasDoContexto({
           // cair no centro snapado no pior caso ainda é o comportamento antigo.
           const dragOrigin = lightDraftRawStart ?? lightDraftCenter
           const dragDistance = Math.hypot(worldPoint.x - dragOrigin.x, worldPoint.y - dragOrigin.y)
-          // Clique simples (sem arrasto de verdade): o alcance do preset
-          // (Luz L3: Luz, Tocha, Lampião, Fogueira), proporcional ao grid.
-          // Arrasto real: usa a distancia arrastada como raio novo.
+          // Clique simples (sem arrasto de verdade): o alcance da luz solta
+          // (4 casas, proporcional ao grid; a tocha, o lampião e a fogueira
+          // acendem pelo objeto desde a Fase 6). Arrasto real: usa a distancia
+          // arrastada como raio novo.
           const light = dragDistance < LIGHT_CLICK_THRESHOLD
-            ? luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset)
-            : luzDoPreset(crypto.randomUUID(), lightDraftCenter, map.grid, lightPreset, dragDistance)
+            ? luzSolta(crypto.randomUUID(), lightDraftCenter, map.grid)
+            : luzSolta(crypto.randomUUID(), lightDraftCenter, map.grid, dragDistance)
           addLight(light)
           lightDraftCenter = null
           lightDraftRawStart = null

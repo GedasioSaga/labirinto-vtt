@@ -168,7 +168,7 @@ export function TexturasIcon(props: IconProps) {
   )
 }
 
-/** Ambiente (era Neblina): uma nuvem com três riscos de chuva saindo dela. */
+/** Clima (era Ambiente, antes Neblina): uma nuvem com três riscos de chuva saindo dela. */
 export function NeblinaIcon(props: IconProps) {
   return (
     <Icon {...props}>
