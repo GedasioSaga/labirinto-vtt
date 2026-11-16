@@ -30,6 +30,11 @@ export function chaveDaFala(pinoId: string, falaId: string): string {
   return `${pinoId}\n${falaId}`
 }
 
+/** O pino tem algo ligado ao Prelúdio: ele mesmo (P3) ou uma entrada do "?" (o texto ou quem diz, P5). */
+export function temLigacaoAoPreludio(pin: Pick<Pin, 'fonte' | 'falas'>): boolean {
+  return pin.fonte !== undefined || (pin.falas ?? []).some((fala) => fala.fonte !== undefined || fala.quemVerbeteId !== undefined)
+}
+
 /** O "?" já tem a lista própria (não é o "?" de sempre). */
 export function temFalas(pin: Pick<Pin, 'kind' | 'falas'>): boolean {
   return pin.kind === 'interrogacao' && Array.isArray(pin.falas)
@@ -55,6 +60,11 @@ export function comFalas(pin: Pin, falas: readonly FalaDoPino[]): Pin {
   const novo: Pin = { ...pin, falas: [...falas], description: '' }
   delete novo.fonte
   return novo
+}
+
+/** O id de uma entrada nova: único dentro do pino (a hora mais um sorteio curto). */
+export function idDeFalaNova(): string {
+  return `fala-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /** Uma entrada nova, oculta. */

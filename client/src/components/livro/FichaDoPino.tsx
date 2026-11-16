@@ -42,6 +42,7 @@ import { IconeDoLivro, type NomeDoIcone } from './icones'
 import { PinoLigadoAoPreludio } from './PinoLigadoAoPreludio'
 import { CenarioDoPinoNaFicha } from './CenarioDoPinoNaFicha'
 import { FalasDoPinoNaFicha } from './FalasDoPinoNaFicha'
+import { temLigacaoAoPreludio } from '../../lib/falasDoPino'
 import './fichaDoPino.css'
 
 /*
@@ -275,9 +276,9 @@ const TIPO_SO_DE_ICONE: ReadonlySet<PinKind> = new Set<PinKind>(['exclamacao', '
 /** Os tipos que só se leem: o pino ligado ao Prelúdio fica entre eles. */
 const TIPOS_DE_TEXTO: ReadonlySet<PinKind> = new Set<PinKind>(['exclamacao', 'interrogacao'])
 
-/** O pino tem texto vindo do Prelúdio (P3/P5). */
+/** O pino tem texto vindo do Prelúdio (P3), ou é um "?" com entrada ligada (P5). */
 function pinoLigadoAoPreludio(pin: Pin | undefined): boolean {
-  return pin !== undefined && pin.fonte !== undefined
+  return pin !== undefined && temLigacaoAoPreludio(pin)
 }
 
 const OPCOES_DO_TIPO: readonly OpcaoDoSeg<PinKind>[] = PIN_KIND_DO_NOVO_PINO.map((kind) => {
@@ -349,8 +350,8 @@ function EssencialDoPino({
       {/* Também na viagem e na alavanca, ao contrário do protótipo: o cartão
           do jogador mostra a descrição nos dois (PlayerPinCard, `pp-pincard__text`).
           Pino ligado ao Prelúdio (P3): o texto vem da seção e só se edita lá. */}
-      {/* "?" FALAS E PISTAS (P5): o texto mora nas entradas, cada uma oculta até o mestre dizer. */}
-      {ligado ? (
+      {/* "?" FALAS E PISTAS (P5): o texto mora nas entradas, cada uma oculta até o mestre dizer; o "?" ligado de antes vira a entrada 1, ligada. */}
+      {ligado && kind !== 'interrogacao' ? (
         <PinoLigadoAoPreludio pinId={pinId} />
       ) : kind === 'interrogacao' ? (
         <FalasDoPinoNaFicha pinId={pinId} candidatos={showNow === null ? null : showNow.candidates} />

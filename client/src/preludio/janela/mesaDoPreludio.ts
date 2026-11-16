@@ -9,7 +9,7 @@ import { usePreludio } from '../estado/preludio'
 import { definirAvisoDeMudanca } from './mudancas'
 import { marcarJanelaDoPreludio, type DepsDaMesa, type FocoNoPreludio } from './portaDaJanela'
 import { PIN_NOME_MAX_LENGTH } from '../../lib/pins'
-import { situacaoDaFonte } from '../../lib/preparo/pinoLigado'
+import { quemDizEmDia, situacaoDaFonte } from '../../lib/preparo/pinoLigado'
 import { comecarColocacao, definirFimDaColocacao, terminarColocacao, useColocacaoDoPreludio } from '../../stores/colocacaoDoPreludio'
 import { sceneMaps } from '../../stores/adventureStore'
 import { mapaNaMemoriaAgora } from '../mesa/catalogo'
@@ -113,10 +113,26 @@ export function estadoDaMesaAgora(): EstadoDaMesa {
   }
 }
 
+/** As seções do Prelúdio que um pino usa: a dele (P3) e as das entradas do "?" (P5), sem repetir, no tamanho do fio. */
+function secoesDoPino(pin: Pin): SecaoParaOMapa[] {
+  const secoes: SecaoParaOMapa[] = []
+  const vistas = new Set<string>()
+  for (const fonte of [pin.fonte, ...(pin.falas ?? []).map((fala) => fala.fonte)]) {
+    const noFio = fonte === undefined ? null : lerSecaoParaOMapa(fonte)
+    if (noFio === null) continue
+    const chave = `${noFio.verbeteId}\n${noFio.formaId}\n${noFio.secaoId}`
+    if (vistas.has(chave)) continue
+    vistas.add(chave)
+    secoes.push(noFio)
+  }
+  return secoes
+}
+
 /**
  * "NA MESA" (P3): os pinos ligados a uma seção do Prelúdio, no mapa aberto e
- * nas cenas dele que estão na memória, no tamanho do fio. Pino com id que não
- * cabe no fio fica de fora (a lista inteira seria recusada do outro lado).
+ * nas cenas dele que estão na memória, no tamanho do fio. O "?" com entradas
+ * ligadas (P5) aparece uma vez por seção. Pino com id que não cabe no fio fica
+ * de fora (a lista inteira seria recusada do outro lado).
  */
 export function itensNaMesaAgora(): ItemNaMesa[] {
   const chave = idDoMapaParaOFio(mapaNaMemoriaAgora()?.chave)
@@ -126,21 +142,20 @@ export function itensNaMesaAgora(): ItemNaMesa[] {
   const itens: ItemNaMesa[] = []
   for (const [sceneId, mapa] of sceneMaps(aventura, useMapStore.getState().map)) {
     for (const pin of mapa.pins) {
-      const fonte = pin.fonte
       // A cena vai como está ('' = mapa sem cenas): id torto não vai, senão o link não acharia a cena.
-      if (fonte === undefined || idDoMapaParaOFio(pin.id) === null || (sceneId !== '' && idDoMapaParaOFio(sceneId) === null)) continue
-      const fonteNoFio = lerSecaoParaOMapa(fonte)
-      if (fonteNoFio === null) continue
-      itens.push({
-        pinoId: pin.id,
-        nome: nomeParaOFio(nomeDoPino(pin.nome, pin.kind)),
-        kind: pin.kind === 'exclamacao' || pin.kind === 'interrogacao' ? pin.kind : 'outro',
-        chave,
-        sceneId,
-        cena: nomeParaOFio(nomeDaCena(sceneId)),
-        ...fonteNoFio,
-      })
-      if (itens.length >= NA_MESA_MAX) return itens
+      if (idDoMapaParaOFio(pin.id) === null || (sceneId !== '' && idDoMapaParaOFio(sceneId) === null)) continue
+      for (const fonteNoFio of secoesDoPino(pin)) {
+        itens.push({
+          pinoId: pin.id,
+          nome: nomeParaOFio(nomeDoPino(pin.nome, pin.kind)),
+          kind: pin.kind === 'exclamacao' || pin.kind === 'interrogacao' ? pin.kind : 'outro',
+          chave,
+          sceneId,
+          cena: nomeParaOFio(nomeDaCena(sceneId)),
+          ...fonteNoFio,
+        })
+        if (itens.length >= NA_MESA_MAX) return itens
+      }
     }
   }
   return itens
@@ -312,12 +327,15 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
       recusar('Seção de segredo não vai ao mapa.')
       return
     }
+    // "?" da seção de um Personagem (P5): a entrada nasce "Fala", dita por ele.
+    const quem = kind === 'interrogacao' ? quemDizEmDia(fonte.verbeteId, verbetes) : null
     comecarColocacao({
       pedido,
       fonte: { ...fonte, verbete: situacao.verbete, secao: situacao.secao },
       kind,
       texto: situacao.texto,
       nome: situacao.verbete.slice(0, PIN_NOME_MAX_LENGTH).trim(),
+      ...(quem === null ? {} : { quem: { verbeteId: fonte.verbeteId, nome: quem } }),
     })
     enviar({ tipo: 'pondo', pedido, andamento: 'esperando', motivo: null })
   }

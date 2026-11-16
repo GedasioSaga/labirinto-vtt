@@ -596,3 +596,83 @@ describe('"?" falas: a entrada oculta não chega ao recorte do jogador (P5)', ()
     ])
   })
 })
+
+/**
+ * O teste de vazamento estendido à ENTRADA LIGADA do "?" (P5, lado do
+ * Prelúdio): a entrada que veio de uma seção segue o texto dela
+ * (`pinosEmDia`) e sai pela mesma regra das falas. SEGREDO-XYZ numa entrada
+ * ligada oculta, no bloco de segredo da seção, numa seção de segredo, numa
+ * seção que virou segredo, numa seção com chave desconhecida, no roteiro de
+ * uma sessão e nas cópias de nome da ligação não chega a jogador nenhum; a
+ * entrada dita só à Ana chega só a ela.
+ */
+describe('"?" com entrada ligada a uma seção: o segredo não chega ao recorte do jogador (P5)', () => {
+  const { verbetes: lista } = campanhaComSegredos()
+  const capitao = lista.find((um) => um.id === 'vb-capitao')
+  if (capitao === undefined) throw new Error('a fixture mudou: falta o vb-capitao')
+  const capitaoComSegredo: Verbete = {
+    ...capitao,
+    id: 'vb-capitao-depois',
+    formas: capitao.formas.map((umaForma) => ({ ...umaForma, secoes: umaForma.secoes.map((umaSecao) => (umaSecao.id === 'secao-a' ? { ...umaSecao, segredo: true } : umaSecao)) })),
+  }
+  const roteiro = verbete({ id: 'vb-sessao-falas', titulo: 'Sessão 5', tipo: 'sessao', formas: [forma('forma-s', 'Sessão 5', [secao('secao-s', 'Roteiro', doc(p(t(`${SEGREDO} roteiro`))))])] })
+  const verbetes = new Map([...lista, capitaoComSegredo, roteiro].map((um) => [um.id, um]))
+  const ligadaA = (id: string, verbeteId: string, secaoId: string, texto: string, extra: Partial<FalaDoPino> = {}): FalaDoPino => ({
+    id,
+    etiqueta: 'Fala',
+    texto,
+    fonte: { verbeteId, formaId: verbeteId === 'vb-sessao-falas' ? 'forma-s' : 'forma-1', secaoId, verbete: `${SEGREDO} nome copiado`, secao: `${SEGREDO} seção copiada` },
+    ...extra,
+  })
+  const falas: FalaDoPino[] = [
+    ligadaA('oculta', 'vb-capitao', 'secao-a', `${SEGREDO} cópia velha da oculta`, { quem: `${SEGREDO} quem`, quemVerbeteId: 'vb-capitao' }),
+    ligadaA('dita', 'vb-capitao', 'secao-a', 'cópia velha', { quem: 'Nome velho', quemVerbeteId: 'vb-capitao' }),
+    ligadaA('de-segredo', 'vb-capitao', 'secao-b', `${SEGREDO} cópia editada à mão`),
+    ligadaA('virou-segredo', 'vb-capitao-depois', 'secao-a', `${SEGREDO} cópia de quando era comum`),
+    ligadaA('chave-desconhecida', 'vb-capitao', 'secao-d', `${SEGREDO} cópia velha`, { livre: true }),
+    ligadaA('da-sessao', 'vb-sessao-falas', 'secao-s', `${SEGREDO} cópia velha`),
+  ]
+  const mapa: MapData = {
+    ...createEmptyMap('m', 'M', 1000, 1000, 40),
+    tokens: [
+      { id: 'ficha-ana', characterId: null, name: 'Ana', x: 200, y: 200, size: 1, image: null },
+      { id: 'ficha-bia', characterId: null, name: 'Bia', x: 220, y: 200, size: 1, image: null },
+    ],
+    pins: [
+      { id: 'taverna', x: 240, y: 200, kind: 'interrogacao', description: '', image: null, falas },
+      { id: 'so-oculta', x: 260, y: 200, kind: 'interrogacao', description: '', image: null, falas: [falas[0]] },
+    ],
+  }
+  const emDia = pinosEmDia(mapa, verbetes)
+  const ditasAAna = new Set(['dita', 'de-segredo', 'virou-segredo', 'da-sessao', 'oculta-que-nao-existe'].map((falaId) => chaveDaFala('taverna', falaId)))
+  const recorteDe = (jogador: string, ficha: string, leituras?: LeiturasDoJogador) =>
+    filterMapForPlayer(emDia, jogador, { [jogador]: [ficha] }, 300, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, leituras)
+  const daAna = recorteDe(ANA, 'ficha-ana', { cenarios: new Set(), falas: ditasAAna })
+  const daBia = recorteDe(BIA, 'ficha-bia')
+  const visiveis = (recorte: ReturnType<typeof recorteDe>) => recorte.map.pins.find((pino) => pino.id === 'taverna')?.falasVisiveis ?? []
+
+  it('o texto de teste está mesmo em cada lugar perigoso do mapa do mestre', () => {
+    expect(JSON.stringify(mapa).split(SEGREDO).length - 1).toBeGreaterThanOrEqual(falas.length * 2)
+  })
+
+  it('SEGREDO-XYZ não aparece no recorte de nenhum jogador; a ligação e o Personagem nunca vão', () => {
+    for (const recorte of [daAna, daBia]) {
+      expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
+      expect(JSON.stringify(recorte)).not.toContain('vb-capitao')
+      expect(recorte.map.pins.map((pino) => pino.id)).toEqual(['taverna'])
+    }
+  })
+
+  it('dita só à Ana: a entrada ligada chega a ela limpa, com o nome do Personagem em dia; o segredo vira "Texto indisponível."', () => {
+    const porId = new Map(visiveis(daAna).map((fala) => [fala.id, fala]))
+    expect([...porId.keys()]).toEqual(['dita', 'de-segredo', 'virou-segredo', 'chave-desconhecida', 'da-sessao'])
+    expect(porId.get('dita')?.texto).toContain('Texto VISIVEL')
+    expect(porId.get('dita')?.quem).toBe('Capitão Nuvem')
+    for (const id of ['de-segredo', 'virou-segredo', 'chave-desconhecida', 'da-sessao']) expect(porId.get(id)?.texto).toBe(TEXTO_INDISPONIVEL)
+  })
+
+  it('Bia, a quem nada foi dito, só recebe a livre; e o mapa em dia não muda mais (mesma referência)', () => {
+    expect(visiveis(daBia).map((fala) => fala.id)).toEqual(['chave-desconhecida'])
+    expect(pinosEmDia(emDia, verbetes)).toBe(emDia)
+  })
+})

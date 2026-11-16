@@ -22,8 +22,13 @@ const SIMBOLO: Record<ItemNaMesa['kind'], string> = { exclamacao: '!', interroga
 
 const OPCOES: readonly { readonly kind: TipoParaOMapa; readonly rotulo: string; readonly sub: string }[] = [
   { kind: 'exclamacao', rotulo: '! Como cenário', sub: 'O jogador lê este texto ao tocar no pino.' },
-  { kind: 'interrogacao', rotulo: '? Como fala ou pista', sub: 'O jogador lê ao tocar, como o "?" de hoje.' },
+  { kind: 'interrogacao', rotulo: '? Como fala ou pista', sub: 'Vira uma entrada oculta até você dizer. Clique num ? que já existe para juntar a ele, ou noutro lugar para um ? novo.' },
 ]
+
+/** Um pino pode usar várias seções (as entradas do "?", P5): a chave leva a seção. */
+function chaveDoItem(item: ItemNaMesa): string {
+  return `${item.sceneId}\n${item.pinoId}\n${item.formaId}\n${item.secaoId}`
+}
 
 /** Os itens do mapa aberto ligados a esta seção (ou a qualquer seção do verbete, sem `secaoId`). */
 function useItensDe(verbeteId: string, secaoId?: string): readonly ItemNaMesa[] {
@@ -108,13 +113,19 @@ export function PorNoMapaDaSecao({ verbete, forma, secao, compacto = false }: Po
         </div>
       )}
       {itens.map((item) => (
-        <button key={item.pinoId} type="button" className="pr-chip pr-por__chip" title="Mostrar no mapa" onClick={() => mostrarNoMapa(item)}>
+        <button key={chaveDoItem(item)} type="button" className="pr-chip pr-por__chip" title="Mostrar no mapa" onClick={() => mostrarNoMapa(item)}>
           <span aria-hidden="true">{SIMBOLO[item.kind]}</span> No mapa: {item.cena === '' ? item.nome : item.cena}
         </button>
       ))}
       {minha && (
         <div className="pr-por__espera" role="status">
-          <span>{pondo.andamento === 'pedindo' ? 'Pedindo à janela do mapa…' : 'Clique no mapa, na janela principal, onde fica esta seção. Esc cancela.'}</span>
+          <span>
+            {pondo.andamento === 'pedindo'
+              ? 'Pedindo à janela do mapa…'
+              : pondo.kind === 'interrogacao'
+                ? 'Clique num ? do mapa, na janela principal, para juntar esta fala a ele, ou noutro lugar para um ? novo. Esc cancela.'
+                : 'Clique no mapa, na janela principal, onde fica esta seção. Esc cancela.'}
+          </span>
           <button type="button" className="gr-bt gr-bt--fantasma gr-bt--p" onClick={cancelarPorNoMapa}>
             Cancelar
           </button>
@@ -188,7 +199,7 @@ export function NaMesa({ verbeteId }: { verbeteId?: string }) {
       ) : (
         <ul className="pr-na-mesa__lista">
           {itens.map((item) => (
-            <LinhaNaMesa key={`${item.sceneId}\n${item.pinoId}`} item={item} comVerbete={verbeteId === undefined} />
+            <LinhaNaMesa key={chaveDoItem(item)} item={item} comVerbete={verbeteId === undefined} />
           ))}
         </ul>
       )}

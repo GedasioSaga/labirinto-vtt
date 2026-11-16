@@ -362,7 +362,7 @@ import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
+import { juntarFalaDaColocacao, pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
 import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, noDoItem, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
 import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
@@ -7001,6 +7001,11 @@ function PixiCanvasDoContexto({
           // Sem snap: o pino é anotação, e o usuário pediu que ele apareça
           // ONDE ele clicou — não no centro da célula mais próxima.
           const existing = pinAt(map, worldPoint)
+          // "Pôr no mapa" de uma fala do Prelúdio (P5): no "?" que já existe, ela junta-se a ele.
+          if (existing && juntarFalaDaColocacao(existing)) {
+            mode = 'idle'
+            return
+          }
           if (existing) {
             // Clicar num pino que já existe abre ele no painel em vez de
             // empilhar um segundo em cima (o de baixo ficaria inalcançável) —

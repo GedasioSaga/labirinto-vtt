@@ -19,12 +19,18 @@ export function FaixaDaColocacao() {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [pendente])
   if (pendente === null) return null
-  const tipo = pendente.kind === 'exclamacao' ? 'o cenário !' : 'a fala ou pista ?'
+  const caminho = caminhoDaFonte(pendente.fonte)
   return (
     <div className="lb-faixa-colocacao" role="status" aria-live="polite">
-      <span>
-        <b>Pôr no mapa:</b> clique onde fica {tipo} de {caminhoDaFonte(pendente.fonte)}. Esc cancela.
-      </span>
+      {pendente.kind === 'exclamacao' ? (
+        <span>
+          <b>Pôr no mapa:</b> clique onde fica o cenário ! de {caminho}. Esc cancela.
+        </span>
+      ) : (
+        <span>
+          <b>Pôr no mapa:</b> clique num ? para juntar a fala de {caminho}, ou noutro lugar para um ? novo. Esc cancela.
+        </span>
+      )}
       <button type="button" className="gr-bt gr-bt--fantasma gr-bt--p" onClick={() => terminarColocacao('cancelado')}>
         Cancelar
       </button>

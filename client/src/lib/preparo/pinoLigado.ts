@@ -1,4 +1,6 @@
 import type { FonteNoPreludio, MapData, Pin } from '../../types/map'
+import type { FalaDoPino } from '../../types/cenarioEFalas'
+import { QUEM_DIZ_MAX } from '../falasDoPino'
 import { nomeDaFonte, TEXTO_INDISPONIVEL } from '../fonteNoPreludio'
 import { podeIrAoJogador, textoDaSecaoParaOMapa } from './pacoteDoJogador'
 import type { Verbete } from './tipos'
@@ -16,6 +18,8 @@ import type { Verbete } from './tipos'
  *   segredo nunca sai do PC, nem a cópia velha que ele tinha antes de virar segredo.
  * - Verbete ou seção apagados: o pino fica com a cópia de reserva, e a ficha
  *   do pino avisa o mestre ("a fonte sumiu").
+ * - Entrada do "?" ligada (P5): as mesmas regras, no `texto` da entrada; e o
+ *   "quem diz" segue o nome do Personagem escolhido (`quemVerbeteId`).
  */
 
 export type SituacaoDaFonte =
@@ -41,6 +45,10 @@ export function textoParaOJogador(situacao: SituacaoDaFonte): string | null {
 
 /** O pino com o texto e as cópias de nome em dia; o MESMO pino quando nada muda (ou quando não é ligado). */
 export function pinoEmDia(pin: Pin, verbetes: ReadonlyMap<string, Verbete>): Pin {
+  return falasDoPinoEmDia(pinoComFonteEmDia(pin, verbetes), verbetes)
+}
+
+function pinoComFonteEmDia(pin: Pin, verbetes: ReadonlyMap<string, Verbete>): Pin {
   const fonte = pin.fonte
   if (fonte === undefined) return pin
   const situacao = situacaoDaFonte(fonte, verbetes)
@@ -48,6 +56,50 @@ export function pinoEmDia(pin: Pin, verbetes: ReadonlyMap<string, Verbete>): Pin
   const description = textoParaOJogador(situacao) ?? pin.description
   if (pin.description === description && fonte.verbete === situacao.verbete && fonte.secao === situacao.secao) return pin
   return { ...pin, description, fonte: { ...fonte, verbete: situacao.verbete, secao: situacao.secao } }
+}
+
+/**
+ * O nome de quem diz, copiado do Personagem escolhido (P5). `null` = fica a
+ * cópia que a entrada tem: Personagem apagado, ou verbete que não é Personagem
+ * ou nunca vai ao jogador (arquivo editado à mão, formato mais novo).
+ */
+export function quemDizEmDia(quemVerbeteId: string, verbetes: ReadonlyMap<string, Verbete>): string | null {
+  const verbete = verbetes.get(quemVerbeteId)
+  if (verbete === undefined || verbete.tipo !== 'personagem' || !podeIrAoJogador(verbete)) return null
+  const nome = nomeDaFonte(verbete.titulo).slice(0, QUEM_DIZ_MAX).trim()
+  return nome === '' ? null : nome
+}
+
+/**
+ * Uma entrada do "?" com o texto da seção ligada, as cópias de nome e quem diz
+ * em dia; a MESMA entrada quando nada muda. Mesma regra do pino ligado: seção
+ * de segredo (ou que virou segredo) vira "Texto indisponível."; fonte apagada
+ * deixa a cópia de reserva.
+ */
+export function falaEmDia(fala: FalaDoPino, verbetes: ReadonlyMap<string, Verbete>): FalaDoPino {
+  let nova = fala
+  const fonte = fala.fonte
+  const situacao = fonte === undefined ? null : situacaoDaFonte(fonte, verbetes)
+  if (fonte !== undefined && situacao !== null && situacao.t !== 'sumiu') {
+    const texto = textoParaOJogador(situacao) ?? fala.texto
+    if (fala.texto !== texto || fonte.verbete !== situacao.verbete || fonte.secao !== situacao.secao) {
+      nova = { ...nova, texto, fonte: { ...fonte, verbete: situacao.verbete, secao: situacao.secao } }
+    }
+  }
+  const quem = fala.quemVerbeteId === undefined ? null : quemDizEmDia(fala.quemVerbeteId, verbetes)
+  if (quem !== null && nova.quem !== quem) nova = { ...nova, quem }
+  return nova
+}
+
+function falasDoPinoEmDia(pin: Pin, verbetes: ReadonlyMap<string, Verbete>): Pin {
+  if (!Array.isArray(pin.falas)) return pin
+  let mudou = false
+  const falas = pin.falas.map((fala) => {
+    const nova = falaEmDia(fala, verbetes)
+    if (nova !== fala) mudou = true
+    return nova
+  })
+  return mudou ? { ...pin, falas } : pin
 }
 
 /**
