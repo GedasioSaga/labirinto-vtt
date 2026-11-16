@@ -10,7 +10,7 @@ import {
 } from '../ajusteDaFicha'
 import { numeroDaFicha, type CartaoDaFicha, type Modificador, type ParteDoAjuste, type Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
-import type { Token } from '../../types/map'
+import type { CarriedItem, Token } from '../../types/map'
 import type { CondicoesDaFicha } from '../turnoForaDaBatalha'
 import {
   combateVazio,
@@ -253,6 +253,12 @@ export type Reversao =
    * Linha sem `escrito` (de antes) volta sempre.
    */
   | { tipo: 'cartaoDaForma'; personagemId: string; antes: CartaoDaFicha; escrito?: { mods: readonly Modificador[]; habilidade: string | null } }
+  /**
+   * MUNIÇÃO (pedido de 16/11/2026): o tiro tirou 1 da vaga `vaga` (como ela
+   * estava antes) da mochila da ficha. Desfazer = a unidade volta pela mesa
+   * (`devolverMunicaoNaFicha`), na vaga de agora ou no mesmo lugar `indice`.
+   */
+  | { tipo: 'municao'; personagemId: string; vaga: CarriedItem; indice: number }
 
 /** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
 export interface CombateNaVez {
@@ -962,6 +968,8 @@ export function reverterTurnos(turnos: TurnosDaCena, reversao: Reversao): Turnos
     case 'formaPedida':
     case 'formaDecidida':
     case 'cartaoDaForma':
+    // A munição mora na mochila da ficha e volta pela mesa (a store).
+    case 'municao':
     // A linha que nasceu junto volta pelo Desfazer dela (a store).
     case 'linhaJunto':
       return turnos

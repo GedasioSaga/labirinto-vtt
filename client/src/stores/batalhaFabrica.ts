@@ -164,6 +164,7 @@ import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOver
 import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
+import { devolverMunicaoNaFicha, gastarMunicaoDaFicha, type MunicaoGasta } from '../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
@@ -839,6 +840,12 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
       })
       return { cena, emParte: !ok || outraDecisao, ok: true }
     }
+    case 'municao': {
+      // MUNIÇÃO: a unidade que o tiro gastou volta à mochila da ficha (o boneco espelha), sobre a ficha de agora.
+      const { vaga, indice } = reversao
+      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => devolverMunicaoNaFicha(atual, vaga, indice))
+      return { cena, emParte: !ok, ok: true }
+    }
     case 'invocadoSaiu': {
       // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.
       const { invocado } = reversao
@@ -974,8 +981,26 @@ function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: Siste
  * de quem atacou, o dano do alvo anterior) volta, e nada dela fica.
  */
 function devolverFichasDaAcao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDaCena, partes: readonly Reversao[], autor: AutorDaAcao): void {
-  const daFicha = partes.filter((parte) => parte.tipo === 'ficha')
+  const daFicha = partes.filter((parte) => parte.tipo === 'ficha' || parte.tipo === 'municao')
   if (daFicha.length > 0) desfazerReversao(mesa, sceneKey, cena, { tipo: 'composta', partes: daFicha }, autor)
+}
+
+/**
+ * MUNIÇÃO: tira 1 da bala ligada da mochila da ficha, pela mesa. `null` =
+ * nada a tirar (a bala deixou de estar ligada no meio); `'recusada'` = a mesa
+ * não gravou (a pasta publicada recusou), e o tiro não sai.
+ */
+function gastarMunicaoNaMesa(mesa: MesaDaBatalha, personagemId: string, armaId: string, balaId: string): Reversao | null | 'recusada' {
+  // Num objeto: o que o callback da mesa escreve, lido depois dele (um `let` o TS estreitaria para `null`).
+  const feito: { gasta: MunicaoGasta | null } = { gasta: null }
+  const ok = mesa.ajustarPersonagem(personagemId, (atual) => {
+    feito.gasta = gastarMunicaoDaFicha(atual, armaId, balaId)
+    return feito.gasta === null ? atual : feito.gasta.personagem
+  })
+  const { gasta } = feito
+  if (gasta === null) return null
+  if (!ok) return 'recusada'
+  return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice }
 }
 
 /** O nome que vai no histórico da ficha quando a batalha mexe nela. */
@@ -2776,6 +2801,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Bug 11: custo recusado = a técnica não sai (sem recarga, sem golpe, sem linha).
       if (doCusto === 'recusada') return false
       partes.push(...reversaoDaFicha(carta.personagemId, doCusto))
+    }
+    // MUNIÇÃO (pedido de 16/11/2026): o tiro com a bala ligada tira 1 da mochila da ficha (o boneco espelha). No host, o
+    // tiro do jogador chega aqui pelo mesmo `agir`: o `podeAgir` acima já recusou a bala com 0.
+    if (lancado.municao !== undefined && carta.personagemId !== null) {
+      const parte = gastarMunicaoNaMesa(mesa, carta.personagemId, lancado.municao.armaId, lancado.municao.balaId)
+      if (parte === 'recusada') {
+        devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
+        return false
+      }
+      if (parte !== null) partes.push(parte)
     }
     // Conserto das fichas F1 (Overload): quem usou fica com os atributos base pela metade até o fim da batalha.
     // F2b (revisão): só a técnica Overload cansa aqui; o golpe Overload pela forma (A Caçada Começa) cansa no fim dela.

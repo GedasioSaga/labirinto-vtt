@@ -2636,6 +2636,11 @@
   margin: 0;
   accent-color: var(--bt-sangue);
 }
+/* MUNIÇÃO: a bala que acabou na mochila fica apagada e não se escolhe ("Sem Balas de prata"). */
+.bt-bala--sem {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .bt-bala__nome {
   display: grid;
   min-width: 0;

@@ -163,15 +163,40 @@ function textoDosTurnos(turnos: number | null): string {
 
 const SEM_BALAS: readonly BalaNaTela[] = []
 
+/** "3 na mochila" (bala ligada à munição da mochila) ou "Qtd. 6" (o texto da ficha, só mostra); vazio = nada a dizer. */
+function quantidadeDaBala(bala: Pick<BalaNaTela, 'municao' | 'quantidade'>): string {
+  if (bala.municao !== undefined) return bala.municao === 0 ? 'nenhuma na mochila' : `${bala.municao} na mochila`
+  return bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`
+}
+
 /**
  * Uma bala na escolha da mira: o nome, o dano como a ficha diz ("+15" soma,
  * "40" troca) e o total do ataque com ela; embaixo, o efeito numa linha (o
  * texto inteiro no `title`) e a quantidade, que só mostra.
  */
-function OpcaoDeBala({ nome, marcada, titulo, danoTexto, total, detalhe, onEscolher }: { nome: string; marcada: boolean; titulo: string; danoTexto: string; total: DanoNaTela; detalhe: string; onEscolher: () => void }) {
+function OpcaoDeBala({
+  nome,
+  marcada,
+  titulo,
+  danoTexto,
+  total,
+  detalhe,
+  onEscolher,
+  semMunicao = false,
+}: {
+  nome: string
+  marcada: boolean
+  titulo: string
+  danoTexto: string
+  total: DanoNaTela
+  detalhe: string
+  onEscolher: () => void
+  /** MUNIÇÃO: a mochila não tem esta bala; a opção fica apagada e não se escolhe (o tiro seria recusado). */
+  semMunicao?: boolean
+}) {
   return (
-    <label className="bt-bala" title={detalhe === '' ? undefined : detalhe}>
-      <input type="radio" name={nome} checked={marcada} onChange={onEscolher} />
+    <label className={semMunicao ? 'bt-bala bt-bala--sem' : 'bt-bala'} title={detalhe === '' ? undefined : detalhe}>
+      <input type="radio" name={nome} checked={marcada} disabled={semMunicao} onChange={onEscolher} />
       <span className="bt-bala__nome">
         {titulo}
         {detalhe !== '' && <small className="bt-bala__det">{detalhe}</small>}
@@ -658,10 +683,11 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 key={bala.id}
                 nome={`${idBase}-bala`}
                 marcada={balaId === bala.id}
-                titulo={bala.nome}
+                titulo={bala.municao === 0 ? `Sem ${bala.nome}` : bala.nome}
                 danoTexto={bala.danoTexto === '' ? (golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma') : bala.danoTexto}
                 total={bala.dano}
-                detalhe={[bala.efeito, bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`].filter(Boolean).join(' · ')}
+                detalhe={[bala.efeito, quantidadeDaBala(bala)].filter(Boolean).join(' · ')}
+                semMunicao={bala.municao === 0}
                 onEscolher={() => escolherBala(bala.id)}
               />
             ))}

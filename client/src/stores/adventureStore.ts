@@ -1946,9 +1946,11 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const dono = donoDosPersonagens(get, set)
     if (dono === null) return false
     const lista = dono.lista ?? []
-    const existe = lista.some((atual) => atual.id === personagem.id)
+    const antes = lista.find((atual) => atual.id === personagem.id)
     // LOBBY: a pasta publicada pode recusar (o aviso já saiu); a janela da ficha fica com o rascunho.
-    return dono.gravar(existe ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem])
+    const gravou = dono.gravar(antes !== undefined ? lista.map((atual) => (atual.id === personagem.id ? personagem : atual)) : [...lista, personagem])
+    if (gravou) espelharSeAMochilaMudou(antes, personagem)
+    return gravou
   },
 
   ajustarPersonagem: (personagemId, ajustar) => {
@@ -1959,7 +1961,9 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     const novo = ajustar(atual)
     if (novo === atual) return true
     // Conserto das fichas F1 (bug 11): a pasta publicada que recusa (o Lobby não aceitaria; o aviso já saiu) não conta como feita.
-    return dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
+    const gravou = dono.gravar(lista.map((personagem) => (personagem.id === personagemId ? novo : personagem)))
+    if (gravou) espelharSeAMochilaMudou(atual, novo)
+    return gravou
   },
 
   adicionarPersonagens: (novos) => {
@@ -2909,6 +2913,19 @@ function espelharNasDeFundo(fichas: readonly Personagem[], exceto: string | null
 function espelharEmTodaCena(fichas: readonly Personagem[]): void {
   espelharNaAberta(fichas)
   espelharNasDeFundo(fichas, null)
+}
+
+/**
+ * MOCHILA NA FICHA (pedido de 16/11/2026): a ficha gravada pelo `ajustarPersonagem`
+ * ou pelo Salvar mudou a mochila ou a bolsa — o tiro que gasta a bala, o
+ * "Editar" e o "+ Adicionar" do mestre, o "Passar para a mochila". Sem isto o
+ * boneco (e a grade do inventário, que lê dele) só via a mudança na próxima
+ * troca de cena. A mochila igual não mexe em mapa nenhum.
+ */
+function espelharSeAMochilaMudou(antes: Personagem | undefined, depois: Personagem): void {
+  if (antes !== undefined && antes.mochila === depois.mochila && antes.moedas === depois.moedas) return
+  const fichas = fichasDonasDaMochila(useAdventureStore.getState())
+  if (fichas !== null) espelharEmTodaCena(fichas)
 }
 
 /**

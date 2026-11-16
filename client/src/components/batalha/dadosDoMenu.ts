@@ -227,10 +227,17 @@ export interface BalaNaTela {
   /** Como a ficha diz: "+15" soma ao dano da arma, "40" troca; vazio = o da arma. */
   danoTexto: string
   efeito: string
-  /** Texto livre, só mostra: o app não conta tiros. */
+  /** Texto livre, só mostra. Com `municao`, a mira mostra a mochila no lugar dele. */
   quantidade: string
+  /** MUNIÇÃO (pedido de 16/11/2026): quantas a mochila da ficha tem; 0 = "Sem <nome>", o tiro não sai. Ausente = bala só de texto. */
+  municao?: number
   /** O dano do Atacar com esta bala ("160 Força + 20 Rosa + 15 Prata = 195"). */
   dano: DanoNaTela
+}
+
+/** A munição da bala como a mira a mostra: só o número da mochila (ausente = bala de texto). */
+function municaoNaTela(bala: BalaDaArma): { municao?: number } {
+  return bala.municao === undefined ? {} : { municao: bala.municao.quantos }
 }
 
 /** Uma linha da leitura inteira: o rótulo do campo e o texto como a ficha diz. */
@@ -737,6 +744,7 @@ function balasDaTecnica(cartao: CartaoDaFicha, personagem: Personagem, sistema: 
     danoTexto: bala.dano,
     efeito: bala.efeito,
     quantidade: bala.quantidade,
+    ...municaoNaTela(bala),
     dano: danoNaTela(montado ? danoDaTecnica(cartao, { personagem, sistema, arma, bala, bonusDaBatalha: bonus }) : lerDano(formula, { personagem, sistema, arma, vidaDoAlvo: null, bala, bonusDaBatalha: bonus })),
   }))
 }
@@ -1087,7 +1095,7 @@ export function golpesDeAtaque(
     const balas: BalaNaTela[] =
       arma === null
         ? []
-        : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, dano: danoCom(arma, bala) }))
+        : arma.balas.map((bala) => ({ id: bala.id, nome: bala.nome, danoTexto: bala.dano, efeito: bala.efeito, quantidade: bala.quantidade, ...municaoNaTela(bala), dano: danoCom(arma, bala) }))
     return {
       ...(selo === null ? {} : { selo }),
       // Construtor C8: a arma só de efeito ("Nada" no Soma no ataque) não dá dano; com selo, o alvo reage para fugir dele (a regra do host).

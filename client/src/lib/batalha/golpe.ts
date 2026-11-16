@@ -51,6 +51,7 @@ import {
   balaDaArma,
   categoriaAtira,
   lerTempo,
+  motivoSemMunicao,
   recursoDoCusto,
   recursoDoEscudo,
   tecnicaPorId,
@@ -216,6 +217,12 @@ export interface GolpeLancado {
   resolvidosDoSegundo?: readonly AlvoDoGolpe[]
   /** F2 (fatia C): as partes depois da 2ª (o 3º golpe do Atacar da Aira com a Bênção), cada uma com os alvos já resolvidos. */
   seguintes?: readonly { golpe: GolpeDaBatalha; resolvidos: readonly AlvoDoGolpe[] }[]
+  /**
+   * MUNIÇÃO (pedido de 16/11/2026): a bala ligada à mochila que o tiro usou.
+   * A store tira 1 dela da mochila de quem atirou (`gastarMunicaoDaFicha`).
+   * Ausente = sem bala, ou bala só de texto (o app não conta).
+   */
+  municao?: { armaId: string; balaId: string }
 }
 
 /** F2 (fatia C): quantos ids de parte a store manda além do 2º golpe (o Atacar da Aira com a Bênção usa 1). */
@@ -275,6 +282,12 @@ function armaDoPedido(ctx: ContextoDoGolpe, armaId: string | null): ArmaDaFicha 
   const levadas = combateDe(ctx).armas
   if (levadas !== null && !levadas.includes(armaId)) return undefined
   return armasDe(ctx.personagem).find((arma) => arma.id === armaId)
+}
+
+/** MUNIÇÃO: "Sem Balas de prata" quando a bala do pedido está ligada à mochila e acabou; `null` = pode atirar. */
+function motivoSemMunicaoDoPedido(arma: ArmaDaFicha | null, balaId: string | undefined): string | null {
+  const bala = arma === null || balaId === undefined ? null : balaDaArma(arma, balaId)
+  return bala === null ? null : motivoSemMunicao(bala)
 }
 
 function motivoDosAlvos(ctx: ContextoDoGolpe, alvos: readonly PedidoDeAlvo[], minimo: number): string | null {
@@ -410,6 +423,9 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       const arma = armaDoPedido(ctx, pedido.armaId)
       if (arma === undefined) return 'Arma fora das levadas para a batalha'
       if (pedido.balaId !== undefined && (arma === null || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
+      // MUNIÇÃO (decisão do mestre de 16/11: "Bloqueia o tiro"): a bala ligada à mochila com 0 não atira, aqui e no host.
+      const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
+      if (semMunicao !== null) return semMunicao
       const motivo = motivoDosAlvos(ctx, pedido.alvos, 1) ?? motivoDasRespostasDoPedido(ctx, null, pedido.respostas, null)
       if (motivo !== null) return motivo
       // Construtor C8: a arma montada (o Boomerang) segue as peças: usos da batalha, custo, ação, dano e alvos.
@@ -437,6 +453,8 @@ export function podeAgir(ctx: ContextoDoGolpe, pedido: PedidoDeAcao): string | n
       // Construtor C1: no cartão montado, a fórmula é a da peça (o campo Dano é só descrição).
       const formulaDoDano = formulaDoDanoDasPecas(tecnica.cartao) ?? tecnica.cartao.campos[CAMPO_DO_DANO] ?? ''
       if (pedido.balaId !== undefined && (arma === null || !formulaUsaBala(formulaDoDano) || balaDaArma(arma, pedido.balaId) === null)) return 'Bala não encontrada na arma'
+      const semMunicao = motivoSemMunicaoDoPedido(arma, pedido.balaId)
+      if (semMunicao !== null) return semMunicao
       // Construtor C1 (revisão, decisão 2): a mesma conta que `lancarGolpe` faz pelas peças, com a arma, a bala e os selos de quem usa.
       const balaDaFormula = pedido.balaId !== undefined && arma !== null ? balaDaArma(arma, pedido.balaId) : null
       const semConta = motivoDoDanoDasPecas(ctx, tecnica.cartao, { personagem, sistema, arma, bala: balaDaFormula, bonusDaBatalha: bonusDaBatalha(ctx.turnos.selos, ctx.carta.tokenId) })
@@ -906,6 +924,7 @@ export function lancarGolpe(ctx: ContextoDoGolpe, pedido: PedidoDeAcao, ids: Ids
     cargaUsada: carga,
     ...(tecnica?.overload === true ? { gastaOOverload: true } : {}),
     ...(tecnicaDeAjuda(tecnica, pecas) ? { ajuda: true } : {}),
+    ...(bala !== null && arma !== null && bala.municao !== undefined ? { municao: { armaId: arma.id, balaId: bala.id } } : {}),
   }
   // F2 (fatia C): o Atacar melhorado repete o golpe inteiro (mesmos alvos, mesmo dano e selo), cada parte com a própria reação.
   if (melhorado !== null) {

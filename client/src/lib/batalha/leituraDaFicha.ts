@@ -4,6 +4,7 @@ import type { RecursoDoSistema, SistemaDeRpg } from '../sistemaDeRpg'
 import { recursoDeVida } from '../vidaDaFicha'
 import { PERFURACAO_MAX, PERFURACAO_MIN, type AcaoDaTecnica } from './combate'
 import { CAMPO_DO_DANO, normalizar } from './formula'
+import { municaoNaMochila, type MunicaoDaBala } from '../mochila/municao'
 
 /**
  * LEITURA DA FICHA PARA A BATALHA, F2 (seção 3.1 de
@@ -257,8 +258,16 @@ export interface BalaDaArma {
   /** "+15" = soma ao dano da arma; "40" = troca o dano da arma; vazio = o da arma. Lido por `danoDoAtaque`. */
   dano: string
   efeito: string
-  /** Texto livre, só mostra: o app não conta tiros. */
+  /** Texto livre, só mostra. Com `municao`, deixa de valer: quem conta é a mochila. */
   quantidade: string
+  /** O item de munição do Acervo a que o tipo de bala se liga (o `itemId` do subcartão); ausente = pelo nome. */
+  itemId?: string
+  /**
+   * MUNIÇÃO (pedido de 16/11/2026): a bala ligada a uma vaga da mochila da
+   * ficha (`municaoNaMochila`). O tiro com ela gasta 1, e com 0 não sai.
+   * Ausente = bala só de texto, como antes.
+   */
+  municao?: MunicaoDaBala
 }
 
 /** A arma da aba Armas com o que a batalha lê dela. É o próprio cartão, mais as leituras. */
@@ -288,25 +297,39 @@ export function categoriaAtira(categoria: CategoriaDaArma | null): boolean {
   return categoria !== null && CATEGORIAS_QUE_ATIRAM.has(categoria)
 }
 
-function balaDoCartao(cartao: CartaoDaFicha): BalaDaArma {
+function balaDoCartao(cartao: CartaoDaFicha, mochila: readonly CarriedItem[]): BalaDaArma {
+  const nome = cartao.nome.trim() || BALA_SEM_NOME
+  // A bala sem nome não casa com vaga nenhuma pelo nome ("Bala sem nome" seria um item de verdade por acaso).
+  const municao = cartao.nome.trim() === '' && cartao.itemId === undefined ? undefined : municaoNaMochila(mochila, nome, cartao.itemId)
   return {
     id: cartao.id,
-    nome: cartao.nome.trim() || BALA_SEM_NOME,
+    nome,
     dano: (cartao.campos[CAMPO_DO_DANO] ?? '').trim(),
     efeito: (cartao.campos[CAMPO_DO_EFEITO] ?? '').trim(),
     quantidade: (cartao.campos[CAMPO_DA_QUANTIDADE] ?? '').trim(),
+    ...(cartao.itemId === undefined ? {} : { itemId: cartao.itemId }),
+    ...(municao === undefined ? {} : { municao }),
   }
 }
 
-/** A arma lida: categoria, capacidade e os tipos de bala (subcartões), todos na ordem da ficha. */
-export function lerArma(cartao: CartaoDaFicha): ArmaDaFicha {
+/**
+ * A arma lida: categoria, capacidade e os tipos de bala (subcartões), todos na
+ * ordem da ficha. `mochila` = a da ficha: a bala ligada a uma vaga conta dela
+ * (`BalaDaArma.municao`); sem ela, nenhuma bala é ligada.
+ */
+export function lerArma(cartao: CartaoDaFicha, mochila: readonly CarriedItem[] = []): ArmaDaFicha {
   const capacidade = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim()
   return {
     ...cartao,
     categoria: lerCategoria(cartao.campos[CAMPO_DA_CATEGORIA] ?? ''),
     capacidade: capacidade.length === 0 ? null : capacidade,
-    balas: cartao.subcartoes.map(balaDoCartao),
+    balas: cartao.subcartoes.map((bala) => balaDoCartao(bala, mochila)),
   }
+}
+
+/** "Sem Balas de prata": por que o tiro com esta bala não sai, ou `null` (bala de texto, ou com munição na mochila). */
+export function motivoSemMunicao(bala: Pick<BalaDaArma, 'nome' | 'municao'>): string | null {
+  return bala.municao !== undefined && bala.municao.quantos < 1 ? `Sem ${bala.nome}` : null
 }
 
 /**
@@ -387,7 +410,7 @@ export function armasDe(personagem: Personagem): ArmaDaFicha[] {
   }
   const guardadas = porMochila.get(mochila)
   if (guardadas !== undefined) return guardadas
-  const lidas = [...cartoes, ...armasSoNaMochila(cartoes, mochila)].map(lerArma)
+  const lidas = [...cartoes, ...armasSoNaMochila(cartoes, mochila)].map((cartao) => lerArma(cartao, mochila))
   porMochila.set(mochila, lidas)
   return lidas
 }
