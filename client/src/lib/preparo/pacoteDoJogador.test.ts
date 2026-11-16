@@ -577,10 +577,12 @@ describe('"?" falas: a entrada oculta não chega ao recorte do jogador (P5)', ()
     ],
   }
 
-  it('sem nada dito: só a livre vai, o "?" só com oculta some, e SEGREDO-XYZ não aparece', () => {
+  it('sem nada dito: só a livre vai, o "?" só com oculta sai vazio, e SEGREDO-XYZ não aparece', () => {
     const recorte = recorteDaAna(mapa)
     expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
-    expect(recorte.map.pins.map((pino) => pino.id).sort()).toEqual(['antigo', 'taverna'])
+    // Pedido de 16/11/2026: o "?" só com oculta chega como marcador vazio, sem entrada nem contagem.
+    expect(recorte.map.pins.map((pino) => pino.id).sort()).toEqual(['antigo', 'so-oculta', 'taverna'])
+    expect(recorte.map.pins.find((pino) => pino.id === 'so-oculta')?.falasVisiveis).toEqual([])
     const taverna = recorte.map.pins.find((pino) => pino.id === 'taverna')
     expect(taverna?.falasVisiveis?.map((fala) => fala.id)).toEqual(['livre'])
     expect(taverna !== undefined && 'falas' in taverna).toBe(false)
@@ -659,7 +661,9 @@ describe('"?" com entrada ligada a uma seção: o segredo não chega ao recorte 
     for (const recorte of [daAna, daBia]) {
       expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
       expect(JSON.stringify(recorte)).not.toContain('vb-capitao')
-      expect(recorte.map.pins.map((pino) => pino.id)).toEqual(['taverna'])
+      // O "?" só com oculta sai vazio (pedido de 16/11/2026); o texto dele fica no SEGREDO acima.
+      expect(recorte.map.pins.map((pino) => pino.id)).toEqual(['taverna', 'so-oculta'])
+      expect(recorte.map.pins.find((pino) => pino.id === 'so-oculta')?.falasVisiveis).toEqual([])
     }
   })
 

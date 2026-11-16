@@ -92,11 +92,13 @@ function paraJogador(fala: FalaDoPino): FalaParaJogador {
  *   de cada uma só etiqueta, quem diz e texto — nunca a ligação, o verbete,
  *   a quem mais foi dita nem quantas estão ocultas;
  * - o `description` sai vazio (o texto mora nas entradas);
- * - sem nenhuma entrada para ele, o pino não sai (`null`): o "?" não existe
- *   para quem ainda não ouviu nada.
+ * - sem nenhuma entrada para ele, o pino sai VAZIO (`falasVisiveis: []`): o
+ *   marcador está no mapa e o mestre o vê ali, então sumir com ele parecia
+ *   defeito (pedido de 16/11/2026, "pino não ta aparecendo no 2 piso"). O
+ *   toque mostra "nada escrito ainda"; nenhuma entrada nem contagem vai.
  * O "?" de sempre e os outros tipos passam iguais.
  */
-export function falasParaJogador(recortado: Pin, pin: Pin, leituras?: LeiturasDoJogador): Pin | null {
+export function falasParaJogador(recortado: Pin, pin: Pin, leituras?: LeiturasDoJogador): Pin {
   if (!temFalas(pin) || !Array.isArray(pin.falas)) return recortado
   const legivel = recortado.longe !== true
   const ditas = leituras?.falas
@@ -105,7 +107,6 @@ export function falasParaJogador(recortado: Pin, pin: Pin, leituras?: LeiturasDo
     if (ditas !== undefined && ditas.has(chaveDaFala(pin.id, fala.id))) return true
     return fala.livre === true && legivel
   })
-  if (visiveis.length === 0) return null
   return { ...recortado, description: '', falasVisiveis: visiveis.map(paraJogador) }
 }
 
