@@ -77,9 +77,9 @@ function corpoVisivel(): boolean {
 }
 
 describe('TokenConditionControls', () => {
-  it('as cinco condições, pelo nome, como botões de ligar/desligar num grupo com rótulo', () => {
+  it('as condições de fábrica (as cinco e o Lento da Fase 3), pelo nome, como botões de ligar/desligar num grupo com rótulo', () => {
     render([])
-    expect(pastilhas().map((b) => b.textContent?.trim())).toEqual(['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível'])
+    expect(pastilhas().map((b) => b.textContent?.trim())).toEqual(['Envenenado', 'Caído', 'Dormindo', 'Atordoado', 'Invisível', 'Lento'])
     for (const b of pastilhas()) {
       expect(b.getAttribute('type')).toBe('button')
       expect(b.getAttribute('aria-pressed')).toBe('false')
@@ -109,7 +109,7 @@ describe('TokenConditionControls', () => {
       expect(arte?.getAttribute('aria-hidden')).toBe('true')
       return arte?.querySelector('circle')?.getAttribute('fill')
     })
-    expect(cores).toEqual(['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel'].map((c) => TOKEN_CONDITION_SYMBOLS[c as keyof typeof TOKEN_CONDITION_SYMBOLS].fill))
+    expect(cores).toEqual(['envenenado', 'caido', 'dormindo', 'atordoado', 'invisivel', 'lento'].map((c) => TOKEN_CONDITION_SYMBOLS[c as keyof typeof TOKEN_CONDITION_SYMBOLS].fill))
   })
 
   it('diz onde a marca aparece — inclusive para os jogadores —, ligado à linha e ao grupo', () => {

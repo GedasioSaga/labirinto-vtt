@@ -1380,8 +1380,28 @@ export interface TokenHealth {
  * Condição de mesa marcada NA FICHA pelo mestre. Lista curta e fechada de
  * propósito — é o que se marca no meio da luta com um clique, não um campo
  * livre. Rótulos, pastilhas e a ordem moram em `lib/tokenConditions.ts`.
+ *
+ * `lento` (Fase 3, 15/11/2026): anda metade do passo da cena
+ * (`passoMaximoDaFicha` em `lib/movementRules.ts`). App de antes dele lê o
+ * mapa e só não mostra a pastilha (`isTokenCondition`).
  */
-export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel'
+export type TokenCondition = 'envenenado' | 'caido' | 'dormindo' | 'atordoado' | 'invisivel' | 'lento'
+
+/**
+ * PRAZO DE UMA CONDIÇÃO NA FICHA (Fase 3, 15/11/2026): quantos turnos a
+ * pastilha de mesmo nome ainda dura e, se for o caso, quanta vida ela tira por
+ * turno ("Envenenado 3 turnos, 4 de vida por turno"). Casa com a pastilha (de
+ * fábrica ou criada) pelo NOME, sem acento nem caixa. Quem conta os turnos e
+ * a regra inteira: `lib/prazoDaCondicao.ts`.
+ */
+export interface PrazoDeCondicao {
+  /** O nome da condição como a pessoa lê ("Envenenado"). */
+  nome: string
+  /** Turnos que faltam, inteiro de 1 em diante. Chegou a 0, a condição sai da ficha. */
+  turnos: number
+  /** Vida tirada a cada turno, inteiro de 1 em diante; ausente = não tira vida. */
+  porVez?: number
+}
 
 /**
  * CONDIÇÃO CRIADA PELO MESTRE (pedido de 09/11/2026): nome, cor e desenho
@@ -1561,6 +1581,14 @@ export interface Token extends PlayerSecret, NoPiso, NaCamada {
    * o jogador junto com a ficha, já limpa (`lib/fogFilter.ts`).
    */
   condicoesProprias?: CondicaoPropria[]
+  /**
+   * PRAZO das condições desta ficha (Fase 3): turnos que faltam e vida por
+   * turno, uma entrada por nome. Ausente é nenhum prazo (a pastilha fica até o
+   * mestre tirar, como antes), sem linha de migração. O mapa do disco chega
+   * CRU: quem lê passa por `prazosDaFicha` (`lib/prazoDaCondicao.ts`). NÃO
+   * atravessa para o jogador (`lib/fogFilter.ts` monta a ficha campo a campo).
+   */
+  prazosDasCondicoes?: PrazoDeCondicao[]
   /**
    * OLHOS DO GUARDA: a ficha é um NPC que vigia (`lib/npcWatch.ts`). Ausente
    * ou `null` = ficha comum, sem linha de migração. O mapa do disco chega

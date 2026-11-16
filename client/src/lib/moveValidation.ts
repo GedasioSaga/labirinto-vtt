@@ -9,7 +9,7 @@ import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
 import { aguaEscondidaDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
 import { paredesParaAndarDoJogador, semParedesDeObjeto } from './obstaculosDeObjeto'
-import { clampToMaxStep, findOccupant, maxStepOf, tokensOccupy } from './movementRules'
+import { clampToMaxStep, findOccupant, passoMaximoDaFicha, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
 import type { Casa } from './batalha/blocos'
 
@@ -368,7 +368,9 @@ export function validateTokenMove(
   // Passo máximo da cena: o jogador anda até o último ponto do alcance, na
   // direção que pediu. Parede e chão são checados no trecho que ele anda DE
   // FATO — obstáculo além do alcance não recusa um passo que nem chega lá.
-  const to = options.isHost ? { x: request.x, y: request.y } : clampToMaxStep(map, from, { x: request.x, y: request.y })
+  // LENTO (Fase 3): a ficha com a pastilha anda metade do passo (`passoMaximoDaFicha`), aqui e na batalha abaixo.
+  const passoDaFicha = passoMaximoDaFicha(map, token)
+  const to = options.isHost ? { x: request.x, y: request.y } : clampToMaxStep(map, from, { x: request.x, y: request.y }, passoDaFicha)
   // FORA DO CHÃO: na cena livre nenhuma peça limita (`chaoQueLimita`), e as três travas do chão abaixo não seguram.
   const compiled = compileFloor(chaoQueLimita(map))
   // BARRANCO (`lib/barranco.ts`): a linha do barranco do piso da ficha segura o passo como parede que deixa ver.
@@ -399,7 +401,7 @@ export function validateTokenMove(
       de: from,
       para: { x: request.x, y: request.y },
       tamanho: token.size,
-      passoMaximo: maxStepOf(map),
+      passoMaximo: passoDaFicha,
       paredesDoHost: paredes,
       paredesDoJogador: options.batalha.paredesDoJogador,
       noChao: (p: Point): boolean => !compiled.bounds || compiled.sample(p.x, p.y) <= 0,
