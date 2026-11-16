@@ -1,6 +1,6 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { usePreludio } from '../estado/preludio'
-import { quadrosDaCampanha, quadrosNaLixeira, resumoDaContagem, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
+import { quadroQueJaEstaNaSessao, quadrosDaCampanha, quadrosNaLixeira, resumoDaContagem, useQuadros, type ResumoDoQuadro } from './estadoDosQuadros'
 import { QuadroSobDemanda } from './sobDemanda'
 
 /**
@@ -14,6 +14,16 @@ import { QuadroSobDemanda } from './sobDemanda'
 const AVISO_DA_LISTA_MS = 8000
 
 const DATA = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+/**
+ * "Na lixeira desde 09/11, 14:20". O esquema aceita qualquer texto em `lixeira`
+ * (um arquivo editado à mão, um ""): sem data válida, fica só "Na lixeira", em
+ * vez de o `format` derrubar a tela com "Invalid time value".
+ */
+export function quandoFoiParaALixeira(lixeira: string): string {
+  const instante = Date.parse(lixeira)
+  return Number.isNaN(instante) ? 'Na lixeira' : `Na lixeira desde ${DATA.format(new Date(instante))}`
+}
 
 /** "+ Novo quadro": cria na campanha do filtro e abre com o nome selecionado; se o disco recusar, a lista diz por quê. */
 export function useNovoQuadro(): () => Promise<void> {
@@ -89,6 +99,60 @@ function LinhaDoQuadro({ quadro, ocupado, travado, aoAbrir, aoMudarCampanha, aoL
   )
 }
 
+interface EscolhaProps {
+  readonly quadro: ResumoDoQuadro
+  readonly atual: ResumoDoQuadro
+  readonly sessao: string
+  readonly aoTrocar: () => void
+  readonly aoSoltar: () => void
+  readonly aoCancelar: () => void
+}
+
+/**
+ * Restaurar um quadro cuja sessão já tem outro na aba Quadro: o mestre diz
+ * qual fica na sessão (antes, o de menor id ganhava calado, e o trabalho no
+ * outro sumia da sessão). O foco vai para a primeira resposta; Esc desiste.
+ */
+function EscolhaDaSessao({ quadro, atual, sessao, aoTrocar, aoSoltar, aoCancelar }: EscolhaProps) {
+  const primeira = useRef<HTMLButtonElement>(null)
+  const idDoTexto = useId()
+  const nome = quadro.nome || 'Quadro sem nome'
+  const nomeAtual = atual.nome || 'Quadro sem nome'
+  // O quadro novo da sessão nasce com o nome dela: com os dois de mesmo nome, o que cada um tem dentro os distingue.
+  const mesmoNome = nome === nomeAtual
+  const conteudo = (de: ResumoDoQuadro) => (de.contagem === null ? 'não abriu' : resumoDaContagem(de.contagem).toLocaleLowerCase('pt-BR'))
+
+  useEffect(() => {
+    primeira.current?.focus()
+  }, [])
+
+  const aoTeclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.key !== 'Escape') return
+    evento.preventDefault()
+    aoCancelar()
+  }
+
+  return (
+    <div className="pr-quadros__escolha" role="group" aria-labelledby={idDoTexto} onKeyDown={aoTeclar}>
+      <p id={idDoTexto} className="pr-quadros__escolha-texto">
+        A sessão <b>{sessao}</b> já tem o quadro <b>{nomeAtual}</b>
+        {mesmoNome && ` (${conteudo(atual)}); o da lixeira tem o mesmo nome (${conteudo(quadro)})`}. Qual fica na sessão?
+      </p>
+      <div className="pr-quadros__escolha-acoes">
+        <button ref={primeira} type="button" className="gr-bt gr-bt--p gr-bt--latao" onClick={aoTrocar}>
+          {mesmoNome ? 'O da lixeira' : nome} volta para a sessão
+        </button>
+        <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={aoSoltar}>
+          {mesmoNome ? 'Fica o que já está; o da lixeira volta solto' : `Fica ${nomeAtual}; este volta solto`}
+        </button>
+        <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={aoCancelar}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ListaDeQuadros() {
   const lista = useQuadros((estado) => estado.lista)
   const campanhaId = usePreludio((estado) => estado.campanhaId)
@@ -100,6 +164,10 @@ function ListaDeQuadros() {
   const [naLixeira, setNaLixeira] = useState(false)
   const [ocupados, setOcupados] = useState<ReadonlySet<string>>(new Set())
   const [aviso, setAviso] = useState<AvisoDaLista | null>(null)
+  /** O quadro que ia voltar, e o da sessão dele que já está na aba: a linha pergunta qual fica. */
+  const [escolha, setEscolha] = useState<{ readonly quadroId: string; readonly atualId: string } | null>(null)
+  const verbetes = usePreludio((estado) => estado.verbetes)
+  const botoesDeRestaurar = useRef(new Map<string, HTMLButtonElement>())
   const quadros = quadrosDaCampanha(lista, campanhaId)
   const jogados = quadrosNaLixeira(lista)
   const mostrados = naLixeira ? jogados : quadros
@@ -129,7 +197,34 @@ function ListaDeQuadros() {
 
   const nomeDe = (quadro: ResumoDoQuadro) => quadro.nome || 'Quadro sem nome'
   const lixeira = (quadro: ResumoDoQuadro) => void comOcupado(quadro.id, () => useQuadros.getState().porNaLixeira(quadro.id, true), { texto: `${nomeDe(quadro)} foi para a lixeira.`, falhou: false, desfazer: { id: quadro.id } })
-  const restaurar = (quadro: ResumoDoQuadro) => void comOcupado(quadro.id, () => useQuadros.getState().porNaLixeira(quadro.id, false), { texto: `${nomeDe(quadro)} voltou da lixeira.`, falhou: false })
+  const restaurar = (quadro: ResumoDoQuadro) => {
+    // A sessão dele já tem outro quadro: o mestre escolhe qual fica (a linha da lixeira pergunta).
+    const atual = quadroQueJaEstaNaSessao(lista, quadro)
+    if (atual !== undefined) {
+      setNaLixeira(true)
+      setEscolha({ quadroId: quadro.id, atualId: atual.id })
+      return
+    }
+    void comOcupado(quadro.id, () => useQuadros.getState().porNaLixeira(quadro.id, false), { texto: `${nomeDe(quadro)} voltou da lixeira.`, falhou: false })
+  }
+  const desistirDaEscolha = () => {
+    const id = escolha?.quadroId
+    setEscolha(null)
+    if (id !== undefined) requestAnimationFrame(() => botoesDeRestaurar.current.get(id)?.focus())
+  }
+  const voltarParaASessao = (quadro: ResumoDoQuadro, atual: ResumoDoQuadro) => {
+    setEscolha(null)
+    // Primeiro o outro sai da sessão; se o disco recusar, nada mais muda (a sessão não fica com dois).
+    void comOcupado(
+      quadro.id,
+      async () => (await useQuadros.getState().soltarDaSessao(atual.id)) ?? useQuadros.getState().porNaLixeira(quadro.id, false),
+      { texto: `${nomeDe(quadro)} voltou para a sessão; ${nomeDe(atual)} continua na lista, solto.`, falhou: false },
+    )
+  }
+  const voltarSolto = (quadro: ResumoDoQuadro, atual: ResumoDoQuadro) => {
+    setEscolha(null)
+    void comOcupado(quadro.id, () => useQuadros.getState().restaurarSolto(quadro.id), { texto: `${nomeDe(quadro)} voltou da lixeira, solto; a sessão continua com ${nomeDe(atual)}.`, falhou: false })
+  }
   const mudarCampanha = (quadro: ResumoDoQuadro, nova: string | null) => {
     const destino = nova === null ? 'ficou sem campanha' : `foi para ${campanhas.find((campanha) => campanha.id === nova)?.nome ?? 'a campanha escolhida'}`
     void comOcupado(quadro.id, () => useQuadros.getState().mudarCampanha(quadro.id, nova), { texto: `${nomeDe(quadro)} ${destino}.`, falhou: false })
@@ -191,23 +286,46 @@ function ListaDeQuadros() {
         </div>
       ) : naLixeira ? (
         <ul className="pr-cadernos">
-          {jogados.map((quadro) => (
-            <li key={quadro.id} className="pr-quadros__item pr-quadros__item--lixeira" aria-busy={ocupados.has(quadro.id)}>
-              <div className="pr-caderno pr-caderno--parado">
-                <span className="pr-caderno__nome">{nomeDe(quadro)}</span>
-                <span className="pr-caderno__conta">{quadro.contagem === null ? 'Não abriu' : resumoDaContagem(quadro.contagem)}</span>
-                {quadro.lixeira !== null && <span className="pr-caderno__conta">Na lixeira desde {DATA.format(new Date(quadro.lixeira))}</span>}
-              </div>
-              <div className="pr-quadros__acoes">
-                <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={() => ir({ secao: 'quadros', quadroId: quadro.id })}>
-                  Ver
-                </button>
-                <button type="button" className="gr-bt gr-bt--p gr-bt--latao" disabled={travado || ocupados.has(quadro.id)} onClick={() => restaurar(quadro)}>
-                  Restaurar
-                </button>
-              </div>
-            </li>
-          ))}
+          {jogados.map((quadro) => {
+            const atual = escolha?.quadroId === quadro.id && lista.t === 'pronta' ? lista.quadros.find((cada) => cada.id === escolha.atualId) : undefined
+            return (
+              <li key={quadro.id} className="pr-quadros__item pr-quadros__item--lixeira" aria-busy={ocupados.has(quadro.id)}>
+                <div className="pr-caderno pr-caderno--parado">
+                  <span className="pr-caderno__nome">{nomeDe(quadro)}</span>
+                  <span className="pr-caderno__conta">{quadro.contagem === null ? 'Não abriu' : resumoDaContagem(quadro.contagem)}</span>
+                  {quadro.lixeira !== null && <span className="pr-caderno__conta">{quandoFoiParaALixeira(quadro.lixeira)}</span>}
+                </div>
+                {atual !== undefined ? (
+                  <EscolhaDaSessao
+                    quadro={quadro}
+                    atual={atual}
+                    sessao={(quadro.sessaoId === null ? undefined : verbetes.get(quadro.sessaoId)?.titulo) || 'sem nome'}
+                    aoTrocar={() => voltarParaASessao(quadro, atual)}
+                    aoSoltar={() => voltarSolto(quadro, atual)}
+                    aoCancelar={desistirDaEscolha}
+                  />
+                ) : (
+                  <div className="pr-quadros__acoes">
+                    <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={() => ir({ secao: 'quadros', quadroId: quadro.id })}>
+                      Ver
+                    </button>
+                    <button
+                      ref={(botao) => {
+                        if (botao === null) botoesDeRestaurar.current.delete(quadro.id)
+                        else botoesDeRestaurar.current.set(quadro.id, botao)
+                      }}
+                      type="button"
+                      className="gr-bt gr-bt--p gr-bt--latao"
+                      disabled={travado || ocupados.has(quadro.id)}
+                      onClick={() => restaurar(quadro)}
+                    >
+                      Restaurar
+                    </button>
+                  </div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       ) : (
         <ul className="pr-cadernos">

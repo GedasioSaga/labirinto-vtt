@@ -17,10 +17,12 @@ import {
   quadroDaSessaoNaLixeira,
   quadrosDaCampanha,
   quadrosNaLixeira,
+  quadroQueJaEstaNaSessao,
   quadrosParaCitar,
   useQuadros,
   type ResumoDoQuadro,
 } from './estadoDosQuadros'
+import { quandoFoiParaALixeira } from './Quadros'
 
 const discoFalso = vi.hoisted(() => ({ arquivos: new Map<string, string>(), recusar: false }))
 
@@ -96,6 +98,34 @@ describe('lixeira e campanha do quadro (F3c)', () => {
     expect(await useQuadros.getState().porNaLixeira(id, false)).toBeNull()
     expect(discoFalso.arquivos.get(id)).toBe(bytesDeAntes)
     expect(quadroDaSessao(useQuadros.getState().lista, SESSAO)?.id).toBe(id)
+  })
+
+  it('restaurar com a sessão já ocupada: acha o outro quadro; volta solto, ou volta para a sessão e solta o outro; a data ruim não derruba a lixeira', async () => {
+    const antigo = 'aaaa-quadro-antigo-inventado'
+    const novo = 'quadro-novo-inventado'
+    discoFalso.arquivos.set(antigo, JSON.stringify({ ...quadroNovo('Ponte de Âmbar', { campanhaId: 'cp-ambar', sessaoId: SESSAO }), lixeira: '2026-11-09T12:00:00.000Z' }))
+    discoFalso.arquivos.set(novo, JSON.stringify(quadroNovo('Ponte refeita', { campanhaId: 'cp-ambar', sessaoId: SESSAO })))
+    useQuadros.setState({ lista: { t: 'pronta', quadros: [resumo(antigo, 'Ponte de Âmbar', { sessaoId: SESSAO, lixeira: '2026-11-09T12:00:00.000Z' }), resumo(novo, 'Ponte refeita', { sessaoId: SESSAO })] } })
+    const daLixeira = quadrosNaLixeira(useQuadros.getState().lista)[0]
+    if (daLixeira === undefined) throw new Error('a lixeira devia ter o quadro antigo')
+    // O de menor id ganharia calado: agora a lista sabe que a sessão já tem o novo e pergunta.
+    expect(quadroQueJaEstaNaSessao(useQuadros.getState().lista, daLixeira)?.id).toBe(novo)
+
+    // "Fica o novo; este volta solto": o antigo sai da lixeira sem a sessão, e a aba continua no novo.
+    expect(await useQuadros.getState().restaurarSolto(antigo)).toBeNull()
+    const arquivo = JSON.parse(discoFalso.arquivos.get(antigo) ?? '{}') as Quadro
+    expect('lixeira' in arquivo || 'sessaoId' in arquivo).toBe(false)
+    expect(quadroDaSessao(useQuadros.getState().lista, SESSAO)?.id).toBe(novo)
+
+    // A outra resposta: o novo sai da sessão (fica na lista, solto) e a aba passa ao que voltou.
+    expect(await useQuadros.getState().soltarDaSessao(novo)).toBeNull()
+    expect(quadroDaSessao(useQuadros.getState().lista, SESSAO)).toBeUndefined()
+    expect(quadrosDaCampanha(useQuadros.getState().lista, 'cp-ambar').map((quadro) => quadro.id).sort()).toEqual([antigo, novo])
+
+    // "lixeira" com texto que não é data (arquivo mexido à mão): a linha diz só "Na lixeira".
+    expect(quandoFoiParaALixeira('')).toBe('Na lixeira')
+    expect(quandoFoiParaALixeira('ontem')).toBe('Na lixeira')
+    expect(quandoFoiParaALixeira('2026-11-09T12:00:00.000Z')).toMatch(/^Na lixeira desde \d{2}\/\d{2}/)
   })
 
   it('muda de campanha e fica sem campanha; o disco que recusa devolve o motivo e a lista não muda', async () => {

@@ -4,13 +4,15 @@ import { usePreludio } from '../estado/preludio'
 import { prepararMidia, urlDaMidia } from '../midia'
 import { TIPOS_DE_CARTAO } from '../../lib/preparo/quadros'
 import { idDoCartao, verbeteDoCartao, type CartaoDeVerbete } from './cartoes'
+import { itemEmFoco } from './itemEmFoco'
 
 /**
  * OS ATALHOS DO QUADRO QUE VIERAM DO GRIMÓRIO (`components/atalhosCanvas.ts`):
  *
  * - Espaço com um cartão escolhido abre o verbete dele (o duplo clique só abre
  *   e fecha o painel do texto); numa imagem solta, pergunta se ela vira verbete.
- * - Ctrl+C com um cartão escolhido copia o retrato (a imagem, não a forma).
+ * - Ctrl+C com um cartão escolhido copia o retrato (a imagem, não a forma); com
+ *   um item escolhido na faixa do lugar, a imagem do item.
  *
  * Ficam na fase de captura do contêiner do editor, antes dos atalhos do tldraw
  * (Espaço é a mão de arrastar a vista; Ctrl+C copia a forma). Sem cartão nem
@@ -73,7 +75,10 @@ export function registrarAtalhosDoQuadro(editor: Editor, acoes: AcoesDosAtalhos)
     if ((evento.ctrlKey || evento.metaKey) && !evento.shiftKey && !evento.altKey && evento.key.toLowerCase() === 'c') {
       const escolhido = cartaoEscolhido(editor)
       if (escolhido === null || escolhido.verbete === undefined) return
-      const verbete = escolhido.verbete
+      // Com um item escolhido na faixa do lugar, copia a imagem do item (Grimório, `faixaItensFoco`).
+      const foco = itemEmFoco()
+      const doItem = foco !== null && foco.formaId === escolhido.cartao.id ? verbeteDoCartao(usePreludio.getState().verbetes, foco.itemId) : undefined
+      const verbete = doItem ?? escolhido.verbete
       const forma = verbete.formas.find((cada) => cada.id === verbete.formaAtivaId) ?? verbete.formas[0]
       const nome = verbete.titulo || 'Sem nome'
       // Sem retrato, o Ctrl+C do tldraw copia o cartão, como sempre.

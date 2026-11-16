@@ -22,8 +22,10 @@ interface LadosProps {
   readonly sessaoId: string
   readonly aba: AbaDaSessao
   readonly alvo?: string
-  /** O roteiro (a folha da sessão), que rola por conta própria. */
+  /** O roteiro (a folha da sessão ou uma página dela), que rola por conta própria. */
   readonly roteiro: ReactNode
+  /** As abas das notas (a folha da sessão e as páginas), na cabeça do lado; `undefined` = a sessão não tem páginas. */
+  readonly abasDoRoteiro?: ReactNode
   /** O quadro da sessão, com o começo da barra que este lado manda (o título e o recolher). */
   readonly quadro: (cabeca: ReactNode) => ReactNode
 }
@@ -37,7 +39,7 @@ function Faixa({ rotulo, aoAbrir }: { rotulo: string; aoAbrir: () => void }) {
   )
 }
 
-export function LadosDaSessao({ sessaoId, aba, alvo, roteiro, quadro }: LadosProps) {
+export function LadosDaSessao({ sessaoId, aba, alvo, roteiro, abasDoRoteiro, quadro }: LadosProps) {
   const [divisao, setDivisao] = useState<Divisao>(() => divisaoGuardada(sessaoId))
   const [arrastando, setArrastando] = useState(false)
   const casca = useRef<HTMLDivElement>(null)
@@ -130,6 +132,7 @@ export function LadosDaSessao({ sessaoId, aba, alvo, roteiro, quadro }: LadosPro
           <>
             <div className="pr-lados__cabeca">
               <span className="pr-lados__titulo">Roteiro</span>
+              {abasDoRoteiro}
               <button type="button" className="pr-lados__recolher" aria-label="Recolher o roteiro" title="Recolher o roteiro" onClick={() => recolher('roteiro')}>
                 {RECOLHER}
               </button>

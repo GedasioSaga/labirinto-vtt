@@ -20,10 +20,10 @@ import {
   type TLStore,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
-import { ROTULO_DO_TIPO, verbeteNovo } from '../../lib/preparo/enciclopedia'
+import { formaDe, formaNova, idNovo, ROTULO_DO_TIPO, verbeteNovo } from '../../lib/preparo/enciclopedia'
 import { ehLugarDentroDeLugar, gravarLigacoes, haLigacaoEntre, lerLigacoes, ligacaoNova, ligacoesVazias, tiposParaSugerir } from '../../lib/preparo/ligacoes'
 import { caminhosSemMidia, ehPlanta, extensaoDaImagem, fotoComMidia, gravarMidiaDoQuadro, midiaDoAsset, midiaNaTabela, tabelaDeMidiaDasImportacoes } from '../../lib/preparo/quadros'
-import type { Ligacao, Quadro, Verbete } from '../../lib/preparo/tipos'
+import type { Forma, Ligacao, Quadro, Verbete } from '../../lib/preparo/tipos'
 import { agendarGravacaoDeFora, usePreludio } from '../estado/preludio'
 import { prepararMidia, urlDaMidia } from '../midia'
 import { CARD_ALTURA_PADRAO, CARD_LARGURA_PADRAO, UTILS_DOS_CARTOES, abrirVerbeteDoQuadro, marcarChegada, tipoDeCartaoDo, verbeteDoCartao } from './cartoes'
@@ -33,11 +33,11 @@ import { GavetaDeVerbetes } from './GavetaDeVerbetes'
 import { criarGravadorDoQuadro } from './gravadorDoQuadro'
 import { cartoesPorVerbete, desenharSetasDasLigacoes, mostrarForma, pontasDaSeta, porCartao, rotularSeta, setasQueFaltam, textoDaSeta, verbeteDaForma } from './ligacoesNoQuadro'
 import { PerguntaDaLigacao, type PerguntaDeLigacao } from './PerguntaDaLigacao'
-import { PerguntaDaImagem, type TipoDaImagem } from './PerguntaDaImagem'
+import { PerguntaDaImagem, type DestinoDaImagem, type JaRetrato } from './PerguntaDaImagem'
 import { registrarAtalhosDoQuadro } from './atalhosDoQuadro'
 import { UTILS_DA_PLANTA, definirResolvedoresDaPlanta } from './planta'
 import { QuadroEsperando } from './esperando'
-import { definirQuadroAberto, focoFicaFora, MIME_DO_VERBETE } from './quadroAtivo'
+import { definirQuadroAberto, focoFicaFora, MIME_DO_VERBETE, viraCartao } from './quadroAtivo'
 
 /**
  * O QUADRO ABERTO (fatias F3a e F3b): o tldraw 4.5.12, o mesmo do Grimório, com a
@@ -276,8 +276,32 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
   const dispensadas = useRef(new Set<string>())
   const voltaNoCartao = useRef(new Map<string, number>())
   const alvoMostrado = useRef<string | undefined>(undefined)
+  const casca = useRef<HTMLDivElement>(null)
   const somenteVer = soLeitura !== null
   const podePor = !somenteVer && !travado
+
+  // O tldraw liga os atalhos (Delete, Ctrl+A, Ctrl+Z…) e o copiar, recortar e colar na página inteira
+  // (`document.body`) enquanto se acha em foco, e nada o tira do foco sozinho. Com o roteiro ao lado, o
+  // Delete apertado no roteiro apagava o cartão escolhido no quadro. O foco dele segue o ponteiro e o
+  // teclado: tocar ou focar fora do quadro (fora da barra, da gaveta e das perguntas dele) desliga; tocar
+  // ou focar dentro do tldraw liga de novo. Só o estado muda: o foco do navegador fica onde o mestre pôs.
+  useEffect(() => {
+    if (editor === null) return
+    const conteiner = editor.getContainer()
+    const aoMudarDeLugar = (evento: Event) => {
+      const alvoDoEvento = evento.target
+      if (!(alvoDoEvento instanceof Node)) return
+      if (conteiner.contains(alvoDoEvento)) {
+        if (!editor.getIsFocused()) editor.focus({ focusContainer: false })
+      } else if (casca.current?.contains(alvoDoEvento) !== true) editor.blur({ blurContainer: false })
+    }
+    document.addEventListener('pointerdown', aoMudarDeLugar, true)
+    document.addEventListener('focusin', aoMudarDeLugar, true)
+    return () => {
+      document.removeEventListener('pointerdown', aoMudarDeLugar, true)
+      document.removeEventListener('focusin', aoMudarDeLugar, true)
+    }
+  }, [editor])
 
   // O que vai ao disco é montado na hora de gravar: a foto de agora, o nome de agora, o resto como veio.
   const [gravador] = useState(() =>
@@ -648,44 +672,93 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
     editor?.focus()
   }
 
-  /** A imagem vira verbete: ele nasce com ela de retrato (o arquivo já está em `midia/`), e o cartão fica no lugar dela, na mesma moldura. */
-  const criarVerbeteDaImagem = async (tipo: TipoDaImagem, nomeDoVerbete: string): Promise<string | null> => {
+  /**
+   * A imagem vira verbete (novo, forma nova de um que existe, ou o cartão do que já a tem de retrato).
+   * O arquivo já está em `midia/`; o cartão fica no lugar dela, na mesma moldura. O Ctrl+Z devolve a
+   * imagem, mas o verbete (ou a forma) fica no Prelúdio: o tldraw não desfaz o que mora fora dele, e o
+   * aviso da barra diz isso. Se o mestre pedir de novo, a pergunta oferece o cartão do que ficou.
+   */
+  const transformarImagem = async (destino: DestinoDaImagem): Promise<string | null> => {
     const pedido = imagemEmVerbete
     if (pedido === null || editor === null) return null
-    if (usePreludio.getState().travado) return TRAVADO
+    const estado = usePreludio.getState()
+    if (estado.travado) return TRAVADO
     if (pedido.midia === null) return IMAGEM_SEM_ARQUIVO
     const imagem = editor.getShape(pedido.id)
     if (imagem === undefined) return 'A imagem não está mais no quadro.'
-    const campanha = quadro.campanhaId ?? campanhaDoFiltro
-    const base = verbeteNovo(tipo, nomeDoVerbete, { campanhas: campanha === null ? [] : [campanha] })
     const midia = pedido.midia
-    const novo: Verbete = { ...base, formas: base.formas.map((forma, indice) => (indice === 0 ? { ...forma, retrato: midia } : forma)) }
-    await usePreludio.getState().criarVerbete(novo)
+    let verbete: Verbete
+    let texto: string
+    if (destino.t === 'novo') {
+      const campanha = quadro.campanhaId ?? campanhaDoFiltro
+      const base = verbeteNovo(destino.tipo, destino.nome, { campanhas: campanha === null ? [] : [campanha] })
+      verbete = { ...base, formas: base.formas.map((forma, indice) => (indice === 0 ? { ...forma, retrato: midia } : forma)) }
+      await estado.criarVerbete(verbete)
+      texto = `${destino.nome} virou ${ROTULO_DO_TIPO[destino.tipo].um.toLowerCase()}, com a imagem de retrato. Ctrl+Z devolve a imagem; o verbete fica na Enciclopédia.`
+    } else {
+      const atual = estado.verbetes.get(destino.verbeteId)
+      if (atual === undefined) return 'Este verbete não existe mais.'
+      const aviso = estado.soLeitura.get(atual.id)
+      if (aviso !== undefined) return aviso
+      const quem = atual.titulo || 'Sem nome'
+      if (destino.t === 'forma') {
+        // A forma nova nasce com as seções da ativa, vazias (como "+ Forma" na página), e vira a ativa: o cartão mostra a imagem.
+        const base = formaDe(atual, null)
+        const nova: Forma = { ...(base === undefined ? { id: idNovo('fm'), nome: destino.nome, resumo: '', secoes: [], imagens: [] } : formaNova(base, destino.nome)), retrato: midia }
+        estado.mudarVerbete(atual.id, (antes) => ({ ...antes, formas: [...antes.formas, nova], formaAtivaId: nova.id }))
+        texto = `A imagem virou a forma ${destino.nome} de ${quem}. Ctrl+Z devolve a imagem; a forma fica no verbete.`
+      } else {
+        if (atual.formaAtivaId !== destino.formaId) estado.mudarVerbete(atual.id, (antes) => ({ ...antes, formaAtivaId: destino.formaId }))
+        texto = `O cartão de ${quem} entrou no lugar da imagem.`
+      }
+      verbete = usePreludio.getState().verbetes.get(atual.id) ?? atual
+    }
     const centro = editor.getShapePageBounds(imagem)?.center ?? pontoNoMeio(editor)
     const pai = imagem.parentId
-    const formaNova = createShapeId()
-    const tipoDoCartao = tipoDeCartaoDo(novo)
-    const posicao = { id: formaNova, x: centro.x - CARD_LARGURA_PADRAO / 2, y: centro.y - CARD_ALTURA_PADRAO / 2 }
-    marcarChegada(formaNova)
+    const cartaoNovo = createShapeId()
+    const tipoDoCartao = tipoDeCartaoDo(verbete)
+    const posicao = { id: cartaoNovo, x: centro.x - CARD_LARGURA_PADRAO / 2, y: centro.y - CARD_ALTURA_PADRAO / 2 }
+    marcarChegada(cartaoNovo)
     // Um passo só no desfazer: a imagem sai e o cartão entra juntos.
     editor.markHistoryStoppingPoint('imagem vira verbete')
     editor.run(() => {
       editor.deleteShapes([imagem.id])
-      if (tipoDoCartao === 'cenario-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { cenarioId: novo.id } })
-      else if (tipoDoCartao === 'item-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { itemId: novo.id } })
-      else editor.createShape({ ...posicao, type: tipoDoCartao, props: { personagemId: novo.id } })
+      if (tipoDoCartao === 'cenario-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { cenarioId: verbete.id } })
+      else if (tipoDoCartao === 'item-card') editor.createShape({ ...posicao, type: tipoDoCartao, props: { itemId: verbete.id } })
+      else editor.createShape({ ...posicao, type: tipoDoCartao, props: { personagemId: verbete.id } })
       // Dentro de uma moldura (a cena do mapa mental), o cartão continua dentro dela.
-      if (editor.getShape(pai)?.type === 'frame') editor.reparentShapes([formaNova], pai)
+      if (editor.getShape(pai)?.type === 'frame') editor.reparentShapes([cartaoNovo], pai)
     })
-    editor.select(formaNova)
+    editor.select(cartaoNovo)
     setImagemEmVerbete(null)
-    setResultado({ texto: `${nomeDoVerbete} virou ${ROTULO_DO_TIPO[tipo].um.toLowerCase()}, com a imagem de retrato.`, falhou: false })
+    setResultado({ texto, falhou: false })
     editor.focus()
     return null
   }
 
+  // A pergunta da imagem: quem pode ganhar a forma nova, e quem já tem esta imagem de retrato (só com a pergunta aberta).
+  const perguntando = imagemEmVerbete !== null
+  const midiaPerguntada = imagemEmVerbete?.midia ?? null
+  const candidatos = useMemo(() => (perguntando ? [...verbetes.values()].filter((verbete) => viraCartao(verbete.tipo)) : []), [perguntando, verbetes])
+  const jaRetrato = useMemo<JaRetrato[]>(() => {
+    if (midiaPerguntada === null) return []
+    const achados: JaRetrato[] = []
+    for (const verbete of verbetes.values()) {
+      if (!viraCartao(verbete.tipo)) continue
+      const forma = verbete.formas.find((cada) => cada.retrato === midiaPerguntada)
+      if (forma !== undefined) achados.push({ verbete, formaId: forma.id })
+    }
+    return achados.slice(0, 3)
+  }, [midiaPerguntada, verbetes])
+
+  // O caderno do quadro (a página-raiz das notas de um canvas do Grimório, `extras.quadroId`): abre pela barra.
+  const caderno = useMemo(() => {
+    for (const verbete of verbetes.values()) if (verbete.tipo === 'pagina' && verbete.extras?.quadroId === id) return verbete
+    return undefined
+  }, [verbetes, id])
+
   return (
-    <div className="pr-quadro">
+    <div ref={casca} className="pr-quadro">
       <div className="pr-quadro__barra">
         <ComecoDaBarra aoVoltar={aoVoltar} cabeca={cabeca} />
         <input
@@ -704,6 +777,11 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
           <span className={`pr-quadro__resultado${resultado.falhou ? ' pr-quadro__resultado--falhou' : ''}`} role={resultado.falhou ? 'alert' : 'status'}>
             {resultado.texto}
           </span>
+        )}
+        {caderno !== undefined && (
+          <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" title="As notas que vieram do Grimório com este quadro" onClick={() => abrirVerbeteDoQuadro(caderno)}>
+            Caderno
+          </button>
         )}
         <button
           ref={botaoDaGaveta}
@@ -761,7 +839,9 @@ function QuadroPronto({ id, store, quadro, noDisco, soLeitura, semArquivo, aoVol
               key={imagemEmVerbete.id}
               sugestao={imagemEmVerbete.sugestao}
               bloqueio={travado ? TRAVADO : imagemEmVerbete.midia === null ? IMAGEM_SEM_ARQUIVO : null}
-              aoCriar={criarVerbeteDaImagem}
+              candidatos={candidatos}
+              jaRetrato={jaRetrato}
+              aoCriar={transformarImagem}
               aoDispensar={dispensarImagem}
             />
           )}

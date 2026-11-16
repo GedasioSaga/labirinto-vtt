@@ -863,6 +863,103 @@
 /* a volta: da página do verbete para o quadro de onde ela foi aberta */
 .pr-voltar { margin-bottom: var(--lb-space-3); }
 
+/* ------------------------------------------------------------------ o cartão do Grimório, o resto (correções da F3c) */
+
+/* o corpo só leva o ouvinte da roda; o conteúdo (retrato e painéis) divide o cartão com a faixa de itens */
+.pr-cartao__corpo { display: contents; }
+.pr-cartao__conteudo { flex: 1; min-width: 0; min-height: 0; display: flex; }
+.pr-cartao--faixa-baixo { flex-direction: column; }
+.pr-cartao--faixa-cima { flex-direction: column-reverse; }
+.pr-cartao--faixa-esquerda { flex-direction: row-reverse; }
+
+/* as colunas "ao lado": cada uma do tamanho de uma coluna do cartão; a seta mora antes do lápis */
+.pr-cartao__painel--ao-lado { flex: 0 0 var(--pr-cartao-coluna); }
+.pr-cartao__coluna + .pr-cartao__lapis { margin-left: 0; }
+
+/* a linha dos controles: o tamanho da letra e a bolsa do acervo, que gira a faixa */
+.pr-cartao__controles { display: flex; flex-wrap: wrap; align-items: center; gap: calc(6 * var(--pr-cartao-c)); margin-top: calc(4 * var(--pr-cartao-u)); }
+.pr-cartao__controles .pr-cartao__fonte { margin-top: 0; }
+.pr-cartao__bolsa {
+  display: inline-flex; align-items: center; gap: calc(3 * var(--pr-cartao-c)); height: calc(22 * var(--pr-cartao-c)); padding: 0 calc(6 * var(--pr-cartao-c));
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); color: var(--lb-color-brass-bright);
+  font: 600 calc(11 * var(--pr-cartao-c))/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease;
+}
+.pr-cartao__bolsa svg { width: calc(14 * var(--pr-cartao-c)); height: calc(14 * var(--pr-cartao-c)); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.pr-cartao__bolsa:active:not(:disabled) { transform: scale(0.95); }
+.pr-cartao__bolsa:disabled { cursor: default; }
+
+/* a faixa de itens do lugar: miniaturas quadradas, rolando para o lado (deitada) ou para baixo (em pé) */
+.pr-faixa {
+  flex: 0 0 var(--pr-faixa-esp); min-width: 0; min-height: 0; display: flex; gap: calc(6 * var(--pr-cartao-u));
+  padding: calc(6 * var(--pr-cartao-u)); background: var(--lb-gr-papel-baixo); scrollbar-width: thin;
+}
+.pr-faixa--baixo, .pr-faixa--cima { flex-direction: row; overflow: auto hidden; }
+.pr-faixa--direita, .pr-faixa--esquerda { flex-direction: column; overflow: hidden auto; }
+.pr-faixa--baixo { border-top: 1px solid var(--lb-gr-filete); }
+.pr-faixa--cima { border-bottom: 1px solid var(--lb-gr-filete); }
+.pr-faixa--direita { border-left: 1px solid var(--lb-gr-filete); }
+.pr-faixa--esquerda { border-right: 1px solid var(--lb-gr-filete); }
+.pr-faixa__item { position: relative; flex: none; width: calc(var(--pr-faixa-esp) - 12 * var(--pr-cartao-u)); aspect-ratio: 1; }
+.pr-faixa__arte {
+  width: 100%; height: 100%; display: grid; place-items: center; padding: 0; overflow: hidden;
+  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out), border-color var(--lb-motion-fast) ease;
+}
+.pr-faixa__arte img { width: 100%; height: 100%; object-fit: cover; }
+.pr-faixa__arte:active { transform: scale(0.96); }
+.pr-faixa__item--foco .pr-faixa__arte { border-color: var(--lb-color-brass); box-shadow: 0 0 0 1px var(--lb-color-brass); }
+.pr-faixa__inicial { font: 400 calc(24 * var(--pr-cartao-u))/1 var(--lb-font-display); color: var(--lb-color-parchment-faint); }
+.pr-faixa__qtd {
+  position: absolute; right: calc(3 * var(--pr-cartao-u)); bottom: calc(3 * var(--pr-cartao-u)); min-width: calc(16 * var(--pr-cartao-u)); padding: 0 calc(3 * var(--pr-cartao-u));
+  border-radius: var(--lb-radius-full); background: var(--lb-gr-cartao); color: var(--lb-color-parchment);
+  font: 600 calc(10 * var(--pr-cartao-u))/1.5 var(--lb-font-utility); font-variant-numeric: tabular-nums; text-align: center; pointer-events: none;
+}
+.pr-faixa__copiar {
+  position: absolute; top: calc(3 * var(--pr-cartao-u)); right: calc(3 * var(--pr-cartao-u)); width: calc(20 * var(--pr-cartao-u)); height: calc(20 * var(--pr-cartao-u));
+  display: grid; place-items: center; padding: 0; border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); cursor: pointer; opacity: 0; transition: opacity var(--lb-motion-fast) ease;
+}
+.pr-faixa__copiar svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+.pr-faixa__copiar:disabled { display: none; }
+.pr-faixa__item:focus-within .pr-faixa__copiar, .pr-faixa__item--foco .pr-faixa__copiar { opacity: 1; }
+.pr-faixa__aviso {
+  position: absolute; left: 50%; bottom: 0; translate: -50% 0; padding: 0 calc(4 * var(--pr-cartao-u)); border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); font: 500 calc(10 * var(--pr-cartao-u))/1.6 var(--lb-font-utility); white-space: nowrap; pointer-events: none;
+}
+.pr-faixa__aviso--falhou { color: var(--lb-color-ember); }
+.pr-faixa__vazia { margin: auto; font-size: calc(11 * var(--pr-cartao-u)); color: var(--lb-color-parchment-faint); }
+
+/* a pergunta da imagem: verbete novo ou forma nova de um que existe */
+.pr-pergunta__modo { align-self: flex-start; }
+.pr-pergunta__modo .pr-abas__aba[aria-checked='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel), 0 0 0 1px var(--lb-gr-filete-forte); cursor: default; }
+.pr-pergunta__corpo { display: flex; flex-direction: column; gap: var(--lb-space-2); margin: 0; }
+.pr-pergunta__busca { display: flex; flex-direction: column; gap: var(--lb-space-1); }
+.pr-pergunta__achados { display: flex; flex-direction: column; gap: 2px; max-height: 180px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.pr-pergunta__achado {
+  width: 100%; min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-2); padding: 0 var(--lb-space-2);
+  border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm); text-align: left; cursor: pointer;
+}
+.pr-pergunta__achado[aria-pressed='true'] { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); }
+.pr-pergunta__achado-tipo { flex: none; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.pr-pergunta__ja { padding-bottom: var(--lb-space-2); border-bottom: 1px solid var(--lb-gr-filete); }
+
+/* a lixeira: restaurar um quadro cuja sessão já tem outro pergunta qual fica */
+.pr-quadros__escolha { display: flex; flex-direction: column; gap: var(--lb-space-2); padding: var(--lb-space-3) var(--lb-space-4); border-top: 1px solid var(--lb-gr-filete); }
+.pr-quadros__escolha-texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-quadros__escolha-texto b { font-weight: 500; color: var(--lb-color-parchment); }
+.pr-quadros__escolha-acoes { display: flex; flex-wrap: wrap; gap: var(--lb-space-2); }
+
+@media (hover: hover) and (pointer: fine) {
+  .pr-faixa__item:hover .pr-faixa__copiar { opacity: 1; }
+  .pr-faixa__arte:hover, .pr-cartao__bolsa:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); }
+  .pr-pergunta__achado:hover:not([aria-pressed='true']) { background: var(--lb-gr-hover); }
+  .pr-pergunta__modo .pr-abas__aba[aria-checked='false']:hover { color: var(--lb-color-parchment-dim); background: var(--lb-gr-hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-faixa__arte:active, .pr-cartao__bolsa:active:not(:disabled) { transform: none; }
+}
+
 /* ------------------------------------------------------------------ telas menores */
 @media (max-width: 1180px) {
   .pr-folha { grid-template-columns: minmax(0, var(--pr-medida)); }

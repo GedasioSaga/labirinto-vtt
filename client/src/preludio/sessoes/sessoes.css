@@ -115,6 +115,33 @@
 .pr-lados--arrastando { cursor: col-resize; user-select: none; }
 .pr-lados--arrastando .pr-lados__lado { pointer-events: none; }
 
+/* as notas lado a lado: a folha da sessão e as páginas dela, em abas na cabeça do lado, como as notas do Grimório */
+.pr-notas { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--lb-space-1); }
+.pr-notas__abas {
+  min-width: 0; display: flex; gap: 2px; padding: 2px; overflow-x: auto; scrollbar-width: thin;
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); background: var(--lb-gr-papel-baixo);
+}
+.pr-notas__aba {
+  flex: none; max-width: 18ch; min-height: 26px; padding: 0 var(--lb-space-3); overflow: hidden; border: 0; border-radius: var(--lb-radius-sm);
+  background: none; color: var(--lb-color-parchment-faint); font: 500 var(--lb-font-size-sm)/1 var(--lb-font-sans); white-space: nowrap; text-overflow: ellipsis; cursor: pointer;
+}
+.pr-notas__aba[aria-selected='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel), 0 0 0 1px var(--lb-gr-filete-forte); cursor: default; }
+.pr-notas__nova {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment-faint); cursor: pointer;
+  transition: transform 120ms var(--lb-gr-ease-out), color var(--lb-motion-fast) ease;
+}
+.pr-notas__nova svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.pr-notas__nova:active { transform: scale(0.95); }
+.pr-folha--ao-lado { grid-template-columns: minmax(0, var(--pr-medida)); }
+@media (hover: hover) and (pointer: fine) {
+  .pr-notas__aba[aria-selected='false']:hover { color: var(--lb-color-parchment-dim); background: var(--lb-gr-hover); }
+  .pr-notas__nova:hover { color: var(--lb-color-parchment); background: var(--lb-gr-hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-notas__nova:active { transform: none; }
+}
+
 /* o roteiro estreito: a folha vira uma coluna só, com o trilho embaixo */
 @container (max-width: 860px) {
   .pr-lados__rolagem .pr-folha { grid-template-columns: minmax(0, 1fr); gap: var(--lb-space-6); padding: var(--lb-space-5) var(--lb-space-5) var(--lb-space-10); }

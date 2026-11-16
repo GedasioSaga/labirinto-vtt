@@ -48,6 +48,13 @@ interface EstadoDosQuadros {
   esquecerRecemCriado: () => void
   /** Manda para a lixeira (`true`) ou restaura (`false`); devolve o motivo se não deu. */
   porNaLixeira: (id: string, naLixeira: boolean) => Promise<string | null>
+  /**
+   * Restaura o quadro sem a sessão dele (`sessaoId` sai): ele volta solto, e a
+   * sessão continua com o quadro que já tem na aba. Devolve o motivo se não deu.
+   */
+  restaurarSolto: (id: string) => Promise<string | null>
+  /** Tira o quadro da sessão (`sessaoId` sai): fica na lista, solto. Devolve o motivo se não deu. */
+  soltarDaSessao: (id: string) => Promise<string | null>
   /** Muda o quadro de campanha (`null` = sem campanha); devolve o motivo se não deu. */
   mudarCampanha: (id: string, campanhaId: string | null) => Promise<string | null>
 }
@@ -82,7 +89,7 @@ async function mudarArquivo(id: string, mudar: (quadro: Quadro) => Quadro): Prom
 }
 
 /** O quadro sem a chave (e não com ela valendo `undefined`): restaurar devolve o arquivo igual ao de antes da lixeira. */
-function sem<C extends 'lixeira' | 'campanhaId'>(quadro: Quadro, chave: C): Quadro {
+function sem<C extends 'lixeira' | 'campanhaId' | 'sessaoId'>(quadro: Quadro, chave: C): Quadro {
   const copia = { ...quadro }
   delete copia[chave]
   return copia
@@ -177,6 +184,20 @@ export const useQuadros = create<EstadoDosQuadros>()((set, get) => ({
     return null
   },
 
+  async restaurarSolto(id) {
+    const feito = await mudarArquivo(id, (quadro) => sem(sem(quadro, 'lixeira'), 'sessaoId'))
+    if ('aviso' in feito) return feito.aviso
+    get().gravado(id, feito.quadro)
+    return null
+  },
+
+  async soltarDaSessao(id) {
+    const feito = await mudarArquivo(id, (quadro) => sem(quadro, 'sessaoId'))
+    if ('aviso' in feito) return feito.aviso
+    get().gravado(id, feito.quadro)
+    return null
+  },
+
   async mudarCampanha(id, campanhaId) {
     const feito = await mudarArquivo(id, (quadro) => (campanhaId === null ? sem(quadro, 'campanhaId') : { ...quadro, campanhaId }))
     if ('aviso' in feito) return feito.aviso
@@ -184,6 +205,17 @@ export const useQuadros = create<EstadoDosQuadros>()((set, get) => ({
     return null
   },
 }))
+
+/**
+ * Restaurar este quadro deixaria a sessão dele com dois quadros fora da
+ * lixeira? Devolve o que já está na aba Quadro da sessão (o mestre escolhe
+ * qual fica); `undefined` = restaurar não briga com ninguém.
+ */
+export function quadroQueJaEstaNaSessao(lista: ListaDosQuadros, quadro: ResumoDoQuadro): ResumoDoQuadro | undefined {
+  if (quadro.sessaoId === null) return undefined
+  const atual = quadroDaSessao(lista, quadro.sessaoId)
+  return atual === undefined || atual.id === quadro.id ? undefined : atual
+}
 
 /** O quadro entra no filtro "Campanha"? Sem filtro, todos; o quadro sem campanha, em qualquer filtro. */
 function noFiltro(quadro: ResumoDoQuadro, campanhaId: string | null): boolean {

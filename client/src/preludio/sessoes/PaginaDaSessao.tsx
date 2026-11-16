@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { compararTitulos, formaDe, idNovo, mencoesNoTexto, ordemDe, verbeteNovo } from '../../lib/preparo/enciclopedia'
 import { paginasDaSessao } from '../../lib/preparo/sessoes'
 import type { Forma, Secao, Verbete } from '../../lib/preparo/tipos'
@@ -9,6 +9,7 @@ import { usePreludio, type AbaDaSessao } from '../estado/preludio'
 import { AbasDaSessao, ID_DO_PAINEL_DA_SESSAO, idDaAba } from './AbasDaSessao'
 import { LadosDaSessao } from './LadosDaSessao'
 import { OQueAconteceu } from './OQueAconteceu'
+import { AbasDasNotas, abrirPaginaComOTituloSelecionado, guardarNotaDaSessao, ID_DO_PAINEL_DAS_NOTAS, idDaNota, NOTA_DA_SESSAO, notaDaSessao, PaginaAoLado } from './PaginaAoLado'
 import { QuadroDaSessao } from './QuadroDaSessao'
 import { RevelarHoje } from './RevelarHoje'
 import './sessoes.css'
@@ -70,10 +71,19 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
     return () => observador.disconnect()
   }, [existe])
 
+  // A nota do lado esquerdo (a folha da sessão ou uma página) mora fora do React (`escolhidas`): trocar redesenha.
+  const [vezDaNota, redesenhar] = useReducer((vez: number) => vez + 1, 0)
+  const painelDasNotas = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (vezDaNota > 0) painelDasNotas.current?.closest('.pr-lados__rolagem')?.scrollTo({ top: 0 })
+  }, [vezDaNota])
+
   // Sessão recém-criada: o nome já vem selecionado para digitar por cima; as outras abrem no começo.
+  // Enquanto a largura não foi medida (`ladoALado === null`) a folha ainda não existe: o efeito espera por ela,
+  // senão gastava o `recemCriada` sem achar o nome (a regressão da F4 que a F3c trouxe).
   const roteiroNaTela = ladoALado === true || aba !== 'quadro'
   useEffect(() => {
-    if (!roteiroNaTela) return
+    if (ladoALado === null || !roteiroNaTela) return
     const titulo = artigo.current?.querySelector<HTMLInputElement>('.pr-verbete__titulo')
     const nova = recemCriada === id
     recemCriada = null
@@ -84,7 +94,7 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
     artigo.current?.closest('.pr-sessao__rolagem, .pr-lados__rolagem')?.scrollTo({ top: 0 })
     // Só ao abrir a sessão (e quando o roteiro aparece): trocar de aba depois não rola o roteiro de volta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, roteiroNaTela])
+  }, [id, roteiroNaTela, ladoALado])
 
   if (sessao === undefined || sessao.tipo !== 'sessao' || forma === undefined) {
     return (
@@ -105,8 +115,17 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
     const ultima = paginas[paginas.length - 1]
     const nova = verbeteNovo('pagina', 'Página sem nome', { campanhas: sessao.campanhas, paiId: sessao.id, ordem: ultima === undefined ? 0 : (ordemDe(ultima) ?? paginas.length) + 1 })
     await criarVerbete(nova)
-    ir(lugarDoVerbete(nova, usePreludio.getState().verbetes))
+    // Lado a lado, a página nova abre no próprio lado (o quadro fica); em abas, vai para a página.
+    if (ladoALado === true) {
+      abrirPaginaComOTituloSelecionado(nova.id)
+      escolherNota(nova.id)
+    } else ir(lugarDoVerbete(nova, usePreludio.getState().verbetes))
   }
+  const escolherNota = (nota: string) => {
+    guardarNotaDaSessao(sessao.id, nota)
+    redesenhar()
+  }
+  const abrirPagina = (pagina: Verbete) => (ladoALado === true ? escolherNota(pagina.id) : ir(lugarDoVerbete(pagina, verbetes)))
 
   // Em abas, a folha é o painel da aba Roteiro; lado a lado, não há abas.
   const painel = ladoALado === true ? {} : { id: ID_DO_PAINEL_DA_SESSAO, role: 'tabpanel', 'aria-labelledby': idDaAba('roteiro') }
@@ -185,7 +204,9 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
                 aoMudar={(fazer) => mudarSecao(secao.id, fazer)}
               />
             ))}
-            {forma.secoes.length === 0 && <p className="pr-quieto">{paginas.length > 0 ? 'O roteiro que veio do Grimório está nas páginas desta sessão, ao lado.' : 'Nenhum roteiro ainda.'}</p>}
+            {forma.secoes.length === 0 && (
+              <p className="pr-quieto">{paginas.length === 0 ? 'Nenhum roteiro ainda.' : ladoALado === true ? 'O roteiro que veio do Grimório está nas páginas desta sessão, nas abas acima.' : 'O roteiro que veio do Grimório está nas páginas desta sessão, ao lado.'}</p>
+            )}
             {editavel && (
               <button
                 type="button"
@@ -220,7 +241,7 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
             <ul className="pr-ligacoes">
               {paginas.map((pagina) => (
                 <li key={pagina.id}>
-                  <button type="button" className="pr-ligacoes__item" onClick={() => ir(lugarDoVerbete(pagina, verbetes))}>
+                  <button type="button" className="pr-ligacoes__item" onClick={() => abrirPagina(pagina)}>
                     {pagina.titulo || 'Sem nome'}
                   </button>
                 </li>
@@ -238,10 +259,29 @@ export function PaginaDaSessao({ id, aba = 'roteiro', alvo }: { id: string; aba?
     </div>
   )
 
+  // Lado a lado, as páginas da sessão abrem no próprio lado esquerdo (as abas no alto dele), como as notas do Grimório.
+  const nota = notaDaSessao(sessao, forma, paginas)
+  const paginaAoLado = nota === NOTA_DA_SESSAO ? undefined : paginas.find((pagina) => pagina.id === nota)
+  const notas =
+    paginas.length === 0 ? (
+      folha
+    ) : (
+      <div ref={painelDasNotas} id={ID_DO_PAINEL_DAS_NOTAS} role="tabpanel" aria-labelledby={idDaNota(nota)}>
+        {paginaAoLado === undefined ? folha : <PaginaAoLado key={paginaAoLado.id} pagina={paginaAoLado} sessaoId={sessao.id} />}
+      </div>
+    )
+
   return (
     <div ref={casca} className="pr-sessao-casca">
       {ladoALado === null ? null : ladoALado ? (
-        <LadosDaSessao sessaoId={sessao.id} aba={aba} alvo={alvo} roteiro={folha} quadro={(cabeca) => <QuadroDaSessao sessao={sessao} alvo={alvo} cabeca={cabeca} />} />
+        <LadosDaSessao
+          sessaoId={sessao.id}
+          aba={aba}
+          alvo={alvo}
+          roteiro={notas}
+          abasDoRoteiro={paginas.length === 0 ? undefined : <AbasDasNotas paginas={paginas} escolhida={nota} podeCriar={editavel} aoEscolher={escolherNota} aoCriar={() => void novaPagina()} />}
+          quadro={(cabeca) => <QuadroDaSessao sessao={sessao} alvo={alvo} cabeca={cabeca} />}
+        />
       ) : aba === 'quadro' ? (
         <QuadroDaSessao sessao={sessao} alvo={alvo} />
       ) : (
