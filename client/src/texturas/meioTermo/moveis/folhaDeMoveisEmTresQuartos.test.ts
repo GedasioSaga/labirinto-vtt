@@ -6,10 +6,12 @@ import { escalaDoNivel, GRADE_DE_REFERENCIA, pintarMovel } from './index'
 import { colar, emPng, escrever, novaTela, type Tela } from './folhaDeContato.testkit'
 
 /**
- * FOLHA DE ANTES E DEPOIS do baú, do balcão, da geladeira e da pia (pedidos do
- * mestre de 15/11/2026: "a geladeira coloque a versão original de metal", "o
- * 3/4 do baú é estranho", "o balcão em 3/4 fica estranho" e "faz um rework da
- * pia também, [...] faz uma moderna"). Cada móvel como o APP o
+ * FOLHA DE ANTES E DEPOIS do baú, do balcão, da geladeira, da pia e do barril
+ * (pedidos do mestre de 15/11/2026: "a geladeira coloque a versão original de
+ * metal", "o 3/4 do baú é estranho", "o balcão em 3/4 fica estranho", "faz um
+ * rework da pia também, [...] faz uma moderna" e "quero um rework do barril").
+ * Com `FOLHA_MOVEIS_34_TIPOS=barril,pia` (ids separados por vírgula) a folha
+ * fica só com esses. Cada móvel como o APP o
  * pede (`chaveDoMovel`, tamanho e materiais de partida), de cima e em 3/4, nos
  * quatro giros (0, 90, 180 e 270 graus), no nível 2 (zoom 200%), sobre o chão
  * claro do app; embaixo, os mesmos desenhos a 25% de zoom (a imagem do nível 1
@@ -27,12 +29,21 @@ const PASTA_PEDIDA: unknown = import.meta.env.FOLHA_MOVEIS_34_PASTA
 const PASTA = typeof PASTA_PEDIDA === 'string' && PASTA_PEDIDA !== '' ? PASTA_PEDIDA : '../tmp/moveis-3-4-2026-11-15/desenho'
 const PEDIDA = MODO === 'antes' || MODO === 'depois'
 
-const TIPOS: readonly (readonly [TipoMobilia, string])[] = [
+const REFEITOS: readonly (readonly [TipoMobilia, string])[] = [
   ['bau', 'BAU'],
   ['balcao', 'BALCAO'],
   ['geladeira', 'GELADEIRA'],
   ['pia', 'PIA'],
+  ['barril', 'BARRIL'],
 ]
+/** Os vizinhos do barril (a mesma família de aduelas e aros), só para comparar quando pedidos pelo id. */
+const VIZINHOS: readonly (readonly [TipoMobilia, string])[] = [
+  ['barrisDeitados', 'BARRIS DEITADOS'],
+  ['tonelDeAdega', 'TONEL'],
+]
+const ESCOLHIDOS: unknown = import.meta.env.FOLHA_MOVEIS_34_TIPOS
+const TIPOS =
+  typeof ESCOLHIDOS === 'string' && ESCOLHIDOS !== '' ? [...REFEITOS, ...VIZINHOS].filter(([tipo]) => ESCOLHIDOS.split(',').includes(tipo)) : REFEITOS
 const GIROS = [0, 90, 180, 270] as const
 const VISTAS = ['de-cima', 'tres-quartos'] as const
 type Vista = (typeof VISTAS)[number]
@@ -239,7 +250,7 @@ function montarFolha(antes: Map<string, Painel>, depois: Map<string, Painel>, ti
   const alturaDoBloco = (b: (typeof blocos)[number]): number => LINHA * 2 + 2 * b.meiaLinha['de-cima'] + VAO + 2 * b.meiaLinha['tres-quartos'] + VAO + LINHA + 2 * b.altaMesa + VAO * 2
   const altura = MARGEM * 2 + LINHA * 2 + blocos.reduce((s, b) => s + alturaDoBloco(b) + VAO, 0)
   const tela = novaTela(largura, altura, FUNDO)
-  escrever(tela, 'BAU, BALCAO, GELADEIRA E PIA: ANTES A ESQUERDA, DEPOIS A DIREITA. EM CADA BLOCO, DE CIMA, 3/4 E EMBAIXO OS DOIS A 25 DE ZOOM AMPLIADOS 3X', MARGEM, MARGEM, ESCALA_DA_LETRA, TINTA)
+  escrever(tela, `${tipos.map(([, nome]) => nome).join(', ')}: ANTES A ESQUERDA, DEPOIS A DIREITA. EM CADA BLOCO, DE CIMA, 3/4 E EMBAIXO OS DOIS A 25 DE ZOOM AMPLIADOS 3X`, MARGEM, MARGEM, ESCALA_DA_LETRA, TINTA)
   let y = MARGEM + LINHA * 2
   for (const b of blocos) {
     escrever(tela, b.nome, MARGEM, y, ESCALA_DA_LETRA + 1, TINTA)
@@ -270,7 +281,7 @@ function montarFolha(antes: Map<string, Painel>, depois: Map<string, Painel>, ti
   return tela
 }
 
-it.skipIf(!PEDIDA)('gera a folha de antes e depois do baú, do balcão, da geladeira e da pia (FOLHA_MOVEIS_34)', async () => {
+it.skipIf(!PEDIDA)('gera a folha de antes e depois do baú, do balcão, da geladeira, da pia e do barril (FOLHA_MOVEIS_34)', async () => {
   const { fs, path } = await nodeDaFolha()
   const { existsSync, mkdirSync, writeFileSync } = fs
   const join = path.join

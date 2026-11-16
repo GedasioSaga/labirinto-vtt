@@ -129,7 +129,10 @@ const EM_PE: PerfilDoTresQuartos = { modo: 'em-pe' }
 
 /** O perfil de cada tipo do catálogo. Um tipo novo no catálogo sem perfil não compila. */
 export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
-  barril: DERIVADO,
+  // O barril da 3/4 é desenhado à parte (15/11/2026, "quero um rework do barril"): o corpo bojudo com os aros em
+  // arco, guardado em fatias penduradas em pinos, como a pipa deitada dos barris deitados (`barril.ts`). Sem
+  // beirada, como eles: com a padrão cada pino ganharia um fio de madeira para baixo.
+  barril: { modo: 'derivado', espessura: 0 },
   caixa: DERIVADO,
   // O baú tem a frente desenhada em faixas (15/11/2026): o perfil sem beirada fica junto da geladeira, logo abaixo.
   bau: { modo: 'derivado', espessura: 0 },
