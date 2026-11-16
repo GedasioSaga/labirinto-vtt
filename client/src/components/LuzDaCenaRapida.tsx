@@ -185,7 +185,7 @@ export function LuzDaCenaRapida({ onClose, onPorLuz, saindo }: LuzDaCenaRapidaPr
       <div className="lb-luz-da-cena__efeitos">
         <h3 className="lb-eyebrow">Efeitos</h3>
         <p className="lb-field__hint">
-          Fumaça e brasas agora ficam na ferramenta Ambiente da barra, junto com a chuva, a neve e as folhas.
+          Fumaça e brasas agora ficam na ferramenta Clima da barra, junto com a chuva, a neve e as folhas.
         </p>
       </div>
 

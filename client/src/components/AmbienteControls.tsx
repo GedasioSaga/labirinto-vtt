@@ -124,7 +124,7 @@ export function AmbienteControls() {
   return (
     <section className="lb-section">
       <h2 className="lb-eyebrow">Efeito</h2>
-      <div role="radiogroup" aria-label="Efeito do ambiente" style={{ display: 'grid', gap: '0.25rem' }}>
+      <div role="radiogroup" aria-label="Efeito do clima" style={{ display: 'grid', gap: '0.25rem' }}>
         {EFEITOS_DO_PAINEL.map((e) => (
           <button
             key={e}

@@ -44,7 +44,9 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Penhasco',
   barranco: 'Barranco',
   texturas: 'Texturas',
-  neblina: 'Ambiente',
+  // 16/11/2026 (decisão do mestre, Fase 6): "Ambiente vira Clima" — "Ambiente da cena" é a luz do
+  // período, e o mesmo nome para as duas confundia. O id continua 'neblina' (arquivos abrem igual).
+  neblina: 'Clima',
   agua: 'Água',
   carimbos: 'Carimbos',
   pin: 'Pino',
@@ -188,7 +190,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
   texturas: 'Pinte a textura por cima do mapa.',
-  neblina: 'Pinte o efeito do ambiente por cima do mapa.',
+  neblina: 'Pinte o efeito do clima por cima do mapa.',
   agua: 'Trace a água ou a lava; clique nela para mexer.',
   carimbos: 'Clique para soltar; arraste para espalhar.',
   pin: 'Clique no mapa para fincar o pino.',

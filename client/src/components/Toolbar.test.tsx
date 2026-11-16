@@ -117,7 +117,8 @@ describe('Toolbar — grupos do protótipo consolidado (fatia 6)', () => {
       // 12/11/2026 (decisões do mestre): o Caminho saiu da barra (o Chão traça o caminho), a Construção
       // tem botão próprio colado no Objeto, a Água entra depois das Texturas e a Neblina virou Ambiente.
       ['Parede', 'Porta', 'Sala', 'Chão', 'Escada', 'Objeto', 'Construção', 'Luz'],
-      ['Penhasco', 'Barranco', 'Texturas', 'Água', 'Carimbos', 'Ambiente'],
+      // 16/11/2026 (Fase 6): o Ambiente virou Clima.
+      ['Penhasco', 'Barranco', 'Texturas', 'Água', 'Carimbos', 'Clima'],
       ['Zona oculta', 'Pincel de revelar'],
       ['Desenho', 'Texto', 'Pino', 'Medir', 'Borracha'],
     ])
