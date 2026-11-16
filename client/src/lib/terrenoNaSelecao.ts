@@ -90,7 +90,7 @@ export function moverPinos(pins: Pin[], ids: ReadonlySet<string>, dx: number, dy
  * arredondar cada passinho sozinho nunca sairia do lugar; pela célula do
  * ponto, a soma dos passinhos dá o caminho inteiro.
  */
-function moverCelulas(celulas: readonly string[], referencia: RegionPoint, dx: number, dy: number): string[] {
+export function moverCelulas(celulas: readonly string[], referencia: RegionPoint, dx: number, dy: number): string[] {
   const dc = Math.floor((referencia.x + dx) / REVEAL_BRUSH_CELL) - Math.floor(referencia.x / REVEAL_BRUSH_CELL)
   const dr = Math.floor((referencia.y + dy) / REVEAL_BRUSH_CELL) - Math.floor(referencia.y / REVEAL_BRUSH_CELL)
   if (dc === 0 && dr === 0) return [...celulas]

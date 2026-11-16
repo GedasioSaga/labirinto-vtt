@@ -1,6 +1,7 @@
 import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo, ConcealZone, Agua, RiscoDeBarranco } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { novoIdDeCarimbo } from './carimbos'
+import { moverCelulas } from './terrenoNaSelecao'
 import { moveBlocos } from './floorBlocks'
 import { isStairPin } from './stairTravel'
 import { withoutCarrier } from './carry'
@@ -340,10 +341,12 @@ export function clonePin(pin: Pin, offset: Offset): Pin {
   return { ...solto, x: pin.x + offset.dx, y: pin.y + offset.dy }
 }
 
-/** Zona oculta (Fase 4): id novo e deslocada; o que o pincel revelou nela fica para trás (outra zona, outra revelação). */
+/** Zona oculta (Fase 4): id novo e deslocada, com o que o pincel já revelou nela no mesmo canto (`moverCelulas`). */
 export function cloneZone(zone: ConcealZone, offset: Offset): ConcealZone {
-  const { unveiledCells: _reveladas, ...resto } = zone
-  return { ...resto, id: crypto.randomUUID(), points: zone.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
+  const copia: ConcealZone = { ...zone, id: crypto.randomUUID(), points: zone.points.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
+  const referencia = zone.points[0]
+  if (zone.unveiledCells === undefined || referencia === undefined) return copia
+  return { ...copia, unveiledCells: moverCelulas(zone.unveiledCells, referencia, offset.dx, offset.dy) }
 }
 
 /** Água ou lava (Fase 4): id novo; o contorno (ou o traço) e a areia pintada andam juntos. */
