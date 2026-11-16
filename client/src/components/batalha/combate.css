@@ -2647,10 +2647,22 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+/* Efeito e contagem numa linha: o efeito corta com reticências, a contagem ("0 na mochila") nunca. */
+.bt-bala__linha {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
 .bt-bala__det {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  color: #5d5a54;
+}
+.bt-bala__qtd {
+  flex: none;
   white-space: nowrap;
   font-weight: 400;
   color: #5d5a54;

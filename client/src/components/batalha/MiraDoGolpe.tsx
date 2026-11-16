@@ -165,7 +165,8 @@ const SEM_BALAS: readonly BalaNaTela[] = []
 
 /** "3 na mochila" (bala ligada à munição da mochila) ou "Qtd. 6" (o texto da ficha, só mostra); vazio = nada a dizer. */
 function quantidadeDaBala(bala: Pick<BalaNaTela, 'municao' | 'quantidade'>): string {
-  if (bala.municao !== undefined) return bala.municao === 0 ? 'nenhuma na mochila' : `${bala.municao} na mochila`
+  // "0", não "nenhuma": a mira estreita cortava a frase longa, e o zero é o que o mestre procura.
+  if (bala.municao !== undefined) return `${bala.municao} na mochila`
   return bala.quantidade === '' ? '' : `Qtd. ${bala.quantidade}`
 }
 
@@ -181,6 +182,7 @@ function OpcaoDeBala({
   danoTexto,
   total,
   detalhe,
+  quantidade = '',
   onEscolher,
   semMunicao = false,
 }: {
@@ -190,16 +192,24 @@ function OpcaoDeBala({
   danoTexto: string
   total: DanoNaTela
   detalhe: string
+  /** "3 na mochila" / "Qtd. 6": fica fora do `detalhe` porque o efeito longo corta com reticências e a contagem não pode sumir. */
+  quantidade?: string
   onEscolher: () => void
   /** MUNIÇÃO: a mochila não tem esta bala; a opção fica apagada e não se escolhe (o tiro seria recusado). */
   semMunicao?: boolean
 }) {
+  const dica = [detalhe, quantidade].filter(Boolean).join(' · ')
   return (
-    <label className={semMunicao ? 'bt-bala bt-bala--sem' : 'bt-bala'} title={detalhe === '' ? undefined : detalhe}>
+    <label className={semMunicao ? 'bt-bala bt-bala--sem' : 'bt-bala'} title={dica === '' ? undefined : dica}>
       <input type="radio" name={nome} checked={marcada} disabled={semMunicao} onChange={onEscolher} />
       <span className="bt-bala__nome">
         {titulo}
-        {detalhe !== '' && <small className="bt-bala__det">{detalhe}</small>}
+        {dica !== '' && (
+          <span className="bt-bala__linha">
+            {detalhe !== '' && <small className="bt-bala__det">{detalhe}</small>}
+            {quantidade !== '' && <small className="bt-bala__qtd">{detalhe === '' ? quantidade : `· ${quantidade}`}</small>}
+          </span>
+        )}
       </span>
       <span className="bt-bala__dano">
         <span className="bt-bala__fonte">{danoTexto}</span>
@@ -689,7 +699,8 @@ export function MiraDoGolpe({ golpe, carga, alvos, alvoDoMapa, onLancar, onVolta
                 titulo={bala.municao === 0 ? `Sem ${bala.nome}` : bala.nome}
                 danoTexto={bala.danoTexto === '' ? (golpe.tipo === 'habilidade' ? 'bala 0' : 'o da arma') : bala.danoTexto}
                 total={bala.dano}
-                detalhe={[bala.efeito, quantidadeDaBala(bala)].filter(Boolean).join(' · ')}
+                detalhe={bala.efeito}
+                quantidade={quantidadeDaBala(bala)}
                 semMunicao={bala.municao === 0}
                 onEscolher={() => escolherBala(bala.id)}
               />
