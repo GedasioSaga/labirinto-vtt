@@ -1918,6 +1918,12 @@ export interface ConteudoDoObjeto {
   moedas: number
   armadilha: ArmadilhaDoObjeto | null
   aberto?: AberturaDoObjeto
+  /**
+   * MINIGAME PARA O JOGADOR (pedido de 16/11/2026): o mestre liga por objeto.
+   * Ausente = o objeto de antes do interruptor: com algo dentro, ligado; vazio,
+   * desligado (`minigameLigado` em `lib/conteudoDoObjeto.ts`), sem migração.
+   */
+  minigame?: boolean
 }
 
 export interface Prop extends PlayerSecret, NoPiso, NaCamada {
@@ -1932,7 +1938,8 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
   conteudo?: ConteudoDoObjeto
   /**
    * Campo de FIO, só no recorte do jogador: o objeto se abre com um minigame
-   * (`'fechado'`) ou já foi aberto ou quebrado (`'aberto'`). Nada do que há
+   * (`'fechado'`, só com o minigame ligado pelo mestre) ou já foi aberto ou
+   * quebrado (`'aberto'`). Desligado e fechado: ausente. Nada do que há
    * dentro. `deserializeMap` o descarta se um arquivo trouxer.
    */
   abrivel?: 'fechado' | 'aberto'

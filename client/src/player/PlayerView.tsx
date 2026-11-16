@@ -40,6 +40,7 @@ import { distanciaAoObjeto, itemNoChaoNoPonto } from '../lib/itemNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
+import { criarSelosDosObjetos, selosDosObjetos, type SelosDosObjetos } from '../pixi/selosDosObjetos'
 import { drawMarcas } from '../pixi/drawMarcas'
 import { acharBilheteEm } from '../lib/marcas'
 import { panBy, zoomAt } from '../pixi/world'
@@ -1586,6 +1587,9 @@ interface Scene {
   pins: Container
   pinsRenderer: ReturnType<typeof createPinsRenderer>
   pinsKey: ContentKey
+  /** BAÚ, CAIXA E BARRIL: o selo de latão nos que se abrem, na faixa dos pinos e só na visão de agora. */
+  selosDosObjetos: SelosDosObjetos
+  selosDosObjetosCount: number
   /** ZONA DE PERIGO: cor chapada sob a névoa, recortada pela visão atual (`hazardsMask`). */
   hazards: Graphics
   hazardsMask: Graphics
@@ -3404,8 +3408,23 @@ function PlayerViewDoCanvas({
   function redrawPinsForZoom(scene: Scene): void {
     const map = latestRef.current.map
     const pins = visiblePins(map.pins ?? [], map.hiddenLayers)
+    redrawSelosDosObjetos(scene)
     if (!pinsForaDoZoom(scene, pins)) return
     paintPins(scene, pins)
+  }
+
+  /**
+   * BAÚ, CAIXA E BARRIL (16/11/2026): o selo nos objetos que o recorte deu como `'fechado'` (o minigame
+   * ligado pelo mestre), nas camadas visíveis e com o meio na visão de agora. Mesmo fator de tela dos pinos;
+   * o renderer só repinta quando a lista ou o tamanho mudam.
+   */
+  function redrawSelosDosObjetos(scene: Scene): void {
+    const { map, vision } = latestRef.current
+    const k = pinSizeScale(scene.camera.scale)
+    scene.selosDosObjetosCount = scene.selosDosObjetos.desenhar(selosDosObjetos(visibleProps(map.props, map.hiddenLayers), vision, k), k)
+    const el = containerRef.current
+    const contagem = String(scene.selosDosObjetosCount)
+    if (el && el.dataset.selosDosObjetos !== contagem) el.dataset.selosDosObjetos = contagem
   }
 
   /**
@@ -3805,6 +3824,7 @@ function PlayerViewDoCanvas({
     // Antes do `||`: o portão dos pinos guarda o que viu mesmo quando o zoom já pede a repintura.
     const pinsChanged = contentChanged(scene.pinsKey, [currentMap.pins, hidden, scene.pilha.assinaturaDa('pins')], () => JSON.stringify(pins))
     if (pinsChanged || pinsForaDoZoom(scene, pins)) paintPins(scene, pins)
+    redrawSelosDosObjetos(scene)
 
     // Reaproveita a view por id e NUNCA destrói `Text` durante a sessão: Text
     // destruído antes de ser renderizado (3 redraws por movimento: otimista,
@@ -4424,6 +4444,10 @@ function PlayerViewDoCanvas({
       // MODO BATALHA (B5): a grade de batalha acima da névoa e dos telhados, abaixo de pílulas, marcas, pinos e fichas.
       const gradeDaBatalha = criarGradeDaBatalha()
       const pins = new Container()
+      // O selo do objeto que abre mora no container de hoje dos pinos, acima da névoa como eles (o pintor dos
+      // pinos só limpa o próprio desenho); a visão de agora decide quais aparecem (`redrawSelosDosObjetos`).
+      const pintorDosSelos = criarSelosDosObjetos()
+      pins.addChild(pintorDosSelos.camada)
       const marks = new Graphics()
       const lastSeen = new Container()
       lastSeen.label = LAST_SEEN_LAYER_LABEL
@@ -4814,6 +4838,8 @@ function PlayerViewDoCanvas({
         pinsRenderer: pinosPorNo.de(pins),
         pinosPorNo,
         pinsKey: emptyContentKey(),
+        selosDosObjetos: pintorDosSelos,
+        selosDosObjetosCount: 0,
         hazards,
         hazardsMask,
         lastHazards: null,

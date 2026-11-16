@@ -27,6 +27,17 @@
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
+/* O interruptor "Minigame para o jogador" (16/11/2026) e a explicação logo embaixo, no mesmo cartão. */
+.lb-conteudo__minigame {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lb-conteudo__minigame .lb-field__hint {
+  margin: 0;
+}
+
 .lb-conteudo__aberto p {
   margin: 0;
 }

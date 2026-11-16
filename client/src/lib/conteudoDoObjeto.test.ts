@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { Prop } from '../types/map'
 import { LUGARES_DE_MATERIAL } from '../texturas/meioTermo/materiais'
 import { criarMovel, mobiliaParaJogador } from './mobilia'
-import { abrivelParaJogador, lerConteudoDoArquivo, mobiliaDoConteudo, objetoAberto, objetoReposto, propComConteudoDoArquivo } from './conteudoDoObjeto'
+import {
+  abrivelParaJogador,
+  jogoDoObjetoFechado,
+  lerConteudoDoArquivo,
+  minigameLigado,
+  mobiliaDoConteudo,
+  objetoAberto,
+  objetoReposto,
+  propComConteudoDoArquivo,
+} from './conteudoDoObjeto'
 
 const GRADE = 50
 
@@ -82,5 +91,25 @@ describe('o barril quebrado no minigame (16/11/2026)', () => {
     const quebrado = objetoAberto(barril(), 'Diego', 1000)
     expect(abrivelParaJogador(quebrado)).toBe('aberto')
     expect(mobiliaParaJogador(quebrado)).toMatchObject({ mobilia: 'barrilQuebrado', mobiliaCor: '#5a3b22', mobiliaCorDaLinha: '#8a8f96' })
+  })
+})
+
+describe('minigame para o jogador (16/11/2026)', () => {
+  it('o objeto de antes com algo dentro vem ligado; vazio ou novo, desligado; gravado vale sobre a regra', () => {
+    // Arquivo de antes do interruptor, com moedas: sem campo novo no disco, e o jogador recebe "fechado".
+    const antigo = lerConteudoDoArquivo({ itens: [], moedas: 12, armadilha: null }, 'barril')
+    expect(antigo?.minigame).toBeUndefined()
+    expect(minigameLigado(antigo)).toBe(true)
+    expect(abrivelParaJogador(barril({ conteudo: antigo }))).toBe('fechado')
+    expect(jogoDoObjetoFechado(barril({ conteudo: antigo }))).toBe('barril')
+    // Vazio, ou o novo sem conteúdo: desligado, nada no recorte e o host não tem jogo a abrir.
+    for (const conteudo of [{ itens: [], moedas: 0, armadilha: null }, undefined]) {
+      expect(abrivelParaJogador(barril({ conteudo }))).toBeUndefined()
+      expect(jogoDoObjetoFechado(barril({ conteudo }))).toBeNull()
+    }
+    // Gravado vale sobre a regra, e volta igual do disco.
+    expect(abrivelParaJogador(barril({ conteudo: { itens: [], moedas: 12, armadilha: null, minigame: false } }))).toBeUndefined()
+    expect(lerConteudoDoArquivo({ itens: [], moedas: 0, armadilha: null, minigame: true }, 'barril')?.minigame).toBe(true)
+    expect(abrivelParaJogador(barril({ conteudo: { itens: [], moedas: 0, armadilha: null, minigame: true } }))).toBe('fechado')
   })
 })

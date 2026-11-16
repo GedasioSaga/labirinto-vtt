@@ -187,6 +187,26 @@ function drawSeloHead(graphics: Graphics, pin: Pin, headY: number, k: number): v
   drawShape(graphics, ehJogoDoRegistro(jogo) ? SIMBOLO_DO_JOGO[jogo] : PIN_CONTROLE_SYMBOL, pin.x, headY, SELO_LATAO_CLARO, k)
 }
 
+/** O selo do objeto é o do desafio menor: marca o objeto sem cobrir o desenho dele. */
+const SELO_DO_OBJETO_FRACAO = 0.75
+/** Meia diagonal do selo do objeto, em px de mundo (antes do fator de tela `k`). */
+export const SELO_DO_OBJETO_MEIA_DIAGONAL = SELO_MEIA_DIAGONAL * SELO_DO_OBJETO_FRACAO
+
+/**
+ * O SELO DO OBJETO QUE ABRE (baú, caixa e barril com o minigame ligado, pedido
+ * de 16/11/2026): o mesmo losango de couro com aro de latão do desafio, menor,
+ * com o controle (o símbolo de "minigame") em latão claro. Só a tela do
+ * jogador o desenha (`pixi/selosDosObjetos.ts`). Parado de propósito: fica no
+ * mapa a sessão inteira, e um selo pulsando cansaria e competiria com os pinos.
+ */
+export function desenharSeloDoObjeto(graphics: Graphics, cx: number, cy: number, k: number): void {
+  const kSelo = k * SELO_DO_OBJETO_FRACAO
+  losango(graphics, cx, cy, SELO_MEIA_DIAGONAL * kSelo)
+    .fill({ color: SELO_COURO })
+    .stroke({ width: SELO_ARO * k, color: SELO_LATAO, join: 'round' })
+  drawShape(graphics, PIN_CONTROLE_SYMBOL, cx, cy, SELO_LATAO_CLARO, kSelo)
+}
+
 /**
  * Passagem COLORIDA sem par: a própria cor, a meia opacidade. O mestre vê a cor
  * que escolheu e ainda lê "não leva a lugar nenhum" pelo apagado.

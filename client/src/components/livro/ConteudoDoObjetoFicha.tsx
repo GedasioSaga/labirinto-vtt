@@ -7,6 +7,7 @@ import {
   DANO_DA_ARMADILHA_MAX,
   ITENS_NO_CONTEUDO_MAX,
   MINIGAME_DO_OBJETO,
+  minigameLigado,
   mobiliaDoConteudo,
   MOEDAS_NO_CONTEUDO_MAX,
   objetoReposto,
@@ -18,6 +19,7 @@ import { ITEM_QUANTIDADE_MAX } from '../../lib/items'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useMapStore } from '../../stores/mapStore'
 import { Botao } from '../grimorio/Botao'
+import { Toggle } from '../Toggle'
 import './conteudoDoObjeto.css'
 
 /*
@@ -184,11 +186,13 @@ export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
   const updateProp = useMapStore((state) => state.updateProp)
   const jumpscare = useMapStore((state) => state.map.semJumpscare !== true)
   const [escolhendo, setEscolhendo] = useState(false)
+  const explicacaoDoMinigameId = useId()
   const tipo = mobiliaDoConteudo(prop)
   const conteudo = conteudoDe(prop)
   if (tipo === null || conteudo === null) return null
   const bau = tipo === 'bau'
   const verbo = bau ? 'abrir' : 'quebrar'
+  const ligado = minigameLigado(prop.conteudo)
   const mudar = (novo: ConteudoDoObjeto) => updateProp(prop.id, { conteudo: novo })
 
   const porItem = (escolhido: ItemDoCatalogo) => {
@@ -211,9 +215,20 @@ export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
   const aberto = conteudo.aberto
   return (
     <div className="lb-conteudo">
-      <p className="lb-conteudo__minigame">
-        <b>Minigame: {MINIGAME_DO_OBJETO[tipo]}.</b> Vem do tipo do objeto. O jogador encosta e joga na tela dele; se errar, tenta de novo sem custo.
-      </p>
+      {/* MINIGAME PARA O JOGADOR (16/11/2026): ligado, o jogador vê o selo de latão no objeto e o toque abre o jogo. */}
+      {/* O mesmo interruptor de "Barra a passagem" (`Toggle`), com a explicação embaixo. */}
+      <div className="lb-conteudo__minigame">
+        <Toggle label="Minigame para o jogador" checked={ligado} onChange={(liga) => mudar({ ...conteudo, minigame: liga })} describedBy={explicacaoDoMinigameId} />
+        <p id={explicacaoDoMinigameId} className="lb-field__hint">
+          {ligado ? (
+            <>
+              <b>{MINIGAME_DO_OBJETO[tipo]}</b>, pelo tipo do objeto. O jogador vê o selo, encosta e joga na tela dele; se errar, tenta de novo sem custo.
+            </>
+          ) : (
+            'Desligado: o toque do jogador não abre nada, e o objeto fica sem selo.'
+          )}
+        </p>
+      </div>
       {aberto !== undefined && (
         <div className="lb-conteudo__aberto">
           <p>

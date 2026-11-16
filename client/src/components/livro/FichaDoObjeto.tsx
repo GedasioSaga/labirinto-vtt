@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import type { Prop } from '../../types/map'
+import type { ConteudoDoObjeto, Prop } from '../../types/map'
 import { contextoDeCamadas } from '../../lib/camadas/consulta'
 import { nomeDaCamada } from '../../lib/camadas/mover'
 import { meioTermoLigado } from '../../lib/estiloDoMapa'
@@ -16,8 +16,14 @@ import { MobiliaControls, type MobiliaControlsProps } from '../MobiliaControls'
 import { PropPlayerControls, type PropPlayerControlsProps } from '../PropPlayerControls'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { ConteudoDoObjetoFicha } from './ConteudoDoObjetoFicha'
-import { conteudoDe, resumoDoConteudo } from '../../lib/conteudoDoObjeto'
+import { conteudoDe, minigameLigado, resumoDoConteudo } from '../../lib/conteudoDoObjeto'
 import './fichaDoItem.css'
+
+/** O resumo da seção fechada: o fechado com o minigame desligado diz isso antes ("Sem minigame · Vazio"). */
+function resumoDaFichaDeConteudo(prop: Prop, conteudo: ConteudoDoObjeto): string {
+  const resumo = resumoDoConteudo(conteudo)
+  return conteudo.aberto === undefined && !minigameLigado(prop.conteudo) ? `Sem minigame · ${resumo}` : resumo
+}
 
 /*
  * FICHA DO OBJETO (fatia 16a do design consolidado; decisão 4.1: a gramática
@@ -115,7 +121,7 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
       <Fichas>
         {/* CONTEÚDO (baú, caixa, barril e os destroços deles, 15/11/2026): nasce aberta, como no protótipo. */}
         {conteudoDoObjeto !== null && (
-          <FichaDoObjetoLembrada id="conteudo" titulo="Conteúdo" icone="joia" padrao resumo={resumoDoConteudo(conteudoDoObjeto)}>
+          <FichaDoObjetoLembrada id="conteudo" titulo="Conteúdo" icone="joia" padrao resumo={resumoDaFichaDeConteudo(prop, conteudoDoObjeto)}>
             <ConteudoDoObjetoFicha prop={prop} />
           </FichaDoObjetoLembrada>
         )}

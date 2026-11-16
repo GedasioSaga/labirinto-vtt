@@ -12,8 +12,10 @@ import { pegadaDePartidaEmCasas } from './mobilia'
  * proporção do catálogo.
  *
  * Regras daqui (puras, sem store nem rede):
- * - Todo baú, caixa e barril se abre, com conteúdo ou sem (ausente = vazio).
- *   Assim "abrível" não conta ao jogador quais têm algo dentro.
+ * - O mestre liga o minigame por objeto ("Minigame para o jogador", 16/11/2026,
+ *   substitui o "todo baú, caixa e barril se abre" de antes): desligado, o toque
+ *   do jogador não abre nada. O objeto novo nasce desligado; o de antes do
+ *   interruptor, com algo dentro, vem ligado (`minigameLigado`).
  * - O conteúdo NUNCA vai ao jogador: o recorte leva só `abrivel`
  *   (`abrivelParaJogador`), e o desfecho só depois da vitória.
  * - Os itens são a cópia do item do Acervo do momento em que o mestre os pôs
@@ -96,6 +98,23 @@ export function mobiliaDoConteudo(prop: Pick<Prop, 'mobilia' | 'conteudo'>): Mob
 export function conteudoDe(prop: Pick<Prop, 'mobilia' | 'conteudo'>): ConteudoDoObjeto | null {
   if (mobiliaDoConteudo(prop) === null) return null
   return prop.conteudo ?? conteudoVazio()
+}
+
+/** Há algo dentro: item, moeda ou armadilha. */
+function temAlgoDentro(conteudo: ConteudoDoObjeto): boolean {
+  return conteudo.itens.length > 0 || conteudo.moedas > 0 || conteudo.armadilha !== null
+}
+
+/**
+ * MINIGAME PARA O JOGADOR (16/11/2026): gravado, vale o do mestre. Ausente, o
+ * objeto é de antes do interruptor: com algo dentro, ligado (quem já preparou
+ * não perde o jogo); vazio ou sem conteúdo, desligado (o objeto novo nasce
+ * assim). Encher um objeto novo sem tocar no interruptor também o liga (o
+ * interruptor da ficha mostra na hora); desligado de propósito, fica gravado.
+ */
+export function minigameLigado(conteudo: ConteudoDoObjeto | undefined): boolean {
+  if (conteudo === undefined) return false
+  return conteudo.minigame ?? temAlgoDentro(conteudo)
 }
 
 /** Quantos itens, somando as quantidades. */
@@ -201,6 +220,8 @@ export function lerConteudoDoArquivo(valor: unknown, mobilia: Prop['mobilia']): 
     armadilha: lerArmadilha(valor.armadilha),
   }
   if (aberto !== undefined) conteudo.aberto = aberto
+  // O interruptor só entra gravado (booleano); ausente segue a regra do de antes (`minigameLigado`).
+  if (typeof valor.minigame === 'boolean') conteudo.minigame = valor.minigame
   return conteudo
 }
 
@@ -220,16 +241,28 @@ export function propComConteudoDoArquivo(prop: Prop): Prop {
 
 // ------------------------------------------------------------------ mesa
 
-/** O que o recorte do jogador leva do objeto: `'fechado'` (abre com minigame), `'aberto'` ou nada. */
+/**
+ * O que o recorte do jogador leva do objeto: `'fechado'` (minigame ligado e ainda por abrir), `'aberto'`
+ * (já aberto ou quebrado, o que todos veem no mapa) ou nada (desligado e fechado: nem o interruptor vai).
+ */
 export function abrivelParaJogador(prop: Pick<Prop, 'mobilia' | 'conteudo'>): 'fechado' | 'aberto' | undefined {
   const tipo = mobiliaDoConteudo(prop)
   if (tipo === null) return undefined
-  return prop.conteudo?.aberto === undefined ? 'fechado' : 'aberto'
+  if (prop.conteudo?.aberto !== undefined) return 'aberto'
+  return minigameLigado(prop.conteudo) ? 'fechado' : undefined
 }
 
-/** O minigame que o objeto pede AGORA: o do tipo, enquanto fechado. `null` = aberto, quebrado ou não guarda. */
-export function jogoDoObjetoFechado(prop: Pick<Prop, 'mobilia' | 'conteudo'>): MobiliaComConteudo | null {
+/** O tipo do objeto ainda fechado, ligado ou não. `null` = aberto, quebrado ou não guarda. */
+function tipoDoObjetoFechado(prop: Pick<Prop, 'mobilia' | 'conteudo'>): MobiliaComConteudo | null {
   return ehMobiliaComConteudo(prop.mobilia) && prop.conteudo?.aberto === undefined ? prop.mobilia : null
+}
+
+/**
+ * O minigame que o objeto pede AGORA: o do tipo, enquanto fechado e com o minigame ligado pelo mestre.
+ * `null` = desligado, aberto, quebrado ou não guarda. É a regra do host para o `objeto.abrir` e o `objeto.venceu`.
+ */
+export function jogoDoObjetoFechado(prop: Pick<Prop, 'mobilia' | 'conteudo'>): MobiliaComConteudo | null {
+  return minigameLigado(prop.conteudo) ? tipoDoObjetoFechado(prop) : null
 }
 
 /**
@@ -250,7 +283,8 @@ function pegadaDosDestrocos(prop: Pick<Prop, 'width' | 'height'>, tipo: MobiliaQ
  * antes fica guardado para o "Fechar e repor".
  */
 export function objetoAberto(prop: Prop, por: string, em: number): Prop {
-  const tipo = jogoDoObjetoFechado(prop)
+  // Sem o interruptor aqui: o host já conferiu a vitória (`jogoDoObjetoFechado`); a abertura só registra.
+  const tipo = tipoDoObjetoFechado(prop)
   if (tipo === null) return prop
   const aberto: AberturaDoObjeto = { por, em }
   const conteudo: ConteudoDoObjeto = { ...(prop.conteudo ?? conteudoVazio()), aberto }

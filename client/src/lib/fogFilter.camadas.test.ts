@@ -415,8 +415,8 @@ function semCamposDaCaca(view: unknown): Record<string, unknown> {
   if (!ehRegistro(resto.map)) throw new Error('recorte sem mapa')
   const { offFloor, ...mapaDeAntes } = resto.map
   expect(['free', 'blocked'], 'offFloor').toContain(offFloor)
-  // BAÚ, CAIXA E BARRIL (15/11/2026): o objeto que se abre leva `abrivel: 'fechado'` (os congelados não têm conteúdo,
-  // nenhum aberto); o resto do objeto é o de antes. Conferido e tirado do mapa e da memória da planta.
+  // BAÚ, CAIXA E BARRIL (15/11/2026): `abrivel` conferido (`semAbrivel`) e tirado do mapa e da memória da
+  // planta; o resto do objeto é o de antes.
   const plano: Record<string, unknown> = { ...planoDeAntes }
   if (ehRegistro(plano.props) && Array.isArray(plano.props.mapa)) {
     plano.props = { ...plano.props, mapa: plano.props.mapa.map((par: unknown) => (Array.isArray(par) ? [par[0], semAbrivel(par[1])] : par)) }
@@ -425,12 +425,15 @@ function semCamposDaCaca(view: unknown): Record<string, unknown> {
   return { ...resto, map: { ...mapaDeAntes, props: props.map(semAbrivel) }, plan: plano }
 }
 
-/** O objeto do recorte sem `abrivel`, conferido antes: só baú, caixa e barril o têm, e fechados. */
+/**
+ * O objeto do recorte sem `abrivel`, conferido antes. Desde o interruptor "Minigame para o jogador"
+ * (16/11/2026), o baú, a caixa e o barril vazios sem o interruptor gravado nascem desligados, e os
+ * congelados não têm conteúdo: nenhum objeto leva `abrivel`.
+ */
 function semAbrivel(prop: unknown): unknown {
   if (!ehRegistro(prop)) return prop
   const { abrivel, ...resto } = prop
-  const abre = prop.mobilia === 'bau' || prop.mobilia === 'caixa' || prop.mobilia === 'barril'
-  expect(abrivel, `abrivel de ${String(prop.id)}`).toBe(abre ? 'fechado' : undefined)
+  expect(abrivel, `abrivel de ${String(prop.id)}`).toBeUndefined()
   return resto
 }
 

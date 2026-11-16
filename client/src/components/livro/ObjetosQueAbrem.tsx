@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Prop } from '../../types/map'
-import { conteudoDe, mobiliaDoConteudo, NOME_DO_OBJETO, resumoDoConteudo } from '../../lib/conteudoDoObjeto'
+import { conteudoDe, minigameLigado, mobiliaDoConteudo, NOME_DO_OBJETO, resumoDoConteudo } from '../../lib/conteudoDoObjeto'
 import { selectionOfItem } from '../../lib/selectionModel'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { useDesafiosStore } from '../../stores/desafiosStore'
@@ -83,9 +83,14 @@ export function ObjetosQueAbrem({ props }: { props: readonly Prop[] }) {
                 <button type="button" className="mg-linha mg-linha--sem-med" onClick={() => abrirFichaDoObjeto(prop)}>
                   <span className="mg-linha__nome">{nome}</span>
                   <span className="mg-linha__onde">{resumoDoConteudo(conteudo)}</span>
-                  {conteudo.aberto !== undefined && (
+                  {conteudo.aberto !== undefined ? (
                     <span className="mg-linha__tags">
                       <span className="mg-tag mg-tag--feito">{tipo === 'bau' ? 'Aberto' : 'Quebrado'}</span>
+                    </span>
+                  ) : (
+                    // MINIGAME PARA O JOGADOR (16/11/2026): o mestre vê de relance quais o jogador pode abrir.
+                    <span className="mg-linha__tags">
+                      {minigameLigado(prop.conteudo) ? <span className="mg-tag mg-tag--latao">Minigame</span> : <span className="mg-tag">Sem minigame</span>}
                     </span>
                   )}
                 </button>

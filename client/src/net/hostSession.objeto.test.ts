@@ -153,9 +153,28 @@ describe('hostSession: baú, caixa e barril', () => {
     const lido = deserializeMap(serializeMap({ ...depois, props: [{ ...depois.props[0], abrivel: 'aberto' }] }))
     expect(lido.props[0].conteudo).toEqual(depois.props[0].conteudo)
     expect(lido.props[0].abrivel).toBeUndefined()
-    // Mapa antigo: o barril sem conteúdo abre igual, sem campo novo.
+    // Mapa antigo: o barril sem conteúdo é lido sem campo novo (e, vazio, fica sem minigame: teste abaixo).
     const antigo = deserializeMap(JSON.stringify({ id: 'velho', props: [{ id: 'b', src: '', x: 0, y: 0, width: 40, height: 40, mobilia: 'barril' }] }))
     expect(antigo.props[0].conteudo).toBeUndefined()
     expect(antigo.semJumpscare).toBeUndefined()
+  })
+
+  it('minigame desligado (16/11/2026): o recorte não leva abrivel nem o conteúdo e o host recusa; o barril novo, vazio, também; ligado, abre', () => {
+    const comCobra = { itens: [{ item: POCAO, quantidade: 1 }], moedas: 35, armadilha: armadilhaPadrao('cobra') }
+    const novo = bau({ id: 'barril-novo', mobilia: 'barril', x: 140, y: 180, conteudo: undefined })
+    const m = mesa(mapa(token('diego', 180, 200), [bau({ conteudo: { ...comCobra, minigame: false } }), novo]))
+    // Os dois chegam à tela dele (ele vê o baú e o barril), mas sem `abrivel`: o toque não pede nada e não há selo.
+    const snapshot = JSON.stringify(m.inicial.outbound.find((o) => o.clientId === 'c1')?.msg) ?? ''
+    expect(snapshot).toContain('"id":"bau-1"')
+    expect(snapshot).toContain('"id":"barril-novo"')
+    expect(snapshot).not.toContain('abrivel')
+    expect(snapshot).not.toContain('conteudo')
+    expect(snapshot).not.toContain('Poção')
+    for (const propId of ['bau-1', 'barril-novo']) {
+      expect(msgPara(m.s.handleMessage('c1', { type: 'objeto.abrir', propId }, m.world))).toEqual({ type: 'objeto.recusado', propId, motivo: 'indisponivel' })
+    }
+    // O mestre liga o do baú: o mesmo toque abre o jogo.
+    m.trocarMapa(mapa(token('diego', 180, 200), [bau({ conteudo: { ...comCobra, minigame: true } }), novo]))
+    expect(msgPara(m.s.handleMessage('c1', { type: 'objeto.abrir', propId: 'bau-1' }, m.world))?.type).toBe('objeto.jogo')
   })
 })
