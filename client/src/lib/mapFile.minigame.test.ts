@@ -51,6 +51,18 @@ function lerPino(minigame: string, kind = 'minigame'): Pin {
   return pinosDosDesafios(mapa, 'mestre')[0] ?? mapa.pins[0]
 }
 
+/**
+ * O desafio migrado grava estável. A PRIMEIRA gravação depois da migração põe
+ * a chave `desafios` no fim do objeto (a migração a acrescenta), e a leitura a
+ * põe logo depois de `pins`: só a ordem das chaves muda, uma vez. Da segunda
+ * gravação em diante os bytes não mudam mais.
+ */
+function expectGravacaoEstavel(primeira: string): void {
+  const segunda = serializeMap(deserializeMap(primeira))
+  expect(JSON.parse(segunda)).toEqual(JSON.parse(primeira))
+  expect(serializeMap(deserializeMap(segunda))).toBe(segunda)
+}
+
 function comMusica(musica: unknown): string {
   return JSON.stringify({ ...IMPORTADO, musica })
 }
@@ -75,10 +87,22 @@ describe('mapFile: minigame', () => {
       ...createEmptyMap('map_m', 'M', 5, 5, 64),
       pins: [{ id: 'm', x: 64, y: 64, kind: 'minigame' as const, description: '', image: null, portaLigada: 'porta-1', minigame: IMPORTADO }], // literal: `kind` é PinKind, não string
     }
-    const lido = deserializeMap(serializeMap(map)).pins[0]
-    expect(lido.kind).toBe('minigame')
-    expect(lido.portaLigada).toBe('porta-1')
-    expect(lido.minigame).toEqual(IMPORTADO)
+    // Desde 15/11/2026 o pino ▷ vira DESAFIO ao abrir (`lib/desafios.ts`): o
+    // tipo ▷ sai da lista de pinos e o desafio guarda o jogo e a porta.
+    const lidoDoDisco = deserializeMap(serializeMap(map))
+    expect(lidoDoDisco.pins).toEqual([])
+    const [desafio] = desafiosDo(lidoDoDisco)
+    expect(desafio.id).toBe('m')
+    expect(desafio.portaLigada).toBe('porta-1')
+    expect(desafio.minigame).toEqual(IMPORTADO)
+    // E o desafio volta do disco igual: gravar o lido e ler de novo não muda nada.
+    const regravado = serializeMap(lidoDoDisco)
+    expect(desafiosDo(deserializeMap(regravado))).toEqual([desafio])
+    expectGravacaoEstavel(regravado)
+    // O mestre continua vendo o pino derivado, de mesmo id, com o mesmo jogo.
+    const derivado = pinosDosDesafios(lidoDoDisco, 'mestre')[0]
+    expect(derivado.kind).toBe('minigame')
+    expect(derivado.minigame).toEqual(IMPORTADO)
   })
 
   it('pino de minigame sem o campo, ou com lixo, ganha o padrão', () => {
@@ -223,17 +247,27 @@ describe('mapFile: minigame de pesca', () => {
   it('a pesca vai e volta do disco igual, e não vira dança', () => {
     const gravado = serializeMap(mapaComPino({ id: 'm', x: 64, y: 64, kind: 'minigame', description: '', image: null, minigame: PESCA }))
     const lido = deserializeMap(gravado)
-    expect(lido.pins[0].minigame).toEqual(PESCA)
-    expect(serializeMap(lido)).toBe(gravado)
+    // O pino ▷ abre como desafio (`lib/desafios.ts`); a pesca continua pesca.
+    expect(desafiosDo(lido)[0].minigame).toEqual(PESCA)
+    const regravado = serializeMap(lido)
+    expect(desafiosDo(deserializeMap(regravado))[0].minigame).toEqual(PESCA)
+    expectGravacaoEstavel(regravado)
   })
 
-  it('a dança gravada antes da pesca abre e grava igual, byte a byte', () => {
+  it('a dança gravada antes da pesca abre igual, e o desafio grava estável', () => {
     const pino: Pin = { id: 'm', x: 64, y: 64, kind: 'minigame', description: '', image: null, portaLigada: 'porta-1', minigame: IMPORTADO }
     const gravado = serializeMap(mapaComPino(pino))
     const lido = deserializeMap(gravado)
-    expect(JSON.stringify(lido.pins[0])).toBe(JSON.stringify(pino))
-    expect(serializeMap(lido)).toBe(gravado)
-    expect(serializeMap(lido)).not.toContain('pesca')
+    const [desafio] = desafiosDo(lido)
+    expect(desafio.id).toBe('m')
+    expect(desafio.lugar).toEqual({ tipo: 'ponto', x: 64, y: 64 })
+    expect(desafio.portaLigada).toBe('porta-1')
+    expect(desafio.minigame).toEqual(IMPORTADO)
+    // O pino inteiro fica guardado no desafio: nada do que o mestre gravou se perde.
+    expect(desafio.eraPino).toEqual({ id: 'm', x: 64, y: 64, kind: 'minigame', description: '', image: null, portaLigada: 'porta-1' })
+    const regravado = serializeMap(lido)
+    expectGravacaoEstavel(regravado)
+    expect(regravado).not.toContain('pesca')
     // O padrão da dança (pino de minigame sem desafio) também continua o mesmo.
     expect(JSON.stringify(lerPino('').minigame)).toBe(JSON.stringify(MINIGAME_PADRAO))
   })
