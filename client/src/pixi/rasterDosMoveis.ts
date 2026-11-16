@@ -11,7 +11,7 @@ import { formaDoMoinho } from '../lib/mobilia/cataVento'
 import { CURVE_EPSILON_PX, curvaForTurnDegrees, turnDegreesForCurva } from '../lib/stairCurve'
 import { FATIA_DO_LADRILHO_MS } from '../texturas/ladrilhos'
 import { LUGARES_DE_MATERIAL, materialMaisPerto, type OpcaoDeMaterial } from '../texturas/meioTermo/materiais'
-import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, temTextura, type DesenhoDoMovel } from '../texturas/meioTermo/moveis'
+import { escalaDoNivel, GRADE_DE_REFERENCIA, montarCena, preparoDaCena, temTextura, type DesenhoDoMovel } from '../texturas/meioTermo/moveis'
 import { pintaOGiroNaTresQuartos } from '../texturas/meioTermo/moveis/tresQuartos'
 import { G } from '../texturas/meioTermo/moveis/contexto'
 import { BYTES_DE_TRABALHO_POR_PIXEL, limitesDaCena, pintarCenaEmPassos, type Cena, type LimitesDaImagem } from '../texturas/meioTermo/moveis/motor'
@@ -45,7 +45,11 @@ import { varianteDoGiro } from '../lib/carimbos'
  *   desenho de linhas provisório; a chave de repintura do jogador não muda);
  * - a imagem que sai do cache só é destruída (`destroy(true)`, que solta a
  *   cópia da placa: a fonte de bytes não tem coleta automática no Pixi 8)
- *   quando nenhum dono a cola mais.
+ *   quando nenhum dono a cola mais;
+ * - a cena com conta cara antes das peças (a montanha, 16/11/2026: o relevo da
+ *   grande leva dezenas de ms) não é montada no pedido: o PREPARO dela anda na
+ *   fila, em passos, e só então a cena é montada e pintada (`comecarDepois`).
+ *   Montada no pedido, abrir um mapa com 7 montanhas travava a tela de uma vez.
  *
  * Cache LRU por bytes, 64 MB no computador e 24 MB com `pointer: coarse`:
  * conta a imagem duas vezes (os bytes na CPU e a cópia na placa) e o buffer
@@ -548,10 +552,17 @@ export function escalaECortes(tipo: string, nivel: number, cena: Cena): { S: num
 
 interface Entrada extends ImagemDoMovel {
   readonly chave: string
+  /** A cena adiada (`comecarDepois`) só ganha a imagem depois do preparo: até lá, nenhum ladrilho e limites vazios. */
+  textura: Texture
+  limites: LimitesDaImagem
+  ladrilhos: readonly LadrilhoDaImagem[]
+  S: number
   /** Bytes da imagem pronta (as duas cópias). */
-  readonly bytes: number
+  bytes: number
   /** Bytes do buffer de trabalho enquanto ela é pintada. */
-  readonly bytesDeTrabalho: number
+  bytesDeTrabalho: number
+  /** A cena adiada, antes de montada: os pixels que a imagem terá, pela pegada (para a prévia do nível 1). */
+  pixelsPrevistos?: number
   readonly passos: Generator<void, void, void>
   pronta: boolean
   /** Começou a pintar: o buffer de trabalho existe. */
@@ -613,6 +624,34 @@ function* pintarLadrilhosEmPassos(cena: Cena, S: number, pedacos: readonly { lim
   for (const p of pedacos) yield* pintarCenaEmPassos(cena, S, p.limites, p.pixels, true)
 }
 
+/** A imagem de uma cena montada: a escala, os ladrilhos (texturas ainda transparentes), os pixels de cada um e os bytes. */
+function imagemDaCena(chave: ChaveDoMovel, cena: Cena): {
+  S: number
+  limites: LimitesDaImagem
+  ladrilhos: LadrilhoDaImagem[]
+  pedacos: { limites: LimitesDaImagem; pixels: Uint8ClampedArray }[]
+  bytes: number
+  bytesDeTrabalho: number
+} {
+  const { S, limites, cortes } = escalaECortes(chave.desenho.tipo, chave.nivel, cena)
+  const pedacos = cortes.map((corte) => {
+    const parte = limitesDoCorte(limites, corte, S)
+    const pixels = new Uint8ClampedArray(parte.W * parte.H * BYTES_POR_PIXEL)
+    // Bytes já multiplicados pelo alfa (a pintura compõe assim): a placa não multiplica de novo.
+    const source = new BufferImageSource({ resource: pixels, width: parte.W, height: parte.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
+    return { textura: new Texture({ source }), limites: parte, pixels }
+  })
+  return {
+    S,
+    limites,
+    ladrilhos: pedacos.map(({ textura, limites: parte }) => ({ textura, limites: parte })),
+    pedacos,
+    bytes: pedacos.reduce((soma, p) => soma + p.pixels.byteLength, 0) * COPIAS_DA_IMAGEM,
+    // Um ladrilho por vez: o buffer de trabalho é o do maior.
+    bytesDeTrabalho: Math.max(...pedacos.map((p) => p.limites.W * p.limites.H)) * BYTES_DE_TRABALHO_POR_PIXEL,
+  }
+}
+
 /**
  * Caça 12/11 (O5): acima disto (pixels da imagem pedida, somados os ladrilhos), o móvel sem imagem nenhuma pronta
  * pinta antes o nível 1 e afia depois. A torre de pedra 3 x 3 de perto (nível 3, 3/4, grade 64) tem ~654 mil e levava
@@ -620,7 +659,8 @@ function* pintarLadrilhosEmPassos(cena: Cena, S: number, pedacos: readonly { lim
  */
 export const PIXELS_PARA_PREVIA = 250_000
 
-function pixelsDaImagem(e: Pick<ImagemDoMovel, 'ladrilhos'>): number {
+function pixelsDaImagem(e: Pick<Entrada, 'ladrilhos' | 'pixelsPrevistos'>): number {
+  if (e.ladrilhos.length === 0) return e.pixelsPrevistos ?? 0
   let soma = 0
   for (const l of e.ladrilhos) soma += l.limites.W * l.limites.H
   return soma
@@ -948,32 +988,20 @@ export class RasterDosMoveis {
   }
 
   private comecar(texto: string, chave: ChaveDoMovel): Entrada {
+    const preparo = preparoDaCena(chave.desenho)
+    if (preparo !== null) return this.comecarDepois(texto, chave, preparo)
     const cena = montarCena(chave.desenho)
-    const { S, limites, cortes } = escalaECortes(chave.desenho.tipo, chave.nivel, cena)
-    const pedacos = cortes.map((corte) => {
-      const parte = limitesDoCorte(limites, corte, S)
-      const pixels = new Uint8ClampedArray(parte.W * parte.H * BYTES_POR_PIXEL)
-      // Bytes já multiplicados pelo alfa (a pintura compõe assim): a placa não multiplica de novo.
-      const source = new BufferImageSource({ resource: pixels, width: parte.W, height: parte.H, format: 'rgba8unorm', alphaMode: 'premultiplied-alpha', scaleMode: 'linear' })
-      return { textura: new Texture({ source }), limites: parte, pixels }
-    })
-    const ladrilhos: LadrilhoDaImagem[] = pedacos.map(({ textura, limites: parte }) => ({ textura, limites: parte }))
+    const imagem = imagemDaCena(chave, cena)
     const entrada: Entrada = {
       chave: texto,
-      textura: ladrilhos[0].textura,
-      ladrilhos,
-      limites,
-      S,
-      casasW: chave.desenho.casasW,
-      casasH: chave.desenho.casasH,
-      nivel: chave.nivel,
-      giroPintado: chave.desenho.giro ?? 0,
-      // Quarto ímpar pintado: o x da imagem corre na altura do objeto (o mesmo do Desenhado).
-      trocaEixos: ((chave.desenho.giro ?? 0) / 90) % 2 === 1,
-      bytes: pedacos.reduce((soma, p) => soma + p.pixels.byteLength, 0) * COPIAS_DA_IMAGEM,
-      // Um ladrilho por vez: o buffer de trabalho é o do maior.
-      bytesDeTrabalho: Math.max(...pedacos.map((p) => p.limites.W * p.limites.H)) * BYTES_DE_TRABALHO_POR_PIXEL,
-      passos: pintarLadrilhosEmPassos(cena, S, pedacos),
+      textura: imagem.ladrilhos[0].textura,
+      ladrilhos: imagem.ladrilhos,
+      limites: imagem.limites,
+      S: imagem.S,
+      ...this.pegadaDaChave(chave),
+      bytes: imagem.bytes,
+      bytesDeTrabalho: imagem.bytesDeTrabalho,
+      passos: pintarLadrilhosEmPassos(cena, imagem.S, imagem.pedacos),
       pronta: false,
       emPintura: false,
       retirada: false,
@@ -982,6 +1010,76 @@ export class RasterDosMoveis {
       colagens: 0,
       avulsa: false,
     }
+    return this.registrar(texto, entrada)
+  }
+
+  /** O que a imagem guarda da chave: a pegada, o nível e o giro pintado. */
+  private pegadaDaChave(chave: ChaveDoMovel): Pick<Entrada, 'casasW' | 'casasH' | 'nivel' | 'giroPintado' | 'trocaEixos'> {
+    return {
+      casasW: chave.desenho.casasW,
+      casasH: chave.desenho.casasH,
+      nivel: chave.nivel,
+      giroPintado: chave.desenho.giro ?? 0,
+      // Quarto ímpar pintado: o x da imagem corre na altura do objeto (o mesmo do Desenhado).
+      trocaEixos: ((chave.desenho.giro ?? 0) / 90) % 2 === 1,
+    }
+  }
+
+  /**
+   * A cena com PREPARO (a montanha): a entrada entra na fila sem imagem (nenhum ladrilho, nenhum byte) e os passos
+   * dela são o preparo, a cena montada com o que ele guardou e a pintura. Assim o pedido (a passada de desenho, ao
+   * abrir o mapa ou ao pôr a peça) não monta relevo nenhum, e a conta cara anda nas fatias de 8 ms da fila.
+   */
+  private comecarDepois(texto: string, chave: ChaveDoMovel, preparo: Generator<void, void, void>): Entrada {
+    const S = escalaDoNivel(chave.nivel)
+    const ladoPrevisto = (casas: number): number => Math.min(LADO_MAXIMO_DA_IMAGEM, Math.ceil(casas * G * S))
+    const dona: { entrada: Entrada | null } = { entrada: null }
+    const entrada: Entrada = {
+      chave: texto,
+      textura: Texture.EMPTY,
+      ladrilhos: [],
+      limites: { x0: 0, y0: 0, W: 0, H: 0 },
+      S,
+      ...this.pegadaDaChave(chave),
+      bytes: 0,
+      bytesDeTrabalho: 0,
+      pixelsPrevistos: ladoPrevisto(chave.desenho.casasW) * ladoPrevisto(chave.desenho.casasH),
+      passos: this.prepararEPintar(dona, chave, preparo),
+      pronta: false,
+      emPintura: false,
+      retirada: false,
+      destruida: false,
+      pedidos: 0,
+      colagens: 0,
+      avulsa: false,
+    }
+    dona.entrada = entrada
+    return this.registrar(texto, entrada)
+  }
+
+  /** Os passos da cena adiada: o preparo, a imagem (as contas de bytes passam a valer) e a pintura. */
+  private *prepararEPintar(dona: { entrada: Entrada | null }, chave: ChaveDoMovel, preparo: Generator<void, void, void>): Generator<void, void, void> {
+    yield* preparo
+    const entrada = dona.entrada
+    if (entrada === null) return
+    const cena = montarCena(chave.desenho)
+    const imagem = imagemDaCena(chave, cena)
+    // A fila só anda com a entrada em pintura (o buffer de trabalho já conta): troca o zero pelo de verdade.
+    this.bytesNoCache += imagem.bytes - entrada.bytes
+    if (entrada.emPintura) this.bytesNoCache += imagem.bytesDeTrabalho - entrada.bytesDeTrabalho
+    entrada.textura = imagem.ladrilhos[0].textura
+    entrada.ladrilhos = imagem.ladrilhos
+    entrada.limites = imagem.limites
+    entrada.S = imagem.S
+    entrada.bytes = imagem.bytes
+    entrada.bytesDeTrabalho = imagem.bytesDeTrabalho
+    entrada.pixelsPrevistos = undefined
+    this.podar(entrada)
+    yield
+    yield* pintarLadrilhosEmPassos(cena, imagem.S, imagem.pedacos)
+  }
+
+  private registrar(texto: string, entrada: Entrada): Entrada {
     this.geradas += 1
     this.entradas.set(entrada, entrada)
     this.cache.set(texto, entrada)

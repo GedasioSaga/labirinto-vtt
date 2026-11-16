@@ -9,7 +9,7 @@ import type { TipoMobilia } from '../../../lib/mobilia/tipos'
 import type { PontoDoMuro } from '../../../lib/mobilia/muroDeFogo'
 import type { FormaDoTapete } from '../../../types/map'
 import { LUGARES_DE_MATERIAL, ehMaterial, type OpcaoDeMaterial } from '../materiais'
-import { G, materialDaPeca, type LadoDoMovel, type MateriaisDoMovel, type MontarMovel } from './contexto'
+import { G, materialDaPeca, type LadoDoMovel, type MateriaisDoMovel, type MontarMovel, type PrepararCena } from './contexto'
 import { criarPecas, pintarCena, type Cena, type LimitesDaImagem, type MaterialDaPeca } from './motor'
 import { montarBarril } from './barril'
 import { montarCaixa } from './caixa'
@@ -330,7 +330,7 @@ import { montarPrateleiraDeToalhas } from './prateleiraDeToalhas'
 import { montarCadeiraDeEspaldarAlto } from './cadeiraDeEspaldarAlto'
 import { montarCentroDeMesa } from './centroDeMesa'
 import { montarLapideTorta } from './lapideTorta'
-import { montarMontanhaGrande, montarMontanhaMedia, montarMontanhaPequena } from './montanha'
+import { montarMontanhaGrande, montarMontanhaMedia, montarMontanhaPequena, prepararMontanhaGrande, prepararMontanhaMedia, prepararMontanhaPequena } from './montanha'
 import { montarTorreDoDragao } from './torreDoDragao'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
@@ -873,6 +873,23 @@ function materiaisDoDesenho(d: DesenhoDoMovel): MateriaisDoMovel {
     m[lugar.id] = materialDaPeca(ehMaterial(id) ? id : madeira)
   })
   return m
+}
+
+/** Os tipos com conta cara antes das peças: o raster anda com ela nas fatias da fila antes de montar a cena. */
+const PREPAROS: Partial<Record<TipoComTextura, PrepararCena>> = {
+  montanhaPequena: prepararMontanhaPequena,
+  montanhaMedia: prepararMontanhaMedia,
+  montanhaGrande: prepararMontanhaGrande,
+}
+
+/**
+ * O que `montarCena(d)` precisa calcular antes, em passos curtos (a montanha: o relevo, dezenas de ms na grande).
+ * `null` = nada a preparar: a cena sai barata e pode ser montada já. Depois do último passo, `montarCena(d)` só lê
+ * o que o preparo guardou.
+ */
+export function preparoDaCena(d: DesenhoDoMovel): Generator<void, void, void> | null {
+  const preparar = PREPAROS[d.tipo]
+  return preparar === undefined ? null : preparar(d.casasW * G, d.casasH * G, d.giro ?? 0, d.vista)
 }
 
 /** As peças e as sombras do móvel, em px do protótipo, centradas na origem. */

@@ -228,6 +228,14 @@ export interface ContextoDoMovel {
 /** O que monta as peças de um tipo na cena. */
 export type MontarMovel = (c: ContextoDoMovel, cena: Cena) => void
 
+/**
+ * O PREPARO de um tipo cuja cena tem uma conta cara antes das peças (a montanha, 16/11/2026: o relevo inteiro): os
+ * mesmos passos da conta, com uma pausa a cada faixa, para o raster andar com eles nas fatias da fila em vez de
+ * travar a tela ao abrir o mapa. Recebe a pegada (px do protótipo), o giro (graus) e a vista; `null` = a conta já está
+ * guardada e a cena sai barata.
+ */
+export type PrepararCena = (w: number, h: number, giro: number, vista: 'tres-quartos' | undefined) => Generator<void, void, void> | null
+
 /** Veio de través (as tábuas de pé, os postes). */
 export const QUARTO = Math.PI / 2
 
