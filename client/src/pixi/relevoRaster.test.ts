@@ -975,5 +975,11 @@ describe('rasterizarRelevo — barranco liso (MT8, chave de obra)', { timeout: 1
   })
 })
 
-/** Medidas com o `relevoRaster.ts` do commit 2d376778 (antes da MT8), numa cópia dele, nesta tela falsa. */
-const DIGITAIS_ANTES_DA_MT8: readonly number[] = [3111649189, 1344256651, 813745873]
+/**
+ * Medidas com o `relevoRaster.ts` do commit 2d376778 (antes da MT8), numa cópia dele, nesta tela falsa.
+ * Regravadas em 16/11/2026 porque a sombra única (40a58ded, Fase 6) trocou a cor da sombra do relevo
+ * em `lib/relevo.ts` de [0, 9, 20] para `COR_DA_SOMBRA_RGB` [10, 28, 40], de propósito: a mesma cópia
+ * de 2d376778 lendo o `lib/relevo.ts` de hoje dá estas 3; lendo o de 2d376778, ainda dá as de antes
+ * (3111649189, 1344256651, 813745873). O algoritmo da chave desligada não mudou, só a cor.
+ */
+const DIGITAIS_ANTES_DA_MT8: readonly number[] = [4241159462, 340523996, 1442309598]
