@@ -156,6 +156,9 @@ import {
   semCarimboImportado,
   semCarimbos,
   carimboPorId,
+  carimboDestravado,
+  comMudancaDoCarimbo,
+  type MudancaDoCarimbo,
   TAMANHO_DO_CARIMBO_MAX,
   TAMANHO_DO_CARIMBO_MIN,
   TAMANHO_DO_CARIMBO_PADRAO,
@@ -1533,6 +1536,13 @@ interface MapStoreState {
   removerCarimboImportado: (id: string) => void
   /** Tira todos os objetos da cena aberta (os importados ficam na biblioteca). Com desfazer. */
   apagarTodosOsCarimbos: () => void
+  /**
+   * CARIMBO EDITÁVEL (Fase 2): troca o tipo, o tamanho, o giro ou o cadeado de
+   * um carimbo posto. Um passo no desfazer; `juntar` junta o arrasto de um
+   * controle (o tamanho) num passo só. O travado só destrava; a camada
+   * travada barra e avisa; o que já vale não vira passo.
+   */
+  mudarCarimbo: (id: string, mudanca: MudancaDoCarimbo, juntar?: string) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** DIA/TARDE/NOITE: a cena aberta é externa e segue o período da sessão (`comCenaExterna`, `lib/periodo.ts`). Com desfazer. */
@@ -3526,6 +3536,20 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (semCarimboImportado(get().map, id) === get().map) return
       withHistory((m) => semCarimboImportado(m, id))
       if (get().carimboEscolhido === id) set({ carimboEscolhido: CARIMBO_ESCOLHIDO_PADRAO })
+    },
+    mudarCarimbo: (id, mudanca, juntar) => {
+      const { map } = get()
+      const antes = carimboPorId(map.carimbos, id)
+      if (antes === undefined) return
+      // O cadeado sozinho sempre passa (é como se destrava); o resto, só no destravado.
+      const soOCadeado = mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined
+      if (!soOCadeado && !carimboDestravado(antes)) return
+      if (barradoPelaCamada(camadasTravadasDosItens(map, 'carimbo', [antes]))) return
+      if (comMudancaDoCarimbo(antes, mudanca) === antes) return
+      withHistory(
+        (m) => comCarimbos(m, (m.carimbos ?? []).map((c) => (c.id === id ? comMudancaDoCarimbo(c, mudanca) : c))),
+        juntar === undefined ? undefined : `carimbo-${id}-${juntar}`,
+      )
     },
     apagarTodosOsCarimbos: () => {
       const { map, pisoAtivo } = get()

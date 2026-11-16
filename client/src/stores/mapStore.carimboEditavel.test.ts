@@ -100,6 +100,32 @@ describe('mexer na seleção com carimbo', () => {
     expect(selection).toEqual([{ kind: 'carimbo', id: copia?.id }])
   })
 
+  it('a ficha troca tipo, tamanho e giro num passo; o arrasto do tamanho junta num passo só', () => {
+    const store = useMapStore.getState()
+    const antes = store.map
+    store.mudarCarimbo('c1', { tipo: 'arvore', giro: 45 })
+    expect(useMapStore.getState().map.carimbos?.[0]).toMatchObject({ tipo: 'arvore', giro: 45, tamanho: 40 })
+    const depoisDoTipo = useMapStore.getState().map
+    for (const tamanho of [44, 48, 52]) useMapStore.getState().mudarCarimbo('c1', { tamanho }, 'tamanho')
+    expect(useMapStore.getState().map.carimbos?.[0]?.tamanho).toBe(52)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(depoisDoTipo)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map).toBe(antes)
+  })
+
+  it('o carimbo travado só destrava; o que já vale não vira passo', () => {
+    const store = useMapStore.getState()
+    store.mudarCarimbo('c1', { locked: true })
+    const travado = useMapStore.getState().map
+    expect(travado.carimbos?.[0]?.locked).toBe(true)
+    useMapStore.getState().mudarCarimbo('c1', { giro: 90 })
+    useMapStore.getState().mudarCarimbo('c1', { locked: true })
+    expect(useMapStore.getState().map).toBe(travado)
+    useMapStore.getState().mudarCarimbo('c1', { locked: false })
+    expect(useMapStore.getState().map.carimbos?.[0]).not.toHaveProperty('locked')
+  })
+
   it('Ctrl+C e Ctrl+V colam o carimbo com o centro no ponto', () => {
     const store = useMapStore.getState()
     store.setSelection([{ kind: 'carimbo', id: 'c2' }])

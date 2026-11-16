@@ -144,8 +144,15 @@ export function selectionOfItem(item: SelectionItem): SelectionSet {
  */
 export function selectionFromItems(items: readonly SelectionItem[]): SelectionSet {
   const result: SelectionItem[] = []
+  // Um conjunto de chaves em vez de `some` por item: o laço que pega 5.000
+  // carimbos (Fase 2, 15/11/2026) não pode virar 5.000 × 5.000 comparações.
+  // O tipo nunca tem dois-pontos, então `tipo:id` não colide entre tipos.
+  const vistos = new Set<string>()
   for (const item of items) {
-    if (!result.some((existing) => sameItem(existing, item))) result.push(item)
+    const chave = `${item.kind}:${item.id}`
+    if (vistos.has(chave)) continue
+    vistos.add(chave)
+    result.push(item)
   }
   return result
 }

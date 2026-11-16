@@ -19,6 +19,7 @@
 import type { CamadaId, MapData, Prop, Region } from '../../types/map'
 import type { SelectionKind } from '../../types/tools'
 import { contextoDeCamadas } from './consulta'
+import { carimboPorId } from '../carimbos'
 import { ROTULOS_DAS_CAMADAS, camadaPadraoDe, ehCamadaPadrao, type ItemPorTipo, type TipoDeObjeto } from './padrao'
 
 /** Um item que o gesto quer mover: o tipo na camada e o id dele (o telhado usa o id da Sala). */
@@ -113,7 +114,8 @@ export function itemDaRef(map: MapData, ref: RefDeItem): ParDeItem | undefined {
     case 'marcador':
       return par('marcador', porId(map.markers, ref.id))
     case 'carimbo':
-      return par('carimbo', porId(map.carimbos, ref.id))
+      // Pelo índice (`carimboPorId`): o laço pega milhares, e um `find` por item virava 5.000 × 5.000 (Fase 2, medido).
+      return par('carimbo', carimboPorId(map.carimbos, ref.id))
   }
 }
 
