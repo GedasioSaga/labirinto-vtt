@@ -18,6 +18,12 @@ import { ask } from '@tauri-apps/plugin-dialog'
 export type SalvarAoFechar = () => Promise<string | null>
 
 let salvarAoFechar: SalvarAoFechar | null = null
+/**
+ * PRELÚDIO EM JANELA PRÓPRIA (P1): fechar a principal fecha a janela do
+ * Prelúdio (o Rust a derruba). Antes, ela grava o que a digitação dela segura:
+ * o fio (`janela/mesaDoPreludio.ts`) registra aqui o pedido "grave agora".
+ */
+let salvarNaJanela: SalvarAoFechar | null = null
 
 /** Gravar não pode prender a janela para sempre: passado isto, pergunta como se tivesse falhado. */
 const ESPERA_PARA_GRAVAR_MS = 5000
@@ -26,6 +32,19 @@ const AINDA_GRAVANDO = 'O Prelúdio ainda está gravando as últimas mudanças.'
 
 export function registrarSalvarAoFechar(salvar: SalvarAoFechar): void {
   salvarAoFechar = salvar
+}
+
+/** `null` = não há janela do Prelúdio aberta. */
+export function registrarSalvarNaJanela(salvar: SalvarAoFechar | null): void {
+  salvarNaJanela = salvar
+}
+
+/** As duas gravações ao mesmo tempo; o primeiro motivo que vier vale para a pergunta. */
+async function salvarTudo(): Promise<string | null> {
+  const motivoDe = (salvar: SalvarAoFechar | null): Promise<string | null> =>
+    salvar === null ? Promise.resolve(null) : salvar().catch((erro: unknown) => (erro instanceof Error ? erro.message : String(erro)))
+  const motivos = await Promise.all([motivoDe(salvarAoFechar), motivoDe(salvarNaJanela)])
+  return motivos.find((motivo) => motivo !== null) ?? null
 }
 
 function depoisDe<T>(ms: number, valor: T): { promessa: Promise<T>; cancelar: () => void } {
@@ -53,9 +72,9 @@ export interface OpcoesAoFechar {
  * Diálogo que falha fecha, como no aviso do mapa: travar a janela é pior.
  */
 export async function preludioDeixaFechar({ esperaMaximaMs, perguntar = (texto) => ask(texto, { title: 'Labirinto', kind: 'warning' }) }: OpcoesAoFechar): Promise<boolean> {
-  if (salvarAoFechar === null) return true
+  if (salvarAoFechar === null && salvarNaJanela === null) return true
   const prazo = depoisDe(ESPERA_PARA_GRAVAR_MS, AINDA_GRAVANDO)
-  const motivo = await Promise.race([salvarAoFechar().catch((erro: unknown) => (erro instanceof Error ? erro.message : String(erro))), prazo.promessa])
+  const motivo = await Promise.race([salvarTudo(), prazo.promessa])
   prazo.cancelar()
   if (motivo === null) return true
   const resposta = depoisDe(esperaMaximaMs, true)

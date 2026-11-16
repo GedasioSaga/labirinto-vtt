@@ -90,6 +90,16 @@ import { ESPESSURA_DO_SILO } from './siloDeGraos'
 import { ESPESSURA_DA_TABUA_DO_CHIQUEIRO } from './chiqueiroCercado'
 import { ESPESSURA_DA_BORDA_DO_VASO_MODERNO } from './vasoSanitarioModerno'
 import { ESPESSURA_DA_BORDA_DO_BIDE } from './bide'
+import { ESPESSURA_DO_TAMPO_DA_MESA_DE_AUTOPSIA } from './mesaDeAutopsia'
+import { ESPESSURA_DA_MACA } from './macaComLencol'
+import { ESPESSURA_DO_TAMBOR_DO_ESTERILIZADOR } from './esterilizador'
+import { ESPESSURA_DA_CUPULA_DA_LUMINARIA } from './luminariaArticulada'
+import { ESPESSURA_DA_BANDEJA } from './bandejaDeInstrumentos'
+import { ESPESSURA_DO_TAMPO_DA_MESA_DE_LABORATORIO } from './mesaDeLaboratorio'
+import { ESPESSURA_DO_ASSENTO_GIRATORIO } from './cadeiraGiratoria'
+import { ESPESSURA_DA_MAQUINA_DE_ESCREVER } from './maquinaDeEscrever'
+import { ESPESSURA_DA_LAJE } from './lajeDeSacrificio'
+import { ESPESSURA_DA_TAMPA_DO_TUMULO } from './tumuloDePedra'
 import { contato, type Cena, type CriarPeca, type CurvaY, type MaterialDaPeca, type Peca, type Sombra } from './motor'
 
 /** A frente recebe menos luz que o tampo: o `FRENTE` do protótipo (`objetos.js:654`). */
@@ -770,6 +780,44 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   lixeiraDePedal: { modo: 'derivado', espessura: 0 },
   tapeteDeBanheiro: { modo: 'derivado', alturaSolta: SOMBRA_DO_TAPETE.z },
   portaPapel: { modo: 'derivado', espessura: 0 },
+  // As referências (16/11/2026), lote L1: derivado puro em todos os giros. A mesa de autópsia é a bandeja de inox, um
+  // tampo solto sobre o pedestal (coluna) e a chapa da base (coluna rasa). A maca: o lençol é um tampo solto (a beirada
+  // é o pano que cai pelos lados), as pernas de tubo são colunas nos cantos e as rodinhas, colunas baixas. A câmara
+  // frigorífica é a da geladeira: a frente desenhada e fatiada em faixas (girada, a lateral ou as costas, com
+  // `guardarFaceGirada`). O esterilizador é o tambor, um tampo solto de beirada funda sobre os três pés. A luminária: a
+  // base é coluna rasa, a haste coluna até 1,12 casa e a cúpula um tampo solto a 1 casa (a beirada é a saia verde). A
+  // bandeja de instrumentos é um tampo solto sobre a haste, com a base em H rasa e as rodinhas. A mesa de laboratório
+  // tem o tampo solto sobre as pernas e a prateleira de baixo, outro tampo solto sem sombra. As panelas e bacias são
+  // uma coluna por grupo, da altura dele. A cadeira giratória: os pés da estrela em colunas rasas, o assento e o
+  // encosto em tampos soltos. A máquina de escrever é mesa posta, como os pratos: posta no chão, fica no ar.
+  mesaDeAutopsia: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_DE_AUTOPSIA },
+  macaComLencol: { modo: 'derivado', espessura: ESPESSURA_DA_MACA },
+  camaraFrigorifica: { modo: 'derivado', espessura: 0 },
+  esterilizador: { modo: 'derivado', espessura: ESPESSURA_DO_TAMBOR_DO_ESTERILIZADOR },
+  luminariaArticulada: { modo: 'derivado', espessura: ESPESSURA_DA_CUPULA_DA_LUMINARIA },
+  bandejaDeInstrumentos: { modo: 'derivado', espessura: ESPESSURA_DA_BANDEJA },
+  mesaDeLaboratorio: { modo: 'derivado', espessura: ESPESSURA_DO_TAMPO_DA_MESA_DE_LABORATORIO },
+  panelasEBacias: DERIVADO,
+  cadeiraGiratoria: { modo: 'derivado', espessura: ESPESSURA_DO_ASSENTO_GIRATORIO },
+  maquinaDeEscrever: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, espessura: ESPESSURA_DA_MAQUINA_DE_ESCREVER, sombrasSobem: true },
+  // Lote L2. A coluna quebrada, o altar redondo, a cadeira de espaldar alto, a prateleira de toalhas, o centro de mesa,
+  // o elevador e o carro são pilhas de fatias (`pilhaDeFatias.ts`): as fatias dão a altura, sem beirada copiada; o
+  // centro de mesa vai em cima da mesa como os pratos (as fatias já contam o tampo, `ALTURA_DA_MESA_DO_CENTRO`). O
+  // alçapão e o deck ficam rentes (o deck NÃO é tampo solto: o tablado cobria os pilares da frente); os pilares dele
+  // são colunas com o chapéu. A laje é tampo solto a 0,5 casa sobre dois blocos; o túmulo, o basamento em quatro
+  // estruturas, a arca em coluna e a tampa solta a 0,7 casa. A lápide torta é desenhada em pé.
+  elevadorAntigo: { modo: 'derivado', espessura: 0 },
+  alcapao: DERIVADO,
+  deckDeMadeira: DERIVADO,
+  colunaQuebrada: { modo: 'derivado', espessura: 0 },
+  altarRedondo: { modo: 'derivado', espessura: 0 },
+  lajeDeSacrificio: { modo: 'derivado', espessura: ESPESSURA_DA_LAJE },
+  tumuloDePedra: { modo: 'derivado', espessura: ESPESSURA_DA_TAMPA_DO_TUMULO },
+  carroAntigo: { modo: 'derivado', espessura: 0 },
+  prateleiraDeToalhas: { modo: 'derivado', espessura: 0 },
+  cadeiraDeEspaldarAlto: { modo: 'derivado', espessura: 0 },
+  centroDeMesa: { modo: 'derivado', espessura: 0, alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },
+  lapideTorta: EM_PE,
 }
 
 /** O perfil do móvel nesta vista Frente/Lado: o de Lado já é desenhado em pé. */

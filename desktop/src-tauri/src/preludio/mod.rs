@@ -13,8 +13,10 @@
 //!   listagem desce da pasta marcada dele ([`drive`]). Nada aqui apaga no Drive;
 //! - a webview escolhe o verbo (entrar, copiar, listar, restaurar) e, no restaurar, o
 //!   id de uma cópia que o próprio Rust confere na lista; nunca caminho nem URL;
-//! - todo comando recusa janela que não seja a `main` (a visão de jogador roda o
-//!   mesmo front e não pode falar com o Google);
+//! - todo comando recusa janela que não seja a `main` (a visão de jogador e a
+//!   janela do Prelúdio rodam o mesmo front e não podem falar com o Google). A
+//!   janela do Prelúdio tem os verbos de disco dela, em [`disco_da_janela`], e
+//!   nenhum destes: importar do Grimório e a cópia no Drive ficam na `main`;
 //! - nada roda sozinho: sem a chave `preparo` a tela não abre e a ponte do
 //!   TypeScript (`client/src/preludio/copia/ponteDaCopia.ts`) não chama nada.
 //!
@@ -45,6 +47,7 @@
 pub mod comandos;
 mod copia;
 mod disco;
+pub mod disco_da_janela;
 mod drive;
 mod google;
 mod plano;

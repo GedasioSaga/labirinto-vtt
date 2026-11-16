@@ -307,6 +307,28 @@ import { montarPrateleiraDeFrascos } from './prateleiraDeFrascos'
 import { montarLixeiraDePedal } from './lixeiraDePedal'
 import { montarTapeteDeBanheiro } from './tapeteDeBanheiro'
 import { montarPortaPapel } from './portaPapel'
+import { montarMesaDeAutopsia } from './mesaDeAutopsia'
+import { montarMacaComLencol } from './macaComLencol'
+import { montarCamaraFrigorifica } from './camaraFrigorifica'
+import { montarEsterilizador } from './esterilizador'
+import { montarLuminariaArticulada } from './luminariaArticulada'
+import { montarBandejaDeInstrumentos } from './bandejaDeInstrumentos'
+import { montarMesaDeLaboratorio } from './mesaDeLaboratorio'
+import { montarPanelasEBacias } from './panelasEBacias'
+import { montarCadeiraGiratoria } from './cadeiraGiratoria'
+import { montarMaquinaDeEscrever } from './maquinaDeEscrever'
+import { montarElevadorAntigo } from './elevadorAntigo'
+import { montarAlcapao } from './alcapao'
+import { montarDeckDeMadeira } from './deckDeMadeira'
+import { montarColunaQuebrada } from './colunaQuebrada'
+import { montarAltarRedondo } from './altarRedondo'
+import { montarLajeDeSacrificio } from './lajeDeSacrificio'
+import { montarTumuloDePedra } from './tumuloDePedra'
+import { montarCarroAntigo } from './carroAntigo'
+import { montarPrateleiraDeToalhas } from './prateleiraDeToalhas'
+import { montarCadeiraDeEspaldarAlto } from './cadeiraDeEspaldarAlto'
+import { montarCentroDeMesa } from './centroDeMesa'
+import { montarLapideTorta } from './lapideTorta'
 import { cenaEmTresQuartos, girarCena, perfilDoTresQuartos, pintaOGiroNaTresQuartos } from './tresQuartos'
 
 const MONTADORES = {
@@ -677,6 +699,29 @@ const MONTADORES = {
   lixeiraDePedal: montarLixeiraDePedal,
   tapeteDeBanheiro: montarTapeteDeBanheiro,
   portaPapel: montarPortaPapel,
+  // As referências (16/11/2026): o lote L1 (o necrotério e o laboratório) e o lote L2 (do elevador à lápide torta).
+  mesaDeAutopsia: montarMesaDeAutopsia,
+  macaComLencol: montarMacaComLencol,
+  camaraFrigorifica: montarCamaraFrigorifica,
+  esterilizador: montarEsterilizador,
+  luminariaArticulada: montarLuminariaArticulada,
+  bandejaDeInstrumentos: montarBandejaDeInstrumentos,
+  mesaDeLaboratorio: montarMesaDeLaboratorio,
+  panelasEBacias: montarPanelasEBacias,
+  cadeiraGiratoria: montarCadeiraGiratoria,
+  maquinaDeEscrever: montarMaquinaDeEscrever,
+  elevadorAntigo: montarElevadorAntigo,
+  alcapao: montarAlcapao,
+  deckDeMadeira: montarDeckDeMadeira,
+  colunaQuebrada: montarColunaQuebrada,
+  altarRedondo: montarAltarRedondo,
+  lajeDeSacrificio: montarLajeDeSacrificio,
+  tumuloDePedra: montarTumuloDePedra,
+  carroAntigo: montarCarroAntigo,
+  prateleiraDeToalhas: montarPrateleiraDeToalhas,
+  cadeiraDeEspaldarAlto: montarCadeiraDeEspaldarAlto,
+  centroDeMesa: montarCentroDeMesa,
+  lapideTorta: montarLapideTorta,
 } as const satisfies Record<TipoMobilia, MontarMovel>
 
 export type TipoComTextura = keyof typeof MONTADORES
@@ -754,6 +799,10 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'muroDeFogo',
   'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
   'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+  'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+  'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+  'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+  'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
 ]
 
 export function temTextura(tipo: TipoMobilia | undefined): tipo is TipoComTextura {

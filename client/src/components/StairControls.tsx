@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { PinPassage, StairDirection, StairShape } from '../types/map'
 import { stairSizePresetForStepWidth, stairStepWidthForPreset, type StairSizePreset } from '../lib/stairs'
 import { PIN_PASSAGE_LABELS, PIN_PASSAGE_ORDER } from '../lib/pins'
@@ -15,7 +15,7 @@ export type { StairTravelProps }
 export interface StairControlsProps {
   direction: StairDirection
   onDirectionChange: (direction: StairDirection) => void
-  /** Forma da escada SELECIONADA ("Reta" / "Espiral"). */
+  /** Forma da escada SELECIONADA ("Reta", "Em L", "Em U" / "Espiral"). */
   shape: StairShape
   onShapeChange: (shape: StairShape) => void
   /** `stepWidth` (largura do lance, px de mundo) da escada SELECIONADA. */
@@ -195,12 +195,94 @@ const PRESET_LABELS: Record<StairSizePreset, string> = {
   large: 'Grande',
 }
 
-/** Só as formas que a UI produz: 'l' e 'double' existem no schema, mas ninguém as desenha ainda. */
-const SHAPE_ORDER = ['straight', 'spiral'] as const satisfies readonly StairShape[]
+/** As formas na ordem do mais simples ao mais enrolado. 'l' e 'double' são a escadaria de dois lances (lote de 15/11/2026). */
+const SHAPE_ORDER = ['straight', 'l', 'double', 'spiral'] as const satisfies readonly StairShape[]
 
 const SHAPE_LABELS: Record<(typeof SHAPE_ORDER)[number], string> = {
   straight: 'Reta',
+  l: 'Em L',
+  double: 'Em U',
   spiral: 'Espiral',
+}
+
+/** Degraus da miniatura da forma, de baixo para cima: o mesmo ritmo nos lances da reta, da L e da U. */
+const SHAPE_ART_TREADS = [19, 15.5, 12]
+
+/** Raios da espiral na miniatura, em graus de tela (y para baixo), da boca embaixo até o patamar. */
+const SHAPE_ART_SPIRAL_DEGREES = [90, 135, 180, 225, 270, 315]
+
+/**
+ * Miniatura da forma, vista de cima como o mapa desenha (`pixi/drawStairs.ts`):
+ * o contorno da escada, os degraus dos lances e o patamar como o trecho sem
+ * degrau. A reta sobe para o patamar no alto; a L dobra num patamar quadrado; a
+ * U volta lado a lado depois do patamar que atravessa os dois lances; a
+ * espiral tem os raios em volta do poste e o quarto vazio do patamar. Mesma
+ * família de contorno de `icons.tsx` e de `StairDirectionArt`: cor do texto,
+ * traço de 1,6 no viewBox de 24.
+ */
+function StairShapeArt({ shape }: { shape: (typeof SHAPE_ORDER)[number] }) {
+  const horizontal = (x1: number, x2: number) => SHAPE_ART_TREADS.map((y) => `M${x1} ${y}H${x2}`).join('')
+  let desenho: ReactNode
+  switch (shape) {
+    case 'straight':
+      desenho = (
+        <>
+          <rect x="8.5" y="2.5" width="7" height="19" rx="1" />
+          <path d={horizontal(8.5, 15.5)} />
+        </>
+      )
+      break
+    case 'l':
+      desenho = (
+        <>
+          <path d="M2.5 21.5V2.5H21.5V9.5H9.5V21.5Z" />
+          {/* O segundo lance espelha o primeiro na diagonal: o degrau a N do patamar fica a N dele. */}
+          <path d={horizontal(2.5, 9.5) + SHAPE_ART_TREADS.map((x) => `M${x} 2.5V9.5`).join('')} />
+        </>
+      )
+      break
+    case 'double':
+      desenho = (
+        <>
+          <rect x="3.5" y="2.5" width="17" height="19" rx="1" />
+          {/* Os degraus param antes da divisa: de longe, duas colunas de lance, e não uma grade. */}
+          <path d={`M12 21.5V9.5${horizontal(3.5, 10)}${horizontal(14, 20.5)}`} />
+        </>
+      )
+      break
+    case 'spiral':
+      desenho = (
+        <>
+          <circle cx="12" cy="12" r="9.5" />
+          <circle cx="12" cy="12" r="2" />
+          <path
+            d={SHAPE_ART_SPIRAL_DEGREES.map((graus) => {
+              const angulo = (graus * Math.PI) / 180
+              const ponto = (raio: number) => `${(12 + Math.cos(angulo) * raio).toFixed(2)} ${(12 + Math.sin(angulo) * raio).toFixed(2)}`
+              return `M${ponto(2)}L${ponto(9.5)}`
+            }).join('')}
+          />
+        </>
+      )
+      break
+  }
+  return (
+    <svg
+      className="lb-escada-forma"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {desenho}
+    </svg>
+  )
 }
 
 /** Largura do viewBox da miniatura; a altura é 24, a mesma dos ícones da barra, desenhada a 18 px. */
@@ -267,7 +349,11 @@ const OPCOES_DO_SENTIDO: readonly OpcaoDoSeg<StairDirection>[] = DIRECTION_ORDER
   icone: <StairDirectionArt direction={sentido} />,
 }))
 
-const OPCOES_DA_FORMA: readonly OpcaoDoSeg<StairShape>[] = SHAPE_ORDER.map((forma) => ({ valor: forma, rotulo: SHAPE_LABELS[forma] }))
+const OPCOES_DA_FORMA: readonly OpcaoDoSeg<StairShape>[] = SHAPE_ORDER.map((forma) => ({
+  valor: forma,
+  rotulo: SHAPE_LABELS[forma],
+  icone: <StairShapeArt shape={forma} />,
+}))
 
 const OPCOES_DO_TAMANHO: readonly OpcaoDoSeg<StairSizePreset>[] = PRESET_ORDER.map((preset) => ({ valor: preset, rotulo: PRESET_LABELS[preset] }))
 
@@ -399,7 +485,9 @@ export function StairControls({
           que vai para o mapa, com o patamar no topo (28/09; antes era um galão
           que se lia como seta): a escolha e o resultado na mesma tela. */}
       <CampoSeg rotulo="Sentido" nomeAcessivel="Sentido da escada" opcoes={OPCOES_DO_SENTIDO} valor={direction} onChange={onDirectionChange} />
-      <CampoSeg rotulo="Forma" nomeAcessivel="Forma da escada" opcoes={OPCOES_DA_FORMA} valor={shape} onChange={onShapeChange} />
+      {/* Quatro formas não cabem em linha na página de 262 px sem cortar o nome: em grade, a miniatura vai em cima
+          do nome, como o Modelo do telhado, e a página mais larga põe as quatro lado a lado. */}
+      <CampoSeg rotulo="Forma" nomeAcessivel="Forma da escada" opcoes={OPCOES_DA_FORMA} valor={shape} onChange={onShapeChange} forma="grade" />
 
       {/* A espiral tem o tamanho do círculo (o arrasto é o diâmetro): a largura
           do lance não muda nada nela, então o controle sai em vez de mentir. */}

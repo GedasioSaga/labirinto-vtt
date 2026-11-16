@@ -13,6 +13,7 @@ import { curvaGuardada } from './agua/forma'
 import { aguasDaVisaoDoJogador } from './agua/comoChao'
 import { foraDoChaoLivre } from './offFloor'
 import { carimbosParaJogador, importadosParaJogador as importadosDosCarimbos } from './carimbos'
+import { semCarimbosQueTapamEscondidos } from './carimbosQueBarram'
 import { REVEAL_BRUSH_CELL } from './revealBrushCell'
 import { isTokenPhotoData } from './tokenPhoto'
 import { FALA_MAX_LETRAS } from './npcPatrol'
@@ -3342,7 +3343,19 @@ function recorteDoGrupo(
    * (`dentroDeConstrucao`, abaixo). Sem construção que tape, `mapaDaVisao` é o próprio `map` (nada muda).
    */
   const propsQueTapam = objetosDoJogador.filter((p) => objetoTapaVisao(p) && !propSamplePoints(p).some((q) => inSecretRoom(q) || hiddenByZone(q)))
-  const mapaDaVisao: MapData = propsQueTapam.length === 0 ? (map.props.length === 0 ? map : { ...map, props: SEM_PROPS }) : { ...map, props: propsQueTapam }
+  /**
+   * CARIMBO QUE TAPA A VISÃO (auditoria de 16/11/2026), a mesma regra de ouro: o com "Tapa a visão" que o jogador não
+   * recebe (camada escondida dele, pé em sala secreta fechada ou em zona oculta, como `carimboEscondidoDosJogadores`)
+   * sai da lista que o motor lê (`trechosDosCarimbosQueTapam`, em `visionSegments`). Sem nenhum, a MESMA lista.
+   */
+  const carimbosDaVisao = semCarimbosQueTapamEscondidos(map.carimbos, (c) => !jogadorVeItem('carimbo', c) || inSecretRoom(c) || hiddenByZone(c))
+  const mapaDosCarimbos: MapData = carimbosDaVisao === map.carimbos ? map : { ...map, carimbos: carimbosDaVisao }
+  const mapaDaVisao: MapData =
+    propsQueTapam.length === 0
+      ? map.props.length === 0
+        ? mapaDosCarimbos
+        : { ...mapaDosCarimbos, props: SEM_PROPS }
+      : { ...mapaDosCarimbos, props: propsQueTapam }
   const segmentsOfWalls = (walls: Wall[]): Segment[] => visionSegments(walls === map.walls ? mapaDaVisao : { ...mapaDaVisao, walls }, peekDoorIds)
   const authoritySegments = ownTokens.length > 0 ? segmentsOfWalls(authorityWalls) : []
   /** O olho do guarda (`guardAlerts`): todas as paredes, a da sala secreta inclusive. */

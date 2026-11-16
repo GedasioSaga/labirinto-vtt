@@ -15,6 +15,8 @@
 .pr-roteiro__rotulo { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
 .pr-roteiro__escolha .pr-revelar__escolha { width: 100%; }
 .pr-roteiro__nome { margin: 0; font: 400 var(--lb-font-size-lg)/1.3 var(--lb-font-display); color: var(--lb-color-parchment); }
+/* P1: o Prelúdio em janela própria, a partir daqui. */
+.pr-roteiro__abrir { align-self: flex-start; }
 .pr-roteiro__bloco { padding-top: var(--lb-space-3); border-top: 1px solid var(--lb-gr-filete); }
 .pr-roteiro__bloco > .pr-trilho__titulo { margin: 0 0 var(--lb-space-3); }
 .pr-roteiro .pr-hoje__nome { font-size: var(--lb-font-size-md); }

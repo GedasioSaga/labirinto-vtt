@@ -94,7 +94,8 @@ describe('vista 3/4: o catálogo inteiro', () => {
   // igual à vista de cima. Seguem as regras de cor e a de "mesma entrada, mesma imagem", mas ficam fora da troca
   // do desenho e do tampo que sobe. Objeto rente novo entra nesta lista (o bueiro, 14/11/2026: a moldura de pedra e a
   // grade são rentes, e o buraco é pintado).
-  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha', 'bueiro']
+  // O alçapão (16/11/2026) também: a tampa fica rente e só os nós das dobradiças e a chapa da argola sobem um nada.
+  const RENTES: readonly TipoMobilia[] = ['plantacaoEmFileiras', 'circuloMagico', 'sangueNoChao', 'teiaDeAranha', 'bueiro', 'alcapao']
   // Os quatro MONTES do tesouro (12/11/2026) são chão com altura: o anel e o miolo sobem em degraus baixos (a 3/4
   // muda o desenho), mas a beira de cima da imagem é uma peça solta no chão, que não sobe. A regra do tampo não
   // se aplica a eles, como ao campinho.

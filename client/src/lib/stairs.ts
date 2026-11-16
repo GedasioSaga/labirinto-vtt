@@ -287,3 +287,235 @@ export function computeSpiralPlan(segment: StairSegment, direction: StairDirecti
     landingSweep: SPIRAL_LANDING_SWEEP,
   }
 }
+
+/**
+ * ESCADA EM L E EM U, a "escadaria de dois lances" (lote de referências de
+ * 15/11/2026). `segments` guarda a LINHA DO MEIO do caminho, a partir da boca
+ * (x1, y1): na L, boca → meio do patamar da volta → ponta; na U, boca → meio
+ * do patamar no lance de ida → meio do patamar no lance de volta → ponta, e o
+ * trecho do meio, de uma largura, atravessa o patamar. É essa linha que o
+ * clique, a borracha, a seleção por área, a caixa de giro e o alcance já leem
+ * (`stairCenterline`): a escada inteira conta, e mover, girar e mudar o
+ * comprimento valem para os lances todos. O desenho sai de
+ * `planoDaEscadaDobrada`: a volta é patamar, e cada lance é a linha do meio
+ * aparada meia largura na volta. A escada dobra para a direita de quem anda a
+ * partir da boca; girar a escada leva a volta junto.
+ */
+export type FormaDobrada = Extract<StairShape, 'l' | 'double'>
+
+/** Folga de conta para pontas que deviam coincidir (o giro e a escala mexem nelas com ponto flutuante). */
+const FOLGA_DA_DOBRA_PX = 1e-6
+
+function unitario(dx: number, dy: number): Point | null {
+  const length = Math.hypot(dx, dy)
+  return length > 0 && Number.isFinite(length) ? { x: dx / length, y: dy / length } : null
+}
+
+function comprimentoDoLance(segment: StairSegment): number {
+  return Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1)
+}
+
+/** A direita de quem anda no sentido `ida`, com o y da tela para baixo. */
+function direitaDe(ida: Point): Point {
+  return { x: -ida.y, y: ida.x }
+}
+
+function encadeados(segments: readonly StairSegment[]): boolean {
+  for (let i = 1; i < segments.length; i += 1) {
+    const antes = segments[i - 1]
+    const agora = segments[i]
+    if (Math.abs(antes.x2 - agora.x1) > FOLGA_DA_DOBRA_PX || Math.abs(antes.y2 - agora.y1) > FOLGA_DA_DOBRA_PX) return false
+  }
+  return true
+}
+
+/** A escada tem o desenho dobrado: L com dois trechos encadeados, U com três. Fora disso, cada lance é um lance reto, como sempre. */
+export function ehEscadaDobrada(stair: Pick<Stair, 'shape' | 'segments'>): boolean {
+  if (stair.shape === 'l') return stair.segments.length === 2 && encadeados(stair.segments)
+  if (stair.shape === 'double') return stair.segments.length === 3 && encadeados(stair.segments)
+  return false
+}
+
+/** A dobra lida dos trechos: boca, sentido de ida, lado da volta e o comprimento de cada braço na linha do meio. */
+interface Dobra {
+  forma: FormaDobrada
+  boca: Point
+  ida: Point
+  lado: Point
+  /** Da boca ao meio do patamar. */
+  bracoDeIda: number
+  /** Do meio do patamar à ponta. */
+  bracoDeVolta: number
+}
+
+function lerDobra(stair: Pick<Stair, 'shape' | 'segments'>): Dobra | null {
+  if (!ehEscadaDobrada(stair)) return null
+  const forma: FormaDobrada = stair.shape === 'l' ? 'l' : 'double'
+  const [primeiro, segundo] = stair.segments
+  const ultimo = stair.segments[stair.segments.length - 1]
+  const ida = unitario(primeiro.x2 - primeiro.x1, primeiro.y2 - primeiro.y1)
+  if (ida === null) return null
+  // O lado vem do segundo trecho (o braço da L, a travessa da U), sempre em ângulo reto com a ida.
+  const direita = direitaDe(ida)
+  const lado = (segundo.x2 - segundo.x1) * direita.x + (segundo.y2 - segundo.y1) * direita.y < 0 ? { x: -direita.x, y: -direita.y } : direita
+  return {
+    forma,
+    boca: { x: primeiro.x1, y: primeiro.y1 },
+    ida,
+    lado,
+    bracoDeIda: comprimentoDoLance(primeiro),
+    bracoDeVolta: comprimentoDoLance(ultimo),
+  }
+}
+
+/** A linha do meio da L ou da U a partir da boca. Na U, a travessa tem `largura`: os dois lances encostam. */
+function caminhoDobrado(dobra: Dobra, largura: number): StairSegment[] {
+  const { boca, ida, lado, bracoDeIda, bracoDeVolta } = dobra
+  const volta = { x: boca.x + ida.x * bracoDeIda, y: boca.y + ida.y * bracoDeIda }
+  const trecho = (a: Point, b: Point): StairSegment => ({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+  if (dobra.forma === 'l') {
+    return [trecho(boca, volta), trecho(volta, { x: volta.x + lado.x * bracoDeVolta, y: volta.y + lado.y * bracoDeVolta })]
+  }
+  const outroLado = { x: volta.x + lado.x * largura, y: volta.y + lado.y * largura }
+  const ponta = { x: outroLado.x - ida.x * bracoDeVolta, y: outroLado.y - ida.y * bracoDeVolta }
+  return [trecho(boca, volta), trecho(volta, outroLado), trecho(outroLado, ponta)]
+}
+
+function larguraValida(stepWidth: number): number {
+  return Number.isFinite(stepWidth) ? Math.max(0, stepWidth) : 0
+}
+
+/** Os mesmos trechos, a menos da folga de conta? Então a escada fica com a MESMA referência. */
+function mesmosTrechos(a: readonly StairSegment[], b: readonly StairSegment[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((s, i) => {
+      const t = b[i]
+      return (
+        Math.abs(s.x1 - t.x1) <= FOLGA_DA_DOBRA_PX &&
+        Math.abs(s.y1 - t.y1) <= FOLGA_DA_DOBRA_PX &&
+        Math.abs(s.x2 - t.x2) <= FOLGA_DA_DOBRA_PX &&
+        Math.abs(s.y2 - t.y2) <= FOLGA_DA_DOBRA_PX
+      )
+    })
+  )
+}
+
+/**
+ * Os trechos da escada na forma `forma`, para quem troca a forma na ficha. A
+ * boca (x1, y1, onde mora o pino da escada) nunca sai do lugar, e o caminho
+ * guarda o comprimento: a reta de 4 casas vira a L de dois braços de 2 casas
+ * (ou a U de dois lances de 2), e volta a ser a mesma reta. Braço menor que a
+ * largura cresce até ela, para os dois lances não sumirem na volta. Entre a
+ * reta e a espiral os trechos ficam onde estão (a espiral usa o primeiro como
+ * diâmetro). Mesma forma, ou escada sem lance: os MESMOS trechos.
+ */
+export function segmentosDaForma(stair: Pick<Stair, 'shape' | 'segments' | 'stepWidth'>, forma: StairShape): StairSegment[] {
+  const primeiro = stair.segments[0]
+  if (forma === stair.shape || primeiro === undefined) return stair.segments
+  const dobra = lerDobra(stair)
+  const ida = dobra?.ida ?? unitario(primeiro.x2 - primeiro.x1, primeiro.y2 - primeiro.y1)
+  if (ida === null) return stair.segments
+  // O comprimento do caminho: a soma dos braços na escada dobrada (a travessa da U não conta), a dos lances nas outras.
+  const caminho = dobra === null ? stair.segments.reduce((total, s) => total + comprimentoDoLance(s), 0) : dobra.bracoDeIda + dobra.bracoDeVolta
+  const boca = { x: primeiro.x1, y: primeiro.y1 }
+  if (forma === 'straight' || forma === 'spiral') {
+    if (dobra === null) return stair.segments
+    return [{ x1: boca.x, y1: boca.y, x2: boca.x + ida.x * caminho, y2: boca.y + ida.y * caminho }]
+  }
+  const largura = larguraValida(stair.stepWidth)
+  const braco = Math.max(caminho / 2, largura)
+  return caminhoDobrado({ forma, boca, ida, lado: dobra?.lado ?? direitaDe(ida), bracoDeIda: braco, bracoDeVolta: braco }, largura)
+}
+
+/**
+ * A U com a travessa de UMA largura, para os dois lances seguirem encostados
+ * depois de a largura mudar (alças, ficha) ou de o comprimento escalar a
+ * escada inteira. `comprimento`, quando vem, é o novo comprimento de ponta a
+ * ponta (`stairLength`, travessa incluída): os braços crescem juntos, na
+ * mesma proporção, e nunca ficam menores que a largura. Escada que não é U
+ * dobrada, ou já certa: os MESMOS trechos.
+ */
+export function trechosDaUAjustados(stair: Pick<Stair, 'shape' | 'segments' | 'stepWidth'>, comprimento?: number): StairSegment[] {
+  const dobra = lerDobra(stair)
+  if (dobra === null || dobra.forma !== 'double') return stair.segments
+  const largura = larguraValida(stair.stepWidth)
+  const bracos = dobra.bracoDeIda + dobra.bracoDeVolta
+  const fator = comprimento === undefined || !Number.isFinite(comprimento) || !(bracos > 0) ? 1 : Math.max(0, comprimento - largura) / bracos
+  const ajustada: Dobra = {
+    ...dobra,
+    bracoDeIda: Math.max(dobra.bracoDeIda * fator, largura),
+    bracoDeVolta: Math.max(dobra.bracoDeVolta * fator, largura),
+  }
+  const trechos = caminhoDobrado(ajustada, largura)
+  return mesmosTrechos(trechos, stair.segments) ? stair.segments : trechos
+}
+
+/** Um lance de degraus da escada dobrada. */
+export interface LanceDaDobra {
+  segmento: StairSegment
+  /** Só o lance que chega ao alto tem o patamar de chegada; o da volta é o patamar da dobra. */
+  patamarNoTopo: boolean
+}
+
+/** O desenho da escada dobrada em px de mundo — puro, sem Pixi. Quem pinta é `pixi/drawStairs.ts`. */
+export interface PlanoDaEscadaDobrada {
+  /** Os lances de degraus, aparados meia largura na volta. Braço curto demais não tem lance. */
+  lances: LanceDaDobra[]
+  /** O contorno da escada inteira, `folga` px para fora (negativa: para dentro). */
+  contorno: (folga: number) => Point[]
+  /** O patamar da volta (o quadrado da L, o retângulo da U), recolhido `recuo` px nos lados de fora. */
+  patamar: (recuo: number) => Point[]
+  /** A divisa entre os dois lances da U, do pé até o patamar; `null` na L. */
+  divisa: [Point, Point] | null
+}
+
+/**
+ * Plano da escada dobrada (ver `FormaDobrada`). Quem sobe ('up') entra pela
+ * boca; quem desce ('down') também, pelo alto: o patamar de chegada fica na
+ * ponta na que sobe e na boca na que desce, e o da volta é o mesmo nas duas.
+ * `null` = não é escada dobrada (aí cada lance é um lance reto, como sempre).
+ */
+export function planoDaEscadaDobrada(stair: Pick<Stair, 'shape' | 'segments' | 'stepWidth' | 'direction'>): PlanoDaEscadaDobrada | null {
+  const dobra = lerDobra(stair)
+  if (dobra === null) return null
+  const { boca, ida, lado, bracoDeIda, bracoDeVolta } = dobra
+  const largura = larguraValida(stair.stepWidth)
+  const meia = largura / 2
+  /** O ponto a `u` px no sentido da ida e `v` px para o lado da volta, a partir de `p`. */
+  const em = (p: Point, u: number, v: number): Point => ({ x: p.x + ida.x * u + lado.x * v, y: p.y + ida.y * u + lado.y * v })
+  const trecho = (a: Point, b: Point): StairSegment => ({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+  const sobe = stair.direction === 'up'
+  const volta = em(boca, bracoDeIda, 0)
+
+  const lances: LanceDaDobra[] = []
+  // O lance de ida tem o topo na boca quando a escada desce; o de volta, na ponta quando sobe.
+  if (bracoDeIda - meia > FOLGA_DA_DOBRA_PX) lances.push({ segmento: trecho(boca, em(boca, bracoDeIda - meia, 0)), patamarNoTopo: !sobe })
+
+  if (dobra.forma === 'l') {
+    const ponta = em(volta, 0, bracoDeVolta)
+    if (bracoDeVolta - meia > FOLGA_DA_DOBRA_PX) lances.push({ segmento: trecho(em(volta, 0, meia), ponta), patamarNoTopo: sobe })
+    return {
+      lances,
+      contorno: (folga) => {
+        const borda = meia + folga
+        return [em(boca, -folga, -borda), em(volta, borda, -borda), em(ponta, borda, folga), em(ponta, -borda, folga), em(volta, -borda, borda), em(boca, -folga, borda)]
+      },
+      patamar: (recuo) => [em(volta, -meia, recuo - meia), em(volta, meia - recuo, recuo - meia), em(volta, meia - recuo, meia), em(volta, -meia, meia)],
+      divisa: null,
+    }
+  }
+
+  const outroLado = em(volta, 0, largura)
+  const ponta = em(outroLado, -bracoDeVolta, 0)
+  if (bracoDeVolta - meia > FOLGA_DA_DOBRA_PX) lances.push({ segmento: trecho(em(outroLado, -meia, 0), ponta), patamarNoTopo: sobe })
+  return {
+    lances,
+    contorno: (folga) => {
+      const borda = meia + folga
+      return [em(boca, -folga, -borda), em(volta, borda, -borda), em(outroLado, borda, borda), em(ponta, -folga, borda), em(ponta, -folga, -borda), em(boca, -folga, borda)]
+    },
+    patamar: (recuo) => [em(volta, -meia, recuo - meia), em(volta, meia - recuo, recuo - meia), em(outroLado, meia - recuo, meia - recuo), em(outroLado, -meia, meia - recuo)],
+    divisa: [em(boca, 0, meia), em(volta, -meia, meia)],
+  }
+}

@@ -17,6 +17,13 @@ import { readPinDestination, sameDestination } from './pinTravel'
  *   SESSÃO (o pedido pendente no host, `net/hostSession.ts`), nunca do
  *   arquivo — um app fechado com alguém "dentro" deixaria a cabine presa.
  *   Aqui ele entra como o conjunto de cabines ocupadas (`ocupadas`).
+ *
+ * O DESENHO da cabine é o objeto "Elevador antigo" (`elevadorAntigo`, lote L2
+ * das referências, 16/11/2026): o mestre o põe em cima do pino da parada. O
+ * desenho não sabe do pino nem de onde a cabine está, e não barra a passagem
+ * (`ehMovelQueBarra`, `lib/mobilia.ts`), para a ficha chegar ao pino. Trocar o
+ * desenho conforme a parada (`CabineNaParada`: a grade aberta quando a cabine
+ * está ali) fica para depois.
  */
 
 /** Uma chamada da fila: de qual parada, por qual ficha, e o nome que o mestre lê. */

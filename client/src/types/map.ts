@@ -2149,8 +2149,9 @@ export type Drawing = PlayerSecret & NoPiso & NaCamada & ComParedesAoRedor & Com
 )
 
 export type StairDirection = 'up' | 'down'
-/** 'l' e 'double' existem no schema e no render desde já; a UI desta
- *  rodada só produz 'straight'. 'spiral' (escada em espiral) usa o PRIMEIRO
+/** 'l' ("Em L") e 'double' ("Em U") são a escadaria de dois lances: `segments`
+ *  é a linha do meio do caminho, com a volta no patamar (`lib/stairs.ts`,
+ *  `planoDaEscadaDobrada`). 'spiral' (escada em espiral) usa o PRIMEIRO
  *  lance como diâmetro de um círculo — a boca continua em `x1, y1`, agora na
  *  borda — e se desenha como círculo com raios finos (`lib/stairs.ts`,
  *  `computeSpiralPlan`). Valor novo, nunca escrito por versão anterior: mapa

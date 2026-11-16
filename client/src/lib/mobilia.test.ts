@@ -91,8 +91,9 @@ describe('silhueta redonda', () => {
     // tenda de adivinha, a colmeia, o braseiro, o círculo mágico e a bola de cristal (11/11); a moeda de ouro, o
     // diamante, a tocha de pé e a torre de pedra (12/11); o lustre de velas, o ouriço antitanque, a fruta de espirais, o
     // prato de carne no osso, a lanterna de pedra japonesa, o mastro de fitas, o globo terrestre, o relógio de sol, o
-    // farol, o coreto, o quiosque, o silo e o carrossel (14/11); o cesto de roupa do banheiro moderno (15/11).
-    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'globoTerrestre', 'relogioDeSol', 'farol', 'coreto', 'quiosque', 'siloDeGraos', 'carrossel', 'cestoDeRoupa'])
+    // farol, o coreto, o quiosque, o silo e o carrossel (14/11); o cesto de roupa do banheiro moderno (15/11); o
+    // esterilizador, a cadeira giratória e o altar redondo das referências (16/11).
+    expect(TIPOS_MOBILIA.filter((tipo) => ehMovelRedondo(tipo))).toEqual(['barril', 'fogueira', 'mesaRedonda', 'vaso', 'poco', 'balde', 'moinho', 'caldeirao', 'banqueta', 'candelabroDeChao', 'cestoDeVime', 'canteiroDeFlores', 'tocoDeArvore', 'arvoreSeca', 'tendaDeAdivinha', 'colmeia', 'braseiro', 'circuloMagico', 'bolaDeCristal', 'moedaDeOuro', 'diamante', 'tochaDePe', 'torreDePedra', 'lustreDeVelas', 'ouricoAntitanque', 'frutaDeEspirais', 'pratoDeCarne', 'lanternaDePedra', 'mastroDeFitas', 'globoTerrestre', 'relogioDeSol', 'farol', 'coreto', 'quiosque', 'siloDeGraos', 'carrossel', 'cestoDeRoupa', 'esterilizador', 'cadeiraGiratoria', 'altarRedondo'])
     expect(ehMovelRedondo('fogueira', 'lado')).toBe(false)
     expect(ehMovelRedondo('barril', 'lado')).toBe(true)
     expect(ehMovelRedondo(undefined)).toBe(false)

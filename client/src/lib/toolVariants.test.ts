@@ -231,8 +231,9 @@ describe('TOOL_VARIANTS', () => {
     // do descanso e brincadeira (lote L12), os seis do torneio e da cidade (lote L13), os cinco do resto da cidade e vila
     // (lote L14) e a ponte levadiça do L02 (o item 81 da lista). 157 + 83 = 240. O muro de fogo (15/11/2026) entra
     // logo depois do Fogo, na conta da fogueira (`pecasNovas.ts`): 241. E as 12 peças do banheiro moderno (15/11/2026)
-    // no fim, o lote A e o lote B: 253. A natureza com carimbo (pedras e rochas, toco de árvore e árvore seca) saiu
-    // para o Carimbo na Fase 6 (16/11/2026, `lib/naturezaNoCarimbo.ts`): 250.
+    // no fim, o lote A e o lote B: 253. E as 22 das referências (16/11/2026) depois delas, o lote L1 e o lote L2: 275.
+    // A natureza com carimbo (pedras e rochas, toco de árvore e árvore seca) saiu para o Carimbo na Fase 6
+    // (16/11/2026, `lib/naturezaNoCarimbo.ts`): 272.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
@@ -274,8 +275,12 @@ describe('TOOL_VARIANTS', () => {
       'ponteLevadica',
       'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
       'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+      'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+      'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+      'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+      'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
     ])
-    expect(grupo.options).toHaveLength(250)
+    expect(grupo.options).toHaveLength(272)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -317,6 +322,10 @@ describe('TOOL_VARIANTS', () => {
       'Ponte levadiça',
       'Vaso sanitário moderno', 'Bidê', 'Box de chuveiro', 'Banheira moderna', 'Gabinete de banheiro', 'Armário de banheiro',
       'Toalheiro', 'Cesto de roupa', 'Prateleira de frascos', 'Lixeira de pedal', 'Tapete de banheiro', 'Suporte de papel',
+      'Mesa de autópsia', 'Maca com lençol', 'Câmara frigorífica', 'Esterilizador', 'Luminária articulada',
+      'Bandeja de instrumentos', 'Mesa de laboratório', 'Panelas e bacias', 'Cadeira giratória', 'Máquina de escrever',
+      'Elevador antigo', 'Alçapão', 'Deck de madeira', 'Coluna quebrada', 'Altar redondo', 'Laje de sacrifício', 'Túmulo de pedra',
+      'Carro antigo', 'Prateleira de toalhas', 'Cadeira de espaldar alto', 'Centro de mesa', 'Lápide torta',
     ])
     expect(grupo.options.find((o) => o.value === 'catre')?.description).toBe('Clique no mapa para pôr uma cama.')
     const novas = ['mesaQuadrada', 'mesaRedonda', 'lapide', 'vaso', 'lampiao', 'quadroDeAvisos', 'carroca']
@@ -349,7 +358,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 23 partes da ficha (Sala e quarto 21, Cozinha 11, Banheiro 16, Armazenagem 11, Rua e jardim 19, Cemitério 9, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 10, Sala de tortura 7, Magia e alquimia 3, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 10; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -357,23 +366,29 @@ describe('TOOL_VARIANTS', () => {
     // Feira -2, Fazenda -3, Templo e masmorra -4) para as 4 partes da ferramenta Construção; nenhuma parte esvazia.
     // O muro de fogo (15/11/2026) entra em Rua e jardim, junto do Fogo (`gruposDoObjeto.ts`): 18 + 1. O banheiro
     // moderno (15/11/2026) separa a Cozinha e banheiro em duas: a Cozinha fica com 11 e o Banheiro leva a privada, a
-    // banheira, a tina e o lavatório (4) mais as 12 peças novas.
+    // banheira, a tina e o lavatório (4) mais as 12 peças novas. As referências (16/11/2026): o lote L1 inteiro no grupo
+    // novo, o Necrotério e laboratório (10), e o lote L2 espalhado: Sala e quarto +2 (a cadeira de espaldar alto e o
+    // centro de mesa), Banheiro +1 (a prateleira de toalhas), Rua e jardim +1 (o deck), Cemitério +2 (o túmulo e a lápide
+    // torta), Templo e masmorra +4 (o alçapão, a coluna quebrada, o altar redondo e a laje) e Cidade e vila +2 (o
+    // elevador e o carro). A Fase 6 (16/11/2026) levou a natureza com carimbo para o Carimbo: Rua e jardim -2 (as
+    // pedras e o toco) e Cemitério -1 (a árvore seca).
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
-      ['Sala e quarto', 21],
+      ['Sala e quarto', 23],
       ['Cozinha', 11],
-      ['Banheiro', 16],
+      ['Banheiro', 17],
       ['Armazenagem', 11],
-      ['Rua e jardim', 17],
-      ['Cemitério', 8],
+      ['Rua e jardim', 18],
+      ['Cemitério', 10],
       ['Feira', 10],
       ['Oficina', 10],
       ['Fazenda', 8],
       ['Destroços e sucata', 12],
       ['Esporte e lazer', 7],
       ['Porto e navio', 8],
-      ['Templo e masmorra', 10],
+      ['Templo e masmorra', 14],
       ['Sala de tortura', 7],
       ['Magia e alquimia', 3],
+      ['Necrotério e laboratório', 10],
       ['Tesouro', 8],
       ['Castelo', 11],
       ['Cerco e defesa', 7],
@@ -381,11 +396,12 @@ describe('TOOL_VARIANTS', () => {
       ['Mar e piratas', 14],
       ['Taverna e festa', 12],
       ['Descanso e brincadeira', 14],
-      ['Cidade e vila', 10],
+      ['Cidade e vila', 12],
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cemitério')?.tipos).toEqual([
       'lapide', 'cova', 'caixao', 'caixaoAberto',
       'cruzDeMadeira', 'cercaDeFerro', 'paCravada', 'velasEOferendas',
+      'tumuloDePedra', 'lapideTorta',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual([
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos',
@@ -413,6 +429,15 @@ describe('TOOL_VARIANTS', () => {
       'altar', 'armadura',
       'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'teiaDeAranha', 'tochaDeParede', 'tochaDePe',
+      'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'alcapao',
+    ])
+    // O grupo novo das referências (16/11/2026), arrumado pelo uso: o corpo, o que corta e ferve, a bancada e a
+    // escrivaninha do legista.
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Necrotério e laboratório')?.tipos).toEqual([
+      'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica',
+      'bandejaDeInstrumentos', 'esterilizador', 'panelasEBacias',
+      'mesaDeLaboratorio', 'luminariaArticulada',
+      'cadeiraGiratoria', 'maquinaDeEscrever',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Tesouro')?.tipos).toEqual([
       'barraDeOuro', 'monteDeOuro', 'moedaDeOuro', 'monteDeMoedasDeOuro', 'diamante', 'monteDeDiamantes', 'joia', 'monteDeJoias',
@@ -447,13 +472,15 @@ describe('TOOL_VARIANTS', () => {
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cidade e vila')?.tipos).toEqual([
       'posteDeAmarrarCavalos', 'bueiro', 'relogioDeSol', 'sinoNoSuporte',
       'tearDePedal', 'rocaDeFiar', 'lagarDeUva', 'moDePedra', 'liteira', 'ponteLevadica',
+      'elevadorAntigo', 'carroAntigo',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala de tortura')?.tipos).toEqual([
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Magia e alquimia')?.tipos).toEqual(['estanteDePocoes', 'bolaDeCristal', 'pedestalComLivro'])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-10)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Sala e quarto')?.tipos.slice(-12)).toEqual([
       'estanteDeLivros', 'guardaRoupa', 'escrivaninha', 'criadoMudo', 'camaDeCasal', 'berco', 'banqueta', 'biombo', 'piano', 'candelabroDeChao',
+      'cadeiraDeEspaldarAlto', 'centroDeMesa',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Cozinha')?.tipos.slice(-5)).toEqual([
       'caldeirao', 'fornoDePao', 'prateleiraDePotes', 'mesaDeCorte', 'ganchoComCarne',
@@ -465,13 +492,15 @@ describe('TOOL_VARIANTS', () => {
       'banheira', 'banheiraModerna', 'tinaDeMadeira', 'boxDeChuveiro', 'tapeteDeBanheiro', 'toalheiro',
       'lavatorioComJarro', 'gabineteDeBanheiro',
       'armarioDeBanheiro', 'prateleiraDeFrascos', 'cestoDeRoupa', 'lixeiraDePedal',
+      'prateleiraDeToalhas',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Armazenagem')?.tipos.slice(-8)).toEqual([
       'sacosDeGrao', 'prateleiraDeDeposito', 'pilhaDeCaixas', 'barrisDeitados', 'tonelDeAdega', 'anforasDeBarro', 'cestoDeVime', 'cofre',
     ])
-    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-7)).toEqual([
+    expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Rua e jardim')?.tipos.slice(-8)).toEqual([
       'bancoDePraca',
       'varalDeRoupa', 'horta', 'canteiroDeFlores', 'muroBaixoDePedra', 'carrinhoDeMao', 'placaDeLoja',
+      'deckDeMadeira',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Feira')?.tipos).toEqual([
       'carroca', 'quadroDeAvisos', 'cataVentoBrinquedo', 'bancaDeFrutas', 'toldoListrado',

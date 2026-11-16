@@ -218,7 +218,9 @@ function pickTreadStarts(layout: TreadLayout): number[] {
 /**
  * Plano de um lance reto. `cameraScale` e `rendererResolution` entram porque a
  * espessura dos traços e o vão mínimo são medidos em px de tela. Devolve null
- * para lance de comprimento zero.
+ * para lance de comprimento zero. `topLanding` falso: o lance chega num
+ * patamar que não é dele (a volta da escada em L ou em U, `lib/stairs.ts`), e
+ * os degraus vão até a moldura do topo.
  */
 export function planStairFlight(
   segment: StairSegment,
@@ -226,6 +228,7 @@ export function planStairFlight(
   direction: StairDirection,
   cameraScale = 1,
   rendererResolution = 1,
+  topLanding = true,
 ): StairFlight | null {
   const axes = flightAxes(segment, direction)
   if (axes === null) return null
@@ -263,9 +266,9 @@ export function planStairFlight(
   const innerV1 = v1 - frameWidth
   if (!(innerU1 > innerU0) || !(innerV1 > innerV0)) return { ...base, treads: [], landing: null }
 
-  const run = length - landingDepth(length, width)
+  const run = topLanding ? length - landingDepth(length, width) : length
   const landingStart = Math.min(Math.max(snapU(run), innerU0), innerU1 - 1 / pxPerWorld)
-  const landing = landingStart < innerU0 ? null : quad(landingStart, innerU1, innerV0, innerV1)
+  const landing = !topLanding || landingStart < innerU0 ? null : quad(landingStart, innerU1, innerV0, innerV1)
 
   const count = Math.min(MAX_TREAD_INTERVALS, Math.max(1, Math.round(run / (TREAD_PITCH_RATIO * Math.min(width, length)))))
   const starts = pickTreadStarts({

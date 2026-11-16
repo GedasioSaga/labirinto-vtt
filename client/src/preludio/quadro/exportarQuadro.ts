@@ -3,6 +3,8 @@ import { dirname } from '@tauri-apps/api/path'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import type { Editor } from 'tldraw'
+import { emHex } from '../../lib/fsDaJanela'
+import { ehJanelaDoPreludio } from '../../lib/janelaDoPreludio'
 
 /**
  * EXPORTAR O QUADRO como PNG ou SVG, como no Grimório (`exportarCanvas.ts`):
@@ -64,6 +66,13 @@ export async function exportarQuadro(editor: Editor, nome: string, formato: Form
   if (!isTauri()) {
     baixarNoNavegador(bytes, sugerido, formato)
     return sugerido
+  }
+  // Na janela do Prelúdio não há diálogo nem plugin fs: o Rust abre a janela de salvar e grava onde o mestre escolher.
+  if (ehJanelaDoPreludio()) {
+    return invoke<string | null>('preludio_exportar_imagem', bytes, { headers: { formato, nome: emHex(sugerido) } }).catch((erro: unknown) => {
+      const mensagem: unknown = typeof erro === 'object' && erro !== null ? Reflect.get(erro, 'mensagem') : undefined
+      throw new Error(typeof mensagem === 'string' ? mensagem : String(erro))
+    })
   }
   const escolhido = await save({ title: `Exportar ${formato.toUpperCase()}`, defaultPath: sugerido, filters: [FILTRO[formato]] })
   if (escolhido === null) return null

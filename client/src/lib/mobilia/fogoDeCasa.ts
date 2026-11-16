@@ -37,12 +37,13 @@ export function ehMovelComFogoDeCasa(tipo: string | undefined): tipo is MovelCom
  * Os móveis que ACENDEM E APAGAM no painel (Aceso | Apagado, gravado do mesmo jeito: só `'apagado'`): os de fogo de
  * casa e o HOLOFOTE (14/11/2026, "acende e ilumina, como a tocha"; correção da auditoria de 14/11/2026). O holofote é
  * de lâmpada: o controle dele se chama "Luz" e não tem chama animada (`temChama` continua só com o fogo de casa);
- * apagado, a luz do mapa some (`luzDoObjeto`) e o desenho troca para a lente escura (a variante 1).
+ * apagado, a luz do mapa some (`luzDoObjeto`) e o desenho troca para a lente escura (a variante 1). A LUMINÁRIA
+ * ARTICULADA (16/11/2026, lote L1 das referências) acende do mesmo jeito: "Luz", e apagada a boca da cúpula escurece.
  */
-export type MovelQueAcende = MovelComFogoDeCasa | 'holofote'
+export type MovelQueAcende = MovelComFogoDeCasa | 'holofote' | 'luminariaArticulada'
 
 export function ehMovelQueAcende(tipo: string | undefined): tipo is MovelQueAcende {
-  return ehMovelComFogoDeCasa(tipo) || tipo === 'holofote'
+  return ehMovelComFogoDeCasa(tipo) || tipo === 'holofote' || tipo === 'luminariaArticulada'
 }
 
 /** O nome do controle no painel: "Fogo" no que queima, "Luz" no de lâmpada. */

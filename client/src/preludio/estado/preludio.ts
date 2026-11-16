@@ -5,6 +5,8 @@ import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib
 import { comEvento, semEvento, tempoVazio } from '../../lib/preparo/sessoes'
 import type { Campanha, Evento, Revelado, Tempo, TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
 import { registrarSalvarAoFechar } from '../aoFechar'
+import { avisarMudanca } from '../janela/mudancas'
+import type { MudancaNoPreparo } from '../janela/protocolo'
 import { prepararMidia } from '../midia'
 
 /**
@@ -28,6 +30,11 @@ import { prepararMidia } from '../midia'
  * - O revelado (`revelado/<campanhaId>.json`, F2c) vai ao disco na hora do
  *   clique. Se não gravar, a tela volta ao que está no disco: um "oculto" que
  *   não gravou não pode ficar parecendo oculto.
+ * - DUAS JANELAS (P1): o Livro do mestre, na principal, e o Prelúdio em janela
+ *   própria gravam o mesmo revelado. Cada gravação relê o disco e junta por item
+ *   antes de gravar, uma de cada vez (Web Locks, que vale entre as janelas), e
+ *   cada coisa gravada é avisada à outra janela (`janela/mudancas.ts`), que relê
+ *   só aquilo (`relerDoDisco`).
  */
 
 export type Lugar =
@@ -115,6 +122,8 @@ interface EstadoDoPreludio {
   dispensarAvisoDoTempo: () => void
   /** Grava agora o que mudou. `true` = está tudo no disco. */
   salvarPendentes: () => Promise<boolean>
+  /** A outra janela gravou isto: relê só isso do disco (o que esta janela ainda não gravou continua valendo). */
+  relerDoDisco: (mudanca: MudancaNoPreparo) => Promise<void>
   tentarDeNovo: () => void
   /**
    * A restauração vai trocar a pasta preparo/ (o Prelúdio de agora vai inteiro
@@ -208,7 +217,11 @@ function gravar(id: string): Promise<void> {
   sujos.delete(id)
   let escrever: () => Promise<void>
   if (deFora !== undefined) escrever = deFora
-  else if (verbete !== undefined && !usePreludio.getState().soLeitura.has(id)) escrever = () => gravarVerbete(verbete)
+  else if (verbete !== undefined && !usePreludio.getState().soLeitura.has(id))
+    escrever = async () => {
+      await gravarVerbete(verbete)
+      avisarMudanca({ o: 'verbete', id })
+    }
   else {
     // Nada a gravar: sem isto, a falha de um verbete que saiu da memória ficava no rodapé para sempre.
     conferirFalha()
@@ -289,11 +302,42 @@ function revelacoesDe(lido: DocumentoLido<Revelado>): RevelacoesDaCampanha {
 /** Gravações do revelado ainda no disco, por campanha, e a falha da leva (a tela só volta ao disco quando a última termina). */
 const revelacoesEmVoo = new Map<string, number>()
 const falhasDoRevelado = new Map<string, string>()
+/** O que a última gravação da leva deixou no disco: a tela fica com ele quando a leva acaba. */
+const ultimoRevelado = new Map<string, Revelado>()
+/** Uma gravação do revelado por vez em cada campanha, nesta janela (sem Web Locks, é só isto). */
+const filaDoRevelado = new Map<string, Promise<unknown>>()
 
-async function gravarRevelacoes(campanhaId: string, revelado: Revelado, minha: number): Promise<void> {
+/**
+ * Uma de cada vez, por campanha: nesta janela pela fila, e entre as janelas do
+ * app pelo Web Locks (mesma origem). Sem ele (teste, navegador antigo), vale a fila.
+ */
+function naVezDoRevelado<T>(campanhaId: string, tarefa: () => Promise<T>): Promise<T> {
+  const travas = typeof navigator !== 'undefined' && 'locks' in navigator ? navigator.locks : undefined
+  const rodar = (): Promise<T> => (travas === undefined ? tarefa() : travas.request(`labirinto-preparo-revelado:${campanhaId}`, tarefa))
+  const antes = filaDoRevelado.get(campanhaId) ?? Promise.resolve()
+  const minha = antes.then(rodar, rodar)
+  filaDoRevelado.set(campanhaId, minha)
+  const soltar = () => {
+    if (filaDoRevelado.get(campanhaId) === minha) filaDoRevelado.delete(campanhaId)
+  }
+  minha.then(soltar, soltar)
+  return minha
+}
+
+/** Relê o disco e junta as mudanças por item antes de gravar: o que a outra janela revelou no meio não some. */
+async function juntarEGravarRevelado(campanhaId: string, mudancas: readonly MudancaDeRevelacao[], quando: string): Promise<Revelado> {
+  const noDisco = revelacoesDe(await lerRevelado(campanhaId))
+  if (noDisco.revelado === null || noDisco.soLeitura !== null) throw new Error(noDisco.soLeitura ?? 'o arquivo do revelado não abriu')
+  const junto = comRevelacoes(noDisco.revelado, mudancas, quando)
+  if (junto !== noDisco.revelado) await gravarRevelado(campanhaId, junto)
+  return junto
+}
+
+async function gravarRevelacoes(campanhaId: string, mudancas: readonly MudancaDeRevelacao[], quando: string, minha: number): Promise<void> {
   revelacoesEmVoo.set(campanhaId, (revelacoesEmVoo.get(campanhaId) ?? 0) + 1)
   try {
-    await gravarRevelado(campanhaId, revelado)
+    ultimoRevelado.set(campanhaId, await naVezDoRevelado(campanhaId, () => juntarEGravarRevelado(campanhaId, mudancas, quando)))
+    avisarMudanca({ o: 'revelado', campanhaId })
   } catch (erro) {
     falhasDoRevelado.set(campanhaId, motivo(erro))
   }
@@ -303,8 +347,17 @@ async function gravarRevelacoes(campanhaId: string, revelado: Revelado, minha: n
     return
   }
   revelacoesEmVoo.delete(campanhaId)
+  const gravado = ultimoRevelado.get(campanhaId)
+  ultimoRevelado.delete(campanhaId)
   const falha = falhasDoRevelado.get(campanhaId)
-  if (falha === undefined) return
+  if (falha === undefined) {
+    // A tela fica com o que está no disco: o que a outra janela revelou no meio entra junto.
+    if (gravado === undefined || minha !== geracao) return
+    const revelados = new Map(usePreludio.getState().revelados)
+    revelados.set(campanhaId, { revelado: gravado, soLeitura: null })
+    usePreludio.setState({ revelados })
+    return
+  }
   falhasDoRevelado.delete(campanhaId)
   // O disco manda: a tela volta ao que ficou gravado (lerRevelado nunca lança).
   const lido = await lerRevelado(campanhaId)
@@ -314,8 +367,8 @@ async function gravarRevelacoes(campanhaId: string, revelado: Revelado, minha: n
   usePreludio.setState({ revelados, avisoDoRevelado: `A revelação não foi gravada (${falha}). A tela voltou ao que está no disco.` })
 }
 
-function gravarRevelacoesEmVoo(campanhaId: string, revelado: Revelado): Promise<void> {
-  const tarefa = gravarRevelacoes(campanhaId, revelado, geracao).finally(() => {
+function gravarRevelacoesEmVoo(campanhaId: string, mudancas: readonly MudancaDeRevelacao[], quando: string): Promise<void> {
+  const tarefa = gravarRevelacoes(campanhaId, mudancas, quando, geracao).finally(() => {
     emVoo.delete(tarefa)
     usePreludio.setState({ salvamento: situacao() })
   })
@@ -351,6 +404,7 @@ async function mudarTempo(mudar: (tempo: Tempo) => Tempo): Promise<void> {
   usePreludio.setState({ tempo: { ...atual, tempo: novo }, avisoDoTempo: null })
   const minha = geracao
   const tarefa = gravarTempo(novo)
+    .then(() => avisarMudanca({ o: 'tempo' }))
     .catch(async (erro: unknown) => {
       const lido = await lerTempo()
       if (minha !== geracao) return
@@ -532,12 +586,14 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
     const estado = get()
     const atual = estado.revelados.get(campanhaId)
     if (estado.travado || estado.carga.t !== 'pronta' || atual === undefined || atual.revelado === null || atual.soLeitura !== null) return
-    const novo = comRevelacoes(atual.revelado, mudancas, new Date().toISOString())
+    const quando = new Date().toISOString()
+    const novo = comRevelacoes(atual.revelado, mudancas, quando)
     if (novo === atual.revelado) return
     const revelados = new Map(estado.revelados)
     revelados.set(campanhaId, { ...atual, revelado: novo })
     set({ revelados, avisoDoRevelado: null })
-    await gravarRevelacoesEmVoo(campanhaId, novo)
+    // A tela muda na hora; o disco recebe as MUDANÇAS, juntadas ao que estiver lá.
+    await gravarRevelacoesEmVoo(campanhaId, mudancas, quando)
   },
 
   dispensarAvisoDoRevelado() {
@@ -559,6 +615,42 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   async salvarPendentes() {
     await gravarTudoAgora()
     return sujos.size === 0
+  },
+
+  async relerDoDisco(mudanca) {
+    const minha = geracao
+    if (get().carga.t !== 'pronta') return
+    const aindaValendo = () => minha === geracao && get().carga.t === 'pronta'
+    switch (mudanca.o) {
+      case 'verbete': {
+        const { id } = mudanca
+        // O que esta janela ainda não gravou vale mais que o disco.
+        if (gravacaoPendente(id)) return
+        const lido = await lerVerbete(id)
+        if (!aindaValendo() || gravacaoPendente(id) || lido.estado !== 'ok' || lido.valor.id !== id) return
+        const verbetes = new Map(get().verbetes)
+        verbetes.set(id, lido.valor)
+        citacoes.atualizar(lido.valor)
+        set({ verbetes, versao: get().versao + 1 })
+        return
+      }
+      case 'revelado': {
+        const { campanhaId } = mudanca
+        // Campanha que esta janela não leu (veio de importação): entra na próxima abertura.
+        if (revelacoesEmVoo.has(campanhaId) || !get().revelados.has(campanhaId)) return
+        const lido = await lerRevelado(campanhaId)
+        if (!aindaValendo() || revelacoesEmVoo.has(campanhaId)) return
+        const revelados = new Map(get().revelados)
+        revelados.set(campanhaId, revelacoesDe(lido))
+        set({ revelados })
+        return
+      }
+      case 'tempo': {
+        const lido = await lerTempo()
+        if (aindaValendo()) set({ tempo: tempoNaTela(lido) })
+        return
+      }
+    }
   },
 
   tentarDeNovo() {

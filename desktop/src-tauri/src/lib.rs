@@ -2,6 +2,7 @@ use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 pub mod ia;
+pub mod janela_preludio;
 pub mod net;
 pub mod nuvem;
 pub mod preludio;
@@ -14,8 +15,17 @@ pub mod visao_jogador;
 // de um `map.json` importado), a validação de path traversal fica no lado
 // TypeScript, em `assertPathWithinRoot` (client/src/lib/mapFileIO.ts), chamada
 // ANTES deste comando ser invocado com esse path.
+// Só a `main`: o escopo liberado aqui vale para o plugin `fs` de TODAS as
+// janelas, e as outras (visão de jogador, Prelúdio) não têm por que pedir.
 #[tauri::command]
-fn grant_fs_access(app: tauri::AppHandle, path: String) -> Result<(), String> {
+fn grant_fs_access(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    path: String,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("comando permitido só na janela principal".into());
+    }
     app.fs_scope()
         .allow_directory(&path, true)
         .map_err(|e| e.to_string())?;
@@ -64,6 +74,19 @@ pub fn run() {
             visao_jogador::abrir_visao_jogador,
             visao_jogador::mostrar_visao_jogador,
             visao_jogador::fechar_visao_jogador,
+            // Prelúdio em janela própria: abrir/fechar só da main; o disco só da janela dele.
+            janela_preludio::abrir_janela_preludio,
+            janela_preludio::fechar_janela_preludio,
+            preludio::disco_da_janela::preludio_disco_existe,
+            preludio::disco_da_janela::preludio_disco_ler,
+            preludio::disco_da_janela::preludio_disco_listar,
+            preludio::disco_da_janela::preludio_disco_info,
+            preludio::disco_da_janela::preludio_disco_gravar_texto,
+            preludio::disco_da_janela::preludio_disco_gravar_bytes,
+            preludio::disco_da_janela::preludio_disco_criar_pasta,
+            preludio::disco_da_janela::preludio_disco_apagar,
+            preludio::disco_da_janela::preludio_disco_renomear,
+            preludio::disco_da_janela::preludio_exportar_imagem,
             // Assistente do mestre (M4): só a janela main; a chave nunca volta.
             ia::ia_chaves_estado,
             ia::ia_chaves_guardar,
@@ -97,6 +120,7 @@ pub fn run() {
         }
         tauri::RunEvent::WindowEvent { label, event, .. } => {
             visao_jogador::ao_evento_de_janela(handle, &label, &event);
+            janela_preludio::ao_evento_de_janela(handle, &label, &event);
         }
         _ => {}
     });

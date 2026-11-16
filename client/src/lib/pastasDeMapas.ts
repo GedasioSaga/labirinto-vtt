@@ -1,5 +1,6 @@
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
+// A janela do Prelúdio lê as pastas (o catálogo da mesa) pelos comandos dela.
+import { exists, readTextFile, writeTextFile } from './fsDaJanela'
 import { ADVENTURE_FILE, parseAdventure } from './adventure'
 import { defaultMapsDir, ensureDir, mapDirFor, writeTextFileSafely } from './mapFileIO'
 import { levarMidiaParaAPasta, pastaDaMidiaDaAventura, PASTA_DE_MIDIA_DA_AVENTURA, trazerMidiaDaPasta } from './midiaDaPasta'

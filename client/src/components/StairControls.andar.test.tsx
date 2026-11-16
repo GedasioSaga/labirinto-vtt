@@ -134,7 +134,9 @@ describe('StairControls: criar andar e escada em espiral', () => {
   it('Forma: "Espiral" troca a escada selecionada, com desfazer', () => {
     renderizar()
     const forma = container.querySelector('[aria-label="Forma da escada"]')
-    expect(Array.from(forma?.querySelectorAll('[role="radio"]') ?? []).map((b) => b.textContent?.trim())).toEqual(['Reta', 'Espiral'])
+    expect(Array.from(forma?.querySelectorAll('[role="radio"]') ?? []).map((b) => b.textContent?.trim())).toEqual(['Reta', 'Em L', 'Em U', 'Espiral'])
+    // Cada forma com a miniatura dela, como o Sentido.
+    expect(Array.from(forma?.querySelectorAll('[role="radio"]') ?? []).every((b) => b.querySelector('svg.lb-escada-forma') !== null)).toBe(true)
     expect(botao('Reta')?.getAttribute('aria-checked')).toBe('true')
     expect(container.querySelector('[aria-label="Tamanho da escada"]')).not.toBeNull()
 
@@ -149,5 +151,25 @@ describe('StairControls: criar andar e escada em espiral', () => {
 
     useMapStore.getState().undo()
     expect(escadaAtual().shape).toBe('straight')
+  })
+
+  it('Forma: "Em L" dobra a escada na volta sem tirar a boca do lugar, com desfazer', () => {
+    renderizar()
+    clicar('Em L')
+    const dobrada = escadaAtual()
+    expect(dobrada.shape).toBe('l')
+    // A reta de 120 px dividiria em braços de 60, menores que a largura (64): cada braço fica com uma
+    // largura, para os lances não sumirem na volta. Sobe até o meio do patamar e vira para a direita.
+    expect(dobrada.segments).toEqual([
+      { x1: 400, y1: 300, x2: 400, y2: 236 },
+      { x1: 400, y1: 236, x2: 464, y2: 236 },
+    ])
+    renderizar()
+    expect(botao('Em L')?.getAttribute('aria-checked')).toBe('true')
+    // A L tem largura e comprimento, como a reta.
+    expect(container.querySelector('[aria-label="Tamanho da escada"]')).not.toBeNull()
+
+    useMapStore.getState().undo()
+    expect(escadaAtual()).toEqual(ESCADA)
   })
 })

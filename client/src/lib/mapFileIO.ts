@@ -1,5 +1,9 @@
-import { writeTextFile, mkdir, exists, readTextFile, readDir, stat, remove, copyFile, rename } from '@tauri-apps/plugin-fs'
+// `renameDoPlugin` só serve para saber se o plugin tem `rename` (`canRename`); quem renomeia é o `rename` abaixo.
+import { copyFile, rename as renameDoPlugin } from '@tauri-apps/plugin-fs'
 import { save, open } from '@tauri-apps/plugin-dialog'
+// O catálogo da mesa também é lido na janela do Prelúdio, onde o disco passa pelos comandos dela.
+import { writeTextFile, mkdir, exists, readTextFile, readDir, stat, remove, rename } from './fsDaJanela'
+import { ehJanelaDoPreludio } from './janelaDoPreludio'
 import { appDataDir, join, dirname } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
 import type { MapData } from '../types/map'
@@ -44,7 +48,7 @@ let renameUsable: boolean | null = null
 function canRename(): boolean {
   if (renameUsable === null) {
     try {
-      renameUsable = typeof rename === 'function'
+      renameUsable = typeof renameDoPlugin === 'function'
     } catch {
       renameUsable = false
     }
@@ -260,7 +264,8 @@ export async function saveMapToAppData(map: MapData): Promise<string> {
 
 export async function loadMapFromDisk(path: string): Promise<MapData> {
   const dir = await dirname(path)
-  await invoke('grant_fs_access', { path: dir })
+  // A janela do Prelúdio só lê o mapa (pelos comandos dela, dentro de maps/); liberar pasta é da principal.
+  if (!ehJanelaDoPreludio()) await invoke('grant_fs_access', { path: dir })
   const content = await readTextFile(path)
   return deserializeMap(content)
 }

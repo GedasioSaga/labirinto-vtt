@@ -34,6 +34,7 @@ import { sameCenario } from '../cenario/catalogo'
 import { withoutAttachment } from './lightAttachment'
 import { seatStairPins, withoutStairPins } from './stairTravel'
 import { clampStairLength, withStairLength } from './stairCurve'
+import { segmentosDaForma, trechosDaUAjustados } from './stairs'
 import { rotateStairBy } from './stairRotation'
 import { carryAttachedPins, carryPinsByTokenSteps } from './pinAttach'
 import {
@@ -2227,18 +2228,28 @@ export function setStairDirection(map: MapData, stairId: string, direction: Stai
   return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, direction } : s)) }
 }
 
-/** Troca a forma ("Reta" / "Espiral") de uma escada JÁ CRIADA — mesmo espelho
- *  de `setStairDirection`. Os lances ficam onde estão: a espiral usa o
- *  primeiro como diâmetro, então a boca (e o pino da escada) não sai do lugar. */
+/** Troca a forma ("Reta", "Em L", "Em U", "Espiral") de uma escada JÁ CRIADA —
+ *  mesmo espelho de `setStairDirection`. Entre a reta e a espiral os lances
+ *  ficam onde estão (a espiral usa o primeiro como diâmetro); a L e a U dobram
+ *  o caminho com o mesmo comprimento (`segmentosDaForma`, `lib/stairs.ts`).
+ *  Nos dois casos a boca (e o pino da escada) não sai do lugar. */
 export function setStairShape(map: MapData, stairId: string, shape: StairShape): MapData {
-  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, shape } : s)) }
+  return {
+    ...map,
+    stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, shape, segments: segmentosDaForma(s, shape) } : s)),
+  }
 }
 
 /** Troca `stepWidth` (largura do lance) de uma escada JÁ CRIADA — mesmo
  *  espelho de `setStairDirection` (F4, N1 "escada pequena/média/grande").
- *  Escada inexistente: `map` sem mudança (o `.map` abaixo é no-op). */
+ *  Na U, a travessa acompanha a largura para os dois lances seguirem
+ *  encostados (`trechosDaUAjustados`). Escada inexistente: `map` sem mudança
+ *  (o `.map` abaixo é no-op). */
 export function setStairStepWidth(map: MapData, stairId: string, stepWidth: number): MapData {
-  return { ...map, stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, stepWidth } : s)) }
+  return {
+    ...map,
+    stairs: map.stairs.map((s) => (s.id === stairId ? { ...s, stepWidth, segments: trechosDaUAjustados({ ...s, stepWidth }) } : s)),
+  }
 }
 
 /** O desenho da escada que as alças e a ficha mudam: lances, largura e curva (ausente = reta). */
@@ -2256,9 +2267,11 @@ export function setStairGeometry(map: MapData, stairId: string, geometry: StairG
   const stair = map.stairs.find((s) => s.id === stairId)
   if (stair === undefined) return map
   const curva = geometry.curva === undefined || geometry.curva === 0 ? undefined : geometry.curva
-  if (stair.segments === geometry.segments && stair.stepWidth === geometry.stepWidth && stair.curva === curva) return map
+  // Na U, a travessa volta a ter uma largura depois de a alça mudar a largura ou escalar a escada.
+  const segments = trechosDaUAjustados({ shape: stair.shape, segments: geometry.segments, stepWidth: geometry.stepWidth })
+  if (stair.segments === segments && stair.stepWidth === geometry.stepWidth && stair.curva === curva) return map
   const { curva: _curvaAntiga, ...semCurva } = stair
-  const next: Stair = { ...semCurva, segments: geometry.segments, stepWidth: geometry.stepWidth, ...(curva === undefined ? {} : { curva }) }
+  const next: Stair = { ...semCurva, segments, stepWidth: geometry.stepWidth, ...(curva === undefined ? {} : { curva }) }
   return seatStairPins({ ...map, stairs: map.stairs.map((s) => (s.id === stairId ? next : s)) }, [stairId])
 }
 
@@ -2270,7 +2283,11 @@ export function setStairGeometry(map: MapData, stairId: string, geometry: StairG
 export function setStairLength(map: MapData, stairId: string, length: number): MapData {
   const stair = map.stairs.find((s) => s.id === stairId)
   if (stair === undefined) return map
-  const next = withStairLength(stair, clampStairLength(length, map.grid), 'start')
+  const clamped = clampStairLength(length, map.grid)
+  // Na U só os braços crescem: a travessa fica com uma largura (escalar a escada inteira a esticaria).
+  const emU = trechosDaUAjustados(stair, clamped)
+  if (emU !== stair.segments) return setStairGeometry(map, stairId, { segments: emU, stepWidth: stair.stepWidth, curva: stair.curva })
+  const next = withStairLength(stair, clamped, 'start')
   return next === stair ? map : setStairGeometry(map, stairId, next)
 }
 

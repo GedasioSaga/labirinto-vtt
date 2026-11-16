@@ -51,7 +51,11 @@ export const TORCAO_DO_ASSENTAMENTO = 0
 const TORCAO_LARGA = { lado: 1, peso: 0.65 }
 const TORCAO_FINA = { lado: 0.37, peso: 0.35 }
 
-/** Manchas (só com `ChaoDaTextura.manchas`): o protótipo clareia 18% para o branco e escurece 13% (do realce e da sombra da grama). */
+/**
+ * Manchas (só com `ChaoDaTextura.manchas`): o protótipo clareia 18% para o
+ * branco e escurece 13% (do realce e da sombra da grama). No chão escuro a
+ * clara enfraquece (`forcaDaManchaClara`).
+ */
 const MANCHA_CLARA = 0.18
 const MANCHA_ESCURA = 0.13
 const GANHO_DA_MANCHA = 1.5
@@ -242,6 +246,46 @@ export function mipDoLadrilho(img: ImagemDoLadrilho, m: number): ImagemDoLadrilh
   return mips[Math.min(m, mips.length - 1)]
 }
 
+/** Mip mais fundo que se pede para a cor média: `mipDoLadrilho` para antes, no lado 4. */
+const MIP_DA_COR_MEDIA = 32
+
+/**
+ * Luz (Y de 0 a 255) a partir da qual a mancha clara vale inteira: logo abaixo
+ * do Campo morto (120,4), o mais escuro dos campos que já pintavam assim. Verde
+ * (172,9), Amarelo (173,2) e Morto ficam com os mesmos bytes de antes.
+ */
+export const LUZ_DA_MANCHA_CLARA_INTEIRA = 120
+/**
+ * Quão depressa a mancha clara enfraquece abaixo daquela luz: a força é
+ * (luz / LUZ_DA_MANCHA_CLARA_INTEIRA) elevada a isto. Com 9, a Grama escura
+ * (109) fica com ~0,42 da mancha, e o chão bem escuro (Y 80) quase sem ela.
+ */
+const QUEDA_DA_MANCHA_CLARA = 9
+
+const forcasDaManchaClara = new WeakMap<ImagemDoLadrilho, number>()
+
+/**
+ * A força da MANCHA CLARA num chão (pedido do lote de 15/11/2026: a Grama
+ * escura com "Manchas do chão" parecia névoa ou geada). A mancha clara puxa
+ * 18% para o branco: no chão claro é um realce, no escuro e saturado o branco
+ * pesa muito mais que a cor e a mancha vira névoa. Abaixo de
+ * `LUZ_DA_MANCHA_CLARA_INTEIRA` ela enfraquece com a luz média do ladrilho (a
+ * média do mip mais fundo); a mancha escura, que multiplica, fica igual. Conta
+ * uma vez por ladrilho.
+ */
+export function forcaDaManchaClara(ladrilho: ImagemDoLadrilho): number {
+  const guardada = forcasDaManchaClara.get(ladrilho)
+  if (guardada !== undefined) return guardada
+  const mip = mipDoLadrilho(ladrilho, MIP_DA_COR_MEDIA)
+  const n = mip.lado * mip.lado
+  let soma = 0
+  for (let i = 0; i < n; i += 1) soma += 0.2126 * mip.pixels[i * 4] + 0.7152 * mip.pixels[i * 4 + 1] + 0.0722 * mip.pixels[i * 4 + 2]
+  const luz = n > 0 ? soma / n : 0
+  const forca = luz >= LUZ_DA_MANCHA_CLARA_INTEIRA ? 1 : (Math.max(0, luz) / LUZ_DA_MANCHA_CLARA_INTEIRA) ** QUEDA_DA_MANCHA_CLARA
+  forcasDaManchaClara.set(ladrilho, forca)
+  return forca
+}
+
 /** O mip que o pedaço lê: o passo no ladrilho (px do ladrilho por px do pedaço) arredondado para baixo em potência de 2. */
 export function mipDoPedaco(chao: ChaoDaTextura, nivel: number): number {
   const passo = (chao.ladrilho.lado / chao.ladoNoMundo) * 2 ** nivel
@@ -421,6 +465,8 @@ export function pintarLinhas(chao: ChaoDaTextura, pedaco: Pedaco, p: PinturaDoPe
   const grade = p.grade
   const comVida = chao.vida !== undefined
   const comManchas = chao.manchas
+  // 1 no chão claro (a mesma conta de sempre); menos no escuro (`forcaDaManchaClara`).
+  const manchaClara = comManchas ? MANCHA_CLARA * forcaDaManchaClara(chao.ladrilho) : 0
   const camposUsados = comVida ? CAMPOS : CAMPO_DA_VIDA
   for (let py = p.linha; py < fim; py += 1) {
     // A grade interpolada na vertical para esta linha.
@@ -482,7 +528,7 @@ export function pintarLinhas(chao: ChaoDaTextura, pedaco: Pedaco, p: PinturaDoPe
         // identidade (somar 0, multiplicar por 1): pular dá os mesmos bytes e poupa a conta em todo pixel.
         const n = linhaDaGrade[oa + 2] + (linhaDaGrade[ob + 2] - linhaDaGrade[oa + 2]) * fx
         const k = Math.min(1, Math.abs(n) * GANHO_DA_MANCHA)
-        const claro = n > 0 ? MANCHA_CLARA * k : 0
+        const claro = n > 0 ? manchaClara * k : 0
         const escuro = n > 0 ? 1 : 1 - MANCHA_ESCURA * k
         r = (r + (255 - r) * claro) * escuro
         g = (g + (255 - g) * claro) * escuro

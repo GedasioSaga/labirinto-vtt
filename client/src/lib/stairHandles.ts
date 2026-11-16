@@ -1,6 +1,7 @@
 import type { GridShape, MapScale, Stair } from '../types/map'
 import type { Point } from '../pixi/world'
 import { dimensionLabel } from './dimensionText'
+import { ehEscadaDobrada } from './stairs'
 import {
   clampStairCurve,
   clampStairLength,
@@ -68,6 +69,9 @@ export function stairHandles(stair: Stair): StairHandle[] {
     { kind: 'side-left', point: { x: point.x + normal.x * half, y: point.y + normal.y * half } },
     { kind: 'side-right', point: { x: point.x - normal.x * half, y: point.y - normal.y * half } },
   ]
+  // Na U a boca e a ponta ficam lado a lado: puxar uma delas escalaria a escada de lado.
+  // O comprimento dela muda pela ficha (`setStairLength`), que só estica os braços.
+  if (ehEscadaDobrada(stair) && stair.shape === 'double') return sides
   return stairCanCurve(stair) ? [...ends, ...sides, { kind: 'curve', point }] : [...ends, ...sides]
 }
 

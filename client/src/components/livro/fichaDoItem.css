@@ -38,6 +38,12 @@
   height: 18px;
 }
 
+/* As quatro Formas (Reta, Em L, Em U, Espiral) em 2 x 2 em qualquer largura da
+   página: a grade solta dava 3 + 1 numa página um pouco mais larga. */
+.lb-ficha-da-escada .gr-seg--grade {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 /* O Avançado no fim do essencial da região é o subgrupo do protótipo, como na
    Aparência da sala (`RoomControls.css`): fio tracejado em cima. Mesmo peso da
    regra acima e depois dela: o fio vence o `border-top: 0`. */

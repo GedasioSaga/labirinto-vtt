@@ -163,6 +163,17 @@ export const TIPOS_MOBILIA = [
   // de papel higiênico.
   'vasoSanitarioModerno', 'bide', 'boxDeChuveiro', 'banheiraModerna', 'gabineteDeBanheiro', 'armarioDeBanheiro',
   'toalheiro', 'cestoDeRoupa', 'prateleiraDeFrascos', 'lixeiraDePedal', 'tapeteDeBanheiro', 'portaPapel',
+  // As referências (16/11/2026, o mestre respondeu "Tudo" à lista do que faltava nos quatro mapas de referência):
+  // versões ORIGINAIS no estilo Meio-Termo, só a ideia de cada objeto. Lote L1, o necrotério e o laboratório: a mesa
+  // de autópsia, a maca com lençol, a câmara frigorífica, o esterilizador, a luminária articulada (acende, como o
+  // holofote), a bandeja de instrumentos, a mesa de laboratório, as panelas e bacias, a cadeira giratória e a máquina
+  // de escrever. Lote L2: o elevador antigo (o desenho da cabine de transporte), o alçapão e o deck de madeira (no
+  // chão), a coluna quebrada, o altar redondo, a laje de sacrifício, o túmulo de pedra, o carro antigo e os quatro
+  // parciais (a prateleira de toalhas, a cadeira de espaldar alto, o centro de mesa e a lápide torta).
+  'mesaDeAutopsia', 'macaComLencol', 'camaraFrigorifica', 'esterilizador', 'luminariaArticulada',
+  'bandejaDeInstrumentos', 'mesaDeLaboratorio', 'panelasEBacias', 'cadeiraGiratoria', 'maquinaDeEscrever',
+  'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
+  'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
 ] as const
 
 /** Móveis do catálogo da mobília desenhada (`lib/mobilia.ts`). */

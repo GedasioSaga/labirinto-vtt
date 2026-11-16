@@ -1,6 +1,7 @@
-import { exists, readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { FEATURES, type FeatureFlags } from '../features'
+// Na janela do Prelúdio, o disco passa pelos comandos dela (só preparo/); na principal, é o plugin fs.
+import { exists, readDir, readTextFile, writeTextFile } from '../fsDaJanela'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { preparoLigado } from './chave'
 import { ehRegistro } from './molde'
