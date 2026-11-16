@@ -14,6 +14,8 @@ import { stairRotateHandle } from '../lib/stairRotation'
 import { alcaDaCurvaDaCerca } from '../lib/cercaCurva'
 import { drawingBoundingBox, tokenBoundingBox, propBoundingBox, propCorners } from '../lib/objectTransform'
 import { drawBoxResizeHandles } from './drawResizeHandles'
+import { caixaDoCarimbo, carimboPorId } from '../lib/carimbos'
+import { alcaDeGirarDoCarimbo, carimboComAlcas } from '../lib/alcasDoCarimbo'
 import { alignToPixel, pixelGrid, strokeWidthInWorld } from './pixelAlign'
 import { selectionOutlineWidth } from './drawWalls'
 import {
@@ -277,6 +279,8 @@ function drawRotateHandle(graphics: Graphics, handle: RoomRotateHandle | null, v
  * ferramenta Objeto, o objeto selecionado mostra as mesmas alças do
  * Selecionar. A chave da camada `handles` (`shapesRedraw.ts`) usa esta mesma
  * regra: se as duas divergem, a camada não repinta e a alça fica invisível.
+ * O carimbo (16/11/2026) entra pelo Selecionar, como todo item: a ferramenta
+ * Carimbos não seleciona — o clique dela põe outro carimbo.
  */
 export function alcasAparecem(activeTool: DrawingTool, kind: NonNullable<Selection>['kind']): boolean {
   // A ferramenta Construção (12/11/2026) põe o mesmo tipo de peça e tem as mesmas alças.
@@ -385,6 +389,17 @@ export function drawEditHandles(
     if (alca !== null) drawStairCurveHandle(graphics, alca, scale)
     // A alça de girar da sala, em volta do centro do objeto (pedido de 11/11/2026).
     drawRotateHandle(graphics, propRotateHandle(prop, scale), view)
+    return
+  }
+
+  // CARIMBO (pedido de 16/11/2026): as alças do objeto — os chips nos cantos do
+  // contorno amarelo (a caixa do corpo, `caixaDoCarimbo`), que mudam o tamanho, e
+  // a bolinha de girar. Travado, ou na camada travada, fica só com o contorno.
+  if (selection.kind === 'carimbo') {
+    const carimbo = carimboPorId(map.carimbos, selection.id)
+    if (carimbo === undefined || !carimboComAlcas(map, carimbo)) return
+    drawBoxResizeHandles(graphics, caixaDoCarimbo(carimbo), scale)
+    drawRotateHandle(graphics, alcaDeGirarDoCarimbo(carimbo, scale), view)
     return
   }
 

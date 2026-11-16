@@ -1,4 +1,4 @@
-import type { MapData, Stair } from '../types/map'
+import type { Carimbo, MapData, Stair } from '../types/map'
 import type { Point } from './world'
 import { useMapStore } from '../stores/mapStore'
 import { canInteract } from '../lib/itemTransform'
@@ -7,6 +7,10 @@ import {
   angleAroundPivot, formatRotationLabel, isOnPropRotateHandle, isOnRoomRotateHandle, roomCentroid, roomRotationOf, rotationDelta, snapRoomRotation,
 } from '../lib/roomRotation'
 import { isOnStairRotateHandle, rotateStairBy, stairRotateFrame } from '../lib/stairRotation'
+import { carimboPorId } from '../lib/carimbos'
+import {
+  anguloVisivelDoCarimbo, carimboComAlcas, centroDoCarimbo, giroDoCarimboNoArrasto, giroGravadoDoCarimbo, naAlcaDeGirarDoCarimbo,
+} from '../lib/alcasDoCarimbo'
 
 /**
  * Gesto da alça de GIRAR SALA, sem Pixi: o PixiCanvas repassa os eventos do
@@ -31,6 +35,12 @@ import { isOnStairRotateHandle, rotateStairBy, stairRotateFrame } from '../lib/s
  * bolinha sobre a caixa da escada (`stairRotateHandle`). A escada não guarda
  * ângulo — o giro vai para os lances (`lib/stairRotation.ts`), e cada quadro
  * gira a escada do COMEÇO do gesto (`setStairGeometryLive`), sem acumular erro.
+ *
+ * CARIMBO (pedido de 16/11/2026: "as mesmas coisa que um objeto"):
+ * `beginCarimbo` pega a mesma bolinha sobre o carimbo selecionado
+ * (`lib/alcasDoCarimbo.ts`). O da biblioteca anda de 45 em 45 graus (oito
+ * desenhos, a sombra continua certa); o importado gira livre. O giro vai para
+ * `Carimbo.giro` a cada quadro (`mudarCarimboLive`), e o resto é o mesmo gesto.
  */
 
 /**
@@ -42,11 +52,16 @@ const RAIO_MORTO_PX = 6
 
 type RoomRotateStore = Pick<typeof useMapStore, 'getState'>
 
-/** O que está girando: a Sala (giro gravado nos pontos), o Objeto (giro gravado em `rotation`) ou a Escada (giro gravado nos lances). */
+/**
+ * O que está girando: a Sala (giro gravado nos pontos), o Objeto (giro gravado
+ * em `rotation`), a Escada (giro gravado nos lances) ou o Carimbo (giro gravado
+ * em `giro`, de 0 a 359).
+ */
 type AlvoDoGiro =
   | { kind: 'region'; id: string }
   | { kind: 'prop'; id: string; rotacaoGuardada: number | undefined }
   | { kind: 'stair'; id: string; inicial: Stair }
+  | { kind: 'carimbo'; inicial: Carimbo }
 
 interface Giro {
   alvo: AlvoDoGiro
@@ -83,15 +98,19 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
     const distanciaNaTela = Math.hypot(ponto.x - giro.pivo.x, ponto.y - giro.pivo.y) * giro.escala
     if (distanciaNaTela < RAIO_MORTO_PX) return null
     const andou = rotationDelta(giro.anguloInicial, angleAroundPivot(giro.pivo, ponto))
-    const alvo = snapRoomRotation(giro.rotacaoInicial + andou, shift)
+    const bruto = giro.rotacaoInicial + andou
+    const carimbo = giro.alvo.kind === 'carimbo' ? giro.alvo.inicial : null
+    const alvo = carimbo === null ? snapRoomRotation(bruto, shift) : giroDoCarimboNoArrasto(carimbo, bruto, shift)
     const passo = rotationDelta(giro.rotacaoAtual, alvo)
     if (passo !== 0) {
       if (giro.alvo.kind === 'region') store.getState().rotateRoomLive(giro.alvo.id, passo)
       else if (giro.alvo.kind === 'prop') store.getState().setPropRotationLive(giro.alvo.id, alvo)
+      else if (giro.alvo.kind === 'carimbo') store.getState().mudarCarimboLive(giro.alvo.inicial.id, { giro: giroGravadoDoCarimbo(giro.alvo.inicial, alvo) })
       else gravarEscada(giro.alvo.id, rotateStairBy(giro.alvo.inicial, alvo - giro.rotacaoInicial))
     }
     giro.rotacaoAtual = alvo
-    return { rotation: alvo, label: formatRotationLabel(alvo) }
+    // O carimbo fala o giro como a ficha dele: de 0 a 359 ("315°", não "−45°").
+    return { rotation: alvo, label: carimbo === null ? formatRotationLabel(alvo) : `${giroGravadoDoCarimbo(carimbo, alvo)}°` }
   }
 
   const comecar = (alvo: AlvoDoGiro, pivo: Point, rotacao: number, ponto: Point, cameraScale: number): true => {
@@ -144,6 +163,17 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       return comecar({ kind: 'stair', id: stairId, inicial: stair }, frame.pivot, frame.rotation, ponto, cameraScale)
     },
 
+    /**
+     * Pointerdown com o Carimbo `id` selecionado sozinho: a mesma regra, sobre
+     * a bolinha do carimbo. Travado, ou na camada travada, não tem alça.
+     */
+    beginCarimbo(id: string, ponto: Point, cameraScale: number): boolean {
+      const map = store.getState().map
+      const carimbo = carimboPorId(map.carimbos, id)
+      if (carimbo === undefined || !carimboComAlcas(map, carimbo) || !naAlcaDeGirarDoCarimbo(carimbo, ponto, cameraScale)) return false
+      return comecar({ kind: 'carimbo', inicial: carimbo }, centroDoCarimbo(carimbo), anguloVisivelDoCarimbo(carimbo), ponto, cameraScale)
+    },
+
     /** Pointermove: gira até o ângulo do ponteiro. `null` = nada a mostrar (sem giro, ou no raio morto). */
     move(ponto: Point, shift: boolean): RoomRotateFeedback | null {
       return aplicar(ponto, shift)
@@ -166,6 +196,8 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
         if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
         // A escada também: volta aos lances do começo, sem histórico.
         if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
+        // E o carimbo, ao giro de antes.
+        if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, { giro: alvo.inicial.giro })
         return true
       }
       if (alvo.kind === 'region') store.getState().finishRoomRotationLive(antes, alvo.id)
@@ -181,6 +213,7 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       giro = null
       if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
       else if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
+      else if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, { giro: alvo.inicial.giro })
       else if (volta !== 0) store.getState().rotateRoomLive(alvo.id, volta)
       return true
     },

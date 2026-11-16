@@ -296,9 +296,20 @@ interface CorpoNoQuadro {
   readonly base: number
 }
 
-/** A caixa do corpo do carimbo: o que o clique acha e o que o laço mede. */
-export function caixaDoCarimbo(c: Pick<Carimbo, 'tipo' | 'x' | 'y' | 'tamanho'>): CaixaDoCarimbo {
-  const q = ehTipoImportado(c.tipo) ? CORPO_DO_IMPORTADO : CORPO_DA_BIBLIOTECA
+/**
+ * A caixa do corpo do carimbo: o que o clique acha, o que o laço mede e onde
+ * ficam os cantos das alças. O IMPORTADO gira de verdade (alças de 16/11/2026,
+ * `pixi/drawCarimbos.ts`): a caixa dele é a que cerca o quadrado girado, para
+ * a ponta da imagem deitada continuar pegando o clique. O da biblioteca não
+ * gira a caixa: o giro escolhe um dos oito desenhos, todos no mesmo pé.
+ */
+export function caixaDoCarimbo(c: Pick<Carimbo, 'tipo' | 'x' | 'y' | 'tamanho' | 'giro'>): CaixaDoCarimbo {
+  if (ehTipoImportado(c.tipo)) {
+    const rad = (c.giro * Math.PI) / 180
+    const meio = CORPO_DO_IMPORTADO.direita * c.tamanho * (Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)))
+    return { minX: c.x - meio, maxX: c.x + meio, minY: c.y - meio, maxY: c.y + meio }
+  }
+  const q = CORPO_DA_BIBLIOTECA
   return { minX: c.x + q.esquerda * c.tamanho, maxX: c.x + q.direita * c.tamanho, minY: c.y + q.topo * c.tamanho, maxY: c.y + q.base * c.tamanho }
 }
 
@@ -438,6 +449,22 @@ export function idsDebaixoDaBorracha(lista: readonly Carimbo[] | undefined, cami
 /** Sorteio de 0 a 1 (o gesto usa `Math.random`; o teste passa um fixo). */
 export type Sorteio = () => number
 
+/** Quanto o importado que nasce balança para cada lado, em graus (`giroSorteado`). */
+const BALANCO_DO_IMPORTADO = 5
+
+/**
+ * O giro sorteado de um objeto que nasce. O da biblioteca sorteia a volta
+ * inteira: só troca o desenho entre os oito. O IMPORTADO gira a imagem de
+ * verdade desde as alças de 16/11/2026; sorteado na volta inteira ele nasceria
+ * de ponta-cabeça, então balança só uns graus, a variação que a inclinação de
+ * antes dava. Um sorteio só nos dois casos: a mesma semente solta os mesmos
+ * objetos nos mesmos lugares.
+ */
+function giroSorteado(tipo: string, sorteio: Sorteio): number {
+  const s = sorteio()
+  return ehTipoImportado(tipo) ? (s * 2 - 1) * BALANCO_DO_IMPORTADO : s * 360
+}
+
 export interface OpcoesDoSpray {
   tipo: string
   /** O tamanho escolhido, já no mundo (`tamanhoNatural`). */
@@ -524,7 +551,7 @@ export function criarSpray(opcoes: OpcoesDoSpray): Spray {
     x: Math.round(p.x),
     y: Math.round(p.y),
     tamanho: Math.round(opcoes.tamanho * (1 + (sorteio() * 2 - 1) * variacao) * 10) / 10,
-    giro: normalizarGiro(sorteio() * 360),
+    giro: normalizarGiro(giroSorteado(opcoes.tipo, sorteio)),
   })
 
   const tentarEm = (centro: RegionPoint, nascidos: Carimbo[]) => {
@@ -687,8 +714,8 @@ export function criarTraco(opcoes: OpcoesDoTraco): Spray {
     tamanho: decimo(opcoes.tamanho * (iguais ? 1 : 1 + (sorteio() * 2 - 1) * VARIACAO_DO_CLIQUE)),
     giro: normalizarGiro(giro),
   })
-  /** O giro do objeto: o rumo, quando o desenho pede; senão sorteado (só troca o desenho entre os oito). */
-  const giroDe = (rumo: number) => (jeito.rumo === true ? rumo : sorteio() * 360)
+  /** O giro do objeto: o rumo, quando o desenho pede; senão sorteado (`giroSorteado`). */
+  const giroDe = (rumo: number) => (jeito.rumo === true ? rumo : giroSorteado(opcoes.tipo, sorteio))
 
   const soltar = (p: RegionPoint, rumo: number, nascidos: Carimbo[]): number | null => {
     if (vagas <= 0) return null

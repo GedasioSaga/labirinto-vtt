@@ -76,6 +76,8 @@ export type GestureMode =
   | 'resizing-drawing-radius'
   | 'resizing-token'
   | 'resizing-prop-corner'
+  // Chip de canto do carimbo selecionado (pixi/carimboAlcaGesture.ts).
+  | 'resizing-carimbo'
   | 'area-marquee-drag'
   | 'dragging-area-selection'
   // Chão por peças: arrasto de criação (retângulo/elipse/polígono) e mover
@@ -408,6 +410,7 @@ export function resolveCursor(input: ResolveCursorInput): string {
     case 'resizing-drawing-corner':
     case 'resizing-token':
     case 'resizing-prop-corner':
+    case 'resizing-carimbo':
       return resizeCursorForCorner(corner)
 
     // O mesmo cursor do pairar sobre a alça, do começo ao fim do giro — como

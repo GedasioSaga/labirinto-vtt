@@ -1694,6 +1694,13 @@ interface MapStoreState {
    * travada barra e avisa; o que já vale não vira passo.
    */
   mudarCarimbo: (id: string, mudanca: MudancaDoCarimbo, juntar?: string) => void
+  /**
+   * ALÇAS DO CARIMBO (16/11/2026): o tamanho e o giro do quadro de agora, SEM
+   * histórico — o canto e a bolinha de girar fecham o arrasto inteiro com
+   * `commitDragHistory`, e o Esc devolve o de antes por aqui mesmo. Quem pega
+   * a alça já conferiu o cadeado e a camada; o travado continua não mudando.
+   */
+  mudarCarimboLive: (id: string, mudanca: Pick<MudancaDoCarimbo, 'tamanho' | 'giro'>) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** DIA/TARDE/NOITE: a cena aberta é externa e segue o período da sessão (`comCenaExterna`, `lib/periodo.ts`). Com desfazer. */
@@ -3796,6 +3803,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         juntar === undefined ? undefined : `carimbo-${id}-${juntar}`,
       )
     },
+    mudarCarimboLive: (id, mudanca) => set((state) => {
+      const antes = carimboPorId(state.map.carimbos, id)
+      if (antes === undefined || !carimboDestravado(antes)) return {}
+      const depois = comMudancaDoCarimbo(antes, mudanca)
+      // O mesmo tamanho e o mesmo giro (o ponteiro parado): nada muda, e nenhum render acorda.
+      if (depois === antes) return {}
+      return { map: comCarimbos(state.map, (state.map.carimbos ?? []).map((c) => (c.id === id ? depois : c))) }
+    }),
     apagarTodosOsCarimbos: () => {
       const { map, pisoAtivo } = get()
       const doPiso = mapaDoPiso(map, pisoAtivo).carimbos ?? []

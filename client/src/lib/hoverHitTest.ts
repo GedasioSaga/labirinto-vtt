@@ -48,6 +48,8 @@ import { canInteractInLayer, propLayer, stairLayer, wallLayer } from './layers'
 import { alcasDoDesenho, editavelPorPontos } from './pontosChave'
 import { areaSelectionBounds, type AreaSelection } from './areaSelection'
 import { canInteract, isHidden } from './itemTransform'
+import { caixaDoCarimbo, carimboPorId } from './carimbos'
+import { carimboComAlcas, naAlcaDeGirarDoCarimbo } from './alcasDoCarimbo'
 
 export interface HoverHitInput {
   map: MapData
@@ -164,6 +166,15 @@ export function resolveHoverHit(input: HoverHitInput): HoverHit {
         }
         // Alça de girar do objeto: a mesma condição do pointerdown (`beginProp`, `pixi/roomRotateGesture.ts`).
         if (isOnPropRotateHandle(prop, worldPoint, scale)) return { kind: 'rotate', corner: null, target: null }
+      }
+    }
+    // Alças do carimbo: a mesma condição e a mesma ordem do pointerdown (`pixi/carimboAlcaGesture.ts`, `beginCarimbo`).
+    if (selection.kind === 'carimbo') {
+      const carimbo = carimboPorId(map.carimbos, selection.id)
+      if (carimbo !== undefined && carimboComAlcas(map, carimbo)) {
+        const corner = findBoxCornerHandleAt(caixaDoCarimbo(carimbo), worldPoint, scale)
+        if (corner !== null) return { kind: 'resize-corner', corner, target: null }
+        if (naAlcaDeGirarDoCarimbo(carimbo, worldPoint, scale)) return { kind: 'rotate', corner: null, target: null }
       }
     }
     // Alça de ponta da PORTA: a mesma condição do pointerdown (`pixi/doorEndGesture.ts`), antes das alças da sala dona.

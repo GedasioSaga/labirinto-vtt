@@ -5,7 +5,7 @@ import { unidadeDoRelevo } from '../lib/relevo'
 import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { assinarPeriodoDaSombra, forcaDaSombraAgora } from '../lib/sombra'
 import { assinarCarimbos, carimboDoCatalogo } from '../carimbos/catalogo'
-import { ALFA_DA_SOMBRA, assarDesenho, assarImagem, QUADRO_DA_SOMBRA, type ArteEmTela, type QuadroDaArte } from '../carimbos/arte'
+import { ALFA_DA_SOMBRA, assarDesenho, assarImagem, matrizDaSombra, QUADRO_DA_SOMBRA, type ArteEmTela, type QuadroDaArte } from '../carimbos/arte'
 import {
   ALFA_DA_SOMBRA_DESENHADA,
   assinarCarimbosDesenhados,
@@ -65,8 +65,6 @@ export const TEXELS_DO_PEDACO = 512
 const PEDACO_MINIMO_EM_CELULAS = 8
 /** O objeto que a borracha vai tirar fica assim, enquanto o mestre ainda não soltou. */
 const ALFA_DE_QUEM_SAI = 0.28
-/** A imagem importada não tem oito desenhos: inclina de leve com o giro (até ±5°), sem deitar. */
-const INCLINACAO_DO_IMPORTADO = 0.09
 
 export interface ArteNoPalco {
   corpo: Texture
@@ -115,13 +113,33 @@ export interface OpcoesDosCarimbos {
   movimento?: MovimentoDasChamas
 }
 
+/**
+ * O giro de uma sombra no mundo: `rad` em volta do ponto (`px`, `py`). Só o
+ * importado tem — a imagem dele gira de verdade (`posicionar`).
+ */
+export interface GiroDaSombra {
+  rad: number
+  px: number
+  py: number
+}
+
+/** Uma sombra a pintar: a silhueta na caixa SEM giro e, no importado girado, o giro dela. */
+export interface SombraNoPedaco {
+  silhueta: CanvasImageSource
+  x: number
+  y: number
+  largura: number
+  altura: number
+  giro?: GiroDaSombra
+}
+
 /** Um pedaço da camada de sombras: a caixa no mundo e as sombras que caem nele. */
 export interface PedacoDeSombra {
   x: number
   y: number
   lado: number
   texels: number
-  sombras: Array<{ silhueta: CanvasImageSource; x: number; y: number; largura: number; altura: number }>
+  sombras: SombraNoPedaco[]
   /** A textura que este pedaço já tinha: a pintura padrão repinta a tela dela no lugar, sem alocar outra. */
   textura?: Texture
 }
@@ -186,7 +204,18 @@ function pintarPedacoPadrao(pedaco: PedacoDeSombra): Texture | null {
   if (g === null) return null
   g.clearRect(0, 0, pedaco.texels, pedaco.texels)
   const k = pedaco.texels / pedaco.lado
-  for (const s of pedaco.sombras) g.drawImage(s.silhueta, (s.x - pedaco.x) * k, (s.y - pedaco.y) * k, s.largura * k, s.altura * k)
+  for (const s of pedaco.sombras) {
+    if (s.giro === undefined) {
+      g.drawImage(s.silhueta, (s.x - pedaco.x) * k, (s.y - pedaco.y) * k, s.largura * k, s.altura * k)
+      continue
+    }
+    // A silhueta do importado girado: gira em volta do meio da sombra, como o corpo em volta do dele.
+    g.save()
+    g.translate((s.giro.px - pedaco.x) * k, (s.giro.py - pedaco.y) * k)
+    g.rotate(s.giro.rad)
+    g.drawImage(s.silhueta, (s.x - s.giro.px) * k, (s.y - s.giro.py) * k, s.largura * k, s.altura * k)
+    g.restore()
+  }
   if (pedaco.textura !== undefined && tela === anterior) {
     // A mesma tela: só sobe os pixels novos para a placa de vídeo.
     pedaco.textura.source.update()
@@ -442,12 +471,46 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     const lado = q.lado * c.tamanho
     // A escala sempre posta inteira (o `width` do Pixi guarda o sinal de antes: a forma transposta deixaria o y invertido).
     sprite.scale.set(lado / textura.orig.width, (transposta ? -lado : lado) / textura.orig.height)
-    sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? Math.sin((c.giro * Math.PI) / 180) * INCLINACAO_DO_IMPORTADO : 0
+    // O IMPORTADO gira de verdade em volta do meio (alças de 16/11/2026; antes só inclinava uns
+    // graus): ele não tem oito desenhos para escolher, e girar a imagem é o que o mestre pediu.
+    sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? (c.giro * Math.PI) / 180 : 0
   }
 
   function caixaDaSombra(c: Carimbo, arte: ArteNoPalco): { x: number; y: number; largura: number; altura: number } {
     const q = arte.quadroDaSombra ?? QUADRO_DA_SOMBRA
     return { x: c.x + q.esquerda * c.tamanho, y: c.y + q.topo * c.tamanho, largura: q.largura * c.tamanho, altura: q.altura * c.tamanho }
+  }
+
+  /**
+   * O giro da sombra do importado: a silhueta é o corpo empurrado pelo sol
+   * (`matrizDaSombra('solta')`), então gira em volta do meio dela — o corpo
+   * gira, e a sombra continua caindo para o mesmo lado. Sem giro, `undefined`.
+   */
+  function giroDaSombra(c: Carimbo): GiroDaSombra | undefined {
+    if (!ehTipoImportado(c.tipo) || c.giro === 0) return undefined
+    const empurrao = matrizDaSombra('solta')
+    return { rad: (c.giro * Math.PI) / 180, px: c.x + empurrao[4] * c.tamanho, py: c.y + empurrao[5] * c.tamanho }
+  }
+
+  /** A caixa que a sombra ocupa no mundo, já girada: é por ela que o pedaço sabe que a sombra cai nele. */
+  function cercaDaSombra(caixa: { x: number; y: number; largura: number; altura: number }, giro: GiroDaSombra | undefined): typeof caixa {
+    if (giro === undefined) return caixa
+    const cos = Math.cos(giro.rad)
+    const sin = Math.sin(giro.rad)
+    const xs: number[] = []
+    const ys: number[] = []
+    for (const [x, y] of [[caixa.x, caixa.y], [caixa.x + caixa.largura, caixa.y], [caixa.x, caixa.y + caixa.altura], [caixa.x + caixa.largura, caixa.y + caixa.altura]]) {
+      xs.push(giro.px + (x - giro.px) * cos - (y - giro.py) * sin)
+      ys.push(giro.py + (x - giro.px) * sin + (y - giro.py) * cos)
+    }
+    const minX = Math.min(...xs)
+    const minY = Math.min(...ys)
+    return { x: minX, y: minY, largura: Math.max(...xs) - minX, altura: Math.max(...ys) - minY }
+  }
+
+  function sombraNoPedaco(c: Carimbo, arte: ArteNoPalco, silhueta: CanvasImageSource): SombraNoPedaco {
+    const giro = giroDaSombra(c)
+    return giro === undefined ? { silhueta, ...caixaDaSombra(c, arte) } : { silhueta, ...caixaDaSombra(c, arte), giro }
   }
 
   function identidadeDaArte(arte: ArteNoPalco): number {
@@ -481,7 +544,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     const porPedaco = new Map<string, { ix: number; iy: number; itens: Array<{ c: Carimbo; arte: ArteNoPalco }> }>()
     for (const item of lista) {
       if (item.arte.sombra === null) continue
-      const caixa = caixaDaSombra(item.c, item.arte)
+      const caixa = cercaDaSombra(caixaDaSombra(item.c, item.arte), giroDaSombra(item.c))
       for (let ix = Math.floor(caixa.x / lado); ix <= Math.floor((caixa.x + caixa.largura) / lado); ix++) {
         for (let iy = Math.floor(caixa.y / lado); iy <= Math.floor((caixa.y + caixa.altura) / lado); iy++) {
           const chave = `${ix},${iy}`
@@ -501,7 +564,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
         y: grupo.iy * lado,
         lado,
         texels: texelsDoPedaco,
-        sombras: grupo.itens.flatMap(({ c, arte }) => (arte.sombra === null ? [] : [{ silhueta: arte.sombra, ...caixaDaSombra(c, arte) }])),
+        sombras: grupo.itens.flatMap(({ c, arte }) => (arte.sombra === null ? [] : [sombraNoPedaco(c, arte, arte.sombra)])),
         textura: existente?.sprite.texture,
       }
       const textura = pintarPedaco(pedaco)
@@ -645,9 +708,16 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
       if (texturaDaSombra !== null) {
         sombra = new Sprite(texturaDaSombra)
         const caixa = caixaDaSombra(c, arte)
-        sombra.position.set(caixa.x, caixa.y)
+        const giro = giroDaSombra(c)
         sombra.width = caixa.largura
         sombra.height = caixa.altura
+        if (giro === undefined) sombra.position.set(caixa.x, caixa.y)
+        else {
+          // A mesma volta da pintura do pedaço: em torno do meio da sombra.
+          sombra.anchor.set((giro.px - caixa.x) / caixa.largura, (giro.py - caixa.y) / caixa.altura)
+          sombra.position.set(giro.px, giro.py)
+          sombra.rotation = giro.rad
+        }
         sombra.alpha = sombras.alpha
         rascunhoSombras.addChild(sombra)
       }

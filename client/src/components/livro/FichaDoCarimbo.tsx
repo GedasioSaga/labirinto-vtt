@@ -1,9 +1,9 @@
 import { useId, useSyncExternalStore } from 'react'
 import type { Carimbo, CarimboImportado, MapData } from '../../types/map'
-import { carimboPorId, normalizarGiro, tamanhoNatural, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN } from '../../lib/carimbos'
+import { carimboPorId, normalizarGiro, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN } from '../../lib/carimbos'
 import { unidadeDoRelevo } from '../../lib/relevo'
 import { selectionSingle, type SelectionSet } from '../../lib/selectionModel'
-import { assinarCarimbos, carimboDoCatalogo, listarCarimbos } from '../../carimbos/catalogo'
+import { assinarCarimbos, carimboDoCatalogo, listarCarimbos, tamanhoNaturalDoTipo } from '../../carimbos/catalogo'
 import { useMapStore } from '../../stores/mapStore'
 import { Toggle } from '../Toggle'
 import { Essencial } from '../grimorio/Cartoes'
@@ -20,8 +20,6 @@ import './fichaDoItem.css'
  * carimbo que já existia. Tudo vai à cena aberta pela store, com Ctrl+Z.
  */
 
-/** O natural do importado (o mesmo do gesto da ferramenta, `pixi/PixiCanvas.tsx`). */
-const TAMANHO_NATURAL_DO_IMPORTADO = 14
 /** O giro anda de 45 em 45 graus: cada carimbo da biblioteca tem 8 desenhos (`varianteDoGiro`). */
 const PASSO_DO_GIRO = 45
 const PASSO_DO_TAMANHO = 5
@@ -46,10 +44,9 @@ export function nomeDoTipoDeCarimbo(tipo: string, importados: readonly CarimboIm
   return importados?.find((c) => c.id === tipo)?.nome ?? null
 }
 
-/** O tamanho natural do tipo neste mapa (100%), em px de mundo. */
+/** O tamanho natural do tipo neste mapa (100%), em px de mundo — a mesma régua do canto das alças. */
 function naturalDoTipo(tipo: string, mapa: Pick<MapData, 'width' | 'height' | 'grid'>): number {
-  const noPrototipo = carimboDoCatalogo(tipo)?.tamanho ?? TAMANHO_NATURAL_DO_IMPORTADO
-  return tamanhoNatural(unidadeDoRelevo(mapa), mapa.grid, noPrototipo, 100)
+  return tamanhoNaturalDoTipo(tipo, unidadeDoRelevo(mapa), mapa.grid)
 }
 
 /** O tamanho do carimbo em % do natural do tipo, de 5 em 5, dentro da faixa do controle. */

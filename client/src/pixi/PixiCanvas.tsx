@@ -380,6 +380,7 @@ import { createStairHandleGesture } from './stairHandleGesture'
 import { stairHandleLabel } from '../lib/stairHandles'
 import { createCercaCurvaGesture } from './cercaCurvaGesture'
 import { createDoorEndGesture } from './doorEndGesture'
+import { createCarimboAlcaGesture } from './carimboAlcaGesture'
 import { rotuloDaCurvaDaCerca } from '../lib/cercaCurva'
 import { measureDistance } from '../lib/measurement'
 import { rotuloDeQuadradosAndados, rotuloDoArrastoDaFicha } from '../lib/tokenDragDistance'
@@ -2651,6 +2652,8 @@ function PixiCanvasDoContexto({
       const cercaCurvaGesture = createCercaCurvaGesture()
       // Alças de ponta da porta selecionada: alargam ou estreitam o vão ao longo da parede.
       const doorEndGesture = createDoorEndGesture()
+      // Chips de canto do carimbo selecionado: mudam o tamanho (o giro é do `roomRotateGesture`).
+      const carimboAlcaGesture = createCarimboAlcaGesture()
 
       /**
        * Alças de edição (os quadradinhos amarelos) da seleção de UM item.
@@ -3963,6 +3966,8 @@ function PixiCanvasDoContexto({
         | 'resizing-drawing-radius'
         | 'resizing-token'
         | 'resizing-prop-corner'
+        // Chip de canto do carimbo selecionado (`carimboAlcaGesture.ts`).
+        | 'resizing-carimbo'
         // N3 "ferramenta de seleção de área".
         | 'area-marquee-drag'
         | 'dragging-area-selection'
@@ -7609,6 +7614,23 @@ function PixiCanvasDoContexto({
           }
         }
 
+        // ALÇAS DO CARIMBO (16/11/2026): o chip de canto muda o tamanho e a bolinha gira,
+        // como no objeto — antes do arrasto do corpo, que pegaria o carimbo e o moveria.
+        // Travado, ou na camada travada, não começa nada aqui (os dois `begin` conferem).
+        if (activeTool === 'select' && single?.kind === 'carimbo' && event.button === 0) {
+          if (carimboAlcaGesture.begin(single.id, worldPoint, camera.scale)) {
+            mode = 'resizing-carimbo'
+            updateCursor()
+            return
+          }
+          if (roomRotateGesture.beginCarimbo(single.id, worldPoint, camera.scale)) {
+            mode = 'rotating-room'
+            redrawEditHandles()
+            updateCursor()
+            return
+          }
+        }
+
         if (activeTool === 'select') {
           let editRegionId: string | null = null
           if (single?.kind === 'region') {
@@ -8481,6 +8503,11 @@ function PixiCanvasDoContexto({
           doorEndGesture.finish()
           mode = 'idle'
         }
+        // Chip de canto do carimbo: o arrasto inteiro vira um Ctrl+Z (`carimboAlcaGesture.finish`).
+        if (mode === 'resizing-carimbo') {
+          carimboAlcaGesture.finish()
+          mode = 'idle'
+        }
         // B3 (bug3 "mover e redimensionar") — mesmo padrão de Sala acima,
         // pros 3 resizes novos desta fase (Drawing rect/ellipse/polygon,
         // Token, Prop). Onda 3, item 18 — 'resizing-drawing-radius' (alça de
@@ -8702,6 +8729,11 @@ function PixiCanvasDoContexto({
         // Alça de ponta da porta solta fora do canvas: fecha igual ao pointerup.
         if (mode === 'resizing-door') {
           doorEndGesture.finish()
+          mode = 'idle'
+        }
+        // Chip de canto do carimbo solto fora do canvas: fecha igual ao pointerup.
+        if (mode === 'resizing-carimbo') {
+          carimboAlcaGesture.finish()
           mode = 'idle'
         }
         // B3/N3 — mesmo padrão de commit acima, ver comentário no pointerup.
@@ -9247,6 +9279,14 @@ function PixiCanvasDoContexto({
         if (mode === 'resizing-prop-corner' && resizingPropId !== null && resizingPropCorner !== null) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           useMapStore.getState().resizePropCornerLive(resizingPropId, resizingPropCorner, worldPoint.x, worldPoint.y, { shift: event.shiftKey, alt: event.altKey })
+          return
+        }
+
+        // Chip de canto do carimbo ao vivo, com o "%" da ficha junto ao ponteiro (some no pointerup, com os outros rótulos).
+        if (mode === 'resizing-carimbo') {
+          const worldPoint = toWorldPoint(event.global.x, event.global.y)
+          const feedback = carimboAlcaGesture.move(worldPoint)
+          if (feedback) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, feedback.label, computeViewport())
           return
         }
 
@@ -9817,6 +9857,15 @@ function PixiCanvasDoContexto({
         if (mode === 'resizing-stair' && event.key === 'Escape') {
           event.preventDefault()
           stairHandleGesture.cancel()
+          dimensionLabelRenderer.hide()
+          mode = 'idle'
+          updateCursor()
+          return
+        }
+        // Chip de canto do carimbo: Esc devolve o tamanho do começo — e só isso, como na escada.
+        if (mode === 'resizing-carimbo' && event.key === 'Escape') {
+          event.preventDefault()
+          carimboAlcaGesture.cancel()
           dimensionLabelRenderer.hide()
           mode = 'idle'
           updateCursor()

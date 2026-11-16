@@ -1,6 +1,6 @@
 import { CARIMBOS_EMBUTIDOS, type DefinicaoDeCarimbo, type SombraDoCarimbo } from './embutidos'
 import { CARIMBOS_NOVOS } from './novos'
-import { TRACO_PADRAO, type TracoDoCarimbo } from '../lib/carimbos'
+import { TRACO_PADRAO, tamanhoNatural, type TracoDoCarimbo } from '../lib/carimbos'
 
 /**
  * CATÁLOGO DE CARIMBOS: a biblioteca embutida (`embutidos.ts`, e os novos de
@@ -52,6 +52,18 @@ export function assinarCarimbos(ouvinte: () => void): () => void {
 /** O carimbo do id, ou `null` (importado, ou de um pacote que este aparelho ainda não tem). */
 export function carimboDoCatalogo(id: string): CarimboDoCatalogo | null {
   return lista.find((c) => c.id === id) ?? null
+}
+
+/** O tamanho natural do importado, em px do protótipo: o de um pinheiro. */
+export const TAMANHO_NATURAL_DO_IMPORTADO = 14
+
+/**
+ * O lado do tipo a 100% num mapa, em px de mundo. `unidade`: a `unidadeDoRelevo`
+ * do mapa (quem chama já a tem; o catálogo não depende do relevo). A ficha do
+ * carimbo e o canto das alças medem o "%" pela mesma régua.
+ */
+export function tamanhoNaturalDoTipo(tipo: string, unidade: number, grid: number): number {
+  return tamanhoNatural(unidade, grid, carimboDoCatalogo(tipo)?.tamanho ?? TAMANHO_NATURAL_DO_IMPORTADO, 100)
 }
 
 /** Como o carimbo anda no Traço: o da biblioteca que tem jeito próprio, ou o padrão (importado e do pacote também). */
