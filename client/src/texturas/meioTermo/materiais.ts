@@ -142,7 +142,19 @@ export interface LugarDeMaterial {
   readonly nome: string
   readonly opcoes: readonly OpcaoDeMaterial[]
   readonly padrao: OpcaoDeMaterial
+  /**
+   * As opções em que uma cor LIVRE pode cair (`materialMaisPerto`): as que o lugar já tinha antes de 16/11/2026. As
+   * outras opções da lista só valem pelo tom oficial exato, que é o que o painel grava ao escolhê-las.
+   */
+  readonly opcoesDaCorLivre: readonly OpcaoDeMaterial[]
 }
+
+/**
+ * Os materiais que entraram em 16/11/2026 em listas que já existiam: o inox nos metais e o mármore nas pedras. A cor
+ * livre de mapa antigo (a "Cor da linha" de 29/09 a 20/10) não cai neles, senão o mapa salvo mudaria de cara (o
+ * puxador #c0c0c0 de latão viraria inox, o poço #e0e0e0 de arenito viraria mármore: auditoria de 16/11/2026).
+ */
+const SO_PELO_TOM_OFICIAL: ReadonlySet<OpcaoDeMaterial> = new Set<OpcaoDeMaterial>(['inox', 'marmore'])
 
 const MADEIRAS: readonly OpcaoDeMaterial[] = ['carvalho', 'nogueira', 'pinho', 'cerejeira', 'velha']
 // O inox (16/11/2026) e o mármore entram no fim: o mapa que já escolheu ferro, latão, granito, arenito ou ardósia
@@ -151,8 +163,14 @@ const METAIS: readonly OpcaoDeMaterial[] = ['ferro', 'latao', 'inox']
 const TECIDOS: readonly OpcaoDeMaterial[] = ['linho', 'vinho', 'azul', 'musgo', 'ocre']
 const PEDRAS: readonly OpcaoDeMaterial[] = ['granito', 'arenito', 'ardosia', 'marmore']
 
-function lugar(id: string, nome: string, opcoes: readonly OpcaoDeMaterial[], padrao: OpcaoDeMaterial): LugarDeMaterial {
-  return { id, nome, opcoes, padrao }
+function lugar(
+  id: string,
+  nome: string,
+  opcoes: readonly OpcaoDeMaterial[],
+  padrao: OpcaoDeMaterial,
+  opcoesDaCorLivre: readonly OpcaoDeMaterial[] = opcoes.filter((opcao) => !SO_PELO_TOM_OFICIAL.has(opcao)),
+): LugarDeMaterial {
+  return { id, nome, opcoes, padrao, opcoesDaCorLivre }
 }
 
 /** Os lugares de material de cada móvel (a cama tem as 3 cores de hoje: madeira, cobertor e travesseiro). */
@@ -163,8 +181,9 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   catre: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('cobertor', 'Cobertor', TECIDOS, 'vinho'), lugar('travesseiro', 'Travesseiro', TECIDOS, 'linho')],
   mesa: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
   // O assento ESTOFADO (16/11/2026): os tecidos entram depois da palha, que segue o padrão; a cadeira sem cor gravada
-  // no assento (todas as de antes: só a palha dava para gravar) abre de palha como sempre.
-  cadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('assento', 'Assento', ['mesma', 'palha', ...TECIDOS], 'palha')],
+  // no assento (todas as de antes: só a palha dava para gravar) abre de palha como sempre. A cor livre de antes também
+  // fica na palha (o preto não vira lã vinho): os tecidos só valem pelo tom oficial exato.
+  cadeira: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('assento', 'Assento', ['mesma', 'palha', ...TECIDOS], 'palha', ['mesma', 'palha'])],
   cerca: [lugar('madeira', 'Mourões', MADEIRAS, 'carvalho'), lugar('ligacao', 'Entre os mourões', ['varas', 'corda', 'arame'], 'varas')],
   armario: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho'), lugar('puxadores', 'Puxadores', METAIS, 'ferro')],
   aparador: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('puxadores', 'Puxadores', METAIS, 'latao')],
@@ -786,15 +805,19 @@ function oklabDoMaterial(id: IdDoMaterial): Oklab {
  * O material do lugar mais perto da cor, em OKLab (distância euclidiana),
  * comparando com o tom OFICIAL de cada opção. Cor ausente ou que não é
  * `#rrggbb` vira o padrão do lugar. As opções sem cor própria (`mesma`,
- * `varas`) não entram na conta. Empate: vale a primeira da lista.
+ * `varas`) não entram na conta. Empate: vale a primeira da lista. A opção
+ * fora de `opcoesDaCorLivre` (as de 16/11/2026) só vale com a cor IGUAL ao
+ * tom oficial dela: a cor livre de mapa antigo segue no material de antes.
  */
 export function materialMaisPerto(cor: string | undefined, lugarDoMaterial: LugarDeMaterial): OpcaoDeMaterial {
   if (cor === undefined || !COR_HEX.test(cor)) return lugarDoMaterial.padrao
-  const [L, a, b] = oklabDoHex(cor.toLowerCase())
+  const hex = cor.toLowerCase()
+  const [L, a, b] = oklabDoHex(hex)
   let melhor: OpcaoDeMaterial = lugarDoMaterial.padrao
   let menorDistancia = Infinity
   for (const opcao of lugarDoMaterial.opcoes) {
     if (!ehMaterial(opcao)) continue
+    if (!lugarDoMaterial.opcoesDaCorLivre.includes(opcao) && MATERIAIS[opcao].hex !== hex) continue
     const [Lm, am, bm] = oklabDoMaterial(opcao)
     const distancia = (L - Lm) ** 2 + (a - am) ** 2 + (b - bm) ** 2
     if (distancia < menorDistancia) {
