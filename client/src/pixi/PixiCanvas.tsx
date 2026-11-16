@@ -446,6 +446,8 @@ function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean, contin
     case 'riscou':
       return comRelevo ? null : AVISO_PENHASCO_SEM_RELEVO
     case 'apagou':
+    // O aviso da camada travada já saiu (com "Destravar"); outro por cima seria repetido.
+    case 'camada-travada':
       return null
   }
 }

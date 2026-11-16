@@ -61,6 +61,8 @@ export type ResultadoDoRisco =
   | 'apagou'
   /** A borracha não passou por penhasco nenhum. */
   | 'nada-a-apagar'
+  /** Fase 4: a camada Terreno está travada; nada mudou e o aviso das Camadas já saiu. */
+  | 'camada-travada'
 
 // ---------------------------------------------------------------------------
 // Leitura do disco

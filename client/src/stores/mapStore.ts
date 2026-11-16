@@ -2211,6 +2211,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     const travada = camadaTravada(get().map, 'terreno')
     return barradoPelaCamada(travada === null ? [] : [travada])
   }
+  /** Fase 4: a água (e a lava) mora em Chão, sem camada por item: o cadeado de Chão a segura. */
+  const aguaBarrada = (): boolean => {
+    const travada = camadaTravada(get().map, CAMADA_DA_AGUA)
+    return barradoPelaCamada(travada === null ? [] : [travada])
+  }
 
   /** Gesto do pincel/balde numa camada: recusa vira aviso; o que não mudou o
    *  mapa não gasta Ctrl+Z (arrastar a borracha por onde não havia chão). */
@@ -3413,6 +3418,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((map) => mapFactory.setRelevo(map, ligado))
     },
     riscarPenhasco: (traco) => {
+      // Fase 4: o cadeado de Terreno segura o penhasco, como já segurava a textura e o barranco
+      // (riscar e apagar). Nada riscado, nada no Ctrl+Z.
+      if (terrenoBarrado()) return 'camada-travada'
       const { map, pisoAtivo } = get()
       // PISOS: o risco e a borracha mexem só nos riscos do piso em edição, e a
       // costa é a da terra que o relevo DESTE piso desenha (camadas à vista).
@@ -3487,12 +3495,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       withHistory((m) => comTexturas(m, comListaDoPiso(m.texturas ?? [], [], pisoAtivo)))
     },
     porAgua: (agua) => {
+      if (aguaBarrada()) return
       const { pisoAtivo } = get()
       withHistory((m) => comAguas(m, [...(m.aguas ?? []), comPiso(agua, pisoAtivo)]))
     },
     mudarAgua: (id, mudanca, juntar) => {
       const antes = get().map.aguas ?? []
       if (!antes.some((a) => a.id === id)) return
+      if (aguaBarrada()) return
       // LAVA (decisão do mestre de 15/11/2026): a água que vira lava passa a barrar a passagem, no mesmo passo do
       // desfazer (um Ctrl+Z volta a água e a chave juntas). Ele desliga no painel; a lava que volta a ser água fica como está.
       const viraLava = (a: Agua): boolean => mudanca.liquido === 'lava' && a.liquido !== 'lava'
@@ -3626,6 +3636,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     apagarTodosOsPenhascos: () => {
       const { map, pisoAtivo } = get()
       if ((mapaDoPiso(map, pisoAtivo).penhascos ?? []).length === 0) return
+      if (terrenoBarrado()) return
       withHistory((m) => comPenhascos(m, comListaDoPiso(m.penhascos ?? [], [], pisoAtivo)))
     },
     mudarBarranco: (mudar) => {

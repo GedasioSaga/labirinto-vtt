@@ -3,6 +3,9 @@ import type { Agua, RegionPoint } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { mapaDoPiso } from '../lib/pisos'
+import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
+import { camadaTravada } from '../lib/camadas/trava'
+import { CAMADA_DA_AGUA } from '../lib/terrenoNaSelecao'
 import { ehCorProntaDaAgua, larguraDoRio, pontosMinimos, PONTOS_DO_TRACO_MAX, PONTOS_MAX, TRACOS_DE_AREIA_MAX } from '../lib/agua/dados'
 import { aguaNoPonto, curvaDaAgua, curvaGuardada, curvaPelosPontos, decimarTraco, pontoNaAgua, AMOSTRA_DA_CURVA } from '../lib/agua/forma'
 import { aguaComPincel, cantosDoPontoAPonto, naBordaDoMapa, retanguloDaAgua, type RetanguloDoMapa } from '../lib/agua/pincel'
@@ -531,6 +534,12 @@ export function criarGestoDaAgua(dep: { rascunho: Graphics; avisar: (texto: stri
 
   return {
     comecar(p, alt) {
+      // Fase 4: Chão travado segura a água desde o aperto (nada de prévia que volta ao soltar).
+      const travada = camadaTravada(useMapStore.getState().map, CAMADA_DA_AGUA)
+      if (travada !== null) {
+        avisarCamadaTravada(travada)
+        return
+      }
       const pincel = cantos.length === 0 ? pincelNaMao() : null
       if (pincel !== null) {
         // Alt troca o modo do painel só neste traço, lido no começo.
