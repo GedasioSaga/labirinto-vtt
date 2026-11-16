@@ -5,6 +5,7 @@ import { isPlayerSafePinImage } from '../lib/pins'
 import { isEditableTarget } from '../lib/keymap'
 import { formatNoteTime } from './PlayerNotebook'
 import type { ClueShow, CluePeers } from './playerConnection'
+import { lerDeNovo } from './cenarioNaTela'
 
 /**
  * MINHAS PISTAS no Caderno: uma linha por pista, a mais nova em cima, pelo
@@ -26,6 +27,12 @@ export function PlayerClueList({ clues, onOpen }: { clues: readonly ClueEntry[];
               {clue.from !== undefined && ` · mostrada por ${clue.from}`}
             </span>
           </button>
+          {/* "!" CENÁRIO (P4): o texto de um lugar lido abre a revelação outra vez. */}
+          {clue.tipo === 'cenario' && clue.text !== '' && (
+            <button type="button" className="pp-clues__reler" onClick={() => lerDeNovo(clue.title, clue.text)}>
+              Ler de novo
+            </button>
+          )}
         </li>
       ))}
     </ol>

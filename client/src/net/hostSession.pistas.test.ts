@@ -113,7 +113,8 @@ describe('Minhas pistas — ler um cartão guarda a pista no host', () => {
     const r = s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'bilhete' }, world)
     // `place`: o LUGAR dela (o contador do `snapshot.place`), nunca a cena — é por ele que a aba Lugares agrupa as pistas.
     expect(msgsPara(r, 'c-gabi')).toEqual([
-      { type: 'clue.added', clue: { id: expect.any(String), title: 'Bilhete', text: BILHETE, image: FOTO, at: AGORA, place: 'l1' } },
+      // "!" CENÁRIO (P4): o texto de um "!" lido entra no caderno como lugar ("Ler de novo").
+      { type: 'clue.added', clue: { id: expect.any(String), title: 'Bilhete', text: BILHETE, image: FOTO, at: AGORA, place: 'l1', tipo: 'cenario' } },
     ])
     expect(msgsPara(r, 'c-ana')).toEqual([])
     expect(msgsPara(r, 'c-bruno')).toEqual([])
@@ -168,7 +169,7 @@ describe('Minhas pistas — ler um cartão guarda a pista no host', () => {
   it('foto em caminho de disco não viaja; pino de viagem vira pista sem destino', () => {
     const { s, world } = mesa()
     const disco = pistaLida(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'disco' }, world), 'c-gabi')
-    expect(disco).toEqual({ id: expect.any(String), title: 'Mapa rasgado', text: 'Mapa rasgado', image: null, at: AGORA, place: 'l1' })
+    expect(disco).toEqual({ id: expect.any(String), title: 'Mapa rasgado', text: 'Mapa rasgado', image: null, at: AGORA, place: 'l1', tipo: 'cenario' })
     const r = s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'porta' }, world)
     expect(pistaLida(r, 'c-gabi').title).toBe('Porta do porão')
     expect(JSON.stringify(r.outbound)).not.toContain('s-porao')

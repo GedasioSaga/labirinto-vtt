@@ -113,3 +113,5 @@
 @media (prefers-reduced-motion: reduce) {
   .pr-secao.e-marcada { transition: none; }
 }
+/* "Ler agora" (P4) ao lado de "Mostrar no mapa", sem quebrar a linha do item. */
+.pr-na-mesa__acoes { display: flex; flex: none; gap: var(--lb-space-2); }

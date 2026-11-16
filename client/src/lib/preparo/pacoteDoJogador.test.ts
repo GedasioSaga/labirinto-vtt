@@ -12,6 +12,7 @@ import { filterMapForPlayer } from '../fogFilter'
 import { TEXTO_INDISPONIVEL } from '../fonteNoPreludio'
 import { createEmptyMap } from '../mapFactory'
 import { pinosEmDia } from './pinoLigado'
+import type { LeiturasDoJogador } from '../../types/cenarioEFalas'
 
 const SEGREDO = 'SEGREDO-XYZ'
 const MAR = 'camp-mar'
@@ -513,5 +514,43 @@ describe('pino ligado a um verbete: o segredo não chega ao recorte do jogador (
     const semLigacao: MapData = { ...mapa, pins: [{ id: 'velho', x: 0, y: 0, kind: 'interrogacao', description: 'Texto de sempre', image: null }] }
     expect(pinosEmDia(semLigacao, verbetes)).toBe(semLigacao)
     expect(pinosEmDia(emDia, verbetes)).toBe(emDia)
+  })
+})
+
+/** O recorte de Ana com o que a mesa já leu para ela (o último parâmetro de `filterMapForPlayer`). */
+function recorteDaAna(mapa: MapData, leituras?: LeiturasDoJogador) {
+  return filterMapForPlayer(mapa, ANA, { [ANA]: ['ficha-ana'] }, 300, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, leituras)
+}
+
+/**
+ * O teste de vazamento estendido ao "!" CENÁRIO (P4): o cenário que ainda não
+ * foi lido para o jogador não chega ao recorte dele. "Só quando eu mandar" vai
+ * sem texto até o "Ler agora"; "Ao chegar" vai sem texto com a ficha longe.
+ */
+describe('"!" cenário: o texto não lido não chega ao recorte do jogador (P4)', () => {
+  const cenario = (id: string, x: number, extra: Partial<Pin>): Pin => ({ id, x, y: 200, kind: 'exclamacao', description: `${SEGREDO} texto de ${id}`, image: null, nome: `${SEGREDO} nome`, ...extra })
+  const mapa: MapData = {
+    ...createEmptyMap('m', 'M', 1000, 1000, 40),
+    tokens: [{ id: 'ficha-ana', characterId: null, name: 'Ana', x: 200, y: 200, size: 1, image: null }],
+    pins: [cenario('mandar', 240, { quando: 'mandar' }), cenario('chegar-longe', 400, { quando: 'chegar', chegarCasas: 2 })],
+  }
+
+  it('sem "Ler agora", SEGREDO-XYZ não aparece; os dois "!" aparecem sem texto', () => {
+    const recorte = recorteDaAna(mapa)
+    expect(recorte.map.pins.map((pino) => pino.id).sort()).toEqual(['chegar-longe', 'mandar'])
+    expect(JSON.stringify(recorte)).not.toContain(SEGREDO)
+    for (const pino of recorte.map.pins) expect('quando' in pino || 'chegarCasas' in pino).toBe(false)
+  })
+
+  it('lido para ela, o texto chega; "Ao chegar" perto abre sozinho uma vez, e o "!" antigo fica igual', () => {
+    const lido = recorteDaAna(mapa, { cenarios: new Set(['mandar', 'chegar-longe']) })
+    expect(lido.map.pins.find((pino) => pino.id === 'mandar')?.description).toContain('texto de mandar')
+    expect(lido.map.pins.find((pino) => pino.id === 'chegar-longe')?.abreAoChegar).toBeUndefined()
+    const perto: MapData = { ...mapa, pins: [cenario('chegar-perto', 260, { quando: 'chegar', chegarCasas: 2 }), cenario('antigo', 300, {})] }
+    const recorte = recorteDaAna(perto)
+    expect(recorte.map.pins.find((pino) => pino.id === 'chegar-perto')?.abreAoChegar).toBe(true)
+    const antigo = recorte.map.pins.find((pino) => pino.id === 'antigo')
+    expect(antigo?.description).toContain('texto de antigo')
+    expect(antigo?.abreAoChegar).toBeUndefined()
   })
 })

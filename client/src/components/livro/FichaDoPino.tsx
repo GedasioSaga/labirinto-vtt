@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import type { PinItem, PinKind, PinLock } from '../../types/map'
+import type { Pin, PinItem, PinKind, PinLock } from '../../types/map'
 import { movimentoInfo, type CenarioDoPino } from '../../cenario/catalogo'
 import { CenarioSection } from '../../cenario/CenarioSection'
 import { useEstilosDeCenario, type EstiloDeCenario } from '../../cenario/estilosDeCenario'
@@ -40,6 +40,7 @@ import { CorDoPino, TamanhoDoPino } from './CorETamanhoDoPino'
 import { FichaLembrada, type FichaLembradaProps } from './FichaLembrada'
 import { IconeDoLivro, type NomeDoIcone } from './icones'
 import { PinoLigadoAoPreludio } from './PinoLigadoAoPreludio'
+import { CenarioDoPinoNaFicha } from './CenarioDoPinoNaFicha'
 import './fichaDoPino.css'
 
 /*
@@ -270,6 +271,14 @@ function ConteudoDoRecurso({ id, props }: { id: Recurso; props: FichaDoPinoProps
  */
 const TIPO_SO_DE_ICONE: ReadonlySet<PinKind> = new Set<PinKind>(['exclamacao', 'interrogacao', 'minigame'])
 
+/** Os tipos que só se leem: o pino ligado ao Prelúdio fica entre eles. */
+const TIPOS_DE_TEXTO: ReadonlySet<PinKind> = new Set<PinKind>(['exclamacao', 'interrogacao'])
+
+/** O pino tem texto vindo do Prelúdio (P3/P5). */
+function pinoLigadoAoPreludio(pin: Pin | undefined): boolean {
+  return pin !== undefined && pin.fonte !== undefined
+}
+
 const OPCOES_DO_TIPO: readonly OpcaoDoSeg<PinKind>[] = PIN_KIND_DO_NOVO_PINO.map((kind) => {
   const soIcone = TIPO_SO_DE_ICONE.has(kind)
   return {
@@ -312,21 +321,27 @@ function EssencialDoPino({
   onMarcoChange,
   lerDePerto,
   onLerDePertoChange,
+  showNow = null,
 }: FichaDoPinoProps) {
   const ligado = useMapStore((estado) => estado.map.pins.find((pino) => pino.id === pinId)?.fonte !== undefined)
+  const ligadoAoPreludio = useMapStore((estado) => pinoLigadoAoPreludio(estado.map.pins.find((pino) => pino.id === pinId)))
   // As cenas onde mora um par que perde a volta se este pino sumir: o Apagar agora mora na cabeça.
   const cenasDosPares = (travel?.exits ?? []).flatMap((exit) => (exit.travel.status === 'ligado' ? [exit.travel.sceneName] : []))
+  // PINO LIGADO AO PRELÚDIO (P4/P5): o texto é do Prelúdio, então o tipo fica entre "!" e "?" até desligar.
+  const opcoesDoTipo = ligadoAoPreludio ? OPCOES_DO_TIPO.filter((opcao) => TIPOS_DE_TEXTO.has(opcao.valor)) : OPCOES_DO_TIPO
   return (
     <Essencial>
       <CampoSeg
         rotulo="Tipo"
         nomeAcessivel="Tipo do pino"
-        opcoes={OPCOES_DO_TIPO}
+        opcoes={opcoesDoTipo}
         valor={kind}
         onChange={(novo) => {
-          if (novo !== kind) onKindChange(novo)
+          if (novo === kind || (ligadoAoPreludio && !TIPOS_DE_TEXTO.has(novo))) return
+          onKindChange(novo)
         }}
       />
+      {ligadoAoPreludio && <Nota>Ligado ao Prelúdio: o tipo fica entre ! e ?. Para virar viagem ou alavanca, use Desligar.</Nota>}
       {onNomeChange !== undefined && (
         <CampoTexto id="lb-pin-nome" rotulo="Nome do local" valor={nome} maxLength={PIN_NOME_MAX_LENGTH} onChange={onNomeChange} />
       )}
@@ -345,6 +360,7 @@ function EssencialDoPino({
           multilinha
         />
       )}
+      {kind === 'exclamacao' && <CenarioDoPinoNaFicha pinId={pinId} candidatos={showNow === null ? null : showNow.candidates} />}
       {travel !== null && <PinTravelControls {...semPinId(travel)} parte="essencial" />}
       {kind === 'alavanca' && lever !== null && <PinLeverControls {...lever} />}
       {/* O rascunho e a prévia de música não passam de um desafio a outro. */}

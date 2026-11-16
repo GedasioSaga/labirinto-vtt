@@ -104,3 +104,25 @@
 .lb-pino-ligado__caminho { font-weight: 600; color: var(--lb-color-parchment); overflow-wrap: anywhere; }
 .lb-pino-ligado__texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12em; overflow: auto; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); }
 .lb-pino-ligado__ajuda { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+
+/* "!" CENÁRIO (P4): quando abre e o "Ler agora", com o estado de cada jogador. */
+.lb-cenario-ficha { display: flex; flex-direction: column; gap: 8px; }
+.lb-cenario-ficha__ajuda { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.lb-cenario-ficha__ler { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lb-gr-filete-latao); }
+.lb-cenario-ficha__titulo { margin: 0; font-size: var(--lb-font-size-sm); font-weight: 600; color: var(--lb-color-parchment); }
+.lb-cenario-ficha__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lb-cenario-ficha__chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border: 1px solid var(--lb-gr-filete-latao); border-radius: 999px;
+  background: transparent; color: var(--lb-color-parchment-dim); font: inherit; font-size: var(--lb-font-size-sm); cursor: pointer;
+  transition: transform 160ms ease-out;
+}
+.lb-cenario-ficha__chip:active { transform: scale(0.97); }
+.lb-cenario-ficha__chip[aria-pressed='true'] { border-color: var(--lb-color-brass-bright); color: var(--lb-color-parchment); background: rgb(226 184 103 / 0.14); }
+.lb-cenario-ficha__chip:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 2px; }
+.lb-cenario-ficha__ponto { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.lb-cenario-ficha__quem { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--lb-font-size-sm); }
+.lb-cenario-ficha__quem li { display: flex; align-items: center; gap: 6px; }
+.lb-cenario-ficha__quem em { margin-left: auto; font-style: normal; color: var(--lb-color-parchment-faint); }
+.lb-cenario-ficha__quem em[data-estado='lendo'] { color: var(--lb-color-brass-bright); }
+.lb-cenario-ficha__quem em[data-estado='leu'] { color: rgb(170 214 170); }

@@ -1,4 +1,7 @@
 import { coresDosPinos } from '../lib/marcadorDeContinente'
+import { criarCenariosNaSessao } from './cenariosNaSessao'
+import type { CenarioLidoMessage } from './protocol'
+import type { LeiturasDosCenarios } from '../types/cenarioEFalas'
 import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
 import { centroDaCasa, type Casa } from '../lib/batalha/blocos'
 import { caminhosParaJogador, type CaminhosNoMestre } from '../lib/batalha/caminhoAndado'
@@ -81,7 +84,7 @@ import { distanceToWall, doorOpensFrom, tokenInDoorway, tokenReachesDoor } from 
 import { fichaDoLadoAlcanca, ladoDaPorta, tokenAlcancaPino, type LadoDaPorta } from '../lib/ferrolho'
 import { keyForDoor, keyForPin } from '../lib/doorKey'
 import { DESTINATION_MIN_INTERVAL_MS, SIGNAL_MIN_INTERVAL_MS, SIGNAL_NEUTRAL_COLOR, signalColor, type DestinationMark } from '../lib/signals'
-import { copiarMinigame, passageOf, pinSummary } from '../lib/pins'
+import { cleanPinName, copiarMinigame, passageOf, pinSummary } from '../lib/pins'
 import { pinoDeMinigameDoMapa, pinoDoConvite, pinoDoConviteEmQualquerCena } from '../lib/desafios'
 import { MINIGAME_PADRAO } from '../minigames/danca/tipos'
 import type { MinigameTiro } from '../minigames/tiro/tipos'
@@ -2553,6 +2556,18 @@ export interface HostSession {
    */
   pinClues(): Record<string, PinClueState>
   /**
+   * "LER AGORA" do "!" CENÁRIO (P4): a revelação datilografada do pino `pinId`
+   * abre na tela de quem joga, está conectado e está na cena DO PINO (pino de
+   * outra cena não sai, nem por id). `playerIds` `null` = todos esses. O texto
+   * sai da lista do que vai (`pinCardForPlayer`); cada um fica "lendo", o
+   * pino conta como recebido no painel Pistas e o texto entra no caderno dele
+   * (Lugares). Pino que não é "!", oculto ou escondido não sai. Não envia o
+   * snapshot: o integrador faz o broadcast. `para` = quem recebeu.
+   */
+  lerCenario(pinId: string, playerIds: readonly string[] | null, source: HostMapSource): { result: HostResult; para: string[] }
+  /** Por pino, por jogador: lendo ou leu (com a hora). Para a ficha do "!" e o "Ler junto". */
+  leiturasDosCenarios(): LeiturasDosCenarios
+  /**
    * "Revelar para…" da ficha secreta, da escada secreta ou da zona oculta
    * `itemId`: só estes jogadores a recebem (`lib/fogFilter.ts`; a ficha ainda
    * exige visão). `null` ou lista vazia = segredo de todos de novo. Id que não é
@@ -3785,6 +3800,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const pinReceived = new Map<string, Set<string>>()
   // Por pinId: quem abriu o cartão. Subconjunto de `pinReceived`.
   const pinRead = new Map<string, Set<string>>()
+  // "!" CENÁRIO (P4): por pino, por jogador, lendo ou leu. Só nesta sessão; o kick tira o jogador.
+  const cenarios = criarCenariosNaSessao()
   // Por id de teste secreto, na ordem em que o mestre pediu (a do Map). Até
   // `MAX_SECRET_CHECKS`: sai primeiro o encerrado ou já respondido por todos,
   // e só sem nenhum desses o mais antigo (encerrado, com aviso). O kick tira o jogador.
@@ -4556,10 +4573,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * atualiza o texto, mantém o id e sobe para o fim; passou do teto, sai a
    * mais antiga. `from`: o colega que mostrou.
    */
-  const rememberClue = (playerId: string, source: string, content: PlayerClueContent, from?: string, peca: PecaDeColecao | null = null): ClueEntry => {
+  const rememberClue = (
+    playerId: string,
+    source: string,
+    content: PlayerClueContent,
+    from?: string,
+    peca: PecaDeColecao | null = null,
+    tipo?: ClueEntry['tipo'],
+  ): ClueEntry => {
     const book = cluebooks.get(playerId) ?? []
     const previous = book.find((item) => item.source === source)
     const base: ClueEntry = { id: previous?.entry.id ?? randomId(), title: content.title, text: content.text, image: content.image, at: now() }
+    // "!" CENÁRIO (P4): o caderno oferece "Ler de novo" no texto de um lugar.
+    if (tipo !== undefined) base.tipo = tipo
     // LUGARES: a memória usada por último é a da cena onde ele está agora (`memoryFor` a põe no fim).
     const place = [...(memories.get(playerId)?.values() ?? [])].at(-1)?.place
     if (place !== undefined) base.place = place
@@ -4850,6 +4876,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         companionMarks(),
         barras,
         formas,
+        cenarios.doJogador(playerId),
       )
     let cut = recortar()
     // SALA SECRETA QUE ABRE (N3, passo 4): o lugar dela nasce PRETO, não lembrado.
@@ -6193,6 +6220,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         if (who.size === 0) sets.delete(pinId)
       }
     }
+    cenarios.esquecer(playerId)
     for (const [itemId, chosen] of secretReveals) {
       chosen.delete(playerId)
       if (chosen.size === 0) secretReveals.delete(itemId)
@@ -8584,6 +8612,26 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * "!" CENÁRIO (P4): o jogador fechou a revelação. Só conta "!" que a mesa
+   * leu para ele ou que saiu COM o texto no último recorte da cena onde ele
+   * está; id inventado morre em silêncio. Nada volta ao jogador.
+   */
+  function handleCenarioLido(clientId: string, msg: CenarioLidoMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (!cenarios.tem(msg.pinId, playerId)) {
+      const scene = sceneFor(playerId, world)
+      const seen = seenPins.get(playerId)
+      const pin = scene === null || seen === undefined || seen.mapId !== scene.map.id ? undefined : seen.pins.find((p) => p.id === msg.pinId)
+      if (pin === undefined || pin.kind !== 'exclamacao' || pin.description.trim() === '') return { outbound: [] }
+    }
+    // Lido, o "Ao chegar" para de abrir sozinho e o "só quando eu mandar" segue com o texto: o recorte muda.
+    if (!cenarios.tem(msg.pinId, playerId)) viewEpoch += 1
+    cenarios.leu(msg.pinId, playerId, now())
+    return { outbound: [] }
+  }
+
+  /**
    * O jogador descartou um `patch` cuja `base` não era a tela dele (mensagem
    * perdida na fila do transporte) e pede a inteira. Mais de um pedido por
    * `VIEW_RESYNC_MIN_INTERVAL_MS` morre em silêncio: a tela inteira é o
@@ -9582,7 +9630,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // COLEÇÃO DE PISTAS: a peça sai do pino do MESTRE (o recorte não a leva),
     // e só depois de o pino ter passado pelas mesmas barreiras da pista.
     const peca = pecaDoPino(masterPin)
-    const clue = rememberClue(playerId, `pino|${scene.map.id}|${pin.id}`, content, undefined, peca)
+    const clue = rememberClue(playerId, `pino|${scene.map.id}|${pin.id}`, content, undefined, peca, pin.kind === 'exclamacao' ? 'cenario' : undefined)
     const colecoes = rememberPiece(playerId, peca, clue.id)
     const outbound: Outbound[] = [{ clientId, msg: { type: 'clue.added', clue } }]
     if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
@@ -10596,6 +10644,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleSeatClaim(clientId, msg, world)
       case 'pin.read':
         return handlePinRead(clientId, msg)
+      case 'cenario.lido':
+        return handleCenarioLido(clientId, msg, world)
       case 'secret.check.answer':
         return handleSecretCheckAnswer(clientId, msg)
       case 'view.switch':
@@ -11871,6 +11921,37 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         all[pinId] = { received: inRoomOrder(received), read: inRoomOrder(pinRead.get(pinId) ?? new Set()) }
       }
       return all
+    },
+
+    lerCenario(pinId, playerIds, source) {
+      const world = toWorld(source)
+      const outbound: Outbound[] = []
+      const para: string[] = []
+      for (const record of players.values()) {
+        const { playerId, clientId } = record
+        if (clientId === null || statusOf(playerId) !== 'playing' || (playerIds !== null && !playerIds.includes(playerId))) continue
+        // A cena DELE: o pino tem de morar onde ele está (o id de outra cena não vira revelação).
+        const map = sceneFor(playerId, world)?.map
+        const pin = map?.pins.find((p) => p.id === pinId)
+        if (map === undefined || pin === undefined || pin.kind !== 'exclamacao' || pin.secret === true || pin.hidden === true) continue
+        const card = pinCardForPlayer(pin)
+        if (card === null) continue
+        const nome = cleanPinName(pin.nome)
+        outbound.push({ clientId, msg: { type: 'cenario.ler', pinId, nome, texto: card.description } })
+        cenarios.lendo(pinId, playerId, now())
+        addToSet(pinReceived, pinId, playerId)
+        // LUGARES: o texto lido entra no caderno, pela mesma chave do toque (ler de novo não duplica).
+        const content = pinClueForPlayer(pin)
+        if (content !== null) outbound.push({ clientId, msg: { type: 'clue.added', clue: rememberClue(playerId, `pino|${map.id}|${pin.id}`, content, undefined, null, 'cenario') } })
+        para.push(playerId)
+      }
+      // O "!" "só quando eu mandar" passa a ir com o texto a quem ouviu: todos refazem no próximo broadcast.
+      if (para.length > 0) viewEpoch += 1
+      return { result: { outbound }, para: inRoomOrder(new Set(para)) }
+    },
+
+    leiturasDosCenarios() {
+      return cenarios.todas()
     },
 
     setSecretReveal(itemId, playerIds) {

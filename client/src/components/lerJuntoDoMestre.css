@@ -1,0 +1,77 @@
+/*
+ * "LER JUNTO" do mestre (P4): o texto do cenário em letra grande. Entra com
+ * opacidade e um leve assentar (200 ms, ease-out forte); com movimento
+ * reduzido, só a opacidade. Abre poucas vezes por sessão: vale a entrada.
+ */
+.lb-ler-junto {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(12 10 8 / 0.72);
+  transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+.lb-ler-junto__folha {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 22px 28px 18px;
+  border: 1px solid var(--lb-gr-filete-latao, rgb(201 162 92 / 0.45));
+  border-radius: var(--lb-radius-md, 10px);
+  background: var(--lb-color-ink, #1b1712);
+  color: var(--lb-color-parchment, #efe4cf);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  @starting-style {
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.lb-ler-junto__topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.lb-ler-junto__titulo { margin: 0; font-size: 1.6rem; line-height: 1.2; overflow-wrap: anywhere; }
+.lb-ler-junto__sub { display: block; margin-top: 4px; color: var(--lb-color-parchment-dim, #cdbf9f); }
+
+.lb-ler-junto__fechar {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--lb-gr-filete-latao, rgb(201 162 92 / 0.45));
+  border-radius: var(--lb-radius-sm, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease-out;
+}
+.lb-ler-junto__fechar:active { transform: scale(0.97); }
+.lb-ler-junto__fechar:focus-visible { outline: 2px solid var(--lb-color-brass-bright, #e2b867); outline-offset: 2px; }
+.lb-ler-junto__fechar kbd { font-size: 0.75em; opacity: 0.75; }
+
+.lb-ler-junto__quem { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.lb-ler-junto__quem li {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgb(239 228 207 / 0.18);
+  font-size: 0.85rem;
+  color: var(--lb-color-parchment-dim, #cdbf9f);
+}
+.lb-ler-junto__quem li[data-estado='lendo'] { border-color: var(--lb-color-brass-bright, #e2b867); color: var(--lb-color-brass-bright, #e2b867); }
+.lb-ler-junto__quem li[data-estado='leu'] { border-color: rgb(140 190 140 / 0.6); color: rgb(170 214 170); }
+
+.lb-ler-junto__texto {
+  margin: 18px 0 0;
+  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lb-ler-junto__pe { margin: 16px 0 0; font-size: 0.8rem; color: var(--lb-color-parchment-faint, #a2957a); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-ler-junto__folha { transition: none; }
+}

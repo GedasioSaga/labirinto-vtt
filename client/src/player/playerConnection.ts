@@ -113,6 +113,7 @@ import {
   parseNotesAway,
   parsePartyUpdate,
   parsePinShow,
+  parseCenarioLer,
   parsePointActionReply,
   parsePeekHostMessage,
   parseRoomText,
@@ -654,6 +655,11 @@ export interface PlayerState {
    * sem posição (`PinCard`): o cartão nunca diz onde o pino está.
    */
   shownPin?: { id: number; pin: PinCard }
+  /**
+   * "LER AGORA" (P4): o cenário que o mestre leu para esta tela. A revelação
+   * datilografada abre por cima de tudo; `id` novo a cada `cenario.ler`.
+   */
+  cenarioLido?: { id: number; pinId: string; nome: string; texto: string }
   /**
    * PAUSA POR CENA: o mestre pausou a cena deste jogador (está com outro
    * grupo). Enquanto `true`, a tela mostra o aviso fixo; quem manda é o host,
@@ -1724,6 +1730,8 @@ export interface PlayerConnection {
   dismissNote(): void
   /** Fecha o cartão que o mestre mostrou ("Fechar", Escape ou toque fora). */
   dismissShownPin(): void
+  /** "!" CENÁRIO (P4): o jogador fechou a revelação do pino `pinId` (leu ou pulou). Avisa o host e tira o pedido do mestre da tela. */
+  cenarioLido(pinId: string): boolean
   /** Fecha o cartão "Enquanto você esteve fora". Os recados continuam no Caderno e deixam de ser novos. */
   dismissAwayNotes(): void
   /** O jogador abriu o Caderno: nenhum recado é novo mais. */
@@ -4947,6 +4955,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
         setState({ shownPin: { id: nextNoticeId++, pin: shown.pin } })
         return
       }
+      case 'cenario.ler': {
+        if (state.status !== 'playing') return
+        const lido = parseCenarioLer(data)
+        if (lido === null) return
+        setState({ cenarioLido: { id: nextNoticeId++, pinId: lido.pinId, nome: lido.nome, texto: lido.texto } })
+        return
+      }
       case 'scene.note': {
         // O host só manda a quem joga; fora do jogo não há tela de cartão.
         if (state.status !== 'playing') return
@@ -6423,6 +6438,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
 
     dismissShownPin() {
       if (state.shownPin !== undefined) setState({ shownPin: undefined })
+    },
+
+    cenarioLido(pinId) {
+      if (state.cenarioLido?.pinId === pinId) setState({ cenarioLido: undefined })
+      if (state.status !== 'playing') return false
+      return send({ type: 'cenario.lido', pinId })
     },
 
     dismissAwayNotes() {

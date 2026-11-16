@@ -18,7 +18,8 @@ import type { LigaCena } from '../../lib/preparo/tipos'
  * Do Prelúdio para a mesa: `ola` (abri ou recarreguei), `ping`, `ir-a-mesa`
  * (cena e pino, como os links do roteiro), `mudou` (gravei algo em preparo/),
  * `gravou` (resposta ao `salvar-agora`), `por-no-mapa` (P3: a seção que o
- * mestre vai cravar no mapa com um clique) e `cancelar-por`.
+ * mestre vai cravar no mapa com um clique), `cancelar-por` e `ler-agora` (P4: o
+ * "Ler agora" de um "!" da lista "Na mesa").
  * Da mesa para o Prelúdio: `estado` (mapa, cena e pino selecionado), `pong`,
  * `abrir-verbete` (o "Abrir no Prelúdio" do mapa, com a seção do pino ligado),
  * `resposta` (ao `ir-a-mesa`), `mudou` (o Livro do mestre revelou),
@@ -103,6 +104,8 @@ export type PedidoDoPreludio =
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ir-a-mesa'; readonly pedido: number; readonly alvo: LigaCena }
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'mudou'; readonly mudanca: MudancaNoPreparo }
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'gravou'; readonly pedido: number; readonly motivo: string | null }
+  /** P4: "Ler agora" de um "!" da lista "Na mesa", para todos da cena do pino. A mesa confere o pino e responde com `resposta`. */
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ler-agora'; readonly pedido: number; readonly alvo: LigaCena }
 
 export type RecadoDaMesa =
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'estado'; readonly estado: EstadoDaMesa }
@@ -253,6 +256,11 @@ export function lerPedidoDoPreludio(dado: unknown, sessao: string): PedidoDoPrel
     case 'gravou': {
       const motivo = lerMotivo(dado.motivo)
       return motivo === undefined || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'gravou', pedido: dado.pedido, motivo }
+    }
+    case 'ler-agora': {
+      // Só o endereço do pino: o texto nunca vem pelo fio (a mesa lê o do próprio pino).
+      const alvo = lerAlvoNaMesa(dado.alvo)
+      return alvo === null || alvo.pinoId === undefined || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'ler-agora', pedido: dado.pedido, alvo }
     }
     default:
       return null

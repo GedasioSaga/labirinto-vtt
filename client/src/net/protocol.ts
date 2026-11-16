@@ -1420,6 +1420,7 @@ export type PlayerMessage =
   | PinLeverMessage
   | DoorPeekMessage
   | PinReadMessage
+  | CenarioLidoMessage
   | SecretCheckAnswerMessage
   | ViewResyncMessage
   | ViewPatchesMessage
@@ -1770,6 +1771,37 @@ export interface ClueEntry {
    * o id nem o nome da cena. Ausente = mestre antigo, ou lugar desconhecido.
    */
   place?: string
+  /**
+   * "!" CENÁRIO (P4): a pista é o texto de um lugar lido ("Ler de novo" abre
+   * a revelação outra vez). Ausente = a pista de sempre.
+   */
+  tipo?: 'cenario'
+}
+
+/**
+ * "LER AGORA" (P4): o mestre lê o cenário do pino `pinId` para este jogador.
+ * A tela dele abre a revelação datilografada com o nome e o texto, já tirados
+ * do recorte (`pinCardForPlayer`). Nada da cena além disso.
+ */
+export interface CenarioLerMessage {
+  type: 'cenario.ler'
+  pinId: string
+  nome: string
+  texto: string
+}
+
+/** O jogador fechou a revelação do cenário `pinId` (leu ou pulou até o fim). Só o id: o host confere. */
+export interface CenarioLidoMessage {
+  type: 'cenario.lido'
+  pinId: string
+}
+
+/** Valida o `cenario.ler` que o jogador recebe: forma errada recusa a mensagem inteira. */
+export function parseCenarioLer(value: unknown): CenarioLerMessage | null {
+  if (!isRecord(value) || value.type !== 'cenario.ler') return null
+  const { pinId, nome, texto } = value
+  if (!isBoundedString(pinId, 1, REQ_ID_MAX_LENGTH) || !isBoundedString(nome, 0, CLUE_TITLE_MAX_LENGTH) || !isBoundedString(texto, 0, CLUE_TEXT_MAX_LENGTH)) return null
+  return { type: 'cenario.ler', pinId, nome, texto }
 }
 
 /** A pista que o host acabou de guardar para este jogador (nova, ou lida de novo). */
@@ -2320,6 +2352,7 @@ export type HostMessage =
   | { type: 'away'; away: boolean; travelPending?: true }
   | RouteHostMessage
   | PinShowMessage
+  | CenarioLerMessage
   | PeekHostMessage
   // FICHA DE PERSONAGEM: o sistema, os personagens DESTE jogador e a resposta aos pedidos dele.
   | PersonagemHostMessage
@@ -3105,6 +3138,7 @@ function parseClueEntry(value: unknown): ClueEntry | null {
     if (!isBoundedString(place, 1, REQ_ID_MAX_LENGTH)) return null
     entry.place = place
   }
+  if (value.tipo === 'cenario') entry.tipo = 'cenario'
   if (from === undefined) return entry
   if (!isRoomName(from)) return null
   return { ...entry, from }
@@ -3905,6 +3939,8 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) ? { type: 'seat.claim', tokenId: value.tokenId } : null
     case 'pin.read':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'pin.read', pinId: value.pinId } : null
+    case 'cenario.lido':
+      return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) ? { type: 'cenario.lido', pinId: value.pinId } : null
     case 'secret.check.answer':
       return isBoundedString(value.id, 1, REQ_ID_MAX_LENGTH) && isSecretCheckResult(value.result)
         ? { type: 'secret.check.answer', id: value.id, result: value.result }

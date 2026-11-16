@@ -7797,3 +7797,20 @@ button.pp-colecao__casa:focus-visible {
     transition: opacity 160ms ease;
   }
 }
+
+/* "!" CENÁRIO (P4): "Ler de novo" embaixo do texto de um lugar lido, na aba Lugares. */
+.pp-clues__reler {
+  justify-self: start;
+  margin: 2px 0 2px 10px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--lb-color-brass, #e0a44a);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 160ms ease-out;
+}
+.pp-clues__reler:active { transform: scale(0.97); }
+.pp-clues__reler:focus-visible { outline: 2px solid var(--lb-color-brass, #e0a44a); outline-offset: 2px; }

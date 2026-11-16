@@ -22,6 +22,8 @@ import { FALA_MAX_LETRAS } from './npcPatrol'
 import { tokenAsSeenByPlayer, tokenPublicNameMode } from './tokenPublicName'
 import { barraVistaPeloJogador, type BarrasParaJogador } from './vidaDaFicha'
 import { lerAura } from './auras'
+import { cenarioParaJogador, pinoParaLeitura } from './cenarioDoPino'
+import type { LeiturasDoJogador } from '../types/cenarioEFalas'
 import { ehImagemDaMesa } from './midia'
 import type { FormasVisiveis } from './mudarFicha'
 import { tokenConditionsOf } from './tokenConditions'
@@ -2493,6 +2495,7 @@ export function filterMapForPlayer(
   companions?: CompanionMarks,
   barras?: BarrasParaJogador,
   formas?: FormasVisiveis,
+  leituras?: LeiturasDoJogador,
 ): PlayerMapView {
   // Jogador sem entrada de posse não tem token nem visão. A marca do guarda
   // (?, !) mede as fichas de TODOS os jogadores que ele recebe, não só as dele.
@@ -2516,6 +2519,7 @@ export function filterMapForPlayer(
     pinoOf: coresDosPinos(mapaInteiro, ownership),
     barras,
     formas,
+    leituras,
   })
 }
 
@@ -2570,6 +2574,12 @@ export interface PlayerOnlyView {
    * (o vulto e a sem rosto, não). Ausente = a foto de sempre.
    */
   formas?: FormasVisiveis
+  /**
+   * "!" CENÁRIO e "?" FALAS (P4/P5): o que a mesa já leu ou disse a ESTE
+   * jogador (`filterMapForPlayer`). Ausente = nada: o "!" "só quando eu
+   * mandar" sai sem texto e o "?" só com as entradas livres (falha fechada).
+   */
+  leituras?: LeiturasDoJogador
 }
 
 /** OLHOS DO GUARDA: as fichas de todos os jogadores da sala — quem a marca do guarda considera. */
@@ -2670,7 +2680,7 @@ function recorteDoGrupo(
   explored: Exploration | undefined,
   seenDoors: ReadonlyMap<string, DoorState> | undefined,
   watchTargets: ReadonlySet<string> | undefined,
-  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas }: PlayerOnlyView,
+  { pinAudiences, enteredRooms, playerId, loans, seenRooms, secretReveals, discoveredSecretRooms, peekDoorIds, remembered, seenMarks, oneWayExits, companionOf, pinoOf, barras, formas, leituras }: PlayerOnlyView,
   ceuDoMundi: boolean,
   /**
    * TERRENO ALTO (`vistaDeCimaDoPiso`): as fichas do recorte são OLHOS DE
@@ -5137,7 +5147,10 @@ function recorteDoGrupo(
       const known = memoryMode ? recalledPinIds.has(p.id) : isPointKnown(point)
       const reached = p.marco === true ? !hiddenByZone(point) : known
       if (!reached) return []
-      return [pinForPlayer(p, ownTokens, map.grid, canReadPin(p, pinReaders, map.grid, hiddenByZone, pelosObjetos), known, oneWayExits?.get(p.id), pelosObjetos)]
+      // "!" CENÁRIO (P4): o "Ao chegar" ainda não lido mede a leitura de perto, e
+      // a regra do cenário só TIRA do que a lista do que vai já deixou passar.
+      const legivel = canReadPin(pinoParaLeitura(p, leituras), pinReaders, map.grid, hiddenByZone, pelosObjetos)
+      return [cenarioParaJogador(pinForPlayer(p, ownTokens, map.grid, legivel, known, oneWayExits?.get(p.id), pelosObjetos), p, leituras)]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
     // explorado, só a marca que ele JÁ VIU (`seenMarks`, como `seenDoors`) —

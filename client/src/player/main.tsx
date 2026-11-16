@@ -104,7 +104,8 @@ import { JogoDeAbrirOverlay } from '../minigames/abrir/tela/JogoDeAbrirOverlay'
 import { textoDaRecusaDoObjeto } from '../net/protocoloDoObjeto'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
-import { revelacaoDoPino, type DadosDaRevelacao } from '../cenario/revelacao/doPino'
+import { revelacaoDoPino } from '../cenario/revelacao/doPino'
+import { atenderReleitura, cenarioQueAbreAoChegar, revelacaoAoChegar, revelacaoDoLerAgora, useRelerCenario, type RevelacaoAberta } from './cenarioNaTela'
 import { isPlayerSafePinImage } from '../lib/pins'
 import { PERIODO_PADRAO } from '../lib/periodo'
 import { DiceFeed } from '../components/DiceControls'
@@ -1162,7 +1163,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   /** ITEM NO MAPA: a imagem de item no chão aberta no cartão do item; `null` = nenhuma. */
   const [openItemNoChaoId, setOpenItemNoChaoId] = useState<string | null>(null)
   /** ANIMAÇÃO DO CENÁRIO tocando agora (por cima do cartão do pino "!"); `null` = nenhuma. */
-  const [revelacao, setRevelacao] = useState<DadosDaRevelacao | null>(null)
+  const [revelacao, setRevelacao] = useState<RevelacaoAberta | null>(null)
   /** DOIS PINOS NO MESMO PONTO: os pinos da escolha "Aqui há N coisas"; `null` = fechada. */
   const [pinChoiceIds, setPinChoiceIds] = useState<string[] | null>(null)
   /** Pista do Caderno aberta no cartão (MINHAS PISTAS); `null` = fechado. */
@@ -1627,6 +1628,38 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // a revelação nas dependências, pelo mesmo motivo do `closePin` estável.
   const revelacaoAbertaRef = useRef(false)
   revelacaoAbertaRef.current = revelacao !== null
+  // "!" CENÁRIO (P4): fechar a revelação de um pino é ter lido — o host conta ao mestre ("leu às").
+  const revelacaoPinoRef = useRef<string | undefined>(undefined)
+  revelacaoPinoRef.current = revelacao?.pinId
+  const fecharRevelacao = useCallback(() => {
+    const pinId = revelacaoPinoRef.current
+    setRevelacao(null)
+    if (pinId !== undefined) connection.cenarioLido(pinId)
+  }, [connection])
+  // "LER AGORA" do mestre: a revelação abre por cima de tudo, com o texto que ele mandou.
+  const cenarioLido = state.cenarioLido
+  useEffect(() => {
+    if (cenarioLido === undefined) return
+    setRevelacao(revelacaoDoLerAgora(cenarioLido, connection.getState().map?.pins.find((p) => p.id === cenarioLido.pinId)))
+  }, [cenarioLido, connection])
+  // "AO CHEGAR": a ficha encostou num "!" que abre sozinho; uma vez por pino nesta tela (`jaVisto`).
+  const pinosDoRecorte = state.map?.pins
+  const mapaDoRecorte = state.map?.id
+  useEffect(() => {
+    if (revelacaoAbertaRef.current || mapaDoRecorte === undefined) return
+    const pino = cenarioQueAbreAoChegar(pinosDoRecorte, (pinId) => !deveTocarCenario({ quando: 'primeira' }, mapaDoRecorte, pinId))
+    if (pino === undefined) return
+    marcarCenarioVisto(mapaDoRecorte, pino.id)
+    connection.readClue(pino.id)
+    setRevelacao(revelacaoAoChegar(pino))
+  }, [pinosDoRecorte, mapaDoRecorte, connection])
+  // "LER DE NOVO" do caderno (Lugares).
+  const releitura = useRelerCenario((estado) => estado.pedido)
+  useEffect(() => {
+    if (releitura === null) return
+    const aberta = atenderReleitura()
+    if (aberta !== null) setRevelacao(aberta)
+  }, [releitura])
   const closePinPeloCartao = useCallback(() => {
     if (revelacaoAbertaRef.current) return
     closePin()
@@ -1657,7 +1690,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
       const dados = pino === undefined ? null : revelacaoDoPino(pino)
       if (dados !== null && mapaId !== undefined && deveTocarCenario(dados, mapaId, pinId)) {
         marcarCenarioVisto(mapaId, pinId)
-        setRevelacao(dados)
+        setRevelacao({ ...dados, pinId })
       }
     },
     [connection],
@@ -2795,7 +2828,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           </div>
         )}
         {/* ANIMAÇÃO DO CENÁRIO: por cima do cartão do pino "!", até o "Pular" ou o fim. */}
-        {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={() => setRevelacao(null)} />}
+        {revelacao && <CenarioOverlay imagem={revelacao.imagem} nome={revelacao.nome} descricao={revelacao.descricao} onFim={fecharRevelacao} />}
         {/* DANÇA: o convite do mestre abre a tela da dança por cima do mapa, até o resultado ou o encerramento. */}
         {state.danca && <DancaOverlay danca={state.danca} playerId={state.playerId} acoes={connection} fontesDaMusica={musicaDaSala} {...ajustesDaDanca} />}
         {state.pesca && <PescaOverlay pesca={state.pesca} playerId={state.playerId} acoes={connection} {...ajustesDaPesca} />}

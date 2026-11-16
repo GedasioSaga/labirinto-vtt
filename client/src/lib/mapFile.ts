@@ -11,6 +11,7 @@ import { isEfeitoNaLuz, isEfeitoNaPorta, isEfeitoNaZona, regraDePinoDoArquivo, r
 import { propPlayerImage, propPlayerLabel } from './propPlayerLook'
 import { readDoorKey } from './doorKey'
 import { readFonteNoPreludio } from './fonteNoPreludio'
+import { ehCasasAoChegar, ehQuandoDoCenario } from './cenarioDoPino'
 import { closeIfLocked } from './doorLock'
 import { lerMarcasDoArquivo } from './marcas'
 import { readTokenVehicle, withoutVehicleField } from './vehicle'
@@ -861,11 +862,17 @@ function lerPinoDoArquivo(p: Pin): Pin {
     kind: isPinKind(p.kind) ? p.kind : 'exclamacao',
     icon: isPinIcon(p.icon) ? p.icon : undefined,
     description: typeof p.description === 'string' ? p.description : '',
-    // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
     // PINO LIGADO AO PRELÚDIO (P3): campo NOVO e OPCIONAL. Forma errada volta
     // AUSENTE: o pino fica com a cópia de reserva (`description`), como um
     // pino comum. Mapa de antes não tem o campo e abre e grava igual.
     fonte: readFonteNoPreludio(p.fonte),
+    // "!" CENÁRIO (P4): campos NOVOS e OPCIONAIS, só do "!". Valor torto (ou
+    // em outro tipo) volta AUSENTE: o "!" de sempre, ao tocar. `abreAoChegar`
+    // é só do recorte e nunca vem do disco.
+    quando: p.kind === 'exclamacao' && ehQuandoDoCenario(p.quando) && p.quando !== 'tocar' ? p.quando : undefined,
+    chegarCasas: p.kind === 'exclamacao' && ehCasasAoChegar(p.chegarCasas) ? p.chegarCasas : undefined,
+    abreAoChegar: undefined,
+    // NOME DO LOCAL: campo OPCIONAL. Texto aparado e no teto; em branco
     // ou torto (número, arquivo editado à mão) volta AUSENTE.
     nome: cleanPinName(p.nome) || undefined,
     image: typeof p.image === 'string' ? p.image : null,

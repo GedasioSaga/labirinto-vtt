@@ -13,6 +13,9 @@ import { situacaoDaFonte } from '../../lib/preparo/pinoLigado'
 import { comecarColocacao, definirFimDaColocacao, terminarColocacao, useColocacaoDoPreludio } from '../../stores/colocacaoDoPreludio'
 import { sceneMaps } from '../../stores/adventureStore'
 import { mapaNaMemoriaAgora } from '../mesa/catalogo'
+import { lerCenarioAgora, type FimDoLerAgora } from '../../stores/mesaDoPino'
+import type { LigaCena } from '../../lib/preparo/tipos'
+import type { Pin } from '../../types/map'
 import {
   idDoMapaParaOFio,
   lerPedidoDoPreludio,
@@ -143,6 +146,23 @@ export function itensNaMesaAgora(): ItemNaMesa[] {
   return itens
 }
 
+/**
+ * "LER AGORA" pedido pelo Prelúdio (P4): só um "!" do mapa ABERTO (a mesma
+ * chave), achado pela cena e pelo id. O texto é o do pino (a cópia em dia da
+ * seção), nunca o que viesse pelo fio; quem confere a cena de cada jogador é o host.
+ */
+export function lerAgoraPeloPreludio(alvo: LigaCena): FimDoLerAgora {
+  const chave = idDoMapaParaOFio(mapaNaMemoriaAgora()?.chave)
+  if (chave === null || chave !== alvo.chave) return { ok: false, motivo: 'Este pino não está no mapa aberto. Use Mostrar no mapa antes.' }
+  let pin: Pin | undefined
+  for (const [sceneId, mapa] of sceneMaps(useAdventureStore.getState(), useMapStore.getState().map)) {
+    if (sceneId === alvo.sceneId) pin = mapa.pins.find((um) => um.id === alvo.pinoId)
+  }
+  if (pin === undefined) return { ok: false, motivo: 'O pino não está mais no mapa.' }
+  if (pin.kind !== 'exclamacao') return { ok: false, motivo: 'Ler agora é do ! (cenário).' }
+  return lerCenarioAgora(pin, null)
+}
+
 function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
   const canal = abrirCanal(nomeDoCanal(sessao))
   let aberta = false
@@ -260,6 +280,11 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
       case 'cancelar-por':
         if (useColocacaoDoPreludio.getState().pendente?.pedido === pedido.pedido) terminarColocacao('cancelado')
         return
+      case 'ler-agora': {
+        const fim = lerAgoraPeloPreludio(pedido.alvo)
+        enviar({ tipo: 'resposta', pedido: pedido.pedido, ok: fim.ok, motivo: fim.ok ? null : motivoParaOFio(fim.motivo) })
+        return
+      }
     }
   }
 

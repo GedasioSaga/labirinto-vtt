@@ -95,6 +95,11 @@ export function mostrarNoMapa(item: ItemNaMesa): void {
   fio?.irAMesa({ chave: item.chave, sceneId: item.sceneId, pinoId: item.pinoId })
 }
 
+/** "Ler agora" (P4) de um "!" da lista "Na mesa": a mesa lê para todos da cena do pino. */
+export function lerAgoraNaMesa(item: ItemNaMesa): void {
+  fio?.lerAgora({ chave: item.chave, sceneId: item.sceneId, pinoId: item.pinoId })
+}
+
 /** A cena aberta na mesa agora, no formato do link; `null` = nenhum mapa (ou mapa novo, sem pasta). */
 export interface CenaAberta {
   readonly alvo: LigaCena

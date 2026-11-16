@@ -1,5 +1,6 @@
 import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
+import type { QuandoDoCenario } from './cenarioEFalas'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 /**
@@ -886,6 +887,20 @@ export interface Pin extends PlayerSecret, NoPiso, NaCamada {
   description: string
   /** PINO LIGADO AO PRELÚDIO (P3): o verbete e a seção de onde vem o texto. Ver `FonteNoPreludio`. */
   fonte?: FonteNoPreludio
+  /**
+   * "!" CENÁRIO (P4): quando o texto abre para o jogador (`lib/cenarioDoPino.ts`).
+   * Ausente = "Ao tocar", o "!" de sempre — sem migração. Só do mestre: NUNCA
+   * sai no recorte (a névoa aplica a regra e manda só o resultado).
+   */
+  quando?: QuandoDoCenario
+  /** Só com `quando: 'chegar'`: a quantas casas abre. Ausente = `CHEGAR_CASAS_PADRAO`. Só do mestre. */
+  chegarCasas?: number
+  /**
+   * SÓ NO RECORTE DO JOGADOR: "!" Ao chegar ainda não lido, com o texto
+   * chegando agora — a tela dele abre a revelação sozinha, uma vez. O mestre
+   * nunca grava este campo.
+   */
+  abreAoChegar?: true
   /**
    * NOME DO LOCAL ("Base da Marinha"): o que distingue sete "?" iguais no
    * editor — desenhado ao lado do pino e na lista "Pinos" — e o título que o

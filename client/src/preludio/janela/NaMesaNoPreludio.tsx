@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import type { Forma, Secao, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
-import { cancelarPorNoMapa, mostrarNoMapa, porNoMapa, useMesaNaJanela } from './mesaNaJanela'
+import { cancelarPorNoMapa, lerAgoraNaMesa, mostrarNoMapa, porNoMapa, useMesaNaJanela } from './mesaNaJanela'
 import type { ItemNaMesa, TipoParaOMapa } from './protocolo'
 import './janela.css'
 
@@ -151,9 +151,16 @@ function LinhaNaMesa({ item, comVerbete }: { item: ItemNaMesa; comVerbete: boole
         <small>{onde}</small>
         {secao?.segredo === true && <small className="pr-na-mesa__alerta">Virou segredo: o jogador lê "Texto indisponível."</small>}
       </span>
-      <button type="button" className="gr-bt gr-bt--latao gr-bt--p" onClick={() => mostrarNoMapa(item)}>
-        Mostrar no mapa
-      </button>
+      <span className="pr-na-mesa__acoes">
+        {item.kind === 'exclamacao' && (
+          <button type="button" className="gr-bt gr-bt--primario gr-bt--p" title="A revelação abre na tela de todos da cena do pino" onClick={() => lerAgoraNaMesa(item)}>
+            Ler agora
+          </button>
+        )}
+        <button type="button" className="gr-bt gr-bt--latao gr-bt--p" onClick={() => mostrarNoMapa(item)}>
+          Mostrar no mapa
+        </button>
+      </span>
     </li>
   )
 }

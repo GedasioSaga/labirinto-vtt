@@ -128,6 +128,8 @@ import { RoleplayScreen } from './screens/RoleplayScreen'
 import { PreludioSobDemanda } from './preludio/PreludioSobDemanda'
 import { abrirOPreludioEmJanela, janelaDoPreludioAberta, registrarDepsDaMesa } from './preludio/janela/portaDaJanela'
 import { FaixaDaColocacao } from './components/FaixaDaColocacao'
+import { LerJuntoDoMestre } from './components/LerJuntoDoMestre'
+import { useMesaDoPino } from './stores/mesaDoPino'
 import { vigiarPinosLigados } from './lib/vigiaDosPinosLigados'
 import { RoteiroNoLivro, usePaginasDoPreludioNoLivro } from './preludio/roteiro/RoteiroNoLivro'
 import { PAGINA_DOS_JOGOS, PaginaJogos, sessoesAoVivo } from './components/livro/PaginaJogos'
@@ -1030,6 +1032,7 @@ function App() {
         // O pino de viagem do editor (`handleTravelPin`) só move a vista do mestre: não entra aqui.
         onTravelLogChange: comSomDePassagem(setTravelLog),
         onPinCluesChange: setPinClues,
+        onLeiturasDosCenariosChange: (leituras) => useMesaDoPino.setState({ leituras }),
         onSecretRevealsChange: setSecretReveals,
         onSecretChecksChange: setSecretChecks,
         onDancaChange: setDanca,
@@ -1922,6 +1925,16 @@ function App() {
   useEffect(() => subscribeToTravelLinks(), [])
   // P3 do Prelúdio: o pino ligado a um verbete segue o texto dele (só baixa com pino ligado no mapa).
   useEffect(() => vigiarPinosLigados(), [])
+  // "!" CENÁRIO (P4): a ficha do "!" e a janela do Prelúdio leem para os jogadores por aqui, sem passar pelo painel.
+  useEffect(() => {
+    useMesaDoPino.setState({
+      acoes: {
+        lerCenario: (pinId, playerIds) => hostBridgeRef.current?.lerCenario(pinId, playerIds) ?? null,
+        jogadores: () => hostBridgeRef.current?.players() ?? [],
+      },
+    })
+    return () => useMesaDoPino.setState({ acoes: null, lerJunto: null })
+  }, [])
 
   useEffect(() => {
     currentMapPathRef.current = currentMapPath
@@ -3413,6 +3426,7 @@ function App() {
       <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
       {screen === 'editor' && <FaixaDaColocacao />}
+      <LerJuntoDoMestre />
       {screen === 'editor' && ofertaDaBatalha !== null && (
         <RetomarBatalhaDialog
           oferta={ofertaDaBatalha}

@@ -56,6 +56,8 @@ export interface FioDoPreludio {
   /** "Pôr no mapa" (P3): a mesa espera o clique do mestre. Devolve o número do pedido. */
   porNoMapa(fonte: SecaoParaOMapa, kind: TipoParaOMapa): number
   cancelarPor(pedido: number): void
+  /** "Ler agora" (P4): a mesa lê o "!" para todos da cena dele e responde com `resposta` (o aviso, se não deu). */
+  lerAgora(alvo: LigaCena): void
   desligar(): void
 }
 
@@ -136,6 +138,10 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
     },
     cancelarPor(pedido) {
       enviar({ tipo: 'cancelar-por', pedido })
+    },
+    lerAgora(alvo) {
+      pedidos += 1
+      enviar({ tipo: 'ler-agora', pedido: pedidos, alvo })
     },
     desligar() {
       ligado = false
