@@ -1,13 +1,14 @@
-import type { Agua, Carimbo, MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
+import type { Abismo, Agua, Carimbo, MapData, Prop, RegionPoint, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { DEFAULT_DOOR_SLACK, findTokenPath, isDoorPassable, moveCrossesWall } from './collision'
+import { ehParedeDeAbismo, semParedesDeAbismo } from './abismo'
 import { paredesParaAndar } from './barranco'
 import { aguaQueBarra } from './agua/regra'
 import { pisoDe } from './pisos'
 import { pointInRing } from './floorContour'
 import { compileFloor, pieceBounds, type CompiledFloor } from './floorSdf'
 import { chaoQueLimita } from './offFloor'
-import { aguaEscondidaDosJogadores, carimboEscondidoDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
+import { abismoEscondidoDosJogadores, aguaEscondidaDosJogadores, carimboEscondidoDosJogadores, objetoEscondidoDosJogadores, playerHiddenRings } from './fogFilter'
 import { paredesParaAndarDoJogador, semParedesDeObjeto } from './obstaculosDeObjeto'
 import { clampToMaxStep, findOccupant, passoMaximoDaFicha, tokensOccupy } from './movementRules'
 import { passoEmBatalha } from './batalha/movimentoEmBatalha'
@@ -50,6 +51,8 @@ export type TokenMoveRejection =
   | 'objeto'
   /** ÁGUA com "Barra a passagem" no caminho (`lib/agua/regra.ts`). */
   | 'agua'
+  /** ABISMO no caminho (`lib/abismo.ts`): a ficha do jogador não entra no buraco. */
+  | 'abismo'
 
 /**
  * Por que o movimento aceito parou em outro lugar que não o pedido.
@@ -383,8 +386,14 @@ export function validateTokenMove(
   // O CARIMBO que barra segue a mesma regra (auditoria de 16/11/2026): o escondido dele não segura o passo.
   let testeDoCarimbo: ((carimbo: Carimbo) => boolean) | null = null
   const carimboEscondido = (carimbo: Carimbo): boolean => (testeDoCarimbo ??= carimboEscondidoDosJogadores(map))(carimbo)
+  // O ABISMO (16/11/2026) também: o que o recorte nunca entrega a ele não segura o passo.
+  let testeDoAbismo: ((abismo: Abismo) => boolean) | null = null
+  const abismoEscondido = (abismo: Abismo): boolean => (testeDoAbismo ??= abismoEscondidoDosJogadores(map))(abismo)
   const paredes =
-    options.isHost && options.objetosBarram !== true ? semObjetos : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido, carimboEscondido)
+    options.isHost && options.objetosBarram !== true
+      ? semObjetos
+      : paredesParaAndarDoJogador(map.walls, map, pisoDe(token), from, escondido, carimboEscondido, abismoEscondido)
+  const temAbismo = paredes !== semObjetos && paredes.some((w) => ehParedeDeAbismo(w.id))
 
   // O chão sumiu debaixo da ficha (o mestre apagou ou mudou o chão): todo
   // trajeto partiria de fora do chão e seria recusado para sempre. O arrasto
@@ -412,6 +421,11 @@ export function validateTokenMove(
       ocupada: (p: Point): boolean => tokensOccupy(map) && findOccupant(occupants, token.id, p, map.grid) !== undefined,
     }
     const passo = passoEmBatalha(pedido)
+    // Sem caminho por causa de um ABISMO (a casa pedida fica na boca, ou atrás dela): a recusa diz isso.
+    if (!passo.ok && passo.reason === 'wall' && temAbismo) {
+      const semAbismo = passoEmBatalha({ ...pedido, paredesDoHost: semParedesDeAbismo(paredes), paredesDoJogador: semParedesDeAbismo(options.batalha.paredesDoJogador) })
+      if (semAbismo.ok) return { ok: false, reason: 'abismo' }
+    }
     // Sem caminho por causa de um objeto (a casa pedida fica dentro dele, ou cercada por eles): a recusa diz isso.
     if (!passo.ok && passo.reason === 'wall' && paredes !== semObjetos) {
       const semOsObjetos = passoEmBatalha({ ...pedido, paredesDoHost: semObjetos, paredesDoJogador: semParedesDeObjeto(options.batalha.paredesDoJogador) })
@@ -428,6 +442,8 @@ export function validateTokenMove(
     // Passaria se não fosse o objeto? Então quem barrou foi ele. Parede no mesmo traço continua `wall`.
     const foiObjeto = paredes !== semObjetos && findTokenPath(from, to, semObjetos, map.grid) !== null
     if (!foiObjeto) return { ok: false, reason: 'wall' }
+    // Passaria sem as beiras de abismo? Então quem barrou foi o buraco.
+    if (temAbismo && findTokenPath(from, to, semParedesDeAbismo(paredes), map.grid) !== null) return { ok: false, reason: 'abismo' }
     // E passaria só com os objetos que ele está VENDO (`objetoAVista`)? Então quem barrou foi um que ele
     // não vê: a recusa é a da parede que ele não vê, e não conta que ali há um objeto.
     const aVista = options.objetoAVista

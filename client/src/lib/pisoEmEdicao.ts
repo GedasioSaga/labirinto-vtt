@@ -9,6 +9,7 @@ import { camadaTravadaNaBorracha, findLockedLayerAt, type Point } from './select
 import { selectionFromAreaSelection, type SelectionSet } from './selectionModel'
 import type { SelectionKind } from '../types/tools'
 import { riscosDoPiso } from './terrenoNaSelecao'
+import { abismosDoPiso } from './abismo'
 
 /**
  * PISOS NA MESMA CENA — as ferramentas do editor que MIRAM o mapa agem só no
@@ -41,6 +42,8 @@ export function selecaoNoPiso(map: MapData, piso: number, selection: SelectionSe
     agua: doPiso.aguas ?? [],
     // O mapa do piso não recorta o barranco: os riscos do piso, pelo campo `piso` de cada um.
     barranco: riscosDoPiso(map.barranco, piso),
+    // Nem o abismo: os do piso, pelo campo `piso` de cada um.
+    abismo: abismosDoPiso(map.abismos, piso),
   }
   // Os ids de cada tipo num conjunto, só dos tipos que a seleção tem: o laço
   // que pega 5.000 carimbos não pode virar 5.000 × 5.000 comparações.

@@ -234,13 +234,23 @@ describe('Toolbar — botão Desnível (Barranco e Penhasco, Fase 6)', () => {
     expect(onSelectTool).toHaveBeenCalledWith('barranco')
   })
 
-  it('o menu oferece as duas caras; escolher Penhasco arma o Penhasco, e o botão fica marcado com ele', () => {
+  it('o menu oferece as três caras; escolher Penhasco arma o Penhasco, e o botão fica marcado com ele', () => {
     const onSelectTool = render('barranco', 'brush')
     act(() => botao('Opções de Desnível').click())
-    expect(radiosDe('Desnível', 'Cara').map((r) => r.getAttribute('aria-label'))).toEqual(['Barranco', 'Penhasco'])
+    // 16/11/2026: a terceira cara, o Abismo (`lib/abismo.ts`).
+    expect(radiosDe('Desnível', 'Cara').map((r) => r.getAttribute('aria-label'))).toEqual(['Barranco', 'Penhasco', 'Abismo'])
     act(() => radiosDe('Desnível', 'Cara').find((r) => r.getAttribute('aria-label') === 'Penhasco')?.click())
     expect(onSelectTool).toHaveBeenCalledWith('penhasco')
     render('penhasco', 'brush', onSelectTool)
+    expect(botao('Desnível').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('escolher Abismo arma o Abismo, e o botão fica marcado com ele', () => {
+    const onSelectTool = render('barranco', 'brush')
+    act(() => botao('Opções de Desnível').click())
+    act(() => radiosDe('Desnível', 'Cara').find((r) => r.getAttribute('aria-label') === 'Abismo')?.click())
+    expect(onSelectTool).toHaveBeenCalledWith('abismo')
+    render('abismo', 'brush', onSelectTool)
     expect(botao('Desnível').getAttribute('aria-pressed')).toBe('true')
   })
 })

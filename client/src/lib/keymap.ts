@@ -238,6 +238,8 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Barranco: sem letra. As livres que sobraram são de outros (Shift+B é a batalha);
   // ele mora ao lado do Penhasco na barra, e a barra o alcança em todo mapa.
   barranco: '',
+  // Abismo: sem letra, como o Barranco; a barra o alcança pelo Desnível.
+  abismo: '',
   // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
   // Shift+T estava livre e é o T de "textura".
   texturas: 'Shift+T',

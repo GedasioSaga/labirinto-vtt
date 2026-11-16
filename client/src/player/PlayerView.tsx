@@ -68,6 +68,8 @@ import { createRegionsRenderer, type RegionLayers } from '../pixi/drawRegions'
 import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
 import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarranco'
 import { pisoDoRecorte } from '../lib/barranco'
+import { carimbosComOsAbismos } from '../lib/abismo'
+import { criarDesenhoDoAbismo, type DesenhoDoAbismo } from '../pixi/drawAbismo'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
 import { criarAguaDoMapa, type AguaDoMapa } from '../pixi/aguaDoMapa'
@@ -1471,6 +1473,8 @@ interface Scene {
   relevo: RelevoRenderer
   /** BARRANCO (`pixi/drawBarranco.ts`): só o que o recorte trouxe, sob a máscara do conhecido. */
   barranco: DesenhoDoBarranco
+  /** ABISMO (`pixi/drawAbismo.ts`): só o que o recorte trouxe, no contêiner do barranco. */
+  abismo: DesenhoDoAbismo
   barrancoContainer: Container
   /**
    * TEXTURAS (`pixi/drawTexturas.ts`): pintadas SÓ dos passos do recorte deste
@@ -3620,8 +3624,11 @@ function PlayerViewDoCanvas({
     // BARRANCO: só o que o recorte trouxe (o que ele já viu). Vale até no modo leve:
     // o barranco segura a ficha, e a tela tem de mostrar por quê.
     const barrancoDoRecorte = currentMap.barranco
-    scene.barrancoContainer.visible = barrancoDoRecorte !== undefined
+    // ABISMO: o mesmo molde; todos os do recorte são do piso do grupo.
+    const abismosDoRecorte = currentMap.abismos
+    scene.barrancoContainer.visible = barrancoDoRecorte !== undefined || abismosDoRecorte !== undefined
     scene.barranco.atualizar(barrancoDoRecorte === undefined ? null : { barranco: barrancoDoRecorte, piso: pisoDoRecorte(barrancoDoRecorte), grid: currentMap.grid })
+    scene.abismo.atualizar(abismosDoRecorte === undefined ? null : { abismos: abismosDoRecorte, piso: abismosDoRecorte[0]?.piso ?? 0, grid: currentMap.grid })
     // TEXTURAS: só os passos que o recorte trouxe; o balde enche as formas do
     // recorte. Modo leve ("Efeitos do mapa" desligado, ou o WebGL já caiu): nada.
     scene.texturas.atualizar(
@@ -4245,7 +4252,9 @@ function PlayerViewDoCanvas({
       barrancoContainer.eventMode = 'none'
       barrancoContainer.visible = false
       const barranco = criarDesenhoDoBarranco()
-      barrancoContainer.addChild(barranco.camada)
+      // ABISMO (`pixi/drawAbismo.ts`): no mesmo contêiner, sob a mesma máscara do conhecido, logo abaixo do barranco.
+      const abismo = criarDesenhoDoAbismo()
+      barrancoContainer.addChild(abismo.camada, barranco.camada)
       barrancoContainer.mask = barrancoMask
       // TEXTURAS: a mesma máscara do conhecido (contexto compartilhado), num
       // contêiner próprio — escondido enquanto não há textura, pelo mesmo
@@ -4759,6 +4768,7 @@ function PlayerViewDoCanvas({
         luzesPorNo,
         relevo,
         barranco,
+        abismo,
         barrancoContainer,
         texturas,
         terreno,
@@ -5224,7 +5234,8 @@ function PlayerViewDoCanvas({
           // O Fogo à vista acende luz de fogo; o que a visão cortou nem chega aqui.
           fogos: m.props,
           // Os carimbos que iluminam, dos que ele recebeu (`carimbosParaJogador`): o que não chegou não ilumina.
-          carimbos: m.carimbos,
+          // ABISMO: o fundo que brilha, dos que ele recebeu, empresta a luz dos carimbos (`carimbosComOsAbismos`).
+          carimbos: carimbosComOsAbismos(m.carimbos, m.abismos, m.grid, m.abismos?.[0]?.piso ?? 0),
           casa: m.grid,
           // Com a penumbra: o claro só no conhecido (o nunca visto sai numa cor só) e a beira macia (peça E).
           conhecido: scene.penumbra === null ? null : { contexto: scene.knownMask.context, revisao: scene.revisaoDaNevoa },
@@ -5708,6 +5719,7 @@ function PlayerViewDoCanvas({
         // A textura do relevo também não.
         scene.relevo.destruir()
         scene.barranco.destroy()
+        scene.abismo.destroy()
         scene.paredesPorNo.de(scene.walls).destroy()
         scene.pisoDoChao.destruir()
         scene.caminhos.destruir()

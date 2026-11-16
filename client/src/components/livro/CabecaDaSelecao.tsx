@@ -14,7 +14,7 @@ import { selectBloqueioParaAbrir, selectCorredoresParaAbrir, selectMotivoSemCorr
 import type { SelectionSummary } from '../SelectionControls'
 import { MOTIVO_SALA_SECRETA_SEM_VAO, MOTIVO_SALA_TRAVADA_SEM_VAO, MOTIVO_SEM_CORREDOR, deleteSelectionLabel, rotuloAbrirParaOCorredor } from '../labels'
 import { iniciaisDaFicha } from '../EscolherFichaDeTeste'
-import { AguaIcon, BarrancoIcon, BrushIcon, CarimbosIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
+import { AbismoIcon, AguaIcon, BarrancoIcon, BrushIcon, CarimbosIcon, ConcealZoneIcon, DoorIcon, FloorIcon, LightIcon, MobiliaIcon, PropIcon, RegionIcon, RoomIcon, StairIcon, TextIcon, TokenIcon, WallIcon } from '../icons'
 import { Balao } from '../grimorio/Balao'
 import { Botao } from '../grimorio/Botao'
 import { Cabeca, CabecaMedalha, CabecaRetrato } from '../grimorio/Cabeca'
@@ -42,6 +42,7 @@ export type SelectionIconKind =
   | 'zona'
   | 'agua'
   | 'barranco'
+  | 'abismo'
   | 'several'
 
 /** O que a cabeça diz da seleção. */
@@ -136,6 +137,8 @@ export function selectionIdentity(summary: SelectionSummary, items: SelectedItem
       return { icon: 'agua', type: 'Água', name: null }
     case 'barranco':
       return { icon: 'barranco', type: 'Barranco', name: null }
+    case 'abismo':
+      return { icon: 'abismo', type: 'Abismo', name: null }
   }
 }
 
@@ -612,6 +615,8 @@ function iconeDoTipo(identidade: SelectionIdentity): ReactElement {
       return <AguaIcon />
     case 'barranco':
       return <BarrancoIcon />
+    case 'abismo':
+      return <AbismoIcon />
     case 'several':
       return <VariosIcon />
   }

@@ -108,7 +108,8 @@ import * as modeloDeCamadas from '../lib/camadas/modelo'
 import { avisoDoMover, moverParaCamada as moverItensParaCamada, MOTIVO_CAMADA_PADRAO, nomeDaCamada, type RefDeItem, type ResultadoDeMover } from '../lib/camadas/mover'
 import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
 import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
-import type { Agua, CamadaId } from '../types/map'
+import type { Abismo, Agua, BrilhoDoAbismo, CamadaId } from '../types/map'
+import { CAMADA_DO_ABISMO, comAbismos } from '../lib/abismo'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
@@ -346,6 +347,8 @@ function camadaDaSelecao(map: MapData, selection: Selection): CamadaId | null {
       return (map.aguas ?? []).some((a) => a.id === selection.id) ? camadas.camadaQueManda(CAMADA_DA_AGUA) : null
     case 'barranco':
       return (map.barranco?.riscos ?? []).some((r) => r.id === selection.id) ? camadas.camadaQueManda(CAMADA_DO_BARRANCO) : null
+    case 'abismo':
+      return (map.abismos ?? []).some((a) => a.id === selection.id) ? camadas.camadaQueManda(CAMADA_DO_ABISMO) : null
     default:
       return null
   }
@@ -492,6 +495,10 @@ function cloneSelectedEntity(map: MapData, selection: Selection, offset: Offset)
       const entity = map.barranco?.riscos.find((r) => r.id === selection.id)
       return entity ? cloneEntity({ kind: 'barranco', entity }, offset) : null
     }
+    case 'abismo': {
+      const entity = map.abismos?.find((a) => a.id === selection.id)
+      return entity ? cloneEntity({ kind: 'abismo', entity }, offset) : null
+    }
   }
 }
 
@@ -521,6 +528,7 @@ function addClonedEntity(map: MapData, cloned: CloneableEntity): MapData {
       const barranco = barrancoOuVazio(map)
       return comBarranco(map, { ...barranco, riscos: [...barranco.riscos, cloned.entity] })
     }
+    case 'abismo': return comAbismos(map, [...(map.abismos ?? []), cloned.entity])
   }
 }
 
@@ -1597,6 +1605,12 @@ interface MapStoreState {
   mudarAgua: (id: string, mudanca: Partial<Omit<Agua, 'id'>>, juntar?: string) => void
   /** ÁGUA: tira uma água. Com desfazer. */
   apagarAgua: (id: string) => void
+  /** ABISMO (`lib/abismo.ts`): põe um abismo no piso em edição. A camada Terreno travada recusa. Com desfazer. */
+  porAbismo: (abismo: Abismo) => void
+  /** ABISMO: muda o brilho do fundo (`null` = sem brilho). Com desfazer. */
+  mudarAbismo: (id: string, brilho: BrilhoDoAbismo | null) => void
+  /** ABISMO: tira um abismo. Com desfazer. */
+  apagarAbismo: (id: string) => void
   /**
    * BORRACHA GERAL NO TERRENO (Fase 4): tira o carimbo, a água ou o risco do
    * Barranco que a Borracha achou (`terrenoNoPonto`). O carimbo travado fica;
@@ -2436,6 +2450,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         const carimbos = new Set<string>()
         const aguas = new Set<string>()
         const riscos = new Set<string>()
+        const abismos = new Set<string>()
         for (const item of selection) {
           switch (item.kind) {
             case 'token': next = mapFactory.removeToken(next, item.id); break
@@ -2451,9 +2466,10 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
             case 'zone': next = mapFactory.removeConcealZone(next, item.id); break
             case 'agua': aguas.add(item.id); break
             case 'barranco': riscos.add(item.id); break
+            case 'abismo': abismos.add(item.id); break
           }
         }
-        return semItensDoTerreno(semCarimbos(next, carimbos), aguas, riscos)
+        return semItensDoTerreno(semCarimbos(next, carimbos), aguas, riscos, abismos)
       })
       // O pino e a zona abertos no painel que saíram com o conjunto fecham.
       const { selectedPinId, selectedConcealZoneId } = get()
@@ -3595,7 +3611,36 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
           withHistory((m) => semItensDoTerreno(m, new Set(), new Set([item.id])))
           return
         }
+        case 'abismo':
+          get().apagarAbismo(item.id)
+          return
       }
+    },
+    porAbismo: (abismo) => {
+      if (terrenoBarrado()) return
+      const { pisoAtivo } = get()
+      withHistory((m) => comAbismos(m, [...(m.abismos ?? []), comPiso(abismo, pisoAtivo)]))
+    },
+    mudarAbismo: (id, brilho) => {
+      const antes = get().map.abismos ?? []
+      const abismo = antes.find((a) => a.id === id)
+      if (abismo === undefined || (abismo.brilho ?? null) === brilho) return
+      if (terrenoBarrado()) return
+      withHistory((m) =>
+        comAbismos(
+          m,
+          (m.abismos ?? []).map((a) => {
+            if (a.id !== id) return a
+            const { brilho: _antes, ...resto } = a
+            return brilho === null ? resto : { ...resto, brilho }
+          }),
+        ),
+      )
+    },
+    apagarAbismo: (id) => {
+      if (!(get().map.abismos ?? []).some((a) => a.id === id)) return
+      if (terrenoBarrado()) return
+      withHistory((m) => comAbismos(m, (m.abismos ?? []).filter((a) => a.id !== id)))
     },
     apagarAgua: (id) => {
       if (!(get().map.aguas ?? []).some((a) => a.id === id)) return

@@ -68,6 +68,8 @@ export type PropertyGroupId =
   | 'penhasco'
   /** Barranco: o modo (Risco | Área alta | Rampa), a altura e o risco escolhido (`BarrancoControls`). */
   | 'barranco'
+  /** Abismo: o brilho do fundo do PRÓXIMO abismo, ou do escolhido (`AbismoControls`). */
+  | 'abismo'
   /** Texturas: o modo (Pincel | Balde | Borracha), a biblioteca, tamanho e força do PRÓXIMO gesto (`TexturasControls`). */
   | 'texturas'
   /** Neblina: a chave do mapa inteiro e o pincel (Pincel | Borracha, tamanho e força do PRÓXIMO gesto) (`NeblinaControls`). */
@@ -89,7 +91,7 @@ export const PROPERTY_GROUP_IDS: readonly PropertyGroupId[] = [
   'lightControls', 'lightPreset', 'stairControls', 'stairSize', 'room',
   'layers', 'selection',
   'floorPiece', 'floorStyle', 'playerVisibility', 'concealZone', 'pin', 'pathStyle',
-  'revealBrush', 'penhasco', 'barranco', 'texturas', 'neblina', 'carimbos', 'agua', 'paredesAoRedor', 'paredePresa',
+  'revealBrush', 'penhasco', 'barranco', 'abismo', 'texturas', 'neblina', 'carimbos', 'agua', 'paredesAoRedor', 'paredePresa',
 ]
 
 /**
@@ -376,6 +378,8 @@ export function relevantPropertyGroups(
   if (activeTool === 'penhasco') groups.add('penhasco')
   // Barranco: o mesmo molde — o modo, a altura e o risco escolhido.
   if (activeTool === 'barranco') groups.add('barranco')
+  // Abismo: o mesmo molde — o brilho do fundo e o abismo escolhido.
+  if (activeTool === 'abismo') groups.add('abismo')
   // Texturas: o mesmo molde — a biblioteca e o que o PRÓXIMO gesto faz.
   if (activeTool === 'texturas') groups.add('texturas')
   // Neblina: idem — a chave do mapa inteiro e o que o PRÓXIMO gesto do pincel faz.

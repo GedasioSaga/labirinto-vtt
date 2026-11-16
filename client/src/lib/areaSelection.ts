@@ -35,6 +35,7 @@ import { carrierIdOf, followStep } from './carry'
 import { mapaDoPiso, pisoDe } from './pisos'
 import { leaveVehiclesLeftBehind, withRiders } from './vehicle'
 import { caixaDoCarimbo, moverCarimbos } from './carimbos'
+import { abismosDoPiso, caixaDoAbismo, CAMADA_DO_ABISMO, moverAbismos } from './abismo'
 import { isStairPin } from './stairTravel'
 import {
   CAMADA_DA_AGUA,
@@ -404,6 +405,8 @@ export interface AreaSelection {
   zonas?: string[]
   aguas?: string[]
   riscosDoBarranco?: string[]
+  /** ABISMO (16/11/2026, `lib/abismo.ts`): mora em Terreno, como o risco do Barranco. Ausente = nenhum. */
+  abismos?: string[]
 }
 
 export const EMPTY_AREA_SELECTION: AreaSelection = {
@@ -429,7 +432,8 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
     (selection.pins ?? []).length === 0 &&
     (selection.zonas ?? []).length === 0 &&
     (selection.aguas ?? []).length === 0 &&
-    (selection.riscosDoBarranco ?? []).length === 0
+    (selection.riscosDoBarranco ?? []).length === 0 &&
+    (selection.abismos ?? []).length === 0
   )
 }
 
@@ -511,6 +515,10 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: Pinos
   const riscosDoBarranco = camadaMexivel(map, CAMADA_DO_BARRANCO)
     ? riscosDoPiso(map.barranco, piso).filter((risco) => risco.pontos.length > 0 && inArea({ kind: 'polyline', points: risco.pontos })).map((risco) => risco.id)
     : []
+  // ABISMO: pela boca, como o lago; só os do piso (o mapa do piso não o recorta).
+  const abismos = camadaMexivel(map, CAMADA_DO_ABISMO)
+    ? abismosDoPiso(map.abismos, piso).filter((abismo) => abismo.pontos.length >= 3 && inArea({ kind: 'polygon', points: abismo.pontos })).map((abismo) => abismo.id)
+    : []
 
   return {
     walls,
@@ -525,6 +533,7 @@ export function selectEntitiesInArea(map: MapData, rect: AreaRect, pinos?: Pinos
     ...(zonas.length > 0 ? { zonas } : {}),
     ...(aguas.length > 0 ? { aguas } : {}),
     ...(riscosDoBarranco.length > 0 ? { riscosDoBarranco } : {}),
+    ...(abismos.length > 0 ? { abismos } : {}),
   }
 }
 
@@ -602,6 +611,13 @@ export function areaSelectionBounds(map: MapData, selection: AreaSelection): Are
     const ids = new Set(selection.riscosDoBarranco)
     for (const risco of map.barranco?.riscos ?? []) {
       const caixa = ids.has(risco.id) ? caixaDosPontos(risco.pontos) : null
+      if (caixa !== null) bounds.push(caixa)
+    }
+  }
+  if (selection.abismos !== undefined && selection.abismos.length > 0) {
+    const ids = new Set(selection.abismos)
+    for (const abismo of map.abismos ?? []) {
+      const caixa = ids.has(abismo.id) ? caixaDoAbismo(abismo) : null
       if (caixa !== null) bounds.push(caixa)
     }
   }
@@ -801,6 +817,11 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
   if (selection.riscosDoBarranco !== undefined && selection.riscosDoBarranco.length > 0 && next.barranco !== undefined) {
     const barranco = moverRiscos(next.barranco, new Set(selection.riscosDoBarranco), dx, dy)
     if (barranco !== next.barranco) next = { ...next, barranco }
+  }
+  // ABISMO: a camada Terreno travada segura o abismo no lugar, como o risco.
+  if (selection.abismos !== undefined && selection.abismos.length > 0 && next.abismos !== undefined && camadaMexivel(next, CAMADA_DO_ABISMO)) {
+    const abismos = moverAbismos(next.abismos, new Set(selection.abismos), dx, dy)
+    if (abismos !== next.abismos) next = { ...next, abismos }
   }
 
   return next

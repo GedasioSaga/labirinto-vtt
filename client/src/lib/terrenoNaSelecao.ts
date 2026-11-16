@@ -18,6 +18,7 @@ import { moverForma } from './agua/bolinhas'
 import { aguaNoPonto, caixaDaAgua } from './agua/forma'
 import { comAguas } from './agua/dados'
 import { comBarranco, escalaDoBarranco, geosDoBarranco, riscoPerto } from './barranco'
+import { abismoNoPonto, CAMADA_DO_ABISMO, comAbismos } from './abismo'
 import { contextoDeCamadas, type CamposDeCamadas } from './camadas/consulta'
 import { carimboNoPonto } from './carimbos'
 import { pisoDe } from './pisos'
@@ -156,8 +157,13 @@ export function moverRiscos(barranco: BarrancoDoMapa, ids: ReadonlySet<string>, 
  * Borracha geral). O último risco apagado com o barranco vazio tira o campo
  * (`comBarranco`), e a última água também (`comAguas`). Nada saiu: o MESMO mapa.
  */
-export function semItensDoTerreno(map: MapData, aguas: ReadonlySet<string>, riscos: ReadonlySet<string>): MapData {
+export function semItensDoTerreno(map: MapData, aguas: ReadonlySet<string>, riscos: ReadonlySet<string>, abismos: ReadonlySet<string> = new Set()): MapData {
   let next = map
+  // ABISMO (16/11/2026): no mesmo passo; o último apagado tira o campo (`comAbismos`).
+  if (abismos.size > 0 && next.abismos !== undefined) {
+    const ficam = next.abismos.filter((abismo) => !abismos.has(abismo.id))
+    if (ficam.length !== next.abismos.length) next = comAbismos(next, ficam)
+  }
   if (aguas.size > 0 && next.aguas !== undefined) {
     const ficam = next.aguas.filter((agua) => !aguas.has(agua.id))
     if (ficam.length !== next.aguas.length) next = comAguas(next, ficam)
@@ -174,7 +180,7 @@ export function semItensDoTerreno(map: MapData, aguas: ReadonlySet<string>, risc
 // ─────────────────────────────────────────────────────────────
 
 /** O que a Borracha geral e o clique do Selecionar acham no Terreno: o carimbo, o risco do Barranco ou a água. */
-export type AcertoNoTerreno = Selection & { kind: 'carimbo' | 'barranco' | 'agua' }
+export type AcertoNoTerreno = Selection & { kind: 'carimbo' | 'barranco' | 'abismo' | 'agua' }
 
 /**
  * O que está no Terreno debaixo do ponto, de cima para baixo como a tela
@@ -198,6 +204,11 @@ export function terrenoNoPonto(
   if (map.barranco !== undefined && map.barranco.riscos.length > 0 && camadas.mestreVe(CAMADA_DO_BARRANCO)) {
     const id = riscoPerto(geosDoBarranco(map.barranco, piso, map.grid), ponto, 10 * escalaDoBarranco(map.grid))
     if (id !== null) return { acerto: { kind: 'barranco', id }, travada: travadaDe(CAMADA_DO_BARRANCO) }
+  }
+  // ABISMO: a boca inteira acerta, abaixo do risco (a linha fina ganha) e acima da água (área maior).
+  if (map.abismos !== undefined && map.abismos.length > 0 && camadas.mestreVe(CAMADA_DO_ABISMO)) {
+    const abismo = abismoNoPonto(map.abismos, piso, ponto)
+    if (abismo !== null) return { acerto: { kind: 'abismo', id: abismo.id }, travada: travadaDe(CAMADA_DO_ABISMO) }
   }
   if (comAgua && map.aguas !== undefined && map.aguas.length > 0 && camadas.mestreVe(CAMADA_DA_AGUA)) {
     const agua = aguaNoPonto(map.aguas, map.grid, ponto.x, ponto.y)

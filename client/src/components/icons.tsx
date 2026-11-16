@@ -217,6 +217,20 @@ export function BarrancoIcon(props: IconProps) {
 }
 
 /**
+ * Abismo: a boca do buraco vista de cima, com a parede de cima descendo para
+ * o fundo e duas lascas soltas na beira.
+ */
+export function AbismoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 11.5c.6-3.6 4.4-5.5 8.4-5.3 4.3.2 7.6 2.6 7.6 5.8 0 3.6-3.9 6.2-8.3 6.2S3.4 15.4 4 11.5z" />
+      <path d="M7 11.2c1.4-1.6 3.4-2.3 5.4-2.2 2.1.1 3.8.9 4.9 2.2" />
+      <path d="M8.5 14.6h.01M15.5 15.2h.01" />
+    </Icon>
+  )
+}
+
+/**
  * Penhasco: a terra vista de lado — o chão em cima e a parede descendo em
  * degraus até a água, que ondula no pé dela.
  */

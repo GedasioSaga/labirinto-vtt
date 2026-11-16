@@ -5,6 +5,8 @@ import { cenaTemFogo, temParticulas } from './particulasDaCena'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
+import { abismosParaJogador } from './abismo'
+import type { Abismo } from '../types/map'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
 import { ambienteParaJogador, comAmbientePintado, temAmbiente } from './ambiente'
@@ -578,6 +580,18 @@ export function carimboEscondidoDosJogadores(map: MapData): (carimbo: Carimbo) =
   const camadas = contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map))
   const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
   return (carimbo) => !camadas.jogadorVeItem('carimbo', carimbo) || (aneis.length > 0 && aneis.some((anel) => pointInRing(carimbo, anel)))
+}
+
+/**
+ * ABISMO (16/11/2026, `lib/abismo.ts`), no molde do carimbo acima: o abismo que
+ * o host NÃO usa para segurar o passo do jogador, porque o recorte nunca o
+ * entrega: todos, com a camada Terreno escondida dos jogadores; e o que tem a
+ * boca inteira em lugar escondido dele (zona oculta, teto).
+ */
+export function abismoEscondidoDosJogadores(map: MapData): (abismo: Abismo) => boolean {
+  if (!contextoDeCamadas(comCamadaApagadaOcultaDoJogador(map)).jogadorVe('terreno')) return () => true
+  const aneis = playerHiddenRings(map).filter((anel) => anel.length >= 3)
+  return (abismo) => aneis.length > 0 && abismo.pontos.every((p) => aneis.some((anel) => pointInRing(p, anel)))
 }
 
 /**
@@ -4892,6 +4906,12 @@ function recorteDoGrupo(
               )
             : undefined,
         }),
+    // ABISMO (`abismosParaJogador`): o que encosta no que ele conhece, do piso do grupo, inteiro
+    // (a tela dele o pinta sob a máscara do conhecido). Terreno escondido dos jogadores: nenhum.
+    // Sempre presente, para nunca vir pelo `...map`.
+    abismos: terrenoVisivel
+      ? abismosParaJogador(map.abismos, pisoDoGrupo(mapaInteiro, viewers, loans), map.grid, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom)
+      : undefined,
     // ÁGUA (`lib/agua/recorte.ts`): só o pedaço que ele conhece, sem a forma de verdade (os
     // `pontos` vão vazios), fora de lugar escondido e de zona oculta; a secreta nunca. Mora em
     // Chão: com a camada escondida dos jogadores, nenhuma sai. Sempre presente, para nunca vir pelo `...map`.

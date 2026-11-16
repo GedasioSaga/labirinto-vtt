@@ -335,6 +335,7 @@ function measureBoxOfItem(map: MapData, item: SelectionItem): AreaBounds | null 
     case 'zone':
     case 'agua':
     case 'barranco':
+    case 'abismo':
       return areaSelectionBounds(map, selectionToAreaSelection([item]))
   }
 }

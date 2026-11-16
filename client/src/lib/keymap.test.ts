@@ -62,8 +62,10 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // E o NONO, Barranco (28/10/2026), também sem letra: os dígitos são os sons.
     // E o DÉCIMO, Neblina (06/11/2026), sem letra por enquanto: a barra a alcança no grupo Terreno.
     // E o 11º e o 12º (12/11/2026): Construção, ao lado do Objeto, e Água, no Terreno; nenhuma letra livre.
-    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 12)
+    // E o 13º, Abismo (16/11/2026), a terceira cara do Desnível: sem letra, como o Barranco.
+    expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 13)
     expect(TOOL_SHORTCUTS.barranco).toBe('')
+    expect(TOOL_SHORTCUTS.abismo).toBe('')
     expect(TOOL_SHORTCUTS.neblina).toBe('')
     expect(TOOL_SHORTCUTS.construcao).toBe('')
     expect(TOOL_SHORTCUTS.agua).toBe('')

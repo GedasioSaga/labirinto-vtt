@@ -226,6 +226,11 @@ export function resolveHoverGeometry(map: MapData, target: HoverTarget, pinos?: 
       const risco = map.barranco?.riscos.find((r) => r.id === target.id)
       return risco === undefined || risco.pontos.length < 2 ? null : { shape: 'segments', segments: segmentosDoTraco(risco.pontos) }
     }
+    // ABISMO: pela boca, como o lago.
+    case 'abismo': {
+      const abismo = map.abismos?.find((a) => a.id === target.id)
+      return abismo === undefined || abismo.pontos.length < 3 ? null : { shape: 'polygon', points: abismo.pontos }
+    }
     case 'pin':
       return null
     default:

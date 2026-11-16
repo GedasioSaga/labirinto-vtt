@@ -43,6 +43,7 @@ export const TOOL_LABELS: Partial<Record<DrawingTool, string>> = {
   revealBrush: 'Pincel de revelar',
   penhasco: 'Penhasco',
   barranco: 'Barranco',
+  abismo: 'Abismo',
   texturas: 'Texturas',
   // 16/11/2026 (decisão do mestre, Fase 6): "Ambiente vira Clima" — "Ambiente da cena" é a luz do
   // período, e o mesmo nome para as duas confundia. O id continua 'neblina' (arquivos abrem igual).
@@ -79,6 +80,7 @@ export const SELECTION_LABELS: Record<SelectionKind, SelectionNoun> = {
   zone: { noun: 'zona oculta', gender: 'f' },
   agua: { noun: 'água', gender: 'f' },
   barranco: { noun: 'risco de barranco', gender: 'm' },
+  abismo: { noun: 'abismo', gender: 'm' },
 }
 
 /** "Apagar sala selecionada", "Apagar token selecionado". */
@@ -137,6 +139,8 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
     'Escolha um objeto no painel: o clique solta um; segure e arraste para espalhar vários (começando na terra, o spray fica na terra). Segure Alt (ou escolha Borracha no painel) para tirar.',
   barranco:
     'Dê parte alta e parte baixa ao mapa. Risco: arraste a beira e escolha o lado alto (F vira). Área alta: pinte o platô, e a borda vira barranco; começar dentro sobe mais um degrau, Alt desce. Rampa: clique no barranco para abrir a passagem. O barranco segura a ficha; a visão passa por cima.',
+  abismo:
+    'Arraste em volta do buraco para contornar a boca: nasce um abismo com a parede descendo para o escuro. No painel, o fundo pode brilhar em brasa ou verde. Clique num abismo para escolher; Delete apaga. Segura a ficha do jogador; a visão passa por cima.',
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um pino. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
@@ -189,6 +193,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   revealBrush: 'Pinte o mapa durante o jogo.',
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
+  abismo: 'Arraste em volta do buraco.',
   texturas: 'Pinte a textura por cima do mapa.',
   neblina: 'Pinte o efeito do clima por cima do mapa.',
   agua: 'Trace a água ou a lava; clique nela para mexer.',
@@ -238,7 +243,8 @@ export const TOOL_CLUSTERS: Record<ToolClusterId, ToolCluster> = {
   objeto: { label: 'Objeto', tools: ['mobilia', 'prop'] },
   // DESNÍVEL (Fase 6, 16/11/2026, decisão do mestre "Penhasco + Barranco"): uma ferramenta de desnível com
   // duas caras. Cada uma segue ferramenta própria, com o seu dado e a sua letra: o mapa salvo abre igual.
-  desnivel: { label: 'Desnível', tools: ['barranco', 'penhasco'] },
+  // ABISMO (16/11/2026): a terceira cara, o buraco fundo (`lib/abismo.ts`).
+  desnivel: { label: 'Desnível', tools: ['barranco', 'penhasco', 'abismo'] },
 }
 
 /** Uma posição da barra: uma ferramenta, ou um grupo (`cluster:<id>`). */

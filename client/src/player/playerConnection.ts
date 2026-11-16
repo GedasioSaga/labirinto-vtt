@@ -2101,6 +2101,7 @@ const MOVE_REJECTIONS: readonly (TokenMoveRejection | MotivoDaCaminhada)[] = [
   'a_bordo',
   'objeto',
   'agua',
+  'abismo',
   'caminhada_desligada',
   'nevoa',
 ]

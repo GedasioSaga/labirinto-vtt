@@ -50,6 +50,12 @@ export type DrawingTool =
    */
   | 'barranco'
   /**
+   * Abismo (terceira cara do Desnível, 16/11/2026): o mestre contorna à mão a
+   * boca de um buraco fundo (`lib/abismo.ts`). Segura o andar da ficha do
+   * jogador, não a visão; o fundo pode brilhar em brasa ou verde.
+   */
+  | 'abismo'
+  /**
    * Texturas: o mestre pinta uma textura da biblioteca (areia, floresta...)
    * por cima do que quiser, com pincel, balde e borracha (`lib/texturas.ts`).
    * Não é o Chão: não cria piso, só pinta por cima das regiões e desenhos.
@@ -115,7 +121,7 @@ export type RoomFreeKind = 'sala' | 'parede'
  * `MapData.barranco.riscos`). O pino e a zona abertos no painel continuam em `selectedPinId` e
  * `selectedConcealZoneId`; estes entram pelo laço, pelo Shift+clique e pelo clique no Terreno.
  */
-export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco'
+export type SelectionKind = 'token' | 'wall' | 'light' | 'region' | 'stair' | 'prop' | 'drawing' | 'floor' | 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco' | 'abismo'
 
 export interface Selection {
   kind: SelectionKind

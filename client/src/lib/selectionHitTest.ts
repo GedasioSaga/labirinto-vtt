@@ -576,6 +576,7 @@ function camadaDoAcerto(map: MapData, hit: Selection): CamadaId | null {
     case 'agua':
       return 'chao'
     case 'barranco':
+    case 'abismo':
       return 'terreno'
     case 'zone':
     case 'floor':

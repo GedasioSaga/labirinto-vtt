@@ -49,6 +49,7 @@ const NOUNS: Record<SelectionKind, string> = {
   zone: 'Zona oculta',
   agua: 'Água',
   barranco: 'Risco de barranco',
+  abismo: 'Abismo',
 }
 const FEMININE: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['wall', 'region', 'stair', 'light', 'zone', 'agua'])
 

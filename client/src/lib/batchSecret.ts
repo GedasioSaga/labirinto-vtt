@@ -35,6 +35,8 @@ function secretKindOf(kind: SelectionKind): SecretKind | null {
     case 'zone':
     case 'agua':
     case 'barranco':
+    // O abismo vai pelo recorte do lugar (`abismosParaJogador`), sem "oculto" próprio.
+    case 'abismo':
       return null
   }
 }

@@ -106,6 +106,7 @@ import { ConcealZoneControls, type ConcealZoneControlsProps } from './ConcealZon
 import { ConcealBrushControls, type ConcealBrushControlsProps } from './ConcealBrushControls'
 import { PenhascoControls } from './PenhascoControls'
 import { BarrancoControls } from './BarrancoControls'
+import { AbismoControls } from './AbismoControls'
 import { TexturasControls } from './TexturasControls'
 import { AmbienteControls } from './AmbienteControls'
 import { AguaControls } from './AguaControls'
@@ -845,6 +846,9 @@ export function PropertiesPanel({
         </ToolPropertiesSection>
         <ToolPropertiesSection group="barranco" groups={groups}>
           <BarrancoControls />
+        </ToolPropertiesSection>
+        <ToolPropertiesSection group="abismo" groups={groups}>
+          <AbismoControls />
         </ToolPropertiesSection>
         <ToolPropertiesSection group="texturas" groups={groups}>
           <TexturasControls />

@@ -1,4 +1,4 @@
-import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo, ConcealZone, Agua, RiscoDeBarranco } from '../types/map'
+import type { Wall, Light, Region, Token, Prop, Stair, Drawing, RegionPoint, StairSegment, FloorPiece, FloorShape, MapData, Pin, Carimbo, ConcealZone, Agua, RiscoDeBarranco, Abismo } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { novoIdDeCarimbo } from './carimbos'
 import { moverCelulas } from './terrenoNaSelecao'
@@ -329,6 +329,7 @@ interface EntityByKind {
   zone: ConcealZone
   agua: Agua
   barranco: RiscoDeBarranco
+  abismo: Abismo
 }
 
 /**
@@ -359,6 +360,11 @@ export function cloneAgua(agua: Agua, offset: Offset): Agua {
 /** Risco do Barranco (Fase 4): id novo e deslocado, com o mesmo lado alto e a mesma altura. */
 export function cloneRiscoDeBarranco(risco: RiscoDeBarranco, offset: Offset): RiscoDeBarranco {
   return { ...risco, id: crypto.randomUUID(), pontos: risco.pontos.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
+}
+
+/** Abismo: id novo e a boca deslocada, com o mesmo brilho. */
+export function cloneAbismo(abismo: Abismo, offset: Offset): Abismo {
+  return { ...abismo, id: crypto.randomUUID(), pontos: abismo.pontos.map((p) => ({ x: p.x + offset.dx, y: p.y + offset.dy })) }
 }
 
 /** Carimbo (Fase 2): id curto de carimbo (`novoIdDeCarimbo`), que vai ao jogador a cada mensagem. */
@@ -407,6 +413,8 @@ export function cloneEntity(input: CloneableEntity, offset: Offset): CloneableEn
       return { kind: 'agua', entity: cloneAgua(input.entity, offset) }
     case 'barranco':
       return { kind: 'barranco', entity: cloneRiscoDeBarranco(input.entity, offset) }
+    case 'abismo':
+      return { kind: 'abismo', entity: cloneAbismo(input.entity, offset) }
     default:
       return assertNeverSelectionKind(input)
   }

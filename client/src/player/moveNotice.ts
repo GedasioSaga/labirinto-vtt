@@ -41,6 +41,8 @@ const MOVE_NOTICE_TEXT: Record<TokenMoveRejection, string> = {
   a_bordo: 'A bordo: desça para andar',
   // OBJETO QUE BARRA (`lib/obstaculosDeObjeto.ts`): o moinho, o poço, o pilar no meio do passo.
   objeto: 'Objeto no caminho',
+  // ABISMO (`lib/abismo.ts`): a ficha não entra no buraco.
+  abismo: 'Abismo no caminho',
 }
 
 export function moveNoticeText(reason: TokenMoveRejection): string {

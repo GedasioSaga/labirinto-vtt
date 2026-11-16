@@ -2904,6 +2904,14 @@ export interface MapData {
    */
   barranco?: BarrancoDoMapa
   /**
+   * ABISMO (`lib/abismo.ts`, cara Abismo do Desnível, 16/11/2026): os buracos
+   * fundos que o mestre contornou. Seguram o andar da ficha do jogador, não a
+   * visão. Ausente = sem abismo (o último apagado tira o campo). Leitura segura
+   * em `lerAbismos`. Sai no recorte do jogador só o que encosta no que ele
+   * conhece (`abismosParaJogador`).
+   */
+  abismos?: Abismo[]
+  /**
    * TEXTURAS (`lib/texturas.ts`): o que o mestre pintou com a ferramenta
    * Texturas, na ordem em que pintou (pincelada, balde e borracha; a de depois
    * cobre a de antes). A textura não é guardada como imagem: cada tela a pinta
@@ -3077,6 +3085,19 @@ export interface RampaDeBarranco extends NoPiso {
   id: string
   x: number
   y: number
+}
+
+/** O brilho no fundo de um abismo (`lib/abismo.ts`): brasa vermelha ou verde. Ausente = sem brilho. */
+export type BrilhoDoAbismo = 'brasa' | 'verde'
+
+/**
+ * Um abismo (`MapData.abismos`): a boca do buraco, um contorno fechado em px
+ * de mundo. `piso` (`NoPiso`): ausente = térreo.
+ */
+export interface Abismo extends NoPiso {
+  id: string
+  pontos: RegionPoint[]
+  brilho?: BrilhoDoAbismo
 }
 
 /** O barranco do mapa (`MapData.barranco`). */

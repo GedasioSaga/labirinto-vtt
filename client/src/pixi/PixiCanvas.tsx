@@ -88,6 +88,10 @@ import { carimboDoCatalogo } from '../carimbos/catalogo'
 import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { criarDesenhoDoBarranco } from './drawBarranco'
+import { criarDesenhoDoAbismo } from './drawAbismo'
+import { criarGestoDoAbismo } from './abismoNoEditor'
+import { abismoNoPonto, carimbosComOsAbismos } from '../lib/abismo'
+import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
 import { criarGestoDoMuroDeFogo } from './muroDeFogoNoEditor'
@@ -661,16 +665,17 @@ const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
   zone: { um: 'zona oculta', varios: 'zonas ocultas', feminino: true },
   agua: { um: 'água', varios: 'águas', feminino: true },
   barranco: { um: 'risco de barranco', varios: 'riscos de barranco', feminino: false },
+  abismo: { um: 'abismo', varios: 'abismos', feminino: false },
 }
 
 /**
  * Os tipos que, sozinhos na seleção, só têm o contorno do grupo como destaque
  * (sem alça própria) e andam pelo arrasto da seleção (`moveSelectionLive`).
  */
-const TIPOS_SO_COM_CONTORNO: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['carimbo', 'pin', 'zone', 'agua', 'barranco'])
+const TIPOS_SO_COM_CONTORNO: ReadonlySet<SelectionKind> = new Set<SelectionKind>(['carimbo', 'pin', 'zone', 'agua', 'barranco', 'abismo'])
 
 /** Os tipos que a cadeia da Borracha geral (`findErasableAt`) não devolve: o Terreno, o pino e a zona têm caminho próprio. */
-type TipoDoTerrenoNaBorracha = 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco'
+type TipoDoTerrenoNaBorracha = 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco' | 'abismo'
 function ehTipoDoTerrenoNaBorracha(kind: SelectionKind): kind is TipoDoTerrenoNaBorracha {
   return TIPOS_SO_COM_CONTORNO.has(kind)
 }
@@ -1433,6 +1438,9 @@ function PixiCanvasDoContexto({
       relevoContainer.eventMode = 'none'
       // A parede do penhasco do Desenhado (`penhascoDoContinente.ts`) logo por cima da textura.
       relevoContainer.addChild(relevo.camada, relevo.penhasco)
+      // ABISMO (`drawAbismo.ts`): mora em Terreno, como o barranco; logo abaixo dele.
+      const desenhoDoAbismo = criarDesenhoDoAbismo()
+      relevoContainer.addChild(desenhoDoAbismo.camada)
       // BARRANCO (`drawBarranco.ts`): mora em Terreno, como o Penhasco — no contêiner do relevo, por cima dele.
       const desenhoDoBarranco = criarDesenhoDoBarranco()
       relevoContainer.addChild(desenhoDoBarranco.camada)
@@ -1624,6 +1632,15 @@ function PixiCanvasDoContexto({
       const gestoDoBarranco = criarGestoDoBarranco({
         rascunho: draftGraphics,
         aoMudarDesenho: () => desenhoDoBarranco.atualizar(gestoDoBarranco.entrada()),
+        avisar: (texto) => {
+          const toasts = useToastStore.getState()
+          if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
+        },
+      })
+      // ABISMO: o gesto da ferramenta (`abismoNoEditor.ts`); o rascunho da boca usa o draft.
+      const gestoDoAbismo = criarGestoDoAbismo({
+        rascunho: draftGraphics,
+        aoMudarDesenho: () => desenhoDoAbismo.atualizar(gestoDoAbismo.entrada()),
         avisar: (texto) => {
           const toasts = useToastStore.getState()
           if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
@@ -3271,7 +3288,8 @@ function PixiCanvasDoContexto({
           // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
           fogos: map.props,
           // Os carimbos que iluminam (os cogumelos que brilham, a rocha vulcânica), juntos por célula.
-          carimbos: map.carimbos,
+          // ABISMO: o fundo que brilha empresta a luz da fenda em brasa ou dos cristais verdes (`carimbosComOsAbismos`).
+          carimbos: carimbosComOsAbismos(map.carimbos, map.abismos, map.grid, useMapStore.getState().pisoAtivo),
           casa: map.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
@@ -3667,6 +3685,11 @@ function PixiCanvasDoContexto({
       const atualizarBarranco = () => desenhoDoBarranco.atualizar(gestoDoBarranco.entrada())
       atualizarBarranco()
       const unsubscribeBarranco = useMapStore.subscribe(atualizarBarranco)
+      // ABISMO: o mesmo molde; o escolhido mora na loja da ferramenta.
+      const atualizarAbismo = () => desenhoDoAbismo.atualizar(gestoDoAbismo.entrada())
+      atualizarAbismo()
+      const unsubscribeAbismo = useMapStore.subscribe(atualizarAbismo)
+      const unsubscribeEscolhaDoAbismo = useFerramentaDoAbismo.subscribe(atualizarAbismo)
       // O par de um pino de viagem mora numa cena de FUNDO: ligar, desligar ou
       // apagar o par muda o cache da aventura sem tocar em `map.pins` daqui, e
       // o pino daqui precisa acender ou apagar mesmo assim.
@@ -3964,6 +3987,8 @@ function PixiCanvasDoContexto({
         | 'painting-penhasco'
         // Barranco: risco, traço da área alta ou clique de rampa (`barrancoNoEditor.ts`).
         | 'painting-barranco'
+        // Abismo: o contorno da boca à mão (`abismoNoEditor.ts`).
+        | 'painting-abismo'
         // Água: o traço do rio ou o contorno do lago e do mar (`aguaNoEditor.ts`).
         | 'painting-agua'
         // Muro de fogo: o traço à mão ou o canto do ponto a ponto (`muroDeFogoNoEditor.ts`).
@@ -5967,8 +5992,11 @@ function PixiCanvasDoContexto({
        * tratados em `findFloorPieceAt`.
        */
       const floorHitAt = (map: MapData, point: Point): SelectableHit | null => {
+        const pisoAtivo = useMapStore.getState().pisoAtivo
+        // ABISMO: a boca é um buraco no chão; o clique nela é do abismo (`itemDoTerrenoNoClique`), não da peça de baixo.
+        if (abismoNoPonto(map.abismos, pisoAtivo, point) !== null) return null
         // Só o chão do piso em edição: a peça do térreo não se vê do 1º piso.
-        const piece = pecaDeChaoNoPiso(map, useMapStore.getState().pisoAtivo, point)
+        const piece = pecaDeChaoNoPiso(map, pisoAtivo, point)
         return piece ? { kind: 'floor', id: piece.id, draggable: true } : null
       }
 
@@ -6000,6 +6028,9 @@ function PixiCanvasDoContexto({
         // Barranco: idem — o traço da área cancelado não vira passo, e o risco cancelado não entra.
         gestoDoBarranco.cancelar()
         if (mode === 'painting-barranco') mode = 'idle'
+        // Abismo: idem — a boca cancelada não nasce; sem traço, solta o escolhido.
+        gestoDoAbismo.cancelar()
+        if (mode === 'painting-abismo') mode = 'idle'
         // Água: idem — o traço cancelado não vira água.
         gestoDaAgua.cancelar()
         if (mode === 'painting-agua') mode = 'idle'
@@ -7009,6 +7040,12 @@ function PixiCanvasDoContexto({
         if (activeTool === 'barranco') {
           // BARRANCO (`barrancoNoEditor.ts`): risco, área alta ou rampa, pelo modo do painel; Alt desce a área.
           if (gestoDoBarranco.comecar(worldPoint, event.altKey)) mode = 'painting-barranco'
+          return
+        }
+
+        if (activeTool === 'abismo') {
+          // ABISMO (`abismoNoEditor.ts`): arrastar contorna a boca; o clique escolhe o abismo no ponto.
+          if (gestoDoAbismo.comecar(worldPoint)) mode = 'painting-abismo'
           return
         }
 
@@ -8256,6 +8293,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-abismo') gestoDoAbismo.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-agua') gestoDaAgua.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-muro-de-fogo') {
           const pontoDoMuro = toWorldPoint(event.global.x, event.global.y)
@@ -8679,6 +8717,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-reveal-brush') finishRevealStroke(null)
         if (mode === 'painting-penhasco') finishPenhascoStroke(null)
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
+        if (mode === 'painting-abismo') gestoDoAbismo.soltar(null)
         if (mode === 'painting-agua') gestoDaAgua.soltar(null)
         if (mode === 'painting-muro-de-fogo') gestoDoMuroDeFogo.soltar(null, null)
         if (mode === 'painting-textura') finishTexturaStroke(null)
@@ -9304,6 +9343,11 @@ function PixiCanvasDoContexto({
 
         if (mode === 'painting-barranco') {
           gestoDoBarranco.mover(toWorldPoint(event.global.x, event.global.y))
+          return
+        }
+
+        if (mode === 'painting-abismo') {
+          gestoDoAbismo.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -9952,6 +9996,8 @@ function PixiCanvasDoContexto({
           case 'deleteSelected': {
             // Barranco: com um risco escolhido na ferramenta, Delete apaga o risco.
             if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.apagarEscolhido()) break
+            // Abismo: com um abismo escolhido na ferramenta, Delete apaga o abismo.
+            if (useMapStore.getState().activeTool === 'abismo' && gestoDoAbismo.apagarEscolhido()) break
             // Água: com uma água escolhida na ferramenta, Delete apaga a água.
             if (useMapStore.getState().activeTool === 'agua' && gestoDaAgua.apagarEscolhida()) break
             // O pino de ponto de interesse vive FORA de `selection` (estado
@@ -10184,6 +10230,8 @@ function PixiCanvasDoContexto({
         zoomDaRoda.cancelar()
         unsubscribeShapes()
         unsubscribeBarranco()
+        unsubscribeAbismo()
+        unsubscribeEscolhaDoAbismo()
         unsubscribeTravelLinks()
         unsubscribeSeloAberto()
         unsubscribePaginaDoSelo()
@@ -10220,6 +10268,8 @@ function PixiCanvasDoContexto({
         relevo.destruir()
         gestoDoBarranco.cancelar()
         desenhoDoBarranco.destroy()
+        gestoDoAbismo.cancelar()
+        desenhoDoAbismo.destroy()
         gestoDaAgua.destruir()
         gestoDoMuroDeFogo.destruir()
         // O pintor das paredes do nó de hoje (o dos nós criados sai com a pilha).

@@ -589,6 +589,8 @@ export const DESNIVEL_SHAPE_GROUP: Extract<ToolVariantGroup, { storeKey: 'drawSh
   options: [
     { id: 'barranco', label: 'Barranco', value: 'barranco', description: comAtalho('Beira de terra que segura o passo', 'barranco') },
     { id: 'penhasco', label: 'Penhasco', value: 'penhasco', description: comAtalho('Rochedo na costa, só desenho', 'penhasco') },
+    // ABISMO (16/11/2026): o buraco fundo; como o barranco, segura o passo (do jogador) e deixa ver.
+    { id: 'abismo', label: 'Abismo', value: 'abismo', description: comAtalho('Buraco fundo que segura o passo do jogador', 'abismo') },
   ],
 }
 

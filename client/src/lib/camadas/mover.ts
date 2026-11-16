@@ -77,6 +77,7 @@ const TIPO_DA_SELECAO: Record<SelectionKind, TipoDeObjeto | null> = {
   zone: null,
   agua: null,
   barranco: null,
+  abismo: null,
 }
 
 /** Os itens da seleção do editor (e o pino aberto, que mora fora dela) como refs de mover. */

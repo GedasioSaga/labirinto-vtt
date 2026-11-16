@@ -263,6 +263,7 @@ export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
     ...(area.zonas ?? []).map((id): SelectionItem => ({ kind: 'zone', id })),
     ...(area.aguas ?? []).map((id): SelectionItem => ({ kind: 'agua', id })),
     ...(area.riscosDoBarranco ?? []).map((id): SelectionItem => ({ kind: 'barranco', id })),
+    ...(area.abismos ?? []).map((id): SelectionItem => ({ kind: 'abismo', id })),
   ]
 }
 
@@ -285,6 +286,7 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
   const zonas: string[] = []
   const aguas: string[] = []
   const riscosDoBarranco: string[] = []
+  const abismos: string[] = []
 
   for (const item of selection) {
     switch (item.kind) {
@@ -324,6 +326,9 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
       case 'barranco':
         riscosDoBarranco.push(item.id)
         break
+      case 'abismo':
+        abismos.push(item.id)
+        break
     }
   }
 
@@ -341,5 +346,6 @@ export function selectionToAreaSelection(selection: SelectionSet): AreaSelection
     ...(zonas.length > 0 ? { zonas } : {}),
     ...(aguas.length > 0 ? { aguas } : {}),
     ...(riscosDoBarranco.length > 0 ? { riscosDoBarranco } : {}),
+    ...(abismos.length > 0 ? { abismos } : {}),
   }
 }
