@@ -15,7 +15,7 @@ import { PERSONAGEM_NOME_MAX } from '../../net/protocoloDoPersonagem'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePreludio } from '../estado/preludio'
 import { gravarFichaNaPasta } from '../janela/mesaNaJanela'
-import { useRaizDaMidia, urlDaMidia } from '../midia'
+import { prepararMidia, urlDaMidia } from '../midia'
 import './virarNpc.css'
 
 /**
@@ -29,10 +29,7 @@ import './virarNpc.css'
 
 type Comeco = 'minima' | 'modelo' | 'branco'
 
-type Carga =
-  | { readonly t: 'lendo' }
-  | { readonly t: 'pronta'; readonly nomeDaPasta: string; readonly sistema: SistemaDeRpg; readonly personagens: readonly Personagem[] }
-  | { readonly t: 'falhou'; readonly motivo: string }
+type Carga = { readonly t: 'lendo' } | PastaParaNpc
 
 export interface VirarNpcProps {
   verbete: Verbete
@@ -43,33 +40,36 @@ export interface VirarNpcProps {
   aoFeito: (ligacao: LigaFicha, ficha: Personagem) => void
 }
 
-/** A pasta, o sistema dela e as fichas que já tem (os modelos e os nomes que não podem repetir). */
+export type PastaParaNpc =
+  | { readonly t: 'pronta'; readonly nomeDaPasta: string; readonly sistema: SistemaDeRpg; readonly personagens: readonly Personagem[] }
+  | { readonly t: 'falhou'; readonly motivo: string }
+
+/** A pasta da campanha, o sistema dela e as fichas que já tem (os modelos e os nomes que não podem repetir). */
+export async function lerPastaParaNpc(pastaId: string): Promise<PastaParaNpc> {
+  const [{ indice }, lido] = await Promise.all([lerIndiceDasPastas(), lerRpgDaPasta(pastaId), useRpgStore.getState().carregarBiblioteca()])
+  const nomeDaPasta = indice.pastas.find((pasta) => pasta.id === pastaId)?.nome ?? 'a pasta da campanha'
+  if (!lido.ok) return { t: 'falhou', motivo: `Não deu para ler as fichas de ${nomeDaPasta}: ${lido.motivo}` }
+  const sistemaId = lido.rpg.sistemaDeRpg
+  const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaId)
+  if (sistema === undefined) {
+    return {
+      t: 'falhou',
+      motivo:
+        sistemaId === undefined
+          ? `A pasta ${nomeDaPasta} ainda não tem sistema de RPG. Escolha um na pasta, em Carregar mapa, e volte aqui.`
+          : `O sistema da pasta ${nomeDaPasta} (${sistemaId}) não está na biblioteca deste computador.`,
+    }
+  }
+  return { t: 'pronta', nomeDaPasta, sistema, personagens: lido.rpg.personagens }
+}
+
 function useCargaDaPasta(pastaId: string): Carga {
   const [carga, setCarga] = useState<Carga>({ t: 'lendo' })
   useEffect(() => {
     let vivo = true
-    void (async () => {
-      const [{ indice }, lido] = await Promise.all([lerIndiceDasPastas(), lerRpgDaPasta(pastaId), useRpgStore.getState().carregarBiblioteca()])
-      if (!vivo) return
-      const nomeDaPasta = indice.pastas.find((pasta) => pasta.id === pastaId)?.nome ?? 'a pasta da campanha'
-      if (!lido.ok) {
-        setCarga({ t: 'falhou', motivo: `Não deu para ler as fichas de ${nomeDaPasta}: ${lido.motivo}` })
-        return
-      }
-      const sistemaId = lido.rpg.sistemaDeRpg
-      const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaId)
-      if (sistema === undefined) {
-        setCarga({
-          t: 'falhou',
-          motivo:
-            sistemaId === undefined
-              ? `A pasta ${nomeDaPasta} ainda não tem sistema de RPG. Escolha um na pasta, em Carregar mapa, e volte aqui.`
-              : `O sistema da pasta ${nomeDaPasta} (${sistemaId}) não está na biblioteca deste computador.`,
-        })
-        return
-      }
-      setCarga({ t: 'pronta', nomeDaPasta, sistema, personagens: lido.rpg.personagens })
-    })()
+    void lerPastaParaNpc(pastaId).then((lida) => {
+      if (vivo) setCarga(lida)
+    })
     return () => {
       vivo = false
     }
@@ -77,29 +77,32 @@ function useCargaDaPasta(pastaId: string): Carga {
   return carga
 }
 
-/** O retrato do verbete como foto embutida da ficha (`buildTokenPhotoData`); `null` = sem imagem ou ainda lendo. */
+/** Uma imagem do Prelúdio como foto embutida da ficha e do token (`buildTokenPhotoData`); `null` = sem imagem ou não deu. */
+export async function retratoDaMidia(midia: string | null): Promise<string | null> {
+  const raiz = await prepararMidia()
+  const url = raiz === null ? null : urlDaMidia(raiz, midia)
+  if (url === null) return null
+  try {
+    const resposta = await fetch(url)
+    return resposta.ok ? await buildTokenPhotoData(await resposta.blob()) : null
+  } catch {
+    // Sem a foto o NPC nasce com as iniciais; o mestre troca na ficha.
+    return null
+  }
+}
+
+/** O retrato do verbete, lido do disco depois de a janela abrir; `null` enquanto lê. */
 function useRetratoDoVerbete(midia: string | null): string | null {
-  const raiz = useRaizDaMidia()
   const [retrato, setRetrato] = useState<string | null>(null)
   useEffect(() => {
-    const url = raiz === null ? null : urlDaMidia(raiz, midia)
-    if (url === null) return
     let vivo = true
-    void fetch(url)
-      .then((resposta) => (resposta.ok ? resposta.blob() : null))
-      .then((blob) => (blob === null ? null : buildTokenPhotoData(blob)))
-      .then(
-        (foto) => {
-          if (vivo) setRetrato(foto)
-        },
-        () => {
-          // Sem a foto o NPC nasce com as iniciais; o mestre troca na ficha.
-        },
-      )
+    void retratoDaMidia(midia).then((foto) => {
+      if (vivo) setRetrato(foto)
+    })
     return () => {
       vivo = false
     }
-  }, [raiz, midia])
+  }, [midia])
   return retrato
 }
 

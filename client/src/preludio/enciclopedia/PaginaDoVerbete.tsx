@@ -7,6 +7,7 @@ import { citadoEm, usePreludio, type Lugar } from '../estado/preludio'
 import { BarraDoTexto, TextoDoPreludio } from '../editor/sobDemanda'
 import { bloqueioDoVerbete, ControleDeRevelacao, RevelarVerbete, useCampanhaDaRevelacao, useRevelacoesDaCampanha } from '../revelar/Revelar'
 import { NaMesa, PorNoMapaDaSecao } from '../janela/NaMesaNoPreludio'
+import { PorOVerbeteNoMapa } from '../janela/PorOVerbeteNoMapa'
 import { FichaDoLivro } from './FichaDoLivro'
 import { Galeria, Retrato } from './Imagens'
 
@@ -554,6 +555,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
 
       <aside className="pr-trilho" aria-label={`Ao redor de ${verbete.titulo || 'sem nome'}`}>
         {!documento && <NaMesa verbeteId={verbete.id} />}
+        {!documento && <PorOVerbeteNoMapa verbete={verbete} forma={forma} />}
         {(verbete.tipo === 'lugar' || documento) && (
           <section className="pr-trilho__bloco" aria-labelledby="pr-dentro-titulo">
             <h3 id="pr-dentro-titulo" className="pr-trilho__titulo">

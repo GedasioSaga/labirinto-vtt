@@ -30,6 +30,8 @@ interface EstadoDaMesaNaJanela {
   avisoDoPor: string | null
   /** E3: o verbete inteiro indo ao mapa pelo tipo (token, item ou lugar). */
   pondoVerbete: PorVerbeteEmCurso | null
+  /** E3: por que o último "Pôr no mapa" de verbete não aconteceu (à parte do das seções, que cada seção mostra). */
+  avisoDoVerbete: string | null
   /** E3: o último verbete que a mesa pôs no mapa (para o "Na mesa" da linha), com o tipo. */
   postoVerbete: { readonly verbeteId: string; readonly como: ComoVaiAoMapa } | null
 }
@@ -57,6 +59,7 @@ export const useMesaNaJanela = create<EstadoDaMesaNaJanela>()(() => ({
   pondo: null,
   avisoDoPor: null,
   pondoVerbete: null,
+  avisoDoVerbete: null,
   postoVerbete: null,
 }))
 
@@ -65,10 +68,11 @@ let fio: FioDoPreludio | null = null
 /** Só a janela do Prelúdio liga (e desliga ao sair). */
 export function definirFioDaMesa(novo: FioDoPreludio | null): void {
   fio = novo
-  if (novo === null) useMesaNaJanela.setState({ ligada: false, viva: false, estado: null, naMesa: [], pondo: null, avisoDoPor: null, pondoVerbete: null, postoVerbete: null })
+  if (novo === null) useMesaNaJanela.setState({ ligada: false, viva: false, estado: null, naMesa: [], pondo: null, avisoDoPor: null, pondoVerbete: null, avisoDoVerbete: null, postoVerbete: null })
 }
 
 const NAO_GRAVOU = 'O Prelúdio ainda não gravou esta seção. Tente de novo em instantes.'
+const NAO_GRAVOU_O_VERBETE = 'O Prelúdio ainda não gravou este verbete. Tente de novo em instantes.'
 
 /**
  * "PÔR NO MAPA" (P3): grava o que falta (a mesa lê a seção do disco) e pede à
@@ -108,11 +112,11 @@ export async function porVerbeteNoMapa(fonte: VerbeteParaOMapa, como: ComoVaiAoM
   const { pondo, pondoVerbete } = useMesaNaJanela.getState()
   if (pondo !== null) fio.cancelarPor(pondo.pedido)
   if (pondoVerbete !== null) fio.cancelarPor(pondoVerbete.pedido)
-  useMesaNaJanela.setState({ pondo: null, pondoVerbete: null, avisoDoPor: null })
+  useMesaNaJanela.setState({ pondo: null, pondoVerbete: null, avisoDoPor: null, avisoDoVerbete: null })
   const gravou = await usePreludio.getState().salvarPendentes()
   if (fio === null) return
   if (!gravou) {
-    useMesaNaJanela.setState({ avisoDoPor: NAO_GRAVOU })
+    useMesaNaJanela.setState({ avisoDoVerbete: NAO_GRAVOU_O_VERBETE })
     return
   }
   const pedido = fio.porVerbete(fonte, como, ficha)
@@ -156,7 +160,7 @@ export function aoPondo(pedido: number, andamento: AndamentoDoPor, motivo: strin
     else
       useMesaNaJanela.setState({
         pondoVerbete: null,
-        avisoDoPor: andamento === 'recusado' ? (motivo ?? 'A mesa não pôs este verbete no mapa.') : null,
+        avisoDoVerbete: andamento === 'recusado' ? (motivo ?? 'A mesa não pôs este verbete no mapa.') : null,
         postoVerbete: andamento === 'posto' ? { verbeteId: doVerbete.fonte.verbeteId, como: doVerbete.como } : useMesaNaJanela.getState().postoVerbete,
       })
     return
