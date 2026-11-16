@@ -438,6 +438,8 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // o couro das correias e o capim são fixos.
   carrocaQuebrada: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('aros', 'Aros', METAIS, 'ferro')],
   barrilQuebrado: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho'), lugar('aros', 'Aros', METAIS, 'ferro')],
+  // Os lugares da caixa: a quebrada no minigame guarda a madeira que a caixa tinha.
+  caixaQuebrada: [lugar('madeira', 'Madeira', MADEIRAS, 'pinho')],
   vigaCaida: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira')],
   armaduraEnferrujada: [],
   mesaDeJogo: [lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],

@@ -234,6 +234,7 @@ describe('TOOL_VARIANTS', () => {
     // no fim, o lote A e o lote B: 253. E as 22 das referências (16/11/2026) depois delas, o lote L1 e o lote L2: 275.
     // A natureza com carimbo (pedras e rochas, toco de árvore e árvore seca) saiu para o Carimbo na Fase 6
     // (16/11/2026, `lib/naturezaNoCarimbo.ts`): 272. E a sebe, quando a "Sebe aparada" do carimbo ficou pronta: 271.
+    // E a caixa quebrada (16/11/2026), logo depois do barril quebrado: 272.
     expect(grupo.options.map((o) => o.value)).toEqual([
       'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
@@ -250,7 +251,7 @@ describe('TOOL_VARIANTS', () => {
       'cruzDeMadeira', 'cercaDeFerro', 'paCravada', 'velasEOferendas',
       'balancaDeMercador', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
       'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
-      'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+      'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
       'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
       'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico',
       'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
@@ -280,7 +281,7 @@ describe('TOOL_VARIANTS', () => {
       'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
       'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
     ])
-    expect(grupo.options).toHaveLength(271)
+    expect(grupo.options).toHaveLength(272)
     expect(grupo.options.map((o) => o.label)).toEqual([
       'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
@@ -297,7 +298,7 @@ describe('TOOL_VARIANTS', () => {
       'Cruz de madeira', 'Cerca de ferro', 'Pá cravada na terra', 'Velas e oferendas',
       'Balança de mercador', 'Gaiola com aves', 'Rolos de tecido', 'Palco de bardo', 'Barril de peixe',
       'Fole', 'Manequim com armadura', 'Pilha de lingotes', 'Serra', 'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
-      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
+      'Carroça quebrada', 'Barril quebrado', 'Caixa quebrada', 'Viga caída', 'Armadura enferrujada', 'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       'Âncora', 'Cordas enroladas', 'Timão', 'Bote', 'Rede de pesca', 'Píer', 'Caixote de peixe', 'Armadura despedaçada', 'Armadura',
       'Braseiro', 'Cela com grade', 'Corrente', 'Armadilha de espinhos', 'Círculo mágico',
       'Potro de tortura', 'Dama de ferro', 'Tronco de prisioneiro', 'Gaiola suspensa', 'Cadeira de interrogatório', 'Mesa de instrumentos de tortura', 'Sangue no chão',
@@ -359,7 +360,7 @@ describe('TOOL_VARIANTS', () => {
     expect(grupo.options.find((o) => o.value === 'fogo')?.description).toBe('Clique no mapa para pôr um fogo.')
   })
 
-  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 12, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
+  it('o menu do Objeto se divide nas 24 partes da ficha (Sala e quarto 23, Cozinha 11, Banheiro 17, Armazenagem 11, Rua e jardim 18, Cemitério 10, Feira 10, Oficina 10, Fazenda 8, Destroços e sucata 13, Esporte e lazer 7, Porto e navio 8, Templo e masmorra 14, Sala de tortura 7, Magia e alquimia 3, Necrotério e laboratório 10, Tesouro 8, Castelo 11, Cerco e defesa 7, Base militar 15, Mar e piratas 14, Taverna e festa 12, Descanso e brincadeira 14, Cidade e vila 12; grupo vazio não aparece) e todo tipo do catálogo cai em exatamente uma', () => {
     const entry = TOOL_VARIANTS.mobilia
     if (!entry || !entry.available) throw new Error('mobilia deveria estar disponível')
     const catalogo = entry.groups[0].options.map((o) => o.value)
@@ -383,7 +384,7 @@ describe('TOOL_VARIANTS', () => {
       ['Feira', 10],
       ['Oficina', 10],
       ['Fazenda', 8],
-      ['Destroços e sucata', 12],
+      ['Destroços e sucata', 13],
       ['Esporte e lazer', 7],
       ['Porto e navio', 8],
       ['Templo e masmorra', 14],
@@ -406,7 +407,7 @@ describe('TOOL_VARIANTS', () => {
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Destroços e sucata')?.tipos).toEqual([
       'destrocosDeMadeira', 'sucataChapas', 'sucataEngrenagens', 'sucataTambores', 'escombrosDePedra', 'ossos',
-      'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'armaduraDespedacada', 'cranio',
+      'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'armaduraDespedacada', 'cranio',
     ])
     expect(PARTES_DO_MENU_DE_OBJETO.find((p) => p.titulo === 'Esporte e lazer')?.tipos).toEqual([
       'campinho', 'bonecoDeTreino', 'alvoDeArcoEFlecha',

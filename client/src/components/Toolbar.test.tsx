@@ -321,7 +321,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     expect(botao('Objeto').closest('[role="group"]')?.getAttribute('aria-label')).toBe('Construir')
   })
 
-  it('o cantinho abre "Opções de Objeto" com Colocar e os 271 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
+  it('o cantinho abre "Opções de Objeto" com Colocar e os 272 objetos nas 24 partes da ficha (lib/mobilia/gruposDoObjeto.ts), cada um com o próprio desenho, e Mesa marcada', () => {
     render('select', 'brush')
     act(() => botao('Opções de Objeto').click())
     expect(gruposDoMenu('Objeto')).toEqual(['Colocar', ...PARTES_DO_OBJETO])
@@ -359,7 +359,7 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
       'Troncos', 'Feno', 'Espantalho', 'Cocho',
       'Colmeia', 'Arado', 'Toco com machado cravado', 'Plantação em fileiras',
       'Destroços de madeira', 'Sucata de metal: chapas', 'Sucata de metal: engrenagens', 'Sucata de metal: tambores', 'Escombros de pedra', 'Ossos',
-      'Carroça quebrada', 'Barril quebrado', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada', 'Crânio',
+      'Carroça quebrada', 'Barril quebrado', 'Caixa quebrada', 'Viga caída', 'Armadura enferrujada', 'Armadura despedaçada', 'Crânio',
       'Campinho de futebol', 'Boneco de treino', 'Alvo de arco e flecha',
       'Mesa de jogo', 'Ringue de luta', 'Balanço', 'Mesa de sinuca',
       // Os quatro grupos novos de 11/11/2026: Porto e navio (o canhão e o lote 12), Templo e masmorra (o pilar, o
@@ -400,8 +400,9 @@ describe('Toolbar — Objeto (o móvel desenhado e a imagem)', () => {
     ])
     const desenhos = radios.map((r) => r.querySelector('svg')?.innerHTML ?? '')
     expect(desenhos.every((svg) => svg !== '')).toBe(true)
-    // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe).
-    expect(new Set(desenhos).size).toBe(271)
+    // 275 menos a natureza que foi para o Carimbo na Fase 6 (pedras e rochas, toco de árvore, árvore seca e a sebe),
+    // mais a caixa quebrada (16/11/2026): cada um com um desenho diferente.
+    expect(new Set(desenhos).size).toBe(272)
     expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(radios.map((_, i) => (i === 0 ? 'true' : 'false')))
   })
 

@@ -1887,8 +1887,8 @@ export interface AberturaDoObjeto {
   /** Quando, em ms desde 1970 no relógio do mestre. */
   em: number
   /**
-   * A caixa e o barril quebrados viram destroços (o barril, `mobilia: 'barrilQuebrado'`; a caixa,
-   * `'destrocosDeMadeira'`, como todo destroço de antes de 16/11/2026): o tipo de antes, para o "Fechar e repor".
+   * A caixa e o barril quebrados viram destroços (`mobilia: 'caixaQuebrada'` e `'barrilQuebrado'`; antes de
+   * 16/11/2026, os dois viravam `'destrocosDeMadeira'`): o tipo de antes, para o "Fechar e repor".
    */
   quebradoDe?: 'caixa' | 'barril'
   /**

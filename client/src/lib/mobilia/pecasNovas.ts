@@ -43,7 +43,7 @@ export const PECAS_NOVAS = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
-  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
@@ -338,6 +338,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   // branca e os tacos na cabeceira, à esquerda. Nenhum tem luz nem chama.
   carrocaQuebrada: { rotulo: 'Carroça quebrada', artigo: 'uma carroça quebrada', tamanho: { largura: 2, altura: 1.5 }, redonda: false },
   barrilQuebrado: { rotulo: 'Barril quebrado', artigo: 'um barril quebrado', tamanho: { largura: 1, altura: 1 }, redonda: false },
+  // O caixote é a caixa (0,8 casa); os pedaços se espalham em volta, como os cacos do barril quebrado.
+  caixaQuebrada: { rotulo: 'Caixa quebrada', artigo: 'uma caixa quebrada', tamanho: { largura: 1.2, altura: 1.2 }, redonda: false },
   vigaCaida: { rotulo: 'Viga caída', artigo: 'uma viga caída', tamanho: { largura: 2, altura: 1 }, redonda: false },
   armaduraEnferrujada: { rotulo: 'Armadura enferrujada', artigo: 'uma armadura enferrujada', tamanho: { largura: 1.5, altura: 1 }, redonda: false },
   mesaDeJogo: { rotulo: 'Mesa de jogo', artigo: 'uma mesa de jogo', tamanho: { largura: 1.5, altura: 1.5 }, redonda: false },
@@ -762,6 +764,7 @@ export function porPecaNova<T>(valor: (ficha: FichaDaPecaNova) => T): Readonly<R
     plantacaoEmFileiras: valor(f.plantacaoEmFileiras),
     carrocaQuebrada: valor(f.carrocaQuebrada),
     barrilQuebrado: valor(f.barrilQuebrado),
+    caixaQuebrada: valor(f.caixaQuebrada),
     vigaCaida: valor(f.vigaCaida),
     armaduraEnferrujada: valor(f.armaduraEnferrujada),
     mesaDeJogo: valor(f.mesaDeJogo),
@@ -1002,7 +1005,7 @@ export const PECAS_NOVAS_PRONTAS: readonly PecaNova[] = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
-  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',
@@ -2349,6 +2352,20 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
         { x1: -hw * 0.11, y1: -hh * 0.06, x2: hw * 0.38, y2: hh * 0.44 },
         { x1: -hw * 0.29, y1: hh * 0.03, x2: -hw * 0.11, y2: hh * 0.87 },
         { x1: -hw * 0.49, y1: hh * 0.02, x2: -hw * 0.75, y2: hh * 0.69 },
+      ]
+    case 'caixaQuebrada':
+      // De cima: o caixote aberto (arrombado no canto da frente à direita), o pedaço da tampa caído dentro, o pedaço
+      // de baixo dela na frente com o pé do X, o pedaço da parede da direita e a tábua da moldura atrás.
+      return [
+        { x1: -hw * 0.155, y1: hh * 0.667, x2: -hw * 0.667, y2: hh * 0.667 },
+        { x1: -hw * 0.667, y1: hh * 0.667, x2: -hw * 0.667, y2: -hh * 0.667 },
+        { x1: -hw * 0.667, y1: -hh * 0.667, x2: hw * 0.667, y2: -hh * 0.667 },
+        { x1: hw * 0.667, y1: -hh * 0.667, x2: hw * 0.667, y2: hh * 0.155 },
+        ...fechado([[-hw * 0.351, -hh * 0.461], [hw * 0.343, -hh * 0.064], [hw * 0.111, hh * 0.341], [-hw * 0.583, -hh * 0.057]]),
+        ...fechado([[-hw * 0.113, hh * 0.542], [hw * 0.871, hh * 0.365], [hw * 0.952, hh * 0.817], [-hw * 0.031, hh * 0.996]]),
+        { x1: hw * 0.416, y1: hh * 0.446, x2: hw * 0.69, y2: hh * 0.635 },
+        ...fechado([[hw * 0.707, -hh * 0.573], [hw * 0.998, -hh * 0.559], [hw * 0.963, hh * 0.173], [hw * 0.672, hh * 0.159]]),
+        { x1: -hw * 0.521, y1: -hh * 0.913, x2: hw * 0.622, y2: -hh * 0.798 },
       ]
     case 'vigaCaida':
       // De cima: as duas metades da viga, cada uma acabando nas lascas que se cruzam no meio, e a trave cruzada por cima da da direita.

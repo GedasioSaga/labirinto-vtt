@@ -460,6 +460,9 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // que ficou de pé é desenhado à parte, em fatias penduradas em pinos, como o barril. Sem beirada, como ele; os
   // cacos do chão sobem só a grossura deles (as aduelas caídas) ou nada (a palha, as lascas e os aros).
   barrilQuebrado: { modo: 'derivado', espessura: 0 },
+  // A caixa quebrada (16/11/2026) sobe como a caixa: cada trecho de parede e cada pilarete é uma coluna com a altura
+  // dele, e os pedaços da tampa, da parede e as tábuas do chão, colunas baixas (`caixaQuebrada.ts`).
+  caixaQuebrada: DERIVADO,
   vigaCaida: { modo: 'em-pe', forcaDaSombraDeBaixo: FORCA_DA_SOMBRA_DAS_PILHAS },
   // A armadura enferrujada é rente ao chão e espalhada, como os ossos: as peças sobem inteiras a espessura de
   // uma placa de aço e a sombra fica onde está.

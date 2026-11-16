@@ -134,6 +134,7 @@ import { montarTocoComMachado } from './tocoComMachado'
 import { montarPlantacaoEmFileiras } from './plantacaoEmFileiras'
 import { montarCarrocaQuebrada } from './carrocaQuebrada'
 import { montarBarrilQuebrado } from './barrilQuebrado'
+import { montarCaixaQuebrada } from './caixaQuebrada'
 import { montarVigaCaida } from './vigaCaida'
 import { montarArmaduraEnferrujada } from './armaduraEnferrujada'
 import { montarMesaDeJogo } from './mesaDeJogo'
@@ -507,6 +508,7 @@ const MONTADORES = {
   // que a 3/4 pinta); a carroça quebrada, o barril quebrado e a viga caída, não.
   carrocaQuebrada: montarCarrocaQuebrada,
   barrilQuebrado: montarBarrilQuebrado,
+  caixaQuebrada: montarCaixaQuebrada,
   vigaCaida: montarVigaCaida,
   armaduraEnferrujada: montarArmaduraEnferrujada,
   mesaDeJogo: montarMesaDeJogo,
@@ -768,7 +770,7 @@ export const TIPOS_COM_TEXTURA: readonly TipoComTextura[] = [
   'cruzDeMadeira', 'anjoDePedra', 'cercaDeFerro', 'paCravada', 'velasEOferendas', 'arvoreSeca',
   'balancaDeMercador', 'tendaDeAdivinha', 'gaiolaComAves', 'rolosDeTecido', 'palcoDeBardo', 'barrilDePeixe',
   'fole', 'manequimComArmadura', 'pilhaDeLingotes', 'serra', 'galinheiro', 'colmeia', 'arado', 'tocoComMachado', 'plantacaoEmFileiras',
-  'carrocaQuebrada', 'barrilQuebrado', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
+  'carrocaQuebrada', 'barrilQuebrado', 'caixaQuebrada', 'vigaCaida', 'armaduraEnferrujada', 'mesaDeJogo', 'ringueDeLuta', 'balanco', 'mesaDeSinuca',
   'ancora', 'cordasEnroladas', 'timao', 'bote', 'redeDePesca', 'pier', 'caixoteDePeixe', 'armaduraDespedacada', 'armadura',
   'braseiro', 'celaComGrade', 'corrente', 'armadilhaDeEspinhos', 'circuloMagico', 'blocoDeInscricoesAzul', 'blocoDeInscricoesVermelho', 'blocoDeInscricoesDourado',
   'potroDeTortura', 'damaDeFerro', 'troncoDePrisioneiro', 'gaiolaSuspensa', 'cadeiraDeInterrogatorio', 'mesaDeInstrumentos', 'sangueNoChao',

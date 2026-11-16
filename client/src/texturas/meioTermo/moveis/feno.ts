@@ -219,7 +219,8 @@ const FRANJA = 2.6
  * Perto da beira de `forma`, a franja: fiapos ao longo dos fios, com o chão
  * entre eles (a beira do monte não é um risco liso).
  */
-function texMonte(forma: Forma, cx: number, cy: number, raio: number, semente: number): Textura {
+/** A palha solta do monte (também a do recheio da caixa quebrada, `caixaQuebrada.ts`). */
+export function texMonte(forma: Forma, cx: number, cy: number, raio: number, semente: number): Textura {
   return (_u, _v, x, y, _p, s, escala) => {
     // A palha solta cruza em três direções fixas (0°, 60° e 120°, tortas pelo ruído), e vale a mais clara:
     // um campo de ângulos que gira dobrava as fileiras de fios em curvas, como as linhas de uma digital.

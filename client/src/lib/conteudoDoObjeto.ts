@@ -7,9 +7,9 @@ import { pegadaDePartidaEmCasas } from './mobilia'
  * põe itens do Acervo, moedas e uma armadilha; o jogador encosta, joga o
  * minigame do tipo do objeto na tela dele e, ao vencer, leva o que há dentro.
  * O baú fica no mapa, aberto; a caixa e o barril viram destroços: o barril, o
- * barril quebrado (o mesmo barril arrebentado, 16/11/2026), no mesmo centro,
- * com os mesmos materiais e o tamanho na proporção do catálogo; a caixa, os
- * destroços de madeira, do tamanho dela.
+ * barril quebrado, e a caixa, a caixa quebrada (o mesmo objeto arrebentado,
+ * 16/11/2026), no mesmo centro, com os mesmos materiais e o tamanho na
+ * proporção do catálogo.
  *
  * Regras daqui (puras, sem store nem rede):
  * - Todo baú, caixa e barril se abre, com conteúdo ou sem (ausente = vazio).
@@ -27,14 +27,12 @@ export const MOBILIAS_COM_CONTEUDO: readonly MobiliaComConteudo[] = ['bau', 'cai
 /** O que se quebra no minigame (o baú só se abre). */
 type MobiliaQueQuebra = Exclude<MobiliaComConteudo, 'bau'>
 /** Em que móvel do catálogo cada um vira quando quebra. */
-export const DESTROCOS_DO_OBJETO: Readonly<Record<MobiliaQueQuebra, TipoMobilia>> = { caixa: 'destrocosDeMadeira', barril: 'barrilQuebrado' }
+export const DESTROCOS_DO_OBJETO: Readonly<Record<MobiliaQueQuebra, TipoMobilia>> = { caixa: 'caixaQuebrada', barril: 'barrilQuebrado' }
 /**
  * Os móveis que podem ser destroços de um objeto com conteúdo: os de hoje e os destroços de madeira, em que
  * a caixa e o barril viravam antes de 16/11/2026 (o mapa antigo repõe pelo `quebradoDe`, como sempre).
  */
-const MOBILIAS_DOS_DESTROCOS: readonly TipoMobilia[] = ['destrocosDeMadeira', 'barrilQuebrado']
-/** A pilha genérica não é o objeto arrebentado: fica do tamanho dele, como antes. */
-const DESTROCOS_SEM_PROPORCAO: TipoMobilia = 'destrocosDeMadeira'
+const MOBILIAS_DOS_DESTROCOS: readonly TipoMobilia[] = ['destrocosDeMadeira', 'barrilQuebrado', 'caixaQuebrada']
 /** Os tamanhos dos destroços em px de mundo, em centésimos (sem a sujeira de 35 / 0,7 = 50,00000000000001). */
 const CENTESIMOS = 100
 
@@ -236,11 +234,10 @@ export function jogoDoObjetoFechado(prop: Pick<Prop, 'mobilia' | 'conteudo'>): M
 
 /**
  * O tamanho dos destroços: o do objeto na proporção das pegadas de partida (o barril de 0,7 casa vira o
- * barril quebrado de 1 casa; o barril esticado pelo mestre, os destroços esticados igual). `x`/`y` são o
- * centro do objeto, então o centro fica onde estava.
+ * barril quebrado de 1 casa; a caixa de 0,8, a caixa quebrada de 1,2; o objeto esticado pelo mestre, os
+ * destroços esticados igual). `x`/`y` são o centro do objeto, então o centro fica onde estava.
  */
 function pegadaDosDestrocos(prop: Pick<Prop, 'width' | 'height'>, tipo: MobiliaQueQuebra, destrocos: TipoMobilia): Pick<Prop, 'width' | 'height'> {
-  if (destrocos === DESTROCOS_SEM_PROPORCAO) return { width: prop.width, height: prop.height }
   const inteiro = pegadaDePartidaEmCasas(tipo)
   const quebrado = pegadaDePartidaEmCasas(destrocos)
   const medir = (lado: number, de: number, para: number): number => Math.round(((lado * para) / de) * CENTESIMOS) / CENTESIMOS

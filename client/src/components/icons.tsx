@@ -1691,6 +1691,15 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
           <path d="M6.5 15v7M3 18.5h7" />
         </>
       )
+    case 'caixaQuebrada':
+      // De cima: o caixote aberto, arrombado no canto da frente à direita, e o pedaço da tampa com o pé do X caído na frente.
+      return (
+        <>
+          <path d="M10 17H4V4h13v8" />
+          <path d="M10.5 15.5l10.5-2 1 5.5-10.5 2z" />
+          <path d="M12.8 20l2.4-4.3M20.7 18l-3.2-3.5" />
+        </>
+      )
     case 'barrilQuebrado':
       // De cima: a meia-lua das aduelas de pé com a boca, as aduelas caídas em leque saindo do lado aberto e um aro solto.
       return (

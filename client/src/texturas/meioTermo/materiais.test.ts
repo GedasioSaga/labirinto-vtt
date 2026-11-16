@@ -305,6 +305,7 @@ describe('tabela de materiais (objetos/README.md:44-58)', () => {
       // o balanço com a lenha da fogueira nos troncos; a armadura enferrujada sem lugar.
       carrocaQuebrada: ['madeira:nogueira', 'aros:ferro'],
       barrilQuebrado: ['madeira:carvalho', 'aros:ferro'],
+      caixaQuebrada: ['madeira:pinho'],
       vigaCaida: ['madeira:nogueira'],
       armaduraEnferrujada: [],
       mesaDeJogo: ['madeira:carvalho'],

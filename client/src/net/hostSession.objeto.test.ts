@@ -143,8 +143,11 @@ describe('hostSession: baú, caixa e barril', () => {
     if (aplicado === undefined) throw new Error('esperava applyObjetoAberto')
     expect(aplicado.personagem).toBeNull()
     const depois = mapaComObjetoAberto(m.world.open.map, aplicado)
-    expect(depois.props[0].mobilia).toBe('destrocosDeMadeira')
+    // A caixa vira a caixa quebrada (16/11/2026), no mesmo centro, maior (0,8 casa para 1,2), guardando o tamanho dela.
+    expect(depois.props[0].mobilia).toBe('caixaQuebrada')
     expect(depois.props[0].conteudo?.aberto?.quebradoDe).toBe('caixa')
+    expect(depois.props[0].conteudo?.aberto?.pegadaDeAntes).toEqual({ width: caixa.width, height: caixa.height })
+    expect([depois.props[0].x, depois.props[0].y, depois.props[0].width, depois.props[0].height]).toEqual([caixa.x, caixa.y, caixa.width * 1.5, caixa.height * 1.5])
     expect(depois.tokens[0].mochila?.map((item) => item.nome)).toEqual(['Poção de cura'])
     // O disco guarda o conteúdo e a quebra; o campo de fio `abrivel` nunca entra.
     const lido = deserializeMap(serializeMap({ ...depois, props: [{ ...depois.props[0], abrivel: 'aberto' }] }))

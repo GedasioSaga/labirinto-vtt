@@ -43,11 +43,17 @@ describe('o barril quebrado no minigame (16/11/2026)', () => {
     expect(objetoReposto(quebrado)).toEqual(esticado)
   })
 
-  it('a caixa continua virando os destroços de madeira, do tamanho dela', () => {
-    const caixa: Prop = { ...criarMovel('caixa', { x: 40, y: 40 }, GRADE, 'c1'), conteudo: { itens: [], moedas: 0, armadilha: null } }
+  it('a caixa vira a caixa quebrada no mesmo centro (0,8 casa para 1,2), com a madeira dela, e o repor devolve a caixa', () => {
+    const caixa: Prop = { ...criarMovel('caixa', { x: 40, y: 40 }, GRADE, 'c1'), mobiliaCor: '#8a6a44', conteudo: { itens: [], moedas: 0, armadilha: null } }
     const quebrada = objetoAberto(caixa, 'Ana', 5)
-    expect([quebrada.mobilia, quebrada.x, quebrada.y, quebrada.width, quebrada.height]).toEqual(['destrocosDeMadeira', 40, 40, 40, 40])
+    expect([quebrada.mobilia, quebrada.x, quebrada.y, quebrada.width, quebrada.height, quebrada.mobiliaCor]).toEqual(['caixaQuebrada', 40, 40, 60, 60, '#8a6a44'])
+    expect(quebrada.conteudo?.aberto).toEqual({ por: 'Ana', em: 5, quebradoDe: 'caixa', pegadaDeAntes: { width: 40, height: 40 } })
+    expect(LUGARES_DE_MATERIAL.caixaQuebrada).toEqual(LUGARES_DE_MATERIAL.caixa)
+    expect(abrivelParaJogador(quebrada)).toBe('aberto')
     expect(objetoReposto(quebrada)).toEqual(caixa)
+    // A caixa quebrada de antes (os destroços de madeira do tamanho dela) ainda repõe a caixa.
+    const antiga: Prop = { ...caixa, mobilia: 'destrocosDeMadeira', conteudo: { itens: [], moedas: 0, armadilha: null, aberto: { por: 'Ana', em: 5, quebradoDe: 'caixa' } } }
+    expect(objetoReposto(antiga)).toEqual(caixa)
   })
 
   it('o mapa antigo, com o barril quebrado em destroços de madeira, ainda guarda o conteúdo e repõe o barril', () => {

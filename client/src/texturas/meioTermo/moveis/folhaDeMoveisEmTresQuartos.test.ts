@@ -38,7 +38,8 @@ const REFEITOS: readonly (readonly [TipoMobilia, string])[] = [
 ]
 /**
  * Os vizinhos do barril (a mesma família de aduelas e aros, e o barril quebrado, 16/11/2026), e a caixa com os
- * destroços de madeira em que ela vira no minigame, só para comparar quando pedidos pelo id.
+ * destroços de madeira em que ela virava no minigame e a caixa quebrada (16/11/2026), só para comparar quando
+ * pedidos pelo id.
  */
 const VIZINHOS: readonly (readonly [TipoMobilia, string])[] = [
   ['barrisDeitados', 'BARRIS DEITADOS'],
@@ -46,6 +47,7 @@ const VIZINHOS: readonly (readonly [TipoMobilia, string])[] = [
   ['barrilQuebrado', 'BARRIL QUEBRADO'],
   ['caixa', 'CAIXA'],
   ['destrocosDeMadeira', 'DESTROCOS DE MADEIRA'],
+  ['caixaQuebrada', 'CAIXA QUEBRADA'],
 ]
 const ESCOLHIDOS: unknown = import.meta.env.FOLHA_MOVEIS_34_TIPOS
 const TIPOS =
@@ -226,8 +228,9 @@ function colarNoMeio(tela: Tela, p: Painel, cx: number, cy: number): void {
 /** A folha: um bloco por móvel, ANTES nas quatro colunas da esquerda e DEPOIS nas da direita. */
 function montarFolha(antes: Map<string, Painel>, depois: Map<string, Painel>, tipos = TIPOS): Tela {
   const lados = [antes, depois] as const
+  // A peça nova não tem antes: os dois lados mostram o depois.
   const pegar = (lado: Map<string, Painel>, k: string): Painel => {
-    const p = lado.get(k)
+    const p = lado.get(k) ?? depois.get(k)
     if (p === undefined) throw new Error(`painel ${k} faltando`)
     return p
   }
