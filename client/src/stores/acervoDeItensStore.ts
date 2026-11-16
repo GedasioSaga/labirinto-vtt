@@ -89,3 +89,15 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
 useAcervoDeItensStore.subscribe((state, antes) => {
   if (state.itens !== antes.itens) definirMunicoesDasArmas(state.itens)
 })
+
+/**
+ * MUNIÇÃO: lê o Acervo do disco se ninguém leu ainda, sem esperar. A Garrucha
+ * dada antes de a vaga levar as munições só as acha no Acervo, e o mestre que
+ * abre o mapa ou liga a batalha sem abrir o painel do Acervo ficaria sem elas.
+ * Fora do app não há disco: não lê, para não apagar o que a tela já pôs ali.
+ */
+export function lerOAcervoSeFaltar(): void {
+  const acervo = useAcervoDeItensStore.getState()
+  if (acervo.podeGravar || !isTauri()) return
+  void acervo.recarregar()
+}

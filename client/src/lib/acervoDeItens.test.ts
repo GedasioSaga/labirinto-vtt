@@ -179,7 +179,13 @@ describe('store do acervo: criar, editar, apagar', () => {
 
 describe('itemParaDar', () => {
   it('leva o que a mochila guarda; vazio e nulo ficam de fora', () => {
-    expect(itemParaDar({ ...pocao(), imagem: IMAGEM })).toEqual({ nome: 'Poção', itemId: 'item_pocao', imagem: IMAGEM, descricao: 'Cura 50 HP.', categoria: 'Consumível', preco: 120, empilhavel: true })
-    expect(itemParaDar({ ...novoItemDoCatalogo(), id: 'item_x', nome: 'Pedra' })).toEqual({ nome: 'Pedra', itemId: 'item_x' })
+    expect(itemParaDar({ ...pocao(), imagem: IMAGEM }, [])).toEqual({ nome: 'Poção', itemId: 'item_pocao', imagem: IMAGEM, descricao: 'Cura 50 HP.', categoria: 'Consumível', preco: 120, empilhavel: true })
+    expect(itemParaDar({ ...novoItemDoCatalogo(), id: 'item_x', nome: 'Pedra' }, [])).toEqual({ nome: 'Pedra', itemId: 'item_x' })
+  })
+
+  it('MUNIÇÃO: a arma de fogo leva as munições com o nome de agora; a que saiu do Acervo não vai', () => {
+    const balas = { id: 'item_balas_prata', nome: 'Balas de prata' }
+    const garrucha = { ...novoItemDoCatalogo('Arma'), id: 'item_garrucha', nome: 'Garrucha', preco: 300, municoes: ['item_balas_prata', 'item_apagada'] }
+    expect(itemParaDar(garrucha, [garrucha, balas])).toEqual({ nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma', preco: 300, municoes: [{ itemId: 'item_balas_prata', nome: 'Balas de prata' }] })
   })
 })

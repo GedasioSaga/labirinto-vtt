@@ -105,6 +105,8 @@ const CAMPO_DO_ITEM: Record<CampoDoItem, true> = {
   categoria: true,
   preco: true,
   empilhavel: true,
+  // MUNIÇÃO: a lista da arma viaja com a vaga (o jogador vê "Balas de prata" sem o Acervo); o leitor da mochila é o juiz.
+  municoes: true,
 }
 const ehCampoDoItem = guardaDe(CAMPO_DO_ITEM)
 export const CAMPOS_DO_ITEM = chavesDe(CAMPO_DO_ITEM, ehCampoDoItem)

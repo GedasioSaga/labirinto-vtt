@@ -51,6 +51,8 @@ export function mochilaComAVagaEditada(mochila: readonly CarriedItem[], vagaId: 
     ...lidos,
     ...(quantidade > 1 ? { quantidade } : {}),
     ...(vaga.empilhavel === true || quantidade > 1 ? { empilhavel: true as const } : {}),
+    // O "Editar" não mexe nas munições da arma: a Garrucha renomeada continua atirando as mesmas balas.
+    ...(vaga.municoes === undefined ? {} : { municoes: vaga.municoes }),
   }
   return mochila.map((item) => (item === vaga ? editada : item))
 }

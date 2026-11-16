@@ -192,7 +192,8 @@ export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
   const mudar = (novo: ConteudoDoObjeto) => updateProp(prop.id, { conteudo: novo })
 
   const porItem = (escolhido: ItemDoCatalogo) => {
-    const item = itemParaDar(escolhido)
+    // Sem munições: o conteúdo do objeto não guarda a lista; a arma tirada dele cai no Acervo de agora.
+    const item = itemParaDar(escolhido, [])
     const ja = conteudo.itens.findIndex((dentro) => dentro.item.itemId === escolhido.id)
     if (ja >= 0) {
       mudar({ ...conteudo, itens: conteudo.itens.map((dentro, i) => (i === ja ? { ...dentro, quantidade: Math.min(ITEM_QUANTIDADE_MAX, dentro.quantidade + 1) } : dentro)) })

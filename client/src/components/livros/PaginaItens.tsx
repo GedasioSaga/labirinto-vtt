@@ -324,7 +324,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     const toasts = useToastStore.getState()
     const vagaNova = crypto.randomUUID()
     const resultado = ehDoAcervo(entrada)
-      ? porCoisaNaFicha(ficha, itemParaDar(entrada.acervo), regraDaCoisa(itens, entrada.id), sistema, vagaNova)
+      ? porCoisaNaFicha(ficha, itemParaDar(entrada.acervo, doAcervo), regraDaCoisa(itens, entrada.id), sistema, vagaNova)
       : porEntradaNaFicha(ficha, entrada, sistema, coisaLigada(entrada), vagaNova)
     if (!resultado.ok) {
       toasts.push('info', resultado.motivo === 'cheia' ? `${ficha.nome} já carrega o máximo de ${entrada.nome}.` : fraseDaRecusa(resultado.motivo, ficha, entrada))
@@ -383,7 +383,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   const coisaLigada = (entrada: EntradaParaFicha) => {
     if (ehDoLivro(entrada) || entrada.acervoId === undefined) return undefined
     const coisa = doAcervo.find((item) => item.id === entrada.acervoId)
-    return coisa === undefined ? undefined : itemParaDar(coisa)
+    return coisa === undefined ? undefined : itemParaDar(coisa, doAcervo)
   }
 
   // ---- arrastar o cartão para a ficha ----

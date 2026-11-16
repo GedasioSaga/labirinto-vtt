@@ -328,7 +328,8 @@ export function lerArma(cartao: CartaoDaFicha, mochila: readonly CarriedItem[] =
   const capacidade = (cartao.campos[CAMPO_DA_CAPACIDADE] ?? '').trim()
   const doCartao = cartao.subcartoes.map((bala) => balaDoCartao(bala, mochila))
   // MUNIÇÃO: a arma do Acervo (o cartão ligado a ela, ou a da mochila) traz as munições que aceita, menos as que um tipo de bala já cobre.
-  const aceitas = municoesDaArma(cartao.itemId)
+  // A lista da vaga vem primeiro (é a que o jogador também tem); o Acervo de agora só vale para a vaga dada antes dela existir.
+  const aceitas = municoesDaVagaDaArma(cartao, mochila) ?? municoesDaArma(cartao.itemId)
   const cobertas = new Set(doCartao.flatMap((bala) => [bala.itemId, bala.municao?.itemId]))
   const doAcervo = aceitas.filter((municao) => !cobertas.has(municao.itemId)).map((municao) => balaDaMunicaoAceita(municao, mochila))
   return {
@@ -338,6 +339,20 @@ export function lerArma(cartao: CartaoDaFicha, mochila: readonly CarriedItem[] =
     balas: [...doCartao, ...doAcervo],
     ...(aceitas.length > 0 ? { exigeMunicao: true as const } : {}),
   }
+}
+
+/**
+ * As munições que a VAGA da arma declara (`CarriedItem.municoes`): a vaga da
+ * própria arma da mochila (`mochila:<vaga>`), ou a primeira vaga do mesmo
+ * item do Acervo que declara alguma (o cartão da aba Armas ligado à coisa).
+ * `undefined` = nenhuma vaga declara (a vaga antiga): quem lê cai no Acervo.
+ */
+function municoesDaVagaDaArma(cartao: CartaoDaFicha, mochila: readonly CarriedItem[]): readonly MunicaoAceita[] | undefined {
+  const vagaId = cartao.id.startsWith(PREFIXO_DA_ARMA_DA_MOCHILA) ? cartao.id.slice(PREFIXO_DA_ARMA_DA_MOCHILA.length) : undefined
+  const daVaga = vagaId === undefined ? undefined : mochila.find((vaga) => vaga.id === vagaId)?.municoes
+  if (daVaga !== undefined) return daVaga
+  const itemId = cartao.itemId
+  return itemId === undefined ? undefined : mochila.find((vaga) => vaga.itemId === itemId && vaga.municoes !== undefined)?.municoes
 }
 
 /** O id da bala que vem da munição do Acervo: `municao:<id do item>`; nunca colide com o id de um subcartão (sem dois-pontos). */

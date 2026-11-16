@@ -32,7 +32,8 @@ function semEstoque(item: LojaItem): LojaItem {
 function comCoisa(item: LojaItem, coisa: ItemDoAcervo | undefined): LojaItem {
   const { acervo: _antes, ...digitada } = item
   if (coisa === undefined) return digitada
-  const { nome, ...dados } = itemParaDar(coisa)
+  // Sem munições: a mercadoria da banca não guarda a lista; a arma comprada cai no Acervo de agora.
+  const { nome, ...dados } = itemParaDar(coisa, [])
   const itemId = dados.itemId ?? coisa.id
   return { ...digitada, nome: nome.slice(0, LOJA_NOME_MAX), preco: coisa.preco === null ? '' : precoEmBerries(coisa.preco).slice(0, LOJA_PRECO_MAX), acervo: { ...dados, itemId } }
 }

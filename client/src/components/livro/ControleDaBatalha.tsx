@@ -25,6 +25,7 @@ import { EscolhaDaRegra, confirmarRascunho, type RascunhoDaRegra } from '../bata
 import { lerQuemPodeEntrar, prepararQuemEntra, rotulosDoMapa, type ListaDeQuemEntra } from '../batalha/fichasDeQuemEntra'
 import { motivoParaNaoGuardar } from '../batalha/PainelDoMestre'
 import { useLivroDaMesaStore } from '../../stores/livroDaMesaStore'
+import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
 import { CampoSeg, type OpcaoDoSeg } from '../grimorio/CampoSeg'
 import { assinarAberturasDeBatalha, listarAberturasDeBatalha } from '../../transicoes/aberturasDeBatalha'
 import { AberturaDeBatalhaOverlay, type AberturaPedida } from '../../transicoes/AberturaDeBatalhaOverlay'
@@ -171,6 +172,8 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const tokens = useMapStore.getState().map.tokens.map((token) => ({ ...token, name: rotulos.get(token.id) ?? token.name }))
     const combatentes = combatentesIniciais(tokens, personagensAtivos(aventura), sistema, incluir)
     useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
+    // MUNIÇÃO: a Garrucha de vaga antiga atira as balas do Acervo; o disco responde antes de o mestre abrir a primeira mira.
+    lerOAcervoSeFaltar()
     // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.
     useLivroDaMesaStore.getState().abrirPagina('batalha')
   }

@@ -715,7 +715,7 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
     // Fase 5: o nome que é de uma coisa do Acervo vai com ela (foto, pilha); o host casa pelo nome.
     const doAcervo = nomes.flatMap((nome) => {
       const coisa = doAcervoDoApp.find((item) => item.nome.toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))
-      return coisa === undefined ? [] : [{ ...itemParaDar(coisa), nome }]
+      return coisa === undefined ? [] : [{ ...itemParaDar(coisa, doAcervoDoApp), nome }]
     })
     const result = onTrade(member, { de: de.trim(), dou: { itens: nomes, moedas: dou, ...(doAcervo.length === 0 ? {} : { doAcervo }) }, peco: { itemIds: pedidos, moedas: peco } })
     if (result === 'sent') onClose()

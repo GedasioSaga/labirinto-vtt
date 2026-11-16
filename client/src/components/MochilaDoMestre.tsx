@@ -179,7 +179,7 @@ function AdicionarAMochila({ onAdicionar, onFechar }: { onAdicionar: (item: Item
         <ul className="lb-inv-mestre__achados" aria-label="Itens do Acervo">
           {achados.map((item) => (
             <li key={item.id}>
-              <button type="button" className="lb-btn lb-btn--compact" onClick={() => adicionar(itemParaDar(item))}>
+              <button type="button" className="lb-btn lb-btn--compact" onClick={() => adicionar(itemParaDar(item, itens))}>
                 {item.nome}
                 {item.categoria !== '' && <small className="lb-inv-mestre__cat"> · {item.categoria}</small>}
               </button>

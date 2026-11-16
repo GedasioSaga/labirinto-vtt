@@ -1,6 +1,6 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, type ItemParaDar } from './items'
+import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX, type ItemParaDar, type MunicaoDaVaga } from './items'
 import { ehRefDeMidia } from './midia'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
 
@@ -39,8 +39,8 @@ export const CATEGORIA_DA_MUNICAO = 'Munição'
 
 /** As categorias de um acervo novo. A lista é do mestre: ele tira e põe. */
 export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consumível', 'Munição', 'Fruta', 'Chave', 'Tesouro']
-/** Teto de munições que uma arma aceita (a lista do item vira rolagem sem fim). */
-export const MUNICOES_POR_ARMA_MAX = 20
+// O teto mora em `lib/items.ts` porque a vaga da mochila também o aplica; daqui ele segue exportado para a tela do item.
+export { MUNICOES_POR_ARMA_MAX }
 
 /** A categoria é a Munição, sem acento e sem caixa ("municao", "MUNIÇÕES"). */
 export function ehCategoriaDeMunicao(categoria: string): boolean {
@@ -193,8 +193,13 @@ export function serializarAcervo(acervo: AcervoDeItens): string {
   return `${JSON.stringify({ version: VERSAO_DO_INDICE, categorias: acervo.categorias, itens: acervo.itens }, null, 2)}\n`
 }
 
-/** O que vai para a mochila quando o item é dado (`darDoAcervoChange`). */
-export function itemParaDar(item: ItemDoCatalogo): ItemParaDar {
+/**
+ * O que vai para a mochila quando o item é dado (`darDoAcervoChange`).
+ * `acervo` = a lista de agora, de onde sai o nome de cada munição que a arma
+ * aceita: a vaga leva `{ itemId, nome }` porque o app do jogador não vê o
+ * Acervo. Munição que já saiu do Acervo não vai (não há nome a mostrar).
+ */
+export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCatalogo, 'id' | 'nome'>[]): ItemParaDar {
   return {
     nome: item.nome,
     itemId: item.id,
@@ -203,7 +208,18 @@ export function itemParaDar(item: ItemDoCatalogo): ItemParaDar {
     ...(item.categoria !== '' ? { categoria: item.categoria } : {}),
     ...(item.preco !== null ? { preco: item.preco } : {}),
     ...(item.empilhavel ? { empilhavel: true as const } : {}),
+    ...municoesParaDar(item, acervo),
   }
+}
+
+function municoesParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCatalogo, 'id' | 'nome'>[]): { municoes?: MunicaoDaVaga[] } {
+  if (item.municoes === undefined) return {}
+  const nomes = new Map(acervo.map((outro) => [outro.id, outro.nome]))
+  const municoes = item.municoes.flatMap((itemId) => {
+    const nome = nomes.get(itemId)
+    return nome === undefined ? [] : [{ itemId, nome }]
+  })
+  return municoes.length === 0 ? {} : { municoes }
 }
 
 async function pastaDoAcervo(): Promise<string> {

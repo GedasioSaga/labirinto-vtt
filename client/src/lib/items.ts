@@ -64,6 +64,8 @@ export const ITEM_CATEGORIA_MAX = 40
 export const ITEM_PRECO_MAX = 1_000_000_000_000
 /** Teto da pilha numa vaga. */
 export const ITEM_QUANTIDADE_MAX = 9999
+/** Teto de munições que uma arma aceita (a lista do item vira rolagem sem fim); vale no Acervo e na vaga. */
+export const MUNICOES_POR_ARMA_MAX = 20
 /** Id do item do acervo (`item_<uuid>` tem 41). */
 const ITEM_ID_MAX = 80
 const FORMA_DO_ITEM_ID = /^[A-Za-z0-9_-]+$/
@@ -100,11 +102,34 @@ export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
   return dados
 }
 
+/** A munição que a vaga declara (`CarriedItem.municoes`). */
+export type MunicaoDaVaga = NonNullable<CarriedItem['municoes']>[number]
+
+/**
+ * As munições da vaga lidas de fora: id com a forma dos do Acervo e nome
+ * limpo, sem repetir o id, no teto. Entrada torta sai sozinha; lista vazia =
+ * sem o campo (a vaga de antes abre igual).
+ */
+export function municoesDaVagaLidas(value: unknown): { municoes?: MunicaoDaVaga[] } {
+  if (!Array.isArray(value)) return {}
+  const vistas = new Set<string>()
+  const municoes: MunicaoDaVaga[] = []
+  for (const bruta of value) {
+    if (!isRecord(bruta) || typeof bruta.itemId !== 'string' || bruta.itemId.length > ITEM_ID_MAX || !FORMA_DO_ITEM_ID.test(bruta.itemId)) continue
+    const nome = typeof bruta.nome === 'string' ? cleanItemName(bruta.nome) : ''
+    if (nome === '' || vistas.has(bruta.itemId)) continue
+    vistas.add(bruta.itemId)
+    municoes.push({ itemId: bruta.itemId, nome })
+    if (municoes.length >= MUNICOES_POR_ARMA_MAX) break
+  }
+  return municoes.length === 0 ? {} : { municoes }
+}
+
 /** Um item da mochila lido de fora (disco, recorte): id e nome de texto, nome não vazio, e os dados do acervo que vierem bons. */
 function readCarriedItem(value: unknown): CarriedItem | null {
   if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || typeof value.nome !== 'string') return null
   const nome = cleanItemName(value.nome)
-  return nome === '' ? null : { id: value.id, nome, ...dadosDoItemLidos(value) }
+  return nome === '' ? null : { id: value.id, nome, ...dadosDoItemLidos(value), ...municoesDaVagaLidas(value.municoes) }
 }
 
 /** Quantos a vaga tem: ausente é 1. */
@@ -199,8 +224,8 @@ export function giveNewItemChange(token: Token, nome: string, itemId: string): I
   return { mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: itemId, nome: clean }] }] }
 }
 
-/** O item do acervo como ele é dado: o nome e os dados que vão para a mochila. */
-export type ItemParaDar = DadosDoItem & { nome: string }
+/** O item do acervo como ele é dado: o nome e os dados que vão para a mochila (a arma de fogo, com as munições que aceita). */
+export type ItemParaDar = DadosDoItem & Pick<CarriedItem, 'nome' | 'municoes'>
 
 /** A mochila depois de receber um item do acervo (`mochilaComItemDoAcervo`). */
 export interface MochilaQueRecebeu {
@@ -222,8 +247,9 @@ export interface MochilaQueRecebeu {
 export function mochilaComItemDoAcervo(mochila: readonly CarriedItem[], item: ItemParaDar, quantidade: number, freshId: string): MochilaQueRecebeu | null {
   const nome = cleanItemName(item.nome)
   if (nome === '') return null
-  const { nome: _nome, quantidade: _quantidade, ...dados } = item
-  const lidos = dadosDoItemLidos(dados)
+  const { nome: _nome, quantidade: _quantidade, municoes, ...dados } = item
+  // As munições da arma vão junto: a pilha que soma fica com a lista de agora do Acervo, como os outros dados.
+  const lidos = { ...dadosDoItemLidos(dados), ...municoesDaVagaLidas(municoes) }
   const pedida = Number.isSafeInteger(quantidade) ? Math.min(Math.max(quantidade, 1), ITEM_QUANTIDADE_MAX) : 1
   const existente = lidos.empilhavel === true && lidos.itemId !== undefined ? mochila.find((carried) => carried.itemId === lidos.itemId) : undefined
   if (existente !== undefined) {

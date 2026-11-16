@@ -78,6 +78,7 @@ import { giftScenesOf, OpenRoom, RoomPanel, roomPanelTokensOf, type RoomPanelPro
 import { hostCluesProps } from './components/CluesSection'
 import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
+import { lerOAcervoSeFaltar, useAcervoDeItensStore } from './stores/acervoDeItensStore'
 import { itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
 import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
 import { prepararMusicaDaDancaNaMesa } from './lib/musicaDaDancaNaAventura'
@@ -854,6 +855,10 @@ function App() {
   useEffect(() => {
     void useTokenLibraryStore.getState().recarregar()
   }, [])
+  // MUNIÇÃO: a arma dada antes de a vaga levar as munições só as acha no Acervo; cada mapa aberto garante que ele foi lido.
+  useEffect(() => {
+    lerOAcervoSeFaltar()
+  }, [map.id])
 
   // Multiplayer em LAN: ponte do mestre criada sob demanda (só dentro do Tauri, ver RoomPanel abaixo).
   const [room, setRoom] = useState<RoomInfo | null>(null)
@@ -2629,7 +2634,8 @@ function App() {
 
   /** O item do acervo no ponto `ponto` do mundo: a imagem no chão ou, com `comoPino` (ou sem imagem), o pino de item. */
   const colocarItemNoMapa = (item: ItemDoCatalogo, ponto: { x: number; y: number }, comoPino: boolean): boolean => {
-    const noMapa = itemDoAcervoNoMapa(itemParaDar(item))
+    // Sem munições: o item no chão (pino ou objeto) não guarda a lista; ao ser pego, a arma cai no Acervo de agora.
+    const noMapa = itemDoAcervoNoMapa(itemParaDar(item, []))
     if (noMapa === null) return false
     const id = crypto.randomUUID()
     const store = useMapStore.getState()
@@ -4665,7 +4671,7 @@ function App() {
             acervoDeItens={{
               alvos: alvosDoAcervo(roomPanelWorld(), personagensEmUso),
               onDar: (item, alvo, quantidade) => {
-                const change = darDoAcervo(roomPanelWorld(), alvo, itemParaDar(item), quantidade, crypto.randomUUID())
+                const change = darDoAcervo(roomPanelWorld(), alvo, itemParaDar(item, useAcervoDeItensStore.getState().itens), quantidade, crypto.randomUUID())
                 return change !== null && aplicarItensDoMestre(change)
               },
               onErro: (mensagem) => useToastStore.getState().push('error', mensagem),

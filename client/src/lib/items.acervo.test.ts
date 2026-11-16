@@ -91,6 +91,13 @@ describe('"Dar a…" do acervo', () => {
     ])
   })
 
+  it('MUNIÇÃO: a arma leva as munições para a vaga; o leitor do disco as guarda e tira a entrada torta', () => {
+    const garrucha: ItemParaDar = { ...ESPADA, nome: 'Garrucha', itemId: 'item_garrucha', municoes: [{ itemId: 'item_balas_prata', nome: 'Balas de prata' }] }
+    expect(mochilaDepois(token(), garrucha, 1, 'g1')).toEqual([{ id: 'g1', nome: 'Garrucha', itemId: 'item_garrucha', categoria: 'Arma', municoes: [{ itemId: 'item_balas_prata', nome: 'Balas de prata' }] }])
+    const lidos = readCarriedItems([{ id: 'g', nome: 'Garrucha', municoes: [{ itemId: '../x', nome: 'Torta' }, { itemId: 'item_b', nome: '  ' }, { itemId: 'item_b', nome: 'Balas' }, { itemId: 'item_b', nome: 'Repetida' }] }])
+    expect(lidos).toEqual([{ id: 'g', nome: 'Garrucha', municoes: [{ itemId: 'item_b', nome: 'Balas' }] }])
+  })
+
   it('nome vazio não dá nada', () => {
     expect(darDoAcervoChange(token(), { nome: '   ' }, 1, 'x')).toBeNull()
   })
