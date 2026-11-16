@@ -123,7 +123,8 @@ export const FICHAS_DAS_PECAS_NOVAS: Readonly<Record<PecaNova, FichaDaPecaNova>>
   fogo: { rotulo: 'Fogo', artigo: 'um fogo', tamanho: { largura: 1, altura: 1 }, redonda: false },
   // Móveis de casa (28/10/2026), época "Fantasia, como os de hoje". A cozinha: o fogão de ferro a lenha,
   // a geladeira moderna de inox de duas portas lado a lado (era a caixa de gelo de madeira até 15/11/2026),
-  // a pia de pedra e o balcão, esticável como o aparador.
+  // a pia moderna de bancada com cuba de inox e armário (era a cuba de pedra com o balde até 15/11/2026)
+  // e o balcão, esticável como o aparador.
   fogao: { rotulo: 'Fogão', artigo: 'um fogão', tamanho: { largura: 1, altura: 1 }, redonda: false },
   geladeira: { rotulo: 'Geladeira', artigo: 'uma geladeira', tamanho: { largura: 1, altura: 0.75 }, redonda: false },
   pia: { rotulo: 'Pia', artigo: 'uma pia', tamanho: { largura: 1, altura: 0.6 }, redonda: false },
@@ -1148,11 +1149,15 @@ function tracosDeFrente(tipo: PecaNova, largura: number, altura: number, variant
       ]
     }
     case 'pia': {
-      // A cuba de pedra à esquerda e o balde à direita. O balde tem teto pela
-      // largura: na pia esticada estreita e alta ele não sai da caixa (centro
-      // 0,26 + raio 0,22 da largura = 0,48); no tamanho padrão manda a altura.
-      const balde = Math.min(altura * 0.62, largura * 0.44)
-      return [...quadro(-hw * 0.86, -hh * 0.66, hw * 0.08, hh * 0.66), ...aro(balde, balde, hw * 0.52, 0)]
+      // A pia moderna (15/11/2026), como a textura: a rodabanca no fundo, a cuba reta à esquerda, os frisos do
+      // escorredor à direita e a bica da torneira, que sai de trás da cuba para o meio dela.
+      const frisos = [-0.3, 0, 0.3, 0.6].map((f) => linha(hw * 0.34, hh * f, hw * 0.82))
+      return [
+        linha(-hw * 0.96, -hh * 0.84, hw * 0.96),
+        ...quadro(-hw * 0.85, -hh * 0.5, hw * 0.16, hh * 0.72),
+        ...frisos,
+        { x1: hw * 0.02, y1: -hh * 0.7, x2: -hw * 0.22, y2: -hh * 0.2 },
+      ]
     }
     case 'balcao':
       // A moldura da frente do tampo e a barra de pé, de ponta a ponta.

@@ -180,7 +180,10 @@ export const LUGARES_DE_MATERIAL: Readonly<Record<TipoMobilia, readonly LugarDeM
   // A geladeira de inox (15/11/2026) não tem escolha: o aço é fixo, como a louça dos pratos. O mapa antigo com
   // madeira e latão escolhidos para a caixa de gelo de antes abre de inox.
   geladeira: [],
-  pia: [lugar('pedra', 'Pedra', PEDRAS, 'granito'), lugar('madeira', 'Madeira', MADEIRAS, 'carvalho')],
+  // A pia moderna (15/11/2026): a pedra é a da bancada (era a da cuba) e a madeira, a do armário de baixo (era a do
+  // tampo de tábuas); os nomes dizem onde cada uma aparece. A cuba e a torneira são de inox fixo, como a geladeira. O
+  // mapa antigo abre com a pedra e a madeira que já tinha escolhido, agora na bancada e no armário.
+  pia: [lugar('pedra', 'Bancada', PEDRAS, 'granito'), lugar('madeira', 'Armário', MADEIRAS, 'carvalho')],
   balcao: [lugar('madeira', 'Madeira', MADEIRAS, 'nogueira'), lugar('barra', 'Barra de pé', METAIS, 'latao')],
   // A mesa posta: a louça, a comida e a caneca têm cor própria (como as flores da jardineira); o que muda é a forma.
   pratos: [],

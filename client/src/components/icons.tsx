@@ -632,11 +632,11 @@ function glifoDoMovel(tipo: TipoMobilia): ReactNode {
         </>
       )
     case 'pia':
-      // A bica sobre a cuba funda, embutida no tampo.
+      // A pia moderna (15/11/2026): a cuba reta embutida debaixo da bancada e a torneira de bica alta em arco.
       return (
         <>
-          <path d="M3 11h18M6 11v3.5a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V11" />
-          <path d="M12 11V5.5h3.5V7.5" />
+          <path d="M3 11h18M6.5 11v4.2a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V11" />
+          <path d="M9.5 11V6.5a2.5 2.5 0 0 1 5 0V8" />
         </>
       )
     case 'pratos':

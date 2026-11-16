@@ -170,7 +170,9 @@ export const PERFIS: Readonly<Record<TipoMobilia, PerfilDoTresQuartos>> = {
   // beirada: a faixa de baixo começa no chão (a grade da geladeira, o pé das cintas) e a barra de pé do balcão, um
   // tampo solto na altura dela, sobe sem ganhar uma tira de latão por baixo.
   geladeira: { modo: 'derivado', espessura: 0 },
-  pia: DERIVADO,
+  // A pia moderna (15/11/2026) também: o armário de baixo é a frente em faixas e as duas âncoras da torneira (a de
+  // cima, escondida pela bancada, e a em pé, pintada por último) são tampos soltos de um ponto, que não pintam nada.
+  pia: { modo: 'derivado', espessura: 0 },
   balcao: { modo: 'derivado', espessura: 0 },
   // A mesa posta sobe a altura do tampo, com a sombra junto: ela está em cima da mesa.
   pratos: { modo: 'derivado', alturaSolta: ALTURA_DA_MESA_POSTA, sombrasSobem: true },

@@ -6,9 +6,10 @@ import { escalaDoNivel, GRADE_DE_REFERENCIA, pintarMovel } from './index'
 import { colar, emPng, escrever, novaTela, type Tela } from './folhaDeContato.testkit'
 
 /**
- * FOLHA DE ANTES E DEPOIS do baú, do balcão e da geladeira (pedido do mestre
- * de 15/11/2026: "a geladeira coloque a versão original de metal", "o 3/4 do
- * baú é estranho", "o balcão em 3/4 fica estranho"). Cada móvel como o APP o
+ * FOLHA DE ANTES E DEPOIS do baú, do balcão, da geladeira e da pia (pedidos do
+ * mestre de 15/11/2026: "a geladeira coloque a versão original de metal", "o
+ * 3/4 do baú é estranho", "o balcão em 3/4 fica estranho" e "faz um rework da
+ * pia também, [...] faz uma moderna"). Cada móvel como o APP o
  * pede (`chaveDoMovel`, tamanho e materiais de partida), de cima e em 3/4, nos
  * quatro giros (0, 90, 180 e 270 graus), no nível 2 (zoom 200%), sobre o chão
  * claro do app; embaixo, os mesmos desenhos a 25% de zoom (a imagem do nível 1
@@ -30,6 +31,7 @@ const TIPOS: readonly (readonly [TipoMobilia, string])[] = [
   ['bau', 'BAU'],
   ['balcao', 'BALCAO'],
   ['geladeira', 'GELADEIRA'],
+  ['pia', 'PIA'],
 ]
 const GIROS = [0, 90, 180, 270] as const
 const VISTAS = ['de-cima', 'tres-quartos'] as const
@@ -237,7 +239,7 @@ function montarFolha(antes: Map<string, Painel>, depois: Map<string, Painel>, ti
   const alturaDoBloco = (b: (typeof blocos)[number]): number => LINHA * 2 + 2 * b.meiaLinha['de-cima'] + VAO + 2 * b.meiaLinha['tres-quartos'] + VAO + LINHA + 2 * b.altaMesa + VAO * 2
   const altura = MARGEM * 2 + LINHA * 2 + blocos.reduce((s, b) => s + alturaDoBloco(b) + VAO, 0)
   const tela = novaTela(largura, altura, FUNDO)
-  escrever(tela, 'BAU, BALCAO E GELADEIRA: ANTES A ESQUERDA, DEPOIS A DIREITA. EM CADA BLOCO, DE CIMA, 3/4 E EMBAIXO OS DOIS A 25 DE ZOOM AMPLIADOS 3X', MARGEM, MARGEM, ESCALA_DA_LETRA, TINTA)
+  escrever(tela, 'BAU, BALCAO, GELADEIRA E PIA: ANTES A ESQUERDA, DEPOIS A DIREITA. EM CADA BLOCO, DE CIMA, 3/4 E EMBAIXO OS DOIS A 25 DE ZOOM AMPLIADOS 3X', MARGEM, MARGEM, ESCALA_DA_LETRA, TINTA)
   let y = MARGEM + LINHA * 2
   for (const b of blocos) {
     escrever(tela, b.nome, MARGEM, y, ESCALA_DA_LETRA + 1, TINTA)
@@ -268,7 +270,7 @@ function montarFolha(antes: Map<string, Painel>, depois: Map<string, Painel>, ti
   return tela
 }
 
-it.skipIf(!PEDIDA)('gera a folha de antes e depois do baú, do balcão e da geladeira (FOLHA_MOVEIS_34)', async () => {
+it.skipIf(!PEDIDA)('gera a folha de antes e depois do baú, do balcão, da geladeira e da pia (FOLHA_MOVEIS_34)', async () => {
   const { fs, path } = await nodeDaFolha()
   const { existsSync, mkdirSync, writeFileSync } = fs
   const join = path.join

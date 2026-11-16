@@ -50,15 +50,19 @@ const PARTE_DA_FAIXA_DE_CIMA = 0.3
 /**
  * O aço escovado: cinza frio e claro, quase sem cor (saturação HSV 0,03). A classe é a lisa: o risco do escovado é
  * textura própria de cada peça, e a lateral que a 3/4 varre (a geladeira girada) sai chapa limpa; com a classe do
- * metal, ela ganhava as manchas do ferro batido e parecia concreto.
+ * metal, ela ganhava as manchas do ferro batido e parecia concreto. A cuba e a torneira da pia moderna (`pia.ts`) são
+ * deste mesmo aço.
  */
-const INOX: MaterialDaPeca = { classe: 'liso', rgb: [0xa9, 0xad, 0xaf] }
-/** A grade do rodapé, o fundo da fresta e o vão do dispenser: o mesmo cinza frio, bem escuro. */
-const ESCURO: MaterialDaPeca = { classe: 'liso', rgb: [0x40, 0x43, 0x46] }
+export const INOX: MaterialDaPeca = { classe: 'liso', rgb: [0xa9, 0xad, 0xaf] }
+/** A grade do rodapé, o fundo da fresta e o vão do dispenser: o mesmo cinza frio, bem escuro (o rodapé e o ralo da pia também). */
+export const ESCURO: MaterialDaPeca = { classe: 'liso', rgb: [0x40, 0x43, 0x46] }
 /** A sombra do puxador na porta: o escuro do aço, meio transparente. */
 const SOMBRA: MaterialDaPeca = { classe: 'liso', rgb: [0x2c, 0x2f, 0x32] }
-/** O escuro em que o pixel escuro demais é levantado: com o padrão (a nogueira), a fresta e a grade saíam marrons. */
-const ESCURO_DO_INOX: Rgb = [0x46, 0x49, 0x4c]
+/**
+ * O escuro em que o pixel escuro demais é levantado: com o padrão (a nogueira), a fresta e a grade saíam marrons. A
+ * pia moderna usa o mesmo (a beira da cuba e a sombra da torneira saíam marrons também).
+ */
+export const ESCURO_DO_INOX: Rgb = [0x46, 0x49, 0x4c]
 
 /** Os tons do aço: o tampo, as portas (de frente, com menos luz), o corpo que aparece em volta delas, a beira de cima e o puxador. */
 const TOM_DO_TAMPO = 1
@@ -76,7 +80,7 @@ const ESCALA_DO_RISCO = 1.5
 const RISCO_MIUDO = 0.3
 
 /** O aço escovado: riscos finos e longos ao comprido do veio (u) e uma mancha larga bem leve por baixo. */
-const texEscovado: Textura = (u, v, _x, _y, p, s, escala) => {
+export const texEscovado: Textura = (u, v, _x, _y, p, s, escala) => {
   const risco = escala < ESCALA_DO_RISCO ? RISCO_MIUDO : 1
   s[3] += (ruido(u * 0.03, v * 0.9) * 0.09 + ruido(u * 0.012, v * 0.33) * 0.045) * risco + ruido(u * 0.06 + p.semente * 3, v * 0.06) * 0.06
 }

@@ -429,7 +429,7 @@ export const PALAVRAS_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, readonly s
   fogao: ['fogão a lenha', 'fogão de ferro'],
   // A geladeira é de inox desde 15/11/2026 (era a caixa de gelo de madeira).
   geladeira: ['refrigerador', 'freezer', 'inox'],
-  pia: ['torneira'],
+  pia: ['torneira', 'cuba', 'inox', 'bancada'],
   pratos: ['louça', 'comida', 'refeição', 'banquete', 'talheres'],
   privada: ['vaso sanitário', 'sanitário', 'latrina', 'toalete'],
   caldeirao: ['panela', 'tacho', 'sopa', 'bruxa'],
