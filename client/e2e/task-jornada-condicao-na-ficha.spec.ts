@@ -311,7 +311,7 @@ async function mestreAbreAventura(mestre: Page): Promise<Rede> {
   await mestre.getByRole('button', { name: new RegExp(AVENTURA) }).click()
   await mestre.waitForSelector('canvas')
   await abrirAbaJogo(mestre)
-  await mestre.getByRole('button', { name: 'Abrir sala' }).click()
+  await mestre.getByRole('button', { name: 'Abrir mesa online' }).click()
   await expect(mestre.getByText(CODIGO).first()).toBeVisible()
   return rede
 }
@@ -381,7 +381,7 @@ async function jogadorEntra(browser: Browser, baseURL: string, rede: Rede, clien
     },
   )
   await page.goto('/player.html')
-  const codigo = page.getByLabel('Código da sala')
+  const codigo = page.getByLabel('Código da mesa online')
   await codigo.click()
   await codigo.pressSequentially(CODIGO, { delay: 20 })
   const campoNome = page.getByLabel('Seu nome')
