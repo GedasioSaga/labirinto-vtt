@@ -108,6 +108,7 @@ import { tokenHasPass } from '../lib/pinPass'
 import { carriedItemsOf, cleanItemName, quantidadeDe, tokenReachesPin, tokensTouch, type ItemChange } from '../lib/items'
 import { acharItemNoMapa, fichaAlcancaItem, pegarItemChange, type ItemNoMapa } from '../lib/itemNoMapa'
 import { itemAVenda } from '../lib/loja'
+import { bolsaPaga, vendaNaFicha } from '../lib/vendaDaLoja'
 import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
@@ -217,7 +218,7 @@ import {
   type TradeClosedResult,
   type TradeCounterMessage,
 } from './protocol'
-import { canPay, cleanTradeTerms, moedasLabel, payCoinsChange, tradeChange, tradeSideText, tradeTooBig, type TradeAsk, type TradeProposal } from '../lib/troca'
+import { canPay, cleanTradeTerms, moedasDe, moedasLabel, payCoinsChange, tradeChange, tradeSideText, tradeTooBig, type TradeAsk, type TradeProposal } from '../lib/troca'
 import {
   AWAY_NOTES_MAX,
   clampAlarmText,
@@ -7648,6 +7649,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // A ficha do MAPA DO MESTRE, não a do recorte: é a mochila dela que cresce.
     const token = reaching.map((t) => map.tokens.find((m) => m.id === t.id)).find((t): t is Token => t !== undefined)
     if (token === undefined) return 'far'
+    // Fase 5: a mercadoria do Acervo cobra a bolsa; sem moedas, nem chega ao mestre.
+    if (!bolsaPaga(moedasDe(token), item)) return 'no_coins'
     return { pin, nome: item.nome, preco: item.preco, token }
   }
 
@@ -10774,13 +10777,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return reply(record.clientId, { type: 'pin.buy.rejected', reason: 'unavailable' })
       }
       const nome = cleanItemName(item.nome)
+      // Id NOVO na mochila: a mesma mercadoria pode ser comprada de novo, e cada uma é um item (a do Acervo empilhável soma na vaga).
+      // Fase 5: a do Acervo chega inteira e o preço sai da bolsa NA MESMA mudança (`vendaNaFicha`).
+      const vendida = vendaNaFicha(carriedItemsOf(token), moedasDe(token), item, randomId())
+      if (vendida === 'semMoedas') return reply(record.clientId, { type: 'pin.buy.rejected', reason: 'no_coins' })
+      if (vendida === null) return reply(record.clientId, { type: 'pin.buy.rejected', reason: 'unavailable' })
       return {
         outbound: [{ clientId: record.clientId, msg: { type: 'pin.buy.answer', answer: 'sold', nome } }],
         applyItems: {
           ...backgroundSceneId(scene, world),
           venda: { pinId: pin.id, itemId: item.id },
-          // Id NOVO na mochila: a mesma mercadoria pode ser comprada de novo, e cada uma é um item.
-          mochilas: [{ tokenId: token.id, mochila: [...carriedItemsOf(token), { id: randomId(), nome }] }],
+          mochilas: [{ tokenId: token.id, mochila: vendida.mochila }],
+          ...(vendida.moedas === null ? {} : { bolsas: [{ tokenId: token.id, moedas: vendida.moedas }] }),
         },
       }
     },

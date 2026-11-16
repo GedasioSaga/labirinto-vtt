@@ -1225,12 +1225,35 @@ export function perguntaAArma(chaves: readonly string[]): boolean {
  * mochila menos os usos nesta batalha); `null` = a técnica não gasta item.
  * Conta a `quantidade` de cada vaga (ausente = 1): 3 kits empilhados são 3.
  */
-export function itensQueSobram(cartaoId: string, mochila: readonly { nome: string; quantidade?: number }[] | undefined, usadas: number): { nome: string; sobram: number } | null {
+export function itensQueSobram(
+  cartaoId: string,
+  mochila: readonly { nome: string; quantidade?: number; itemId?: string }[] | undefined,
+  usadas: number,
+  idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM,
+): { nome: string; sobram: number } | null {
   const nome = mecanicaDoCartao(cartaoId)?.gastaItem
   if (nome === undefined) return null
-  const procurado = normalizar(nome).trim()
-  const tem = (mochila ?? []).reduce((soma, item) => (normalizar(item.nome).trim() === procurado ? soma + (item.quantidade ?? 1) : soma), 0)
+  const tem = quantosDoConsumivel(mochila ?? [], nome, idsDoItem)
   return { nome, sobram: Math.max(0, tem - usadas) }
+}
+
+const SEM_IDS_DO_ITEM: ReadonlySet<string> = new Set()
+
+/**
+ * COISA x REGRA (Fase 5): quantos do consumível `nome` a mochila tem, pela
+ * COISA do Acervo (`itemId`) e com o nome como reserva. A coisa é o Kit
+ * Médico quando o id dela está em `idsDoItem` (quem chama sabe pelo Acervo ou
+ * pela regra ligada do livro) ou quando alguma vaga dela tem o nome do
+ * consumível: as outras vagas da mesma coisa contam junto, mesmo com outro
+ * nome. Vaga sem `itemId` (pino "!", ficha de antes) conta só pelo nome.
+ * Soma a `quantidade` de cada vaga (ausente = 1).
+ */
+export function quantosDoConsumivel(mochila: readonly { nome: string; quantidade?: number; itemId?: string }[], nome: string, idsDoItem: ReadonlySet<string> = SEM_IDS_DO_ITEM): number {
+  const procurado = normalizar(nome).trim()
+  const peloNome = (item: { nome: string }): boolean => normalizar(item.nome).trim() === procurado
+  const ids = new Set(idsDoItem)
+  for (const item of mochila) if (item.itemId !== undefined && peloNome(item)) ids.add(item.itemId)
+  return mochila.reduce((soma, item) => ((item.itemId !== undefined && ids.has(item.itemId)) || (item.itemId === undefined && peloNome(item)) ? soma + (item.quantidade ?? 1) : soma), 0)
 }
 
 /**

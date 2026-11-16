@@ -7,6 +7,7 @@ import { CampoQueColaImagem } from './CampoQueColaImagem'
 import type { LivroDaFicha } from './EscolherDoLivro'
 import type { QuemEditaAMecanica } from './batalha/MecanicaDaTecnica'
 import { FichaAbas } from './FichaAbas'
+import { ABA_DOS_ITENS } from '../lib/livros/coisaERegra'
 import { ImagemOuIniciais } from './FichaPecas'
 import { AtributosDaFicha, AtributosEditaveis, RecursosDaFicha, RecursosEditaveis } from './FichaNumeros'
 import './FichaDePersonagem.css'
@@ -65,6 +66,8 @@ export interface FichaDePersonagemProps {
 
 export function FichaDePersonagem({ personagem, sistema, editando, onChange, escolherImagem, tituloId, tipoEditavel = true, livro, onAjustar, inventario, quemEditaAMecanica, onRevelar, outrasFichas }: FichaDePersonagemProps) {
   const ajustar = editando ? undefined : onAjustar
+  // Fase 5 (um inventário só): com a aba Itens no sistema, a mochila mora DENTRO dela; sem a aba, fica sob o bloco, como antes.
+  const mochilaNaAba = sistema.abas.some((aba) => aba.id === ABA_DOS_ITENS)
   return (
     <div className="lb-ficha">
       <div className="lb-ficha__lado">
@@ -74,7 +77,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
         ) : (
           <BlocoLido personagem={personagem} sistema={sistema} tituloId={tituloId} onAjustar={ajustar} />
         )}
-        {!editando && inventario}
+        {!editando && !mochilaNaAba && inventario}
       </div>
       <div className="lb-ficha__principal">
         <FichaAbas
@@ -88,6 +91,7 @@ export function FichaDePersonagem({ personagem, sistema, editando, onChange, esc
           quemEditaAMecanica={quemEditaAMecanica}
           onRevelar={onRevelar}
           outrasFichas={outrasFichas}
+          inventario={inventario}
         />
       </div>
     </div>

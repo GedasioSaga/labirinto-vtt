@@ -13,16 +13,15 @@ import {
   DADOS_DO_TIPO,
   ehDoLivro,
   podeReceber,
-  porNaFicha,
-  tirarDaFicha,
+  regraDaCoisa,
   TIPOS_DE_ENTRADA,
   type EntradaParaFicha,
   type ItemDoCatalogo,
-  type ResultadoDePorNaFicha,
   type TipoDeEntrada,
   type TipoDoCatalogo,
 } from '../../lib/livros/catalogo'
-import { darNaFicha, quantosNaFicha, tirarDaMochilaDaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
+import { desfazerPosto, porCoisaNaFicha, porEntradaNaFicha, type PostoNaFicha, type ResultadoDoPor } from '../../lib/livros/coisaERegra'
+import { darNaFicha, quantosNaFicha, type FichaQueRecebeu } from '../../lib/mochila/darNaFicha'
 import { cartoesDaAba, type CartaoDaFicha, type Personagem } from '../../lib/personagem'
 import type { AbaDoSistema, CampoDoCartao, SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
@@ -97,7 +96,7 @@ interface GrupoQueRecebe {
   fichas: Personagem[]
 }
 
-/** Quem pode receber: jogadores, NPCs de combate (modelos e únicos) e os de cenário. A variação herda do modelo e fica fora. */
+/** Quem pode receber: jogadores, NPCs de combate (modelos e únicos), os de cenário e, só na mochila, as variações (o cartão elas herdam do modelo). */
 function gruposQueRecebem(personagens: readonly Personagem[]): GrupoQueRecebe[] {
   const npcs = personagens.filter((personagem) => personagem.tipo === 'npc' && podeReceber(personagem))
   return [
@@ -127,14 +126,14 @@ function comCartao(personagem: Personagem, abaId: string, cartao: CartaoDaFicha)
   return { ...personagem, abas: { ...personagem.abas, [abaId]: [...atuais, cartao] } }
 }
 
-function fraseDaRecusa(motivo: 'semAba' | 'jaTem' | 'variacao', ficha: Personagem, entrada: EntradaParaFicha): string {
+function fraseDaRecusa(motivo: 'semAba' | 'jaTem' | 'variacao', ficha: Personagem, entrada: EntradaDaPagina): string {
   if (motivo === 'jaTem') return `${ficha.nome} já tem ${entrada.nome}.`
   if (motivo === 'semAba') return `A ficha deste sistema não tem a aba ${DADOS_DO_TIPO[entrada.tipo].nome}.`
   return `${ficha.nome} é variação: ponha no modelo para dar a todas.`
 }
 
 /** "Sabre entrou em Armas de Aira. Agora são 2 armas: na batalha Aira escolhe 1." */
-function fraseDoPor(entrada: EntradaParaFicha, ficha: Personagem, aba: AbaDoSistema, variacoes: number, resultado: Extract<ResultadoDePorNaFicha, { ok: true }>): string {
+function fraseDoPor(entrada: EntradaDaPagina, ficha: Personagem, aba: AbaDoSistema, variacoes: number, resultado: Extract<ResultadoDoPor, { ok: true }>): string {
   const nas = variacoes === 0 ? '' : variacoes === 1 ? ' e na variação' : ` e nas ${variacoes} variações`
   let frase = `${entrada.nome} entrou em ${aba.nome} de ${ficha.nome}${nas}.`
   const limite = limiteDeArmas(resultado.personagem)
@@ -144,11 +143,11 @@ function fraseDoPor(entrada: EntradaParaFicha, ficha: Personagem, aba: AbaDoSist
   return frase
 }
 
-/** O Desfazer do "Pôr": tira o cartão pelo id, nas duas cópias (disco e editor). */
-function desfazerPor(fichaId: string, abaId: string, cartaoId: string): void {
+/** O Desfazer do "Pôr": tira o cartão pelo id e o que entrou na vaga, nas duas cópias (disco e editor). */
+function desfazerPor(fichaId: string, posto: PostoNaFicha): void {
   useMundoDoLivroStore
     .getState()
-    .mudar((lista) => trocarFicha(lista, fichaId, (atual) => tirarDaFicha(atual, abaId, cartaoId)))
+    .mudar((lista) => trocarFicha(lista, fichaId, (atual) => desfazerPosto(atual, posto)))
     .then(
       () => useToastStore.getState().push('info', 'Desfeito.'),
       (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
@@ -161,17 +160,6 @@ function fraseDoPorNaMochila(nome: string, ficha: Personagem, recebido: FichaQue
   const total = vaga === undefined ? recebido.entraram : quantidadeDe(vaga)
   if (total > recebido.entraram) return `Mais ${formatarNumero(recebido.entraram)} ${nome} na mochila de ${ficha.nome}: agora são ${formatarNumero(total)}.`
   return `${nome} entrou na mochila de ${ficha.nome}.`
-}
-
-/** O Desfazer do "Pôr" do acervo: tira da vaga só o que entrou, sobre a ficha como ela está agora (disco e editor). */
-function desfazerNaMochila(fichaId: string, vagaId: string, quantos: number): void {
-  useMundoDoLivroStore
-    .getState()
-    .mudar((lista) => trocarFicha(lista, fichaId, (atual) => tirarDaMochilaDaFicha(atual, vagaId, quantos)))
-    .then(
-      () => useToastStore.getState().push('info', 'Desfeito.'),
-      (erro: unknown) => useToastStore.getState().push('error', `Não deu para desfazer: ${mensagemDoErro(erro)}`),
-    )
 }
 
 interface LinhaDoCampo {
@@ -319,71 +307,83 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
    * primeira) recebeu. Sem trava de clique duplo: dois cliques são duas
    * Poções, em fila no funil do mundo.
    */
-  const porNaMochila = async (entrada: EntradaDoAcervo) => {
+  /**
+   * "PÔR EM", A PORTA ÚNICA (Fase 5, lib/livros/coisaERegra.ts): a coisa do
+   * Acervo vai para a MOCHILA (e, se o livro tem a arma ligada a ela, o cartão
+   * da regra também); o item do catálogo vai para a mochila (inteiro, se
+   * ligado a uma coisa); a arma vira cartão (com o `itemId`) e a coisa ligada
+   * entra na mochila; o resto vira cartão, como antes.
+   *
+   * O resultado é calculado UMA vez sobre a ficha de agora e aplicado igual no
+   * disco e na cópia do editor (`editarRpgDaPasta` roda a mudança duas vezes):
+   * o cartão chega pronto, com id fixo, e a vaga nova tem id fixo.
+   */
+  const por = async (entrada: EntradaDaPagina) => {
     const ficha = destino
     if (ficha === undefined) return
     const toasts = useToastStore.getState()
-    const dados = itemParaDar(entrada.acervo)
     const vagaNova = crypto.randomUUID()
-    if (darNaFicha(ficha, dados, 1, vagaNova) === null) {
-      toasts.push('info', `${ficha.nome} já carrega o máximo de ${entrada.nome}.`)
+    const resultado = ehDoAcervo(entrada)
+      ? porCoisaNaFicha(ficha, itemParaDar(entrada.acervo), regraDaCoisa(itens, entrada.id), sistema, vagaNova)
+      : porEntradaNaFicha(ficha, entrada, sistema, coisaLigada(entrada), vagaNova)
+    if (!resultado.ok) {
+      toasts.push('info', resultado.motivo === 'cheia' ? `${ficha.nome} já carrega o máximo de ${entrada.nome}.` : fraseDaRecusa(resultado.motivo, ficha, entrada))
       return
     }
+    const posto = resultado.cartao
+    const cartao = posto === null ? undefined : cartoesDaAba(resultado.personagem, posto.abaId).find((atual) => atual.id === posto.cartaoId)
+    const coisa = resultado.coisa
+    const chave = `${ficha.id}:${entrada.id}`
+    // A trava do clique duplo vale para o cartão (dois cliques seriam o mesmo cartão); a coisa sozinha empilha, como o "Dar a…".
+    if (cartao !== undefined && pondo.current.has(chave)) return
+    if (cartao !== undefined) pondo.current.add(chave)
     // Objeto, não `let`: o TypeScript não vê a atribuição feita dentro da mudança e trataria o valor como sempre nulo.
-    const doDisco: { recebido: FichaQueRecebeu | null } = { recebido: null }
+    const doDisco: { recebido: FichaQueRecebeu | null; achou: boolean } = { recebido: null, achou: false }
     try {
       await useMundoDoLivroStore.getState().mudar((lista) =>
         trocarFicha(lista, ficha.id, (atual) => {
-          const deu = darNaFicha(atual, dados, 1, vagaNova)
-          if (deu === null) return atual
+          doDisco.achou = true
+          const comOCartao = posto === null || cartao === undefined ? atual : comCartao(atual, posto.abaId, cartao)
+          if (coisa === null) return comOCartao
+          const deu = darNaFicha(comOCartao, coisa, 1, vagaNova)
+          if (deu === null) return comOCartao
           doDisco.recebido ??= deu
           return deu.personagem
         }),
       )
-    } catch (erro) {
-      toasts.push('error', `Não deu para pôr ${entrada.nome} na mochila de ${ficha.nome}: ${mensagemDoErro(erro)}`)
-      return
-    }
-    const recebido = doDisco.recebido
-    if (recebido === null) {
-      toasts.push('error', `Não deu para pôr ${entrada.nome}: a ficha de ${ficha.nome} não está mais nesta pasta.`)
-      return
-    }
-    const { vagaId, entraram } = recebido
-    setNovos((atuais) => new Set(atuais).add(`${ficha.id}:${vagaId}`))
-    toasts.push('info', fraseDoPorNaMochila(entrada.nome, ficha, recebido), undefined, {
-      actions: [{ label: 'Desfazer', run: () => desfazerNaMochila(ficha.id, vagaId, entraram) }],
-    })
-  }
-
-  const por = async (entrada: EntradaDaPagina) => {
-    if (ehDoAcervo(entrada)) return porNaMochila(entrada)
-    const ficha = destino
-    if (ficha === undefined) return
-    const toasts = useToastStore.getState()
-    const resultado = porNaFicha(ficha, entrada, sistema)
-    if (!resultado.ok) {
-      toasts.push('info', fraseDaRecusa(resultado.motivo, ficha, entrada))
-      return
-    }
-    const aba = abaPorTipo.get(entrada.tipo)
-    const cartao = cartoesDaAba(resultado.personagem, resultado.abaId).find((atual) => atual.id === resultado.cartaoId)
-    const chave = `${ficha.id}:${entrada.id}`
-    if (aba === undefined || cartao === undefined || pondo.current.has(chave)) return
-    pondo.current.add(chave)
-    const { abaId } = resultado
-    try {
-      await useMundoDoLivroStore.getState().mudar((lista) => trocarFicha(lista, ficha.id, (atual) => comCartao(atual, abaId, cartao)))
     } catch (erro) {
       toasts.push('error', `Não deu para pôr ${entrada.nome} em ${ficha.nome}: ${mensagemDoErro(erro)}`)
       return
     } finally {
       pondo.current.delete(chave)
     }
-    setNovos((atuais) => new Set(atuais).add(`${ficha.id}:${cartao.id}`))
-    toasts.push('info', fraseDoPor(entrada, ficha, aba, variacoesDe(ficha.id, personagens).length, resultado), undefined, {
-      actions: [{ label: 'Desfazer', run: () => desfazerPor(ficha.id, abaId, cartao.id) }],
+    if (!doDisco.achou) {
+      toasts.push('error', `Não deu para pôr ${entrada.nome}: a ficha de ${ficha.nome} não está mais nesta pasta.`)
+      return
+    }
+    const recebido = doDisco.recebido
+    const desfazer: PostoNaFicha = { cartao: posto, vaga: recebido === null ? null : { vagaId: recebido.vagaId, entraram: recebido.entraram } }
+    setNovos((atuais) => {
+      const proximos = new Set(atuais)
+      if (cartao !== undefined) proximos.add(`${ficha.id}:${cartao.id}`)
+      if (recebido !== null) proximos.add(`${ficha.id}:${recebido.vagaId}`)
+      return proximos
     })
+    const aba = abaPorTipo.get(entrada.tipo)
+    const frases = [
+      ...(cartao !== undefined && aba !== undefined ? [fraseDoPor(entrada, ficha, aba, variacoesDe(ficha.id, personagens).length, resultado)] : []),
+      ...(recebido !== null ? [fraseDoPorNaMochila(coisa?.nome ?? entrada.nome, ficha, recebido)] : []),
+    ]
+    toasts.push('info', frases.join(' '), undefined, {
+      actions: [{ label: 'Desfazer', run: () => desfazerPor(ficha.id, desfazer) }],
+    })
+  }
+
+  /** A coisa do Acervo ligada à entrada do catálogo (`acervoId`), pronta para dar; `undefined` = solta, ou a coisa saiu do Acervo. */
+  const coisaLigada = (entrada: EntradaParaFicha) => {
+    if (ehDoLivro(entrada) || entrada.acervoId === undefined) return undefined
+    const coisa = doAcervo.find((item) => item.id === entrada.acervoId)
+    return coisa === undefined ? undefined : itemParaDar(coisa)
   }
 
   // ---- arrastar o cartão para a ficha ----
@@ -515,6 +515,21 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
     }
   }
 
+  /** Fase 5, "Ligar pelo nome": a Garrucha do livro passa a apontar para a Garrucha do Acervo (foto, pilha; a regra fica no livro). */
+  const ligar = async () => {
+    if (juntando) return
+    setJuntando(true)
+    const toasts = useToastStore.getState()
+    try {
+      const n = await useCatalogoStore.getState().ligarPeloNome(doAcervo)
+      toasts.push('info', n > 0 ? `${formatarNumero(n)} ${n === 1 ? 'entrada ligada' : 'entradas ligadas'} à coisa do Acervo de mesmo nome.` : 'Nada a ligar: nenhuma arma ou item solto do livro tem o nome de uma coisa do Acervo.')
+    } catch (erro) {
+      toasts.push('error', `Não deu para ligar ao Acervo: ${mensagemDoErro(erro)}`)
+    } finally {
+      setJuntando(false)
+    }
+  }
+
   const buscando = busca.trim().length > 0
   const anuncio = buscando || filtroAtivo !== 'todos' ? `${formatarNumero(lista.length)} ${lista.length === 1 ? 'entrada' : 'entradas'}` : ''
   const visiveis = lista.slice(0, mostrar)
@@ -541,6 +556,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
               <CartaoDaEntrada
                 key={entrada.id}
                 entrada={entrada}
+                coisa={ehDoLivro(entrada) || entrada.acervoId === undefined ? undefined : doAcervo.find((item) => item.id === entrada.acervoId)}
                 linhas={linhasDaEntrada(entrada, camposPorTipo.get(entrada.tipo) ?? [], nomesDosAtributos)}
                 estado={estadoDoPor(entrada)}
                 destino={destino}
@@ -622,6 +638,9 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
         <div className="mu-pg-acoes">
           <button type="button" className="mu-bt" disabled={!podeGravar || juntando} onClick={() => void juntar()}>
             {juntando ? 'Juntando…' : 'Juntar das fichas da pasta'}
+          </button>
+          <button type="button" className="mu-bt" disabled={!podeGravar || juntando || doAcervo.length === 0} onClick={() => void ligar()} title="Liga cada arma e item do livro à coisa do Acervo de mesmo nome">
+            Ligar ao Acervo pelo nome
           </button>
           <button type="button" className="mu-bt mu-bt--primario" disabled={!podeGravar} onClick={() => setDialogo({ tipo: 'nova', tipoDaEntrada: tipoSugerido })}>
             <IconeDoMundo nome="mais" />
@@ -734,6 +753,8 @@ function recusaDoArrasto(estado: EstadoDoPor | null, ficha: Personagem, entrada:
 
 interface CartaoDaEntradaProps {
   entrada: EntradaParaFicha
+  /** A coisa do Acervo ligada (`acervoId`); ausente = entrada solta, ou a coisa saiu do Acervo. */
+  coisa: { nome: string; imagem: string | null } | undefined
   linhas: readonly LinhaDoCampo[]
   estado: EstadoDoPor
   destino: Personagem | undefined
@@ -747,7 +768,7 @@ interface CartaoDaEntradaProps {
   onSoltar: () => void
 }
 
-function CartaoDaEntrada({ entrada, linhas, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
+function CartaoDaEntrada({ entrada, coisa, linhas, estado, destino, podeGravar, arrastando, destacado, onPor, onEditar, onApagar, onArrastar, onSoltar }: CartaoDaEntradaProps) {
   const dados = DADOS_DO_TIPO[entrada.tipo]
   /** A entrada do mestre (editável); `null` = a do livro, só leitura. */
   const doMestre: ItemDoCatalogo | null = ehDoLivro(entrada) ? null : entrada
@@ -792,8 +813,19 @@ function CartaoDaEntrada({ entrada, linhas, estado, destino, podeGravar, arrasta
         onDragEnd={onSoltar}
       >
         <div className="mu-item__cab">
+          {/* Fase 5: a regra ligada a uma coisa do Acervo mostra a foto dela (a coisa é a dona da foto). */}
+          {coisa !== undefined && (
+            <span className="mu-item__foto" aria-hidden="true">
+              <ImagemOuIniciais imagem={coisa.imagem} nome={coisa.nome} />
+            </span>
+          )}
           <h3 className="mu-item__nome">{entrada.nome}</h3>
           <span className={doMestre === null ? 'mu-etiqueta mu-etiqueta--livro' : 'mu-etiqueta mu-etiqueta--catalogo'}>{doMestre === null ? 'Do livro' : 'Do catálogo'}</span>
+          {coisa !== undefined && (
+            <span className="mu-etiqueta mu-etiqueta--acervo" title={`Ligada à coisa ${coisa.nome} do Acervo`}>
+              Ligada ao acervo
+            </span>
+          )}
         </div>
         <p className="mu-item__txt" title={entrada.texto.length > 0 ? entrada.texto : undefined}>
           {entrada.texto.length === 0 ? dados.um : `${dados.um} · ${entrada.texto}`}

@@ -1,4 +1,5 @@
 import type { LojaItem, MapData, Pin } from '../types/map'
+import { ehRefDeMidia } from './midia'
 
 /**
  * LOJA COM PREÇOS — a banca de um pino: mercadorias com nome, preço e estoque.
@@ -26,6 +27,37 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Os tetos do item do Acervo (`ITEM_DESCRICAO_MAX`, `ITEM_CATEGORIA_MAX`,
+ * `ITEM_PRECO_MAX` de `lib/items.ts`), repetidos pelo mesmo motivo do
+ * `LOJA_NOME_MAX`: `lib/items.ts` importa este arquivo.
+ */
+const COISA_DESCRICAO_MAX = 2000
+const COISA_CATEGORIA_MAX = 40
+const COISA_PRECO_MAX = 1_000_000_000_000
+const ID_DA_COISA = /^[A-Za-z0-9_-]{1,80}$/
+
+/**
+ * Fase 5: a coisa do Acervo que a mercadoria vende, como veio de fora. Só
+ * entra com o id do Acervo; o resto é tolerante (campo torto sai). A imagem
+ * só como referência de mídia, como na mochila. `undefined` = mercadoria digitada.
+ */
+function coisaDaMercadoria(value: unknown): LojaItem['acervo'] {
+  if (!isRecord(value) || typeof value.itemId !== 'string' || !ID_DA_COISA.test(value.itemId)) return undefined
+  const coisa: NonNullable<LojaItem['acervo']> = { itemId: value.itemId }
+  if (ehRefDeMidia(value.imagem)) coisa.imagem = value.imagem
+  if (typeof value.descricao === 'string' && value.descricao.trim() !== '') coisa.descricao = value.descricao.slice(0, COISA_DESCRICAO_MAX)
+  if (typeof value.categoria === 'string' && value.categoria.trim() !== '') coisa.categoria = value.categoria.trim().slice(0, COISA_CATEGORIA_MAX)
+  if (typeof value.preco === 'number' && Number.isSafeInteger(value.preco) && value.preco >= 0 && value.preco <= COISA_PRECO_MAX) coisa.preco = value.preco
+  if (value.empilhavel === true) coisa.empilhavel = true
+  return coisa
+}
+
+/** O preço da mercadoria do Acervo em moedas, que a venda cobra da bolsa; `null` = não cobra (digitada, ou a coisa sem preço). */
+export function precoEmMoedas(item: Pick<LojaItem, 'acervo'>): number | null {
+  return item.acervo?.preco ?? null
+}
+
 /** Estoque de verdade: inteiro de 0 ao teto. Qualquer outra coisa não é estoque. */
 export function isEstoque(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= LOJA_ESTOQUE_MAX
@@ -51,6 +83,8 @@ export function lerLojaDoArquivo(value: unknown): LojaItem[] | undefined {
     if (itens.some((item) => item.id === id)) continue
     const item: LojaItem = { id, nome: nome.slice(0, LOJA_NOME_MAX), preco: typeof preco === 'string' ? preco.slice(0, LOJA_PRECO_MAX) : '' }
     if (isEstoque(estoque)) item.estoque = estoque
+    const acervo = coisaDaMercadoria(bruto.acervo)
+    if (acervo !== undefined) item.acervo = acervo
     itens.push(item)
   }
   return itens.length === 0 ? undefined : itens
@@ -107,7 +141,15 @@ export function sameLoja(a: readonly LojaItem[] | undefined, b: readonly LojaIte
     a.length === b.length &&
     a.every((item, i) => {
       const outro = b[i]
-      return outro !== undefined && item.id === outro.id && item.nome === outro.nome && item.preco === outro.preco && item.estoque === outro.estoque
+      return (
+        outro !== undefined &&
+        item.id === outro.id &&
+        item.nome === outro.nome &&
+        item.preco === outro.preco &&
+        item.estoque === outro.estoque &&
+        // Fase 5: trocar a coisa do Acervo da mercadoria também é mudança (objeto pequeno e já limpo pela leitura).
+        JSON.stringify(item.acervo) === JSON.stringify(outro.acervo)
+      )
     })
   )
 }

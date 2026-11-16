@@ -22,5 +22,7 @@ export function compraNoticeText(notice: CompraNotice): string {
       return 'Espere um instante antes de pedir de novo'
     case 'unavailable':
       return 'Não dá para pedir isso agora'
+    case 'no_coins':
+      return `Faltam moedas para ${notice.nome}`
   }
 }

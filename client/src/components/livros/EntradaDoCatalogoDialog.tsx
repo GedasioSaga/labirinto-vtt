@@ -20,6 +20,7 @@ import { CAMPO_DO_ATRIBUTO_DO_ATAQUE } from '../../lib/batalha/formula'
 import { CAMPO_DA_CAPACIDADE, CAMPO_DA_CATEGORIA } from '../../lib/batalha/leituraDaFicha'
 import { abaDoSistema, type AbaDoSistema, type SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { useCatalogoStore } from '../../stores/catalogoStore'
+import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { avisoDoAtributoDoAtaque, avisoDoQueFicaGuardado, categoriaSemTiro, escolhaDoCampo, opcoesDoCampo, rotuloDoVazio, valorDaEscolha } from '../escolhaDeCampo'
 import { formatarNumero, movimentoReduzido } from './comum'
 import { IconeDoMundo } from './icones'
@@ -96,6 +97,10 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
   const [tipo, setTipo] = useState<TipoDoCatalogo>(editando?.tipo ?? (modo.tipo === 'nova' ? modo.tipoDaEntrada : 'arma'))
   const [nome, setNome] = useState(editando?.nome ?? '')
   const [texto, setTexto] = useState(editando?.texto ?? '')
+  // Fase 5 (coisa x regra): a coisa do Acervo de que esta entrada é a regra; '' = solta.
+  const [acervoId, setAcervoId] = useState(editando?.acervoId ?? '')
+  const acervoIdCampo = useId()
+  const doAcervo = useAcervoDeItensStore((state) => state.itens)
   /** Todos os campos digitados, de qualquer tipo: trocar de Arma para Habilidade e voltar não perde o Dano. */
   const [campos, setCampos] = useState<Record<string, string>>(() => ({ ...(editando?.campos ?? {}) }))
   const [balas, setBalas] = useState<BalaEmEdicao[]>(() => (editando?.balas ?? []).map(novaBalaEmEdicao))
@@ -204,7 +209,7 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
     const ids = new Set(camposDoTipoEscolhido.map((campo) => campo.id))
     const doTipo = Object.fromEntries(Object.entries(campos).filter(([chave]) => ids.has(chave)))
     const balasMontadas = montarBalas()
-    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined })
+    const item = itemLimpo({ id: editando?.id ?? novoIdDeEntrada(), tipo, nome, texto, campos: doTipo, balas: 'balas' in balasMontadas ? balasMontadas.balas : undefined, acervoId: acervoId === '' ? undefined : acervoId })
     if (item === null) return { erro: 'Dê um nome à entrada.' }
     if ('erro' in balasMontadas) return { erro: balasMontadas.erro, bala: balasMontadas.chave }
     const chave = chaveDoNomeDaEntrada(item.nome)
@@ -498,6 +503,31 @@ export function EntradaDoCatalogoDialog({ modo, sistema, onClose, onSalvou }: En
                 {balasCheias && <span className="mu-campo__dica">Até {formatarNumero(BALAS_POR_ENTRADA_MAX)} tipos de bala por arma.</span>}
               </div>
             </fieldset>
+          )}
+
+          {tipo !== 'habilidade' && (
+            <div className="mu-campo">
+              <label htmlFor={acervoIdCampo}>Coisa do Acervo</label>
+              <select
+                className="mu-entrada"
+                id={acervoIdCampo}
+                value={acervoId}
+                onChange={(event) => {
+                  setAcervoId(event.target.value)
+                  mexer()
+                }}
+              >
+                <option value="">Nenhuma (só a regra)</option>
+                {/* A ligação que aponta para uma coisa apagada do Acervo continua escolhida, com o aviso. */}
+                {acervoId !== '' && !doAcervo.some((coisa) => coisa.id === acervoId) && <option value={acervoId}>Coisa que saiu do Acervo</option>}
+                {doAcervo.map((coisa) => (
+                  <option key={coisa.id} value={coisa.id}>
+                    {coisa.categoria === '' ? coisa.nome : `${coisa.nome} (${coisa.categoria})`}
+                  </option>
+                ))}
+              </select>
+              <span className="mu-campo__dica">A foto, o preço e a pilha vêm do Acervo; o dano e o efeito ficam aqui no livro.</span>
+            </div>
           )}
 
           <div className="mu-campo">

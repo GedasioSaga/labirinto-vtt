@@ -1166,6 +1166,14 @@ export interface LojaItem {
    * item por `lerLojaDoArquivo` (`lib/loja.ts`), que deixa o estoque torto ausente.
    */
   estoque?: number
+  /**
+   * UMA PORTA PARA CRIAR ITEM (Fase 5 da melhoria geral): a coisa do Acervo
+   * que a mercadoria vende, copiada quando o mestre a escolheu. Vendida, chega
+   * inteira na mochila (foto, pilha, `itemId`) pela regra do "Dar a…", e o
+   * `preco` em número dela sai da bolsa de quem comprou. Ausente = mercadoria
+   * digitada, como antes: só o nome, e o preço em texto não cobra nada.
+   */
+  acervo?: DadosDoItem & { itemId: string }
 }
 
 /**

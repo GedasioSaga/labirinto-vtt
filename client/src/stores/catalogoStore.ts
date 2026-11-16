@@ -5,6 +5,7 @@ import {
   CATALOGO_MAX,
   itemLimpo,
   juntarDasFichas as juntarDasFichasDoCatalogo,
+  ligarPeloNome as ligarPeloNomeDoCatalogo,
   type EntradaDoLivro,
   type ItemDoCatalogo,
 } from '../lib/livros/catalogo'
@@ -38,6 +39,8 @@ interface CatalogoState {
   apagarEntrada: (id: string) => Promise<void>
   /** "Juntar das fichas da pasta": devolve quantas entradas novas entraram (0 = nada novo, sem gravar). */
   juntarDasFichas: (personagens: readonly Personagem[]) => Promise<number>
+  /** Fase 5, "Ligar pelo nome": liga cada arma e item solto à coisa do Acervo de mesmo nome; devolve quantas (0 = nada, sem gravar). */
+  ligarPeloNome: (acervo: readonly { id: string; nome: string }[]) => Promise<number>
 }
 
 const SEM_NOME = 'A entrada precisa de um nome.'
@@ -111,6 +114,13 @@ export const useCatalogoStore = create<CatalogoState>()((set, get) => {
       if (novos.length === 0) return 0
       await gravar([...itens, ...novos])
       return novos.length
+    },
+
+    ligarPeloNome: async (acervo) => {
+      const { itens, ligadas } = ligarPeloNomeDoCatalogo(get().itens, acervo)
+      if (ligadas === 0) return 0
+      await gravar(itens)
+      return ligadas
     },
   }
 })

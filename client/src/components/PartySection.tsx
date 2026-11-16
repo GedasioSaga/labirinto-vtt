@@ -4,6 +4,8 @@ import { awayTokenLabel, awayTokenName, type PartyDestination, type PartyItemAct
 import { SceneSendForm } from './SceneSendForm'
 import type { PlayerNoteDelivery, TradeProposeRefusal, TradeProposeResult } from '../net/hostSession'
 import { MOEDAS_MAX, moedasLabel, TRADE_FROM_MAX_LENGTH, TRADE_ITEMS_MAX, type TradeProposal } from '../lib/troca'
+import { itemParaDar } from '../lib/acervoDeItens'
+import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { NOTE_FEEDBACK_MS, NoteForm } from './ScenesSection'
 
 export interface PartySectionProps {
@@ -676,7 +678,8 @@ interface TradeFormProps {
  * dos dois lados. Não saiu: o formulário fica, com o motivo.
  */
 function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
-  const ids = { de: useId(), itens: useId(), douMoedas: useId(), pecoMoedas: useId() }
+  const ids = { de: useId(), itens: useId(), doAcervo: useId(), douMoedas: useId(), pecoMoedas: useId() }
+  const doAcervoDoApp = useAcervoDeItensStore((state) => state.itens)
   const [de, setDe] = useState('')
   const [itens, setItens] = useState('')
   const [douMoedas, setDouMoedas] = useState('')
@@ -709,7 +712,12 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (vazia || demais || dou === null || peco === null) return
-    const result = onTrade(member, { de: de.trim(), dou: { itens: nomes, moedas: dou }, peco: { itemIds: pedidos, moedas: peco } })
+    // Fase 5: o nome que é de uma coisa do Acervo vai com ela (foto, pilha); o host casa pelo nome.
+    const doAcervo = nomes.flatMap((nome) => {
+      const coisa = doAcervoDoApp.find((item) => item.nome.toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))
+      return coisa === undefined ? [] : [{ ...itemParaDar(coisa), nome }]
+    })
+    const result = onTrade(member, { de: de.trim(), dou: { itens: nomes, moedas: dou, ...(doAcervo.length === 0 ? {} : { doAcervo }) }, peco: { itemIds: pedidos, moedas: peco } })
     if (result === 'sent') onClose()
     else setRefusal(result)
   }
@@ -729,6 +737,31 @@ function TradeForm({ member, onTrade, onClose }: TradeFormProps) {
         Dá itens (separe por vírgula)
       </label>
       <input id={ids.itens} name="dou-itens" type="text" className="lb-input" value={itens} onChange={edit(setItens)} />
+      {doAcervoDoApp.length > 0 && (
+        <>
+          <label className="lb-label" htmlFor={ids.doAcervo}>
+            Dar do Acervo (chega com foto e empilha)
+          </label>
+          <select
+            id={ids.doAcervo}
+            className="lb-input"
+            value=""
+            onChange={(event) => {
+              const coisa = doAcervoDoApp.find((item) => item.id === event.target.value)
+              if (coisa === undefined) return
+              setItens((atual) => (atual.trim() === '' ? coisa.nome : `${atual.trim().replace(/,$/, '')}, ${coisa.nome}`))
+              setRefusal(null)
+            }}
+          >
+            <option value="">Escolher uma coisa…</option>
+            {doAcervoDoApp.map((coisa) => (
+              <option key={coisa.id} value={coisa.id}>
+                {coisa.nome}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
       <label className="lb-label" htmlFor={ids.douMoedas}>
         Dá moedas
       </label>
