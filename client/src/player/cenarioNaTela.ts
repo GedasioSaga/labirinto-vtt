@@ -12,6 +12,19 @@ import type { Pin } from '../types/map'
 /** A revelação aberta; `pinId` = veio de um pino (fechar avisa o host que ele leu). */
 export type RevelacaoAberta = DadosDaRevelacao & { readonly pinId?: string }
 
+/**
+ * A revelação na tela: `leitura` é nova a cada abertura e entra no `key` do
+ * overlay (`chaveDaRevelacao`). A revelação só lê o título e o texto ao montar
+ * (`RevelacaoDoLocal`): sem remontar, um 2º "Ler agora" por cima do 1º trocava
+ * o título e deixava a datilografia do 1º pino.
+ */
+export type RevelacaoNaTela = RevelacaoAberta & { readonly leitura: number }
+
+/** O `key` do overlay: o pino e a leitura, para cada leitura recomeçar do zero. */
+export function chaveDaRevelacao(revelacao: RevelacaoNaTela): string {
+  return `${revelacao.pinId ?? 'sem-pino'}#${revelacao.leitura}`
+}
+
 /** Só o painel, com o nome e o texto: o que o "Ler agora" e o caderno trazem. */
 function soOPainel(nome: string, texto: string): DadosDaRevelacao {
   return { imagem: null, nome: nome.trim(), descricao: texto.trim(), quando: 'primeira' }
