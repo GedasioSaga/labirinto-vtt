@@ -199,7 +199,7 @@ export function MainMenu({
             <HomeDoor title="Carregar Mapa existente" description="Continuar de onde parou" onClick={onLoad} />
             <HomeDoor title="Roleplay" description="Mesa narrativa, sem mapa" badge="Em construção" onClick={onRoleplay} />
             {onPreludio !== undefined && (flags.preparo || preludioNestePc) && (
-              <HomeDoor title="Prelúdio" description="Roteiro, enciclopédia e segredos da campanha" badge="Em construção" onClick={onPreludio} />
+              <HomeDoor title="Prelúdio" description="Roteiro, enciclopédia e segredos da campanha" onClick={onPreludio} />
             )}
             {onLivros !== undefined && <HomeDoor title="Livros de regras" description="Fichas, NPCs de combate e itens de cada sistema" onClick={onLivros} />}
             {flags.optionsScreen && <HomeDoor title="Opções" description="Conexão, personagens, cenário" onClick={onOptions} />}

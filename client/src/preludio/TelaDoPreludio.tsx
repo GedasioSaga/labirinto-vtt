@@ -106,7 +106,6 @@ function Inicio({ importando, aoImportar, aoRestaurar, pedidoDeCopia, aoPedirCop
             <path d="M60 34c-12-8-28-10-44-8v66c16-2 32 0 44 8 12-8 28-10 44-8V26c-16-2-32 0-44 8z" />
             <path d="M60 34v66M28 48h20M28 60h20M28 72h14M72 48h20M72 60h20M72 72h14" />
           </svg>
-          <span className="lb-home__badge">Em construção</span>
           <p className="lb-wip__text">{carga.t === 'falhou' ? NADA_AINDA : frasesDasCampanhas(campanhas, total)}</p>
           {carga.t === 'falhou' && (
             <p className="lb-wip__text" role="alert">
