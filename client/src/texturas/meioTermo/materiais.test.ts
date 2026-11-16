@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TipoMobilia } from '../../lib/mobilia/tipos'
 import { TIPOS_MOBILIA } from '../../lib/mobilia/tipos'
-import { ehMaterial, LUGARES_DE_MATERIAL, MATERIAIS, materialMaisPerto, oklabDoHex, type LugarDeMaterial } from './materiais'
+import { ehMaterial, LUGARES_DE_MATERIAL, MATERIAIS, materialMaisPerto, oklabDoHex, type LugarDeMaterial, type OpcaoDeMaterial } from './materiais'
 
 /**
  * MATERIAIS no lugar da cor livre (`docs/design/objetos/README.md:44-58`).
@@ -38,10 +38,10 @@ describe('materialMaisPerto (os 3 exemplos do plano)', () => {
     expect(materialMaisPerto('#000000', lugar('fogueira', 'lenha'))).toBe('lenhaCarvalho')
   })
 
-  it('em todo lugar de todo móvel, o preto vira a opção de menor luz (L do OKLab)', () => {
+  it('em todo lugar de todo móvel, o preto vira a opção de menor luz (L do OKLab) entre as que a cor livre alcança', () => {
     for (const tipo of TIPOS_MOBILIA) {
       for (const l of LUGARES_DE_MATERIAL[tipo]) {
-        const reais = l.opcoes.filter(ehMaterial)
+        const reais = l.opcoesDaCorLivre.filter(ehMaterial)
         const maisEscuro = reais.reduce((a, b) => (oklabDoHex(MATERIAIS[b].hex)[0] < oklabDoHex(MATERIAIS[a].hex)[0] ? b : a))
         expect(materialMaisPerto('#000000', l), `${tipo}.${l.id}`).toBe(maisEscuro)
       }
@@ -65,9 +65,75 @@ describe('materialMaisPerto (os 3 exemplos do plano)', () => {
   })
 
   it('opção que usa a madeira do próprio móvel (mesma, varas) não entra na conta de cor', () => {
-    // Desde 16/11/2026 o assento tem os tecidos do estofado: o preto vai à lã vinho, a mais escura, nunca à madeira.
-    expect(materialMaisPerto('#000000', lugar('cadeira', 'assento'))).toBe('vinho')
+    // O assento ganhou os tecidos do estofado em 16/11/2026, mas a cor livre de antes fica na palha, nunca na madeira.
+    expect(materialMaisPerto('#000000', lugar('cadeira', 'assento'))).toBe('palha')
     expect(materialMaisPerto('#8b6b47', lugar('cerca', 'ligacao'))).toBe('corda')
+  })
+})
+
+/** A lista de cada lugar ANTES de 16/11/2026 (54bd8f54): sem o inox e o mármore; o assento da cadeira só com a palha. */
+function opcoesDeAntes(tipo: TipoMobilia, l: LugarDeMaterial): readonly OpcaoDeMaterial[] {
+  if (tipo === 'cadeira' && l.id === 'assento') return ['mesma', 'palha']
+  return l.opcoes.filter((id) => id !== 'inox' && id !== 'marmore')
+}
+
+/** O material de `opcoes` mais perto da cor em OKLab, contado aqui à parte (sem `materialMaisPerto`); empate: o primeiro. */
+function maisPertoEntre(cor: string, opcoes: readonly OpcaoDeMaterial[], padrao: OpcaoDeMaterial): OpcaoDeMaterial {
+  const [L, a, b] = oklabDoHex(cor)
+  let melhor = padrao
+  let menor = Infinity
+  for (const id of opcoes.filter(ehMaterial)) {
+    const [Lm, am, bm] = oklabDoHex(MATERIAIS[id].hex)
+    const distancia = (L - Lm) ** 2 + (a - am) ** 2 + (b - bm) ** 2
+    if (distancia < menor) {
+      menor = distancia
+      melhor = id
+    }
+  }
+  return melhor
+}
+
+describe('cor livre de mapa antigo não muda com as opções de 16/11/2026 (auditoria 16/11, defeito 2)', () => {
+  it('os exemplos da auditoria ficam no material de antes', () => {
+    expect(materialMaisPerto('#000000', lugar('cadeira', 'assento'))).toBe('palha')
+    expect(materialMaisPerto('#ffffff', lugar('cadeira', 'assento'))).toBe('palha')
+    expect(materialMaisPerto('#c0c0c0', lugar('armario', 'puxadores'))).toBe('latao')
+    expect(materialMaisPerto('#e0e0e0', lugar('poco', 'pedras'))).toBe('arenito')
+  })
+
+  it('a cor IGUAL ao tom oficial da opção nova escolhe a opção nova (é o que o painel grava)', () => {
+    expect(materialMaisPerto(MATERIAIS.inox.hex, lugar('armario', 'puxadores'))).toBe('inox')
+    expect(materialMaisPerto(MATERIAIS.inox.hex.toUpperCase(), lugar('armario', 'puxadores'))).toBe('inox')
+    expect(materialMaisPerto(MATERIAIS.marmore.hex, lugar('poco', 'pedras'))).toBe('marmore')
+    expect(materialMaisPerto(MATERIAIS.vinho.hex, lugar('cadeira', 'assento'))).toBe('vinho')
+    expect(materialMaisPerto(MATERIAIS.linho.hex, lugar('cadeira', 'assento'))).toBe('linho')
+    // Um passo ao lado do tom oficial já é cor livre: volta ao material de antes.
+    expect(materialMaisPerto('#9da2a6', lugar('armario', 'puxadores'))).toBe('latao')
+  })
+
+  it('varredura: nenhuma das 4.096 cores #rgb muda de material nos lugares que ganharam opção', () => {
+    const canal = (n: number): string => (n * 17).toString(16).padStart(2, '0')
+    const cores: string[] = []
+    for (let r = 0; r < 16; r += 1) for (let g = 0; g < 16; g += 1) for (let b = 0; b < 16; b += 1) cores.push(`#${canal(r)}${canal(g)}${canal(b)}`)
+    const varridos: string[] = []
+    const mudaram: string[] = []
+    for (const tipo of TIPOS_MOBILIA) {
+      for (const l of LUGARES_DE_MATERIAL[tipo]) {
+        const antes = opcoesDeAntes(tipo, l)
+        if (antes.length === l.opcoes.length) continue
+        varridos.push(`${tipo}.${l.id}`)
+        for (const cor of cores) {
+          const esperado = maisPertoEntre(cor, antes, l.padrao)
+          const agora = materialMaisPerto(cor, l)
+          if (agora !== esperado) mudaram.push(`${tipo}.${l.id} ${cor}: ${esperado} -> ${agora}`)
+        }
+      }
+    }
+    // A varredura passou pelos três tipos de lista que mudaram: o assento, os metais e as pedras.
+    expect(varridos).toContain('cadeira.assento')
+    expect(varridos).toContain('armario.puxadores')
+    expect(varridos).toContain('poco.pedras')
+    expect(mudaram.length, mudaram.slice(0, 10).join(' | ')).toBe(0)
   })
 })
 
