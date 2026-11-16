@@ -53,8 +53,9 @@ describe('TexturasControls', () => {
     montar()
     const opcoes = radios('Textura')
     // O Cascalho (CHÃO E CAMINHO, 12/11/2026, `b5c3469d`) também se vende nas Texturas, depois da Terra; os três
-    // cartões de 14/11/2026 (madeira, pedra, base militar) no fim.
-    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Cascalho', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra', 'Calçamento', 'Chão de metal', 'Pisos de madeira', 'Pisos de pedra', 'Base militar'])
+    // cartões de 14/11/2026 (madeira, pedra, base militar) e, depois deles, os do lote das referências (ae53649d): os
+    // Pisos de cerâmica, o Linóleo verde e a Rua de tijolos.
+    expect(opcoes.map((b) => b.textContent)).toEqual(['Areia', 'Duna', 'Campo', 'Floresta', 'Bosque', 'Pinheiros', 'Chão de floresta', 'Pântano', 'Terra', 'Cascalho', 'Serra', 'Neve', 'Convés', 'Lajotas de pedra', 'Calçamento', 'Chão de metal', 'Pisos de madeira', 'Pisos de pedra', 'Base militar', 'Pisos de cerâmica', 'Linóleo verde', 'Rua de tijolos'])
     expect(opcoes.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.textContent)).toEqual(['Floresta'])
     expect(opcoes.filter((b) => b.tabIndex === 0)).toHaveLength(1)
   })
@@ -66,9 +67,15 @@ describe('TexturasControls', () => {
     act(() => radios('Textura')[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })))
     expect(useMapStore.getState().texturaEscolhida).toBe('floresta')
     act(() => radios('Textura')[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })))
-    // O último cartão (Base militar, 14/11/2026) tem formas: a tecla escolhe a primeira (Concreto), sem abrir o painel.
-    expect(useMapStore.getState().texturaEscolhida).toBe('concreto')
-    expect(document.activeElement?.textContent).toBe('Base militar')
+    // O último cartão é a Rua de tijolos (lote das referências, ae53649d), de uma forma só.
+    expect(useMapStore.getState().texturaEscolhida).toBe('rua-de-tijolos')
+    expect(document.activeElement?.textContent).toBe('Rua de tijolos')
+    // Dois para trás, os Pisos de cerâmica têm formas: a seta escolhe a primeira (Azulejo verde), sem abrir o painel.
+    act(() => radios('Textura')[20].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+    act(() => radios('Textura')[19].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+    expect(useMapStore.getState().texturaEscolhida).toBe('azulejo-verde')
+    expect(document.activeElement?.textContent).toBe('Pisos de cerâmica')
+    expect(palco.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('a borracha esconde a biblioteca; o balde esconde o tamanho', () => {
@@ -202,8 +209,15 @@ describe('TexturasControls', () => {
       tecla(cartao(), 'Home')
       expect(useMapStore.getState().texturaEscolhida).toBe('areia')
       tecla(radios('Textura')[0], 'End')
+      expect(useMapStore.getState().texturaEscolhida).toBe('rua-de-tijolos')
+      // De volta pelos cartões do lote das referências, pelos de 14/11/2026 e pelo Chão de metal: cada um com formas
+      // escolhe a primeira.
+      tecla(radios('Textura')[20], 'ArrowLeft')
+      expect(useMapStore.getState().texturaEscolhida).toBe('linoleo-verde')
+      tecla(radios('Textura')[19], 'ArrowLeft')
+      expect(useMapStore.getState().texturaEscolhida).toBe('azulejo-verde')
+      tecla(radios('Textura')[18], 'ArrowLeft')
       expect(useMapStore.getState().texturaEscolhida).toBe('concreto')
-      // De volta pelos cartões de 14/11/2026 e pelo Chão de metal: cada um escolhe a primeira forma.
       tecla(radios('Textura')[17], 'ArrowLeft')
       expect(useMapStore.getState().texturaEscolhida).toBe('paralelepipedo')
       tecla(radios('Textura')[16], 'ArrowLeft')

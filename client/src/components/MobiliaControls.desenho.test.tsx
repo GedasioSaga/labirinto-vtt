@@ -168,10 +168,17 @@ describe('Aparência do móvel de antes segue o desenho', () => {
     expect('mobiliaCorDaLinha' in doMapa('cerca')).toBe(false)
   })
 
-  it('a cadeira: o assento só tem palha gravável (a madeira do assento não cabe nos campos), então só a Madeira aparece', () => {
+  it('a cadeira: o assento oferece a palha e os tecidos do estofado (16/11/2026), sem a madeira do assento, que não cabe nos campos', () => {
     trocarObraNoTeste(true)
     porNoMapa([movel('cadeira', { mobilia: 'cadeira', width: 25, height: 25 })])
     render('cadeira', 'aparencia')
-    expect(lugares()).toEqual(['Madeira'])
+    expect(lugares()).toEqual(['Madeira', 'Assento'])
+    const assento = [...container.querySelectorAll('.lb-material')].find((c) => c.querySelector('.lb-label')?.textContent === 'Assento')
+    const opcoes = [...(assento?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])]
+    expect(opcoes.map((b) => b.getAttribute('aria-label'))).toEqual([
+      MATERIAIS.palha.nome, MATERIAIS.linho.nome, MATERIAIS.vinho.nome, MATERIAIS.azul.nome, MATERIAIS.musgo.nome, MATERIAIS.ocre.nome,
+    ])
+    // A cadeira sem cor gravada no assento abre de palha, como as de antes.
+    expect(opcoes.filter((b) => b.getAttribute('aria-checked') === 'true').map((b) => b.getAttribute('aria-label'))).toEqual([MATERIAIS.palha.nome])
   })
 })
