@@ -62,10 +62,15 @@ describe('resolveShortcut — letras de ferramenta', () => {
     // E o NONO, Barranco (28/10/2026), também sem letra: os dígitos são os sons.
     // E o DÉCIMO, Neblina (06/11/2026), sem letra por enquanto: a barra a alcança no grupo Terreno.
     // E o 11º e o 12º (12/11/2026): Construção, ao lado do Objeto, e Água, no Terreno; nenhuma letra livre.
-    // E o 13º, Abismo (16/11/2026), a terceira cara do Desnível: sem letra, como o Barranco.
+    // E o 13º, Abismo (16/11/2026), a terceira cara do Desnível: nasceu sem letra e no
+    // mesmo dia ganhou Shift+F, da família do Penhasco (teste próprio abaixo). Sem
+    // letra nenhuma ficam oito (Sala livre, Caminho, Pincel de revelar, Objetos,
+    // Barranco, Neblina, Construção e Água); com Shift+letra, quatro; mais o token.
     expect(Object.keys(TOOL_SHORTCUTS)).toHaveLength(ALL_TOOLS.length + 13)
+    expect(Object.values(TOOL_SHORTCUTS).filter((atalho) => atalho === '')).toHaveLength(8)
+    expect(Object.values(TOOL_SHORTCUTS).filter((atalho) => atalho.startsWith('Shift+'))).toHaveLength(4)
     expect(TOOL_SHORTCUTS.barranco).toBe('')
-    expect(TOOL_SHORTCUTS.abismo).toBe('')
+    expect(TOOL_SHORTCUTS.abismo).toBe('Shift+F')
     expect(TOOL_SHORTCUTS.neblina).toBe('')
     expect(TOOL_SHORTCUTS.construcao).toBe('')
     expect(TOOL_SHORTCUTS.agua).toBe('')
@@ -114,9 +119,17 @@ describe('resolveShortcut — letras de ferramenta', () => {
     expect([...buildToolByLetter(new Set()).values()]).not.toContain('penhasco')
     expect([...buildToolByShiftLetter(new Set()).entries()]).toEqual([
       ['c', 'penhasco'],
+      ['f', 'abismo'],
       ['t', 'texturas'],
       ['a', 'carimbos'],
     ])
+  })
+
+  it('Shift+F seleciona o Abismo; F sozinho continua enquadrando tudo', () => {
+    expect(resolveShortcut(evt({ key: 'F', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'abismo' })
+    expect(resolveShortcut(evt({ key: 'f', shiftKey: true }))).toEqual({ kind: 'selectTool', tool: 'abismo' })
+    expect(resolveShortcut(evt({ key: 'f' }))).toEqual({ kind: 'fitAll' })
+    expect(resolveShortcut(evt({ key: 'F', shiftKey: true, targetTagName: 'INPUT' }))).toBeNull()
   })
 
   it('Shift+A seleciona os Carimbos; A sozinho continua o Polígono', () => {

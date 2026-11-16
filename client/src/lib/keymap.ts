@@ -238,8 +238,10 @@ export const TOOL_SHORTCUTS: Record<DrawingTool, string> = {
   // Barranco: sem letra. As livres que sobraram são de outros (Shift+B é a batalha);
   // ele mora ao lado do Penhasco na barra, e a barra o alcança em todo mapa.
   barranco: '',
-  // Abismo: sem letra, como o Barranco; a barra o alcança pelo Desnível.
-  abismo: '',
+  // Abismo: a família de Shift+letra do Penhasco, a outra cara do Desnível com tecla.
+  // F de "fosso", "fenda" e "fundo"; F sozinho segue o "enquadrar tudo", e Shift+F
+  // estava livre (Shift+A é dos Carimbos, Shift+B da batalha).
+  abismo: 'Shift+F',
   // Texturas: segue a família de Shift+letra do Penhasco. T é do Texto;
   // Shift+T estava livre e é o T de "textura".
   texturas: 'Shift+T',
