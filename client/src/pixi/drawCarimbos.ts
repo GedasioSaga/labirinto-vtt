@@ -1,6 +1,6 @@
 import { CanvasSource, Container, ImageSource, Sprite, Texture } from 'pixi.js'
 import type { Carimbo, CarimboImportado, MapData } from '../types/map'
-import { ehTipoImportado, mesmosCarimbos, varianteDoGiro } from '../lib/carimbos'
+import { ehTipoImportado, mesmosCarimbos, radianosDoImportado, varianteDoGiro } from '../lib/carimbos'
 import { unidadeDoRelevo } from '../lib/relevo'
 import { desenhadoLigado } from '../lib/estiloDoMapa'
 import { assinarPeriodoDaSombra, forcaDaSombraAgora } from '../lib/sombra'
@@ -471,9 +471,9 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     const lado = q.lado * c.tamanho
     // A escala sempre posta inteira (o `width` do Pixi guarda o sinal de antes: a forma transposta deixaria o y invertido).
     sprite.scale.set(lado / textura.orig.width, (transposta ? -lado : lado) / textura.orig.height)
-    // O IMPORTADO gira de verdade em volta do meio (alças de 16/11/2026; antes só inclinava uns
-    // graus): ele não tem oito desenhos para escolher, e girar a imagem é o que o mestre pediu.
-    sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? (c.giro * Math.PI) / 180 : 0
+    // O IMPORTADO não tem oito desenhos: gira a imagem em volta do meio. De verdade só com o giro
+    // livre (o mestre girou, alças de 16/11/2026); sem ele, a inclinação leve de antes.
+    sprite.rotation = transposta ? Math.PI / 2 : ehTipoImportado(c.tipo) ? radianosDoImportado(c) : 0
   }
 
   function caixaDaSombra(c: Carimbo, arte: ArteNoPalco): { x: number; y: number; largura: number; altura: number } {
@@ -484,10 +484,11 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
   /**
    * O giro da sombra do importado: a silhueta é o corpo empurrado pelo sol
    * (`matrizDaSombra('solta')`), então gira em volta do meio dela — o corpo
-   * gira, e a sombra continua caindo para o mesmo lado. Sem giro, `undefined`.
+   * gira, e a sombra continua caindo para o mesmo lado. Sem giro livre, a
+   * sombra reta de antes (a inclinação de uns graus nunca a girou): `undefined`.
    */
   function giroDaSombra(c: Carimbo): GiroDaSombra | undefined {
-    if (!ehTipoImportado(c.tipo) || c.giro === 0) return undefined
+    if (!ehTipoImportado(c.tipo) || c.giroLivre !== true || c.giro === 0) return undefined
     const empurrao = matrizDaSombra('solta')
     return { rad: (c.giro * Math.PI) / 180, px: c.x + empurrao[4] * c.tamanho, py: c.y + empurrao[5] * c.tamanho }
   }
@@ -556,7 +557,7 @@ export function createCarimbosRenderer(opcoes: OpcoesDosCarimbos = {}): Carimbos
     }
     for (const chave of [...pedacos.keys()]) if (!porPedaco.has(chave)) soltarPedaco(chave)
     for (const [chave, grupo] of porPedaco) {
-      const assinatura = `${lado}|${grupo.itens.map(({ c, arte }) => `${c.id}:${c.tipo}:${c.x}:${c.y}:${c.tamanho}:${c.giro}:${identidadeDaArte(arte)}`).join(' ')}`
+      const assinatura = `${lado}|${grupo.itens.map(({ c, arte }) => `${c.id}:${c.tipo}:${c.x}:${c.y}:${c.tamanho}:${c.giro}${c.giroLivre === true ? 'L' : ''}:${identidadeDaArte(arte)}`).join(' ')}`
       const existente = pedacos.get(chave)
       if (existente?.assinatura === assinatura) continue
       const pedaco: PedacoDeSombra = {

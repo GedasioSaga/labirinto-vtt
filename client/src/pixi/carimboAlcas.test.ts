@@ -3,7 +3,7 @@ import type { Carimbo } from '../types/map'
 import { useMapStore } from '../stores/mapStore'
 import { createEmptyMap } from '../lib/mapFactory'
 import { EMPTY_SELECTION } from '../lib/selectionModel'
-import { caixaDoCarimbo, carimboPorId } from '../lib/carimbos'
+import { caixaDoCarimbo, carimboPorId, lerCarimbos, radianosDoImportado } from '../lib/carimbos'
 import { alcaDeGirarDoCarimbo, centroDoCarimbo, faixaDoTamanhoDoCarimbo } from '../lib/alcasDoCarimbo'
 import { unidadeDoRelevo } from '../lib/relevo'
 import { tamanhoNaturalDoTipo } from '../carimbos/catalogo'
@@ -77,5 +77,41 @@ describe('alças do carimbo', () => {
 
     useMapStore.getState().undo()
     expect(atual().giro).toBe(0)
+  })
+
+  it('o importado de antes só inclina; a bolinha liga o giro livre, e um Ctrl+Z volta à inclinação', () => {
+    // Giro sorteado pelo spray de antes: a imagem inclinava uns graus, nunca 137.
+    const antigo: Carimbo = { id: 'c2', tipo: 'importado:seta', x: 400, y: 400, tamanho: 40, giro: 137 }
+    useMapStore.setState({ map: { ...useMapStore.getState().map, carimbos: [antigo] } })
+    expect(Math.abs(radianosDoImportado(antigo))).toBeLessThanOrEqual(0.09)
+
+    const gesto = createRoomRotateGesture()
+    const alca = alcaDeGirarDoCarimbo(antigo, 1)
+    if (alca === null) throw new Error('sem alça de girar')
+    const centro = centroDoCarimbo(antigo)
+    const raio = Math.hypot(alca.knob.x - centro.x, alca.knob.y - centro.y)
+    expect(gesto.beginCarimbo('c2', alca.knob, 1)).toBe(true)
+    gesto.move({ x: centro.x + raio * Math.sin(Math.PI / 3), y: centro.y - raio * Math.cos(Math.PI / 3) }, false)
+    gesto.finish()
+
+    const girado = carimboPorId(useMapStore.getState().map.carimbos, 'c2')
+    expect(girado).toMatchObject({ giro: 60, giroLivre: true })
+    if (girado === undefined) throw new Error('o carimbo sumiu')
+    expect(radianosDoImportado(girado)).toBeCloseTo(Math.PI / 3)
+    expect(useMapStore.getState().past).toHaveLength(1)
+
+    useMapStore.getState().undo()
+    expect(carimboPorId(useMapStore.getState().map.carimbos, 'c2')).toEqual(antigo)
+  })
+
+  it('o arquivo guarda o giro livre só no importado e só quando é true', () => {
+    const lidos = lerCarimbos([
+      { id: 'a', tipo: 'importado:seta', x: 0, y: 0, tamanho: 10, giro: 60, giroLivre: true },
+      { id: 'b', tipo: 'importado:seta', x: 0, y: 0, tamanho: 10, giro: 60, giroLivre: 'sim' },
+      { id: 'c', tipo: 'pinheiro', x: 0, y: 0, tamanho: 10, giro: 60, giroLivre: true },
+      { id: 'd', tipo: 'importado:seta', x: 0, y: 0, tamanho: 10, giro: 60 },
+    ])
+    expect(lidos?.map((c) => c.giroLivre)).toEqual([true, undefined, undefined, undefined])
+    expect(lidos?.map((c) => 'giroLivre' in c)).toEqual([true, false, false, false])
   })
 })

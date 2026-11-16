@@ -1,6 +1,7 @@
 import { useId, useSyncExternalStore } from 'react'
 import type { Carimbo, CarimboImportado, MapData } from '../../types/map'
-import { carimboPorId, normalizarGiro, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN } from '../../lib/carimbos'
+import { carimboPorId, ehTipoImportado, normalizarGiro, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN } from '../../lib/carimbos'
+import { anguloVisivelDoCarimbo } from '../../lib/alcasDoCarimbo'
 import { unidadeDoRelevo } from '../../lib/relevo'
 import { selectionSingle, type SelectionSet } from '../../lib/selectionModel'
 import { assinarCarimbos, carimboDoCatalogo, listarCarimbos, tamanhoNaturalDoTipo } from '../../carimbos/catalogo'
@@ -85,7 +86,15 @@ export function FichaDoCarimbo({ carimbo }: { carimbo: Carimbo }) {
   // Trocar o tipo mantém a porcentagem: o carvalho no lugar do pinheiro sai do mesmo "tamanho" escolhido.
   const trocarTipo = (tipo: string) => mudarCarimbo(carimbo.id, { tipo, tamanho: (naturalDoTipo(tipo, mapa) * pct) / 100 })
   const mudarTamanho = (novoPct: number) => mudarCarimbo(carimbo.id, { tamanho: (naturalDoTipo(carimbo.tipo, mapa) * novoPct) / 100 }, 'tamanho')
-  const girar = (sentido: 1 | -1) => mudarCarimbo(carimbo.id, { giro: normalizarGiro(Math.round(carimbo.giro / PASSO_DO_GIRO) * PASSO_DO_GIRO + sentido * PASSO_DO_GIRO) })
+  // O giro parte do ângulo que a tela mostra: o importado de antes, que só inclinava uns graus,
+  // vai a 45° (e não a 180°, de ponta-cabeça) e passa a girar de verdade (`giroLivre`; a
+  // biblioteca ignora o campo). Na biblioteca a conta é a mesma de antes.
+  const girar = (sentido: 1 | -1) => {
+    const base = anguloVisivelDoCarimbo(carimbo)
+    mudarCarimbo(carimbo.id, { giro: normalizarGiro(Math.round(base / PASSO_DO_GIRO) * PASSO_DO_GIRO + sentido * PASSO_DO_GIRO), giroLivre: true })
+  }
+  // O número do giro é o que a tela mostra; no importado de antes, a inclinação, não o sorteio guardado.
+  const giroNaTela = ehTipoImportado(carimbo.tipo) && carimbo.giroLivre !== true ? normalizarGiro(anguloVisivelDoCarimbo(carimbo)) : carimbo.giro
 
   return (
     <section className="lb-ficha-do-objeto">
@@ -132,7 +141,7 @@ export function FichaDoCarimbo({ carimbo }: { carimbo: Carimbo }) {
         <div className="lb-field">
           <div className="lb-section__row">
             <span className="lb-label">Giro</span>
-            <span className="lb-num">{carimbo.giro}°</span>
+            <span className="lb-num">{giroNaTela}°</span>
           </div>
           <div className="lb-section__row">
             {/* Rótulo curto (o longo vazava do livro, visto no print da Fase 2); o nome inteiro vai ao leitor de tela. */}

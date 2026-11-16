@@ -1699,8 +1699,9 @@ interface MapStoreState {
    * histórico — o canto e a bolinha de girar fecham o arrasto inteiro com
    * `commitDragHistory`, e o Esc devolve o de antes por aqui mesmo. Quem pega
    * a alça já conferiu o cadeado e a camada; o travado continua não mudando.
+   * O giro vem com o `giroLivre` do importado (a bolinha o liga; o Esc devolve o de antes).
    */
-  mudarCarimboLive: (id: string, mudanca: Pick<MudancaDoCarimbo, 'tamanho' | 'giro'>) => void
+  mudarCarimboLive: (id: string, mudanca: Pick<MudancaDoCarimbo, 'tamanho' | 'giro' | 'giroLivre'>) => void
   /** TEXTO DE CHEGADA da cena aberta (`lib/arrivalText.ts`); vazio tira. Com desfazer; o mesmo texto não vira passo. */
   setArrivalText: (text: string) => void
   /** DIA/TARDE/NOITE: a cena aberta é externa e segue o período da sessão (`comCenaExterna`, `lib/periodo.ts`). Com desfazer. */

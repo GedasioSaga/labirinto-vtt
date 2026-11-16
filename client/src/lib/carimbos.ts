@@ -151,6 +151,8 @@ const COM_CADEADO: Pick<Carimbo, 'locked'> = { locked: true }
 /** "Barra a passagem" e "Tapa a visão" ligados: só assim os campos existem. */
 const COM_BARRA: Pick<Carimbo, 'barra'> = { barra: true }
 const COM_TAPA: Pick<Carimbo, 'tapaVisao'> = { tapaVisao: true }
+/** O giro livre do importado: também só existe ligado. */
+const COM_GIRO_LIVRE: Pick<Carimbo, 'giroLivre'> = { giroLivre: true }
 
 function lerCarimbo(valor: unknown): Carimbo | null {
   if (typeof valor !== 'object' || valor === null) return null
@@ -168,7 +170,9 @@ function lerCarimbo(valor: unknown): Carimbo | null {
   // As chaves de jogo (Fase 2) também: só `true` fica.
   const barra = 'barra' in valor && valor.barra === true ? COM_BARRA : {}
   const tapa = 'tapaVisao' in valor && valor.tapaVisao === true ? COM_TAPA : {}
-  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor), ...travado, ...barra, ...tapa }
+  // O giro livre só vale no importado (o da biblioteca escolhe o desenho pelo giro): no outro, sai.
+  const livre = 'giroLivre' in valor && valor.giroLivre === true && ehTipoImportado(tipo) ? COM_GIRO_LIVRE : {}
+  return { id, tipo, x, y, tamanho, giro: numeroFinito(giro) ? normalizarGiro(giro) : 0, ...pisoLido(valor), ...camadaLida(valor), ...travado, ...barra, ...tapa, ...livre }
 }
 
 /** Os objetos do arquivo, ou `undefined` (sem o campo). Objeto quebrado ou repetido sai; o resto fica na ordem. */
@@ -260,7 +264,7 @@ export function mesmosCarimbos(a: readonly Carimbo[] | undefined, b: readonly Ca
   for (let i = 0; i < a.length; i++) {
     const p = a[i]
     const q = b[i]
-    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro || p.locked !== q.locked || p.barra !== q.barra || p.tapaVisao !== q.tapaVisao)) return false
+    if (p !== q && (p.id !== q.id || p.tipo !== q.tipo || p.x !== q.x || p.y !== q.y || p.tamanho !== q.tamanho || p.giro !== q.giro || p.locked !== q.locked || p.barra !== q.barra || p.tapaVisao !== q.tapaVisao || p.giroLivre !== q.giroLivre)) return false
   }
   return true
 }
@@ -296,20 +300,37 @@ interface CorpoNoQuadro {
   readonly base: number
 }
 
+/** O máximo que o importado sem giro livre inclina, em radianos (0,09 ≈ 5°): não chega a deitar. */
+const INCLINACAO_DO_IMPORTADO = 0.09
+
+/**
+ * Quanto a imagem do importado gira na tela, em radianos. Com o giro livre
+ * (`Carimbo.giroLivre`, o mestre girou), o giro inteiro. Sem ele, o jeito de
+ * antes das alças: a imagem só inclina de leve com o giro sorteado, e o mapa
+ * de antes continua com a mesma cara.
+ */
+export function radianosDoImportado(c: Pick<Carimbo, 'giro' | 'giroLivre'>): number {
+  const rad = (c.giro * Math.PI) / 180
+  return c.giroLivre === true ? rad : Math.sin(rad) * INCLINACAO_DO_IMPORTADO
+}
+
 /**
  * A caixa do corpo do carimbo: o que o clique acha, o que o laço mede e onde
- * ficam os cantos das alças. O IMPORTADO gira de verdade (alças de 16/11/2026,
- * `pixi/drawCarimbos.ts`): a caixa dele é a que cerca o quadrado girado, para
- * a ponta da imagem deitada continuar pegando o clique. O da biblioteca não
- * gira a caixa: o giro escolhe um dos oito desenhos, todos no mesmo pé.
+ * ficam os cantos das alças. O IMPORTADO com giro livre gira de verdade
+ * (`pixi/drawCarimbos.ts`): a caixa dele é a que cerca o quadrado girado, para
+ * a ponta da imagem deitada continuar pegando o clique. Sem giro livre, a caixa
+ * de antes, reta (a inclinação de uns graus não muda o clique). O da
+ * biblioteca não gira a caixa: o giro escolhe um dos oito desenhos, todos no
+ * mesmo pé.
  */
-export function caixaDoCarimbo(c: Pick<Carimbo, 'tipo' | 'x' | 'y' | 'tamanho' | 'giro'>): CaixaDoCarimbo {
-  if (ehTipoImportado(c.tipo)) {
+export function caixaDoCarimbo(c: Pick<Carimbo, 'tipo' | 'x' | 'y' | 'tamanho' | 'giro' | 'giroLivre'>): CaixaDoCarimbo {
+  const importado = ehTipoImportado(c.tipo)
+  if (importado && c.giroLivre === true) {
     const rad = (c.giro * Math.PI) / 180
     const meio = CORPO_DO_IMPORTADO.direita * c.tamanho * (Math.abs(Math.cos(rad)) + Math.abs(Math.sin(rad)))
     return { minX: c.x - meio, maxX: c.x + meio, minY: c.y - meio, maxY: c.y + meio }
   }
-  const q = CORPO_DA_BIBLIOTECA
+  const q = importado ? CORPO_DO_IMPORTADO : CORPO_DA_BIBLIOTECA
   return { minX: c.x + q.esquerda * c.tamanho, maxX: c.x + q.direita * c.tamanho, minY: c.y + q.topo * c.tamanho, maxY: c.y + q.base * c.tamanho }
 }
 
@@ -388,16 +409,19 @@ export interface MudancaDoCarimbo {
   barra?: boolean
   /** "Tapa a visão": `false` tira o campo. */
   tapaVisao?: boolean
+  /** Giro livre do importado (`Carimbo.giroLivre`): `false` volta à inclinação de antes. No da biblioteca, nunca fica. */
+  giroLivre?: boolean
 }
 
 /** A mudança só mexe nas chaves (cadeado, passagem, visão)? Essas valem também no carimbo travado. */
 export function soAsChaves(mudanca: MudancaDoCarimbo): boolean {
-  return mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined
+  return mudanca.tipo === undefined && mudanca.tamanho === undefined && mudanca.giro === undefined && mudanca.giroLivre === undefined
 }
 
 /**
  * O carimbo com a mudança. O tamanho fica positivo e com uma casa decimal; o
- * giro, de 0 a 359; o tipo torto não entra. Nada mudou: o MESMO carimbo.
+ * giro, de 0 a 359; o tipo torto não entra; o giro livre só fica no importado.
+ * Nada mudou: o MESMO carimbo.
  */
 export function comMudancaDoCarimbo(c: Carimbo, mudanca: MudancaDoCarimbo): Carimbo {
   const tipo = mudanca.tipo !== undefined && ehTipoDeCarimbo(mudanca.tipo) ? mudanca.tipo : c.tipo
@@ -406,10 +430,11 @@ export function comMudancaDoCarimbo(c: Carimbo, mudanca: MudancaDoCarimbo): Cari
   const travado = mudanca.locked === undefined ? c.locked === true : mudanca.locked
   const barra = mudanca.barra === undefined ? c.barra === true : mudanca.barra
   const tapa = mudanca.tapaVisao === undefined ? c.tapaVisao === true : mudanca.tapaVisao
-  const chavesIguais = travado === (c.locked === true) && barra === (c.barra === true) && tapa === (c.tapaVisao === true)
+  const livre = ehTipoImportado(tipo) && (mudanca.giroLivre === undefined ? c.giroLivre === true : mudanca.giroLivre)
+  const chavesIguais = travado === (c.locked === true) && barra === (c.barra === true) && tapa === (c.tapaVisao === true) && livre === (c.giroLivre === true)
   if (tipo === c.tipo && tamanho === c.tamanho && giro === c.giro && chavesIguais) return c
-  const { locked: _cadeado, barra: _barra, tapaVisao: _tapa, ...resto } = c
-  return { ...resto, tipo, tamanho, giro, ...(travado ? COM_CADEADO : {}), ...(barra ? COM_BARRA : {}), ...(tapa ? COM_TAPA : {}) }
+  const { locked: _cadeado, barra: _barra, tapaVisao: _tapa, giroLivre: _livre, ...resto } = c
+  return { ...resto, tipo, tamanho, giro, ...(travado ? COM_CADEADO : {}), ...(barra ? COM_BARRA : {}), ...(tapa ? COM_TAPA : {}), ...(livre ? COM_GIRO_LIVRE : {}) }
 }
 
 // ---------------------------------------------------------------------------
@@ -448,22 +473,6 @@ export function idsDebaixoDaBorracha(lista: readonly Carimbo[] | undefined, cami
 
 /** Sorteio de 0 a 1 (o gesto usa `Math.random`; o teste passa um fixo). */
 export type Sorteio = () => number
-
-/** Quanto o importado que nasce balança para cada lado, em graus (`giroSorteado`). */
-const BALANCO_DO_IMPORTADO = 5
-
-/**
- * O giro sorteado de um objeto que nasce. O da biblioteca sorteia a volta
- * inteira: só troca o desenho entre os oito. O IMPORTADO gira a imagem de
- * verdade desde as alças de 16/11/2026; sorteado na volta inteira ele nasceria
- * de ponta-cabeça, então balança só uns graus, a variação que a inclinação de
- * antes dava. Um sorteio só nos dois casos: a mesma semente solta os mesmos
- * objetos nos mesmos lugares.
- */
-function giroSorteado(tipo: string, sorteio: Sorteio): number {
-  const s = sorteio()
-  return ehTipoImportado(tipo) ? (s * 2 - 1) * BALANCO_DO_IMPORTADO : s * 360
-}
 
 export interface OpcoesDoSpray {
   tipo: string
@@ -551,7 +560,7 @@ export function criarSpray(opcoes: OpcoesDoSpray): Spray {
     x: Math.round(p.x),
     y: Math.round(p.y),
     tamanho: Math.round(opcoes.tamanho * (1 + (sorteio() * 2 - 1) * variacao) * 10) / 10,
-    giro: normalizarGiro(giroSorteado(opcoes.tipo, sorteio)),
+    giro: normalizarGiro(sorteio() * 360),
   })
 
   const tentarEm = (centro: RegionPoint, nascidos: Carimbo[]) => {
@@ -714,8 +723,8 @@ export function criarTraco(opcoes: OpcoesDoTraco): Spray {
     tamanho: decimo(opcoes.tamanho * (iguais ? 1 : 1 + (sorteio() * 2 - 1) * VARIACAO_DO_CLIQUE)),
     giro: normalizarGiro(giro),
   })
-  /** O giro do objeto: o rumo, quando o desenho pede; senão sorteado (`giroSorteado`). */
-  const giroDe = (rumo: number) => (jeito.rumo === true ? rumo : giroSorteado(opcoes.tipo, sorteio))
+  /** O giro do objeto: o rumo, quando o desenho pede; senão sorteado (só troca o desenho entre os oito). */
+  const giroDe = (rumo: number) => (jeito.rumo === true ? rumo : sorteio() * 360)
 
   const soltar = (p: RegionPoint, rumo: number, nascidos: Carimbo[]): number | null => {
     if (vagas <= 0) return null

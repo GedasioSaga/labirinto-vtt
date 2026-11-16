@@ -9,7 +9,7 @@ import {
 import { isOnStairRotateHandle, rotateStairBy, stairRotateFrame } from '../lib/stairRotation'
 import { carimboPorId } from '../lib/carimbos'
 import {
-  anguloVisivelDoCarimbo, carimboComAlcas, centroDoCarimbo, giroDoCarimboNoArrasto, giroGravadoDoCarimbo, naAlcaDeGirarDoCarimbo,
+  anguloVisivelDoCarimbo, carimboComAlcas, centroDoCarimbo, giroDeAntesDoCarimbo, giroDoCarimboNoArrasto, giroGravadoDoCarimbo, naAlcaDeGirarDoCarimbo,
 } from '../lib/alcasDoCarimbo'
 
 /**
@@ -105,12 +105,12 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
     if (passo !== 0) {
       if (giro.alvo.kind === 'region') store.getState().rotateRoomLive(giro.alvo.id, passo)
       else if (giro.alvo.kind === 'prop') store.getState().setPropRotationLive(giro.alvo.id, alvo)
-      else if (giro.alvo.kind === 'carimbo') store.getState().mudarCarimboLive(giro.alvo.inicial.id, { giro: giroGravadoDoCarimbo(giro.alvo.inicial, alvo) })
+      else if (giro.alvo.kind === 'carimbo') store.getState().mudarCarimboLive(giro.alvo.inicial.id, giroGravadoDoCarimbo(giro.alvo.inicial, alvo))
       else gravarEscada(giro.alvo.id, rotateStairBy(giro.alvo.inicial, alvo - giro.rotacaoInicial))
     }
     giro.rotacaoAtual = alvo
     // O carimbo fala o giro como a ficha dele: de 0 a 359 ("315°", não "−45°").
-    return { rotation: alvo, label: carimbo === null ? formatRotationLabel(alvo) : `${giroGravadoDoCarimbo(carimbo, alvo)}°` }
+    return { rotation: alvo, label: carimbo === null ? formatRotationLabel(alvo) : `${giroGravadoDoCarimbo(carimbo, alvo).giro}°` }
   }
 
   const comecar = (alvo: AlvoDoGiro, pivo: Point, rotacao: number, ponto: Point, cameraScale: number): true => {
@@ -196,8 +196,8 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
         if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
         // A escada também: volta aos lances do começo, sem histórico.
         if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
-        // E o carimbo, ao giro de antes.
-        if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, { giro: alvo.inicial.giro })
+        // E o carimbo, ao giro de antes (e o importado, à inclinação de antes, se só inclinava).
+        if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, giroDeAntesDoCarimbo(alvo.inicial))
         return true
       }
       if (alvo.kind === 'region') store.getState().finishRoomRotationLive(antes, alvo.id)
@@ -213,7 +213,7 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       giro = null
       if (alvo.kind === 'prop') store.getState().setPropRotationLive(alvo.id, alvo.rotacaoGuardada)
       else if (alvo.kind === 'stair') gravarEscada(alvo.id, alvo.inicial)
-      else if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, { giro: alvo.inicial.giro })
+      else if (alvo.kind === 'carimbo') store.getState().mudarCarimboLive(alvo.inicial.id, giroDeAntesDoCarimbo(alvo.inicial))
       else if (volta !== 0) store.getState().rotateRoomLive(alvo.id, volta)
       return true
     },

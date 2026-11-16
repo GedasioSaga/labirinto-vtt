@@ -1,7 +1,9 @@
 import type { Carimbo } from '../types/map'
 import type { Point } from '../pixi/world'
 import { boxCorners, type Corner } from './objectTransform'
-import { caixaDoCarimbo, carimboDestravado, ehTipoImportado, normalizarGiro, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN, varianteDoGiro } from './carimbos'
+import {
+  caixaDoCarimbo, carimboDestravado, ehTipoImportado, normalizarGiro, radianosDoImportado, TAMANHO_DO_CARIMBO_MAX, TAMANHO_DO_CARIMBO_MIN, varianteDoGiro,
+} from './carimbos'
 import { normalizeRotation, rotatePointAround, rotationTrig, roomRotateHandle, snapRoomRotation, type RoomRotateHandle } from './roomRotation'
 import { camadaTravadaDoItem } from './camadas/trava'
 import type { CamposDeCamadas } from './camadas/consulta'
@@ -21,7 +23,9 @@ import type { CamposDeCamadas } from './camadas/consulta'
  * - GIRAR: a bolinha no palito da sala e do objeto (`roomRotateHandle`), em
  *   volta do meio da caixa. O da biblioteca anda de 45 em 45 graus: ele tem oito
  *   desenhos (`varianteDoGiro`), e girar entre eles mantém a sombra certa, com a
- *   luz parada. O importado gira livre (Shift: de 15 em 15, como o objeto).
+ *   luz parada. O importado gira livre (Shift: de 15 em 15, como o objeto): o
+ *   primeiro arrasto liga o `giroLivre` dele, e a imagem que só inclinava uns
+ *   graus passa a girar de verdade. Sem arrasto, o mapa de antes fica igual.
  */
 
 /** O giro da biblioteca anda de desenho em desenho: oito, um a cada 45 graus. */
@@ -44,10 +48,13 @@ export function centroDoCarimbo(c: Carimbo): Point {
 
 /**
  * O ângulo que a tela mostra, em graus de −180 a 180: no da biblioteca, o do
- * desenho escolhido (o giro 137 desenha o de 135); no importado, o giro dele.
+ * desenho escolhido (o giro 137 desenha o de 135); no importado com giro
+ * livre, o giro dele; no importado de antes, a inclinação que a imagem tem
+ * (`radianosDoImportado`), para a bolinha sair de onde a imagem aponta.
  */
-export function anguloVisivelDoCarimbo(c: Pick<Carimbo, 'tipo' | 'giro'>): number {
-  return normalizeRotation(ehTipoImportado(c.tipo) ? c.giro : varianteDoGiro(c.giro) * PASSO_DO_GIRO_DA_BIBLIOTECA)
+export function anguloVisivelDoCarimbo(c: Pick<Carimbo, 'tipo' | 'giro' | 'giroLivre'>): number {
+  if (!ehTipoImportado(c.tipo)) return normalizeRotation(varianteDoGiro(c.giro) * PASSO_DO_GIRO_DA_BIBLIOTECA)
+  return normalizeRotation(c.giroLivre === true ? c.giro : (radianosDoImportado(c) * 180) / Math.PI)
 }
 
 /**
@@ -91,13 +98,26 @@ export function giroDoCarimboNoArrasto(c: Pick<Carimbo, 'tipo'>, bruto: number, 
   return normalizeRotation(Math.round(bruto / PASSO_DO_GIRO_DA_BIBLIOTECA) * PASSO_DO_GIRO_DA_BIBLIOTECA)
 }
 
+/** O giro que o arrasto grava: o número e se a imagem do importado gira livre. */
+export interface GiroGravado {
+  giro: number
+  giroLivre: boolean
+}
+
+/** O giro do carimbo como ele estava: o que o Esc e o "foi e voltou" devolvem. */
+export function giroDeAntesDoCarimbo(inicial: Pick<Carimbo, 'giro' | 'giroLivre'>): GiroGravado {
+  return { giro: inicial.giro, giroLivre: inicial.giroLivre === true }
+}
+
 /**
  * O giro a gravar quando o arrasto está no ângulo `angulo`. No ângulo do
  * começo, o giro de antes, sem mudar um grau: o 137 da árvore do spray fica
  * 137 (ele já desenha o de 135), e voltar ao começo não vira passo no Ctrl+Z.
+ * Fora dele, o ângulo, com o giro livre ligado: no importado, a imagem passa a
+ * girar de verdade (`comMudancaDoCarimbo` tira o campo do da biblioteca).
  */
-export function giroGravadoDoCarimbo(inicial: Pick<Carimbo, 'tipo' | 'giro'>, angulo: number): number {
-  return angulo === anguloVisivelDoCarimbo(inicial) ? inicial.giro : normalizarGiro(angulo)
+export function giroGravadoDoCarimbo(inicial: Pick<Carimbo, 'tipo' | 'giro' | 'giroLivre'>, angulo: number): GiroGravado {
+  return angulo === anguloVisivelDoCarimbo(inicial) ? giroDeAntesDoCarimbo(inicial) : { giro: normalizarGiro(angulo), giroLivre: true }
 }
 
 /** A faixa do tamanho, em px de mundo: de 40% a 250% do natural do tipo, como o controle da ficha. */

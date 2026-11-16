@@ -3309,6 +3309,14 @@ export interface Carimbo extends NoPiso, NaCamada {
   barra?: true
   /** "Tapa a visão" (Fase 2): a pegada do carimbo segura o olhar como parede. Só existe ligado. */
   tapaVisao?: true
+  /**
+   * GIRO LIVRE do importado (alças de 16/11/2026): a imagem gira de verdade
+   * pelo `giro`. Só existe ligado, e só no importado: a bolinha de girar e os
+   * botões de giro da ficha o ligam. Ausente = o jeito de antes, a imagem só
+   * inclina uns graus com o giro sorteado (`radianosDoImportado`), então o
+   * mapa de antes abre com a mesma cara.
+   */
+  giroLivre?: true
 }
 
 /** Um carimbo que o mestre trouxe de uma imagem dele (`lib/carimboImportado.ts`). */
