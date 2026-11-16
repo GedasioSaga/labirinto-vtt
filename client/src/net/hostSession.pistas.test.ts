@@ -498,3 +498,65 @@ describe('"?" antigo depois que o mestre mexe nele: o caderno não muda (auditor
     expect(cadernoAoVoltar(s, 'c-gabi', 'Gabi', gabi.resume).map((c) => c.id)).toEqual([lida.id])
   })
 })
+
+describe('"Ler para todos" e "Dizer agora" a todos: só quem VÊ o pino (auditoria 16/11/2026)', () => {
+  const SALA = 'SEGREDO-XYZ sala da Gabi'
+  const SUSSURRO: FalaDoPino = { id: 's1', etiqueta: 'Fala', texto: 'SEGREDO-XYZ sussurro' }
+  const salaDaGabi = pino('sala-gabi', 150, 120, SALA)
+  const sussurro = pino('sussurro', 160, 130, '', { kind: 'interrogacao', falas: [SUSSURRO] })
+  const naZonaQ = pino('zona-q', 410, 310, '', { kind: 'interrogacao', falas: [SUSSURRO] })
+  const comTudo = () => mundo(casa([salaDaGabi, sussurro, naZonaQ]))
+
+  /** Quem recebeu alguma mensagem com `texto` nesta resposta. */
+  function quemRecebeu(r: HostResult, texto: string): string[] {
+    return ['c-gabi', 'c-ana', 'c-bruno'].filter((c) => JSON.stringify(msgsPara(r, c)).includes(texto))
+  }
+
+  it('"!" com "Quem vê" só da Gabi: Ler para todos chega só a ela; Escolher a Ana põe a Ana no "Quem vê" e chega', () => {
+    const { s, world, gabi, ana } = mesa(comTudo())
+    s.setPinAudience('sala-gabi', [gabi.playerId])
+    s.broadcast(world)
+    const todos = s.lerCenario('sala-gabi', null, world)
+    expect(todos.para).toEqual([gabi.playerId])
+    expect(quemRecebeu(todos.result, SALA)).toEqual(['c-gabi'])
+    const escolhida = s.lerCenario('sala-gabi', [ana.playerId], world)
+    expect(escolhida.para).toEqual([ana.playerId])
+    expect(quemRecebeu(escolhida.result, SALA)).toEqual(['c-ana'])
+    expect(s.pinAudience('sala-gabi')).toEqual([gabi.playerId, ana.playerId])
+    expect(pinosDo(s.broadcast(world), 'c-ana')).toContain('sala-gabi')
+  })
+
+  it('"?" com "Quem vê" só da Gabi: Dizer agora chega só a ela; Dizer a Ana põe a Ana no "Quem vê" e chega', () => {
+    const { s, world, gabi, ana } = mesa(comTudo())
+    s.setPinAudience('sussurro', [gabi.playerId])
+    s.broadcast(world)
+    const todos = s.dizerFala('sussurro', 's1', null, world)
+    expect(todos.para).toEqual([gabi.playerId])
+    expect(quemRecebeu(todos.result, SUSSURRO.texto)).toEqual(['c-gabi'])
+    const aAna = s.dizerFala('sussurro', 's1', [ana.playerId], world)
+    expect(aAna.para).toEqual([ana.playerId])
+    expect(quemRecebeu(aAna.result, SUSSURRO.texto)).toEqual(['c-ana'])
+    expect(s.pinAudience('sussurro')).toEqual([gabi.playerId, ana.playerId])
+  })
+
+  it('"?" só com entrada oculta e sem "Quem vê": Dizer agora chega a todos da cena que o veem', () => {
+    const { s, world, gabi, ana } = mesa(comTudo())
+    expect(s.dizerFala('sussurro', 's1', null, world).para).toEqual([gabi.playerId, ana.playerId])
+    expect(s.pinAudience('sussurro')).toBeNull()
+  })
+
+  it('pino em zona oculta: ninguém recebe até revelar; o Escolher do mestre ainda chega', () => {
+    const { s, world, gabi, ana } = mesa(comTudo())
+    expect(s.lerCenario('na-zona', null, world).para).toEqual([])
+    expect(s.dizerFala('zona-q', 's1', null, world).para).toEqual([])
+    const escolhida = s.lerCenario('na-zona', [ana.playerId], world)
+    expect(escolhida.para).toEqual([ana.playerId])
+    expect(quemRecebeu(escolhida.result, 'PISTA-NA-ZONA')).toEqual(['c-ana'])
+    // O mestre revela a zona; o broadcast sai antes do "Ler para todos" (o integrador faz o pendente).
+    const aberta = comTudo()
+    const revelada: HostWorld = { ...aberta, open: { ...aberta.open, map: { ...aberta.open.map, concealZones: (aberta.open.map.concealZones ?? []).map((z) => ({ ...z, revealed: true })) } } }
+    s.broadcast(revelada)
+    expect(s.lerCenario('na-zona', null, revelada).para).toEqual([gabi.playerId, ana.playerId])
+    expect(s.dizerFala('zona-q', 's1', null, revelada).para).toEqual([gabi.playerId, ana.playerId])
+  })
+})

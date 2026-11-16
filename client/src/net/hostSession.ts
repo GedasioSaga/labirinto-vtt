@@ -2560,7 +2560,10 @@ export interface HostSession {
   /**
    * "LER AGORA" do "!" CENÁRIO (P4): a revelação datilografada do pino `pinId`
    * abre na tela de quem joga, está conectado e está na cena DO PINO (pino de
-   * outra cena não sai, nem por id). `playerIds` `null` = todos esses. O texto
+   * outra cena não sai, nem por id). `playerIds` `null` = todos esses que VEEM
+   * o pino no último recorte ("Quem vê", zona oculta, sala secreta e névoa
+   * valem; o integrador faz o broadcast pendente antes). Com lista, a escolha
+   * do mestre vale, e quem não está no "Quem vê" entra nele. O texto
    * sai da lista do que vai (`pinCardForPlayer`); cada um fica "lendo", o
    * pino conta como recebido no painel Pistas e o texto entra no caderno dele
    * (Lugares). Pino que não é "!", oculto ou escondido não sai. Não envia o
@@ -2572,7 +2575,8 @@ export interface HostSession {
   /**
    * "DIZER AGORA" de uma entrada do "?" Falas e pistas (P5): a entrada
    * `falaId` do pino passa a ir a estes jogadores (`null` = todos na cena do
-   * pino), conectados e na cena DO PINO. Entra no caderno dele (Falas e
+   * pino que o VEEM, como no `lerCenario`; com lista, quem não está no "Quem
+   * vê" entra nele), conectados e na cena DO PINO. Entra no caderno dele (Falas e
    * pistas) com o texto COMO FOI DITO. Pino oculto, escondido, que não é "?"
    * ou entrada vazia não sai. Não envia o snapshot. `para` = quem ouviu.
    */
@@ -3702,8 +3706,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const colecoesByPlayer = new Map<string, ColecoesDoJogador>()
   // Por playerId: os pinos do ÚLTIMO recorte mandado (já passados pelo
   // `pinForPlayer`) e o mapa de onde vieram. É o que o jogador está vendo: só
-  // pino daqui vira pista.
-  const seenPins = new Map<string, { mapId: string; pins: Pin[] }>()
+  // pino daqui vira pista. `caladas`: os "?" que ele veria se tivesse entrada
+  // para ele (`PlayerMapView.perguntasCaladas`), para o "Dizer agora" a todos.
+  const seenPins = new Map<string, { mapId: string; pins: Pin[]; caladas: ReadonlySet<string> }>()
   // Por playerId: quando a última pista mostrada chegou a um colega.
   const lastClueShowAt = new Map<string, number>()
   // Por playerId: "Fator de visão" (vale em toda cena); ausente = x1,0. Só o kick apaga.
@@ -4128,6 +4133,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const chosen = pinAudiences.get(pinId)
     if (chosen === undefined) return null
     return inRoomOrder(chosen)
+  }
+
+  /**
+   * QUEM VÊ O PINO, para o "Ler para todos" e o "Dizer agora" a todos
+   * (auditoria de 16/11/2026): o pino saiu no último recorte dele, deste mapa
+   * — ali o "Quem vê", a zona oculta, a sala secreta, o piso, o teto e a névoa
+   * já decidiram. O "?" sem entrada para ele conta (`caladas`): é o "Dizer
+   * agora" que dá a primeira. O "Quem vê" é conferido de novo aqui, para valer
+   * já antes do broadcast seguinte.
+   */
+  const jogadorVePino = (playerId: string, mapId: string, pinId: string): boolean => {
+    const chosen = pinAudiences.get(pinId)
+    if (chosen !== undefined && !chosen.has(playerId)) return false
+    const seen = seenPins.get(playerId)
+    if (seen === undefined || seen.mapId !== mapId) return false
+    return seen.caladas.has(pinId) || seen.pins.some((p) => p.id === pinId)
+  }
+
+  /**
+   * "Escolher" e "Dizer a…" a quem não está no "Quem vê" do pino: ele entra
+   * nele antes, como no "Mostrar agora a…" (`showPin`) — senão ficaria com o
+   * texto no caderno sem o pino no mapa. Pino de todos: nada muda.
+   */
+  const porNoQuemVe = (pinId: string, playerId: string): void => {
+    const audience = pinAudiences.get(pinId)
+    if (audience === undefined || audience.has(playerId)) return
+    audience.add(playerId)
+    // O pino pode entrar no recorte dele agora: todos refazem no próximo broadcast.
+    viewEpoch += 1
   }
 
   /** "Revelar para…" do item, na ordem da sala; `[]` = ninguém. */
@@ -4975,7 +5009,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     memory.plan = fromExplored ? planOfSent(mapaDoRecorte, view.map) : view.plan
     bitsAtLastCut.set(memory, exp.bits.slice())
     memory.tokens = view.map.tokens
-    seenPins.set(playerId, { mapId: map.id, pins: view.map.pins })
+    seenPins.set(playerId, { mapId: map.id, pins: view.map.pins, caladas: new Set(view.perguntasCaladas) })
     const seenNow = new Set(view.visibleDoorIds)
     const seq = (memorySeq += 1)
     const doorsSeen = new Map<string, DoorState>()
@@ -12002,8 +12036,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         const map = sceneFor(playerId, world)?.map
         const pin = map?.pins.find((p) => p.id === pinId)
         if (map === undefined || pin === undefined || pin.kind !== 'exclamacao' || pin.secret === true || pin.hidden === true) continue
+        // "Ler para todos" (e o "Ler agora" do Prelúdio) é a todos que VEEM o pino: o "Quem vê", a zona
+        // oculta, a sala secreta e a névoa valem. "Escolher" é escolha do mestre: alcança quem ele marcou.
+        if (playerIds === null && !jogadorVePino(playerId, map.id, pinId)) continue
         const card = pinCardForPlayer(pin)
         if (card === null) continue
+        if (playerIds !== null) porNoQuemVe(pinId, playerId)
         const nome = cleanPinName(pin.nome)
         outbound.push({ clientId, msg: { type: 'cenario.ler', pinId, nome, texto: card.description } })
         cenarios.lendo(pinId, playerId, now())
@@ -12033,8 +12071,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         const map = sceneFor(playerId, world)?.map
         const pin = map?.pins.find((p) => p.id === pinId)
         if (map === undefined || pin === undefined || pin.kind !== 'interrogacao' || pin.secret === true || pin.hidden === true) continue
+        // "Dizer agora" a todos é a todos que VEEM o pino (como o "Ler para todos"); "Dizer a…" alcança quem o mestre marcou.
+        if (playerIds === null && !jogadorVePino(playerId, map.id, pinId)) continue
         const fala = pin.falas?.find((umaFala) => umaFala.id === falaId)
         if (fala === undefined || fala.texto.trim() === '') continue
+        if (playerIds !== null) porNoQuemVe(pinId, playerId)
         cenarios.dita(pinId, falaId, playerId)
         addToSet(pinReceived, pinId, playerId)
         const quem = fala.quem?.trim()

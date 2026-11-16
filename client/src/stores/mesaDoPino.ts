@@ -47,7 +47,8 @@ export const useMesaDoPino = create<EstadoDaMesaDoPino>()(() => ({ leituras: {},
 export type FimDoLerAgora = { readonly ok: true; readonly para: readonly string[] } | { readonly ok: false; readonly motivo: string }
 
 const SEM_SALA = 'Abra a sala para ler aos jogadores.'
-const NINGUEM = 'Ninguém recebeu: nenhum jogador conectado está na cena deste pino.'
+// "Para todos" é a quem VÊ o pino ("Quem vê", zona oculta, névoa): a escolha do mestre continua no Escolher.
+const NINGUEM = 'Ninguém recebeu: nenhum jogador conectado vê este pino. Para mandar a alguém, use Escolher.'
 
 /**
  * "LER AGORA" de um "!": manda a revelação e abre o "Ler junto" do mestre com
@@ -66,7 +67,7 @@ export function lerCenarioAgora(pin: Pick<Pin, 'id' | 'nome' | 'description'>, p
 }
 
 const SEM_SALA_PARA_DIZER = 'Abra a sala para dizer aos jogadores.'
-const NINGUEM_OUVIU = 'Ninguém ouviu: nenhum jogador conectado está na cena deste pino.'
+const NINGUEM_OUVIU = 'Ninguém ouviu: nenhum jogador conectado vê este pino. Para dizer a alguém, escolha em Dizer a…'
 
 /** "DIZER AGORA" de uma entrada do "?". Ninguém ouviu = aviso, nunca silêncio. */
 export function dizerFalaAgora(pinId: string, falaId: string, playerIds: readonly string[] | null): FimDoLerAgora {

@@ -4658,22 +4658,28 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
 
     lerCenario(pinId, playerIds) {
       if (session === null) return null
+      // A todos = a quem VÊ o pino no último recorte: o broadcast pendente (zona revelada, "Quem vê" mudado agora) sai antes.
+      if (pendingBroadcast !== null) broadcastNow()
       const { result, para } = session.lerCenario(pinId, playerIds, world())
       if (para.length === 0) return []
       // O mapa sai antes da revelação: o "!" "só quando eu mandar" já chega com o texto.
       broadcastNow()
       void dispatch(result)
+      // "Escolher" pôs no "Quem vê" quem não estava: a ficha do pino relê.
+      notifyPinAudiencesIfChanged()
       return para
     },
 
     dizerFala(pinId, falaId, playerIds) {
       if (session === null) return null
+      if (pendingBroadcast !== null) broadcastNow()
       const { result, para } = session.dizerFala(pinId, falaId, playerIds, world())
       if (para.length === 0) return []
       // O mapa sai antes: a entrada já está no "?" dele quando a pista chega ao caderno.
       broadcastNow()
       void dispatch(result)
       notifyPinCluesIfChanged()
+      notifyPinAudiencesIfChanged()
       return para
     },
 

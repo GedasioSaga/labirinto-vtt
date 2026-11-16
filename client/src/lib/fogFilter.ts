@@ -331,6 +331,14 @@ export interface PlayerMapView {
    * ficha dele com anel de olho. SAI pela rede (`snapshot.olhares`).
    */
   olhares?: OlharDaVisao[]
+  /**
+   * QUEM PODE OUVIR (auditoria de 16/11/2026): ids dos "?" com lista própria
+   * que passaram por TODA regra do pino ("Quem vê", oculto, secreto, camada,
+   * zona oculta, sala secreta, teto, névoa) e só não saíram porque nenhuma
+   * entrada é dele ainda. É o que o "Dizer agora" a todos alcança. NÃO SAI pela
+   * rede: diria que há um "?" ali. Ausente = nenhum.
+   */
+  perguntasCaladas?: string[]
 }
 
 /**
@@ -4845,6 +4853,8 @@ function recorteDoGrupo(
    * entrega (`propsDoRecorte`): objeto escondido dele não conta.
    */
   const pelosObjetos = alcancePeloObjeto({ grid: map.grid, props: propsDoRecorte, stairs: playerStairs })
+  /** Os "?" que passaram por toda regra do pino e só não saem por não ter entrada para ele (ver `PlayerMapView.perguntasCaladas`). */
+  const perguntasCaladas: string[] = []
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),
@@ -5154,6 +5164,7 @@ function recorteDoGrupo(
       const recortado = cenarioParaJogador(pinForPlayer(p, ownTokens, map.grid, legivel, known, oneWayExits?.get(p.id), pelosObjetos), p, leituras)
       // "?" FALAS E PISTAS (P5): só as entradas ditas a ele ou livres; sem nenhuma, o "?" não existe para ele.
       const comFalasDele = falasParaJogador(recortado, p, leituras)
+      if (comFalasDele === null) perguntasCaladas.push(p.id)
       return comFalasDele === null ? [] : [comFalasDele]
     }),
     // BILHETE NO LUGAR: quem passar ali depois vê. Sai na visão atual; no
@@ -5430,6 +5441,7 @@ function recorteDoGrupo(
     plan,
     portasPorAtravessar,
     ...(olhares.length > 0 ? { olhares } : {}),
+    ...(perguntasCaladas.length > 0 ? { perguntasCaladas } : {}),
   }
 }
 
