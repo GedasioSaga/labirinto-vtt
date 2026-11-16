@@ -108,6 +108,9 @@
 /* "!" CENÁRIO (P4): quando abre e o "Ler agora", com o estado de cada jogador. */
 .lb-cenario-ficha { display: flex; flex-direction: column; gap: 8px; }
 .lb-cenario-ficha__ajuda { margin: 0; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+/* "Quando abre": na página estreita, "Quando eu mandar" desce para a linha de baixo, inteiro, em vez de perder as pontas (o mesmo do Tipo do pino). */
+.lb-cenario-ficha .gr-seg { flex-wrap: wrap; }
+.lb-cenario-ficha .gr-seg__op { flex: 1 0 auto; }
 .lb-cenario-ficha__ler { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--lb-gr-filete-latao); }
 .lb-cenario-ficha__titulo { margin: 0; font-size: var(--lb-font-size-sm); font-weight: 600; color: var(--lb-color-parchment); }
 .lb-cenario-ficha__chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -138,6 +141,19 @@
   border-radius: 8px;
 }
 .lb-falas-ficha__entrada[data-livre] { border-style: dashed; }
+/*
+ * Tipo da entrada: os quatro numa linha quando cabem; na página estreita, dois
+ * por linha, com "Pergunta" inteira (nunca três e um sozinho, que faz o último
+ * parecer outra coisa). A conta é pela entrada, não pela janela: a página do
+ * livro muda de largura sozinha. O quebrar de baixo segura qualquer fonte que
+ * passe da conta (corta nunca).
+ */
+.lb-falas-ficha__entrada { container-type: inline-size; }
+.lb-falas-ficha__entrada .gr-seg { flex-wrap: wrap; }
+.lb-falas-ficha__entrada .gr-seg__op { flex: 1 0 auto; }
+@container (width < 200px) {
+  .lb-falas-ficha__entrada .gr-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .lb-falas-ficha__cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .lb-falas-ficha__numero { font-weight: 600; font-variant-numeric: tabular-nums; }
 .lb-falas-ficha__estado { font-size: 0.85em; opacity: 0.8; }
