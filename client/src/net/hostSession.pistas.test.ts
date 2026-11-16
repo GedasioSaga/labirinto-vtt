@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin, Region, Token } from '../types/map'
 import type { FalaDoPino } from '../types/cenarioEFalas'
+import { comFalas, falasDoPino, ID_DA_FALA_ANTIGA, novaFala } from '../lib/falasDoPino'
 import type { HostMessage } from './protocol'
 import { parsePlayerMessage } from './protocol'
 import { CLUE_SHOW_MIN_INTERVAL_MS, createHostSession, type HostResult, type HostScene, type HostWorld } from './hostSession'
@@ -447,5 +448,53 @@ describe('"?" Falas e pistas (P5): Dizer agora e o caderno', () => {
     expect(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'taverna' }, world).outbound).toEqual([])
     expect(s.dizerFala('taverna', 'f2', [bruno.playerId], world).para).toEqual([])
     expect(s.dizerFala('taverna', 'nao-existe', null, world).para).toEqual([])
+  })
+})
+
+describe('"?" antigo depois que o mestre mexe nele: o caderno não muda (auditoria 16/11/2026)', () => {
+  const POCO = 'Poço velho\nPista antiga do poço.'
+  const antigo = pino('poco', 140, 140, POCO, { kind: 'interrogacao' })
+  // A 1ª mexida da ficha: o texto vira a entrada 1 (`comFalas(falasDoPino(pin))`) e o mestre põe uma entrada oculta.
+  const convertido = comFalas(antigo, [...falasDoPino(antigo), novaFala('f-nova', 'Boato', 'SEGREDO-XYZ boato novo')])
+  const antes = mundo(casa([antigo]))
+  const depois = mundo(casa([convertido]))
+
+  /** O caderno inteiro que o jogador recebe ao voltar (o `clues.book` do join). */
+  function cadernoAoVoltar(s: Sessao, clientId: string, name: string, resume: string) {
+    s.disconnect(clientId)
+    const volta = entra(s, `${clientId}-2`, name, depois, resume)
+    const livro = msgsPara(volta.r, `${clientId}-2`).find((m) => m.type === 'clues.book')
+    if (livro?.type !== 'clues.book') throw new Error('esperava clues.book')
+    return livro.clues
+  }
+
+  it('Gabi leu o "?" antigo; depois da 1ª mexida, tocar de novo não dá 2ª entrada, e o título segue o nome do lugar', () => {
+    expect(convertido.falas?.[0]?.id).toBe(ID_DA_FALA_ANTIGA)
+    const { s, gabi } = mesa(antes)
+    const lida = pistaLida(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'poco' }, antes), 'c-gabi')
+    expect(lida).toEqual(expect.objectContaining({ title: 'Poço velho', text: POCO }))
+    s.broadcast(depois)
+    expect(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'poco' }, depois).outbound).toEqual([])
+    const caderno = cadernoAoVoltar(s, 'c-gabi', 'Gabi', gabi.resume)
+    expect(caderno).toEqual([lida])
+  })
+
+  it('Ana toca só depois da mexida: a pista é a do pino de antes (nome do lugar, no lugar, não nas falas)', () => {
+    const { s } = mesa(depois)
+    const lida = pistaLida(s.handleMessage('c-ana', { type: 'clue.read', pinId: 'poco' }, depois), 'c-ana')
+    expect(lida.title).toBe('Poço velho')
+    expect(lida.text).toBe(POCO)
+    expect(lida.tipo).toBeUndefined()
+    expect(JSON.stringify(lida)).not.toContain('SEGREDO-XYZ')
+  })
+
+  it('"Dizer agora" da entrada antiga a quem já leu troca a mesma entrada: segue uma só, mesmo id', () => {
+    const { s, gabi } = mesa(antes)
+    const lida = pistaLida(s.handleMessage('c-gabi', { type: 'clue.read', pinId: 'poco' }, antes), 'c-gabi')
+    s.broadcast(depois)
+    const { result, para } = s.dizerFala('poco', ID_DA_FALA_ANTIGA, [gabi.playerId], depois)
+    expect(para).toEqual([gabi.playerId])
+    expect(pistaLida(result, 'c-gabi')).toEqual(expect.objectContaining({ id: lida.id, title: 'Poço velho', text: POCO }))
+    expect(cadernoAoVoltar(s, 'c-gabi', 'Gabi', gabi.resume).map((c) => c.id)).toEqual([lida.id])
   })
 })

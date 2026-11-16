@@ -69,6 +69,7 @@ import { ESPIAR_DURACAO_MS, ESPIAR_INTERVALO_MIN_MS, espiadaCabe, isDaVista } fr
 import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encontroMarcado'
 import { CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH, CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { FalaParaJogador, FalasDitas } from '../types/cenarioEFalas'
+import { ID_DA_FALA_ANTIGA } from '../lib/falasDoPino'
 import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
@@ -3496,15 +3497,39 @@ function encodeExplorationKept(exp: Exploration): ExploredWire {
 }
 
 
-/** A chave do caderno de uma entrada do "?" (P5): dita de novo, troca; lida livre de novo, não duplica. */
-function fonteDaFala(mapId: string, pinId: string, falaId: string): string {
-  return `fala|${mapId}|${pinId}|${falaId}`
+/** Como uma entrada do "?" (P5) entra no caderno: a chave, o conteúdo e, na fala, o tipo e quem disse. */
+interface PistaDaFala {
+  /** `pino`: a entrada antiga, que é a pista do toque de antes (leva a peça de coleção do pino, como levava). */
+  de: 'pino' | 'fala'
+  source: string
+  content: PlayerClueContent
+  tipo?: ClueEntry['tipo']
+  quem?: string
 }
 
-/** A entrada do "?" como pista do caderno: "Fala · Bento" de título, o texto como foi dito. */
-function conteudoDaFala(fala: FalaParaJogador): PlayerClueContent {
+/**
+ * A entrada do "?" como pista do caderno: chave própria (dita de novo, troca;
+ * lida livre de novo, não duplica), "Fala · Bento" de título e o texto como
+ * foi dito, na seção Falas e pistas.
+ * O "?" ANTIGO (auditoria de 16/11/2026): a entrada que nasceu do texto dele
+ * (`ID_DA_FALA_ANTIGA`, na 1ª mexida do mestre) continua a pista do toque de
+ * antes — a chave do pino e o conteúdo de `pinClueForPlayer` (título da 1ª
+ * linha, o nome do lugar, e a foto), no lugar e não nas falas. Sem isto, quem
+ * já tinha lido ganhava uma 2ª entrada, de título "Pista".
+ */
+function pistaDaFala(mapId: string, pin: Pin, fala: FalaParaJogador): PistaDaFala {
+  if (fala.id === ID_DA_FALA_ANTIGA) {
+    const doPino = pinClueForPlayer({ ...pin, description: fala.texto })
+    if (doPino !== null) return { de: 'pino', source: `pino|${mapId}|${pin.id}`, content: doPino }
+  }
   const title = fala.quem === undefined ? fala.etiqueta : `${fala.etiqueta} · ${fala.quem}`
-  return { title: title.slice(0, CLUE_TITLE_MAX_LENGTH), text: fala.texto.slice(0, CLUE_TEXT_MAX_LENGTH), image: null }
+  return {
+    de: 'fala',
+    source: `fala|${mapId}|${pin.id}|${fala.id}`,
+    content: { title: title.slice(0, CLUE_TITLE_MAX_LENGTH), text: fala.texto.slice(0, CLUE_TEXT_MAX_LENGTH), image: null },
+    tipo: 'fala',
+    ...(fala.quem === undefined ? {} : { quem: fala.quem }),
+  }
 }
 
 export function createHostSession(options: HostSessionOptions): HostSession {
@@ -9657,9 +9682,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const book = cluebooks.get(playerId) ?? []
       const outbound: Outbound[] = []
       for (const fala of pin.falasVisiveis) {
-        const source = fonteDaFala(scene.map.id, pin.id, fala.id)
-        if (book.some((item) => item.source === source)) continue
-        outbound.push({ clientId, msg: { type: 'clue.added', clue: rememberClue(playerId, source, conteudoDaFala(fala), undefined, null, 'fala', fala.quem) } })
+        const pista = pistaDaFala(scene.map.id, pin, fala)
+        if (book.some((item) => item.source === pista.source)) continue
+        // O "?" antigo: a peça de coleção vem com a pista do pino, como vinha antes da 1ª mexida.
+        const peca = pista.de === 'pino' ? pecaDoPino(masterPin) : null
+        const clue = rememberClue(playerId, pista.source, pista.content, undefined, peca, pista.tipo, pista.quem)
+        outbound.push({ clientId, msg: { type: 'clue.added', clue } })
+        const colecoes = rememberPiece(playerId, peca, clue.id)
+        if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
       }
       return { outbound }
     }
@@ -12009,8 +12039,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         addToSet(pinReceived, pinId, playerId)
         const quem = fala.quem?.trim()
         const dita = { id: fala.id, etiqueta: fala.etiqueta, texto: fala.texto, ...(quem === undefined || quem === '' ? {} : { quem }) }
-        const clue = rememberClue(playerId, fonteDaFala(map.id, pin.id, fala.id), conteudoDaFala(dita), undefined, null, 'fala', dita.quem)
+        const pista = pistaDaFala(map.id, pin, dita)
+        // A entrada antiga troca a pista do pino com a peça dela: dita de novo, a coleção não perde a peça.
+        const peca = pista.de === 'pino' ? pecaDoPino(pin) : null
+        const clue = rememberClue(playerId, pista.source, pista.content, undefined, peca, pista.tipo, pista.quem)
         outbound.push({ clientId, msg: { type: 'clue.added', clue } })
+        const colecoes = rememberPiece(playerId, peca, clue.id)
+        if (colecoes !== null) outbound.push({ clientId, msg: colecoes })
         para.push(playerId)
       }
       // A entrada passa a ir no "?" de quem ouviu: todos refazem no próximo broadcast.
