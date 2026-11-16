@@ -75,6 +75,7 @@ import {
   carimboDestravado,
   carimboPorId,
   criarSpray,
+  criarTraco,
   idsDebaixoDaBorracha,
   raioDoSpray,
   tamanhoNatural,
@@ -84,7 +85,7 @@ import {
 } from '../lib/carimbos'
 import { isStairPin } from '../lib/stairTravel'
 import { terrenoNoPonto } from '../lib/terrenoNaSelecao'
-import { carimboDoCatalogo } from '../carimbos/catalogo'
+import { carimboDoCatalogo, tracoDoCarimbo } from '../carimbos/catalogo'
 import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { criarDesenhoDoBarranco } from './drawBarranco'
@@ -5807,11 +5808,15 @@ function PixiCanvasDoContexto({
       const desenharAnelDoPincel = (centro: Point | null) => {
         anelDoPincelGraphics.clear()
         if (centro === null) return
-        const { activeTool, texturaModo, texturaTamanho, carimboLargura, map } = useMapStore.getState()
-        // Carimbos: o anel é a largura do spray (e da borracha) — onde os objetos vão cair.
+        const { activeTool, texturaModo, texturaTamanho, carimboLargura, carimboModo, map } = useMapStore.getState()
+        // Carimbos: o anel é a largura do spray (e da borracha) — onde os objetos vão cair. No Traço os
+        // objetos caem no caminho da mão, sem largura: o anel só aparece na borracha do Alt, durante o gesto.
+        const apagandoNoTraco = mode === 'painting-carimbo' && carimboSpray === null
         const raio =
           activeTool === 'carimbos'
-            ? raioDoSpray(unidadeDoRelevo(map), carimboLargura)
+            ? carimboModo === 'traco' && !apagandoNoTraco
+              ? null
+              : raioDoSpray(unidadeDoRelevo(map), carimboLargura)
             : activeTool === 'texturas' && texturaModo !== 'balde'
               ? raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
               : activeTool === 'neblina'
@@ -5882,11 +5887,13 @@ function PixiCanvasDoContexto({
 
       /**
        * Começa o gesto de Carimbos. Carimbo: o primeiro objeto cai no ponto
-       * exato (o clique), e o spray só espalha se a mão andar. Borracha (ou
-       * Alt): guarda o caminho e apaga na prévia o que vai sair.
+       * exato (o clique), e o spray só espalha se a mão andar. Traço: o
+       * primeiro também, e o arrasto solta um a cada passo fixo ao longo do
+       * caminho (`criarTraco`). Borracha (ou Alt): guarda o caminho e apaga na
+       * prévia o que vai sair.
        */
       const startCarimbo = (worldPoint: Point, screen: Point, alt: boolean) => {
-        const { map: mapaInteiro, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade } = useMapStore.getState()
+        const { map: mapaInteiro, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade, carimboEspaco } = useMapStore.getState()
         // PISOS: a terra, os objetos que o spray evita e os que a borracha apaga são os do piso em edição.
         const map = doPisoEmEdicao(mapaInteiro)
         const unidade = unidadeDoRelevo(map)
@@ -5902,21 +5909,29 @@ function PixiCanvasDoContexto({
         }
         carimboBorracha = []
         carimboApagando = new Set()
-        // A costa manda no spray: começou na terra, só põe na terra; no mar,
-        // só no mar (pedras no mar). Sem terra no mapa, em qualquer lugar.
-        const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
-        const comecouNaTerra = naTerra(worldPoint)
         const existentes = map.carimbos ?? []
         const natural = carimboDoCatalogo(carimboEscolhido)?.tamanho ?? TAMANHO_NATURAL_DO_IMPORTADO
-        carimboSpray = criarSpray({
-          tipo: carimboEscolhido,
-          tamanho: tamanhoNatural(unidade, map.grid, natural, carimboTamanho),
-          raio: carimboRaio,
-          densidade: carimboDensidade,
-          existentes,
-          aceita: (p) => naTerra(p) === comecouNaTerra,
-          vagas: TETO_DE_CARIMBOS - existentes.length,
-        })
+        const tamanho = tamanhoNatural(unidade, map.grid, natural, carimboTamanho)
+        const vagas = TETO_DE_CARIMBOS - existentes.length
+        if (carimboModo === 'traco') {
+          // O traço vai aonde a mão vai: sem a costa nem o espaço dos que já estão (a sebe por cima da
+          // sebe, a trilha de pedras que entra na água). Barra e camada travada: o `carimbar` do soltar.
+          carimboSpray = criarTraco({ tipo: carimboEscolhido, tamanho, espaco: carimboEspaco, jeito: tracoDoCarimbo(carimboEscolhido), vagas })
+        } else {
+          // A costa manda no spray: começou na terra, só põe na terra; no mar,
+          // só no mar (pedras no mar). Sem terra no mapa, em qualquer lugar.
+          const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
+          const comecouNaTerra = naTerra(worldPoint)
+          carimboSpray = criarSpray({
+            tipo: carimboEscolhido,
+            tamanho,
+            raio: carimboRaio,
+            densidade: carimboDensidade,
+            existentes,
+            aceita: (p) => naTerra(p) === comecouNaTerra,
+            vagas,
+          })
+        }
         carimboSpray.comecar(worldPoint)
         carimbos.mostrarPrevia(carimboSpray.soltos(), carimboApagando, map.carimbosImportados)
       }
@@ -5956,6 +5971,8 @@ function PixiCanvasDoContexto({
         carimbos.limparPrevia()
         const store = useMapStore.getState()
         if (spray !== null) {
+          // O traço fecha o caminho até onde a mão soltou (o módulo que emenda ganha a ponta).
+          spray.terminar(last === null ? null : last.world)
           const soltos = spray.soltos()
           // Nenhum objeto no gesto: a cena já estava no teto.
           avisarCarimbo(soltos.length === 0 ? 'teto' : store.carimbar(soltos))

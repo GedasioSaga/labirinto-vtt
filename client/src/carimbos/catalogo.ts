@@ -1,5 +1,6 @@
 import { CARIMBOS_EMBUTIDOS, type DefinicaoDeCarimbo, type SombraDoCarimbo } from './embutidos'
 import { CARIMBOS_NOVOS } from './novos'
+import { TRACO_PADRAO, type TracoDoCarimbo } from '../lib/carimbos'
 
 /**
  * CATÁLOGO DE CARIMBOS: a biblioteca embutida (`embutidos.ts`, e os novos de
@@ -51,6 +52,11 @@ export function assinarCarimbos(ouvinte: () => void): () => void {
 /** O carimbo do id, ou `null` (importado, ou de um pacote que este aparelho ainda não tem). */
 export function carimboDoCatalogo(id: string): CarimboDoCatalogo | null {
   return lista.find((c) => c.id === id) ?? null
+}
+
+/** Como o carimbo anda no Traço: o da biblioteca que tem jeito próprio, ou o padrão (importado e do pacote também). */
+export function tracoDoCarimbo(id: string): TracoDoCarimbo {
+  return carimboDoCatalogo(id)?.traco ?? TRACO_PADRAO
 }
 
 function trocarLista(nova: readonly CarimboDoCatalogo[]): void {

@@ -24,6 +24,8 @@
  *   baixo e para a direita pelo jeito de cada um (`sombra`), numa camada só.
  */
 
+import type { TracoDoCarimbo } from '../lib/carimbos'
+
 export type Rgb = readonly [number, number, number]
 
 /**
@@ -55,6 +57,13 @@ export interface DefinicaoDeCarimbo {
    * biblioteca tem: o contrato do pacote não muda.
    */
   brilho?: DesenhoDeCarimbo
+  /**
+   * Como ele anda no TRAÇO da ferramenta (16/11/2026, `criarTraco`): o espaço
+   * de um ao outro e o que o desenho pede (o módulo que emenda, a trilha que
+   * segue o rumo). Ausente = `TRACO_PADRAO`. Só a biblioteca tem: o contrato
+   * do pacote não muda.
+   */
+  traco?: TracoDoCarimbo
 }
 
 // ---------------------------------------------------------------------------

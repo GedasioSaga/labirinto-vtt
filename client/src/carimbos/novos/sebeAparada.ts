@@ -5,9 +5,9 @@ import { css, type DefinicaoDeCarimbo, type Rgb } from '../embutidos'
  * Carimbo ("Carimbo coloque no carimbo tudo que é natural"). O carimbo só
  * guarda tipo, tamanho e giro, e a sebe é comprida, curva e faz canto; então
  * ela não é uma peça comprida, é um MÓDULO: um bloco de buxo aparado que
- * emenda sozinho no vizinho. O mestre desenha a sebe clicando um ao lado do
- * outro (reta, descida, curva, canto, o quadrado fechado do labirinto) e os
- * módulos viram uma massa só.
+ * emenda sozinho no vizinho. O mestre desenha a sebe arrastando no Traço (ou
+ * clicando um ao lado do outro): reta, descida, curva, canto, o quadrado
+ * fechado do labirinto; e os módulos viram uma massa só.
  *
  * Por que a emenda não aparece:
  * - a FORMA não gira: o pé é sempre o mesmo quadrado no chão, alinhado ao
@@ -220,7 +220,28 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   desenharTopo(g, s)
 }
 
-export const carimbo: DefinicaoDeCarimbo = { id: 'sebe-aparada', nome: 'Sebe aparada', tamanho: 8, sombra: 'deitada', desenhar }
+/**
+ * O passo do TRAÇO (16/11/2026: a sebe se desenha arrastando, `criarTraco`).
+ * O miolo cheio do módulo, sem contar as bolinhas da borda (que deixam a folha
+ * recortada, com vãos), tem `2 × (MEIA − RAIO_DA_BORDA)` = 0,404 de lado. A
+ * 0,36 um módulo entra 0,044 no miolo do vizinho (uma folha; 2,8 px no mapa de
+ * 200 x 200 casas): o arredondamento da posição e a borda suavizada não abrem
+ * fresta. Descendo, o topo do de baixo começa 0,40 acima do pé dele e cobre a
+ * frente inteira do de cima, que acaba 0,23 abaixo do pé: o topo segue
+ * comprido. Um número redondo de propósito, para o controle de 2 em 2% parar
+ * nele.
+ */
+const ESPACO_NO_TRACO = 0.36
+
+export const carimbo: DefinicaoDeCarimbo = {
+  id: 'sebe-aparada',
+  nome: 'Sebe aparada',
+  tamanho: 8,
+  sombra: 'deitada',
+  desenhar,
+  // Módulo que emenda: canto e ponta ganham módulo, todos do mesmo tamanho; escolher a sebe liga o Traço.
+  traco: { espaco: ESPACO_NO_TRACO, emenda: true, preferido: true },
+}
 
 /** Todas as cores chapadas do desenho. */
 export const paleta: readonly Rgb[] = [PE, FRENTE, FRENTE_LUZ, TOPO_FUNDO, TOPO, TOPO_CLARO]

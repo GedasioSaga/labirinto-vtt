@@ -221,6 +221,44 @@ describe('PixiCanvas — ferramenta Carimbos', () => {
     expect(useMapStore.getState().past).toHaveLength(0)
   })
 
+  it('Traço com a sebe: 10 casas num arrasto só, um módulo a cada passo, barrando; um Ctrl+Z tira o traço inteiro', async () => {
+    await monta()
+    act(() => {
+      useMapStore.getState().setCarimboEscolhido('sebe-aparada')
+      useMapStore.getState().setCarimboBarra(true)
+    })
+    // Escolher a sebe liga o Traço.
+    expect(useMapStore.getState().carimboModo).toBe('traco')
+    ponteiro('pointerdown', { x: 200, y: 300 })
+    for (let x = 205; x <= 700; x += 5) ponteiro('pointermove', { x, y: 300 })
+    expect(useMapStore.getState().map.carimbos).toBeUndefined()
+    ponteiro('pointerup', { x: 700, y: 300 })
+    // Casas de 50 px: o módulo tem 40 px e o passo da sebe, 0,36 dele (14,4 px).
+    const xs = objetos()
+      .map((c) => c.x)
+      .sort((a, b) => a - b)
+    expect(xs[0]).toBe(200)
+    expect(xs[xs.length - 1]).toBe(700)
+    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeLessThanOrEqual(14.4 + 0.1)
+    expect(objetos().every((c) => c.tipo === 'sebe-aparada' && c.barra === true && c.y === 300 && c.tamanho === 40)).toBe(true)
+    expect(useMapStore.getState().past).toHaveLength(1)
+    act(() => useMapStore.getState().undo())
+    expect(useMapStore.getState().map.carimbos).toBeUndefined()
+  })
+
+  it('Traço em L num arrasto só: a quina ganha o módulo dela', async () => {
+    await monta()
+    act(() => useMapStore.getState().setCarimboEscolhido('sebe-aparada'))
+    ponteiro('pointerdown', { x: 200, y: 150 })
+    for (let x = 205; x <= 433; x += 4) ponteiro('pointermove', { x, y: 150 })
+    ponteiro('pointermove', { x: 433, y: 150 })
+    for (let y = 154; y <= 360; y += 4) ponteiro('pointermove', { x: 433, y })
+    ponteiro('pointerup', { x: 433, y: 360 })
+    expect(objetos().some((c) => c.x === 433 && c.y === 150)).toBe(true)
+    expect(objetos().some((c) => c.x === 433 && c.y === 360)).toBe(true)
+    expect(useMapStore.getState().past).toHaveLength(1)
+  })
+
   it('trocar de ferramenta no meio do spray descarta: soltar com a outra ferramenta não grava objeto', async () => {
     await monta()
     arrastaSemSoltar()

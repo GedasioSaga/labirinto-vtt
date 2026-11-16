@@ -4,6 +4,8 @@ import * as mapFactory from '../lib/mapFactory'
 import type { Carimbo } from '../types/map'
 import {
   DENSIDADE_MAX,
+  ESPACO_DO_TRACO_MAX,
+  ESPACO_DO_TRACO_MIN,
   LARGURA_DO_SPRAY_MAX,
   LARGURA_DO_SPRAY_MIN,
   TAMANHO_DO_CARIMBO_MAX,
@@ -35,6 +37,23 @@ describe('mapStore — Carimbos', () => {
     expect(useMapStore.getState().carimboDensidade).toBe(DENSIDADE_MAX)
     s.setCarimboDensidade(Number.NaN)
     expect(useMapStore.getState().carimboDensidade).toBe(DENSIDADE_MAX)
+    expect(useMapStore.getState().past).toHaveLength(0)
+  })
+
+  it('escolher a sebe liga o Traço no espaço que emenda; o carimbo seguinte volta ao Carimbo e ao espaço dele', () => {
+    const s = useMapStore.getState()
+    s.setCarimboEscolhido('sebe-aparada')
+    expect(useMapStore.getState()).toMatchObject({ carimboModo: 'traco', carimboEspaco: 0.36 })
+    s.setCarimboEscolhido('pedras-de-passo')
+    expect(useMapStore.getState()).toMatchObject({ carimboModo: 'carimbo', carimboEspaco: 1.2 })
+    // O Traço ligado à mão fica ao trocar de carimbo; o espaço é o do novo, e o controle fica na faixa.
+    s.setCarimboModo('traco')
+    s.setCarimboEscolhido('seixos')
+    expect(useMapStore.getState()).toMatchObject({ carimboModo: 'traco', carimboEspaco: 0.6 })
+    s.setCarimboEspaco(99)
+    expect(useMapStore.getState().carimboEspaco).toBe(ESPACO_DO_TRACO_MAX)
+    s.setCarimboEspaco(0)
+    expect(useMapStore.getState().carimboEspaco).toBe(ESPACO_DO_TRACO_MIN)
     expect(useMapStore.getState().past).toHaveLength(0)
   })
 

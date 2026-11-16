@@ -136,7 +136,16 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   }
 }
 
-export const carimbo: DefinicaoDeCarimbo = { id: 'pedras-de-passo', nome: 'Pedras de passo', tamanho: 10, sombra: 'baixa', desenhar }
+export const carimbo: DefinicaoDeCarimbo = {
+  id: 'pedras-de-passo',
+  nome: 'Pedras de passo',
+  tamanho: 10,
+  sombra: 'baixa',
+  desenhar,
+  // No TRAÇO (16/11/2026) cada módulo vira para o rumo do caminho e o seguinte começa um passo depois da
+  // última laje: a trilha sai num ritmo só, medida no chão achatado (a que desce na tela também).
+  traco: { espaco: QUANTAS * PASSO, rumo: true, achata: ACHATA },
+}
 
 /** Todas as cores chapadas do desenho. */
 export const paleta: readonly Rgb[] = [...[CINZA, PARDA].flatMap((t) => [t.escura, t.meia, t.clara]), LIQUEN]

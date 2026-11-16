@@ -1,5 +1,6 @@
 import { it, vi } from 'vitest'
-import { DENSIDADE_PADRAO, fatorDeEspaco, tamanhoNatural } from '../lib/carimbos'
+import { criarTraco, DENSIDADE_PADRAO, fatorDeEspaco, tamanhoNatural, TRACO_PADRAO, varianteDoGiro } from '../lib/carimbos'
+import type { RegionPoint } from '../types/map'
 import { unidadeDoRelevo } from '../lib/relevo'
 import { LADO_DO_PEDACO } from '../texturas/meioTermo/chaoNoMundo'
 import { chaoDe, pintarRegiao, type Regiao } from '../texturas/meioTermo/chaoNoMundo.testkit'
@@ -44,7 +45,10 @@ import type { DefinicaoDeCarimbo, DesenhoDeCarimbo, Rgb } from './embutidos'
  * GRANDE (padrão 1, o de 45°). `"tracado": true` (opcional, o carimbo que
  * emenda no vizinho, como a sebe aparada) põe embaixo do cartão o TRAÇADO:
  * vários dele clicados um ao lado do outro, em reta, canto, curva e diagonal,
- * a 100% e a 200%, para ver a emenda (`cliquesDoTracado`).
+ * a 100% e a 200%, para ver a emenda (`cliquesDoTracado`). `"traco": true`
+ * (opcional, 16/11/2026) põe o TRAÇO da ferramenta: o carimbo solto pelo
+ * `criarTraco` do app num arrasto só, numa reta de 10 casas e num L, a 100% e
+ * a 200%, e conta os buracos do módulo que emenda (`buracosDoTraco`).
  *
  *   { "saida": "folha.png", "itens": [ { "id": "pinheiro" }, { "arquivo": "cerejeira" } ] }
  *
@@ -1000,6 +1004,8 @@ interface ItemDoPedido {
   readonly variante: number
   /** `"tracado": true`: o cartão ganha o TRAÇADO (o carimbo que emenda, posto como o mestre clica). */
   readonly tracado: boolean
+  /** `"traco": true`: o cartão ganha o TRAÇO (o carimbo posto pela ferramenta Traço, num arrasto só). */
+  readonly traco: boolean
 }
 
 interface Pedido {
@@ -1024,8 +1030,9 @@ function lerPedido(conteudo: string): Pedido {
       const variante = 'variante' in item ? item.variante : VARIANTE_DO_GRANDE
       if (typeof variante !== 'number' || !Number.isInteger(variante) || variante < 0 || variante >= DESENHOS) throw new Error(`item ${i + 1}: "variante" vai de 0 a 7`)
       const tracado = 'tracado' in item && item.tracado === true
-      if ('id' in item && typeof item.id === 'string') return { rotulo: item.id, id: item.id, variante, tracado }
-      if ('arquivo' in item && typeof item.arquivo === 'string' && NOME_DE_MODULO.test(item.arquivo)) return { rotulo: item.arquivo, modulo: item.arquivo, variante, tracado }
+      const traco = 'traco' in item && item.traco === true
+      if ('id' in item && typeof item.id === 'string') return { rotulo: item.id, id: item.id, variante, tracado, traco }
+      if ('arquivo' in item && typeof item.arquivo === 'string' && NOME_DE_MODULO.test(item.arquivo)) return { rotulo: item.arquivo, modulo: item.arquivo, variante, tracado, traco }
       throw new Error(`item ${i + 1}: "id" (do catálogo) ou "arquivo" (o módulo em carimbos/novos/, sem .ts)`)
     }),
   }
@@ -1060,6 +1067,7 @@ interface CarimboDaFolha {
   readonly novo: boolean
   readonly variante: number
   readonly tracado: boolean
+  readonly traco: boolean
 }
 
 async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
@@ -1067,7 +1075,7 @@ async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
     const def = carimboDoCatalogo(item.id)
     if (def === null) throw new Error(`${item.id}: não há carimbo com esse id no catálogo`)
     const brilho = 'brilho' in def && ehDesenho(def.brilho) ? def.brilho : null
-    return { def, brilho, novo: false, variante: item.variante, tracado: item.tracado }
+    return { def, brilho, novo: false, variante: item.variante, tracado: item.tracado, traco: item.traco }
   }
   const caminho = `./novos/${item.modulo ?? ''}.ts`
   if (!Object.hasOwn(MODULOS, caminho)) throw new Error(`${item.rotulo}: não há ${caminho.slice(2)} em carimbos/ (o "arquivo" do pedido é o nome do módulo em carimbos/novos/, sem .ts)`)
@@ -1075,7 +1083,7 @@ async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
   const def = modulo.carimbo
   if (!ehDefinicao(def)) throw new Error(`${caminho}: tem de exportar "carimbo" com id, nome, tamanho, sombra e desenhar (exporta: ${Object.keys(modulo).join(', ')})`)
   const brilho = ehDesenho(modulo.brilho) ? modulo.brilho : null
-  return { def, brilho, novo: true, variante: item.variante, tracado: item.tracado }
+  return { def, brilho, novo: true, variante: item.variante, tracado: item.tracado, traco: item.traco }
 }
 
 // ---------------------------------------------------------------------------
@@ -1418,6 +1426,170 @@ function janelaDosPostos(postos: readonly Posto[], escala: number): Janela {
   return { w: Math.ceil(x1) - ox + RESPIRO, h: Math.ceil(y1) - oy + RESPIRO, ox, oy, escala, postos }
 }
 
+/**
+ * O TRAÇO (`"traco": true` no item; 16/11/2026): o carimbo posto pela
+ * ferramenta Traço do app (`criarTraco`), com o jeito dele
+ * (`DefinicaoDeCarimbo.traco`), num arrasto só, como a mão arrasta: um ponto a
+ * cada 6 px de mundo, cada um com um tremido de até 1 px para o lado, e o
+ * ponto de soltar exato. Duas formas, em casas do mapa: a RETA de 10 casas e
+ * o L (6 casas para o lado e 5 descendo).
+ */
+const FORMAS_DO_TRACO: readonly { readonly nome: string; readonly cantos: readonly RegionPoint[] }[] = [
+  {
+    nome: 'reta de 10 casas',
+    cantos: [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ],
+  },
+  {
+    nome: 'L de 6 e 5 casas',
+    cantos: [
+      { x: 0, y: 0 },
+      { x: 6, y: 0 },
+      { x: 6, y: 5 },
+    ],
+  },
+]
+const PASSO_DA_MAO = 6
+const TREMIDO_DO_ARRASTO = 1
+
+/** Os pontos do arrasto pelos cantos (px do mundo): o primeiro é o clique, o último o soltar; o meio treme. */
+function arrastoDaMao(cantos: readonly RegionPoint[]): RegionPoint[] {
+  const pontos: RegionPoint[] = [cantos[0]]
+  for (let i = 1; i < cantos.length; i += 1) {
+    const de = cantos[i - 1]
+    const ate = cantos[i]
+    const comprimento = Math.hypot(ate.x - de.x, ate.y - de.y)
+    const n = Math.ceil(comprimento / PASSO_DA_MAO)
+    for (let k = 1; k <= n; k += 1) {
+      const fim = i === cantos.length - 1 && k === n
+      const lado = fim ? 0 : (sorteioDaFolha(pontos.length, 11) - 0.5) * 2 * TREMIDO_DO_ARRASTO
+      // O tremido vai de través ao trecho (a mão escorrega para o lado, não para a frente).
+      pontos.push({ x: de.x + ((ate.x - de.x) * k) / n - ((ate.y - de.y) / comprimento) * lado, y: de.y + ((ate.y - de.y) * k) / n + ((ate.x - de.x) / comprimento) * lado })
+    }
+  }
+  return pontos
+}
+
+/** Os carimbos do traço pelos cantos (px do mundo), com o mesmo `criarTraco` do app, e os postos para a janela. */
+function postosDoTraco(carimbo: CarimboDaFolha, t: number, giros: readonly ArteDoGiro[], cantos: readonly RegionPoint[]): Posto[] {
+  const jeito = carimbo.def.traco ?? TRACO_PADRAO
+  let sorteios = 0
+  let ids = 0
+  const traco = criarTraco({
+    tipo: carimbo.def.id,
+    tamanho: t,
+    espaco: jeito.espaco,
+    jeito,
+    sorteio: () => sorteioDaFolha((sorteios += 1), 13),
+    novoId: () => `t${(ids += 1)}`,
+  })
+  const [clique, ...arrasto] = arrastoDaMao(cantos)
+  traco.comecar(clique)
+  for (const p of arrasto) traco.passar(p)
+  traco.terminar(arrasto.length > 0 ? arrasto[arrasto.length - 1] : clique)
+  return traco.soltos().map((c) => ({ x: c.x, y: c.y, t: c.tamanho, arte: giros[varianteDoGiro(c.giro)], brilho: BRILHO_NA_MESA }))
+}
+
+/** Px da medida dos buracos por px do mundo: a fresta de meio px aparece. */
+const ESCALA_DOS_BURACOS = 2
+/** Alfa do corpo abaixo disto, na faixa que a sebe tem de cobrir, é buraco (o chão aparece). */
+const ALFA_DO_CHEIO = 0.5
+/**
+ * A FAIXA que o módulo que emenda tem de cobrir, em frações do tamanho, em
+ * volta de cada ponto do caminho: o miolo do pé subido (o topo começa 0,40
+ * acima do pé e a frente acaba 0,20 abaixo, de lado ±0,20), com 0,05 de folga
+ * para dentro, longe da borda de folha recortada.
+ */
+const FAIXA_DO_MODULO = { esquerda: -0.15, direita: 0.15, topo: -0.35, base: 0.15 } as const
+
+interface BuracosDoTraco {
+  /** Px (a 2x) da faixa com o chão aparecendo. */
+  readonly buracos: number
+  /** Px (a 2x) da faixa. */
+  readonly faixa: number
+}
+
+/**
+ * Os BURACOS do traço do módulo que emenda: o alfa dos corpos somados (um
+ * sobre o outro, como o palco os pinta) contra a faixa que a sebe tem de
+ * cobrir em volta do caminho ideal (os cantos, sem o tremido; a folga de 0,05
+ * do tamanho cobre o tremido de 1 px). Pixel da faixa com alfa abaixo de 0,5
+ * é buraco.
+ */
+function buracosDoTraco(postos: readonly Posto[], cantos: readonly RegionPoint[], t: number): BuracosDoTraco {
+  const k = ESCALA_DOS_BURACOS
+  const xs = cantos.map((c) => c.x)
+  const ys = cantos.map((c) => c.y)
+  const x0 = Math.min(...xs) - t
+  const y0 = Math.min(...ys) - t
+  const w = Math.ceil((Math.max(...xs) + t - x0) * k)
+  const h = Math.ceil((Math.max(...ys) + t - y0) * k)
+  const alfa = new Float32Array(w * h)
+  const q = QUADRO_DA_BIBLIOTECA
+  const amostra = [0, 0, 0, 0]
+  for (const p of postos) {
+    const base = p.arte.corpo.niveis[0]
+    const ex = p.x + q.esquerda * p.t
+    const ey = p.y + q.topo * p.t
+    const lado = q.lado * p.t
+    for (let py = Math.max(0, Math.floor((ey - y0) * k)); py < Math.min(h, Math.ceil((ey + lado - y0) * k)); py += 1) {
+      for (let px = Math.max(0, Math.floor((ex - x0) * k)); px < Math.min(w, Math.ceil((ex + lado - x0) * k)); px += 1) {
+        const mx = x0 + (px + 0.5) / k
+        const my = y0 + (py + 0.5) / k
+        bilinear(base.px, base.w, base.h, ((mx - ex) / lado) * base.w - 0.5, ((my - ey) / lado) * base.h - 0.5, amostra)
+        const i = py * w + px
+        alfa[i] = alfa[i] + amostra[3] - alfa[i] * amostra[3]
+      }
+    }
+  }
+  const naFaixa = new Uint8Array(w * h)
+  const f = FAIXA_DO_MODULO
+  for (let i = 1; i < cantos.length; i += 1) {
+    const de = cantos[i - 1]
+    const ate = cantos[i]
+    const n = Math.ceil(Math.hypot(ate.x - de.x, ate.y - de.y) * k)
+    for (let s = 0; s <= n; s += 1) {
+      const cx = de.x + ((ate.x - de.x) * s) / n
+      const cy = de.y + ((ate.y - de.y) * s) / n
+      for (let py = Math.ceil((cy + f.topo * t - y0) * k); py < Math.floor((cy + f.base * t - y0) * k); py += 1) {
+        for (let px = Math.ceil((cx + f.esquerda * t - x0) * k); px < Math.floor((cx + f.direita * t - x0) * k); px += 1) naFaixa[py * w + px] = 1
+      }
+    }
+  }
+  let buracos = 0
+  let faixa = 0
+  for (let i = 0; i < naFaixa.length; i += 1) {
+    if (naFaixa[i] === 0) continue
+    faixa += 1
+    if (alfa[i] < ALFA_DO_CHEIO) buracos += 1
+  }
+  return { buracos, faixa }
+}
+
+/** Uma forma do traço na folha: as janelas a 100% e a 200%, quantos ele soltou e os buracos (só no módulo que emenda). */
+interface TracoNaFolha {
+  readonly nome: string
+  readonly janelas: readonly Janela[]
+  readonly soltos: number
+  readonly buracos: BuracosDoTraco | null
+}
+
+function tracosDoCarimbo(carimbo: CarimboDaFolha, t: number, giros: readonly ArteDoGiro[]): TracoNaFolha[] {
+  const casa = MAPA_DA_MESA.grid
+  return FORMAS_DO_TRACO.map((forma) => {
+    const cantos = forma.cantos.map((c) => ({ x: c.x * casa, y: c.y * casa }))
+    const postos = postosDoTraco(carimbo, t, giros, cantos)
+    return {
+      nome: forma.nome,
+      janelas: ESCALAS_DO_TRACADO.map((escala) => janelaDosPostos(postos, escala)),
+      soltos: postos.length,
+      buracos: carimbo.def.traco?.emenda === true ? buracosDoTraco(postos, cantos, t) : null,
+    }
+  })
+}
+
 interface Recorte {
   readonly x0: number
   readonly y0: number
@@ -1586,6 +1758,10 @@ interface Cartao {
   readonly tracados: readonly Janela[]
   /** A faixa do traçado embaixo do cartão (0 sem traçado). */
   readonly alturaDoTracado: number
+  /** O traço da ferramenta, só no item com `"traco": true` (senão, vazio). */
+  readonly tracos: readonly TracoNaFolha[]
+  /** A faixa do traço embaixo do traçado (0 sem traço). */
+  readonly alturaDoTraco: number
   readonly alturaDaLinha: number
   readonly larguraDaDireita: number
   readonly alturaDasJanelas: number
@@ -1626,9 +1802,15 @@ function montarCartao(carimbo: CarimboDaFolha): Cartao {
   const tracados = carimbo.tracado ? ESCALAS_DO_TRACADO.map((escala) => janelaDosPostos(postosDoTracado(t, giros), escala)) : []
   const alturaDoTracado = tracados.length === 0 ? 0 : RESPIRO + LINHA + Math.max(...tracados.map((j) => j.h))
   const larguraDoTracado = tracados.reduce((soma, j) => soma + j.w, 0) + Math.max(0, tracados.length - 1) * FRESTA
+  // O traço: uma fileira por escala, as formas lado a lado.
+  const tracos = carimbo.traco ? tracosDoCarimbo(carimbo, t, giros) : []
+  const fileirasDoTraco = ESCALAS_DO_TRACADO.map((_, e) => tracos.map((forma) => forma.janelas[e]))
+  const alturaDoTraco = tracos.length === 0 ? 0 : RESPIRO + LINHA + fileirasDoTraco.reduce((soma, fileira) => soma + Math.max(...fileira.map((j) => j.h)) + FRESTA, 0)
+  const larguraDoTraco = Math.max(0, ...fileirasDoTraco.map((fileira) => fileira.reduce((soma, j) => soma + j.w, 0) + Math.max(0, fileira.length - 1) * FRESTA))
   const largura = Math.max(
     grande.w + VAO + larguraDaDireita,
     larguraDoTracado,
+    larguraDoTraco,
     larguraDoTexto(def.nome, ESCALA_DO_NOME),
     larguraDoTexto(detalhes, ESCALA_DA_LETRA),
     larguraDoTexto(linhaDasMedidas, ESCALA_DA_LETRA),
@@ -1643,13 +1825,15 @@ function montarCartao(carimbo: CarimboDaFolha): Cartao {
     grupos,
     tracados,
     alturaDoTracado,
+    tracos,
+    alturaDoTraco,
     alturaDaLinha,
     larguraDaDireita,
     alturaDasJanelas,
     detalhes,
     linhaDasMedidas,
     largura,
-    altura: alturaDasJanelas + RESPIRO + LINHA_DO_NOME + LINHA * 2 + alturaDoTracado,
+    altura: alturaDasJanelas + RESPIRO + LINHA_DO_NOME + LINHA * 2 + alturaDoTracado + alturaDoTraco,
   }
 }
 
@@ -1675,6 +1859,11 @@ function relatoDoCartao(c: Cartao): string {
       ? 'ocupa: nada opaco'
       : `ocupa x ${comVirgula(ocupa.x0, 2)} a ${comVirgula(ocupa.x1, 2)}, y ${comVirgula(ocupa.y0, 2)} a ${comVirgula(ocupa.y1, 2)} unidades = ${casas(ocupa.x1 - ocupa.x0)} x ${casas(ocupa.y1 - ocupa.y0)} casas`,
     c.fora.length > 0 ? `FORA DAS METAS: ${c.fora.join(' + ')}` : 'dentro das metas',
+    ...c.tracos.map((forma) => {
+      const espaco = carimbo.def.traco?.espaco ?? TRACO_PADRAO.espaco
+      const buracos = forma.buracos === null ? 'sem medida de buraco (não emenda)' : `buracos ${forma.buracos.buracos} px de ${forma.buracos.faixa} px da faixa (a ${ESCALA_DOS_BURACOS}x)`
+      return `traço ${forma.nome}: ${forma.soltos} soltos num arrasto, espaço ${comVirgula(espaco, 2)} do tamanho, ${buracos}`
+    }),
   ].join(' | ')
 }
 
@@ -1692,15 +1881,31 @@ function desenharCartao(tela: Tela, c: Cartao, x: number, y: number, chaos: read
   escrever(tela, emLetrasDaFolha(c.carimbo.def.nome), x, yDoNome, ESCALA_DO_NOME, TINTA)
   escrever(tela, c.detalhes, x, yDoNome + LINHA_DO_NOME, ESCALA_DA_LETRA, APAGADA)
   escrever(tela, c.linhaDasMedidas, x, yDoNome + LINHA_DO_NOME + LINHA, ESCALA_DA_LETRA, c.fora.length > 0 ? ALERTA : APAGADA)
-  if (c.tracados.length === 0) return
   const yDoTracado = yDoNome + LINHA_DO_NOME + LINHA * 2 + RESPIRO
-  escrever(tela, 'TRACADO COMO O MESTRE CLICA, NA GRAMA A 100 E A 200 POR CENTO', x, yDoTracado, ESCALA_DA_LETRA, APAGADA)
-  const altura = Math.max(...c.tracados.map((j) => j.h))
-  let xDaJanela = x
-  for (const janela of c.tracados) {
-    desenharJanela(tela, janela, xDaJanela, yDoTracado + LINHA, altura, chaos[0])
-    xDaJanela += janela.w + FRESTA
+  if (c.tracados.length > 0) {
+    escrever(tela, 'TRACADO COMO O MESTRE CLICA, NA GRAMA A 100 E A 200 POR CENTO', x, yDoTracado, ESCALA_DA_LETRA, APAGADA)
+    const altura = Math.max(...c.tracados.map((j) => j.h))
+    let xDaJanela = x
+    for (const janela of c.tracados) {
+      desenharJanela(tela, janela, xDaJanela, yDoTracado + LINHA, altura, chaos[0])
+      xDaJanela += janela.w + FRESTA
+    }
   }
+  if (c.tracos.length === 0) return
+  // O traço vem depois do traçado (a faixa dele começa onde a do traçado acaba, ou no lugar dela).
+  let yDaFileira = yDoTracado - RESPIRO + c.alturaDoTracado + RESPIRO
+  escrever(tela, 'TRACO NUM ARRASTO SO, RETA DE 10 CASAS E L, NA GRAMA A 100 E A 200 POR CENTO', x, yDaFileira, ESCALA_DA_LETRA, APAGADA)
+  yDaFileira += LINHA
+  ESCALAS_DO_TRACADO.forEach((_, e) => {
+    const fileira = c.tracos.map((forma) => forma.janelas[e])
+    const altura = Math.max(...fileira.map((j) => j.h))
+    let xDaJanela = x
+    for (const janela of fileira) {
+      desenharJanela(tela, janela, xDaJanela, yDaFileira, altura, chaos[0])
+      xDaJanela += janela.w + FRESTA
+    }
+    yDaFileira += altura + FRESTA
+  })
 }
 
 function quebrarEmFileiras(cartoes: readonly Cartao[], limite: number): Cartao[][] {

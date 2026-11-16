@@ -151,11 +151,26 @@ describe('CarimbosControls', () => {
 
   it('a borracha não mostra objeto, tamanho nem densidade; a largura vira a da borracha', () => {
     montar()
-    act(() => radios('Ao clicar')[1].click())
+    expect(radios('Ao clicar').map((b) => b.textContent)).toEqual(['Carimbo', 'Traço', 'Borracha'])
+    act(() => radios('Ao clicar')[2].click())
     expect(useMapStore.getState().carimboModo).toBe('borracha')
     expect(radios('Objeto')).toHaveLength(0)
     const rotulos = Array.from(palco.querySelectorAll('label')).map((l) => l.textContent)
     expect(rotulos).toEqual(['Largura da borracha'])
+  })
+
+  it('o Traço troca a largura e a densidade pelo espaço, e a faixa muda a ferramenta na hora', () => {
+    montar()
+    act(() => radios('Ao clicar')[1].click())
+    expect(useMapStore.getState().carimboModo).toBe('traco')
+    expect(radios('Objeto').length).toBeGreaterThan(0)
+    const rotulos = Array.from(palco.querySelectorAll('label')).map((l) => l.textContent)
+    expect(rotulos).toEqual(['Tamanho', 'Os próximos barram a passagem', 'Espaço no traço'])
+    // O pinheiro anda a um tamanho de distância.
+    expect(palco.textContent).toContain('100%')
+    mudarFaixa('Espaço no traço', 0.5)
+    expect(useMapStore.getState().carimboEspaco).toBe(0.5)
+    expect(palco.textContent).toContain('50%')
   })
 
   it('as faixas mudam a ferramenta na hora', () => {

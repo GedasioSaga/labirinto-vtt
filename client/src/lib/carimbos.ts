@@ -6,7 +6,9 @@ import { camadaLida } from './camadas/arquivo'
  * CARIMBOS (fatia 5 do plano do relevo de 09/10/2026): a ferramenta em que o
  * mestre solta objetos no mapa — pinheiro, árvore, palmeira, pedras, poça...
  * Um clique solta um; segurar e arrastar ESPALHA vários (spray com espaço,
- * tamanho e giro variados, densidade escolhida); a borracha tira.
+ * tamanho e giro variados, densidade escolhida); no TRAÇO, arrastar solta um
+ * a cada passo fixo ao longo do caminho (a sebe, a trilha de pedras); a
+ * borracha tira.
  *
  * Ao contrário da textura (que guarda os passos e pinta de novo), aqui cada
  * objeto É o dado (`MapData.carimbos`): base, tamanho e giro. Fica parado onde
@@ -17,8 +19,13 @@ import { camadaLida } from './camadas/arquivo'
  * objetos mora em `src/carimbos/` e o palco em `pixi/drawCarimbos.ts`.
  */
 
-/** O que o PRÓXIMO gesto da ferramenta faz (preferência da ferramenta, fora do map.json). */
-export type ModoDoCarimbo = 'carimbo' | 'borracha'
+/**
+ * O que o PRÓXIMO gesto da ferramenta faz (preferência da ferramenta, fora do
+ * map.json): `carimbo` = clique solta um, arrasto espalha (spray); `traco` =
+ * clique solta um, arrasto solta um a cada passo fixo ao longo do caminho
+ * (`criarTraco`); `borracha` tira.
+ */
+export type ModoDoCarimbo = 'carimbo' | 'traco' | 'borracha'
 
 /** O que o soltar do gesto fez, para a tela dizer quando não fez (ou fez só em parte). */
 export type ResultadoDoCarimbo =
@@ -455,8 +462,13 @@ export interface Spray {
   passar: (ponto: RegionPoint) => Carimbo[]
   /** Todos os que este gesto soltou, na ordem. */
   soltos: () => readonly Carimbo[]
-  /** O spray já soltou alguma coisa além do clique? */
+  /** O spray já soltou alguma coisa além do clique? (No traço: a mão já saiu do clique.) */
   espalhou: () => boolean
+  /**
+   * O ponteiro subiu aqui (`null` = o gesto acabou sem ponto, ponteiro
+   * cancelado). O traço fecha o caminho até a ponta; o spray não tem ponta.
+   */
+  terminar: (ponto: RegionPoint | null) => void
 }
 
 /** Tentativas de lugar por ponto do caminho: poucas, e o arrasto repetido enche o que faltou. */
@@ -560,6 +572,218 @@ export function criarSpray(opcoes: OpcoesDoSpray): Spray {
     },
     soltos: () => soltos,
     espalhou: () => espalhou,
+    // O spray espalha a cada passo da mão: soltar não acrescenta nada.
+    terminar: () => undefined,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Traço (16/11/2026: a sebe saiu do Objeto, que a desenhava num gesto só, e
+// virou um módulo do Carimbo; clicar módulo a módulo, ou o spray, que no mais
+// denso deixa 0,62 do tamanho entre dois, abria buracos)
+
+/**
+ * Como um carimbo anda no TRAÇO: o espaço de um ao outro ao longo do caminho
+ * e o que o desenho dele pede. Mora na definição do carimbo
+ * (`DefinicaoDeCarimbo.traco`); sem ela, `TRACO_PADRAO`.
+ */
+export interface TracoDoCarimbo {
+  /** De um ao outro, ao longo do caminho, em frações do tamanho: o "Espaço" com que o painel começa. */
+  readonly espaco: number
+  /**
+   * Módulo que emenda no vizinho (a sebe): o traço solta um em cada canto e
+   * um na ponta, para a quina não sair mordida nem a sebe parar antes da mão,
+   * e todos no mesmo tamanho (a emenda conta com o lado do vizinho).
+   */
+  readonly emenda?: boolean
+  /** O giro segue o rumo do caminho (a trilha de pedras de passo), em vez de sorteado; todos no mesmo tamanho. */
+  readonly rumo?: boolean
+  /**
+   * O chão do desenho achatado em y (a trilha vista um pouco de frente): o
+   * espaço e o rumo se medem nesse chão, e a trilha que desce na tela fica no
+   * mesmo ritmo da que corre de lado. Ausente = 1 (vista de cima).
+   */
+  readonly achata?: number
+  /** Escolher este carimbo liga o Traço (e escolher outro sem esta marca volta ao Carimbo). */
+  readonly preferido?: boolean
+}
+
+/** O carimbo sem jeito próprio: um ao lado do outro, a um tamanho de distância (a fileira de árvores). */
+export const TRACO_PADRAO: TracoDoCarimbo = { espaco: 1 }
+
+/** O "Espaço" do traço, em frações do tamanho: de bem encostados a três objetos de distância. */
+export const ESPACO_DO_TRACO_MIN = 0.2
+export const ESPACO_DO_TRACO_MAX = 3
+
+export interface OpcoesDoTraco {
+  tipo: string
+  /** O tamanho escolhido, já no mundo (`tamanhoNatural`). */
+  tamanho: number
+  /** O espaço escolhido, em frações do tamanho. */
+  espaco: number
+  jeito: TracoDoCarimbo
+  sorteio?: Sorteio
+  novoId?: () => string
+  /** Quantos objetos este gesto ainda pode soltar (o teto da cena menos o que já há). */
+  vagas?: number
+}
+
+/** O caminho guarda um ponto só depois de a mão andar esta fração do passo: o tremido não alonga o caminho. */
+const PASSO_DO_CAMINHO = 0.1
+/** A mudança de rumo, de um objeto ao seguinte, que já pode ser canto (graus). */
+const CANTO_MINIMO_EM_GRAUS = 30
+/** O ponto do caminho tem de sair da corda ao menos esta fração do passo para ser canto (a curva larga não é). */
+const FUNDO_MINIMO_DO_CANTO = 0.1
+/** O canto ou a ponta a menos desta fração do passo de um objeto já solto está coberto. */
+const JA_COBERTO = 0.15
+
+interface PontoDoCaminho {
+  readonly p: RegionPoint
+  /** Distância no chão do desenho do começo do caminho até aqui. */
+  readonly arco: number
+}
+
+/**
+ * O TRAÇO: arrastar solta um objeto a cada `espaco × tamanho` medidos AO
+ * LONGO do caminho da mão (não em linha reta), o primeiro no ponto do clique.
+ * O caminho só guarda o ponto quando a mão anda um décimo do passo, então o
+ * tremido não junta os objetos. Sem a conferência de espaço do spray: o
+ * mestre põe a sebe por cima da que já existe, e a trilha de pedras entra na
+ * água, porque o traço é dele.
+ *
+ * O módulo que emenda (`jeito.emenda`) ganha também um no CANTO: a cada
+ * objeto solto, se o rumo virou mais que `CANTO_MINIMO_EM_GRAUS` entre os
+ * dois últimos trechos, o ponto do caminho mais longe da corda entre eles é o
+ * canto, e recebe um. Sem isso, o quadrado do módulo deixa a quina de fora
+ * mordida (até meio passo de cada lado). E um na PONTA, onde a mão soltou.
+ */
+export function criarTraco(opcoes: OpcoesDoTraco): Spray {
+  const sorteio = opcoes.sorteio ?? Math.random
+  const novoId = opcoes.novoId ?? novoIdDeCarimbo
+  const { jeito } = opcoes
+  const achata = jeito.achata !== undefined && jeito.achata > 0 ? jeito.achata : 1
+  const iguais = jeito.emenda === true || jeito.rumo === true
+  const passo = Math.max(1, limitar(opcoes.espaco, ESPACO_DO_TRACO_MIN, ESPACO_DO_TRACO_MAX) * opcoes.tamanho)
+  /** A distância no chão do desenho: o y achatado volta ao tamanho de verdade. */
+  const noChao = (a: RegionPoint, b: RegionPoint) => Math.hypot(b.x - a.x, (b.y - a.y) / achata)
+  /** O rumo de `a` para `b`, em graus, no chão do desenho (0 = para a direita, 90 = para baixo na tela). */
+  const rumoDe = (a: RegionPoint, b: RegionPoint) => (Math.atan2((b.y - a.y) / achata, b.x - a.x) * 180) / Math.PI
+
+  const caminho: PontoDoCaminho[] = []
+  const soltos: Carimbo[] = []
+  /** Os objetos do passo fixo (sem os de canto e de ponta), com o lugar deles no caminho. */
+  const marcos: Array<{ readonly indice: number; readonly ponto: PontoDoCaminho }> = []
+  let vagas = opcoes.vagas ?? Infinity
+  let proximoArco = passo
+  let saiu = false
+
+  // Um décimo de px basta (o spray arredonda ao px; aqui o passo é que manda na emenda).
+  const decimo = (v: number) => Math.round(v * 10) / 10
+  const criar = (p: RegionPoint, giro: number): Carimbo => ({
+    id: novoId(),
+    tipo: opcoes.tipo,
+    x: decimo(p.x),
+    y: decimo(p.y),
+    tamanho: decimo(opcoes.tamanho * (iguais ? 1 : 1 + (sorteio() * 2 - 1) * VARIACAO_DO_CLIQUE)),
+    giro: normalizarGiro(giro),
+  })
+  /** O giro do objeto: o rumo, quando o desenho pede; senão sorteado (só troca o desenho entre os oito). */
+  const giroDe = (rumo: number) => (jeito.rumo === true ? rumo : sorteio() * 360)
+
+  const soltar = (p: RegionPoint, rumo: number, nascidos: Carimbo[]): number | null => {
+    if (vagas <= 0) return null
+    const novo = criar(p, giroDe(rumo))
+    soltos.push(novo)
+    nascidos.push(novo)
+    vagas -= 1
+    return soltos.length - 1
+  }
+
+  const coberto = (p: RegionPoint) => soltos.some((c) => noChao(c, p) < JA_COBERTO * passo)
+
+  /** O canto entre os marcos `a` e `b` (o ponto do caminho mais longe da corda), se o rumo virou no meio. */
+  const cantoEntre = (a: PontoDoCaminho, meio: PontoDoCaminho, b: PontoDoCaminho): RegionPoint | null => {
+    const antes = rumoDe(a.p, meio.p)
+    const depois = rumoDe(meio.p, b.p)
+    const virada = Math.abs((((depois - antes) % 360) + 540) % 360 - 180)
+    if (virada < CANTO_MINIMO_EM_GRAUS) return null
+    const corda = noChao(a.p, b.p)
+    if (corda === 0) return null
+    let canto: RegionPoint | null = null
+    let fundo = FUNDO_MINIMO_DO_CANTO * passo
+    for (const q of caminho) {
+      if (q.arco <= a.arco || q.arco >= b.arco) continue
+      // A distância do ponto à corda, no chão do desenho (o produto vetorial pela corda).
+      const d = Math.abs((b.p.x - a.p.x) * ((q.p.y - a.p.y) / achata) - ((b.p.y - a.p.y) / achata) * (q.p.x - a.p.x)) / corda
+      if (d > fundo) {
+        fundo = d
+        canto = q.p
+      }
+    }
+    return canto
+  }
+
+  /** O módulo que emenda: confere o canto entre os três últimos marcos (e a ponta, quando é ela o último). */
+  const conferirCanto = (ultimo: PontoDoCaminho, nascidos: Carimbo[]) => {
+    if (jeito.emenda !== true || marcos.length < 2) return
+    const a = marcos[marcos.length - 2].ponto
+    const meio = marcos[marcos.length - 1].ponto
+    const canto = cantoEntre(a, meio, ultimo)
+    if (canto !== null && !coberto(canto)) soltar(canto, rumoDe(a.p, ultimo.p), nascidos)
+  }
+
+  /** Mais um ponto no caminho: solta os do passo fixo que caem no trecho novo. */
+  const andar = (ponto: RegionPoint, nascidos: Carimbo[]) => {
+    const de = caminho[caminho.length - 1]
+    const trecho = noChao(de.p, ponto)
+    const ate: PontoDoCaminho = { p: ponto, arco: de.arco + trecho }
+    caminho.push(ate)
+    saiu = true
+    while (proximoArco <= ate.arco && vagas > 0) {
+      const t = (proximoArco - de.arco) / trecho
+      const marco: PontoDoCaminho = { p: { x: de.p.x + (ponto.x - de.p.x) * t, y: de.p.y + (ponto.y - de.p.y) * t }, arco: proximoArco }
+      const anterior = marcos[marcos.length - 1]
+      conferirCanto(marco, nascidos)
+      const indice = soltar(marco.p, rumoDe(anterior.ponto.p, marco.p), nascidos)
+      if (indice === null) break
+      // O primeiro esperava o rumo: só agora se sabe para onde a trilha vai.
+      if (jeito.rumo === true && marcos.length === 1) soltos[anterior.indice] = { ...soltos[anterior.indice], giro: normalizarGiro(rumoDe(anterior.ponto.p, marco.p)) }
+      marcos.push({ indice, ponto: marco })
+      proximoArco += passo
+    }
+  }
+
+  return {
+    comecar: (ponto) => {
+      const inicio: PontoDoCaminho = { p: ponto, arco: 0 }
+      caminho.push(inicio)
+      // Sem rumo ainda: a trilha de um clique só corre de lado (0°).
+      const indice = soltar(ponto, 0, [])
+      if (indice === null) return null
+      marcos.push({ indice, ponto: inicio })
+      return soltos[indice]
+    },
+    passar: (ponto) => {
+      const nascidos: Carimbo[] = []
+      const ultimo = caminho[caminho.length - 1]
+      if (ultimo === undefined || noChao(ultimo.p, ponto) < PASSO_DO_CAMINHO * passo) return nascidos
+      andar(ponto, nascidos)
+      return nascidos
+    },
+    soltos: () => soltos,
+    espalhou: () => saiu,
+    terminar: (ponto) => {
+      // Um clique (a mão nem saiu dele): fica o objeto do clique, sozinho.
+      if (!saiu || marcos.length === 0) return
+      const nascidos: Carimbo[] = []
+      const ultimo = caminho[caminho.length - 1]
+      if (ponto !== null && noChao(ultimo.p, ponto) > 0) andar(ponto, nascidos)
+      const fim = caminho[caminho.length - 1]
+      if (jeito.emenda !== true || coberto(fim.p)) return
+      // A ponta como último marco: o canto logo antes dela também fecha.
+      conferirCanto(fim, nascidos)
+      soltar(fim.p, rumoDe(marcos[marcos.length - 1].ponto.p, fim.p), nascidos)
+    },
   }
 }
 

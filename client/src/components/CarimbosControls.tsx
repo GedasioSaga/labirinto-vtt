@@ -4,6 +4,8 @@ import type { CarimboImportado } from '../types/map'
 import {
   DENSIDADE_MAX,
   DENSIDADE_MIN,
+  ESPACO_DO_TRACO_MAX,
+  ESPACO_DO_TRACO_MIN,
   LARGURA_DO_SPRAY_MAX,
   LARGURA_DO_SPRAY_MIN,
   TAMANHO_DO_CARIMBO_MAX,
@@ -27,6 +29,11 @@ const MODOS: Array<{ modo: ModoDoCarimbo; rotulo: string; dica: string }> = [
     modo: 'carimbo',
     rotulo: 'Carimbo',
     dica: 'Clique para soltar um. Segure e arraste para espalhar vários; começando na terra, o spray fica na terra. Segure Alt para apagar.',
+  },
+  {
+    modo: 'traco',
+    rotulo: 'Traço',
+    dica: 'Arraste uma linha: um objeto a cada passo, ao longo do caminho, e o traço inteiro sai num Ctrl+Z. A sebe emenda sem fresta e fecha os cantos. Clique para soltar um; segure Alt para apagar.',
   },
   { modo: 'borracha', rotulo: 'Borracha', dica: 'Clique ou arraste por cima dos objetos para tirá-los. O que vai sair fica apagado até você soltar.' },
 ]
@@ -107,13 +114,14 @@ const COLUNAS = 3
 
 /**
  * Painel da ferramenta Carimbos (`lib/carimbos.ts`): o que o PRÓXIMO gesto
- * faz (Carimbo | Borracha), a BIBLIOTECA em miniaturas (os embutidos, os do
- * pacote e os que o mestre importou), importar uma imagem, o tamanho do
- * objeto, a largura do spray e a densidade.
+ * faz (Carimbo | Traço | Borracha), a BIBLIOTECA em miniaturas (os
+ * embutidos, os do pacote e os que o mestre importou), importar uma imagem, o
+ * tamanho do objeto, a largura do spray e a densidade (no Traço, o espaço).
  *
  * Lê e escreve a store direto (como `TexturasControls`). O que não serve ao
  * modo escolhido não aparece (a borracha não tem objeto, tamanho nem
- * densidade), para nenhum controle ficar na tela sem efeito.
+ * densidade; o traço não tem largura nem densidade), para nenhum controle
+ * ficar na tela sem efeito.
  */
 export function CarimbosControls() {
   const modo = useMapStore((s) => s.carimboModo)
@@ -126,6 +134,8 @@ export function CarimbosControls() {
   const setLargura = useMapStore((s) => s.setCarimboLargura)
   const densidade = useMapStore((s) => s.carimboDensidade)
   const setDensidade = useMapStore((s) => s.setCarimboDensidade)
+  const espaco = useMapStore((s) => s.carimboEspaco)
+  const setEspaco = useMapStore((s) => s.setCarimboEspaco)
   const barra = useMapStore((s) => s.carimboBarra)
   const setBarra = useMapStore((s) => s.setCarimboBarra)
   const importados = useMapStore((s) => s.map.carimbosImportados ?? SEM_IMPORTADOS)
@@ -210,7 +220,7 @@ export function CarimbosControls() {
       </div>
       <p className="lb-field__hint">{dicaDoModo}</p>
 
-      {modo === 'carimbo' && (
+      {modo !== 'borracha' && (
         <>
           <h2 className="lb-eyebrow">Objeto</h2>
           <div ref={grade} className="lb-carimbos__grade" role="radiogroup" aria-label="Objeto" onKeyDown={navegar}>
@@ -281,24 +291,50 @@ export function CarimbosControls() {
         </>
       )}
 
-      <div className="lb-field">
-        <div className="lb-section__row">
-          <label className="lb-label" htmlFor="lb-carimbo-largura">
-            {modo === 'borracha' ? 'Largura da borracha' : 'Largura do spray'}
-          </label>
-          <span className="lb-num">{largura}</span>
+      {modo === 'traco' ? (
+        <div className="lb-field">
+          <div className="lb-section__row">
+            <label className="lb-label" htmlFor="lb-carimbo-espaco">
+              Espaço no traço
+            </label>
+            <span className="lb-num">{Math.round(espaco * 100)}%</span>
+          </div>
+          <input
+            id="lb-carimbo-espaco"
+            className="lb-range"
+            type="range"
+            min={ESPACO_DO_TRACO_MIN}
+            max={ESPACO_DO_TRACO_MAX}
+            step={0.02}
+            value={espaco}
+            aria-describedby="lb-carimbo-espaco-dica"
+            onChange={(event) => setEspaco(Number(event.target.value))}
+          />
+          <p id="lb-carimbo-espaco-dica" className="lb-field__hint">
+            De um objeto ao outro, em % do tamanho dele. Cada carimbo começa no espaço dele: a sebe, emendada.
+          </p>
         </div>
-        <input
-          id="lb-carimbo-largura"
-          className="lb-range"
-          type="range"
-          min={LARGURA_DO_SPRAY_MIN}
-          max={LARGURA_DO_SPRAY_MAX}
-          step={2}
-          value={largura}
-          onChange={(event) => setLargura(Number(event.target.value))}
-        />
-      </div>
+      ) : (
+        // No Traço os objetos caem no caminho da mão, sem largura: o controle some (o Alt apaga na largura de sempre).
+        <div className="lb-field">
+          <div className="lb-section__row">
+            <label className="lb-label" htmlFor="lb-carimbo-largura">
+              {modo === 'borracha' ? 'Largura da borracha' : 'Largura do spray'}
+            </label>
+            <span className="lb-num">{largura}</span>
+          </div>
+          <input
+            id="lb-carimbo-largura"
+            className="lb-range"
+            type="range"
+            min={LARGURA_DO_SPRAY_MIN}
+            max={LARGURA_DO_SPRAY_MAX}
+            step={2}
+            value={largura}
+            onChange={(event) => setLargura(Number(event.target.value))}
+          />
+        </div>
+      )}
       {modo === 'carimbo' && (
         <div className="lb-field">
           <div className="lb-section__row">

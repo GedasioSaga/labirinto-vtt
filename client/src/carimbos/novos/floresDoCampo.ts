@@ -186,6 +186,15 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   desenharFlores(g, lista)
 }
 
-export const carimbo: DefinicaoDeCarimbo = { id: 'flores-do-campo', nome: 'Flores do campo', tamanho: 5, sombra: 'baixa', desenhar }
+export const carimbo: DefinicaoDeCarimbo = {
+  id: 'flores-do-campo',
+  nome: 'Flores do campo',
+  tamanho: 5,
+  sombra: 'baixa',
+  desenhar,
+  // No TRAÇO (16/11/2026), o canteiro na beira do caminho: as moitas (0,8 de largura) se encostam, medidas no chão
+  // achatado da moita, para a fileira que desce na tela também fechar.
+  traco: { espaco: 0.7, achata: MOITA.ry / MOITA.rx },
+}
 
 export const paleta: readonly Rgb[] = [FOLHA_ESCURA, FOLHA_MEDIA, FOLHA_CLARA, ...CORES.flatMap((c) => [c.clara, c.sombra, c.miolo])]

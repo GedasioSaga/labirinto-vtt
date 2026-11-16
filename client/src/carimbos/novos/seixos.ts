@@ -87,7 +87,16 @@ function desenhar(g: CanvasRenderingContext2D, giro: number, semente: number): v
   for (const s of seixos) desenharSeixo(g, s)
 }
 
-export const carimbo: DefinicaoDeCarimbo = { id: 'seixos', nome: 'Seixos de rio', tamanho: 10, sombra: 'baixa', desenhar }
+export const carimbo: DefinicaoDeCarimbo = {
+  id: 'seixos',
+  nome: 'Seixos de rio',
+  tamanho: 10,
+  sombra: 'baixa',
+  desenhar,
+  // No TRAÇO (16/11/2026), a margem de seixos: o punhado (0,8 de largura) entra um pouco no vizinho, medido no
+  // chão achatado, para a faixa que desce na tela não abrir entre um punhado e outro.
+  traco: { espaco: 0.6, achata: ACHATA },
+}
 
 export const paleta: readonly Rgb[] = [
   ...[CINZA, AZULADO, OCRE, FERRUGEM, QUARTZO].flatMap((t) => [t.escura, t.meia, t.clara]),
