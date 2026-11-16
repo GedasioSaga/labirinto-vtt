@@ -56,8 +56,9 @@ de `src/carimbos/embutidos.ts` (`pinheiro`, `pinheiro-nevado`, `arvore`,
 `monte-de-neve`, `arvore-congelada`, `bloco-de-gelo`, `cristais`,
 `estalagmite`, `cogumelos-que-brilham`, `rochedo-com-musgo`,
 `rocha-vulcanica`, `raiz-retorcida`, `planta-carnivora`, `flor-gigante`,
-`arvore-de-doces` e, do lote L3 de 15/11/2026, `arbusto-azulado`,
-`cristais-verdes`, `fenda-em-brasa`, `pedras-de-passo`). A exceção são os
+`arvore-de-doces`, do lote L3 de 15/11/2026, `arbusto-azulado`,
+`cristais-verdes`, `fenda-em-brasa`, `pedras-de-passo` e, da Fase 6 de
+16/11/2026, `sebe-aparada`). A exceção são os
 dois daqui, `girassol` e `girassois`: desde 14/11/2026 a biblioteca os tem com este mesmo desenho
 (`src/carimbos/novos/girassol.ts` e `girassois.ts` importam daqui), o app
 novo pula a entrada do pacote e o pacote continua levando os dois para o app

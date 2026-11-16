@@ -41,7 +41,10 @@ import type { DefinicaoDeCarimbo, DesenhoDeCarimbo, Rgb } from './embutidos'
  * `carimbos/novos/` (sem `.ts`), que exporta `carimbo` (`DefinicaoDeCarimbo`)
  * e, só no carimbo com brilho, `brilho` (`DesenhoDeCarimbo`, a parte que
  * acende, somada por cima). `variante` (0 a 7, opcional) troca o desenho do
- * GRANDE (padrão 1, o de 45°).
+ * GRANDE (padrão 1, o de 45°). `"tracado": true` (opcional, o carimbo que
+ * emenda no vizinho, como a sebe aparada) põe embaixo do cartão o TRAÇADO:
+ * vários dele clicados um ao lado do outro, em reta, canto, curva e diagonal,
+ * a 100% e a 200%, para ver a emenda (`cliquesDoTracado`).
  *
  *   { "saida": "folha.png", "itens": [ { "id": "pinheiro" }, { "arquivo": "cerejeira" } ] }
  *
@@ -995,6 +998,8 @@ interface ItemDoPedido {
   readonly id?: string
   readonly modulo?: string
   readonly variante: number
+  /** `"tracado": true`: o cartão ganha o TRAÇADO (o carimbo que emenda, posto como o mestre clica). */
+  readonly tracado: boolean
 }
 
 interface Pedido {
@@ -1018,8 +1023,9 @@ function lerPedido(conteudo: string): Pedido {
       if (typeof item !== 'object' || item === null) throw new Error(`item ${i + 1}: tem de ser um objeto`)
       const variante = 'variante' in item ? item.variante : VARIANTE_DO_GRANDE
       if (typeof variante !== 'number' || !Number.isInteger(variante) || variante < 0 || variante >= DESENHOS) throw new Error(`item ${i + 1}: "variante" vai de 0 a 7`)
-      if ('id' in item && typeof item.id === 'string') return { rotulo: item.id, id: item.id, variante }
-      if ('arquivo' in item && typeof item.arquivo === 'string' && NOME_DE_MODULO.test(item.arquivo)) return { rotulo: item.arquivo, modulo: item.arquivo, variante }
+      const tracado = 'tracado' in item && item.tracado === true
+      if ('id' in item && typeof item.id === 'string') return { rotulo: item.id, id: item.id, variante, tracado }
+      if ('arquivo' in item && typeof item.arquivo === 'string' && NOME_DE_MODULO.test(item.arquivo)) return { rotulo: item.arquivo, modulo: item.arquivo, variante, tracado }
       throw new Error(`item ${i + 1}: "id" (do catálogo) ou "arquivo" (o módulo em carimbos/novos/, sem .ts)`)
     }),
   }
@@ -1053,6 +1059,7 @@ interface CarimboDaFolha {
   readonly brilho: DesenhoDeCarimbo | null
   readonly novo: boolean
   readonly variante: number
+  readonly tracado: boolean
 }
 
 async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
@@ -1060,7 +1067,7 @@ async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
     const def = carimboDoCatalogo(item.id)
     if (def === null) throw new Error(`${item.id}: não há carimbo com esse id no catálogo`)
     const brilho = 'brilho' in def && ehDesenho(def.brilho) ? def.brilho : null
-    return { def, brilho, novo: false, variante: item.variante }
+    return { def, brilho, novo: false, variante: item.variante, tracado: item.tracado }
   }
   const caminho = `./novos/${item.modulo ?? ''}.ts`
   if (!Object.hasOwn(MODULOS, caminho)) throw new Error(`${item.rotulo}: não há ${caminho.slice(2)} em carimbos/ (o "arquivo" do pedido é o nome do módulo em carimbos/novos/, sem .ts)`)
@@ -1068,7 +1075,7 @@ async function carimboDoItem(item: ItemDoPedido): Promise<CarimboDaFolha> {
   const def = modulo.carimbo
   if (!ehDefinicao(def)) throw new Error(`${caminho}: tem de exportar "carimbo" com id, nome, tamanho, sombra e desenhar (exporta: ${Object.keys(modulo).join(', ')})`)
   const brilho = ehDesenho(modulo.brilho) ? modulo.brilho : null
-  return { def, brilho, novo: true, variante: item.variante }
+  return { def, brilho, novo: true, variante: item.variante, tracado: item.tracado }
 }
 
 // ---------------------------------------------------------------------------
@@ -1322,6 +1329,57 @@ const GRUPO: readonly { readonly dx: number; readonly dy: number; readonly varia
   { dx: 0.5, dy: 0.6, variante: 3, tamanho: 1.15 },
 ]
 
+/**
+ * O TRAÇADO (`"tracado": true` no item; a sebe aparada de 16/11/2026): o
+ * carimbo que emenda no vizinho posto como o mestre o desenha, um clique ao
+ * lado do outro, a 0,32 do tamanho: uma reta, o canto, a descida, um quarto de
+ * volta, a reta de volta e uma diagonal à parte. Cada clique com o tremido da
+ * mão (até 0,025 do tamanho para cada lado), a variação do clique (±6%,
+ * `VARIACAO_DO_CLIQUE` de `lib/carimbos.ts`) e o desenho sorteado (o giro do
+ * clique é sorteado). Na GRAMA, a 100% e a 200% (o mestre chega perto), para
+ * ver a emenda.
+ */
+const PASSO_DO_TRACADO = 0.32
+const TREMIDO_DA_MAO = 0.025
+const VARIACAO_DO_CLIQUE_NA_FOLHA = 0.06
+const ESCALAS_DO_TRACADO: readonly number[] = [1, 2]
+
+/** Sorteio fixo de 0 a 1 (o de `embutidos.ts`): o mesmo traçado em toda folha. */
+function sorteioDaFolha(semente: number, i: number): number {
+  const s = Math.sin(semente * 127.1 + i * 311.7 + 74.7) * 43758.5453
+  return s - Math.floor(s)
+}
+
+/** Os cliques do traçado, em unidades do tamanho, antes do tremido (o desenho em passos de clique). */
+function cliquesDoTracado(): Array<{ readonly x: number; readonly y: number }> {
+  const p = PASSO_DO_TRACADO
+  const cliques: Array<{ x: number; y: number }> = []
+  for (let i = 0; i < 12; i += 1) cliques.push({ x: i * p, y: 0 })
+  const xDaDescida = 11 * p
+  for (let i = 1; i <= 6; i += 1) cliques.push({ x: xDaDescida, y: i * p })
+  const raio = 5 * p
+  const centro = { x: xDaDescida - raio, y: 6 * p }
+  const n = Math.round((raio * Math.PI) / 2 / p)
+  for (let i = 1; i <= n; i += 1) {
+    const a = (i / n) * (Math.PI / 2)
+    cliques.push({ x: centro.x + raio * Math.cos(a), y: centro.y + raio * Math.sin(a) })
+  }
+  for (let i = 1; i <= 5; i += 1) cliques.push({ x: centro.x - i * p, y: centro.y + raio })
+  for (let i = 0; i < 6; i += 1) cliques.push({ x: (1 + 0.75 * i) * p, y: (2.5 + 0.75 * i) * p })
+  return cliques
+}
+
+/** Os postos do traçado no tamanho de mesa `t` (px do mundo por unidade). */
+function postosDoTracado(t: number, giros: readonly ArteDoGiro[]): Posto[] {
+  return cliquesDoTracado().map((c, i) => ({
+    x: (c.x + (sorteioDaFolha(i, 1) - 0.5) * 2 * TREMIDO_DA_MAO) * t,
+    y: (c.y + (sorteioDaFolha(i, 2) - 0.5) * 2 * TREMIDO_DA_MAO) * t,
+    t: t * (1 + (sorteioDaFolha(i, 3) * 2 - 1) * VARIACAO_DO_CLIQUE_NA_FOLHA),
+    arte: giros[Math.floor(sorteioDaFolha(i, 4) * DESENHOS) % DESENHOS],
+    brilho: BRILHO_NA_MESA,
+  }))
+}
+
 /** Uma janela: o que cabe nela, em px da folha, e o canto dela no mundo visto na `escala` (px da folha por px do mundo). */
 interface Janela {
   readonly w: number
@@ -1524,6 +1582,10 @@ interface Cartao {
   readonly grande: Janela
   readonly mesas: readonly Janela[]
   readonly grupos: readonly Janela[]
+  /** O traçado a 100% e a 200%, só no item com `"tracado": true` (senão, vazio). */
+  readonly tracados: readonly Janela[]
+  /** A faixa do traçado embaixo do cartão (0 sem traçado). */
+  readonly alturaDoTracado: number
   readonly alturaDaLinha: number
   readonly larguraDaDireita: number
   readonly alturaDasJanelas: number
@@ -1561,7 +1623,16 @@ function montarCartao(carimbo: CarimboDaFolha): Cartao {
   const linhaDasMedidas = emLetrasDaFolha(
     `sat ${comVirgula(medidas.saturacaoP95, 2)}, contorno ${comVirgula(medidas.contornoMinimo, 2)}, ${medidas.comandos} comandos, ${Math.round(medidas.ms)} ms, giros ${medidas.girosDiferentes}/8${fora.length > 0 ? `, fora ${fora.join(' + ')}` : ''}`,
   )
-  const largura = Math.max(grande.w + VAO + larguraDaDireita, larguraDoTexto(def.nome, ESCALA_DO_NOME), larguraDoTexto(detalhes, ESCALA_DA_LETRA), larguraDoTexto(linhaDasMedidas, ESCALA_DA_LETRA))
+  const tracados = carimbo.tracado ? ESCALAS_DO_TRACADO.map((escala) => janelaDosPostos(postosDoTracado(t, giros), escala)) : []
+  const alturaDoTracado = tracados.length === 0 ? 0 : RESPIRO + LINHA + Math.max(...tracados.map((j) => j.h))
+  const larguraDoTracado = tracados.reduce((soma, j) => soma + j.w, 0) + Math.max(0, tracados.length - 1) * FRESTA
+  const largura = Math.max(
+    grande.w + VAO + larguraDaDireita,
+    larguraDoTracado,
+    larguraDoTexto(def.nome, ESCALA_DO_NOME),
+    larguraDoTexto(detalhes, ESCALA_DA_LETRA),
+    larguraDoTexto(linhaDasMedidas, ESCALA_DA_LETRA),
+  )
   return {
     carimbo,
     medidas,
@@ -1570,13 +1641,15 @@ function montarCartao(carimbo: CarimboDaFolha): Cartao {
     grande,
     mesas,
     grupos,
+    tracados,
+    alturaDoTracado,
     alturaDaLinha,
     larguraDaDireita,
     alturaDasJanelas,
     detalhes,
     linhaDasMedidas,
     largura,
-    altura: alturaDasJanelas + RESPIRO + LINHA_DO_NOME + LINHA * 2,
+    altura: alturaDasJanelas + RESPIRO + LINHA_DO_NOME + LINHA * 2 + alturaDoTracado,
   }
 }
 
@@ -1619,6 +1692,15 @@ function desenharCartao(tela: Tela, c: Cartao, x: number, y: number, chaos: read
   escrever(tela, emLetrasDaFolha(c.carimbo.def.nome), x, yDoNome, ESCALA_DO_NOME, TINTA)
   escrever(tela, c.detalhes, x, yDoNome + LINHA_DO_NOME, ESCALA_DA_LETRA, APAGADA)
   escrever(tela, c.linhaDasMedidas, x, yDoNome + LINHA_DO_NOME + LINHA, ESCALA_DA_LETRA, c.fora.length > 0 ? ALERTA : APAGADA)
+  if (c.tracados.length === 0) return
+  const yDoTracado = yDoNome + LINHA_DO_NOME + LINHA * 2 + RESPIRO
+  escrever(tela, 'TRACADO COMO O MESTRE CLICA, NA GRAMA A 100 E A 200 POR CENTO', x, yDoTracado, ESCALA_DA_LETRA, APAGADA)
+  const altura = Math.max(...c.tracados.map((j) => j.h))
+  let xDaJanela = x
+  for (const janela of c.tracados) {
+    desenharJanela(tela, janela, xDaJanela, yDoTracado + LINHA, altura, chaos[0])
+    xDaJanela += janela.w + FRESTA
+  }
 }
 
 function quebrarEmFileiras(cartoes: readonly Cartao[], limite: number): Cartao[][] {

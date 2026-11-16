@@ -233,9 +233,9 @@ describe('TOOL_VARIANTS', () => {
     // logo depois do Fogo, na conta da fogueira (`pecasNovas.ts`): 241. E as 12 peças do banheiro moderno (15/11/2026)
     // no fim, o lote A e o lote B: 253. E as 22 das referências (16/11/2026) depois delas, o lote L1 e o lote L2: 275.
     // A natureza com carimbo (pedras e rochas, toco de árvore e árvore seca) saiu para o Carimbo na Fase 6
-    // (16/11/2026, `lib/naturezaNoCarimbo.ts`): 272.
+    // (16/11/2026, `lib/naturezaNoCarimbo.ts`): 272. E a sebe, quando a "Sebe aparada" do carimbo ficou pronta: 271.
     expect(grupo.options.map((o) => o.value)).toEqual([
-      'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'sebe', 'jardineira',
+      'barril', 'balde', 'caixa', 'bau', 'catre', 'mesa', 'mesaQuadrada', 'mesaRedonda', 'pratos', 'cadeira', 'sofa', 'poltrona', 'cerca', 'jardineira',
       'armario', 'fogao', 'geladeira', 'pia', 'privada', 'aparador', 'balcao', 'fogueira', 'fogo', 'muroDeFogo', 'lareira', 'fornalha', 'bigorna', 'tapete', 'tapeteLongo',
       'lapide', 'cova', 'caixao', 'caixaoAberto', 'vaso', 'lampiao', 'quadroDeAvisos', 'ponte', 'carroca', 'placaDeSeta', 'troncos', 'feno',
       'cataVentoBrinquedo',
@@ -280,9 +280,9 @@ describe('TOOL_VARIANTS', () => {
       'elevadorAntigo', 'alcapao', 'deckDeMadeira', 'colunaQuebrada', 'altarRedondo', 'lajeDeSacrificio', 'tumuloDePedra',
       'carroAntigo', 'prateleiraDeToalhas', 'cadeiraDeEspaldarAlto', 'centroDeMesa', 'lapideTorta',
     ])
-    expect(grupo.options).toHaveLength(272)
+    expect(grupo.options).toHaveLength(271)
     expect(grupo.options.map((o) => o.label)).toEqual([
-      'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Sebe', 'Jardineira',
+      'Barril', 'Balde de água', 'Caixa', 'Baú', 'Cama', 'Mesa', 'Mesa quadrada', 'Mesa redonda', 'Pratos', 'Cadeira', 'Sofá', 'Poltrona', 'Cerca', 'Jardineira',
       'Armário de cozinha', 'Fogão', 'Geladeira', 'Pia', 'Privada', 'Aparador', 'Balcão', 'Fogueira', 'Fogo', 'Muro de fogo', 'Lareira', 'Fornalha de ferreiro', 'Bigorna', 'Tapete', 'Tapete longo',
       'Lápide', 'Cova', 'Caixão', 'Caixão aberto', 'Vaso de planta', 'Lampião', 'Quadro de avisos', 'Ponte', 'Carroça', 'Placa de seta', 'Troncos', 'Feno',
       'Cata-vento de brinquedo',
@@ -338,9 +338,10 @@ describe('TOOL_VARIANTS', () => {
       'Clique no mapa para pôr um quadro de avisos.',
       'Clique no mapa para pôr uma carroça.',
     ])
-    const mt5 = ['sebe', 'jardineira', 'tapeteLongo', 'placaDeSeta']
+    // A sebe da MT5 foi para o Carimbo na Fase 6 (a "Sebe aparada"): fora do menu, sem frase.
+    expect(grupo.options.some((o) => o.value === 'sebe')).toBe(false)
+    const mt5 = ['jardineira', 'tapeteLongo', 'placaDeSeta']
     expect(mt5.map((v) => grupo.options.find((o) => o.value === v)?.description)).toEqual([
-      'Clique no mapa para pôr uma sebe.',
       'Clique no mapa para pôr uma jardineira.',
       'Clique no mapa para pôr um tapete longo.',
       'Clique no mapa para pôr uma placa de seta.',
@@ -370,14 +371,14 @@ describe('TOOL_VARIANTS', () => {
     // novo, o Necrotério e laboratório (10), e o lote L2 espalhado: Sala e quarto +2 (a cadeira de espaldar alto e o
     // centro de mesa), Banheiro +1 (a prateleira de toalhas), Rua e jardim +1 (o deck), Cemitério +2 (o túmulo e a lápide
     // torta), Templo e masmorra +4 (o alçapão, a coluna quebrada, o altar redondo e a laje) e Cidade e vila +2 (o
-    // elevador e o carro). A Fase 6 (16/11/2026) levou a natureza com carimbo para o Carimbo: Rua e jardim -2 (as
-    // pedras e o toco) e Cemitério -1 (a árvore seca).
+    // elevador e o carro). A Fase 6 (16/11/2026) levou a natureza com carimbo para o Carimbo: Rua e jardim -3 (as
+    // pedras, o toco e, com a "Sebe aparada", a sebe) e Cemitério -1 (a árvore seca).
     expect(PARTES_DO_MENU_DE_OBJETO.map((p) => [p.titulo, p.tipos.length])).toEqual([
       ['Sala e quarto', 23],
       ['Cozinha', 11],
       ['Banheiro', 17],
       ['Armazenagem', 11],
-      ['Rua e jardim', 18],
+      ['Rua e jardim', 17],
       ['Cemitério', 10],
       ['Feira', 10],
       ['Oficina', 10],

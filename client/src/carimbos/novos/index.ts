@@ -47,6 +47,7 @@ import { carimbo as arbustoAzulado, paleta as paletaDoArbustoAzulado } from './a
 import { carimbo as cristaisVerdes, paleta as paletaDosCristaisVerdes } from './cristaisVerdes'
 import { carimbo as fendaEmBrasa, brilho as brilhoDaFendaEmBrasa, paleta as paletaDaFendaEmBrasa } from './fendaEmBrasa'
 import { carimbo as pedrasDePasso, paleta as paletaDasPedrasDePasso } from './pedrasDePasso'
+import { carimbo as sebeAparada, paleta as paletaDaSebeAparada } from './sebeAparada'
 
 /**
  * OS CARIMBOS NOVOS de 14/11/2026 (itens 111 a 152 da lista do mestre,
@@ -94,6 +95,10 @@ import { carimbo as pedrasDePasso, paleta as paletaDasPedrasDePasso } from './pe
  * pedras de passo. Os cristais verdes iluminam parados, como os cogumelos (o
  * brilho pintado no corpo); a fenda ilumina tremendo e tem o `brilho` que
  * pulsa, como a rocha vulcânica.
+ *
+ * Por último, a sebe aparada (Fase 6, 16/11/2026), a sebe que saiu do Objeto
+ * (`lib/naturezaNoCarimbo.ts`): um módulo que emenda no vizinho, para o
+ * mestre desenhar a sebe comprida clicando um ao lado do outro.
  */
 
 export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
@@ -147,6 +152,8 @@ export const CARIMBOS_NOVOS: readonly DefinicaoDeCarimbo[] = [
   cristaisVerdes,
   { ...fendaEmBrasa, brilho: brilhoDaFendaEmBrasa },
   pedrasDePasso,
+  // A natureza que saiu do Objeto na Fase 6.
+  sebeAparada,
 ]
 
 /** Todas as cores chapadas dos novos, para o teste de "não estoura" (`embutidos.test.ts`). */
@@ -201,4 +208,5 @@ export const PALETA_DOS_NOVOS: readonly Rgb[] = [
   // Como a da rocha: só o corpo, sem as cores do `brilho`.
   ...paletaDaFendaEmBrasa,
   ...paletaDasPedrasDePasso,
+  ...paletaDaSebeAparada,
 ]

@@ -34,8 +34,9 @@ export const NATUREZA_DO_OBJETO: Readonly<Partial<Record<TipoMobilia, NaturezaDo
   tocoDeArvore: { carimbo: 'toco-seco' },
   // O desenho do Meio-Termo da árvore seca já diz: "É a árvore morta dos carimbos" (`texturas/meioTermo/moveis/arvoreSeca.ts`).
   arvoreSeca: { carimbo: 'arvore-morta' },
-  // A sebe é planta, mas é comprida, aparada e curva como a cerca (a alça de curvar): o "Arbusto" do carimbo é redondo e solto.
-  sebe: { carimbo: null, arteQueFalta: 'Sebe aparada (cerca viva comprida, que curva como a cerca)' },
+  // A sebe é comprida e curva como a cerca, e o carimbo só guarda tipo, tamanho e giro: a "Sebe aparada" é um
+  // MÓDULO que emenda no vizinho (`carimbos/novos/sebeAparada.ts`), e a sebe se desenha clicando um ao lado do outro.
+  sebe: { carimbo: 'sebe-aparada' },
 }
 
 /** O carimbo que faz o papel deste Objeto, ou `null` (não é natureza, ou a arte ainda não existe). */

@@ -4,27 +4,28 @@ import { useMapStore } from '../stores/mapStore'
 import type { Carimbo, Prop } from '../types/map'
 import { createEmptyMap } from './mapFactory'
 import { NATUREZA_DO_OBJETO, carimboDaNatureza, foiParaOCarimbo } from './naturezaNoCarimbo'
-import { ehMovelQueBarra } from './mobilia'
+import { ehMovelQueBarra, voltaDaCerca } from './mobilia'
 import { catalogoComOTipo, TIPOS_DO_OBJETO } from './mobilia/pecasNovas'
 import type { TipoMobilia } from './mobilia/tipos'
 
 /** A natureza no Carimbo (Fase 6, 16/11/2026): só o menu muda; o que está no mapa fica igual. */
 
-const QUE_SAIRAM: TipoMobilia[] = ['pedrasERochas', 'tocoDeArvore', 'arvoreSeca']
+const QUE_SAIRAM: TipoMobilia[] = ['pedrasERochas', 'tocoDeArvore', 'arvoreSeca', 'sebe']
 
 describe('a natureza sai do catálogo do Objeto', () => {
-  it('a pedra, o toco e a árvore seca saem; cada um aponta um carimbo que existe na biblioteca', () => {
+  it('a pedra, o toco, a árvore seca e a sebe saem; cada um aponta um carimbo que existe na biblioteca', () => {
     for (const tipo of QUE_SAIRAM) {
       expect(TIPOS_DO_OBJETO).not.toContain(tipo)
       const carimbo = carimboDaNatureza(tipo)
       expect(carimbo !== null && carimboDoCatalogo(carimbo) !== null).toBe(true)
     }
+    expect(carimboDaNatureza('sebe')).toBe('sebe-aparada')
   })
 
-  it('a sebe fica no Objeto até a arte dela existir; o canteiro e a laranjeira em canteiro são feitos pela mão e ficam', () => {
-    for (const tipo of ['sebe', 'canteiroDeFlores', 'laranjeiraEmCanteiro', 'troncos'] as const) expect(TIPOS_DO_OBJETO).toContain(tipo)
-    expect(foiParaOCarimbo('sebe')).toBe(false)
-    expect(NATUREZA_DO_OBJETO.sebe?.arteQueFalta).toBeTruthy()
+  it('nenhuma peça natural ficou esperando arte; o canteiro, a laranjeira em canteiro e os troncos são feitos pela mão e ficam', () => {
+    for (const tipo of ['canteiroDeFlores', 'laranjeiraEmCanteiro', 'troncos'] as const) expect(TIPOS_DO_OBJETO).toContain(tipo)
+    expect(Object.values(NATUREZA_DO_OBJETO).filter((n) => n.carimbo === null)).toEqual([])
+    expect(foiParaOCarimbo('sebe')).toBe(true)
   })
 
   it('mapa antigo: a pedra posta como Objeto continua barrando, e a ficha dela ainda mostra o tipo', () => {
@@ -33,6 +34,13 @@ describe('a natureza sai do catálogo do Objeto', () => {
     const pedra: Prop = { id: 'p1', src: '', linkedMapPath: null, x: 200, y: 200, width: 80, height: 60, rotation: 0, mobilia: 'pedrasERochas' }
     useMapStore.getState().loadMap({ ...createEmptyMap('m-natureza', 'Velho', 20, 20, 40), props: [pedra] })
     expect(useMapStore.getState().map.props.map((p) => p.mobilia)).toEqual(['pedrasERochas'])
+  })
+
+  it('mapa antigo: a sebe posta como Objeto continua sebe, com a curva dela, e a ficha ainda mostra o tipo', () => {
+    expect(catalogoComOTipo('sebe')).toContain('sebe')
+    const sebe: Prop = { id: 's1', src: '', linkedMapPath: null, x: 200, y: 200, width: 160, height: 40, rotation: 0, mobilia: 'sebe', mobiliaCurva: 60 }
+    useMapStore.getState().loadMap({ ...createEmptyMap('m-sebe-velha', 'Jardim', 20, 20, 40), props: [sebe] })
+    expect(useMapStore.getState().map.props.map((p) => [p.mobilia, voltaDaCerca(p)])).toEqual([['sebe', 60]])
   })
 })
 

@@ -62,7 +62,7 @@ function mudarFaixa(rotulo: string, valor: number): void {
 }
 
 describe('CarimbosControls', () => {
-  it('mostra os objetos da biblioteca (os doze, com a árvore redonda da MT5, a árvore morta, o tronco caído e o toco seco, depois os novos de 14/11/2026 e os do lote L3 de 15/11/2026), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
+  it('mostra os objetos da biblioteca (os doze, com a árvore redonda da MT5, a árvore morta, o tronco caído e o toco seco, depois os novos de 14/11/2026, os do lote L3 de 15/11/2026 e a sebe aparada), com o escolhido marcado, e escolher outro muda a ferramenta', () => {
     montar()
     const objetos = radios('Objeto')
     expect(objetos.map((b) => b.textContent)).toEqual([
@@ -126,6 +126,7 @@ describe('CarimbosControls', () => {
       'Cristais verdes',
       'Fenda em brasa',
       'Pedras de passo',
+      'Sebe aparada',
     ])
     expect(objetos[0].getAttribute('aria-checked')).toBe('true')
     // Um só ponto de parada do Tab no grupo.
@@ -143,7 +144,7 @@ describe('CarimbosControls', () => {
     tecla('ArrowRight')
     expect(useMapStore.getState().carimboEscolhido).toBe('arvore-morta')
     tecla('End')
-    expect(useMapStore.getState().carimboEscolhido).toBe('pedras-de-passo')
+    expect(useMapStore.getState().carimboEscolhido).toBe('sebe-aparada')
     tecla('Home')
     expect(useMapStore.getState().carimboEscolhido).toBe('pinheiro')
   })
