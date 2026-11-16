@@ -94,6 +94,54 @@ describe('munição: a arma do Acervo que declara as munições', () => {
   })
 })
 
+/**
+ * A aventura que não migrou a mochila para a ficha: a dona é a mochila do
+ * boneco do Vincent (aqui, `noBoneco`); a ficha dele nem tem mochila.
+ */
+function batalhaComAMochilaNoBoneco(quantas: number): { loja: LojaDaBatalha; mesa: MesaEmMemoria; noBoneco: () => readonly CarriedItem[] } {
+  const { mochila: comBalas = [] } = vincentComBalas(quantas)
+  const { mochila: _semMochila, ...vincent } = vincentComBalas(quantas)
+  const mesaDaFicha = criarMesaEmMemoria(SISTEMA_DO_TESTE, lutadoresDe([{ ficha: vincent, lado: 'a' }, { ficha: ryokoCom(), lado: 'b' }]))
+  const tokenDoVincent = mesaDaFicha.tokens().find((token) => token.name.startsWith('Vincent'))?.id
+  let mochilaDoBoneco: readonly CarriedItem[] = comBalas
+  const mesa: MesaEmMemoria = {
+    ...mesaDaFicha,
+    mochilaDoBoneco: (sceneKey, tokenId) => (sceneKey === CENA && tokenId === tokenDoVincent ? mochilaDoBoneco : null),
+    gravarMochilaDoBoneco: (sceneKey, tokenId, mochila) => {
+      if (sceneKey !== CENA || tokenId !== tokenDoVincent) return false
+      mochilaDoBoneco = mochila
+      return true
+    },
+  }
+  const loja = criarBatalhaStore(mesa, { rolarD20: () => 10, outraBatalhaLigada: () => false })
+  const tokens = mesa.tokens()
+  loja.getState().ligar(CENA, {}, { combatentes: combatentesIniciais(tokens, mesa.personagens(), mesa.sistema(), new Set(tokens.map((token) => token.id))), regras: null, desempate: 'd20' })
+  return { loja, mesa, noBoneco: () => mochilaDoBoneco }
+}
+
+const pratasNo = (mochila: readonly CarriedItem[]): number => mochila.reduce((soma, vaga) => (vaga.itemId === ID_DA_PRATA ? soma + (vaga.quantidade ?? 1) : soma), 0)
+
+describe('munição: aventura que não migrou a mochila (o boneco é o dono)', () => {
+  it('o tiro tira 1 da mochila do boneco (3 → 2) e a ficha continua sem mochila', () => {
+    const { loja, mesa, noBoneco } = batalhaComAMochilaNoBoneco(3)
+    const ryoko = tokenDe(loja, 'Ryoko')
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(true)
+    expect([pratasNo(noBoneco()), mochilaDoVincent(mesa)]).toEqual([2, []])
+  })
+
+  it('a última bala sai do boneco e o próximo tiro é bloqueado; o Desfazer devolve a vaga ao boneco, no lugar', () => {
+    const { loja, mesa, noBoneco } = batalhaComAMochilaNoBoneco(1)
+    const ryoko = tokenDe(loja, 'Ryoko')
+    expect(loja.getState().agir(CENA, JOGADOR, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(true)
+    expect(pratasNo(noBoneco())).toBe(0)
+    const linha = cena(loja).registro.filter((candidata) => candidata.tipo === 'golpe').at(-1)
+    naVezDe(loja, 'Ryoko')
+    expect(loja.getState().agir(CENA, MESTRE, naVezDe(loja, 'Vincent'), tiro(ryoko))).toBe(false)
+    expect(loja.getState().desfazer(CENA, linha?.id ?? '', MESTRE)).toBe(true)
+    expect([pratasNo(noBoneco()), noBoneco().map((vaga) => vaga.id), mochilaDoVincent(mesa)]).toEqual([1, ['vaga_corda', 'vaga_prata'], []])
+  })
+})
+
 describe('munição: o nome liga a bala à vaga', () => {
   it('"Balas de prata" é a "Bala de Prata" do cartão; "Bala de RPG" não é', () => {
     expect([nomesDeMunicaoIguais('Balas de prata', 'Bala de Prata'), nomesDeMunicaoIguais('Munições', 'munição'), nomesDeMunicaoIguais('Bala de RPG', 'Bala de prata')]).toEqual([true, true, false])

@@ -71,7 +71,7 @@ import { fichaDoInvocado } from '../lib/livros/combate'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
-import type { Token } from '../types/map'
+import type { CarriedItem, Token } from '../types/map'
 import {
   bonusDaBatalha,
   comSeloNovo,
@@ -164,7 +164,7 @@ import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOver
 import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
-import { devolverMunicaoNaFicha, gastarMunicaoDaFicha, type MunicaoGasta } from '../lib/batalha/municaoDaFicha'
+import { comABalaLigada, devolverMunicaoNaFicha, fichaComAMochilaDoBoneco, gastarMunicaoDaFicha, type MunicaoGasta } from '../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
 import type { BatalhaEmTurnos, VezEsperada } from '../lib/batalha/ponte'
@@ -842,7 +842,16 @@ function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDa
     }
     case 'municao': {
       // MUNIÇÃO: a unidade que o tiro gastou volta à mochila da ficha (o boneco espelha), sobre a ficha de agora.
-      const { vaga, indice } = reversao
+      const { vaga, indice, tokenId } = reversao
+      const doBoneco = tokenId === undefined ? null : (mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? null)
+      if (tokenId !== undefined && doBoneco !== null) {
+        // A vaga era do boneco (aventura não migrada): a unidade volta a ele, sobre a mochila de agora.
+        const ficha = mesa.personagens().find((candidato) => candidato.id === reversao.personagemId)
+        const devolvida = ficha === undefined ? null : devolverMunicaoNaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), vaga, indice)
+        const ok = devolvida !== null && mesa.gravarMochilaDoBoneco?.(sceneKey, tokenId, devolvida.mochila ?? []) === true
+        return { cena, emParte: !ok, ok: true }
+      }
+      // A ficha é a dona (ou a aventura migrou entre o tiro e o Desfazer, e a mochila do boneco já é a da ficha).
       const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => devolverMunicaoNaFicha(atual, vaga, indice))
       return { cena, emParte: !ok, ok: true }
     }
@@ -990,7 +999,9 @@ function devolverFichasDaAcao(mesa: MesaDaBatalha, sceneKey: string, cena: Batal
  * nada a tirar (a bala deixou de estar ligada no meio); `'recusada'` = a mesa
  * não gravou (a pasta publicada recusou), e o tiro não sai.
  */
-function gastarMunicaoNaMesa(mesa: MesaDaBatalha, personagemId: string, armaId: string, balaId: string): Reversao | null | 'recusada' {
+function gastarMunicaoNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string): Reversao | null | 'recusada' {
+  const doBoneco = mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? null
+  if (doBoneco !== null) return gastarMunicaoDoBoneco(mesa, sceneKey, tokenId, personagemId, armaId, balaId, doBoneco)
   // Num objeto: o que o callback da mesa escreve, lido depois dele (um `let` o TS estreitaria para `null`).
   const feito: { gasta: MunicaoGasta | null } = { gasta: null }
   const ok = mesa.ajustarPersonagem(personagemId, (atual) => {
@@ -1001,6 +1012,22 @@ function gastarMunicaoNaMesa(mesa: MesaDaBatalha, personagemId: string, armaId: 
   if (gasta === null) return null
   if (!ok) return 'recusada'
   return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice }
+}
+
+/**
+ * MUNIÇÃO na aventura que não migrou a mochila (a dona é a do boneco
+ * `tokenId`): o tiro tira 1 dela pelo caminho dos itens do mapa, e a ficha
+ * só recebe a ligação da bala pelo nome (o `itemId` no subcartão), nunca a
+ * mochila. Mesmo contrato de `gastarMunicaoNaMesa`.
+ */
+function gastarMunicaoDoBoneco(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string, doBoneco: readonly CarriedItem[]): Reversao | null | 'recusada' {
+  const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
+  const gasta = ficha === undefined ? null : gastarMunicaoDaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), armaId, balaId)
+  if (gasta === null) return null
+  if (mesa.gravarMochilaDoBoneco?.(sceneKey, tokenId, gasta.personagem.mochila ?? []) !== true) return 'recusada'
+  // A ligação só evita que a bala ligada pelo nome se solte quando a última unidade sai; se a ficha não gravar, o tiro já valeu.
+  mesa.ajustarPersonagem(personagemId, (atual) => comABalaLigada(atual, armaId, balaId, gasta.vaga.itemId))
+  return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice, tokenId }
 }
 
 /** O nome que vai no histórico da ficha quando a batalha mexe nela. */
@@ -2711,7 +2738,9 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   const contextoDaCarta = (sceneKey: string, cena: BatalhaDaCena, autor: AutorDaAcao, carta: CartaDaOrdem, turnosDoCtx: TurnosDaCena): ContextoDoGolpe => {
     const { turnos } = cena
     const { personagens, sistema } = mesaDoRpg()
-    const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+    const daFicha = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+    // MUNIÇÃO: na aventura que não migrou a mochila, a bala conta (e o `podeAgir` recusa com 0) pela mochila do boneco, a dona.
+    const personagem = daFicha === null ? null : fichaComAMochilaDoBoneco(daFicha, mesa.mochilaDoBoneco?.(sceneKey, carta.tokenId) ?? null)
     return {
       turnos: turnosDoCtx,
       carta,
@@ -2805,7 +2834,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     // MUNIÇÃO (pedido de 16/11/2026): o tiro com a bala ligada tira 1 da mochila da ficha (o boneco espelha). No host, o
     // tiro do jogador chega aqui pelo mesmo `agir`: o `podeAgir` acima já recusou a bala com 0.
     if (lancado.municao !== undefined && carta.personagemId !== null) {
-      const parte = gastarMunicaoNaMesa(mesa, carta.personagemId, lancado.municao.armaId, lancado.municao.balaId)
+      const parte = gastarMunicaoNaMesa(mesa, sceneKey, carta.tokenId, carta.personagemId, lancado.municao.armaId, lancado.municao.balaId)
       if (parte === 'recusada') {
         devolverFichasDaAcao(mesa, sceneKey, cena, partes, autor)
         return false

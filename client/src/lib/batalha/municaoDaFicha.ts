@@ -1,4 +1,4 @@
-import type { CarriedItem } from '../../types/map'
+import type { CarriedItem, Token } from '../../types/map'
 import { ITEM_QUANTIDADE_MAX, quantidadeDe } from '../items'
 import { tirarDaMochilaDaFicha } from '../mochila/darNaFicha'
 import { fichaComMochila } from '../mochila/juncao'
@@ -28,7 +28,7 @@ export interface MunicaoGasta {
  * perderia a ligação quando a última unidade sai (a vaga some), e o tiro com
  * 0 voltaria a sair. Bala que já tem `itemId`, ou vaga sem item: a MESMA ficha.
  */
-function comABalaLigada(personagem: Personagem, armaId: string, balaId: string, itemId: string | undefined): Personagem {
+export function comABalaLigada(personagem: Personagem, armaId: string, balaId: string, itemId: string | undefined): Personagem {
   if (itemId === undefined) return personagem
   const cartoes = personagem.abas[ABA_DAS_ARMAS]
   if (cartoes === undefined) return personagem
@@ -58,6 +58,29 @@ export function gastarMunicaoDaFicha(personagem: Personagem, armaId: string, bal
   if (vaga === undefined) return null
   const gasta = tirarDaMochilaDaFicha(personagem, vaga.id, 1)
   return { personagem: comABalaLigada(gasta, armaId, balaId, municao.itemId), vaga, indice }
+}
+
+/**
+ * A ficha com a mochila do BONECO dono (aventura que ainda não migrou a
+ * mochila para a ficha, `MesaDaBatalha.mochilaDoBoneco`): é dela que a bala
+ * conta e gasta, e a da ficha lá não vale. `null` = a ficha manda: a mesma.
+ */
+export function fichaComAMochilaDoBoneco(personagem: Personagem, mochila: readonly CarriedItem[] | null): Personagem {
+  if (mochila === null) return personagem
+  const { mochila: _daFicha, ...semMochila } = personagem
+  return mochila.length === 0 ? semMochila : { ...semMochila, mochila: [...mochila] }
+}
+
+/**
+ * As fichas da tela da batalha com a mochila do boneco de cada uma (o
+ * primeiro boneco ligado a ela no mapa), para a mira contar a bala da mesma
+ * mochila que o tiro gasta. Só para a aventura não migrada: quem chama decide.
+ */
+export function fichasComAsMochilasDosBonecos(personagens: readonly Personagem[], bonecos: readonly Pick<Token, 'characterId' | 'mochila'>[]): Personagem[] {
+  return personagens.map((personagem) => {
+    const boneco = bonecos.find((candidato) => candidato.characterId === personagem.id)
+    return boneco === undefined ? personagem : fichaComAMochilaDoBoneco(personagem, boneco.mochila ?? [])
+  })
 }
 
 /** A vaga com outra quantidade; 1 tira o campo (ausente === 1, como no disco). */

@@ -257,8 +257,10 @@ export type Reversao =
    * MUNIÇÃO (pedido de 16/11/2026): o tiro tirou 1 da vaga `vaga` (como ela
    * estava antes) da mochila da ficha. Desfazer = a unidade volta pela mesa
    * (`devolverMunicaoNaFicha`), na vaga de agora ou no mesmo lugar `indice`.
+   * `tokenId`: a aventura ainda não migrou a mochila para a ficha, e a vaga
+   * era do boneco (`MesaDaBatalha.mochilaDoBoneco`): a unidade volta a ele.
    */
-  | { tipo: 'municao'; personagemId: string; vaga: CarriedItem; indice: number }
+  | { tipo: 'municao'; personagemId: string; vaga: CarriedItem; indice: number; tokenId?: string }
 
 /** O combate de um personagem antes e depois da vez (as recargas que desceram, a reação que voltou, os lembretes). */
 export interface CombateNaVez {

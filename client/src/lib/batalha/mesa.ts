@@ -1,4 +1,4 @@
-import type { Token } from '../../types/map'
+import type { CarriedItem, Token } from '../../types/map'
 import type { Personagem } from '../personagem'
 import type { SistemaDeRpg } from '../sistemaDeRpg'
 import type { Casa, Direcao } from './area'
@@ -72,6 +72,16 @@ export interface MesaDaBatalha {
    * Ctrl+Z: precisa valer para qualquer versão da ficha (pôr campos, não somar).
    */
   mudarFichaDaCena?(sceneKey: string, tokenId: string, mudar: (token: Token) => Token): void
+  /**
+   * MUNIÇÃO na aventura que ainda não migrou a mochila para a ficha
+   * (`mochilaMigrada` ausente): lá a dona é a mochila do BONECO `tokenId` da
+   * cena, e a da ficha não vale. `null` = quem manda é a ficha (ou o boneco
+   * não está na cena). Opcional: a mesa sem mapa (a arena, o duelo) só tem a
+   * ficha.
+   */
+  mochilaDoBoneco?(sceneKey: string, tokenId: string): readonly CarriedItem[] | null
+  /** Grava a mochila do boneco dono (aventura não migrada), pelo mesmo caminho dos itens do mapa. `false` = não gravou. */
+  gravarMochilaDoBoneco?(sceneKey: string, tokenId: string, mochila: CarriedItem[]): boolean
 }
 
 /** F2 (fatia B): onde o token está na grade e para onde olha. */

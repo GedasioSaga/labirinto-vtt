@@ -6,7 +6,7 @@ import * as mapFactory from '../lib/mapFactory'
 import { mudarFichaNoMapa } from '../lib/prazoDaCondicao'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import type { MapData, Token } from '../types/map'
-import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
+import { applyItemsInScene, equipesAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { sistemaPorId, useRpgStore } from './rpgStore'
 
@@ -130,6 +130,15 @@ export const mesaDaAventura: MesaDaBatalha = {
     if (cenaAberta(sceneKey)) useMapStore.getState().applyPlayerChange(naFicha)
     else useAdventureStore.getState().applyPlayerChangeToBackgroundScene(sceneKey, naFicha)
   },
+
+  mochilaDoBoneco: (sceneKey, tokenId) => {
+    if (mochilaMoraNaFicha(useAdventureStore.getState())) return null
+    const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId)
+    return token === undefined ? null : (token.mochila ?? [])
+  },
+
+  // O caminho dos itens do mapa (`applyItemsInScene`): o Ctrl+Z do mestre não traz de volta a bala gasta, e a cena de fundo marca o Salvar.
+  gravarMochilaDoBoneco: (sceneKey, tokenId, mochila) => applyItemsInScene({ mochilas: [{ tokenId, mochila }], ...(cenaAberta(sceneKey) ? {} : { sceneId: sceneKey }) }),
 
   posicaoDoToken: (sceneKey, tokenId) => {
     const token = tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId)

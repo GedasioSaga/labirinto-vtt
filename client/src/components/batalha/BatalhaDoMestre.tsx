@@ -6,6 +6,7 @@ import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
 import { motivoDaInvocacao, quantosNoCampo } from '../../lib/batalha/invocacao'
 import { armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
+import { fichasComAsMochilasDosBonecos } from '../../lib/batalha/municaoDaFicha'
 import { custosDasFormasNaTela } from '../../lib/batalha/custoPorTurno'
 import { lembreteDoSelo, saidasTiradas, travaDoToken } from '../../lib/batalha/condicoes'
 import { chavesDoDono, saidasTiradasDoDono, soOMestreReage } from '../../lib/batalha/mecanicasAMao'
@@ -18,7 +19,7 @@ import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { vidasDaCena } from '../../lib/vidaDaFicha'
-import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
+import { equipesAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { efeitosDaCena, useBatalhaStore, type BatalhaDaCena } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
@@ -113,7 +114,10 @@ function useMesa(sceneKey: string): Mesa {
   const cena = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
   const tamanhoDaCasa = useMapStore((state) => state.map.grid)
-  const personagens = useAdventureStore(personagensAtivos)
+  const daAventura = useAdventureStore(personagensAtivos)
+  const mochilaNaFicha = useAdventureStore(mochilaMoraNaFicha)
+  // MUNIÇÃO: na aventura que não migrou a mochila, a mira conta a bala na mochila do boneco, a mesma que o tiro gasta (`mochilaDoBoneco`).
+  const personagens = useMemo(() => (mochilaNaFicha ? daAventura : fichasComAsMochilasDosBonecos(daAventura, fichas)), [mochilaNaFicha, daAventura, fichas])
   const equipes = useAdventureStore(equipesAtivas)
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
