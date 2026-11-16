@@ -6572,7 +6572,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     // ALCANCE PELO OBJETO (J9): sem recorte aqui (a conta corre a cada passo), os objetos do mestre
     // menos os que nenhum jogador recebe (`objetoEscondidoDosJogadores`; `hidden`/`secret` já não barram).
     const escondido = objetoEscondidoDosJogadores(scene.map)
-    const pelosObjetos = alcancePeloObjeto({ grid: scene.map.grid, props: scene.map.props.filter((p) => !escondido(p)) })
+    // A escada do pino (a inteira é o alcance) vem do mapa do mestre: a secreta já foi recusada no pedido.
+    const pelosObjetos = alcancePeloObjeto({ grid: scene.map.grid, props: scene.map.props.filter((p) => !escondido(p)), stairs: scene.map.stairs })
     const stillReaches = fichasNaCamadaDoJogador(scene.map).some((t) => {
       if (!owned.has(t.id) || t.hidden === true) return false
       const novo = movedTo.get(t.id)

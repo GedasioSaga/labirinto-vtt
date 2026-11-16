@@ -133,7 +133,7 @@ export function carriedItemsOf(token: Token): CarriedItem[] {
  * no meio de um objeto que barra se alcança encostando no objeto, com a mesma
  * folga. Ausente = só a distância até o ponto, como antes.
  */
-export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
+export function tokenReachesPin(token: Pick<Token, 'x' | 'y' | 'size' | 'piso'>, pin: Pick<Pin, 'x' | 'y' | 'escadaId'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const reach = tokenRadiusOf(token, grid) + grid * ITEM_REACH_CELLS
   if (Math.hypot(token.x - pin.x, token.y - pin.y) <= reach) return true
   return pelosObjetos !== undefined && pelosObjetos(token, pin, reach)

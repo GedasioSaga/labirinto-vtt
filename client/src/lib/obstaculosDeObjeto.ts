@@ -1,4 +1,4 @@
-import type { MapData, Prop, RegionPoint, TipoMobilia, Token, Wall } from '../types/map'
+import type { MapData, Prop, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { paredesParaAndar } from './barranco'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
@@ -6,7 +6,9 @@ import { construcaoTapaDeFabrica, ehConstrucao, medidaPeloMenorLado } from './mo
 import { contornoDaFaixa, distanciaAoEixo, eixoDoMuro, simplificarEixo, TOLERANCIA_DO_CONTORNO } from './mobilia/muroDeFogo'
 import { pisoDe } from './pisos'
 import { rotatePointAround, rotationTrig } from './roomRotation'
-import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
+import { stairCenterline } from './stairCurve'
+import { stairSpiralCircle } from './stairs'
+import type { AlcancePeloObjeto, PontoDoAlcance } from './tipoDoAlcancePeloObjeto'
 
 /**
  * OBJETO GRANDE BARRA A FICHA DO JOGADOR (pedido do mestre de 12/11/2026: "esse
@@ -468,8 +470,41 @@ export function mapaParaAndarDoJogador(map: MapData, piso: number, de: Point | n
   return novo
 }
 
-/** De onde o alcance pelo objeto lê os objetos: o RECORTE do jogador (na tela, o mapa que chegou; no host, o `view.map` dele). */
-export type ObjetosDoAlcance = Pick<MapData, 'grid' | 'props'>
+/**
+ * De onde o alcance pelo objeto lê os objetos e as escadas: o RECORTE do
+ * jogador (na tela, o mapa que chegou; no host, o `view.map` dele).
+ */
+export type ObjetosDoAlcance = Pick<MapData, 'grid' | 'props' | 'stairs'>
+
+/**
+ * Distância do ponto à escada como ela se desenha e se toca (`findStairAt`):
+ * a faixa de `stepWidth` em volta da linha do meio, ou o círculo da espiral.
+ * Zero em cima dela.
+ */
+function distanciaAEscada(escada: Stair, p: Point): number {
+  const circulo = stairSpiralCircle(escada)
+  if (circulo !== null) return Math.max(0, Math.hypot(p.x - circulo.center.x, p.y - circulo.center.y) - circulo.radius)
+  let menor = Number.POSITIVE_INFINITY
+  for (const lance of stairCenterline(escada)) {
+    menor = Math.min(menor, distanciaAoLado(p, { x: lance.x1, y: lance.y1 }, { x: lance.x2, y: lance.y2 }))
+  }
+  return Math.max(0, menor - escada.stepWidth / 2)
+}
+
+/**
+ * ESCADA INTEIRA É O ALCANCE (pedido de 15/11/2026: "não importa o lugar da
+ * escada se eu clicar é para dar para subir"): o pino da escada mora na boca,
+ * mas o jogador toca o lance inteiro (`findStairPinAt`). A ficha em cima da
+ * escada, ou encostada nela com a folga de sempre, alcança o pino. A escada
+ * vem do recorte: a que ele não recebe não conta.
+ */
+function alcancaPelaEscada(escadas: readonly Stair[], ficha: Pick<Token, 'x' | 'y' | 'piso'>, escadaId: string, alcance: number): boolean {
+  const escada = escadas.find((s) => s.id === escadaId)
+  if (escada === undefined) return false
+  const piso = pisoDe(ficha)
+  if (pisoDe(escada) !== piso && escada.levaAoPiso !== piso) return false
+  return distanciaAEscada(escada, ficha) <= alcance
+}
 
 /** Distância do ponto à forma do obstáculo: zero dentro dela (ou em cima da borda). */
 function distanciaAoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): number {
@@ -498,8 +533,9 @@ function distanciaAoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): number {
  * para o alcance não contar que ele existe. Host e tela passam o mesmo
  * recorte, senão o botão acende e o host recusa.
  */
-export function alcancaPeloObjeto(objetos: ObjetosDoAlcance, ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: Point, alcance: number): boolean {
+export function alcancaPeloObjeto(objetos: ObjetosDoAlcance, ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: PontoDoAlcance, alcance: number): boolean {
   if (!(alcance >= 0) || ![ficha.x, ficha.y, ponto.x, ponto.y].every(Number.isFinite)) return false
+  if (ponto.escadaId !== undefined && alcancaPelaEscada(objetos.stairs, ficha, ponto.escadaId, alcance)) return true
   for (const obstaculo of obstaculosDeObjeto(objetos.props, objetos.grid, pisoDe(ficha))) {
     if (pontoNoObstaculo(obstaculo, ponto) && distanciaAoObstaculo(obstaculo, ficha) <= alcance) return true
   }

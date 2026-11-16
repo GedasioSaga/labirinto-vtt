@@ -4714,7 +4714,7 @@ function recorteDoGrupo(
    * no objeto, como o host aceita. Lê os MESMOS objetos que este recorte
    * entrega (`propsDoRecorte`): objeto escondido dele não conta.
    */
-  const pelosObjetos = alcancePeloObjeto({ grid: map.grid, props: propsDoRecorte })
+  const pelosObjetos = alcancePeloObjeto({ grid: map.grid, props: propsDoRecorte, stairs: playerStairs })
   const filtered: MapData = {
     ...mapSemConfronto,
     hiddenLayers: ocultasNoRecorte(map),

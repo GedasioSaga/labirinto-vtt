@@ -116,7 +116,7 @@ export function pinTravelChoices(tokens: readonly Token[], ownIds: readonly stri
  * de congelado: é o "Chegue mais perto". `pelosObjetos` (J9): encostar no
  * objeto que barra conta como encostar no pino que está dentro dele.
  */
-export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
+export function passagemCongelada(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y' | 'escadaId'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
   const proprias = mine.filter((t) => !isHelper(t))
@@ -146,7 +146,7 @@ export function vaiSemDirigir(token: Pick<Token, 'aBordo'>): boolean {
  * entra na conta (`passagemCongelada` diz por ela). `pelosObjetos` (J9): como
  * em `passagemCongelada`.
  */
-export function passagemABordo(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
+export function passagemABordo(tokens: readonly Token[], ownIds: readonly string[], pin: Pick<Pin, 'x' | 'y' | 'escadaId'>, grid: number, pelosObjetos?: AlcancePeloObjeto): boolean {
   const owned = new Set(ownIds)
   const mine = tokens.filter((t) => owned.has(t.id))
   const proprias = mine.filter((t) => !isHelper(t))

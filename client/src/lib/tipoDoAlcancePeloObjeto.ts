@@ -13,4 +13,14 @@ import type { Token } from '../types/map'
  * tipo: importado de `obstaculosDeObjeto`, o fecho chegava a Pixi, Tauri e
  * zustand pela névoa (fase de testes da caça de 12/11/2026, B2).
  */
-export type AlcancePeloObjeto = (ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: { x: number; y: number }, alcance: number) => boolean
+export type AlcancePeloObjeto = (ficha: Pick<Token, 'x' | 'y' | 'piso'>, ponto: PontoDoAlcance, alcance: number) => boolean
+
+/**
+ * O ponto que se quer alcançar. `escadaId` (o pino invisível de uma escada,
+ * `Pin.escadaId`): a escada inteira é o alvo, não só a boca onde o pino mora.
+ */
+export interface PontoDoAlcance {
+  x: number
+  y: number
+  escadaId?: string
+}

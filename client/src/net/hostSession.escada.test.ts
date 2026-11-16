@@ -90,6 +90,20 @@ describe('hostSession: escada que leva a outro andar', () => {
     expect(r.outbound).toEqual([])
   })
 
+  it('escada comprida: Bruno em cima da ponta de cima do lance passa (a escada inteira é o alcance, não só a boca)', () => {
+    const w = mundo('livre')
+    // Lance de 8 casas, boca em (300, 450); Bruno parado em cima da outra ponta.
+    w.open.map = {
+      ...w.open.map,
+      tokens: [token('bruno', 300, 80)],
+      stairs: [{ id: 'escada-de-baixo', shape: 'straight', direction: 'up', segments: [{ x1: 300, y1: 450, x2: 300, y2: 50 }], stepWidth: 50 }],
+      pins: [pinoDaEscada('pino-de-baixo', 'escada-de-baixo', 300, 450, { sceneId: ANDAR1, pinId: 'pino-de-cima' }, 'livre')],
+    }
+    const r = mesa(w).tocar('pino-de-baixo')
+    expect(recusa(r)).toBeNull()
+    expect(r.applyTransfer).toMatchObject({ tokenId: 'bruno', fromSceneId: TERREO, toSceneId: ANDAR1 })
+  })
+
   it('escada secreta: o pedido pelo pino dela é recusado com o motivo genérico, e nada chega ao mestre', () => {
     const r = mesa(mundo('livre', true)).tocar('pino-de-baixo')
     expect(recusa(r)).toBe('unavailable')
