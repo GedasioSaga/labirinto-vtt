@@ -208,7 +208,7 @@ describe('drawStairs — o lance é uma placa com degraus, não uma seta', () =>
     expect(formasDaMoldura[0].pontos).toHaveLength(4)
   })
 
-  it('escada em L: um lance desenhado por segmento', () => {
+  it('escada em L: uma peça só — placa, patamares, degraus e a moldura da L inteira, sem linha na volta', () => {
     const g = new Graphics()
     const emL = buildStair({
       shape: 'l',
@@ -218,7 +218,29 @@ describe('drawStairs — o lance é uma placa com degraus, não uma seta', () =>
       ],
     })
     drawStairs(g, [emL], null)
-    expect(pinturas(g)).toHaveLength(8)
+    const [, , degrausCrus, molduraCrua] = pinturas(g)
+    expect(pinturas(g)).toHaveLength(4)
+    expect(formasDoCaminho(comoTraco(degrausCrus).data.path.instructions).length).toBeGreaterThan(3)
+    const formasDaMoldura = formasDoCaminho(comoTraco(molduraCrua).data.path.instructions)
+    expect(formasDaMoldura).toHaveLength(1)
+    expect(formasDaMoldura[0].fechada).toBe(true)
+    expect(formasDaMoldura[0].pontos).toHaveLength(6)
+  })
+
+  it('escada em U: a moldura de fora e a divisa entre os dois lances', () => {
+    const g = new Graphics()
+    const emU = buildStair({
+      shape: 'double',
+      segments: [
+        { x1: 0, y1: 0, x2: 256, y2: 0 },
+        { x1: 256, y1: 0, x2: 256, y2: 64 },
+        { x1: 256, y1: 64, x2: 0, y2: 64 },
+      ],
+    })
+    drawStairs(g, [emU], null)
+    const [, , , molduraCrua] = pinturas(g)
+    const formasDaMoldura = formasDoCaminho(comoTraco(molduraCrua).data.path.instructions)
+    expect(formasDaMoldura.map((forma) => forma.fechada)).toEqual([true, false])
   })
 
   it('lance de comprimento zero não desenha nada', () => {

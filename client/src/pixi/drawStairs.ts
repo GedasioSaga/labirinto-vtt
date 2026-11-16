@@ -2,7 +2,7 @@ import type { Graphics } from 'pixi.js'
 import type { Stair } from '../types/map'
 import { SELECTION_COLOR, STAIR_COLOR, STAIR_PLATE_COLOR, STROKE_WEIGHT } from './constants'
 import { hairlinePhysicalWidth, pixelGrid, strokeWidthInWorld } from './pixelAlign'
-import { computeSpiralPlan, spiralPoint, type SpiralPlan } from '../lib/stairs'
+import { computeSpiralPlan, planoDaEscadaDobrada, spiralPoint, type PlanoDaEscadaDobrada, type SpiralPlan } from '../lib/stairs'
 import { stairCurveOf } from '../lib/stairCurve'
 import {
   curvedFlightRing,
@@ -103,17 +103,25 @@ export function drawStairs(
   const scale = cameraScale > 0 ? cameraScale : 1
   const ringWidth = selectionOutlineWidth(scale)
   const spirals = planSpirals(stairs)
-  const planned = stairs.filter((stair) => stair.shape !== 'spiral').map((stair) => ({
-    stair,
-    flights: planFlights(stair, cameraScale, rendererResolution),
-  }))
+  const folded = stairs.flatMap((stair) => {
+    const plano = planoDaEscadaDobrada(stair)
+    return plano === null ? [] : [{ stair, plano }]
+  })
+  const planned = stairs
+    .filter((stair) => stair.shape !== 'spiral' && !folded.some((entry) => entry.stair === stair))
+    .map((stair) => ({ stair, flights: planFlights(stair, cameraScale, rendererResolution) }))
 
-  // O realce vai por baixo de TODA escada, espiral ou reta.
+  // O realce vai por baixo de TODA escada, espiral, dobrada ou reta.
   const selectedSpiral = spirals.find((entry) => entry.stair.id === selectedStairId)
   if (selectedSpiral) {
     const { center, radius } = selectedSpiral.plan
     graphics.circle(center.x, center.y, radius + ringWidth / 2)
     graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, alpha: opacity })
+  }
+  const selectedFolded = folded.find((entry) => entry.stair.id === selectedStairId)
+  if (selectedFolded) {
+    graphics.poly(selectedFolded.plano.contorno(ringWidth / 2), true)
+    graphics.stroke({ width: ringWidth, color: SELECTION_COLOR, alpha: opacity, join: 'miter' })
   }
   const selected = planned.find((entry) => entry.stair.id === selectedStairId)
   if (selected) {
@@ -124,7 +132,52 @@ export function drawStairs(
   }
 
   for (const entry of planned.flatMap((item) => item.flights)) paintFlight(graphics, entry.flight, opacity)
+  for (const { stair, plano } of folded) paintFolded(graphics, stair, plano, cameraScale, rendererResolution, opacity)
   for (const { plan } of spirals) paintSpiral(graphics, plan, cameraScale, rendererResolution, opacity)
+}
+
+/**
+ * Escada em L ou em U (`planoDaEscadaDobrada`, `lib/stairs.ts`), nas quatro
+ * camadas do lance reto, mas como UMA peça: a placa é o contorno inteiro, o
+ * patamar da volta e o de chegada vão por cima dela, os degraus são os dos
+ * lances (sem o patamar de topo onde o lance chega na volta) e a moldura é o
+ * contorno recolhido meia espessura, mais a divisa entre os lances da U. Assim
+ * não sobra linha dupla nem placa somada onde um lance encosta no patamar.
+ */
+function paintFolded(
+  graphics: Graphics,
+  stair: Stair,
+  plano: PlanoDaEscadaDobrada,
+  cameraScale: number,
+  rendererResolution: number,
+  opacity: number,
+): void {
+  const scale = positiveOr(cameraScale, 1)
+  const resolution = positiveOr(rendererResolution, 1)
+  const frameWidth = strokeWidthInWorld(pixelGrid(scale, resolution, STROKE_WEIGHT.hairline))
+  const flights = plano.lances.flatMap((lance) => {
+    const flight = planStairFlight(lance.segmento, stair.stepWidth, stair.direction, cameraScale, rendererResolution, lance.patamarNoTopo)
+    return flight === null ? [] : [flight]
+  })
+
+  graphics.poly(plano.contorno(0), true)
+  graphics.fill({ color: STAIR_PLATE_COLOR, alpha: STAIR_PLATE_ALPHA * opacity })
+
+  graphics.poly(plano.patamar(frameWidth), true)
+  for (const flight of flights) if (flight.landing !== null) graphics.poly(flight.landing, true)
+  graphics.fill({ color: STAIR_COLOR, alpha: STAIR_LANDING_ALPHA * opacity })
+
+  const railAlpha = STAIR_RAIL_ALPHA * opacity
+  const treads = flights.flatMap((flight) => flight.treads)
+  const [firstFlight] = flights
+  if (treads.length > 0 && firstFlight !== undefined) {
+    for (const tread of treads) tracePath(graphics, tread)
+    graphics.stroke({ width: firstFlight.treadWidth, color: STAIR_COLOR, alpha: railAlpha, cap: 'butt' })
+  }
+
+  graphics.poly(plano.contorno(-frameWidth / 2), true)
+  if (plano.divisa !== null) tracePath(graphics, plano.divisa)
+  graphics.stroke({ width: frameWidth, color: STAIR_COLOR, alpha: railAlpha, join: 'miter' })
 }
 
 type PlannedFlight = { curved: false; flight: StairFlight } | { curved: true; flight: CurvedStairFlight }

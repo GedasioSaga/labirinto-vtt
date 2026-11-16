@@ -162,11 +162,11 @@ describe('StairControls com o mapa montado: a seta no seg não empurra a escada'
     expect(escada().segments).toEqual(ESCADA.segments)
   })
 
-  it('Forma: a seta escolhe a Espiral sem empurrar a escada', () => {
+  it('Forma: a seta escolhe a vizinha (Em L) sem empurrar a escada', () => {
     const reta = opcaoMarcada('Forma da escada')
     act(() => reta.focus())
     teclar(reta, 'ArrowRight')
-    expect(escada().shape).toBe('spiral')
+    expect(escada().shape).toBe('l')
     expect(empurrao).not.toHaveBeenCalled()
     expect(useMapStore.getState().past).toHaveLength(1)
   })

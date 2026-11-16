@@ -140,9 +140,9 @@ describe('StairControls na gramática do Grimório', () => {
     expect(container.querySelectorAll('[role="radiogroup"]')).toHaveLength(3)
   })
 
-  it('L e dupla (o schema tem, a UI não desenha): nenhuma Forma marcada e sem Curva', () => {
+  it('Em L: a Forma marca a L, sem Curva (só a reta curva) e com a largura', () => {
     montar({ shape: 'l', tamanho: tamanho({ curve: null }) })
-    expect(marcadas('Forma da escada')).toEqual(['false', 'false'])
+    expect(marcadas('Forma da escada')).toEqual(['false', 'true', 'false', 'false'])
     expect(container.querySelector('#lb-stair-curve')).toBeNull()
     expect(container.querySelector('#lb-stair-step-width')).not.toBeNull()
   })

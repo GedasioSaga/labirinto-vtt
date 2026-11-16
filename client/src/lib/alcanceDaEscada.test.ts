@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createEmptyMap } from './mapFactory'
+import { createEmptyMap, setStairShape } from './mapFactory'
 import { tokenReachesPin } from './doorReach'
 import { tokenReachesPin as tokenReachesPinDoHost } from './items'
 import { alcancePeloObjeto } from './obstaculosDeObjeto'
@@ -43,5 +43,28 @@ describe('alcance do pino da escada: a escada inteira conta', () => {
     expect(tokenReachesPinDoHost(longe, pin, GRID, alcancePeloObjeto(map))).toBe(false)
     const { escadaId: _semEscada, ...pinoComum } = pin
     expect(tokenReachesPin(token(BOCA.x, 80), pinoComum, GRID, alcancePeloObjeto(map))).toBe(false)
+  })
+
+  /**
+   * Escadaria de dois lances (lote de 15/11/2026): a mesma escada comprida
+   * dobrada pela ficha. A boca fica em (300, 450); na L o patamar da volta é o
+   * meio em (300, 250) e o segundo lance vai até (500, 250); na U o patamar
+   * atravessa até (350, 250) e o segundo lance desce de volta até (350, 450).
+   */
+  it.each([
+    { forma: 'l' as const, noOutroLance: { x: 480, y: 250 }, noPatamar: { x: 318, y: 232 }, longe: { x: 500, y: 450 } },
+    { forma: 'double' as const, noOutroLance: { x: 350, y: 290 }, noPatamar: { x: 362, y: 236 }, longe: { x: 600, y: 250 } },
+  ])('escada $forma: o outro lance e o patamar da volta alcançam o pino da boca; longe não', ({ forma, noOutroLance, noPatamar, longe }) => {
+    const { map: reta, pin } = mapaComEscadaComprida()
+    const map = setStairShape(reta, 'escada', forma)
+    const alcance = alcancePeloObjeto(map)
+    for (const ponto of [noOutroLance, noPatamar]) {
+      // Sem a escada inteira contar, o ponto ficaria longe do pino (mais de três casas da boca).
+      expect(Math.hypot(ponto.x - BOCA.x, ponto.y - BOCA.y)).toBeGreaterThan(3 * GRID)
+      expect(tokenReachesPin(token(ponto.x, ponto.y), pin, GRID, alcance)).toBe(true)
+      expect(tokenReachesPinDoHost(token(ponto.x, ponto.y), pin, GRID, alcance)).toBe(true)
+    }
+    expect(tokenReachesPin(token(longe.x, longe.y), pin, GRID, alcance)).toBe(false)
+    expect(tokenReachesPinDoHost(token(longe.x, longe.y), pin, GRID, alcance)).toBe(false)
   })
 })
