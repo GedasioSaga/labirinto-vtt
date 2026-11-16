@@ -370,6 +370,20 @@ export function fichaMinima(sistema: SistemaDeRpg, nome: string): Personagem {
   return ficha
 }
 
+/** De onde a ficha nova de NPC começa: a mínima, em branco ou como variação de um modelo do bestiário. */
+export type ComecoDaFicha = { readonly tipo: 'minima' } | { readonly tipo: 'branco' } | { readonly tipo: 'modelo'; readonly modelo: Personagem }
+
+/**
+ * A FICHA NOVA DE NPC PELO COMEÇO: o "Novo NPC" do bestiário
+ * (`NovoNpcDialog`) e o "Virar NPC" do Prelúdio montam por aqui. Em branco
+ * também nasce de combate, com força 1.
+ */
+export function fichaPeloComeco(comeco: ComecoDaFicha, sistema: SistemaDeRpg, nome: string): Personagem {
+  if (comeco.tipo === 'minima') return fichaMinima(sistema, nome)
+  if (comeco.tipo === 'modelo') return novaVariacao(comeco.modelo, nome)
+  return { ...novoPersonagem(sistema, 'npc', nome), combate: { forca: FORCA_PADRAO } }
+}
+
 /** Os números do invocado como a ficha temporária os recebe (já conferidos por quem chama). */
 export interface NumerosDaFichaDoInvocado {
   hp: number

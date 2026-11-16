@@ -600,7 +600,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
           )}
         </section>
 
-        {verbete.tipo === 'personagem' && <FichaDoLivro verbete={verbete} editavel={editavel} />}
+        {verbete.tipo === 'personagem' && <FichaDoLivro verbete={verbete} forma={forma} editavel={editavel} />}
 
         {verbete.origem?.grimorio !== undefined && (
           <p className="pr-quieto pr-trilho__origem">Veio do Grimório. Depois de editado aqui, a próxima importação deixa este verbete como está.</p>

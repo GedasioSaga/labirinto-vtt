@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { chaveDoNome } from '../../lib/contasDosJogadores'
-import { ATALHOS_DA_FORCA, fichaMinima, modelosDeNpc, novaVariacao, trocarForca } from '../../lib/livros/combate'
-import { FORCA_PADRAO, forcaDe, novoPersonagem, RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
+import { ATALHOS_DA_FORCA, fichaPeloComeco, modelosDeNpc, trocarForca } from '../../lib/livros/combate'
+import { FORCA_PADRAO, forcaDe, RECURSO_QUE_A_FORCA_MULTIPLICA, type Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { PERSONAGEM_NOME_MAX } from '../../net/protocoloDoPersonagem'
 import { formatarForca, gravarNoMundo, movimentoReduzido, semCenario, trocarFicha } from './comum'
@@ -98,9 +98,9 @@ export function NovoNpcDialog({ modo, sistema, personagens, onClose, onFeito }: 
     }
     let ficha: Personagem
     if (comeco === PROPRIA && darFicha) ficha = semCenario({ ...modo.personagem, nome: limpo })
-    else if (comeco === MINIMA) ficha = fichaMinima(sistema, limpo)
-    else if (comeco === BRANCO) ficha = { ...novoPersonagem(sistema, 'npc', limpo), combate: { forca: FORCA_PADRAO } }
-    else if (modeloEscolhido !== undefined) ficha = novaVariacao(modeloEscolhido, limpo)
+    else if (comeco === MINIMA) ficha = fichaPeloComeco({ tipo: 'minima' }, sistema, limpo)
+    else if (comeco === BRANCO) ficha = fichaPeloComeco({ tipo: 'branco' }, sistema, limpo)
+    else if (modeloEscolhido !== undefined) ficha = fichaPeloComeco({ tipo: 'modelo', modelo: modeloEscolhido }, sistema, limpo)
     else return { erro: 'Esse modelo não está mais no bestiário. Escolha outro começo.' }
     if (darFicha && comeco !== PROPRIA) {
       // O MESMO id: os tokens do mapa ligados a ele continuam ligados. Retrato e anotação dele ficam.

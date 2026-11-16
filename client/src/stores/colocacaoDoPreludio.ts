@@ -3,8 +3,12 @@ import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravadaDoItem } from '../lib/camadas/trava'
 import { comFalas, FALAS_MAX, falasDoPino, idDeFalaNova, novaFala } from '../lib/falasDoPino'
 import type { FalaDoPino } from '../types/cenarioEFalas'
-import type { FonteNoPreludio, Pin, PinKind } from '../types/map'
+import { pinoDeItem } from '../lib/itemNoMapa'
+import { pinoDoLugar } from '../lib/preparo/pinoDoLugar'
+import { snapPointForTarget } from '../pixi/tokenInteraction'
+import type { FonteNoPreludio, Pin, PinItem, PinKind } from '../types/map'
 import type { DrawingTool } from '../types/tools'
+import { criarToken } from './criarToken'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 
@@ -19,7 +23,35 @@ import { useToastStore } from './toastStore'
  * baixa quando ela abre.
  */
 
-export interface ColocacaoDoPreludio {
+/**
+ * O VERBETE INTEIRO no mapa (E3, 16/11): já preparado pela mesa
+ * (`preludio/janela/verbeteNaMesa.ts`), espera só o clique.
+ * - `token`: o Personagem, ligado à ficha de NPC (`characterId`) ou sem ficha.
+ * - `item`: o pino de item pegável com o item do Acervo (criado ou o de mesmo nome).
+ * - `lugar`: o "!" com o texto do verbete e a imagem que pode ir ao jogador.
+ */
+export type CoisaDoVerbete =
+  | { readonly o: 'token'; readonly characterId: string | null; readonly npc: boolean; readonly foto: string | null }
+  | { readonly o: 'item'; readonly item: PinItem; readonly novoNoAcervo: boolean }
+  | { readonly o: 'lugar'; readonly texto: string; readonly imagem: string | null }
+
+export interface ColocacaoDoVerbete {
+  readonly pedido: number
+  /** A ferramenta Pino fica na mão com o "!" (o clique é o mesmo); o que nasce sai de `coisa`. */
+  readonly kind: 'exclamacao'
+  /** O nome do verbete: o do token, o do "!" ou o do item. */
+  readonly nome: string
+  readonly coisa: CoisaDoVerbete
+}
+
+export type ColocacaoDoPreludio = ColocacaoDaSecao | ColocacaoDoVerbete
+
+/** É o verbete inteiro (E3), e não uma seção (P3/P5). */
+export function ehDoVerbete(colocacao: ColocacaoDoPreludio): colocacao is ColocacaoDoVerbete {
+  return 'coisa' in colocacao
+}
+
+export interface ColocacaoDaSecao {
   /** O número do pedido da janela do Prelúdio: a resposta leva o mesmo. */
   readonly pedido: number
   readonly fonte: FonteNoPreludio
@@ -85,7 +117,7 @@ export function comecarColocacao(colocacao: ColocacaoDoPreludio): void {
  * A entrada do "?" que a colocação vira (P5): oculta até o mestre dizer, com o
  * texto ligado à seção; da seção de um Personagem, "Fala" dita por ele.
  */
-function falaDaColocacao(pendente: ColocacaoDoPreludio): FalaDoPino {
+function falaDaColocacao(pendente: ColocacaoDaSecao): FalaDoPino {
   const quem = pendente.quem
   if (quem === undefined) return novaFala(idDeFalaNova(), 'Pista', pendente.texto, { fonte: pendente.fonte })
   return novaFala(idDeFalaNova(), 'Fala', pendente.texto, { fonte: pendente.fonte, quem: quem.nome, quemVerbeteId: quem.verbeteId })
@@ -99,6 +131,16 @@ function falaDaColocacao(pendente: ColocacaoDoPreludio): FalaDoPino {
 export function pinoDaColocacao(pin: Pin): Pin {
   const pendente = useColocacaoDoPreludio.getState().pendente
   if (pendente === null) return pin
+  if (ehDoVerbete(pendente)) {
+    const { coisa } = pendente
+    // O token não é pino: nasce no `cravarPinoPeloGesto` (`porTokenDaColocacao`), e o pino volta igual.
+    if (coisa.o === 'token') return pin
+    if (coisa.o === 'item') {
+      const deItem = pinoDeItem(pin.id, { x: pin.x, y: pin.y }, coisa.item)
+      return pin.piso === undefined ? deItem : { ...deItem, piso: pin.piso }
+    }
+    return pinoDoLugar(pin, { nome: pendente.nome, texto: coisa.texto, imagem: coisa.imagem })
+  }
   const ligado: Pin =
     pendente.kind === 'interrogacao'
       ? { ...pin, kind: pendente.kind, description: '', falas: [falaDaColocacao(pendente)] }
@@ -116,7 +158,7 @@ export function pinoDaColocacao(pin: Pin): Pin {
  */
 export function juntarFalaDaColocacao(pin: Pin): boolean {
   const pendente = useColocacaoDoPreludio.getState().pendente
-  if (pendente === null || pendente.kind !== 'interrogacao' || pin.kind !== 'interrogacao') return false
+  if (pendente === null || ehDoVerbete(pendente) || pendente.kind !== 'interrogacao' || pin.kind !== 'interrogacao') return false
   const mapa = useMapStore.getState()
   const travada = camadaTravadaDoItem(mapa.map, 'pino', pin)
   if (travada !== null) {
@@ -134,6 +176,26 @@ export function juntarFalaDaColocacao(pin: Pin): boolean {
   terminarColocacao('posto')
   const nome = pin.nome?.trim() ?? ''
   useToastStore.getState().push('info', `Fala juntada ao ? ${nome === '' ? 'existente' : nome}: fica oculta até você dizer.`)
+  return true
+}
+
+/**
+ * O TOKEN DO PERSONAGEM (E3): com um token esperando, o clique da ferramenta
+ * Pino (que chega aqui pelo `cravarPinoPeloGesto`) põe o token na casa do
+ * clique, ligado à ficha de NPC, por `criarToken`: um passo do Ctrl+Z, e ele
+ * nasce selecionado. Devolve `false` quando não há token esperando (o pino
+ * segue o de sempre). O pino de item que o Acervo solta nunca chega aqui
+ * (`pin.item`): soltar um item com um token esperando continua pondo o item.
+ */
+export function porTokenDaColocacao(pin: Pin): boolean {
+  const pendente = useColocacaoDoPreludio.getState().pendente
+  if (pendente === null || !ehDoVerbete(pendente) || pendente.coisa.o !== 'token' || pin.item !== undefined) return false
+  const { coisa } = pendente
+  const { map, pisoAtivo } = useMapStore.getState()
+  const at = snapPointForTarget('token', map.gridShape, pin.x, pin.y, map.grid)
+  const id = criarToken(pendente.nome.trim() || 'Personagem', { at, imageData: coisa.foto, npc: coisa.npc, piso: pisoAtivo, ...(coisa.characterId === null ? {} : { characterId: coisa.characterId }) }, null)
+  if (id === null) return true
+  terminarColocacao('posto')
   return true
 }
 

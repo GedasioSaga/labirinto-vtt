@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Dialogo } from '../../components/grimorio/Dialogo'
 import { lerIndiceDasPastas, lerRpgDaPasta, type PastaDeMapas } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
-import type { LigaFicha, Verbete } from '../../lib/preparo/tipos'
+import { campanhaComPastaDoVerbete } from '../../lib/preparo/doVerbeteParaOMapa'
+import type { Forma, LigaFicha, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
+import { VirarNpc } from './VirarNpc'
 
 /**
  * VERBETE ↔ FICHA DO LIVRO (plano §2): pelo `Personagem.id` do `rpg.json` da
@@ -125,13 +127,16 @@ function EscolherFicha({ aberto, pastaInicial, ligadas, aoEscolher, aoFechar }: 
   )
 }
 
-export function FichaDoLivro({ verbete, editavel }: { verbete: Verbete; editavel: boolean }) {
+export function FichaDoLivro({ verbete, forma, editavel }: { verbete: Verbete; forma: Forma; editavel: boolean }) {
   const pastas = usePastas()
   const [escolhendo, setEscolhendo] = useState(false)
+  const [virando, setVirando] = useState(false)
   const campanhas = usePreludio((estado) => estado.campanhas)
   const mudarVerbete = usePreludio((estado) => estado.mudarVerbete)
   const ligadas = verbete.liga?.fichas ?? []
-  const pastaDaCampanha = campanhas.find((campanha) => verbete.campanhas.includes(campanha.id) && campanha.pastaId !== undefined)?.pastaId ?? null
+  const campanhaComPasta = campanhaComPastaDoVerbete(verbete, campanhas)
+  const pastaDaCampanha = campanhaComPasta?.pastaId ?? null
+  const semCampanha = verbete.campanhas.length === 0
 
   const mudarFichas = (mudar: (fichas: LigaFicha[]) => LigaFicha[]) =>
     mudarVerbete(verbete.id, (atual) => ({ ...atual, liga: { fichas: mudar([...(atual.liga?.fichas ?? [])]), cenas: [...(atual.liga?.cenas ?? [])] } }))
@@ -156,10 +161,27 @@ export function FichaDoLivro({ verbete, editavel }: { verbete: Verbete; editavel
           ))}
         </ul>
       )}
+      {editavel && ligadas.length === 0 && (
+        <div className="pr-virar-npc">
+          <button type="button" className="gr-bt gr-bt--p gr-bt--primario" disabled={pastaDaCampanha === null} aria-describedby={pastaDaCampanha === null ? 'pr-virar-npc-motivo' : undefined} onClick={() => setVirando(true)}>
+            Virar NPC
+          </button>
+          <p className="pr-virar-npc__motivo" id="pr-virar-npc-motivo">
+            {pastaDaCampanha !== null
+              ? 'Abre a ficha do sistema da campanha já com nome, retrato e descrição.'
+              : semCampanha
+                ? 'Para virar NPC, ponha este personagem numa campanha que tenha pasta de mapas.'
+                : 'A campanha deste personagem ainda não tem pasta de mapas: escolha uma em Campanha e sistema.'}
+          </p>
+        </div>
+      )}
       {editavel && (
         <button type="button" className="gr-bt gr-bt--p gr-bt--latao" onClick={() => setEscolhendo(true)}>
           Ligar a uma ficha…
         </button>
+      )}
+      {virando && pastaDaCampanha !== null && (
+        <VirarNpc verbete={verbete} forma={forma} pastaId={pastaDaCampanha} aoFechar={() => setVirando(false)} aoFeito={() => setVirando(false)} />
       )}
       {escolhendo && (
         <EscolherFicha

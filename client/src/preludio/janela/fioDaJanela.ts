@@ -1,17 +1,20 @@
 import type { Canal } from '../../net/visaoDeTeste/canal'
-import type { LigaCena } from '../../lib/preparo/tipos'
+import type { Personagem } from '../../lib/personagem'
+import type { LigaCena, LigaFicha } from '../../lib/preparo/tipos'
 import {
   lerRecadoDaMesa,
   motivoParaOFio,
   pedidoDoPreludio,
   type AbaDoVerbete,
   type AndamentoDoPor,
+  type ComoVaiAoMapa,
   type CorpoDoPedido,
   type EstadoDaMesa,
   type ItemNaMesa,
   type MudancaNoPreparo,
   type SecaoParaOMapa,
   type TipoParaOMapa,
+  type VerbeteParaOMapa,
 } from './protocolo'
 
 /**
@@ -27,6 +30,9 @@ import {
  */
 
 export const PING_MS = 2000
+/** Quanto o "Virar NPC" espera a mesa gravar a ficha na pasta. */
+const ESPERA_DA_FICHA_MS = 15000
+export const MESA_NAO_GRAVOU_A_FICHA = 'A janela do mapa não respondeu a tempo. A ficha pode não ter sido gravada: confira na pasta.'
 export const VIVA_MS = 6000
 
 export interface DepsDoFio {
@@ -56,6 +62,10 @@ export interface FioDoPreludio {
   /** "Pôr no mapa" (P3): a mesa espera o clique do mestre. Devolve o número do pedido. */
   porNoMapa(fonte: SecaoParaOMapa, kind: TipoParaOMapa): number
   cancelarPor(pedido: number): void
+  /** E3: o verbete inteiro vai ao mapa pelo tipo. Devolve o número do pedido (a resposta vem por `aoPondo`). */
+  porVerbete(fonte: VerbeteParaOMapa, como: ComoVaiAoMapa, ficha: LigaFicha | null): number
+  /** E3 "Virar NPC": a mesa grava a ficha na pasta. `null` = gravou; senão, o motivo. */
+  gravarFicha(pastaId: string, personagem: Personagem): Promise<string | null>
   /** "Ler agora" (P4): a mesa lê o "!" para todos da cena dele e responde com `resposta` (o aviso, se não deu). */
   lerAgora(alvo: LigaCena): void
   desligar(): void
@@ -68,6 +78,8 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
   let viva = false
   let n = 0
   let pedidos = 0
+  /** Os "gravar-ficha" esperando a `resposta` da mesa, pelo número do pedido. */
+  const esperandoFicha = new Map<number, (motivo: string | null) => void>()
 
   const enviar = (corpo: CorpoDoPedido) => {
     if (ligado) deps.canal.enviar(pedidoDoPreludio(deps.sessao, corpo))
@@ -99,9 +111,16 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
       case 'na-mesa':
         deps.aoNaMesa(recado.itens)
         return
-      case 'resposta':
+      case 'resposta': {
+        const daFicha = esperandoFicha.get(recado.pedido)
+        if (daFicha !== undefined) {
+          esperandoFicha.delete(recado.pedido)
+          daFicha(recado.ok ? null : (recado.motivo ?? 'A mesa não gravou a ficha.'))
+          return
+        }
         deps.aoAviso(recado.ok ? null : (recado.motivo ?? 'A mesa não abriu este link.'))
         return
+      }
       case 'mudou':
         deps.aoMudar(recado.mudanca)
         return
@@ -139,12 +158,34 @@ export function ligarFioDoPreludio(deps: DepsDoFio): FioDoPreludio {
     cancelarPor(pedido) {
       enviar({ tipo: 'cancelar-por', pedido })
     },
+    porVerbete(fonte, como, ficha) {
+      pedidos += 1
+      enviar({ tipo: 'por-verbete', pedido: pedidos, fonte, como, ficha })
+      return pedidos
+    },
+    gravarFicha(pastaId, personagem) {
+      pedidos += 1
+      const pedido = pedidos
+      return new Promise<string | null>((resolver) => {
+        const prazo = setTimeout(() => {
+          esperandoFicha.delete(pedido)
+          resolver(MESA_NAO_GRAVOU_A_FICHA)
+        }, ESPERA_DA_FICHA_MS)
+        esperandoFicha.set(pedido, (motivo) => {
+          clearTimeout(prazo)
+          resolver(motivo)
+        })
+        enviar({ tipo: 'gravar-ficha', pedido, pastaId, personagem })
+      })
+    },
     lerAgora(alvo) {
       pedidos += 1
       enviar({ tipo: 'ler-agora', pedido: pedidos, alvo })
     },
     desligar() {
       ligado = false
+      for (const responder of esperandoFicha.values()) responder(MESA_NAO_GRAVOU_A_FICHA)
+      esperandoFicha.clear()
       clearInterval(relogio)
       pararDeOuvir()
     },

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { caminhoDaFonte } from '../lib/fonteNoPreludio'
-import { terminarColocacao, useColocacaoDoPreludio } from '../stores/colocacaoDoPreludio'
+import { ehDoVerbete, terminarColocacao, useColocacaoDoPreludio, type ColocacaoDoVerbete } from '../stores/colocacaoDoPreludio'
 import './faixaDaColocacao.css'
 
 /**
@@ -19,6 +19,18 @@ export function FaixaDaColocacao() {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [pendente])
   if (pendente === null) return null
+  if (ehDoVerbete(pendente)) {
+    return (
+      <div className="lb-faixa-colocacao" role="status" aria-live="polite">
+        <span>
+          <b>Pôr no mapa:</b> clique onde fica {oQueVai(pendente)}. Esc cancela.
+        </span>
+        <button type="button" className="gr-bt gr-bt--fantasma gr-bt--p" onClick={() => terminarColocacao('cancelado')}>
+          Cancelar
+        </button>
+      </div>
+    )
+  }
   const caminho = caminhoDaFonte(pendente.fonte)
   return (
     <div className="lb-faixa-colocacao" role="status" aria-live="polite">
@@ -36,4 +48,12 @@ export function FaixaDaColocacao() {
       </button>
     </div>
   )
+}
+
+/** O que o clique põe, dito como o protótipo do E3: o token, o pino de item ou o "!" do lugar. */
+function oQueVai(pendente: ColocacaoDoVerbete) {
+  const nome = <b>{pendente.nome || 'sem nome'}</b>
+  if (pendente.coisa.o === 'token') return <>o token de {nome}</>
+  if (pendente.coisa.o === 'item') return <>o pino de item de {nome}</>
+  return <>o ! de {nome}{pendente.coisa.imagem === null ? '' : ', com a imagem'}</>
 }

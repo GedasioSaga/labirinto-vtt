@@ -14,8 +14,9 @@ import { comecarColocacao, definirFimDaColocacao, terminarColocacao, useColocaca
 import { sceneMaps } from '../../stores/adventureStore'
 import { mapaNaMemoriaAgora } from '../mesa/catalogo'
 import { lerCenarioAgora, type FimDoLerAgora } from '../../stores/mesaDoPino'
-import type { LigaCena } from '../../lib/preparo/tipos'
+import type { LigaCena, LigaFicha } from '../../lib/preparo/tipos'
 import type { Pin } from '../../types/map'
+import { gravarFichaPelaMesa, prepararVerbeteNaMesa } from './verbeteNaMesa'
 import {
   idDoMapaParaOFio,
   lerPedidoDoPreludio,
@@ -25,12 +26,14 @@ import {
   nomeDoCanal,
   nomeParaOFio,
   recadoDaMesa,
+  type ComoVaiAoMapa,
   type CorpoDoRecado,
   type EstadoDaMesa,
   type ItemNaMesa,
   type PedidoDoPreludio,
   type SecaoParaOMapa,
   type TipoParaOMapa,
+  type VerbeteParaOMapa,
 } from './protocolo'
 
 /**
@@ -300,7 +303,28 @@ function criarMesa(sessao: string, abrirCanal: (nome: string) => Canal): Mesa {
         enviar({ tipo: 'resposta', pedido: pedido.pedido, ok: fim.ok, motivo: fim.ok ? null : motivoParaOFio(fim.motivo) })
         return
       }
+      case 'por-verbete':
+        void porVerbeteNoMapa(pedido.pedido, pedido.fonte, pedido.como, pedido.ficha)
+        return
+      case 'gravar-ficha': {
+        const numero = pedido.pedido
+        void gravarFichaPelaMesa(pedido.pastaId, pedido.personagem).then((motivo) =>
+          enviar({ tipo: 'resposta', pedido: numero, ok: motivo === null, motivo: motivo === null ? null : motivoParaOFio(motivo) }),
+        )
+        return
+      }
     }
+  }
+
+  /** "PÔR NO MAPA" POR TIPO (E3): a mesa prepara o verbete inteiro (`verbeteNaMesa.ts`) e põe a ferramenta na mão. */
+  const porVerbeteNoMapa = async (pedido: number, fonte: VerbeteParaOMapa, como: ComoVaiAoMapa, ficha: LigaFicha | null) => {
+    const preparado = await prepararVerbeteNaMesa(fonte, como, ficha)
+    if (!preparado.ok) {
+      enviar({ tipo: 'pondo', pedido, andamento: 'recusado', motivo: motivoParaOFio(preparado.motivo) })
+      return
+    }
+    comecarColocacao({ pedido, kind: 'exclamacao', nome: preparado.nome, coisa: preparado.coisa })
+    enviar({ tipo: 'pondo', pedido, andamento: 'esperando', motivo: null })
   }
 
   /**

@@ -1,7 +1,9 @@
 import { SESSAO_DA_JANELA_VALIDA } from '../../lib/janelaDoPreludio'
 import { idDoPreparoValido } from '../../lib/preparo/disco'
 import { ehRegistro } from '../../lib/preparo/molde'
-import type { LigaCena } from '../../lib/preparo/tipos'
+import { idDePastaValido } from '../../lib/pastasDeMapas'
+import { personagemDoArquivo, type Personagem } from '../../lib/personagem'
+import type { LigaCena, LigaFicha } from '../../lib/preparo/tipos'
 
 /**
  * O FIO ENTRE A MESA (janela principal) E A JANELA DO PRELÚDIO, P1 do estudo
@@ -73,6 +75,19 @@ export interface SecaoParaOMapa {
   readonly secaoId: string
 }
 
+/**
+ * O VERBETE INTEIRO que vai ao mapa pelo tipo (E3, 16/11): o Personagem vira
+ * token (ligado à ficha de NPC, se tem), o Item vira item do Acervo com pino
+ * de item, o Lugar vira "!" com a imagem. Como na seção, o texto e a imagem
+ * nunca viajam pelo fio: a mesa os lê do verbete no disco.
+ */
+export interface VerbeteParaOMapa {
+  readonly verbeteId: string
+  readonly formaId: string
+}
+
+export type ComoVaiAoMapa = 'token' | 'item' | 'lugar'
+
 /** Como a seção entra no mapa: "!" (cenário, para ler) ou "?" (fala ou pista). P4/P5 dão papel próprio a cada um. */
 export type TipoParaOMapa = 'exclamacao' | 'interrogacao'
 
@@ -106,6 +121,10 @@ export type PedidoDoPreludio =
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'gravou'; readonly pedido: number; readonly motivo: string | null }
   /** P4: "Ler agora" de um "!" da lista "Na mesa", para todos da cena do pino. A mesa confere o pino e responde com `resposta`. */
   | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'ler-agora'; readonly pedido: number; readonly alvo: LigaCena }
+  /** E3: o verbete inteiro vai ao mapa pelo tipo (`como`); no token, a ficha de NPC ligada (`null` = token sem ficha). Responde com `pondo`, como a seção. */
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'por-verbete'; readonly pedido: number; readonly fonte: VerbeteParaOMapa; readonly como: ComoVaiAoMapa; readonly ficha: LigaFicha | null }
+  /** E3 "Virar NPC": a ficha nova (ou a mesma, pelo id) entra na pasta pela mesa, que é quem tem a cópia aberta. Responde com `resposta`. */
+  | { readonly de: 'preludio'; readonly v: number; readonly sessao: string; readonly tipo: 'gravar-ficha'; readonly pedido: number; readonly pastaId: string; readonly personagem: Personagem }
 
 export type RecadoDaMesa =
   | { readonly de: 'mesa'; readonly v: number; readonly sessao: string; readonly tipo: 'estado'; readonly estado: EstadoDaMesa }
@@ -203,6 +222,25 @@ export function lerSecaoParaOMapa(valor: unknown): SecaoParaOMapa | null {
   return idDoPreparoValido(verbeteId) && idDentroDoVerbete(formaId) && idDentroDoVerbete(secaoId) ? { verbeteId, formaId, secaoId } : null
 }
 
+/** O verbete que o Prelúdio quer no mapa. A mesa ainda confere no disco se ele existe e de que tipo é. */
+export function lerVerbeteParaOMapa(valor: unknown): VerbeteParaOMapa | null {
+  if (!ehRegistro(valor)) return null
+  const { verbeteId, formaId } = valor
+  return idDoPreparoValido(verbeteId) && idDentroDoVerbete(formaId) ? { verbeteId, formaId } : null
+}
+
+function lerComoVaiAoMapa(valor: unknown): ComoVaiAoMapa | null {
+  return valor === 'token' || valor === 'item' || valor === 'lugar' ? valor : null
+}
+
+/** A ficha ligada ao verbete: `null` = sem ficha; `undefined` = torta (a mensagem inteira é ignorada). */
+function lerLigaFicha(valor: unknown): LigaFicha | null | undefined {
+  if (valor === null) return null
+  if (!ehRegistro(valor)) return undefined
+  const { pastaId, personagemId } = valor
+  return idDePastaValido(pastaId) && idDoMapaValido(personagemId) ? { pastaId, personagemId } : undefined
+}
+
 function lerItemNaMesa(valor: unknown): ItemNaMesa | null {
   if (!ehRegistro(valor)) return null
   const { pinoId, nome, kind, chave, sceneId, cena } = valor
@@ -261,6 +299,19 @@ export function lerPedidoDoPreludio(dado: unknown, sessao: string): PedidoDoPrel
       // Só o endereço do pino: o texto nunca vem pelo fio (a mesa lê o do próprio pino).
       const alvo = lerAlvoNaMesa(dado.alvo)
       return alvo === null || alvo.pinoId === undefined || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'ler-agora', pedido: dado.pedido, alvo }
+    }
+    case 'por-verbete': {
+      const fonte = lerVerbeteParaOMapa(dado.fonte)
+      const como = lerComoVaiAoMapa(dado.como)
+      const ficha = lerLigaFicha(dado.ficha)
+      if (fonte === null || como === null || ficha === undefined || !numeroValido(dado.pedido)) return null
+      // Ficha só no token: num item ou num lugar ela não teria o que fazer.
+      return { ...envelope, tipo: 'por-verbete', pedido: dado.pedido, fonte, como, ficha: como === 'token' ? ficha : null }
+    }
+    case 'gravar-ficha': {
+      // A ficha passa pela MESMA leitura do disco (`personagemDoArquivo`): o que não é ficha não entra na pasta.
+      const personagem = personagemDoArquivo(dado.personagem)
+      return personagem === null || !idDePastaValido(dado.pastaId) || !numeroValido(dado.pedido) ? null : { ...envelope, tipo: 'gravar-ficha', pedido: dado.pedido, pastaId: dado.pastaId, personagem }
     }
     default:
       return null

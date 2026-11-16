@@ -1,10 +1,12 @@
 import { create } from 'zustand'
-import type { LigaCena } from '../../lib/preparo/tipos'
+import type { Personagem } from '../../lib/personagem'
+import type { LigaCena, LigaFicha } from '../../lib/preparo/tipos'
+import { editarRpgDaPasta } from '../../stores/rpgDaPasta'
 import { useAdventureStore } from '../../stores/adventureStore'
 import { usePreludio } from '../estado/preludio'
 import { useMapaNaMemoria } from '../mesa/catalogo'
 import type { FioDoPreludio } from './fioDaJanela'
-import type { AndamentoDoPor, EstadoDaMesa, ItemNaMesa, SecaoParaOMapa, TipoParaOMapa } from './protocolo'
+import type { AndamentoDoPor, ComoVaiAoMapa, EstadoDaMesa, ItemNaMesa, SecaoParaOMapa, TipoParaOMapa, VerbeteParaOMapa } from './protocolo'
 
 /**
  * A MESA VISTA DE DENTRO DO PRELÚDIO (P2): o que a janela principal contou pelo
@@ -26,6 +28,17 @@ interface EstadoDaMesaNaJanela {
   pondo: PorNoMapaEmCurso | null
   /** Por que o último "Pôr no mapa" não aconteceu; `null` = nada a dizer. */
   avisoDoPor: string | null
+  /** E3: o verbete inteiro indo ao mapa pelo tipo (token, item ou lugar). */
+  pondoVerbete: PorVerbeteEmCurso | null
+  /** E3: o último verbete que a mesa pôs no mapa (para o "Na mesa" da linha), com o tipo. */
+  postoVerbete: { readonly verbeteId: string; readonly como: ComoVaiAoMapa } | null
+}
+
+export interface PorVerbeteEmCurso {
+  readonly pedido: number
+  readonly fonte: VerbeteParaOMapa
+  readonly como: ComoVaiAoMapa
+  readonly andamento: 'pedindo' | 'esperando'
 }
 
 export interface PorNoMapaEmCurso {
@@ -43,6 +56,8 @@ export const useMesaNaJanela = create<EstadoDaMesaNaJanela>()(() => ({
   naMesa: [],
   pondo: null,
   avisoDoPor: null,
+  pondoVerbete: null,
+  postoVerbete: null,
 }))
 
 let fio: FioDoPreludio | null = null
@@ -50,7 +65,7 @@ let fio: FioDoPreludio | null = null
 /** Só a janela do Prelúdio liga (e desliga ao sair). */
 export function definirFioDaMesa(novo: FioDoPreludio | null): void {
   fio = novo
-  if (novo === null) useMesaNaJanela.setState({ ligada: false, viva: false, estado: null, naMesa: [], pondo: null, avisoDoPor: null })
+  if (novo === null) useMesaNaJanela.setState({ ligada: false, viva: false, estado: null, naMesa: [], pondo: null, avisoDoPor: null, pondoVerbete: null, postoVerbete: null })
 }
 
 const NAO_GRAVOU = 'O Prelúdio ainda não gravou esta seção. Tente de novo em instantes.'
@@ -82,8 +97,70 @@ export function cancelarPorNoMapa(): void {
   useMesaNaJanela.setState({ pondo: null })
 }
 
+/**
+ * "PÔR NO MAPA" POR TIPO (E3): o verbete inteiro, e não uma seção. A mesa lê o
+ * verbete do disco, prepara (a ficha do token, o item do Acervo, a imagem do
+ * lugar) e espera o clique do mestre. Um "Pôr no mapa" de cada vez, de seção ou
+ * de verbete.
+ */
+export async function porVerbeteNoMapa(fonte: VerbeteParaOMapa, como: ComoVaiAoMapa, ficha: LigaFicha | null): Promise<void> {
+  if (fio === null) return
+  const { pondo, pondoVerbete } = useMesaNaJanela.getState()
+  if (pondo !== null) fio.cancelarPor(pondo.pedido)
+  if (pondoVerbete !== null) fio.cancelarPor(pondoVerbete.pedido)
+  useMesaNaJanela.setState({ pondo: null, pondoVerbete: null, avisoDoPor: null })
+  const gravou = await usePreludio.getState().salvarPendentes()
+  if (fio === null) return
+  if (!gravou) {
+    useMesaNaJanela.setState({ avisoDoPor: NAO_GRAVOU })
+    return
+  }
+  const pedido = fio.porVerbete(fonte, como, ficha)
+  useMesaNaJanela.setState({ pondoVerbete: { pedido, fonte, como, andamento: 'pedindo' } })
+}
+
+export function cancelarPorVerbete(): void {
+  const pondoVerbete = useMesaNaJanela.getState().pondoVerbete
+  if (pondoVerbete === null) return
+  fio?.cancelarPor(pondoVerbete.pedido)
+  useMesaNaJanela.setState({ pondoVerbete: null })
+}
+
+/**
+ * A FICHA NOVA DO "VIRAR NPC" NA PASTA. Na janela do Prelúdio, pela mesa: é a
+ * janela principal que tem a cópia aberta da pasta, e gravar por fora dela
+ * deixaria a próxima gravação do mapa escrever por cima. No Prelúdio dentro da
+ * principal, direto (`editarRpgDaPasta`). A ficha com o mesmo id troca a que
+ * está lá. `null` = gravou; senão, o motivo.
+ */
+export async function gravarFichaNaPasta(pastaId: string, personagem: Personagem): Promise<string | null> {
+  if (fio !== null) return fio.gravarFicha(pastaId, personagem)
+  try {
+    await editarRpgDaPasta(pastaId, (rpg) => ({ ...rpg, personagens: comAFicha(rpg.personagens, personagem) }))
+    return null
+  } catch (erro) {
+    return erro instanceof Error ? erro.message : String(erro)
+  }
+}
+
+/** A lista com a ficha: no lugar da de mesmo id, ou no fim. */
+export function comAFicha(personagens: readonly Personagem[], ficha: Personagem): Personagem[] {
+  return personagens.some((um) => um.id === ficha.id) ? personagens.map((um) => (um.id === ficha.id ? ficha : um)) : [...personagens, ficha]
+}
+
 /** O recado `pondo` da mesa. Pedido velho (outro "Pôr no mapa" já começou) não mexe em nada. */
 export function aoPondo(pedido: number, andamento: AndamentoDoPor, motivo: string | null): void {
+  const doVerbete = useMesaNaJanela.getState().pondoVerbete
+  if (doVerbete !== null && doVerbete.pedido === pedido) {
+    if (andamento === 'esperando') useMesaNaJanela.setState({ pondoVerbete: { ...doVerbete, andamento: 'esperando' } })
+    else
+      useMesaNaJanela.setState({
+        pondoVerbete: null,
+        avisoDoPor: andamento === 'recusado' ? (motivo ?? 'A mesa não pôs este verbete no mapa.') : null,
+        postoVerbete: andamento === 'posto' ? { verbeteId: doVerbete.fonte.verbeteId, como: doVerbete.como } : useMesaNaJanela.getState().postoVerbete,
+      })
+    return
+  }
   const atual = useMesaNaJanela.getState().pondo
   if (atual === null || atual.pedido !== pedido) return
   if (andamento === 'esperando') useMesaNaJanela.setState({ pondo: { ...atual, andamento: 'esperando' } })

@@ -1,6 +1,7 @@
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravadaDoItem } from '../lib/camadas/trava'
 import type { Pin } from '../types/map'
+import { porTokenDaColocacao } from './colocacaoDoPreludio'
 import { useMapStore } from './mapStore'
 
 /**
@@ -20,6 +21,8 @@ import { useMapStore } from './mapStore'
  * pôr); clicar no pino depois abre a ficha.
  */
 export function cravarPinoPeloGesto(pin: Pin): boolean {
+  // "Pôr no mapa" do Prelúdio com um TOKEN esperando (E3): o clique da ferramenta Pino põe o token, e não um pino.
+  if (porTokenDaColocacao(pin)) return true
   const store = useMapStore.getState()
   const travada = camadaTravadaDoItem(store.map, 'pino', pin)
   if (travada !== null) {
