@@ -1,5 +1,6 @@
 import type { Point } from '../../pixi/world'
 import type { MapData, Token } from '../../types/map'
+import { abismosDoMapa } from '../abismoPintado'
 import { paredesDoNpc } from '../obstaculosDeObjeto'
 import { mapaDoPiso, pisoDe } from '../pisos'
 import { tokenSizeInSquares } from '../tokenSize'
@@ -44,7 +45,7 @@ export function entradaDaFicha(map: MapData, tokenId: string, posicoes?: Readonl
   // ABISMO (16/11/2026) entra igual: o NPC dá a volta na boca.
   const aqui = posicoes?.get(tokenId) ?? token
   return {
-    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui, map.carimbos, map.abismos), grid: map.grid, width: map.width, height: map.height },
+    mapa: { walls: paredesDoNpc(doPiso.walls, map.props, map.grid, piso, aqui, map.carimbos, abismosDoMapa(map)), grid: map.grid, width: map.width, height: map.height },
     raio: raioDaFicha(token, map.grid),
     fichas,
   }

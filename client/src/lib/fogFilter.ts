@@ -6,6 +6,8 @@ import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf }
 import { penhascosParaJogador } from './penhasco'
 import { barrancoParaJogador } from './barranco'
 import { abismosParaJogador } from './abismo'
+import { abismosDoMapa } from './abismoPintado'
+import { barrancoComMaterial } from './materialDoBarranco'
 import type { Abismo } from '../types/map'
 import { areaPassaPorParede, importadasParaJogador, texturasParaJogador } from './texturas'
 import { comNeblinaPintada, neblinaParaJogador, temNeblina } from './neblina'
@@ -4915,12 +4917,14 @@ function recorteDoGrupo(
     // há parte alta. Terreno escondido dos jogadores: nada. O que atravessa a sala
     // secreta fechada passa inteiro (cortado na parede, desenhava a sala); o risco,
     // o platô e a rampa que moram nela não saem (FX-BARRANCO-062).
+    // MATERIAL PELO CHÃO: sai já escrito em cada risco e quadrado (`barrancoComMaterial`, com o chão
+    // pintado inteiro do mestre): o jogador só recebe as texturas do que conhece.
     ...(map.barranco === undefined
       ? {}
       : {
           barranco: terrenoVisivel
             ? barrancoParaJogador(
-                map.barranco,
+                barrancoComMaterial(map.barranco, pisoDoGrupo(mapaInteiro, viewers, loans), map.grid, mapaInteiro),
                 pisoDoGrupo(mapaInteiro, viewers, loans),
                 map.grid,
                 conhecidoSemASalaSecreta,
@@ -4933,8 +4937,11 @@ function recorteDoGrupo(
     // (a tela dele o pinta sob a máscara do conhecido). Terreno escondido dos jogadores: nenhum.
     // Sempre presente, para nunca vir pelo `...map`.
     abismos: terrenoVisivel
-      ? abismosParaJogador(map.abismos, pisoDoGrupo(mapaInteiro, viewers, loans), map.grid, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom)
+      ? abismosParaJogador(abismosDoMapa(map), pisoDoGrupo(mapaInteiro, viewers, loans), map.grid, conhecidoSemASalaSecreta, escondidoSemASalaSecreta, inSecretRoom)
       : undefined,
+    // ABISMO POR PINCEL: os quadrados cavados nunca saem (contariam o buraco que ele não conhece);
+    // os buracos pintados já vão prontos em `abismos`, pela mesma regra dos contornados.
+    abismoPintado: undefined,
     // ÁGUA (`lib/agua/recorte.ts`): só o pedaço que ele conhece, sem a forma de verdade (os
     // `pontos` vão vazios), fora de lugar escondido e de zona oculta; a secreta nunca. Mora em
     // Chão: com a camada escondida dos jogadores, nenhuma sai. Sempre presente, para nunca vir pelo `...map`.

@@ -104,6 +104,7 @@ import { readPinPass } from './pinPass'
 import { lerPenhascos } from './penhasco'
 import { lerBarranco } from './barranco'
 import { lerAbismos } from './abismo'
+import { lerAbismoPintado } from './abismoPintado'
 import { lerTexturas, lerTexturasImportadas } from './texturas'
 import { lerNeblina, lerNeblinaPintada } from './neblina'
 import { lerParticulas } from './particulasDaCena'
@@ -1232,6 +1233,8 @@ function deserializeMapFields(json: string): MapData {
     ...barrancoDoArquivo(parsed.barranco),
     // ABISMO: campo NOVO e OPCIONAL. Item torto sai; vazio abre sem o campo (`lerAbismos`).
     ...abismosDoArquivo(parsed.abismos),
+    // ABISMO POR PINCEL: campo NOVO e OPCIONAL. Quadrado torto sai; vazio abre sem o campo (`lerAbismoPintado`).
+    ...abismoPintadoDoArquivo(parsed.abismoPintado),
     // TEXTURAS: campos NOVOS e OPCIONAIS. Passo torto sai; lista vazia abre sem o campo (`lerTexturas`).
     ...texturasDoArquivo(parsed.texturas, parsed.texturasImportadas),
     // CARIMBOS: campos NOVOS e OPCIONAIS. Objeto torto sai; lista vazia abre sem o campo (`lerCarimbos`).
@@ -1390,6 +1393,12 @@ function barrancoDoArquivo(valor: unknown): Pick<MapData, 'barranco'> {
 function abismosDoArquivo(valor: unknown): Pick<MapData, 'abismos'> {
   const abismos = lerAbismos(valor)
   return abismos === undefined ? {} : { abismos }
+}
+
+/** ABISMO POR PINCEL: o campo só entra com algum quadrado cavado lido (`lib/abismoPintado.ts`). */
+function abismoPintadoDoArquivo(valor: unknown): Pick<MapData, 'abismoPintado'> {
+  const abismoPintado = lerAbismoPintado(valor)
+  return abismoPintado === undefined ? {} : { abismoPintado }
 }
 
 /** PENHASCO: o campo só entra com algum risco lido (`lib/penhasco.ts`). */

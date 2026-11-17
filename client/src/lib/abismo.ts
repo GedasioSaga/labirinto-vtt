@@ -19,13 +19,23 @@ import type { Abismo, BrilhoDoAbismo, CamadaId, MapData, RegionPoint, Wall } fro
 import type { CarimboQueIlumina } from './luzDoFogo'
 import { pisoDe } from './pisos'
 
+// ILHAS (17/11/2026, o abismo por pincel de `lib/abismoPintado.ts`): chão de pé dentro do buraco,
+// cada uma um contorno fechado dentro da boca. Campo NOVO e OPCIONAL: o abismo contornado à mão
+// não tem. Declarado aqui até entrar em `types/map.ts`.
+declare module '../types/map' {
+  interface Abismo {
+    ilhas?: RegionPoint[][]
+  }
+}
+
 /** A camada em que todo abismo mora (o abismo não escolhe camada). */
 export const CAMADA_DO_ABISMO: CamadaId = 'terreno'
 /** Os brilhos do fundo, na ordem do painel (sem brilho vem antes, como "Nenhum"). */
 export const BRILHOS_DO_ABISMO: readonly BrilhoDoAbismo[] = ['brasa', 'verde']
-/** Teto da leitura do arquivo: abismos por mapa e pontos por contorno. */
+/** Teto da leitura do arquivo: abismos por mapa, pontos por contorno e ilhas por abismo. */
 export const TETO_DE_ABISMOS = 200
 export const TETO_DE_PONTOS_DO_ABISMO = 400
+export const TETO_DE_ILHAS_DO_ABISMO = 64
 /** A boca menor que isto (lado de um quadrado, em casas) não vira abismo: foi um clique tremido. */
 export const LADO_MINIMO_EM_CASAS = 0.6
 
@@ -58,7 +68,8 @@ function ehBrilho(valor: unknown): valor is BrilhoDoAbismo {
 /**
  * Os abismos do arquivo, lidos com cuidado: o item sem id, com menos de 3
  * pontos bons ou com id repetido sai; o brilho desconhecido (de uma versão
- * mais nova) vira "sem brilho"; o piso só entra inteiro e diferente de 0.
+ * mais nova) vira "sem brilho"; o piso só entra inteiro e diferente de 0; a
+ * ilha com menos de 3 pontos bons sai (as outras ficam).
  * `undefined` sem nenhum abismo bom (o campo nem entra no mapa).
  */
 export function lerAbismos(valor: unknown): Abismo[] | undefined {
@@ -68,17 +79,29 @@ export function lerAbismos(valor: unknown): Abismo[] | undefined {
   for (const item of valor) {
     if (lidos.length >= TETO_DE_ABISMOS) break
     if (!ehObjeto(item) || typeof item.id !== 'string' || item.id === '' || vistos.has(item.id) || !Array.isArray(item.pontos)) continue
-    const pontos: RegionPoint[] = []
-    for (const p of item.pontos) {
-      if (pontos.length >= TETO_DE_PONTOS_DO_ABISMO) break
-      if (ehObjeto(p) && numeroFinito(p.x) && numeroFinito(p.y)) pontos.push({ x: p.x, y: p.y })
-    }
+    const pontos = lerContorno(item.pontos)
     if (pontos.length < 3) continue
     vistos.add(item.id)
     const piso = numeroFinito(item.piso) && Number.isInteger(item.piso) && item.piso !== 0 ? item.piso : undefined
-    lidos.push({ id: item.id, pontos, ...(ehBrilho(item.brilho) ? { brilho: item.brilho } : {}), ...(piso !== undefined ? { piso } : {}) })
+    const ilhas: RegionPoint[][] = []
+    for (const ilha of Array.isArray(item.ilhas) ? item.ilhas : []) {
+      if (ilhas.length >= TETO_DE_ILHAS_DO_ABISMO) break
+      const contorno = Array.isArray(ilha) ? lerContorno(ilha) : []
+      if (contorno.length >= 3) ilhas.push(contorno)
+    }
+    lidos.push({ id: item.id, pontos, ...(ilhas.length > 0 ? { ilhas } : {}), ...(ehBrilho(item.brilho) ? { brilho: item.brilho } : {}), ...(piso !== undefined ? { piso } : {}) })
   }
   return lidos.length === 0 ? undefined : lidos
+}
+
+/** Os pontos bons de um contorno do arquivo, até o teto. */
+function lerContorno(valor: readonly unknown[]): RegionPoint[] {
+  const pontos: RegionPoint[] = []
+  for (const p of valor) {
+    if (pontos.length >= TETO_DE_PONTOS_DO_ABISMO) break
+    if (ehObjeto(p) && numeroFinito(p.x) && numeroFinito(p.y)) pontos.push({ x: p.x, y: p.y })
+  }
+  return pontos
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -101,12 +124,18 @@ export function pontoNoContorno(pontos: readonly RegionPoint[], p: RegionPoint):
   return dentro
 }
 
-/** O abismo de cima (o último da lista) do piso que tem o ponto dentro da boca; `null` se nenhum. */
+/** O ponto está no BURACO do abismo: dentro da boca e fora das ilhas (em cima de uma ilha é chão de pé). */
+export function pontoNoAbismo(abismo: Pick<Abismo, 'pontos' | 'ilhas'>, p: RegionPoint): boolean {
+  if (!pontoNoContorno(abismo.pontos, p)) return false
+  return abismo.ilhas === undefined || !abismo.ilhas.some((ilha) => pontoNoContorno(ilha, p))
+}
+
+/** O abismo de cima (o último da lista) do piso que tem o ponto no buraco (a ilha não conta); `null` se nenhum. */
 export function abismoNoPonto(lista: readonly Abismo[] | undefined, piso: number, p: RegionPoint): Abismo | null {
   if (lista === undefined) return null
   for (let i = lista.length - 1; i >= 0; i -= 1) {
     const abismo = lista[i]
-    if (pisoDe(abismo) === piso && abismo.pontos.length >= 3 && pontoNoContorno(abismo.pontos, p)) return abismo
+    if (pisoDe(abismo) === piso && abismo.pontos.length >= 3 && pontoNoAbismo(abismo, p)) return abismo
   }
   return null
 }
@@ -218,7 +247,8 @@ export function moverAbismos(lista: Abismo[], ids: ReadonlySet<string>, dx: numb
   const depois = lista.map((abismo) => {
     if (!ids.has(abismo.id)) return abismo
     mudou = true
-    return { ...abismo, pontos: abismo.pontos.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
+    const andar = (p: RegionPoint): RegionPoint => ({ x: p.x + dx, y: p.y + dy })
+    return { ...abismo, pontos: abismo.pontos.map(andar), ...(abismo.ilhas !== undefined ? { ilhas: abismo.ilhas.map((ilha) => ilha.map(andar)) } : {}) }
   })
   return mudou ? depois : lista
 }
@@ -241,7 +271,8 @@ const paredesPorLista = new WeakMap<readonly Abismo[], Map<number, readonly Wall
  * As beiras dos abismos do piso como paredes que deixam ver e não deixam
  * passar (`blocksLight: false`). Só para as contas de andar: nunca vão para
  * `map.walls`, para o desenho nem para a visão. Guardado pela lista: a mesma
- * lista devolve o MESMO array.
+ * lista devolve o MESMO array. A beira de cada ILHA também segura: quem está
+ * em cima dela fica nela, e quem está fora não a alcança pelo buraco.
  */
 export function paredesDosAbismos(lista: readonly Abismo[] | undefined, piso: number): readonly Wall[] {
   if (lista === undefined || lista.length === 0) return SEM_PAREDES
@@ -255,9 +286,15 @@ export function paredesDosAbismos(lista: readonly Abismo[] | undefined, piso: nu
   const paredes: Wall[] = []
   for (const abismo of lista) {
     if (pisoDe(abismo) !== piso || abismo.pontos.length < 3) continue
-    abismo.pontos.forEach((a, i) => {
-      const b = abismo.pontos[(i + 1) % abismo.pontos.length]
-      paredes.push({ id: `${PREFIXO_DA_PAREDE}${abismo.id}:${i}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y, blocksLight: false, blocksMove: true, door: null, ...(piso !== 0 ? { piso } : {}) })
+    const beira = (contorno: readonly RegionPoint[], nome: string): void => {
+      contorno.forEach((a, i) => {
+        const b = contorno[(i + 1) % contorno.length]
+        paredes.push({ id: `${PREFIXO_DA_PAREDE}${abismo.id}:${nome}${i}`, x1: a.x, y1: a.y, x2: b.x, y2: b.y, blocksLight: false, blocksMove: true, door: null, ...(piso !== 0 ? { piso } : {}) })
+      })
+    }
+    beira(abismo.pontos, '')
+    abismo.ilhas?.forEach((ilha, n) => {
+      if (ilha.length >= 3) beira(ilha, `ilha${n}:`)
     })
   }
   const resultado = paredes.length === 0 ? SEM_PAREDES : paredes
@@ -276,7 +313,8 @@ const juntadas = new WeakMap<Wall[], WeakMap<readonly Wall[], Map<string, Wall[]
 export function comParedesDosAbismos(base: Wall[], lista: readonly Abismo[] | undefined, piso: number, de: RegionPoint | null): Wall[] {
   const todas = paredesDosAbismos(lista, piso)
   if (todas.length === 0 || lista === undefined) return base
-  const dentro = de === null ? [] : lista.filter((a) => pisoDe(a) === piso && a.pontos.length >= 3 && pontoNoContorno(a.pontos, de)).map((a) => `${PREFIXO_DA_PAREDE}${a.id}:`)
+  // Só o buraco conta: a ficha em cima de uma ilha está em chão de pé, e a beira continua segurando.
+  const dentro = de === null ? [] : lista.filter((a) => pisoDe(a) === piso && a.pontos.length >= 3 && pontoNoAbismo(a, de)).map((a) => `${PREFIXO_DA_PAREDE}${a.id}:`)
   let porTodas = juntadas.get(base)
   if (porTodas === undefined) {
     porTodas = new WeakMap()
@@ -331,8 +369,8 @@ export function semParedesDeAbismo<W extends { readonly id: string }>(paredes: r
 /** Teto de amostras por abismo no recorte (o passo cresce na boca enorme). */
 const TETO_DE_AMOSTRAS = 1500
 
-/** Pontos da beira (a cada `passo`) e de dentro da boca (grade de `passo`): o que o recorte pergunta. */
-export function amostrasDoAbismo(abismo: Pick<Abismo, 'pontos'>, passoPedido: number): RegionPoint[] {
+/** Pontos da beira (a cada `passo`) e de dentro do buraco (grade de `passo`, fora das ilhas): o que o recorte pergunta. */
+export function amostrasDoAbismo(abismo: Pick<Abismo, 'pontos' | 'ilhas'>, passoPedido: number): RegionPoint[] {
   const caixa = caixaDoAbismo(abismo)
   if (caixa === null) return []
   const area = Math.max(1, (caixa.maxX - caixa.minX) * (caixa.maxY - caixa.minY))
@@ -346,7 +384,7 @@ export function amostrasDoAbismo(abismo: Pick<Abismo, 'pontos'>, passoPedido: nu
   for (let y = caixa.minY + passo / 2; y < caixa.maxY; y += passo) {
     for (let x = caixa.minX + passo / 2; x < caixa.maxX; x += passo) {
       const p = { x, y }
-      if (pontoNoContorno(abismo.pontos, p)) amostras.push(p)
+      if (pontoNoAbismo(abismo, p)) amostras.push(p)
     }
   }
   return amostras
@@ -408,7 +446,7 @@ export function pontosDeLuzDoAbismo(abismo: Abismo, grid: number): RegionPoint[]
   for (let y = caixa.minY + passo / 2; y < caixa.maxY && pontos.length < TETO_DE_LUZES_POR_ABISMO; y += passo) {
     for (let x = caixa.minX + passo / 2; x < caixa.maxX && pontos.length < TETO_DE_LUZES_POR_ABISMO; x += passo) {
       const p = { x, y }
-      if (pontoNoContorno(abismo.pontos, p) && pontos.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= distancia)) pontos.push(p)
+      if (pontoNoAbismo(abismo, p) && pontos.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= distancia)) pontos.push(p)
     }
   }
   if (pontos.length === 0) pontos.push(centroDoContorno(abismo.pontos))

@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 import type { Abismo, BrilhoDoAbismo, RegionPoint } from '../types/map'
-import { abismosDoPiso, caixaDoAbismo, centroDoContorno, pontoNoContorno, profundidadeDoAbismo } from '../lib/abismo'
+import { abismosDoPiso, caixaDoAbismo, centroDoContorno, pontoNoAbismo, profundidadeDoAbismo } from '../lib/abismo'
 import { PALETA_MEIO_TERMO } from '../texturas/meioTermo/paleta'
 import { contornoDoTom } from '../texturas/meioTermo/barranco'
 import { misturar, rgb, type Rgb } from '../texturas/ruido'
@@ -17,6 +17,11 @@ import { misturar, rgb, type Rgb } from '../texturas/ruido'
  * lascas de pedra soltas de tamanho e passo irregulares e poucas trincas para
  * fora. Nada de hachura, listra ou detalhe repetido. O brilho do fundo (brasa
  * ou verde) é um halo de faixas de alfa baixo e algumas faíscas paradas.
+ *
+ * ILHA (`Abismo.ilhas`, o abismo por pincel): chão de pé dentro do buraco. O
+ * alto dela fica de fora da máscara (o chão do mapa aparece), a parede dela
+ * desce até o fundo como um pilar, na frente do halo, e a beira esfarelada dá
+ * a volta nela também, com as lascas e as trincas para o lado do chão.
  */
 
 const PEDRA = rgb(PALETA_MEIO_TERMO.pedra.base)
@@ -33,6 +38,12 @@ const CONTORNO = contornoDoTom(PAREDE_EM_CIMA)
 const COR_DA_ESCOLHA = 0xd9a441
 /** Camadas da parede, do lábio ao fundo (o degradê sai delas; muitas e próximas para não virar listra). */
 const CAMADAS = 26
+/** O expoente do degradê da parede: escurece depressa no começo (a luz de fora some logo abaixo do lábio) e devagar no fim. */
+const QUEDA_DA_LUZ = 0.62
+/** Quanto o pé do pilar da ilha pega do tom do brilho (o fundo aceso o ilumina por baixo). */
+const BRILHO_NO_PE_DO_PILAR = 0.82
+/** As alturas (frações da descida) em que a faísca confere se há ilha logo acima dela (ali é parede de pilar, não fundo). */
+const ALTURAS_SEM_PILAR: readonly number[] = [0.3, 0.6]
 
 interface TintaDoBrilho {
   /** O tom que o brilho dá ao fundo e ao pé da parede. */
@@ -69,8 +80,18 @@ function deslocado(plano: readonly number[], dx: number, dy: number): number[] {
   return plano.map((v, i) => (i % 2 === 0 ? v + dx : v + dy))
 }
 
-/** A parede descendo, o fundo e o brilho, num Graphics que a boca corta. */
-function pintarFundo(g: Graphics, abismo: Abismo, plano: readonly number[], grid: number, sorteio: () => number): void {
+function planoDe(pontos: readonly RegionPoint[]): number[] {
+  return pontos.flatMap((p) => [p.x, p.y])
+}
+
+/** As ilhas que valem desenho, das de cima para as de baixo: o pilar da de baixo fica na frente. */
+function ilhasDoAbismo(abismo: Abismo): RegionPoint[][] {
+  const baixo = (ilha: readonly RegionPoint[]): number => ilha.reduce((y, p) => Math.max(y, p.y), -Infinity)
+  return (abismo.ilhas ?? []).filter((ilha) => ilha.length >= 3).sort((a, b) => baixo(a) - baixo(b))
+}
+
+/** A parede descendo, o fundo, o brilho e os pilares das ilhas, num Graphics que a boca corta. */
+function pintarFundo(g: Graphics, abismo: Abismo, plano: readonly number[], ilhas: readonly RegionPoint[][], grid: number, sorteio: () => number): void {
   const caixa = caixaDoAbismo(abismo)
   if (caixa === null) return
   const descida = profundidadeDoAbismo(abismo, grid)
@@ -80,21 +101,37 @@ function pintarFundo(g: Graphics, abismo: Abismo, plano: readonly number[], grid
   g.rect(caixa.minX - 2, caixa.minY - 2, caixa.maxX - caixa.minX + 4, caixa.maxY - caixa.minY + 4).fill(numero(PAREDE_EM_CIMA))
   for (let k = 1; k <= CAMADAS; k += 1) {
     const t = k / CAMADAS
-    // Escurece depressa no começo (a luz de fora some logo abaixo do lábio) e devagar no fim.
-    g.poly(deslocado(plano, 0, descida * t), true).fill(numero(misturar(PAREDE_EM_CIMA, fundo, Math.pow(t, 0.62))))
+    g.poly(deslocado(plano, 0, descida * t), true).fill(numero(misturar(PAREDE_EM_CIMA, fundo, Math.pow(t, QUEDA_DA_LUZ))))
+  }
+  if (tinta !== null) {
+    // O halo: elipses de alfa baixo em volta do meio do fundo; a de fora tinge o pé da parede.
+    const centro = centroDoContorno(abismo.pontos)
+    const cx = centro.x
+    const cy = Math.min(caixa.maxY - descida * 0.2, centro.y + descida * 0.55)
+    const rx = Math.max(grid * 0.6, (caixa.maxX - caixa.minX) * 0.46)
+    const ry = Math.max(grid * 0.45, Math.min(rx * 0.7, (caixa.maxY - caixa.minY) * 0.45))
+    // Muitas faixas de alfa bem baixo: a soma vira um degradê, sem anel à vista.
+    const FAIXAS = 16
+    for (let j = 0; j < FAIXAS; j += 1) {
+      const f = 1 - j / FAIXAS
+      g.ellipse(cx, cy, rx * f, ry * f).fill({ color: numero(misturar(tinta.fundo, tinta.miolo, Math.pow(1 - f, 1.4))), alpha: 0.075 })
+    }
+  }
+  // O pilar de cada ilha, na frente do halo: a parede dela, da faixa mais funda (escura) à do lábio,
+  // para a de cima cobrir a de baixo. O pé pega o tom do brilho.
+  const pe = tinta === null ? fundo : misturar(ESCURO, tinta.fundo, BRILHO_NO_PE_DO_PILAR)
+  for (const ilha of ilhas) {
+    const planoDaIlha = planoDe(ilha)
+    for (let k = CAMADAS; k >= 1; k -= 1) {
+      const t = k / CAMADAS
+      g.poly(deslocado(planoDaIlha, 0, descida * t), true).fill(numero(misturar(PAREDE_EM_CIMA, pe, Math.pow(t, QUEDA_DA_LUZ))))
+    }
   }
   if (tinta === null) return
-  // O halo: elipses de alfa baixo em volta do meio do fundo; a de fora tinge o pé da parede.
-  const centro = centroDoContorno(abismo.pontos)
-  const cx = centro.x
-  const cy = Math.min(caixa.maxY - descida * 0.2, centro.y + descida * 0.55)
-  const rx = Math.max(grid * 0.6, (caixa.maxX - caixa.minX) * 0.46)
-  const ry = Math.max(grid * 0.45, Math.min(rx * 0.7, (caixa.maxY - caixa.minY) * 0.45))
-  // Muitas faixas de alfa bem baixo: a soma vira um degradê, sem anel à vista.
-  const FAIXAS = 16
-  for (let j = 0; j < FAIXAS; j += 1) {
-    const f = 1 - j / FAIXAS
-    g.ellipse(cx, cy, rx * f, ry * f).fill({ color: numero(misturar(tinta.fundo, tinta.miolo, Math.pow(1 - f, 1.4))), alpha: 0.075 })
+  // No fundo: dentro do buraco e com o buraco acima dele (não na parede de cima nem na de um pilar).
+  const noFundo = (p: RegionPoint): boolean => {
+    if (!pontoNoAbismo(abismo, p) || !pontoNoAbismo(abismo, { x: p.x, y: p.y - descida * 0.9 })) return false
+    return ilhas.length === 0 || ALTURAS_SEM_PILAR.every((altura) => pontoNoAbismo(abismo, { x: p.x, y: p.y - descida * altura }))
   }
   // As faíscas: paradas, de tamanho e lugar sorteados, só onde o fundo aparece.
   const area = (caixa.maxX - caixa.minX) * (caixa.maxY - caixa.minY)
@@ -102,8 +139,7 @@ function pintarFundo(g: Graphics, abismo: Abismo, plano: readonly number[], grid
   let postas = 0
   for (let tentativa = 0; tentativa < quantas * 6 && postas < quantas; tentativa += 1) {
     const p: RegionPoint = { x: caixa.minX + sorteio() * (caixa.maxX - caixa.minX), y: caixa.minY + sorteio() * (caixa.maxY - caixa.minY) }
-    // No fundo: dentro da boca e com a boca acima dele (não na parede de cima).
-    if (!pontoNoContorno(abismo.pontos, p) || !pontoNoContorno(abismo.pontos, { x: p.x, y: p.y - descida * 0.9 })) continue
+    if (!noFundo(p)) continue
     const cor = tinta.faiscas[Math.floor(sorteio() * tinta.faiscas.length)]
     const raio = grid * (0.022 + sorteio() * 0.03)
     g.circle(p.x, p.y, raio * 2.6).fill({ color: numero(cor), alpha: 0.14 })
@@ -112,11 +148,15 @@ function pintarFundo(g: Graphics, abismo: Abismo, plano: readonly number[], grid
   }
 }
 
-/** A normal da aresta que aponta para FORA da boca (testada no ponto, vale para contorno côncavo e em qualquer sentido). */
-function normalDeFora(pontos: readonly RegionPoint[], m: RegionPoint, a: RegionPoint, b: RegionPoint): RegionPoint {
+/**
+ * A normal da aresta que aponta para o CHÃO (para fora do buraco): testada no
+ * ponto, vale para contorno côncavo, em qualquer sentido, e para a beira de
+ * uma ilha (o chão dela fica do lado de dentro do contorno).
+ */
+function normalParaOChao(abismo: Abismo, m: RegionPoint, a: RegionPoint, b: RegionPoint): RegionPoint {
   const comprimento = Math.hypot(b.x - a.x, b.y - a.y) || 1
   const n = { x: (b.y - a.y) / comprimento, y: -(b.x - a.x) / comprimento }
-  return pontoNoContorno(pontos, { x: m.x + n.x * 0.75, y: m.y + n.y * 0.75 }) ? { x: -n.x, y: -n.y } : n
+  return pontoNoAbismo(abismo, { x: m.x + n.x * 0.75, y: m.y + n.y * 0.75 }) ? { x: -n.x, y: -n.y } : n
 }
 
 /** Uma lasca: polígono torto de 5 a 7 cantos. */
@@ -132,9 +172,9 @@ function lasca(g: Graphics, centro: RegionPoint, raio: number, sorteio: () => nu
   g.poly(plano, true).fill(numero(cor)).stroke({ color: numero(CONTORNO), width: contorno, alpha: 0.85, join: 'round' })
 }
 
-/** A beira esfarelada: o contorno escuro, as lascas e as trincas. */
-function pintarBeira(g: Graphics, abismo: Abismo, plano: number[], grid: number, sorteio: () => number): void {
-  const pontos = abismo.pontos
+/** A beira esfarelada de um contorno (a boca ou uma ilha): o contorno escuro, as lascas e as trincas. */
+function pintarBeira(g: Graphics, abismo: Abismo, pontos: readonly RegionPoint[], grid: number, sorteio: () => number): void {
+  const plano = planoDe(pontos)
   const fino = Math.max(1, grid * 0.024)
   // A sombra macia do lábio: uma faixa de alfa baixo; o contorno escuro do Meio-Termo por cima.
   g.poly(plano, true).stroke({ color: numero(CONTORNO), width: grid * 0.1, alpha: 0.12, join: 'round' })
@@ -150,7 +190,7 @@ function pintarBeira(g: Graphics, abismo: Abismo, plano: number[], grid: number,
       andado += falta
       const t = andado / tamanho
       const m = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-      const n = normalDeFora(pontos, m, a, b)
+      const n = normalParaOChao(abismo, m, a, b)
       // Muitas miúdas e poucas grandes (o quadrado do sorteio puxa para o pequeno).
       const sorte = sorteio()
       const raio = grid * (0.04 + sorte * sorte * 0.12)
@@ -177,19 +217,23 @@ function pintarBeira(g: Graphics, abismo: Abismo, plano: number[], grid: number,
   }
 }
 
-/** Um abismo inteiro, no contêiner dele: o fundo (cortado pela boca) e a beira por cima. */
+/** Um abismo inteiro, no contêiner dele: o fundo (cortado pela boca, sem o alto das ilhas) e a beira por cima. */
 function pintarAbismo(abismo: Abismo, grid: number): Container {
   const raiz = new Container()
   raiz.eventMode = 'none'
-  const plano = abismo.pontos.flatMap((p) => [p.x, p.y])
+  const plano = planoDe(abismo.pontos)
+  const ilhas = ilhasDoAbismo(abismo)
   const sorteio = sorteioDe(abismo.id)
   const boca = new Graphics()
   boca.poly(plano, true).fill(0xffffff)
+  // O alto de cada ilha é chão: sai da máscara, e o mapa aparece ali.
+  for (const ilha of ilhas) boca.poly(planoDe(ilha), true).cut()
   const fundo = new Graphics()
-  pintarFundo(fundo, abismo, plano, grid, sorteio)
+  pintarFundo(fundo, abismo, plano, ilhas, grid, sorteio)
   fundo.mask = boca
   const beira = new Graphics()
-  pintarBeira(beira, abismo, plano, grid, sorteio)
+  pintarBeira(beira, abismo, abismo.pontos, grid, sorteio)
+  for (const ilha of ilhas) pintarBeira(beira, abismo, ilha, grid, sorteio)
   raiz.addChild(fundo, boca, beira)
   return raiz
 }
@@ -217,12 +261,16 @@ export function criarDesenhoDoAbismo(): DesenhoDoAbismo {
   const escolha = new Graphics()
   escolha.eventMode = 'none'
   camada.addChild(abismosNaTela, escolha)
-  // Pela ASSINATURA (id, brilho e boca), não pela referência: o recorte do jogador chega
+  // Pela ASSINATURA (id, brilho, boca e ilhas), não pela referência: o recorte do jogador chega
   // novo a cada mensagem, com os mesmos abismos, e não pode refazer o desenho de todos.
   let porAbismo = new Map<string, Container>()
   let gradeDosDesenhos = 0
   let ultima: EntradaDoAbismo | null = null
-  const assinatura = (abismo: Abismo): string => `${abismo.id}|${abismo.brilho ?? ''}|${abismo.pontos.map((p) => `${p.x},${p.y}`).join(';')}`
+  const pontosDe = (contorno: readonly RegionPoint[]): string => contorno.map((p) => `${p.x},${p.y}`).join(';')
+  const assinatura = (abismo: Abismo): string => {
+    const base = `${abismo.id}|${abismo.brilho ?? ''}|${pontosDe(abismo.pontos)}`
+    return abismo.ilhas === undefined ? base : `${base}|${abismo.ilhas.map(pontosDe).join('/')}`
+  }
 
   const largar = (desenho: Container) => desenho.destroy({ children: true })
 
@@ -258,7 +306,7 @@ export function criarDesenhoDoAbismo(): DesenhoDoAbismo {
     escolha.clear()
     const escolhido = entrada?.escolhido === undefined || entrada.escolhido === null ? undefined : doPiso.find((a) => a.id === entrada.escolhido)
     if (escolhido !== undefined) {
-      const plano = escolhido.pontos.flatMap((p) => [p.x, p.y])
+      const plano = planoDe(escolhido.pontos)
       escolha.poly(plano, true).stroke({ color: COR_DA_ESCOLHA, width: grid * 0.16, alpha: 0.22, join: 'round' })
       escolha.poly(plano, true).stroke({ color: COR_DA_ESCOLHA, width: Math.max(1.5, grid * 0.05), alpha: 0.95, join: 'round' })
     }

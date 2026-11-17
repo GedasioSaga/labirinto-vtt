@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js'
 import type { RegionPoint } from '../types/map'
 import { abismoNoPonto, contornoSimplificado, contornoValeAbismo } from '../lib/abismo'
+import { abismosDoMapa } from '../lib/abismoPintado'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import type { EntradaDoAbismo } from './drawAbismo'
@@ -123,17 +124,19 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
   const entrada = (): EntradaDoAbismo => {
     const { map, pisoAtivo, activeTool } = useMapStore.getState()
     const escolhido = activeTool === 'abismo' ? useFerramentaDoAbismo.getState().escolhido : null
+    // Os contornados à mão e os pintados por pincel (`abismosDoMapa` devolve a MESMA lista para o mesmo mapa).
+    const abismos = abismosDoMapa(map)
     // A mesma entrada volta o MESMO objeto: o desenho compara por referência e não refaz à toa.
     if (
       ultimaEntrada !== null &&
-      ultimaEntrada.abismos === map.abismos &&
+      ultimaEntrada.abismos === abismos &&
       ultimaEntrada.piso === pisoAtivo &&
       ultimaEntrada.grid === map.grid &&
       ultimaEntrada.escolhido === escolhido
     ) {
       return ultimaEntrada
     }
-    ultimaEntrada = { abismos: map.abismos, piso: pisoAtivo, grid: map.grid, escolhido }
+    ultimaEntrada = { abismos, piso: pisoAtivo, grid: map.grid, escolhido }
     return ultimaEntrada
   }
 

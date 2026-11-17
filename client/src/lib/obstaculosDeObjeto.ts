@@ -1,6 +1,7 @@
 import type { Abismo, Carimbo, MapData, Prop, RegionPoint, Stair, TipoMobilia, Token, Wall } from '../types/map'
 import type { Point } from '../pixi/world'
 import { comParedesDosAbismos, semAbismosEscondidos } from './abismo'
+import { abismosDoMapa } from './abismoPintado'
 import { paredesParaAndar } from './barranco'
 import { comParedesDosCarimbos, semCarimbosEscondidos } from './carimbosQueBarram'
 import { ehMovelDoChao, ehMovelQueBarra, ehMovelRedondo, vistaDoMovel } from './mobilia'
@@ -386,7 +387,7 @@ export function pontoNoObstaculo(obstaculo: ObstaculoDeObjeto, p: Point): boolea
 }
 
 /** O que as contas de andar leem do mapa: as paredes vêm à parte (são as do piso). `carimbos`: os que barram (Fase 2). */
-type MapaComObjetos = Pick<MapData, 'barranco' | 'grid' | 'props'> & Partial<Pick<MapData, 'carimbos' | 'abismos'>>
+type MapaComObjetos = Pick<MapData, 'barranco' | 'grid' | 'props'> & Partial<Pick<MapData, 'carimbos' | 'abismos' | 'abismoPintado'>>
 
 const cacheDeParedes = new WeakMap<Wall[], WeakMap<readonly ObstaculoDeObjeto[], Map<string, Wall[]>>>()
 
@@ -442,7 +443,9 @@ export function paredesParaAndarDoJogador(
   const carimbos = carimboEscondido === undefined ? map.carimbos : semCarimbosEscondidos(map.carimbos, piso, carimboEscondido)
   // ABISMO (16/11/2026, `lib/abismo.ts`): a beira segura o jogador como o carimbo que barra; o que
   // o recorte nunca lhe entrega fica de fora (a recusa contaria que ele existe).
-  const abismos = abismoEscondido === undefined || map.abismos === undefined ? map.abismos : semAbismosEscondidos(map.abismos, abismoEscondido)
+  // Os contornados à mão e os pintados por pincel (`abismosDoMapa`); a ilha do pintado é chão de pé.
+  const todos = abismosDoMapa(map)
+  const abismos = abismoEscondido === undefined || todos === undefined ? todos : semAbismosEscondidos(todos, abismoEscondido)
   const base = comParedesDosAbismos(comParedesDosCarimbos(paredesParaAndar(walls, map, piso), carimbos, piso, de), abismos, piso, de)
   const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)
   if (obstaculos.length === 0) return base
