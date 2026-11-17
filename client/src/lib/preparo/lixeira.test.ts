@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { verbeteNovo } from './enciclopedia'
 import { estaNaLixeira, naLixeira, planoDeApagarDeVez, planoDeMandarParaALixeira, planoDeRestaurar, soOsVivos, vivos } from './lixeira'
+import { pastasDoTipo } from './pastasDeVerbetes'
 import { VERBETE, type TipoDeVerbete, type Verbete } from './tipos'
 
 const QUANDO = '2026-11-17T18:00:00.000Z'
@@ -127,5 +128,16 @@ describe('a lixeira dos verbetes', () => {
     expect(semATorreDeVez.get('sino')).toMatchObject({ paiId: 'reino', paiNaLixeira: 'castelo' })
     const comCastelo = depoisDe(semATorreDeVez, planoDeRestaurar(['castelo'], semATorreDeVez).mudancas)
     expect(comCastelo.get('sino')).toEqual({ ...antes.get('sino'), paiId: 'castelo' })
+  })
+
+  it('a pasta do Grimório que só o verbete da Lixeira fazia aparecer some, e volta com ele', () => {
+    const doGrimorio = (id: string, ...organizacao: string[]): Verbete => ({ ...verbete('personagem', id), organizacao })
+    const antes = mapa(doGrimorio('bandida', 'NPCS', 'Bandidas'), doGrimorio('vigia', 'Guarda'))
+    const nomes = (verbetes: ReadonlyMap<string, Verbete>) => pastasDoTipo([], verbetes.values(), 'personagem').map((pasta) => pasta.nome)
+    expect(nomes(antes)).toEqual(['NPCS', 'Bandidas', 'Guarda'])
+
+    const semABandida = depoisDe(antes, planoDeMandarParaALixeira(['bandida'], antes, QUANDO).mudancas)
+    expect(nomes(semABandida)).toEqual(['Guarda'])
+    expect(nomes(depoisDe(semABandida, planoDeRestaurar(['bandida'], semABandida).mudancas))).toEqual(['NPCS', 'Bandidas', 'Guarda'])
   })
 })

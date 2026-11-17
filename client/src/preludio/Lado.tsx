@@ -14,7 +14,7 @@ import { linhaDoTempoJaVista } from './tempo/LinhaDoTempo'
 import { SUBTITULO_DO_PRELUDIO, TITULO_DO_PRELUDIO } from './textos'
 
 /**
- * A BARRA LATERAL DO PRELÚDIO: voltar, o filtro "Campanha" (como no Grimório),
+ * A BARRA LATERAL DO PRELÚDIO: sair do Prelúdio, o filtro "Campanha" (como no Grimório),
  * a busca, as seções (Início, Sessões, Quadros, Enciclopédia por tipo, Linha
  * do tempo, Escrita em árvore) e, embaixo, se está tudo salvo.
  */
@@ -123,7 +123,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
     else lista.scrollTop = lista.scrollHeight
   }, [sessaoAberta, sessoes.length])
 
-  // Ficar devolve o foco ao Voltar, de onde a pergunta saiu (senão ele cairia no body).
+  // Ficar devolve o foco ao "Sair do Prelúdio", de onde a pergunta saiu (senão ele cairia no body).
   const saidaDoRodape: SaidaPendente | undefined =
     saida === undefined
       ? undefined
@@ -158,10 +158,11 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
   return (
     <aside className="pr-lado" aria-label="Navegação do Prelúdio">
       <div className="pr-lado__topo">
+        {/* Sai do Prelúdio inteiro; quem volta um passo é o "‹" do topo (17/11): o nome diz a diferença. */}
         {aoVoltar !== undefined && (
-          <button ref={voltar} type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-lado__voltar" onClick={aoVoltar}>
+          <button ref={voltar} type="button" className="gr-bt gr-bt--p gr-bt--fantasma pr-lado__voltar" title="Volta ao menu do Labirinto" onClick={aoVoltar}>
             <BackIcon />
-            Voltar
+            Sair do Prelúdio
           </button>
         )}
         <h1 className="pr-lado__titulo" ref={titulo} tabIndex={-1}>

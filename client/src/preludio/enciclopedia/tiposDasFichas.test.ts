@@ -46,4 +46,10 @@ describe('numerosDe', () => {
     )
     expect(numerosDe('c_op', verbetes, [], TIPOS)).toEqual({ personagens: 3, npcs: 1, jogadores: 1, sessoes: 0, eventos: 0 })
   })
+
+  it('o personagem na Lixeira não conta, nem como NPC', () => {
+    const lobo: Verbete = { ...personagem('Lobo', { pastaId: OP, personagemId: 'p_lobo' }), lixeira: '2026-11-17T12:00:00.000Z' }
+    const verbetes = new Map([lobo, personagem('Nami')].map((verbete): [string, Verbete] => [verbete.id, verbete]))
+    expect(numerosDe('c_op', verbetes, [], TIPOS)).toEqual({ personagens: 1, npcs: 0, jogadores: 0, sessoes: 0, eventos: 0 })
+  })
 })

@@ -1,5 +1,6 @@
 import { chaveDaFala } from '../../lib/falasDoPino'
 import { nomeDaFonte } from '../../lib/fonteNoPreludio'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import { podeIrAoJogador } from '../../lib/preparo/pacoteDoJogador'
 import { pinosEmDia, situacaoDaFonte } from '../../lib/preparo/pinoLigado'
 import type { Verbete } from '../../lib/preparo/tipos'
@@ -29,11 +30,14 @@ import { usePreludio } from '../estado/preludio'
 
 let ligado = false
 
-/** Os Personagens que podem dizer uma entrada (a sessão e o formato mais novo nunca vão ao jogador), por nome. */
+/**
+ * Os Personagens que podem dizer uma entrada (a sessão e o formato mais novo nunca vão ao jogador), por nome.
+ * O que está na Lixeira não se escolhe; a entrada que já o tinha continua com ele (o nome segue por `quemDizEmDia`).
+ */
 function personagensQueDizem(verbetes: ReadonlyMap<string, Verbete>): PersonagemQueDiz[] {
   const lista: PersonagemQueDiz[] = []
   for (const verbete of verbetes.values()) {
-    if (verbete.tipo !== 'personagem' || !podeIrAoJogador(verbete)) continue
+    if (verbete.tipo !== 'personagem' || !podeIrAoJogador(verbete) || estaNaLixeira(verbete)) continue
     lista.push({ id: verbete.id, nome: nomeDaFonte(verbete.titulo) || 'Personagem sem nome' })
   }
   return lista.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))

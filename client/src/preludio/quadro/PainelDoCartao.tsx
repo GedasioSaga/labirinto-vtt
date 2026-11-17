@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type FocusEvent } from 'react'
 import { useSvgExportContext } from 'tldraw'
 import { PorNoMapaDaSecao } from '../janela/NaMesaNoPreludio'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import type { AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { precarregarEditor, TextoDoPreludio } from '../editor/sobDemanda'
@@ -24,11 +25,15 @@ const PROCURAR_O_CAMPO_POR = 120
 /** A marca que a sugestão da @menção aberta põe no texto digitado (`decorationClass` padrão da `@tiptap/suggestion`). */
 const MARCA_DA_MENCAO_ABERTA = '.suggestion'
 
+/** O verbete ligado à ficha do link. O que está na Lixeira só quando nenhum outro tem a ficha: o link continua abrindo a página dele. */
 function verbeteDaFicha(alvo: Extract<AlvoNaMesa, { tipo: 'ficha' }>): Verbete | undefined {
+  let naLixeira: Verbete | undefined
   for (const verbete of usePreludio.getState().verbetes.values()) {
-    if (verbete.liga?.fichas.some((ficha) => ficha.pastaId === alvo.pastaId && ficha.personagemId === alvo.personagemId) === true) return verbete
+    if (verbete.liga?.fichas.some((ficha) => ficha.pastaId === alvo.pastaId && ficha.personagemId === alvo.personagemId) !== true) continue
+    if (!estaNaLixeira(verbete)) return verbete
+    naLixeira ??= verbete
   }
-  return undefined
+  return naLixeira
 }
 
 /** O texto da seção mudou no cartão: grava no verbete, pela fila de sempre (só o texto; o segredo fica como está). */

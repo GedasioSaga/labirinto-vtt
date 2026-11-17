@@ -106,3 +106,19 @@ it('voltar pula o verbete que não existe mais e, sem passo para trás, sobe pel
   }
   expect(caminho).toEqual([{ secao: 'sessoes', sessaoId: 'sessao-inventada' }, { secao: 'sessoes', sessaoId: null }, INICIO, INICIO])
 })
+
+it('voltar pula a página do verbete que foi para a Lixeira, que continua na loja', async () => {
+  const farol = lugarInventado('vb-farol-inventado', 'Farol de mentira')
+  const torre = lugarInventado('vb-torre-inventada', 'Torre de mentira')
+  await usePreludio.getState().carregar()
+  const { ir, voltarUmPasso, mudarVerbete } = usePreludio.getState()
+  ir(farol)
+  ir(torre)
+  ir(LUGARES)
+  // A torre foi para a Lixeira enquanto a pessoa estava na lista: guardada, não apagada.
+  mudarVerbete('vb-torre-inventada', (atual) => ({ ...atual, lixeira: '2026-11-17T12:00:00.000Z' }))
+  expect(usePreludio.getState().verbetes.has('vb-torre-inventada')).toBe(true)
+
+  voltarUmPasso()
+  expect(ondeEsta()).toEqual(farol)
+})

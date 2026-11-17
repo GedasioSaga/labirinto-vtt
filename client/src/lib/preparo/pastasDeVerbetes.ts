@@ -1,4 +1,5 @@
 import { compararTitulos, idNovo } from './enciclopedia'
+import { estaNaLixeira } from './lixeira'
 import type { IndiceDoPreparo, PastaDeVerbetes, TipoDeVerbete, Verbete } from './tipos'
 
 /**
@@ -61,13 +62,14 @@ export function veioDoGrimorio(pasta: PastaDeVerbetes): boolean {
  * As pastas do tipo: as do índice e, depois, as do Grimório que nenhum
  * verbete tirou dali. A do Grimório que o mestre apagou não volta: os
  * verbetes dela ganharam `pastaId` ao sair, e a subpasta que ficou foi para o
- * índice sem a de cima.
+ * índice sem a de cima. O verbete na Lixeira não faz pasta do Grimório
+ * aparecer (ela ficaria vazia na tela); restaurado, a pasta volta com ele.
  */
 export function pastasDoTipo(guardadas: readonly PastaDeVerbetes[], verbetes: Iterable<Verbete>, tipo: TipoDeVerbete): PastaDeVerbetes[] {
   const saida = guardadas.filter((pasta) => pasta.tipo === tipo)
   const ids = new Set(saida.map((pasta) => pasta.id))
   for (const verbete of verbetes) {
-    if (verbete.tipo !== tipo || verbete.pastaId !== undefined) continue
+    if (verbete.tipo !== tipo || verbete.pastaId !== undefined || estaNaLixeira(verbete)) continue
     const dele = pastasDosNomes(tipo, nomesDoGrimorio(verbete))
     const ondeMora = dele[dele.length - 1]
     // A pasta dele já está no índice: o que está lá manda (inclusive a subpasta que virou pasta de cima).

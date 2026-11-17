@@ -15,7 +15,7 @@ import { useArrastoParaPasta, type TextosDoArrasto } from './arrastarParaPasta'
 import { ArvoreDasPastas, SEM, TODAS, type RamoDaArvore } from './ArvoreDasPastas'
 import { CartaoDoVerbete } from './CartaoDoVerbete'
 import { IconeLivro, IconeMapa } from './icones'
-import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, type Aviso, type Ordem, type Vista } from './partesDaLista'
+import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, useAvisoDaLista, type Ordem, type Vista } from './partesDaLista'
 import './pastas.css'
 
 /**
@@ -34,9 +34,10 @@ import './pastas.css'
  *   caminho mantém as imagens juntas e a hierarquia legível.
  * - Arrastar um cartão para cima de outro lugar (cartão, grupo ou linha da
  *   barra) põe dentro dele; para "Sem região", tira de onde estava. Nunca
- *   cria laço, e tem Desfazer. Sem mouse: "Mover para…" (no "…" do cartão ou
- *   na barra dos marcados) abre a escolha com TODOS os lugares e uma busca
- *   (pedido de 17/11: sub-cenário fácil como no Grimório).
+ *   cria laço, e tem Desfazer (no aviso e no Ctrl+Z da página). Sem mouse:
+ *   "Mover para…" (no "…" do cartão ou na barra dos marcados) abre a escolha
+ *   com TODOS os lugares e uma busca (pedido de 17/11: sub-cenário fácil como
+ *   no Grimório).
  * - "Excluir" (17/11) manda o lugar para a Lixeira, com Desfazer; o que estava
  *   dentro dele sobe um nível e volta ao restaurar (`lib/preparo/lixeira.ts`).
  *
@@ -79,12 +80,12 @@ export function LugaresEmRegioes() {
   const [ordem, setOrdem] = useState<Ordem>('az')
   const [vista, setVista] = useState<Vista>('grade')
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set())
-  const [aviso, setAviso] = useState<Aviso | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   /** Os lugares à espera de um lugar de cima, na janela "Pôr dentro de…". */
   const [escolhendo, setEscolhendo] = useState<readonly string[] | null>(null)
   const [anuncio, setAnuncio] = useState('')
   const gatilho = useRef<HTMLElement | null>(null)
+  const raiz = useRef<HTMLDivElement>(null)
 
   // ─── O que a tela mostra ───────────────────────────────────────────────────
   const lugares = useMemo(() => [...verbetes.values()].filter((verbete) => verbete.tipo === 'lugar' && !estaNaLixeira(verbete) && naCampanha(verbete, campanhaId)), [verbetes, campanhaId])
@@ -127,7 +128,8 @@ export function LugaresEmRegioes() {
 
   // ─── Ações ─────────────────────────────────────────────────────────────────
   const anunciar = useCallback((texto: string) => setAnuncio(texto), [])
-  const avisar = useCallback((texto: string, desfazer?: () => void) => setAviso({ chave: Date.now(), texto, desfazer }), [])
+  // O Desfazer do aviso vale uma vez, pelo botão ou pelo Ctrl+Z da página, como em Personagens.
+  const { aviso, setAviso, avisar } = useAvisoDaLista(raiz, menu !== null || escolhendo !== null)
 
   /** Põe os lugares dentro de `destino` (`null` = fora de todos). Confere tudo de novo com a loja: o que a tela leu pode ter ficado para trás. */
   const mover = useCallback(
@@ -144,10 +146,10 @@ export function LugaresEmRegioes() {
       if (destino !== null) setFechadas((agora) => new Set([...agora].filter((id) => id !== destino)))
       avisar(movidos.texto, () => {
         desfazer()
-        anunciar('Desfeito.')
+        avisar('Desfeito.')
       })
     },
-    [anunciar, avisar],
+    [avisar],
   )
 
   /** Excluir: os lugares vão para a Lixeira (o que estava dentro sobe um nível); o Desfazer do aviso traz tudo de volta de uma vez. */
@@ -160,11 +162,12 @@ export function LugaresEmRegioes() {
       }
       setMarcados(new Set())
       avisar(feito.texto, () => {
-        restaurarDaLixeira(feito.ids)
-        anunciar('Desfeito.')
+        const volta = restaurarDaLixeira(feito.ids)
+        // Já restaurado pela Lixeira: o aviso diz isso em vez de "Desfeito".
+        avisar(volta.ids.length === 0 ? volta.texto : 'Desfeito.')
       })
     },
-    [anunciar, avisar],
+    [avisar],
   )
 
   const criar = async () => {
@@ -302,7 +305,7 @@ export function LugaresEmRegioes() {
   const nomeDoGrupo = (id: string) => (id === SEM ? (temRegioes ? 'Sem região' : 'Lugares') : nomeDe(porId.get(id)))
 
   return (
-    <div className={`pp${marcados.size > 0 ? ' e-selecionando' : ''}`} onKeyDown={aoTeclarNaPagina}>
+    <div className={`pp${marcados.size > 0 ? ' e-selecionando' : ''}`} ref={raiz} onKeyDown={aoTeclarNaPagina}>
       <ArvoreDasPastas
         arvore={arvore}
         escolhida={atual}
@@ -425,6 +428,7 @@ export function LugaresEmRegioes() {
           rotulo="Lugares marcados"
           quantos={marcados.size}
           travado={travado}
+          abre="dialog"
           aoMover={() => setEscolhendo([...marcados])}
           aoDesmarcar={() => setMarcados(new Set())}
         />

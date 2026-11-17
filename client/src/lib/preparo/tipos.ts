@@ -93,7 +93,8 @@ export const CAMPANHA = objeto({
 
 /**
  * PASTA DE VERBETES (E3, 16/11): a pasta de verdade da lista de Personagens
- * (e de Itens e Facções). Um nível só de subpasta. O verbete aponta para ela
+ * (e de Itens e Facções). Pasta dentro de pasta em quantos níveis o mestre
+ * quiser (17/11), pelo `paiId`. O verbete aponta para ela
  * pelo `pastaId`; o que veio do Grimório sem `pastaId` mora na pasta que o
  * `organizacao` dele descreve (`lib/preparo/pastasDeVerbetes.ts`).
  */

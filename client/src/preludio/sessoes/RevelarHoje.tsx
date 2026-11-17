@@ -1,5 +1,6 @@
 import { useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { compararTitulos, ROTULO_DO_TIPO, semAcento } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import { paraNormal, type ParaQuem } from '../../lib/preparo/revelado'
 import { alvosParaRevelar, comParaRevelar, dadosDaSessao, formaParaRevelar, situacaoDoItem, type SituacaoDoItem } from '../../lib/preparo/sessoes'
 import type { AlvoDaRevelacao, DadosDaSessao, ParaRevelar, Verbete } from '../../lib/preparo/tipos'
@@ -330,12 +331,13 @@ export function RevelarHoje({ sessao, editavel, mencionados = [], aoAbrir, titul
 
   const mudarDados = (mudar: (dados: DadosDaSessao) => DadosDaSessao) => mudarVerbete(sessao.id, (atual) => ({ ...atual, sessao: mudar(dadosDaSessao(atual)) }))
   const naLista = new Set(dados.revelarHoje.map((item) => item.verbeteId))
-  // Só se revela o que está na campanha da revelação (o pacote do jogador confere a etiqueta).
+  // Só se revela o que está na campanha da revelação (o pacote do jogador confere a etiqueta). O que está na
+  // Lixeira não se escolhe nem se sugere; o que já estava na lista continua nela.
   const candidatos = useMemo(
-    () => [...verbetes.values()].filter((verbete) => verbete.tipo !== 'sessao' && (campanha.campanhaId === null || verbete.campanhas.includes(campanha.campanhaId))),
+    () => [...verbetes.values()].filter((verbete) => verbete.tipo !== 'sessao' && !estaNaLixeira(verbete) && (campanha.campanhaId === null || verbete.campanhas.includes(campanha.campanhaId))),
     [verbetes, campanha.campanhaId],
   )
-  const sugestoes = mencionados.filter((verbete) => !naLista.has(verbete.id) && verbete.tipo !== 'sessao').slice(0, MAXIMO_DE_SUGESTOES)
+  const sugestoes = mencionados.filter((verbete) => !naLista.has(verbete.id) && verbete.tipo !== 'sessao' && !estaNaLixeira(verbete)).slice(0, MAXIMO_DE_SUGESTOES)
 
   return (
     <section className="pr-hoje" aria-labelledby={tituloId}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Torrada, Torradas } from '../../../components/grimorio/Torrada'
 import { focoDeixaDesfazerGlobal } from '../../../lib/keymap'
 import { semAcento } from '../../../lib/preparo/enciclopedia'
@@ -154,16 +154,18 @@ interface BarraDosMarcadosProps {
   rotulo: string
   quantos: number
   travado: boolean
+  /** O que o "Mover para…" abre: o menu das pastas (o padrão) ou uma janela (a escolha dos Lugares). */
+  abre?: 'menu' | 'dialog'
   aoMover: (gatilho: HTMLElement) => void
   aoDesmarcar: () => void
 }
 
 /** A barra que sobe quando há marcados: "Mover para…" e "Desmarcar (Esc)". */
-export function BarraDosMarcados({ rotulo, quantos, travado, aoMover, aoDesmarcar }: BarraDosMarcadosProps) {
+export function BarraDosMarcados({ rotulo, quantos, travado, abre = 'menu', aoMover, aoDesmarcar }: BarraDosMarcadosProps) {
   return (
     <div className={`pp-barra-sel${quantos > 0 ? '' : ' e-fora'}`} role="region" aria-label={rotulo}>
       <span className="pp-barra-sel__conta">{plural(quantos, 'marcado', 'marcados')}</span>
-      <button type="button" className="gr-bt gr-bt--p gr-bt--primario" aria-haspopup="menu" disabled={travado || quantos === 0} onClick={(evento) => aoMover(evento.currentTarget)}>
+      <button type="button" className="gr-bt gr-bt--p gr-bt--primario" aria-haspopup={abre} disabled={travado || quantos === 0} onClick={(evento) => aoMover(evento.currentTarget)}>
         Mover para…
       </button>
       <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" disabled={quantos === 0} onClick={aoDesmarcar}>
@@ -179,7 +181,7 @@ export function BarraDosMarcados({ rotulo, quantos, travado, aoMover, aoDesmarca
  * nenhum; num campo de texto o Ctrl+Z é do campo, e num menu ou janela aberta
  * por cima (que moram fora da página) não age.
  */
-export function useCtrlZDaLista(raiz: RefObject<HTMLElement | null>, desfazer: () => void): void {
+function useCtrlZDaLista(raiz: RefObject<HTMLElement | null>, desfazer: () => void): void {
   const atual = useRef(desfazer)
   useEffect(() => {
     atual.current = desfazer
@@ -196,6 +198,39 @@ export function useCtrlZDaLista(raiz: RefObject<HTMLElement | null>, desfazer: (
     window.addEventListener('keydown', aoTeclar)
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [raiz])
+}
+
+/**
+ * O aviso de baixo e o Desfazer dele, com o Ctrl+Z da página (Personagens,
+ * Itens e Facções; Lugares): a última mudança se desfaz uma vez só, pelo botão
+ * do aviso ou pela tecla, mesmo depois de o aviso sumir. `ocupado` = um menu
+ * ou uma janela da página aberta: o Ctrl+Z espera.
+ */
+export function useAvisoDaLista(raiz: RefObject<HTMLElement | null>, ocupado: boolean) {
+  const [aviso, setAviso] = useState<Aviso | null>(null)
+  /** O Desfazer do último aviso, para o Ctrl+Z (vale uma vez só, pelo aviso ou pela tecla). */
+  const ultimoDesfazer = useRef<(() => void) | null>(null)
+  const avisar = useCallback((texto: string, desfazer?: () => void) => {
+    if (desfazer === undefined) {
+      setAviso({ chave: Date.now(), texto })
+      return
+    }
+    // Uma vez só: o botão do aviso e o Ctrl+Z não desfazem duas vezes.
+    const umaVez = () => {
+      if (ultimoDesfazer.current !== umaVez) return
+      ultimoDesfazer.current = null
+      desfazer()
+    }
+    ultimoDesfazer.current = umaVez
+    setAviso({ chave: Date.now(), texto, desfazer: umaVez })
+  }, [])
+  useCtrlZDaLista(raiz, () => {
+    if (ocupado) return
+    const desfazer = ultimoDesfazer.current
+    if (desfazer === null) avisar('Nada para desfazer aqui.')
+    else desfazer()
+  })
+  return { aviso, setAviso, avisar }
 }
 
 /** O aviso de baixo, com Desfazer quando dá. */

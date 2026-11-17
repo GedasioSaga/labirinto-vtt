@@ -4,6 +4,7 @@ import { mapasNaPasta, mapasQueUsamAPasta, campanhaComPasta, campanhaComSistema,
 import { lerIndiceDasPastas, lerRpgDaPasta, rpgComSistema } from '../../lib/pastasDeMapas'
 import { SISTEMAS_EMBUTIDOS } from '../../lib/sistemaOnePiece'
 import { tipoDaFichaLigada, type TiposDasFichas } from '../../lib/preparo/fichaDoVerbete'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import type { Campanha, Verbete } from '../../lib/preparo/tipos'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePreludio } from '../estado/preludio'
@@ -364,7 +365,8 @@ export function numerosDe(campanhaId: string, verbetes: ReadonlyMap<string, Verb
   let sessoes = 0
   const daCampanha = new Set<string>()
   for (const verbete of verbetes.values()) {
-    if (!verbete.campanhas.includes(campanhaId)) continue
+    // O que está na Lixeira não conta, como nas listas e na barra lateral.
+    if (!verbete.campanhas.includes(campanhaId) || estaNaLixeira(verbete)) continue
     if (verbete.tipo === 'personagem') {
       personagens += 1
       const tipo = tipoDaFichaLigada(verbete, tipos)

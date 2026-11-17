@@ -32,7 +32,7 @@ import { useArrastoParaPasta } from './arrastarParaPasta'
 import { ArvoreDasPastas, EscolherPasta, fraseDaRecusaDaPasta, recuoDoNivel, SEM, TEXTOS_DO_ARRASTO_DA_PASTA, TODAS, TOPO } from './ArvoreDasPastas'
 import { CartaoDoVerbete } from './CartaoDoVerbete'
 import { IconeLivro, IconePasta, IconeSubir } from './icones'
-import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, useCtrlZDaLista, type Aviso, type Ordem, type Vista } from './partesDaLista'
+import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, useAvisoDaLista, type Ordem, type Vista } from './partesDaLista'
 import './pastas.css'
 
 /**
@@ -91,7 +91,6 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set())
   const [renomeando, setRenomeando] = useState<string | null>(null)
   const [nova, setNova] = useState<{ readonly pasta: PastaDeVerbetes; readonly levar: readonly string[] } | null>(null)
-  const [aviso, setAviso] = useState<Aviso | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   /** O "Mover para…" de uma pasta (`chave` refaz a busca a cada vez que abre). */
   const [movendo, setMovendo] = useState<{ readonly id: string; readonly chave: number; readonly aberto: boolean } | null>(null)
@@ -99,8 +98,6 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const gatilho = useRef<HTMLElement | null>(null)
   const proximoMenu = useRef<Menu | null>(null)
   const raiz = useRef<HTMLDivElement>(null)
-  /** O Desfazer do último aviso, para o Ctrl+Z (vale uma vez só, pelo aviso ou pela tecla). */
-  const ultimoDesfazer = useRef<(() => void) | null>(null)
 
   const rotulo = ROTULO_DO_TIPO[tipo]
   const varios = rotulo.varios.toLowerCase()
@@ -161,26 +158,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
 
   // ─── Ações ─────────────────────────────────────────────────────────────────
   const anunciar = useCallback((texto: string) => setAnuncio(texto), [])
-  const avisar = useCallback((texto: string, desfazer?: () => void) => {
-    if (desfazer === undefined) {
-      setAviso({ chave: Date.now(), texto })
-      return
-    }
-    // Uma vez só: o botão do aviso e o Ctrl+Z não desfazem duas vezes.
-    const umaVez = () => {
-      if (ultimoDesfazer.current !== umaVez) return
-      ultimoDesfazer.current = null
-      desfazer()
-    }
-    ultimoDesfazer.current = umaVez
-    setAviso({ chave: Date.now(), texto, desfazer: umaVez })
-  }, [])
-  useCtrlZDaLista(raiz, () => {
-    if (movendo?.aberto === true || menu !== null) return
-    const desfazer = ultimoDesfazer.current
-    if (desfazer === null) avisar('Nada para desfazer aqui.')
-    else desfazer()
-  })
+  const { aviso, setAviso, avisar } = useAvisoDaLista(raiz, movendo?.aberto === true || menu !== null)
 
   /** As pastas do tipo como estão agora na loja (o que a tela leu pode ter ficado para trás dentro de um gesto). */
   const pastasAgora = useCallback(() => {

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { gravarIndiceDoPreparo, gravarRevelado, gravarTempo, gravarVerbete, lerIndiceDoPreparo, lerRevelado, lerTempo, lerVerbete, listarNoPreparo, type DocumentoLido } from '../../lib/preparo/disco'
 import { IndiceDeCitacoes, entradaDaBusca, type EntradaDaBusca } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import { comRevelacoes, reveladoVazio, type MudancaDeRevelacao } from '../../lib/preparo/revelado'
 import { indiceComAsPastas } from '../../lib/preparo/pastasDeVerbetes'
 import { comEvento, semEvento, tempoVazio } from '../../lib/preparo/sessoes'
@@ -709,10 +710,10 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
 
   voltarUmPasso() {
     const { lugar, historico, verbetes, carga } = get()
-    // Enquanto o Prelúdio lê, não dá para saber o que sumiu: o passo vale.
+    // Enquanto o Prelúdio lê, não dá para saber o que sumiu: o passo vale. O verbete na Lixeira conta como sumido: voltar não cai numa página guardada.
     const sumiu = (passo: Passo) => {
       const id = verbeteDoLugar(passo.lugar)
-      return carga.t === 'pronta' && id !== null && !verbetes.has(id)
+      return carga.t === 'pronta' && id !== null && (!verbetes.has(id) || estaNaLixeira(verbetes.get(id)))
     }
     for (let indice = historico.length - 1; indice >= 0; indice -= 1) {
       const passo = historico[indice]

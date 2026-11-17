@@ -324,7 +324,7 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
   // A trilha começa no Início e termina no lugar de agora: nunca vem vazia.
   const atual = trilha[trilha.length - 1]
   const acima = trilha.slice(0, -1)
-  // Sair pela trilha vale o mesmo que o Voltar da barra lateral: nem na janela própria, nem gravando.
+  // Sair pela trilha vale o mesmo que o "Sair do Prelúdio" da barra lateral: nem na janela própria, nem gravando.
   const podeSair = !naJanela && !gravando
 
   return (
