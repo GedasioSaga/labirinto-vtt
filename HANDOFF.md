@@ -1,6 +1,9 @@
 # FECHADO 16/11 17h51: 0.5.77 PUBLICADA (com --com-google)
 release/0.5.77 = a3ab3adc + bump 598048cb; main = origin/main = 7f323d30; `gh release view v0.5.77` conferido: setup 29.568.479 B, .sig, .msi, latest.json 0.5.77; Worker labirinto-nuvem reenviado (versão 581487bb), Pages e34c5e5d. Cliente Google dentro do exe conferido só por verdadeiro/falso. TODA versão daqui em diante: publicar com --com-google. Abertos para o mestre: Prelúdio ainda desligado para todos (chave do tldraw); e2e velhos (E2E-PENDENTE.md + task-jornada-bau passo 6); limite da bala recriada pelo nome; colar no quadro cai em cima da original; selo do minigame pequeno no zoom longe; sem marcador de minigame no mapa do editor; contorno da montanha ainda perto de oval. NÃO PROVADO em app real: tiro em batalha com 2 telas, item/lugar do Prelúdio + datilografia no jogador, selo e escada na tela do jogador, alças arrastadas no app.
 
+# FECHADO 16/11 22h08: 0.5.78 PUBLICADA (release/0.5.78 = 9edd9957 + bump cf6b8432; main = origin/main = 76aa3b0b; gh release view conferido; Google True/True no exe; Worker d80a5957, Pages 67c34ba2). Nada em voo.
+# (antes) Lugares FEITO 9edd9957 (grade com imagem, regiões pelo paiId, caminho no cartão, arrastar muda o pai com Desfazer e recusa laço; 133 testes; maior tarefa longa 63 ms com 100 lugares; prints tmp/pedidos-2026-11-16/lugares/; não visto em Tauri real nem dados reais). tsc 0 na main. Operario publicando 0.5.78 de release/0.5.78 = 9edd9957 + bump, --com-google, notas tmp/auditoria-2026-11-16e/notas-0.5.78.md, log publicar-0.5.78.log.
+
 # LEVA DE 16/11/2026 11h01 (12 pedidos; fluxo normal, sem autonomia)
 
 ## Objetivo
