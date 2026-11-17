@@ -1,5 +1,6 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Torrada, Torradas } from '../../../components/grimorio/Torrada'
+import { focoDeixaDesfazerGlobal } from '../../../lib/keymap'
 import { semAcento } from '../../../lib/preparo/enciclopedia'
 import type { Campanha, Verbete } from '../../../lib/preparo/tipos'
 import { IconeGrade, IconeLista, IconeLupa, IconeSeta } from './icones'
@@ -133,7 +134,11 @@ export function GrupoDaLista({ alvo, nome, caminho, conta, fechado, aoAlternar, 
             <IconeSeta />
           </span>
           <span className="pp-grupo__nome">{nome}</span>
-          {caminho !== undefined && caminho !== '' && <span className="pp-grupo__caminho">{caminho}</span>}
+          {caminho !== undefined && caminho !== '' && (
+            <span className="pp-grupo__caminho" title={caminho}>
+              {caminho}
+            </span>
+          )}
           <span className="pp-grupo__conta">{conta}</span>
         </button>
       </h3>
@@ -166,6 +171,31 @@ export function BarraDosMarcados({ rotulo, quantos, travado, aoMover, aoDesmarca
       </button>
     </div>
   )
+}
+
+/**
+ * Ctrl+Z na página da lista desfaz a última mudança (a mesma do "Desfazer" do
+ * aviso, mesmo depois de o aviso sumir). Vale com o foco na página ou em lugar
+ * nenhum; num campo de texto o Ctrl+Z é do campo, e num menu ou janela aberta
+ * por cima (que moram fora da página) não age.
+ */
+export function useCtrlZDaLista(raiz: RefObject<HTMLElement | null>, desfazer: () => void): void {
+  const atual = useRef(desfazer)
+  useEffect(() => {
+    atual.current = desfazer
+  })
+  useEffect(() => {
+    const aoTeclar = (evento: globalThis.KeyboardEvent) => {
+      if (evento.defaultPrevented || !(evento.ctrlKey || evento.metaKey) || evento.shiftKey || evento.altKey || evento.key.toLowerCase() !== 'z') return
+      const alvo = evento.target
+      if (!(alvo instanceof HTMLElement) || (alvo !== document.body && raiz.current?.contains(alvo) !== true)) return
+      if (!focoDeixaDesfazerGlobal(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+      evento.preventDefault()
+      atual.current()
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [raiz])
 }
 
 /** O aviso de baixo, com Desfazer quando dá. */

@@ -16,6 +16,16 @@ export function IconePasta() {
   )
 }
 
+/** Sair da pasta de cima: a seta que sobe e vira para a esquerda ("Tirar de", "Para o topo"). */
+export function IconeSubir() {
+  return (
+    <svg className="pp-ic" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M16 16H9a4 4 0 0 1-4-4V4" />
+      <path d="M2 7l3-3 3 3" />
+    </svg>
+  )
+}
+
 export function IconePilha() {
   return (
     <svg className="pp-ic pp-linha__icone" viewBox="0 0 20 20" aria-hidden="true" focusable="false">

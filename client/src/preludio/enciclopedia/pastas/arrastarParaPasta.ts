@@ -15,15 +15,23 @@ import { useCallback, useEffect, useRef, type PointerEvent as PointerDoReact } f
  *
  * Em Lugares (16/11) o alvo também é outro cartão (pôr o lugar dentro de
  * outro): as frases vêm de fora (`textos`) e `recusa` diz quando o alvo não
- * serve (o lugar dentro dele mesmo). O alvo recusado não acende e a dica diz
- * o porquê; quem decide de verdade continua sendo o `aoSoltar`.
+ * serve (o lugar dentro dele mesmo). O alvo recusado não acende, ganha o
+ * contorno de "não cabe" (`e-recusado`), o cursor vira o de proibido e a dica
+ * diz o porquê; quem decide de verdade continua sendo o `aoSoltar`.
+ *
+ * Em 17/11 a própria pasta arrasta (pôr uma pasta dentro de outra): o fantasma
+ * leva o ícone da pasta (`fantasma: 'pasta'`), a linha arrastada é achada por
+ * `data-linha`, e `aceita` deixa a barra inteira ser o alvo "para cima" só
+ * para a pasta (o retrato passa direto por ela).
  */
 
 const DISTANCIA_PARA_COMECAR = 6
 const ESPERA_PARA_ABRIR_MS = 600
 const DESLOCAMENTO_DO_FANTASMA = { x: 14, y: 12 }
 const CLASSE_DO_ALVO = 'e-alvo'
+const CLASSE_DO_RECUSADO = 'e-recusado'
 const CLASSE_DO_ARRASTADO = 'e-arrastada'
+const ATRIBUTO_DO_CARTAO = 'data-verbete'
 
 export interface OpcoesDoArrasto {
   /** Os ids que vão junto (os marcados, se este estiver marcado). */
@@ -41,6 +49,12 @@ export interface OpcoesDoArrasto {
   textos?: TextosDoArrasto
   /** Por que os `ids` não podem cair em `alvo` (`null` = podem). */
   recusa?: (ids: readonly string[], alvo: string) => string | null
+  /** O alvo que nem conta para este arrasto (o retrato não cai na barra "para cima"): o de fora dele vale. Sem ela, todos contam. */
+  aceita?: (alvo: string) => boolean
+  /** O que o fantasma mostra: a foto do cartão (padrão) ou o ícone da pasta. */
+  fantasma?: 'retrato' | 'pasta'
+  /** O atributo que acha o que está sendo arrastado, para apagá-lo durante o gesto (padrão `data-verbete`). */
+  atributoDoArrastado?: string
 }
 
 export interface TextosDoArrasto {
@@ -77,18 +91,39 @@ function escaparAtributo(valor: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(valor) : valor.replace(/["\\]/g, '')
 }
 
-function acenderAlvo(alvo: string | null): void {
-  for (const aceso of document.querySelectorAll(`.${CLASSE_DO_ALVO}[data-solta-pasta]`)) aceso.classList.remove(CLASSE_DO_ALVO)
+/** Acende (`e-alvo`) ou marca como "não cabe" (`e-recusado`) os elementos do alvo; `null` apaga todos. */
+function marcarAlvo(classe: string, alvo: string | null): void {
+  for (const marcado of document.querySelectorAll(`.${classe}[data-solta-pasta]`)) marcado.classList.remove(classe)
   if (alvo === null) return
-  for (const elemento of document.querySelectorAll(`[data-solta-pasta="${escaparAtributo(alvo)}"]`)) elemento.classList.add(CLASSE_DO_ALVO)
+  for (const elemento of document.querySelectorAll(`[data-solta-pasta="${escaparAtributo(alvo)}"]`)) elemento.classList.add(classe)
 }
 
-function marcarArrastados(ids: readonly string[], ligado: boolean): void {
-  for (const id of ids) for (const elemento of document.querySelectorAll(`[data-verbete="${escaparAtributo(id)}"]`)) elemento.classList.toggle(CLASSE_DO_ARRASTADO, ligado)
+function acenderAlvo(alvo: string | null): void {
+  marcarAlvo(CLASSE_DO_ALVO, alvo)
 }
 
-/** O fantasma: a foto que o cartão já mostra (ou as iniciais) e o nome; tudo como texto. */
-function criarFantasma(origem: HTMLElement, rotulo: string, semAlvo: string): { fantasma: HTMLDivElement; dica: HTMLDivElement } {
+function marcarArrastados(atributo: string, ids: readonly string[], ligado: boolean): void {
+  for (const id of ids) for (const elemento of document.querySelectorAll(`[${atributo}="${escaparAtributo(id)}"]`)) elemento.classList.toggle(CLASSE_DO_ARRASTADO, ligado)
+}
+
+/** O alvo debaixo do ponteiro: o `data-solta-pasta` mais de dentro que este arrasto aceita. */
+function alvoSob(sob: Element | null, aceita: ((alvo: string) => boolean) | undefined): HTMLElement | null {
+  let elemento = sob === null ? null : sob.closest<HTMLElement>('[data-solta-pasta]')
+  while (elemento !== null && aceita !== undefined && !aceita(elemento.dataset.soltaPasta ?? '')) elemento = elemento.parentElement?.closest<HTMLElement>('[data-solta-pasta]') ?? null
+  return elemento
+}
+
+/** O ícone da pasta que a linha arrastada mostra (o nosso SVG, sem nada do mestre dentro). */
+function iconeDaPasta(origem: HTMLElement): HTMLSpanElement {
+  const caixa = document.createElement('span')
+  caixa.className = 'pp-fantasma__pasta'
+  const icone = origem.querySelector('svg.pp-linha__icone')
+  if (icone !== null) caixa.append(icone.cloneNode(true))
+  return caixa
+}
+
+/** O fantasma: a foto que o cartão já mostra (ou as iniciais), ou o ícone da pasta, e o nome; tudo como texto. */
+function criarFantasma(origem: HTMLElement, rotulo: string, semAlvo: string, como: 'retrato' | 'pasta'): { fantasma: HTMLDivElement; dica: HTMLDivElement } {
   const fantasma = document.createElement('div')
   fantasma.className = 'pp-fantasma'
   fantasma.setAttribute('aria-hidden', 'true')
@@ -97,7 +132,10 @@ function criarFantasma(origem: HTMLElement, rotulo: string, semAlvo: string): { 
   const foto = document.createElement('span')
   foto.className = 'pr-retrato pp-fantasma__foto'
   const imagem = origem.querySelector('img')
-  if (imagem !== null && imagem.currentSrc !== '') {
+  if (como === 'pasta') {
+    foto.className = 'pp-fantasma__foto'
+    foto.append(iconeDaPasta(origem))
+  } else if (imagem !== null && imagem.currentSrc !== '') {
     const copia = document.createElement('img')
     copia.src = imagem.currentSrc
     copia.alt = ''
@@ -144,34 +182,40 @@ export function useArrastoParaPasta(opcoes: OpcoesDoArrasto) {
   const soltouAgora = useRef(false)
 
   useEffect(() => {
+    const atributo = () => atuais.current.atributoDoArrastado ?? ATRIBUTO_DO_CARTAO
     const limpar = (fim: Gesto) => {
       clearTimeout(fim.mola)
       fim.fantasma?.remove()
       acenderAlvo(null)
-      marcarArrastados(fim.ids, false)
-      document.body.classList.remove('pp-arrastando')
+      marcarAlvo(CLASSE_DO_RECUSADO, null)
+      marcarArrastados(atributo(), fim.ids, false)
+      document.body.classList.remove('pp-arrastando', 'pp-recusando')
     }
     const textos = () => atuais.current.textos ?? TEXTOS_DAS_PASTAS
     const comecar = (atual: Gesto) => {
       atual.iniciado = true
       atual.ids = atuais.current.idsDoArrasto(atual.id)
-      const { fantasma, dica } = criarFantasma(atual.origem, atuais.current.rotuloDoArrasto(atual.ids), textos().semAlvo)
+      const { fantasma, dica } = criarFantasma(atual.origem, atuais.current.rotuloDoArrasto(atual.ids), textos().semAlvo, atuais.current.fantasma ?? 'retrato')
       atual.fantasma = fantasma
       atual.dica = dica
-      marcarArrastados(atual.ids, true)
+      marcarArrastados(atributo(), atual.ids, true)
       document.body.classList.add('pp-arrastando')
       atuais.current.anunciar(textos().anuncio)
     }
     const dicaDoAlvo = (alvo: string, comSubpastas: boolean): Dica => ({ t: 'alvo', antes: textos().antesDoAlvo(alvo), nome: atuais.current.nomeDoAlvo(alvo), comSubpastas })
     const trocarAlvo = (atual: Gesto, x: number, y: number) => {
       const sob = document.elementFromPoint(x, y)
-      const elemento = sob instanceof Element ? sob.closest<HTMLElement>('[data-solta-pasta]') : null
+      const elemento = alvoSob(sob, atuais.current.aceita)
       const alvo = elemento?.dataset.soltaPasta ?? null
       if (alvo === atual.alvo) return
       atual.alvo = alvo
       atual.recusa = alvo === null ? null : (atuais.current.recusa?.(atual.ids, alvo) ?? null)
       clearTimeout(atual.mola)
       acenderAlvo(atual.recusa === null ? alvo : null)
+      // Em cima dele mesmo (o começo de todo arrasto) não é "não cabe": o que está sendo arrastado já aparece apagado.
+      const emCimaDeSi = alvo !== null && atual.ids.includes(alvo)
+      marcarAlvo(CLASSE_DO_RECUSADO, atual.recusa === null || emCimaDeSi ? null : alvo)
+      document.body.classList.toggle('pp-recusando', atual.recusa !== null && !emCimaDeSi)
       const fechadaComSub = elemento !== null && elemento.getAttribute('aria-expanded') === 'false'
       if (atual.dica !== null) mostrarDica(atual.dica, alvo === null ? { t: 'nada', texto: textos().semAlvo } : atual.recusa !== null ? { t: 'recusa', texto: atual.recusa } : dicaDoAlvo(alvo, false))
       if (alvo === null || atual.recusa !== null || !fechadaComSub) return

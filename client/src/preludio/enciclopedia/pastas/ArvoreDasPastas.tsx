@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
-import { NOME_DA_PASTA_MAX } from '../../../lib/preparo/pastasDeVerbetes'
+import { useMemo, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { Dialogo } from '../../../components/grimorio/Dialogo'
+import { NOME_DA_PASTA_MAX, type RecusaDaPasta } from '../../../lib/preparo/pastasDeVerbetes'
 import { semAcento } from '../../../lib/preparo/enciclopedia'
-import { IconeBandeja, IconeMais, IconePasta, IconePilha, IconeSeta } from './icones'
+import type { TextosDoArrasto } from './arrastarParaPasta'
+import { IconeBandeja, IconeLupa, IconeMais, IconePasta, IconePilha, IconeSeta, IconeSubir } from './icones'
 
 /**
  * A BARRA DAS PASTAS (E3): "Todos", "Sem pasta" e as pastas em árvore. Cada
  * linha é alvo do arrasto (`data-solta-pasta`). Teclado de árvore (WAI-ARIA
  * tree): setas andam, → abre e ← fecha, Enter escolhe, F2 renomeia, Delete
  * apaga, Shift+F10 abre o menu, letra pula.
+ *
+ * Pasta dentro de pasta (17/11): com `arrastoDaPasta` a própria linha arrasta
+ * até outra pasta (fica dentro dela) ou até o vazio da barra (`alvoDoTopo`:
+ * volta para cima). Em quantos níveis houver: o recuo encolhe depois do 3º
+ * nível para o nome caber, e o nome cortado mostra o caminho inteiro ao parar
+ * o ponteiro em cima.
  *
  * Serve também à barra das REGIÕES de Lugares (16/11): ali as linhas são os
  * lugares que têm lugares dentro, em quantos níveis houver, e renomear, apagar
@@ -17,10 +25,22 @@ import { IconeBandeja, IconeMais, IconePasta, IconePilha, IconeSeta } from './ic
 
 export const TODAS = 'todas'
 export const SEM = 'sem'
+/** O alvo "para cima, fora de todas as pastas": o vazio da barra, no arrasto de uma pasta. */
+export const TOPO = 'topo'
 
-/** Recuo da linha e o a mais de cada nível, em px. */
+/** Recuo da linha e o a mais de cada nível, em px: cheio até o 3º nível, curto do 4º ao 7º, e para ali. */
 const RECUO_DA_LINHA = 4
 const RECUO_DO_NIVEL = 14
+const NIVEIS_DE_RECUO_CHEIO = 3
+const RECUO_CURTO = 6
+const NIVEIS_DE_RECUO_CURTO = 4
+const SEPARADOR_DO_CAMINHO = ' › '
+
+/** Quanto a linha entra: a pasta funda continua com lugar para o nome na barra de 236 px. */
+export function recuoDoNivel(nivel: number): number {
+  const cheios = Math.min(nivel, NIVEIS_DE_RECUO_CHEIO)
+  return RECUO_DA_LINHA + cheios * RECUO_DO_NIVEL + Math.min(nivel - cheios, NIVEIS_DE_RECUO_CURTO) * RECUO_CURTO
+}
 
 /** Uma linha da árvore, em ordem de árvore (pai antes dos de dentro). A pasta de verdade (`PastaNaArvore`) já tem esta forma. */
 export interface RamoDaArvore {
@@ -31,11 +51,20 @@ export interface RamoDaArvore {
 interface LinhaDaArvore {
   readonly id: string
   readonly nome: string
+  /** "Frota › 2.Capitães › Navio": a dica do nome cortado. */
+  readonly caminho: string
   readonly nivel: number
   readonly ehPasta: boolean
   readonly doGrimorio: boolean
   readonly comSubpastas: boolean
   readonly paiId: string | undefined
+}
+
+/** A linha da pasta como alça do arrasto (`useArrastoParaPasta` da pasta). */
+export interface ArrastoDaPasta {
+  readonly aoApertar: (id: string, evento: PointerEvent<HTMLElement>) => void
+  /** O clique que vem logo depois do soltar não escolhe a pasta. */
+  readonly acabouDeSoltar: () => boolean
 }
 
 export interface ArvoreDasPastasProps {
@@ -64,6 +93,10 @@ export interface ArvoreDasPastasProps {
   aoApagar?: (id: string) => void
   aoAbrirMenu?: (id: string, gatilho: HTMLElement) => void
   aoNovaPasta?: (gatilho: HTMLElement) => void
+  /** A pasta arrasta até outra; sem ele, a linha só recebe. */
+  arrastoDaPasta?: ArrastoDaPasta
+  /** O id de alvo do vazio da barra (o `TOPO`); sem ele, o vazio não recebe nada. */
+  alvoDoTopo?: string
 }
 
 const NENHUMA: ReadonlySet<string> = new Set()
@@ -112,17 +145,23 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
   const [foco, setFoco] = useState(escolhida)
   const raiz = useRef<HTMLDivElement>(null)
 
+  const rotuloDeTodas = props.rotuloDeTodas ?? 'Todos'
+  const rotuloDeSem = props.rotuloDeSem ?? 'Sem pasta'
   const linhas: LinhaDaArvore[] = [
-    { id: TODAS, nome: props.rotuloDeTodas ?? 'Todos', nivel: 0, ehPasta: false, doGrimorio: false, comSubpastas: false, paiId: undefined },
-    { id: SEM, nome: props.rotuloDeSem ?? 'Sem pasta', nivel: 0, ehPasta: false, doGrimorio: false, comSubpastas: false, paiId: undefined },
+    { id: TODAS, nome: rotuloDeTodas, caminho: rotuloDeTodas, nivel: 0, ehPasta: false, doGrimorio: false, comSubpastas: false, paiId: undefined },
+    { id: SEM, nome: rotuloDeSem, caminho: rotuloDeSem, nivel: 0, ehPasta: false, doGrimorio: false, comSubpastas: false, paiId: undefined },
   ]
   // Quem está abaixo de uma linha fechada some, em qualquer profundidade.
   let escondeAbaixoDe = Number.POSITIVE_INFINITY
+  const nomesAcima: string[] = []
   for (const [indice, { pasta, nivel }] of arvore.entries()) {
+    nomesAcima.length = Math.min(nomesAcima.length, nivel)
+    nomesAcima.push(pasta.nome)
     if (nivel > escondeAbaixoDe) continue
     escondeAbaixoDe = Number.POSITIVE_INFINITY
     const comSubpastas = (arvore[indice + 1]?.nivel ?? -1) > nivel
-    linhas.push({ id: pasta.id, nome: pasta.nome, nivel, ehPasta: true, doGrimorio: doGrimorio.has(pasta.id), comSubpastas, paiId: nivel > 0 ? pasta.paiId : undefined })
+    const caminho = nomesAcima.join(SEPARADOR_DO_CAMINHO)
+    linhas.push({ id: pasta.id, nome: pasta.nome, caminho, nivel, ehPasta: true, doGrimorio: doGrimorio.has(pasta.id), comSubpastas, paiId: nivel > 0 ? pasta.paiId : undefined })
     if (comSubpastas && !abertas.has(pasta.id)) escondeAbaixoDe = nivel
   }
   const focado = linhas.some((linha) => linha.id === foco) ? foco : escolhida
@@ -193,10 +232,17 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
     evento.stopPropagation()
     props.aoAbrirMenu?.(id, evento.currentTarget)
   }
-  const { aoNovaPasta, aoAbrirMenu, aoTerminarRenomear } = props
+  const { aoNovaPasta, aoAbrirMenu, aoTerminarRenomear, arrastoDaPasta } = props
+  /** A pasta pega pela linha (não pelo botão "…" nem pelo campo do nome). */
+  const apertar = (linha: LinhaDaArvore, evento: PointerEvent<HTMLDivElement>) => {
+    if (arrastoDaPasta === undefined || !linha.ehPasta || travado || renomeando !== null) return
+    if (evento.target instanceof Element && evento.target.closest('button, input') !== null) return
+    arrastoDaPasta.aoApertar(linha.id, evento)
+  }
+  const soltouAgora = () => arrastoDaPasta?.acabouDeSoltar() === true
 
   return (
-    <nav className="pp-pastas" aria-label={titulo}>
+    <nav className="pp-pastas" aria-label={titulo} data-solta-pasta={props.alvoDoTopo}>
       <div className="pp-pastas__cab">
         <h3 className="pp-pastas__tit" id="pp-pastas-titulo">
           {titulo}
@@ -222,9 +268,12 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
               tabIndex={focado === linha.id ? 0 : -1}
               data-linha={linha.id}
               data-solta-pasta={linha.id === TODAS ? undefined : linha.id}
-              style={{ paddingInlineStart: RECUO_DA_LINHA + linha.nivel * RECUO_DO_NIVEL }}
+              style={{ paddingInlineStart: recuoDoNivel(linha.nivel) }}
               onFocus={() => setFoco(linha.id)}
-              onClick={() => props.aoEscolher(linha.id)}
+              onPointerDown={(evento) => apertar(linha, evento)}
+              onClick={() => {
+                if (!soltouAgora()) props.aoEscolher(linha.id)
+              }}
               onKeyDown={(evento) => {
                 if (evento.target === evento.currentTarget) aoTeclar(linha, indice, evento)
               }}
@@ -240,7 +289,7 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
                   aria-hidden="true"
                   onClick={(evento) => {
                     evento.stopPropagation()
-                    props.aoAlternar(linha.id)
+                    if (!soltouAgora()) props.aoAlternar(linha.id)
                   }}
                 >
                   <IconeSeta />
@@ -249,7 +298,7 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
                 <span className="pp-linha__seta pp-linha__seta--vazia" aria-hidden="true" />
               )}
               {linha.id === TODAS ? <IconePilha /> : linha.id === SEM ? <IconeBandeja /> : (props.icone ?? <IconePasta />)}
-              <span className="pp-linha__nome" title={linha.nome}>
+              <span className="pp-linha__nome" title={linha.caminho}>
                 {renomeando === linha.id && aoTerminarRenomear !== undefined ? <CampoDoNome id={linha.id} nome={linha.nome} aoTerminar={aoTerminarRenomear} /> : linha.nome}
               </span>
               {linha.doGrimorio && <span className="pp-grimorio" title="Veio do Grimório" />}
@@ -267,5 +316,140 @@ export function ArvoreDasPastas(props: ArvoreDasPastasProps) {
         <p className="pr-quieto">{rodape}</p>
       </div>
     </nav>
+  )
+}
+
+/** As frases do arrasto de uma pasta: "Pôr dentro de Frota", "Levar para o topo". */
+export const TEXTOS_DO_ARRASTO_DA_PASTA: TextosDoArrasto = {
+  semAlvo: 'Solte numa pasta',
+  antesDoAlvo: (alvo) => (alvo === TOPO || alvo === SEM ? 'Levar para ' : 'Pôr dentro de '),
+  anuncio: 'Arrastando a pasta. Solte sobre outra pasta para pôr dentro dela, no vazio da barra das pastas para levar ao topo, ou Esc para desistir.',
+}
+
+/**
+ * Por que a pasta `nome` não vai para `destino` (`null` = o topo), em
+ * português do mestre. `curta` = a dica do arrasto, ao lado do ponteiro.
+ */
+export function fraseDaRecusaDaPasta(recusa: RecusaDaPasta, nome: string, destino: string | null, curta: boolean): string {
+  switch (recusa) {
+    case 'ela-mesma':
+      return curta ? 'Solte em outra pasta' : `A pasta ${nome} não cabe dentro dela mesma.`
+    case 'dentro-dela':
+      return curta ? `Não cabe: ${destino ?? ''} fica dentro de ${nome}` : `A pasta ${nome} não cabe em ${destino ?? ''}, porque ${destino ?? ''} fica dentro dela.`
+    case 'ja-esta':
+      if (destino === null) return curta ? 'Já está no topo' : `A pasta ${nome} já está no topo.`
+      return curta ? `Já está dentro de ${destino}` : `A pasta ${nome} já está dentro de ${destino}.`
+    case 'outro-tipo':
+    case 'nao-existe':
+      return curta ? 'Solte numa pasta' : 'Essa pasta não existe mais.'
+  }
+}
+
+interface OpcaoDaEscolha {
+  readonly id: string
+  readonly nome: string
+  readonly nivel: number
+  /** As de cima ("Frota › 2.Capitães"); vazio = de cima. */
+  readonly acima: string
+}
+
+export interface EscolherPastaProps {
+  aberto: boolean
+  /** "Mover a pasta Navio". */
+  titulo: string
+  arvore: readonly RamoDaArvore[]
+  /** As que não aparecem: a pasta que muda e as de dentro dela (ali ela não cabe). */
+  escondidas: ReadonlySet<string>
+  /** Onde está agora (`null` = no topo): aparece apagada, com "Já está aqui". */
+  atual: string | null
+  /** `null` = para o topo. */
+  aoEscolher: (destino: string | null) => void
+  aoFechar: () => void
+}
+
+/**
+ * O "Mover para…" da pasta: procurar pelo nome, "Para o topo" e as pastas
+ * onde ela cabe, em árvore (na busca, com o caminho embaixo). Setas andam,
+ * Enter na busca escolhe a primeira achada.
+ */
+export function EscolherPasta({ aberto, titulo, arvore, escondidas, atual, aoEscolher, aoFechar }: EscolherPastaProps) {
+  const [busca, setBusca] = useState('')
+  const campo = useRef<HTMLInputElement>(null)
+  const lista = useRef<HTMLUListElement>(null)
+  const opcoes = useMemo(() => {
+    const nomes: string[] = []
+    const saida: OpcaoDaEscolha[] = []
+    for (const { pasta, nivel } of arvore) {
+      nomes.length = Math.min(nomes.length, nivel)
+      const acima = nomes.join(SEPARADOR_DO_CAMINHO)
+      nomes.push(pasta.nome)
+      if (!escondidas.has(pasta.id)) saida.push({ id: pasta.id, nome: pasta.nome, nivel, acima })
+    }
+    return saida
+  }, [arvore, escondidas])
+  const limpa = semAcento(busca.trim())
+  const achadas = limpa === '' ? opcoes : opcoes.filter((opcao) => semAcento(opcao.nome).includes(limpa))
+  const botoes = () => Array.from(lista.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+
+  const teclarNaBusca = (evento: KeyboardEvent<HTMLInputElement>) => {
+    if (evento.key === 'ArrowDown') {
+      evento.preventDefault()
+      botoes()[0]?.focus()
+    } else if (evento.key === 'Enter' && limpa !== '') {
+      evento.preventDefault()
+      const primeira = achadas.find((opcao) => opcao.id !== atual)
+      if (primeira !== undefined) aoEscolher(primeira.id)
+    }
+  }
+  const teclarNaLista = (evento: KeyboardEvent<HTMLUListElement>) => {
+    const todos = botoes()
+    const daVez = todos.findIndex((botao) => botao === document.activeElement)
+    const destino = evento.key === 'ArrowDown' ? daVez + 1 : evento.key === 'ArrowUp' ? daVez - 1 : evento.key === 'Home' ? 0 : evento.key === 'End' ? todos.length - 1 : null
+    if (destino === null) return
+    evento.preventDefault()
+    if (destino < 0) campo.current?.focus()
+    else todos[Math.min(destino, todos.length - 1)]?.focus()
+  }
+
+  return (
+    <Dialogo aberto={aberto} pequeno titulo={titulo} onFechar={aoFechar} focoInicial={campo} descricao="Escolha onde ela fica. As pastas e os verbetes de dentro vão junto.">
+      <label className="pp-busca pp-escolher__busca">
+        <span className="pr-sr">Procurar pasta</span>
+        <IconeLupa />
+        <input ref={campo} type="search" placeholder="Procurar pasta pelo nome" value={busca} autoComplete="off" onChange={(evento) => setBusca(evento.target.value)} onKeyDown={teclarNaBusca} />
+      </label>
+      <ul className="pp-escolher" ref={lista} aria-label="Para onde" onKeyDown={teclarNaLista}>
+        <li>
+          <button type="button" className="pp-escolher__item" disabled={atual === null} onClick={() => aoEscolher(null)}>
+            <IconeSubir />
+            <span className="pp-escolher__texto">
+              <span className="pp-escolher__nome">Para o topo</span>
+              <span className="pp-escolher__caminho">Fora de outras pastas</span>
+            </span>
+            {atual === null && <span className="pp-escolher__detalhe">Já está aqui</span>}
+          </button>
+        </li>
+        {achadas.map((opcao) => (
+          <li key={opcao.id}>
+            <button
+              type="button"
+              className="pp-escolher__item"
+              disabled={opcao.id === atual}
+              style={limpa === '' ? { paddingInlineStart: 10 + recuoDoNivel(opcao.nivel) - RECUO_DA_LINHA } : undefined}
+              title={opcao.acima === '' ? opcao.nome : `${opcao.acima}${SEPARADOR_DO_CAMINHO}${opcao.nome}`}
+              onClick={() => aoEscolher(opcao.id)}
+            >
+              <IconePasta />
+              <span className="pp-escolher__texto">
+                <span className="pp-escolher__nome">{opcao.nome}</span>
+                {limpa !== '' && opcao.acima !== '' && <span className="pp-escolher__caminho">em {opcao.acima}</span>}
+              </span>
+              {opcao.id === atual && <span className="pp-escolher__detalhe">Já está aqui</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {achadas.length === 0 && <p className="pr-quieto pp-escolher__vazio">{limpa === '' ? 'Não há outra pasta onde ela caiba.' : `Nenhuma pasta com "${busca.trim()}" no nome.`}</p>}
+    </Dialogo>
   )
 }

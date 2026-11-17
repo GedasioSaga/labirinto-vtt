@@ -6,12 +6,16 @@ import {
   comAsPastasDoTipo,
   comPasta,
   comPastaIdComoEstava,
+  contasComAsDeDentro,
   momentoDoVerbete,
   nomeDaPastaLimpo,
   pastaDoVerbete,
   pastaEDeDentro,
+  pastaMovida,
   pastaNova,
+  pastasAcimaDe,
   pastasDoTipo,
+  recusaParaMoverAPasta,
   renomeada,
   semAPasta,
   veioDoGrimorio,
@@ -20,19 +24,22 @@ import type { PastaDeVerbetes, TipoDeVerbete, Verbete } from '../../../lib/prepa
 import { usePreludio } from '../../estado/preludio'
 import { lugarDoVerbete, resumoDe } from '../ListaDeVerbetes'
 import { useArrastoParaPasta } from './arrastarParaPasta'
-import { ArvoreDasPastas, SEM, TODAS } from './ArvoreDasPastas'
+import { ArvoreDasPastas, EscolherPasta, fraseDaRecusaDaPasta, recuoDoNivel, SEM, TEXTOS_DO_ARRASTO_DA_PASTA, TODAS, TOPO } from './ArvoreDasPastas'
 import { CartaoDoVerbete } from './CartaoDoVerbete'
-import { IconeLivro, IconePasta } from './icones'
-import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, type Aviso, type Ordem, type Vista } from './partesDaLista'
+import { IconeLivro, IconePasta, IconeSubir } from './icones'
+import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, useCtrlZDaLista, type Aviso, type Ordem, type Vista } from './partesDaLista'
 import './pastas.css'
 
 /**
  * OS VERBETES EM PASTAS (E3, protótipo aprovado em 16/11, tela 1): a lista de
  * Personagens (e de Itens e Facções) com as pastas do Grimório de verdade.
  *
- * - À esquerda, as pastas: "Todos", "Sem pasta" e a árvore (um nível de
- *   subpasta); criar, renomear (F2) e apagar (as de dentro e os verbetes
- *   sobem, com Desfazer).
+ * - À esquerda, as pastas: "Todos", "Sem pasta" e a árvore, em quantos níveis
+ *   houver; criar, renomear (F2) e apagar (as de dentro e os verbetes sobem,
+ *   com Desfazer). Pasta dentro de pasta (17/11): arrastar a pasta até outra
+ *   (fica dentro) ou até o vazio da barra (volta para o topo), ou pelo menu
+ *   "Mover para…" e "Tirar de…". Toda mudança tem Desfazer no aviso, e o
+ *   Ctrl+Z da página desfaz a última.
  * - À direita, os grupos recolhíveis por pasta, com a conta; arrastar o retrato
  *   até uma pasta (a pasta fechada abre se o retrato parar em cima), marcar
  *   vários e "Mover para…".
@@ -83,10 +90,14 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const [nova, setNova] = useState<{ readonly pasta: PastaDeVerbetes; readonly levar: readonly string[] } | null>(null)
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
+  /** O "Mover para…" de uma pasta (`chave` refaz a busca a cada vez que abre). */
+  const [movendo, setMovendo] = useState<{ readonly id: string; readonly chave: number; readonly aberto: boolean } | null>(null)
   const [anuncio, setAnuncio] = useState('')
   const gatilho = useRef<HTMLElement | null>(null)
   const proximoMenu = useRef<Menu | null>(null)
   const raiz = useRef<HTMLDivElement>(null)
+  /** O Desfazer do último aviso, para o Ctrl+Z (vale uma vez só, pelo aviso ou pela tecla). */
+  const ultimoDesfazer = useRef<(() => void) | null>(null)
 
   const rotulo = ROTULO_DO_TIPO[tipo]
   const varios = rotulo.varios.toLowerCase()
@@ -116,19 +127,13 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   )
 
   const contas = useMemo(() => {
-    const saida = new Map<string, number>([
-      [TODAS, doTipo.length],
-      [SEM, 0],
-    ])
-    for (const pasta of doTipo.map((verbete) => pastaDe.get(verbete.id) ?? null)) {
-      if (pasta === null) {
-        saida.set(SEM, (saida.get(SEM) ?? 0) + 1)
-        continue
-      }
-      saida.set(pasta, (saida.get(pasta) ?? 0) + 1)
-      const pai = pastasNaTela.find((uma) => uma.id === pasta)?.paiId
-      if (pai !== undefined) saida.set(pai, (saida.get(pai) ?? 0) + 1)
-    }
+    const moradas = doTipo.map((verbete) => pastaDe.get(verbete.id) ?? null)
+    const saida = contasComAsDeDentro(
+      pastasNaTela,
+      moradas.filter((pasta): pasta is string => pasta !== null),
+    )
+    saida.set(TODAS, doTipo.length)
+    saida.set(SEM, moradas.filter((pasta) => pasta === null).length)
     return saida
   }, [doTipo, pastaDe, pastasNaTela])
 
@@ -149,7 +154,26 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
 
   // ─── Ações ─────────────────────────────────────────────────────────────────
   const anunciar = useCallback((texto: string) => setAnuncio(texto), [])
-  const avisar = useCallback((texto: string, desfazer?: () => void) => setAviso({ chave: Date.now(), texto, desfazer }), [])
+  const avisar = useCallback((texto: string, desfazer?: () => void) => {
+    if (desfazer === undefined) {
+      setAviso({ chave: Date.now(), texto })
+      return
+    }
+    // Uma vez só: o botão do aviso e o Ctrl+Z não desfazem duas vezes.
+    const umaVez = () => {
+      if (ultimoDesfazer.current !== umaVez) return
+      ultimoDesfazer.current = null
+      desfazer()
+    }
+    ultimoDesfazer.current = umaVez
+    setAviso({ chave: Date.now(), texto, desfazer: umaVez })
+  }, [])
+  useCtrlZDaLista(raiz, () => {
+    if (movendo?.aberto === true || menu !== null) return
+    const desfazer = ultimoDesfazer.current
+    if (desfazer === null) avisar('Nada para desfazer aqui.')
+    else desfazer()
+  })
 
   /** As pastas do tipo como estão agora na loja (o que a tela leu pode ter ficado para trás dentro de um gesto). */
   const pastasAgora = useCallback(() => {
@@ -189,11 +213,62 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
       const quem = deVerdade.length === 1 ? `${estado.verbetes.get(deVerdade[0])?.titulo || 'Sem nome'} foi` : `${plural(deVerdade.length, um, varios)} foram`
       avisar(`${quem} para ${nomeDoDestino(destino)}.`, () => {
         for (const [id, pastaId] of antes) mudarVerbete(id, (verbete) => comPastaIdComoEstava(verbete, pastaId))
-        anunciar('Desfeito.')
+        avisar('Desfeito.')
       })
     },
-    [anunciar, avisar, guardarAsDoGrimorio, mudarVerbete, nomeDoDestino, pastasAgora, um, varios],
+    [avisar, guardarAsDoGrimorio, mudarVerbete, nomeDoDestino, pastasAgora, um, varios],
   )
+
+  /** A pasta e as de cima dela abertas: a que acabou de chegar fica à vista. */
+  const abrirAte = useCallback(
+    (id: string | null) => {
+      if (id === null) return
+      const abrir = new Set([id, ...pastasAcimaDe(pastasAgora(), id).map((pasta) => pasta.id)])
+      setFechadas((antes) => new Set([...antes].filter((fechada) => !abrir.has(fechada))))
+    },
+    [pastasAgora],
+  )
+
+  /**
+   * Põe a pasta dentro de `destino` (`null` = no topo). Grava todas as pastas
+   * do tipo: as do Grimório vão junto para o índice (como em
+   * `guardarAsDoGrimorio`), e os verbetes continuam nas mesmas pastas.
+   */
+  const moverPasta = useCallback(
+    (id: string, destino: string | null) => {
+      if (usePreludio.getState().travado) return
+      const agora = pastasAgora()
+      const nomeEm = (lista: readonly PastaDeVerbetes[], pastaId: string | null) => (pastaId === null ? null : (lista.find((pasta) => pasta.id === pastaId)?.nome ?? 'a pasta'))
+      const nome = nomeEm(agora, id) ?? ''
+      const feito = pastaMovida(agora, id, destino)
+      if (feito.t === 'recusada') {
+        avisar(fraseDaRecusaDaPasta(feito.recusa, nome, nomeEm(agora, destino), false))
+        return
+      }
+      if (!gravarPastas(feito.pastas)) return
+      abrirAte(destino)
+      const { paiAntes } = feito
+      const onde = (pastaId: string | null, lista: readonly PastaDeVerbetes[]) => (pastaId === null ? 'para o topo' : `para dentro de ${nomeEm(lista, pastaId) ?? ''}`)
+      avisar(`Pasta ${nome} foi ${onde(destino, agora)}.`, () => {
+        const depois = pastasAgora()
+        const volta = pastaMovida(depois, id, paiAntes)
+        if (volta.t === 'recusada') {
+          avisar(volta.recusa === 'ja-esta' ? fraseDaRecusaDaPasta('ja-esta', nome, nomeEm(depois, paiAntes), false) : `Não deu para desfazer: a pasta ${nome} mudou depois.`)
+          return
+        }
+        if (!gravarPastas(volta.pastas)) return
+        abrirAte(paiAntes)
+        avisar(`Pasta ${nome} voltou ${onde(paiAntes, depois)}.`)
+      })
+    },
+    [abrirAte, avisar, gravarPastas, pastasAgora],
+  )
+
+  /** O pai que vale de uma pasta (o que aponta para pasta apagada conta como "no topo"). */
+  const paiNaTela = (id: string): PastaDeVerbetes | undefined => {
+    const paiId = pastasNaTela.find((pasta) => pasta.id === id)?.paiId
+    return paiId === undefined ? undefined : pastasNaTela.find((pasta) => pasta.id === paiId)
+  }
 
   const comecarPasta = (paiId: string | undefined, levar: readonly string[]) => {
     if (travado) return
@@ -219,7 +294,9 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
     const antes = agora.find((pasta) => pasta.id === id)
     if (nome === '' || antes === undefined || antes.nome === nome) return
     if (!gravarPastas(renomeada(agora, id, nome))) return
-    avisar(`Pasta renomeada para ${nome}.`, () => gravarPastas(renomeada(pastasAgora(), id, antes.nome)))
+    avisar(`Pasta renomeada para ${nome}.`, () => {
+      if (gravarPastas(renomeada(pastasAgora(), id, antes.nome))) avisar('Desfeito.')
+    })
   }
 
   const apagar = (id: string) => {
@@ -238,7 +315,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
     avisar(`Pasta ${apagada.nome} apagada.${foram}`, () => {
       gravarPastas(agora)
       for (const [verbeteId, pastaId] of antes) mudarVerbete(verbeteId, (verbete) => comPastaIdComoEstava(verbete, pastaId))
-      anunciar('Desfeito.')
+      avisar('Desfeito.')
     })
   }
 
@@ -276,6 +353,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
     idsDoArrasto: (id) => (marcados.has(id) ? [...marcados] : [id]),
     rotuloDoArrasto: (ids) => (ids.length === 1 ? (verbetes.get(ids[0])?.titulo ?? '') || 'Sem nome' : plural(ids.length, um, varios)),
     nomeDoAlvo: (alvo) => nomeDoDestino(alvo === SEM ? null : alvo),
+    aceita: (alvo) => alvo !== TOPO,
     aoParar: (alvo) => setFechadas((antes) => new Set([...antes].filter((id) => id !== alvo))),
     aoSoltar: (ids, alvo) => mover(ids, alvo === SEM ? null : alvo),
     anunciar,
@@ -284,6 +362,36 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const aoApertar = useCallback((id: string, evento: PointerEvent<HTMLElement>) => {
     if (!travado) apertarNoArrasto(id, evento)
   }, [apertarNoArrasto, travado])
+
+  // A pasta arrastada: até outra pasta (fica dentro dela) ou até o vazio da barra e "Sem pasta" (vai para o topo).
+  const destinoDaPasta = (alvo: string) => (alvo === TOPO || alvo === SEM ? null : alvo)
+  const arrastoDaPasta = useArrastoParaPasta({
+    idsDoArrasto: (id) => [id],
+    rotuloDoArrasto: (ids) => nomeDaPasta.get(ids[0] ?? '') ?? 'Pasta',
+    nomeDoAlvo: (alvo) => (alvo === TOPO || alvo === SEM ? 'o topo' : (nomeDaPasta.get(alvo) ?? 'a pasta')),
+    textos: TEXTOS_DO_ARRASTO_DA_PASTA,
+    recusa: (ids, alvo) => {
+      const id = ids[0] ?? ''
+      const destino = destinoDaPasta(alvo)
+      const recusa = recusaParaMoverAPasta(pastasAgora(), id, destino)
+      return recusa === null ? null : fraseDaRecusaDaPasta(recusa, nomeDaPasta.get(id) ?? '', destino === null ? null : (nomeDaPasta.get(destino) ?? ''), true)
+    },
+    aoParar: (alvo) => setFechadas((antes) => new Set([...antes].filter((id) => id !== alvo))),
+    aoSoltar: (ids, alvo) => moverPasta(ids[0] ?? '', destinoDaPasta(alvo)),
+    anunciar,
+    fantasma: 'pasta',
+    atributoDoArrastado: 'data-linha',
+  })
+  const { aoApertar: apertarNaPasta, acabouDeSoltar: acabouDeSoltarAPasta } = arrastoDaPasta
+  const alcaDaPasta = useMemo(
+    () => ({
+      aoApertar: (id: string, evento: PointerEvent<HTMLElement>) => {
+        if (!travado && id !== nova?.pasta.id) apertarNaPasta(id, evento)
+      },
+      acabouDeSoltar: acabouDeSoltarAPasta,
+    }),
+    [acabouDeSoltarAPasta, apertarNaPasta, nova, travado],
+  )
   const aoAbrir = useCallback(
     (id: string) => {
       if (!acabouDeSoltar()) abrirVerbete(id)
@@ -301,7 +409,8 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const aoTeclarNaPagina = (evento: KeyboardEvent<HTMLDivElement>) =>
     teclaDosMarcados(evento, {
       marcados: marcados.size,
-      menuAberto: menu !== null,
+      // A janela "Mover para…" da pasta mora num portal, mas a tecla dela sobe até aqui pela árvore do React.
+      menuAberto: menu !== null || movendo?.aberto === true,
       aoDesmarcar: () => {
         setMarcados(new Set())
         anunciar('Nada marcado.')
@@ -337,14 +446,25 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
     if (menu.t === 'pasta') {
       const pasta = pastasNaTela.find((uma) => uma.id === menu.id)
       if (pasta === undefined) return null
+      const pai = paiNaTela(pasta.id)
+      const avo = pai === undefined ? undefined : paiNaTela(pai.id)
       return (
         <>
           <MenuItem atalho="F2" disabled={travado} onClick={() => setRenomeando(pasta.id)}>
             Renomear
           </MenuItem>
-          <MenuItem disabled={travado || pasta.paiId !== undefined} detalhe={pasta.paiId !== undefined ? 'Um nível só de subpasta.' : undefined} onClick={() => comecarPasta(pasta.id, [])}>
+          <MenuItem disabled={travado} onClick={() => comecarPasta(pasta.id, [])}>
             Nova pasta dentro
           </MenuItem>
+          <MenuSeparador />
+          <MenuItem icone={<IconePasta />} disabled={travado} onClick={() => setMovendo({ id: pasta.id, chave: Date.now(), aberto: true })}>
+            Mover para…
+          </MenuItem>
+          {pai !== undefined && (
+            <MenuItem icone={<IconeSubir />} disabled={travado} detalhe={avo === undefined ? 'Vai para o topo.' : `Vai para dentro de ${avo.nome}.`} onClick={() => moverPasta(pasta.id, avo?.id ?? null)}>
+              Tirar de {pai.nome}
+            </MenuItem>
+          )}
           <MenuSeparador />
           <MenuItem perigo disabled={travado} onClick={() => apagar(pasta.id)}>
             Apagar a pasta
@@ -364,7 +484,13 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
         <MenuSeparador />
         {arvore.map(({ pasta, nivel }) => (
           <MenuItem key={pasta.id} icone={<IconePasta />} disabled={travado || unica === pasta.id} onClick={() => mover(menu.ids, pasta.id)}>
-            {nivel === 1 ? <span className="pp-menu__sub">{pasta.nome}</span> : pasta.nome}
+            {nivel > 0 ? (
+              <span className="pp-menu__sub" style={{ paddingLeft: recuoDoNivel(nivel) - recuoDoNivel(0) }}>
+                {pasta.nome}
+              </span>
+            ) : (
+              pasta.nome
+            )}
           </MenuItem>
         ))}
         <MenuSeparador />
@@ -390,7 +516,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
         contas={contas}
         renomeando={renomeando}
         travado={travado}
-        rodape={`${deGrimorio === 1 ? '1 pasta veio' : `${deGrimorio} pastas vieram`} do Grimório. Arraste um retrato para uma pasta, ou use Mover para. F2 renomeia.`}
+        rodape={`${deGrimorio === 1 ? '1 pasta veio' : `${deGrimorio} pastas vieram`} do Grimório. Arraste um retrato ou uma pasta até outra pasta; solte a pasta no vazio daqui para levá-la ao topo. F2 renomeia, Ctrl+Z desfaz.`}
         aoEscolher={(id) => {
           setEscolhida(id)
           setMarcados(new Set())
@@ -401,6 +527,8 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
         aoApagar={apagar}
         aoAbrirMenu={(id, elemento) => abrirMenu({ t: 'pasta', id }, elemento)}
         aoNovaPasta={() => comecarPasta(undefined, [])}
+        arrastoDaPasta={alcaDaPasta}
+        alvoDoTopo={TOPO}
       />
 
       <div className="pp-conteudo">
@@ -483,13 +611,13 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
             grupos.map((grupo) => {
               const fechado = gruposFechados.has(grupo.id) && limpa === ''
               const nome = nomeDoDestino(grupo.id === SEM ? null : grupo.id)
-              const pai = pastasNaTela.find((pasta) => pasta.id === grupo.id)?.paiId
+              const acima = grupo.id === SEM ? [] : pastasAcimaDe(pastasNaTela, grupo.id)
               return (
                 <GrupoDaLista
                   key={grupo.id}
                   alvo={grupo.id}
                   nome={nome}
-                  caminho={pai === undefined ? undefined : `em ${nomeDaPasta.get(pai) ?? ''}`}
+                  caminho={acima.length === 0 ? undefined : `em ${acima.map((pasta) => pasta.nome).join(' › ')}`}
                   conta={grupo.membros.length}
                   fechado={fechado}
                   aoAlternar={() => setGruposFechados((antes) => (antes.has(grupo.id) ? new Set([...antes].filter((id) => id !== grupo.id)) : new Set([...antes, grupo.id])))}
@@ -543,6 +671,22 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
       >
         {conteudoDoMenu()}
       </Pop>
+
+      {movendo !== null && (
+        <EscolherPasta
+          key={movendo.chave}
+          aberto={movendo.aberto}
+          titulo={`Mover a pasta ${nomeDaPasta.get(movendo.id) ?? ''}`}
+          arvore={arvore}
+          escondidas={pastaEDeDentro(pastasNaTela, movendo.id)}
+          atual={paiNaTela(movendo.id)?.id ?? null}
+          aoEscolher={(destino) => {
+            setMovendo({ ...movendo, aberto: false })
+            moverPasta(movendo.id, destino)
+          }}
+          aoFechar={() => setMovendo({ ...movendo, aberto: false })}
+        />
+      )}
 
       <AvisoDaLista aviso={aviso} aoFechar={(chave) => setAviso((agora) => (agora?.chave === chave ? null : agora))} />
       <p className="pr-sr" role="status">

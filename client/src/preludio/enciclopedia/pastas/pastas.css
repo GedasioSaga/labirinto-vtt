@@ -7,7 +7,7 @@
 
 .pp { height: 100%; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
 /* Os botões desta tela começam sem a cara do navegador (o Prelúdio não tem reset global; cada classe zera o seu). */
-:where(.pp-linha__mais, .pp-grupo__cab, .pp-carta__abrir, .pp-carta__mais, .pp-linha-v__abrir, .pp-seg button) {
+:where(.pp-linha__mais, .pp-grupo__cab, .pp-carta__abrir, .pp-carta__mais, .pp-linha-v__abrir, .pp-seg button, .pp-escolher__item) {
   margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer;
 }
 .pp-ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -17,7 +17,10 @@
   min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--lb-space-2);
   padding: var(--lb-space-6) var(--lb-space-2) var(--lb-space-4); border-right: 1px solid var(--lb-gr-filete); background: #17130e;
   scrollbar-width: thin; scrollbar-color: var(--lb-color-line-strong) transparent;
+  transition: background-color var(--lb-motion-fast) ease, box-shadow var(--lb-motion-fast) ease;
 }
+/* A pasta arrastada sobre o vazio da barra: soltar ali leva a pasta para o topo. */
+.pp-pastas.e-alvo { background: #211a11; box-shadow: inset 0 0 0 2px rgba(224, 164, 74, 0.55); }
 .pp-pastas__cab { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--lb-space-2); }
 .pp-pastas__tit { margin: 0; font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-gr-gravado); }
 .pp-pastas__pe { margin-top: auto; padding: var(--lb-space-3) var(--lb-space-2) 0; border-top: 1px solid var(--lb-gr-filete); }
@@ -31,6 +34,10 @@
 .pp-linha:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
 .pp-linha[aria-selected='true'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
 .pp-linha.e-alvo { background: rgba(224, 164, 74, 0.22); color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+.pp-linha.e-arrastada { opacity: 0.45; }
+/* Soltar ali faria laço (a pasta dentro de uma das de dentro dela) ou não muda nada: o contorno avisa "não cabe". */
+.pp-linha.e-recusado, .pp-grupo.e-recusado .pp-grupo__cab, .pp-linha-v.e-recusado { box-shadow: inset 0 0 0 1px rgba(240, 137, 127, 0.6); }
+.pp-carta.e-recusado .pp-carta__foto { box-shadow: 0 0 0 2px rgba(240, 137, 127, 0.6), 0 6px 14px rgba(0, 0, 0, 0.32); }
 .pp-linha__seta { width: 18px; height: 18px; display: grid; place-items: center; flex: none; color: var(--lb-color-parchment-faint); border-radius: 4px; transition: transform 150ms var(--lb-gr-ease-out); }
 .pp-linha__seta .pp-ic { width: 12px; height: 12px; }
 .pp-linha[aria-expanded='false'] > .pp-linha__seta { transform: rotate(-90deg); }
@@ -86,7 +93,7 @@
 .pp-grupo__seta .pp-ic { width: 14px; height: 14px; }
 .pp-grupo.e-fechado .pp-grupo__seta { transform: rotate(-90deg); }
 .pp-grupo__nome { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); color: var(--lb-color-parchment); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-grupo__caminho { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; }
+.pp-grupo__caminho { flex: 0 1 auto; min-width: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-grupo__conta { margin-left: auto; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); font-variant-numeric: tabular-nums; color: var(--lb-color-parchment-faint); }
 .pp-grupo.e-alvo .pp-grupo__cab { background: rgba(224, 164, 74, 0.16); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
 .pp-grupo.e-alvo .pp-grupo__nome { color: var(--lb-color-brass-bright); }
@@ -188,8 +195,28 @@
 .pp-barra-sel__conta { font-weight: 600; margin-right: 6px; }
 .pp-menu__sub { padding-left: 14px; }
 
+/* ─── "Mover para…" da pasta (a janela com busca) ────────────── */
+.pp-escolher__busca { display: block; }
+.pp-escolher { list-style: none; margin: var(--lb-space-3) 0 0; padding: 0; max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 1px; scrollbar-width: thin; scrollbar-color: var(--lb-color-line-strong) transparent; }
+.pp-escolher__item {
+  width: 100%; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-radius: 7px; color: var(--lb-color-parchment);
+  transition: background-color var(--lb-motion-fast) ease;
+}
+.pp-escolher__item:disabled { color: var(--lb-color-parchment-faint); cursor: default; }
+.pp-escolher__item:focus-visible { outline: none; box-shadow: var(--lb-shadow-focus); }
+.pp-escolher__item .pp-ic { color: var(--lb-gr-gravado); }
+.pp-escolher__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pp-escolher__nome, .pp-escolher__caminho { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-escolher__caminho { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.pp-escolher__detalhe { flex: none; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.pp-escolher__vazio { margin: var(--lb-space-3) 0 0; }
+@media (hover: hover) and (pointer: fine) { .pp-escolher__item:hover:not(:disabled) { background: var(--lb-gr-hover); } }
+
 /* ─── Fantasma do arrasto ────────────────────────────────────── */
 body.pp-arrastando, body.pp-arrastando * { cursor: grabbing !important; user-select: none; }
+body.pp-arrastando.pp-recusando, body.pp-arrastando.pp-recusando * { cursor: not-allowed !important; }
+.pp-fantasma__pasta { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--lb-gr-campo); color: var(--lb-color-brass-bright); }
+.pp-fantasma__pasta .pp-ic { width: 18px; height: 18px; opacity: 1; }
 .pp-fantasma { position: fixed; left: 0; top: 0; z-index: 120; pointer-events: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; will-change: transform; }
 .pp-fantasma__pilha { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px; background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-color-brass); box-shadow: var(--lb-shadow-float); color: var(--lb-color-parchment); font-weight: 600; white-space: nowrap; }
 .pp-fantasma__foto { width: 30px; height: 30px; }

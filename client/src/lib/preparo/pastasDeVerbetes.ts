@@ -9,11 +9,15 @@ import type { IndiceDoPreparo, PastaDeVerbetes, TipoDeVerbete, Verbete } from '.
  *   onde morava). Sem `pastaId`, ele mora na pasta que esses nomes descrevem,
  *   com um id fixo (`g:…`): a pasta aparece sem que nada seja gravado, e o
  *   arquivo antigo abre igual.
- * - Um nível só de subpasta (decisão do protótipo aprovado): o Grimório que
- *   tinha 3 níveis vira "NPCS" com a subpasta "Npc Neutros/Aliados › Bandidos".
+ * - O Grimório que tinha 3 níveis chega como "NPCS" com a subpasta
+ *   "Npc Neutros/Aliados › Bandidos" (o id derivado não muda com o tempo).
+ * - Pasta dentro de pasta em quantos níveis o mestre quiser (pedido de 17/11:
+ *   "pôr uma pasta dentro da outra com facilidade e desfazer com facilidade"):
+ *   `pastaMovida` muda o pai e recusa o laço (a pasta dentro dela mesma ou de
+ *   uma das de dentro dela).
  * - Antes de mudar qualquer pasta, a tela guarda no índice as pastas do tipo
- *   (`pastasDoTipo`): assim a pasta do Grimório renomeada fica com o nome novo
- *   e a que ficou vazia não some.
+ *   (`pastasDoTipo`): assim a pasta do Grimório renomeada ou movida fica como
+ *   o mestre deixou, e a que ficou vazia não some.
  */
 
 /** "Sem pasta" de propósito no `Verbete.pastaId` (o verbete tem `organizacao`, mas o mestre o tirou da pasta). */
@@ -102,34 +106,122 @@ export function comPastaIdComoEstava(verbete: Verbete, pastaId: string | undefin
   return pastaId === undefined ? semPasta : { ...semPasta, pastaId }
 }
 
-/** Uma linha da árvore: a pasta e o nível (0 = de cima, 1 = subpasta). */
+/** Uma linha da árvore: a pasta e o nível (0 = de cima, 1 = dentro dela, 2 = dentro desta…). */
 export interface PastaNaArvore {
   readonly pasta: PastaDeVerbetes
-  readonly nivel: 0 | 1
+  readonly nivel: number
+}
+
+/** O pai que vale: o `paiId` de uma pasta que existe; o que aponta para pasta apagada conta como "em cima". */
+function paiQueVale(pasta: PastaDeVerbetes, ids: ReadonlySet<string>): string | null {
+  return pasta.paiId !== undefined && ids.has(pasta.paiId) ? pasta.paiId : null
 }
 
 /**
- * As pastas em ordem de árvore: as de cima por nome ("1.Almirante" antes de
- * "2.Vice-Almirante") e, embaixo de cada uma, as subpastas dela. A subpasta
- * cuja pasta de cima não existe mais aparece em cima.
+ * As pastas em ordem de árvore, em quantos níveis houver: as de cima por nome
+ * ("1.Almirante" antes de "2.Vice-Almirante") e, embaixo de cada uma, as de
+ * dentro dela. A pasta cuja pasta de cima não existe mais aparece em cima; um
+ * laço gravado por fora (A dentro de B e B dentro de A) também entra em cima,
+ * pela primeira dele, em vez de sumir.
  */
 export function arvoreDasPastas(pastas: readonly PastaDeVerbetes[]): PastaNaArvore[] {
   const ids = new Set(pastas.map((pasta) => pasta.id))
   const porNome = (a: PastaDeVerbetes, b: PastaDeVerbetes) => compararTitulos(a.nome, b.nome)
-  const deCima = pastas.filter((pasta) => pasta.paiId === undefined || !ids.has(pasta.paiId)).sort(porNome)
+  const filhas = new Map<string, PastaDeVerbetes[]>()
+  for (const pasta of pastas) {
+    const pai = paiQueVale(pasta, ids)
+    if (pai !== null) filhas.set(pai, [...(filhas.get(pai) ?? []), pasta])
+  }
   const saida: PastaNaArvore[] = []
-  for (const pasta of deCima) {
-    saida.push({ pasta, nivel: 0 })
-    for (const sub of pastas.filter((uma) => uma.paiId === pasta.id).sort(porNome)) saida.push({ pasta: sub, nivel: 1 })
+  const vistas = new Set<string>()
+  const descer = (pasta: PastaDeVerbetes, nivel: number) => {
+    if (vistas.has(pasta.id)) return
+    vistas.add(pasta.id)
+    saida.push({ pasta, nivel })
+    for (const filha of (filhas.get(pasta.id) ?? []).sort(porNome)) descer(filha, nivel + 1)
+  }
+  for (const pasta of pastas.filter((uma) => paiQueVale(uma, ids) === null).sort(porNome)) descer(pasta, 0)
+  for (const pasta of [...pastas].sort(porNome)) descer(pasta, 0)
+  return saida
+}
+
+/** A pasta e todas as de dentro dela, em qualquer profundidade (a contagem e o filtro de uma pasta incluem as de dentro). */
+export function pastaEDeDentro(pastas: readonly PastaDeVerbetes[], id: string): Set<string> {
+  const saida = new Set([id])
+  let cresceu = true
+  while (cresceu) {
+    cresceu = false
+    for (const pasta of pastas) {
+      if (pasta.paiId === undefined || !saida.has(pasta.paiId) || saida.has(pasta.id)) continue
+      saida.add(pasta.id)
+      cresceu = true
+    }
   }
   return saida
 }
 
-/** A pasta e as subpastas dela (a contagem e o filtro de uma pasta de cima incluem as de dentro). */
-export function pastaEDeDentro(pastas: readonly PastaDeVerbetes[], id: string): Set<string> {
-  const saida = new Set([id])
-  for (const pasta of pastas) if (pasta.paiId === id) saida.add(pasta.id)
+/** As pastas por cima desta, da de cima até a mãe dela ("Marinha", "3.Capitães"). Vazio = está em cima. */
+export function pastasAcimaDe(pastas: readonly PastaDeVerbetes[], id: string): PastaDeVerbetes[] {
+  const porId = new Map(pastas.map((pasta) => [pasta.id, pasta]))
+  const saida: PastaDeVerbetes[] = []
+  const vistas = new Set([id])
+  let pai = porId.get(id)?.paiId
+  while (pai !== undefined && !vistas.has(pai)) {
+    const pasta = porId.get(pai)
+    if (pasta === undefined) break
+    vistas.add(pai)
+    saida.unshift(pasta)
+    pai = pasta.paiId
+  }
   return saida
+}
+
+/** Quantos moram em cada pasta, contando os das pastas de dentro dela (`ondeMoram` = a pasta de cada um). */
+export function contasComAsDeDentro(pastas: readonly PastaDeVerbetes[], ondeMoram: Iterable<string>): Map<string, number> {
+  const paiDe = new Map(pastas.map((pasta) => [pasta.id, pasta.paiId]))
+  const contas = new Map<string, number>()
+  for (const id of ondeMoram) {
+    const vistas = new Set<string>()
+    for (let pasta: string | undefined = id; pasta !== undefined && paiDe.has(pasta) && !vistas.has(pasta); pasta = paiDe.get(pasta)) {
+      vistas.add(pasta)
+      contas.set(pasta, (contas.get(pasta) ?? 0) + 1)
+    }
+  }
+  return contas
+}
+
+/** Por que a pasta não pode ir para lá. */
+export type RecusaDaPasta = 'nao-existe' | 'ela-mesma' | 'dentro-dela' | 'outro-tipo' | 'ja-esta'
+
+/**
+ * Por que a pasta `id` não pode ir para dentro de `novoPaiId` (`null` = para
+ * cima, fora de todas); `null` = pode. O laço é recusado: a pasta dentro dela
+ * mesma ou de uma das de dentro dela sumiria da árvore.
+ */
+export function recusaParaMoverAPasta(pastas: readonly PastaDeVerbetes[], id: string, novoPaiId: string | null): RecusaDaPasta | null {
+  const pasta = pastas.find((uma) => uma.id === id)
+  if (pasta === undefined) return 'nao-existe'
+  const paiAgora = paiQueVale(pasta, new Set(pastas.map((uma) => uma.id)))
+  if (novoPaiId === null) return paiAgora === null ? 'ja-esta' : null
+  if (novoPaiId === id) return 'ela-mesma'
+  const pai = pastas.find((uma) => uma.id === novoPaiId)
+  if (pai === undefined) return 'nao-existe'
+  if (pai.tipo !== pasta.tipo) return 'outro-tipo'
+  if (pastaEDeDentro(pastas, id).has(novoPaiId)) return 'dentro-dela'
+  return paiAgora === novoPaiId ? 'ja-esta' : null
+}
+
+/** A pasta movida (só ela muda; as de dentro vão junto, porque apontam para ela) e onde estava, para o Desfazer. */
+export type PastaMovida = { readonly t: 'movida'; readonly pastas: PastaDeVerbetes[]; readonly paiAntes: string | null } | { readonly t: 'recusada'; readonly recusa: RecusaDaPasta }
+
+export function pastaMovida(pastas: readonly PastaDeVerbetes[], id: string, novoPaiId: string | null): PastaMovida {
+  const recusa = recusaParaMoverAPasta(pastas, id, novoPaiId)
+  const movida = pastas.find((pasta) => pasta.id === id)
+  if (recusa !== null || movida === undefined) return { t: 'recusada', recusa: recusa ?? 'nao-existe' }
+  const { paiId: _antes, ...semPai } = movida
+  const nova: PastaDeVerbetes = novoPaiId === null ? semPai : { ...semPai, paiId: novoPaiId }
+  const paiAntes = paiQueVale(movida, new Set(pastas.map((pasta) => pasta.id)))
+  return { t: 'movida', pastas: pastas.map((pasta) => (pasta.id === id ? nova : pasta)), paiAntes }
 }
 
 /** O nome limpo: sem espaço nas pontas e no teto. Vazio = desistiu. */
