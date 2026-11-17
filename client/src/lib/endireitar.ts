@@ -14,7 +14,8 @@ import { pisoDe } from './pisos'
  * reta fica como está. Até 17/11/2026 só deitava ou punha em pé, e a parede a
  * 45° com selo "reta ✓" era deitada. Vale para Linha (desenho `line`),
  * Caminho (desenho `path`, trecho a trecho a partir do primeiro ponto) e
- * Parede solta. Parede de Sala fica de fora daqui (a Sala endireita inteira,
+ * Parede solta. O Caminho fica sem a diagonal: só deita ou põe em pé, como
+ * sempre (`Retas`). Parede de Sala fica de fora daqui (a Sala endireita inteira,
  * por `lib/alinhamento.ts` → `planoDeEndireitarSala`), e item
  * travado — ele, um pedaço dele ou a camada — também.
  *
@@ -61,18 +62,26 @@ const TOLERANCIA_RETA = 0.01
 const TANGENTE_DE_MEIA_DIAGONAL = Math.SQRT2 - 1
 
 /**
+ * As retas que o Endireitar aceita. Parede e Linha: deitada, em pé e diagonal,
+ * as mesmas do selo. Caminho: só deitada e em pé, como sempre foi, com o empate
+ * de 45 graus exatos ficando deitado — o pedido de 17/11/2026 foi o alinhamento
+ * das PAREDES, e a trilha continua virando corredor em L.
+ */
+export type Retas = 'comDiagonal' | 'soEixos'
+
+/**
  * A reta mais perto do traço entre deitada (0°), em pé (90°) e as duas
  * diagonais (45°), como vetor de tamanho 1 no sentido dele: quem ia para a
  * esquerda (ou para cima) continua indo. Comparar os módulos (em vez de usar
  * atan2) deixa o eixo que não muda valendo 0 exato, livre de ruído de ponto
  * flutuante.
  */
-export function direcaoMaisProxima(dx: number, dy: number): Ponto {
+export function direcaoMaisProxima(dx: number, dy: number, retas: Retas = 'comDiagonal'): Ponto {
   const largura = Math.abs(dx)
   const altura = Math.abs(dy)
   const sentidoX = dx < 0 ? -1 : 1
   const sentidoY = dy < 0 ? -1 : 1
-  if (Math.min(largura, altura) > Math.max(largura, altura) * TANGENTE_DE_MEIA_DIAGONAL) {
+  if (retas === 'comDiagonal' && Math.min(largura, altura) > Math.max(largura, altura) * TANGENTE_DE_MEIA_DIAGONAL) {
     return { x: sentidoX * Math.SQRT1_2, y: sentidoY * Math.SQRT1_2 }
   }
   return largura >= altura ? { x: sentidoX, y: 0 } : { x: 0, y: sentidoY }
@@ -83,9 +92,9 @@ function foraDaReta(direcao: Ponto, origem: Ponto, p: Ponto): number {
   return (p.x - origem.x) * direcao.y - (p.y - origem.y) * direcao.x
 }
 
-/** Já está deitada, em pé ou na diagonal, a menos de `TOLERANCIA_RETA`. Comprimento zero conta como reta. */
-export function jaEstaReta(a: Ponto, b: Ponto): boolean {
-  return Math.abs(foraDaReta(direcaoMaisProxima(b.x - a.x, b.y - a.y), a, b)) <= TOLERANCIA_RETA
+/** Já está numa das `retas`, a menos de `TOLERANCIA_RETA`. Comprimento zero conta como reta. */
+export function jaEstaReta(a: Ponto, b: Ponto, retas: Retas = 'comDiagonal'): boolean {
+  return Math.abs(foraDaReta(direcaoMaisProxima(b.x - a.x, b.y - a.y, retas), a, b)) <= TOLERANCIA_RETA
 }
 
 function ultimo<T>(lista: readonly T[]): T {
@@ -178,8 +187,7 @@ export function endireitarSegmento(a: Ponto, b: Ponto, pivo: Pivo): [Ponto, Pont
 /**
  * Caminho: o primeiro ponto fica parado e cada trecho endireita a partir do
  * ponto anterior JÁ endireitado, com o comprimento e o sentido dele — uma
- * trilha torta vira um corredor em L (com trecho em diagonal onde ela estava
- * mais perto dos 45°).
+ * trilha torta vira um corredor em L. Só deita ou põe em pé (`Retas`).
  */
 export function endireitarPolilinha(pontos: readonly Ponto[]): Ponto[] {
   const saida: Ponto[] = []
@@ -191,7 +199,7 @@ export function endireitarPolilinha(pontos: readonly Ponto[]): Ponto[] {
     const dx = p.x - pontos[i - 1].x
     const dy = p.y - pontos[i - 1].y
     const passo = Math.hypot(dx, dy)
-    const direcao = direcaoMaisProxima(dx, dy)
+    const direcao = direcaoMaisProxima(dx, dy, 'soEixos')
     const anterior = saida[i - 1]
     saida.push({ x: anterior.x + passo * direcao.x, y: anterior.y + passo * direcao.y })
   })
@@ -199,7 +207,7 @@ export function endireitarPolilinha(pontos: readonly Ponto[]): Ponto[] {
 }
 
 function caminhoJaReto(pontos: readonly Ponto[]): boolean {
-  return pontos.every((p, i) => i === 0 || jaEstaReta(pontos[i - 1], p))
+  return pontos.every((p, i) => i === 0 || jaEstaReta(pontos[i - 1], p, 'soEixos'))
 }
 
 // ─────────────────────────────────────────────────────────────

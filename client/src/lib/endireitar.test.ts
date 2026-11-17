@@ -71,6 +71,11 @@ describe('direcaoMaisProxima', () => {
     expect(direcaoMaisProxima(10, 10)).toEqual({ x: Math.SQRT1_2, y: Math.SQRT1_2 })
     expect(direcaoMaisProxima(-100, 58)).toEqual({ x: -Math.SQRT1_2, y: Math.SQRT1_2 })
   })
+
+  it('só eixos (Caminho): sem diagonal, e os 45 graus exatos são empate que fica deitado', () => {
+    expect(direcaoMaisProxima(10, 10, 'soEixos')).toEqual({ x: 1, y: 0 })
+    expect(direcaoMaisProxima(-10, 10, 'soEixos')).toEqual({ x: -1, y: 0 })
+  })
 })
 
 describe('endireitarSegmento', () => {
@@ -114,6 +119,15 @@ describe('endireitarPolilinha (Caminho)', () => {
     expect(pontos[1].x).toBeCloseTo(Math.hypot(100, 8), 9)
     expect(pontos[2].x).toBe(pontos[1].x)
     expect(pontos[2].y).toBeCloseTo(Math.hypot(10, 100), 9)
+  })
+
+  it('no mapa, o trecho a 45 graus exatos continua deitando: o Caminho não ganhou a diagonal', () => {
+    const map = mapa({ drawings: [buildPathDrawing('c', [{ x: 0, y: 0 }, { x: 100, y: 100 }], '#8a6a45', 1, 64)] })
+    expect(endireitarMudariaAlgo(map, sel(['drawing', 'c']))).toBe(true)
+    const depois = endireitarNoMapa(map, sel(['drawing', 'c'])).map.drawings[0]
+    if (depois.kind !== 'path') throw new Error('o caminho sumiu')
+    expect(depois.points[1].y).toBe(depois.points[0].y)
+    expect(depois.points[1].x - depois.points[0].x).toBeCloseTo(Math.hypot(100, 100), 9)
   })
 })
 

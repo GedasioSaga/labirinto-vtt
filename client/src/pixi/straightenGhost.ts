@@ -88,7 +88,8 @@ function mesmoSegmento(a: { x1: number; y1: number; x2: number; y2: number }, b:
 }
 
 function caminhoReto(pontos: readonly DrawingPoint[]): boolean {
-  return pontos.every((p, i) => i === 0 || jaEstaReta(pontos[i - 1], p))
+  // O Caminho só deita ou põe em pé (`Retas` em lib/endireitar): a prévia segue a mesma régua.
+  return pontos.every((p, i) => i === 0 || jaEstaReta(pontos[i - 1], p, 'soEixos'))
 }
 
 function copiaDosPontos(pontos: readonly DrawingPoint[]): GhostStroke {
