@@ -28,6 +28,37 @@
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
+/* ------------------------------------------------------------------ barra do topo (pedido de 17/11) */
+/* O "‹" volta um passo (também Alt+← e o botão de voltar do mouse); cada pedaço da trilha leva ao lugar dele. */
+.pr-tela .lb-appbar { gap: var(--lb-space-2); padding-left: var(--lb-space-2); }
+.pr-topo__voltar {
+  flex: none; display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: var(--lb-radius-sm); background: none;
+  color: var(--lb-color-parchment-dim); cursor: pointer;
+  transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+.pr-topo__voltar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pr-topo__voltar:active:not(:disabled) { transform: scale(0.95); }
+/* Nada para trás (o Início, recém-aberto): a seta fica no lugar, apagada, e a trilha não pula. */
+.pr-topo__voltar:disabled { opacity: 0.35; cursor: default; }
+/* O recuo por dentro (desfeito pela margem) dá espaço ao anel de foco, que o `overflow: hidden` da trilha cortaria. */
+.pr-tela .lb-appbar__crumbs { padding: 6px 8px; margin: 0 -8px; }
+.pr-topo__passo {
+  padding: 0 4px; margin: 0 -4px;
+  border: 0; border-radius: var(--lb-radius-sm); background: none;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline transparent; text-underline-offset: 3px;
+  transition: color var(--lb-motion-fast) ease, text-decoration-color var(--lb-motion-fast) ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pr-topo__voltar:hover:not(:disabled) { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
+  .pr-topo__passo:hover { color: var(--lb-color-parchment); text-decoration-color: currentColor; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pr-topo__voltar:active:not(:disabled) { transform: none; }
+}
+
 .pr-corpo {
   flex: 1;
   min-height: 0;

@@ -59,6 +59,12 @@ export interface Volta {
   readonly rotulo: string
 }
 
+/** Um passo do histórico: onde a pessoa estava e a volta que a página oferecia ali. */
+export interface Passo {
+  readonly lugar: Lugar
+  readonly voltar: Volta | null
+}
+
 export type Carga = { readonly t: 'fechada' } | { readonly t: 'lendo' } | { readonly t: 'pronta' } | { readonly t: 'falhou'; readonly aviso: string }
 
 export type Salvamento = { readonly t: 'em-dia' } | { readonly t: 'esperando' } | { readonly t: 'salvando' } | { readonly t: 'falhou'; readonly motivo: string }
@@ -110,10 +116,18 @@ interface EstadoDoPreludio {
   avisoDoTempo: string | null
   carregar: () => Promise<void>
   fechar: () => Promise<void>
-  /** Vai a outro lugar. `voltar` = o lugar de onde veio (o quadro), para a página oferecer a volta. */
+  /** Vai a outro lugar e guarda o de agora no `historico`. `voltar` = o lugar de onde veio (o quadro), para a página oferecer a volta. */
   ir: (lugar: Lugar, voltar?: Volta) => void
   /** A volta que a página aberta oferece ("‹ Voltar ao quadro"); qualquer outro `ir` a esquece. */
   voltar: Volta | null
+  /** Por onde a pessoa passou, o mais recente no fim (o "‹" do topo, Alt+← e o botão de voltar do mouse); fechar o Prelúdio esquece. */
+  historico: readonly Passo[]
+  /**
+   * Volta um passo: ao lugar anterior, com a volta que a página oferecia lá.
+   * Pula o verbete que não existe mais. Sem passo para trás, sobe um nível na
+   * trilha do topo (`lugarDeCima`); no Início, nada acontece.
+   */
+  voltarUmPasso: () => void
   escolherCampanha: (campanhaId: string | null) => void
   /** Trava (ou solta) a edição por um motivo; fica travado enquanto sobrar algum. */
   travar: (motivo: MotivoDaTrava, travado: boolean) => void
@@ -525,9 +539,71 @@ export function citadoEm(id: string): string[] {
   return citacoes.citadoEm(id)
 }
 
-// ─── A loja ──────────────────────────────────────────────────────────────────
+// ─── Navegação ───────────────────────────────────────────────────────────────
 
 const INICIO: Lugar = { secao: 'inicio' }
+/** Quantos passos o "‹" do topo lembra; o mais antigo sai. */
+const PASSOS_LEMBRADOS = 50
+
+/** O mesmo lugar: ir a ele não é um passo novo. A sessão sem aba está no Roteiro. */
+export function mesmoLugar(a: Lugar, b: Lugar): boolean {
+  switch (a.secao) {
+    case 'inicio':
+    case 'campanhas':
+    case 'tempo':
+      return b.secao === a.secao
+    case 'enciclopedia':
+      return b.secao === 'enciclopedia' && b.tipo === a.tipo && b.verbeteId === a.verbeteId
+    case 'escrita':
+      return b.secao === 'escrita' && b.paginaId === a.paginaId
+    case 'sessoes':
+      return b.secao === 'sessoes' && b.sessaoId === a.sessaoId && (b.aba ?? 'roteiro') === (a.aba ?? 'roteiro') && b.alvo === a.alvo
+    case 'quadros':
+      return b.secao === 'quadros' && b.quadroId === a.quadroId && b.alvo === a.alvo
+  }
+}
+
+/**
+ * Um nível acima, como na trilha do topo: a página vai à lista dela, a lista
+ * ao Início, e o Quadro da sessão ao Roteiro dela. `null` no Início.
+ */
+export function lugarDeCima(lugar: Lugar): Lugar | null {
+  switch (lugar.secao) {
+    case 'inicio':
+      return null
+    case 'enciclopedia':
+      return lugar.verbeteId === null ? INICIO : { secao: 'enciclopedia', tipo: lugar.tipo, verbeteId: null }
+    case 'escrita':
+      return lugar.paginaId === null ? INICIO : { secao: 'escrita', paginaId: null }
+    case 'sessoes':
+      if (lugar.sessaoId === null) return INICIO
+      return lugar.aba === 'quadro' ? { secao: 'sessoes', sessaoId: lugar.sessaoId } : { secao: 'sessoes', sessaoId: null }
+    case 'quadros':
+      return lugar.quadroId === null ? INICIO : { secao: 'quadros', quadroId: null }
+    case 'campanhas':
+    case 'tempo':
+      return INICIO
+  }
+}
+
+/** O verbete que o lugar mostra (verbete, página da Escrita ou sessão); `null` = lista, quadro ou tela sem verbete. */
+function verbeteDoLugar(lugar: Lugar): string | null {
+  switch (lugar.secao) {
+    case 'enciclopedia':
+      return lugar.verbeteId
+    case 'escrita':
+      return lugar.paginaId
+    case 'sessoes':
+      return lugar.sessaoId
+    case 'inicio':
+    case 'quadros':
+    case 'campanhas':
+    case 'tempo':
+      return null
+  }
+}
+
+// ─── A loja ──────────────────────────────────────────────────────────────────
 
 export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   carga: { t: 'fechada' },
@@ -542,6 +618,7 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
   travado: false,
   lugar: INICIO,
   voltar: null,
+  historico: [],
   campanhaId: null,
   revelados: new Map(),
   avisoDoRevelado: null,
@@ -616,14 +693,36 @@ export const usePreludio = create<EstadoDoPreludio>()((set, get) => ({
       avisoDoTempo: null,
       avisos: [],
       lugar: INICIO,
-  voltar: null,
+      voltar: null,
+      historico: [],
       salvamento: situacao(),
       travado: false,
     })
   },
 
   ir(lugar, voltar) {
-    set({ lugar, voltar: voltar ?? null })
+    const { lugar: agora, voltar: voltaDeAgora, historico } = get()
+    // Ir aonde já está não é passo: o "‹" pareceria não fazer nada.
+    const passos = mesmoLugar(agora, lugar) ? historico : [...historico, { lugar: agora, voltar: voltaDeAgora }].slice(-PASSOS_LEMBRADOS)
+    set({ lugar, voltar: voltar ?? null, historico: passos })
+  },
+
+  voltarUmPasso() {
+    const { lugar, historico, verbetes, carga } = get()
+    // Enquanto o Prelúdio lê, não dá para saber o que sumiu: o passo vale.
+    const sumiu = (passo: Passo) => {
+      const id = verbeteDoLugar(passo.lugar)
+      return carga.t === 'pronta' && id !== null && !verbetes.has(id)
+    }
+    for (let indice = historico.length - 1; indice >= 0; indice -= 1) {
+      const passo = historico[indice]
+      if (mesmoLugar(passo.lugar, lugar) || sumiu(passo)) continue
+      set({ lugar: passo.lugar, voltar: passo.voltar, historico: historico.slice(0, indice) })
+      return
+    }
+    const deCima = lugarDeCima(lugar)
+    if (deCima !== null) set({ lugar: deCima, voltar: null, historico: [] })
+    else if (historico.length > 0) set({ historico: [] })
   },
 
   escolherCampanha(campanhaId) {

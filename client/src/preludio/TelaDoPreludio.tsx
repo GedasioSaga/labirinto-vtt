@@ -12,7 +12,7 @@ import { LugaresEmRegioes } from './enciclopedia/pastas/LugaresEmRegioes'
 import { TIPOS_COM_PASTAS, VerbetesEmPastas } from './enciclopedia/pastas/VerbetesEmPastas'
 import { PaginaDoVerbete } from './enciclopedia/PaginaDoVerbete'
 import { Escrita } from './escrita/Escrita'
-import { usePreludio, type Lugar } from './estado/preludio'
+import { lugarDeCima, usePreludio, type Lugar } from './estado/preludio'
 import { PainelDaImportacao } from './importar/PainelDaImportacao'
 import { Lado } from './Lado'
 import { useCatalogoDaMesa } from './mesa/catalogo'
@@ -52,38 +52,57 @@ function frasesDasCampanhas(campanhas: readonly Campanha[], verbetes: number): s
   return `${deCampanhas} ${verbetes === 1 ? '1 verbete' : `${verbetes} verbetes`} entre a Enciclopédia e a Escrita.`
 }
 
-/** Onde a pessoa está, para a trilha do topo. */
-function trilhaDe(lugar: Lugar, tituloDe: (id: string) => string | undefined, nomeDoQuadro: (id: string) => string | undefined): string[] {
+type NomeDe = (id: string) => string | undefined
+
+/** Um pedaço da trilha do topo: o nome e o lugar aonde ele leva. */
+interface PassoDaTrilha {
+  readonly rotulo: string
+  readonly lugar: Lugar
+}
+
+/** O nome de cada lugar na trilha do topo. */
+function rotuloDe(lugar: Lugar, tituloDe: NomeDe, nomeDoQuadro: NomeDe): string {
   switch (lugar.secao) {
     case 'inicio':
-      return []
-    case 'enciclopedia': {
-      const tipo = lugar.tipo === 'todos' ? 'Enciclopédia' : ROTULO_DO_TIPO[lugar.tipo].varios
-      const nome = lugar.verbeteId === null ? undefined : (tituloDe(lugar.verbeteId) ?? 'Sem nome')
-      return nome === undefined ? [tipo] : [tipo, nome || 'Sem nome']
-    }
-    case 'escrita': {
-      const nome = lugar.paginaId === null ? undefined : (tituloDe(lugar.paginaId) ?? 'Sem nome')
-      return nome === undefined ? ['Escrita'] : ['Escrita', nome || 'Sem nome']
-    }
-    case 'sessoes': {
-      const nome = lugar.sessaoId === null ? undefined : (tituloDe(lugar.sessaoId) ?? 'Sessão sem nome')
-      if (nome === undefined) return ['Sessões']
-      return lugar.aba === 'quadro' ? ['Sessões', nome || 'Sessão sem nome', 'Quadro'] : ['Sessões', nome || 'Sessão sem nome']
-    }
+      return TITULO_DO_PRELUDIO
+    case 'enciclopedia':
+      if (lugar.verbeteId !== null) return tituloDe(lugar.verbeteId) || 'Sem nome'
+      return lugar.tipo === 'todos' ? 'Enciclopédia' : ROTULO_DO_TIPO[lugar.tipo].varios
+    case 'escrita':
+      return lugar.paginaId === null ? 'Escrita' : (tituloDe(lugar.paginaId) || 'Sem nome')
+    case 'sessoes':
+      if (lugar.sessaoId === null) return 'Sessões'
+      return lugar.aba === 'quadro' ? 'Quadro' : (tituloDe(lugar.sessaoId) || 'Sessão sem nome')
     case 'quadros': {
-      const nome = lugar.quadroId === null ? undefined : (nomeDoQuadro(lugar.quadroId) ?? 'Quadro')
-      return nome === undefined ? ['Quadros'] : ['Quadros', nome || 'Quadro sem nome']
+      if (lugar.quadroId === null) return 'Quadros'
+      // A lista dos quadros ainda não lida diz só "Quadro"; o quadro sem nome se diz assim.
+      const nome = nomeDoQuadro(lugar.quadroId)
+      return nome === undefined ? 'Quadro' : nome || 'Quadro sem nome'
     }
     case 'campanhas':
-      return ['Campanhas e sistemas']
+      return 'Campanhas e sistemas'
     case 'tempo':
-      return ['Linha do tempo']
+      return 'Linha do tempo'
   }
 }
 
+/** Onde a pessoa está, para a trilha do topo: do Prelúdio (o Início) até o lugar, um nível por vez. */
+function trilhaDe(lugar: Lugar, tituloDe: NomeDe, nomeDoQuadro: NomeDe): PassoDaTrilha[] {
+  const trilha: PassoDaTrilha[] = []
+  for (let nivel: Lugar | null = lugar; nivel !== null; nivel = lugarDeCima(nivel)) trilha.unshift({ rotulo: rotuloDe(nivel, tituloDe, nomeDoQuadro), lugar: nivel })
+  return trilha
+}
+
+/** O botão de voltar do mouse (o do lado, perto do polegar) é o `button` 3 nos eventos do navegador. */
+const BOTAO_VOLTAR_DO_MOUSE = 3
+
 function emCampoDeTexto(alvo: EventTarget | null): boolean {
   return alvo instanceof HTMLElement && (alvo.isContentEditable || alvo.closest('input, textarea, select') !== null)
+}
+
+/** Uma caixa aberta por cima (a busca, uma pergunta): voltar não passa por trás dela. */
+function caixaAberta(): boolean {
+  return document.querySelector('[role="dialog"], [role="alertdialog"], dialog[open]') !== null
 }
 
 interface InicioProps {
@@ -182,6 +201,9 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
   const carregar = usePreludio((estado) => estado.carregar)
   const travar = usePreludio((estado) => estado.travar)
   const salvarPendentes = usePreludio((estado) => estado.salvarPendentes)
+  const ir = usePreludio((estado) => estado.ir)
+  const voltarUmPasso = usePreludio((estado) => estado.voltarUmPasso)
+  const podeVoltar = usePreludio((estado) => estado.historico.length > 0 || lugarDeCima(estado.lugar) !== null)
   const naoSalvou = usePreludio((estado) => estado.salvamento.t === 'falhou')
   const listaDosQuadros = useQuadros((estado) => estado.lista)
   const [pedidoDeCopia, setPedidoDeCopia] = useState(0)
@@ -264,6 +286,33 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [carga.t, lugar.secao, buscando, gravando, sair, naJanela])
 
+  // Voltar um passo em qualquer tela do Prelúdio (pedido de 17/11): Alt+← e o botão de voltar do mouse, como no navegador.
+  useEffect(() => {
+    const aoTeclar = (evento: KeyboardEvent) => {
+      if (evento.key !== 'ArrowLeft' || !evento.altKey || evento.ctrlKey || evento.metaKey || evento.shiftKey) return
+      if (emCampoDeTexto(evento.target) || buscando || caixaAberta()) return
+      // Na captura, antes do quadro: para o tldraw, Alt+← é o ← que empurra a forma escolhida 1 px. E o WebView voltaria a página dele.
+      evento.preventDefault()
+      evento.stopPropagation()
+      if (!evento.repeat) voltarUmPasso()
+    }
+    const aoSoltarBotao = (evento: MouseEvent) => {
+      if (evento.button !== BOTAO_VOLTAR_DO_MOUSE) return
+      evento.preventDefault()
+      if (buscando || caixaAberta()) return
+      // O mouse não digita: o texto do campo vai para a loja antes de a página sair, como num clique em outro lugar.
+      const ativo = document.activeElement
+      if (ativo instanceof HTMLElement && emCampoDeTexto(ativo)) ativo.blur()
+      voltarUmPasso()
+    }
+    window.addEventListener('keydown', aoTeclar, { capture: true })
+    window.addEventListener('mouseup', aoSoltarBotao)
+    return () => {
+      window.removeEventListener('keydown', aoTeclar, { capture: true })
+      window.removeEventListener('mouseup', aoSoltarBotao)
+    }
+  }, [buscando, voltarUmPasso])
+
   const trilha = trilhaDe(
     lugar,
     (id) => verbetes.get(id)?.titulo,
@@ -272,23 +321,42 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
   // O quadro (da lista ou o da sessão) ocupa o palco inteiro: quem rola e aproxima é o tldraw. A sessão aberta
   // também (F3c): lado a lado, cada lado rola por conta própria; em abas, o roteiro rola dentro da sessão.
   const quadroAberto = (lugar.secao === 'quadros' && lugar.quadroId !== null) || (lugar.secao === 'sessoes' && lugar.sessaoId !== null)
-  const atual = trilha[trilha.length - 1] ?? TITULO_DO_PRELUDIO
-  const antes = ['Labirinto', ...(trilha.length > 0 ? [TITULO_DO_PRELUDIO] : []), ...trilha.slice(0, -1)]
+  // A trilha começa no Início e termina no lugar de agora: nunca vem vazia.
+  const atual = trilha[trilha.length - 1]
+  const acima = trilha.slice(0, -1)
+  // Sair pela trilha vale o mesmo que o Voltar da barra lateral: nem na janela própria, nem gravando.
+  const podeSair = !naJanela && !gravando
 
   return (
     <div className="pr-tela">
       <div className="lb-appbar">
+        <button type="button" className="pr-topo__voltar" disabled={!podeVoltar} onClick={() => voltarUmPasso()} aria-label="Voltar" aria-keyshortcuts="Alt+ArrowLeft" title="Voltar (Alt+←)">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+            <path d="M12.5 4.5 7 10l5.5 5.5" />
+          </svg>
+        </button>
         <span className="lb-appbar__mark" aria-hidden="true">
           <LabyrinthMark size={16} />
         </span>
         <nav className="lb-appbar__crumbs" aria-label="Posição na navegação">
-          {antes.map((passo, indice) => (
-            <span key={`${indice}-${passo}`} className="lb-appbar__crumb">
-              {passo}
+          <span className="lb-appbar__crumb">
+            {podeSair ? (
+              <button type="button" className="pr-topo__passo" title="Voltar ao menu do Labirinto" onClick={() => void sair()}>
+                Labirinto
+              </button>
+            ) : (
+              'Labirinto'
+            )}
+          </span>
+          {acima.map((passo, indice) => (
+            <span key={`${indice}-${passo.rotulo}`} className="lb-appbar__crumb">
+              <button type="button" className="pr-topo__passo" onClick={() => ir(passo.lugar)}>
+                {passo.rotulo}
+              </button>
             </span>
           ))}
           <span className="lb-appbar__crumb lb-appbar__crumb--current" aria-current="page">
-            {atual}
+            {atual.rotulo}
           </span>
         </nav>
       </div>
