@@ -7,6 +7,14 @@
 /* A engrenagem com o nome à vista (17/11): o mestre não achava a tela pelo ícone sozinho. */
 .pr-lado__engrenagem { justify-self: start; gap: 6px; }
 .pr-lado__engrenagem svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* "Ligar ali mesmo" na Ficha do Livro (17/11): a campanha sem pasta ganha a pasta sem sair do verbete. */
+.pr-ligar-pasta { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pr-ligar-pasta .pr-campo { align-self: stretch; }
+.pr-ligar-pasta__tela {
+  padding: 0; border: 0; background: none; font: inherit; cursor: pointer;
+  color: var(--lb-color-brass-bright); text-decoration: underline; text-decoration-color: rgba(243, 186, 102, 0.4);
+}
+.pr-ligar-pasta__tela:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 2px; }
 .pr-lado__engrenagem[aria-current='page'] { color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); }
 
 .cp { max-width: 900px; margin: 0 auto; padding: var(--lb-space-6) var(--lb-space-8) var(--lb-space-12); }

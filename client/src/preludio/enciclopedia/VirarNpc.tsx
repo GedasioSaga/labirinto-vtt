@@ -2,11 +2,11 @@ import { useEffect, useId, useState } from 'react'
 import { Dialogo } from '../../components/grimorio/Dialogo'
 import { FichaDoSistema } from '../../components/dbt/registroDeFichas'
 import { escolherImagemDaFicha } from '../../lib/arquivosDaFicha'
-import { chaveDoNome } from '../../lib/contasDosJogadores'
 import { fichaPeloComeco, modelosDeNpc, type ComecoDaFicha } from '../../lib/livros/combate'
 import { lerIndiceDasPastas, lerRpgDaPasta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import { descricaoDoNpc, imagemDaForma } from '../../lib/preparo/doVerbeteParaOMapa'
+import { fichaDeMesmoNome } from '../../lib/preparo/fichaDoVerbete'
 import type { Forma, LigaFicha, Verbete } from '../../lib/preparo/tipos'
 import { recursoDeVida } from '../../lib/vidaDaFicha'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
@@ -16,6 +16,7 @@ import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePreludio } from '../estado/preludio'
 import { gravarFichaNaPasta } from '../janela/mesaNaJanela'
 import { prepararMidia, urlDaMidia } from '../midia'
+import { anotarFicha } from './tiposDasFichas'
 import './virarNpc.css'
 
 /**
@@ -148,15 +149,21 @@ export function VirarNpc({ verbete, forma, pastaId, aoFechar, aoFeito }: VirarNp
     setRascunho((antes) => (antes === null || antes.retrato !== null ? antes : { ...antes, retrato: retratoDoVerbete }))
   }, [retratoDoVerbete, rascunho?.id])
 
+  // A ficha de mesmo nome que já está na pasta (de jogador ou de NPC): o verbete liga a ela, sem ficha repetida.
+  const mesmoNome = carga.t === 'pronta' && rascunho !== null ? fichaDeMesmoNome(carga.personagens, rascunho.nome) : null
+
+  const ligar = (ficha: Personagem) => {
+    const ligacao: LigaFicha = { pastaId, personagemId: ficha.id }
+    mudarVerbete(verbete.id, (atual) => ({ ...atual, liga: { fichas: [...(atual.liga?.fichas ?? []), ligacao], cenas: [...(atual.liga?.cenas ?? [])] } }))
+    anotarFicha(pastaId, ficha)
+    aoFeito(ligacao, ficha)
+  }
+
   const salvar = async () => {
-    if (rascunho === null || carga.t !== 'pronta' || gravando) return
+    if (rascunho === null || carga.t !== 'pronta' || gravando || mesmoNome !== null) return
     const nome = rascunho.nome.trim()
     if (nome === '') {
       setErro('Dê um nome ao NPC.')
-      return
-    }
-    if (carga.personagens.some((um) => chaveDoNome(um.nome) === chaveDoNome(nome))) {
-      setErro(`Já existe “${nome}” em ${carga.nomeDaPasta}. Use outro nome.`)
       return
     }
     setErro(null)
@@ -168,9 +175,7 @@ export function VirarNpc({ verbete, forma, pastaId, aoFechar, aoFeito }: VirarNp
       setErro(`A ficha não foi gravada: ${motivo}`)
       return
     }
-    const ligacao: LigaFicha = { pastaId, personagemId: ficha.id }
-    mudarVerbete(verbete.id, (atual) => ({ ...atual, liga: { fichas: [...(atual.liga?.fichas ?? []), ligacao], cenas: [...(atual.liga?.cenas ?? [])] } }))
-    aoFeito(ligacao, ficha)
+    ligar(ficha)
   }
 
   const titulo = `Virar NPC: ${verbete.titulo || 'sem nome'}`
@@ -243,10 +248,21 @@ export function VirarNpc({ verbete, forma, pastaId, aoFechar, aoFeito }: VirarNp
                 {erro}
               </p>
             )}
+            {mesmoNome !== null && (
+              <div className="pr-virar__mesmo" role="status">
+                <p>
+                  Já existe <b>{mesmoNome.nome}</b> em {carga.nomeDaPasta}
+                  {mesmoNome.tipo === 'jogador' ? ', a ficha de um jogador' : ''}. Ligue o verbete a ela, ou mude o nome acima para fazer outra ficha.
+                </p>
+                <button type="button" className="gr-bt gr-bt--latao" onClick={() => ligar(mesmoNome)}>
+                  {rotuloDeLigar(mesmoNome)}
+                </button>
+              </div>
+            )}
             <button type="button" className="gr-bt gr-bt--fantasma" onClick={aoFechar}>
               Cancelar
             </button>
-            <button type="button" className="gr-bt gr-bt--primario" disabled={rascunho === null || gravando} onClick={() => void salvar()}>
+            <button type="button" className="gr-bt gr-bt--primario" disabled={rascunho === null || gravando || mesmoNome !== null} onClick={() => void salvar()}>
               {gravando ? 'Gravando…' : 'Salvar a ficha'}
             </button>
           </footer>
@@ -254,6 +270,12 @@ export function VirarNpc({ verbete, forma, pastaId, aoFechar, aoFeito }: VirarNp
       )}
     </Dialogo>
   )
+}
+
+/** "Ligar a esta ficha (jogador Ana)", "(jogador)" sem o nome de quem joga, ou "(NPC)". */
+function rotuloDeLigar(ficha: Personagem): string {
+  if (ficha.tipo === 'npc') return 'Ligar a esta ficha (NPC)'
+  return ficha.nomeDoJogador === undefined ? 'Ligar a esta ficha (jogador)' : `Ligar a esta ficha (jogador ${ficha.nomeDoJogador})`
 }
 
 function SistemaDaFicha({ sistema, pasta }: { sistema: SistemaDeRpg; pasta: string }) {

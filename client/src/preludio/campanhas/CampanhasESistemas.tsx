@@ -3,11 +3,12 @@ import { Torrada, Torradas } from '../../components/grimorio/Torrada'
 import { mapasNaPasta, mapasQueUsamAPasta, campanhaComPasta, campanhaComSistema, sistemaDaCampanha } from '../../lib/preparo/campanhaESistema'
 import { lerIndiceDasPastas, lerRpgDaPasta, rpgComSistema } from '../../lib/pastasDeMapas'
 import { SISTEMAS_EMBUTIDOS } from '../../lib/sistemaOnePiece'
+import { tipoDaFichaLigada, type TiposDasFichas } from '../../lib/preparo/fichaDoVerbete'
 import type { Campanha, Verbete } from '../../lib/preparo/tipos'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
 import { usePreludio } from '../estado/preludio'
-import { ehNpc } from '../enciclopedia/pastas/VerbetesEmPastas'
 import { IconeCadeado } from '../enciclopedia/pastas/icones'
+import { useTiposDasFichasLigadas } from '../enciclopedia/tiposDasFichas'
 import './campanhas.css'
 
 /**
@@ -43,6 +44,8 @@ export interface SistemaNaLista {
 export interface NumerosDaCampanha {
   readonly personagens: number
   readonly npcs: number
+  /** Os personagens ligados a uma ficha de jogador (não contam como NPC). */
+  readonly jogadores: number
   readonly sessoes: number
   readonly eventos: number
 }
@@ -286,6 +289,12 @@ export function CartoesDasCampanhas(props: CartoesDasCampanhasProps) {
                     <b>{conta.npcs}</b>
                     {conta.npcs === 1 ? 'já é NPC' : 'já são NPC'}
                   </span>
+                  {conta.jogadores > 0 && (
+                    <span>
+                      <b>{conta.jogadores}</b>
+                      {conta.jogadores === 1 ? 'é jogador' : 'são jogadores'}
+                    </span>
+                  )}
                   <span>
                     <b>{conta.sessoes}</b>
                     {plural(conta.sessoes, 'sessão', 'sessões')}
@@ -348,23 +357,26 @@ async function lerDadosDasPastas(): Promise<DadosDasPastas> {
 }
 
 /** Os eventos da linha do tempo que vieram de uma sessão da campanha (o evento ainda não tem campanha própria). */
-function numerosDe(campanhaId: string, verbetes: ReadonlyMap<string, Verbete>, sessoesDoEvento: readonly (string | undefined)[]): NumerosDaCampanha {
+export function numerosDe(campanhaId: string, verbetes: ReadonlyMap<string, Verbete>, sessoesDoEvento: readonly (string | undefined)[], tipos: TiposDasFichas): NumerosDaCampanha {
   let personagens = 0
   let npcs = 0
+  let jogadores = 0
   let sessoes = 0
   const daCampanha = new Set<string>()
   for (const verbete of verbetes.values()) {
     if (!verbete.campanhas.includes(campanhaId)) continue
     if (verbete.tipo === 'personagem') {
       personagens += 1
-      if (ehNpc(verbete)) npcs += 1
+      const tipo = tipoDaFichaLigada(verbete, tipos)
+      if (tipo === 'npc') npcs += 1
+      else if (tipo === 'jogador') jogadores += 1
     } else if (verbete.tipo === 'sessao') {
       sessoes += 1
       daCampanha.add(verbete.id)
     }
   }
   const eventos = sessoesDoEvento.filter((sessaoId) => sessaoId !== undefined && daCampanha.has(sessaoId)).length
-  return { personagens, npcs, sessoes, eventos }
+  return { personagens, npcs, jogadores, sessoes, eventos }
 }
 
 /**
@@ -410,6 +422,7 @@ export function CampanhasESistemas({ naJanela }: { naJanela: boolean }) {
   const carregarBiblioteca = useRpgStore((estado) => estado.carregarBiblioteca)
   const [dados, setDados] = useState<DadosDasPastas | null>(null)
   const [leitura, setLeitura] = useState(0)
+  const tipos = useTiposDasFichasLigadas(useMemo(() => [...verbetes.values()], [verbetes]))
 
   // A janela do Prelúdio não lê `<appData>/sistemas`: lá a lista fica com os que vêm com o Labirinto.
   useEffect(() => {
@@ -429,7 +442,7 @@ export function CampanhasESistemas({ naJanela }: { naJanela: boolean }) {
   const embutidos = useMemo(() => new Set(SISTEMAS_EMBUTIDOS.map((sistema) => sistema.id)), [])
   const sistemas = useMemo(() => biblioteca.map((sistema) => ({ id: sistema.id, nome: sistema.nome, embutido: embutidos.has(sistema.id) })), [biblioteca, embutidos])
   const sessoesDosEventos = useMemo(() => (tempo?.eventos ?? []).map((evento) => evento.sessaoId), [tempo])
-  const numeros = useCallback((campanhaId: string) => numerosDe(campanhaId, verbetes, sessoesDosEventos), [verbetes, sessoesDosEventos])
+  const numeros = useCallback((campanhaId: string) => numerosDe(campanhaId, verbetes, sessoesDosEventos, tipos), [verbetes, sessoesDosEventos, tipos])
   const nome = (sistemaId: string | null) => (sistemaId === null ? 'nenhum sistema' : (sistemaPorId(biblioteca, sistemaId)?.nome ?? 'um sistema que não está neste computador'))
   const sistemaDe = (pastaId: string | null) => (pastaId === null ? undefined : dados?.pastas.find((pasta) => pasta.id === pastaId)?.sistemaId)
 

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialogo } from '../../components/grimorio/Dialogo'
 import { lerIndiceDasPastas, lerRpgDaPasta, type PastaDeMapas } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
-import { campanhaComPastaDoVerbete } from '../../lib/preparo/doVerbeteParaOMapa'
+import { campanhaComPastaDoVerbete, campanhaParaLigar } from '../../lib/preparo/doVerbeteParaOMapa'
 import type { Forma, LigaFicha, Verbete } from '../../lib/preparo/tipos'
+import { LigarCampanhaAPasta } from '../campanhas/LigarCampanhaAPasta'
 import { usePreludio } from '../estado/preludio'
+import { anotarFichasDaPasta } from './tiposDasFichas'
 import { VirarNpc } from './VirarNpc'
 
 /**
@@ -37,6 +39,8 @@ function useFichas(pastaId: string | null): Fichas {
     let vivo = true
     setFichas({ t: 'lendo' })
     void lerRpgDaPasta(pastaId).then((lido) => {
+      // A pasta lida conta o tipo das fichas ao selo "NPC"/"Jogador" das listas, mesmo que esta tela já tenha fechado.
+      if (lido.ok) anotarFichasDaPasta(pastaId, lido.rpg.personagens)
       if (!vivo) return
       setFichas(lido.ok ? { t: 'lidas', personagens: lido.rpg.personagens } : { t: 'falhou', motivo: lido.motivo })
     })
@@ -84,7 +88,13 @@ function EscolherFicha({ aberto, pastaInicial, ligadas, aoEscolher, aoFechar }: 
       {pastas.t === 'lendo' ? (
         <p className="pr-quieto">Lendo as pastas…</p>
       ) : lidas.length === 0 ? (
-        <p className="pr-quieto">Nenhuma pasta de mapas ainda. As fichas moram nas pastas da tela Carregar mapa.</p>
+        pastas.aviso !== null ? (
+          <p className="pr-aviso" role="alert">
+            {pastas.aviso}
+          </p>
+        ) : (
+          <p className="pr-quieto">Nenhuma pasta de mapas ainda. As fichas moram nas pastas da tela Carregar mapa.</p>
+        )
       ) : (
         <>
           <label className="pr-campo">
@@ -114,7 +124,7 @@ function EscolherFicha({ aberto, pastaInicial, ligadas, aoEscolher, aoFechar }: 
                   <li key={personagem.id}>
                     <button type="button" className="pr-escolha__item" disabled={jaLigada} onClick={() => aoEscolher(ligacao)}>
                       <span>{personagem.nome || 'Ficha sem nome'}</span>
-                      <span className="pr-escolha__detalhe">{jaLigada ? 'Já ligada' : personagem.tipo === 'npc' ? 'NPC' : 'Jogador'}</span>
+                      <span className="pr-escolha__detalhe">{jaLigada ? 'Já ligada' : personagem.tipo === 'npc' ? 'NPC' : personagem.nomeDoJogador === undefined ? 'Jogador' : `Jogador: ${personagem.nomeDoJogador}`}</span>
                     </button>
                   </li>
                 )
@@ -131,12 +141,21 @@ export function FichaDoLivro({ verbete, forma, editavel }: { verbete: Verbete; f
   const pastas = usePastas()
   const [escolhendo, setEscolhendo] = useState(false)
   const [virando, setVirando] = useState(false)
+  const [ligou, setLigou] = useState<{ readonly verbeteId: string; readonly texto: string } | null>(null)
+  const virarNpc = useRef<HTMLButtonElement>(null)
   const campanhas = usePreludio((estado) => estado.campanhas)
+  const ativa = usePreludio((estado) => estado.campanhaId)
   const mudarVerbete = usePreludio((estado) => estado.mudarVerbete)
   const ligadas = verbete.liga?.fichas ?? []
-  const campanhaComPasta = campanhaComPastaDoVerbete(verbete, campanhas)
+  const campanhaComPasta = campanhaComPastaDoVerbete(verbete, campanhas, ativa)
   const pastaDaCampanha = campanhaComPasta?.pastaId ?? null
-  const semCampanha = verbete.campanhas.length === 0
+  const paraLigar = pastaDaCampanha === null ? campanhaParaLigar(verbete, campanhas, ativa) : null
+  const recemLigada = ligou !== null && ligou.verbeteId === verbete.id ? ligou.texto : null
+
+  // Ligou a pasta ali mesmo: o "Virar NPC" acende e recebe o foco (o botão de ligar sumiu debaixo do cursor do teclado).
+  useEffect(() => {
+    if (recemLigada !== null && pastaDaCampanha !== null) virarNpc.current?.focus()
+  }, [recemLigada, pastaDaCampanha])
 
   const mudarFichas = (mudar: (fichas: LigaFicha[]) => LigaFicha[]) =>
     mudarVerbete(verbete.id, (atual) => ({ ...atual, liga: { fichas: mudar([...(atual.liga?.fichas ?? [])]), cenas: [...(atual.liga?.cenas ?? [])] } }))
@@ -163,16 +182,29 @@ export function FichaDoLivro({ verbete, forma, editavel }: { verbete: Verbete; f
       )}
       {editavel && ligadas.length === 0 && (
         <div className="pr-virar-npc">
-          <button type="button" className="gr-bt gr-bt--p gr-bt--primario" disabled={pastaDaCampanha === null} aria-describedby={pastaDaCampanha === null ? 'pr-virar-npc-motivo' : undefined} onClick={() => setVirando(true)}>
+          <button
+            ref={virarNpc}
+            type="button"
+            className="gr-bt gr-bt--p gr-bt--primario"
+            disabled={pastaDaCampanha === null}
+            aria-describedby={pastaDaCampanha === null ? 'pr-virar-npc-motivo' : undefined}
+            onClick={() => setVirando(true)}
+          >
             Virar NPC
           </button>
-          <p className="pr-virar-npc__motivo" id="pr-virar-npc-motivo">
-            {pastaDaCampanha !== null
-              ? 'Abre a ficha do sistema da campanha já com nome, retrato e descrição.'
-              : semCampanha
-                ? 'Para virar NPC, ponha este personagem numa campanha que tenha pasta de mapas.'
-                : 'A campanha deste personagem ainda não tem pasta de mapas: escolha uma em Campanha e sistema.'}
-          </p>
+          {pastaDaCampanha !== null ? (
+            <p className="pr-virar-npc__motivo" id="pr-virar-npc-motivo" role={recemLigada === null ? undefined : 'status'}>
+              {recemLigada === null ? 'Abre a ficha do sistema da campanha já com nome, retrato e descrição.' : `Pronto: ${recemLigada}. Virar NPC já abre a ficha.`}
+            </p>
+          ) : paraLigar === null ? (
+            <p className="pr-virar-npc__motivo" id="pr-virar-npc-motivo">
+              Para virar NPC, ponha este personagem numa campanha que tenha pasta de mapas.
+            </p>
+          ) : (
+            <div id="pr-virar-npc-motivo">
+              <LigarCampanhaAPasta campanha={paraLigar} aoLigar={(pasta) => setLigou({ verbeteId: verbete.id, texto: `${paraLigar.nome} usa a pasta ${pasta.nome}` })} />
+            </div>
+          )}
         </div>
       )}
       {editavel && (

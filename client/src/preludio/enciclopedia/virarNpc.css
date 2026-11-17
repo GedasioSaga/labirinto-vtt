@@ -56,6 +56,12 @@
 .pr-virar__pe p { margin: 0; flex: 1 1 260px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
 .pr-virar__pe p b { color: var(--lb-color-parchment); font-weight: 600; }
 .pr-virar__pe .pr-virar__erro { flex-basis: 100%; order: -1; color: var(--lb-color-ember); }
+/* A ficha de mesmo nome que já está na pasta (17/11): ligar a ela no lugar do erro de nome repetido. */
+.pr-virar__mesmo {
+  flex-basis: 100%; order: -1; display: flex; align-items: center; gap: var(--lb-space-3); flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--lb-gr-filete-latao); border-radius: var(--lb-radius-sm); background: var(--lb-color-brass-soft);
+}
+.pr-virar__pe .pr-virar__mesmo p { color: var(--lb-color-parchment); }
 
 /* O botão "Virar NPC" e o motivo quando ainda não dá (FichaDoLivro). */
 .pr-virar-npc { display: flex; flex-direction: column; gap: 6px; margin-top: var(--lb-space-3); }

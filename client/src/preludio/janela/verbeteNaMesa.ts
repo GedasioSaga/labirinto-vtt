@@ -2,6 +2,7 @@ import { itemParaDar, novoItemDoCatalogo, type ItemDoCatalogo } from '../../lib/
 import { pinImageFromBlob } from '../../lib/imageImport'
 import { imagemDoItemDoBlob } from '../../lib/imagemDoItem'
 import { itemDoAcervoNoMapa } from '../../lib/itemNoMapa'
+import { lerIndiceDasPastas, lerRpgDaPasta, type PastaAberta } from '../../lib/pastasDeMapas'
 import type { Personagem } from '../../lib/personagem'
 import { PIN_NOME_MAX_LENGTH } from '../../lib/pins'
 import { imagemDaForma, itemComOMesmoNome, textoDoLugar } from '../../lib/preparo/doVerbeteParaOMapa'
@@ -63,6 +64,17 @@ export type VerbetePreparado = { readonly ok: true; readonly nome: string; reado
 
 const TIPO_DO_COMO: Readonly<Record<ComoVaiAoMapa, Verbete['tipo']>> = { token: 'personagem', item: 'item', lugar: 'lugar' }
 
+/**
+ * Por que o token não vai: a ficha (de jogador ou de NPC) mora numa pasta e o
+ * mapa aberto é de outra, de pasta nenhuma, ou usa fichas só dele. Diz qual abrir.
+ */
+export function motivoDaOutraPasta(ficha: Pick<Personagem, 'tipo' | 'nome'> | null, pastaDaFicha: string, aberta: Pick<PastaAberta, 'nome' | 'proprio'> | null): string {
+  const qual = ficha === null ? 'A ficha ligada a este verbete' : `A ficha ${ficha.tipo === 'jogador' ? 'de jogador' : 'de NPC'} de ${ficha.nome}`
+  if (aberta !== null && aberta.proprio) return `${qual} mora na pasta ${pastaDaFicha}, e o mapa aberto usa fichas só dele. Abra um mapa que use as fichas da pasta ${pastaDaFicha} e tente de novo.`
+  const onde = aberta === null ? 'e nenhum mapa de pasta está aberto' : `e o mapa aberto é da pasta ${aberta.nome}`
+  return `${qual} mora na pasta ${pastaDaFicha}, ${onde}. Abra um mapa de ${pastaDaFicha} e tente de novo.`
+}
+
 /** O verbete do disco, pronto para o clique; ou o motivo de não ir. */
 export async function prepararVerbeteNaMesa(fonte: VerbeteParaOMapa, como: ComoVaiAoMapa, ficha: LigaFicha | null): Promise<VerbetePreparado> {
   const preludio = usePreludio.getState()
@@ -115,7 +127,12 @@ export async function prepararVerbeteNaMesa(fonte: VerbeteParaOMapa, como: ComoV
   }
   const pasta = useAdventureStore.getState().pasta
   if (pasta === null || pasta.pastaId !== ficha.pastaId || pasta.proprio === true) {
-    return { ok: false, motivo: 'O mapa aberto não usa a pasta onde está a ficha deste NPC. Abra um mapa dessa pasta e tente de novo.' }
+    // Só no caminho do "não vai": o nome da pasta da ficha e de quem é a ficha, para dizer qual mapa abrir.
+    const [{ indice }, lido] = await Promise.all([lerIndiceDasPastas(), lerRpgDaPasta(ficha.pastaId)])
+    const nomeDaPasta = indice.pastas.find((uma) => uma.id === ficha.pastaId)?.nome
+    if (nomeDaPasta === undefined) return { ok: false, motivo: 'A pasta da ficha ligada a este verbete não existe mais. Ligue outra ficha na Ficha do Livro.' }
+    const daFicha = lido.ok ? (lido.rpg.personagens.find((um) => um.id === ficha.personagemId) ?? null) : null
+    return { ok: false, motivo: motivoDaOutraPasta(daFicha, nomeDaPasta, pasta) }
   }
   const personagem = pasta.personagens.find((um) => um.id === ficha.personagemId)
   if (personagem === undefined) return { ok: false, motivo: 'A ficha ligada a este verbete não está mais na pasta.' }

@@ -67,10 +67,32 @@ export function itemComOMesmoNome<T extends { readonly nome: string }>(itens: re
   return itens.find((item) => chaveDoNomeDoItem(item.nome) === chave) ?? null
 }
 
-/** A campanha do verbete que aponta para uma pasta de mapas (onde a ficha mora); `null` = nenhuma. */
-export function campanhaComPastaDoVerbete(verbete: Pick<Verbete, 'campanhas'>, campanhas: readonly Campanha[]): (Campanha & { pastaId: string }) | null {
-  for (const campanha of campanhas) {
-    if (verbete.campanhas.includes(campanha.id) && campanha.pastaId !== undefined) return { ...campanha, pastaId: campanha.pastaId }
+/** As campanhas do verbete, a escolhida na barra lateral primeiro (quando o verbete é dela), depois na ordem do índice. */
+function campanhasDoVerbete(verbete: Pick<Verbete, 'campanhas'>, campanhas: readonly Campanha[], ativa: string | null): Campanha[] {
+  const dele = campanhas.filter((campanha) => verbete.campanhas.includes(campanha.id))
+  return [...dele.filter((campanha) => campanha.id === ativa), ...dele.filter((campanha) => campanha.id !== ativa)]
+}
+
+/**
+ * A campanha do verbete que aponta para uma pasta de mapas (onde a ficha mora);
+ * `null` = nenhuma. Verbete de várias campanhas: a escolhida na barra lateral
+ * (`ativa`) vence, se tiver pasta.
+ */
+export function campanhaComPastaDoVerbete(verbete: Pick<Verbete, 'campanhas'>, campanhas: readonly Campanha[], ativa: string | null = null): (Campanha & { pastaId: string }) | null {
+  for (const campanha of campanhasDoVerbete(verbete, campanhas, ativa)) {
+    if (campanha.pastaId !== undefined) return { ...campanha, pastaId: campanha.pastaId }
   }
   return null
+}
+
+/** A campanha do verbete que ganha a pasta no "ligar ali mesmo" (nenhuma tem pasta): a escolhida na barra lateral, senão a primeira. */
+export function campanhaParaLigar(verbete: Pick<Verbete, 'campanhas'>, campanhas: readonly Campanha[], ativa: string | null): Campanha | null {
+  return campanhasDoVerbete(verbete, campanhas, ativa)[0] ?? null
+}
+
+/** A pasta de mapas com o MESMO nome da campanha (sem acento, sem caixa): a sugestão do "Usar a pasta One Piece". */
+export function pastaDeMesmoNome<T extends { readonly nome: string }>(pastas: readonly T[], nome: string): T | null {
+  const chave = semAcentoNemCaixa(nome)
+  if (chave === '') return null
+  return pastas.find((pasta) => semAcentoNemCaixa(pasta.nome) === chave) ?? null
 }

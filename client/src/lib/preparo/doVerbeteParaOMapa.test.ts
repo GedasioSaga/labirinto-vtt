@@ -7,9 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Pin } from '../../types/map'
 import { verbeteNovo } from './enciclopedia'
-import { descricaoDoNpc, itemComOMesmoNome, textoDoLugar } from './doVerbeteParaOMapa'
+import { campanhaComPastaDoVerbete, campanhaParaLigar, descricaoDoNpc, itemComOMesmoNome, pastaDeMesmoNome, textoDoLugar } from './doVerbeteParaOMapa'
 import { pinoDoLugar } from './pinoDoLugar'
-import type { Secao, TextoRico, Verbete } from './tipos'
+import type { Campanha, Secao, TextoRico, Verbete } from './tipos'
 
 const texto = (frase: string): TextoRico => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: frase }] }] })
 const secao = (id: string, titulo: string, frase: string, segredo = false): Secao => ({ id, titulo, texto: texto(frase), segredo })
@@ -22,6 +22,33 @@ function comSecoes(tipo: 'personagem' | 'lugar', resumo: string, secoes: Secao[]
 }
 
 const PINO: Pin = { id: 'p1', x: 10, y: 20, kind: 'interrogacao', description: '', image: null }
+
+describe('a campanha e a pasta da ficha (pedido 6 de 17/11)', () => {
+  const OP: Campanha = { id: 'c_op', nome: 'One Piece' }
+  const DB: Campanha = { id: 'c_db', nome: 'Dragon Ball', pastaId: 'pasta_db' }
+  const GEO: Campanha = { id: 'c_geo', nome: 'Geonova', pastaId: 'pasta_geo' }
+
+  it('a campanha escolhida na barra lateral vence quando o verbete é de várias; sem ela, a ordem do índice', () => {
+    const deTres = { campanhas: ['c_op', 'c_db', 'c_geo'] }
+    expect(campanhaComPastaDoVerbete(deTres, [OP, DB, GEO], 'c_geo')?.pastaId).toBe('pasta_geo')
+    expect(campanhaComPastaDoVerbete(deTres, [OP, DB, GEO], null)?.pastaId).toBe('pasta_db')
+    // A escolhida sem pasta não esconde a outra que tem.
+    expect(campanhaComPastaDoVerbete(deTres, [OP, DB, GEO], 'c_op')?.pastaId).toBe('pasta_db')
+    expect(campanhaComPastaDoVerbete({ campanhas: ['c_op'] }, [OP, DB, GEO], 'c_db')).toBeNull()
+  })
+
+  it('"Usar a pasta One Piece": a campanha a ligar e a pasta de mesmo nome, sem acento nem caixa', () => {
+    const pastas = [
+      { id: 'pasta_db', nome: 'Dragon Ball' },
+      { id: 'pasta_op', nome: 'one  piéce' },
+    ]
+    expect(pastaDeMesmoNome(pastas, OP.nome)?.id).toBe('pasta_op')
+    expect(pastaDeMesmoNome(pastas, 'Geonova')).toBeNull()
+    expect(campanhaParaLigar({ campanhas: ['c_db', 'c_op'] }, [OP, DB], 'c_op')?.id).toBe('c_op')
+    expect(campanhaParaLigar({ campanhas: ['c_db', 'c_op'] }, [OP, DB], null)?.id).toBe('c_op')
+    expect(campanhaParaLigar({ campanhas: [] }, [OP, DB], 'c_op')).toBeNull()
+  })
+})
 
 describe('itemComOMesmoNome', () => {
   it('reaproveita o item do Acervo de mesmo nome, sem acento nem caixa, e não inventa quando não há', () => {
