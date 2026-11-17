@@ -705,13 +705,6 @@
   .pr-cartao__fonte button:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); }
 }
 
-/* a pergunta da imagem que vira verbete: o tipo ao lado do nome */
-.pr-pergunta__tipo {
-  flex: none; min-height: 30px; padding: 0 var(--lb-space-2);
-  border: 1px solid var(--lb-gr-filete-forte); border-radius: var(--lb-radius-sm);
-  background: var(--lb-gr-campo); color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm);
-}
-
 /* a lista dos quadros (F3c): cada cartão leva a campanha e a lixeira no pé, como a barra do Grimório */
 .pr-quadros__item {
   display: flex; flex-direction: column; min-width: 0;
@@ -976,18 +969,7 @@
 .pr-faixa__aviso--falhou { color: var(--lb-color-ember); }
 .pr-faixa__vazia { margin: auto; font-size: calc(11 * var(--pr-cartao-u)); color: var(--lb-color-parchment-faint); }
 
-/* a pergunta da imagem: verbete novo ou forma nova de um que existe */
-.pr-pergunta__modo { align-self: flex-start; }
-.pr-pergunta__modo .pr-abas__aba[aria-checked='true'] { background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); box-shadow: var(--lb-shadow-bevel), 0 0 0 1px var(--lb-gr-filete-forte); cursor: default; }
-.pr-pergunta__corpo { display: flex; flex-direction: column; gap: var(--lb-space-2); margin: 0; }
-.pr-pergunta__busca { display: flex; flex-direction: column; gap: var(--lb-space-1); }
-.pr-pergunta__achados { display: flex; flex-direction: column; gap: 2px; max-height: 180px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
-.pr-pergunta__achado {
-  width: 100%; min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: var(--lb-space-2); padding: 0 var(--lb-space-2);
-  border: 1px solid transparent; border-radius: var(--lb-radius-sm); background: none; color: var(--lb-color-parchment); font: inherit; font-size: var(--lb-font-size-sm); text-align: left; cursor: pointer;
-}
-.pr-pergunta__achado[aria-pressed='true'] { border-color: var(--lb-gr-filete-latao); background: var(--lb-color-brass-soft); }
-.pr-pergunta__achado-tipo { flex: none; font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+/* a pergunta da imagem: o atalho "Pôr o cartão de X" quando a imagem já é retrato */
 .pr-pergunta__ja { padding-bottom: var(--lb-space-2); border-bottom: 1px solid var(--lb-gr-filete); }
 
 /* a lixeira: restaurar um quadro cuja sessão já tem outro pergunta qual fica */
@@ -999,8 +981,6 @@
 @media (hover: hover) and (pointer: fine) {
   .pr-faixa__item:hover .pr-faixa__copiar { opacity: 1; }
   .pr-faixa__arte:hover, .pr-cartao__bolsa:hover:not(:disabled) { border-color: var(--lb-gr-filete-latao); }
-  .pr-pergunta__achado:hover:not([aria-pressed='true']) { background: var(--lb-gr-hover); }
-  .pr-pergunta__modo .pr-abas__aba[aria-checked='false']:hover { color: var(--lb-color-parchment-dim); background: var(--lb-gr-hover); }
 }
 @media (prefers-reduced-motion: reduce) {
   .pr-faixa__arte:active, .pr-cartao__bolsa:active:not(:disabled) { transform: none; }
