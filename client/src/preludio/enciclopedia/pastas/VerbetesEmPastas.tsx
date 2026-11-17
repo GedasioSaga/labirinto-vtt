@@ -20,8 +20,10 @@ import {
   semAPasta,
   veioDoGrimorio,
 } from '../../../lib/preparo/pastasDeVerbetes'
+import { tipoDaFichaLigada } from '../../../lib/preparo/fichaDoVerbete'
 import type { PastaDeVerbetes, TipoDeVerbete, Verbete } from '../../../lib/preparo/tipos'
 import { usePreludio } from '../../estado/preludio'
+import { useTiposDasFichasLigadas } from '../tiposDasFichas'
 import { lugarDoVerbete, resumoDe } from '../ListaDeVerbetes'
 import { useArrastoParaPasta } from './arrastarParaPasta'
 import { ArvoreDasPastas, EscolherPasta, fraseDaRecusaDaPasta, recuoDoNivel, SEM, TEXTOS_DO_ARRASTO_DA_PASTA, TODAS, TOPO } from './ArvoreDasPastas'
@@ -44,7 +46,7 @@ import './pastas.css'
  *   até uma pasta (a pasta fechada abre se o retrato parar em cima), marcar
  *   vários e "Mover para…".
  * - Organizar: busca pelo nome e apelido, campanha, "Já é NPC" / "Sem ficha"
- *   (NPC = tem ficha ligada, `liga.fichas`), A–Z ou Recentes, retratos ou lista.
+ *   (NPC = tem ficha ligada, `liga.fichas`, e ela não é de jogador; a de jogador mostra o selo "Jogador"), A–Z ou Recentes, retratos ou lista.
  *
  * As mudanças passam pela loja do Prelúdio: o verbete pelo salvar automático,
  * as pastas pelo índice (`mudarPastas`).
@@ -60,10 +62,6 @@ type Menu = { readonly t: 'verbete'; readonly id: string } | { readonly t: 'past
 interface Grupo {
   readonly id: string
   readonly membros: readonly Verbete[]
-}
-
-export function ehNpc(verbete: Verbete): boolean {
-  return (verbete.liga?.fichas.length ?? 0) > 0
 }
 
 export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
@@ -139,9 +137,13 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
 
   const limpa = semAcento(busca.trim())
   const base = useMemo(() => doTipo.filter(naEscolhida), [doTipo, naEscolhida])
-  const npcs = useMemo(() => base.filter(ehNpc).length, [base])
+  // NPC = ficha ligada que não é de jogador (pedido 6 de 17/11): o personagem com ficha de jogador não conta nem aparece em "Já é NPC".
+  const tipos = useTiposDasFichasLigadas(base)
+  const npcs = useMemo(() => base.filter((verbete) => tipoDaFichaLigada(verbete, tipos) === 'npc').length, [base, tipos])
+  const semFicha = useMemo(() => base.filter((verbete) => tipoDaFichaLigada(verbete, tipos) === null).length, [base, tipos])
   const grupos = useMemo((): Grupo[] => {
-    const passa = (verbete: Verbete) => passaNaBusca(verbete, limpa) && (!comFicha || filtro === 'todos' || (filtro === 'npc') === ehNpc(verbete))
+    const daFicha = (verbete: Verbete) => (filtro === 'npc' ? tipoDaFichaLigada(verbete, tipos) === 'npc' : tipoDaFichaLigada(verbete, tipos) === null)
+    const passa = (verbete: Verbete) => passaNaBusca(verbete, limpa) && (!comFicha || filtro === 'todos' || daFicha(verbete))
     const filtradas = base.filter(passa)
     const ordenar = (lista: Verbete[]) =>
       lista.sort(ordem === 'az' ? (a, b) => compararTitulos(a.titulo, b.titulo) : (a, b) => momentoDoVerbete(b) - momentoDoVerbete(a) || compararTitulos(a.titulo, b.titulo))
@@ -149,7 +151,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
     return ids
       .map((id) => ({ id, membros: ordenar(filtradas.filter((verbete) => (pastaDe.get(verbete.id) ?? null) === (id === SEM ? null : id))) }))
       .filter((grupo) => grupo.membros.length > 0 || (grupo.id === atual && !arvore.some(({ pasta }) => pasta.paiId === grupo.id)))
-  }, [base, limpa, comFicha, filtro, ordem, atual, arvore, dentro, pastaDe])
+  }, [base, limpa, comFicha, filtro, tipos, ordem, atual, arvore, dentro, pastaDe])
   const visiveis = useMemo(() => grupos.flatMap((grupo) => grupo.membros.map((verbete) => verbete.id)), [grupos])
 
   // ─── Ações ─────────────────────────────────────────────────────────────────
@@ -403,7 +405,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const subDe = (verbete: Verbete): string => {
     if (ordem === 'rec') return quando(momentoDoVerbete(verbete))
     if (campanhaId === null) return campanhaDoVerbete(verbete, campanhas)
-    return comFicha ? (ehNpc(verbete) ? 'tem ficha' : 'sem ficha') : ''
+    return comFicha ? (tipoDaFichaLigada(verbete, tipos) === null ? 'sem ficha' : 'tem ficha') : ''
   }
 
   const aoTeclarNaPagina = (evento: KeyboardEvent<HTMLDivElement>) =>
@@ -571,7 +573,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
                 Já é NPC <b>{npcs}</b>
               </button>
               <button type="button" aria-pressed={filtro === 'sem'} onClick={() => setFiltro('sem')}>
-                Sem ficha <b>{base.length - npcs}</b>
+                Sem ficha <b>{semFicha}</b>
               </button>
             </div>
           )}
@@ -586,7 +588,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
                   : filtro === 'npc'
                     ? 'Ninguém aqui já é NPC.'
                     : filtro === 'sem'
-                      ? 'Todos aqui já têm ficha de NPC.'
+                      ? 'Todos aqui já têm ficha.'
                       : `Nenhum ${um} aqui.`}
               </p>
               <div className="pp-vazio__acoes">
@@ -632,7 +634,8 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
                               verbete={verbete}
                               vista={vista}
                               marcado={marcados.has(verbete.id)}
-                              npc={comFicha && ehNpc(verbete)}
+                              npc={comFicha && tipoDaFichaLigada(verbete, tipos) !== null}
+                              fichaDeJogador={tipoDaFichaLigada(verbete, tipos) === 'jogador'}
                               sub={subDe(verbete)}
                               resumo={vista === 'lista' ? resumoDe(verbete) : ''}
                               busca={busca}

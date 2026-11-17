@@ -84,11 +84,12 @@ function SeloDentro({ quantos }: { quantos: number }) {
 
 type Capa = 'retrato' | 'paisagem'
 
-function SeloNpc() {
+/** O selo da ficha ligada: "NPC", ou "Jogador" quando a ficha é de um jogador (pedido 6 de 17/11). */
+function SeloDaFicha({ jogador }: { jogador: boolean }) {
   return (
     <span className="pp-selo-npc">
       <IconeEscudo />
-      NPC
+      {jogador ? 'Jogador' : 'NPC'}
     </span>
   )
 }
@@ -97,8 +98,10 @@ export interface CartaoDoVerbeteProps {
   verbete: Verbete
   vista: 'grade' | 'lista'
   marcado: boolean
-  /** Mostra o selo "NPC" (o personagem tem ficha ligada). */
+  /** Mostra o selo da ficha ligada (o personagem tem ficha): "NPC", ou "Jogador" com `fichaDeJogador`. */
   npc: boolean
+  /** A ficha ligada é de um jogador: o selo diz "Jogador", não "NPC". */
+  fichaDeJogador?: boolean
   /** A linha de baixo: campanha, "sem ficha" ou quando mudou. */
   sub: string
   /** O resumo (só na vista em lista). */
@@ -129,6 +132,7 @@ export const CartaoDoVerbete = memo(function CartaoDoVerbete({
   vista,
   marcado,
   npc,
+  fichaDeJogador = false,
   sub,
   resumo,
   busca,
@@ -182,7 +186,7 @@ export const CartaoDoVerbete = memo(function CartaoDoVerbete({
           </span>
         </button>
         <span className="pp-linha-v__meta">
-          {npc && <SeloNpc />}
+          {npc && <SeloDaFicha jogador={fichaDeJogador} />}
           {dentro > 0 && <SeloDentro quantos={dentro} />}
           <span>{sub}</span>
         </span>
@@ -197,7 +201,7 @@ export const CartaoDoVerbete = memo(function CartaoDoVerbete({
       <button type="button" className="pp-carta__abrir" {...abrir}>
         <span className="pp-carta__foto">
           <FotoDoCartao nome={nome} id={verbete.id} midia={midia} capa={capa} />
-          {npc && <SeloNpc />}
+          {npc && <SeloDaFicha jogador={fichaDeJogador} />}
           {dentro > 0 && <SeloDentro quantos={dentro} />}
         </span>
         <span className="pp-carta__nome">
