@@ -222,8 +222,6 @@
 .pr-arvore__seta svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out); }
 .pr-arvore__seta[data-aberta='true'] svg { transform: rotate(90deg); }
 .pr-arvore__rotulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pr-arvore--lista { margin-top: var(--lb-space-2); }
-.pr-arvore--lista .pr-arvore__linha { min-height: 36px; color: var(--lb-color-parchment); font: 400 var(--lb-font-size-lg)/1.3 var(--lb-font-display); }
 @media (hover: hover) and (pointer: fine) {
   .pr-arvore__linha:hover:not([aria-selected='true']) { background: var(--lb-gr-hover); color: var(--lb-color-parchment); }
   .pr-arvore__seta:hover { background: var(--lb-gr-hover-forte); }

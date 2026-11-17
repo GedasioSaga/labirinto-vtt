@@ -102,6 +102,26 @@ export function IconeCadeado() {
   )
 }
 
+/** A região na barra de Lugares: o mapa dobrado (a pasta dos lugares). */
+export function IconeMapa() {
+  return (
+    <svg className="pp-ic pp-linha__icone" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M2.5 5.2l4.6-1.9 5.8 1.9 4.6-1.9v11.5l-4.6 1.9-5.8-1.9-4.6 1.9z" />
+      <path d="M7.1 3.3v11.5M12.9 5.2v11.5" />
+    </svg>
+  )
+}
+
+/** O selo "N dentro" do cartão do lugar: o marcador de lugar. */
+export function IconeLugar() {
+  return (
+    <svg className="pp-ic" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path d="M10 17.5s5.5-5 5.5-9.3a5.5 5.5 0 0 0-11 0c0 4.3 5.5 9.3 5.5 9.3z" />
+      <circle cx="10" cy="8.2" r="1.9" />
+    </svg>
+  )
+}
+
 export function IconeLivro() {
   return (
     <svg className="pp-ic" viewBox="0 0 20 20" aria-hidden="true" focusable="false">

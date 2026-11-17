@@ -12,6 +12,11 @@ import { useCallback, useEffect, useRef, type PointerEvent as PointerDoReact } f
  *   abre a pasta (`aoParar`).
  * - Esc desiste; soltar fora de um alvo não muda nada.
  * - O fantasma leva só texto (`textContent`) e a imagem já mostrada no cartão.
+ *
+ * Em Lugares (16/11) o alvo também é outro cartão (pôr o lugar dentro de
+ * outro): as frases vêm de fora (`textos`) e `recusa` diz quando o alvo não
+ * serve (o lugar dentro dele mesmo). O alvo recusado não acende e a dica diz
+ * o porquê; quem decide de verdade continua sendo o `aoSoltar`.
  */
 
 const DISTANCIA_PARA_COMECAR = 6
@@ -32,6 +37,25 @@ export interface OpcoesDoArrasto {
   aoSoltar: (ids: readonly string[], alvo: string) => void
   /** Avisa o leitor de tela ("Arrastando. Solte numa pasta, ou Esc para desistir."). */
   anunciar: (texto: string) => void
+  /** As frases do fantasma e do anúncio; sem elas, as das pastas. */
+  textos?: TextosDoArrasto
+  /** Por que os `ids` não podem cair em `alvo` (`null` = podem). */
+  recusa?: (ids: readonly string[], alvo: string) => string | null
+}
+
+export interface TextosDoArrasto {
+  /** Sem alvo debaixo do ponteiro: "Solte numa pasta". */
+  readonly semAlvo: string
+  /** Antes do nome do alvo: "Soltar em ". */
+  readonly antesDoAlvo: (alvo: string) => string
+  /** O anúncio do começo, para o leitor de tela. */
+  readonly anuncio: string
+}
+
+const TEXTOS_DAS_PASTAS: TextosDoArrasto = {
+  semAlvo: 'Solte numa pasta',
+  antesDoAlvo: () => 'Soltar em ',
+  anuncio: 'Arrastando. Solte numa pasta, ou Esc para desistir.',
 }
 
 interface Gesto {
@@ -42,6 +66,8 @@ interface Gesto {
   iniciado: boolean
   ids: readonly string[]
   alvo: string | null
+  /** O porquê de o alvo debaixo do ponteiro não servir; soltar ali não faz nada. */
+  recusa: string | null
   fantasma: HTMLDivElement | null
   dica: HTMLDivElement | null
   mola: ReturnType<typeof setTimeout> | undefined
@@ -62,7 +88,7 @@ function marcarArrastados(ids: readonly string[], ligado: boolean): void {
 }
 
 /** O fantasma: a foto que o cartão já mostra (ou as iniciais) e o nome; tudo como texto. */
-function criarFantasma(origem: HTMLElement, rotulo: string): { fantasma: HTMLDivElement; dica: HTMLDivElement } {
+function criarFantasma(origem: HTMLElement, rotulo: string, semAlvo: string): { fantasma: HTMLDivElement; dica: HTMLDivElement } {
   const fantasma = document.createElement('div')
   fantasma.className = 'pp-fantasma'
   fantasma.setAttribute('aria-hidden', 'true')
@@ -87,21 +113,24 @@ function criarFantasma(origem: HTMLElement, rotulo: string): { fantasma: HTMLDiv
   pilha.append(foto, nome)
   const dica = document.createElement('div')
   dica.className = 'pp-fantasma__alvo'
-  dica.textContent = 'Solte numa pasta'
+  dica.textContent = semAlvo
   fantasma.append(pilha, dica)
   document.body.append(fantasma)
   return { fantasma, dica }
 }
 
-function mostrarDica(dica: HTMLDivElement, nome: string | null, comSubpastas: boolean): void {
+type Dica = { readonly t: 'nada'; readonly texto: string } | { readonly t: 'alvo'; readonly antes: string; readonly nome: string; readonly comSubpastas: boolean } | { readonly t: 'recusa'; readonly texto: string }
+
+function mostrarDica(dica: HTMLDivElement, qual: Dica): void {
   dica.replaceChildren()
-  if (nome === null) {
-    dica.textContent = 'Solte numa pasta'
+  dica.classList.toggle('e-recusa', qual.t === 'recusa')
+  if (qual.t !== 'alvo') {
+    dica.textContent = qual.texto
     return
   }
   const forte = document.createElement('b')
-  forte.textContent = nome
-  dica.append('Soltar em ', forte, comSubpastas ? ', ou numa subpasta' : '')
+  forte.textContent = qual.nome
+  dica.append(qual.antes, forte, qual.comSubpastas ? ', ou numa subpasta' : '')
 }
 
 /**
@@ -122,33 +151,36 @@ export function useArrastoParaPasta(opcoes: OpcoesDoArrasto) {
       marcarArrastados(fim.ids, false)
       document.body.classList.remove('pp-arrastando')
     }
+    const textos = () => atuais.current.textos ?? TEXTOS_DAS_PASTAS
     const comecar = (atual: Gesto) => {
       atual.iniciado = true
       atual.ids = atuais.current.idsDoArrasto(atual.id)
-      const { fantasma, dica } = criarFantasma(atual.origem, atuais.current.rotuloDoArrasto(atual.ids))
+      const { fantasma, dica } = criarFantasma(atual.origem, atuais.current.rotuloDoArrasto(atual.ids), textos().semAlvo)
       atual.fantasma = fantasma
       atual.dica = dica
       marcarArrastados(atual.ids, true)
       document.body.classList.add('pp-arrastando')
-      atuais.current.anunciar('Arrastando. Solte numa pasta, ou Esc para desistir.')
+      atuais.current.anunciar(textos().anuncio)
     }
+    const dicaDoAlvo = (alvo: string, comSubpastas: boolean): Dica => ({ t: 'alvo', antes: textos().antesDoAlvo(alvo), nome: atuais.current.nomeDoAlvo(alvo), comSubpastas })
     const trocarAlvo = (atual: Gesto, x: number, y: number) => {
       const sob = document.elementFromPoint(x, y)
       const elemento = sob instanceof Element ? sob.closest<HTMLElement>('[data-solta-pasta]') : null
       const alvo = elemento?.dataset.soltaPasta ?? null
       if (alvo === atual.alvo) return
       atual.alvo = alvo
+      atual.recusa = alvo === null ? null : (atuais.current.recusa?.(atual.ids, alvo) ?? null)
       clearTimeout(atual.mola)
-      acenderAlvo(alvo)
+      acenderAlvo(atual.recusa === null ? alvo : null)
       const fechadaComSub = elemento !== null && elemento.getAttribute('aria-expanded') === 'false'
-      if (atual.dica !== null) mostrarDica(atual.dica, alvo === null ? null : atuais.current.nomeDoAlvo(alvo), false)
-      if (alvo === null || !fechadaComSub) return
+      if (atual.dica !== null) mostrarDica(atual.dica, alvo === null ? { t: 'nada', texto: textos().semAlvo } : atual.recusa !== null ? { t: 'recusa', texto: atual.recusa } : dicaDoAlvo(alvo, false))
+      if (alvo === null || atual.recusa !== null || !fechadaComSub) return
       atual.mola = setTimeout(() => {
         if (gesto.current !== atual || atual.alvo !== alvo) return
         atuais.current.aoParar(alvo)
         // A árvore redesenha com as subpastas: a pasta continua acesa e a dica oferece as de dentro.
         requestAnimationFrame(() => acenderAlvo(atual.alvo))
-        if (atual.dica !== null) mostrarDica(atual.dica, atuais.current.nomeDoAlvo(alvo), true)
+        if (atual.dica !== null) mostrarDica(atual.dica, dicaDoAlvo(alvo, textos() === TEXTOS_DAS_PASTAS))
       }, ESPERA_PARA_ABRIR_MS)
     }
     const aoMover = (evento: PointerEvent) => {
@@ -171,7 +203,9 @@ export function useArrastoParaPasta(opcoes: OpcoesDoArrasto) {
       setTimeout(() => {
         soltouAgora.current = false
       }, 0)
-      if (atual.alvo !== null) atuais.current.aoSoltar(atual.ids, atual.alvo)
+      if (atual.alvo === null) return
+      if (atual.recusa !== null) atuais.current.anunciar(atual.recusa)
+      else atuais.current.aoSoltar(atual.ids, atual.alvo)
     }
     const aoCancelar = () => {
       const atual = gesto.current
@@ -204,7 +238,7 @@ export function useArrastoParaPasta(opcoes: OpcoesDoArrasto) {
   // Estáveis: os cartões são memorizados e não redesenham por causa delas.
   const aoApertar = useCallback((id: string, evento: PointerDoReact<HTMLElement>) => {
     if (evento.button !== 0 || evento.pointerType === 'touch') return
-    gesto.current = { id, x0: evento.clientX, y0: evento.clientY, origem: evento.currentTarget, iniciado: false, ids: [], alvo: null, fantasma: null, dica: null, mola: undefined }
+    gesto.current = { id, x0: evento.clientX, y0: evento.clientY, origem: evento.currentTarget, iniciado: false, ids: [], alvo: null, recusa: null, fantasma: null, dica: null, mola: undefined }
   }, [])
   const acabouDeSoltar = useCallback(() => soltouAgora.current, [])
   return { aoApertar, acabouDeSoltar }

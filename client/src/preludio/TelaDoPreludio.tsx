@@ -8,6 +8,7 @@ import { PainelDaCopia } from './copia/PainelDaCopia'
 import { precarregarEditor } from './editor/sobDemanda'
 import { CampanhasESistemas } from './campanhas/CampanhasESistemas'
 import { ListaDeVerbetes } from './enciclopedia/ListaDeVerbetes'
+import { LugaresEmRegioes } from './enciclopedia/pastas/LugaresEmRegioes'
 import { TIPOS_COM_PASTAS, VerbetesEmPastas } from './enciclopedia/pastas/VerbetesEmPastas'
 import { PaginaDoVerbete } from './enciclopedia/PaginaDoVerbete'
 import { Escrita } from './escrita/Escrita'
@@ -315,7 +316,9 @@ export function TelaDoPreludio({ onBack, aoAbrirNaMesa, naJanela = false }: Tela
             </p>
           ) : lugar.secao === 'enciclopedia' ? (
             lugar.verbeteId === null ? (
-              lugar.tipo !== 'todos' && TIPOS_COM_PASTAS.includes(lugar.tipo) ? (
+              lugar.tipo === 'lugar' ? (
+                <LugaresEmRegioes key={lugar.tipo} />
+              ) : lugar.tipo !== 'todos' && TIPOS_COM_PASTAS.includes(lugar.tipo) ? (
                 <VerbetesEmPastas key={lugar.tipo} tipo={lugar.tipo} />
               ) : (
                 <ListaDeVerbetes key={lugar.tipo} tipo={lugar.tipo} />

@@ -1,15 +1,14 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { arvoreDe, compararTitulos, ehDaEscrita, naCampanha, ROTULO_DO_TIPO, semAcento, textoPlano, TIPOS_DA_ENCICLOPEDIA, verbeteNovo, type NoDaArvore } from '../../lib/preparo/enciclopedia'
+import { compararTitulos, ehDaEscrita, naCampanha, ROTULO_DO_TIPO, semAcento, textoPlano, TIPOS_DA_ENCICLOPEDIA, verbeteNovo } from '../../lib/preparo/enciclopedia'
 import type { TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
-import { Arvore, type ItemDaArvore } from '../arvore/Arvore'
 import { usePreludio, type Lugar } from '../estado/preludio'
 import { Retrato } from './Imagens'
 
 /**
  * A LISTA DA ENCICLOPÉDIA: os verbetes do tipo escolhido na barra lateral,
- * filtrados pela campanha e pelo nome. Lugares aparecem em árvore (lugar
- * dentro de lugar) enquanto não há filtro de nome; com filtro, viram lista com
- * o caminho de cada um.
+ * filtrados pela campanha e pelo nome, com o caminho de cada um (lugar dentro
+ * de lugar, página dentro de página). Serve a "Tudo" e a Páginas; Personagens,
+ * Itens e Facções têm a lista com pastas, e Lugares a lista em regiões (pastas/).
  */
 
 const LINHA_DO_RESUMO = 160
@@ -32,10 +31,6 @@ export function resumoDe(verbete: Verbete): string {
   const curto = texto.length > LINHA_DO_RESUMO ? `${texto.slice(0, LINHA_DO_RESUMO).trimEnd()}…` : texto
   resumos.set(verbete, curto)
   return curto
-}
-
-function itensDaArvore(nos: readonly NoDaArvore[]): ItemDaArvore[] {
-  return nos.map((no) => ({ id: no.verbete.id, rotulo: no.verbete.titulo || 'Sem nome', filhos: itensDaArvore(no.filhos) }))
 }
 
 export function lugarDoVerbete(verbete: Verbete, verbetes: ReadonlyMap<string, Verbete>): Lugar {
@@ -78,8 +73,6 @@ export function ListaDeVerbetes({ tipo }: ListaDeVerbetesProps) {
     const achados = limpo === '' ? doTipo : doTipo.filter((verbete) => semAcento(verbete.titulo).includes(limpo) || verbete.apelidos.some((apelido) => semAcento(apelido).includes(limpo)))
     return [...achados].sort((a, b) => compararTitulos(a.titulo, b.titulo))
   }, [doTipo, limpo])
-  const emArvore = tipo === 'lugar' && limpo === ''
-  const arvore = useMemo(() => (emArvore ? itensDaArvore(arvoreDe(doTipo)) : []), [emArvore, doTipo])
 
   const criar = async (novoTipo: TipoDeVerbete) => {
     const novo = verbeteNovo(novoTipo, `${ROTULO_DO_TIPO[novoTipo].um} sem nome`, { campanhas: campanhaId === null ? [] : [campanhaId] })
@@ -165,8 +158,6 @@ export function ListaDeVerbetes({ tipo }: ListaDeVerbetesProps) {
             Limpar o filtro
           </button>
         </div>
-      ) : emArvore ? (
-        <Arvore itens={arvore} rotulo="Lugares" selecionado={null} aoAbrir={abrir} classe="pr-arvore--lista" />
       ) : (
         <ul ref={lista} className="pr-linhas" aria-label={titulo} onKeyDown={aoTeclar}>
           {visiveis.map((verbete, indice) => {

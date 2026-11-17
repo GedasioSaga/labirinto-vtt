@@ -136,6 +136,34 @@
 .pp-realce { background: rgba(224, 164, 74, 0.28); color: inherit; border-radius: 2px; padding: 0 1px; }
 @media (hover: hover) and (pointer: fine) { .pp-carta__abrir:hover .pp-carta__foto { box-shadow: 0 0 0 1px var(--lb-color-brass), 0 6px 14px rgba(0, 0, 0, 0.32); } }
 
+/* ─── Lugares (16/11): a imagem deitada, o mapa sem imagem, soltar dentro ─ */
+/* Imagem de lugar é paisagem: o 4:5 do retrato cortaria o cenário pela metade. */
+.pp-cartas--paisagem { grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); }
+.pp-cartas--paisagem > li { contain-intrinsic-size: auto 178px; }
+.pp-carta--paisagem .pp-carta__foto { aspect-ratio: 4 / 3; }
+/*
+ * Sem imagem: a primeira letra sobre um mapa discreto (curvas de nível em volta
+ * de um ponto que muda por cartão, a grade do mapa e um halo escuro sob a letra
+ * para ela não brigar com as linhas). Tudo gradiente: nenhum arquivo a carregar.
+ */
+.pp-carta__mapa {
+  font-size: 34px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(26, 22, 16, 0.92) 0 22px, rgba(26, 22, 16, 0) 44px),
+    repeating-radial-gradient(ellipse 130% 95% at var(--pp-mapa-x, 40%) var(--pp-mapa-y, 55%), rgba(201, 168, 106, 0) 0 12px, rgba(201, 168, 106, 0.1) 12px 13px),
+    linear-gradient(rgba(201, 168, 106, 0.05) 1px, rgba(201, 168, 106, 0) 1px) 0 0 / 22px 22px,
+    linear-gradient(90deg, rgba(201, 168, 106, 0.05) 1px, rgba(201, 168, 106, 0) 1px) 0 0 / 22px 22px,
+    radial-gradient(110% 90% at 50% 40%, #2c261c, #19150f);
+}
+.pp-carta .pp-selo-dentro { position: absolute; left: 6px; bottom: 6px; color: var(--lb-color-parchment); }
+.pp-selo-dentro .pp-ic { color: var(--lb-color-brass-bright); }
+/* O cartão que vai receber o lugar arrastado: o mesmo latão do alvo das pastas, e um leve crescer de "cabe aqui". */
+.pp-carta.e-alvo .pp-carta__foto { transform: scale(1.03); box-shadow: 0 0 0 2px var(--lb-color-brass), 0 0 0 6px rgba(224, 164, 74, 0.16), 0 10px 22px rgba(0, 0, 0, 0.4); }
+.pp-carta.e-alvo .pp-carta__nome { color: var(--lb-color-brass-bright); }
+.pp-linha-v.e-alvo { background: rgba(224, 164, 74, 0.16); box-shadow: inset 0 0 0 1px var(--lb-color-brass); }
+.pp-fantasma__alvo.e-recusa { color: var(--lb-color-parchment-faint); font-style: italic; }
+
 /* ─── Lista ──────────────────────────────────────────────────── */
 .pp-linhas { list-style: none; margin: 0; padding: 0 0 var(--lb-space-4); display: flex; flex-direction: column; }
 .pp-linhas > li { content-visibility: auto; contain-intrinsic-size: auto 58px; }
@@ -172,5 +200,6 @@ body.pp-arrastando, body.pp-arrastando * { cursor: grabbing !important; user-sel
 /* Movimento reduzido: sem deslocamento, só opacidade. */
 @media (prefers-reduced-motion: reduce) {
   .pp-grupo__seta, .pp-linha__seta, .pp-carta__foto { transition: none; }
+  .pp-carta.e-alvo .pp-carta__foto { transform: none; }
   .pp-barra-sel, .pp-barra-sel.e-fora { transform: none; transition: opacity 140ms ease, visibility 0s; }
 }

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { MenuItem, MenuRotulo, MenuSeparador, Pop } from '../../../components/grimorio/Pop'
-import { Torrada, Torradas } from '../../../components/grimorio/Torrada'
 import { compararTitulos, naCampanha, ROTULO_DO_TIPO, semAcento, verbeteNovo } from '../../../lib/preparo/enciclopedia'
 import {
   arvoreDasPastas,
@@ -23,7 +22,8 @@ import { lugarDoVerbete, resumoDe } from '../ListaDeVerbetes'
 import { useArrastoParaPasta } from './arrastarParaPasta'
 import { ArvoreDasPastas, SEM, TODAS } from './ArvoreDasPastas'
 import { CartaoDoVerbete } from './CartaoDoVerbete'
-import { IconeGrade, IconeLista, IconeLivro, IconeLupa, IconePasta, IconeSeta } from './icones'
+import { IconeLivro, IconePasta } from './icones'
+import { AvisoDaLista, BarraDosMarcados, campanhaDoVerbete, FerramentasDaLista, GrupoDaLista, passaNaBusca, plural, quando, teclaDosMarcados, type Aviso, type Ordem, type Vista } from './partesDaLista'
 import './pastas.css'
 
 /**
@@ -43,52 +43,20 @@ import './pastas.css'
  * as pastas pelo índice (`mudarPastas`).
  */
 
-/** Os tipos que ganham a lista com pastas (o Lugar fica em árvore, lugar dentro de lugar). */
+/** Os tipos que ganham a lista com pastas (o Lugar tem a dele, em regiões: `LugaresEmRegioes`). */
 export const TIPOS_COM_PASTAS: readonly TipoDeVerbete[] = ['personagem', 'item', 'faccao']
 
 type FiltroDaFicha = 'todos' | 'npc' | 'sem'
-type Ordem = 'az' | 'rec'
-type Vista = 'grade' | 'lista'
 
 type Menu = { readonly t: 'verbete'; readonly id: string } | { readonly t: 'pasta'; readonly id: string } | { readonly t: 'mover'; readonly ids: readonly string[] }
-
-interface Aviso {
-  readonly chave: number
-  readonly texto: string
-  readonly desfazer?: () => void
-}
 
 interface Grupo {
   readonly id: string
   readonly membros: readonly Verbete[]
 }
 
-const QUANDO = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' })
-const DIA_MS = 86_400_000
-const UNIDADES: readonly [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * DIA_MS],
-  ['month', 30 * DIA_MS],
-  ['week', 7 * DIA_MS],
-  ['day', DIA_MS],
-]
-
-function quando(ms: number): string {
-  if (ms === 0) return 'sem data'
-  const passou = ms - Date.now()
-  for (const [unidade, tamanho] of UNIDADES) if (Math.abs(passou) >= tamanho) return QUANDO.format(Math.round(passou / tamanho), unidade)
-  return 'hoje'
-}
-
-function plural(n: number, um: string, varios: string): string {
-  return `${n} ${n === 1 ? um : varios}`
-}
-
 export function ehNpc(verbete: Verbete): boolean {
   return (verbete.liga?.fichas.length ?? 0) > 0
-}
-
-function passaNaBusca(verbete: Verbete, busca: string): boolean {
-  return busca === '' || semAcento(verbete.titulo).includes(busca) || verbete.apelidos.some((apelido) => semAcento(apelido).includes(busca))
 }
 
 export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
@@ -326,22 +294,23 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
 
   const subDe = (verbete: Verbete): string => {
     if (ordem === 'rec') return quando(momentoDoVerbete(verbete))
-    if (campanhaId === null) return verbete.campanhas.map((id) => campanhas.find((campanha) => campanha.id === id)?.nome).find((nome) => nome !== undefined) ?? 'sem campanha'
+    if (campanhaId === null) return campanhaDoVerbete(verbete, campanhas)
     return comFicha ? (ehNpc(verbete) ? 'tem ficha' : 'sem ficha') : ''
   }
 
-  const aoTeclarNaPagina = (evento: KeyboardEvent<HTMLDivElement>) => {
-    const emCampo = evento.target instanceof HTMLInputElement && evento.target.type !== 'checkbox'
-    if (evento.key === 'Escape' && marcados.size > 0 && !emCampo && menu === null) {
-      evento.preventDefault()
-      setMarcados(new Set())
-      anunciar('Nada marcado.')
-    } else if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'a' && !emCampo && evento.target instanceof Element && evento.target.closest('.pp-resultado') !== null) {
-      evento.preventDefault()
-      setMarcados(new Set(visiveis))
-      anunciar(`${plural(visiveis.length, 'marcado', 'marcados')}.`)
-    }
-  }
+  const aoTeclarNaPagina = (evento: KeyboardEvent<HTMLDivElement>) =>
+    teclaDosMarcados(evento, {
+      marcados: marcados.size,
+      menuAberto: menu !== null,
+      aoDesmarcar: () => {
+        setMarcados(new Set())
+        anunciar('Nada marcado.')
+      },
+      aoMarcarTodos: () => {
+        setMarcados(new Set(visiveis))
+        anunciar(`${plural(visiveis.length, 'marcado', 'marcados')}.`)
+      },
+    })
 
   // ─── O menu (um só, do verbete, da pasta ou o "Mover para…") ──────────────
   const conteudoDoMenu = () => {
@@ -452,23 +421,19 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
           </div>
         </header>
 
-        <div className="pp-ferr" role="toolbar" aria-label="Organizar a lista">
-          <label className="pp-busca">
-            <span className="pr-sr">Procurar {um}</span>
-            <IconeLupa />
-            <input type="search" placeholder="Procurar pelo nome ou apelido" value={busca} autoComplete="off" onChange={(evento) => setBusca(evento.target.value)} />
-          </label>
-          <label className="pp-filtro">
-            Campanha
-            <select value={campanhaId ?? ''} disabled={campanhas.length === 0} onChange={(evento) => escolherCampanha(evento.target.value === '' ? null : evento.target.value)}>
-              <option value="">Todas</option>
-              {campanhas.map((uma) => (
-                <option key={uma.id} value={uma.id}>
-                  {uma.nome}
-                </option>
-              ))}
-            </select>
-          </label>
+        <FerramentasDaLista
+          um={um}
+          busca={busca}
+          aoBuscar={setBusca}
+          campanhas={campanhas}
+          campanhaId={campanhaId}
+          aoEscolherCampanha={escolherCampanha}
+          ordem={ordem}
+          aoOrdenar={setOrdem}
+          vista={vista}
+          aoVer={setVista}
+          rotuloDaGrade="Retratos"
+        >
           {comFicha && (
             <div className="pp-seg" role="group" aria-label="Ficha de NPC">
               <button type="button" aria-pressed={filtro === 'todos'} onClick={() => setFiltro('todos')}>
@@ -482,23 +447,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
               </button>
             </div>
           )}
-          <div className="pp-seg" role="group" aria-label="Ordem">
-            <button type="button" aria-pressed={ordem === 'az'} onClick={() => setOrdem('az')}>
-              A–Z
-            </button>
-            <button type="button" aria-pressed={ordem === 'rec'} onClick={() => setOrdem('rec')}>
-              Recentes
-            </button>
-          </div>
-          <div className="pp-seg pp-seg--ic" role="group" aria-label="Vista">
-            <button type="button" aria-pressed={vista === 'grade'} aria-label="Retratos" title="Retratos" onClick={() => setVista('grade')}>
-              <IconeGrade />
-            </button>
-            <button type="button" aria-pressed={vista === 'lista'} aria-label="Lista" title="Lista" onClick={() => setVista('lista')}>
-              <IconeLista />
-            </button>
-          </div>
-        </div>
+        </FerramentasDaLista>
 
         <div className="pp-resultado">
           {grupos.length === 0 ? (
@@ -536,24 +485,15 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
               const nome = nomeDoDestino(grupo.id === SEM ? null : grupo.id)
               const pai = pastasNaTela.find((pasta) => pasta.id === grupo.id)?.paiId
               return (
-                <section key={grupo.id} className={`pp-grupo${fechado ? ' e-fechado' : ''}`} data-solta-pasta={grupo.id} aria-label={nome}>
-                  <h3 className="pp-grupo__h">
-                    <button
-                      type="button"
-                      className="pp-grupo__cab"
-                      aria-expanded={!fechado}
-                      onClick={() => setGruposFechados((antes) => (antes.has(grupo.id) ? new Set([...antes].filter((id) => id !== grupo.id)) : new Set([...antes, grupo.id])))}
-                    >
-                      <span className="pp-grupo__seta" aria-hidden="true">
-                        <IconeSeta />
-                      </span>
-                      <span className="pp-grupo__nome">{nome}</span>
-                      {pai !== undefined && <span className="pp-grupo__caminho">em {nomeDaPasta.get(pai)}</span>}
-                      <span className="pp-grupo__conta">{grupo.membros.length}</span>
-                    </button>
-                  </h3>
-                  <div className="pp-grupo__corpo" inert={fechado}>
-                    <div className="pp-grupo__miolo">
+                <GrupoDaLista
+                  key={grupo.id}
+                  alvo={grupo.id}
+                  nome={nome}
+                  caminho={pai === undefined ? undefined : `em ${nomeDaPasta.get(pai) ?? ''}`}
+                  conta={grupo.membros.length}
+                  fechado={fechado}
+                  aoAlternar={() => setGruposFechados((antes) => (antes.has(grupo.id) ? new Set([...antes].filter((id) => id !== grupo.id)) : new Set([...antes, grupo.id])))}
+                >
                       {grupo.membros.length === 0 ? (
                         <p className="pr-quieto pp-grupo__vazio">Esta pasta está vazia. Arraste retratos para cá, ou marque {varios} e use Mover para.</p>
                       ) : (
@@ -576,29 +516,19 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
                           ))}
                         </ul>
                       )}
-                    </div>
-                  </div>
-                </section>
+                </GrupoDaLista>
               )
             })
           )}
         </div>
 
-        <div className={`pp-barra-sel${marcados.size > 0 ? '' : ' e-fora'}`} role="region" aria-label={`${rotulo.varios} marcados`}>
-          <span className="pp-barra-sel__conta">{plural(marcados.size, 'marcado', 'marcados')}</span>
-          <button
-            type="button"
-            className="gr-bt gr-bt--p gr-bt--primario"
-            aria-haspopup="menu"
-            disabled={travado || marcados.size === 0}
-            onClick={(evento) => abrirMenu({ t: 'mover', ids: [...marcados] }, evento.currentTarget)}
-          >
-            Mover para…
-          </button>
-          <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" disabled={marcados.size === 0} onClick={() => setMarcados(new Set())}>
-            Desmarcar <kbd className="gr-kbd">Esc</kbd>
-          </button>
-        </div>
+        <BarraDosMarcados
+          rotulo={`${rotulo.varios} marcados`}
+          quantos={marcados.size}
+          travado={travado}
+          aoMover={(elemento) => abrirMenu({ t: 'mover', ids: [...marcados] }, elemento)}
+          aoDesmarcar={() => setMarcados(new Set())}
+        />
       </div>
 
       <Pop
@@ -614,16 +544,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
         {conteudoDoMenu()}
       </Pop>
 
-      {aviso !== null && (
-        <Torradas>
-          <Torrada
-            key={aviso.chave}
-            mensagem={aviso.texto}
-            acao={aviso.desfazer === undefined ? undefined : { rotulo: 'Desfazer', onClick: aviso.desfazer }}
-            onFechar={() => setAviso((agora) => (agora?.chave === aviso.chave ? null : agora))}
-          />
-        </Torradas>
-      )}
+      <AvisoDaLista aviso={aviso} aoFechar={(chave) => setAviso((agora) => (agora?.chave === chave ? null : agora))} />
       <p className="pr-sr" role="status">
         {anuncio}
       </p>
