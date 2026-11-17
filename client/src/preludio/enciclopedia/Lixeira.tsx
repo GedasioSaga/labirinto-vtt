@@ -123,6 +123,13 @@ export function Lixeira({ aberta, aoFechar }: LixeiraProps) {
   const [perguntando, setPerguntando] = useState<string | null>(null)
   const [ocupados, setOcupados] = useState<ReadonlySet<string>>(new Set())
   const [aviso, setAviso] = useState<{ readonly texto: string; readonly falhou: boolean } | null>(null)
+  const avisoRef = useRef<HTMLParagraphElement>(null)
+
+  // Restaurar e "Apagar de vez" tiram a linha clicada da lista, e o foco cairia no body:
+  // fora da caixa, o Esc não fecha e o Tab escapa. O foco vai para o aviso, dentro da caixa.
+  useEffect(() => {
+    if (aviso !== null) avisoRef.current?.focus()
+  }, [aviso])
 
   const campanhaDe = (verbete: Verbete) => verbete.campanhas.map((id) => campanhas.find((campanha) => campanha.id === id)?.nome).find((nome) => nome !== undefined) ?? ''
 
@@ -157,7 +164,7 @@ export function Lixeira({ aberta, aoFechar }: LixeiraProps) {
       descricao="O que você excluiu fica aqui, inteiro. Não aparece nas listas, na busca nem para os jogadores, até você restaurar."
     >
       <div className="pr-lixeira">
-        <p className={`pr-lixeira__aviso${aviso?.falhou === true ? ' pr-lixeira__aviso--falhou' : ''}`} role={aviso?.falhou === true ? 'alert' : 'status'}>
+        <p ref={avisoRef} tabIndex={-1} className={`pr-lixeira__aviso${aviso?.falhou === true ? ' pr-lixeira__aviso--falhou' : ''}`} role={aviso?.falhou === true ? 'alert' : 'status'}>
           {aviso?.texto ?? ''}
         </p>
         {jogados.length === 0 ? (

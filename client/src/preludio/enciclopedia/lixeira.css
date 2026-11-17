@@ -13,6 +13,7 @@
 .pr-lixeira { display: flex; flex-direction: column; gap: var(--lb-space-3); }
 .pr-lixeira__aviso { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
 .pr-lixeira__aviso:empty { display: none; }
+.pr-lixeira__aviso:focus { outline: none; } /* recebe o foco só para ele não cair fora da caixa; não é um controle */
 .pr-lixeira__aviso--falhou { color: var(--lb-color-ember); }
 .pr-lixeira__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--lb-space-2); }
 .pr-lixeira__item {
