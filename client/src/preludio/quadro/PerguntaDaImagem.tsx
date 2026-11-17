@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ancestraisDe, compararTitulos, formaDe, formaNova, idNovo, ROTULO_DO_TIPO, semAcento, verbeteNovo } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import type { Forma, Verbete } from '../../lib/preparo/tipos'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
 import './perguntaDaImagem.css'
@@ -109,10 +110,8 @@ export function nomeDaImagem(sugestao: string): string {
   return palavras.every((palavra) => PALAVRAS_VAZIAS.has(palavra) || NUMERO_OU_HASH.test(palavra)) ? '' : limpo
 }
 
-/** Na Lixeira (`Verbete.lixeira`, a data em que foi para lá): fora das escolhas. Lido sem depender do campo no tipo. */
-export function estaNaLixeira(verbete: Verbete): boolean {
-  return typeof Reflect.get(verbete, 'lixeira') === 'string'
-}
+/** Na Lixeira (`Verbete.lixeira`, a data em que foi para lá): fora das escolhas. */
+export { estaNaLixeira }
 
 // ─── O que a escolha faz no Prelúdio ─────────────────────────────────────────
 
