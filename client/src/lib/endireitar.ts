@@ -8,10 +8,14 @@ import { pisoDe } from './pisos'
  * linha seria legal eu poder alinhar ela mesmo depois de feita apertando alt,
  * para ela ficar em angulos retos".
  *
- * Endireitar = deixar deitada (0°) ou em pé (90°), a que estiver mais perto,
- * sem mudar o comprimento nem o sentido. Vale para Linha (desenho `line`),
+ * Endireitar = levar para a reta mais perto entre deitada (0°), em pé (90°) e
+ * diagonal (45°), sem mudar o comprimento nem o sentido. São as mesmas retas
+ * do selo "reta ✓" e do grude (`lib/alinhamento.ts`): o que o selo chama de
+ * reta fica como está. Até 17/11/2026 só deitava ou punha em pé, e a parede a
+ * 45° com selo "reta ✓" era deitada. Vale para Linha (desenho `line`),
  * Caminho (desenho `path`, trecho a trecho a partir do primeiro ponto) e
- * Parede solta. Parede de Sala fica de fora (a Sala tem o giro dela), e item
+ * Parede solta. Parede de Sala fica de fora daqui (a Sala endireita inteira,
+ * por `lib/alinhamento.ts` → `planoDeEndireitarSala`), e item
  * travado — ele, um pedaço dele ou a camada — também.
  *
  * O PONTO QUE FICA PARADO: abrir buraco entre paredes vaza luz e passo no jogo
@@ -29,8 +33,9 @@ import { pisoDe } from './pisos'
  * pedaço ou todos. Sem isso o pedaço da porta, emendado dos dois lados, ficaria
  * preso, e cada pedaço de fora giraria em volta dele: um zigue-zague.
  *
- * Sem trigonometria: o eixo que fica é copiado do ponto fixo, então x1 === x2
- * (ou y1 === y2) sai exato, sem ruído de cos/sin.
+ * Sem cos/sin: a direção é um vetor de tamanho 1 que vale 0 no eixo que não
+ * muda, então deitada e em pé saem exatas (x1 === x2 ou y1 === y2, copiado do
+ * ponto fixo); na diagonal os dois eixos andam o mesmo passo.
  *
  * Módulo puro, sem store e sem PixiJS. O Ctrl+Z (um passo para a seleção
  * inteira) e o aviso ficam em `stores/mapStore.ts` → `endireitarSelecionados`;
@@ -39,9 +44,6 @@ import { pisoDe } from './pisos'
  */
 
 type Ponto = DrawingPoint
-
-/** Deitada ('h') ou em pé ('v'). */
-export type Eixo = 'h' | 'v'
 
 /** O ponto que fica parado num segmento: uma das pontas ou o meio. */
 export type Pivo = 'a' | 'b' | 'meio'
@@ -55,20 +57,35 @@ const TOLERANCIA_ENCOSTA = 0.5
  *  ponto flutuante não pode virar um passo de desfazer que não muda a tela. */
 const TOLERANCIA_RETA = 0.01
 
+/** tan(22,5°): com o lado menor abaixo disto vezes o maior, o traço está mais perto do eixo que da diagonal. */
+const TANGENTE_DE_MEIA_DIAGONAL = Math.SQRT2 - 1
+
 /**
- * Mais para deitada fica deitada. Comparar os módulos (em vez de usar atan2)
- * deixa o empate de 45 graus exatos previsível — fica deitado — e livre de
- * ruído de ponto flutuante.
+ * A reta mais perto do traço entre deitada (0°), em pé (90°) e as duas
+ * diagonais (45°), como vetor de tamanho 1 no sentido dele: quem ia para a
+ * esquerda (ou para cima) continua indo. Comparar os módulos (em vez de usar
+ * atan2) deixa o eixo que não muda valendo 0 exato, livre de ruído de ponto
+ * flutuante.
  */
-export function eixoMaisProximo(dx: number, dy: number): Eixo {
-  return Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v'
+export function direcaoMaisProxima(dx: number, dy: number): Ponto {
+  const largura = Math.abs(dx)
+  const altura = Math.abs(dy)
+  const sentidoX = dx < 0 ? -1 : 1
+  const sentidoY = dy < 0 ? -1 : 1
+  if (Math.min(largura, altura) > Math.max(largura, altura) * TANGENTE_DE_MEIA_DIAGONAL) {
+    return { x: sentidoX * Math.SQRT1_2, y: sentidoY * Math.SQRT1_2 }
+  }
+  return largura >= altura ? { x: sentidoX, y: 0 } : { x: 0, y: sentidoY }
 }
 
-/** Já está deitada ou em pé, a menos de `TOLERANCIA_RETA`. Comprimento zero conta como reta. */
+/** Quanto `p` foge, em px de mundo e com sinal, da reta que passa por `origem` na direção `direcao`. */
+function foraDaReta(direcao: Ponto, origem: Ponto, p: Ponto): number {
+  return (p.x - origem.x) * direcao.y - (p.y - origem.y) * direcao.x
+}
+
+/** Já está deitada, em pé ou na diagonal, a menos de `TOLERANCIA_RETA`. Comprimento zero conta como reta. */
 export function jaEstaReta(a: Ponto, b: Ponto): boolean {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  return Math.abs(eixoMaisProximo(dx, dy) === 'h' ? dy : dx) <= TOLERANCIA_RETA
+  return Math.abs(foraDaReta(direcaoMaisProxima(b.x - a.x, b.y - a.y), a, b)) <= TOLERANCIA_RETA
 }
 
 function ultimo<T>(lista: readonly T[]): T {
@@ -117,10 +134,15 @@ function correnteDe(vertices: readonly Ponto[]): Corrente {
   return { vertices, acumulado }
 }
 
-/** Todos os vértices no mesmo eixo, a menos de `TOLERANCIA_RETA`. */
+/** A direção da corrente inteira: a reta mais perto de quem vai da primeira ponta à última. */
+function direcaoDaCorrente(vertices: readonly Ponto[]): Ponto {
+  return direcaoMaisProxima(ultimo(vertices).x - vertices[0].x, ultimo(vertices).y - vertices[0].y)
+}
+
+/** Todos os vértices na mesma reta (deitada, em pé ou diagonal), a menos de `TOLERANCIA_RETA`. */
 function correnteJaReta({ vertices }: Corrente): boolean {
-  const eixo = eixoMaisProximo(ultimo(vertices).x - vertices[0].x, ultimo(vertices).y - vertices[0].y)
-  const desvios = vertices.map((v) => (eixo === 'h' ? v.y : v.x))
+  const direcao = direcaoDaCorrente(vertices)
+  const desvios = vertices.map((v) => foraDaReta(direcao, vertices[0], v))
   return Math.max(...desvios) - Math.min(...desvios) <= TOLERANCIA_RETA
 }
 
@@ -131,20 +153,16 @@ interface PontoFixo {
 }
 
 /**
- * Endireita a corrente em volta do ponto fixo: o eixo que fica é copiado dele,
- * e cada vértice vai para a mesma distância ao longo da reta — o comprimento de
- * cada pedaço (a porta inclusive) fica como era.
+ * Endireita a corrente em volta do ponto fixo: cada vértice vai para a mesma
+ * distância ao longo da reta que passa por ele — o comprimento de cada pedaço
+ * (a porta inclusive) e o sentido ficam como eram.
  */
 function endireitarCorrente({ vertices, acumulado }: Corrente, fixo: PontoFixo): Ponto[] {
-  const dx = ultimo(vertices).x - vertices[0].x
-  const dy = ultimo(vertices).y - vertices[0].y
-  const eixo = eixoMaisProximo(dx, dy)
-  // O sentido fica: quem ia para a esquerda (ou para cima) continua indo.
-  const sinal = (eixo === 'h' ? dx : dy) < 0 ? -1 : 1
-  return acumulado.map((s) => {
-    const passo = (s - fixo.s) * sinal
-    return eixo === 'h' ? { x: fixo.ponto.x + passo, y: fixo.ponto.y } : { x: fixo.ponto.x, y: fixo.ponto.y + passo }
-  })
+  const direcao = direcaoDaCorrente(vertices)
+  return acumulado.map((s) => ({
+    x: fixo.ponto.x + (s - fixo.s) * direcao.x,
+    y: fixo.ponto.y + (s - fixo.s) * direcao.y,
+  }))
 }
 
 /** Endireita um segmento em volta de uma das pontas ou do meio. Comprimento zero volta igual. */
@@ -160,7 +178,8 @@ export function endireitarSegmento(a: Ponto, b: Ponto, pivo: Pivo): [Ponto, Pont
 /**
  * Caminho: o primeiro ponto fica parado e cada trecho endireita a partir do
  * ponto anterior JÁ endireitado, com o comprimento e o sentido dele — uma
- * trilha torta vira um corredor em L.
+ * trilha torta vira um corredor em L (com trecho em diagonal onde ela estava
+ * mais perto dos 45°).
  */
 export function endireitarPolilinha(pontos: readonly Ponto[]): Ponto[] {
   const saida: Ponto[] = []
@@ -172,12 +191,9 @@ export function endireitarPolilinha(pontos: readonly Ponto[]): Ponto[] {
     const dx = p.x - pontos[i - 1].x
     const dy = p.y - pontos[i - 1].y
     const passo = Math.hypot(dx, dy)
+    const direcao = direcaoMaisProxima(dx, dy)
     const anterior = saida[i - 1]
-    saida.push(
-      eixoMaisProximo(dx, dy) === 'h'
-        ? { x: anterior.x + (dx < 0 ? -passo : passo), y: anterior.y }
-        : { x: anterior.x, y: anterior.y + (dy < 0 ? -passo : passo) },
-    )
+    saida.push({ x: anterior.x + passo * direcao.x, y: anterior.y + passo * direcao.y })
   })
   return saida
 }
