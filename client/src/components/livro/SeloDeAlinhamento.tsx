@@ -39,7 +39,7 @@ export function alinhamentoDaSelecao(map: Pick<MapData, 'regions'>, parede: Wall
 export interface SeloDeAlinhamentoProps {
   parede: Wall | null
   sala: Region | null
-  /** Presente = o Endireitar tem o que fazer nesta seleção: o botão fica ao lado do selo. */
+  /** Presente = o Endireitar tem o que fazer nesta seleção: o botão fica ao lado do selo "torta". */
   onEndireitar?: () => void
 }
 
@@ -67,7 +67,10 @@ export function SeloDeAlinhamento({ parede, sala, onEndireitar }: SeloDeAlinhame
       <span className="lb-selo-de-alinhamento__selo" data-estado={selo.alinhamento.estado} role="status" aria-live="polite" aria-label={frasesDoSelo(selo.peca, selo.alinhamento)}>
         {rotuloDoAlinhamento(selo.alinhamento)}
       </span>
-      {onEndireitar !== undefined && (
+      {/* Só ao lado do "torta": o Endireitar das paredes soltas deita qualquer traço (pedido 5), e
+          oferecê-lo junto de "reta ✓" numa diagonal de 45° convidaria a estragar o que está certo.
+          No "Mais ações" ele continua como sempre. */}
+      {onEndireitar !== undefined && selo.alinhamento.estado === 'torta' && (
         <Botao tamanho="p" variante="latao" aria-keyshortcuts="Alt" onClick={onEndireitar}>
           Endireitar
           <Tecla>Alt</Tecla>
