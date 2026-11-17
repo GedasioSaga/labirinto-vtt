@@ -182,9 +182,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
         </label>
         <button
           type="button"
-          className="gr-bt gr-bt--ic pr-lado__engrenagem"
-          aria-label="Campanhas e sistemas"
-          title="Campanhas e sistemas"
+          className="gr-bt gr-bt--p gr-bt--fantasma pr-lado__engrenagem"
           aria-current={lugar.secao === 'campanhas' ? 'page' : undefined}
           disabled={!pronta}
           onClick={() => ir({ secao: 'campanhas' })}
@@ -193,6 +191,7 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
             <circle cx="10" cy="10" r="2.6" />
             <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" />
           </svg>
+          Campanhas e sistemas
         </button>
       </div>
 

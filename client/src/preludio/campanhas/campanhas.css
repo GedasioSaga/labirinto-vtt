@@ -3,8 +3,10 @@
  * a engrenagem ao lado do filtro "Campanha" da barra lateral.
  * ================================================================ */
 
-.pr-lado__campanha { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: end; }
-.pr-lado__engrenagem svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.pr-lado__campanha { display: grid; gap: 4px; }
+/* A engrenagem com o nome à vista (17/11): o mestre não achava a tela pelo ícone sozinho. */
+.pr-lado__engrenagem { justify-self: start; gap: 6px; }
+.pr-lado__engrenagem svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .pr-lado__engrenagem[aria-current='page'] { color: var(--lb-color-brass-bright); background: var(--lb-color-brass-soft); }
 
 .cp { max-width: 900px; margin: 0 auto; padding: var(--lb-space-6) var(--lb-space-8) var(--lb-space-12); }
