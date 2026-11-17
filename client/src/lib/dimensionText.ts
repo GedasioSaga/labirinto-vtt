@@ -119,22 +119,27 @@ export function dimensionLabel(draft: DimensionDraft, gridSize: number, gridShap
 }
 
 /**
- * O lado e o ângulo do traço num rótulo só, "3,0 m · 90°" (pedido 3, fatia 4:
+ * O ângulo e o lado do traço num rótulo só, "90° · 3,0 m" (pedido 3, fatia 4:
  * a medida do lado ao desenhar Parede, Linha e o segmento do Caminho). Um
  * rótulo, e não dois: dois textos perto do cursor se sobrepõem. O comprimento
  * vem de `dimensionLabel` com a ferramenta 'line', a mesma régua da Medir.
+ *
+ * O ângulo vem PRIMEIRO desde 17/11/2026 (pedido "nunca sei quando uma parede
+ * ta alinhada"): é ele que responde se a parede está reta, e o mesmo rótulo
+ * passou a aparecer ao puxar a ponta de uma parede e o vértice de uma sala.
  */
 export function lengthAndAngleLabel(length: string, angle: string): string {
-  return `${length} · ${angle}`
+  return `${angle} · ${length}`
 }
 
 /** Uma volta inteira: o ângulo do traço mora em [0, 360). */
 const FULL_TURN_DEGREES = 360
 
 /**
- * O ângulo do traço para o rótulo. Travado (Ctrl) ele cai num múltiplo exato
- * do passo, e o inteiro só limpa o resto de ponto flutuante (89,9999999 vira
- * "90°"). Livre, uma casa, para ficar claro que não está travado.
+ * O ângulo do traço para o rótulo. Travado — o traço está numa reta (0°, 45°,
+ * 90°…), grudado ou não — ele cai num múltiplo exato do passo, e o inteiro só
+ * limpa o resto de ponto flutuante (89,9999999 vira "90°"). Livre, uma casa,
+ * para ficar claro que não está reto.
  *
  * Vírgula decimal, como o comprimento ao lado (`measureDistance` formata em
  * pt-BR): "5,1 m · 335.8°" misturava as duas convenções no mesmo rótulo

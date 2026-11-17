@@ -99,6 +99,7 @@ import {
   avisoDaSalaQueNaoAbriu, avisoDoCorredorAberto, avisoDoEndireitar,
 } from '../components/labels'
 import { endireitarMudariaAlgo, endireitarNoMapa, type IgnoradosNoEndireitar } from '../lib/endireitar'
+import { endireitarSalaMudariaAlgo, planoDeEndireitarSala, regioesDaSelecao } from '../lib/alinhamento'
 import { useToastStore } from './toastStore'
 import { caminhosComMaterial } from '../lib/terrenoDoChao'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
@@ -1018,6 +1019,14 @@ interface MapStoreState {
   removeRegion: (id: string) => void
   addRoom: (region: Region, walls: Wall[]) => void
   updateWallPoint: (wallId: string, endpoint: 0 | 1, x: number, y: number) => void
+  /**
+   * Arrasto da ponta da parede e do vértice da sala — SEM histórico, par de
+   * `commitDragHistory(antes)` no pointerup, como o canto e o giro da sala.
+   * Com `updateWallPoint`/`updateRegionPoint` cada movimento do mouse virava um
+   * passo de desfazer: um arrasto custava dezenas de Ctrl+Z (17/11/2026).
+   */
+  updateWallPointLive: (wallId: string, endpoint: 0 | 1, x: number, y: number) => void
+  updateRegionPointLive: (regionId: string, index: number, x: number, y: number) => void
   moveWall: (wallId: string, dx: number, dy: number) => void
   updateRegionPoint: (regionId: string, index: number, x: number, y: number) => void
   insertRegionPoint: (regionId: string, afterEdgeIndex: number, x: number, y: number, newWallId: string) => void
@@ -2174,6 +2183,57 @@ function settleRoomRotation(map: MapData, id: string, before: MapData): MapData 
   return mapFactory.normalizeRectRoomOrder(reparented, subtreeIds(before.regions, id))
 }
 
+/**
+ * GRADE LEMBRA A ESCOLHA: o mapa que volta pelo Ctrl+Z (ou pelo refazer) fica
+ * com os interruptores de grade do mapa de AGORA. A escolha não entra no
+ * histórico (`setSnapTarget`), então sem isto desfazer uma parede de antes de
+ * ligar a grade a desligaria no arquivo, sem o mestre ter pedido. Mesma escolha
+ * (a referência de sempre, ou nenhuma): o MESMO mapa.
+ */
+function comEncaixeDe(alvo: MapData, agora: MapData): MapData {
+  if (alvo.encaixeNaGrade === agora.encaixeNaGrade) return alvo
+  if (agora.encaixeNaGrade !== undefined) return { ...alvo, encaixeNaGrade: agora.encaixeNaGrade }
+  const { encaixeNaGrade: _deAntes, ...semEncaixe } = alvo
+  return semEncaixe
+}
+
+/**
+ * ENDIREITAR SALA (17/11/2026, `lib/alinhamento.ts` → `planoDeEndireitarSala`):
+ * as salas que a seleção alcança, cada uma pelo plano dela. A retangular gira
+ * de volta à reta pelo caminho do campo "Rotação" (`rotateRegion` +
+ * `settleRoomRotation`: sub-salas, grade, sala de fora e ordem dos cantos). O
+ * polígono troca os cantos um a um por `updateRegionPoint`, que leva junto as
+ * paredes presas a cada lado, a porta inclusive. Sala travada fica e é contada.
+ * Nada a mudar devolve o MESMO `map`.
+ */
+function endireitarSalas(map: MapData, selection: SelectionSet): { map: MapData; alteradas: number; travadas: number } {
+  let atual = map
+  let alteradas = 0
+  let travadas = 0
+  for (const { id } of regioesDaSelecao(map, selection)) {
+    const regiao = atual.regions.find((r) => r.id === id)
+    if (regiao === undefined) continue
+    const plano = planoDeEndireitarSala(regiao, atual.grid)
+    if (plano === null) continue
+    if (!canInteract(regiao)) {
+      travadas += 1
+      continue
+    }
+    const antes = atual
+    if (plano.tipo === 'giro') {
+      const girado = mapFactory.rotateRegion(antes, id, plano.graus)
+      atual = girado === antes ? antes : settleRoomRotation(girado, id, antes)
+    } else {
+      plano.pontos.forEach((ponto, i) => {
+        const de = regiao.points[i]
+        if (de.x !== ponto.x || de.y !== ponto.y) atual = mapFactory.updateRegionPoint(atual, id, i, ponto.x, ponto.y)
+      })
+    }
+    if (atual !== antes) alteradas += 1
+  }
+  return { map: atual, alteradas, travadas }
+}
+
 /** Espessura mínima de desenho — mesmo `min` do slider de DrawingStyleControls. */
 const MIN_DRAWING_WIDTH = 1
 
@@ -2249,7 +2309,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const pedido = typeof parcial === 'function' ? parcial(state) : parcial
       if (pedido.map === undefined || pedido.map === state.map) return pedido
       const sincronizado = sincronizarParedesDosDesenhos(state.map, pedido.map)
-      return sincronizado === pedido.map ? pedido : { ...pedido, map: sincronizado }
+      const comParedes = sincronizado === pedido.map ? pedido : { ...pedido, map: sincronizado }
+      // GRADE LEMBRA A ESCOLHA: OUTRO mapa virou o atual (abrir, trocar de cena)
+      // e ele guarda a escolha do mestre — os interruptores voltam a ela. Mapa
+      // sem o campo (todo mapa antigo) deixa os interruptores como estão.
+      const encaixe = sincronizado.encaixeNaGrade
+      if (encaixe === undefined || pedido.snapTargets !== undefined || sincronizado.id === state.map.id) return comParedes
+      return { ...comParedes, snapTargets: { ...encaixe } }
     })
   }
   api.setState = set
@@ -2606,7 +2672,15 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (tool === 'select' || isSelectionEmpty(state.selection)) return { activeTool: tool, ...lastDrawing, ...pending }
       return { activeTool: tool, selection: EMPTY_SELECTION, ...lastDrawing, ...pending }
     }),
-    setSnapTarget: (kind, on) => set((state) => ({ snapTargets: { ...state.snapTargets, [kind]: on } })),
+    // GRADE LEMBRA A ESCOLHA (17/11/2026): o interruptor do painel grava a
+    // escolha também no mapa (`MapData.encaixeNaGrade`), que vai ao arquivo e
+    // volta ao abrir. Sem histórico: é preferência de edição, e um Ctrl+Z que
+    // "só desliga a grade" pareceria não fazer nada. O `setSnapEnabled` abaixo
+    // é o atalho dos testes e continua só na sessão.
+    setSnapTarget: (kind, on) => set((state) => {
+      const snapTargets = { ...state.snapTargets, [kind]: on }
+      return { snapTargets, map: { ...state.map, encaixeNaGrade: snapTargets } }
+    }),
     setSnapEnabled: (enabled) => set({ snapTargets: { token: enabled, wall: enabled, prop: enabled } }),
     setDrawColor: (color) => set({ drawColor: color }),
     setDrawWidth: (width) => set({ drawWidth: width }),
@@ -2812,6 +2886,22 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (after === before) return
       withHistory(() => after)
     },
+    updateWallPointLive: (wallId, endpoint, x, y) => set((state) => {
+      const parede = state.map.walls.find((w) => w.id === wallId)
+      if (parede === undefined) return {}
+      const ponta = endpoint === 0 ? { x: parede.x1, y: parede.y1 } : { x: parede.x2, y: parede.y2 }
+      // Mesmo ponto (a mão parada, presa no grude): nada muda e nenhum redesenho acorda.
+      if (ponta.x === x && ponta.y === y) return {}
+      const map = mapFactory.updateWallPoint(state.map, wallId, endpoint, x, y)
+      return map === state.map ? {} : { map }
+    }),
+    updateRegionPointLive: (regionId, index, x, y) => set((state) => {
+      const regiao = state.map.regions.find((r) => r.id === regionId)
+      if (regiao === undefined || index < 0 || index >= regiao.points.length) return {}
+      const atual = regiao.points[index]
+      if (atual.x === x && atual.y === y) return {}
+      return { map: mapFactory.updateRegionPoint(state.map, regionId, index, x, y) }
+    }),
     moveWall: (wallId, dx, dy) => withHistory((map) => mapFactory.moveWall(map, wallId, dx, dy)),
     updateRegionPoint: (regionId, index, x, y) => withHistory((map) => mapFactory.updateRegionPoint(map, regionId, index, x, y)),
     insertRegionPoint: (regionId, afterEdgeIndex, x, y, newWallId) => withHistory((map) => mapFactory.insertRegionPoint(map, regionId, afterEdgeIndex, x, y, newWallId)),
@@ -4127,21 +4217,28 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     endireitarSelecionados: () => {
       const { map, selection } = get()
       const resultado = endireitarNoMapa(map, selection)
-      if (resultado.map !== map) withHistory(() => resultado.map)
-      const aviso = avisoDoEndireitar(resultado.ignorados)
+      // SALAS (17/11/2026): a sala selecionada, e a dona da parede de sala
+      // selecionada, endireitam inteiras, no mesmo passo de desfazer das soltas.
+      const salas = endireitarSalas(resultado.map, selection)
+      if (salas.map !== map) withHistory(() => salas.map)
+      // A parede de sala deixou de "ficar de fora": quem cuida dela é a sala.
+      const ignorados = { ...resultado.ignorados, sala: 0, travados: resultado.ignorados.travados + salas.travadas }
+      const aviso = avisoDoEndireitar(ignorados)
       if (aviso !== null) useToastStore.getState().push('info', aviso)
-      return { alterados: resultado.alterados, ignorados: resultado.ignorados }
+      return { alterados: resultado.alterados + salas.alteradas, ignorados }
     },
     loadMap: (map) => {
       typingEdit = null
       // Outro mapa começa no térreo: o piso em edição do anterior pode nem existir nele.
-      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0, camadaDoPincelId: null })
+      // GRADE LEMBRA A ESCOLHA: o mapa que guarda os interruptores de grade os traz de volta (reabrir o mesmo mapa inclusive).
+      const encaixe = map.encaixeNaGrade === undefined ? {} : { snapTargets: { ...map.encaixeNaGrade } }
+      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0, camadaDoPincelId: null, ...encaixe })
     },
     undo: () => {
       const { past, map } = get()
       if (past.length === 0) return
       typingEdit = null
-      const previous = past[past.length - 1]
+      const previous = comEncaixeDe(past[past.length - 1], map)
       set((state) => ({
         map: previous,
         past: state.past.slice(0, -1),
@@ -4153,7 +4250,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const { future, map } = get()
       if (future.length === 0) return
       typingEdit = null
-      const next = future[future.length - 1]
+      const next = comEncaixeDe(future[future.length - 1], map)
       set((state) => ({
         map: next,
         future: state.future.slice(0, -1),
@@ -4230,7 +4327,8 @@ let ultimoEndireitarMudaria: { map: MapData; selection: SelectionSet; mudaria: b
 export function selectEndireitarMudaria(state: Pick<MapStoreState, 'map' | 'selection'>): boolean {
   const ultimo = ultimoEndireitarMudaria
   if (ultimo !== null && ultimo.map === state.map && ultimo.selection === state.selection) return ultimo.mudaria
-  const mudaria = endireitarMudariaAlgo(state.map, state.selection)
+  // A sala torta da seleção (17/11/2026) também põe o botão no menu.
+  const mudaria = endireitarMudariaAlgo(state.map, state.selection) || endireitarSalaMudariaAlgo(state.map, state.selection)
   ultimoEndireitarMudaria = { map: state.map, selection: state.selection, mudaria }
   return mudaria
 }

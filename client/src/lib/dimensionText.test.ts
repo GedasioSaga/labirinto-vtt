@@ -93,13 +93,13 @@ describe('dimensionLabel', () => {
 })
 
 describe('lengthAndAngleLabel (pedido 3, fatia 4: a medida do lado ao desenhar)', () => {
-  it('junta o comprimento e o ângulo num rótulo só, separados pelo ponto do meio', () => {
-    expect(lengthAndAngleLabel('12 ft', '90°')).toBe('12 ft · 90°')
+  it('junta o ângulo e o comprimento num rótulo só, o ângulo primeiro, separados pelo ponto do meio', () => {
+    expect(lengthAndAngleLabel('12 ft', '90°')).toBe('90° · 12 ft')
   })
 
   it('o comprimento vem de dimensionLabel com a ferramenta Linha, na régua do mapa', () => {
     const length = dimensionLabel({ tool: 'line', start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }, GRID_SIZE, 'square', SCALE_FT)
-    expect(lengthAndAngleLabel(length, formatAngleLabel(0, false))).toBe('10 ft · 0,0°')
+    expect(lengthAndAngleLabel(length, formatAngleLabel(0, false))).toBe('0,0° · 10 ft')
   })
 })
 

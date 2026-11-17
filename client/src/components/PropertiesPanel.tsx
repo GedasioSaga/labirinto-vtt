@@ -27,6 +27,7 @@ import {
   virarPortaAction,
   zonaIdentity,
 } from './livro/CabecaDaSelecao'
+import { SeloDeAlinhamento } from './livro/SeloDeAlinhamento'
 import { FichaDaParede } from './livro/FichaDaParede'
 import { gradeDaParede } from './gradeDaParede'
 import { meioTermoLigado } from '../lib/estiloDoMapa'
@@ -724,6 +725,15 @@ export function PropertiesPanel({
             onApagar={selection.onRemoveSelected}
             acoes={acoesDaSelecao}
             notaDasAcoes={pisos === undefined ? null : LEVAR_AO_PISO_HINT}
+          />
+        )}
+        {/* "Essa parede está alinhada?" (17/11/2026): o selo "reta ✓" / "torta 3°" da parede
+            ou da sala selecionada sozinha, com o Endireitar ao lado quando há o que consertar. */}
+        {selection.selection !== null && selection.selection.count === 1 && !subFichaAberta && (
+          <SeloDeAlinhamento
+            parede={selectedWall}
+            sala={selectedRegion}
+            onEndireitar={endireitarMudaria ? () => endireitarSelecionados() : undefined}
           />
         )}
         {/* "Camada" do que está selecionado (fase 3, fatia 8): um lugar só para todo tipo, logo abaixo da cabeça, também com vários itens e com o pino aberto. */}

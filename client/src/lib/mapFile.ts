@@ -613,6 +613,16 @@ function gridOffsetOrNone(value: MapData['gridOffset']): MapData['gridOffset'] {
 }
 
 /**
+ * GRADE LEMBRA A ESCOLHA (`MapData.encaixeNaGrade`, 17/11/2026): campo NOVO e
+ * OPCIONAL. Ausente continua ausente (o round-trip de mapa antigo sai
+ * idêntico); o que não é objeto cai, e cada interruptor só liga com `true`.
+ */
+function encaixeDoArquivo(encaixe: MapData['encaixeNaGrade']): Pick<MapData, 'encaixeNaGrade'> {
+  if (encaixe === null || typeof encaixe !== 'object') return {}
+  return { encaixeNaGrade: { token: encaixe.token === true, wall: encaixe.wall === true, prop: encaixe.prop === true } }
+}
+
+/**
  * `RoomMeta.rotation` (girar sala) é campo NOVO. Ausente continua ausente —
  * é "nunca girada", e escrever `0` em toda sala de mapa antigo inventaria
  * campo que o arquivo não tinha. Número finito passa como veio. O resto
@@ -1157,6 +1167,8 @@ function deserializeMapFields(json: string): MapData {
     ...desafiosDoArquivo(parsed.desafios),
     // ARMADILHAS > Jumpscare: só o `true` (o mestre desligou) é gravado; o resto é o padrão, ligado.
     ...(parsed.semJumpscare === true ? { semJumpscare: true as const } : {}),
+    // GRADE LEMBRA A ESCOLHA: os interruptores de "Grudar … na grade" deste mapa (ausente continua ausente).
+    ...encaixeDoArquivo(parsed.encaixeNaGrade),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: camadasDoArquivo(parsed.hiddenLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),

@@ -19,6 +19,18 @@ export const SMART_GUIDE_COLOR = 0xff4fd8
  */
 export const SMART_GUIDE_LABEL_COLOR = 0xd600a8
 
+/**
+ * ALINHAMENTO (pedido de 17/11/2026, `drawAlinhamento.ts`): verde = "este traço
+ * está reto" enquanto ele é desenhado ou puxado; laranja = "esta parede está
+ * torta", com o "Mostrar paredes tortas" ligado. Nenhuma das duas existe em
+ * outra camada do canvas: o amarelo é da seleção e o magenta, da guia — verde e
+ * laranja ficam só com a resposta "está alinhada ou não". O verde é claro e
+ * saturado para se ler em cima da parede escura e do chão; o laranja puxa para
+ * o vermelho o bastante para não se confundir com o amarelo da seleção.
+ */
+export const ALINHAMENTO_RETO_COLOR = 0x35e08a
+export const PAREDE_TORTA_COLOR = 0xff7a1f
+
 /** Cor de traço dos degraus e da moldura da escada (drawStairs.ts) — bege
  * claro, perto do cinza de WALL_COLOR['exterior'] (drawWalls.ts) mas
  * visivelmente distinto, pra não confundir lance de escada com parede num

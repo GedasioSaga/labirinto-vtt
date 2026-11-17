@@ -4,6 +4,9 @@ import { GridShapePicker } from './GridShapePicker'
 import { Toggle } from './Toggle'
 import { CampoDeCorComPipeta } from './CampoDeCorComPipeta'
 import { useTelhadosNoEditor } from '../stores/telhadosNoEditor'
+import { useParedesTortas } from '../stores/paredesTortas'
+import { useMapStore } from '../stores/mapStore'
+import { paredesTortasDoPiso } from '../lib/alinhamento'
 
 const LINE_STYLES: Array<{ value: GridSettings['lineStyle']; label: string }> = [
   { value: 'solid', label: 'Sólida' },
@@ -64,7 +67,48 @@ export function GridQuickToggles({ showGrid, onShowGridChange, snapTargets, onSn
           onChange={(on) => onSnapTargetChange(kind, on)}
         />
       ))}
+      <MostrarParedesTortas />
     </div>
+  )
+}
+
+const NOTA_DAS_PAREDES_TORTAS_ID = 'lb-paredes-tortas-nota'
+
+/** O que o interruptor achou, em palavras: o mestre sabe se ainda falta consertar sem contar no mapa. */
+export function notaDasParedesTortas(tortas: number): string {
+  if (tortas === 0) return 'Nenhuma parede torta neste piso.'
+  if (tortas === 1) return '1 parede torta neste piso, marcada de laranja.'
+  return `${tortas} paredes tortas neste piso, marcadas de laranja.`
+}
+
+/**
+ * MOSTRAR PAREDES TORTAS (pedido de 17/11/2026: "nunca sei quando uma parede ta
+ * alinhada"): marca de laranja no mapa as paredes de 1° a 5° fora da reta, até
+ * o mestre desligar (`stores/paredesTortas.ts`, de sessão). Mora junto dos
+ * interruptores da grade: é o mesmo assunto — parede no lugar certo.
+ *
+ * A nota só existe ligado, e a conta também: desligado o seletor devolve `null`
+ * sem olhar o mapa, e o painel não re-renderiza a cada parede mexida. Ligado,
+ * o número só troca quando a quantidade muda (seletor de número, não de lista).
+ */
+function MostrarParedesTortas() {
+  const mostrar = useParedesTortas((state) => state.mostrar)
+  const tortas = useMapStore((state) => (mostrar ? paredesTortasDoPiso(state.map, state.pisoAtivo).length : null))
+  const { setMostrar } = useParedesTortas.getState()
+  return (
+    <>
+      <Toggle
+        label="Mostrar paredes tortas"
+        checked={mostrar}
+        onChange={setMostrar}
+        describedBy={tortas === null ? undefined : NOTA_DAS_PAREDES_TORTAS_ID}
+      />
+      {tortas !== null && (
+        <span className="lb-camadas__nota" id={NOTA_DAS_PAREDES_TORTAS_ID} role="status">
+          {notaDasParedesTortas(tortas)}
+        </span>
+      )}
+    </>
   )
 }
 

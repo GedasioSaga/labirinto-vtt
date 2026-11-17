@@ -4881,6 +4881,8 @@ function recorteDoGrupo(
     desafios: undefined,
     // ARMADILHAS > Jumpscare: regra do mestre; o jogador só sabe no desfecho de uma armadilha.
     semJumpscare: undefined,
+    // GRADE LEMBRA A ESCOLHA: os interruptores do editor do mestre; o jogador não desenha nada.
+    encaixeNaGrade: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // NUVENS: o céu delas sai SÓ do chão que este recorte manda

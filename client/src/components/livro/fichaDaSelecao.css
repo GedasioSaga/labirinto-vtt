@@ -52,3 +52,52 @@
   color: var(--lb-color-parchment);
   font-weight: 500;
 }
+
+/*
+ * SELO DE ALINHAMENTO (17/11/2026, `SeloDeAlinhamento.tsx`): "reta ✓",
+ * "torta 3°" ou "inclinada 30°" logo abaixo da cabeça, com o Endireitar ao
+ * lado. O mesmo respiro lateral da cabeça. Sem `transition`: o selo troca a
+ * cada passo enquanto a ponta é puxada.
+ */
+.lb-selo-de-alinhamento {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0 14px;
+}
+
+.lb-selo-de-alinhamento__selo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: 999px;
+  font: var(--lb-font-weight-medium) var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  /* Os números do ângulo com a mesma largura: "torta 3°" não dança ao virar "torta 4°". */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--lb-color-parchment-dim);
+}
+
+/* Reta: verde apagado, a notícia boa que não pede nada. */
+.lb-selo-de-alinhamento__selo[data-estado='reta'] {
+  border-color: transparent;
+  background: var(--lb-color-online-soft);
+  color: var(--lb-color-online);
+}
+
+/* Torta: latão, a cor de "tem o que fazer aqui" — a mesma do botão ao lado. */
+.lb-selo-de-alinhamento__selo[data-estado='torta'] {
+  border-color: transparent;
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+
+/* O atalho dentro do botão: na cor do botão, sem o peso da tecla solta. */
+.lb-selo-de-alinhamento .gr-bt .gr-kbd {
+  margin-left: 6px;
+  border-color: var(--lb-gr-filete-latao);
+  color: inherit;
+}

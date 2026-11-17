@@ -4,9 +4,10 @@ import { measureLabelStyle, resolveStrokeLabelPosition, type WorldViewport } fro
 
 export interface AngleIndicatorRenderer {
   /**
-   * Mostra/atualiza o rótulo "comprimento · ângulo" do traço que vai de `from`
+   * Mostra/atualiza o rótulo "ângulo · comprimento" do traço que vai de `from`
    * até `end`, a ponta que o cursor puxa. Chamar a cada pointermove enquanto
-   * desenha Parede/Linha e no segmento em curso do Caminho. O lado sai de
+   * desenha Parede/Linha, no segmento em curso do Caminho e ao puxar a ponta
+   * de uma parede ou o vértice de uma sala (17/11/2026). O lado sai de
    * `resolveStrokeLabelPosition`: depois da ponta, fora do traço e das guias
    * que encaixam a ponta. `viewport` é o retângulo visível em MUNDO
    * (`computeViewport()` do canvas), para o rótulo trocar de lado na borda.

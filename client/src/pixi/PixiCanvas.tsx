@@ -35,7 +35,7 @@ import { subscribeToTokensRedraw } from '../stores/tokensSubscription'
 import { alternarPausaDosNpcs } from '../stores/npcsAndando'
 import { usePatrulhaAndandoStore } from '../stores/patrulhaAndandoStore'
 import { subscribeToBackgroundRedraw } from '../stores/backgroundSubscription'
-import { panBy, zoomAt, constrainToAngleStep, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
+import { panBy, zoomAt, angleDegrees, contentBounds, fitCamera, freeArea, freeAreaCenter, revealScale, type Bounds, type Camera, type Point } from './world'
 import { resolveCursor, type HoverKind, type ResizeCorner } from './cursorPolicy'
 import { resolveMapWheel } from './wheelGesture'
 import { resolveShortcut, type ShortcutEvent } from '../lib/keymap'
@@ -286,6 +286,11 @@ import { findBoxCornerHandleAt, findNearestVertexHandleAt, findPropCornerHandleA
 import { alcasDoDesenho, editavelPorPontos, type DesenhoPorPontos } from '../lib/pontosChave'
 import { regionEdgeMidpoints } from '../lib/roomLink'
 import { isFreeMoveModifier } from '../lib/alignmentGuides'
+// Pedido de 17/11/2026 ("nunca sei quando uma parede ta alinhada"): a ponta
+// puxada gruda na reta, o traço reto fica verde e as paredes tortas, laranja.
+import { GRUDA_COMPRIMENTO_MINIMO_TELA_PX, grudarPonto, paredesTortasDoPiso, segmentoReto, vizinhosDoVertice } from '../lib/alinhamento'
+import { drawParedesTortas, drawTracosRetos, type Traco } from './drawAlinhamento'
+import { useParedesTortas } from '../stores/paredesTortas'
 // Pedido 3 (guias estilo Figma): o que anda encaixa pela CAIXA (borda e
 // centro) das vizinhas, com tolerância em px de tela. Fatia 1: a sala; fatia
 // 2: todo arrasto de corpo e de ponto; fatia 3: espaçamento igual e o número
@@ -358,11 +363,11 @@ import { encostarTochaArrastadaNaParede, porMovelNoPonto, porMuroDeFogoNoTraco }
 import { useFerramentaDoMuroDeFogo } from '../stores/ferramentaDoMuroDeFogo'
 import { ehMovelDoChao } from '../lib/mobilia'
 import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
+import { juntarFalaDaColocacao, pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
 import { FAIXAS_EDITOR } from '../lib/camadas/ordem'
 import { MODELO_PADRAO } from '../lib/camadas/padrao'
-import { juntarFalaDaColocacao, pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
 import { alfaDoTelhadoNoEditor, alfaProprioDaFaixaNoEditor, criarPilha, criarPorNo, distribuir, noDoItem, nosCriadosDasFaixas, nosDeTrabalho } from './pilhaDeCamadas'
 import { criarParesDoEditor } from './paresDoEditor'
 import { isValidStairDraft, buildStairFromDraft, stairStepWidthForPreset } from '../lib/stairs'
@@ -1678,6 +1683,19 @@ function PixiCanvasDoContexto({
       const guidesGraphics = new Graphics()
       // Pedido 3, fatia 3: o número de cada vão medido, por cima da cota.
       const guideLabelsContainer = new Container()
+      // ALINHAMENTO (17/11/2026, `drawAlinhamento.ts`): o laranja das paredes
+      // tortas e o verde do traço reto. Moram no container dos rótulos de
+      // medida, ANTES dos textos (que nascem depois e ficam por cima): ele já
+      // é camada de trabalho — sai da "Exportar imagem" e da pipeta — e já tem
+      // grupo de render próprio, então o verde que muda a cada pointermove não
+      // refaz os lotes do mapa.
+      const paredesTortasGraphics = new Graphics()
+      const tracosRetosGraphics = new Graphics()
+      angleIndicatorContainer.addChild(paredesTortasGraphics, tracosRetosGraphics)
+      // O laranja tem grupo de render PRÓPRIO, dentro do grupo dos rótulos: o
+      // rótulo e o verde mudam a cada pointermove, e sem isto cada mudança
+      // refazia também os lotes de centenas de paredes tortas que não mudaram.
+      paredesTortasGraphics.enableRenderGroup()
       // N3 "ferramenta de seleção de área": contorno sólido do grupo já
       // fechado (segue o mapa, redesenhado junto de redrawShapes) e o
       // marquee tracejado vivo durante o arrasto (desenhado direto no
@@ -3708,6 +3726,40 @@ function PixiCanvasDoContexto({
       const unsubscribeTelhados = useTelhadosNoEditor.subscribe(() => {
         if (!destroyed) paintRegions()
       })
+      // MOSTRAR PAREDES TORTAS (17/11/2026): o laranja por cima das paredes de
+      // 1° a 5° fora da reta, do piso em edição. Refaz ao ligar e desligar, e,
+      // ligado, quando as paredes, as salas (a redonda não conta) ou o piso
+      // mudam — a parede consertada perde o laranja na hora. Desligado não faz
+      // conta nenhuma. A largura é em px de tela: o zoom passa por
+      // `redrawScaleDependentLayers`, logo abaixo.
+      //
+      // As MESMAS paredes tortas na mesma escala não redesenham: puxar a ponta
+      // de uma parede reta troca `map.walls` a cada pointermove, mas as tortas
+      // continuam sendo os mesmos objetos. Medido no arrasto de ponta com 150
+      // salas e 200 paredes tortas marcadas (17/11/2026, headless): redesenhar
+      // sempre custava +18 ms na maior tarefa e +16 ms no quadro p95.
+      let paredesTortasDesenhadas: readonly { x1: number; y1: number; x2: number; y2: number }[] = []
+      let escalaDasParedesTortas = 0
+      const redrawParedesTortas = (): void => {
+        if (destroyed) return
+        if (!useParedesTortas.getState().mostrar) {
+          if (paredesTortasDesenhadas.length > 0) paredesTortasGraphics.clear()
+          paredesTortasDesenhadas = []
+          return
+        }
+        const { map, pisoAtivo } = useMapStore.getState()
+        const tortas = paredesTortasDoPiso(map, pisoAtivo)
+        const asMesmas = camera.scale === escalaDasParedesTortas && tortas.length === paredesTortasDesenhadas.length && tortas.every((parede, i) => parede === paredesTortasDesenhadas[i])
+        if (asMesmas) return
+        drawParedesTortas(paredesTortasGraphics, tortas, camera.scale)
+        paredesTortasDesenhadas = tortas
+        escalaDasParedesTortas = camera.scale
+      }
+      const unsubscribeParedesTortas = useParedesTortas.subscribe(redrawParedesTortas)
+      const unsubscribeParedesTortasDoMapa = useMapStore.subscribe((state, previous) => {
+        if (!useParedesTortas.getState().mostrar) return
+        if (state.map.walls !== previous.map.walls || state.map.regions !== previous.map.regions || state.pisoAtivo !== previous.pisoAtivo) redrawParedesTortas()
+      })
       const unsubscribeTerritorio = useTerritorioStore.subscribe((state, previous) => {
         if (state.filtroLigado !== previous.filtroLigado) redrawShapes()
       })
@@ -3785,6 +3837,8 @@ function PixiCanvasDoContexto({
         redrawHover()
         // Anel e ligação do fantasma da ficha de teste: traço e ponto em px de tela.
         redrawFantasma()
+        // Faixa e anel das paredes tortas: px de tela. Desligado, só limpa o que já estava vazio.
+        redrawParedesTortas()
       }
       const zoomDaRoda = createZoomDaRoda({
         redesenhar: () => {
@@ -4201,6 +4255,14 @@ function PixiCanvasDoContexto({
       let draggingWallPointIndex: 0 | 1 = 0
       let draggingRegionId: string | null = null
       let draggingRegionPointIndex = 0
+      // Arrasto de ponta de parede e de vértice de sala (17/11/2026): o `map`
+      // de ANTES do gesto, para fechar UM Ctrl+Z no pointerup — os pointermoves
+      // usam `updateWallPointLive`/`updateRegionPointLive`, sem histórico. Fica
+      // `null` quando o gesto começou criando o vértice (o `insertRegionPoint`
+      // já é o passo). `pointDragAnchors`: de onde o traço puxado sai — a outra
+      // ponta da parede, ou os dois vizinhos do vértice —, parados o gesto inteiro.
+      let pointDragSnapshot: MapData | null = null
+      let pointDragAnchors: Point[] = []
       let draggingWallBodyId: string | null = null
       let draggingRegionBodyId: string | null = null
       // Alt+arrastar de Sala: id da sala original da cópia arrastada (senão `null`).
@@ -4964,6 +5026,95 @@ function PixiCanvasDoContexto({
         return result.point
       }
 
+      /** O menor traço, em px de mundo, que o grude de ângulo aceita (`GRUDA_COMPRIMENTO_MINIMO_TELA_PX` pelo zoom de agora). */
+      const comprimentoMinimoDoGrude = (): number => screenPxToWorld(GRUDA_COMPRIMENTO_MINIMO_TELA_PX, camera.scale)
+
+      /**
+       * GRUDA SOZINHO (17/11/2026, `lib/alinhamento.ts`): o último passo de toda
+       * ponta puxada — ao desenhar Parede, Linha e Escada, ao arrastar a ponta
+       * de uma parede e o vértice de uma sala. `guiado` é o ponto que a grade e
+       * a guia magenta já deixaram; `ancoras`, de onde o traço sai.
+       *
+       * QUEM MANDA, do mais forte ao mais fraco: (a) ímã de ponta — quem chama
+       * nem chega aqui, a ponta já caiu exata na de outra parede; (b) Ctrl —
+       * solta a guia e este grude, só a grade do gesto fica; (c) grade e (d)
+       * guia magenta, que escolhem o ponto ANTES; (e) este grude, por último: a
+       * menos de 5° da reta ele põe a ponta NA reta. A guia que deixou de ser
+       * exata some e a que continua exata fica — a guia escolhe onde na reta,
+       * o grude garante que é reta, e os dois não disputam a ponta.
+       */
+      const pontoComGrude = (guiado: { point: Point; guides: SmartGuide[] }, ancoras: readonly Point[], candidatas: readonly AreaBounds[], event: GuideKeys): { point: Point; guides: SmartGuide[] } => {
+        if (isFreeMoveModifier(event) || ancoras.length === 0) return guiado
+        const grude = grudarPonto(guiado.point, ancoras, comprimentoMinimoDoGrude())
+        if (!grude.grudou) return guiado
+        const exatas = dragPointWithGuides({ point: grude.ponto, others: candidatas, tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale), mode: 'gridExact' })
+        return { point: grude.ponto, guides: exatas.guides }
+      }
+
+      /** Um passo do arrasto de ponta ou de vértice: grade (já em `point`), guia e, por último, o grude de ângulo nas âncoras do gesto. */
+      const pontaComGuiaEGrude = (point: Point, event: GuideKeys): Point => {
+        const guiado = dragPointWithGuides({
+          point,
+          others: pointGuideBoxes,
+          tolerance: screenPxToWorld(SMART_GUIDE_SCREEN_PX, camera.scale),
+          mode: guideModeForDrag({ free: isFreeMoveModifier(event), altKey: event.altKey, gridBySetting: useMapStore.getState().snapTargets.wall }),
+        })
+        const final = pontoComGrude(guiado, pointDragAnchors, pointGuideBoxes, event)
+        showGuides({ guides: final.guides, gaps: [] })
+        return final.point
+      }
+
+      /** O rótulo do traço perto da ponta: o ângulo e o comprimento, "90° · 4,2 m". Reto, o ângulo sai inteiro; torto, com uma casa. */
+      const strokeLabel = (start: Point, end: Point): string => {
+        const { map } = useMapStore.getState()
+        const length = dimensionLabel({ tool: 'line', start, end }, map.grid, map.gridShape, map.scale)
+        return lengthAndAngleLabel(length, formatAngleLabel(angleDegrees(start, end), segmentoReto(start, end)))
+      }
+
+      /** O verde por cima dos traços que estão retos (e têm tamanho para o ângulo valer); os tortos ficam sem. */
+      const mostrarTracosRetos = (tracos: readonly Traco[]): void => {
+        const minimo = comprimentoMinimoDoGrude()
+        drawTracosRetos(
+          tracosRetosGraphics,
+          tracos.filter(([de, ate]) => Math.hypot(ate.x - de.x, ate.y - de.y) >= minimo && segmentoReto(de, ate)),
+          camera.scale,
+        )
+      }
+
+      /**
+       * O que o mestre vê enquanto puxa uma ponta (ou um vértice): o rótulo
+       * "90° · 4,2 m" de cada traço que sai dela e o verde nos que estão retos.
+       * No vértice de sala são dois traços, e os dois números vão no MESMO
+       * rótulo — dois textos perto do cursor se sobrepõem.
+       */
+      const mostrarPontaPuxada = (ancoras: readonly Point[], ponta: Point): void => {
+        if (ancoras.length === 0) return
+        mostrarTracosRetos(ancoras.map((ancora): Traco => [ancora, ponta]))
+        const rotulo = ancoras.map((ancora) => strokeLabel(ancora, ponta)).join('  |  ')
+        angleIndicatorRenderer.show(angleIndicatorContainer, ancoras[0], ponta, rotulo, computeViewport())
+      }
+
+      /** O rótulo do traço e o verde saem juntos: os dois vivem só enquanto o botão está apertado. */
+      const esconderPontaPuxada = (): void => {
+        angleIndicatorRenderer.hide()
+        tracosRetosGraphics.clear()
+      }
+
+      /**
+       * Fim do arrasto de ponta de parede ou de vértice de sala, no pointerup e
+       * no pointerupoutside (o mouse pode sair do canvas no meio do gesto): os
+       * passos `...Live` do meio viram UM Ctrl+Z. Sem snapshot quando o gesto
+       * começou criando o vértice — o `insertRegionPoint` já é o passo. Não
+       * olha o `mode`: o snapshot só existe entre o pointerdown e este fim, e
+       * mudança `...Live` sem passo de desfazer é pior que um passo a mais
+       * (`commitDragHistory` não grava nada quando o mapa não mudou).
+       */
+      const fecharArrastoDePonta = (): void => {
+        if (pointDragSnapshot !== null) useMapStore.getState().commitDragHistory(pointDragSnapshot)
+        pointDragSnapshot = null
+        pointDragAnchors = []
+      }
+
       /**
        * Um passo do arrasto da ficha até `worldPoint` (o ponteiro). Vem do
        * pointermove e também do teclado: apertar ou soltar o Ctrl com o
@@ -5189,25 +5340,20 @@ function PixiCanvasDoContexto({
        * commit (pointerup) passam os dois por aqui: o que se vê arrastando é o
        * que fica ao soltar.
        *  1. Ímã de vértice: a ponta cai exata na de outra parede, sem guia.
-       *  2. Ctrl: trava o ângulo em passos de 45°, sem guia (decisão b de
-       *     `smartGuides.ts`). Na grade hexagonal a ponta travada não passa pela
-       *     grade — ver o bloco de preview da Parede.
-       *  3. Senão a grade do gesto e, por cima, a guia.
-       * `angleReference` é de onde o rótulo mede o ângulo: com a trava, o ponto
-       * travado ("90°" limpo, mesmo que a grade quadrada o arredonde); sem ela,
-       * a própria ponta, para o número ser o do traço que fica.
+       *  2. Senão a grade do gesto e, por cima, a guia.
+       *  3. Por último o GRUDE DE ÂNGULO (17/11/2026, `pontoComGrude`): a menos
+       *     de 5° de 0°, 45° ou 90° a ponta vai para a reta, sozinha.
+       * O Ctrl SOLTA a guia e o grude (até 16/11/2026 era ele que travava o
+       * ângulo em 45°; agora a reta gruda sem tecla e o Ctrl é o "livre" de
+       * todo gesto). A grade continua valendo com ele: é do interruptor e do Alt.
        */
-      const strokeDraftEnd = (start: Point, worldPoint: Point, event: GuideKeys): DraftEnd & { angleReference: Point } => {
+      const strokeDraftEnd = (start: Point, worldPoint: Point, event: GuideKeys): DraftEnd => {
         const { map } = useMapStore.getState()
         const magnet = findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, vertexMagnetTolerance())
-        if (magnet) return { end: magnet, angleReference: magnet, guides: [] }
-        if (event.ctrlKey) {
-          const constrained = constrainToAngleStep(start, worldPoint)
-          const end = map.gridShape === 'hex' ? constrained : applySnap(constrained, map.grid, 'wall', event.altKey)
-          return { end, angleReference: constrained, guides: [] }
-        }
+        if (magnet) return { end: magnet, guides: [] }
         const guided = draftPointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), 'wall', event)
-        return { ...guided, angleReference: guided.end }
+        const final = pontoComGrude({ point: guided.end, guides: guided.guides }, [start], draftGuide === null ? [] : draftGuide.endBoxes, event)
+        return { end: final.point, guides: final.guides }
       }
 
       /**
@@ -5244,13 +5390,6 @@ function PixiCanvasDoContexto({
       const showDraftGuides = (endGuides: readonly SmartGuide[], event: GuideKeys): void => {
         const startGuides = draftGuide === null || draftGuideMode(event, 'wall') === 'free' ? [] : draftGuide.startGuides
         showGuides({ guides: [...startGuides, ...endGuides], gaps: [] })
-      }
-
-      /** O rótulo do traço perto da ponta: o comprimento e o ângulo, "3,0 m · 90°". */
-      const strokeLabel = (start: Point, end: Point, angleReference: Point, angleLocked: boolean): string => {
-        const { map } = useMapStore.getState()
-        const length = dimensionLabel({ tool: 'line', start, end }, map.grid, map.gridShape, map.scale)
-        return lengthAndAngleLabel(length, formatAngleLabel(angleDegrees(start, angleReference), angleLocked))
       }
 
       /**
@@ -6074,7 +6213,7 @@ function PixiCanvasDoContexto({
         blocoCells = null
         blocoUltimoPonto = null
         draftGraphics.clear()
-        angleIndicatorRenderer.hide()
+        esconderPontaPuxada()
         measurementIndicatorRenderer.hide()
         tokenDragDistanceRenderer.hide()
         tokenDragOrigin = null
@@ -6452,7 +6591,7 @@ function PixiCanvasDoContexto({
         drawPathPreview(preview.end)
         const startGuides = draftGuideMode(event, null) === 'free' ? [] : pathGuide.startGuides
         showGuides({ guides: [...startGuides, ...preview.guides], gaps: [] })
-        angleIndicatorRenderer.show(angleIndicatorContainer, last, preview.end, strokeLabel(last, preview.end, preview.end, false), computeViewport())
+        angleIndicatorRenderer.show(angleIndicatorContainer, last, preview.end, strokeLabel(last, preview.end), computeViewport())
       }
 
       /** O Caminho acabou (fechado ou cancelado): a guia dele sai da tela. */
@@ -7591,7 +7730,14 @@ function PixiCanvasDoContexto({
               // tem exatamente 2 pontos (x1,y1 e x2,y2), então o índice retornado
               // só pode ser 0 ou 1 — o mesmo par que updateWallPoint espera.
               draggingWallPointIndex = index as 0 | 1
-              pointGuideBoxes = startPointGuides({ walls: [wall.id] }, 'wall-ends')
+              // A outra ponta fica parada o gesto inteiro: é a âncora do grude
+              // de ângulo e entra nas candidatas da guia, como o ponto de partida
+              // ao desenhar (`DraftGuide.endBoxes`) — a guia magenta acende
+              // quando a ponta puxada cai na reta dela.
+              const outraPonta = index === 0 ? { x: wall.x2, y: wall.y2 } : { x: wall.x1, y: wall.y1 }
+              pointDragSnapshot = map
+              pointDragAnchors = [outraPonta]
+              pointGuideBoxes = [...startPointGuides({ walls: [wall.id] }, 'wall-ends'), pointBox(outraPonta)]
               return
             }
           }
@@ -7676,7 +7822,9 @@ function PixiCanvasDoContexto({
                   mode = 'dragging-region-point'
                   draggingRegionId = editRegionId
                   draggingRegionPointIndex = vertexIndex
-                  pointGuideBoxes = startPointGuides({ regions: [editRegionId] }, 'room-vertices')
+                  pointDragSnapshot = map
+                  pointDragAnchors = vizinhosDoVertice(region.points, vertexIndex)
+                  pointGuideBoxes = [...startPointGuides({ regions: [editRegionId] }, 'room-vertices'), ...pointDragAnchors.map(pointBox)]
                   return
                 }
 
@@ -7688,7 +7836,17 @@ function PixiCanvasDoContexto({
                   mode = 'dragging-region-point'
                   draggingRegionId = editRegionId
                   draggingRegionPointIndex = midpointIndex + 1
-                  pointGuideBoxes = startPointGuides({ regions: [editRegionId] }, 'room-vertices')
+                  // Sem `pointDragSnapshot`: o `insertRegionPoint` acima já é o
+                  // passo de desfazer deste gesto (um Ctrl+Z tira o vértice
+                  // novo, onde quer que ele tenha parado). Os vizinhos do
+                  // vértice novo são as duas pontas do lado em que ele nasceu.
+                  pointDragSnapshot = null
+                  const depoisDoLado = region.points[(midpointIndex + 1) % region.points.length]
+                  pointDragAnchors = [
+                    { x: region.points[midpointIndex].x, y: region.points[midpointIndex].y },
+                    { x: depoisDoLado.x, y: depoisDoLado.y },
+                  ]
+                  pointGuideBoxes = [...startPointGuides({ regions: [editRegionId] }, 'room-vertices'), ...pointDragAnchors.map(pointBox)]
                   return
                 }
               }
@@ -8481,6 +8639,7 @@ function PixiCanvasDoContexto({
           if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
         }
+        fecharArrastoDePonta()
         // Giro da sala: sala de fora + ordem dos cantos, e o arrasto vira UM
         // Ctrl+Z. `mode` sai já aqui para a alça voltar a ser desenhada solta.
         if (mode === 'rotating-room') {
@@ -8646,7 +8805,7 @@ function PixiCanvasDoContexto({
         draggingLightId = null
         endGuides()
         finishRoomLabelDrag()
-        angleIndicatorRenderer.hide()
+        esconderPontaPuxada()
         // O número de quadrados é informação PASSAGEIRA: vive só enquanto o
         // botão está apertado. Mesmo choke point de `angleIndicatorRenderer`,
         // pra não precisar de um hide() por ramo de pointerup.
@@ -8710,6 +8869,7 @@ function PixiCanvasDoContexto({
           if (resizingRoomId !== null) useMapStore.getState().reparentAfterMoveLive(roomCornerDragSnapshot, [resizingRoomId])
           useMapStore.getState().commitDragHistory(roomCornerDragSnapshot)
         }
+        fecharArrastoDePonta()
         // Giro da sala solto fora do canvas: fecha igual ao pointerup.
         if (mode === 'rotating-room') {
           roomRotateGesture.finish()
@@ -8921,7 +9081,7 @@ function PixiCanvasDoContexto({
         lightDraftRawStart = null
         curveDraftPoints = []
         polygonDraftPoints = []
-        angleIndicatorRenderer.hide()
+        esconderPontaPuxada()
         // Soltar a ficha fora do canvas encerra o arrasto do mesmo jeito: o
         // número não pode ficar grudado na tela.
         tokenDragDistanceRenderer.hide()
@@ -9106,23 +9266,34 @@ function PixiCanvasDoContexto({
           // Ctrl solta o ímã junto com as guias: a ponta anda livre.
           const livre = isFreeMoveModifier(event)
           const magnet = livre ? null : findNearestExistingVertex(doPisoEmEdicao(map), worldPoint, vertexMagnetTolerance(), draggingWallPointId)
+          // Os passos do meio são `...Live` (sem histórico): o gesto inteiro
+          // fecha UM Ctrl+Z no pointerup (`pointDragSnapshot`). Até 17/11/2026
+          // cada pointermove gravava um passo, e desfazer um arrasto pedia
+          // dezenas de Ctrl+Z.
           if (magnet) {
             showGuides({ guides: [], gaps: [] })
-            useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
+            useMapStore.getState().updateWallPointLive(draggingWallPointId, draggingWallPointIndex, magnet.x, magnet.y)
+            mostrarPontaPuxada(pointDragAnchors, magnet)
             return
           }
-          // Sem ímã, a guia: borda e centro das caixas vizinhas e as pontas das
-          // outras paredes (pedido 3, fatia 2).
-          const ponta = pointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), 'wall', event)
-          useMapStore.getState().updateWallPoint(draggingWallPointId, draggingWallPointIndex, ponta.x, ponta.y)
+          // Sem ímã, a grade e a guia (borda e centro das caixas vizinhas e as
+          // pontas das outras paredes, pedido 3, fatia 2) e, por último, o
+          // grude de ângulo na outra ponta (`pontoComGrude`).
+          const ponta = pontaComGuiaEGrude(applySnap(worldPoint, map.grid, 'wall', event.altKey), event)
+          useMapStore.getState().updateWallPointLive(draggingWallPointId, draggingWallPointIndex, ponta.x, ponta.y)
+          mostrarPontaPuxada(pointDragAnchors, ponta)
           return
         }
 
         if (mode === 'dragging-region-point' && draggingRegionId !== null) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { map } = useMapStore.getState()
-          const vertice = pointWithGuides(applySnap(worldPoint, map.grid, 'wall', event.altKey), 'wall', event)
-          useMapStore.getState().updateRegionPoint(draggingRegionId, draggingRegionPointIndex, vertice.x, vertice.y)
+          // Grade, guia e o grude de ângulo nos DOIS vizinhos: o vértice vai
+          // para o canto reto quando os dois lados dele estão quase retos. As
+          // paredes vinculadas seguem no mesmo passo (`updateRegionPoint`).
+          const vertice = pontaComGuiaEGrude(applySnap(worldPoint, map.grid, 'wall', event.altKey), event)
+          useMapStore.getState().updateRegionPointLive(draggingRegionId, draggingRegionPointIndex, vertice.x, vertice.y)
+          mostrarPontaPuxada(pointDragAnchors, vertice)
           return
         }
 
@@ -9146,7 +9317,8 @@ function PixiCanvasDoContexto({
         // (o mesmo rótulo de número do arrasto de forma; some no pointerup).
         if (mode === 'rotating-room') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const giro = roomRotateGesture.move(worldPoint, event.shiftKey)
+          // A Sala gruda no quarto de volta (0°, 90°, 180°, −90°); o Ctrl solta.
+          const giro = roomRotateGesture.move(worldPoint, event.shiftKey, isFreeMoveModifier(event))
           if (giro) dimensionLabelRenderer.show(angleIndicatorContainer, worldPoint, giro.label, computeViewport())
           return
         }
@@ -9319,37 +9491,22 @@ function PixiCanvasDoContexto({
         if (mode === 'drawing-wall' && wallDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           // Ímã primeiro: perto de um vértice já existente, o preview gruda nele
-          // direto — ignora trava de ângulo (Ctrl), grade e guia, pois o vértice
-          // já É a posição final desejada. Preview e commit (pointerup acima)
-          // usam a MESMA conta (`strokeDraftEnd`), então o que se vê arrastando
-          // é exatamente o que fica ao soltar.
+          // direto — ignora grade, guia e o grude de ângulo, pois o vértice já É
+          // a posição final desejada. Preview e commit (pointerup acima) usam a
+          // MESMA conta (`strokeDraftEnd`), então o que se vê arrastando é
+          // exatamente o que fica ao soltar.
           //
-          // Com Ctrl, a grade quadrada ainda passa por `applySnap` depois de
-          // travar o ângulo. `snapToGrid` arredonda x/y de forma independente, e
-          // como o ponto travado sempre cai com dx=dy em módulo (diagonais) ou um
-          // dos dois exatamente 0 (eixos), o arredondamento independente preserva
-          // o múltiplo de 45° — e ainda deixa `end` exato em cima de um vértice
-          // de grade (provado por varredura de milhares de combinações dx/dy,
-          // revisão da task T2-indicador-graus-snap-amplo).
-          //
-          // Grade hexagonal: `snapToHexGrid` arredonda em coordenadas AXIAIS, que
-          // não são ortogonais entre si — em geral não existe vértice hexagonal a
-          // exatamente 45° de outro. Reaplicar esse snap depois de travar o
-          // ângulo desloca a direção pra fora do múltiplo de 45° (medido na mesma
-          // revisão: até ~3° de desvio). A garantia "com Ctrl, o ângulo final é
-          // SEMPRE múltiplo de 45°" tem prioridade sobre "o ponto cai num vértice
-          // hex", então ali `end` PULA o snap de grade e fica igual ao ponto
-          // travado — o segmento desenhado/commitado fica exato no ângulo, só não
-          // necessariamente alinhado ao hexágono.
-          const { end, angleReference, guides } = strokeDraftEnd(wallDraftStart, worldPoint, event)
+          // GRUDA SOZINHO (17/11/2026): a menos de 5° da reta a ponta vai para
+          // ela, o traço fica verde e o rótulo mostra o ângulo inteiro; o Ctrl
+          // solta. O grude vem DEPOIS da grade, então numa grade hexagonal (que
+          // quase nunca tem vértice a 45° de outro) a ponta sai do hexágono para
+          // ficar na reta: a parede reta vale mais que o ponto no vértice.
+          const { end, guides } = strokeDraftEnd(wallDraftStart, worldPoint, event)
           drawWallDraft(draftGraphics, wallDraftStart, end)
           showDraftGuides(guides, event)
-          // Ângulo a partir de `angleReference`: com Ctrl, o ponto travado — em
-          // grade quadrada `end` ainda pode diferir dele pelo snap acima
-          // (diferença cosmética no rótulo, "90°" limpo). Sem Ctrl, a própria
-          // ponta: o número é o do traço que fica, já com grade e guia. Junto do
-          // ângulo vai o comprimento (fatia 4), num rótulo só.
-          angleIndicatorRenderer.show(angleIndicatorContainer, wallDraftStart, end, strokeLabel(wallDraftStart, end, angleReference, event.ctrlKey), computeViewport())
+          // O ângulo e o comprimento num rótulo só, do traço que fica (já com
+          // grade, guia e grude), e o verde quando ele está reto.
+          mostrarPontaPuxada([wallDraftStart], end)
           return
         }
 
@@ -9521,15 +9678,15 @@ function PixiCanvasDoContexto({
         if (mode === 'drawing-line' && lineDraftStart) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
           const { drawColor, drawWidth, drawDash } = useMapStore.getState()
-          // Ímã, trava de ângulo, grade e guia — mesma conta do preview de
+          // Ímã, grade, guia e grude de ângulo — mesma conta do preview de
           // Parede acima e do commit (pointerup), ver `strokeDraftEnd`.
-          const { end, angleReference, guides } = strokeDraftEnd(lineDraftStart, worldPoint, event)
+          const { end, guides } = strokeDraftEnd(lineDraftStart, worldPoint, event)
           // `cap` fica no default 'round' do draft, como sempre foi — quem
           // muda aqui é só o estilo do traço, para o preview já mostrar o
           // pontilhado em vez de prometer uma linha cheia.
           drawLineDraft(draftGraphics, lineDraftStart, end, drawColor, drawWidth, 'round', drawDash)
           showDraftGuides(guides, event)
-          angleIndicatorRenderer.show(angleIndicatorContainer, lineDraftStart, end, strokeLabel(lineDraftStart, end, angleReference, event.ctrlKey), computeViewport())
+          mostrarPontaPuxada([lineDraftStart], end)
           return
         }
 
@@ -9900,6 +10057,12 @@ function PixiCanvasDoContexto({
             if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
             return
           }
+          // Ctrl (ou Cmd) apertado com o ponteiro parado: o grude do quarto de volta solta na hora.
+          if (event.key === 'Control' || event.key === 'Meta') {
+            const giro = roomRotateGesture.setLivre(true)
+            if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
+            return
+          }
         }
 
         // Rótulo recém-criado em edição: enquanto ele recebe o teclado, letra
@@ -10229,6 +10392,12 @@ function PixiCanvasDoContexto({
           if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
           return
         }
+        // Soltou o Ctrl (ou Cmd) no meio do giro: a sala volta a grudar no quarto de volta.
+        if ((event.key === 'Control' || event.key === 'Meta') && mode === 'rotating-room') {
+          const giro = roomRotateGesture.setLivre(false)
+          if (giro && laserPointer) dimensionLabelRenderer.show(angleIndicatorContainer, laserPointer, giro.label, computeViewport())
+          return
+        }
         if (event.key !== ' ') return
         spaceHeld = false
         if (mode === 'idle') updateCursor()
@@ -10301,6 +10470,8 @@ function PixiCanvasDoContexto({
         unsubscribePaginaDoSelo()
         unsubscribeTerritorio()
         unsubscribeTelhados()
+        unsubscribeParedesTortas()
+        unsubscribeParedesTortasDoMapa()
         telhadosRenderer.destruir()
         unsubscribePontoAberto()
         unsubscribeTokens()

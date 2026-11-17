@@ -7,6 +7,7 @@ import {
   angleAroundPivot, formatRotationLabel, isOnPropRotateHandle, isOnRoomRotateHandle, roomCentroid, roomRotationOf, rotationDelta, snapRoomRotation,
 } from '../lib/roomRotation'
 import { isOnStairRotateHandle, rotateStairBy, stairRotateFrame } from '../lib/stairRotation'
+import { giroComGrude } from '../lib/alinhamento'
 import { carimboPorId } from '../lib/carimbos'
 import {
   anguloVisivelDoCarimbo, carimboComAlcas, centroDoCarimbo, giroDeAntesDoCarimbo, giroDoCarimboNoArrasto, giroGravadoDoCarimbo, naAlcaDeGirarDoCarimbo,
@@ -18,7 +19,11 @@ import {
  * dá para testar sem abrir navegador.
  *
  * O giro acompanha o ângulo do ponteiro em volta do centro da sala, com trava
- * de grau inteiro (Shift: 15°). Cada movimento gira só a DIFERENÇA para o
+ * de grau inteiro (Shift: 15°). A SALA gruda sozinha no quarto de volta (0°,
+ * 90°, 180°, −90°) quando chega a poucos graus dele, e o Ctrl solta
+ * (`lib/alinhamento.ts` → `giroComGrude`, pedido de 17/11/2026: "nunca sei
+ * quando uma parede ta alinhada"); objeto, escada e carimbo giram como antes.
+ * Cada movimento gira só a DIFERENÇA para o
  * quadro anterior, sobre o mapa de agora (`rotateRoomLive`), e o arrasto
  * inteiro vira UM Ctrl+Z: `finish` fecha com `commitDragHistory(antes)`, o
  * mesmo par do arrasto de canto da sala. Esc no meio (`cancel`) gira de volta
@@ -74,6 +79,9 @@ interface Giro {
   /** Ângulo em que a sala está agora (já girado no mapa). */
   rotacaoAtual: number
   ultimoPonto: Point
+  /** As teclas do último passo: apertar ou soltar uma delas refaz o passo com a outra como estava. */
+  shift: boolean
+  livre: boolean
   escala: number
 }
 
@@ -92,15 +100,19 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
     store.getState().setStairGeometryLive(id, { segments: stair.segments, stepWidth: stair.stepWidth, curva: stair.curva })
   }
 
-  const aplicar = (ponto: Point, shift: boolean): RoomRotateFeedback | null => {
+  const aplicar = (ponto: Point, shift: boolean, livre: boolean): RoomRotateFeedback | null => {
     if (!giro) return null
     giro.ultimoPonto = ponto
+    giro.shift = shift
+    giro.livre = livre
     const distanciaNaTela = Math.hypot(ponto.x - giro.pivo.x, ponto.y - giro.pivo.y) * giro.escala
     if (distanciaNaTela < RAIO_MORTO_PX) return null
     const andou = rotationDelta(giro.anguloInicial, angleAroundPivot(giro.pivo, ponto))
     const bruto = giro.rotacaoInicial + andou
     const carimbo = giro.alvo.kind === 'carimbo' ? giro.alvo.inicial : null
-    const alvo = carimbo === null ? snapRoomRotation(bruto, shift) : giroDoCarimboNoArrasto(carimbo, bruto, shift)
+    // Só a Sala gruda no quarto de volta: é a parede dela que o mestre quer reta.
+    const solto = giro.alvo.kind === 'region' ? giroComGrude(bruto, shift, livre) : snapRoomRotation(bruto, shift)
+    const alvo = carimbo === null ? solto : giroDoCarimboNoArrasto(carimbo, bruto, shift)
     const passo = rotationDelta(giro.rotacaoAtual, alvo)
     if (passo !== 0) {
       if (giro.alvo.kind === 'region') store.getState().rotateRoomLive(giro.alvo.id, passo)
@@ -122,6 +134,8 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       rotacaoInicial: rotacao,
       rotacaoAtual: rotacao,
       ultimoPonto: ponto,
+      shift: false,
+      livre: false,
       escala: Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1,
     }
     return true
@@ -174,14 +188,22 @@ export function createRoomRotateGesture(store: RoomRotateStore = useMapStore) {
       return comecar({ kind: 'carimbo', inicial: carimbo }, centroDoCarimbo(carimbo), anguloVisivelDoCarimbo(carimbo), ponto, cameraScale)
     },
 
-    /** Pointermove: gira até o ângulo do ponteiro. `null` = nada a mostrar (sem giro, ou no raio morto). */
-    move(ponto: Point, shift: boolean): RoomRotateFeedback | null {
-      return aplicar(ponto, shift)
+    /**
+     * Pointermove: gira até o ângulo do ponteiro. `null` = nada a mostrar (sem
+     * giro, ou no raio morto). `livre` (Ctrl) solta o grude da Sala no quarto de volta.
+     */
+    move(ponto: Point, shift: boolean, livre = false): RoomRotateFeedback | null {
+      return aplicar(ponto, shift, livre)
     },
 
     /** Shift apertado ou solto sem mexer o mouse: a trava vale na hora, do ponto onde o ponteiro está. */
     setShift(shift: boolean): RoomRotateFeedback | null {
-      return giro ? aplicar(giro.ultimoPonto, shift) : null
+      return giro ? aplicar(giro.ultimoPonto, shift, giro.livre) : null
+    },
+
+    /** Ctrl apertado ou solto sem mexer o mouse: o grude solta ou volta na hora. */
+    setLivre(livre: boolean): RoomRotateFeedback | null {
+      return giro ? aplicar(giro.ultimoPonto, giro.shift, livre) : null
     },
 
     /** Pointerup (e pointerupoutside): sala de fora e ordem dos cantos, e o arrasto vira um Ctrl+Z só. */

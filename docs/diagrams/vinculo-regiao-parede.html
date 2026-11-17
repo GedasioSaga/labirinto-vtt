@@ -218,5 +218,7 @@
     </svg>
   </div>
 
+  <p class="subtitle">Nota de 17/11/2026 — alinhamento das paredes: entre o gesto (PixiCanvas) e o modelo entrou um módulo de contas puras, <code>client/src/lib/alinhamento.ts</code>. No arrasto de ponta de parede e de vértice de sala ele dá o último passo da ponta (<code>pontoComGrude</code>: ímã de ponta → Ctrl solta → grade → guia magenta → grude de ângulo em 0°/45°/90°), e os passos do meio usam <code>updateWallPointLive</code> / <code>updateRegionPointLive</code> (sem histórico) fechados por um <code>commitDragHistory</code> no soltar. O mesmo módulo responde o selo "reta ✓ / torta 3°" do painel, a lista do "Mostrar paredes tortas" (<code>pixi/drawAlinhamento.ts</code> pinta o verde e o laranja) e o plano do Endireitar da sala, que move os cantos por <code>updateRegionPoint</code> — as paredes vinculadas seguem pelo mesmo caminho do diagrama.</p>
+
   <p class="footer">Labirinto · client/src/pixi/PixiCanvas.tsx · gerado após o workflow de 9 melhorias · grafo: 685 nodes / 1448 edges</p>
 </div>

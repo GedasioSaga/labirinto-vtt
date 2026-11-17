@@ -1,4 +1,5 @@
 import { useMapStore } from '../stores/mapStore'
+import { haSalaParaEndireitar } from './alinhamento'
 import { haAlgoParaEndireitar } from './endireitar'
 import { isEditableTarget } from './keymap'
 import { criarDetectorDeToqueDeAlt } from './toqueDeAlt'
@@ -24,8 +25,9 @@ import { criarDetectorDeToqueDeAlt } from './toqueDeAlt'
  * - a ferramenta não é Selecionar: é com ela que se escolhe a linha pronta, e
  *   nas outras pode haver um traço ponto a ponto aberto (Caminho, Polígono),
  *   que tem botão solto entre um clique e outro;
- * - a seleção não tem nada torto (`haAlgoParaEndireitar`). Parede presa e item
- *   travado CONTAM: o toque age, nada muda, e o aviso diz por quê.
+ * - a seleção não tem nada torto (`haAlgoParaEndireitar`, e `haSalaParaEndireitar`
+ *   para a sala). Parede presa e item travado CONTAM: o toque age, nada muda,
+ *   e o aviso diz por quê.
  */
 
 /** O que o Alt lê da store na hora do toque, e a ação que chama. */
@@ -98,7 +100,8 @@ export function instalarEndireitarComAlt(janela: Window = window, store: FonteDo
     if (focoEmCampoDeTexto(soltura.target)) return false
     if (doc.querySelector('[aria-modal="true"]') !== null) return false
     const { map, selection, activeTool } = store.getState()
-    return activeTool === 'select' && haAlgoParaEndireitar(map, selection)
+    // A sala torta (e a parede de sala torta) também é do toque, desde 17/11/2026 (`lib/alinhamento.ts`).
+    return activeTool === 'select' && (haAlgoParaEndireitar(map, selection) || haSalaParaEndireitar(map, selection))
   }
 
   const aoSoltarTecla = (evento: KeyboardEvent): void => {

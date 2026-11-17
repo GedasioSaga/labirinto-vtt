@@ -2602,6 +2602,13 @@ export interface MapBackground {
  *  não quebra nenhum arquivo fora desta fase. */
 export type GridShape = 'square' | 'hex' | 'triangle'
 
+/** Os três interruptores "Grudar … na grade" (o `SnapTargets` de `pixi/grid.ts`, dito aqui para o tipo do mapa não importar do canvas). */
+export interface EncaixeNaGrade {
+  token: boolean
+  wall: boolean
+  prop: boolean
+}
+
 /** Valores default = cópia literal do que drawGrid.ts:4 / drawHexGrid.ts:4
  *  hardcodam hoje, para que mapa antigo abra visualmente idêntico. */
 export interface GridSettings {
@@ -2715,6 +2722,15 @@ export interface MapData {
    *  `undefined` === {x:0, y:0} (aparência idêntica à de hoje) — sem linha de
    *  migração, mesmo padrão de wallKind/locked/hidden acima. */
   gridOffset?: { x: number; y: number }
+  /**
+   * GRADE LEMBRA A ESCOLHA (17/11/2026): os interruptores "Grudar Token /
+   * Parede / Objeto na grade" como o mestre deixou NESTE mapa, restaurados ao
+   * abrir (`stores/mapStore.ts` → `setSnapTarget`, `loadMap`). Ausente = o
+   * mestre nunca mexeu neles aqui: mapa antigo abre igual e os interruptores
+   * ficam como estavam no editor. Só do mestre: nunca vai ao jogador
+   * (`lib/fogFilter.ts`).
+   */
+  encaixeNaGrade?: EncaixeNaGrade
   gridShape: GridShape
   showGrid: boolean
   gridSettings: GridSettings
