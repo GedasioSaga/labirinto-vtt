@@ -21,9 +21,12 @@ import {
   veioDoGrimorio,
 } from '../../../lib/preparo/pastasDeVerbetes'
 import { tipoDaFichaLigada } from '../../../lib/preparo/fichaDoVerbete'
+import { estaNaLixeira } from '../../../lib/preparo/lixeira'
 import type { PastaDeVerbetes, TipoDeVerbete, Verbete } from '../../../lib/preparo/tipos'
 import { usePreludio } from '../../estado/preludio'
 import { useTiposDasFichasLigadas } from '../tiposDasFichas'
+import { BotaoDaLixeira, IconeLixeira } from '../Lixeira'
+import { mandarParaALixeira, restaurarDaLixeira } from '../lixeiraDoPreludio'
 import { lugarDoVerbete, resumoDe } from '../ListaDeVerbetes'
 import { useArrastoParaPasta } from './arrastarParaPasta'
 import { ArvoreDasPastas, EscolherPasta, fraseDaRecusaDaPasta, recuoDoNivel, SEM, TEXTOS_DO_ARRASTO_DA_PASTA, TODAS, TOPO } from './ArvoreDasPastas'
@@ -47,6 +50,8 @@ import './pastas.css'
  *   vários e "Mover para…".
  * - Organizar: busca pelo nome e apelido, campanha, "Já é NPC" / "Sem ficha"
  *   (NPC = tem ficha ligada, `liga.fichas`, e ela não é de jogador; a de jogador mostra o selo "Jogador"), A–Z ou Recentes, retratos ou lista.
+ * - "Excluir" (17/11), no "…" do cartão: o verbete vai para a Lixeira, com
+ *   Desfazer (no aviso e no Ctrl+Z); o botão "Lixeira (N)" do topo restaura depois.
  *
  * As mudanças passam pela loja do Prelúdio: o verbete pelo salvar automático,
  * as pastas pelo índice (`mudarPastas`).
@@ -109,7 +114,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
   const idsDasPastas = useMemo(() => new Set(pastas.map((pasta) => pasta.id)), [pastas])
   const doGrimorio = useMemo(() => new Set(pastas.filter(veioDoGrimorio).map((pasta) => pasta.id)), [pastas])
   const nomeDaPasta = useMemo(() => new Map(pastasNaTela.map((pasta) => [pasta.id, pasta.nome])), [pastasNaTela])
-  const doTipo = useMemo(() => [...verbetes.values()].filter((verbete) => verbete.tipo === tipo && naCampanha(verbete, campanhaId)), [verbetes, tipo, campanhaId])
+  const doTipo = useMemo(() => [...verbetes.values()].filter((verbete) => verbete.tipo === tipo && !estaNaLixeira(verbete) && naCampanha(verbete, campanhaId)), [verbetes, tipo, campanhaId])
   const pastaDe = useMemo(() => new Map(doTipo.map((verbete) => [verbete.id, pastaDoVerbete(verbete, idsDasPastas)])), [doTipo, idsDasPastas])
 
   const atual = escolhida === TODAS || escolhida === SEM || nomeDaPasta.has(escolhida) ? escolhida : TODAS
@@ -219,6 +224,24 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
       })
     },
     [avisar, guardarAsDoGrimorio, mudarVerbete, nomeDoDestino, pastasAgora, um, varios],
+  )
+
+  /** Excluir: os verbetes vão para a Lixeira e continuam na pasta em que estavam, para voltarem a ela ao restaurar. */
+  const excluir = useCallback(
+    (ids: readonly string[]) => {
+      const feito = mandarParaALixeira(ids)
+      if (feito.ids.length === 0) {
+        avisar(feito.texto)
+        return
+      }
+      setMarcados(new Set())
+      avisar(feito.texto, () => {
+        const volta = restaurarDaLixeira(feito.ids)
+        // Já restaurado pela Lixeira: o aviso diz isso em vez de "Desfeito".
+        avisar(volta.ids.length === 0 ? volta.texto : 'Desfeito.')
+      })
+    },
+    [avisar],
   )
 
   /** A pasta e as de cima dela abertas: a que acabou de chegar fica à vista. */
@@ -442,6 +465,10 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
           >
             {ids.length > 1 ? `Mover os ${ids.length} marcados para…` : 'Mover para…'}
           </MenuItem>
+          <MenuSeparador />
+          <MenuItem icone={<IconeLixeira />} perigo disabled={travado} detalhe="Vai para a Lixeira." onClick={() => excluir(ids)}>
+            {ids.length > 1 ? `Excluir os ${ids.length} marcados` : 'Excluir'}
+          </MenuItem>
         </>
       )
     }
@@ -542,6 +569,7 @@ export function VerbetesEmPastas({ tipo }: { tipo: TipoDeVerbete }) {
             </p>
           </div>
           <div className="pp-cab__acoes">
+            <BotaoDaLixeira aoAbrir={() => setAviso(null)} />
             <button type="button" className="gr-bt gr-bt--p" disabled={travado} onClick={() => comecarPasta(undefined, [])}>
               + Nova pasta
             </button>

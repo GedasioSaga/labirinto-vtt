@@ -1,0 +1,60 @@
+/*
+ * A LIXEIRA DOS VERBETES e o "PÔR DENTRO DE…" (17/11). Só o que é novo: os
+ * botões, a janela, a lista de escolha e o campo de busca são os do kit e do
+ * Prelúdio (`gr-bt`, `gr-dlg`, `pr-escolha`, `pr-filtro__campo`). Nada aqui se
+ * move: as janelas e o aviso já entram e saem pelo kit.
+ */
+
+/* ------------------------------------------------------------------ o botão "Lixeira (N)" e o ícone */
+.pr-lixeira__botao { gap: var(--lb-space-1); }
+.pr-lixeira__botao svg, .pr-excluir svg { width: 16px; height: 16px; flex: none; }
+
+/* ------------------------------------------------------------------ a janela da Lixeira */
+.pr-lixeira { display: flex; flex-direction: column; gap: var(--lb-space-3); }
+.pr-lixeira__aviso { margin: 0; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.pr-lixeira__aviso:empty { display: none; }
+.pr-lixeira__aviso--falhou { color: var(--lb-color-ember); }
+.pr-lixeira__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--lb-space-2); }
+.pr-lixeira__item {
+  border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao);
+}
+.pr-lixeira__item[aria-busy='true'] { opacity: 0.6; }
+.pr-lixeira__linha { display: flex; align-items: center; gap: var(--lb-space-3); padding: var(--lb-space-2) var(--lb-space-3); }
+.pr-lixeira__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pr-lixeira__nome { font: 400 var(--lb-font-size-lg)/1.25 var(--lb-font-display); color: var(--lb-color-parchment); overflow-wrap: anywhere; }
+.pr-lixeira__meta { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.pr-lixeira__acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--lb-space-2); }
+.pr-lixeira__pergunta {
+  display: flex; flex-direction: column; gap: var(--lb-space-2);
+  padding: var(--lb-space-3); border-top: 1px solid var(--lb-gr-filete);
+}
+.pr-lixeira__pergunta-texto { margin: 0; font-size: var(--lb-font-size-sm); line-height: var(--lb-font-leading-normal); color: var(--lb-color-parchment-dim); }
+.pr-lixeira__pergunta-texto b { font-weight: 500; color: var(--lb-color-parchment); }
+/* janela estreita: os botões descem para baixo do nome em vez de espremer o nome */
+@media (max-width: 560px) {
+  .pr-lixeira__linha { flex-wrap: wrap; }
+  .pr-lixeira__acoes { width: 100%; justify-content: flex-start; }
+}
+
+/* ------------------------------------------------------------------ a página de quem está na Lixeira, e o Excluir dela */
+.pr-na-lixeira { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-2) var(--lb-space-3); }
+.pr-na-lixeira > span { flex: 1; min-width: 16ch; }
+/* do tamanho do texto: a coluna do lado esticaria o botão de perigo de ponta a ponta */
+.pr-excluir { gap: var(--lb-space-1); align-self: flex-start; }
+
+/* ------------------------------------------------------------------ "Fica dentro de" na página do lugar */
+.pr-dentro { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lb-space-1) var(--lb-space-2); margin-bottom: var(--lb-space-3); }
+.pr-dentro__rotulo { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+/* a trilha, aqui, é parte da linha: a margem de baixo é a da linha */
+.pr-dentro .pr-trilha { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ a janela "Pôr dentro de…" */
+.pr-por-dentro { display: flex; flex-direction: column; gap: var(--lb-space-2); }
+.pr-por-dentro__busca { display: block; }
+/* altura fixa: a janela não pula a cada letra da busca */
+.pr-por-dentro__lista { margin: 0; height: min(320px, 46vh); overflow-y: auto; overscroll-behavior: contain; }
+.pr-por-dentro__item { align-items: center; }
+.pr-por-dentro__nome { min-width: 0; overflow-wrap: anywhere; }
+.pr-por-dentro__item .pr-escolha__detalhe { flex: none; max-width: 55%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-por-dentro__nada { margin: 0; padding: var(--lb-space-3); }
+.pr-por-dentro__nota { margin: 0; }

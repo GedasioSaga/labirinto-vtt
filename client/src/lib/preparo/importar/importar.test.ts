@@ -321,6 +321,34 @@ describe('simulação da importação do Grimório', () => {
     expect([...(semRevelados.relatorio.reimportacao?.verbetes.atualizar ?? [])].sort()).toEqual(['item-bussola', 'pers-capita'])
   })
 
+  it('reimportar: o verbete na Lixeira não volta vivo nem é trocado, com o Grimório igual ou mudado; o lugar que saiu de dentro dele também fica', async () => {
+    const antes = await simularImportacao(cofreFalso(cofreInventado()).leitor)
+    const QUANDO = '2026-11-17T18:00:00.000Z'
+    // A Capitã e o Porto foram excluídos no Prelúdio; a Ilha estava dentro do Porto e subiu um nível.
+    const naLixeira = (id: string): Verbete => ({ ...verbeteDe(antes.plano.verbetes, id), lixeira: QUANDO })
+    const ilha: Verbete = { ...verbeteDe(antes.plano.verbetes, 'cen-ilha'), paiNaLixeira: 'cen-porto' }
+    const existentes = [naLixeira('pers-capita'), naLixeira('cen-porto'), ilha, verbeteDe(antes.plano.verbetes, 'item-bussola')]
+
+    const mudado = cofreInventado()
+    mudado['personagens-soltos/piratas/capita.json'] = String(mudado['personagens-soltos/piratas/capita.json']).replace('Navega em testes.', 'Navega em testes novos.')
+    const { relatorio, plano: paraGravar } = await simularImportacao(cofreFalso(mudado).leitor, { ...COM_ESPACO, existentes: { verbetes: existentes } })
+
+    const plano = relatorio.reimportacao?.verbetes
+    expect(plano?.editadosNoPreludio).toEqual(
+      expect.arrayContaining([
+        { id: 'pers-capita', titulo: verbeteDe(antes.plano.verbetes, 'pers-capita').titulo, mudouNoGrimorioTambem: true },
+        { id: 'cen-porto', titulo: verbeteDe(antes.plano.verbetes, 'cen-porto').titulo, mudouNoGrimorioTambem: false },
+        { id: 'cen-ilha', titulo: verbeteDe(antes.plano.verbetes, 'cen-ilha').titulo, mudouNoGrimorioTambem: false },
+      ]),
+    )
+    expect(plano?.atualizar).toEqual([])
+    expect(plano?.iguais).toEqual(['item-bussola'])
+    for (const id of ['pers-capita', 'cen-porto', 'cen-ilha']) expect(plano?.novos).not.toContain(id)
+    // O "Aplicar" não grava nenhum dos três: o arquivo com `lixeira` fica como está no disco.
+    const gravados = paraGravar.verbetes.map((verbete) => verbete.id)
+    for (const id of ['pers-capita', 'cen-porto', 'cen-ilha']) expect(gravados).not.toContain(id)
+  })
+
   it('reimportar quadro, ligação e campanha: a pasta ligada, a ligação do Prelúdio, o segredo marcado e o quadro editado ficam; o apagado não volta', async () => {
     const antes = (await simularImportacao(cofreFalso(cofreInventado()).leitor, COM_ESPACO)).plano
     const [campanha] = antes.indice.campanhas

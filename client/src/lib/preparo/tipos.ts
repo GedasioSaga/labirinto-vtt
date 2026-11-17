@@ -252,6 +252,20 @@ export const VERBETE = objeto({
   /** Só no verbete de tipo sessão (F4). Campo opcional novo: o formato fica (`disco.ts`). */
   sessao: opcional(DADOS_DA_SESSAO),
   origem: opcional(ORIGEM),
+  /**
+   * Na Lixeira desde (data e hora, ISO), como o quadro (`QUADRO.lixeira`). O
+   * arquivo continua no lugar, inteiro; as listas, a busca, as escolhas e o
+   * pacote do jogador o deixam de fora até o mestre restaurar
+   * (`lib/preparo/lixeira.ts`). Campo opcional novo: o formato fica.
+   */
+  lixeira: opcional(texto()),
+  /**
+   * O lugar de cima de verdade, quando ele está na Lixeira: enquanto isso, o
+   * `paiId` aponta para o lugar vivo mais perto acima dele (ou some). Restaurar
+   * o lugar de cima devolve o `paiId` e tira este campo (`lib/preparo/lixeira.ts`).
+   * Campo opcional novo: o formato fica.
+   */
+  paiNaLixeira: opcional(texto()),
 })
 
 // ─── Ligações: ligacoes.json ─────────────────────────────────────────────────

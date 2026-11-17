@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ancestraisDe, compararTitulos, formaDe, formaNova, idNovo, ordemDe, ROTULO_DO_TIPO, textoPlano, verbeteNovo } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira, paiDeVerdade, TIPOS_QUE_VAO_PARA_A_LIXEIRA } from '../../lib/preparo/lixeira'
 import { nomesSemLinkNasCampanhas, type NomeSemLink, type RevelacoesParaOPacote } from '../../lib/preparo/pacoteDoJogador'
 import { alvoDaForma, alvoDaSecao, alvoDoVerbete, paraDe } from '../../lib/preparo/revelado'
 import type { AlvoDaRevelacao, Forma, Secao, TextoRico, Verbete } from '../../lib/preparo/tipos'
@@ -8,14 +9,26 @@ import { BarraDoTexto, TextoDoPreludio } from '../editor/sobDemanda'
 import { bloqueioDoVerbete, ControleDeRevelacao, RevelarVerbete, useCampanhaDaRevelacao, useRevelacoesDaCampanha } from '../revelar/Revelar'
 import { NaMesa, PorNoMapaDaSecao } from '../janela/NaMesaNoPreludio'
 import { PorOVerbeteNoMapa } from '../janela/PorOVerbeteNoMapa'
+import { quandoFoiParaALixeira } from '../quadro/Quadros'
+import { EscolherLugar } from './EscolherLugar'
 import { FichaDoLivro } from './FichaDoLivro'
 import { Galeria, Retrato } from './Imagens'
+import { IconeLixeira } from './Lixeira'
+import { mandarParaALixeira, restaurarDaLixeira } from './lixeiraDoPreludio'
+import { moverLugares } from './moverLugares'
+import { AvisoDaLista, type Aviso } from './pastas/partesDaLista'
+import './lixeira.css'
 
 /**
  * O VERBETE ABERTO (plano §1, Enciclopédia): nome, apelidos e campanhas; as
  * formas (Dia/Noite, Bruce/Hulk) em abas; o resumo; as seções com o editor
  * (seção de segredo marcada); a galeria; e, ao lado, quem cita este verbete,
  * os lugares e páginas que ficam dentro dele e a ficha do Livro.
+ *
+ * O lugar diz onde fica e deixa trocar ali mesmo ("Fica dentro de", 17/11:
+ * sub-cenário fácil como no Grimório). Personagem, lugar, item e facção têm
+ * "Excluir" (vai para a Lixeira, com Desfazer); na Lixeira a página abre só
+ * para leitura, com o aviso e o "Restaurar".
  *
  * Página e sessão usam a mesma tela, sem a casca de verbete: só o título, o
  * texto e as páginas de dentro (a Escrita).
@@ -40,11 +53,16 @@ function tipoDosFilhos(verbete: Verbete): Verbete['tipo'] {
   return ehDocumento(verbete) ? 'pagina' : verbete.tipo
 }
 
-/** Os filhos diretos do verbete que esta tela mostra e cria (`tipoDosFilhos`). */
+/**
+ * Os filhos diretos do verbete que esta tela mostra e cria (`tipoDosFilhos`).
+ * O que está na Lixeira não aparece. Na página de quem está na Lixeira, o que
+ * era de dentro subiu um nível: a lista mostra o que volta com ele ao restaurar.
+ */
 function filhosDe(verbete: Verbete, verbetes: ReadonlyMap<string, Verbete>): Verbete[] {
   const tipo = tipoDosFilhos(verbete)
+  const dentro = estaNaLixeira(verbete) ? (outro: Verbete) => paiDeVerdade(outro) === verbete.id : (outro: Verbete) => outro.paiId === verbete.id && !estaNaLixeira(outro)
   const filhos: Verbete[] = []
-  for (const outro of verbetes.values()) if (outro.paiId === verbete.id && outro.tipo === tipo) filhos.push(outro)
+  for (const outro of verbetes.values()) if (outro.tipo === tipo && dentro(outro)) filhos.push(outro)
   return filhos.sort((a, b) => (ordemDe(a) ?? Infinity) - (ordemDe(b) ?? Infinity) || compararTitulos(a.titulo, b.titulo))
 }
 
@@ -261,12 +279,16 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const ir = usePreludio((estado) => estado.ir)
   const voltar = usePreludio((estado) => estado.voltar)
   const revelados = usePreludio((estado) => estado.revelados)
+  const campanhaDoFiltro = usePreludio((estado) => estado.campanhaId)
   const verbete = verbetes.get(id)
   const campanha = useCampanhaDaRevelacao(verbete)
   const revelacoes = useRevelacoesDaCampanha(campanha.campanhaId)
   const [formaVista, setFormaVista] = useState<string | null>(null)
   const [montadas, setMontadas] = useState(SECOES_NA_HORA)
   const [renomeando, setRenomeando] = useState(false)
+  /** A janela "Pôr dentro de…" (só o lugar). */
+  const [escolhendoOnde, setEscolhendoOnde] = useState(false)
+  const [aviso, setAviso] = useState<Aviso | null>(null)
   const artigo = useRef<HTMLElement>(null)
 
   const forma = verbete === undefined ? undefined : formaDe(verbete, formaVista)
@@ -291,13 +313,15 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
 
   const ancestrais = useMemo(() => (verbete === undefined ? [] : ancestraisDe(verbete, verbetes)), [verbete, verbetes])
   const filhos = useMemo(() => (verbete === undefined ? [] : filhosDe(verbete, verbetes)), [verbete, verbetes])
+  /** Para a janela "Pôr dentro de…": sempre a mesma lista enquanto o verbete é o mesmo. */
+  const soEste = useMemo(() => [id], [id])
   const citacoes = useMemo(
     () =>
       verbete === undefined
         ? []
         : citadoEm(verbete.id)
             .map((outro) => verbetes.get(outro))
-            .filter((outro): outro is Verbete => outro !== undefined)
+            .filter((outro): outro is Verbete => outro !== undefined && !estaNaLixeira(outro))
             .sort((a, b) => compararTitulos(a.titulo, b.titulo)),
     [verbete, verbetes],
   )
@@ -330,11 +354,29 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
     )
   }
 
-  const editavel = avisoDeLeitura === undefined && !travado
+  // Na Lixeira a página é só para ler: o que se muda ali não aparece em lugar nenhum até restaurar.
+  const naLixeira = estaNaLixeira(verbete)
+  const editavel = avisoDeLeitura === undefined && !travado && !naLixeira
   const avisaNomeComoTexto = editavel && nomeComoTexto.length > 0
   const documento = ehDocumento(verbete)
   const rotuloDoTipo = ROTULO_DO_TIPO[verbete.tipo]
+  const nome = verbete.titulo || 'Sem nome'
   const mudar = (fazer: (atual: Verbete) => Verbete) => mudarVerbete(verbete.id, fazer)
+
+  // ─── Lixeira e "Fica dentro de" ─────────────────────────────────────────────
+  const avisar = (texto: string, desfazer?: () => void) => setAviso({ chave: Date.now(), texto, desfazer })
+  const podeExcluir = !naLixeira && avisoDeLeitura === undefined && TIPOS_QUE_VAO_PARA_A_LIXEIRA.includes(verbete.tipo)
+  const excluir = () => {
+    const feito = mandarParaALixeira([verbete.id])
+    avisar(feito.texto, feito.ids.length === 0 ? undefined : () => restaurarDaLixeira(feito.ids))
+  }
+  const restaurar = () => avisar(restaurarDaLixeira([verbete.id]).texto)
+  const ehLugar = verbete.tipo === 'lugar'
+  const pai = ancestrais[ancestrais.length - 1]
+  const porDentroDe = (destino: string | null) => {
+    const movidos = moverLugares([verbete.id], destino)
+    if (movidos !== null) avisar(movidos.texto, movidos.desfazer)
+  }
   const mudarForma = (formaId: string, fazer: (atual: Forma) => Forma) => mudar((atual) => ({ ...atual, formas: atual.formas.map((outra) => (outra.id === formaId ? fazer(outra) : outra)) }))
   const mudarSecao = (secaoId: string, fazer: (atual: Secao) => Secao) =>
     mudarForma(forma.id, (atual) => ({ ...atual, secoes: atual.secoes.map((secao) => (secao.id === secaoId ? fazer(secao) : secao)) }))
@@ -358,8 +400,8 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
   const novaSecao = () =>
     mudarForma(forma.id, (atual) => ({ ...atual, secoes: [...atual.secoes, { id: idNovo('sc'), titulo: 'Nova seção', texto: { type: 'doc', content: [{ type: 'paragraph' }] }, segredo: false }] }))
 
-  // Revelar (F2c): a sessão é do mestre e não tem controle; o resto nasce oculto.
-  const revelavel = verbete.tipo !== 'sessao'
+  // Revelar (F2c): a sessão é do mestre e não tem controle; o resto nasce oculto. Na Lixeira nada vai ao jogador: os controles saem.
+  const revelavel = verbete.tipo !== 'sessao' && !naLixeira
   const bloqueio = bloqueioDoVerbete(verbete)
   const verbeteOculto = paraDe(revelacoes.porAlvo, alvoDoVerbete(verbete.id)) === null
   const formaOculta = paraDe(revelacoes.porAlvo, alvoDaForma(verbete.id, forma.id)) === null
@@ -380,14 +422,55 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
             ‹ {voltar.rotulo}
           </button>
         )}
-        {ancestrais.length > 0 && (
-          <nav className="pr-trilha" aria-label={documento ? 'Dentro de' : 'Fica dentro de'}>
-            {ancestrais.map((ancestral) => (
-              <button key={ancestral.id} type="button" className="pr-trilha__passo" onClick={() => ir(lugarDe(ancestral))}>
-                {ancestral.titulo || 'Sem nome'}
+        {ehLugar && !naLixeira ? (
+          // O lugar diz onde fica mesmo quando não fica dentro de nenhum: é daqui que ele vira sub-cenário de outro.
+          <div className="pr-dentro">
+            <span className="pr-dentro__rotulo" id="pr-dentro-de">
+              Fica dentro de:
+            </span>
+            {ancestrais.length > 0 ? (
+              <nav className="pr-trilha" aria-labelledby="pr-dentro-de">
+                {ancestrais.map((ancestral) => (
+                  <button key={ancestral.id} type="button" className="pr-trilha__passo" onClick={() => ir(lugarDe(ancestral))}>
+                    {ancestral.titulo || 'Sem nome'}
+                  </button>
+                ))}
+              </nav>
+            ) : (
+              <span className="pr-dentro__rotulo">nenhum lugar</span>
+            )}
+            {editavel && (
+              <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" aria-haspopup="dialog" onClick={() => setEscolhendoOnde(true)}>
+                {pai === undefined ? 'Pôr dentro de um lugar…' : 'Trocar…'}
               </button>
-            ))}
-          </nav>
+            )}
+            {editavel && pai !== undefined && (
+              <button type="button" className="gr-bt gr-bt--p gr-bt--fantasma" onClick={() => porDentroDe(null)}>
+                Tirar de {pai.titulo || 'Sem nome'}
+              </button>
+            )}
+          </div>
+        ) : (
+          ancestrais.length > 0 && (
+            <nav className="pr-trilha" aria-label={documento ? 'Dentro de' : 'Fica dentro de'}>
+              {ancestrais.map((ancestral) => (
+                <button key={ancestral.id} type="button" className="pr-trilha__passo" onClick={() => ir(lugarDe(ancestral))}>
+                  {ancestral.titulo || 'Sem nome'}
+                </button>
+              ))}
+            </nav>
+          )
+        )}
+        {naLixeira && (
+          <div className="pr-aviso pr-na-lixeira" role="status">
+            <span>
+              {/* "Na lixeira desde 17/11, 15:20" vira "… está na Lixeira desde 17/11, 15:20". */}
+              {nome} está na Lixeira{quandoFoiParaALixeira(verbete.lixeira ?? '').replace('Na lixeira', '')}. Não aparece nas listas, na busca nem para os jogadores, e abre só para leitura.
+            </span>
+            <button type="button" className="gr-bt gr-bt--p gr-bt--latao" disabled={travado || avisoDeLeitura !== undefined} onClick={restaurar}>
+              Restaurar
+            </button>
+          </div>
         )}
         {avisoDeLeitura !== undefined && (
           <p className="pr-aviso" role="note">
@@ -539,7 +622,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
               }
               aoTornarSegredo={revelavel ? () => ocultarEmTodas(alvoDaSecao(verbete.id, forma.id, secao.id)) : undefined}
               soNome={soNomeNasSecoes.get(chaveDaSecao(forma.id, secao.id))}
-              naMesa={documento ? undefined : <PorNoMapaDaSecao verbete={verbete} forma={forma} secao={secao} />}
+              naMesa={documento || naLixeira ? undefined : <PorNoMapaDaSecao verbete={verbete} forma={forma} secao={secao} />}
             />
           ))}
           {forma.secoes.length === 0 && <p className="pr-quieto">Nenhum texto nesta forma ainda.</p>}
@@ -555,7 +638,7 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
 
       <aside className="pr-trilho" aria-label={`Ao redor de ${verbete.titulo || 'sem nome'}`}>
         {!documento && <NaMesa verbeteId={verbete.id} />}
-        {!documento && <PorOVerbeteNoMapa verbete={verbete} forma={forma} />}
+        {!documento && !naLixeira && <PorOVerbeteNoMapa verbete={verbete} forma={forma} />}
         {(verbete.tipo === 'lugar' || documento) && (
           <section className="pr-trilho__bloco" aria-labelledby="pr-dentro-titulo">
             <h3 id="pr-dentro-titulo" className="pr-trilho__titulo">
@@ -607,7 +690,34 @@ export function PaginaDoVerbete({ id }: PaginaDoVerbeteProps) {
         {verbete.origem?.grimorio !== undefined && (
           <p className="pr-quieto pr-trilho__origem">Veio do Grimório. Depois de editado aqui, a próxima importação deixa este verbete como está.</p>
         )}
+
+        {podeExcluir && (
+          <button type="button" className="gr-bt gr-bt--p gr-bt--perigo pr-excluir" disabled={travado} aria-describedby="pr-excluir-nota" onClick={excluir}>
+            <IconeLixeira />
+            Excluir {rotuloDoTipo.um.toLowerCase()}
+          </button>
+        )}
+        {podeExcluir && (
+          <p id="pr-excluir-nota" className="pr-quieto">
+            Vai para a Lixeira: dá para desfazer na hora e restaurar depois.
+          </p>
+        )}
       </aside>
+
+      {ehLugar && (
+        <EscolherLugar
+          aberto={escolhendoOnde}
+          ids={soEste}
+          // Os lugares da campanha que o mestre está vendo; se este lugar não é dela, os de todas.
+          campanhaId={campanhaDoFiltro !== null && verbete.campanhas.includes(campanhaDoFiltro) ? campanhaDoFiltro : null}
+          aoFechar={() => setEscolhendoOnde(false)}
+          aoEscolher={(destino) => {
+            setEscolhendoOnde(false)
+            porDentroDe(destino)
+          }}
+        />
+      )}
+      <AvisoDaLista aviso={aviso} aoFechar={(chave) => setAviso((atual) => (atual?.chave === chave ? null : atual))} />
     </div>
   )
 }

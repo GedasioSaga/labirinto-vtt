@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Dialogo } from '../../components/grimorio/Dialogo'
 import { compararTitulos } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import { lugaresDoQuadro, type LugarNoQuadro } from '../../lib/preparo/quadros'
 import { usePreludio } from '../estado/preludio'
 import { verbeteDoCartao } from './cartaoSemTldraw'
@@ -88,7 +89,8 @@ export function EscolherNoQuadro({ aoFechar, aoEscolher }: EscolherNoQuadroProps
       if (lugar.tipo !== 'cartao') continue
       const verbete = verbeteDoCartao(verbetes, lugar.nome)
       const titulo = verbete?.titulo || 'Sem nome'
-      if (verbete === undefined || vistos.has(verbete.id)) continue
+      // O cartão de quem está na Lixeira fica no quadro, apagado: não é lugar para citar.
+      if (verbete === undefined || estaNaLixeira(verbete) || vistos.has(verbete.id)) continue
       vistos.add(verbete.id)
       lista.push({ formaId: lugar.formaId, titulo })
     }

@@ -1,4 +1,5 @@
-import { ancestraisDe, arvoreDe, type NoDaArvore } from './enciclopedia'
+import { ancestraisDe, arvoreDe, semAcento, type NoDaArvore } from './enciclopedia'
+import { estaNaLixeira } from './lixeira'
 import type { Verbete } from './tipos'
 
 /**
@@ -12,6 +13,8 @@ import type { Verbete } from './tipos'
  *   A–Z. Assim "Castelo" e os cômodos dele ficam juntos na grade.
  * - Mudar o pai nunca cria laço: um lugar não vai para dentro dele mesmo nem
  *   de algo que já está dentro dele.
+ * - O lugar na Lixeira (`lixeira.ts`) não entra: quem chama passa só os vivos,
+ *   e nada vai para dentro de um lugar excluído.
  *
  * Nada aqui grava: a tela muda o verbete pela loja do Prelúdio (`mudarVerbete`),
  * que grava sozinha. O arquivo continua o mesmo de antes (o `paiId` já existia).
@@ -102,7 +105,7 @@ export function motivoParaNaoMudarDePai(lugar: Verbete, novoPaiId: string | null
   if (novoPaiId === null) return null
   if (novoPaiId === lugar.id) return 'ele-mesmo'
   const pai = porId.get(novoPaiId)
-  if (pai === undefined || pai.tipo !== 'lugar') return 'nao-e-lugar'
+  if (pai === undefined || pai.tipo !== 'lugar' || estaNaLixeira(pai)) return 'nao-e-lugar'
   return ancestraisDe(pai, porId).some((acima) => acima.id === lugar.id) ? 'dentro-dele' : null
 }
 
@@ -121,7 +124,8 @@ export interface PlanoDoPai {
 /**
  * O que acontece ao pôr `ids` dentro de `destino` (`null` = fora de todos): a
  * única porta para mudar o pai de um lugar (arrastar, "Mover para…", "Tirar
- * de"). O que não é lugar é ignorado.
+ * de", o "Fica dentro de" da página). O que não é lugar, ou está na Lixeira,
+ * é ignorado.
  */
 export function planoDeMudarDePai(
   ids: readonly string[],
@@ -134,7 +138,7 @@ export function planoDeMudarDePai(
   let jaEstavam = 0
   for (const id of ids) {
     const lugar = verbetes.get(id)
-    if (lugar?.tipo !== 'lugar') continue
+    if (lugar?.tipo !== 'lugar' || estaNaLixeira(lugar)) continue
     if ((lugar.paiId ?? null) === destino) {
       jaEstavam += 1
       continue
@@ -146,10 +150,68 @@ export function planoDeMudarDePai(
   return { mudam, recusados, jaEstavam }
 }
 
-/** O verbete com o pai novo (`null` tira o campo, como num lugar de cima de sempre). Sem mudança, o mesmo objeto. */
+/**
+ * O verbete com o pai novo (`null` tira o campo, como num lugar de cima de
+ * sempre). Mudar de lugar à mão esquece o lugar de cima que estava na Lixeira
+ * (`paiNaLixeira`): restaurar aquele não puxa este de volta. Sem mudança, o
+ * mesmo objeto.
+ */
 export function comPai(verbete: Verbete, paiId: string | null): Verbete {
   if ((verbete.paiId ?? null) === paiId) return verbete
-  if (paiId !== null) return { ...verbete, paiId }
-  const { paiId: _antes, ...semPai } = verbete
-  return semPai
+  const { paiId: _antes, paiNaLixeira: _guardado, ...semPai } = verbete
+  return paiId === null ? semPai : { ...semPai, paiId }
+}
+
+/** Onde o lugar estava, como o arquivo guarda (`paiId` e `paiNaLixeira`): o que o Desfazer devolve. */
+export type PaiDeAntes = Pick<Verbete, 'paiId' | 'paiNaLixeira'>
+
+export function paiDeAntes(verbete: Verbete): PaiDeAntes {
+  return { ...(verbete.paiId === undefined ? {} : { paiId: verbete.paiId }), ...(verbete.paiNaLixeira === undefined ? {} : { paiNaLixeira: verbete.paiNaLixeira }) }
+}
+
+/** O Desfazer de uma mudança de pai: o lugar volta a apontar para onde apontava, igual. */
+export function comPaiDeAntes(verbete: Verbete, antes: PaiDeAntes): Verbete {
+  if (verbete.paiId === antes.paiId && verbete.paiNaLixeira === antes.paiNaLixeira) return verbete
+  const { paiId: _agora, paiNaLixeira: _guardado, ...semPai } = verbete
+  return { ...semPai, ...antes }
+}
+
+// ─── Escolher o lugar de cima ("Mover para…", "Fica dentro de") ──────────────
+
+export interface DestinoParaMover {
+  readonly id: string
+  readonly nome: string
+  /** Os lugares acima dele, da região ao pai direto ("Reino de Goa › Castelo"); vazio = lugar de cima. */
+  readonly caminho: string
+  /** Os lugares pedidos já estão dentro deste: aparece, mas não se escolhe. */
+  readonly jaEstaAqui: boolean
+}
+
+/**
+ * Onde `ids` cabem: TODOS os lugares organizados (não só os que já têm algo
+ * dentro), na ordem da árvore, com o caminho de cada um. Fica de fora o que
+ * faria laço (ele mesmo e o que está dentro dele). A busca procura cada
+ * palavra no nome, nos apelidos e no caminho, sem acento.
+ */
+export function destinosParaMover(
+  ids: readonly string[],
+  organizados: LugaresOrganizados,
+  verbetes: ReadonlyMap<string, Verbete>,
+  soLeitura: ReadonlyMap<string, string> = new Map(),
+  busca = '',
+): DestinoParaMover[] {
+  const palavras = semAcento(busca).split(/\s+/).filter((palavra) => palavra !== '')
+  const saida: DestinoParaMover[] = []
+  for (const lugar of organizados.emOrdem) {
+    const nome = lugar.titulo || SEM_NOME
+    const caminho = (organizados.caminhoDe.get(lugar.id) ?? []).join(' › ')
+    if (palavras.length > 0) {
+      const ondeProcurar = semAcento([caminho, nome, ...lugar.apelidos].join(' · '))
+      if (!palavras.every((palavra) => ondeProcurar.includes(palavra))) continue
+    }
+    const plano = planoDeMudarDePai(ids, lugar.id, verbetes, soLeitura)
+    if (plano.mudam.length > 0) saida.push({ id: lugar.id, nome, caminho, jaEstaAqui: false })
+    else if (plano.recusados.length === 0 && plano.jaEstavam > 0) saida.push({ id: lugar.id, nome, caminho, jaEstaAqui: true })
+  }
+  return saida
 }

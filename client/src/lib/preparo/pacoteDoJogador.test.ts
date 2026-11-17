@@ -292,6 +292,31 @@ describe('pacote do jogador: quem vê o quê', () => {
     const ids = pacoteDe(ANA).verbetes.map((v) => v.id)
     for (const fora of ['vb-sessao', 'vb-de-outra', 'vb-futuro']) expect(ids).not.toContain(fora)
   })
+
+  it('o que está na Lixeira nunca sai, mesmo revelado antes; restaurado, volta a sair', () => {
+    const comOPortoNaLixeira = verbetes.map((um) => (um.id === 'vb-porto' ? { ...um, lixeira: QUANDO } : um))
+    const pacote = montarPacoteDoJogador({ campanhaId: MAR, contaId: ANA, verbetes: comOPortoNaLixeira, revelado: doMar, ligacoes })
+    expect(pacote.verbetes.map((v) => v.id)).toEqual(['vb-capitao', 'vb-imediato'])
+    expect(pacote.ligacoes.some((uma) => uma.de === 'vb-porto' || uma.para === 'vb-porto')).toBe(false)
+    expect(pacoteDe(ANA).verbetes.map((v) => v.id)).toContain('vb-porto')
+  })
+
+  it('a menção a quem está na Lixeira vira só o nome, sem o id', () => {
+    const cidade = verbete({ id: 'vb-cidade', titulo: 'Cidade Alta', formas: [forma('fc', 'Cidade Alta', [secao('sc', 'Descrição', doc(p(t('Perto de '), mencao('vb-farol', 'Farol'))))])] })
+    const farol = verbete({ id: 'vb-farol', titulo: 'Farol Velho', resto: { lixeira: QUANDO } })
+    const tudoRevelado = revelado(
+      revelacao(alvoDoVerbete('vb-cidade'), 'todos'),
+      revelacao(alvoDaForma('vb-cidade', 'fc'), 'todos'),
+      revelacao(alvoDaSecao('vb-cidade', 'fc', 'sc'), 'todos'),
+      revelacao(alvoDoVerbete('vb-farol'), 'todos'),
+    )
+    const pacote = montarPacoteDoJogador({ campanhaId: MAR, contaId: null, verbetes: [cidade, farol], revelado: tudoRevelado })
+    expect(pacote.verbetes.map((v) => v.id)).toEqual(['vb-cidade'])
+    const nos = nosDe(verbeteNoPacote(pacote, 'vb-cidade')?.formas[0]?.secoes[0]?.texto.content ?? [])
+    expect(nos.some((no) => no.type === 'mencao')).toBe(false)
+    expect(nos.filter((no) => no.type === 'text').map((no) => (no.type === 'text' ? no.text : ''))).toEqual(['Perto de ', 'Farol Velho'])
+    expect(JSON.stringify(pacote)).not.toContain('vb-farol')
+  })
 })
 
 describe('pacote do jogador: o texto', () => {

@@ -3,6 +3,7 @@ import { EditorContent, ReactRenderer, useEditor, useEditorState, type Editor, t
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion'
 import { create } from 'zustand'
 import { compararTitulos, ROTULO_DO_TIPO, semAcento, textoPlano } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import { alvoParaGravar, type AlvoNaMesa } from '../../lib/preparo/sessoes'
 import type { TextoRico, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
@@ -44,6 +45,8 @@ function sugerir(consulta: string): ItemDaMencao[] {
   const limpa = semAcento(consulta.trim())
   const achados: { pontos: number; item: ItemDaMencao }[] = []
   for (const verbete of usePreludio.getState().verbetes.values()) {
+    // Quem está na Lixeira não se menciona de novo (as menções que já existem continuam abrindo a página dele).
+    if (estaNaLixeira(verbete)) continue
     const titulo = semAcento(verbete.titulo)
     const pontos =
       limpa === ''

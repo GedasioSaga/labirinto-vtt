@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, type KeyboardEvent } from 'react'
 import { BackIcon } from '../components/icons'
 import { ehDaEscrita, naCampanha, ROTULO_DO_TIPO, TIPOS_DA_ENCICLOPEDIA, type NoDaArvore } from '../lib/preparo/enciclopedia'
 import { campanhaDaSessaoEm, contarEventos } from '../lib/preparo/linhaDoTempo'
+import { estaNaLixeira } from '../lib/preparo/lixeira'
 import type { TipoDeVerbete } from '../lib/preparo/tipos'
 import { Arvore, type ItemDaArvore } from './arvore/Arvore'
 import { useCadernos, useNovoCaderno } from './escrita/Escrita'
@@ -138,7 +139,8 @@ export function Lado({ aoVoltar, aoBuscar, saida }: LadoProps) {
     const porTipo = new Map<TipoDeVerbete, number>()
     let todos = 0
     for (const verbete of verbetes.values()) {
-      if (!TIPOS_DA_ENCICLOPEDIA.includes(verbete.tipo) || !naCampanha(verbete, campanhaId)) continue
+      // O que está na Lixeira não conta: as listas também não o mostram.
+      if (!TIPOS_DA_ENCICLOPEDIA.includes(verbete.tipo) || estaNaLixeira(verbete) || !naCampanha(verbete, campanhaId)) continue
       if (verbete.tipo === 'pagina' && !ehDaEscrita(verbete, verbetes)) continue
       porTipo.set(verbete.tipo, (porTipo.get(verbete.tipo) ?? 0) + 1)
       todos += 1

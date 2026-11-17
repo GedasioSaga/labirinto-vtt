@@ -1,7 +1,7 @@
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { FEATURES, type FeatureFlags } from '../features'
 // Na janela do Prelúdio, o disco passa pelos comandos dela (só preparo/); na principal, é o plugin fs.
-import { exists, readDir, readTextFile, writeTextFile } from '../fsDaJanela'
+import { exists, readDir, readTextFile, remove, writeTextFile } from '../fsDaJanela'
 import { ensureDir, writeTextFileSafely } from '../mapFileIO'
 import { preparoLigado } from './chave'
 import { ehRegistro } from './molde'
@@ -306,6 +306,34 @@ export function lerVerbete(id: string, flags: Readonly<FeatureFlags> = FEATURES)
 
 export function gravarVerbete(verbete: Verbete, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
   return gravarNoPreparo(ARQUIVO_DO_VERBETE, LUGARES.verbete(verbete.id), verbete, flags)
+}
+
+/**
+ * "APAGAR DE VEZ" (a Lixeira dos verbetes, 17/11): tira do disco o arquivo do
+ * verbete e a cópia `.anterior` dele. Entra na mesma fila das gravações do
+ * arquivo: uma gravação que ainda estava a caminho termina antes, e não traz o
+ * verbete de volta. Arquivo que já não existe não é erro. Lança com a razão em
+ * português. A cópia `.anterior` sai por melhor esforço: sozinha, ela não abre
+ * como verbete (`lerDoPreparo` só a procura quando o arquivo existe e está danificado).
+ */
+export async function apagarVerbeteDoDisco(id: string, flags: Readonly<FeatureFlags> = FEATURES): Promise<void> {
+  if (!preparoLigado(flags)) throw new Error(DESLIGADO)
+  const partes = LUGARES.verbete(id)
+  const rotulo = rotuloDe(partes)
+  const { arquivo: caminho } = await caminhoNoPreparo(partes)
+  await naFila(caminho, async () => {
+    try {
+      if (await exists(caminho)) await remove(caminho)
+    } catch (erro) {
+      throw new Error(`Não deu para apagar ${rotulo}: ${motivo(erro)}.`)
+    }
+    try {
+      const anterior = `${caminho}${SUFIXO_ANTERIOR}`
+      if (await exists(anterior)) await remove(anterior)
+    } catch {
+      // A cópia fica; o verbete já saiu.
+    }
+  })
 }
 
 export function lerRevelado(campanhaId: string, flags: Readonly<FeatureFlags> = FEATURES): Promise<DocumentoLido<Revelado>> {

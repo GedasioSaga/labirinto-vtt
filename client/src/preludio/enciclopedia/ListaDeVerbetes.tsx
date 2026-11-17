@@ -1,14 +1,17 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { compararTitulos, ehDaEscrita, naCampanha, ROTULO_DO_TIPO, semAcento, textoPlano, TIPOS_DA_ENCICLOPEDIA, verbeteNovo } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import type { TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio, type Lugar } from '../estado/preludio'
 import { Retrato } from './Imagens'
+import { BotaoDaLixeira } from './Lixeira'
 
 /**
  * A LISTA DA ENCICLOPÉDIA: os verbetes do tipo escolhido na barra lateral,
  * filtrados pela campanha e pelo nome, com o caminho de cada um (lugar dentro
  * de lugar, página dentro de página). Serve a "Tudo" e a Páginas; Personagens,
  * Itens e Facções têm a lista com pastas, e Lugares a lista em regiões (pastas/).
+ * O que está na Lixeira não entra: fica atrás do botão "Lixeira (N)" do topo.
  */
 
 const LINHA_DO_RESUMO = 160
@@ -62,7 +65,7 @@ export function ListaDeVerbetes({ tipo }: ListaDeVerbetesProps) {
   const doTipo = useMemo(
     () =>
       [...verbetes.values()].filter(
-        (verbete) => tipos.includes(verbete.tipo) && naCampanha(verbete, campanhaId) && (verbete.tipo !== 'pagina' || ehDaEscrita(verbete, verbetes)),
+        (verbete) => tipos.includes(verbete.tipo) && !estaNaLixeira(verbete) && naCampanha(verbete, campanhaId) && (verbete.tipo !== 'pagina' || ehDaEscrita(verbete, verbetes)),
       ),
     // `tipos` sai de `tipo`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +122,7 @@ export function ListaDeVerbetes({ tipo }: ListaDeVerbetesProps) {
           </p>
         </div>
         <div className="pr-lista__acoes">
+          <BotaoDaLixeira />
           {tiposParaCriar.map((novoTipo) => (
             <button key={novoTipo} type="button" className="gr-bt gr-bt--p gr-bt--latao" disabled={travado} onClick={() => void criar(novoTipo)}>
               {tipo === 'todos' ? `+ ${ROTULO_DO_TIPO[novoTipo].um}` : `+ ${ROTULO_DO_TIPO[novoTipo].novo}`}

@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { buscar, compararTitulos, ROTULO_DO_TIPO, type Achado } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira, soOsVivos } from '../../lib/preparo/lixeira'
 import type { Verbete } from '../../lib/preparo/tipos'
 import { entradasDaBusca, usePreludio } from '../estado/preludio'
 import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
@@ -49,7 +50,8 @@ export function BuscaGeral({ aoFechar }: { aoFechar: () => void }) {
   const ir = usePreludio((estado) => estado.ir)
   const [consulta, setConsulta] = useState('')
   const adiada = useDeferredValue(consulta)
-  const entradas = useMemo(() => entradasDaBusca(verbetes), [verbetes])
+  // O que está na Lixeira não se acha pela busca (só pela Lixeira da Enciclopédia).
+  const entradas = useMemo(() => entradasDaBusca(soOsVivos(verbetes)), [verbetes])
   const achados = useMemo(() => buscar(entradas, adiada), [entradas, adiada])
   // O quadro aberto e os cartões dele, lidos uma vez ao abrir a busca (ela é modal: nada muda por baixo).
   const [quadro] = useState(quadroAberto)
@@ -64,7 +66,7 @@ export function BuscaGeral({ aoFechar }: { aoFechar: () => void }) {
       const doQuadro: { verbete: Verbete; formaId: string }[] = []
       for (const [verbeteId, formaId] of cartoes) {
         const verbete = verbetes.get(verbeteId)
-        if (verbete !== undefined) doQuadro.push({ verbete, formaId })
+        if (verbete !== undefined && !estaNaLixeira(verbete)) doQuadro.push({ verbete, formaId })
       }
       return doQuadro.sort((a, b) => compararTitulos(a.verbete.titulo, b.verbete.titulo)).map(({ verbete, formaId }) => ({ t: 'cartao', verbete, formaId, achado: null }))
     }

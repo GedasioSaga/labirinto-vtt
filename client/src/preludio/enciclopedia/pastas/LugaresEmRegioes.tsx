@@ -1,11 +1,16 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { MenuItem, MenuRotulo, MenuSeparador, Pop } from '../../../components/grimorio/Pop'
+import { MenuItem, MenuSeparador, Pop } from '../../../components/grimorio/Pop'
 import { compararTitulos, naCampanha, semAcento, verbeteNovo } from '../../../lib/preparo/enciclopedia'
-import { comPai, lugarEDeDentro, organizarLugares, planoDeMudarDePai, type Recusa } from '../../../lib/preparo/lugaresEmRegioes'
+import { estaNaLixeira } from '../../../lib/preparo/lixeira'
+import { lugarEDeDentro, organizarLugares } from '../../../lib/preparo/lugaresEmRegioes'
 import { momentoDoVerbete } from '../../../lib/preparo/pastasDeVerbetes'
 import type { Verbete } from '../../../lib/preparo/tipos'
 import { usePreludio } from '../../estado/preludio'
+import { EscolherLugar } from '../EscolherLugar'
+import { BotaoDaLixeira, IconeLixeira } from '../Lixeira'
+import { mandarParaALixeira, restaurarDaLixeira } from '../lixeiraDoPreludio'
 import { lugarDoVerbete, resumoDe } from '../ListaDeVerbetes'
+import { fraseDaRecusa, moverLugares, planoAgora } from '../moverLugares'
 import { useArrastoParaPasta, type TextosDoArrasto } from './arrastarParaPasta'
 import { ArvoreDasPastas, SEM, TODAS, type RamoDaArvore } from './ArvoreDasPastas'
 import { CartaoDoVerbete } from './CartaoDoVerbete'
@@ -29,12 +34,19 @@ import './pastas.css'
  *   caminho mantém as imagens juntas e a hierarquia legível.
  * - Arrastar um cartão para cima de outro lugar (cartão, grupo ou linha da
  *   barra) põe dentro dele; para "Sem região", tira de onde estava. Nunca
- *   cria laço, e tem Desfazer. Sem mouse: marcar e "Mover para…".
+ *   cria laço, e tem Desfazer. Sem mouse: "Mover para…" (no "…" do cartão ou
+ *   na barra dos marcados) abre a escolha com TODOS os lugares e uma busca
+ *   (pedido de 17/11: sub-cenário fácil como no Grimório).
+ * - "Excluir" (17/11) manda o lugar para a Lixeira, com Desfazer; o que estava
+ *   dentro dele sobe um nível e volta ao restaurar (`lib/preparo/lixeira.ts`).
  *
  * A mudança é só o `paiId` do verbete, pela loja do Prelúdio (salvar automático).
  */
 
-type Menu = { readonly t: 'verbete'; readonly id: string } | { readonly t: 'mover'; readonly ids: readonly string[] }
+/** O "…" de um cartão: o lugar dele. */
+interface Menu {
+  readonly id: string
+}
 
 interface Grupo {
   readonly id: string
@@ -44,21 +56,11 @@ interface Grupo {
 /** No cartão, só os dois últimos nomes do caminho: o pai direto é o que mais diz, e o grupo já diz a região. */
 const NOMES_NO_CARTAO = 2
 
+/** Nenhum lugar à espera (sempre a mesma lista: a janela fechada não redesenha). */
+const SEM_IDS: readonly string[] = []
+
 function nomeDe(verbete: Verbete | undefined): string {
   return verbete?.titulo || 'Sem nome'
-}
-
-function fraseDaRecusa(lugar: Verbete, motivo: Recusa, destino: string): string {
-  if (motivo === 'so-leitura') return `${nomeDe(lugar)} abre só para leitura e não muda de lugar.`
-  if (motivo === 'ele-mesmo') return `${nomeDe(lugar)} não cabe dentro dele mesmo.`
-  if (motivo === 'dentro-dele') return `${destino} fica dentro de ${nomeDe(lugar)}: não dá para pôr ${nomeDe(lugar)} lá.`
-  return 'Um lugar só cabe dentro de outro lugar.'
-}
-
-/** O plano com a loja de agora (o que a tela leu pode ter ficado para trás no meio de um gesto). */
-function planoAgora(ids: readonly string[], destino: string | null) {
-  const estado = usePreludio.getState()
-  return planoDeMudarDePai(ids, destino, estado.verbetes, estado.soLeitura)
 }
 
 export function LugaresEmRegioes() {
@@ -68,7 +70,6 @@ export function LugaresEmRegioes() {
   const travado = usePreludio((estado) => estado.travado)
   const ir = usePreludio((estado) => estado.ir)
   const criarVerbete = usePreludio((estado) => estado.criarVerbete)
-  const mudarVerbete = usePreludio((estado) => estado.mudarVerbete)
   const escolherCampanha = usePreludio((estado) => estado.escolherCampanha)
 
   const [escolhida, setEscolhida] = useState(TODAS)
@@ -80,12 +81,13 @@ export function LugaresEmRegioes() {
   const [marcados, setMarcados] = useState<ReadonlySet<string>>(new Set())
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
+  /** Os lugares à espera de um lugar de cima, na janela "Pôr dentro de…". */
+  const [escolhendo, setEscolhendo] = useState<readonly string[] | null>(null)
   const [anuncio, setAnuncio] = useState('')
   const gatilho = useRef<HTMLElement | null>(null)
-  const proximoMenu = useRef<Menu | null>(null)
 
   // ─── O que a tela mostra ───────────────────────────────────────────────────
-  const lugares = useMemo(() => [...verbetes.values()].filter((verbete) => verbete.tipo === 'lugar' && naCampanha(verbete, campanhaId)), [verbetes, campanhaId])
+  const lugares = useMemo(() => [...verbetes.values()].filter((verbete) => verbete.tipo === 'lugar' && !estaNaLixeira(verbete) && naCampanha(verbete, campanhaId)), [verbetes, campanhaId])
   const organizados = useMemo(() => organizarLugares(lugares), [lugares])
   const porId = useMemo(() => new Map(organizados.emOrdem.map((verbete) => [verbete.id, verbete])), [organizados])
   const arvore = useMemo((): RamoDaArvore[] => organizados.regioes.map((regiao) => ({ pasta: regiao, nivel: regiao.nivel })), [organizados])
@@ -130,37 +132,39 @@ export function LugaresEmRegioes() {
   /** Põe os lugares dentro de `destino` (`null` = fora de todos). Confere tudo de novo com a loja: o que a tela leu pode ter ficado para trás. */
   const mover = useCallback(
     (ids: readonly string[], destino: string | null) => {
-      const estado = usePreludio.getState()
-      if (estado.travado) return
-      const { mudam, recusados, jaEstavam } = planoAgora(ids, destino)
-      const nomeDoDestino = destino === null ? '' : nomeDe(estado.verbetes.get(destino))
-      const primeiraRecusa = recusados[0]
-      if (mudam.length === 0) {
-        if (primeiraRecusa !== undefined) avisar(fraseDaRecusa(primeiraRecusa[0], primeiraRecusa[1], nomeDoDestino))
-        else if (jaEstavam > 0) avisar(destino === null ? 'Já estava fora de outros lugares.' : `Já estava dentro de ${nomeDoDestino}.`)
+      const movidos = moverLugares(ids, destino)
+      if (movidos === null) return
+      const { desfazer } = movidos
+      if (desfazer === undefined) {
+        avisar(movidos.texto)
         return
       }
-      const antes = mudam.map((lugar): [string, string | null] => [lugar.id, lugar.paiId ?? null])
-      for (const lugar of mudam) mudarVerbete(lugar.id, (agora) => comPai(agora, destino))
       setMarcados(new Set())
       // O destino fechado abre: o lugar que acabou de chegar fica à vista.
       if (destino !== null) setFechadas((agora) => new Set([...agora].filter((id) => id !== destino)))
-      const um = mudam[0]
-      const quem = mudam.length === 1 && um !== undefined ? nomeDe(um) : plural(mudam.length, 'lugar', 'lugares')
-      const deOnde = mudam.length === 1 && um?.paiId !== undefined ? nomeDe(estado.verbetes.get(um.paiId)) : null
-      const feito =
-        destino === null
-          ? deOnde === null
-            ? `${quem} ${mudam.length === 1 ? 'saiu' : 'saíram'} de onde estava${mudam.length === 1 ? '' : 'm'}.`
-            : `${quem} saiu de ${deOnde}.`
-          : `${quem} ${mudam.length === 1 ? 'agora fica' : 'agora ficam'} dentro de ${nomeDoDestino}.`
-      const sobra = primeiraRecusa === undefined ? '' : ` ${fraseDaRecusa(primeiraRecusa[0], primeiraRecusa[1], nomeDoDestino)}`
-      avisar(`${feito}${sobra}`, () => {
-        for (const [id, pai] of antes) mudarVerbete(id, (agora) => comPai(agora, pai))
+      avisar(movidos.texto, () => {
+        desfazer()
         anunciar('Desfeito.')
       })
     },
-    [anunciar, avisar, mudarVerbete],
+    [anunciar, avisar],
+  )
+
+  /** Excluir: os lugares vão para a Lixeira (o que estava dentro sobe um nível); o Desfazer do aviso traz tudo de volta de uma vez. */
+  const excluir = useCallback(
+    (ids: readonly string[]) => {
+      const feito = mandarParaALixeira(ids)
+      if (feito.ids.length === 0) {
+        avisar(feito.texto)
+        return
+      }
+      setMarcados(new Set())
+      avisar(feito.texto, () => {
+        restaurarDaLixeira(feito.ids)
+        anunciar('Desfeito.')
+      })
+    },
+    [anunciar, avisar],
   )
 
   const criar = async () => {
@@ -236,7 +240,7 @@ export function LugaresEmRegioes() {
     },
     [abrirLugar, acabouDeSoltar],
   )
-  const aoMenuDoLugar = useCallback((id: string, elemento: HTMLElement) => abrirMenu({ t: 'verbete', id }, elemento), [])
+  const aoMenuDoLugar = useCallback((id: string, elemento: HTMLElement) => abrirMenu({ id }, elemento), [])
 
   /** A linha de baixo do cartão: onde ele fica; sem pai, quando mudou (Recentes) ou a campanha (todas). */
   const subDe = (verbete: Verbete): string => {
@@ -261,53 +265,31 @@ export function LugaresEmRegioes() {
       },
     })
 
-  // ─── O menu (do lugar ou o "Mover para…") ─────────────────────────────────
+  // ─── O menu do lugar (o "…" do cartão) ─────────────────────────────────────
   const conteudoDoMenu = () => {
     if (menu === null) return null
     const estado = usePreludio.getState()
-    if (menu.t === 'verbete') {
-      const ids = marcados.has(menu.id) ? [...marcados] : [menu.id]
-      const lugar = estado.verbetes.get(menu.id)
-      const pai = lugar?.paiId === undefined ? undefined : estado.verbetes.get(lugar.paiId)
-      return (
-        <>
-          <MenuItem icone={<IconeLivro />} onClick={() => abrirLugar(menu.id)}>
-            Abrir o lugar
-          </MenuItem>
-          <MenuSeparador />
-          <MenuItem
-            icone={<IconeMapa />}
-            disabled={travado}
-            onClick={() => {
-              proximoMenu.current = { t: 'mover', ids }
-            }}
-          >
-            {ids.length > 1 ? `Mover os ${ids.length} marcados para…` : 'Mover para…'}
-          </MenuItem>
-          {ids.length === 1 && pai !== undefined && (
-            <MenuItem disabled={travado} onClick={() => mover(ids, null)}>
-              Tirar de {nomeDe(pai)}
-            </MenuItem>
-          )}
-        </>
-      )
-    }
-    const lugaresDoMenu = menu.ids.map((id) => estado.verbetes.get(id)).filter((verbete): verbete is Verbete => verbete !== undefined)
-    const naoServe = (destino: string | null) => planoDeMudarDePai(menu.ids, destino, estado.verbetes, estado.soLeitura).mudam.length === 0
+    const ids = marcados.has(menu.id) ? [...marcados] : [menu.id]
+    const lugar = estado.verbetes.get(menu.id)
+    const pai = lugar?.paiId === undefined ? undefined : estado.verbetes.get(lugar.paiId)
     return (
       <>
-        <MenuRotulo>{lugaresDoMenu.length === 1 ? `Pôr ${nomeDe(lugaresDoMenu[0])} dentro de` : `Pôr ${plural(lugaresDoMenu.length, 'lugar', 'lugares')} dentro de`}</MenuRotulo>
-        <MenuItem disabled={travado || naoServe(null)} detalhe="Sai de onde está." onClick={() => mover(menu.ids, null)}>
-          Nenhum (Sem região)
+        <MenuItem icone={<IconeLivro />} onClick={() => abrirLugar(menu.id)}>
+          Abrir o lugar
         </MenuItem>
         <MenuSeparador />
-        {organizados.regioes.map((regiao) => (
-          <MenuItem key={regiao.id} icone={<IconeMapa />} disabled={travado || naoServe(regiao.id)} onClick={() => mover(menu.ids, regiao.id)}>
-            {regiao.nivel > 0 ? <span className="pp-menu__sub" style={{ paddingLeft: regiao.nivel * 14 }}>{regiao.nome}</span> : regiao.nome}
+        <MenuItem icone={<IconeMapa />} disabled={travado} onClick={() => setEscolhendo(ids)}>
+          {ids.length > 1 ? `Mover os ${ids.length} marcados para…` : 'Mover para…'}
+        </MenuItem>
+        {ids.length === 1 && pai !== undefined && (
+          <MenuItem disabled={travado} onClick={() => mover(ids, null)}>
+            Tirar de {nomeDe(pai)}
           </MenuItem>
-        ))}
-        {organizados.regioes.length > 0 && <MenuSeparador />}
-        <MenuRotulo>Para pôr dentro de um lugar que ainda não tem nada dentro, arraste o cartão até ele.</MenuRotulo>
+        )}
+        <MenuSeparador />
+        <MenuItem icone={<IconeLixeira />} perigo disabled={travado} detalhe="Vai para a Lixeira." onClick={() => excluir(ids)}>
+          {ids.length > 1 ? `Excluir os ${ids.length} marcados` : 'Excluir'}
+        </MenuItem>
       </>
     )
   }
@@ -348,6 +330,7 @@ export function LugaresEmRegioes() {
             </p>
           </div>
           <div className="pp-cab__acoes">
+            <BotaoDaLixeira aoAbrir={() => setAviso(null)} />
             <button type="button" className="gr-bt gr-bt--p gr-bt--latao" disabled={travado} onClick={() => void criar()}>
               {regiaoAtual === undefined ? '+ Novo lugar' : `+ Lugar em ${nomeDe(regiaoAtual)}`}
             </button>
@@ -442,23 +425,26 @@ export function LugaresEmRegioes() {
           rotulo="Lugares marcados"
           quantos={marcados.size}
           travado={travado}
-          aoMover={(elemento) => abrirMenu({ t: 'mover', ids: [...marcados] }, elemento)}
+          aoMover={() => setEscolhendo([...marcados])}
           aoDesmarcar={() => setMarcados(new Set())}
         />
       </div>
 
-      <Pop
-        key={menu === null ? 'nenhum' : menu.t === 'mover' ? `mover:${menu.ids.join(',')}` : `verbete:${menu.id}`}
-        aberto={menu !== null}
-        gatilho={gatilho}
-        rotulo={menu?.t === 'mover' ? 'Mover para' : 'Ações'}
-        onFechar={() => {
-          setMenu(proximoMenu.current)
-          proximoMenu.current = null
-        }}
-      >
+      <Pop key={menu === null ? 'nenhum' : `verbete:${menu.id}`} aberto={menu !== null} gatilho={gatilho} rotulo="Ações" onFechar={() => setMenu(null)}>
         {conteudoDoMenu()}
       </Pop>
+
+      <EscolherLugar
+        aberto={escolhendo !== null}
+        ids={escolhendo ?? SEM_IDS}
+        campanhaId={campanhaId}
+        aoFechar={() => setEscolhendo(null)}
+        aoEscolher={(destino) => {
+          const ids = escolhendo ?? SEM_IDS
+          setEscolhendo(null)
+          mover(ids, destino)
+        }}
+      />
 
       <AvisoDaLista aviso={aviso} aoFechar={(chave) => setAviso((agora) => (agora?.chave === chave ? null : agora))} />
       <p className="pr-sr" role="status">

@@ -35,7 +35,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   }),
 }))
 
-const { gravarVerbete, lerVerbete } = await import('./disco')
+const { apagarVerbeteDoDisco, gravarVerbete, lerVerbete } = await import('./disco')
 const { FEATURES } = await import('../features')
 
 const LIGADO = { ...FEATURES, preparo: true }
@@ -81,4 +81,23 @@ it('verbete com chaves desconhecidas (no topo, na forma e na seção) volta igua
 
   expect(JSON.parse(textos.get(ARQUIVO) ?? 'null')).toEqual({ ...NO_DISCO, titulo: 'Capitã Renomeada' })
   expect(JSON.parse(textos.get(`${ARQUIVO}.anterior`) ?? 'null')).toEqual(NO_DISCO)
+})
+
+it('apagar de vez tira o arquivo do verbete e a cópia anterior; apagar o que já não existe não é erro', async () => {
+  textos.set(ARQUIVO, JSON.stringify(NO_DISCO, null, 2))
+  textos.set(`${ARQUIVO}.anterior`, JSON.stringify(NO_DISCO, null, 2))
+
+  await apagarVerbeteDoDisco('verbete-de-teste', LIGADO)
+
+  expect(textos.has(ARQUIVO)).toBe(false)
+  expect(textos.has(`${ARQUIVO}.anterior`)).toBe(false)
+  expect((await lerVerbete('verbete-de-teste', LIGADO)).estado).toBe('novo')
+  await expect(apagarVerbeteDoDisco('verbete-de-teste', LIGADO)).resolves.toBeUndefined()
+})
+
+it('apagar de vez recusa o id que não serve de nome de arquivo (nunca sai de preparo/verbetes)', async () => {
+  textos.set(ARQUIVO, JSON.stringify(NO_DISCO, null, 2))
+
+  await expect(apagarVerbeteDoDisco('../verbete-de-teste', LIGADO)).rejects.toThrow('não serve de caminho')
+  expect(textos.has(ARQUIVO)).toBe(true)
 })

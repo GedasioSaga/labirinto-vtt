@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { compararTitulos, formaDe, naCampanha, ROTULO_DO_TIPO, semAcento, TIPOS_DA_ENCICLOPEDIA } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira } from '../../lib/preparo/lixeira'
 import type { TipoDeVerbete, Verbete } from '../../lib/preparo/tipos'
 import { usePreludio } from '../estado/preludio'
 import { urlDaMidia, useRaizDaMidia } from '../midia'
@@ -55,7 +56,8 @@ export function GavetaDeVerbetes({ id, campanhaId, noQuadro, editavel, faltam, e
   const [levantado, setLevantado] = useState<string | null>(null)
   const lista = useRef<HTMLUListElement>(null)
 
-  const daCampanha = useMemo(() => [...verbetes.values()].filter((verbete) => viraCartao(verbete.tipo) && naCampanha(verbete, campanhaId)), [verbetes, campanhaId])
+  // O que está na Lixeira não se põe no quadro.
+  const daCampanha = useMemo(() => [...verbetes.values()].filter((verbete) => viraCartao(verbete.tipo) && !estaNaLixeira(verbete) && naCampanha(verbete, campanhaId)), [verbetes, campanhaId])
   const mostrados = useMemo(() => {
     const procura = semAcento(adiada.trim())
     return daCampanha

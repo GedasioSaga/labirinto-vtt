@@ -1,3 +1,4 @@
+import { estaNaLixeira } from './lixeira'
 import { ehRegistro } from './molde'
 import { alvoDaForma, alvoDaLigacao, alvoDaSecao, alvoDoVerbete, contaVe, paraDe, revelacoesPorAlvo } from './revelado'
 import { ARQUIVO_DO_VERBETE, PECAS_DO_TEXTO, type AlvoDaRevelacao, type Forma, type Ligacao, type Revelado, type TextoRico, type TipoDeVerbete, type Verbete } from './tipos'
@@ -14,7 +15,8 @@ import { ARQUIVO_DO_VERBETE, PECAS_DO_TEXTO, type AlvoDaRevelacao, type Forma, t
  *
  * - Verbete: só o desta campanha e revelado a este jogador (ou a todos). Sessão
  *   nunca sai (é o roteiro do mestre), nem verbete de formato mais novo que esta
- *   versão não sabe filtrar. Sai o nome, o tipo e o pai, se o pai também saiu.
+ *   versão não sabe filtrar, nem o que está na Lixeira (mesmo revelado antes: a
+ *   menção a ele vira só o nome, como a de quem o jogador não vê). Sai o nome, o tipo e o pai, se o pai também saiu.
  *   Apelidos, campanhas, ligação com ficha e cena, acervo, cartaz e extras não saem.
  * - Forma: só a revelada (revelar Bruce não revela Hulk), com nome, retrato,
  *   resumo e galeria. Seção: só a revelada e que não é de segredo; seção com
@@ -392,7 +394,7 @@ function montar({ campanhaId, contaId, verbetes, revelado, ligacoes = [] }: Entr
   const todos = new Map<string, Verbete>()
   for (const verbete of verbetes) todos.set(verbete.id, verbete)
   // Primeiro quem entra: a menção de um texto depende de quem mais está no pacote.
-  const entram = [...todos.values()].filter((verbete) => podeIrAoJogador(verbete) && verbete.campanhas.includes(campanhaId) && ve(alvoDoVerbete(verbete.id))).sort(porId)
+  const entram = [...todos.values()].filter((verbete) => podeIrAoJogador(verbete) && !estaNaLixeira(verbete) && verbete.campanhas.includes(campanhaId) && ve(alvoDoVerbete(verbete.id))).sort(porId)
   const noPacote = new Set(entram.map((verbete) => verbete.id))
 
   const midias = new Set<string>()

@@ -16,6 +16,7 @@ import {
   type TLShapePartial,
 } from 'tldraw'
 import { ROTULO_DO_TIPO } from '../../lib/preparo/enciclopedia'
+import { estaNaLixeira, soOsVivos } from '../../lib/preparo/lixeira'
 import type { Secao, Verbete } from '../../lib/preparo/tipos'
 import { lugarDoVerbete } from '../enciclopedia/ListaDeVerbetes'
 import { usePreludio, type Lugar } from '../estado/preludio'
@@ -451,7 +452,8 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   // Os verbetes dos itens do acervo: o cartão só redesenha quando um deles muda (e não a cada letra digitada em outro verbete).
   const acervo = shape.type === 'cenario-card' ? forma?.acervo : undefined
   const verbetesDosItens = usePreludio(useShallow((estado) => (acervo === undefined ? SEM_ITENS : acervo.map((entrada) => verbeteDoCartao(estado.verbetes, entrada.itemId)))))
-  const itens = useMemo(() => (verbetesDosItens === SEM_ITENS ? [] : itensVivos(acervo, usePreludio.getState().verbetes)), [verbetesDosItens, acervo])
+  // O item que está na Lixeira sai da faixa, como o que não existe mais; restaurado, volta.
+  const itens = useMemo(() => (verbetesDosItens === SEM_ITENS ? [] : itensVivos(acervo, soOsVivos(usePreludio.getState().verbetes))), [verbetesDosItens, acervo])
   const selecionado = useValue('cartão selecionado', () => editor.getSelectedShapeIds().includes(shape.id), [editor, shape.id])
   const somenteVer = useValue('quadro só para ver', () => editor.getInstanceState().isReadonly, [editor])
   const verbeteTravado = usePreludio((estado) => estado.travado || (verbete !== undefined && estado.soLeitura.has(verbete.id)))
@@ -467,7 +469,8 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
   }, [formaId, expandido])
 
   // A roda dentro de um painel ou da faixa rola o texto ou os itens, não o quadro (um ouvinte no corpo cobre todas as colunas).
-  const existe = verbete !== undefined && forma !== undefined
+  // Restaurado da Lixeira, o corpo é montado de novo e o ouvinte volta com ele.
+  const existe = verbete !== undefined && forma !== undefined && !estaNaLixeira(verbete)
   useEffect(() => {
     const elemento = corpo.current
     if (elemento === null) return
@@ -506,10 +509,13 @@ function CartaoNoQuadro({ shape, colunas }: { shape: CartaoDeVerbete; colunas: n
     '--pr-cartao-coluna': `${largura / colunas}px`,
     '--pr-faixa-esp': `${espessuraDaFaixa(shape.props.w, lado, colunas)}px`,
   } as CSSProperties // o tipo do React não conhece as variáveis CSS (--pr-*); os valores são número e px
-  if (verbete === undefined || forma === undefined) {
+  // Na Lixeira o cartão fica no lugar, apagado, e volta inteiro quando o verbete é restaurado.
+  if (verbete === undefined || forma === undefined || estaNaLixeira(verbete)) {
     return (
       <HTMLContainer className="pr-cartao pr-cartao--sumiu" style={estilo}>
-        <p className="pr-cartao__sumiu">Este verbete não existe mais no Prelúdio.</p>
+        <p className="pr-cartao__sumiu">
+          {verbete === undefined || forma === undefined ? 'Este verbete não existe mais no Prelúdio.' : `${verbete.titulo || 'Sem nome'} está na Lixeira. Restaure pela Lixeira da Enciclopédia para o cartão voltar.`}
+        </p>
       </HTMLContainer>
     )
   }
