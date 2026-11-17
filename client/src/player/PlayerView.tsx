@@ -70,6 +70,7 @@ import { createRelevoRenderer, type RelevoRenderer } from '../pixi/drawRelevo'
 import { criarDesenhoDoBarranco, type DesenhoDoBarranco } from '../pixi/drawBarranco'
 import { pisoDoRecorte } from '../lib/barranco'
 import { carimbosComOsAbismos } from '../lib/abismo'
+import { chaoPintadoDoPiso } from '../lib/materialDoBarranco'
 import { criarDesenhoDoAbismo, type DesenhoDoAbismo } from '../pixi/drawAbismo'
 import { createTexturasRenderer, vistaDaCamera, type TexturasRenderer } from '../pixi/drawTexturas'
 import { criarTerrenoDoChao, type TerrenoDoChao } from '../pixi/terrenoDoChao'
@@ -3646,7 +3647,13 @@ function PlayerViewDoCanvas({
     // ABISMO: o mesmo molde; todos os do recorte são do piso do grupo.
     const abismosDoRecorte = currentMap.abismos
     scene.barrancoContainer.visible = barrancoDoRecorte !== undefined || abismosDoRecorte !== undefined
-    scene.barranco.atualizar(barrancoDoRecorte === undefined ? null : { barranco: barrancoDoRecorte, piso: pisoDoRecorte(barrancoDoRecorte), grid: currentMap.grid })
+    // O material de cada barranco já vem escrito pelo mestre (`barrancoComMaterial`); o chão pintado
+    // do recorte só escolhe a linha da borda no estilo Desenhado.
+    scene.barranco.atualizar(
+      barrancoDoRecorte === undefined
+        ? null
+        : { barranco: barrancoDoRecorte, piso: pisoDoRecorte(barrancoDoRecorte), grid: currentMap.grid, chao: chaoPintadoDoPiso(currentMap, pisoDoRecorte(barrancoDoRecorte)) },
+    )
     scene.abismo.atualizar(abismosDoRecorte === undefined ? null : { abismos: abismosDoRecorte, piso: abismosDoRecorte[0]?.piso ?? 0, grid: currentMap.grid })
     // TEXTURAS: só os passos que o recorte trouxe; o balde enche as formas do
     // recorte. Modo leve ("Efeitos do mapa" desligado, ou o WebGL já caiu): nada.

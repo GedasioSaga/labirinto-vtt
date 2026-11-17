@@ -7,8 +7,11 @@ import { assinarTracosDesenhados, ehTracoDesenhado, pedirBordaDoTraco, pedirFace
 import { alturaDaVista, CASA_DO_TRACO, type AlturaDoTraco, type FaceDoTraco } from '../texturas/desenhado/traco'
 import { criarBarrancoDesenhado, type PassosDoAtual, type TintaDoBarranco } from './barrancoDesenhado'
 import { PALETA_MEIO_TERMO } from '../texturas/meioTermo/paleta'
-import { contornoDoTom, corDoBarranco, LARGURA_DO_CONTORNO, TONS_DO_BARRANCO } from '../texturas/meioTermo/barranco'
+import { contornoDoTom, LARGURA_DO_CONTORNO, TONS_DO_BARRANCO } from '../texturas/meioTermo/barranco'
+import { AFINA_ATE, corDaFacePorChao, TONS_POR_CHAO, type MaterialDoBarranco } from '../texturas/meioTermo/barrancoPorChao'
 import { misturar, rgb, type Rgb } from '../texturas/ruido'
+import type { ConsultaDoChao } from '../lib/chaoPintado'
+import { chaoDosBarrancos, type ChaoDoBarranco } from '../lib/materialDoBarranco'
 
 /**
  * DESENHO DO BARRANCO (porte de `docs/design/barranco/prototipo/index.html`,
@@ -21,8 +24,11 @@ import { misturar, rgb, type Rgb } from '../texturas/ruido'
  *
  * Cara pelo estilo do mapa (`meioTermoLigado`):
  * - Atual (Meio-Termo): o perfil liso de `texturas/meioTermo/barranco.ts`, com
- *   o contorno escuro da própria terra no pé;
- * - Simples (linhas): as faixas do Penhasco nesse estilo (`corDaParede`), sem contorno.
+ *   o contorno escuro da própria cor no pé, no MATERIAL de cada barranco
+ *   (`lib/materialDoBarranco.ts`: o chão pintado no lado alto ou o forçado no
+ *   painel; tons em `texturas/meioTermo/barrancoPorChao.ts`). A Terra é a de sempre;
+ * - Simples (linhas): as faixas do Penhasco nesse estilo (`corDaParede`), sem
+ *   contorno e sem material.
  * Nos dois: luz de cima à esquerda (a parede virada para a luz clareia, a de
  * costas escurece e joga mais sombra no lado baixo) e o alto de cada área um
  * pouco mais claro a cada degrau. Nada de bolinha, escama ou detalhe repetido.
@@ -50,18 +56,19 @@ function numero(c: Rgb): number {
 }
 
 /** A cor de uma faixa da parede pela fração da altura (0 = lábio, 1 = pé) e pela face (1 = de frente para a luz). */
-function corDaFaixa(fracao: number, face: number, simples: boolean): number {
-  const base: Rgb = simples ? corDaParede(fracao * AJUSTE_DO_PENHASCO.altura) : corDoBarranco(fracao)
-  const luz = face > 0 ? misturar(base, LUZ, face * 0.42 * 0.45) : misturar(base, TONS_DO_BARRANCO.contorno, -face * 0.45 * 0.55)
+function corDaFaixa(fracao: number, face: number, simples: boolean, material: MaterialDoBarranco): number {
+  const tons = TONS_POR_CHAO[material].face
+  const base: Rgb = simples ? corDaParede(fracao * AJUSTE_DO_PENHASCO.altura) : corDaFacePorChao(tons, fracao)
+  const luz = face > 0 ? misturar(base, LUZ, face * 0.42 * 0.45) : misturar(base, tons.contorno, -face * 0.45 * 0.55)
   return numero(luz)
 }
 
 const cacheDeCores = new Map<string, number>()
-function corGuardada(faixa: number, face: number, simples: boolean): number {
-  const chave = `${faixa}:${face}:${simples ? 1 : 0}`
+function corGuardada(faixa: number, face: number, simples: boolean, material: MaterialDoBarranco): number {
+  const chave = `${faixa}:${face}:${simples ? 1 : 0}:${material}`
   const pronta = cacheDeCores.get(chave)
   if (pronta !== undefined) return pronta
-  const cor = corDaFaixa((faixa + 0.5) / FAIXAS, face / PASSOS_DA_FACE, simples)
+  const cor = corDaFaixa((faixa + 0.5) / FAIXAS, face / PASSOS_DA_FACE, simples, material)
   cacheDeCores.set(chave, cor)
   return cor
 }
@@ -106,7 +113,7 @@ function pintarSombra(g: Graphics, geo: GeoDoBarranco, escala: number): void {
   }
 }
 
-function pintarParede(g: Graphics, geo: GeoDoBarranco, escala: number, simples: boolean): void {
+function pintarParede(g: Graphics, geo: GeoDoBarranco, escala: number, simples: boolean, material: MaterialDoBarranco): void {
   for (const corrida of corridas(geo)) {
     const trechos = trechosDa(geo, corrida)
     // Trechos seguidos com a mesma luz viram uma tira só por faixa de cor.
@@ -123,36 +130,61 @@ function pintarParede(g: Graphics, geo: GeoDoBarranco, escala: number, simples: 
       const idx = pontosDosTrechos(geo, trechos.slice(inicio, fim))
       if (idx.some((i) => geo.t[i] >= 0.4)) {
         for (let f = 0; f < FAIXAS; f += 1) {
-          g.poly(faixa(geo, idx, (i) => (geo.t[i] * f) / FAIXAS, (i) => (geo.t[i] * (f + 1)) / FAIXAS)).fill({ color: corGuardada(f, face, simples) })
+          g.poly(faixa(geo, idx, (i) => (geo.t[i] * f) / FAIXAS, (i) => (geo.t[i] * (f + 1)) / FAIXAS)).fill({ color: corGuardada(f, face, simples, material) })
         }
       }
       inicio = fim
     }
-    // O contorno no pé: o escuro da própria terra, nunca preto (só no Atual, como o Penhasco).
+    // O contorno no pé: o escuro da própria cor, nunca preto (só no Atual, como o Penhasco).
     if (!simples) {
       const pes = (corrida.fechada ? [...corrida.idx, corrida.idx[0]] : corrida.idx).filter((i) => geo.t[i] > 0.6 * escala || corrida.fechada)
       if (pes.length > 1) {
         const pts = pes.flatMap((i) => [geo.lip[i][0] + geo.vn[i][0] * geo.t[i], geo.lip[i][1] + geo.vn[i][1] * geo.t[i]])
-        g.poly(pts, false).stroke({ color: numero(TONS_DO_BARRANCO.contorno), width: LARGURA_DO_CONTORNO * escala, join: 'round', cap: 'round' })
+        g.poly(pts, false).stroke({ color: numero(TONS_POR_CHAO[material].face.contorno), width: LARGURA_DO_CONTORNO * escala, join: 'round', cap: 'round' })
       }
     }
   }
 }
 
-/** A beira de cima: um fio de luz no alto, do lado alto. */
-function pintarBeira(g: Graphics, geo: GeoDoBarranco, escala: number): void {
+function suave(t: number): number {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t
+  return x * x * (3 - 2 * x)
+}
+
+/**
+ * A beira de cima, do lado alto: os traços do material. `fio`: os de largura
+ * fixa (o fio de luz de sempre). `afina`: a borda cheia da neve e da grama, que
+ * estreita junto com a face nas pontas do risco e morre no chão com a parede.
+ */
+function pintarBeira(g: Graphics, geo: GeoDoBarranco, escala: number, material: MaterialDoBarranco, quais: 'afina' | 'fio'): void {
+  const tracos = TONS_POR_CHAO[material].beira.filter((traco) => (traco.afina === true) === (quais === 'afina'))
+  if (tracos.length === 0) return
+  const cheia = Math.max(...geo.t)
   for (const corrida of corridas(geo)) {
     const idx = corrida.fechada ? [...corrida.idx, corrida.idx[0]] : corrida.idx
     if (idx.length < 2) continue
-    const pts = idx.flatMap((i) => [geo.lip[i][0] - geo.un[i][0] * 0.9 * escala, geo.lip[i][1] - geo.un[i][1] * 0.9 * escala])
-    g.poly(pts, false).stroke({ color: numero(LUZ), alpha: 0.45, width: 1.7 * escala, join: 'round', cap: 'round' })
+    for (const traco of tracos) {
+      if (traco.afina === true) {
+        const k = (i: number): number => (cheia > 0 ? suave(geo.t[i] / (cheia * AFINA_ATE)) : 1)
+        const fora = (i: number): number => -(traco.recuo + traco.largura / 2) * escala * k(i)
+        const dentro = (i: number): number => -(traco.recuo - traco.largura / 2) * escala * k(i)
+        const pts: number[] = []
+        for (const i of idx) pts.push(geo.lip[i][0] + geo.un[i][0] * fora(i), geo.lip[i][1] + geo.un[i][1] * fora(i))
+        for (let q = idx.length - 1; q >= 0; q -= 1) {
+          const i = idx[q]
+          pts.push(geo.lip[i][0] + geo.un[i][0] * dentro(i), geo.lip[i][1] + geo.un[i][1] * dentro(i))
+        }
+        g.poly(pts).fill({ color: numero(traco.cor), alpha: traco.alfa })
+        continue
+      }
+      const pts = idx.flatMap((i) => [geo.lip[i][0] - geo.un[i][0] * traco.recuo * escala, geo.lip[i][1] - geo.un[i][1] * traco.recuo * escala])
+      g.poly(pts, false).stroke({ color: numero(traco.cor), alpha: traco.alfa, width: traco.largura * escala, join: 'round', cap: 'round' })
+    }
   }
 }
 
-const TERRA = PALETA_MEIO_TERMO.terra
-
-/** O vão de terra da rampa: a parede abre e vira descida, com as duas laterais cortadas. */
-export function pintarRampa(g: Graphics, geo: GeoDoBarranco, s: number, w: number, escala: number, alpha = 1): void {
+/** O vão da rampa: a parede abre e vira descida no tom do material (a Terra, a terra de caminho), com as duas laterais cortadas. */
+export function pintarRampa(g: Graphics, geo: GeoDoBarranco, s: number, w: number, escala: number, alpha = 1, material: MaterialDoBarranco = 'terra'): void {
   const N = 12
   const topo: number[][] = []
   const pe: number[][] = []
@@ -170,9 +202,11 @@ export function pintarRampa(g: Graphics, geo: GeoDoBarranco, s: number, w: numbe
   }
   const fl = Math.hypot(fx, fy) || 1
   const f = (fx / fl) * PARA_LUZ[0] + (fy / fl) * PARA_LUZ[1]
-  const claro = f > 0 ? misturar(rgb(TERRA.realce), LUZ, f * 0.25) : rgb(TERRA.realce)
-  const fundo = f < 0 ? misturar(rgb(TERRA.base), rgb(TERRA.sombra), -f * 0.6) : rgb(TERRA.base)
-  const tons: readonly Rgb[] = [claro, misturar(claro, rgb(TERRA.base), 0.7), fundo]
+  const doMaterial = TONS_POR_CHAO[material]
+  const R = doMaterial.rampa
+  const claro = f > 0 ? misturar(R.realce, LUZ, f * 0.25) : R.realce
+  const fundo = f < 0 ? misturar(R.base, R.sombra, -f * 0.6) : R.base
+  const tons: readonly Rgb[] = [claro, misturar(claro, R.base, 0.7), fundo]
   for (let k = 0; k < tons.length; k += 1) {
     const a = k / tons.length
     const b = (k + 1) / tons.length
@@ -181,7 +215,7 @@ export function pintarRampa(g: Graphics, geo: GeoDoBarranco, s: number, w: numbe
     for (let q = N; q >= 0; q -= 1) pts.push(topo[q][0] + (pe[q][0] - topo[q][0]) * b, topo[q][1] + (pe[q][1] - topo[q][1]) * b)
     g.poly(pts).fill({ color: numero(tons[k]), alpha })
   }
-  const contorno = { color: numero(TONS_DO_BARRANCO.contorno), width: 1.2 * escala, cap: 'round' as const, alpha }
+  const contorno = { color: numero(doMaterial.face.contorno), width: 1.2 * escala, cap: 'round' as const, alpha }
   g.moveTo(topo[0][0], topo[0][1]).lineTo(pe[0][0], pe[0][1]).stroke(contorno)
   g.moveTo(topo[N][0], topo[N][1]).lineTo(pe[N][0], pe[N][1]).stroke(contorno)
 }
@@ -216,11 +250,17 @@ function pintarTopo(g: Graphics, lista: readonly GeoDoBarranco[], k: number, alf
   }
 }
 
-function pintarBarrancos(g: Graphics, lista: readonly GeoDoBarranco[], escala: number, simples: boolean): void {
+/** O material de cada barranco da lista (no Simples, sempre a Terra: esse estilo não tem material). */
+type MaterialDe = (geo: GeoDoBarranco) => MaterialDoBarranco
+
+/** Sombra, parede e rampa; a borda que `afina` entra depois da parede e ANTES da rampa, que cobre a ponta dela no vão. */
+function pintarBarrancos(g: Graphics, lista: readonly GeoDoBarranco[], escala: number, simples: boolean, materialDe: MaterialDe): void {
   for (const geo of lista) pintarSombra(g, geo, escala)
   for (const geo of lista) {
-    pintarParede(g, geo, escala, simples)
-    for (const v of geo.vaos) pintarRampa(g, geo, v.s, v.w, escala)
+    const material = materialDe(geo)
+    pintarParede(g, geo, escala, simples, material)
+    pintarBeira(g, geo, escala, material, 'afina')
+    for (const v of geo.vaos) pintarRampa(g, geo, v.s, v.w, escala, 1, material)
   }
 }
 
@@ -240,13 +280,19 @@ function pintarEscolha(g: Graphics, geo: GeoDoBarranco, grid: number, escala: nu
     .stroke({ color: contorno, width: 2 * escala, cap: 'round', join: 'round' })
 }
 
-/** O que desenhar. `mostras` só no meio da virada; `escolhido` só no editor. */
+/**
+ * O que desenhar. `mostras` só no meio da virada; `escolhido` só no editor.
+ * `chao`: a consulta do chão pintado do piso (`chaoPintadoDoPiso`), de onde sai
+ * o material Automático; ausente ou `null` = nada pintado (só o material
+ * escrito no barranco muda a Terra).
+ */
 export interface EntradaDoBarranco {
   barranco: BarrancoDoMapa | undefined
   piso: number
   grid: number
   mostras?: ReadonlyMap<string, number>
   escolhido?: string | null
+  chao?: ConsultaDoChao | null
 }
 
 export interface DesenhoDoBarranco {
@@ -302,10 +348,15 @@ export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
     if (ultimaEntrada !== null) pintar(ultimaEntrada)
   })
 
+  // O material e o chão do alto de cada barranco da última pintura (`chaoDosBarrancos`), pelo id.
+  let chaos: ReadonlyMap<string, ChaoDoBarranco> = new Map()
+  const materialDoGeo = (geo: GeoDoBarranco): MaterialDoBarranco => chaos.get(geo.id)?.material ?? 'terra'
+
   const passosDoAtual: PassosDoAtual = {
     rampas: (g, lista) => {
       if (ultima === null) return
       const escala = escalaDoBarranco(ultima.grid)
+      // No Desenhado a face é a imagem do pacote, sem material: a rampa continua a terra de caminho.
       for (const geo of lista) for (const v of geo.vaos) pintarRampa(g, geo, v.s, v.w, escala)
     },
     topo: (g, lista, nivel, alfa) => pintarTopo(g, lista, nivel, alfa),
@@ -335,6 +386,7 @@ export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
       ultima.grid === entrada.grid &&
       ultima.mostras === entrada.mostras &&
       (ultima.escolhido ?? null) === (entrada.escolhido ?? null) &&
+      (ultima.chao ?? null) === (entrada.chao ?? null) &&
       ultima.estilo === estilo &&
       ultima.tinta?.face === tinta?.face &&
       ultima.tinta?.borda === tinta?.borda
@@ -346,14 +398,16 @@ export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
     const escala = escalaDoBarranco(entrada.grid)
     const geos = geosDoBarranco(entrada.barranco, entrada.piso, entrada.grid, entrada.mostras)
     const riscos = geos.filter((geo) => geo.tipo === 'risco')
+    chaos = chaoDosBarrancos(entrada.barranco, entrada.piso, entrada.grid, geos, entrada.chao ?? null)
     if (estilo === 'desenhado' && tinta !== null) {
       desenhado.pintar(
         {
           geos,
           grid: entrada.grid,
           alturaDe: alturasDasBeiras(entrada.barranco, tinta.face.face, entrada.grid),
-          // O chão do lado alto e a água do pé ainda não são lidos do mapa (11.12): a linha da grama.
-          chaoNoAlto: () => null,
+          // O chão que mais cobre o lado alto escolhe a linha da borda (grama, terra ou neve; `null` = a da grama).
+          // A água do pé ainda não é lida do mapa (11.12).
+          chaoNoAlto: (geo) => chaos.get(geo.id)?.chao ?? null,
           aguaNoPe: () => false,
         },
         tinta,
@@ -361,16 +415,17 @@ export function criarDesenhoDoBarranco(): DesenhoDoBarranco {
       )
     } else {
       const simples = estilo === 'simples'
+      const materialDe: MaterialDe = simples ? () => 'terra' : materialDoGeo
       // Nível por nível: sombra no de baixo, parede, rampa, o alto e a beira; os riscos por último.
       for (let k = 1; k <= 3; k += 1) {
         const lista = geos.filter((geo) => geo.tipo === 'area' && geo.nivel === k)
         if (lista.length === 0) continue
-        pintarBarrancos(vetor, lista, escala, simples)
+        pintarBarrancos(vetor, lista, escala, simples, materialDe)
         pintarTopo(vetor, lista, k)
-        for (const geo of lista) pintarBeira(vetor, geo, escala)
+        for (const geo of lista) pintarBeira(vetor, geo, escala, materialDe(geo), 'fio')
       }
-      pintarBarrancos(vetor, riscos, escala, simples)
-      for (const geo of riscos) pintarBeira(vetor, geo, escala)
+      pintarBarrancos(vetor, riscos, escala, simples, materialDe)
+      for (const geo of riscos) pintarBeira(vetor, geo, escala, materialDe(geo), 'fio')
     }
     const escolhido = entrada.escolhido ?? null
     const geoEscolhido = escolhido === null ? undefined : riscos.find((geo) => geo.id === escolhido)

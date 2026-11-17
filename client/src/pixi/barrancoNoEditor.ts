@@ -19,8 +19,13 @@ import {
   VIRAR_MS,
   virarRisco,
   type AlvoDaRampa,
+  type GeoDoBarranco,
 } from '../lib/barranco'
+import { chaoDosBarrancos, chaoPintadoDoPiso, type ChaoDoBarranco } from '../lib/materialDoBarranco'
+import type { ConsultaDoChao } from '../lib/chaoPintado'
 import { useMapStore } from '../stores/mapStore'
+import { useFerramentaDoBarranco } from '../stores/ferramentaDoBarranco'
+import type { MaterialDoBarranco } from '../texturas/meioTermo/barrancoPorChao'
 import { pintarRampa, type EntradaDoBarranco } from './drawBarranco'
 
 /**
@@ -31,6 +36,8 @@ import { pintarRampa, type EntradaDoBarranco } from './drawBarranco'
  * - Área alta: o traço sobe um degrau a partir do nível onde começou (Alt ou
  *   Descer baixa); a prévia é o próprio barranco, e soltar vira UM passo.
  * - Rampa: o ponteiro mostra onde a rampa cai (ou qual sai); clicar põe ou tira.
+ * O risco e o traço da área nascem com o material do painel (`ferramentaDoBarranco`;
+ * Automático não escreve nada, e o material sai do chão pintado no lado alto).
  * O estado transitório (rascunho da área, virada) fica aqui, fora da store:
  * a lista inteira só muda ao soltar.
  */
@@ -42,7 +49,7 @@ const COR_DA_RAMPA_ENTRA = 0xd9a441
 
 type Gesto =
   | { tipo: 'riscar'; pontos: RegionPoint[] }
-  | { tipo: 'pintar'; ini: number; descer: boolean; ultimo: RegionPoint; antes: BarrancoDoMapa; rascunho: BarrancoDoMapa }
+  | { tipo: 'pintar'; ini: number; descer: boolean; material: MaterialDoBarranco | null; ultimo: RegionPoint; antes: BarrancoDoMapa; rascunho: BarrancoDoMapa }
   | { tipo: 'rampa'; inicio: RegionPoint }
 
 export interface GestoDoBarranco {
@@ -85,6 +92,24 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
     return geosDoBarranco(map.barranco, pisoAtivo, map.grid)
   }
 
+  /** O material do painel para o que nasce agora (`null` = Automático). */
+  const materialDoPainel = (): MaterialDoBarranco | null => {
+    const { material } = useFerramentaDoBarranco.getState()
+    return material === 'automatico' ? null : material
+  }
+
+  // O material de cada barranco para a prévia da rampa, guardado enquanto o barranco e o chão são os mesmos
+  // (o ponteiro passa muitas vezes pelo mesmo mapa).
+  let materiais: { geos: readonly GeoDoBarranco[]; chao: ConsultaDoChao | null; porGeo: ReadonlyMap<string, ChaoDoBarranco> } | null = null
+  const materialDoGeo = (geo: GeoDoBarranco): MaterialDoBarranco => {
+    const { map, pisoAtivo } = estado()
+    if (map.barranco === undefined) return 'terra'
+    const geos = geosDeAgora()
+    const chao = chaoPintadoDoPiso(map, pisoAtivo)
+    if (materiais === null || materiais.geos !== geos || materiais.chao !== chao) materiais = { geos, chao, porGeo: chaoDosBarrancos(map.barranco, pisoAtivo, map.grid, geos, chao) }
+    return materiais.porGeo.get(geo.id)?.material ?? 'terra'
+  }
+
   const desenharRisco = (pontos: readonly RegionPoint[]) => {
     dep.rascunho.clear()
     const [primeiro, ...resto] = pontos
@@ -107,7 +132,7 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
     }
     const geos = geosDeAgora()
     const geo = geos.find((g) => pertoDoGeo(g, alvo.ponto).d < 0.5)
-    if (geo !== undefined) pintarRampa(dep.rascunho, geo, pertoDoGeo(geo, alvo.ponto).s, 2 * meio, escala, 0.72)
+    if (geo !== undefined) pintarRampa(dep.rascunho, geo, pertoDoGeo(geo, alvo.ponto).s, 2 * meio, escala, 0.72, materialDoGeo(geo))
     dep.rascunho.circle(alvo.x, alvo.y, meio).stroke({ width: 2 * escala, color: COR_DA_RAMPA_ENTRA, alpha: 0.9 })
   }
 
@@ -164,8 +189,9 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
       const alvo = descer ? ini - 1 : ini + 1
       if (alvo > NIVEL_MAXIMO) dep.avisar(`Limite de ${NIVEL_MAXIMO} degraus acima do chão.`)
       else if (alvo < 0) dep.avisar('Aqui já é o chão: não dá para descer mais.')
-      const rascunho = pincelarArea(antes, p, RAIO_DO_PINCEL_DA_AREA[s.barrancoPincel], ini, descer, s.barrancoAltura, s.pisoAtivo)
-      gesto = { tipo: 'pintar', ini, descer, ultimo: p, antes, rascunho }
+      const material = materialDoPainel()
+      const rascunho = pincelarArea(antes, p, RAIO_DO_PINCEL_DA_AREA[s.barrancoPincel], ini, descer, s.barrancoAltura, s.pisoAtivo, material)
+      gesto = { tipo: 'pintar', ini, descer, material, ultimo: p, antes, rascunho }
       if (rascunho !== antes) dep.aoMudarDesenho()
       return true
     }
@@ -189,7 +215,7 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
       let rascunho = gesto.rascunho
       for (let k = 1; k <= passos; k += 1) {
         const c = { x: gesto.ultimo.x + ((p.x - gesto.ultimo.x) * k) / passos, y: gesto.ultimo.y + ((p.y - gesto.ultimo.y) * k) / passos }
-        rascunho = pincelarArea(rascunho, c, RAIO_DO_PINCEL_DA_AREA[s.barrancoPincel], gesto.ini, gesto.descer, s.barrancoAltura, s.pisoAtivo)
+        rascunho = pincelarArea(rascunho, c, RAIO_DO_PINCEL_DA_AREA[s.barrancoPincel], gesto.ini, gesto.descer, s.barrancoAltura, s.pisoAtivo, gesto.material)
       }
       gesto.ultimo = p
       if (rascunho !== gesto.rascunho) {
@@ -214,7 +240,8 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
       if (ultimo === undefined) return
       if (arrastoViraRisco(pontos, s.map.grid)) {
         const id = crypto.randomUUID()
-        if (s.mudarBarranco((b, piso) => riscarBarranco(b, pontos, s.barrancoAltura, piso, id))) {
+        const material = materialDoPainel()
+        if (s.mudarBarranco((b, piso) => riscarBarranco(b, pontos, s.barrancoAltura, piso, id, material))) {
           s.setBarrancoEscolhido(id)
           const risco = estado().map.barranco?.riscos.find((r) => r.id === id)
           if (risco !== undefined) dep.avisar(`Risco posto. O lado alto ficou ${risco.lado === 1 ? 'para cima' : 'para baixo'}; use Virar (ou F) para trocar.`)
@@ -278,10 +305,13 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
     const { map, pisoAtivo, barrancoEscolhido, activeTool } = estado()
     const barranco = gesto !== null && gesto.tipo === 'pintar' ? gesto.rascunho : map.barranco
     const escolhido = activeTool === 'barranco' ? barrancoEscolhido : null
+    // O chão pintado do piso (a ferramenta Texturas): dele sai o material Automático de cada barranco.
+    const chao = barranco === undefined ? null : chaoPintadoDoPiso(map, pisoAtivo)
     // A mesma entrada volta o MESMO objeto: o desenho compara por referência e não refaz à toa.
     if (
       ultimaEntrada !== null &&
       ultimaEntrada.barranco === barranco &&
+      ultimaEntrada.chao === chao &&
       ultimaEntrada.piso === pisoAtivo &&
       ultimaEntrada.grid === map.grid &&
       ultimaEntrada.mostras === (mostras ?? undefined) &&
@@ -289,7 +319,7 @@ export function criarGestoDoBarranco(dep: { rascunho: Graphics; aoMudarDesenho: 
     ) {
       return ultimaEntrada
     }
-    ultimaEntrada = { barranco, piso: pisoAtivo, grid: map.grid, mostras: mostras ?? undefined, escolhido }
+    ultimaEntrada = { barranco, piso: pisoAtivo, grid: map.grid, mostras: mostras ?? undefined, escolhido, chao }
     return ultimaEntrada
   }
 

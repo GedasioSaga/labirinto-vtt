@@ -21,16 +21,14 @@ import { PALETA_MEIO_TERMO } from './paleta'
  * preenchimento liso com realce, sem hachura, cores contidas, contorno no tom
  * escuro da própria cor (`contornoDoTom`), nunca preto.
  *
- * AINDA NÃO LIGADO: só a tabela, para a folha de aprovação
- * (`tmp/pedidos-2026-11-17/barranco-folha/`). Nada aqui desenha nem sorteia.
- *
- * Para ligar em `pixi/drawBarranco.ts` (a folha saiu de uma cópia dele que só
- * troca a origem das cores, `barranco-folha/harness/pintor.ts`): a face pinta
- * com `corDaFacePorChao(tons.face, …)` e contorna com `tons.face.contorno`; a
- * rampa usa `tons.rampa` no lugar de `PALETA.terra`; os traços com `afina`
- * entram depois da parede e ANTES da rampa (a rampa cobre a ponta deles no
- * vão), os sem `afina` (o fio de hoje) no fim, como hoje; a chave do cache de
- * cor leva o material. O véu de cima da Área alta continua o de hoje.
+ * Folha aprovada pelo mestre em 17/11/2026
+ * (`tmp/pedidos-2026-11-17/barranco-folha/`). Só a tabela: nada aqui desenha
+ * nem sorteia. Quem escolhe o material de cada barranco é
+ * `lib/materialDoBarranco.ts`; quem pinta é `pixi/drawBarranco.ts`: a face com
+ * `corDaFacePorChao(tons.face, …)` e o contorno `tons.face.contorno`, a rampa
+ * com `tons.rampa`, os traços com `afina` depois da parede e ANTES da rampa (a
+ * rampa cobre a ponta deles no vão) e os sem `afina` (o fio de hoje) no fim. O
+ * véu de cima da Área alta continua o de hoje.
  */
 
 export type MaterialDoBarranco = 'terra' | 'pedra' | 'areia' | 'neve' | 'grama'
@@ -158,10 +156,23 @@ export function corDaFacePorChao(tons: TonsDoBarranco, fracao: number): [number,
 /**
  * O material de cada chão do catálogo (`texturas/embutidas.ts`), para o
  * Automático. Chão fora da lista, chão liso por cor, piso de sala ou nenhum
- * chão = Terra (o barranco de hoje).
+ * chão = Terra (o barranco de hoje): as matas, o Campo amarelo e o Campo morto
+ * ficam Terra, e o Cascalho e os Pisos de pedra viram Pedra (respostas do
+ * mestre de 17/11/2026). `barrancoPorChao.test.ts` confere o grupo dos Pisos
+ * de pedra contra o catálogo.
  */
 export const MATERIAL_DO_CHAO: Readonly<Record<string, MaterialDoBarranco>> = {
   pedra: 'pedra',
+  cascalho: 'pedra',
+  paralelepipedo: 'pedra',
+  marmore: 'pedra',
+  'pedra-musgo': 'pedra',
+  'laje-de-templo': 'pedra',
+  'rocha-de-caverna': 'pedra',
+  'basalto-hexagonal': 'pedra',
+  'pedras-com-lama': 'pedra',
+  'marmore-negro': 'pedra',
+  'moldura-entalhada': 'pedra',
   areia: 'areia',
   duna: 'areia',
   neve: 'neve',

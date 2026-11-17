@@ -1,6 +1,19 @@
 import type { AlturaDoBarranco, BarrancoDoMapa, MapData, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco, Wall } from '../types/map'
 import { caminhoMoraEm, caminhosParaJogador, maioriaEm } from './penhasco'
 import { pisoDe, pisoLido } from './pisos'
+import type { MaterialDoBarranco } from '../texturas/meioTermo/barrancoPorChao'
+
+// MATERIAL PELO CHÃO (17/11/2026): campo NOVO e OPCIONAL do risco e do quadrado alto. Ausente =
+// Automático (o material sai do chão pintado no lado alto, `lib/materialDoBarranco.ts`): o mapa de
+// antes abre igual. Declarado aqui até entrar em `types/map.ts`.
+declare module '../types/map' {
+  interface RiscoDeBarranco {
+    material?: MaterialDoBarranco
+  }
+  interface QuadradoAlto {
+    material?: MaterialDoBarranco
+  }
+}
 
 /**
  * BARRANCO (protótipo aprovado em 28/10/2026, `docs/design/barranco/`): a
@@ -83,6 +96,15 @@ function lerPonto(valor: unknown): RegionPoint | null {
   return numeroFinito(x) && numeroFinito(y) ? { x, y } : null
 }
 
+const MATERIAIS: readonly MaterialDoBarranco[] = ['terra', 'pedra', 'areia', 'neve', 'grama']
+
+/** O material forçado de um item do arquivo; desconhecido (de uma versão mais nova) ou ausente = Automático. */
+function materialLido(valor: object): { material?: MaterialDoBarranco } {
+  const lido = 'material' in valor ? valor.material : undefined
+  const material = MATERIAIS.find((m) => m === lido)
+  return material === undefined ? {} : { material }
+}
+
 function lerRisco(valor: unknown): RiscoDeBarranco | null {
   if (typeof valor !== 'object' || valor === null || !('id' in valor) || !('pontos' in valor) || !('lado' in valor)) return null
   const { id, pontos, lado } = valor
@@ -96,7 +118,7 @@ function lerRisco(valor: unknown): RiscoDeBarranco | null {
   }
   if (lidos.length < 2) return null
   const altura = 'altura' in valor ? valor.altura : undefined
-  return { id, pontos: lidos, lado, ...(altura === 'baixo' || altura === 'alto' ? { altura } : {}), ...pisoLido(valor) }
+  return { id, pontos: lidos, lado, ...(altura === 'baixo' || altura === 'alto' ? { altura } : {}), ...materialLido(valor), ...pisoLido(valor) }
 }
 
 function lerQuadrado(valor: unknown): QuadradoAlto | null {
@@ -105,7 +127,7 @@ function lerQuadrado(valor: unknown): QuadradoAlto | null {
   if (typeof x !== 'number' || typeof y !== 'number' || !Number.isInteger(x) || !Number.isInteger(y) || !Array.isArray(alturas)) return null
   const lidas = alturas.filter(ehAltura).slice(0, NIVEL_MAXIMO)
   if (lidas.length === 0 || lidas.length !== alturas.length) return null
-  return { x, y, alturas: lidas, ...pisoLido(valor) }
+  return { x, y, alturas: lidas, ...materialLido(valor), ...pisoLido(valor) }
 }
 
 function lerRampa(valor: unknown): RampaDeBarranco | null {
@@ -478,20 +500,31 @@ function chaveDoQuadrado(x: number, y: number, piso: number): string {
   return `${x},${y},${piso}`
 }
 
-interface Aresta {
+/** Uma aresta de quadrado na beira de uma região de quadrados (cantos em quadrados), com a espessura `t` dali. */
+export interface ArestaDeQuadrado {
   a: Pt
   b: Pt
   t: number
 }
 
-/** As beiras da região `nivel >= k`, por aresta de quadrado, encadeadas em laços (o de dentro do buraco também). */
-function lacosDoNivel(k: number, nivelEm: (x: number, y: number) => number, alturaEm: (x: number, y: number, k: number) => number, quadrados: readonly QuadradoAlto[]): Aresta[][] {
-  const dentro = (x: number, y: number): boolean => nivelEm(x, y) >= k
+type Aresta = ArestaDeQuadrado
+
+/**
+ * As beiras da região de quadrados `dentro`, por aresta de quadrado,
+ * encadeadas em laços (o de dentro do buraco também). `quadrados` são os
+ * candidatos (os que não estão `dentro` não contam); `espessura` é o `t` de
+ * cada aresta. A Área alta e o abismo pintado (`lib/abismoPintado.ts`) saem daqui.
+ */
+export function lacosDosQuadrados(
+  quadrados: readonly { x: number; y: number }[],
+  dentro: (x: number, y: number) => boolean,
+  espessura: (x: number, y: number) => number = () => 0,
+): ArestaDeQuadrado[][] {
   const arestas: Aresta[] = []
   for (const q of quadrados) {
     const { x, y } = q
     if (!dentro(x, y)) continue
-    const t = alturaEm(x, y, k)
+    const t = espessura(x, y)
     if (!dentro(x, y - 1)) arestas.push({ a: [x + 1, y], b: [x, y], t })
     if (!dentro(x, y + 1)) arestas.push({ a: [x, y + 1], b: [x + 1, y + 1], t })
     if (!dentro(x - 1, y)) arestas.push({ a: [x, y], b: [x, y + 1], t })
@@ -528,11 +561,23 @@ function lacosDoNivel(k: number, nivelEm: (x: number, y: number) => number, altu
   return lacos
 }
 
+/** As beiras da região `nivel >= k` (`lacosDosQuadrados`), com a espessura do degrau `k` em cada aresta. */
+function lacosDoNivel(k: number, nivelEm: (x: number, y: number) => number, alturaEm: (x: number, y: number, k: number) => number, quadrados: readonly QuadradoAlto[]): Aresta[][] {
+  return lacosDosQuadrados(quadrados, (x, y) => nivelEm(x, y) >= k, (x, y) => alturaEm(x, y, k))
+}
+
+/**
+ * A beira arredondada de um laço, em px de mundo (`[x, y, t]`): os meios das
+ * arestas viram curva (Chaikin), a escada da diagonal some e a quina arredonda
+ * meio quadrado.
+ */
+export function beiraSuaveDoLaco(laco: readonly ArestaDeQuadrado[], quadrado: number, origem: RegionPoint): number[][] {
+  const meios = laco.map((e): Pt => [origem.x + ((e.a[0] + e.b[0]) / 2) * quadrado, origem.y + ((e.a[1] + e.b[1]) / 2) * quadrado, e.t])
+  return chaikin(meios, 3, true)
+}
+
 function geoDoLaco(laco: Aresta[], k: number, n: number, b: BarrancoDoMapa): GeoDoBarranco {
-  const q = b.quadrado
-  // Os meios das arestas viram curva: a escada da diagonal some e a quina arredonda meio quadrado.
-  const meios = laco.map((e): Pt => [b.origem.x + ((e.a[0] + e.b[0]) / 2) * q, b.origem.y + ((e.a[1] + e.b[1]) / 2) * q, e.t])
-  const lip = chaikin(meios, 3, true)
+  const lip = beiraSuaveDoLaco(laco, b.quadrado, b.origem)
   const base = completarGeo(
     lip.map((p) => [p[0], p[1]]),
     true,
@@ -816,13 +861,26 @@ export function arrastoViraRisco(pontos: readonly RegionPoint[], grid: number): 
   return pontos.length > 3 && comprimento(pontos) > RISCO_MINIMO * escalaDoBarranco(grid)
 }
 
-/** Um risco novo no barranco. O lado baixo começa para o sul (`ladoInicial`). */
-export function riscarBarranco(b: BarrancoDoMapa, pontos: readonly RegionPoint[], altura: AlturaDoBarranco, piso: number, id: string): BarrancoDoMapa {
+/** O material forçado de um item novo (`null` ou ausente = Automático: o campo nem é escrito). */
+function comMaterialDoItem(material: MaterialDoBarranco | null | undefined): { material?: MaterialDoBarranco } {
+  return material === null || material === undefined ? {} : { material }
+}
+
+/** Um risco novo no barranco. O lado baixo começa para o sul (`ladoInicial`). `material`: o forçado no painel (ausente = Automático). */
+export function riscarBarranco(
+  b: BarrancoDoMapa,
+  pontos: readonly RegionPoint[],
+  altura: AlturaDoBarranco,
+  piso: number,
+  id: string,
+  material?: MaterialDoBarranco | null,
+): BarrancoDoMapa {
   const risco: RiscoDeBarranco = {
     id,
     pontos: pontos.map((p) => ({ x: p.x, y: p.y })),
     lado: ladoInicial(pontos),
     ...(altura === 'medio' ? {} : { altura }),
+    ...comMaterialDoItem(material),
     ...comPisoDoItem(piso),
   }
   return { ...b, riscos: [...b.riscos, risco] }
@@ -853,6 +911,15 @@ export function mudarAlturaDoRisco(b: BarrancoDoMapa, id: string, altura: Altura
   })
 }
 
+/** Muda o material do risco: um forçado, ou `null` = Automático (tira o campo). O mesmo material devolve o MESMO barranco. */
+export function mudarMaterialDoRisco(b: BarrancoDoMapa, id: string, material: MaterialDoBarranco | null): BarrancoDoMapa {
+  return trocarRisco(b, id, (r) => {
+    if ((r.material ?? null) === material) return r
+    const { material: _antes, ...semMaterial } = r
+    return material === null ? semMaterial : { ...semMaterial, material }
+  })
+}
+
 /** Tira o risco. */
 export function apagarRiscoDoBarranco(b: BarrancoDoMapa, id: string): BarrancoDoMapa {
   const riscos = b.riscos.filter((r) => r.id !== id)
@@ -863,6 +930,10 @@ export function apagarRiscoDoBarranco(b: BarrancoDoMapa, id: string): BarrancoDo
  * Um toque do pincel da área: só os quadrados no nível onde o traço começou
  * (`ini`) mudam, um degrau para cima (ou para baixo com `descer`). Devolve o
  * MESMO barranco quando nada mudou.
+ *
+ * `material`: o do painel para os quadrados que SOBEM (um forçado, ou `null` =
+ * Automático, que tira o forçado de antes). Ausente: o quadrado fica com o que
+ * tinha. Descer nunca muda o material.
  */
 export function pincelarArea(
   b: BarrancoDoMapa,
@@ -872,6 +943,7 @@ export function pincelarArea(
   descer: boolean,
   altura: AlturaDoBarranco,
   piso: number,
+  material?: MaterialDoBarranco | null,
 ): BarrancoDoMapa {
   const alvo = descer ? ini - 1 : ini + 1
   if (alvo < 0 || alvo > NIVEL_MAXIMO || b.quadrado <= 0) return b
@@ -891,7 +963,10 @@ export function pincelarArea(
       const alturas = antes?.alturas ?? []
       if (alturas.length !== ini) continue
       if (alvo === 0) mudados.set(chave, null)
-      else mudados.set(chave, { x, y, alturas: descer ? alturas.slice(0, alvo) : [...alturas, altura], ...comPisoDoItem(piso) })
+      else {
+        const doQuadrado = descer || material === undefined ? antes?.material : material
+        mudados.set(chave, { x, y, alturas: descer ? alturas.slice(0, alvo) : [...alturas, altura], ...comMaterialDoItem(doQuadrado), ...comPisoDoItem(piso) })
+      }
     }
   }
   if (mudados.size === 0) return b
