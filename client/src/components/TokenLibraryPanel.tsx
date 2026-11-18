@@ -1,18 +1,22 @@
 import {
+  startTransition,
   useEffect,
   useId,
   useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
+  type RefObject,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { isEditableTarget } from '../lib/keymap'
+import { normalizeForSearch } from '../lib/mapObjects'
 import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { BotaoMais } from './BotaoMais'
-import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { IconeDoLivro } from './livro/icones'
 import './TokenLibraryPanel.css'
 
@@ -83,6 +87,119 @@ const NOVA_PASTA = 'Nova pasta'
 /** O lado seguro das perguntas de apagar: é onde o foco cai quando elas abrem. */
 const MANTER_NO_ACERVO = 'Manter no acervo'
 const MANTER_A_PASTA = 'Manter a pasta'
+
+/** Nome acessível do campo de busca; a lupa e o placeholder dizem o resto a quem enxerga. */
+const BUSCAR_TOKEN = 'Buscar token'
+
+/**
+ * As palavras da busca, sem acento e em minúsculas: "polvora" acha a
+ * "Pólvora" e "cav neg" acha o "Cavaleiro Negro". Lista vazia = sem busca.
+ */
+function palavrasDaBusca(busca: string): string[] {
+  return normalizeForSearch(busca)
+    .split(/\s+/)
+    .filter((palavra) => palavra !== '')
+}
+
+/** O nome tem todas as palavras, cada uma em qualquer ponto dele? */
+function nomeCasa(nome: string, palavras: readonly string[]): boolean {
+  const alvo = normalizeForSearch(nome)
+  return palavras.every((palavra) => alvo.includes(palavra))
+}
+
+/**
+ * A tecla leva à busca? Ctrl+F (Cmd+F) de qualquer ponto do painel; "/" só
+ * fora de campo de texto, onde ele é texto (o nome da pasta nova). Nenhum dos
+ * dois é atalho do mapa (`resolveShortcut`, lib/keymap.ts), e o painel só os
+ * ouve com o foco dentro dele.
+ */
+function ehAtalhoDaBusca(event: ReactKeyboardEvent<HTMLElement>): boolean {
+  if (event.altKey) return false
+  if (event.ctrlKey || event.metaKey) return !event.shiftKey && event.key.toLowerCase() === 'f'
+  if (event.key !== '/') return false
+  const alvo = event.target
+  if (!(alvo instanceof HTMLElement)) return true
+  return !isEditableTarget(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)
+}
+
+/** Pastas que o mestre fechou durante uma busca, e o termo em que fechou. */
+interface FechadasNaBusca {
+  termo: string
+  ids: ReadonlySet<string>
+}
+
+const NENHUMA_FECHADA: FechadasNaBusca = { termo: '', ids: new Set() }
+
+interface CampoDeBuscaProps {
+  /** O painel põe o cursor aqui pelo Ctrl+F e pelo "/". */
+  campoRef: RefObject<HTMLInputElement | null>
+  /** O texto mudou. Chega numa transição: a lista se refaz cedendo a vez, e a tecla não espera por ela. */
+  onMudar: (texto: string) => void
+  /** Seta para baixo: o foco desce para o primeiro achado; `false` quando não há nenhum. */
+  onDescer: () => boolean
+}
+
+/**
+ * O campo da busca, dono do próprio texto. Separado do painel por medida
+ * (18/11/2026, 300 tokens, servidor de desenvolvimento): com o texto no
+ * painel, cada tecla refazia a estante inteira antes de a letra aparecer, 182
+ * ms numa tarefa só. Aqui a tecla refaz só o campo, e a lista vem depois, numa
+ * transição que o React fatia.
+ */
+function CampoDeBusca({ campoRef, onMudar, onDescer }: CampoDeBuscaProps) {
+  const [texto, setTexto] = useState('')
+
+  const mudar = (novo: string) => {
+    setTexto(novo)
+    startTransition(() => onMudar(novo))
+  }
+
+  const limpar = () => {
+    mudar('')
+    // O × sai da tela junto com o texto: o foco fica no campo, não cai no body.
+    campoRef.current?.focus()
+  }
+
+  const tecla = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      // Não chega ao mapa (lá o Esc larga a seleção). O primeiro apaga a
+      // busca; o segundo, com o campo vazio, sai dele (o de Objetos do mapa).
+      event.preventDefault()
+      event.stopPropagation()
+      if (texto !== '') mudar('')
+      else event.currentTarget.blur()
+      return
+    }
+    if (event.key === 'ArrowDown' && onDescer()) event.preventDefault()
+  }
+
+  return (
+    <div className="lb-objetos__campo lb-acervo__campo">
+      <span className="lb-objetos__lupa" aria-hidden="true">
+        <SearchIcon size={14} />
+      </span>
+      <input
+        ref={campoRef}
+        type="search"
+        className="lb-input lb-objetos__busca"
+        aria-label={BUSCAR_TOKEN}
+        aria-keyshortcuts="Control+F /"
+        placeholder="Buscar pelo nome"
+        title="Buscar pelo nome (Ctrl+F ou /, com o foco no acervo)"
+        value={texto}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(event) => mudar(event.target.value)}
+        onKeyDown={tecla}
+      />
+      {texto !== '' && (
+        <button type="button" className="lb-iconbtn lb-iconbtn--sm lb-objetos__limpar" aria-label="Limpar busca" title="Limpar busca (Esc)" onClick={limpar}>
+          <CloseIcon size={14} />
+        </button>
+      )}
+    </div>
+  )
+}
 
 const rotuloMover = (item: ItemDoAcervoNaTela) => `Mover ${item.nome} para outra pasta`
 const rotuloApagar = (item: ItemDoAcervoNaTela) => `Apagar ${item.nome} do acervo`
@@ -204,6 +321,13 @@ type Pergunta =
  * recebe a tecla dos dois. E não passa adiante: no mapa ele largaria a
  * seleção. A pergunta de apagar abre com o foco no lado seguro ("Manter…"),
  * porque o Apagar que a abriu sai da tela junto.
+ *
+ * BUSCA (pedido de 17/11/2026: "É bom ter um botão de pesquisa", com a pasta
+ * NPCs em 29 tokens). Filtra pelo nome enquanto digita, sem ligar para acento
+ * nem maiúscula; a pasta com achado abre (só na tela: o `recolhida` gravado
+ * não muda) e a sem achado sai da vista. A linha de baixo diz quantos achou,
+ * ou "Nada com …". O × e o Esc limpam; Ctrl+F ou "/", com o foco no painel,
+ * levam ao campo. O arrasto e o "+" da linha achada são os mesmos de sempre.
  */
 export function TokenLibraryPanel({
   itens,
@@ -240,6 +364,17 @@ export function TokenLibraryPanel({
   const engolirCliqueRef = useRef(false)
   /** Desliga os ouvintes de janela do gesto em curso; `null` sem gesto. */
   const soltarOuvintesRef = useRef<(() => void) | null>(null)
+  /**
+   * A busca que a LISTA segue; vazio = a estante inteira. O texto do campo
+   * mora em `CampoDeBusca` e chega aqui numa transição.
+   */
+  const [busca, setBusca] = useState('')
+  /**
+   * A busca abre toda pasta com achado; esta é a exceção, a pasta que o mestre
+   * fechou com ESTE termo. Mudou o termo, a busca volta a abrir tudo que acha.
+   */
+  const [fechadasNaBusca, setFechadasNaBusca] = useState<FechadasNaBusca>(NENHUMA_FECHADA)
+  const buscaRef = useRef<HTMLInputElement | null>(null)
 
   // Painel desmontado no meio do arrasto (troca de aba): os ouvintes de janela
   // não podem sobreviver a ele.
@@ -391,6 +526,30 @@ export function TokenLibraryPanel({
     setPergunta(null)
   }
 
+  /** Põe o cursor na busca com o texto selecionado: digitar substitui, a seta mantém. */
+  const focarBusca = () => {
+    const campo = buscaRef.current
+    if (campo === null) return
+    campo.focus()
+    campo.select()
+  }
+
+  const teclaNoPainel = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (buscaRef.current === null || !ehAtalhoDaBusca(event)) return
+    // O Ctrl+F não abre a busca da página, e o "/" não vira texto em lugar nenhum.
+    event.preventDefault()
+    event.stopPropagation()
+    focarBusca()
+  }
+
+  /** A seta da busca desce para o primeiro achado; dali o Enter põe no mapa. */
+  const descerParaOPrimeiro = (): boolean => {
+    const primeiro = raizRef.current === null ? null : raizRef.current.querySelector<HTMLButtonElement>('.lb-acervo__nome')
+    if (primeiro === null) return false
+    primeiro.focus()
+    return true
+  }
+
   // Sem o disco lido não há onde gravar a pasta (`criarPastaNoAcervo` recusa em
   // `exigirLeitura`): um recarregar que falha com o campo aberto o fecha junto.
   // Ajustado no render (e não num efeito) para não piscar um quadro com o campo
@@ -406,7 +565,22 @@ export function TokenLibraryPanel({
   const vazio = itens.length === 0
   const temPastaDoMestre = pastas.some((pasta) => !ehPastaPadrao(pasta))
   const organizado = podeOrganizar && pastas.length > 0 && (!vazio || temPastaDoMestre)
-  const soltos = organizado ? itens.filter((item) => item.pasta === null) : itens
+  // Estante vazia não tem busca (o campo sai e leva o texto junto); a que
+  // esvaziou com texto no campo volta, no próximo token, sem um filtro que
+  // ninguém está vendo.
+  if (vazio && busca !== '') setBusca('')
+  const palavras = palavrasDaBusca(busca)
+  const buscando = palavras.length > 0
+  /** Chave de `fechadasNaBusca`: o termo como a busca o entende. */
+  const termo = palavras.join(' ')
+  const visiveis = buscando ? itens.filter((item) => nomeCasa(item.nome, palavras)) : itens
+  const nadaAchado = buscando && visiveis.length === 0
+  const resultado = !buscando
+    ? ''
+    : nadaAchado
+      ? `Nada com “${busca.trim()}”.`
+      : `${visiveis.length} de ${itens.length} ${itens.length === 1 ? 'token' : 'tokens'}`
+  const soltos = organizado ? visiveis.filter((item) => item.pasta === null) : visiveis
   // "Sem pasta" aparece vazio só durante o arrasto de um token que ESTÁ numa
   // pasta: é o lugar de soltá-lo para tirá-lo de lá.
   const mostrarSemPasta = soltos.length > 0 || (arrastado !== null && arrastado.pasta !== null)
@@ -548,10 +722,27 @@ export function TokenLibraryPanel({
     )
   }
 
+  /** Fecha ou reabre a pasta só na busca deste termo; o `recolhida` gravado fica como estava. */
+  const alternarNaBusca = (pasta: PastaDoAcervo) => {
+    setFechadasNaBusca((antes) => {
+      const ids = new Set(antes.termo === termo ? antes.ids : [])
+      if (ids.has(pasta.id)) ids.delete(pasta.id)
+      else ids.add(pasta.id)
+      return { termo, ids }
+    })
+  }
+
   const grupo = (pasta: PastaDoAcervo) => {
     const dentro = itens.filter((item) => item.pasta === pasta.id)
+    /** O que a linha mostra: os achados, na busca; senão, a pasta toda. */
+    const mostrados = buscando ? visiveis.filter((item) => item.pasta === pasta.id) : dentro
+    // Na busca, pasta sem achado sai da vista (inclusive a vazia).
+    if (buscando && mostrados.length === 0) return null
+    // `vazia` e a pergunta de apagar contam a pasta INTEIRA: com a busca, a
+    // pasta de 5 tokens e 1 achado não pode sair sem pergunta.
     const vazia = dentro.length === 0
-    const aberta = !pasta.recolhida
+    const fechadaNaBusca = fechadasNaBusca.termo === termo && fechadasNaBusca.ids.has(pasta.id)
+    const aberta = buscando ? !fechadaNaBusca : !pasta.recolhida
     const idDoCorpo = `${idBase}-pasta-${pasta.id}`
     const apagando = pergunta?.tipo === 'apagar-pasta' && pergunta.id === pasta.id
     return (
@@ -590,8 +781,8 @@ export function TokenLibraryPanel({
               className="lb-acervo__pasta-botao"
               aria-expanded={aberta}
               aria-controls={aberta ? idDoCorpo : undefined}
-              aria-label={`${pasta.nome} (${dentro.length})`}
-              onClick={() => onRecolherPasta(pasta, aberta)}
+              aria-label={`${pasta.nome} (${mostrados.length})`}
+              onClick={() => (buscando ? alternarNaBusca(pasta) : onRecolherPasta(pasta, aberta))}
             >
               <span className="lb-acervo__chevron" aria-hidden="true">
                 <ChevronDownIcon size={14} />
@@ -630,7 +821,7 @@ export function TokenLibraryPanel({
               dele cobre a linha inteira (TokenLibraryPanel.css), e o nome
               acessível dele já diz quantos tokens há. */}
           <span className="lb-acervo__contagem" aria-hidden="true">
-            {dentro.length}
+            {mostrados.length}
           </span>
         </div>
         {apagando && (
@@ -664,7 +855,7 @@ export function TokenLibraryPanel({
         )}
         {aberta && !vazia && (
           <ul id={idDoCorpo} className="lb-acervo lb-acervo--na-pasta">
-            {dentro.map(linha)}
+            {mostrados.map(linha)}
           </ul>
         )}
       </div>
@@ -680,7 +871,7 @@ export function TokenLibraryPanel({
     .join(' ')
 
   return (
-    <section className={classeDaSecao} ref={raizRef}>
+    <section className={classeDaSecao} ref={raizRef} onKeyDown={teclaNoPainel}>
       <div className="lb-acervo__topo">
         <h2 className="lb-eyebrow">Acervo de tokens</h2>
         {/* Só o "+ Pasta": o "+ Token" mora no cabeçalho do painel, à vista
@@ -692,6 +883,16 @@ export function TokenLibraryPanel({
           </div>
         )}
       </div>
+      {!vazio && (
+        <div className="lb-acervo__busca" role="search">
+          <CampoDeBusca campoRef={buscaRef} onMudar={setBusca} onDescer={descerParaOPrimeiro} />
+          {/* Sempre montado (vazio some pelo CSS): o leitor de tela só anuncia
+              a contagem de um `status` que já estava na página. */}
+          <p className="lb-acervo__resultado" role="status">
+            {resultado}
+          </p>
+        </div>
+      )}
       {aviso !== null && (
         // `role="status"`: quem usa leitor de tela ouve o aviso sem ter de
         // caçá-lo, e ele não rouba o foco de onde a pessoa está.
@@ -727,7 +928,7 @@ export function TokenLibraryPanel({
           <span>{ACERVO_VAZIO}</span> <span>{ACERVO_COMO_ENCHER}</span>
         </p>
       )}
-      {organizado ? (
+      {nadaAchado ? null : organizado ? (
         <div className="lb-acervo__pastas">
           {pastas.map(grupo)}
           {mostrarSemPasta && (
@@ -747,7 +948,7 @@ export function TokenLibraryPanel({
           )}
         </div>
       ) : (
-        itens.length > 0 && <ul className="lb-acervo">{itens.map(linha)}</ul>
+        visiveis.length > 0 && <ul className="lb-acervo">{visiveis.map(linha)}</ul>
       )}
       {arrastado !== null &&
         // Portal no `body`: o rail tem rolagem e recorte, e o fantasma precisa

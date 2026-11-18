@@ -104,6 +104,38 @@
   gap: var(--lb-control-gap);
 }
 
+/* ── A busca ───────────────────────────────────────────────────────────── */
+
+/* O campo é o de Objetos do mapa (lupa, × do app no lugar do nativo, em
+   main.css); daqui só a medida do acervo. A contagem fica a 4 px do campo que
+   ela conta, e não aos 12 do vão da seção. */
+.lb-acervo__busca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+}
+
+/* Na altura de uma linha da árvore (32 px), não nos 38 de campo de
+   formulário: é ferramenta da lista, numa coluna estreita. Duas classes:
+   `.lb-input`, de main.css, pesa uma e entra depois. */
+.lb-acervo__campo > .lb-objetos__busca {
+  min-height: var(--lb-space-8);
+}
+
+/* "3 de 29 tokens" ou "Nada com …". Sem busca o parágrafo fica montado e
+   vazio (o leitor de tela precisa do `status` já na página) e não ocupa nada.
+   O termo longo quebra em vez de alargar a coluna. */
+.lb-acervo__resultado {
+  margin: 0;
+  color: var(--lb-color-parchment-faint);
+  font-size: var(--lb-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.lb-acervo__resultado:empty {
+  display: none;
+}
+
 /* ── A árvore ──────────────────────────────────────────────────────────── */
 
 /* Uma linha encosta na outra, sem vão: quem separa é o fundo do pairar. */
