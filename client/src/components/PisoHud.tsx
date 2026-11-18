@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef } from 'react'
 import { PISO_MAX, PISO_MIN, alturaDoPiso, nomeDoPiso } from '../lib/pisos'
+import { TEMAS_DO_AMBIENTE, corEForcaDoTema, temaPronto, temaProprioDoPiso } from '../lib/temasDoAmbiente'
 import { NOME_DA_ALTURA } from '../lib/terrenoAlto'
 import { useMapStore } from '../stores/mapStore'
-import type { AlturaDoPiso } from '../types/map'
+import type { AlturaDoPiso, IdDoTema } from '../types/map'
 import './PisoHud.css'
 
 export interface PisoHudProps {
@@ -51,6 +52,45 @@ function AlturaDoPisoHud({ piso }: { piso: number }) {
   )
 }
 
+/** O valor do "Do mapa" no seletor do tema do piso: o piso segue o tema do mapa. */
+const DO_MAPA = 'do-mapa'
+
+function ehIdDoTema(valor: string): valor is IdDoTema {
+  return TEMAS_DO_AMBIENTE.some((tema) => tema.id === valor)
+}
+
+/**
+ * TEMA DO AMBIENTE do piso em edição (pedido de 17/11/2026): "Do mapa" (o
+ * tema de Configurar > Ambiente) ou um dos cinco temas só neste piso, com a
+ * força e a cor do tema pronto. Normal aqui = este piso sem tema, mesmo com
+ * tema no mapa. A bolinha mostra a cor que vale no piso. Lê e grava a cena
+ * aberta direto na store, com desfazer, como a Altura.
+ */
+function TemaDoPisoHud({ piso }: { piso: number }) {
+  const proprio = useMapStore((state) => temaProprioDoPiso(state.map, piso))
+  const doMapa = useMapStore((state) => state.map.tema)
+  const vale = proprio ?? doMapa
+  const nomeDoMapa = temaPronto(doMapa?.id ?? 'normal').rotulo
+  const cor = vale === undefined || vale.id === 'normal' ? null : corEForcaDoTema(vale).cor
+  const escolher = (valor: string) => {
+    useMapStore.getState().definirTemaDoPiso(piso, ehIdDoTema(valor) ? { id: valor } : undefined)
+  }
+  return (
+    <label className="lb-pisohud__tema" title={`Tema do ${nomeDoPiso(piso)}: a cor da luz só neste piso. "Do mapa" segue Configurar > Ambiente.`}>
+      <span className="lb-pisohud__rotulo">Tema</span>
+      <span className={`lb-pisohud__amostra${cor === null ? ' lb-pisohud__amostra--sem' : ''}`} style={cor === null ? undefined : { background: cor }} aria-hidden="true" />
+      <select className="lb-pisohud__escolha" value={proprio?.id ?? DO_MAPA} aria-label={`Tema do ${nomeDoPiso(piso)}`} onChange={(event) => escolher(event.target.value)}>
+        <option value={DO_MAPA}>Do mapa ({nomeDoMapa})</option>
+        {TEMAS_DO_AMBIENTE.map((tema) => (
+          <option key={tema.id} value={tema.id}>
+            {tema.rotulo}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 /**
  * A largura do HUD no `.lb-editor` onde ele mora (`--lb-pisohud-largura`),
  * enquanto ele está no mapa: os avisos dos NPCs, no mesmo pé do mapa, param
@@ -78,7 +118,8 @@ function usePublicarLargura() {
  * PISOS NA MESMA CENA — o piso em edição, no canto do canvas, acima do zoom.
  * O editor desenha e mira só este piso, e tudo que o mestre cria nasce nele;
  * os botões sobem e descem um piso (o de cima pode estar vazio: é assim que
- * um piso novo começa). Do 1º piso para cima, a "Altura" dele fica ao lado.
+ * um piso novo começa). Do 1º piso para cima, a "Altura" dele fica ao lado;
+ * em todo piso, o "Tema" da luz dele (17/11/2026).
  * Plano em `docs/planos/pisos-na-mesma-cena.md`.
  */
 export function PisoHud({ piso, onPisoChange }: PisoHudProps) {
@@ -87,6 +128,8 @@ export function PisoHud({ piso, onPisoChange }: PisoHudProps) {
   const abaixo = piso - 1
   return (
     <div ref={ref} className="lb-panel lb-pisohud" role="group" aria-label="Piso em edição">
+      <TemaDoPisoHud piso={piso} />
+      <span className="lb-pisohud__divisa" aria-hidden="true" />
       {piso >= 1 && (
         <>
           <AlturaDoPisoHud piso={piso} />

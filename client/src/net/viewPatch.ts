@@ -556,6 +556,8 @@ function diffAlto(prev: TerrenoAlto | undefined, next: TerrenoAlto | undefined):
   const agora: TerrenoAlto = next ?? {}
   const patch: PatchDoAlto = {}
   if (antes.abaixo !== undefined && agora.abaixo !== undefined) {
+    // TEMA DO AMBIENTE: a tinta do piso de baixo mudou (raro: o mestre trocou o tema): vai inteiro.
+    if (!sameValue(antes.abaixo.luz, agora.abaixo.luz)) return { inteiro: agora }
     const mapa = diffMap(antes.abaixo.map, agora.abaixo.map)
     if (mapa === null) return { inteiro: agora }
     if (!isEmptyMapPatch(mapa)) patch.mapaDeBaixo = mapa
@@ -587,7 +589,14 @@ export function applyAltoPatch(prev: TerrenoAlto | undefined, patch: PatchDoAlto
     if (abaixo === undefined) return null
     const map = patch.mapaDeBaixo === undefined ? abaixo.map : applyMapPatch(abaixo.map, patch.mapaDeBaixo)
     if (map === null) return null
-    abaixo = { map, vision: patch.visaoDeBaixo ?? abaixo.vision, concealed: patch.ocultoDeBaixo ?? abaixo.concealed, altura: patch.altura ?? abaixo.altura }
+    // A tinta do piso de baixo (tema) segue a de antes: a que muda vem inteira (`diffAlto`).
+    abaixo = {
+      map,
+      vision: patch.visaoDeBaixo ?? abaixo.vision,
+      concealed: patch.ocultoDeBaixo ?? abaixo.concealed,
+      altura: patch.altura ?? abaixo.altura,
+      ...(abaixo.luz === undefined ? {} : { luz: abaixo.luz }),
+    }
   }
   const acima = patch.acima === undefined ? antes.acima : applyTokenListPatch(antes.acima ?? [], patch.acima)
   if (acima === null) return null

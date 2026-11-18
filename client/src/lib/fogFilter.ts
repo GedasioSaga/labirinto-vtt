@@ -4480,6 +4480,9 @@ function recorteDoGrupo(
     periodoFixo: _masterFixedPeriod,
     ambientePorPeriodo: _masterAmbient,
     visaoPorPeriodo: _masterPeriodVision,
+    // TEMA DO AMBIENTE: do mestre (a lista dos pisos diria quais pisos a cena tem); a tinta pronta vai em `snapshot.luz`.
+    tema: _masterTheme,
+    temasDosPisos: _masterFloorThemes,
     alerta: _masterAlert,
     conveyors: _masterConveyors,
     ...mapWithoutHazards

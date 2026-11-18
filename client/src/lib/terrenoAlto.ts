@@ -11,6 +11,7 @@ import {
   type VistaDeOutroPiso,
 } from './fogFilter'
 import { pieceBounds, pieceDistance, type Bounds } from './floorSdf'
+import type { LuzDoJogador } from './periodo'
 import { alturaDoPiso, editandoUmPiso, mapaDoPiso, pisoDe } from './pisos'
 import { pointInPolygonInclusive } from './roomNesting'
 import { visionSegments } from './visibility'
@@ -37,6 +38,11 @@ import { visionSegments } from './visibility'
 /** O piso de baixo como o jogador de cima o vê, com a altura do piso DELE. */
 export interface VistaDoPisoDeBaixo extends VistaDeOutroPiso {
   altura: AlturaDoPiso
+  /**
+   * TEMA DO AMBIENTE: a tinta do piso de baixo, só quando ela é OUTRA que a do
+   * piso dele (`luzDoPisoDeBaixo`, o host põe). Ausente = a mesma do snapshot.
+   */
+  luz?: LuzDoJogador
 }
 
 /** `snapshot.alto`: cada parte só existe quando há algo nela. */

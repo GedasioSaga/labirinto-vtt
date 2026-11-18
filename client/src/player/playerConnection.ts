@@ -2320,7 +2320,10 @@ function lerTerrenoAlto(value: unknown): TerrenoAlto | null {
   if (acima !== undefined && !ehListaDeFichas(acima)) return null
   if (abaixo === undefined) return acima === undefined ? {} : { acima }
   if (!isRecord(abaixo) || !isMapShape(abaixo.map) || !isVision(abaixo.vision) || !isVision(abaixo.concealed) || !ehAlturaDoPiso(abaixo.altura)) return null
-  const vistaDeBaixo = { map: comCamadasDoJogadorLidas(abaixo.map), vision: abaixo.vision, concealed: abaixo.concealed, altura: abaixo.altura }
+  // TEMA DO AMBIENTE: a tinta do piso de baixo, só quando é outra que a dele. Presente e torta: a mensagem cai.
+  const luz = abaixo.luz === undefined ? undefined : lerLuzDoJogador(abaixo.luz)
+  if (luz === null) return null
+  const vistaDeBaixo = { map: comCamadasDoJogadorLidas(abaixo.map), vision: abaixo.vision, concealed: abaixo.concealed, altura: abaixo.altura, ...(luz === undefined ? {} : { luz }) }
   return acima === undefined ? { abaixo: vistaDeBaixo } : { abaixo: vistaDeBaixo, acima }
 }
 

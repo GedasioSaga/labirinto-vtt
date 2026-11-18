@@ -70,7 +70,7 @@ import { MS_POR_MINUTO, type FimDaEspera, type MinhaEspera } from '../lib/encont
 import { CLUE_TEXT_MAX_LENGTH, CLUE_TITLE_MAX_LENGTH, CLUEBOOK_MAX_CLUES } from '../lib/clues'
 import type { FalaParaJogador, FalasDitas } from '../types/cenarioEFalas'
 import { ID_DA_FALA_ANTIGA } from '../lib/falasDoPino'
-import { luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
+import { luzDoPisoDeBaixo, luzParaJogador, periodoDaCena, raioNoPeriodo, type PeriodoLido } from '../lib/periodo'
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
@@ -5106,10 +5106,15 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       recorte: view,
       only: { pinAudiences, playerId, secretReveals, discoveredSecretRooms: memory.secretRooms, oneWayExits: oneWay, barras, formas, ownership, companions: companionMarks() },
     })
-    if (alto !== null) base.alto = alto
     // DIA/TARDE/NOITE: o período DESTA cena e a tinta dele. De dia (ou sem período no mestre) o campo nem sai.
-    const luz = luzParaJogador(map, sessionPeriod())
+    // TEMA DO AMBIENTE: a tinta é a do PISO dele (o tema do piso, senão o do mapa), até de dia.
+    const sessao = sessionPeriod()
+    const pisoDele = pisoOf(playerId, map)
+    const luz = luzParaJogador(map, sessao, pisoDele)
     if (luz !== null) base.luz = luz
+    // A vista do piso de baixo leva a tinta DELE quando é outra (cada piso no seu tema); igual, nada a mais sai.
+    const luzDeBaixo = alto?.abaixo === undefined ? undefined : luzDoPisoDeBaixo(map, sessao, pisoDele)
+    if (alto !== null) base.alto = alto.abaixo === undefined || luzDeBaixo === undefined ? alto : { ...alto, abaixo: { ...alto.abaixo, luz: luzDeBaixo } }
     // CONE PELO VÃO: campo aditivo, só vai quando há cone.
     if (view.glimpses.length > 0) base.glimpses = view.glimpses
     // QUEDA DO ALCANCE (peça D das sombras): o olhar das fichas DELE; sem ficha com anel de olho, o campo nem sai.

@@ -9,6 +9,7 @@ import { TokenContextMenu } from './components/TokenContextMenu'
 import { useDiceStore } from './stores/diceStore'
 import { PisoHud } from './components/PisoHud'
 import { temPisos } from './lib/pisos'
+import { comTemaDoMapa } from './lib/temasDoAmbiente'
 import { corDaCamada, proximoNomeDeCamada } from './lib/camadasDoChao'
 import { alvoDoPincel, NOVA_CAMADA } from './lib/camadasDoPincel'
 import type { PincelNasCamadas } from './components/FloorLayersList'
@@ -772,6 +773,7 @@ function App() {
   const setSceneFloor = useMapStore((state) => state.setSceneFloor)
   const setSceneVisionCells = useMapStore((state) => state.setSceneVisionCells)
   const setSceneDark = useMapStore((state) => state.setSceneDark)
+  const definirTemaDoMapa = useMapStore((state) => state.definirTemaDoMapa)
   const setSceneOffFloor = useMapStore((state) => state.setSceneOffFloor)
   const setTipoDeMapa = useMapStore((state) => state.setTipoDeMapa)
   const setRelevo = useMapStore((state) => state.setRelevo)
@@ -3609,6 +3611,11 @@ function App() {
         }}
         // "Tamanho da ficha ao entrar": a seção lê e grava a cena pelas stores (aberta ou de fundo).
         sceneId={sceneId}
+        // TEMA DO AMBIENTE do mapa: a cena aberta pela store (Ctrl+Z, o arrasto da força num passo só), a de fundo pelo cache.
+        ambiente={{
+          tema: sceneMap.tema,
+          onTemaChange: aberta ? definirTemaDoMapa : (tema) => mudarFundo((m) => comTemaDoMapa(m, tema)),
+        }}
         secaoInicial={configuringSecao}
         onClose={() => {
           setConfiguringSceneId(null)

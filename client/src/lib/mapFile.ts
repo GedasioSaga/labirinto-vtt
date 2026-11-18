@@ -130,6 +130,7 @@ import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { lerTamanhoAoEntrar } from './tamanhoAoEntrar'
 import { alturasDosPisosDoArquivo, pisosDoArquivo } from './pisos'
+import { temaDoMapaDoArquivo, temasDosPisosDoArquivo } from './temasDoAmbiente'
 import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
 import { readConveyors } from './conveyors'
@@ -1258,6 +1259,8 @@ function deserializeMapFields(json: string): MapData {
     ...periodoFixoField(parsed.periodoFixo),
     // Tinta de ambiente e visão por período: campos NOVOS e OPCIONAIS; parte torta sai (`lib/periodo.ts`).
     ...ambienteEVisaoPorPeriodoFields(parsed.ambientePorPeriodo, parsed.visaoPorPeriodo),
+    // TEMA DO AMBIENTE: campos NOVOS e OPCIONAIS. Tema torto ou Normal abre sem o campo; piso torto sai (`lib/temasDoAmbiente.ts`).
+    ...temasDoArquivo(parsed.tema, parsed.temasDosPisos),
     // VISTA DOS MÓVEIS (Meio-Termo): campo NOVO e OPCIONAL. Só `'tres-quartos'`
     // volta; o resto abre "de cima", sem o campo (`lerVistaDosMoveis`).
     ...vistaDosMoveisField(parsed.vistaDosMoveis),
@@ -1356,6 +1359,16 @@ function ambienteDoArquivo(chave: unknown, pintado: unknown, particulasAntigas: 
     ...(ambiente === undefined ? {} : { ambiente }),
     ...(ambientePintado === undefined ? {} : { ambientePintado }),
     ...(particulas === undefined ? {} : { particulas }),
+  }
+}
+
+/** TEMA DO AMBIENTE: cada campo só entra quando lido — mapa de antes não ganha chave. */
+function temasDoArquivo(tema: unknown, temasDosPisos: unknown): Pick<MapData, 'tema' | 'temasDosPisos'> {
+  const doMapa = temaDoMapaDoArquivo(tema)
+  const dosPisos = temasDosPisosDoArquivo(temasDosPisos)
+  return {
+    ...(doMapa === undefined ? {} : { tema: doMapa }),
+    ...(dosPisos === undefined ? {} : { temasDosPisos: dosPisos }),
   }
 }
 

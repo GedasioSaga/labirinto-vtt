@@ -118,7 +118,8 @@ import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoC
 import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
 import { comPenhascos, riscarPenhasco as riscarPenhascoNaLista, type LarguraDoPenhasco, type ResultadoDoRisco } from '../lib/penhasco'
 import { barrancoOuVazio, comBarranco, ehParedeDoBarranco, paredesParaAndar, type AreaDoBarranco, type ModoDoBarranco, type PincelDaArea } from '../lib/barranco'
-import type { AlturaDoBarranco, AlturaDoPiso, BarrancoDoMapa } from '../types/map'
+import type { AlturaDoBarranco, AlturaDoPiso, BarrancoDoMapa, EscolhaDoTema } from '../types/map'
+import { comTemaDoMapa, comTemaDoPiso } from '../lib/temasDoAmbiente'
 import {
   comTexturas,
   comTexturasImportadas,
@@ -1410,6 +1411,14 @@ interface MapStoreState {
    * mesma altura não gasta passo, e a média tira a entrada (`comAlturaDoPiso`).
    */
   definirAlturaDoPiso: (piso: number, altura: AlturaDoPiso) => void
+  /**
+   * TEMA DO AMBIENTE do mapa aberto (`MapData.tema`, `lib/temasDoAmbiente.ts`).
+   * Com histórico; `juntar` (o arrasto da força) emenda os passos num Ctrl+Z
+   * só. Normal tira o campo; a mesma escolha não gasta passo.
+   */
+  definirTemaDoMapa: (tema: EscolhaDoTema | undefined, juntar?: string) => void
+  /** TEMA DO AMBIENTE do piso `piso` (`MapData.temasDosPisos`); `undefined` = "Do mapa". Com histórico. */
+  definirTemaDoPiso: (piso: number, tema: EscolhaDoTema | undefined) => void
   setRoomName: (id: string, name: string) => void
   /** Arrasto do rótulo da Sala — SEM histórico, par de `commitDragHistory(before)`
    *  no pointerup, mesmo padrão de `resizeRoomCornerLive`. */
@@ -3387,6 +3396,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     definirAlturaDoPiso: (piso, altura) => {
       if (!ehPiso(piso)) return
       passoSeMudou((map) => comAlturaDoPiso(map, piso, altura))
+    },
+    definirTemaDoMapa: (tema, juntar) => passoSeMudou((map) => comTemaDoMapa(map, tema), juntar),
+    definirTemaDoPiso: (piso, tema) => {
+      if (!ehPiso(piso)) return
+      passoSeMudou((map) => comTemaDoPiso(map, piso, tema))
     },
     setRoomName: (id, name) => withHistory((map) => mapFactory.setRoomName(map, id, name), `room-name:${id}`),
     setRoomLabelOffsetLive: (id, offset) => set((state) => ({ map: mapFactory.setRoomLabelOffset(state.map, id, offset) })),

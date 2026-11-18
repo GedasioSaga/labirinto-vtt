@@ -1,4 +1,8 @@
+import type { EscolhaDoTema, IdDoTema, MapData, TemaDeUmPiso } from '../types/map'
 import type { Ambiente } from './periodo'
+import { ehPiso } from './pisos'
+
+export type { EscolhaDoTema, IdDoTema }
 
 /**
  * TEMA DO AMBIENTE (pedido do mestre de 17/11/2026): "mudar o tema do ambiente,
@@ -11,17 +15,17 @@ import type { Ambiente } from './periodo'
  *  - onde há tema, ele SUBSTITUI a tinta da tarde e da noite;
  *  - só cor: a visão dos jogadores não muda.
  *
- * Só os números e a conta, puros. AINDA NÃO ESTÁ LIGADO em nada: a folha de
- * aprovação (`tmp/pedidos-2026-11-17/tema-folha/`) foi desenhada pelo caminho
- * de verdade (o mapa de luz do editor, `pixi/mapaDeLuz.ts`) com estes valores.
+ * Só os números e a conta, puros. A folha de aprovação
+ * (`tmp/pedidos-2026-11-17/tema-folha/`) foi desenhada pelo caminho de verdade
+ * (o mapa de luz do editor, `pixi/mapaDeLuz.ts`) com estes valores. Quem liga:
+ * `tintaDaCena` (editor), `luzParaJogador` (host, pelo piso do jogador),
+ * "Configurar > Ambiente" (mapa) e a barra dos pisos (piso).
  *
  * A cor entra como a tinta do período: misturada ao branco na força
  * (`corDaTinta`) e MULTIPLICANDO o mapa, no mesmo sprite. Por isso as cores
  * são a luz que banha o lugar, não uma pintura por cima: força 0 = o mapa como
  * foi desenhado.
  */
-
-export type IdDoTema = 'normal' | 'escuro' | 'tocha' | 'frio' | 'noite'
 
 export interface TemaDoAmbiente {
   id: IdDoTema
@@ -56,15 +60,6 @@ export const TEMAS_DO_AMBIENTE: readonly TemaDoAmbiente[] = [
   { id: 'noite', rotulo: 'Noite', cor: '#465a92', forca: 0.85, fatorDaLuz: 1, dica: 'A noite aprovada, a qualquer hora: azul-ardósia escuro.' },
 ]
 
-/** O que o mestre escolhe para um mapa ou um andar: o tema, a força e, se quiser, a cor livre. */
-export interface EscolhaDoTema {
-  id: IdDoTema
-  /** Ausente = a força do tema. */
-  forca?: number
-  /** A cor livre, `#rrggbb`; ausente ou torta = a cor do tema. */
-  cor?: string
-}
-
 /** A tinta que o mapa de luz desenha: cor e força (como a do período) e o fator das luzes. */
 export interface AmbienteComTema extends Ambiente {
   fatorDaLuz: number
@@ -90,4 +85,113 @@ export function ambienteComTema(periodo: AmbienteComTema, escolha: EscolhaDoTema
   const cor = escolha?.cor !== undefined && COR_HEX.test(escolha.cor) ? escolha.cor : tema.cor
   const forca = escolha?.forca === undefined ? tema.forca : grampear01(escolha.forca)
   return { cor, forca, fatorDaLuz: Math.max(grampear01(periodo.fatorDaLuz), tema.fatorDaLuz) }
+}
+
+/** O tema pronto de `id` (Normal se o id não é de tema nenhum). */
+export function temaPronto(id: IdDoTema): TemaDoAmbiente {
+  return TEMAS_DO_AMBIENTE.find((t) => t.id === id) ?? TEMAS_DO_AMBIENTE[0]
+}
+
+/** A cor e a força que valem na escolha: as livres dela, senão as do tema. */
+export function corEForcaDoTema(escolha: EscolhaDoTema): { cor: string; forca: number } {
+  const tema = temaPronto(escolha.id)
+  return {
+    cor: escolha.cor !== undefined && COR_HEX.test(escolha.cor) ? escolha.cor : tema.cor,
+    forca: escolha.forca === undefined ? tema.forca : grampear01(escolha.forca),
+  }
+}
+
+/** O tema que o PRÓPRIO piso escolheu na barra dos pisos (sem cair no do mapa); ausente = segue o mapa. */
+export function temaProprioDoPiso(map: Pick<MapData, 'temasDosPisos'>, piso: number): EscolhaDoTema | undefined {
+  return map.temasDosPisos?.find((t) => t.piso === piso)?.tema
+}
+
+/**
+ * O tema que vale no piso `piso`: o do piso, senão o do mapa. Normal no piso
+ * vence o tema do mapa (aquele piso fica sem tema). `undefined` = sem tema.
+ */
+export function temaDoPiso(map: Pick<MapData, 'tema' | 'temasDosPisos'>, piso: number): EscolhaDoTema | undefined {
+  return temaProprioDoPiso(map, piso) ?? map.tema
+}
+
+function mesmaEscolha(a: EscolhaDoTema | undefined, b: EscolhaDoTema | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  return a.id === b.id && a.forca === b.forca && a.cor === b.cor
+}
+
+/** A escolha só com os campos que dizem algo: sem força nem cor ausentes gravadas como `undefined`. */
+function escolhaLimpa(escolha: EscolhaDoTema): EscolhaDoTema {
+  return {
+    id: escolha.id,
+    ...(escolha.forca === undefined ? {} : { forca: grampear01(escolha.forca) }),
+    ...(escolha.cor !== undefined && COR_HEX.test(escolha.cor) ? { cor: escolha.cor.toLowerCase() } : {}),
+  }
+}
+
+/**
+ * O mestre muda o tema do MAPA. Normal (ou nada) TIRA o campo: o arquivo
+ * fica como o de um mapa de antes. Nada muda: o próprio mapa.
+ */
+export function comTemaDoMapa(map: MapData, escolha: EscolhaDoTema | undefined): MapData {
+  const nova = escolha === undefined || escolha.id === 'normal' ? undefined : escolhaLimpa(escolha)
+  if (mesmaEscolha(map.tema, nova)) return map
+  if (nova !== undefined) return { ...map, tema: nova }
+  const copia = { ...map }
+  delete copia.tema
+  return copia
+}
+
+/**
+ * O mestre muda o tema do piso `piso`. `undefined` = "Do mapa" (tira a
+ * entrada; a lista vazia tira o campo). Normal fica gravado: é o piso sem
+ * tema num mapa com tema. Nada muda: o próprio mapa.
+ */
+export function comTemaDoPiso(map: MapData, piso: number, escolha: EscolhaDoTema | undefined): MapData {
+  const nova = escolha === undefined ? undefined : escolhaLimpa(escolha)
+  if (mesmaEscolha(temaProprioDoPiso(map, piso), nova)) return map
+  const outras = (map.temasDosPisos ?? []).filter((t) => t.piso !== piso)
+  const lista: TemaDeUmPiso[] = nova === undefined ? outras : [...outras, { piso, tema: nova }]
+  if (lista.length > 0) return { ...map, temasDosPisos: lista }
+  const copia = { ...map }
+  delete copia.temasDosPisos
+  return copia
+}
+
+function ehObjeto(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+/** Uma escolha de arquivo: id de tema conhecido; força que não é número sai, a que é vem grampeada; cor torta sai. */
+export function lerEscolhaDoTema(valor: unknown): EscolhaDoTema | undefined {
+  if (!ehObjeto(valor)) return undefined
+  const tema = TEMAS_DO_AMBIENTE.find((t) => t.id === valor.id)
+  if (tema === undefined) return undefined
+  const forca = typeof valor.forca === 'number' && Number.isFinite(valor.forca) ? grampear01(valor.forca) : undefined
+  const cor = typeof valor.cor === 'string' && COR_HEX.test(valor.cor) ? valor.cor.toLowerCase() : undefined
+  return { id: tema.id, ...(forca === undefined ? {} : { forca }), ...(cor === undefined ? {} : { cor }) }
+}
+
+/** `MapData.tema` de arquivo: torto ou Normal = sem o campo. */
+export function temaDoMapaDoArquivo(valor: unknown): EscolhaDoTema | undefined {
+  const lido = lerEscolhaDoTema(valor)
+  return lido === undefined || lido.id === 'normal' ? undefined : lido
+}
+
+/**
+ * `MapData.temasDosPisos` de arquivo: só entrada com piso inteiro na faixa e
+ * tema conhecido fica, uma por piso (a primeira vale). Nada que sirva:
+ * `undefined` (o campo nem existe, como em mapa de antes dele).
+ */
+export function temasDosPisosDoArquivo(valor: unknown): TemaDeUmPiso[] | undefined {
+  if (!Array.isArray(valor)) return undefined
+  const vistos = new Set<number>()
+  const lista: TemaDeUmPiso[] = []
+  for (const item of valor) {
+    if (!ehObjeto(item) || !ehPiso(item.piso) || vistos.has(item.piso)) continue
+    const tema = lerEscolhaDoTema(item.tema)
+    if (tema === undefined) continue
+    vistos.add(item.piso)
+    lista.push({ piso: item.piso, tema })
+  }
+  return lista.length === 0 ? undefined : lista
 }

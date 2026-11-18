@@ -74,6 +74,54 @@
   transform: scale(0.97);
 }
 
+/*
+ * TEMA DO AMBIENTE do piso: rótulo, a bolinha da cor que vale e o seletor
+ * nativo (teclado, leitor de tela e a lista do sistema de graça), achatado na
+ * altura dos botões do HUD para a pílula não crescer.
+ */
+.lb-pisohud__tema {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lb-space-1);
+}
+
+.lb-pisohud__amostra {
+  width: 0.625rem;
+  height: 0.625rem;
+  flex: none;
+  border-radius: 50%;
+  /* O fio claro: a bolinha do Escuro (#1c1f26) some no fundo do painel sem ele. */
+  box-shadow: 0 0 0 1px var(--lb-color-parchment-dim);
+  transition: background var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+/* Sem tema no piso: só o aro, vazio. */
+.lb-pisohud__amostra--sem {
+  background: transparent;
+}
+
+.lb-pisohud__escolha {
+  height: 1.5rem;
+  padding: 0 var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-color-stone-sunken);
+  font-family: inherit;
+  font-size: var(--lb-font-size-xs);
+  color: var(--lb-color-parchment);
+  cursor: pointer;
+  transition: border-color var(--lb-motion-fast) var(--lb-motion-ease);
+}
+
+.lb-pisohud__escolha:hover {
+  border-color: var(--lb-color-parchment-dim);
+}
+
+.lb-pisohud__escolha:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
 /* Fio entre a Altura e os degraus do piso. */
 .lb-pisohud__divisa {
   align-self: stretch;

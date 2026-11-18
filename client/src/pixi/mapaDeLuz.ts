@@ -11,7 +11,8 @@ import {
   type LuzDosCarimbosNaCelula,
 } from '../lib/luzDoFogo'
 import { anguloDoFacho, cunhasDoFacho, type FachoQueGira } from '../lib/fachoDoFarol'
-import { ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
+import { LUZ_POR_PERIODO, ambienteDoPeriodo, periodoDaCena, type Ambiente, type LuzDoJogador, type PeriodoLido } from '../lib/periodo'
+import { ambienteComTema, type AmbienteComTema, type EscolhaDoTema } from '../lib/temasDoAmbiente'
 import { computeVisibility, type Segment } from '../lib/visibility'
 import { AJUSTE_DA_PENUMBRA, type Borrao } from './mapaDePenumbra'
 
@@ -39,8 +40,8 @@ import { AJUSTE_DA_PENUMBRA, type Borrao } from './mapaDePenumbra'
 /** O mestre vê a tinta a 50% (D5): enxerga o mapa todo e ainda sabe que é noite. */
 export const TINTA_NO_EDITOR = 0.5
 
-/** Quanto da força de cada luz entra em cada período: à tarde a luz só tira o laranja (protótipo). */
-export const LUZ_POR_PERIODO: Readonly<Record<Periodo, number>> = { dia: 0, tarde: 0.3, noite: 1 }
+/** Quanto da força de cada luz entra em cada período (mora em `lib/periodo.ts`: o host também lê, para o tema). */
+export { LUZ_POR_PERIODO }
 
 /** Contorno creme da PRÓPRIA ficha do jogador, em px de tela (D2). */
 export const CONTORNO_DA_FICHA_PX = 2.5
@@ -73,12 +74,17 @@ const BRANCO = 0xffffff
 
 /** A tinta pronta para desenhar. `null` em quem a devolve = sem tinta (dia). */
 export interface Tinta {
-  periodo: Exclude<Periodo, 'dia'>
-  /** A cor do período misturada ao branco na força do período, `0xRRGGBB`. */
+  /**
+   * O período da cena. Com TEMA pode ser o dia (cena interior com Escuro):
+   * quem segue o período (sombra, neblina, água) lê daqui, e o dia é o de
+   * sempre para eles — o tema é só a cor.
+   */
+  periodo: Periodo
+  /** A cor do período (ou do tema) misturada ao branco na força dele, `0xRRGGBB`. */
   rgb: number
   /** Opacidade do sprite: 1 no jogador, `TINTA_NO_EDITOR` no mestre. */
   alfa: number
-  /** `LUZ_POR_PERIODO` do período. */
+  /** `LUZ_POR_PERIODO` do período, ou o do tema (`ambienteComTema`). */
   fatorDaLuz: number
 }
 
@@ -104,32 +110,48 @@ export function corDaTinta(ambiente: Ambiente): number {
   return (misturar(r) << 16) | (misturar(g) << 8) | misturar(b)
 }
 
-/** A tinta do período, ou `null` quando não há o que escurecer (dia, força 0, opacidade 0). */
-export function tintaDoPeriodo(periodo: Periodo, ambiente: Ambiente, alfa: number): Tinta | null {
-  if (periodo === 'dia') return null
+/**
+ * A tinta de um ambiente já resolvido (período, e o tema por cima), ou `null`
+ * quando não há o que tingir (cor branca, força 0, opacidade 0).
+ */
+export function tintaDoAmbiente(periodo: Periodo, ambiente: AmbienteComTema, alfa: number): Tinta | null {
   const rgb = corDaTinta(ambiente)
   const opacidade = grampear01(alfa)
   if (rgb === BRANCO || opacidade === 0) return null
-  return { periodo, rgb, alfa: opacidade, fatorDaLuz: LUZ_POR_PERIODO[periodo] }
+  return { periodo, rgb, alfa: opacidade, fatorDaLuz: grampear01(ambiente.fatorDaLuz) }
+}
+
+/** A tinta do período, ou `null` quando não há o que escurecer (dia, força 0, opacidade 0). */
+export function tintaDoPeriodo(periodo: Periodo, ambiente: Ambiente, alfa: number): Tinta | null {
+  if (periodo === 'dia') return null
+  return tintaDoAmbiente(periodo, { ...ambiente, fatorDaLuz: LUZ_POR_PERIODO[periodo] }, alfa)
 }
 
 /**
  * A tinta da cena aberta no editor: o período da CENA (`periodoDaCena` — a
- * interior fica de dia, D1) e o ambiente dela (`ambienteDoPeriodo`, D7).
+ * interior fica de dia, D1) e o ambiente dela (`ambienteDoPeriodo`, D7). O
+ * TEMA do piso em edição (`temaDoPiso`), quando há, substitui a cor e a força
+ * do período e dá o fator das luzes (`ambienteComTema`), até de dia.
  */
 export function tintaDaCena(
   cena: Pick<MapData, 'externa' | 'periodoFixo' | 'ambientePorPeriodo'>,
   sessao: PeriodoLido | null | undefined,
   alfa: number,
+  tema?: EscolhaDoTema | null,
 ): Tinta | null {
   const periodo = periodoDaCena(cena, sessao)
-  return tintaDoPeriodo(periodo, ambienteDoPeriodo(cena, periodo), alfa)
+  const doPeriodo: AmbienteComTema = { ...ambienteDoPeriodo(cena, periodo), fatorDaLuz: LUZ_POR_PERIODO[periodo] }
+  return tintaDoAmbiente(periodo, ambienteComTema(doPeriodo, tema), alfa)
 }
 
-/** A tinta do jogador: o `snapshot.luz` da cena dele (ausente = dia). Sempre cheia. */
+/**
+ * A tinta do jogador: o `snapshot.luz` da cena dele (ausente = dia). Sempre
+ * cheia. O fator das luzes vem do tema quando chega (`luz.fatorDaLuz`);
+ * senão é o do período.
+ */
 export function tintaDoJogador(luz: LuzDoJogador | null | undefined): Tinta | null {
   if (luz === null || luz === undefined) return null
-  return tintaDoPeriodo(luz.periodo, luz, 1)
+  return tintaDoAmbiente(luz.periodo, { cor: luz.cor, forca: luz.forca, fatorDaLuz: luz.fatorDaLuz ?? LUZ_POR_PERIODO[luz.periodo] }, 1)
 }
 
 /**

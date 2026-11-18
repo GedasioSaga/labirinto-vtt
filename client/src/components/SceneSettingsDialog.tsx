@@ -4,6 +4,7 @@ import { SceneVisionControls, type SceneVisionControlsProps } from './SceneVisio
 import { SceneMapaVivoControls, SceneMapTypeControls, temMapaVivo, type SceneMapTypeControlsProps } from './SceneMapTypeControls'
 import { MapSizeControls, type MapSizeControlsProps } from './MapSizeControls'
 import { SceneTokenSizeControls } from './SceneTokenSizeControls'
+import { TemaDoAmbienteControls, type TemaDoAmbienteControlsProps } from './TemaDoAmbienteControls'
 
 /** Raio em px que o jogador usa quando a cena não diz nada (`DEFAULT_VISION_RADIUS`, `net/hostBridge.ts`). */
 export const RAIO_PADRAO_PX = 700
@@ -29,6 +30,8 @@ export interface SceneSettingsDialogProps {
    *  ficha" (pedido de 12/11/2026, `SceneTokenSizeControls`), que lê e grava a
    *  cena pelas stores. Ausente omite a seção. */
   sceneId?: string
+  /** "Ambiente": o TEMA DO AMBIENTE do mapa (pedido de 17/11/2026, `TemaDoAmbienteControls`). Ausente omite a seção. */
+  ambiente?: TemaDoAmbienteControlsProps
   /** A seção que abre à vista (`SECAO_MAPA_VIVO`); ausente ou sem conteúdo, a primeira. */
   secaoInicial?: string
   onClose: () => void
@@ -83,7 +86,7 @@ export const SECAO_MAPA_VIVO = 'mapa-vivo'
 /**
  * "Configurar cena" (pedido de 07/10/2026): a visão dos jogadores, por cena
  * (com o "Fora do Chão" de 12/11/2026, `SceneVisionControls`),
- * com o radar ao lado, o "Tamanho do mapa" (11/11/2026), o "Tamanho da ficha" ao
+ * com o radar ao lado, o "Ambiente" (o tema da luz do lugar, 17/11/2026), o "Tamanho do mapa" (11/11/2026), o "Tamanho da ficha" ao
  * entrar (12/11/2026), o "Tipo de mapa" (09/10/2026) e o "Mapa vivo" (fatia
  * 20: Relevo, Nomes dos lugares, Nuvens). Abre pelo botão de engrenagem na
  * linha da cena, e pelo "Mapa vivo" da página Cena.
@@ -91,7 +94,7 @@ export const SECAO_MAPA_VIVO = 'mapa-vivo'
  * Casca do Grimório: `Dialogo` com a navegação vertical; os controles são os
  * de antes. O foco entra no campo da visão, o que se mexe mais.
  */
-export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapType, sceneId, secaoInicial, onClose }: SceneSettingsDialogProps) {
+export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapType, sceneId, ambiente, secaoInicial, onClose }: SceneSettingsDialogProps) {
   const { cells, padrao } = raioEmQuadrados(vision.visionCells, cellPx)
   const secoes: SecaoDaNavegacao[] = [
     {
@@ -111,6 +114,7 @@ export function SceneSettingsDialog({ sceneName, cellPx, vision, mapSize, mapTyp
       ),
     },
   ]
+  if (ambiente !== undefined) secoes.push({ id: 'ambiente', rotulo: 'Ambiente', conteudo: <TemaDoAmbienteControls {...ambiente} /> })
   if (mapSize !== undefined) secoes.push({ id: 'tamanho', rotulo: 'Tamanho do mapa', conteudo: <MapSizeControls {...mapSize} /> })
   if (sceneId !== undefined) secoes.push({ id: 'fichas', rotulo: 'Tamanho da ficha', conteudo: <SceneTokenSizeControls sceneId={sceneId} /> })
   if (mapType !== undefined) {

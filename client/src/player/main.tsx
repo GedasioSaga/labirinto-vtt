@@ -1892,7 +1892,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
               vision={vistaDeBaixo.vision}
               concealed={vistaDeBaixo.concealed}
               ownTokens={NO_TOKENS}
-              luz={state.luz}
+              // TEMA DO AMBIENTE: o piso de baixo na tinta dele quando é outra (o host manda); senão, a do piso de cima.
+              luz={vistaDeBaixo.luz ?? state.luz}
               settings={settings}
               focusTokenId={null}
               focusSeq={0}

@@ -64,6 +64,7 @@ import { drawStairs } from './drawStairs'
 import { createLightsRenderer } from './drawLights'
 import { TINTA_NO_EDITOR, criarMapaDeLuz, criarRevisao, tintaDaCena } from './mapaDeLuz'
 import { luzAcesaNoPeriodo } from '../lib/periodo'
+import { temaDoPiso } from '../lib/temasDoAmbiente'
 import { visionSegments, type Segment } from '../lib/visibility'
 import { chaoQueLimita } from '../lib/offFloor'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
@@ -3246,11 +3247,15 @@ function PixiCanvasDoContexto({
         const { comoJogador, previa } = useTintaNoEditor.getState()
         // PRÉVIA (Luz L4c, painel "Ambiente da cena"): a cena aberta vista noutro período, só aqui no editor.
         const cena = previa === null ? map : { externa: map.externa, periodoFixo: previa, ambientePorPeriodo: map.ambientePorPeriodo }
-        const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR)
+        const pisoAtivo = useMapStore.getState().pisoAtivo
+        // TEMA DO AMBIENTE (17/11/2026): o do piso em edição (o dele, senão o do mapa), no mesmo sprite da tinta.
+        const tinta = tintaDaCena(cena, sessao, comoJogador ? 1 : TINTA_NO_EDITOR, temaDoPiso(map, pisoAtivo))
+        // As luzes, as paredes e os objetos do PISO em edição (em cache, `mapaDoPiso`): a tocha do térreo
+        // não fura o escuro do 1º piso. Mapa de um piso só volta ele mesmo.
+        const doPiso = mapaDoPiso(map, pisoAtivo)
         // A SOMBRA ÚNICA (Fase 6, `lib/sombra.ts`): mais fraca à tarde e à noite; sem tinta é dia.
         definirPeriodoDaSombra(tinta?.periodo ?? 'dia')
         // A neblina fica logo abaixo do fantasma de teste, e a tinta logo abaixo dela.
-        const pisoAtivo = useMapStore.getState().pisoAtivo
         const tetoDaTinta = neblinaDoEditor.quadro(map, pisoAtivo, fantasmaDeTesteContainer)
         const periodoDaNeblina = tinta?.periodo ?? null
         neblinaDoEditor.renderer.setPeriodo(periodoDaNeblina)
@@ -3306,23 +3311,24 @@ function PixiCanvasDoContexto({
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
           tinta,
-          revisao: revisaoDoMapaDeLuz.de([map.lights, map.walls, chaoQueLimita(map), map.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
+          revisao: revisaoDoMapaDeLuz.de([doPiso.lights, doPiso.walls, chaoQueLimita(doPiso), doPiso.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
-            const camadas = contextoDeCamadas(map)
-            const daCamada = comoJogador ? map.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(map.lights, map)
+            const camadas = contextoDeCamadas(doPiso)
+            const daCamada = comoJogador ? doPiso.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(doPiso.lights, doPiso)
             // `hidden` não vai ao jogador (`fogFilter.ts`); `acesaEm` decide se acende no período (L3).
             return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, cena, sessao))
           },
-          obstaculos: () => lightOccludersOf(map),
+          // O mesmo mapa do halo (`paintLights` lê o piso em edição): a cache dos obstáculos serve aos dois.
+          obstaculos: () => lightOccludersOf(doPiso),
           mapa: { largura: map.width * map.grid, altura: map.height * map.grid },
           vista: { x: world.position.x, y: world.position.y, escala: world.scale.x, largura: app.screen.width, altura: app.screen.height },
           fichas: [],
           // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
-          fogos: map.props,
+          fogos: doPiso.props,
           // Os carimbos que iluminam (os cogumelos que brilham, a rocha vulcânica), juntos por célula.
           // ABISMO: o fundo que brilha empresta a luz da fenda em brasa ou dos cristais verdes (`carimbosComOsAbismos`),
           // nos contornados à mão e nos pintados por pincel (`abismosDoMapa`).
-          carimbos: carimbosComOsAbismos(map.carimbos, abismosDoMapa(map), map.grid, useMapStore.getState().pisoAtivo),
+          carimbos: carimbosComOsAbismos(doPiso.carimbos, abismosDoMapa(map), map.grid, pisoAtivo),
           casa: map.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas

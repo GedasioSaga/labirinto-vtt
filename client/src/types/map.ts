@@ -612,6 +612,24 @@ export interface AlturaDeUmPiso {
   altura: Exclude<AlturaDoPiso, 'media'>
 }
 
+/** TEMA DO AMBIENTE (`lib/temasDoAmbiente.ts`): os cinco temas prontos. */
+export type IdDoTema = 'normal' | 'escuro' | 'tocha' | 'frio' | 'noite'
+
+/** O que o mestre escolhe para um mapa ou um piso: o tema, a força e, se quiser, a cor livre. */
+export interface EscolhaDoTema {
+  id: IdDoTema
+  /** Ausente = a força do tema. */
+  forca?: number
+  /** A cor livre, `#rrggbb`; ausente ou torta = a cor do tema. */
+  cor?: string
+}
+
+/** O tema de um piso que vence o do mapa (`MapData.temasDosPisos`). */
+export interface TemaDeUmPiso {
+  piso: number
+  tema: EscolhaDoTema
+}
+
 /**
  * "!" (aqui tem algo), "?" (investigue aqui), o pino de VIAGEM (a passagem
  * que leva de uma cena da aventura para outra), a ALAVANCA (abre ou fecha a
@@ -3080,6 +3098,21 @@ export interface MapData {
    * migração; parte torta do arquivo sai (`lerAmbientePorPeriodo`).
    */
   ambientePorPeriodo?: { tarde?: AmbienteDoPeriodo; noite?: AmbienteDoPeriodo }
+  /**
+   * TEMA DO AMBIENTE do mapa (`lib/temasDoAmbiente.ts`, pedido de 17/11/2026):
+   * a cor da luz do lugar (Escuro, Tocha, Frio, Noite), que SUBSTITUI a tinta
+   * da tarde e da noite. Só cor: a visão dos jogadores não muda. Ausente =
+   * Normal (o período manda, como antes), sem linha de migração. NUNCA sai no
+   * recorte do jogador: ele recebe a tinta pronta em `snapshot.luz`.
+   */
+  tema?: EscolhaDoTema
+  /**
+   * TEMA DO AMBIENTE por piso: vence o do mapa naquele piso (Normal = sem
+   * tema nele, mesmo com tema no mapa). Uma entrada por piso; ausente = todo
+   * piso no tema do mapa. Leitura segura em `temasDosPisosDoArquivo`. NUNCA
+   * sai no recorte do jogador (entregaria a lista de pisos da cena).
+   */
+  temasDosPisos?: TemaDeUmPiso[]
   /**
    * DIA/TARDE/NOITE: o raio de visão nesta cena à tarde e à noite, em casas.
    * Ausente = a regra de hoje (noite = metade da visão). Parte torta do

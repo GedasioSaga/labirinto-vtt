@@ -1,5 +1,6 @@
 import type { AmbienteDoPeriodo, Light, MapData, Periodo } from '../types/map'
 import { SCENE_VISION_CELLS_MAX, readSceneVisionCells } from './sceneVision'
+import { ambienteComTema, temaDoPiso } from './temasDoAmbiente'
 
 /**
  * DIA/TARDE/NOITE: o período em que cada cena está e a tinta de ambiente dele.
@@ -172,34 +173,86 @@ function ehObjeto(valor: unknown): valor is Record<string, unknown> {
  */
 export interface LuzDoJogador extends Ambiente {
   periodo: Periodo
+  /**
+   * TEMA DO AMBIENTE: quanto da força de cada luz do mapa entra (o do tema,
+   * `ambienteComTema`). Ausente = o do período (`LUZ_POR_PERIODO`): só sai
+   * quando o piso dele tem tema, e o snapshot sem tema fica igual ao de antes.
+   */
+  fatorDaLuz?: number
 }
 
+/** Quanto da força de cada luz entra em cada período: à tarde a luz só tira o laranja (protótipo L4a). */
+export const LUZ_POR_PERIODO: Readonly<Record<Periodo, number>> = { dia: 0, tarde: 0.3, noite: 1 }
+
 /**
- * `snapshot.luz` desta cena com a sessão em `sessao`. `null` (o campo nem
- * sai, e o snapshot fica igual ao de antes da Luz) quando o mestre não tem
- * período ou quando a cena está de dia — dia não tem tinta.
+ * `snapshot.luz` desta cena com a sessão em `sessao`, no piso `piso` do
+ * jogador. Sem tema: `null` (o campo nem sai, e o snapshot fica igual ao de
+ * antes da Luz) quando o mestre não tem período ou quando a cena está de dia —
+ * dia não tem tinta. Com tema no piso (o dele, senão o do mapa): a cor e a
+ * força do tema no lugar das do período, e o fator das luzes, até de dia.
  */
-export function luzParaJogador(map: Pick<MapData, 'externa' | 'periodoFixo' | 'ambientePorPeriodo'>, sessao: PeriodoLido | null): LuzDoJogador | null {
-  if (sessao === null) return null
+export function luzParaJogador(
+  map: Pick<MapData, 'externa' | 'periodoFixo' | 'ambientePorPeriodo' | 'tema' | 'temasDosPisos'>,
+  sessao: PeriodoLido | null,
+  piso = 0,
+): LuzDoJogador | null {
+  const tema = temaDoPiso(map, piso)
+  if (tema === undefined || tema.id === 'normal') {
+    if (sessao === null) return null
+    const periodo = periodoDaCena(map, sessao)
+    if (periodo === PERIODO_PADRAO) return null
+    const { cor, forca } = ambienteDoPeriodo(map, periodo)
+    return { periodo, cor, forca }
+  }
   const periodo = periodoDaCena(map, sessao)
-  if (periodo === PERIODO_PADRAO) return null
-  const { cor, forca } = ambienteDoPeriodo(map, periodo)
-  return { periodo, cor, forca }
+  const { cor, forca, fatorDaLuz } = ambienteComTema({ ...ambienteDoPeriodo(map, periodo), fatorDaLuz: LUZ_POR_PERIODO[periodo] }, tema)
+  return { periodo, cor, forca, fatorDaLuz }
+}
+
+/** O branco: a tinta de quem não tem tinta (força 0), no período da cena. */
+const SEM_TINTA: Readonly<Ambiente> = { cor: '#ffffff', forca: 0 }
+
+/**
+ * TERRENO ALTO com TEMA: a tinta do piso de baixo, para a vista dele lá de
+ * cima, só quando ela é OUTRA que a do piso do jogador (cada piso no seu
+ * tema). Igual: `undefined`, e a vista de baixo usa a do jogador, como antes.
+ * Sem tinta embaixo e com tinta em cima: o branco (força 0).
+ */
+export function luzDoPisoDeBaixo(
+  map: Pick<MapData, 'externa' | 'periodoFixo' | 'ambientePorPeriodo' | 'tema' | 'temasDosPisos'>,
+  sessao: PeriodoLido | null,
+  piso: number,
+): LuzDoJogador | undefined {
+  const daqui = luzParaJogador(map, sessao, piso)
+  const deBaixo = luzParaJogador(map, sessao, piso - 1)
+  if (mesmaLuz(daqui, deBaixo)) return undefined
+  return deBaixo ?? { periodo: periodoDaCena(map, sessao), ...SEM_TINTA }
+}
+
+function mesmaLuz(a: LuzDoJogador | null, b: LuzDoJogador | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.periodo === b.periodo && a.cor === b.cor && a.forca === b.forca && a.fatorDaLuz === b.fatorDaLuz
 }
 
 /**
  * `snapshot.luz` como chegou da rede, só com os campos conhecidos. `null` =
  * fora da forma (período que não é tarde/noite/dia, cor fora de `#rrggbb`,
- * força fora de 0..1): quem lê recusa a mensagem inteira.
+ * força ou fator das luzes fora de 0..1): quem lê recusa a mensagem inteira.
  */
 export function lerLuzDoJogador(valor: unknown): LuzDoJogador | null {
   if (!ehObjeto(valor)) return null
   const periodo = PERIODOS.find((p) => p === valor.periodo)
   const cor = corValida(valor.cor)
-  const forca = valor.forca
+  const { forca, fatorDaLuz } = valor
   if (periodo === undefined || cor === undefined) return null
-  if (typeof forca !== 'number' || !Number.isFinite(forca) || forca < 0 || forca > 1) return null
-  return { periodo, cor, forca }
+  if (!entre0e1(forca)) return null
+  if (fatorDaLuz === undefined) return { periodo, cor, forca }
+  if (!entre0e1(fatorDaLuz)) return null
+  return { periodo, cor, forca, fatorDaLuz }
+}
+
+function entre0e1(valor: unknown): valor is number {
+  return typeof valor === 'number' && Number.isFinite(valor) && valor >= 0 && valor <= 1
 }
 
 function lerAmbienteDoPeriodo(valor: unknown): AmbienteDoPeriodo | undefined {
