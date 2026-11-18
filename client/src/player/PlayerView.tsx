@@ -36,7 +36,7 @@ import { findStairPinAt } from '../lib/selectionHitTest'
 import { findPinAt, findPinsAt, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { escolhaDoToque } from './pinChooser'
 import { visiblePins } from '../lib/layers'
-import { distanciaAoObjeto, itemNoChaoNoPonto } from '../lib/itemNoMapa'
+import { distanciaAoObjeto, ehEstrelaDeItem, itemNoChaoNoPonto } from '../lib/itemNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { mapFloorClip } from '../lib/floorContour'
 import { createPinsRenderer } from '../pixi/drawPins'
@@ -115,6 +115,7 @@ import { ehConstrucao } from '../lib/mobilia/construcoes'
 import { ALFA_DA_CONSTRUCAO_COM_FICHA_ATRAS, construcoesComFichaAtras } from '../lib/mobilia/construcaoComFichaAtras'
 import { createChamasDasFogueiras, sincronizarChamas, type ChamasDasFogueiras } from '../pixi/chamasDasFogueiras'
 import { createFogosDoMapa, type FogosDoMapa } from '../pixi/fogosDoMapa'
+import { createEstrelasDosItens, type EstrelasDosItens } from '../pixi/estrelasDosItens'
 import { createJudgeDoMapa, type JudgeDoMapa } from '../pixi/judgeDoMapa'
 import { registrarCameraDaBatalha } from '../pixi/cameraDaBatalha'
 import { registrarFichasDoImpacto } from '../pixi/impactoNasFichas'
@@ -569,6 +570,11 @@ const DOOR_HINT_WIDTH_PX = 10
 /** Raio do toque na porta, em px de TELA: dedo em celular erra por alguns px. */
 const DOOR_TAP_TOLERANCE_PX = 18
 const HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i
+
+/** O objeto ganha a silhueta chapada: nem o item no chão com imagem, nem a estrela do item (o desenho deles é outro). */
+function temSilhueta(prop: Prop): boolean {
+  return prop.item?.imagem === undefined && !ehEstrelaDeItem(prop)
+}
 
 // `pointerId`: o dedo (ou mouse) dono do gesto. Com dois dedos na tela, o
 // passo e o soltar do OUTRO dedo não mexem neste gesto.
@@ -1521,6 +1527,8 @@ interface Scene {
   nomesDosLugares: NomesDosLugaresRenderer
   /** OBJETO FOGO (`pixi/fogosDoMapa.ts`): as chamas por cima dos telhados, dos objetos que o recorte deixou passar; só as da vista animam. */
   fogos: FogosDoMapa
+  /** ESTRELA DO ITEM (`pixi/estrelasDosItens.ts`): o item que o mestre mostra como estrela, "algo brilha"; só as da vista animam. */
+  estrelas: EstrelasDosItens
   /** BATALHA F3 (`pixi/judgeDoMapa.ts`): o Judge por cima das fichas e da névoa; só respira na vista e com batalha. */
   judge: JudgeDoMapa
   /**
@@ -1777,6 +1785,7 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
   scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
+  scene.estrelas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.judge.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
@@ -3044,8 +3053,9 @@ function PlayerViewDoCanvas({
     const naParede = presos.size === 0 ? [] : semConstrucoes.filter((p) => presos.has(p.id))
     const doChao = presos.size === 0 ? semConstrucoes : semConstrucoes.filter((p) => !presos.has(p.id))
     // ITEM NO CHÃO com imagem: a imagem do item é o desenho — a silhueta chapada
-    // por baixo faria a poção virar um caixote escuro.
-    const silhuetas = doChao.filter((p) => p.item?.imagem === undefined)
+    // por baixo faria a poção virar um caixote escuro. A ESTRELA DO ITEM também
+    // não tem silhueta: ela mesma é o desenho (`drawPropLooks.ts`).
+    const silhuetas = doChao.filter(temSilhueta)
     // Cada nó das quatro faixas com os móveis da camada dele (Decoração com
     // opacidade própria separa dos de Objetos); mapa de hoje = um nó por faixa.
     let desenhadas = 0
@@ -3069,7 +3079,7 @@ function PlayerViewDoCanvas({
     // Os presos na parede: a mesma silhueta, chama, imagem e rótulo, no container de cima das paredes.
     // Lista vazia também passa: limpa o que saiu.
     const { naParede: noDaParede } = scene
-    const silhuetasNaParede = naParede.filter((p) => p.item?.imagem === undefined)
+    const silhuetasNaParede = naParede.filter(temSilhueta)
     desenhadas += drawPropSilhouettes(noDaParede.silhuetas, silhuetasNaParede, scale, res, vistaDosMoveis, currentMap.grid)
     sincronizarChamas(noDaParede.chamas, noDaParede.chamasNo, silhuetasNaParede, { cameraScale: scale, vistaDosMoveis })
     const feitoNaParede = noDaParede.looks.draw(noDaParede.imagens, noDaParede.rotulos, naParede, currentMap.grid, scale, latestRef.current.imagemDaMesa)
@@ -3081,7 +3091,7 @@ function PlayerViewDoCanvas({
     const naFrente = comFichaAtras.size === 0 ? construcoes : construcoes.filter((p) => !comFichaAtras.has(p.id))
     const atras = comFichaAtras.size === 0 ? [] : construcoes.filter((p) => comFichaAtras.has(p.id))
     for (const [no, lista] of [[noDasConstrucoes, naFrente], [noDasConstrucoes.atras, atras]] as const) {
-      desenhadas += drawPropSilhouettes(no.silhuetas, lista.filter((p) => p.item?.imagem === undefined), scale, res, vistaDosMoveis, currentMap.grid)
+      desenhadas += drawPropSilhouettes(no.silhuetas, lista.filter(temSilhueta), scale, res, vistaDosMoveis, currentMap.grid)
       const feito = no.looks.draw(no.imagens, no.rotulos, lista, currentMap.grid, scale, latestRef.current.imagemDaMesa)
       contagem.images += feito.images
       contagem.labels += feito.labels
@@ -4348,6 +4358,16 @@ function PlayerViewDoCanvas({
           el.dataset.fogosAnimando = String(estado.animando)
         },
       })
+      // ESTRELA DO ITEM: uma para a tela, dividida pelos desenhistas das imagens. No `app.ticker`, não no
+      // `relogio`: só a estrela na vista anima, a 30 quadros por segundo, e o desenho sob pedido vê a mudança.
+      const estrelas = createEstrelasDosItens({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
+        aoMudar: (estado) => {
+          el.dataset.estrelas = String(estado.estrelas)
+          el.dataset.estrelasNaVista = String(estado.naVista)
+          el.dataset.estrelasAnimando = String(estado.animando)
+        },
+      })
       // JUDGE (F3, `pixi/judgeDoMapa.ts`): a folha só baixa quando a batalha o põe na tela.
       const judgeDoMapa = createJudgeDoMapa({
         movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
@@ -4622,7 +4642,12 @@ function PlayerViewDoCanvas({
         () => createChamasDasFogueiras({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
         (chamas) => chamas.destruir(),
       )
-      const looksPorNo = criarPorNo<Container, PropLooksRenderer>(propImages, createPropLooksRenderer(), () => createPropLooksRenderer(), () => {})
+      const looksPorNo = criarPorNo<Container, PropLooksRenderer>(
+        propImages,
+        createPropLooksRenderer(undefined, estrelas),
+        () => createPropLooksRenderer(undefined, estrelas),
+        (looks) => looks.destruir(),
+      )
       aoDescartarNo.push((no) => chamasPorNo.soltar(no), (no) => looksPorNo.soltar(no), (no) => caminhos.soltar(no))
       // CAMADAS (fatia 4b): luzes, pinos e portas de camada escolhida desenham no nó dela, com renderer próprio.
       const movimentoDasPortas = { ticker: desenho.relogio, reducedMotion: prefersReducedMotion }
@@ -4762,15 +4787,15 @@ function PlayerViewDoCanvas({
           chamas: createChamasDasFogueiras({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
           imagens: imagensNaParede,
           rotulos: rotulosNaParede,
-          looks: createPropLooksRenderer(),
+          looks: createPropLooksRenderer(undefined, estrelas),
           presos: null,
         },
         construcoes: {
           silhuetas: silhuetasDasConstrucoes,
           imagens: imagensDasConstrucoes,
           rotulos: rotulosDasConstrucoes,
-          looks: createPropLooksRenderer(),
-          atras: { silhuetas: silhuetasAtras, imagens: imagensAtras, rotulos: rotulosAtras, looks: createPropLooksRenderer() },
+          looks: createPropLooksRenderer(undefined, estrelas),
+          atras: { silhuetas: silhuetasAtras, imagens: imagensAtras, rotulos: rotulosAtras, looks: createPropLooksRenderer(undefined, estrelas) },
         },
         pilha,
         paresDoMapa: criarParesDoJogador(),
@@ -4815,6 +4840,7 @@ function PlayerViewDoCanvas({
         carimbos,
         nomesDosLugares,
         fogos,
+        estrelas,
         nuvens,
         neblina,
         ambiente,
@@ -5770,6 +5796,7 @@ function PlayerViewDoCanvas({
         scene.chamas.destruir()
         scene.naParede.chamas.destruir()
         scene.fogos.destruir()
+        scene.estrelas.destruir()
         scene.judge.destruir()
         // O10: por último, com todos fora do relógio; o app volta ao desenho de todo quadro até morrer.
         desenho.destruir()

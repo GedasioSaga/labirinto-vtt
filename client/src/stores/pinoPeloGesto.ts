@@ -1,7 +1,7 @@
 import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravadaDoItem } from '../lib/camadas/trava'
-import type { Pin } from '../types/map'
-import { porTokenDaColocacao } from './colocacaoDoPreludio'
+import type { Pin, Prop } from '../types/map'
+import { estrelaDaColocacao, porTokenDaColocacao } from './colocacaoDoPreludio'
 import { useMapStore } from './mapStore'
 
 /**
@@ -23,6 +23,9 @@ import { useMapStore } from './mapStore'
 export function cravarPinoPeloGesto(pin: Pin): boolean {
   // "Pôr no mapa" do Prelúdio com um TOKEN esperando (E3): o clique da ferramenta Pino põe o token, e não um pino.
   if (porTokenDaColocacao(pin)) return true
+  // ...e com um ITEM SEM IMAGEM (17/11/2026): a estrela brilhando no chão, e não o pino de item.
+  const estrela = estrelaDaColocacao(pin)
+  if (estrela !== null) return porObjetoPeloGesto(estrela)
   const store = useMapStore.getState()
   const travada = camadaTravadaDoItem(store.map, 'pino', pin)
   if (travada !== null) {
@@ -30,6 +33,18 @@ export function cravarPinoPeloGesto(pin: Pin): boolean {
     return false
   }
   store.addPin(pin)
+  return true
+}
+
+/** O objeto que o clique da ferramenta Pino pôs no lugar do pino (a estrela do item): o mesmo cadeado, pela camada do objeto. */
+function porObjetoPeloGesto(prop: Prop): boolean {
+  const store = useMapStore.getState()
+  const travada = camadaTravadaDoItem(store.map, 'objeto', prop)
+  if (travada !== null) {
+    avisarCamadaTravada(travada)
+    return false
+  }
+  store.addProp(prop)
   return true
 }
 

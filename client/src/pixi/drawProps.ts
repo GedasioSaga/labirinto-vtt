@@ -14,6 +14,8 @@ import { propCorners } from '../lib/objectTransform'
 import { ehMovelDeCimaDaMesa, ehMovelDoChao, temParteAnimada } from '../lib/mobilia'
 import { emOrdemDasVistas, movelEmTresQuartos } from '../lib/mobilia/vistaTresQuartos'
 import { createChamasDasFogueiras, type OpcoesDasChamas } from './chamasDasFogueiras'
+import { createEstrelasDosItens, type EstrelaDoItem, type EstrelasDosItens } from './estrelasDosItens'
+import { ehEstrelaDeItem } from '../lib/itemNoMapa'
 
 /**
  * Onda 2, item 12 (notificação) — reduz um caminho de arquivo ao nome
@@ -157,8 +159,11 @@ interface FurnitureEntry {
  * `addChildAt(…, 0)`, então o chão volta ao fundo no fim de cada `draw`. Dentro
  * do chão os tapetes seguem a ordem da lista, como na tela do jogador.
  */
-export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): PropsRenderer {
+export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}, estrelasDaTela?: EstrelasDosItens): PropsRenderer {
   const chamas = createChamasDasFogueiras(opcoesDasChamas)
+  // ESTRELA DO ITEM: a da tela (um relógio e uma textura para todas); sem ela (testes), uma própria, parada.
+  const estrelas = estrelasDaTela ?? createEstrelasDosItens()
+  const estrelaCache = new Map<string, EstrelaDoItem>()
   const spriteCache = new Map<string, Sprite>()
   // Móveis da mobília desenhada, por id — mesma vida do `spriteCache`.
   const furnitureCache = new Map<string, FurnitureEntry>()
@@ -198,8 +203,10 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     }
 
     // Móvel da mobília desenhada não tem imagem: fica fora do cache de sprite
-    // (e o sprite de um objeto que virou móvel sai), e vice-versa.
-    const imageIds = new Set(props.filter((p) => p.mobilia === undefined).map((p) => p.id))
+    // (e o sprite de um objeto que virou móvel sai), e vice-versa. A ESTRELA DO
+    // ITEM também não tem imagem: a troca imagem ⇄ estrela (mesmo id) tira um e põe o outro.
+    const starIds = new Set(props.filter((p) => p.mobilia === undefined && ehEstrelaDeItem(p)).map((p) => p.id))
+    const imageIds = new Set(props.filter((p) => p.mobilia === undefined && !starIds.has(p.id)).map((p) => p.id))
     const furnitureIds = new Set(props.filter((p) => p.mobilia !== undefined).map((p) => p.id))
 
     for (const [id, sprite] of spriteCache) {
@@ -208,6 +215,12 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
         sprite.destroy()
         spriteCache.delete(id)
         propsById.delete(id)
+      }
+    }
+    for (const [id, estrela] of estrelaCache) {
+      if (!starIds.has(id)) {
+        estrela.destruir()
+        estrelaCache.delete(id)
       }
     }
     for (const [id, { drawing, sombra }] of furnitureCache) {
@@ -230,6 +243,11 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
         drawFurniture(container, prop, view)
         // Fogueira, lareira e fornalha (a chama) e o chafariz (a água): a parte animada fica até a poda.
         if (temParteAnimada(prop.mobilia)) fogueiras.add(prop.id)
+        markPropState(prop, selectedPropId)
+        continue
+      }
+      if (starIds.has(prop.id)) {
+        drawEstrela(container, prop)
         markPropState(prop, selectedPropId)
         continue
       }
@@ -308,6 +326,22 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
       if (mesaPosta.parent !== container) container.addChildAt(mesaPosta, container.getChildIndex(highlightGraphics))
       else if (container.getChildIndex(mesaPosta) !== container.getChildIndex(highlightGraphics) - 1) container.setChildIndex(mesaPosta, container.getChildIndex(highlightGraphics) - 1)
     }
+  }
+
+  /**
+   * ESTRELA DO ITEM (17/11/2026): o nó da estrela (`estrelasDosItens.ts`) no
+   * lugar do sprite, no centro da caixa do objeto, com o mesmo fantasma do
+   * "Oculto" e o mesmo lugar na pilha; o destaque de seleção é o da caixa.
+   */
+  function drawEstrela(container: Container, prop: Prop): void {
+    let estrela = estrelaCache.get(prop.id)
+    if (estrela === undefined) {
+      estrela = estrelas.criar(prop.id)
+      estrelaCache.set(prop.id, estrela)
+      container.addChildAt(estrela.no, 0)
+    } else if (estrela.no.parent !== container) container.addChildAt(estrela.no, 0)
+    estrela.posicionar(prop)
+    estrela.no.alpha = propAlpha(prop)
   }
 
   /**
@@ -393,8 +427,8 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
     const nos: Container[] = []
     for (const prop of props) {
       if (prop.mobilia === undefined) {
-        const sprite = spriteCache.get(prop.id)
-        if (sprite !== undefined && sprite.parent === container) nos.push(sprite)
+        const no = spriteCache.get(prop.id) ?? estrelaCache.get(prop.id)?.no
+        if (no !== undefined && no.parent === container) nos.push(no)
         continue
       }
       const entry = furnitureCache.get(prop.id)
@@ -444,6 +478,10 @@ export function createPropsRenderer(opcoesDasChamas: OpcoesDasChamas = {}): Prop
   /** Desmonte (ou nó da camada descartado): as chamas saem do relógio e nenhum carregamento pendente encontra mais o sprite. */
   function destruir(): void {
     chamas.destruir()
+    for (const estrela of estrelaCache.values()) estrela.destruir()
+    estrelaCache.clear()
+    // A instância própria (sem a da tela) solta as texturas dela; a da tela é de quem a criou.
+    if (estrelasDaTela === undefined) estrelas.destruir()
     spriteCache.clear()
     furnitureCache.clear()
     propsById.clear()

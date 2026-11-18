@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PinItem, PinKind } from '../types/map'
 import { ITEM_NAME_MAX_LENGTH, cleanItemName } from '../lib/items'
+import type { FormaDoItem } from '../lib/itemNoMapa'
 import type { LeverDoorOption } from '../lib/lever'
 import type { PinAttachOption } from '../lib/pinAttach'
 import { PIN_GLYPH, PIN_KIND_DO_NOVO_PINO, PIN_KIND_LABELS, PIN_LER_DE_PERTO_MAX, PIN_LER_DE_PERTO_MIN, isPinReadDistance } from '../lib/pins'
@@ -67,9 +68,9 @@ export interface PinControlsProps {
   /**
    * ITEM PEGÁVEL do pino aberto ("!"/"?"): `value` `null` = pino que só se lê.
    * `onChange(null)` desliga. `null` no prop = sem pino aberto, ou pino de viagem.
-   * `onTrocarForma` (ITEM NO MAPA): o pino de item vira imagem no chão.
+   * `onTrocarForma` (ITEM NO MAPA): o pino de item vira estrela ou imagem no chão.
    */
-  item?: { value: PinItem | null; onChange: (item: PinItem | null) => void; onTrocarForma?: () => void } | null
+  item?: { value: PinItem | null; onChange: (item: PinItem | null) => void; onTrocarForma?: (forma: FormaDoItem) => void } | null
   /**
    * PRESO À FICHA do pino de viagem aberto: `value` é o id da ficha que ele
    * acompanha (`null` = parado); `options`, as fichas desta cena.
@@ -257,7 +258,7 @@ export function PinItemControls({
 }: {
   value: PinItem | null
   onChange: (item: PinItem | null) => void
-  onTrocarForma?: () => void
+  onTrocarForma?: (forma: FormaDoItem) => void
   /** Dentro da ficha do recurso (fatia 12): sem o interruptor, que lá é o "Tirar do pino". */
   embutido?: boolean
 }) {
@@ -292,7 +293,7 @@ export function PinItemControls({
             }}
           />
           <Toggle label="Pega sem pedir ao mestre" checked={value.livre === true} onChange={(livre) => onChange(comModoDePegar(value, livre))} />
-          {/* PINO DE ITEM (entrega 5): o item que veio do acervo mostra a imagem, a pilha e a troca para imagem no chão. */}
+          {/* PINO DE ITEM (entrega 5): o item que veio do acervo mostra a imagem, a pilha e a troca para estrela ou imagem no chão. */}
           {temDadosDoAcervo(value) && onTrocarForma !== undefined && (
             <DadosDoItemNoMapa item={value} forma="pino" onChange={onChange} onTrocarForma={onTrocarForma} />
           )}

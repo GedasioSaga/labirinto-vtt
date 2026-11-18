@@ -54,6 +54,7 @@ export function FaixaDaColocacao() {
 function oQueVai(pendente: ColocacaoDoVerbete) {
   const nome = <b>{pendente.nome || 'sem nome'}</b>
   if (pendente.coisa.o === 'token') return <>o token de {nome}</>
-  if (pendente.coisa.o === 'item') return <>o pino de item de {nome}</>
+  // Sem imagem, o item nasce como a estrela brilhando no chão (`estrelaDaColocacao`).
+  if (pendente.coisa.o === 'item') return pendente.coisa.item.imagem === undefined ? <>a estrela do item {nome}</> : <>o pino de item de {nome}</>
   return <>o ! de {nome}{pendente.coisa.imagem === null ? '' : ', com a imagem'}</>
 }

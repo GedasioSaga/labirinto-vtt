@@ -12,10 +12,14 @@ import {
   acharItemNoMapa,
   distanciaAoObjeto,
   dropItemChange,
+  estrelaDeItem,
   fichaAlcancaItem,
+  formaAoSoltar,
   itemDoAcervoNoMapa,
+  itemDoBrilho,
   itemNoChaoNoPonto,
   itemParaJogador,
+  NOME_DO_BRILHO,
   objetoDeItem,
   pegarItemChange,
   pinoDeItem,
@@ -91,18 +95,36 @@ describe('achar e tocar', () => {
 describe('trocar a forma', () => {
   it('chão → pino no mesmo lugar, mesmo id, mesmo piso, oculto e travado; e volta', () => {
     const chao: Prop = { ...objetoDeItem('i', { x: 300, y: 300 }, 80, POCAO), piso: 1, secret: true, locked: true }
-    const comoPino = trocarFormaDoItem(mapa({ props: [chao] }), 'i')
+    const comoPino = trocarFormaDoItem(mapa({ props: [chao] }), 'i', 'pino')
     expect(comoPino.props).toEqual([])
     expect(comoPino.pins).toEqual([{ ...pinoDeItem('i', { x: 300, y: 300 }, POCAO), piso: 1, secret: true, locked: true }])
-    const deVolta = trocarFormaDoItem(comoPino, 'i')
+    const deVolta = trocarFormaDoItem(comoPino, 'i', 'chao')
     expect(deVolta.pins).toEqual([])
     expect(deVolta.props).toEqual([{ ...objetoDeItem('i', { x: 300, y: 300 }, GRADE, POCAO), piso: 1, secret: true, locked: true }])
   })
 
-  it('pino sem imagem não vira imagem no chão: o mesmo mapa volta', () => {
+  it('pino sem imagem não vira imagem no chão: o mesmo mapa volta (e a forma de agora também)', () => {
     const m = mapa({ pins: [pinoDeItem('i', { x: 0, y: 0 }, { nome: 'Corda' })] })
-    expect(trocarFormaDoItem(m, 'i')).toBe(m)
-    expect(trocarFormaDoItem(m, 'nada')).toBe(m)
+    expect(trocarFormaDoItem(m, 'i', 'chao')).toBe(m)
+    expect(trocarFormaDoItem(m, 'i', 'pino')).toBe(m)
+    expect(trocarFormaDoItem(m, 'nada', 'estrela')).toBe(m)
+  })
+
+  it('ESTRELA: imagem ⇄ estrela é o mesmo objeto (a marca, uma casa, sem giro); o pino vira estrela; o arquivo guarda a marca', () => {
+    const chao: Prop = { ...objetoDeItem('i', { x: 300, y: 300 }, 120, POCAO), rotation: 45, camada: 'decoracao', piso: 1, secret: true }
+    const estrela = trocarFormaDoItem(mapa({ props: [chao] }), 'i', 'estrela')
+    expect(estrela.props).toEqual([{ ...estrelaDeItem('i', { x: 300, y: 300 }, GRADE, POCAO), camada: 'decoracao', piso: 1, secret: true }])
+    expect(acharItemNoMapa(estrela, 'i')?.forma).toBe('estrela')
+    expect(trocarFormaDoItem(estrela, 'i', 'chao').props).toEqual([{ ...objetoDeItem('i', { x: 300, y: 300 }, GRADE, POCAO), camada: 'decoracao', piso: 1, secret: true }])
+    const corda = { nome: 'Corda' }
+    const doPino = trocarFormaDoItem(mapa({ pins: [{ ...pinoDeItem('p', { x: 10, y: 20 }, corda), locked: true }] }), 'p', 'estrela')
+    expect(doPino.pins).toEqual([])
+    expect(doPino.props).toEqual([{ ...estrelaDeItem('p', { x: 10, y: 20 }, GRADE, corda), locked: true }])
+    // Ida e volta do arquivo: a marca fica com o item; marca torta ou sem item sai, e o objeto fica.
+    expect(deserializeMap(serializeMap(doPino)).props).toEqual(doPino.props)
+    const cru: Record<string, unknown> = JSON.parse(serializeMap(mapa()))
+    const torto = deserializeMap(JSON.stringify({ ...cru, props: [{ ...doPino.props[0], id: 'a', marcaDoItem: 'cometa' }, { ...doPino.props[0], id: 'b', item: undefined }] }))
+    expect(torto.props.map((p) => [p.id, p.marcaDoItem, p.item?.nome])).toEqual([['a', undefined, 'Corda'], ['b', undefined, undefined]])
   })
 })
 
@@ -162,12 +184,15 @@ describe('largar no chão: volta com imagem e dados', () => {
     expect(acharItemNoMapa(depois, 'v1')?.item).toEqual(dados)
   })
 
-  it('sem imagem: o PINO DE ITEM, com os dados que houver', () => {
+  it('sem imagem: a ESTRELA no chão, com os dados que houver; soltar do acervo também (Alt = pino)', () => {
     const corda: CarriedItem = { id: 'c', nome: 'Corda', descricao: '10 m' }
     const arco = ficha({ mochila: [corda] })
     const change = dropItemChange(mapa({ tokens: [arco] }), arco, 'c', 'novo')
-    expect(change?.addPin).toEqual({ ...pinoDeItem('c', { x: 100, y: 100 }, { nome: 'Corda', descricao: '10 m' }) })
-    expect(change?.addProp).toBeUndefined()
+    expect(change?.addProp).toEqual(estrelaDeItem('c', { x: 100, y: 100 }, GRADE, { nome: 'Corda', descricao: '10 m' }))
+    expect(change?.addPin).toBeUndefined()
+    expect(formaAoSoltar({}, false)).toBe('estrela')
+    expect(formaAoSoltar({ imagem: IMAGEM }, false)).toBe('chao')
+    expect(formaAoSoltar({}, true)).toBe('pino')
   })
 
   it('id já usado por pino ou objeto do mapa: usa o id novo, nunca sobrescreve', () => {
@@ -225,5 +250,14 @@ describe('forma limpa: arquivo, mídia e recorte do jogador', () => {
     expect(pacote).not.toContain('item_pocao')
     expect(pacote).not.toContain('Segredo do mestre')
     expect(pacote).not.toContain('data:image')
+  })
+
+  it('recorte da ESTRELA: só a marca e "Algo brilha aqui" — nada do nome, da imagem, da descrição nem da pilha', () => {
+    const m = mapa({ tokens: [ficha()], props: [estrelaDeItem('brilho', { x: 160, y: 100 }, GRADE, { ...POCAO, quantidade: 3 })] })
+    const recorte = filterMapForPlayer(m, 'duda', { duda: ['arco'] }, 300).map
+    expect(recorte.props).toEqual([{ id: 'brilho', x: 160, y: 100, width: GRADE, height: GRADE, src: '', linkedMapPath: null, marcaDoItem: 'estrela', item: { nome: NOME_DO_BRILHO, livre: true } }])
+    expect(itemDoBrilho({ nome: 'Corda' })).toEqual({ nome: NOME_DO_BRILHO })
+    const pacote = JSON.stringify(recorte)
+    for (const segredo of ['Poção', 'Cura 50 HP', 'Consumível', ID_DA_IMAGEM, 'item_pocao', '"quantidade"', '"preco"']) expect(pacote).not.toContain(segredo)
   })
 })

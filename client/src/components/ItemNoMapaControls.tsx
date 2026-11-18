@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import type { PinItem } from '../types/map'
 import { cleanItemName, ITEM_NAME_MAX_LENGTH, ITEM_QUANTIDADE_MAX, quantidadeDe } from '../lib/items'
-import type { FormaDoItem } from '../lib/itemNoMapa'
+import type { FormaDoItem, FormaNoChao } from '../lib/itemNoMapa'
 import { ImagemOuIniciais } from './FichaPecas'
 import { Toggle } from './Toggle'
 import './AcervoDeItensPanel.css'
@@ -10,27 +10,30 @@ import './ItemNoMapaControls.css'
 /**
  * ITEM NO MAPA (entrega 5) — o painel do item que o mestre soltou do acervo:
  * a imagem e a categoria (do acervo, só leitura aqui), a quantidade da pilha
- * (só no empilhável: o resto vai um por vez) e a troca de forma, imagem no
- * chão ⇄ pino de item. O nome e o modo de pegar ficam com quem monta a seção:
- * o pino já os tem no "Item pegável" (`PinControls`); o chão, em
+ * (só no empilhável: o resto vai um por vez) e a forma, "Mostrar como"
+ * Estrela, Imagem ou Pino. O nome e o modo de pegar ficam com quem monta a
+ * seção: o pino já os tem no "Item pegável" (`PinControls`); o chão, em
  * `ItemNoChaoControls`, logo abaixo.
  */
 export interface DadosDoItemNoMapaProps {
   item: PinItem
   forma: FormaDoItem
   onChange: (item: PinItem) => void
-  /** Troca a forma. Pino sem imagem não vira imagem no chão: o botão nem aparece. */
-  onTrocarForma: () => void
+  /** Põe o item na forma escolhida. Item sem imagem não vira imagem: a opção fica desligada. */
+  onTrocarForma: (forma: FormaDoItem) => void
 }
 
-/** O texto do botão de trocar, pela forma de AGORA. */
-export function rotuloDaTroca(forma: FormaDoItem): string {
-  return forma === 'chao' ? 'Mostrar como pino' : 'Mostrar como imagem no chão'
-}
+/** As formas, na ordem do painel: a estrela primeiro (a do item sem imagem). */
+const FORMAS: readonly { forma: FormaDoItem; nome: string }[] = [
+  { forma: 'estrela', nome: 'Estrela' },
+  { forma: 'chao', nome: 'Imagem' },
+  { forma: 'pino', nome: 'Pino' },
+]
 
 export function DadosDoItemNoMapa({ item, forma, onChange, onTrocarForma }: DadosDoItemNoMapaProps) {
   const quantidadeId = useId()
-  const podeTrocar = forma === 'chao' || item.imagem !== undefined
+  const formaId = useId()
+  const semImagem = item.imagem === undefined
   return (
     <div className="lb-item-no-mapa">
       <div className="lb-item-no-mapa__cabeca">
@@ -50,11 +53,29 @@ export function DadosDoItemNoMapa({ item, forma, onChange, onTrocarForma }: Dado
           <CampoDeQuantidade id={quantidadeId} valor={quantidadeDe(item)} onChange={(quantidade) => onChange(comQuantidade(item, quantidade))} />
         </div>
       )}
-      {podeTrocar && (
-        <button type="button" className="lb-btn lb-btn--compact" onClick={onTrocarForma}>
-          {rotuloDaTroca(forma)}
-        </button>
-      )}
+      <div className="lb-field">
+        <span className="lb-label" id={formaId}>
+          Mostrar como
+        </span>
+        <div className="lb-seg" role="radiogroup" aria-labelledby={formaId}>
+          {FORMAS.map((opcao) => (
+            <button
+              key={opcao.forma}
+              type="button"
+              role="radio"
+              aria-checked={forma === opcao.forma}
+              className="lb-seg__option"
+              disabled={opcao.forma === 'chao' && semImagem}
+              onClick={() => {
+                if (opcao.forma !== forma) onTrocarForma(opcao.forma)
+              }}
+            >
+              {opcao.nome}
+            </button>
+          ))}
+        </div>
+        {semImagem && <p className="lb-field__hint">Este item não tem imagem: fica como estrela ou pino.</p>}
+      </div>
     </div>
   )
 }
@@ -100,17 +121,19 @@ function CampoDeQuantidade({ id, valor, onChange }: { id: string; valor: number;
 
 export interface ItemNoChaoControlsProps {
   item: PinItem
+  /** A forma de agora do objeto: a imagem ou a estrela (`formaNoChao`). */
+  forma: FormaNoChao
   onChange: (item: PinItem) => void
-  onTrocarForma: () => void
+  onTrocarForma: (forma: FormaDoItem) => void
 }
 
 /**
- * A imagem do item no chão (o objeto com `item`): nome que vai para a mochila,
- * o modo de pegar ("Pega direto" ligado, o padrão; desligado, "Pede ao
- * mestre") e os dados acima. Girar, travar, esconder no editor e o "Oculto
+ * O item no chão (o objeto com `item`, imagem ou estrela): nome que vai para
+ * a mochila, o modo de pegar ("Pega direto" ligado, o padrão; desligado, "Pede
+ * ao mestre") e os dados acima. Girar, travar, esconder no editor e o "Oculto
  * para jogadores" são os do objeto, logo abaixo (`ItemTransformControls`).
  */
-export function ItemNoChaoControls({ item, onChange, onTrocarForma }: ItemNoChaoControlsProps) {
+export function ItemNoChaoControls({ item, forma, onChange, onTrocarForma }: ItemNoChaoControlsProps) {
   const [rascunho, setRascunho] = useState(item.nome)
   useEffect(() => setRascunho(item.nome), [item.nome])
   const gravarNome = () => {
@@ -138,7 +161,7 @@ export function ItemNoChaoControls({ item, onChange, onTrocarForma }: ItemNoChao
         }}
       />
       <Toggle label="Pega sem pedir ao mestre" checked={item.livre === true} onChange={(livre) => onChange(comModoDePegar(item, livre))} />
-      <DadosDoItemNoMapa item={item} forma="chao" onChange={onChange} onTrocarForma={onTrocarForma} />
+      <DadosDoItemNoMapa item={item} forma={forma} onChange={onChange} onTrocarForma={onTrocarForma} />
     </>
   )
 }

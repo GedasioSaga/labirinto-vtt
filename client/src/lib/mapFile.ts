@@ -544,10 +544,12 @@ function readPropPlayerLook(prop: Prop): Prop {
 function readPropItem(doArquivo: Prop): Prop {
   // CAMADA DO OBJETO: torta sai e o objeto volta à camada padrão (`Prop.layer ?? 'objetos'`).
   const prop = semCamadaTorta(doArquivo)
-  if (!('item' in prop)) return prop
-  const { item, ...rest } = prop
+  if (!('item' in prop) && !('marcaDoItem' in prop)) return prop
+  const { item, marcaDoItem, ...rest } = prop
   const lido = readPinItem(item)
-  return lido === undefined ? rest : { ...rest, item: lido }
+  if (lido === undefined) return rest
+  // ESTRELA DO ITEM (17/11/2026): só a marca conhecida, e só com o item lido; o resto sai e o item volta à imagem.
+  return marcaDoItem === 'estrela' ? { ...rest, item: lido, marcaDoItem } : { ...rest, item: lido }
 }
 
 /**

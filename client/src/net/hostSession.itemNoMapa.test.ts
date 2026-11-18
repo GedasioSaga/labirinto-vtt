@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyItemChange } from '../lib/items'
-import { objetoDeItem, pinoDeItem } from '../lib/itemNoMapa'
+import { estrelaDeItem, NOME_DO_BRILHO, objetoDeItem, pinoDeItem } from '../lib/itemNoMapa'
 import { buildPin, createEmptyMap } from '../lib/mapFactory'
 import type { MapData, Pin, PinItem, Prop, Token } from '../types/map'
 import { itemRequestLine } from './hostBridge'
@@ -169,6 +169,22 @@ describe('pegar o item no chão', () => {
     const t = mesa(mansao([noChao(), noChao({ id: 'outra' })]))
     expect(t.s.handleMessage('c1', pegar(), t.world).applyItems).toBeDefined()
     expect(t.s.handleMessage('c1', pegar('outra'), t.world)).toEqual({ outbound: [] })
+  })
+})
+
+describe('a ESTRELA do item: "algo brilha" até pegar', () => {
+  it('o snapshot leva só o brilho; "Pegar" entrega a Poção inteira, o nome vem na resposta e a estrela sai do mapa', () => {
+    const t = mesa(mansao([estrelaDeItem('estrela-pocao', { x: 230, y: 200 }, 40, POCAO)]))
+    const visto = snapshotFor(t.inicial, 'c1')
+    expect(visto.map.props.find((p) => p.id === 'estrela-pocao')).toMatchObject({ marcaDoItem: 'estrela', item: { nome: NOME_DO_BRILHO, livre: true } })
+    for (const segredo of ['Poção', 'Cura 50 HP', 'Consumível', IMAGEM]) expect(JSON.stringify(visto)).not.toContain(segredo)
+    const r = t.s.handleMessage('c1', pegar('estrela-pocao'), t.world)
+    expect(r.outbound).toEqual([{ clientId: 'c1', msg: { type: 'pin.take.answer', answer: 'taken', nome: 'Poção' } }])
+    expect(r.applyItems?.removePropId).toBe('estrela-pocao')
+    t.aplicar(r)
+    expect(t.world.open.map.props).toEqual([])
+    const { livre: _livre, ...dados } = POCAO
+    expect(t.world.open.map.tokens.find((k) => k.id === 'diego')?.mochila).toEqual([{ id: 'estrela-pocao', ...dados }])
   })
 })
 

@@ -62,7 +62,7 @@ import { marcaParaJogador } from './marcas'
 import { mobiliaParaJogador, vistaDosMoveisParaJogador } from './mobilia'
 import { amostrasAoLongoDoMuro, amostrasDaCercaCurva } from './cercaCurva'
 import { itemOfPin, readCarriedItems, tokenReachesPin } from './items'
-import { itemDoObjeto, itemParaJogador } from './itemNoMapa'
+import { itemDoBrilho, itemDoObjeto, itemParaJogador } from './itemNoMapa'
 import { abrivelParaJogador } from './conteudoDoObjeto'
 import { readMoedas } from './troca'
 import { lojaParaJogador } from './loja'
@@ -6337,8 +6337,14 @@ function propForPlayer(prop: MapData['props'][number]): MapData['props'][number]
   // toque abre o cartão dele. Cópia limpa e pela lista do que vai
   // (`itemParaJogador`): imagem só por referência de mídia — o snapshot nunca
   // carrega a imagem embutida —, sem o id do acervo nem o preço.
+  // ESTRELA DO ITEM (17/11/2026): só "algo brilha" — a marca e `itemDoBrilho`,
+  // sem nome, imagem, descrição, categoria nem quantidade. O nome chega na
+  // resposta do "Pegar"; o item inteiro, na mochila.
   const item = itemDoObjeto(prop)
-  if (item !== null) forPlayer.item = itemParaJogador(item)
+  if (item !== null && prop.marcaDoItem === 'estrela') {
+    forPlayer.marcaDoItem = 'estrela'
+    forPlayer.item = itemDoBrilho(item)
+  } else if (item !== null) forPlayer.item = itemParaJogador(item)
   // BARRA A PASSAGEM (`lib/obstaculosDeObjeto.ts`): a tela dele planeja o
   // caminho com a mesma escolha do mestre. Só booleano (a travessia não confia
   // no mapa do mestre); do objeto que ele já vê, não conta nada além disso.

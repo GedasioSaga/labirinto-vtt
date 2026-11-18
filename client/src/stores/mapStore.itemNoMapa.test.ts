@@ -16,13 +16,13 @@ beforeEach(() => {
 describe('trocar a forma do item no editor', () => {
   it('a imagem no chão vira pino selecionado; o Ctrl+Z devolve a imagem; a volta seleciona o objeto', () => {
     const store = useMapStore.getState()
-    store.trocarFormaDoItem('i')
+    store.trocarFormaDoItem('i', 'pino')
     let estado = useMapStore.getState()
     expect(estado.map.props).toEqual([])
     expect(estado.map.pins.map((p) => [p.id, p.icon, p.item?.nome])).toEqual([['i', 'item', 'Poção']])
     expect(estado.selectedPinId).toBe('i')
 
-    estado.trocarFormaDoItem('i')
+    estado.trocarFormaDoItem('i', 'chao')
     estado = useMapStore.getState()
     expect(estado.map.pins).toEqual([])
     expect(estado.map.props.map((p) => p.id)).toEqual(['i'])
@@ -38,7 +38,7 @@ describe('trocar a forma do item no editor', () => {
 
   it('id que não é item não muda nada nem entra no desfazer', () => {
     const antes = useMapStore.getState()
-    antes.trocarFormaDoItem('nada')
+    antes.trocarFormaDoItem('nada', 'estrela')
     expect(useMapStore.getState().map).toBe(antes.map)
     expect(useMapStore.getState().past).toBe(antes.past)
   })

@@ -2061,6 +2061,13 @@ export interface Prop extends PlayerSecret, NoPiso, NaCamada {
    *  (`itemParaJogador`, `lib/itemNoMapa.ts`), junto do objeto que ele enxerga.
    *  Ausente = objeto comum — sem linha de migração (`readPinItem` no disco). */
   item?: PinItem
+  /** ESTRELA DO ITEM (17/11/2026, `lib/itemNoMapa.ts`): o item no chão aparece
+   *  como uma estrelinha dourada brilhando (`pixi/estrelasDosItens.ts`) em vez
+   *  da imagem. Fica no OBJETO, nunca no `item`: o `item` inteiro vai à mochila
+   *  ao pegar, e a marca não é do item. Só vale junto de `item`. O jogador
+   *  recebe só a marca e "Algo brilha aqui" (`itemDoBrilho`): nome, imagem e
+   *  descrição chegam só quando ele pega. Ausente = a imagem, como antes. */
+  marcaDoItem?: 'estrela'
   /** BARRA A PASSAGEM (12/11/2026, `lib/obstaculosDeObjeto.ts`): a ficha do
    *  JOGADOR não atravessa este objeto (o mestre atravessa sempre). Só é
    *  gravado quando difere do padrão do tipo (`ehMovelQueBarra`: o moinho barra,

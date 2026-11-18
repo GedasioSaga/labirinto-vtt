@@ -5,6 +5,7 @@ import { nomeDaCamada } from '../../lib/camadas/mover'
 import { meioTermoLigado } from '../../lib/estiloDoMapa'
 import { saiComTextura } from '../../lib/mobilia/desenhoDoMovel'
 import { barraPassagemEscolhida, objetoPodeBarrar, objetoPodeTapar, tapaVisaoEscolhida } from '../../lib/obstaculosDeObjeto'
+import { formaNoChao } from '../../lib/itemNoMapa'
 import { useMapStore } from '../../stores/mapStore'
 import { Toggle } from '../Toggle'
 import { Essencial } from '../grimorio/Cartoes'
@@ -46,7 +47,7 @@ export interface FichaDoObjetoProps {
   prop: Prop
   mobilia: Omit<MobiliaControlsProps, 'prop'>
   /** Ligação do item no chão; ausente, o objeto de item cai no corpo do móvel, como antes. */
-  itemNoChao?: Omit<ItemNoChaoControlsProps, 'item'>
+  itemNoChao?: Omit<ItemNoChaoControlsProps, 'item' | 'forma'>
   transform: Omit<ItemTransformControlsProps, 'title' | 'rotation' | 'locked' | 'hidden' | 'secret'>
   player: Omit<PropPlayerControlsProps, 'label' | 'showImage'>
 }
@@ -101,7 +102,8 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
   // A mesma escolha de antes: o item no chão com a ligação montada mostra o item; o resto, o móvel (se for móvel).
   const item = ehItem && itemNoChao !== undefined ? prop.item : undefined
   const movel = item === undefined && prop.mobilia !== undefined
-  const titulo = ehItem ? 'Imagem no chão' : 'Objeto'
+  const forma = formaNoChao(prop)
+  const titulo = !ehItem ? 'Objeto' : forma === 'estrela' ? 'Estrela no chão' : 'Imagem no chão'
   const conteudoDoObjeto = ehItem ? null : conteudoDe(prop)
   return (
     <section className="lb-ficha-do-objeto">
@@ -110,7 +112,7 @@ export function FichaDoObjeto({ prop, mobilia, itemNoChao, transform, player }: 
       <h2 className="gr-sr">{titulo}</h2>
       {item !== undefined && itemNoChao !== undefined && (
         <Essencial>
-          <ItemNoChaoControls item={item} {...itemNoChao} />
+          <ItemNoChaoControls item={item} forma={forma} {...itemNoChao} />
         </Essencial>
       )}
       {movel && (

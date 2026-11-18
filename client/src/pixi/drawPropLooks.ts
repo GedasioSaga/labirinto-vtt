@@ -6,6 +6,8 @@ import { rotationToRadians } from '../lib/itemTransform'
 import { screenLabelSizing } from './screenLabel'
 import { textureFromDataUrl } from './tokenPhotoSprite'
 import { WALL_COLOR } from './drawWalls'
+import { createEstrelasDosItens, type EstrelaDoItem, type EstrelasDosItens } from './estrelasDosItens'
+import { ehEstrelaDeItem } from '../lib/itemNoMapa'
 
 /**
  * OBJETO COM RÓTULO OU IMAGEM — o que a silhueta sozinha não diz, na tela do
@@ -40,6 +42,8 @@ export interface PropLooksRenderer {
   draw: (images: Container, labels: Container, props: readonly Prop[], grid: number, cameraScale: number, imagemDaMesa?: ResolverDeImagem) => PropLooksCount
   /** Só o zoom mudou: reescala e mostra/esconde os rótulos, sem refazer nada. */
   setCameraScale: (cameraScale: number) => void
+  /** Nó da camada descartado (ou a tela desmontada): as estrelas deste desenhista saem do relógio. */
+  destruir: () => void
 }
 
 /** Carrega a textura da cópia auto-contida; trocável no teste. */
@@ -115,9 +119,12 @@ function sizeLabel(view: LabelView, cameraScale: number): void {
   view.text.visible = sizing.visible
 }
 
-export function createPropLooksRenderer(loadTexture: PropTextureLoader = textureFromDataUrl): PropLooksRenderer {
+export function createPropLooksRenderer(loadTexture: PropTextureLoader = textureFromDataUrl, estrelasDaTela?: EstrelasDosItens): PropLooksRenderer {
   const imageViews = new Map<string, ImageView>()
   const labelViews = new Map<string, LabelView>()
+  // ESTRELA DO ITEM: a da tela (um relógio para todas); sem ela (testes), uma própria, parada.
+  const estrelas = estrelasDaTela ?? createEstrelasDosItens()
+  const estrelaViews = new Map<string, EstrelaDoItem>()
   let lastCameraScale = 1
 
   function dropImage(id: string, view: ImageView): void {
@@ -139,9 +146,35 @@ export function createPropLooksRenderer(loadTexture: PropTextureLoader = texture
       })
   }
 
+  /**
+   * ESTRELA DO ITEM (17/11/2026): o item que o mestre mostra como estrela
+   * chega no recorte só com a marca e "Algo brilha aqui" (`itemDoBrilho`): a
+   * estrela brilhando no lugar da imagem, na mesma camada, sem silhueta embaixo.
+   */
+  function drawEstrelas(container: Container, props: readonly Prop[]): void {
+    const wanted = new Map<string, Prop>()
+    for (const prop of props) if (ehEstrelaDeItem(prop)) wanted.set(prop.id, prop)
+    for (const [id, estrela] of estrelaViews) {
+      if (wanted.has(id)) continue
+      estrela.destruir()
+      estrelaViews.delete(id)
+    }
+    for (const [id, prop] of wanted) {
+      let estrela = estrelaViews.get(id)
+      if (estrela === undefined) {
+        estrela = estrelas.criar(id)
+        estrelaViews.set(id, estrela)
+      }
+      if (estrela.no.parent !== container) container.addChild(estrela.no)
+      estrela.posicionar(prop)
+    }
+  }
+
   function drawImages(container: Container, props: readonly Prop[], imagemDaMesa: ResolverDeImagem | undefined): number {
+    drawEstrelas(container, props)
     const wanted = new Map<string, { prop: Prop; data: string }>()
     for (const prop of props) {
+      if (ehEstrelaDeItem(prop)) continue
       const data = imagemDoObjeto(prop, imagemDaMesa)
       if (data !== undefined) wanted.set(prop.id, { prop, data })
     }
@@ -210,6 +243,12 @@ export function createPropLooksRenderer(loadTexture: PropTextureLoader = texture
     setCameraScale(cameraScale) {
       lastCameraScale = cameraScale
       for (const view of labelViews.values()) sizeLabel(view, cameraScale)
+    },
+    destruir() {
+      for (const estrela of estrelaViews.values()) estrela.destruir()
+      estrelaViews.clear()
+      // A instância própria (sem a da tela) solta as texturas dela; a da tela é de quem a criou.
+      if (estrelasDaTela === undefined) estrelas.destruir()
     },
   }
 }

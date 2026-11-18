@@ -228,7 +228,7 @@ interface PropertiesPanelProps {
    * item, a seção dele (nome, modo de pegar, quantidade, trocar para pino)
    * toma o lugar de "Móvel" e "Para os jogadores". Ausente = nunca aparece.
    */
-  itemNoChao?: Omit<ItemNoChaoControlsProps, 'item'>
+  itemNoChao?: Omit<ItemNoChaoControlsProps, 'item' | 'forma'>
   selectedToken: Token | null
   tokenName: Omit<TokenNameControlsProps, 'name' | 'publicName'>
   tokenImage: Omit<TokenImageControlsProps, 'image'>

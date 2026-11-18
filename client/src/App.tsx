@@ -79,7 +79,7 @@ import { hostCluesProps } from './components/CluesSection'
 import { alvosDoAcervo, darDoAcervo, masterDestinationMarks, partyDestinations, partyItemChange, partyMembers, peopleByScene } from './lib/party'
 import { itemParaDar, type ItemDoCatalogo } from './lib/acervoDeItens'
 import { lerOAcervoSeFaltar, useAcervoDeItensStore } from './stores/acervoDeItensStore'
-import { itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
+import { estrelaDeItem, formaAoSoltar, itemDoAcervoNoMapa, ladoNoChao, objetoDeItem, pinoDeItem } from './lib/itemNoMapa'
 import { baseDaMidiaConhecida } from './lib/midiaNoDisco'
 import { prepararMusicaDaDancaNaMesa } from './lib/musicaDaDancaNaAventura'
 import { useBibliotecaDeSonsStore } from './stores/bibliotecaDeSonsStore'
@@ -2613,8 +2613,8 @@ function App() {
    * ITEM NO MAPA (entrega 5) — soltar um item ARRASTADO do acervo de itens. O
    * mesmo "é o mapa?" e a mesma conta tela → mundo do acervo de tokens. Com
    * imagem e sem Alt: a IMAGEM do item no chão, um objeto que o mestre
-   * arrasta e redimensiona; com Alt (ou sem imagem, que não teria o que
-   * desenhar): o PINO DE ITEM. Nasce "Pega direto", uma unidade, já
+   * arrasta e redimensiona; sem imagem: a ESTRELA brilhando no chão (o mesmo
+   * objeto); com Alt: o PINO DE ITEM. Nasce "Pega direto", uma unidade, já
    * selecionado (o painel dele abre na hora), num passo só do Ctrl+Z.
    */
   const handleSoltarItemNoMapa = (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean): boolean => {
@@ -2626,25 +2626,28 @@ function App() {
     return colocarItemNoMapa(item, { x: (clientX - caixa.left - camera.x) / camera.scale, y: (clientY - caixa.top - camera.y) / camera.scale }, comoPino)
   }
 
-  /** O "+" do cartão do item: no centro da vista, como o "+" do acervo de tokens, e no chão como o soltar sem Alt. */
+  /** O "+" do cartão do item: no centro da vista, como o "+" do acervo de tokens, e no chão (imagem ou estrela) como o soltar sem Alt. */
   const handlePorItemNoCentro = (item: ItemDoCatalogo): void => {
     const vista = vistaDoCanvas()
     if (vista === null) return
     colocarItemNoMapa(item, viewportCenterWorld(useMapStore.getState().camera, vista.width, vista.height), false)
   }
 
-  /** O item do acervo no ponto `ponto` do mundo: a imagem no chão ou, com `comoPino` (ou sem imagem), o pino de item. */
+  /** O item do acervo no ponto `ponto` do mundo: a imagem no chão, a estrela (sem imagem) ou, com `comoPino`, o pino de item. */
   const colocarItemNoMapa = (item: ItemDoCatalogo, ponto: { x: number; y: number }, comoPino: boolean): boolean => {
     // Sem munições: o item no chão (pino ou objeto) não guarda a lista; ao ser pego, a arma cai no Acervo de agora.
     const noMapa = itemDoAcervoNoMapa(itemParaDar(item, []))
     if (noMapa === null) return false
     const id = crypto.randomUUID()
     const store = useMapStore.getState()
-    if (comoPino || noMapa.imagem === undefined) {
+    const forma = formaAoSoltar(noMapa, comoPino)
+    if (forma === 'pino') {
       // Anotações travada: o pino não nasce, nada fica selecionado e o soltar não pegou (o aviso diz por quê).
       return cravarPinoPeloGesto(pinoDeItem(id, ponto, noMapa))
     }
-    store.addProp(objetoDeItem(id, ponto, ladoNoChao(map.grid), noMapa))
+    // ESTRELA DO ITEM (17/11/2026): o item sem imagem brilha no chão, em vez de virar pino.
+    const lado = ladoNoChao(map.grid)
+    store.addProp(forma === 'estrela' ? estrelaDeItem(id, ponto, lado, noMapa) : objetoDeItem(id, ponto, lado, noMapa))
     store.setSelection(selectionOfItem({ kind: 'prop', id }))
     return true
   }
@@ -4253,10 +4256,10 @@ function App() {
               onFormaDoMoinhoChange: trocarFormaDoMoinho,
               onAparenciaChange: setAparenciaDoMovel,
             }}
-            // ITEM NO CHÃO: nome, modo de pegar e pilha são um passo do Ctrl+Z cada; trocar vira pino de item.
+            // ITEM NO CHÃO: nome, modo de pegar e pilha são um passo do Ctrl+Z cada; a forma (estrela, imagem, pino) também.
             itemNoChao={{
               onChange: (item) => selectedProp && updateProp(selectedProp.id, { item }),
-              onTrocarForma: () => selectedProp && useMapStore.getState().trocarFormaDoItem(selectedProp.id),
+              onTrocarForma: (forma) => selectedProp && useMapStore.getState().trocarFormaDoItem(selectedProp.id, forma),
             }}
             selectedToken={selectedToken}
             tokenName={{
@@ -4593,8 +4596,8 @@ function App() {
                   ? {
                       value: selectedPin.item ?? null,
                       onChange: (item) => useMapStore.getState().updatePin(selectedPin.id, { item: item ?? undefined }),
-                      // ITEM NO MAPA: o pino de item vira a imagem no chão, no mesmo lugar.
-                      onTrocarForma: () => useMapStore.getState().trocarFormaDoItem(selectedPin.id),
+                      // ITEM NO MAPA: o pino de item vira estrela ou imagem no chão, no mesmo lugar.
+                      onTrocarForma: (forma) => useMapStore.getState().trocarFormaDoItem(selectedPin.id, forma),
                     }
                   : null,
               // LOJA COM PREÇOS: só com um pino "!"/"?" aberto. O "Quero" do jogador chega na caixa Pedidos.

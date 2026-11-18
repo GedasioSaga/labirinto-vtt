@@ -38,7 +38,7 @@ import { abrirVaoDosDoisLados, desabarParede as desabarParedeNoMapa, type CorteN
 import { abrirSalaParaCorredores as abrirSalaParaCorredoresNoMapa, bloqueioDaSala, corredoresDaSala, motivoSemCorredor, type MotivoSemCorredor } from '../lib/abrirCorredor'
 import { comAlturaDoPiso, comEscadaNosPisos, comFichaNoPiso, comListaDoPiso, comPiso, comSelecaoNoPiso, ehPiso, mapaDoPiso, nascemNoPiso, pisoDe } from '../lib/pisos'
 import { pinoNoPiso, selecaoNoPiso } from '../lib/pisoEmEdicao'
-import { trocarFormaDoItem as trocarForma } from '../lib/itemNoMapa'
+import { trocarFormaDoItem as trocarForma, type FormaDoItem } from '../lib/itemNoMapa'
 import type { TamanhoDoFogo } from '../lib/mobilia/fogo'
 import { apagarNaCamada, avisoDaRecusa, encherNaCamada, pintarNaCamada, type ResultadoNaCamada } from '../lib/camadasDoPincel'
 import { linkDrawnWallToRoom } from '../lib/roomLink'
@@ -1215,11 +1215,12 @@ interface MapStoreState {
    *  com `undefined` apagam o rótulo/a imagem do jogador (`stores/propPlayerLook.ts`). */
   updateProp: (id: string, patch: Partial<Pick<Prop, 'rotation' | 'locked' | 'hidden' | 'playerLabel' | 'playerImage' | 'item' | 'conteudo' | 'mobilia' | 'width' | 'height'>>) => void
   /**
-   * ITEM NO MAPA: troca a forma do item `id` — imagem no chão ⇄ pino de item
-   * (`lib/itemNoMapa.ts`) —, com histórico, e a seleção segue o item na forma
-   * nova. Nada a trocar (sem imagem, não é item): nada, nem entrada no desfazer.
+   * ITEM NO MAPA: põe o item `id` na `forma` — imagem no chão, estrela ou pino
+   * de item (`lib/itemNoMapa.ts`) —, com histórico, e a seleção segue o item na
+   * forma nova. Nada a trocar (já nela, imagem sem imagem, não é item): nada,
+   * nem entrada no desfazer.
    */
-  trocarFormaDoItem: (id: string) => void
+  trocarFormaDoItem: (id: string, forma: FormaDoItem) => void
   setShowGrid: (show: boolean) => void
   setGridShape: (shape: MapData['gridShape']) => void
   setGridSettings: (patch: Partial<GridSettings>) => void
@@ -3109,11 +3110,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       ...map,
       props: map.props.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     })),
-    trocarFormaDoItem: (id) => {
+    trocarFormaDoItem: (id, forma) => {
       const antes = get().map
-      const depois = trocarForma(antes, id)
+      const depois = trocarForma(antes, id, forma)
       if (depois === antes) return
-      withHistory((map) => trocarForma(map, id))
+      withHistory((map) => trocarForma(map, id, forma))
       const virouPino = get().map.pins.some((p) => p.id === id)
       set(
         virouPino

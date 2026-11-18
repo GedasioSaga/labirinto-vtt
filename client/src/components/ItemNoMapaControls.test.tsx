@@ -1,7 +1,7 @@
 /**
  * ITEM NO MAPA (entrega 5) no painel do mestre: a imagem no chão mostra nome,
- * modo de pegar, pilha e "Mostrar como pino"; o pino de item, a mesma pilha e
- * "Mostrar como imagem no chão". Trocar o modo de pegar não perde os dados do
+ * modo de pegar, pilha e "Mostrar como" Estrela / Imagem / Pino; o pino de item,
+ * a mesma pilha e a mesma escolha. Trocar o modo de pegar não perde os dados do
  * item, e a pilha só grava ao sair do campo, dentro da faixa.
  */
 import { act } from 'react'
@@ -36,6 +36,11 @@ function botao(texto: string): HTMLButtonElement | undefined {
   return Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === texto)
 }
 
+/** A opção marcada do "Mostrar como". */
+function formaMarcada(): string | undefined {
+  return host.querySelector('.lb-item-no-mapa [role="radio"][aria-checked="true"]')?.textContent?.trim()
+}
+
 function interruptor(rotulo: string): HTMLInputElement {
   const label = Array.from(host.querySelectorAll('label')).find((l) => l.textContent?.includes(rotulo))
   const input = label?.querySelector('input')
@@ -55,21 +60,26 @@ describe('imagem do item no chão', () => {
   it('modo de pegar liga e desliga sem perder os dados; trocar vira pino', () => {
     const onChange = vi.fn()
     const onTrocarForma = vi.fn()
-    act(() => root.render(<ItemNoChaoControls item={POCAO} onChange={onChange} onTrocarForma={onTrocarForma} />))
+    act(() => root.render(<ItemNoChaoControls item={POCAO} forma="chao" onChange={onChange} onTrocarForma={onTrocarForma} />))
     expect(host.textContent).toContain('Item no chão')
+    expect(formaMarcada()).toBe('Imagem')
     expect(host.textContent).toContain('Consumível')
     const pega = interruptor('Pega sem pedir ao mestre')
     expect(pega.checked).toBe(true)
     act(() => pega.click())
     const { livre: _livre, ...pede } = POCAO
     expect(onChange).toHaveBeenLastCalledWith(pede)
-    act(() => botao('Mostrar como pino')?.click())
-    expect(onTrocarForma).toHaveBeenCalledTimes(1)
+    act(() => botao('Pino')?.click())
+    expect(onTrocarForma).toHaveBeenLastCalledWith('pino')
+    act(() => botao('Estrela')?.click())
+    expect(onTrocarForma).toHaveBeenLastCalledWith('estrela')
+    act(() => botao('Imagem')?.click())
+    expect(onTrocarForma).toHaveBeenCalledTimes(2)
   })
 
   it('o nome só grava ao sair do campo, aparado; apagado volta ao de antes', () => {
     const onChange = vi.fn()
-    act(() => root.render(<ItemNoChaoControls item={POCAO} onChange={onChange} onTrocarForma={vi.fn()} />))
+    act(() => root.render(<ItemNoChaoControls item={POCAO} forma="chao" onChange={onChange} onTrocarForma={vi.fn()} />))
     const nome = host.querySelector<HTMLInputElement>('input[aria-label="Nome do item"]')
     if (nome === null) throw new Error('sem o campo de nome')
     digitar(nome, '  Poção grande ')
@@ -100,10 +110,12 @@ describe('imagem do item no chão', () => {
     expect(onChange).toHaveBeenCalledTimes(2)
   })
 
-  it('item que não empilha não tem pilha; pino sem imagem não oferece virar imagem no chão', () => {
-    act(() => root.render(<DadosDoItemNoMapa item={{ nome: 'Corda', itemId: 'item_corda' }} forma="pino" onChange={vi.fn()} onTrocarForma={vi.fn()} />))
+  it('item que não empilha não tem pilha; sem imagem, "Imagem" fica desligada e a estrela é a forma marcada', () => {
+    act(() => root.render(<DadosDoItemNoMapa item={{ nome: 'Corda', itemId: 'item_corda' }} forma="estrela" onChange={vi.fn()} onTrocarForma={vi.fn()} />))
     expect(host.querySelector('.lb-item-no-mapa__quantidade')).toBeNull()
-    expect(botao('Mostrar como imagem no chão')).toBeUndefined()
+    expect(botao('Imagem')?.disabled).toBe(true)
+    expect(formaMarcada()).toBe('Estrela')
+    expect(host.textContent).toContain('Este item não tem imagem')
   })
 })
 
@@ -145,8 +157,9 @@ describe('pino de item no painel do pino', () => {
     const { livre: _livre, ...pede } = POCAO
     expect(onChange).toHaveBeenLastCalledWith(pede)
     expect(host.querySelector('.lb-item-no-mapa__quantidade')).not.toBeNull()
-    act(() => botao('Mostrar como imagem no chão')?.click())
-    expect(onTrocarForma).toHaveBeenCalledTimes(1)
+    expect(formaMarcada()).toBe('Pino')
+    act(() => botao('Imagem')?.click())
+    expect(onTrocarForma).toHaveBeenLastCalledWith('chao')
   })
 
   it('o pino "!" de antes, só com o nome, fica como era: sem pilha nem troca', () => {

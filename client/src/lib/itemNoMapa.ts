@@ -18,23 +18,43 @@ import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
 /**
  * ITEM NO MAPA (entrega 5 dos sistemas de RPG) — regras puras do item que o
- * mestre solta do acervo no mapa, em uma de duas FORMAS:
+ * mestre solta do acervo no mapa, em uma de três FORMAS:
  *  - `chao`: a IMAGEM do item deitada no chão. É um objeto (`Prop.item`): o
  *    mestre arrasta, redimensiona e gira como qualquer objeto, e o jogador a
  *    vê quando ela está na visão dele e a toca;
- *  - `pino`: o PINO DE ITEM ("!" com o símbolo do saco, `Pin.item`), para o
- *    item sem imagem ou quando o mestre prefere o marcador.
- * As duas pegam do mesmo jeito (`pin.take`, `net/hostSession.ts`) e levam à
+ *  - `estrela` (17/11/2026): o mesmo objeto, desenhado como uma estrelinha
+ *    dourada brilhando (`Prop.marcaDoItem`, `pixi/estrelasDosItens.ts`). É a
+ *    forma do item sem imagem. O jogador vê só "algo brilha": o recorte dele
+ *    leva só a marca (`itemDoBrilho`), e o nome chega quando ele pega;
+ *  - `pino`: o PINO DE ITEM ("!" com o símbolo do saco, `Pin.item`), quando o
+ *    mestre prefere o marcador.
+ * As três pegam do mesmo jeito (`pin.take`, `net/hostSession.ts`) e levam à
  * mochila os dados inteiros do item: imagem (referência de mídia), descrição,
  * categoria, preço e quantidade, empilhando no empilhável. Sem DOM, sem store.
  */
 
-export type FormaDoItem = 'chao' | 'pino'
+export type FormaDoItem = 'chao' | 'estrela' | 'pino'
+
+/** A forma de um objeto no chão: a imagem ou a estrela. */
+export type FormaNoChao = Exclude<FormaDoItem, 'pino'>
 
 /** Onde está um item pegável do mapa, com o item numa cópia limpa. */
 export type ItemNoMapa =
   | { forma: 'pino'; id: string; item: PinItem; pin: Pin }
-  | { forma: 'chao'; id: string; item: PinItem; prop: Prop }
+  | { forma: FormaNoChao; id: string; item: PinItem; prop: Prop }
+
+/** O que o jogador lê ao tocar a estrela: o item ainda sem nome. */
+export const NOME_DO_BRILHO = 'Algo brilha aqui'
+
+/** A forma do objeto no chão: a estrela pela marca do objeto, senão a imagem. */
+export function formaNoChao(prop: Pick<Prop, 'marcaDoItem'>): FormaNoChao {
+  return prop.marcaDoItem === 'estrela' ? 'estrela' : 'chao'
+}
+
+/** O objeto é um item desenhado como estrela (a marca só vale com o item). */
+export function ehEstrelaDeItem(prop: Pick<Prop, 'item' | 'marcaDoItem'>): boolean {
+  return prop.marcaDoItem === 'estrela' && prop.item !== undefined
+}
 
 /** O item do objeto no chão, quando ele é um: nome não vazio, dados pela porta de `readPinItem`. */
 export function itemDoObjeto(prop: Pick<Prop, 'item'>): PinItem | null {
@@ -54,7 +74,7 @@ export function acharItemNoMapa(map: Pick<MapData, 'pins' | 'props'>, id: string
   }
   const prop = map.props.find((p) => p.id === id)
   const item = prop === undefined ? null : itemDoObjeto(prop)
-  return prop === undefined || item === null ? null : { forma: 'chao', id, item, prop }
+  return prop === undefined || item === null ? null : { forma: formaNoChao(prop), id, item, prop }
 }
 
 /** Os objetos do chão que são item, na ordem do mapa. */
@@ -121,6 +141,16 @@ export function itemParaJogador(item: PinItem): PinItem {
 }
 
 /**
+ * O que o JOGADOR recebe do item mostrado como ESTRELA: só "Algo brilha aqui"
+ * e o modo de pegar (o botão do cartão diz "Pegar" ou "Pedir para pegar").
+ * Nome, imagem, descrição, categoria e quantidade ficam com o mestre: o nome
+ * chega na resposta do "Pegar" (`pin.take.answer`) e o item inteiro, na mochila.
+ */
+export function itemDoBrilho(item: PinItem): PinItem {
+  return item.livre === true ? { nome: NOME_DO_BRILHO, livre: true } : { nome: NOME_DO_BRILHO }
+}
+
+/**
  * O item do acervo como ele nasce no mapa: os dados que vão para a mochila,
  * uma unidade, e "Pega direto" (`livre`) — o padrão que o usuário escolheu
  * para o item que o mestre solta. `null` = nome vazio.
@@ -140,33 +170,70 @@ export function objetoDeItem(id: string, ponto: { x: number; y: number }, lado: 
   return { id, src: '', x: ponto.x, y: ponto.y, width: lado, height: lado, linkedMapPath: null, item }
 }
 
+/** A estrela do item: o mesmo objeto da imagem no chão, com a marca (a estrela tem meia caixa, `estrelasDosItens.ts`). */
+export function estrelaDeItem(id: string, ponto: { x: number; y: number }, lado: number, item: PinItem): Prop {
+  return { ...objetoDeItem(id, ponto, lado, item), marcaDoItem: 'estrela' }
+}
+
+/** O objeto do item no chão na `forma` pedida: a imagem ou a estrela. */
+function objetoNaForma(forma: FormaNoChao, id: string, ponto: { x: number; y: number }, lado: number, item: PinItem): Prop {
+  return forma === 'estrela' ? estrelaDeItem(id, ponto, lado, item) : objetoDeItem(id, ponto, lado, item)
+}
+
+/**
+ * A forma do item que o mestre SOLTA do acervo (arrastado, o "+", o "Pôr no
+ * mapa" do Prelúdio): o pino de item com Alt; sem imagem, a ESTRELA (não há
+ * imagem a deitar no chão); com imagem, a imagem no chão.
+ */
+export function formaAoSoltar(item: Pick<PinItem, 'imagem'>, comoPino: boolean): FormaDoItem {
+  if (comoPino) return 'pino'
+  return item.imagem === undefined ? 'estrela' : 'chao'
+}
+
 /** A imagem do item nasce do tamanho de uma casa da grade: cabe na mão da ficha, e o mestre aumenta se quiser. */
 export function ladoNoChao(grid: number): number {
   return Number.isFinite(grid) && grid > 0 ? grid : 50
 }
 
 /**
- * Troca a FORMA do item `id` (imagem no chão ⇄ pino de item), no mesmo lugar,
- * no mesmo piso e com o mesmo id, "Oculto para jogadores", trava e o item
- * inteiro. Item sem imagem não vira imagem no chão (não haveria o que
- * desenhar). Nada a trocar devolve o MESMO mapa.
+ * Troca a FORMA do item `id` para `forma` (imagem no chão, estrela ou pino de
+ * item), no mesmo lugar, no mesmo piso e com o mesmo id, "Oculto para
+ * jogadores", trava e o item inteiro. Item sem imagem não vira imagem no chão
+ * (não haveria o que desenhar). Entre imagem e estrela o objeto é o mesmo
+ * (camada, oculto no editor e o resto ficam); a estrela nasce com uma casa e
+ * sem giro, e a imagem que sai dela fica na caixa da estrela. Nada a trocar
+ * (já está na forma, ou não é item) devolve o MESMO mapa.
  */
-export function trocarFormaDoItem(map: MapData, id: string): MapData {
+export function trocarFormaDoItem(map: MapData, id: string, forma: FormaDoItem): MapData {
   const alvo = acharItemNoMapa(map, id)
-  if (alvo === null) return map
-  if (alvo.forma === 'chao') {
-    const { prop } = alvo
+  if (alvo === null || alvo.forma === forma) return map
+  if (forma === 'chao' && alvo.item.imagem === undefined) return map
+  if (alvo.forma === 'pino') {
+    const { pin } = alvo
+    if (forma === 'pino') return map
+    const objeto = comPiso(objetoNaForma(forma, id, { x: pin.x, y: pin.y }, ladoNoChao(map.grid), alvo.item), pin.piso)
+    if (pin.secret === true) objeto.secret = true
+    if (pin.locked === true) objeto.locked = true
+    return { ...map, pins: map.pins.filter((p) => p.id !== id), props: [...map.props, objeto] }
+  }
+  const { prop } = alvo
+  if (forma === 'pino') {
     const pino = comPiso(pinoDeItem(id, { x: prop.x, y: prop.y }, alvo.item), prop.piso)
     if (prop.secret === true) pino.secret = true
     if (prop.locked === true) pino.locked = true
     return { ...map, props: map.props.filter((p) => p.id !== id), pins: [...map.pins, pino] }
   }
-  const { pin } = alvo
-  if (alvo.item.imagem === undefined) return map
-  const objeto = comPiso(objetoDeItem(id, { x: pin.x, y: pin.y }, ladoNoChao(map.grid), alvo.item), pin.piso)
-  if (pin.secret === true) objeto.secret = true
-  if (pin.locked === true) objeto.locked = true
-  return { ...map, pins: map.pins.filter((p) => p.id !== id), props: [...map.props, objeto] }
+  return { ...map, props: map.props.map((p) => (p.id === id ? objetoNaOutraForma(p, forma, ladoNoChao(map.grid)) : p)) }
+}
+
+/** O mesmo objeto, entre imagem e estrela: a estrela nasce com `lado` e sem giro; a imagem fica na caixa da estrela. */
+function objetoNaOutraForma(prop: Prop, forma: FormaNoChao, lado: number): Prop {
+  if (forma === 'estrela') {
+    const { rotation: _giro, ...semGiro } = prop
+    return { ...semGiro, width: lado, height: lado, marcaDoItem: 'estrela' }
+  }
+  const { marcaDoItem: _marca, ...semMarca } = prop
+  return semMarca
 }
 
 /**
@@ -195,10 +262,10 @@ function itemDaMochila(carried: CarriedItem): PinItem {
  * "Devolver ao chão" (mestre) e "Largar no chão" (ficha de personagem): o item
  * sai da mochila e volta ao mapa onde a ficha está — no MESMO piso dela — com
  * TODOS os dados, pedindo ao mestre de novo, como o largar de sempre. A forma
- * segue uma regra só: com imagem, a IMAGEM NO CHÃO (a forma padrão de quem
- * solta do acervo); sem imagem, o PINO DE ITEM (não há o que desenhar no
- * chão). Usa o id da vaga (o do pino de onde o item saiu); se o mapa já tem
- * pino ou objeto com esse id, usa `freshId` — nunca sobrescreve nada.
+ * segue a do soltar (`formaAoSoltar`): com imagem, a IMAGEM NO CHÃO; sem
+ * imagem, a ESTRELA (17/11/2026; antes, o pino de item). Usa o id da vaga (o
+ * do pino de onde o item saiu); se o mapa já tem pino ou objeto com esse id,
+ * usa `freshId` — nunca sobrescreve nada.
  */
 export function dropItemChange(map: MapData, token: Token, itemId: string, freshId: string): ItemChange | null {
   const carried = carriedItemsOf(token).find((item) => item.id === itemId)
@@ -211,6 +278,6 @@ export function dropItemChange(map: MapData, token: Token, itemId: string, fresh
   // O host grava direto (fora do desfazer que carimba o piso em edição): sem o
   // piso da ficha o item cairia no térreo, longe de quem o largou.
   const piso = pisoDe(token)
-  if (item.imagem !== undefined) return { ...removed, addProp: comPiso(objetoDeItem(id, token, ladoNoChao(map.grid), item), piso) }
-  return { ...removed, addPin: comPiso(pinoDeItem(id, token, item), piso) }
+  const forma: FormaNoChao = item.imagem === undefined ? 'estrela' : 'chao'
+  return { ...removed, addProp: comPiso(objetoNaForma(forma, id, token, ladoNoChao(map.grid), item), piso) }
 }

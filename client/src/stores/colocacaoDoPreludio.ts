@@ -3,10 +3,10 @@ import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravadaDoItem } from '../lib/camadas/trava'
 import { comFalas, FALAS_MAX, falasDoPino, idDeFalaNova, novaFala } from '../lib/falasDoPino'
 import type { FalaDoPino } from '../types/cenarioEFalas'
-import { pinoDeItem } from '../lib/itemNoMapa'
+import { estrelaDeItem, formaAoSoltar, ladoNoChao, pinoDeItem } from '../lib/itemNoMapa'
 import { pinoDoLugar } from '../lib/preparo/pinoDoLugar'
 import { snapPointForTarget } from '../pixi/tokenInteraction'
-import type { FonteNoPreludio, Pin, PinItem, PinKind } from '../types/map'
+import type { FonteNoPreludio, Pin, PinItem, PinKind, Prop } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { criarToken } from './criarToken'
 import { useMapStore } from './mapStore'
@@ -27,7 +27,8 @@ import { useToastStore } from './toastStore'
  * O VERBETE INTEIRO no mapa (E3, 16/11): já preparado pela mesa
  * (`preludio/janela/verbeteNaMesa.ts`), espera só o clique.
  * - `token`: o Personagem, ligado à ficha de NPC (`characterId`) ou sem ficha.
- * - `item`: o pino de item pegável com o item do Acervo (criado ou o de mesmo nome).
+ * - `item`: o pino de item pegável com o item do Acervo (criado ou o de mesmo nome);
+ *   sem imagem, a estrela brilhando no chão (`estrelaDaColocacao`).
  * - `lugar`: o "!" com o texto do verbete e a imagem que pode ir ao jogador.
  */
 export type CoisaDoVerbete =
@@ -177,6 +178,22 @@ export function juntarFalaDaColocacao(pin: Pin): boolean {
   const nome = pin.nome?.trim() ?? ''
   useToastStore.getState().push('info', `Fala juntada ao ? ${nome === '' ? 'existente' : nome}: fica oculta até você dizer.`)
   return true
+}
+
+/**
+ * A ESTRELA DO ITEM (17/11/2026): o pino de item que a colocação de um item
+ * SEM IMAGEM acabou de montar (`pinoDaColocacao`, com o MESMO item) nasce como
+ * a estrela brilhando no chão, como o soltar do Acervo (`formaAoSoltar`), no
+ * lugar e no piso do clique. `null` = não é o caso, e o pino segue o de sempre:
+ * outro pino, item com imagem, ou o item solto do Acervo com Alt no meio da espera.
+ */
+export function estrelaDaColocacao(pin: Pin): Prop | null {
+  const pendente = useColocacaoDoPreludio.getState().pendente
+  if (pendente === null || !ehDoVerbete(pendente) || pendente.coisa.o !== 'item') return null
+  const { item } = pendente.coisa
+  if (pin.item !== item || formaAoSoltar(item, false) !== 'estrela') return null
+  const estrela = estrelaDeItem(pin.id, { x: pin.x, y: pin.y }, ladoNoChao(useMapStore.getState().map.grid), item)
+  return pin.piso === undefined ? estrela : { ...estrela, piso: pin.piso }
 }
 
 /**

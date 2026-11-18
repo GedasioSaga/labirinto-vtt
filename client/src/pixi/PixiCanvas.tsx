@@ -240,6 +240,7 @@ import {
 import { tracadoDaSalaLivre } from '../lib/tracadoDaSalaLivre'
 import { createPropsRenderer, HIDDEN_PROP_GHOST_ALPHA } from './drawProps'
 import { createFogosDoMapa } from './fogosDoMapa'
+import { createEstrelasDosItens } from './estrelasDosItens'
 import { createJudgeDoMapa } from './judgeDoMapa'
 import { createJudgeGesture } from './judgeGesture'
 import type { JudgeNaCena } from '../lib/batalha/judge'
@@ -3120,21 +3121,36 @@ function PixiCanvasDoContexto({
         )
       }
 
-      // A chama das fogueiras anima no relógio do Pixi, só com fogueira no mapa
-      // e movimento normal; por quadro mudam só escala, posição e alpha.
-      const propsRenderer = createPropsRenderer({
-        movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
+      // ESTRELA DO ITEM (`estrelasDosItens.ts`): uma para a tela toda, dividida
+      // pelos nós de objetos. No `app.ticker`, não no `relogio`: só a estrela na
+      // vista anima, a 30 quadros por segundo, e o desenho sob pedido vê a mudança.
+      const estrelasDosItens = createEstrelasDosItens({
+        movimento: { ticker: app.ticker, reducedMotion: prefersReducedMotion },
         aoMudar: (estado) => {
-          el.dataset.chamas = String(estado.chamas)
-          el.dataset.chamasAnimando = String(estado.animando)
+          el.dataset.estrelas = String(estado.estrelas)
+          el.dataset.estrelasNaVista = String(estado.naVista)
+          el.dataset.estrelasAnimando = String(estado.animando)
         },
       })
+      pisosNaVista.push(estrelasDosItens)
+      // A chama das fogueiras anima no relógio do Pixi, só com fogueira no mapa
+      // e movimento normal; por quadro mudam só escala, posição e alpha.
+      const propsRenderer = createPropsRenderer(
+        {
+          movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion },
+          aoMudar: (estado) => {
+            el.dataset.chamas = String(estado.chamas)
+            el.dataset.chamasAnimando = String(estado.animando)
+          },
+        },
+        estrelasDosItens,
+      )
       // CAMADAS: móvel numa camada que não é a de hoje (ou Objetos e Decoração com
       // opacidades diferentes) desenha no nó dela, com cache de sprite próprio.
       const propsPorNo = criarPorNo<Container, ReturnType<typeof createPropsRenderer>>(
         propsContainer,
         propsRenderer,
-        () => createPropsRenderer({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }),
+        () => createPropsRenderer({ movimento: { ticker: desenho.relogio, reducedMotion: prefersReducedMotion } }, estrelasDosItens),
         (renderer) => renderer.destruir(),
       )
       aoDescartarNo.push((no) => propsPorNo.soltar(no))
@@ -10575,6 +10591,8 @@ function PixiCanvasDoContexto({
         particulasDoMapa.destruir()
         // E as chamas das fogueiras (com as formas compartilhadas delas).
         propsRenderer.destruir()
+        // E as estrelas dos itens (saem do relógio e soltam as texturas).
+        estrelasDosItens.destruir()
         // E os fogos (saem do relógio antes do app).
         fogos.destruir()
         // E o Judge (a folha fica no cache do `Assets` para o próximo palco).
