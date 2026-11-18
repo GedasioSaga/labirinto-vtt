@@ -38,6 +38,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * O texto do jogador como o Rust o entrega no `net:message`: o objeto JSON já
+ * lido (`parse_object` em `desktop/src-tauri/src/net/server.rs`). Sem isto,
+ * o que a ponte trata FORA da sessão só quando chega objeto (o andamento da
+ * cutscene em vídeo, o `som.falhou`, o "pronta" da abertura) caía na sessão e
+ * voltava como erro. O que não é objeto segue como texto: a sessão o recusa,
+ * como antes.
+ */
+function objetoDoTexto(texto: string): unknown {
+  try {
+    const lido: unknown = JSON.parse(texto)
+    return isRecord(lido) ? lido : texto
+  } catch {
+    return texto
+  }
+}
+
 /** O `clientId` dos argumentos de `net_send`/`net_kick`; `null` se não veio. */
 function clientIdDe(args: InvokeArgs | undefined): string | null {
   if (!isRecord(args)) return null
@@ -119,7 +136,7 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
         }
         case 'msg': {
           const clientId = clientIdDaConexao(mensagem.conexao)
-          if (clientId !== null) emitir('net:message', { clientId, msg: mensagem.data })
+          if (clientId !== null) emitir('net:message', { clientId, msg: objetoDoTexto(mensagem.data) })
           return
         }
         case 'fechar-conexao': {

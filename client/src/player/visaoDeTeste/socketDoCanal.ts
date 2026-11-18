@@ -41,6 +41,13 @@ export const MENSAGENS_DA_PESCA: ReadonlySet<string> = new Set(['pesca.pronto', 
 /** MINIGAME DE TIRO: idem para a barraca (a dificuldade, o vivo e o fim). O `tiro.pedir`, como o `pesca.pedir`, só no Jogar. */
 export const MENSAGENS_DO_TIRO: ReadonlySet<string> = new Set(['tiro.pronto', 'tiro.vivo', 'tiro.fim'])
 
+/**
+ * CUTSCENE EM VÍDEO, MODO TREINO (18/11/2026): o andamento, o "pronta" e o fim
+ * do vídeo que o mestre mandou tocar. Saem sozinhos, sem gesto; barrados no
+ * Olhar, o mestre esperaria para sempre uma tela que já está pronta.
+ */
+export const MENSAGENS_DA_CUTSCENE: ReadonlySet<string> = new Set(['cutscene.video.progresso', 'cutscene.video.pronta', 'cutscene.video.fim'])
+
 const CONNECTING = 0
 const OPEN = 1
 const CLOSED = 3
@@ -55,7 +62,10 @@ export function saiNoOlhar(data: string): boolean {
   }
   if (typeof mensagem !== 'object' || mensagem === null) return false
   const tipo: unknown = Reflect.get(mensagem, 'type')
-  return typeof tipo === 'string' && (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo) || MENSAGENS_DA_PESCA.has(tipo) || MENSAGENS_DO_TIRO.has(tipo))
+  return (
+    typeof tipo === 'string' &&
+    (MENSAGENS_AUTOMATICAS.has(tipo) || MENSAGENS_DA_DANCA.has(tipo) || MENSAGENS_DA_PESCA.has(tipo) || MENSAGENS_DO_TIRO.has(tipo) || MENSAGENS_DA_CUTSCENE.has(tipo))
+  )
 }
 
 export interface OpcoesDoSocketDoCanal {

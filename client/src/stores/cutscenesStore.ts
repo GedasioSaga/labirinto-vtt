@@ -3,6 +3,7 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { CUTSCENE_TITULO_MAX, ehIdDeVideo } from '../net/protocol'
 import { ehRefDeMidia } from '../lib/midia'
+import type { LugarDaCutscene } from '../net/redeDaCutscene'
 import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES, lerGaleria, mensagemDaFalha } from '../net/nuvem/galeriaNaNuvem'
 
 /**
@@ -64,14 +65,18 @@ export interface ExibicaoEmCurso {
 interface CutscenesState {
   lista: Cutscene[]
   carregada: boolean
+  /** A exibição na sala de verdade. */
   exibicao: ExibicaoEmCurso | null
+  /** MODO TREINO (18/11): a exibição na janela da Visão de jogador, à parte da sala (as duas podem estar no ar). */
+  exibicaoDoTeste: ExibicaoEmCurso | null
   carregar: () => Promise<void>
   adicionar: (cutscene: Cutscene) => void
   mudar: (id: string, mudanca: Partial<Omit<Cutscene, 'id' | 'video' | 'tamanho'>>) => void
   remover: (id: string) => void
   /** A miniatura tirada sozinha: vale para toda linha deste vídeo que ainda não tem uma (a escolhida no "Assistir" fica). */
   darMiniaturaAoVideo: (video: string, miniatura: string) => void
-  definirExibicao: (exibicao: ExibicaoEmCurso | null) => void
+  /** A ponte escreve a exibição do lugar dela; ausente = a sala. */
+  definirExibicao: (exibicao: ExibicaoEmCurso | null, lugar?: LugarDaCutscene) => void
   /** A ponte avisa: a cutscene chegou ao fim numa tela. Com "Na Galeria", sobe o vídeo. */
   marcarExibida: (id: string) => void
   /** Sobe (ou tenta de novo) o vídeo para a Galeria da campanha da pasta aberta. */
@@ -142,6 +147,7 @@ export const useCutscenesStore = create<CutscenesState>((set, get) => {
     lista: [],
     carregada: false,
     exibicao: null,
+    exibicaoDoTeste: null,
     carregar: async () => {
       if (get().carregada) return
       const lista = await lerDoDisco()
@@ -158,7 +164,7 @@ export const useCutscenesStore = create<CutscenesState>((set, get) => {
       if (!lista.some((c) => c.video === video && c.miniatura === undefined)) return
       trocarLista(lista.map((c) => (c.video === video && c.miniatura === undefined ? { ...c, miniatura } : c)))
     },
-    definirExibicao: (exibicao) => set({ exibicao }),
+    definirExibicao: (exibicao, lugar = 'sala') => set(lugar === 'teste' ? { exibicaoDoTeste: exibicao } : { exibicao }),
     marcarExibida: (id) => {
       const cutscene = get().lista.find((c) => c.id === id)
       if (cutscene === undefined) return

@@ -86,6 +86,11 @@
   opacity: 0.8;
 }
 
+/* O aviso solto na página (sem sala; Visão de jogador aberta) alinha com o título, longe da alça da coluna. */
+.lb-cutscenes > .lb-cutscenes__nota {
+  padding-inline: 16px;
+}
+
 .lb-cutscenes__nota--erro {
   color: var(--gr-perigo, #a8321e);
   opacity: 1;

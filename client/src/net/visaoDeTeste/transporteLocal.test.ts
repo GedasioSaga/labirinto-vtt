@@ -33,7 +33,8 @@ describe('transporteLocal', () => {
     transporte.receber({ de: 'janela', tipo: 'msg', sessao: SESSAO, conexao: 3, data: '{"type":"ping"}' })
 
     expect(enviadas).toEqual([{ de: 'host', tipo: 'aberto', sessao: SESSAO, conexao: 3 }])
-    expect(mensagens).toHaveBeenCalledWith({ payload: { clientId: 'teste-3', msg: '{"type":"ping"}' } })
+    // Como o Rust: o objeto JSON já lido, não o texto.
+    expect(mensagens).toHaveBeenCalledWith({ payload: { clientId: 'teste-3', msg: { type: 'ping' } } })
   })
 
   it('net_send leva a mensagem à conexão daquele clientId; conexão desconhecida não é erro', async () => {

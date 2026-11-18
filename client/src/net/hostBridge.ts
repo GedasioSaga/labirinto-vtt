@@ -129,7 +129,7 @@ import {
   type SomHostMessage,
 } from './protocol'
 import { BATIDA_DE_CARREGANDO_MS, combinarLargada, combinarLargadaSemPrazo, type Combinado, type CombinadoSemPrazo } from '../transicoes/largada'
-import { registrarRedeDaCutscene, type CutsceneParaTocar, type RedeDaCutscene, type ResultadoDoTocar } from './redeDaCutscene'
+import { registrarRedeDaCutscene, type CutsceneParaTocar, type LugarDaCutscene, type RedeDaCutscene, type ResultadoDoTocar } from './redeDaCutscene'
 import { useCutscenesStore, type TelaDaExibicao } from '../stores/cutscenesStore'
 import { aberturaPretendida, assinarAberturaPretendida } from '../transicoes/intencao'
 import { destinatarios, type TelasDaMesa } from './audienciaDosSons'
@@ -490,6 +490,15 @@ export interface HostBridgeDeps {
    * teste é local e não pode roubar o som da mesa de verdade. Ausente = registra.
    */
   redeDosSons?: boolean
+  /**
+   * CUTSCENE EM VÍDEO, MODO TREINO (18/11/2026): `'teste'` = a ponte da Visão
+   * de jogador. Ela se registra na página Cutscenes no lugar do teste (com o
+   * teste aberto, "Tocar para todos" toca só na janela de teste), escreve a
+   * exibição à parte da sala, e o vídeo que chega ao fim NÃO conta como
+   * exibido nem sobe para a Galeria. Ausente = a sala de verdade, que se
+   * registra junto com os sons (`redeDosSons`).
+   */
+  lugarDaCutscene?: LugarDaCutscene
 }
 
 /** SONS AO VIVO: um loop tocando na mesa e quem o ouve agora (a reconciliação mantém). */
@@ -1367,6 +1376,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   } | null = null
   let proximaExibicao = 1
   let tirarRegistroDaCutscene: (() => void) | null = null
+  /** MODO TREINO: a ponte da Visão de jogador escreve a exibição à parte e não marca a cutscene como exibida. */
+  const lugarDaCutscene: LugarDaCutscene = deps.lugarDaCutscene ?? 'sala'
   /**
    * AQUECER PELA INTENÇÃO: a abertura que esta sala tocou por último (quem chega depois a aquece
    * para a próxima batalha), a que já foi avisada e a quem. Trocou a abertura, todos são avisados de novo.
@@ -2125,16 +2136,19 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const publicarExibicaoDeVideo = () => {
     const atual = exibicaoDeVideo
     if (atual === null) {
-      useCutscenesStore.getState().definirExibicao(null)
+      useCutscenesStore.getState().definirExibicao(null, lugarDaCutscene)
       return
     }
-    useCutscenesStore.getState().definirExibicao({
-      numero: atual.numero,
-      cutsceneId: atual.cutscene.cutsceneId,
-      titulo: atual.cutscene.titulo,
-      fase: atual.largou ? 'tocando' : 'esperando',
-      telas: [...atual.telas.values()].map((tela) => ({ ...tela })),
-    })
+    useCutscenesStore.getState().definirExibicao(
+      {
+        numero: atual.numero,
+        cutsceneId: atual.cutscene.cutsceneId,
+        titulo: atual.cutscene.titulo,
+        fase: atual.largou ? 'tocando' : 'esperando',
+        telas: [...atual.telas.values()].map((tela) => ({ ...tela })),
+      },
+      lugarDaCutscene,
+    )
   }
 
   /** Manda o `preparar` a quem ainda não o recebeu nesta exibição (o novo da sala). */
@@ -2166,14 +2180,17 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     encerrarExibicaoDeVideo()
   }
 
-  /** Fecha a exibição sem mandar nada (a sala fechou, ou todos terminaram). A que chegou ao fim numa tela conta como exibida. */
+  /**
+   * Fecha a exibição sem mandar nada (a sala fechou, ou todos terminaram). A que chegou ao fim numa tela conta como
+   * exibida; a do teste (Visão de jogador) nunca: testar não marca "já tocou" nem manda à Galeria.
+   */
   const encerrarExibicaoDeVideo = () => {
     const atual = exibicaoDeVideo
     if (atual === null) return
     exibicaoDeVideo = null
     atual.combinado.cancelar()
     publicarExibicaoDeVideo()
-    if (atual.alguemTerminou) useCutscenesStore.getState().marcarExibida(atual.cutscene.cutsceneId)
+    if (atual.alguemTerminou && lugarDaCutscene === 'sala') useCutscenesStore.getState().marcarExibida(atual.cutscene.cutsceneId)
   }
 
   const abrirExibicaoDeVideo = (cutscene: CutsceneParaTocar): ResultadoDoTocar => {
@@ -4485,8 +4502,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // SONS AO VIVO: a aba Sons passa a mandar som por esta sala (a Visão de jogador fica de fora).
       salaDosSonsAberta = true
       if (deps.redeDosSons !== false) tirarRegistroDosSons = registrarRedeDosSons(redeDosSonsDestaPonte)
-      // CUTSCENE EM VÍDEO: a página Cutscenes toca por esta sala; a Visão de jogador fica de fora, como dos sons.
-      if (deps.redeDosSons !== false) tirarRegistroDaCutscene = registrarRedeDaCutscene(redeDaCutsceneDestaPonte)
+      // CUTSCENE EM VÍDEO: a página Cutscenes toca por esta sala; a Visão de jogador se registra no lugar do teste.
+      if (lugarDaCutscene === 'teste' || deps.redeDosSons !== false) tirarRegistroDaCutscene = registrarRedeDaCutscene(redeDaCutsceneDestaPonte, lugarDaCutscene)
       notifyPlayersIfChanged()
       // A conversa guardada já está na tela do mestre ao abrir, sem contar como nova
       // (sem ela, a tela já está vazia: fechar a sala a esvaziou).

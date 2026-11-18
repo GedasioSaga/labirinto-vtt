@@ -79,6 +79,8 @@ export function janelaSemTela(canal: Canal, sessao: string, modo: ModoDoTeste, c
         storage: memoria(),
         aceitaGzip: false,
         ...(conta === undefined ? {} : { conta }),
+        // Como a janela de verdade (`entrada.tsx`): a cutscene em vídeo toca do disco do mestre.
+        ...(mensagem.midia === undefined ? {} : { baseDoVideo: mensagem.midia }),
       }),
     )
   })

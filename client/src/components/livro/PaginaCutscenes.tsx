@@ -5,7 +5,7 @@ import { resolverComBase } from '../../lib/midia'
 import { baseDaMidiaConhecida, baseDaMidiaNoMestre, urlDoVideoNoMestre } from '../../lib/midiaNoDisco'
 import { guardarQuadroDoVideo, pedirMiniaturaDoVideo } from '../../lib/miniaturaDoVideo'
 import { CUTSCENE_TITULO_MAX } from '../../net/protocol'
-import { assinarRedeDaCutscene, redeDaCutscene, type ResultadoDoTocar } from '../../net/redeDaCutscene'
+import { assinarRedeDaCutscene, lugarDaRedeDaCutscene, redeDaCutscene, redeDaCutsceneEm, type LugarDaCutscene, type ResultadoDoTocar } from '../../net/redeDaCutscene'
 import { GALERIA_VIDEO_MAX_BYTES, mensagemDaFalha, tirarDaGaleria } from '../../net/nuvem/galeriaNaNuvem'
 import { useCutscenesStore, VIDEO_MAX_BYTES, type Cutscene, type ExibicaoEmCurso } from '../../stores/cutscenesStore'
 import { useToastStore } from '../../stores/toastStore'
@@ -13,6 +13,7 @@ import { Botao } from '../grimorio/Botao'
 import { CampoLiga } from '../grimorio/CampoLiga'
 import { CampoTexto } from '../grimorio/CampoTexto'
 import { Dialogo } from '../grimorio/Dialogo'
+import { PREFIXO_DO_TESTE } from '../dancaNoPainel'
 import { TituloDaPagina } from './FolhaDoLivro'
 import { IconeDoLivro } from './icones'
 import { usePaginaAVista } from './paginaAVista'
@@ -32,6 +33,12 @@ import './cutscenes.css'
  * toca o vídeo só para o mestre, do disco, sem sala: não marca "já tocou" nem
  * sobe para a Galeria. No "Assistir", "Usar este quadro como miniatura" troca
  * a imagem da linha.
+ *
+ * MODO TREINO (18/11/2026, pedido do mestre): com a janela da Visão de jogador
+ * aberta, "Tocar para todos" toca só nela (o teste ganha da sala, como na
+ * dança): a janela recebe o vídeo, toca junto e para com "Parar para todos",
+ * e nada disso marca "já tocou" nem manda à Galeria. O painel do teste fica à
+ * parte do da mesa.
  */
 
 const MB = 1024 * 1024
@@ -64,6 +71,13 @@ const FRASE_DO_TOCAR: Record<Exclude<ResultadoDoTocar, 'ok'>, string> = {
   'sem-jogador': 'Ninguém na mesa para ver: abra a sala e espere os jogadores entrarem.',
   'ja-tocando': 'Já há uma cutscene na mesa. Pare a de agora antes de tocar outra.',
   invalida: 'Esta cutscene tem um título ou vídeo fora do formato. Mude o título e tente de novo.',
+}
+
+/** No teste, "ninguém para ver" é a janela da Visão de jogador que ainda não entrou na sala de teste. */
+const FRASE_DO_TOCAR_NO_TESTE: Record<Exclude<ResultadoDoTocar, 'ok'>, string> = {
+  ...FRASE_DO_TOCAR,
+  'sem-jogador': 'A janela da Visão de jogador ainda está abrindo. Espere a tela do jogador aparecer e toque de novo.',
+  'ja-tocando': 'Já há uma cutscene na janela de teste. Pare a de agora antes de tocar outra.',
 }
 
 function avisar(tipo: 'error' | 'info', texto: string): void {
@@ -274,19 +288,22 @@ function AssistirCutscene({ cutsceneId, onFechar }: { cutsceneId: string | null;
   )
 }
 
-function PainelDaExibicao({ exibicao }: { exibicao: ExibicaoEmCurso }) {
+/** O painel da exibição de um lugar: os botões falam só com a rede dele (a da mesa segue parável com o teste aberto). */
+function PainelDaExibicao({ exibicao, lugar }: { exibicao: ExibicaoEmCurso; lugar: LugarDaCutscene }) {
   const prontas = exibicao.telas.filter((tela) => tela.pronta).length
   const esperando = exibicao.fase === 'esperando'
+  const noTeste = lugar === 'teste'
+  const tocando = noTeste ? 'Tocando na Visão de jogador' : 'Tocando na mesa'
   return (
-    <section className="lb-cutscenes__painel" aria-label="Cutscene na mesa">
+    <section className="lb-cutscenes__painel" aria-label={noTeste ? 'Cutscene no teste' : 'Cutscene na mesa'} data-lugar={lugar}>
       <p className="lb-cutscenes__painel-titulo">
         <strong>{exibicao.titulo}</strong>
-        <span>{esperando ? `Baixando: ${prontas} de ${exibicao.telas.length} telas prontas` : 'Tocando na mesa'}</span>
+        <span>{esperando ? `Baixando: ${prontas} de ${exibicao.telas.length} telas prontas` : tocando}</span>
       </p>
       <ul className="lb-cutscenes__telas">
         {exibicao.telas.map((tela) => (
           <li key={tela.clientId} className="lb-cutscenes__tela" data-falhou={tela.falhou}>
-            <span className="lb-cutscenes__tela-nome">{tela.nome}</span>
+            <span className="lb-cutscenes__tela-nome">{noTeste ? `${PREFIXO_DO_TESTE}${tela.nome}` : tela.nome}</span>
             <span className="lb-cutscenes__tela-estado">{tela.falhou ? 'não chegou' : tela.terminou ? 'terminou' : tela.pronta ? 'pronta' : `${tela.pct}%`}</span>
             <span className="lb-cutscenes__barra" aria-hidden="true">
               <span className="lb-cutscenes__cheio" style={{ transform: `scaleX(${tela.pct / 100})` }} />
@@ -296,11 +313,11 @@ function PainelDaExibicao({ exibicao }: { exibicao: ExibicaoEmCurso }) {
       </ul>
       <div className="lb-cutscenes__acoes">
         {esperando && (
-          <Botao variante="latao" tamanho="p" onClick={() => redeDaCutscene()?.tocarAgora()}>
+          <Botao variante="latao" tamanho="p" onClick={() => redeDaCutsceneEm(lugar)?.tocarAgora()}>
             Tocar agora
           </Botao>
         )}
-        <Botao variante="perigo" tamanho="p" onClick={() => redeDaCutscene()?.parar()}>
+        <Botao variante="perigo" tamanho="p" onClick={() => redeDaCutsceneEm(lugar)?.parar()}>
           Parar para todos
         </Botao>
       </div>
@@ -337,8 +354,9 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cut
   const tocar = () => {
     const rede = redeDaCutscene()
     if (rede === null) return
+    const frases = lugarDaRedeDaCutscene() === 'teste' ? FRASE_DO_TOCAR_NO_TESTE : FRASE_DO_TOCAR
     const resultado = rede.tocar({ cutsceneId: cutscene.id, video: cutscene.video, titulo: cutscene.titulo })
-    if (resultado !== 'ok') avisar('error', FRASE_DO_TOCAR[resultado])
+    if (resultado !== 'ok') avisar('error', frases[resultado])
   }
   const tirar = async () => {
     const galeria = cutscene.galeria
@@ -413,8 +431,9 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cut
 export function PaginaCutscenes() {
   const lista = useCutscenesStore((estado) => estado.lista)
   const exibicao = useCutscenesStore((estado) => estado.exibicao)
+  const exibicaoDoTeste = useCutscenesStore((estado) => estado.exibicaoDoTeste)
   const carregada = useCutscenesStore((estado) => estado.carregada)
-  const rede = useSyncExternalStore(assinarRedeDaCutscene, redeDaCutscene)
+  const lugar = useSyncExternalStore(assinarRedeDaCutscene, lugarDaRedeDaCutscene)
   const [importando, setImportando] = useState(false)
   const [assistindo, setAssistindo] = useState<string | null>(null)
   const base = useBaseDaMidia()
@@ -464,8 +483,14 @@ export function PaginaCutscenes() {
   return (
     <div className="lb-cutscenes" role="region" aria-label="Cutscenes">
       <TituloDaPagina titulo="Cutscenes" sub={`Vídeos mp4 ou webm até ${VIDEO_MAX_BYTES / MB} MB. Toca quando todos baixarem.`} />
-      {exibicao !== null && <PainelDaExibicao exibicao={exibicao} />}
-      {rede === null && <p className="lb-cutscenes__nota">Abra a sala para tocar uma cutscene para os jogadores. Sem sala, “Assistir” toca o vídeo só aqui.</p>}
+      {exibicao !== null && <PainelDaExibicao exibicao={exibicao} lugar="sala" />}
+      {exibicaoDoTeste !== null && <PainelDaExibicao exibicao={exibicaoDoTeste} lugar="teste" />}
+      {lugar === null && <p className="lb-cutscenes__nota">Abra a sala para tocar uma cutscene para os jogadores. Sem sala, “Assistir” toca o vídeo só aqui.</p>}
+      {lugar === 'teste' && (
+        <p className="lb-cutscenes__nota" data-lugar="teste">
+          Visão de jogador aberta: “Tocar para todos” toca só na janela de teste. Não conta como exibida nem vai para a Galeria.
+        </p>
+      )}
       <Botao variante="latao" tamanho="p" disabled={importando} onClick={() => void adicionar()}>
         <IconeDoLivro nome="mais" />
         {importando ? 'Copiando o vídeo…' : 'Adicionar vídeo…'}
@@ -475,7 +500,7 @@ export function PaginaCutscenes() {
       ) : (
         <ul className="lb-cutscenes__lista">
           {lista.map((cutscene) => (
-            <LinhaDaCutscene key={cutscene.id} cutscene={cutscene} comSala={rede !== null} ocupada={exibicao !== null} base={base} onAssistir={() => setAssistindo(cutscene.id)} />
+            <LinhaDaCutscene key={cutscene.id} cutscene={cutscene} comSala={lugar !== null} ocupada={exibicao !== null || exibicaoDoTeste !== null} base={base} onAssistir={() => setAssistindo(cutscene.id)} />
           ))}
         </ul>
       )}

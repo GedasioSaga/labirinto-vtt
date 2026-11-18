@@ -1294,6 +1294,15 @@ export interface PlayerConnectionOptions {
    * de outra conta, e o bilhete não gera segredo de aparelho.
    */
   conta?: { pin: string; rotulo: string } | 'aparelho' | { bilhete: string }
+  /**
+   * CUTSCENE EM VÍDEO, MODO TREINO (18/11/2026): a janela da Visão de jogador
+   * não tem sala nem a rota `/media/`; o vídeo está no disco deste mesmo
+   * computador. Com a base (a mídia do mestre pela ponte de arquivos do Tauri,
+   * `baseDaMidiaNoMestre`), o `<video>` toca `<base><id>` direto do disco (em
+   * pedaços, com Range) e a tela avisa "pronta" na hora, sem baixar num blob.
+   * Ausente = baixa inteiro da sala, como sempre.
+   */
+  baseDoVideo?: string
 }
 
 /**
@@ -3934,12 +3943,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return true
   }
 
-  /** CUTSCENE EM VÍDEO: para a baixa e solta o vídeo (blob) desta tela. */
+  /** CUTSCENE EM VÍDEO: para a baixa e solta o vídeo (blob) desta tela. O do disco (modo treino) não é blob: nada a soltar. */
   function soltarCutsceneVideo(): void {
     baixaDoVideo?.cancelar()
     baixaDoVideo = null
     const url = state.cutsceneVideo?.url
-    if (url !== undefined) URL.revokeObjectURL(url)
+    if (url !== undefined && url.startsWith('blob:')) URL.revokeObjectURL(url)
     if (state.cutsceneVideo !== undefined) setState({ cutsceneVideo: undefined })
   }
 
@@ -3954,7 +3963,14 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   function prepararCutsceneVideo(pedido: CutsceneVideoPrepararMessage): void {
     soltarCutsceneVideo()
     const { exibicao, video, titulo } = pedido
-    setState({ cutsceneVideo: { exibicao, video, titulo, jaLargou: pedido.jaLargou === true, pct: 0 } })
+    const jaLargou = pedido.jaLargou === true
+    if (options.baseDoVideo !== undefined) {
+      // MODO TREINO: o vídeo já está neste computador; o `id` veio conferido (`ehIdDeVideo`), então a URL não sai da pasta.
+      setState({ cutsceneVideo: { exibicao, video, titulo, jaLargou, pct: 100, url: `${options.baseDoVideo}${video}`, ...(jaLargou ? { largouEm: performance.now() } : {}) } })
+      send({ type: 'cutscene.video.pronta', exibicao })
+      return
+    }
+    setState({ cutsceneVideo: { exibicao, video, titulo, jaLargou, pct: 0 } })
     send({ type: 'cutscene.video.progresso', exibicao, pct: 0 })
     baixaDoVideo = baixarVideoDaCutscene(`${URL_DA_MIDIA_NA_SALA}${video}`, video, {
       aoAndar: (pct) => {

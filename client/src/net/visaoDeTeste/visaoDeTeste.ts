@@ -518,6 +518,8 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
       broadcastPaused: () => s.oculta,
       // SONS AO VIVO: a sala de teste é local; a aba Sons continua mandando à mesa de verdade.
       redeDosSons: false,
+      // CUTSCENE EM VÍDEO, MODO TREINO: com o teste aberto, "Tocar para todos" toca aqui, sem contar como exibida.
+      lugarDaCutscene: 'teste',
     })
     s.ponte = ponte
     s.transporte = transporte

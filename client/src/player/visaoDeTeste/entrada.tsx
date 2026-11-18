@@ -212,6 +212,8 @@ function VisaoDeJogador({ sessao, canal }: { sessao: string; canal: Canal }) {
       storage,
       isHidden: () => document.visibilityState === 'hidden',
       aceitaGzip: false,
+      // CUTSCENE EM VÍDEO: sem sala, o vídeo toca do disco do mestre, pela mesma base das imagens. Sem base, não chega.
+      ...(geracao.midia === undefined ? {} : { baseDoVideo: geracao.midia }),
     })
     setHostName(null)
     setAtiva({ geracao: geracao.geracao, connection, storage })
