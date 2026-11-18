@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ENDIREITAR_TORTOS_NO_BOTAO,
-  direcaoMaisProxima,
+  eixoMaisProximo,
   endireitarMudariaAlgo,
   endireitarNoMapa,
   endireitarPolilinha,
@@ -59,22 +59,17 @@ function comprimento(s: { x1: number; y1: number; x2: number; y2: number }): num
   return Math.hypot(s.x2 - s.x1, s.y2 - s.y1)
 }
 
-describe('direcaoMaisProxima', () => {
-  it('mais para deitada fica deitada, mais para em pé fica em pé, no sentido do traço', () => {
-    expect(direcaoMaisProxima(100, 10)).toEqual({ x: 1, y: 0 })
-    expect(direcaoMaisProxima(-100, 10)).toEqual({ x: -1, y: 0 })
-    expect(direcaoMaisProxima(10, 100)).toEqual({ x: 0, y: 1 })
-    expect(direcaoMaisProxima(10, -100)).toEqual({ x: 0, y: -1 })
+describe('eixoMaisProximo', () => {
+  it('mais para deitada fica deitada, mais para em pé fica em pé', () => {
+    expect(eixoMaisProximo(100, 10)).toBe('h')
+    expect(eixoMaisProximo(-100, 10)).toBe('h')
+    expect(eixoMaisProximo(10, 100)).toBe('v')
+    expect(eixoMaisProximo(10, -100)).toBe('v')
   })
 
-  it('mais perto de 45 graus (45 exatos e 30) fica na diagonal, como o selo e o grude', () => {
-    expect(direcaoMaisProxima(10, 10)).toEqual({ x: Math.SQRT1_2, y: Math.SQRT1_2 })
-    expect(direcaoMaisProxima(-100, 58)).toEqual({ x: -Math.SQRT1_2, y: Math.SQRT1_2 })
-  })
-
-  it('só eixos (Caminho): sem diagonal, e os 45 graus exatos são empate que fica deitado', () => {
-    expect(direcaoMaisProxima(10, 10, 'soEixos')).toEqual({ x: 1, y: 0 })
-    expect(direcaoMaisProxima(-10, 10, 'soEixos')).toEqual({ x: -1, y: 0 })
+  it('45 graus exatos é empate, e o empate fica deitado', () => {
+    expect(eixoMaisProximo(10, 10)).toBe('h')
+    expect(eixoMaisProximo(-10, 10)).toBe('h')
   })
 })
 
@@ -90,10 +85,10 @@ describe('endireitarSegmento', () => {
   })
 
   it('pivô numa ponta: ela fica exatamente onde estava e o eixo dela é copiado', () => {
-    const [a, b] = endireitarSegmento({ x: 50, y: 0 }, { x: 64, y: 64 }, 'b')
+    const [a, b] = endireitarSegmento({ x: 10, y: 0 }, { x: 64, y: 64 }, 'b')
     expect(b).toEqual({ x: 64, y: 64 })
     expect(a.x).toBe(64)
-    expect(a.y).toBeCloseTo(64 - Math.hypot(14, 64), 9)
+    expect(a.y).toBeCloseTo(64 - Math.hypot(54, 64), 9)
   })
 
   it('comprimento zero volta igual, sem NaN', () => {
@@ -121,7 +116,7 @@ describe('endireitarPolilinha (Caminho)', () => {
     expect(pontos[2].y).toBeCloseTo(Math.hypot(10, 100), 9)
   })
 
-  it('no mapa, o trecho a 45 graus exatos continua deitando: o Caminho não ganhou a diagonal', () => {
+  it('no mapa, o trecho a 45 graus exatos deita: o Caminho só deita ou põe em pé', () => {
     const map = mapa({ drawings: [buildPathDrawing('c', [{ x: 0, y: 0 }, { x: 100, y: 100 }], '#8a6a45', 1, 64)] })
     expect(endireitarMudariaAlgo(map, sel(['drawing', 'c']))).toBe(true)
     const depois = endireitarNoMapa(map, sel(['drawing', 'c'])).map.drawings[0]
@@ -142,34 +137,9 @@ describe('endireitarNoMapa: Linha solta', () => {
     expect(r.alterados).toBe(1)
   })
 
-  it('45 graus exatos já é reta, como diz o selo: fica como está', () => {
-    const map = mapa({ drawings: [linha('l', 0, 0, 10, 10)] })
-    const r = endireitarNoMapa(map, sel(['drawing', 'l']))
-    expect(r.alterados).toBe(0)
-    expect(linhaDe(r.map, 'l')).toMatchObject({ x1: 0, y1: 0, x2: 10, y2: 10 })
-    expect(endireitarMudariaAlgo(map, sel(['drawing', 'l']))).toBe(false)
-  })
-
-  it('(0,0)-(100,80), mais perto de 45 graus, vai para a diagonal com o tamanho e o centro de antes', () => {
-    const l = linhaDe(endireitarNoMapa(mapa({ drawings: [linha('l', 0, 0, 100, 80)] }), sel(['drawing', 'l'])).map, 'l')
-    expect(l.x2 - l.x1).toBeCloseTo(l.y2 - l.y1, 9)
-    expect(comprimento(l)).toBeCloseTo(Math.hypot(100, 80), 9)
-    expect((l.x1 + l.x2) / 2).toBeCloseTo(50, 9)
-    expect((l.y1 + l.y2) / 2).toBeCloseTo(40, 9)
-  })
-
-  it('parede com porta a 42 graus: os três pedaços vão juntos para os 45 e continuam emendados', () => {
-    const pedacos = [parede('antes', 0, 0, 40, 36), parede('porta', 40, 36, 60, 54), parede('depois', 60, 54, 100, 90)]
-    const r = endireitarNoMapa(mapa({ walls: pedacos }), sel(['wall', 'antes']))
-    const [antes, porta, depois] = ['antes', 'porta', 'depois'].map((id) => paredeDe(r.map, id))
-    for (const pedaco of [antes, porta, depois]) {
-      expect(pedaco.x2 - pedaco.x1).toBeCloseTo(pedaco.y2 - pedaco.y1, 9)
-    }
-    expect(porta.x1).toBeCloseTo(antes.x2, 9)
-    expect(porta.y1).toBeCloseTo(antes.y2, 9)
-    expect(depois.x1).toBeCloseTo(porta.x2, 9)
-    expect(depois.y1).toBeCloseTo(porta.y2, 9)
-    expect(comprimento(porta)).toBeCloseTo(Math.hypot(20, 18), 9)
+  it('45 graus exatos fica deitada', () => {
+    const l = linhaDe(endireitarNoMapa(mapa({ drawings: [linha('l', 0, 0, 10, 10)] }), sel(['drawing', 'l'])).map, 'l')
+    expect(l.y1).toBe(l.y2)
   })
 
   it('o sentido é preservado: (100,0)-(0,8) continua indo para a esquerda', () => {
@@ -201,11 +171,11 @@ describe('endireitarNoMapa: Linha solta', () => {
 
 describe('endireitarNoMapa: Parede solta e o ponto que fica parado', () => {
   it('ponta b em (64,64) encostada na ponta de outra parede: b fica fixa e a ponta a gira', () => {
-    const antes = mapa({ walls: [parede('w', 50, 0, 64, 64), parede('vizinha', 64, 64, 200, 64)] })
+    const antes = mapa({ walls: [parede('w', 10, 0, 64, 64), parede('vizinha', 64, 64, 200, 64)] })
     const w = paredeDe(endireitarNoMapa(antes, sel(['wall', 'w'])).map, 'w')
     expect([w.x2, w.y2]).toEqual([64, 64])
     expect(w.x1).toBe(64)
-    expect(w.y1).toBeCloseTo(64 - Math.hypot(14, 64), 9)
+    expect(w.y1).toBeCloseTo(64 - Math.hypot(54, 64), 9)
   })
 
   it('ponta encostada no MEIO de outra parede (T) também conta como presa: b em (64,32) fica fixa', () => {

@@ -15,7 +15,7 @@ export function frasesDoSelo(peca: PecaDoSelo, alinhamento: Alinhamento): string
   const artigo = peca === 'parede' ? 'A parede' : 'A sala'
   if (alinhamento.estado === 'reta') return `${artigo} está reta.`
   if (alinhamento.estado === 'torta') return `${artigo} está ${rotuloDoAlinhamento(alinhamento)}: quase reta.`
-  return `${artigo} está ${rotuloDoAlinhamento(alinhamento)}: na diagonal, longe de qualquer reta.`
+  return `${artigo} está ${rotuloDoAlinhamento(alinhamento)}: nem deitada nem em pé.`
 }
 
 /**
@@ -67,9 +67,9 @@ export function SeloDeAlinhamento({ parede, sala, onEndireitar }: SeloDeAlinhame
       <span className="lb-selo-de-alinhamento__selo" data-estado={selo.alinhamento.estado} role="status" aria-live="polite" aria-label={frasesDoSelo(selo.peca, selo.alinhamento)}>
         {rotuloDoAlinhamento(selo.alinhamento)}
       </span>
-      {/* Só ao lado do "torta": o Endireitar das paredes soltas deita qualquer traço (pedido 5), e
-          oferecê-lo junto de "reta ✓" numa diagonal de 45° convidaria a estragar o que está certo.
-          No "Mais ações" ele continua como sempre. */}
+      {/* Só ao lado do "torta": o Endireitar deita ou põe em pé qualquer traço (pedido 5; só 0° e 90°
+          desde 17/11/2026), e oferecê-lo junto de "inclinada" — a diagonal de 45° inclusive —
+          convidaria a estragar uma diagonal de propósito. No "Mais ações" ele continua como sempre. */}
       {onEndireitar !== undefined && selo.alinhamento.estado === 'torta' && (
         <Botao tamanho="p" variante="latao" aria-keyshortcuts="Alt" onClick={onEndireitar}>
           Endireitar

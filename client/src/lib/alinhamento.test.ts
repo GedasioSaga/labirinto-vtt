@@ -24,11 +24,16 @@ function sala(id: string, points: RegionPoint[], room: Region['room']): Region {
 }
 
 describe('alinhamentoDoSegmento e o selo', () => {
-  it('reta em 0°, 45° e 90°; torta a poucos graus; inclinada longe de toda reta', () => {
+  it('reta só em 0° e 90°; torta a poucos graus deles; inclinada no resto', () => {
     expect(rotuloDoAlinhamento(alinhamentoDoSegmento(ORIGEM, { x: 100, y: 400 }))).toBe('reta ✓')
-    expect(segmentoReto(ORIGEM, { x: 300, y: 300 })).toBe(true)
     expect(rotuloDoAlinhamento(alinhamentoDoSegmento(ORIGEM, aoRedor(ORIGEM, 93, 300)))).toBe('torta 3°')
     expect(rotuloDoAlinhamento(alinhamentoDoSegmento(ORIGEM, aoRedor(ORIGEM, 210, 300)))).toBe('inclinada 30°')
+  })
+
+  it('a 45° exatos o selo diz "inclinada 45°" (o Endireitar a deitaria), mas o verde do grude continua aceso', () => {
+    expect(rotuloDoAlinhamento(alinhamentoDoSegmento(ORIGEM, { x: 300, y: 300 }))).toBe('inclinada 45°')
+    expect(rotuloDoAlinhamento(alinhamentoDoSegmento(ORIGEM, aoRedor(ORIGEM, 43, 300)))).toBe('inclinada 43°')
+    expect(segmentoReto(ORIGEM, { x: 300, y: 300 })).toBe(true)
   })
 
   it('abaixo de um grau o selo mostra a casa decimal, e o ruído de conta de um giro conta como reta', () => {
@@ -94,11 +99,10 @@ describe('endireitarPoligono', () => {
     ])
   })
 
-  it('quina chanfrada a 43° fica a 45°, e a sala já reta e a redonda voltam pelo mesmo array', () => {
+  it('quina chanfrada a 43° fica como está (só deita e põe em pé), e a sala já reta e a redonda voltam pelo mesmo array', () => {
     const chanfrada = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 400, y: 93 }, { x: 400, y: 300 }, { x: 0, y: 300 }]
-    const reta = endireitarPoligono(chanfrada, 0)
-    expect(alinhamentoDaSala(reta)).toEqual({ estado: 'reta' })
-    expect(reta[0]).toEqual({ x: 0, y: 0 })
+    expect(endireitarPoligono(chanfrada, 0)).toBe(chanfrada)
+    expect(alinhamentoDaSala(chanfrada)).toEqual({ estado: 'inclinada', graus: null })
 
     const jaReta = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 100 }, { x: 0, y: 100 }]
     expect(endireitarPoligono(jaReta, 64)).toBe(jaReta)
@@ -109,11 +113,13 @@ describe('endireitarPoligono', () => {
 })
 
 describe('planoDeEndireitarSala', () => {
-  it('sala retangular girada 3° volta girando −3°; a girada 30° de propósito fica', () => {
+  it('sala retangular girada 3° volta girando −3°; a girada 30° e a de 43° (perto da diagonal) ficam', () => {
     const girada = [{ x: 0, y: 0 }, { x: 200, y: 10 }, { x: 195, y: 110 }, { x: -5, y: 100 }]
     expect(planoDeEndireitarSala({ points: girada, room: { shape: 'rect', name: '', rotation: 3 } }, 64)).toEqual({ tipo: 'giro', graus: -3 })
     const inclinada = [ORIGEM, aoRedor(ORIGEM, 30, 200), aoRedor(aoRedor(ORIGEM, 30, 200), 120, 100), aoRedor(ORIGEM, 120, 100)]
     expect(planoDeEndireitarSala({ points: inclinada, room: { shape: 'rect', name: '', rotation: 30 } }, 64)).toBeNull()
+    const quaseDiagonal = [ORIGEM, aoRedor(ORIGEM, 43, 200), aoRedor(aoRedor(ORIGEM, 43, 200), 133, 100), aoRedor(ORIGEM, 133, 100)]
+    expect(planoDeEndireitarSala({ points: quaseDiagonal, room: { shape: 'rect', name: '', rotation: 43 } }, 64)).toBeNull()
   })
 
   it('polígono torto ganha os cantos novos, na mesma ordem e quantidade', () => {
@@ -124,10 +130,11 @@ describe('planoDeEndireitarSala', () => {
 })
 
 describe('paredesTortasDoPiso: o "Mostrar paredes tortas"', () => {
-  it('acha a de 3°, e deixa a reta, a de meio grau e a diagonal de 30°', () => {
+  it('acha a de 3°, e deixa a reta, a de meio grau, a diagonal de 30° e as de 43° e 45° (inclinadas, não tortas)', () => {
     const fim = aoRedor(ORIGEM, 3, 300)
     const meio = aoRedor(ORIGEM, 0.5, 300)
     const longe = aoRedor(ORIGEM, 30, 300)
+    const quaseDiagonal = aoRedor(ORIGEM, 43, 300)
     const map = {
       ...createEmptyMap('m_tortas', 'Tortas', 30, 20, 64),
       walls: [
@@ -135,6 +142,8 @@ describe('paredesTortasDoPiso: o "Mostrar paredes tortas"', () => {
         parede('reta', 0, 0, 0, 300),
         parede('meio-grau', ORIGEM.x, ORIGEM.y, meio.x, meio.y),
         parede('inclinada', ORIGEM.x, ORIGEM.y, longe.x, longe.y),
+        parede('quase-diagonal', ORIGEM.x, ORIGEM.y, quaseDiagonal.x, quaseDiagonal.y),
+        parede('diagonal', 0, 0, 300, 300),
       ],
     }
     expect(paredesTortasDoPiso(map, 0).map((w) => w.id)).toEqual(['torta'])

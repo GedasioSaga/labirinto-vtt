@@ -10,19 +10,24 @@ import { normalizeRotation, roomRotationOf, rotationDelta, snapRoomRotation } fr
  * alinhamento paras paredes que estamos precisando nunca sei quando uma parede
  * ta alinhada".
  *
- * RETA aqui é deitada, em pé ou na diagonal certinha: 0°, 45°, 90° e os
- * espelhos deles. Quatro coisas saem deste módulo, todas contas puras (sem
- * store, sem Pixi):
+ * DUAS RÉGUAS. O GRUDE (desenhar e puxar) pega deitada, em pé e a diagonal
+ * certinha: 0°, 45°, 90° e os espelhos deles — e o verde do traço puxado
+ * (`segmentoReto`) é o aviso desse grude. O SELO, o "Mostrar paredes tortas" e
+ * o Endireitar só conhecem o ÂNGULO RETO, 0° e 90°: o mestre, 17/11/2026,
+ * "Volta a só 0° e 90°". A parede a 45° exatos é "inclinada 45°", sem botão.
+ * Quatro coisas saem deste módulo, todas contas puras (sem store, sem Pixi):
  *
  *  1. GRUDA SOZINHO (`grudarPonto`, `giroComGrude`): a ponta puxada vai para a
  *     reta quando o traço está a poucos graus dela. A folga é em GRAUS, não em
  *     px: 5° é o mesmo desvio num corredor de 2 m e num muro de 40 m, e não
  *     muda com o zoom. Traço curto demais na tela não gruda: a 10 px da âncora
  *     um px de tremor da mão já vale 6°, e a ponta ficaria pulando.
- *  2. VER (`alinhamentoDoSegmento`, `rotuloDoAlinhamento`): "reta ✓",
- *     "torta 3°" ou "inclinada 30°" (diagonal de propósito, longe de toda reta).
- *  3. ACHAR (`paredesTortasDoPiso`): as paredes de 1° a 5° fora da reta.
- *  4. CONSERTAR (`planoDeEndireitarSala`, `endireitarPoligono`): a sala torta.
+ *  2. VER (`alinhamentoDoSegmento`, `rotuloDoAlinhamento`): "reta ✓" (0°/90°),
+ *     "torta 3°" (a poucos graus deles) ou "inclinada 30°" (todo o resto, a
+ *     diagonal de 45° inclusive).
+ *  3. ACHAR (`paredesTortasDoPiso`): as paredes de 1° a 5° fora de 0°/90°.
+ *  4. CONSERTAR (`planoDeEndireitarSala`, `endireitarPoligono`): a sala torta,
+ *     de volta a 0°/90°.
  *
  * QUEM MANDA NA PONTA PUXADA, do mais forte para o mais fraco (o canvas compõe
  * nesta ordem em `pixi/PixiCanvas.tsx` → `pontoComGrude`):
@@ -56,8 +61,11 @@ export const GRUDA_COMPRIMENTO_MINIMO_TELA_PX = 12
 /** "Mostrar paredes tortas" marca de 1° a 5°: abaixo de 1° é ruído de conta e de giro, acima de 5° é diagonal de propósito. */
 export const TORTA_MINIMO_GRAUS = 1
 
-/** De quantos em quantos graus mora uma reta. */
+/** De quantos em quantos graus mora uma reta do GRUDE (0°, 45°, 90°…). */
 const PASSO_DA_RETA = 45
+
+/** De quantos em quantos graus mora uma reta do SELO e do Endireitar: só o ângulo reto (0°, 90°…). */
+const PASSO_DO_ANGULO_RETO = 90
 
 /** Desvio de lado, em px de mundo, abaixo do qual o traço já é reto (a mesma folga de `lib/endireitar.ts`). */
 const FOLGA_DA_RETA_PX = 0.01
@@ -76,20 +84,27 @@ export function anguloDoSegmento(a: Ponto, b: Ponto): number {
 }
 
 interface Desvio {
-  /** A reta mais perto: múltiplo de 45 em [0, 360). */
+  /** A reta mais perto: múltiplo de `passo` em [0, 360). */
   alvo: number
-  /** Quanto o traço passa da reta, em graus com sinal, de −22,5 a 22,5. */
+  /** Quanto o traço passa da reta, em graus com sinal, de −passo/2 a passo/2. */
   graus: number
   comprimento: number
 }
 
-function desvioDaReta(a: Ponto, b: Ponto): Desvio {
+/** O desvio do traço até a reta mais perto, entre as que moram de `passo` em `passo` graus. */
+function desvioDaReta(a: Ponto, b: Ponto, passo: number): Desvio {
   const angulo = anguloDoSegmento(a, b)
-  const maisPerto = Math.round(angulo / PASSO_DA_RETA) * PASSO_DA_RETA
+  const maisPerto = Math.round(angulo / passo) * passo
   return { alvo: maisPerto % 360, graus: angulo - maisPerto, comprimento: Math.hypot(b.x - a.x, b.y - a.y) }
 }
 
-/** Reta, torta (a poucos graus da reta) ou inclinada (diagonal longe de toda reta, de propósito). */
+/** O traço já está NA reta: o desvio de lado cabe na folga de conta. Comprimento zero conta como reto. */
+function estaNaReta(desvio: Desvio): boolean {
+  if (desvio.comprimento <= COMPRIMENTO_NULO) return true
+  return desvio.comprimento * Math.sin((Math.abs(desvio.graus) * Math.PI) / 180) <= FOLGA_DA_RETA_PX
+}
+
+/** Reta (0°/90°), torta (a poucos graus deles) ou inclinada (todo o resto, a diagonal de 45° inclusive). */
 export type Alinhamento =
   | { estado: 'reta' }
   | { estado: 'torta'; graus: number }
@@ -98,19 +113,25 @@ export type Alinhamento =
 
 const RETA: Alinhamento = { estado: 'reta' }
 
-/** O alinhamento de um traço. Comprimento zero conta como reto: não há o que entortar. */
+/**
+ * O alinhamento de um traço, na régua do selo: só o ângulo reto. A 45° exatos
+ * é "inclinada 45°" — o Endireitar a deitaria, e o selo não chama de reta o que
+ * o Endireitar mudaria.
+ */
 export function alinhamentoDoSegmento(a: Ponto, b: Ponto): Alinhamento {
-  const desvio = desvioDaReta(a, b)
-  if (desvio.comprimento <= COMPRIMENTO_NULO) return RETA
+  const desvio = desvioDaReta(a, b, PASSO_DO_ANGULO_RETO)
+  if (estaNaReta(desvio)) return RETA
   const graus = Math.abs(desvio.graus)
-  if (desvio.comprimento * Math.sin((graus * Math.PI) / 180) <= FOLGA_DA_RETA_PX) return RETA
   if (graus <= GRUDA_TOLERANCIA_GRAUS) return { estado: 'torta', graus }
   return { estado: 'inclinada', graus: anguloDoSegmento(a, b) % 180 }
 }
 
-/** O traço está numa reta (0°, 45°, 90°…)? É o que pinta a parede de verde enquanto ela é puxada. */
+/**
+ * O traço está numa reta do GRUDE (0°, 45°, 90°…)? É o que pinta a parede de
+ * verde enquanto ela é puxada: o aviso de que ela grudou, a diagonal inclusive.
+ */
 export function segmentoReto(a: Ponto, b: Ponto): boolean {
-  return alinhamentoDoSegmento(a, b).estado === 'reta'
+  return estaNaReta(desvioDaReta(a, b, PASSO_DA_RETA))
 }
 
 /** "0,4" abaixo de um grau (com vírgula, como as medidas do mapa), inteiro dali para cima. */
@@ -149,7 +170,7 @@ function direcaoDaReta(alvo: number): Reta['direcao'] {
 
 /** A reta da âncora em que `ponto` grudaria, ou `null`: longe demais dela, ou traço curto demais. */
 function retaParaGrudar(ancora: Ponto, ponto: Ponto, comprimentoMinimo: number): Reta | null {
-  const desvio = desvioDaReta(ancora, ponto)
+  const desvio = desvioDaReta(ancora, ponto, PASSO_DA_RETA)
   if (desvio.comprimento < comprimentoMinimo || desvio.comprimento <= COMPRIMENTO_NULO) return null
   if (Math.abs(desvio.graus) > GRUDA_TOLERANCIA_GRAUS) return null
   return { ancora, direcao: direcaoDaReta(desvio.alvo), desvio: Math.abs(desvio.graus) }
@@ -295,13 +316,13 @@ export function alinhamentoDaSala(pontos: readonly Ponto[]): Alinhamento | null 
   return inclinada ? { estado: 'inclinada', graus: null } : RETA
 }
 
-type TipoDoLado = 'h' | 'v' | 'd' | 'livre'
+type TipoDoLado = 'h' | 'v' | 'livre'
 
+/** Deitado, em pé, ou livre: a mais de 5° do ângulo reto (a diagonal de 45° inclusive) ou curto demais. */
 function tipoDoLado(a: Ponto, b: Ponto, comprimentoMinimo: number): TipoDoLado {
-  const desvio = desvioDaReta(a, b)
+  const desvio = desvioDaReta(a, b, PASSO_DO_ANGULO_RETO)
   if (desvio.comprimento < comprimentoMinimo || Math.abs(desvio.graus) > GRUDA_TOLERANCIA_GRAUS) return 'livre'
-  const direcao = direcaoDaReta(desvio.alvo)
-  return direcao === 0 ? 'h' : direcao === 90 ? 'v' : 'd'
+  return desvio.alvo % 180 === 0 ? 'h' : 'v'
 }
 
 /** Grupos de vértices que têm de ficar com a MESMA coordenada (união de conjuntos, com compressão de caminho). */
@@ -337,18 +358,16 @@ function coordenadaDoGrupo(valores: readonly number[], grade: number): number {
 }
 
 /**
- * ENDIREITAR O POLÍGONO de uma sala: cada lado a menos de 5° da reta vira reto,
- * e os outros (diagonal de propósito, lado curto demais) ficam como estão,
- * ligando os mesmos cantos. A ordem e a quantidade de vértices não mudam, então
- * as paredes presas a cada lado acompanham (`mapFactory.updateRegionPoint`).
+ * ENDIREITAR O POLÍGONO de uma sala: cada lado a menos de 5° de deitado ou em
+ * pé vira reto, e os outros (diagonal, a de 45° inclusive, e lado curto demais)
+ * ficam como estão, ligando os mesmos cantos. A ordem e a quantidade de
+ * vértices não mudam, então as paredes presas a cada lado acompanham
+ * (`mapFactory.updateRegionPoint`).
  *
- *  - Lados DEITADOS e EM PÉ: os vértices ligados por lados deitados ficam com o
- *    mesmo y, e os ligados por lados em pé, com o mesmo x
- *    (`coordenadaDoGrupo`). Sai exato, e a sala em L torta vira um L reto.
- *  - Lados na DIAGONAL (45°): acertados depois, um a um, mexendo só nas
- *    coordenadas que ainda não foram usadas por outro lado reto — a quina
- *    chanfrada de uma sala reta. Quando não sobra coordenada livre (um losango
- *    de quatro diagonais), o lado fica como estava, e o selo continua "torta".
+ * Os vértices ligados por lados deitados ficam com o mesmo y, e os ligados por
+ * lados em pé, com o mesmo x (`coordenadaDoGrupo`). Sai exato, e a sala em L
+ * torta vira um L reto. Até 17/11/2026 a quina chanfrada perto de 45° também ia
+ * para os 45°; o mestre pediu o Endireitar só em 0° e 90°.
  *
  * Se algum lado encolheria a nada (dois cantos no mesmo ponto), desiste e
  * devolve a sala como estava. Nada a mudar devolve o MESMO array.
@@ -358,8 +377,6 @@ export function endireitarPoligono(pontos: readonly RegionPoint[], grade: number
   if (n < 3 || salaRedonda(pontos)) return pontos
   const tipos = pontos.map((p, i) => tipoDoLado(p, pontos[(i + 1) % n], comprimentoMinimo))
   const novos = pontos.map((p) => ({ x: p.x, y: p.y }))
-  const presoX = new Array<boolean>(n).fill(false)
-  const presoY = new Array<boolean>(n).fill(false)
 
   const lados = (tipo: TipoDoLado): [number, number][] => {
     const pares: [number, number][] = []
@@ -370,37 +387,11 @@ export function endireitarPoligono(pontos: readonly RegionPoint[], grade: number
   }
   for (const grupo of gruposDe(n, lados('h'))) {
     const y = coordenadaDoGrupo(grupo.map((i) => pontos[i].y), grade)
-    for (const i of grupo) {
-      novos[i].y = y
-      presoY[i] = true
-    }
+    for (const i of grupo) novos[i].y = y
   }
   for (const grupo of gruposDe(n, lados('v'))) {
     const x = coordenadaDoGrupo(grupo.map((i) => pontos[i].x), grade)
-    for (const i of grupo) {
-      novos[i].x = x
-      presoX[i] = true
-    }
-  }
-
-  for (const [a, b] of lados('d')) {
-    const dx = novos[b].x - novos[a].x
-    const dy = novos[b].y - novos[a].y
-    const sobra = Math.abs(dx) - Math.abs(dy)
-    const livres = [!presoX[a], !presoX[b], !presoY[a], !presoY[b]].filter(Boolean).length
-    if (sobra !== 0 && livres > 0) {
-      const passo = sobra / livres
-      const paraX = dx < 0 ? -passo : passo
-      const paraY = dy < 0 ? -passo : passo
-      if (!presoX[a]) novos[a].x += paraX
-      if (!presoX[b]) novos[b].x -= paraX
-      if (!presoY[a]) novos[a].y -= paraY
-      if (!presoY[b]) novos[b].y += paraY
-    }
-    if (sobra === 0 || livres > 0) {
-      presoX[a] = presoX[b] = true
-      presoY[a] = presoY[b] = true
-    }
+    for (const i of grupo) novos[i].x = x
   }
 
   const encolheu = novos.some((p, i) => {
@@ -417,10 +408,10 @@ export type PlanoDaSala = { tipo: 'giro'; graus: number } | { tipo: 'pontos'; po
 
 /**
  * O plano para endireitar uma sala, ou `null` quando não há o que fazer (já
- * reta, redonda, ou inclinada de propósito a mais de 5° de toda reta).
+ * reta, redonda, ou inclinada a mais de 5° de deitada e de em pé — a 45° inclusive).
  *
- * Sala RETANGULAR girada: gira de volta até a reta mais perto (0°, 45°, 90°…),
- * pelo mesmo caminho do campo "Rotação" (`mapFactory.rotateRegion`) — continua
+ * Sala RETANGULAR girada: gira de volta até o quarto de volta mais perto (0°,
+ * 90°, 180°, −90°), pelo mesmo caminho do campo "Rotação" (`mapFactory.rotateRegion`) — continua
  * retângulo, do mesmo tamanho, as sub-salas vão junto e a que saiu da grade
  * volta para ela. Polígono (e retângulo de arquivo antigo, torto com o ângulo
  * em zero): `endireitarPoligono`.
@@ -428,7 +419,7 @@ export type PlanoDaSala = { tipo: 'giro'; graus: number } | { tipo: 'pontos'; po
 export function planoDeEndireitarSala(regiao: Pick<Region, 'points' | 'room'>, grade: number): PlanoDaSala | null {
   if (regiao.room?.shape === 'rect' && regiao.points.length === 4) {
     const giro = roomRotationOf(regiao.room)
-    const falta = rotationDelta(giro, Math.round(giro / PASSO_DA_RETA) * PASSO_DA_RETA)
+    const falta = rotationDelta(giro, Math.round(giro / PASSO_DO_ANGULO_RETO) * PASSO_DO_ANGULO_RETO)
     if (falta !== 0 && Math.abs(falta) <= GRUDA_TOLERANCIA_GRAUS) return { tipo: 'giro', graus: falta }
     if (isAxisAlignedRect(regiao.points)) return null
   }
@@ -475,7 +466,7 @@ export function endireitarSalaMudariaAlgo(map: MapData, selection: SelectionSet)
 // Achar as tortas
 // ─────────────────────────────────────────────────────────────
 
-/** A parede está de 1° a 5° fora da reta — o que o "Mostrar paredes tortas" marca. */
+/** A parede está de 1° a 5° fora de deitada ou de em pé — o que o "Mostrar paredes tortas" marca. A de 43° não é torta: é inclinada. */
 export function paredeTorta(parede: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2'>): boolean {
   const alinhamento = alinhamentoDoSegmento({ x: parede.x1, y: parede.y1 }, { x: parede.x2, y: parede.y2 })
   return alinhamento.estado === 'torta' && alinhamento.graus >= TORTA_MINIMO_GRAUS
