@@ -1,3 +1,5 @@
+# FECHADA 18/11 ~02h20: 0.5.83 PUBLICADA (release/0.5.83 = 7905dfcb; main f8e8f007 = origin; Worker 6ec6966b, Pages 9b51797c; setup 29.616.944 B, .sig, .msi, latest.json 0.5.83; Google True/True). Nada em voo. Pendentes menores: texto da ficha emprestada no Acender; E2E-PENDENTE Categorias; conferir no app real (miniatura WebView2, janela nativa de teste, luz pela LAN).
+
 # LEVA 18/11 (autonomia: "Vou deixar na sua mão, faça até terminar", 18/11 ~01h)
 
 ## Objetivo
