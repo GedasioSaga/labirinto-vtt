@@ -3664,7 +3664,7 @@ function PlayerViewDoCanvas({
         ? null
         : { barranco: barrancoDoRecorte, piso: pisoDoRecorte(barrancoDoRecorte), grid: currentMap.grid, chao: chaoPintadoDoPiso(currentMap, pisoDoRecorte(barrancoDoRecorte)) },
     )
-    scene.abismo.atualizar(abismosDoRecorte === undefined ? null : { abismos: abismosDoRecorte, piso: abismosDoRecorte[0]?.piso ?? 0, grid: currentMap.grid })
+    scene.abismo.atualizar(abismosDoRecorte === undefined ? null : { abismos: abismosDoRecorte, piso: abismosDoRecorte[0]?.piso ?? 0, grid: currentMap.grid, paredes: currentMap.walls })
     // TEXTURAS: só os passos que o recorte trouxe; o balde enche as formas do
     // recorte. Modo leve ("Efeitos do mapa" desligado, ou o WebGL já caiu): nada.
     scene.texturas.atualizar(
