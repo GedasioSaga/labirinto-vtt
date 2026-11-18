@@ -88,6 +88,35 @@ describe('telas do item pegável', () => {
     expect(container.textContent).toContain('Ninguém encostado em você.')
   })
 
+  it('ITEM QUE ILUMINA no Comigo: "Acender"/"Apagar" só no item que ilumina da ficha dele, pela ficha dona da vaga', () => {
+    const luz = { cor: '#ffe2b0', alcanceEmCasas: 3, forca: 0.8 }
+    const onAcender = vi.fn()
+    // A vela é da ficha emprestada (fora de `acendiveis`): o host recusaria, então não há botão.
+    const desenhar = (acesa: boolean) =>
+      act(() =>
+        root.render(
+          <PlayerBackpack
+            items={[{ id: 'lampiao', nome: 'Lampião', luz, ...(acesa ? { acesa: true } : {}) }, { id: 'vela', nome: 'Vela', luz }, { id: 'chave', nome: 'Chave do Escudo' }]}
+            colleagues={[]}
+            onGive={vi.fn()}
+            acendiveis={new Map([['lampiao', 'jill']])}
+            onAcender={onAcender}
+          />,
+        ),
+      )
+    desenhar(false)
+    const nomes = [...container.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))
+    expect(nomes.filter((nome) => nome?.startsWith('Acender') === true || nome?.startsWith('Apagar') === true)).toEqual(['Acender: Lampião'])
+    act(() => botao('Acender: Lampião').click())
+    expect(onAcender).toHaveBeenLastCalledWith('jill', 'lampiao', true)
+    desenhar(true)
+    const apagar = botao('Apagar: Lampião')
+    expect(apagar.textContent).toBe('Apagar')
+    expect(apagar.getAttribute('aria-pressed')).toBe('true')
+    act(() => apagar.click())
+    expect(onAcender).toHaveBeenLastCalledWith('jill', 'lampiao', false)
+  })
+
   it('ficha do pino: "+ Adicionar ao pino" põe o "Item pegável", com nome e "Pega sem pedir"; "Tirar do pino" tira', () => {
     const onItemChange = vi.fn()
     const base: FichaDoPinoProps = {

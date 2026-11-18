@@ -628,10 +628,11 @@ interface GridProps {
   onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, at: number) => void
 }
 
-/** Rótulo da vaga para o leitor de tela: o nome e, quando conta, quantos. */
+/** Rótulo da vaga para o leitor de tela: o nome, quando conta, quantos e, aceso, que está aceso (como na mochila do mestre). */
 function slotLabel(slot: InventorySlot): string {
   if (slot.kind === 'moedas') return `Moedas: ${slot.quantidade}`
-  return slot.quantidade > 1 ? `${slot.nome}, ${slot.quantidade} unidades` : slot.nome
+  const nome = slot.quantidade > 1 ? `${slot.nome}, ${slot.quantidade} unidades` : slot.nome
+  return slot.luz?.acesa === true ? `${nome}, aceso` : nome
 }
 
 /**
@@ -667,13 +668,16 @@ function Grid({ owner, slots, index, slotRef, describedBy, onSelect, onKeyDown }
               const at = r * INVENTORY_COLUMNS + c
               if (slot === null) return <div key={`vazia-${c}`} className="pp-inv__vazia" aria-hidden="true" />
               const chosen = at === index
+              // ITEM QUE ILUMINA: a vaga acesa ganha o claro morno por dentro (`data-acesa`, como a mochila do mestre).
+              const acesa = slot.luz?.acesa === true
               return (
-                <div key={slot.key} role="gridcell" aria-selected={chosen} className="pp-inv__vaga">
+                <div key={slot.key} role="gridcell" aria-selected={chosen} className="pp-inv__vaga" data-acesa={acesa ? '' : undefined}>
                   <button
                     ref={chosen ? slotRef : undefined}
                     type="button"
                     className="pp-inv__item"
                     tabIndex={chosen ? 0 : -1}
+                    title={acesa ? `${slot.nome}, aceso` : undefined}
                     aria-label={slotLabel(slot)}
                     aria-describedby={chosen ? describedBy : undefined}
                     onClick={() => onSelect(at)}

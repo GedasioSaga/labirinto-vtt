@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { Token } from '../../types/map'
+import type { CarriedItem, Token } from '../../types/map'
 import type { TokenCarryWiring } from '../../lib/party'
 import { isEditableTarget } from '../../lib/keymap'
 import { pisoDe } from '../../lib/pisos'
@@ -150,9 +150,13 @@ function resumoDoLevarJunto(carry: FichaDoTokenProps['tokenCarry']): string {
   return 'Sozinha'
 }
 
-function resumoDasLuzes(luzes: TokenLightsControlsProps['lights']): string {
-  if (luzes.length > 1) return plural(luzes.length, 'luz', 'luzes')
-  return luzes[0]?.attached === true ? 'Presa, vai junto' : 'Solta, embaixo'
+/** As luzes da ficha e, depois, os itens que iluminam: "Presa, vai junto · 1 item aceso". */
+function resumoDasLuzes(luzes: TokenLightsControlsProps['lights'], itens: readonly CarriedItem[]): string {
+  const acesos = itens.filter((item) => item.acesa === true).length
+  const dosItens = acesos > 0 ? plural(acesos, 'item aceso', 'itens acesos') : itens.length > 0 ? plural(itens.length, 'item apagado', 'itens apagados') : null
+  if (luzes.length === 0) return dosItens ?? 'Nenhuma'
+  const dasLuzes = luzes.length > 1 ? plural(luzes.length, 'luz', 'luzes') : luzes[0]?.attached === true ? 'Presa, vai junto' : 'Solta, embaixo'
+  return dosItens === null ? dasLuzes : `${dasLuzes} · ${dosItens}`
 }
 
 /** Os cartões na ordem do protótipo; os que dependem de uma ligação do App só entram com ela. */
@@ -220,13 +224,16 @@ function cartoesDoToken(props: FichaDoTokenProps): CartaoDoToken[] {
     })
   }
   const luzes = props.tokenLights.lights
+  // ITEM QUE ILUMINA: a lanterna na mochila do NPC acende por aqui (a ficha do personagem tem o "Acender" dela).
+  const itensQueIluminam = props.tokenLights.onAcenderItem === undefined ? [] : (props.tokenLights.itensQueIluminam ?? [])
+  const semNada = luzes.length === 0 && itensQueIluminam.length === 0
   cartoes.push({
     id: 'luzes',
     rotulo: 'Luzes',
     icone: 'lampiao',
-    resumo: luzes.length === 0 ? 'Nenhuma' : resumoDasLuzes(luzes),
-    ligado: luzes.length > 0,
-    desligado: luzes.length === 0 ? 'Nenhuma luz na ficha' : undefined,
+    resumo: resumoDasLuzes(luzes, itensQueIluminam),
+    ligado: luzes.length > 0 || itensQueIluminam.some((item) => item.acesa === true),
+    desligado: semNada ? 'Nenhuma luz na ficha' : undefined,
     corpo: <TokenLightsControls {...props.tokenLights} />,
   })
   const pisos = props.pisos

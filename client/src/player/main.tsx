@@ -1415,17 +1415,25 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // MOEDAS E TROCA: a bolsa do painel é a da ficha dele que mais tem — o host
   // não junta bolsas de fichas diferentes num pagamento só. Cada colega leva a
   // bolsa que o paga de verdade: a da ficha dele ENCOSTADA no colega.
+  // ITEM QUE ILUMINA: o "Acender" do "Comigo" sabe a ficha de cada vaga que
+  // ilumina — só as da ficha DELE; a emprestada (ajudante, NPC) o host recusa.
   const backpack = useMemo(() => {
-    if (!map) return { items: [], colleagues: [], moedas: 0 }
+    if (!map) return { items: [], colleagues: [], moedas: 0, acendiveis: new Map<string, string>() }
     const own = map.tokens.filter((t) => ownTokens.includes(t.id))
     const colleagues = giveTargets(map, ownTokens, partyTokens).map((colleague) => ({
       ...colleague,
       moedas: purseToward(own, map.tokens.find((t) => t.id === colleague.tokenId), map.grid),
     }))
+    const acendiveis = new Map<string, string>()
+    for (const token of own) {
+      if (token.contrato !== undefined || token.emprestada === true) continue
+      for (const item of carriedItemsOf(token)) if (item.luz !== undefined) acendiveis.set(item.id, token.id)
+    }
     return {
       items: own.flatMap(carriedItemsOf),
       colleagues,
       moedas: own.reduce((maior, t) => Math.max(maior, moedasDe(t)), 0),
+      acendiveis,
     }
   }, [map, ownTokens, partyTokens])
 
@@ -2162,6 +2170,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             ...backpack,
             onGive: (itemId, toTokenId) => void connection.giveItem(itemId, toTokenId),
             onPay: (toTokenId, moedas) => void connection.giveCoins(toTokenId, moedas),
+            onAcender: (tokenId, itemId, acesa) => void connection.acenderItem(tokenId, itemId, acesa),
           }}
           chat={
             chatLog === undefined

@@ -6788,6 +6788,18 @@ button.pp-colecao__casa:focus-visible {
   box-shadow: inset 0 0 0 1px var(--lb-color-parchment, #eceae4);
 }
 
+/* ITEM QUE ILUMINA: a vaga acesa tem o claro morno por dentro, o mesmo da mochila do
+   mestre (InventarioDaFicha.css). Sem animação: é estado, não acontecimento. */
+.pp-inv__vaga[data-acesa] > .pp-inv__item {
+  box-shadow: inset 0 0 14px rgba(255, 214, 150, 0.55);
+}
+
+.pp-inv__vaga[data-acesa][aria-selected='true'] > .pp-inv__item {
+  box-shadow:
+    inset 0 0 0 1px var(--lb-color-parchment, #eceae4),
+    inset 0 0 14px rgba(255, 214, 150, 0.55);
+}
+
 .pp-inv :focus-visible {
   outline: 2px solid var(--lb-color-brass, #e0a44a);
   outline-offset: 2px;

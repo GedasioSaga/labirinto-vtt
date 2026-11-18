@@ -150,6 +150,18 @@ describe('PlayerInventory', () => {
     d.querySelectorAll('.pp-inv__vazia').forEach((vazia) => expect(vazia.closest('[aria-hidden="true"]')).not.toBeNull())
   })
 
+  it('ITEM QUE ILUMINA: a vaga acesa ganha o claro morno (data-acesa) e diz "aceso" no nome e no balão; a apagada, não', () => {
+    const luz = { cor: '#ffe2b0', alcanceEmCasas: 3, forca: 0.8 }
+    const comLuz = ficha('jill', 'Jill', 100, { mochila: [{ id: 'lampiao', nome: 'Lampião', luz, acesa: true }, { id: 'vela', nome: 'Vela', luz }] })
+    render(personagens([comLuz, DIEGO], ['jill']))
+    const acesa = vaga('Lampião, aceso')
+    expect(acesa.closest('[role="gridcell"]')?.hasAttribute('data-acesa')).toBe(true)
+    expect(acesa.title).toBe('Lampião, aceso')
+    const apagada = vaga('Vela')
+    expect(apagada.closest('[role="gridcell"]')?.hasAttribute('data-acesa')).toBe(false)
+    expect(apagada.hasAttribute('title')).toBe(false)
+  })
+
   it('condição conhecida: a palavra do estado e o ECG com nome acessível; nenhum número de vida na tela', () => {
     render(personagens([JILL, DIEGO], ['jill']))
     const ecg = dialogo().querySelector('.pp-inv-ecg')

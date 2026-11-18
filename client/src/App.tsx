@@ -308,6 +308,8 @@ import { EMPTY_SELECTION, selectionOfItem, selectionSingle, selectionToAreaSelec
 import { selectionSecretState } from './lib/batchSecret'
 import { isSingleGroup, NO_GROUPS } from './lib/itemGroups'
 import { lightsOnToken } from './lib/selectionHitTest'
+import { carriedItemsOf } from './lib/items'
+import { mochilaComAVagaAcesa } from './lib/luzDoItem'
 import { traceFloorPieces } from './lib/traceImage'
 import { loadImagePixels } from './lib/imagePixels'
 import { traceMapDetails } from './lib/traceDetails'
@@ -1161,6 +1163,19 @@ function App() {
     if (!applyItemsInScene(change)) return false
     notificarPontes((ponte) => ponte.notifyMapChanged())
     return true
+  }
+  /**
+   * ITEM QUE ILUMINA: "Acender"/"Apagar" um item da mochila de uma ficha do
+   * mapa aberto, pelo cartão Luzes do painel dela — o NPC sem ficha de
+   * personagem não tinha onde. Pelo caminho dos itens, como o "Acender" da
+   * ficha do personagem: fora do Ctrl+Z, e a luz chega aos jogadores na hora.
+   */
+  const acenderItemDaFicha = (tokenId: string, itemId: string, acesa: boolean) => {
+    const token = useMapStore.getState().map.tokens.find((t) => t.id === tokenId)
+    const mochila = token === undefined ? null : mochilaComAVagaAcesa(carriedItemsOf(token), itemId, acesa)
+    // Nada a gravar: a vaga saiu, já não ilumina, ou já está como pedido.
+    if (mochila === null) return
+    if (!aplicarItensDoMestre({ mochilas: [{ tokenId, mochila }] })) useToastStore.getState().push('error', `Não deu para ${acesa ? 'acender' : 'apagar'} o item.`)
   }
   // Desfazer/refazer avisa como tal: a caravana do mapa-mundi não o lê como arrasto.
   useEffect(
@@ -4302,6 +4317,8 @@ function App() {
               lights: selectedToken ? lightsOnToken(map, selectedToken.id) : [],
               onSelectLight: (lightId) => setSelection(selectionOfItem({ kind: 'light', id: lightId })),
               onDetach: (lightId) => setLightAttachment(lightId, null),
+              itensQueIluminam: selectedToken ? carriedItemsOf(selectedToken).filter((item) => item.luz !== undefined) : [],
+              onAcenderItem: (itemId, acesa) => selectedToken && acenderItemDaFicha(selectedToken.id, itemId, acesa),
             }}
             tokenCondition={{
               // Alterna sobre o estado ATUAL da ficha no store (não sobre a

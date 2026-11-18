@@ -25,6 +25,14 @@ interface PlayerBackpackProps {
   moedas?: number
   /** "Pagar a…" um colega encostado. Ausente = sem o botão. */
   onPay?: (toTokenId: string, moedas: number) => void
+  /**
+   * ITEM QUE ILUMINA: as vagas que o jogador pode acender, pela ficha dona de
+   * cada uma (vaga → ficha). Só as da ficha DELE (nunca a emprestada: o host
+   * recusaria) e só item que ilumina. Ausente ou sem a vaga = sem o botão.
+   */
+  acendiveis?: ReadonlyMap<string, string>
+  /** "Acender"/"Apagar": o mesmo `item.acender` do inventário e da ficha. */
+  onAcender?: (tokenId: string, itemId: string, acesa: boolean) => void
 }
 
 /**
@@ -32,9 +40,10 @@ interface PlayerBackpackProps {
  * (o mesmo nome no inventário e no cartão da ficha, decisão 8 do mestre),
  * que abre os colegas encostados; escolher um passa o item (o host confere
  * de novo quem está perto). Sem ninguém perto, a lista diz isso em vez de
- * abrir vazia. A bolsa aparece em cima, com "Pagar a…".
+ * abrir vazia. A bolsa aparece em cima, com "Pagar a…". O item que ilumina
+ * ganha "Acender"/"Apagar" ao lado, sem abrir nada (não depende de colega).
  */
-export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay }: PlayerBackpackProps) {
+export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay, acendiveis, onAcender }: PlayerBackpackProps) {
   const headingId = useId()
   const [givingId, setGivingId] = useState<string | null>(null)
   return (
@@ -50,45 +59,61 @@ export function PlayerBackpack({ items, colleagues, onGive, moedas = 0, onPay }:
         moedas > 0 ? null : <p className="pp-empty">Nada com você.</p>
       ) : (
         <ul className="pp-list pp-comigo">
-          {items.map((item) => (
-            <li key={item.id} className="pp-comigo__item">
-              <span className="pp-character__name">
-                {item.nome}
-                {/* ACERVO DE ITENS: a pilha vai inteira no "Dar item". */}
-                {quantidadeDe(item) > 1 ? ` ×${quantidadeDe(item)}` : ''}
-              </span>{' '}
-              <button
-                type="button"
-                className="pp-button"
-                aria-label={`Dar item: ${item.nome}`}
-                aria-expanded={givingId === item.id}
-                onClick={() => setGivingId((current) => (current === item.id ? null : item.id))}
-              >
-                Dar item
-              </button>
-              {givingId === item.id &&
-                (colleagues.length === 0 ? (
-                  <p className="pp-empty">Ninguém encostado em você.</p>
-                ) : (
-                  <ul className="pp-list" aria-label={`Dar ${item.nome} a`}>
-                    {colleagues.map((colleague) => (
-                      <li key={colleague.tokenId}>
-                        <button
-                          type="button"
-                          className="pp-button"
-                          onClick={() => {
-                            setGivingId(null)
-                            onGive(item.id, colleague.tokenId)
-                          }}
-                        >
-                          {colleague.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ))}
-            </li>
-          ))}
+          {items.map((item) => {
+            const dono = item.luz === undefined ? undefined : acendiveis?.get(item.id)
+            const acesa = item.acesa === true
+            return (
+              <li key={item.id} className="pp-comigo__item">
+                <span className="pp-character__name">
+                  {item.nome}
+                  {/* ACERVO DE ITENS: a pilha vai inteira no "Dar item". */}
+                  {quantidadeDe(item) > 1 ? ` ×${quantidadeDe(item)}` : ''}
+                </span>{' '}
+                {/* ITEM QUE ILUMINA: aceso, a luz anda com a ficha (`lib/luzDoItem.ts`). */}
+                {dono !== undefined && onAcender !== undefined && (
+                  <button
+                    type="button"
+                    className="pp-button"
+                    aria-label={`${acesa ? 'Apagar' : 'Acender'}: ${item.nome}`}
+                    aria-pressed={acesa}
+                    onClick={() => onAcender(dono, item.id, !acesa)}
+                  >
+                    {acesa ? 'Apagar' : 'Acender'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="pp-button"
+                  aria-label={`Dar item: ${item.nome}`}
+                  aria-expanded={givingId === item.id}
+                  onClick={() => setGivingId((current) => (current === item.id ? null : item.id))}
+                >
+                  Dar item
+                </button>
+                {givingId === item.id &&
+                  (colleagues.length === 0 ? (
+                    <p className="pp-empty">Ninguém encostado em você.</p>
+                  ) : (
+                    <ul className="pp-list" aria-label={`Dar ${item.nome} a`}>
+                      {colleagues.map((colleague) => (
+                        <li key={colleague.tokenId}>
+                          <button
+                            type="button"
+                            className="pp-button"
+                            onClick={() => {
+                              setGivingId(null)
+                              onGive(item.id, colleague.tokenId)
+                            }}
+                          >
+                            {colleague.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ))}
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>

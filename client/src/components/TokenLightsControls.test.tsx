@@ -71,4 +71,25 @@ describe('TokenLightsControls — a tocha presa alcançável pelo painel da fich
     act(() => botao(/^Soltar a luz 2$/)?.click())
     expect(props.onDetach).toHaveBeenCalledWith('b')
   })
+
+  it('ITEM QUE ILUMINA na mochila do NPC sem ficha: sem luz no mapa, o bloco aparece só com os itens, e "Acender"/"Apagar" troca a vaga certa', () => {
+    const luz = { cor: '#ffe2b0', alcanceEmCasas: 3, forca: 0.8 }
+    const props = montar({
+      lights: [],
+      itensQueIluminam: [
+        { id: 'lampiao', nome: 'Lampião', luz, acesa: true },
+        { id: 'vela', nome: 'Vela', luz },
+      ],
+      onAcenderItem: vi.fn(),
+    })
+    expect(document.body.textContent).toContain('Itens que iluminam')
+    expect(document.body.textContent).toContain('Lampião, aceso')
+    const apagar = botao(/^Apagar$/)
+    expect(apagar?.getAttribute('aria-label')).toBe('Apagar: Lampião')
+    expect(apagar?.getAttribute('aria-pressed')).toBe('true')
+    act(() => apagar?.click())
+    expect(props.onAcenderItem).toHaveBeenLastCalledWith('lampiao', false)
+    act(() => botao(/^Acender$/)?.click())
+    expect(props.onAcenderItem).toHaveBeenLastCalledWith('vela', true)
+  })
 })
