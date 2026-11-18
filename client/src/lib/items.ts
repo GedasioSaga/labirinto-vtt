@@ -1,6 +1,7 @@
 import type { CarriedItem, DadosDoItem, MapData, Pin, PinItem, Prop, Token } from '../types/map'
 import { tokenRadiusOf } from './doorReach'
 import { venderItem } from './loja'
+import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 import type { AlcancePeloObjeto } from './tipoDoAlcancePeloObjeto'
 
@@ -99,6 +100,9 @@ export function dadosDoItemLidos(value: Record<string, unknown>): DadosDoItem {
   // 1 é o ausente: a mochila gravada continua igual à de antes do campo.
   if (quantidade !== null && quantidade > 1) dados.quantidade = quantidade
   if (value.empilhavel === true) dados.empilhavel = true
+  // ITEM QUE ILUMINA: a luz torta sai sozinha, e o item fica (só não ilumina).
+  const luz = luzDoItemLida(value.luz)
+  if (luz !== undefined) dados.luz = luz
   return dados
 }
 
@@ -129,7 +133,11 @@ export function municoesDaVagaLidas(value: unknown): { municoes?: MunicaoDaVaga[
 function readCarriedItem(value: unknown): CarriedItem | null {
   if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || typeof value.nome !== 'string') return null
   const nome = cleanItemName(value.nome)
-  return nome === '' ? null : { id: value.id, nome, ...dadosDoItemLidos(value), ...municoesDaVagaLidas(value.municoes) }
+  if (nome === '') return null
+  const item: CarriedItem = { id: value.id, nome, ...dadosDoItemLidos(value), ...municoesDaVagaLidas(value.municoes) }
+  // ITEM QUE ILUMINA: aceso só vale no item que tem luz.
+  if (value.acesa === true && item.luz !== undefined) item.acesa = true
+  return item
 }
 
 /** Quantos a vaga tem: ausente é 1. */
@@ -255,7 +263,9 @@ export function mochilaComItemDoAcervo(mochila: readonly CarriedItem[], item: It
   if (existente !== undefined) {
     const antes = quantidadeDe(existente)
     const soma = Math.min(antes + pedida, ITEM_QUANTIDADE_MAX)
-    const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}) }
+    // A pilha acesa (as velas) continua acesa ao somar, se o item ainda ilumina.
+    const acesa = existente.acesa === true && lidos.luz !== undefined ? { acesa: true as const } : {}
+    const atualizado: CarriedItem = { id: existente.id, nome, ...lidos, ...(soma > 1 ? { quantidade: soma } : {}), ...acesa }
     return { mochila: mochila.map((carried) => (carried === existente ? atualizado : carried)), vagaId: existente.id, entraram: soma - antes }
   }
   const quantos = lidos.empilhavel === true ? pedida : 1

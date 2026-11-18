@@ -93,6 +93,7 @@ import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarDesenhoDoAbismo } from './drawAbismo'
 import { criarGestoDoAbismo } from './abismoNoEditor'
 import { abismoNoPonto, carimbosComOsAbismos } from '../lib/abismo'
+import { ehLuzDeItem, luzesDosItensLembradas } from '../lib/luzDoItem'
 import { abismosDoMapa } from '../lib/abismoPintado'
 import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
@@ -2571,9 +2572,17 @@ function PixiCanvasDoContexto({
         const single = selectionSingle(selection)
         const camadas = contextoDeCamadas(map)
         // Mesmos obstáculos da visão: a luz para onde o olho pararia.
-        const luzes = visibleLights(map.lights, map)
+        // ITEM QUE ILUMINA (`lib/luzDoItem.ts`): o item no chão e o aceso na mochila, com halo e sem marcador.
+        const dosItens = luzesDosItensLembradas(map)
+        const luzes = dosItens.length === 0 ? visibleLights(map.lights, map) : [...visibleLights(map.lights, map), ...visibleLights(dosItens, map)]
         // DESEMPENHO (F8): sem luz, nada recorta a luz; os obstáculos (contorno do chão) não são calculados ao abrir.
-        const opcoes = { selectedLightId: single?.kind === 'light' ? single.id : null, cameraScale: camera.scale, occluders: luzes.length === 0 ? SEM_OBSTACULOS_DE_LUZ : lightOccludersOf(map), semHalo: luzesSemHalo }
+        const opcoes = {
+          selectedLightId: single?.kind === 'light' ? single.id : null,
+          cameraScale: camera.scale,
+          occluders: luzes.length === 0 ? SEM_OBSTACULOS_DE_LUZ : lightOccludersOf(map),
+          semHalo: luzesSemHalo,
+          semMarcador: ehLuzDeItem,
+        }
         for (const { no, itens } of distribuir(luzes,pilha.nosDaFaixa('lightsContainer'), (l: Light) => camadas.camadaDe('luz', l))) {
           luzesPorNo.de(no).draw(no, itens, opcoes)
         }
@@ -3311,10 +3320,12 @@ function PixiCanvasDoContexto({
         const refeitosAntes = mapaDeLuz.medidas.refeitos
         mapaDeLuz.atualizar({
           tinta,
-          revisao: revisaoDoMapaDeLuz.de([doPiso.lights, doPiso.walls, chaoQueLimita(doPiso), doPiso.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
+          // ITEM QUE ILUMINA: a lista lembrada só muda quando muda o conteúdo (a ficha que leva a luz andou, o item saiu).
+          revisao: revisaoDoMapaDeLuz.de([doPiso.lights, luzesDosItensLembradas(doPiso), doPiso.walls, chaoQueLimita(doPiso), doPiso.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
             const camadas = contextoDeCamadas(doPiso)
-            const daCamada = comoJogador ? doPiso.lights.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(doPiso.lights, doPiso)
+            const todas = [...doPiso.lights, ...luzesDosItensLembradas(doPiso)]
+            const daCamada = comoJogador ? todas.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(todas, doPiso)
             // `hidden` não vai ao jogador (`fogFilter.ts`); `acesaEm` decide se acende no período (L3).
             return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, cena, sessao))
           },

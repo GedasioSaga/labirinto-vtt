@@ -192,6 +192,8 @@ export interface LuzNoMapa {
   cor: number
   forca: number
   poligono: RegionPoint[]
+  /** "Crepita como fogo" (item que ilumina, `Light.crepita`): o claro treme no passo do fogo. */
+  crepita?: boolean
 }
 
 /** Cache do raycast por luz: a mesma pose com os mesmos obstáculos não recalcula. */
@@ -214,7 +216,7 @@ export function luzesDoMapa(luzes: readonly Light[], obstaculos: Segment[], fato
     const poligono = guardado !== undefined && guardado.obstaculos === obstaculos ? guardado.poligono : computeVisibility({ x: l.x, y: l.y }, obstaculos, l.radius)
     cache?.set(chave, { obstaculos, poligono })
     if (poligono.length < 3) continue
-    saida.push({ id: l.id, x: l.x, y: l.y, raio: l.radius, cor: corDoHex(l.color), forca, poligono })
+    saida.push({ id: l.id, x: l.x, y: l.y, raio: l.radius, cor: corDoHex(l.color), forca, poligono, ...(l.crepita === true ? { crepita: true } : {}) })
   }
   return saida
 }
@@ -560,10 +562,12 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   claros.blendMode = 'add'
   // A luz de cada fogo num Graphics próprio: o tremor só troca o alpha dele, sem refazer a geometria.
   const clarosDosFogos = new Container()
+  // ITEM QUE ILUMINA: a luz que "crepita como fogo" num Graphics próprio, como a do fogo (o tremor troca só o alpha).
+  const clarosQueCrepitam = new Container()
   // Os claros juntos: no `recorte` (com a máscara do conhecido, quando há) ou,
   // com a luz macia, desenhados à parte e borrados antes de entrar nele.
   const luzes = new Container()
-  luzes.addChild(claros, clarosDosFogos)
+  luzes.addChild(claros, clarosDosFogos, clarosQueCrepitam)
   const recorte = new Container()
   recorte.addChild(luzes)
   const contextoVazio = new GraphicsContext()
@@ -574,6 +578,8 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
   let chaveDoConhecido = ''
   palco.addChild(fundo, recorte, mascaraDoConhecido)
   let luzesDosFogosNoPalco: { desenho: Graphics; fase: number; forca: number; treme: boolean; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
+  // As luzes que crepitam (refeitas com a geometria das luzes, não com a dos fogos): tremem no mesmo passo.
+  let luzesQueCrepitamNoPalco: { desenho: Graphics; fase: number; forca: number; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
   // Os fachos do farol, um Graphics por farol (as cunhas dele), redesenhado a cada passo do giro.
   let fachosNoPalco: { desenho: Graphics; luz: LuzDoFogo; facho: FachoQueGira; caixa: { minX: number; minY: number; maxX: number; maxY: number } }[] = []
   let passoDoGiro = GIRO_POR_DESENHAR
@@ -608,9 +614,22 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     const vivas = new Set(luzes.map((l) => `${l.id}|${l.x}|${l.y}|${l.raio}`))
     for (const chaveDaLuz of poligonos.keys()) if (!vivas.has(chaveDaLuz)) poligonos.delete(chaveDaLuz)
     claros.clear()
+    for (const crepitante of luzesQueCrepitamNoPalco) crepitante.desenho.destroy()
+    luzesQueCrepitamNoPalco = []
     for (const luz of luzes) {
-      claros.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: luz.forca })
+      if (luz.crepita !== true) {
+        claros.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: luz.forca })
+        continue
+      }
+      const desenho = new Graphics()
+      desenho.blendMode = 'add'
+      desenho.poly(luz.poligono, true).fill({ texture: queda, matrix: matrizDaLuz(luz), textureSpace: 'global', color: luz.cor, alpha: 1 })
+      desenho.alpha = luz.forca
+      clarosQueCrepitam.addChild(desenho)
+      luzesQueCrepitamNoPalco.push({ desenho, fase: faseDoId(luz.id), forca: luz.forca, caixa: { minX: luz.x - luz.raio, minY: luz.y - luz.raio, maxX: luz.x + luz.raio, maxY: luz.y + luz.raio } })
     }
+    // O tremor reescreve o alpha das novas no próximo passo.
+    if (luzesQueCrepitamNoPalco.length > 0) passoDoTremor = -1
   }
 
   /**
@@ -712,16 +731,18 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
    * cogumelos) não segura o passo nem é reescrita.
    */
   function tremer(quadro: QuadroDoMapaDeLuz): void {
-    if (!luzesDosFogosNoPalco.some((luz) => luz.treme)) return
+    const crepitam = luzesQueCrepitamNoPalco.length > 0
+    if (!crepitam && !luzesDosFogosNoPalco.some((luz) => luz.treme)) return
     const agora = performance.now()
     conferirMovimento(agora)
-    const naVista = algumaNaVista(quadro, luzesDosFogosNoPalco.filter((luz) => luz.treme).map((luz) => luz.caixa))
+    const naVista = algumaNaVista(quadro, [...luzesDosFogosNoPalco.filter((luz) => luz.treme).map((luz) => luz.caixa), ...luzesQueCrepitamNoPalco.map((luz) => luz.caixa)])
     const passo = reduzido || !naVista ? -1 : Math.floor(agora / QUADRO_DO_TREMOR_MS)
     if (passo === passoDoTremor) return
     passoDoTremor = passo
     for (const luz of luzesDosFogosNoPalco) {
       if (luz.treme) luz.desenho.alpha = passo < 0 ? luz.forca : luz.forca * tremorDoFogo(passo * QUADRO_DO_TREMOR_MS, luz.fase)
     }
+    for (const luz of luzesQueCrepitamNoPalco) luz.desenho.alpha = passo < 0 ? luz.forca : luz.forca * tremorDoFogo(passo * QUADRO_DO_TREMOR_MS, luz.fase)
   }
 
   function refazerFundo(quadro: QuadroDoMapaDeLuz, tinta: Tinta): void {
@@ -872,6 +893,7 @@ export function criarMapaDeLuz(renderizador: RenderizadorDoMapaDeLuz, opcoes: { 
     poligonos.clear()
     poligonosDosFogos.clear()
     luzesDosFogosNoPalco = []
+    luzesQueCrepitamNoPalco = []
     fachosNoPalco = []
     obstaculosGuardados = null
   }

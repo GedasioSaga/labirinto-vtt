@@ -80,6 +80,17 @@
   box-shadow: inset 0 0 0 1px var(--lb-color-brass);
 }
 
+/* ITEM QUE ILUMINA: a vaga acesa tem um claro morno por dentro. Sem animação: é estado, não acontecimento. */
+.lb-inv__vaga[data-acesa] {
+  box-shadow: inset 0 0 14px rgba(255, 214, 150, 0.55);
+}
+
+.lb-inv__vaga[data-acesa][aria-pressed='true'] {
+  box-shadow:
+    inset 0 0 0 1px var(--lb-color-brass),
+    inset 0 0 14px rgba(255, 214, 150, 0.55);
+}
+
 .lb-inv__imagem,
 .lb-inv__grande {
   display: block;

@@ -667,6 +667,24 @@ export interface TokenAuraMessage {
 }
 
 /**
+ * ITEM QUE ILUMINA (18/11/2026): o jogador acende (`acesa: true`) ou apaga o
+ * item `itemId` (a vaga) da mochila da PRÓPRIA ficha `tokenId`. Só o
+ * interruptor: a luz (cor, alcance, força) é do item, que o mestre fez. O
+ * host recusa ficha de outro, emprestada, NPC, vaga que não está lá e item
+ * que não ilumina (como o `token.aura`). Sem resposta: a mochila volta no
+ * recorte seguinte, e a luz junto.
+ *
+ * Aditiva pelo mesmo critério de `token.aura`: mestre antigo responde `error
+ * invalid_message` (o jogador só não acende nada) e jogador antigo nunca a envia.
+ */
+export interface ItemAcenderMessage {
+  type: 'item.acender'
+  tokenId: string
+  itemId: string
+  acesa: boolean
+}
+
+/**
  * Jogador pede ao mestre para passar pelo pino de viagem `pinId` da cena em que
  * está. Só o id do pino: o destino o jogador nem conhece (`lib/fogFilter.ts`).
  * O host valida e, se valer, pergunta ao mestre.
@@ -1395,6 +1413,7 @@ export type PlayerMessage =
   | PinBarMessage
   | TokenEditMessage
   | TokenAuraMessage
+  | ItemAcenderMessage
   | PinTravelRequestMessage
   | PinTakeMessage
   | PinBuyMessage
@@ -3903,6 +3922,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
     case 'pin.buy':
       return isBoundedString(value.pinId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH)
         ? { type: 'pin.buy', pinId: value.pinId, itemId: value.itemId }
+        : null
+    case 'item.acender':
+      return isBoundedString(value.tokenId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && typeof value.acesa === 'boolean'
+        ? { type: 'item.acender', tokenId: value.tokenId, itemId: value.itemId, acesa: value.acesa }
         : null
     case 'item.give':
       return isBoundedString(value.itemId, 1, REQ_ID_MAX_LENGTH) && isBoundedString(value.toTokenId, 1, REQ_ID_MAX_LENGTH)

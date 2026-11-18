@@ -1,7 +1,9 @@
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { cleanItemName, ITEM_CATEGORIA_MAX, ITEM_DESCRICAO_MAX, ITEM_PRECO_MAX, MUNICOES_POR_ARMA_MAX, type ItemParaDar, type MunicaoDaVaga } from './items'
+import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
+import type { LuzDoItem } from '../types/map'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
 
 /**
@@ -76,6 +78,12 @@ export interface ItemDoCatalogo {
    * não declara munição.
    */
   municoes?: string[]
+  /**
+   * ITEM QUE ILUMINA (pedido de 18/11/2026): a cor, o alcance em casas, a
+   * força e se crepita como fogo. Vai com a cópia dada (`itemParaDar`): no
+   * chão clareia, na mochila só aceso. Ausente = não ilumina.
+   */
+  luz?: LuzDoItem
 }
 
 export interface AcervoDeItens {
@@ -138,7 +146,14 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     preco: typeof preco === 'number' && Number.isSafeInteger(preco) && preco >= 0 && preco <= ITEM_PRECO_MAX ? preco : null,
     empilhavel: value.empilhavel === true,
     ...municoesLidas(value.municoes, value.id),
+    ...luzLida(value.luz),
   }
+}
+
+/** A luz do item: torta sai (o item só não ilumina). */
+function luzLida(value: unknown): { luz?: LuzDoItem } {
+  const luz = luzDoItemLida(value)
+  return luz === undefined ? {} : { luz }
 }
 
 /** As munições da arma: ids com a forma dos do Acervo, sem repetir, sem a própria arma, no teto. Vazia = sem o campo. */
@@ -209,6 +224,7 @@ export function itemParaDar(item: ItemDoCatalogo, acervo: readonly Pick<ItemDoCa
     ...(item.preco !== null ? { preco: item.preco } : {}),
     ...(item.empilhavel ? { empilhavel: true as const } : {}),
     ...municoesParaDar(item, acervo),
+    ...(item.luz !== undefined ? { luz: { ...item.luz } } : {}),
   }
 }
 

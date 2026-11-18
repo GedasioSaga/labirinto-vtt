@@ -77,6 +77,11 @@ export interface InventorySlot {
   imagem?: string
   /** ACERVO DE ITENS: o texto do item, que viaja com ele na mochila (o pego de pino não tem). */
   descricao?: string
+  /**
+   * ITEM QUE ILUMINA: a vaga que o "Acender/Apagar" troca — a acesa, se há
+   * uma entre as juntas, senão a primeira que ilumina. Ausente = não ilumina.
+   */
+  luz?: { vagaId: string; acesa: boolean }
 }
 
 /** A bolsa primeiro (como o dinheiro no topo da mochila), depois os itens na ordem em que foram pegos. */
@@ -92,14 +97,18 @@ export function inventorySlots(token: Pick<Token, 'mochila' | 'moedas'>): Invent
     const chave = item.itemId !== undefined ? `acervo:${item.itemId}` : `item:${item.nome}`
     const quantos = quantidadeDe(item)
     const existente = porChave.get(chave)
+    // ITEM QUE ILUMINA: entre as vagas juntas, o interruptor fica com a acesa (o "Apagar" apaga a que está acesa).
+    const luz = item.luz === undefined ? undefined : { vagaId: item.id, acesa: item.acesa === true }
     if (existente !== undefined) {
       existente.quantidade += quantos
       existente.itemIds.push(item.id)
+      if (luz !== undefined && (existente.luz === undefined || (luz.acesa && !existente.luz.acesa))) existente.luz = luz
       continue
     }
     const slot: InventorySlot = { key: chave, kind: 'item', nome: item.nome, quantidade: quantos, itemIds: [item.id], glyph: itemGlyph(item.nome) }
     if (item.imagem !== undefined) slot.imagem = item.imagem
     if (item.descricao !== undefined) slot.descricao = item.descricao
+    if (luz !== undefined) slot.luz = luz
     porChave.set(chave, slot)
     slots.push(slot)
   }

@@ -4,6 +4,8 @@ import { categoriaLimpa, ehCategoriaDeMunicao, ITEM_SEM_NOME, MUNICOES_POR_ARMA_
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { cleanItemName, ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_PRECO_MAX, ITEM_QUANTIDADE_MAX } from '../lib/items'
 import type { AlvoDoAcervo } from '../lib/party'
+import { ALCANCE_DA_LUZ_DO_ITEM_MAX, ALCANCE_DA_LUZ_DO_ITEM_MIN, CORES_SUGERIDAS_DA_LUZ_DO_ITEM, FORCA_DA_LUZ_DO_ITEM_MAX, FORCA_DA_LUZ_DO_ITEM_MIN, LUZ_DO_ITEM_PADRAO } from '../lib/luzDoItem'
+import type { LuzDoItem } from '../types/map'
 import { ImagemOuIniciais } from './FichaPecas'
 import { CloseIcon } from './icons'
 import { PinImageDrop } from './PinImageDrop'
@@ -81,6 +83,105 @@ function MunicoesDaArma({ armaId, escolhidas, onMudar }: { armaId: string; escol
             <span>{municao.nome}</span>
           </label>
         ))
+      )}
+    </fieldset>
+  )
+}
+
+/** O item com a luz; `undefined` tira o campo (ausente = não ilumina). */
+function comLuz(item: ItemDoCatalogo, luz: LuzDoItem | undefined): ItemDoCatalogo {
+  const { luz: _antes, ...semLuz } = item
+  return luz === undefined ? semLuz : { ...semLuz, luz }
+}
+
+/** Força em porcentagem inteira, para o controle e para ler ("80%"). */
+function porcento(forca: number): number {
+  return Math.round(forca * 100)
+}
+
+/** "2,5 casas", "1 casa". */
+function textoDoAlcance(casas: number): string {
+  return `${String(casas).replace('.', ',')} ${casas === 1 ? 'casa' : 'casas'}`
+}
+
+/**
+ * ITEM QUE ILUMINA (pedido de 18/11/2026): liga a luz do item e escolhe o
+ * tom, o alcance, a força e o "crepita como fogo". Desligar e ligar de novo
+ * volta com a luz de antes (a da janela aberta), não com a padrão.
+ */
+function LuzDoItemCampos({ idBase, luz, onMudar }: { idBase: string; luz: LuzDoItem | undefined; onMudar: (luz: LuzDoItem | undefined) => void }) {
+  const ultima = useRef<LuzDoItem>(luz ?? LUZ_DO_ITEM_PADRAO)
+  if (luz !== undefined) ultima.current = luz
+  const mudar = (parte: Partial<LuzDoItem>) => {
+    if (luz === undefined) return
+    // `crepita` só existe ligado: desmarcar tira o campo.
+    const crepita = 'crepita' in parte ? parte.crepita === true : luz.crepita === true
+    const { crepita: _crepita, ...base } = { ...luz, ...parte }
+    onMudar(crepita ? { ...base, crepita: true } : base)
+  }
+  return (
+    <fieldset className="lb-item-janela__luz">
+      <legend className="lb-label">Luz</legend>
+      <label className="lb-item-janela__marca">
+        <input type="checkbox" checked={luz !== undefined} onChange={(event) => onMudar(event.target.checked ? ultima.current : undefined)} />
+        <span>Ilumina — no chão clareia em volta; na mochila, quando estiver aceso</span>
+      </label>
+      {luz !== undefined && (
+        <>
+          {/* Botões que ficam apertados (não `radio`): o Tab passa por cada tom, sem o teclado de setas que o radio promete. */}
+          <div className="lb-item-janela__cores" role="group" aria-label="Cor da luz">
+            {CORES_SUGERIDAS_DA_LUZ_DO_ITEM.map((sugerida) => (
+              <button
+                key={sugerida.cor}
+                type="button"
+                aria-pressed={luz.cor === sugerida.cor}
+                className="lb-item-janela__cor"
+                title={sugerida.nome}
+                aria-label={sugerida.nome}
+                style={{ background: sugerida.cor }}
+                onClick={() => mudar({ cor: sugerida.cor })}
+              />
+            ))}
+            <label className="lb-item-janela__cor-livre" title="Outra cor">
+              <input type="color" aria-label="Outra cor da luz" value={luz.cor} onChange={(event) => mudar({ cor: event.target.value.toLowerCase() })} />
+            </label>
+          </div>
+          <div className="lb-item-janela__linha">
+            <label className="lb-field" htmlFor={`${idBase}-alcance`}>
+              <span className="lb-label">
+                Alcance <output htmlFor={`${idBase}-alcance`}>{textoDoAlcance(luz.alcanceEmCasas)}</output>
+              </span>
+              <input
+                id={`${idBase}-alcance`}
+                type="range"
+                min={ALCANCE_DA_LUZ_DO_ITEM_MIN}
+                max={ALCANCE_DA_LUZ_DO_ITEM_MAX}
+                step={0.5}
+                value={luz.alcanceEmCasas}
+                onChange={(event) => mudar({ alcanceEmCasas: Number(event.target.value) })}
+              />
+            </label>
+            <label className="lb-field" htmlFor={`${idBase}-forca`}>
+              <span className="lb-label">
+                Força <output htmlFor={`${idBase}-forca`}>{porcento(luz.forca)}%</output>
+              </span>
+              <input
+                id={`${idBase}-forca`}
+                type="range"
+                min={porcento(FORCA_DA_LUZ_DO_ITEM_MIN)}
+                max={porcento(FORCA_DA_LUZ_DO_ITEM_MAX)}
+                step={5}
+                value={porcento(luz.forca)}
+                onChange={(event) => mudar({ forca: Number(event.target.value) / 100 })}
+              />
+            </label>
+          </div>
+          <label className="lb-item-janela__marca">
+            <input type="checkbox" checked={luz.crepita === true} onChange={(event) => mudar({ crepita: event.target.checked ? true : undefined })} />
+            <span>Crepita como fogo — o claro treme</span>
+          </label>
+          <p className="lb-field__hint">Tons claros iluminam melhor: cor forte escurece o chão em volta.</p>
+        </>
       )}
     </fieldset>
   )
@@ -279,6 +380,7 @@ export function ItemDoCatalogoDialog({ item, novo, categorias, alvos, onSalvar, 
             <input type="checkbox" checked={rascunho.empilhavel} onChange={(event) => setRascunho({ ...rascunho, empilhavel: event.target.checked })} />
             <span>Empilhável — dar de novo a quem já tem soma na quantidade</span>
           </label>
+          <LuzDoItemCampos idBase={idBase} luz={rascunho.luz} onMudar={(luz) => setRascunho(comLuz(rascunho, luz))} />
           {(ehCategoriaDeArma(rascunho.categoria) || (rascunho.municoes?.length ?? 0) > 0) && (
             <MunicoesDaArma armaId={rascunho.id} escolhidas={rascunho.municoes ?? []} onMudar={(municoes) => setRascunho(comMunicoes(rascunho, municoes))} />
           )}

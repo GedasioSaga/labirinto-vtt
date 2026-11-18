@@ -208,6 +208,7 @@ import {
   type TokenActionRequestMessage,
   type TokenEditMessage,
   type TokenAuraMessage,
+  type ItemAcenderMessage,
   type TokenHideRejection,
   type TokenHideRequestMessage,
   type VehicleBoardMessage,
@@ -254,6 +255,7 @@ import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
 import { formasVisiveisDoMapa, mesmasFormasVisiveis, type FormasVisiveis } from '../lib/mudarFicha'
 import { lerAura } from '../lib/auras'
+import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
 import { resumoDoLivro, sistemaSemLivro } from '../lib/livroDeRegras'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
@@ -8253,6 +8255,35 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
 
   /**
+   * ITEM QUE ILUMINA: o jogador acende ou apaga um item da mochila da PRÓPRIA
+   * ficha. Mesma autoridade do `token.aura` (só o dono; nunca a emprestada nem
+   * o NPC do "Atribuir"); a vaga tem de estar na mochila do mapa do mestre e o
+   * item, iluminar (`mochilaComAVagaAcesa`). Grava pelo caminho dos itens (o
+   * do "Dar a…"), que leva à ficha e espelha nas outras cenas. Recusa em
+   * silêncio, com o recorte dele saindo de novo (a tela já trocou, otimista).
+   */
+  function handleItemAcender(clientId: string, msg: ItemAcenderMessage, world: HostWorld): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
+    if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    const refuse = (): HostResult => {
+      lastViews.delete(playerId)
+      return { outbound: [] }
+    }
+    if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
+    if (helperLoans.has(msg.tokenId) || loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
+    const scene = allScenes(world).find((s) => s.map.tokens.some((t) => t.id === msg.tokenId))
+    const token = scene?.map.tokens.find((t) => t.id === msg.tokenId)
+    if (scene === undefined || token === undefined || token.npc === true) return refuse()
+    const vaga = carriedItemsOf(token).find((item) => item.id === msg.itemId)
+    if (vaga === undefined || vaga.luz === undefined) return refuse()
+    const mochila = mochilaComAVagaAcesa(carriedItemsOf(token), msg.itemId, msg.acesa)
+    // Já está como ele pediu: nada a gravar, nada a mandar.
+    if (mochila === null) return { outbound: [] }
+    return { outbound: [], applyItems: { ...backgroundSceneId(scene, world), mochilas: [{ tokenId: token.id, mochila }], ...autoriaDosItens(playerId) } }
+  }
+
+  /**
    * FICHA DE PERSONAGEM — as fichas (tokens) do jogador que podem ter a ficha
    * de personagem DELE: as que ele tem de verdade, em qualquer cena. Ficam de
    * fora as mesmas que o `token.edit` recusa: a emprestada (ajudante
@@ -10675,6 +10706,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return handleTokenEdit(clientId, msg, world)
       case 'token.aura':
         return handleTokenAura(clientId, msg, world)
+      case 'item.acender':
+        return handleItemAcender(clientId, msg, world)
       case 'personagem.criar':
         return handlePersonagemCriar(clientId, msg, world)
       case 'personagem.editar':

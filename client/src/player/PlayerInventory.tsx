@@ -49,6 +49,8 @@ interface PlayerInventoryProps {
   onGive: (itemId: string, toTokenId: string) => boolean
   /** "Pagar a…": o mesmo `coins.give` do "Comigo". */
   onPay: (toTokenId: string, moedas: number) => boolean
+  /** ITEM QUE ILUMINA: "Acender"/"Apagar" o item da ficha `tokenId` (`item.acender`). Ausente = sem o botão. */
+  onAcender?: (tokenId: string, itemId: string, acesa: boolean) => boolean
   /** O último aviso de item da conexão: a recusa do host aparece aqui dentro — o aviso de baixo fica atrás do véu. */
   notice?: ItemNotice
   onClose: () => void
@@ -166,7 +168,7 @@ const IDLE: Step = { kind: 'idle' }
  * Enter leva às ações, Esc volta um passo (ou fecha), o Tab não sai, e fechar
  * devolve o foco a quem abriu.
  */
-export function PlayerInventory({ characters, onGive, onPay, notice, onClose, instant = false, itemTexts = NO_TEXTS }: PlayerInventoryProps) {
+export function PlayerInventory({ characters, onGive, onPay, onAcender, notice, onClose, instant = false, itemTexts = NO_TEXTS }: PlayerInventoryProps) {
   const titleId = useId()
   const textId = useId()
   const veilRef = useRef<HTMLDivElement | null>(null)
@@ -520,6 +522,13 @@ export function PlayerInventory({ characters, onGive, onPay, notice, onClose, in
                         onChooseGive={giveTo}
                         onChoosePay={payTo}
                         onBack={back}
+                        onAcender={
+                          onAcender === undefined || selected.luz === undefined
+                            ? undefined
+                            : (luz) => {
+                                if (!onAcender(character.tokenId, luz.vagaId, !luz.acesa)) setOutcome({ tone: 'erro', text: 'Sem conexão com a mesa agora.' })
+                              }
+                        }
                       />
                       <StepMold colleagues={character.colleagues} moedas={character.moedas} />
                     </div>
@@ -706,6 +715,8 @@ interface ActionsProps {
   onChooseGive: (colleague: InventoryColleague) => void
   onChoosePay: (colleague: InventoryColleague, quanto: number) => void
   onBack: () => void
+  /** ITEM QUE ILUMINA: troca o aceso da vaga do item; ausente = o item não ilumina (ou a tela não acende). */
+  onAcender?: (luz: NonNullable<InventorySlot['luz']>) => void
 }
 
 /**
@@ -730,7 +741,7 @@ interface ActionsProps {
  * de dedo ou de Enter — não pergunta nem paga: devolve o foco ao campo, que
  * é onde está o conserto.
  */
-function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onBack }: ActionsProps) {
+function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, onChooseGive, onChoosePay, onBack, onAcender }: ActionsProps) {
   const reasonId = useId()
   const questionId = useId()
   const fieldId = useId()
@@ -842,6 +853,12 @@ function Actions({ slot, character, step, valor, busy, refs, onValor, onStart, o
         >
           {pagar ? 'Pagar a…' : 'Dar item'}
         </button>
+        {/* ITEM QUE ILUMINA: aceso, a luz anda com a ficha. Não depende de colega encostado. */}
+        {!pagar && slot.luz !== undefined && onAcender !== undefined && (
+          <button type="button" className="pp-button pp-inv__acao" aria-pressed={slot.luz.acesa} onClick={() => slot.luz !== undefined && onAcender(slot.luz)}>
+            {slot.luz.acesa ? 'Apagar' : 'Acender'}
+          </button>
+        )}
       </div>
       {semColega && (
         <p id={reasonId} className="pp-inv__motivo">

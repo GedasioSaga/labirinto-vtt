@@ -33,7 +33,8 @@ export function precoEmBerries(preco: number): string {
 /** O nome que o leitor de tela ouve na vaga: "Poção, 3". */
 function rotuloDaVaga(item: CarriedItem): string {
   const quantidade = quantidadeDe(item)
-  return quantidade > 1 ? `${item.nome}, ${quantidade}` : item.nome
+  const nome = quantidade > 1 ? `${item.nome}, ${quantidade}` : item.nome
+  return item.acesa === true ? `${nome}, aceso` : nome
 }
 
 export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: InventarioDaFichaProps) {
@@ -72,6 +73,7 @@ export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: Invent
                   className="lb-inv__vaga"
                   aria-label={rotuloDaVaga(item)}
                   aria-pressed={item.id === abertoId}
+                  data-acesa={item.acesa === true ? '' : undefined}
                   title={item.nome}
                   onClick={() => setAbertoId((atual) => (atual === item.id ? null : item.id))}
                 >
@@ -99,9 +101,10 @@ export function InventarioDaFicha({ itens, acoes, vazio = VAZIO_PADRAO }: Invent
               {aberto.nome}
               {quantidadeDe(aberto) > 1 && <span className="lb-inv__nome-qtd"> ×{quantidadeDe(aberto)}</span>}
             </p>
-            {(aberto.categoria !== undefined || aberto.preco !== undefined) && (
+            {(aberto.categoria !== undefined || aberto.preco !== undefined || aberto.acesa === true) && (
               <p className="lb-inv__meta">
                 {aberto.categoria !== undefined && <span className="lb-ficha__chip">{aberto.categoria}</span>}
+                {aberto.acesa === true && <span className="lb-ficha__chip">Aceso</span>}
                 {aberto.preco !== undefined && <span className="lb-inv__preco">{precoEmBerries(aberto.preco)}</span>}
               </p>
             )}

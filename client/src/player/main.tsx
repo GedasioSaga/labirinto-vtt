@@ -1438,7 +1438,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     const ligado = ligacoesDaFicha?.find((token) => token.personagemId === personagemId)
     const token = ligado === undefined ? undefined : map?.tokens.find((candidato) => candidato.id === ligado.tokenId)
     if (token === undefined || !map) return undefined
-    return { itens: carriedItemsOf(token), colegas: giveTargets(map, [token.id], partyTokens) }
+    return { itens: carriedItemsOf(token), colegas: giveTargets(map, [token.id], partyTokens), tokenId: token.id }
   }
 
   // MOEDAS E TROCA: a contraproposta sai da ficha da OFERTA — o host não junta
@@ -2458,6 +2458,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onClose={closeInventory}
             onGive={(itemId, toTokenId) => connection.giveItem(itemId, toTokenId)}
             onPay={(toTokenId, moedas) => connection.giveCoins(toTokenId, moedas)}
+            onAcender={(tokenId, itemId, acesa) => connection.acenderItem(tokenId, itemId, acesa)}
             itemTexts={itemTexts}
           />
         )}
@@ -2484,6 +2485,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             // A sala LAN não manda a mochila da ficha (`paraOFio`): a do jogador é a do boneco.
             mochilaNoBoneco
             onDarItem={(itemId, toTokenId) => void connection.giveItem(itemId, toTokenId)}
+            onAcenderItem={(tokenId, itemId, acesa) => void connection.acenderItem(tokenId, itemId, acesa)}
           />
         )}
         {/* MINHAS PISTAS: a pista reaberta do Caderno, com "Mostrar para…".

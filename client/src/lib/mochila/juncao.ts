@@ -1,5 +1,6 @@
 import type { CarriedItem, Token } from '../../types/map'
 import { quantidadeDe } from '../items'
+import { luzesDoItemIguais } from '../luzDoItem'
 import type { Personagem } from '../personagem'
 import { moedasDe } from '../troca'
 
@@ -155,7 +156,10 @@ export function itensIguais(a: CarriedItem, b: CarriedItem): boolean {
     a.categoria === b.categoria &&
     a.preco === b.preco &&
     a.empilhavel === b.empilhavel &&
-    quantidadeDe(a) === quantidadeDe(b)
+    quantidadeDe(a) === quantidadeDe(b) &&
+    // ITEM QUE ILUMINA: acender a vaga é mudança (o espelho leva à ficha e às outras cenas).
+    a.acesa === b.acesa &&
+    luzesDoItemIguais(a.luz, b.luz)
   )
 }
 

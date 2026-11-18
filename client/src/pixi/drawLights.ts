@@ -66,6 +66,8 @@ export interface LightsDrawOptions {
    * por cima somaria um segundo claro laranja; some, e o marcador fica.
    */
   semHalo?: boolean
+  /** A luz que não é do mapa (a do item que ilumina, `lib/luzDoItem.ts`): halo sem marcador — não se seleciona. */
+  semMarcador?: (light: Light) => boolean
 }
 
 export interface LightsRenderer {
@@ -189,7 +191,7 @@ export function createLightsRenderer(): LightsRenderer {
   }
 
   function draw(container: Container, lights: Light[], options: LightsDrawOptions = {}): void {
-    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true, semHalo = false } = options
+    const { selectedLightId = null, cameraScale = 1, occluders = [], showMarkers = true, semHalo = false, semMarcador } = options
     const scale = Number.isFinite(cameraScale) && cameraScale > 0 ? cameraScale : 1
     const markersGraphics = ensureHalos(container, lights.length)
     if (semHalo) {
@@ -208,6 +210,7 @@ export function createLightsRenderer(): LightsRenderer {
     markersGraphics.visible = showMarkers
     if (showMarkers) {
       for (const light of lights) {
+        if (semMarcador?.(light) === true) continue
         const color = new Color(light.color).toNumber()
         const marker = markersGraphics.circle(light.x, light.y, LIGHT_MARKER_SCREEN_RADIUS / scale)
         // Apagada: o marcador fica vazado, na cor da luz — o mestre acha e sabe que está desligada.

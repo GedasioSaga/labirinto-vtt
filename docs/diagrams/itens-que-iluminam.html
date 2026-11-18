@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Itens que iluminam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+    }
+    svg { width: 100%; min-width: 900px; display: block; }
+    .nota { margin-top: 1rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-muted); line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Fluxo de dados · 18/11/2026</p>
+    <h1>Itens que iluminam</h1>
+
+    <svg viewBox="0 0 1160 576" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="itens-que-iluminam-title itens-que-iluminam-desc">
+      <title id="itens-que-iluminam-title">Itens que iluminam</title>
+      <desc id="itens-que-iluminam-desc">A luz do item (cor, alcance, força, crepita) sai da janela do item, passa pelo Acervo até o chão e a mochila; o Acender do mestre ou do jogador marca a vaga; a luz nasce na leitura e entra no editor e no recorte do jogador, que a desenham no mapa de luz.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Setas primeiro -->
+      <line x1="140" y1="104" x2="140" y2="156" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="148" y="124" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="168" y="133" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SALVA</text>
+
+      <line x1="140" y1="224" x2="140" y2="276" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="148" y="244" width="76" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="186" y="253" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DAR · SOLTAR</text>
+
+      <line x1="140" y1="400" x2="140" y2="348" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="148" y="364" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="168" y="373" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ACESA</text>
+
+      <line x1="240" y1="312" x2="340" y2="312" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <rect x="260" y="292" width="60" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="290" y="301" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LEITURA</text>
+
+      <path d="M584 296 H608 Q616 296 616 288 V200 Q616 192 624 192 H660" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M584 328 H624 Q632 328 632 336 V424 Q632 432 640 432 H660" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M864 192 H876 Q884 192 884 200 V288 Q884 296 892 296 H916" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M864 432 H892 Q900 432 900 424 V336 Q900 328 908 328 H916" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- Janela do item (entrada) -->
+      <rect x="40" y="40" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="40" width="200" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="140" y="64" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Janela do item</text>
+      <text x="140" y="80" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">Ilumina: cor, alcance, força, crepita</text>
+      <text x="140" y="94" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ItemDoCatalogoDialog.tsx</text>
+
+      <!-- Acervo (dado) -->
+      <rect x="40" y="160" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="160" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="140" y="184" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Acervo de itens</text>
+      <text x="140" y="200" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ItemDoCatalogo.luz</text>
+      <text x="140" y="214" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lib/acervoDeItens.ts</text>
+
+      <!-- Chão e mochila (dado) -->
+      <rect x="40" y="280" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="280" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="140" y="304" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Chão e mochila</text>
+      <text x="140" y="320" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">item.luz no chão · vaga.acesa na mão</text>
+      <text x="140" y="334" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">types/map.ts</text>
+
+      <!-- Acender / Apagar (entrada) -->
+      <rect x="40" y="400" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="40" y="400" width="200" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="140" y="424" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Acender / Apagar</text>
+      <text x="140" y="440" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">mestre na ficha · jogador no inventário</text>
+      <text x="140" y="454" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">item.acender → hostSession</text>
+
+      <!-- Foco: a luz nasce na leitura -->
+      <rect x="344" y="276" width="240" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="344" y="276" width="240" height="72" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1.2"/>
+      <text x="464" y="300" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">A luz nasce na leitura</text>
+      <text x="464" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">luzesDosItens(map) · lib/luzDoItem.ts</text>
+      <text x="464" y="332" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">nunca gravada; baú fechado não ilumina</text>
+
+      <!-- Editor do mestre -->
+      <rect x="664" y="160" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="664" y="160" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="764" y="184" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Editor do mestre</text>
+      <text x="764" y="200" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">halo sem marcador + mapa de luz</text>
+      <text x="764" y="214" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pixi/PixiCanvas.tsx</text>
+
+      <!-- Recorte do jogador -->
+      <rect x="664" y="400" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="664" y="400" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="764" y="424" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Recorte do jogador</text>
+      <text x="764" y="440" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">soLuzesAcesas: a Cena escura conta</text>
+      <text x="764" y="454" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">lib/fogFilter.ts</text>
+
+      <!-- Mapa de luz -->
+      <rect x="920" y="280" width="200" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="920" y="280" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="1020" y="304" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mapa de luz</text>
+      <text x="1020" y="320" fill="#4f5d75" font-size="8" font-family="'Geist', sans-serif" text-anchor="middle">crepita; menos movimento = parado</text>
+      <text x="1020" y="334" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pixi/mapaDeLuz.ts</text>
+
+      <!-- Legenda -->
+      <line x1="40" y1="508" x2="1120" y2="508" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="532" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGENDA</text>
+      <rect x="120" y="524" width="16" height="12" rx="2" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="144" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">FOCO</text>
+      <rect x="280" y="524" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="304" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">GESTO DO MESTRE OU DO JOGADOR</text>
+      <rect x="520" y="524" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="544" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">DADO</text>
+      <rect x="680" y="524" width="16" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="704" y="533" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">TELA</text>
+    </svg>
+    <p class="nota">A luz do item aceso anda com a ficha (attachedTokenId) e some do recorte com ela; a estrela que ilumina brilha e clareia; o jogador só acende o item da própria ficha (o host confere dono, empréstimo, NPC e se a vaga ilumina).</p>
+  </div>
+</body>
+</html>

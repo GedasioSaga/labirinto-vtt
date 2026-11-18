@@ -10,6 +10,7 @@ import { SISTEMA_FIXO_NO_LOBBY, usePastaPublicada } from './nuvem/usePastaPublic
 import { carriedItemsOf, quantidadeDe } from '../lib/items'
 import { tirarDaMochilaDaFicha } from '../lib/mochila/darNaFicha'
 import { fichaComMochila } from '../lib/mochila/juncao'
+import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import { moedasDe } from '../lib/troca'
 import { MochilaDoMestre } from './MochilaDoMestre'
 import { partyItemChange, tokenDoPersonagem } from '../lib/party'
@@ -339,6 +340,20 @@ function inventarioDoMestre(world: HostWorld, personagem: Personagem, aplicarIte
       vazio={`Nada com ${dono}. Dê um item pelo acervo de itens.`}
       acoes={(item, fechar) => (
         <>
+          {/* ITEM QUE ILUMINA: aceso, a luz anda com a ficha (`lib/luzDoItem.ts`); pelo caminho dos itens, como o "Usar". */}
+          {item.luz !== undefined && (
+            <button
+              type="button"
+              className="lb-btn lb-btn--compact"
+              aria-pressed={item.acesa === true}
+              onClick={() => {
+                const mochila = mochilaComAVagaAcesa(mochilaDeAgora(), item.id, item.acesa !== true)
+                if (mochila !== null) gravar(mochila)
+              }}
+            >
+              {item.acesa === true ? 'Apagar' : 'Acender'}
+            </button>
+          )}
           {itemQueSeUsa(item) && (
             <button type="button" className="lb-btn lb-btn--primary lb-btn--compact" onClick={() => usar(item, fechar)}>
               Usar

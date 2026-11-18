@@ -70,6 +70,7 @@ import { canPay, isCoinAmount, ownTradeToken, purseToward, TRADE_ITEMS_MAX } fro
 import { lojaParaJogador } from '../lib/loja'
 import { fitsTokenPhotoSend } from '../lib/tokenPhoto'
 import { lerAura } from '../lib/auras'
+import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import { previaDoPassoEmBatalha } from '../lib/batalha/previaDoPasso'
 import { textoBlocos, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
 import { lerCaminhosDaBatalha, type CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
@@ -1486,6 +1487,12 @@ export interface PlayerConnection {
    * `setOwnTokenName`, mais a ficha sem aura: o jogador não cria uma.
    */
   setOwnTokenAura(tokenId: string, ligada: boolean): boolean
+  /**
+   * ITEM QUE ILUMINA: acende ou apaga o item `itemId` da mochila do PRÓPRIO
+   * token. Troca o interruptor na hora (a luz chega no recorte seguinte) e
+   * envia. Mesmas recusas da aura, mais a vaga que não está lá ou não ilumina.
+   */
+  acenderItem(tokenId: string, itemId: string, acesa: boolean): boolean
   /**
    * FICHA DE PERSONAGEM — "Criar minha ficha" para a ficha (token) `tokenId`.
    * O host cria pelo sistema da aventura e responde em `envioDePersonagem`
@@ -6984,6 +6991,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       const aura = lerAura(state.map?.tokens.find((t) => t.id === tokenId)?.aura)
       if (aura === null) return false
       return editOwnToken(tokenId, { type: 'token.aura', tokenId, ligada }, { aura: { tipo: aura.tipo, ligada } })
+    },
+
+    acenderItem(tokenId, itemId, acesa) {
+      const token = state.map?.tokens.find((t) => t.id === tokenId)
+      const mochila = token === undefined ? null : mochilaComAVagaAcesa(carriedItemsOf(token), itemId, acesa)
+      if (mochila === null) return false
+      return editOwnToken(tokenId, { type: 'item.acender', tokenId, itemId, acesa }, { mochila })
     },
 
     criarPersonagem(tokenId) {

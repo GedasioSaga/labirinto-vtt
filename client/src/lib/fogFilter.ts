@@ -1,6 +1,7 @@
 import type { Agua, CamadaId, Carimbo, ConcealZone, DoorState, Drawing, FloorPiece, HazardKind, LayerId, Light, MapData, MapLine, MapMarker, Periodo, Pin, PinCard, PinExitLabel, Region, RegionPoint, Stair, Token, TokenAboard, TokenCompanion, TokenContract, TokenHealth, Wall, WatchAlert } from '../types/map'
 import { PERIODO_PADRAO, lerPeriodo, luzAcesaNoPeriodo, visaoCheiaDoDia } from './periodo'
 import { TETO_DA_LUZ_EM_VISOES_DO_DIA, luzDoCarimbo, luzDoObjeto, luzesDosCarimbos, raioDaLuzDoObjeto, raioDaLuzDosCarimbos } from './luzDoFogo'
+import { luzesDosItens } from './luzDoItem'
 import { cenaTemFogo, temParticulas } from './particulasDaCena'
 import { cellCenter, cellKeyAt, cellRunRects, concealedPieces, unveiledCellsOf } from './concealBrush'
 import { penhascosParaJogador } from './penhasco'
@@ -169,9 +170,24 @@ function periodoDoRaio(raio: VisionRadius): Periodo | undefined {
  */
 function soLuzesAcesas(map: MapData, viewers: readonly GroupViewer[]): MapData {
   const periodo = viewers.map((viewer) => periodoDoRaio(viewer.visionRadius)).find((p) => p !== undefined)
+  const lembrado = comLuzesDosItens.get(map)
+  if (lembrado !== undefined && lembrado.periodo === periodo) return lembrado.mapa
   const acesas = map.lights.filter((l) => luzAcesaNoPeriodo(l, map, periodo))
-  return acesas.length === map.lights.length ? map : { ...map, lights: acesas }
+  // ITEM QUE ILUMINA (`lib/luzDoItem.ts`): a luz do item no chão e da vaga acesa entra aqui, antes do
+  // piso e de toda regra de baixo — a "Cena escura", o teto, a zona e a ficha que leva valem para ela.
+  const dosItens = luzesDosItens(map, { doJogador: true })
+  if (dosItens.length === 0) return acesas.length === map.lights.length ? map : { ...map, lights: acesas }
+  const mapa = { ...map, lights: [...acesas, ...dosItens] }
+  comLuzesDosItens.set(map, { periodo, mapa })
+  return mapa
 }
+
+/**
+ * ITEM QUE ILUMINA: o mapa com as luzes dos itens, lembrado pelo mapa do mestre
+ * (e o período). Sem isto cada recorte seria um mapa novo, e as caches que vêm
+ * depois pela identidade do mapa (`mapaDoPiso`) refariam tudo a cada jogador.
+ */
+const comLuzesDosItens = new WeakMap<MapData, { periodo: Periodo | undefined; mapa: MapData }>()
 
 export interface PlayerMapView {
   map: MapData
@@ -5495,6 +5511,8 @@ function lightForPlayer(light: Light): Light {
   if (light.attachedTokenId !== undefined) forPlayer.attachedTokenId = light.attachedTokenId
   // CAMADA: só o id, como na ficha (`tokenForPlayer`).
   if (light.camada !== undefined) forPlayer.camada = light.camada
+  // ITEM QUE ILUMINA: o "crepita como fogo" treme também na tela dele.
+  if (light.crepita === true) forPlayer.crepita = true
   return forPlayer
 }
 

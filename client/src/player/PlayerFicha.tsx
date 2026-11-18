@@ -57,6 +57,8 @@ export interface PlayerFichaProps {
   mochilaNoBoneco?: boolean
   /** "Dar a…" um colega encostado: o mesmo pedido do "Comigo" (`item.give`). */
   onDarItem?: (itemId: string, toTokenId: string) => void
+  /** ITEM QUE ILUMINA: "Acender"/"Apagar" o item da ficha `tokenId` (`item.acender`). */
+  onAcenderItem?: (tokenId: string, itemId: string, acesa: boolean) => void
   /**
    * SÓ LER (o site do Lobby, na ficha de um colega): sem "Editar", sem o ajuste
    * rápido (−/+), sem "Criar" e sem "Dar a…". Ausente = como sempre (edita).
@@ -80,6 +82,8 @@ export interface PlayerFichaProps {
 export interface InventarioDoJogador {
   itens: CarriedItem[]
   colegas: BackpackColleague[]
+  /** ITEM QUE ILUMINA: a ficha (token) dona da mochila, que o "Acender" pede ao host. Ausente = sem o botão. */
+  tokenId?: string
 }
 
 /** Sistema só com catálogos: a mesma lista vazia a cada render, para o índice da busca não refazer à toa. */
@@ -145,6 +149,7 @@ export function PlayerFicha({
   inventarioDe,
   mochilaNoBoneco = false,
   onDarItem,
+  onAcenderItem,
   somenteLeitura = false,
   aoAbrirEdicao,
   quemEditaAMecanica = 'ninguem',
@@ -480,7 +485,19 @@ export function PlayerFicha({
                   inventario === undefined ? undefined : (
                     <InventarioDaFicha
                       itens={inventario.itens}
-                      acoes={onDarItem === undefined || somenteLeitura ? undefined : (item) => <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />}
+                      acoes={
+                        onDarItem === undefined || somenteLeitura
+                          ? undefined
+                          : (item) => (
+                              <>
+                                {/* ITEM QUE ILUMINA: o dono acende o item; a luz anda com a ficha. */}
+                                {item.luz !== undefined && onAcenderItem !== undefined && inventario.tokenId !== undefined && (
+                                  <AcenderItem item={item} tokenId={inventario.tokenId} onAcender={onAcenderItem} />
+                                )}
+                                <DarAColega item={item} colegas={inventario.colegas} onDar={onDarItem} />
+                              </>
+                            )
+                      }
                     />
                   )
                 }
@@ -527,6 +544,16 @@ function SemFicha({ tituloId, sistema, semPersonagem, criando, onCriar }: SemFic
         ))}
       </div>
     </div>
+  )
+}
+
+/** ITEM QUE ILUMINA: "Acender"/"Apagar" no detalhe do item; o host confere que a ficha e a vaga são dele. */
+function AcenderItem({ item, tokenId, onAcender }: { item: CarriedItem; tokenId: string; onAcender: (tokenId: string, itemId: string, acesa: boolean) => void }) {
+  const acesa = item.acesa === true
+  return (
+    <button type="button" className="lb-btn lb-btn--compact" aria-pressed={acesa} onClick={() => onAcender(tokenId, item.id, !acesa)}>
+      {acesa ? 'Apagar' : 'Acender'}
+    </button>
   )
 }
 

@@ -428,6 +428,13 @@ export interface Light extends NoPiso, NaCamada {
    * dele (`lib/fogFilter.ts`). Valor torto do arquivo sai (`lerAcesaEm`).
    */
   acesaEm?: Periodo[]
+  /**
+   * "Crepita como fogo" (item que ilumina, 18/11/2026): o claro desta luz
+   * treme como o do fogo no mapa de luz (`pixi/mapaDeLuz.ts`), parado com
+   * "menos movimento". Hoje só a luz que nasce do item (`lib/luzDoItem.ts`)
+   * o tem; vai ao jogador (`lightForPlayer`). Ausente = luz parada, sem migração.
+   */
+  crepita?: true
 }
 
 export interface RegionPoint {
@@ -790,6 +797,30 @@ export interface DadosDoItem {
   quantidade?: number
   /** O item empilha: o mesmo `itemId` dado de novo soma em `quantidade` em vez de abrir outra vaga. */
   empilhavel?: true
+  /**
+   * ITEM QUE ILUMINA (pedido de 18/11/2026: "na criação do item dê para
+   * colocar se o item ilumina ou não, qual cor e quanto"): no chão ele clareia
+   * em volta; na mochila, só aceso (`CarriedItem.acesa`), e a luz anda com a
+   * ficha. A luz não é gravada no mapa: nasce na leitura (`lib/luzDoItem.ts`).
+   * Ausente = não ilumina, sem migração.
+   */
+  luz?: LuzDoItem
+}
+
+/**
+ * A luz que o item dá: o tom, o alcance em casas da grade, a força (0 a 1) e
+ * se treme como fogo. `type` (não `interface`): a mochila viaja como JSON da
+ * nuvem (`lib/nuvem/json.ts`), e só o alias aceita a assinatura de índice.
+ */
+export type LuzDoItem = {
+  /** `#rrggbb`. A luz entra multiplicando o mapa: tom forte escurece o chão (`lib/luzDoFogo.ts`). */
+  cor: string
+  /** Do meio do item (ou da ficha que o leva) até onde a luz chega, em casas. */
+  alcanceEmCasas: number
+  /** Quanto do claro entra no centro, de 0,1 a 1. */
+  forca: number
+  /** "Crepita como fogo": o claro treme. Ausente = parado. */
+  crepita?: true
 }
 
 /**
@@ -809,6 +840,12 @@ export interface CarriedItem extends DadosDoItem {
    * batalha cai no Acervo de agora, `lib/batalha/municoesDoAcervo.ts`).
    */
   municoes?: { itemId: string; nome: string }[]
+  /**
+   * ITEM QUE ILUMINA: a vaga está acesa (o "Acender" da mochila, do mestre ou
+   * do dono). Só vale com `luz`; a luz anda com a ficha. Largar no chão, dar ou
+   * trocar o item não leva o aceso. Ausente = apagada, sem migração.
+   */
+  acesa?: true
 }
 
 /**

@@ -8,6 +8,7 @@ import { hazardsOf } from '../lib/hazards'
 import { conveyorsOf } from '../lib/conveyors'
 import { tokenWatchOf } from '../lib/npcWatch'
 import { chaoQueLimita } from '../lib/offFloor'
+import { luzesDosItensLembradas } from '../lib/luzDoItem'
 import { tokenPatrolOf } from '../lib/npcPatrol'
 import type { PontoDaRotaAberto } from './drawNpcPatrol'
 import { relevoLigado } from '../lib/relevo'
@@ -252,7 +253,8 @@ export function shapesLayerDeps(layer: ShapesLayer, snapshot: ShapesSnapshot): r
     case 'lights':
       // Paredes e chão barram a luz (`visionSegments`): mudou um deles, o recorte muda.
       // O chão que LIMITA (`chaoQueLimita`): trocar o "Fora do Chão" da cena também refaz.
-      return [map.lights, hidden, selectedId('light'), cameraScale, map.walls, chaoQueLimita(map), nos('lightsContainer')]
+      // ITEM QUE ILUMINA: a lista lembrada (`luzesDosItensLembradas`) muda só quando o claro de um item muda.
+      return [map.lights, luzesDosItensLembradas(map), hidden, selectedId('light'), cameraScale, map.walls, chaoQueLimita(map), nos('lightsContainer')]
     case 'watchCones':
       // OLHOS DO GUARDA: o cone segue o guarda (fichas) e é cortado por paredes e chão.
       return map.tokens.some((t) => tokenWatchOf(t) !== null) ? [map.tokens, map.walls, chaoQueLimita(map), hidden, map.grid] : ['sem guarda']
