@@ -23,7 +23,7 @@
 </head>
 <body>
 <main>
-  <p class="eyebrow">Labirinto VTT · cutscene em vídeo · 14/11/2026</p>
+  <p class="eyebrow">Labirinto VTT · cutscene em vídeo · 14/11/2026 · miniatura e Assistir 18/11/2026</p>
   <h1>Cutscene em vídeo</h1>
   <p>O mestre escolhe um vídeo (mp4 ou webm, até 500 MB) na página Cutscenes do livro da mesa. A ponte da sala manda cada tela baixar o vídeo inteiro e só larga quando todas avisam que terminaram, sem prazo; o mestre vê o % de cada uma e pode tocar já ou parar para todos. Depois da primeira exibição, o vídeo com "Na Galeria" sobe para o DO da campanha e fica na aba Galeria do site dos jogadores.</p>
 
@@ -163,16 +163,72 @@
     <text x="648" y="545" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">mensagem da sala</text>
   </svg>
 
+  <h2>Miniatura e Assistir, sem sala (18/11/2026)</h2>
+  <p>Nada aqui passa pela sala nem pela nuvem: a página lê o vídeo do disco deste computador pela ponte de arquivos do Tauri (<code>asset.localhost</code>, em pedaços com Range e 206), com ou sem internet.</p>
+  <svg viewBox="0 0 808 208" role="img" aria-labelledby="cutscene-local-title cutscene-local-desc">
+    <title id="cutscene-local-title">Miniatura e Assistir sem sala</title>
+    <desc id="cutscene-local-desc">A página Cutscenes pede a miniatura que falta ao miniaturaDoVideo, que lê o vídeo da mídia da mesa em pedaços e grava o quadro de 1 segundo como webp na mesma pasta; o Assistir toca o vídeo direto do disco, sem sala.</desc>
+    <defs>
+      <marker id="cl-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="cl-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto-start-reverse">
+        <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+      </marker>
+    </defs>
+    <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+    <!-- Conectores (antes das caixas) -->
+    <line x1="168" y1="96" x2="330" y2="96" stroke="#4f5d75" stroke-width="1" marker-end="url(#cl-arrow)"/>
+    <rect x="200" y="76" width="96" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="248" y="85" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">A QUE FALTA</text>
+
+    <line x1="478" y1="96" x2="638" y2="96" stroke="#2e5aa8" stroke-width="1" marker-start="url(#cl-arrow-link)" marker-end="url(#cl-arrow-link)"/>
+    <rect x="504" y="76" width="108" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="558" y="85" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RANGE · GRAVA WEBP</text>
+
+    <path d="M96 128 V168 Q96 176 104 176 H704 Q712 176 712 168 V132" fill="none" stroke="#2e5aa8" stroke-width="1" marker-end="url(#cl-arrow-link)"/>
+    <rect x="344" y="170" width="120" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="404" y="179" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ASSISTIR · RANGE</text>
+
+    <!-- Caixas -->
+    <g>
+      <rect x="24" y="64" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="24" y="64" width="144" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <rect x="32" y="70" width="32" height="12" rx="2" fill="transparent" stroke="rgba(122,131,153,0.40)" stroke-width="0.8"/>
+      <text x="48" y="79" fill="#7a8399" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+      <text x="96" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Página Cutscenes</text>
+      <text x="96" y="116" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">à vista: pede</text>
+    </g>
+    <g>
+      <rect x="332" y="64" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="332" y="64" width="144" height="64" rx="6" fill="rgba(235,108,54,0.10)" stroke="#eb6c36" stroke-width="1.2"/>
+      <rect x="340" y="70" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="356" y="79" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TS</text>
+      <text x="404" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">miniaturaDoVideo</text>
+      <text x="404" y="116" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">1 por vez, ocioso</text>
+    </g>
+    <g>
+      <rect x="640" y="64" width="144" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="640" y="64" width="144" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="648" y="70" width="32" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,0.40)" stroke-width="0.8"/>
+      <text x="664" y="79" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISCO</text>
+      <text x="712" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Mídia da mesa</text>
+      <text x="712" y="116" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">.webm · quadro .webp</text>
+    </g>
+  </svg>
+
   <h2>O que cada peça faz</h2>
   <ul>
     <li><strong>Página Cutscenes</strong> (<code>client/src/components/livro/PaginaCutscenes.tsx</code>): importa o vídeo pelo comando <code>midia_importar_video</code> (o Rust copia e confere o hash sem passar pela webview), guarda a lista em <code>&lt;appData&gt;/cutscenes.json</code> e mostra o % de cada tela, "Tocar agora" e "Parar para todos". Ao abrir e depois de subir ou tirar, relê a lista da Galeria (<code>GET /api/c/:id/galeria</code> pelo <code>nuvem_pedir</code>): o vídeo que o mestre tirou pelo site sai de "Na Galeria".</li>
+    <li><strong>Miniatura e Assistir</strong> (<code>client/src/lib/miniaturaDoVideo.ts</code>, <code>urlDoVideoNoMestre</code> em <code>client/src/lib/midiaNoDisco.ts</code>): com a página à vista, cada vídeo sem miniatura (o que entrou, ou os de antes de 18/11) tira o quadro de ~1 s num <code>&lt;video&gt;</code> fora da página, um por vez e quando a webview está ociosa; o quadro vira <code>midia:&lt;sha&gt;.webp</code> 320x180 e o campo <code>miniatura</code> do <code>cutscenes.json</code>. "Assistir" (ou o clique na miniatura) abre o vídeo do disco numa janela só do mestre, com "Usar este quadro como miniatura"; não marca "já tocou" nem sobe para a Galeria. Vídeo que não abre, não decodifica ou não deixa ler o quadro fica com o ícone do filme.</li>
     <li><strong>Ponte da sala</strong> (<code>client/src/net/hostBridge.ts</code>, <code>combinarLargadaSemPrazo</code> em <code>transicoes/largada.ts</code>): manda <code>cutscene.video.preparar</code>, recebe <code>progresso</code>, <code>pronta</code> e <code>fim</code>, e larga com <code>cutscene.video.tocar</code> quando todas as telas estão prontas. Quem entra depois recebe o preparar com <code>jaLargou</code> e assiste do início.</li>
     <li><strong>Servidor da sala</strong> (<code>desktop/src-tauri/src/net/server.rs</code>, <code>media.rs</code>): serve o vídeo em fluxo, com Range (200, 206, 416), conferindo o hash uma vez por sala.</li>
     <li><strong>Jogador e TV</strong> (<code>client/src/player/baixarVideoDaCutscene.ts</code>, <code>transicoes/CutsceneDeVideoOverlay.tsx</code>): baixa o arquivo inteiro em blobs de 16 MiB, retoma do byte onde caiu e toca em tela cheia, sem pular.</li>
     <li><strong>DO Campanha</strong> (<code>lobby/nuvem/src/galeria.ts</code>): recebe os pedaços de 4 MiB, guarda em linhas de 512 KiB, confere o sha256 no fechar e serve com Range de até 4 MiB. Tirar da Galeria (só o mestre) apaga os bytes e deixa lápide.</li>
   </ul>
 
-  <footer>fontes: client/src/components/livro/PaginaCutscenes.tsx, client/src/net/hostBridge.ts, client/src/transicoes/largada.ts, client/src/player/, desktop/src-tauri/src/net/, desktop/src-tauri/src/nuvem.rs, lobby/nuvem/src/galeria.ts, client/src/lobby-site/telas/galeria/</footer>
+  <footer>fontes: client/src/components/livro/PaginaCutscenes.tsx, client/src/stores/cutscenesStore.ts, client/src/lib/miniaturaDoVideo.ts, client/src/lib/midiaNoDisco.ts, client/src/net/hostBridge.ts, client/src/transicoes/largada.ts, client/src/player/, desktop/src-tauri/src/net/, desktop/src-tauri/src/nuvem.rs, lobby/nuvem/src/galeria.ts, client/src/lobby-site/telas/galeria/</footer>
 </main>
 </body>
 </html>

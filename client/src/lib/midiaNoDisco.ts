@@ -1,6 +1,7 @@
 import { exists, readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { ehIdDeVideo } from '../net/protocol'
 import { ensureDir } from './mapFileIO'
 import { bytesDaDataUrl, idDaRef, idDaRefDeAudio, idDoAudio, idDosBytes, MIDIA_AUDIO_MAX_BYTES, MIDIA_MAX_BYTES, refDoId } from './midia'
 
@@ -111,6 +112,19 @@ let baseConhecida: string | null = null
 export async function urlDaMidiaNoMestre(ref: unknown): Promise<string | null> {
   const id = idDaRef(ref)
   if (id === null) return null
+  const base = baseConhecida ?? (await baseDaMidiaNoMestre())
+  return `${base}${id}`
+}
+
+/**
+ * A URL do VÍDEO de uma cutscene (`<sha256>.<mp4|webm>`, sem o `midia:`) NESTE
+ * computador, para o "Assistir" e a miniatura da página Cutscenes, sem sala.
+ * Vai só para o `src` de um `<video>`: o elemento pede o arquivo em pedaços
+ * (Range, que a ponte de arquivos responde com 206); um pedido sem Range faria
+ * o Rust ler o arquivo inteiro, de até 500 MB. `null` = não é id de vídeo.
+ */
+export async function urlDoVideoNoMestre(id: unknown): Promise<string | null> {
+  if (!ehIdDeVideo(id)) return null
   const base = baseConhecida ?? (await baseDaMidiaNoMestre())
   return `${base}${id}`
 }

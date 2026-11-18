@@ -28,7 +28,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 const { writeFile } = await import('@tauri-apps/plugin-fs')
-const { baseDaMidiaConhecida, baseDaMidiaNoMestre, guardarDataUrl, guardarMidia, MIDIA_GRANDE_DEMAIS, MIDIA_NAO_E_IMAGEM } = await import('./midiaNoDisco')
+const { baseDaMidiaConhecida, baseDaMidiaNoMestre, guardarDataUrl, guardarMidia, MIDIA_GRANDE_DEMAIS, MIDIA_NAO_E_IMAGEM, urlDoVideoNoMestre } = await import('./midiaNoDisco')
 const { MIDIA_MAX_BYTES, resolverComBase } = await import('./midia')
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52])
@@ -76,5 +76,16 @@ describe('base da mídia no mestre', () => {
     const id = ref.slice('midia:'.length)
     expect(resolverComBase(base)(ref)).toBe(`http://asset.localhost/${encodeURIComponent(`${APPDATA}/midia/${id}`)}`)
     expect(baseDaMidiaConhecida()).toBe(base)
+  })
+
+  it('o vídeo da cutscene: só o id de vídeo vira URL da ponte de arquivos; imagem, referência, caminho e URL de fora não', async () => {
+    const base = await baseDaMidiaNoMestre()
+    const mp4 = `${'a'.repeat(64)}.mp4`
+    const webm = `${'b'.repeat(64)}.webm`
+    expect(await urlDoVideoNoMestre(mp4)).toBe(`${base}${mp4}`)
+    expect(await urlDoVideoNoMestre(webm)).toBe(`${base}${webm}`)
+    for (const torto of [`${'a'.repeat(64)}.png`, `midia:${mp4}`, `../${mp4}`, `${'A'.repeat(64)}.mp4`, 'https://exemplo.com/v.mp4', 'C:/videos/cena.mp4', '', null, 42]) {
+      expect(await urlDoVideoNoMestre(torto)).toBeNull()
+    }
   })
 })

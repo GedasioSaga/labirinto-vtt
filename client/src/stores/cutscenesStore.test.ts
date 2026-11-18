@@ -118,4 +118,28 @@ describe('cutscenesStore', () => {
     await vi.waitFor(() => expect(daLista('grande')?.galeria).toEqual({ estado: 'grande' }))
     expect(falsos.subidas).toEqual([`camp_1/${video('a')}`])
   })
+
+  it('a miniatura vai e volta do disco; o arquivo de antes (sem ela) carrega igual, e a miniatura torta fica de fora', async () => {
+    const miniatura = `midia:${'f'.repeat(64)}.webp`
+    useCutscenesStore.setState({ carregada: true })
+    useCutscenesStore.getState().adicionar(cutscene('com', 'a', { miniatura }))
+    useCutscenesStore.getState().adicionar(cutscene('sem', 'b'))
+    await vi.waitFor(() => expect(falsos.disco.get('C:/appdata/cutscenes.json') ?? '').toContain(miniatura))
+    const recarregar = async () => {
+      useCutscenesStore.setState({ lista: [], carregada: false })
+      await useCutscenesStore.getState().carregar()
+      return useCutscenesStore.getState().lista.map((c) => [c.id, c.miniatura])
+    }
+    expect(await recarregar()).toEqual([
+      ['com', miniatura],
+      ['sem', undefined],
+    ])
+
+    // O arquivo de antes de 18/11 não tem o campo; um caminho de disco no lugar da miniatura não vira `src`.
+    falsos.disco.set('C:/appdata/cutscenes.json', JSON.stringify({ versao: 1, cutscenes: [cutscene('antiga', 'c'), { ...cutscene('torta', 'd'), miniatura: 'C:/Users/mestre/quadro.webp' }] }))
+    expect(await recarregar()).toEqual([
+      ['antiga', undefined],
+      ['torta', undefined],
+    ])
+  })
 })

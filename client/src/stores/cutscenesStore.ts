@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { CUTSCENE_TITULO_MAX, ehIdDeVideo } from '../net/protocol'
+import { ehRefDeMidia } from '../lib/midia'
 import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES, lerGaleria, mensagemDaFalha } from '../net/nuvem/galeriaNaNuvem'
 
 /**
@@ -34,6 +35,13 @@ export interface Cutscene {
   /** Já chegou ao fim numa tela da mesa ao menos uma vez. */
   exibida: boolean
   galeria?: EstadoNaGaleria
+  /**
+   * A imagem da linha (`midia:<sha256>.webp`, 320x180, na mídia da mesa): o
+   * quadro de ~1 s tirado sozinho, ou o que o mestre escolheu no "Assistir".
+   * Só do mestre: não vai para a mesa nem para a Galeria. Sem ela (arquivo de
+   * antes de 18/11, ou o vídeo que não deu quadro), a linha mostra o ícone.
+   */
+  miniatura?: string
 }
 
 export interface TelaDaExibicao {
@@ -61,6 +69,8 @@ interface CutscenesState {
   adicionar: (cutscene: Cutscene) => void
   mudar: (id: string, mudanca: Partial<Omit<Cutscene, 'id' | 'video' | 'tamanho'>>) => void
   remover: (id: string) => void
+  /** A miniatura tirada sozinha: vale para toda linha deste vídeo que ainda não tem uma (a escolhida no "Assistir" fica). */
+  darMiniaturaAoVideo: (video: string, miniatura: string) => void
   definirExibicao: (exibicao: ExibicaoEmCurso | null) => void
   /** A ponte avisa: a cutscene chegou ao fim numa tela. Com "Na Galeria", sobe o vídeo. */
   marcarExibida: (id: string) => void
@@ -81,10 +91,12 @@ function ehRecord(valor: unknown): valor is Record<string, unknown> {
 /** Uma linha do arquivo, conferida; o que não confere fica de fora sem derrubar o resto. */
 function lerCutscene(bruta: unknown): Cutscene | null {
   if (!ehRecord(bruta)) return null
-  const { id, titulo, video, tamanho, naGaleria, exibida, galeria } = bruta
+  const { id, titulo, video, tamanho, naGaleria, exibida, galeria, miniatura } = bruta
   if (typeof id !== 'string' || id === '' || typeof titulo !== 'string' || titulo.trim() === '' || titulo.length > CUTSCENE_TITULO_MAX) return null
   if (!ehIdDeVideo(video) || typeof tamanho !== 'number' || !Number.isFinite(tamanho) || tamanho <= 0) return null
   const cutscene: Cutscene = { id, titulo, video, tamanho, naGaleria: naGaleria === true, exibida: exibida === true }
+  // Só a referência de imagem da mídia: caminho de disco ou URL de fora nunca vira `src`.
+  if (ehRefDeMidia(miniatura)) cutscene.miniatura = miniatura
   // Só o que já terminou volta do disco: "enviando" de uma sessão que fechou no meio vira "erro".
   if (ehRecord(galeria) && galeria.estado === 'enviado' && typeof galeria.campanhaId === 'string') cutscene.galeria = { estado: 'enviado', campanhaId: galeria.campanhaId }
   else if (ehRecord(galeria) && galeria.estado === 'grande') cutscene.galeria = { estado: 'grande' }
@@ -141,6 +153,11 @@ export const useCutscenesStore = create<CutscenesState>((set, get) => {
     },
     mudar: (id, mudanca) => trocarLista(get().lista.map((c) => (c.id === id ? { ...c, ...mudanca } : c))),
     remover: (id) => trocarLista(get().lista.filter((c) => c.id !== id)),
+    darMiniaturaAoVideo: (video, miniatura) => {
+      const lista = get().lista
+      if (!lista.some((c) => c.video === video && c.miniatura === undefined)) return
+      trocarLista(lista.map((c) => (c.video === video && c.miniatura === undefined ? { ...c, miniatura } : c)))
+    },
     definirExibicao: (exibicao) => set({ exibicao }),
     marcarExibida: (id) => {
       const cutscene = get().lista.find((c) => c.id === id)

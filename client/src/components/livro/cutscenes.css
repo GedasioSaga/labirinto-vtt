@@ -101,8 +101,140 @@
   cursor: pointer;
 }
 
+/* A linha (18/11/2026): miniatura 16:9 à esquerda, título e tamanho ao lado. */
+.lb-cutscenes__topo {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.lb-cutscenes__dados {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* A miniatura: o quadro do vídeo num couro com filete (como o selo da página Sons); sem quadro, o ícone do filme. */
+.lb-cutscenes__mini {
+  position: relative;
+  display: block;
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  margin-top: 2px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--lb-radius-sm);
+  background: linear-gradient(180deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2));
+  box-shadow: inset 0 0 0 1px var(--lb-gr-filete);
+  color: var(--lb-gr-gravado);
+  cursor: pointer;
+  transition: transform 140ms var(--lb-gr-ease-out);
+}
+
+.lb-cutscenes__mini:active {
+  transform: scale(0.97);
+}
+
+.lb-cutscenes__mini:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-cutscenes__mini img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* O quadro entra num esmaecer curto quando carrega: sem estalo, e sem pedaço de imagem pela metade. */
+  opacity: 0;
+  transition: opacity 160ms var(--lb-gr-ease-out);
+}
+
+.lb-cutscenes__mini img[data-pronta='true'] {
+  opacity: 1;
+}
+
+.lb-cutscenes__mini-icone {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-cutscenes__mini-icone .gr-ic {
+  width: 22px;
+  height: 22px;
+}
+
+/* O selo do play no canto: diz que a miniatura abre o vídeo. */
+.lb-cutscenes__mini-play {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  transition: background-color 150ms ease;
+}
+
+.lb-cutscenes__mini-play .gr-ic {
+  width: 12px;
+  height: 12px;
+  margin-left: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lb-cutscenes__mini:hover .lb-cutscenes__mini-play {
+    background: var(--lb-color-brass);
+    color: var(--lb-color-brass-contrast);
+  }
+}
+
+/* "Assistir": a janela do vídeo, mais larga que a padrão, com o vídeo inteiro numa tela de 900 px. */
+.gr-dlg.lb-assistir-dlg {
+  width: min(880px, 100%);
+  max-height: calc(100vh - 32px);
+}
+
+.lb-assistir {
+  display: grid;
+  gap: 10px;
+}
+
+.lb-assistir__video {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 230px);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--lb-radius-sm);
+  background: #000;
+}
+
+.lb-assistir__video:focus-visible {
+  outline: 2px solid var(--lb-color-brass);
+  outline-offset: 2px;
+}
+
+.lb-assistir__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lb-cutscenes__cheio {
+  .lb-cutscenes__cheio,
+  .lb-cutscenes__mini {
     transition: none;
+  }
+
+  .lb-cutscenes__mini:active {
+    transform: none;
   }
 }

@@ -1,6 +1,9 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { resolverComBase } from '../../lib/midia'
+import { baseDaMidiaConhecida, baseDaMidiaNoMestre, urlDoVideoNoMestre } from '../../lib/midiaNoDisco'
+import { guardarQuadroDoVideo, pedirMiniaturaDoVideo } from '../../lib/miniaturaDoVideo'
 import { CUTSCENE_TITULO_MAX } from '../../net/protocol'
 import { assinarRedeDaCutscene, redeDaCutscene, type ResultadoDoTocar } from '../../net/redeDaCutscene'
 import { GALERIA_VIDEO_MAX_BYTES, mensagemDaFalha, tirarDaGaleria } from '../../net/nuvem/galeriaNaNuvem'
@@ -9,8 +12,10 @@ import { useToastStore } from '../../stores/toastStore'
 import { Botao } from '../grimorio/Botao'
 import { CampoLiga } from '../grimorio/CampoLiga'
 import { CampoTexto } from '../grimorio/CampoTexto'
+import { Dialogo } from '../grimorio/Dialogo'
 import { TituloDaPagina } from './FolhaDoLivro'
 import { IconeDoLivro } from './icones'
+import { usePaginaAVista } from './paginaAVista'
 import './cutscenes.css'
 
 /**
@@ -20,9 +25,18 @@ import './cutscenes.css'
  * baixou. O vídeo só toca quando todas as telas baixaram (sem prazo); o mestre
  * pode tocar já ou parar para todos. Com "Na Galeria", depois da 1ª exibição o
  * vídeo sobe para o site dos jogadores (até 150 MB).
+ *
+ * MINIATURA E ASSISTIR (18/11/2026, pedido do mestre): cada linha mostra o
+ * quadro de ~1 s do vídeo (tirado sozinho, um vídeo por vez, quando a lista
+ * carrega e quando um vídeo entra), e "Assistir" (ou o clique na miniatura)
+ * toca o vídeo só para o mestre, do disco, sem sala: não marca "já tocou" nem
+ * sobe para a Galeria. No "Assistir", "Usar este quadro como miniatura" troca
+ * a imagem da linha.
  */
 
 const MB = 1024 * 1024
+/** Quanto as setas andam no vídeo do "Assistir", em segundos (o mesmo passo do player do navegador). */
+const PASSO_DAS_SETAS_S = 5
 
 interface VideoNaMidia {
   id: string
@@ -54,6 +68,210 @@ const FRASE_DO_TOCAR: Record<Exclude<ResultadoDoTocar, 'ok'>, string> = {
 
 function avisar(tipo: 'error' | 'info', texto: string): void {
   useToastStore.getState().push(tipo, texto)
+}
+
+/** O começo das URLs da mídia neste computador; `null` enquanto o Tauri responde (ou fora do app). */
+function useBaseDaMidia(): string | null {
+  const [base, setBase] = useState(baseDaMidiaConhecida)
+  useEffect(() => {
+    if (base !== null) return
+    let viva = true
+    baseDaMidiaNoMestre().then(
+      (achada) => {
+        if (viva) setBase(achada)
+      },
+      () => undefined,
+    )
+    return () => {
+      viva = false
+    }
+  }, [base])
+  return base
+}
+
+/**
+ * A miniatura da linha: o quadro guardado, ou o ícone do filme enquanto ele
+ * não existe (ou não carrega). Clicar abre o "Assistir". Fora do Tab: a linha
+ * já tem o botão "Assistir", e 200 linhas não ganham 200 paradas a mais.
+ */
+function MiniaturaDaCutscene({ cutscene, base, onAssistir }: { cutscene: Cutscene; base: string | null; onAssistir: () => void }) {
+  const url = base === null || cutscene.miniatura === undefined ? null : resolverComBase(base)(cutscene.miniatura)
+  const [falhou, setFalhou] = useState<string | null>(null)
+  const [pronta, setPronta] = useState<string | null>(null)
+  return (
+    <button type="button" className="lb-cutscenes__mini" tabIndex={-1} aria-label={`Assistir ${cutscene.titulo}`} onClick={onAssistir}>
+      {url !== null && falhou !== url ? (
+        <img src={url} alt="" width={112} height={63} decoding="async" draggable={false} data-pronta={pronta === url} onLoad={() => setPronta(url)} onError={() => setFalhou(url)} />
+      ) : (
+        <span className="lb-cutscenes__mini-icone">
+          <IconeDoLivro nome="filme" />
+        </span>
+      )}
+      <span className="lb-cutscenes__mini-play" aria-hidden="true">
+        <IconeDoLivro nome="play" />
+      </span>
+    </button>
+  )
+}
+
+type AvisoDoQuadro = { tipo: 'ok' | 'erro'; texto: string }
+
+/**
+ * O vídeo do "Assistir", do disco deste computador. Tenta com `crossOrigin`
+ * (para poder tirar o quadro); se a ponte de arquivos recusar assim, abre sem
+ * ele, e o vídeo toca mas o quadro não sai.
+ */
+function TelaDoAssistir({ cutscene, aberto, video }: { cutscene: Cutscene; aberto: boolean; video: RefObject<HTMLVideoElement | null> }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [semCors, setSemCors] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [temQuadro, setTemQuadro] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [aviso, setAviso] = useState<AvisoDoQuadro | null>(null)
+
+  useEffect(() => {
+    let viva = true
+    urlDoVideoNoMestre(cutscene.video).then(
+      (achada) => {
+        if (!viva) return
+        if (achada === null) setErro('Este vídeo está fora do formato da mídia da mesa.')
+        else setUrl(achada)
+      },
+      () => {
+        if (viva) setErro('O vídeo só abre no app do Labirinto, com a mídia deste computador.')
+      },
+    )
+    return () => {
+      viva = false
+    }
+  }, [cutscene.video])
+
+  // Fechou: o som para já, sem esperar a janela sair.
+  useEffect(() => {
+    if (!aberto) video.current?.pause()
+  }, [aberto, video])
+
+  // O vídeo entra depois da janela (a URL chega da ponte de arquivos): o foco vai para ele, e o Espaço pausa em vez de
+  // apertar o "Fechar", onde a janela pôs o foco ao abrir.
+  useEffect(() => {
+    if (url !== null) video.current?.focus({ preventScroll: true })
+  }, [url, semCors, video])
+
+  const usarQuadro = async () => {
+    const elemento = video.current
+    // O botão não fica `disabled` enquanto grava: o botão desligado com o foco nele solta o foco para o `body`, e de
+    // lá o Esc não fecha a janela (vai para os atalhos do mapa). O segundo clique no meio só não faz nada.
+    if (elemento === null || guardando) return
+    setGuardando(true)
+    setAviso(null)
+    const miniatura = await guardarQuadroDoVideo(elemento)
+    setGuardando(false)
+    if (miniatura === null) {
+      setAviso({ tipo: 'erro', texto: 'Não deu para tirar este quadro. Tente outro ponto do vídeo.' })
+      return
+    }
+    useCutscenesStore.getState().mudar(cutscene.id, { miniatura })
+    setAviso({ tipo: 'ok', texto: 'Pronto: a miniatura agora é este quadro.' })
+  }
+
+  return (
+    <div className="lb-assistir">
+      {url !== null && erro === null && (
+        <video
+          // Sem o `crossOrigin` é outro pedido: o elemento novo abre o vídeo de novo.
+          key={semCors ? 'sem-cors' : 'com-cors'}
+          ref={video}
+          className="lb-assistir__video"
+          src={url}
+          crossOrigin={semCors ? undefined : 'anonymous'}
+          controls
+          autoPlay
+          playsInline
+          preload="auto"
+          tabIndex={0}
+          aria-label={`Vídeo: ${cutscene.titulo}`}
+          onLoadedData={() => setTemQuadro(true)}
+          onError={() => {
+            setTemQuadro(false)
+            if (!semCors) setSemCors(true)
+            else setErro('Não deu para abrir este vídeo. O arquivo pode ter saído da pasta da mídia, ou o formato não toca neste computador.')
+          }}
+        />
+      )}
+      {url === null && erro === null && <p className="lb-cutscenes__nota">Abrindo o vídeo…</p>}
+      {erro !== null && (
+        <p className="lb-cutscenes__nota lb-cutscenes__nota--erro" role="alert">
+          {erro}
+        </p>
+      )}
+      {erro === null && (
+        <div className="lb-assistir__acoes">
+          <Botao variante="latao" tamanho="p" disabled={!temQuadro || semCors} aria-busy={guardando} onClick={() => void usarQuadro()}>
+            <IconeDoLivro nome="imagem" />
+            {guardando ? 'Guardando o quadro…' : 'Usar este quadro como miniatura'}
+          </Botao>
+          <p className={aviso?.tipo === 'erro' ? 'lb-cutscenes__nota lb-cutscenes__nota--erro' : 'lb-cutscenes__nota'} aria-live="polite">
+            {semCors ? 'Neste computador o vídeo toca, mas não deixa tirar quadro.' : (aviso?.texto ?? '')}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * "Assistir": o vídeo toca só para o mestre, numa janela sobre o livro. Esc
+ * fecha; com o vídeo em foco, Espaço e K tocam e pausam e as setas andam 5 s.
+ * O Espaço é do próprio player: o Chromium (e o WebView2, o mesmo motor)
+ * alterna o vídeo focado no SOLTAR da tecla, e alternar aqui no apertar
+ * desfaria o dele. K e as setas o player não tem: são daqui.
+ */
+function AssistirCutscene({ cutsceneId, onFechar }: { cutsceneId: string | null; onFechar: () => void }) {
+  const lista = useCutscenesStore((estado) => estado.lista)
+  const video = useRef<HTMLVideoElement>(null)
+  // A última aberta fica enquanto a janela sai, com o vídeo ainda nela.
+  const [ultimaId, setUltimaId] = useState(cutsceneId)
+  if (cutsceneId !== null && cutsceneId !== ultimaId) setUltimaId(cutsceneId)
+  const cutscene = lista.find((c) => c.id === ultimaId)
+  const aberto = cutsceneId !== null && cutscene !== undefined
+
+  const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    const elemento = video.current
+    // Só com o vídeo em foco: num botão, o Espaço é do botão.
+    if (elemento === null || evento.target !== elemento) return
+    if (evento.key === ' ') {
+      // Só não deixa a janela rolar: quem toca e pausa é o player, no soltar.
+      evento.preventDefault()
+      return
+    }
+    if (evento.key === 'k' || evento.key === 'K') {
+      if (elemento.paused) void elemento.play().catch(() => undefined)
+      else elemento.pause()
+    } else if (evento.key === 'ArrowLeft') {
+      elemento.currentTime = Math.max(0, elemento.currentTime - PASSO_DAS_SETAS_S)
+    } else if (evento.key === 'ArrowRight') {
+      const adiante = elemento.currentTime + PASSO_DAS_SETAS_S
+      elemento.currentTime = Number.isFinite(elemento.duration) ? Math.min(elemento.duration, adiante) : adiante
+    } else {
+      return
+    }
+    // O player do navegador não repete a mesma tecla.
+    evento.preventDefault()
+  }
+
+  return (
+    <Dialogo
+      aberto={aberto}
+      titulo={cutscene?.titulo ?? 'Cutscene'}
+      descricao="Só nesta tela: não toca para a mesa e não conta como exibida."
+      onFechar={onFechar}
+      classe="lb-assistir-dlg"
+      focoInicial={video}
+      aoTeclar={teclar}
+    >
+      {cutscene !== undefined && <TelaDoAssistir key={cutscene.id} cutscene={cutscene} aberto={aberto} video={video} />}
+    </Dialogo>
+  )
 }
 
 function PainelDaExibicao({ exibicao }: { exibicao: ExibicaoEmCurso }) {
@@ -113,7 +331,7 @@ function EstadoDaGaleria({ cutscene }: { cutscene: Cutscene }) {
   }
 }
 
-function LinhaDaCutscene({ cutscene, comSala, ocupada }: { cutscene: Cutscene; comSala: boolean; ocupada: boolean }) {
+function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cutscene: Cutscene; comSala: boolean; ocupada: boolean; base: string | null; onAssistir: () => void }) {
   const [tirando, setTirando] = useState(false)
   const loja = useCutscenesStore.getState
   const tocar = () => {
@@ -140,19 +358,24 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada }: { cutscene: Cutscene; c
   const cabeNaGaleria = cutscene.tamanho <= GALERIA_VIDEO_MAX_BYTES
   return (
     <li className="lb-cutscenes__item">
-      <CampoTexto
-        rotulo="Título"
-        valor={cutscene.titulo}
-        maxLength={CUTSCENE_TITULO_MAX}
-        onChange={(titulo) => {
-          const limpo = titulo.replace(/[\r\n]+/g, ' ')
-          if (limpo.trim() !== '') loja().mudar(cutscene.id, { titulo: limpo })
-        }}
-      />
-      <p className="lb-cutscenes__nota">
-        {tamanhoLegivel(cutscene.tamanho)}
-        {cutscene.exibida ? ' · já tocou na mesa' : ''}
-      </p>
+      <div className="lb-cutscenes__topo">
+        <MiniaturaDaCutscene cutscene={cutscene} base={base} onAssistir={onAssistir} />
+        <div className="lb-cutscenes__dados">
+          <CampoTexto
+            rotulo="Título"
+            valor={cutscene.titulo}
+            maxLength={CUTSCENE_TITULO_MAX}
+            onChange={(titulo) => {
+              const limpo = titulo.replace(/[\r\n]+/g, ' ')
+              if (limpo.trim() !== '') loja().mudar(cutscene.id, { titulo: limpo })
+            }}
+          />
+          <p className="lb-cutscenes__nota">
+            {tamanhoLegivel(cutscene.tamanho)}
+            {cutscene.exibida ? ' · já tocou na mesa' : ''}
+          </p>
+        </div>
+      </div>
       <CampoLiga
         rotulo="Na Galeria"
         ajuda={cabeNaGaleria ? 'Depois de tocar, o vídeo fica no site dos jogadores, aba Galeria.' : 'Acima de 150 MB o vídeo não vai para o site.'}
@@ -170,6 +393,10 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada }: { cutscene: Cutscene; c
           <IconeDoLivro nome="filme" />
           Tocar para todos
         </Botao>
+        <Botao tamanho="p" onClick={onAssistir}>
+          <IconeDoLivro nome="play" />
+          Assistir
+        </Botao>
         {cutscene.galeria?.estado === 'enviado' && (
           <Botao variante="fantasma" tamanho="p" disabled={tirando} onClick={() => void tirar()}>
             Tirar da Galeria
@@ -186,8 +413,12 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada }: { cutscene: Cutscene; c
 export function PaginaCutscenes() {
   const lista = useCutscenesStore((estado) => estado.lista)
   const exibicao = useCutscenesStore((estado) => estado.exibicao)
+  const carregada = useCutscenesStore((estado) => estado.carregada)
   const rede = useSyncExternalStore(assinarRedeDaCutscene, redeDaCutscene)
   const [importando, setImportando] = useState(false)
+  const [assistindo, setAssistindo] = useState<string | null>(null)
+  const base = useBaseDaMidia()
+  const aVista = usePaginaAVista()
 
   // Ao abrir, relê a Galeria do site: o mestre pode ter tirado um vídeo por lá.
   // Sem o disco do app (navegador puro), a lista fica vazia sem erro solto.
@@ -198,6 +429,20 @@ export function PaginaCutscenes() {
       .then(() => loja.conferirGaleria())
       .catch(() => undefined)
   }, [])
+
+  // A miniatura que falta (o vídeo que acabou de entrar, ou os de antes de 18/11) sai sozinha, um vídeo por vez.
+  // O pedido é um só por vídeo nesta sessão: mudar o título não pede de novo, e o que falhou fica com o ícone.
+  // Só com a página à vista: as páginas do livro ficam todas montadas, e no meio do jogo ninguém vê esta.
+  useEffect(() => {
+    if (!carregada || !aVista) return
+    for (const cutscene of lista) {
+      if (cutscene.miniatura !== undefined) continue
+      const { video } = cutscene
+      void pedirMiniaturaDoVideo(video).then((miniatura) => {
+        if (miniatura !== null) useCutscenesStore.getState().darMiniaturaAoVideo(video, miniatura)
+      })
+    }
+  }, [carregada, aVista, lista])
 
   const adicionar = async () => {
     const escolhido = await open({ multiple: false, directory: false, filters: [{ name: 'Vídeo (mp4, webm)', extensions: ['mp4', 'webm'] }] })
@@ -220,7 +465,7 @@ export function PaginaCutscenes() {
     <div className="lb-cutscenes" role="region" aria-label="Cutscenes">
       <TituloDaPagina titulo="Cutscenes" sub={`Vídeos mp4 ou webm até ${VIDEO_MAX_BYTES / MB} MB. Toca quando todos baixarem.`} />
       {exibicao !== null && <PainelDaExibicao exibicao={exibicao} />}
-      {rede === null && <p className="lb-cutscenes__nota">Abra a sala para tocar uma cutscene para os jogadores.</p>}
+      {rede === null && <p className="lb-cutscenes__nota">Abra a sala para tocar uma cutscene para os jogadores. Sem sala, “Assistir” toca o vídeo só aqui.</p>}
       <Botao variante="latao" tamanho="p" disabled={importando} onClick={() => void adicionar()}>
         <IconeDoLivro nome="mais" />
         {importando ? 'Copiando o vídeo…' : 'Adicionar vídeo…'}
@@ -230,10 +475,11 @@ export function PaginaCutscenes() {
       ) : (
         <ul className="lb-cutscenes__lista">
           {lista.map((cutscene) => (
-            <LinhaDaCutscene key={cutscene.id} cutscene={cutscene} comSala={rede !== null} ocupada={exibicao !== null} />
+            <LinhaDaCutscene key={cutscene.id} cutscene={cutscene} comSala={rede !== null} ocupada={exibicao !== null} base={base} onAssistir={() => setAssistindo(cutscene.id)} />
           ))}
         </ul>
       )}
+      <AssistirCutscene cutsceneId={assistindo} onFechar={() => setAssistindo(null)} />
     </div>
   )
 }
