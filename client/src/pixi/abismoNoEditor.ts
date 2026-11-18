@@ -1,17 +1,26 @@
 import type { Graphics } from 'pixi.js'
-import type { RegionPoint } from '../types/map'
+import type { AbismoPintado, BrilhoDoAbismo, RegionPoint } from '../types/map'
 import { abismoNoPonto, contornoSimplificado, contornoValeAbismo } from '../lib/abismo'
-import { abismosDoMapa } from '../lib/abismoPintado'
+import { abismoPintadoOuVazio, abismosDoMapa, ehAbismoPintado, pincelarAbismo } from '../lib/abismoPintado'
+import { RAIO_DO_PINCEL_DA_AREA } from '../lib/barranco'
 import { useMapStore } from '../stores/mapStore'
 import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import type { EntradaDoAbismo } from './drawAbismo'
 
 /**
- * Os gestos da ferramenta ABISMO (`lib/abismo.ts`) no editor: arrastar em
- * volta do buraco contorna a boca (solta = nasce o abismo, com o brilho do
- * painel, e fica escolhido); um clique escolhe o abismo no ponto (ou solta o
- * escolhido, fora de todos). Delete apaga o escolhido; Esc larga o traço e,
- * sem traço, solta o escolhido.
+ * Os gestos da ferramenta ABISMO no editor, pelo modo do painel
+ * (`ferramentaDoAbismo`):
+ * - Contornar (`lib/abismo.ts`): arrastar em volta do buraco contorna a boca
+ *   (solta = nasce o abismo, com o brilho do painel, e fica escolhido); um
+ *   clique escolhe o abismo contornado no ponto (ou solta o escolhido, fora de
+ *   todos). Delete apaga o escolhido; Esc larga o traço e, sem traço, solta o
+ *   escolhido.
+ * - Pincel (`lib/abismoPintado.ts`): o traço cava quadrado por quadrado, com o
+ *   brilho do painel; com Alt, tapa (tapar no meio do buraco deixa uma ilha). A
+ *   prévia é o próprio abismo, e soltar vira UM passo do desfazer. O buraco
+ *   pintado não se escolhe nem se apaga com Delete: só o pincel mexe nele.
+ * O estado transitório (o traço da boca, o rascunho do pincel) fica aqui, fora
+ * da store: o mapa só muda ao soltar.
  */
 
 /** Andou menos que isto (em casas) do aperto ao soltar: foi um clique. */
@@ -20,21 +29,47 @@ const CLIQUE_EM_CASAS = 0.25
 const PASSO_DO_TRACO_EM_CASAS = 0.1
 /** A tolerância do contorno enxuto (em casas). */
 const TOLERANCIA_EM_CASAS = 0.04
+/** O pincel carimba a cada tanto (em quadrados) do caminho da mão: o arrasto rápido não deixa buraco no traço. */
+const PASSO_DO_PINCEL_EM_QUADRADOS = 0.5
 const COR_DO_RASCUNHO = 0xd9a441
 export const AVISO_DE_ABISMO_PEQUENO = 'Contorno pequeno demais: arraste em volta da boca do buraco.'
+export const AVISO_DE_BURACO_PINTADO = 'Este buraco foi feito com o Pincel. Escolha Pincel e segure Alt para tapar.'
+export const AVISO_DE_ABISMO_CONTORNADO = 'O Pincel só tapa o buraco pintado. Este foi contornado: escolha Contornar, clique nele e aperte Delete.'
+
+/** Um traço do pincel em andamento. O que decide o traço (Alt, brilho, grossura, piso) é o de quando ele começou. */
+interface Pintura {
+  tapar: boolean
+  brilho: BrilhoDoAbismo | null
+  raioEmQuadrados: number
+  piso: number
+  inicio: RegionPoint
+  ultimo: RegionPoint
+  /** Todo carimbo do traço, na ordem: refaz o traço se o mapa mudar debaixo dele. */
+  centros: RegionPoint[]
+  /** O abismo pintado do mapa quando o traço começou (`undefined` = não havia). */
+  doMapa: AbismoPintado | undefined
+  antes: AbismoPintado
+  rascunho: AbismoPintado
+}
 
 export interface GestoDoAbismo {
-  comecar: (p: RegionPoint) => boolean
+  /** Começa um gesto no ponto (px de mundo). `altKey`: no Pincel, o traço tapa em vez de cavar. `true` = consumido. */
+  comecar: (p: RegionPoint, altKey: boolean) => boolean
   mover: (p: RegionPoint) => void
+  /** Solta. `null` = soltou fora do canvas (vale o que já foi pintado; o contorno fecha onde a mão parou). */
   soltar: (p: RegionPoint | null) => void
   cancelar: () => void
   apagarEscolhido: () => boolean
+  /** O raio do pincel em px de mundo, para o anel em volta do ponteiro; `null` no Contornar. */
+  raioDoPincel: () => number | null
+  /** O que a camada do abismo desenha agora (o rascunho do pincel entra aqui). */
   entrada: () => EntradaDoAbismo
 }
 
 export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: () => void; avisar: (texto: string) => void }): GestoDoAbismo {
   let traco: RegionPoint[] | null = null
   let percorrido = 0
+  let pintura: Pintura | null = null
   let ultimaEntrada: EntradaDoAbismo | null = null
 
   const desenharRascunho = (): void => {
@@ -60,7 +95,40 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     percorrido += d
   }
 
-  const comecar = (p: RegionPoint): boolean => {
+  /** O pincel anda do último carimbo até `p`, carimbando no caminho; o desenho só refaz se algum quadrado mudou. */
+  const pincelarAte = (g: Pintura, p: RegionPoint): void => {
+    const passo = g.rascunho.quadrado * PASSO_DO_PINCEL_EM_QUADRADOS
+    const passos = Math.max(1, Math.ceil(Math.hypot(p.x - g.ultimo.x, p.y - g.ultimo.y) / passo))
+    const novos: RegionPoint[] = []
+    for (let k = 1; k <= passos; k += 1) novos.push({ x: g.ultimo.x + ((p.x - g.ultimo.x) * k) / passos, y: g.ultimo.y + ((p.y - g.ultimo.y) * k) / passos })
+    g.ultimo = p
+    g.centros.push(...novos)
+    const rascunho = pincelarAbismo(g.rascunho, novos, g.raioEmQuadrados, g.tapar, g.brilho, g.piso)
+    if (rascunho === g.rascunho) return
+    g.rascunho = rascunho
+    dep.aoMudarDesenho()
+  }
+
+  const comecar = (p: RegionPoint, altKey: boolean): boolean => {
+    const ferramenta = useFerramentaDoAbismo.getState()
+    if (ferramenta.modo === 'pincel') {
+      const s = useMapStore.getState()
+      const antes = abismoPintadoOuVazio(s.map)
+      pintura = {
+        tapar: altKey,
+        brilho: ferramenta.brilho === 'nenhum' ? null : ferramenta.brilho,
+        raioEmQuadrados: RAIO_DO_PINCEL_DA_AREA[ferramenta.pincel],
+        piso: s.pisoAtivo,
+        inicio: p,
+        ultimo: p,
+        centros: [],
+        doMapa: s.map.abismoPintado,
+        antes,
+        rascunho: antes,
+      }
+      pincelarAte(pintura, p)
+      return true
+    }
     traco = [p]
     percorrido = 0
     desenharRascunho()
@@ -68,12 +136,38 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
   }
 
   const mover = (p: RegionPoint): void => {
+    if (pintura !== null) {
+      pincelarAte(pintura, p)
+      return
+    }
     if (traco === null) return
     juntar(p)
     desenharRascunho()
   }
 
+  const soltarPintura = (g: Pintura, p: RegionPoint | null): void => {
+    if (p !== null && (p.x !== g.ultimo.x || p.y !== g.ultimo.y)) pincelarAte(g, p)
+    const s = useMapStore.getState()
+    if (g.rascunho !== g.antes) {
+      // O que se viu é o que fica. Só se o mapa mudou debaixo do traço (um Ctrl+Z com o botão apertado)
+      // o traço é refeito em cima do que há agora, em vez de gravar o rascunho velho por cima.
+      const intacto = s.map.abismoPintado === g.doMapa
+      s.mudarAbismoPintado((atual, piso) => (intacto ? g.rascunho : pincelarAbismo(atual, g.centros, g.raioEmQuadrados, g.tapar, g.brilho, piso)))
+    } else if (g.tapar && abismoNoPonto(s.map.abismos, g.piso, g.inicio) !== null) {
+      // Alt em cima de um abismo contornado não tapa nada: diz por onde ele se apaga.
+      dep.avisar(AVISO_DE_ABISMO_CONTORNADO)
+    }
+    // Terreno travado recusa: o rascunho sai da tela e o mapa volta a mandar no desenho.
+    dep.aoMudarDesenho()
+  }
+
   const soltar = (p: RegionPoint | null): void => {
+    if (pintura !== null) {
+      const g = pintura
+      pintura = null
+      soltarPintura(g, p)
+      return
+    }
     if (traco === null) return
     if (p !== null) juntar(p)
     const pontos = traco
@@ -83,8 +177,14 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     const ferramenta = useFerramentaDoAbismo.getState()
     const grid = s.map.grid
     if (percorrido < CLIQUE_EM_CASAS * grid) {
-      // Um clique: escolhe o abismo no ponto; fora de todos, solta o escolhido.
-      ferramenta.escolher(abismoNoPonto(s.map.abismos, s.pisoAtivo, pontos[0])?.id ?? null)
+      // Um clique: escolhe o abismo contornado no ponto; fora de todos, solta o escolhido.
+      const contornado = abismoNoPonto(s.map.abismos, s.pisoAtivo, pontos[0])
+      ferramenta.escolher(contornado?.id ?? null)
+      // O buraco pintado não se escolhe: o clique nele diz por onde ele muda.
+      if (contornado === null) {
+        const noPonto = abismoNoPonto(abismosDoMapa(s.map), s.pisoAtivo, pontos[0])
+        if (noPonto !== null && ehAbismoPintado(noPonto.id)) dep.avisar(AVISO_DE_BURACO_PINTADO)
+      }
       dep.aoMudarDesenho()
       return
     }
@@ -102,6 +202,12 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
   }
 
   const cancelar = (): void => {
+    if (pintura !== null) {
+      // O traço do pincel largado (Esc, troca de ferramenta) não vira passo: o desenho volta ao mapa.
+      pintura = null
+      dep.aoMudarDesenho()
+      return
+    }
     if (traco !== null) {
       traco = null
       dep.rascunho.clear()
@@ -121,11 +227,20 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     return true
   }
 
+  const raioDoPincel = (): number | null => {
+    const ferramenta = useFerramentaDoAbismo.getState()
+    if (ferramenta.modo !== 'pincel') return null
+    // No meio do traço vale a grossura com que ele começou.
+    const raioEmQuadrados = pintura !== null ? pintura.raioEmQuadrados : RAIO_DO_PINCEL_DA_AREA[ferramenta.pincel]
+    return raioEmQuadrados * abismoPintadoOuVazio(useMapStore.getState().map).quadrado
+  }
+
   const entrada = (): EntradaDoAbismo => {
     const { map, pisoAtivo, activeTool } = useMapStore.getState()
     const escolhido = activeTool === 'abismo' ? useFerramentaDoAbismo.getState().escolhido : null
-    // Os contornados à mão e os pintados por pincel (`abismosDoMapa` devolve a MESMA lista para o mesmo mapa).
-    const abismos = abismosDoMapa(map)
+    // Os contornados à mão e os pintados por pincel; no meio de um traço do pincel, os pintados são os do
+    // rascunho. `abismosDoMapa` devolve a MESMA lista para os mesmos contornados e o mesmo abismo pintado.
+    const abismos = abismosDoMapa(pintura !== null ? { abismos: map.abismos, abismoPintado: pintura.rascunho } : map)
     // A mesma entrada volta o MESMO objeto: o desenho compara por referência e não refaz à toa.
     if (
       ultimaEntrada !== null &&
@@ -140,5 +255,5 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     return ultimaEntrada
   }
 
-  return { comecar, mover, soltar, cancelar, apagarEscolhido, entrada }
+  return { comecar, mover, soltar, cancelar, apagarEscolhido, raioDoPincel, entrada }
 }

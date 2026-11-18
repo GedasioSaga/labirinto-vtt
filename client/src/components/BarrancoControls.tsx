@@ -68,7 +68,8 @@ interface OpcaoSegmentada<T extends string> {
   rotulo: string
 }
 
-function Segmentado<T extends string>({ rotulo, opcoes, valor, aoEscolher }: { rotulo: string; opcoes: OpcaoSegmentada<T>[]; valor: T; aoEscolher: (v: T) => void }) {
+/** O controle segmentado dos painéis de terreno (o do Abismo também usa). */
+export function Segmentado<T extends string>({ rotulo, opcoes, valor, aoEscolher }: { rotulo: string; opcoes: OpcaoSegmentada<T>[]; valor: T; aoEscolher: (v: T) => void }) {
   return (
     <div className="lb-seg" role="radiogroup" aria-label={rotulo}>
       {opcoes.map((opcao) => (

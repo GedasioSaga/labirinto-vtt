@@ -110,8 +110,9 @@ import * as modeloDeCamadas from '../lib/camadas/modelo'
 import { avisoDoMover, moverParaCamada as moverItensParaCamada, MOTIVO_CAMADA_PADRAO, nomeDaCamada, type RefDeItem, type ResultadoDeMover } from '../lib/camadas/mover'
 import { avisarViradaParaV2 } from '../lib/camadas/avisoDaVirada'
 import type { ItemPorTipo, TipoDeObjeto } from '../lib/camadas/padrao'
-import type { Abismo, Agua, BrilhoDoAbismo, CamadaId } from '../types/map'
+import type { Abismo, AbismoPintado, Agua, BrilhoDoAbismo, CamadaId } from '../types/map'
 import { CAMADA_DO_ABISMO, comAbismos } from '../lib/abismo'
+import { abismoPintadoOuVazio, comAbismoPintado } from '../lib/abismoPintado'
 import { eraseFromDrawing } from '../lib/eraseGeometry'
 import { arrastarPontoChave, editavelPorPontos, inserirPontoChave, removerPontoChave, trocarDesenhoPorPontos } from '../lib/pontosChave'
 import { visibleRegions, visibleDrawings, visibleWalls } from '../lib/layers'
@@ -1630,6 +1631,14 @@ interface MapStoreState {
    */
   mudarBarranco: (mudar: (barranco: BarrancoDoMapa, piso: number) => BarrancoDoMapa) => boolean
   /**
+   * ABISMO POR PINCEL (`lib/abismoPintado.ts`): troca os quadrados cavados da
+   * cena aberta num passo do desfazer (um traço do pincel inteiro, ou apagar o
+   * do piso). `mudar` recebe o abismo pintado (ou um vazio na grade de agora) e
+   * o piso em edição; devolver o MESMO não gasta passo. `false` = nada mudou ou
+   * Terreno travado.
+   */
+  mudarAbismoPintado: (mudar: (pintado: AbismoPintado, piso: number) => AbismoPintado) => boolean
+  /**
    * TEXTURAS (`lib/texturas.ts`): solta uma pincelada do pincel ou da borracha.
    * Uma pincelada é UM passo no desfazer; a borracha onde não há textura não
    * vira passo e devolve o motivo para a tela dizer.
@@ -1955,8 +1964,10 @@ interface MapStoreState {
   convertDrawingToLine: (id: string) => void
   /**
    * Pedido 5 (30/09/2026): "apertando alt, para ela ficar em angulos retos".
-   * Deixa deitada ou em pé cada Linha, Caminho e Parede solta da seleção
-   * (`lib/endireitar.ts`), num passo SÓ de desfazer para a seleção inteira.
+   * Endireita cada Linha, Caminho e Parede solta da seleção
+   * (`lib/endireitar.ts`): a Linha e a Parede vão para o mais perto de 0°, 45°
+   * e 90°; o Caminho, só para deitado ou em pé (0° e 90°). Um passo SÓ de
+   * desfazer para a seleção inteira.
    * Nada mudou (tudo reto, nada aceito, tudo preso ou travado): nada entra no
    * histórico — um Ctrl+Z vazio desfaria outra coisa sem o mestre perceber.
    * Avisa só do que ficou de fora por estar preso ou travado.
@@ -3936,6 +3947,16 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const depois = mudar(antes, pisoAtivo)
       if (depois === antes) return false
       withHistory((m) => comBarranco(m, depois))
+      return true
+    },
+    mudarAbismoPintado: (mudar) => {
+      // O abismo pintado mora preso em Terreno, como o contornado e o barranco: Terreno travado recusa com o aviso.
+      if (terrenoBarrado()) return false
+      const { map, pisoAtivo } = get()
+      const antes = abismoPintadoOuVazio(map)
+      const depois = mudar(antes, pisoAtivo)
+      if (depois === antes) return false
+      withHistory((m) => comAbismoPintado(m, depois))
       return true
     },
     setNomesDosLugares: (ligado) => {

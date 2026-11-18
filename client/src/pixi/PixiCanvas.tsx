@@ -92,6 +92,7 @@ import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarDesenhoDoAbismo } from './drawAbismo'
 import { criarGestoDoAbismo } from './abismoNoEditor'
 import { abismoNoPonto, carimbosComOsAbismos } from '../lib/abismo'
+import { abismosDoMapa } from '../lib/abismoPintado'
 import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
@@ -3303,8 +3304,9 @@ function PixiCanvasDoContexto({
           // O objeto Fogo acende luz de fogo (`mapaDeLuz.ts`).
           fogos: map.props,
           // Os carimbos que iluminam (os cogumelos que brilham, a rocha vulcânica), juntos por célula.
-          // ABISMO: o fundo que brilha empresta a luz da fenda em brasa ou dos cristais verdes (`carimbosComOsAbismos`).
-          carimbos: carimbosComOsAbismos(map.carimbos, map.abismos, map.grid, useMapStore.getState().pisoAtivo),
+          // ABISMO: o fundo que brilha empresta a luz da fenda em brasa ou dos cristais verdes (`carimbosComOsAbismos`),
+          // nos contornados à mão e nos pintados por pincel (`abismosDoMapa`).
+          carimbos: carimbosComOsAbismos(map.carimbos, abismosDoMapa(map), map.grid, useMapStore.getState().pisoAtivo),
           casa: map.grid,
         })
         const { refeitos, ultimoMs, maiorMs } = mapaDeLuz.medidas
@@ -5968,7 +5970,10 @@ function PixiCanvasDoContexto({
                 : activeTool === 'agua'
                   ? // Água: o pincel da escolhida (Mais/Menos água, areia); sem pincel, as bolinhas, sem anel.
                     gestoDaAgua.raioDoPincel()
-                  : null
+                  : activeTool === 'abismo'
+                    ? // Abismo: o pincel que cava (e tapa com Alt); no Contornar, sem anel.
+                      gestoDoAbismo.raioDoPincel()
+                    : null
         if (raio === null) return
         const px = 1 / camera.scale
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 3 * px, color: 0x000000, alpha: 0.4 })
@@ -6148,7 +6153,8 @@ function PixiCanvasDoContexto({
       const floorHitAt = (map: MapData, point: Point): SelectableHit | null => {
         const pisoAtivo = useMapStore.getState().pisoAtivo
         // ABISMO: a boca é um buraco no chão; o clique nela é do abismo (`itemDoTerrenoNoClique`), não da peça de baixo.
-        if (abismoNoPonto(map.abismos, pisoAtivo, point) !== null) return null
+        // Vale para o contornado e para o pintado por pincel (a ilha dele é chão: o clique nela é da peça).
+        if (abismoNoPonto(abismosDoMapa(map), pisoAtivo, point) !== null) return null
         // Só o chão do piso em edição: a peça do térreo não se vê do 1º piso.
         const piece = pecaDeChaoNoPiso(map, pisoAtivo, point)
         return piece ? { kind: 'floor', id: piece.id, draggable: true } : null
@@ -7203,8 +7209,8 @@ function PixiCanvasDoContexto({
         }
 
         if (activeTool === 'abismo') {
-          // ABISMO (`abismoNoEditor.ts`): arrastar contorna a boca; o clique escolhe o abismo no ponto.
-          if (gestoDoAbismo.comecar(worldPoint)) mode = 'painting-abismo'
+          // ABISMO (`abismoNoEditor.ts`): arrastar contorna a boca e o clique escolhe o abismo no ponto; no Pincel, o traço cava e o Alt tapa.
+          if (gestoDoAbismo.comecar(worldPoint, event.altKey)) mode = 'painting-abismo'
           return
         }
 
@@ -9559,7 +9565,10 @@ function PixiCanvasDoContexto({
         }
 
         if (mode === 'painting-abismo') {
-          gestoDoAbismo.mover(toWorldPoint(event.global.x, event.global.y))
+          const pontoDoAbismo = toWorldPoint(event.global.x, event.global.y)
+          // O anel do pincel segue a mão durante o traço (no Contornar não há anel).
+          desenharAnelDoPincel(pontoDoAbismo)
+          gestoDoAbismo.mover(pontoDoAbismo)
           return
         }
 

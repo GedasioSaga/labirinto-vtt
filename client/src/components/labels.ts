@@ -140,7 +140,7 @@ export const TOOL_HINTS: Partial<Record<DrawingTool, string>> = {
   barranco:
     'Dê parte alta e parte baixa ao mapa. Risco: arraste a beira e escolha o lado alto (F vira). Área alta: pinte o platô, e a borda vira barranco; começar dentro sobe mais um degrau, Alt desce. Rampa: clique no barranco para abrir a passagem. O barranco segura a ficha; a visão passa por cima.',
   abismo:
-    'Arraste em volta do buraco para contornar a boca: nasce um abismo com a parede descendo para o escuro. No painel, o fundo pode brilhar em brasa ou verde. Clique num abismo para escolher; Delete apaga. Segura a ficha do jogador; a visão passa por cima.',
+    'Contornar: arraste em volta do buraco e nasce um abismo com a parede descendo para o escuro; clique nele para escolher, Delete apaga. Pincel: pinte para cavar, e segure Alt para tapar (tapar no meio deixa uma ilha). No painel, o fundo pode brilhar em brasa ou verde. Segura a ficha do jogador; a visão passa por cima.',
   penhasco:
     'Risque por cima da costa onde quer rochedo: a parede de pedra nasce na beira entre a terra e o mar, descendo para a água. Segure Alt (ou escolha Apagar no painel) para apagar um trecho.',
   pin: 'Clique no mapa para cravar um pino. No painel, escolha o ícone (baú, armadilha, chave...), escreva a descrição e escolha a imagem que o jogador vê ao tocar nele.',
@@ -193,7 +193,7 @@ export const DICAS_DA_FICHA: Partial<Record<DrawingTool, string>> = {
   revealBrush: 'Pinte o mapa durante o jogo.',
   penhasco: 'Risque a costa onde quer o rochedo.',
   barranco: 'Risque a beira ou pinte a parte alta.',
-  abismo: 'Arraste em volta do buraco.',
+  abismo: 'Contorne o buraco ou cave com o pincel.',
   texturas: 'Pinte a textura por cima do mapa.',
   neblina: 'Pinte o efeito do clima por cima do mapa.',
   agua: 'Trace a água ou a lava; clique nela para mexer.',
