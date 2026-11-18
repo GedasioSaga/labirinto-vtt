@@ -1,4 +1,33 @@
-# 17/11 ~23h55 EM VOO: (1) 0.5.81 PUBLICADA (b4e57a07 + bump 8d40a1dc, main 73cf29e6, Worker ed9703f1, Pages e2e49504); (2) abismo na parede (Opus xhigh, não commitado ainda); (3) TEMA DE LUZ por mapa/piso (Opus xhigh, prints tmp/pedidos-2026-11-17/tema/). FILA: itens de luz (chão + mão, mestre e jogador acendem, COM crepitação; achados tmp/pedidos-2026-11-17/itens-luz-achados.md) depois do tema (mesmo motor). Regra 17/11: Opus 5.5 xhigh padrão, perguntar antes de Fable.
+# LEVA 18/11 (autonomia: "Vou deixar na sua mão, faça até terminar", 18/11 ~01h)
+
+## Objetivo
+Terminar e publicar tudo o que está em PEDIDOS.md de 17-18/11 ainda aberto: 0.5.82 (tema de luz + Alt-estrela + abismo na parede); itens que iluminam; busca no acervo de tokens; cutscenes fase A+B (miniatura + Assistir sem sala); depois pastas + busca no acervo de itens; cutscenes fase C (janela Visão de jogador); auditoria contra o literal; 0.5.83 --com-google.
+
+## Estado atual
+Em voo (relançados 00:55 depois da queda): operario 0.5.82 (worktree tmp/rel082 = release/0.5.82 eb828efe); programador-frontend busca (TokenLibraryPanel.*); programador-frontend itens de luz (diff não commitado em ~25 arquivos, lista no prompt; prints tmp/pedidos-2026-11-17/itens-luz/); programador-frontend cutscenes A+B (PaginaCutscenes, cutscenes.css, cutscenesStore, midiaNoDisco, miniaturaDoVideo; prints tmp/pedidos-2026-11-17/cutscenes/). Prompts originais em scratchpad desta sessão (prompts/*.txt).
+
+## Próximos passos
+0. REGRA DO USUÁRIO 18/11: "use só o OPUS nessa sessão" — nada de Sonnet/Fable/Haiku; batedor (sonnet) NÃO; leitura vai por batedor-fundo ou model "opus".
+1. Ao commit dos itens de luz: lançar pastas + busca do acervo de itens (AcervoDeItensPanel/acervoDeItens) e cutscenes fase C (hostBridge/playerConnection/visaoDeTeste), arquivos disjuntos.
+2. Tudo commitado: verificador-realidade Opus xhigh contra o texto literal do PEDIDOS (itens de luz, busca dos 2 acervos, pastas, cutscenes A+B+C).
+3. Lacunas consertadas: notas + operario publica 0.5.83 --com-google (worktree limpo), push main, PEDIDOS/HANDOFF atualizados.
+
+## Critério de pronto
+gh release view v0.5.83 com setup.exe/.sig/.msi/latest.json; releases/latest/download/latest.json = 0.5.83; cada pedido com commit + prova no navegador (prints nas pastas tmp/pedidos-2026-11-17/<item>/); tsc 0; auditoria sem item NECESSITA TRABALHO aberto.
+
+## Evidência
+- Busca no acervo de tokens: ebd1aafc (62/62 testes, tsc 0, navegador ok, maior tarefa 78 ms; prints tmp/pedidos-2026-11-17/busca-tokens/).
+- Cutscenes A+B: 8c9aa6f6 (navegador 16/16, 21 testes, tsc 0; prints tmp/pedidos-2026-11-17/cutscenes/). Falta app real WebView2.
+- 0.5.82 PUBLICADA: release v0.5.82 (setup 29.602.320 B, .sig, .msi, latest.json 0.5.82; Google True/True); main 7ea4655b pushado (origin = main, incluiu ebd1aafc + 8c9aa6f6); log tmp/pedidos-2026-11-17/publicar-0.5.82.log EXIT=0; CARGO_TARGET_DIR = target da main (build 3m55s).
+- Itens de luz FEITO 771e8ea7 (12/12 navegador, 1262 testes, tsc 0, p95 16,8 ms; prints tmp/pedidos-2026-11-17/itens-luz/). Lacunas (decisão do Claude: consertar antes da 0.5.83, agente pequeno depois dos 2 em voo): Acender na lista "Comigo" do jogador; marca de aceso na casinha do inventário do jogador; NPC sem personagem sem Acender.
+- Cutscenes fase C FEITA 94a09efe (teste ganha da sala; nunca marca exibida; conserto transporteLocal JSON objeto; navegador 14/15, falha = avisos Pixi "textureSource destroyed" ao fechar a janela de teste, origem não conferida; app real Tauri pendente).
+- Pastas + busca do acervo de itens FEITO 747669a9 (37 testes, tsc 0, navegador ok, 300 itens maior tarefa 103 ms; prints acervo-itens/). Decisões do agente: botão "Categorias" saiu; só categoria com item vira pasta; apagar pasta sobe o conteúdo + Desfazer. Pendência: e2e/helpers/ondeFoiParar.ts:220 ainda espera "Categorias" (arquivo com edições alheias não commitadas; anotar em E2E-PENDENTE.md).
+- Lacunas da luz FEITO f16fe76c (Comigo com Acender/Apagar só em ficha própria; marca "aceso" no inventário do jogador; cartão Luzes do token lista itens que iluminam com Acender/Apagar para qualquer token; 77/77 testes; navegador 10/10; prints itens-luz-lacunas/). Sobra: ficha emprestada mostra "Sem conexão com a mesa agora." (texto errado) — consertar junto das lacunas da auditoria.
+- EM VOO: verificador-realidade (tmp/auditoria-2026-11-18/VEREDITO.md). DEPOIS: verificador-realidade Opus contra o literal (luz, buscas, pastas, cutscenes A+B+C) + conferir avisos Pixi -> notas -> operario 0.5.83 --com-google.
+- Antes: só itens de luz. Depois dele: pastas + busca do acervo de itens || cutscenes fase C (Opus), auditoria, 0.5.83.
+
+# 18/11 00:55 RETOMADA: a sessão anterior caiu às 00:49 com os 4 agentes no meio (0.5.82 tinha falhado por disco cheio, ENOSPC no build:lobby; disco agora 13 GB). Relançados 4 agentes com "RESUME" a partir do diff não commitado: operario 0.5.82 (worktree tmp/rel082 em eb828efe, já no origin), busca no acervo de tokens (faltava só prova + commit), itens de luz (faltava prova + conferência + commit), cutscenes fase A+B (miniatura + Assistir; meio do código). FILA igual: pastas + busca do acervo de itens; cutscenes fase C (janela de teste). Os client/e2e/*.spec.ts modificados não são desta leva (não commitar junto).
+# 18/11 madrugada EM VOO (antes da queda): (1) operario publicando 0.5.82 = 11c5ee18 (tema c9ce82c2 + Alt-estrela 26e0b1bc + abismo na parede 20b446c5 + 11c5ee18), notas tmp/pedidos-2026-11-17/notas-0.5.82.md; (2) ITENS DE LUZ (Opus xhigh, prints tmp/pedidos-2026-11-17/itens-luz/); (3) busca no acervo de tokens (Opus xhigh, só TokenLibraryPanel); (4) batedor das cutscenes (só leitura). FILA: pastas + busca do acervo de itens (depois dos itens de luz); cutscenes (miniaturas, assistir offline, modo treino). 0.5.81 PUBLICADA (estrela). Regra 17/11: Opus 5.5 xhigh padrão, perguntar antes de Fable.
 
 # FECHADO 17/11: 0.5.80 PUBLICADA (release/0.5.80 = 3d569a26 + bump c3ff1039; main = origin/main = 7c85e723; gh release view conferido: setup 29.591.566 B, .sig, .msi, latest.json 0.5.80; Google True/True; Worker 98eb191f, Pages c1c47d1a). Alinhamento + barranco + abismo. Abertos: e2e task-ctrl-reto velho (E2E-PENDENTE.md); pincel do abismo sem GPU até 194 ms; app Tauri não visto nessa leva. ESTRELA: protótipo aprovado (Cintilar); PLANO APROVADO; EM VOO programador-frontend Opus xhigh encaixando (opção A + "algo brilha", achados tmp/pedidos-2026-11-17/estrela-achados.md). EM PARALELO: abismo limitado pela parede (Opus xhigh, só arquivos do abismo, prints tmp/pedidos-2026-11-17/abismo-parede/). Depois dos dois: auditor Opus xhigh -> 0.5.81 --com-google.
 
