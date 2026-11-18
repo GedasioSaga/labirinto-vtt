@@ -20,13 +20,8 @@ import type { CarimboQueIlumina } from './luzDoFogo'
 import { pisoDe } from './pisos'
 
 // ILHAS (17/11/2026, o abismo por pincel de `lib/abismoPintado.ts`): chão de pé dentro do buraco,
-// cada uma um contorno fechado dentro da boca. Campo NOVO e OPCIONAL: o abismo contornado à mão
-// não tem. Declarado aqui até entrar em `types/map.ts`.
-declare module '../types/map' {
-  interface Abismo {
-    ilhas?: RegionPoint[][]
-  }
-}
+// cada uma um contorno fechado dentro da boca (`Abismo.ilhas`). Campo NOVO e OPCIONAL: o abismo
+// contornado à mão não tem.
 
 /** A camada em que todo abismo mora (o abismo não escolhe camada). */
 export const CAMADA_DO_ABISMO: CamadaId = 'terreno'

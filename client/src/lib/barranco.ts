@@ -1,19 +1,10 @@
-import type { AlturaDoBarranco, BarrancoDoMapa, MapData, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco, Wall } from '../types/map'
+import type { AlturaDoBarranco, BarrancoDoMapa, MapData, MaterialDoBarranco, QuadradoAlto, RampaDeBarranco, RegionPoint, RiscoDeBarranco, Wall } from '../types/map'
 import { caminhoMoraEm, caminhosParaJogador, maioriaEm } from './penhasco'
 import { pisoDe, pisoLido } from './pisos'
-import type { MaterialDoBarranco } from '../texturas/meioTermo/barrancoPorChao'
 
-// MATERIAL PELO CHÃO (17/11/2026): campo NOVO e OPCIONAL do risco e do quadrado alto. Ausente =
-// Automático (o material sai do chão pintado no lado alto, `lib/materialDoBarranco.ts`): o mapa de
-// antes abre igual. Declarado aqui até entrar em `types/map.ts`.
-declare module '../types/map' {
-  interface RiscoDeBarranco {
-    material?: MaterialDoBarranco
-  }
-  interface QuadradoAlto {
-    material?: MaterialDoBarranco
-  }
-}
+// MATERIAL PELO CHÃO (17/11/2026): `material` é campo NOVO e OPCIONAL do risco e do quadrado alto
+// (`types/map.ts`). Ausente = Automático (o material sai do chão pintado no lado alto,
+// `lib/materialDoBarranco.ts`): o mapa de antes abre igual.
 
 /**
  * BARRANCO (protótipo aprovado em 28/10/2026, `docs/design/barranco/`): a

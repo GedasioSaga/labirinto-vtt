@@ -20,39 +20,13 @@
  *
  * Tudo aqui é puro: sem Pixi nem store.
  */
-import type { Abismo, BrilhoDoAbismo, MapData, NoPiso, RegionPoint } from '../types/map'
+import type { Abismo, AbismoPintado, BrilhoDoAbismo, MapData, QuadradoDoAbismo, RegionPoint } from '../types/map'
 import { BRILHOS_DO_ABISMO, contornoSimplificado } from './abismo'
 import { beiraSuaveDoLaco, lacosDosQuadrados, type ArestaDeQuadrado } from './barranco'
 import { pisoDe } from './pisos'
 
-/** Um quadrado cavado. `brilho`: o do buraco dele (ausente = sem brilho). `piso` (`NoPiso`): ausente = térreo. */
-export interface QuadradoDoAbismo extends NoPiso {
-  x: number
-  y: number
-  brilho?: BrilhoDoAbismo
-}
-
-/** O abismo pintado do mapa (`MapData.abismoPintado`). */
-export interface AbismoPintado {
-  /** Lado do quadrado, em px de mundo (a grade de quando o primeiro traço nasceu). */
-  quadrado: number
-  /** Onde fica o canto do quadrado (0, 0), em px de mundo. */
-  origem: RegionPoint
-  quadrados: QuadradoDoAbismo[]
-}
-
-// Declarado aqui até entrar em `types/map.ts`.
-declare module '../types/map' {
-  interface MapData {
-    /**
-     * ABISMO POR PINCEL (`lib/abismoPintado.ts`): os quadrados cavados.
-     * `undefined` === nenhum: o mapa de antes abre igual, e o último quadrado
-     * tapado tira o campo. NUNCA sai no recorte do jogador: ele recebe os
-     * buracos já prontos em `abismos` (`abismosParaJogador`).
-     */
-    abismoPintado?: AbismoPintado
-  }
-}
+// Os tipos moram em `types/map.ts`, com o resto do mapa; quem já os importava daqui continua valendo.
+export type { AbismoPintado, QuadradoDoAbismo }
 
 /** Teto da leitura do arquivo: quadrados cavados por mapa. */
 export const TETO_DE_QUADRADOS_DO_ABISMO = 40000

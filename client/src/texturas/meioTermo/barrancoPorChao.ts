@@ -1,3 +1,4 @@
+import type { MaterialDoBarranco } from '../../types/map'
 import { misturar, rgb, type Rgb } from '../ruido'
 import { contornoDoTom, PERFIL_DO_BARRANCO, TONS_DO_BARRANCO, type TonsDoBarranco } from './barranco'
 import { PALETA_MEIO_TERMO } from './paleta'
@@ -31,7 +32,8 @@ import { PALETA_MEIO_TERMO } from './paleta'
  * véu de cima da Área alta continua o de hoje.
  */
 
-export type MaterialDoBarranco = 'terra' | 'pedra' | 'areia' | 'neve' | 'grama'
+// O tipo mora em `types/map.ts` (é campo do risco e do quadrado alto); quem já o importava daqui continua valendo.
+export type { MaterialDoBarranco }
 
 /** O que o painel oferece: Automático (pelo chão do lado alto) ou um material fixo. */
 export type EscolhaDoMaterial = 'automatico' | MaterialDoBarranco

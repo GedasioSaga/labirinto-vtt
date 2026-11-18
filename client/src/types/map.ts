@@ -3004,6 +3004,13 @@ export interface MapData {
    */
   abismos?: Abismo[]
   /**
+   * ABISMO POR PINCEL (`lib/abismoPintado.ts`, 17/11/2026): os quadrados
+   * cavados. `undefined` === nenhum: o mapa de antes abre igual, e o último
+   * quadrado tapado tira o campo. NUNCA sai no recorte do jogador: ele recebe
+   * os buracos já prontos em `abismos` (`abismosParaJogador`).
+   */
+  abismoPintado?: AbismoPintado
+  /**
    * TEXTURAS (`lib/texturas.ts`): o que o mestre pintou com a ferramenta
    * Texturas, na ordem em que pintou (pincelada, balde e borracha; a de depois
    * cobre a de antes). A textura não é guardada como imagem: cada tela a pinta
@@ -3151,25 +3158,37 @@ export interface TracoDePenhasco extends NoPiso {
 export type AlturaDoBarranco = 'baixo' | 'medio' | 'alto'
 
 /**
+ * O material da face de um barranco (17/11/2026; os tons de cada um em
+ * `texturas/meioTermo/barrancoPorChao.ts`). No risco e no quadrado alto,
+ * ausente = Automático: o material sai do chão pintado no lado alto
+ * (`lib/materialDoBarranco.ts`).
+ */
+export type MaterialDoBarranco = 'terra' | 'pedra' | 'areia' | 'neve' | 'grama'
+
+/**
  * Um risco de barranco: a beira de cima, cortada livre (não segue a grade).
  * `lado` é para onde a parede cai (o lado BAIXO): 1 ou -1 em relação ao
- * sentido do risco. Altura ausente = Médio.
+ * sentido do risco. Altura ausente = Médio. Material ausente = Automático: o
+ * mapa de antes abre igual.
  */
 export interface RiscoDeBarranco extends NoPiso {
   id: string
   pontos: RegionPoint[]
   lado: 1 | -1
   altura?: AlturaDoBarranco
+  material?: MaterialDoBarranco
 }
 
 /**
  * Um quadrado alto da área (platô). `alturas[k - 1]` é a espessura da parede
- * do degrau `k`; o nível do quadrado é `alturas.length` (1 a 3).
+ * do degrau `k`; o nível do quadrado é `alturas.length` (1 a 3). Material
+ * ausente = Automático.
  */
 export interface QuadradoAlto extends NoPiso {
   x: number
   y: number
   alturas: AlturaDoBarranco[]
+  material?: MaterialDoBarranco
 }
 
 /** Uma rampa: o vão de terra no barranco mais perto deste ponto (px de mundo). */
@@ -3184,12 +3203,31 @@ export type BrilhoDoAbismo = 'brasa' | 'verde'
 
 /**
  * Um abismo (`MapData.abismos`): a boca do buraco, um contorno fechado em px
- * de mundo. `piso` (`NoPiso`): ausente = térreo.
+ * de mundo. `piso` (`NoPiso`): ausente = térreo. `ilhas` (17/11/2026, o abismo
+ * por pincel): chão de pé dentro do buraco, cada uma um contorno fechado
+ * dentro da boca; o abismo contornado à mão não tem.
  */
 export interface Abismo extends NoPiso {
   id: string
   pontos: RegionPoint[]
   brilho?: BrilhoDoAbismo
+  ilhas?: RegionPoint[][]
+}
+
+/** Um quadrado cavado do abismo por pincel. `brilho`: o do buraco dele (ausente = sem brilho). `piso` (`NoPiso`): ausente = térreo. */
+export interface QuadradoDoAbismo extends NoPiso {
+  x: number
+  y: number
+  brilho?: BrilhoDoAbismo
+}
+
+/** O abismo pintado do mapa (`MapData.abismoPintado`, `lib/abismoPintado.ts`). */
+export interface AbismoPintado {
+  /** Lado do quadrado, em px de mundo (a grade de quando o primeiro traço nasceu). */
+  quadrado: number
+  /** Onde fica o canto do quadrado (0, 0), em px de mundo. */
+  origem: RegionPoint
+  quadrados: QuadradoDoAbismo[]
 }
 
 /** O barranco do mapa (`MapData.barranco`). */
