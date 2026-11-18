@@ -6387,6 +6387,8 @@ function PixiCanvasDoContexto({
         else commitRegion(points)
         regionDraftPoints = []
         draftGraphics.clear()
+        // O rótulo e o verde do lado em curso saem junto: o Enter fecha sem pointerup, que é quem os esconde.
+        esconderPontaPuxada()
       }
 
       /**
@@ -6411,6 +6413,7 @@ function PixiCanvasDoContexto({
         addWalls(buildFreeWallsFromPoints(() => crypto.randomUUID(), pontos, fechado, wallKind))
         regionDraftPoints = []
         draftGraphics.clear()
+        esconderPontaPuxada()
       }
 
       /**
@@ -6634,6 +6637,42 @@ function PixiCanvasDoContexto({
         drawRegionDraft(draftGraphics, regionDraftPoints, cursor, salaLivre)
       }
 
+      /**
+       * O canto do traçado ponto a ponto (Região e Sala livre, nos dois modos).
+       * O clique (pointerup) e a prévia (pointermove) passam os dois por aqui:
+       * o que a prévia mostra é o que o clique grava. `naGrade` já vem com a
+       * grade de parede do gesto; `bruto` é onde o ponteiro caiu, para o ímã
+       * medir em px de tela.
+       *  1. Ímã do PRIMEIRO canto: perto dele o clique cai exato nele — é a
+       *     igualdade exata que fecha o contorno (`normalizeFreeWallDraft`) —,
+       *     e nenhum grude o tira dali. Vale com o Ctrl, como o ímã da Parede.
+       *  2. Senão o GRUDE DE ÂNGULO (`pontoComGrude`), com o canto anterior de
+       *     âncora: a menos de 5° de 0°, 45° ou 90° o lado vai para a reta. O
+       *     Ctrl solta; a grade continua sendo do interruptor e do Alt.
+       * Até 17/11/2026 só a grade valia aqui, e a sala desenhada clique a
+       * clique saía com lados a 3° (auditoria 2026-11-17b).
+       */
+      const cantoDoTracado = (naGrade: Point, bruto: Point, event: GuideKeys): Point => {
+        const primeiro = regionDraftPoints[0]
+        const anterior = regionDraftPoints.at(-1)
+        if (primeiro === undefined || anterior === undefined) return naGrade
+        const noPrimeiro = (naGrade.x === primeiro.x && naGrade.y === primeiro.y) || Math.hypot(bruto.x - primeiro.x, bruto.y - primeiro.y) <= vertexMagnetTolerance()
+        if (noPrimeiro) return primeiro
+        return pontoComGrude({ point: naGrade, guides: [] }, [anterior], [], event).point
+      }
+
+      /**
+       * A prévia do traçado até o cursor, já no canto que o clique gravaria ali
+       * (`cantoDoTracado`), com o rótulo "90° · 4,2 m" e o verde do lado em
+       * curso — o mesmo par da Parede (`mostrarPontaPuxada`).
+       */
+      const mostrarPreviaDoTracado = (worldPoint: Point, event: GuideKeys): void => {
+        const cursor = cantoDoTracado(applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey), worldPoint, event)
+        drawRegionDraftPreview(cursor)
+        const anterior = regionDraftPoints.at(-1)
+        if (anterior !== undefined) mostrarPontaPuxada([anterior], cursor)
+      }
+
       /** Rascunho feito clique a clique aberto: Região, Área poligonal, Caminho ou Chão corredor. */
       const hasPointDraft = () =>
         regionDraftPoints.length > 0 ||
@@ -6794,6 +6833,8 @@ function PixiCanvasDoContexto({
         if (regionDraftPoints.length > 0) {
           regionDraftPoints = regionDraftPoints.slice(0, -1)
           if (regionDraftPoints.length > 0) drawRegionDraftPreview(cursor)
+          // O rótulo media do canto que saiu; o próximo passo do mouse o refaz do canto de agora.
+          esconderPontaPuxada()
         }
         if (polygonDraftPoints.length > 0) {
           polygonDraftPoints = polygonDraftPoints.slice(0, -1)
@@ -8589,6 +8630,7 @@ function PixiCanvasDoContexto({
           const { map } = useMapStore.getState()
           const dragged = Math.hypot(worldPoint.x - regionDraftRawStart.x, worldPoint.y - regionDraftRawStart.y)
           const start = regionDraftStart
+          const rawStart = regionDraftRawStart
           regionDraftStart = null
           regionDraftRawStart = null
 
@@ -8606,7 +8648,8 @@ function PixiCanvasDoContexto({
             if (isValidRoomDraft(start, end)) commitRegion(rectFromCorners(start, end))
             draftGraphics.clear()
           } else {
-            regionDraftPoints = [...regionDraftPoints, start]
+            // O canto gruda na reta do anterior, como a prévia mostrou (`cantoDoTracado`).
+            regionDraftPoints = [...regionDraftPoints, cantoDoTracado(start, rawStart, event)]
             drawRegionDraftPreview(null)
           }
         }
@@ -9159,15 +9202,14 @@ function PixiCanvasDoContexto({
           // cursor no traçado ponto a ponto. Era a queixa "não aparece nada".
           const toolDaPrevia = useMapStore.getState().activeTool
           if (usaTracadoPontoAPonto(toolDaPrevia)) {
-            const cursor = applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey)
             // Prévia de retângulo é do atalho de arrasto, que só a Região tem.
             if (toolDaPrevia === 'region' && regionDraftStart && regionDraftPoints.length === 0) {
-              const rect = rectFromCorners(regionDraftStart, cursor)
+              const rect = rectFromCorners(regionDraftStart, applySnap(worldPoint, useMapStore.getState().map.grid, 'wall', event.altKey))
               // `cursor` = primeiro vértice: fecha o retângulo na prévia (a
               // prévia de polígono liga ponto a ponto, sem fechar sozinha).
               drawRegionDraft(draftGraphics, rect, rect[0])
             } else if (regionDraftPoints.length > 0) {
-              drawRegionDraftPreview(cursor)
+              mostrarPreviaDoTracado(worldPoint, event)
             }
           }
           // O Caminho é feito de cliques soltos como a Região: a prévia até o
@@ -9734,10 +9776,7 @@ function PixiCanvasDoContexto({
         }
 
         if (usaTracadoPontoAPonto(useMapStore.getState().activeTool) && regionDraftPoints.length > 0) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          const { map } = useMapStore.getState()
-          const cursor = applySnap(worldPoint, map.grid, 'wall', event.altKey)
-          drawRegionDraftPreview(cursor)
+          mostrarPreviaDoTracado(toWorldPoint(event.global.x, event.global.y), event)
         }
 
         if (useMapStore.getState().activeTool === 'polygon' && polygonDraftPoints.length > 0) {
