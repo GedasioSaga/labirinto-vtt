@@ -1,6 +1,7 @@
 import type { Graphics } from 'pixi.js'
-import type { AbismoPintado, BrilhoDoAbismo, RegionPoint } from '../types/map'
+import type { Abismo, AbismoPintado, BrilhoDoAbismo, RegionPoint } from '../types/map'
 import { abismoNoPonto, contornoSimplificado, contornoValeAbismo } from '../lib/abismo'
+import { centrosDoMesmoLado } from '../lib/abismoNaParede'
 import { abismoPintadoOuVazio, abismosDoMapa, ehAbismoPintado, pincelarAbismo } from '../lib/abismoPintado'
 import { RAIO_DO_PINCEL_DA_AREA } from '../lib/barranco'
 import { useMapStore } from '../stores/mapStore'
@@ -18,7 +19,8 @@ import type { EntradaDoAbismo } from './drawAbismo'
  * - Pincel (`lib/abismoPintado.ts`): o traço cava quadrado por quadrado, com o
  *   brilho do painel; com Alt, tapa (tapar no meio do buraco deixa uma ilha). A
  *   prévia é o próprio abismo, e soltar vira UM passo do desfazer. O buraco
- *   pintado não se escolhe nem se apaga com Delete: só o pincel mexe nele.
+ *   pintado não se escolhe nem se apaga com Delete: só o pincel mexe nele. O
+ *   traço não passa de parede: fica do lado em que começou (`lib/abismoNaParede.ts`).
  * O estado transitório (o traço da boca, o rascunho do pincel) fica aqui, fora
  * da store: o mapa só muda ao soltar.
  */
@@ -44,7 +46,9 @@ interface Pintura {
   piso: number
   inicio: RegionPoint
   ultimo: RegionPoint
-  /** Todo carimbo do traço, na ordem: refaz o traço se o mapa mudar debaixo dele. */
+  /** O último carimbo que valeu: o traço fica do lado da parede em que começou (`centrosDoMesmoLado`). */
+  doLado: RegionPoint
+  /** Todo carimbo do traço que valeu, na ordem: refaz o traço se o mapa mudar debaixo dele. */
   centros: RegionPoint[]
   /** O abismo pintado do mapa quando o traço começou (`undefined` = não havia). */
   doMapa: AbismoPintado | undefined
@@ -71,6 +75,10 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
   let percorrido = 0
   let pintura: Pintura | null = null
   let ultimaEntrada: EntradaDoAbismo | null = null
+
+  /** O abismo contornado à mão no ponto, no buraco já cortado pela parede (o clique do outro lado da parede não o pega). */
+  const contornadoNoPonto = (piso: number, p: RegionPoint): Abismo | null =>
+    abismoNoPonto(abismosDoMapa(useMapStore.getState().map)?.filter((a) => !ehAbismoPintado(a.id)), piso, p)
 
   const desenharRascunho = (): void => {
     const g = dep.rascunho
@@ -99,11 +107,16 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
   const pincelarAte = (g: Pintura, p: RegionPoint): void => {
     const passo = g.rascunho.quadrado * PASSO_DO_PINCEL_EM_QUADRADOS
     const passos = Math.max(1, Math.ceil(Math.hypot(p.x - g.ultimo.x, p.y - g.ultimo.y) / passo))
-    const novos: RegionPoint[] = []
-    for (let k = 1; k <= passos; k += 1) novos.push({ x: g.ultimo.x + ((p.x - g.ultimo.x) * k) / passos, y: g.ultimo.y + ((p.y - g.ultimo.y) * k) / passos })
+    const caminho: RegionPoint[] = []
+    for (let k = 1; k <= passos; k += 1) caminho.push({ x: g.ultimo.x + ((p.x - g.ultimo.x) * k) / passos, y: g.ultimo.y + ((p.y - g.ultimo.y) * k) / passos })
     g.ultimo = p
+    // A mão que passa da parede deixa de cavar até voltar para o lado em que o traço começou.
+    const { walls } = useMapStore.getState().map
+    const { ficam: novos, ancora } = centrosDoMesmoLado(g.doLado, caminho, walls, g.piso)
+    g.doLado = ancora
+    if (novos.length === 0) return
     g.centros.push(...novos)
-    const rascunho = pincelarAbismo(g.rascunho, novos, g.raioEmQuadrados, g.tapar, g.brilho, g.piso)
+    const rascunho = pincelarAbismo(g.rascunho, novos, g.raioEmQuadrados, g.tapar, g.brilho, g.piso, walls)
     if (rascunho === g.rascunho) return
     g.rascunho = rascunho
     dep.aoMudarDesenho()
@@ -121,6 +134,7 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
         piso: s.pisoAtivo,
         inicio: p,
         ultimo: p,
+        doLado: p,
         centros: [],
         doMapa: s.map.abismoPintado,
         antes,
@@ -152,8 +166,8 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
       // O que se viu é o que fica. Só se o mapa mudou debaixo do traço (um Ctrl+Z com o botão apertado)
       // o traço é refeito em cima do que há agora, em vez de gravar o rascunho velho por cima.
       const intacto = s.map.abismoPintado === g.doMapa
-      s.mudarAbismoPintado((atual, piso) => (intacto ? g.rascunho : pincelarAbismo(atual, g.centros, g.raioEmQuadrados, g.tapar, g.brilho, piso)))
-    } else if (g.tapar && abismoNoPonto(s.map.abismos, g.piso, g.inicio) !== null) {
+      s.mudarAbismoPintado((atual, piso) => (intacto ? g.rascunho : pincelarAbismo(atual, g.centros, g.raioEmQuadrados, g.tapar, g.brilho, piso, s.map.walls)))
+    } else if (g.tapar && contornadoNoPonto(g.piso, g.inicio) !== null) {
       // Alt em cima de um abismo contornado não tapa nada: diz por onde ele se apaga.
       dep.avisar(AVISO_DE_ABISMO_CONTORNADO)
     }
@@ -177,8 +191,9 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     const ferramenta = useFerramentaDoAbismo.getState()
     const grid = s.map.grid
     if (percorrido < CLIQUE_EM_CASAS * grid) {
-      // Um clique: escolhe o abismo contornado no ponto; fora de todos, solta o escolhido.
-      const contornado = abismoNoPonto(s.map.abismos, s.pisoAtivo, pontos[0])
+      // Um clique: escolhe o abismo contornado no ponto (o buraco já cortado pela parede:
+      // o clique do outro lado da parede não o pega); fora de todos, solta o escolhido.
+      const contornado = contornadoNoPonto(s.pisoAtivo, pontos[0])
       ferramenta.escolher(contornado?.id ?? null)
       // O buraco pintado não se escolhe: o clique nele diz por onde ele muda.
       if (contornado === null) {
@@ -240,18 +255,20 @@ export function criarGestoDoAbismo(dep: { rascunho: Graphics; aoMudarDesenho: ()
     const escolhido = activeTool === 'abismo' ? useFerramentaDoAbismo.getState().escolhido : null
     // Os contornados à mão e os pintados por pincel; no meio de um traço do pincel, os pintados são os do
     // rascunho. `abismosDoMapa` devolve a MESMA lista para os mesmos contornados e o mesmo abismo pintado.
-    const abismos = abismosDoMapa(pintura !== null ? { abismos: map.abismos, abismoPintado: pintura.rascunho } : map)
+    // Todos já rentes à parede; as paredes vão junto para o desenho fazer o corte reto onde o buraco encosta.
+    const abismos = abismosDoMapa(pintura !== null ? { abismos: map.abismos, abismoPintado: pintura.rascunho, walls: map.walls } : map)
     // A mesma entrada volta o MESMO objeto: o desenho compara por referência e não refaz à toa.
     if (
       ultimaEntrada !== null &&
       ultimaEntrada.abismos === abismos &&
+      ultimaEntrada.paredes === map.walls &&
       ultimaEntrada.piso === pisoAtivo &&
       ultimaEntrada.grid === map.grid &&
       ultimaEntrada.escolhido === escolhido
     ) {
       return ultimaEntrada
     }
-    ultimaEntrada = { abismos, piso: pisoAtivo, grid: map.grid, escolhido }
+    ultimaEntrada = { abismos, paredes: map.walls, piso: pisoAtivo, grid: map.grid, escolhido }
     return ultimaEntrada
   }
 

@@ -444,7 +444,8 @@ export function paredesParaAndarDoJogador(
   // ABISMO (16/11/2026, `lib/abismo.ts`): a beira segura o jogador como o carimbo que barra; o que
   // o recorte nunca lhe entrega fica de fora (a recusa contaria que ele existe).
   // Os contornados à mão e os pintados por pincel (`abismosDoMapa`); a ilha do pintado é chão de pé.
-  const todos = abismosDoMapa(map)
+  // Rentes às mesmas paredes que seguram o passo: o buraco para nelas (`lib/abismoNaParede.ts`).
+  const todos = abismosDoMapa({ abismos: map.abismos, abismoPintado: map.abismoPintado, walls })
   const abismos = abismoEscondido === undefined || todos === undefined ? todos : semAbismosEscondidos(todos, abismoEscondido)
   const base = comParedesDosAbismos(comParedesDosCarimbos(paredesParaAndar(walls, map, piso), carimbos, piso, de), abismos, piso, de)
   const obstaculos = obstaculosDeObjeto(map.props, map.grid, piso)

@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
-import type { Abismo, BrilhoDoAbismo, RegionPoint } from '../types/map'
+import type { Abismo, BrilhoDoAbismo, RegionPoint, Wall } from '../types/map'
 import { abismosDoPiso, caixaDoAbismo, centroDoContorno, pontoNoAbismo, profundidadeDoAbismo } from '../lib/abismo'
+import { ladosNaParede, trechosQueParam } from '../lib/abismoNaParede'
 import { PALETA_MEIO_TERMO } from '../texturas/meioTermo/paleta'
 import { contornoDoTom } from '../texturas/meioTermo/barranco'
 import { misturar, rgb, type Rgb } from '../texturas/ruido'
@@ -22,6 +23,10 @@ import { misturar, rgb, type Rgb } from '../texturas/ruido'
  * alto dela fica de fora da máscara (o chão do mapa aparece), a parede dela
  * desce até o fundo como um pilar, na frente do halo, e a beira esfarelada dá
  * a volta nela também, com as lascas e as trincas para o lado do chão.
+ *
+ * RENTE À PAREDE (`lib/abismoNaParede.ts`): o lado da boca que corre em cima
+ * de uma parede é um corte reto e limpo, sem contorno escuro, lasca nem trinca
+ * (a parede cobre a emenda); a beira esfarelada fica só nos lados abertos.
  */
 
 const PEDRA = rgb(PALETA_MEIO_TERMO.pedra.base)
@@ -172,16 +177,51 @@ function lasca(g: Graphics, centro: RegionPoint, raio: number, sorteio: () => nu
   g.poly(plano, true).fill(numero(cor)).stroke({ color: numero(CONTORNO), width: contorno, alpha: 0.85, join: 'round' })
 }
 
-/** A beira esfarelada de um contorno (a boca ou uma ilha): o contorno escuro, as lascas e as trincas. */
-function pintarBeira(g: Graphics, abismo: Abismo, pontos: readonly RegionPoint[], grid: number, sorteio: () => number): void {
-  const plano = planoDe(pontos)
+/** Os trechos abertos do contorno (os lados fora da parede), cada um uma linha de pontos seguidos. */
+function trechosAbertos(pontos: readonly RegionPoint[], rentes: readonly boolean[]): RegionPoint[][] {
+  const n = pontos.length
+  // Começa logo depois de um lado rente, para nenhum trecho aberto ficar partido no fim da volta.
+  const inicio = rentes.findIndex((rente) => rente)
+  const trechos: RegionPoint[][] = []
+  let atual: RegionPoint[] | null = null
+  for (let k = 1; k <= n; k += 1) {
+    const i = (inicio + k) % n
+    if (rentes[i]) {
+      atual = null
+      continue
+    }
+    if (atual === null) {
+      atual = [pontos[i]]
+      trechos.push(atual)
+    }
+    atual.push(pontos[(i + 1) % n])
+  }
+  return trechos
+}
+
+/** O contorno escuro do Meio-Termo com a sombra macia do lábio; com lado rente à parede, só nos trechos abertos. */
+function pintarLabio(g: Graphics, pontos: readonly RegionPoint[], grid: number, rentes: readonly boolean[]): void {
+  const riscar = (plano: number[], fechado: boolean): void => {
+    // A sombra macia do lábio: uma faixa de alfa baixo; o contorno escuro do Meio-Termo por cima.
+    g.poly(plano, fechado).stroke({ color: numero(CONTORNO), width: grid * 0.1, alpha: 0.12, join: 'round' })
+    g.poly(plano, fechado).stroke({ color: numero(CONTORNO), width: Math.max(1.5, grid * 0.05), alpha: 0.95, join: 'round' })
+  }
+  if (!rentes.some((rente) => rente)) {
+    riscar(planoDe(pontos), true)
+    return
+  }
+  for (const trecho of trechosAbertos(pontos, rentes)) riscar(planoDe(trecho), false)
+}
+
+/** A beira esfarelada de um contorno (a boca ou uma ilha): o contorno escuro, as lascas e as trincas; nada nos lados `rentes` à parede. */
+function pintarBeira(g: Graphics, abismo: Abismo, pontos: readonly RegionPoint[], grid: number, sorteio: () => number, rentes: readonly boolean[]): void {
   const fino = Math.max(1, grid * 0.024)
-  // A sombra macia do lábio: uma faixa de alfa baixo; o contorno escuro do Meio-Termo por cima.
-  g.poly(plano, true).stroke({ color: numero(CONTORNO), width: grid * 0.1, alpha: 0.12, join: 'round' })
-  g.poly(plano, true).stroke({ color: numero(CONTORNO), width: Math.max(1.5, grid * 0.05), alpha: 0.95, join: 'round' })
+  pintarLabio(g, pontos, grid, rentes)
   let falta = grid * (0.1 + sorteio() * 0.3)
   let proximaTrinca = grid * (0.8 + sorteio() * 1.2)
   for (let i = 0; i < pontos.length; i += 1) {
+    // O corte rente à parede é limpo: a parede cobre a emenda.
+    if (rentes[i]) continue
     const a = pontos[i]
     const b = pontos[(i + 1) % pontos.length]
     const tamanho = Math.hypot(b.x - a.x, b.y - a.y)
@@ -217,8 +257,14 @@ function pintarBeira(g: Graphics, abismo: Abismo, pontos: readonly RegionPoint[]
   }
 }
 
+/** Que lados da boca e de cada ilha (na ordem de `ilhasDoAbismo`) correm em cima de parede. */
+interface LadosRentes {
+  boca: boolean[]
+  ilhas: boolean[][]
+}
+
 /** Um abismo inteiro, no contêiner dele: o fundo (cortado pela boca, sem o alto das ilhas) e a beira por cima. */
-function pintarAbismo(abismo: Abismo, grid: number): Container {
+function pintarAbismo(abismo: Abismo, grid: number, rentes: LadosRentes): Container {
   const raiz = new Container()
   raiz.eventMode = 'none'
   const plano = planoDe(abismo.pontos)
@@ -232,18 +278,23 @@ function pintarAbismo(abismo: Abismo, grid: number): Container {
   pintarFundo(fundo, abismo, plano, ilhas, grid, sorteio)
   fundo.mask = boca
   const beira = new Graphics()
-  pintarBeira(beira, abismo, abismo.pontos, grid, sorteio)
-  for (const ilha of ilhas) pintarBeira(beira, abismo, ilha, grid, sorteio)
+  pintarBeira(beira, abismo, abismo.pontos, grid, sorteio, rentes.boca)
+  ilhas.forEach((ilha, i) => pintarBeira(beira, abismo, ilha, grid, sorteio, rentes.ilhas[i] ?? []))
   raiz.addChild(fundo, boca, beira)
   return raiz
 }
 
-/** O que desenhar. `escolhido` só no editor (o abismo que a ferramenta escolheu). */
+/**
+ * O que desenhar. `escolhido` só no editor (o abismo que a ferramenta
+ * escolheu). `paredes`: as paredes do mapa (ou do recorte), para o lado da
+ * boca rente a uma delas sair em corte reto; sem elas, toda a beira esfarela.
+ */
 export interface EntradaDoAbismo {
   abismos: readonly Abismo[] | undefined
   piso: number
   grid: number
   escolhido?: string | null
+  paredes?: readonly Wall[]
 }
 
 export interface DesenhoDoAbismo {
@@ -267,9 +318,11 @@ export function criarDesenhoDoAbismo(): DesenhoDoAbismo {
   let gradeDosDesenhos = 0
   let ultima: EntradaDoAbismo | null = null
   const pontosDe = (contorno: readonly RegionPoint[]): string => contorno.map((p) => `${p.x},${p.y}`).join(';')
-  const assinatura = (abismo: Abismo): string => {
-    const base = `${abismo.id}|${abismo.brilho ?? ''}|${pontosDe(abismo.pontos)}`
-    return abismo.ilhas === undefined ? base : `${base}|${abismo.ilhas.map(pontosDe).join('/')}`
+  const ladosDe = (lados: readonly boolean[]): string => lados.map((rente) => (rente ? 'r' : '-')).join('')
+  // Os lados rentes entram na assinatura: a parede que nasce ou sai do lado do buraco refaz o desenho dele.
+  const assinatura = (abismo: Abismo, rentes: LadosRentes): string => {
+    const base = `${abismo.id}|${abismo.brilho ?? ''}|${pontosDe(abismo.pontos)}|${ladosDe(rentes.boca)}`
+    return abismo.ilhas === undefined ? base : `${base}|${abismo.ilhas.map(pontosDe).join('/')}|${rentes.ilhas.map(ladosDe).join('/')}`
   }
 
   const largar = (desenho: Container) => desenho.destroy({ children: true })
@@ -279,6 +332,7 @@ export function criarDesenhoDoAbismo(): DesenhoDoAbismo {
       entrada !== null &&
       ultima !== null &&
       entrada.abismos === ultima.abismos &&
+      entrada.paredes === ultima.paredes &&
       entrada.piso === ultima.piso &&
       entrada.grid === ultima.grid &&
       (entrada.escolhido ?? null) === (ultima.escolhido ?? null)
@@ -294,10 +348,12 @@ export function criarDesenhoDoAbismo(): DesenhoDoAbismo {
       gradeDosDesenhos = grid
     }
     // O abismo que não mudou (a mesma assinatura) guarda o desenho; o resto refaz.
+    const trechos = entrada === null ? [] : trechosQueParam(entrada.paredes, entrada.piso)
     const novos = new Map<string, Container>()
     for (const abismo of doPiso) {
-      const chave = assinatura(abismo)
-      if (!novos.has(chave)) novos.set(chave, porAbismo.get(chave) ?? pintarAbismo(abismo, grid))
+      const rentes: LadosRentes = { boca: ladosNaParede(abismo.pontos, trechos), ilhas: ilhasDoAbismo(abismo).map((ilha) => ladosNaParede(ilha, trechos)) }
+      const chave = assinatura(abismo, rentes)
+      if (!novos.has(chave)) novos.set(chave, porAbismo.get(chave) ?? pintarAbismo(abismo, grid, rentes))
     }
     for (const [chave, desenho] of porAbismo) if (!novos.has(chave)) largar(desenho)
     porAbismo = novos
