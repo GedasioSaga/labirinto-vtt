@@ -1,22 +1,56 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { categoriaLimpa, novoItemDoCatalogo, type ItemDoCatalogo } from '../lib/acervoDeItens'
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { categoriaLimpa, novoItemDoCatalogo, type ItemDoCatalogo, type PastaDeItens } from '../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
+import { focoDeixaDesfazerGlobal } from '../lib/keymap'
 import type { AlvoDoAcervo } from '../lib/party'
+import {
+  comAbertas,
+  comORecolherDeAgora,
+  comRecolhida,
+  contasComAsDeDentro,
+  FRASE_DA_RECUSA,
+  lugarDoItemNovo,
+  NOME_DA_PASTA_MAX,
+  nomeDaPastaLimpo,
+  novoIdDePasta,
+  pastaDoItem,
+  pastaMovida,
+  PASTAS_MAX,
+  pastasAcimaDe,
+  pastasPorPai,
+  recusaParaMoverAPasta,
+  semAPasta,
+} from '../lib/pastasDosItens'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { useToastStore } from '../stores/toastStore'
+import { ATRIBUTO_DO_ALVO, TOPO, useArrastoDoAcervoDeItens, type Arrastado, type Avaliacao } from './arrastoDoAcervoDeItens'
 import { BotaoMais } from './BotaoMais'
+import { CampoDeBusca, ehAtalhoDaBusca, nomeCasa, palavrasDaBusca } from './BuscaDoAcervoDeItens'
 import { ImagemOuIniciais } from './FichaPecas'
+import { ChevronDownIcon, FolderIcon, ReticenciasIcon } from './icons'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
 import { IconeDoLivro } from './livro/icones'
 import './AcervoDeItensPanel.css'
 import './TokenLibraryPanel.css'
 
 /**
- * ACERVO DE ITENS (entrega 4) — a categoria "Itens" logo abaixo dos tokens no
+ * ACERVO DE ITENS (entrega 4) — a seção "Itens" logo abaixo dos tokens no
  * acervo do mestre. Do APP, como os tokens: o mesmo item serve a todas as
- * aventuras. Uma grade por categoria; tocar um item abre a janela dele
- * (editar e "Dar a…"). "+ Item" cria; "Categorias" edita a lista que o campo
- * de categoria sugere.
+ * aventuras. Tocar um item abre a janela dele (editar e "Dar a…"); "+ Item"
+ * cria.
+ *
+ * PASTAS (pedido de 18/11/2026: "organizar melhor em categorias e
+ * subcategorias"; resposta: "Pastas como no Prelúdio"). As categorias de
+ * antes viraram as pastas de cima (`lib/pastasDosItens.ts`); pasta dentro de
+ * pasta em quantos níveis quiser. Arrastar o item ou a pasta para dentro de
+ * outra, ou para "Sem pasta" / o topo; o laço é recusado. Cada pasta fecha e
+ * abre, conta os itens de dentro (com os das subpastas) e tem o "⋯": Nova
+ * pasta dentro, Novo item aqui, Renomear, Tirar de <mãe>, Apagar. Toda
+ * mudança avisa com Desfazer, e o Ctrl+Z com o foco no painel desfaz a última.
+ *
+ * BUSCA ("Nos dois acervos"): a mesma do acervo de tokens — sem acento nem
+ * maiúscula, palavras em qualquer ponto do nome; a pasta com achado abre só
+ * na tela, a sem achado sai da vista; "N de M itens" ou "Nada com …".
  */
 
 export interface AcervoDeItensPanelProps {
@@ -31,125 +65,24 @@ export interface AcervoDeItensPanelProps {
    * (px de janela). `comoPino` = o Alt estava apertado ao soltar: desde
    * 18/11/2026 a ESTRELA no chão em vez da imagem (o nome do parâmetro é
    * antigo; `formaAoSoltar` decide). Quem monta a tela decide se ali é o mapa e
-   * devolve `true` quando pôs. Ausente = o item não se arrasta.
+   * devolve `true` quando pôs. Ausente = o item não vai ao mapa.
    */
   onSoltarNoMapa?: (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean) => boolean
   /** O "+" do cartão: o item no chão, no centro da vista, como o soltar sem Alt. Ausente = sem "+". */
   onPorNoCentro?: (item: ItemDoCatalogo) => void
 }
 
-/** Quanto o ponteiro anda antes de o aperto virar arrasto (o mesmo do acervo de tokens). */
-const LIMIAR_DO_ARRASTO_PX = 6
-
 /** O que a linha de ajuda diz: o gesto e o modificador, que de outro jeito ninguém descobre. */
 export const DICA_DO_ARRASTO = 'Arraste um item até o mapa para pô-lo no chão; com Alt, vira estrela brilhando.'
-
-/** Leva o fantasma ao ponteiro, centrado nele. Estilo direto: sem render do React por quadro. */
-function posicionarFantasma(fantasma: HTMLElement, ponto: { x: number; y: number }): void {
-  fantasma.style.transform = `translate(${ponto.x}px, ${ponto.y}px) translate(-50%, -50%)`
-}
-
-/**
- * O arrasto de um item da grade até o mapa, no molde do acervo de tokens
- * (`TokenLibraryPanel`): de ponteiro, não o drag-and-drop do HTML — o alvo é o
- * canvas do Pixi, que não fala `dragover`/`drop`. Durante o gesto só o
- * fantasma se move (estilo direto) e a grade não re-renderiza; Esc ou soltar
- * fora do mapa desiste sem pôr nada. O clique que o navegador manda depois do
- * arrasto é engolido: soltar não abre a janela do item.
- */
-function useArrastoAoMapa(onSoltar: AcervoDeItensPanelProps['onSoltarNoMapa']) {
-  const [arrastado, setArrastado] = useState<ItemDoCatalogo | null>(null)
-  const fantasmaRef = useRef<HTMLDivElement | null>(null)
-  const pontoRef = useRef({ x: 0, y: 0 })
-  const engolirCliqueRef = useRef(false)
-  const soltarOuvintesRef = useRef<(() => void) | null>(null)
-
-  // Painel desmontado no meio do arrasto: os ouvintes de janela não podem sobreviver a ele.
-  useEffect(() => () => soltarOuvintesRef.current?.(), [])
-
-  const comecar = (event: ReactPointerEvent<HTMLButtonElement>, item: ItemDoCatalogo) => {
-    if (onSoltar === undefined || event.button !== 0 || !event.isPrimary) return
-    soltarOuvintesRef.current?.()
-    engolirCliqueRef.current = false
-    const pointerId = event.pointerId
-    const inicio = { x: event.clientX, y: event.clientY }
-    let arrastando = false
-    let cancelado = false
-
-    const mover = (e: PointerEvent) => {
-      if (e.pointerId !== pointerId || cancelado) return
-      pontoRef.current = { x: e.clientX, y: e.clientY }
-      if (!arrastando) {
-        if (Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) < LIMIAR_DO_ARRASTO_PX) return
-        arrastando = true
-        setArrastado(item)
-      }
-      if (fantasmaRef.current !== null) posicionarFantasma(fantasmaRef.current, pontoRef.current)
-    }
-    const encerrar = (e: PointerEvent, soltou: boolean) => {
-      if (e.pointerId !== pointerId) return
-      soltarOuvintesRef.current?.()
-      if (!arrastando) return
-      setArrastado(null)
-      // O `click` chega logo depois deste `pointerup`; o `setTimeout` libera o próximo clique de verdade.
-      engolirCliqueRef.current = true
-      setTimeout(() => {
-        engolirCliqueRef.current = false
-      }, 0)
-      if (soltou && !cancelado) onSoltar(item, e.clientX, e.clientY, e.altKey)
-    }
-    const aoSoltar = (e: PointerEvent) => encerrar(e, true)
-    const aoCancelar = (e: PointerEvent) => encerrar(e, false)
-    // Esc desiste, na CAPTURA e parando ali: no mapa ele largaria a seleção.
-    const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !arrastando || cancelado) return
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      cancelado = true
-      setArrastado(null)
-    }
-    window.addEventListener('pointermove', mover)
-    window.addEventListener('pointerup', aoSoltar)
-    window.addEventListener('pointercancel', aoCancelar)
-    window.addEventListener('keydown', aoTeclar, true)
-    soltarOuvintesRef.current = () => {
-      window.removeEventListener('pointermove', mover)
-      window.removeEventListener('pointerup', aoSoltar)
-      window.removeEventListener('pointercancel', aoCancelar)
-      window.removeEventListener('keydown', aoTeclar, true)
-      soltarOuvintesRef.current = null
-    }
-  }
-
-  const fantasma =
-    arrastado === null
-      ? null
-      : createPortal(
-          <div
-            className="lb-acervo__fantasma"
-            aria-hidden="true"
-            ref={(el) => {
-              fantasmaRef.current = el
-              if (el !== null) posicionarFantasma(el, pontoRef.current)
-            }}
-          >
-            <span className="lb-itens__foto lb-itens__fantasma-foto">
-              <ImagemOuIniciais imagem={arrastado.imagem} nome={arrastado.nome} />
-            </span>
-            <span>{arrastado.nome}</span>
-          </div>,
-          document.body,
-        )
-
-  return { comecar, fantasma, engolirClique: () => engolirCliqueRef.current }
-}
+export const DICA_DAS_PASTAS = 'Arraste itens e pastas para dentro de outra pasta.'
 
 export const ITENS_VAZIO = 'Nenhum item no acervo ainda.'
 export const ITENS_COMO_ENCHER = 'Crie um item para dar aos personagens.'
 export const ITENS_SO_NO_APP = 'O acervo de itens mora no aplicativo instalado.'
 const SEM_CATEGORIA = 'Sem categoria'
+const SEM_PASTA = 'Sem pasta'
 
-/** Os itens por categoria, na ordem da lista do acervo; categoria fora da lista vem depois, e sem categoria por último. */
+/** Os itens por categoria, na ordem da lista do acervo; categoria fora da lista vem depois, e sem categoria por último (a página Itens do livro ainda ordena assim). */
 export function itensPorCategoria(itens: readonly ItemDoCatalogo[], categorias: readonly string[]): { categoria: string; itens: ItemDoCatalogo[] }[] {
   const grupos = new Map<string, ItemDoCatalogo[]>()
   for (const item of itens) {
@@ -161,94 +94,492 @@ export function itensPorCategoria(itens: readonly ItemDoCatalogo[], categorias: 
   return ordem.map((categoria) => ({ categoria, itens: grupos.get(categoria) ?? [] }))
 }
 
+/** O que soltar ali faz: pode (acende), já está (nada) ou não cabe (o porquê). */
+export function avaliarOSoltar(pastas: readonly PastaDeItens[], quem: Arrastado, destino: string | null): Avaliacao {
+  const nome = destino === null ? null : (pastas.find((pasta) => pasta.id === destino)?.nome ?? 'a pasta')
+  if (quem.tipo === 'item') {
+    const ondeMora = pastaDoItem(quem.item, new Set(pastas.map((pasta) => pasta.id)))
+    if (ondeMora === destino) return { t: 'ja-esta', texto: nome === null ? 'Já está sem pasta' : `Já está em ${nome}` }
+    return { t: 'pode', texto: nome === null ? 'Tirar da pasta' : `Soltar em ${nome}` }
+  }
+  const recusa = recusaParaMoverAPasta(pastas, quem.pasta.id, destino)
+  if (recusa === null) return { t: 'pode', texto: nome === null ? 'Levar para o topo' : `Soltar em ${nome}` }
+  // Em cima dela mesma (o começo de todo arrasto) não é "não cabe": só não muda nada.
+  if (recusa === 'ela-mesma') return { t: 'ja-esta', texto: '' }
+  if (recusa === 'ja-esta') return { t: 'ja-esta', texto: nome === null ? 'Já está no topo' : `Já está em ${nome}` }
+  return { t: 'recusa', texto: FRASE_DA_RECUSA[recusa] }
+}
+
+/** Pastas que o mestre fechou durante uma busca, e o termo em que fechou. */
+interface FechadasNaBusca {
+  termo: string
+  ids: ReadonlySet<string>
+}
+
+const NENHUMA_FECHADA: FechadasNaBusca = { termo: '', ids: new Set() }
+
+/** O campo de nome aberto: a pasta nova (dentro de `paiId`, ou em cima) ou o nome novo de uma pasta. */
+type Formulario = { readonly tipo: 'nova'; readonly paiId: string | null } | { readonly tipo: 'renomear'; readonly id: string }
+
+function ehCtrlZ(event: ReactKeyboardEvent<HTMLElement>): boolean {
+  return (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z'
+}
+
 export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPorNoCentro }: AcervoDeItensPanelProps) {
   const tituloId = useId()
-  const arrasto = useArrastoAoMapa(onSoltarNoMapa)
+  const idBase = useId()
+  const raizRef = useRef<HTMLElement | null>(null)
+  const buscaRef = useRef<HTMLInputElement | null>(null)
   const itens = useAcervoDeItensStore((state) => state.itens)
   const categorias = useAcervoDeItensStore((state) => state.categorias)
+  const pastas = useAcervoDeItensStore((state) => state.pastas)
   const aviso = useAcervoDeItensStore((state) => state.aviso)
   const podeGravar = useAcervoDeItensStore((state) => state.podeGravar)
   /** O item aberto: o id de um gravado, ou o novo ainda fora do acervo. */
   const [aberto, setAberto] = useState<{ id: string } | { novo: ItemDoCatalogo } | null>(null)
-  const [editandoCategorias, setEditandoCategorias] = useState(false)
+  const [formulario, setFormulario] = useState<Formulario | null>(null)
+  /** A pasta com o "⋯" aberto. */
+  const [menu, setMenu] = useState<string | null>(null)
+  /** A busca que a LISTA segue; vazio = o acervo inteiro. O texto do campo mora em `CampoDeBusca` e chega aqui numa transição. */
+  const [busca, setBusca] = useState('')
+  const [fechadasNaBusca, setFechadasNaBusca] = useState<FechadasNaBusca>(NENHUMA_FECHADA)
+  /** O Desfazer da última mudança das pastas: vale uma vez, pelo aviso ou pelo Ctrl+Z. */
+  const desfazerRef = useRef<{ desfazer: () => void } | null>(null)
 
   useEffect(() => {
     void useAcervoDeItensStore.getState().recarregar()
   }, [])
 
+  const avisarErro = (erro: unknown) => onErro?.(erro instanceof Error ? erro.message : String(erro))
+  const porId = new Map(pastas.map((pasta) => [pasta.id, pasta]))
+  const ids = new Set(porId.keys())
+  const nomeDaPasta = (id: string) => porId.get(id)?.nome ?? 'a pasta'
+
+  /** Põe o foco na linha da pasta (ou no "⋯" dela) depois do próximo desenho; sem a pasta, no "+ Pasta". */
+  const focarPasta = (id: string | null, onde: 'linha' | 'menu' = 'linha') => {
+    requestAnimationFrame(() => {
+      const raiz = raizRef.current
+      if (raiz === null) return
+      const topo = id === null ? null : raiz.querySelector<HTMLElement>(`[data-pasta-id="${id}"] > .lb-acervo__pasta-topo`)
+      const linha = topo === null || onde === 'menu' ? null : topo.querySelector<HTMLElement>('button.lb-acervo__pasta-botao')
+      const alvo = topo === null ? raiz.querySelector<HTMLElement>('.lb-acervo__acoes-topo button') : (linha ?? topo.querySelector<HTMLElement>('.lb-acervo__mover'))
+      alvo?.focus()
+    })
+  }
+
+  /**
+   * Toda mudança da árvore passa por aqui: grava, avisa com Desfazer e guarda
+   * o Desfazer para o Ctrl+Z. O Desfazer devolve as pastas e a pasta de cada
+   * item de antes; o abrir e fechar feito depois fica como o mestre deixou.
+   */
+  const mudar = (texto: string, proximas: readonly PastaDeItens[], ondeMoram?: ReadonlyMap<string, string | undefined>) => {
+    const loja = useAcervoDeItensStore.getState()
+    const pastasAntes = loja.pastas
+    const ondeMoravam = new Map(loja.itens.map((item) => [item.id, item.pasta]))
+    loja.organizar(proximas, ondeMoram).then(() => {
+      let idDoAviso = ''
+      const umaVez = () => {
+        if (desfazerRef.current?.desfazer !== umaVez) return
+        desfazerRef.current = null
+        useToastStore.getState().dismiss(idDoAviso)
+        const agora = useAcervoDeItensStore.getState()
+        agora.organizar(comORecolherDeAgora(pastasAntes, agora.pastas), ondeMoravam).catch(avisarErro)
+      }
+      desfazerRef.current = { desfazer: umaVez }
+      idDoAviso = useToastStore.getState().push('info', texto, undefined, { actions: [{ label: 'Desfazer', run: umaVez }] })
+    }, avisarErro)
+  }
+
+  /** Abrir e fechar não tem Desfazer: é só vista (mas fica gravado, como no acervo de tokens). */
+  const recolher = (id: string, recolhida: boolean) => {
+    const loja = useAcervoDeItensStore.getState()
+    loja.organizar(comRecolhida(loja.pastas, id, recolhida)).catch(avisarErro)
+  }
+
+  const soltarNaPasta = (quem: Arrastado, destino: string | null) => {
+    const atuais = useAcervoDeItensStore.getState().pastas
+    // A pasta que recebeu abre (e as de cima dela): o que caiu ali fica à vista.
+    const abertas = (lista: PastaDeItens[]) => (destino === null ? lista : comAbertas(lista, destino))
+    if (quem.tipo === 'item') {
+      const texto = destino === null ? `“${quem.item.nome}” saiu da pasta.` : `“${quem.item.nome}” foi para ${nomeDaPasta(destino)}.`
+      mudar(texto, abertas([...atuais]), new Map([[quem.item.id, destino ?? undefined]]))
+      return
+    }
+    const texto = destino === null ? `Pasta ${quem.pasta.nome} foi para o topo.` : `Pasta ${quem.pasta.nome} foi para dentro de ${nomeDaPasta(destino)}.`
+    mudar(texto, abertas(pastaMovida(atuais, quem.pasta.id, destino)))
+  }
+
+  const arrasto = useArrastoDoAcervoDeItens({
+    raiz: raizRef,
+    podeOrganizar: podeGravar,
+    soltarNoMapa: onSoltarNoMapa,
+    avaliar: (quem, destino) => avaliarOSoltar(pastas, quem, destino),
+    soltarNaPasta,
+    abrirAoParar: (id) => recolher(id, false),
+  })
+
+  const abrirFormulario = (qual: Formulario) => {
+    setMenu(null)
+    setFormulario(qual)
+  }
+
+  const fecharFormulario = (foco: string | null) => {
+    setFormulario(null)
+    focarPasta(foco)
+  }
+
+  const criarPasta = (nome: string, paiId: string | null) => {
+    const loja = useAcervoDeItensStore.getState()
+    if (loja.pastas.length >= PASTAS_MAX) {
+      onErro?.(`O acervo de itens já tem ${PASTAS_MAX} pastas, o máximo.`)
+      return
+    }
+    const nova: PastaDeItens = paiId === null ? { id: novoIdDePasta(), nome } : { id: novoIdDePasta(), nome, paiId }
+    const proximas = paiId === null ? [...loja.pastas, nova] : comAbertas([...loja.pastas, nova], paiId)
+    setFormulario(null)
+    mudar(paiId === null ? `Pasta ${nome} criada.` : `Pasta ${nome} criada dentro de ${nomeDaPasta(paiId)}.`, proximas)
+    focarPasta(nova.id)
+  }
+
+  const renomear = (id: string, nome: string) => {
+    const antigo = nomeDaPasta(id)
+    setFormulario(null)
+    focarPasta(id)
+    if (nome === antigo) return
+    const loja = useAcervoDeItensStore.getState()
+    mudar(`Pasta ${antigo} agora se chama ${nome}.`, loja.pastas.map((pasta) => (pasta.id === id ? { ...pasta, nome } : pasta)))
+  }
+
+  /** Um nível para cima: sai da mãe e vai para a pasta da mãe (ou para o topo). */
+  const tirarDaMae = (pasta: PastaDeItens) => {
+    const loja = useAcervoDeItensStore.getState()
+    const acima = pastasAcimaDe(loja.pastas, pasta.id)
+    const mae = acima.at(-1)
+    if (mae === undefined) return
+    setMenu(null)
+    mudar(`Pasta ${pasta.nome} saiu de ${mae.nome}.`, pastaMovida(loja.pastas, pasta.id, acima.at(-2)?.id ?? null))
+    focarPasta(pasta.id)
+  }
+
+  /** Sem pergunta: o que estava dentro sobe um nível, nada se perde, e o aviso tem Desfazer. */
+  const apagarPasta = (pasta: PastaDeItens) => {
+    const loja = useAcervoDeItensStore.getState()
+    const mae = pastasAcimaDe(loja.pastas, pasta.id).at(-1)
+    const { pastas: restantes, ondeMoram } = semAPasta(loja.pastas, loja.itens, pasta.id)
+    const quantos = ondeMoram.size
+    const para = mae === undefined ? SEM_PASTA : mae.nome
+    const texto = quantos === 0 ? `Pasta ${pasta.nome} apagada.` : `Pasta ${pasta.nome} apagada; ${quantos === 1 ? 'o item foi' : `os ${quantos} itens foram`} para ${para}.`
+    setMenu(null)
+    mudar(texto, restantes, ondeMoram)
+    focarPasta(mae?.id ?? null)
+  }
+
+  /** O item novo já nasce na pasta, com a categoria da pasta de cima dela (a mochila mostra a categoria). */
+  const novoItemAqui = (pasta: PastaDeItens) => {
+    const deCima = pastasAcimaDe(pastas, pasta.id).at(0) ?? pasta
+    setMenu(null)
+    setAberto({ novo: { ...novoItemDoCatalogo(categoriaLimpa(deCima.nome)), pasta: pasta.id } })
+  }
+
+  const salvarDoDialogo = (item: ItemDoCatalogo, novo: boolean): Promise<void> => {
+    const loja = useAcervoDeItensStore.getState()
+    if (!novo) return loja.salvarItem(item)
+    const lugar = lugarDoItemNovo(loja.pastas, item)
+    return loja.salvarItem(lugar.item, lugar.pastas)
+  }
+
+  /** Põe o cursor na busca com o texto selecionado: digitar substitui, a seta mantém. */
+  const focarBusca = () => {
+    const campo = buscaRef.current
+    if (campo === null) return
+    campo.focus()
+    campo.select()
+  }
+
+  const teclaNoPainel = (event: ReactKeyboardEvent<HTMLElement>) => {
+    // A janela do item mora num portal: a tecla dela sobe até aqui pelo React, mas não é do painel.
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return
+    if (buscaRef.current !== null && ehAtalhoDaBusca(event)) {
+      // O Ctrl+F não abre a busca da página, e o "/" não vira texto em lugar nenhum.
+      event.preventDefault()
+      event.stopPropagation()
+      focarBusca()
+      return
+    }
+    const desfazer = desfazerRef.current
+    if (desfazer === null || !ehCtrlZ(event)) return
+    // Num campo de texto o Ctrl+Z é do campo; fora dele, e só com algo a desfazer aqui, não chega ao mapa.
+    const alvo = event.target
+    if (alvo instanceof HTMLElement && !focoDeixaDesfazerGlobal(alvo.tagName, alvo instanceof HTMLInputElement ? alvo.type : undefined, alvo.isContentEditable)) return
+    event.preventDefault()
+    event.stopPropagation()
+    desfazer.desfazer()
+  }
+
+  /** A seta da busca desce para o primeiro achado. */
+  const descerParaOPrimeiro = (): boolean => {
+    const primeiro = raizRef.current === null ? null : raizRef.current.querySelector<HTMLButtonElement>('.lb-itens__item')
+    if (primeiro === null) return false
+    primeiro.focus()
+    return true
+  }
+
+  // Acervo sem item não tem busca (o campo sai e leva o texto junto).
+  const vazio = itens.length === 0
+  if (vazio && busca !== '') setBusca('')
+  const palavras = palavrasDaBusca(busca)
+  const buscando = palavras.length > 0
+  /** Chave de `fechadasNaBusca`: o termo como a busca o entende. */
+  const termo = palavras.join(' ')
+  const visiveis = buscando ? itens.filter((item) => nomeCasa(item.nome, palavras)) : itens
+  const nadaAchado = buscando && visiveis.length === 0
+  const resultado = !buscando ? '' : nadaAchado ? `Nada com “${busca.trim()}”.` : `${visiveis.length} de ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}`
+  const porPai = pastasPorPai(pastas)
+  const itensPorPasta = new Map<string | null, ItemDoCatalogo[]>()
+  for (const item of visiveis) {
+    const onde = pastaDoItem(item, ids)
+    const lista = itensPorPasta.get(onde)
+    if (lista === undefined) itensPorPasta.set(onde, [item])
+    else lista.push(item)
+  }
+  /** Os itens mostrados em cada pasta, com os das de dentro: na busca, os achados. */
+  const contas = contasComAsDeDentro(
+    pastas,
+    visiveis.map((item) => pastaDoItem(item, ids)),
+  )
+
+  /** Fecha ou reabre a pasta só na busca deste termo; o `recolhida` gravado fica como estava. */
+  const alternarNaBusca = (id: string) => {
+    setFechadasNaBusca((antes) => {
+      const fechadas = new Set(antes.termo === termo ? antes.ids : [])
+      if (fechadas.has(id)) fechadas.delete(id)
+      else fechadas.add(id)
+      return { termo, ids: fechadas }
+    })
+  }
+
+  const cartao = (item: ItemDoCatalogo) => (
+    <li key={item.id} className="lb-itens__celula">
+      <button
+        type="button"
+        className="lb-itens__item"
+        aria-label={`Abrir ${item.nome}`}
+        title={item.nome}
+        onPointerDown={(event) => arrasto.comecar(event, { tipo: 'item', item })}
+        // A foto do item é <img>: sem isto o navegador arrasta a imagem
+        // dele, solta um `pointercancel` e o nosso arrasto morre no caminho.
+        onDragStart={(event) => event.preventDefault()}
+        onClick={() => {
+          // Acabou de soltar no mapa ou numa pasta: o clique do mesmo gesto não abre a janela.
+          if (arrasto.engolirClique()) return
+          setAberto({ id: item.id })
+        }}
+      >
+        <span className="lb-itens__foto">
+          <ImagemOuIniciais imagem={item.imagem} nome={item.nome} />
+        </span>
+        <span className="lb-itens__nome">{item.nome}</span>
+      </button>
+      {onPorNoCentro !== undefined && (
+        // No Tab, ao contrário do "+" do token: o cartão abre a janela, e sem este botão o teclado não põe o item no mapa.
+        <button type="button" className="lb-itens__por" aria-label={`Pôr ${item.nome} no centro do mapa`} title="Pôr no centro da vista" onClick={() => onPorNoCentro(item)}>
+          <IconeDoLivro nome="mais" />
+        </button>
+      )}
+    </li>
+  )
+
+  const formularioDaPasta = (paiId: string | null) =>
+    formulario?.tipo === 'nova' && formulario.paiId === paiId && podeGravar ? (
+      <FormDaPasta
+        inicial=""
+        rotulo={paiId === null ? 'Nome da nova pasta' : `Nome da nova pasta dentro de ${nomeDaPasta(paiId)}`}
+        acao="Criar"
+        onPronto={(nome) => criarPasta(nome, paiId)}
+        onCancelar={() => fecharFormulario(paiId)}
+      />
+    ) : null
+
+  const menuDaPasta = (pasta: PastaDeItens) => {
+    const mae = pastasAcimaDe(pastas, pasta.id).at(-1)
+    return (
+      <div
+        className="lb-itens__menu"
+        role="group"
+        aria-label={`Ações da pasta ${pasta.nome}`}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          // Fecha o menu e volta ao "⋯"; não chega ao mapa (lá o Esc larga a seleção).
+          event.preventDefault()
+          event.stopPropagation()
+          setMenu(null)
+          focarPasta(pasta.id, 'menu')
+        }}
+      >
+        <button type="button" className="lb-itens__menu-acao" autoFocus onClick={() => abrirFormulario({ tipo: 'nova', paiId: pasta.id })}>
+          Nova pasta dentro
+        </button>
+        <button type="button" className="lb-itens__menu-acao" onClick={() => novoItemAqui(pasta)}>
+          Novo item aqui
+        </button>
+        <button type="button" className="lb-itens__menu-acao" onClick={() => abrirFormulario({ tipo: 'renomear', id: pasta.id })}>
+          Renomear
+        </button>
+        {mae !== undefined && (
+          <button type="button" className="lb-itens__menu-acao" onClick={() => tirarDaMae(pasta)}>
+            Tirar de {mae.nome}
+          </button>
+        )}
+        <button type="button" className="lb-itens__menu-acao lb-itens__menu-acao--perigo" onClick={() => apagarPasta(pasta)}>
+          Apagar pasta
+        </button>
+      </div>
+    )
+  }
+
+  const grupo = (pasta: PastaDeItens, caminhoDaMae: string): ReactNode => {
+    const conta = contas.get(pasta.id) ?? 0
+    // Na busca, pasta sem achado (nela ou nas de dentro) sai da vista.
+    if (buscando && conta === 0) return null
+    const filhas = porPai.get(pasta.id) ?? []
+    const dentro = itensPorPasta.get(pasta.id) ?? []
+    const temConteudo = filhas.length > 0 || dentro.length > 0
+    const fechadaNaBusca = fechadasNaBusca.termo === termo && fechadasNaBusca.ids.has(pasta.id)
+    const aberta = buscando ? !fechadaNaBusca : pasta.recolhida !== true
+    const idDoCorpo = `${idBase}-pasta-${pasta.id}`
+    const caminho = caminhoDaMae === '' ? pasta.nome : `${caminhoDaMae} › ${pasta.nome}`
+    const renomeando = formulario?.tipo === 'renomear' && formulario.id === pasta.id
+    const comecarArrasto = (event: ReactPointerEvent<HTMLElement>) => arrasto.comecar(event, { tipo: 'pasta', pasta })
+    return (
+      <div key={pasta.id} className="lb-acervo__pasta lb-itens__pasta" role="group" aria-label={pasta.nome} data-pasta-id={pasta.id} {...{ [ATRIBUTO_DO_ALVO]: pasta.id }}>
+        <div className="lb-acervo__pasta-topo">
+          {temConteudo ? (
+            <button
+              type="button"
+              className="lb-acervo__pasta-botao"
+              aria-expanded={aberta}
+              aria-controls={aberta ? idDoCorpo : undefined}
+              aria-label={`${pasta.nome} (${conta})`}
+              title={caminho}
+              onPointerDown={comecarArrasto}
+              onClick={() => {
+                // Acabou de soltar a pasta: o clique do mesmo gesto não a fecha.
+                if (arrasto.engolirClique()) return
+                if (buscando) alternarNaBusca(pasta.id)
+                else recolher(pasta.id, aberta)
+              }}
+            >
+              <span className="lb-acervo__chevron" aria-hidden="true">
+                <ChevronDownIcon size={14} />
+              </span>
+              <FolderIcon size={14} />
+              <span className="lb-acervo__pasta-nome">{pasta.nome}</span>
+            </button>
+          ) : (
+            // Pasta vazia não alterna (uma seta prometeria abrir o que não existe), mas arrasta e recebe.
+            <div className="lb-acervo__pasta-botao" data-vazia="" title={caminho} onPointerDown={comecarArrasto}>
+              <span className="lb-acervo__recuo" aria-hidden="true" />
+              <FolderIcon size={14} />
+              <span className="lb-acervo__pasta-nome">{pasta.nome}</span>
+              <span className="lb-sr-only"> vazia</span>
+            </div>
+          )}
+          {podeGravar && (
+            <span className="lb-acervo__acoes">
+              <button
+                type="button"
+                className="lb-acervo__mover"
+                aria-label={`Ações da pasta ${pasta.nome}`}
+                aria-expanded={menu === pasta.id}
+                title="Nova pasta dentro, novo item, renomear, apagar"
+                onClick={() => setMenu(menu === pasta.id ? null : pasta.id)}
+              >
+                <ReticenciasIcon size={14} />
+              </button>
+            </span>
+          )}
+          <span className="lb-acervo__contagem" aria-hidden="true">
+            {conta}
+          </span>
+        </div>
+        {menu === pasta.id && podeGravar && menuDaPasta(pasta)}
+        {renomeando && (
+          <FormDaPasta inicial={pasta.nome} rotulo={`Novo nome da pasta ${pasta.nome}`} acao="Renomear" onPronto={(nome) => renomear(pasta.id, nome)} onCancelar={() => fecharFormulario(pasta.id)} />
+        )}
+        {formularioDaPasta(pasta.id)}
+        {aberta && temConteudo && (
+          <div id={idDoCorpo} className="lb-itens__dentro">
+            {filhas.map((filha) => grupo(filha, caminho))}
+            {dentro.length > 0 && <ul className="lb-itens__grade">{dentro.map(cartao)}</ul>}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const arrastado = arrasto.arrastado
+  const soltos = itensPorPasta.get(null) ?? []
+  // "Sem pasta" aparece vazio só durante o arrasto de quem ESTÁ numa pasta: é o lugar de soltá-lo para tirá-lo de lá.
+  const arrastandoDeDentro = arrastado !== null && (arrastado.tipo === 'item' ? pastaDoItem(arrastado.item, ids) !== null : pastasAcimaDe(pastas, arrastado.pasta.id).length > 0)
+  const mostrarSemPasta = soltos.length > 0 || arrastandoDeDentro
+  const rotuloDoTopo = arrastado?.tipo === 'pasta' && soltos.length === 0 ? 'Topo' : SEM_PASTA
+  const dica = [onSoltarNoMapa !== undefined ? DICA_DO_ARRASTO : '', podeGravar ? DICA_DAS_PASTAS : ''].filter((frase) => frase !== '').join(' ')
   const itemAberto = aberto === null ? undefined : 'novo' in aberto ? aberto.novo : itens.find((item) => item.id === aberto.id)
-  const grupos = itensPorCategoria(itens, categorias)
+  const classeDaSecao = ['lb-section', 'lb-itens', arrastado !== null && 'lb-itens--arrastando'].filter(Boolean).join(' ')
 
   return (
-    <section className="lb-section lb-itens" aria-labelledby={tituloId}>
+    <section className={classeDaSecao} aria-labelledby={tituloId} ref={raizRef} onKeyDown={teclaNoPainel}>
       <div className="lb-acervo__topo">
         <h2 id={tituloId} className="lb-eyebrow">
           Itens
         </h2>
         {podeGravar && (
           <div className="lb-acervo__acoes-topo">
-            <button type="button" className="lb-btn lb-btn--ghost lb-btn--compact" aria-expanded={editandoCategorias} onClick={() => setEditandoCategorias(!editandoCategorias)}>
-              Categorias
-            </button>
+            <BotaoMais nome="Nova pasta" texto="Pasta" dica="Cria uma pasta no acervo de itens" onClick={() => abrirFormulario({ tipo: 'nova', paiId: null })} />
             <BotaoMais nome="Novo item" texto="Item" dica="Cadastra um item no acervo do app" onClick={() => setAberto({ novo: novoItemDoCatalogo() })} />
           </div>
         )}
       </div>
+      {!vazio && (
+        <div className="lb-acervo__busca" role="search">
+          <CampoDeBusca campoRef={buscaRef} onMudar={setBusca} onDescer={descerParaOPrimeiro} />
+          {/* Sempre montado (vazio some pelo CSS): o leitor de tela só anuncia a contagem de um `status` que já estava na página. */}
+          <p className="lb-acervo__resultado" role="status">
+            {resultado}
+          </p>
+        </div>
+      )}
       {aviso !== null && (
         <p className="lb-acervo__aviso" role="status">
           {aviso}
         </p>
       )}
-      {editandoCategorias && podeGravar && <EditorDeCategorias categorias={categorias} onErro={onErro} />}
-      {itens.length === 0 ? (
+      {formularioDaPasta(null)}
+      {vazio && pastas.length === 0 ? (
         <p className="lb-acervo__vazio-estado">
           <span>{ITENS_VAZIO}</span> <span>{podeGravar ? ITENS_COMO_ENCHER : ITENS_SO_NO_APP}</span>
         </p>
-      ) : (
+      ) : nadaAchado ? null : (
         <div className="lb-itens__grupos">
-          {onSoltarNoMapa !== undefined && <p className="lb-label lb-itens__dica">{DICA_DO_ARRASTO}</p>}
-          {grupos.map((grupo) => (
-            <div key={grupo.categoria} className="lb-itens__grupo" role="group" aria-label={grupo.categoria}>
-              <p className="lb-itens__categoria">
-                {grupo.categoria}
-                <span className="lb-acervo__contagem" aria-hidden="true">
-                  {grupo.itens.length}
-                </span>
-              </p>
-              <ul className="lb-itens__grade">
-                {grupo.itens.map((item) => (
-                  <li key={item.id} className="lb-itens__celula">
-                    <button
-                      type="button"
-                      className="lb-itens__item"
-                      aria-label={`Abrir ${item.nome}`}
-                      title={item.nome}
-                      onPointerDown={(event) => arrasto.comecar(event, item)}
-                      // A foto do item é <img>: sem isto o navegador arrasta a imagem
-                      // dele, solta um `pointercancel` e o nosso arrasto morre no caminho.
-                      onDragStart={(event) => event.preventDefault()}
-                      onClick={() => {
-                        // Acabou de soltar no mapa: o clique do mesmo gesto não abre a janela.
-                        if (arrasto.engolirClique()) return
-                        setAberto({ id: item.id })
-                      }}
-                    >
-                      <span className="lb-itens__foto">
-                        <ImagemOuIniciais imagem={item.imagem} nome={item.nome} />
-                      </span>
-                      <span className="lb-itens__nome">{item.nome}</span>
-                    </button>
-                    {onPorNoCentro !== undefined && (
-                      // No Tab, ao contrário do "+" do token: o cartão abre a janela, e sem este botão o teclado não põe o item no mapa.
-                      <button type="button" className="lb-itens__por" aria-label={`Pôr ${item.nome} no centro do mapa`} title="Pôr no centro da vista" onClick={() => onPorNoCentro(item)}>
-                        <IconeDoLivro nome="mais" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          {dica !== '' && <p className="lb-label lb-itens__dica">{dica}</p>}
+          {(porPai.get(null) ?? []).map((pasta) => grupo(pasta, ''))}
+          {mostrarSemPasta && (
+            <div className="lb-acervo__pasta lb-acervo__pasta--solta lb-itens__pasta lb-itens__solta" role="group" aria-label={rotuloDoTopo} {...{ [ATRIBUTO_DO_ALVO]: TOPO }}>
+              {pastas.length > 0 && (
+                <p className="lb-acervo__pasta-titulo">
+                  {rotuloDoTopo}
+                  <span className="lb-acervo__contagem" aria-hidden="true">
+                    {soltos.length}
+                  </span>
+                </p>
+              )}
+              {soltos.length > 0 ? (
+                <ul className="lb-itens__grade">{soltos.map(cartao)}</ul>
+              ) : (
+                <p className="lb-acervo__vazio">{arrastado?.tipo === 'pasta' ? 'Solte aqui para levar a pasta para o topo.' : 'Solte aqui para tirar o item da pasta.'}</p>
+              )}
             </div>
-          ))}
+          )}
         </div>
       )}
       {itemAberto !== undefined && aberto !== null && (
@@ -258,7 +589,7 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
           novo={'novo' in aberto}
           categorias={categorias}
           alvos={alvos}
-          onSalvar={(item) => useAcervoDeItensStore.getState().salvarItem(item)}
+          onSalvar={(item) => salvarDoDialogo(item, 'novo' in aberto)}
           onApagar={() => useAcervoDeItensStore.getState().apagarItem(itemAberto.id)}
           onDar={(alvo, quantidade) => onDar(itemAberto, alvo, quantidade)}
           onClose={() => setAberto(null)}
@@ -271,40 +602,55 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
   )
 }
 
-/** A lista editável de categorias: tirar (×) e acrescentar. O item que usa uma categoria tirada continua com ela. */
-function EditorDeCategorias({ categorias, onErro }: { categorias: readonly string[]; onErro?: (mensagem: string) => void }) {
-  const [nova, setNova] = useState('')
-  const gravar = (lista: readonly string[]) => {
-    useAcervoDeItensStore
-      .getState()
-      .definirCategorias(lista)
-      .catch((erro: unknown) => onErro?.(erro instanceof Error ? erro.message : String(erro)))
-  }
-  const acrescentar = (event: FormEvent) => {
+interface FormDaPastaProps {
+  inicial: string
+  /** O nome acessível do campo ("Nome da nova pasta dentro de Balas"). */
+  rotulo: string
+  /** O texto do botão que confirma. */
+  acao: string
+  onPronto: (nome: string) => void
+  onCancelar: () => void
+}
+
+/** O nome da pasta, no lugar onde ela vai morar: Enter confirma, Esc ou nome vazio desistem. */
+function FormDaPasta({ inicial, rotulo, acao, onPronto, onCancelar }: FormDaPastaProps) {
+  const [nome, setNome] = useState(inicial)
+  const enviar = (event: FormEvent) => {
     event.preventDefault()
-    const limpa = categoriaLimpa(nova)
-    if (limpa === '') return
-    gravar([...categorias, limpa])
-    setNova('')
+    const limpo = nomeDaPastaLimpo(nome)
+    if (limpo === '') onCancelar()
+    else onPronto(limpo)
   }
   return (
-    <div className="lb-itens__categorias">
-      <ul className="lb-itens__chips" aria-label="Categorias do acervo">
-        {categorias.map((categoria) => (
-          <li key={categoria} className="lb-itens__chip">
-            {categoria}
-            <button type="button" className="lb-itens__tirar" aria-label={`Tirar a categoria ${categoria}`} onClick={() => gravar(categorias.filter((outra) => outra !== categoria))}>
-              ×
-            </button>
-          </li>
-        ))}
-      </ul>
-      <form className="lb-itens__nova" onSubmit={acrescentar}>
-        <input className="lb-input" aria-label="Nova categoria" placeholder="Nova categoria" value={nova} onChange={(event) => setNova(event.target.value)} />
-        <button type="submit" className="lb-btn lb-btn--compact">
-          Acrescentar
+    <form
+      className="lb-acervo__form lb-itens__form-pasta"
+      onSubmit={enviar}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        // Desiste do nome; não chega ao mapa.
+        event.preventDefault()
+        event.stopPropagation()
+        onCancelar()
+      }}
+    >
+      <input
+        className="lb-input"
+        aria-label={rotulo}
+        placeholder="Nome da pasta"
+        value={nome}
+        maxLength={NOME_DA_PASTA_MAX}
+        autoFocus
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setNome(event.target.value)}
+      />
+      <div className="lb-acervo__form-acoes">
+        <button type="button" className="lb-btn lb-btn--ghost" onClick={onCancelar}>
+          Cancelar
         </button>
-      </form>
-    </div>
+        <button type="submit" className="lb-btn">
+          {acao}
+        </button>
+      </div>
+    </form>
   )
 }

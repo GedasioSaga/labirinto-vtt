@@ -62,13 +62,38 @@ beforeEach(() => {
   pastas.clear()
   leituraFalhaEm.clear()
   escritaFalhaEm.clear()
-  useAcervoDeItensStore.setState({ itens: [], categorias: [...CATEGORIAS_PADRAO], aviso: null, podeGravar: false })
+  useAcervoDeItensStore.setState({ itens: [], categorias: [...CATEGORIAS_PADRAO], pastas: [], aviso: null, podeGravar: false })
 })
 
 describe('leitura tolerante do índice', () => {
-  it('lê o item inteiro e as categorias', () => {
-    const lido = acervoDoTexto(JSON.stringify({ version: 2, categorias: ['Arma', 'Fruta'], itens: [pocao()] }))
-    expect(lido).toEqual({ itens: [pocao()], categorias: ['Arma', 'Fruta'] })
+  it('PASTAS (18/11/2026): o índice de antes das pastas lê inteiro, e cada categoria mostrada vira uma pasta de cima com os itens dela', () => {
+    const espada = pocao({ id: 'item_espada', nome: 'Espada', categoria: 'Arma' })
+    const pedra = pocao({ id: 'item_pedra', nome: 'Pedra', categoria: '' })
+    const lido = acervoDoTexto(JSON.stringify({ version: 2, categorias: ['Arma', 'Fruta'], itens: [pocao(), espada, pedra] }))
+    expect(lido).toEqual({
+      itens: [pocao({ pasta: 'pasta_categoria_1' }), { ...espada, pasta: 'pasta_categoria_2' }, pedra],
+      categorias: ['Arma', 'Fruta'],
+      // Só as categorias de algum item (as que a lista mostrava); sem categoria fica Sem pasta.
+      pastas: [
+        { id: 'pasta_categoria_1', nome: 'Consumível' },
+        { id: 'pasta_categoria_2', nome: 'Arma' },
+      ],
+    })
+  })
+
+  it('PASTAS: a pasta torta sai, o item da pasta que sumiu fica Sem pasta, e a pasta guardada não é refeita das categorias', () => {
+    const lido = acervoDoTexto(
+      JSON.stringify({
+        version: 3,
+        pastas: [{ id: 'pasta_a', nome: '  Poções  ', paiId: 'pasta_a', recolhida: true }, { id: '../fora', nome: 'X' }, { id: 'pasta_b', nome: '', paiId: 'pasta_a' }],
+        itens: [pocao({ pasta: 'pasta_b' }), pocao({ id: 'item_2', pasta: 'pasta_sumida' })],
+      }),
+    )
+    expect(lido?.pastas).toEqual([
+      { id: 'pasta_a', nome: 'Poções', recolhida: true },
+      { id: 'pasta_b', nome: 'Pasta sem nome', paiId: 'pasta_a' },
+    ])
+    expect(lido?.itens).toEqual([pocao({ pasta: 'pasta_b' }), pocao({ id: 'item_2' })])
   })
 
   it('MUNIÇÃO (16/11/2026): o índice de antes (versão 1) ganha a categoria Munição uma vez; o da versão 2 sem ela fica sem (o mestre a tirou)', () => {
@@ -88,7 +113,7 @@ describe('leitura tolerante do índice', () => {
         ],
       }),
     )
-    expect(lido?.itens).toEqual([{ id: 'item_pocao', nome: 'Item sem nome', imagem: null, descricao: '', categoria: 'Consumível', preco: null, empilhavel: false }])
+    expect(lido?.itens).toEqual([{ id: 'item_pocao', nome: 'Item sem nome', imagem: null, descricao: '', categoria: 'Consumível', preco: null, empilhavel: false, pasta: 'pasta_categoria_1' }])
     // Sem a lista no arquivo, as categorias padrão.
     expect(lido?.categorias).toEqual([...CATEGORIAS_PADRAO])
   })
@@ -103,14 +128,15 @@ describe('leitura tolerante do índice', () => {
   })
 
   it('gravar e ler devolve o mesmo acervo', () => {
-    const acervo = { itens: [pocao(), { ...novoItemDoCatalogo('Arma'), nome: 'Espada' }], categorias: ['Arma'] }
+    const pastas = [{ id: 'pasta_a', nome: 'Poções' }, { id: 'pasta_b', nome: 'Fortes', paiId: 'pasta_a', recolhida: true }]
+    const acervo = { itens: [pocao({ pasta: 'pasta_b' }), { ...novoItemDoCatalogo('Arma'), nome: 'Espada' }], categorias: ['Arma'], pastas }
     expect(acervoDoTexto(serializarAcervo(acervo))).toEqual(acervo)
   })
 })
 
 describe('disco', () => {
   it('sem arquivo ainda: acervo vazio, lido (pode gravar)', async () => {
-    expect(await lerAcervoDeItens()).toEqual({ acervo: { itens: [], categorias: [...CATEGORIAS_PADRAO] }, aviso: null, lido: true })
+    expect(await lerAcervoDeItens()).toEqual({ acervo: { itens: [], categorias: [...CATEGORIAS_PADRAO], pastas: [] }, aviso: null, lido: true })
   })
 
   it('índice ilegível é guardado como .invalido antes de recomeçar', async () => {
@@ -122,7 +148,7 @@ describe('disco', () => {
   })
 
   it('leitura que falha por I/O não deixa gravar por cima', async () => {
-    textos.set(INDICE, serializarAcervo({ itens: [pocao()], categorias: [] }))
+    textos.set(INDICE, serializarAcervo({ itens: [pocao()], categorias: [], pastas: [] }))
     leituraFalhaEm.add(INDICE)
     const lido = await lerAcervoDeItens()
     expect(lido.lido).toBe(false)
@@ -130,8 +156,8 @@ describe('disco', () => {
   })
 
   it('gravar guarda uma cópia do índice de antes', async () => {
-    await gravarAcervoDeItens({ itens: [pocao()], categorias: ['Consumível'] })
-    await gravarAcervoDeItens({ itens: [], categorias: ['Consumível'] })
+    await gravarAcervoDeItens({ itens: [pocao()], categorias: ['Consumível'], pastas: [] })
+    await gravarAcervoDeItens({ itens: [], categorias: ['Consumível'], pastas: [] })
     expect(acervoDoTexto(textos.get(`${PASTA}/itens.json.anterior`) ?? '')?.itens).toEqual([pocao()])
     expect(acervoDoTexto(textos.get(INDICE) ?? '')?.itens).toEqual([])
   })
@@ -155,14 +181,17 @@ describe('store do acervo: criar, editar, apagar', () => {
     expect(acervoDoTexto(textos.get(INDICE) ?? '')?.itens.map((item) => item.id)).toEqual(['item_pocao'])
   })
 
-  it('a lista de categorias é editável', async () => {
+  it('PASTAS: organizar troca as pastas e a pasta dos itens numa gravação só; o resto do item fica', async () => {
     await useAcervoDeItensStore.getState().recarregar()
-    await useAcervoDeItensStore.getState().definirCategorias(['Arma', 'Relíquia', 'arma'])
-    expect(acervoDoTexto(textos.get(INDICE) ?? '')?.categorias).toEqual(['Arma', 'Relíquia'])
+    await useAcervoDeItensStore.getState().salvarItem(pocao({ pasta: 'pasta_a' }), [{ id: 'pasta_a', nome: 'Poções' }])
+    await useAcervoDeItensStore.getState().organizar([{ id: 'pasta_b', nome: 'Remédios' }], new Map([['item_pocao', undefined]]))
+    const gravado = acervoDoTexto(textos.get(INDICE) ?? '')
+    expect(gravado?.pastas).toEqual([{ id: 'pasta_b', nome: 'Remédios' }])
+    expect(gravado?.itens).toEqual([pocao()])
   })
 
   it('com a leitura falhada, nada grava', async () => {
-    textos.set(INDICE, serializarAcervo({ itens: [pocao()], categorias: [] }))
+    textos.set(INDICE, serializarAcervo({ itens: [pocao()], categorias: [], pastas: [] }))
     leituraFalhaEm.add(INDICE)
     await useAcervoDeItensStore.getState().recarregar()
     await expect(useAcervoDeItensStore.getState().salvarItem(novoItemDoCatalogo())).rejects.toThrow('nada foi gravado')

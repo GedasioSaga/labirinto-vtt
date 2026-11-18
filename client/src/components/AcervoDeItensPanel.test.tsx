@@ -11,14 +11,20 @@ import type { AlvoDoAcervo } from '../lib/party'
  */
 
 const REF_COLADA = `midia:${'1'.repeat(64)}.webp`
-const POCAO: ItemDoCatalogo = { id: 'item_pocao', nome: 'Poção', imagem: `midia:${'2'.repeat(64)}.webp`, descricao: 'Cura 50 HP.', categoria: 'Consumível', preco: 120, empilhavel: true }
-const ESPADA: ItemDoCatalogo = { id: 'item_espada', nome: 'Espada', imagem: null, descricao: '', categoria: 'Arma', preco: null, empilhavel: false }
+const POCAO: ItemDoCatalogo = { id: 'item_pocao', nome: 'Poção', imagem: `midia:${'2'.repeat(64)}.webp`, descricao: 'Cura 50 HP.', categoria: 'Consumível', preco: 120, empilhavel: true, pasta: 'pasta_consumivel' }
+const ESPADA: ItemDoCatalogo = { id: 'item_espada', nome: 'Espada', imagem: null, descricao: '', categoria: 'Arma', preco: null, empilhavel: false, pasta: 'pasta_arma' }
 const ALVOS: AlvoDoAcervo[] = [
   { tokenId: 'luffy', sceneId: 'c1', nome: 'Luffy', cena: 'Porto' },
   { tokenId: 'zoro', sceneId: null, nome: 'Zoro', cena: 'Mapa' },
 ]
 
-let noDisco: AcervoDeItens = { itens: [], categorias: [] }
+/** As pastas que a leitura faz das categorias de antes (`pastasDasCategorias`), com outros ids. */
+const PASTAS = [
+  { id: 'pasta_consumivel', nome: 'Consumível' },
+  { id: 'pasta_arma', nome: 'Arma' },
+]
+
+let noDisco: AcervoDeItens = { itens: [], categorias: [], pastas: [] }
 const gravados: AcervoDeItens[] = []
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn(), convertFileSrc: (caminho: string) => caminho }))
@@ -51,7 +57,7 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  noDisco = { itens: [POCAO, ESPADA], categorias: ['Arma', 'Consumível'] }
+  noDisco = { itens: [POCAO, ESPADA], categorias: ['Arma', 'Consumível'], pastas: PASTAS }
   gravados.length = 0
   host = document.createElement('div')
   document.body.appendChild(host)
@@ -76,6 +82,11 @@ function botao(texto: string, dentro: ParentNode = document.body): HTMLButtonEle
   return achado
 }
 
+/** Os nomes das pastas de cima, na ordem da tela. */
+function pastasDeCima(): (string | null)[] {
+  return Array.from(host.querySelectorAll(':scope .lb-itens__grupos > .lb-itens__pasta[data-pasta-id]')).map((pasta) => pasta.getAttribute('aria-label'))
+}
+
 function janela(): HTMLElement {
   const achada = document.body.querySelector<HTMLElement>('[role="dialog"]')
   if (achada === null) throw new Error('a janela do item não abriu')
@@ -91,10 +102,9 @@ function digitar(campo: HTMLInputElement, valor: string): void {
 }
 
 describe('AcervoDeItensPanel', () => {
-  it('a grade é por categoria, na ordem da lista do acervo', async () => {
+  it('as pastas de cima vêm por nome, cada uma com os itens dela; a página Itens ainda ordena por categoria', async () => {
     await montar()
-    const grupos = Array.from(host.querySelectorAll('.lb-itens__grupo')).map((grupo) => grupo.getAttribute('aria-label'))
-    expect(grupos).toEqual(['Arma', 'Consumível'])
+    expect(pastasDeCima()).toEqual(['Arma', 'Consumível'])
     expect(host.querySelector('.lb-itens__item img')?.getAttribute('src')).toBe(`/media/${'2'.repeat(64)}.webp`)
     expect(itensPorCategoria([{ ...ESPADA, categoria: '' }, { ...POCAO, categoria: 'Outra' }], ['Arma'])).toEqual([
       { categoria: 'Outra', itens: [{ ...POCAO, categoria: 'Outra' }] },
@@ -163,7 +173,8 @@ describe('AcervoDeItensPanel', () => {
     // Categoria nova entra na lista que o campo sugere.
     expect(salvo?.categorias).toEqual(['Arma', 'Consumível', 'Relíquia'])
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(Array.from(host.querySelectorAll('.lb-itens__grupo')).map((grupo) => grupo.getAttribute('aria-label'))).toEqual(['Arma', 'Consumível', 'Relíquia'])
+    // Item novo do "+ Item" de cima vai para a pasta da categoria dele, criada se não houver (como o grupo novo de antes).
+    expect(pastasDeCima()).toEqual(['Arma', 'Consumível', 'Relíquia'])
   })
 })
 

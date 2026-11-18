@@ -8,7 +8,7 @@
   gap: var(--lb-space-3);
 }
 
-/* ITEM NO MAPA: a linha que ensina o arrasto (e o Alt), acima da primeira categoria. */
+/* ITEM NO MAPA: a linha que ensina o arrasto (e o Alt), acima da primeira pasta. */
 .lb-itens__dica {
   margin: 0;
 }
@@ -86,18 +86,6 @@
   -webkit-user-drag: none;
 }
 
-.lb-itens__categoria {
-  display: flex;
-  align-items: center;
-  gap: var(--lb-space-2);
-  margin: 0 0 var(--lb-space-1);
-  font-size: var(--lb-font-size-xs);
-  font-family: var(--lb-font-utility);
-  letter-spacing: var(--lb-font-tracking-wide);
-  text-transform: uppercase;
-  color: var(--lb-color-parchment-dim);
-}
-
 .lb-itens__grade {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
@@ -166,64 +154,157 @@
   white-space: nowrap;
 }
 
-.lb-itens__categorias {
+/* ── Pastas (18/11/2026: "Pastas como no Prelúdio") ─────────────────────
+   O cabeçalho da pasta é o do acervo de tokens (TokenLibraryPanel.css: linha
+   de 32 px, seta, ícone, contagem na ponta, ações sob o ponteiro). Daqui só o
+   que é dos itens: o recuo das de dentro, a recusa do soltar, o menu da pasta
+   e a frase do fantasma. */
+
+/* O que mora dentro da pasta, um passo para a direita: as subpastas e depois
+   a grade. A linha fina cai sob o meio da seta e diz de quem é cada coisa. */
+.lb-itens__dentro {
   display: flex;
   flex-direction: column;
-  gap: var(--lb-space-2);
-  margin-bottom: var(--lb-space-2);
-}
-
-.lb-itens__chips {
-  display: flex;
-  flex-wrap: wrap;
   gap: var(--lb-space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  margin-left: calc(var(--lb-space-4) - 1px);
+  padding: var(--lb-space-1) 0 var(--lb-space-2) var(--lb-space-2);
+  border-left: 1px solid var(--lb-color-line);
 }
 
-.lb-itens__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 2px 1px var(--lb-space-2);
-  border: 1px solid var(--lb-color-line-strong);
-  border-radius: var(--lb-radius-sm);
+/* Do 4º nível em diante o recuo encolhe: a coluna é estreita e quem precisa
+   do lugar é o nome (o title dele dá o caminho inteiro). */
+.lb-itens__dentro .lb-itens__dentro .lb-itens__dentro {
+  margin-left: var(--lb-space-1);
+  padding-left: var(--lb-space-1);
+}
+
+/* Soltar ali não cabe (a pasta dentro dela mesma ou de uma das de dentro
+   dela): contorno de brasa, sem o fundo de latão de quem aceita. */
+.lb-acervo__pasta.lb-itens__pasta[data-alvo='recusa'] {
+  box-shadow: inset 0 0 0 1px var(--lb-color-ember);
+}
+
+/* O cursor de proibido segue o ponteiro por cima de tudo enquanto a recusa
+   vale; `!important` porque cada botão da lista declara o próprio cursor. */
+body.lb-itens-recusando,
+body.lb-itens-recusando * {
+  cursor: not-allowed !important;
+}
+
+/* Durante o arrasto o ponteiro passa por cima de todas as linhas: o pairar
+   delas se apaga, e só a pasta de destino acende (`data-alvo`). */
+.lb-itens--arrastando .lb-acervo__pasta-topo:hover {
+  background: none;
+}
+
+/* Nem o "⋯" aparece: duas classes na frente, porque o pairar e o foco do
+   TokenLibraryPanel.css (importado depois) têm o mesmo peso de uma. */
+.lb-itens.lb-itens--arrastando .lb-acervo__pasta-topo .lb-acervo__acoes {
+  opacity: 0;
+}
+
+/* As ações da pasta, abertas pelo "⋯": uma coluna de botões de texto logo
+   abaixo do cabeçalho. Entra de onde o "⋯" está (canto de cima, à direita). */
+.lb-itens__menu {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--lb-space-1) var(--lb-space-8);
+  padding: var(--lb-space-1);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
   background: var(--lb-color-stone-raised);
-  font-size: var(--lb-font-size-sm);
-  color: var(--lb-color-parchment);
+  transform-origin: top right;
+  transition:
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.lb-itens__tirar {
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0;
+@starting-style {
+  .lb-itens__menu {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+}
+
+.lb-itens__menu-acao {
+  min-height: var(--lb-control-min);
+  padding: var(--lb-space-1) var(--lb-space-2);
   border: 0;
   border-radius: var(--lb-radius-sm);
-  background: transparent;
-  color: var(--lb-color-parchment-dim);
+  background: none;
+  color: var(--lb-color-parchment);
+  font: inherit;
+  font-size: var(--lb-font-size-md);
+  text-align: left;
   cursor: pointer;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .lb-itens__tirar:hover {
-    color: var(--lb-color-ember);
+  .lb-itens__menu-acao:hover {
+    background: var(--lb-color-stone-hover);
   }
 }
 
-.lb-itens__tirar:focus-visible {
-  outline: 2px solid var(--lb-color-brass);
-  outline-offset: 1px;
+.lb-itens__menu-acao:active {
+  background: var(--lb-color-stone-sunken);
 }
 
-.lb-itens__nova {
+/* O anel de dentro, como o das linhas: os botões se encostam. */
+.lb-itens__menu-acao:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--lb-color-brass);
+}
+
+.lb-itens__menu-acao--perigo {
+  color: var(--lb-color-ember);
+}
+
+/* O nome da pasta nova ou renomeada, no lugar onde ela vai morar. */
+.lb-itens__form-pasta {
+  margin: 0 0 var(--lb-space-1);
+}
+
+/* "Sem pasta": a grade dos itens soltos sob o rótulo. */
+.lb-itens__solta > .lb-itens__grade {
+  padding-bottom: var(--lb-space-1);
+}
+
+/* O fantasma diz onde o item vai cair ("Soltar em Balas") ou por que não cabe.
+   A frase longa quebra linha em vez de alargar o fantasma pela janela afora. */
+.lb-itens__fantasma {
+  max-width: 16rem;
+}
+
+.lb-itens__fantasma-texto {
   display: flex;
-  gap: var(--lb-space-1);
+  flex-direction: column;
+  min-width: 0;
 }
 
-.lb-itens__nova .lb-input {
-  flex: 1 1 auto;
-  min-width: 0;
+.lb-itens__fantasma-texto > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-itens__fantasma-alvo {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  white-space: normal;
+}
+
+.lb-itens__fantasma-alvo:empty {
+  display: none;
+}
+
+body.lb-itens-recusando .lb-itens__fantasma-alvo {
+  color: var(--lb-color-ember);
+}
+
+/* Movimento reduzido: o menu só aparece em fade, sem o encolher. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-itens__menu {
+    transition: opacity 140ms ease;
+  }
 }
 
 /* ---------------------------------------------------------- janela do item */

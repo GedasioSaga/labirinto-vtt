@@ -5,6 +5,9 @@ import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 import type { LuzDoItem } from '../types/map'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
+import { ehIdDePasta, pastasDasCategorias, pastasLidas, type PastaDeItens } from './pastasDosItens'
+
+export type { PastaDeItens }
 
 /**
  * ACERVO DE ITENS (entrega 4 dos sistemas de RPG) — a espada, a poção, a Gomu
@@ -14,7 +17,7 @@ import { ensureDir, writeTextFileSafely } from './mapFileIO'
  * tokens no painel do mestre (`AcervoDeItensPanel`).
  *
  * O que fica no disco:
- *   <appData>/itens/itens.json   índice: categorias + itens (com a referência da imagem)
+ *   <appData>/itens/itens.json   índice: categorias + pastas + itens (com a referência da imagem e a pasta)
  *   <appData>/midia/<sha256>.*   a imagem, gravada pela mídia da mesa (`lib/midiaNoDisco.ts`)
  *
  * A imagem não mora aqui ao lado de propósito: a pasta de mídia é a que a sala
@@ -31,8 +34,11 @@ const PASTA_DO_ACERVO = 'itens'
 const ARQUIVO_DO_INDICE = 'itens.json'
 const ARQUIVO_INVALIDO = 'itens.json.invalido'
 const ARQUIVO_ANTERIOR = 'itens.json.anterior'
-/** 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`). */
-const VERSAO_DO_INDICE = 2
+/**
+ * 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`).
+ * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
+ */
+const VERSAO_DO_INDICE = 3
 /** A versão que trouxe a categoria Munição. */
 const VERSAO_DA_MUNICAO = 2
 
@@ -84,11 +90,18 @@ export interface ItemDoCatalogo {
    * chão clareia, na mochila só aceso. Ausente = não ilumina.
    */
   luz?: LuzDoItem
+  /**
+   * PASTAS (pedido de 18/11/2026): o id da pasta onde o item mora no Acervo.
+   * Ausente = Sem pasta. Só organiza o Acervo: não vai com a cópia dada.
+   */
+  pasta?: string
 }
 
 export interface AcervoDeItens {
   itens: ItemDoCatalogo[]
   categorias: string[]
+  /** As pastas e subpastas do Acervo (`lib/pastasDosItens.ts`). */
+  pastas: PastaDeItens[]
 }
 
 export interface AcervoDeItensLido {
@@ -103,7 +116,7 @@ const AVISO = 'Não foi possível ler o acervo de itens'
 export const ACERVO_DE_ITENS_NAO_LIDO = `${AVISO}, então nada foi gravado para não apagar o que está lá. Feche e abra o app de novo.`
 
 export function acervoVazio(): AcervoDeItens {
-  return { itens: [], categorias: [...CATEGORIAS_PADRAO] }
+  return { itens: [], categorias: [...CATEGORIAS_PADRAO], pastas: [] }
 }
 
 export function novoIdDeItem(): string {
@@ -147,6 +160,7 @@ export function itemDoCatalogoLido(value: unknown): ItemDoCatalogo | null {
     empilhavel: value.empilhavel === true,
     ...municoesLidas(value.municoes, value.id),
     ...luzLida(value.luz),
+    ...(ehIdDePasta(value.pasta) ? { pasta: value.pasta } : {}),
   }
 }
 
@@ -201,11 +215,25 @@ export function acervoDoTexto(texto: string): AcervoDeItens | null {
   // O índice de antes da Munição a ganha UMA vez: gravado de novo com a versão nova, o mestre que a tirar não a vê voltar.
   const antesDaMunicao = typeof bruto.version !== 'number' || bruto.version < VERSAO_DA_MUNICAO
   const semMunicao = !categorias.some(ehCategoriaDeMunicao)
-  return { itens, categorias: antesDaMunicao && semMunicao && categorias.length < CATEGORIAS_MAX ? [...categorias, CATEGORIA_DA_MUNICAO] : categorias }
+  const comMunicao = antesDaMunicao && semMunicao && categorias.length < CATEGORIAS_MAX ? [...categorias, CATEGORIA_DA_MUNICAO] : categorias
+  // O índice de antes das pastas: as categorias que a lista mostrava viram as pastas de cima, cada item na dele.
+  const guardadas = pastasLidas(bruto.pastas)
+  const organizado = guardadas === null ? pastasDasCategorias(itens) : { pastas: guardadas, itens: semPastaQueSumiu(itens, guardadas) }
+  return { itens: organizado.itens, categorias: comMunicao, pastas: organizado.pastas }
+}
+
+/** O item que aponta para uma pasta que não está no índice fica Sem pasta (o campo sai). */
+function semPastaQueSumiu(itens: ItemDoCatalogo[], pastas: readonly PastaDeItens[]): ItemDoCatalogo[] {
+  const ids = new Set(pastas.map((pasta) => pasta.id))
+  return itens.map((item) => {
+    if (item.pasta === undefined || ids.has(item.pasta)) return item
+    const { pasta: _sumiu, ...semPasta } = item
+    return semPasta
+  })
 }
 
 export function serializarAcervo(acervo: AcervoDeItens): string {
-  return `${JSON.stringify({ version: VERSAO_DO_INDICE, categorias: acervo.categorias, itens: acervo.itens }, null, 2)}\n`
+  return `${JSON.stringify({ version: VERSAO_DO_INDICE, categorias: acervo.categorias, pastas: acervo.pastas, itens: acervo.itens }, null, 2)}\n`
 }
 
 /**

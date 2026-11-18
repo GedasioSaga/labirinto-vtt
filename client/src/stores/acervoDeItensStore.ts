@@ -10,6 +10,7 @@ import {
   lerAcervoDeItens,
   type AcervoDeItens,
   type ItemDoCatalogo,
+  type PastaDeItens,
 } from '../lib/acervoDeItens'
 
 /**
@@ -23,11 +24,22 @@ interface AcervoDeItensState extends AcervoDeItens {
   /** Há disco e o índice foi lido: só então a tela oferece criar, editar e apagar. */
   podeGravar: boolean
   recarregar: () => Promise<void>
-  /** Cria ou troca o item (pelo id); categoria nova entra na lista. */
-  salvarItem: (item: ItemDoCatalogo) => Promise<void>
+  /** Cria ou troca o item (pelo id); categoria nova entra na lista. `pastas` = a lista de pastas junto (a pasta nova do item novo). */
+  salvarItem: (item: ItemDoCatalogo, pastas?: readonly PastaDeItens[]) => Promise<void>
   apagarItem: (id: string) => Promise<void>
-  /** A lista editável de categorias (o seletor do item a sugere). */
-  definirCategorias: (categorias: readonly string[]) => Promise<void>
+  /**
+   * PASTAS (18/11/2026): troca as pastas e, nos itens de `ondeMoram`, a pasta
+   * (`undefined` = Sem pasta), numa gravação só. Serve a toda mudança da
+   * árvore e ao Desfazer dela; o resto de cada item fica como está.
+   */
+  organizar: (pastas: readonly PastaDeItens[], ondeMoram?: ReadonlyMap<string, string | undefined>) => Promise<void>
+}
+
+/** O item na pasta (`undefined` = Sem pasta, sem o campo). Já está lá: o mesmo objeto. */
+function naPasta(item: ItemDoCatalogo, pasta: string | undefined): ItemDoCatalogo {
+  if (item.pasta === pasta) return item
+  const { pasta: _antes, ...semPasta } = item
+  return pasta === undefined ? semPasta : { ...semPasta, pasta }
 }
 
 /** A lista com a categoria do item, se ela é nova (sem diferença de caixa). */
@@ -42,7 +54,7 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
   /** Troca a tela, grava; falhou, relê o disco e devolve o erro a quem chamou. */
   const gravar = async (proximo: AcervoDeItens): Promise<void> => {
     if (!get().podeGravar) throw new Error(ACERVO_DE_ITENS_NAO_LIDO)
-    set({ itens: proximo.itens, categorias: proximo.categorias })
+    set({ itens: proximo.itens, categorias: proximo.categorias, pastas: proximo.pastas })
     try {
       await gravarAcervoDeItens(proximo)
     } catch (erro) {
@@ -66,21 +78,22 @@ export const useAcervoDeItensStore = create<AcervoDeItensState>()((set, get) => 
       set({ ...lido.acervo, aviso: lido.aviso, podeGravar: lido.lido })
     },
 
-    salvarItem: (item) => {
-      const { itens, categorias } = get()
+    salvarItem: (item, pastas) => {
+      const { itens, categorias, pastas: atuais } = get()
       const existe = itens.some((atual) => atual.id === item.id)
       const proximos = existe ? itens.map((atual) => (atual.id === item.id ? item : atual)) : [...itens, item]
-      return gravar({ itens: proximos, categorias: comCategoria(categorias, item.categoria) })
+      return gravar({ itens: proximos, categorias: comCategoria(categorias, item.categoria), pastas: pastas === undefined ? atuais : [...pastas] })
     },
 
     apagarItem: (id) => {
-      const { itens, categorias } = get()
-      return gravar({ itens: itens.filter((item) => item.id !== id), categorias })
+      const { itens, categorias, pastas } = get()
+      return gravar({ itens: itens.filter((item) => item.id !== id), categorias, pastas })
     },
 
-    definirCategorias: (lista) => {
-      const categorias = lista.reduce<string[]>((acumuladas, categoria) => comCategoria(acumuladas, categoria), [])
-      return gravar({ itens: get().itens, categorias })
+    organizar: (pastas, ondeMoram) => {
+      const { itens, categorias } = get()
+      const proximos = ondeMoram === undefined ? itens : itens.map((item) => (ondeMoram.has(item.id) ? naPasta(item, ondeMoram.get(item.id)) : item))
+      return gravar({ itens: proximos, categorias, pastas: [...pastas] })
     },
   }
 })
