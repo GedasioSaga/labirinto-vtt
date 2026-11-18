@@ -192,7 +192,7 @@ describe('largar no chão: volta com imagem e dados', () => {
     expect(change?.addPin).toBeUndefined()
     expect(formaAoSoltar({}, false)).toBe('estrela')
     expect(formaAoSoltar({ imagem: IMAGEM }, false)).toBe('chao')
-    expect(formaAoSoltar({}, true)).toBe('pino')
+    expect(formaAoSoltar({ imagem: IMAGEM }, true)).toBe('estrela')
   })
 
   it('id já usado por pino ou objeto do mapa: usa o id novo, nunca sobrescreve', () => {

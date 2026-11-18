@@ -28,8 +28,9 @@ export interface AcervoDeItensPanelProps {
   onErro?: (mensagem: string) => void
   /**
    * ITEM NO MAPA (entrega 5): o item foi ARRASTADO e solto neste ponto da tela
-   * (px de janela). `comoPino` = o Alt estava apertado ao soltar: pino de item
-   * em vez da imagem no chão. Quem monta a tela decide se ali é o mapa e
+   * (px de janela). `comoPino` = o Alt estava apertado ao soltar: desde
+   * 18/11/2026 a ESTRELA no chão em vez da imagem (o nome do parâmetro é
+   * antigo; `formaAoSoltar` decide). Quem monta a tela decide se ali é o mapa e
    * devolve `true` quando pôs. Ausente = o item não se arrasta.
    */
   onSoltarNoMapa?: (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean) => boolean
@@ -41,7 +42,7 @@ export interface AcervoDeItensPanelProps {
 const LIMIAR_DO_ARRASTO_PX = 6
 
 /** O que a linha de ajuda diz: o gesto e o modificador, que de outro jeito ninguém descobre. */
-export const DICA_DO_ARRASTO = 'Arraste um item até o mapa para pô-lo no chão; com Alt, vira pino.'
+export const DICA_DO_ARRASTO = 'Arraste um item até o mapa para pô-lo no chão; com Alt, vira estrela brilhando.'
 
 /** Leva o fantasma ao ponteiro, centrado nele. Estilo direto: sem render do React por quadro. */
 function posicionarFantasma(fantasma: HTMLElement, ponto: { x: number; y: number }): void {

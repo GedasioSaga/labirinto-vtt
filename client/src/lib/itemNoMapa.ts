@@ -182,11 +182,13 @@ function objetoNaForma(forma: FormaNoChao, id: string, ponto: { x: number; y: nu
 
 /**
  * A forma do item que o mestre SOLTA do acervo (arrastado, o "+", o "Pôr no
- * mapa" do Prelúdio): o pino de item com Alt; sem imagem, a ESTRELA (não há
- * imagem a deitar no chão); com imagem, a imagem no chão.
+ * mapa" do Prelúdio): com Alt, a ESTRELA mesmo que o item tenha imagem
+ * (pedido do mestre de 18/11/2026; antes o Alt dava o pino, que agora se
+ * escolhe no painel "Mostrar como"); sem imagem, a ESTRELA (não há imagem a
+ * deitar no chão); com imagem, a imagem no chão.
  */
-export function formaAoSoltar(item: Pick<PinItem, 'imagem'>, comoPino: boolean): FormaDoItem {
-  if (comoPino) return 'pino'
+export function formaAoSoltar(item: Pick<PinItem, 'imagem'>, comAlt: boolean): FormaDoItem {
+  if (comAlt) return 'estrela'
   return item.imagem === undefined ? 'estrela' : 'chao'
 }
 
