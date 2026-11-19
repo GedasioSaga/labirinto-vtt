@@ -84,14 +84,15 @@ describe('hostSession — só o dono muda o próprio token', () => {
     expect(r.applyTokenEdit).toEqual({ tokenId: 'tok-ana', name: 'Brunilda', image: undefined })
   })
 
-  it('token do OUTRO jogador não muda, e nada volta para quem tentou', () => {
+  it('token do OUTRO jogador não muda; só a tela de quem tentou volta, sem recado de recusa', () => {
     const { session } = mesaComDoisJogadores()
 
     const r = session.handleMessage('c1', JSON.stringify({ type: 'token.edit', tokenId: 'tok-beto', name: 'Palhaço' }), mapa())
 
     expect(r.applyTokenEdit).toBeUndefined()
-    // Silêncio de propósito: responder "recusado" ensinaria quais ids existem.
-    expect(r.outbound).toEqual([])
+    // Sem "recusado" (ensinaria quais ids existem). Desde 18/11/2026 a tela dele, que já pôs a edição
+    // (otimista), recebe o recorte de novo (`resendView`): senão ficava com o nome falso até outra mudança.
+    expect(r.outbound.map((saida) => [saida.clientId, saida.msg.type])).toEqual([['c1', expect.stringMatching(/^(snapshot|patch)$/)]])
   })
 
   it('token que não está no mapa não muda nada', () => {

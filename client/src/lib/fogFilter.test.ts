@@ -70,7 +70,7 @@ describe('filterMapForPlayer', () => {
     expect(out.lights).toEqual([])
   })
 
-  it('mantém planta inteira (paredes sem porta, chão, moldura) e corta entidades fora da visão', () => {
+  it('mantém planta inteira (paredes sem porta, chão) e corta entidades fora da visão; a moldura não vai', () => {
     const map = twoRooms({
       markers: [
         { id: 'mk-perto', cx: 250, cy: 250, w: 4, h: 4, rotation: 0, color: '#000' },
@@ -83,7 +83,9 @@ describe('filterMapForPlayer', () => {
     expect(out.walls.map((w) => w.id)).toEqual(['divisoria'])
     expect(out.markers.map((m) => m.id)).toEqual(['mk-perto'])
     expect(JSON.stringify(out)).not.toContain('segredo')
-    expect(out.frame).toEqual(map.frame)
+    // MOLDURA (decisão do usuário, 18/11/2026): o título é nome de cena do mestre; a tela do jogador nem a desenha.
+    expect(out.frame).toBeNull()
+    expect(JSON.stringify(out)).not.toContain('Masmorra')
   })
 
   it('benchmark: 8 tokens × 800 paredes × 2000 entidades', () => {

@@ -224,24 +224,23 @@ describe('recorte do jogador — nada do mestre atravessa, nem por campo sem nom
     expect(caminhos).toContain('regions[2]') // regiao_secreta, marcada secret
   })
 
-  it('CONTROLE POSITIVO: a varredura pega lista nova que ninguém citou por nome — e ela vaza hoje', () => {
+  it('lista nova que ninguém citou por nome não atravessa mais: a lista branca do recorte a corta (18/11/2026), e a varredura ainda a enxerga', () => {
     // `__campoNovoDeTeste` faz o papel da próxima lista do schema (os pinos de
-    // ponto de interesse, por exemplo). O `expect` abaixo descreve o
-    // comportamento de HOJE: o recorte deixa a lista passar inteira.
+    // ponto de interesse, por exemplo). Até 18/11/2026 o recorte a deixava
+    // passar inteira; desde então só as chaves da lista branca vão ao jogador.
     const comCampoNovo = {
       ...mapaCompletoDoMestre(),
       __campoNovoDeTeste: [{ id: 'pino_secreto', label: 'Entrada da cripta', src: DISCO_WINDOWS, hidden: true }],
     } as unknown as MapData
     const marcados = idsMarcadosNaEntrada(comCampoNovo)
 
+    // Controle: sem o recorte, a varredura acha o campo novo pelo hidden e pelo caminho de disco.
+    expect(varrerVazamentos(comCampoNovo, marcados).map((a) => a.caminho)).toEqual(
+      expect.arrayContaining(['__campoNovoDeTeste[0]', '__campoNovoDeTeste[0].src']),
+    )
     const { map: recorte } = filterMapForPlayer(comCampoNovo, JOGADOR, POSSE, RAIO_DE_VISAO)
     const achados = varrerVazamentos(recorte, marcados)
-
-    expect(achados.map((a) => a.caminho)).toEqual(['__campoNovoDeTeste[0]', '__campoNovoDeTeste[0].src'])
-    expect(
-      relatar(achados),
-      'Se isto ficou VERDE, a varredura enxerga campo que nenhum teste cita por nome — é o dente que falta em fogFilter.test.ts. ' +
-        'Se ficou VERMELHO porque não vazou mais, alguém fechou o buraco de lib/fogFilter.ts: apague este caso e mova a lista para a fixture.',
-    ).toContain('item marcado hidden na entrada (id "pino_secreto") saiu no recorte')
+    expect(achados, relatar(achados)).toEqual([])
+    expect(recorte).not.toHaveProperty('__campoNovoDeTeste')
   })
 })

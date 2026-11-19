@@ -175,7 +175,8 @@ describe('hostSession: emprestar a ficha de quem saiu', () => {
     m.s.lendTokens(m.ana.playerId, m.carla.playerId, m.mundo())
     const r = m.s.handleMessage('c3', { type: 'token.edit', tokenId: 'lirio', name: 'Lírio da Carla' }, m.mundo())
     expect(r.applyTokenEdit).toBeUndefined()
-    expect(r.outbound).toEqual([])
+    // A recusa reenvia só a tela da Carla (desfaz a edição otimista, 18/11/2026); nada para os outros.
+    expect(r.outbound.map((saida) => [saida.clientId, saida.msg.type])).toEqual([['c3', expect.stringMatching(/^(snapshot|patch)$/)]])
     // A própria ficha da Carla continua editável.
     expect(m.s.handleMessage('c3', { type: 'token.edit', tokenId: 'escudo', name: 'Escudo Novo' }, m.mundo()).applyTokenEdit).toMatchObject({ tokenId: 'escudo' })
   })

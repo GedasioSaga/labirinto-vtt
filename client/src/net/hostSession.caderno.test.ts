@@ -262,7 +262,8 @@ describe('caderno de recados (host)', () => {
     s.sceneNote('s-prisao', RECADO, mundo())
     s.assignToken(bruno.playerId, 'bruno')
     expect(textoPara(entra(s, 'c-bruno-2', 'Bruno', mundo(), bruno.resume).r, 'c-bruno-2')).toContain(RECADO)
-    expect(msgsPara(s.broadcast(mundo()), 'c-bruno-2').map((m) => m.type)).toEqual(['snapshot'])
+    // A entrada já semeia a tela enviada (18/11/2026): o broadcast sem mudança não manda nada, nem o recado de novo.
+    expect(msgsPara(s.broadcast(mundo()), 'c-bruno-2').map((m) => m.type)).toEqual([])
   })
 
   it('quem entra sem ficha (aguardando) não recebe recado de cena nenhuma', () => {

@@ -59,10 +59,12 @@ describe('NPC emprestado pelo "Atribuir": anda e vê, mas não é editado', () =
   it('o host recusa renomear e trocar a foto do NPC; a ficha própria continua editável', () => {
     const nome = s.handleMessage('c1', { type: 'token.edit', tokenId: 'menino', name: 'Pedrinho' }, VILA)
     expect(nome.applyTokenEdit).toBeUndefined()
-    expect(nome.outbound).toEqual([])
+    // A recusa reenvia só a tela do Gui (desfaz a edição otimista, 18/11/2026); nada para os outros.
+    const soATelaDoGui = [['c1', expect.stringMatching(/^(snapshot|patch)$/)]]
+    expect(nome.outbound.map((saida) => [saida.clientId, saida.msg.type])).toEqual(soATelaDoGui)
     const foto = s.handleMessage('c1', { type: 'token.edit', tokenId: 'menino', image: FOTO }, VILA)
     expect(foto.applyTokenEdit).toBeUndefined()
-    expect(foto.outbound).toEqual([])
+    expect(foto.outbound.map((saida) => [saida.clientId, saida.msg.type])).toEqual(soATelaDoGui)
     const propria = s.handleMessage('c1', { type: 'token.edit', tokenId: 'espada', name: 'Lâmina' }, VILA)
     expect(propria.applyTokenEdit).toEqual({ tokenId: 'espada', name: 'Lâmina', image: undefined })
   })
