@@ -302,6 +302,7 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
   const renderRow = (rowKey: string, target: EnterTarget, content: ReactNode, extra: { current: boolean; title: string | undefined }) => {
     const sendTarget = canSend ? targetOf(target) : null
     const promptOpen = sendPrompt !== null && sendPrompt.rowKey === rowKey
+    const itemRef = target.where === 'aqui' ? refDaEntrada(target.entry) : null
     return (
       <li key={rowKey} className="lb-objetos__linha">
         <div className="lb-objetos__linha-acoes">
@@ -315,8 +316,9 @@ export function MapObjectsSection({ map, currentKey, onGoTo, searchRequest = 0, 
             tabIndex={rowKey === tabKey ? 0 : -1}
             title={extra.title}
             // Fatia 8 das camadas: a linha desta cena se arrasta até uma camada do painel (o caminho sem arrasto é o "Camada" da ficha e o clique direito).
-            draggable={target.where === 'aqui' ? true : undefined}
-            onDragStart={target.where === 'aqui' ? (event) => escreverArrasto(event.dataTransfer, refDaEntrada(target.entry)) : undefined}
+            // Desafio, gatilho e zona de perigo não são item de camada (`refDaEntrada` devolve `null`): a linha deles não se arrasta.
+            draggable={itemRef !== null ? true : undefined}
+            onDragStart={itemRef !== null ? (event) => escreverArrasto(event.dataTransfer, itemRef) : undefined}
             onFocus={() => setFocusKey(rowKey)}
             onClick={() => goTo(target)}
             onKeyDown={(event) => {

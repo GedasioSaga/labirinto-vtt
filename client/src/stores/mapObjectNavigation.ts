@@ -8,8 +8,14 @@ import { useAdventureStore } from './adventureStore'
 import { useFollowStore } from './followStore'
 import { useMapStore } from './mapStore'
 
-/** O que o clique na linha seleciona: o item da seleção, ou o pino (que abre no painel). */
-function selectionTarget(entry: MapObjectEntry): SelectionItem | { pinId: string } {
+/**
+ * O que o clique na linha seleciona: o item da seleção, ou o pino (que abre no
+ * painel). A linha que mora em outro item diz qual (`entry.target`: o gatilho
+ * e a zona de perigo, a sala; o desafio, o objeto). `null` = nada a selecionar
+ * (desafio solto no mapa): a câmera só vai até lá.
+ */
+function selectionTarget(entry: MapObjectEntry): SelectionItem | { pinId: string } | null {
+  if (entry.target !== undefined) return entry.target
   switch (entry.kind) {
     case 'room':
       return { kind: 'region', id: entry.id }
@@ -21,14 +27,47 @@ function selectionTarget(entry: MapObjectEntry): SelectionItem | { pinId: string
       return { kind: 'drawing', id: entry.id }
     case 'pin':
       return { pinId: entry.id }
+    case 'prop':
+      return { kind: 'prop', id: entry.id }
+    case 'stair':
+      return { kind: 'stair', id: entry.id }
+    case 'challenge':
+    case 'trigger':
+    case 'hazard':
+      return null
+  }
+}
+
+/** Onde procurar o piso da linha: a lista do item por trás dela (`entry.target`), senão a do próprio tipo. */
+function ondeEstaOPiso(map: MapData, entry: MapObjectEntry): { lista: readonly (NoPiso & { id: string })[]; id: string } {
+  const alvo = entry.target
+  if (alvo !== undefined && alvo !== null) return { lista: alvo.kind === 'prop' ? map.props : map.regions, id: alvo.id }
+  switch (entry.kind) {
+    case 'room':
+    case 'trigger':
+    case 'hazard':
+      return { lista: map.regions, id: entry.id }
+    case 'door':
+      return { lista: map.walls, id: entry.id }
+    case 'token':
+      return { lista: map.tokens, id: entry.id }
+    case 'text':
+      return { lista: map.drawings, id: entry.id }
+    case 'pin':
+      return { lista: map.pins, id: entry.id }
+    case 'prop':
+      return { lista: map.props, id: entry.id }
+    case 'stair':
+      return { lista: map.stairs, id: entry.id }
+    case 'challenge':
+      return { lista: map.desafios ?? [], id: entry.id }
   }
 }
 
 /** O piso do objeto da lista; objeto que não está mais no mapa: `null`. */
 function pisoDoObjeto(map: MapData, entry: MapObjectEntry): number | null {
-  const lista: readonly (NoPiso & { id: string })[] =
-    entry.kind === 'room' ? map.regions : entry.kind === 'door' ? map.walls : entry.kind === 'token' ? map.tokens : entry.kind === 'text' ? map.drawings : map.pins
-  const item = lista.find((candidato) => candidato.id === entry.id)
+  const { lista, id } = ondeEstaOPiso(map, entry)
+  const item = lista.find((candidato) => candidato.id === id)
   return item === undefined ? null : pisoDe(item)
 }
 
@@ -87,7 +126,11 @@ function goToFreshObject(fresh: MapObjectEntry, focus: Point, bounds: Bounds): v
     // no próximo passo (`setActiveTool`), e o clique seguinte criaria em vez de mover.
     if (store.activeTool !== 'select') store.setActiveTool('select')
     const target = selectionTarget(fresh)
-    if ('pinId' in target) store.setSelectedPin(target.pinId)
+    if (target === null) {
+      // Nada a selecionar: a seleção de antes sai, para o painel não continuar mostrando outro objeto.
+      store.setSelection(EMPTY_SELECTION)
+      store.setSelectedPin(null)
+    } else if ('pinId' in target) store.setSelectedPin(target.pinId)
     else store.setSelection(selectionOfItem(target))
   }
 

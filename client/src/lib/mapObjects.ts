@@ -1,15 +1,19 @@
-import type { DoorKind, Drawing, MapData, Pin, Region, RegionPoint, Token, Wall } from '../types/map'
+import type { AreaTrigger, Desafio, DoorKind, Drawing, Hazard, MapData, Pin, Prop, Region, RegionPoint, Stair, StairDirection, Token, Wall } from '../types/map'
 import type { Bounds, Point } from '../pixi/world'
+import { AREA_TRIGGER_LABELS, regionAreaName, triggersWithRegions } from './areaTriggers'
 import { contextoDeCamadas } from './camadas/consulta'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
+import { conteudoDe, mobiliaDoConteudo, NOME_DO_OBJETO, resumoDoConteudo } from './conteudoDoObjeto'
+import { HAZARD_LABELS, hazardRooms } from './hazards'
 import { canInteract } from './itemTransform'
 import { isEditableTarget, type ShortcutEvent } from './keymap'
-import { pointsBoundingBox, tokenBoundingBox } from './objectTransform'
+import { pointsBoundingBox, propBoundingBox, tokenBoundingBox } from './objectTransform'
 import { PIN_HEAD_OFFSET, PIN_HEAD_RADIUS, PIN_HEIGHT, escalaDoPino, pinSummary } from './pins'
 import { pinFocusPoint } from './pinTravel'
+import { stairCenterlineSamples } from './stairCurve'
 import { isStairPin } from './stairTravel'
 import { isPointInPolygon } from './selectionHitTest'
-import { selectionSingle, type SelectionSet } from './selectionModel'
+import { selectionSingle, type SelectionItem, type SelectionSet } from './selectionModel'
 import { parseHexColor, tokenFillColor } from './tokenColor'
 
 /**
@@ -19,15 +23,17 @@ import { parseHexColor, tokenFillColor } from './tokenColor'
  * ponto que a câmera centraliza e a caixa que precisa caber na tela.
  *
  * Só o que tem nome para o mestre procurar: Sala (a Região com `room`),
- * Porta (a parede com `door`), Pino, Token e Texto. Parede sem porta, região
- * comum e desenho que não é texto ficariam na lista como dezenas de linhas
- * iguais e sem nome.
+ * Porta (a parede com `door`), Pino, Token e Texto — e o que o mestre PREPARA
+ * para a sessão e precisa achar na hora: o objeto que guarda coisas (baú,
+ * caixa, barril), a Escada, o Desafio, o Gatilho de área e a Zona de perigo.
+ * Parede sem porta, região comum, mobília que não guarda nada e desenho que
+ * não é texto ficariam na lista como dezenas de linhas iguais e sem nome.
  *
  * É lista do MESTRE: nada daqui vai ao jogador (a tela dele nem monta a
  * seção), por isso o nome da sala secreta e o pino oculto aparecem.
  */
 
-export type MapObjectKind = 'room' | 'door' | 'pin' | 'token' | 'text'
+export type MapObjectKind = 'room' | 'door' | 'pin' | 'token' | 'text' | 'prop' | 'stair' | 'challenge' | 'trigger' | 'hazard'
 
 export interface MapObjectEntry {
   /** `tipo:id` — único na lista; marca a linha do objeto selecionado. */
@@ -52,6 +58,14 @@ export interface MapObjectEntry {
   focus: Point
   /** Caixa do objeto no mundo: a câmera afasta se ela não couber. */
   bounds: Bounds
+  /**
+   * O item DO MAPA por trás da linha, quando não é ela mesma: o gatilho e a
+   * zona de perigo moram numa sala; o desafio pode estar preso a um objeto. É
+   * o que o clique seleciona e o que o arrasto leva a uma camada. `null` = não
+   * há item (desafio solto no mapa): a câmera só vai até lá. Ausente = a
+   * própria linha, pelo tipo dela.
+   */
+  target?: SelectionItem | null
 }
 
 /** Grupos da lista, na ordem da tela, com o nome que o resto do app já usa. */
@@ -61,12 +75,20 @@ export const MAP_OBJECT_GROUPS: readonly { kind: MapObjectKind; label: string }[
   { kind: 'pin', label: 'Pinos' },
   { kind: 'token', label: 'Tokens' },
   { kind: 'text', label: 'Textos' },
+  { kind: 'prop', label: 'Baús, caixas e barris' },
+  { kind: 'stair', label: 'Escadas' },
+  { kind: 'challenge', label: 'Desafios' },
+  { kind: 'trigger', label: 'Gatilhos' },
+  { kind: 'hazard', label: 'Zonas de perigo' },
 ]
 
-const GROUP_ORDER: Record<MapObjectKind, number> = { room: 0, door: 1, pin: 2, token: 3, text: 4 }
+const GROUP_ORDER: Record<MapObjectKind, number> = { room: 0, door: 1, pin: 2, token: 3, text: 4, prop: 5, stair: 6, challenge: 7, trigger: 8, hazard: 9 }
 
 /** Mesmo nome do tipo que o painel "Tipo de porta" mostra. */
 const DOOR_NAMES: Record<DoorKind, string> = { normal: 'Porta', double: 'Porta dupla', gate: 'Portão' }
+
+/** Escada não tem nome: o que separa uma da outra na lista é para onde ela leva. */
+const STAIR_DIRECTION_NAMES: Record<StairDirection, string> = { up: 'sobe', down: 'desce' }
 
 /** Linha da lista é uma linha só: texto longo do pino ou do rótulo vira isto, com reticências. */
 const MAX_NAME_CHARS = 60
@@ -283,6 +305,147 @@ function textEntry(map: MapData, drawing: Drawing): MapObjectEntry | null {
   }
 }
 
+/** A linha do objeto que guarda coisas (baú, caixa, barril e os destroços deles); `null` para a mobília comum. */
+function propEntry(map: MapData, prop: Prop): MapObjectEntry | null {
+  const mobilia = mobiliaDoConteudo(prop)
+  if (mobilia === null) return null
+  const conteudo = conteudoDe(prop)
+  return {
+    key: mapObjectKey('prop', prop.id),
+    kind: 'prop',
+    id: prop.id,
+    name: NOME_DO_OBJETO[mobilia],
+    // "3 itens, 35 moedas, Cobra": o que separa um baú do outro.
+    detail: conteudo === null ? '' : resumoDoConteudo(conteudo),
+    blockedReason: layerBlock(map, 'objeto', prop),
+    color: null,
+    travel: false,
+    focus: { x: prop.x, y: prop.y },
+    bounds: propBoundingBox(prop),
+  }
+}
+
+/** A linha de uma Escada (`null` sem trecho nenhum). A caixa é a da linha do meio, alargada pela largura do degrau. */
+function stairEntry(map: MapData, stair: Stair): MapObjectEntry | null {
+  const line = pointsBoundingBox(stairCenterlineSamples(stair))
+  if (line === null) return null
+  const half = stair.stepWidth / 2
+  const bounds = { minX: line.minX - half, minY: line.minY - half, maxX: line.maxX + half, maxY: line.maxY + half }
+  return {
+    key: mapObjectKey('stair', stair.id),
+    kind: 'stair',
+    id: stair.id,
+    name: 'Escada',
+    detail: STAIR_DIRECTION_NAMES[stair.direction] ?? '',
+    blockedReason: layerBlock(map, 'escada', stair),
+    color: null,
+    travel: false,
+    focus: centerOf(bounds),
+    bounds,
+  }
+}
+
+/** A linha de um Desafio com lugar no mapa (`null` para o desafio sem lugar, ou preso a um objeto que sumiu). */
+function challengeEntry(map: MapData, desafio: Desafio): MapObjectEntry | null {
+  const { lugar } = desafio
+  if (lugar.tipo === 'nenhum') return null
+  const base: Pick<MapObjectEntry, 'key' | 'kind' | 'id' | 'name' | 'color' | 'travel'> = {
+    key: mapObjectKey('challenge', desafio.id),
+    kind: 'challenge',
+    id: desafio.id,
+    name: desafio.nome.trim() || 'Desafio sem nome',
+    color: null,
+    travel: false,
+  }
+  if (lugar.tipo === 'objeto') {
+    const prop = map.props.find((p) => p.id === lugar.propId)
+    if (prop === undefined) return null
+    const mobilia = mobiliaDoConteudo(prop)
+    return {
+      ...base,
+      detail: mobilia === null ? 'num objeto' : `em ${NOME_DO_OBJETO[mobilia]}`,
+      blockedReason: layerBlock(map, 'objeto', prop),
+      focus: { x: prop.x, y: prop.y },
+      bounds: propBoundingBox(prop),
+      target: { kind: 'prop', id: prop.id },
+    }
+  }
+  // Solto no mapa: uma célula em volta do ponto, para a câmera ter o que enquadrar.
+  const half = map.grid / 2
+  return {
+    ...base,
+    detail: '',
+    blockedReason: null,
+    focus: { x: lugar.x, y: lugar.y },
+    bounds: { minX: lugar.x - half, minY: lugar.y - half, maxX: lugar.x + half, maxY: lugar.y + half },
+    target: null,
+  }
+}
+
+/** A linha de um Gatilho de área: "Armadilha" + a área onde ele mora, que é o que o clique seleciona. */
+function triggerEntry(map: MapData, trigger: AreaTrigger, region: Region): MapObjectEntry | null {
+  const box = pointsBoundingBox(region.points)
+  if (box === null) return null
+  return {
+    key: mapObjectKey('trigger', trigger.id),
+    kind: 'trigger',
+    id: trigger.id,
+    name: AREA_TRIGGER_LABELS[trigger.kind] ?? 'Gatilho',
+    detail: regionAreaName(region),
+    blockedReason: layerBlock(map, 'regiao', region),
+    color: null,
+    travel: false,
+    focus: centerOf(box),
+    bounds: box,
+    target: { kind: 'region', id: region.id },
+  }
+}
+
+/** A linha de uma Zona de perigo: "Fogo" + as salas dela; a câmera enquadra todas, o clique seleciona a primeira. */
+function hazardEntry(map: MapData, hazard: Hazard): MapObjectEntry | null {
+  const rooms = hazardRooms(map, hazard).flatMap((room) => {
+    const box = pointsBoundingBox(room.points)
+    return box === null ? [] : [{ room, box }]
+  })
+  const first = rooms[0]
+  if (first === undefined) return null
+  const bounds = rooms.reduce<Bounds>(
+    (all, { box }) => ({ minX: Math.min(all.minX, box.minX), minY: Math.min(all.minY, box.minY), maxX: Math.max(all.maxX, box.maxX), maxY: Math.max(all.maxY, box.maxY) }),
+    first.box,
+  )
+  return {
+    key: mapObjectKey('hazard', hazard.id),
+    kind: 'hazard',
+    id: hazard.id,
+    name: HAZARD_LABELS[hazard.kind] ?? 'Zona de perigo',
+    detail: rooms.map(({ room }) => regionAreaName(room)).join(', '),
+    blockedReason: layerBlock(map, 'regiao', first.room),
+    color: null,
+    travel: false,
+    focus: centerOf(bounds),
+    bounds,
+    target: { kind: 'region', id: first.room.id },
+  }
+}
+
+/**
+ * O que o mestre prepara para a sessão, sem ordem: baús, escadas, desafios,
+ * gatilhos e zonas de perigo. Exportada para a busca em todas as cenas
+ * (`lib/buscaNaAventura.ts`), que acha os mesmos tipos nas cenas de fundo.
+ */
+export function preparedObjectsOf(map: MapData): MapObjectEntry[] {
+  const entries: MapObjectEntry[] = []
+  const push = (entry: MapObjectEntry | null): void => {
+    if (entry !== null) entries.push(entry)
+  }
+  for (const prop of map.props) push(propEntry(map, prop))
+  for (const stair of map.stairs) push(stairEntry(map, stair))
+  for (const desafio of map.desafios ?? []) push(challengeEntry(map, desafio))
+  for (const { trigger, region } of triggersWithRegions(map)) push(triggerEntry(map, trigger, region))
+  for (const hazard of map.hazards ?? []) push(hazardEntry(map, hazard))
+  return entries
+}
+
 function byGroupThenName(a: MapObjectEntry, b: MapObjectEntry): number {
   return GROUP_ORDER[a.kind] - GROUP_ORDER[b.kind] || COLLATOR.compare(a.name, b.name) || COLLATOR.compare(a.detail, b.detail) || a.id.localeCompare(b.id)
 }
@@ -306,6 +469,7 @@ export function mapObjectsOf(map: MapData): MapObjectEntry[] {
     const entry = textEntry(map, drawing)
     if (entry !== null) entries.push(entry)
   }
+  entries.push(...preparedObjectsOf(map))
   return entries.sort(byGroupThenName)
 }
 
@@ -340,6 +504,26 @@ export function mapObjectOf(map: MapData, key: string): MapObjectEntry | null {
     case 'text': {
       const drawing = map.drawings.find((d) => d.id === id)
       return drawing ? textEntry(map, drawing) : null
+    }
+    case 'prop': {
+      const prop = map.props.find((p) => p.id === id)
+      return prop ? propEntry(map, prop) : null
+    }
+    case 'stair': {
+      const stair = map.stairs.find((s) => s.id === id)
+      return stair ? stairEntry(map, stair) : null
+    }
+    case 'challenge': {
+      const desafio = (map.desafios ?? []).find((d) => d.id === id)
+      return desafio ? challengeEntry(map, desafio) : null
+    }
+    case 'trigger': {
+      const found = triggersWithRegions(map).find(({ trigger }) => trigger.id === id)
+      return found ? triggerEntry(map, found.trigger, found.region) : null
+    }
+    case 'hazard': {
+      const hazard = (map.hazards ?? []).find((h) => h.id === id)
+      return hazard ? hazardEntry(map, hazard) : null
     }
     default:
       return null
@@ -382,6 +566,11 @@ export function currentObjectKey(map: MapData, selection: SelectionSet, selected
       return map.tokens.some((t) => t.id === single.id) ? mapObjectKey('token', single.id) : null
     case 'drawing':
       return map.drawings.find((d) => d.id === single.id)?.kind === 'text' ? mapObjectKey('text', single.id) : null
+    case 'prop':
+      // Só o objeto que guarda coisas tem linha (a mobília comum não está na lista).
+      return map.props.some((p) => p.id === single.id && mobiliaDoConteudo(p) !== null) ? mapObjectKey('prop', single.id) : null
+    case 'stair':
+      return map.stairs.some((s) => s.id === single.id) ? mapObjectKey('stair', single.id) : null
     default:
       return null
   }

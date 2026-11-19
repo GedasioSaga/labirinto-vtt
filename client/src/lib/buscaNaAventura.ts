@@ -1,7 +1,7 @@
 import type { MapData, Region } from '../types/map'
 import type { Bounds, Point } from '../pixi/world'
 import { SCENE_TRAIL_SEPARATOR } from './adventure'
-import { mapObjectKey, mapObjectOf, normalizeForSearch, roomEntry, type MapObjectEntry } from './mapObjects'
+import { mapObjectKey, mapObjectOf, normalizeForSearch, preparedObjectsOf, roomEntry, type MapObjectEntry } from './mapObjects'
 
 /**
  * BUSCA DO MESTRE nas OUTRAS cenas da aventura — puro: sem DOM, sem store.
@@ -10,7 +10,10 @@ import { mapObjectKey, mapObjectOf, normalizeForSearch, roomEntry, type MapObjec
  * mapa") também procura nas cenas de fundo.
  *
  * Só o que o mestre procura pelo nome para IR ou MANDAR alguém: Sala, Pino e
- * Ficha. Porta e texto ficam na lista da cena aberta, onde já estão.
+ * Ficha — e o que ele preparou para a sessão e precisa achar na hora, esteja
+ * na cena que estiver: baú (caixa, barril), escada, desafio, gatilho e zona de
+ * perigo (`preparedObjectsOf`). Porta e texto ficam na lista da cena aberta,
+ * onde já estão.
  *
  * Cada achado leva o caminho de onde mora: as pastas e o nome da cena e as
  * salas que o contêm, da mais de fora para a mais de dentro ("Andar 9 ›
@@ -27,7 +30,7 @@ export interface SceneSearchSource {
   map: MapData
 }
 
-export type AdventureHitKind = 'room' | 'pin' | 'token'
+export type AdventureHitKind = 'room' | 'pin' | 'token' | 'prop' | 'stair' | 'challenge' | 'trigger' | 'hazard'
 
 /** Um achado numa outra cena. */
 export interface AdventureHit {
@@ -95,6 +98,17 @@ function indexed(entry: MapObjectEntry, kind: AdventureHitKind, rooms: string[])
   return { entry, kind, rooms, nameKey: normalizeForSearch(entry.name), roomsKey: normalizeForSearch(rooms.join(' ')) }
 }
 
+/**
+ * O que o mestre preparou, com o complemento da linha no lugar das salas de
+ * fora: a área do gatilho, as salas da zona, o que há no baú. "armadilha
+ * corredor" acha a Armadilha do Corredor, e a linha mostra onde ela mora.
+ */
+function indexedPrepared(entry: MapObjectEntry): IndexedItem | null {
+  const { kind } = entry
+  if (kind !== 'prop' && kind !== 'stair' && kind !== 'challenge' && kind !== 'trigger' && kind !== 'hazard') return null
+  return indexed(entry, kind, entry.detail === '' ? [] : [entry.detail])
+}
+
 function indexOf(map: MapData): IndexedItem[] {
   const cached = INDEX_CACHE.get(map)
   if (cached !== undefined) return cached
@@ -111,6 +125,10 @@ function indexOf(map: MapData): IndexedItem[] {
   for (const token of map.tokens) {
     const entry = mapObjectOf(map, mapObjectKey('token', token.id))
     if (entry !== null) items.push(indexed(entry, 'token', []))
+  }
+  for (const entry of preparedObjectsOf(map)) {
+    const item = indexedPrepared(entry)
+    if (item !== null) items.push(item)
   }
   INDEX_CACHE.set(map, items)
   return items

@@ -19,19 +19,29 @@ export const TIPO_DO_ARRASTO = 'application/x-labirinto-item-do-mapa'
 /** Teto do id lido do arrasto: os ids do mapa são curtos; mais que isto é lixo. */
 const MAX_CARACTERES_DO_ID = 200
 
-const TIPO_DA_ENTRADA: Record<MapObjectKind, TipoDeObjeto> = {
+/** `null` = a linha não é um item de camada (desafio, gatilho e zona de perigo moram em outro item): não se arrasta. */
+const TIPO_DA_ENTRADA: Record<MapObjectKind, TipoDeObjeto | null> = {
   token: 'ficha',
   door: 'parede',
   pin: 'pino',
   room: 'regiao',
   text: 'desenho',
+  prop: 'objeto',
+  stair: 'escada',
+  challenge: null,
+  trigger: null,
+  hazard: null,
 }
 
-const TIPOS_ACEITOS: ReadonlySet<string> = new Set<TipoDeObjeto>(Object.values(TIPO_DA_ENTRADA))
+const TIPOS_ACEITOS: ReadonlySet<string> = new Set<TipoDeObjeto>(Object.values(TIPO_DA_ENTRADA).filter((tipo): tipo is TipoDeObjeto => tipo !== null))
 
-/** A linha da lista de objetos como ref de mover (a porta é a parede; a sala, a região; o texto, o desenho). */
-export function refDaEntrada(entrada: { kind: MapObjectKind; id: string }): RefDeItem {
-  return { tipo: TIPO_DA_ENTRADA[entrada.kind], id: entrada.id }
+/**
+ * A linha da lista de objetos como ref de mover (a porta é a parede; a sala, a
+ * região; o texto, o desenho). `null` = a linha não é um item de camada.
+ */
+export function refDaEntrada(entrada: { kind: MapObjectKind; id: string }): RefDeItem | null {
+  const tipo = TIPO_DA_ENTRADA[entrada.kind]
+  return tipo === null ? null : { tipo, id: entrada.id }
 }
 
 export function escreverArrasto(dados: DataTransfer, ref: RefDeItem): void {

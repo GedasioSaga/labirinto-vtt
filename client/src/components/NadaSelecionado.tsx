@@ -7,7 +7,18 @@ import './NadaSelecionado.css'
 /** Um exemplo de cada tipo que tem ficha própria, na ordem do protótipo (token, porta, pino, sala). */
 const ORDEM_DOS_EXEMPLOS: readonly MapObjectKind[] = ['token', 'door', 'pin', 'room']
 
-const NOME_DO_TIPO: Record<MapObjectKind, string> = { token: 'Token', door: 'Porta', pin: 'Pino', room: 'Sala', text: 'Texto' }
+const NOME_DO_TIPO: Record<MapObjectKind, string> = {
+  token: 'Token',
+  door: 'Porta',
+  pin: 'Pino',
+  room: 'Sala',
+  text: 'Texto',
+  prop: 'Objeto',
+  stair: 'Escada',
+  challenge: 'Desafio',
+  trigger: 'Gatilho',
+  hazard: 'Zona de perigo',
+}
 
 const NOME_DO_PINO: Record<PinKind, string> = {
   exclamacao: 'Pino de exclamação',
