@@ -1,0 +1,403 @@
+{
+ "data": "2026-11-19T23:22:04.395Z",
+ "navegador": "Microsoft Edge (Playwright, sem janela)",
+ "desempenho": {
+  "quadros": 1693,
+  "p50": 16.7,
+  "p95": 16.8,
+  "p99": 17,
+  "max": 17.7,
+  "tarefasLongas": 1,
+  "maiorTarefaLonga": 61,
+  "longas": [
+   61
+  ]
+ },
+ "conferencias": 68,
+ "falhas": 0,
+ "resultados": [
+  {
+   "nome": "Esc no meio do arrasto devolve a peça para a mochila",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: o Sapo do Bento já está no encaixe do meio (progresso de todos)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: na pausa antes de soltar o encaixe já acende (is-pairando-ok) e o fantasma segue o ponteiro",
+   "ok": true,
+   "detalhe": {
+    "ok": true,
+    "nao": false,
+    "fantasma": true
+   }
+  },
+  {
+   "nome": "Fonte: soltar a Garça põe no encaixe da esquerda",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: peça errada (Cervo) marca o encaixe de recusa na pausa",
+   "ok": true,
+   "detalhe": {
+    "ok": false,
+    "nao": true,
+    "fantasma": true
+   }
+  },
+  {
+   "nome": "Fonte: a peça errada volta para a mochila e o aviso explica",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Sair: a tela mostra o puzzle no mapa com o progresso guardado (2 de 3) e o Bento lá dentro",
+   "ok": true,
+   "detalhe": "Você saiu de Fonte das Três Garças\n    2 de 3 no lugar. Bento continua lá dentro. O que fo"
+  },
+  {
+   "nome": "Voltar (tecla E): a Garça continua no lugar",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: a última peça dispara a cena (água correndo)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: depois da cena vem o cartão com o texto e o item ganho",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: o foco vai para \"Continuar\"",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Fonte: resolvido, a peça fica presa",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Porta: castigo padrão do mestre é Dano 3",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Teclado: Enter pega a peça e leva o foco a um encaixe que aceita",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Teclado: Enter de novo põe o Carvalho no primeiro encaixe",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Porta: ordem errada com Dano ligado tira 3 PV e avisa",
+   "ok": true,
+   "detalhe": {
+    "pv": 17,
+    "aviso": "A tranca não cede: a ordem está errada. Um choque sobe pelas mãos: −3 PV."
+   }
+  },
+  {
+   "nome": "Porta: o erro entra no registro do mestre",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Porta: tocar numa peça posta a devolve para a mochila",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Porta: na ordem certa a porta abre e dá o Anel do salão",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Cofre: as setas giram as rodas de números (3 1 8)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Cofre: maçaneta com só os números certos não abre, diz qual trava cedeu e dispara o Barulho",
+   "ok": true,
+   "detalhe": "A trava dos números cede; a dos símbolos, não. Um estrondo ecoa pelo corredor. O mestre ouviu."
+  },
+  {
+   "nome": "Cofre: roda com foco gira pela seta do teclado, sem animação",
+   "ok": true,
+   "detalhe": [
+    1,
+    0,
+    0
+   ]
+  },
+  {
+   "nome": "Cofre: a rodinha do mouse gira a roda (peixe)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Cofre: segredo completo abre e dá diário + moedas (desfecho em texto)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Altar: meia-lua entra sozinha no encaixe da lua",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Juntar peças: a segunda metade junta as duas numa Lua de prata",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Troca de peso: a bandeja acende na pausa e recebe a pedra",
+   "ok": true,
+   "detalhe": {
+    "ok": true,
+    "nao": false,
+    "fantasma": true
+   }
+  },
+  {
+   "nome": "Troca de peso: peso errado (II em vez de IIII) dispara a Armadilha e a joia fica",
+   "ok": true,
+   "detalhe": "O pedestal sobe: II não é IIII. Dardos saem das frestas do pedestal."
+  },
+  {
+   "nome": "Troca de peso: tocar na bandeja devolve a pedra",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Troca de peso: I + III = IIII solta a Joia âmbar para a mochila",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Altar: as três no lugar resolvem e dão cálice + poção",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Relógio: arrastar o ponteiro dos minutos para trás das 3:00 chega a 2:50 e resolve",
+   "ok": true,
+   "detalhe": {
+    "h": 2,
+    "m": 50,
+    "angH": 85,
+    "angM": -60,
+    "feito": true
+   }
+  },
+  {
+   "nome": "Piano: nota errada no meio zera a sequência",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Piano: Mi Sol Lá Sol Dó agudo resolve",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Peças giratórias: girar cada peça até ficar em pé resolve",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Luzes: 3 toques (0, 5, 7) acendem as nove",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Empurrar: Z desfaz o último empurrão",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Empurrar: as duas estátuas nas marcas resolvem",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Empurrar: os botões de seta andam (e travam depois de resolvido)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Página Jogos: seção Puzzles com os 4 puzzles",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Página Jogos: o Barulho do cofre virou aviso para o mestre",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Novo puzzle abre o editor com o nome em foco",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: o nome muda o título da ficha enquanto digita",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: imagem própria carrega no painel",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: arrastar o número move o encaixe sobre a imagem",
+   "ok": true,
+   "detalhe": {
+    "antes": 38,
+    "depois": [
+     24.3,
+     39
+    ]
+   }
+  },
+  {
+   "nome": "Editor: setas movem o encaixe escolhido",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: tirar um encaixe deixa só o 1 (o resto das peças da mochila foi usado nos outros puzzles)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: castigo vira Barulho",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Editor: dar item do acervo entra como chip",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Testar como jogador: abre a tela de perto do puzzle novo, com a imagem e o nome",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Puzzle novo: a peça escolhida pelo mestre resolve e dão o item",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Ao vivo: registro com quem entrou, pôs e resolveu",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Ao vivo: a miniatura mostra quem pôs cada peça",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Ao vivo: Recomeçar devolve as peças a quem pôs (Garça e Junco para a Lara, Sapo para o Bento)",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Ao vivo: o Bento põe o Sapo e a miniatura atualiza na hora",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Dado entre telas: a dica editada pelo mestre aparece na tela do jogador",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Desempenho: p95 do intervalo de quadro <= 20 ms nas janelas com movimento",
+   "ok": true,
+   "detalhe": {
+    "quadros": 1693,
+    "p50": 16.7,
+    "p95": 16.8,
+    "p99": 17,
+    "max": 17.7
+   }
+  },
+  {
+   "nome": "Desempenho: nenhuma tarefa longa >= 200 ms",
+   "ok": true,
+   "detalhe": {
+    "tarefasLongas": 1,
+    "maior": 61,
+    "onde": []
+   }
+  },
+  {
+   "nome": "Sem erro de console no passeio inteiro (1440)",
+   "ok": true,
+   "detalhe": []
+  },
+  {
+   "nome": "Reduzido: o pedido do sistema liga a classe rm e trava o interruptor do topo",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Reduzido: encaixe não transiciona transform",
+   "ok": true,
+   "detalhe": "opacity, background-color, border-color, color"
+  },
+  {
+   "nome": "Reduzido: pôr, recusar e resolver não animam transform (só opacidade)",
+   "ok": true,
+   "detalhe": {
+    "animacoesComTransform": 0
+   }
+  },
+  {
+   "nome": "Reduzido: a cena da água aparece sem animação (estado final direto) e o cartão vem",
+   "ok": true,
+   "detalhe": "none"
+  },
+  {
+   "nome": "Layout 1440x900: nada vaza da janela e os alvos de toque cabem (encaixe >= 44 px, seta >= 24 px)",
+   "ok": true,
+   "detalhe": []
+  },
+  {
+   "nome": "Layout 1440x900: sem erro de console",
+   "ok": true,
+   "detalhe": []
+  },
+  {
+   "nome": "Layout 1024x768: nada vaza da janela e os alvos de toque cabem (encaixe >= 44 px, seta >= 24 px)",
+   "ok": true,
+   "detalhe": []
+  },
+  {
+   "nome": "Layout 1024x768: sem erro de console",
+   "ok": true,
+   "detalhe": []
+  },
+  {
+   "nome": "1024: o Altar resolve e o cartão cabe na tela",
+   "ok": true,
+   "detalhe": ""
+  }
+ ]
+}

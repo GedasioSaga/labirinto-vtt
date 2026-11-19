@@ -1,0 +1,2406 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puzzles · protótipo do Labirinto</title>
+<!--
+  PROTÓTIPO dos minigames de PUZZLE (pedido de 19/11/2026 17h49, PEDIDOS.md).
+  Avulso: não é código do app. Os tokens abaixo são cópia fiel de client/src/theme.ts
+  (mesmos nomes --lb-*), para o porte ser só trocar o bloco :root pelo do app.
+  A arte das telas de perto segue o Meio-Termo (docs/design/ESTILO-DO-RPG.md):
+  contorno no tom escuro da própria cor, cores contidas, pedra assentada pedra a pedra.
+  Puzzles, nomes e arte originais; a referência ao Resident Evil é só o jeito de jogar.
+-->
+<style>
+:root {
+  --lb-color-ink: #121214; --lb-color-stone: rgba(19, 19, 23, 0.94); --lb-color-stone-solid: #1a1a1e;
+  --lb-color-stone-raised: #232328; --lb-color-stone-hover: #2c2c33; --lb-color-stone-sunken: #141417;
+  --lb-color-line: rgba(255, 255, 255, 0.08); --lb-color-line-strong: rgba(255, 255, 255, 0.16);
+  --lb-color-line-panel: rgba(255, 255, 255, 0.13); --lb-color-line-divider: rgba(255, 255, 255, 0.26);
+  --lb-color-parchment: #eceae4; --lb-color-parchment-dim: #a2a09a; --lb-color-parchment-faint: #858480;
+  --lb-color-brass: #e0a44a; --lb-color-brass-bright: #f3ba66; --lb-color-brass-soft: rgba(224, 164, 74, 0.14); --lb-color-brass-contrast: #1c1608;
+  --lb-color-ember: #e2645a; --lb-color-ember-soft: rgba(226, 100, 90, 0.14);
+  --lb-color-online: #7fb48a; --lb-color-online-soft: rgba(127, 180, 138, 0.14);
+  --lb-font-display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --lb-font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --lb-font-utility: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --lb-font-size-xs: 10.5px; --lb-font-size-sm: 11.5px; --lb-font-size-md: 13px; --lb-font-size-lg: 15px; --lb-font-size-xl: 20px;
+  --lb-radius-sm: 6px; --lb-radius-md: 9px; --lb-radius-lg: 14px;
+  --lb-shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lb-shadow-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --lb-motion-fast: 110ms; --lb-motion-base: 170ms;
+  --lb-gr-ease-out: cubic-bezier(0.23, 1, 0.32, 1); --lb-gr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --lb-gr-papel-alto: #1b1711; --lb-gr-papel-baixo: #13100c; --lb-gr-cartao: #211c15; --lb-gr-cartao-alto: #29231a; --lb-gr-campo: #15120e;
+  --lb-gr-filete: rgba(236, 234, 228, 0.09); --lb-gr-filete-forte: rgba(236, 234, 228, 0.16); --lb-gr-filete-latao: rgba(224, 164, 74, 0.26);
+  --lb-gr-couro-1: #17100a; --lb-gr-couro-2: #251a11; --lb-gr-couro-3: #2f2216; --lb-gr-gravado: #c8b089;
+  --lb-gr-latao-1: #f6cb84; --lb-gr-latao-2: #e0a44a; --lb-gr-latao-3: #b87d2e;
+  --lb-gr-largura-lombada: 52px; --lb-gr-largura-pagina: 262px;
+  /* do protótipo: curva de movimento na tela (ease-in-out forte do Emil) */
+  --pz-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--lb-color-ink); color: var(--lb-color-parchment); font: 400 var(--lb-font-size-md)/1.45 var(--lb-font-sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+h1, h2, h3, p { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 2px; }
+kbd { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); border: 1px solid var(--lb-gr-filete-forte); border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; }
+
+/* ---------------------------------------------------------------- botões (o gr-bt do app) */
+.bt { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-cartao-alto); color: var(--lb-color-parchment); border: 1px solid var(--lb-gr-filete-forte); font-weight: 500; white-space: nowrap; cursor: pointer; transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity var(--lb-motion-fast) ease; }
+.bt svg { width: 16px; height: 16px; flex: none; }
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; cursor: not-allowed; }
+.bt--primario { background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440); color: var(--lb-color-brass-contrast); border-color: rgba(0, 0, 0, 0.35); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35); font-weight: 600; }
+.bt--latao { background: transparent; border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--lb-color-parchment-dim); }
+.bt--perigo { background: transparent; border-color: rgba(226, 100, 90, 0.4); color: #f0897f; }
+.bt--p { min-height: 28px; padding: 0 9px; font-size: var(--lb-font-size-sm); }
+.bt--largo { width: 100%; }
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not(:disabled) { border-color: var(--lb-color-line-divider); }
+  .bt--fantasma:hover:not(:disabled) { background: rgba(255, 236, 200, 0.06); border-color: transparent; color: var(--lb-color-parchment); }
+  .bt--primario:hover:not(:disabled) { border-color: rgba(0, 0, 0, 0.35); }
+}
+
+/* ---------------------------------------------------------------- topo do protótipo */
+.topo { height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--lb-color-stone-solid); border-bottom: 1px solid var(--lb-color-line-panel); position: relative; z-index: 5; }
+.topo__marca { flex: none; line-height: 1.1; }
+.topo__marca b { display: block; font: 400 17px/1.1 var(--lb-font-display); }
+.topo__marca span { font-size: var(--lb-font-size-xs); color: var(--lb-color-parchment-faint); }
+.topo__nav { display: flex; gap: 10px; flex: 1; min-width: 0; }
+.topo__grupo { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.topo__rot { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.14em; text-transform: uppercase; color: var(--lb-color-parchment-faint); padding: 0 6px 0 5px; }
+.topo__bt { min-height: 30px; padding: 0 10px; border-radius: var(--lb-radius-sm); border: 0; background: transparent; color: var(--lb-color-parchment-dim); cursor: pointer; white-space: nowrap; transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.topo__bt[aria-current='page'] { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+@media (hover: hover) and (pointer: fine) { .topo__bt:hover:not([aria-current='page']) { color: var(--lb-color-parchment); background: rgba(255, 236, 200, 0.06); } }
+.topo__rm { flex: none; display: flex; align-items: center; gap: 7px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); white-space: nowrap; cursor: pointer; }
+.topo__rm input { accent-color: var(--lb-color-brass); width: 15px; height: 15px; margin: 0; }
+@media (max-width: 1240px) {
+  .topo__marca span { display: none; }
+  .topo__bt { padding: 0 7px; font-size: var(--lb-font-size-sm); }
+  .topo__rot { display: none; }
+}
+
+/* ---------------------------------------------------------------- tela de perto (jogador) */
+.pz { height: calc(100vh - 52px); display: grid; grid-template-columns: minmax(0, 1fr) 316px; grid-template-rows: minmax(0, 1fr) auto; gap: 10px 16px; padding: 12px 16px 12px; }
+@media (max-width: 1180px) { .pz { grid-template-columns: minmax(0, 1fr) 276px; gap: 10px 12px; padding: 10px 12px; } }
+.pz__cena { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; min-height: 0; gap: 8px; }
+.pz__cab { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.pz__titulo { min-width: 0; }
+.pz__titulo h1 { font: 400 var(--lb-font-size-xl)/1.15 var(--lb-font-display); overflow-wrap: anywhere; }
+.pz__titulo p { margin-top: 2px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.pz__quem { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 3px; border-radius: 999px; background: var(--lb-color-stone-raised); border: 1px solid var(--lb-color-line); font-size: var(--lb-font-size-sm); white-space: nowrap; }
+.chip__av { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font: 600 10px/1 var(--lb-font-utility); color: #15120e; }
+.chip--vazio { color: var(--lb-color-parchment-faint); padding-left: 9px; }
+.pz__palco { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.pz__pe { display: flex; align-items: baseline; gap: 14px; min-height: 36px; }
+.pz__estado { flex: none; font: 500 var(--lb-font-size-md)/1.3 var(--lb-font-utility); color: var(--lb-color-parchment); }
+.pz__estado b { color: var(--lb-color-brass-bright); font-weight: 600; }
+.pz__dica { font-size: var(--lb-font-size-sm); line-height: 1.45; color: var(--lb-color-parchment-dim); min-width: 0; }
+.pz__dica em { font-style: normal; color: var(--lb-gr-gravado); font-family: var(--lb-font-display); font-size: 13.5px; }
+
+.quadro { position: relative; width: min(100cqw, 160cqh); aspect-ratio: 16 / 10; border-radius: var(--lb-radius-lg); overflow: hidden; background: #221d18; box-shadow: var(--lb-shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.5); container-type: inline-size; isolation: isolate; }
+.quadro__arte, .quadro__arte > svg, .quadro__arte > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.quadro__arte > img { object-fit: cover; }
+.quadro__grao { position: absolute; inset: 0; pointer-events: none; background-image: var(--pz-grao); background-size: 192px; mix-blend-mode: soft-light; opacity: 0.55; }
+.quadro__camada { position: absolute; inset: 0; }
+.quadro__veu { position: absolute; inset: 0; background: rgba(10, 8, 6, 0.5); }
+.quadro__flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(226, 100, 90, 0) 30%, rgba(226, 100, 90, 0.62) 100%); }
+.quadro__flash[data-tom='armadilha'] { background: radial-gradient(ellipse at center, rgba(150, 160, 170, 0) 30%, rgba(150, 160, 170, 0.55) 100%); }
+.quadro__flash[data-tom='barulho'] { background: radial-gradient(ellipse at center, rgba(243, 186, 102, 0) 40%, rgba(243, 186, 102, 0.35) 100%); }
+.quadro__vazio { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--lb-color-parchment-faint); font-size: var(--lb-font-size-sm); background: repeating-linear-gradient(135deg, #1d1914 0 14px, #211c16 14px 28px); }
+
+/* encaixe: um botão de verdade por cima da arte, posicionado em % (o mesmo modelo da imagem do mestre) */
+.encaixe { position: absolute; transform: translate(-50%, -50%); width: 9.4cqw; min-width: 44px; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; cursor: pointer; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, #2f2b25 0 52%, #46413a 72%, #6d685c 100%);
+  box-shadow: inset 0 0.5cqw 1.1cqw rgba(0, 0, 0, 0.6), 0 0 0 0.28cqw #75736b, 0 0.25cqw 0 0.32cqw rgba(255, 248, 230, 0.09);
+  transition: transform 150ms var(--lb-gr-ease-out); touch-action: none; }
+.encaixe::after { content: ''; position: absolute; inset: -0.7cqw; border-radius: inherit; border: max(2px, 0.26cqw) solid var(--lb-color-brass-bright); opacity: 0; transition: opacity 120ms ease; pointer-events: none; }
+.encaixe--brasao { width: 8.4cqw; aspect-ratio: 0.86; border-radius: 12% 12% 50% 50% / 10% 10% 58% 58%; }
+.encaixe--estatua { width: 7.6cqw; aspect-ratio: 0.72; border-radius: 1.4cqw 1.4cqw 0.8cqw 0.8cqw; }
+.encaixe--lua { width: 10.6cqw; }
+.encaixe--joia { width: 6.4cqw; border-radius: 1.4cqw; }
+.encaixe--quadrado { border-radius: 1.2cqw; }
+.encaixe.is-pode::after { opacity: 0.6; border-style: dashed; }
+.encaixe.is-pairando-ok { transform: translate(-50%, -50%) scale(1.07); }
+.encaixe.is-pairando-ok::after { opacity: 1; border-style: solid; }
+.encaixe.is-pairando-nao::after { opacity: 1; border-style: solid; border-color: var(--lb-color-ember); }
+.encaixe[aria-disabled='true'] { cursor: default; }
+.encaixe__peca, .encaixe__metade { position: absolute; inset: 8%; display: grid; place-items: center; pointer-events: none; }
+.encaixe__peca svg, .encaixe__metade svg { width: 100%; height: 100%; filter: drop-shadow(0 0.35cqw 0.35cqw rgba(0, 0, 0, 0.5)); }
+.encaixe__brilho { position: absolute; inset: -0.4cqw; border-radius: inherit; pointer-events: none; opacity: 0; box-shadow: 0 0 2.4cqw 0.6cqw rgba(243, 186, 102, 0.75), inset 0 0 1.2cqw rgba(255, 230, 180, 0.6); }
+.encaixe__quem { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 0.5cqw); padding: 2px 6px; border-radius: 999px; background: rgba(14, 12, 10, 0.78); font: 500 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); color: var(--lb-color-parchment-dim); white-space: nowrap; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) { .encaixe:not([aria-disabled='true']):hover::after { opacity: 0.45; border-style: solid; } }
+
+/* resultado (resolver) */
+.resultado { position: absolute; left: 50%; top: 50%; width: min(440px, 76%); transform: translate(-50%, -50%); padding: 18px 18px 16px; border-radius: var(--lb-radius-lg); background: rgba(21, 18, 14, 0.95); border: 1px solid var(--lb-gr-filete-latao); box-shadow: var(--lb-shadow-lg); text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.resultado__selo { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.14em; text-transform: uppercase; color: var(--lb-color-brass-bright); }
+.resultado h2 { font: 400 22px/1.15 var(--lb-font-display); }
+.resultado__texto { font: 400 15px/1.5 var(--lb-font-display); color: var(--lb-color-parchment); max-width: 36ch; }
+.resultado__itens { width: 100%; border-top: 1px solid var(--lb-gr-filete); padding-top: 10px; }
+.resultado__itens p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-bottom: 8px; }
+.resultado__itens ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.resultado__itens li { display: flex; align-items: center; gap: 7px; padding: 5px 10px 5px 6px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); font-size: var(--lb-font-size-md); }
+.resultado__itens svg { width: 26px; height: 26px; }
+
+/* fora: o puzzle visto do mapa, com o progresso guardado */
+.fora { position: relative; width: min(100cqw, 160cqh); aspect-ratio: 16 / 10; border-radius: var(--lb-radius-lg); overflow: hidden; box-shadow: var(--lb-shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.fora > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.fora__cartao { position: absolute; left: 50%; bottom: 7%; transform: translateX(-50%); width: min(460px, 80%); padding: 14px 16px; border-radius: var(--lb-radius-lg); background: rgba(19, 19, 23, 0.94); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float); display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; }
+.fora__cartao h2 { font: 400 var(--lb-font-size-lg)/1.25 var(--lb-font-display); }
+.fora__cartao p { grid-column: 1; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.fora__cartao .bt { grid-column: 2; grid-row: 1 / span 2; }
+
+/* bancada: controles que só existem no protótipo */
+.bancada { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 6px 10px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.bancada__rot { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.14em; text-transform: uppercase; color: var(--lb-color-parchment-faint); }
+.bancada__sep { width: 1px; height: 18px; background: var(--lb-gr-filete-forte); }
+
+/* ---------------------------------------------------------------- mochila (a grade do pp-inv) */
+.mochila { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); padding: 12px; box-shadow: var(--lb-shadow-float); }
+.mochila__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mochila__cab h2 { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+.mochila__cab span { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.1em; text-transform: uppercase; color: var(--lb-color-brass-bright); }
+.mochila__nota { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.4; }
+.mochila__grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.vaga { aspect-ratio: 1; min-width: 0; }
+.vaga--vazia { border: 1px dashed var(--lb-color-line); border-radius: var(--lb-radius-sm); }
+.item { position: relative; width: 100%; height: 100%; margin: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; gap: 1px; padding: 6px 3px 5px; font: 500 var(--lb-font-size-xs)/1.1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-strong); border-radius: var(--lb-radius-sm); cursor: grab; touch-action: none; transition: transform var(--lb-motion-fast) var(--lb-gr-ease-out), opacity 120ms ease; }
+.item svg { width: 74%; height: 100%; min-height: 0; pointer-events: none; }
+.item__nome { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+@media (hover: hover) and (pointer: fine) { .item:hover { color: var(--lb-color-parchment); border-color: var(--lb-color-line-divider); } }
+.item:active { transform: scale(0.97); transition-duration: 0ms; }
+.item[aria-pressed='true'] { color: var(--lb-color-parchment); background: var(--lb-color-stone-raised); border-color: var(--lb-color-parchment); box-shadow: inset 0 0 0 1px var(--lb-color-parchment); }
+.item.is-levantado { opacity: 0.3; }
+.item.is-novo::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--lb-color-brass-bright); box-shadow: 0 0 0 2px var(--lb-color-stone); }
+.mochila__detalhe { min-height: 76px; padding: 10px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-sunken); border: 1px solid var(--lb-color-line); }
+.mochila__detalhe h3 { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); margin-bottom: 3px; }
+.mochila__detalhe p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+.mochila__ganhos { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+.mochila__ganhos b { color: var(--lb-color-parchment); font-weight: 500; }
+.pv { margin-top: auto; display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font: 500 var(--lb-font-size-sm)/1 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.pv__barra { height: 6px; border-radius: 999px; background: var(--lb-color-stone-sunken); overflow: hidden; box-shadow: inset 0 0 0 1px var(--lb-color-line); }
+.pv__barra i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #b4493c, #c75a4c); transform-origin: left center; transition: transform 260ms var(--lb-gr-ease-out); }
+
+.fantasma { position: fixed; left: 0; top: 0; width: 64px; height: 64px; pointer-events: none; z-index: 50; filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.55)); will-change: transform; }
+.fantasma svg { width: 100%; height: 100%; }
+body.arrastando, body.arrastando * { cursor: grabbing !important; }
+
+/* aviso (o Torrada do app, simplificado) */
+.aviso { position: fixed; left: 50%; bottom: 72px; transform: translate(-50%, 8px); opacity: 0; pointer-events: none; z-index: 60; max-width: min(560px, 80vw); padding: 9px 14px; border-radius: var(--lb-radius-md); background: var(--lb-color-stone-solid); border: 1px solid var(--lb-color-line-panel); box-shadow: var(--lb-shadow-float); font-size: var(--lb-font-size-md); text-align: center; transition: opacity 150ms ease, transform 150ms var(--lb-gr-ease-out); }
+.aviso.is-visivel { opacity: 1; transform: translate(-50%, 0); transition-duration: 200ms; }
+.aviso[data-tom='perigo'] { border-color: rgba(226, 100, 90, 0.45); color: #f3b2aa; }
+.aviso[data-tom='latao'] { border-color: var(--lb-gr-filete-latao); color: var(--lb-color-brass-bright); }
+.aviso[data-tom='feito'] { border-color: rgba(127, 180, 138, 0.45); color: #b9dcc0; }
+
+/* ---------------------------------------------------------------- cofre: rodas */
+.rodas { position: absolute; display: flex; justify-content: center; align-items: center; gap: 1.1cqw; }
+.rodas__rot { position: absolute; left: 0; right: 0; top: -0.2cqw; text-align: center; font: 500 max(10px, 0.95cqw)/1 var(--lb-font-utility); letter-spacing: 0.14em; text-transform: uppercase; color: #4a3b1f; }
+.roda { display: flex; flex-direction: column; align-items: center; gap: 0.45cqw; margin-top: 1.4cqw; }
+.roda__seta { width: max(30px, 4.4cqw); height: max(24px, 2.6cqw); border: 0; border-radius: 0.6cqw; background: rgba(60, 46, 20, 0.35); color: #3b2f17; cursor: pointer; display: grid; place-items: center; padding: 0; transition: background-color 110ms ease, transform 110ms var(--lb-gr-ease-out); }
+.roda__seta svg { width: 60%; height: 60%; }
+.roda__seta:active { transform: scale(0.94); }
+@media (hover: hover) and (pointer: fine) { .roda__seta:hover { background: rgba(60, 46, 20, 0.55); } }
+.roda__janela { width: max(34px, 4.8cqw); height: max(44px, 6.4cqw); border-radius: 0.8cqw; background: linear-gradient(180deg, #171512, #3a3732 48%, #171512); box-shadow: inset 0 0.3cqw 0.7cqw rgba(0, 0, 0, 0.75), 0 0 0 0.22cqw #6e5931; display: grid; place-items: center; overflow: hidden; font: 600 max(18px, 3.4cqw)/1 var(--lb-font-utility); color: #efe4c8; cursor: ns-resize; }
+.roda__valor { display: grid; place-items: center; width: 100%; height: 100%; }
+.roda__valor svg { width: 70%; height: 70%; }
+.macaneta { position: absolute; left: 50%; top: 70%; width: 10.5cqw; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: 0; padding: 0; background: none; cursor: pointer; }
+.macaneta svg { width: 100%; height: 100%; transition: transform 260ms var(--lb-gr-ease-out); }
+.macaneta__rot { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 0.6cqw); white-space: nowrap; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.08em; text-transform: uppercase; color: var(--lb-color-parchment-dim); background: rgba(14, 12, 10, 0.7); padding: 4px 7px; border-radius: 999px; }
+
+/* ---------------------------------------------------------------- altar: troca de peso */
+.troca { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
+.troca__joia { width: 7cqw; aspect-ratio: 1; border: 0; padding: 0; border-radius: 1.2cqw; background: none; cursor: pointer; display: grid; place-items: center; }
+.troca__joia svg { width: 100%; height: 100%; filter: drop-shadow(0 0.4cqw 0.4cqw rgba(0, 0, 0, 0.5)); }
+.troca__joia--vazia { cursor: default; }
+.troca__pedestal { transition: transform 300ms var(--pz-ease-in-out); display: flex; flex-direction: column; align-items: center; gap: 1cqw; }
+.mostrador { width: 12cqw; }
+.mostrador svg { width: 100%; display: block; }
+.mostrador .agulha { transform-box: view-box; transform-origin: 60px 60px; transition: transform 320ms var(--pz-ease-in-out); }
+.bandeja { position: relative; width: 15cqw; min-height: 6.4cqw; border: 0; padding: 0.6cqw; border-radius: 1cqw; background: linear-gradient(180deg, #7c6a49, #5d4e35); box-shadow: inset 0 0.3cqw 0.6cqw rgba(0, 0, 0, 0.5), 0 0 0 0.22cqw #473a26; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.4cqw; flex-wrap: wrap; }
+.bandeja svg { width: 4cqw; height: 4cqw; pointer-events: none; }
+.bandeja__vazia { font: 500 max(10px, 0.95cqw)/1.2 var(--lb-font-utility); color: #e9dcc0; opacity: 0.8; pointer-events: none; }
+.bandeja::after { content: ''; position: absolute; inset: -0.6cqw; border-radius: 1.4cqw; border: max(2px, 0.26cqw) solid var(--lb-color-brass-bright); opacity: 0; transition: opacity 120ms ease; pointer-events: none; }
+.bandeja.is-pode::after { opacity: 0.6; border-style: dashed; }
+.bandeja.is-pairando-ok::after { opacity: 1; }
+.bandeja.is-pairando-nao::after { opacity: 1; border-color: var(--lb-color-ember); }
+.troca__soma { font: 500 max(10px, 1cqw)/1.2 var(--lb-font-utility); color: var(--lb-color-parchment); background: rgba(14, 12, 10, 0.72); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+
+/* ---------------------------------------------------------------- arte: estados animados (raros: resolver) */
+.folha-e, .folha-d, .porta-cofre { transform-box: fill-box; }
+.folha-e, .porta-cofre { transform-origin: left center; }
+.folha-d { transform-origin: right center; }
+.is-resolvido .folha-e, .is-resolvido .folha-d, .is-resolvido .porta-cofre { transform: scaleX(0.12); }
+.is-abrindo .folha-e, .is-abrindo .folha-d, .is-abrindo .porta-cofre { animation: pz-abre 900ms var(--pz-ease-in-out) both; }
+@keyframes pz-abre { from { transform: scaleX(1); } to { transform: scaleX(0.12); } }
+.agua { opacity: 0; }
+.is-resolvido .agua { opacity: 0.9; }
+.is-abrindo .agua--fio { animation: pz-fio 700ms var(--lb-gr-ease-out) both; stroke-dasharray: 700; }
+.is-abrindo .agua--bacia { transform-box: fill-box; transform-origin: center bottom; animation: pz-enche 900ms 250ms var(--lb-gr-ease-out) both; }
+@keyframes pz-fio { from { stroke-dashoffset: 700; opacity: 0.9; } to { stroke-dashoffset: 0; opacity: 0.9; } }
+@keyframes pz-enche { from { opacity: 0; transform: scaleY(0.3); } to { opacity: 0.9; transform: scaleY(1); } }
+.gaveta { transform-box: fill-box; }
+.is-resolvido .gaveta { transform: translateY(46px); }
+.is-abrindo .gaveta { animation: pz-gaveta 700ms var(--lb-gr-ease-out) both; }
+@keyframes pz-gaveta { from { transform: translateY(0); } to { transform: translateY(46px); } }
+.is-resolvido .some-ao-resolver { opacity: 0; pointer-events: none; transition: opacity 240ms ease; }
+
+/* ---------------------------------------------------------------- outras mecânicas (amostras) */
+.amostras { height: calc(100vh - 52px); overflow: auto; padding: 14px 16px 24px; }
+.amostras__cab { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.amostras__cab h1 { font: 400 var(--lb-font-size-xl)/1.15 var(--lb-font-display); }
+.amostras__cab p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.amostras__grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1180px) { .amostras__grade { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.amostra { background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; box-shadow: var(--lb-shadow-float); }
+.amostra--larga { grid-column: span 2; }
+@media (max-width: 1180px) { .amostra--larga { grid-column: 1 / -1; } }
+.amostra__cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.amostra__cab h2 { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+.amostra__tipo { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); letter-spacing: 0.1em; text-transform: uppercase; color: var(--lb-color-brass-bright); white-space: nowrap; }
+.amostra__dica { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+.amostra__dica em { font-style: normal; font-family: var(--lb-font-display); color: var(--lb-gr-gravado); font-size: 13.5px; }
+.amostra__corpo { flex: 1; display: grid; place-items: center; min-height: 230px; border-radius: var(--lb-radius-md); background: radial-gradient(ellipse at 50% 35%, #3a3329, #241f19 70%); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); padding: 12px; position: relative; overflow: hidden; }
+.amostra__pe { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.amostra__estado { font: 500 var(--lb-font-size-sm)/1.3 var(--lb-font-utility); color: var(--lb-color-parchment-dim); }
+.amostra__estado.is-feito { color: #b9dcc0; }
+.amostra.is-resolvida .amostra__corpo { box-shadow: inset 0 0 0 1px rgba(127, 180, 138, 0.5), inset 0 0 24px rgba(127, 180, 138, 0.18); }
+
+.relogio { display: flex; align-items: center; gap: 14px; }
+.relogio svg { width: 200px; height: 200px; touch-action: none; }
+.ponteiro { cursor: grab; transition: transform 150ms var(--lb-gr-ease-out); }
+.ponteiro.is-solto { transition: none; }
+.ponteiro:focus { outline: none; }
+.ponteiro:focus-visible .ponteiro__haste { stroke: var(--lb-color-brass-bright); }
+.relogio__bts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.piano { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.piano__teclas { display: flex; gap: 3px; padding: 8px 8px 10px; border-radius: 8px; background: linear-gradient(180deg, #5b3f27, #3f2b1a); box-shadow: inset 0 2px 0 rgba(255, 220, 170, 0.12), 0 6px 14px rgba(0, 0, 0, 0.45); }
+.tecla { width: 34px; height: 128px; border: 0; border-radius: 0 0 6px 6px; background: linear-gradient(180deg, #e9e2cf, #f6f1e3 70%, #d9d0b9); box-shadow: inset 0 -5px 0 #c5bba2, 0 0 0 1px #8b8270; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12px; font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); color: #6b6250; cursor: pointer; transition: transform 90ms var(--lb-gr-ease-out); transform-origin: top center; }
+.tecla:active, .tecla.is-tocada { transform: scaleY(0.97); box-shadow: inset 0 -2px 0 #c5bba2, 0 0 0 1px #8b8270; background: linear-gradient(180deg, #ddd4bd, #ebe4d2 70%, #d0c6ad); }
+.piano__ouvido { display: flex; gap: 8px; }
+.piano__ouvido i { width: 12px; height: 12px; border-radius: 50%; background: #2a2620; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); transition: background-color 120ms ease; }
+.piano__ouvido i.is-certa { background: var(--lb-color-brass-bright); box-shadow: 0 0 8px rgba(243, 186, 102, 0.6); }
+
+.giratorio { display: grid; grid-template-columns: repeat(3, 72px); gap: 3px; padding: 8px; border-radius: 6px; background: linear-gradient(180deg, #6e5638, #4d3b26); box-shadow: inset 0 0 0 2px #3b2c1b, 0 6px 14px rgba(0, 0, 0, 0.45); }
+.tile { width: 72px; height: 72px; border: 0; padding: 0; overflow: hidden; cursor: pointer; background: #1b2230; display: block; border-radius: 2px; }
+.tile__img { display: block; width: 100%; height: 100%; transition: transform 180ms var(--lb-gr-ease-out); }
+
+.luzes { display: grid; grid-template-columns: repeat(3, 58px); gap: 10px; padding: 14px; border-radius: 10px; background: linear-gradient(180deg, #4a4f53, #34383b); box-shadow: inset 0 0 0 2px #26292b, 0 6px 14px rgba(0, 0, 0, 0.45); }
+.luz { width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer; background: radial-gradient(circle at 50% 40%, #4b4537, #2b2721 70%); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 0 3px #5d6164; transition: background-color 120ms ease, box-shadow 120ms ease, transform 110ms var(--lb-gr-ease-out); }
+.luz[aria-pressed='true'] { background: radial-gradient(circle at 50% 40%, #ffe3a8, #f3ba66 45%, #b8782c 100%); box-shadow: 0 0 18px rgba(243, 186, 102, 0.55), 0 0 0 3px #7a7f83; }
+.luz:active { transform: scale(0.95); }
+
+.empurra { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.empurra__mapa { position: relative; outline-offset: 4px; border-radius: 6px; }
+.empurra__mapa svg { display: block; }
+.empurra__peca { transition: transform 110ms var(--lb-gr-ease-out); }
+.empurra__ctrl { display: grid; grid-template-columns: repeat(3, 36px); grid-template-rows: repeat(2, 36px); gap: 4px; }
+.empurra__ctrl .bt { min-height: 36px; padding: 0; }
+.empurra__ctrl .bt svg { width: 18px; height: 18px; }
+.empurra__lado { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+/* ---------------------------------------------------------------- mestre: livro, página Jogos, editor, ao vivo */
+.mestre { position: relative; height: calc(100vh - 52px); overflow: hidden; background: #6f8f55; }
+.mestre__mapa { position: absolute; inset: 0; }
+.mestre__mapa svg { width: 100%; height: 100%; display: block; }
+.mestre__mapa::after { content: ''; position: absolute; inset: 0; background: rgba(12, 10, 8, 0.38); }
+.livro { position: absolute; left: 12px; top: 12px; bottom: 12px; display: flex; border-radius: var(--lb-radius-md); overflow: hidden; box-shadow: var(--lb-shadow-float); z-index: 2; }
+.livro__lombada { width: var(--lb-gr-largura-lombada); background: linear-gradient(90deg, var(--lb-gr-couro-3), var(--lb-gr-couro-2) 60%, var(--lb-gr-couro-1)); display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 12px; }
+.livro__marca { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; color: var(--lb-gr-gravado); opacity: 0.4; }
+.livro__marca svg { width: 18px; height: 18px; }
+.livro__marca--ativa { opacity: 1; background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3)); color: var(--lb-color-brass-contrast); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.6); }
+.livro__pagina { width: var(--lb-gr-largura-pagina); background: linear-gradient(180deg, var(--lb-gr-papel-alto), var(--lb-gr-papel-baixo)); overflow-y: auto; overflow-x: hidden; padding: 14px 12px 20px; }
+.titulo-pag h2 { font: 400 var(--lb-font-size-xl)/1.15 var(--lb-font-display); }
+.titulo-pag p { margin-top: 3px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.4; }
+
+.mg-secao { font: 400 15px/1.2 var(--lb-font-display); color: var(--lb-color-parchment); margin: 18px 0 8px; display: flex; align-items: baseline; gap: 8px; }
+.mg-secao small { font: 400 var(--lb-font-size-sm)/1 var(--lb-font-sans); color: var(--lb-color-parchment-faint); }
+.mg-lista { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mg-linha { width: 100%; display: grid; grid-template-columns: 30px 1fr auto; gap: 2px 9px; align-items: center; text-align: left; padding: 8px 8px 8px 9px; border-radius: var(--lb-radius-md); background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); color: var(--lb-color-parchment); font: inherit; cursor: pointer; transition: background-color var(--lb-motion-fast) ease, border-color var(--lb-motion-fast) ease, transform 160ms var(--lb-gr-ease-out); }
+div.mg-linha { cursor: default; opacity: 0.62; }
+@media (hover: hover) and (pointer: fine) { button.mg-linha:hover { border-color: var(--lb-gr-filete-forte); } }
+button.mg-linha:active { transform: scale(0.985); }
+.mg-linha__med { grid-row: span 2; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #2a1d12; color: var(--lb-color-brass-bright); box-shadow: inset 0 0 0 1px var(--lb-gr-filete-latao); }
+.mg-linha__med svg { width: 17px; height: 17px; }
+.mg-linha__nome { font-weight: 600; font-size: var(--lb-font-size-md); line-height: 1.25; min-width: 0; overflow-wrap: anywhere; }
+.mg-linha__onde { grid-column: 2; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.3; overflow-wrap: anywhere; }
+.mg-linha__seta { grid-row: 1 / span 2; grid-column: 3; color: var(--lb-color-parchment-faint); display: grid; }
+.mg-linha__seta svg { width: 16px; height: 16px; }
+.mg-linha__tags { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.mg-tag { font: 500 var(--lb-font-size-xs)/1 var(--lb-font-utility); padding: 3px 6px; border-radius: 5px; background: rgba(236, 234, 228, 0.07); color: var(--lb-color-parchment-dim); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.mg-tag--latao { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.mg-tag--perigo { background: var(--lb-color-ember-soft); color: #f0a198; }
+.mg-tag--feito { background: var(--lb-color-online-soft); color: #a8d4b0; }
+.mg-pulsando { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lb-color-brass-bright); margin-right: 2px; animation: mg-pulso 1.1s ease-in-out infinite; }
+@keyframes mg-pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.mg-aviso { border: 1px solid var(--lb-gr-filete-latao); background: rgba(224, 164, 74, 0.06); border-radius: var(--lb-radius-md); padding: 10px 11px; display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.mg-aviso p { font-size: var(--lb-font-size-sm); line-height: 1.45; }
+.mg-nota-pe { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.mg-vazio { padding: 12px; border: 1px dashed var(--lb-gr-filete-forte); border-radius: var(--lb-radius-md); font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.45; }
+
+.voltar { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 6px 0 2px; margin: -4px 0 6px -2px; border: 0; background: none; color: var(--lb-color-parchment-dim); font-size: var(--lb-font-size-sm); cursor: pointer; border-radius: var(--lb-radius-sm); }
+.voltar svg { width: 15px; height: 15px; transform: scaleX(-1); }
+@media (hover: hover) and (pointer: fine) { .voltar:hover { color: var(--lb-color-parchment); } }
+.cabeca { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; padding: 2px 0 12px; }
+.cabeca__med { width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 55%, var(--lb-gr-latao-3)); color: var(--lb-color-brass-contrast); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.6); }
+.cabeca__med svg { width: 22px; height: 22px; }
+.cabeca h2 { font: 400 19px/1.15 var(--lb-font-display); overflow-wrap: anywhere; }
+.cabeca p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); margin-top: 2px; }
+.fichas { display: flex; flex-direction: column; gap: 8px; }
+.ficha { background: var(--lb-gr-cartao); border: 1px solid var(--lb-gr-filete); border-radius: var(--lb-radius-md); padding: 10px; display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 1px 0 rgba(255, 236, 200, 0.04); }
+.ficha > h3 { font-weight: 600; font-size: var(--lb-font-size-md); display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ficha > h3 small { font-weight: 400; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); }
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.campo__rot { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); display: flex; justify-content: space-between; gap: 6px; }
+.entrada { width: 100%; min-height: 30px; padding: 5px 8px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete-forte); color: var(--lb-color-parchment); font-size: var(--lb-font-size-md); }
+textarea.entrada { resize: vertical; min-height: 64px; line-height: 1.4; }
+select.entrada { padding-right: 4px; }
+.entrada:focus-visible { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+.nota { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-faint); line-height: 1.45; }
+.liga { display: flex; align-items: flex-start; gap: 8px; font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); cursor: pointer; line-height: 1.35; }
+.liga input { accent-color: var(--lb-color-brass); margin: 1px 0 0; width: 15px; height: 15px; flex: none; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 2px; padding: 2px; border-radius: var(--lb-radius-sm); background: var(--lb-gr-campo); border: 1px solid var(--lb-gr-filete); }
+.seg--grade { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+.seg__op { position: relative; display: grid; place-items: center; min-height: 26px; padding: 3px 4px; border-radius: 5px; color: var(--lb-color-parchment-dim); cursor: pointer; font-size: var(--lb-font-size-sm); line-height: 1.15; text-align: center; hyphens: auto; transition: background-color var(--lb-motion-fast) ease, color var(--lb-motion-fast) ease; }
+.seg__op input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.seg__op:has(input:checked) { background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.seg__op:has(input:focus-visible) { outline: 2px solid var(--lb-color-brass-bright); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .seg__op:hover:not(:has(input:checked)) { color: var(--lb-color-parchment); } }
+
+.modelos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.modelo { position: relative; border: 1px solid var(--lb-gr-filete-forte); border-radius: 7px; padding: 0; overflow: hidden; cursor: pointer; background: #221d18; aspect-ratio: 16 / 10; }
+.modelo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.modelo span { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 5px; font: 500 var(--lb-font-size-xs)/1.2 var(--lb-font-utility); background: linear-gradient(transparent, rgba(10, 8, 6, 0.85)); text-align: left; }
+.modelo[aria-pressed='true'] { border-color: var(--lb-color-brass-bright); box-shadow: 0 0 0 1px var(--lb-color-brass-bright); }
+.lista-enc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lista-enc li { display: grid; grid-template-columns: 22px 1fr; gap: 4px 8px; align-items: center; }
+.lista-enc li.is-escolhido .num { background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); }
+.num { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 600 11px/1 var(--lb-font-utility); background: var(--lb-color-brass-soft); color: var(--lb-color-brass-bright); }
+.lista-enc .entrada { grid-column: 2; }
+.lista-enc .sub { grid-column: 2; display: flex; gap: 6px; align-items: center; }
+.chips-itens { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 3px 2px 7px; border-radius: 999px; background: var(--lb-gr-cartao-alto); border: 1px solid var(--lb-gr-filete-forte); font-size: var(--lb-font-size-sm); }
+.chip-item button { width: 22px; height: 22px; border: 0; border-radius: 50%; background: none; color: var(--lb-color-parchment-faint); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.chip-item button svg { width: 12px; height: 12px; }
+
+.painel { position: absolute; left: calc(12px + 314px + 16px); top: 12px; right: 16px; max-width: 900px; z-index: 2; background: var(--lb-color-stone); border: 1px solid var(--lb-color-line-panel); border-radius: var(--lb-radius-lg); box-shadow: var(--lb-shadow-float); padding: 12px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100% - 24px); }
+.painel__cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.painel__cab h2 { font: 400 var(--lb-font-size-lg)/1.2 var(--lb-font-display); }
+.painel__cab p { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); }
+.painel__quadro { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: var(--lb-radius-md); overflow: hidden; background: #221d18; container-type: inline-size; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.painel__quadro .encaixe { pointer-events: none; }
+.marco { position: absolute; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: rgba(19, 17, 14, 0.82); border: 2px solid var(--lb-color-brass-bright); color: var(--lb-color-brass-bright); font: 600 13px/1 var(--lb-font-utility); display: grid; place-items: center; cursor: grab; touch-action: none; padding: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); transition: background-color 110ms ease, color 110ms ease; }
+.marco[aria-disabled='true'] { cursor: default; border-style: dashed; }
+.marco.is-escolhido { background: var(--lb-color-brass); color: var(--lb-color-brass-contrast); }
+.registro { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.registro li { font-size: var(--lb-font-size-sm); color: var(--lb-color-parchment-dim); line-height: 1.35; display: grid; grid-template-columns: 46px 1fr; gap: 6px; }
+.registro time { font: 500 var(--lb-font-size-xs)/1.35 var(--lb-font-utility); color: var(--lb-color-parchment-faint); }
+.registro li.is-perigo { color: #f0a198; }
+.pecas-vivo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pecas-vivo li { display: grid; grid-template-columns: 28px 1fr; gap: 0 8px; align-items: center; font-size: var(--lb-font-size-sm); }
+.pecas-vivo svg { width: 28px; height: 28px; grid-row: span 2; }
+.pecas-vivo .vazio-ico { width: 28px; height: 28px; grid-row: span 2; border-radius: 50%; border: 1px dashed var(--lb-gr-filete-forte); }
+.pecas-vivo small { color: var(--lb-color-parchment-faint); }
+
+/* ---------------------------------------------------------------- movimento reduzido: só opacidade e cor */
+.rm .encaixe, .rm .item, .rm .bt, .rm .mg-linha, .rm .roda__seta, .rm .macaneta svg, .rm .troca__pedestal, .rm .mostrador .agulha,
+.rm .ponteiro, .rm .tecla, .rm .tile__img, .rm .luz, .rm .empurra__peca, .rm .pv__barra i, .rm .aviso { transition-property: opacity, background-color, border-color, color !important; }
+.rm .encaixe.is-pairando-ok, .rm .item:active, .rm .bt:active, .rm .mg-linha:active, .rm .roda__seta:active, .rm .luz:active, .rm .tecla:active, .rm .tecla.is-tocada { transform: translate(-50%, -50%); }
+.rm .item:active, .rm .bt:active, .rm .mg-linha:active, .rm .roda__seta:active, .rm .luz:active, .rm .tecla:active, .rm .tecla.is-tocada { transform: none; }
+.rm .aviso, .rm .aviso.is-visivel { transform: translate(-50%, 0); }
+.rm .is-abrindo .folha-e, .rm .is-abrindo .folha-d, .rm .is-abrindo .porta-cofre, .rm .is-abrindo .agua--fio, .rm .is-abrindo .agua--bacia, .rm .is-abrindo .gaveta { animation: none; }
+.rm .mg-pulsando { animation: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="base-med" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="19.5" fill="#b89552" stroke="#6e5931" stroke-width="2.5"/>
+      <circle cx="24" cy="24" r="14.8" fill="#c7a768" stroke="#8a6f3d" stroke-width="1.5"/>
+      <path d="M12.5 16a13.5 13.5 0 0 1 9.5-6" stroke="#ead29c" stroke-width="2" fill="none" stroke-linecap="round" opacity=".75"/>
+    </symbol>
+    <symbol id="i-med-garca" viewBox="0 0 48 48"><use href="#base-med"/>
+      <path d="M27 14c-2.6 0-4 1.8-4 3.8 0 2.2 2.2 3.2 2.2 5.2 0 2.6-5.2 4.4-5.2 8.6 0 1.6 1 2.9 2.6 2.9h5.2M27 14l5.5 1.3-5.1 1.3M23.6 34.5v3.2M27 34.5v3.2" fill="none" stroke="#5e4a26" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-med-sapo" viewBox="0 0 48 48"><use href="#base-med"/>
+      <path d="M15.5 30.5c0-5.6 3.8-9.5 8.5-9.5s8.5 3.9 8.5 9.5c0 2.6-3.8 3.8-8.5 3.8s-8.5-1.2-8.5-3.8z" fill="#a98b4f" stroke="#5e4a26" stroke-width="2"/>
+      <circle cx="19.8" cy="21.4" r="2.6" fill="#d8bb7c" stroke="#5e4a26" stroke-width="1.8"/><circle cx="28.2" cy="21.4" r="2.6" fill="#d8bb7c" stroke="#5e4a26" stroke-width="1.8"/>
+      <path d="M20.5 29.5q3.5 1.8 7 0" stroke="#5e4a26" stroke-width="1.6" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-med-junco" viewBox="0 0 48 48"><use href="#base-med"/>
+      <path d="M18.5 35c0-7 .6-13 2.2-19M24 35V12.5M29.5 35c0-7-.6-13-2.2-19" stroke="#5e4a26" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <ellipse cx="20.9" cy="14.6" rx="1.8" ry="4" fill="#5e4a26" transform="rotate(12 20.9 14.6)"/><ellipse cx="24" cy="11.4" rx="1.8" ry="4" fill="#5e4a26"/><ellipse cx="27.1" cy="14.6" rx="1.8" ry="4" fill="#5e4a26" transform="rotate(-12 27.1 14.6)"/></symbol>
+    <symbol id="i-bra-carvalho" viewBox="0 0 48 48">
+      <path d="M9 8.5h30v13.5c0 9.6-6.4 15.7-15 18.7C15.4 37.7 9 31.6 9 22z" fill="#7f9a64" stroke="#4c5c3c" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12.5 11.5h23v10.5c0 7.6-5 12.4-11.5 14.9-6.5-2.5-11.5-7.3-11.5-14.9z" fill="none" stroke="#a3bb88" stroke-width="1.4"/>
+      <path d="M24 25.5v8" stroke="#e9e3cf" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M17.4 21.6a4 4 0 0 1 2-6.4 5 5 0 0 1 9.4-1 4.2 4.2 0 0 1 2.9 7.1 3.6 3.6 0 0 1-3.3 4.3h-8.2a3.8 3.8 0 0 1-2.8-4z" fill="#e9e3cf" stroke="#4c5c3c" stroke-width="1.8"/></symbol>
+    <symbol id="i-bra-lobo" viewBox="0 0 48 48">
+      <path d="M9 8.5h30v13.5c0 9.6-6.4 15.7-15 18.7C15.4 37.7 9 31.6 9 22z" fill="#7189a6" stroke="#445263" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12.5 11.5h23v10.5c0 7.6-5 12.4-11.5 14.9-6.5-2.5-11.5-7.3-11.5-14.9z" fill="none" stroke="#9aadc3" stroke-width="1.4"/>
+      <path d="M16.5 14.5l3.6 5h7.8l3.6-5 1 11-8.5 7.5-8.5-7.5z" fill="#e9e3cf" stroke="#445263" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="21" cy="23.5" r="1.3" fill="#445263"/><circle cx="27" cy="23.5" r="1.3" fill="#445263"/><path d="M22.6 28h2.8L24 29.7z" fill="#445263"/></symbol>
+    <symbol id="i-bra-lua" viewBox="0 0 48 48">
+      <path d="M9 8.5h30v13.5c0 9.6-6.4 15.7-15 18.7C15.4 37.7 9 31.6 9 22z" fill="#b9bec3" stroke="#6f7378" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12.5 11.5h23v10.5c0 7.6-5 12.4-11.5 14.9-6.5-2.5-11.5-7.3-11.5-14.9z" fill="none" stroke="#dde1e4" stroke-width="1.4"/>
+      <path d="M27.5 13.5a9.5 9.5 0 1 0 0 17.6 7.6 7.6 0 1 1 0-17.6z" fill="#f3efe2" stroke="#6f7378" stroke-width="1.8"/></symbol>
+    <symbol id="i-bra-sol" viewBox="0 0 48 48">
+      <path d="M9 8.5h30v13.5c0 9.6-6.4 15.7-15 18.7C15.4 37.7 9 31.6 9 22z" fill="#b56e50" stroke="#6d4230" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M12.5 11.5h23v10.5c0 7.6-5 12.4-11.5 14.9-6.5-2.5-11.5-7.3-11.5-14.9z" fill="none" stroke="#d1937a" stroke-width="1.4"/>
+      <path d="M24 12.5v3M24 29.5v3M14 22.5h3M31 22.5h3M17 15.5l2.1 2.1M28.9 27.4l2.1 2.1M31 15.5l-2.1 2.1M19.1 27.4 17 29.5" stroke="#f0d266" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="24" cy="22.5" r="5.2" fill="#f0d266" stroke="#6d4230" stroke-width="1.8"/></symbol>
+    <symbol id="i-cervo" viewBox="0 0 48 48">
+      <path d="M13 41h22v-4H13z" fill="#a6a396" stroke="#75736b" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M17.5 37c-.6-4.2 0-7.6 2-9.6l-1-6.4c-.3-2 1.2-3.4 3-3.1l2.2.4c1.6-3 4.8-3.4 6.5-1.4l-2.6 1.6 1.4 2.2-3.2.3-.6 6.3c2.2 1.8 3 5.4 2.6 9.7z" fill="#c3c0b2" stroke="#75736b" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M26.8 14.6 25.4 9M25.8 10.6l-3-2.6M27.2 12.2l3-3.6M29.4 14.2l3.6-4M31.9 11.4l2.6.5" stroke="#75736b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+      <ellipse cx="20.5" cy="36.4" rx="2.6" ry="1.2" fill="#6f8f55"/></symbol>
+    <symbol id="i-lua-e" viewBox="0 0 48 48">
+      <path d="M24 7.5A16.5 16.5 0 0 0 24 40.5L21 35l4-5.5-4-5.5 4-5.5-4-5.5z" fill="#c9ced2" stroke="#797c7e" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M16.5 15.5a10.5 10.5 0 0 0 0 17" stroke="#a2a7ac" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M12.5 17a13 13 0 0 1 6-6.5" stroke="#eef0f2" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-lua-d" viewBox="0 0 48 48">
+      <path d="M24 7.5A16.5 16.5 0 0 1 24 40.5L21 35l4-5.5-4-5.5 4-5.5-4-5.5z" fill="#c9ced2" stroke="#797c7e" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M31.5 15.5a10.5 10.5 0 0 1 0 17" stroke="#a2a7ac" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-lua-prata" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="16.5" fill="#c9ced2" stroke="#797c7e" stroke-width="2"/>
+      <path d="M24 7.5 21 13l4 5.5-4 5.5 4 5.5-4 5.5 3 5.5" stroke="#a2a7ac" stroke-width="1.2" fill="none" opacity=".8"/>
+      <path d="M27.5 15.5a8.5 8.5 0 1 0 0 17 6.8 6.8 0 1 1 0-17z" fill="#eef0f2" stroke="#797c7e" stroke-width="1.6"/></symbol>
+    <symbol id="i-pedra-1" viewBox="0 0 48 48">
+      <path d="M12 31c0-7 5.4-12 12-12s12 5 12 12c0 4.2-5.4 6.8-12 6.8S12 35.2 12 31z" fill="#b2ad9b" stroke="#6b6757" stroke-width="2"/>
+      <path d="M24 25v8" stroke="#6b6757" stroke-width="2.2" stroke-linecap="round"/><path d="M16 25a9 9 0 0 1 5-3.5" stroke="#d3cfbf" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-pedra-2" viewBox="0 0 48 48">
+      <path d="M10 31c0-8 6.2-13.5 14-13.5S38 23 38 31c0 4.6-6.2 7.6-14 7.6S10 35.6 10 31z" fill="#a39e8a" stroke="#625e4f" stroke-width="2"/>
+      <path d="M21.5 24.5v9M26.5 24.5v9" stroke="#625e4f" stroke-width="2.2" stroke-linecap="round"/><path d="M14.5 24.5a10 10 0 0 1 6-4" stroke="#c7c2b0" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-pedra-3" viewBox="0 0 48 48">
+      <path d="M8 31c0-9 7-15 16-15s16 6 16 15c0 5-7 8.4-16 8.4S8 36 8 31z" fill="#948f7b" stroke="#595546" stroke-width="2"/>
+      <path d="M19 24v10M24 24v10M29 24v10" stroke="#595546" stroke-width="2.2" stroke-linecap="round"/><path d="M12.5 23.5a11 11 0 0 1 7-4.5" stroke="#b9b4a1" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-joia-ambar" viewBox="0 0 48 48">
+      <path d="M24 7.5l12.5 11.5L24 40.5 11.5 19z" fill="#e0a24e" stroke="#86612f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M11.5 19h25M24 7.5 19 19l5 21.5 5-21.5z" stroke="#86612f" stroke-width="1.3" fill="none" opacity=".8" stroke-linejoin="round"/>
+      <path d="M18.5 18.2l4.6-9" stroke="#f8d9a4" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-chave-jardim" viewBox="0 0 48 48">
+      <circle cx="16" cy="17" r="7" fill="none" stroke="#383a3c" stroke-width="6.5"/><circle cx="16" cy="17" r="7" fill="none" stroke="#8a8f93" stroke-width="3.5"/>
+      <path d="M21 22l14 14M29.5 30.5l3.5-3.5M33 34l3.5-3.5" stroke="#383a3c" stroke-width="6.5" stroke-linecap="round"/><path d="M21 22l14 14M29.5 30.5l3.5-3.5M33 34l3.5-3.5" stroke="#8a8f93" stroke-width="3.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-anel-salao" viewBox="0 0 48 48">
+      <ellipse cx="24" cy="29" rx="12" ry="10" fill="none" stroke="#6e5931" stroke-width="6.5"/><ellipse cx="24" cy="29" rx="12" ry="10" fill="none" stroke="#d1b06c" stroke-width="3.5"/>
+      <path d="M24 9l5.5 5.5L24 20l-5.5-5.5z" fill="#7189a6" stroke="#445263" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-diario" viewBox="0 0 48 48">
+      <rect x="12" y="8" width="24" height="32" rx="3" fill="#775739" stroke="#473422" stroke-width="2"/>
+      <path d="M16 8v32" stroke="#473422" stroke-width="2"/><rect x="31" y="20" width="7" height="7" rx="1.5" fill="#b89552" stroke="#6e5931" stroke-width="1.6"/>
+      <path d="M20 15h11M20 19h8" stroke="#a07b51" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-moedas" viewBox="0 0 48 48">
+      <ellipse cx="22" cy="34" rx="12" ry="4.5" fill="#b89552" stroke="#6e5931" stroke-width="2"/><ellipse cx="22" cy="29" rx="12" ry="4.5" fill="#c7a768" stroke="#6e5931" stroke-width="2"/>
+      <ellipse cx="25" cy="23" rx="12" ry="4.5" fill="#d1b06c" stroke="#6e5931" stroke-width="2"/><path d="M19 22.5h10" stroke="#8a6f3d" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-calice" viewBox="0 0 48 48">
+      <path d="M13 9h22c0 9-4.6 14-11 14S13 18 13 9z" fill="#b7b9b5" stroke="#6e706d" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M24 23v10M16 39h16l-3-6H19z" fill="#a4a6a2" stroke="#6e706d" stroke-width="2" stroke-linejoin="round"/><path d="M16.5 12c.5 4 2.5 6.5 5 7.5" stroke="#dcdeda" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-pocao" viewBox="0 0 48 48">
+      <path d="M20 8h8v8.5c5.5 2 9 6.4 9 11.7C37 34.7 31.2 40 24 40s-13-5.3-13-11.8c0-5.3 3.5-9.7 9-11.7z" fill="#e6d9bd" stroke="#8b8270" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M13.2 27.5c3.4 1.6 7 1.6 10.8 0s7.4-1.6 10.8 0C34.6 34 30 38 24 38s-10.6-4-10.8-10.5z" fill="#c75a4c" stroke="#7a3329" stroke-width="1.6"/>
+      <rect x="18.5" y="5" width="11" height="4.5" rx="1.5" fill="#a07b51" stroke="#604a31" stroke-width="1.6"/></symbol>
+    <symbol id="ic-peca" viewBox="0 0 24 24"><path d="M9 4.5h3.2a2.3 2.3 0 1 1 4.4 0H19.5V9a2.3 2.3 0 1 1 0 4.4v6.1H13.4a2.3 2.3 0 1 0-4.4 0H4.5v-6.1a2.3 2.3 0 1 0 0-4.4V4.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-ordem" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M4.5 5l1.5-1v5M4 13.2c.4-.9 2.6-1 2.6.4 0 1.2-2.6 2.1-2.6 3.4h2.8M4 19.4c.6.6 2.7.6 2.7-.7 0-1-1.3-1-1.6-1 .5 0 1.5-.2 1.5-1 0-1.2-1.9-1.1-2.5-.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-cofre" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="3.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 8.4v1.4M12 14.2v1.4M8.4 12h1.4M14.2 12h1.4M6 19.5v1.5M18 19.5v1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="ic-seta" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-cima" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="ic-jogos" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="11" rx="5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 10.5v4M6 12.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="15.5" cy="11.5" r="1.1" fill="currentColor"/><circle cx="17.5" cy="14" r="1.1" fill="currentColor"/></symbol>
+    <symbol id="ic-cena" viewBox="0 0 24 24"><path d="M4 18l5-7 4 5 3-3 4 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="16" cy="7.5" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="ic-livro" viewBox="0 0 24 24"><path d="M5 4.5h11a2 2 0 0 1 2 2V20H7a2 2 0 0 1-2-2zM5 17.5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-bau" viewBox="0 0 24 24"><path d="M4 10.5h16V19H4zM4 10.5a8 4.5 0 0 1 16 0M11 13h2v2.4h-2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="topo">
+  <div class="topo__marca"><b>Puzzles</b><span>protótipo · 19/11/2026</span></div>
+  <nav class="topo__nav" aria-label="Telas do protótipo">
+    <div class="topo__grupo" role="group" aria-label="Visão do jogador">
+      <span class="topo__rot" aria-hidden="true">Jogador</span>
+      <button type="button" class="topo__bt" data-vista="fonte">Fonte</button>
+      <button type="button" class="topo__bt" data-vista="porta">Porta de brasões</button>
+      <button type="button" class="topo__bt" data-vista="cofre">Cofre</button>
+      <button type="button" class="topo__bt" data-vista="altar">Altar</button>
+      <button type="button" class="topo__bt" data-vista="amostras">Outras mecânicas</button>
+    </div>
+    <div class="topo__grupo" role="group" aria-label="Visão do mestre">
+      <span class="topo__rot" aria-hidden="true">Mestre</span>
+      <button type="button" class="topo__bt" data-vista="pagina">Página Jogos</button>
+      <button type="button" class="topo__bt" data-vista="editor">Editor</button>
+      <button type="button" class="topo__bt" data-vista="aovivo">Ao vivo</button>
+    </div>
+  </nav>
+  <label class="topo__rm" title="Simula o pedido de movimento reduzido do sistema"><input type="checkbox" id="rm"> Movimento reduzido</label>
+</header>
+<main id="palco"></main>
+<div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+<script>
+'use strict'
+;(() => {
+/* ============================================================== utilidades */
+const $ = (s, r = document) => r.querySelector(s)
+const $$ = (s, r = document) => [...r.querySelectorAll(s)]
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
+const palco = $('#palco')
+const mqRM = matchMedia('(prefers-reduced-motion: reduce)')
+let rmManual = false
+const reduzido = () => mqRM.matches || rmManual
+
+/** Sorteio com semente (mesma semente, mesma arte). */
+function rng(semente) {
+  let s = semente >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+/** Escurece ou clareia uma cor (fator na luz). O contorno do Meio-Termo é a cor a 60%. */
+function tom(hex, f) {
+  const n = parseInt(hex.slice(1), 16)
+  const c = [n >> 16 & 255, n >> 8 & 255, n & 255].map((v) => Math.max(0, Math.min(255, Math.round(v * f))))
+  return '#' + ((1 << 24) | (c[0] << 16) | (c[1] << 8) | c[2]).toString(16).slice(1)
+}
+/** WAAPI que respeita o movimento reduzido: no reduzido, só a troca de opacidade (ou nada). */
+function animar(el, quadros, opcoes, quadrosReduzidos) {
+  if (!el || !el.animate) return null
+  if (reduzido()) return quadrosReduzidos ? el.animate(quadrosReduzidos, { duration: 160, easing: 'ease' }) : null
+  return el.animate(quadros, opcoes)
+}
+let avisoTimer = 0
+function aviso(texto, tom_ = '') {
+  const el = $('#aviso')
+  el.textContent = texto
+  el.dataset.tom = tom_
+  el.classList.add('is-visivel')
+  clearTimeout(avisoTimer)
+  avisoTimer = setTimeout(() => el.classList.remove('is-visivel'), 2800)
+}
+function agoraTexto(t) {
+  const s = Math.round((Date.now() - t) / 1000)
+  if (s < 50) return 'agora'
+  const m = Math.round(s / 60)
+  return m < 60 ? `há ${m} min` : `há ${Math.round(m / 60)} h`
+}
+const ico = (id, cls = '') => `<svg class="${cls}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><use href="#i-${id}"/></svg>`
+const ic = (id) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-${id}"/></svg>`
+
+/** Grão fino (ruído em canvas, semente fixa) que passa por cima da arte: madeira e pedra com textura sem virar foto. */
+function gerarGrao() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 96
+  const g = c.getContext('2d')
+  const img = g.createImageData(96, 96)
+  const r = rng(7)
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 110 + r() * 60
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+    img.data[i + 3] = 255
+  }
+  g.putImageData(img, 0, 0)
+  document.documentElement.style.setProperty('--pz-grao', `url(${c.toDataURL()})`)
+}
+
+/* ============================================================== dados: peças, prêmios, jogadores */
+const QUEM = 'Lara'
+const JOGADORES = { Lara: { cor: '#e8a2c4' }, Bento: { cor: '#8cbf80' } }
+const PECAS = {
+  'med-garca': { nome: 'Medalhão da Garça', curto: 'Garça', desc: 'Latão gasto. Uma garça de pescoço longo em relevo.' },
+  'med-sapo': { nome: 'Medalhão do Sapo', curto: 'Sapo', desc: 'Latão com limo nas bordas. Um sapo sentado.' },
+  'med-junco': { nome: 'Medalhão do Junco', curto: 'Junco', desc: 'Latão. Três juncos dobrados pelo vento.' },
+  'bra-carvalho': { nome: 'Brasão do Carvalho', curto: 'Carvalho', desc: 'Escudo verde com uma árvore larga.' },
+  'bra-lobo': { nome: 'Brasão do Lobo', curto: 'Lobo', desc: 'Escudo azul com uma cabeça de lobo.' },
+  'bra-lua': { nome: 'Brasão da Lua', curto: 'Lua', desc: 'Escudo prateado com uma lua crescente.' },
+  'bra-sol': { nome: 'Brasão do Sol', curto: 'Sol', desc: 'Escudo cor de telha com um sol de oito raios.' },
+  cervo: { nome: 'Cervo de pedra', curto: 'Cervo', desc: 'Estatueta pesada. Os chifres têm musgo.' },
+  'lua-e': { nome: 'Meia-lua (esquerda)', curto: 'Meia-lua E', desc: 'Prata partida ao meio. A quebra é em zigue-zague.' },
+  'lua-d': { nome: 'Meia-lua (direita)', curto: 'Meia-lua D', desc: 'A outra metade de um disco de prata.' },
+  'lua-prata': { nome: 'Lua de prata', curto: 'Lua inteira', desc: 'As duas metades, juntas no altar. Não se separam mais.' },
+  'pedra-1': { nome: 'Pedra de rio I', curto: 'Pedra I', desc: 'Lisa e fria. Um risco gravado: pesa um.', peso: 1 },
+  'pedra-2': { nome: 'Pedra de rio II', curto: 'Pedra II', desc: 'Dois riscos gravados: pesa dois.', peso: 2 },
+  'pedra-3': { nome: 'Pedra de rio III', curto: 'Pedra III', desc: 'Três riscos gravados: pesa três.', peso: 3 },
+  'joia-ambar': { nome: 'Joia âmbar', curto: 'Joia âmbar', desc: 'Quente na mão. Quatro riscos na base.' },
+}
+const PREMIOS = {
+  'chave-jardim': 'Chave do jardim', 'anel-salao': 'Anel do salão', diario: 'Diário do capitão',
+  moedas: '30 moedas', calice: 'Cálice de estanho', pocao: 'Poção vermelha',
+}
+const SIMBOLOS = ['ancora', 'estrela', 'peixe', 'coroa', 'chave', 'olho']
+const NOME_SIMBOLO = { ancora: 'âncora', estrela: 'estrela', peixe: 'peixe', coroa: 'coroa', chave: 'chave', olho: 'olho' }
+const GLIFO = {
+  ancora: '<path d="M24 10v26M17 16h14M12 27c1 6 6 9 12 9s11-3 12-9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><circle cx="24" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="2.6"/>',
+  estrela: '<path d="M24 8l4.7 9.6 10.6 1.5-7.7 7.5 1.8 10.5L24 32.1l-9.4 5 1.8-10.5-7.7-7.5 10.6-1.5z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>',
+  peixe: '<path d="M9 24c5-7 13-9 21-5 2 1 4 3 5 5-1 2-3 4-5 5-8 4-16 2-21-5zM35 24l5-6v12z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="17" cy="22.5" r="1.8" fill="currentColor"/>',
+  coroa: '<path d="M10 34h28l2-17-8 7-8-11-8 11-8-7z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>',
+  chave: '<circle cx="15" cy="24" r="6" fill="none" stroke="currentColor" stroke-width="3"/><path d="M21 24h18M33 24v6M38 24v4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>',
+  olho: '<path d="M7 24c5-8 12-11 17-11s12 3 17 11c-5 8-12 11-17 11S12 32 7 24z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="24" cy="24" r="4.5" fill="currentColor"/>',
+}
+const glifo = (s) => `<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">${GLIFO[s]}</svg>`
+
+/* ============================================================== configuração (o que o MESTRE edita) */
+const TIPO_NOME = { encaixe: 'Encaixe', ordem: 'Ordem certa', combinacao: 'Combinação' }
+const CASTIGO_PADRAO = { nada: '', dano: 'Um choque sobe pelas mãos', armadilha: 'Uma armadilha dispara.', barulho: 'Um estrondo ecoa pelo corredor. O mestre ouviu.' }
+function cfgInicial() {
+  return {
+    fonte: {
+      id: 'fonte', nome: 'Fonte das Três Garças', tipo: 'encaixe', qualquerOrdem: true,
+      lugar: { tipo: 'objeto', texto: 'no objeto Fonte, no pátio do convento' },
+      visual: { tipo: 'modelo', modelo: 'fonte', imagem: null },
+      encaixes: [
+        { id: 'e1', x: 37, y: 52, forma: 'redondo', jeito: 'peca', peca: 'med-garca', rot: 'da esquerda' },
+        { id: 'e2', x: 50, y: 45, forma: 'redondo', jeito: 'peca', peca: 'med-sapo', rot: 'do meio' },
+        { id: 'e3', x: 63, y: 52, forma: 'redondo', jeito: 'peca', peca: 'med-junco', rot: 'da direita' },
+      ],
+      dica: 'Três bicos secos sobre a bacia. Embaixo de cada garça, um encaixe redondo.',
+      desfecho: { tipo: 'cena', texto: 'A água volta a correr pelos três bicos. No fundo da bacia, uma chave pequena brilha.', itens: ['chave-jardim'] },
+      castigo: { tipo: 'nada', dano: 3, texto: '' },
+    },
+    porta: {
+      id: 'porta', nome: 'Porta do Salão dos Brasões', tipo: 'ordem', qualquerOrdem: false,
+      lugar: { tipo: 'objeto', texto: 'na porta norte do corredor' },
+      visual: { tipo: 'modelo', modelo: 'porta', imagem: null },
+      encaixes: [
+        { id: 'b1', x: 33.5, y: 43, forma: 'brasao', jeito: 'peca', peca: 'bra-carvalho', rot: 'primeiro' },
+        { id: 'b2', x: 44.5, y: 43, forma: 'brasao', jeito: 'peca', peca: 'bra-lobo', rot: 'segundo' },
+        { id: 'b3', x: 55.5, y: 43, forma: 'brasao', jeito: 'peca', peca: 'bra-lua', rot: 'terceiro' },
+        { id: 'b4', x: 66.5, y: 43, forma: 'brasao', jeito: 'peca', peca: 'bra-sol', rot: 'quarto' },
+      ],
+      dica: 'A placa diz: “Primeiro a árvore que dá sombra; depois quem uiva embaixo dela; então a noite que o escuta; por fim quem acorda o dia.”',
+      desfecho: { tipo: 'cena', texto: 'Os quatro brasões afundam juntos. A tranca cede e a porta range para dentro.', itens: ['anel-salao'] },
+      castigo: { tipo: 'dano', dano: 3, texto: '' },
+    },
+    cofre: {
+      id: 'cofre', nome: 'Cofre do Capitão', tipo: 'combinacao', qualquerOrdem: false,
+      lugar: { tipo: 'objeto', texto: 'no objeto Cofre, no escritório' },
+      visual: { tipo: 'modelo', modelo: 'cofre', imagem: null },
+      encaixes: [],
+      combinacao: { numeros: [3, 1, 8], simbolos: ['estrela', 'peixe', 'ancora'] },
+      dica: 'Bilhete na parede: “Contei os degraus da torre: trezentos e dezoito. E o barco: primeiro o que o guia, depois o que nada embaixo dele, por fim o que o prende.”',
+      desfecho: { tipo: 'texto', texto: 'As duas travas cedem. Dentro: um diário de capa de couro e um saquinho de moedas.', itens: ['diario', 'moedas'] },
+      castigo: { tipo: 'barulho', dano: 3, texto: '' },
+    },
+    altar: {
+      id: 'altar', nome: 'Altar da Colheita', tipo: 'encaixe', qualquerOrdem: false,
+      lugar: { tipo: 'ponto', texto: 'num ponto da capela' },
+      visual: { tipo: 'modelo', modelo: 'altar', imagem: null },
+      encaixes: [
+        { id: 'cervo', x: 30, y: 41, forma: 'estatua', jeito: 'peca', peca: 'cervo', rot: 'do cervo' },
+        { id: 'lua', x: 44, y: 39, forma: 'lua', jeito: 'metades', pecas: ['lua-e', 'lua-d'], vira: 'lua-prata', rot: 'da lua' },
+        { id: 'joia', x: 58, y: 42, forma: 'joia', jeito: 'peca', peca: 'joia-ambar', rot: 'da joia' },
+      ],
+      troca: { guarda: 'joia-ambar', peso: 4 },
+      dica: 'No altar: “O cervo, a lua inteira e o âmbar.” No pedestal da joia, quatro riscos.',
+      desfecho: { tipo: 'cena', texto: 'O altar range. Uma gaveta de pedra desliza para fora com um cálice e uma poção.', itens: ['calice', 'pocao'] },
+      castigo: { tipo: 'armadilha', dano: 2, texto: 'Dardos saem das frestas do pedestal.' },
+    },
+  }
+}
+
+/* ============================================================== estado (o progresso é do MAPA, de todos) */
+function jogoInicial(c) {
+  const pos = {}
+  for (const e of c.encaixes) pos[e.id] = e.jeito === 'metades' ? { e: null, d: null, inteira: false, por: null } : null
+  return { pos, resolvido: false, abrindo: false, cartao: false, dentro: new Set(), erros: 0, numeros: [0, 0, 0], simbolos: [0, 0, 0], bandeja: [], joiaNoPedestal: true, pedrasPresas: [] }
+}
+function estadoInicial() {
+  const cfg = cfgInicial()
+  const jogo = {}
+  for (const id of Object.keys(cfg)) jogo[id] = jogoInicial(cfg[id])
+  jogo.fonte.pos.e2 = { peca: 'med-sapo', por: 'Bento' }
+  jogo.fonte.dentro.add('Bento')
+  const t = Date.now()
+  return {
+    cfg, jogo,
+    ordemDosPuzzles: ['fonte', 'porta', 'cofre', 'altar'],
+    mochila: ['med-garca', 'med-junco', 'cervo', 'lua-e', 'lua-d', 'bra-sol', 'bra-lua', 'bra-lobo', 'bra-carvalho', 'pedra-1', 'pedra-2', 'pedra-3', null, null, null, null],
+    novos: new Set(),
+    recebidos: [],
+    sel: null,
+    pv: 20, pvMax: 20,
+    fora: {},
+    registro: [{ t: t - 4 * 60000, id: 'fonte', texto: 'Bento entrou', tom: '' }, { t: t - 3.6 * 60000, id: 'fonte', texto: 'Bento pôs Medalhão do Sapo', tom: '' }],
+    alertas: [],
+    bentoTemSapo: false,
+    editando: 'fonte',
+    vivoDe: 'fonte',
+    encEscolhido: null,
+    seqNovo: 1,
+  }
+}
+let estado = estadoInicial()
+function registrar(id, texto, tom_ = '') {
+  estado.registro.push({ t: Date.now(), id, texto, tom: tom_ })
+  if (estado.registro.length > 80) estado.registro.shift()
+}
+
+/* ============================================================== arte (SVG, Meio-Termo de perto) */
+/** Parede de pedra assentada pedra a pedra (largura e tom sorteados), nunca ladrilho repetido. */
+function parede(semente, y0, y1, base) {
+  const r = rng(semente)
+  let s = `<rect y="${y0}" width="1600" height="${y1 - y0}" fill="${tom(base, 0.62)}"/>`
+  const alt = 66
+  for (let y = y0, fila = 0; y < y1; y += alt, fila++) {
+    let x = -(fila % 2) * 70 - r() * 40
+    while (x < 1600) {
+      const w = 120 + r() * 100
+      s += `<rect x="${x.toFixed(1)}" y="${y + 3}" width="${(w - 6).toFixed(1)}" height="${Math.min(alt, y1 - y) - 6}" rx="8" fill="${tom(base, 0.88 + r() * 0.22)}"/>`
+      x += w
+    }
+  }
+  return s
+}
+function chao(semente, y0, base) {
+  const r = rng(semente)
+  let s = `<rect y="${y0}" width="1600" height="${1000 - y0}" fill="${tom(base, 0.6)}"/>`
+  for (let y = y0, fila = 0; y < 1000; fila++) {
+    const alt = 70 + fila * 18
+    let x = -r() * 120
+    while (x < 1600) {
+      const w = 190 + r() * 120 + fila * 30
+      s += `<rect x="${x.toFixed(1)}" y="${y + 4}" width="${(w - 8).toFixed(1)}" height="${alt - 8}" rx="10" fill="${tom(base, 0.86 + r() * 0.2)}"/>`
+      x += w
+    }
+    y += alt
+  }
+  return s
+}
+const luz = (p, cx = 0.5, cy = 0.4) => `<defs>
+  <radialGradient id="${p}l" cx="${cx}" cy="${cy}" r="0.7"><stop offset="0" stop-color="#ffd9a0" stop-opacity=".3"/><stop offset=".65" stop-color="#ffd9a0" stop-opacity="0"/></radialGradient>
+  <radialGradient id="${p}v" cx=".5" cy=".5" r=".78"><stop offset=".55" stop-color="#0c0a08" stop-opacity="0"/><stop offset="1" stop-color="#0c0a08" stop-opacity=".72"/></radialGradient>
+</defs>`
+const veu = (p) => `<rect width="1600" height="1000" fill="url(#${p}l)"/><rect width="1600" height="1000" fill="url(#${p}v)"/>`
+const musgo = (pts) => pts.map(([x, y, rx]) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${rx * 0.45}" fill="#7a9a5e" stroke="#4c5c3c" stroke-width="3"/>`).join('')
+
+function garca(x, espelho) {
+  const t = espelho ? `translate(${x} 222) scale(-1 1)` : `translate(${x} 222)`
+  return `<g transform="${t}"><path d="M24 118C21 76 36 50 19 24 9 7-21 5-31 20l-34 23 40-9c12 13 0 50 2 84z" fill="#cbc7b9" stroke="#6b695f" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="-14" cy="21" r="5" fill="#4f4c44"/><path d="M8 34c6 10 6 24 2 38" stroke="#a9a598" stroke-width="5" fill="none" stroke-linecap="round"/></g>`
+}
+function arteFonte(p = 'f') {
+  const xs = [592, 800, 1008]
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.5, 0.38)}
+  ${parede(11, 0, 660, '#6d6556')}${chao(12, 660, '#514a3f')}
+  <path d="M500 800V330Q500 230 630 212Q800 168 970 212Q1100 230 1100 330V800Z" fill="#b8b4a6" stroke="#6b695f" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M548 770V340Q548 270 650 256Q800 222 950 256Q1052 270 1052 340V770Z" fill="#aaa699" stroke="#8b887c" stroke-width="4"/>
+  <path d="M600 640h400M640 690h320" stroke="#8b887c" stroke-width="4" stroke-linecap="round"/>
+  <path d="M760 300c20 30 60 30 80 0" stroke="#8b887c" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M1040 560l-30 40 12 30" stroke="#7d7a6f" stroke-width="3" fill="none"/>
+  ${garca(xs[0], false)}${garca(xs[1], false)}${garca(xs[2], true)}
+  <ellipse cx="800" cy="812" rx="470" ry="74" fill="#8f8b7e" stroke="#6b695f" stroke-width="6"/>
+  <ellipse cx="800" cy="812" rx="428" ry="56" fill="#3b3e3b"/>
+  <ellipse class="agua agua--bacia" cx="800" cy="816" rx="424" ry="52" fill="#8fbcc4" stroke="#567176" stroke-width="4"/>
+  <path class="agua agua--fio" d="M527 265C480 300 452 420 446 800" stroke="#a9cfd6" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path class="agua agua--fio" d="M735 265C690 300 668 420 664 800" stroke="#a9cfd6" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path class="agua agua--fio" d="M1073 265C1120 300 1148 420 1154 800" stroke="#a9cfd6" stroke-width="16" fill="none" stroke-linecap="round"/>
+  <path d="M330 812V900Q330 950 800 962Q1270 950 1270 900V812Q1270 884 800 888Q330 884 330 812Z" fill="#b8b4a6" stroke="#6b695f" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M330 812Q330 884 800 888Q1270 884 1270 812" stroke="#d6d2c4" stroke-width="9" fill="none"/>
+  ${musgo([[540, 792, 34], [1090, 790, 26], [420, 900, 30], [1180, 915, 22], [760, 935, 18]])}
+  ${veu(p)}</svg>`
+}
+function artePorta(p = 'p') {
+  const tabuas = (x0, x1) => { let s = ''; for (let x = x0 + 66; x < x1 - 20; x += 66) s += `<path d="M${x} 168V898" stroke="#7d5f3d" stroke-width="4"/>`; return s }
+  const veios = (x0) => [0, 1, 2].map((k) => `<path d="M${x0 + 30 + k * 96} 300c10 60-8 120 4 190s-6 150 6 230" stroke="#8f6d46" stroke-width="2.5" fill="none" opacity=".7"/>`).join('')
+  const rebites = (x0, x1, y) => { let s = ''; for (let x = x0 + 30; x < x1; x += 70) s += `<circle cx="${x}" cy="${y}" r="7" fill="#7f8488" stroke="#383a3c" stroke-width="2.5"/>`; return s }
+  const folha = (cls, x0, x1) => `<g class="${cls}"><rect x="${x0}" y="164" width="${x1 - x0}" height="736" fill="#a07b51" stroke="#604a31" stroke-width="6"/>
+    ${tabuas(x0, x1)}${veios(x0)}
+    <rect x="${x0}" y="230" width="${x1 - x0}" height="34" fill="#5d6164" stroke="#383a3c" stroke-width="4"/>${rebites(x0, x1, 247)}
+    <rect x="${x0}" y="800" width="${x1 - x0}" height="34" fill="#5d6164" stroke="#383a3c" stroke-width="4"/>${rebites(x0, x1, 817)}
+    <rect x="${x0}" y="364" width="${x1 - x0}" height="132" fill="#565a5e" stroke="#383a3c" stroke-width="5"/>
+    <circle cx="${cls === 'folha-e' ? x1 - 34 : x0 + 34}" cy="610" r="22" fill="none" stroke="#383a3c" stroke-width="9"/><circle cx="${cls === 'folha-e' ? x1 - 34 : x0 + 34}" cy="610" r="22" fill="none" stroke="#8a8f93" stroke-width="4"/></g>`
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.5, 0.36)}
+  ${parede(21, 0, 700, '#625a4c')}${chao(22, 700, '#4c453a')}
+  <rect x="400" y="90" width="800" height="830" fill="#8a8577" stroke="#5a574e" stroke-width="7"/>
+  <rect x="372" y="62" width="856" height="110" rx="6" fill="#a29d8f" stroke="#5a574e" stroke-width="7"/>
+  <path d="M760 62h80l-14 110h-52z" fill="#b3ae9f" stroke="#5a574e" stroke-width="5" stroke-linejoin="round"/>
+  <rect x="460" y="164" width="680" height="736" fill="#15120f"/>
+  <ellipse cx="800" cy="560" rx="260" ry="320" fill="#ffd9a0" opacity=".06"/>
+  ${folha('folha-e', 460, 800)}${folha('folha-d', 800, 1140)}
+  <g class="some-ao-resolver"><rect x="640" y="660" width="320" height="86" rx="6" fill="#b89552" stroke="#6e5931" stroke-width="5"/>
+  <path d="M672 686h256M690 705h220M672 724h190" stroke="#6e5931" stroke-width="5" stroke-linecap="round" opacity=".8"/></g>
+  ${musgo([[420, 905, 26], [1188, 900, 30]])}
+  ${veu(p)}</svg>`
+}
+function arteCofre(p = 'c') {
+  let rebites = ''
+  for (let x = 450; x <= 1150; x += 58) rebites += `<circle cx="${x}" cy="154" r="7" fill="#80858a" stroke="#383a3c" stroke-width="2.5"/><circle cx="${x}" cy="866" r="7" fill="#80858a" stroke="#383a3c" stroke-width="2.5"/>`
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.5, 0.4)}
+  ${parede(31, 0, 720, '#5e5749')}${chao(32, 720, '#493f35')}
+  <g transform="rotate(-4 260 390)"><rect x="150" y="250" width="220" height="270" fill="#e9dfc8" stroke="#8b8270" stroke-width="4"/>
+  <path d="M180 300h150M180 330h130M180 360h158M180 390h90M180 430h146M180 460h120" stroke="#8b8270" stroke-width="5" stroke-linecap="round" opacity=".75"/>
+  <circle cx="260" cy="262" r="10" fill="#b56e50" stroke="#6d4230" stroke-width="3"/></g>
+  <rect x="420" y="130" width="760" height="760" rx="20" fill="#6a6f73" stroke="#383a3c" stroke-width="7"/>
+  <rect x="434" y="144" width="732" height="732" rx="14" fill="none" stroke="#878c90" stroke-width="4"/>${rebites}
+  <rect x="470" y="180" width="660" height="660" rx="12" fill="#1b1a18"/>
+  <path d="M480 560h640" stroke="#3a3833" stroke-width="10"/>
+  <rect x="560" y="440" width="96" height="120" rx="6" fill="#775739" stroke="#473422" stroke-width="4"/>
+  <ellipse cx="760" cy="548" rx="54" ry="16" fill="#c7a768" stroke="#6e5931" stroke-width="4"/><ellipse cx="760" cy="532" rx="54" ry="16" fill="#d1b06c" stroke="#6e5931" stroke-width="4"/>
+  <g class="porta-cofre"><rect x="470" y="180" width="660" height="660" rx="12" fill="#5f6367" stroke="#383a3c" stroke-width="6"/>
+  <rect x="500" y="280" width="300" height="300" rx="16" fill="#b89552" stroke="#6e5931" stroke-width="6"/>
+  <rect x="512" y="292" width="276" height="276" rx="12" fill="none" stroke="#d1b06c" stroke-width="3"/>
+  <rect x="820" y="280" width="300" height="300" rx="16" fill="#b89552" stroke="#6e5931" stroke-width="6"/>
+  <rect x="832" y="292" width="276" height="276" rx="12" fill="none" stroke="#d1b06c" stroke-width="3"/>
+  <circle cx="800" cy="700" r="92" fill="#4f5357" stroke="#383a3c" stroke-width="6"/>
+  <path d="M500 640h120M980 640h120" stroke="#4a4e52" stroke-width="5" stroke-linecap="round"/></g>
+  ${veu(p)}</svg>`
+}
+function arteAltar(p = 'a') {
+  const vela = (x) => `<rect x="${x - 15}" y="420" width="30" height="80" rx="4" fill="#efe6d0" stroke="#9a927f" stroke-width="4"/>
+    <ellipse cx="${x}" cy="398" rx="11" ry="20" fill="#f3ba66" stroke="#c17a2c" stroke-width="3"/><circle cx="${x}" cy="400" r="70" fill="#ffd9a0" opacity=".09"/>`
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.45, 0.42)}
+  ${parede(41, 0, 640, '#5f5749')}${chao(42, 640, '#4b4338')}
+  <path d="M380 470V200Q380 110 690 110Q1000 110 1000 200V470Z" fill="#3f3a31" stroke="#5a5448" stroke-width="6"/>
+  <path d="M690 170l26 50h-52z M690 290a40 40 0 1 0 1 0" fill="none" stroke="#6e675a" stroke-width="5"/>
+  <rect x="300" y="560" width="780" height="330" fill="#aeab9e" stroke="#75736b" stroke-width="7"/>
+  <rect x="340" y="600" width="200" height="240" rx="6" fill="#a19e91" stroke="#8a877b" stroke-width="4"/>
+  <rect x="840" y="600" width="200" height="240" rx="6" fill="#a19e91" stroke="#8a877b" stroke-width="4"/>
+  <rect x="570" y="752" width="240" height="96" fill="#2a2620"/>
+  <g class="gaveta"><rect x="570" y="700" width="240" height="96" rx="4" fill="#9d9a8d" stroke="#75736b" stroke-width="5"/>
+  <rect x="660" y="738" width="60" height="16" rx="6" fill="#75736b"/></g>
+  <rect x="260" y="500" width="860" height="66" rx="10" fill="#c3c0b2" stroke="#75736b" stroke-width="7"/>
+  <path d="M276 512h828" stroke="#dcd9cc" stroke-width="5" stroke-linecap="round"/>
+  ${vela(300)}${vela(1080)}
+  <rect x="1090" y="296" width="350" height="44" rx="6" fill="#c3c0b2" stroke="#6b695f" stroke-width="6"/>
+  <rect x="1116" y="340" width="298" height="570" fill="#b3afa1" stroke="#6b695f" stroke-width="6"/>
+  <path d="M1140 380v490M1390 380v490" stroke="#9c988b" stroke-width="5"/>
+  ${musgo([[330, 885, 30], [1060, 892, 26], [1130, 905, 22], [1420, 900, 28]])}
+  ${veu(p)}</svg>`
+}
+const ARTE = { fonte: arteFonte, porta: artePorta, cofre: arteCofre, altar: arteAltar }
+
+/* ============================================================== jogador: a tela de perto */
+const NOME_CASTIGO = { nada: 'Nada', dano: 'Dano', armadilha: 'Armadilha', barulho: 'Barulho' }
+const NOME_MODELO = { fonte: 'Fonte', porta: 'Porta de brasões', cofre: 'Cofre', altar: 'Altar' }
+const ACOES = {}
+const MUDANCAS = {}
+let vistaAtual = null
+let puzzleAtual = null
+let arrasto = null
+let ignorarClique = false
+
+const chipDe = (n) => `<span class="chip"><span class="chip__av" style="background:${JOGADORES[n]?.cor ?? '#c3c0b2'}">${esc(n[0])}</span>${esc(n)}${n === QUEM ? ' (você)' : ''}</span>`
+const romano = (n) => (n === 0 ? '0' : 'I'.repeat(n))
+const nao = (motivo = 'Não encaixa aqui.') => ({ ok: false, motivo })
+const SIM = { ok: true }
+function lugarTexto(c) { const t = c.lugar.texto || 'sem lugar no mapa'; return t[0].toUpperCase() + t.slice(1) }
+function encaixeEl(encId) { return palco.querySelector(`.pz [data-encaixes] [data-enc="${encId}"]`) }
+function cheio(id, encId) {
+  const v = estado.jogo[id].pos[encId]
+  if (!v) return false
+  return 'inteira' in v ? v.inteira : true
+}
+function temAlgo(id, encId) {
+  const v = estado.jogo[id].pos[encId]
+  if (!v) return false
+  return 'inteira' in v ? !!(v.e || v.d || v.inteira) : true
+}
+function conjunto(c) { return c.encaixes.flatMap((e) => (e.jeito === 'metades' ? [...e.pecas, e.vira] : [e.peca])).filter(Boolean) }
+function tirarDaMochila(peca) { const i = estado.mochila.indexOf(peca); if (i >= 0) estado.mochila[i] = null }
+function porNaMochila(peca) {
+  let i = estado.mochila.indexOf(null)
+  if (i < 0) { estado.mochila.push(null); i = estado.mochila.length - 1 }
+  estado.mochila[i] = peca
+  return i
+}
+
+/** As regras de cada encaixe. Encaixe: só a peça dele (ou qualquer do puzzle, se o mestre ligou). Ordem certa: qualquer do conjunto, e confere no fim. */
+function aceita(id, encId, peca) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const e = c.encaixes.find((x) => x.id === encId)
+  if (!e) return nao()
+  if (j.resolvido) return nao('Preso: o puzzle já foi resolvido.')
+  if (e.jeito === 'metades') {
+    const v = j.pos[encId]
+    if (v.inteira) return nao('Já tem uma peça inteira aqui.')
+    if (peca === e.vira) return v.e || v.d ? nao('Tire a metade antes.') : SIM
+    if (peca === e.pecas[0]) return v.e ? nao('Essa metade já está aqui.') : SIM
+    if (peca === e.pecas[1]) return v.d ? nao('Essa metade já está aqui.') : SIM
+    return nao()
+  }
+  if (!e.peca && c.tipo !== 'ordem' && !c.qualquerOrdem) return nao('Este encaixe ainda não tem peça: o mestre não escolheu.')
+  if (c.tipo === 'ordem' || c.qualquerOrdem) return conjunto(c).includes(peca) ? SIM : nao()
+  return peca === e.peca ? SIM : nao()
+}
+function aceitaBandeja(peca) {
+  const j = estado.jogo[puzzleAtual]
+  if (!j || !estado.cfg[puzzleAtual].troca) return nao()
+  if (!j.joiaNoPedestal) return nao('A troca já foi feita.')
+  return PECAS[peca]?.peso ? SIM : nao('Na bandeja só vão pedras com peso marcado.')
+}
+function aceitaAlvo(el, peca) {
+  if (el.dataset.alvo === 'encaixe') return aceita(puzzleAtual, el.dataset.enc, peca)
+  if (el.dataset.alvo === 'bandeja') return aceitaBandeja(peca)
+  return nao()
+}
+
+/* ---------------------------------------------------------------- montar a tela */
+function rotuloEstado(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido) return '<b>Resolvido.</b> As peças ficaram presas.'
+  if (c.tipo === 'combinacao') return 'Gire as rodas e tente a maçaneta.'
+  const postos = c.encaixes.filter((e) => cheio(id, e.id)).length
+  const extra = c.troca && j.joiaNoPedestal ? ' · a joia ainda está no pedestal' : ''
+  return `<b>${postos} de ${c.encaixes.length}</b> no lugar${extra}`
+}
+function htmlQuem(id) {
+  const d = [...estado.jogo[id].dentro]
+  return d.length ? d.map(chipDe).join('') : '<span class="chip chip--vazio">Ninguém dentro</span>'
+}
+function htmlArte(c, prefixo) {
+  if (c.visual.tipo === 'modelo' && ARTE[c.visual.modelo]) return ARTE[c.visual.modelo](prefixo)
+  if (c.visual.imagem) return `<img src="${c.visual.imagem}" alt="">`
+  return '<div class="quadro__vazio">Sem imagem ainda. No editor, use “Escolher imagem”.</div>'
+}
+function htmlEncaixes(id, op = {}) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const somem = c.visual.modelo === 'porta' && c.visual.tipo === 'modelo'
+  return c.encaixes.map((e, i) => {
+    const v = j.pos[e.id]
+    let dentro = '', desc = 'vazio', quem = ''
+    if (e.jeito === 'metades') {
+      if (v.inteira) { dentro = `<span class="encaixe__peca">${ico(e.vira)}</span>`; desc = PECAS[e.vira].nome }
+      else {
+        if (v.e) dentro += `<span class="encaixe__metade">${ico(e.pecas[0])}</span>`
+        if (v.d) dentro += `<span class="encaixe__metade">${ico(e.pecas[1])}</span>`
+        desc = v.e || v.d ? `só ${PECAS[v.e ? e.pecas[0] : e.pecas[1]].nome}, falta a outra metade` : 'vazio, cabem duas metades'
+      }
+      quem = v.por || ''
+    } else if (v) { dentro = `<span class="encaixe__peca">${ico(v.peca)}</span>`; desc = PECAS[v.peca].nome; quem = v.por }
+    const travado = j.resolvido || op.miniatura
+    const pode = !travado && estado.sel && aceita(id, e.id, estado.sel).ok
+    const rotulo = `Encaixe ${e.rot ?? i + 1}: ${desc}${quem ? `, posto por ${quem}` : ''}${j.resolvido ? ', preso' : ''}`
+    const mostraQuem = quem && (op.miniatura || (!j.resolvido && quem !== QUEM))
+    return `<button type="button" class="encaixe encaixe--${e.forma}${pode ? ' is-pode' : ''}${somem ? ' some-ao-resolver' : ''}" style="left:${e.x}%;top:${e.y}%" data-alvo="encaixe" data-enc="${e.id}" aria-label="${esc(rotulo)}"${travado ? ' aria-disabled="true"' : ''}${op.miniatura ? ' tabindex="-1"' : ''}>${dentro}<span class="encaixe__brilho"></span>${mostraQuem ? `<span class="encaixe__quem">${esc(quem)}</span>` : ''}</button>`
+  }).join('')
+}
+function htmlQuadro(id, op = {}) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const cls = ['quadro']
+  if (j.resolvido) cls.push('is-resolvido')
+  if (j.resolvido && j.abrindo && !op.miniatura) cls.push('is-abrindo')
+  return `<div class="${cls.join(' ')}" data-quadro="${id}">
+    <div class="quadro__arte">${htmlArte(c, op.miniatura ? `${id}-m` : id)}</div>
+    <div class="quadro__grao" aria-hidden="true"></div>
+    <div class="quadro__camada" data-encaixes>${htmlEncaixes(id, op)}</div>
+    ${c.tipo === 'combinacao' ? htmlRodas(id, op) : ''}
+    ${c.troca ? htmlTroca(id, op) : ''}
+    <div class="quadro__flash" aria-hidden="true"></div>
+    ${j.cartao && !op.miniatura ? htmlResultado(id) : ''}
+  </div>`
+}
+function htmlResultado(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const quem = j.ganhador === QUEM ? 'Você recebeu' : j.ganhador === 'mestre' ? 'O mestre entregou a quem está dentro' : `${j.ganhador} recebeu`
+  return `<div class="quadro__veu" data-veu></div>
+  <div class="resultado" role="dialog" aria-labelledby="res-t" aria-describedby="res-x" data-resultado>
+    <p class="resultado__selo">Resolvido</p><h2 id="res-t">${esc(c.nome)}</h2>
+    <p class="resultado__texto" id="res-x">${esc(c.desfecho.texto)}</p>
+    ${c.desfecho.itens.length ? `<div class="resultado__itens"><p>${esc(quem)}</p><ul>${c.desfecho.itens.map((k) => `<li>${ico(k)}${esc(PREMIOS[k])}</li>`).join('')}</ul></div>` : ''}
+    <button type="button" class="bt bt--primario" data-acao="fechar-resultado">Continuar</button>
+  </div>`
+}
+
+/* fora: o puzzle visto do mapa (o selo com balão do Meio-Termo) */
+function svgMapa(id, prog, outros) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const r = rng(90 + id.length * 7)
+  let tufos = '', flores = ''
+  for (let i = 0; i < 80; i++) { const x = r() * 1600, y = r() * 1000; tufos += `<path d="M${x.toFixed(0)} ${y.toFixed(0)}l6-16 4 14 6-12 2 14" stroke="#76ac6d" stroke-width="4" fill="none" stroke-linecap="round"/>` }
+  for (let i = 0; i < 28; i++) { const x = r() * 1600, y = r() * 1000, cor = ['#e8a2c4', '#f0d266', '#f3efe2', '#a87fcb'][i % 4]; flores += `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="7" fill="${cor}" stroke="${tom(cor, 0.6)}" stroke-width="2.5"/>` }
+  const m = c.visual.tipo === 'modelo' ? c.visual.modelo : null
+  const objeto = {
+    fonte: `<circle cx="800" cy="440" r="150" fill="#c3c0b2" stroke="#75736b" stroke-width="8"/><circle cx="800" cy="440" r="118" fill="${j.resolvido ? '#8fbcc4' : '#5f625d'}" stroke="#75736b" stroke-width="5"/><circle cx="800" cy="440" r="42" fill="#b3afa1" stroke="#75736b" stroke-width="6"/>`,
+    porta: `<rect x="380" y="330" width="840" height="96" fill="#aa745c" stroke="#66463a" stroke-width="6"/><rect x="752" y="330" width="96" height="96" fill="${j.resolvido ? '#2a2620' : '#a07b51'}" stroke="#604a31" stroke-width="6"/>`,
+    cofre: `<rect x="590" y="320" width="420" height="250" rx="10" fill="#a07b51" stroke="#604a31" stroke-width="6"/><rect x="740" y="350" width="120" height="96" rx="10" fill="#6a6f73" stroke="#383a3c" stroke-width="6"/>`,
+    altar: `<rect x="650" y="390" width="300" height="110" rx="10" fill="#c3c0b2" stroke="#75736b" stroke-width="6"/><circle cx="680" cy="420" r="12" fill="#f3ba66" stroke="#c17a2c" stroke-width="3"/><circle cx="920" cy="420" r="12" fill="#f3ba66" stroke="#c17a2c" stroke-width="3"/>`,
+  }[m] ?? '<rect x="720" y="380" width="160" height="120" rx="14" fill="#c3c0b2" stroke="#75736b" stroke-width="6"/>'
+  const outrosTok = outros.map((n, k) => `<g transform="translate(${960 + k * 70} 520)" opacity=".9"><circle r="34" fill="${JOGADORES[n]?.cor ?? '#c3c0b2'}" stroke="${tom(JOGADORES[n]?.cor ?? '#c3c0b2', 0.6)}" stroke-width="6"/><circle r="46" fill="none" stroke="#f3efe2" stroke-width="4" stroke-dasharray="10 9"/><text y="11" text-anchor="middle" style="font:600 30px Bahnschrift, 'Segoe UI', sans-serif" fill="#2a2620">${esc(n[0])}</text></g>`).join('')
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="1600" height="1000" fill="#8cbf80"/>${tufos}${flores}
+    <path d="M800 1000C780 860 820 760 800 640" stroke="#dda56c" stroke-width="120" fill="none" stroke-linecap="round"/>
+    <ellipse cx="800" cy="450" rx="340" ry="250" fill="#dcd0b6" stroke="#bcae94" stroke-width="6"/>
+    ${objeto}${outrosTok}
+    <g transform="translate(800 720)"><circle r="40" fill="#e8a2c4" stroke="#8b6176" stroke-width="6"/><text y="12" text-anchor="middle" style="font:600 32px Bahnschrift, 'Segoe UI', sans-serif" fill="#2a2620">L</text></g>
+    <g transform="translate(800 230)"><path d="M-170-62h340a16 16 0 0 1 16 16v58a16 16 0 0 1-16 16H22L0 52-22 28h-148a16 16 0 0 1-16-16v-58a16 16 0 0 1 16-16z" fill="#f3efe2" stroke="#8b8270" stroke-width="5"/>
+    <text y="-6" text-anchor="middle" style="font:600 34px Bahnschrift, 'Segoe UI', sans-serif" fill="#3b3226">${esc(prog)}</text></g>
+  </svg>`
+}
+function progresso(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido) return 'Resolvido'
+  if (c.tipo === 'combinacao') return 'Rodas como você deixou'
+  return `${c.encaixes.filter((e) => cheio(id, e.id)).length} de ${c.encaixes.length} no lugar`
+}
+function htmlFora(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const prog = progresso(id)
+  const outros = [...j.dentro].filter((n) => n !== QUEM)
+  return `<div class="fora">${svgMapa(id, prog, outros)}<div class="fora__cartao">
+    <h2>Você saiu de ${esc(c.nome)}</h2>
+    <p>${esc(prog)}. ${outros.length ? `${esc(outros.join(' e '))} ${outros.length > 1 ? 'continuam' : 'continua'} lá dentro.` : 'Ninguém dentro agora.'} O que foi posto fica no lugar, para você e para o grupo.</p>
+    <button type="button" class="bt bt--primario" data-acao="entrar">Entrar <kbd>E</kbd></button></div></div>`
+}
+function rotuloBento() {
+  const j = estado.jogo.fonte
+  const onde = Object.keys(j.pos).find((k) => j.pos[k]?.peca === 'med-sapo')
+  if (j.resolvido) return null
+  if (onde && j.pos[onde].por === 'Bento') return 'Bento tira o Sapo'
+  if (estado.bentoTemSapo) return 'Bento põe o Sapo'
+  return null
+}
+function htmlBancada(id) {
+  const c = estado.cfg[id]
+  const bento = id === 'fonte' ? rotuloBento() : undefined
+  return `<div class="bancada" role="group" aria-label="Controles que só existem no protótipo" data-bancada>
+    <span class="bancada__rot">Só no protótipo</span>
+    <span>Castigo do mestre ao errar:</span>
+    ${seg('castigo-bancada', Object.entries(NOME_CASTIGO), c.castigo.tipo, 'Castigo ao errar')}
+    <span class="bancada__sep" aria-hidden="true"></span>
+    ${id === 'fonte' ? (bento ? `<button type="button" class="bt bt--p" data-acao="bento">${bento}</button>` : '<button type="button" class="bt bt--p" disabled title="O Sapo está com a Lara ou o puzzle acabou">Bento não tem peça</button>') : ''}
+    <button type="button" class="bt bt--p" data-acao="recomecar">Recomeçar este puzzle</button>
+    <span class="nota">O castigo é o mesmo campo “Se errar” do editor do mestre.</span>
+  </div>`
+}
+let segSeq = 0
+function seg(campo, opcoes, valor, rotulo, grade = false, desab = {}) {
+  const nome = `${campo}-${++segSeq}`
+  return `<div class="seg${grade ? ' seg--grade' : ''}" role="radiogroup" aria-label="${esc(rotulo)}">${opcoes.map(([v, t]) => `<label class="seg__op"${desab[v] ? ` title="${esc(desab[v])}" style="opacity:.45;cursor:not-allowed"` : ''}><input type="radio" name="${nome}" value="${v}" data-campo="${campo}"${v === valor ? ' checked' : ''}${desab[v] ? ' disabled' : ''}><span>${t}</span></label>`).join('')}</div>`
+}
+
+function htmlMochila() {
+  return `<aside class="mochila" aria-label="Mochila de ${QUEM}">
+    <div class="mochila__cab"><h2>Mochila</h2><span>Peças de puzzle</span></div>
+    <p class="mochila__nota">Arraste a peça até um encaixe, ou toque nela e depois no encaixe. Tocar numa peça posta a devolve.</p>
+    <div class="mochila__grade" data-grade role="group" aria-label="Peças de puzzle de ${QUEM}">${htmlGrade()}</div>
+    <div class="mochila__detalhe" data-detalhe aria-live="polite">${htmlDetalhe()}</div>
+    <p class="mochila__ganhos" data-ganhos>${htmlGanhos()}</p>
+    <div class="pv" data-pv>${htmlPV()}</div>
+  </aside>`
+}
+function htmlGrade() {
+  return estado.mochila.map((p, i) => (p
+    ? `<div class="vaga" data-vaga="${i}"><button type="button" class="item${estado.novos.has(p) ? ' is-novo' : ''}" data-peca="${p}" aria-pressed="${estado.sel === p}" aria-label="${esc(PECAS[p].nome)}${estado.novos.has(p) ? ' (nova)' : ''}">${ico(p)}<span class="item__nome">${esc(PECAS[p].curto)}</span></button></div>`
+    : `<div class="vaga vaga--vazia" data-vaga="${i}" aria-hidden="true"></div>`)).join('')
+}
+function htmlDetalhe() {
+  const p = estado.sel
+  if (!p) return '<h3>Nada na mão</h3><p>Escolha uma peça. Aqui dentro só aparecem as peças de puzzle da mochila.</p>'
+  return `<h3>${esc(PECAS[p].nome)}</h3><p>${esc(PECAS[p].desc)} <kbd>Esc</kbd> solta.</p>`
+}
+function htmlGanhos() { return estado.recebidos.length ? `Também na mochila: ${estado.recebidos.map((k) => `<b>${esc(PREMIOS[k])}</b>`).join(', ')}.` : '' }
+function htmlPV() { return `<span>PV</span><span class="pv__barra"><i style="transform:scaleX(${estado.pv / estado.pvMax})"></i></span><span data-pv-n>${estado.pv}/${estado.pvMax}</span>` }
+
+function vistaPuzzle(id) {
+  puzzleAtual = id
+  const c = estado.cfg[id]
+  if (estado.fora[id] === undefined) entrar(id)
+  const fora = estado.fora[id]
+  palco.innerHTML = `<section class="pz" aria-labelledby="pz-t">
+    <div class="pz__cena">
+      <header class="pz__cab">
+        ${fora ? '' : '<button type="button" class="bt bt--fantasma" data-acao="sair">Sair <kbd>Esc</kbd></button>'}
+        <div class="pz__titulo"><h1 id="pz-t">${esc(c.nome)}</h1><p>${TIPO_NOME[c.tipo]} · ${esc(lugarTexto(c))}</p></div>
+        <div class="pz__quem" data-quem aria-label="Quem está aqui dentro">${htmlQuem(id)}</div>
+      </header>
+      <div class="pz__palco" data-palco>${fora ? htmlFora(id) : htmlQuadro(id)}</div>
+      <footer class="pz__pe"><p class="pz__estado" data-estado aria-live="polite">${rotuloEstado(id)}</p><p class="pz__dica"><em>Dica:</em> ${esc(c.dica || 'O mestre não escreveu dica.')}</p></footer>
+    </div>
+    ${htmlMochila()}
+    ${htmlBancada(id)}
+  </section>`
+  if (!fora && estado.jogo[id].cartao) palco.querySelector('[data-acao="fechar-resultado"]')?.focus()
+}
+function pintarQuadro(id) {
+  const p = palco.querySelector('.pz [data-palco]')
+  if (p) p.innerHTML = estado.fora[id] ? htmlFora(id) : htmlQuadro(id)
+}
+function pintarEncaixes(id) {
+  const camada = palco.querySelector('.pz [data-encaixes]')
+  if (!camada) return
+  const foco = document.activeElement?.dataset?.enc
+  camada.innerHTML = htmlEncaixes(id)
+  if (foco) camada.querySelector(`[data-enc="${foco}"]`)?.focus()
+  const b = palco.querySelector('.pz .bandeja')
+  if (b) b.classList.toggle('is-pode', !!estado.sel && aceitaBandeja(estado.sel).ok)
+}
+function pintarMochila() {
+  const m = palco.querySelector('.mochila')
+  if (!m) return
+  const ativo = document.activeElement
+  const focoPeca = ativo?.dataset?.peca
+  const focoVaga = ativo?.closest?.('[data-vaga]')?.dataset.vaga
+  m.querySelector('[data-grade]').innerHTML = htmlGrade()
+  m.querySelector('[data-detalhe]').innerHTML = htmlDetalhe()
+  m.querySelector('[data-ganhos]').innerHTML = htmlGanhos()
+  if (focoPeca !== undefined || focoVaga !== undefined) (m.querySelector(`.item[data-peca="${focoPeca}"]`) ?? m.querySelector(`[data-vaga="${focoVaga}"] .item`) ?? m.querySelector('.item'))?.focus()
+}
+function pintarPV() {
+  const i = palco.querySelector('.pv__barra i')
+  if (!i) return
+  i.style.transform = `scaleX(${estado.pv / estado.pvMax})`
+  palco.querySelector('[data-pv-n]').textContent = `${estado.pv}/${estado.pvMax}`
+}
+function pintarEstado(id) {
+  const e = palco.querySelector('.pz [data-estado]')
+  if (e) e.innerHTML = rotuloEstado(id)
+  const q = palco.querySelector('.pz [data-quem]')
+  if (q) q.innerHTML = htmlQuem(id)
+}
+function pintarBancada(id) {
+  const b = palco.querySelector('[data-bancada]')
+  if (b) b.outerHTML = htmlBancada(id)
+}
+
+/* ---------------------------------------------------------------- entrar e sair (o progresso fica) */
+function entrar(id) {
+  for (const k of Object.keys(estado.jogo)) if (k !== id && estado.jogo[k].dentro.delete(QUEM)) { registrar(k, `${QUEM} saiu`); estado.fora[k] = true }
+  const j = estado.jogo[id]
+  if (!j.dentro.has(QUEM)) { j.dentro.add(QUEM); registrar(id, `${QUEM} entrou`) }
+  estado.fora[id] = false
+}
+function sair(id) {
+  if (estado.jogo[id].dentro.delete(QUEM)) registrar(id, `${QUEM} saiu`)
+  estado.fora[id] = true
+  estado.sel = null
+  vistaPuzzle(id)
+  palco.querySelector('[data-acao="entrar"]')?.focus()
+}
+function entrarEPintar(id) {
+  entrar(id)
+  vistaPuzzle(id)
+  palco.querySelector('.item, .roda__janela, [data-acao="sair"]')?.focus()
+}
+
+/* ---------------------------------------------------------------- escolher, pôr, tirar */
+function escolher(peca, peloTeclado) {
+  estado.sel = estado.sel === peca ? null : peca
+  estado.novos.delete(peca)
+  pintarMochila()
+  pintarEncaixes(puzzleAtual)
+  if (estado.sel && peloTeclado) {
+    const alvo = palco.querySelector('.pz .encaixe.is-pode, .pz .bandeja.is-pode') ?? palco.querySelector('.pz .encaixe:not([aria-disabled])')
+    alvo?.focus()
+  }
+}
+function clicarEncaixe(id, encId) {
+  if (estado.sel) { por(id, encId, estado.sel); return }
+  if (temAlgo(id, encId)) { tirar(id, encId); return }
+  aviso('Encaixe vazio. Escolha uma peça na mochila primeiro.')
+}
+function por(id, encId, peca, quem = QUEM) {
+  const r = aceita(id, encId, peca)
+  if (!r.ok) { recusar(encaixeEl(encId), r.motivo); return false }
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const e = c.encaixes.find((x) => x.id === encId)
+  if (quem === QUEM) tirarDaMochila(peca)
+  let juntou = false
+  if (e.jeito === 'metades') {
+    const v = j.pos[encId]
+    if (peca === e.vira) Object.assign(v, { e: e.pecas[0], d: e.pecas[1], inteira: true })
+    else if (peca === e.pecas[0]) v.e = peca
+    else v.d = peca
+    v.por = quem
+    if (!v.inteira && v.e && v.d) { v.inteira = true; juntou = true }
+  } else {
+    const antes = j.pos[encId]
+    if (antes) { porNaMochila(antes.peca); registrar(id, `${quem} trocou ${PECAS[antes.peca].nome} de volta para a mochila`) }
+    j.pos[encId] = { peca, por: quem }
+  }
+  registrar(id, `${quem} pôs ${PECAS[peca].nome}`)
+  if (quem === QUEM) estado.sel = null
+  pintarEncaixes(id); pintarMochila(); pintarEstado(id)
+  const el = encaixeEl(encId)
+  if (juntou) {
+    juntar(el)
+    registrar(id, `As metades viraram ${PECAS[e.vira].nome}`, 'feito')
+    aviso(`As duas metades se juntaram: ${PECAS[e.vira].nome}.`, 'feito')
+  } else assentar(el)
+  setTimeout(() => verificar(id, quem), juntou ? 520 : 280)
+  return true
+}
+function tirar(id, encId) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido) { aviso('Preso: o puzzle já foi resolvido.'); return }
+  const e = c.encaixes.find((x) => x.id === encId)
+  const v = j.pos[encId]
+  let peca = null
+  if (e.jeito === 'metades') {
+    if (v.inteira) { peca = e.vira; Object.assign(v, { e: null, d: null, inteira: false, por: null }) }
+    else if (v.d) { peca = v.d; v.d = null } else if (v.e) { peca = v.e; v.e = null }
+    if (!v.e && !v.d) v.por = null
+  } else if (v) { peca = v.peca; j.pos[encId] = null }
+  if (!peca) return
+  const de = encaixeEl(encId)?.getBoundingClientRect()
+  const idx = porNaMochila(peca)
+  registrar(id, `${QUEM} tirou ${PECAS[peca].nome}`)
+  pintarEncaixes(id); pintarMochila(); pintarEstado(id)
+  voarParaMochila(idx, de)
+  aviso(`${PECAS[peca].nome} voltou para a sua mochila.`)
+  if (id === 'fonte') pintarBancada(id)
+}
+function verificar(id, quem = QUEM) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido || c.tipo === 'combinacao' || !c.encaixes.length) return
+  if (!c.encaixes.every((e) => cheio(id, e.id))) return
+  if (c.tipo === 'ordem' && !c.encaixes.every((e) => j.pos[e.id]?.peca === e.peca)) {
+    castigar(id, 'A tranca não cede: a ordem está errada.')
+    return
+  }
+  resolver(id, quem)
+}
+
+/* ---------------------------------------------------------------- movimento (WAAPI, respeita o reduzido) */
+function assentar(el) {
+  if (!el) return
+  const p = el.querySelectorAll('.encaixe__peca, .encaixe__metade')
+  animar(p[p.length - 1], [{ transform: 'scale(1.14)', opacity: 0.55 }, { transform: 'scale(1)', opacity: 1 }], { duration: 200, easing: EASE_OUT }, [{ opacity: 0.4 }, { opacity: 1 }])
+  animar(el.querySelector('.encaixe__brilho'), [{ opacity: 0.85 }, { opacity: 0 }], { duration: 520, easing: 'ease-out' }, [{ opacity: 0.5 }, { opacity: 0 }])
+}
+function juntar(el) {
+  if (!el) return
+  animar(el.querySelector('.encaixe__peca'), [{ transform: 'scale(0.86)', opacity: 0.3, filter: 'brightness(1.9)' }, { transform: 'scale(1.06)', opacity: 1, filter: 'brightness(1.35)', offset: 0.55 }, { transform: 'scale(1)', opacity: 1, filter: 'brightness(1)' }], { duration: 460, easing: EASE_OUT }, [{ opacity: 0.3 }, { opacity: 1 }])
+  animar(el.querySelector('.encaixe__brilho'), [{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' }, [{ opacity: 0.6 }, { opacity: 0 }])
+}
+function recusar(el, motivo) {
+  aviso(motivo, 'perigo')
+  if (!el) return
+  const base = el.classList.contains('encaixe') ? 'translate(-50%, -50%) ' : ''
+  animar(el, [0, -5, 5, -3, 2, 0].map((x) => ({ transform: `${base}translateX(${x}px)` })), { duration: 280, easing: 'ease-out' })
+}
+function voarParaMochila(idx, de) {
+  const item = palco.querySelector(`[data-vaga="${idx}"] .item`)
+  if (!item || !de) return
+  const para = item.getBoundingClientRect()
+  const dx = de.left + de.width / 2 - (para.left + para.width / 2), dy = de.top + de.height / 2 - (para.top + para.height / 2)
+  animar(item, [{ transform: `translate(${dx}px, ${dy}px) scale(0.85)`, opacity: 0.6 }, { transform: 'none', opacity: 1 }], { duration: 280, easing: EASE_OUT }, [{ opacity: 0 }, { opacity: 1 }])
+}
+function piscar(tom_) {
+  const f = palco.querySelector('.pz .quadro__flash')
+  if (!f) return
+  f.dataset.tom = tom_
+  const q = [{ opacity: 0 }, { opacity: 1, offset: 0.22 }, { opacity: 0 }]
+  animar(f, q, { duration: 560, easing: 'ease-out' }, q)
+}
+function sacudirQuadro() {
+  animar(palco.querySelector('.pz .quadro'), [0, -7, 6, -4, 2, 0].map((x) => ({ transform: `translateX(${x}px)` })), { duration: 340, easing: 'ease-out' })
+}
+
+/* ---------------------------------------------------------------- castigo, resolver */
+function castigar(id, motivo) {
+  const c = estado.cfg[id], j = estado.jogo[id], k = c.castigo
+  j.erros++
+  if (k.tipo === 'nada') { aviso(`${motivo} Nada acontece.`); registrar(id, `${QUEM} errou (sem castigo)`); return }
+  if (k.tipo === 'dano') {
+    estado.pv = Math.max(0, estado.pv - k.dano)
+    pintarPV(); piscar('dano'); sacudirQuadro()
+    aviso(`${motivo} ${k.texto || CASTIGO_PADRAO.dano}: −${k.dano} PV.`, 'perigo')
+    registrar(id, `${QUEM} errou: −${k.dano} PV`, 'perigo')
+  } else if (k.tipo === 'armadilha') {
+    piscar('armadilha'); sacudirQuadro()
+    aviso(`${motivo} ${k.texto || CASTIGO_PADRAO.armadilha}`, 'perigo')
+    registrar(id, `${QUEM} errou: armadilha (${k.texto || 'sem texto'})`, 'perigo')
+  } else if (k.tipo === 'barulho') {
+    piscar('barulho')
+    aviso(`${motivo} ${k.texto || CASTIGO_PADRAO.barulho}`, 'latao')
+    registrar(id, `${QUEM} errou: barulho`, 'perigo')
+    estado.alertas.push({ id, t: Date.now(), texto: `Barulho em ${c.nome}: ${QUEM} errou.` })
+  }
+}
+function resolver(id, pelo = QUEM) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido) return
+  j.resolvido = true
+  j.ganhador = pelo
+  j.cartao = false
+  const ficaComLara = pelo === QUEM || (pelo === 'mestre' && j.dentro.has(QUEM))
+  if (ficaComLara) for (const it of c.desfecho.itens) if (!estado.recebidos.includes(it)) estado.recebidos.push(it)
+  registrar(id, pelo === 'mestre' ? 'O mestre deu como resolvido' : `${pelo} resolveu`, 'feito')
+  estado.sel = null
+  if (vistaAtual === id && !estado.fora[id]) {
+    j.abrindo = true
+    pintarQuadro(id); pintarEstado(id); pintarMochila()
+    const espera = reduzido() ? 160 : c.desfecho.tipo === 'cena' ? 1050 : 260
+    setTimeout(() => {
+      j.abrindo = false
+      j.cartao = true
+      if (vistaAtual === id && !estado.fora[id]) mostrarCartao(id)
+    }, espera)
+  } else {
+    j.cartao = j.dentro.has(QUEM)
+  }
+}
+function mostrarCartao(id) {
+  const q = palco.querySelector('.pz .quadro')
+  if (!q || q.querySelector('[data-resultado]')) return
+  q.insertAdjacentHTML('beforeend', htmlResultado(id))
+  const card = q.querySelector('[data-resultado]')
+  animar(q.querySelector('[data-veu]'), [{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' }, [{ opacity: 0 }, { opacity: 1 }])
+  animar(card, [{ opacity: 0, transform: 'translate(-50%, -50%) scale(0.96)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }], { duration: 260, easing: EASE_OUT }, [{ opacity: 0 }, { opacity: 1 }])
+  card.querySelector('[data-acao="fechar-resultado"]').focus()
+}
+function fecharResultado() {
+  const id = puzzleAtual, j = estado.jogo[id]
+  j.cartao = false
+  palco.querySelectorAll('.pz [data-resultado], .pz [data-veu]').forEach((n) => n.remove())
+  palco.querySelector('.mochila .item')?.focus()
+}
+
+/* ---------------------------------------------------------------- arrastar (ponteiro), com a pausa que já mostra o alvo */
+function comecarArrasto() {
+  const a = arrasto
+  a.ativo = true
+  a.fantasma = document.createElement('div')
+  a.fantasma.className = 'fantasma'
+  a.fantasma.innerHTML = ico(a.peca)
+  document.body.appendChild(a.fantasma)
+  a.item.classList.add('is-levantado')
+  document.body.classList.add('arrastando')
+  palco.querySelectorAll('.pz [data-alvo]').forEach((el) => { if (el.getAttribute('aria-disabled') !== 'true') el.classList.toggle('is-pode', aceitaAlvo(el, a.peca).ok) })
+}
+function moverFantasma(x, y) { arrasto.fantasma.style.transform = `translate3d(${x - 32}px, ${y - 32}px, 0) scale(1.08)` }
+function marcarAlvo(el) {
+  const a = arrasto
+  if (el === a.alvo) return
+  a.alvo?.classList.remove('is-pairando-ok', 'is-pairando-nao')
+  a.alvo = el
+  if (el) el.classList.add(aceitaAlvo(el, a.peca).ok ? 'is-pairando-ok' : 'is-pairando-nao')
+}
+function limparArrasto() {
+  document.body.classList.remove('arrastando')
+  palco.querySelectorAll('.is-pairando-ok, .is-pairando-nao, .pz [data-alvo].is-pode').forEach((el) => el.classList.remove('is-pairando-ok', 'is-pairando-nao', 'is-pode'))
+}
+function devolverFantasma(a) {
+  const f = a.fantasma
+  const r = a.item.isConnected ? a.item.getBoundingClientRect() : null
+  if (!r || reduzido()) { f.remove(); a.item.classList.remove('is-levantado'); return }
+  const anim = f.animate([{ transform: f.style.transform }, { transform: `translate3d(${r.left + r.width / 2 - 32}px, ${r.top + r.height / 2 - 32}px, 0) scale(1)` }], { duration: 200, easing: EASE_OUT })
+  anim.onfinish = () => { f.remove(); a.item.classList.remove('is-levantado') }
+}
+function soltar() {
+  const a = arrasto
+  arrasto = null
+  limparArrasto()
+  ignorarClique = true
+  setTimeout(() => { ignorarClique = false }, 0)
+  if (a.alvo && aceitaAlvo(a.alvo, a.peca).ok) {
+    a.fantasma.remove()
+    if (a.alvo.dataset.alvo === 'encaixe') por(puzzleAtual, a.alvo.dataset.enc, a.peca)
+    else porNaBandeja(a.peca)
+    return
+  }
+  if (a.alvo) recusar(a.alvo, aceitaAlvo(a.alvo, a.peca).motivo)
+  devolverFantasma(a)
+}
+function cancelarArrasto() {
+  if (!arrasto) return
+  const a = arrasto
+  arrasto = null
+  limparArrasto()
+  if (a.ativo) devolverFantasma(a)
+}
+palco.addEventListener('pointerdown', (ev) => {
+  if (ev.button !== 0 || arrasto) return
+  const item = ev.target.closest('.pz .item[data-peca]')
+  if (!item) return
+  arrasto = { peca: item.dataset.peca, item, x0: ev.clientX, y0: ev.clientY, id: ev.pointerId, ativo: false, alvo: null, fantasma: null }
+  try { item.setPointerCapture(ev.pointerId) } catch { /* ponteiro já solto */ }
+})
+palco.addEventListener('pointermove', (ev) => {
+  if (!arrasto || ev.pointerId !== arrasto.id) return
+  if (!arrasto.ativo) {
+    if (Math.hypot(ev.clientX - arrasto.x0, ev.clientY - arrasto.y0) < 6) return
+    comecarArrasto()
+  }
+  moverFantasma(ev.clientX, ev.clientY)
+  const sob = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.pz [data-alvo]')
+  marcarAlvo(sob && sob.getAttribute('aria-disabled') !== 'true' ? sob : null)
+})
+palco.addEventListener('pointerup', (ev) => {
+  if (!arrasto || ev.pointerId !== arrasto.id) return
+  if (arrasto.ativo) soltar()
+  else arrasto = null
+})
+palco.addEventListener('pointercancel', () => cancelarArrasto())
+
+/* ---------------------------------------------------------------- cofre: rodas de números e de símbolos */
+const RODAS_POS = { numeros: { left: 31.25, top: 28, w: 18.75, h: 30 }, simbolos: { left: 51.25, top: 28, w: 18.75, h: 30 } }
+function valorDaRoda(grupo, v) { return grupo === 'numeros' ? String(v) : glifo(SIMBOLOS[v]) }
+function textoDaRoda(grupo, v) { return grupo === 'numeros' ? String(v) : NOME_SIMBOLO[SIMBOLOS[v]] }
+function htmlRodas(id, op = {}) {
+  const j = estado.jogo[id]
+  const dis = j.resolvido || op.miniatura
+  const grupoHtml = (grupo) => {
+    const p = RODAS_POS[grupo]
+    const rodas = [0, 1, 2].map((k) => {
+      const v = j[grupo][k]
+      return `<div class="roda">
+        <button type="button" class="roda__seta" data-acao="roda" data-grupo="${grupo}" data-k="${k}" data-d="1" tabindex="-1" aria-label="Roda ${k + 1}, para cima"${dis ? ' disabled' : ''}>${ic('cima')}</button>
+        <div class="roda__janela" role="spinbutton" tabindex="${dis ? -1 : 0}" data-roda data-grupo="${grupo}" data-k="${k}" aria-label="Roda ${k + 1} de ${grupo === 'numeros' ? 'números' : 'símbolos'}" aria-valuenow="${v}" aria-valuemin="0" aria-valuemax="${grupo === 'numeros' ? 9 : SIMBOLOS.length - 1}" aria-valuetext="${textoDaRoda(grupo, v)}"><span class="roda__valor">${valorDaRoda(grupo, v)}</span></div>
+        <button type="button" class="roda__seta" data-acao="roda" data-grupo="${grupo}" data-k="${k}" data-d="-1" tabindex="-1" aria-label="Roda ${k + 1}, para baixo"${dis ? ' disabled' : ''}><svg viewBox="0 0 24 24" style="transform:rotate(180deg)" aria-hidden="true"><use href="#ic-cima"/></svg></button>
+      </div>`
+    }).join('')
+    return `<div class="rodas some-ao-resolver" style="left:${p.left}%;top:${p.top}%;width:${p.w}%;height:${p.h}%" role="group" aria-label="Trava de ${grupo === 'numeros' ? 'números' : 'símbolos'}"><span class="rodas__rot" aria-hidden="true">${grupo === 'numeros' ? 'Números' : 'Símbolos'}</span>${rodas}</div>`
+  }
+  return `${grupoHtml('numeros')}${grupoHtml('simbolos')}
+    <button type="button" class="macaneta some-ao-resolver" data-acao="girar" aria-label="Girar a maçaneta e tentar abrir"${dis ? ' disabled tabindex="-1"' : ''}>
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="#383a3c" stroke-width="12"/><circle cx="50" cy="50" r="40" fill="none" stroke="#9aa0a5" stroke-width="6"/>
+      <path d="M50 10v80M10 50h80M22 22l56 56M78 22 22 78" stroke="#383a3c" stroke-width="9" stroke-linecap="round"/><path d="M50 10v80M10 50h80M22 22l56 56M78 22 22 78" stroke="#8a8f93" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="12" fill="#b89552" stroke="#6e5931" stroke-width="4"/></svg>
+      <span class="macaneta__rot">Tentar abrir</span></button>`
+}
+function girarRoda(grupo, k, d, animado) {
+  const id = puzzleAtual, j = estado.jogo[id]
+  if (!j || j.resolvido) return
+  const n = grupo === 'numeros' ? 10 : SIMBOLOS.length
+  j[grupo][k] = (j[grupo][k] + d + n) % n
+  const jan = palco.querySelector(`.pz [data-roda][data-grupo="${grupo}"][data-k="${k}"]`)
+  if (!jan) return
+  const v = j[grupo][k]
+  const val = jan.querySelector('.roda__valor')
+  val.innerHTML = valorDaRoda(grupo, v)
+  jan.setAttribute('aria-valuenow', v)
+  jan.setAttribute('aria-valuetext', textoDaRoda(grupo, v))
+  if (animado) animar(val, [{ transform: `translateY(${d > 0 ? 45 : -45}%)`, opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 150, easing: EASE_OUT })
+}
+function tentarAbrir() {
+  const id = puzzleAtual, c = estado.cfg[id], j = estado.jogo[id]
+  if (j.resolvido) return
+  const okN = j.numeros.every((v, i) => v === c.combinacao.numeros[i])
+  const okS = j.simbolos.every((v, i) => SIMBOLOS[v] === c.combinacao.simbolos[i])
+  animar(palco.querySelector('.pz .macaneta svg'), [{ transform: 'rotate(0deg)' }, { transform: `rotate(${okN && okS ? 90 : 28}deg)`, offset: 0.5 }, { transform: okN && okS ? 'rotate(90deg)' : 'rotate(0deg)' }], { duration: 420, easing: EASE_IN_OUT })
+  registrar(id, `${QUEM} tentou abrir (${j.numeros.join('')} · ${j.simbolos.map((v) => NOME_SIMBOLO[SIMBOLOS[v]]).join(', ')})`)
+  if (okN && okS) { setTimeout(() => resolver(id), reduzido() ? 0 : 320); return }
+  castigar(id, okN ? 'A trava dos números cede; a dos símbolos, não.' : okS ? 'A trava dos símbolos cede; a dos números, não.' : 'Nenhuma das travas cede.')
+}
+let rodaAcumulado = 0
+palco.addEventListener('wheel', (ev) => {
+  const jan = ev.target.closest('.pz [data-roda]')
+  if (!jan || jan.tabIndex < 0) return
+  ev.preventDefault()
+  rodaAcumulado += ev.deltaY
+  if (Math.abs(rodaAcumulado) < 50) return
+  const d = rodaAcumulado < 0 ? 1 : -1
+  rodaAcumulado = 0
+  girarRoda(jan.dataset.grupo, +jan.dataset.k, d, true)
+}, { passive: false })
+
+/* ---------------------------------------------------------------- altar: troca de peso (bandeja + mostrador) */
+const anguloPeso = (w) => (Math.min(8, Math.max(0, w)) / 8) * 180 - 90
+function svgMostrador(peso, agora) {
+  let marcas = ''
+  for (let w = 0; w <= 8; w++) {
+    const a = (w / 8) * Math.PI, alvo = w === peso
+    const r1 = 46, r2 = alvo ? 32 : 39
+    marcas += `<line x1="${(60 - Math.cos(a) * r1).toFixed(1)}" y1="${(60 - Math.sin(a) * r1).toFixed(1)}" x2="${(60 - Math.cos(a) * r2).toFixed(1)}" y2="${(60 - Math.sin(a) * r2).toFixed(1)}" stroke="${alvo ? '#f6dfa8' : '#4a3b1f'}" stroke-width="${alvo ? 5 : 2.5}" stroke-linecap="round"/>`
+  }
+  return `<svg viewBox="0 0 120 68"><path d="M6 62A54 54 0 0 1 114 62Z" fill="#b89552" stroke="#6e5931" stroke-width="3"/>${marcas}
+    <g class="agulha" data-agulha style="transform:rotate(${anguloPeso(agora)}deg)"><path d="M60 60V22" stroke="#383a3c" stroke-width="4" stroke-linecap="round"/></g>
+    <circle cx="60" cy="60" r="6" fill="#5d6164" stroke="#383a3c" stroke-width="2"/></svg>`
+}
+function htmlTroca(id, op = {}) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const pedras = j.joiaNoPedestal ? j.bandeja : j.pedrasPresas
+  const soma = pedras.reduce((s, p) => s + PECAS[p].peso, 0)
+  const dis = op.miniatura
+  const joia = j.joiaNoPedestal
+    ? `<button type="button" class="troca__joia" data-acao="trocar" aria-label="Pegar a ${esc(PECAS[c.troca.guarda].nome)}, trocando pelo que está na bandeja"${dis ? ' disabled tabindex="-1"' : ''}>${ico(c.troca.guarda)}</button>`
+    : '<span class="troca__joia troca__joia--vazia" aria-hidden="true"></span>'
+  return `<div class="troca" style="left:69.4%;top:12%;width:19.4%;height:84%" data-troca>
+    <div class="troca__pedestal" data-pedestal>${joia}<div class="mostrador" aria-hidden="true">${svgMostrador(c.troca.peso, c.troca.peso)}</div></div>
+    <button type="button" class="bandeja${estado.sel && !dis && aceitaBandeja(estado.sel).ok ? ' is-pode' : ''}" data-alvo="bandeja" aria-label="Bandeja de troca: ${pedras.length ? `${pedras.map((p) => PECAS[p].curto).join(', ')}, peso ${soma}` : 'vazia'}"${dis || !j.joiaNoPedestal ? ' aria-disabled="true"' : ''}${dis ? ' tabindex="-1"' : ''}>
+      ${pedras.length ? pedras.map((p) => ico(p)).join('') : '<span class="bandeja__vazia">Bandeja vazia</span>'}</button>
+    <span class="troca__soma" data-soma>${j.joiaNoPedestal ? `Bandeja: ${romano(soma)} · o pedestal pede ${romano(c.troca.peso)}` : 'Trocada: as pedras ficaram no lugar da joia'}</span>
+    ${j.joiaNoPedestal && !dis ? '<button type="button" class="bt bt--primario bt--p" data-acao="trocar">Trocar a joia pela bandeja</button>' : ''}
+  </div>`
+}
+function pintarTroca(id) {
+  const t = palco.querySelector('.pz [data-troca]')
+  if (!t) return
+  const foco = document.activeElement
+  const eraBandeja = foco?.dataset?.alvo === 'bandeja', eraTrocar = foco?.dataset?.acao === 'trocar'
+  t.outerHTML = htmlTroca(id)
+  if (eraBandeja) palco.querySelector('.pz .bandeja')?.focus()
+  else if (eraTrocar) (palco.querySelector('.pz .troca .bt[data-acao="trocar"]') ?? palco.querySelector('.pz .bandeja'))?.focus()
+}
+function porNaBandeja(peca) {
+  const id = puzzleAtual, j = estado.jogo[id]
+  tirarDaMochila(peca)
+  j.bandeja.push(peca)
+  registrar(id, `${QUEM} pôs ${PECAS[peca].nome} na bandeja`)
+  estado.sel = null
+  pintarTroca(id); pintarMochila(); pintarEncaixes(id)
+  const ultima = palco.querySelectorAll('.pz .bandeja svg')
+  animar(ultima[ultima.length - 1], [{ transform: 'translateY(-30%) scale(1.1)', opacity: 0.5 }, { transform: 'none', opacity: 1 }], { duration: 220, easing: EASE_OUT }, [{ opacity: 0.4 }, { opacity: 1 }])
+}
+function clicarBandeja() {
+  const id = puzzleAtual, j = estado.jogo[id]
+  if (estado.sel) {
+    const r = aceitaBandeja(estado.sel)
+    if (r.ok) porNaBandeja(estado.sel)
+    else recusar(palco.querySelector('.pz .bandeja'), r.motivo)
+    return
+  }
+  if (!j.joiaNoPedestal) { aviso('As pedras ficaram presas no lugar da joia.'); return }
+  if (!j.bandeja.length) { aviso('Bandeja vazia. Ponha pedras de peso marcado.'); return }
+  const peca = j.bandeja.pop()
+  const de = palco.querySelector('.pz .bandeja')?.getBoundingClientRect()
+  const idx = porNaMochila(peca)
+  registrar(id, `${QUEM} tirou ${PECAS[peca].nome} da bandeja`)
+  pintarTroca(id); pintarMochila()
+  voarParaMochila(idx, de)
+}
+let trocando = false
+function trocar() {
+  const id = puzzleAtual, c = estado.cfg[id], j = estado.jogo[id]
+  if (!j.joiaNoPedestal || trocando) return
+  const soma = j.bandeja.reduce((s, p) => s + PECAS[p].peso, 0)
+  const agulha = palco.querySelector('.pz [data-agulha]')
+  if (agulha) agulha.style.transform = `rotate(${anguloPeso(soma)}deg)`
+  trocando = true
+  setTimeout(() => {
+    trocando = false
+    if (vistaAtual !== id) return
+    if (soma === c.troca.peso) {
+      j.joiaNoPedestal = false
+      j.pedrasPresas = j.bandeja
+      j.bandeja = []
+      porNaMochila(c.troca.guarda)
+      estado.novos.add(c.troca.guarda)
+      registrar(id, `${QUEM} trocou ${PECAS[c.troca.guarda].nome} pelas pedras (peso ${soma})`, 'feito')
+      aviso(`O pedestal nem se mexe. ${PECAS[c.troca.guarda].nome} está na sua mochila.`, 'feito')
+      pintarTroca(id); pintarMochila(); pintarEncaixes(id); pintarEstado(id)
+      return
+    }
+    animar(palco.querySelector('.pz [data-pedestal]'), [{ transform: 'translateY(0)' }, { transform: `translateY(${soma < c.troca.peso ? -1.4 : 1.4}cqw)`, offset: 0.4 }, { transform: 'translateY(0)' }], { duration: 520, easing: EASE_IN_OUT })
+    castigar(id, soma === 0 ? 'Você tira a joia sem nada no lugar: o pedestal sobe de estalo.' : `O pedestal ${soma < c.troca.peso ? 'sobe' : 'afunda'}: ${romano(soma)} não é ${romano(c.troca.peso)}.`)
+    setTimeout(() => { const a = palco.querySelector('.pz [data-agulha]'); if (a) a.style.transform = `rotate(${anguloPeso(c.troca.peso)}deg)` }, 380)
+  }, reduzido() ? 0 : 400)
+}
+
+/* ---------------------------------------------------------------- Bento (outro jogador, simulado) e recomeçar */
+function bentoAge() {
+  const id = 'fonte', c = estado.cfg.fonte, j = estado.jogo.fonte
+  if (j.resolvido) return
+  const onde = Object.keys(j.pos).find((k) => j.pos[k]?.peca === 'med-sapo')
+  if (onde && j.pos[onde].por === 'Bento') {
+    j.pos[onde] = null
+    estado.bentoTemSapo = true
+    registrar(id, 'Bento tirou Medalhão do Sapo')
+    aviso('Bento tirou o Medalhão do Sapo. Ele continua lá dentro.')
+  } else if (estado.bentoTemSapo) {
+    const livre = c.encaixes.find((e) => !j.pos[e.id] && aceita(id, e.id, 'med-sapo').ok)
+    if (!livre) { aviso('Não há encaixe livre para o Bento.'); return }
+    estado.bentoTemSapo = false
+    por(id, livre.id, 'med-sapo', 'Bento')
+    aviso('Bento pôs o Medalhão do Sapo.')
+  } else return
+  if (vistaAtual === id) { pintarEncaixes(id); pintarEstado(id); pintarBancada(id) }
+}
+function recomecar(id, quem = QUEM) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const devolver = (peca, por_) => { if (por_ === 'Bento') estado.bentoTemSapo = true; else porNaMochila(peca) }
+  for (const e of c.encaixes) {
+    const v = j.pos[e.id]
+    if (e.jeito === 'metades') { if (v.e) devolver(e.pecas[0], v.por); if (v.d) devolver(e.pecas[1], v.por) }
+    else if (v) devolver(v.peca, v.por)
+  }
+  if (c.troca) {
+    for (const p of [...j.bandeja, ...j.pedrasPresas]) porNaMochila(p)
+    if (!j.joiaNoPedestal) tirarDaMochila(c.troca.guarda)
+  }
+  for (const e of c.encaixes) if (e.jeito === 'metades' && estado.mochila.includes(e.vira)) { tirarDaMochila(e.vira); porNaMochila(e.pecas[0]); porNaMochila(e.pecas[1]) }
+  estado.recebidos = estado.recebidos.filter((k) => !c.desfecho.itens.includes(k))
+  const novo = jogoInicial(c)
+  novo.dentro = j.dentro
+  estado.jogo[id] = novo
+  if (estado.sel && !estado.mochila.includes(estado.sel)) estado.sel = null
+  registrar(id, quem === 'mestre' ? 'O mestre recomeçou: as peças voltaram para quem pôs' : `${QUEM} recomeçou (protótipo)`)
+}
+
+Object.assign(ACOES, {
+  sair: () => sair(puzzleAtual),
+  entrar: () => entrarEPintar(puzzleAtual),
+  'fechar-resultado': fecharResultado,
+  girar: tentarAbrir,
+  roda: (el) => girarRoda(el.dataset.grupo, +el.dataset.k, +el.dataset.d, true),
+  trocar,
+  bento: bentoAge,
+  recomecar: () => {
+    recomecar(puzzleAtual)
+    estado.pv = estado.pvMax
+    vistaPuzzle(puzzleAtual)
+    aviso('Puzzle recomeçado: as peças voltaram para quem pôs.')
+  },
+})
+Object.assign(MUDANCAS, {
+  'castigo-bancada': (el) => { estado.cfg[puzzleAtual].castigo.tipo = el.value; aviso(`Castigo ao errar: ${NOME_CASTIGO[el.value]}.`) },
+})
+palco.addEventListener('keydown', (ev) => {
+  const jan = ev.target.closest?.('.pz [data-roda]')
+  if (!jan) return
+  const passo = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key]
+  if (passo) { ev.preventDefault(); girarRoda(jan.dataset.grupo, +jan.dataset.k, passo, false) }
+})
+
+/* ============================================================== outras mecânicas (amostras jogáveis) */
+const NOTAS = ['Dó', 'Ré', 'Mi', 'Fá', 'Sol', 'Lá', 'Si', 'Dó']
+const SEQ_PIANO = [2, 4, 5, 4, 7]
+const LUZES_INICIO = [false, false, false, false, true, false, false, false, true]
+const GIRO_INICIO = [90, 0, 270, 180, 0, 90, 0, 270, 180]
+const NIVEL = ['########', '#..P...#', '#.S...##', '#..#.S.#', '#.x....#', '#....x.#', '########']
+const CEL = 40
+const FAROL = `<linearGradient id="farol-ceu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3550"/><stop offset="1" stop-color="#4a5f86"/></linearGradient>
+<g id="farol"><rect width="300" height="300" fill="url(#farol-ceu)"/>
+  <circle cx="232" cy="60" r="26" fill="#f3efe2" stroke="#a9a594" stroke-width="3"/><circle cx="222" cy="54" r="5" fill="#d9d4c3"/>
+  <circle cx="40" cy="40" r="2.5" fill="#f3efe2"/><circle cx="150" cy="28" r="2" fill="#f3efe2"/><circle cx="185" cy="96" r="2" fill="#f3efe2"/><circle cx="270" cy="128" r="2.5" fill="#f3efe2"/>
+  <path d="M104 64 300 18v92z" fill="#f0d266" opacity=".22"/>
+  <path d="M0 196q40-12 80 0t80 0 80 0 80 0V300H0z" fill="#43639a" stroke="#2c3f63" stroke-width="3"/>
+  <path d="M170 230q20-8 40 0M220 262q20-8 40 0M180 284q16-6 32 0" stroke="#7189a6" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M232 214h40l-8 12h-26z" fill="#a07b51" stroke="#604a31" stroke-width="2.5"/><path d="M250 214v-34l18 28z" fill="#f3efe2" stroke="#8b8270" stroke-width="2.5"/>
+  <path d="M0 214 66 156l70 8 18 70v66H0z" fill="#775739" stroke="#473422" stroke-width="3"/>
+  <path d="M0 214 66 156l70 8 6 22c-30-10-70-12-142 34z" fill="#7f9a64" stroke="#4c5c3c" stroke-width="3"/>
+  <path d="M72 160 80 72h22l8 88z" fill="#f3efe2" stroke="#8b8270" stroke-width="3"/>
+  <path d="M77 120h29l1.6 18H75.4zM79.8 88h23.6l1.4 15H78.4z" fill="#b56e50"/>
+  <rect x="76" y="54" width="30" height="18" rx="2" fill="#f0d266" stroke="#8b8270" stroke-width="3"/>
+  <path d="M72 54l19-18 19 18z" fill="#b56e50" stroke="#6d4230" stroke-width="3" stroke-linejoin="round"/></g>`
+
+function nivelInicial() {
+  const est = [], marcas = [], paredes = new Set()
+  let jog = null
+  NIVEL.forEach((linha, y) => [...linha].forEach((ch, x) => {
+    if (ch === '#') paredes.add(`${x},${y}`)
+    if (ch === 'S') est.push({ x, y })
+    if (ch === 'x') marcas.push({ x, y })
+    if (ch === 'P') jog = { x, y }
+  }))
+  return { jog, est, marcas, paredes, hist: [], passos: 0, feito: false }
+}
+function amostrasIniciais() {
+  return {
+    relogio: { h: 12, m: 0, angH: 0, angM: 0, feito: false },
+    piano: { ouvido: 0, feito: false, msg: '' },
+    giro: { rot: [...GIRO_INICIO], feito: false },
+    luzes: { acesas: [...LUZES_INICIO], toques: 0, feito: false },
+    empurra: nivelInicial(),
+  }
+}
+let AM = amostrasIniciais()
+const perto = (alvo, ultimo) => alvo + 360 * Math.round((ultimo - alvo) / 360)
+const horaTexto = (h, m) => `${h}:${String(m).padStart(2, '0')}`
+const naMarca = (a) => a.est.filter((s) => a.marcas.some((m) => m.x === s.x && m.y === s.y)).length
+
+function estadoAmostra(k) {
+  const a = AM[k]
+  if (k === 'relogio') return a.feito ? 'O relógio bate três vezes: uma gaveta abre.' : `Marca ${horaTexto(a.h, a.m)}.`
+  if (k === 'piano') return a.feito ? 'A tampa do piano destrava.' : a.msg || `${a.ouvido} de ${SEQ_PIANO.length} notas certas.`
+  if (k === 'giro') return a.feito ? 'O retrato desce: atrás dele, um nicho.' : `${a.rot.filter((r) => r % 360 === 0).length} de 9 peças em pé.`
+  if (k === 'luzes') return a.feito ? 'As nove acesas: a grade do porão sobe.' : `${a.acesas.filter(Boolean).length} de 9 acesas · ${a.toques} toques.`
+  return a.feito ? 'As duas estátuas assentaram: o portão do jardim abre.' : `${naMarca(a)} de ${a.marcas.length} nas marcas · ${a.passos} passos.`
+}
+function atualizarAmostra(k) {
+  const art = palco.querySelector(`[data-amostra="${k}"]`)
+  if (!art) return
+  art.classList.toggle('is-resolvida', AM[k].feito)
+  const e = art.querySelector('[data-am-estado]')
+  e.textContent = estadoAmostra(k)
+  e.classList.toggle('is-feito', AM[k].feito)
+}
+function cartaoAmostra(k, titulo, tipo, dica, corpo, larga = false) {
+  const feito = AM[k].feito
+  return `<article class="amostra${larga ? ' amostra--larga' : ''}${feito ? ' is-resolvida' : ''}" data-amostra="${k}" aria-labelledby="am-${k}">
+    <div class="amostra__cab"><h2 id="am-${k}">${titulo}</h2><span class="amostra__tipo">${tipo}</span></div>
+    <p class="amostra__dica">${dica}</p>
+    <div class="amostra__corpo" data-corpo>${corpo}</div>
+    <div class="amostra__pe"><span class="amostra__estado${feito ? ' is-feito' : ''}" data-am-estado aria-live="polite">${estadoAmostra(k)}</span><button type="button" class="bt bt--fantasma bt--p" data-acao="am-recomecar" data-k="${k}">Recomeçar</button></div>
+  </article>`
+}
+function vistaAmostras() {
+  palco.innerHTML = `<section class="amostras" aria-labelledby="am-t">
+    <div class="amostras__cab"><h1 id="am-t">Outras mecânicas</h1><p>Amostras pequenas e jogáveis. No app, cada uma ganha tela de perto, mochila e castigo como os quatro modelos.</p></div>
+    <div class="amostras__grade">
+      ${cartaoAmostra('relogio', 'Relógio da torre', 'Combinação · ponteiros', 'O retrato da sala marca <em>dez para as três</em>. Arraste os ponteiros ou use os botões.', htmlRelogio())}
+      ${cartaoAmostra('piano', 'Piano da sala de música', 'Combinação · sequência', 'Na partitura rasgada: <em>Mi, Sol, Lá, Sol, Dó agudo</em>.', htmlPiano())}
+      ${cartaoAmostra('giro', 'Retrato do farol', 'Peças giratórias', 'Clique numa peça para girar um quarto de volta. Endireite o retrato.', htmlGiro())}
+      ${cartaoAmostra('luzes', 'Painel de lamparinas', 'Luzes', 'Cada lamparina troca a si e às vizinhas de cima, de baixo e dos lados. Acenda as nove.', htmlLuzes())}
+      ${cartaoAmostra('empurra', 'Estátuas do jardim', 'Empurrar estátuas · no mapa', 'Esboço, vista de cima: no app isto acontece no próprio mapa, com o token. Ande com as setas; andar contra uma estátua a empurra uma casa. Leve as duas às marcas.', htmlEmpurra(), true)}
+    </div></section>`
+}
+
+/* relógio: ponteiros (arrastar, setas, botões) */
+function htmlRelogio() {
+  const a = AM.relogio
+  const ROM = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI']
+  let marcas = ''
+  for (let i = 0; i < 60; i++) {
+    const g = (i * 6 * Math.PI) / 180, r1 = 84, r2 = i % 5 ? 80 : 76
+    marcas += `<line x1="${(100 + Math.sin(g) * r1).toFixed(1)}" y1="${(100 - Math.cos(g) * r1).toFixed(1)}" x2="${(100 + Math.sin(g) * r2).toFixed(1)}" y2="${(100 - Math.cos(g) * r2).toFixed(1)}" stroke="#8b8270" stroke-width="${i % 5 ? 1 : 2}"/>`
+  }
+  for (let i = 0; i < 12; i++) {
+    const g = (i * 30 * Math.PI) / 180
+    marcas += `<text x="${(100 + Math.sin(g) * 64).toFixed(1)}" y="${(104 - Math.cos(g) * 64).toFixed(1)}" text-anchor="middle" style="font:600 12px ${'Sitka Banner'}, Georgia, serif" fill="#4a3b1f">${ROM[i]}</text>`
+  }
+  const ponteiro = (q, ang, haste, larg, alvoY, rot) => `<g class="ponteiro" data-ponteiro="${q}" tabindex="0" role="slider" aria-label="${rot}" ${q === 'h' ? `aria-valuemin="1" aria-valuemax="12" aria-valuenow="${a.h}" aria-valuetext="${a.h} horas"` : `aria-valuemin="0" aria-valuemax="55" aria-valuenow="${a.m}" aria-valuetext="${a.m} minutos"`} style="transform-box:view-box;transform-origin:100px 100px;transform:rotate(${ang}deg)">
+      <line x1="100" y1="104" x2="100" y2="${alvoY}" stroke="transparent" stroke-width="22"/>
+      <path class="ponteiro__haste" d="${haste}" stroke="${q === 'h' ? '#383a3c' : '#5d6164'}" stroke-width="${larg}" stroke-linecap="round" fill="none"/></g>`
+  return `<div class="relogio"><svg viewBox="0 0 200 200" data-relogio role="group" aria-label="Mostrador do relógio">
+    <circle cx="100" cy="100" r="97" fill="#b89552" stroke="#6e5931" stroke-width="4"/>
+    <circle cx="100" cy="100" r="88" fill="#efe6d0" stroke="#8b8270" stroke-width="2"/>${marcas}
+    ${ponteiro('h', a.angH, 'M100 112V54', 7, 46, 'Ponteiro das horas')}
+    ${ponteiro('m', a.angM, 'M100 116V26', 4, 22, 'Ponteiro dos minutos')}
+    <circle cx="100" cy="100" r="6" fill="#b89552" stroke="#6e5931" stroke-width="2" pointer-events="none"/></svg>
+    <div class="relogio__bts" role="group" aria-label="Ajustar a hora">
+      <button type="button" class="bt bt--p" data-acao="rel" data-d="-60">−1 h</button><button type="button" class="bt bt--p" data-acao="rel" data-d="60">+1 h</button>
+      <button type="button" class="bt bt--p" data-acao="rel" data-d="-5">−5 min</button><button type="button" class="bt bt--p" data-acao="rel" data-d="5">+5 min</button></div></div>`
+}
+const totalRel = () => (AM.relogio.h % 12) * 60 + AM.relogio.m
+function relogioPor(T, animado) {
+  const a = AM.relogio
+  if (a.feito) return
+  T = ((T % 720) + 720) % 720
+  a.h = Math.floor(T / 60) || 12
+  a.m = T % 60
+  a.angM = perto(a.m * 6, a.angM)
+  a.angH = perto(T / 2, a.angH)
+  for (const [q, ang] of [['h', a.angH], ['m', a.angM]]) {
+    const g = palco.querySelector(`[data-ponteiro="${q}"]`)
+    if (!g) continue
+    g.classList.toggle('is-solto', !animado)
+    g.style.transform = `rotate(${ang}deg)`
+    g.setAttribute('aria-valuenow', q === 'h' ? a.h : a.m)
+    g.setAttribute('aria-valuetext', q === 'h' ? `${a.h} horas` : `${a.m} minutos`)
+  }
+  if (a.h % 12 === 2 && a.m === 50) a.feito = true
+  atualizarAmostra('relogio')
+}
+let arrastoPonteiro = null
+palco.addEventListener('pointerdown', (ev) => {
+  const g = ev.target.closest('[data-ponteiro]')
+  if (!g || ev.button !== 0 || AM.relogio.feito) return
+  const svg = g.ownerSVGElement
+  arrastoPonteiro = { q: g.dataset.ponteiro, svg, id: ev.pointerId }
+  svg.setPointerCapture(ev.pointerId)
+  ev.preventDefault()
+})
+palco.addEventListener('pointermove', (ev) => {
+  const p = arrastoPonteiro
+  if (!p || ev.pointerId !== p.id) return
+  const r = p.svg.getBoundingClientRect()
+  let ang = (Math.atan2(ev.clientX - (r.left + r.width / 2), -(ev.clientY - (r.top + r.height / 2))) * 180) / Math.PI
+  if (ang < 0) ang += 360
+  const a = AM.relogio
+  if (p.q === 'm') {
+    const mNovo = (Math.round(ang / 30) * 5) % 60
+    if (mNovo === a.m) return
+    let T = (a.h % 12) * 60 + mNovo
+    if (a.m >= 45 && mNovo < 15) T += 60
+    if (a.m < 15 && mNovo >= 45) T -= 60
+    relogioPor(T, false)
+  } else {
+    const hNovo = ((Math.round((ang - a.m / 2) / 30) % 12) + 12) % 12
+    if (hNovo === a.h % 12) return
+    relogioPor(hNovo * 60 + a.m, false)
+  }
+})
+const soltarPonteiro = () => { arrastoPonteiro = null }
+palco.addEventListener('pointerup', soltarPonteiro)
+palco.addEventListener('pointercancel', soltarPonteiro)
+
+/* piano: sequência de botões */
+function htmlPiano() {
+  const a = AM.piano
+  return `<div class="piano"><div class="piano__teclas" role="group" aria-label="Teclas do piano">${NOTAS.map((n, i) => `<button type="button" class="tecla" data-acao="nota" data-i="${i}" aria-label="${n}${i === 7 ? ' agudo' : ''}"${a.feito ? ' disabled' : ''}>${n}</button>`).join('')}</div>
+    <div class="piano__ouvido" data-ouvido aria-hidden="true">${SEQ_PIANO.map((_, k) => `<i class="${k < a.ouvido ? 'is-certa' : ''}"></i>`).join('')}</div></div>`
+}
+function tocarNota(i) {
+  const a = AM.piano
+  if (a.feito) return
+  const t = palco.querySelector(`.tecla[data-i="${i}"]`)
+  t?.classList.add('is-tocada')
+  setTimeout(() => t?.classList.remove('is-tocada'), 130)
+  if (i === SEQ_PIANO[a.ouvido]) { a.ouvido++; a.msg = ''; if (a.ouvido === SEQ_PIANO.length) a.feito = true }
+  else { a.ouvido = i === SEQ_PIANO[0] ? 1 : 0; a.msg = 'Desafinou. Recomece do início.' }
+  palco.querySelectorAll('[data-ouvido] i').forEach((el, k) => el.classList.toggle('is-certa', k < a.ouvido))
+  if (a.feito) palco.querySelectorAll('.tecla').forEach((b) => { b.disabled = true })
+  atualizarAmostra('piano')
+}
+
+/* peças giratórias */
+const quartos = (r) => { const q = ((r % 360) + 360) % 360; return q === 0 ? 'em pé' : `girada ${q} graus` }
+function htmlGiro() {
+  const a = AM.giro
+  return `<div class="giratorio" role="group" aria-label="Retrato em nove peças">${a.rot.map((r, i) => `<button type="button" class="tile" data-acao="girar-peca" data-i="${i}" aria-label="Peça ${i + 1}, ${quartos(r)}"${a.feito ? ' disabled' : ''}><svg class="tile__img" viewBox="${(i % 3) * 100} ${Math.floor(i / 3) * 100} 100 100" style="transform:rotate(${r}deg)" aria-hidden="true"><use href="#farol"/></svg></button>`).join('')}</div>`
+}
+function girarPeca(i) {
+  const a = AM.giro
+  if (a.feito) return
+  a.rot[i] += 90
+  const b = palco.querySelector(`.tile[data-i="${i}"]`)
+  b.querySelector('svg').style.transform = `rotate(${a.rot[i]}deg)`
+  b.setAttribute('aria-label', `Peça ${i + 1}, ${quartos(a.rot[i])}`)
+  if (a.rot.every((r) => r % 360 === 0)) { a.feito = true; palco.querySelectorAll('.tile').forEach((t) => { t.disabled = true }) }
+  atualizarAmostra('giro')
+}
+
+/* luzes */
+function htmlLuzes() {
+  const a = AM.luzes
+  return `<div class="luzes" role="group" aria-label="Lamparinas">${a.acesas.map((on, i) => `<button type="button" class="luz" data-acao="luz" data-i="${i}" aria-pressed="${on}" aria-label="Lamparina ${i + 1}"${a.feito ? ' disabled' : ''}></button>`).join('')}</div>`
+}
+function tocarLuz(i) {
+  const a = AM.luzes
+  if (a.feito) return
+  const x = i % 3, y = Math.floor(i / 3)
+  for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nx = x + dx, ny = y + dy
+    if (nx >= 0 && nx < 3 && ny >= 0 && ny < 3) a.acesas[ny * 3 + nx] = !a.acesas[ny * 3 + nx]
+  }
+  a.toques++
+  if (a.acesas.every(Boolean)) a.feito = true
+  palco.querySelectorAll('.luz').forEach((b, k) => { b.setAttribute('aria-pressed', a.acesas[k]); b.disabled = a.feito })
+  atualizarAmostra('luzes')
+}
+
+/* empurrar estátuas (vista de cima, Meio-Termo) */
+function btSeta(rot, dx, dy, nome) {
+  return `<button type="button" class="bt" data-acao="emp-andar" data-dx="${dx}" data-dy="${dy}" aria-label="Andar para ${nome}"><svg viewBox="0 0 24 24" style="transform:rotate(${rot}deg)" aria-hidden="true"><use href="#ic-cima"/></svg></button>`
+}
+function htmlEmpurra() {
+  const a = AM.empurra
+  const W = NIVEL[0].length * CEL, H = NIVEL.length * CEL
+  const r = rng(77)
+  let chao_ = '', paredes = ''
+  NIVEL.forEach((linha, y) => [...linha].forEach((ch, x) => {
+    const px = x * CEL, py = y * CEL
+    if (ch === '#') paredes += `<rect x="${px + 1}" y="${py + 1}" width="${CEL - 2}" height="${CEL - 2}" rx="10" fill="${tom('#7f9a64', 0.92 + r() * 0.16)}" stroke="#4c5c3c" stroke-width="2.5"/><circle cx="${px + 12 + r() * 16}" cy="${py + 12 + r() * 14}" r="3" fill="#a3bb88"/>`
+    else chao_ += `<rect x="${px + 1.5}" y="${py + 1.5}" width="${CEL - 3}" height="${CEL - 3}" rx="5" fill="${tom('#dcd0b6', 0.9 + r() * 0.14)}" stroke="#bcae94" stroke-width="1.5"/>`
+  }))
+  const marcas = a.marcas.map((m) => `<circle cx="${m.x * CEL + 20}" cy="${m.y * CEL + 20}" r="13" fill="none" stroke="#a08f74" stroke-width="3" stroke-dasharray="5 4"/><circle cx="${m.x * CEL + 20}" cy="${m.y * CEL + 20}" r="4" fill="#a08f74"/>`).join('')
+  const estatuas = a.est.map((s, k) => `<g class="empurra__peca" data-est="${k}" style="transform:translate(${s.x * CEL}px, ${s.y * CEL}px)"><circle cx="20" cy="23" r="15" fill="#75736b" opacity=".35"/><circle cx="20" cy="19" r="14" fill="#c3c0b2" stroke="#75736b" stroke-width="3"/><circle cx="20" cy="15" r="6" fill="#d9d6ca" stroke="#75736b" stroke-width="2"/><circle class="empurra__ok" cx="20" cy="19" r="18" fill="none" stroke="#f3ba66" stroke-width="3" opacity="0"/></g>`).join('')
+  const jogador = `<g class="empurra__peca" data-jog style="transform:translate(${a.jog.x * CEL}px, ${a.jog.y * CEL}px)"><circle cx="20" cy="20" r="13" fill="#e8a2c4" stroke="#8b6176" stroke-width="3"/><text x="20" y="25" text-anchor="middle" style="font:600 14px Bahnschrift, 'Segoe UI', sans-serif" fill="#2a2620">L</text></g>`
+  return `<div class="empurra"><div class="empurra__mapa" tabindex="0" role="application" aria-label="Jardim visto de cima. Setas andam e empurram; Z desfaz." data-empurra>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${chao_}${paredes}${marcas}${estatuas}${jogador}</svg></div>
+    <div class="empurra__lado"><div class="empurra__ctrl" role="group" aria-label="Andar"><span></span>${btSeta(0, 0, -1, 'cima')}<span></span>${btSeta(-90, -1, 0, 'a esquerda')}${btSeta(180, 0, 1, 'baixo')}${btSeta(90, 1, 0, 'a direita')}</div>
+    <button type="button" class="bt bt--p" data-acao="emp-desfazer">Desfazer <kbd>Z</kbd></button></div></div>`
+}
+function posicionarEmpurra() {
+  const a = AM.empurra
+  const j = palco.querySelector('[data-jog]')
+  if (!j) return
+  j.style.transform = `translate(${a.jog.x * CEL}px, ${a.jog.y * CEL}px)`
+  a.est.forEach((s, k) => {
+    const g = palco.querySelector(`[data-est="${k}"]`)
+    g.style.transform = `translate(${s.x * CEL}px, ${s.y * CEL}px)`
+    g.querySelector('.empurra__ok').setAttribute('opacity', a.marcas.some((m) => m.x === s.x && m.y === s.y) ? '1' : '0')
+  })
+}
+function andar(dx, dy) {
+  const a = AM.empurra
+  if (a.feito) return
+  const nx = a.jog.x + dx, ny = a.jog.y + dy
+  if (a.paredes.has(`${nx},${ny}`)) return
+  const livre = (x, y) => !a.paredes.has(`${x},${y}`) && !a.est.some((s) => s.x === x && s.y === y)
+  const k = a.est.findIndex((s) => s.x === nx && s.y === ny)
+  if (k >= 0 && !livre(nx + dx, ny + dy)) { aviso('A estátua não passa: tem algo atrás dela.'); return }
+  a.hist.push(JSON.stringify({ jog: a.jog, est: a.est, passos: a.passos }))
+  if (k >= 0) a.est[k] = { x: nx + dx, y: ny + dy }
+  a.jog = { x: nx, y: ny }
+  a.passos++
+  if (a.marcas.every((m) => a.est.some((s) => s.x === m.x && s.y === m.y))) a.feito = true
+  posicionarEmpurra()
+  atualizarAmostra('empurra')
+}
+function desfazerEmpurra() {
+  const a = AM.empurra
+  if (a.feito || !a.hist.length) return
+  Object.assign(a, JSON.parse(a.hist.pop()))
+  posicionarEmpurra()
+  atualizarAmostra('empurra')
+}
+palco.addEventListener('keydown', (ev) => {
+  const g = ev.target.closest?.('[data-ponteiro]')
+  if (g) {
+    const passo = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key]
+    if (passo) { ev.preventDefault(); relogioPor(totalRel() + passo * (g.dataset.ponteiro === 'h' ? 60 : 5), false) }
+    return
+  }
+  if (ev.target.closest?.('[data-empurra]')) {
+    const d = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] }[ev.key]
+    if (d) { ev.preventDefault(); andar(d[0], d[1]); return }
+    if (ev.key === 'z' || ev.key === 'Z') { ev.preventDefault(); desfazerEmpurra() }
+  }
+})
+Object.assign(ACOES, {
+  rel: (el) => relogioPor(totalRel() + +el.dataset.d, true),
+  nota: (el) => tocarNota(+el.dataset.i),
+  'girar-peca': (el) => girarPeca(+el.dataset.i),
+  luz: (el) => tocarLuz(+el.dataset.i),
+  'emp-andar': (el) => andar(+el.dataset.dx, +el.dataset.dy),
+  'emp-desfazer': desfazerEmpurra,
+  'am-recomecar': (el) => {
+    const k = el.dataset.k
+    AM[k] = amostrasIniciais()[k]
+    vistaAmostras()
+    palco.querySelector(`[data-acao="am-recomecar"][data-k="${k}"]`)?.focus()
+  },
+})
+
+/* ============================================================== mestre: página Jogos, editor, ao vivo */
+const BASE = cfgInicial()
+let mapaCache = ''
+function mapaDoMestre() {
+  if (mapaCache) return mapaCache
+  const r = rng(303)
+  let tufos = '', flores = ''
+  for (let i = 0; i < 160; i++) { const x = r() * 1600, y = r() * 1000; tufos += `<path d="M${x.toFixed(0)} ${y.toFixed(0)}l5-13 3 11 5-10 2 12" stroke="#76ac6d" stroke-width="3" fill="none" stroke-linecap="round"/>` }
+  for (let i = 0; i < 60; i++) { const x = r() * 1600, y = r() * 1000, cor = ['#e8a2c4', '#f0d266', '#f3efe2', '#a87fcb'][i % 4]; flores += `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="5" fill="${cor}" stroke="${tom(cor, 0.6)}" stroke-width="2"/>` }
+  const arvore = (x, y, s) => `<circle cx="${x}" cy="${y + 10}" r="${s}" fill="#4c5c3c" opacity=".35"/><circle cx="${x}" cy="${y}" r="${s}" fill="#76ac6d" stroke="#4f7349" stroke-width="5"/><circle cx="${x - s * 0.3}" cy="${y - s * 0.3}" r="${s * 0.35}" fill="#8cbf80"/>`
+  mapaCache = `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice"><rect width="1600" height="1000" fill="#8cbf80"/>${tufos}
+    <path d="M0 700C300 650 520 760 820 700S1300 600 1600 640" stroke="#dda56c" stroke-width="90" fill="none"/>
+    <ellipse cx="1000" cy="420" rx="300" ry="210" fill="#dcd0b6" stroke="#bcae94" stroke-width="6"/>
+    <circle cx="1000" cy="420" r="96" fill="#c3c0b2" stroke="#75736b" stroke-width="7"/><circle cx="1000" cy="420" r="74" fill="#5f625d" stroke="#75736b" stroke-width="4"/><circle cx="1000" cy="420" r="28" fill="#b3afa1" stroke="#75736b" stroke-width="5"/>
+    <rect x="1250" y="120" width="270" height="200" fill="#b56e50" stroke="#6d4230" stroke-width="6"/><path d="M1250 220h270M1385 120v200" stroke="#9c5d43" stroke-width="5"/>
+    <rect x="1350" y="320" width="70" height="26" fill="#a07b51" stroke="#604a31" stroke-width="5"/>
+    ${arvore(560, 230, 70)}${arvore(660, 320, 50)}${arvore(1460, 800, 80)}${arvore(480, 860, 60)}${flores}</svg>`
+  return mapaCache
+}
+function htmlLivro(conteudo) {
+  return `<div class="livro"><div class="livro__lombada" aria-hidden="true">
+    ${['cena', 'livro', 'bau'].map((i) => `<span class="livro__marca">${ic(i)}</span>`).join('')}<span class="livro__marca livro__marca--ativa">${ic('jogos')}</span></div>
+    <div class="livro__pagina" data-pagina>${conteudo}</div></div>`
+}
+const iconeTipo = (t) => ({ encaixe: 'peca', ordem: 'ordem', combinacao: 'cofre' })[t] ?? 'peca'
+function tagsDoPuzzle(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const t = []
+  if (j.resolvido) t.push('<span class="mg-tag mg-tag--feito">Resolvido</span>')
+  else if (j.dentro.size) t.push(`<span class="mg-tag mg-tag--latao">${j.dentro.size} dentro</span>`)
+  if (j.erros) t.push(`<span class="mg-tag mg-tag--perigo">${j.erros} ${j.erros > 1 ? 'erros' : 'erro'}</span>`)
+  if (c.visual.tipo === 'imagem' && !c.visual.imagem) t.push('<span class="mg-tag mg-tag--perigo">Sem imagem</span>')
+  if (c.tipo !== 'combinacao' && c.encaixes.some((e) => e.jeito === 'peca' && !e.peca)) t.push('<span class="mg-tag mg-tag--perigo">Encaixe sem peça</span>')
+  return t.length ? `<span class="mg-linha__tags">${t.join('')}</span>` : ''
+}
+function htmlListaJogos() {
+  const ordem = estado.ordemDosPuzzles
+  const vivos = ordem.filter((id) => estado.jogo[id].dentro.size && !estado.jogo[id].resolvido)
+  const estatica = (nome, onde) => `<li><div class="mg-linha" aria-disabled="true"><span class="mg-linha__med">${ic('jogos')}</span><span class="mg-linha__nome">${nome}</span><span></span><span class="mg-linha__onde">${onde}</span></div></li>`
+  return `<div class="titulo-pag"><h2>Jogos</h2><p>Os desafios desta cena e, numa seção própria, os puzzles.</p></div>
+    ${estado.alertas.map((a, i) => `<div class="mg-aviso" role="status"><p>${esc(a.texto)} <small style="color:var(--lb-color-parchment-faint)">${agoraTexto(a.t)}</small></p><div style="display:flex;gap:6px"><button type="button" class="bt bt--latao bt--p" data-acao="ver-vivo" data-id="${a.id}">Ver ao vivo</button><button type="button" class="bt bt--fantasma bt--p" data-acao="dispensar-alerta" data-i="${i}">Entendi</button></div></div>`).join('')}
+    ${vivos.length ? `<h3 class="mg-secao">Ao vivo <small>${vivos.length}</small></h3><ul class="mg-lista">${vivos.map((id) => `<li><button type="button" class="mg-linha" data-acao="ver-vivo" data-id="${id}"><span class="mg-linha__med">${ic(iconeTipo(estado.cfg[id].tipo))}</span><span class="mg-linha__nome"><span class="mg-pulsando" aria-hidden="true"></span> ${esc(estado.cfg[id].nome)}</span><span class="mg-linha__seta">${ic('seta')}</span><span class="mg-linha__onde">${[...estado.jogo[id].dentro].map(esc).join(', ')} · ${esc(progresso(id).toLowerCase())}</span></button></li>`).join('')}</ul>` : ''}
+    <h3 class="mg-secao">Desafios <small>2</small></h3>
+    <ul class="mg-lista">${estatica('Pesca no lago', 'Pesca · num ponto do mapa')}${estatica('Dança da colheita', 'Dança · sem lugar')}</ul>
+    <p class="nota" style="margin-top:6px">Os desafios de ação seguem como hoje (apagados aqui: fora deste protótipo).</p>
+    <h3 class="mg-secao">Puzzles <small>${ordem.length}</small></h3>
+    ${ordem.length ? `<ul class="mg-lista">${ordem.map((id) => { const c = estado.cfg[id]; return `<li><button type="button" class="mg-linha" data-acao="editar" data-id="${id}"><span class="mg-linha__med">${ic(iconeTipo(c.tipo))}</span><span class="mg-linha__nome">${esc(c.nome)}</span><span class="mg-linha__seta">${ic('seta')}</span><span class="mg-linha__onde">${TIPO_NOME[c.tipo]} · ${esc(c.lugar.texto)}</span>${tagsDoPuzzle(id)}</button></li>` }).join('')}</ul>` : '<p class="mg-vazio">Nenhum puzzle nesta cena. Crie um e marque onde ele fica: um ponto do mapa ou um objeto.</p>'}
+    <div class="mg-nota-pe"><button type="button" class="bt bt--latao bt--largo" data-acao="novo-puzzle">Novo puzzle</button></div>
+    <h3 class="mg-secao">Objetos que abrem <small>1</small></h3>
+    <ul class="mg-lista"><li><div class="mg-linha" aria-disabled="true"><span class="mg-linha__med">${ic('bau')}</span><span class="mg-linha__nome">Baú da despensa</span><span></span><span class="mg-linha__onde">Baú · fora deste protótipo</span></div></li></ul>`
+}
+function vistaPagina() {
+  palco.innerHTML = `<section class="mestre" aria-label="Visão do mestre"><div class="mestre__mapa" aria-hidden="true">${mapaDoMestre()}</div>${htmlLivro(htmlListaJogos())}</section>`
+}
+
+/* editor de um puzzle */
+const PECAS_DO_ACERVO = Object.keys(PECAS).filter((k) => k !== 'lua-prata')
+const opcoesPeca = (sel) => `<option value="">Escolha a peça…</option>${PECAS_DO_ACERVO.map((k) => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(PECAS[k].nome)}</option>`).join('')}`
+function notaCastigo(c) {
+  const vale = c.tipo !== 'encaixe' || c.troca
+  const base = { nada: 'Errar não faz nada (o padrão).', dano: 'Quem errou perde PV na hora.', armadilha: 'Mostra o texto ao jogador; o resto você narra.', barulho: 'Você recebe um aviso na página Jogos e no Ao vivo.' }[c.castigo.tipo]
+  return `${base}${vale ? '' : ' No Encaixe a peça errada nem entra, então só há erro na Troca de peso, na Ordem certa e na Combinação.'}`
+}
+function htmlFichaEncaixes(id) {
+  const c = estado.cfg[id]
+  const modelo = c.visual.tipo === 'modelo'
+  return `<section class="ficha"><h3>Encaixes <small>${c.encaixes.length}</small></h3>
+    ${c.encaixes.length ? `<ol class="lista-enc">${c.encaixes.map((e, i) => `<li class="${estado.encEscolhido === e.id ? 'is-escolhido' : ''}" data-enc-linha="${e.id}">
+      <span class="num">${i + 1}</span>
+      ${e.jeito === 'metades'
+        ? `<span class="nota">Juntar 2 metades: viram ${esc(PECAS[e.vira].nome)}</span><select class="entrada" data-campo="enc-metade" data-enc="${e.id}" data-k="0" aria-label="Encaixe ${i + 1}, primeira metade">${opcoesPeca(e.pecas[0])}</select><select class="entrada" data-campo="enc-metade" data-enc="${e.id}" data-k="1" aria-label="Encaixe ${i + 1}, segunda metade">${opcoesPeca(e.pecas[1])}</select>`
+        : `<select class="entrada" data-campo="enc-peca" data-enc="${e.id}" aria-label="Peça do encaixe ${i + 1}">${opcoesPeca(e.peca)}</select>`}
+      ${modelo ? '' : `<div class="sub"><button type="button" class="bt bt--fantasma bt--p" data-acao="tirar-enc" data-enc="${e.id}">Tirar o encaixe ${i + 1}</button></div>`}
+    </li>`).join('')}</ol>` : '<p class="mg-vazio">Nenhum encaixe. Use “Novo encaixe” e arraste o número na imagem.</p>'}
+    ${modelo ? '<p class="nota">No modelo pronto os encaixes já têm lugar; você escolhe a peça de cada um. Peças vêm do acervo, categoria “Peça de puzzle”.</p>' : '<button type="button" class="bt bt--latao bt--p" data-acao="novo-enc" style="align-self:flex-start">Novo encaixe</button><p class="nota">Arraste os números no painel ao lado. Juntar duas metades: veja o modelo Altar.</p>'}
+    ${c.tipo === 'ordem' ? '<p class="nota">Ordem certa: a ordem é a da lista. Qualquer peça do puzzle entra em qualquer encaixe; a tranca só cede na ordem certa.</p>' : ''}
+  </section>`
+}
+function htmlFichaCombinacao(c) {
+  return `<section class="ficha"><h3>Combinação</h3>
+    <label class="campo"><span class="campo__rot">Segredo das rodas de números</span><input class="entrada" data-campo="segredo-num" inputmode="numeric" maxlength="3" value="${c.combinacao.numeros.join('')}"></label>
+    <div class="campo"><span class="campo__rot">Segredo das rodas de símbolos</span>${[0, 1, 2].map((k) => `<select class="entrada" data-campo="segredo-sim" data-k="${k}" aria-label="Símbolo ${k + 1}">${SIMBOLOS.map((s) => `<option value="${s}"${c.combinacao.simbolos[k] === s ? ' selected' : ''}>${NOME_SIMBOLO[s]}</option>`).join('')}</select>`).join('')}</div>
+    <p class="nota">Ponteiros de relógio e sequência de botões também são Combinação: veja em Outras mecânicas.</p></section>`
+}
+function htmlFichaEditor(id) {
+  const c = estado.cfg[id]
+  const modelo = c.visual.tipo === 'modelo'
+  const desabTipo = modelo ? (c.visual.modelo === 'cofre' ? { encaixe: 'O modelo Cofre é de combinação', ordem: 'O modelo Cofre é de combinação' } : { combinacao: 'Combinação usa o modelo Cofre ou imagem própria' }) : {}
+  return `<button type="button" class="voltar" data-acao="ir" data-vista="pagina">${ic('seta')} Jogos</button>
+  <div class="cabeca"><span class="cabeca__med">${ic(iconeTipo(c.tipo))}</span><div><h2 data-nome-cab>${esc(c.nome)}</h2><p>Puzzle · ${TIPO_NOME[c.tipo]}</p></div></div>
+  <div class="fichas">
+    <section class="ficha"><h3>Básico</h3>
+      <label class="campo"><span class="campo__rot">Nome</span><input class="entrada" data-campo="nome" value="${esc(c.nome)}" maxlength="60"></label>
+      <div class="campo"><span class="campo__rot">Onde fica</span>${seg('lugar', [['ponto', 'Ponto'], ['objeto', 'Objeto'], ['nenhum', 'Sem lugar']], c.lugar.tipo, 'Onde fica')}
+      <p class="nota">Fica ${esc(c.lugar.texto)}. Marcar no mapa é o mesmo dos desafios (fora deste protótipo).</p></div>
+    </section>
+    <section class="ficha"><h3>Tipo</h3>${seg('tipo', [['encaixe', 'Encaixe'], ['ordem', 'Ordem certa'], ['combinacao', 'Combinação']], c.tipo, 'Tipo do puzzle', false, desabTipo)}
+      ${c.tipo === 'encaixe' ? `<label class="liga"><input type="checkbox" data-campo="qualquer"${c.qualquerOrdem ? ' checked' : ''}> Qualquer peça do puzzle serve em qualquer encaixe</label>` : ''}
+    </section>
+    <section class="ficha"><h3>Visual</h3>${seg('visual', [['modelo', 'Modelo pronto'], ['imagem', 'Imagem própria']], c.visual.tipo, 'Visual')}
+      ${modelo ? `<div class="modelos">${['fonte', 'porta', 'cofre', 'altar'].map((m) => `<button type="button" class="modelo" data-acao="modelo" data-modelo="${m}" aria-pressed="${c.visual.modelo === m}">${ARTE[m](`t${m}`)}<span>${NOME_MODELO[m]}</span></button>`).join('')}</div><p class="nota">Feitos no estúdio de arte. Trocar de modelo traz os encaixes dele e devolve as peças postas.</p>`
+        : `<label class="bt bt--latao bt--p" style="align-self:flex-start">Escolher imagem<input type="file" accept="image/*" data-campo="imagem" class="sr"></label><p class="nota">${c.visual.imagem ? 'Imagem carregada. Arraste os encaixes no painel ao lado.' : 'Use uma imagem sua; os encaixes ficam por cima, onde você arrastar.'}</p>`}
+    </section>
+    ${c.tipo === 'combinacao' ? htmlFichaCombinacao(c) : htmlFichaEncaixes(id)}
+    ${c.troca ? `<section class="ficha"><h3>Troca de peso</h3><p class="nota">O pedestal guarda ${esc(PECAS[c.troca.guarda].nome)}. Ela sai sem castigo quando a bandeja pesar:</p><label class="campo"><span class="campo__rot">Peso pedido</span><input class="entrada" type="number" min="1" max="8" data-campo="peso" value="${c.troca.peso}"></label></section>` : ''}
+    <section class="ficha"><h3>Dica</h3><textarea class="entrada" data-campo="dica" rows="3" aria-label="Dica">${esc(c.dica)}</textarea><p class="nota">Aparece embaixo da tela de perto.</p></section>
+    <section class="ficha"><h3>Ao resolver</h3>${seg('desfecho', [['texto', 'Texto'], ['cena', 'Cena']], c.desfecho.tipo, 'Desfecho')}
+      <textarea class="entrada" data-campo="desfecho-texto" rows="3" aria-label="Texto do desfecho">${esc(c.desfecho.texto)}</textarea>
+      <p class="nota">${c.desfecho.tipo === 'cena' ? 'Cena: a arte do modelo se mexe (a água corre, a porta abre) e depois vem o texto.' : 'Texto: só o cartão com o texto e os itens.'}</p>
+      <div class="campo"><span class="campo__rot">Dar itens</span><div class="chips-itens">${c.desfecho.itens.map((k) => `<span class="chip-item">${esc(PREMIOS[k])}<button type="button" data-acao="tirar-item" data-item="${k}" aria-label="Tirar ${esc(PREMIOS[k])}">${ic('x')}</button></span>`).join('') || '<span class="nota">Nenhum item.</span>'}</div>
+      <select class="entrada" data-campo="dar-item" aria-label="Dar item do acervo"><option value="">Dar item do acervo…</option>${Object.keys(PREMIOS).filter((k) => !c.desfecho.itens.includes(k)).map((k) => `<option value="${k}">${esc(PREMIOS[k])}</option>`).join('')}</select></div>
+    </section>
+    <section class="ficha"><h3>Se errar</h3>${seg('castigo', Object.entries(NOME_CASTIGO), c.castigo.tipo, 'Castigo ao errar', true)}
+      ${c.castigo.tipo === 'dano' ? `<label class="campo"><span class="campo__rot">Dano em PV</span><input class="entrada" type="number" min="1" max="20" data-campo="dano" value="${c.castigo.dano}"></label>` : ''}
+      ${c.castigo.tipo === 'armadilha' ? `<label class="campo"><span class="campo__rot">O que acontece</span><input class="entrada" data-campo="castigo-texto" value="${esc(c.castigo.texto)}" placeholder="${esc(CASTIGO_PADRAO.armadilha)}"></label>` : ''}
+      <p class="nota">${notaCastigo(c)}</p>
+    </section>
+  </div>
+  <div class="mg-nota-pe">
+    <button type="button" class="bt bt--primario bt--largo" data-acao="testar">Testar como jogador</button>
+    <button type="button" class="bt bt--latao bt--largo" data-acao="ver-vivo" data-id="${id}">Ver ao vivo</button>
+    <button type="button" class="bt bt--perigo bt--largo" data-acao="apagar">Apagar puzzle</button>
+  </div>`
+}
+function htmlPainelEncaixes(id) {
+  const c = estado.cfg[id]
+  const modelo = c.visual.tipo === 'modelo'
+  const marcos = c.tipo === 'combinacao' ? '' : c.encaixes.map((e, i) => `<button type="button" class="marco${estado.encEscolhido === e.id ? ' is-escolhido' : ''}" style="left:${e.x}%;top:${e.y}%" data-marco="${e.id}" data-acao="escolher-enc" aria-label="Encaixe ${i + 1}${PECAS[e.peca] ? `: ${PECAS[e.peca].nome}` : ''}${modelo ? ', fixo no modelo' : ', arraste ou use as setas para mover'}"${modelo ? ' aria-disabled="true"' : ''}>${i + 1}</button>`).join('')
+  return `<section class="painel" aria-labelledby="pe-t">
+    <div class="painel__cab"><div><h2 id="pe-t">Encaixes sobre a imagem</h2><p>${modelo ? `Modelo ${NOME_MODELO[c.visual.modelo]}: os encaixes são do modelo.` : 'Arraste cada número até o lugar do encaixe. Setas movem o escolhido (Shift anda mais).'}</p></div>
+    ${modelo || c.tipo === 'combinacao' ? '' : '<button type="button" class="bt bt--latao bt--p" data-acao="novo-enc">Novo encaixe</button>'}</div>
+    <div class="painel__quadro" data-painel-quadro><div class="quadro__arte">${htmlArte(c, 'pe')}</div>${marcos}</div>
+  </section>`
+}
+function vistaEditor() {
+  const id = estado.editando in estado.cfg ? estado.editando : estado.ordemDosPuzzles[0]
+  if (!id) { ir('pagina'); return }
+  estado.editando = id
+  palco.innerHTML = `<section class="mestre" aria-label="Editor do puzzle"><div class="mestre__mapa" aria-hidden="true">${mapaDoMestre()}</div>${htmlLivro(htmlFichaEditor(id))}${htmlPainelEncaixes(id)}</section>`
+}
+function repintarEditor(foco) {
+  const sc = palco.querySelector('[data-pagina]')?.scrollTop ?? 0
+  vistaEditor()
+  const pag = palco.querySelector('[data-pagina]')
+  if (pag) pag.scrollTop = sc
+  if (foco) palco.querySelector(foco)?.focus()
+}
+function aplicarModelo(id, m) {
+  recomecar(id, 'mestre')
+  const c = estado.cfg[id], b = JSON.parse(JSON.stringify(BASE[m]))
+  Object.assign(c, { tipo: b.tipo, qualquerOrdem: b.qualquerOrdem, encaixes: b.encaixes, combinacao: b.combinacao, troca: b.troca })
+  c.visual = { tipo: 'modelo', modelo: m, imagem: c.visual.imagem }
+  const dentro = estado.jogo[id].dentro
+  estado.jogo[id] = jogoInicial(c)
+  estado.jogo[id].dentro = dentro
+  estado.encEscolhido = null
+}
+const enc = (id, encId) => estado.cfg[id].encaixes.find((e) => e.id === encId)
+let confirmarApagar = false
+
+/* ao vivo */
+function htmlFichaVivo(id) {
+  const c = estado.cfg[id], j = estado.jogo[id]
+  const regs = estado.registro.filter((r) => r.id === id).slice(-10).reverse()
+  const pecas = c.tipo === 'combinacao'
+    ? `<p class="nota">Números: <b style="color:var(--lb-color-parchment)">${j.numeros.join(' ')}</b> · símbolos: <b style="color:var(--lb-color-parchment)">${j.simbolos.map((v) => NOME_SIMBOLO[SIMBOLOS[v]]).join(', ')}</b>. Segredo: ${c.combinacao.numeros.join('')} · ${c.combinacao.simbolos.map((s) => NOME_SIMBOLO[s]).join(', ')}.</p>`
+    : `<ul class="pecas-vivo">${c.encaixes.map((e, i) => {
+      const v = j.pos[e.id]
+      let peca = null, por_ = ''
+      if (e.jeito === 'metades') { peca = v.inteira ? e.vira : v.e ? e.pecas[0] : v.d ? e.pecas[1] : null; por_ = v.por || '' } else if (v) { peca = v.peca; por_ = v.por }
+      return `<li>${peca ? ico(peca) : '<span class="vazio-ico" aria-hidden="true"></span>'}<span>${i + 1} · ${peca ? esc(PECAS[peca].nome) : 'vazio'}</span><small>${peca ? `posto por ${esc(por_)}` : `espera ${esc(e.jeito === 'metades' ? 'as duas metades' : PECAS[e.peca]?.nome ?? 'peça (não escolhida)')}`}</small></li>`
+    }).join('')}</ul>${c.troca ? `<p class="nota">Troca de peso: ${j.joiaNoPedestal ? `joia no pedestal; bandeja com ${j.bandeja.length} ${j.bandeja.length === 1 ? 'pedra' : 'pedras'}` : 'feita (as pedras ficaram no lugar)'}.</p>` : ''}`
+  const postos = c.tipo === 'combinacao' ? '' : `${c.encaixes.filter((e) => cheio(id, e.id)).length}/${c.encaixes.length}`
+  return `<button type="button" class="voltar" data-acao="ir" data-vista="pagina">${ic('seta')} Jogos</button>
+  <div class="cabeca"><span class="cabeca__med">${ic(iconeTipo(c.tipo))}</span><div><h2>${esc(c.nome)}</h2><p>Ao vivo · ${j.resolvido ? 'resolvido' : TIPO_NOME[c.tipo]}</p></div></div>
+  <label class="campo" style="margin-bottom:10px"><span class="campo__rot">Ver o puzzle</span><select class="entrada" data-campo="vivo-de">${estado.ordemDosPuzzles.map((k) => `<option value="${k}"${k === id ? ' selected' : ''}>${esc(estado.cfg[k].nome)}</option>`).join('')}</select></label>
+  <div class="fichas">
+    <section class="ficha"><h3>Dentro agora <small>${j.dentro.size}</small></h3><div style="display:flex;gap:6px;flex-wrap:wrap">${[...j.dentro].map(chipDe).join('') || '<span class="nota">Ninguém dentro.</span>'}</div></section>
+    <section class="ficha"><h3>${c.tipo === 'combinacao' ? 'Rodas' : 'Peças postas'} <small>${postos}</small></h3>${pecas}</section>
+    <section class="ficha"><h3>Registro <small>${j.erros ? `${j.erros} ${j.erros > 1 ? 'erros' : 'erro'}` : ''}</small></h3><ul class="registro">${regs.map((r) => `<li class="${r.tom === 'perigo' ? 'is-perigo' : ''}"><time>${agoraTexto(r.t)}</time><span>${esc(r.texto)}</span></li>`).join('') || '<li><span></span><span class="nota">Nada ainda.</span></li>'}</ul></section>
+  </div>
+  <div class="mg-nota-pe">
+    <button type="button" class="bt bt--latao bt--largo" data-acao="mestre-resolver"${j.resolvido ? ' disabled' : ''}>Dar como resolvido</button>
+    <button type="button" class="bt bt--fantasma bt--largo" data-acao="mestre-recomecar">Recomeçar (peças voltam para quem pôs)</button>
+    <button type="button" class="bt bt--fantasma bt--largo" data-acao="editar" data-id="${id}">Abrir o editor</button>
+  </div>`
+}
+function vistaAoVivo() {
+  const id = estado.vivoDe in estado.cfg ? estado.vivoDe : estado.ordemDosPuzzles[0]
+  if (!id) { ir('pagina'); return }
+  estado.vivoDe = id
+  const j = estado.jogo[id]
+  const bento = id === 'fonte' ? rotuloBento() : null
+  palco.innerHTML = `<section class="mestre" aria-label="Ao vivo"><div class="mestre__mapa" aria-hidden="true">${mapaDoMestre()}</div>${htmlLivro(htmlFichaVivo(id))}
+    <section class="painel" aria-labelledby="pv-t"><div class="painel__cab"><div><h2 id="pv-t">O que eles veem</h2><p>A tela de perto, ao vivo, com quem pôs cada peça.${j.erros ? ` ${j.erros} ${j.erros > 1 ? 'erros' : 'erro'} até agora.` : ''}</p></div>
+    ${bento ? `<button type="button" class="bt bt--p" data-acao="bento-vivo">Simular: ${bento}</button>` : ''}</div>
+    <div class="painel__vivo">${htmlQuadro(id, { miniatura: true })}</div></section></section>`
+  const q = palco.querySelector('.painel__vivo .quadro')
+  if (q) q.style.width = '100%'
+}
+
+Object.assign(ACOES, {
+  ir: (el) => ir(el.dataset.vista),
+  editar: (el) => { estado.editando = el.dataset.id; estado.encEscolhido = null; confirmarApagar = false; ir('editor') },
+  'ver-vivo': (el) => { estado.vivoDe = el.dataset.id; ir('aovivo') },
+  'dispensar-alerta': (el) => { estado.alertas.splice(+el.dataset.i, 1); vistaPagina() },
+  'novo-puzzle': () => {
+    const id = `novo${estado.seqNovo++}`
+    estado.cfg[id] = {
+      id, nome: 'Puzzle sem nome', tipo: 'encaixe', qualquerOrdem: false, lugar: { tipo: 'nenhum', texto: 'sem lugar no mapa' },
+      visual: { tipo: 'imagem', modelo: null, imagem: null },
+      encaixes: [{ id: 'n1', x: 38, y: 50, forma: 'redondo', jeito: 'peca', peca: '', rot: '1' }, { id: 'n2', x: 62, y: 50, forma: 'redondo', jeito: 'peca', peca: '', rot: '2' }],
+      dica: '', desfecho: { tipo: 'texto', texto: 'Algo se abre.', itens: [] }, castigo: { tipo: 'nada', dano: 3, texto: '' },
+    }
+    estado.jogo[id] = jogoInicial(estado.cfg[id])
+    estado.ordemDosPuzzles.push(id)
+    estado.editando = id
+    estado.encEscolhido = null
+    ir('editor')
+    aviso('Puzzle criado. Escolha a imagem, ponha os encaixes e a peça de cada um.')
+    palco.querySelector('[data-campo="nome"]')?.focus()
+  },
+  modelo: (el) => { aplicarModelo(estado.editando, el.dataset.modelo); repintarEditor(`[data-acao="modelo"][data-modelo="${el.dataset.modelo}"]`) },
+  'tirar-item': (el) => { const c = estado.cfg[estado.editando]; c.desfecho.itens = c.desfecho.itens.filter((k) => k !== el.dataset.item); repintarEditor('[data-campo="dar-item"]') },
+  'novo-enc': () => {
+    const id = estado.editando, c = estado.cfg[id]
+    const n = c.encaixes.length + 1
+    const novo = { id: `n${Date.now().toString(36)}`, x: 50, y: 50, forma: 'redondo', jeito: 'peca', peca: '', rot: String(n) }
+    c.encaixes.push(novo)
+    estado.jogo[id].pos[novo.id] = null
+    estado.encEscolhido = novo.id
+    repintarEditor(`[data-marco="${novo.id}"]`)
+  },
+  'tirar-enc': (el) => {
+    const id = estado.editando, c = estado.cfg[id], j = estado.jogo[id]
+    const v = j.pos[el.dataset.enc]
+    if (v?.peca) porNaMochila(v.peca)
+    c.encaixes = c.encaixes.filter((e) => e.id !== el.dataset.enc)
+    delete j.pos[el.dataset.enc]
+    c.encaixes.forEach((e, i) => { e.rot = String(i + 1) })
+    repintarEditor('[data-acao="novo-enc"]')
+  },
+  'escolher-enc': (el) => {
+    estado.encEscolhido = el.dataset.marco
+    palco.querySelectorAll('.marco').forEach((m) => m.classList.toggle('is-escolhido', m.dataset.marco === estado.encEscolhido))
+    palco.querySelectorAll('[data-enc-linha]').forEach((li) => li.classList.toggle('is-escolhido', li.dataset.encLinha === estado.encEscolhido))
+  },
+  testar: () => { const id = estado.editando; if (estado.fora[id] !== false) estado.fora[id] = undefined; ir(id) },
+  apagar: (el) => {
+    if (!confirmarApagar) { confirmarApagar = true; el.textContent = 'Apagar mesmo? Clique de novo'; return }
+    confirmarApagar = false
+    const id = estado.editando
+    recomecar(id, 'mestre')
+    delete estado.cfg[id]; delete estado.jogo[id]
+    estado.ordemDosPuzzles = estado.ordemDosPuzzles.filter((k) => k !== id)
+    ir('pagina')
+    aviso('Puzzle apagado. As peças voltaram para quem pôs.')
+  },
+  'mestre-resolver': () => { resolver(estado.vivoDe, 'mestre'); vistaAoVivo(); aviso('Dado como resolvido. Os itens vão para quem está dentro.', 'feito') },
+  'mestre-recomecar': () => { recomecar(estado.vivoDe, 'mestre'); vistaAoVivo(); aviso('Recomeçado: as peças voltaram para quem pôs.') },
+  'bento-vivo': () => { bentoAge(); vistaAoVivo() },
+})
+Object.assign(MUDANCAS, {
+  nome: (el) => { const c = estado.cfg[estado.editando]; c.nome = el.value; const h = palco.querySelector('[data-nome-cab]'); if (h) h.textContent = el.value || 'Puzzle sem nome' },
+  lugar: (el) => {
+    const c = estado.cfg[estado.editando]
+    const base = BASE[c.visual.modelo]?.lugar
+    c.lugar = el.value === 'objeto' ? { tipo: 'objeto', texto: base?.tipo === 'objeto' ? base.texto : 'num objeto do mapa' } : el.value === 'ponto' ? { tipo: 'ponto', texto: base?.tipo === 'ponto' ? base.texto : 'num ponto do mapa' } : { tipo: 'nenhum', texto: 'sem lugar no mapa' }
+    repintarEditor(`[data-campo="lugar"][value="${el.value}"]`)
+  },
+  tipo: (el) => {
+    const id = estado.editando, c = estado.cfg[id]
+    recomecar(id, 'mestre')
+    c.tipo = el.value
+    if (c.tipo === 'combinacao' && !c.combinacao) c.combinacao = { numeros: [1, 2, 3], simbolos: ['coroa', 'olho', 'chave'] }
+    const dentro = estado.jogo[id].dentro
+    estado.jogo[id] = jogoInicial(c)
+    estado.jogo[id].dentro = dentro
+    repintarEditor(`[data-campo="tipo"][value="${el.value}"]`)
+  },
+  qualquer: (el) => { estado.cfg[estado.editando].qualquerOrdem = el.checked },
+  visual: (el) => {
+    const id = estado.editando, c = estado.cfg[id]
+    if (el.value === 'modelo') aplicarModelo(id, c.visual.modelo || 'fonte')
+    else c.visual.tipo = 'imagem'
+    repintarEditor(`[data-campo="visual"][value="${el.value}"]`)
+  },
+  imagem: (el) => {
+    const f = el.files?.[0]
+    if (!f) return
+    if (!f.type.startsWith('image/')) { aviso('Esse arquivo não é uma imagem.', 'perigo'); return }
+    const leitor = new FileReader()
+    leitor.onload = () => { estado.cfg[estado.editando].visual.imagem = leitor.result; repintarEditor(); aviso('Imagem carregada. Agora arraste os encaixes.', 'feito') }
+    leitor.onerror = () => aviso('Não consegui ler a imagem.', 'perigo')
+    leitor.readAsDataURL(f)
+  },
+  'enc-peca': (el) => { enc(estado.editando, el.dataset.enc).peca = el.value; const t = palco.querySelector(`[data-marco="${el.dataset.enc}"]`); if (t) t.setAttribute('aria-label', `Encaixe: ${PECAS[el.value]?.nome ?? 'sem peça'}`) },
+  'enc-metade': (el) => { enc(estado.editando, el.dataset.enc).pecas[+el.dataset.k] = el.value },
+  'segredo-num': (el) => { if (/^[0-9]{3}$/.test(el.value)) estado.cfg[estado.editando].combinacao.numeros = [...el.value].map(Number) },
+  'segredo-sim': (el) => { estado.cfg[estado.editando].combinacao.simbolos[+el.dataset.k] = el.value },
+  peso: (el) => { const v = Math.round(+el.value); if (v >= 1 && v <= 8) estado.cfg[estado.editando].troca.peso = v },
+  dica: (el) => { estado.cfg[estado.editando].dica = el.value },
+  desfecho: (el) => { estado.cfg[estado.editando].desfecho.tipo = el.value; repintarEditor(`[data-campo="desfecho"][value="${el.value}"]`) },
+  'desfecho-texto': (el) => { estado.cfg[estado.editando].desfecho.texto = el.value },
+  'dar-item': (el) => { if (!el.value) return; estado.cfg[estado.editando].desfecho.itens.push(el.value); repintarEditor('[data-campo="dar-item"]') },
+  castigo: (el) => { estado.cfg[estado.editando].castigo.tipo = el.value; repintarEditor(`[data-campo="castigo"][value="${el.value}"]`) },
+  dano: (el) => { const v = Math.round(+el.value); if (v >= 1 && v <= 20) estado.cfg[estado.editando].castigo.dano = v },
+  'castigo-texto': (el) => { estado.cfg[estado.editando].castigo.texto = el.value },
+  'vivo-de': (el) => { estado.vivoDe = el.value; vistaAoVivo(); palco.querySelector('[data-campo="vivo-de"]')?.focus() },
+})
+
+/* marcos de encaixe: arrastar e setas (imagem própria) */
+let arrastoMarco = null
+palco.addEventListener('pointerdown', (ev) => {
+  const m = ev.target.closest('.marco[data-marco]')
+  if (!m || ev.button !== 0 || m.getAttribute('aria-disabled') === 'true') return
+  arrastoMarco = { el: m, encId: m.dataset.marco, caixa: m.parentElement.getBoundingClientRect(), id: ev.pointerId }
+  m.setPointerCapture(ev.pointerId)
+})
+palco.addEventListener('pointermove', (ev) => {
+  const a = arrastoMarco
+  if (!a || ev.pointerId !== a.id) return
+  const x = Math.min(97, Math.max(3, ((ev.clientX - a.caixa.left) / a.caixa.width) * 100))
+  const y = Math.min(96, Math.max(4, ((ev.clientY - a.caixa.top) / a.caixa.height) * 100))
+  moverMarco(a.el, a.encId, x, y)
+})
+const soltarMarco = () => { arrastoMarco = null }
+palco.addEventListener('pointerup', soltarMarco)
+palco.addEventListener('pointercancel', soltarMarco)
+function moverMarco(el, encId, x, y) {
+  const e = enc(estado.editando, encId)
+  if (!e) return
+  e.x = Math.round(x * 10) / 10
+  e.y = Math.round(y * 10) / 10
+  el.style.left = `${e.x}%`
+  el.style.top = `${e.y}%`
+}
+palco.addEventListener('keydown', (ev) => {
+  const m = ev.target.closest?.('.marco[data-marco]')
+  if (!m || m.getAttribute('aria-disabled') === 'true') return
+  const d = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[ev.key]
+  if (!d) return
+  ev.preventDefault()
+  const e = enc(estado.editando, m.dataset.marco), passo = ev.shiftKey ? 5 : 1
+  moverMarco(m, m.dataset.marco, Math.min(97, Math.max(3, e.x + d[0] * passo)), Math.min(96, Math.max(4, e.y + d[1] * passo)))
+})
+
+/* ============================================================== eventos gerais, roteador, arranque */
+palco.addEventListener('click', (ev) => {
+  if (ignorarClique) { ignorarClique = false; return }
+  const acao = ev.target.closest('[data-acao]')
+  if (acao && palco.contains(acao)) {
+    if (acao.disabled) return
+    const f = ACOES[acao.dataset.acao]
+    if (f) { f(acao, ev); return }
+  }
+  const item = ev.target.closest('.pz .item[data-peca]')
+  if (item) { escolher(item.dataset.peca, ev.detail === 0); return }
+  const alvo = ev.target.closest('.pz [data-alvo]')
+  if (alvo && puzzleAtual) {
+    if (alvo.getAttribute('aria-disabled') === 'true') {
+      if (estado.jogo[puzzleAtual].resolvido) aviso('Preso: o puzzle já foi resolvido.')
+      else if (alvo.dataset.alvo === 'bandeja') aviso('As pedras ficaram presas no lugar da joia.')
+      return
+    }
+    if (alvo.dataset.alvo === 'encaixe') clicarEncaixe(puzzleAtual, alvo.dataset.enc)
+    else clicarBandeja()
+  }
+})
+function despacharMudanca(ev) {
+  const el = ev.target, campo = el.dataset?.campo
+  if (!campo || !MUDANCAS[campo]) return
+  const deTexto = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'number'))
+  if (deTexto !== (ev.type === 'input')) return
+  MUDANCAS[campo](el, ev)
+}
+palco.addEventListener('input', despacharMudanca)
+palco.addEventListener('change', despacharMudanca)
+document.addEventListener('keydown', (ev) => {
+  const emCampo = ev.target.closest?.('input, textarea, select')
+  if (ev.key === 'Escape') {
+    if (arrasto) { cancelarArrasto(); ev.preventDefault(); return }
+    if (puzzleAtual && vistaAtual === puzzleAtual) {
+      const j = estado.jogo[puzzleAtual]
+      if (j.cartao && palco.querySelector('[data-resultado]')) { fecharResultado(); return }
+      if (estado.sel) {
+        const p = estado.sel
+        estado.sel = null
+        pintarMochila(); pintarEncaixes(puzzleAtual)
+        palco.querySelector(`.item[data-peca="${p}"]`)?.focus()
+        return
+      }
+      if (!estado.fora[puzzleAtual] && !emCampo) { sair(puzzleAtual); return }
+    }
+    if (!emCampo && (vistaAtual === 'editor' || vistaAtual === 'aovivo')) ir('pagina')
+    return
+  }
+  if ((ev.key === 'e' || ev.key === 'E') && !emCampo && !ev.ctrlKey && !ev.metaKey && !ev.altKey && puzzleAtual && vistaAtual === puzzleAtual && estado.fora[puzzleAtual]) {
+    ev.preventDefault()
+    entrarEPintar(puzzleAtual)
+  }
+})
+
+const VISTAS = { amostras: vistaAmostras, pagina: vistaPagina, editor: vistaEditor, aovivo: vistaAoVivo }
+function ir(v) {
+  // pushState não dispara hashchange: a tela nova já existe quando ir() volta (foco e aviso dependem disso)
+  if (decodeURIComponent(location.hash.slice(1)) !== v) history.pushState(null, '', `#${v}`)
+  render()
+}
+function render() {
+  cancelarArrasto()
+  let v = decodeURIComponent(location.hash.slice(1)) || 'fonte'
+  if (!(v in VISTAS) && !(v in estado.cfg)) v = 'fonte'
+  if (v !== vistaAtual) { estado.sel = null; confirmarApagar = false }
+  vistaAtual = v
+  if (v in estado.cfg) vistaPuzzle(v)
+  else { puzzleAtual = null; VISTAS[v]() }
+  $$('.topo__bt').forEach((b) => { if (b.dataset.vista === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current') })
+}
+function aplicarRM() {
+  document.documentElement.classList.toggle('rm', reduzido())
+  const cb = $('#rm')
+  cb.checked = reduzido()
+  cb.disabled = mqRM.matches
+  cb.parentElement.title = mqRM.matches ? 'O sistema já pede movimento reduzido' : 'Simula o pedido de movimento reduzido do sistema'
+}
+
+gerarGrao()
+$('svg defs').insertAdjacentHTML('beforeend', FAROL)
+aplicarRM()
+mqRM.addEventListener('change', aplicarRM)
+$('#rm').addEventListener('change', (ev) => { rmManual = ev.target.checked; aplicarRM() })
+$$('.topo__bt').forEach((b) => b.addEventListener('click', () => ir(b.dataset.vista)))
+// voltar/avançar do navegador ou hash digitado: só repinta se a vista mudou (os dois eventos podem vir juntos)
+const aoNavegar = () => { if ((decodeURIComponent(location.hash.slice(1)) || 'fonte') !== vistaAtual) render() }
+window.addEventListener('hashchange', aoNavegar)
+window.addEventListener('popstate', aoNavegar)
+render()
+
+/* para as provas (Playwright): só leitura do estado e um recomeço geral */
+window.Proto = {
+  estado: () => estado,
+  amostras: () => AM,
+  ir,
+  reduzido,
+  recomecarTudo() { estado = estadoInicial(); AM = amostrasIniciais(); mapaCache = ''; render() },
+}
+})()
+</script>
+</body>
+</html>
