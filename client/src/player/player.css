@@ -1220,6 +1220,37 @@
 .pp-batalha-reacao > .bt-reacao {
   width: min(540px, calc(100vw - 24px - var(--pp-painel-ocupa, 0px)));
 }
+/*
+ * Pouca altura (8 na luta numa tela de 768): só o miolo da caixa rola (o dado e as escolhas, as técnicas,
+ * a lista de golpes); o título, o texto do golpe, o pé com "Não reagir" / "Passar sem tomar dano" e o
+ * "Depois Esc" ficam sempre à vista. A caixa e a REAÇÃO viram colunas flex que encolhem até o teto da
+ * caixa de fora; sem `overflow` na `.bt-reacao`, para o rasgo de sangue (o `::after` deslocado) não cortar.
+ */
+.pp-batalha-reacao {
+  display: flex;
+  flex-direction: column;
+}
+.pp-batalha-reacao > .bt-reacao {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.pp-batalha-reacao > .bt-reacao > * {
+  flex-shrink: 0;
+}
+.pp-batalha-reacao > .bt-reacao > .bt-reacao__linha,
+.pp-batalha-reacao > .bt-reacao > .bt-tecs,
+.pp-batalha-reacao > .bt-reacao > .bt-reacao__lista {
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* O d20 centra na altura só quando cabe: com rolagem, o alto do miolo continua alcançável. */
+.pp-batalha-reacao > .bt-reacao > .bt-reacao__linha {
+  align-items: safe center;
+}
 
 /* Janela estreita: a faixa desce para baixo da barra (largura toda); o menu
    começa abaixo dela e termina acima do botão REAÇÃO. */
