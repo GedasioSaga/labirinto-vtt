@@ -5,6 +5,7 @@ import { useMapStore } from '../stores/mapStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { aplicarPedidoDBT, espelhoDBT } from './espelhoDBT'
 import { aplicarPedidoOP, espelhoOP } from './espelhoOP'
+import { abrirOLivroDaBatalha, useTelaDaMesa } from './telaDaMesa'
 import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
 /**
@@ -37,6 +38,11 @@ export function espelhoAgora(): EspelhoDaBatalha | null {
  */
 export function aplicarPedido(pedido: PedidoDaMesa): RespostaDaMesa {
   if (pedido.sceneKey !== cenaAberta()) return { ok: false, motivo: 'A cena aberta mudou: a mesa já mostra a nova.' }
+  if (pedido.acao === 'abrirLivro') {
+    // Não é da batalha: o App abre o livro da mesa na página Batalha (dano, selos, extras, regras, formas).
+    abrirOLivroDaBatalha()
+    return { ok: true, motivo: null }
+  }
   if (Object.hasOwn(useBatalhaStore.getState().cenas, pedido.sceneKey)) return aplicarPedidoOP(pedido)
   if (Object.hasOwn(useBatalhaDBTStore.getState().cenas, pedido.sceneKey)) return aplicarPedidoDBT(pedido)
   return { ok: false, motivo: 'A batalha desta cena já acabou.' }
@@ -61,6 +67,7 @@ function referencias(): readonly unknown[] {
     sistemaAtivo(aventura),
     mochilaMoraNaFicha(aventura),
     useRpgStore.getState().biblioteca,
+    useTelaDaMesa.getState().menuDoMapa,
   ]
 }
 
@@ -82,7 +89,14 @@ export function assinarEspelho(aoMudar: (espelho: EspelhoDaBatalha | null) => vo
     antes = agora
     agendado ??= setTimeout(mandar, ESPELHO_A_CADA_MS)
   }
-  const desligar = [useBatalhaStore.subscribe(conferir), useBatalhaDBTStore.subscribe(conferir), useMapStore.subscribe(conferir), useAdventureStore.subscribe(conferir), useRpgStore.subscribe(conferir)]
+  const desligar = [
+    useBatalhaStore.subscribe(conferir),
+    useBatalhaDBTStore.subscribe(conferir),
+    useMapStore.subscribe(conferir),
+    useAdventureStore.subscribe(conferir),
+    useRpgStore.subscribe(conferir),
+    useTelaDaMesa.subscribe(conferir),
+  ]
   antes = referencias()
   aoMudar(espelhoAgora())
   return () => {
