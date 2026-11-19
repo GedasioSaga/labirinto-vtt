@@ -100,7 +100,7 @@ export interface CuraDoItemNoAlvo {
 }
 
 /** O miolo de `mexerNaFicha` e `trocarFicha`: `mudar` devolve `null` = não deu (a ficha fica). */
-export function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: SistemaDeRpg, mudar: (atual: Personagem) => Personagem | null): ParteDaFicha[] | null | Recusada {
+function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: SistemaDeRpg, mudar: (atual: Personagem) => Personagem | null): ParteDaFicha[] | null | Recusada {
   // Num objeto: a atribuição dentro do callback não estreita a variável de fora (o TS a daria como sempre `null`).
   const feito: { partes: ParteDaFicha[] | null } = { partes: null }
   const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
@@ -140,7 +140,7 @@ export function gastarMunicaoNaMesa(mesa: MesaDaBatalha, sceneKey: string, token
  * só recebe a ligação da bala pelo nome (o `itemId` no subcartão), nunca a
  * mochila. Mesmo contrato de `gastarMunicaoNaMesa`.
  */
-export function gastarMunicaoDoBoneco(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string, doBoneco: readonly CarriedItem[]): Reversao | null | 'recusada' {
+function gastarMunicaoDoBoneco(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string, doBoneco: readonly CarriedItem[]): Reversao | null | 'recusada' {
   const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
   const gasta = ficha === undefined ? null : gastarMunicaoDaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), armaId, balaId)
   if (gasta === null) return null

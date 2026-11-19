@@ -22,7 +22,7 @@ import type { NucleoDaBatalha } from './nucleo'
 import type { VezDaBatalha } from './vez'
 
 /** Janela em que movimentos seguidos da mesma carta pelo mestre viram uma linha (Alt + seta repetido). */
-export const JANELA_DO_MOVIMENTO_MS = 5_000
+const JANELA_DO_MOVIMENTO_MS = 5_000
 
 /** A ordem presa ao núcleo da store e à vez. */
 export function criarOrdem(nucleo: NucleoDaBatalha, fatiaDaVez: VezDaBatalha) {
@@ -161,6 +161,3 @@ export function criarOrdem(nucleo: NucleoDaBatalha, fatiaDaVez: VezDaBatalha) {
   }
   return { acoes }
 }
-
-/** O que `criarOrdem` devolve. */
-export type OrdemDaBatalha = ReturnType<typeof criarOrdem>

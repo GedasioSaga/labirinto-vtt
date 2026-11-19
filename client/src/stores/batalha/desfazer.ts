@@ -27,19 +27,19 @@ import type { BatalhaDaCena } from './tipos'
 import { trocarEquipeNaMesa, tirarDoMapa } from './naMesa'
 
 /** O nome que vai no histórico da ficha ao desfazer: diferente do autor, para o `registrar` não fundir e apagar a linha velha. */
-export function quemDesfezNaFicha(autor: AutorDaAcao): string {
+function quemDesfezNaFicha(autor: AutorDaAcao): string {
   return `${autor.tipo === 'mestre' ? NOME_DO_MESTRE : autor.nome} (desfez)`
 }
 
 /** O que o Desfazer fez com uma reversão: a cena nova, se voltou só em parte, e se deu. */
-export interface Desfeito {
+interface Desfeito {
   cena: BatalhaDaCena
   emParte: boolean
   ok: boolean
 }
 
 /** As partes de uma reversão, abrindo as compostas. */
-export function partesSoltas(reversao: Reversao): Reversao[] {
+function partesSoltas(reversao: Reversao): Reversao[] {
   return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesSoltas) : [reversao]
 }
 

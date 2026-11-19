@@ -27,7 +27,7 @@ export const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
 
 export const SEM_TRILHAS: Readonly<Record<string, readonly Casa[]>> = {}
 
-export const SEM_LINHAS: readonly LinhaDoRegistro[] = []
+const SEM_LINHAS: readonly LinhaDoRegistro[] = []
 
 export const CENA_NOVA: BatalhaDaCena = {
   caminhos: SEM_CAMINHOS,

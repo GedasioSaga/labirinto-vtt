@@ -51,7 +51,7 @@ import { efeitosDosSelos } from './selos'
 import { golpesDaVezQueAcaba, type GolpeNaStore } from './golpe'
 
 /** O que o começo de vez (`comecarAVez`) recebe de quem andou a vez: os turnos de antes e de depois e o que vai na linha "vez". */
-export interface VezQueComeca {
+interface VezQueComeca {
   /** Os turnos de antes da vez andar (no "Passar a vez", depois dos "Não reagiu" da virada). */
   antes: TurnosDaCena
   /** Os turnos com a vez nova e os lembretes do começo dela. */

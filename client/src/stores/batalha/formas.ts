@@ -47,7 +47,7 @@ import { MESTRE, GASTO_ZERO, comMudanca, type EfeitoNovo, comEfeitos, quemNaFich
 import { mexerNaFicha, reversaoDaFicha, trocarFicha } from './naMesa'
 import type { NucleoDaBatalha } from './nucleo'
 
-export const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre' }
+const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre' }
 
 /** As formas presas ao núcleo da store. */
 export function criarFormas(nucleo: NucleoDaBatalha) {

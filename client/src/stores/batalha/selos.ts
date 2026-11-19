@@ -34,7 +34,7 @@ export function efeitosDosSelos(acabaram: readonly SeloDaBatalha[]): EfeitoNovo[
 }
 
 /** Q6: o selo do golpe no alvo que ele ACERTOU (resolvido com saída que pega). Sem selo, sem acerto ou no teto: `null`. */
-export function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
+function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
   if (golpe.selo === undefined || alvo.saida === undefined || !pegaOSelo(alvo.saida)) return null
   const pedido = golpe.selo
   // F2 (fatia A): o selo que renova (Queimando) volta aos turnos cheios em vez de pôr outro.
@@ -46,7 +46,7 @@ export function seloDoGolpe(turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: A
 }
 
 /** F2 (fatia A): o selo igual que já está no alvo e renova; `null` = não renova (põe um novo). */
-export function seloRenovado(turnos: TurnosDaCena, tokenId: string, pedido: SeloDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
+function seloRenovado(turnos: TurnosDaCena, tokenId: string, pedido: SeloDoGolpe): { selos: SeloDaBatalha[]; parte: Reversao } | null {
   const comportamento = comportamentoDoSelo(pedido.nome)
   if (comportamento?.renova !== true) return null
   const antes = (turnos.selos ?? []).find((selo) => selo.tokenId === tokenId && comportamentoDoSelo(selo.nome) === comportamento)

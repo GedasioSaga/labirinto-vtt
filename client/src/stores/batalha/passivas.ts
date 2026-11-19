@@ -561,6 +561,3 @@ export function criarPassivas(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaB
   }
   return { acoes }
 }
-
-/** O que `criarPassivas` devolve. */
-export type PassivasDaBatalha = ReturnType<typeof criarPassivas>

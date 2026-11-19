@@ -76,18 +76,18 @@ import type { NucleoDaBatalha } from './nucleo'
 import type { FormasDaBatalha } from './formas'
 import type { SelosDaBatalha } from './selos'
 
-export function novoIdDeGolpe(): string {
+function novoIdDeGolpe(): string {
   return `golpe_${crypto.randomUUID()}`
 }
 
 /** R5: a ficha do token gastou a reação no contador (fica sem reagir até a vez dela). */
-export function gastouAReacao(turnos: TurnosDaCena, tokenId: string): boolean {
+function gastouAReacao(turnos: TurnosDaCena, tokenId: string): boolean {
   const personagemId = personagemDoTokenNa(turnos)(tokenId)
   return personagemId !== undefined && personagemId !== null && turnos.combate?.[personagemId]?.semReacao === true
 }
 
 /** A lista com o golpe trocado (ou tirado, se não espera mais ninguém). */
-export function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaBatalha): GolpeDaBatalha[] {
+function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaBatalha): GolpeDaBatalha[] {
   const outros = (golpes ?? []).filter((candidato) => candidato.id !== golpe.id)
   return golpePendente(golpe) ? [...outros, golpe] : outros
 }
@@ -96,7 +96,7 @@ export function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: G
  * O dano final do alvo na ficha dele, com o efeito "dano". Golpe perfurante (Q4) não gasta o Escudo; com `perfuracao`, só
  * aquela porcentagem pula o Escudo. `'recusada'` (bug 11): a mesa não gravou o dano; quem chama para sem linha e sem animação.
  */
-export function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'> & Partial<Pick<GolpeDaBatalha, 'curaDoDano' | 'atacantePersonagemId'>>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
+function danoNoAlvo(mesa: MesaDaBatalha, alvo: AlvoDoGolpe, golpe: Pick<GolpeDaBatalha, 'perfurante' | 'perfuracao'> & Partial<Pick<GolpeDaBatalha, 'curaDoDano' | 'atacantePersonagemId'>>, autor: AutorDaAcao): { partes: Reversao[]; efeito: EfeitoNovo | null } | Recusada {
   if (alvo.danoFinal === undefined || alvo.saida === undefined) return { partes: [], efeito: null }
   const valor = alvo.danoFinal
   const partes = alvo.personagemId === null || valor <= 0 ? null : mexerNaFicha(mesa, alvo.personagemId, (atual, sistema) => ajustesDoDano(atual, sistema, valor, golpe.perfurante, golpe.perfuracao), quemNaFicha(autor))
@@ -121,7 +121,7 @@ export function novoIdDaMarca(): string {
  * ficha (o dobro sai no número do dano e no texto). A passiva de marca é a do
  * personagem de quem atacou; a técnica que marca é a do golpe (`golpe.marca`).
  */
-export function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): AcertoNaMarca {
+function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeDaBatalha, alvo: AlvoDoGolpe): AcertoNaMarca {
   const sistema = mesa.sistema()
   const atacante = golpe.atacantePersonagemId === null ? undefined : mesa.personagens().find((personagem) => personagem.id === golpe.atacantePersonagemId)
   const passiva = sistema === null || atacante === undefined ? null : (passivaDaMarca(atacante, sistema)?.cartao ?? null)
@@ -161,14 +161,14 @@ export function golpesDaVezQueAcaba(cena: BatalhaDaCena): ReadonlySet<string> {
 }
 
 /** "+1 Simples, +1 Bônus". */
-export function textoDasExtras(extras: AcoesExtras): string {
+function textoDasExtras(extras: AcoesExtras): string {
   const partes = [extras.simples > 0 ? `+${extras.simples} Simples` : null, extras.bonus > 0 ? `+${extras.bonus} Bônus` : null, extras.mov > 0 ? `+${extras.mov} Movimento` : null]
   return partes.filter((parte): parte is string => parte !== null).join(', ')
 }
 
-export const EXTRAS_MAX = 20
+const EXTRAS_MAX = 20
 
-export function contadorDeExtra(valor: number): number {
+function contadorDeExtra(valor: number): number {
   return Number.isFinite(valor) ? Math.min(EXTRAS_MAX, Math.max(0, Math.trunc(valor))) : 0
 }
 

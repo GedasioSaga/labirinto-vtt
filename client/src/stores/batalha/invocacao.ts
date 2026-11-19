@@ -173,6 +173,3 @@ export function criarInvocacao(nucleo: NucleoDaBatalha, fatiaDoGolpe: GolpeNaSto
   }
   return { acoes }
 }
-
-/** O que `criarInvocacao` devolve. */
-export type InvocacaoDaBatalha = ReturnType<typeof criarInvocacao>
