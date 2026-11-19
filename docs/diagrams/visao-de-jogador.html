@@ -66,6 +66,7 @@
   <div class="diagram">
     <svg viewBox="0 0 920 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="visao-de-jogador-title visao-de-jogador-desc">
       <title id="visao-de-jogador-title">Arquitetura da Visão de jogador</title>
+      <!-- nota de 19/11/2026 (fechamento): o App liga o comoORust (DepsDaVisao.comoORust; testes da Visão seguem com entrega na hora) e o net_send como o Rust leva tempo pelo tamanho ANTES de entrar na fila (CARACTERES_POR_MS_DO_IPC): a pequena chamada solta logo depois da grande chega primeiro, a corrida do F5 que a fila sempreEmFila da ponte fecha -->
       <!-- nota de 18/11/2026 (rede): o transporte local ganhou o modo comoORust (opção de criarTransporteLocal, desligado por padrão): JSON ida e volta e entrega depois do net_send, em ordem por conexão, fila de 256, texto do jogador acima de 64 KB derruba a conexão e acima de 30 msg/s some, como o server.rs; ligar na ponte de teste fica para a fase de testes -->
       <desc id="visao-de-jogador-desc">Arquitetura em que o editor alimenta uma ponte de teste com o mundo vivo mais uma camada descartável, a tela real do jogador numa segunda janela conversa com ela por um canal, e os pedidos e o fantasma voltam só como avisos e desenho no editor; a dança e a pesca do pino passam no Olhar, e pedir a pesca pelo pino só no Jogar. Pelo canal, o host manda o modo no config e a lista de pedidos, e a janela devolve a resposta do mestre em responder-pedido.</desc>
       <defs>

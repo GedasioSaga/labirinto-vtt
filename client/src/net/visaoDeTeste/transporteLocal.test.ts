@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { criarSaidaEmOrdem } from '../pacoteComprimido'
 import type { MensagemDoHost } from './protocoloDoCanal'
-import { criarTransporteLocal } from './transporteLocal'
+import { CARACTERES_POR_MS_DO_IPC, criarTransporteLocal } from './transporteLocal'
 
 /**
  * O "Rust" da ponte de teste: os comandos e eventos que `hostBridge.ts` usa,
@@ -111,5 +112,47 @@ describe('transporteLocal', () => {
     transporte.receber({ de: 'janela', tipo: 'msg', sessao: SESSAO, conexao: 1, data: '{}' })
 
     expect(mensagens).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * COMO O RUST (análise 18/11/2026, 2.2, e o "F5 tira da batalha"): cada `net_send` é uma tarefa solta que atravessa
+ * o IPC pelo tamanho. A corrida que o conserto `sempreEmFila` fecha aparece aqui sem a sala real.
+ */
+describe('transporteLocal como o Rust', () => {
+  /** ~8 ms de IPC: o snapshot com o mapa grande. */
+  const SNAPSHOT_GRANDE = { type: 'snapshot', map: 'x'.repeat(8 * CARACTERES_POR_MS_DO_IPC) }
+  const ESTADO_DA_BATALHA = { type: 'batalha.estado' }
+  const umaVoltaDoRelogio = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
+  function montaComoORust() {
+    const enviadas: MensagemDoHost[] = []
+    const transporte = criarTransporteLocal({ sessao: SESSAO, geracao: 1, codigo: 'ABC234', comoORust: true, enviar: (m) => enviadas.push(m) })
+    transporte.receber({ de: 'janela', tipo: 'abrir', sessao: SESSAO, geracao: 1, conexao: 1 })
+    const tiposQueChegaram = () => enviadas.flatMap((m) => (m.tipo === 'msg' && 'type' in m.msg && typeof m.msg.type === 'string' ? [m.msg.type] : []))
+    return { transporte, tiposQueChegaram }
+  }
+
+  it('duas chamadas soltas: o estado da batalha logo depois do snapshot grande chega ANTES dele (a corrida)', async () => {
+    const { transporte, tiposQueChegaram } = montaComoORust()
+    await Promise.all([
+      transporte.invoke('net_send', { clientId: 'teste-1', msg: SNAPSHOT_GRANDE }),
+      transporte.invoke('net_send', { clientId: 'teste-1', msg: ESTADO_DA_BATALHA }),
+    ])
+    await umaVoltaDoRelogio()
+    expect(tiposQueChegaram()).toEqual(['batalha.estado', 'snapshot'])
+  })
+
+  it('pela saída em ordem da ponte (sempreEmFila), a mesma dupla chega na ordem em que saiu', async () => {
+    const { transporte, tiposQueChegaram } = montaComoORust()
+    const enviar = criarSaidaEmOrdem(
+      async (clientId, carga) => {
+        await transporte.invoke('net_send', { clientId, msg: carga })
+      },
+      { sempreEmFila: true },
+    )
+    await Promise.all([enviar('teste-1', SNAPSHOT_GRANDE, false), enviar('teste-1', ESTADO_DA_BATALHA, false)])
+    await umaVoltaDoRelogio()
+    expect(tiposQueChegaram()).toEqual(['snapshot', 'batalha.estado'])
   })
 })

@@ -1137,6 +1137,8 @@ function App() {
       criarJanela: criarJanelaDoSistema,
       // MÍDIA DA MESA: a janela de teste busca a imagem do item e o retrato no disco, pela ponte de arquivos.
       baseDaMidia: baseDaMidiaConhecida,
+      // A janela de teste entrega como a sala de verdade (depois do comando, com fila e taxa): o que passa nela passa no Rust.
+      comoORust: true,
       // A memória do dono, só lida: a ponte da sala (aberta) ou a mesa e o explorado
       // gravados desta aventura (os mesmos do "Retomar a mesa" e da lista de donos).
       ponteDaSala: () => hostBridgeRef.current,

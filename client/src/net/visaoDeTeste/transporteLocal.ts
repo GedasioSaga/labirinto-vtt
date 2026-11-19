@@ -34,9 +34,12 @@ export interface OpcoesDoTransporte {
    * COMO O RUST (análise 18/11/2026, 2.2): sem isto a janela de teste entrega
    * tudo na hora, em ordem e sem limite, e o que passa nela pode falhar na sala
    * real. Ligado, faz o que `desktop/src-tauri/src/net/server.rs` faz:
-   * - `net_send`: a mensagem vai por JSON ida e volta (o `invoke` do Tauri) e
-   *   chega DEPOIS de o comando voltar, em ordem por conexão; mais de
-   *   `FILA_DE_SAIDA` esperando = `net_send` falha (`OUTBOX_CAPACITY`);
+   * - `net_send`: a mensagem vai por JSON ida e volta (o `invoke` do Tauri),
+   *   leva tempo pelo tamanho ANTES de o comando voltar (`CARACTERES_POR_MS_DO_IPC`:
+   *   cada `invoke` é uma tarefa solta, e a pequena chamada logo depois da grande
+   *   chega primeiro, a corrida do "F5 tira da batalha"), e da fila do Rust em
+   *   diante sai em ordem por conexão; mais de `FILA_DE_SAIDA` esperando =
+   *   `net_send` falha (`OUTBOX_CAPACITY`);
    * - do jogador: texto acima de `MAX_BYTES_DO_JOGADOR` derruba a conexão
    *   (`MAX_MESSAGE_BYTES`), e acima de `MENSAGENS_POR_SEGUNDO` o excesso some
    *   calado (`MAX_MESSAGES_PER_SECOND`, balde que começa cheio).
@@ -53,6 +56,12 @@ export const MAX_BYTES_DO_JOGADOR = 64 * 1024
 export const MENSAGENS_POR_SEGUNDO = 30
 /** `OUTBOX_CAPACITY` de `server.rs`: mensagens do host esperando para sair a uma conexão. */
 export const FILA_DE_SAIDA = 256
+/**
+ * COMO O RUST: quanto do JSON o `invoke` atravessa por ms antes de o `net_send` pôr a mensagem na fila (o mapa de
+ * 1 MB leva ~16 ms; o `batalha.estado` de 2 KB, 0). Ordem de grandeza, não medida: o que importa é a grande
+ * demorar mais que a pequena, como a serialização do IPC.
+ */
+export const CARACTERES_POR_MS_DO_IPC = 64 * 1024
 
 type Ouvinte = (event: { payload: unknown }) => void
 
@@ -137,7 +146,7 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
           enviar({ de: 'host', tipo: 'msg', sessao, conexao, msg })
           return undefined
         }
-        mandarComoORust(conexao, msg)
+        await mandarComoORust(conexao, msg)
         return undefined
       }
       case 'net_kick': {
@@ -163,12 +172,17 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
 
   /**
    * COMO O RUST, a ida: JSON ida e volta (campo `undefined` some, `Map` vira `{}`, ciclo lança como no `invoke`),
-   * fila cheia lança como o `net_send` do Rust, e a entrega fica para depois de o comando voltar. `setTimeout`
-   * mantém a ordem de chegada, então cada conexão recebe na ordem em que a ponte mandou.
+   * o tempo do IPC pelo tamanho antes de entrar na fila (duas chamadas soltas podem trocar de ordem; a fila em
+   * ordem da ponte, `sempreEmFila`, espera uma voltar antes de chamar a outra), fila cheia lança como o
+   * `net_send` do Rust, e a entrega fica para depois de o comando voltar, na ordem em que entrou na fila.
    */
-  const mandarComoORust = (conexao: number, msg: object): void => {
-    const copia: unknown = JSON.parse(JSON.stringify(msg))
+  const mandarComoORust = async (conexao: number, msg: object): Promise<void> => {
+    const texto = JSON.stringify(msg)
+    const copia: unknown = JSON.parse(texto)
     if (typeof copia !== 'object' || copia === null) return
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.floor(texto.length / CARACTERES_POR_MS_DO_IPC)))
+    // Fechou enquanto atravessava: some, como no socket fechado.
+    if (clientIdDaConexao(conexao) === null) return
     const esperando = naFila.get(conexao) ?? 0
     if (esperando >= FILA_DE_SAIDA) throw new Error('fila de saída cheia: a janela de teste não está lendo')
     naFila.set(conexao, esperando + 1)

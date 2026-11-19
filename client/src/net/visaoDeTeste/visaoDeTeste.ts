@@ -142,6 +142,13 @@ export interface DepsDaVisao extends FontesDaSemente {
   criarJanela: (aoFecharPorFora: () => void) => JanelaDeTeste
   /** MÍDIA DA MESA: onde a janela busca as imagens por referência (`baseDaMidiaNoMestre`); `null` ou ausente = só as embutidas. */
   baseDaMidia?: () => string | null
+  /**
+   * COMO O RUST (análise 18/11/2026, 2.2): a ponte de teste entrega como a sala
+   * de verdade (`transporteLocal.ts`: depois de o comando voltar, fila de saída
+   * com teto, taxa e tamanho do jogador). O App liga; ausente = entrega na hora,
+   * que é com o que os testes da Visão contam.
+   */
+  comoORust?: boolean
   novaSessao?: () => string
   novoCodigo?: () => string
   agora?: () => number
@@ -473,7 +480,13 @@ export function criarControladorDaVisao(deps: DepsDaVisao): ControladorDaVisao {
     const cenas = semente === null || s.semMemoria ? [] : semente.cenas
     // O fator não vai na mesa: entra quando o jogador de teste pegar a ficha, uma vez por geração.
     let fatorPendente = semente === null ? null : semente.visionFactor
-    const transporte = criarTransporteLocal({ sessao: s.id, geracao, codigo, enviar: (mensagem) => enviar(s, mensagem) })
+    const transporte = criarTransporteLocal({
+      sessao: s.id,
+      geracao,
+      codigo,
+      comoORust: deps.comoORust === true,
+      enviar: (mensagem) => enviar(s, mensagem),
+    })
     // Os pedidos que esperam o mestre também vão à janela de teste (caça J6): quem testa sozinho responde lá.
     const avisos = criarAvisosDeTeste(deps.avisos, (pedidos) => {
       if (daGeracaoAtual()) enviar(s, { de: 'host', tipo: 'pedidos', sessao: s.id, geracao, pedidos })
