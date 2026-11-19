@@ -1,5 +1,5 @@
 import type { LojaItem, MapData, Pin } from '../types/map'
-import { ehRefDeMidia } from './midia'
+import { dadosDoItemLidos, ehIdDeItemDoAcervo } from './leituraDoItem'
 
 /**
  * LOJA COM PREÇOS — a banca de um pino: mercadorias com nome, preço e estoque.
@@ -28,29 +28,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Os tetos do item do Acervo (`ITEM_DESCRICAO_MAX`, `ITEM_CATEGORIA_MAX`,
- * `ITEM_PRECO_MAX` de `lib/items.ts`), repetidos pelo mesmo motivo do
- * `LOJA_NOME_MAX`: `lib/items.ts` importa este arquivo.
- */
-const COISA_DESCRICAO_MAX = 2000
-const COISA_CATEGORIA_MAX = 40
-const COISA_PRECO_MAX = 1_000_000_000_000
-const ID_DA_COISA = /^[A-Za-z0-9_-]{1,80}$/
-
-/**
  * Fase 5: a coisa do Acervo que a mercadoria vende, como veio de fora. Só
- * entra com o id do Acervo; o resto é tolerante (campo torto sai). A imagem
- * só como referência de mídia, como na mochila. `undefined` = mercadoria digitada.
+ * entra com o id do Acervo; o resto passa pela MESMA leitura do item no chão,
+ * no baú e na mochila (`dadosDoItemLidos`, 18/11/2026): a luz da tocha e as
+ * munições da arma voltam do disco, e a mercadoria não é pilha (sem
+ * `quantidade`: a venda é de um). `undefined` = mercadoria digitada.
  */
 function coisaDaMercadoria(value: unknown): LojaItem['acervo'] {
-  if (!isRecord(value) || typeof value.itemId !== 'string' || !ID_DA_COISA.test(value.itemId)) return undefined
-  const coisa: NonNullable<LojaItem['acervo']> = { itemId: value.itemId }
-  if (ehRefDeMidia(value.imagem)) coisa.imagem = value.imagem
-  if (typeof value.descricao === 'string' && value.descricao.trim() !== '') coisa.descricao = value.descricao.slice(0, COISA_DESCRICAO_MAX)
-  if (typeof value.categoria === 'string' && value.categoria.trim() !== '') coisa.categoria = value.categoria.trim().slice(0, COISA_CATEGORIA_MAX)
-  if (typeof value.preco === 'number' && Number.isSafeInteger(value.preco) && value.preco >= 0 && value.preco <= COISA_PRECO_MAX) coisa.preco = value.preco
-  if (value.empilhavel === true) coisa.empilhavel = true
-  return coisa
+  if (!isRecord(value) || !ehIdDeItemDoAcervo(value.itemId)) return undefined
+  const { quantidade: _umPorVenda, ...dados } = dadosDoItemLidos(value)
+  return { ...dados, itemId: value.itemId }
 }
 
 /** O preço da mercadoria do Acervo em moedas, que a venda cobra da bolsa; `null` = não cobra (digitada, ou a coisa sem preço). */

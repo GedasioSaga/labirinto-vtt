@@ -805,6 +805,15 @@ export interface DadosDoItem {
    * Ausente = não ilumina, sem migração.
    */
   luz?: LuzDoItem
+  /**
+   * MUNIÇÃO (pedido de 16/11/2026): as munições que a arma de fogo do Acervo
+   * aceita, copiadas ao ser dada — id do item de Munição e o nome. A vaga
+   * leva a lista porque o app do jogador não vê o Acervo do mestre: assim ele
+   * vê "Balas de prata" na mira mesmo com 0. Ausente = a vaga não declara (a
+   * batalha cai no Acervo de agora, `lib/batalha/municoesDoAcervo.ts`). Desde
+   * 18/11/2026 a lista anda por toda porta do item (chão, baú, loja, mochila).
+   */
+  municoes?: { itemId: string; nome: string }[]
 }
 
 /**
@@ -832,14 +841,6 @@ export type LuzDoItem = {
 export interface CarriedItem extends DadosDoItem {
   id: string
   nome: string
-  /**
-   * MUNIÇÃO (pedido de 16/11/2026): as munições que a arma de fogo do Acervo
-   * aceita, copiadas ao ser dada — id do item de Munição e o nome. A vaga
-   * leva a lista porque o app do jogador não vê o Acervo do mestre: assim ele
-   * vê "Balas de prata" na mira mesmo com 0. Ausente = a vaga não declara (a
-   * batalha cai no Acervo de agora, `lib/batalha/municoesDoAcervo.ts`).
-   */
-  municoes?: { itemId: string; nome: string }[]
   /**
    * ITEM QUE ILUMINA: a vaga está acesa (o "Acender" da mochila, do mestre ou
    * do dono). Só vale com `luz`; a luz anda com a ficha. Largar no chão, dar ou
