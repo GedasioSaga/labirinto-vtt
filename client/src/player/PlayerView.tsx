@@ -136,15 +136,18 @@ import {
   TURN_RING_BEAT_MIN_ALPHA,
   TURN_RING_BEAT_MS,
   TURN_RING_BEAT_SCALE,
-  TURN_RING_COLOR,
-  TURN_RING_GAP,
   TURN_RING_PULSE_FROM_SCALE,
-  TURN_RING_WIDTH,
 } from '../pixi/constants'
 import { criarGradeDaBatalha, type GradeDaBatalha } from '../pixi/gradeDaBatalha'
 import { parseHexColor } from '../lib/tokenColor'
 import { readTokenHealth } from '../lib/tokenHealth'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from '../pixi/drawTokenHealth'
+import { desenharAnel } from '../pixi/drawMarcasDoCampo'
+import type { CampoDaBatalha } from '../lib/batalha/marcasNoCampo'
+import { criarCampoNoJogador, type CampoNoJogador } from './campoNoJogador'
+import { criarFiosDaBatalha, type FiosDaBatalha } from '../pixi/fiosDaBatalha'
+import { criarAlcanceDaBatalha, type AlcanceDaBatalha } from '../pixi/alcanceDaBatalha'
+import { criarCalculoDoAlcance, type CalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
 import {
   criarTextoDosSelos,
   escalarTextoDosSelos,
@@ -312,6 +315,16 @@ interface PlayerViewProps {
    * de leve a cada 3 s enquanto a vez for dela. `null`/omitido = nenhuma.
    */
   vezTokenId?: string | null
+  /**
+   * CAMPO DE BATALHA (19/11): o lado, o anel de quem espera e o alvo de cada
+   * ficha que ele vê (`campoDoJogador`, lib/batalha/marcasNoCampo.ts). `null`/omitido = fora da batalha.
+   */
+  campo?: CampoDaBatalha | null
+  /**
+   * CAMPO DE BATALHA: a ficha DELE que tem a vez e os blocos que sobram (o Mov da
+   * vez menos o andado), para as casas claras de até onde dá para andar. `null` = nenhuma.
+   */
+  alcanceDaVez?: { tokenId: string; sobra: number } | null
   /**
    * BATALHA F3 (fatia J): onde o Judge está (`batalha.estado.judge`); `null`/
    * omitido = fora de batalha. Por cima das fichas e da névoa (Q7), virado
@@ -1506,6 +1519,14 @@ interface Scene {
    * antes do primeiro: abrir a tela com a vez andando não pulsa a chegada).
    */
   anelDaVez: Graphics
+  /** CAMPO DE BATALHA: o lado, o tracejado de quem espera e os cantos do alvo (`campoNoJogador.ts`). */
+  campo: CampoNoJogador
+  /** CAMPO DE BATALHA: os fios entre fichas e as casas ao alcance, no chão da grade da batalha. */
+  fios: FiosDaBatalha
+  alcance: AlcanceDaBatalha
+  calcularAlcance: CalculoDoAlcance
+  /** O que o chão da batalha desenhou por último: o zoom refaz o traço (px de tela) com isto. */
+  chaoDaBatalha: { map: MapData; campo: CampoDaBatalha | null; casas: readonly { col: number; row: number }[] | null } | null
   vezDoAnel: string | null
   vezAnterior: string | null | undefined
   raioDoAnel: number
@@ -1784,12 +1805,40 @@ function applyCamera(scene: Scene, zoomLayers: ZoomLayersTiming = 'agora'): void
   scene.caminhos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.regionsRenderer.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   ajustarGradeDaBatalhaAVista(scene)
+  desenharChaoDaBatalha(scene)
   scene.fogos.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.estrelas.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   scene.judge.ajustarAVista(vistaDaCamera(scene.camera, scene.app.screen))
   if (zoomLayers === 'agora') syncZoomLayers(scene)
   scene.textResolution.schedule()
   if (scene.espelho?.modo === 'publica') scene.espelho.espelho.publicar(scene.camera)
+}
+
+/**
+ * CAMPO DE BATALHA: as casas ao alcance da ficha dele que tem a vez e os fios
+ * (golpe esperando a reação, contra-ataque), com o último mapa e campo. Sem
+ * mudança (as mesmas casas, as mesmas pontas, o mesmo zoom), nada desenha.
+ */
+function desenharChaoDaBatalha(scene: Scene): void {
+  const chao = scene.chaoDaBatalha
+  const escala = scene.camera.scale
+  scene.alcance.desenhar(chao?.casas ?? null, chao?.map.grid ?? 0, escala)
+  scene.fios.desenhar(
+    chao?.campo?.fios ?? null,
+    (tokenId) => {
+      const token = chao?.map.tokens.find((t) => t.id === tokenId)
+      if (chao === null || token === undefined || scene.tokenViews.get(tokenId)?.wrapper.visible === false) return null
+      return { x: token.x, y: token.y, raio: (chao.map.grid * token.size) / 2 }
+    },
+    escala,
+  )
+}
+
+/** CAMPO DE BATALHA: lê de novo o que o chão desenha (o mapa, o campo e as casas da vez) e desenha. */
+function sincronizarChaoDaBatalha(scene: Scene, map: MapData, campo: CampoDaBatalha | null, alcanceDaVez: { tokenId: string; sobra: number } | null): void {
+  const casas = scene.calcularAlcance(map, alcanceDaVez?.tokenId ?? null, alcanceDaVez?.sobra ?? null)
+  scene.chaoDaBatalha = { map, campo, casas }
+  desenharChaoDaBatalha(scene)
 }
 
 /** MODO BATALHA (B5): a grade de batalha segue a câmera; dentro da folga já desenhada, não refaz nada. */
@@ -1850,9 +1899,11 @@ function syncAnelDaVez(scene: Scene, map: MapData, vezTokenId: string | null, no
   }
   // Logo abaixo do disco: por baixo da foto e por cima da AURA DA FICHA (o filho 0, a camada mais de trás).
   if (anel.parent !== view.wrapper) view.wrapper.addChildAt(anel, view.photoMask.parent === view.wrapper ? view.wrapper.getChildIndex(view.photoMask) : 0)
-  const raio = tokenRadius(token, map.grid) + TURN_RING_GAP + TURN_RING_WIDTH / 2
+  // CAMPO DE BATALHA (19/11): latão entre contornos escuros, por fora do anel do lado.
+  const raio = scene.campo.raioDoAnelDe(token.id, tokenRadius(token, map.grid))
   if (raio !== scene.raioDoAnel) {
-    anel.clear().circle(0, 0, raio).stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+    anel.clear()
+    desenharAnel(anel, raio, false)
     scene.raioDoAnel = raio
   }
   anel.visible = true
@@ -2514,6 +2565,8 @@ function PlayerViewDoCanvas({
   luz = null,
   batalha = false,
   vezTokenId = null,
+  campo = null,
+  alcanceDaVez = null,
   judge = null,
   gestoDoJudge = null,
   fotoDaForma = null,
@@ -2602,6 +2655,8 @@ function PlayerViewDoCanvas({
     luz,
     batalha,
     vezTokenId,
+    campo,
+    alcanceDaVez,
     judge,
     gestoDoJudge,
     fotoDaForma,
@@ -2893,8 +2948,10 @@ function PlayerViewDoCanvas({
    * ticker, como a régua: só repinta quando os caminhos ou a câmera mudam.
    */
   function syncCaminhosAndados(scene: Scene): void {
-    const { caminhos, map } = latestRef.current
-    const camera = `${scene.camera.x}|${scene.camera.y}|${scene.camera.scale}|${map.grid}`
+    const { caminhos, map, campo } = latestRef.current
+    // CAMPO DE BATALHA: na batalha a trilha andada só aparece na hora de andar, a da ficha que tem a vez.
+    const soDaVez = campo !== null && campo !== undefined && campo.fichas.size > 0 ? campo.quemAge : undefined
+    const camera = `${scene.camera.x}|${scene.camera.y}|${scene.camera.scale}|${map.grid}|${soDaVez === undefined ? '*' : (soDaVez ?? '-')}`
     const ultimo = scene.lastCaminhos
     if (ultimo !== null && ultimo.caminhos === caminhos && (caminhos === undefined || ultimo.camera === camera)) return
     scene.lastCaminhos = { caminhos, camera }
@@ -2903,6 +2960,7 @@ function PlayerViewDoCanvas({
     const trilhas: TrilhaNaTela[] = []
     const numeros: { centro: Point; numero: number }[] = []
     for (const ficha of caminhos?.fichas ?? []) {
+      if (soDaVez !== undefined && ficha.tokenId !== soDaVez) continue
       const trechos = trechosDaTrilha(ficha.casas)
       if (trechos.length === 0) continue
       // Só a ficha DELE vem com a conta (`caminhosParaJogador`): latão e numerada.
@@ -3933,6 +3991,9 @@ function PlayerViewDoCanvas({
     // Snapshot chegou no meio do arrasto: o token arrastado fica sob o dedo.
     const drag = scene.drag
     if (drag?.kind === 'token') scene.tokenViews.get(drag.tokenId)?.wrapper.position.set(drag.x, drag.y)
+    // CAMPO DE BATALHA: as marcas do campo antes do anel da vez (que se põe por fora do anel do lado).
+    scene.campo.sincronizar(latestRef.current.campo, scene.tokenViews, currentMap.grid, prefersReducedMotion())
+    sincronizarChaoDaBatalha(scene, currentMap, latestRef.current.campo, latestRef.current.alcanceDaVez)
     // BATALHA F1: o anel da vez segue a ficha (que pode ter acabado de entrar ou sair da visão).
     syncAnelDaVez(scene, currentMap, latestRef.current.vezTokenId, now)
     // BATALHA F3: o Judge acompanha a ficha da vez (que pode ter acabado de andar, entrar ou sair da visão).
@@ -4470,6 +4531,10 @@ function PlayerViewDoCanvas({
       portasNoTelhado.eventMode = 'none'
       // MODO BATALHA (B5): a grade de batalha acima da névoa e dos telhados, abaixo de pílulas, marcas, pinos e fichas.
       const gradeDaBatalha = criarGradeDaBatalha()
+      // CAMPO DE BATALHA: as casas ao alcance e os fios moram no chão da grade (por baixo das fichas).
+      const alcanceDaBatalha = criarAlcanceDaBatalha()
+      const fiosDaBatalha = criarFiosDaBatalha()
+      gradeDaBatalha.camada.addChild(alcanceDaBatalha.camada, fiosDaBatalha.grafico)
       const pins = new Container()
       // O selo do objeto que abre mora no container de hoje dos pinos, acima da névoa como eles (o pintor dos
       // pinos só limpa o próprio desenho); a visão de agora decide quais aparecem (`redrawSelosDosObjetos`).
@@ -4832,6 +4897,11 @@ function PlayerViewDoCanvas({
         gradeDaBatalha,
         judge: judgeDoMapa,
         anelDaVez: novoAnelDaVez(),
+        campo: criarCampoNoJogador(),
+        fios: fiosDaBatalha,
+        alcance: alcanceDaBatalha,
+        calcularAlcance: criarCalculoDoAlcance(),
+        chaoDaBatalha: null,
         vezDoAnel: null,
         vezAnterior: undefined,
         raioDoAnel: -1,
@@ -5009,7 +5079,11 @@ function PlayerViewDoCanvas({
       app.ticker.add(tickZoomLayers)
 
       // BATALHA F1: o anel da vez. Sem vez, sai na primeira linha; com vez parada, só confere o relógio da batida.
-      const tickAnelDaVez = () => passoDoAnelDaVez(scene, performance.now())
+      const tickAnelDaVez = () => {
+        const agora = performance.now()
+        passoDoAnelDaVez(scene, agora)
+        scene.campo.passo(agora, prefersReducedMotion())
+      }
       app.ticker.add(tickAnelDaVez)
       // D4 e D7 da batalha: o recuo e o tombo da ficha atingida; a ficha da vez fora da tela ou na borda vem para a vista.
       const soltarImpactoDasFichas = registrarFichasDoImpacto((tokenId) => scene.tokenViews.get(tokenId)?.wrapper ?? null, desenho.relogio)
@@ -5750,6 +5824,7 @@ function PlayerViewDoCanvas({
         app.ticker.remove(tickZoomLayers)
         app.ticker.remove(tickAnelDaVez)
         soltarImpactoDasFichas()
+        scene.campo.destruir()
         soltarCameraDaBatalha()
         app.ticker.remove(tickPortasNoTelhado)
         app.ticker.remove(tickEdgeScroll)
@@ -5864,8 +5939,11 @@ function PlayerViewDoCanvas({
   // BATALHA F1: a vez andar só muda o anel, sem redesenhar a cena.
   useEffect(() => {
     const scene = sceneRef.current
-    if (scene) syncAnelDaVez(scene, latestRef.current.map, vezTokenId, performance.now())
-  }, [vezTokenId])
+    if (!scene) return
+    scene.campo.sincronizar(campo, scene.tokenViews, latestRef.current.map.grid, prefersReducedMotion())
+    sincronizarChaoDaBatalha(scene, latestRef.current.map, campo, alcanceDaVez)
+    syncAnelDaVez(scene, latestRef.current.map, vezTokenId, performance.now())
+  }, [vezTokenId, campo, alcanceDaVez])
 
   // BATALHA F3: o Judge que anda, a vez que troca ou a batalha que acaba só mexem nele, sem redesenhar a cena.
   useEffect(() => {
