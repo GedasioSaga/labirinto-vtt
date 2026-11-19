@@ -1125,6 +1125,10 @@ export function MarcasDaMira({ consulta, tokenIds, marcados, foco, variante }: {
     const desenhar = () => {
       const raiz = camada.current
       if (raiz !== null) {
+        // A consulta dá px da JANELA; a camada é `fixed` com `inset: 0` no bloco dela, que nem sempre é a janela:
+        // na visão de teste a tela do jogador tem `contain` e começa embaixo da barra de cima (40 px), e a marca
+        // caía essa altura abaixo da ficha. A posição vira px da camada.
+        const base = raiz.getBoundingClientRect()
         for (const marca of Array.from(raiz.children) as HTMLElement[]) {
           const posicao = consulta(marca.dataset.alvo ?? '')
           if (posicao === null) {
@@ -1135,7 +1139,7 @@ export function MarcasDaMira({ consulta, tokenIds, marcados, foco, variante }: {
           marca.style.opacity = '1'
           marca.style.width = `${lado}px`
           marca.style.height = `${lado}px`
-          marca.style.transform = `translate(${posicao.x - lado / 2}px, ${posicao.y - lado / 2}px)`
+          marca.style.transform = `translate(${posicao.x - base.left - lado / 2}px, ${posicao.y - base.top - lado / 2}px)`
         }
       }
       quadro = window.requestAnimationFrame(desenhar)
