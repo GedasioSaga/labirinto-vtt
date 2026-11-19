@@ -1,9 +1,10 @@
 /**
  * A MESA DA BATALHA (pedido de 18/11/2026: "esse negócio de batalha é para ter
  * um menu separado que dá até para abrir uma janela nova fora, para ter o
- * controle total"). Uma tela só, em dois lugares: no meio do app (um diálogo
- * por cima do mapa) e numa janela do Windows à parte (`batalha.html`, que vai
- * para o segundo monitor).
+ * controle total"). Uma tela só, em dois lugares: encostada na direita do
+ * mapa do app (o protótipo aprovado em 19/11, docs/design/mesa-da-batalha/) e
+ * numa janela do Windows à parte (`batalha.html`, que vai para o segundo
+ * monitor, onde vira duas colunas).
  *
  * A janela principal é a fonte da verdade: as stores, a mesa, o disco e a sala
  * moram nela. A tela lê só o ESPELHO (dado puro, clonável pelo
@@ -41,6 +42,10 @@ export interface CartaNoEspelho {
   proxima: boolean
   /** Selos, condições, forma, carta extra: o que a carta mostra em pílulas. */
   marcas: readonly string[]
+  /** A posição na ordem, de 1 em diante. */
+  posicao: number
+  /** Já passou nesta rodada (vem antes da vez na ordem). */
+  agiu: boolean
 }
 
 /** Uma ação do combatente da vez (técnica, arma, ação do motor). */
@@ -57,6 +62,12 @@ export interface GolpeNoEspelho {
   alvosMax: number
   /** Os alvos que valem para esta ação; `null` = todos os da lista sem motivo. */
   alvosPermitidos: readonly string[] | null
+  /** O dano da ficha (o Dano base do ajuste); `null` = sem dano, ou o motor não diz número. */
+  dano: number | null
+  /** Perfurante da técnica (o ajuste começa por ele). */
+  perfurante: boolean
+  /** O ajuste do dano (Dano base, Surpresa, Perfurante) vale nesta ação: só o One Piece, golpe com dano. */
+  ajustavel: boolean
 }
 
 /** Um alvo possível da vez. */
@@ -85,6 +96,16 @@ export interface VezNoEspelho {
   sugestao: { golpe: string | null; alvo: string | null }
   /** Uma frase no lugar das ações (o jogador escolhe na tela dele; a trava do Atordoado); `null` = nada. */
   aviso: string | null
+  /** A posição na ordem, de 1 em diante. */
+  posicao: number
+  /** Quando a vez começou (a linha da vez no registro); `null` = não se sabe. */
+  desde: number | null
+  /** O que sobrou da vez ("Simples 1", "Mov 0/1"); `gasto` = acabou. */
+  pips: readonly { texto: string; gasto: boolean }[]
+  /** O que já aconteceu nesta vez, a mais nova primeiro (as linhas do registro desde a vez). */
+  feitos: readonly string[]
+  /** One Piece, vez de NPC: o menu da vez pode abrir sobre o mapa (para o golpe que pede escolha a mais). */
+  menuDoMapa: boolean
 }
 
 /** Uma resposta que o mestre dá daqui a um pedido que espera. */
@@ -108,6 +129,32 @@ export interface PendenteNoEspelho {
   respostas: readonly RespostaNoEspelho[]
   /** O que a resposta daqui não cobre ("Rolar a esquiva: na carta REAÇÃO do mapa"); `null` = nada. */
   nota: string | null
+  /** One Piece: o golpe que espera a reação (o quadro da troca e a régua do d20); `null` = outro pedido (Dragon Ball). */
+  golpe: {
+    nome: string
+    de: string
+    alvo: string
+    chega: number | null
+    rolou: { d20: number; total: number } | null
+    /** O que cai na ficha por saída do d20 (a régua), pela regra (`danoFinal`), antes das reduções da forma; `null` = golpe sem dano. */
+    danos: { critico: number; cheio: number; metade: number } | null
+  } | null
+}
+
+/** O contra-ataque (20 na reação) que segura a vez: quem ganhou escolhe o golpe, depois a vez volta. */
+export interface ContraNoEspelho {
+  /** O golpe em que o contra nasceu (a chave do pedido). */
+  golpeId: string
+  quem: string
+  /** Quem atacou primeiro: o alvo sugerido, e para quem a vez volta. */
+  de: string
+  doMestre: boolean
+  desde: number | null
+  /** As ações de quem contra-ataca (NPC); jogador = vazio, ele escolhe na tela dele. */
+  golpes: readonly GolpeNoEspelho[]
+  alvos: readonly AlvoNoEspelho[]
+  /** O alvo sugerido: quem atacou. */
+  alvoSugerido: string | null
 }
 
 /** Uma linha do registro, a mais nova primeiro. */
@@ -139,13 +186,38 @@ export interface EspelhoDaBatalha {
   avisoDoEncerrar: string
   /** Avisos do motor ("Lado Saiyajin sem ninguém de pé"). */
   avisos: readonly string[]
+  /** One Piece: o contra-ataque que segura a vez agora; `null` = nenhum. */
+  contra: ContraNoEspelho | null
+  /** Alguma ficha andou com a batalha ligada (o Zerar caminhos tem o que zerar). */
+  temCaminhos: boolean
+  /** One Piece: a ordem pode ser refeita pela Agilidade. */
+  podeOrdenar: boolean
+  /** O menu da vez está aberto sobre o mapa do app (pedido pela mesa). */
+  menuDoMapaAberto: boolean
+}
+
+/** O ajuste do golpe na mesa (o mesmo da mira do mapa): `dano` `null` = o da ficha. */
+export interface AjusteDoGolpe {
+  dano: number | null
+  surpresa: boolean
+  perfurante: boolean
 }
 
 /** O que a tela pede. Lista fechada: a principal confere cada campo antes de aplicar (`protocolo.ts`). */
 export type PedidoDaMesa =
   | { acao: 'passar'; sceneKey: string; vez: string }
   | { acao: 'darVez'; sceneKey: string; cartaId: string }
-  | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[] }
+  | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
+  /** O contra-ataque do NPC: o golpe dele fora da vez. */
+  | { acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
+  /** O contra-ataque gasto em se mover (o jeito de abrir mão dele). */
+  | { acao: 'abrirMao'; sceneKey: string; golpeId: string }
+  | { acao: 'ordenar'; sceneKey: string }
+  | { acao: 'zerarCaminhos'; sceneKey: string }
+  /** Abre a página Batalha do livro no app (dano, selos, extras, regras, formas). */
+  | { acao: 'abrirLivro'; sceneKey: string }
+  /** Liga ou desliga o menu da vez sobre o mapa do app. */
+  | { acao: 'menuDoMapa'; sceneKey: string; ligar: boolean }
   | { acao: 'responder'; sceneKey: string; pendente: string; resposta: string }
   | { acao: 'desfazer'; sceneKey: string; linhaId: string }
   | { acao: 'iniciativa'; sceneKey: string; passo: 'rolar' | 'comecar' }
