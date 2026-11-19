@@ -126,9 +126,9 @@ export type EfeitoNovo = EfeitoDaBatalha extends infer E ? (E extends EfeitoDaBa
  * O último `seq` de efeito da sessão. Um contador só para todas as cenas e
  * batalhas: sobe sempre, então a conexão que guardou o último `seq` tocado
  * nunca vê um número velho de novo (nem depois de a batalha acabar e outra
- * começar).
+ * começar). Só `comEfeitos` mexe nele.
  */
-export let ultimoSeqDeEfeito = 0
+let ultimoSeqDeEfeito = 0
 
 export function comEfeitos(efeitos: readonly EfeitoDaBatalha[] | undefined, novos: readonly EfeitoNovo[]): readonly EfeitoDaBatalha[] | undefined {
   if (novos.length === 0) return efeitos
