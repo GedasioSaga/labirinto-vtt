@@ -1,9 +1,12 @@
-﻿# MINIGAMES DE PUZZLE 19/11 17h49 (grilling em andamento)
+﻿# MINIGAMES DE PUZZLE + DOCUMENTOS 19/11 20h36 (protótipo v2 em voo)
 
 ## Objetivo
-Subcategoria "Puzzles" em Jogos: entrar e sair com progresso guardado, encaixar itens de puzzle, referência nos puzzles do Resident Evil (puzzles, nomes e arte originais). Literal e respostas em PEDIDOS.md, seção "PEDIDO NOVO (19/11/2026 17h49)".
+Subcategoria "Puzzles" em Jogos: entrar e sair com progresso guardado, encaixar itens de puzzle, referência nos puzzles do Resident Evil (puzzles, nomes e arte originais), TUDO personalizável pelo mestre para qualquer sessão e lugar. Mais o objeto "Documento" (ler ao encostar e tocar, fica salvo na lista do jogador para reler). Literais e as 12 respostas da personalização em PEDIDOS.md (fim do arquivo, 19/11 20h28-20h36).
 
 ## Estado atual
+19/11 20h36: protótipo v1 APROVADO ("Perfeito eu gostei"), pedido "bem personalizado" e documento gravados, grilling da personalização fechado (12/12 no recomendado, commit e89bf5ed). EM VOO: designer-opus faz o protótipo v2 em docs/design/puzzles/prototipo-v2.html (editor personalizado: modelo ou imagem própria com encaixes arrastáveis, biblioteca de peças + imagem, salvar nos meus puzzles, testar como jogador; documento: 5 papéis, leitor com páginas, ícone Documentos do jogador, ficha e biblioteca do mestre, Dar a todos/Dar a...). Depois: mostrar, aprovar, plano, construir em ondas (1 encaixe/ordem/juntar/peso + documento; 2 combinações; 3 giratórias e luzes; 4 estátuas). gbrain em modo só-status (outro serve aberto): gravar as decisões quando abrir.
+
+Anterior:
 Grilling fechado 19/11 ~19h40 ("e os minigames?" = seguir). 0.5.85 PUBLICADA (8fffd4ea). PROTÓTIPO FEITO 3d10fdca (68/68 conferências do robô, p95 16,8 ms; decisões do Claude no commit/relato): docs/design/puzzles/prototipo.html (4 modelos + amostras das outras mecânicas + mestre), lendo a skill game-studios. Depois: mostrar ao usuário e esperar aprovação. Pendente: o usuário pediu "Pegue os puzzle de resident evil e me diga os melhores": lista dada na conversa, escolheu as 4 extras: peças giratórias, luzes, troca de peso e empurrar estátuas (no mapa). Pediu usar o /game-studios (invocar a skill na fase do protótipo/arte). Nada de código.
 
 ## Próximos passos
