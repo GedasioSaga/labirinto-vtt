@@ -92,6 +92,7 @@ import { criarGestoDoCarimbo } from './carimboNoEditor'
 import { criarEscolhaNoCanvas } from './escolhaDoEditor'
 import { criarGestoDosBlocos } from './blocosNoEditor'
 import { criarArrastoDoRotulo } from './rotuloDaSalaNoEditor'
+import { criarPassadaDaBorracha } from './passadaDaBorracha'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -128,7 +129,6 @@ const FOLGA_DA_PLANTA_MS = 200
 const TRACADO_DE_OUTRO_LUGAR_TEXT = 'Traçado descartado: ele era da cena ou do piso de antes'
 import type { FloorPiece, FloorShape, MapFrame, TipoMobilia } from '../types/map'
 import {
-  AVISO_BORRACHA_NAO_APAGA_CHAO,
   buildCorridorShape,
   buildFloorPiece,
   buildFloorShapeFromDrag,
@@ -4044,25 +4044,6 @@ function PixiCanvasDoContexto({
       let bodyDragSnapshot: MapData | null = null
       let pinDragSnapshot: MapData | null = null
 
-      // Uma passada de borracha = UM Ctrl+Z. `eraseGestureSnapshot` é o `map`
-      // de ANTES do pointerdown; `eraseGesturePast`/`eraseGestureFuture` são
-      // as pilhas de histórico daquele instante, restauradas depois de CADA
-      // corte do arrasto (ver `eraseDuringGesture`) para que os N cortes
-      // intermediários não virem N entradas de undo. Mesmo par
-      // "snapshot no pointerdown + commitDragHistory no pointerup" dos
-      // arrastos acima — a diferença é que as actions de apagar da store
-      // (`removeWall`, `erasePartOfDrawing`, …) não têm variante "live", então
-      // o desfazer é desfeito aqui em vez de nunca acontecer lá.
-      let eraseGestureSnapshot: MapData | null = null
-      let eraseGesturePast: MapData[] | null = null
-      let eraseGestureFuture: MapData[] | null = null
-      /**
-       * A passada atual já avisou que a borracha não apaga chão? Um arrasto
-       * sobre o piso chama `eraseAt` a cada pointermove; sem esta trava o
-       * aviso reapareceria a cada micro-movimento depois de dispensado.
-       */
-      let eraseGestureAvisouChao = false
-
       // Onda 1, item 1 (cursor vivo) — estado de hover em `mode === 'idle'`,
       // recalculado a cada pointermove ocioso (ver `resolveHoverAtIdle`
       // abaixo). Item 8 (pan universal) — Espaço pressionado, maior
@@ -5371,7 +5352,7 @@ function PixiCanvasDoContexto({
           // borracha não apaga chão por decisão (22/09/2026) — só que calar
           // fazia a pessoa achar que errou o alvo. Vale nos dois modos: nenhum
           // deles alcança chão.
-          if (floorHitAt(map, point)) avisarQueBorrachaNaoApagaChao()
+          if (floorHitAt(map, point)) passadaDaBorracha.avisarQueNaoApagaChao()
           return
         }
 
@@ -5448,71 +5429,8 @@ function PixiCanvasDoContexto({
         removers[hit.kind](hit.id)
       }
 
-      /**
-       * Mostra, uma vez por passada e sem empilhar, que a borracha não apaga
-       * chão e por onde ele sai. `instrucao` porque a frase pede uma ação (ir
-       * a outra ferramenta) e precisa ficar na tela enquanto a pessoa a
-       * cumpre (`lib/erroQueEnsina.ts`); como esse tipo não some sozinho, o
-       * mesmo texto já na fila não entra de novo — clicar três vezes no piso
-       * não deixa três cartões iguais.
-       */
-      const avisarQueBorrachaNaoApagaChao = () => {
-        if (eraseGestureAvisouChao) return
-        eraseGestureAvisouChao = true
-        const toasts = useToastStore.getState()
-        if (toasts.toasts.some((toast) => toast.text === AVISO_BORRACHA_NAO_APAGA_CHAO)) return
-        toasts.push('instrucao', AVISO_BORRACHA_NAO_APAGA_CHAO)
-      }
-
-      /**
-       * Abre a passada de borracha: guarda o mapa e as duas pilhas de
-       * histórico de ANTES do primeiro corte. Chamado no pointerdown da
-       * ferramenta, antes de qualquer `eraseAt`.
-       */
-      const beginEraseGesture = () => {
-        const { map, past, future } = useMapStore.getState()
-        eraseGestureSnapshot = map
-        eraseGesturePast = past
-        eraseGestureFuture = future
-        eraseGestureAvisouChao = false
-      }
-
-      /**
-       * Corte de borracha DENTRO de uma passada: apaga de verdade, mas devolve
-       * `past`/`future` ao estado de antes da passada.
-       *
-       * Por quê (passeio cego de 16/09/2026, "apaguei um risco e não consegui
-       * desfazer"): cada action de apagar da store passa por `withHistory`, que
-       * empurra uma entrada por chamada — e o pointermove chama `eraseAt` a
-       * cada micro-movimento. Um arrasto curto sobre um traço freehand vira
-       * dezenas de entradas, uma por pedacinho recortado: os três Ctrl+Z que a
-       * pessoa deu desfizeram três pedacinhos (nada visível volta) e, com o
-       * `HISTORY_CAP` de 50 da store estourado pela própria passada, as
-       * entradas ANTERIORES ao gesto tinham sido descartadas — daí o botão
-       * Desfazer esmaecido com o mapa ainda mutilado. Restaurar as pilhas a
-       * cada corte resolve os dois: a passada não consome o histórico antigo, e
-       * o `finishEraseGesture` fecha tudo numa entrada só.
-       *
-       * Restaura a REFERÊNCIA dos arrays de antes (nunca cópia): `past`/`future`
-       * só são substituídos, nunca mutados, na store inteira.
-       */
-      const eraseDuringGesture = (point: Point) => {
-        eraseAt(point)
-        if (eraseGesturePast === null || eraseGestureFuture === null) return
-        useMapStore.setState({ past: eraseGesturePast, future: eraseGestureFuture })
-      }
-
-      /**
-       * Fecha a passada num Ctrl+Z só. `commitDragHistory` não faz nada quando
-       * o mapa é o MESMO objeto do snapshot — passada que não apagou nada não
-       * gasta entrada de undo nem descarta o redo pendente.
-       */
-      const finishEraseGesture = () => {
-        if (eraseGestureSnapshot !== null) useMapStore.getState().commitDragHistory(eraseGestureSnapshot)
-        eraseGestureSnapshot = null
-        eraseGesturePast = null
-        eraseGestureFuture = null
-      }
+      // BORRACHA (`passadaDaBorracha.ts`): uma passada = um Ctrl+Z; o corte no ponto é o `eraseAt` acima.
+      const passadaDaBorracha = criarPassadaDaBorracha({ apagar: (ponto) => eraseAt(ponto) })
 
       /** Mostra o aviso de um gesto, se ele já não estiver na tela. */
       const avisarSemRepetir = (texto: string) => {
@@ -6984,8 +6902,8 @@ function PixiCanvasDoContexto({
 
         if (activeTool === 'eraser') {
           mode = 'erasing'
-          beginEraseGesture()
-          eraseDuringGesture(worldPoint)
+          passadaDaBorracha.abrir()
+          passadaDaBorracha.cortar(worldPoint)
           return
         }
 
@@ -8192,9 +8110,9 @@ function PixiCanvasDoContexto({
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
         // Passada de borracha: um Ctrl+Z desfaz o gesto inteiro (ver
-        // `eraseDuringGesture`). Vale igual no pointerupoutside — soltar o
+        // `passadaDaBorracha.cortar`). Vale igual no pointerupoutside — soltar o
         // botão fora do canvas encerra a passada do mesmo jeito.
-        if (mode === 'erasing') finishEraseGesture()
+        if (mode === 'erasing') passadaDaBorracha.fechar()
         curveDragSnapshot = null
         keyPointDragSnapshot = null
         keyPointDragBase = null
@@ -8397,9 +8315,9 @@ function PixiCanvasDoContexto({
           useMapStore.getState().commitDragHistory(bodyDragSnapshot)
         }
         // Passada de borracha: um Ctrl+Z desfaz o gesto inteiro (ver
-        // `eraseDuringGesture`). Vale igual no pointerupoutside — soltar o
+        // `passadaDaBorracha.cortar`). Vale igual no pointerupoutside — soltar o
         // botão fora do canvas encerra a passada do mesmo jeito.
-        if (mode === 'erasing') finishEraseGesture()
+        if (mode === 'erasing') passadaDaBorracha.fechar()
         curveDragSnapshot = null
         keyPointDragSnapshot = null
         keyPointDragBase = null
@@ -8658,7 +8576,7 @@ function PixiCanvasDoContexto({
 
         if (mode === 'erasing') {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          eraseDuringGesture(worldPoint)
+          passadaDaBorracha.cortar(worldPoint)
           return
         }
 
