@@ -2,6 +2,8 @@ import { Container, Sprite, Graphics, Text, Assets, Texture, type Ticker } from 
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { theme } from '../theme'
 import { createTokenGlides, stepGlides, syncGlide, type GlidePoint } from '../player/tokenGlide'
+import { mesmaMarca, type MarcaDaFichaNoCampo } from '../lib/batalha/marcasNoCampo'
+import { ALVO_PARADO_ALPHA, alphaDoPulso, BRASA, corDoLado, desenharAnel, desenharCantos, desenharLado, desenharSinalDoLado, raioDoAnel } from './drawMarcasDoCampo'
 import type { Token, WatchAlert } from '../types/map'
 import {
   SECRET_ITEM_ALPHA,
@@ -12,10 +14,7 @@ import {
   TURN_RING_BEAT_MIN_ALPHA,
   TURN_RING_BEAT_MS,
   TURN_RING_BEAT_SCALE,
-  TURN_RING_COLOR,
-  TURN_RING_GAP,
   TURN_RING_PULSE_FROM_SCALE,
-  TURN_RING_WIDTH,
 } from './constants'
 import { drawTokenCircle, tokenCircleRadius } from './drawTokens'
 import { drawTokenHealthBar, HEALTH_BAR_LABEL, tokenLabelTop } from './drawTokenHealth'
@@ -214,6 +213,9 @@ export interface TokensRenderer {
    * `alertas`: OLHOS DO GUARDA — por tokenId do guarda, a marca "?" ou "!" de
    * quem tem ficha de jogador no olhar (`alertasNoEditor`), no balão do alto à
    * direita. Omitido = nenhuma (exportação: a imagem é do mapa, não da sessão).
+   * `campo`: CAMPO DE BATALHA (19/11) — por tokenId, o lado (anel fino na cor do
+   * time e o sinal no nome), o anel tracejado de quem espera o contra-ataque e
+   * os cantos do alvo (`lib/batalha/marcasNoCampo.ts`). Omitido = nenhuma.
    *
    * Só repinta a ficha cuja pintura mudou (`TokenPaint`); a outra só anda.
    * Devolve quantos nomes nasceram ou trocaram de texto neste desenho: só
@@ -235,6 +237,7 @@ export interface TokensRenderer {
     fotoDaForma?: FotosDaForma,
     selos?: SelosNasFichas,
     alertas?: ReadonlyMap<string, WatchAlert>,
+    campo?: ReadonlyMap<string, MarcaDaFichaNoCampo>,
   ) => number
   /** Só o zoom mudou: reescala e mostra/esconde os nomes e o tamanho dos pinos, sem redesenhar os tokens. */
   setCameraScale: (cameraScale: number) => void
@@ -249,6 +252,11 @@ export interface TokensRenderer {
   cancelarAnimacoes: () => void
   /** D4 da batalha (`pixi/impactoNasFichas.ts`): o invólucro desenhado da ficha, para o recuo e o tombo. */
   involucroDe?: (tokenId: string) => Container | null
+  /**
+   * CAMPO DE BATALHA: a ficha sob o mouse (`null` = nenhuma). Na batalha a
+   * barra de vida só aparece com o mouse em cima ou logo depois de mudar.
+   */
+  mostrarVidaDe?: (tokenId: string | null) => void
 }
 
 /** Escala do wrapper indo de `from` a `to` (levantar e assentar). */
@@ -265,6 +273,14 @@ const SEM_VIDAS: VidasDaCena = new Map()
 const SEM_FORMAS: FotosDaForma = new Map()
 const SEM_SELOS: SelosNasFichas = new Map()
 const SEM_ALERTAS: ReadonlyMap<string, WatchAlert> = new Map()
+const SEM_CAMPO: ReadonlyMap<string, MarcaDaFichaNoCampo> = new Map()
+/** O alvo que espera a reação pisca em degraus (~7 por segundo), não a cada quadro: cada mudança redesenha a tela. */
+const DEGRAU_DO_PULSO_MS = 140
+/** CAMPO DE BATALHA: quanto a barra de vida fica à vista depois de mudar (o golpe que entrou). */
+const VIDA_NA_HORA_MS = 2600
+/** O sinal do lado no nome: raio e vão até o nome, em px de tela (escalados como o nome). */
+const SINAL_RAIO = 3.5
+const SINAL_VAO = 5
 
 /** Anel de seleção no chão do pino, em px de tela: a elipse de um anel deitado, na mesma inclinação do pino. */
 const MARCADOR_SELECAO_RX = 15
@@ -312,6 +328,8 @@ interface TokenPaint {
   selos: string
   /** OLHOS DO GUARDA: a marca do guarda que tem ficha de jogador no olhar; `null` = nenhuma. */
   alerta: WatchAlert | null
+  /** CAMPO DE BATALHA: o lado, o anel e o alvo da ficha; `null` = fora da batalha. */
+  campo: MarcaDaFichaNoCampo | null
 }
 
 /** A última pintura da ficha ainda vale para estas entradas? */
@@ -327,6 +345,7 @@ function paintIsCurrent(painted: TokenPaint | null, agora: TokenPaint): boolean 
     painted.forma === agora.forma &&
     painted.selos === agora.selos &&
     painted.alerta === agora.alerta &&
+    mesmaMarca(painted.campo, agora.campo) &&
     mesmaVida(painted.vida, agora.vida)
   )
 }
@@ -372,6 +391,12 @@ interface TokenEntry {
    *  Nasce só no guarda que tem ficha de jogador no olhar e morre quando ela
    *  sai: as outras fichas continuam com os filhos de sempre. */
   alerta: Graphics | null
+  /** CAMPO DE BATALHA: os cantos do alvo na casa. Nasce só no alvo e morre quando ele sai. */
+  cantos: Graphics | null
+  /** CAMPO DE BATALHA: o ponto ou o losango do lado, à esquerda do nome. Nasce na primeira ficha com lado. */
+  sinal: Graphics | null
+  /** A ficha tem lado agora (o sinal aparece quando o nome aparece). */
+  temSinal: boolean
   /** `Token.image` já carregado no `sprite` atual, ou null enquanto nenhuma
    *  imagem foi carregada ainda (token sem imagem, ou sprite recém-criado). */
   loadedSrc: string | null
@@ -468,6 +493,14 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
   let pulsoDaVez: PulsoDaVez | null = null
   /** O relógio da próxima batida (fora do Pixi: o ticker não roda entre uma batida e outra). */
   let relogioDaBatida: ReturnType<typeof setTimeout> | null = null
+  /** CAMPO DE BATALHA: os alvos esperando a reação, que piscam; e se o pisca está inscrito no relógio cru. */
+  const alvosPiscando = new Set<string>()
+  let piscando = false
+  /** CAMPO DE BATALHA: as fichas da batalha com barra (só na hora), a que está sob o mouse e quando cada vida mudou. */
+  const vidaSoNaHora = new Set<string>()
+  let vidaSobOMouse: string | null = null
+  const vidaMudouEm = new Map<string, number>()
+  let relogioDaVida: ReturnType<typeof setTimeout> | null = null
 
   /** Movimento reduzido ou sem relógio: nada anima, tudo vai ao estado final. */
   function canAnimate(): boolean {
@@ -560,7 +593,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
    * da barra de vida, do nome e das marcas — e morre quando a vez sai. Fora
    * de uma animação em curso, fica assentado (escala 1, opaco).
    */
-  function syncTurnRing(entry: TokenEntry, tokenId: string, isTurn: boolean, outlineRadius: number): void {
+  function syncTurnRing(entry: TokenEntry, tokenId: string, isTurn: boolean, raioDoMeio: number): void {
     if (!isTurn) {
       if (entry.turnRing) {
         entry.wrapper.removeChild(entry.turnRing)
@@ -575,11 +608,107 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       entry.wrapper.addChildAt(turnRing, entry.wrapper.getChildIndex(entry.ring) + 1)
       entry.turnRing = turnRing
     }
-    entry.turnRing
-      .clear()
-      .circle(0, 0, outlineRadius + TURN_RING_GAP + TURN_RING_WIDTH / 2)
-      .stroke({ width: TURN_RING_WIDTH, color: TURN_RING_COLOR })
+    // CAMPO DE BATALHA (19/11): latão entre contornos escuros, no lugar do traço branco.
+    entry.turnRing.clear()
+    desenharAnel(entry.turnRing, raioDoMeio, false)
     if (pulsoDaVez?.id !== tokenId) poseDaChegada(entry.turnRing, 1)
+  }
+
+  /**
+   * CAMPO DE BATALHA: os cantos do alvo na casa da ficha (`meiaCasa` = metade
+   * do lado que ela ocupa), por cima do disco e por baixo do nome. O que espera
+   * a reação pisca (`atualizarPulsoDosAlvos`); movimento reduzido: parado, um
+   * pouco apagado.
+   */
+  function syncCantos(entry: TokenEntry, tokenId: string, alvo: MarcaDaFichaNoCampo['alvo'], meiaCasa: number): void {
+    if (alvo === null) {
+      alvosPiscando.delete(tokenId)
+      if (entry.cantos) {
+        entry.wrapper.removeChild(entry.cantos)
+        entry.cantos.destroy()
+        entry.cantos = null
+      }
+      return
+    }
+    if (!entry.cantos) {
+      const cantos = new Graphics()
+      cantos.label = 'cantos-do-alvo'
+      entry.wrapper.addChildAt(cantos, entry.wrapper.getChildIndex(entry.label))
+      entry.cantos = cantos
+    }
+    entry.cantos.clear()
+    desenharCantos(entry.cantos, meiaCasa, BRASA)
+    if (alvo === 'reagindo') {
+      if (canAnimate() && motion?.quadros !== undefined) {
+        alvosPiscando.add(tokenId)
+      } else {
+        alvosPiscando.delete(tokenId)
+        entry.cantos.alpha = ALVO_PARADO_ALPHA
+      }
+    } else {
+      alvosPiscando.delete(tokenId)
+      entry.cantos.alpha = 1
+    }
+  }
+
+  /** O pisca dos alvos que esperam a reação: em degraus, no relógio cru, só enquanto há algum. */
+  function piscarAlvos(): void {
+    const degrau = Math.floor(clock() / DEGRAU_DO_PULSO_MS) * DEGRAU_DO_PULSO_MS
+    const alpha = canAnimate() ? alphaDoPulso(degrau) : ALVO_PARADO_ALPHA
+    for (const id of alvosPiscando) {
+      const cantos = cache.get(id)?.cantos ?? null
+      if (cantos === null) {
+        alvosPiscando.delete(id)
+        continue
+      }
+      if (cantos.alpha !== alpha) cantos.alpha = alpha
+    }
+    atualizarPulsoDosAlvos()
+  }
+
+  function atualizarPulsoDosAlvos(): void {
+    const quadros = motion?.quadros
+    if (quadros === undefined) return
+    const precisa = alvosPiscando.size > 0
+    if (precisa && !piscando) {
+      piscando = true
+      quadros.add(piscarAlvos)
+    } else if (!precisa && piscando) {
+      piscando = false
+      quadros.remove(piscarAlvos)
+    }
+  }
+
+  /** CAMPO DE BATALHA: o sinal do lado (ponto ou losango) nasce na primeira ficha com lado e depois só some. */
+  function syncSinal(entry: TokenEntry, lado: MarcaDaFichaNoCampo['lado']): void {
+    const cor = corDoLado(lado)
+    entry.temSinal = lado !== null && cor !== null
+    if (lado === null || cor === null) {
+      if (entry.sinal) entry.sinal.visible = false
+      entry.label.x = 0
+      return
+    }
+    if (!entry.sinal) {
+      const sinal = new Graphics()
+      sinal.label = 'sinal-do-lado'
+      entry.wrapper.addChildAt(sinal, entry.wrapper.getChildIndex(entry.label) + 1)
+      entry.sinal = sinal
+    }
+    entry.sinal.visible = true
+    desenharSinalDoLado(entry.sinal, lado.forma, cor, SINAL_RAIO)
+  }
+
+  /** O sinal à esquerda do nome, com os dois centrados juntos; o nome desce com o vizinho (`separarNomes`), o sinal desce junto. */
+  function posarSinal(entry: TokenEntry): void {
+    const sinal = entry.sinal
+    if (sinal === null || !entry.temSinal) return
+    sinal.visible = entry.label.visible && entry.label.text !== ''
+    const escala = entry.label.scale.y
+    const raio = SINAL_RAIO * escala
+    const vao = SINAL_VAO * escala
+    entry.label.x = raio + vao / 2
+    sinal.scale.set(escala)
+    sinal.position.set(entry.label.x - entry.label.width / 2 - vao - raio, entry.label.y + entry.label.height / 2)
   }
 
   /** Leva a escala do wrapper de `id` até `to`, de onde ela estiver (soltar no meio do levantar assenta dali). */
@@ -613,13 +742,48 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     if (tokenId !== null) animateScale(tokenId, TOKEN_LIFT_SCALE, TOKEN_LIFT_MS)
   }
 
+  function vidaAparece(tokenId: string, agora: number): boolean {
+    if (!vidaSoNaHora.has(tokenId) || tokenId === vidaSobOMouse) return true
+    const em = vidaMudouEm.get(tokenId)
+    return em !== undefined && agora - em < VIDA_NA_HORA_MS
+  }
+
+  /** Põe cada barra da batalha à vista ou não e arma o relógio para a próxima que deve sumir. */
+  function aplicarVidaNaHora(): void {
+    const agora = performance.now()
+    let proxima = Infinity
+    for (const [tokenId, em] of vidaMudouEm) {
+      const resta = em + VIDA_NA_HORA_MS - agora
+      if (resta <= 0) vidaMudouEm.delete(tokenId)
+      else proxima = Math.min(proxima, resta)
+    }
+    for (const tokenId of vidaSoNaHora) {
+      const bar = cache.get(tokenId)?.bar
+      const aparece = vidaAparece(tokenId, agora)
+      if (bar && bar.visible !== aparece) bar.visible = aparece
+    }
+    if (relogioDaVida !== null) clearTimeout(relogioDaVida)
+    relogioDaVida = proxima === Infinity ? null : setTimeout(() => { relogioDaVida = null; aplicarVidaNaHora() }, proxima + 16)
+  }
+
+  function mostrarVidaDe(tokenId: string | null): void {
+    if (tokenId === vidaSobOMouse) return
+    vidaSobOMouse = tokenId
+    if (vidaSoNaHora.size > 0) aplicarVidaNaHora()
+  }
+
   function cancelarAnimacoes(): void {
+    if (relogioDaVida !== null) clearTimeout(relogioDaVida)
+    relogioDaVida = null
+    vidaMudouEm.clear()
     scaleTweens.clear()
     glides.clear()
     pinosGirando.clear()
     pulsoDaVez = null
     pararBatidas()
     stopTicking()
+    alvosPiscando.clear()
+    atualizarPulsoDosAlvos()
     auras.destruir()
   }
 
@@ -696,6 +860,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     auras.reescalar()
     // O nome tem tamanho fixo na tela: o zoom muda a caixa dele no mundo, e quem se cruza.
     separarNomes(ultimasFichas)
+    for (const entry of cache.values()) posarSinal(entry)
   }
 
   /**
@@ -744,6 +909,8 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     entry.ring.clear()
     syncHealthBar(entry, null, 0)
     syncTurnRing(entry, token.id, false, 0)
+    syncCantos(entry, token.id, null, 0)
+    syncSinal(entry, null)
     entry.marks.clear()
     syncAlerta(entry, null, 0)
     syncSelos(entry, '', 0)
@@ -878,6 +1045,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     fotoDaForma: FotosDaForma = SEM_FORMAS,
     selos: SelosNasFichas = SEM_SELOS,
     alertas: ReadonlyMap<string, WatchAlert> = SEM_ALERTAS,
+    campo: ReadonlyMap<string, MarcaDaFichaNoCampo> = SEM_CAMPO,
   ): number {
     if (cameraScale !== undefined) lastCameraScale = cameraScale
     // A vez só pulsa a chegada na TROCA: este `draw` roda a cada passo de arrasto.
@@ -901,6 +1069,7 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         scaleTweens.delete(id)
         glides.delete(id)
         pinosGirando.delete(id)
+        alvosPiscando.delete(id)
       }
     }
 
@@ -943,6 +1112,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
           marks,
           selos: null,
           alerta: null,
+          cantos: null,
+          sinal: null,
+          temSinal: false,
           loadedSrc: null,
           loadedData: null,
           loadedUrl: null,
@@ -984,7 +1156,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       const textoDosSelos = pino === null ? textoDosSelosNaFicha(selos.get(token.id)) : ''
       // OLHOS DO GUARDA: o pino do continente não leva balão, como não leva condição.
       const alerta = pino === null ? (alertas.get(token.id) ?? null) : null
-      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida, forma, selos: textoDosSelos, alerta }
+      // CAMPO DE BATALHA: o pino do continente não leva marca de batalha.
+      const marcaDoCampo = pino === null ? (campo.get(token.id) ?? null) : null
+      const pintura: TokenPaint = { token, gridSize, selected, isTurn, away, pino, vida, forma, selos: textoDosSelos, alerta, campo: marcaDoCampo }
       // Pintura em dia: a ficha só andou (acima). É o caso de quase toda ficha
       // a cada passo do arrasto de OUTRA.
       if (paintIsCurrent(entry.painted, pintura)) continue
@@ -1006,6 +1180,9 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       if (entry.marcador !== null) entry.marcador.raiz.visible = false
       entry.ring.clear()
       let outlineRadius: number
+      /** O raio do disco em que o anel do lado encosta (a foto fica dentro da moldura). */
+      let baseDoLado: number
+      const corDoCampo = corDoLado(marcaDoCampo?.lado ?? null)
 
       // `tokenPhotoRef` devolve `null` (e não `undefined`) para token
       // construído fora do type-checker — mapa legado antes da migração, ou o
@@ -1104,13 +1281,17 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         // foto: o disco inteiro é a cara do personagem, então é o aro que
         // sobra para dizer "este é aliado". Sem cor escolhida, o latão de
         // sempre — token com foto antigo não muda de aparência.
-        entry.ring
-          .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
-          .stroke({ width: TOKEN_FRAME_WIDTH, color: parseHexColor(token.color) ?? TOKEN_FRAME_COLOR })
+        // CAMPO DE BATALHA: na batalha o lado da ficha toma o lugar da moldura, colado na foto.
+        if (corDoCampo !== null) desenharLado(entry.ring, photoRadius, corDoCampo)
+        else
+          entry.ring
+            .circle(0, 0, radius - TOKEN_FRAME_WIDTH / 2)
+            .stroke({ width: TOKEN_FRAME_WIDTH, color: parseHexColor(token.color) ?? TOKEN_FRAME_COLOR })
         if (selected) {
           entry.ring.circle(0, 0, radius).stroke({ width: 4, color: SELECTION_COLOR })
         }
         outlineRadius = radius
+        baseDoLado = photoRadius
       } else {
         const graphics = ensureGraphics(entry)
         const radius = tokenCircleRadius(gridSize, token.size)
@@ -1119,11 +1300,24 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
         // não haver salto visual quando o token ganha/perde imagem depois.
         graphics.rotation = rotationToRadians(token.rotation)
         outlineRadius = radius
+        baseDoLado = radius
+        if (corDoCampo !== null) desenharLado(entry.ring, radius, corDoCampo)
       }
 
       // Barra de vida SOB o disco, e o nome logo abaixo dela. A vida é a da
       // ficha do sistema ligada ao token (`vidas`); sem ficha, sem barra.
       syncHealthBar(entry, vida === null ? null : { current: vida.atual, max: vida.maximo }, outlineRadius)
+      // CAMPO DE BATALHA: na batalha a vida fica escondida (o lugar dela, não: o nome não pula), e
+      // aparece com o mouse em cima ou por alguns segundos quando muda. Fora da batalha, sempre.
+      if (marcaDoCampo !== null && vida !== null) {
+        vidaSoNaHora.add(token.id)
+        const antes = entry.painted?.vida ?? null
+        if (antes !== null && !mesmaVida(antes, vida)) {
+          vidaMudouEm.set(token.id, performance.now())
+          aplicarVidaNaHora()
+        }
+      } else vidaSoNaHora.delete(token.id)
+      if (entry.bar) entry.bar.visible = vidaAparece(token.id, performance.now())
       entry.nomeTopo = tokenLabelTop(outlineRadius, vida !== null)
       entry.label.position.set(0, entry.nomeTopo)
 
@@ -1134,7 +1328,12 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
       else if (token.secret === true) strokeDashedCircle(entry.ring, outlineRadius + SECRET_RING_GAP)
       // A ficha da vez: anel solto por fora de tudo (moldura e seleção), para
       // ler de relance no meio do mapa sem esconder a seleção.
-      syncTurnRing(entry, token.id, isTurn, outlineRadius)
+      // CAMPO DE BATALHA: o anel de quem age (latão, pulsa) e o tracejado de quem espera o contra-ataque (parado, no aro).
+      const raioDoMeioDoAnel = corDoCampo !== null ? raioDoAnel(baseDoLado, true) : raioDoAnel(outlineRadius, false)
+      syncTurnRing(entry, token.id, isTurn, raioDoMeioDoAnel)
+      if (marcaDoCampo?.anel === 'espera' && !isTurn) desenharAnel(entry.ring, raioDoMeioDoAnel, true)
+      syncCantos(entry, token.id, marcaDoCampo?.alvo ?? null, (gridSize * token.size) / 2)
+      syncSinal(entry, marcaDoCampo?.lado ?? null)
 
       // Condição na ficha: pastilhas sentadas na borda de cima do disco que a
       // pessoa vê (`outlineRadius`), por cima de tudo. Fantasma e "Oculto para
@@ -1171,6 +1370,11 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     // Depois de toda ficha no lugar e com o nome no tamanho do zoom: nenhum nome por cima do outro.
     ultimasFichas = tokens
     separarNomes(tokens)
+    for (const token of tokens) {
+      const entry = cache.get(token.id)
+      if (entry !== undefined) posarSinal(entry)
+    }
+    atualizarPulsoDosAlvos()
     if (glides.size > 0 || pinosGirando.size > 0) startTicking()
     // Depois da pintura: o anel da vez nova já existe. Movimento reduzido (lido só na troca): o anel aparece parado.
     if (vezMudou && vezTokenId !== null) pulsar(vezTokenId, 'chegada')
@@ -1178,5 +1382,5 @@ export function createTokensRenderer(motion?: TokensMotion): TokensRenderer {
     return changedLabels
   }
 
-  return { draw, setCameraScale, levantar, cancelarAnimacoes, involucroDe: (tokenId) => cache.get(tokenId)?.wrapper ?? null }
+  return { draw, setCameraScale, levantar, cancelarAnimacoes, involucroDe: (tokenId) => cache.get(tokenId)?.wrapper ?? null, mostrarVidaDe }
 }
