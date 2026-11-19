@@ -19,7 +19,15 @@ import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
 import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
 import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
-import { clearRecoveryCopy, formatRecoveryTime, readRecoveryCopy, writeRecoveryCopy, type RecoveryCopy } from './lib/recoveryCopy'
+import {
+  clearRecoveryCopy,
+  clearSetAsideRecoveryCopy,
+  formatRecoveryTime,
+  readPendingRecoveryCopy,
+  setAsideRecoveryCopy,
+  writeRecoveryCopy,
+  type PendingRecoveryCopy,
+} from './lib/recoveryCopy'
 import { assinarLugarDaAventura, assinarTudoSalvo, iniciarBatalhaSalva, lugarDaAventura, tudoSalvoNoApp, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
 import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
 import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
@@ -1773,8 +1781,9 @@ function App() {
    * entrar no editor: dali em diante o salvamento automático desta abertura
    * pode gravar por cima dela.
    */
-  const [recoveryCopy, setRecoveryCopy] = useState<RecoveryCopy | null>(null)
-  const recoveryOfferExpiredRef = useRef(false)
+  /** A cópia que espera o mestre no menu e de qual arquivo ela foi lida; `null` = nada a oferecer (ou já recuperada/descartada). */
+  const [recoveryCopy, setRecoveryCopy] = useState<PendingRecoveryCopy | null>(null)
+  const recoveryReminderShownRef = useRef(false)
   const recoveryAutosaveRef = useRef<RecoveryAutosave | null>(null)
   /** S5 (P8): a batalha guardada da mesa aberta, esperando "Retomar a batalha" ou "Encerrar". */
   const [ofertaDaBatalha, setOfertaDaBatalha] = useState<OfertaDaBatalhaSalva | null>(null)
@@ -1987,13 +1996,14 @@ function App() {
   useEffect(() => {
     if (!isTauri()) return
     let cancelled = false
-    readRecoveryCopy()
-      .then((copy) => {
-        if (!cancelled && !recoveryOfferExpiredRef.current) setRecoveryCopy(copy)
+    readPendingRecoveryCopy()
+      .then((pending) => {
+        if (!cancelled) setRecoveryCopy(pending)
       })
       .catch(() => undefined)
     const autosave = startRecoveryAutosave({
-      storage: { write: writeRecoveryCopy, clear: clearRecoveryCopy },
+      // `setAside`: a cópia de uma abertura anterior que o mestre ainda não recuperou não é sobrescrita pela desta.
+      storage: { write: writeRecoveryCopy, clear: clearRecoveryCopy, setAside: setAsideRecoveryCopy, clearSetAside: clearSetAsideRecoveryCopy },
       getLooseMapPath: () => currentMapPathRef.current,
       onError: (err) => reportFileError('guardar a cópia de recuperação', err),
     })
@@ -2039,12 +2049,15 @@ function App() {
   // Só no app (Tauri): no navegador não há disco, e a lista fica neste computador.
   useEffect(() => (isTauri() ? seguirAPastaDasCondicoes() : undefined), [])
 
-  // Entrou no editor (mapa novo, aberto ou recuperado): a oferta do menu
-  // deixa de valer, porque o salvamento automático desta abertura assume a cópia.
+  // Entrou no editor por outro caminho (mapa novo ou aberto) com a oferta de
+  // "Recuperar" ainda sem resposta: ela NÃO some mais — a cópia fica guardada
+  // (`setAsideRecoveryCopy`) e continua no Início. O mestre é avisado uma vez
+  // por abertura, para não achar que o trabalho da queda se perdeu.
   useEffect(() => {
-    if (screen !== 'editor') return
-    recoveryOfferExpiredRef.current = true
-    setRecoveryCopy(null)
+    if (screen !== 'editor' || recoveryCopy === null || recoveryReminderShownRef.current) return
+    recoveryReminderShownRef.current = true
+    useToastStore.getState().push('info', `A cópia de recuperação de "${recoveryCopy.copy.map.name}" continua guardada: ela está no Início, em "Recuperar mapa".`)
+    // Só a troca de tela dispara: a oferta que chega ou sai com o editor já aberto não é motivo de aviso.
   }, [screen])
 
   /**
@@ -3349,32 +3362,56 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [screen])
 
-  const handleCreate = (newMap: MapData) => {
-    useAdventureStore.getState().reset()
-    loadMap(newMap)
-    setCurrentMapPath(null)
-    // Onda 2, item 11 (Frente D) — mapa recém-criado, sem edição nenhuma
-    // ainda: não conta como "trabalho não salvo" (decisão de produto
-    // documentada no CONTRATO da frente).
-    useSessionStore.getState().markSaved()
-    setScreen('editor')
-  }
+  /**
+   * "Criar" do Novo mapa, pela mesma porta do "Abrir" (`askBeforeReplacingMap`):
+   * com trabalho não salvo (ficha mexida fora do editor, salvamento que falhou
+   * ao sair para o Início), pergunta antes de trocar o mapa.
+   */
+  const handleCreate = (newMap: MapData) =>
+    askBeforeReplacingMap(async () => {
+      useAdventureStore.getState().reset()
+      loadMap(newMap)
+      setCurrentMapPath(null)
+      // Onda 2, item 11 (Frente D) — mapa recém-criado, sem edição nenhuma
+      // ainda: não conta como "trabalho não salvo" (decisão de produto
+      // documentada no CONTRATO da frente).
+      useSessionStore.getState().markSaved()
+      setScreen('editor')
+    })
 
   /**
    * "Recuperar" do menu (`restoreRecoveryCopy`): o trabalho não salvo volta
    * ao editor como NÃO salvo, apontado para o arquivo de onde veio, e a cópia
-   * passa a ser desta abertura — Salvar a apaga.
+   * passa a ser desta abertura — Salvar a apaga. Como toda troca de mapa,
+   * pergunta antes se há trabalho não salvo no editor. Falhou: a oferta fica.
    */
-  const handleRecover = async (copy: RecoveryCopy) => {
-    // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
-    if (copy.mapPath !== null) {
-      await migrarMochilaAoAbrir(copy.mapPath, copy)
-      await conferirMochilaAoAbrir(copy.mapPath, copy)
-    }
-    // Com a pasta do mapa, como na abertura normal: o mapa que herda volta com as fichas (e a mochila) da pasta.
-    setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile, pastaAbertaDoArquivo))
-    recoveryAutosaveRef.current?.adoptExistingCopy()
-    setScreen('editor')
+  const handleRecover = (pending: PendingRecoveryCopy) =>
+    askBeforeReplacingMap(async () => {
+      const { copy } = pending
+      try {
+        // MOCHILA NA FICHA: o trabalho recuperado entra na migração com a hora da cópia.
+        if (copy.mapPath !== null) {
+          await migrarMochilaAoAbrir(copy.mapPath, copy)
+          await conferirMochilaAoAbrir(copy.mapPath, copy)
+        }
+        // Com a pasta do mapa, como na abertura normal: o mapa que herda volta com as fichas (e a mochila) da pasta.
+        setCurrentMapPath(await restoreRecoveryCopy(copy, openMapFile, pastaAbertaDoArquivo))
+      } catch (err) {
+        reportFileError('recuperar o trabalho não salvo', err)
+        return
+      }
+      recoveryAutosaveRef.current?.adoptExistingCopy(pending)
+      setRecoveryCopy(null)
+      setScreen('editor')
+    })
+
+  /** "Descartar cópia" do menu: apaga a cópia de vez, depois de o mestre confirmar (não tem volta). */
+  const handleDiscardRecovery = async (pending: PendingRecoveryCopy) => {
+    const texto = `Descartar a cópia de recuperação de "${pending.copy.map.name}"? O trabalho não salvo dela se perde de vez.`
+    const confirmou = isTauri() ? await ask(texto, { title: 'Labirinto', kind: 'warning', okLabel: 'Descartar', cancelLabel: 'Cancelar' }) : window.confirm(texto)
+    if (!confirmou) return
+    recoveryAutosaveRef.current?.discardPreviousCopy(pending)
+    setRecoveryCopy(null)
   }
 
   const handleImportBackground = async () => {
@@ -3485,10 +3522,12 @@ function App() {
           onLivros={() => setScreen('livros')}
           recovery={
             recoveryCopy && {
-              mapName: recoveryCopy.map.name,
-              savedAtLabel: formatRecoveryTime(recoveryCopy.savedAtMs, Date.now()),
-              onRecover: () => void handleRecover(recoveryCopy),
+              mapName: recoveryCopy.copy.map.name,
+              savedAtLabel: formatRecoveryTime(recoveryCopy.copy.savedAtMs, Date.now()),
+              onRecover: () => handleRecover(recoveryCopy),
+              // "Agora não" só esconde nesta abertura: a cópia continua no disco, é guardada se o mestre editar outro mapa e volta na próxima abertura.
               onDismiss: () => setRecoveryCopy(null),
+              onDiscard: () => void handleDiscardRecovery(recoveryCopy),
             }
           }
         />

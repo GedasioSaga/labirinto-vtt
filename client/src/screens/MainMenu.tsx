@@ -18,6 +18,12 @@ export interface RecoveryOffer {
   onRecover: () => void
   /** Esconde a oferta nesta abertura do app; a cópia continua no disco. */
   onDismiss: () => void
+  /**
+   * Apaga a cópia de vez (quem chama confirma antes). A oferta não some mais
+   * sozinha ao abrir outro mapa, então o mestre precisa de um jeito de dizer
+   * "não quero esta". Ausente = sem o botão.
+   */
+  onDiscard?: () => void
 }
 
 interface MainMenuProps {
@@ -188,6 +194,11 @@ export function MainMenu({
                 <button type="button" className="lb-btn lb-btn--ghost" onClick={recovery.onDismiss}>
                   Agora não
                 </button>
+                {recovery.onDiscard && (
+                  <button type="button" className="lb-btn lb-btn--ghost" onClick={recovery.onDiscard}>
+                    Descartar cópia
+                  </button>
+                )}
               </div>
             </section>
           )}

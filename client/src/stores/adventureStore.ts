@@ -52,7 +52,7 @@ import { gravarRpgDaPasta, rpgDe, type PastaAberta, type RpgDaPasta } from '../l
 import type { Equipe } from '../lib/batalha/equipes'
 import type { PastaDeFichas } from '../lib/pastasDeFichas'
 import { personagemComMidia } from '../lib/imagensDaFicha'
-import { comAutor, comoTudoOuNada, prepararEmissao } from '../net/nuvem/emissor'
+import { comAutor, comoTudoOuNada, marcaDaBase, prepararEmissao } from '../net/nuvem/emissor'
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import {
   aplicarEstadoNoMapa,
@@ -283,6 +283,21 @@ interface AdventureState {
   acertarPasta: (lugar: { pastaId: string; nome: string; proprio: boolean } | null) => void
   /** Grava a cópia da pasta, se mudou. Lança com a razão; o que mudou durante a gravação continua pendente. */
   gravarPasta: () => Promise<void>
+  /**
+   * RECUPERAR (`stores/recoveryAutosave.ts`): o RPG da pasta volta como estava
+   * na cópia de recuperação, pendente de gravação. `false` = outra pasta (ou
+   * nenhuma), ou pasta publicada no Lobby — nela quem manda é a nuvem, e repor
+   * a cópia podia desfazer a mudança mais nova de um jogador.
+   */
+  reporRpgDaPasta: (pastaId: string, rpg: RpgDaPasta) => boolean
+  /**
+   * RECUPERAR: a cena de fundo `sceneId` volta como estava na cópia de
+   * recuperação, pendente de gravação. A que não abriu do disco é trocada pela
+   * da cópia; a que não está na lista (cópia de antes de a lista ir junto)
+   * entra no fim dela, com o nome do mapa. `false` = não há aventura aberta,
+   * ou é a cena aberta (essa volta pelo editor).
+   */
+  receberCenaRecuperada: (sceneId: string, map: MapData) => boolean
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   /**
@@ -2083,6 +2098,36 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     await gravarRpgDaPasta(pasta.pastaId, rpgDe(pasta))
     // Só sai de "pendente" o que continua IGUAL ao que foi escrito, como no `flush`.
     if (get().pasta === pasta) set({ pastaSuja: false })
+  },
+
+  reporRpgDaPasta: (pastaId, rpg) => {
+    const { pasta } = get()
+    if (pasta === null || pasta.pastaId !== pastaId) return false
+    if (marcaDaBase().has(pastaId)) return false
+    const donasDeAntes = fichasDonasDaMochila(get())
+    // Só o que é do lugar (chave, id, nome, modo) fica: o RPG inteiro é o da cópia, sem sobra do que o disco tinha.
+    set({ pasta: { chave: pasta.chave, pastaId: pasta.pastaId, nome: pasta.nome, proprio: pasta.proprio, ...rpg }, pastaSuja: true })
+    espelharSeAsDonasMudaram(donasDeAntes)
+    return true
+  },
+
+  receberCenaRecuperada: (sceneId, map) => {
+    const { adventure, activeSceneId, cache, dirty, structureDirty } = get()
+    if (adventure === null || sceneId === activeSceneId) return false
+    const naLista = adventure.scenes.some((entry) => entry.id === sceneId)
+    const slot = cache[sceneId]
+    // Ainda vindo do disco: a da cópia espera o mapa chegar, como toda mudança de cena de fundo.
+    if (naLista && slot !== undefined && slot.status !== 'indisponivel') {
+      get().updateBackgroundScene(sceneId, () => map)
+      return true
+    }
+    set({
+      adventure: naLista ? adventure : { ...adventure, scenes: [...adventure.scenes, { id: sceneId, name: cleanSceneName(map.name), file: sceneFileFor(sceneId) }] },
+      cache: { ...cache, [sceneId]: { status: 'ok', map, past: [], future: [], camera: null } },
+      dirty: { ...dirty, [sceneId]: true },
+      structureDirty: structureDirty || !naLista,
+    })
+    return true
   },
 
   switchScene: (sceneId, focus) => {
