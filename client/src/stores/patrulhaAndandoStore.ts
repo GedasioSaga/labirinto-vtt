@@ -2,8 +2,23 @@
 import { create } from 'zustand'
 import { type AvisoDePortaTrancada, avisosDePortaTrancada, mesmosAvisos } from '../lib/avisosDaRotina'
 import { comPortasDoNpc } from '../lib/caminhamento/tiqueDosNpcs'
-import { adiarEsperas, calarFicha, chaveDaPatrulha, darPassoDaPatrulha, desligarPatrulha, ligarPatrulha, moverPatrulhas, PASSO_DA_PATRULHA_MS, passosDaRota, seguirPatrulha, type PatrulhasAndando } from '../lib/patrulhaAndando'
-import { subscribeToOpenings } from './adventureStore'
+import {
+  adiarEsperas,
+  calarFicha,
+  chaveDaPatrulha,
+  darPassoDaPatrulha,
+  desligarPatrulha,
+  ligarPatrulha,
+  moverPatrulhas,
+  PASSO_DA_PATRULHA_MS,
+  passosDaRota,
+  seguirPatrulha,
+  type FichaPatrulhando,
+  type PatrulhasAndando,
+} from '../lib/patrulhaAndando'
+import type { CenaDaRotina } from '../lib/rotinaDoNpc'
+import type { MapData } from '../types/map'
+import { subscribeToOpenings, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { agoraDosNpcs, assinarPausa, usePausaDosNpcsStore } from './pausaDosNpcsStore'
 import { motorDosNpcs, regarAgenda } from './rotinaAndandoStore'
@@ -15,13 +30,17 @@ import { motorDosNpcs, regarAgenda } from './rotinaAndandoStore'
  * de jogo, como a rotina andando: não vai ao arquivo (o mapa reaberto volta
  * parado) nem ao jogador, que recebe só a ficha no lugar novo.
  *
- * O passo é do agendador puro (`lib/patrulhaAndando.ts`); aplicar é
- * `useMapStore.applyPlayerChange` sobre o mapa ABERTO — com ou sem aventura,
- * fora do Ctrl+Z (desfazer não devolve o guarda ao passo anterior) e pelo
- * mesmo caminho que leva a ficha ao jogador com deslize. As portas que ela
- * abre e fecha vão na mesma mudança. O caminho sai do motor do editor, o mesmo
- * da rotina (`motorDosNpcs`); o trecho e o `aviso` de quando ela desiste de um
- * ponto moram em `andando`, nunca na ficha.
+ * O passo é do agendador puro (`lib/patrulhaAndando.ts`), uma vez por cena
+ * com alguém patrulhando: a ficha anda na cena ONDE ESTÁ — a aberta ou, numa
+ * aventura, uma de fundo. Trocar de cena não desliga a patrulha: o guarda não
+ * congela para os jogadores quando o mestre olha outra cena, como a rotina
+ * andando. Aplicar é `useMapStore.applyPlayerChange` na cena aberta e
+ * `applyPlayerChangeToBackgroundScene` nas de fundo — fora do Ctrl+Z (desfazer
+ * não devolve o guarda ao passo anterior) e pelo mesmo caminho que leva a
+ * ficha ao jogador com deslize. As portas que ela abre e fecha vão na mesma
+ * mudança. O caminho sai do motor do editor, o mesmo da rotina
+ * (`motorDosNpcs`); o trecho e o `aviso` de quando ela desiste de um ponto
+ * moram em `andando`, nunca na ficha.
  */
 interface PatrulhaAndandoState {
   andando: PatrulhasAndando
@@ -65,9 +84,36 @@ function acertarRelogio(andando: PatrulhasAndando): void {
   }
 }
 
-/** Os avisos de `andando`: a patrulha anda só no mapa aberto. */
+/** O id da "cena" do mapa solto: fora de aventura só existe o mapa aberto. */
+const MAPA_SOLTO = ''
+
+/** Onde a patrulha pode andar agora: a cena aberta (mapa vivo) e as de fundo que abriram; no mapa solto, só ele. */
+function cenasDaPatrulha(): readonly CenaDaRotina[] {
+  const cenas = useAdventureStore.getState().cenasDaRotina()
+  return cenas.length > 0 ? cenas : [{ sceneId: MAPA_SOLTO, map: useMapStore.getState().map }]
+}
+
+/** A cena onde a ficha está agora. A aberta vem primeiro na lista, e ganha se o id aparecer em duas. */
+function cenaDaFicha(cenas: readonly CenaDaRotina[], tokenId: string): CenaDaRotina | undefined {
+  return cenas.find((cena) => cena.map.tokens.some((token) => token.id === tokenId))
+}
+
+/** Uma mudança de mesa (fora do Ctrl+Z) na cena `sceneId`: a aberta pelo mapa vivo, a de fundo pela aventura. */
+function mudarNaCena(sceneId: string, transform: (map: MapData) => MapData): void {
+  const aventura = useAdventureStore.getState()
+  if (aventura.adventure === null || sceneId === aventura.activeSceneId) useMapStore.getState().applyPlayerChange(transform)
+  else aventura.applyPlayerChangeToBackgroundScene(sceneId, transform)
+}
+
+/** Os avisos de `andando`, cada ficha no mapa da cena onde está agora (como os da rotina andando). */
 function avisosDaPatrulha(andando: PatrulhasAndando): AvisoDePortaTrancada[] {
-  return avisosDePortaTrancada('patrulha', andando, () => useMapStore.getState().map)
+  // As cenas só são lidas se alguém estiver parado por porta: o tique comum não paga a busca.
+  let cenas: readonly CenaDaRotina[] | null = null
+  return avisosDePortaTrancada('patrulha', andando, (tokenId) => {
+    cenas ??= cenasDaPatrulha()
+    const cena = cenaDaFicha(cenas, tokenId)
+    return cena === undefined ? undefined : cena.map
+  })
 }
 
 export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get) => {
@@ -88,8 +134,9 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     arrastadas: new Set(),
     ligar: (tokenId) => trocar(ligarPatrulha(get().andando, useMapStore.getState().map, tokenId, agoraDosNpcs())),
     desligar: (tokenId) => {
-      // Parou no meio de um "Falar": o balão não fica sobre a ficha parada. Fora do Ctrl+Z, como a fala.
-      if (get().andando.has(tokenId)) useMapStore.getState().applyPlayerChange((map) => calarFicha(map, tokenId))
+      // Parou no meio de um "Falar": o balão não fica sobre a ficha parada. Fora do Ctrl+Z, como a fala, na cena onde ela está.
+      const cena = get().andando.has(tokenId) ? cenaDaFicha(cenasDaPatrulha(), tokenId) : undefined
+      if (cena !== undefined) mudarNaCena(cena.sceneId, (map) => calarFicha(map, tokenId))
       largar([tokenId])
       trocar(desligarPatrulha(get().andando, tokenId))
     },
@@ -109,10 +156,36 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
     darPasso: () => {
       const { andando, fixas, arrastadas } = get()
       const paradas = arrastadas.size === 0 ? fixas : new Set([...fixas, ...arrastadas])
-      const tique = darPassoDaPatrulha(useMapStore.getState().map, andando, Date.now(), paradas, passosDaRota, motorDosNpcs)
-      const { movimentos, portas } = tique
-      if (movimentos.length > 0 || portas.length > 0) useMapStore.getState().applyPlayerChange((map) => comPortasDoNpc(moverPatrulhas(map, movimentos), portas))
-      trocar(tique.andando)
+      const now = Date.now()
+      const cenas = cenasDaPatrulha()
+      // Cada ficha anda na cena onde está agora. A que não está em cena nenhuma (apagada, cena que saiu) para.
+      const porCena = new Map<string, Map<string, FichaPatrulhando>>()
+      for (const [tokenId, ficha] of andando) {
+        const cena = cenaDaFicha(cenas, tokenId)
+        if (cena === undefined) {
+          motorDosNpcs.agenda.cancelar(chaveDaPatrulha(tokenId))
+          continue
+        }
+        const grupo = porCena.get(cena.sceneId) ?? new Map<string, FichaPatrulhando>()
+        grupo.set(tokenId, ficha)
+        porCena.set(cena.sceneId, grupo)
+      }
+      const depois = new Map<string, FichaPatrulhando>()
+      for (const cena of cenas) {
+        const grupo = porCena.get(cena.sceneId)
+        if (grupo === undefined) continue
+        const tique = darPassoDaPatrulha(cena.map, grupo, now, paradas, passosDaRota, motorDosNpcs)
+        const { movimentos, portas } = tique
+        if (movimentos.length > 0 || portas.length > 0) mudarNaCena(cena.sceneId, (map) => comPortasDoNpc(moverPatrulhas(map, movimentos), portas))
+        for (const [tokenId, ficha] of tique.andando) depois.set(tokenId, ficha)
+      }
+      // Na ordem de antes: a lista do painel e a dos avisos não embaralham com fichas em cenas diferentes.
+      const seguem = new Map<string, FichaPatrulhando>()
+      for (const tokenId of andando.keys()) {
+        const ficha = depois.get(tokenId)
+        if (ficha !== undefined) seguem.set(tokenId, ficha)
+      }
+      trocar(seguem)
       regarAgenda()
     },
     reset: () => {
@@ -128,7 +201,7 @@ export const usePatrulhaAndandoStore = create<PatrulhaAndandoState>()((set, get)
 
 // Toda abertura (outro mapa, solto ou de aventura) começa sem ninguém
 // patrulhando: a patrulha ligada é da sessão que saiu. A troca de cena não
-// passa por aqui: a ficha sai do mapa aberto e o próximo tique a desliga.
+// passa por aqui, e não desliga ninguém: a ficha segue patrulhando na cena de fundo.
 const pararAoAbrir = subscribeToOpenings(() => usePatrulhaAndandoStore.getState().reset())
 
 // AVISO AO MESTRE: porta destrancada (ou trancada) no mapa aberto muda o aviso na hora, sem esperar tique.
