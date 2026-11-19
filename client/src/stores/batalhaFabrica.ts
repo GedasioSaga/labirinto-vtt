@@ -1,5 +1,4 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import type { Casa } from '../lib/batalha/blocos'
 import { somarNaTrilha } from '../lib/batalha/caminhoAndado'
 import {
   ARMAS_NA_BATALHA_MAX,
@@ -7,10 +6,8 @@ import {
   combateVazio,
   CONTRAS_MAX,
   DANO_MAX,
-  EFEITOS_GUARDADOS,
   FORMAS_PENDENTES_MAX,
   GOLPES_PENDENTES_MAX,
-  INVOCACOES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   PERFURACAO_MAX,
   type AlvoDoGolpe,
@@ -19,8 +16,6 @@ import {
   type EfeitoDaBatalha,
   type FormaPendente,
   type GolpeDaBatalha,
-  type InvocadoNaBatalha,
-  type MudancaDoAjuste,
   type PedidoDeAcao,
   type PedidoDeAjusteNaBatalha,
   type PedidoDoContador,
@@ -34,7 +29,6 @@ import {
   type SaidaDaReacao,
   type SeloDaBatalha,
   type SeloDoGolpe,
-  DANO_MAX as DELTA_DO_AJUSTE_MAX,
   MUDANCAS_DO_AJUSTE_MAX,
   NOME_DO_SELO_MAX,
 } from '../lib/batalha/combate'
@@ -46,17 +40,14 @@ import {
   comunsQueSaem,
   invocadoDaPendencia,
   invocadoDoToken,
-  lerInvocacao,
   membrosDoBando,
   motivoDaInvocacao,
   nomeDaColocacao,
   nomeNumerado,
   novoIdDeInvocacao,
   numerosValidos,
-  opcaoDaInvocacao,
   pedirInvocacao,
   pendenciaPorId,
-  quantosNoCampo,
   semBandosVazios,
   temporariosDaCena,
   ultraEmCampo,
@@ -66,7 +57,7 @@ import { fichaDoInvocado } from '../lib/livros/combate'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
-import type { CarriedItem, Token } from '../types/map'
+import type { Token } from '../types/map'
 import {
   bonusDaBatalha,
   comSeloNovo,
@@ -87,7 +78,6 @@ import {
 } from '../lib/batalha/selos'
 import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
 import {
-  cartaoAindaComADecisao,
   cartaoComADecisao,
   cartaoPorId,
   comCartaoTrocado,
@@ -103,17 +93,7 @@ import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, s
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
 import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
 import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
-import {
-  EQUIPES_MAX,
-  ID_DA_EQUIPE_DOS_JOGADORES,
-  NOME_DA_EQUIPE_DOS_JOGADORES,
-  aliadosNaLuta,
-  ehEquipeAutomatica,
-  equipeAutomatica,
-  equipeDe,
-  semEquipeAutomaticaVazia,
-  type Equipe,
-} from '../lib/batalha/equipes'
+import { ID_DA_EQUIPE_DOS_JOGADORES, aliadosNaLuta, equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
   acoesDaCarta,
@@ -159,38 +139,27 @@ import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOver
 import { casaNaAreaVirada } from '../lib/batalha/area'
 import { lerJudgeNaCena, type JudgeNaCena } from '../lib/batalha/judge'
 import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDoCusto, recursoDoEscudo, tecnicaPorId, tecnicasDe } from '../lib/batalha/leituraDaFicha'
-import { comABalaLigada, devolverMunicaoNaFicha, fichaComAMochilaDoBoneco, gastarMunicaoDaFicha, type MunicaoGasta } from '../lib/batalha/municaoDaFicha'
+import { fichaComAMochilaDoBoneco } from '../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
 import type { VezEsperada } from '../lib/batalha/ponte'
 import {
-  comLinha,
-  desfazerFicha,
-  ehPersonagemDeInvocado,
   escudoMaisAlto,
-  invocadoSaiuPorLinha,
-  linhaDesfeita,
   marcarDesfeita,
   mudancasDaVez,
   nomeDoAutor,
-  partesDoAjuste,
   novoIdDeLinha,
-  proximoSeq,
   registrarAjuste as registrarAjusteNasLinhas,
-  reverterTurnos,
   semOContraGasto,
   semARecargaNasVezes,
   semOGastoNaFotoDaVez,
   semOLigarDeGraca,
   textoDaLinha,
   TIPOS_QUE_O_JOGADOR_DESFAZ,
-  vezSemOsSelosDesfeitos,
-  type LinhaDoRegistro,
   type ParteDaFicha,
   type Reversao,
   type TipoDaLinha,
 } from '../lib/batalha/registro'
-import type { RegrasDaBatalha } from '../lib/batalha/regrasDoCampo'
 import {
   adicionarCartaExtra as adicionarCartaExtraNaOrdem,
   agilidadesDasCartas,
@@ -214,8 +183,8 @@ import {
   type GastoDaVez,
   type TurnosDaCena,
 } from '../lib/batalha/turnos'
-import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, NUMERO_DA_FICHA_MAX, type Ajuste } from '../lib/ajusteDaFicha'
-import { cartaoPorId as cartaoEmQualquerNivel, comAsMarcasDeOcultaDe, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
+import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
+import { cartaoPorId as cartaoEmQualquerNivel, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
 import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
 import { chavesDosSelos } from '../lib/ponteDasCondicoes'
 import { condicoesQueACuraTirou, curarPeloItem } from '../lib/curaPeloItem'
@@ -223,6 +192,53 @@ import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAc
 import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { comCondicoes, condicoesDaFicha } from '../lib/turnoForaDaBatalha'
 import type { DependenciasDaBatalha, InicioDaBatalha, BatalhaDaCena, AnuncioDaBatalha, BatalhaState } from './batalha/tipos'
+import {
+  SEM_CAMINHOS,
+  SEM_TRILHAS,
+  CENA_NOVA,
+  MESTRE,
+  GASTO_ZERO,
+  semACena,
+  type FichasDaMesa,
+  fichasDaMesa,
+  nomeDaCarta,
+  type LinhaNova,
+  comMudanca,
+  idsDaOrdem,
+  cenasComOPersonagem,
+  type EfeitoNovo,
+  comEfeitos,
+  quemNaFicha,
+  personagemDoTokenNa,
+  nomeDoTokenNa,
+  nomeDoBandoNa,
+  linhaAtualizada,
+  partesDosLembretes,
+} from './batalha/cena'
+import {
+  trocarEquipeNaMesa,
+  textoDaTrocaDeEquipe,
+  tirarDoMapa,
+  mexerNaFicha,
+  type Recusada,
+  type CuraDoItemNoAlvo,
+  gastarMunicaoNaMesa,
+  semOsCaidos,
+  textoDosQueSairam,
+  tirouSp,
+  reversaoDaFicha,
+  mudancaValida,
+  trocarFicha,
+} from './batalha/naMesa'
+import {
+  linhasDaDecisaoDe,
+  desfazerReversao,
+  devolverFichasDaAcao,
+  reacoesComTecnicaDe,
+  golpesDaReversao,
+  linhasJuntoDe,
+  contrasDaReversao,
+} from './batalha/desfazer'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -265,61 +281,8 @@ import type { DependenciasDaBatalha, InicioDaBatalha, BatalhaDaCena, AnuncioDaBa
  */
 
 export type { DependenciasDaBatalha, AberturaDaBatalha, InicioDaBatalha, BatalhaDaCena, AnuncioDaBatalha, BatalhaState, OndeNasceOInvocado, AjusteDaColocacao } from './batalha/tipos'
-
-const SEM_CAMINHOS: Readonly<Record<string, number>> = {}
-const SEM_TRILHAS: Readonly<Record<string, readonly Casa[]>> = {}
-const SEM_LINHAS: readonly LinhaDoRegistro[] = []
-const CENA_NOVA: BatalhaDaCena = {
-  caminhos: SEM_CAMINHOS,
-  trilhas: SEM_TRILHAS,
-  zerados: 0,
-  rev: 0,
-  turnos: turnosVazios(),
-  registro: SEM_LINHAS,
-  regras: null,
-  turnosRev: 0,
-}
-const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 /** Janela em que movimentos seguidos da mesma carta pelo mestre viram uma linha (Alt + seta repetido). */
 const JANELA_DO_MOVIMENTO_MS = 5_000
-/** A vez que ainda não gastou nada. */
-const GASTO_ZERO: GastoDaVez = { simples: 0, movimento: 0, bonus: 0, blocos: 0 }
-
-function semACena(cenas: Readonly<Record<string, BatalhaDaCena>>, sceneKey: string): Record<string, BatalhaDaCena> {
-  const resto: Record<string, BatalhaDaCena> = {}
-  for (const [chave, cena] of Object.entries(cenas)) if (chave !== sceneKey) resto[chave] = cena
-  return resto
-}
-
-/** O sistema e os personagens em uso na mesa (aventura ou pasta; na arena, as cópias). */
-interface FichasDaMesa {
-  personagens: readonly Personagem[]
-  sistema: SistemaDeRpg | null
-}
-
-/** O sistema e os personagens em uso na mesa, lidos agora. */
-function fichasDaMesa(mesa: MesaDaBatalha): FichasDaMesa {
-  return { personagens: mesa.personagens(), sistema: mesa.sistema() }
-}
-
-/** O nome que a linha usa para a carta: o do token, o do personagem, ou "Ficha". */
-function nomeDaCarta(carta: CartaDaOrdem | null | undefined, personagens: readonly Personagem[]): string {
-  if (carta === null || carta === undefined) return 'ninguém'
-  if (carta.nome !== undefined && carta.nome.trim().length > 0) return carta.nome.trim()
-  const personagem = carta.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === carta.personagemId)
-  return personagem?.nome ?? 'Ficha'
-}
-
-interface LinhaNova {
-  /** Ausente = id novo. O golpe já nasce apontando para a linha que o atualiza. */
-  id?: string
-  tipo: TipoDaLinha
-  texto: string
-  tokenIds?: readonly string[]
-  personagemIds?: readonly string[]
-  reversao: Reversao
-  autor?: AutorDaAcao
-}
 
 /** O que o começo de vez (`comecarAVez`) recebe de quem andou a vez: os turnos de antes e de depois e o que vai na linha "vez". */
 interface VezQueComeca {
@@ -347,489 +310,8 @@ interface VezQueComeca {
   virou: boolean
 }
 
-/** A cena com a ordem nova e a linha no registro; `turnosRev` sobe. */
-function comMudanca(cena: BatalhaDaCena, turnos: TurnosDaCena, linha: LinhaNova | null, regras: RegrasDaBatalha | null = cena.regras): BatalhaDaCena {
-  const registro =
-    linha === null
-      ? cena.registro
-      : comLinha(cena.registro, {
-          id: linha.id ?? novoIdDeLinha(),
-          seq: proximoSeq(cena.registro),
-          quando: Date.now(),
-          rodada: turnos.rodada,
-          autor: linha.autor ?? MESTRE,
-          tipo: linha.tipo,
-          texto: textoDaLinha(linha.texto),
-          envolve: { tokenIds: linha.tokenIds ?? [], personagemIds: linha.personagemIds ?? [] },
-          reversao: linha.reversao,
-        })
-  return { ...cena, turnos, registro, regras, turnosRev: cena.turnosRev + 1 }
-}
-
-/** Ids das cartas na ordem: a reversão de "ordem". */
-function idsDaOrdem(turnos: TurnosDaCena): string[] {
-  return turnos.cartas.map((carta) => carta.id)
-}
-
-/** As cenas em batalha em que o personagem tem carta, com os tokens dele na ordem. */
-function cenasComOPersonagem(cenas: Readonly<Record<string, BatalhaDaCena>>, personagemId: string): { chave: string; cena: BatalhaDaCena; tokenIds: string[] }[] {
-  const achadas: { chave: string; cena: BatalhaDaCena; tokenIds: string[] }[] = []
-  for (const [chave, cena] of Object.entries(cenas)) {
-    const tokenIds = [...new Set(cena.turnos.cartas.filter((carta) => carta.personagemId === personagemId).map((carta) => carta.tokenId))]
-    if (tokenIds.length > 0) achadas.push({ chave, cena, tokenIds })
-  }
-  return achadas
-}
-
-/**
- * Troca a equipe pela mesa (segunda auditoria, 09/11/2026, achado 2). A equipe
- * automática dos jogadores nasce quando alguém entra nela (o primeiro NPC "do
- * lado dos jogadores", ou o Desfazer de quem saiu) e some quando o último NPC
- * sai; as feitas pelo mestre só trocam de membro, como antes. `false` = não deu.
- */
-function trocarEquipeNaMesa(mesa: MesaDaBatalha, personagemId: string, equipeId: string | null): boolean {
-  const antes = mesa.equipes()
-  if (equipeId === ID_DA_EQUIPE_DOS_JOGADORES && !antes.some(ehEquipeAutomatica)) {
-    if (antes.length >= EQUIPES_MAX || mesa.salvarEquipes?.([...antes, equipeAutomatica(mesa.personagens())]) !== true) return false
-  }
-  const trocou = mesa.trocarEquipe(personagemId, equipeId)
-  // Trocou ou não, a automática sem NPC não fica na pasta: a que o último NPC deixou, ou a que nasceu agora e a troca recusou.
-  const depois = mesa.equipes()
-  const limpas = semEquipeAutomaticaVazia(depois, mesa.personagens())
-  if (limpas !== depois) mesa.salvarEquipes?.(limpas)
-  return trocou
-}
-
-/**
- * A linha do registro da troca de equipe. O NPC que entra na equipe automática
- * ou sai dela para equipe nenhuma trocou de LADO, e a linha diz isso (o mestre
- * escolheu um lado, não uma equipe); o resto é a linha de sempre.
- */
-function textoDaTrocaDeEquipe(personagem: Personagem | undefined, antes: Equipe | null, depois: Equipe | null, paraAAutomatica: boolean): string {
-  const nome = personagem?.nome ?? 'Personagem'
-  if (personagem?.tipo === 'npc' && paraAAutomatica) return `${nome} passou para o lado dos jogadores`
-  if (personagem?.tipo === 'npc' && antes !== null && ehEquipeAutomatica(antes) && depois === null) return `${nome} passou a lutar contra os jogadores`
-  return `${nome}: ${antes?.nome ?? 'sem equipe'} → ${depois?.nome ?? (paraAAutomatica ? NOME_DA_EQUIPE_DOS_JOGADORES : 'sem equipe')}`
-}
-
-/** O nome que vai no histórico da ficha ao desfazer: diferente do autor, para o `registrar` não fundir e apagar a linha velha. */
-function quemDesfezNaFicha(autor: AutorDaAcao): string {
-  return `${autor.tipo === 'mestre' ? NOME_DO_MESTRE : autor.nome} (desfez)`
-}
-
-/** O que o Desfazer fez com uma reversão: a cena nova, se voltou só em parte, e se deu. */
-interface Desfeito {
-  cena: BatalhaDaCena
-  emParte: boolean
-  ok: boolean
-}
-
-/**
- * Invocação: tira o invocado do mapa (token e personagem temporário pela
- * mesa) e da lista; a parte "invocadoSaiu" guarda como estavam, para o
- * Desfazer. A carta do bando sem ninguém sai depois, por `comBandosEmDia`.
- */
-function tirarDoMapa(mesa: MesaDaBatalha, sceneKey: string, turnos: TurnosDaCena, invocado: InvocadoNaBatalha): { turnos: TurnosDaCena; parte: Reversao } {
-  const tirado = mesa.tirarInvocado?.(sceneKey, invocado.personagemId, invocado.tokenId) ?? { personagem: null, token: null }
-  const invocados = (turnos.invocados ?? []).filter((candidato) => candidato.tokenId !== invocado.tokenId)
-  return { turnos: { ...turnos, invocados }, parte: { tipo: 'invocadoSaiu', invocado, personagem: tirado.personagem, token: tirado.token } }
-}
-
-/** As partes de uma reversão, abrindo as compostas. */
-function partesSoltas(reversao: Reversao): Reversao[] {
-  return reversao.tipo === 'composta' ? reversao.partes.flatMap(partesSoltas) : [reversao]
-}
-
-/**
- * Construtor C6: as linhas de pé em que o mestre decidiu uma forma pedida na
- * reversão `doPedido`, da mais nova para a mais velha. Nenhuma = a linha não é
- * pedido de forma, ou o mestre ainda não decidiu.
- */
-function linhasDaDecisaoDe(registro: readonly LinhaDoRegistro[], doPedido: Reversao): string[] {
-  const pedidas = new Set(partesSoltas(doPedido).flatMap((parte) => (parte.tipo === 'formaPedida' ? [parte.pendente.id] : [])))
-  if (pedidas.size === 0) return []
-  return registro
-    .filter((linha) => linha.desfeita === undefined && partesSoltas(linha.reversao).some((parte) => parte.tipo === 'formaDecidida' && pedidas.has(parte.pendente.id)))
-    .map((linha) => linha.id)
-    .reverse()
-}
-
-/** Desfaz a reversão: a ordem na própria cena; ficha e equipe pela mesa (a aventura); regras na cópia; o invocado pela mesa (mapa e aventura). */
-function desfazerReversao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDaCena, reversao: Reversao, autor: AutorDaAcao): Desfeito {
-  switch (reversao.tipo) {
-    case 'ficha': {
-      const sistema = mesa.sistema()
-      if (sistema === null) return { cena, emParte: false, ok: false }
-      // Invocação: o personagem temporário que já saiu do mapa não volta por aqui; o resto da linha volta ("em parte").
-      if (!mesa.personagens().some((personagem) => personagem.id === reversao.personagemId) && ehPersonagemDeInvocado(cena.registro, reversao.personagemId)) {
-        return { cena, emParte: true, ok: true }
-      }
-      let emParte = false
-      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => {
-        const feito = desfazerFicha(atual, sistema, reversao.partes, quemDesfezNaFicha(autor), Date.now())
-        emParte = feito.emParte
-        return feito.personagem
-      })
-      return { cena, emParte, ok }
-    }
-    case 'equipe': {
-      const ok = trocarEquipeNaMesa(mesa, reversao.personagemId, reversao.antes)
-      return { cena, emParte: false, ok }
-    }
-    case 'regras':
-      return { cena: { ...cena, regras: reversao.antes }, emParte: false, ok: true }
-    case 'prazo': {
-      // Fase C: as condições da ficha voltam como estavam antes do desconto (a ficha fora de alcance fica: "em parte").
-      const { antes, tokenId } = reversao
-      const ficha = mesa.fichaDaCena?.(sceneKey, tokenId) ?? null
-      if (mesa.mudarFichaDaCena === undefined || ficha === null) return { cena, emParte: true, ok: true }
-      mesa.mudarFichaDaCena(sceneKey, tokenId, (token) => comCondicoes(token, antes))
-      return { cena, emParte: false, ok: true }
-    }
-    case 'reacaoComTecnica': {
-      // A linha do golpe já desfeita: o golpe não volta a esperar (o resto da reação, custo e selos, volta pelas outras partes).
-      const linhaDoGolpe = cena.registro.find((linha) => linha.id === reversao.golpe.linhaId)
-      if (linhaDoGolpe?.desfeita !== undefined) return { cena, emParte: false, ok: true }
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    }
-    case 'composta': {
-      let atual = cena
-      let emParte = false
-      let ok = true
-      // Da última parte para a primeira, como foram feitas ao contrário. C6: a pendência da forma decidida volta
-      // por último, depois que a ficha desligou a forma (ela só volta a esperar o mestre com a forma desligada).
-      const deTrasParaFrente = [...reversao.partes].reverse()
-      const naOrdem = [...deTrasParaFrente.filter((parte) => parte.tipo !== 'formaDecidida'), ...deTrasParaFrente.filter((parte) => parte.tipo === 'formaDecidida')]
-      for (const parte of naOrdem) {
-        const feito = desfazerReversao(mesa, sceneKey, atual, parte, autor)
-        atual = feito.cena
-        emParte = emParte || feito.emParte
-        ok = ok && feito.ok
-      }
-      return { cena: atual, emParte, ok }
-    }
-    case 'invocacaoPedida': {
-      // A pendência sai; se o mestre já a pôs no mapa, o invocado que veio dela também (decisão 11).
-      const { pendente } = reversao
-      let turnos = cena.turnos
-      const invocacoes = (turnos.invocacoes ?? []).filter((candidata) => candidata.id !== pendente.id)
-      if (invocacoes.length !== (turnos.invocacoes?.length ?? 0)) turnos = { ...turnos, invocacoes }
-      const veio = (turnos.invocados ?? []).find((invocado) => invocado.pedidoId === pendente.id)
-      if (veio !== undefined) turnos = tirarDoMapa(mesa, sceneKey, turnos, veio).turnos
-      return { cena: { ...cena, turnos }, emParte: false, ok: true }
-    }
-    case 'invocacaoColocada': {
-      // O invocado sai (se ainda está) e a pendência volta a esperar, se o pedido não foi desfeito.
-      const { pendente, invocado } = reversao
-      let turnos = cena.turnos
-      const emCampo = invocadoDoToken(turnos, invocado.tokenId) !== null
-      if (emCampo) turnos = tirarDoMapa(mesa, sceneKey, turnos, invocado).turnos
-      // Já saiu por outra linha de pé (HP 0, o Ultra): a pendência não volta (passaria do máximo e "ressuscitaria" com HP cheio).
-      const saiuPorOutraLinha = !emCampo && invocadoSaiuPorLinha(cena.registro, invocado.tokenId)
-      if (!saiuPorOutraLinha && !linhaDesfeita(cena.registro, pendente.linhaId) && pendenciaPorId(turnos, pendente.id) === null) turnos = { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] }
-      return { cena: { ...cena, turnos }, emParte: false, ok: true }
-    }
-    case 'invocacaoCancelada': {
-      // A pendência volta só se ainda cabe: no teto, no máximo da opção (um pedido novo pode ter tomado o lugar) e sem o Ultra em campo.
-      const { pendente } = reversao
-      const { turnos } = cena
-      const dono = mesa.personagens().find((personagem) => personagem.id === pendente.donoPersonagemId)
-      const sistema = mesa.sistema()
-      const achada = dono === undefined || sistema === null ? null : tecnicaPorId(dono, sistema, pendente.cartaoId)
-      const leitura = achada === null ? null : lerInvocacao(achada.cartao)
-      const maximo = leitura === null ? null : (opcaoDaInvocacao(leitura, pendente.opcao)?.maximo ?? null)
-      const cabe =
-        pendenciaPorId(turnos, pendente.id) === null &&
-        (turnos.invocacoes?.length ?? 0) < INVOCACOES_PENDENTES_MAX &&
-        (maximo === null || quantosNoCampo(turnos, pendente.donoPersonagemId, pendente.cartaoId, pendente.opcao) < maximo) &&
-        !ultraEmCampo(turnos, pendente)
-      if (!cabe) return { cena, emParte: true, ok: true }
-      return { cena: { ...cena, turnos: { ...turnos, invocacoes: [...(turnos.invocacoes ?? []), pendente] } }, emParte: false, ok: true }
-    }
-    case 'formaPedida': {
-      // C6: a pendência sai (a linha da decisão, se houve, já foi desfeita antes pela store).
-      const formasPendentes = (cena.turnos.formasPendentes ?? []).filter((candidata) => candidata.id !== reversao.pendente.id)
-      if (formasPendentes.length === (cena.turnos.formasPendentes?.length ?? 0)) return { cena, emParte: false, ok: true }
-      return { cena: { ...cena, turnos: { ...cena.turnos, formasPendentes } }, emParte: false, ok: true }
-    }
-    case 'formaDecidida': {
-      // C6: a pendência volta a esperar o mestre, só se o pedido segue de pé, ela não está lá, cabe no teto e a forma
-      // está desligada (Desfazer fora de ordem: outra decisão já a ligou, e "decidir" daria "já está ligada").
-      const { pendente } = reversao
-      const lista = cena.turnos.formasPendentes ?? []
-      const ligada = mesa.personagens().find((personagem) => personagem.id === pendente.personagemId)?.cartoesAtivos.includes(pendente.cartaoId) === true
-      const volta = !ligada && !linhaDesfeita(cena.registro, pendente.linhaId) && !lista.some((candidata) => candidata.id === pendente.id) && lista.length < FORMAS_PENDENTES_MAX
-      if (!volta) return { cena, emParte: ligada, ok: true }
-      return { cena: { ...cena, turnos: { ...cena.turnos, formasPendentes: [...lista, pendente] } }, emParte: false, ok: true }
-    }
-    case 'cartaoDaForma': {
-      // C6: o cartão da forma volta como era antes dos números do mestre (modificadores e subcartões), só se ainda tem
-      // os números desta decisão: uma decisão posterior por cima fica (Desfazer fora de ordem).
-      const { antes, escrito } = reversao
-      let outraDecisao = false
-      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => {
-        const agora = cartaoPorId(atual, antes.id)
-        if (escrito !== undefined && agora !== null && !cartaoAindaComADecisao(agora, escrito)) {
-          outraDecisao = true
-          return atual
-        }
-        // Fatia C7 (revisão): voltam os números; a forma que o uso revelou (ou que o mestre revelou depois) não se esconde de novo.
-        return comCartaoTrocado(atual, agora === null ? antes : comAsMarcasDeOcultaDe(antes, agora))
-      })
-      return { cena, emParte: !ok || outraDecisao, ok: true }
-    }
-    case 'municao': {
-      // MUNIÇÃO: a unidade que o tiro gastou volta à mochila da ficha (o boneco espelha), sobre a ficha de agora.
-      const { vaga, indice, tokenId } = reversao
-      const doBoneco = tokenId === undefined ? null : (mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? null)
-      if (tokenId !== undefined && doBoneco !== null) {
-        // A vaga era do boneco (aventura não migrada): a unidade volta a ele, sobre a mochila de agora.
-        const ficha = mesa.personagens().find((candidato) => candidato.id === reversao.personagemId)
-        const devolvida = ficha === undefined ? null : devolverMunicaoNaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), vaga, indice)
-        const ok = devolvida !== null && mesa.gravarMochilaDoBoneco?.(sceneKey, tokenId, devolvida.mochila ?? []) === true
-        return { cena, emParte: !ok, ok: true }
-      }
-      // A ficha é a dona (ou a aventura migrou entre o tiro e o Desfazer, e a mochila do boneco já é a da ficha).
-      const ok = mesa.ajustarPersonagem(reversao.personagemId, (atual) => devolverMunicaoNaFicha(atual, vaga, indice))
-      return { cena, emParte: !ok, ok: true }
-    }
-    case 'invocadoSaiu': {
-      // Só volta quem foi posto por linhas ainda de pé (desfazer fora de ordem não ressuscita) e não está em campo.
-      const { invocado } = reversao
-      const podeVoltar = !linhaDesfeita(cena.registro, invocado.linhaId) && !linhaDesfeita(cena.registro, invocado.linhaDoPedido) && invocadoDoToken(cena.turnos, invocado.tokenId) === null
-      if (!podeVoltar) return { cena, emParte: false, ok: true }
-      if (mesa.criarInvocado === undefined || !mesa.criarInvocado(sceneKey, reversao.personagem, reversao.token)) return { cena, emParte: true, ok: true }
-      return { cena: { ...cena, turnos: { ...cena.turnos, invocados: [...(cena.turnos.invocados ?? []), invocado] } }, emParte: false, ok: true }
-    }
-    case 'acaoDevolvida': {
-      // C2: a linha do Concentrar já desfeita devolveu a ação por ela; gastar de novo tiraria uma ação que nada gastou.
-      if (linhaDesfeita(cena.registro, reversao.linhaDoConcentrar)) return { cena, emParte: false, ok: true }
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    }
-    case 'marcaUsada': {
-      // R1: a marca só volta com a linha que a pôs de pé (desfazer fora de ordem não ressuscita) e o alvo ainda na ordem.
-      const { selo } = reversao
-      const posta = selo.linhaDaMarca === undefined || !linhaDesfeita(cena.registro, selo.linhaDaMarca)
-      if (!posta || !cena.turnos.cartas.some((carta) => carta.tokenId === selo.tokenId)) return { cena, emParte: false, ok: true }
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    }
-    case 'lembreteDaMarcaRespondido': {
-      // R1: o lembrete só volta a esperar se o golpe que o deixou segue de pé e o alvo não ganhou marca.
-      const { lembrete } = reversao
-      if (linhaDesfeita(cena.registro, lembrete.linhaId) || marcaDoToken(cena.turnos.selos, lembrete.alvoTokenId) !== undefined) return { cena, emParte: false, ok: true }
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    }
-    case 'lembreteDaMarca':
-    case 'contador':
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-    case 'vez': {
-      // Bug 3: o selo que acabou na vez e cuja linha foi desfeita depois não volta com ela.
-      const volta = { ...cena, turnos: reverterTurnos(cena.turnos, vezSemOsSelosDesfeitos(cena.registro, reversao)) }
-      // Conserto das fichas F1: os +10 SP do começo da vez saem junto.
-      return reversao.ficha === undefined ? { cena: volta, emParte: false, ok: true } : desfazerReversao(mesa, sceneKey, volta, { tipo: 'ficha', ...reversao.ficha }, autor)
-    }
-    case 'ordem':
-    case 'cartaNova':
-    case 'cartaRemovida':
-    case 'gasto':
-    case 'acoesExtras':
-    case 'combate':
-    case 'carga':
-    case 'golpe':
-    case 'contra':
-    case 'forma':
-    case 'selo':
-    case 'evolucao':
-    case 'linhaJunto':
-      return { cena: { ...cena, turnos: reverterTurnos(cena.turnos, reversao) }, emParte: false, ok: true }
-  }
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// F2: golpe, reação, dano — o lado que mexe na ficha e solta os efeitos
-// ───────────────────────────────────────────────────────────────────────────
-
-/** Um efeito antes de ganhar o `seq`. */
-type EfeitoNovo = EfeitoDaBatalha extends infer E ? (E extends EfeitoDaBatalha ? Omit<E, 'seq'> : never) : never
-
-/**
- * O último `seq` de efeito da sessão. Um contador só para todas as cenas e
- * batalhas: sobe sempre, então a conexão que guardou o último `seq` tocado
- * nunca vê um número velho de novo (nem depois de a batalha acabar e outra
- * começar).
- */
-let ultimoSeqDeEfeito = 0
-
-function comEfeitos(efeitos: readonly EfeitoDaBatalha[] | undefined, novos: readonly EfeitoNovo[]): readonly EfeitoDaBatalha[] | undefined {
-  if (novos.length === 0) return efeitos
-  const lista: EfeitoDaBatalha[] = [...(efeitos ?? [])]
-  for (const novo of novos) {
-    ultimoSeqDeEfeito += 1
-    lista.push({ ...novo, seq: ultimoSeqDeEfeito })
-  }
-  return lista.slice(-EFEITOS_GUARDADOS)
-}
-
 function novoIdDeGolpe(): string {
   return `golpe_${crypto.randomUUID()}`
-}
-
-/**
- * Mexe na ficha pela mesa (na aventura, o histórico dela cresce em nome de
- * `quem` e a mudança chega ao jogador pelo `syncPersonagens` de sempre).
- * `ajustes` recebe o personagem de AGORA (o Escudo de agora, o SP de agora).
- * Devolve as partes que mudaram (vazio = nada), `null` (personagem ou
- * sistema não existe) ou `'recusada'` (ver `Recusada`).
- */
-function mexerNaFicha(mesa: MesaDaBatalha, personagemId: string, ajustes: (atual: Personagem, sistema: SistemaDeRpg) => readonly Ajuste[], quem: string): ParteDaFicha[] | null | Recusada {
-  const sistema = mesa.sistema()
-  if (sistema === null) return null
-  return gravarNaFicha(mesa, personagemId, sistema, (atual) => {
-    const lista = ajustes(atual, sistema)
-    return lista.length === 0 ? atual : aplicarAjustes(atual, sistema, lista, quem, Date.now())
-  })
-}
-
-/**
- * Conserto das fichas F1 (bug 11): a mesa calculou a ficha nova e RECUSOU
- * gravá-la (a pasta publicada que o Lobby não aceitaria; o aviso já saiu). Não
- * é o `null` de "nada mudou": a ação que cobra custo ou dá dano para ali, sem
- * linha, e devolve `false` (o jogador vê a recusa). O que ela já tinha gravado
- * em outra ficha volta (`devolverFichasDaAcao`).
- */
-type Recusada = 'recusada'
-
-/** A cura pelo item num alvo, lida antes de gravar (`curaDoItemNoAlvo`): a ficha do mapa antes e depois, e os nomes que saíram. */
-interface CuraDoItemNoAlvo {
-  tokenId: string
-  antes: Token
-  depois: Token
-  curou: string[]
-}
-
-/** O miolo de `mexerNaFicha` e `trocarFicha`: `mudar` devolve `null` = não deu (a ficha fica). */
-function gravarNaFicha(mesa: MesaDaBatalha, personagemId: string, sistema: SistemaDeRpg, mudar: (atual: Personagem) => Personagem | null): ParteDaFicha[] | null | Recusada {
-  // Num objeto: a atribuição dentro do callback não estreita a variável de fora (o TS a daria como sempre `null`).
-  const feito: { partes: ParteDaFicha[] | null } = { partes: null }
-  const gravou = mesa.ajustarPersonagem(personagemId, (atual) => {
-    const depois = mudar(atual)
-    if (depois === null) return atual
-    feito.partes = partesDoAjuste(atual, depois, sistema)
-    return depois
-  })
-  if (gravou) return feito.partes
-  // Ficha que não existe (o callback nem rodou) ou sem nada a mudar: `null`, como antes.
-  return feito.partes === null || feito.partes.length === 0 ? null : 'recusada'
-}
-
-/**
- * Bug 11: a ação parou no meio porque a mesa recusou gravar uma ficha. O que
- * ela já gravou em outras fichas (as partes "ficha" juntadas até ali: o custo
- * de quem atacou, o dano do alvo anterior) volta, e nada dela fica.
- */
-function devolverFichasDaAcao(mesa: MesaDaBatalha, sceneKey: string, cena: BatalhaDaCena, partes: readonly Reversao[], autor: AutorDaAcao): void {
-  const daFicha = partes.filter((parte) => parte.tipo === 'ficha' || parte.tipo === 'municao')
-  if (daFicha.length > 0) desfazerReversao(mesa, sceneKey, cena, { tipo: 'composta', partes: daFicha }, autor)
-}
-
-/**
- * MUNIÇÃO: tira 1 da bala ligada da mochila da ficha, pela mesa. `null` =
- * nada a tirar (a bala deixou de estar ligada no meio); `'recusada'` = a mesa
- * não gravou (a pasta publicada recusou), e o tiro não sai.
- */
-function gastarMunicaoNaMesa(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string): Reversao | null | 'recusada' {
-  const doBoneco = mesa.mochilaDoBoneco?.(sceneKey, tokenId) ?? null
-  if (doBoneco !== null) return gastarMunicaoDoBoneco(mesa, sceneKey, tokenId, personagemId, armaId, balaId, doBoneco)
-  // Num objeto: o que o callback da mesa escreve, lido depois dele (um `let` o TS estreitaria para `null`).
-  const feito: { gasta: MunicaoGasta | null } = { gasta: null }
-  const ok = mesa.ajustarPersonagem(personagemId, (atual) => {
-    feito.gasta = gastarMunicaoDaFicha(atual, armaId, balaId)
-    return feito.gasta === null ? atual : feito.gasta.personagem
-  })
-  const { gasta } = feito
-  if (gasta === null) return null
-  if (!ok) return 'recusada'
-  return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice }
-}
-
-/**
- * MUNIÇÃO na aventura que não migrou a mochila (a dona é a do boneco
- * `tokenId`): o tiro tira 1 dela pelo caminho dos itens do mapa, e a ficha
- * só recebe a ligação da bala pelo nome (o `itemId` no subcartão), nunca a
- * mochila. Mesmo contrato de `gastarMunicaoNaMesa`.
- */
-function gastarMunicaoDoBoneco(mesa: MesaDaBatalha, sceneKey: string, tokenId: string, personagemId: string, armaId: string, balaId: string, doBoneco: readonly CarriedItem[]): Reversao | null | 'recusada' {
-  const ficha = mesa.personagens().find((candidato) => candidato.id === personagemId)
-  const gasta = ficha === undefined ? null : gastarMunicaoDaFicha(fichaComAMochilaDoBoneco(ficha, doBoneco), armaId, balaId)
-  if (gasta === null) return null
-  if (mesa.gravarMochilaDoBoneco?.(sceneKey, tokenId, gasta.personagem.mochila ?? []) !== true) return 'recusada'
-  // A ligação só evita que a bala ligada pelo nome se solte quando a última unidade sai; se a ficha não gravar, o tiro já valeu.
-  mesa.ajustarPersonagem(personagemId, (atual) => comABalaLigada(atual, armaId, balaId, gasta.vaga.itemId))
-  return { tipo: 'municao', personagemId, vaga: gasta.vaga, indice: gasta.indice, tokenId }
-}
-
-/** O nome que vai no histórico da ficha quando a batalha mexe nela. */
-function quemNaFicha(autor: AutorDaAcao): string {
-  return nomeDoAutor(autor)
-}
-
-/** O personagem de cada ficha na ordem (alvo possível) e de cada invocado em campo; `undefined` = fora da ordem. */
-function personagemDoTokenNa(turnos: TurnosDaCena): (tokenId: string) => string | null | undefined {
-  return (tokenId) => turnos.cartas.find((carta) => carta.tokenId === tokenId)?.personagemId ?? invocadoDoToken(turnos, tokenId)?.personagemId
-}
-
-/** O nome da ficha para o texto, pela carta dela na ordem (o invocado, pelo nome dele). */
-function nomeDoTokenNa(turnos: TurnosDaCena, personagens: readonly Personagem[]): (tokenId: string) => string {
-  return (tokenId) => {
-    const carta = turnos.cartas.find((candidata) => candidata.tokenId === tokenId)
-    return carta === undefined ? (invocadoDoToken(turnos, tokenId)?.nome ?? nomeDaCarta(carta, personagens)) : nomeDaCarta(carta, personagens)
-  }
-}
-
-/** Invocação: o texto da carta do bando ("Bando de Ryoko"), pelo nome do dono na ordem. */
-function nomeDoBandoNa(turnos: TurnosDaCena, personagens: readonly Personagem[]): (donoTokenId: string) => string {
-  const nomeDoToken = nomeDoTokenNa(turnos, personagens)
-  return (donoTokenId) => `Bando de ${nomeDoToken(donoTokenId)}`
-}
-
-/**
- * Invocação (decisão 9): os invocados com a vida em 0 saem do mapa e do
- * bando. Lê a ficha de AGORA (depois do dano pela mesa). As partes
- * "invocadoSaiu" vão na linha do dano; os nomes, no texto dela.
- */
-function semOsCaidos(mesa: MesaDaBatalha, sceneKey: string, turnos: TurnosDaCena): { turnos: TurnosDaCena; partes: Reversao[]; nomes: string[] } {
-  const recurso = recursoDeVida(mesa.sistema())
-  if (recurso === null || (turnos.invocados ?? []).length === 0) return { turnos, partes: [], nomes: [] }
-  const personagens = mesa.personagens()
-  let novos = turnos
-  const partes: Reversao[] = []
-  const nomes: string[] = []
-  for (const invocado of turnos.invocados ?? []) {
-    const personagem = personagens.find((candidato) => candidato.id === invocado.personagemId)
-    const vida = personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
-    if (vida === null || vida.atual > 0) continue
-    const tirado = tirarDoMapa(mesa, sceneKey, novos, invocado)
-    novos = tirado.turnos
-    partes.push(tirado.parte)
-    nomes.push(invocado.nome)
-  }
-  return { turnos: novos, partes, nomes }
-}
-
-/** " · Lobo saiu do mapa" para o texto da linha; ninguém saiu = vazio. */
-function textoDosQueSairam(nomes: readonly string[]): string {
-  return nomes.length === 0 ? '' : ` · ${nomes.join(', ')} ${nomes.length === 1 ? 'saiu' : 'saíram'} do mapa`
-}
-
-/** A reversão de uma ficha mexida; nada mudou = nenhuma. */
-/** Conserto das fichas F1 (+10 SP por vez): as partes gravadas tiraram SP (o recurso de custo "sp" do sistema). */
-function tirouSp(partes: readonly ParteDaFicha[] | null, sistema: SistemaDeRpg): boolean {
-  const sp = recursoDoCusto(sistema, 'sp')
-  return sp !== null && (partes ?? []).some((parte) => parte.parte === 'recurso' && parte.chave === sp.id && parte.para < parte.de)
-}
-
-function reversaoDaFicha(personagemId: string, partes: readonly ParteDaFicha[] | null): Reversao[] {
-  return partes === null || partes.length === 0 ? [] : [{ tipo: 'ficha', personagemId, partes }]
 }
 
 /** R5: a ficha do token gastou a reação no contador (fica sem reagir até a vez dela). */
@@ -838,45 +320,10 @@ function gastouAReacao(turnos: TurnosDaCena, tokenId: string): boolean {
   return personagemId !== undefined && personagemId !== null && turnos.combate?.[personagemId]?.semReacao === true
 }
 
-/** R4: a mudança do "Ajustar..." dentro do sistema e dos tetos (o fio já cortou o tamanho). */
-function mudancaValida(sistema: SistemaDeRpg, mudanca: MudancaDoAjuste): boolean {
-  if (mudanca.tipo === 'atributo') {
-    return sistema.atributos.some((atributo) => atributo.id === mudanca.atributoId) && Number.isInteger(mudanca.delta) && mudanca.delta !== 0 && Math.abs(mudanca.delta) <= DELTA_DO_AJUSTE_MAX
-  }
-  return sistema.recursos.some((recurso) => recurso.id === mudanca.recursoId) && Number.isInteger(mudanca.valor) && mudanca.valor >= 0 && mudanca.valor <= NUMERO_DA_FICHA_MAX
-}
-
 /** A lista com o golpe trocado (ou tirado, se não espera mais ninguém). */
 function comGolpe(golpes: readonly GolpeDaBatalha[] | undefined, golpe: GolpeDaBatalha): GolpeDaBatalha[] {
   const outros = (golpes ?? []).filter((candidato) => candidato.id !== golpe.id)
   return golpePendente(golpe) ? [...outros, golpe] : outros
-}
-
-/** As partes "reacaoComTecnica" de uma reversão (a linha da reação com técnica). */
-function reacoesComTecnicaDe(reversao: Reversao): Extract<Reversao, { tipo: 'reacaoComTecnica' }>[] {
-  if (reversao.tipo === 'reacaoComTecnica') return [reversao]
-  return reversao.tipo === 'composta' ? reversao.partes.flatMap(reacoesComTecnicaDe) : []
-}
-
-/** Os golpes que nasceram na linha (partes "golpe"). */
-function golpesDaReversao(reversao: Reversao): string[] {
-  if (reversao.tipo === 'golpe') return [reversao.golpeId]
-  return reversao.tipo === 'composta' ? reversao.partes.flatMap(golpesDaReversao) : []
-}
-
-/** F2 (fatia B): as linhas que nasceram junto desta (o 2º golpe do Rapid Dash), na ordem em que foram escritas. */
-function linhasJuntoDe(reversao: Reversao): string[] {
-  if (reversao.tipo === 'linhaJunto') return [reversao.linhaId]
-  return reversao.tipo === 'composta' ? reversao.partes.flatMap(linhasJuntoDe) : []
-}
-
-/** Os contra-ataques que a linha deu: todo contra do golpe que nasceu nela (`tokenId` null) e o da reação com técnica que saiu "contra". */
-function contrasDaReversao(reversao: Reversao): { golpeId: string; tokenId: string | null }[] {
-  const doGolpe = golpesDaReversao(reversao).map((golpeId) => ({ golpeId, tokenId: null }))
-  const daReacao = reacoesComTecnicaDe(reversao)
-    .filter((parte) => parte.golpe.alvos.some((alvo) => alvo.tokenId === parte.tokenId && alvo.saida === 'contra'))
-    .map((parte) => ({ golpeId: parte.golpe.id, tokenId: parte.tokenId }))
-  return [...doGolpe, ...daReacao]
 }
 
 /**
@@ -925,32 +372,6 @@ function acertoComMarca(mesa: MesaDaBatalha, turnos: TurnosDaCena, golpe: GolpeD
   // Só a forma: o registro segue "(forma −20%)", como antes.
   if (reducoes.some((reducao) => reducao.nome === 'Determinação')) reduzido.reducaoDe = nomesDasReducoes(reducoes)
   return { ...acerto, alvo: reduzido }
-}
-
-/** A linha do registro com outro texto e mais partes na reversão (o golpe que se resolve alvo a alvo). */
-function linhaAtualizada(registro: readonly LinhaDoRegistro[], linhaId: string, texto: string, maisPartes: readonly Reversao[]): readonly LinhaDoRegistro[] {
-  const indice = registro.findIndex((linha) => linha.id === linhaId)
-  const linha = registro[indice]
-  if (linha === undefined) return registro
-  const reversao: Reversao = maisPartes.length === 0 ? linha.reversao : { tipo: 'composta', partes: [...(linha.reversao.tipo === 'composta' ? linha.reversao.partes : [linha.reversao]), ...maisPartes] }
-  const lista = [...registro]
-  lista[indice] = { ...linha, texto: textoDaLinha(texto), reversao }
-  return lista
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// F3 (fatia T): forma e selos
-// ───────────────────────────────────────────────────────────────────────────
-
-/**
- * Como `mexerNaFicha`, mas com o personagem novo pronto (a forma passa pelo
- * `aplicarAjustes` em `transformacao.ts`). `mudar` devolve `null` = não deu:
- * a ficha fica e volta `null`. Gravação recusada = `'recusada'` (bug 11).
- */
-function trocarFicha(mesa: MesaDaBatalha, personagemId: string, mudar: (atual: Personagem, sistema: SistemaDeRpg) => Personagem | null): ParteDaFicha[] | null | Recusada {
-  const sistema = mesa.sistema()
-  if (sistema === null) return null
-  return gravarNaFicha(mesa, personagemId, sistema, (atual) => mudar(atual, sistema))
 }
 
 /**
@@ -1003,18 +424,6 @@ function seloRenovado(turnos: TurnosDaCena, tokenId: string, pedido: SeloDoGolpe
   if (pedido.porVez !== undefined) depois.porVez = pedido.porVez
   if (pedido.saiNoProximoGolpe === true) depois.saiNoProximoGolpe = true
   return { selos: (turnos.selos ?? []).map((selo) => (selo.id === antes.id ? depois : selo)), parte: { tipo: 'selo', seloId: antes.id, antes, editado: true } }
-}
-
-/**
- * Tipos de habilidade F3: as partes "combate" dos lembretes que um gancho
- * pôs (Iniciar, virada da rodada, dano), para o Desfazer da linha tirar SÓ
- * eles e a chave deles em `lembradas`.
- */
-function partesDosLembretes(feito: TurnosComLembretes): Reversao[] {
-  return feito.mudaram.flatMap(({ personagemId, antes }): Reversao[] => {
-    const depois = feito.turnos.combate?.[personagemId]
-    return depois === undefined ? [] : [{ tipo: 'combate', personagemId, antes, depois }]
-  })
 }
 
 const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre' }
