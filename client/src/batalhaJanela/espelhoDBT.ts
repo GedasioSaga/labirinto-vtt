@@ -1,6 +1,6 @@
 import { fichasDaCena } from '../lib/dbt/batalha/leitura'
 import { turnoNoM } from '../lib/dbt/batalha/ordem'
-import type { AutorDBT, ComandoDBT, CombatenteDBT, OpcaoDeAcao } from '../lib/dbt/batalha/tipos'
+import type { AutorDBT, ComandoDBT, CombatenteDBT, LinhaDBT, OpcaoDeAcao } from '../lib/dbt/batalha/tipos'
 import { linhasDoMestre } from '../lib/dbt/batalha/vista'
 import {
   avisosDoMestre,
@@ -93,7 +93,35 @@ function golpeNoEspelho(cena: CenaDBT, vez: CombatenteDBT, opcao: OpcaoDeAcao): 
     alvo: opcao.alvo === 'nenhum' ? 'nenhum' : opcao.alvosMax > 1 ? 'varios' : 'um',
     alvosMax: opcao.alvo === 'nenhum' ? 0 : opcao.alvosMax,
     alvosPermitidos: opcao.alvo === 'nenhum' ? [] : candidatosDoAlvo(cena, vez.id, opcao.alvo).map((candidato) => candidato.id),
+    // O dano do Dragon Ball sai do dado e da ficha no motor: não há Dano base para ajustar daqui.
+    dano: null,
+    perfurante: false,
+    ajustavel: false,
   }
+}
+
+/** As linhas que contam o que a vez fez; as de ordem e de ficha ficam só no registro. */
+const LINHAS_DA_VEZ: ReadonlySet<LinhaDBT['tipo']> = new Set<LinhaDBT['tipo']>(['acao', 'tecnica', 'reacao', 'dano', 'cura', 'condicao', 'teste', 'transformacao', 'choque', 'morte'])
+const FEITOS_NA_VEZ = 3
+
+/** Quando a vez começou e o que ela já fez: as linhas depois da última "Vez" de pé (o registro vem da mais velha à mais nova). */
+function oQueAVezFez(registro: readonly LinhaDBT[]): { desde: number | null; feitos: string[] } {
+  let inicio = -1
+  for (let indice = registro.length - 1; indice >= 0; indice -= 1) {
+    const linha = registro[indice]
+    if (linha !== undefined && linha.tipo === 'vez' && linha.desfeita === undefined) {
+      inicio = indice
+      break
+    }
+  }
+  const desde = inicio >= 0 ? (registro[inicio]?.quando ?? null) : null
+  const feitos = registro
+    .slice(inicio + 1)
+    .filter((linha) => linha.desfeita === undefined && LINHAS_DA_VEZ.has(linha.tipo))
+    .map((linha) => linha.texto)
+    .reverse()
+    .slice(0, FEITOS_NA_VEZ)
+  return { desde, feitos }
 }
 
 function vezNoEspelho(cena: CenaDBT, fichas: Fichas, cartas: readonly CartaDBT[], vez: CombatenteDBT): VezNoEspelho {
@@ -121,7 +149,11 @@ function vezNoEspelho(cena: CenaDBT, fichas: Fichas, cartas: readonly CartaDBT[]
     golpes: opcoes.map((opcao) => golpeNoEspelho(cena, vez, opcao)),
     alvos,
     sugestao: { golpe: null, alvo: null },
-    aviso: pendente ? 'Há um pedido esperando: as ações voltam quando ele for resolvido.' : vez.npc ? null : `A vez de ${vez.nome} é do jogador, que escolhe na tela própria; você pode agir por ele daqui.`,
+    aviso: pendente ? 'Há um pedido esperando: as ações voltam quando ele for resolvido.' : vez.npc ? null : `${vez.nome} joga na tela própria; você pode agir por ele daqui.`,
+    posicao: Math.max(0, cartas.findIndex((carta) => carta.id === vez.id)) + 1,
+    ...oQueAVezFez(cena.registro),
+    pips: [],
+    menuDoMapa: false,
   }
 }
 
@@ -146,6 +178,7 @@ function pendentesDe(cena: CenaDBT, fichas: Fichas): PendenteNoEspelho[] {
       ativa,
       respostas: daqui.map((opcao) => ({ chave: opcao.chave, rotulo: opcao.gratis || opcao.ki === 0 ? opcao.rotulo : `${opcao.rotulo} (${opcao.ki} Ki)`, bloqueio: opcao.bloqueio })),
       nota: !ativa ? 'Na fila: espera a de cima.' : pendencia.tipo === 'declaracao' ? 'Declarar a forma: no painel da batalha do livro.' : daqui.length < todas.length ? 'Respostas com aposta ou atributo: no painel da batalha do livro.' : null,
+      golpe: null,
     }
   })
 }
@@ -157,7 +190,8 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
   const fichas = fichasDe(cena)
   const cartas = cartasDaBatalha(cena, fichas)
   const vez = vezDe(cena)
-  const ordem: CartaNoEspelho[] = cartas.map((carta) => ({
+  const indiceDaVez = cartas.findIndex((carta) => carta.vez)
+  const ordem: CartaNoEspelho[] = cartas.map((carta, indice) => ({
     id: carta.id,
     nome: carta.nome,
     npc: carta.npc,
@@ -169,6 +203,8 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
     vez: carta.vez,
     proxima: false,
     marcas: marcasDe(carta),
+    posicao: indice + 1,
+    agiu: cena.fase === 'combate' && indiceDaVez >= 0 && indice < indiceDaVez,
   }))
   const linhas = linhasDoMestre(cena.registro)
   const registro: LinhaNoEspelho[] = linhas.slice(0, LINHAS_NA_MESA).map((linha) => ({ id: linha.id, rodada: linha.rodada, autor: linha.autor, texto: linha.texto, desfeita: linha.desfeitaPor !== null, podeDesfazer: linha.podeDesfazer }))
@@ -190,6 +226,10 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
       ? 'Encerrar aplica a exaustão do fim pela tabela padrão de cada ficha. Para revisar a tabela antes, encerre pelo livro.'
       : 'Encerrar desliga a batalha desta cena. As fichas ficam como estão.',
     avisos: avisosDoMestre(cena, fichas).map((aviso) => aviso.texto),
+    contra: null,
+    temCaminhos: Object.keys(cena.caminhos).length > 0,
+    podeOrdenar: false,
+    menuDoMapaAberto: false,
   }
 }
 
@@ -219,6 +259,18 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
       return useBatalhaDBTStore.getState().desfazer(sceneKey, pedido.linhaId, MESTRE) ? OK : recusa('Só a última linha de pé se desfaz: desfaça as de cima primeiro.')
     case 'iniciativa':
       return comando(sceneKey, pedido.passo === 'rolar' ? { tipo: 'rolarIniciativa' } : { tipo: 'comecar' })
+    case 'contra':
+    case 'abrirMao':
+      return recusa('No Dragon Ball a ação a mais do erro crítico chega como pedido: responda nele.')
+    case 'ordenar':
+      return recusa('No Dragon Ball a ordem sai da iniciativa rolada.')
+    case 'zerarCaminhos':
+      useBatalhaDBTStore.getState().zerarCaminhos(sceneKey)
+      return OK
+    case 'menuDoMapa':
+      return recusa('No Dragon Ball a vez inteira mora aqui e no painel do livro.')
+    case 'abrirLivro':
+      return recusa('O livro abre pela janela principal.')
     case 'encerrar': {
       const loja = useBatalhaDBTStore.getState()
       loja.encerrar(sceneKey, cena.opcoes.exaustao ? loja.resumoDoFim(sceneKey) : null)
