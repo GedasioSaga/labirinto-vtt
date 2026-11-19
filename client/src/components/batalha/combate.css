@@ -1382,6 +1382,37 @@
     0 0 0 3px var(--bt-papel),
     0 0 0 8px var(--bt-sangue);
 }
+/*
+ * CAMPO DE BATALHA (protótipo aprovado em 19/11/2026): a mira marca a CASA com
+ * cantos de latão, não com o anel vermelho grosso. Latão no que pode, latão
+ * claro e mais grosso no foco; o contorno escuro segura o traço em qualquer
+ * chão. O anel de papel da invocação (--quem) continua como era.
+ */
+.bt-marca-mira:not(.bt-marca-mira--quem) {
+  box-shadow: none;
+}
+.bt-marca-mira:not(.bt-marca-mira--quem)::before {
+  --canto-cor: var(--lb-color-brass);
+  --canto-traco: 2px;
+  content: '';
+  position: absolute;
+  inset: -16%;
+  background:
+    linear-gradient(var(--canto-cor), var(--canto-cor)) left top / 30% var(--canto-traco),
+    linear-gradient(var(--canto-cor), var(--canto-cor)) left top / var(--canto-traco) 30%,
+    linear-gradient(var(--canto-cor), var(--canto-cor)) right top / 30% var(--canto-traco),
+    linear-gradient(var(--canto-cor), var(--canto-cor)) right top / var(--canto-traco) 30%,
+    linear-gradient(var(--canto-cor), var(--canto-cor)) left bottom / 30% var(--canto-traco),
+    linear-gradient(var(--canto-cor), var(--canto-cor)) left bottom / var(--canto-traco) 30%,
+    linear-gradient(var(--canto-cor), var(--canto-cor)) right bottom / 30% var(--canto-traco),
+    linear-gradient(var(--canto-cor), var(--canto-cor)) right bottom / var(--canto-traco) 30%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 1.5px rgba(12, 12, 14, 0.9));
+}
+.bt-marca-mira:not(.bt-marca-mira--quem)[data-foco='sim']::before {
+  --canto-cor: var(--lb-color-brass-bright);
+  --canto-traco: 3px;
+}
 
 /* ---------------------------------------------------------------- REAÇÃO */
 .bt-reacao {
