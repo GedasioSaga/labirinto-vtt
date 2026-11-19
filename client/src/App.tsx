@@ -1658,7 +1658,9 @@ function App() {
   )
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoMestre(turnosDaCenaAberta), [turnosDaCenaAberta]))
   const aventuraDoJudge = adventure?.id ?? null
-  // A batalha ligou sem Judge: ele nasce onde o mestre o deixou neste mapa, senão 2 casas ao norte da primeira ficha da ordem.
+  // A batalha ligou sem Judge. O Iniciar já o põe perto do grupo (`judgeNoMapaDaBatalha` no `ControleDaBatalha`); isto é a
+  // reserva (hex, ninguém no mapa, nenhuma casa livre, batalha retomada sem Judge): o lugar onde o mestre o deixou neste
+  // mapa se está a até 6 blocos da primeira ficha da ordem, senão 2 casas ao norte dela, senão o centro (`judgeInicial`).
   useEffect(() => {
     if (!batalhaNaCenaAberta || judgeNaCenaAberta !== null) return
     const cena = useBatalhaStore.getState().cenas[chaveDaCenaAberta]

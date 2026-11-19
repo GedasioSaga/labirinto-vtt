@@ -155,7 +155,7 @@ export function ControleDaBatalhaDBT({ sceneKey, gridShape, aventuraId }: Contro
   const iniciarCom = (entrantes: EntranteDBT[]) => {
     if (caixa === null) return
     setCaixa({ ...caixa, aberta: false })
-    const judge = judgeInicialDBT(sceneKey, aventuraId, entrantes[0]?.tokenId ?? null)
+    const judge = judgeInicialDBT(sceneKey, aventuraId, entrantes.map((entrante) => entrante.tokenId))
     const ok = useBatalhaDBTStore.getState().ligar(sceneKey, caixa.abertura, { entrantes, opcoes: caixa.opcoes, judge }, useBatalhaStore.getState().ligada(sceneKey))
     if (!ok) {
       useToastStore.getState().push('error', JA_TEM_BATALHA)
