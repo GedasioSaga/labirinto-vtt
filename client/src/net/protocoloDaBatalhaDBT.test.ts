@@ -68,6 +68,14 @@ describe('protocoloDaBatalhaDBT', () => {
     expect(lerVistaDBT({ ...VISTA, fase: 'fim' })).toBeNull()
   })
 
+  it('a imagem da forma na carta (19/11/2026): referência de mídia passa; endereço solto no fio é forjado', () => {
+    const ref = `midia:${'b'.repeat(64)}.webp`
+    const comForma = { ...VISTA, cartas: [VISTA.cartas[0], { ...VISTA.cartas[1], transformacao: 'Oozaru', fotoDaForma: ref }] }
+    expect(lerVistaDBT(comForma)?.cartas[1].fotoDaForma).toBe(ref)
+    const forjada = { ...VISTA, cartas: [VISTA.cartas[0], { ...VISTA.cartas[1], fotoDaForma: 'https://exemplo.invalid/rastreio.png' }] }
+    expect(lerVistaDBT(forjada)).toBeNull()
+  })
+
   it('aliados: só jogador, sem dado de mestre, sem bloco de NPC, sem repetir', () => {
     const vegeta = { ...novoPersonagem(SISTEMA_DRAGON_BALL, 'jogador', 'Vegeta'), id: 'vegeta' }
     const lida = parseBatalhaDBTAliados({ type: 'batalhaDBT.aliados', personagens: [vegeta] })
