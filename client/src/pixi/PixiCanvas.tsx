@@ -22,12 +22,20 @@ import { criarCaminhosDesenhados } from './caminhoDesenhado'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
-import { periodoDaSessao, personagensAtivos, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
+import { equipesAtivas, periodoDaSessao, personagensAtivos, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
 import { criarPortaoDaVista } from './vistaCoberta'
 import { criarGradeDaBatalha } from './gradeDaBatalha'
+import { criarFiosDaBatalha } from './fiosDaBatalha'
+import { criarAlcanceDaBatalha } from './alcanceDaBatalha'
+import { criarCalculoDoAlcance } from '../lib/batalha/alcanceNoCampo'
+import { acoesDaCarta } from '../lib/batalha/golpe'
+import { cartaDaVez } from '../lib/batalha/turnos'
+import type { Casa } from '../lib/batalha/blocos'
+import { CAMPO_VAZIO, campoDoMestre, type CampoDaBatalha } from '../lib/batalha/marcasNoCampo'
+import { useBatalhaStore } from '../stores/batalhaStore'
 import { preaquecerContornoDoChao, proximaTarefa } from './aberturaDoEditor'
 import { useFollowStore, type CameraOrigin } from '../stores/followStore'
 import { subscribeToShapesRedraw } from '../stores/shapesSubscription'
@@ -1382,6 +1390,13 @@ function PixiCanvasDoContexto({
       patrolRoutesGraphics.eventMode = 'none'
       // MODO BATALHA (B5): a grade de batalha, só com a batalha ligada na cena aberta.
       const gradeDaBatalha = criarGradeDaBatalha()
+      // CAMPO DE BATALHA (19/11): os fios entre fichas (golpe esperando a reação, contra-ataque) moram no chão da grade.
+      const fiosDaBatalha = criarFiosDaBatalha()
+      gradeDaBatalha.camada.addChild(fiosDaBatalha.grafico)
+      // Até onde a ficha da vez anda: casas claras com a linha da grade, por baixo dos fios.
+      const alcanceDaBatalha = criarAlcanceDaBatalha()
+      gradeDaBatalha.camada.addChildAt(alcanceDaBatalha.camada, gradeDaBatalha.camada.getChildIndex(fiosDaBatalha.grafico))
+      const calcularAlcance = criarCalculoDoAlcance()
       const tokensContainer = new Container()
       // A5 — zonas ocultas por cima do conteúdo: o mestre precisa ver o que cobre.
       const concealZonesContainer = new Container()
@@ -2261,6 +2276,66 @@ function PixiCanvasDoContexto({
        * de `width`/`height`/`grid`, que mudam junto de `grid` na assinatura
        * de `subscribeToGridRedraw` (ver comentário mais abaixo).
        */
+      /**
+       * CAMPO DE BATALHA (protótipo de 19/11): o lado, o anel e o alvo de cada ficha
+       * na cena aberta (`lib/batalha/marcasNoCampo.ts`), lidos da batalha da sessão.
+       * A imagem exportada é do mapa, não da sessão: sai sem nada.
+       */
+      const campoDaCena = (): CampoDaBatalha => {
+        if (exportScene !== null) return CAMPO_VAZIO
+        const { map } = sceneState()
+        const turnos = useBatalhaStore.getState().cenas[useAdventureStore.getState().activeSceneId ?? map.id]?.turnos ?? null
+        if (turnos === null) return CAMPO_VAZIO
+        const aventura = useAdventureStore.getState()
+        return campoDoMestre({
+          turnos,
+          personagemDaFicha: new Map(map.tokens.map((token) => [token.id, token.characterId ?? null])),
+          equipes: equipesAtivas(aventura),
+          personagens: personagensAtivos(aventura),
+        })
+      }
+      /**
+       * Os blocos que sobram à ficha da vez (o "Mov" da regra do campo menos o
+       * andado), só na hora de andar: sem golpe esperando reação nem contra-ataque
+       * segurando a vez. `null` = nada a mostrar (sem limite, sem vez, exportação).
+       */
+      const alcanceDaVez = (campo: CampoDaBatalha): { tokenId: string; sobra: number } | null => {
+        if (exportScene !== null || campo.fios.length > 0) return null
+        const { map } = sceneState()
+        const cena = useBatalhaStore.getState().cenas[useAdventureStore.getState().activeSceneId ?? map.id]
+        if (cena === undefined) return null
+        const carta = cartaDaVez(cena.turnos)
+        if (carta === null || carta.tokenId !== campo.quemAge) return null
+        const aventura = useAdventureStore.getState()
+        const personagem = carta.personagemId === null ? null : (personagensAtivos(aventura).find((p) => p.id === carta.personagemId) ?? null)
+        const sistemaId = sistemaAtivo(aventura)
+        const sistema = sistemaId === undefined ? null : (useRpgStore.getState().biblioteca.find((candidato) => candidato.id === sistemaId) ?? null)
+        const { blocos } = acoesDaCarta({ turnos: cena.turnos, carta, personagem, sistema, regras: cena.regras })
+        return blocos.limite === null ? null : { tokenId: carta.tokenId, sobra: blocos.limite - blocos.andados }
+      }
+      /** As casas do último desenho: o zoom refaz a borda (px de tela) com elas. */
+      let ultimasCasas: readonly Casa[] | null = null
+      const redesenharAlcance = (campo: CampoDaBatalha | null) => {
+        if (campo !== null) {
+          const vez = alcanceDaVez(campo)
+          ultimasCasas = calcularAlcance(sceneState().map, vez?.tokenId ?? null, vez?.sobra ?? null)
+        }
+        alcanceDaBatalha.desenhar(ultimasCasas, sceneState().map.grid, camera.scale)
+      }
+      /** O campo do último desenho das fichas: o pan e o zoom refazem os fios com ele, sem reler a batalha. */
+      let ultimoCampo: CampoDaBatalha = CAMPO_VAZIO
+      const redesenharFios = (campo: CampoDaBatalha) => {
+        ultimoCampo = campo
+        const { map } = sceneState()
+        fiosDaBatalha.desenhar(
+          campo.fios,
+          (tokenId) => {
+            const token = map.tokens.find((t) => t.id === tokenId)
+            return token === undefined ? null : { x: token.x, y: token.y, raio: (map.grid * token.size) / 2 }
+          },
+          camera.scale,
+        )
+      }
       const portaoDaMoldura = criarPortaoDaVista()
       const redrawMapBounds = () => {
         const { map } = sceneState()
@@ -2272,6 +2347,9 @@ function PixiCanvasDoContexto({
         // MODO BATALHA (B5): o mesmo gatilho e o mesmo portão com folga; a imagem exportada sai sem a grade de batalha.
         gradeDaBatalha.definir(batalhaLigadaRef.current, map)
         gradeDaBatalha.ajustarAVista(exportScene === null ? viewport : null, camera.scale, app.renderer.resolution)
+        // Os fios têm traço em px de tela: o zoom refaz (sem mudança, a chave deles não desenha).
+        redesenharFios(ultimoCampo)
+        redesenharAlcance(null)
         if (exportScene !== null) {
           portaoDaMoldura.esquecer()
           drawMapBounds(mapBoundsGraphics, map, viewport, pixel)
@@ -2871,6 +2949,7 @@ function PixiCanvasDoContexto({
         // CAMADAS (fatia 3b): a ficha de camada escolhida desenha no nó dela, e some com o olho do mestre dela.
         const camadasDasFichas = contextoDeCamadas(map)
         const noDaFicha = noDoItem(pilha.nosDaFaixa('tokensContainer'), (t: Token) => camadasDasFichas.camadaDe('ficha', t))
+        const campo = campoDaCena()
         const changedLabels = tokensRenderer.draw(
           tokensContainer,
           visibleTokens(map.tokens, map),
@@ -2883,13 +2962,17 @@ function PixiCanvasDoContexto({
           vidasDoMapa(map),
           noDaFicha,
           // BATALHA F1: a imagem exportada é do mapa, não da sessão: sai sem o anel da vez.
-          exportScene === null ? vezTokenIdRef.current : null,
+          // CAMPO DE BATALHA: o anel cheio vai em quem age agora (quem contra-ataca, senão a vez).
+          exportScene === null ? (campo.quemAge ?? vezTokenIdRef.current) : null,
           // BATALHA F3: idem para a imagem da forma e os selos.
           exportScene === null ? (fotoDaFormaRef.current ?? undefined) : undefined,
           exportScene === null ? (selosNasFichasRef.current ?? undefined) : undefined,
           // OLHOS DO GUARDA: "?" e "!" em cima do guarda que tem ficha de jogador no olhar, com a sala aberta ou fechada.
           exportScene === null ? alertasNoEditor(map, personagensAtivos(useAdventureStore.getState()), useDonosDasFichasStore.getState().posse) : undefined,
+          campo.fichas,
         )
+        redesenharFios(campo)
+        redesenharAlcance(campo)
         // O cone acompanha o guarda no arrasto e a direção escolhida no painel, e
         // a rota acompanha a patrulha (pelo portão do redesenho: sem guarda, sem
         // patrulha ou sem ficha mudada, nada repinta).
@@ -3611,6 +3694,10 @@ function PixiCanvasDoContexto({
       const unsubscribeAwayTokens = useAwayTokensStore.subscribe((state, previous) => {
         if (state.tokenIds !== previous.tokenIds) redrawTokens()
       })
+      // CAMPO DE BATALHA: a vez, o golpe lançado, a reação e o contra-ataque mudam as marcas das fichas.
+      const unsubscribeCampo = useBatalhaStore.subscribe((state, previous) => {
+        if (state.cenas !== previous.cenas) redrawTokens()
+      })
       // MAPA DE CONTINENTE: trocar o "Tipo de mapa" da cena ou a posse da sala troca disco por pino.
       const unsubscribeContinente = useMapStore.subscribe(
         (state) => state.map.continente === true || state.map.worldMap === true,
@@ -4072,6 +4159,8 @@ function PixiCanvasDoContexto({
       const redrawHover = () => {
         const map = doPisoEmEdicao(useMapStore.getState().map)
         drawHover(hoverGraphics, map, hoverTarget, camera.scale, pinosNoToque(map))
+        // CAMPO DE BATALHA: a vida da ficha sob o mouse aparece (na batalha, só na hora).
+        tokensRenderer.mostrarVidaDe?.(hoverTarget?.kind === 'token' ? hoverTarget.id : null)
       }
       let spaceHeld = false
       // 17/09/2026 — a pessoa já moveu a vista pelo botão do meio ou por
@@ -9739,6 +9828,7 @@ function PixiCanvasDoContexto({
         unsubscribePontoAberto()
         unsubscribeTokens()
         unsubscribeAwayTokens()
+        unsubscribeCampo()
         unsubscribeContinente()
         unsubscribeDonos()
         unsubscribeOlharDoGuarda()
