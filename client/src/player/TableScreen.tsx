@@ -140,7 +140,7 @@ function TableSession({ connection, code, onChangeCode }: { connection: PlayerCo
           aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
         />
         {/* CUTSCENE EM VÍDEO: a TV também baixa e toca o vídeo do mestre, no volume fixo dela. */}
-        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} volume={PREFERENCIA_DE_SOM_PADRAO.volume} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} volume={PREFERENCIA_DE_SOM_PADRAO.volume} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} aoFalhar={(exibicao) => connection.falharCutsceneVideo(exibicao)} />
       </PlayerErrorBoundary>
     )
   }

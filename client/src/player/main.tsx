@@ -2901,7 +2901,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           aoCarregar={(preparo) => connection.informarCutsceneCarregando(preparo)}
         />
         {/* CUTSCENE EM VÍDEO: o vídeo do mestre, no volume deste aparelho; sem pular. */}
-        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} aoFalhar={(exibicao) => connection.falharCutsceneVideo(exibicao)} />
         {reconnecting}
       </PlayerErrorBoundary>
     )
@@ -2926,7 +2926,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         />
         <PlayerScreenAwake active={screenAwake} />
         {/* CUTSCENE EM VÍDEO: quem ainda espera um personagem também está na conta da mesa (baixa e avisa "pronta"); tem de ver o vídeo. */}
-        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} />
+        <CutsceneDeVideoOverlay cutscene={state.cutsceneVideo} aoTerminar={(exibicao) => connection.terminarCutsceneVideo(exibicao)} aoFalhar={(exibicao) => connection.falharCutsceneVideo(exibicao)} />
       </>
     )
   }

@@ -18,6 +18,12 @@ interface CutsceneDeVideoOverlayProps {
   volume?: number
   /** O vídeo chegou ao fim aqui: a conexão avisa o mestre e solta o vídeo. */
   aoTerminar: (exibicao: number) => void
+  /**
+   * O vídeo chegou mas não toca neste navegador (H.265 de iPhone, arquivo
+   * corrompido): a conexão avisa o mestre ("não chegou" no painel) e solta a
+   * tela, que não fica preta esperando um fim que nunca vem.
+   */
+  aoFalhar: (exibicao: number) => void
 }
 
 /** Saída: o mesmo fade curto das transições. */
@@ -42,7 +48,15 @@ function SeloDaBaixa({ cutscene }: { cutscene: CutsceneVideoNoJogador }) {
   )
 }
 
-function TelaDoVideo({ cutscene, url, volume, aoTerminar }: { cutscene: CutsceneVideoNoJogador; url: string; volume: number; aoTerminar: (exibicao: number) => void }) {
+interface TelaDoVideoProps {
+  cutscene: CutsceneVideoNoJogador
+  url: string
+  volume: number
+  aoTerminar: (exibicao: number) => void
+  aoFalhar: (exibicao: number) => void
+}
+
+function TelaDoVideo({ cutscene, url, volume, aoTerminar, aoFalhar }: TelaDoVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [saindo, setSaindo] = useState(false)
   const [semSom, setSemSom] = useState(false)
@@ -68,10 +82,11 @@ function TelaDoVideo({ cutscene, url, volume, aoTerminar }: { cutscene: Cutscene
     })
   }, [url])
 
-  const terminar = () => {
+  /** Sai com o fade e, no fim dele, conta à conexão como acabou: chegou ao fim ou não tocou. */
+  const sair = (aoSair: (exibicao: number) => void) => {
     if (saindo) return
     setSaindo(true)
-    setTimeout(() => aoTerminar(cutscene.exibicao), querMovimentoReduzido() ? 0 : SAIDA_MS)
+    setTimeout(() => aoSair(cutscene.exibicao), querMovimentoReduzido() ? 0 : SAIDA_MS)
   }
 
   const ligarSom = () => {
@@ -84,7 +99,17 @@ function TelaDoVideo({ cutscene, url, volume, aoTerminar }: { cutscene: Cutscene
 
   return createPortal(
     <div className="lb-cutscene-video" data-saindo={saindo} role="dialog" aria-modal="true" aria-label={`Cutscene: ${cutscene.titulo}`}>
-      <video ref={videoRef} className="lb-cutscene-video__filme" src={url} playsInline preload="auto" onEnded={terminar} disablePictureInPicture controls={false} />
+      <video
+        ref={videoRef}
+        className="lb-cutscene-video__filme"
+        src={url}
+        playsInline
+        preload="auto"
+        onEnded={() => sair(aoTerminar)}
+        onError={() => sair(aoFalhar)}
+        disablePictureInPicture
+        controls={false}
+      />
       {semSom && (
         <button type="button" className="lb-cutscene-video__som" onClick={ligarSom}>
           Ligar o som
@@ -95,10 +120,10 @@ function TelaDoVideo({ cutscene, url, volume, aoTerminar }: { cutscene: Cutscene
   )
 }
 
-export function CutsceneDeVideoOverlay({ cutscene, volume, aoTerminar }: CutsceneDeVideoOverlayProps) {
+export function CutsceneDeVideoOverlay({ cutscene, volume, aoTerminar, aoFalhar }: CutsceneDeVideoOverlayProps) {
   const volumeDoAparelho = useSomStore((estado) => (estaCalado(estado) ? 0 : estado.volume))
   if (cutscene === undefined) return null
   const url = cutscene.url
   if (url === undefined || cutscene.largouEm === undefined) return <SeloDaBaixa cutscene={cutscene} />
-  return <TelaDoVideo key={`${cutscene.exibicao}:${url}`} cutscene={cutscene} url={url} volume={volume ?? volumeDoAparelho} aoTerminar={aoTerminar} />
+  return <TelaDoVideo key={`${cutscene.exibicao}:${url}`} cutscene={cutscene} url={url} volume={volume ?? volumeDoAparelho} aoTerminar={aoTerminar} aoFalhar={aoFalhar} />
 }

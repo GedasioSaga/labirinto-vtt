@@ -1393,6 +1393,8 @@ export interface PlayerConnection {
   informarCutsceneCarregando(preparo: number): boolean
   /** CUTSCENE EM VÍDEO: o vídeo chegou ao fim nesta tela: avisa o mestre e solta o vídeo. */
   terminarCutsceneVideo(exibicao: number): void
+  /** CUTSCENE EM VÍDEO: o vídeo não toca nesta tela (formato, arquivo torto): avisa o mestre ("não chegou") e solta o vídeo. */
+  falharCutsceneVideo(exibicao: number): void
   /**
    * SONS AO VIVO (F5): a chave que o servidor da sala deu ao socket de agora
    * (`midia.chave`, 64 hex), para o cabeçalho de `/sons/<id>`. `null` antes
@@ -6055,6 +6057,13 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     terminarCutsceneVideo(exibicao) {
       if (state.cutsceneVideo?.exibicao !== exibicao) return
       send({ type: 'cutscene.video.fim', exibicao })
+      soltarCutsceneVideo()
+    },
+    falharCutsceneVideo(exibicao) {
+      const atual = state.cutsceneVideo
+      if (atual?.exibicao !== exibicao) return
+      // A mensagem que o mestre já entende: a tela vira "não chegou" no painel. Não é o `fim`: nada tocou aqui.
+      send({ type: 'cutscene.video.progresso', exibicao, pct: atual.pct, falhou: true })
       soltarCutsceneVideo()
     },
     informarCutsceneCarregando(preparo) {
