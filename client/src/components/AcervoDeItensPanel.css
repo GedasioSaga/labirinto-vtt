@@ -269,6 +269,25 @@ body.lb-itens-recusando * {
   padding-bottom: var(--lb-space-1);
 }
 
+/* Ordenar (18/11/2026): o rótulo e a lista na mesma linha, na altura de uma
+   linha da árvore; a lista cabe na coluna estreita. */
+.lb-itens__ordem {
+  display: flex;
+  align-items: center;
+  gap: var(--lb-space-2);
+}
+
+.lb-itens__ordem > .lb-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--lb-space-8);
+}
+
+/* Recentes (18/11/2026): os usados por último, como a grade de "Sem pasta". */
+.lb-itens__recentes > .lb-itens__grade {
+  padding-bottom: var(--lb-space-1);
+}
+
 /* O fantasma diz onde o item vai cair ("Soltar em Balas") ou por que não cabe.
    A frase longa quebra linha em vez de alargar o fantasma pela janela afora. */
 .lb-itens__fantasma {

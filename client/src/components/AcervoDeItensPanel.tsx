@@ -1,11 +1,10 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { categoriaLimpa, novoItemDoCatalogo, type ItemDoCatalogo, type PastaDeItens } from '../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
 import { focoDeixaDesfazerGlobal } from '../lib/keymap'
 import type { AlvoDoAcervo } from '../lib/party'
 import {
   comAbertas,
-  comORecolherDeAgora,
   comRecolhida,
   contasComAsDeDentro,
   FRASE_DA_RECUSA,
@@ -25,7 +24,8 @@ import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { useToastStore } from '../stores/toastStore'
 import { ATRIBUTO_DO_ALVO, TOPO, useArrastoDoAcervoDeItens, type Arrastado, type Avaliacao } from './arrastoDoAcervoDeItens'
 import { BotaoMais } from './BotaoMais'
-import { CampoDeBusca, ehAtalhoDaBusca, nomeCasa, palavrasDaBusca } from './BuscaDoAcervoDeItens'
+import { lerListaDeIds } from '../lib/cenasFixadas'
+import { CampoDeBusca, ehAtalhoDaBusca, itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
 import { ImagemOuIniciais } from './FichaPecas'
 import { ChevronDownIcon, FolderIcon, ReticenciasIcon } from './icons'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
@@ -110,6 +110,130 @@ export function avaliarOSoltar(pastas: readonly PastaDeItens[], quem: Arrastado,
   return { t: 'recusa', texto: FRASE_DA_RECUSA[recusa] }
 }
 
+/**
+ * O DESFAZER DE UMA MUDANÇA SÓ (18/11/2026, análise Fable: o Desfazer
+ * devolvia a árvore inteira de antes e apagava a pasta criada depois por
+ * outro caminho, como a pasta nova do item novo). Volta só o que ESTA
+ * mudança mexeu, sobre a árvore de agora: a pasta que ela criou sai (o que
+ * caiu nela depois sobe um nível, como no Apagar); a que ela apagou volta (a
+ * mãe que não existe mais vira o topo); o nome e a mãe que ela trocou voltam,
+ * se ninguém trocou de novo e não fizer laço; o item que ela levou volta, se
+ * ainda está onde ela o pôs. Abrir e fechar ficam como o mestre deixou.
+ */
+export function desfazerSoAMudanca(
+  antes: readonly PastaDeItens[],
+  depois: readonly PastaDeItens[],
+  agora: readonly PastaDeItens[],
+  itensAgora: readonly Pick<ItemDoCatalogo, 'id' | 'pasta'>[],
+  levados: ReadonlyMap<string, string | undefined> | undefined,
+  ondeMoravam: ReadonlyMap<string, string | undefined>,
+): { pastas: PastaDeItens[]; ondeMoram: Map<string, string | undefined> } {
+  const porIdAntes = new Map(antes.map((pasta) => [pasta.id, pasta]))
+  const porIdDepois = new Map(depois.map((pasta) => [pasta.id, pasta]))
+  let pastas = [...agora]
+  const existe = (id: string | undefined) => id !== undefined && pastas.some((pasta) => pasta.id === id)
+  // A que a mudança apagou volta, no topo se a mãe dela também sumiu.
+  for (const apagada of antes) {
+    if (porIdDepois.has(apagada.id) || existe(apagada.id)) continue
+    const { paiId, ...semMae } = apagada
+    pastas.push(paiId !== undefined && existe(paiId) ? apagada : semMae)
+  }
+  // O nome e a mãe que ela trocou voltam, se continuam como ela deixou.
+  for (const depoisDela of depois) {
+    const antesDela = porIdAntes.get(depoisDela.id)
+    if (antesDela === undefined) continue
+    if (antesDela.nome !== depoisDela.nome) {
+      pastas = pastas.map((pasta) => (pasta.id === depoisDela.id && pasta.nome === depoisDela.nome ? { ...pasta, nome: antesDela.nome } : pasta))
+    }
+    const maeMudou = antesDela.paiId !== depoisDela.paiId
+    const atual = pastas.find((pasta) => pasta.id === depoisDela.id)
+    if (!maeMudou || atual === undefined || atual.paiId !== depoisDela.paiId) continue
+    const destino = antesDela.paiId !== undefined && existe(antesDela.paiId) ? antesDela.paiId : null
+    if (recusaParaMoverAPasta(pastas, atual.id, destino) === null) pastas = pastaMovida(pastas, atual.id, destino)
+  }
+  // O item que ela levou volta, se ainda está onde ela o pôs.
+  const ondeMoram = new Map<string, string | undefined>()
+  const pastaDeAgora = new Map(itensAgora.map((item) => [item.id, item.pasta]))
+  for (const [id, destino] of levados ?? []) {
+    if (!pastaDeAgora.has(id) || pastaDeAgora.get(id) !== destino) continue
+    const deAntes = ondeMoravam.get(id)
+    ondeMoram.set(id, existe(deAntes) ? deAntes : undefined)
+  }
+  // A que ela criou sai por último: o que caiu nela depois (item ou pasta) sobe um nível.
+  for (const criada of depois) {
+    if (porIdAntes.has(criada.id) || !existe(criada.id)) continue
+    const itensJa = itensAgora.map((item) => (ondeMoram.has(item.id) ? { id: item.id, pasta: ondeMoram.get(item.id) } : item))
+    const sem = semAPasta(pastas, itensJa, criada.id)
+    pastas = sem.pastas
+    for (const [id, pasta] of sem.ondeMoram) ondeMoram.set(id, pasta)
+  }
+  return { pastas, ondeMoram }
+}
+
+/** A ordem dos itens dentro de cada pasta. `guardada` = a do cadastro, a de sempre. */
+export type OrdemDoAcervo = 'guardada' | 'nome' | 'preco' | 'categoria'
+
+const ORDENS: readonly OrdemDoAcervo[] = ['guardada', 'nome', 'preco', 'categoria']
+
+const ROTULO_DA_ORDEM: Readonly<Record<OrdemDoAcervo, string>> = {
+  guardada: 'Como cadastrei',
+  nome: 'Nome (A–Z)',
+  preco: 'Preço (menor primeiro)',
+  categoria: 'Categoria',
+}
+
+const ORDEM_DOS_NOMES = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' })
+
+/** Os itens na ordem pedida; empate fica na ordem do cadastro. Sem preço vai para o fim. */
+export function itensNaOrdem<T extends Pick<ItemDoCatalogo, 'nome' | 'preco' | 'categoria'>>(itens: readonly T[], ordem: OrdemDoAcervo): T[] {
+  if (ordem === 'guardada') return [...itens]
+  const comparar = (a: T, b: T): number => {
+    if (ordem === 'preco') {
+      if (a.preco === b.preco) return ORDEM_DOS_NOMES.compare(a.nome, b.nome)
+      if (a.preco === null) return 1
+      if (b.preco === null) return -1
+      return a.preco - b.preco
+    }
+    if (ordem === 'categoria') {
+      const porCategoria = a.categoria === b.categoria ? 0 : a.categoria === '' ? 1 : b.categoria === '' ? -1 : ORDEM_DOS_NOMES.compare(a.categoria, b.categoria)
+      if (porCategoria !== 0) return porCategoria
+    }
+    return ORDEM_DOS_NOMES.compare(a.nome, b.nome)
+  }
+  return [...itens].sort(comparar)
+}
+
+/** Quantos itens a fileira "Recentes" mostra. */
+export const RECENTES_DO_ACERVO_MAX = 8
+const CHAVE_DOS_RECENTES = 'labirinto.acervoDeItens.recentes'
+const CHAVE_DA_ORDEM = 'labirinto.acervoDeItens.ordem'
+
+/** Conveniência deste computador (localStorage): sem ele (janela privada, prévia), a fileira só não aparece. */
+function lerDoNavegador(chave: string): string | null {
+  try {
+    return window.localStorage.getItem(chave)
+  } catch {
+    return null
+  }
+}
+
+function gravarNoNavegador(chave: string, valor: string): void {
+  try {
+    window.localStorage.setItem(chave, valor)
+  } catch {
+    // Sem armazenamento: a ordem e os recentes valem só nesta visita.
+  }
+}
+
+function ehOrdem(valor: string | null): valor is OrdemDoAcervo {
+  return valor === 'guardada' || valor === 'nome' || valor === 'preco' || valor === 'categoria'
+}
+
+/** O item usado agora vai para a frente dos recentes, sem repetir, no teto. */
+export function comORecente(recentes: readonly string[], id: string): string[] {
+  return [id, ...recentes.filter((outro) => outro !== id)].slice(0, RECENTES_DO_ACERVO_MAX)
+}
+
 /** Pastas que o mestre fechou durante uma busca, e o termo em que fechou. */
 interface FechadasNaBusca {
   termo: string
@@ -145,10 +269,30 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
   const [fechadasNaBusca, setFechadasNaBusca] = useState<FechadasNaBusca>(NENHUMA_FECHADA)
   /** O Desfazer da última mudança das pastas: vale uma vez, pelo aviso ou pelo Ctrl+Z. */
   const desfazerRef = useRef<{ desfazer: () => void } | null>(null)
+  /** ORDENAR (18/11/2026): a ordem dos itens em cada pasta; lembrada neste computador. */
+  const [ordem, setOrdem] = useState<OrdemDoAcervo>(() => {
+    const guardada = lerDoNavegador(CHAVE_DA_ORDEM)
+    return ehOrdem(guardada) ? guardada : 'guardada'
+  })
+  /** RECENTES (18/11/2026): os itens dados, postos no mapa ou salvos por último, deste computador. */
+  const [recentes, setRecentes] = useState<string[]>(() => lerListaDeIds(lerDoNavegador(CHAVE_DOS_RECENTES)).slice(0, RECENTES_DO_ACERVO_MAX))
 
   useEffect(() => {
     void useAcervoDeItensStore.getState().recarregar()
   }, [])
+
+  const trocarOrdem = (nova: OrdemDoAcervo) => {
+    setOrdem(nova)
+    gravarNoNavegador(CHAVE_DA_ORDEM, nova)
+  }
+
+  const usou = (id: string) => {
+    setRecentes((antes) => {
+      const proximos = comORecente(antes, id)
+      gravarNoNavegador(CHAVE_DOS_RECENTES, JSON.stringify(proximos))
+      return proximos
+    })
+  }
 
   const avisarErro = (erro: unknown) => onErro?.(erro instanceof Error ? erro.message : String(erro))
   const porId = new Map(pastas.map((pasta) => [pasta.id, pasta]))
@@ -169,8 +313,9 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
 
   /**
    * Toda mudança da árvore passa por aqui: grava, avisa com Desfazer e guarda
-   * o Desfazer para o Ctrl+Z. O Desfazer devolve as pastas e a pasta de cada
-   * item de antes; o abrir e fechar feito depois fica como o mestre deixou.
+   * o Desfazer para o Ctrl+Z. O Desfazer volta só o que esta mudança mexeu
+   * (`desfazerSoAMudanca`), sobre a árvore de agora: a pasta criada depois por
+   * outro caminho fica, e o abrir e fechar ficam como o mestre deixou.
    */
   const mudar = (texto: string, proximas: readonly PastaDeItens[], ondeMoram?: ReadonlyMap<string, string | undefined>) => {
     const loja = useAcervoDeItensStore.getState()
@@ -183,7 +328,8 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
         desfazerRef.current = null
         useToastStore.getState().dismiss(idDoAviso)
         const agora = useAcervoDeItensStore.getState()
-        agora.organizar(comORecolherDeAgora(pastasAntes, agora.pastas), ondeMoravam).catch(avisarErro)
+        const volta = desfazerSoAMudanca(pastasAntes, proximas, agora.pastas, agora.itens, ondeMoram, ondeMoravam)
+        agora.organizar(volta.pastas, volta.ondeMoram).catch(avisarErro)
       }
       desfazerRef.current = { desfazer: umaVez }
       idDoAviso = useToastStore.getState().push('info', texto, undefined, { actions: [{ label: 'Desfazer', run: umaVez }] })
@@ -209,10 +355,20 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
     mudar(texto, abertas(pastaMovida(atuais, quem.pasta.id, destino)))
   }
 
+  // O item posto no mapa entra nos recentes.
+  const soltarNoMapa =
+    onSoltarNoMapa === undefined
+      ? undefined
+      : (item: ItemDoCatalogo, clientX: number, clientY: number, comoPino: boolean) => {
+          const pos = onSoltarNoMapa(item, clientX, clientY, comoPino)
+          if (pos) usou(item.id)
+          return pos
+        }
+
   const arrasto = useArrastoDoAcervoDeItens({
     raiz: raizRef,
     podeOrganizar: podeGravar,
-    soltarNoMapa: onSoltarNoMapa,
+    soltarNoMapa,
     avaliar: (quem, destino) => avaliarOSoltar(pastas, quem, destino),
     soltarNaPasta,
     abrirAoParar: (id) => recolher(id, false),
@@ -281,11 +437,14 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
     setAberto({ novo: { ...novoItemDoCatalogo(categoriaLimpa(deCima.nome)), pasta: pasta.id } })
   }
 
-  const salvarDoDialogo = (item: ItemDoCatalogo, novo: boolean): Promise<void> => {
+  const salvarDoDialogo = async (item: ItemDoCatalogo, novo: boolean): Promise<void> => {
     const loja = useAcervoDeItensStore.getState()
-    if (!novo) return loja.salvarItem(item)
-    const lugar = lugarDoItemNovo(loja.pastas, item)
-    return loja.salvarItem(lugar.item, lugar.pastas)
+    if (!novo) await loja.salvarItem(item)
+    else {
+      const lugar = lugarDoItemNovo(loja.pastas, item)
+      await loja.salvarItem(lugar.item, lugar.pastas)
+    }
+    usou(item.id)
   }
 
   /** Põe o cursor na busca com o texto selecionado: digitar substitui, a seta mantém. */
@@ -324,6 +483,8 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
     return true
   }
 
+  // A busca única do Acervo: nome, categoria, descrição e o caminho da pasta (montado uma vez por mudança do acervo).
+  const textos = useMemo(() => textosDeBusca(itens, pastas), [itens, pastas])
   // Acervo sem item não tem busca (o campo sai e leva o texto junto).
   const vazio = itens.length === 0
   if (vazio && busca !== '') setBusca('')
@@ -331,7 +492,9 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
   const buscando = palavras.length > 0
   /** Chave de `fechadasNaBusca`: o termo como a busca o entende. */
   const termo = palavras.join(' ')
-  const visiveis = buscando ? itens.filter((item) => nomeCasa(item.nome, palavras)) : itens
+  const visiveis = itensNaOrdem(buscando ? itens.filter((item) => itemCasaNaBusca(textos.get(item.id), palavras)) : itens, ordem)
+  const existentes = new Map(itens.map((item) => [item.id, item]))
+  const usadosPorUltimo = buscando ? [] : recentes.flatMap((id) => existentes.get(id) ?? [])
   const nadaAchado = buscando && visiveis.length === 0
   const resultado = !buscando ? '' : nadaAchado ? `Nada com “${busca.trim()}”.` : `${visiveis.length} de ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}`
   const porPai = pastasPorPai(pastas)
@@ -382,7 +545,12 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
       </button>
       {onPorNoCentro !== undefined && (
         // No Tab, ao contrário do "+" do token: o cartão abre a janela, e sem este botão o teclado não põe o item no mapa.
-        <button type="button" className="lb-itens__por" aria-label={`Pôr ${item.nome} no centro do mapa`} title="Pôr no centro da vista" onClick={() => onPorNoCentro(item)}>
+        <button type="button" className="lb-itens__por" aria-label={`Pôr ${item.nome} no centro do mapa`} title="Pôr no centro da vista"
+          onClick={() => {
+            onPorNoCentro(item)
+            usou(item.id)
+          }}
+        >
           <IconeDoLivro nome="mais" />
         </button>
       )}
@@ -549,6 +717,29 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
           </p>
         </div>
       )}
+      {!vazio && (
+        <label className="lb-itens__ordem">
+          <span className="lb-label">Ordenar</span>
+          <select className="lb-input" value={ordem} onChange={(event) => trocarOrdem(ehOrdem(event.target.value) ? event.target.value : 'guardada')}>
+            {ORDENS.map((qual) => (
+              <option key={qual} value={qual}>
+                {ROTULO_DA_ORDEM[qual]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {usadosPorUltimo.length > 0 && (
+        <div className="lb-acervo__pasta lb-itens__pasta lb-itens__recentes" role="group" aria-label="Recentes">
+          <p className="lb-acervo__pasta-titulo">
+            Recentes
+            <span className="lb-acervo__contagem" aria-hidden="true">
+              {usadosPorUltimo.length}
+            </span>
+          </p>
+          <ul className="lb-itens__grade">{usadosPorUltimo.map(cartao)}</ul>
+        </div>
+      )}
       {aviso !== null && (
         <p className="lb-acervo__aviso" role="status">
           {aviso}
@@ -591,7 +782,11 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
           alvos={alvos}
           onSalvar={(item) => salvarDoDialogo(item, 'novo' in aberto)}
           onApagar={() => useAcervoDeItensStore.getState().apagarItem(itemAberto.id)}
-          onDar={(alvo, quantidade) => onDar(itemAberto, alvo, quantidade)}
+          onDar={(alvo, quantidade) => {
+            const deu = onDar(itemAberto, alvo, quantidade)
+            if (deu) usou(itemAberto.id)
+            return deu
+          }}
           onClose={() => setAberto(null)}
           imagemDoBlob={imagemDoItemDoBlob}
           escolherImagem={escolherImagemDoItem}
