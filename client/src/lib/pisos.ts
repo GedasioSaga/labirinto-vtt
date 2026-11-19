@@ -3,6 +3,7 @@ import type { SelectionKind } from '../types/tools'
 import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
 import { stairCenterline } from './stairCurve'
+import { comCadaTipo, TIPOS_DO_EDITOR, type EntidadePorTipo } from './tiposDoEditor'
 
 /**
  * PISOS NA MESMA CENA — lógica pura. A cena tem pisos numerados (inteiros;
@@ -230,43 +231,24 @@ function nascidosNoPiso<T extends ComPisoEId>(antes: readonly T[] | undefined, d
  */
 export function nascemNoPiso(antes: MapData, depois: MapData, piso: number): MapData {
   if (antes === depois) return depois
-  const listas = {
-    walls: nascidosNoPiso(antes.walls, depois.walls, piso),
-    lights: nascidosNoPiso(antes.lights, depois.lights, piso),
-    regions: nascidosNoPiso(antes.regions, depois.regions, piso),
-    tokens: nascidosNoPiso(antes.tokens, depois.tokens, piso),
-    props: nascidosNoPiso(antes.props, depois.props, piso),
-    drawings: nascidosNoPiso(antes.drawings, depois.drawings, piso),
-    floor: nascidosNoPiso(antes.floor, depois.floor, piso),
-    lines: nascidosNoPiso(antes.lines, depois.lines, piso),
-    markers: nascidosNoPiso(antes.markers, depois.markers, piso),
-    concealZones: nascidosNoPiso(antes.concealZones, depois.concealZones, piso),
-    pins: nascidosNoPiso(antes.pins, depois.pins, piso),
-    stairs: nascidosNoPiso(antes.stairs, depois.stairs, piso),
+  // Os tipos do editor vêm da tabela (`lib/tiposDoEditor.ts`): antes a lista
+  // era escrita à mão e a água, o abismo e o risco do Barranco colados ou
+  // duplicados em outro piso nasciam no piso de origem (análise de 18/11/2026).
+  const comOsTipos = comCadaTipo(depois, (lista, tipo) => nascidosNoPiso(TIPOS_DO_EDITOR[tipo].lista(antes), lista, piso))
+  // O que tem piso e não é selecionável: a linha, o marcador, o passo de textura e o risco de penhasco.
+  const lines = nascidosNoPiso(antes.lines, comOsTipos.lines, piso)
+  const markers = nascidosNoPiso(antes.markers, comOsTipos.markers, piso)
+  const texturas = comOsTipos.texturas === undefined ? undefined : nascidosNoPiso(antes.texturas, comOsTipos.texturas, piso)
+  const penhascos = comOsTipos.penhascos === undefined ? undefined : nascidosNoPiso(antes.penhascos, comOsTipos.penhascos, piso)
+  const mudou = lines !== comOsTipos.lines || markers !== comOsTipos.markers || texturas !== comOsTipos.texturas || penhascos !== comOsTipos.penhascos
+  if (!mudou) return comOsTipos
+  return {
+    ...comOsTipos,
+    lines,
+    markers,
+    ...(texturas === undefined ? {} : { texturas }),
+    ...(penhascos === undefined ? {} : { penhascos }),
   }
-  // O relevo também: o passo de textura, o carimbo e o risco de penhasco nascem no piso em edição.
-  const doRelevo: ListasDoRelevo = {
-    ...(depois.texturas === undefined ? {} : { texturas: nascidosNoPiso(antes.texturas, depois.texturas, piso) }),
-    ...(depois.carimbos === undefined ? {} : { carimbos: nascidosNoPiso(antes.carimbos, depois.carimbos, piso) }),
-    ...(depois.penhascos === undefined ? {} : { penhascos: nascidosNoPiso(antes.penhascos, depois.penhascos, piso) }),
-  }
-  const relevoMudou = doRelevo.texturas !== depois.texturas || doRelevo.carimbos !== depois.carimbos || doRelevo.penhascos !== depois.penhascos
-  const mudou = [
-    relevoMudou,
-    listas.walls !== depois.walls,
-    listas.lights !== depois.lights,
-    listas.regions !== depois.regions,
-    listas.tokens !== depois.tokens,
-    listas.props !== depois.props,
-    listas.drawings !== depois.drawings,
-    listas.floor !== depois.floor,
-    listas.lines !== depois.lines,
-    listas.markers !== depois.markers,
-    listas.concealZones !== depois.concealZones,
-    listas.pins !== depois.pins,
-    listas.stairs !== depois.stairs,
-  ].some(Boolean)
-  return mudou ? { ...depois, ...listas, ...doRelevo } : depois
 }
 /** O que o mestre pode levar a outro piso pela seleção (`lib/selectionModel.ts`). */
 export interface ItemParaPiso {
@@ -280,9 +262,19 @@ export interface ItemParaPiso {
  * a sala inteira: sala com metade das paredes em outro piso não fecha); a
  * ficha leva o que anda com ela — a ficha que ela leva, a tocha e o pino
  * preso (`comFichasNoPiso`). Nada muda: o próprio mapa.
+ *
+ * A regra de cada tipo mora em `vai`, um registro EXAUSTIVO por
+ * `SelectionKind`, e as listas vêm da tabela (`lib/tiposDoEditor.ts`): antes
+ * o carimbo, o pino, a zona, a água, o risco do Barranco e o abismo eram
+ * ignorados sem aviso (análise de 18/11/2026). Tipo novo não compila sem
+ * dizer aqui se vai ao piso.
  */
 export function comSelecaoNoPiso(map: MapData, itens: readonly ItemParaPiso[], piso: number): MapData {
-  const ids = (kind: ItemParaPiso['kind']): Set<string> => new Set(itens.filter((i) => i.kind === kind).map((i) => i.id))
+  const ids = (kind: SelectionKind): Set<string> => new Set(itens.filter((i) => i.kind === kind).map((i) => i.id))
+  const escolhido = (kind: SelectionKind): ((item: { id: string }) => boolean) => {
+    const doTipo = ids(kind)
+    return (item) => doTipo.has(item.id)
+  }
   const paredes = ids('wall')
   const salas = new Set<string>()
   const salasEscolhidas = [
@@ -290,36 +282,36 @@ export function comSelecaoNoPiso(map: MapData, itens: readonly ItemParaPiso[], p
     ...map.walls.flatMap((w) => (w.regionId !== undefined && paredes.has(w.id) ? [w.regionId] : [])),
   ]
   for (const regionId of salasEscolhidas) for (const id of subtreeIds(map.regions, regionId)) salas.add(id)
-  const luzes = ids('light')
-  const leva = <T extends ComPisoEId>(list: T[], vai: (item: T) => boolean): T[] => {
-    let mudou = false
-    const out = list.map((item) => {
-      if (!vai(item) || pisoDe(item) === piso) return item
-      mudou = true
-      return comPiso(item, piso)
-    })
-    return mudou ? out : list
+  const pinos = ids('pin')
+  const vai: { readonly [K in SelectionKind]: (item: EntidadePorTipo[K]) => boolean } = {
+    region: (r) => salas.has(r.id),
+    wall: (w) => paredes.has(w.id) || (w.regionId !== undefined && salas.has(w.regionId)),
+    // A ficha vai por `comFichasNoPiso`, abaixo, com tudo o que anda com ela.
+    token: () => false,
+    // O pino PRESO a uma ficha tem o piso da ficha (`comFichasNoPiso`): sozinho
+    // em outro piso, seguiria o x/y dela e mostraria a quem ficou o caminho dela.
+    pin: (p) => pinos.has(p.id) && p.presoA === undefined,
+    light: escolhido('light'),
+    stair: escolhido('stair'),
+    prop: escolhido('prop'),
+    drawing: escolhido('drawing'),
+    floor: escolhido('floor'),
+    carimbo: escolhido('carimbo'),
+    zone: escolhido('zone'),
+    agua: escolhido('agua'),
+    barranco: escolhido('barranco'),
+    abismo: escolhido('abismo'),
   }
-  const escadas = ids('stair')
-  const objetos = ids('prop')
-  const desenhos = ids('drawing')
-  const pecas = ids('floor')
   // A ficha leva o que anda com ela (a ficha levada, a tocha, o pino preso): `comFichasNoPiso`.
   const comFichas = comFichasNoPiso(map, ids('token'), piso)
-  const next: MapData = {
-    ...map,
-    ...comFichas,
-    regions: leva(map.regions, (r) => salas.has(r.id)),
-    walls: leva(map.walls, (w) => paredes.has(w.id) || (w.regionId !== undefined && salas.has(w.regionId))),
-    lights: leva(comFichas.lights, (l) => luzes.has(l.id)),
-    stairs: leva(map.stairs, (s) => escadas.has(s.id)),
-    props: leva(map.props, (p) => objetos.has(p.id)),
-    drawings: leva(map.drawings, (d) => desenhos.has(d.id)),
-    floor: leva(map.floor, (p) => pecas.has(p.id)),
-  }
-  const mudou = next.regions !== map.regions || next.walls !== map.walls || next.tokens !== map.tokens || next.lights !== map.lights ||
-    next.pins !== map.pins || next.stairs !== map.stairs || next.props !== map.props || next.drawings !== map.drawings || next.floor !== map.floor
-  return mudou ? next : map
+  const fichasMudaram = comFichas.tokens !== map.tokens || comFichas.lights !== map.lights || comFichas.pins !== map.pins
+  const base: MapData = fichasMudaram ? { ...map, ...comFichas } : map
+  // Devolver a MESMA lista é "nada mudou": `comCadaTipo` devolve o mesmo mapa.
+  return comCadaTipo(base, (lista, tipo) => {
+    const vaiDoTipo = vai[tipo]
+    if (!lista.some((item) => vaiDoTipo(item) && pisoDe(item) !== piso)) return lista
+    return lista.map((item) => (vaiDoTipo(item) && pisoDe(item) !== piso ? comPiso(item, piso) : item))
+  })
 }
 
 /** Distância do ponto ao segmento (a linha central do lance). */

@@ -24,7 +24,8 @@ import { canInteract } from './itemTransform'
 import { contextoDeCamadas } from './camadas/consulta'
 import type { ItemPorTipo, TipoDeObjeto } from './camadas/padrao'
 import { isDegenerateRegion } from '../pixi/shapes'
-import { moveWall, moveRegion, moveStair } from './mapFactory'
+import { moveWall, moveRegion, moveStair, moveFloorPiece } from './mapFactory'
+import { pieceBounds } from './floorSdf'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 import { carryAttachedLights } from './lightAttachment'
 import { stairSpiralCircle } from './stairs'
@@ -407,6 +408,12 @@ export interface AreaSelection {
   riscosDoBarranco?: string[]
   /** ABISMO (16/11/2026, `lib/abismo.ts`): mora em Terreno, como o risco do Barranco. Ausente = nenhum. */
   abismos?: string[]
+  /**
+   * PEÇA DE CHÃO (18/11/2026): entra na seleção pelo Shift+clique e pelo grupo
+   * (o laço não a pega), e sem este campo o arrasto do conjunto levava a mesa
+   * e deixava o chão. Ausente = nenhuma.
+   */
+  pecasDeChao?: string[]
 }
 
 export const EMPTY_AREA_SELECTION: AreaSelection = {
@@ -433,7 +440,8 @@ export function isAreaSelectionEmpty(selection: AreaSelection): boolean {
     (selection.zonas ?? []).length === 0 &&
     (selection.aguas ?? []).length === 0 &&
     (selection.riscosDoBarranco ?? []).length === 0 &&
-    (selection.abismos ?? []).length === 0
+    (selection.abismos ?? []).length === 0 &&
+    (selection.pecasDeChao ?? []).length === 0
   )
 }
 
@@ -620,6 +628,11 @@ export function areaSelectionBounds(map: MapData, selection: AreaSelection): Are
       const caixa = ids.has(abismo.id) ? caixaDoAbismo(abismo) : null
       if (caixa !== null) bounds.push(caixa)
     }
+  }
+  // PEÇA DE CHÃO: a caixa da forma (`pieceBounds`), a mesma do arrasto da peça sozinha.
+  if (selection.pecasDeChao !== undefined && selection.pecasDeChao.length > 0) {
+    const ids = new Set(selection.pecasDeChao)
+    for (const peca of map.floor) if (ids.has(peca.id)) bounds.push(pieceBounds(peca))
   }
 
   if (bounds.length === 0) return null
@@ -823,6 +836,9 @@ export function moveAreaSelection(map: MapData, selection: AreaSelection, dx: nu
     const abismos = moverAbismos(next.abismos, new Set(selection.abismos), dx, dy)
     if (abismos !== next.abismos) next = { ...next, abismos }
   }
+  // PEÇA DE CHÃO: a travada fica, e a de blocos anda em célula inteira
+  // (`moveFloorPiece`); nada andou, o mesmo mapa.
+  for (const pecaId of selection.pecasDeChao ?? []) next = moveFloorPiece(next, pecaId, dx, dy)
 
   return next
 }

@@ -166,7 +166,9 @@ export function moveFloorPiece(map: MapData, pieceId: string, dx: number, dy: nu
           shape.kind === 'blocos'
           ? moveBlocos(shape, dx, dy)
           : { ...shape, cx: shape.cx + dx, cy: shape.cy + dy }
-  return updateFloorPiece(map, pieceId, { shape: moved })
+  // Blocos com passo menor que meia célula não saem do lugar: o MESMO mapa, e
+  // a seta ou o arrasto do conjunto não gastam passo vazio no desfazer.
+  return moved === shape ? map : updateFloorPiece(map, pieceId, { shape: moved })
 }
 
 /**

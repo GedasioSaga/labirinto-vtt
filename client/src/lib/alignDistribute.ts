@@ -5,8 +5,9 @@
  *
  * Nada de geometria nova: a caixa de cada item vem de `areaSelectionBounds` e o
  * deslocamento de `moveAreaSelection` (lib/areaSelection.ts), os mesmos que o
- * arrasto do grupo e o nudge por seta já usam — então os 7 tipos, o vínculo
- * Sala↔Parede e o filtro de item travado se comportam igual aqui.
+ * arrasto do grupo e o nudge por seta já usam — então todos os tipos da tabela
+ * (`lib/tiposDoEditor.ts`), o vínculo Sala↔Parede e o filtro de item travado se
+ * comportam igual aqui.
  *
  * Convenção de Figma/PowerPoint: esquerda/direita/topo/base alinham pela borda
  * EXTREMA do conjunto (o item da ponta não sai do lugar); centro (eixo
@@ -15,7 +16,7 @@
  */
 import type { MapData, Token } from '../types/map'
 import type { SelectionItem } from './selectionModel'
-import { selectionToAreaSelection } from './selectionModel'
+import { selectionFromAreaSelection, selectionToAreaSelection } from './selectionModel'
 import { areaSelectionBounds, moveAreaSelection, EMPTY_AREA_SELECTION, type AreaBounds, type AreaSelection } from './areaSelection'
 import { ancestorsOf, subtreeIds } from './roomNesting'
 import { leaveVehicle, vehicleCarrying, withoutVehicleField } from './vehicle'
@@ -71,11 +72,15 @@ function unitsOf(map: MapData, items: readonly SelectionItem[]): AlignUnit[] {
     push({ ...EMPTY_AREA_SELECTION, walls }, { ...EMPTY_AREA_SELECTION, regions: [regionId], walls })
   }
 
-  for (const id of area.lights) push({ ...EMPTY_AREA_SELECTION, lights: [id] })
-  for (const id of area.tokens) push({ ...EMPTY_AREA_SELECTION, tokens: [id] })
-  for (const id of area.props) push({ ...EMPTY_AREA_SELECTION, props: [id] })
-  for (const id of area.stairs) push({ ...EMPTY_AREA_SELECTION, stairs: [id] })
-  for (const id of area.drawings) push({ ...EMPTY_AREA_SELECTION, drawings: [id] })
+  // Todo o resto é um bloco por item, pela tabela dos tipos (`lib/tiposDoEditor.ts`),
+  // na ordem dela. Antes a lista era escrita à mão com luz, ficha, objeto,
+  // escada e desenho: cinco carimbos selecionados davam 0 blocos e os botões
+  // nem acendiam (análise de 18/11/2026). Peça de blocos anda em célula inteira
+  // (`moveFloorPiece`): alinha até a célula mais próxima, sem sair da grade.
+  for (const item of selectionFromAreaSelection(area)) {
+    if (item.kind === 'region' || item.kind === 'wall') continue
+    push(selectionToAreaSelection([item]))
+  }
   return units
 }
 

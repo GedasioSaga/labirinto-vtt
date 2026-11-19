@@ -90,6 +90,7 @@
  */
 import type { Selection, SelectionKind } from '../types/tools'
 import type { AreaSelection } from './areaSelection'
+import { TIPOS_DO_EDITOR, TODOS_OS_TIPOS, type CampoDaArea } from './tiposDoEditor'
 
 /** Um item selecionado, identificado por tipo + id — mesmo par que
  *  `Selection` (`types/tools.ts`) já usa para o caso de um item só. */
@@ -250,21 +251,8 @@ export function selectionToLegacy(selection: SelectionSet): Selection | null {
  * `selectionFromItems`.
  */
 export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
-  return [
-    ...area.walls.map((id): SelectionItem => ({ kind: 'wall', id })),
-    ...area.regions.map((id): SelectionItem => ({ kind: 'region', id })),
-    ...area.lights.map((id): SelectionItem => ({ kind: 'light', id })),
-    ...area.tokens.map((id): SelectionItem => ({ kind: 'token', id })),
-    ...area.props.map((id): SelectionItem => ({ kind: 'prop', id })),
-    ...area.stairs.map((id): SelectionItem => ({ kind: 'stair', id })),
-    ...area.drawings.map((id): SelectionItem => ({ kind: 'drawing', id })),
-    ...(area.carimbos ?? []).map((id): SelectionItem => ({ kind: 'carimbo', id })),
-    ...(area.pins ?? []).map((id): SelectionItem => ({ kind: 'pin', id })),
-    ...(area.zonas ?? []).map((id): SelectionItem => ({ kind: 'zone', id })),
-    ...(area.aguas ?? []).map((id): SelectionItem => ({ kind: 'agua', id })),
-    ...(area.riscosDoBarranco ?? []).map((id): SelectionItem => ({ kind: 'barranco', id })),
-    ...(area.abismos ?? []).map((id): SelectionItem => ({ kind: 'abismo', id })),
-  ]
+  // Pela tabela dos tipos (`lib/tiposDoEditor.ts`), na ordem dela: tipo novo com linha lá já sai daqui.
+  return TODOS_OS_TIPOS.flatMap((kind) => (area[TIPOS_DO_EDITOR[kind].naArea] ?? []).map((id): SelectionItem => ({ kind, id })))
 }
 
 /** Inverso de `selectionFromAreaSelection` — sempre fiel (ao contrário da
@@ -272,80 +260,47 @@ export function selectionFromAreaSelection(area: AreaSelection): SelectionSet {
  *  qualquer tamanho, igual `SelectionSet`. Usado na borda de
  *  `moveAreaSelectionLive`/`moveAreaSelection` (ver CONTRATO item 1): esses
  *  dois continuam recebendo `AreaSelection`, então o integrador converte
- *  aqui na hora de montar o argumento, em vez de mudar a assinatura deles. */
+ *  aqui na hora de montar o argumento, em vez de mudar a assinatura deles.
+ *
+ *  O campo de cada tipo vem da tabela (`TIPOS_DO_EDITOR[kind].naArea`). Antes
+ *  era um `switch` sem a peça de chão: ela entrava na seleção pelo
+ *  Shift+clique e sumia aqui, então o arrasto do conjunto a deixava para trás
+ *  (análise de 18/11/2026). O `Record` abaixo é exaustivo nos campos de
+ *  `AreaSelection`: campo novo lá não compila sem entrar aqui. */
 export function selectionToAreaSelection(selection: SelectionSet): AreaSelection {
-  const walls: string[] = []
-  const regions: string[] = []
-  const lights: string[] = []
-  const tokens: string[] = []
-  const props: string[] = []
-  const stairs: string[] = []
-  const drawings: string[] = []
-  const carimbos: string[] = []
-  const pins: string[] = []
-  const zonas: string[] = []
-  const aguas: string[] = []
-  const riscosDoBarranco: string[] = []
-  const abismos: string[] = []
-
-  for (const item of selection) {
-    switch (item.kind) {
-      case 'wall':
-        walls.push(item.id)
-        break
-      case 'region':
-        regions.push(item.id)
-        break
-      case 'light':
-        lights.push(item.id)
-        break
-      case 'token':
-        tokens.push(item.id)
-        break
-      case 'prop':
-        props.push(item.id)
-        break
-      case 'stair':
-        stairs.push(item.id)
-        break
-      case 'drawing':
-        drawings.push(item.id)
-        break
-      case 'carimbo':
-        carimbos.push(item.id)
-        break
-      case 'pin':
-        pins.push(item.id)
-        break
-      case 'zone':
-        zonas.push(item.id)
-        break
-      case 'agua':
-        aguas.push(item.id)
-        break
-      case 'barranco':
-        riscosDoBarranco.push(item.id)
-        break
-      case 'abismo':
-        abismos.push(item.id)
-        break
-    }
+  const ids: Record<CampoDaArea, string[]> = {
+    walls: [],
+    regions: [],
+    lights: [],
+    tokens: [],
+    props: [],
+    stairs: [],
+    drawings: [],
+    carimbos: [],
+    pins: [],
+    zonas: [],
+    aguas: [],
+    riscosDoBarranco: [],
+    abismos: [],
+    pecasDeChao: [],
   }
+  for (const item of selection) ids[TIPOS_DO_EDITOR[item.kind].naArea].push(item.id)
 
-  // Sem carimbo (nem pino, zona, água ou risco), sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
+  // Sem carimbo (nem pino, zona, água, risco, abismo ou peça de chão), sem o campo (opcional): a seleção dos outros tipos sai igual à de antes.
   return {
-    walls,
-    regions,
-    lights,
-    tokens,
-    props,
-    stairs,
-    drawings,
-    ...(carimbos.length > 0 ? { carimbos } : {}),
-    ...(pins.length > 0 ? { pins } : {}),
-    ...(zonas.length > 0 ? { zonas } : {}),
-    ...(aguas.length > 0 ? { aguas } : {}),
-    ...(riscosDoBarranco.length > 0 ? { riscosDoBarranco } : {}),
-    ...(abismos.length > 0 ? { abismos } : {}),
+    walls: ids.walls,
+    regions: ids.regions,
+    lights: ids.lights,
+    tokens: ids.tokens,
+    props: ids.props,
+    stairs: ids.stairs,
+    drawings: ids.drawings,
+    ...(ids.carimbos.length > 0 ? { carimbos: ids.carimbos } : {}),
+    ...(ids.pins.length > 0 ? { pins: ids.pins } : {}),
+    ...(ids.zonas.length > 0 ? { zonas: ids.zonas } : {}),
+    ...(ids.aguas.length > 0 ? { aguas: ids.aguas } : {}),
+    ...(ids.riscosDoBarranco.length > 0 ? { riscosDoBarranco: ids.riscosDoBarranco } : {}),
+    ...(ids.abismos.length > 0 ? { abismos: ids.abismos } : {}),
+    ...(ids.pecasDeChao.length > 0 ? { pecasDeChao: ids.pecasDeChao } : {}),
   }
 }
