@@ -9,7 +9,8 @@ import { lerMensagemDaJanela, nomeDoCanal, PAGINA_DA_JANELA, SESSAO_VALIDA, type
  * ONDE A MESA DA BATALHA ESTÁ, visto da janela principal, e o fio com a janela
  * da batalha (o molde do Prelúdio, `preludio/janela/mesaDoPreludio.ts`).
  *
- * - `noApp`: o diálogo do meio do app está aberto.
+ * - `noApp`: a mesa está à vista no app (a doca encostada na direita do mapa,
+ *   durante a batalha); `false` = o mestre recolheu a mesa.
  * - `emJanela`: a janela da batalha está viva (respondeu há pouco).
  *
  * A janela é aberta pelo Rust (`abrir_janela_batalha`) ou, no navegador, num
@@ -25,7 +26,7 @@ interface EstadoDaMesa {
   emJanela: boolean
 }
 
-export const useMesaDaBatalha = create<EstadoDaMesa>(() => ({ noApp: false, emJanela: false }))
+export const useMesaDaBatalha = create<EstadoDaMesa>(() => ({ noApp: true, emJanela: false }))
 
 const CHAVE_DA_SESSAO = 'lb-batalha:sessao-da-janela'
 /** A janela estava aberta quando a principal recarregou: a principal volta escutando por ela. */
@@ -97,7 +98,8 @@ function criarControle(avisar: Avisar, abrirCanal: (nome: string) => Canal): Con
     gravarArmazem(window.sessionStorage, CHAVE_ABERTA, viva ? '1' : null)
     espelhar(viva)
     if (antes === viva) return
-    useMesaDaBatalha.setState({ emJanela: viva })
+    // A janela fechou: a mesa volta à vista no app (a doca), mesmo se estava recolhida antes de ir para a janela.
+    useMesaDaBatalha.setState(viva ? { emJanela: true } : { emJanela: false, noApp: true })
     if (!viva && porque !== undefined) avisar(porque)
   }
 
@@ -226,11 +228,12 @@ export function iniciarMesaDaBatalha(avisar: Avisar, abrirCanal: (nome: string) 
   }
 }
 
-/** Abre o diálogo da mesa no meio do app (com a janela aberta, ele mostra onde ela está). */
+/** Mostra a mesa no app (a doca, durante a batalha). */
 export function abrirMesaNoApp(): void {
   useMesaDaBatalha.setState({ noApp: true })
 }
 
+/** Recolhe a doca: o mapa volta inteiro, e uma pílula no alto traz a mesa de volta. */
 export function fecharMesaNoApp(): void {
   useMesaDaBatalha.setState({ noApp: false })
 }
@@ -240,7 +243,7 @@ export function abrirMesaEmJanela(): Promise<void> {
   return controle?.abrirEmJanela() ?? Promise.resolve()
 }
 
-/** Fecha a janela da batalha e abre a mesa no meio do app. */
+/** Fecha a janela da batalha e põe a mesa de volta na doca do app. */
 export function trazerMesaParaOApp(): Promise<void> {
   return controle?.trazerParaOApp() ?? Promise.resolve()
 }
