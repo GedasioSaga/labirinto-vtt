@@ -1,8 +1,11 @@
 import { create } from 'zustand'
+import { isTauri } from '@tauri-apps/api/core'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import { CUTSCENE_TITULO_MAX, ehIdDeVideo } from '../net/protocol'
 import { ehRefDeMidia } from '../lib/midia'
+import { writeTextFileSafely } from '../lib/mapFileIO'
+import { PASTA_DE_MIDIA } from '../lib/midiaNoDisco'
 import type { LugarDaCutscene } from '../net/redeDaCutscene'
 import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES, lerGaleria, mensagemDaFalha } from '../net/nuvem/galeriaNaNuvem'
 
@@ -11,11 +14,22 @@ import { campanhaDaPastaAberta, enviarVideoParaAGaleria, GALERIA_VIDEO_MAX_BYTES
  * mesa, guardada em `<appData>/cutscenes.json` (do app, como a mídia: o vídeo
  * mora em `<appData>/midia/<sha256>.<ext>`), e a exibição em curso, que a
  * ponte do mestre (`hostBridge.ts`) escreve e a página lê.
+ *
+ * DEFESAS DO ARQUIVO (18/11/2026, análise Fable): as do acervo de itens
+ * (`lib/acervoDeItens.ts`). A leitura que falha por I/O (OneDrive ou antivírus
+ * segurando o arquivo) barra toda gravação (`podeGravar`): a lista vazia na
+ * tela não passa por cima das 200 linhas do disco. O arquivo ilegível vai
+ * para `cutscenes.json.invalido` antes de a lista recomeçar. A gravação é a
+ * segura (`writeTextFileSafely`), e o erro vira `aviso` na página.
  */
 
 /** O mesmo teto do Rust (`MIDIA_VIDEO_MAX_BYTES`): mp4/webm sem comprimir, até 500 MB. */
 export const VIDEO_MAX_BYTES = 500 * 1024 * 1024
 const ARQUIVO = 'cutscenes.json'
+const ARQUIVO_INVALIDO = 'cutscenes.json.invalido'
+const AVISO_DA_LEITURA = 'Não deu para ler a lista de cutscenes'
+/** O tempo do "Desfazer" do Remover: só depois dele o vídeo sem uso sai do disco. */
+export const DESFAZER_REMOCAO_MS = 10_000
 /** Teto da lista: um arquivo pequeno, que o app lê inteiro. */
 export const CUTSCENES_MAX = 200
 
@@ -60,19 +74,42 @@ export interface ExibicaoEmCurso {
   titulo: string
   fase: 'esperando' | 'tocando'
   telas: TelaDaExibicao[]
+  /**
+   * `Date.now()` de quando esta exibição passou a tocar, para o tempo decorrido
+   * no painel do mestre. Quem põe é a store (`definirExibicao`), não a ponte.
+   */
+  tocandoDesde?: number
+}
+
+/** O que deu errado com o arquivo: `leitura` barra gravar; `gravacao` some na próxima gravação que der certo. */
+export interface AvisoDasCutscenes {
+  tipo: 'leitura' | 'gravacao'
+  texto: string
 }
 
 interface CutscenesState {
   lista: Cutscene[]
   carregada: boolean
+  /** A lista foi lida do disco (ou não existia): só então mudar e gravar valem. */
+  podeGravar: boolean
+  aviso: AvisoDasCutscenes | null
   /** A exibição na sala de verdade. */
   exibicao: ExibicaoEmCurso | null
   /** MODO TREINO (18/11): a exibição na janela da Visão de jogador, à parte da sala (as duas podem estar no ar). */
   exibicaoDoTeste: ExibicaoEmCurso | null
   carregar: () => Promise<void>
+  /** Lê o arquivo de novo (o "Tentar de novo" do aviso de leitura). */
+  recarregar: () => Promise<void>
   adicionar: (cutscene: Cutscene) => void
   mudar: (id: string, mudanca: Partial<Omit<Cutscene, 'id' | 'video' | 'tamanho'>>) => void
-  remover: (id: string) => void
+  /**
+   * Tira a linha da lista. O vídeo fica no disco por `DESFAZER_REMOCAO_MS`;
+   * depois, se nenhuma linha usa o mesmo vídeo, sai da mídia da mesa.
+   * `false` = nada saiu (id que não existe ou lista não lida).
+   */
+  remover: (id: string) => boolean
+  /** O "Desfazer" do Remover: a linha volta ao mesmo lugar e o vídeo fica. */
+  desfazerRemocao: (id: string) => void
   /** A miniatura tirada sozinha: vale para toda linha deste vídeo que ainda não tem uma (a escolhida no "Assistir" fica). */
   darMiniaturaAoVideo: (video: string, miniatura: string) => void
   /** A ponte escreve a exibição do lugar dela; ausente = a sala. */
@@ -113,58 +150,172 @@ async function caminhoDoArquivo(): Promise<string> {
   return join(await appDataDir(), ARQUIVO)
 }
 
-async function lerDoDisco(): Promise<Cutscene[]> {
-  const caminho = await caminhoDoArquivo()
-  if (!(await exists(caminho))) return []
+function motivo(causa: unknown): string {
+  const texto = causa instanceof Error ? causa.message : String(causa)
+  return /os error 5\b|denied|negado/i.test(texto) ? 'o Windows negou o acesso ao arquivo (outro programa pode estar com ele aberto)' : texto
+}
+
+/** A lista do texto do arquivo; `null` = o texto não é a lista (JSON cortado, outro formato). Linha torta fica de fora sem derrubar o resto. */
+function listaDoTexto(texto: string): Cutscene[] | null {
+  let bruto: unknown
   try {
-    const bruto: unknown = JSON.parse(await readTextFile(caminho))
-    const lista = ehRecord(bruto) && Array.isArray(bruto.cutscenes) ? bruto.cutscenes : []
-    return lista.flatMap((linha) => lerCutscene(linha) ?? []).slice(0, CUTSCENES_MAX)
+    bruto = JSON.parse(texto)
   } catch {
-    return []
+    return null
   }
+  if (!ehRecord(bruto) || !Array.isArray(bruto.cutscenes)) return null
+  return bruto.cutscenes.flatMap((linha) => lerCutscene(linha) ?? []).slice(0, CUTSCENES_MAX)
+}
+
+interface ListaLida {
+  lista: Cutscene[]
+  aviso: string | null
+  /** `false` = não dá para gravar por cima (o disco não respondeu, ou o ilegível não ganhou cópia). */
+  lido: boolean
+}
+
+/** Lê a lista. Nunca lança: o erro vira `aviso`, e `lido: false` barra quem grava. */
+async function lerDoDisco(): Promise<ListaLida> {
+  let texto: string
+  try {
+    const caminho = await caminhoDoArquivo()
+    if (!(await exists(caminho))) return { lista: [], aviso: null, lido: true }
+    texto = await readTextFile(caminho)
+  } catch (erro) {
+    return { lista: [], aviso: `${AVISO_DA_LEITURA}: ${motivo(erro)}. Nada muda no arquivo até ela abrir.`, lido: false }
+  }
+  const lista = listaDoTexto(texto)
+  if (lista !== null) return { lista, aviso: null, lido: true }
+  try {
+    await writeTextFile(await join(await appDataDir(), ARQUIVO_INVALIDO), texto)
+  } catch {
+    // Sem a cópia, a lista NÃO recomeça: gravar agora passaria por cima do único exemplar.
+    return { lista: [], aviso: `${AVISO_DA_LEITURA}: o arquivo estava ilegível e não deu para guardar uma cópia dele.`, lido: false }
+  }
+  return { lista: [], aviso: `${AVISO_DA_LEITURA}: o arquivo estava ilegível. A lista começa vazia, e o arquivo antigo ficou guardado como ${ARQUIVO_INVALIDO}, na pasta do app.`, lido: true }
 }
 
 /** Uma gravação por vez, sempre a lista mais nova: duas mudanças seguidas não trocam de ordem no disco. */
 let gravando: Promise<void> = Promise.resolve()
-function gravarNoDisco(lista: readonly Cutscene[]): void {
+function gravarNoDisco(lista: readonly Cutscene[], aoTerminar: (erro: string | null) => void): void {
   const texto = JSON.stringify({ versao: 1, cutscenes: lista }, null, 2)
   gravando = gravando
     .catch(() => undefined)
-    .then(async () => writeTextFile(await caminhoDoArquivo(), texto))
-    .catch(() => undefined)
+    .then(async () => writeTextFileSafely(await caminhoDoArquivo(), texto))
+    .then(
+      () => aoTerminar(null),
+      (erro: unknown) => aoTerminar(`Não deu para gravar a lista de cutscenes: ${motivo(erro)}. A última mudança vale só até fechar o app.`),
+    )
+}
+
+/** Tira o vídeo da mídia da mesa. Melhor esforço: o que não sai fica no disco, sem aviso (a lista já não o mostra). */
+async function apagarVideoDoDisco(video: string): Promise<void> {
+  // O id veio conferido (`ehIdDeVideo`: 64 hex + extensão): o caminho não sai da pasta da mídia.
+  if (!ehIdDeVideo(video)) return
+  try {
+    const caminho = await join(await appDataDir(), PASTA_DE_MIDIA, video)
+    if (await exists(caminho)) await remove(caminho)
+  } catch {
+    // Vídeo preso (o "Assistir" de outra janela, o antivírus): fica no disco.
+  }
+}
+
+/** A exibição com a hora em que começou a tocar: a mesma exibição guarda a primeira hora; esperando, não há hora. */
+function comTocandoDesde(exibicao: ExibicaoEmCurso, antes: ExibicaoEmCurso | null): ExibicaoEmCurso {
+  const { tocandoDesde: _daPonte, ...semHora } = exibicao
+  if (exibicao.fase !== 'tocando') return semHora
+  const mesma = antes !== null && antes.numero === exibicao.numero && antes.tocandoDesde !== undefined
+  return { ...semHora, tocandoDesde: mesma ? antes.tocandoDesde : Date.now() }
+}
+
+/** A linha removida, à espera do "Desfazer"; o vídeo só sai do disco quando o prazo acaba. */
+interface Remocao {
+  cutscene: Cutscene
+  indice: number
+  prazo: ReturnType<typeof setTimeout>
 }
 
 export const useCutscenesStore = create<CutscenesState>((set, get) => {
+  const remocoes = new Map<string, Remocao>()
+  const aoGravar = (erro: string | null): void => {
+    if (erro !== null) set({ aviso: { tipo: 'gravacao', texto: erro } })
+    else if (get().aviso?.tipo === 'gravacao') set({ aviso: null })
+  }
+  /** Lista não lida: nada muda (a tela vazia não vale como lista). */
   const trocarLista = (lista: Cutscene[]): void => {
+    if (!get().podeGravar) return
     set({ lista })
-    gravarNoDisco(lista)
+    gravarNoDisco(lista, aoGravar)
   }
   const mudarGaleria = (id: string, galeria: EstadoNaGaleria): void => {
     trocarLista(get().lista.map((c) => (c.id === id ? { ...c, galeria } : c)))
   }
+  /** O vídeo sai do disco se nenhuma linha (nem outra remoção à espera) usa o mesmo arquivo. */
+  const apagarSeSemUso = (video: string): void => {
+    if (get().lista.some((c) => c.video === video)) return
+    if ([...remocoes.values()].some((r) => r.cutscene.video === video)) return
+    // A remoção espera a mesa livre (a página só remove sem exibição), e a linha que saiu não toca: o arquivo não está no ar.
+    void apagarVideoDoDisco(video)
+  }
+  const ler = async (): Promise<void> => {
+    // Fora do app não há disco: a lista fica vazia, sem aviso sobre o que nem é oferecido.
+    if (!isTauri()) {
+      set({ lista: [], carregada: true, podeGravar: false, aviso: null })
+      return
+    }
+    const lida = await lerDoDisco()
+    set({ lista: lida.lista, carregada: true, podeGravar: lida.lido, aviso: lida.aviso === null ? null : { tipo: 'leitura', texto: lida.aviso } })
+  }
   return {
     lista: [],
     carregada: false,
+    podeGravar: false,
+    aviso: null,
     exibicao: null,
     exibicaoDoTeste: null,
     carregar: async () => {
       if (get().carregada) return
-      const lista = await lerDoDisco()
-      set({ lista, carregada: true })
+      await ler()
     },
+    recarregar: ler,
     adicionar: (cutscene) => {
       if (get().lista.length >= CUTSCENES_MAX) return
       trocarLista([...get().lista, cutscene])
     },
     mudar: (id, mudanca) => trocarLista(get().lista.map((c) => (c.id === id ? { ...c, ...mudanca } : c))),
-    remover: (id) => trocarLista(get().lista.filter((c) => c.id !== id)),
+    remover: (id) => {
+      const lista = get().lista
+      const indice = lista.findIndex((c) => c.id === id)
+      const cutscene = lista[indice]
+      if (cutscene === undefined || !get().podeGravar) return false
+      trocarLista(lista.filter((c) => c.id !== id))
+      const prazo = setTimeout(() => {
+        remocoes.delete(id)
+        apagarSeSemUso(cutscene.video)
+      }, DESFAZER_REMOCAO_MS)
+      remocoes.set(id, { cutscene, indice, prazo })
+      return true
+    },
+    desfazerRemocao: (id) => {
+      const remocao = remocoes.get(id)
+      if (remocao === undefined) return
+      clearTimeout(remocao.prazo)
+      remocoes.delete(id)
+      const lista = get().lista
+      if (lista.some((c) => c.id === id) || lista.length >= CUTSCENES_MAX) return
+      const indice = Math.min(remocao.indice, lista.length)
+      trocarLista([...lista.slice(0, indice), remocao.cutscene, ...lista.slice(indice)])
+    },
     darMiniaturaAoVideo: (video, miniatura) => {
       const lista = get().lista
       if (!lista.some((c) => c.video === video && c.miniatura === undefined)) return
       trocarLista(lista.map((c) => (c.video === video && c.miniatura === undefined ? { ...c, miniatura } : c)))
     },
-    definirExibicao: (exibicao, lugar = 'sala') => set(lugar === 'teste' ? { exibicaoDoTeste: exibicao } : { exibicao }),
+    definirExibicao: (exibicao, lugar = 'sala') => {
+      const antes = lugar === 'teste' ? get().exibicaoDoTeste : get().exibicao
+      const comTempo = exibicao === null ? null : comTocandoDesde(exibicao, antes)
+      set(lugar === 'teste' ? { exibicaoDoTeste: comTempo } : { exibicao: comTempo })
+    },
     marcarExibida: (id) => {
       const cutscene = get().lista.find((c) => c.id === id)
       if (cutscene === undefined) return

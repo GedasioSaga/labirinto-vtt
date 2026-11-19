@@ -7,7 +7,7 @@ import { guardarQuadroDoVideo, pedirMiniaturaDoVideo } from '../../lib/miniatura
 import { CUTSCENE_TITULO_MAX } from '../../net/protocol'
 import { assinarRedeDaCutscene, lugarDaRedeDaCutscene, redeDaCutscene, redeDaCutsceneEm, type LugarDaCutscene, type ResultadoDoTocar } from '../../net/redeDaCutscene'
 import { GALERIA_VIDEO_MAX_BYTES, mensagemDaFalha, tirarDaGaleria } from '../../net/nuvem/galeriaNaNuvem'
-import { useCutscenesStore, VIDEO_MAX_BYTES, type Cutscene, type ExibicaoEmCurso } from '../../stores/cutscenesStore'
+import { DESFAZER_REMOCAO_MS, useCutscenesStore, VIDEO_MAX_BYTES, type Cutscene, type ExibicaoEmCurso } from '../../stores/cutscenesStore'
 import { useToastStore } from '../../stores/toastStore'
 import { Botao } from '../grimorio/Botao'
 import { CampoLiga } from '../grimorio/CampoLiga'
@@ -288,17 +288,37 @@ function AssistirCutscene({ cutsceneId, onFechar }: { cutsceneId: string | null;
   )
 }
 
+/** "1:05": minutos e segundos do tempo decorrido. */
+function tempoLegivel(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** O relógio do painel: anda de segundo em segundo só enquanto a exibição toca. */
+function useTempoDecorrido(desde: number | undefined): string | null {
+  const [agora, setAgora] = useState(() => Date.now())
+  useEffect(() => {
+    if (desde === undefined) return
+    setAgora(Date.now())
+    const relogio = window.setInterval(() => setAgora(Date.now()), 1000)
+    return () => window.clearInterval(relogio)
+  }, [desde])
+  return desde === undefined ? null : tempoLegivel(agora - desde)
+}
+
 /** O painel da exibição de um lugar: os botões falam só com a rede dele (a da mesa segue parável com o teste aberto). */
 function PainelDaExibicao({ exibicao, lugar }: { exibicao: ExibicaoEmCurso; lugar: LugarDaCutscene }) {
   const prontas = exibicao.telas.filter((tela) => tela.pronta).length
   const esperando = exibicao.fase === 'esperando'
   const noTeste = lugar === 'teste'
-  const tocando = noTeste ? 'Tocando na Visão de jogador' : 'Tocando na mesa'
+  const decorrido = useTempoDecorrido(esperando ? undefined : exibicao.tocandoDesde)
+  const tocando = `${noTeste ? 'Tocando na Visão de jogador' : 'Tocando na mesa'}${decorrido === null ? '' : ` há ${decorrido}`}`
   return (
     <section className="lb-cutscenes__painel" aria-label={noTeste ? 'Cutscene no teste' : 'Cutscene na mesa'} data-lugar={lugar}>
       <p className="lb-cutscenes__painel-titulo">
         <strong>{exibicao.titulo}</strong>
-        <span>{esperando ? `Baixando: ${prontas} de ${exibicao.telas.length} telas prontas` : tocando}</span>
+        {/* O relógio muda a cada segundo: fora do aria-live, para o leitor de tela não ler o tempo sem parar. */}
+        <span className="lb-cutscenes__painel-tempo">{esperando ? `Baixando: ${prontas} de ${exibicao.telas.length} telas prontas` : tocando}</span>
       </p>
       <ul className="lb-cutscenes__telas">
         {exibicao.telas.map((tela) => (
@@ -348,9 +368,87 @@ function EstadoDaGaleria({ cutscene }: { cutscene: Cutscene }) {
   }
 }
 
-function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cutscene: Cutscene; comSala: boolean; ocupada: boolean; base: string | null; onAssistir: () => void }) {
+/**
+ * REMOVER (18/11/2026, análise Fable): a linha sai na hora, com "Desfazer" no
+ * aviso; o vídeo (até 500 MB) só sai da mídia da mesa quando o prazo do
+ * Desfazer acaba e nenhuma outra linha usa o mesmo arquivo (`cutscenesStore`).
+ */
+function removerComDesfazer(cutscene: Cutscene): void {
+  const loja = useCutscenesStore.getState()
+  if (!loja.remover(cutscene.id)) return
+  useToastStore.getState().push('info', `"${cutscene.titulo}" saiu da lista. O vídeo sai do disco em ${DESFAZER_REMOCAO_MS / 1000} s.`, DESFAZER_REMOCAO_MS, {
+    actions: [{ label: 'Desfazer', run: () => useCutscenesStore.getState().desfazerRemocao(cutscene.id) }],
+  })
+}
+
+/**
+ * O vídeo que está na Galeria do site: remover só da lista deixaria o vídeo lá
+ * sem o botão de tirar (só pelo site). A janela pergunta qual dos dois.
+ */
+function ConfirmarRemocaoDaGaleria({ cutscene, onFechar }: { cutscene: Cutscene | null; onFechar: () => void }) {
+  const [tirando, setTirando] = useState(false)
+  const [ultima, setUltima] = useState(cutscene)
+  if (cutscene !== null && cutscene !== ultima) setUltima(cutscene)
+  const tirarERemover = async () => {
+    const galeria = ultima?.galeria
+    if (ultima === null || galeria?.estado !== 'enviado' || tirando) return
+    setTirando(true)
+    try {
+      await tirarDaGaleria(galeria.campanhaId, ultima.video)
+      removerComDesfazer(ultima)
+      onFechar()
+      void useCutscenesStore.getState().conferirGaleria()
+    } catch (erro) {
+      avisar('error', mensagemDaFalha(erro))
+    } finally {
+      setTirando(false)
+    }
+  }
+  return (
+    <Dialogo
+      aberto={cutscene !== null}
+      titulo="Remover a cutscene?"
+      descricao={ultima === null ? undefined : `"${ultima.titulo}" está na Galeria do site dos jogadores.`}
+      onFechar={onFechar}
+      pequeno
+    >
+      <p className="lb-cutscenes__nota">Removendo só daqui, o vídeo continua na Galeria e só sai de lá pelo site.</p>
+      <div className="lb-cutscenes__acoes">
+        <Botao variante="perigo" tamanho="p" aria-busy={tirando} onClick={() => void tirarERemover()}>
+          {tirando ? 'Tirando da Galeria…' : 'Tirar da Galeria e remover'}
+        </Botao>
+        <Botao
+          tamanho="p"
+          onClick={() => {
+            if (ultima !== null) removerComDesfazer(ultima)
+            onFechar()
+          }}
+        >
+          Remover só daqui
+        </Botao>
+        <Botao variante="fantasma" tamanho="p" onClick={onFechar}>
+          Cancelar
+        </Botao>
+      </div>
+    </Dialogo>
+  )
+}
+
+interface LinhaDaCutsceneProps {
+  cutscene: Cutscene
+  /** Para onde o "Tocar" vai agora; `null` = sem sala nem teste. */
+  lugar: LugarDaCutscene | null
+  ocupada: boolean
+  podeGravar: boolean
+  base: string | null
+  onAssistir: () => void
+  onRemoverDaGaleria: () => void
+}
+
+function LinhaDaCutscene({ cutscene, lugar, ocupada, podeGravar, base, onAssistir, onRemoverDaGaleria }: LinhaDaCutsceneProps) {
   const [tirando, setTirando] = useState(false)
   const loja = useCutscenesStore.getState
+  const comSala = lugar !== null
   const tocar = () => {
     const rede = redeDaCutscene()
     if (rede === null) return
@@ -409,7 +507,8 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cut
       <div className="lb-cutscenes__acoes">
         <Botao variante="primario" tamanho="p" disabled={!comSala || ocupada} onClick={tocar}>
           <IconeDoLivro nome="filme" />
-          Tocar para todos
+          {/* Com a Visão de jogador aberta o vídeo vai só à janela de teste: o rótulo diz isso. */}
+          {lugar === 'teste' ? 'Tocar no teste' : 'Tocar para todos'}
         </Botao>
         <Botao tamanho="p" onClick={onAssistir}>
           <IconeDoLivro nome="play" />
@@ -420,7 +519,12 @@ function LinhaDaCutscene({ cutscene, comSala, ocupada, base, onAssistir }: { cut
             Tirar da Galeria
           </Botao>
         )}
-        <Botao variante="fantasma" tamanho="p" disabled={ocupada} onClick={() => loja().remover(cutscene.id)}>
+        <Botao
+          variante="fantasma"
+          tamanho="p"
+          disabled={ocupada || !podeGravar}
+          onClick={() => (cutscene.galeria?.estado === 'enviado' ? onRemoverDaGaleria() : removerComDesfazer(cutscene))}
+        >
           Remover da lista
         </Botao>
       </div>
@@ -433,9 +537,12 @@ export function PaginaCutscenes() {
   const exibicao = useCutscenesStore((estado) => estado.exibicao)
   const exibicaoDoTeste = useCutscenesStore((estado) => estado.exibicaoDoTeste)
   const carregada = useCutscenesStore((estado) => estado.carregada)
+  const podeGravar = useCutscenesStore((estado) => estado.podeGravar)
+  const aviso = useCutscenesStore((estado) => estado.aviso)
   const lugar = useSyncExternalStore(assinarRedeDaCutscene, lugarDaRedeDaCutscene)
   const [importando, setImportando] = useState(false)
   const [assistindo, setAssistindo] = useState<string | null>(null)
+  const [removendoDaGaleria, setRemovendoDaGaleria] = useState<Cutscene | null>(null)
   const base = useBaseDaMidia()
   const aVista = usePaginaAVista()
 
@@ -488,23 +595,43 @@ export function PaginaCutscenes() {
       {lugar === null && <p className="lb-cutscenes__nota">Abra a sala para tocar uma cutscene para os jogadores. Sem sala, “Assistir” toca o vídeo só aqui.</p>}
       {lugar === 'teste' && (
         <p className="lb-cutscenes__nota" data-lugar="teste">
-          Visão de jogador aberta: “Tocar para todos” toca só na janela de teste. Não conta como exibida nem vai para a Galeria.
+          Visão de jogador aberta: “Tocar no teste” toca só na janela de teste. Não conta como exibida nem vai para a Galeria.
         </p>
       )}
-      <Botao variante="latao" tamanho="p" disabled={importando} onClick={() => void adicionar()}>
+      {aviso !== null && (
+        <p className="lb-cutscenes__nota lb-cutscenes__nota--erro" role="alert">
+          {aviso.texto}{' '}
+          {aviso.tipo === 'leitura' && (
+            <button type="button" className="lb-cutscenes__link" onClick={() => void useCutscenesStore.getState().recarregar()}>
+              Tentar de novo
+            </button>
+          )}
+        </p>
+      )}
+      <Botao variante="latao" tamanho="p" disabled={importando || (carregada && !podeGravar)} onClick={() => void adicionar()}>
         <IconeDoLivro nome="mais" />
         {importando ? 'Copiando o vídeo…' : 'Adicionar vídeo…'}
       </Botao>
       {lista.length === 0 ? (
-        <p className="lb-cutscenes__nota">Nenhuma cutscene ainda.</p>
+        <p className="lb-cutscenes__nota">{aviso?.tipo === 'leitura' && !podeGravar ? 'A lista não abriu: nada é mostrado nem gravado até ela abrir.' : 'Nenhuma cutscene ainda.'}</p>
       ) : (
         <ul className="lb-cutscenes__lista">
           {lista.map((cutscene) => (
-            <LinhaDaCutscene key={cutscene.id} cutscene={cutscene} comSala={lugar !== null} ocupada={exibicao !== null || exibicaoDoTeste !== null} base={base} onAssistir={() => setAssistindo(cutscene.id)} />
+            <LinhaDaCutscene
+              key={cutscene.id}
+              cutscene={cutscene}
+              lugar={lugar}
+              ocupada={exibicao !== null || exibicaoDoTeste !== null}
+              podeGravar={podeGravar}
+              base={base}
+              onAssistir={() => setAssistindo(cutscene.id)}
+              onRemoverDaGaleria={() => setRemovendoDaGaleria(cutscene)}
+            />
           ))}
         </ul>
       )}
       <AssistirCutscene cutsceneId={assistindo} onFechar={() => setAssistindo(null)} />
+      <ConfirmarRemocaoDaGaleria cutscene={removendoDaGaleria} onFechar={() => setRemovendoDaGaleria(null)} />
     </div>
   )
 }
