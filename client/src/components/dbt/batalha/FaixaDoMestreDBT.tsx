@@ -50,6 +50,12 @@ export function FaixaDoMestreDBT({ sceneKey, className }: FaixaDoMestreDBTProps)
     return () => window.clearTimeout(prazo)
   }, [aviso])
 
+  // Ficha apagada do mapa sai da batalha (e a vez que estava nela anda), como na One Piece (18/11/2026).
+  const ligada = cena !== undefined
+  useEffect(() => {
+    if (ligada) useBatalhaDBTStore.getState().normalizarCena(sceneKey, new Set(tokens.map((token) => token.id)))
+  }, [ligada, sceneKey, tokens])
+
   const combatentes = cena?.combatentes
   const fichas = useMemo<Fichas>(() => (combatentes === undefined ? SEM_FICHAS : fichasDaCena(personagens, sistema, Object.values(combatentes))), [personagens, sistema, combatentes])
   const cartas = useMemo(() => (cena === undefined ? [] : cartasDaBatalha(cena, fichas)), [cena, fichas])

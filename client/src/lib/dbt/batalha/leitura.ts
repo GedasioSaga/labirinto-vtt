@@ -99,6 +99,11 @@ export interface FichaLida {
   /** Só as ativas. */
   tecnicas: readonly TecnicaLida[]
   transformacoes: readonly TransformacaoLida[]
+  /**
+   * A forma ligada na FICHA (fora da batalha, `transformacaoAtiva`), uma das `transformacoes`. Ausente = forma
+   * normal. O Iniciar a toma como declarada antes do combate (18/11/2026, análise, seção 2.3).
+   */
+  formaAtiva?: string
   /** Movimentos marciais e talentos ativos com [KI: X]. */
   movimentos: readonly MovimentoLido[]
 }
@@ -400,6 +405,7 @@ export function lerFichaParaBatalha(personagem: Personagem, sistema: SistemaDeRp
     deslocamentoM: deslocamento(ficha).valor,
     tecnicas: ficha.tecnicas.filter((tecnica) => tecnica.ativa).map(lerTecnica),
     transformacoes: transformacoesDaFicha(ficha),
+    ...(ficha.transformacaoAtiva !== null && ficha.transformacoes.some((forma) => forma.id === ficha.transformacaoAtiva) ? { formaAtiva: ficha.transformacaoAtiva } : {}),
     movimentos: movimentosDaFicha(ficha),
   }
 }

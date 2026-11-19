@@ -7,6 +7,7 @@ import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { metrosPorCasa } from '../lib/dbt/batalha/contas'
 import { mudancaDoFim, resumoDoFim, type LinhaDoFimDBT } from '../lib/dbt/batalha/fim'
 import { fichaDepoisDoFim, fichasDaCena, type FichaLida } from '../lib/dbt/batalha/leitura'
+import { situacaoDoAjuste } from '../lib/dbt/batalha/morte'
 import { nucleoInicial, reduzir, type ContextoDBT } from '../lib/dbt/batalha/motor'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
 import type { PosicaoNaCena, PosicoesDaCena } from '../lib/dbt/batalha/posicao'
@@ -105,6 +106,19 @@ export interface BatalhaDBTState {
   resumoDoFim: (sceneKey: string) => LinhaDoFimDBT[]
   /** `linhas` null = "Encerrar sem aplicar". Encerrar não se desfaz. */
   encerrar: (sceneKey: string, linhas: readonly LinhaDoFimDBT[] | null) => void
+  /**
+   * A batalha guardada em disco VOLTA como estava (18/11/2026, análise item 7; `batalhaSalvaNaMesa`), sem a
+   * abertura. Cena já em batalha aqui: nada, e `false` (a da One Piece quem confere é a batalha salva).
+   */
+  retomar: (sceneKey: string, cena: CenaDBT) => boolean
+  /** A mesa saiu da tela: as cenas saem da memória sem fim nenhum (o arquivo guarda o ponto salvo). */
+  esquecerCenas: (sceneKeys: readonly string[]) => void
+  /**
+   * Ficha apagada do mapa sai da batalha (18/11/2026, análise, seção 2.3; o `normalizarCena` da One Piece):
+   * pelo "Tirar" do motor, que passa a vez antes, solta o agarrado e tira as pendências dela. Antes ela
+   * seguia na ordem, recebia a vez e continuava como alvo. O id do combatente é o do token.
+   */
+  normalizarCena: (sceneKey: string, tokenIdsDaCena: ReadonlySet<string>) => void
 }
 
 const MESTRE: AutorDBT = { tipo: 'mestre' }
@@ -227,6 +241,27 @@ function estadoDaBatalhaDBT(
 
     reset: () => set({ cenas: {}, anuncio: null }),
 
+    retomar: (sceneKey, cena) => {
+      if (Object.hasOwn(get().cenas, sceneKey)) return false
+      // As animações não voltam (já tocaram); o `seq` segue de onde estava, e sem `anuncio` a abertura não toca.
+      set({ cenas: { ...get().cenas, [sceneKey]: { ...cena, efeitos: [] } } })
+      return true
+    },
+
+    esquecerCenas: (sceneKeys) => {
+      const { cenas } = get()
+      if (!sceneKeys.some((sceneKey) => Object.hasOwn(cenas, sceneKey))) return
+      set({ cenas: Object.fromEntries(Object.entries(cenas).filter(([sceneKey]) => !sceneKeys.includes(sceneKey))) })
+    },
+
+    normalizarCena: (sceneKey, tokenIdsDaCena) => {
+      const cena = cenaDe(sceneKey)
+      if (cena === undefined) return
+      for (const id of Object.keys(cena.combatentes)) {
+        if (!tokenIdsDaCena.has(id)) get().comando(sceneKey, MESTRE, { tipo: 'mestre', acao: { tipo: 'tirar', combatenteId: id } })
+      }
+    },
+
     zerarCaminhos: (sceneKey) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined || Object.keys(cena.caminhos).length === 0) return
@@ -308,9 +343,22 @@ function estadoDaBatalhaDBT(
       const texto = `Ajuste na ficha de ${depois.nome}: ${partes.map((parte) => `${parte.parte === 'maximo' ? 'máx. ' : ''}${parte.chave.toUpperCase()} ${parte.de} -> ${parte.para}`).join(', ')}`
       // O jogador vê o ajuste de PJ; o de NPC (PV e Ki escondidos) fica só com o mestre.
       const publico = depois.tipo === 'jogador' ? `Ajuste na ficha de ${depois.nome}` : ''
+      // Conserto de 18/11/2026 (análise, seção 2.3): o PV mexido à mão muda a situação (caído curado volta,
+      // PV zerado derruba), na mesma linha: o Desfazer dela volta a situação de antes junto com o PV.
+      const pv = partes.find((parte) => parte.chave === 'pv' && parte.parte !== 'maximo')
       for (const [sceneKey, cena] of Object.entries(get().cenas)) {
         const tokenIds = Object.values(cena.combatentes).filter((c) => c.personagemId === personagemId).map((c) => c.id)
         if (tokenIds.length === 0) continue
+        let combatentes = cena.combatentes
+        const situacoes: string[] = []
+        for (const id of pv === undefined ? [] : tokenIds) {
+          const c = combatentes[id]
+          const situacao = situacaoDoAjuste(c, pv?.para ?? 0, cena.opcoes.salvaguardaDeNpc)
+          if (situacao === null) continue
+          const semForma = situacao !== 'de-pe' && c.transformacao !== null
+          combatentes = { ...combatentes, [id]: { ...c, morte: { sucessos: 0, falhas: 0, situacao }, ...(semForma ? { transformacao: null } : {}) } }
+          situacoes.push(situacao === 'de-pe' ? `${c.nome} volta à luta` : `${c.nome} ${situacao === 'salvaguarda' ? 'caiu: salvaguarda contra a morte' : 'está fora de combate'}${semForma ? ' (sai da forma)' : ''}`)
+        }
         const linha: LinhaDBT = {
           id: gerarId(),
           seq: cena.seq,
@@ -318,15 +366,15 @@ function estadoDaBatalhaDBT(
           rodada: cena.ordem.rodada,
           autor,
           tipo: 'ficha',
-          texto,
+          texto: situacoes.length === 0 ? texto : `${texto} · ${situacoes.join(' · ')}`,
           detalhes: [],
-          textoPublico: publico,
+          textoPublico: publico === '' || situacoes.length === 0 ? publico : `${publico} · ${situacoes.join(' · ')}`,
           detalhesPublicos: [],
           envolve: { tokenIds, personagemIds: [personagemId] },
           comD20: false,
           reversao: { nucleo: nucleoDe(cena), fichas: [{ personagemId, partes }] },
         }
-        gravarCena(sceneKey, { ...cena, registro: comLinhaDBT(cena.registro, linha), seq: cena.seq + 1, turnosRev: cena.turnosRev + 1 })
+        gravarCena(sceneKey, { ...cena, combatentes, registro: comLinhaDBT(cena.registro, linha), seq: cena.seq + 1, turnosRev: cena.turnosRev + 1 })
       }
     },
 

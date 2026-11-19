@@ -77,14 +77,18 @@ export function nomeDoLadoDBT(lado: string, equipes: readonly Equipe[]): string 
   return equipes.find((equipe) => equipe.id === lado)?.nome ?? NOME_DO_LADO_PADRAO[lado] ?? lado
 }
 
-/** A próxima carta de pé depois da vez (dá a volta na ordem); morto não joga. */
+/**
+ * A próxima carta que recebe a vez depois da atual (dá a volta na ordem), pela regra do motor (`proximaVez`,
+ * `foraDeCombate`): inconsciente e morto não recebem a vez. Conserto de 18/11/2026 (análise, seção 2.3):
+ * antes só o morto pulava, e a faixa apontava o inconsciente como "próximo" enquanto a vez caía noutro.
+ */
 function proximaDe(cartas: readonly { id: string; situacao: SituacaoDeMorte }[], vez: string | null): string | null {
   if (vez === null) return null
   const indice = cartas.findIndex((carta) => carta.id === vez)
   if (indice < 0) return null
   for (let passo = 1; passo < cartas.length; passo += 1) {
     const carta = cartas[(indice + passo) % cartas.length]
-    if (carta !== undefined && carta.situacao !== 'morto') return carta.id
+    if (carta !== undefined && carta.situacao !== 'morto' && carta.situacao !== 'inconsciente') return carta.id
   }
   return null
 }

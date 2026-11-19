@@ -96,9 +96,21 @@ export function nucleoInicial(entrantes: readonly EntranteDBT[], opcoes: Partial
   const combatentes: Record<string, CombatenteDBT> = {}
   for (const entrante of entrantes) if (!Object.hasOwn(combatentes, entrante.tokenId)) combatentes[entrante.tokenId] = combatenteNovo(entrante, 0)
   const ids = Object.keys(combatentes)
+  // Conserto de 18/11/2026 (análise, seção 2.3): a forma ligada na ficha fora da batalha (o Super Saiyajin já
+  // ligado) era ignorada e ele começava na forma normal. Agora ela entra como DECLARADA: a iniciativa soma o EP
+  // dela e o Ki inicial paga o custo, como a de quem declarou (5.2 e 5.5). Ele não é perguntado de novo.
+  const jaTransformados = new Set<string>()
+  for (const id of ids) {
+    const personagemId = combatentes[id].personagemId
+    const ficha = personagemId === null ? null : (fichas.get(personagemId) ?? null)
+    const forma = ficha?.formaAtiva === undefined ? undefined : ficha.transformacoes.find((candidata) => candidata.id === ficha.formaAtiva)
+    if (forma === undefined) continue
+    combatentes[id] = { ...combatentes[id], transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: 0 } }
+    jaTransformados.add(id)
+  }
   const faltam = ids.filter((id) => {
     const personagemId = combatentes[id].personagemId
-    return personagemId !== null && (fichas.get(personagemId)?.transformacoes.length ?? 0) > 0
+    return !jaTransformados.has(id) && personagemId !== null && (fichas.get(personagemId)?.transformacoes.length ?? 0) > 0
   })
   return {
     fase: 'iniciativa',

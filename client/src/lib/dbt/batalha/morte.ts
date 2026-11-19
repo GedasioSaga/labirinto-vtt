@@ -12,7 +12,7 @@ import {
   tipoDaLinha,
   type Trabalho,
 } from './trabalho'
-import { SALVAGUARDA_CD, SALVAGUARDAS_PARA_DECIDIR, type IdDoCombatente, type SituacaoDeMorte } from './tipos'
+import { SALVAGUARDA_CD, SALVAGUARDAS_PARA_DECIDIR, type CombatenteDBT, type IdDoCombatente, type SituacaoDeMorte } from './tipos'
 
 /**
  * Dano, cura, transformação que acaba e MORTE (docs/planos/dbt-batalha.md,
@@ -91,14 +91,17 @@ export function caiu(t: Trabalho, id: IdDoCombatente, agora: boolean): void {
   const c = combatente(t, id)
   if (c === undefined) return
   tipoDaLinha(t, 'morte')
+  const comSalvaguarda = !c.npc || t.nucleo.opcoes.salvaguardaDeNpc
   if (c.morte.situacao === 'inconsciente' && !agora) {
+    // Conserto de 18/11/2026 (análise, seção 2.3): o NPC sem a opção `salvaguardaDeNpc` nunca rola salvaguarda;
+    // fora de combate, o dano a mais não o põe nela (antes punha, e ele rolava na vez seguinte).
+    if (!comSalvaguarda) return
     mudarCombatente(t, id, (atual) => ({ ...atual, morte: { ...SEM_CONTADORES, situacao: 'salvaguarda' } }))
     escrever(t, `${c.nome} sofre dano caído: volta à salvaguarda contra a morte`)
     return
   }
   if (c.morte.situacao !== 'de-pe') return
   acabarTransformacao(t, id, 'chegou a 0 PV')
-  const comSalvaguarda = !c.npc || t.nucleo.opcoes.salvaguardaDeNpc
   if (!comSalvaguarda) {
     mudarCombatente(t, id, (atual) => ({ ...atual, morte: { ...SEM_CONTADORES, situacao: 'inconsciente' } }))
     escrever(t, `${c.nome} está fora de combate`)
@@ -107,6 +110,17 @@ export function caiu(t: Trabalho, id: IdDoCombatente, agora: boolean): void {
   mudarCombatente(t, id, (atual) => ({ ...atual, morte: { ...SEM_CONTADORES, situacao: 'salvaguarda' } }))
   escrever(t, `${c.nome} caiu: salvaguarda contra a morte`)
   pedirSalvaguarda(t, id, true)
+}
+
+/**
+ * A situação depois de um ajuste de PV À MÃO na ficha (conserto de 18/11/2026, análise, seção 2.3): o PV
+ * zerado à mão derruba quem estava de pé (salvaguarda, ou fora de combate o NPC sem a opção), e a cura à mão
+ * levanta o caído, como `curar`. O morto fica morto (o mestre muda pela situação). `null` = nada muda.
+ * A salvaguarda rola na vez dele (`ordem.ts`, começo da vez), sem a 1ª rolagem na hora do `caiu`.
+ */
+export function situacaoDoAjuste(c: CombatenteDBT, pv: number, salvaguardaDeNpc: boolean): SituacaoDeMorte | null {
+  if (pv <= 0) return c.morte.situacao === 'de-pe' ? (!c.npc || salvaguardaDeNpc ? 'salvaguarda' : 'inconsciente') : null
+  return c.morte.situacao === 'inconsciente' || c.morte.situacao === 'salvaguarda' ? 'de-pe' : null
 }
 
 /** PJ: o jogador clica "Rolar" (pendência); NPC: o host rola na hora. */
