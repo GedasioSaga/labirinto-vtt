@@ -111,6 +111,14 @@ export interface BatalhaNoHost {
   entrou(conexao: ConexaoNaBatalha, mesa: FichasDaMesa | undefined): SaidaDaBatalha[]
   /** A conexão caiu ou foi expulsa: o que ela tinha não vale para a próxima. */
   caiu(clientId: string): void
+  /**
+   * A conexão segue aberta, mas a tela dela não tem mais o que o host conta como entregue (conserto de
+   * 18/11/2026). `vazia`: ela apagou a faixa sozinha (o `scene.changed`, que no atalho deixa o jogador na
+   * MESMA cena: o recorte igual não saía de novo e ele ficava fora da batalha). `incerta`: um envio da
+   * batalha falhou e não se sabe o que ficou lá. O próximo `sync` manda os aliados e o recorte de novo;
+   * na incerta, até o `null` do fim da batalha.
+   */
+  perdeuAFaixa(clientId: string, como: 'vazia' | 'incerta'): void
   /** Expulso: o teto de pedidos dele também sai. */
   esquecer(playerId: string): void
   /** "Passar a vez": só a carta da vez, nesta rodada, de ficha dele. */
@@ -200,6 +208,8 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const efeitoVisto = new Map<string, { sceneKey: string; seq: number }>()
   // F2, por clientId: reqId → aceito (`true`) ou a recusa, as últimas RESPOSTAS_GUARDADAS, na ordem de chegada.
   const respostas = new Map<string, Map<string, true | Recusa>>()
+  // Por clientId: a tela não tem mais o que `estadoEnviado` diz (`perdeuAFaixa`). Sai no próximo `syncDe`.
+  const telaPerdida = new Map<string, 'vazia' | 'incerta'>()
 
   /** Mais um pedido do jogador na janela; `false` = passou do teto. */
   const cabePedido = (playerId: string): boolean => {
@@ -255,10 +265,14 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
   const syncDe = (conexao: ConexaoNaBatalha, mesa: FichasDaMesa | undefined): SaidaDaBatalha[] => {
     const { clientId, lugar } = conexao
     const cena = lugar === null || deps.ponte === undefined ? null : deps.ponte.cena(lugar.sceneKey)
+    // A tela perdeu a faixa sem a conexão cair: o que saiu antes não conta mais (uma vez).
+    const perdida = telaPerdida.get(clientId)
+    telaPerdida.delete(clientId)
     if (lugar === null || cena === null) {
       aliadosEnviados.delete(clientId)
       efeitoVisto.delete(clientId)
-      if (!estadoEnviado.has(clientId)) return []
+      // O envio que falhou pode ter sido o próprio `null`: na incerta ele sai de novo.
+      if (!estadoEnviado.has(clientId) && perdida !== 'incerta') return []
       // O `null` leva a faixa e os perfis dos aliados embora (o jogador limpa os dois).
       estadoEnviado.delete(clientId)
       return [{ clientId, msg: { type: 'batalha.estado', estado: null } }]
@@ -269,14 +283,15 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
     const daVez = fichaDaVezQueEleControla(cena, lugar, ctx.personagens)
     const naOrdem = aliadosNaOrdem(cena, ctx.aliados, ctx.personagens)
     const aliados = daVez === null ? naOrdem : [daVez, ...naOrdem.filter((personagem) => personagem.id !== daVez.id)].slice(0, ALIADOS_MAX)
-    const antes = aliadosEnviados.get(clientId)
+    // A tela que apagou a faixa também apagou os aliados: para ela é como a primeira vez.
+    const antes = perdida === 'vazia' ? undefined : aliadosEnviados.get(clientId)
     // Primeira vez sem aliado nenhum não manda a lista vazia: ausente, para o jogador, já é "nenhum".
-    const mudaram = antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)
+    const mudaram = perdida === 'incerta' ? aliados.length > 0 || antes !== undefined : antes === undefined ? aliados.length > 0 : !mesmasReferencias(antes, aliados)
     if (mudaram) saidas.push({ clientId, msg: { type: 'batalha.aliados', personagens: aliados.map(deps.paraOFio) } })
     aliadosEnviados.set(clientId, aliados)
     const estado = vistaParaJogador(cena, ctx)
     const texto = JSON.stringify(estado)
-    if (estadoEnviado.get(clientId) !== texto) {
+    if (perdida !== undefined || estadoEnviado.get(clientId) !== texto) {
       saidas.push({ clientId, msg: { type: 'batalha.estado', estado } })
       estadoEnviado.set(clientId, texto)
     }
@@ -437,6 +452,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       for (const clientId of aliadosEnviados.keys()) if (!vivas.has(clientId)) aliadosEnviados.delete(clientId)
       for (const clientId of efeitoVisto.keys()) if (!vivas.has(clientId)) efeitoVisto.delete(clientId)
       for (const clientId of respostas.keys()) if (!vivas.has(clientId)) respostas.delete(clientId)
+      for (const clientId of telaPerdida.keys()) if (!vivas.has(clientId)) telaPerdida.delete(clientId)
       return conexoes.flatMap((conexao) => syncDe(conexao, mesa))
     },
 
@@ -445,6 +461,7 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       aliadosEnviados.delete(conexao.clientId)
       // Sem reprise: o primeiro sync marca o `seq` de agora e não manda os velhos.
       efeitoVisto.delete(conexao.clientId)
+      telaPerdida.delete(conexao.clientId)
       return syncDe(conexao, mesa)
     },
 
@@ -453,6 +470,12 @@ export function criarBatalhaNoHost(deps: DepsDaBatalhaNoHost): BatalhaNoHost {
       aliadosEnviados.delete(clientId)
       efeitoVisto.delete(clientId)
       respostas.delete(clientId)
+      telaPerdida.delete(clientId)
+    },
+
+    perdeuAFaixa(clientId, como) {
+      // A incerta vence: a tela que apagou a faixa e depois perdeu um envio continua sem saber o que tem.
+      if (telaPerdida.get(clientId) !== 'incerta') telaPerdida.set(clientId, como)
     },
 
     esquecer(playerId) {

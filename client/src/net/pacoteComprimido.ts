@@ -206,24 +206,43 @@ export function criarEntradaEmOrdem(entregar: (dado: unknown) => void): EntradaE
  * fila depende disso para seguir. Recebe também a mensagem `original`, a de
  * antes do envelope: o que ela libera (`liberacaoDosSons.ts`) se lê dela, e
  * não do `{gz}` (o convite da dança comprimido continuaria liberando a música).
+ *
+ * `sempreEmFila` (conserto de 18/11/2026, "F5 tira o jogador da batalha"): toda
+ * mensagem entra na fila do cliente dela, comprimida ou não, e a seguinte só
+ * sai quando o `mandar` da anterior terminou. É o que o app de verdade usa: o
+ * `net_send` do Rust é um comando assíncrono, cada chamada vira uma tarefa
+ * solta, e a pequena (`batalha.estado`) passava na frente do mapa grande do
+ * mesmo tique. A tela ainda em espera descartava a pequena e o host a dava
+ * como entregue. A primeira da fila continua saindo na hora.
  */
 export function criarSaidaEmOrdem(
   mandar: (clientId: string, carga: object, original: object) => Promise<void>,
+  opcoes: { sempreEmFila?: boolean } = {},
 ): (clientId: string, msg: object, aceitaGzip: boolean) => Promise<void> {
+  const sempreEmFila = opcoes.sempreEmFila === true
   const emCurso = new Map<string, Promise<void>>()
-  return (clientId, msg, aceitaGzip) => {
-    const anterior = emCurso.get(clientId)
-    const texto = aceitaGzip ? JSON.stringify(msg) : ''
-    const comprimir = aceitaGzip && valeComprimir(texto)
-    if (!comprimir && anterior === undefined) return mandar(clientId, msg, msg)
-    // Comprime já, em paralelo com o que ainda está na fila; manda na vez.
-    const carga: Promise<object> = comprimir ? comprimirPacote(texto).then((pacote) => pacote ?? msg) : Promise.resolve(msg)
-    const passo = (anterior ?? Promise.resolve()).then(() => carga).then((pronta) => mandar(clientId, pronta, msg))
+  /** O envio vira o fim da fila do cliente; sai dela quando termina, se nenhum outro entrou atrás. */
+  const entrarNaFila = (clientId: string, passo: Promise<void>): Promise<void> => {
     emCurso.set(clientId, passo)
     const liberar = () => {
       if (emCurso.get(clientId) === passo) emCurso.delete(clientId)
     }
     void passo.then(liberar, liberar)
     return passo
+  }
+  return (clientId, msg, aceitaGzip) => {
+    const anterior = emCurso.get(clientId)
+    const texto = aceitaGzip ? JSON.stringify(msg) : ''
+    const comprimir = aceitaGzip && valeComprimir(texto)
+    if (!comprimir && anterior === undefined) {
+      const envio = mandar(clientId, msg, msg)
+      return sempreEmFila ? entrarNaFila(clientId, envio) : envio
+    }
+    // Comprime já, em paralelo com o que ainda está na fila; manda na vez.
+    const carga: Promise<object> = comprimir ? comprimirPacote(texto).then((pacote) => pacote ?? msg) : Promise.resolve(msg)
+    return entrarNaFila(
+      clientId,
+      (anterior ?? Promise.resolve()).then(() => carga).then((pronta) => mandar(clientId, pronta, msg)),
+    )
   }
 }

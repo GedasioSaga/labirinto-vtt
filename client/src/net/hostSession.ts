@@ -2034,6 +2034,13 @@ export interface HostSession {
    * mesmo sem a cena dele mudar. Conexão que não é de jogador: nada.
    */
   sendFailed(clientId: string): void
+  /**
+   * BATALHA (conserto de 18/11/2026): a faixa da batalha que o host conta como entregue a esta conexão
+   * não está mais na tela dela. `vazia`: a tela apagou a faixa ao ler o `scene.changed` (no atalho o
+   * jogador fica na MESMA cena, o recorte sai igual e não era reenviado: ele ficava fora da batalha).
+   * `incerta`: um envio da batalha falhou. O próximo broadcast manda os aliados e o recorte de novo.
+   */
+  faixaDaBatalhaPerdida(clientId: string, como: 'vazia' | 'incerta'): void
   kick(clientId: string): HostResult
   /**
    * "É ela" da pergunta "Ana voltou?": a conexão de `playerId` (quem entrou
@@ -11752,6 +11759,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (playerId !== undefined) lastViews.delete(playerId)
       // O próximo broadcast refaz e reenvia: a conexão não tem a tela que o host guardou.
       sentViews.delete(clientId)
+    },
+
+    faixaDaBatalhaPerdida(clientId, como) {
+      batalhaNoHost.perdeuAFaixa(clientId, como)
+      batalhaDBTNoHost.perdeuAFaixa(clientId, como)
     },
 
     disconnect(clientId, at) {

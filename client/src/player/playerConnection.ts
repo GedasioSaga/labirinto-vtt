@@ -3290,7 +3290,12 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     const comPrefixo = `${PREFIXO_DO_PEDIDO_DBT}${chave}`
     for (const noAr of pedidosDeBatalha.values()) if (noAr.chave === comPrefixo) return true
     if (!send(mensagem)) return false
-    const prazo = setTimeout(() => pedidosDeBatalha.delete(mensagem.reqId), PEDIDO_DE_BATALHA_PRAZO_MS)
+    const prazo = setTimeout(() => {
+      pedidosDeBatalha.delete(mensagem.reqId)
+      // Sem resposta no prazo, o jogador sabe que o clique não valeu (como no One Piece): antes o pedido
+      // expirava calado e, nesse meio tempo, o clique repetido nem saía (a mesma chave já estava no ar).
+      if (state.status === 'playing' && state.batalhaDBTEstado !== undefined) setState({ batalhaDBTRecusa: { id: (state.batalhaDBTRecusa?.id ?? 0) + 1, motivo: SEM_RESPOSTA_DA_MESA } })
+    }, PEDIDO_DE_BATALHA_PRAZO_MS)
     pedidosDeBatalha.set(mensagem.reqId, { chave: comPrefixo, prazo })
     return true
   }

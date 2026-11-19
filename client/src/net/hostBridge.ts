@@ -202,6 +202,12 @@ export type ListenFn = (event: string, handler: (event: { payload: unknown }) =>
 export interface HostBridgeDeps {
   invoke: InvokeFn
   listen: ListenFn
+  /**
+   * Cada `net_send` espera o anterior do MESMO jogador terminar (`criarSaidaEmOrdem`, `sempreEmFila`).
+   * Ausente = só no app de verdade (`isTauri()`): lá o comando é assíncrono no Rust e a mensagem pequena
+   * passava na frente do mapa grande do mesmo tique. Os transportes de teste entregam na ordem da chamada.
+   */
+  enviosEmFila?: boolean
   getMap: () => MapData
   /**
    * A aventura inteira: cena aberta e cenas de fundo. Ausente = só o mapa de
@@ -1942,6 +1948,10 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
    * Um `net_send` por mensagem, na ordem. Para quem aceita gzip, a mensagem
    * grande vai comprimida (`pacoteComprimido.ts`) e as de trás esperam por
    * ela. Nunca rejeita: falha vira toast.
+   *
+   * No app (18/11/2026), TODA mensagem espera a anterior do mesmo jogador chegar ao servidor: sem isso o
+   * `batalha.estado` passava na frente do mapa da entrada, a tela em espera o descartava e, depois do F5,
+   * o jogador ficava sem a batalha até a vez andar.
    */
   const sendToClient = criarSaidaEmOrdem((clientId, carga, original) => {
     // A sessão de AGORA: a falha chega depois, talvez com a sala já fechada ou reaberta.
@@ -1962,10 +1972,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         // contaria o recorte como entregue e a tela do jogador ficaria velha
         // até a cena DELE mudar.
         if (owner !== null && owner === session) owner.sendFailed(clientId)
+        // BATALHA: o recorte da ordem (ou os aliados, ou o `null` do fim) que se perdeu sai de novo no
+        // próximo broadcast. Sem isto o host o contava como entregue, e o jogador ficava sem a batalha
+        // (ou sem a caixa REAÇÃO do golpe) até ela mudar de novo.
+        const tipoDaPerdida: unknown = Reflect.get(original, 'type')
+        const eraDaBatalha = typeof tipoDaPerdida === 'string' && (tipoDaPerdida.startsWith('batalha.') || tipoDaPerdida.startsWith('batalhaDBT.'))
+        if (eraDaBatalha && owner !== null && owner === session) owner.faixaDaBatalhaPerdida(clientId, 'incerta')
         reportError('Falha ao enviar para jogador', error)
       },
     )
-  })
+  }, { sempreEmFila: deps.enviosEmFila ?? isTauri() })
 
   /** Envia tudo; a promise nunca rejeita — falha vira toast, nunca silêncio. */
   const dispatch = (result: HostResult): Promise<void> => {
@@ -1973,6 +1989,9 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     let screensChanged = false
     for (const { clientId, msg } of result.outbound) {
       if (screens.record(clientId, msg)) screensChanged = true
+      // BATALHA: a tela apaga a faixa da batalha ao ler o `scene.changed`. No atalho (pino na MESMA cena)
+      // o recorte seguinte sai igual ao de antes e não era reenviado: o jogador ficava fora da batalha.
+      if (msg.type === 'scene.changed') session?.faixaDaBatalhaPerdida(clientId, 'vazia')
     }
     if (screensChanged) notifyScreens()
     // Todo recorte e toda leitura passam por aqui: o painel Pistas acompanha
