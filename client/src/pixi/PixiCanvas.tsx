@@ -91,6 +91,7 @@ import { criarGestoDaTextura, criarGestoDoPenhasco, criarGestoDoPincelDeRevelar 
 import { criarGestoDoCarimbo } from './carimboNoEditor'
 import { criarEscolhaNoCanvas } from './escolhaDoEditor'
 import { criarGestoDosBlocos } from './blocosNoEditor'
+import { criarArrastoDoRotulo } from './rotuloDaSalaNoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -103,7 +104,7 @@ import { createNuvensRenderer } from './drawNuvens'
 import { nuvensLigadas } from '../lib/nuvens'
 import { contornoDoGrupoAparece, createShapesRedrawer, paintedTextLayer, TIPOS_SO_COM_CONTORNO, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
-import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
+import { createRoomNamesRenderer, findRoomLabelAt, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
 import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
@@ -4029,55 +4030,8 @@ function PixiCanvasDoContexto({
       // de mundo do aperto, para a pegada do pino.
       let ctrlTokenPress: { tokenId: string; pressScreen: Point; pegouEm: Point } | null = null
       let areaSelectionDragBefore: MapData | null = null
-      // A4 — arrasto do rótulo da Sala. Offset absoluto a partir do ponto e
-      // do offset do pointerdown (não delta acumulado), então o arredondamento
-      // não soma erro ao longo do gesto. Snapshot fecha um Ctrl+Z só.
-      let roomLabelDragId: string | null = null
-      let roomLabelDragSnapshot: MapData | null = null
-      let roomLabelDragStartPoint: Point | null = null
-      let roomLabelDragStartOffset: Point | null = null
-      const finishRoomLabelDrag = () => {
-        if (roomLabelDragSnapshot) useMapStore.getState().commitDragHistory(roomLabelDragSnapshot)
-        roomLabelDragId = null
-        roomLabelDragSnapshot = null
-        roomLabelDragStartPoint = null
-        roomLabelDragStartOffset = null
-      }
-
-      /**
-       * O nome de um cômodo não sai do cômodo.
-       *
-       * Prende o CENTRO do rótulo à caixa do polígono da sala e devolve o
-       * offset (relativo à âncora, `roomLabelAnchor`) que corresponde a esse
-       * ponto preso. Antes disto o arrasto do nome era livre: no passeio de
-       * 17/09/2026 o rótulo de um quarto acabou desenhado por cima do quarto
-       * vizinho, e quem lia o mapa passava a ler o nome errado na sala errada.
-       *
-       * Prende o centro, não a caixa do texto: um nome comprido numa sala
-       * pequena não cabe inteiro de jeito nenhum, e encolher o alcance até a
-       * caixa caber tiraria do mestre posições legítimas perto da parede.
-       * Com o centro dentro da sala o nome sempre pertence visualmente a ela.
-       */
-      const clampRoomLabelOffset = (region: Region | undefined, offset: Point): Point => {
-        const arredondado = { x: Math.round(offset.x), y: Math.round(offset.y) }
-        if (!region || region.points.length === 0) return arredondado
-        let minX = Infinity
-        let minY = Infinity
-        let maxX = -Infinity
-        let maxY = -Infinity
-        for (const p of region.points) {
-          if (p.x < minX) minX = p.x
-          if (p.x > maxX) maxX = p.x
-          if (p.y < minY) minY = p.y
-          if (p.y > maxY) maxY = p.y
-        }
-        const anchor = roomLabelAnchor(region.points)
-        const preso = (valor: number, menor: number, maior: number) => Math.min(maior, Math.max(menor, valor))
-        return {
-          x: Math.round(preso(anchor.x + arredondado.x, minX, maxX) - anchor.x),
-          y: Math.round(preso(anchor.y + arredondado.y, minY, maxY) - anchor.y),
-        }
-      }
+      // A4 — arrasto do nome da Sala (`rotuloDaSalaNoEditor.ts`): preso à sala, um Ctrl+Z por arrasto.
+      const arrastoDoRotulo = criarArrastoDoRotulo()
 
       // Onda 1, item 3 (Frente F, "rede de segurança do undo") — snapshot de
       // ANTES do gesto pra fechar mover-corpo de Token/Prop/Wall/Region/
@@ -7360,10 +7314,7 @@ function PixiCanvasDoContexto({
             setSelection(selectionOfItem({ kind: 'region', id: labelRegion.id }))
             if (canInteract(labelRegion)) {
               mode = 'dragging-room-label'
-              roomLabelDragId = labelRegion.id
-              roomLabelDragSnapshot = map
-              roomLabelDragStartPoint = worldPoint
-              roomLabelDragStartOffset = labelRegion.room.labelOffset ?? { x: 0, y: 0 }
+              arrastoDoRotulo.comecar(labelRegion.id, map, worldPoint, labelRegion.room.labelOffset ?? { x: 0, y: 0 })
             } else {
               mode = 'idle'
             }
@@ -8283,7 +8234,7 @@ function PixiCanvasDoContexto({
         draggingLineId = null
         draggingLightId = null
         endGuides()
-        finishRoomLabelDrag()
+        arrastoDoRotulo.terminar()
         esconderPontaPuxada()
         // O número de quadrados é informação PASSAGEIRA: vive só enquanto o
         // botão está apertado. Mesmo choke point de `angleIndicatorRenderer`,
@@ -8485,7 +8436,7 @@ function PixiCanvasDoContexto({
         draggingLineId = null
         draggingLightId = null
         endGuides()
-        finishRoomLabelDrag()
+        arrastoDoRotulo.terminar()
         updateCursor()
         // N3: o mouse saiu do canvas no meio de um marquee ainda ABERTO —
         // cancela sem fechar a seleção (mesmo padrão de wallDraftStart/
@@ -8834,18 +8785,8 @@ function PixiCanvasDoContexto({
           return
         }
 
-        if (mode === 'dragging-room-label' && roomLabelDragId !== null && roomLabelDragStartPoint && roomLabelDragStartOffset) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          // Sem snap: o rótulo é texto solto, e o grid o prenderia em cima das paredes.
-          // Mas preso à sala: ver `clampRoomLabelOffset`.
-          const regiaoDoRotulo = useMapStore.getState().map.regions.find((r) => r.id === roomLabelDragId)
-          useMapStore.getState().setRoomLabelOffsetLive(
-            roomLabelDragId,
-            clampRoomLabelOffset(regiaoDoRotulo, {
-              x: roomLabelDragStartOffset.x + worldPoint.x - roomLabelDragStartPoint.x,
-              y: roomLabelDragStartOffset.y + worldPoint.y - roomLabelDragStartPoint.y,
-            }),
-          )
+        if (mode === 'dragging-room-label' && arrastoDoRotulo.emCurso()) {
+          arrastoDoRotulo.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
