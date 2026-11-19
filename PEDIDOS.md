@@ -2814,3 +2814,10 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
 - PUBLICADO (19/11 18h45): v0.5.85 com --com-google (mesa da batalha do mestre, campo de batalha no mapa, painel do jogador aprovado, contra-ataque, Juiz perto dos jogadores). https://github.com/GedasioSaga/labirinto-vtt/releases/tag/v0.5.85 (tag = main = `974327e5` chore(release): 0.5.85, pushado; Worker 229081c9, Pages 3dc8c580; setup 29.674.221 B, .sig 420 B, .msi 30.457.856 B, latest.json 2.163 B; releases/latest/download/latest.json = 0.5.85; Google no exe True/True; gitleaks 44 commits sem vazamento). Falta conferir no app real: atualizar da 0.5.84, painel do jogador e mesa no Tauri.
 - 19/11 (date abaixo), protótipo dos puzzles `3d10fdca` visto. Literal: "Perfeito eu gostei, mas como esse tipo de minigame eu imaginei usar para sessões diferente e locais diferentes, você tem que deixar bem personalizado." Entendido: aprovado o protótipo; no app cada puzzle tem que ser montável pelo mestre para qualquer sessão e lugar (imagem e arte próprias, número e posição dos encaixes, peças com nome e desenho próprios, códigos, símbolos, dica, desfecho, castigo), e não só os 4 modelos prontos. Próximo: rodada curta de perguntas sobre o que personalizar, plano, construir em ondas.
 19/11 20h28
+
+## PEDIDO NOVO (19/11/2026, hora no date abaixo): documentos para ler
+
+- Literal (com imagem: papel creme preso por um alfinete vermelho numa parede de tijolos, com linhas de texto): "Eu tambem quero uma mecanica de documento onde a pessoa pode ler o documento ao clicar e vai salvar para o jogador para ele ler denovo."
+- Entendido: objeto "Documento" no mapa (o desenho do papel com alfinete da imagem). O jogador clica e o texto abre para ler. Ao ler, o documento fica salvo para aquele jogador, numa lista de documentos lidos que ele pode abrir de novo depois. O mestre escreve o texto. Combina com os puzzles (dica num documento), na linha dos arquivos do Resident Evil.
+- Fila: entra junto com o plano dos puzzles, na sessão nova (perguntas rápidas, protótipo, construir).
+19/11 20h29
