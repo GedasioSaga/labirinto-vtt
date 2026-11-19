@@ -430,7 +430,34 @@ function selecaoQueSobra(map: MapData, selection: SelectionSet, sai: (camada: Ca
   })
 }
 
+/**
+ * A ESCOLHA DO PAINEL: os três campos que dizem o que o painel mostra. São um
+ * estado só com três gavetas exclusivas entre si — o conjunto (`selection`),
+ * o pino aberto (`selectedPinId`) ou a zona oculta aberta
+ * (`selectedConcealZoneId`) —, e quem os escreve passa por `escolhaNoPainel`
+ * (abrir um fecha os outros) ou por `SEM_ESCOLHA` (fechar tudo). As escolhas
+ * das ferramentas de terreno (risco do Barranco, água, abismo) moram nas
+ * ferramentas; `pixi/escolhaDoEditor.ts` lê as seis de uma vez.
+ */
 type CamposDaSelecao = Pick<MapStoreState, 'selection' | 'selectedPinId' | 'selectedConcealZoneId'>
+
+/** Nada escolhido: o conjunto vazio, e o pino e a zona fechados. */
+export const SEM_ESCOLHA: Readonly<CamposDaSelecao> = { selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null }
+
+/** O que abre no painel: um conjunto (o vazio inclusive), um pino ou uma zona oculta. */
+type EscolhaNoPainel = { kind: 'conjunto'; itens: SelectionSet } | { kind: 'pino'; id: string } | { kind: 'zona'; id: string }
+
+/** A regra única da escolha do painel: abrir uma gaveta fecha as outras duas. */
+function escolhaNoPainel(escolha: EscolhaNoPainel): CamposDaSelecao {
+  switch (escolha.kind) {
+    case 'pino':
+      return { selection: EMPTY_SELECTION, selectedPinId: escolha.id, selectedConcealZoneId: null }
+    case 'zona':
+      return { selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: escolha.id }
+    case 'conjunto':
+      return { selection: escolha.itens, selectedPinId: null, selectedConcealZoneId: null }
+  }
+}
 
 /**
  * FASE 4, UMA SELEÇÃO SÓ: o pino ou a zona oculta SOZINHOS no conjunto abrem
@@ -442,9 +469,9 @@ type CamposDaSelecao = Pick<MapStoreState, 'selection' | 'selectedPinId' | 'sele
 function selecaoNoPainel(selection: SelectionSet): Partial<CamposDaSelecao> {
   if (selection.length === 0) return { selection }
   const sozinho = selection.length === 1 ? selection[0] : undefined
-  if (sozinho?.kind === 'pin') return { selection: EMPTY_SELECTION, selectedPinId: sozinho.id, selectedConcealZoneId: null }
-  if (sozinho?.kind === 'zone') return { selection: EMPTY_SELECTION, selectedConcealZoneId: sozinho.id, selectedPinId: null }
-  return { selection, selectedPinId: null, selectedConcealZoneId: null }
+  if (sozinho?.kind === 'pin') return escolhaNoPainel({ kind: 'pino', id: sozinho.id })
+  if (sozinho?.kind === 'zone') return escolhaNoPainel({ kind: 'zona', id: sozinho.id })
+  return escolhaNoPainel({ kind: 'conjunto', itens: selection })
 }
 
 /**
@@ -2747,9 +2774,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     past: [],
     future: [],
     camera: { x: 0, y: 0, scale: 1 },
-    selection: EMPTY_SELECTION,
-    selectedConcealZoneId: null,
-    selectedPinId: null,
+    ...SEM_ESCOLHA,
     pinKind: 'exclamacao',
     pinIcon: null,
     activeTool: 'select',
@@ -2833,7 +2858,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       typingEdit = null
       const depois = toggleSelectionItem(conjuntoDoShift(get()), item)
       // Saiu o último (o pino ou a zona abertos inclusive): nada fica aberto.
-      set(isSelectionEmpty(depois) ? { selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null } : selecaoNoPainel(depois))
+      set(isSelectionEmpty(depois) ? SEM_ESCOLHA : selecaoNoPainel(depois))
     },
     somarNaSelecao: (itens) => {
       typingEdit = null
@@ -3439,8 +3464,9 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const virouPino = get().map.pins.some((p) => p.id === id)
       set(
         virouPino
-          ? { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }
-          : { selectedPinId: null, selection: selectionOfItem({ kind: 'prop', id }) },
+          ? escolhaNoPainel({ kind: 'pino', id })
+          : // A zona aberta fica como estava (este caminho nunca a tocou).
+            { selectedPinId: null, selection: selectionOfItem({ kind: 'prop', id }) },
       )
     },
     addDrawing: (drawing) => withHistory((map) => mapFactory.addDrawing(map, drawing)),
@@ -3697,7 +3723,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     pisoAtivo: 0,
     setPisoAtivo: (piso) => {
       if (!ehPiso(piso) || piso === get().pisoAtivo) return
-      set({ pisoAtivo: piso, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null, pendingParentRoomId: null })
+      set({ pisoAtivo: piso, ...SEM_ESCOLHA, pendingParentRoomId: null })
     },
     moverSelecaoAoPiso: (piso) => {
       const { map, selection } = get()
@@ -3855,8 +3881,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (setSelectionSecretOnMap(map, selection, secret) === map) return
       withHistory((current) => setSelectionSecretOnMap(current, selection, secret))
     },
-    setSelectedPin: (id) =>
-      set(id === null ? { selectedPinId: null } : { selectedPinId: id, selection: EMPTY_SELECTION, selectedConcealZoneId: null }),
+    setSelectedPin: (id) => set(id === null ? { selectedPinId: null } : escolhaNoPainel({ kind: 'pino', id })),
     setPinKind: (kind) => set({ pinKind: kind }),
     setPinIcon: (icon) => set({ pinIcon: icon }),
     // Sem cadeado aqui: escada, viagem e "Passar para pede" passam por estas
@@ -3896,8 +3921,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       if (removerDesafio(get().map, id) === get().map) return
       withHistory((map) => removerDesafio(map, id))
     },
-    setSelectedConcealZone: (id) =>
-      set(id === null ? { selectedConcealZoneId: null } : { selectedConcealZoneId: id, selection: EMPTY_SELECTION, selectedPinId: null }),
+    setSelectedConcealZone: (id) => set(id === null ? { selectedConcealZoneId: null } : escolhaNoPainel({ kind: 'zona', id })),
     addConcealZone: (zone) => withHistory((map) => mapFactory.addConcealZone(map, zone)),
     updateConcealZone: (id, patch) => {
       if (mapFactory.updateConcealZone(get().map, id, patch) === get().map) return
@@ -4580,7 +4604,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       // Outro mapa começa no térreo: o piso em edição do anterior pode nem existir nele.
       // GRADE LEMBRA A ESCOLHA: o mapa que guarda os interruptores de grade os traz de volta (reabrir o mesmo mapa inclusive).
       const encaixe = map.encaixeNaGrade === undefined ? {} : { snapTargets: { ...map.encaixeNaGrade } }
-      set({ map, selection: EMPTY_SELECTION, selectedConcealZoneId: null, selectedPinId: null, past: [], future: [], pisoAtivo: 0, camadaDoPincelId: null, ...encaixe })
+      set({ map, ...SEM_ESCOLHA, past: [], future: [], pisoAtivo: 0, camadaDoPincelId: null, ...encaixe })
     },
     undo: () => {
       const { past, map } = get()
