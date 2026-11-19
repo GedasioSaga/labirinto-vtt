@@ -1,3 +1,20 @@
+# MINIGAMES DE PUZZLE 19/11 17h49 (grilling em andamento)
+
+## Objetivo
+Subcategoria "Puzzles" em Jogos: entrar e sair com progresso guardado, encaixar itens de puzzle, referência nos puzzles do Resident Evil (puzzles, nomes e arte originais). Literal e respostas em PEDIDOS.md, seção "PEDIDO NOVO (19/11/2026 17h49)".
+
+## Estado atual
+Rodadas 1-3 do grilling respondidas (ver PEDIDOS). Pendente: o usuário pediu "Pegue os puzzle de resident evil e me diga os melhores": lista dada na conversa, escolheu as 4 extras: peças giratórias, luzes, troca de peso e empurrar estátuas (no mapa). Pediu usar o /game-studios (invocar a skill na fase do protótipo/arte). Nada de código.
+
+## Próximos passos
+Fechar o grilling, gravar no gbrain, protótipo HTML (regra 2l) com os 4 modelos (Fonte, Porta de brasões, Cofre, Altar), aprovar, plano, construir. Só depois da 0.5.85 publicada.
+
+## Critério de pronto
+Protótipo aprovado pelo usuário; no app: puzzle criado pelo mestre em Jogos > Puzzles, jogador entra, encaixa peça, sai, volta com o progresso, resolve e recebe texto/cena e itens.
+
+## Evidência
+Nenhuma ainda (só desenho).
+
 # PAINEL DO JOGADOR (PROTÓTIPO) + JUIZ PERTO DO GRUPO 19/11 (esperando o usuário)
 
 ## Objetivo
@@ -5,6 +22,9 @@
 
 ## Estado atual
 Juiz FEITO: `a446b75e` (One Piece, `client/src/lib/batalha/judge.ts`) e `8fd00ce1` (Dragon Ball), sem push. Protótipo do painel FEITO: `8ae7c309`, `docs/design/painel-do-jogador/prototipo.html`, prints em `docs/design/painel-do-jogador/provas/`. Nada aplicado no app. Esperando o usuário aprovar 6 decisões do protótipo (ícones "Centralizar em mim", "Inventário (I)", "Ficha de personagem"; caixa da rodada vai para o cabeçalho da faixa; "Passar a vez" sai da faixa e fica só "Encerrar vez" no menu da vez; fita "VOCÊ" na própria carta; dano chegando riscado na barra de vida durante a reação; com 8 na luta a faixa desce para linha própria) e dizer se a 0.5.85 sai agora ou junto com o painel.
+
+19/11 17h10: usuário APROVOU as 6 ("Aplicar as 6") e escolheu publicar a 0.5.85 junto com o painel. 19/11 17h43: painel APLICADO, `0ddd8d2a` (mira) e `9d249132` (painel); tsc 0; 80 arquivos/408 testes existentes passam; navegador 1440/1024 nos 4 estados, p95 16,8 ms, nenhuma longtask >= 200 ms; prints `tmp/painel-aplicado/01..05`. EM VOO: (a) o mesmo designer-opus conserta a caixa REAÇÃO a 768 px de altura com 8 na luta ("Não reagir" cortado); (b) verificador-realidade audita a 0.5.85 contra o literal do PEDIDOS. Depois: publicar 0.5.85 `--com-google` de worktree limpo. Não visto: Dragon Ball do jogador (ganhou só a barra de ícones), app Tauri real.
+19/11 ~18h: (a) FEITO `dd29a0aa` (botões da REAÇÃO fixos a 768 px). (b) Auditoria = NECESSITA TRABALHO: com a mesa na doca/janela o mestre perdeu o menu da carta da faixa (Agir de novo, Ajustar HP/SP, Tirar da batalha, Armas, selo fora da vez, perfil); "Mais > Dano, selos…" abre a página da batalha com um 2º Passar a vez SEM trava e repete vez/rodada; "Câmera segue a vez" e "Som da batalha" sumiram do Mais; Juiz centra em TODOS os combatentes (literal: "perto dos jogadores"); campo de batalha sem marcas no Dragon Ball (não declarado); borda do contra depois de "Seguir sem esperar". Juiz FEITO `4a12da04` (grupo = jogadores + quem divide o lado com eles; sem jogador = todos; teste descartável 7/7; 44 testes existentes passam; tsc 0). Mesa FEITA `f370709e` (menu da carta na doca e na janela, câmera e som no Mais) e `efe1b434` (página da batalha sem repetir a mesa, todo Passar respeita a trava, Seguir único); tsc 0; 59 testes existentes passam; navegador ok (prints tmp/mesa-conserto/). EM VOO: operario publica a 0.5.85 --com-google de worktree limpo. Abertos: marcas do campo no Dragon Ball; borda do contra depois do Seguir; "Reações esperando" segue na página; nada visto no Tauri real. Depois: publicar 0.5.85. Em paralelo: grilling do puzzle (PEDIDOS 19/11 17h49); respostas da rodada 1 = objeto ou ponto; 4 tipos (encaixe, ordem certa, combinação, juntar peças); categoria nova "Peça de puzzle"; progresso do mapa, de todos; usuário pediu usar o /game-studios.
 
 ## Próximos passos
 Aprovado o painel: designer-opus (Opus 5.5 xhigh) aplica em `client/src/player/`, conserta junto a mira 38 px abaixo da ficha (`MiraDoGolpe.tsx`), sem teste novo, tsc 0, conferir no navegador, commit sem push. Ok para publicar: `scripts/publicar-versao.cjs --com-google` (disco C: 22,2 GB livres às 17h07, acima do piso de 8 GB).
