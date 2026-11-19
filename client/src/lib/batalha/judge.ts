@@ -7,11 +7,15 @@
  *
  * Aqui só a regra: a posição (`JudgeNaCena`, na sessão do mestre e no
  * `batalha.estado`), a direção, o quadro da folha a cada instante, a posição
- * inicial e a lembrança por mapa no aparelho do mestre. O desenho é do
- * `pixi/judgeDoMapa.ts`. A direção nem vai ao fio: cada tela calcula.
+ * inicial (perto do grupo da batalha: `judgePertoDoGrupo`) e a lembrança por
+ * mapa no aparelho do mestre. O desenho é do `pixi/judgeDoMapa.ts`. A direção
+ * nem vai ao fio: cada tela calcula. Quem lê o mapa aberto para a posição
+ * inicial é `ondeNasceOJudge.ts`.
  *
  * Puro: sem store, sem rede, sem Pixi.
  */
+
+import type { Casa } from './blocos'
 
 /** Px do mundo, mesma convenção de `Token.x/y`: o centro da casa (os pés do Judge). */
 export interface JudgeNaCena {
@@ -49,8 +53,16 @@ export const CARTA_REDUZIDA_MS = 1500
 export const COORDENADA_DO_JUDGE_MAX = 1_000_000
 /** Antes da primeira vez visível, ele olha para o sul (de frente para a tela). */
 export const DIRECAO_INICIAL: DirecaoDoJudge = 0
-/** Casas ao norte da primeira ficha da ordem onde ele nasce. */
+/** Casas ao norte da primeira ficha da ordem onde ele nasce (sem o mapa à mão: `judgeInicial`). */
 const CASAS_AO_NORTE = 2
+/**
+ * Pedido de 19/11/2026 ("em mapas muito grande coloco o Juiz para nascer perto
+ * dos jogadores da batalha"): o lugar lembrado deste mapa só vale a até tantos
+ * blocos da batalha. Mais longe, é de outra luta noutro canto do mapa.
+ */
+export const BLOCOS_DO_LEMBRADO = 6
+/** Até quantos blocos dos combatentes ele procura casa (a busca nunca anda o mapa inteiro). */
+const BLOCOS_DA_BUSCA = 8
 
 const DIRECOES: readonly DirecaoDoJudge[] = [0, 1, 2, 3, 4, 5, 6, 7]
 const QUADRO_MS = 1000 / FOLHA_DO_JUDGE.fps
@@ -169,10 +181,19 @@ function presoNoMapa(ponto: { x: number; y: number }, tamanhoDaCasa: number, lim
   return { x: presoNoEixo(ponto.x, limites.largura, meiaCasa), y: presoNoEixo(ponto.y, limites.altura, meiaCasa) }
 }
 
+/** O lembrado fica a até `BLOCOS_DO_LEMBRADO` blocos (diagonal = 1) da ficha? Casa sem tamanho não mede: vale. */
+function lembradoPertoDaFicha(lembrado: JudgeNaCena, ficha: { x: number; y: number }, tamanhoDaCasa: number): boolean {
+  if (!Number.isFinite(tamanhoDaCasa) || tamanhoDaCasa <= 0) return true
+  const blocos = Math.max(Math.abs(lembrado.x - ficha.x), Math.abs(lembrado.y - ficha.y)) / tamanhoDaCasa
+  return blocos <= BLOCOS_DO_LEMBRADO
+}
+
 /**
- * Onde ele aparece quando a batalha liga sem Judge: o lembrado deste mapa,
- * preso no mapa; senão `CASAS_AO_NORTE` casas ao norte da primeira ficha da
- * ordem (preso no mapa); senão o centro do mapa.
+ * Onde ele aparece quando a batalha liga sem Judge e sem o mapa à mão (a
+ * arena, a batalha retomada sem Judge, a DBT): o lembrado deste mapa, preso no
+ * mapa, se está a até `BLOCOS_DO_LEMBRADO` blocos da primeira ficha da ordem
+ * (ou se não há ficha); senão `CASAS_AO_NORTE` casas ao norte dela (preso no
+ * mapa); senão o centro do mapa. Com o mapa à mão, `judgePertoDoGrupo` vem antes.
  */
 export function judgeInicial(
   lembrado: JudgeNaCena | null,
@@ -181,9 +202,125 @@ export function judgeInicial(
   tamanhoDaCasa: number,
   limites: { largura: number; altura: number },
 ): JudgeNaCena {
-  if (lembrado !== null) return presoNoMapa(lembrado, tamanhoDaCasa, limites)
+  if (lembrado !== null && (primeiraFicha === null || lembradoPertoDaFicha(lembrado, primeiraFicha, tamanhoDaCasa))) return presoNoMapa(lembrado, tamanhoDaCasa, limites)
   if (primeiraFicha !== null) return presoNoMapa({ x: primeiraFicha.x, y: primeiraFicha.y - CASAS_AO_NORTE * tamanhoDaCasa }, tamanhoDaCasa, limites)
   return { x: centroDoMapa.x, y: centroDoMapa.y }
+}
+
+/**
+ * O mapa da batalha como o Judge o vê: a grade QUADRADA (como o passo em
+ * batalha) e três perguntas sobre o piso da batalha. Quem monta a partir do
+ * `MapData` é `ondeNasceOJudge.ts`; aqui não entra modelo de mapa.
+ */
+export interface GradeDoJudge {
+  /** Tamanho da casa em px de mundo. */
+  grid: number
+  /** Casas do mapa na horizontal e na vertical. */
+  colunas: number
+  linhas: number
+  /** O passo de 1 bloco entre duas casas vizinhas vale (sem parede, porta fechada nem quina)? */
+  passoLivre: (de: Casa, para: Casa) => boolean
+  /** O ponto está no chão do piso da batalha? (sem chão desenhado, tudo é chão) */
+  noChao: (ponto: { x: number; y: number }) => boolean
+  /** Alguma ficha ocupa o ponto? */
+  ocupada: (ponto: { x: number; y: number }) => boolean
+}
+
+/** Os 8 vizinhos, o norte primeiro. */
+const VIZINHOS_DO_JUDGE: ReadonlyArray<readonly [number, number]> = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+  [-1, -1],
+]
+
+/** Uma casa achada pela busca e a quantos blocos (pelos passos que valem) do combatente mais perto. */
+interface CasaAlcancada {
+  casa: Casa
+  blocos: number
+}
+
+/**
+ * Busca em largura a partir das casas dos combatentes, até `BLOCOS_DA_BUSCA`
+ * blocos, só por passos que valem e só no chão. Ficha não barra a busca (o
+ * Judge não anda: só não pode ficar em cima dela). Volta na ordem da busca.
+ */
+function casasPertoDoGrupo(fontes: readonly Casa[], grade: GradeDoJudge, colunas: number, linhas: number): CasaAlcancada[] {
+  const chave = (casa: Casa): number => casa.col + casa.row * colunas
+  const centro = (casa: Casa): { x: number; y: number } => ({ x: (casa.col + 0.5) * grade.grid, y: (casa.row + 0.5) * grade.grid })
+  const vistas = new Set<number>()
+  const fila: CasaAlcancada[] = []
+  for (const casa of fontes) {
+    if (vistas.has(chave(casa))) continue
+    vistas.add(chave(casa))
+    fila.push({ casa, blocos: 0 })
+  }
+  for (let indice = 0; indice < fila.length; indice += 1) {
+    const atual = fila[indice]
+    if (atual === undefined || atual.blocos >= BLOCOS_DA_BUSCA) continue
+    for (const [dc, dr] of VIZINHOS_DO_JUDGE) {
+      const vizinha = { col: atual.casa.col + dc, row: atual.casa.row + dr }
+      const fora = vizinha.col < 0 || vizinha.row < 0 || vizinha.col >= colunas || vizinha.row >= linhas
+      if (fora || vistas.has(chave(vizinha))) continue
+      if (!grade.passoLivre(atual.casa, vizinha) || !grade.noChao(centro(vizinha))) continue
+      vistas.add(chave(vizinha))
+      fila.push({ casa: vizinha, blocos: atual.blocos + 1 })
+    }
+  }
+  return fila
+}
+
+/**
+ * Onde o Judge nasce PERTO DO GRUPO da batalha (pedido de 19/11/2026, mapa
+ * grande inclusive), no piso dela (`grade`), numa casa no chão, sem ficha em
+ * cima e do mesmo lado das paredes que os combatentes (`casasPertoDoGrupo`):
+ * - o lembrado deste mapa, se a casa dele foi achada a até
+ *   `BLOCOS_DO_LEMBRADO` blocos e está livre;
+ * - senão a casa livre achada mais perto do centro do grupo (empate: a mais
+ *   ao norte, depois a mais a oeste).
+ * Nenhum combatente na grade ou nenhuma casa livre: `null` (quem chama cai em `judgeInicial`).
+ */
+export function judgePertoDoGrupo(grupo: readonly { x: number; y: number }[], lembrado: JudgeNaCena | null, grade: GradeDoJudge): JudgeNaCena | null {
+  const { grid } = grade
+  const colunas = Math.ceil(grade.colunas)
+  const linhas = Math.ceil(grade.linhas)
+  if (!Number.isFinite(grid) || grid <= 0 || !Number.isFinite(colunas) || !Number.isFinite(linhas)) return null
+  const casaDe = (ponto: { x: number; y: number }): Casa => ({ col: Math.floor(ponto.x / grid), row: Math.floor(ponto.y / grid) })
+  const naGrade = (casa: Casa): boolean => casa.col >= 0 && casa.row >= 0 && casa.col < colunas && casa.row < linhas
+  const centro = (casa: Casa): { x: number; y: number } => ({ x: (casa.col + 0.5) * grid, y: (casa.row + 0.5) * grid })
+  const livre = (casa: Casa): boolean => grade.noChao(centro(casa)) && !grade.ocupada(centro(casa))
+
+  const noMapa = grupo.filter((ficha) => Number.isFinite(ficha.x) && Number.isFinite(ficha.y) && naGrade(casaDe(ficha)))
+  if (noMapa.length === 0) return null
+  const achadas = casasPertoDoGrupo(noMapa.map(casaDe), grade, colunas, linhas)
+
+  if (lembrado !== null) {
+    const casa = casaDe(lembrado)
+    const achada = achadas.find((item) => item.casa.col === casa.col && item.casa.row === casa.row)
+    if (achada !== undefined && achada.blocos <= BLOCOS_DO_LEMBRADO && livre(casa)) return { x: lembrado.x, y: lembrado.y }
+  }
+
+  const meio = { x: noMapa.reduce((soma, ficha) => soma + ficha.x, 0) / noMapa.length, y: noMapa.reduce((soma, ficha) => soma + ficha.y, 0) / noMapa.length }
+  // Folga do empate: a média de 3 fichas não fecha conta exata, e a casa ao norte deve ganhar da do sul na mesma distância.
+  const folga = grid * grid * 1e-6
+  let melhor: Casa | null = null
+  let menor = Number.POSITIVE_INFINITY
+  for (const { casa } of achadas) {
+    if (!livre(casa)) continue
+    const ponto = centro(casa)
+    const distancia = (ponto.x - meio.x) ** 2 + (ponto.y - meio.y) ** 2
+    const empata = melhor !== null && Math.abs(distancia - menor) <= folga
+    const antes = melhor !== null && (casa.row < melhor.row || (casa.row === melhor.row && casa.col < melhor.col))
+    if (distancia < menor - folga || (empata && antes)) {
+      melhor = casa
+      menor = distancia
+    }
+  }
+  return melhor === null ? null : centro(melhor)
 }
 
 const PREFIXO = 'lb-batalha:judge:'

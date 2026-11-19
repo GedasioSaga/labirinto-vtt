@@ -9,6 +9,8 @@ import {
   nomeParaOFio,
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
+import { lerJudgeLembrado } from '../../lib/batalha/judge'
+import { judgeNoMapaDaBatalha } from '../../lib/batalha/ondeNasceOJudge'
 import { formasQueDesligamNoFim } from '../../lib/batalha/transformacao'
 import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
 import type { LadoDoNpc } from '../../lib/batalha/equipes'
@@ -169,9 +171,13 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const regras = confirmarRascunho(regra, regrasDaBiblioteca, useRegrasDoCampoStore.getState())
     // Achado 4 (09/11): o nome numerado ("Urso 2") vai na carta, e dela para o registro.
     const rotulos = rotulosDoMapa()
-    const tokens = useMapStore.getState().map.tokens.map((token) => ({ ...token, name: rotulos.get(token.id) ?? token.name }))
+    const mapa = useMapStore.getState().map
+    const tokens = mapa.tokens.map((token) => ({ ...token, name: rotulos.get(token.id) ?? token.name }))
     const combatentes = combatentesIniciais(tokens, personagensAtivos(aventura), sistema, incluir)
-    useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate })
+    // Pedido de 19/11/2026: o Judge nasce perto de quem entrou, em casa livre do piso deles (mapa grande inclusive).
+    // `null` (hex, ninguém no mapa, nenhuma casa livre): o App o põe logo depois, pela regra de sempre.
+    const judge = judgeNoMapaDaBatalha(mapa, combatentes.map((carta) => carta.tokenId), lerJudgeLembrado(guardado, aventuraId, sceneKey)) ?? undefined
+    useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate, judge })
     // MUNIÇÃO: a Garrucha de vaga antiga atira as balas do Acervo; o disco responde antes de o mestre abrir a primeira mira.
     lerOAcervoSeFaltar()
     // BATALHA F2 (5.1): iniciar (pelo botão ou pelo Shift+B) leva o livro à página Batalha; encerrar deixa onde está.
