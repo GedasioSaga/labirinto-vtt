@@ -1,3 +1,20 @@
+# PAINEL DO JOGADOR (PROTÓTIPO) + JUIZ PERTO DO GRUPO 19/11 (esperando o usuário)
+
+## Objetivo
+(1) Pedido 19/11 14h14, literal: "Da para melhorar esse painel." (painel do jogador na batalha). Protótipo HTML antes de mexer no app; estilo Persona 5 fica. (2) Pedido 19/11 13h48, literal: "Inclusive em mapas muito grande coloco o Juiz para nascer perto dos jogadores da batalha". (3) Decidir com o usuário quando publicar a 0.5.85.
+
+## Estado atual
+Juiz FEITO: `a446b75e` (One Piece, `client/src/lib/batalha/judge.ts`) e `8fd00ce1` (Dragon Ball), sem push. Protótipo do painel FEITO: `8ae7c309`, `docs/design/painel-do-jogador/prototipo.html`, prints em `docs/design/painel-do-jogador/provas/`. Nada aplicado no app. Esperando o usuário aprovar 6 decisões do protótipo (ícones "Centralizar em mim", "Inventário (I)", "Ficha de personagem"; caixa da rodada vai para o cabeçalho da faixa; "Passar a vez" sai da faixa e fica só "Encerrar vez" no menu da vez; fita "VOCÊ" na própria carta; dano chegando riscado na barra de vida durante a reação; com 8 na luta a faixa desce para linha própria) e dizer se a 0.5.85 sai agora ou junto com o painel.
+
+## Próximos passos
+Aprovado o painel: designer-opus (Opus 5.5 xhigh) aplica em `client/src/player/`, conserta junto a mira 38 px abaixo da ficha (`MiraDoGolpe.tsx`), sem teste novo, tsc 0, conferir no navegador, commit sem push. Ok para publicar: `scripts/publicar-versao.cjs --com-google` (disco C: 22,2 GB livres às 17h07, acima do piso de 8 GB).
+
+## Critério de pronto
+Painel: no navegador, a faixa da ordem não fica embaixo dos botões em 1440 e 1024, nomes inteiros, sem barra de rolagem horizontal, as 6 decisões aprovadas aplicadas, tsc 0. Publicação: `releases/latest/download/latest.json` responde 0.5.85.
+
+## Evidência
+Juiz: tsc 0; teste descartável de 6 casos em mapa 200x200 passou e foi apagado (não visto no app). Protótipo: commit `8ae7c309` com 4 prints (1-fora-da-vez-1440, 2-sua-vez-1440, 3-pedido-de-reacao-1440, 4-oito-na-luta-1024).
+
 # CAMPO DE BATALHA APLICADO 19/11
 
 ## Objetivo
