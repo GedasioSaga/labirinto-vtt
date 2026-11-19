@@ -187,4 +187,50 @@ describe('criarSaidaEmOrdem (lado do mestre)', () => {
     void enviar('c1', { type: 'pong', n: 2 }, true)
     expect(enviados.at(-1)).toEqual({ clientId: 'c1', carga: { type: 'pong', n: 2 } })
   })
+
+  /**
+   * F5 na batalha (conserto de 18/11/2026): no app o `net_send` é assíncrono e
+   * a pequena (`batalha.estado`) passava na frente do mapa da entrada. Com
+   * `sempreEmFila`, a de trás só sai quando o envio da anterior TERMINOU, com
+   * ou sem gzip; outro jogador não espera.
+   */
+  function saidaLenta() {
+    const chamadas: string[] = []
+    const soltar: (() => void)[] = []
+    const enviar = criarSaidaEmOrdem(
+      (clientId, carga) => {
+        chamadas.push(`${clientId}:${(carga as { type: string }).type}`)
+        return new Promise<void>((resolve) => soltar.push(resolve))
+      },
+      { sempreEmFila: true },
+    )
+    return { enviar, chamadas, soltar }
+  }
+
+  it('sempreEmFila: o estado da batalha espera o envio do mapa da entrada terminar, mesmo sem gzip', async () => {
+    const { enviar, chamadas, soltar } = saidaLenta()
+    const mapa = enviar('c1', { type: 'snapshot' }, false)
+    const estado = enviar('c1', { type: 'batalha.estado' }, false)
+    void enviar('c2', { type: 'snapshot' }, false)
+    expect(chamadas).toEqual(['c1:snapshot', 'c2:snapshot'])
+    await esperar()
+    // O mapa ainda não terminou de sair: o estado continua na fila.
+    expect(chamadas).toEqual(['c1:snapshot', 'c2:snapshot'])
+    soltar[0]()
+    await mapa
+    await esperar()
+    expect(chamadas).toEqual(['c1:snapshot', 'c2:snapshot', 'c1:batalha.estado'])
+    soltar[2]()
+    await estado
+  })
+
+  it('sempreEmFila: com a fila do jogador vazia, a mensagem seguinte sai na hora de novo', async () => {
+    const { enviar, chamadas, soltar } = saidaLenta()
+    const primeira = enviar('c1', { type: 'snapshot' }, false)
+    soltar[0]()
+    await primeira
+    await esperar()
+    void enviar('c1', { type: 'batalha.estado' }, false)
+    expect(chamadas).toEqual(['c1:snapshot', 'c1:batalha.estado'])
+  })
 })
