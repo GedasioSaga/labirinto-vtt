@@ -1,3 +1,20 @@
+# CAMPO DE BATALHA APLICADO 19/11
+
+## Objetivo
+Aplicar no mapa da batalha, no mestre e no jogador, o protótipo aprovado `docs/design/campo-de-batalha/prototipo.html` (pedido 19/11, literal: "gostei pode fazer em opus 5.5"). Só durante a batalha; fora dela o mapa fica como está.
+
+## Estado atual
+FEITO 19/11 14h19 (date), 14 commits `8e422cf5..732b89c4` em main, sem push e sem release. Novos: `client/src/lib/batalha/marcasNoCampo.ts` (campoDoMestre, campoDoJogador), `client/src/lib/batalha/alcanceNoCampo.ts`, `client/src/pixi/drawMarcasDoCampo.ts`, `client/src/pixi/fiosDaBatalha.ts`, `client/src/pixi/alcanceDaBatalha.ts`, `client/src/player/campoNoJogador.ts`. Mexidos: `client/src/pixi/gradeDaBatalha.ts` (cruz por textura repetida, multiply), `client/src/lib/batalha/blocos.ts` (casasAoAlcance), `client/src/pixi/tokensRenderer.ts` (lado, anel de latão, cantos piscando em degraus de 140 ms, vida só no mouse ou 2,6 s depois de mudar), `client/src/pixi/PixiCanvas.tsx` (lê a useBatalhaStore direto), `client/src/player/PlayerView.tsx` e `client/src/player/main.tsx` (props `campo` e `alcanceDaVez`; trilha só da ficha da vez), `client/src/components/batalha/combate.css` (a mira vira cantos de latão). Teste existente ajustado: `client/src/pixi/gradeDaBatalha.test.ts` (conta a textura da cruz; o pan não redesenha).
+
+## Próximos passos
+A 0.5.85 espera o ok do usuário. Ficou de fora: "fora do alcance" e o tracejado do alcance do golpe (os golpes não têm número de alcance); o chip "-40" e um recuo mais curto; a prévia "N blocos, sobram M" no mapa. Achado fora do escopo: na tela do jogador as marcas da mira (`MiraDoGolpe.tsx`, `.bt-marcas-da-mira`) ficam cerca de 38 px abaixo da ficha, a altura da barra do topo (já era assim com o anel vermelho).
+
+## Critério de pronto
+`rtk proxy npx tsc --noEmit` em client/ = 0; no navegador (`tmp/contra-ataque/montar.js`): na batalha a grade é de cruzes, o lado aparece no anel e no sinal do nome, quem age tem anel de latão, o alvo do golpe esperando tem cantos de brasa, a ficha da vez tem as casas claras até onde anda, a vida do mestre só aparece no mouse ou quando muda, a mira do jogador é de cantos de latão; p95 do quadro sem passar de 1 quadro e nenhuma tarefa longa de 200 ms ou mais.
+
+## Evidência
+`rtk proxy npx tsc --noEmit` em client/ = exit 0, saída vazia. `npx vitest run src/pixi/tokensRenderer src/player/PlayerView src/pixi/gradeDaBatalha.test.ts src/lib/batalha/blocos.test.ts` = 52 arquivos, 317 testes passaram. `src/pixi/PixiCanvas.guias.test.tsx` (7) e `src/pixi/PixiCanvas.desempenho.test.tsx` (1) falham, e falham igual no HEAD sem as minhas mudanças (conferido trocando os 3 arquivos pelo HEAD). Navegador, 4 s com o alvo piscando: mestre p95 8,5 ms (120 Hz), jogador p95 16,6 ms, nenhuma longtask. Prints em `tmp/campo-aplicado/` (01 a 05).
+
 # MESA DO MESTRE APLICADA 19/11
 
 ## Objetivo
