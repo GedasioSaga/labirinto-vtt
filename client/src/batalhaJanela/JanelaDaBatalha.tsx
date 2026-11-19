@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Botao } from '../components/grimorio/Botao'
 import { abrirCanalDoNavegador } from '../net/visaoDeTeste/canal'
 import { MesaDaBatalha } from './MesaDaBatalha'
 import { lerMensagemDaMesa, nomeDoCanal, type MensagemDaJanela } from './protocolo'
@@ -100,11 +99,8 @@ export function JanelaDaBatalha({ sessao }: { sessao: string }) {
         enviar={enviar}
         semFonte={semFonte}
         teclasNaPagina
-        acoesDoTopo={
-          <Botao tamanho="p" title="Fecha esta janela e abre a mesa no meio do app" onClick={() => fio.current?.mandar({ tipo: 'voltar' })}>
-            Trazer para o app
-          </Botao>
-        }
+        lugar="janela"
+        itensDoLugar={[{ chave: 'voltar', rotulo: 'Trazer para o app', onEscolher: () => fio.current?.mandar({ tipo: 'voltar' }) }]}
       />
     </main>
   )
