@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { contadorNoMenu } from '../../lib/batalha/contadorNoMenu'
-import { equipeDe, ladoDoNpc } from '../../lib/batalha/equipes'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { equipeDe } from '../../lib/batalha/equipes'
 import { aparenciaDaForma } from '../../lib/batalha/transformacao'
 import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../stores/rpgStore'
-import { DialogoDoMestreNaCena, type DialogoDoMestre } from './BatalhaDoMestre'
+import { abertoNaCena, abrirPelaCarta, fecharOAbertoPelaCarta, useAbertoPelaCarta } from './abertoPelaCarta'
+import { DialogoDoMestreNaCena } from './BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type DadosDaCarta } from './dadosDaFaixa'
 import { abrirDestaqueDaFaixa } from './escolhaNoMapa'
 import { FaixaDaOrdem } from './FaixaDaOrdem'
-import { ROTULO_DO_LADO, porNpcNoLado } from './ladoDoNpcNaTela'
+import { itensDaCartaDoMestre } from './menuDaCartaDoMestre'
 import type { ItemDoMenuDaCarta } from './MenuDaCarta'
 import { PassivasDaFicha, alvosDaOrdemParaPassiva, passivasNaCena } from './PassivasDaBatalha'
 import { PerfilDaCarta } from './PerfilDaCarta'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
+import { useTravaDoPassar } from './travaDoPassar'
 
 /**
  * A FAIXA DA ORDEM na tela do MESTRE: lê a batalha da cena aberta na store e
@@ -38,8 +39,9 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
-  const [perfilId, setPerfilId] = useState<string | null>(null)
-  const [dialogo, setDialogo] = useState<DialogoDoMestre | null>(null)
+  // O que o menu da carta abriu (daqui, da mesa encostada no mapa ou da janela à parte): a faixa desenha, mesmo escondida.
+  const perfilId = useAbertoPelaCarta((state) => abertoNaCena(state, sceneKey, 'perfil')?.personagemId ?? null)
+  const dialogo = useAbertoPelaCarta((state) => abertoNaCena(state, sceneKey, 'dialogo')?.dialogo ?? null)
 
   // Ficha apagada do mapa sai da ordem (e a vez que estava nela anda).
   const ligada = cena !== undefined
@@ -55,6 +57,8 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
   // Conserto das fichas F1 (bug 7): passa SÓ a vez mostrada; o duplo clique e o clique junto com o do jogador não pulam ninguém.
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+  // Conserto de 19/11 (auditoria da mesa): com a mesa recolhida, o Passar a vez daqui espera a reação e o contra-ataque.
+  const { trava, seguirSemEsperar } = useTravaDoPassar(sceneKey)
 
   // Achado 4 (09/11): passar o mouse numa carta acende a ficha dela no mapa (pela seleção do editor); sair devolve a seleção.
   const destaque = useRef<ReturnType<typeof abrirDestaqueDaFaixa> | null>(null)
@@ -65,123 +69,7 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
   }, [])
 
   const menuDaCarta = useCallback(
-    (carta: DadosDaCarta): readonly ItemDoMenuDaCarta[] => {
-      const store = useBatalhaStore.getState()
-      const indice = dados?.cartas.findIndex((candidata) => candidata.id === carta.id) ?? -1
-      const itens: ItemDoMenuDaCarta[] = []
-      const personagemId = carta.personagemId
-      if (personagemId !== null) {
-        itens.push({ id: 'perfil', rotulo: 'Ver perfil', detalhe: 'A ficha só para ler', onEscolher: () => setPerfilId(personagemId) })
-        itens.push({ id: 'ficha', rotulo: 'Abrir a ficha', detalhe: 'A ficha inteira, para editar', onEscolher: () => useRpgStore.getState().abrirFicha(personagemId) })
-      }
-      const jaEaVez = carta.id === dados?.vez
-      itens.push({
-        id: 'vez',
-        secao: 'Vez',
-        rotulo: 'Dar a vez',
-        detalhe: jaEaVez ? 'Já é a vez desta carta' : carta.caiu ? 'Caiu, mas pode jogar se você der a vez' : undefined,
-        desabilitado: jaEaVez,
-        onEscolher: () => store.darVez(sceneKey, carta.id),
-      })
-      itens.push({
-        id: 'extra-rodada',
-        rotulo: 'Agir de novo nesta rodada',
-        detalhe: 'Carta extra logo depois; some na próxima rodada',
-        onEscolher: () => store.adicionarCartaExtra(sceneKey, carta.tokenId, indice + 1, 'rodada'),
-      })
-      itens.push({
-        id: 'extra-sempre',
-        rotulo: 'Agir de novo em todas as rodadas',
-        detalhe: 'Carta extra logo depois; fica até você tirar',
-        onEscolher: () => store.adicionarCartaExtra(sceneKey, carta.tokenId, indice + 1, 'sempre'),
-      })
-      if (carta.extra !== null) itens.push({ id: 'tirar-extra', rotulo: 'Tirar esta carta extra', onEscolher: () => store.removerCarta(sceneKey, carta.id) })
-      // F2: o golpe à mão do mestre, as ações a mais e as armas levadas.
-      itens.push({ id: 'dano', secao: 'Combate', rotulo: 'Dar dano…', detalhe: 'Gasta o Escudo primeiro; entra no registro', onEscolher: () => setDialogo({ tipo: 'dano', tokenId: carta.tokenId }) })
-      // R4 (lote de 01/11): HP, SP, Escudo e um atributo à mão, em qualquer carta com ficha.
-      if (personagemId !== null && carta.bando === undefined && sistema !== null)
-        itens.push({ id: 'ajustar', rotulo: 'Ajustar…', detalhe: 'HP, SP e Escudo (atual e máximo) e um atributo; entra no registro', onEscolher: () => setDialogo({ tipo: 'ajustar', tokenId: carta.tokenId, personagemId }) })
-      itens.push({ id: 'acoes-extras', rotulo: 'Ações extras…', detalhe: 'Simples, Bônus e Movimento a mais na vez desta carta', onEscolher: () => setDialogo({ tipo: 'extras', cartaId: carta.id }) })
-      if (personagemId !== null)
-        itens.push({ id: 'armas', rotulo: 'Armas desta batalha…', detalhe: 'Trocar as armas levadas, dentro do limite da ficha', onEscolher: () => setDialogo({ tipo: 'armas', personagemId }) })
-      // F3: a forma ativada pelo menu. Desfazer é ação livre, mas só na vez da carta (a store confere a vez).
-      const forma = personagemId === null ? undefined : turnos?.formas?.[personagemId]
-      if (forma !== undefined && carta.forma) {
-        const naVez = jaEaVez && turnos !== undefined
-        itens.push({
-          id: 'desfazer-forma',
-          rotulo: `Desfazer a forma (${carta.forma})`,
-          detalhe: naVez ? 'Ação livre; entra no registro, o Desfazer volta' : 'Fora da vez: desligue pela ficha',
-          desabilitado: !naVez,
-          onEscolher: () => {
-            if (turnos === undefined) return
-            store.agir(sceneKey, MESTRE, { cartaId: carta.id, rodada: turnos.rodada }, { tipo: 'destransformar', cartaoId: forma.cartaoId })
-          },
-        })
-      }
-      // F3: os selos da ficha (por token: a carta extra mostra os mesmos).
-      itens.push({ id: 'por-selo', secao: 'Selos', rotulo: 'Pôr selo…', detalhe: 'Atordoado, Cego… turnos e modificadores', onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId: null }) })
-      for (const selo of carta.selos ?? []) {
-        const seloId = selo.id
-        if (seloId === null) continue
-        itens.push({
-          id: `selo-${seloId}`,
-          rotulo: `${selo.texto}…`,
-          detalhe: selo.mods === '' ? 'Editar ou tirar' : `${selo.mods} · editar ou tirar`,
-          onEscolher: () => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId }),
-        })
-      }
-      // R5 (lote de 01/11): o contador da ficha (a Polaridade do Vagn): carregar gasta a reação; zerar é só do mestre.
-      // A conta do contador mora num lugar só (`contadorNoMenu`, a mesma da Arena).
-      const personagemDaCarta = personagemId === null ? undefined : personagens.find((candidato) => candidato.id === personagemId)
-      const contador = personagemDaCarta === undefined || sistema === null || carta.bando !== undefined || turnos === undefined ? null : contadorNoMenu(carta.tokenId, personagemDaCarta, sistema, turnos)
-      if (contador !== null) {
-        itens.push({ id: 'contador-ganhar', ...contador.ganhar, onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'ganhar', ...contador.pedido }) })
-        if (contador.zerar !== null) itens.push({ id: 'contador-zerar', ...contador.zerar, onEscolher: () => store.contador(sceneKey, MESTRE, { tipo: 'zerar', ...contador.pedido }) })
-      }
-      if (personagemId !== null && (carta.carga ?? 0) > 0)
-        itens.push({
-          id: 'zerar-carga',
-          rotulo: `Zerar a concentração (carga ${carta.carga ?? 0})`,
-          detalhe: 'Volta a 0; a ação gasta não volta. Entra no registro',
-          onEscolher: () => store.zerarCarga(sceneKey, MESTRE, personagemId),
-        })
-      // Conserto de 09/11 (a Bolha do Tree): de que lado o NPC luta, pela equipe de sempre (entra no registro quando a equipe já existe).
-      if (personagemId !== null && carta.bando === undefined && personagens.find((candidato) => candidato.id === personagemId)?.tipo === 'npc') {
-        const lado = ladoDoNpc(personagemId, equipes, personagens)
-        itens.push({ id: 'lado-jogadores', secao: 'Lado', rotulo: ROTULO_DO_LADO.jogadores, detalhe: 'Aliado dos jogadores: cura e Buff dele valem neles', marcado: lado === 'jogadores', onEscolher: () => porNpcNoLado(personagemId, 'jogadores') })
-        itens.push({ id: 'lado-contra', rotulo: ROTULO_DO_LADO.contra, detalhe: 'Luta junto dos outros NPCs', marcado: lado === 'contra', onEscolher: () => porNpcNoLado(personagemId, 'contra') })
-      }
-      if (personagemId !== null) {
-        if (equipes.length === 0) {
-          itens.push({ id: 'equipe-nenhuma', secao: 'Equipe', rotulo: 'Sem equipes', detalhe: 'Crie equipes no painel da batalha, no livro da mesa', desabilitado: true, onEscolher: () => {} })
-        } else {
-          const atual = equipeDe(personagemId, equipes)?.id ?? null
-          equipes.forEach((equipe, i) =>
-            itens.push({
-              id: `equipe-${equipe.id}`,
-              secao: i === 0 ? 'Equipe' : undefined,
-              rotulo: equipe.nome,
-              cor: equipe.cor,
-              marcado: atual === equipe.id,
-              onEscolher: () => store.trocarEquipe(personagemId, equipe.id),
-            }),
-          )
-          itens.push({ id: 'equipe-sem', rotulo: 'Sem equipe', marcado: atual === null, onEscolher: () => store.trocarEquipe(personagemId, null) })
-        }
-      }
-      // Invocação (pedido de 01/11): a carta do bando não tem "Tirar da batalha".
-      if (carta.bando === undefined)
-        itens.push({
-          id: 'tirar',
-          secao: 'Batalha',
-          rotulo: 'Tirar da batalha',
-          detalhe: 'Sai da ordem com as cartas extras; o Desfazer do registro volta',
-          perigo: true,
-          onEscolher: () => store.tirarCombatente(sceneKey, carta.tokenId),
-        })
-      return itens
-    },
+    (carta: DadosDaCarta): readonly ItemDoMenuDaCarta[] => (dados === null || turnos === undefined ? [] : itensDaCartaDoMestre(carta, { sceneKey, dados, turnos, personagens, equipes, sistema })),
     [dados, equipes, sceneKey, turnos, personagens, sistema],
   )
 
@@ -202,10 +90,11 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
         onMover={(cartaId, indice) => useBatalhaStore.getState().moverCarta(sceneKey, cartaId, indice)}
         menuDaCarta={menuDaCarta}
         onPassarVez={dados.cartas.length === 0 ? undefined : passarAVez}
+        travaDoPassar={trava === null ? null : { texto: trava, onSeguir: seguirSemEsperar }}
         regras={cena.regras}
         registro={registro}
         onDesfazer={(linhaId) => useBatalhaStore.getState().desfazer(sceneKey, linhaId, MESTRE)}
-        onSelo={(carta, seloId) => setDialogo({ tipo: 'selo', tokenId: carta.tokenId, seloId })}
+        onSelo={(carta, seloId) => abrirPelaCarta(sceneKey, { tipo: 'dialogo', dialogo: { tipo: 'selo', tokenId: carta.tokenId, seloId } })}
         onApontar={apontarCarta}
       />
       {perfil !== undefined && (
@@ -227,10 +116,10 @@ export function FaixaDoMestre({ sceneKey }: FaixaDoMestreProps) {
               />
             )
           }
-          onFechar={() => setPerfilId(null)}
+          onFechar={fecharOAbertoPelaCarta}
         />
       )}
-      {dialogo !== null && <DialogoDoMestreNaCena sceneKey={sceneKey} dialogo={dialogo} onFechar={() => setDialogo(null)} />}
+      {dialogo !== null && <DialogoDoMestreNaCena sceneKey={sceneKey} dialogo={dialogo} onFechar={fecharOAbertoPelaCarta} />}
     </>
   )
 }

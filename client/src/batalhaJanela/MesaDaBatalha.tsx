@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as TeclaDoReact, type ReactNode, type RefObject } from 'react'
+import { MenuDaCarta, type ItemDoMenuDaCarta } from '../components/batalha/MenuDaCarta'
 import { iniciais } from '../components/FichaPecas'
-import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, ItemDaCartaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 import './mesaDaBatalha.css'
 
 /**
@@ -170,25 +171,52 @@ function subDaCarta(carta: CartaNoEspelho): string {
   return [carta.npc ? 'NPC' : 'Jogador', carta.lado, carta.iniciativa === null ? null : `iniciativa ${carta.iniciativa}`, carta.caiu ? 'caiu' : carta.agiu ? 'já agiu' : null].filter(Boolean).join(' · ')
 }
 
-function LinhaDaOrdem({ carta, etiqueta, darVezDesligado, onDarVez }: { carta: CartaNoEspelho; etiqueta: { texto: string; tom: 'neutro' | 'reage' | 'contra' } | null; darVezDesligado: boolean; onDarVez: () => void }) {
+/** A setinha do "abre um menu" (a mesma do Mais). */
+function Seta() {
+  return (
+    <svg className="mb-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M2 3.5l3 3 3-3" />
+    </svg>
+  )
+}
+
+/** O que abre o menu da carta: o nome dela, na linha da ordem e no cartão da vez. `null` = carta sem menu. */
+interface MenuDaLinha {
+  aberto: boolean
+  onAbrir: (ancora: HTMLElement) => void
+}
+
+function LinhaDaOrdem({ carta, etiqueta, darVezDesligado, onDarVez, menu }: { carta: CartaNoEspelho; etiqueta: { texto: string; tom: 'neutro' | 'reage' | 'contra' } | null; darVezDesligado: boolean; onDarVez: () => void; menu: MenuDaLinha | null }) {
+  const quem = (
+    <>
+      <span>
+        <b>{carta.nome}</b>
+        {menu !== null && <Seta />}
+        {etiqueta !== null && (
+          <span className="mb-tag" data-tom={etiqueta.tom}>
+            {etiqueta.texto}
+          </span>
+        )}
+      </span>
+      <small>{subDaCarta(carta)}</small>
+      {carta.marcas.length > 0 && <small className="mb-linha__marcas">{carta.marcas.join(', ')}</small>}
+    </>
+  )
   return (
     <li className="mb-linha" data-flip={carta.id} data-agiu={carta.agiu ? 'sim' : undefined} data-caiu={carta.caiu ? 'sim' : undefined}>
       <span className="mb-linha__num" aria-hidden="true">
         {carta.posicao}
       </span>
       <Avatar nome={carta.nome} cor={carta.cor} />
-      <span className="mb-linha__quem">
-        <span>
-          <b>{carta.nome}</b>
-          {etiqueta !== null && (
-            <span className="mb-tag" data-tom={etiqueta.tom}>
-              {etiqueta.texto}
-            </span>
-          )}
-        </span>
-        <small>{subDaCarta(carta)}</small>
-        {carta.marcas.length > 0 && <small className="mb-linha__marcas">{carta.marcas.join(', ')}</small>}
-      </span>
+      {menu === null ? (
+        <span className="mb-linha__quem">{quem}</span>
+      ) : (
+        // O nome abre o menu da carta (o mesmo da faixa do mestre): agir de novo, ajustar, selo, tirar da batalha…
+        <button type="button" className="mb-linha__quem" aria-haspopup="menu" aria-expanded={menu.aberto} title={`Menu de ${carta.nome}`} onClick={(evento) => menu.onAbrir(evento.currentTarget)}>
+          {quem}
+          <span className="mb-sr">: menu da carta</span>
+        </button>
+      )}
       <Mini recursos={carta.recursos} />
       <button type="button" className="mb-bt mb-bt--p mb-linha__dar" disabled={darVezDesligado} onClick={onDarVez} aria-label={`Dar a vez a ${carta.nome}`}>
         Dar a vez
@@ -570,6 +598,10 @@ interface ItemDoMais {
   rotulo: string
   perigo?: boolean
   desligado?: string | null
+  /** Chave de ligar e desligar (a câmera, o som): `true` = ligada. Ausente = item de ação. */
+  marcado?: boolean
+  /** O estado escrito à direita da chave ("sim", "mudo"). */
+  estado?: string
   onEscolher: () => void
 }
 
@@ -611,7 +643,8 @@ function MenuMais({ itens, peloTeclado, onFechar }: { itens: readonly (ItemDoMai
           <button
             key={item.chave}
             type="button"
-            role="menuitem"
+            role={item.marcado === undefined ? 'menuitem' : 'menuitemcheckbox'}
+            aria-checked={item.marcado}
             className={item.perigo ? 'mb-menu__perigo' : undefined}
             disabled={item.desligado != null}
             title={item.desligado ?? undefined}
@@ -621,11 +654,26 @@ function MenuMais({ itens, peloTeclado, onFechar }: { itens: readonly (ItemDoMai
             }}
           >
             {item.rotulo}
+            {item.estado !== undefined && (
+              <span className="mb-menu__estado" aria-hidden="true">
+                {item.estado}
+              </span>
+            )}
           </button>
         ),
       )}
     </div>
   )
+}
+
+/**
+ * A frase do status depois de um item do menu da carta. O que abre janela abre na principal: na doca ela
+ * aparece por cima e não precisa de frase; na janela à parte, a frase diz onde ela está.
+ */
+function feitoDoItem(item: ItemDaCartaNoEspelho, nome: string, lugar: 'doca' | 'janela'): string | null {
+  const rotulo = item.rotulo.replace(/…$/, '')
+  if (item.abreNoApp) return lugar === 'janela' ? `${rotulo} (${nome}): abriu na janela principal do app.` : null
+  return `${nome}: ${rotulo}.`
 }
 
 /** A etiqueta da linha da ordem: quem reage, quem contra-ataca, quem vem a seguir. */
@@ -640,18 +688,29 @@ interface CartaoProps {
   carta: CartaNoEspelho | undefined
   vez: VezNoEspelho
   emEspera: boolean
+  menu: MenuDaLinha | null
   children: ReactNode
 }
 
 /** A carta de quem tem a vez, aberta no lugar dela na ordem. */
-function CartaoDaVez({ carta, vez, emEspera, children }: CartaoProps) {
+function CartaoDaVez({ carta, vez, emEspera, menu, children }: CartaoProps) {
   return (
     <li className="mb-cartao" data-flip={carta?.id} aria-current="step" data-espera={emEspera ? 'sim' : undefined}>
       <span className="mb-fita">{emEspera ? 'Vez · em espera' : 'Vez'}</span>
       <div className="mb-cab">
         <Avatar nome={vez.quem} cor={carta?.cor ?? null} grande />
         <div>
-          <h2>{vez.quem}</h2>
+          <h2>
+            {menu === null ? (
+              vez.quem
+            ) : (
+              <button type="button" className="mb-cab__nome" aria-haspopup="menu" aria-expanded={menu.aberto} title={`Menu de ${vez.quem}`} onClick={(evento) => menu.onAbrir(evento.currentTarget)}>
+                {vez.quem}
+                <Seta />
+                <span className="mb-sr">: menu da carta</span>
+              </button>
+            )}
+          </h2>
           <p>
             {vez.descricao} · {vez.posicao}º da ordem
           </p>
@@ -686,8 +745,13 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   const [confirmando, setConfirmando] = useState(false)
   const [registroAberto, setRegistroAberto] = useState(false)
   const [menu, setMenu] = useState<{ aberto: boolean; peloTeclado: boolean }>({ aberto: false, peloTeclado: false })
-  // O "Seguir sem esperar": a reação ou o contra que o mestre deixou para depois, só nesta tela (o pedido segue de pé).
-  const [dispensados, setDispensados] = useState<ReadonlySet<string>>(() => new Set())
+  // O menu da carta: qual carta e o nome que abriu (recebe o foco de volta no Esc e na escolha).
+  const [menuDaCarta, setMenuDaCarta] = useState<{ cartaId: string; ancora: HTMLElement } | null>(null)
+  // O "Seguir sem esperar": a reação ou o contra que o mestre deixou para depois (o pedido segue de pé). Vale aqui na
+  // hora e vai ao app (pedido 'seguir'); soma o que o app deixou em outra tela (o menu da vez no meio do mapa, o painel, a faixa).
+  const [deixadosAqui, setDispensados] = useState<ReadonlySet<string>>(() => new Set())
+  const deixadosNoApp = espelho?.deixados
+  const dispensados = useMemo(() => (deixadosNoApp === undefined || deixadosNoApp.length === 0 ? deixadosAqui : new Set([...deixadosAqui, ...deixadosNoApp])), [deixadosAqui, deixadosNoApp])
   const continuarRef = useRef<HTMLButtonElement>(null)
   const encerrarRef = useRef<HTMLButtonElement>(null)
   const maisRef = useRef<HTMLButtonElement>(null)
@@ -723,6 +787,13 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   useEffect(() => {
     if (confirmando) continuarRef.current?.focus()
   }, [confirmando])
+
+  // O menu da carta fecha quando o nome que o abriu sai da tela (a vez andou e a linha virou o cartão) ou a carta sai da ordem.
+  useEffect(() => {
+    if (menuDaCarta === null) return
+    const naOrdem = espelho?.ordem.some((carta) => carta.id === menuDaCarta.cartaId) ?? false
+    if (!naOrdem || !menuDaCarta.ancora.isConnected || desligado) setMenuDaCarta(null)
+  }, [espelho, menuDaCarta, desligado])
 
   // Na janela à parte, o Ctrl+Z da página inteira desfaz a última linha (não há editor de mapa aqui).
   useEffect(() => {
@@ -789,6 +860,25 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
     itensDoMais.push('separador')
     if (espelho.podeOrdenar) itensDoMais.push({ chave: 'ordenar', rotulo: 'Ordenar pela Agilidade', onEscolher: () => void pedir('ordenar', { acao: 'ordenar', sceneKey }, 'Ordem refeita pela Agilidade.') })
     itensDoMais.push({ chave: 'caminhos', rotulo: 'Zerar caminhos', desligado: espelho.temCaminhos ? null : 'Nenhuma ficha andou ainda', onEscolher: () => void pedir('caminhos', { acao: 'zerarCaminhos', sceneKey }, 'Caminhos zerados no mapa.') })
+    // As chaves do combate do painel da batalha (guardadas neste computador): a câmera que traz a ficha da vez e o som.
+    const { chaves } = espelho
+    if (chaves !== null) {
+      itensDoMais.push('separador')
+      itensDoMais.push({
+        chave: 'camera',
+        rotulo: 'Câmera segue a vez',
+        marcado: chaves.camera,
+        estado: chaves.camera ? 'sim' : 'não',
+        onEscolher: () => void pedir('chave', { acao: 'chave', sceneKey, chave: 'camera', ligar: !chaves.camera }, chaves.camera ? 'A câmera fica onde você deixar.' : 'A câmera traz a ficha da vez para a vista.'),
+      })
+      itensDoMais.push({
+        chave: 'som',
+        rotulo: 'Som da batalha',
+        marcado: chaves.som,
+        estado: chaves.som ? 'ligado' : 'mudo',
+        onEscolher: () => void pedir('chave', { acao: 'chave', sceneKey, chave: 'som', ligar: !chaves.som }, chaves.som ? 'Sons do combate: mudo.' : 'Sons do combate: ligados.'),
+      })
+    }
     if (itensDoLugar.length > 0) {
       itensDoMais.push('separador')
       for (const item of itensDoLugar) itensDoMais.push({ chave: item.chave, rotulo: item.rotulo, onEscolher: item.onEscolher })
@@ -858,14 +948,38 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
   const ultima = espelho.registro.find((linha) => !linha.desfeita) ?? null
   const cartaDaVez = espelho.ordem.find((carta) => carta.vez)
 
+  // O menu da carta do mestre (o mesmo da faixa do alto), aberto pelo nome. O "Dar a vez" dele respeita a trava do Passar.
+  const menuDaLinha = (carta: CartaNoEspelho | undefined): MenuDaLinha | null =>
+    carta === undefined || carta.menu.length === 0 || desligado
+      ? null
+      : {
+          aberto: menuDaCarta?.cartaId === carta.id,
+          onAbrir: (ancora) => setMenuDaCarta((antes) => (antes?.cartaId === carta.id ? null : { cartaId: carta.id, ancora })),
+        }
+  const cartaDoMenu = menuDaCarta === null ? undefined : espelho.ordem.find((carta) => carta.id === menuDaCarta.cartaId)
+  const itensDoMenuDaCarta: ItemDoMenuDaCarta[] =
+    cartaDoMenu === undefined
+      ? []
+      : cartaDoMenu.menu.map((item) => {
+          const travado = item.id === 'vez' && trava !== null
+          return {
+            id: item.id,
+            rotulo: item.rotulo,
+            detalhe: travado ? (trava ?? undefined) : (item.detalhe ?? undefined),
+            secao: item.secao ?? undefined,
+            perigo: item.perigo,
+            desabilitado: item.desabilitado || travado || ocupadoAgora,
+            marcado: item.marcado ?? undefined,
+            cor: item.cor,
+            onEscolher: () => void pedir('carta', { acao: 'itemDaCarta', sceneKey, cartaId: cartaDoMenu.id, item: item.id }, feitoDoItem(item, cartaDoMenu.nome, lugar)),
+          }
+        })
+
   const seguirSemEsperar = () => {
-    setDispensados((antes) => {
-      const novos = new Set(antes)
-      if (contra !== null) novos.add(`contra:${contra.golpeId}`)
-      for (const item of vivos) novos.add(item.id)
-      return novos
-    })
-    setStatus({ texto: 'Seguindo sem esperar: o pedido fica de pé até ser respondido ou a rodada virar.', erro: false })
+    const chaves = [...(contra === null ? [] : [`contra:${contra.golpeId}`]), ...vivos.map((item) => item.id)]
+    setDispensados((antes) => new Set([...antes, ...chaves]))
+    // O app guarda também: o Passar a vez do menu da vez no meio do mapa (e o da faixa, com a mesa recolhida) passa a valer.
+    void pedir('seguir', { acao: 'seguir', sceneKey, chaves }, 'Seguindo sem esperar: o pedido fica de pé até ser respondido ou a rodada virar.')
   }
 
   const responder = (item: PendenteNoEspelho, resposta: string) => void pedir('responder', { acao: 'responder', sceneKey, pendente: item.id, resposta }, 'Respondido.')
@@ -975,7 +1089,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
           <ol ref={ordemRef} className="mb-ordem" style={{ '--mb-fila': String(Math.max(1, espelho.ordem.length - 1)) } as CSSProperties} aria-label="Ordem dos turnos">
             {espelho.ordem.map((carta) =>
               carta.vez && vez !== null ? (
-                <CartaoDaVez key={carta.id} carta={cartaDaVez} vez={vez} emEspera={contra !== null}>
+                <CartaoDaVez key={carta.id} carta={cartaDaVez} vez={vez} emEspera={contra !== null} menu={menuDaLinha(cartaDaVez)}>
                   {corpoDaVez(vez)}
                 </CartaoDaVez>
               ) : (
@@ -985,6 +1099,7 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
                   etiqueta={etiquetaDe(carta, reagindo, contra?.quem ?? null)}
                   darVezDesligado={ocupadoAgora || desligado || trava !== null}
                   onDarVez={() => void pedir('darVez', { acao: 'darVez', sceneKey, cartaId: carta.id }, `A vez foi para ${carta.nome}.`)}
+                  menu={menuDaLinha(carta)}
                 />
               ),
             )}
@@ -1075,6 +1190,9 @@ export function MesaDaBatalha({ espelho, enviar, lugar, itensDoLugar = [], semFo
           </div>
         )}
       </footer>
+      {cartaDoMenu !== undefined && menuDaCarta !== null && (
+        <MenuDaCarta ancora={menuDaCarta.ancora} rotulo={`Carta de ${cartaDoMenu.nome}`} itens={itensDoMenuDaCarta} onFechar={() => setMenuDaCarta(null)} />
+      )}
     </section>
   )
 }

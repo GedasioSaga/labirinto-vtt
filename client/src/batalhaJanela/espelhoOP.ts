@@ -9,10 +9,15 @@ import { cartaDaVez, contrasQueSeguramAVez, tokensCaidos, type AutorDaAcao, type
 import { ehDoMestre, golpesDaVezDoNpc, mesaAgora, sugestaoNaTela, type MesaDaCena } from '../components/batalha/BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type RecursoNaCarta } from '../components/batalha/dadosDaFaixa'
 import { armaPadraoNaBatalha, economiaEmTexto, formatarNumero, golpesDeAtaque, golpesDeHabilidade, pipsDaVez, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
+import { itensDaCartaDoMestre } from '../components/batalha/menuDaCartaDoMestre'
 import { alvosDaOrdem, nomeDaFicha } from '../components/batalha/mesaDoMestre'
+import { deixarParaDepois, deveAReacao, travasDeixadas } from '../components/batalha/travaDoPassar'
 import { pedidoDoGolpe } from '../components/batalha/MiraDoGolpe'
+import { ligarSomDoCombate, somDoCombateLigado } from '../lib/sons/sonsDoCombate'
+import { cameraDaBatalhaLigada, ligarCameraDaBatalha } from '../pixi/cameraDaBatalha'
 import { useBatalhaStore } from '../stores/batalhaStore'
 import { useToastStore } from '../stores/toastStore'
+import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
 import { ligarOMenuDoMapa, menuDoMapaAberto } from './telaDaMesa'
 import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
@@ -190,7 +195,7 @@ function pendentes(mesa: MesaDaCena, turnos: TurnosDaCena, quandoDaLinha: Readon
   const itens: PendenteNoEspelho[] = []
   for (const golpe of turnos.golpes ?? []) {
     for (const alvo of golpe.alvos) {
-      if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
+      if (!deveAReacao(alvo)) continue
       const doMestre = ehDoMestre(alvo.personagemId, mesa.personagens)
       const nomeDoAlvo = nomeDaFicha(mesa, alvo.tokenId)
       const atacante = nomeDaFicha(mesa, golpe.atacanteTokenId)
@@ -253,6 +258,7 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
   if (cena === undefined) return null
   const { turnos } = cena
   const faixa = faixaDoMestre({ turnos, fichas: mesa.fichas, personagens: mesa.personagens, equipes: mesa.equipes, sistema: mesa.sistema, registro: cena.registro })
+  const contextoDoMenu = { sceneKey, dados: faixa, turnos, personagens: mesa.personagens, equipes: mesa.equipes ?? [], sistema: mesa.sistema }
   const indiceDaVez = faixa.cartas.findIndex((carta) => carta.id === faixa.vez)
   const ordem: CartaNoEspelho[] = faixa.cartas.map((carta, indice) => {
     const marcas = (carta.selos ?? []).map((selo) => selo.texto)
@@ -273,6 +279,7 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
       marcas,
       posicao: indice + 1,
       agiu: indiceDaVez >= 0 && indice < indiceDaVez,
+      menu: itensNoEspelho(itensDaCartaDoMestre(carta, contextoDoMenu)),
     }
   })
   const carta = cartaDaVez(turnos)
@@ -304,6 +311,8 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
     podeOrdenar: turnos.cartas.length > 1,
     // Aberto pela vez do NPC ou pelo contra-ataque dele (que acontece também na vez do jogador): a chave é a da vez de agora.
     menuDoMapaAberto: vez !== null && menuDoMapaAberto(sceneKey, vez.chave),
+    chaves: { camera: cameraDaBatalhaLigada(), som: somDoCombateLigado() },
+    deixados: [...travasDeixadas()],
   }
 }
 
@@ -414,6 +423,17 @@ function responderOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 're
   return ok ? OK : recusa('A regra recusou a resposta.')
 }
 
+/** Um item do menu da carta, remontado com a batalha de agora (o mesmo menu da faixa do mestre). */
+function itemDaCartaOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'itemDaCarta' }>): RespostaDaMesa {
+  const mesa = mesaAgora(sceneKey)
+  if (mesa.cena === undefined) return recusa('A batalha desta cena já acabou.')
+  const { turnos } = mesa.cena
+  const dados = faixaDoMestre({ turnos, fichas: mesa.fichas, personagens: mesa.personagens, equipes: mesa.equipes, sistema: mesa.sistema, registro: mesa.cena.registro })
+  const carta = dados.cartas.find((candidata) => candidata.id === pedido.cartaId)
+  if (carta === undefined) return recusa('Esta carta não está mais na ordem.')
+  return escolherItemDaCarta(itensDaCartaDoMestre(carta, { sceneKey, dados, turnos, personagens: mesa.personagens, equipes: mesa.equipes ?? [], sistema: mesa.sistema }), pedido.item)
+}
+
 /** Aplica um pedido da mesa na batalha One Piece da cena. */
 export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
   const { sceneKey } = pedido
@@ -428,6 +448,8 @@ export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
     }
     case 'darVez':
       return loja.darVez(sceneKey, pedido.cartaId) ? OK : recusa('Esta carta não está mais na ordem.')
+    case 'itemDaCarta':
+      return itemDaCartaOP(sceneKey, pedido)
     case 'agir':
       return agirOP(sceneKey, pedido)
     case 'contra':
@@ -452,6 +474,15 @@ export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
     }
     case 'abrirLivro':
       return recusa('O livro abre pela janela principal.')
+    case 'chave':
+      // As mesmas chaves do painel da batalha (`ChavesDoCombate`), guardadas neste computador.
+      if (pedido.chave === 'camera') ligarCameraDaBatalha(pedido.ligar)
+      else ligarSomDoCombate(pedido.ligar)
+      return OK
+    case 'seguir':
+      // O "Seguir sem esperar" da mesa vale também no menu da vez no meio do mapa, no painel e na faixa (`travaDoPassar`).
+      deixarParaDepois(pedido.chaves)
+      return OK
     case 'encerrar':
       return encerrarOP(sceneKey)
   }

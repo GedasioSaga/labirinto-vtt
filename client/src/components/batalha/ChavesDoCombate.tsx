@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ligarSomDoCombate, ouvirMudoDoCombate, somDoCombateLigado } from '../../lib/sons/sonsDoCombate'
-import { cameraDaBatalhaLigada, ligarCameraDaBatalha } from '../../pixi/cameraDaBatalha'
+import { cameraDaBatalhaLigada, ligarCameraDaBatalha, ouvirCameraDaBatalha } from '../../pixi/cameraDaBatalha'
 
 /**
  * As CHAVES DO COMBATE, guardadas neste computador:
@@ -32,16 +32,15 @@ export function BotaoDoSomDoCombate() {
 
 export function BotaoDaCameraDaBatalha() {
   const [ligada, setLigada] = useState(cameraDaBatalhaLigada)
+  // A mesa da batalha também troca a chave (o "Mais" dela): o botão acompanha.
+  useEffect(() => ouvirCameraDaBatalha(() => setLigada(cameraDaBatalhaLigada())), [])
   return (
     <button
       type="button"
       className="bt-botao bt-botao--p bt-chave-do-combate"
       aria-pressed={ligada}
       title={ligada ? 'A câmera traz a ficha da vez para a vista quando ela está fora da tela ou na borda' : 'A câmera fica onde você deixar'}
-      onClick={() => {
-        ligarCameraDaBatalha(!ligada)
-        setLigada(!ligada)
-      }}
+      onClick={() => ligarCameraDaBatalha(!ligada)}
     >
       Câmera segue a vez: {ligada ? 'sim' : 'não'}
     </button>

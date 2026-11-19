@@ -39,6 +39,8 @@ export interface FaixaDaOrdemProps {
   onPassarVez?: () => void
   /** O "Passar a vez" foi pedido e não voltou (o jogador espera o host). */
   passandoVez?: boolean
+  /** Mestre: a trava do Passar a vez (falta reação ou contra-ataque, `travaDoPassar`) e o "Seguir sem esperar"; ausente = passa. */
+  travaDoPassar?: { texto: string; onSeguir?: () => void } | null
   regras: RegrasDaBatalha | null
   registro: readonly LinhaNaTela[]
   onDesfazer: (linhaId: string) => void
@@ -160,7 +162,7 @@ function moverVoltando(el: HTMLElement, dx: number): void {
   el.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: VOLTA_MS, easing: CURVA_DA_VOLTA })
 }
 
-export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo, onApontar, desenho = 'mesa', perdas }: FaixaDaOrdemProps) {
+export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, travaDoPassar = null, regras, registro, onDesfazer, pendentes, className, onSelo, onApontar, desenho = 'mesa', perdas }: FaixaDaOrdemProps) {
   const doMestre = papel === 'mestre'
   const doJogador = desenho === 'jogador'
   const arrasta = doMestre && onMover !== undefined
@@ -584,9 +586,20 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
           <span className="bt-turno__quem" data-fora={cartaDaVez === undefined ? 'sim' : 'nao'}>
             ▸ {quem}
           </span>
-          {dados.depois !== null && <span className="bt-turno__depois">{dados.depois}</span>}
+          {travaDoPassar !== null ? (
+            <span className="bt-turno__depois" role="status">
+              {travaDoPassar.texto}
+            </span>
+          ) : (
+            dados.depois !== null && <span className="bt-turno__depois">{dados.depois}</span>
+          )}
+          {onPassarVez !== undefined && travaDoPassar?.onSeguir !== undefined && (
+            <button type="button" className="bt-botao bt-botao--p" title="Passa a valer o Passar a vez; o pedido fica de pé até ser respondido ou a rodada virar." onClick={travaDoPassar.onSeguir}>
+              Seguir sem esperar
+            </button>
+          )}
           {onPassarVez !== undefined && (
-            <button type="button" className="bt-botao bt-botao--batalha" disabled={passandoVez} onClick={onPassarVez}>
+            <button type="button" className="bt-botao bt-botao--batalha" disabled={passandoVez === true || travaDoPassar !== null} title={travaDoPassar?.texto} onClick={onPassarVez}>
               {passandoVez ? 'Passando…' : 'Passar a vez'}
             </button>
           )}

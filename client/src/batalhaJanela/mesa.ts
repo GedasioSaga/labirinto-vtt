@@ -1,3 +1,6 @@
+import { ouvirMudoDoCombate, somDoCombateLigado } from '../lib/sons/sonsDoCombate'
+import { ouvirDeixadas, travasDeixadas } from '../components/batalha/travaDoPassar'
+import { cameraDaBatalhaLigada, ouvirCameraDaBatalha } from '../pixi/cameraDaBatalha'
 import { equipesAtivas, mochilaMoraNaFicha, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { useBatalhaDBTStore } from '../stores/batalhaDBTStore'
 import { useBatalhaStore } from '../stores/batalhaStore'
@@ -68,6 +71,9 @@ function referencias(): readonly unknown[] {
     mochilaMoraNaFicha(aventura),
     useRpgStore.getState().biblioteca,
     useTelaDaMesa.getState().menuDoMapa,
+    cameraDaBatalhaLigada(),
+    somDoCombateLigado(),
+    travasDeixadas(),
   ]
 }
 
@@ -96,6 +102,10 @@ export function assinarEspelho(aoMudar: (espelho: EspelhoDaBatalha | null) => vo
     useAdventureStore.subscribe(conferir),
     useRpgStore.subscribe(conferir),
     useTelaDaMesa.subscribe(conferir),
+    // As chaves do combate (câmera, som) mudam pelo painel da batalha ou pela própria mesa.
+    ouvirCameraDaBatalha(conferir),
+    ouvirMudoDoCombate(conferir),
+    ouvirDeixadas(conferir),
   ]
   antes = referencias()
   aoMudar(espelhoAgora())

@@ -84,6 +84,11 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
       const cartaId = id(o.cartaId)
       return cartaId === null ? null : { acao: 'darVez', sceneKey, cartaId }
     }
+    case 'itemDaCarta': {
+      const cartaId = id(o.cartaId)
+      const item = id(o.item)
+      return cartaId === null || item === null ? null : { acao: 'itemDaCarta', sceneKey, cartaId, item }
+    }
     case 'agir': {
       const vez = id(o.vez)
       const golpe = id(o.golpe)
@@ -112,6 +117,12 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
       return { acao: o.acao, sceneKey }
     case 'menuDoMapa':
       return typeof o.ligar === 'boolean' ? { acao: 'menuDoMapa', sceneKey, ligar: o.ligar } : null
+    case 'chave':
+      return (o.chave === 'camera' || o.chave === 'som') && typeof o.ligar === 'boolean' ? { acao: 'chave', sceneKey, chave: o.chave, ligar: o.ligar } : null
+    case 'seguir': {
+      const chaves = listaDeIds(o.chaves)
+      return chaves === null || chaves.length === 0 ? null : { acao: 'seguir', sceneKey, chaves }
+    }
     case 'responder': {
       const pendente = id(o.pendente)
       const resposta = id(o.resposta)

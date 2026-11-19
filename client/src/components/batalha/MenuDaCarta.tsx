@@ -27,6 +27,8 @@ export interface ItemDoMenuDaCarta {
   cor?: string | null
   /** Começa um trecho com este título ("Equipe"). */
   secao?: string
+  /** Abre uma janela do app (perfil, ficha, diálogo): a mesa da batalha à parte avisa que ela abriu na janela principal. */
+  abreNoApp?: boolean
   onEscolher: () => void
 }
 

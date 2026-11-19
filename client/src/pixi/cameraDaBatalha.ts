@@ -145,6 +145,9 @@ export function cameraDaBatalhaLigada(): boolean {
   }
 }
 
+/** Quem mostra a chave (o painel da batalha, a mesa da batalha) e precisa saber que ela mudou em outro lugar. */
+const ouvintesDaChave = new Set<() => void>()
+
 export function ligarCameraDaBatalha(ligada: boolean) {
   try {
     if (ligada) window.localStorage.removeItem(CHAVE)
@@ -153,6 +156,15 @@ export function ligarCameraDaBatalha(ligada: boolean) {
     // Sem armazenamento (janela privada): vale só nesta sessão do app.
   }
   sessaoDesligada = !ligada
+  for (const ouvinte of ouvintesDaChave) ouvinte()
+}
+
+/** Avisa quando a chave da câmera muda; devolve o parar. */
+export function ouvirCameraDaBatalha(ouvinte: () => void): () => void {
+  ouvintesDaChave.add(ouvinte)
+  return () => {
+    ouvintesDaChave.delete(ouvinte)
+  }
 }
 
 /**

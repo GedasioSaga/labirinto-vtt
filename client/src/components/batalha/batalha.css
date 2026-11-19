@@ -799,6 +799,10 @@ button.bt-carta__corpo {
   display: grid;
   min-width: 220px;
   max-width: 300px;
+  /* O menu de um NPC com equipes passa da altura da mesa encostada no mapa: rola dentro, sem sair da tela. */
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border-radius: var(--lb-radius-md);
   background: var(--lb-color-stone-solid);

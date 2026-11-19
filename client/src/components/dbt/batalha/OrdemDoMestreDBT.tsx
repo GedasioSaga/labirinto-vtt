@@ -83,15 +83,15 @@ export function itensDoMestreDBT(carta: CartaDBT, { cartas, combate, vez, person
   const nomeDaVez = cartas.find((candidata) => candidata.id === vez)?.nome ?? null
   const itens: ItemDoMenuDaCarta[] = []
   const personagemId = personagemDe(carta.id)
-  if (personagemId !== null) itens.push({ id: 'ficha', rotulo: fichaNoMenu.rotulo, detalhe: fichaNoMenu.detalhe, onEscolher: () => fichaNoMenu.abrir(personagemId) })
+  if (personagemId !== null) itens.push({ id: 'ficha', rotulo: fichaNoMenu.rotulo, detalhe: fichaNoMenu.detalhe, abreNoApp: true, onEscolher: () => fichaNoMenu.abrir(personagemId) })
   if (combate) {
     itens.push({ id: 'vez', secao: 'Vez', rotulo: 'Dar a vez', desabilitado: carta.vez, detalhe: carta.vez ? 'Já é a vez dele' : 'Fecha o turno de quem está e começa o dele', onEscolher: () => mestre({ tipo: 'darAVez', combatenteId: carta.id }) })
   }
   itens.push({ id: 'subir', secao: combate ? undefined : 'Ordem', rotulo: 'Subir na ordem', desabilitado: indice <= 0, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice - 1 }) })
   itens.push({ id: 'descer', rotulo: 'Descer na ordem', desabilitado: indice >= cartas.length - 1, onEscolher: () => mestre({ tipo: 'moverCarta', combatenteId: carta.id, posicao: indice + 1 }) })
-  itens.push({ id: 'condicao', secao: 'Condições', rotulo: 'Pôr condição…', onEscolher: () => abrirCaixa({ tipo: 'condicao', carta }) })
+  itens.push({ id: 'condicao', secao: 'Condições', rotulo: 'Pôr condição…', abreNoApp: true, onEscolher: () => abrirCaixa({ tipo: 'condicao', carta }) })
   for (const condicao of carta.condicoes) itens.push({ id: `tirar:${condicao.id}`, rotulo: `Tirar ${condicao.nome}`, onEscolher: () => mestre({ tipo: 'tirarCondicao', combatenteId: carta.id, condicaoId: condicao.id }) })
-  itens.push({ id: 'temporario', rotulo: 'Modificador temporário…', detalhe: 'Acerto, CA ou dano por algumas rodadas', onEscolher: () => abrirCaixa({ tipo: 'temporario', carta }) })
+  itens.push({ id: 'temporario', rotulo: 'Modificador temporário…', detalhe: 'Acerto, CA ou dano por algumas rodadas', abreNoApp: true, onEscolher: () => abrirCaixa({ tipo: 'temporario', carta }) })
   for (const temporario of carta.temporarios) itens.push({ id: `tirar-temp:${temporario.id}`, rotulo: `Tirar ${temporario.rotulo}`, onEscolher: () => mestre({ tipo: 'tirarTemporario', combatenteId: carta.id, temporarioId: temporario.id }) })
   itens.push({
     id: 'desvantagem',

@@ -24,6 +24,26 @@ export interface RecursoNoEspelho {
   tom: 'vida' | 'energia' | 'neutro'
 }
 
+/**
+ * Um item do MENU DA CARTA do mestre (o mesmo da faixa do alto: `itensDaCartaDoMestre`,
+ * `itensDaCartaDoMestreDBT`), sem a função: escolhido na tela, vira o pedido `itemDaCarta`.
+ */
+export interface ItemDaCartaNoEspelho {
+  id: string
+  rotulo: string
+  /** Segunda linha apagada: o que o item faz, ou por que está desligado; `null` = nada. */
+  detalhe: string | null
+  /** Começa um trecho com este título ("Equipe"); `null` = segue o anterior. */
+  secao: string | null
+  perigo: boolean
+  desabilitado: boolean
+  /** Escolha única (equipe, lado, situação): `true` = a atual; `null` = item de ação. */
+  marcado: boolean | null
+  cor: string | null
+  /** Abre uma janela do app (perfil, ficha, diálogo): na janela à parte, ela abre na principal. */
+  abreNoApp: boolean
+}
+
 /** Uma carta da ordem. */
 export interface CartaNoEspelho {
   /** One Piece: o id da carta (a extra tem o seu). Dragon Ball: o id do combatente. */
@@ -46,6 +66,8 @@ export interface CartaNoEspelho {
   posicao: number
   /** Já passou nesta rodada (vem antes da vez na ordem). */
   agiu: boolean
+  /** O menu da carta do mestre (dar a vez, agir de novo, ajustar, selo, tirar da batalha…). */
+  menu: readonly ItemDaCartaNoEspelho[]
 }
 
 /** Uma ação do combatente da vez (técnica, arma, ação do motor). */
@@ -194,6 +216,21 @@ export interface EspelhoDaBatalha {
   podeOrdenar: boolean
   /** O menu da vez está aberto sobre o mapa do app (pedido pela mesa). */
   menuDoMapaAberto: boolean
+  /** As chaves do combate deste computador (One Piece), no "Mais"; `null` = o motor não tem (Dragon Ball). */
+  chaves: ChavesNoEspelho | null
+  /**
+   * O que o mestre deixou para depois pelo "Seguir sem esperar" em qualquer tela do app (as chaves dos pendentes e
+   * `contra:<golpe>`): a mesa soma ao que ela mesma deixou. Dragon Ball: vazio (a fila dele mora só na mesa).
+   */
+  deixados: readonly string[]
+}
+
+/** As chaves do combate, guardadas no computador do mestre (as mesmas do painel da batalha). */
+export interface ChavesNoEspelho {
+  /** A câmera traz a ficha da vez para a vista. */
+  camera: boolean
+  /** Os sons do combate tocam. */
+  som: boolean
 }
 
 /** O ajuste do golpe na mesa (o mesmo da mira do mapa): `dano` `null` = o da ficha. */
@@ -207,6 +244,8 @@ export interface AjusteDoGolpe {
 export type PedidoDaMesa =
   | { acao: 'passar'; sceneKey: string; vez: string }
   | { acao: 'darVez'; sceneKey: string; cartaId: string }
+  /** Um item do menu da carta (`CartaNoEspelho.menu`): a principal remonta o menu e aplica o item com este id. */
+  | { acao: 'itemDaCarta'; sceneKey: string; cartaId: string; item: string }
   | { acao: 'agir'; sceneKey: string; vez: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
   /** O contra-ataque do NPC: o golpe dele fora da vez. */
   | { acao: 'contra'; sceneKey: string; golpeId: string; golpe: string; alvos: readonly string[]; ajuste?: AjusteDoGolpe }
@@ -218,6 +257,10 @@ export type PedidoDaMesa =
   | { acao: 'abrirLivro'; sceneKey: string }
   /** Liga ou desliga o menu da vez sobre o mapa do app. */
   | { acao: 'menuDoMapa'; sceneKey: string; ligar: boolean }
+  /** Liga ou desliga uma chave do combate (a câmera que segue a vez, o som). */
+  | { acao: 'chave'; sceneKey: string; chave: keyof ChavesNoEspelho; ligar: boolean }
+  /** O "Seguir sem esperar" da mesa: as chaves dos pendentes (e `contra:<golpe>`) ficam para depois nas telas do app também. */
+  | { acao: 'seguir'; sceneKey: string; chaves: readonly string[] }
   | { acao: 'responder'; sceneKey: string; pendente: string; resposta: string }
   | { acao: 'desfazer'; sceneKey: string; linhaId: string }
   | { acao: 'iniciativa'; sceneKey: string; passo: 'rolar' | 'comecar' }

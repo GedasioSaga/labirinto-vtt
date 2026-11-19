@@ -5,12 +5,13 @@ import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } fro
 import { useBatalhaDBTStore } from '../../../stores/batalhaDBTStore'
 import { useMapStore } from '../../../stores/mapStore'
 import { sistemaPorId, useRpgStore } from '../../../stores/rpgStore'
+import { abertoNaCena, abrirPelaCarta, fecharOAbertoPelaCarta, useAbertoPelaCarta } from '../../batalha/abertoPelaCarta'
 import type { ItemDoMenuDaCarta } from '../../batalha/MenuDaCarta'
 import { PerfilDaCarta } from '../../batalha/PerfilDaCarta'
-import { cartasDaBatalha, type Fichas } from './dadosDaBatalhaDBT'
+import { cartasDaBatalha, type CartaDBT, type Fichas } from './dadosDaBatalhaDBT'
 import { faixaDoMestreDBT, nomeDoLadoDBT, type CartaNaFaixaDBT } from './dadosDaFaixaDBT'
 import { FaixaDaOrdemDBT } from './FaixaDaOrdemDBT'
-import { CaixaDaOrdemDBT, itensDoMestreDBT, ladosDaBatalhaDBT, type CaixaDoMenuDBT } from './OrdemDoMestreDBT'
+import { CaixaDaOrdemDBT, itensDoMestreDBT, ladosDaBatalhaDBT, type ContextoDoMenuDBT } from './OrdemDoMestreDBT'
 import { linhasDoMestreDBT } from './RegistroDBT'
 
 /**
@@ -32,6 +33,17 @@ const SEM_FICHAS: Fichas = new Map()
 /** A recusa some sozinha depois deste tempo (ou na próxima ação que passar). */
 const AVISO_MS = 6000
 
+/**
+ * O menu da carta DBT do mestre: "Ver perfil" e o menu da ordem (`itensDoMestreDBT`). Um lugar só
+ * para a faixa do alto e a mesa da batalha (doca e janela à parte, `batalhaJanela/espelhoDBT.ts`);
+ * o perfil e as caixas abrem por `abertoPelaCarta` e a faixa da cena desenha.
+ */
+export function itensDaCartaDoMestreDBT(sceneKey: string, carta: CartaDBT, personagemId: string | null, contexto: Omit<ContextoDoMenuDBT, 'abrirCaixa'>): ItemDoMenuDaCarta[] {
+  const perfil: ItemDoMenuDaCarta[] =
+    personagemId === null ? [] : [{ id: 'perfil', rotulo: 'Ver perfil', detalhe: 'A ficha só para ler', abreNoApp: true, onEscolher: () => abrirPelaCarta(sceneKey, { tipo: 'perfil', personagemId }) }]
+  return [...perfil, ...itensDoMestreDBT(carta, { ...contexto, abrirCaixa: (caixa) => abrirPelaCarta(sceneKey, { tipo: 'caixaDBT', caixa }) })]
+}
+
 export function FaixaDoMestreDBT({ sceneKey, className }: FaixaDoMestreDBTProps) {
   const cena = useBatalhaDBTStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined))
   const tokens = useMapStore((state) => state.map.tokens)
@@ -40,8 +52,9 @@ export function FaixaDoMestreDBT({ sceneKey, className }: FaixaDoMestreDBTProps)
   const sistemaId = useAdventureStore(sistemaAtivo)
   const biblioteca = useRpgStore((state) => state.biblioteca)
   const sistema = useMemo(() => sistemaPorId(biblioteca, sistemaId) ?? null, [biblioteca, sistemaId])
-  const [perfilId, setPerfilId] = useState<string | null>(null)
-  const [caixa, setCaixa] = useState<CaixaDoMenuDBT | null>(null)
+  // O que o menu da carta abriu (daqui, da mesa encostada no mapa ou da janela à parte): a faixa desenha, mesmo escondida.
+  const perfilId = useAbertoPelaCarta((state) => abertoNaCena(state, sceneKey, 'perfil')?.personagemId ?? null)
+  const caixa = useAbertoPelaCarta((state) => abertoNaCena(state, sceneKey, 'caixaDBT')?.caixa ?? null)
   const [aviso, setAviso] = useState<string | null>(null)
 
   useEffect(() => {
@@ -82,13 +95,10 @@ export function FaixaDoMestreDBT({ sceneKey, className }: FaixaDoMestreDBTProps)
     (naFaixa: CartaNaFaixaDBT): readonly ItemDoMenuDaCarta[] => {
       const carta = cartas.find((candidata) => candidata.id === naFaixa.id)
       if (carta === undefined) return []
-      const itens: ItemDoMenuDaCarta[] = []
-      const personagemId = naFaixa.personagemId
-      if (personagemId !== null) itens.push({ id: 'perfil', rotulo: 'Ver perfil', detalhe: 'A ficha só para ler', onEscolher: () => setPerfilId(personagemId) })
       const vez = cena?.fase === 'combate' ? (cena.ordem.vez ?? null) : null
-      return [...itens, ...itensDoMestreDBT(carta, { cartas, combate: cena?.fase === 'combate', vez, personagemDe, mestre, abrirCaixa: setCaixa, lados })]
+      return itensDaCartaDoMestreDBT(sceneKey, carta, naFaixa.personagemId, { cartas, combate: cena?.fase === 'combate', vez, personagemDe, mestre, lados })
     },
-    [cartas, cena, personagemDe, mestre, lados],
+    [sceneKey, cartas, cena, personagemDe, mestre, lados],
   )
 
   if (cena === undefined || dados === null) return null
@@ -118,10 +128,10 @@ export function FaixaDoMestreDBT({ sceneKey, className }: FaixaDoMestreDBTProps)
           personagem={perfil}
           sistema={sistema}
           descricao={[ladoDoPerfil === undefined ? undefined : nomeDoLadoDBT(ladoDoPerfil, equipes), perfil.tipo === 'jogador' ? 'Jogador' : 'NPC', 'só leitura'].filter(Boolean).join(' · ')}
-          onFechar={() => setPerfilId(null)}
+          onFechar={fecharOAbertoPelaCarta}
         />
       )}
-      {caixa !== null && <CaixaDaOrdemDBT caixa={caixa} onFechar={() => setCaixa(null)} mestre={mestre} />}
+      {caixa !== null && <CaixaDaOrdemDBT caixa={caixa} onFechar={fecharOAbertoPelaCarta} mestre={mestre} />}
     </>
   )
 }

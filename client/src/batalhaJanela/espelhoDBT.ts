@@ -1,6 +1,6 @@
 import { fichasDaCena } from '../lib/dbt/batalha/leitura'
 import { turnoNoM } from '../lib/dbt/batalha/ordem'
-import type { AutorDBT, ComandoDBT, CombatenteDBT, LinhaDBT, OpcaoDeAcao } from '../lib/dbt/batalha/tipos'
+import type { AcaoDoMestreDBT, AutorDBT, ComandoDBT, CombatenteDBT, LinhaDBT, OpcaoDeAcao } from '../lib/dbt/batalha/tipos'
 import { linhasDoMestre } from '../lib/dbt/batalha/vista'
 import {
   avisosDoMestre,
@@ -16,9 +16,12 @@ import {
   type CartaDBT,
   type Fichas,
 } from '../components/dbt/batalha/dadosDaBatalhaDBT'
-import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
+import { itensDaCartaDoMestreDBT } from '../components/dbt/batalha/FaixaDoMestreDBT'
+import { ladosDaBatalhaDBT } from '../components/dbt/batalha/OrdemDoMestreDBT'
+import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../stores/adventureStore'
 import { useBatalhaDBTStore, type CenaDBT } from '../stores/batalhaDBTStore'
 import { sistemaPorId, useRpgStore } from '../stores/rpgStore'
+import { escolherItemDaCarta, itensNoEspelho } from './menuDaCartaNoEspelho'
 import type { AlvoNoEspelho, CartaNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
 /**
@@ -47,6 +50,17 @@ function fichasDe(cena: CenaDBT): Fichas {
   const aventura = useAdventureStore.getState()
   const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
   return fichasDaCena(personagensAtivos(aventura), sistema, Object.values(cena.combatentes))
+}
+
+/**
+ * O menu da carta do mestre (o mesmo da faixa DBT: `itensDaCartaDoMestreDBT`) para estas cartas. `mestre`
+ * é quem leva a ação ao motor: no espelho ninguém escolhe; no pedido, ele guarda a recusa.
+ */
+function menuDaCartaDBT(sceneKey: string, cena: CenaDBT, cartas: readonly CartaDBT[], mestre: (acao: AcaoDoMestreDBT) => boolean) {
+  const personagemDe = (id: string) => (Object.hasOwn(cena.combatentes, id) ? cena.combatentes[id].personagemId : null)
+  const combate = cena.fase === 'combate'
+  const contexto = { cartas, combate, vez: combate ? (cena.ordem.vez ?? null) : null, personagemDe, mestre, lados: ladosDaBatalhaDBT(equipesAtivas(useAdventureStore.getState())) }
+  return (carta: CartaDBT) => itensDaCartaDoMestreDBT(sceneKey, carta, personagemDe(carta.id), contexto)
 }
 
 function recursosDe(carta: CartaDBT | undefined): RecursoNoEspelho[] {
@@ -191,6 +205,7 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
   const cartas = cartasDaBatalha(cena, fichas)
   const vez = vezDe(cena)
   const indiceDaVez = cartas.findIndex((carta) => carta.vez)
+  const menuDe = menuDaCartaDBT(sceneKey, cena, cartas, () => false)
   const ordem: CartaNoEspelho[] = cartas.map((carta, indice) => ({
     id: carta.id,
     nome: carta.nome,
@@ -205,6 +220,7 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
     marcas: marcasDe(carta),
     posicao: indice + 1,
     agiu: cena.fase === 'combate' && indiceDaVez >= 0 && indice < indiceDaVez,
+    menu: itensNoEspelho(menuDe(carta)),
   }))
   const linhas = linhasDoMestre(cena.registro)
   const registro: LinhaNoEspelho[] = linhas.slice(0, LINHAS_NA_MESA).map((linha) => ({ id: linha.id, rodada: linha.rodada, autor: linha.autor, texto: linha.texto, desfeita: linha.desfeitaPor !== null, podeDesfazer: linha.podeDesfazer }))
@@ -230,6 +246,8 @@ export function espelhoDBT(sceneKey: string): EspelhoDaBatalha | null {
     temCaminhos: Object.keys(cena.caminhos).length > 0,
     podeOrdenar: false,
     menuDoMapaAberto: false,
+    chaves: null,
+    deixados: [],
   }
 }
 
@@ -250,6 +268,18 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
       return comando(sceneKey, { tipo: 'passar', vez: { combatenteId: vez.id, rodada: cena.ordem.rodada, turno: vez.turnosJogados } })
     case 'darVez':
       return comando(sceneKey, { tipo: 'mestre', acao: { tipo: 'darAVez', combatenteId: pedido.cartaId } })
+    case 'itemDaCarta': {
+      const cartas = cartasDaBatalha(cena, fichasDe(cena))
+      const carta = cartas.find((candidata) => candidata.id === pedido.cartaId)
+      if (carta === undefined) return recusa('Esta carta não está mais na batalha.')
+      let recusou: string | null = null
+      const mestre = (acao: AcaoDoMestreDBT) => {
+        const resposta = comando(sceneKey, { tipo: 'mestre', acao })
+        recusou = resposta.motivo
+        return resposta.ok
+      }
+      return escolherItemDaCarta(menuDaCartaDBT(sceneKey, cena, cartas, mestre)(carta), pedido.item, () => recusou)
+    }
     case 'agir':
       if (vez === null || chaveDe(cena, vez) !== pedido.vez) return recusa('A vez já mudou: confira a ordem.')
       return comando(sceneKey, { tipo: 'agir', combatenteId: vez.id, vez: { rodada: cena.ordem.rodada, turno: vez.turnosJogados }, opcao: pedido.golpe, alvos: [...new Set(pedido.alvos)] })
@@ -269,6 +299,11 @@ export function aplicarPedidoDBT(pedido: PedidoDaMesa): RespostaDaMesa {
       return OK
     case 'menuDoMapa':
       return recusa('No Dragon Ball a vez inteira mora aqui e no painel do livro.')
+    case 'chave':
+      return recusa('No Dragon Ball não há câmera que segue a vez nem som do combate.')
+    case 'seguir':
+      // A fila do Dragon Ball só trava na mesa: o "Seguir sem esperar" fica nela, sem nada a guardar aqui.
+      return OK
     case 'abrirLivro':
       return recusa('O livro abre pela janela principal.')
     case 'encerrar': {
