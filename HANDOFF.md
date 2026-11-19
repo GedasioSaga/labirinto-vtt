@@ -1,3 +1,52 @@
+# CONSERTO DOS 49 + BATALHA 18/11 (FEITO na main 19/11 02h42; 0.5.84 PUBLICANDO desde 19/11 02h46)
+
+## Objetivo
+Usuário 18/11 ~22h: consertar os 49 achados de `docs/analise-fable-2026-11-18.md` (TODOS, inclusive as 2 refatorações grandes: dividir arquivos gigantes e "todo mapa nasce aventura"); Opus 5.5 xhigh para o simples, Fable 5.2 xhigh para o difícil. Batalha em Fable: bugs relatados pelos jogadores (F5 tira da batalha; às vezes o pedido de reação não aparece; às vezes coisas ficam na lateral em vez do meio da tela) + menu de batalha próprio que pode abrir em JANELA NOVA (controle total do mestre) e também funciona "normal" dentro do app. Decisões do usuário: esconder `map.frame.title` do jogador; "Dar a…" entrega a tocha APAGADA. No fim: publicar 0.5.84 com Google (`scripts/publicar-versao.cjs --com-google`).
+
+## Estado atual
+Tudo em Opus 5.5 xhigh (usuário 18/11 23h: sem Fable). 58 commits na main de `e8a01a09` a `9362747a`, sobre `6ea3bf8e` (0.5.83). Notas de cada área em `tmp/leva-1811/notas-*.md`.
+- **Bugs da batalha dos jogadores:** F5 do jogador volta para a batalha (`23f4524b`; fila por jogador `sempreEmFila` em `net/pacoteComprimido.ts`; `c51fc68d` janela de teste entrega como o Rust e mostra a corrida do F5); pedido de reação não se perde e chama o jogador ao andar ao vivo (`23f4524b`, `9b971c01`); todo pedido da batalha no meio do mapa, DBT incluído (`423820ab`).
+- **Mesa da batalha própria** (`4ed4f1a4`): página Batalha do livro, "Abrir a mesa da batalha" (diálogo no meio do app, `batalhaJanela/MesaDaBatalha.tsx`) e "Em janela" (janela Tauri `desktop/src-tauri/src/janela_batalha.rs`, página `client/batalha.html`; popup no navegador), fio por BroadcastChannel, principal é a fonte da verdade.
+- **Batalha:** vez passa quando o dono sai e condições fora da ordem contam (`8b5d71f0`); regras DBT do relatório (`a2a5d958`); DBT salva em disco + esquece a batalha da mesa fechada (`7f29d42a`); DBT "Usar item" + imagem da forma troca o token (`a3f55961`).
+- **Perda de dado:** Recuperar traz aventura, RPG da pasta e lista de cenas e guarda a cópia antiga (`6b58d6c9`); Duplicar dá id e nome novos (`e82b2a57`); apagar cena tira paradas do elevador (`29e60061`); patrulha anda em cena de fundo (`5d3ca8ed`); cutscenes.json com gravação guardada e remover com Desfazer (`e8a01a09`); estante de tokens guarda ficha, mochila, moedas e luz (`4de318d0`).
+- **Editor:** tabela única de tipos da seleção (`68f4afb1`); copiar/colar em bloco (`b51fc1f3`); guarda do arrasto, rascunho ponto a ponto e prévia do jogador sem luz de item secreto (`46f33206`); Ctrl+K acha baús, escadas, desafios, gatilhos e zonas (`3287741d`).
+- **Acervo/mídia:** vídeo que não decodifica libera a tela do jogador (`b0f7bf1d`); leitor único de item (`e87895b2`); busca única do acervo + escolha da loja (`136ea9e1`); Desfazer de pasta só da própria mudança (`0a36e17d`).
+- **Rede:** recorte do jogador por lista branca, sem o título da moldura (`0965f8ae`); caminhos da batalha no patch, entrada semeia a tela, recusa reenvia, `view.rejected`, tocha dada chega apagada (`6f1097cb`); guarda de host travado na varredura + modo como o Rust no transporte local (`de2e28f8`); a sala responde o ping no Rust por 15 s (`83a910dc`).
+- **Refatorações:** `stores/batalhaFabrica.ts` de ~4.200 para 420 linhas em `stores/batalha/` (`6d81d765`..`b053c812`); estado por jogador num registro (`3e750fbc`, `ed08b037`, `1f350bf8`); `adventureStore` dividido em `donoDasFichas` e `persistenciaDaAventura` (`89a7f92b`, `7ebf41ad`); PixiCanvas perde pincéis, borracha, Esc/Delete, nome da sala (`7ab971f6`..`3bb77d4c`); todo mapa nasce aventura de 1 cena (`da6ee04c`).
+- **Testes da fase final:** `727b7e03`, `75a8e36c`, `4296d701`, `593d1d0c`, `40224c53`, `9c1d3375`, `4b2db56b`, `9362747a`. Versão 0.5.84 nos 5 arquivos (`c61e3946`).
+- **EM VOO:** operário (Opus xhigh) publicando a 0.5.84 com `--com-google` de worktree limpo `../labirinto-release` (branch `release/0.5.84` = main).
+
+## Próximos passos
+1. Terminar a publicação: push main, `release/0.5.84` no remoto, `node scripts/publicar-versao.cjs --com-google --publicar --notas tmp/leva-1811/notas-da-versao-0.5.84.md`, conferir `releases/latest/download/latest.json` = 0.5.84, `cargo clean` no target do worktree, rmdir das junções node_modules, `git worktree remove`.
+2. Pendentes (não feitos, motivo nas notas): foto por `/media/<hash>` no recorte do jogador (`notas-rede.md`, plano de 4 passos); janela Tauri de verdade e F5 da principal com a janela aberta não vistos no app nativo (só o popup no navegador); "controle total" parcial (mira no mapa, golpe de NPC com escolhas, reação de NPC rolada, bando, dano, selos, formas e, no DBT, formas e apostas seguem no mapa/livro, `notas-janela-batalha.md`); fatiar o closure de `createHostSession` (~9 mil linhas) e a máquina de gestos do PixiCanvas; subpastas na estante de tokens (feature nova); marcas das linhas novas do Ctrl+K sem estilo em `main.css`; `socketDoCanal.ts` sem `view.rejected` no modo Olhar; escada levada a outro piso deixa o pino invisível no antigo (antigo); halo de item oculto na prévia "como jogador" de dia; map.json órfão ao apagar a 1ª cena de uma aventura (decisão de produto, `notas-refat-aventura.md`).
+3. Testes vermelhos ANTIGOS (de antes da leva, não mexidos): `PixiCanvas.guias` (7) e `PixiCanvas.desempenho` (1) desde `ada7b898`; `party.itens` (4) desde `b4e57a07`/`26e0b1bc`; `embutidas.hash` grama-morta (1); `PropertiesPanel.mobilia` (2) e `hostBridge.ajudante` (1) só timeout sob carga.
+4. `docs/analise-fable-2026-11-18.md` segue sem commit (untracked).
+
+## Critério de pronto
+Cada um dos 49 achados com commit na main ou justificativa escrita; batalha: F5 do jogador e do mestre volta para a batalha, pedido de reação chega, nada da batalha na lateral, janela nova abre e controla; tsc 0; release 0.5.84 com latest.json respondendo 0.5.84.
+
+## Evidência
+FECHAMENTO 19/11 02h46 (date): `rtk proxy npx tsc --noEmit` em client/ exit 0 (1 min 13 s). Suíte final 1 vez (`tmp/leva-1811/suite.log`, `notas-suite.md`): 2237 arquivos, 21545 testes, 21 arquivos / 35 testes vermelhos; os 15 arquivos desta leva tiveram a expectativa atualizada de propósito em `4296d701`, `593d1d0c`, `40224c53` (177 testes passam depois), os 6 restantes são antigos (Próximos passos 3). `npx vite build` exit 0, 5 páginas (`vitebuild.log`). Rust: clippy `-D warnings` exit 0, `cargo test` exit 0, lib 161 + net 38, `janela_batalha::tests` 2 (`clippy.log`, `cargo-test.log`). Fechamento: vitest dos arquivos mexidos 84 arquivos / 459 testes (`notas-fechamento.md`). Prints: `tmp/leva-1811/batalha/` (mestre e jogador, reação, `06-jogador-depois-do-f5.png`), `tmp/leva-1811/janela/` (`01-mesa-no-app.png`, `02-janela-da-batalha.png`, `04-golpe-e-reacao-esperando.png`, `05-dragon-ball-na-mesa.png`), `tmp/leva-1811/acervo/` (estante com extras).
+RETOMADA 18/11 23h10 (sessão 7e0cc173): a sessão anterior caiu ~22h30 com o C: em 273 MB livres. Com ok do usuário foram apagados `desktop/src-tauri/target` (8,55 GB), Temp >2 dias, cache do npm e 54 pastas antigas de `tmp/` (até 16/11, menos backup-appdata e leva-1811): C: foi a 24,9 GB livres. Usuário: "agora faça só em opus 5.5 xhigh, não precisa usar fable 5.2 nessa sessão". Já commitado pela onda 1 caída: A 23f4524b (F5 + reação); C e8a01a09, b0f7bf1d, e87895b2, 136ea9e1, 0a36e17d. Sem commit (trabalho pela metade, retomado pelos novos agentes): A batalha DBT ao centro (6 arquivos), B persistência (14 arquivos), D editor (14 arquivos, grupos salvos). EM VOO AGORA: workflow `wf_0f0d651b-980` (task w32sctcyf), todos os agentes em Opus xhigh, script `C:\Users\gedasio.filho\AppData\Local\Temp\claude\4c4a9e4ee2c3f2fb\7e0cc173-b1cb-400a-a263-ba721cddf9bd\scratchpad\leva-1811-retomada-opus.js` (cópia em `tmp/leva-1811/leva-1811-retomada-opus.js`). Se cair na mesma sessão: Workflow({scriptPath, resumeFromRunId: "wf_0f0d651b-980"}) com o mesmo args; em sessão nova, relançar o script (onda 1 retoma pelo git diff).
+ANTERIOR (morto): workflow `wf_dc6d7af6-15e` (task wkthtonst; o run `wf_e3eb803a-45c` foi parado antes de editar nada para aplicar "testes só no final se for preciso": construção sem teste, só tsc; suíte e testes novos só na fase final), script em `~/.claude/projects/C--dev-labirinto/9da71148-deb2-47d4-a6ce-cdf9de819dde/workflows/scripts/leva-1811-conserto-e-batalha-wf_e3eb803a-45c.js`. Se cair: Workflow({scriptPath, resumeFromRunId: "wf_dc6d7af6-15e"}) com o mesmo args. Notas entre agentes em `tmp/leva-1811/notas-*.md`; prints em `tmp/leva-1811/{batalha,acervo,janela}/`. O workflow já registra PEDIDOS/HANDOFF e publica 0.5.84 no último passo.
+
+# ANÁLISE FABLE 18/11 21h45 (só leitura, FEITA)
+
+## Objetivo
+Pedido do usuário: "dê uma analisada usando o Fable 5.2 procurando alguns bugs, melhorias e falta de conexão entre ferramentas". Entrega: relatório com melhorias e opiniões, sem mexer no código.
+
+## Estado atual
+FEITO. Relatório em `docs/analise-fable-2026-11-18.md` (49 achados, top 10, 5 padrões, ordem sugerida). Nenhum código alterado. Nada em voo.
+
+## Próximos passos
+O usuário escolhe o que consertar. Recomendação do relatório: perda de dado primeiro (Recuperar sem fichas, Duplicar com mesmo adventure.id, cutscenes.json sem gravação segura).
+
+## Critério de pronto
+Existe `docs/analise-fable-2026-11-18.md` com seções 1-4; cada achado tem arquivo:linha.
+
+## Evidência
+5 agentes `revisor` com model fable, só leitura (editor 10, rede 9, batalha 10, acervo/mídia 10, costuras 10 achados). Claude conferiu 12 no código com sed/rg: recoveryCopy.ts:23-42 (cópia sem fichas), mapFileIO.ts:561-599 (copia o dir sem trocar adventure.id), cutscenesStore.ts:116-136 (catch devolve [], writeTextFile puro), CutsceneDeVideoOverlay.tsx:87 (só onEnded), loja.ts:45-54 (sem luz), alignDistribute.ts:74-78, entityClone.ts:102, turnos.ts:629, pacoteComprimido.ts:218 (envio direto sem fila quando sem gzip), fogFilter.ts (sem nenhuma menção a frame), App.tsx:2017 (iniciarBatalhaSalva uma chamada só).
+
 # FECHADA 18/11 ~02h20: 0.5.83 PUBLICADA (release/0.5.83 = 7905dfcb; main f8e8f007 = origin; Worker 6ec6966b, Pages 9b51797c; setup 29.616.944 B, .sig, .msi, latest.json 0.5.83; Google True/True). Nada em voo. Pendentes menores: texto da ficha emprestada no Acender; E2E-PENDENTE Categorias; conferir no app real (miniatura WebView2, janela nativa de teste, luz pela LAN).
 
 # LEVA 18/11 (autonomia: "Vou deixar na sua mão, faça até terminar", 18/11 ~01h)
