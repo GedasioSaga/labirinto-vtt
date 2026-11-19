@@ -1,10 +1,10 @@
-# MINIGAMES DE PUZZLE 19/11 17h49 (grilling em andamento)
+﻿# MINIGAMES DE PUZZLE 19/11 17h49 (grilling em andamento)
 
 ## Objetivo
 Subcategoria "Puzzles" em Jogos: entrar e sair com progresso guardado, encaixar itens de puzzle, referência nos puzzles do Resident Evil (puzzles, nomes e arte originais). Literal e respostas em PEDIDOS.md, seção "PEDIDO NOVO (19/11/2026 17h49)".
 
 ## Estado atual
-Rodadas 1-3 do grilling respondidas (ver PEDIDOS). Pendente: o usuário pediu "Pegue os puzzle de resident evil e me diga os melhores": lista dada na conversa, escolheu as 4 extras: peças giratórias, luzes, troca de peso e empurrar estátuas (no mapa). Pediu usar o /game-studios (invocar a skill na fase do protótipo/arte). Nada de código.
+Grilling fechado 19/11 ~19h40 ("e os minigames?" = seguir). 0.5.85 PUBLICADA (8fffd4ea). PROTÓTIPO FEITO 3d10fdca (68/68 conferências do robô, p95 16,8 ms; decisões do Claude no commit/relato): docs/design/puzzles/prototipo.html (4 modelos + amostras das outras mecânicas + mestre), lendo a skill game-studios. Depois: mostrar ao usuário e esperar aprovação. Pendente: o usuário pediu "Pegue os puzzle de resident evil e me diga os melhores": lista dada na conversa, escolheu as 4 extras: peças giratórias, luzes, troca de peso e empurrar estátuas (no mapa). Pediu usar o /game-studios (invocar a skill na fase do protótipo/arte). Nada de código.
 
 ## Próximos passos
 Fechar o grilling, gravar no gbrain, protótipo HTML (regra 2l) com os 4 modelos (Fonte, Porta de brasões, Cofre, Altar), aprovar, plano, construir. Só depois da 0.5.85 publicada.
