@@ -693,3 +693,43 @@ describe('pastas do acervo', () => {
     expect(reaberto.itens[0].pasta).toBe('npcs')
   })
 })
+
+describe('regravar o índice não tira os extras dos outros tokens (acervo, 18/11/2026)', () => {
+  const EXTRAS = {
+    mochila: [{ id: 'vaga_corda', nome: 'Corda' }],
+    moedas: 12,
+    luzes: [{ alcanceEmCasas: 4, cor: '#ffaa33', intensidade: 0.8 }],
+  }
+
+  /** Três tokens; o `id-0` leva mochila, bolsa e tocha. */
+  function semearComExtras(): void {
+    semearAcervo(3)
+    const bruto = JSON.parse(textos.get(INDICE) ?? '{}') as { versao: number; itens: Record<string, unknown>[] }
+    bruto.itens[0] = { ...bruto.itens[0], ...EXTRAS }
+    textos.set(INDICE, JSON.stringify(bruto, null, 2))
+  }
+
+  const extrasGravadosDoId0 = (): Record<string, unknown> | undefined => {
+    const bruto = JSON.parse(textos.get(INDICE) ?? '{}') as { itens: Record<string, unknown>[] }
+    const item = bruto.itens.find((candidato) => candidato.id === 'id-0')
+    return item === undefined ? undefined : { mochila: item.mochila, moedas: item.moedas, luzes: item.luzes }
+  }
+
+  it('renomear e mover OUTRO token mantêm a mochila, as moedas e a tocha do id-0', async () => {
+    semearComExtras()
+    await renomearNoAcervo('id-1', 'Chefe')
+    expect(extrasGravadosDoId0()).toEqual(EXTRAS)
+    const pasta = await criarPastaNoAcervo('Guardas')
+    expect(extrasGravadosDoId0()).toEqual(EXTRAS)
+    await moverNoAcervo('id-2', pasta.id)
+    expect(extrasGravadosDoId0()).toEqual(EXTRAS)
+  })
+
+  it('apagar OUTRO token mantém os extras do id-0, e a estante reaberta ainda os lê', async () => {
+    semearComExtras()
+    await apagarDoAcervo('id-1')
+    expect(extrasGravadosDoId0()).toEqual(EXTRAS)
+    const reaberto = await listarAcervo()
+    expect(reaberto.itens.find((item) => item.id === 'id-0')).toMatchObject(EXTRAS)
+  })
+})

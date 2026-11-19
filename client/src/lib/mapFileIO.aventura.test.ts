@@ -233,3 +233,30 @@ describe('(c) cena cujo arquivo sumiu', () => {
     expect(aberto.map.name).toBe('Vila')
   })
 })
+
+/**
+ * (d) MAPA JÁ É AVENTURA (18/11/2026): a aventura que nasceu de um mapa solto
+ * grava o `adventure.json` na pasta dele. Se ali já mora o de OUTRA aventura
+ * (o `map.json` órfão de uma primeira cena apagada), gravar por cima apagaria a
+ * lista de cenas dela: `outraAventuraNaPasta` é a guarda do `gravarAventura`.
+ */
+describe('(d) a pasta já tem outra aventura', () => {
+  const pasta = `${MAPS}/map_orfao`
+  const aventura = (id: string) =>
+    serializeAdventure({ version: 1, id, name: 'Vila', startSceneId: 'scene_vila', scenes: [{ id: 'scene_vila', name: 'Vila', file: 'map.json' }] })
+
+  it('adventure.json de outro id, ou quebrado, conta como outra aventura (o Salvar recusa)', async () => {
+    const { outraAventuraNaPasta } = await import('./mapFileIO')
+    arquivos.set(`${pasta}/adventure.json`, aventura('adv_dona_da_pasta'))
+    await expect(outraAventuraNaPasta(pasta, 'map_orfao')).resolves.toBe(true)
+    arquivos.set(`${pasta}/adventure.json`, '{ cortado no meio')
+    await expect(outraAventuraNaPasta(pasta, 'map_orfao')).resolves.toBe(true)
+  })
+
+  it('pasta sem adventure.json, ou com o desta mesma aventura, deixa gravar', async () => {
+    const { outraAventuraNaPasta } = await import('./mapFileIO')
+    await expect(outraAventuraNaPasta(pasta, 'map_orfao')).resolves.toBe(false)
+    arquivos.set(`${pasta}/adventure.json`, aventura('map_orfao'))
+    await expect(outraAventuraNaPasta(pasta, 'map_orfao')).resolves.toBe(false)
+  })
+})

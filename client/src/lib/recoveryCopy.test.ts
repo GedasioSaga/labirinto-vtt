@@ -141,3 +141,40 @@ describe('cópia de recuperação: disco', () => {
     expect(await readRecoveryCopy()).toBeNull()
   })
 })
+
+describe('cópia de recuperação: aventura e cópia guardada (18/11/2026)', () => {
+  it('a aventura nunca gravada volta na cópia (lista de cenas, cena aberta, mapa da raiz); aventura torta fica de fora e o mapa volta', () => {
+    const dados = {
+      version: 1 as const,
+      id: 'map_abc',
+      name: 'Masmorra do Autosave',
+      startSceneId: 'map_abc',
+      scenes: [
+        { id: 'map_abc', name: 'Masmorra do Autosave', file: 'map.json' },
+        { id: 'scene_porao', name: 'Porão', file: 'scenes/scene_porao/map.json' },
+      ],
+    }
+    const aventura = { dados, activeSceneId: 'scene_porao', dir: null, rootPath: null, rootMapId: 'map_abc' }
+    const lida = parseRecoveryCopy(serializeRecoveryCopy({ savedAtMs: COPIA_MS, mapPath: null, map: mapaComSala(), scenes: {}, aventura }))
+    expect(lida?.aventura?.dados.scenes.map((cena) => cena.id)).toEqual(['map_abc', 'scene_porao'])
+    expect(lida?.aventura).toMatchObject({ activeSceneId: 'scene_porao', dir: null, rootPath: null, rootMapId: 'map_abc' })
+
+    const torta = parseRecoveryCopy(serializeRecoveryCopy({ savedAtMs: COPIA_MS, mapPath: null, map: mapaComSala(), scenes: {}, aventura: { ...aventura, activeSceneId: 'scene_sumiu' } }))
+    expect(torta?.aventura).toBeUndefined()
+    expect(torta?.map.regions).toHaveLength(1)
+  })
+
+  it('a cópia da abertura anterior é posta de lado antes de a nova gravar e volta como oferta quando a nova sai', async () => {
+    const { setAsideRecoveryCopy, readPendingRecoveryCopy } = await import('./recoveryCopy')
+    await writeRecoveryCopy({ savedAtMs: COPIA_MS, mapPath: 'C:/mapas/queda/map.json', map: mapaComSala(), scenes: {} })
+    await setAsideRecoveryCopy()
+    // A abertura nova grava a dela por cima e depois salva (a dela some).
+    await writeRecoveryCopy({ savedAtMs: COPIA_MS + 60_000, mapPath: null, map: createEmptyMap('map_novo', 'Novo', 10, 10, 64), scenes: {} })
+    expect((await readPendingRecoveryCopy())?.setAside).toBe(false)
+    await clearRecoveryCopy()
+    const oferta = await readPendingRecoveryCopy()
+    expect(oferta?.setAside).toBe(true)
+    expect(oferta?.copy.mapPath).toBe('C:/mapas/queda/map.json')
+    expect(oferta?.copy.map.regions).toHaveLength(1)
+  })
+})
