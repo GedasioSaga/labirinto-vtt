@@ -1,8 +1,10 @@
+import { useEffect, useMemo, useState } from 'react'
 import type { LojaItem } from '../types/map'
 import { LOJA_ESTOQUE_MAX, LOJA_ITENS_MAX, LOJA_NOME_MAX, LOJA_PRECO_MAX, novaMercadoria } from '../lib/loja'
 import { Toggle } from './Toggle'
-import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo } from '../lib/acervoDeItens'
-import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
+import { itemParaDar, type ItemDoCatalogo as ItemDoAcervo, type PastaDeItens } from '../lib/acervoDeItens'
+import { gruposPorPasta, itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
+import { lerOAcervoSeFaltar, useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { precoEmBerries } from './InventarioDaFicha'
 
 export interface PinLojaControlsProps {
@@ -29,13 +31,93 @@ function semEstoque(item: LojaItem): LojaItem {
  * escolhida: nome, preço (o texto que o jogador lê e o número que a venda
  * cobra da bolsa) e os dados da coisa. "" = volta a ser digitada (o nome fica).
  */
-function comCoisa(item: LojaItem, coisa: ItemDoAcervo | undefined): LojaItem {
+function comCoisa(item: LojaItem, coisa: ItemDoAcervo | undefined, acervo: readonly ItemDoAcervo[]): LojaItem {
   const { acervo: _antes, ...digitada } = item
   if (coisa === undefined) return digitada
-  // Sem munições: a mercadoria da banca não guarda a lista; a arma comprada cai no Acervo de agora.
-  const { nome, ...dados } = itemParaDar(coisa, [])
+  // Com as munições e a luz (18/11/2026): a arma comprada chega à mochila com as balas que aceita, e a tocha ilumina.
+  const { nome, ...dados } = itemParaDar(coisa, acervo)
   const itemId = dados.itemId ?? coisa.id
   return { ...digitada, nome: nome.slice(0, LOJA_NOME_MAX), preco: coisa.preco === null ? '' : precoEmBerries(coisa.preco).slice(0, LOJA_PRECO_MAX), acervo: { ...dados, itemId } }
+}
+
+/** O texto da opção: o nome e, com preço, o preço em berries. */
+function rotuloDaCoisa(coisa: ItemDoAcervo): string {
+  return coisa.preco === null ? coisa.nome : `${coisa.nome} (${precoEmBerries(coisa.preco)})`
+}
+
+interface SeletorDaCoisaProps {
+  base: string
+  numero: number
+  item: LojaItem
+  doAcervo: readonly ItemDoAcervo[]
+  pastas: readonly PastaDeItens[]
+  onEscolher: (coisa: ItemDoAcervo | undefined) => void
+}
+
+/**
+ * A coisa do Acervo da mercadoria (18/11/2026, análise Fable: a loja era um
+ * `<select>` sem busca). O campo de busca é o mesmo do painel do Acervo
+ * (nome, categoria, descrição e pasta) e estreita a lista; as pastas viram os
+ * grupos da lista, na ordem da árvore. A coisa escolhida fica na lista mesmo
+ * fora da busca: sem ela o seletor mostraria outra.
+ */
+function SeletorDaCoisa({ base, numero, item, doAcervo, pastas, onEscolher }: SeletorDaCoisaProps) {
+  const [busca, setBusca] = useState('')
+  const textos = useMemo(() => textosDeBusca(doAcervo, pastas), [doAcervo, pastas])
+  const palavras = palavrasDaBusca(busca)
+  const achados = palavras.length === 0 ? doAcervo : doAcervo.filter((coisa) => itemCasaNaBusca(textos.get(coisa.id), palavras))
+  const grupos = gruposPorPasta(achados, pastas)
+  const escolhidaId = item.acervo?.itemId
+  const escolhida = escolhidaId === undefined ? undefined : doAcervo.find((coisa) => coisa.id === escolhidaId)
+  const escolhidaFora = escolhida !== undefined && !achados.includes(escolhida)
+  const nadaAchado = palavras.length > 0 && achados.length === 0
+  return (
+    <>
+      <label className="lb-label" htmlFor={`${base}-acervo-busca`}>
+        {`Buscar no Acervo, mercadoria ${numero}`}
+      </label>
+      <input
+        id={`${base}-acervo-busca`}
+        className="lb-input"
+        type="search"
+        value={busca}
+        placeholder="Nome, categoria ou pasta"
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(event) => setBusca(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || busca === '') return
+          // Esc limpa a busca e não chega ao mapa; com ela vazia, o Esc segue o caminho de sempre.
+          event.preventDefault()
+          event.stopPropagation()
+          setBusca('')
+        }}
+      />
+      <label className="lb-label" htmlFor={`${base}-acervo`}>
+        {`Coisa do Acervo da mercadoria ${numero}`}
+      </label>
+      <select id={`${base}-acervo`} className="lb-input" value={escolhidaId ?? ''} onChange={(event) => onEscolher(doAcervo.find((coisa) => coisa.id === event.target.value))}>
+        <option value="">Nenhuma (digitada)</option>
+        {/* A coisa que saiu do Acervo continua escolhida: a mercadoria guarda a cópia dela. */}
+        {escolhidaId !== undefined && escolhida === undefined && <option value={escolhidaId}>{item.nome} (fora do Acervo)</option>}
+        {escolhidaFora && <option value={escolhida.id}>{rotuloDaCoisa(escolhida)}</option>}
+        {grupos.map((grupo) => (
+          <optgroup key={grupo.id ?? 'sem-pasta'} label={grupo.rotulo}>
+            {grupo.itens.map((coisa) => (
+              <option key={coisa.id} value={coisa.id}>
+                {rotuloDaCoisa(coisa)}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {nadaAchado && (
+        <p className="lb-label" role="status">
+          {`Nada no Acervo com “${busca.trim()}”.`}
+        </p>
+      )}
+    </>
+  )
 }
 
 /**
@@ -65,6 +147,9 @@ export function PinLojaControls({
   embutido?: boolean
 }) {
   const doAcervo = useAcervoDeItensStore((state) => state.itens)
+  const pastas = useAcervoDeItensStore((state) => state.pastas)
+  // O Acervo mora no disco do app: sem o painel aberto antes, a lista da loja nasceria vazia.
+  useEffect(() => lerOAcervoSeFaltar(), [])
   const trocar = (indice: number, item: LojaItem) => {
     if (loja === null) return
     onChange(loja.map((atual, i) => (i === indice ? item : atual)))
@@ -104,24 +189,14 @@ export function PinLojaControls({
                     placeholder="Xarope de tosse"
                     onChange={(event) => trocar(indice, { ...item, nome: event.target.value })}
                   />
-                  <label className="lb-label" htmlFor={`${base}-acervo`}>
-                    {`Coisa do Acervo da mercadoria ${numero}`}
-                  </label>
-                  <select
-                    id={`${base}-acervo`}
-                    className="lb-input"
-                    value={item.acervo?.itemId ?? ''}
-                    onChange={(event) => trocar(indice, comCoisa(item, doAcervo.find((coisa) => coisa.id === event.target.value)))}
-                  >
-                    <option value="">Nenhuma (digitada)</option>
-                    {/* A coisa que saiu do Acervo continua escolhida: a mercadoria guarda a cópia dela. */}
-                    {item.acervo !== undefined && !doAcervo.some((coisa) => coisa.id === item.acervo?.itemId) && <option value={item.acervo.itemId}>{item.nome} (fora do Acervo)</option>}
-                    {doAcervo.map((coisa) => (
-                      <option key={coisa.id} value={coisa.id}>
-                        {coisa.preco === null ? coisa.nome : `${coisa.nome} (${precoEmBerries(coisa.preco)})`}
-                      </option>
-                    ))}
-                  </select>
+                  <SeletorDaCoisa
+                    base={base}
+                    numero={numero}
+                    item={item}
+                    doAcervo={doAcervo}
+                    pastas={pastas}
+                    onEscolher={(coisa) => trocar(indice, comCoisa(item, coisa, doAcervo))}
+                  />
                   <div className="lb-loja__linha">
                     <div className="lb-loja__campo">
                       <label className="lb-label" htmlFor={`${base}-preco`}>

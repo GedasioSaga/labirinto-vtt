@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type Keybo
 import { itemParaDar } from '../../lib/acervoDeItens'
 import { ABA_DAS_ARMAS, armasDe, limiteDeArmas } from '../../lib/batalha/leituraDaFicha'
 import { quantidadeDe } from '../../lib/items'
-import { buscarNoAcervo, ehDoAcervo, entradaDoAcervo, type EntradaDoAcervo } from '../../lib/livros/acervoNoLivro'
+import { ehDoAcervo, entradaDoAcervo, type EntradaDoAcervo } from '../../lib/livros/acervoNoLivro'
 import { ehVariacao, entraNaBatalha, variacoesDe } from '../../lib/livros/combate'
 import {
   abaDeDestino,
@@ -29,6 +29,7 @@ import { useCatalogoStore } from '../../stores/catalogoStore'
 import { useMundoDoLivroStore } from '../../stores/mundoDoLivroStore'
 import { useToastStore } from '../../stores/toastStore'
 import { itensPorCategoria } from '../AcervoDeItensPanel'
+import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from '../BuscaDoAcervoDeItens'
 import { ImagemOuIniciais } from '../FichaPecas'
 import { precoEmBerries } from '../InventarioDaFicha'
 import { escolhasDaFicha, formatarNumero, primeiroNome, Retrato, trocarFicha } from './comum'
@@ -195,6 +196,7 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   const podeGravar = useCatalogoStore((state) => state.podeGravar)
   const doAcervo = useAcervoDeItensStore((state) => state.itens)
   const categoriasDoAcervo = useAcervoDeItensStore((state) => state.categorias)
+  const pastasDoAcervo = useAcervoDeItensStore((state) => state.pastas)
   const doSistema = catalogoAberto === sistema.id
   const noAplicativo = isTauri()
   // A leitura do disco nunca lança: sem aviso e sem permissão de gravar, no aplicativo, é porque ainda está lendo.
@@ -256,11 +258,18 @@ export function PaginaItens({ personagens, sistema }: PaginaItensProps) {
   const filtroAtivo: Filtro = filtros.includes(filtro) ? filtro : 'todos'
   // Na ordem das categorias do Acervo, como o painel do mestre as mostra.
   const entradasDoAcervo = useMemo(() => itensPorCategoria(doAcervo, categoriasDoAcervo).flatMap((grupo) => grupo.itens.map(entradaDoAcervo)), [doAcervo, categoriasDoAcervo])
+  // A busca única do Acervo (nome, categoria, descrição e pasta), a mesma do painel, da mochila e da loja.
+  const textosDoAcervo = useMemo(() => textosDeBusca(doAcervo, pastasDoAcervo), [doAcervo, pastasDoAcervo])
   const lista = useMemo<EntradaDaPagina[]>(() => {
     const achadas = buscarNoCatalogo(entradas, busca, filtroAtivo)
+    const palavras = palavrasDaBusca(busca)
+    // O nome do filtro ("arma", "item") e "acervo" também acham, como na busca do catálogo.
+    const doAcervoAchadas = entradasDoAcervo.filter(
+      (entrada) => (filtroAtivo === 'todos' || entrada.tipo === filtroAtivo) && itemCasaNaBusca(textosDoAcervo.get(entrada.id), palavras, `${entrada.tipo} acervo`),
+    )
     // As coisas do Acervo depois das entradas do mestre e antes das do livro (perícias, vantagens, desvantagens).
-    return [...achadas.filter((entrada) => !ehDoLivro(entrada)), ...buscarNoAcervo(entradasDoAcervo, busca, filtroAtivo), ...achadas.filter(ehDoLivro)]
-  }, [entradas, entradasDoAcervo, busca, filtroAtivo])
+    return [...achadas.filter((entrada) => !ehDoLivro(entrada)), ...doAcervoAchadas, ...achadas.filter(ehDoLivro)]
+  }, [entradas, entradasDoAcervo, textosDoAcervo, busca, filtroAtivo])
 
   const abaPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, abaDeDestino(sistema, tipo)] as const)), [sistema])
   const camposPorTipo = useMemo(() => new Map(TIPOS_DE_ENTRADA.map((tipo) => [tipo, camposDoTipo(sistema, tipo)] as const)), [sistema])

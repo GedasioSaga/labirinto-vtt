@@ -1,10 +1,11 @@
-import { useEffect, useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { itemParaDar } from '../lib/acervoDeItens'
 import { ITEM_DESCRICAO_MAX, ITEM_NAME_MAX_LENGTH, ITEM_QUANTIDADE_MAX, cleanItemName, mochilaComItemDoAcervo, quantidadeDe, type ItemParaDar } from '../lib/items'
 import { mochilaComAVagaEditada, mochilaSemAMudanca, precoValido, quantidadeValida, type MudancaNaVaga } from '../lib/mochila/editarVaga'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { useToastStore } from '../stores/toastStore'
 import type { CarriedItem } from '../types/map'
+import { itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
 import { InventarioDaFicha } from './InventarioDaFicha'
 
 /**
@@ -147,8 +148,12 @@ function AdicionarAMochila({ onAdicionar, onFechar }: { onAdicionar: (item: Item
     const acervo = useAcervoDeItensStore.getState()
     if (!acervo.podeGravar) void acervo.recarregar()
   }, [])
+  const pastas = useAcervoDeItensStore((state) => state.pastas)
   const termo = paraBusca(busca)
-  const achados = itens.filter((item) => termo === '' || paraBusca(item.nome).includes(termo) || paraBusca(item.categoria).includes(termo)).slice(0, RESULTADOS_MAX)
+  // A busca única do Acervo (nome, categoria, descrição e pasta), a mesma do painel, do livro e da loja.
+  const textos = useMemo(() => textosDeBusca(itens, pastas), [itens, pastas])
+  const palavras = palavrasDaBusca(busca)
+  const achados = itens.filter((item) => itemCasaNaBusca(textos.get(item.id), palavras)).slice(0, RESULTADOS_MAX)
   const nomeNovo = cleanItemName(busca)
   const jaNoAcervo = itens.some((item) => paraBusca(item.nome) === termo)
 

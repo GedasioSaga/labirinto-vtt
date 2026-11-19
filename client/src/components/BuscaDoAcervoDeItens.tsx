@@ -1,6 +1,8 @@
 import { startTransition, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import type { ItemDoCatalogo } from '../lib/acervoDeItens'
 import { isEditableTarget } from '../lib/keymap'
 import { normalizeForSearch } from '../lib/mapObjects'
+import { pastasPorPai, type PastaDeItens } from '../lib/pastasDosItens'
 import { CloseIcon, SearchIcon } from './icons'
 
 /**
@@ -26,6 +28,70 @@ export function palavrasDaBusca(busca: string): string[] {
 export function nomeCasa(nome: string, palavras: readonly string[]): boolean {
   const alvo = normalizeForSearch(nome)
   return palavras.every((palavra) => alvo.includes(palavra))
+}
+
+/**
+ * A BUSCA ÚNICA DO ACERVO (18/11/2026, análise Fable: o mesmo acervo tinha 4
+ * buscas com regras diferentes). Painel, mochila do mestre, página Itens do
+ * livro e loja do pino acham pelo mesmo texto: nome, categoria, descrição e o
+ * caminho da pasta onde o item mora ("arma" acha o que está em Armas › De
+ * fogo). Cada palavra em qualquer ponto, sem acento nem maiúscula.
+ */
+export type ItemNaBusca = Pick<ItemDoCatalogo, 'id' | 'nome' | 'categoria' | 'descricao' | 'pasta'>
+
+/** O caminho de cada pasta pelo id, da de cima até ela ("Armas › De fogo"). */
+export function caminhosDasPastas(pastas: readonly PastaDeItens[]): Map<string, string> {
+  const caminhos = new Map<string, string>()
+  const porPai = pastasPorPai(pastas)
+  const descer = (pai: string | null, acima: string) => {
+    for (const pasta of porPai.get(pai) ?? []) {
+      if (caminhos.has(pasta.id)) continue
+      const caminho = acima === '' ? pasta.nome : `${acima} › ${pasta.nome}`
+      caminhos.set(pasta.id, caminho)
+      descer(pasta.id, caminho)
+    }
+  }
+  descer(null, '')
+  return caminhos
+}
+
+/** O texto em que a busca procura cada item, já sem acento: monte uma vez por mudança do acervo, não por tecla. */
+export function textosDeBusca(itens: readonly ItemNaBusca[], pastas: readonly PastaDeItens[]): Map<string, string> {
+  const caminhos = caminhosDasPastas(pastas)
+  return new Map(itens.map((item) => [item.id, normalizeForSearch([item.nome, item.categoria, item.descricao, item.pasta === undefined ? '' : (caminhos.get(item.pasta) ?? '')].join(' '))]))
+}
+
+/** O item casa com todas as palavras? `extras` = o que a tela soma ao texto (o livro soma "arma", "item", "acervo"). */
+export function itemCasaNaBusca(texto: string | undefined, palavras: readonly string[], extras = ''): boolean {
+  if (palavras.length === 0) return true
+  const alvo = extras === '' ? (texto ?? '') : `${texto ?? ''} ${normalizeForSearch(extras)}`
+  return palavras.every((palavra) => alvo.includes(palavra))
+}
+
+/** Os itens que a busca acha, na ordem recebida. Busca vazia = todos. */
+export function buscarItensDoAcervo<T extends ItemNaBusca>(itens: readonly T[], pastas: readonly PastaDeItens[], busca: string): T[] {
+  const palavras = palavrasDaBusca(busca)
+  if (palavras.length === 0) return [...itens]
+  const textos = textosDeBusca(itens, pastas)
+  return itens.filter((item) => itemCasaNaBusca(textos.get(item.id), palavras))
+}
+
+/** Os itens agrupados pela pasta, na ordem da árvore (de cima para baixo), com "Sem pasta" por último. Grupo vazio não sai. */
+export function gruposPorPasta<T extends ItemNaBusca>(itens: readonly T[], pastas: readonly PastaDeItens[]): { id: string | null; rotulo: string; itens: T[] }[] {
+  const caminhos = caminhosDasPastas(pastas)
+  const porPasta = new Map<string | null, T[]>()
+  for (const item of itens) {
+    const onde = item.pasta !== undefined && caminhos.has(item.pasta) ? item.pasta : null
+    porPasta.set(onde, [...(porPasta.get(onde) ?? []), item])
+  }
+  const grupos: { id: string | null; rotulo: string; itens: T[] }[] = []
+  for (const [id, caminho] of caminhos) {
+    const dentro = porPasta.get(id)
+    if (dentro !== undefined) grupos.push({ id, rotulo: caminho, itens: dentro })
+  }
+  const soltos = porPasta.get(null)
+  if (soltos !== undefined) grupos.push({ id: null, rotulo: 'Sem pasta', itens: soltos })
+  return grupos
 }
 
 /**
@@ -88,8 +154,8 @@ export function CampoDeBusca({ campoRef, onMudar, onDescer }: CampoDeBuscaProps)
         className="lb-input lb-objetos__busca"
         aria-label={BUSCAR_ITEM}
         aria-keyshortcuts="Control+F /"
-        placeholder="Buscar pelo nome"
-        title="Buscar pelo nome (Ctrl+F ou /, com o foco no acervo)"
+        placeholder="Buscar nome, categoria, pasta"
+        title="Busca no nome, na categoria, na descrição e na pasta (Ctrl+F ou /, com o foco no acervo)"
         value={texto}
         autoComplete="off"
         spellCheck={false}
