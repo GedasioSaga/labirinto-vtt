@@ -42,6 +42,18 @@ pub const PORT_ATTEMPTS: u16 = 10;
 const JOIN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Fila de saída por conexão; cheia = cliente lento, `send` falha.
 const OUTBOX_CAPACITY: usize = 256;
+/// PONG DA SALA: o `{"type":"ping"}` do jogador é respondido aqui mesmo, sem
+/// esperar a interface do mestre, enquanto o mestre (TS) mandou alguma coisa a
+/// esta conexão há menos que isto. Com o app do mestre travado uns segundos, o
+/// jogador segue ouvindo o host e não se dá por caído (o prazo dele é 5 s,
+/// `SILENCE_DEAD_AFTER_MS` em `playerConnection.ts`), e os pedidos pendentes não
+/// somem. Passado o prazo sem nada do mestre (interface morta, ou conexão que
+/// ele não reconhece e não fechou), a sala se cala e o jogador volta pelo
+/// resume, como antes. O ping continua indo ao TS (prova de vida do lado do
+/// mestre), que também responde: pong em dobro não muda nada no jogador.
+const PRAZO_DO_PONG_DA_SALA: Duration = Duration::from_secs(15);
+/// O mesmo texto do `pong` do TS (`hostSession.ts`, `{ type: 'pong' }`).
+const PONG_JSON: &str = r#"{"type":"pong"}"#;
 /// Medido em unidades UTF-16, igual ao `string.length` do TS (protocol.ts).
 const MAX_NAME_UTF16_UNITS: usize = 32;
 /// Código de fechamento WebSocket 1008 (policy violation).
@@ -86,7 +98,11 @@ pub struct Asset {
 pub type AssetSource = Arc<dyn Fn(&str) -> Option<Asset> + Send + Sync>;
 
 enum Outgoing {
+    /// Mensagem do mestre (TS): conta como o mestre falando com a conexão.
     Text(String),
+    /// Frame que nasce na própria sala (a chave dos sons): não prova que o
+    /// mestre conhece a conexão, então não liga o pong da sala.
+    DaSala(String),
     Kick,
 }
 
@@ -634,7 +650,7 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
     let chave = sons::nova_chave();
     if let Some(chave) = &chave {
         // Canal recém-criado, vazio e só nosso: a primeira vaga sempre cabe.
-        let _ = tx.try_send(Outgoing::Text(sons::frame_da_chave(chave)));
+        let _ = tx.try_send(Outgoing::DaSala(sons::frame_da_chave(chave)));
     }
     lock(&room.sons).registrar(client_id, chave, aparelho);
     room.lock_clients().insert(client_id, tx);
@@ -642,6 +658,9 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
     room.sink.on_message(client_id, join_msg);
 
     let mut bucket = TokenBucket::new(MAX_MESSAGES_PER_SECOND);
+    // PONG DA SALA: quando o mestre mandou a última mensagem a esta conexão.
+    // `None` até a primeira (o `welcome`): antes disso o mestre ainda não a aceitou.
+    let mut mestre_falou_em: Option<Instant> = None;
     loop {
         tokio::select! {
             // O `watch::Ref` não é `Send`; o bloco o descarta antes do próximo await.
@@ -651,6 +670,12 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
             }
             outgoing = rx.recv() => match outgoing {
                 Some(Outgoing::Text(text)) => {
+                    if socket.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                    mestre_falou_em = Some(Instant::now());
+                }
+                Some(Outgoing::DaSala(text)) => {
                     if socket.send(Message::Text(text.into())).await.is_err() {
                         break;
                     }
@@ -667,7 +692,14 @@ async fn handle_socket(room: Arc<Room>, mut socket: WebSocket, slot: PendingSlot
                         continue; // excesso descartado; o cliente deve limitar a taxa
                     }
                     match parse_object(text.as_str()) {
-                        Some(msg) => room.sink.on_message(client_id, msg),
+                        Some(msg) => {
+                            // Decide antes de entregar: o `on_message` consome a mensagem.
+                            let responde = sala_responde_o_ping(&msg, mestre_falou_em, Instant::now());
+                            room.sink.on_message(client_id, msg);
+                            if responde && socket.send(Message::Text(PONG_JSON.into())).await.is_err() {
+                                break;
+                            }
+                        }
                         None => {
                             let _ = socket.send(Message::Text(error_json("bad_json").into())).await;
                         }
@@ -738,6 +770,14 @@ pub fn sanitize_name(raw: &str) -> Option<String> {
 
 fn parse_object(text: &str) -> Option<Value> {
     serde_json::from_str::<Value>(text).ok().filter(Value::is_object)
+}
+
+/// PONG DA SALA: `ping` do jogador (com ou sem `away`) recebe `pong` daqui se o
+/// mestre falou com a conexão há menos de `PRAZO_DO_PONG_DA_SALA`. Nunca antes
+/// da primeira mensagem do mestre: só quem ele aceitou ouve o pong, como no TS.
+fn sala_responde_o_ping(msg: &Value, mestre_falou_em: Option<Instant>, agora: Instant) -> bool {
+    msg.get("type").and_then(Value::as_str) == Some("ping")
+        && mestre_falou_em.is_some_and(|quando| agora.saturating_duration_since(quando) < PRAZO_DO_PONG_DA_SALA)
 }
 
 fn error_json(reason: &str) -> String {
