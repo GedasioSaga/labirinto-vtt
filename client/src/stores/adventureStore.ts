@@ -62,7 +62,7 @@ import {
   type AmarraDeEstado,
   type ResumoDaTroca,
 } from '../lib/estadoDoMundo'
-import { comCabineEm, comChamada, comParada, novaCabine, proximaChamada, semFila, type ChamadaAceita } from '../lib/cabine'
+import { comCabineEm, comChamada, comParada, novaCabine, proximaChamada, semFila, type CabineDeTransporte, type ChamadaAceita } from '../lib/cabine'
 import {
   addExit,
   arrivalPoint,
@@ -777,12 +777,32 @@ export interface CenaApagada {
   antes: Adventure
   /** A lista logo depois: o desfazer só devolve a de antes se ela ainda for esta. */
   cenasDepois: Adventure['scenes']
+  /** As cabines logo depois (sem as paradas da apagada): o desfazer só devolve as de antes se ainda forem estas. */
+  cabinesDepois: Adventure['cabines']
   /** O mapa da apagada no cache (o arquivo dela continua no disco). */
   slot: SceneSlot | undefined
   /** Ela tinha mudança por gravar. */
   suja: boolean
   /** Pinos das outras cenas que levavam a ela, como eram antes de soltos. */
   pinosSoltos: { sceneId: string; pinos: Pin[] }[]
+}
+
+/**
+ * A aventura sem as paradas de cabine da cena `sceneId` (apagada). A cabine
+ * que estava numa delas vai para a primeira parada que sobrou, e a chamada
+ * daquela parada sai da fila (`comParada`). A mesma aventura quando nenhuma
+ * cabine parava lá — aventura sem cabines continua sem a chave.
+ */
+function semParadasDaCena(adventure: Adventure, sceneId: string): Adventure {
+  const antes = adventure.cabines
+  if (antes === undefined) return adventure
+  let cabines: CabineDeTransporte[] = antes
+  for (const cabine of antes) {
+    for (const parada of cabine.paradas) {
+      if (parada.sceneId === sceneId) cabines = comParada(cabines, parada, null) ?? cabines
+    }
+  }
+  return cabines === antes ? adventure : { ...adventure, cabines }
 }
 
 /** O mapa com os pinos de `pinos` de volta, pelo id (o que sumiu depois não volta). */
@@ -1824,17 +1844,28 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       if (unlinked.map !== slot.map) nextDirty[id] = true
     }
     const scenes = removeSceneKeepingInside(adventure.scenes, sceneId)
+    // As paradas de cabine nos pinos dela saem junto: a cabine não fica presa num pino que não existe mais.
+    const semParadas = semParadasDaCena({ ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId }, sceneId)
     set({
       // A apagada sai também das fixadas do "Hoje na sessão".
       adventure: comFixadas(
-        { ...adventure, scenes, startSceneId: adventure.startSceneId === sceneId ? scenes[0].id : adventure.startSceneId },
+        semParadas,
         (adventure.fixadas ?? []).filter((id) => id !== sceneId),
       ),
       cache: nextCache,
       dirty: nextDirty,
       previousSceneId: previousSceneId === sceneId ? null : previousSceneId,
       structureDirty: true,
-      cenaApagada: { adventureId: adventure.id, sceneId, antes: adventure, cenasDepois: scenes, slot: cache[sceneId], suja: dirty[sceneId] === true, pinosSoltos },
+      cenaApagada: {
+        adventureId: adventure.id,
+        sceneId,
+        antes: adventure,
+        cenasDepois: scenes,
+        cabinesDepois: semParadas.cabines,
+        slot: cache[sceneId],
+        suja: dirty[sceneId] === true,
+        pinosSoltos,
+      },
     })
     // A cena aberta perde a ligação no mapa e no desfazer juntos, sem
     // `withHistory`: apagar a cena não é um passo para o Ctrl+Z desta.
@@ -1876,9 +1907,12 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
       dirty[id] = true
     }
     const fixadas = registro.antes.fixadas ?? []
+    // As paradas de cabine da cena voltam com ela; cabine mexida depois de apagar fica como o mestre a deixou.
+    const cabinesDeAntes = registro.antes.cabines
+    const comCabines = cabinesDeAntes !== undefined && adventure.cabines === registro.cabinesDepois ? { ...adventure, cabines: cabinesDeAntes } : adventure
     set({
       adventure: comFixadas(
-        { ...adventure, scenes: registro.antes.scenes, startSceneId: registro.antes.startSceneId === sceneId ? sceneId : adventure.startSceneId },
+        { ...comCabines, scenes: registro.antes.scenes, startSceneId: registro.antes.startSceneId === sceneId ? sceneId : adventure.startSceneId },
         fixadas.includes(sceneId) ? [...(adventure.fixadas ?? []), sceneId] : (adventure.fixadas ?? []),
       ),
       cache,
