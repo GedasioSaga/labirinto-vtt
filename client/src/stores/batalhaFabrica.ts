@@ -615,6 +615,32 @@ interface LinhaNova {
   autor?: AutorDaAcao
 }
 
+/** O que o começo de vez (`comecarAVez`) recebe de quem andou a vez: os turnos de antes e de depois e o que vai na linha "vez". */
+interface VezQueComeca {
+  /** Os turnos de antes da vez andar (no "Passar a vez", depois dos "Não reagiu" da virada). */
+  antes: TurnosDaCena
+  /** Os turnos com a vez nova e os lembretes do começo dela. */
+  depois: TurnosDaCena
+  /** A carta que acaba a vez (fim da vez das mecânicas, desconto do prazo); `null` = nenhuma. */
+  sai: CartaDaOrdem | null
+  /** A carta que começa a vez (vida por turno do prazo). */
+  entra: CartaDaOrdem | null
+  autor: AutorDaAcao
+  /** O texto da linha sem os +10 SP (que vão no fim). */
+  texto: string
+  tokenIds: readonly string[]
+  /** As cartas que a vez tirou da ordem (extras da rodada, bando vazio): o Desfazer da vez as põe de volta. */
+  removidas: Extract<Reversao, { tipo: 'vez' }>['antes']['removidas']
+  /** A ordem de antes, só quando a virada mudou alguém de lugar. */
+  ordem?: readonly string[]
+  /** As linhas "Não reagiu" que a virada gravou antes da vez. */
+  fechados: readonly string[]
+  /** Os selos que acabaram com a vez (efeito na tela). */
+  acabaram: readonly SeloDaBatalha[]
+  /** A rodada virou. */
+  virou: boolean
+}
+
 /** A cena com a ordem nova e a linha no registro; `turnosRev` sobe. */
 function comMudanca(cena: BatalhaDaCena, turnos: TurnosDaCena, linha: LinhaNova | null, regras: RegrasDaBatalha | null = cena.regras): BatalhaDaCena {
   const registro =
@@ -1603,6 +1629,45 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const atual = cenaDe(sceneKey) ?? cena
     const linha = comMudanca(atual, atual.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto: `Condições fora da ordem: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
+  }
+
+  /**
+   * O começo de vez num lugar só: o "Passar a vez" e o "Dar a vez" do mestre andam a vez nos turnos e
+   * chegam aqui. Grava os +10 SP de quem entra, a linha "vez" com o Desfazer (só o que a vez mudou, o SP
+   * e as linhas fechadas antes dela) e os selos que acabaram; depois o fim da vez das mecânicas de quem
+   * sai e o prazo das condições (na virada, também o de quem está fora da ordem). A carta que sai da
+   * ordem com a vez chega aqui pelo "Passar a vez" (`passarAVezDeQuemSai`). `cena` = a cena em que
+   * `vez.antes` foi lido.
+   */
+  const comecarAVez = (sceneKey: string, cena: BatalhaDaCena, vez: VezQueComeca): void => {
+    const { antes, depois, sai, autor } = vez
+    // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
+    const mudou = mudancasDaVez(antes, depois)
+    // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
+    const sp = spDoComecoDaVez(antes, depois, autor)
+    const linha: LinhaNova = {
+      tipo: 'vez',
+      autor,
+      texto: `${vez.texto}${sp?.texto ?? ''}`,
+      tokenIds: vez.tokenIds,
+      // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
+      reversao: {
+        tipo: 'vez',
+        antes: { vez: antes.vez, rodada: antes.rodada, removidas: vez.removidas, gastos: antes.gastos, ...(vez.ordem === undefined ? {} : { ordem: vez.ordem }) },
+        ...(mudou === undefined ? {} : { mudou }),
+        ...(vez.fechados.length === 0 ? {} : { fechados: vez.fechados }),
+        ...(sp === null ? {} : { ficha: sp.ficha }),
+      },
+    }
+    // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
+    const atual = cenaDe(sceneKey) ?? cena
+    gravarCena(sceneKey, { ...comMudanca(atual, depois, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(vez.acabaram)) })
+    // F2 (fatia F): a Doença das Trevas, as Chamas Celestes e a duração da forma de quem saiu, numa linha própria (com Desfazer).
+    fimDaVezDasMecanicas(sceneKey, sai, sai === null ? undefined : antes.gastos[sai.id], antes.rodada, autor)
+    // Fase C: o prazo das condições (o desconto de quem saiu, a vida por turno de quem entra).
+    prazosDaVez(sceneKey, sai, vez.entra, autor)
+    // 18/11/2026: na virada, o prazo de quem está fora da ordem também anda (um turno por rodada).
+    if (vez.virou) prazosForaDaOrdem(sceneKey, autor)
   }
 
   /**
@@ -3284,8 +3349,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       // Só o combate muda, e a reversão "vez" guarda o combate de antes e de depois de quem mudou: o Desfazer da vez tira os lembretes.
       const virada = passada.turnos.rodada !== turnos.rodada ? comLembretesDoMomento('rodada', passada.turnos, { personagens, sistema }).turnos : passada.turnos
       const comLembretes = comLembretesDaVez(virada, { personagens, sistema }).turnos
-      // Conserto das fichas F1 (bug 3): a linha guarda só o que a vez mudou (o Desfazer volta só isso).
-      const mudou = mudancasDaVez(turnos, comLembretes)
       const de = cartaDaVez(turnos)
       const para = cartaDaVez(passada.turnos)
       const virou = passada.turnos.rodada !== turnos.rodada ? ` (rodada ${passada.turnos.rodada})` : ''
@@ -3297,25 +3360,20 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const acabaram = passada.acabaram ?? []
       // F3 (Q4): "· Atordoado acabou em Ilo" no fim da linha da vez.
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(turnos, personagens))}`
-      // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
-      const sp = spDoComecoDaVez(turnos, comLembretes, autor)
-      const linha: LinhaNova = {
-        tipo: 'vez',
+      comecarAVez(sceneKey, cena, {
+        antes: turnos,
+        depois: comLembretes,
+        sai: de,
+        entra: para,
         autor,
-        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${movidas.join('')}${fimDosSelos}${sp?.texto ?? ''}`,
+        texto: `${de === null ? `Começou: vez de ${nomeDaCarta(para, personagens)}` : `Vez: ${nomeDaCarta(de, personagens)} → ${nomeDaCarta(para, personagens)}${virou}`}${movidas.join('')}${fimDosSelos}`,
         tokenIds: [...new Set([de?.tokenId, para?.tokenId].filter((id): id is string => id !== undefined))],
-        // Os "Não reagiu" vieram antes da vez (fora de `mudou`); `fechados` diz ao Desfazer da vez quais linhas voltam junto.
-        reversao: { tipo: 'vez', antes: { vez: turnos.vez, rodada: turnos.rodada, removidas: passada.removidas, gastos: turnos.gastos, ...(movidas.length === 0 ? {} : { ordem: idsDaOrdem(turnos) }) }, ...(mudou === undefined ? {} : { mudou }), ...(fechados.length === 0 ? {} : { fechados }), ...(sp === null ? {} : { ficha: sp.ficha }) },
-      }
-      // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
-      const atual = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, { ...comMudanca(atual, comLembretes, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
-      // F2 (fatia F): a Doença das Trevas e as Chamas Celestes de quem saiu, numa linha própria (com Desfazer).
-      fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], turnos.rodada, autor)
-      // Fase C: o prazo das condições (o desconto de quem saiu, a vida por turno de quem entra).
-      prazosDaVez(sceneKey, de, para, autor)
-      // 18/11/2026: na virada, o prazo de quem está fora da ordem também anda (um turno por rodada).
-      if (passada.turnos.rodada !== turnos.rodada) prazosForaDaOrdem(sceneKey, autor)
+        removidas: passada.removidas,
+        ...(movidas.length === 0 ? {} : { ordem: idsDaOrdem(turnos) }),
+        fechados,
+        acabaram,
+        virou: passada.turnos.rodada !== turnos.rodada,
+      })
       return true
     },
 
@@ -3346,23 +3404,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const para = cartaDaVez(depois)
       const acabaram = selosQueSairam(antes, depois)
       const fimDosSelos = acabaram.length === 0 ? '' : ` · ${textoDosQueAcabaram(acabaram, nomeDoTokenNa(antes, personagens))}`
-      const mudou = mudancasDaVez(antes, depois)
-      // Conserto das fichas F1: +10 SP para quem começa a vez sem ter gastado SP na anterior.
-      const sp = spDoComecoDaVez(antes, depois, MESTRE)
-      const linha: LinhaNova = {
-        tipo: 'vez',
-        texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}${sp?.texto ?? ''}`,
-        tokenIds: para === null ? [] : [para.tokenId],
-        reversao: { tipo: 'vez', antes: { vez: antes.vez, rodada: antes.rodada, removidas, gastos: antes.gastos }, ...(mudou === undefined ? {} : { mudou }), ...(sp === null ? {} : { ficha: sp.ficha }) },
-      }
-      // A ficha passou pela aventura (o SP): grava sobre a cena de agora.
-      const atual = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, { ...comMudanca(atual, depois, linha), efeitos: comEfeitos(atual.efeitos, efeitosDosSelos(acabaram)) })
       // F2b (revisão da fatia F): o "Dar a vez" do mestre também acaba a vez de quem estava nela (Doença, Chamas, duração da forma).
       const de = cartaDaVez(antes)
-      if (de !== null && de.id !== para?.id) fimDaVezDasMecanicas(sceneKey, de, antes.gastos[de.id], antes.rodada, MESTRE)
-      // Fase C: o prazo das condições, como no "Passar a vez".
-      prazosDaVez(sceneKey, de !== null && de.id !== para?.id ? de : null, para, MESTRE)
+      comecarAVez(sceneKey, cena, {
+        antes,
+        depois,
+        sai: de !== null && de.id !== para?.id ? de : null,
+        entra: para,
+        autor: MESTRE,
+        texto: `Vez dada a ${nomeDaCarta(para, personagens)}${fimDosSelos}`,
+        tokenIds: para === null ? [] : [para.tokenId],
+        removidas,
+        fechados: [],
+        acabaram,
+        virou: false,
+      })
       return true
     },
 
