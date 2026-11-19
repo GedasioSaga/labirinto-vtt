@@ -1018,6 +1018,27 @@ const RECUSA_DBT_SEM_MOTIVO = 'O mestre recusou o pedido.'
 const PEDIDO_DBT_NAO_SAIU = 'O pedido não saiu. Confira a conexão e tente de novo.'
 
 /**
+ * BATALHA: o que chama o jogador de volta ao mapa ao vivo, numa chave que muda quando chega algo novo: o
+ * golpe esperando a reação de ficha dele, a vez dele, e no Dragon Ball a pendência que ele responde agora
+ * e a declaração da iniciativa. `''` = nada espera por ele.
+ */
+function chamadoDaBatalha(estado: PlayerState['batalhaEstado'], vistaDBT: PlayerState['batalhaDBTEstado']): string {
+  if (estado !== undefined) {
+    const reacoes = (estado.reacoes ?? []).map((reacao) => `${reacao.golpeId}:${reacao.tokenId}:${reacao.por ?? ''}`).join(',')
+    const vez = estado.minhaVez ? `${estado.vez ?? ''}:${estado.rodada}` : ''
+    return reacoes === '' && vez === '' ? '' : `${reacoes}|${vez}`
+  }
+  if (vistaDBT === undefined) return ''
+  const pendencias = vistaDBT.pendencias
+    .filter((pendencia) => pendencia.ativa)
+    .map((pendencia) => `${pendencia.id}:${pendencia.combatenteId}`)
+    .join(',')
+  const declaracoes = vistaDBT.declaracoes.map((declaracao) => declaracao.combatenteId).join(',')
+  const vez = vistaDBT.minhaVez ? `${vistaDBT.vez ?? ''}:${vistaDBT.rodada}:${vistaDBT.turno.n}` : ''
+  return pendencias === '' && declaracoes === '' && vez === '' ? '' : `${pendencias}|${declaracoes}|${vez}`
+}
+
+/**
  * BATALHA DBT: a última recusa do host (`batalhaDBT.resultado` com `ok: false`)
  * até o próximo recorte. Pedido aceito muda o recorte e a recusa velha sai;
  * recusado, o recorte não muda e o aviso fica. Os dois no mesmo quadro: fica a recusa.
@@ -1293,6 +1314,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   if (floorOfTab !== currentFloor) {
     setFloorOfTab(currentFloor)
     setFloorTab(null)
+  }
+  // BATALHA (conserto de 18/11/2026, "às vezes não aparece para reagir"): o menu da vez e a caixa REAÇÃO
+  // são do mapa ao vivo e não montam enquanto ele olha a memória de outro andar. Golpe novo esperando a
+  // reação dele (ou a vez dele que chega) traz a tela de volta ao andar ao vivo, no mesmo render.
+  const chamadoAgora = chamadoDaBatalha(state.batalhaEstado, vistaDBT)
+  const [chamadoVisto, setChamadoVisto] = useState(chamadoAgora)
+  if (chamadoVisto !== chamadoAgora) {
+    setChamadoVisto(chamadoAgora)
+    if (chamadoAgora !== '') setFloorTab(null)
   }
   /** Cada "Reconectar" conta uma tentativa nova e reinicia o prazo do aperto de mão. */
   const [attempt, setAttempt] = useState(0)
