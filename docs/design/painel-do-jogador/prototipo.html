@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo: painel do jogador na batalha</title>
+<!--
+  PROTÓTIPO, não é código do app. Um arquivo só, dados de mentira.
+  Pedido (19/11): "Da para melhorar esse painel." O alto da tela do jogador na batalha:
+  a barra (Painel, Minha ficha, Inventário, Ficha) e a faixa da ordem dos turnos.
+
+  O que muda, tudo cortando:
+  - A faixa mora no vão entre a barra e o canto da direita. Se as cartas não cabem nele,
+    ela desce para uma linha própria, com a largura toda. Nunca fica por baixo de botão.
+  - Na batalha a barra fica com "Painel" e três ícones, cada um com o nome no balão:
+    mira = "Centralizar em mim" (era "Minha ficha"), mochila = "Inventário (I)",
+    folha = "Ficha de personagem". Some a dupla "Minha ficha" / "Ficha", e o vão da faixa cresce.
+  - Sai o quadro da rodada (à direita da faixa): "Rodada" e "Você joga em N turnos" sobem
+    para o cabeçalho; "Turno N/M" e o nome de quem joga saem (a fita VEZ já diz);
+    "Passar a vez" sai: fica só "Encerrar vez", no menu da vez.
+  - Sai o número da posição e a etiqueta da equipe de cada carta. A equipe fica no anel
+    do retrato e numa legenda única no cabeçalho; o nome ganha duas linhas.
+  - "Vida oculta" em itálico vira o trilho tracejado (o leitor de tela ainda ouve "vida oculta").
+  - A sua carta ganha a fita VOCÊ. No pedido de reação, o dano que chega aparece na sua barra.
+  - A barra de rolagem some; ficam a borda esmaecida e o "‹ 2" / "3 ›" que já existem.
+  Cores, fontes e medidas de client/src/theme.ts, components/batalha/batalha.css,
+  components/batalha/combate.css e player/player.css.
+-->
+<style>
+:root {
+  --ink: #121214;
+  --stone: rgba(19, 19, 23, 0.94);
+  --stone-solid: #1a1a1e;
+  --raised: #232328;
+  --hover: #2c2c33;
+  --sunken: #141417;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-panel: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --parch: #eceae4;
+  --dim: #a2a09a;
+  --faint: #858480;
+  --brass: #e0a44a;
+  --brass-bright: #f3ba66;
+  --brass-soft: rgba(224, 164, 74, 0.14);
+  --brass-contrast: #1c1608;
+  --ember: #e2645a;
+  --ember-soft: rgba(226, 100, 90, 0.14);
+  --tide: #79a9cc;
+  --sangue: #b4493c;
+  --sangue-claro: #c75a4c;
+  --tinta: #0c0c0e;
+  --couro: linear-gradient(180deg, #2f2216, #251a11 50%, #17100a);
+  --gravado: #c8b089;
+  --gravado-forte: #ead6ae;
+  --filete-forte: rgba(236, 234, 228, 0.16);
+  --papel-alto: #1b1711;
+  --papel-baixo: #13100c;
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --util: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --semi: 'Bahnschrift SemiCondensed', 'Bahnschrift', 'Segoe UI', system-ui, sans-serif;
+  --titulo: 'Bahnschrift Condensed', 'Bahnschrift', 'DIN Alternate', 'Segoe UI', system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --sombra-float: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.44), 0 20px 46px rgba(0, 0, 0, 0.55);
+  --sombra-md: 0 6px 16px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --foco: 0 0 0 2px var(--stone-solid), 0 0 0 4px var(--brass);
+  --rasgo: polygon(0 3px, 6% 0, 13% 4px, 21% 1px, 28% 3px, 37% 0, 45% 4px, 52% 1px, 60% 3px, 68% 0, 76% 4px, 84% 1px, 92% 3px, 100% 0, calc(100% - 3px) 30%, 100% 60%, calc(100% - 2px) 100%, 92% calc(100% - 3px), 84% 100%, 76% calc(100% - 4px), 68% calc(100% - 1px), 60% calc(100% - 3px), 52% 100%, 45% calc(100% - 4px), 37% calc(100% - 1px), 28% calc(100% - 3px), 21% 100%, 13% calc(100% - 4px), 6% calc(100% - 1px), 0 calc(100% - 3px), 2px 60%, 0 30%);
+  --rasgo2: polygon(0 1px, 8% 4px, 16% 0, 24% 3px, 33% 1px, 41% 4px, 49% 0, 57% 3px, 65% 1px, 73% 4px, 81% 0, 89% 3px, 100% 1px, 100% 40%, calc(100% - 3px) 75%, 100% calc(100% - 1px), 89% 100%, 81% calc(100% - 4px), 73% calc(100% - 1px), 65% 100%, 57% calc(100% - 3px), 49% calc(100% - 1px), 41% 100%, 33% calc(100% - 4px), 24% calc(100% - 1px), 16% 100%, 8% calc(100% - 3px), 0 100%, 3px 70%, 0 35%);
+  --barra-proto: 44px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-height: 100vh; background: #050506; color: var(--parch); font: 13px/1.45 var(--sans); }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ------------------------------------------------ barra do protótipo (não faz parte do desenho) */
+.proto { position: sticky; top: 0; z-index: 50; height: var(--barra-proto); display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #0a0a0c; border-bottom: 1px dashed var(--line-strong); font: 12px/1 var(--util); color: var(--dim); }
+.proto__nome { color: var(--parch); white-space: nowrap; }
+.proto__grupo { display: flex; gap: 4px; }
+.proto__grupo button { min-height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; white-space: nowrap; }
+.proto__grupo button[aria-pressed='true'] { background: var(--parch); border-color: var(--parch); color: var(--tinta); font-weight: 600; }
+.proto__grupo button:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+.proto__nota { margin-left: auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+
+/* ------------------------------------------------ a janela do app */
+.janela { display: flex; justify-content: safe center; }
+.app { flex: none; }
+.app { position: relative; overflow: hidden; background: var(--ink); }
+
+/* O mapa é só cenário: chão, grade e fichas. A câmera anda quando o jogador pede "Centralizar em mim". */
+.mapa { position: absolute; inset: 0; overflow: hidden; background: #2b2c30; }
+.mapa__camada { position: absolute; left: 0; top: 0; width: 1800px; height: 1200px; transition: transform 360ms var(--ease-in-out); }
+.mapa__conves { position: absolute; left: 560px; top: 360px; width: 860px; height: 560px; border-radius: 280px 280px 40px 40px; background: #3a342c; box-shadow: 0 0 0 6px #2a251f, inset 0 0 0 2px rgba(0, 0, 0, 0.25); }
+.mapa__conves::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background-image: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0 2px, transparent 2px 48px); }
+.mapa__camada::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px); background-size: 48px 48px; }
+.token { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; display: grid; place-items: center; background: var(--raised); box-shadow: 0 0 0 3px var(--lado), 0 4px 12px rgba(0, 0, 0, 0.5); font: 700 13px/1 var(--util); color: var(--parch); }
+.token[data-vez] { box-shadow: 0 0 0 3px var(--lado), 0 0 0 6px var(--tinta), 0 0 0 9px var(--brass), 0 4px 12px rgba(0, 0, 0, 0.5); }
+.token[data-caiu] { opacity: 0.45; filter: grayscale(1); }
+.token__nome { position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 999px; background: rgba(12, 12, 14, 0.82); font: 400 11.5px/1.5 var(--sans); white-space: nowrap; }
+.token__onda { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--brass-bright); opacity: 0; pointer-events: none; }
+/* Duas ondas quando a câmera chega (o deslize leva 360 ms). */
+.token__onda[data-vai] { animation: onda 720ms var(--ease-out) 200ms backwards; }
+.token__onda + .token__onda[data-vai] { animation-delay: 360ms; }
+@keyframes onda { from { opacity: 0.9; transform: scale(0.9); } to { opacity: 0; transform: scale(2); } }
+
+/* ------------------------------------------------ a barra do jogador (couro, como .pp-toggle/.pp-mine/.pp-bag/.pp-ficha-btn) */
+.barra { position: absolute; top: 25px; left: 25px; z-index: 11; display: flex; gap: 6px; pointer-events: none; }
+.pb { pointer-events: auto; position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: 0; padding: 0 10px; border: 1px solid var(--filete-forte); border-radius: 9px; background-color: #251a11; background-image: var(--couro); box-shadow: var(--sombra-float); font: 500 14px/1.4 var(--util); color: var(--gravado); white-space: nowrap; cursor: pointer; touch-action: manipulation; transition: color 110ms ease, transform 110ms ease; }
+.pb svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.6)); }
+.pb--icone { width: 44px; padding: 0; justify-content: center; }
+.pb[aria-expanded='true'] { color: var(--gravado-forte); background-image: linear-gradient(rgba(255, 236, 200, 0.07), rgba(255, 236, 200, 0.07)), var(--couro); }
+.pb[aria-expanded='true'] .pb__seta { transform: rotate(180deg); }
+.pb__seta { transition: transform 170ms var(--ease-out); }
+.pb:active { transform: scale(0.97); transition-duration: 0ms; }
+.pb:focus-visible { outline: none; box-shadow: var(--foco); }
+@media (hover: hover) and (pointer: fine) {
+  .pb:hover { color: var(--gravado-forte); background-image: linear-gradient(rgba(255, 236, 200, 0.1), rgba(255, 236, 200, 0.1)), var(--couro); }
+}
+/* O balão do botão só-ícone: espera 320 ms no ponteiro (o tipDelay do tema); no teclado, aparece na hora. */
+.pb[data-dica]::after { content: attr(data-dica); position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; padding: 5px 9px; border-radius: 6px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra-md); font: 400 12px/1.3 var(--sans); color: var(--parch); white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(-2px); transition: opacity 125ms ease, transform 125ms var(--ease-out); }
+.pb[data-dica]:hover::after { opacity: 1; transform: none; transition-delay: 320ms; }
+.pb[data-dica]:focus-visible::after { opacity: 1; transform: none; transition-delay: 0ms; }
+/* Um balão já abriu: o do vizinho abre na hora, sem espera nem movimento. */
+.barra[data-quente] .pb[data-dica]::after { transition-duration: 0ms; transition-delay: 0ms; }
+
+/* O painel aberto: a coluna que abraça a barra (o conteúdo dele não muda e não está aqui). */
+.painel { position: absolute; top: 12px; left: 12px; bottom: 12px; z-index: 10; width: 300px; padding: 82px 16px 16px; border: 1px solid rgba(236, 234, 228, 0.09); border-radius: 14px; background: linear-gradient(180deg, var(--papel-alto), var(--papel-baixo)); box-shadow: var(--sombra-float); color: var(--dim); transform-origin: top left; animation: painel-entra 170ms var(--ease-out); }
+.painel p { margin: 0; max-width: 32ch; }
+@keyframes painel-entra { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+/* O canto da direita ("Onde estou"): só ocupa lugar aqui. */
+.canto { position: absolute; top: 12px; right: 12px; z-index: 9; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.selo { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra-md); font: 13px/1.2 var(--sans); color: var(--parch); cursor: pointer; }
+.selo small { font: 11px/1 var(--util); color: var(--faint); }
+.selo:active { transform: scale(0.97); }
+.selo:focus-visible { outline: none; box-shadow: var(--foco); }
+
+/* ------------------------------------------------ a faixa da ordem */
+/* Largura natural das cartas, com o teto do vão (posto por arrumar()): quando falta lugar, as cartas encolhem e depois rolam. */
+.faixa { position: absolute; z-index: 9; width: max-content; margin-inline: auto; padding: 8px 12px 6px; isolation: isolate; font-family: var(--sans); }
+.faixa::before, .faixa::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.faixa::before { z-index: -1; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel); clip-path: var(--rasgo); }
+.faixa::after { z-index: -2; background: var(--sangue); clip-path: var(--rasgo2); transform: translate(5px, 5px); }
+
+/* O cabeçalho mede pela faixa, não a alarga: quem dá a largura são as cartas. */
+.faixa__cab { contain: inline-size; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-height: 28px; padding-left: 2px; }
+.faixa__titulo { display: flex; align-items: baseline; gap: 10px; min-width: 0; margin: 0; font-weight: 400; }
+.faixa__rodada { font: 700 17px/1 var(--titulo); letter-spacing: 0.02em; color: var(--parch); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.faixa__estado { font: 12.5px/1.2 var(--util); color: var(--dim); white-space: nowrap; }
+.faixa__estado[data-tom='vez'] { color: var(--brass-bright); font-weight: 600; }
+.faixa__estado[data-tom='caiu'] { color: var(--ember); }
+.faixa__lados { display: flex; flex-wrap: wrap; gap: 2px 12px; min-width: 0; margin: 0 0 0 auto; padding: 0; list-style: none; }
+.lado { display: inline-flex; align-items: center; gap: 6px; font: 11.5px/1.3 var(--util); color: var(--dim); white-space: nowrap; }
+.lado i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lado); }
+.faixa__acoes { display: flex; gap: 2px; }
+.bt { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--dim); font: 11.5px/1 var(--sans); white-space: nowrap; cursor: pointer; transition: background-color 110ms ease, color 110ms ease, transform 120ms var(--ease-out); }
+.bt svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.bt:active { transform: scale(0.97); }
+.bt:focus-visible { outline: none; box-shadow: var(--foco); }
+.bt[aria-expanded='true'] { background: var(--brass-soft); color: var(--brass-bright); }
+@media (hover: hover) and (pointer: fine) { .bt:hover:not([aria-expanded='true']) { background: var(--hover); color: var(--parch); } }
+
+/* As cartas: sem barra de rolagem à vista. Quando não cabem, a borda esmaece e "‹ 2" / "3 ›" contam. */
+.cartas-caixa { position: relative; min-width: 0; }
+.cartas { display: flex; gap: 8px; min-width: 0; margin: 0; padding: 13px 4px 7px; list-style: none; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: 4px; scrollbar-width: none; }
+.cartas::-webkit-scrollbar { display: none; }
+.cartas[data-fora-dir] { mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.cartas[data-fora-esq] { mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.cartas[data-fora-esq][data-fora-dir] { mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+.fora { position: absolute; top: 50%; z-index: 2; min-width: 36px; min-height: 36px; padding: 2px 8px; border: 0; background: var(--tinta); color: var(--parch); font: 700 11.5px/1 var(--util); font-variant-numeric: tabular-nums; cursor: pointer; clip-path: polygon(0 3px, 100% 0, calc(100% - 2px) 100%, 2px calc(100% - 2px)); box-shadow: 3px 3px 0 var(--sangue); transform: translateY(-50%) rotate(-3deg); transition: transform 120ms var(--ease-out); }
+.fora[data-lado='esq'] { left: -6px; }
+.fora[data-lado='dir'] { right: -6px; }
+.fora:active { transform: translateY(-50%) rotate(-3deg) scale(0.97); }
+.fora:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+
+.carta { position: relative; flex: 0 1 auto; display: flex; width: 140px; min-width: 112px; scroll-snap-align: start; }
+.carta__corpo { position: relative; flex: 1; display: grid; grid-template-rows: auto auto 1fr; align-content: start; gap: 6px; min-width: 0; padding: 8px 8px 7px; border-radius: 9px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-panel), var(--bevel); color: var(--dim); font: 10.5px/1.2 var(--util); transition: transform 220ms var(--ease-out), box-shadow 170ms ease, opacity 170ms ease; }
+.carta[data-vez] .carta__corpo { transform: translateY(-4px); background: linear-gradient(180deg, rgba(224, 164, 74, 0.22), var(--raised) 70%); box-shadow: inset 0 0 0 2px var(--brass), var(--sombra-md); }
+.carta[data-caiu] .carta__corpo { opacity: 0.42; filter: grayscale(1); }
+
+/* Uma fita por carta: VEZ, A SEGUIR ou VOCÊ. Sem fita, ela some no lugar (sem pular). */
+.fita { position: absolute; top: -9px; left: 10px; padding: 0 6px; border-radius: 4px; font: 700 9.5px/16px var(--util); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; pointer-events: none; transition: opacity 150ms ease, transform 150ms var(--ease-out); }
+.fita:empty { opacity: 0; transform: translateY(2px); }
+.fita[data-tipo='vez'] { background: var(--brass); color: var(--brass-contrast); }
+.fita[data-tipo='seguir'] { background: var(--hover); color: var(--dim); font-weight: 400; }
+.fita[data-tipo='voce'] { background: var(--tinta); color: var(--parch); box-shadow: 2px 2px 0 var(--sangue); }
+
+/* O retrato e os selos numa linha; o nome embaixo, com a largura inteira da carta. */
+.carta__topo { display: flex; align-items: flex-start; gap: 6px; min-width: 0; min-height: var(--topo, 24px); }
+.av { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--sunken); box-shadow: 0 0 0 1.5px var(--lado); font: 700 9.5px/1 var(--util); color: var(--parch); }
+/*
+ * O nome quebra em palavras, até 3 linhas. Todas as cartas reservam as linhas do
+ * nome mais comprido da fila (--linhas, medido em arrumar()): as barras ficam na mesma altura.
+ */
+.carta__nome { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(var(--linhas, 2) * 1.2em); font: 600 12.5px/1.2 var(--semi); color: var(--parch); overflow-wrap: break-word; }
+
+.carta__vida { display: grid; gap: 5px; }
+.r__linha { display: flex; justify-content: space-between; gap: 4px; }
+.r__linha b { font-weight: 600; }
+.r[data-tom='hp'] .r__linha b { color: var(--ember); }
+.r[data-tom='sp'] .r__linha b { color: var(--tide); }
+.r__num { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.r__num small { font-size: inherit; color: var(--faint); }
+.trilho { position: relative; display: block; height: 5px; margin-top: 3px; border-radius: 3px; background: rgba(0, 0, 0, 0.45); overflow: hidden; }
+.trilho > b, .trilho > i { position: absolute; inset: 0; border-radius: inherit; transform-origin: left center; }
+/* A cor anda primeiro e o rastro claro alcança depois (o dano que some), como .bt-barra. */
+.trilho > b { background: rgba(255, 238, 220, 0.75); transition: transform 480ms var(--ease-out) 400ms; }
+.trilho > i { transition: transform 280ms var(--ease-out); }
+.r[data-tom='hp'] .trilho > i { background: var(--ember); }
+.r[data-tom='sp'] .trilho > i { background: var(--tide); }
+/* O dano que está chegando (pedido de reação): hachurado sobre o pedaço da barra que vai embora. */
+.trilho > s { position: absolute; top: 0; bottom: 0; left: calc(var(--depois) * 100%); width: calc((var(--antes) - var(--depois)) * 100%); background: repeating-linear-gradient(135deg, rgba(255, 238, 220, 0.85) 0 2px, transparent 2px 4px); }
+.r__perda { color: var(--ember); font-weight: 600; }
+/* Vida que o jogador não pode ver: o trilho tracejado, sem frase. */
+.trilho--oculta { height: 5px; background: none; border: 1px dashed rgba(255, 255, 255, 0.22); }
+.r.r--oculta .r__linha b { color: var(--faint); font-weight: 400; }
+
+/* Os selos ao lado do retrato: quebram de linha em vez de cortar; a linha de cima de todas as cartas acompanha a mais alta (--topo). */
+.carta__selos { display: flex; flex-wrap: wrap; align-content: center; gap: 3px; min-width: 0; min-height: 24px; }
+.selo-c { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; border-radius: 3px; background: var(--ember-soft); color: var(--ember); font: 700 9px/13px var(--util); letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.selo-c[data-natureza='carga'] { background: var(--brass-soft); color: var(--brass-bright); }
+
+/* Último recurso, quando nem a linha própria comporta as cartas a 112 px: a carta compacta. O número vai para o leitor de tela. */
+.faixa[data-compacta] .cartas { gap: 6px; }
+.faixa[data-compacta] .carta { min-width: 88px; }
+.faixa[data-compacta] .carta__corpo { gap: 5px; padding: 7px 6px 6px; }
+.faixa[data-compacta] .av { width: 20px; height: 20px; border-radius: 5px; font-size: 8.5px; }
+.faixa[data-compacta] .carta__nome { font-size: 11.5px; }
+.faixa[data-compacta] .carta__vida { gap: 4px; }
+.faixa[data-compacta] .r__linha { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.faixa[data-compacta] .trilho { margin-top: 0; height: 4px; }
+
+/* O Registro abre por cima, logo abaixo da faixa (como hoje). */
+.registro { position: absolute; top: calc(100% + 8px); right: 0; z-index: 3; width: min(360px, 100%); margin: 0; padding: 10px 12px; list-style: none; border-radius: 9px; background: var(--stone-solid); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra-md); font-size: 12px; color: var(--dim); transform-origin: top right; animation: entra 160ms var(--ease-out); }
+.registro li + li { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.registro b { color: var(--parch); font-weight: 600; }
+@keyframes entra { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+/* ------------------------------------------------ o menu da vez (já existe, igual ao app: .bt-vez e .bt-tira) */
+.vez { position: absolute; left: 24px; z-index: 9; width: clamp(280px, 30vw, 420px); color: var(--parch); }
+.vez__cabeca { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin: 0 0 10px 6px; transform: rotate(-3deg); transform-origin: left bottom; }
+.vez__quem { margin: 0; font: 700 clamp(22px, 2.4vw, 32px)/0.95 var(--titulo); letter-spacing: 0.02em; text-transform: uppercase; text-shadow: 3px 3px 0 var(--sangue); overflow-wrap: anywhere; }
+.vez__pips { display: flex; gap: 6px; padding-bottom: 3px; font: 10.5px/1.5 var(--util); letter-spacing: 0.08em; text-transform: uppercase; }
+.pip { padding: 1px 6px; border-radius: 3px; background: var(--parch); color: var(--tinta); font-weight: 700; }
+.tiras { display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 4px 26px 12px 6px; list-style: none; }
+.tira { position: relative; isolation: isolate; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 12px; width: 100%; min-height: 44px; padding: 8px 22px 10px 20px; border: 0; background: none; color: var(--parch); text-align: left; cursor: pointer; transform: rotate(var(--giro, -3deg)) translateX(var(--dx, 0px)); transition: transform 80ms var(--ease-out), color 80ms ease; }
+.tira::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--tinta); clip-path: var(--rasgo); transition: background-color 90ms ease; }
+.tira::after { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--sangue); clip-path: var(--rasgo2); transform: translate(5px, 5px); transition: transform 110ms var(--ease-out); }
+.tira__tecla { font: 700 13px/1 var(--util); color: var(--faint); }
+.tira__nome { font: 700 clamp(18px, 1.8vw, 26px)/1.05 var(--titulo); letter-spacing: 0.02em; text-transform: uppercase; }
+.tira__lado { font: 700 clamp(14px, 1.3vw, 19px)/1 var(--titulo); white-space: nowrap; }
+.tira[data-esta] { --dx: 14px; color: var(--tinta); }
+.tira[data-esta] .tira__tecla { color: var(--tinta); }
+.tira[data-esta]::before { background: var(--parch); }
+.tira[data-esta]::after { transform: translate(10px, 7px); }
+.tira:focus-visible { outline: none; }
+.tira:focus-visible::before { box-shadow: inset 0 0 0 2px var(--brass-bright); }
+.vez__nota { margin: 4px 0 0 8px; max-width: 40ch; font: 11.5px/1.4 var(--util); color: var(--dim); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+
+/* ------------------------------------------------ a caixa REAÇÃO (já existe, igual ao app: .bt-reacao) */
+.reacao { position: absolute; left: 50%; bottom: 58px; z-index: 11; width: min(540px, calc(100% - 24px)); padding: 18px 22px 20px; isolation: isolate; transform: translateX(-50%); transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out); }
+@starting-style { .reacao { opacity: 0; transform: translate(-50%, 16px) scale(0.97); } }
+.reacao::before, .reacao::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.reacao::before { z-index: -1; background: var(--tinta); clip-path: var(--rasgo); }
+.reacao::after { z-index: -2; background: var(--sangue); clip-path: var(--rasgo2); transform: translate(8px, 8px); }
+.reacao__topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.reacao__titulo { margin: 0; font: 700 40px/1 var(--titulo); letter-spacing: 0.02em; text-transform: uppercase; text-shadow: 3px 3px 0 var(--sangue); transform: rotate(-3deg); transform-origin: left; }
+.reacao__conta { font: 10.5px/1.4 var(--util); color: var(--faint); white-space: nowrap; }
+.reacao__texto { margin: 10px 0 4px; font-size: 14px; }
+.reacao__texto b { font-weight: 600; }
+.reacao__regra { margin: 0; font: 11.5px/1.4 var(--util); color: var(--dim); }
+.reacao__acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.papel { min-height: 40px; padding: 0 16px; border: 0; background: var(--parch); color: var(--tinta); font: 700 15px/1 var(--titulo); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; clip-path: polygon(0 3px, 100% 0, calc(100% - 2px) 100%, 2px calc(100% - 2px)); box-shadow: 4px 4px 0 var(--sangue); transition: transform 120ms var(--ease-out); }
+.papel:active { transform: scale(0.97); }
+.papel:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 3px; }
+.reacao .bt { min-height: 36px; color: var(--dim); font-size: 13px; }
+.dado { display: grid; place-items: center; width: 52px; height: 52px; margin-right: 6px; background: var(--parch); color: var(--tinta); font: 700 26px/1 var(--titulo); font-variant-numeric: tabular-nums; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.dado[data-vai] { animation: dado 260ms var(--ease-out); }
+@keyframes dado { from { transform: rotate(-40deg) scale(0.9); } }
+
+/* O aviso curto (como .pp-notice): sobe do pé e some sozinho. */
+.aviso { position: absolute; left: 50%; bottom: 24px; z-index: 20; margin: 0; padding: 8px 14px; border: 1px solid var(--line-panel); border-radius: 999px; background: var(--stone); box-shadow: var(--sombra-float); font-size: 14px; white-space: nowrap; transform: translateX(-50%); transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.aviso:not([data-visivel]) { opacity: 0; transform: translate(-50%, 6px); pointer-events: none; }
+
+/* Janela de mentira para Ficha, Inventário e Regras do campo (o conteúdo delas não muda). */
+dialog.janelinha { width: min(420px, calc(100% - 32px)); padding: 18px 20px 16px; border: 0; border-radius: 14px; background: var(--stone-solid); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra-float); color: var(--parch); transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
+@starting-style { dialog.janelinha[open] { opacity: 0; transform: scale(0.97); } }
+/* Aberta pela tecla I: aparece na hora (ação de teclado não anima). */
+dialog.janelinha[data-teclado] { transition: none; }
+dialog.janelinha::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.janelinha h2 { margin: 0 0 6px; font: 600 16px/1.3 var(--sans); }
+dialog.janelinha p { margin: 0 0 14px; color: var(--dim); }
+dialog.janelinha .bt { border-color: var(--line-strong); background: var(--raised); color: var(--parch); min-height: 32px; padding: 0 12px; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mapa__camada, .carta__corpo, .trilho > b, .trilho > i, .fita, .tira, .tira::after { transition-duration: 0ms !important; transition-delay: 0ms !important; }
+  .carta[data-vez] .carta__corpo { transform: none; }
+  .token__onda[data-vai], .dado[data-vai], .painel, .registro { animation: none; }
+  .token__onda[data-vai] { opacity: 0; }
+  .reacao { transition: opacity 200ms ease; }
+  @starting-style { .reacao { transform: translateX(-50%); } }
+  .aviso, .aviso:not([data-visivel]) { transform: translateX(-50%); }
+  .pb[data-dica]::after { transform: none !important; }
+  @starting-style { dialog.janelinha[open] { transform: none; } }
+}
+</style>
+</head>
+<body>
+
+<div class="proto">
+  <span class="proto__nome">Protótipo: painel do jogador na batalha</span>
+  <div class="proto__grupo" role="toolbar" aria-label="Estados">
+    <button type="button" data-estado="fora" aria-pressed="true">1 Fora da vez</button>
+    <button type="button" data-estado="sua" aria-pressed="false">2 Sua vez</button>
+    <button type="button" data-estado="reacao" aria-pressed="false">3 Pedido de reação</button>
+    <button type="button" data-estado="oito" aria-pressed="false">4 Oito na luta</button>
+  </div>
+  <div class="proto__grupo" role="toolbar" aria-label="Tamanho da janela">
+    <button type="button" data-tam="1440x900" aria-pressed="true">1440 × 900</button>
+    <button type="button" data-tam="1024x700" aria-pressed="false">1024 × 700</button>
+  </div>
+  <div class="proto__grupo"><button type="button" id="avancar">Avançar turno (mestre)</button></div>
+  <span class="proto__nota" id="nota"></span>
+</div>
+
+<div class="janela">
+  <div class="app" id="app" style="width:1440px;height:900px">
+    <div class="mapa" aria-hidden="true"><div class="mapa__camada" id="camada"><div class="mapa__conves"></div></div></div>
+
+    <aside class="painel" id="painel" aria-label="Painel" hidden>
+      <p>Chat, notas, grupo e lugares: o painel de sempre, sem mudança neste protótipo. Aberto, a faixa da ordem sai da frente dele.</p>
+    </aside>
+
+    <div class="barra" id="barra">
+      <button type="button" class="pb" id="b-painel" aria-expanded="false" aria-controls="painel">
+        <svg class="pb__seta" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>Painel
+      </button>
+      <button type="button" class="pb pb--icone" id="b-centro" aria-label="Centralizar em mim" data-dica="Centralizar em mim">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.6"/><path d="M8 1v2.4M8 12.6V15M1 8h2.4M12.6 8H15"/><circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="pb pb--icone" id="b-inv" aria-label="Inventário" aria-keyshortcuts="I" data-dica="Inventário (I)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 4.5V3.6A1.6 1.6 0 0 1 6.6 2h2.8A1.6 1.6 0 0 1 11 3.6v.9"/><rect x="3" y="4.5" width="10" height="9.5" rx="2"/><path d="M6 8.5h4"/></svg>
+      </button>
+      <button type="button" class="pb pb--icone" id="b-ficha" aria-label="Ficha de personagem" data-dica="Ficha de personagem">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 1.8h5l3 3v8.4a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1V2.8a1 1 0 0 1 1-1z"/><path d="M6 7.5h4.5M6 10h4.5M6 5h2"/></svg>
+      </button>
+    </div>
+
+    <section class="faixa" id="faixa" aria-labelledby="faixa-titulo">
+      <div class="faixa__cab">
+        <h2 class="faixa__titulo" id="faixa-titulo"><span class="faixa__rodada" id="rodada"></span><span class="faixa__estado" id="estado" aria-live="polite"></span></h2>
+        <ul class="faixa__lados" id="lados" aria-label="Equipes"></ul>
+        <div class="faixa__acoes">
+          <button type="button" class="bt" id="b-regras">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.2c1.8-.8 3.6-.8 5.5.4 1.9-1.2 3.7-1.2 5.5-.4v9.6c-1.8-.8-3.6-.8-5.5.4-1.9-1.2-3.7-1.2-5.5-.4z"/><path d="M8 3.6v9.6"/></svg>Regras do campo
+          </button>
+          <button type="button" class="bt" id="b-registro" aria-expanded="false" aria-controls="registro">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.6" cy="4" r=".8"/><circle cx="2.6" cy="8" r=".8"/><circle cx="2.6" cy="12" r=".8"/></svg>Registro
+          </button>
+        </div>
+      </div>
+      <div class="cartas-caixa">
+        <ol class="cartas" id="cartas" aria-label="Ordem dos turnos"></ol>
+        <button type="button" class="fora" data-lado="esq" id="fora-esq" hidden></button>
+        <button type="button" class="fora" data-lado="dir" id="fora-dir" hidden></button>
+      </div>
+      <ul class="registro" id="registro" hidden>
+        <li><b>Curandeira Ana Lúcia</b> cura Rin: +80 HP</li>
+        <li><b>Sapo Dourado</b> ficou atordoado por 1 rodada</li>
+        <li><b>Contramestre Brasa Ardente</b> errou Corte Duplo em Kaito</li>
+      </ul>
+    </section>
+
+    <div class="canto" id="canto">
+      <button type="button" class="selo" id="b-onde">Convés da Proa <small>Navio Andorinha</small></button>
+    </div>
+
+    <div class="vez" id="menu" hidden>
+      <div class="vez__cabeca">
+        <h2 class="vez__quem" id="menu-quem">Kaito, o Navegador</h2>
+        <div class="vez__pips"><span class="pip">Simples</span><span class="pip">Bônus</span><span class="pip">Mov 6</span></div>
+      </div>
+      <ul class="tiras" id="tiras" aria-label="Ações da vez">
+        <li><button type="button" class="tira" data-tecla="1" style="--giro:-3deg"><span class="tira__tecla">1</span><span class="tira__nome">Atacar</span><span class="tira__lado">2 armas</span></button></li>
+        <li><button type="button" class="tira" data-tecla="2" style="--giro:-2.2deg"><span class="tira__tecla">2</span><span class="tira__nome">Habilidades</span><span class="tira__lado">4</span></button></li>
+        <li><button type="button" class="tira" data-tecla="3" style="--giro:-3.4deg"><span class="tira__tecla">3</span><span class="tira__nome">Transformação</span><span class="tira__lado">1</span></button></li>
+        <li><button type="button" class="tira" data-tecla="4" style="--giro:-2.6deg"><span class="tira__tecla">4</span><span class="tira__nome">Concentrar</span><span class="tira__lado">2</span></button></li>
+        <li><button type="button" class="tira" data-tecla="5" style="--giro:-3deg"><span class="tira__tecla">5</span><span class="tira__nome">Encerrar vez</span><span class="tira__lado"></span></button></li>
+      </ul>
+      <p class="vez__nota">O menu da vez é o do app, sem mudança. Aqui só “Encerrar vez” age, e é o único jeito de passar a vez: a faixa não tem mais “Passar a vez”.</p>
+    </div>
+
+    <div class="reacao" id="reacao" role="dialog" aria-labelledby="reacao-titulo" hidden>
+      <div class="reacao__topo"><h2 class="reacao__titulo" id="reacao-titulo">Reação</h2><span class="reacao__conta">1 golpe esperando</span></div>
+      <p class="reacao__texto"><b>Contramestre Brasa Ardente</b> usa <b>Corte Duplo</b> em você: <b>180</b> de dano.</p>
+      <p class="reacao__regra">10+ defende (metade) · 15+ esquiva · 20 contra-ataca · 1 é falha crítica</p>
+      <div class="reacao__acoes" id="reacao-acoes"></div>
+    </div>
+
+    <p class="aviso" id="aviso" role="status"></p>
+
+    <dialog class="janelinha" id="janelinha">
+      <h2 id="janelinha-titulo"></h2>
+      <p id="janelinha-texto"></p>
+      <form method="dialog"><button class="bt" value="fechar">Fechar</button></form>
+    </dialog>
+  </div>
+</div>
+
+<script>
+const LADOS = {
+  t: { nome: 'Tripulação do Kaito', cor: '#7fb48a' },
+  p: { nome: 'Piratas da Barba Rubra', cor: '#ab93d6' },
+  m: { nome: 'Marinha do Porto Velho', cor: '#79a9cc' },
+}
+const GENTE = {
+  marujo: { nome: 'Marujo do Capitão Barba-Rubra', sig: 'MB', lado: 'p', oculta: true, x: 1130, y: 470 },
+  curandeira: { nome: 'Curandeira Ana Lúcia', sig: 'CA', lado: 't', hp: 500, hpMax: 500, sp: 200, spMax: 200, x: 760, y: 600 },
+  sapo: { nome: 'Sapo Dourado', sig: 'SD', lado: 'p', oculta: true, selos: [{ nome: 'Atordoado 1' }], x: 1230, y: 620 },
+  rin: { nome: 'Rin', sig: 'RI', lado: 't', hp: 320, hpMax: 420, sp: 90, spMax: 150, x: 820, y: 770 },
+  kaito: { nome: 'Kaito, o Navegador', sig: 'KA', lado: 't', voce: true, hp: 480, hpMax: 600, sp: 140, spMax: 180, selos: [{ nome: 'Conc 2', natureza: 'carga' }], x: 940, y: 690 },
+  brasa: { nome: 'Contramestre Brasa Ardente', sig: 'CB', lado: 'p', oculta: true, x: 1090, y: 760 },
+  tenente: { nome: 'Tenente Garra-de-Ferro', sig: 'TG', lado: 'm', oculta: true, x: 1320, y: 500 },
+  vigia: { nome: 'Vigia da Gávea Alta', sig: 'VG', lado: 'p', oculta: true, caiu: true, x: 1260, y: 820 },
+}
+const SEIS = ['marujo', 'curandeira', 'sapo', 'rin', 'kaito', 'brasa']
+const ESTADOS = {
+  fora: { ordem: SEIS, vez: 'curandeira', rodada: 2, nota: 'A faixa mora no vão entre a barra e o canto. Sem “Vida oculta” repetido, sem etiqueta de equipe cortada.' },
+  sua: { ordem: SEIS, vez: 'kaito', rodada: 2, menu: true, nota: 'Sua vez: a fita VEZ na sua carta e “Sua vez” no cabeçalho. Teclas 1 a 5 ou setas no menu; só “Encerrar vez” age.' },
+  reacao: { ordem: SEIS, vez: 'brasa', rodada: 2, reacao: { dano: 180 }, nota: 'Pedido de reação: o dano que chega aparece hachurado na sua barra de HP. Role o dado ou não reaja.' },
+  oito: { ordem: ['marujo', 'tenente', 'curandeira', 'sapo', 'rin', 'vigia', 'kaito', 'brasa'], vez: 'sapo', rodada: 3, nota: 'Oito na luta, três equipes: a carta compacta guarda o nome inteiro. Se não cabem, a faixa desce para uma linha só dela.' },
+}
+const DADOS = [16, 11, 7] // semente fixa: 1ª rolagem 16, depois 11, depois 7
+const MOV_REDUZIDO = matchMedia('(prefers-reduced-motion: reduce)').matches
+const $ = (id) => document.getElementById(id)
+const app = $('app')
+
+let S = null
+let rolagem = 0
+let avisoTimer = 0
+
+function iniciar(nome) {
+  const e = ESTADOS[nome]
+  S = {
+    nome, rodada: e.rodada, menu: !!e.menu,
+    ordem: e.ordem.map((id) => ({ id, ...structuredClone(GENTE[id]) })),
+    vez: e.ordem.indexOf(e.vez),
+    reacao: e.reacao ? { dano: e.reacao.dano, fase: 'antes', d20: null } : null,
+    esta: 0,
+  }
+  document.querySelectorAll('[data-estado]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.estado === nome)))
+  $('nota').textContent = e.nota
+  avisar('')
+  montarMapa()
+  montarFaixa()
+  atualizar()
+  mostrarMenu()
+  mostrarReacao()
+  arrumar()
+}
+
+/* ------------------------------------------------ o mapa (cenário) */
+function montarMapa() {
+  const camada = $('camada')
+  camada.querySelectorAll('.token').forEach((t) => t.remove())
+  for (const c of S.ordem) {
+    const t = document.createElement('div')
+    t.className = 'token'
+    t.dataset.id = c.id
+    t.style.cssText = `left:${c.x}px;top:${c.y}px;--lado:${LADOS[c.lado].cor}`
+    if (c.caiu) t.dataset.caiu = ''
+    t.innerHTML = `${c.sig}<span class="token__nome">${c.voce ? 'Você' : c.nome.split(' ')[0]}</span><span class="token__onda"></span><span class="token__onda"></span>`
+    camada.append(t)
+  }
+  camada.style.transition = 'none'
+  camada.style.transform = 'translate(-240px, -190px)'
+  camada.offsetWidth
+  camada.style.transition = ''
+}
+
+/* ------------------------------------------------ a faixa */
+/* Quantos turnos até o seu, pulando quem caiu. */
+function turnosAte(alvo) {
+  const n = S.ordem.length
+  let i = S.vez, passos = 0
+  while (i !== alvo && passos <= n) { i = proximaViva(i); passos++ }
+  return passos
+}
+
+function linhaDeVida(c, tom) {
+  const v = c[tom], max = c[tom + 'Max']
+  const rot = tom === 'hp' ? 'HP' : 'SP'
+  return `<div class="r" data-tom="${tom}">
+    <span class="r__linha"><b>${rot}</b><span class="r__num">${v}<small>/${max}</small></span></span>
+    <span class="trilho"><b style="transform:scaleX(${v / max})"></b><i style="transform:scaleX(${v / max})"></i></span>
+  </div>`
+}
+
+function htmlDaCarta(c) {
+  const lado = LADOS[c.lado]
+  const vida = c.oculta
+    ? `<div class="r r--oculta" data-tom="hp"><span class="r__linha"><b>HP</b></span><span class="trilho trilho--oculta"></span></div>`
+    : linhaDeVida(c, 'hp') + linhaDeVida(c, 'sp')
+  const selos = (c.selos ?? []).map((s) => `<span class="selo-c"${s.natureza ? ` data-natureza="${s.natureza}"` : ''}>${s.nome}</span>`).join('')
+  return `<div class="carta__corpo">
+      <span class="fita"></span>
+      <div class="carta__topo"><span class="av" aria-hidden="true">${c.sig}</span>${selos ? `<span class="carta__selos">${selos}</span>` : ''}</div>
+      <span class="carta__nome" title="${c.nome} (${lado.nome})">${c.nome}</span>
+      <div class="carta__vida">${vida}</div>
+    </div>`
+}
+
+function montarFaixa() {
+  const lista = $('cartas')
+  lista.innerHTML = ''
+  for (const c of S.ordem) {
+    const li = document.createElement('li')
+    li.className = 'carta'
+    li.dataset.id = c.id
+    li.style.setProperty('--lado', LADOS[c.lado].cor)
+    if (c.caiu) li.dataset.caiu = ''
+    li.innerHTML = htmlDaCarta(c)
+    lista.append(li)
+  }
+  // A legenda das equipes, uma vez só: a sua primeiro.
+  const meu = S.ordem.find((c) => c.voce).lado
+  const usados = [...new Set([meu, ...S.ordem.map((c) => c.lado)])]
+  $('lados').innerHTML = usados.map((l) => `<li class="lado" style="--lado:${LADOS[l].cor}"><i aria-hidden="true"></i>${LADOS[l].nome}</li>`).join('')
+  fecharRegistro()
+}
+
+/* Só atributos e números: a carta que ganha a vez sobe e a fita troca sem remontar a lista. */
+function atualizar() {
+  const n = S.ordem.length
+  const seguinte = proximaViva(S.vez)
+  const eu = S.ordem.findIndex((c) => c.voce)
+  S.ordem.forEach((c, i) => {
+    const li = $('cartas').children[i]
+    li.toggleAttribute('data-vez', i === S.vez)
+    const fita = li.querySelector('.fita')
+    const tipo = i === S.vez ? 'vez' : c.voce ? 'voce' : i === seguinte ? 'seguir' : ''
+    fita.dataset.tipo = tipo
+    fita.textContent = { vez: 'Vez', voce: 'Você', seguir: 'A seguir', '': '' }[tipo]
+    const partes = [c.nome]
+    if (i === S.vez) partes.push(c.voce ? 'sua vez' : 'vez agora')
+    else if (i === seguinte) partes.push('a seguir')
+    if (c.voce) partes.push('você')
+    partes.push(LADOS[c.lado].nome)
+    partes.push(c.caiu ? 'caiu' : c.oculta ? 'vida oculta' : `HP ${c.hp} de ${c.hpMax}, SP ${c.sp} de ${c.spMax}`)
+    li.setAttribute('aria-label', partes.join(', '))
+    if (!c.oculta) pintarVida(li, c)
+    const token = $('camada').querySelector(`[data-id="${c.id}"]`)
+    token?.toggleAttribute('data-vez', i === S.vez)
+  })
+  $('rodada').textContent = `Rodada ${S.rodada}`
+  const estado = $('estado')
+  const voce = S.ordem[eu]
+  if (voce.caiu) { estado.textContent = 'Você caiu'; estado.dataset.tom = 'caiu' }
+  else if (S.vez === eu) { estado.textContent = 'Sua vez'; estado.dataset.tom = 'vez' }
+  else {
+    const t = turnosAte(eu)
+    estado.textContent = t === 1 ? 'Você joga no próximo turno' : `Você joga em ${t} turnos`
+    estado.dataset.tom = ''
+  }
+  mostrarVez()
+}
+
+function pintarVida(li, c) {
+  for (const tom of ['hp', 'sp']) {
+    const r = li.querySelector(`.r[data-tom="${tom}"]`)
+    if (!r) continue
+    const v = c[tom] / c[tom + 'Max']
+    r.querySelector('.trilho > i').style.transform = `scaleX(${v})`
+    r.querySelector('.trilho > b').style.transform = `scaleX(${v})`
+    const num = r.querySelector('.r__num')
+    const perda = tom === 'hp' && S.reacao && S.reacao.fase !== 'feita' ? S.reacao.dano : 0
+    let s = r.querySelector('.trilho > s')
+    if (perda > 0 && c.voce) {
+      const depois = Math.max(0, c.hp - perda)
+      if (!s) { s = document.createElement('s'); r.querySelector('.trilho').append(s) }
+      s.style.setProperty('--antes', v)
+      s.style.setProperty('--depois', depois / c.hpMax)
+      num.innerHTML = `${c.hp} <span class="r__perda">−${perda}</span>`
+      num.title = `${c.hp} agora; ${depois} se receber o golpe inteiro`
+    } else {
+      s?.remove()
+      num.innerHTML = `${c[tom]}<small>/${c[tom + 'Max']}</small>`
+      num.removeAttribute('title')
+    }
+  }
+}
+
+function proximaViva(i) {
+  const n = S.ordem.length
+  for (let k = 1; k <= n; k++) { const j = (i + k) % n; if (!S.ordem[j].caiu) return j }
+  return i
+}
+
+function avancar() {
+  const j = proximaViva(S.vez)
+  if (j <= S.vez) S.rodada++
+  S.vez = j
+  S.reacao = null
+  mostrarReacao()
+  const eu = S.ordem.findIndex((c) => c.voce)
+  S.menu = S.vez === eu
+  atualizar()
+  mostrarMenu()
+  arrumar()
+}
+
+/* A carta da vez fica à vista quando a fila rola. */
+function mostrarVez() {
+  const lista = $('cartas')
+  const li = lista.children[S.vez]
+  if (!li || lista.scrollWidth <= lista.clientWidth) return
+  const esq = li.offsetLeft - 4, dir = li.offsetLeft + li.offsetWidth + 4
+  if (esq < lista.scrollLeft) lista.scrollTo({ left: esq, behavior: MOV_REDUZIDO ? 'auto' : 'smooth' })
+  else if (dir > lista.scrollLeft + lista.clientWidth) lista.scrollTo({ left: dir - lista.clientWidth, behavior: MOV_REDUZIDO ? 'auto' : 'smooth' })
+}
+
+function contarFora() {
+  const lista = $('cartas')
+  const temFora = lista.scrollWidth > lista.clientWidth + 1
+  let esq = 0, dir = 0
+  if (temFora) {
+    const a = lista.scrollLeft, b = a + lista.clientWidth
+    for (const li of lista.children) {
+      if (li.offsetLeft < a - 1) esq++
+      else if (li.offsetLeft + li.offsetWidth > b + 1) dir++
+    }
+  }
+  lista.toggleAttribute('data-fora-esq', esq > 0)
+  lista.toggleAttribute('data-fora-dir', dir > 0)
+  const be = $('fora-esq'), bd = $('fora-dir')
+  be.hidden = esq === 0; bd.hidden = dir === 0
+  be.textContent = `‹ ${esq}`; bd.textContent = `${dir} ›`
+  be.setAttribute('aria-label', `${esq} ${esq === 1 ? 'carta' : 'cartas'} antes`)
+  bd.setAttribute('aria-label', `${dir} ${dir === 1 ? 'carta' : 'cartas'} depois`)
+}
+
+/*
+ * Onde a faixa mora. Na linha de cima, no vão entre a barra (ou o painel aberto) e o
+ * canto, se TODAS as cartas cabem nele na largura mínima. Se não, numa linha só dela,
+ * logo abaixo, com a largura toda. Nos dois casos nada fica por baixo de um botão.
+ */
+function arrumar() {
+  const W = app.clientWidth
+  const faixa = $('faixa')
+  const painelAberto = !$('painel').hidden
+  const barra = $('barra').getBoundingClientRect()
+  const canto = $('canto').getBoundingClientRect()
+  const base = app.getBoundingClientRect()
+  const VAO = 16
+  const esquerda = painelAberto ? 12 + 300 + 12 : barra.right - base.left + VAO
+  const direita = canto.left - base.left - VAO
+  const n = S.ordem.length
+  // Cabem todas as cartas, cada uma com pelo menos `min` px? (8 de respiro da fila, 24 da faixa)
+  const cabe = (espaco, min, gap) => n * min + (n - 1) * gap + 8 + 24 <= espaco
+  const esq2 = painelAberto ? 12 + 300 + 12 : 12
+  const espaco2 = W - esq2 - 12
+  let compacta = false
+  if (cabe(direita - esquerda, 112, 8)) {
+    faixa.style.top = '12px'
+    faixa.style.left = `${Math.round(esquerda)}px`
+    faixa.style.right = `${Math.round(W - direita)}px`
+    faixa.style.maxWidth = `${Math.floor(direita - esquerda)}px`
+    faixa.dataset.linha = '1'
+  } else {
+    const fundo = Math.max(barra.bottom, canto.bottom) - base.top
+    faixa.style.top = `${Math.round(fundo + 12)}px`
+    faixa.style.left = `${esq2}px`
+    faixa.style.right = '12px'
+    faixa.style.maxWidth = `${espaco2}px`
+    faixa.dataset.linha = '2'
+    compacta = !cabe(espaco2, 112, 8)
+  }
+  faixa.toggleAttribute('data-compacta', compacta)
+  medirNomes()
+  const fim = faixa.getBoundingClientRect().bottom - base.top
+  $('menu').style.top = `${Math.round(fim + 14)}px`
+  $('menu').style.left = `${painelAberto ? 12 + 300 + 24 : 24}px`
+  contarFora()
+  mostrarVez()
+}
+
+/* Quantas linhas o nome mais comprido pede (1 a 3): todas as cartas reservam essas. */
+function medirNomes() {
+  const faixa = $('faixa')
+  faixa.style.setProperty('--linhas', '1')
+  faixa.style.setProperty('--topo', '24px')
+  let linhas = 1, topo = 24
+  for (const nome of faixa.querySelectorAll('.carta__nome')) {
+    const alt = parseFloat(getComputedStyle(nome).lineHeight)
+    linhas = Math.max(linhas, Math.min(3, Math.round(nome.scrollHeight / alt)))
+  }
+  for (const selos of faixa.querySelectorAll('.carta__selos')) topo = Math.max(topo, Math.ceil(selos.getBoundingClientRect().height))
+  faixa.style.setProperty('--linhas', String(linhas))
+  faixa.style.setProperty('--topo', `${topo}px`)
+}
+
+/* ------------------------------------------------ o menu da vez */
+function mostrarMenu() {
+  const menu = $('menu')
+  menu.hidden = !S.menu
+  if (S.menu) { S.esta = 0; marcarTira() }
+}
+function marcarTira() {
+  document.querySelectorAll('.tira').forEach((t, i) => t.toggleAttribute('data-esta', i === S.esta))
+}
+function usarTira(i) {
+  S.esta = i
+  marcarTira()
+  if (i === 4) {
+    avisar('Vez encerrada')
+    avancar()
+  }
+}
+
+/* ------------------------------------------------ a reação */
+function mostrarReacao() {
+  const caixa = $('reacao')
+  caixa.hidden = !S.reacao || S.reacao.fase === 'feita'
+  if (caixa.hidden) return
+  const acoes = $('reacao-acoes')
+  const dano = S.reacao.dano
+  if (S.reacao.fase === 'antes') {
+    acoes.innerHTML = `<button type="button" class="papel" id="rolar">Rolar 1d20</button><button type="button" class="bt" id="nao-reagir">Não reagir</button>`
+    $('rolar').onclick = rolar
+    $('nao-reagir').onclick = () => resolver('recebeu', dano)
+  } else {
+    const d = S.reacao.d20
+    const saidas = []
+    if (d >= 15) saidas.push(['esquivou', 'Esquivar', 0])
+    if (d >= 10) saidas.push(['defendeu', 'Defender', Math.ceil(dano / 2)])
+    saidas.push(['recebeu', 'Receber', dano])
+    acoes.innerHTML = `<span class="dado" data-vai aria-label="Tirou ${d}">${d}</span>` +
+      saidas.map(([k, rot, v], i) => `<button type="button" class="${i === 0 ? 'papel' : 'bt'}" data-saida="${k}" data-dano="${v}">${rot}: ${v} de dano</button>`).join('')
+    acoes.querySelectorAll('[data-saida]').forEach((b) => { b.onclick = () => resolver(b.dataset.saida, Number(b.dataset.dano)) })
+  }
+  acoes.querySelector('button')?.focus({ preventScroll: true })
+}
+function rolar() {
+  S.reacao.d20 = DADOS[rolagem++ % DADOS.length]
+  S.reacao.fase = 'depois'
+  mostrarReacao()
+}
+function resolver(como, dano) {
+  const eu = S.ordem.find((c) => c.voce)
+  S.reacao.fase = 'feita'
+  eu.hp = Math.max(0, eu.hp - dano)
+  mostrarReacao()
+  atualizar()
+  avisar({ esquivou: 'Você esquivou: 0 de dano', defendeu: `Você defendeu: ${dano} de dano`, recebeu: `Você recebeu ${dano} de dano` }[como])
+}
+
+/* ------------------------------------------------ barra, canto, janelas */
+/* O aviso some primeiro e só depois perde o texto: a pílula nunca fica vazia na tela. */
+function avisar(texto) {
+  const aviso = $('aviso')
+  clearTimeout(avisoTimer)
+  if (!texto) { aviso.removeAttribute('data-visivel'); aviso.textContent = ''; return }
+  aviso.textContent = texto
+  aviso.setAttribute('data-visivel', '')
+  avisoTimer = setTimeout(() => {
+    aviso.removeAttribute('data-visivel')
+    avisoTimer = setTimeout(() => { aviso.textContent = '' }, 200)
+  }, 2600)
+}
+function abrirJanela(titulo, texto, peloTeclado = false) {
+  const janela = $('janelinha')
+  $('janelinha-titulo').textContent = titulo
+  $('janelinha-texto').textContent = texto
+  janela.toggleAttribute('data-teclado', peloTeclado)
+  janela.showModal()
+}
+function abrirInventario(peloTeclado) {
+  abrirJanela('Inventário de Kaito', 'O inventário abre aqui, como hoje. Atalho: I.', peloTeclado)
+}
+function centralizar() {
+  const eu = S.ordem.find((c) => c.voce)
+  const base = app.getBoundingClientRect()
+  const alto = Math.max($('faixa').getBoundingClientRect().bottom - base.top, 0)
+  const cx = app.clientWidth / 2, cy = (alto + app.clientHeight) / 2
+  $('camada').style.transform = `translate(${Math.round(cx - eu.x)}px, ${Math.round(cy - eu.y)}px)`
+  const ondas = $('camada').querySelectorAll(`[data-id="${eu.id}"] .token__onda`)
+  ondas.forEach((o) => { o.removeAttribute('data-vai'); o.offsetWidth; o.setAttribute('data-vai', '') })
+}
+function fecharRegistro() {
+  $('registro').hidden = true
+  $('b-registro').setAttribute('aria-expanded', 'false')
+}
+
+$('b-painel').onclick = () => {
+  const p = $('painel')
+  p.hidden = !p.hidden
+  $('b-painel').setAttribute('aria-expanded', String(!p.hidden))
+  arrumar()
+}
+$('b-centro').onclick = centralizar
+$('b-onde').onclick = centralizar
+$('b-inv').onclick = () => abrirInventario(false)
+/* O balão: depois que um abriu (passou a espera), os vizinhos abrem na hora até o ponteiro sair da barra. */
+let balaoTimer = 0
+document.querySelectorAll('.pb[data-dica]').forEach((b) => {
+  b.addEventListener('pointerenter', () => { balaoTimer = setTimeout(() => $('barra').setAttribute('data-quente', ''), 320) })
+  b.addEventListener('pointerleave', () => clearTimeout(balaoTimer))
+})
+$('barra').addEventListener('pointerleave', () => { clearTimeout(balaoTimer); $('barra').removeAttribute('data-quente') })
+$('b-ficha').onclick = () => abrirJanela('Ficha de Kaito, o Navegador', 'A ficha de personagem abre aqui, como hoje.')
+$('b-regras').onclick = () => abrirJanela('Regras do campo', 'As regras que o mestre ligou para esta batalha, como hoje.')
+$('b-registro').onclick = (ev) => {
+  const r = $('registro')
+  r.hidden = !r.hidden
+  ev.currentTarget.setAttribute('aria-expanded', String(!r.hidden))
+}
+$('fora-esq').onclick = () => { const l = $('cartas'); l.scrollBy({ left: -l.clientWidth * 0.8, behavior: MOV_REDUZIDO ? 'auto' : 'smooth' }) }
+$('fora-dir').onclick = () => { const l = $('cartas'); l.scrollBy({ left: l.clientWidth * 0.8, behavior: MOV_REDUZIDO ? 'auto' : 'smooth' }) }
+$('cartas').addEventListener('scroll', contarFora, { passive: true })
+/* A roda do mouse em pé rola a fila deitada (só quando ela rola). */
+$('cartas').addEventListener('wheel', (ev) => {
+  const l = ev.currentTarget
+  if (l.scrollWidth <= l.clientWidth || Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return
+  ev.preventDefault()
+  l.scrollLeft += ev.deltaY
+}, { passive: false })
+document.querySelectorAll('.tira').forEach((t, i) => { t.onclick = () => usarTira(i) })
+$('avancar').onclick = avancar
+
+document.addEventListener('keydown', (ev) => {
+  if ($('janelinha').open || ev.ctrlKey || ev.metaKey || ev.altKey) return
+  if (ev.key === 'Escape' && !$('registro').hidden) { fecharRegistro(); $('b-registro').focus(); return }
+  if (S.menu && !$('menu').hidden) {
+    if (/^[1-5]$/.test(ev.key)) { ev.preventDefault(); usarTira(Number(ev.key) - 1); return }
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault()
+      S.esta = (S.esta + (ev.key === 'ArrowDown' ? 1 : 4)) % 5
+      marcarTira()
+      document.querySelectorAll('.tira')[S.esta].focus({ preventScroll: true })
+      return
+    }
+  }
+  if ((ev.key === 'i' || ev.key === 'I') && !(ev.target instanceof HTMLInputElement)) { ev.preventDefault(); abrirInventario(true) }
+})
+document.addEventListener('pointerdown', (ev) => {
+  if (!$('registro').hidden && !ev.target.closest('#registro, #b-registro')) fecharRegistro()
+})
+
+document.querySelectorAll('[data-estado]').forEach((b) => { b.onclick = () => iniciar(b.dataset.estado) })
+document.querySelectorAll('[data-tam]').forEach((b) => {
+  b.onclick = () => {
+    const [w, h] = b.dataset.tam.split('x')
+    app.style.width = `${w}px`
+    app.style.height = `${h}px`
+    document.querySelectorAll('[data-tam]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+    arrumar()
+  }
+})
+new ResizeObserver(() => arrumar()).observe($('canto'))
+
+iniciar(new URLSearchParams(location.search).get('estado') in ESTADOS ? new URLSearchParams(location.search).get('estado') : 'fora')
+const tam = new URLSearchParams(location.search).get('tam')
+if (tam) document.querySelector(`[data-tam="${tam}"]`)?.click()
+</script>
+</body>
+</html>
