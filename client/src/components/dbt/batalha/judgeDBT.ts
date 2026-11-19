@@ -8,8 +8,10 @@ import { useMapStore } from '../../../stores/mapStore'
  * O JUDGE NA BATALHA DBT (seção 20, fatia 3: o efeito do One Piece no
  * `App.tsx` replicado para a store DBT). Mesma infra do One Piece
  * (`lib/batalha/judge` e `lib/batalha/ondeNasceOJudge`): nasce perto de quem
- * está na batalha, em casa livre do piso deles, do mesmo lado das paredes
- * (pedido de 19/11/2026, mapa grande inclusive); o lugar onde o mestre o
+ * luta do lado dos jogadores (o lado da ordem DBT: o dos jogadores e quem
+ * divide o lado com eles; sem jogador na luta, de todos), em casa livre do
+ * piso deles, do mesmo lado das paredes (pedido de 19/11/2026, mapa grande
+ * inclusive); o lugar onde o mestre o
  * deixou neste mapa só vale se está perto desse grupo. Grade hex, ninguém da
  * batalha no mapa ou nenhuma casa livre: a regra de antes (`judgeInicial`), o
  * lembrado perto da primeira ficha da ordem, senão 2 casas ao norte dela,
@@ -26,16 +28,24 @@ function armazemDoJudge(): Storage | null {
   }
 }
 
+/** O que o Judge lê de cada combatente DBT: o token, o lado da ordem e se é NPC (o `EntranteDBT` serve). */
+export interface QuemLutaNaDBT {
+  tokenId: string
+  lado: string
+  npc: boolean
+}
+
 /**
- * Onde ele nasce na cena aberta. `tokenIds`: quem está na batalha (os tokens
- * dos combatentes), na ordem; o primeiro é a primeira ficha da regra de antes.
+ * Onde ele nasce na cena aberta. `combatentes`: quem está na batalha, na
+ * ordem; o primeiro é a primeira ficha da regra de antes.
  */
-export function judgeInicialDBT(sceneKey: string, aventuraId: string | null, tokenIds: readonly string[]): JudgeNaCena {
+export function judgeInicialDBT(sceneKey: string, aventuraId: string | null, combatentes: readonly QuemLutaNaDBT[]): JudgeNaCena {
   const mapa = useMapStore.getState().map
   const lembrado = lerJudgeLembrado(armazemDoJudge(), aventuraId, sceneKey)
-  const pertoDoGrupo = judgeNoMapaDaBatalha(mapa, tokenIds, lembrado)
+  const lados = combatentes.map((combatente) => ({ tokenId: combatente.tokenId, jogador: !combatente.npc, lado: combatente.lado }))
+  const pertoDoGrupo = judgeNoMapaDaBatalha(mapa, lados, lembrado)
   if (pertoDoGrupo !== null) return pertoDoGrupo
-  const primeiroTokenId = tokenIds.at(0)
+  const primeiroTokenId = combatentes.at(0)?.tokenId
   const primeira = primeiroTokenId === undefined ? undefined : mapa.tokens.find((token) => token.id === primeiroTokenId)
   // O centro da casa do meio (os pés numa casa, como a ficha).
   const centro = { x: (Math.floor(mapa.width / 2) + 0.5) * mapa.grid, y: (Math.floor(mapa.height / 2) + 0.5) * mapa.grid }
@@ -66,7 +76,9 @@ export function useJudgeDBT(sceneKey: string, aventuraId: string | null): { judg
     if (!ligada || judge !== null) return
     const cena = useBatalhaDBTStore.getState().cenas[sceneKey]
     if (cena === undefined) return
-    const inicial = judgeInicialDBT(sceneKey, aventuraId, cena.ordem.cartas)
+    // A carta da ordem é o id do combatente, que é o do token (`motor.ts`).
+    const combatentes = cena.ordem.cartas.flatMap((id) => (Object.hasOwn(cena.combatentes, id) ? [{ tokenId: id, lado: cena.combatentes[id].lado, npc: cena.combatentes[id].npc }] : []))
+    const inicial = judgeInicialDBT(sceneKey, aventuraId, combatentes)
     useBatalhaDBTStore.getState().moverJudge(sceneKey, inicial.x, inicial.y)
   }, [ligada, judge, sceneKey, aventuraId])
   const soltar = useCallback(

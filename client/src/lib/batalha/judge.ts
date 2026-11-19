@@ -282,7 +282,9 @@ function casasPertoDoGrupo(fontes: readonly Casa[], grade: GradeDoJudge, colunas
  *   `BLOCOS_DO_LEMBRADO` blocos e está livre;
  * - senão a casa livre achada mais perto do centro do grupo (empate: a mais
  *   ao norte, depois a mais a oeste).
- * Nenhum combatente na grade ou nenhuma casa livre: `null` (quem chama cai em `judgeInicial`).
+ * `grupo`: quem puxa o Judge; no mapa aberto, o lado dos jogadores
+ * (`ondeNasceOJudge.ts`). Nenhum do grupo na grade ou nenhuma casa livre:
+ * `null` (quem chama cai em `judgeInicial`).
  */
 export function judgePertoDoGrupo(grupo: readonly { x: number; y: number }[], lembrado: JudgeNaCena | null, grade: GradeDoJudge): JudgeNaCena | null {
   const { grid } = grade

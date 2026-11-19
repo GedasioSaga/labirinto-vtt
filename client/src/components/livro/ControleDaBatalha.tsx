@@ -10,14 +10,14 @@ import {
   type ArmazemDaAbertura,
 } from '../../lib/batalha/aberturaLembrada'
 import { lerJudgeLembrado } from '../../lib/batalha/judge'
-import { judgeNoMapaDaBatalha } from '../../lib/batalha/ondeNasceOJudge'
+import { combatentesDoJudge, judgeNoMapaDaBatalha } from '../../lib/batalha/ondeNasceOJudge'
 import { formasQueDesligamNoFim } from '../../lib/batalha/transformacao'
 import { combatentesIniciais, type Desempate } from '../../lib/batalha/turnos'
 import type { LadoDoNpc } from '../../lib/batalha/equipes'
 import type { EscolhaDaBatalha } from '../../lib/livros/combate'
 import { useToastStore } from '../../stores/toastStore'
 import { QuemEntraNaBatalha } from './QuemEntraNaBatalha'
-import { personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
+import { equipesAtivas, personagensAtivos, sistemaAtivo, useAdventureStore } from '../../stores/adventureStore'
 import { useBatalhaStore, type AberturaDaBatalha } from '../../stores/batalhaStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useRegrasDoCampoStore } from '../../stores/regrasDoCampoStore'
@@ -174,9 +174,11 @@ export function ControleDaBatalha({ sceneKey, gridShape, aventuraId, armazem }: 
     const mapa = useMapStore.getState().map
     const tokens = mapa.tokens.map((token) => ({ ...token, name: rotulos.get(token.id) ?? token.name }))
     const combatentes = combatentesIniciais(tokens, personagensAtivos(aventura), sistema, incluir)
-    // Pedido de 19/11/2026: o Judge nasce perto de quem entrou, em casa livre do piso deles (mapa grande inclusive).
+    // Pedido de 19/11/2026: o Judge nasce perto do lado dos jogadores (sem jogador na luta, de quem entrou), em casa
+    // livre do piso deles (mapa grande inclusive). As equipes já têm o lado escolhido em "Quem entra".
     // `null` (hex, ninguém no mapa, nenhuma casa livre): o App o põe logo depois, pela regra de sempre.
-    const judge = judgeNoMapaDaBatalha(mapa, combatentes.map((carta) => carta.tokenId), lerJudgeLembrado(guardado, aventuraId, sceneKey)) ?? undefined
+    const lados = combatentesDoJudge(combatentes, { equipes: equipesAtivas(aventura), personagens: personagensAtivos(aventura) })
+    const judge = judgeNoMapaDaBatalha(mapa, lados, lerJudgeLembrado(guardado, aventuraId, sceneKey)) ?? undefined
     useBatalhaStore.getState().ligar(sceneKey, abertura, { combatentes, regras, desempate, judge })
     // MUNIÇÃO: a Garrucha de vaga antiga atira as balas do Acervo; o disco responde antes de o mestre abrir a primeira mira.
     lerOAcervoSeFaltar()
