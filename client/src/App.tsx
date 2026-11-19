@@ -207,7 +207,7 @@ import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { consultaDoMestre, escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
 import { AvisoDaColocacao } from './components/batalha/InvocacoesDoMestre'
-import { fotosComAFormaVisivel, fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
+import { fotosComAFormaVisivel, fotosDaFormaDBT, fotosDaFormaDoMestre, selosNasFichasDoMestre, useFotosEstaveis, useSelosEstaveis } from './components/batalha/marcasNoMapa'
 import { formasVisiveisDoMapa } from './lib/mudarFicha'
 import { useImagemDaMesa } from './components/ImagemDaMesa'
 import { MarcasDaCena } from './components/MarcasDaCena'
@@ -1642,7 +1642,19 @@ function App() {
   // BATALHA F3 (fatia T): a imagem da forma e os selos nas fichas do mapa; o mesmo objeto enquanto nada muda.
   const turnosDaCenaAberta = useBatalhaStore((state) => (Object.hasOwn(state.cenas, chaveDaCenaAberta) ? state.cenas[chaveDaCenaAberta].turnos : undefined))
   const resolverDaMesa = useImagemDaMesa()
-  const fotosDaBatalha = useMemo(() => fotosDaFormaDoMestre(turnosDaCenaAberta, personagensEmUso, resolverDaMesa), [turnosDaCenaAberta, personagensEmUso, resolverDaMesa])
+  // Dragon Ball (análise 18/11/2026, 2.3): a forma ativa com imagem troca a foto do token, como no One Piece.
+  const combatentesDBTDaCena = useBatalhaDBTStore((state) => (Object.hasOwn(state.cenas, chaveDaCenaAberta) ? state.cenas[chaveDaCenaAberta].combatentes : undefined))
+  const fotosDaBatalha = useMemo(
+    () =>
+      fotosDaFormaDoMestre(turnosDaCenaAberta, personagensEmUso, resolverDaMesa) ??
+      (combatentesDBTDaCena === undefined
+        ? null
+        : fotosDaFormaDBT(
+            Object.values(combatentesDBTDaCena).map((c) => ({ tokenId: c.id, imagem: c.transformacao?.imagem })),
+            resolverDaMesa,
+          )),
+    [turnosDaCenaAberta, combatentesDBTDaCena, personagensEmUso, resolverDaMesa],
+  )
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoMestre(turnosDaCenaAberta), [turnosDaCenaAberta]))
   const aventuraDoJudge = adventure?.id ?? null
   // A batalha ligou sem Judge: ele nasce onde o mestre o deixou neste mapa, senão 2 casas ao norte da primeira ficha da ordem.

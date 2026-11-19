@@ -51,6 +51,7 @@ function grupoDa(chave: string): string {
   if (prefixo === 'tecnica' || prefixo === 'carregar') return 'Técnicas'
   if (prefixo === 'transformar' || prefixo === 'destransformar') return 'Transformação'
   if (prefixo === 'voo') return 'Voo'
+  if (prefixo === 'item') return 'Itens'
   return 'Outras ações'
 }
 

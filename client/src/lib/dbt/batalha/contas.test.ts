@@ -45,6 +45,7 @@ function fichaLida(parcial: Partial<FichaLida> = {}): FichaLida {
     tecnicas: [],
     transformacoes: [],
     movimentos: [],
+    itens: [],
     ...parcial,
   }
 }

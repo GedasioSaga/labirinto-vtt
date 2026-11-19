@@ -1,4 +1,5 @@
 import { atributoComposto, maximoComposto } from '../../ajusteDaFicha'
+import { ehImagemDaMesa } from '../../midia'
 import { MOTOR_PADRAO, motorDoSistema } from '../../motores'
 import { numeroDaFicha, type Personagem } from '../../personagem'
 import type { SistemaDeRpg } from '../../sistemaDeRpg'
@@ -67,6 +68,8 @@ export interface TransformacaoLida {
   epBonus: number
   ki: number
   maxima: boolean
+  /** A imagem do token nesta forma (referência de mídia ou a embutida, da ficha). Ausente = o token não troca. */
+  imagem?: string
 }
 
 export interface MovimentoLido {
@@ -74,6 +77,15 @@ export interface MovimentoLido {
   nome: string
   ki: number | null
   reacao: boolean
+}
+
+/** Item do inventário que se usa na batalha ("Usar item", análise 18/11/2026, 2.3): o que se gasta, não armadura. */
+export interface ItemLido {
+  id: string
+  nome: string
+  quantidade: number
+  /** A descrição da ficha: o efeito vai na linha para o mestre aplicar (o item DBT não tem cura estruturada). */
+  efeito: string
 }
 
 export interface FichaLida {
@@ -106,6 +118,8 @@ export interface FichaLida {
   formaAtiva?: string
   /** Movimentos marciais e talentos ativos com [KI: X]. */
   movimentos: readonly MovimentoLido[]
+  /** O inventário que se gasta (com unidade sobrando ou não); armadura fica de fora. */
+  itens: readonly ItemLido[]
 }
 
 /**
@@ -376,7 +390,15 @@ function movimentosDaFicha(ficha: FichaDBT): MovimentoLido[] {
 
 function transformacoesDaFicha(ficha: FichaDBT): TransformacaoLida[] {
   const maiorEstagio = ficha.transformacoes.reduce((maior, forma) => Math.max(maior, forma.estagio), 0)
-  return ficha.transformacoes.map((forma) => ({ id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.ep, ki: forma.custoKi, maxima: forma.estagio === maiorEstagio }))
+  return ficha.transformacoes.map((forma) => ({
+    id: forma.id,
+    nome: forma.nome,
+    estagio: forma.estagio,
+    epBonus: forma.ep,
+    ki: forma.custoKi,
+    maxima: forma.estagio === maiorEstagio,
+    ...(ehImagemDaMesa(forma.imagem) ? { imagem: forma.imagem } : {}),
+  }))
 }
 
 /** A ficha pela batalha; null = sem `dbt` (combatente manual) ou sistema de outro motor. */
@@ -407,7 +429,15 @@ export function lerFichaParaBatalha(personagem: Personagem, sistema: SistemaDeRp
     transformacoes: transformacoesDaFicha(ficha),
     ...(ficha.transformacaoAtiva !== null && ficha.transformacoes.some((forma) => forma.id === ficha.transformacaoAtiva) ? { formaAtiva: ficha.transformacaoAtiva } : {}),
     movimentos: movimentosDaFicha(ficha),
+    itens: itensDeUsar(ficha),
   }
+}
+
+/** Armadura (soma na CA ou gasta Ki por turno) se veste, não se usa: fora do "Usar item". */
+function itensDeUsar(ficha: FichaDBT): ItemLido[] {
+  return ficha.inventario
+    .filter((item) => item.bonusCA === 0 && item.kiPorTurno === 0)
+    .map((item) => ({ id: item.id, nome: item.nome, quantidade: item.quantidade, efeito: item.descricao.trim() }))
 }
 
 /** As fichas de quem está na batalha, por personagem. */

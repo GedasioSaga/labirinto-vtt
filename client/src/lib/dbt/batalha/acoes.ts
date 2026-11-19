@@ -87,6 +87,12 @@ export function opcoesDeAcao(t: Trabalho, id: IdDoCombatente): OpcaoDeAcao[] {
     opcoes.push(opcao({ chave: `movimento:${movimento.id}`, rotulo: movimento.nome, ki: movimento.ki, bloqueio: semKi(movimento.ki), alvo: 'nenhum' }))
   }
   opcoes.push(narrativa)
+  // "Usar item" (análise 18/11/2026, 2.3): depois da narrativa, para o teto do fio cortar item e não ação. Item
+  // acabado sai da lista (o inventário guarda até o que é só narrativo; com zero unidades não há o que usar).
+  for (const item of f.itens) {
+    if (item.quantidade <= 0) continue
+    opcoes.push(opcao({ chave: `item:${item.id}`, rotulo: `Usar ${item.nome} (${item.quantidade})`, ki: 0, bloqueio: null, alvo: 'nenhum' }))
+  }
   return opcoes
 }
 
@@ -228,9 +234,32 @@ export function agir(t: Trabalho, comando: Extract<ComandoDBT, { tipo: 'agir' }>
     case 'narrativa':
       escrever(t, `${c.nome}: ação narrativa`)
       return null
+    case 'item':
+      return usarItem(t, id, resto)
     default:
       return 'Ação desconhecida'
   }
+}
+
+/**
+ * "Usar item": gasta 1 unidade do inventário da ficha (a store grava; o Desfazer devolve) e escreve o efeito da
+ * descrição para o mestre aplicar. O item DBT não tem cura nem dano estruturado, então nada muda sozinho além da conta.
+ */
+function usarItem(t: Trabalho, id: IdDoCombatente, itemId: string): string | null {
+  const c = combatente(t, id)
+  const f = fichaDe(t, c)
+  const item = f?.itens.find((candidato) => candidato.id === itemId)
+  if (c === undefined || f === null || item === undefined) return 'Item não existe'
+  const jaGasto = t.itens.find((gasto) => gasto.personagemId === f.personagemId && gasto.itemId === itemId)
+  const antes = jaGasto?.quantidade ?? item.quantidade
+  if (antes <= 0) return 'O item acabou'
+  const depois = antes - 1
+  if (jaGasto === undefined) t.itens.push({ personagemId: f.personagemId, itemId, quantidade: depois })
+  else jaGasto.quantidade = depois
+  tipoDaLinha(t, 'acao')
+  const efeito = item.efeito === '' ? 'o mestre aplica o efeito' : `${item.efeito.slice(0, TEXTO_DBT_MAX)} (o mestre aplica)`
+  escrever(t, `${c.nome} usa ${item.nome} (${antes} -> ${depois}): ${efeito}`, `${c.nome} usa ${item.nome}`)
+  return null
 }
 
 function marcarTecnica(t: Trabalho, id: IdDoCombatente, tecnicaId: string): void {

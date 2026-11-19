@@ -101,6 +101,11 @@ export interface CartaDBT {
   condicoes: readonly CondicaoNaVistaDBT[]
   /** Nome da transformação ativa (a forma se vê). */
   transformacao: string | null
+  /**
+   * A imagem do token na forma ativa (referência de mídia ou a embutida), como o `aparencias` do One Piece: o
+   * token troca de foto no mapa do jogador. Ausente = sem forma, ou forma sem imagem. Opcional: o fio velho não a manda.
+   */
+  fotoDaForma?: string
   voo: NivelDeVoo
   situacao: SituacaoDeMorte
   /** Agarrado: quem agarra, se a tela dele tem a ficha; `agarrado` diz se está preso. */
@@ -373,6 +378,7 @@ function cartasDaVista(cena: NucleoDBT, fichas: Fichas, ctx: ContextoDoJogadorDB
         .slice(0, CONDICOES_DBT_MAX)
         .map((condicao) => ({ id: condicao.id, condicao: condicao.condicao, nome: cortar(condicao.nome, NOME_DBT_MAX) })),
       transformacao: c.transformacao === null ? null : cortar(c.transformacao.nome, NOME_DBT_MAX),
+      ...(c.transformacao?.imagem === undefined ? {} : { fotoDaForma: c.transformacao.imagem }),
       voo: c.voo,
       situacao: c.morte.situacao,
       agarrado: c.agarrado !== null,

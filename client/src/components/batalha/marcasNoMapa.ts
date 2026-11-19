@@ -32,6 +32,21 @@ export function fotosDaFormaDoMestre(turnos: TurnosDaCena | undefined, personage
   return fotos.size === 0 ? null : fotos
 }
 
+/**
+ * Dragon Ball Tales (análise 18/11/2026, 2.3): por tokenId, a imagem da forma ativa na batalha, já em `src`.
+ * Mestre passa os combatentes (`transformacao.imagem`); jogador, as cartas da vista (`fotoDaForma`, só as que ele vê).
+ * Uma cena nunca está nas duas batalhas, então quem chama usa a do One Piece OU esta.
+ */
+export function fotosDaFormaDBT(formas: Iterable<{ tokenId: string; imagem: string | undefined }>, resolver: ResolverDeImagem): FotosDaForma | null {
+  const fotos = new Map<string, string>()
+  for (const { tokenId, imagem } of formas) {
+    if (imagem === undefined || fotos.has(tokenId)) continue
+    const src = resolver(imagem)
+    if (src !== null) fotos.set(tokenId, src)
+  }
+  return fotos.size === 0 ? null : fotos
+}
+
 /** Jogador: o host já mandou só as imagens que ele pode ver (`aparencias`); aqui só vira `src`. */
 export function fotosDaFormaDoJogador(estado: EstadoParaJogador | null | undefined, resolver: ResolverDeImagem): FotosDaForma | null {
   const aparencias = estado?.aparencias

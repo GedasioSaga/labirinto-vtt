@@ -7,8 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import type { MesaDaBatalha } from '../../batalha/mesa'
 import { novoPersonagem, type Personagem } from '../../personagem'
+import { fotosDaFormaDBT } from '../../../components/batalha/marcasNoMapa'
 import { criarBatalhaDBTStore } from '../../../stores/batalhaDBTStore'
-import { fichaDBTVazia } from '../modelo'
+import { fichaDBTVazia, type FichaDBT } from '../modelo'
 import { SISTEMA_DRAGON_BALL } from '../sistemaDragonBall'
 import type { AutorDBT } from './tipos'
 
@@ -127,4 +128,61 @@ describe('batalha DBT na store', () => {
     expect(Object.keys(loja.getState().cenas)).toEqual([CENA])
     expect(outra.getState().cenas).toEqual({})
   })
+
+  it('"Usar item" gasta 1 unidade do inventário com o efeito na linha; o desfazer devolve a unidade', () => {
+    const { loja, ler, mesa } = batalhaIniciada()
+    mesa.ajustarPersonagem('goku', (p) => comFicha(p, (ficha) => ({ ...ficha, inventario: [SEMENTE] })))
+    const resposta = loja.getState().comando(CENA, ANA, { tipo: 'agir', combatenteId: 't-goku', vez: { rodada: 1, turno: 1 }, opcao: 'item:i-semente', alvos: [] })
+    expect(resposta).toEqual({ ok: true })
+    expect(ler('goku').dbt?.inventario[0].quantidade).toBe(1)
+    const linha = loja.getState().cenas[CENA].registro.at(-1)
+    if (linha === undefined) throw new Error('sem linha')
+    expect(linha.texto).toBe('Goku usa Semente dos Deuses (2 -> 1): Recupera todo o PV e o Ki (o mestre aplica)')
+    expect(loja.getState().desfazer(CENA, linha.id, ANA)).toBe(true)
+    expect(ler('goku').dbt?.inventario[0].quantidade).toBe(2)
+  })
+
+  it('a forma com imagem na ficha vai ao combatente ao transformar, e vira a foto do token', () => {
+    const { loja, mesa } = batalhaIniciada()
+    mesa.ajustarPersonagem('goku', (p) => comFicha(p, (ficha) => ({ ...ficha, transformacoes: [KAIOKEN] })))
+    const resposta = loja.getState().comando(CENA, ANA, { tipo: 'agir', combatenteId: 't-goku', vez: { rodada: 1, turno: 1 }, opcao: 'transformar:f-kaioken', alvos: [] })
+    expect(resposta).toEqual({ ok: true })
+    const combatentes = Object.values(loja.getState().cenas[CENA].combatentes)
+    expect(combatentes.find((c) => c.id === 't-goku')?.transformacao?.imagem).toBe(IMAGEM_DA_FORMA)
+    const fotos = fotosDaFormaDBT(
+      combatentes.map((c) => ({ tokenId: c.id, imagem: c.transformacao?.imagem })),
+      (imagem) => `src:${imagem}`,
+    )
+    expect(fotos).toEqual(new Map([['t-goku', `src:${IMAGEM_DA_FORMA}`]]))
+  })
 })
+
+const IMAGEM_DA_FORMA = `midia:${'a'.repeat(64)}.png`
+const SEMENTE: FichaDBT['inventario'][number] = {
+  id: 'i-semente',
+  livroId: null,
+  nome: 'Semente dos Deuses',
+  quantidade: 2,
+  carga: 0,
+  equipado: false,
+  descricao: 'Recupera todo o PV e o Ki',
+  bonusCA: 0,
+  kiPorTurno: 0,
+}
+const KAIOKEN: FichaDBT['transformacoes'][number] = {
+  id: 'f-kaioken',
+  livroId: null,
+  nome: 'Kaioken',
+  estagio: 1,
+  ep: 2,
+  custoKi: 0,
+  kiPorRodada: 0,
+  efeitos: '',
+  origem: '',
+  imagem: IMAGEM_DA_FORMA,
+}
+
+function comFicha(personagem: Personagem, mudar: (ficha: FichaDBT) => FichaDBT): Personagem {
+  if (personagem.dbt === undefined) throw new Error(`sem ficha DBT em ${personagem.id}`)
+  return { ...personagem, dbt: mudar(personagem.dbt) }
+}

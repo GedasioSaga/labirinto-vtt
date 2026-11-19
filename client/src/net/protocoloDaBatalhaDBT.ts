@@ -1,4 +1,5 @@
 import { lerJudgeNaCena } from '../lib/batalha/judge'
+import { ehImagemDaMesa } from '../lib/midia'
 import { personagemDoArquivo, type Personagem } from '../lib/personagem'
 import {
   APOSTA_DO_CHOQUE_MAX,
@@ -427,7 +428,12 @@ function lerCarta(value: unknown): CartaDBT | null {
   if (lado === 'outro' && (pv !== null || pk !== null)) return null
   const carta: CartaDBT = { tokenId, nome, lado, iniciativa, pv, pk, condicoes, transformacao, voo, situacao, agarrado, agarradoPor }
   // Opcionais: ausente fica de fora; presente e torto derruba a carta.
-  const { mesmoLado, personagemId } = value
+  const { mesmoLado, personagemId, fotoDaForma } = value
+  if (fotoDaForma !== undefined) {
+    // Só referência de mídia ou a embutida (`ehImagemDaMesa`): endereço solto no fio é forjado.
+    if (!ehImagemDaMesa(fotoDaForma)) return null
+    carta.fotoDaForma = fotoDaForma
+  }
   if (mesmoLado !== undefined) {
     if (typeof mesmoLado !== 'boolean') return null
     carta.mesmoLado = mesmoLado

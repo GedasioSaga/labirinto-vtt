@@ -56,6 +56,8 @@ export interface Trabalho {
   readonly prazos: Map<IdDoCombatente, Token>
   /** Fase C: quem teve o prazo descontado neste comando. */
   readonly prazosMudados: Set<IdDoCombatente>
+  /** "Usar item": a quantidade final de cada item gasto neste comando (a store grava no inventário da ficha). */
+  readonly itens: { personagemId: string; itemId: string; quantidade: number }[]
 }
 
 export const PASSOS_MAX = 200
@@ -77,6 +79,7 @@ export function novoTrabalho(nucleo: NucleoDBT, ctx: ContextoDBT, autor: AutorDB
     passos: 0,
     prazos: new Map(ctx.prazos ?? []),
     prazosMudados: new Set(),
+    itens: [],
   }
 }
 

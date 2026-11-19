@@ -89,7 +89,7 @@ import { lerFichaParaBatalha, type FichaLida } from '../lib/dbt/batalha/leitura'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
-import { formasDoRecorte, fotosComAFormaVisivel, fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
+import { formasDoRecorte, fotosComAFormaVisivel, fotosDaFormaDBT, fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
 import { DancaOverlay, type AjustesDaTelaDaDanca } from '../minigames/danca/tela/DancaOverlay'
@@ -1040,6 +1040,8 @@ function chamadoDaBatalha(estado: PlayerState['batalhaEstado'], vistaDBT: Player
 
 /**
  * BATALHA DBT: a última recusa do host (`batalhaDBT.resultado` com `ok: false`)
+  // Dragon Ball (análise 18/11/2026, 2.3): a forma ativa com imagem vem na carta da vista (`fotoDaForma`).
+  const cartasDBT = state.batalhaDBTEstado?.cartas
  * até o próximo recorte. Pedido aceito muda o recorte e a recusa velha sai;
  * recusado, o recorte não muda e o aviso fica. Os dois no mesmo quadro: fica a recusa.
  */
@@ -1061,10 +1063,12 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // MUDAR FICHA: fora da batalha, a imagem de forma que o recorte pendurou em cada token (`Token.fotoDaForma`); a da batalha vence.
   const tokensDoRecorte = state.map?.tokens
   const fotoDaForma = useFotosEstaveis(
-    useMemo(
-      () => fotosComAFormaVisivel(fotosDaFormaDoJogador(batalhaEstado, resolverDaMesa), formasDoRecorte(tokensDoRecorte), resolverDaMesa),
-      [batalhaEstado, tokensDoRecorte, resolverDaMesa],
-    ),
+    useMemo(() => {
+      const daBatalha =
+        fotosDaFormaDoJogador(batalhaEstado, resolverDaMesa) ??
+        (cartasDBT === undefined ? null : fotosDaFormaDBT(cartasDBT.map((carta) => ({ tokenId: carta.tokenId, imagem: carta.fotoDaForma })), resolverDaMesa))
+      return fotosComAFormaVisivel(daBatalha, formasDoRecorte(tokensDoRecorte), resolverDaMesa)
+    }, [batalhaEstado, cartasDBT, tokensDoRecorte, resolverDaMesa]),
   )
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoJogador(batalhaEstado), [batalhaEstado]))
   // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).

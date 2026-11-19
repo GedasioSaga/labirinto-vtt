@@ -3,6 +3,7 @@ import { agir } from './acoes'
 import { resolverJanela } from './ataque'
 import { aplicarCondicao, pedirQueda, tirarCondicao } from './condicoes'
 import { casasDoDeslocamento, kiDaCorrida, modEfetivo, temCondicao } from './contas'
+import { formaAtiva } from './formas'
 import type { FichaLida } from './leitura'
 import { comecar, iniciarTurno, inserirNaOrdem, passarAVez, rolarIniciativas, terminarTurno } from './ordem'
 import { responder } from './pendencias'
@@ -55,6 +56,8 @@ export interface ResultadoDBT {
   efeitos: readonly Omit<EfeitoDBT, 'seq'>[]
   /** Fase C: as fichas do mapa cujo prazo o fim da vez descontou, como ficaram (a store grava). Vazio = nenhuma. */
   prazos: readonly { tokenId: string; token: Token }[]
+  /** "Usar item": a quantidade final de cada item gasto (a store grava no inventário da ficha). Vazio = nenhum. */
+  itens: readonly { personagemId: string; itemId: string; quantidade: number }[]
   /** Núcleo inalterado. */
   recusa?: string
 }
@@ -105,7 +108,7 @@ export function nucleoInicial(entrantes: readonly EntranteDBT[], opcoes: Partial
     const ficha = personagemId === null ? null : (fichas.get(personagemId) ?? null)
     const forma = ficha?.formaAtiva === undefined ? undefined : ficha.transformacoes.find((candidata) => candidata.id === ficha.formaAtiva)
     if (forma === undefined) continue
-    combatentes[id] = { ...combatentes[id], transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: 0 } }
+    combatentes[id] = { ...combatentes[id], transformacao: formaAtiva(forma, 0) }
     jaTransformados.add(id)
   }
   const faltam = ids.filter((id) => {
@@ -135,7 +138,7 @@ function declarar(t: Trabalho, comando: Extract<ComandoDBT, { tipo: 'declarar' }
     const forma = f.transformacoes.find((candidata) => candidata.id === comando.transformacaoId)
     if (forma === undefined) return 'Transformação não existe'
     // Provisória até a iniciativa: o custo e o uso entram em `rolarIniciativas` (0 com 20 natural).
-    mudarCombatente(t, c.id, (atual) => ({ ...atual, transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: 0 } }))
+    mudarCombatente(t, c.id, (atual) => ({ ...atual, transformacao: formaAtiva(forma, 0) }))
     escrever(t, `${c.nome} vai se transformar antes do combate: ${forma.nome}`, `${c.nome} declarou`)
   } else escrever(t, `${c.nome} não se transforma antes`, `${c.nome} declarou`)
   const faltam = pendencia.faltam.filter((id) => id !== c.id)
@@ -423,7 +426,7 @@ function linhaDoTrabalho(t: Trabalho): ResultadoDBT['linha'] {
 export function reduzir(nucleo: NucleoDBT, comando: ComandoDBT, autor: AutorDBT, ctx: ContextoDBT): ResultadoDBT {
   const t = novoTrabalho(nucleo, ctx, autor)
   const recusa = despachar(t, comando)
-  if (recusa !== null) return { nucleo, fichas: [], linha: null, efeitos: [], prazos: [], recusa }
+  if (recusa !== null) return { nucleo, fichas: [], linha: null, efeitos: [], prazos: [], itens: [], recusa }
   const fichas = [...t.tocadas].flatMap((personagemId) => {
     const recursos = t.recursos.get(personagemId)
     return recursos === undefined ? [] : [{ personagemId, pv: recursos.pv, pk: recursos.pk }]
@@ -432,7 +435,7 @@ export function reduzir(nucleo: NucleoDBT, comando: ComandoDBT, autor: AutorDBT,
     const token = t.prazos.get(tokenId)
     return token === undefined ? [] : [{ tokenId, token }]
   })
-  return { nucleo: t.nucleo, fichas, linha: linhaDoTrabalho(t), efeitos: [...t.efeitos], prazos }
+  return { nucleo: t.nucleo, fichas, linha: linhaDoTrabalho(t), efeitos: [...t.efeitos], prazos, itens: t.itens.map((gasto) => ({ ...gasto })) }
 }
 
 /** Leitura sem efeito (opções para a tela e o host): um trabalho que nunca rola dado. */

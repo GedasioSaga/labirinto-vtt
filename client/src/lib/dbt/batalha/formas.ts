@@ -1,12 +1,19 @@
 import type { TransformacaoLida } from './leitura'
 import { conferirKiZerado } from './morte'
 import { combatente, efeito, envolver, escrever, fichaDe, mudarCombatente, pkDe, porRecurso, tipoDaLinha, type Trabalho } from './trabalho'
-import type { IdDoCombatente } from './tipos'
+import type { IdDoCombatente, TransformacaoAtiva } from './tipos'
 
 /**
  * TRANSFORMAR na batalha (6.2; 7.0-7.1; exaustão 8.5.1.3). A forma ativa da
  * luta mora no combatente (o Desfazer a volta); a ficha não muda até o fim.
  */
+
+/** A forma da ficha como fica no combatente; leva a imagem do token quando a ficha tem (análise 18/11/2026, 2.3). */
+export function formaAtiva(forma: TransformacaoLida, desdeRodada: number): TransformacaoAtiva {
+  const ativa: TransformacaoAtiva = { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada }
+  if (forma.imagem !== undefined) ativa.imagem = forma.imagem
+  return ativa
+}
 
 /**
  * Liga a forma pagando `custo` (0 com 20 natural no 1º turno). Conta o uso
@@ -25,7 +32,7 @@ export function transformar(t: Trabalho, id: IdDoCombatente, forma: Transformaca
   const bloqueia = t.nucleo.opcoes.exaustao && segundoUsoDaMaxima ? custo : 0
   mudarCombatente(t, id, (atual) => ({
     ...atual,
-    transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: t.nucleo.ordem.rodada },
+    transformacao: formaAtiva(forma, t.nucleo.ordem.rodada),
     kiBloqueado: atual.kiBloqueado + bloqueia,
     usos: forma.maxima
       ? { ...atual.usos, transfMaxima: atual.usos.transfMaxima + 1 }

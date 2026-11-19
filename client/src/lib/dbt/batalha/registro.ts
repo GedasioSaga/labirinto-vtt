@@ -90,6 +90,19 @@ export function partesDaFichaDBT(antes: Personagem, depois: Personagem): ParteDa
  * (o que mudou depois, por outra linha ou à mão, fica). Máximo antes do atual,
  * para o atual não ser preso pelo máximo velho.
  */
+/** "Usar item": quantas unidades do item a ficha tem agora; null = a ficha não tem (mais) o item ou não é Dragon Ball. */
+export function quantidadeDoItem(personagem: Personagem, itemId: string): number | null {
+  return personagem.dbt?.inventario.find((item) => item.id === itemId)?.quantidade ?? null
+}
+
+/** A ficha com o item em `quantidade` unidades (nunca abaixo de 0). Sem o item, a mesma ficha (o mestre o tirou no meio). */
+export function comQuantidadeDoItem(personagem: Personagem, itemId: string, quantidade: number): Personagem {
+  const ficha = personagem.dbt
+  if (ficha === undefined || !ficha.inventario.some((item) => item.id === itemId)) return personagem
+  const inventario = ficha.inventario.map((item) => (item.id === itemId ? { ...item, quantidade: Math.max(0, Math.trunc(quantidade)) } : item))
+  return { ...personagem, dbt: { ...ficha, inventario } }
+}
+
 export function ajustesParaDesfazer(atual: Personagem, partes: readonly ParteDaFichaDBT[]): Ajuste[] {
   const ordenadas = [...partes].sort((a, b) => (a.parte === b.parte ? 0 : a.parte === 'maximo' ? -1 : 1))
   return ordenadas.map(({ parte, chave, de, para }) => ({ parte, chave, valor: valorDaParte(atual, parte, chave) - (para - de) }))

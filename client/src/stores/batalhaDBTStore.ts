@@ -11,7 +11,7 @@ import { situacaoDoAjuste } from '../lib/dbt/batalha/morte'
 import { nucleoInicial, reduzir, type ContextoDBT } from '../lib/dbt/batalha/motor'
 import type { PonteDaBatalhaDBT } from '../lib/dbt/batalha/ponte'
 import type { PosicaoNaCena, PosicoesDaCena } from '../lib/dbt/batalha/posicao'
-import { ajustesParaDesfazer, comLinhaDBT, partesDaFichaDBT, podeDesfazerDBT } from '../lib/dbt/batalha/registro'
+import { ajustesParaDesfazer, comLinhaDBT, comQuantidadeDoItem, partesDaFichaDBT, podeDesfazerDBT, quantidadeDoItem } from '../lib/dbt/batalha/registro'
 import {
   EFEITOS_DBT_GUARDADOS,
   type AutorDBT,
@@ -209,6 +209,20 @@ function estadoDaBatalhaDBT(
     })
   }
 
+  /** "Usar item": grava a quantidade final no inventário de cada ficha e devolve de quanto para quanto (o Desfazer da linha). */
+  const gravarOsItens = (itens: readonly { personagemId: string; itemId: string; quantidade: number }[]) => {
+    const mudados: { personagemId: string; itemId: string; de: number; para: number }[] = []
+    for (const { personagemId, itemId, quantidade } of itens) {
+      mesa.ajustarPersonagem(personagemId, (atual) => {
+        const de = quantidadeDoItem(atual, itemId)
+        if (de === null || de === quantidade) return atual
+        mudados.push({ personagemId, itemId, de, para: quantidade })
+        return comQuantidadeDoItem(atual, itemId, quantidade)
+      })
+    }
+    return mudados
+  }
+
   return {
     cenas: {},
     anuncio: null,
@@ -299,12 +313,13 @@ function estadoDaBatalhaDBT(
       if (resultado.recusa !== undefined) return { ok: false, motivo: resultado.recusa }
       const partes = aplicarNasFichas(resultado.fichas, autor, agora)
       const prazosAntes = gravarOsPrazos(sceneKey, resultado.prazos)
+      const itensAntes = gravarOsItens(resultado.itens)
       // A cena pode ter mudado dentro do `ajustarPersonagem` (assinantes): relê antes de gravar.
       const atual = cenaDe(sceneKey) ?? cena
       let seq = atual.seq
       let registro: readonly LinhaDBT[] = atual.registro
       if (resultado.linha !== null) {
-        registro = comLinhaDBT(registro, { ...resultado.linha, id: gerarId(), seq, quando: agora, reversao: { nucleo: nucleoDe(cena), fichas: partes, ...(prazosAntes.length === 0 ? {} : { prazos: prazosAntes }) } })
+        registro = comLinhaDBT(registro, { ...resultado.linha, id: gerarId(), seq, quando: agora, reversao: { nucleo: nucleoDe(cena), fichas: partes, ...(prazosAntes.length === 0 ? {} : { prazos: prazosAntes }), ...(itensAntes.length === 0 ? {} : { itens: itensAntes }) } })
         seq += 1
       }
       const novos = resultado.efeitos.map((efeito) => {
@@ -330,6 +345,13 @@ function estadoDaBatalhaDBT(
       }
       // Fase C: o prazo descontado na linha volta como estava, na ficha do mapa.
       for (const { tokenId, antes } of linha.reversao.prazos ?? []) mesa.mudarFichaDaCena?.(sceneKey, tokenId, (token) => comCondicoes(token, antes))
+      // "Usar item": volta só o delta (o que o mestre mexeu no inventário depois fica).
+      for (const { personagemId, itemId, de, para } of linha.reversao.itens ?? []) {
+        mesa.ajustarPersonagem(personagemId, (atual) => {
+          const agora = quantidadeDoItem(atual, itemId)
+          return agora === null ? atual : comQuantidadeDoItem(atual, itemId, agora + (de - para))
+        })
+      }
       const atual = cenaDe(sceneKey) ?? cena
       const registro = atual.registro.map((candidata) => (candidata.id === linhaId ? { ...candidata, desfeita: { por: nomeNoHistorico(autor), quando: agora } } : candidata))
       gravarCena(sceneKey, { ...atual, ...linha.reversao.nucleo, registro, turnosRev: atual.turnosRev + 1 })

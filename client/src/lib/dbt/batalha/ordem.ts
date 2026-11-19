@@ -1,6 +1,6 @@
 import { kiDaRecarga, modEfetivo } from './contas'
 import { expirarNaRodada, expirarNoFim, expirarNoInicio, testesDoInicio } from './condicoes'
-import { transformar } from './formas'
+import { formaAtiva, transformar } from './formas'
 import { avisosDaRodada } from './fim'
 import { pedirSalvaguarda, rolarSalvaguarda, sofrerDano } from './morte'
 import { maisProximo } from './posicao'
@@ -90,7 +90,7 @@ function desfazerFormaDaRolagem(t: Trabalho, id: IdDoCombatente): void {
   if (forma === undefined) return
   mudarCombatente(t, id, (atual) => ({
     ...atual,
-    transformacao: { id: forma.id, nome: forma.nome, estagio: forma.estagio, epBonus: forma.epBonus, maxima: forma.maxima, desdeRodada: 0 },
+    transformacao: formaAtiva(forma, 0),
     kiBloqueado: Math.max(0, atual.kiBloqueado - (anterior.bloqueouNaForma ?? 0)),
     usos: forma.maxima
       ? { ...atual.usos, transfMaxima: Math.max(0, atual.usos.transfMaxima - 1) }

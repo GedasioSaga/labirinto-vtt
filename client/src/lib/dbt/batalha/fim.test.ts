@@ -29,6 +29,7 @@ function fichaLida(personagemId: string, parcial: Partial<FichaLida> = {}): Fich
     tecnicas: [],
     transformacoes: [],
     movimentos: [],
+    itens: [],
     ...parcial,
   }
 }

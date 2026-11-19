@@ -142,6 +142,8 @@ export interface TransformacaoAtiva {
   epBonus: number
   maxima: boolean
   desdeRodada: number
+  /** A imagem da forma na ficha (análise 18/11/2026, 2.3): o token a mostra enquanto a forma durar. Ausente = a foto de sempre. */
+  imagem?: string
 }
 
 export interface ModificadorTemporario {
@@ -389,6 +391,8 @@ export interface LinhaDBT {
     fichas: readonly { personagemId: string; partes: readonly ParteDaFichaDBT[] }[]
     /** Fase C: as condições de cada ficha do mapa ANTES do desconto do prazo nesta linha. Ausente = nenhuma. */
     prazos?: readonly { tokenId: string; antes: CondicoesDaFicha }[]
+    /** "Usar item": a quantidade de cada item gasto, de quanto para quanto (o Desfazer devolve o delta). Ausente = nenhum. */
+    itens?: readonly { personagemId: string; itemId: string; de: number; para: number }[]
   }
   desfeita?: { por: string; quando: number }
 }
