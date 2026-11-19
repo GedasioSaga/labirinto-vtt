@@ -1,3 +1,4 @@
+import type { CaminhosDaBatalha } from '../lib/batalha/caminhoAndado'
 import { cacheDoRecorte } from '../lib/cacheDoRecorte'
 import type { ExploredWire } from '../lib/exploration'
 import type { OlharDaVisao } from '../lib/fogFilter'
@@ -91,6 +92,11 @@ export interface PlayerViewContent {
    * do piso de baixo mandava a tela inteira, com as fotos das fichas. Agora viaja no patch (`PatchDoAlto`).
    */
   alto?: TerrenoAlto
+  /**
+   * MODO BATALHA (`snapshot.caminhos`), ausente = nenhum caminho andado à vista. Antes ia nos "extras": cada passo
+   * em batalha mudava o caminho e mandava a tela inteira, com as fotos, para cada jogador. Agora viaja no patch.
+   */
+  caminhos?: CaminhosDaBatalha
 }
 
 /**
@@ -124,6 +130,8 @@ export interface ViewPatch {
   olhares?: OlharDaVisao[]
   /** Ausente = o mesmo terreno alto de antes. */
   alto?: PatchDoAlto
+  /** O caminho andado inteiro de agora; `null` = nenhum (ausente = o mesmo de antes). */
+  caminhos?: CaminhosDaBatalha | null
 }
 
 /**
@@ -546,6 +554,8 @@ export function diffView(prev: PlayerViewContent, next: PlayerViewContent): View
   if (!sameValue(prev.olhares ?? [], olhares)) patch.olhares = olhares
   const alto = diffAlto(prev.alto, next.alto)
   if (alto !== undefined) patch.alto = alto
+  const caminhos = next.caminhos ?? null
+  if (!sameValue(prev.caminhos ?? null, caminhos)) patch.caminhos = caminhos
   return patch
 }
 
@@ -634,6 +644,8 @@ export function applyViewPatch(prev: PlayerViewContent, patch: ViewPatch): Playe
   const alto = patch.alto === undefined ? prev.alto : applyAltoPatch(prev.alto, patch.alto)
   if (alto === null) return null
   if (alto !== undefined) tela.alto = alto
+  const caminhos = patch.caminhos === undefined ? prev.caminhos : patch.caminhos
+  if (caminhos !== undefined && caminhos !== null) tela.caminhos = caminhos
   return tela
 }
 
@@ -647,6 +659,7 @@ export function isEmptyViewPatch(patch: ViewPatch): boolean {
     patch.concealed === undefined &&
     patch.porAtravessar === undefined &&
     patch.olhares === undefined &&
-    patch.alto === undefined
+    patch.alto === undefined &&
+    patch.caminhos === undefined
   )
 }

@@ -181,6 +181,8 @@ import {
   parseAccountHostMessage,
   parseSnapshotPlaces,
   VIEW_RESYNC_MIN_INTERVAL_MS,
+  VIEW_REJECTED_MIN_INTERVAL_MS,
+  type CampoDaTela,
   type CutsceneCarregandoMessage,
   type CutsceneProntaMessage,
   type CutsceneVideoDoJogador,
@@ -2619,6 +2621,8 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
   // A última tela do mestre, sem o otimista (ver `ReceivedView`); `null` = nenhuma.
   let received: ReceivedView | null = null
   let lastResyncAt = Number.NEGATIVE_INFINITY
+  /** TELA RECUSADA: a última vez que esta tela disse ao mestre que descartou um snapshot (`VIEW_REJECTED_MIN_INTERVAL_MS`). */
+  let lastViewRejectedAt = Number.NEGATIVE_INFINITY
   /**
    * VOLTO JÁ: o jogador apertou "Voltar" com o socket caído. A retomada chega
    * com o host ainda o vendo fora (`away: true`); este é o sinal de pedir a
@@ -4407,6 +4411,18 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     return ownTokens.find(noMapa) ?? null
   }
 
+  /**
+   * TELA RECUSADA (análise 18/11/2026, 2.2): o snapshot veio com `campo` torto e
+   * foi descartado inteiro; a tela fica na de antes. Diz ao mestre QUAL campo
+   * (só o nome), no máximo uma vez por `VIEW_REJECTED_MIN_INTERVAL_MS`. Não
+   * pede a tela de novo: o mesmo host mandaria o mesmo campo torto, em laço.
+   */
+  function recusarTela(campo: CampoDaTela): void {
+    const at = Date.now()
+    if (at - lastViewRejectedAt < VIEW_REJECTED_MIN_INTERVAL_MS) return
+    if (send({ type: 'view.rejected', campo })) lastViewRejectedAt = at
+  }
+
   /** Pede a tela inteira ao mestre, no máximo uma vez por `VIEW_RESYNC_MIN_INTERVAL_MS` (o limite dele). */
   function askResync(): void {
     const at = Date.now()
@@ -4461,6 +4477,10 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
     // TERRENO ALTO no patch: ausente = o mesmo de antes; torto ou de outra tela = pede a inteira.
     const alto = data.alto === undefined ? received.alto : aplicarPatchDoAlto(received.alto, data.alto)
     if (alto === null) return askResync()
+    // MODO BATALHA no patch (análise 18/11, 2.2): ausente = o mesmo de antes; `null` = nenhum; torto = pede a inteira.
+    const caminhosLidos = data.caminhos === undefined || data.caminhos === null ? undefined : lerCaminhosDaBatalha(data.caminhos)
+    if (caminhosLidos === null) return askResync()
+    const caminhos = data.caminhos === undefined ? state.caminhos : caminhosLidos
     applySnapshot(
       rev,
       map,
@@ -4469,7 +4489,7 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       ownTokens,
       concealed,
       state.batalha === true,
-      state.caminhos,
+      caminhos,
       state.partyTokens ?? [],
       state.hazards ?? [],
       state.sceneName,
@@ -5582,57 +5602,59 @@ export function createPlayerConnection(options: PlayerConnectionOptions): Player
       }
       case 'snapshot':
       case 'delta': {
-        if (!isFiniteNumber(data.rev) || !isMapShape(data.map) || !isVision(data.vision)) return
+        if (!isFiniteNumber(data.rev)) return recusarTela('rev')
+        if (!isMapShape(data.map)) return recusarTela('map')
+        if (!isVision(data.vision)) return recusarTela('vision')
         // Campos aditivos: ausentes são tolerados (sem memória, sem "meus
         // personagens"); presentes e malformados descartam a mensagem inteira.
         let explored: Exploration | undefined
         if (data.explored !== undefined) {
           const decoded = decodeExploration(data.explored)
-          if (decoded === null) return
+          if (decoded === null) return recusarTela('explored')
           explored = decoded
         }
-        if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return
-        if (data.concealed !== undefined && !isVision(data.concealed)) return
-        if (data.glimpses !== undefined && !isVision(data.glimpses)) return
+        if (data.ownTokens !== undefined && !isStringList(data.ownTokens)) return recusarTela('ownTokens')
+        if (data.concealed !== undefined && !isVision(data.concealed)) return recusarTela('concealed')
+        if (data.glimpses !== undefined && !isVision(data.glimpses)) return recusarTela('glimpses')
         // MODO BATALHA: só `true` ou ausente; outro valor derruba a mensagem.
-        if (data.batalha !== undefined && data.batalha !== true) return
+        if (data.batalha !== undefined && data.batalha !== true) return recusarTela('batalha')
         // CAMINHO ANDADO (B6): ausente = nenhum; malformado derruba a mensagem.
         const caminhos = data.caminhos === undefined ? undefined : lerCaminhosDaBatalha(data.caminhos)
-        if (caminhos === null) return
-        if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return
+        if (caminhos === null) return recusarTela('caminhos')
+        if (data.partyTokens !== undefined && !isStringList(data.partyTokens)) return recusarTela('partyTokens')
         // ZONA DE PERIGO: ausente = nenhum perigo à vista; malformado derruba a mensagem.
         const hazards = data.hazards === undefined ? [] : parsePlayerHazards(data.hazards)
-        if (hazards === null) return
+        if (hazards === null) return recusarTela('hazards')
         // O host nunca manda nome vazio (sem nome público o campo nem vem): vazio é forma errada.
-        if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return
+        if (data.sceneName !== undefined && !isSceneName(data.sceneName)) return recusarTela('sceneName')
         const where = parseSnapshotPlaces(data)
-        if (where === null) return
+        if (where === null) return recusarTela('places')
         // GATILHO DE ÁREA: ausente = nada revelado; malformado derruba a mensagem.
         const gatilhos = data.gatilhos === undefined ? [] : parsePlayerAreaTriggers(data.gatilhos)
-        if (gatilhos === null) return
+        if (gatilhos === null) return recusarTela('gatilhos')
         // MAPA POR ANDARES: ausente = sem abas; malformado derruba a mensagem.
         const andares = data.andares === undefined ? undefined : parseFloors(data.andares)
-        if (andares === null) return
+        if (andares === null) return recusarTela('andares')
         // DIA/TARDE/NOITE: ausente = dia; malformado derruba a mensagem. O `relogio` de mestre antigo é ignorado.
         const luz = data.luz === undefined ? undefined : lerLuzDoJogador(data.luz)
-        if (luz === null) return
-        if (data.peek !== undefined && !isRoofPeek(data.peek)) return
+        if (luz === null) return recusarTela('luz')
+        if (data.peek !== undefined && !isRoofPeek(data.peek)) return recusarTela('peek')
         let elsewhere: OwnTokenElsewhere[] = []
         if (data.elsewhere !== undefined) {
           const parsed = parseElsewhere(data.elsewhere)
-          if (parsed === null) return
+          if (parsed === null) return recusarTela('elsewhere')
           elsewhere = parsed
         }
         // Ausente = nenhuma ficha esperando (o host só manda com alguma).
-        if (data.waiting !== undefined && !isStringList(data.waiting)) return
+        if (data.waiting !== undefined && !isStringList(data.waiting)) return recusarTela('waiting')
         // PORTAS POR ATRAVESSAR: ausente = nenhuma marca; malformado derruba a mensagem.
         const porAtravessar = data.porAtravessar === undefined ? [] : lerPortasPorAtravessar(data.porAtravessar)
-        if (porAtravessar === null) return
+        if (porAtravessar === null) return recusarTela('porAtravessar')
         // QUEDA DO ALCANCE: ausente ou torto = sem a queda; não derruba a mensagem (a tela fica a de antes).
         const olhares = lerOlhares(data.olhares, data.vision.length)
         // TERRENO ALTO: ausente = nada de outro piso; malformado derruba a mensagem.
         const alto = data.alto === undefined ? undefined : lerTerrenoAlto(data.alto)
-        if (alto === null) return
+        if (alto === null) return recusarTela('alto')
         applySnapshot(data.rev, data.map, data.vision, explored, data.ownTokens ?? [], data.concealed ?? [], data.batalha === true, caminhos, data.partyTokens ?? [], hazards, data.sceneName, where, gatilhos, andares, luz, data.glimpses ?? [], elsewhere, data.peek, data.waiting ?? [], porAtravessar, olhares, alto, explored === undefined ? undefined : (data.explored as ExploredWire)) // as: `decodeExploration` validou o fio acima
         // TRANSIÇÃO ESPECIAL: o mapa da travessia chegou; a cena que esperava por ele pode tocar.
         soltarMapaDaTransicao?.()

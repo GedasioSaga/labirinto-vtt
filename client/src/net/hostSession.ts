@@ -9,7 +9,7 @@ import { paredesQueBarramOCaminho } from '../lib/batalha/movimentoEmBatalha'
 import { aliadosDe, type Equipe } from '../lib/batalha/equipes'
 import type { PonteDaBatalha } from '../lib/batalha/ponte'
 import type { MedidaCompartilharMessage } from './protocoloDaMedida'
-import type { Agua, AreaTriggerKind, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
+import type { Agua, AreaTriggerKind, CarriedItem, DoorState, HazardKind, MapData, MarcaNoLugar, Pin, PinPassage, Prop, RegionPoint, Token, TokenContract, Wall } from '../types/map'
 import { hazardPresence, hazardsOf, newHazardEntries, type HazardEntry } from '../lib/hazards'
 import { areaTriggerPresence, newAreaTriggerEntries, regionAreaName, type AreaTriggerPresence } from '../lib/areaTriggers'
 import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGADOR_POR_CENA } from '../lib/marcas'
@@ -241,6 +241,9 @@ import {
   TRAVEL_REQUEST_MIN_INTERVAL_MS,
   TRAVEL_REQUEST_PLAYER_MIN_INTERVAL_MS,
   VIEW_RESYNC_MIN_INTERVAL_MS,
+  VIEW_REJECTED_MIN_INTERVAL_MS,
+  type CampoDaTela,
+  type ViewRejectedMessage,
   type NoteEntry,
 } from './protocol'
 import { clampTokenActionReply, distanceInCells, type TokenAction, type TokenActionRejection } from '../lib/tokenActions'
@@ -753,6 +756,13 @@ export interface Doacao {
   /** Só quando a cena é de FUNDO: o nome que o mestre lê. */
   sceneName?: string
   avisos: Outbound[]
+}
+
+/** A vaga sem o aceso: a tocha dada chega apagada (`CarriedItem.acesa`: largar, dar ou trocar não leva o aceso). */
+function vagaApagada(item: CarriedItem): CarriedItem {
+  if (item.acesa !== true) return item
+  const { acesa: _acesa, ...apagada } = item
+  return apagada
 }
 
 /** O nome da ficha no aviso do "Dar a…" e do "Pagar a…"; ficha sem nome (ou o vulto) é "Alguém". */
@@ -1386,6 +1396,12 @@ export interface HostResult {
    * painel Grupo e o relógio do próximo prazo).
    */
   waitsChanged?: true
+  /**
+   * TELA RECUSADA (análise 18/11/2026, 2.2): a tela deste jogador descartou o
+   * snapshot por um campo torto e ficou parada. O integrador avisa o mestre
+   * (um aviso por jogador em `VIEW_REJECTED_MIN_INTERVAL_MS`).
+   */
+  telaRecusada?: { playerName: string; campo: CampoDaTela }
 }
 
 /** ENCONTRO MARCADO, como o MESTRE lê no painel Grupo: quem, onde e até quando (relógio da sessão). */
@@ -3360,6 +3376,8 @@ function contentOf(msg: SnapshotMessage): PlayerViewContent {
   const tela: PlayerViewContent = { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
   // TERRENO ALTO: no patch, não nos extras — o passo de uma ficha do piso de baixo ia como a tela inteira, com as fotos.
   if (msg.alto !== undefined) tela.alto = msg.alto
+  // MODO BATALHA (análise 18/11, 2.2): o caminho andado muda a cada passo em batalha; nos extras, cada passo ia como a tela inteira.
+  if (msg.caminhos !== undefined) tela.caminhos = msg.caminhos
   return tela
 }
 
@@ -3380,6 +3398,7 @@ function extrasOf(msg: SnapshotMessage): string {
   delete rest.porAtravessar
   delete rest.olhares
   delete rest.alto
+  delete rest.caminhos
   return JSON.stringify(rest)
 }
 
@@ -3914,6 +3933,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const patchMinSnapshotLength = options.patchMinSnapshotLength ?? PATCH_MIN_SNAPSHOT_LENGTH
   // Por playerId: limite do `view.resync` (VIEW_RESYNC_MIN_INTERVAL_MS).
   const lastResyncAt = new Map<string, number>()
+  // Por playerId: limite do aviso `view.rejected` ao mestre (VIEW_REJECTED_MIN_INTERVAL_MS).
+  const lastViewRejectedAt = new Map<string, number>()
   // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
   let ownershipRev = 0
   // HOST RECALCULA SÓ A CENA QUE MUDOU — por playerId: com o que o último
@@ -5157,6 +5178,53 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     return new Set([peek.wallId])
   }
 
+  /** As entradas da tela que não mudam o mapa (`SentView.session`), em JSON. */
+  const sessionKeyFor = (playerId: string, world: HostWorld, scene: HostScene | null): string => {
+    const map = scene === null ? null : scene.map
+    // DIA/TARDE/NOITE: entra o período DA CENA dele, não o da sessão — a troca não mexe em quem está numa cena interior ou fixa.
+    const periodoAqui = sessionPeriod()
+    // MODO BATALHA: o `rev` do caminho andado entra — "Zerar caminhos" refaz o recorte de quem está na cena.
+    const batalhaAqui = scene !== null && emBatalha(scene)
+    const caminhosRev = batalhaAqui ? (options.getCaminhosDaBatalha?.(tableSceneKey(scene))?.rev ?? 0) : null
+    // BATALHA F1: quem é da equipe dele entra — a troca de lado refaz as barras de vida sem o mapa mudar.
+    const equipe = personagensDaEquipe(playerId, world)
+    return JSON.stringify([
+      batalhaAqui,
+      caminhosRev,
+      map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui),
+      factorFor(playerId),
+      equipe === null ? null : [...equipe].sort(),
+    ])
+  }
+
+  /**
+   * A TELA DA ENTRADA vira a última tela da conexão (análise 18/11, 2.2): sem
+   * isto, a primeira mudança depois de cada entrada (F5, volta, "É ela")
+   * mandava outra tela inteira, com as fotos. `stable: false`: o próximo
+   * broadcast recorta de novo, só que já pode mandar `patch`. A medida da tela
+   * sai para toda conexão: o `view.patches` chega DEPOIS do `join`.
+   */
+  const seedSentView = (clientId: string, playerId: string, world: HostWorld, snapshot: SnapshotMessage): void => {
+    const scene = sceneFor(playerId, world)
+    if (scene === null) return
+    sentViews.set(clientId, {
+      playerId,
+      map: scene.map,
+      radius: radiusFor(playerId),
+      ownershipRev,
+      memory: existingMemory(playerId, scene.map),
+      cabines: world.cabines,
+      ocupadas: ocupadasKey(playerId, world),
+      view: contentOf(snapshot),
+      extras: extrasOf(snapshot),
+      rev: snapshot.rev,
+      snapshotLength: JSON.stringify(snapshot).length,
+      stable: false,
+      inputs: viewInputsFor(playerId, world, scene),
+      session: sessionKeyFor(playerId, world, scene),
+    })
+  }
+
   /**
    * A tela deste jogador para esta conexão, lembrando o que foi. `null` = a
    * conexão já tem exatamente esta tela: nada a mandar. Entradas iguais às do
@@ -5185,20 +5253,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const cabines = world.cabines
     const ocupadas = ocupadasKey(playerId, world)
     const inputs = scene === null ? null : viewInputsFor(playerId, world, scene)
-    // DIA/TARDE/NOITE: entra o período DA CENA dele, não o da sessão — a troca não mexe em quem está numa cena interior ou fixa.
-    const periodoAqui = sessionPeriod()
-    // MODO BATALHA: o `rev` do caminho andado entra — "Zerar caminhos" refaz o recorte de quem está na cena.
-    const batalhaAqui = scene !== null && emBatalha(scene)
-    const caminhosRev = batalhaAqui ? (options.getCaminhosDaBatalha?.(tableSceneKey(scene))?.rev ?? 0) : null
-    // BATALHA F1: quem é da equipe dele entra — a troca de lado refaz as barras de vida sem o mapa mudar.
-    const equipe = personagensDaEquipe(playerId, world)
-    const session = JSON.stringify([
-      batalhaAqui,
-      caminhosRev,
-      map === null || periodoAqui === null ? null : periodoDaCena(map, periodoAqui),
-      factorFor(playerId),
-      equipe === null ? null : [...equipe].sort(),
-    ])
+    const session = sessionKeyFor(playerId, world, scene)
     const sameInputs =
       last !== undefined &&
       last.playerId === playerId &&
@@ -5979,6 +6034,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (awayPlayers.has(playerId)) outbound.push({ clientId, msg: awayMessage(playerId) })
     // TESTE SECRETO: o pedido que ficou aberto volta logo depois do mapa.
     if (next !== undefined) outbound.push(...withPendingSecretChecks(playerId, clientId, next))
+    if (next !== undefined && next.type === 'snapshot') seedSentView(clientId, playerId, world, next)
+    else sentViews.delete(clientId)
     // O caderno vem antes do cartão: o cliente já tem o recado guardado quando o cartão reabre.
     const book = notebooks.get(playerId) ?? []
     if (book.length > 0) outbound.push({ clientId, msg: notebookMessage(book, takeUnseenLetters(playerId, book)) })
@@ -7908,7 +7965,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         ...backgroundSceneId(scene, world),
         mochilas: [
           { tokenId: giver.id, mochila: carriedItemsOf(giver).filter((i) => i.id !== item.id) },
-          { tokenId: target.id, mochila: [...carriedItemsOf(target), item] },
+          // ITEM QUE ILUMINA (decisão do usuário, 18/11/2026; contrato de `CarriedItem.acesa`): dar não leva o aceso.
+          { tokenId: target.id, mochila: [...carriedItemsOf(target), vagaApagada(item)] },
         ],
         ...autoriaDosItens(playerId),
       },
@@ -8207,10 +8265,12 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
     // A tela dele já pôs a edição (otimista) e só volta pelo snapshot seguinte:
-    // recusado, o recorte dele precisa sair de novo mesmo sem a cena mudar.
+    // recusado, o recorte dele precisa sair de novo mesmo sem a cena mudar. Sem
+    // broadcast nenhum (a recusa não muda o mundo), só o `resendView` o manda
+    // (análise 18/11, 2.2). Sai em toda recusa, com id que existe ou não: não ensina nada.
     const refuse = (): HostResult => {
       lastViews.delete(playerId)
-      return { outbound: [] }
+      return resendView(clientId, playerId, world)
     }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
     // Ficha EMPRESTADA (ajudante contratado) é do mestre: o jogador anda com ela, não a renomeia.
@@ -8245,9 +8305,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    // A tela dele já trocou (otimista): a recusa reenvia o recorte (`resendView`), senão ficava até outra mudança.
     const refuse = (): HostResult => {
       lastViews.delete(playerId)
-      return { outbound: [] }
+      return resendView(clientId, playerId, world)
     }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
     if (helperLoans.has(msg.tokenId) || loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
@@ -8273,9 +8334,10 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
     if (statusOf(playerId) !== 'playing') return { outbound: [] }
+    // A tela dele já trocou (otimista): a recusa reenvia o recorte (`resendView`), senão ficava até outra mudança.
     const refuse = (): HostResult => {
       lastViews.delete(playerId)
-      return { outbound: [] }
+      return resendView(clientId, playerId, world)
     }
     if (!(ownership[playerId] ?? []).includes(msg.tokenId)) return refuse()
     if (helperLoans.has(msg.tokenId) || loans.get(msg.tokenId)?.borrowerId === playerId) return refuse()
@@ -8765,6 +8827,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * `VIEW_RESYNC_MIN_INTERVAL_MS` morre em silêncio: a tela inteira é o
    * recorte mais caro do host.
    */
+  /**
+   * TELA RECUSADA: a tela do jogador descartou o snapshot por `msg.campo` (só o
+   * nome, da lista do protocolo). Nada a mandar a ele (a tela inteira de novo
+   * traria o mesmo campo); o mestre fica sabendo, uma vez por janela.
+   */
+  function handleViewRejected(clientId: string, msg: ViewRejectedMessage): HostResult {
+    const playerId = byClient.get(clientId)
+    if (playerId === undefined || statusOf(playerId) !== 'playing') return { outbound: [] }
+    const at = now()
+    const last = lastViewRejectedAt.get(playerId)
+    if (last !== undefined && at - last < VIEW_REJECTED_MIN_INTERVAL_MS) return { outbound: [] }
+    lastViewRejectedAt.set(playerId, at)
+    return { outbound: [], telaRecusada: { playerName: players.get(playerId)?.name ?? '', campo: msg.campo } }
+  }
+
   function handleResync(clientId: string, world: HostWorld): HostResult {
     const playerId = byClient.get(clientId)
     if (playerId === undefined) return reply(clientId, { type: 'error', reason: 'not_joined' })
@@ -10686,6 +10763,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         return byClient.has(clientId) ? reply(clientId, { type: 'pong' }) : { outbound: [] }
       case 'view.resync':
         return handleResync(clientId, world)
+      case 'view.rejected':
+        return handleViewRejected(clientId, msg)
       case 'view.patches':
         // Antes do join (ou depois de um join recusado) morre calado: um
         // `not_joined` aqui chegaria depois do `bad_code` e o apagaria na tela.
@@ -11839,6 +11918,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       forgetSentView(playerId)
       patchClients.delete(clientId)
       lastResyncAt.delete(playerId)
+      lastViewRejectedAt.delete(playerId)
       awayNotes.delete(playerId)
       lastViewSwitchAt.delete(playerId)
       lastViews.delete(playerId)

@@ -1378,6 +1378,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     largou: boolean
     /** Alguma tela chegou ao fim: a exibição conta como feita (e a Galeria pode receber o vídeo). */
     alguemTerminou: boolean
+    /** O mestre já ouviu, nesta exibição, que o vídeo não tocou numa tela (um aviso por exibição). */
+    avisouFalha: boolean
     telas: Map<string, TelaDaExibicao>
   } | null = null
   let proximaExibicao = 1
@@ -2190,11 +2192,15 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     void dispatch({ outbound: clientIds.map((clientId) => ({ clientId, msg })) })
   }
 
-  /** Acabou para todo mundo (todas as telas terminaram ou saíram): a exibição fecha. */
+  /**
+   * Acabou para todo mundo (todas as telas terminaram, falharam ou saíram): a exibição fecha. A tela cujo vídeo
+   * não tocou (`falhou`) já soltou a tela do jogador e nunca vai mandar `fim`: contá-la deixava a exibição aberta
+   * e o próximo "Tocar" respondia "já há uma cutscene" até o "Parar para todos".
+   */
   const fecharExibicaoSeAcabou = () => {
     const atual = exibicaoDeVideo
     if (atual === null || !atual.largou) return
-    const vivas = [...atual.telas.values()].filter((tela) => !tela.terminou)
+    const vivas = [...atual.telas.values()].filter((tela) => !tela.terminou && !tela.falhou)
     if (vivas.length > 0) return
     encerrarExibicaoDeVideo()
   }
@@ -2232,7 +2238,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
         publicarExibicaoDeVideo()
       },
     })
-    exibicaoDeVideo = { numero, cutscene, combinado, largou: false, alguemTerminou: false, telas: new Map() }
+    exibicaoDeVideo = { numero, cutscene, combinado, largou: false, alguemTerminou: false, avisouFalha: false, telas: new Map() }
     prepararNoVideo(publico)
     publicarExibicaoDeVideo()
     return 'ok'
@@ -2255,7 +2261,21 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     if (atual === null || tela === undefined || msg.exibicao !== atual.numero) return
     if (msg.type === 'cutscene.video.progresso') {
       tela.pct = msg.pct
+      const falhouAgora = msg.falhou === true && !tela.falhou
       tela.falhou = msg.falhou === true
+      // VÍDEO QUE NÃO TOCOU (o download caiu, ou o navegador dele não abre o formato): a tela acabou para esta
+      // exibição. Antes da largada, ninguém espera por ela; depois, `fecharExibicaoSeAcabou` não a conta.
+      // `alguemTerminou` não muda: o vídeo que só falhou não marca "já tocou" nem vai à Galeria.
+      if (falhouAgora) {
+        if (!atual.largou) atual.combinado.saiu(clientId)
+        if (!atual.avisouFalha) {
+          atual.avisouFalha = true
+          toastSink.push(
+            'error',
+            `O vídeo "${atual.cutscene.titulo}" não tocou na tela de ${tela.nome}. Se for vídeo de celular (H.265/HEVC), converta para H.264/MP4.`,
+          )
+        }
+      }
     } else if (msg.type === 'cutscene.video.pronta') {
       tela.pct = 100
       tela.pronta = true
@@ -4245,6 +4265,11 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
       // Ferrolho sem porta a mexer, ou barra de pino: só a sessão mudou, e a
       // marca de quem está do lado da tranca sai no recorte novo.
       if (result.applyDoor === undefined) broadcastNow()
+    }
+    // TELA RECUSADA (análise 18/11/2026, 2.2): a tela do jogador ficou parada; o mestre fica sabendo qual campo.
+    if (result.telaRecusada !== undefined) {
+      const quem = result.telaRecusada.playerName === '' ? 'um jogador' : result.telaRecusada.playerName
+      toastSink.push('error', `A tela de ${quem} recusou o mapa (campo "${result.telaRecusada.campo}") e ficou parada na anterior. Peça para ele recarregar a página; se voltar, avise o Claude.`)
     }
     // Sem quem destranque, a porta não abriu: o aviso não pode dizer que abriu.
     if (result.doorKeyUsed !== undefined && deps.unlockAndOpenDoor !== undefined) toastSink.push('info', doorKeyLine(result.doorKeyUsed))

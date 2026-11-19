@@ -493,6 +493,38 @@ export const SECRET_CHECK_RESULT_MAX = 999
  * pedindo em laço ocuparia o host.
  */
 export const VIEW_RESYNC_MIN_INTERVAL_MS = 1000
+/**
+ * TELA RECUSADA (análise 18/11/2026, 2.2): o snapshot com um campo torto é
+ * descartado inteiro pelo jogador, e a tela dele fica parada na última que
+ * abriu. Ele diz ao host QUAL campo (nome da lista, nunca o conteúdo), e o
+ * mestre fica sabendo. Um aviso por jogador nesta janela, dos dois lados.
+ */
+export const VIEW_REJECTED_MIN_INTERVAL_MS = 30_000
+/** Os campos do snapshot que o jogador confere; o host recusa outro nome. */
+export const CAMPOS_DA_TELA = [
+  'rev',
+  'map',
+  'vision',
+  'explored',
+  'ownTokens',
+  'concealed',
+  'glimpses',
+  'batalha',
+  'caminhos',
+  'partyTokens',
+  'hazards',
+  'sceneName',
+  'places',
+  'gatilhos',
+  'andares',
+  'luz',
+  'peek',
+  'elsewhere',
+  'waiting',
+  'porAtravessar',
+  'alto',
+] as const
+export type CampoDaTela = (typeof CAMPOS_DA_TELA)[number]
 /** Quantos recados a fila de quem está fora do ar guarda por jogador. Passou, sai o mais antigo. */
 export const AWAY_NOTES_MAX = 20
 /** Traço do caminho da régua: menos de 2 pontos não é caminho. */
@@ -565,6 +597,12 @@ export interface ViewPatchesMessage {
 /** A tela do jogador não é a `base` do `patch` que chegou: ele pede a inteira. */
 export interface ViewResyncMessage {
   type: 'view.resync'
+}
+
+/** O snapshot chegou com `campo` torto e foi descartado: a tela do jogador ficou na de antes (`VIEW_REJECTED_MIN_INTERVAL_MS`). */
+export interface ViewRejectedMessage {
+  type: 'view.rejected'
+  campo: CampoDaTela
 }
 
 export interface TokenMoveMessage {
@@ -1442,6 +1480,7 @@ export type PlayerMessage =
   | CenarioLidoMessage
   | SecretCheckAnswerMessage
   | ViewResyncMessage
+  | ViewRejectedMessage
   | ViewPatchesMessage
   | ViewSwitchMessage
   | TokenActionRequestMessage
@@ -3803,6 +3842,10 @@ export function parsePlayerMessage(raw: unknown): PlayerMessage | null {
       return value.away === true ? { type: 'ping', away: true } : { type: 'ping' }
     case 'view.resync':
       return { type: 'view.resync' }
+    case 'view.rejected': {
+      const campo = CAMPOS_DA_TELA.find((c) => c === value.campo)
+      return campo === undefined ? null : { type: 'view.rejected', campo }
+    }
     case 'view.patches':
       return { type: 'view.patches' }
     case 'signal':
