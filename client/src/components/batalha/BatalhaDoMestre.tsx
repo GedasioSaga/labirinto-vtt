@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
 import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe } from '../../lib/batalha/equipes'
@@ -38,6 +38,7 @@ import { alvosDaOrdem, alvosDoDarDano, nomeDaFicha, pendenciasDeInvocacaoNaTela,
 import { MenuDaVez, type InvocarNoMenu } from './MenuDaVez'
 import { nomesNumerados } from './nomesNumerados'
 import { pedidosDaVez, type PedidosDaVez } from './pedidosDaVez'
+import { deixarParaDepois, useTravasDeixadas } from './travaDoPassar'
 import './vezNoCentro.css'
 import { consultaDoMestre, useMiraDoMestre } from './miraDoMestre'
 import { PainelDaVezDoNpc } from './PainelDaVezDoNpc'
@@ -225,8 +226,9 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   // Pedido de 10/11: a carta REAÇÃO no centro vem na frente (não trava a vez: ela passa e o golpe espera a virada); o
   // menu (e a mira) esperam atrás, com o estado.
   const atrasDaReacao = useReacaoNoCentro((state) => state.naFrente)
-  // Conserto de 19/11: o "Seguir sem esperar" do mestre (o jogador que contra-atacou sumiu): só nesta tela; o contra fica guardado com ele.
-  const [semEsperar, setSemEsperar] = useState<ReadonlySet<string>>(NENHUM_CONTRA)
+  // Conserto de 19/11: o "Seguir sem esperar" do mestre (o jogador que contra-atacou sumiu); o contra fica guardado com ele.
+  // Mora em `travaDoPassar`: o mesmo da mesa, do painel e da faixa, e o Passar a vez daqui volta a valer.
+  const deixadas = useTravasDeixadas()
   if (cena === undefined || turnos === undefined) return null
   const carta = cartaDaVez(turnos)
   const vezDoNpc = carta !== null && carta.bando === undefined && ehDoMestre(carta.personagemId, personagens)
@@ -235,7 +237,7 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   // espera. A vez do NPC fica montada atrás (com o que estava aberto) e volta igual quando o contra sai.
   const seguram = contrasQueSeguramAVez(turnos)
   const contraDoNpc = seguram.find((contra) => ehDoMestre(contra.personagemId, personagens) && turnos.cartas.some((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined))
-  const contraDeJogador = seguram.find((contra) => !ehDoMestre(contra.personagemId, personagens) && !semEsperar.has(contra.golpeId))
+  const contraDeJogador = seguram.find((contra) => !ehDoMestre(contra.personagemId, personagens) && !deixadas.has(`contra:${contra.golpeId}`))
   const atrasDoContra = contraDoNpc !== undefined || contraDeJogador !== undefined
   return (
     <>
@@ -250,7 +252,7 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
               <span className="bt-vez__espera-ponto" aria-hidden="true" />
               {nomeDaFicha(mesa, contraDeJogador.tokenId)} contra-atacou: a escolha do golpe é na tela do jogador. Depois a vez volta para {nomeDaFicha(mesa, carta.tokenId, carta)}.
             </p>
-            <button type="button" className="bt-botao bt-botao--p" onClick={() => setSemEsperar((antes) => new Set([...antes, contraDeJogador.golpeId]))}>
+            <button type="button" className="bt-botao bt-botao--p" onClick={() => deixarParaDepois([`contra:${contraDeJogador.golpeId}`])}>
               Seguir sem esperar
             </button>
           </div>
@@ -259,9 +261,6 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
     </>
   )
 }
-
-/** Nenhum contra-ataque dispensado pelo "Seguir sem esperar" (a mesma lista vazia, para o estado não mudar à toa). */
-const NENHUM_CONTRA: ReadonlySet<string> = new Set()
 
 /**
  * Conserto de 19/11/2026: o contra-ataque do NPC (Q6) no MEIO do mapa do mestre, o mesmo `MenuDaVez` do jogador fora
@@ -510,7 +509,12 @@ export function ReacaoDoMestreNoCentro({ sceneKey }: { sceneKey: string }) {
 }
 
 /** O painel da vez e as reações pendentes, no alto da aba Batalha. */
-export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void }) {
+/**
+ * `comAMesa`: a mesa da batalha está à vista (doca ou janela à parte) e já tem a vez do NPC (as técnicas, o
+ * Lançar, o menu da vez no mapa) e o Passar a vez. Aqui fica só o que ela não tem: dano, ações extras, a
+ * concentração e os selos da vez, as pendências de forma e invocação, os lembretes e as reações por jogador.
+ */
+export function BatalhaDoMestre({ sceneKey, onDialogo, comAMesa = false }: { sceneKey: string; onDialogo: (dialogo: DialogoDoMestre) => void; comAMesa?: boolean }) {
   const mesa = useMesa(sceneKey)
   const pedidos = usePedidosDoMestre(sceneKey)
   const { cena, personagens, sistema, equipes } = mesa
@@ -582,7 +586,7 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
             cor={doBando.cor}
             membros={doBando.membros}
             onAgir={(tokenId, pedido) => pedidos.agirComInvocado(vez, tokenId, pedido)}
-            onEncerrar={encerrar}
+            onEncerrar={comAMesa ? undefined : encerrar}
             onDarDano={() => onDialogo({ tipo: 'dano', tokenId: null })}
             consulta={consultaDoMestre}
             alvoDoMapa={alvoDoMapa}
@@ -604,13 +608,15 @@ export function BatalhaDoMestre({ sceneKey, onDialogo }: { sceneKey: string; onD
   const { personagemId } = carta
   const zerarCarga = personagemId === null || carga === 0 ? undefined : () => pedidos.zerarCarga(personagemId)
 
-  if (!doMestre) {
+  // A vez de jogador, e a de NPC com a mesa à vista: só as ferramentas do mestre (o resto é da tela do jogador ou da mesa).
+  if (!doMestre || comAMesa) {
     return (
       <>
         {invocacoes}
         <section className="bt-secao" aria-label="A vez">
           <h3 className="bt-secao__titulo">Vez de {nome}</h3>
           <p className="bt-npc__perfil">{economiaEmTexto(acoes)}</p>
+          {doMestre && <p className="bt-texto">As técnicas e o Passar a vez estão na mesa da batalha.</p>}
           <div className="bt-pendente__acoes">
             <button type="button" className="bt-botao" onClick={() => onDialogo({ tipo: 'extras', cartaId: carta.id })}>
               Ações extras

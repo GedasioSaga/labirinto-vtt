@@ -15,6 +15,7 @@ import { EscolhaDaRegra, confirmarRascunho, rascunhoDe, type RascunhoDaRegra } f
 import { IncluirNaBatalha } from './IncluirNaBatalha'
 import { PainelDaBatalha } from './PainelDaBatalha'
 import { usePassarVezDoMestre } from './passarVezDoMestre'
+import { useTravaDoPassar } from './travaDoPassar'
 
 /**
  * O painel da batalha do MESTRE, montado pelo `ControleDaBatalha` com a
@@ -24,6 +25,8 @@ import { usePassarVezDoMestre } from './passarVezDoMestre'
 
 export interface PainelDoMestreProps {
   sceneKey: string
+  /** A mesa da batalha está à vista: o painel fica só com o que ela não tem (`PainelDaBatalha`). */
+  comAMesa?: boolean
 }
 
 const MESTRE = { tipo: 'mestre' } as const
@@ -35,7 +38,7 @@ export function motivoParaNaoGuardar(carregando: boolean, podeGravar: boolean): 
   return podeGravar ? null : REGRAS_NAO_GRAVAVEIS
 }
 
-export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
+export function PainelDoMestre({ sceneKey, comAMesa = false }: PainelDoMestreProps) {
   const cena = useBatalhaStore((state) => (Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined))
   const fichas = useMapStore((state) => state.map.tokens)
   const personagens = useAdventureStore(personagensAtivos)
@@ -57,6 +60,8 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
   const registro = useMemo(() => (cena === undefined ? [] : linhasDoMestre(cena.registro)), [cena])
   // Conserto das fichas F1 (bug 7): passa SÓ a vez mostrada; o duplo clique e o clique junto com o do jogador não pulam ninguém.
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
+  // Conserto de 19/11 (auditoria da mesa): o Passar a vez daqui também espera a reação e o contra-ataque, com o motivo.
+  const { trava, seguirSemEsperar } = useTravaDoPassar(sceneKey)
 
   if (cena === undefined || dados === null) return null
   const store = () => useBatalhaStore.getState()
@@ -90,6 +95,9 @@ export function PainelDoMestre({ sceneKey }: PainelDoMestreProps) {
         onEquipes={() => setEquipesAbertas(true)}
         registro={registro}
         onDesfazer={(linhaId) => store().desfazer(sceneKey, linhaId, MESTRE)}
+        trava={trava}
+        onSeguirSemEsperar={seguirSemEsperar}
+        comAMesa={comAMesa}
       />
       <Dialogo aberto={mudarAberto} titulo="Regras do campo desta batalha" pequeno descricao="Muda só esta batalha; os jogadores leem a regra nova na hora." onFechar={() => setMudarAberto(false)}>
         <form className="gr-batalha-dlg" onSubmit={aplicarRegras}>

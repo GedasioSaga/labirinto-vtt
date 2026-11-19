@@ -35,6 +35,15 @@ export interface PainelDaBatalhaProps {
   onEquipes: () => void
   registro: readonly LinhaNaTela[]
   onDesfazer: (linhaId: string) => void
+  /** A trava do Passar a vez (`travaDoPassar`): falta reação ou contra-ataque; `null` = passa. */
+  trava?: string | null
+  /** O "Seguir sem esperar" da trava (o jogador que sumiu): o Passar a vez volta a valer. */
+  onSeguirSemEsperar?: () => void
+  /**
+   * A mesa da batalha está à vista (doca ou janela à parte): a vez, o Passar a vez, o Ordenar, as chaves do
+   * combate e o registro moram nela, e o painel fica só com o que ela não tem (desempate, incluir, regras, equipes).
+   */
+  comAMesa?: boolean
 }
 
 const OPCOES_DO_DESEMPATE: readonly OpcaoDoSeg<Desempate>[] = [
@@ -59,58 +68,80 @@ export function PainelDaBatalha({
   onEquipes,
   registro,
   onDesfazer,
+  trava = null,
+  onSeguirSemEsperar,
+  comAMesa = false,
 }: PainelDaBatalhaProps) {
   const daVez = dados.vez === null ? undefined : dados.cartas.find((carta) => carta.id === dados.vez)
   const semCartas = dados.cartas.length === 0
+  const passarParado = semCartas || trava !== null
 
   return (
     <div className="bt-painel" aria-label="Painel da batalha">
-      <section className="bt-secao" aria-labelledby="bt-painel-vez">
-        <h3 className="bt-secao__titulo" id="bt-painel-vez">
-          Vez · Rodada {dados.rodada} · Turno {dados.turno.n}/{dados.turno.m}
-        </h3>
-        {daVez === undefined ? (
-          <p className="bt-texto">{semCartas ? 'Ninguém na ordem ainda.' : 'Ninguém na vez: "Passar a vez" começa pela primeira carta.'}</p>
-        ) : (
-          <div className="bt-painel-vez">
-            <span className="bt-carta__retrato" style={daVez.cor === null ? undefined : ({ '--lado': daVez.cor } as CSSProperties)}>
-              <ImagemOuIniciais imagem={daVez.imagem} nome={daVez.nome} />
-            </span>
-            <span className="bt-painel-vez__quem">
-              <span className="bt-painel-vez__nome">{daVez.nome}</span>
-              <span className="bt-painel-vez__sub">
-                {[daVez.equipe, daVez.npc ? 'NPC' : daVez.personagemId === null ? 'sem ficha' : 'jogador', daVez.caiu ? 'caiu' : null].filter(Boolean).join(' · ')}
+      {!comAMesa && (
+        <section className="bt-secao" aria-labelledby="bt-painel-vez">
+          <h3 className="bt-secao__titulo" id="bt-painel-vez">
+            Vez · Rodada {dados.rodada} · Turno {dados.turno.n}/{dados.turno.m}
+          </h3>
+          {daVez === undefined ? (
+            <p className="bt-texto">{semCartas ? 'Ninguém na ordem ainda.' : 'Ninguém na vez: "Passar a vez" começa pela primeira carta.'}</p>
+          ) : (
+            <div className="bt-painel-vez">
+              <span className="bt-carta__retrato" style={daVez.cor === null ? undefined : ({ '--lado': daVez.cor } as CSSProperties)}>
+                <ImagemOuIniciais imagem={daVez.imagem} nome={daVez.nome} />
               </span>
-            </span>
-          </div>
-        )}
-        <Acoes>
-          <Botao variante="primario" aria-disabled={semCartas} title={semCartas ? 'Inclua um combatente primeiro' : undefined} onClick={() => !semCartas && onPassarVez()}>
-            Passar a vez
-          </Botao>
-          {/* D7: a chave do mestre para a câmera que traz a ficha da vez para a vista (ligada por padrão, guardada neste computador). */}
-          <BotaoDaCameraDaBatalha />
-          {/* D5: a chave do som também mora aqui: na vez de um jogador o menu da vez (onde ela está) não aparece para o mestre. */}
-          <BotaoDoSomDoCombate />
-        </Acoes>
-        {dados.depois !== null && <p className="bt-texto">{dados.depois}</p>}
-      </section>
+              <span className="bt-painel-vez__quem">
+                <span className="bt-painel-vez__nome">{daVez.nome}</span>
+                <span className="bt-painel-vez__sub">
+                  {[daVez.equipe, daVez.npc ? 'NPC' : daVez.personagemId === null ? 'sem ficha' : 'jogador', daVez.caiu ? 'caiu' : null].filter(Boolean).join(' · ')}
+                </span>
+              </span>
+            </div>
+          )}
+          {trava !== null && (
+            <p className="bt-texto" role="status">
+              {trava}
+            </p>
+          )}
+          <Acoes>
+            {trava !== null && onSeguirSemEsperar !== undefined && (
+              <Botao variante="fantasma" title="Passa a valer o Passar a vez; o pedido fica de pé até ser respondido ou a rodada virar." onClick={onSeguirSemEsperar}>
+                Seguir sem esperar
+              </Botao>
+            )}
+            <Botao variante="primario" aria-disabled={passarParado} title={semCartas ? 'Inclua um combatente primeiro' : (trava ?? undefined)} onClick={() => !passarParado && onPassarVez()}>
+              Passar a vez
+            </Botao>
+            {/* D7: a chave do mestre para a câmera que traz a ficha da vez para a vista (ligada por padrão, guardada neste computador). */}
+            <BotaoDaCameraDaBatalha />
+            {/* D5: a chave do som também mora aqui: na vez de um jogador o menu da vez (onde ela está) não aparece para o mestre. */}
+            <BotaoDoSomDoCombate />
+          </Acoes>
+          {dados.depois !== null && <p className="bt-texto">{dados.depois}</p>}
+        </section>
+      )}
 
       <section className="bt-secao" aria-labelledby="bt-painel-ordem">
         <h3 className="bt-secao__titulo" id="bt-painel-ordem">
           Ordem
         </h3>
-        <Acoes>
-          <Botao aria-disabled={semCartas} title={semCartas ? 'Ninguém na ordem para ordenar' : undefined} onClick={() => !semCartas && onOrdenar()}>
-            Ordenar pela Agilidade
-          </Botao>
-        </Acoes>
+        {!comAMesa && (
+          <Acoes>
+            <Botao aria-disabled={semCartas} title={semCartas ? 'Ninguém na ordem para ordenar' : undefined} onClick={() => !semCartas && onOrdenar()}>
+              Ordenar pela Agilidade
+            </Botao>
+          </Acoes>
+        )}
         <CampoSeg rotulo="Empate na Agilidade" opcoes={OPCOES_DO_DESEMPATE} valor={desempate} onChange={onDesempate} />
         <p className="bt-texto">
           {desempate === 'd20' ? '1d20: o app rola para os empatados e mostra o número na carta (só você vê).' : 'Eu decido: a marca de empate fica na carta até você arrastar.'}
         </p>
         {incluir}
-        <p className="bt-texto">Clique numa carta da faixa para dar a vez, pôr uma carta extra, trocar de equipe ou tirar da batalha.</p>
+        <p className="bt-texto">
+          {comAMesa
+            ? 'Clique no nome de um combatente na mesa da batalha para dar a vez, pôr uma carta extra, trocar de equipe ou tirar da batalha.'
+            : 'Clique numa carta da faixa para dar a vez, pôr uma carta extra, trocar de equipe ou tirar da batalha.'}
+        </p>
       </section>
 
       <section className="bt-secao" aria-labelledby="bt-painel-regras">
@@ -148,12 +179,14 @@ export function PainelDaBatalha({
         </Acoes>
       </section>
 
-      <section className="bt-secao" aria-labelledby="bt-painel-registro">
-        <h3 className="bt-secao__titulo" id="bt-painel-registro">
-          Registro
-        </h3>
-        <RegistroDaBatalha linhas={registro} onDesfazer={onDesfazer} maximo={LINHAS_NO_PAINEL} />
-      </section>
+      {!comAMesa && (
+        <section className="bt-secao" aria-labelledby="bt-painel-registro">
+          <h3 className="bt-secao__titulo" id="bt-painel-registro">
+            Registro
+          </h3>
+          <RegistroDaBatalha linhas={registro} onDesfazer={onDesfazer} maximo={LINHAS_NO_PAINEL} />
+        </section>
+      )}
     </div>
   )
 }

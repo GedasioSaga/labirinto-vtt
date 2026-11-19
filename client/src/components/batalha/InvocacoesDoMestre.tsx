@@ -315,7 +315,8 @@ export interface PainelDoBandoProps {
   cor: string | null
   membros: readonly MembroNaVez[]
   onAgir: (tokenId: string, pedido: PedidoDeAcao) => boolean
-  onEncerrar: () => boolean
+  /** Ausente = sem o "Encerrar vez" (a mesa da batalha à vista tem o Passar a vez). */
+  onEncerrar?: () => boolean
   onDarDano: () => void
   consulta?: ConsultaDaFicha | null
   alvoDoMapa?: { tokenId: string; seq: number } | null
@@ -458,9 +459,11 @@ export function PainelDoBando({ nome, cor, membros, onAgir, onEncerrar, onDarDan
         <button type="button" className="bt-botao" onClick={onDarDano}>
           Dar dano
         </button>
-        <button type="button" className="bt-botao bt-botao--primario" onClick={() => setAviso(onEncerrar() ? null : 'A vez não passou: confira a ordem.')}>
-          Encerrar vez
-        </button>
+        {onEncerrar !== undefined && (
+          <button type="button" className="bt-botao bt-botao--primario" onClick={() => setAviso(onEncerrar() ? null : 'A vez não passou: confira a ordem.')}>
+            Encerrar vez
+          </button>
+        )}
       </div>
     </div>
   )
