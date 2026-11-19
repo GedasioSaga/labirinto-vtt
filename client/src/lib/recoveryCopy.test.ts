@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapData, Region } from '../types/map'
 import { createEmptyMap } from './mapFactory'
+import { novoPersonagem } from './personagem'
+import { SISTEMA_ONE_PIECE } from './sistemaOnePiece'
 // vi.mock abaixo é içado para antes deste import pelo vitest.
 import { clearRecoveryCopy, formatRecoveryTime, parseRecoveryCopy, readRecoveryCopy, serializeRecoveryCopy, writeRecoveryCopy } from './recoveryCopy'
 
@@ -176,5 +178,27 @@ describe('cópia de recuperação: aventura e cópia guardada (18/11/2026)', () 
     expect(oferta?.setAside).toBe(true)
     expect(oferta?.copy.mapPath).toBe('C:/mapas/queda/map.json')
     expect(oferta?.copy.map.regions).toHaveLength(1)
+  })
+
+  it('retrato completo (análise 18/11/2026, seção 3, causa 4): as fichas da aventura e o rpg.json da pasta voltam iguais', () => {
+    const luffy = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Luffy'), id: 'pers_luffy', recursos: { hp: 37 } }
+    const zoro = { ...novoPersonagem(SISTEMA_ONE_PIECE, 'jogador', 'Zoro'), id: 'pers_zoro' }
+    const dados = {
+      version: 1 as const,
+      id: 'adv_ilha',
+      name: 'Ilha',
+      startSceneId: 'map_abc',
+      scenes: [{ id: 'map_abc', name: 'Praia', file: 'map.json' }],
+      sistemaDeRpg: SISTEMA_ONE_PIECE.id,
+      personagens: [luffy],
+    }
+    const aventura = { dados, activeSceneId: 'map_abc', dir: 'C:/mapas/ilha', rootPath: null, rootMapId: null }
+    const pasta = { pastaId: 'pasta_mar', rpg: { sistemaDeRpg: SISTEMA_ONE_PIECE.id, personagens: [zoro] } }
+    const lida = parseRecoveryCopy(serializeRecoveryCopy({ savedAtMs: COPIA_MS, mapPath: 'C:/mapas/ilha/map.json', map: mapaComSala(), scenes: {}, aventura, pasta }))
+    expect(lida?.aventura?.dados.personagens).toEqual([luffy])
+    expect(lida?.aventura?.dados.sistemaDeRpg).toBe(SISTEMA_ONE_PIECE.id)
+    expect(lida?.pasta?.pastaId).toBe('pasta_mar')
+    expect(lida?.pasta?.rpg.sistemaDeRpg).toBe(SISTEMA_ONE_PIECE.id)
+    expect(lida?.pasta?.rpg.personagens).toEqual([zoro])
   })
 })

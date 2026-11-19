@@ -7,6 +7,7 @@ import { textoDaRecusaDaPesca } from './estadoDaPesca'
 import { textoDaRecusaDoTiro } from './estadoDoTiro'
 import { textoDaRecusaDoFogo } from './estadoDoFogo'
 import { textoDaRecusaDaBolha } from './estadoDaBolha'
+import { chamadoDaBatalha } from './chamadoDaBatalha'
 import { themeCss } from '../theme'
 import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
@@ -1018,30 +1019,7 @@ const RECUSA_DBT_SEM_MOTIVO = 'O mestre recusou o pedido.'
 const PEDIDO_DBT_NAO_SAIU = 'O pedido não saiu. Confira a conexão e tente de novo.'
 
 /**
- * BATALHA: o que chama o jogador de volta ao mapa ao vivo, numa chave que muda quando chega algo novo: o
- * golpe esperando a reação de ficha dele, a vez dele, e no Dragon Ball a pendência que ele responde agora
- * e a declaração da iniciativa. `''` = nada espera por ele.
- */
-function chamadoDaBatalha(estado: PlayerState['batalhaEstado'], vistaDBT: PlayerState['batalhaDBTEstado']): string {
-  if (estado !== undefined) {
-    const reacoes = (estado.reacoes ?? []).map((reacao) => `${reacao.golpeId}:${reacao.tokenId}:${reacao.por ?? ''}`).join(',')
-    const vez = estado.minhaVez ? `${estado.vez ?? ''}:${estado.rodada}` : ''
-    return reacoes === '' && vez === '' ? '' : `${reacoes}|${vez}`
-  }
-  if (vistaDBT === undefined) return ''
-  const pendencias = vistaDBT.pendencias
-    .filter((pendencia) => pendencia.ativa)
-    .map((pendencia) => `${pendencia.id}:${pendencia.combatenteId}`)
-    .join(',')
-  const declaracoes = vistaDBT.declaracoes.map((declaracao) => declaracao.combatenteId).join(',')
-  const vez = vistaDBT.minhaVez ? `${vistaDBT.vez ?? ''}:${vistaDBT.rodada}:${vistaDBT.turno.n}` : ''
-  return pendencias === '' && declaracoes === '' && vez === '' ? '' : `${pendencias}|${declaracoes}|${vez}`
-}
-
-/**
  * BATALHA DBT: a última recusa do host (`batalhaDBT.resultado` com `ok: false`)
-  // Dragon Ball (análise 18/11/2026, 2.3): a forma ativa com imagem vem na carta da vista (`fotoDaForma`).
-  const cartasDBT = state.batalhaDBTEstado?.cartas
  * até o próximo recorte. Pedido aceito muda o recorte e a recusa velha sai;
  * recusado, o recorte não muda e o aviso fica. Os dois no mesmo quadro: fica a recusa.
  */
@@ -1062,6 +1040,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const batalhaEstado = state.batalhaEstado
   // MUDAR FICHA: fora da batalha, a imagem de forma que o recorte pendurou em cada token (`Token.fotoDaForma`); a da batalha vence.
   const tokensDoRecorte = state.map?.tokens
+  // Dragon Ball (análise 18/11/2026, 2.3): a forma ativa com imagem vem na carta da vista (`fotoDaForma`).
+  const cartasDBT = state.batalhaDBTEstado?.cartas
   const fotoDaForma = useFotosEstaveis(
     useMemo(() => {
       const daBatalha =
