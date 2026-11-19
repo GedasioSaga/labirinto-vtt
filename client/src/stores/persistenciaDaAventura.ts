@@ -1,7 +1,7 @@
 import type { MapData } from '../types/map'
 import { cleanSceneName, sceneFileFor, type Adventure } from '../lib/adventure'
 import { gravarRpgDaPasta, rpgDe } from '../lib/pastasDeMapas'
-import { mapDirFor, saveAdventureToDisk, scenePath } from '../lib/mapFileIO'
+import { mapDirFor, outraAventuraNaPasta, saveAdventureToDisk, scenePath } from '../lib/mapFileIO'
 import { levarMidiaDaAventura } from '../lib/midiaDaPasta'
 import { storedTokensOfScene, withStoredTokens, type StoredToken } from '../lib/storedTokens'
 import { dirname } from '@tauri-apps/api/path'
@@ -18,6 +18,9 @@ import type { AdventureState, SceneSlot } from './adventureStore'
 
 type LerEstado = () => AdventureState
 type GravarEstado = (patch: Partial<AdventureState>) => void
+
+/** O Salvar recusado porque a pasta do mapa já guarda outra aventura (ver `outraAventuraNaPasta`). */
+export const PASTA_COM_OUTRA_AVENTURA = 'A pasta deste mapa já tem outra aventura (adventure.json) e salvar aqui apagaria a lista de cenas dela. Nada foi gravado.'
 
 /** Há trabalho por salvar fora do mapa aberto (o `isDirty` dele é do `useSessionStore`): cenas, lista, pasta. */
 export function temTrabalhoPorSalvar(state: AdventureState): boolean {
@@ -40,6 +43,12 @@ export async function gravarAventura(get: LerEstado, set: GravarEstado, stored: 
     else if (state.rootMapId !== null) dir = await mapDirFor(state.rootMapId)
     else throw new Error('A aventura não tem pasta para gravar.')
   }
+  // MAPA JÁ É AVENTURA: a aventura que nasceu de um mapa solto (`rootPath`/`rootMapId` até o primeiro
+  // Salvar; a `dir` pode já vir da abertura) grava o `adventure.json` na pasta dele. Se a pasta já tem o
+  // de outra aventura (o `map.json` órfão de uma primeira cena apagada, um .json escolhido no meio de
+  // outra aventura), gravar por cima apagaria a lista de cenas dela.
+  const aindaNaoGravada = state.rootPath !== null || state.rootMapId !== null
+  if (aindaNaoGravada && (await outraAventuraNaPasta(dir, adventure.id))) throw new Error(PASTA_COM_OUTRA_AVENTURA)
 
   const live = useMapStore.getState().map
   const writes: { file: string; map: MapData }[] = []

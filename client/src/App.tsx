@@ -17,7 +17,7 @@ import { Toast } from './components/Toast'
 import { useToastStore, type ToastKind } from './stores/toastStore'
 import { ensinaOQueFazer } from './lib/erroQueEnsina'
 import { motivoDaFalhaDeArquivo, temPonteDoApp } from './lib/foraDoApp'
-import { useSessionStore, subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
+import { subscribeToDirtyFlag, saveOpenMap } from './stores/sessionStore'
 import { restoreRecoveryCopy, startRecoveryAutosave, type RecoveryAutosave } from './stores/recoveryAutosave'
 import {
   clearRecoveryCopy,
@@ -395,15 +395,6 @@ function hideTokenFromRequest(tokenId: string, sceneId?: string): void {
   useMapStore.getState().setItemSecret('token', tokenId, true)
 }
 
-/**
- * Sim/não ao mestre: no app instalado, a janela do sistema (como a do fechar);
- * fora dele (navegador dos testes), o `confirm` da página.
- */
-function perguntarSimNao(texto: string): Promise<boolean> {
-  if (!isTauri()) return Promise.resolve(window.confirm(texto))
-  return ask(texto, { title: 'Labirinto', kind: 'info', okLabel: 'Transformar', cancelLabel: 'Agora não' })
-}
-
 function pararDeOuvir(unlisten: (() => void) | undefined): void {
   if (unlisten === undefined) return
   try {
@@ -648,7 +639,6 @@ function App() {
   const map = useMapStore((state) => state.map)
   const pisoAtivo = useMapStore((state) => state.pisoAtivo)
   const mapaTemPisos = useMemo(() => temPisos(map), [map])
-  const loadMap = useMapStore((state) => state.loadMap)
   const setBackground = useMapStore((state) => state.setBackground)
   const activeTool = useMapStore((state) => state.activeTool)
   const setActiveTool = useMapStore((state) => state.setActiveTool)
@@ -1982,13 +1972,12 @@ function App() {
   }, [currentMapPath])
 
   /**
-   * SISTEMA DE RPG e PERSONAGENS no mapa solto: pergunta e o faz virar
-   * aventura (só ele, sem cena nova) antes de escolher sistema, criar ou
-   * importar. O caminho é lido pela ref na hora da resposta.
+   * SISTEMA DE RPG e PERSONAGENS: todo mapa já é aventura (abrir e "Novo mapa"); o que ainda não for vira
+   * uma aqui, sem pergunta (só ele, sem cena nova), antes de escolher sistema, criar ou importar.
    */
-  const garantirAventuraDoMapa = () => garantirAventura({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current })
-  /** CAMADAS (fatia 7): criar e ordenar mudam a lista da aventura; no mapa solto, pergunta antes de ele virar aventura. */
-  const acoesDoModeloDeCamadas = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: perguntarSimNao, caminhoDoMapaSolto: () => currentMapPathRef.current }))
+  const garantirAventuraDoMapa = () => garantirAventura({ caminhoDoMapaSolto: () => currentMapPathRef.current })
+  /** CAMADAS (fatia 7): criar e ordenar mudam a lista da aventura; garante a aventura antes, sem pergunta. */
+  const acoesDoModeloDeCamadas = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ caminhoDoMapaSolto: () => currentMapPathRef.current }))
 
   /**
    * Salvamento automático com recuperação: ao abrir, procura a cópia de
@@ -2874,7 +2863,7 @@ function App() {
     })
   }
 
-  /** "+ Nova cena": a aventura nasce aqui quando o mapa ainda era solto. */
+  /** "+ Nova cena": a cena entra na aventura (todo mapa já é uma; o que ainda não for vira aqui). */
   const handleCreateScene = (name: string) => {
     useFollowStore.getState().stop()
     useAdventureStore.getState().createScene(name, currentMapPath)
@@ -3375,13 +3364,14 @@ function App() {
    */
   const handleCreate = (newMap: MapData) =>
     askBeforeReplacingMap(async () => {
-      useAdventureStore.getState().reset()
-      loadMap(newMap)
+      // MAPA JÁ É AVENTURA: o mapa novo já nasce aventura de uma cena (o primeiro Salvar grava o
+      // `adventure.json` na pasta do id dele). Onda 2, item 11 (Frente D) — mapa recém-criado, sem edição
+      // nenhuma ainda: não conta como "trabalho não salvo" (`abrirMapaNovo` marca salvo; decisão de
+      // produto documentada no CONTRATO da frente). A pasta sai já aqui (a batalha guardada e o Prelúdio
+      // acham a mesa por ela); fora do app instalado não há pasta, e o Salvar a acha depois.
+      const pasta = await mapDirFor(newMap.id).catch(() => null)
+      useAdventureStore.getState().abrirMapaNovo(newMap, pasta)
       setCurrentMapPath(null)
-      // Onda 2, item 11 (Frente D) — mapa recém-criado, sem edição nenhuma
-      // ainda: não conta como "trabalho não salvo" (decisão de produto
-      // documentada no CONTRATO da frente).
-      useSessionStore.getState().markSaved()
       setScreen('editor')
     })
 

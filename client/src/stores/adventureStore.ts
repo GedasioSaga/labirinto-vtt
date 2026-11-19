@@ -141,8 +141,12 @@ export {
  * devolve o da que entra. Por isso mudança numa cena de fundo nunca entra no
  * desfazer da cena aberta (`updateBackgroundScene` não toca no `useMapStore`).
  *
- * `adventure === null` é o mapa solto de sempre: nada aqui interfere nele. A
- * aventura nasce na primeira `createScene`.
+ * MAPA JÁ É AVENTURA (leva 18/11, seção 2.5): o mapa novo (`abrirMapaNovo`)
+ * e o mapa solto antigo que abre (`open`) já entram como aventura de UMA cena
+ * — o próprio mapa, no mesmo arquivo; o `adventure.json` nasce no primeiro
+ * Salvar. `adventure === null` só sobra antes do primeiro mapa e onde alguém
+ * põe um mapa no editor sem passar por aqui; quem precisa da aventura nesse
+ * caso a cria sem perguntar (`virarAventura`).
  *
  * Gravar é `flush`: escreve a cena aberta, as de fundo com mudança pendente e
  * por último o `adventure.json`. Trocar de cena NÃO grava no disco — só no
@@ -259,15 +263,16 @@ export interface AdventureState {
   pasta: PastaAberta | null
   /** A cópia da pasta mudou desde a última gravação (`gravarPasta`). */
   pastaSuja: boolean
-  /**
-   * DIA/TARDE/NOITE do MAPA SOLTO: sem `adventure.json` não há onde gravar, e
-   * o período vale só nesta sessão (passa à aventura que nasce do mapa). Com
-   * aventura, quem manda é `adventure.periodo`. Leia por `periodoDaSessao`.
-   */
-  periodoSolto: Periodo
 
-  /** Mapa novo ou solto: esquece qualquer aventura anterior. */
+  /** Esquece qualquer aventura anterior, sem pôr mapa no editor. */
   reset: () => void
+  /**
+   * "Novo mapa": põe `map` no editor já como aventura de uma cena (ele mesmo),
+   * sem arquivo ainda — o primeiro Salvar grava na pasta do id dele. Como
+   * `open`, esquece a aventura anterior e marca o mapa como salvo. `dir`: essa
+   * pasta (`mapDirFor`), ou `null` quando não deu para saber (o Salvar a acha).
+   */
+  abrirMapaNovo: (map: MapData, dir: string | null) => void
   /**
    * Assume o que `openMapFileFirst` leu e põe a cena pedida no editor NA HORA.
    * As cenas `pendente` entram como "carregando" e são lidas em segundo plano;
@@ -275,6 +280,8 @@ export interface AdventureState {
    * mais lenta. A promessa resolve quando todas chegaram (ou não abriram) e nunca rejeita.
    * Abrir outro mapa antes disso descarta o que ainda chegar desta.
    * `pasta`: a pasta do arquivo aberto (`pastaAbertaDoArquivo`); `null` = fora das pastas.
+   * Mapa solto (sem `adventure.json`): entra como aventura de uma cena, ele
+   * mesmo no mesmo arquivo, sem pedir Salvar — nada muda no disco até o mestre salvar.
    */
   open: (opened: OpenedMapFile, pasta?: PastaAberta | null) => Promise<void>
   /**
@@ -324,10 +331,11 @@ export interface AdventureState {
   /** Cria a cena, já aberta. `loosePath` é o arquivo do mapa solto, quando a aventura nasce agora. */
   createScene: (name: string, loosePath: string | null) => string
   /**
-   * O mapa solto vira aventura SÓ com ele: a primeira cena é o próprio mapa,
-   * no mesmo arquivo, sem cena nova (o `createScene` faz o mesmo nascimento e
-   * ainda cria uma). É o que o sistema de RPG e as fichas pedem para ter onde
-   * morar (`adventure.json`). `false` = já era aventura, nada muda.
+   * O mapa no editor que ainda não é aventura vira uma SÓ com ele: a primeira
+   * cena é o próprio mapa, no mesmo arquivo, sem cena nova (o `createScene` faz
+   * o mesmo nascimento e ainda cria uma). Sem pergunta: todo mapa é aventura, e
+   * isto só cobre o mapa que entrou no editor sem `open`/`abrirMapaNovo`.
+   * `false` = já era aventura, nada muda.
    */
   virarAventura: (loosePath: string | null) => boolean
   /**
@@ -403,8 +411,8 @@ export interface AdventureState {
   /**
    * DIA/TARDE/NOITE (decisão D6): troca o período da sessão. Com aventura,
    * grava em `adventure.periodo` e pede Salvar como a agenda, fora do desfazer
-   * da cena aberta; Dia tira o campo (ausente = dia). No mapa solto fica só na
-   * sessão (`periodoSolto`). O mesmo período de novo não muda nada.
+   * da cena aberta; Dia tira o campo (ausente = dia). Mapa que ainda não era
+   * aventura vira uma antes (`virarAventura`). O mesmo período de novo não muda nada.
    */
   setPeriodo: (periodo: Periodo) => void
   /**
@@ -712,15 +720,14 @@ const EMPTY = {
   cameraRequest: null,
   pasta: null,
   pastaSuja: false,
-  periodoSolto: PERIODO_PADRAO,
 } satisfies Partial<AdventureState>
 
 /**
- * DIA/TARDE/NOITE: o período da sessão — o da aventura (ausente = dia) ou, no
- * mapa solto, o da sessão. É o que o host lê a cada recorte (`getPeriodo`).
+ * DIA/TARDE/NOITE: o período da sessão — o da aventura (ausente = dia; sem
+ * aventura ainda, dia). É o que o host lê a cada recorte (`getPeriodo`).
  */
-export function periodoDaSessao(state: Pick<AdventureState, 'adventure' | 'periodoSolto'>): Periodo {
-  if (state.adventure === null) return state.periodoSolto
+export function periodoDaSessao(state: Pick<AdventureState, 'adventure'>): Periodo {
+  if (state.adventure === null) return PERIODO_PADRAO
   return state.adventure.periodo ?? PERIODO_PADRAO
 }
 
@@ -1306,18 +1313,24 @@ function showInEditor(map: MapData, past: MapData[], future: MapData[]): void {
  * A aventura que nasce do mapa solto `live`: ele é a primeira (e única) cena,
  * no MESMO arquivo (`loosePath`, ou `map.json` da pasta do id quando nunca foi
  * salvo) — por isso o mapa continua igual. `nascimento` é o que diz ao
- * `flush` onde fica a pasta. Compartilhado pela cena nova (`withEmptyScene`) e
- * por `virarAventura`, para as duas nascerem do mesmo jeito.
+ * `flush` onde fica a pasta. Compartilhado pela abertura (`abrirComoAventuraDeUmaCena`),
+ * pela cena nova (`withEmptyScene`) e por `virarAventura`, para nascerem do mesmo jeito.
+ *
+ * O id da aventura e o da primeira cena são o ID DO MAPA: é a chave com que o
+ * mapa solto sempre foi guardado fora do arquivo (a mesa salva com donos e
+ * névoa, `currentTableId`; a cena da batalha e do chat, `activeSceneId ?? map.id`;
+ * a batalha guardada no disco, `mesaId`). Assim nada disso se perde na virada, e
+ * reabrir o mesmo mapa ainda não salvo dá a MESMA aventura, não uma nova.
  */
 function aventuraDoMapaSolto(
   live: MapData,
   loosePath: string | null,
-  periodoSolto: Periodo,
 ): { adventure: Adventure; activeSceneId: string; nascimento: Partial<AdventureState> } {
-  const root: SceneEntry = { id: newSceneId(), name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
-  const nascida: Adventure = {
+  const root: SceneEntry = { id: live.id, name: live.name, file: loosePath ? baseName(loosePath) : 'map.json' }
+  // Nasce de dia (sem `periodo`): o mapa solto nunca guardou período no arquivo.
+  const adventure: Adventure = {
     version: ADVENTURE_VERSION,
-    id: `adv_${crypto.randomUUID()}`,
+    id: live.id,
     name: live.name,
     startSceneId: root.id,
     scenes: [root],
@@ -1325,11 +1338,29 @@ function aventuraDoMapaSolto(
     ...(live.modeloCamadas === undefined ? {} : { camadas: live.modeloCamadas }),
   }
   return {
-    // DIA/TARDE/NOITE: o período que a sessão do mapa solto já tinha passa a ser o da aventura.
-    adventure: comPeriodo(nascida, periodoSolto),
+    adventure,
     activeSceneId: root.id,
     nascimento: { rootPath: loosePath, rootMapId: live.id, dir: null },
   }
+}
+
+/**
+ * Põe no editor o mapa que ainda não é aventura (`open` de mapa solto, "Novo
+ * mapa") já como aventura de uma cena: ele mesmo, em `loosePath` (`null` =
+ * nunca salvo, vai para a pasta do id). `dir`: a pasta onde a aventura vai
+ * morar, quando já se sabe (a batalha guardada e o Prelúdio a usam antes do
+ * primeiro Salvar); `rootPath`/`rootMapId` ficam marcando "ainda não gravada"
+ * até lá (`flush`). Nada pede Salvar: o `adventure.json` nasce no primeiro
+ * Salvar, e o mapa sem mudança fecha sem perguntar.
+ */
+function abrirComoAventuraDeUmaCena(
+  set: (patch: Partial<AdventureState>) => void,
+  map: MapData,
+  onde: { loosePath: string | null; dir: string | null; pasta: PastaAberta | null },
+): void {
+  const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(map, onde.loosePath)
+  set({ ...EMPTY, pasta: onde.pasta, adventure, activeSceneId, ...nascimento, dir: onde.dir })
+  showInEditor(map, [], [])
 }
 
 /**
@@ -1351,7 +1382,7 @@ function withEmptyScene(
 ): { id: string; patch: Partial<AdventureState> } {
   const { adventure, activeSceneId, nascimento } =
     state.adventure === null || state.activeSceneId === null
-      ? aventuraDoMapaSolto(live, loosePath, state.periodoSolto)
+      ? aventuraDoMapaSolto(live, loosePath)
       : { adventure: state.adventure, activeSceneId: state.activeSceneId, nascimento: {} }
   const id = newSceneId()
   const sceneName = cleanSceneName(name)
@@ -1524,11 +1555,16 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
     set({ ...EMPTY })
   },
 
+  abrirMapaNovo: (map, dir) => {
+    beginOpening()
+    abrirComoAventuraDeUmaCena(set, map, { loosePath: null, dir, pasta: null })
+  },
+
   open: (opened, pasta = null) => {
     const generation = beginOpening()
     if (opened.adventure === null || opened.activeSceneId === null) {
-      set({ ...EMPTY, pasta })
-      showInEditor(opened.map, [], [])
+      // MAPA JÁ É AVENTURA: o mapa solto antigo entra como aventura de uma cena, no mesmo arquivo.
+      abrirComoAventuraDeUmaCena(set, opened.map, { loosePath: opened.path === '' ? null : opened.path, dir: opened.pastaDoMapaSolto ?? null, pasta })
       return Promise.resolve()
     }
     const cache: Record<string, SceneSlot> = {}
@@ -1589,7 +1625,7 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   virarAventura: (loosePath) => {
     const state = get()
     if (state.adventure !== null && state.activeSceneId !== null) return false
-    const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(useMapStore.getState().map, loosePath, state.periodoSolto)
+    const { adventure, activeSceneId, nascimento } = aventuraDoMapaSolto(useMapStore.getState().map, loosePath)
     // Pede Salvar como a cena nova: o `adventure.json` ainda não existe no disco.
     set({ adventure, activeSceneId, ...nascimento, structureDirty: true })
     return true
@@ -1832,11 +1868,10 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   setPeriodo: (periodo) => {
     const state = get()
     if (periodoDaSessao(state) === periodo) return
-    const { adventure } = state
-    if (adventure === null) {
-      set({ periodoSolto: periodo })
-      return
-    }
+    // Mapa que entrou no editor sem `open` (sem arquivo de origem): vira aventura para ter onde guardar o período.
+    if (state.adventure === null) get().virarAventura(null)
+    const { adventure } = get()
+    if (adventure === null) return
     set({ adventure: comPeriodo(adventure, periodo), structureDirty: true })
   },
 

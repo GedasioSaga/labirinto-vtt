@@ -758,6 +758,12 @@ export interface OpenedMapFile {
    * `MAX_MIGRATED_SCENES` vale para a abertura inteira, não por passada.
    */
   legacySources: { path: string; sceneId: string }[]
+  /**
+   * Mapa solto (`adventure: null`): a pasta do arquivo. MAPA JÁ É AVENTURA — o mapa entra no editor como
+   * aventura de uma cena que mora nesta pasta, antes mesmo do primeiro Salvar (a batalha guardada e o
+   * catálogo do Prelúdio acham a mesa por ela). Ausente = quem montou o objeto não sabia (a pasta sai do caminho no Salvar).
+   */
+  pastaDoMapaSolto?: string
 }
 
 /** Teto de cenas que a conversão de portais antigos cria de uma vez: corrente de andares, não labirinto infinito. */
@@ -851,7 +857,8 @@ export async function openMapFileFirst(path: string, naCenaInicial = false): Pro
   const found = await findAdventureFor(path)
   await trazerMidiaAoAbrir(path, found === null ? null : found.dir)
   if (found === null) {
-    return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [] })
+    const pastaDoMapaSolto = await dirname(path)
+    return convertLegacyPortals({ path, map, adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [], pastaDoMapaSolto })
   }
   const aberta = (naCenaInicial ? await startSceneOf(found) : null) ?? { path, map, sceneId: found.sceneId }
   const scenes = found.adventure.scenes.map((entry): SceneLoad => (entry.id === aberta.sceneId ? { entry, status: 'ok', map: aberta.map } : { entry, status: 'pendente' }))
@@ -1039,6 +1046,22 @@ async function convertLegacyPortals(opened: OpenedMapFile): Promise<OpenedMapFil
     changedSceneIds: [...changed],
     adventureChanged: added > 0 || opened.adventure === null,
     legacySources: sources,
+  }
+}
+
+/**
+ * A pasta já tem o `adventure.json` de OUTRA aventura (id diferente de
+ * `adventureId`, ou quebrado a ponto de não dar para saber). A aventura que
+ * acaba de nascer de um mapa solto não grava por cima: apagaria a lista de
+ * cenas da outra. `false` = pasta sem `adventure.json`, ou com o desta mesma.
+ */
+export async function outraAventuraNaPasta(adventureDir: string, adventureId: string): Promise<boolean> {
+  const raw = await readIfExists(await join(adventureDir, ADVENTURE_FILE))
+  if (raw === null) return false
+  try {
+    return parseAdventure(raw).id !== adventureId
+  } catch {
+    return true
   }
 }
 
