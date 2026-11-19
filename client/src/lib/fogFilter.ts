@@ -4904,6 +4904,8 @@ function recorteDoGrupo(
     semJumpscare: undefined,
     // GRADE LEMBRA A ESCOLHA: os interruptores do editor do mestre; o jogador não desenha nada.
     encaixeNaGrade: undefined,
+    // GRUPOS SALVOS (Ctrl+G): gesto do mestre; a lista entregaria o id de coisa que o jogador não vê.
+    grupos: undefined,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // NUVENS: o céu delas sai SÓ do chão que este recorte manda

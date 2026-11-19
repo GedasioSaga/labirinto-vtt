@@ -130,6 +130,7 @@ import { lerAlerta, lerFaccao } from './faccoes'
 import { faceRangeCellsOrNull } from './tokenVulto'
 import { lerTamanhoAoEntrar } from './tamanhoAoEntrar'
 import { alturasDosPisosDoArquivo, pisosDoArquivo } from './pisos'
+import { gruposDoArquivo } from './gruposSalvos'
 import { temaDoMapaDoArquivo, temasDosPisosDoArquivo } from './temasDoAmbiente'
 import { idDeCamadaDoArquivo, idsDoArquivo, lerVersaoDasCamadas, ocultasDoJogadorDoArquivo, opacidadesDoArquivo, semCamadaTorta, versaoDasCamadasDoArquivo } from './camadas/arquivo'
 import { ehCamadaDeAntes, ehCamadaId } from './camadas/padrao'
@@ -1173,6 +1174,8 @@ function deserializeMapFields(json: string): MapData {
     ...(parsed.semJumpscare === true ? { semJumpscare: true as const } : {}),
     // GRADE LEMBRA A ESCOLHA: os interruptores de "Grudar … na grade" deste mapa (ausente continua ausente).
     ...encaixeDoArquivo(parsed.encaixeNaGrade),
+    // GRUPOS SALVOS (Ctrl+G): leitura tolerante, o que não é grupo sai calado (`lib/gruposSalvos.ts`).
+    ...gruposDoArquivo(parsed.grupos),
     frame: parsed.frame ?? null,
     fog: parsed.fog ?? { mode: 'none', revealed: [] },
     hiddenLayers: camadasDoArquivo(parsed.hiddenLayers, lerVersaoDasCamadas(parsed.versaoDasCamadas) === 2),

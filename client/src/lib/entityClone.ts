@@ -6,6 +6,8 @@ import { moveBlocos } from './floorBlocks'
 import { isStairPin } from './stairTravel'
 import { withoutCarrier } from './carry'
 import { presaNaCopiaDaCena } from './paredesPresas'
+import { withoutAttachment } from './lightAttachment'
+import type { EntidadePorTipo } from './tiposDoEditor'
 
 /**
  * FRENTE A (ONDA 3, item 13 do PLANO-REFINAMENTO.md) — clonagem PURA por
@@ -99,8 +101,25 @@ export function cloneWall(wall: Wall, offset: Offset): Wall {
 // Light
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Clona uma Luz. A cópia nasce SOLTA (sem `attachedTokenId`), pela mesma regra
+ * da parede sem a Sala e do pino sem a ficha: a tocha copiada sozinha
+ * continuava presa à ficha ORIGINAL, que passava a levar duas luzes, e colada
+ * em outra cena apontava para um id que não existe lá (análise de 18/11/2026).
+ * Copiada JUNTO com a ficha dela, quem prende é `cloneLightComAFicha`.
+ */
 export function cloneLight(light: Light, offset: Offset): Light {
-  return { ...light, id: crypto.randomUUID(), x: light.x + offset.dx, y: light.y + offset.dy }
+  return { ...withoutAttachment(light), id: crypto.randomUUID(), x: light.x + offset.dx, y: light.y + offset.dy }
+}
+
+/**
+ * A tocha copiada no mesmo lote da ficha dela: presa à CÓPIA da ficha.
+ * `fichas`: id da ficha original → id da cópia. Ficha fora do lote: solta.
+ */
+export function cloneLightComAFicha(light: Light, offset: Offset, fichas: ReadonlyMap<string, string>): Light {
+  const copia = cloneLight(light, offset)
+  const ficha = light.attachedTokenId === undefined ? undefined : fichas.get(light.attachedTokenId)
+  return ficha === undefined ? copia : { ...copia, attachedTokenId: ficha }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -315,23 +334,6 @@ export function cloneFloorPiece(piece: FloorPiece, offset: Offset): FloorPiece {
 // próprio — ver CONTRATO no relatório da tarefa.
 // ─────────────────────────────────────────────────────────────
 
-interface EntityByKind {
-  wall: Wall
-  light: Light
-  region: Region
-  token: Token
-  prop: Prop
-  stair: Stair
-  drawing: Drawing
-  floor: FloorPiece
-  carimbo: Carimbo
-  pin: Pin
-  zone: ConcealZone
-  agua: Agua
-  barranco: RiscoDeBarranco
-  abismo: Abismo
-}
-
 /**
  * Pino (Fase 4): id novo, deslocado e SOLTO pela mesma regra da cena copiada
  * (`cloneLoosePin`: sem a passagem de viagem) e sem a ficha a que estava
@@ -374,12 +376,12 @@ export function cloneCarimbo(carimbo: Carimbo, offset: Offset): Carimbo {
 
 /**
  * Construída a partir de `SelectionKind` (`types/tools.ts`), não de uma
- * lista literal solta — se `SelectionKind` ganhar um membro novo sem
- * `EntityByKind` acompanhar, o erro aparece em COMPILE-TIME aqui (TS2345 em
- * `EntityByKind[K]`), não só quando `assertNeverSelectionKind` disparar em
- * runtime.
+ * lista literal solta, com a entidade de cada tipo vinda da tabela dos tipos
+ * do editor (`EntidadePorTipo`, lib/tiposDoEditor.ts) — se `SelectionKind`
+ * ganhar um membro novo sem linha na tabela, o erro aparece em COMPILE-TIME,
+ * não só quando `assertNeverSelectionKind` disparar em runtime.
  */
-export type CloneableEntity = { [K in SelectionKind]: { kind: K; entity: EntityByKind[K] } }[SelectionKind]
+export type CloneableEntity = { [K in SelectionKind]: { kind: K; entity: EntidadePorTipo[K] } }[SelectionKind]
 
 function assertNeverSelectionKind(value: never): never {
   throw new Error(`cloneEntity: SelectionKind sem regra de clonagem definida: ${JSON.stringify(value)}`)
@@ -476,17 +478,23 @@ export function cloneSceneMap(map: MapData, mapId: string, name: string, dropTok
     const comSala = regionId === undefined ? copy : { ...copy, regionId, regionEdgeIndex: wall.regionEdgeIndex }
     return wall.desenhoId === undefined ? comSala : presaNaCopiaDaCena(comSala, wall.desenhoId, drawingIds, presasPorDesenho)
   })
+  // A tocha presa segue a cópia da ficha dela (`cloneLightComAFicha`); a da ficha que não veio fica solta.
+  const fichasQueVem = map.tokens.filter((token) => !dropTokenIds.has(token.id))
+  const tokens = fichasQueVem.map((token) => cloneToken(token, NO_OFFSET))
+  const copiaDaFicha = new Map(fichasQueVem.map((token, i) => [token.id, tokens[i].id]))
+  // GRUPOS SALVOS: todo id da cópia é novo, e os grupos apontariam para os ids da cena original. A cópia sai sem grupo.
+  const { grupos: _gruposDaOriginal, ...semGrupos } = map
   return {
-    ...map,
+    ...semGrupos,
     id: mapId,
     name,
     ...(map.gridOffset ? { gridOffset: { ...map.gridOffset } } : {}),
     gridSettings: { ...map.gridSettings },
     background: { ...map.background },
     walls,
-    lights: map.lights.map((light) => cloneLight(light, NO_OFFSET)),
+    lights: map.lights.map((light) => cloneLightComAFicha(light, NO_OFFSET, copiaDaFicha)),
     regions,
-    tokens: map.tokens.filter((token) => !dropTokenIds.has(token.id)).map((token) => cloneToken(token, NO_OFFSET)),
+    tokens,
     props: map.props.map((prop) => cloneProp(prop, NO_OFFSET)),
     stairs: map.stairs.map((stair) => cloneStair(stair, NO_OFFSET)),
     drawings,

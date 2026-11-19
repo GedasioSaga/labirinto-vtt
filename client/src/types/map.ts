@@ -3,6 +3,7 @@ import type { CenarioDoPino } from '../cenario/catalogo'
 import type { FalaDoPino, FalaParaJogador, QuandoDoCenario } from './cenarioEFalas'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
 import type { AuraDaFicha } from '../lib/auras'
+import type { SelectionKind } from './tools'
 /**
  * Todas as coordenadas e distâncias (x, y, x1/y1/x2/y2, radius) estão em pixels
  * do mundo. `grid` define o tamanho de uma célula em pixels — é a unidade que
@@ -2794,6 +2795,13 @@ export interface MapData {
    * (`lib/fogFilter.ts`).
    */
   encaixeNaGrade?: EncaixeNaGrade
+  /**
+   * GRUPOS SALVOS (18/11/2026): os grupos do Ctrl+G deste mapa — o id de cada
+   * um e os itens (tipo + id) que andam juntos (`lib/gruposSalvos.ts`).
+   * Ausente = nenhum grupo: mapa antigo abre igual. Só do mestre: nunca vai
+   * ao jogador (`lib/fogFilter.ts`).
+   */
+  grupos?: readonly { readonly id: string; readonly members: readonly { readonly kind: SelectionKind; readonly id: string }[] }[]
   gridShape: GridShape
   showGrid: boolean
   gridSettings: GridSettings

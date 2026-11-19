@@ -2,6 +2,8 @@ import type { Point } from '../pixi/world'
 import type { MapData } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import type { SelectionSet } from '../lib/selectionModel'
+import { travelDestinationOf } from '../lib/pinTravel'
+import { stairPinOf } from '../lib/stairTravel'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 
@@ -28,6 +30,8 @@ export type ClipboardShortcut = 'copy' | 'cut' | 'paste'
 
 const NOTHING_COPIED_TEXT = 'Nada copiado ainda — selecione algo e use Ctrl+C ou Ctrl+X'
 const PASTE_HINT = 'Ctrl+V cola perto do cursor'
+export const COPIED_STAIR_LINK_TEXT = 'A cópia da escada não leva ao outro andar'
+export const CUT_STAIR_LINK_TEXT = 'Colada nesta cena, a escada volta ligada ao outro andar'
 
 interface Noun {
   text: string
@@ -94,6 +98,15 @@ export function runClipboardShortcut(kind: ClipboardShortcut, target: PasteTarge
     kind === 'copy'
       ? `${noun.text} ${participle('copiad', noun)} — ${PASTE_HINT}`
       : `${noun.text} ${participle('recortad', noun)} — ${PASTE_HINT}, Ctrl+Z desfaz`
-  toast.push('info', text)
+  // ESCADA QUE LEVA A OUTRO ANDAR: o aviso diz o que acontece com a ligação
+  // (análise de 18/11/2026: o recorte a desligava dos dois lados e só dizia
+  // "Escada recortada"). A cópia nunca leva a ligação; o recorte a devolve
+  // quando a escada volta a esta cena (`cloneSelectionInto`, em `mapStore.ts`).
+  const ligada = selection.some((item) => {
+    if (item.kind !== 'stair') return false
+    const pino = stairPinOf(map, item.id)
+    return pino !== undefined && travelDestinationOf(pino) !== null
+  })
+  toast.push('info', ligada ? `${text}. ${kind === 'copy' ? COPIED_STAIR_LINK_TEXT : CUT_STAIR_LINK_TEXT}` : text)
   return true
 }

@@ -48,7 +48,7 @@ import { chaveDeArrastoDeCor } from '../lib/historicoDeCor'
 // Onda 3, item 13 (Frente A) — clonagem pura por tipo de entidade, usada por
 // `duplicateSelected` (Ctrl+D) e `insertClonedEntityLive` (Alt+arrastar, ver
 // pixi/PixiCanvas.tsx).
-import { cloneEntity, cloneLinkedWalls, cloneRoomDescendants, type CloneableEntity, type Offset } from '../lib/entityClone'
+import { cloneEntity, cloneLightComAFicha, cloneLinkedWalls, cloneRoomDescendants, type CloneableEntity, type Offset } from '../lib/entityClone'
 import { ancestorsOf, descendantsOf, subtreeIds } from '../lib/roomNesting'
 import { roomRotationOf, rotationDelta } from '../lib/roomRotation'
 import { canInteract } from '../lib/itemTransform'
@@ -91,8 +91,10 @@ const ROOM_TOOLS: ReadonlySet<string> = new Set(['room', 'roomCircle', 'roomPoly
 import { describeBlockedMove } from '../lib/moveValidation'
 import { DEFAULT_PATH_WIDTH_CELLS, DEFAULT_TEXT_FONT_FAMILY, clampPathWidthCells, convertLineToCurve, convertCurveToLine } from '../lib/drawingFactory'
 import { moveAreaSelection, areaSelectionBounds, type AreaBounds } from '../lib/areaSelection'
-import { pieceBounds } from '../lib/floorSdf'
 import { groupItems, NO_GROUPS, ungroupItems, type ItemGroups } from '../lib/itemGroups'
+import { chaveDoItem, comGrupos, gruposDasCopias, gruposDoMapa } from '../lib/gruposSalvos'
+import { existeNoMapa } from '../lib/tiposDoEditor'
+import { linkBack, travelDestinationOf } from '../lib/pinTravel'
 import { alignableUnitCount, alignSelectionItems, distributeSelectionItems, type AlignEdge, type DistributeAxis } from '../lib/alignDistribute'
 import {
   BARRANCO_SEGURA_A_FICHA_TEXT, BLOCKED_MOVE_TEXT, DOOR_OPENED_BY_MOVE_TEXT, PAREDE_TRAVADA_SEGURA_O_VAO_TEXT, SALA_SECRETA_SEGURA_O_VAO_TEXT, TOOL_CLUSTERS,
@@ -104,7 +106,7 @@ import { useToastStore } from './toastStore'
 import { caminhosComMaterial } from '../lib/terrenoDoChao'
 import { avisarCamadaOculta, avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { camadaTravada, camadaTravadaDoItem, camadasTravadasDosItens, gestoNoPino } from '../lib/camadas/trava'
-import { contextoDeCamadas } from '../lib/camadas/consulta'
+import { contextoDeCamadas, type ContextoDeCamadas } from '../lib/camadas/consulta'
 import { alternarOlhoDosJogadores, definirOpacidade } from '../lib/camadas/estado'
 import * as modeloDeCamadas from '../lib/camadas/modelo'
 import { avisoDoMover, moverParaCamada as moverItensParaCamada, MOTIVO_CAMADA_PADRAO, nomeDaCamada, type RefDeItem, type ResultadoDeMover } from '../lib/camadas/mover'
@@ -142,7 +144,7 @@ import {
 import { comNeblina, comNeblinaPintada, somarPinceladaDeNeblina, type ResultadoDaNeblina } from '../lib/neblina'
 import { comAguas, semCamposVazios } from '../lib/agua/dados'
 import { CAMADA_DA_AGUA, CAMADA_DO_BARRANCO, semItensDoTerreno, type AcertoNoTerreno } from '../lib/terrenoNaSelecao'
-import { isStairPin } from '../lib/stairTravel'
+import { isStairPin, stairMouth, stairPinOf } from '../lib/stairTravel'
 import { type EfeitoDeParticula } from '../lib/particulasDaCena'
 import { INTENSIDADE_DA_QUANTIDADE, comAmbiente, comAmbientePintado, somarPinceladaDeAmbiente, temPincelDoEfeito, type MudancaDoAmbiente } from '../lib/ambiente'
 import { alvoComParedes, caixaDoAlvo } from '../lib/baldeDeTextura'
@@ -150,6 +152,7 @@ import { texturaDoCatalogo } from '../texturas/catalogo'
 import {
   comCarimbos,
   comCarimbosImportados,
+  ehTipoImportado,
   DENSIDADE_MAX,
   DENSIDADE_MIN,
   DENSIDADE_PADRAO,
@@ -897,9 +900,11 @@ interface MapStoreState {
   somarNaSelecao: (itens: readonly SelectionItem[]) => void
   /**
    * Grupos do editor (Ctrl+G), por id de mapa — cada cena guarda os seus.
-   * Fora de `MapData` de propósito: grupo é gesto do mestre, não conteúdo do
-   * mapa, então não vai para o jogador, não entra no arquivo e não ocupa
-   * Ctrl+Z. Mapa sem grupo não tem chave (ausência = nenhum grupo).
+   * É o ESPELHO de `MapData.grupos` (18/11/2026, `lib/gruposSalvos.ts`): o
+   * grupo é salvo no arquivo, volta com o Ctrl+Z e acompanha Ctrl+D e Ctrl+V.
+   * O `set` da store acerta o espelho a cada mapa novo (`comGruposEspelhados`).
+   * Nunca vai ao jogador (`lib/fogFilter.ts` tira o campo). Mapa sem grupo
+   * não tem chave (ausência = nenhum grupo).
    */
   itemGroups: Readonly<Record<string, ItemGroups>>
   /** Junta a seleção atual num grupo do mapa aberto. `false` = menos de 2
@@ -1880,9 +1885,11 @@ interface MapStoreState {
    * === 'dragging-area-selection'`, disparado só quando `selection.length >
    * 1`, ver PixiCanvas.tsx). Par de `commitDragHistory(before)` no
    * pointerup, mesmo padrão de `moveCurveLive`/`resizeRoomCornerLive`. Sem
-   * efeito (`{}`) se a seleção estiver vazia.
+   * efeito (`{}`) se a seleção estiver vazia. `andado`: quanto o arrasto já
+   * andou ao todo — com ele a peça de chão de blocos acompanha o conjunto em
+   * célula inteira (`moverSelecaoNoArrasto`).
    */
-  moveSelectionLive: (dx: number, dy: number) => void
+  moveSelectionLive: (dx: number, dy: number, andado?: AndadoNoArrasto) => void
   /**
    * Variante COM histórico de mover o conjunto inteiro por delta fixo — usada
    * pelo nudge por seta (Onda 1, item 7): cada tecla é UMA entrada de undo,
@@ -2060,24 +2067,223 @@ export interface MapClipboard {
   readonly cut: boolean
 }
 
-/** Retângulo que envolve os itens da seleção — o chão entra pela própria
- *  caixa (`pieceBounds`), que `areaSelectionBounds` não cobre. */
+/** Retângulo que envolve os itens da seleção, a peça de chão inclusive: todos
+ *  os tipos passam por `areaSelectionBounds`, pela tabela (`lib/tiposDoEditor.ts`). */
 function selectionBounds(map: MapData, selection: SelectionSet): AreaBounds | null {
-  const boxes: AreaBounds[] = []
-  const rest = areaSelectionBounds(map, selectionToAreaSelection(selection))
-  if (rest !== null) boxes.push(rest)
-  for (const item of selection) {
-    if (item.kind !== 'floor') continue
-    const piece = map.floor.find((p) => p.id === item.id)
-    if (piece) boxes.push(pieceBounds(piece))
+  return areaSelectionBounds(map, selectionToAreaSelection(selection))
+}
+
+/**
+ * SINAL DE GESTO EM CURSO (análise de 18/11/2026). O canvas diz se há um
+ * arrasto com o botão apertado (`ligarSinalDeGesto`, em `pixi/PixiCanvas.tsx`);
+ * com ele ligado, a store barra o que mexeria no mapa por baixo do arrasto:
+ * Ctrl+Z, Ctrl+Y, Delete, Ctrl+D, Ctrl+X, Ctrl+V, Ctrl+G e as setas. O
+ * desfazer no meio do arrasto tirava a ação ANTERIOR e, ao soltar, o arrasto
+ * empilhava o mapa de antes e zerava o refazer. Mora aqui, e não em quem
+ * chama: o atalho, o botão e o menu passam todos pelas mesmas ações.
+ *
+ * Um conjunto, e não um sinal só: com dois canvas montados, o segundo não
+ * apaga o sinal do primeiro, e qualquer um com o botão apertado barra.
+ */
+const sinaisDeGesto = new Set<() => boolean>()
+
+function gestoEmCurso(): boolean {
+  for (const sinal of sinaisDeGesto) if (sinal()) return true
+  return false
+}
+
+/** Liga o sinal de um canvas. Devolve o desligar, que tira só este sinal. */
+export function ligarSinalDeGesto(sinal: () => boolean): () => void {
+  sinaisDeGesto.add(sinal)
+  return () => {
+    sinaisDeGesto.delete(sinal)
   }
-  if (boxes.length === 0) return null
-  return {
-    minX: Math.min(...boxes.map((b) => b.minX)),
-    minY: Math.min(...boxes.map((b) => b.minY)),
-    maxX: Math.max(...boxes.map((b) => b.maxX)),
-    maxY: Math.max(...boxes.map((b) => b.maxY)),
+}
+
+export const GESTO_EM_CURSO_TEXT = 'Solte o arrasto primeiro'
+export const COPIA_NO_TETO_DE_CARIMBOS_TEXT = 'A cena chegou ao limite de objetos: parte da cópia ficou de fora'
+export const ESCADA_COLADA_SEM_LIGACAO_TEXT = 'A escada colada não leva mais ao outro andar. Ligue de novo em "Leva a…"'
+
+/**
+ * O gesto em curso segura a ação, e o mestre ouve por quê (um aviso só, por
+ * mais teclas que venham). Exportado para o atalho que faz mais que chamar a
+ * store (o Delete do canvas também apaga o pino e a zona abertos, e avisa o
+ * que sumiu): ele pergunta antes, e não promete o que não aconteceu.
+ */
+export function barradoPeloGesto(): boolean {
+  if (!gestoEmCurso()) return false
+  useToastStore.getState().push('info', GESTO_EM_CURSO_TEXT, undefined, { chave: 'gesto-em-curso' })
+  return true
+}
+
+/**
+ * GRUPOS SALVOS: `itemGroups[map.id]` é o espelho de `MapData.grupos`, que é
+ * quem vai ao arquivo e ao desfazer (`lib/gruposSalvos.ts`). Todo mapa novo
+ * passa pelo `set` da store, e é lá que o espelho se acerta: no MESMO mapa,
+ * quando a lista mudou (agrupar, colar, Ctrl+Z); em OUTRO mapa, sempre. Todo
+ * grupo nasce no próprio mapa (`gravarGrupos`), então o mapa que chega sem o
+ * campo não tem grupo — o espelho velho daquele id (a aventura descartada e
+ * reaberta na mesma sessão) não ressuscita grupo que não foi salvo.
+ */
+function comGruposEspelhados(state: MapStoreState, pedido: Partial<MapStoreState>, map: MapData): Partial<MapStoreState> {
+  if (pedido.itemGroups !== undefined) return pedido
+  const nadaMudou = map.id === state.map.id
+    ? map.grupos === state.map.grupos
+    : map.grupos === undefined && state.itemGroups[map.id] === undefined
+  if (nadaMudou) return pedido
+  return { ...pedido, itemGroups: { ...state.itemGroups, [map.id]: gruposDoMapa(map) } }
+}
+
+/**
+ * A camada em que a cópia cairia no mapa de destino. `null`: o tipo não mora
+ * em camada (a zona oculta). A água, o risco do Barranco e o abismo moram
+ * presos na camada deles, sem camada por item.
+ */
+function camadaDoClone(camadas: ContextoDeCamadas, cloned: CloneableEntity): CamadaId | null {
+  switch (cloned.kind) {
+    case 'wall': return camadas.camadaDe('parede', cloned.entity)
+    case 'light': return camadas.camadaDe('luz', cloned.entity)
+    case 'region': return camadas.camadaDe('regiao', cloned.entity)
+    case 'token': return camadas.camadaDe('ficha', cloned.entity)
+    case 'prop': return camadas.camadaDe('objeto', cloned.entity)
+    case 'stair': return camadas.camadaDe('escada', cloned.entity)
+    case 'drawing': return camadas.camadaDe('desenho', cloned.entity)
+    case 'floor': return camadas.camadaDe('peca', cloned.entity)
+    case 'carimbo': return camadas.camadaDe('carimbo', cloned.entity)
+    case 'pin': return camadas.camadaDe('pino', cloned.entity)
+    case 'zone': return null
+    case 'agua': return CAMADA_DA_AGUA
+    case 'barranco': return CAMADA_DO_BARRANCO
+    case 'abismo': return CAMADA_DO_ABISMO
   }
+}
+
+/**
+ * CARIMBO IMPORTADO colado em OUTRA cena leva a imagem dele: sem a entrada em
+ * `carimbosImportados` do destino, o objeto nascia invisível e ainda barrava a
+ * passagem (análise de 18/11/2026). A imagem é um `data:` inteiro, então copiar
+ * a entrada basta. Tipo da biblioteca, ou entrada que o destino já tem: o mesmo mapa.
+ */
+function comImagemDoCarimbo(target: MapData, source: MapData, tipo: string): MapData {
+  if (!ehTipoImportado(tipo)) return target
+  const doDestino = target.carimbosImportados ?? []
+  if (doDestino.some((importado) => importado.id === tipo)) return target
+  const importado = source.carimbosImportados?.find((candidato) => candidato.id === tipo)
+  return importado === undefined ? target : comCarimbosImportados(target, [...doDestino, importado])
+}
+
+/**
+ * Liga cada parede e cada sub-sala da Sala copiada à cópia dela, para o grupo
+ * acompanhar a cópia (`comGruposDoLote`). Pela ORDEM: `cloneLinkedWalls` e
+ * `cloneRoomDescendants` (lib/entityClone.ts) devolvem as cópias na ordem das
+ * listas de origem. Contagem que não bate (a regra de lá mudou): não anota
+ * nada, e o grupo daquela Sala só não acompanha.
+ */
+function anotarCopiasDaSala(
+  copiaDe: Map<string, SelectionItem>,
+  source: MapData,
+  salaId: string,
+  paredes: readonly Wall[],
+  dentro: { regions: Region[]; walls: Wall[] },
+): void {
+  const paredesDe = (regionId: string): Wall[] => source.walls.filter((w) => w.regionId === regionId)
+  const anotar = (kind: 'wall' | 'region', originais: readonly { id: string }[], copias: readonly { id: string }[]): void => {
+    if (originais.length !== copias.length) return
+    originais.forEach((original, i) => copiaDe.set(chaveDoItem({ kind, id: original.id }), { kind, id: copias[i].id }))
+  }
+  anotar('wall', paredesDe(salaId), paredes)
+  const idsDeDentro = new Set(descendantsOf(source.regions, salaId).map((r) => r.id))
+  const subSalas = source.regions.filter((r) => idsDeDentro.has(r.id))
+  anotar('region', subSalas, dentro.regions)
+  anotar('wall', subSalas.flatMap((sub) => paredesDe(sub.id)), dentro.walls)
+}
+
+/**
+ * TOCHA DO LOTE (análise de 18/11/2026). A luz copiada junto com a ficha dela
+ * fica presa à CÓPIA da ficha, e a ficha copiada traz a tocha que não estava
+ * na seleção — antes a cópia da ficha saía sem luz. `fichaDaLuz`: id da luz
+ * copiada → id da ficha ORIGINAL a que a luz de origem estava presa.
+ * `luzesNoLote`: ids das luzes de origem que a seleção já copiou.
+ */
+function comTochasDoLote(
+  map: MapData,
+  source: MapData,
+  offset: Offset,
+  copiaDaFicha: ReadonlyMap<string, string>,
+  fichaDaLuz: ReadonlyMap<string, string>,
+  luzesNoLote: ReadonlySet<string>,
+): MapData {
+  if (copiaDaFicha.size === 0) return map
+  const novaFicha = (luz: Light): string | undefined => {
+    const original = fichaDaLuz.get(luz.id)
+    return original === undefined ? undefined : copiaDaFicha.get(original)
+  }
+  const trazidas = source.lights
+    .filter((luz) => luz.attachedTokenId !== undefined && copiaDaFicha.has(luz.attachedTokenId) && !luzesNoLote.has(luz.id))
+    .map((luz) => cloneLightComAFicha(luz, offset, copiaDaFicha))
+  if (trazidas.length === 0 && !map.lights.some((luz) => novaFicha(luz) !== undefined)) return map
+  const presas = map.lights.map((luz) => {
+    const ficha = novaFicha(luz)
+    return ficha === undefined ? luz : { ...luz, attachedTokenId: ficha }
+  })
+  return { ...map, lights: [...presas, ...trazidas] }
+}
+
+/** Os grupos das cópias do lote entram no mapa de destino, no mesmo passo do desfazer (`gruposDasCopias`). */
+function comGruposDoLote(map: MapData, source: MapData, copiaDe: ReadonlyMap<string, SelectionItem>): MapData {
+  const daOrigem = gruposDoMapa(source)
+  if (daOrigem.length === 0 || copiaDe.size < 2) return map
+  const novos = gruposDasCopias(daOrigem, copiaDe, (membro) => existeNoMapa(source, membro.kind, membro.id), () => `grupo_${crypto.randomUUID()}`)
+  return novos.length === 0 ? map : comGrupos(map, [...gruposDoMapa(map), ...novos])
+}
+
+/** Quanto o arrasto do conjunto já andou, antes e depois deste passo (px de mundo). */
+export interface AndadoNoArrasto {
+  readonly antes: Point
+  readonly depois: Point
+}
+
+/**
+ * O passo de um ARRASTO do conjunto (`moveSelectionLive`). A peça de chão de
+ * BLOCOS anda em célula inteira (`moveBlocos`), e o passo de um quadro do
+ * arrasto quase nunca chega a meia célula: somado quadro a quadro, ela nunca
+ * sairia do lugar. Com `andado`, ela anda pela diferença do TOTAL do arrasto
+ * arredondado à célula dela — acompanha o conjunto e continua na grade.
+ * Sem `andado`, ou sem peça de blocos na seleção: o `moveAreaSelection` de sempre.
+ */
+function moverSelecaoNoArrasto(map: MapData, selection: SelectionSet, dx: number, dy: number, andado: AndadoNoArrasto | undefined): MapData {
+  const area = selectionToAreaSelection(selection)
+  const pecas = area.pecasDeChao
+  if (andado === undefined || pecas === undefined) return moveAreaSelection(map, area, dx, dy)
+  const ehDeBlocos = (id: string): boolean => map.floor.find((p) => p.id === id)?.shape.kind === 'blocos'
+  const deBlocos = pecas.filter(ehDeBlocos)
+  if (deBlocos.length === 0) return moveAreaSelection(map, area, dx, dy)
+  let next = moveAreaSelection(map, { ...area, pecasDeChao: pecas.filter((id) => !ehDeBlocos(id)) }, dx, dy)
+  for (const id of deBlocos) {
+    const peca = next.floor.find((p) => p.id === id)
+    if (peca === undefined || peca.shape.kind !== 'blocos') continue
+    const celula = peca.shape.cell
+    const passo = (antes: number, depois: number): number => (Math.round(depois / celula) - Math.round(antes / celula)) * celula
+    next = mapFactory.moveFloorPiece(next, id, passo(andado.antes.x, andado.depois.x), passo(andado.antes.y, andado.depois.y))
+  }
+  return next
+}
+
+/** O que o lote de cópias deixou de fora, para quem chamou avisar o mestre. */
+interface FicouDeFora {
+  /** Camadas travadas que seguraram algum item (o aviso traz o "Destravar"). */
+  readonly travadas: readonly CamadaId[]
+  /** Camadas ocultas do mestre que seguraram algum item (o aviso traz o "Mostrar"). */
+  readonly ocultas: readonly CamadaId[]
+  /** A cena cheia (`TETO_DE_CARIMBOS`) recusou algum carimbo. */
+  readonly tetoDeCarimbos: boolean
+  /** Escadas recortadas que tinham ligação com outro andar e voltaram sem ela (coladas em outra cena). */
+  readonly escadasSemLigacao: number
+}
+
+interface LoteDeCopias extends FicouDeFora {
+  map: MapData
+  items: SelectionItem[]
 }
 
 /** Deslocamento em múltiplos da grade: a cópia colada fica alinhada como o original. */
@@ -2091,16 +2297,26 @@ function snapOffsetToGrid(delta: number, grid: number): number {
  * de Sala também selecionada e sub-sala de Sala selecionada não se copiam de
  * novo; cópia que caiu dentro de outra Sala vira filha dela. `source` e
  * `target` são o MESMO mapa no Ctrl+D e podem ser mapas diferentes no Ctrl+V
- * (outra cena, outro mapa). `keepRoomNames`: a Sala clonada mantém o nome do
- * original (colar o que foi recortado não é cópia).
+ * (outra cena, outro mapa). `recorte`: o lote é a volta do que foi recortado
+ * (Ctrl+X e a primeira colagem), não uma cópia — a Sala mantém o nome do
+ * original e a escada ligada a outro andar volta ligada.
+ *
+ * O LOTE É UM SÓ (análise de 18/11/2026): os ids trocam DENTRO dele. A tocha
+ * copiada com a ficha fica presa à cópia da ficha (`comTochasDoLote`), o grupo
+ * copiado inteiro vira grupo das cópias (`comGruposDoLote`), o carimbo
+ * importado leva a imagem (`comImagemDoCarimbo`). E a cópia respeita o
+ * destino: camada travada ou oculta do mestre não recebe item (ele nasceria
+ * num lugar que o clique não alcança, já selecionado), e a cena cheia de
+ * carimbos não ganha id fantasma na seleção. O que ficou de fora volta em
+ * `FicouDeFora`, para quem chamou avisar.
  */
 function cloneSelectionInto(
   target: MapData,
   source: MapData,
   selection: SelectionSet,
   offset: Offset,
-  keepRoomNames: boolean,
-): { map: MapData; items: SelectionItem[] } {
+  recorte: boolean,
+): LoteDeCopias {
   const items: SelectionItem[] = []
   // Cópia de Sala → Sala original, para a cópia herdar as arestas que estavam sobre a mãe.
   const sources: Record<string, string> = {}
@@ -2110,6 +2326,16 @@ function cloneSelectionInto(
   for (const id of selectedRegionIds) {
     for (const d of descendantsOf(source.regions, id)) coveredRegionIds.add(d.id)
   }
+  const camadas = contextoDeCamadas(target)
+  const travadas = new Set<CamadaId>()
+  const ocultas = new Set<CamadaId>()
+  let tetoDeCarimbos = false
+  let escadasSemLigacao = 0
+  // Original → cópia de tudo o que o lote copiou, as paredes e as sub-salas que vêm com a Sala inclusive.
+  const copiaDe = new Map<string, SelectionItem>()
+  const copiaDaFicha = new Map<string, string>()
+  const fichaDaLuz = new Map<string, string>()
+  const luzesNoLote = new Set<string>()
   let next = target
   for (const item of selection) {
     if (item.kind === 'region' && coveredRegionIds.has(item.id)) continue
@@ -2118,21 +2344,81 @@ function cloneSelectionInto(
     if (item.kind === 'wall' && (selectedRegionIds.has(wallRegionId) || coveredRegionIds.has(wallRegionId))) continue
     const cloned = cloneSelectedEntity(source, item, offset)
     if (!cloned) continue
-    const named = keepRoomNames ? withSourceRoomName(cloned, source, item.id) : cloned
+    // CADEADO E OLHO DA CAMADA DE DESTINO: o que cairia em camada travada ou oculta fica de fora.
+    const camada = camadaDoClone(camadas, cloned)
+    if (camada !== null && camadas.travada(camada)) {
+      travadas.add(camadas.camadaQueManda(camada))
+      continue
+    }
+    if (camada !== null && !camadas.mestreVe(camada)) {
+      ocultas.add(camadas.camadaQueManda(camada))
+      continue
+    }
+    if (cloned.kind === 'carimbo') {
+      // A cena cheia não ganha a cópia — e o id que não entrou não vai para a seleção.
+      if ((next.carimbos?.length ?? 0) >= TETO_DE_CARIMBOS) {
+        tetoDeCarimbos = true
+        continue
+      }
+      next = comImagemDoCarimbo(next, source, cloned.entity.tipo)
+    }
+    const named = recorte ? withSourceRoomName(cloned, source, item.id) : cloned
     next = addClonedEntity(next, withoutMissingParent(withSourceFloorColor(named, source, next), next))
+    copiaDe.set(chaveDoItem(item), { kind: cloned.kind, id: cloned.entity.id })
     if (cloned.kind === 'region') {
       sources[cloned.entity.id] = item.id
       const inner = cloneRoomDescendants(source.regions, source.walls, item.id, cloned.entity.id, offset)
+      const paredes = cloneLinkedWalls(source.walls, item.id, cloned.entity.id, offset)
+      anotarCopiasDaSala(copiaDe, source, item.id, paredes, inner)
       next = {
         ...next,
         regions: [...next.regions, ...inner.regions],
-        walls: [...next.walls, ...cloneLinkedWalls(source.walls, item.id, cloned.entity.id, offset), ...inner.walls],
+        walls: [...next.walls, ...paredes, ...inner.walls],
+      }
+    }
+    if (cloned.kind === 'token') copiaDaFicha.set(item.id, cloned.entity.id)
+    if (cloned.kind === 'light') {
+      luzesNoLote.add(item.id)
+      const fichaOriginal = source.lights.find((l) => l.id === item.id)?.attachedTokenId
+      if (fichaOriginal !== undefined) fichaDaLuz.set(cloned.entity.id, fichaOriginal)
+    }
+    if (cloned.kind === 'stair' && recorte) {
+      // ESCADA QUE LEVA A OUTRO ANDAR: recortar apaga o pino invisível dela e o
+      // guardião da mão dupla desliga o par (`removeStair`). A escada que volta
+      // à MESMA cena volta com o pino (id novo, na boca dela, o mesmo destino),
+      // e o guardião religa o par do outro andar. Em outra cena, ou com a
+      // original já de volta pelo Ctrl+Z, ela chega sem ligação — e o mestre ouve.
+      const pino = stairPinOf(source, item.id)
+      const destino = pino === undefined ? null : travelDestinationOf(pino)
+      if (pino !== undefined && destino !== null) {
+        const boca = stairMouth(cloned.entity)
+        if (boca !== null && source.id === target.id && !target.stairs.some((s) => s.id === item.id)) {
+          const novoPino = crypto.randomUUID()
+          next = mapFactory.addPin(next, { ...pino, id: novoPino, escadaId: cloned.entity.id, x: boca.x, y: boca.y })
+          // Par NESTA MESMA cena: o guardião só religa par de outra cena
+          // (`syncTravelLinks`), e o recorte já desligou este. A volta é gravada
+          // aqui, no mesmo passo do desfazer. Par de outra cena: `linkBack` não acha o id e não muda nada.
+          // Par que já foi religado a outro pino (`displaced`) fica com a ligação nova.
+          const religado = linkBack(next, destino.pinId, { sceneId: destino.sceneId, pinId: novoPino })
+          if (religado.displaced === null) next = religado.map
+        } else {
+          escadasSemLigacao += 1
+        }
       }
     }
     items.push({ kind: cloned.kind, id: cloned.entity.id })
   }
+  next = comTochasDoLote(next, source, offset, copiaDaFicha, fichaDaLuz, luzesNoLote)
+  next = comGruposDoLote(next, source, copiaDe)
   // Cópia de sub-sala que caiu fora da mãe vira sala de topo (ou filha de onde caiu).
-  return { map: reparentRooms(next, movedRoomIds(next, items), source, sources), items }
+  return {
+    map: reparentRooms(next, movedRoomIds(next, items), source, sources),
+    items,
+    travadas: [...travadas],
+    ocultas: [...ocultas],
+    tetoDeCarimbos,
+    escadasSemLigacao,
+  }
 }
 
 /** A Sala clonada volta ao nome do original (sem o "(cópia)" de `cloneRegion`). */
@@ -2330,7 +2616,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       const pedido = typeof parcial === 'function' ? parcial(state) : parcial
       if (pedido.map === undefined || pedido.map === state.map) return pedido
       const sincronizado = sincronizarParedesDosDesenhos(state.map, pedido.map)
-      const comParedes = sincronizado === pedido.map ? pedido : { ...pedido, map: sincronizado }
+      // GRUPOS SALVOS: o espelho `itemGroups` acompanha `MapData.grupos` (`comGruposEspelhados`).
+      const comParedes = comGruposEspelhados(state, sincronizado === pedido.map ? pedido : { ...pedido, map: sincronizado }, sincronizado)
       // GRADE LEMBRA A ESCOLHA: OUTRO mapa virou o atual (abrir, trocar de cena)
       // e ele guarda a escolha do mestre — os interruptores voltam a ela. Mapa
       // sem o campo (todo mapa antigo) deixa os interruptores como estão.
@@ -2407,6 +2694,23 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
   const barradoPelaCamada = (travadas: readonly CamadaId[]): boolean => {
     for (const camada of travadas) avisarCamadaTravada(camada)
     return travadas.length > 0
+  }
+  /** O que o Ctrl+D ou o Ctrl+V deixaram de fora (`FicouDeFora`): um aviso por motivo, com o botão que resolve quando há. */
+  const avisarOQueFicouDeFora = (lote: FicouDeFora): void => {
+    for (const camada of lote.travadas) avisarCamadaTravada(camada)
+    for (const camada of lote.ocultas) avisarCamadaOculta(camada)
+    if (lote.tetoDeCarimbos) useToastStore.getState().push('info', COPIA_NO_TETO_DE_CARIMBOS_TEXT)
+    if (lote.escadasSemLigacao > 0) useToastStore.getState().push('info', ESCADA_COLADA_SEM_LIGACAO_TEXT)
+  }
+  /**
+   * GRUPOS SALVOS: o grupo mora no mapa (`MapData.grupos`), então agrupar e
+   * desagrupar são um passo do desfazer e vão para o arquivo. O espelho
+   * `itemGroups` é acertado aqui também, para o caso em que o mapa não muda
+   * (desagrupar um grupo que só existia no espelho).
+   */
+  const gravarGrupos = (mapId: string, grupos: ItemGroups): void => {
+    if (comGrupos(get().map, grupos) !== get().map) withHistory((map) => comGrupos(map, grupos))
+    set((state) => ({ itemGroups: { ...state.itemGroups, [mapId]: grupos } }))
   }
   /** Pinceladas de textura, penhascos e relevo moram presos em Terreno, sem camada por item. */
   const terrenoBarrado = (): boolean => {
@@ -2537,6 +2841,8 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     itemGroups: {},
     groupSelected: () => {
+      // O grupo mora no mapa e ocupa um passo do desfazer: no meio do arrasto, o passo cairia por baixo dele.
+      if (barradoPeloGesto()) return false
       const { map, selection, itemGroups } = get()
       const antes = itemGroups[map.id] ?? NO_GROUPS
       const depois = groupItems(antes, selection, `grupo_${crypto.randomUUID()}`)
@@ -2546,11 +2852,12 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         useToastStore.getState().push('info', GROUP_NEEDS_TWO_TEXT)
         return false
       }
-      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      gravarGrupos(map.id, depois)
       useToastStore.getState().push('info', GROUP_CREATED_TEXT)
       return true
     },
     ungroupSelected: () => {
+      if (barradoPeloGesto()) return false
       const { map, selection, itemGroups } = get()
       const antes = itemGroups[map.id] ?? NO_GROUPS
       const depois = ungroupItems(antes, selection)
@@ -2558,13 +2865,13 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
         useToastStore.getState().push('info', UNGROUP_NOTHING_TEXT)
         return false
       }
-      set({ itemGroups: { ...itemGroups, [map.id]: depois } })
+      gravarGrupos(map.id, depois)
       useToastStore.getState().push('info', GROUP_UNDONE_TEXT)
       return true
     },
     removeSelected: () => {
       const { selection } = get()
-      if (isSelectionEmpty(selection)) return
+      if (isSelectionEmpty(selection) || barradoPeloGesto()) return
       // A PORTA SOZINHA sai e a parede fica inteira, um pedaço só (`tirarPorta`),
       // num passo de Ctrl+Z — apagar o pedaço deixava um buraco.
       const porta = mapFactory.portaSozinhaNaSelecao(get().map, selection)
@@ -2603,6 +2910,11 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
             case 'agua': aguas.add(item.id); break
             case 'barranco': riscos.add(item.id); break
             case 'abismo': abismos.add(item.id); break
+            default: {
+              // Exaustivo pelo compilador: tipo novo em `SelectionKind` sem regra de apagar não compila.
+              const semRegra: never = item.kind
+              throw new Error(`removeSelected: tipo sem regra de apagar: ${String(semRegra)}`)
+            }
           }
         }
         return semItensDoTerreno(semCarimbos(next, carimbos), aguas, riscos, abismos)
@@ -2615,21 +2927,19 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     duplicateSelected: () => {
       const { map, selection } = get()
-      if (isSelectionEmpty(selection)) return
+      if (isSelectionEmpty(selection) || barradoPeloGesto()) return
       // Com Sala na seleção, a cópia nasce ao lado (largura do conjunto + 1
       // célula), sem cobrir o original nem sobrepor os nomes.
       const hasRoom = selection.some((item) => item.kind === 'region' && map.regions.find((r) => r.id === item.id)?.room !== undefined)
       const bounds = hasRoom ? areaSelectionBounds(map, selectionToAreaSelection(selection)) : null
       const offset = bounds ? { dx: bounds.maxX - bounds.minX + map.grid, dy: 0 } : { dx: map.grid, dy: map.grid }
-      let clonedItems: SelectionItem[] = []
-      withHistory((m) => {
-        const result = cloneSelectionInto(m, m, selection, offset, false)
-        clonedItems = result.items
-        return result.map
-      })
-      // Nenhum item existia mais no mapa (janela de corrida): mantém a
-      // seleção antiga em vez de trocar por um conjunto vazio.
-      if (clonedItems.length > 0) set(selecaoNoPainel(clonedItems))
+      const lote = cloneSelectionInto(map, map, selection, offset, false)
+      avisarOQueFicouDeFora(lote)
+      // Nenhum item entrou (não existia mais no mapa, ou a camada e o teto
+      // seguraram tudo): sem passo vazio no desfazer, e a seleção antiga fica.
+      if (lote.items.length === 0) return
+      withHistory(() => lote.map)
+      set(selecaoNoPainel(lote.items))
     },
     clipboard: null,
     copySelected: () => {
@@ -2641,7 +2951,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
       return true
     },
     cutSelected: () => {
-      if (!get().copySelected()) return false
+      if (barradoPeloGesto() || !get().copySelected()) return false
       const { clipboard } = get()
       if (clipboard !== null) set({ clipboard: { ...clipboard, cut: true } })
       get().removeSelected()
@@ -2649,12 +2959,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     pasteClipboardAt: (point) => {
       const { clipboard, map } = get()
-      if (clipboard === null) return false
+      if (clipboard === null || barradoPeloGesto()) return false
       const offset = {
         dx: snapOffsetToGrid(point.x - clipboard.center.x, map.grid),
         dy: snapOffsetToGrid(point.y - clipboard.center.y, map.grid),
       }
       const result = cloneSelectionInto(map, clipboard.source, clipboard.items, offset, clipboard.cut)
+      // Camada travada ou oculta, cena cheia de carimbos, escada que perdeu a ligação: o mestre ouve.
+      avisarOQueFicouDeFora(result)
       if (result.items.length === 0) return false
       withHistory(() => result.map)
       // Depois da primeira colagem, o que foi recortado já voltou: as próximas são cópias.
@@ -4150,14 +4462,14 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     setRegionStrokeWidthForRegionLive: (id, strokeWidth) => set((state) => ({
       map: { ...state.map, regions: state.map.regions.map((r) => (r.id === id ? { ...r, strokeWidth } : r)) },
     })),
-    moveSelectionLive: (dx, dy) => set((state) =>
+    moveSelectionLive: (dx, dy, andado) => set((state) =>
       isSelectionEmpty(state.selection)
         ? {}
-        : { map: moveAreaSelection(state.map, selectionToAreaSelection(state.selection), dx, dy) },
+        : { map: moverSelecaoNoArrasto(state.map, state.selection, dx, dy, andado) },
     ),
     moveSelectionBy: (dx, dy) => {
       const { map, selection } = get()
-      if (isSelectionEmpty(selection)) return
+      if (isSelectionEmpty(selection) || barradoPeloGesto()) return
       const moved = moveAreaSelection(map, selectionToAreaSelection(selection), dx, dy)
       if (moved === map) return
       const after = reparentRooms(moved, movedRoomIds(moved, selection), map)
@@ -4272,7 +4584,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     undo: () => {
       const { past, map } = get()
-      if (past.length === 0) return
+      if (past.length === 0 || barradoPeloGesto()) return
       typingEdit = null
       const previous = comEncaixeDe(past[past.length - 1], map)
       set((state) => ({
@@ -4284,7 +4596,7 @@ export const useMapStore = create<MapStoreState>()(subscribeWithSelector((setDaS
     },
     redo: () => {
       const { future, map } = get()
-      if (future.length === 0) return
+      if (future.length === 0 || barradoPeloGesto()) return
       typingEdit = null
       const next = comEncaixeDe(future[future.length - 1], map)
       set((state) => ({
