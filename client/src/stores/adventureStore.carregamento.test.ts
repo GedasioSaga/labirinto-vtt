@@ -228,8 +228,9 @@ describe('abrir aventura: a cena pedida primeiro, as outras chegando', () => {
     abrirPortao()
     await antigo
 
-    expect(useAdventureStore.getState().adventure).toBeNull()
-    expect(useAdventureStore.getState().cache).toEqual({})
+    // Todo mapa nasce aventura (18/11/2026): o Casebre é a aventura de uma cena só, e nada da antiga entra nela.
+    expect(useAdventureStore.getState().adventure?.scenes.map((cena) => cena.id)).toEqual(['map_solto'])
+    expect(Object.keys(useAdventureStore.getState().cache).filter((sceneId) => sceneId !== 'map_solto')).toEqual([])
     expect(useMapStore.getState().map.name).toBe('Casebre')
   })
 

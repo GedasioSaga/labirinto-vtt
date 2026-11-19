@@ -137,14 +137,12 @@ describe('período da sessão na aventura', () => {
   })
 })
 
-describe('período da sessão no mapa solto', () => {
-  it('fica na sessão, sem pedir Salvar, e passa para a aventura que nasce do mapa', () => {
-    useAdventureStore.getState().setPeriodo('tarde')
+describe('período no mapa ainda sem aventura', () => {
+  it('trocar o período vira aventura antes e grava o período nela, pedindo Salvar (todo mapa nasce aventura, 18/11/2026)', () => {
     expect(useAdventureStore.getState().adventure).toBeNull()
-    expect(periodoDaSessao(useAdventureStore.getState())).toBe('tarde')
-    expect(hasUnsavedWork()).toBe(false)
-    expect(useAdventureStore.getState().virarAventura(null)).toBe(true)
+    useAdventureStore.getState().setPeriodo('tarde')
     expect(useAdventureStore.getState().adventure?.periodo).toBe('tarde')
     expect(periodoDaSessao(useAdventureStore.getState())).toBe('tarde')
+    expect(hasUnsavedWork()).toBe(true)
   })
 })

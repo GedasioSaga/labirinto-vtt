@@ -45,7 +45,7 @@ const { useSessionStore, subscribeToDirtyFlag } = await import('./sessionStore')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { parseAdventure } = await import('../lib/adventure')
 const { novoPersonagem } = await import('../lib/personagem')
-const { garantirAventura, PERGUNTA_VIRAR_AVENTURA } = await import('./virarAventura')
+const { garantirAventura } = await import('./virarAventura')
 const { SISTEMA_ONE_PIECE } = await import('../lib/sistemaOnePiece')
 
 subscribeToDirtyFlag()
@@ -216,29 +216,12 @@ describe('mapa solto vira aventura para guardar sistema e fichas', () => {
     expect(perguntar).not.toHaveBeenCalled()
   })
 
-  it('garantirAventura no mapa solto: pergunta; "não" (ou pergunta que falha) deixa solto, "sim" vira aventura com o caminho de depois da resposta', async () => {
+  it('garantirAventura no mapa ainda sem aventura: não pergunta mais, vira aventura no mesmo arquivo (todo mapa nasce aventura, 18/11/2026)', async () => {
     abrirArquipelago()
-    expect(await garantirAventura({ perguntar: async () => false, caminhoDoMapaSolto: () => ARQUIVO })).toBe(false)
-    expect(await garantirAventura({ perguntar: async () => Promise.reject(new Error('janela fechou')), caminhoDoMapaSolto: () => ARQUIVO })).toBe(false)
     expect(useAdventureStore.getState().adventure).toBeNull()
-
-    let caminho: string | null = null
-    const perguntar = vi.fn(async (texto: string) => {
-      expect(texto).toBe(PERGUNTA_VIRAR_AVENTURA)
-      caminho = ARQUIVO
-      return true
-    })
-    expect(await garantirAventura({ perguntar, caminhoDoMapaSolto: () => caminho })).toBe(true)
+    const perguntar = vi.fn(async () => false)
+    expect(await garantirAventura({ perguntar, caminhoDoMapaSolto: () => ARQUIVO })).toBe(true)
+    expect(perguntar).not.toHaveBeenCalled()
     expect(useAdventureStore.getState().adventure?.scenes.map((cena) => cena.file)).toEqual(['arquipelago.json'])
-  })
-
-  it('garantirAventura: outro mapa entrou enquanto a pergunta esperava, o sim não vale para ele', async () => {
-    abrirArquipelago()
-    const perguntar = async () => {
-      useMapStore.getState().loadMap(mapa('outro', 'Outro'))
-      return true
-    }
-    expect(await garantirAventura({ perguntar, caminhoDoMapaSolto: () => ARQUIVO })).toBe(false)
-    expect(useAdventureStore.getState().adventure).toBeNull()
   })
 })

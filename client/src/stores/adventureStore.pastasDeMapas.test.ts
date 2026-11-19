@@ -214,16 +214,17 @@ describe('uma cópia só para os mapas da pasta', () => {
     expect(personagensAtivos(useAdventureStore.getState()).map((p) => [p.nome, p.recursos.vida])).toEqual([['Luffy', 4]])
   })
 
-  it('o mapa solto que herda tem ficha sem virar aventura: nada pergunta, e a pasta guarda por ele', async () => {
+  it('o mapa da pasta que herda (aventura de uma cena desde 18/11/2026) tem ficha: nada pergunta, e a pasta guarda por ele', async () => {
     await pastaNoDisco()
     await useAdventureStore.getState().open(aberturaDeSky(), await pastaAbertaDoArquivo(SKY))
-    expect(useAdventureStore.getState().adventure).toBeNull()
+    expect(useAdventureStore.getState().adventure?.scenes).toHaveLength(1)
     expect(temRpgNoMapa(useAdventureStore.getState())).toBe(true)
     const perguntar = vi.fn(async () => true)
     expect(await garantirAventura({ perguntar, caminhoDoMapaSolto: () => SKY })).toBe(true)
     expect(perguntar).not.toHaveBeenCalled()
     expect(useAdventureStore.getState().salvarPersonagem(personagem('p_nami', 'Nami'))).toBe(true)
-    expect(useAdventureStore.getState().adventure).toBeNull()
+    // A ficha é da pasta, não da aventura de uma cena.
+    expect(useAdventureStore.getState().adventure?.personagens ?? []).toEqual([])
     expect(hasUnsavedWork()).toBe(true)
     await useAdventureStore.getState().gravarPasta()
     const lido = await lerRpgDaPasta(useAdventureStore.getState().pasta?.pastaId ?? '')

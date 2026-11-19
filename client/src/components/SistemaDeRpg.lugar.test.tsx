@@ -36,7 +36,7 @@ const { useAdventureStore } = await import('../stores/adventureStore')
 const { useMapStore } = await import('../stores/mapStore')
 const { useRpgStore } = await import('../stores/rpgStore')
 const { useSessionStore } = await import('../stores/sessionStore')
-const { PERGUNTA_VIRAR_AVENTURA, garantirAventura } = await import('../stores/virarAventura')
+const { garantirAventura } = await import('../stores/virarAventura')
 const { createEmptyMap } = await import('../lib/mapFactory')
 const { SISTEMA_ONE_PIECE } = await import('../lib/sistemaOnePiece')
 const { MapSettingsButton } = await import('./MapSettingsDialog')
@@ -178,32 +178,18 @@ describe('o RPG no lugar novo', () => {
     expect(useRpgStore.getState().livroAberto).toBe(true)
   })
 
-  it('mapa solto: escolher sistema pergunta antes; "não" deixa o mapa solto, "sim" vira aventura com o sistema', async () => {
-    const respostas = [false, true]
-    const perguntas: string[] = []
-    const garantir = () =>
-      garantirAventura({
-        perguntar: async (texto) => {
-          perguntas.push(texto)
-          return respostas.shift() ?? false
-        },
-        caminhoDoMapaSolto: () => 'C:/mesa/arquipelago/arquipelago.json',
-      })
+  it('mapa ainda sem aventura: escolher sistema não pergunta mais, vira aventura com o sistema (todo mapa nasce aventura, 18/11/2026)', async () => {
+    const perguntar = vi.fn(async () => false)
+    const garantir = () => garantirAventura({ perguntar, caminhoDoMapaSolto: () => 'C:/mesa/arquipelago/arquipelago.json' })
     act(() => root.render(<RpgDialogs garantirAventura={garantir} />))
 
-    const escolherOnePiece = async () => {
-      act(() => useRpgStore.getState().abrirSistemas())
-      const cartao = document.body.querySelector<HTMLButtonElement>('.lb-sistema:not(.lb-sistema--mais)')
-      if (cartao === null) throw new Error('a grade deveria abrir no mapa solto')
-      await act(async () => cartao.click())
-    }
-    await escolherOnePiece()
-    await vi.waitFor(() => expect(perguntas).toEqual([PERGUNTA_VIRAR_AVENTURA]))
-    expect(useAdventureStore.getState().adventure).toBeNull()
+    act(() => useRpgStore.getState().abrirSistemas())
+    const cartao = document.body.querySelector<HTMLButtonElement>('.lb-sistema:not(.lb-sistema--mais)')
+    if (cartao === null) throw new Error('a grade deveria abrir no mapa ainda sem aventura')
+    await act(async () => cartao.click())
 
-    await escolherOnePiece()
     await vi.waitFor(() => expect(useAdventureStore.getState().adventure?.sistemaDeRpg).toBe(SISTEMA_ONE_PIECE.id))
-    expect(perguntas).toEqual([PERGUNTA_VIRAR_AVENTURA, PERGUNTA_VIRAR_AVENTURA])
+    expect(perguntar).not.toHaveBeenCalled()
     const { adventure, rootPath } = useAdventureStore.getState()
     expect(adventure?.scenes.map((cena) => cena.file)).toEqual(['arquipelago.json'])
     expect(rootPath).toBe('C:/mesa/arquipelago/arquipelago.json')

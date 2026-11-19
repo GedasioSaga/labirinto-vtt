@@ -42,7 +42,7 @@ vi.mock('@tauri-apps/api/path', () => ({
 const { useAdventureStore } = await import('./adventureStore')
 const { useMapStore } = await import('./mapStore')
 const { useToastStore } = await import('./toastStore')
-const { acoesDoModeloDeCamadasCom, PERGUNTA_VIRAR_AVENTURA_CAMADAS, garantirAventuraParaCamadas } = await import('./virarAventura')
+const { acoesDoModeloDeCamadasCom, garantirAventuraParaCamadas } = await import('./virarAventura')
 const { createEmptyMap, addToken } = await import('../lib/mapFactory')
 const { parseAdventure } = await import('../lib/adventure')
 const { deserializeMap } = await import('../lib/mapFile')
@@ -254,17 +254,14 @@ describe('a lista mora na aventura', () => {
 })
 
 describe('mapa solto: a lista precisa da aventura', () => {
-  it('criar pergunta; no "não" nada muda; no "sim" o mapa vira aventura e a camada nasce nela', async () => {
+  it('o mapa solto já abre como aventura de uma cena: criar não pergunta e a camada nasce nela (18/11/2026)', async () => {
     useAdventureStore.getState().open({ path: 'C:/appdata/maps/solto/map.json', map: mapa('solto', 'Solto'), adventure: null, adventureDir: null, activeSceneId: null, scenes: [], changedSceneIds: [], adventureChanged: false, legacySources: [] })
-    const perguntas: string[] = []
-    const nao = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: async (t) => (perguntas.push(t), false), caminhoDoMapaSolto: () => null }))
-    expect(await nao.criar()).toBeNull()
-    expect(perguntas).toEqual([PERGUNTA_VIRAR_AVENTURA_CAMADAS])
-    expect(useMapStore.getState().map.modeloCamadas).toBeUndefined()
-    expect(useAdventureStore.getState().adventure).toBeNull()
-    const sim = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar: async () => true, caminhoDoMapaSolto: () => null }))
-    const id = await sim.criar()
+    expect(useAdventureStore.getState().adventure?.scenes.map((cena) => cena.id)).toEqual([useMapStore.getState().map.id])
+    const perguntar = vi.fn(async () => false)
+    const acoes = acoesDoModeloDeCamadasCom(() => garantirAventuraParaCamadas({ perguntar, caminhoDoMapaSolto: () => null }))
+    const id = await acoes.criar()
     expect(id).toMatch(/^livre_[0-9a-f]{8}$/)
+    expect(perguntar).not.toHaveBeenCalled()
     expect(useAdventureStore.getState().adventure?.camadas?.ordem.map((c) => c.id)).toContain(id)
   })
 })
