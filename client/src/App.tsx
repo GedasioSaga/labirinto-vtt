@@ -31,7 +31,8 @@ import {
 import { assinarLugarDaAventura, assinarTudoSalvo, iniciarBatalhaSalva, lugarDaAventura, tudoSalvoNoApp, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
 import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
 import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
-import { AbrirAMesaDaBatalha, TelaDaBatalhaNoApp } from './batalhaJanela/TelaDaBatalhaNoApp'
+import { AbrirAMesaDaBatalha, MenuDaVezSobPedido, TelaDaBatalhaNoApp, useLugarDaMesa } from './batalhaJanela/TelaDaBatalhaNoApp'
+import { useTelaDaMesa } from './batalhaJanela/telaDaMesa'
 import { iniciarMesaDaBatalha } from './batalhaJanela/controleDaJanela'
 import { mesaDaAventura } from './stores/mesaDaAventura'
 import { seguirAPastaDasCondicoes } from './stores/condicoesPropriasStore'
@@ -202,7 +203,7 @@ import { ComSaida } from './components/grimorio/ComSaida'
 import { SceneOverviewDialog } from './components/SceneOverview'
 import { ChipDaCena } from './components/livro/ChipDaCena'
 import { FaixaDoMestre } from './components/batalha/FaixaDoMestre'
-import { EfeitosDoMestre, ReacaoDoMestreNoCentro, VezDoNpcNoCentro } from './components/batalha/BatalhaDoMestre'
+import { EfeitosDoMestre, ReacaoDoMestreNoCentro } from './components/batalha/BatalhaDoMestre'
 import { tremer } from './components/batalha/EfeitosDaBatalha'
 import { consultaDoMestre, escolherFichaDoMestre, guardarConsultaDoMestre, useMiraDoMestre } from './components/batalha/miraDoMestre'
 import { escolherCasaDoMestre, useColocacaoDoMestre } from './components/batalha/colocacaoDoMestre'
@@ -1723,6 +1724,38 @@ function App() {
   // Pedido de 18/11: a mesa da batalha (diálogo do meio ou janela à parte). O fio liga na montagem: a janela que sobreviveu
   // ao F5 da principal volta a receber o estado antes do primeiro clique.
   useEffect(() => iniciarMesaDaBatalha((texto) => useToastStore.getState().push('info', texto)), [])
+  // Mesa do mestre aplicada (19/11): durante a batalha a mesa encosta na direita do mapa (ou vai para a janela à parte).
+  const mestreEmBatalha = screen === 'editor' && (batalhaNaCenaAberta || batalhaDBTNaCenaAberta)
+  const lugarDaMesa = useLugarDaMesa(mestreEmBatalha)
+  const mesaAVista = lugarDaMesa === 'doca' || lugarDaMesa === 'janela'
+  // Os dois livros saem da frente do mapa quando a batalha começa (o da esquerda recolhe, o da direita fica na lombada) e
+  // voltam como estavam quando ela acaba. Uma vez por batalha: o mestre pode reabrir um livro no meio dela.
+  const livrosAntesDaBatalha = useRef<{ esquerdoRecolhido: boolean; direitoAberto: boolean } | null>(null)
+  const livroDaDireitaRef = useRef({ aberto: rightOpen, abrir: setRightOpen })
+  livroDaDireitaRef.current = { aberto: rightOpen, abrir: setRightOpen }
+  useEffect(() => {
+    const livroDoMestre = useLivroDoMestreStore.getState()
+    const direita = livroDaDireitaRef.current
+    if (mestreEmBatalha) {
+      if (livrosAntesDaBatalha.current !== null) return
+      livrosAntesDaBatalha.current = { esquerdoRecolhido: livroDoMestre.recolhido, direitoAberto: direita.aberto }
+      livroDoMestre.setRecolhido(true)
+      direita.abrir(false)
+      return
+    }
+    const antes = livrosAntesDaBatalha.current
+    if (antes === null) return
+    livrosAntesDaBatalha.current = null
+    livroDoMestre.setRecolhido(antes.esquerdoRecolhido)
+    direita.abrir(antes.direitoAberto)
+  }, [mestreEmBatalha])
+  // O "Dano, selos, extras e regras" do Mais da mesa: a página Batalha do livro da direita, aberta.
+  const pedidosDoLivroDaBatalha = useTelaDaMesa((state) => state.pedidosDoLivro)
+  useEffect(() => {
+    if (pedidosDoLivroDaBatalha === 0) return
+    useLivroDaMesaStore.getState().abrirPagina('batalha', true)
+    livroDaDireitaRef.current.abrir(true)
+  }, [pedidosDoLivroDaBatalha])
   /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
   const cenaDaColocacao = useColocacaoDoMestre((state) => state.armada?.sceneKey ?? null)
   const colocandoInvocado = batalhaNaCenaAberta && cenaDaColocacao === chaveDaCenaAberta
@@ -3502,7 +3535,6 @@ function App() {
       <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
       {screen === 'editor' && <FaixaDaColocacao />}
-      {screen === 'editor' && <TelaDaBatalhaNoApp />}
       <LerJuntoDoMestre />
       {screen === 'editor' && ofertaDaBatalha !== null && (
         <RetomarBatalhaDialog
@@ -3722,7 +3754,13 @@ function App() {
   }
 
   return (
-    <div className="lb-editor" ref={editorRootRef} data-coldir={rightOpen ? 'aberta' : 'escondida'}>
+    <div
+      className="lb-editor"
+      ref={editorRootRef}
+      data-coldir={rightOpen ? 'aberta' : 'escondida'}
+      data-mesa={lugarDaMesa === 'doca' ? 'doca' : undefined}
+      data-batalha={mesaAVista ? 'mestre' : undefined}
+    >
       {/* Os avisos vêm PRIMEIRO no DOM, antes do trilho. A posição na tela é do
           CSS (absoluto, z-index 30), mas a ordem do texto conta: com os avisos
           depois do painel Grupo, o texto do editor lia "Bruno … Ana quer passar
@@ -3781,7 +3819,8 @@ function App() {
         {/* BATALHA F2 (S5, S8): corte do golpe, d20, número do dano; o tremor mexe no invólucro do canvas. */}
         {batalhaNaCenaAberta && <EfeitosDoMestre sceneKey={chaveDaCenaAberta} onTremor={() => tremer(canvasHostRef.current)} />}
         {/* BATALHA (pedido de 09/11, item 5): a vez do NPC no menu do centro, o mesmo do jogador. */}
-        {batalhaNaCenaAberta && <VezDoNpcNoCentro sceneKey={chaveDaCenaAberta} />}
+        {/* Com a mesa à vista, o menu do centro só abre quando ela pede (o golpe que pede escolha a mais). */}
+        {batalhaNaCenaAberta && <MenuDaVezSobPedido sceneKey={chaveDaCenaAberta} mesaAVista={mesaAVista} />}
         {/* BATALHA (pedido de 10/11): a carta REAÇÃO dos NPCs no centro do campo, na frente do menu da vez. */}
         {batalhaNaCenaAberta && <ReacaoDoMestreNoCentro sceneKey={chaveDaCenaAberta} />}
         {/* BATALHA DBT: golpe, dano, Ki, forma e condição sobre o mapa, só na batalha Dragon Ball da cena aberta. */}
@@ -3819,9 +3858,12 @@ function App() {
           onVerTodas={() => setCenasExpandidas(true)}
         />
         {/* BATALHA F1: a faixa da ordem dos turnos, abaixo do chip, só com a batalha ligada na cena aberta. */}
-        {batalhaNaCenaAberta && <FaixaDoMestre sceneKey={chaveDaCenaAberta} />}
-        {/* BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, só na batalha DBT da cena aberta. */}
-        {batalhaDBTNaTela && <FaixaDoMestreDBT sceneKey={chaveDaCenaAberta} />}
+        {/* Com a mesa à vista a ordem mora nela: as faixas ficam montadas (elas arrumam a cena) e escondidas (mesaDaBatalha.css). */}
+        <div className="mb-faixas">
+          {batalhaNaCenaAberta && <FaixaDoMestre sceneKey={chaveDaCenaAberta} />}
+          {/* BATALHA DBT: a faixa da ordem Dragon Ball no mesmo lugar, só na batalha DBT da cena aberta. */}
+          {batalhaDBTNaTela && <FaixaDoMestreDBT sceneKey={chaveDaCenaAberta} />}
+        </div>
         {/* PAUSA GERAL DOS NPCS: congela rotina e patrulha andando para o
             mestre narrar; fora do fluxo da barra, para ela não pular de lugar
             quando o botão aparece. */}
@@ -3837,6 +3879,9 @@ function App() {
 
       {/* AVISO AO MESTRE (caminhos, F0): NPC andando sozinho parado por porta trancada. */}
       <AvisoDaRotina />
+
+      {/* MESA DA BATALHA (protótipo aprovado em 19/11): encostada na direita do mapa durante a batalha. */}
+      <TelaDaBatalhaNoApp emBatalha={mestreEmBatalha} />
 
       {/* LIVRO DO MESTRE (fatia 2 do design consolidado): a lombada com
           Ficha, Cena, Aventura e Acervo e o topo com as ações do mapa (a
