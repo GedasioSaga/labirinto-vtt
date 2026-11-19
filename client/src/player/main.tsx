@@ -90,6 +90,7 @@ import { lerFichaParaBatalha, type FichaLida } from '../lib/dbt/batalha/leitura'
 import { tremer } from '../components/batalha/EfeitosDaBatalha'
 import type { ConsultaDaFichaNaTela } from './PlayerView'
 import { vezTokenIdDoJogador } from '../components/batalha/dadosDaFaixa'
+import { campoDoJogador } from '../lib/batalha/marcasNoCampo'
 import { formasDoRecorte, fotosComAFormaVisivel, fotosDaFormaDBT, fotosDaFormaDoJogador, selosNasFichasDoJogador, useFotosEstaveis, useSelosEstaveis } from '../components/batalha/marcasNoMapa'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { ultimoGestoDoJudge } from '../pixi/judgeDoMapa'
@@ -1051,6 +1052,15 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
     }, [batalhaEstado, cartasDBT, tokensDoRecorte, resolverDaMesa]),
   )
   const selosNasFichas = useSelosEstaveis(useMemo(() => selosNasFichasDoJogador(batalhaEstado), [batalhaEstado]))
+  // CAMPO DE BATALHA (19/11): o lado, o anel de quem age ou espera e o alvo de cada ficha que ele vê.
+  const campoDaBatalha = useMemo(() => campoDoJogador(batalhaEstado), [batalhaEstado])
+  // Até onde a ficha dele anda na vez dele: só na hora de andar (sem golpe esperando nem contra-ataque segurando a vez).
+  const alcanceDaVez = useMemo(() => {
+    const blocos = batalhaEstado?.acoes?.blocos
+    if (blocos === undefined || blocos.limite === null || batalhaEstado?.esperaContra !== undefined || campoDaBatalha.fios.length > 0) return null
+    const tokenId = vezTokenIdDoJogador(batalhaEstado)
+    return tokenId === null ? null : { tokenId, sobra: blocos.limite - blocos.andados }
+  }, [batalhaEstado, campoDaBatalha])
   // DANÇA (SONS F5d): a música importada vem da sala por `/sons/<id>`, com a chave desta conexão (lida a cada pedido).
   const musicaDaSala = useMemo(() => fontesDaSala(() => connection.chaveDaMidia()), [connection])
   // PACOTE DE ANIMAÇÕES do mestre (transição, porta, cenário), ao entrar na
@@ -1946,7 +1956,10 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             caminhos={state.caminhos}
             // BATALHA F1 (S4): a ficha da vez que ele vê ganha o anel com o pulso de chegada.
             // BATALHA DBT: sem batalha One Piece na cena, a vez do recorte DBT (só ficha que a tela dele tem).
-            vezTokenId={vezTokenIdDoJogador(state.batalhaEstado) ?? vistaDBT?.vez ?? null}
+            // CAMPO DE BATALHA: no contra-ataque o anel cheio vai em quem contra-ataca (a vez dele espera, tracejada).
+            vezTokenId={campoDaBatalha.quemAge ?? vezTokenIdDoJogador(state.batalhaEstado) ?? vistaDBT?.vez ?? null}
+            campo={campoDaBatalha}
+            alcanceDaVez={alcanceDaVez}
             // BATALHA F3 (fatia J): o Judge do `batalha.estado` e o gesto da fila (o desfazer do mestre ergue a carta).
             judge={state.batalhaEstado?.judge ?? vistaDBT?.judge ?? null}
             gestoDoJudge={ultimoGestoDoJudge(state.batalhaEfeitos)}
