@@ -1,4 +1,4 @@
-import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
+import type { AjusteDoGolpe, EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
 /**
  * O FIO entre a janela principal (a MESA) e a janela da batalha, pelo
@@ -22,6 +22,8 @@ export function nomeDoCanal(sessao: string): string {
 /** Ids e chaves que andam no fio: os da store são curtos (`carta_…`, `linha_…`, `golpe|token`). */
 const ID_MAX = 200
 const ALVOS_MAX = 24
+/** O Dano base digitado na mesa: o mesmo teto largo do campo da mira (nenhuma ficha passa disto). */
+const DANO_MAX = 1_000_000
 
 /** Da janela para a mesa. */
 export type MensagemDaJanela =
@@ -47,6 +49,26 @@ function id(valor: unknown): string | null {
   return typeof valor === 'string' && valor.length > 0 && valor.length <= ID_MAX ? valor : null
 }
 
+/** A lista de alvos: só ids, no máximo `ALVOS_MAX`; torta = `null`. */
+function listaDeIds(valor: unknown): string[] | null {
+  if (!Array.isArray(valor) || valor.length > ALVOS_MAX) return null
+  const ids: string[] = []
+  for (const item of valor) {
+    const lido = id(item)
+    if (lido === null) return null
+    ids.push(lido)
+  }
+  return ids
+}
+
+/** O ajuste do golpe: o dano é inteiro de 0 a `DANO_MAX` (ou `null`, o da ficha) e as duas caixas são booleanas. */
+function lerAjuste(valor: unknown): AjusteDoGolpe | null {
+  const o = objeto(valor)
+  if (o === null || typeof o.surpresa !== 'boolean' || typeof o.perfurante !== 'boolean') return null
+  if (o.dano !== null && !(typeof o.dano === 'number' && Number.isSafeInteger(o.dano) && o.dano >= 0 && o.dano <= DANO_MAX)) return null
+  return { dano: o.dano, surpresa: o.surpresa, perfurante: o.perfurante }
+}
+
 /** O pedido inteiro, campo a campo; torto = `null`. */
 export function lerPedido(dado: unknown): PedidoDaMesa | null {
   const o = objeto(dado)
@@ -65,15 +87,31 @@ export function lerPedido(dado: unknown): PedidoDaMesa | null {
     case 'agir': {
       const vez = id(o.vez)
       const golpe = id(o.golpe)
-      if (vez === null || golpe === null || !Array.isArray(o.alvos) || o.alvos.length > ALVOS_MAX) return null
-      const alvos: string[] = []
-      for (const alvo of o.alvos) {
-        const lido = id(alvo)
-        if (lido === null) return null
-        alvos.push(lido)
-      }
-      return { acao: 'agir', sceneKey, vez, golpe, alvos }
+      const alvos = listaDeIds(o.alvos)
+      if (vez === null || golpe === null || alvos === null) return null
+      if (o.ajuste === undefined) return { acao: 'agir', sceneKey, vez, golpe, alvos }
+      const ajuste = lerAjuste(o.ajuste)
+      return ajuste === null ? null : { acao: 'agir', sceneKey, vez, golpe, alvos, ajuste }
     }
+    case 'contra': {
+      const golpeId = id(o.golpeId)
+      const golpe = id(o.golpe)
+      const alvos = listaDeIds(o.alvos)
+      if (golpeId === null || golpe === null || alvos === null) return null
+      if (o.ajuste === undefined) return { acao: 'contra', sceneKey, golpeId, golpe, alvos }
+      const ajuste = lerAjuste(o.ajuste)
+      return ajuste === null ? null : { acao: 'contra', sceneKey, golpeId, golpe, alvos, ajuste }
+    }
+    case 'abrirMao': {
+      const golpeId = id(o.golpeId)
+      return golpeId === null ? null : { acao: 'abrirMao', sceneKey, golpeId }
+    }
+    case 'ordenar':
+    case 'zerarCaminhos':
+    case 'abrirLivro':
+      return { acao: o.acao, sceneKey }
+    case 'menuDoMapa':
+      return typeof o.ligar === 'boolean' ? { acao: 'menuDoMapa', sceneKey, ligar: o.ligar } : null
     case 'responder': {
       const pendente = id(o.pendente)
       const resposta = id(o.resposta)
