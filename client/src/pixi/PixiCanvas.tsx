@@ -13,7 +13,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
-import { useMapStore } from '../stores/mapStore'
+import { barradoPeloGesto, ligarSinalDeGesto, useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { pontosMinimos } from '../lib/agua/dados'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
@@ -93,7 +93,7 @@ import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarDesenhoDoAbismo } from './drawAbismo'
 import { criarGestoDoAbismo } from './abismoNoEditor'
 import { abismoNoPonto, carimbosComOsAbismos } from '../lib/abismo'
-import { ehLuzDeItem, luzesDosItensLembradas } from '../lib/luzDoItem'
+import { ehLuzDeItem, luzesDosItens, luzesDosItensLembradas } from '../lib/luzDoItem'
 import { abismosDoMapa } from '../lib/abismoPintado'
 import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
@@ -131,6 +131,8 @@ import { compileFloor, pieceBounds, pontosDoCorredor, shapeCenter } from '../lib
 const MINIMAP_RASTER_SAMPLES = 4
 /** TERRENO ALTO: espera máxima para a ficha do térreo que anda aparecer na planta borrada do editor (fica borrada: não pede todo quadro). */
 const FOLGA_DA_PLANTA_MS = 200
+/** O traçado ponto a ponto que ficou aberto quando o mestre trocou de cena ou de piso. */
+const TRACADO_DE_OUTRO_LUGAR_TEXT = 'Traçado descartado: ele era da cena ou do piso de antes'
 import type { FloorPiece, FloorShape, MapFrame, TipoMobilia } from '../types/map'
 import {
   AVISO_BORRACHA_NAO_APAGA_CHAO,
@@ -3321,10 +3323,15 @@ function PixiCanvasDoContexto({
         mapaDeLuz.atualizar({
           tinta,
           // ITEM QUE ILUMINA: a lista lembrada só muda quando muda o conteúdo (a ficha que leva a luz andou, o item saiu).
-          revisao: revisaoDoMapaDeLuz.de([doPiso.lights, luzesDosItensLembradas(doPiso), doPiso.walls, chaoQueLimita(doPiso), doPiso.props, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
+          // Os pinos só na prévia "como jogador": o "Oculto para jogadores" de um item no chão muda a luz que ela mostra, e a lista lembrada não o vê.
+          revisao: revisaoDoMapaDeLuz.de([doPiso.lights, luzesDosItensLembradas(doPiso), doPiso.walls, chaoQueLimita(doPiso), doPiso.props, comoJogador ? doPiso.pins : null, map.hiddenLayers, map.ocultasDoJogador, map.modeloCamadas, map.externa, map.periodoFixo, sessao, comoJogador, previa]),
           luzes: () => {
             const camadas = contextoDeCamadas(doPiso)
-            const todas = [...doPiso.lights, ...luzesDosItensLembradas(doPiso)]
+            // PRÉVIA "COMO JOGADOR": as luzes dos itens saem como o jogador as recebe (`doJogador`), sem a do
+            // item "Oculto para jogadores" — a prévia acendia uma luz que o jogador real não vê (análise de 18/11/2026).
+            // A `revisao` acima já muda com elas: a lista lembrada é refeita quando objeto, pino ou ficha mudam.
+            const dosItens = comoJogador ? luzesDosItens(doPiso, { doJogador: true }) : luzesDosItensLembradas(doPiso)
+            const todas = [...doPiso.lights, ...dosItens]
             const daCamada = comoJogador ? todas.filter((l) => camadas.jogadorVeItem('luz', l)) : visibleLights(todas, doPiso)
             // `hidden` não vai ao jogador (`fogFilter.ts`); `acesaEm` decide se acende no período (L3).
             return daCamada.filter((l) => l.hidden !== true && luzAcesaNoPeriodo(l, cena, sessao))
@@ -4091,6 +4098,12 @@ function PixiCanvasDoContexto({
         | 'dragging-pin'
         // Girar sala pela alça (pixi/roomRotateGesture.ts).
         | 'rotating-room' = 'idle'
+      // SINAL DE GESTO EM CURSO (análise de 18/11/2026): com o botão apertado num
+      // arrasto, a store barra Ctrl+Z, Ctrl+Y, Delete, Ctrl+D e as setas — o
+      // desfazer no meio do arrasto tirava a ação ANTERIOR e, ao soltar, o
+      // arrasto empilhava o mapa de antes e zerava o refazer. Mover a vista
+      // (`panning`) não mexe no mapa e não barra nada.
+      const desligarSinalDeGesto = ligarSinalDeGesto(() => mode !== 'idle' && mode !== 'panning')
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPinId: string | null = null
@@ -5018,8 +5031,10 @@ function PixiCanvasDoContexto({
         const drag = startBodyGuideDrag(pointer, box ?? pointBox(pointer), {}, null, {
           anchor: () => andou,
           move: (dx, dy) => {
-            useMapStore.getState().moveSelectionLive(dx, dy)
-            andou = { x: andou.x + dx, y: andou.y + dy }
+            // O total andado vai junto: a peça de chão de blocos acompanha o conjunto em célula inteira.
+            const depois = { x: andou.x + dx, y: andou.y + dy }
+            useMapStore.getState().moveSelectionLive(dx, dy, { antes: andou, depois })
+            andou = depois
           },
         })
         // Sem caixa (só fichas e luzes, que não são guia de ninguém): a seleção
@@ -6995,6 +7010,20 @@ function PixiCanvasDoContexto({
           useToastStore.getState().push('info', CORRIDOR_DISCARDED_TEXT)
         }
       })
+
+      // RASCUNHO PONTO A PONTO É DA CENA E DO PISO EM QUE NASCEU (análise de
+      // 18/11/2026): só a troca de ferramenta o limpava. Trocar de cena ou de
+      // piso com cantos já marcados e apertar Enter criava a sala (o polígono,
+      // o corredor, a água) com os cantos de antes, no lugar errado. Saiu da
+      // cena ou do piso: o traçado some, com aviso quando havia cantos.
+      const descartarRascunhoDeOutroLugar = () => {
+        const haviaTracado = hasPointDraft()
+        clearDrafts()
+        redrawShapes()
+        if (haviaTracado) useToastStore.getState().push('info', TRACADO_DE_OUTRO_LUGAR_TEXT)
+      }
+      const unsubscribeCenaDoRascunho = useMapStore.subscribe((state) => state.map.id, descartarRascunhoDeOutroLugar)
+      const unsubscribePisoDoRascunho = useMapStore.subscribe((state) => state.pisoAtivo, descartarRascunhoDeOutroLugar)
 
       app.stage.on('pointerdown', (event) => {
         // Conta-gotas armado + botão esquerdo: o clique só lê a cor do mapa e
@@ -10302,6 +10331,8 @@ function PixiCanvasDoContexto({
           // 16/09/2026). O aviso NOMEIA o que foi apagado e mostra a saída —
           // mesma função do toast de desfazer da referência do nicho.
           case 'deleteSelected': {
+            // No meio de um arrasto, nada some (nem o pino, a zona ou o risco abertos) e o aviso do que sumiu não sai: a store diz por quê.
+            if (barradoPeloGesto()) break
             // Barranco: com um risco escolhido na ferramenta, Delete apaga o risco.
             if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.apagarEscolhido()) break
             // Abismo: com um abismo escolhido na ferramenta, Delete apaga o abismo.
@@ -10576,6 +10607,9 @@ function PixiCanvasDoContexto({
         straightenGhost.parar()
         unsubscribeActiveTool()
         unsubscribeFloorShape()
+        unsubscribeCenaDoRascunho()
+        unsubscribePisoDoRascunho()
+        desligarSinalDeGesto()
         // Os nós criados pela pilha soltam os renderers deles (portas, móveis, luzes).
         pilha.destruir()
         // Antes do app.destroy: os gradientes de luz não são filhos da cena.
