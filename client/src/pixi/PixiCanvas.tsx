@@ -13,7 +13,7 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
 import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
-import { barradoPeloGesto, ligarSinalDeGesto, useMapStore } from '../stores/mapStore'
+import { ligarSinalDeGesto, SEM_ESCOLHA, useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
 import { pontosMinimos } from '../lib/agua/dados'
 import { definirEstiloDaCena, desenhadoLigado, estiloDoMapa, versaoDoEstilo } from '../lib/estiloDoMapa'
@@ -22,7 +22,7 @@ import { criarCaminhosDesenhados } from './caminhoDesenhado'
 import { mapaDoPiso } from '../lib/pisos'
 import { camadaTravadaNaBorrachaNoPiso, camadaTravadaNoPiso, hoverNoPiso, pecaDeChaoNoPiso, selecaoDoLacoNoPiso } from '../lib/pisoEmEdicao'
 import { runClipboardShortcut } from '../stores/mapClipboard'
-import { periodoDaSessao, personagensAtivos, pinTravelOf, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
+import { periodoDaSessao, personagensAtivos, sistemaAtivo, unlinkedTravelPinIds, useAdventureStore } from '../stores/adventureStore'
 import { useRpgStore } from '../stores/rpgStore'
 import { vidasDaCena, type VidasDaCena } from '../lib/vidaDaFicha'
 import { subscribeToGridRedraw } from '../stores/gridSubscription'
@@ -89,6 +89,7 @@ import { criarGestoDoMuroDeFogo } from './muroDeFogoNoEditor'
 import { gestoMexeNoMapa, type ModoDoGesto } from './modoDoGesto'
 import { criarGestoDaTextura, criarGestoDoPenhasco, criarGestoDoPincelDeRevelar } from './pinceisNoEditor'
 import { criarGestoDoCarimbo } from './carimboNoEditor'
+import { criarEscolhaNoCanvas } from './escolhaDoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -260,7 +261,7 @@ import { pinosDosDesafios } from '../lib/desafios'
 import { useDesafiosStore } from '../stores/desafiosStore'
 import { useLivroDoMestreStore } from '../stores/livroDoMestreStore'
 import { findPropAt } from './propInteraction'
-import { buildConcealZoneFromDraft, buildPin, nextTokenName, portaSozinhaNaSelecao } from '../lib/mapFactory'
+import { buildConcealZoneFromDraft, buildPin, nextTokenName } from '../lib/mapFactory'
 import { SECRET_ITEM_ALPHA } from './constants'
 import { createTextLabelsRenderer } from './drawTextLabels'
 import { createAngleIndicatorRenderer } from './drawAngleIndicator'
@@ -339,7 +340,7 @@ import { avisarCamadaTravada } from '../lib/avisoCamadaTravada'
 import { encostarTochaArrastadaNaParede, porMovelNoPonto, porMuroDeFogoNoTraco } from '../stores/mobiliaNoPonto'
 import { useFerramentaDoMuroDeFogo } from '../stores/ferramentaDoMuroDeFogo'
 import { ehMovelDoChao } from '../lib/mobilia'
-import { apagarPinoPeloGesto, cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
+import { cravarPinoPeloGesto } from '../stores/pinoPeloGesto'
 import { juntarFalaDaColocacao, pinoDaColocacao, terminarColocacao } from '../stores/colocacaoDoPreludio'
 import { gestoNoPino } from '../lib/camadas/trava'
 import { contextoDeCamadas } from '../lib/camadas/consulta'
@@ -538,101 +539,10 @@ const ALT_CLONE_DRAG_SCREEN_PX = MARQUEE_DRAG_THRESHOLD_SCREEN_PX
  */
 const GUIDE_MOVE_EPSILON = 1e-6
 
-/**
- * Nome em PT-BR de cada tipo de item, para o aviso de apagar dizer O QUE
- * sumiu em vez de "1 item". Mesmos nomes que a pessoa já lê no painel
- * ("Parede" em `WallStyleControls`, "Escada" em `StairControls`, "Região" em
- * `RegionStyleControls`) e na lista de camadas (`LAYER_LABELS`, `lib/layers.ts`)
- * — o aviso não pode inventar um vocabulário terceiro.
- *
- * `feminino` existe por causa da concordância: sem ele o aviso sairia "Parede
- * apagado". `Record<SelectionKind, …>` é exaustivo por construção — tipo novo
- * de seleção sem rótulo aqui não compila.
- */
-const ENTITY_LABELS: Record<SelectionKind, EntityLabel> = {
-  wall: { um: 'parede', varios: 'paredes', feminino: true },
-  region: { um: 'região', varios: 'regiões', feminino: true },
-  stair: { um: 'escada', varios: 'escadas', feminino: true },
-  light: { um: 'luz', varios: 'luzes', feminino: true },
-  token: { um: 'token', varios: 'tokens', feminino: false },
-  prop: { um: 'objeto', varios: 'objetos', feminino: false },
-  drawing: { um: 'desenho', varios: 'desenhos', feminino: false },
-  floor: { um: 'pedaço de chão', varios: 'pedaços de chão', feminino: false },
-  carimbo: { um: 'carimbo', varios: 'carimbos', feminino: false },
-  pin: { um: 'pino', varios: 'pinos', feminino: false },
-  zone: { um: 'zona oculta', varios: 'zonas ocultas', feminino: true },
-  agua: { um: 'água', varios: 'águas', feminino: true },
-  barranco: { um: 'risco de barranco', varios: 'riscos de barranco', feminino: false },
-  abismo: { um: 'abismo', varios: 'abismos', feminino: false },
-}
-
 /** Os tipos que a cadeia da Borracha geral (`findErasableAt`) não devolve: o Terreno, o pino e a zona têm caminho próprio. */
 type TipoDoTerrenoNaBorracha = 'carimbo' | 'pin' | 'zone' | 'agua' | 'barranco' | 'abismo'
 function ehTipoDoTerrenoNaBorracha(kind: SelectionKind): kind is TipoDoTerrenoNaBorracha {
   return TIPOS_SO_COM_CONTORNO.has(kind)
-}
-
-interface EntityLabel {
-  um: string
-  varios: string
-  feminino: boolean
-}
-
-/** Sala é uma `Region` COM `room` (`types/map.ts`), e quem a apagou leu "Sala"
- *  no painel, não "Região". A distinção só existe olhando o mapa, por isso
- *  mora aqui e não na tabela acima, que é indexada só por `SelectionKind`. */
-const SALA_LABEL: EntityLabel = { um: 'sala', varios: 'salas', feminino: true }
-
-function entityLabel(map: MapData, item: { kind: SelectionKind; id: string }): EntityLabel {
-  if (item.kind === 'region' && map.regions.some((region) => region.id === item.id && region.room)) return SALA_LABEL
-  return ENTITY_LABELS[item.kind]
-}
-
-const capitalize = (texto: string): string => texto.charAt(0).toUpperCase() + texto.slice(1)
-
-/**
- * Frase do aviso de apagar, NOMEANDO o que sumiu — "1 item apagado" não diz
- * nada a quem acabou de varrer o mapa com Ctrl+A. Três casos, que são os que
- * acontecem de verdade: um item ("Sala apagada"), N do mesmo tipo ("3 paredes
- * apagadas") e mistura ("12 itens apagados: 5 paredes, 4 salas, 3 tokens").
- *
- * Recebe o mapa de ANTES da remoção — depois dela os ids já não existem e não
- * há como saber se aquela região era uma Sala. Seleção vazia devolve `null`:
- * não houve nada para apagar, e aviso nenhum deve aparecer.
- */
-function describeDeletion(map: MapData, selection: readonly { kind: SelectionKind; id: string }[]): string | null {
-  if (selection.length === 0) return null
-
-  // Chave = o rótulo singular: é o que distingue Sala de Região, e duas
-  // entradas da tabela nunca compartilham singular.
-  const porRotulo = new Map<string, { label: EntityLabel; total: number }>()
-  for (const item of selection) {
-    const label = entityLabel(map, item)
-    const atual = porRotulo.get(label.um)
-    if (atual) atual.total += 1
-    else porRotulo.set(label.um, { label, total: 1 })
-  }
-
-  const grupos = [...porRotulo.values()]
-  const frase = ({ label, total }: { label: EntityLabel; total: number }) =>
-    total === 1 ? `1 ${label.um}` : `${total} ${label.varios}`
-  const apagado = (label: EntityLabel, total: number) => `apagad${label.feminino ? 'a' : 'o'}${total === 1 ? '' : 's'}`
-
-  if (grupos.length === 1) {
-    const grupo = grupos[0]
-    const alvo = grupo.total === 1 ? grupo.label.um : `${grupo.total} ${grupo.label.varios}`
-    return capitalize(`${alvo} ${apagado(grupo.label, grupo.total)}`)
-  }
-
-  // Mistura: o total vem primeiro (é a informação que assusta) e a quebra
-  // depois, do tipo mais numeroso para o menos — empate mantém a ordem em que
-  // o tipo apareceu na seleção, para a frase não dançar entre dois gestos iguais.
-  const detalhe = grupos
-    .slice()
-    .sort((a, b) => b.total - a.total)
-    .map(frase)
-    .join(', ')
-  return `${selection.length} itens apagados: ${detalhe}`
 }
 
 // Tolerância (em px de TELA) do "ímã" de vértice ao desenhar Parede, Linha e
@@ -1554,6 +1464,8 @@ function PixiCanvasDoContexto({
           if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
         },
       })
+      // AS SEIS ESCOLHAS (`escolhaDoEditor.ts`): o que o Esc solta e o que o Delete apaga, na ordem de sempre.
+      const escolhaNoCanvas = criarEscolhaNoCanvas({ barranco: gestoDoBarranco, abismo: gestoDoAbismo, agua: gestoDaAgua })
       // MURO DE FOGO (`muroDeFogoNoEditor.ts`, 15/11/2026): com ele escolhido na ferramenta Objeto, o canvas traça
       // (à mão ou ponto a ponto) em vez de pôr caixa; o rascunho usa o draft. `clearDrafts` é declarado mais abaixo:
       // a função só é chamada depois da montagem.
@@ -2205,7 +2117,7 @@ function PixiCanvasDoContexto({
           const map = doPisoEmEdicao(state.map)
           return map === state.map ? state : { ...state, map }
         }
-        return { ...state, map: exportScene.map, selection: EMPTY_SELECTION, selectedPinId: null, selectedConcealZoneId: null }
+        return { ...state, map: exportScene.map, ...SEM_ESCOLHA }
       }
 
       /**
@@ -9804,20 +9716,10 @@ function PixiCanvasDoContexto({
         switch (action.kind) {
           case 'cancel':
             clearDrafts()
-            // Barranco: Esc solta o risco escolhido.
-            useMapStore.getState().setBarrancoEscolhido(null)
-            // Água: Esc solta a água escolhida.
-            gestoDaAgua.soltarEscolhida()
+            // O risco do Barranco e a água escolhidos soltam.
+            escolhaNoCanvas.soltarTerrenoNoEsc()
             // Onda 4, item 24 — Esc cancela um marquee aberto e limpa a
-            // seleção, de QUALQUER tamanho.
-            //
-            // O "de qualquer tamanho" é de 17/09/2026: até aqui só grupo (2+
-            // itens) era largado, e um item só ficava grudado. No passeio, o
-            // "Closet secreto" seguia contornado de amarelo depois de dois
-            // Escape — um com a ferramenta Sala, outro com a Selecionar — e o
-            // painel continuava mostrando as propriedades dele. Largar a
-            // seleção só clicando numa área vazia é dizer que a tecla
-            // universal de "deixa pra lá" não vale aqui; ela vale.
+            // seleção, de QUALQUER tamanho (o porquê mora em `escolhaDoEditor.ts`).
             if (mode === 'area-marquee-drag') {
               areaMarqueeStart = null
               ctrlTokenPress = null
@@ -9825,16 +9727,8 @@ function PixiCanvasDoContexto({
               marqueeHint.hide()
               mode = 'idle'
             }
-            if (useMapStore.getState().selection.length > 0) {
-              useMapStore.getState().setSelection(EMPTY_SELECTION)
-            }
-            // O pino tem estado de seleção próprio e `setSelection` o preserva
-            // de propósito, então Esc o deixava selecionado calado — e o Delete
-            // de minutos depois apagaria um pino que o mestre já achava solto.
-            // "Deixa pra lá" vale para ele também.
-            if (useMapStore.getState().selectedPinId !== null) {
-              useMapStore.getState().setSelectedPin(null)
-            }
+            // O conjunto e o pino aberto soltam; a zona aberta fica.
+            escolhaNoCanvas.soltarPainelNoEsc()
             break
           // Apagar é o gesto mais barato de fazer e o mais caro de errar:
           // Ctrl+A seguido de Delete varria o mapa inteiro em silêncio, sem
@@ -9842,64 +9736,8 @@ function PixiCanvasDoContexto({
           // 16/09/2026). O aviso NOMEIA o que foi apagado e mostra a saída —
           // mesma função do toast de desfazer da referência do nicho.
           case 'deleteSelected': {
-            // No meio de um arrasto, nada some (nem o pino, a zona ou o risco abertos) e o aviso do que sumiu não sai: a store diz por quê.
-            if (barradoPeloGesto()) break
-            // Barranco: com um risco escolhido na ferramenta, Delete apaga o risco.
-            if (useMapStore.getState().activeTool === 'barranco' && gestoDoBarranco.apagarEscolhido()) break
-            // Abismo: com um abismo escolhido na ferramenta, Delete apaga o abismo.
-            if (useMapStore.getState().activeTool === 'abismo' && gestoDoAbismo.apagarEscolhido()) break
-            // Água: com uma água escolhida na ferramenta, Delete apaga a água.
-            if (useMapStore.getState().activeTool === 'agua' && gestoDaAgua.apagarEscolhida()) break
-            // O pino de ponto de interesse vive FORA de `selection` (estado
-            // próprio, `selectedPinId`), então Delete nunca o alcançava: dava
-            // para colocar e não dava para tirar sem achar "Excluir ponto de
-            // interesse" no painel. Os dois estados são exclusivos — selecionar
-            // um limpa o outro —, então atender o pino primeiro não esconde
-            // nenhuma seleção comum.
-            //
-            // `selectedPinId` pode estar VELHO: `undo` não mexe em seleção, então
-            // colocar um pino e desfazer deixa o id apontando para um pino que
-            // não existe mais. Sem conferir o mapa, o atalho engolia o
-            // `removeSelected` e ainda prometia "Ctrl+Z desfaz" para uma ação que
-            // não aconteceu — e o Ctrl+Z do mestre desfaria outra coisa.
-            // PISOS: só o pino do piso em edição — o de outro piso não está na tela.
-            const { map: mapaDoPino, selectedPinId: pinoSelecionado, pisoAtivo: pisoDoPino } = useMapStore.getState()
-            const pinoApagado =
-              pinoSelecionado === null ? undefined : mapaDoPiso(mapaDoPino, pisoDoPino).pins.find((pino) => pino.id === pinoSelecionado)
-            if (pinoApagado !== undefined) {
-              // O par de um pino de viagem mora em OUTRA cena: o aviso diz o
-              // que mudou lá, porque daqui não dá para ver.
-              const travessia = pinoApagado.kind === 'viagem' ? pinTravelOf(useAdventureStore.getState(), mapaDoPino, pinoApagado) : null
-              // Camada travada: o pino fica, o aviso diz qual camada segurou e o Delete para aqui.
-              if (!apagarPinoPeloGesto(pinoApagado.id)) break
-              useToastStore
-                .getState()
-                .push(
-                  'info',
-                  travessia?.status === 'ligado'
-                    ? `Pino de viagem apagado; o de ${travessia.sceneName} ficou sem destino — Ctrl+Z desfaz`
-                    : pinoApagado.kind === 'viagem'
-                      ? 'Pino de viagem apagado — Ctrl+Z desfaz'
-                      : 'Pino apagado — Ctrl+Z desfaz',
-                )
-              break
-            }
-            // Caça 12/11 (E16): a ZONA OCULTA aberta também mora fora de `selection`
-            // (`selectedConcealZoneId`): Delete a apaga, como o botão "Excluir zona", e avisa.
-            // Conferida no mapa, pelo mesmo motivo do pino acima (o id pode estar velho).
-            const { map: mapaDaZona, selectedConcealZoneId: zonaAberta, removeConcealZone } = useMapStore.getState()
-            if (zonaAberta !== null && mapaDaZona.concealZones.some((zona) => zona.id === zonaAberta)) {
-              removeConcealZone(zonaAberta)
-              useToastStore.getState().push('info', 'Zona oculta apagada — Ctrl+Z desfaz')
-              break
-            }
-            // O mapa é lido ANTES da remoção: depois dela não há como saber se
-            // a região apagada era uma Sala (ver `describeDeletion`).
-            const { map: mapaAntes, selection: apagados } = useMapStore.getState()
-            // A porta sozinha não some: `removeSelected` a tira e dá o aviso dela (o mesmo do botão "Tirar porta").
-            const oQueSumiu = portaSozinhaNaSelecao(mapaAntes, apagados) !== null ? null : describeDeletion(mapaAntes, apagados)
-            useMapStore.getState().removeSelected()
-            if (oQueSumiu !== null) useToastStore.getState().push('info', `${oQueSumiu} — Ctrl+Z desfaz`)
+            // A ordem (risco, abismo, água, pino, zona, conjunto) e os avisos moram em `escolhaDoEditor.ts`.
+            escolhaNoCanvas.apagar()
             break
           }
           case 'selectTool':
