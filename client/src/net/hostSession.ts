@@ -1,5 +1,6 @@
 import { coresDosPinos } from '../lib/marcadorDeContinente'
 import { criarCenariosNaSessao } from './cenariosNaSessao'
+import { criarEstadoPorConexao, criarEstadoPorJogador, type MotivoDoEsquecer } from './registroDeEstado'
 import type { CenarioLidoMessage } from './protocol'
 import type { LeiturasDosCenarios } from '../types/cenarioEFalas'
 import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
@@ -3567,6 +3568,11 @@ function pistaDaFala(mapId: string, pin: Pin, fala: FalaParaJogador): PistaDaFal
 export function createHostSession(options: HostSessionOptions): HostSession {
   const now = options.now ?? Date.now
   const randomId = options.randomId ?? (() => crypto.randomUUID())
+  // Todo Map/Set por playerId (ou por clientId) nasce aqui com a vida dele: a
+  // queda, o kick e o "esquecer" apagam a chave de todos de uma vez
+  // (`disconnect`, `kick`, `forgetPlayer`). Ver net/registroDeEstado.ts.
+  const porJogador = criarEstadoPorJogador()
+  const porConexao = criarEstadoPorConexao()
   const players = new Map<string, PlayerRecord>() // playerId -> registro
   const byClient = new Map<string, string>() // clientId conectado -> playerId
   const ownership: Record<string, string[]> = {}
@@ -3574,7 +3580,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Dentro, uma memória por CENA (chave `sceneKey`), na ordem do último uso:
   // a primeira é a menos recente, a que sai quando passa do teto.
   // `doors`: último estado de cada porta que o jogador VIU (por id da parede).
-  const memories = new Map<string, Map<string, PlayerMemory>>()
+  const memories = porJogador.registrar('jogador', new Map<string, Map<string, PlayerMemory>>())
   // MEMÓRIA POR FICHA — por id da ficha, uma memória por cena (mesma ordem e
   // mesmo teto de `memories`): o que a ficha viu enquanto era olho de algum
   // jogador. Quem passa a segurar a ficha soma isto à própria memória. O kick
@@ -3586,22 +3592,22 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // próxima (`PlayerMemory.place`) sem nunca repetir um que ele já viu. Um
   // contador e não `randomId`: o id só precisa não dizer nada da cena, e o
   // contador de UM jogador só conta o que ele mesmo visitou. Só o kick apaga.
-  const placeCounters = new Map<string, number>()
+  const placeCounters = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: a cena em que o jogador foi visto por último. Desempata
   // quando ele tem token em mais de uma cena — sem isto, o mestre trocar a
   // cena do editor mudaria a cena do jogador junto.
-  const currentScene = new Map<string, string>()
+  const currentScene = porJogador.registrar('jogador', new Map<string, string>())
   // Por playerId: a cena da AVENTURA (sceneId) que o jogador sabe que é a
   // dele — a do último recorte mandado, ou a do último `scene.changed`. Quando
   // a ficha dele aparece em outra sem que a sessão tenha avisado (veículo,
   // "Levar para…"), o broadcast avisa. Mapa solto e espera não entram.
-  const toldScene = new Map<string, string>()
+  const toldScene = porJogador.registrar('jogador', new Map<string, string>())
   // Por playerId: VEÍCULO — a cena (sceneId) para onde a ficha dele foi a
   // bordo do veículo que OUTRO jogador dirigiu pelo pino. O broadcast que
   // avisa a troca (`carriedAway`) diz "Você viajou no veículo" (`by:
   // 'veiculo'`) em vez de "O mestre levou você". Vale uma vez (o aviso a
   // consome), e só se a cena bater.
-  const viajouNoVeiculo = new Map<string, string>()
+  const viajouNoVeiculo = porJogador.registrar('jogador', new Map<string, string>())
   // Por playerId: o pedido de passagem que espera o mestre (no máximo um).
   const pendingTravels = new Map<string, PendingTravel>()
   /**
@@ -3609,7 +3615,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
    * passagem fica suspenso (não morre com a conexão) e o "Deixar ir" espera a
    * volta. Sai ao voltar ou ao ser expulso; sobrevive à queda e à retomada.
    */
-  const awayPlayers = new Set<string>()
+  const awayPlayers = porJogador.registrar('jogador', new Set<string>())
   // Por `playerId|cena|pino`: quando o jogador pediu por último aquele pino.
   // Só entra pino que existe na cena dele (ver `handleTravelRequest`).
   const lastTravelRequestAt = new Map<string, number>()
@@ -3619,27 +3625,27 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por playerId: reconectar não zera o limite de 1 sinal por segundo. Guarda
   // também o ponto e se os colegas já receberam, para o "Sinalizar" do menu
   // estender aos colegas o sinal que o toque longo mandou só ao mestre.
-  const lastSignal = new Map<string, { at: number; x: number; y: number; relayed: boolean }>()
+  const lastSignal = porJogador.registrar('jogador', new Map<string, { at: number; x: number; y: number; relayed: boolean }>())
   // ESPIAR — por playerId: a última espiada (ou tentativa). Sobrevive ao
   // disconnect, como o limite do pedido de passagem; só o kick apaga.
   const lastPeekAt = new Map<string, number>()
   // Por playerId: mesmo limite para o pedido de abrir/fechar porta.
-  const lastDoorToggleAt = new Map<string, number>()
+  const lastDoorToggleAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: a última rolagem de dado (DICE_ROLL_MIN_INTERVAL_MS). Reconectar não zera.
-  const lastDiceRollAt = new Map<string, number>()
+  const lastDiceRollAt = porJogador.registrar('jogador', new Map<string, number>())
   const rollDie = options.rollDie ?? secureRollDie
   // Por playerId: última troca de ficha aceita ("Olhar por…").
-  const lastViewSwitchAt = new Map<string, number>()
+  const lastViewSwitchAt = porJogador.registrar('kick', new Map<string, number>())
   /** Última tentativa na fechadura, por jogador (`LOCK_ANSWER_MIN_INTERVAL_MS`). */
   const lastLockAnswerAt = new Map<string, number>()
   /** Última marca cravada (ou tentada), por jogador (`MARCA_INTERVALO_MS`). */
   const lastMarkAt = new Map<string, number>()
   // Por playerId: PISOS NA MESMA CENA — o limite da troca de piso pela escada.
-  const lastPisoChangeAt = new Map<string, number>()
+  const lastPisoChangeAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: VEÍCULO — o limite do "Subir"/"Descer" (`VEHICLE_ACTION_MIN_INTERVAL_MS`).
   const lastVehicleActionAt = new Map<string, number>()
   // Por playerId: janela corrente do teto de lotes de laser (PLAYER_LASER_MAX_PER_WINDOW).
-  const laserWindows = new Map<string, { start: number; count: number }>()
+  const laserWindows = porJogador.registrar('jogador', new Map<string, { start: number; count: number }>())
   // Por playerId: COMPARTILHAR COM O MESTRE — janela do teto (MEDIDA_MAX_POR_JANELA)
   // e quem tem medida na tela do mestre agora (a queda apaga só a de quem tem).
   const medidaWindows = new Map<string, { start: number; count: number }>()
@@ -3648,7 +3654,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // cena (`sceneKey`) onde o gesto acontece. O `off` vai só a elas — a quem
   // nada viu, nem o aviso de que o gesto acabou. Lote vindo de outra cena
   // (off perdido na viagem) recomeça a lista: ela nunca atravessa cena.
-  const laserRecipients = new Map<string, { scene: string; clients: Set<string> }>()
+  const laserRecipients = porJogador.registrar('conexao', new Map<string, { scene: string; clients: Set<string> }>())
   // Por playerId: como a MESA lê o gesto em curso — `key` opaca do rastro e,
   // por conexão que recebeu ponto, o nome e a cor da ficha COMO AQUELE jogador
   // a vê (`signalOriginFor`). O `off` repete o mesmo; some quando o gesto acaba.
@@ -3656,39 +3662,39 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Contador das chaves de rastro: nova a cada gesto, nunca derivada do jogador.
   let laserGestureCount = 0
   // Por playerId: o pedido da porta trancada que espera o mestre (no máximo um).
-  const pendingDoors = new Map<string, PendingDoor>()
+  const pendingDoors = porJogador.registrar('conexao', new Map<string, PendingDoor>())
   // Por playerId: o mesmo limite do toque, para o pedido da porta trancada.
-  const lastDoorRequestAt = new Map<string, number>()
+  const lastDoorRequestAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: o pedido de esconder-se que espera o mestre (no máximo um).
-  const pendingHides = new Map<string, PendingHide>()
+  const pendingHides = porJogador.registrar('conexao', new Map<string, PendingHide>())
   // Por playerId: o último pedido de esconder-se. Sobrevive ao disconnect; só o kick apaga.
-  const lastHideRequestAt = new Map<string, number>()
+  const lastHideRequestAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: o pedido de item que espera o mestre (no máximo um).
-  const pendingItems = new Map<string, PendingItem>()
+  const pendingItems = porJogador.registrar('conexao', new Map<string, PendingItem>())
   /** BAÚ, CAIXA E BARRIL: a abertura em jogo na tela de cada jogador (uma por vez; pedir outra troca). */
   const objetosEmJogo = new Map<string, ObjetoEmJogo>()
   // Por playerId: o mesmo limite do toque na porta, para "Pegar" e para "Dar a…".
-  const lastItemTakeAt = new Map<string, number>()
-  const lastItemGiveAt = new Map<string, number>()
+  const lastItemTakeAt = porJogador.registrar('jogador', new Map<string, number>())
+  const lastItemGiveAt = porJogador.registrar('jogador', new Map<string, number>())
   // LOJA — por playerId: o "Quero" que espera o mestre (no máximo um) e o
   // último "Quero" tentado (`PEDIDO_LOJA_MIN_INTERVAL_MS`). Só o kick apaga o limite.
-  const pendingPurchases = new Map<string, PendingPurchase>()
-  const lastPurchaseAt = new Map<string, number>()
+  const pendingPurchases = porJogador.registrar('conexao', new Map<string, PendingPurchase>())
+  const lastPurchaseAt = porJogador.registrar('jogador', new Map<string, number>())
   // MOEDAS E TROCA — por offerId: a oferta do mestre aberta (no máximo uma
   // por jogador); por playerId: o mesmo limite da porta para o "Pagar a…".
   const pendingTrades = new Map<string, PendingTrade>()
-  const lastCoinsGiveAt = new Map<string, number>()
+  const lastCoinsGiveAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: o mesmo limite do toque na porta, para puxar a alavanca.
-  const lastLeverAt = new Map<string, number>()
+  const lastLeverAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: a porta que ele espia agora (uma só), na cena em que espiou,
   // até quando. Vencida, some na próxima leitura; o kick apaga.
-  const peeks = new Map<string, { sceneKey: string; wallId: string; until: number }>()
+  const peeks = porJogador.registrar('jogador', new Map<string, { sceneKey: string; wallId: string; until: number }>())
   // Por playerId: limite da foto nova do próprio token (só da foto, ver TOKEN_PHOTO_MIN_INTERVAL_MS).
-  const lastTokenPhotoAt = new Map<string, number>()
+  const lastTokenPhotoAt = porJogador.registrar('jogador', new Map<string, number>())
   // FICHA DE PERSONAGEM — por playerId: os instantes dos pedidos da janela (PERSONAGEM_PEDIDOS_POR_JANELA).
-  const pedidosDePersonagem = new Map<string, number[]>()
+  const pedidosDePersonagem = porJogador.registrar('jogador', new Map<string, number[]>())
   // LIVRO DE REGRAS — por playerId: os instantes dos pedidos do livro na janela (LIVRO_PEDIDOS_POR_JANELA).
-  const pedidosDoLivro = new Map<string, number[]>()
+  const pedidosDoLivro = porJogador.registrar('jogador', new Map<string, number[]>())
   // LIVRO DE REGRAS — as partes de cada sistema, pela referência: partir o
   // livro é um JSON.stringify de ~127 KB, feito uma vez e não a cada jogador.
   const partesPorSistema = new WeakMap<SistemaDeRpg, string[] | null>()
@@ -3699,13 +3705,13 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // LOBBY: `personagens` é também a BASE da edição do jogador, e `marca` a rev da nuvem de quando eles saíram.
   const personagensEnviados = new Map<string, { sistema: SistemaDeRpg | null; personagens: readonly Personagem[]; tokens: string; marca: MarcaDaBase }>()
   // CABINE DE TRANSPORTE — por playerId: o último "Chamar a cabine". Só o kick apaga.
-  const lastCabineCallAt = new Map<string, number>()
+  const lastCabineCallAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: ajuste do mestre sobre `options.visionRadius`; só o kick apaga.
-  const visionOverrides = new Map<string, number>()
+  const visionOverrides = porJogador.registrar('jogador', new Map<string, number>())
   // TEXTO DA SALA — por playerId, por mapa (`MapData.id`): as Salas com texto
   // em que ele já entrou. Sobrevive a reconexão e a "Esconder planta" (o cartão
   // não repete); só o kick apaga.
-  const enteredRooms = new Map<string, Map<string, Set<string>>>()
+  const enteredRooms = porJogador.registrar('jogador', new Map<string, Map<string, Set<string>>>())
   // MEMÓRIA DA PLANTA: o explorado de cada memória no último recorte (`explorationGrewSince`).
   const bitsAtLastCut = new WeakMap<PlayerMemory, Uint8Array>()
   // Por sceneId da aventura: o último recado mandado para a cena. É o que
@@ -3713,38 +3719,38 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const lastNoteByScene = new Map<string, NoteEntry>()
   // Por playerId: o caderno, só com recados que ESTE jogador recebeu, do mais
   // antigo ao mais novo. Sobrevive a disconnect/resume; só o kick apaga.
-  const notebooks = new Map<string, NoteEntry[]>()
+  const notebooks = porJogador.registrar('jogador', new Map<string, NoteEntry[]>())
   // Por playerId: a cena (sceneId, ou `null` sem cena) em que o último recado
   // de chegada já foi avaliado. Mudou, é chegada: vale o último recado de lá.
-  const noteSceneOf = new Map<string, string | null>()
+  const noteSceneOf = porJogador.registrar('jogador', new Map<string, string | null>())
   // Por playerId: os recados mandados à cena dele enquanto ele estava fora do
   // ar, do mais antigo ao mais novo. A volta (join/resume) entrega e esvazia;
   // o kick apaga.
-  const awayNotes = new Map<string, NoteEntry[]>()
+  const awayNotes = porJogador.registrar('kick', new Map<string, NoteEntry[]>())
   // MINHAS PISTAS — por playerId: o caderno de pistas, da mais antiga à mais
   // nova. `source` (pino ou Sala + mapa) é a chave de "já tenho esta" e NUNCA
   // sai pela rede: o jogador só vê o `id` que o host inventou. Sobrevive a
   // disconnect/resume; só o kick apaga.
   // `peca`: a peça de coleção que o pino era quando foi lido (vai junto se a
   // pista for mostrada a um colega). Também nunca sai pela rede assim.
-  const cluebooks = new Map<string, { source: string; entry: ClueEntry; peca: PecaDeColecao | null }[]>()
+  const cluebooks = porJogador.registrar('jogador', new Map<string, { source: string; entry: ClueEntry; peca: PecaDeColecao | null }[]>())
   // COLEÇÃO DE PISTAS — por playerId: as peças que ESTE jogador juntou, por
   // coleção. Fica fora do caderno de pistas (que tem teto): a peça continua
   // contada mesmo que a pista dela saia do caderno. Só o kick apaga.
-  const colecoesByPlayer = new Map<string, ColecoesDoJogador>()
+  const colecoesByPlayer = porJogador.registrar('jogador', new Map<string, ColecoesDoJogador>())
   // Por playerId: os pinos do ÚLTIMO recorte mandado (já passados pelo
   // `pinForPlayer`) e o mapa de onde vieram. É o que o jogador está vendo: só
   // pino daqui vira pista. `caladas`: os "?" que ele veria se tivesse entrada
   // para ele (`PlayerMapView.perguntasCaladas`), para o "Dizer agora" a todos.
-  const seenPins = new Map<string, { mapId: string; pins: Pin[]; caladas: ReadonlySet<string> }>()
+  const seenPins = porJogador.registrar('jogador', new Map<string, { mapId: string; pins: Pin[]; caladas: ReadonlySet<string> }>())
   // Por playerId: quando a última pista mostrada chegou a um colega.
-  const lastClueShowAt = new Map<string, number>()
+  const lastClueShowAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: "Fator de visão" (vale em toda cena); ausente = x1,0. Só o kick apaga.
-  const visionFactors = new Map<string, number>()
+  const visionFactors = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: quando o último "Mostrar meu mapa a…" dele chegou a alguém.
-  const lastMapShareAt = new Map<string, number>()
+  const lastMapShareAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: quando o último caminho da régua passou pelos filtros de quem ele mostrou.
-  const lastRouteShowAt = new Map<string, number>()
+  const lastRouteShowAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por pinId: quem vê o pino ("Só estes"). Ausente = Todos. O kick tira o
   // jogador de toda lista; o registro de quem só caiu fica (resume).
   const pinAudiences = new Map<string, Set<string>>()
@@ -3762,21 +3768,21 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Por clientId: o último `scene.paused` mandado (ausente = nada, que o
   // jogador lê como "não pausada"). Por conexão, e não por jogador: quem
   // reconecta abre tela nova, sem o aviso, e precisa receber de novo.
-  const pausedSent = new Map<string, boolean>()
+  const pausedSent = porConexao.registrar('conexao', new Map<string, boolean>())
   // Por clientId: a última lista de companheiros enviada àquela conexão (JSON).
   // Por conexão, e não por jogador: quem reconecta tem tela nova e precisa da
   // lista de novo, mesmo que nada tenha mudado para ele.
   const lastPartySent = new Map<string, string>()
   // Por playerId: o recado só para ele que ainda não chegou (estava fora). Só o
   // último: o cartão do jogador mostra um recado por vez. Sai com o próximo mapa dele.
-  const pendingNotes = new Map<string, NoteEntry>()
+  const pendingNotes = porJogador.registrar('jogador', new Map<string, NoteEntry>())
   // Por playerId: o chamado aberto dele (no máximo um).
-  const openCalls = new Map<string, OpenCall>()
+  const openCalls = porJogador.registrar('conexao', new Map<string, OpenCall>())
   // Por playerId: quando o último chamado NOVO dele entrou. Sobrevive ao disconnect; só o kick apaga.
-  const lastCallAt = new Map<string, number>()
+  const lastCallAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId de quem entrou agora: a Ana (fora) que ele talvez seja, até o
   // mestre responder "voltou?". Só do mestre; nada disto vai pela rede.
-  const pendingReturns = new Map<string, string>()
+  const pendingReturns = porJogador.registrar('conexao', new Map<string, string>())
   // Por tokenId: a ficha de quem está fora que outro jogador joga agora. A
   // ficha fica em `ownership` dos DOIS (o dono continua dono; quem a joga a
   // move e vê por ela); a volta do dono a tira de quem a jogava.
@@ -3813,7 +3819,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   }
   // `exploration`: o que o assento trouxe, para o "Desfazer" devolvê-lo intacto;
   // `restoredMapIds`: as cenas cuja memória veio dele.
-  const claimedSeats = new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>()
+  const claimedSeats = porJogador.registrar('jogador', new Map<string, { seat: SavedSeat; given: string[]; exploration: SavedSeatExploration | undefined; restoredMapIds: string[] }>())
   // AJUDANTE CONTRATADO — por id da ficha: a quem ela está emprestada e o
   // acordo. Mora aqui, junto de `ownership`, porque o acordo não pode durar
   // mais que a posse que descreve. Invariante: só existe enquanto
@@ -3825,11 +3831,11 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // Só memória da sessão: fechar a sala perde o que estava no correio.
   const pendingLetters = new Map<string, PendingLetter>()
   // Por playerId: quando o último bilhete dele chegou ao mestre. Só o kick apaga.
-  const lastLetterAt = new Map<string, number>()
+  const lastLetterAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: ids (do caderno) dos bilhetes entregues com ele fora do ar ou na
   // tela de espera. Saem como `unread` no caderno da volta até ele voltar jogando:
   // sem isso o bilhete chegava mudo.
-  const unseenLetters = new Map<string, Set<string>>()
+  const unseenLetters = porJogador.registrar('jogador', new Map<string, Set<string>>())
   // CHAT DOS JOGADORES — as últimas `CHAT_HISTORY_MAX` de cada canal. A sala
   // abre com a conversa guardada (`restoreChat`); cada linha nova sai em
   // `chatAppended` para o integrador gravar. A cena é pela chave (`sceneKey`),
@@ -3843,31 +3849,31 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // As linhas que vieram do disco: para o mestre, já lidas. Não muda depois de criada.
   const chatRestoredIds: ReadonlySet<string> = new Set([globalChat, ...sceneChats.values()].flatMap((list) => list.map((entry) => entry.id)))
   // Por playerId: o relógio do ritmo de envio (`takeChatTurn`). Só o kick apaga.
-  const chatPace = new Map<string, number>()
+  const chatPace = porJogador.registrar('jogador', new Map<string, number>())
   // Por clientId: a cena do último `chat.history` de 'cena' que a conexão
   // recebeu (`null` = nenhuma). Diferente da de agora, sai a história da nova.
-  const chatSceneSent = new Map<string, string | null>()
+  const chatSceneSent = porConexao.registrar('conexao', new Map<string, string | null>())
   // Por clientId: a conexão já recebeu o Global (joga com ficha). Sai ao
   // perder a ficha: o Global é só de quem joga.
-  const chatGlobalSent = new Set<string>()
+  const chatGlobalSent = porConexao.registrar('conexao', new Set<string>())
   // MARCA "VAMOS PARA CÁ" — por playerId: a marca dele e a cena (`sceneKey`)
   // e o piso onde a pôs. Uma por jogador; fica até ele tirar, perder a ficha
   // ou sair daquela cena ou piso (`pruneDestinations`). Sobrevive a
   // disconnect; só o kick apaga.
-  const destinations = new Map<string, { scene: string; piso: number; x: number; y: number }>()
+  const destinations = porJogador.registrar('jogador', new Map<string, { scene: string; piso: number; x: number; y: number }>())
   // Por playerId: quando pôs a última marca (DESTINATION_MIN_INTERVAL_MS).
-  const lastDestinationAt = new Map<string, number>()
+  const lastDestinationAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por playerId: a última lista de marcas mandada a ele (JSON). Só sai lista
   // nova quando muda; ausente = nada mandado nesta conexão (vale lista vazia).
-  const sentDestinations = new Map<string, string>()
+  const sentDestinations = porJogador.registrar('conexao', new Map<string, string>())
   // Por playerId: o pedido de ficha de quem chegou sem personagem, à espera do
   // mestre (no máximo um). Morre com a queda, a resposta, ou a ficha que chega.
-  const pendingSeatClaims = new Map<string, { requestId: string; tokenId: string }>()
+  const pendingSeatClaims = porJogador.registrar('conexao', new Map<string, { requestId: string; tokenId: string }>())
   // Por playerId: quando o mestre disse "Não" ao último pedido de ficha dele.
-  const lastSeatClaimDeniedAt = new Map<string, number>()
+  const lastSeatClaimDeniedAt = porJogador.registrar('jogador', new Map<string, number>())
   // Por clientId: a última lista de fichas livres enviada àquela conexão (JSON).
   // Por conexão, e não por jogador: quem reconecta tem tela nova.
-  const lastSeatOptionsSent = new Map<string, string>()
+  const lastSeatOptionsSent = porConexao.registrar('conexao', new Map<string, string>())
   // Por id de ficha secreta, escada secreta ou zona oculta: a quem o mestre
   // revelou ("Revelar para…"). Ausente = ninguém. O kick tira o jogador.
   const secretReveals = new Map<string, Set<string>>()
@@ -3910,7 +3916,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // (`snapshotFor`) e de que mapa. É o "o que a tela dele tem" da ordem dos
   // turnos: carta de ficha fora daqui não sai (Q1). O `sentViews` não serve
   // sozinho — a tela da entrada (`viewFor`) não passa por ele.
-  const fichasDaTela = new Map<string, { mapId: string; fichas: readonly { id: string; name: string }[] }>()
+  const fichasDaTela = porJogador.registrar('kick', new Map<string, { mapId: string; fichas: readonly { id: string; name: string }[] }>())
   // O PASSO E A TELA DELE — por playerId: o mapa do último recorte que saiu
   // para ele (`snapshotFor`), por QUALQUER caminho: a entrada e o "olhar por
   // outra ficha" (`viewFor`), o broadcast e o reenvio (`viewIfChanged`, que o
@@ -3922,19 +3928,19 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // esquecido para forçar a tela inteira. Este registro não decide envio
   // nenhum. Sem entrada = sem tela de cena: o passo responde como se ele não
   // visse nada (o lado que não conta nada).
-  const telaDoJogador = new Map<string, MapData>()
+  const telaDoJogador = porJogador.registrar('jogador', new Map<string, MapData>())
   // Quem recebeu `lobby.waiting` depois do último mapa: o cliente apagou o
   // cartão do teste secreto, então o próximo snapshot leva os pedidos de novo.
-  const lostSecretCheckCard = new Set<string>()
+  const lostSecretCheckCard = porJogador.registrar('jogador', new Set<string>())
   // Por clientId: a última tela que a conexão recebeu (ver `SentView`).
   const sentViews = new Map<string, SentView>()
   // Por clientId: conexões que disseram (`view.patches`) que sabem aplicar `patch`.
-  const patchClients = new Set<string>()
+  const patchClients = porConexao.registrar('conexao', new Set<string>())
   const patchMinSnapshotLength = options.patchMinSnapshotLength ?? PATCH_MIN_SNAPSHOT_LENGTH
   // Por playerId: limite do `view.resync` (VIEW_RESYNC_MIN_INTERVAL_MS).
-  const lastResyncAt = new Map<string, number>()
+  const lastResyncAt = porJogador.registrar('kick', new Map<string, number>())
   // Por playerId: limite do aviso `view.rejected` ao mestre (VIEW_REJECTED_MIN_INTERVAL_MS).
-  const lastViewRejectedAt = new Map<string, number>()
+  const lastViewRejectedAt = porJogador.registrar('kick', new Map<string, number>())
   // Sobe a cada troca de posse: ela entra no recorte de todo jogador.
   let ownershipRev = 0
   // HOST RECALCULA SÓ A CENA QUE MUDOU — por playerId: com o que o último
@@ -3942,14 +3948,14 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   // refaz. Raio e fichas entram na própria chave; quem mexe na memória dele
   // (revelar, esconder, viagem, recusa de edição) apaga a entrada, e o envio
   // que falhou para ele também (`sendFailed`).
-  const lastViews = new Map<string, ViewInputs>()
+  const lastViews = porJogador.registrar('recorte', new Map<string, ViewInputs>())
   // Sobe quando muda algo que entra no recorte de TODOS ("Quem vê" dos pinos).
   let viewEpoch = 0
   // AGIR SOBRE UMA FICHA — por playerId: o pedido que espera o mestre (no
   // máximo um; morre com a conexão) e a hora do último pedido (sobrevive ao
   // disconnect, como o limite do sinal; só o kick apaga).
-  const pendingTokenActions = new Map<string, PendingTokenAction>()
-  const lastTokenActionAt = new Map<string, number>()
+  const pendingTokenActions = porJogador.registrar('conexao', new Map<string, PendingTokenAction>())
+  const lastTokenActionAt = porJogador.registrar('jogador', new Map<string, number>())
   // ENCONTRO MARCADO — por playerId: a espera ativa (no máximo uma). Sobrevive
   // ao disconnect (a ficha continua lá, esperando); o kick e ficar sem ficha apagam.
   const waits = new Map<string, PlayerWait>()
@@ -3964,7 +3970,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
   const ferrolhos = new Map<string, Map<string, Ferrolho>>()
   const barras = new Map<string, Map<string, Barra>>()
   // Por playerId: a disputa na porta que espera o mestre (no máximo uma; morre com a conexão).
-  const pendingBarDisputes = new Map<string, PendingBarDispute>()
+  const pendingBarDisputes = porJogador.registrar('conexao', new Map<string, PendingBarDispute>())
   let rev = 0
   // ZONA DE PERIGO: em que zona estava cada ficha de JOGADOR no último
   // broadcast, por cena (chave `sceneKey`). É daqui que sai "entrou agora".
@@ -6299,75 +6305,30 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     }
   }
 
-  /** Esquece tudo do jogador (kick, Dispensar, a "Ana (2)" que virou Ana). Não mexe em conexão: quem chama cuida de `byClient`. */
-  function forgetPlayer(playerId: string): void {
+  /**
+   * Esquece tudo do jogador: kick, Dispensar, "Passar para…", a "Ana (2)" que
+   * virou Ana. Fora do kick não mexe em conexão (quem chama cuida de
+   * `byClient`); no kick saem também o recorte e os tetos da tela dele.
+   */
+  function forgetPlayer(playerId: string, motivo: Exclude<MotivoDoEsquecer, 'queda'>): void {
     // Antes de apagar o registro: é pelo nome dele que as notas ficam guardadas.
     parkMyNotes(playerId)
     players.delete(playerId) // invalida o resumeToken
     delete ownership[playerId]
+    // Todo Map/Set por playerId cuja vida acaba neste motivo (`registrar`). Entre
+    // eles: o Volto já (o id não volta a existir); a disputa na porta (o ferrolho
+    // e a barra que ele deixou ficam: são coisas do mundo, não da conexão); o
+    // ritmo do chat (o que ele disse fica na história); o assento (quem foi
+    // expulso entraria de novo com o mesmo nome e levaria a ficha); a pergunta
+    // "voltou?" que ele provocou.
+    porJogador.esquecer(playerId, motivo)
     // Esquecido, o ajudante volta ao mestre na hora (sem recado: não há a quem mandar).
     for (const [tokenId, loan] of [...helperLoans]) if (loan.playerId === playerId) helperLoans.delete(tokenId)
-    memories.delete(playerId)
-    currentScene.delete(playerId)
-    toldScene.delete(playerId)
-    viajouNoVeiculo.delete(playerId)
     forgetTravelsOf(playerId)
-    // O Volto já morre com o jogador: o id não volta a existir.
-    awayPlayers.delete(playerId)
     forgetPointActionsOf(playerId)
-    lastSignal.delete(playerId)
-    lastDoorToggleAt.delete(playerId)
-    lastPisoChangeAt.delete(playerId)
-    pendingDoors.delete(playerId)
-    lastDoorRequestAt.delete(playerId)
-    // A disputa na porta morre com ele; o ferrolho e a barra que ele deixou
-    // ficam: são coisas do mundo, não da conexão.
-    pendingBarDisputes.delete(playerId)
-    pendingHides.delete(playerId)
-    lastHideRequestAt.delete(playerId)
-    lastTokenPhotoAt.delete(playerId)
-    pedidosDePersonagem.delete(playerId)
-    pedidosDoLivro.delete(playerId)
-    lastCabineCallAt.delete(playerId)
-    visionOverrides.delete(playerId)
-    pendingNotes.delete(playerId)
-    openCalls.delete(playerId)
-    lastCallAt.delete(playerId)
-    laserWindows.delete(playerId)
-    laserRecipients.delete(playerId)
-    pendingItems.delete(playerId)
-    lastItemTakeAt.delete(playerId)
-    lastItemGiveAt.delete(playerId)
-    pendingPurchases.delete(playerId)
-    lastPurchaseAt.delete(playerId)
     forgetTradesOf(playerId)
-    lastCoinsGiveAt.delete(playerId)
-    lastLeverAt.delete(playerId)
-    enteredRooms.delete(playerId)
-    notebooks.delete(playerId)
-    noteSceneOf.delete(playerId)
-    cluebooks.delete(playerId)
-    colecoesByPlayer.delete(playerId)
-    seenPins.delete(playerId)
-    telaDoJogador.delete(playerId)
-    lastClueShowAt.delete(playerId)
-    lastMapShareAt.delete(playerId)
-    lastRouteShowAt.delete(playerId)
     // O bilhete PARA o esquecido não tem mais a quem chegar; o que ele mandou segue com o mestre.
     for (const [letterId, letter] of [...pendingLetters]) if (letter.toPlayerId === playerId) pendingLetters.delete(letterId)
-    lastLetterAt.delete(playerId)
-    unseenLetters.delete(playerId)
-    // O que ele disse no chat fica na história; o ritmo dele, não.
-    chatPace.delete(playerId)
-    placeCounters.delete(playerId)
-    lastDiceRollAt.delete(playerId)
-    destinations.delete(playerId)
-    lastDestinationAt.delete(playerId)
-    sentDestinations.delete(playerId)
-    peeks.delete(playerId)
-    visionFactors.delete(playerId)
-    pendingTokenActions.delete(playerId)
-    lastTokenActionAt.delete(playerId)
     if (waits.delete(playerId)) viewEpoch += 1
     for (const chosen of pinAudiences.values()) chosen.delete(playerId)
     for (const sets of [pinReceived, pinRead]) {
@@ -6385,14 +6346,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       check.asked.delete(playerId)
       check.answers.delete(playerId)
     }
-    lostSecretCheckCard.delete(playerId)
     dropPlanGrants(playerId, null)
-    pendingSeatClaims.delete(playerId)
-    lastSeatClaimDeniedAt.delete(playerId)
-    // Esquecido não tem mais o que desfazer. O assento não volta: quem foi
-    // expulso entraria de novo com o mesmo nome e levaria a ficha.
-    claimedSeats.delete(playerId)
-    pendingReturns.delete(playerId)
+    // A pergunta "voltou?" que outro provocou apontando para ele também morre.
     for (const [candidate, previous] of pendingReturns) {
       if (previous === playerId) pendingReturns.delete(candidate)
     }
@@ -11850,11 +11805,9 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
-      pausedSent.delete(clientId)
-      chatSceneSent.delete(clientId)
-      chatGlobalSent.delete(clientId)
+      // O que só valia para esta conexão: pausa e chat enviados, patch, lista de fichas livres.
+      porConexao.esquecer(clientId, 'queda')
       sentViews.delete(clientId)
-      patchClients.delete(clientId)
       // BATALHA F1: a faixa morreu com a tela; a volta recebe o recorte inteiro de novo (`entrou`).
       batalhaNoHost.caiu(clientId)
       batalhaDBTNoHost.caiu(clientId)
@@ -11869,33 +11822,18 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Menos no Volto já: aí a queda é esperada, o pedido fica suspenso e a
       // retomada devolve o "Aguardando o mestre…" (`awayMessage`).
       if (!awayPlayers.has(playerId)) pendingTravels.delete(playerId)
-      // Idem o pedido de ação: a tela de quem volta não tem mais o "Aguardando".
-      pendingTokenActions.delete(playerId)
-      // E a disputa na porta: quem forçava já não está lá para a porta abrir na frente dele.
-      pendingBarDisputes.delete(playerId)
-      // O gesto morre com a conexão; quem o via apaga a ponta sozinho (REMOTE_LASER_IDLE_MS).
-      laserRecipients.delete(playerId)
-      // Mesmo para a porta: "Destrancar e abrir" depois da queda não abre nada.
-      pendingDoors.delete(playerId)
-      // E para o esconder-se: "Deixar" depois da queda não esconde nada.
-      pendingHides.delete(playerId)
-      // E para o item: "Deixar" depois da queda não entrega nada.
-      pendingItems.delete(playerId)
-      // E para a loja: "Vender" depois da queda não vende nada.
-      pendingPurchases.delete(playerId)
-      // E para a troca: o cartão da oferta morre com a tela; "Aceitar" do mestre não troca nada.
+      // Vidas `conexao` e `recorte`: o que morre com a conexão. O pedido de ação
+      // (a tela de quem volta não tem mais o "Aguardando"); a disputa na porta
+      // (quem forçava já não está lá); o gesto (quem o via apaga a ponta sozinho,
+      // REMOTE_LASER_IDLE_MS); os pedidos de porta, esconder-se, item e loja
+      // ("Deixar", "Vender" depois da queda não fazem nada); a mão (quem volta
+      // chega sem mão acesa); a pergunta "voltou?" que ele provocou; a lista de
+      // marcas que a tela tinha (a marca DELE fica; a volta recebe a lista de
+      // novo); o pedido de ficha ("Aceitar" daria ficha a quem não olha a tela);
+      // e o recorte (a conexão nova começa do zero).
+      porJogador.esquecer(playerId, 'queda')
+      // E a troca: o cartão da oferta morre com a tela; "Aceitar" do mestre não troca nada.
       forgetTradesOf(playerId)
-      // A mão também: quem volta chega com a tela zerada, sem mão acesa.
-      openCalls.delete(playerId)
-      // Quem provocou a pergunta "voltou?" e caiu antes da resposta: a pergunta morre.
-      pendingReturns.delete(playerId)
-      // A marca DELE fica; a lista que a tela dele tinha, não (a volta recebe de novo).
-      sentDestinations.delete(playerId)
-      // O pedido de ficha também: "Aceitar" daria ficha a quem não está olhando a tela.
-      pendingSeatClaims.delete(playerId)
-      lastSeatOptionsSent.delete(clientId)
-      // A conexão nova começa do zero: o recorte que a antiga tinha não vale para ela.
-      lastViews.delete(playerId)
       // DANÇA: quem dançava e caiu não passou; se era o último na pista, sai o desfecho.
       // PESCA: quem pescava e caiu sai; quem estava só convidado recebe o convite de novo ao voltar.
       // TIRO: quem atirava e caiu perde a rodada (a tentativa já contou).
@@ -11910,25 +11848,16 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       const playerId = byClient.get(clientId)
       if (playerId === undefined) return { outbound: [] }
       byClient.delete(clientId)
-      pausedSent.delete(clientId)
-      chatSceneSent.delete(clientId)
-      chatGlobalSent.delete(clientId)
-      lastSeatOptionsSent.delete(clientId)
+      porConexao.esquecer(clientId, 'kick')
       ownershipRev += 1
       forgetSentView(playerId)
-      patchClients.delete(clientId)
-      lastResyncAt.delete(playerId)
-      lastViewRejectedAt.delete(playerId)
-      awayNotes.delete(playerId)
-      lastViewSwitchAt.delete(playerId)
-      lastViews.delete(playerId)
-      forgetPlayer(playerId)
+      // No kick saem também o recorte e os tetos da tela (vidas `recorte` e `kick`), e as fichas da tela da batalha.
+      forgetPlayer(playerId, 'kick')
       // BATALHA F1: o expulso não recebe mais recorte, e o teto de pedidos e a tela dele saem.
       batalhaNoHost.caiu(clientId)
       batalhaNoHost.esquecer(playerId)
       batalhaDBTNoHost.caiu(clientId)
       batalhaDBTNoHost.esquecer(playerId)
-      fichasDaTela.delete(playerId)
       // As listas de "Quem vê" mudaram: todos refazem no próximo broadcast.
       viewEpoch += 1
       // DANÇA: o expulso sai da dança (do convite, ou da pista como quem não passou).
@@ -11956,7 +11885,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // A conexão passa para a Ana; quem entrou agora deixa de existir.
       byClient.set(clientId, previousId)
       current.clientId = null
-      forgetPlayer(playerId)
+      forgetPlayer(playerId, 'esquecido')
       previous.clientId = clientId
       previous.disconnectedAt = null
       const world = toWorld(source)
@@ -11983,7 +11912,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     dismissPlayer(playerId) {
       const record = players.get(playerId)
       if (record === undefined || record.clientId !== null) return false
-      forgetPlayer(playerId)
+      forgetPlayer(playerId, 'esquecido')
       return true
     },
 
@@ -12005,7 +11934,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       // Quem ganhou ficha já não pede uma.
       if (handedTokens.length > 0) pendingSeatClaims.delete(heirId)
       inheritPlayerMemories(heirId, playerId)
-      forgetPlayer(playerId)
+      forgetPlayer(playerId, 'esquecido')
       return { outbound: loanBack.outbound, ...loansReturnedField(loanBack.returned), handedTokens }
     },
 
