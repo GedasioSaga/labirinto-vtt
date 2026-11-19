@@ -2502,6 +2502,120 @@ export function pisoDoGrupo(
  * (`formasVisiveisDoMapa`, montado pelo host, que tem os personagens). Ausente =
  * toda ficha sai com a foto de sempre.
  */
+/**
+ * O QUE O RECORTE DO JOGADOR PODE LEVAR, chave a chave (análise 18/11/2026,
+ * 2.2). O recorte nasce de `...map` e tira campo a campo: campo novo do mapa
+ * atravessava sozinho (a moldura atravessou assim). Esta tabela é a lista
+ * branca no fim do recorte. `Record<keyof MapData, ...>` obriga quem cria um
+ * campo no mapa a decidir aqui: o tsc acusa a chave que falta.
+ * - `vai`: sai, já recortado pelas regras de `filterMapForPlayer`;
+ * - `fica`: nunca sai, mesmo que alguma regra esqueça de tirar.
+ * Chave que nem é do mapa (arquivo antigo com campo solto) também não sai.
+ * Toda chave obrigatória do `MapData` é `vai` (o recorte a leva vazia quando é do mestre).
+ */
+const CHAVES_DO_RECORTE: Readonly<Record<keyof MapData, 'vai' | 'fica'>> = {
+  id: 'vai',
+  name: 'vai',
+  width: 'vai',
+  height: 'vai',
+  grid: 'vai',
+  desafios: 'fica',
+  semJumpscare: 'fica',
+  gridOffset: 'vai',
+  encaixeNaGrade: 'fica',
+  grupos: 'fica',
+  gridShape: 'vai',
+  showGrid: 'vai',
+  gridSettings: 'vai',
+  background: 'vai',
+  walls: 'vai',
+  lights: 'vai',
+  regions: 'vai',
+  tokens: 'vai',
+  props: 'vai',
+  stairs: 'vai',
+  drawings: 'vai',
+  floor: 'vai',
+  floorStyle: 'vai',
+  lines: 'vai',
+  markers: 'vai',
+  concealZones: 'vai',
+  pins: 'vai',
+  marcas: 'vai',
+  frame: 'vai',
+  fog: 'vai',
+  hiddenLayers: 'vai',
+  lockedLayers: 'vai',
+  ocultasDoJogador: 'fica',
+  opacidadeDasCamadas: 'fica',
+  versaoDasCamadas: 'fica',
+  modeloCamadas: 'fica',
+  camadasDoJogador: 'vai',
+  scale: 'vai',
+  measurementMode: 'vai',
+  visionCells: 'fica',
+  dark: 'fica',
+  offFloor: 'vai',
+  faceRangeCells: 'vai',
+  tamanhoDaFichaAoEntrar: 'fica',
+  ownerId: 'vai',
+  scenarioLink: 'vai',
+  movement: 'vai',
+  hazards: 'fica',
+  perigos: 'vai',
+  gatilhos: 'fica',
+  worldMap: 'vai',
+  continente: 'vai',
+  relevo: 'vai',
+  nomesDosLugares: 'vai',
+  nuvens: 'vai',
+  neblina: 'vai',
+  neblinaPintada: 'vai',
+  particulas: 'vai',
+  particulasSemFogo: 'vai',
+  ambiente: 'vai',
+  ambientePintado: 'vai',
+  aguas: 'vai',
+  ambienteSeco: 'vai',
+  cliqueParaAndar: 'vai',
+  alturaDosPisos: 'fica',
+  ceuDasNuvens: 'vai',
+  penhascos: 'vai',
+  barranco: 'vai',
+  abismos: 'vai',
+  abismoPintado: 'fica',
+  texturas: 'vai',
+  texturasImportadas: 'vai',
+  carimbos: 'vai',
+  carimbosImportados: 'vai',
+  textoChegada: 'fica',
+  externa: 'fica',
+  periodoFixo: 'fica',
+  ambientePorPeriodo: 'fica',
+  tema: 'fica',
+  temasDosPisos: 'fica',
+  visaoPorPeriodo: 'fica',
+  vistaDosMoveis: 'vai',
+  manchasDoChao: 'vai',
+  estiloVisual: 'vai',
+  andar: 'fica',
+  alerta: 'fica',
+  conveyors: 'fica',
+}
+
+function ehChaveDoRecorte(chave: string): chave is keyof MapData {
+  return Object.hasOwn(CHAVES_DO_RECORTE, chave)
+}
+
+/** O recorte só com as chaves `vai` de `CHAVES_DO_RECORTE` (cópia rasa: cada campo segue a mesma referência). */
+export function soChavesDoRecorte(map: MapData): MapData {
+  const out: MapData = { ...map }
+  for (const chave of Object.keys(out)) {
+    if (!ehChaveDoRecorte(chave) || CHAVES_DO_RECORTE[chave] === 'fica') Reflect.deleteProperty(out, chave)
+  }
+  return out
+}
+
 export function filterMapForPlayer(
   mapaInteiro: MapData,
   playerId: string,
@@ -4906,6 +5020,9 @@ function recorteDoGrupo(
     encaixeNaGrade: undefined,
     // GRUPOS SALVOS (Ctrl+G): gesto do mestre; a lista entregaria o id de coisa que o jogador não vê.
     grupos: undefined,
+    // MOLDURA (decisão do usuário, 18/11/2026): o título é nome de cena do mestre e a tela do jogador nem desenha
+    // moldura. Antes ia inteira pelo `...map` e o nome secreto vazava pelo DevTools.
+    frame: null,
     fog: { mode: map.fog.mode, revealed: [] },
     background: map.background.type === 'image' ? { type: 'image', src: '' } : map.background,
     // NUVENS: o céu delas sai SÓ do chão que este recorte manda
@@ -5450,7 +5567,8 @@ function recorteDoGrupo(
   // lembrado leva a barra lembrada, nunca a viva (`marcarTrancasParaJogador`).
   const visiblePinIds = recorte.pins.filter((p) => isVisible(pinPoint(p))).map((p) => p.id)
   return {
-    map: recorte,
+    // LISTA BRANCA (análise 18/11, 2.2): só as chaves que `CHAVES_DO_RECORTE` deixa sair.
+    map: soChavesDoRecorte(recorte),
     vision: sentVision,
     visibleDoorIds,
     visiblePinIds,
