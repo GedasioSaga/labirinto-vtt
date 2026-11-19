@@ -99,6 +99,12 @@ describe('mapObjectsOf — o que a lista mostra', () => {
       ['pin', 'Pinos'],
       ['token', 'Tokens'],
       ['text', 'Textos'],
+      // Ctrl+K acha também baús, escadas, desafios, gatilhos e zonas (18/11/2026).
+      ['prop', 'Baús, caixas e barris'],
+      ['stair', 'Escadas'],
+      ['challenge', 'Desafios'],
+      ['trigger', 'Gatilhos'],
+      ['hazard', 'Zonas de perigo'],
     ])
   })
 

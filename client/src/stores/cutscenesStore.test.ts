@@ -20,6 +20,9 @@ vi.mock('@tauri-apps/api/path', () => ({
   join: async (...partes: string[]) => partes.join('/'),
 }))
 
+// Desde 18/11/2026 a lista só lê e grava o disco dentro do app (fora dele fica vazia e não grava).
+vi.mock('@tauri-apps/api/core', async (importOriginal) => ({ ...(await importOriginal<typeof import('@tauri-apps/api/core')>()), isTauri: () => true }))
+
 vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: async (caminho: string) => falsos.disco.has(caminho),
   readTextFile: async (caminho: string) => falsos.disco.get(caminho) ?? '',
@@ -56,7 +59,7 @@ beforeEach(() => {
   falsos.noSite = new Set()
   falsos.galeriaFalha = false
   falsos.subidas = []
-  useCutscenesStore.setState({ lista: [], carregada: false, exibicao: null })
+  useCutscenesStore.setState({ lista: [], carregada: false, podeGravar: false, exibicao: null })
 })
 
 describe('cutscenesStore', () => {
@@ -64,6 +67,8 @@ describe('cutscenesStore', () => {
     falsos.noSite = new Set([video('b'), video('c')])
     useCutscenesStore.setState({
       carregada: true,
+      // A lista já foi lida do disco: pode gravar (`podeGravar`, guarda de 18/11/2026).
+      podeGravar: true,
       lista: [
         cutscene('tirada', 'a', { galeria: { estado: 'enviado', campanhaId: 'camp_1' } }),
         cutscene('ficou', 'b', { galeria: { estado: 'enviado', campanhaId: 'camp_1' } }),
@@ -121,7 +126,7 @@ describe('cutscenesStore', () => {
 
   it('a miniatura vai e volta do disco; o arquivo de antes (sem ela) carrega igual, e a miniatura torta fica de fora', async () => {
     const miniatura = `midia:${'f'.repeat(64)}.webp`
-    useCutscenesStore.setState({ carregada: true })
+    useCutscenesStore.setState({ carregada: true, podeGravar: true })
     useCutscenesStore.getState().adicionar(cutscene('com', 'a', { miniatura }))
     useCutscenesStore.getState().adicionar(cutscene('sem', 'b'))
     await vi.waitFor(() => expect(falsos.disco.get('C:/appdata/cutscenes.json') ?? '').toContain(miniatura))

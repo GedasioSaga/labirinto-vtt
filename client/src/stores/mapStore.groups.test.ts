@@ -27,15 +27,18 @@ describe('mapStore — agrupar objetos (Ctrl+G)', () => {
     expect(grupos[0].members).toEqual([SALA, PORTA, MESA])
   })
 
-  it('agrupar não mexe no MapData nem no histórico (nada vai para o arquivo nem para o jogador)', () => {
-    const mapaAntes = useMapStore.getState().map
-    const passadoAntes = useMapStore.getState().past
+  it('agrupar grava o grupo no mapa (vai ao arquivo) e é um passo do desfazer: Ctrl+Z tira o grupo', () => {
+    // GRUPOS SALVOS (18/11/2026): o grupo mora em `MapData.grupos`; antes ficava só na memória do editor.
+    const passadoAntes = useMapStore.getState().past.length
     useMapStore.getState().setSelection([SALA, MESA])
 
     useMapStore.getState().groupSelected()
 
-    expect(useMapStore.getState().map).toBe(mapaAntes)
-    expect(useMapStore.getState().past).toBe(passadoAntes)
+    expect(useMapStore.getState().map.grupos?.map((grupo) => grupo.members)).toEqual([[SALA, MESA]])
+    expect(useMapStore.getState().past).toHaveLength(passadoAntes + 1)
+    useMapStore.getState().undo()
+    expect(useMapStore.getState().map.grupos ?? []).toEqual([])
+    expect(useMapStore.getState().itemGroups[VILA.id] ?? []).toEqual([])
   })
 
   it('com um item só selecionado não há o que agrupar', () => {
@@ -72,14 +75,15 @@ describe('mapStore — agrupar objetos (Ctrl+G)', () => {
     for (const texto of textos) expect(texto).not.toMatch(/\d itens\b/)
   })
 
-  it('o grupo é do mapa: abrir outro mapa não o traz, voltar ao primeiro o encontra', () => {
+  it('o grupo é do mapa: abrir outro mapa não o traz, reabrir o primeiro (como foi salvo) o encontra', () => {
     useMapStore.getState().setSelection([SALA, PORTA, MESA])
     useMapStore.getState().groupSelected()
+    const vilaSalva = useMapStore.getState().map
 
     useMapStore.getState().loadMap(OUTRA)
     expect(useMapStore.getState().itemGroups[OUTRA.id] ?? []).toEqual([])
 
-    useMapStore.getState().loadMap(VILA)
+    useMapStore.getState().loadMap(vilaSalva)
     expect(useMapStore.getState().itemGroups[VILA.id]).toHaveLength(1)
   })
 })
