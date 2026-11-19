@@ -1,4 +1,4 @@
-import { Graphics } from 'pixi.js'
+import { Graphics, Texture, TilingSprite } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
 import { batalhaCabeNaGrade, criarGradeDaBatalha, recorteNoMapa, ROTULO_DA_GRADE_DA_BATALHA, type MapaDaGrade } from './gradeDaBatalha'
 
@@ -8,7 +8,8 @@ const QUADRADO: MapaDaGrade = { width: 40, height: 30, grid: 50, gridShape: 'squ
 const VISTA = { left: 0, top: 0, right: 800, bottom: 600 }
 
 function tracos(grade: ReturnType<typeof criarGradeDaBatalha>): number {
-  return grade.camada.children.reduce((soma, filho) => soma + (filho instanceof Graphics ? filho.context.instructions.length : 0), 0)
+  // A cruz do quadrado é uma textura repetida (campo de batalha, 19/11): conta 1 quando está à vista.
+  return grade.camada.children.reduce((soma, filho) => soma + (filho instanceof Graphics ? filho.context.instructions.length : filho instanceof TilingSprite && filho.visible && filho.texture !== Texture.EMPTY ? 1 : 0), 0)
 }
 
 describe('grade de batalha', () => {
@@ -48,7 +49,7 @@ describe('grade de batalha', () => {
     expect(tracos(hex)).toBeGreaterThan(0)
   })
 
-  it('pan dentro da folga não redesenha; sair dela ou mudar o zoom redesenha uma vez', () => {
+  it('pan nunca redesenha a cruz do quadrado (textura repetida, 19/11); mudar o zoom redesenha uma vez', () => {
     const grade = criarGradeDaBatalha()
     grade.ajustarAVista(VISTA, 1, 1)
     grade.definir(true, QUADRADO)
@@ -56,9 +57,9 @@ describe('grade de batalha', () => {
     for (let dx = 1; dx <= 300; dx += 1) grade.ajustarAVista({ left: dx, top: 0, right: 800 + dx, bottom: 600 }, 1, 1)
     expect(grade.desenhos()).toBe(depoisDeLigar)
     grade.ajustarAVista({ left: 900, top: 0, right: 1700, bottom: 600 }, 1, 1)
-    expect(grade.desenhos()).toBe(depoisDeLigar + 1)
+    expect(grade.desenhos()).toBe(depoisDeLigar)
     grade.ajustarAVista({ left: 900, top: 0, right: 1700, bottom: 600 }, 2, 1)
-    expect(grade.desenhos()).toBe(depoisDeLigar + 2)
+    expect(grade.desenhos()).toBe(depoisDeLigar + 1)
   })
 
   it('definir de novo com a mesma batalha e a mesma grade não redesenha', () => {
