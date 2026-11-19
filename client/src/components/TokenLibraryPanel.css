@@ -420,6 +420,30 @@
   cursor: grabbing;
 }
 
+/* A peça que leva ficha, mochila ou luz: o nome em cima e, embaixo, numa
+   linha menor e apagada, o que vem junto. Cabe na mesma altura de controle
+   (as duas linhas juntas não passam de --lb-control-min), então a lista não
+   pula quando uma peça tem extras e a vizinha não. */
+.lb-acervo__nome--leva {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+.lb-acervo__nome-texto,
+.lb-acervo__leva {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-acervo__leva {
+  color: var(--lb-color-parchment-dim);
+  font-size: var(--lb-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
 .lb-acervo__nome:focus-visible {
   box-shadow: none;
 }

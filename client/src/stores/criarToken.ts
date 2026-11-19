@@ -1,7 +1,19 @@
-import { IMAGEM_SUMIU_DO_ACERVO, pecaDoAcervo, type ItemDoAcervoNaTela } from '../lib/tokenLibrary'
+import * as mapFactory from '../lib/mapFactory'
+import {
+  extrasDaPeca,
+  fichaQueEntra,
+  IMAGEM_SUMIU_DO_ACERVO,
+  luzesDaPecaNoMapa,
+  mochilaComVagasNovas,
+  pecaDoAcervo,
+  type ExtrasDaPeca,
+  type ItemDoAcervoNaTela,
+} from '../lib/tokenLibrary'
 import { tamanhoPadraoDaCena } from '../lib/tamanhoAoEntrar'
 import { findTokenSpawn, tokenRadiusFor, wallClearanceForScale } from '../lib/tokenPlacement'
 import { viewportCenterWorld, type Point } from '../pixi/world'
+import type { CarriedItem, Token } from '../types/map'
+import { personagensAtivos, sistemaAtivo, useAdventureStore } from './adventureStore'
 import { useMapStore } from './mapStore'
 import { useToastStore } from './toastStore'
 
@@ -22,6 +34,10 @@ export interface OpcoesDaFichaNova {
   characterId?: string
   /** O piso em edição; ausente ou 0 = o térreo (o campo não é gravado). */
   piso?: number
+  /** A mochila com que a peça nasce (a do acervo); ausente ou vazia = sem o campo. */
+  mochila?: CarriedItem[]
+  /** A bolsa com que a peça nasce; ausente = sem o campo. */
+  moedas?: number
 }
 
 /** Área do canvas em px de tela; `null` = o canvas ainda não está montado. */
@@ -89,9 +105,23 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
     // igual ao mapa salvo antes dele existir.
     ...(opts.npc === true ? { npc: true } : {}),
     ...(opts.piso !== undefined && opts.piso !== 0 ? { piso: opts.piso } : {}),
+    ...(opts.mochila !== undefined && opts.mochila.length > 0 ? { mochila: opts.mochila } : {}),
+    ...(opts.moedas !== undefined ? { moedas: opts.moedas } : {}),
   })
   // Caça 12/11 (E7, decisão 15): a ficha nova não é selecionada; o painel fica onde estava.
   return id
+}
+
+/** Por que a ficha da peça não entrou na mesa aberta. */
+export type FichaDeFora = 'sem-sistema' | 'outro-sistema' | 'recusada'
+
+/** A peça tinha ficha e a mesa aberta não a recebeu: a peça entra, a ficha não, e o mestre ouve por quê. */
+export function fichaFicouNaEstante(nome: string, motivo: FichaDeFora): string {
+  if (motivo === 'sem-sistema') {
+    return `${nome} entrou sem a ficha: esta mesa não tem sistema de RPG (o mapa solto não guarda fichas). Abra a peça numa aventura com sistema para ela vir com a ficha.`
+  }
+  if (motivo === 'outro-sistema') return `${nome} entrou sem a ficha: ela foi feita em outro sistema de RPG. O resto da peça veio junto.`
+  return `${nome} entrou sem a ficha: esta mesa não aceitou a ficha nova agora. O resto da peça veio junto.`
 }
 
 /**
@@ -100,18 +130,84 @@ export function criarToken(name: string, opts: OpcoesDaFichaNova, vista: Tamanho
  * ausente não impede a peça: ela entra com o nome certo e o círculo
  * genérico, e o toast diz o que sumiu — não colocar a peça seria punir a
  * pessoa por um problema do disco.
+ *
+ * O QUE A PEÇA LEVA (análise de 18/11/2026, §2.4): a mochila e a bolsa com
+ * vagas novas; a ficha, como personagem NOVO da aventura (a mesma peça posta
+ * duas vezes são dois goblins, cada um com a sua vida), quando o sistema é o
+ * mesmo; e as tochas presas no centro dela. Com ficha, a mochila mora na ficha
+ * (a dona, `lib/mochila/espelho.ts`) e a peça a mostra.
  */
 export function colocarPecaDoAcervo(
-  item: Pick<ItemDoAcervoNaTela, 'nome' | 'tamanho'>,
+  item: Pick<ItemDoAcervoNaTela, 'nome' | 'tamanho'> & ExtrasDaPeca,
   tokenId: string,
   foto: { image: string | null; imageData: string | null },
   at: Point | undefined,
   vista: TamanhoDaVista | null,
 ): string | null {
-  const id = criarToken(item.nome, { at, ...pecaDoAcervo(item, tokenId, foto) }, vista)
-  if (id === null) return null
+  const aventura = useAdventureStore.getState()
+  const sistemaId = sistemaAtivo(aventura)
+  const mochila = mochilaComVagasNovas(item.mochila ?? [])
+  const ficha = fichaQueEntra(item, sistemaId, { mochila, moedas: item.moedas })
+  // A ficha entra ANTES da peça, para a peça já nascer ligada a ela: sem um
+  // instante em que o `characterId` aponta para ninguém.
+  const fichaEntrou = ficha !== null && aventura.adicionarPersonagens([ficha])
+  const id = criarToken(
+    item.nome,
+    {
+      at,
+      ...pecaDoAcervo(item, tokenId, foto),
+      ...(ficha !== null && fichaEntrou ? { characterId: ficha.id } : {}),
+      mochila,
+      moedas: item.moedas,
+    },
+    vista,
+  )
+  if (id === null) {
+    // Sem lugar para a peça: a ficha que acabou de entrar sai (nada fica pela metade).
+    if (ficha !== null && fichaEntrou) useAdventureStore.getState().apagarPersonagem(ficha.id)
+    return null
+  }
+  colocarTochasDaPeca(id, item)
   if (foto.image === null && foto.imageData === null) useToastStore.getState().push('error', IMAGEM_SUMIU_DO_ACERVO)
+  if (item.ficha !== undefined && !fichaEntrou) {
+    const motivo: FichaDeFora = sistemaId === undefined ? 'sem-sistema' : ficha === null ? 'outro-sistema' : 'recusada'
+    useToastStore.getState().push('info', fichaFicouNaEstante(item.nome, motivo))
+  }
   return id
+}
+
+/**
+ * As tochas da peça entram no MESMO passo do desfazer dela: `criarToken` já
+ * pôs o mapa de antes em `past`, e este `setState` só troca o mapa de agora,
+ * sem passo novo. Um Ctrl+Z tira a peça e as tochas juntas, como um clique as
+ * pôs; com `addLight` seriam um passo por tocha, e o primeiro Ctrl+Z deixaria
+ * a peça no escuro.
+ */
+function colocarTochasDaPeca(tokenId: string, extras: Pick<ExtrasDaPeca, 'luzes'>): void {
+  const luzes = extras.luzes ?? []
+  if (luzes.length === 0) return
+  useMapStore.setState((state) => {
+    const peca = state.map.tokens.find((token) => token.id === tokenId)
+    if (peca === undefined) return {}
+    const novas = luzesDaPecaNoMapa(luzes, peca, state.map.grid)
+    return { map: novas.reduce((mapa, luz) => mapFactory.addLight(mapa, luz), state.map) }
+  })
+}
+
+/**
+ * O que a peça leva para a estante, lido da mesa aberta AGORA: as tochas do
+ * mapa aberto, a ficha da lista em uso e o sistema dela (`extrasDaPeca`).
+ * `getState()`, e não valor do render, pelo mesmo motivo de `criarToken`.
+ */
+export function extrasDoTokenParaOAcervo(token: Token): ExtrasDaPeca {
+  const { map } = useMapStore.getState()
+  const aventura = useAdventureStore.getState()
+  return extrasDaPeca(token, {
+    luzes: map.lights,
+    grade: map.grid,
+    personagens: personagensAtivos(aventura),
+    sistemaId: sistemaAtivo(aventura),
+  })
 }
 
 /** Interruptor "Ficha de NPC" do painel: `updateToken` passa por `withHistory`, então marcar errado se desfaz com Ctrl+Z. */

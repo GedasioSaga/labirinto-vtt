@@ -1,10 +1,14 @@
 import { exists, readDir, readTextFile, remove, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import type { Token } from '../types/map'
+import type { CarriedItem, Light, Periodo, Token } from '../types/map'
 import { buildTokenSharedPhoto, importTokenImage } from './imageImport'
 import { ErroQueEnsina } from './erroQueEnsina'
+import { readCarriedItems } from './items'
 import { ensureDir, uniqueMapName, writeTextFileSafely } from './mapFileIO'
+import { lerAcesaEm } from './periodo'
+import { novoIdDePersonagem, personagemDoArquivo, type Personagem } from './personagem'
 import { isTokenPhotoData, tokenPhotoRef } from './tokenPhoto'
+import { readMoedas } from './troca'
 
 /**
  * ACERVO DE TOKENS PRONTOS — o goblin que a pessoa desenhou uma vez e quer
@@ -18,7 +22,8 @@ import { isTokenPhotoData, tokenPhotoRef } from './tokenPhoto'
  * em vez de reinventar os três.
  *
  * O que fica no disco:
- *   <appData>/tokens/acervo.json          índice: pastas + itens (id, nome, tamanho, arquivo, pasta)
+ *   <appData>/tokens/acervo.json          índice: pastas + itens (id, nome, tamanho, arquivo, pasta,
+ *                                         e o que a peça leva: ficha, mochila, bolsa, tochas)
  *   <appData>/tokens/token_<id>*.png|webp a foto, pelo pipeline de imageImport
  *
  * A imagem passa por `importTokenImage` (o MESMO importador de "Escolher
@@ -50,12 +55,62 @@ const ARQUIVO_ANTERIOR = 'acervo.json.anterior'
 /**
  * Versão do formato do índice; `acervo.json` de versão futura é lido como os
  * campos que conhecemos. A 2 (26/09/2026) trouxe as pastas; índice da 1 abre
- * com as pastas padrão e todo item fora de pasta.
+ * com as pastas padrão e todo item fora de pasta. A 3 (18/11/2026) trouxe a
+ * ficha, a mochila, a bolsa e as tochas da peça (`ExtrasDaPeca`); índice da 2
+ * abre com as peças sem nada disso, como eram.
  */
-const VERSAO_DO_INDICE = 2
+const VERSAO_DO_INDICE = 3
+
+/**
+ * A TOCHA PRESA na peça (`Light.attachedTokenId`), guardada sem lugar e sem
+ * id: ela nasce no centro da peça, no mapa onde a peça for posta. O alcance vai
+ * em CASAS, e não em px: o mapa de destino pode ter outra grade, e a tocha de 4
+ * casas continua de 4 casas lá. Fica de fora o que é de uma aventura só
+ * (`porEstado`, preso a um estado dela) e o que é arrumação do editor
+ * (`locked`, `hidden`, piso, camada).
+ */
+export interface LuzDaPeca {
+  alcanceEmCasas: number
+  /** `#rrggbb` (ou `#rgb`), como `Light.color`. */
+  cor: string
+  /** De 0 a 1, como `Light.intensity`. */
+  intensidade: number
+  apagada?: true
+  vistaDeLonge?: true
+  acesaEm?: Periodo[]
+  crepita?: true
+}
+
+/**
+ * A FICHA de personagem da peça, com o id do sistema de RPG em que ela foi
+ * feita: recursos, atributos e abas são chaves daquele sistema, e numa aventura
+ * de outro sistema a ficha abriria com tudo no lugar errado. Guardada sem o que
+ * é de uma mesa só (dono, nome do jogador, histórico, modelo da variação).
+ */
+export interface FichaDaPeca {
+  sistemaId: string
+  personagem: Personagem
+}
+
+/**
+ * O que a peça leva além de foto e tamanho (análise de 18/11/2026, §2.4: "a
+ * estante de tokens não guarda ficha, mochila nem luz"). Tudo opcional: o item
+ * de antes abre igual, e a peça sem nada disso grava igual a antes.
+ *
+ * A mochila e a bolsa ficam AQUI, fora da ficha, mesmo quando há ficha. Na
+ * mesa a dona delas é a ficha (`lib/mochila/espelho.ts`), mas a peça posta numa
+ * aventura de outro sistema entra sem ficha, e a mochila não pode sumir junto.
+ * Quem põe a peça decide onde a mochila mora (`stores/criarToken.ts`).
+ */
+export interface ExtrasDaPeca {
+  ficha?: FichaDaPeca
+  mochila?: CarriedItem[]
+  moedas?: number
+  luzes?: LuzDaPeca[]
+}
 
 /** Item como ele fica GRAVADO no `acervo.json`. */
-export interface ItemDoAcervo {
+export interface ItemDoAcervo extends ExtrasDaPeca {
   id: string
   nome: string
   /** Tamanho em múltiplos da célula da grade — o mesmo `Token.size`. */
@@ -234,7 +289,186 @@ function itemValido(valor: ItemGravado | undefined, pastas: ReadonlySet<string>)
   if (typeof nome !== 'string') return null
   if (typeof arquivo !== 'string' || arquivo.length === 0) return null
   const medida = typeof tamanho === 'number' && Number.isFinite(tamanho) && tamanho > 0 ? tamanho : 1
-  return { id, nome, tamanho: medida, arquivo, pasta: typeof pasta === 'string' && pastas.has(pasta) ? pasta : null }
+  return { id, nome, tamanho: medida, arquivo, pasta: typeof pasta === 'string' && pastas.has(pasta) ? pasta : null, ...extrasLidos(valor) }
+}
+
+function ehRegistro(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
+}
+
+const FORMA_DA_COR = /^#([0-9a-f]{3}){1,2}$/i
+/** Guarda contra arquivo torto: nenhuma tocha de verdade passa de 200 casas. */
+const ALCANCE_DA_LUZ_MAX = 200
+
+/** Uma tocha do `acervo.json`; forma torta volta `null` e só aquela tocha sai. */
+function luzDaPecaLida(valor: unknown): LuzDaPeca | null {
+  if (!ehRegistro(valor)) return null
+  const { alcanceEmCasas, cor, intensidade } = valor
+  if (typeof alcanceEmCasas !== 'number' || !Number.isFinite(alcanceEmCasas) || alcanceEmCasas <= 0) return null
+  if (typeof cor !== 'string' || !FORMA_DA_COR.test(cor)) return null
+  if (typeof intensidade !== 'number' || !Number.isFinite(intensidade)) return null
+  const acesaEm = lerAcesaEm(valor.acesaEm)
+  return {
+    alcanceEmCasas: Math.min(alcanceEmCasas, ALCANCE_DA_LUZ_MAX),
+    cor,
+    intensidade: Math.min(Math.max(intensidade, 0), 1),
+    ...(valor.apagada === true ? { apagada: true } : {}),
+    ...(valor.vistaDeLonge === true ? { vistaDeLonge: true } : {}),
+    ...(acesaEm !== undefined ? { acesaEm } : {}),
+    ...(valor.crepita === true ? { crepita: true } : {}),
+  }
+}
+
+/**
+ * O personagem como a estante o guarda: tipo NPC (a estante é a de NPCs
+ * prontos, e a peça nasce marcada como NPC), sem o que é de uma mesa só — dono
+ * e nome do jogador (entregariam a ficha nova a quem tinha a antiga), histórico
+ * (o registro das mudanças daquela mesa), modelo da variação e invocação (ids
+ * de outros personagens, que lá não existem), cartões ocultos (só a cópia do
+ * jogador tem) — e sem mochila e bolsa, que moram em `ExtrasDaPeca`.
+ */
+function fichaSemAMesa(personagem: Personagem): Personagem {
+  const { dono: _dono, nomeDoJogador: _jogador, ocultas: _ocultas, mochila: _mochila, moedas: _moedas, combate, ...resto } = personagem
+  return { ...resto, tipo: 'npc', historico: [], ...(combate !== undefined ? { combate: { forca: combate.forca } } : {}) }
+}
+
+/** A ficha do `acervo.json`: sem sistema ou com personagem ilegível, a peça fica sem ficha. */
+function fichaDaPecaLida(valor: unknown): FichaDaPeca | undefined {
+  if (!ehRegistro(valor) || typeof valor.sistemaId !== 'string' || valor.sistemaId.length === 0) return undefined
+  const personagem = personagemDoArquivo(valor.personagem)
+  return personagem === null ? undefined : { sistemaId: valor.sistemaId, personagem: fichaSemAMesa(personagem) }
+}
+
+/**
+ * Os extras do item, cada um pela leitura que a mesa já usa para o mesmo dado
+ * (a mochila por `readCarriedItems`, a bolsa por `readMoedas`, o personagem
+ * por `personagemDoArquivo`). Campo torto sai sozinho; a peça continua.
+ */
+function extrasLidos(valor: Partial<Record<keyof ExtrasDaPeca, unknown>>): ExtrasDaPeca {
+  const ficha = fichaDaPecaLida(valor.ficha)
+  const mochila = readCarriedItems(valor.mochila)
+  const moedas = readMoedas(valor.moedas)
+  const luzes = Array.isArray(valor.luzes) ? valor.luzes.flatMap((bruta) => luzDaPecaLida(bruta) ?? []) : []
+  return {
+    ...(ficha !== undefined ? { ficha } : {}),
+    ...(mochila !== undefined ? { mochila } : {}),
+    ...(moedas !== undefined ? { moedas } : {}),
+    ...(luzes.length > 0 ? { luzes } : {}),
+  }
+}
+
+/** Os extras de um item, sem os campos de tela — para regravar o item inteiro. */
+function extrasDoItem({ ficha, mochila, moedas, luzes }: ExtrasDaPeca): ExtrasDaPeca {
+  return {
+    ...(ficha !== undefined ? { ficha } : {}),
+    ...(mochila !== undefined ? { mochila } : {}),
+    ...(moedas !== undefined ? { moedas } : {}),
+    ...(luzes !== undefined ? { luzes } : {}),
+  }
+}
+
+/** O que `extrasDaPeca` precisa saber da mesa aberta. */
+export interface MesaDaPeca {
+  /** As luzes do mapa aberto; as presas na peça vão junto. */
+  luzes: readonly Light[]
+  /** Px por casa no mapa aberto: o alcance da tocha vira casas. */
+  grade: number
+  /** Os personagens em uso (`personagensAtivos`). */
+  personagens: readonly Personagem[]
+  /** O sistema de RPG em uso (`sistemaAtivo`); ausente = mapa solto, a ficha não vai. */
+  sistemaId: string | undefined
+}
+
+/**
+ * O que a peça leva para a estante: a ficha ligada (se a mesa tem sistema), a
+ * mochila e a bolsa que ela mostra (a da ficha, quando há ficha — é a dona) e
+ * as tochas presas nela. As vagas acesas vão acesas: guardar não é dar nem
+ * trocar (`CarriedItem.acesa`), e o guarda salvo com a lanterna acesa volta
+ * com ela acesa. Puro: quem chama lê a mesa.
+ */
+export function extrasDaPeca(token: Pick<Token, 'id' | 'characterId' | 'mochila' | 'moedas'>, mesa: MesaDaPeca): ExtrasDaPeca {
+  const personagem = token.characterId === null ? undefined : mesa.personagens.find((candidato) => candidato.id === token.characterId)
+  const ficha = personagem !== undefined && mesa.sistemaId !== undefined ? { sistemaId: mesa.sistemaId, personagem: fichaSemAMesa(personagem) } : undefined
+  const dono = personagem !== undefined && (personagem.mochila !== undefined || personagem.moedas !== undefined) ? personagem : token
+  const mochila = dono.mochila !== undefined && dono.mochila.length > 0 ? dono.mochila.map((vaga) => ({ ...vaga })) : undefined
+  const moedas = readMoedas(dono.moedas)
+  const grade = Number.isFinite(mesa.grade) && mesa.grade > 0 ? mesa.grade : 1
+  const luzes = mesa.luzes.filter((luz) => luz.attachedTokenId === token.id).map((luz) => luzGuardada(luz, grade))
+  return extrasDoItem({ ficha, mochila, moedas, luzes: luzes.length > 0 ? luzes : undefined })
+}
+
+function luzGuardada(luz: Light, grade: number): LuzDaPeca {
+  return {
+    alcanceEmCasas: Math.min(Math.max(luz.radius / grade, 0.1), ALCANCE_DA_LUZ_MAX),
+    cor: luz.color,
+    intensidade: Math.min(Math.max(luz.intensity, 0), 1),
+    ...(luz.apagada === true ? { apagada: true } : {}),
+    ...(luz.vistaDeLonge === true ? { vistaDeLonge: true } : {}),
+    ...(luz.acesaEm !== undefined ? { acesaEm: [...luz.acesaEm] } : {}),
+    ...(luz.crepita === true ? { crepita: true } : {}),
+  }
+}
+
+/** A mochila da peça com vagas novas: a vaga é única no mapa, e a mesma peça posta duas vezes não pode repetir. */
+export function mochilaComVagasNovas(mochila: readonly CarriedItem[]): CarriedItem[] {
+  return mochila.map((vaga) => ({ ...vaga, id: `item_${crypto.randomUUID()}` }))
+}
+
+/**
+ * A ficha que entra na aventura com a peça: id novo (a mesma peça posta duas
+ * vezes são dois goblins, cada um com a sua vida), com a mochila e a bolsa da
+ * peça, que na mesa moram na ficha. `null` quando a peça não tem ficha ou ela
+ * é de outro sistema — a peça entra sem ficha.
+ */
+export function fichaQueEntra(
+  extras: Pick<ExtrasDaPeca, 'ficha'>,
+  sistemaId: string | undefined,
+  bolso: { mochila: readonly CarriedItem[]; moedas: number | undefined },
+): Personagem | null {
+  if (extras.ficha === undefined || sistemaId === undefined || extras.ficha.sistemaId !== sistemaId) return null
+  return {
+    ...fichaSemAMesa(extras.ficha.personagem),
+    id: novoIdDePersonagem(),
+    ...(bolso.mochila.length > 0 ? { mochila: [...bolso.mochila] } : {}),
+    ...(bolso.moedas !== undefined ? { moedas: bolso.moedas } : {}),
+  }
+}
+
+/**
+ * As tochas da peça no mapa: no centro dela, no piso dela, presas nela, com o
+ * alcance de volta em px da grade DESTE mapa.
+ */
+export function luzesDaPecaNoMapa(
+  luzes: readonly LuzDaPeca[],
+  peca: Pick<Token, 'id' | 'x' | 'y' | 'piso'>,
+  grade: number,
+): Light[] {
+  return luzes.map((luz) => ({
+    id: crypto.randomUUID(),
+    x: peca.x,
+    y: peca.y,
+    radius: luz.alcanceEmCasas * grade,
+    color: luz.cor,
+    intensity: luz.intensidade,
+    attachedTokenId: peca.id,
+    ...(peca.piso !== undefined && peca.piso !== 0 ? { piso: peca.piso } : {}),
+    ...(luz.apagada === true ? { apagada: true } : {}),
+    ...(luz.vistaDeLonge === true ? { vistaDeLonge: true } : {}),
+    ...(luz.acesaEm !== undefined ? { acesaEm: [...luz.acesaEm] } : {}),
+    ...(luz.crepita === true ? { crepita: true } : {}),
+  }))
+}
+
+/** "ficha · 3 itens · 12 moedas · luz": o que a peça leva, numa linha, para a estante mostrar. Vazio = só foto e tamanho. */
+export function resumoDosExtras(extras: ExtrasDaPeca): string {
+  const partes: string[] = []
+  if (extras.ficha !== undefined) partes.push('ficha')
+  const itens = extras.mochila?.length ?? 0
+  if (itens > 0) partes.push(itens === 1 ? '1 item' : `${itens} itens`)
+  if (extras.moedas !== undefined) partes.push(extras.moedas === 1 ? '1 moeda' : `${extras.moedas} moedas`)
+  const luzes = extras.luzes?.length ?? 0
+  if (luzes > 0) partes.push(luzes === 1 ? 'luz' : `${luzes} luzes`)
+  return partes.join(' · ')
 }
 
 /**
@@ -420,14 +654,17 @@ export const SEM_FOTO_PARA_SALVAR =
  * foto e nome, e duas linhas idênticas não dão para distinguir na hora de
  * apagar.
  */
-export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image' | 'imageData'>): Promise<ItemDoAcervo> {
+export async function salvarNoAcervo(
+  token: Pick<Token, 'name' | 'size' | 'image' | 'imageData'>,
+  extras: ExtrasDaPeca = {},
+): Promise<ItemDoAcervo> {
   const foto = tokenPhotoRef(token)
   // `ErroQueEnsina`, e não `Error`: a frase termina numa tarefa da pessoa
   // ("escolha uma imagem para ele antes de guardar no acervo"), e quem lança é
   // quem sabe disso. `App.tsx` lê a marca e mostra o aviso sem prazo — ver
   // `lib/erroQueEnsina.ts`.
   if (foto === null) throw new ErroQueEnsina(SEM_FOTO_PARA_SALVAR)
-  return naFilaDoIndice(() => gravarTokenNoAcervo(token, foto))
+  return naFilaDoIndice(() => gravarTokenNoAcervo(token, foto, extrasDoItem(extras)))
 }
 
 /**
@@ -438,6 +675,7 @@ export async function salvarNoAcervo(token: Pick<Token, 'name' | 'size' | 'image
 async function gravarTokenNoAcervo(
   token: Pick<Token, 'name' | 'size'>,
   foto: string,
+  extras: ExtrasDaPeca,
 ): Promise<ItemDoAcervo> {
   const acervo = await listarAcervo()
   exigirLeitura(acervo, 'guardar o token no acervo')
@@ -476,6 +714,7 @@ async function gravarTokenNoAcervo(
     tamanho,
     arquivo,
     pasta: null,
+    ...extras,
   }
   await gravarIndice({ ...acervo, itens: [...acervo.itens.map(semCampoDeTela), item] }, 'guardar o token no acervo')
   return item
@@ -534,9 +773,13 @@ export function listarAcervoNaFila(): Promise<AcervoCarregado> {
   return naFilaDoIndice(listarAcervo)
 }
 
-/** O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado. */
+/**
+ * O que é resposta de agora (`imagemNoDisco`, `caminho`) não vira dado gravado.
+ * Os extras vão junto: sem eles, renomear, mover ou apagar OUTRO token
+ * regravava o índice e tirava a ficha e a mochila de todos.
+ */
 function semCampoDeTela(item: ItemDoAcervoNaTela): ItemDoAcervo {
-  return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo, pasta: item.pasta }
+  return { id: item.id, nome: item.nome, tamanho: item.tamanho, arquivo: item.arquivo, pasta: item.pasta, ...extrasDoItem(item) }
 }
 
 /**

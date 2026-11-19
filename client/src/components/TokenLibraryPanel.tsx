@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { isEditableTarget } from '../lib/keymap'
 import { normalizeForSearch } from '../lib/mapObjects'
-import { ehPastaPadrao, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
+import { ehPastaPadrao, resumoDosExtras, type ItemDoAcervoNaTela, type PastaDoAcervo } from '../lib/tokenLibrary'
 import { BotaoMais } from './BotaoMais'
 import { ChevronDownIcon, CloseIcon, FolderIcon, MoveIntoIcon, SearchIcon } from './icons'
 import { IconeDoLivro } from './livro/icones'
@@ -593,6 +593,9 @@ export function TokenLibraryPanel({
     ]
     const movendo = pergunta?.tipo === 'mover-token' && pergunta.id === item.id
     const confirmando = pergunta?.tipo === 'apagar-token' && pergunta.id === item.id
+    // O que a peça leva além da foto ("ficha · 3 itens · luz"): a linha de
+    // baixo diz, antes do clique, que o goblin vem com a ficha e a mochila.
+    const leva = resumoDosExtras(item)
     return (
       <li
         key={item.id}
@@ -609,16 +612,23 @@ export function TokenLibraryPanel({
         )}
         <button
           type="button"
-          className="lb-acervo__nome"
-          aria-label={`Colocar ${item.nome} no mapa`}
-          title={organizado ? 'Clique para pôr no centro da vista, ou arraste até o mapa ou até uma pasta' : 'Clique para pôr no centro da vista, ou arraste até o mapa'}
+          className={leva === '' ? 'lb-acervo__nome' : 'lb-acervo__nome lb-acervo__nome--leva'}
+          aria-label={leva === '' ? `Colocar ${item.nome} no mapa` : `Colocar ${item.nome} no mapa, com ${leva.split(' · ').join(', ')}`}
+          title={`${leva === '' ? '' : `Leva ${leva}. `}${organizado ? 'Clique para pôr no centro da vista, ou arraste até o mapa ou até uma pasta' : 'Clique para pôr no centro da vista, ou arraste até o mapa'}`}
           onPointerDown={(event) => comecarAperto(event, item)}
           onClick={() => {
             if (engolirCliqueRef.current) return
             onPlace(item)
           }}
         >
-          {item.nome}
+          {leva === '' ? (
+            item.nome
+          ) : (
+            <>
+              <span className="lb-acervo__nome-texto">{item.nome}</span>
+              <span className="lb-acervo__leva">{leva}</span>
+            </>
+          )}
         </button>
         {confirmando ? (
           <span className="lb-acervo__confirma">

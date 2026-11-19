@@ -246,7 +246,7 @@ import {
   type ItemDoAcervoNaTela,
   type PastaDoAcervo,
 } from './lib/tokenLibrary'
-import { colocarPecaDoAcervo, criarToken, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
+import { colocarPecaDoAcervo, criarToken, extrasDoTokenParaOAcervo, marcarFichaNpc, type TamanhoDaVista } from './stores/criarToken'
 import { setPropImageShownToPlayers, setPropLabelForPlayers } from './stores/propPlayerLook'
 import { mudarRaioDeVisaoDaSala, mudarVistaDeLonge } from './stores/visaoDeLonge'
 import { pickExportFolder, pickImportFolder, exportMapFolder, importMapFolder } from './lib/mapExport'
@@ -2574,7 +2574,8 @@ function App() {
    */
   const handleSaveTokenToLibrary = async (token: Token) => {
     try {
-      const item = await salvarNoAcervo(token)
+      // A peça vai com a ficha, a mochila, a bolsa e as tochas (análise de 18/11/2026, §2.4).
+      const item = await salvarNoAcervo(token, extrasDoTokenParaOAcervo(token))
       await useTokenLibraryStore.getState().recarregar()
       // O nome pode ter ganhado sufixo ("Goblin (2)"): mostrar o nome FINAL é
       // o que faz a pessoa achar a linha certa no painel logo em seguida.
