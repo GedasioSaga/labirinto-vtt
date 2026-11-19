@@ -6,7 +6,6 @@ import {
   combateVazio,
   CONTRAS_MAX,
   DANO_MAX,
-  FORMAS_PENDENTES_MAX,
   GOLPES_PENDENTES_MAX,
   MODIFICADOR_DA_REACAO_MAX,
   PERFURACAO_MAX,
@@ -14,7 +13,6 @@ import {
   type CombateDoPersonagem,
   type ContraAtaque,
   type EfeitoDaBatalha,
-  type FormaPendente,
   type GolpeDaBatalha,
   type PedidoDeAcao,
   type PedidoDeAjusteNaBatalha,
@@ -23,9 +21,6 @@ import {
   type PedidoDeMarca,
   type PedidoDePassiva,
   type LembreteDaPassiva,
-  type AcaoDaForma,
-  type FormaNaBatalha,
-  type NumeroDaForma,
   type SaidaDaReacao,
   type SeloDaBatalha,
   type SeloDoGolpe,
@@ -33,7 +28,6 @@ import {
   NOME_DO_SELO_MAX,
 } from '../lib/batalha/combate'
 import { contadorDoPersonagem, motivoDoContador, nivelDoContador, seloDoContador, selosComONivel, temGolpeEsperando } from '../lib/batalha/contador'
-import { gastarAcao } from '../lib/batalha/acoes'
 import {
   chaveDoGastoDoInvocado,
   comBandosEmDia,
@@ -75,23 +69,12 @@ import {
   textoDosQueAcabaram,
   selosDoToken,
 } from '../lib/batalha/selos'
-import { acaoDaForma, ativarForma, descerUmaParte, desfazerForma, desfazerFormasNoFim, duracaoDaForma, formaDaFicha, subidaDeParte, usosDaForma } from '../lib/batalha/transformacao'
-import {
-  cartaoComADecisao,
-  cartaoPorId,
-  comCartaoTrocado,
-  decisaoValida,
-  escritoNoCartao,
-  formaDecididaPeloMestre,
-  novoIdDeDecisao,
-  textoDaDecisao,
-  type EscritoPelaDecisao,
-} from '../lib/batalha/mecanica/formaDoMestre'
+import { desfazerFormasNoFim, formaDaFicha } from '../lib/batalha/transformacao'
 import { comportamentoDoSelo, curaDoDano, ehLembreteDoSangramento, esquivaComDesvantagem, porVezDoLembrete, saidasComOsSelos, selosQueSaemNoGolpe, travaDoToken, vantagemDaReacao, verboDoPorVez } from '../lib/batalha/condicoes'
 import { comLembretesDaPreparacao, ehLembreteDaPreparacao, NOME_DA_PREPARACAO, seloDaPreparacao } from '../lib/batalha/preparacao'
 import { danoComAsReducoes, nomesDasReducoes, porcentoDasReducoes, reducoesDoDano } from '../lib/batalha/reducaoDoDano'
-import { ajusteDoRecurso, ajusteDoSpDaVez, comOCansaco, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso, modsDoCansaco } from '../lib/batalha/recursosDaBatalha'
-import { custoPorTurno, manterNaVez, mantidasComCusto, motivoDoCustoPorTurno, motivoDoPedidoDoCusto, pararAMantida, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
+import { ajusteDoRecurso, ajusteDoSpDaVez, escudoNoComeco, ganhaSpNaVez, maximoDoRecurso } from '../lib/batalha/recursosDaBatalha'
+import { custoPorTurno, textoDoCustoPorTurno } from '../lib/batalha/custoPorTurno'
 import { ID_DA_EQUIPE_DOS_JOGADORES, aliadosNaLuta, equipeDe } from '../lib/batalha/equipes'
 import { cartaoDaVariante, comEvoluida, custoDaEvolucao, evolucaoDe, motivoDoEvoluir, varianteDoPedido } from '../lib/batalha/escolhaEEvolucao'
 import {
@@ -114,7 +97,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
+import { chavesDoDono, disputaNoAcerto, disputaNoUso, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -140,7 +123,6 @@ import { armasDe, CAMPO_DO_TEMPO, ehOverload, lerTempo, limiteDeArmas, recursoDo
 import { fichaComAMochilaDoBoneco } from '../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../lib/batalha/reacao'
-import type { VezEsperada } from '../lib/batalha/ponte'
 import {
   escudoMaisAlto,
   mudancasDaVez,
@@ -179,11 +161,10 @@ import {
 } from '../lib/batalha/turnos'
 import { aplicarAjustes, ajusteDoAtualDigitado, NOME_DO_MESTRE, type Ajuste } from '../lib/ajusteDaFicha'
 import { cartaoPorId as cartaoEmQualquerNivel, motivoDoOcultoParaJogador, NOME_DO_OCULTO, nomeNaBatalha, ocultoNaBatalha, revelacaoAoUsar, revelarCartao } from '../lib/habilidadeOculta'
-import { numeroDaFicha, type CartaoDaFicha, type Personagem } from '../lib/personagem'
+import { numeroDaFicha, type Personagem } from '../lib/personagem'
 import { chavesDosSelos } from '../lib/ponteDasCondicoes'
 import { condicoesQueACuraTirou, curarPeloItem } from '../lib/curaPeloItem'
 import { comecoDoPrazoNaVez, fimDoPrazoNaVez, motivoDoPrazo, textoDosPrazosQueAcabaram } from '../lib/prazoNaVez'
-import type { SistemaDeRpg } from '../lib/sistemaDeRpg'
 import { comCondicoes, condicoesDaFicha } from '../lib/turnoForaDaBatalha'
 import type { DependenciasDaBatalha, InicioDaBatalha, BatalhaDaCena, AnuncioDaBatalha, BatalhaState } from './batalha/tipos'
 import {
@@ -221,10 +202,10 @@ import {
   tirouSp,
   reversaoDaFicha,
   mudancaValida,
-  trocarFicha,
 } from './batalha/naMesa'
 import { linhasDaDecisaoDe, devolverFichasDaAcao, reacoesComTecnicaDe, golpesDaReversao, linhasJuntoDe } from './batalha/desfazer'
 import { criarNucleo } from './batalha/nucleo'
+import { criarFormas } from './batalha/formas'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -412,8 +393,6 @@ function seloRenovado(turnos: TurnosDaCena, tokenId: string, pedido: SeloDoGolpe
   return { selos: (turnos.selos ?? []).map((selo) => (selo.id === antes.id ? depois : selo)), parte: { tipo: 'selo', seloId: antes.id, antes, editado: true } }
 }
 
-const ROTULO_DA_ACAO_DA_FORMA: Readonly<Record<AcaoDaForma, string>> = { simples: 'Simples', completa: 'Completa', bonus: 'Bônus', livre: 'Livre' }
-
 /** "+1 Simples, +1 Bônus". */
 function textoDasExtras(extras: AcoesExtras): string {
   const partes = [extras.simples > 0 ? `+${extras.simples} Simples` : null, extras.bonus > 0 ? `+${extras.bonus} Bônus` : null, extras.mov > 0 ? `+${extras.mov} Movimento` : null]
@@ -435,6 +414,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   // As fatias da store por assunto (stores/batalha/): o núcleo (cena, gravação, avisos, Desfazer) e as que dependem dele.
   const nucleo = criarNucleo(mesa, deps, set, get)
   const { mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, desfazerLinha } = nucleo
+  const fatiaDasFormas = criarFormas(nucleo)
+  const { cansarNoOverload, desligarAForma, subidaDoPedido, mudarForma, custoDaFormaNaVez, custoDaMantidaNaVez } = fatiaDasFormas
 
   /**
    * Conserto de 18/11/2026 (análise, seção 2.3): a carta que sai da ordem tinha a vez. Antes a vez só pulava
@@ -780,51 +761,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
-   * Conserto das fichas F1 (Overload): depois dele, os atributos base do
-   * personagem da ficha `tokenId` ficam pela metade até o fim da batalha. Mora
-   * nos selos "Cansaço do Overload" da batalha (`comOCansaco`), NUNCA na ficha:
-   * o app fechado no meio não deixa a ficha pela metade. Já cansado = `null`
-   * (a metade não divide de novo). As partes "selo" vão na linha do Overload:
-   * o Desfazer dela tira o cansaço; o mestre também tira pelo selo.
-   */
-  const cansarNoOverload = (personagemId: string, tokenId: string, turnos: TurnosDaCena): { turnos: TurnosDaCena; partes: Reversao[] } | null => {
-    const { personagens, sistema } = mesaDoRpg()
-    const personagem = personagens.find((candidato) => candidato.id === personagemId)
-    if (personagem === undefined || sistema === null) return null
-    const cansado = comOCansaco(turnos, tokenId, modsDoCansaco(personagem, sistema), novoIdDeSelo)
-    return cansado === null ? null : { turnos: cansado.turnos, partes: cansado.selos.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: null })) }
-  }
-
-  /**
-   * Desliga a forma `cartaoId` do personagem: a ficha (`desfazerForma`), o
-   * cansaço da forma Overload (resposta do Alexei: o fim dela deixa os
-   * atributos base pela metade) e a imagem e o nome na carta (só se eram desta
-   * forma). O Desfazer da forma (ação livre) e o fim sozinho da forma com
-   * duração (F2b, A Caçada Começa) passam por aqui. `null` = a ficha recusou.
-   */
-  const desligarAForma = (personagemId: string, tokenId: string, cartaoId: string, overload: boolean, turnos: TurnosDaCena, quem: string): { turnos: TurnosDaCena; partes: Reversao[] } | null => {
-    const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => desfazerForma(atual, sistemaDaMesa, cartaoId, quem, Date.now()))
-    if (fichaMudou === null || fichaMudou === 'recusada') return null
-    const partes: Reversao[] = [...reversaoDaFicha(personagemId, fichaMudou)]
-    let novos = turnos
-    if (overload) {
-      const cansado = cansarNoOverload(personagemId, tokenId, novos)
-      if (cansado !== null) {
-        partes.push(...cansado.partes)
-        novos = cansado.turnos
-      }
-    }
-    const formaAntes = turnos.formas?.[personagemId] ?? null
-    if (formaAntes !== null && formaAntes.cartaoId === cartaoId) {
-      partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
-      const formas = { ...(novos.formas ?? {}) }
-      delete formas[personagemId]
-      novos = { ...novos, formas }
-    }
-    return { turnos: novos, partes }
-  }
-
-  /**
    * F2 (fatia B): o selo do golpe no alvo acertado, com a disputa da mecânica
    * à mão (Corta Cenoura: d20 + FOR com vantagem contra d20 + RES do alvo): o
    * app rola e o selo só pega se quem usou vencer. O resultado vai no alvo
@@ -867,293 +803,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const venceu = quemUsaVence(resultado, disputa.testa)
     const comTexto: AlvoDoGolpe = { ...alvo, disputa: `${textoDaDisputa(resultado)}, ${venceu ? 'o selo pegou' : 'o selo não pegou'}` }
     return { selado: venceu ? seloDoGolpe(turnos, golpe, alvo) : null, alvo: comTexto }
-  }
-
-  /**
-   * F3 (fatia T): Ativar a forma (gasta a ação escolhida, liga o cartão, o
-   * atual ganha a diferença do máximo, Q1) ou Desfazer a forma (ação livre).
-   * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
-   * leva a reversão composta [gasto, ficha, forma] e o texto sem números.
-   */
-  /**
-   * F2 (fatia E, Fúria do Dragão): o pedido da técnica que sobe de Parte, na
-   * vez da carta, vira o Ativar da Parte seguinte (a ação é a do campo Ação da
-   * técnica). `null` = não é essa técnica, ou não há Parte acima (aí o pedido
-   * segue e o `podeAgir` recusa com o motivo).
-   */
-  const subidaDoPedido = (sceneKey: string, pedido: PedidoDeAcao): Extract<PedidoDeAcao, { tipo: 'transformar' }> | null => {
-    if (pedido.tipo !== 'habilidade' || pedido.contraDe !== undefined || !sobeDeParte(pedido.cartaoId)) return null
-    const cena = cenaDe(sceneKey)
-    const carta = cena === undefined ? null : cartaDaVez(cena.turnos)
-    const { personagens, sistema } = mesaDoRpg()
-    const personagem = carta === null || carta.personagemId === null ? undefined : personagens.find((candidato) => candidato.id === carta.personagemId)
-    if (personagem === undefined || sistema === null) return null
-    const subida = subidaDeParte(personagem, sistema, pedido.cartaoId)
-    const tecnica = tecnicaPorId(personagem, sistema, pedido.cartaoId)
-    if (subida === null || !('para' in subida) || tecnica === null) return null
-    return { tipo: 'transformar', cartaoId: subida.para.id, acao: acaoDaForma(tecnica.cartao), trocarImagem: true }
-  }
-
-  /**
-   * O que Ativar a forma gasta na vez: a ação escolhida ("livre" não gasta), o
-   * uso dos "Usos por batalha" e, na forma Overload (A Caçada Começa), o
-   * Overload da batalha. O Desfazer devolve pelas partes "gasto" e "combate".
-   * C6: `soNaVez` = o gasto só volta se ainda é aquela vez (o mestre pode
-   * recusar a forma pedida numa vez depois, como o Cancelar da invocação).
-   */
-  const gastosDoAtivar = (turnos: TurnosDaCena, cartaId: string, personagemId: string, cartao: CartaoDaFicha | null, acao: AcaoDaForma, soNaVez: boolean): { turnos: TurnosDaCena; partes: Reversao[] } => {
-    const partes: Reversao[] = []
-    let novos = turnos
-    if (acao !== 'livre') {
-      const antes = turnos.gastos[cartaId] ?? null
-      partes.push(soNaVez ? { tipo: 'gasto', cartaId, antes, vez: { cartaId, rodada: turnos.rodada } } : { tipo: 'gasto', cartaId, antes })
-      novos = { ...novos, gastos: { ...novos.gastos, [cartaId]: gastarAcao(turnos.gastos[cartaId] ?? GASTO_ZERO, acao) } }
-    }
-    if (cartao !== null && usosDaForma(cartao) !== null) {
-      const combateAntes = novos.combate?.[personagemId]
-      const base = combateAntes ?? combateVazio()
-      const depois: CombateDoPersonagem = { ...base, usos: { ...base.usos, [cartao.id]: (base.usos[cartao.id] ?? 0) + 1 } }
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
-      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
-    }
-    // Conserto das fichas F1: a forma Overload (A Caçada Começa) gasta o Overload da batalha (1 por batalha).
-    if (cartao !== null && ehOverload(cartao)) {
-      const combateAntes = novos.combate?.[personagemId]
-      const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), overload: true }
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
-      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
-    }
-    return { turnos: novos, partes }
-  }
-
-  const mudarForma = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: Extract<PedidoDeAcao, { tipo: 'transformar' | 'destransformar' }>): boolean => {
-    const cena = cenaDe(sceneKey)
-    if (cena === undefined || vez === null) return false
-    const { turnos } = cena
-    if (turnos.vez !== vez.cartaId || turnos.rodada !== vez.rodada) return false
-    const carta = cartaDaVez(turnos)
-    if (carta === null || carta.personagemId === null) return false
-    const personagemId = carta.personagemId
-    const { personagens, sistema } = mesaDoRpg()
-    const personagem = personagens.find((candidato) => candidato.id === personagemId) ?? null
-    if (personagem === null || sistema === null) return false
-    const ctx: ContextoDoGolpe = { turnos, carta, personagem, sistema, regras: cena.regras, autor, personagens, personagemDoToken: personagemDoTokenNa(turnos) }
-    if (podeAgir(ctx, pedido) !== null) return false
-    const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
-    // Fatia C7: a forma oculta liga como "???" (a não ser que revele ao usar: aí o uso a revela, logo abaixo).
-    const nomeDaForma = cartao === null ? 'a forma' : nomeNaBatalha(personagem, cartao, 'a forma')
-    const quem = quemNaFicha(autor)
-    const quemAge = nomeDoTokenNa(turnos, personagens)(carta.tokenId)
-    const formaAntes = turnos.formas?.[personagemId] ?? null
-    const partes: Reversao[] = []
-    const efeitos: EfeitoNovo[] = []
-    let novos: TurnosDaCena = turnos
-    let texto: string
-    // Construtor C6: a forma em que o mestre decide os números não liga aqui: o pedido gasta e espera o mestre.
-    if (pedido.tipo === 'transformar' && cartao !== null && formaDecididaPeloMestre(cartao)) {
-      const lista = turnos.formasPendentes ?? []
-      if (lista.length >= FORMAS_PENDENTES_MAX || lista.some((outra) => outra.personagemId === personagemId && outra.cartaoId === cartao.id)) return false
-      const gastos = gastosDoAtivar(turnos, carta.id, personagemId, cartao, pedido.acao, true)
-      const linhaId = novoIdDeLinha()
-      const pendente: FormaPendente = { id: novoIdDeDecisao(), linhaId, rodada: turnos.rodada, cartaId: carta.id, autor, tokenId: carta.tokenId, personagemId, cartaoId: cartao.id, nome: nomeDaForma, trocarImagem: pedido.trocarImagem }
-      const comoPede = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
-      const textoDoPedido = `${quemAge} quer ativar ${nomeDaForma} (${comoPede}) · o mestre decide os números`
-      const comPendente: TurnosDaCena = { ...gastos.turnos, formasPendentes: [...lista, pendente] }
-      const atualDoPedido = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, comMudanca(atualDoPedido, comPendente, { id: linhaId, tipo: 'transformacao', texto: textoDoPedido, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes: [...gastos.partes, { tipo: 'formaPedida', pendente }] } }))
-      return true
-    }
-    if (pedido.tipo === 'transformar') {
-      let numeros: NumeroDaForma[] = []
-      // R2: as formas do mesmo grupo que a troca desligou (os cartões voltam pela parte "ficha" no Desfazer).
-      let desligadas: string[] = []
-      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
-        const feito = ativarForma(atual, sistemaDaMesa, pedido.cartaoId, quem, Date.now())
-        if (feito !== null) {
-          numeros = feito.numeros
-          desligadas = feito.desligadas.map((cartaoDesligado) => nomeNaBatalha(atual, cartaoDesligado, 'a forma'))
-        }
-        // Fatia C7: a forma oculta que revela ao usar sai revelada (o Desfazer da linha não a esconde de novo).
-        return feito === null ? null : (revelacaoAoUsar(feito.personagem, pedido.cartaoId) ?? feito.personagem)
-      })
-      if (fichaMudou === null || fichaMudou === 'recusada') return false
-      const gastos = gastosDoAtivar(novos, carta.id, personagemId, cartao, pedido.acao, false)
-      partes.push(...gastos.partes)
-      novos = gastos.turnos
-      // O Desfazer volta as partes de trás para a frente: o cartão vem PRIMEIRO aqui para o ganho voltar antes de
-      // desligar (1.500/1.800 → 900/1.800 → 900/1.200). Na ordem de `partesDoAjuste`, o corte do desligar viria antes
-      // e o delta tiraria o ganho de novo (1.200 − 600 = 600).
-      const cartaoPrimeiro = [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]
-      partes.push(...reversaoDaFicha(personagemId, cartaoPrimeiro))
-      const imagem = pedido.trocarImagem ? (cartao?.imagem ?? null) : null
-      const forma: FormaNaBatalha = { cartaoId: pedido.cartaoId, imagem }
-      // F2b (A Caçada Começa): a forma com duração conta as vezes dele DEPOIS desta (`fimDaVezDasMecanicas` desliga no fim da última).
-      // F0c: o campo Duração da forma vale; sem ele, a tabela à mão (`duracaoDaForma`).
-      const vezes = cartao === null ? null : duracaoDaForma(cartao)
-      if (vezes !== null) forma.duracao = { faltam: vezes, ligouNa: chaveDaVez(turnos.rodada, carta.id) }
-      partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
-      novos = { ...novos, formas: { ...(novos.formas ?? {}), [personagemId]: forma } }
-      const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: carta.tokenId, forma: nomeDaForma, imagem }
-      // Fatia C7 (revisão): os números da forma oculta são do segredo (o efeito chega ao dono e aos aliados).
-      if (numeros.length > 0 && (cartao === null || !ocultoNaBatalha(personagem, cartao))) efeito.numeros = numeros
-      efeitos.push(efeito)
-      const comoAtiva = pedido.acao === 'livre' ? 'sem gastar ação' : ROTULO_DA_ACAO_DA_FORMA[pedido.acao]
-      texto = `${quemAge} ativa ${nomeDaForma} (${comoAtiva})${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
-    } else {
-      const desligada = desligarAForma(personagemId, carta.tokenId, pedido.cartaoId, cartao !== null && ehOverload(cartao), novos, quem)
-      if (desligada === null) return false
-      partes.push(...desligada.partes)
-      novos = desligada.turnos
-      efeitos.push({ tipo: 'forma', tokenId: carta.tokenId, forma: nomeDaForma, ligou: false })
-      texto = `${quemAge} desfaz ${nomeDaForma} (ação livre)`
-    }
-    // F2b (revisão, Ignição): a troca que muda a Velocidade marca a carta; ela vai ao lugar novo na virada (`passarVez`),
-    // nunca no meio da rodada. O Desfazer desta linha tira a marca (parte "combate").
-    const depoisDaTroca = mesaDoRpg().personagens.find((candidato) => candidato.id === personagemId)
-    if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
-      const combateAntes = novos.combate?.[personagemId]
-      const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), reordenarNaVirada: true }
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
-      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
-      texto = `${texto} · a ordem muda no começo da próxima rodada`
-    }
-    // A ficha passou pela aventura no meio: grava sobre a cena de agora, com a ordem calculada daqui.
-    const atual = cenaDe(sceneKey) ?? cena
-    gravarCena(sceneKey, {
-      ...comMudanca(atual, novos, { tipo: 'transformacao', texto, autor, tokenIds: [carta.tokenId], reversao: { tipo: 'composta', partes } }),
-      efeitos: comEfeitos(atual.efeitos, efeitos),
-    })
-    return true
-  }
-
-  /**
-   * Conserto das fichas F1 (bug 10, P6): o lembrete "Aplicar / pular" do
-   * custo por turno de uma FORMA ligada. Pular: só tira o lembrete. Aplicar
-   * com recurso: cobra (`ajustesDoCusto`) e marca `gastouSp`. Sem recurso: a
-   * forma desce uma Parte (`descerUmaParte`: da Parte 1, volta para a base).
-   * A reversão é [combate, ficha, forma]; o Desfazer devolve o lembrete.
-   */
-  const custoDaFormaNaVez = (
-    sceneKey: string,
-    cena: BatalhaDaCena,
-    autor: AutorDaAcao,
-    carta: CartaDaOrdem,
-    personagem: Personagem,
-    sistema: SistemaDeRpg,
-    pedido: Extract<PedidoDePassiva, { tipo: 'lembrete' }>,
-  ): boolean => {
-    const { turnos } = cena
-    if (motivoDoPedidoDoCusto({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null) return false
-    const personagemId = personagem.id
-    const combateAntes = turnos.combate?.[personagemId] ?? null
-    const combateBase = combateAntes ?? combateVazio()
-    const semOLembrete = semLembretes(combateBase, pedido.cartaoId)
-    if (!pedido.aplicar) {
-      gravarCena(sceneKey, comMudanca(cena, { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: semOLembrete } }, null))
-      return true
-    }
-    const cartao = formaDaFicha(personagem, sistema, pedido.cartaoId)
-    const custo = cartao === null ? null : custoPorTurno(cartao, personagem)
-    if (cartao === null || custo === null) return false
-    const quem = quemNaFicha(autor)
-    const nome = nomeNaBatalha(personagem, cartao, 'a forma')
-    const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
-    const partes: Reversao[] = []
-    let novos: TurnosDaCena
-    let texto: string
-    const paga = motivoDoCustoPorTurno(personagem, sistema, custo) === null
-    if (paga) {
-      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quem)
-      // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
-      if (doCusto === 'recusada') return false
-      const combate: CombateDoPersonagem = custoEmSp(custo) && semOLembrete.gastouSp !== true ? { ...semOLembrete, gastouSp: true } : semOLembrete
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
-      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
-      texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)})`
-    } else {
-      // Sem recurso (resposta da Ryoko): desce uma Parte. O cartão vem primeiro na reversão, como no Ativar da forma.
-      // Num objeto: a atribuição dentro do callback não estreita a variável de fora.
-      const descida: { anterior: CartaoDaFicha | null } = { anterior: null }
-      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
-        const feita = descerUmaParte(atual, sistemaDaMesa, cartao.id, quem, Date.now())
-        descida.anterior = feita?.anterior ?? null
-        return feita?.personagem ?? null
-      })
-      if (fichaMudou === null || fichaMudou === 'recusada') return false
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: semOLembrete })
-      partes.push(...reversaoDaFicha(personagemId, [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]))
-      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: semOLembrete } }
-      // A imagem da forma na carta: passa para a Parte anterior (se a de agora mostrava imagem) ou sai.
-      const formaAntes = turnos.formas?.[personagemId] ?? null
-      if (formaAntes !== null && formaAntes.cartaoId === cartao.id) {
-        partes.push({ tipo: 'forma', personagemId, antes: formaAntes })
-        const formas = { ...(novos.formas ?? {}) }
-        const voltou = descida.anterior
-        if (voltou === null) delete formas[personagemId]
-        else formas[personagemId] = { cartaoId: voltou.id, imagem: formaAntes.imagem === null ? null : voltou.imagem }
-        novos = { ...novos, formas }
-      }
-      const destino = descida.anterior
-      const recurso = recursoDoCusto(sistema, custo.recurso)?.nome ?? custo.recurso.toUpperCase()
-      texto = `${dono} sem ${recurso} para manter ${nome}: ${destino === null ? 'sai da forma' : `volta para ${nomeNaBatalha(personagem, destino, 'a Parte anterior')}`}`
-    }
-    const atual = cenaDe(sceneKey) ?? cena
-    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'transformacao', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
-    return true
-  }
-
-  /**
-   * F2 (revisão da fatia D): o lembrete "Aplicar / pular" da técnica MANTIDA
-   * (Giro da Lança, Campo de Contenção). Aplicar com recurso: cobra o custo da
-   * vez (`custoDaMantida`), marca `gastouSp` e, no Campo, +1 de Concentração
-   * (`manterNaVez`). Pular, ou Aplicar sem recurso: para (`pararAMantida`: a
-   * recarga começa agora) e os selos que a técnica pôs saem (ninguém fica
-   * preso no campo desligado). A reversão é [combate, ficha | selos].
-   */
-  const custoDaMantidaNaVez = (
-    sceneKey: string,
-    cena: BatalhaDaCena,
-    autor: AutorDaAcao,
-    carta: CartaDaOrdem,
-    personagem: Personagem,
-    sistema: SistemaDeRpg,
-    pedido: Extract<PedidoDePassiva, { tipo: 'lembrete' }>,
-  ): boolean => {
-    const { turnos } = cena
-    if (motivoDoPedidoDoCusto({ personagem, sistema, turnos, aplicarSoComLembrete: autor.tipo === 'jogador' }, pedido) !== null) return false
-    const personagemId = personagem.id
-    const combateAntes = turnos.combate?.[personagemId] ?? null
-    const semOLembrete = semLembretes(combateAntes ?? combateVazio(), pedido.cartaoId)
-    const mantida = mantidasComCusto(personagem, sistema, combateAntes ?? undefined).find(({ cartao }) => cartao.id === pedido.cartaoId)
-    if (mantida === undefined) return false
-    const { cartao, custo } = mantida
-    const nome = nomeNaBatalha(personagem, cartao, 'a técnica')
-    const dono = nomeDoTokenNa(turnos, mesaDoRpg().personagens)(carta.tokenId)
-    const partes: Reversao[] = []
-    let novos: TurnosDaCena
-    let texto: string
-    if (pedido.aplicar && motivoDoCustoPorTurno(personagem, sistema, custo) === null) {
-      const doCusto = mexerNaFicha(mesa, personagemId, (atual, sistemaDaMesa) => ajustesDoCusto(atual, sistemaDaMesa, custo), quemNaFicha(autor))
-      // Bug 11: o custo recusado não aplica (o lembrete fica esperando).
-      if (doCusto === 'recusada') return false
-      const mantido = manterNaVez(semOLembrete, cartao.id)
-      const combate: CombateDoPersonagem = custoEmSp(custo) && mantido.gastouSp !== true ? { ...mantido, gastouSp: true } : mantido
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: combate }, ...reversaoDaFicha(personagemId, doCusto))
-      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: combate } }
-      const daCarga = combate.carga === semOLembrete.carga ? '' : `; Concentração ${combate.carga}`
-      texto = `${dono} mantém ${nome} (paga ${textoDoCustoPorTurno(custo, sistema)}${daCarga})`
-    } else {
-      const parado = pararAMantida(semOLembrete, cartao)
-      const tirados = (turnos.selos ?? []).filter((selo) => selo.cartaoId === cartao.id)
-      partes.push({ tipo: 'combate', personagemId, antes: combateAntes, depois: parado }, ...tirados.map((selo): Reversao => ({ tipo: 'selo', seloId: selo.id, antes: selo })))
-      novos = { ...turnos, combate: { ...(turnos.combate ?? {}), [personagemId]: parado }, selos: (turnos.selos ?? []).filter((selo) => selo.cartaoId !== cartao.id) }
-      const recarga = parado.recargas[cartao.id]
-      const porque = pedido.aplicar ? `sem ${recursoDoCusto(sistema, custo.recurso)?.nome ?? custo.recurso.toUpperCase()} para manter` : 'parou'
-      texto = `${dono} ${porque} ${nome}${recarga === undefined ? '' : ` (recarga ${recarga})`}`
-    }
-    const atual = cenaDe(sceneKey) ?? cena
-    gravarCena(sceneKey, comMudanca(atual, novos, { tipo: 'habilidade', texto, autor, tokenIds: [carta.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }))
-    return true
   }
 
   /**
@@ -2761,96 +2410,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       return true
     },
 
-    decidirForma: (sceneKey, pendenteId, pedida) => {
-      const cena = cenaDe(sceneKey)
-      const sistema = mesa.sistema()
-      const pendente = cena?.turnos.formasPendentes?.find((candidata) => candidata.id === pendenteId)
-      if (cena === undefined || sistema === null || pendente === undefined) return false
-      const { turnos } = cena
-      const { personagemId } = pendente
-      const personagens = mesa.personagens()
-      const personagem = personagens.find((candidato) => candidato.id === personagemId)
-      const cartao = personagem === undefined ? null : cartaoPorId(personagem, pendente.cartaoId)
-      const valida = decisaoValida(pedida, sistema)
-      if (personagem === undefined || cartao === null || personagem.cartoesAtivos.includes(cartao.id) || 'motivo' in valida) return false
-      const { decisao } = valida
-      // 1) O cartão recebe os números do mestre (os modificadores trocam; a habilidade entra como subcartão).
-      // `as`: o callback escreve; sem ele o TypeScript fixaria `null` aqui.
-      let escrito = null as EscritoPelaDecisao | null
-      const escreveu = mesa.ajustarPersonagem(personagemId, (atual) => {
-        const doCartao = cartaoPorId(atual, cartao.id)
-        if (doCartao === null) return atual
-        const comDecisao = cartaoComADecisao(doCartao, decisao)
-        escrito = escritoNoCartao(comDecisao)
-        return comCartaoTrocado(atual, comDecisao)
-      })
-      if (!escreveu || escrito === null) return false
-      const partes: Reversao[] = [{ tipo: 'cartaoDaForma', personagemId, antes: cartao, escrito }]
-      // 2) A forma liga como no Ativar de sempre (os máximos, o atual, as do mesmo grupo).
-      let numeros: NumeroDaForma[] = []
-      let desligadas: string[] = []
-      const fichaMudou = trocarFicha(mesa, personagemId, (atual, sistemaDaMesa) => {
-        const feito = ativarForma(atual, sistemaDaMesa, cartao.id, NOME_DO_MESTRE, Date.now())
-        if (feito !== null) {
-          numeros = feito.numeros
-          desligadas = feito.desligadas.map((cartaoDesligado) => nomeNaBatalha(atual, cartaoDesligado, 'a forma'))
-        }
-        // Fatia C7 (revisão): a forma oculta que revela ao usar sai revelada, como no Ativar de sempre.
-        return feito === null ? null : (revelacaoAoUsar(feito.personagem, cartao.id) ?? feito.personagem)
-      })
-      if (fichaMudou === null || fichaMudou === 'recusada') {
-        // Não ligou: o cartão volta como era e nada mais muda.
-        mesa.ajustarPersonagem(personagemId, (atual) => comCartaoTrocado(atual, cartao))
-        return false
-      }
-      partes.push(...reversaoDaFicha(personagemId, [...fichaMudou.filter((parte) => parte.parte === 'cartao'), ...fichaMudou.filter((parte) => parte.parte !== 'cartao')]))
-      const imagem = pendente.trocarImagem ? cartao.imagem : null
-      const forma: FormaNaBatalha = { cartaoId: cartao.id, imagem }
-      // A Duração conta desde a vez do pedido, não desde a vez em que o mestre decidiu.
-      const vezes = duracaoDaForma(cartao)
-      if (vezes !== null) forma.duracao = { faltam: vezes, ligouNa: chaveDaVez(pendente.rodada, pendente.cartaId) }
-      partes.push({ tipo: 'forma', personagemId, antes: turnos.formas?.[personagemId] ?? null })
-      let novos: TurnosDaCena = { ...turnos, formas: { ...(turnos.formas ?? {}), [personagemId]: forma } }
-      const quemAge = nomeDoTokenNa(turnos, personagens)(pendente.tokenId)
-      // Fatia C7 (revisão): os números que o mestre decidiu para a forma oculta são do segredo (a linha e o efeito chegam a todos).
-      const oculta = ocultoNaBatalha(personagem, cartao)
-      const decidiu = oculta ? 'o mestre decidiu' : `o mestre decidiu: ${textoDaDecisao(decisao, sistema)}`
-      let texto = `${quemAge} ativa ${pendente.nome} · ${decidiu}${desligadas.length === 0 ? '' : ` · desliga ${desligadas.join(', ')}`}`
-      // F2b (Ignição): a troca que muda a Velocidade marca a carta para a virada, como no Ativar de sempre.
-      const depoisDaTroca = mesa.personagens().find((candidato) => candidato.id === personagemId)
-      if (depoisDaTroca !== undefined && fatorDaVelocidade(depoisDaTroca.cartoesAtivos) !== fatorDaVelocidade(personagem.cartoesAtivos)) {
-        const combateAntes = novos.combate?.[personagemId]
-        const depois: CombateDoPersonagem = { ...(combateAntes ?? combateVazio()), reordenarNaVirada: true }
-        partes.push({ tipo: 'combate', personagemId, antes: combateAntes ?? null, depois })
-        novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
-        texto = `${texto} · a ordem muda no começo da próxima rodada`
-      }
-      // 3) A pendência sai por último: o Desfazer a devolve primeiro.
-      partes.push({ tipo: 'formaDecidida', pendente })
-      novos = { ...novos, formasPendentes: (novos.formasPendentes ?? []).filter((candidata) => candidata.id !== pendente.id) }
-      const efeito: EfeitoNovo = { tipo: 'transformacao', tokenId: pendente.tokenId, forma: pendente.nome, imagem }
-      if (numeros.length > 0 && !oculta) efeito.numeros = numeros
-      const atual = cenaDe(sceneKey) ?? cena
-      gravarCena(sceneKey, {
-        ...comMudanca(atual, novos, { tipo: 'transformacao', texto, autor: MESTRE, tokenIds: [pendente.tokenId], personagemIds: [personagemId], reversao: { tipo: 'composta', partes } }),
-        efeitos: comEfeitos(atual.efeitos, [efeito]),
-      })
-      return true
-    },
-
-    cancelarForma: (sceneKey, pendenteId) => {
-      const cena = cenaDe(sceneKey)
-      const pendente = cena?.turnos.formasPendentes?.find((candidata) => candidata.id === pendenteId)
-      if (cena === undefined || pendente === undefined) return false
-      // É o Desfazer da linha do pedido: a pendência sai e a ação, os usos e o Overload voltam.
-      if (cena.registro.some((linha) => linha.id === pendente.linhaId)) return desfazerLinha(sceneKey, pendente.linhaId, MESTRE)
-      // A linha do pedido saiu do teto do registro: nada a devolver, mas a pendência não fica presa (o Desfazer a traz de volta).
-      const turnos: TurnosDaCena = { ...cena.turnos, formasPendentes: (cena.turnos.formasPendentes ?? []).filter((candidata) => candidata.id !== pendente.id) }
-      const texto = `Mestre recusou ${pendente.nome} de ${nomeDoTokenNa(cena.turnos, mesaDoRpg().personagens)(pendente.tokenId)} (o pedido já saiu do registro: a ação não volta)`
-      gravarCena(sceneKey, comMudanca(cena, turnos, { tipo: 'transformacao', texto, tokenIds: [pendente.tokenId], reversao: { tipo: 'formaDecidida', pendente } }))
-      return true
-    },
-
     reagir:(sceneKey, autor, pedido) => {
       const cena = cenaDe(sceneKey)
       if (cena === undefined) return false
@@ -3146,6 +2705,7 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     marcar: (sceneKey, autor, pedido) => marcarOAlvo(sceneKey, autor, pedido),
     ajustar: (sceneKey, autor, pedido) => comAvisoDeQuemCaiu(sceneKey, autor, ajustarNaBatalha(sceneKey, autor, pedido)),
     contador: (sceneKey, autor, pedido) => mexerNoContador(sceneKey, autor, pedido),
+    ...fatiaDasFormas.acoes,
   }
 }
 
