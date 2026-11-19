@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
+import { VezDoNpcNoCentro } from '../components/batalha/BatalhaDoMestre'
 import { Botao } from '../components/grimorio/Botao'
-import { Dialogo } from '../components/grimorio/Dialogo'
+import { chaveDaVez } from '../lib/batalha/combate'
+import { cartaDaVez } from '../lib/batalha/turnos'
+import { useBatalhaStore } from '../stores/batalhaStore'
 import { abrirMesaEmJanela, abrirMesaNoApp, fecharMesaNoApp, trazerMesaParaOApp, useMesaDaBatalha } from './controleDaJanela'
 import { aplicarPedido, assinarEspelho } from './mesa'
-import { MesaDaBatalha } from './MesaDaBatalha'
+import { MesaDaBatalha, type ItemDoMenuDaMesa } from './MesaDaBatalha'
+import { useTelaDaMesa } from './telaDaMesa'
 import type { EspelhoDaBatalha, PedidoDaMesa, RespostaDaMesa } from './tipos'
 
 /**
- * A MESA DA BATALHA no meio do app: um diálogo por cima do mapa (Esc ou o X
- * fecham, o foco volta a quem abriu). Com a janela à parte aberta, ele só diz
- * onde a mesa está e traz de volta. Montado uma vez no App.
+ * A MESA DA BATALHA no app (protótipo aprovado em 19/11/2026): durante a
+ * batalha ela fica encostada na direita do mapa, sem diálogo por cima. Com a
+ * janela à parte aberta, ou recolhida pelo mestre, sobra uma pílula no alto
+ * que diz onde ela está e a traz de volta. Montada uma vez no App.
  */
 
 function enviarAqui(pedido: PedidoDaMesa): Promise<RespostaDaMesa> {
@@ -23,57 +28,95 @@ function useEspelhoAoVivo(ligado: boolean): EspelhoDaBatalha | null {
   return espelho
 }
 
-export function TelaDaBatalhaNoApp() {
+/** Onde a mesa está agora, com a batalha ligada na cena aberta: na doca, recolhida ou na janela à parte. */
+export function useLugarDaMesa(emBatalha: boolean): 'doca' | 'recolhida' | 'janela' | null {
   const noApp = useMesaDaBatalha((state) => state.noApp)
   const emJanela = useMesaDaBatalha((state) => state.emJanela)
-  const espelho = useEspelhoAoVivo(noApp && !emJanela)
+  if (!emBatalha) return null
+  if (emJanela) return 'janela'
+  return noApp ? 'doca' : 'recolhida'
+}
+
+const ITENS_DA_DOCA: readonly ItemDoMenuDaMesa[] = [
+  { chave: 'janela', rotulo: 'Abrir em outra janela', onEscolher: () => void abrirMesaEmJanela() },
+  { chave: 'recolher', rotulo: 'Recolher a mesa', onEscolher: fecharMesaNoApp },
+]
+
+export function TelaDaBatalhaNoApp({ emBatalha }: { emBatalha: boolean }) {
+  const lugar = useLugarDaMesa(emBatalha)
+  const espelho = useEspelhoAoVivo(lugar === 'doca')
+  if (lugar === null) return null
+  if (lugar === 'janela') {
+    return (
+      <div className="mb-pilula-da-mesa" role="status">
+        <span>A mesa da batalha está na outra janela.</span>
+        <Botao tamanho="p" onClick={() => void abrirMesaEmJanela()}>
+          Mostrar a janela
+        </Botao>
+        <Botao tamanho="p" variante="fantasma" onClick={() => void trazerMesaParaOApp()}>
+          Trazer para o app
+        </Botao>
+      </div>
+    )
+  }
+  if (lugar === 'recolhida') {
+    return (
+      <div className="mb-pilula-da-mesa">
+        <span>Mesa da batalha recolhida.</span>
+        <Botao tamanho="p" variante="latao" onClick={abrirMesaNoApp}>
+          Mostrar a mesa
+        </Botao>
+      </div>
+    )
+  }
   return (
-    <Dialogo aberto={noApp} titulo="Mesa da batalha" onFechar={fecharMesaNoApp} classe="mb-dlg">
-      {emJanela ? (
-        <div className="mb-dlg-janela">
-          <p>A mesa da batalha está aberta na outra janela.</p>
-          <small>Ela pode estar atrás do app ou no outro monitor. Tudo o que você faz lá vale aqui na hora.</small>
-          <div>
-            <Botao variante="latao" onClick={() => void abrirMesaEmJanela()}>
-              Mostrar a janela
-            </Botao>
-            <Botao variante="fantasma" onClick={() => void trazerMesaParaOApp()}>
-              Trazer para cá
-            </Botao>
-          </div>
-        </div>
-      ) : (
-        <MesaDaBatalha
-          espelho={espelho}
-          enviar={enviarAqui}
-          acoesDoTopo={
-            <Botao tamanho="p" title="Abre a mesa numa janela do Windows à parte, que pode ir para o segundo monitor" onClick={() => void abrirMesaEmJanela()}>
-              Abrir em janela
-            </Botao>
-          }
-        />
-      )}
-    </Dialogo>
+    <aside className="mb-doca" aria-label="Mesa da batalha">
+      <MesaDaBatalha espelho={espelho} enviar={enviarAqui} lugar="doca" itensDoLugar={ITENS_DA_DOCA} />
+    </aside>
   )
 }
 
-/** Os botões que abrem a mesa (a página Batalha do livro, One Piece e Dragon Ball). */
+/**
+ * O menu da vez do NPC no meio do mapa (One Piece). Com a mesa à vista (doca ou
+ * janela), ele só abre quando a mesa pede (o golpe que pede escolha a mais:
+ * invocação, opção, área, custo à mão) e fecha sozinho quando a vez anda. Com a
+ * mesa recolhida, ele volta a abrir em toda vez de NPC, como antes da mesa.
+ */
+export function MenuDaVezSobPedido({ sceneKey, mesaAVista }: { sceneKey: string; mesaAVista: boolean }) {
+  const pedido = useTelaDaMesa((state) => state.menuDoMapa)
+  const chave = useBatalhaStore((state) => {
+    const cena = Object.hasOwn(state.cenas, sceneKey) ? state.cenas[sceneKey] : undefined
+    const carta = cena === undefined ? null : cartaDaVez(cena.turnos)
+    return cena === undefined || carta === null ? null : chaveDaVez(cena.turnos.rodada, carta.id)
+  })
+  const aberto = !mesaAVista || (pedido !== null && pedido.sceneKey === sceneKey && pedido.vez === chave)
+  return aberto ? <VezDoNpcNoCentro sceneKey={sceneKey} /> : null
+}
+
+/** Os botões da página Batalha do livro (One Piece e Dragon Ball): onde a mesa está e como trazê-la. */
 export function AbrirAMesaDaBatalha() {
   const emJanela = useMesaDaBatalha((state) => state.emJanela)
-  return (
-    <div className="mb-abrir" role="group" aria-label="Mesa da batalha">
-      <Botao variante="latao" largo onClick={emJanela ? () => void abrirMesaEmJanela() : abrirMesaNoApp}>
-        {emJanela ? 'Mostrar a janela da batalha' : 'Abrir a mesa da batalha'}
-      </Botao>
-      {emJanela ? (
+  const noApp = useMesaDaBatalha((state) => state.noApp)
+  if (emJanela) {
+    return (
+      <div className="mb-abrir" role="group" aria-label="Mesa da batalha">
+        <Botao variante="latao" largo onClick={() => void abrirMesaEmJanela()}>
+          Mostrar a janela da batalha
+        </Botao>
         <Botao variante="fantasma" onClick={() => void trazerMesaParaOApp()}>
           Trazer para o app
         </Botao>
-      ) : (
-        <Botao variante="fantasma" title="Abre a mesa numa janela do Windows à parte, que pode ir para o segundo monitor" onClick={() => void abrirMesaEmJanela()}>
-          Em janela
-        </Botao>
-      )}
+      </div>
+    )
+  }
+  return (
+    <div className="mb-abrir" role="group" aria-label="Mesa da batalha">
+      <Botao variante="latao" largo onClick={noApp ? fecharMesaNoApp : abrirMesaNoApp}>
+        {noApp ? 'Recolher a mesa da batalha' : 'Mostrar a mesa da batalha'}
+      </Botao>
+      <Botao variante="fantasma" title="Abre a mesa numa janela do Windows à parte, que pode ir para o segundo monitor" onClick={() => void abrirMesaEmJanela()}>
+        Em janela
+      </Botao>
     </div>
   )
 }
