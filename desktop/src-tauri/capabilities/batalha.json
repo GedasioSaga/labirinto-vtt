@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "batalha",
+  "description": "Janela da mesa da batalha (src/janela_batalha.rs): só mostra o espelho que a main manda pelo BroadcastChannel e devolve pedidos. Só ouvir evento; sem fs, dialog, emitir evento, updater, process nem comando do app.",
+  "windows": ["batalha"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

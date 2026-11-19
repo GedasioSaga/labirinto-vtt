@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Batalha · Labirinto</title>
+    <!--
+      Janela da MESA DA BATALHA (desktop/src-tauri/src/janela_batalha.rs): a
+      batalha numa janela à parte, falando com a principal pelo fio de
+      src/batalhaJanela/. O escuro nasce aqui, embutido, pelo mesmo motivo de
+      preludio.html: em dev o CSS chega por script, e a janela não pode piscar
+      branca enquanto o módulo carrega.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: var(--lb-color-ink, #121214);
+        color: var(--lb-color-parchment, #eceae4);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/batalhaJanela/entrada.tsx"></script>
+  </body>
+</html>

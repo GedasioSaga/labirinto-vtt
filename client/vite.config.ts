@@ -134,6 +134,8 @@ export default defineConfig({
         player: 'player.html',
         visaoJogador: 'visao-jogador.html',
         preludio: 'preludio.html',
+        // A mesa da batalha numa janela à parte (desktop/src-tauri/src/janela_batalha.rs).
+        batalha: 'batalha.html',
       },
     },
   },

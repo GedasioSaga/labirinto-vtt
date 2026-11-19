@@ -126,8 +126,22 @@ function useMesa(sceneKey: string): Mesa {
   return { cena, fichas, tamanhoDaCasa, personagens, equipes, sistema, rotulos }
 }
 
+/** A mesa da cena lida AGORA, fora do React: a mesma do `useMesa`, para a mesa da batalha (`batalhaJanela/espelhoOP.ts`). */
+export type MesaDaCena = Mesa
+export function mesaAgora(sceneKey: string): Mesa {
+  const batalha = useBatalhaStore.getState()
+  const cena = Object.hasOwn(batalha.cenas, sceneKey) ? batalha.cenas[sceneKey] : undefined
+  const { map } = useMapStore.getState()
+  const aventura = useAdventureStore.getState()
+  const daAventura = personagensAtivos(aventura)
+  const personagens = mochilaMoraNaFicha(aventura) ? daAventura : fichasComAsMochilasDosBonecos(daAventura, map.tokens)
+  const sistema = sistemaPorId(useRpgStore.getState().biblioteca, sistemaAtivo(aventura)) ?? null
+  const rotulos = nomesNumerados(map.tokens.map((ficha) => ({ id: ficha.id, nome: ficha.name })))
+  return { cena, fichas: map.tokens, tamanhoDaCasa: map.grid, personagens, equipes: equipesAtivas(aventura), sistema, rotulos }
+}
+
 /** Ficha que o mestre move: sem personagem, ou de personagem NPC. */
-function ehDoMestre(personagemId: string | null, personagens: readonly Personagem[]): boolean {
+export function ehDoMestre(personagemId: string | null, personagens: readonly Personagem[]): boolean {
   if (personagemId === null) return true
   return personagens.find((personagem) => personagem.id === personagemId)?.tipo === 'npc'
 }
@@ -166,7 +180,7 @@ function comATrava<T extends { motivo: string | null }>(lista: T[], trava: strin
  * num lugar só, para a aba Batalha e o menu do centro (`VezDoNpcNoCentro`)
  * mostrarem o mesmo.
  */
-function golpesDaVezDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaDaOrdem, personagem: Personagem | null, acoes: ReturnType<typeof acoesDaCarta>) {
+export function golpesDaVezDoNpc(mesa: Mesa, turnos: TurnosDaCena, carta: CartaDaOrdem, personagem: Personagem | null, acoes: ReturnType<typeof acoesDaCarta>) {
   const { sistema } = mesa
   const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
   // Construtor C8: a arma padrão da ficha entra no "Dano da arma" das técnicas (sem padrão, a 1ª levada).
@@ -189,7 +203,7 @@ function mirarNoMapaDoMestre(mirando: boolean): void {
 }
 
 /** A sugestão do app para a vez do NPC, na forma que o menu e o painel leem: a chave do golpe e o alvo. */
-function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | null): { chave: string | null; alvoTokenId: string | null } {
+export function sugestaoNaTela(sugestao: ReturnType<typeof sugestaoParaNpc> | null): { chave: string | null; alvoTokenId: string | null } {
   if (sugestao === null) return { chave: null, alvoTokenId: null }
   return { chave: sugestao.cartaoId !== null ? `tecnica:${sugestao.cartaoId}` : sugestao.armaId !== null ? `arma:${sugestao.armaId}` : null, alvoTokenId: sugestao.alvoTokenId }
 }

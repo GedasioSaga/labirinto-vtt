@@ -31,6 +31,8 @@ import {
 import { assinarLugarDaAventura, assinarTudoSalvo, iniciarBatalhaSalva, lugarDaAventura, tudoSalvoNoApp, type BatalhaSalvaNaMesa, type OfertaDaBatalhaSalva } from './stores/batalhaSalvaNaMesa'
 import { apagarBatalhaSalva, gravarBatalhaSalva, lerBatalhaSalva } from './lib/batalha/batalhaSalvaNoDisco'
 import { RetomarBatalhaDialog } from './components/batalha/RetomarBatalhaDialog'
+import { AbrirAMesaDaBatalha, TelaDaBatalhaNoApp } from './batalhaJanela/TelaDaBatalhaNoApp'
+import { iniciarMesaDaBatalha } from './batalhaJanela/controleDaJanela'
 import { mesaDaAventura } from './stores/mesaDaAventura'
 import { seguirAPastaDasCondicoes } from './stores/condicoesPropriasStore'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -1714,6 +1716,9 @@ function App() {
   const paginaDaBatalhaDBT = batalhaDBTNaCenaAberta || (mesaDragonBall && !batalhaNaCenaAberta)
   /** BATALHA DBT: o Judge da cena e o soltar dele (nasce sozinho na batalha que ligou sem ele). */
   const judgeDBT = useJudgeDBT(chaveDaCenaAberta, aventuraDoJudge)
+  // Pedido de 18/11: a mesa da batalha (diálogo do meio ou janela à parte). O fio liga na montagem: a janela que sobreviveu
+  // ao F5 da principal volta a receber o estado antes do primeiro clique.
+  useEffect(() => iniciarMesaDaBatalha((texto) => useToastStore.getState().push('info', texto)), [])
   /** INVOCAÇÃO F3: o "Escolher no mapa" do Colocar (a cena da colocação armada). */
   const cenaDaColocacao = useColocacaoDoMestre((state) => state.armada?.sceneKey ?? null)
   const colocandoInvocado = batalhaNaCenaAberta && cenaDaColocacao === chaveDaCenaAberta
@@ -3493,6 +3498,7 @@ function App() {
       <Toast toasts={toasts} onDismiss={dismissToast} onPausar={pausarAvisos} onRetomar={retomarAvisos} />
       {unsavedDialog}
       {screen === 'editor' && <FaixaDaColocacao />}
+      {screen === 'editor' && <TelaDaBatalhaNoApp />}
       <LerJuntoDoMestre />
       {screen === 'editor' && ofertaDaBatalha !== null && (
         <RetomarBatalhaDialog
@@ -4890,11 +4896,15 @@ function App() {
         // BATALHA DBT: a página pelo motor do sistema da mesa; uma página só = um Shift+B só.
         // A batalha que a cena JÁ tem manda: nenhuma fica sem página para encerrar (a mesa trocou de sistema no meio).
         batalha={
-          paginaDaBatalhaDBT ? (
-            <PaginaDaBatalhaDBT sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
-          ) : (
-            <PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
-          )
+          <>
+            {/* Pedido de 18/11: a mesa da batalha própria, no meio do app ou numa janela à parte. */}
+            {(batalhaNaCenaAberta || batalhaDBTNaCenaAberta) && <AbrirAMesaDaBatalha />}
+            {paginaDaBatalhaDBT ? (
+              <PaginaDaBatalhaDBT sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
+            ) : (
+              <PaginaDaBatalha sceneKey={chaveDaCenaAberta} gridShape={map.gridShape} aventuraId={adventure?.id ?? null} />
+            )}
+          </>
         }
         // BATALHA F2 (S9, Q7): vez de NPC ou reação de NPC esperando acende o contador do marcador Batalha.
         esperandoNaBatalha={esperandoNaBatalha}

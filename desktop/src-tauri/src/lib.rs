@@ -2,6 +2,7 @@ use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 
 pub mod ia;
+pub mod janela_batalha;
 pub mod janela_preludio;
 pub mod net;
 pub mod nuvem;
@@ -77,6 +78,9 @@ pub fn run() {
             // Prelúdio em janela própria: abrir/fechar só da main; o disco só da janela dele.
             janela_preludio::abrir_janela_preludio,
             janela_preludio::fechar_janela_preludio,
+            // Mesa da batalha em janela própria: abrir/fechar só da main; a janela só mostra e pede pelo canal.
+            janela_batalha::abrir_janela_batalha,
+            janela_batalha::fechar_janela_batalha,
             preludio::disco_da_janela::preludio_disco_existe,
             preludio::disco_da_janela::preludio_disco_ler,
             preludio::disco_da_janela::preludio_disco_listar,
@@ -121,6 +125,7 @@ pub fn run() {
         tauri::RunEvent::WindowEvent { label, event, .. } => {
             visao_jogador::ao_evento_de_janela(handle, &label, &event);
             janela_preludio::ao_evento_de_janela(handle, &label, &event);
+            janela_batalha::ao_evento_de_janela(handle, &label, &event);
         }
         _ => {}
     });
