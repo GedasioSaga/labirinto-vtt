@@ -398,6 +398,12 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const vezDoPedido = (pedido: PedidoDeAcao): VezEsperada | null => (pedido.tipo !== 'concentrar' && pedido.contraDe !== undefined ? null : vez === null ? null : { cartaId: vez, rodada: estado.rodada })
   const mostrarMenu = cartaQueAge !== undefined && menu !== null && (estado.minhaVez || contras.length > 0) && palco !== 'suaVez'
   const noPalco = palco === null ? undefined : 'sim'
+  // Conserto de 19/11/2026 (o contra-ataque): a vez dele ESPERA quem ganhou o contra-ataque nesta vez escolher o golpe. O
+  // menu da vez fica montado atrás (sem clique nem mira), com o que já estava aberto, e volta igual quando o contra sai.
+  const esperaContra = estado.minhaVez ? estado.esperaContra : undefined
+  const esperandoOContra = esperaContra !== undefined
+  // O contra-ataque dele fora da vez abre no MEIO do mapa (onde estava a caixa REAÇÃO), não na coluna do menu da vez.
+  const contraNoMeio = !estado.minhaVez && contras.length > 0 ? 'sim' : undefined
 
   // O menu mora à esquerda, centrado na altura, mas começa abaixo da faixa da
   // ordem (`.pp-batalha-faixa`, montada pelo PlayerView): a altura dela muda com
@@ -407,7 +413,7 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
   const lugarDosLembretes = useRef<HTMLDivElement>(null)
   const comEspera = esperandoOMestre.length > 0 && conexao.invocar !== undefined
   const comFormaEsperando = formasEsperando.length > 0
-  const comLembretes = lembretes.length > 0 || marcas.length > 0 || ((comEspera || comFormaEsperando) && !mostrarMenu)
+  const comLembretes = lembretes.length > 0 || marcas.length > 0 || ((comEspera || comFormaEsperando) && !mostrarMenu) || esperandoOContra
   useLayoutEffect(() => {
     const menuNaTela = lugarDoMenu.current
     const avisos = lugarDosLembretes.current
@@ -452,10 +458,11 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
         onPalco={setPalco}
         vidaDe={vidaDe}
       />
-      {mostrarMenu && <div className="pp-batalha-veu" aria-hidden="true" data-palco={noPalco} />}
+      {mostrarMenu && !esperandoOContra && <div className="pp-batalha-veu" aria-hidden="true" data-palco={noPalco} />}
       {mostrarMenu && (
-        <div ref={lugarDoMenu} className="pp-batalha-menu" data-palco={noPalco}>
+        <div ref={lugarDoMenu} className="pp-batalha-menu" data-palco={noPalco} data-contra={contraNoMeio} data-espera={esperandoOContra ? 'sim' : undefined} inert={esperandoOContra}>
           <MenuDaVez
+            atras={esperandoOContra}
             key={estado.minhaVez ? `${vez}:${estado.rodada}` : 'contra'}
             formasEsperando={formasEsperando}
             quem={cartaQueAge.nome.trim() || 'Você'}
@@ -493,8 +500,14 @@ export function BatalhaDoJogador({ estado, efeitos = SEM_EFEITOS, meus = NINGUEM
           />
         </div>
       )}
-      {comLembretes && (conexao.passiva !== undefined || comEspera || comFormaEsperando || marcas.length > 0) && (
+      {comLembretes && (conexao.passiva !== undefined || comEspera || comFormaEsperando || marcas.length > 0 || esperandoOContra) && (
         <div ref={lugarDosLembretes} className="pp-batalha-lembretes" data-palco={noPalco}>
+          {esperaContra !== undefined && (
+            <p className="bt-vez__espera" role="status">
+              <span className="bt-vez__espera-ponto" aria-hidden="true" />
+              {esperaContra.tokenId === null ? 'Alguém fora da vista' : nomeDe(esperaContra.tokenId)} contra-atacou: esperando o golpe. Depois a vez volta para você.
+            </p>
+          )}
           {comFormaEsperando && !mostrarMenu && (
             <p className="bt-vez__espera" role="status">
               <span className="bt-vez__espera-ponto" aria-hidden="true" />

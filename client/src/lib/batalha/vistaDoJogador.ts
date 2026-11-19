@@ -50,7 +50,7 @@ import { escudoMaisAlto, registroParaJogador, type LinhaDoRegistro, type LinhaPa
 import { BLOCOS_POR_RANK_PADRAO, regrasParaOFio, type RegrasDaBatalha } from './regrasDoCampo'
 import { ehAlvoDeMod, ehNomeDeSelo, selosDoToken, type SeloQueSoma } from './selos'
 import { aparenciaDaForma, formaNaVez, nomeDaFormaLigada } from './transformacao'
-import { cartaDaVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
+import { cartaDaVez, contrasQueSeguramAVez, proximaCarta, tokensCaidos, turnoNoM, type CartaDaOrdem, type DuracaoDaExtra, type TurnoNoM, type TurnosDaCena } from './turnos'
 
 /**
  * O RECORTE DA BATALHA PARA UM JOGADOR (F1, seções 2.1 e 3.2 do plano): o que
@@ -187,6 +187,13 @@ export interface EstadoParaJogador {
   golpes?: GolpeParaJogador[]
   /** F2 (Q6): contra-ataques ganhos por ficha dele e ainda não usados. */
   contras?: ContraParaJogador[]
+  /**
+   * Conserto de 19/11/2026: só com `minhaVez`, a vez dele ESPERA o
+   * contra-ataque que outra ficha (NPC, colega) ganhou nesta vez escolher o
+   * golpe. `tokenId` = quem contra-ataca, se a tela dele tem a ficha; `null` =
+   * fora da vista ("alguém"). Ausente = não espera nada.
+   */
+  esperaContra?: { tokenId: string | null }
   /** F3 (fatia J): onde o Judge está, só `{ x, y }` (a direção cada tela calcula). Sempre que a batalha tem Judge. */
   judge?: JudgeNaCena
   /**
@@ -960,6 +967,9 @@ export function vistaParaJogador(cena: BatalhaEmTurnos, ctx: ContextoDoJogador):
   if (golpesVistos.length > 0) estado.golpes = golpesVistos
   const contras = contrasParaJogador(cena, ctx)
   if (contras.length > 0) estado.contras = contras
+  // Conserto de 19/11: a vez dele espera o contra-ataque de outra ficha, ganho nesta vez.
+  const segura = minhaVez ? contrasQueSeguramAVez(turnos).find((contra) => !fichaMinha(contra.tokenId, contra.personagemId, ctx)) : undefined
+  if (segura !== undefined) estado.esperaContra = { tokenId: ctx.tokensNoRecorte.has(segura.tokenId) ? segura.tokenId : null }
   // F3: só x e y, campo a campo (nada mais que a cena guarde do Judge sai junto).
   if (cena.judge !== undefined) estado.judge = { x: cena.judge.x, y: cena.judge.y }
   // F3 (fatia T): as imagens de forma só das fichas cujas cartas saem.

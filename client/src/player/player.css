@@ -1018,6 +1018,18 @@
 .pp-batalha-menu > * {
   pointer-events: auto;
 }
+/*
+ * Conserto de 19/11/2026 (o contra-ataque): fora da vez, o contra-ataque dele abre no MEIO do mapa à vista (onde
+ * estava a caixa REAÇÃO): o lugar vai até a borda direita e centra o menu, sem `transform` (a mira precisa da janela
+ * como bloco). Com a vez dele esperando o contra-ataque de outra ficha, o menu da vez fica montado e escondido.
+ */
+.pp-batalha-menu[data-contra='sim'] {
+  right: calc(var(--pp-edge, 12px) + 12px);
+  align-items: center;
+}
+.pp-batalha-menu[data-espera='sim'] {
+  visibility: hidden;
+}
 /* A altura é a do lugar (não os 78vh do componente): as tiras só rolam se não couberem. */
 .pp-batalha-menu > .bt-vez {
   max-height: 100%;

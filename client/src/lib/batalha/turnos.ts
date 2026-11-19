@@ -135,6 +135,26 @@ export function cartaDaVez(turnos: TurnosDaCena): CartaDaOrdem | null {
   return turnos.cartas.find((carta) => carta.id === turnos.vez) ?? null
 }
 
+/** Q6: o contra-ataque que nasce agora, carimbado com a vez e a rodada de agora (a vez espera por ele). */
+export function contraGanhoAgora(turnos: Pick<TurnosDaCena, 'vez' | 'rodada'>, ganho: Omit<ContraAtaque, 'rodada' | 'vez'>): ContraAtaque {
+  return turnos.vez === null ? { ...ganho, rodada: turnos.rodada } : { ...ganho, rodada: turnos.rodada, vez: turnos.vez }
+}
+
+/**
+ * Conserto de 19/11/2026 ("acertou o contra-ataque e nada acontece: é para ir
+ * para quem acertou o contra-ataque escolher o golpe e então voltar para quem
+ * fez o primeiro ataque"): os contra-ataques ganhos NESTA vez (mesma carta,
+ * mesma rodada) por outra ficha que não a da vez. Enquanto houver um, quem
+ * tem a vez espera: a escolha é de quem contra-ataca; usado (golpe, técnica
+ * ou Mover), a vez segue do ponto em que estava. O guardado de outra vez não
+ * segura nada (fica só no menu do dono, como antes).
+ */
+export function contrasQueSeguramAVez(turnos: TurnosDaCena): ContraAtaque[] {
+  const daVez = cartaDaVez(turnos)
+  if (daVez === null) return []
+  return (turnos.contras ?? []).filter((contra) => contra.vez === daVez.id && contra.rodada === turnos.rodada && contra.tokenId !== daVez.tokenId)
+}
+
 /**
  * "Turno N/M". Com `visivel`, conta só as cartas que passam (o recorte do
  * jogador, decisão Q1): `m` = quantas ele vê, `n` = a posição da vez entre

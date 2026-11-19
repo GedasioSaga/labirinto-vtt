@@ -1277,11 +1277,24 @@ export function lerEstadoParaJogador(value: unknown): EstadoParaJogador | null {
   // C8/C9: os retratos dos colegas, só referência de mídia (curta), de fichas com carta na lista.
   const retratos = opcional(value.retratos, (item) => lerAparencias(item, tokensDasCartas, ehRefDeMidia))
   if (retratos === null) return null
+  // Conserto de 19/11: a vez dele espera o contra-ataque de outra ficha (só na vez dele; quem contra-ataca, carta da lista ou fora da vista).
+  const esperaContra = opcional(value.esperaContra, (item) => lerEsperaDoContra(item, tokensDasCartas))
+  if (esperaContra === null || (esperaContra !== undefined && !minhaVez)) return null
   const estado: EstadoParaJogador = { rodada, turno: { n, m }, vez, proxima, minhaVez, vezForaDaVista, cartas: cartasLidas, registro: linhas, regras: regrasLidas, ...daF2 }
   if (judge !== undefined) estado.judge = judge
   if (aparencias !== undefined) estado.aparencias = aparencias
   if (retratos !== undefined) estado.retratos = retratos
+  if (esperaContra !== undefined) estado.esperaContra = esperaContra
   return estado
+}
+
+/** `{ tokenId }`: o token de uma carta da lista; o que não é carta dela vira "alguém" (`null`). Torto = `null` do leitor. */
+function lerEsperaDoContra(value: unknown, tokensDasCartas: ReadonlySet<string>): { tokenId: string | null } | null {
+  if (!isRecord(value)) return null
+  const { tokenId } = value
+  if (tokenId === null) return { tokenId: null }
+  if (!textoAte(tokenId, 1, ID_DA_BATALHA_MAX)) return null
+  return { tokenId: tokensDasCartas.has(tokenId) ? tokenId : null }
 }
 
 /** F3: tokenId → imagem da forma (referência de mídia ou a embutida). Token sem carta na lista = forjado; vazio também. */

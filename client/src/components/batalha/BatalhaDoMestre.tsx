@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motivoDoConcentrar } from '../../lib/batalha/acoes'
-import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
+import { ALVO_DA_REACAO, chaveDaVez, partesDoBonus, type ContraAtaque, type FormaPendente, type PedidoDeAcao } from '../../lib/batalha/combate'
 import { equipeDe } from '../../lib/batalha/equipes'
 import { motivoDoEvoluir } from '../../lib/batalha/escolhaEEvolucao'
 import { acoesDaCarta, sugestaoParaNpc } from '../../lib/batalha/golpe'
@@ -15,7 +15,7 @@ import { reacoesParaOAlvo, reacoesPorPerto } from '../../lib/batalha/reacaoComTe
 import { alvosDeMod, bonusDaBatalha, bonusDaReacao, selosDoToken, textoDoSelo, textoDoSeloComMods, textoDosMods } from '../../lib/batalha/selos'
 import { aparenciaDaForma, formasNoMenu } from '../../lib/batalha/transformacao'
 import { formasComODecidirDoMestre } from '../../lib/batalha/mecanica/formaDoMestre'
-import { cartaDaVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
+import { cartaDaVez, contrasQueSeguramAVez, tokensCaidos, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import type { Personagem } from '../../lib/personagem'
 import type { SistemaDeRpg } from '../../lib/sistemaDeRpg'
 import { vidasDaCena } from '../../lib/vidaDaFicha'
@@ -219,15 +219,117 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const mesa = useMesa(sceneKey)
   const pedidos = usePedidosDoMestre(sceneKey)
   const alvoDoMapa = useMiraDoMestre((state) => state.alvo)
-  const { cena, personagens, sistema, equipes } = mesa
+  const { cena, personagens } = mesa
   const turnos = cena?.turnos
   const passarAVez = usePassarVezDoMestre(sceneKey, turnos)
   // Pedido de 10/11: a carta REAÇÃO no centro vem na frente (não trava a vez: ela passa e o golpe espera a virada); o
   // menu (e a mira) esperam atrás, com o estado.
-  const atras = useReacaoNoCentro((state) => state.naFrente)
-  const carta = turnos === undefined ? null : cartaDaVez(turnos)
-  if (cena === undefined || turnos === undefined || carta === null || carta.bando !== undefined || !ehDoMestre(carta.personagemId, personagens)) return null
+  const atrasDaReacao = useReacaoNoCentro((state) => state.naFrente)
+  // Conserto de 19/11: o "Seguir sem esperar" do mestre (o jogador que contra-atacou sumiu): só nesta tela; o contra fica guardado com ele.
+  const [semEsperar, setSemEsperar] = useState<ReadonlySet<string>>(NENHUM_CONTRA)
+  if (cena === undefined || turnos === undefined) return null
+  const carta = cartaDaVez(turnos)
+  const vezDoNpc = carta !== null && carta.bando === undefined && ehDoMestre(carta.personagemId, personagens)
+  // Conserto de 19/11/2026 ("acertou o contra-ataque e nada acontece"): o contra-ataque ganho NESTA vez passa a escolha a
+  // quem contra-atacou. NPC: o menu do contra-ataque abre aqui, no meio; jogador: a escolha é na tela dele, e o mestre
+  // espera. A vez do NPC fica montada atrás (com o que estava aberto) e volta igual quando o contra sai.
+  const seguram = contrasQueSeguramAVez(turnos)
+  const contraDoNpc = seguram.find((contra) => ehDoMestre(contra.personagemId, personagens) && turnos.cartas.some((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined))
+  const contraDeJogador = seguram.find((contra) => !ehDoMestre(contra.personagemId, personagens) && !semEsperar.has(contra.golpeId))
+  const atrasDoContra = contraDoNpc !== undefined || contraDeJogador !== undefined
+  return (
+    <>
+      {vezDoNpc && carta !== null && (
+        <MenuDaVezDoNpc mesa={mesa} pedidos={pedidos} turnos={turnos} carta={carta} alvoDoMapa={alvoDoMapa} passarAVez={passarAVez} atras={atrasDaReacao || atrasDoContra} />
+      )}
+      {contraDoNpc !== undefined && <ContraDoNpcNoCentro mesa={mesa} pedidos={pedidos} turnos={turnos} contra={contraDoNpc} alvoDoMapa={alvoDoMapa} atras={atrasDaReacao} />}
+      {vezDoNpc && contraDoNpc === undefined && contraDeJogador !== undefined && (
+        <div className="bt-centro-do-mestre" data-contra="sim" data-atras={atrasDaReacao ? 'sim' : undefined} inert={atrasDaReacao}>
+          <div className="bt-espera-do-contra" role="status">
+            <p className="bt-vez__espera">
+              <span className="bt-vez__espera-ponto" aria-hidden="true" />
+              {nomeDaFicha(mesa, contraDeJogador.tokenId)} contra-atacou: a escolha do golpe é na tela do jogador. Depois a vez volta para {nomeDaFicha(mesa, carta.tokenId, carta)}.
+            </p>
+            <button type="button" className="bt-botao bt-botao--p" onClick={() => setSemEsperar((antes) => new Set([...antes, contraDeJogador.golpeId]))}>
+              Seguir sem esperar
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
+/** Nenhum contra-ataque dispensado pelo "Seguir sem esperar" (a mesma lista vazia, para o estado não mudar à toa). */
+const NENHUM_CONTRA: ReadonlySet<string> = new Set()
+
+/**
+ * Conserto de 19/11/2026: o contra-ataque do NPC (Q6) no MEIO do mapa do mestre, o mesmo `MenuDaVez` do jogador fora
+ * da vez: Atacar, Habilidade ou Mover, sem gastar a vez, com quem atacou já marcado na mira. O golpe resolve como um
+ * golpe comum (custo da técnica, reação do alvo); usado, a vez volta para quem atacou primeiro.
+ */
+function ContraDoNpcNoCentro({ mesa, pedidos, turnos, contra, alvoDoMapa, atras }: { mesa: Mesa; pedidos: PedidosDaVez; turnos: TurnosDaCena; contra: ContraAtaque; alvoDoMapa: { tokenId: string; seq: number } | null; atras: boolean }) {
+  const carta = turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
+  if (carta === undefined) return null
+  const { personagens, sistema } = mesa
+  const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
+  const arma = armaPadraoNaBatalha(personagem, combate)
+  const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
+  const trava = travaDoToken(turnos.selos, carta.tokenId)
+  // Fora da vez: a ação da vez não conta (`acoes` null), como no contra-ataque do jogador.
+  const habilidades = comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, null, arma, bonus) : [], trava)
+  const armas = comATrava(golpesDeAtaque(personagem, sistema, combate, null, bonus), trava)
+  return (
+    <div className="bt-centro-do-mestre" data-contra="sim" data-limite-da-leitura data-atras={atras ? 'sim' : undefined} inert={atras}>
+      <MenuDaVez
+        atras={atras}
+        key={`contra:${contra.golpeId}`}
+        quem={nomeDaFicha(mesa, carta.tokenId, carta)}
+        acoes={null}
+        carga={combate?.carga ?? 0}
+        motivoDoConcentrar="Fora da vez"
+        armas={armas}
+        habilidades={habilidades}
+        golpesDoContra={{ armas, habilidades }}
+        alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
+        contras={[{ golpeId: contra.golpeId, rotulo: `contra ${nomeDaFicha(mesa, contra.atacanteTokenId)}` }]}
+        avisoDaRecusa={RECUSA_SEM_MOTIVO}
+        motivoDaRecusa={(pedido) => pedidos.motivoDoAgir(null, pedido)}
+        doMestre
+        sugestao={{ chave: null, alvoTokenId: contra.atacanteTokenId }}
+        onAgir={(pedido) => pedidos.agir(null, pedido)}
+        alvoDoMapa={alvoDoMapa}
+        onMirando={mirarNoMapaDoMestre}
+        consulta={consultaDoMestre}
+        personagemId={carta.personagemId}
+        travado={trava}
+      />
+    </div>
+  )
+}
+
+/** O menu da vez do NPC no centro (pedido de 09/11, item 5). `atras` = a carta REAÇÃO ou um contra-ataque na frente. */
+function MenuDaVezDoNpc({
+  mesa,
+  pedidos,
+  turnos,
+  carta,
+  alvoDoMapa,
+  passarAVez,
+  atras,
+}: {
+  mesa: Mesa
+  pedidos: PedidosDaVez
+  turnos: TurnosDaCena
+  carta: CartaDaOrdem
+  alvoDoMapa: { tokenId: string; seq: number } | null
+  passarAVez: () => boolean
+  atras: boolean
+}) {
+  const { personagens, sistema, equipes } = mesa
+  const cena = mesa.cena
+  if (cena === undefined) return null
   const { personagemId, tokenId } = carta
   const personagem = personagemId === null ? null : (personagens.find((candidato) => candidato.id === personagemId) ?? null)
   const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena.regras })
@@ -238,6 +340,14 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
   const passivas = passivasNaCena(personagem, sistema, turnos, tokenId)
   // Achado 6: a sugestão do app chega ao menu do centro (a marca na tira e o alvo já marcado na mira).
   const sugestao = personagem === null ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
+  // Conserto de 19/11: o contra-ataque que o próprio NPC da vez guarda entra no menu dele ("Contra-ataque · Guardado"), como no jogador.
+  const guardados = (turnos.contras ?? []).filter((contra) => contra.tokenId === tokenId)
+  const arma = armaPadraoNaBatalha(personagem, combate)
+  const bonus = bonusDaBatalha(turnos.selos, tokenId)
+  const golpesDoContra =
+    guardados.length === 0
+      ? undefined
+      : { armas: comATrava(golpesDeAtaque(personagem, sistema, combate, null, bonus), trava), habilidades: comATrava(personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, null, arma, bonus) : [], trava) }
   return (
     <div className="bt-centro-do-mestre" data-limite-da-leitura data-atras={atras ? 'sim' : undefined} inert={atras}>
       <MenuDaVez
@@ -249,6 +359,8 @@ export function VezDoNpcNoCentro({ sceneKey }: { sceneKey: string }) {
         motivoDoConcentrar={trava ?? motivoDoConcentrar(combate, acoes, chaveDaVez(turnos.rodada, carta.id))}
         armas={armas}
         habilidades={habilidades}
+        contras={guardados.length === 0 ? undefined : guardados.map((contra) => ({ golpeId: contra.golpeId, rotulo: `contra ${nomeDaFicha(mesa, contra.atacanteTokenId)}` }))}
+        golpesDoContra={golpesDoContra}
         alvos={alvosDaOrdem(mesa, turnos.cartas, carta)}
         avisoDaRecusa={RECUSA_SEM_MOTIVO}
         // Conserto de 09/11 (a Bolha): toda recusa da regra chega ao mestre com o motivo dela.

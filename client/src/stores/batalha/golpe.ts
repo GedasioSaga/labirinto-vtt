@@ -49,7 +49,7 @@ import { fichaComAMochilaDoBoneco } from '../../lib/batalha/municaoDaFicha'
 import type { MesaDaBatalha } from '../../lib/batalha/mesa'
 import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida, rolarComVantagem, rolarODadoDaEsquiva, saidaDoPassar, saidasDaRolagem } from '../../lib/batalha/reacao'
 import { escudoMaisAlto, nomeDoAutor, novoIdDeLinha, type Reversao, type TipoDaLinha } from '../../lib/batalha/registro'
-import { cartaDaVez, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
+import { cartaDaVez, contraGanhoAgora, type AcoesExtras, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../../lib/batalha/turnos'
 import { revelacaoAoUsar } from '../../lib/habilidadeOculta'
 import { chavesDosSelos } from '../../lib/ponteDasCondicoes'
 import { condicoesQueACuraTirou, curarPeloItem } from '../../lib/curaPeloItem'
@@ -318,7 +318,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
         textoDoRebate = ` · rebateu ${total} em ${nomeDoTokenNa(turnos, personagens)(golpe.atacanteTokenId)} (${depois.dano ?? 0} + ${soma})`
       } else if (depois.saida === 'contra' && (novos.contras?.length ?? 0) < CONTRAS_MAX) {
         // Q6: Contra = sem dano e uma ação a mais na hora (sai no Desfazer pela parte "reacaoComTecnica").
-        const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
+        const ganho: ContraAtaque = contraGanhoAgora(turnos, { golpeId: golpe.id, tokenId: depois.tokenId, personagemId: depois.personagemId, atacanteTokenId: golpe.atacanteTokenId })
         novos = { ...novos, contras: [...(novos.contras ?? []), ganho] }
       }
       // F2 (fatia E, Recuperação de forças): 20% do dano que chegava volta em vida (até o máximo); só o mestre usa (ele confirmou o fogo ou a explosão).
@@ -914,7 +914,7 @@ export function criarGolpe(nucleo: NucleoDaBatalha, fatiaDasFormas: FormasDaBata
           }
           // Q6: 20 e Contra-atacar = sem dano e uma ação a mais na hora, fora da vez (Atacar, Habilidade ou Mover).
           if (saida === 'contra' && (contras?.length ?? 0) < CONTRAS_MAX) {
-            const ganho: ContraAtaque = { golpeId: golpe.id, tokenId: alvo.tokenId, personagemId: alvo.personagemId, atacanteTokenId: golpe.atacanteTokenId, rodada: turnos.rodada }
+            const ganho: ContraAtaque = contraGanhoAgora(turnos, { golpeId: golpe.id, tokenId: alvo.tokenId, personagemId: alvo.personagemId, atacanteTokenId: golpe.atacanteTokenId })
             contras = [...(contras ?? []), ganho]
           }
           break

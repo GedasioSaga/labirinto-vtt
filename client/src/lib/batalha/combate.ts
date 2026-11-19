@@ -654,6 +654,13 @@ export interface ContraAtaque {
   /** Quem a atacou (o atalho "Contra-atacar" sugere ele, mas o alvo é livre). */
   atacanteTokenId: string
   rodada: number
+  /**
+   * Conserto de 19/11/2026 ("acertou o contra-ataque e nada acontece"): a
+   * carta da vez em que o contra-ataque nasceu. Enquanto a vez for essa (na
+   * mesma rodada), ela ESPERA quem contra-ataca escolher o golpe
+   * (`contrasQueSeguramAVez`). Ausente (contra de antes do conserto) = não segura.
+   */
+  vez?: string
 }
 
 export type EfeitoDaBatalha =

@@ -133,3 +133,26 @@ body:has(.bt-reacao-no-centro > .bt-reacao) .lb-hint {
 .bt-centro-do-mestre[data-atras='sim'] {
   visibility: hidden;
 }
+
+/*
+ * Conserto de 19/11/2026 ("acertou o contra-ataque e nada acontece"): o contra-ataque do NPC abre no MEIO do lugar
+ * (onde estava a carta REAÇÃO), e a vez do NPC espera atrás (`data-atras`). Com o contra-ataque de um jogador, o
+ * mestre vê só o aviso, no mesmo meio, com o "Seguir sem esperar".
+ */
+.bt-centro-do-mestre[data-contra='sim'] {
+  align-items: center;
+}
+.bt-espera-do-contra {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: min(520px, 100%);
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(20, 18, 16, 0.9);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.bt-espera-do-contra .bt-vez__espera {
+  margin: 0;
+}
