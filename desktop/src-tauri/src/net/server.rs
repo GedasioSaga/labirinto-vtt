@@ -1995,4 +1995,25 @@ mod tests {
         std::fs::remove_dir_all(&pasta)?;
         Ok(())
     }
+
+    /// PONG DA SALA (conserto de 18/11/2026, jogador caía da batalha com o
+    /// mestre ocupado): a sala responde o `ping` só depois da primeira mensagem
+    /// do mestre e enquanto ele falou há menos de `PRAZO_DO_PONG_DA_SALA`.
+    #[test]
+    fn sala_responde_o_ping_so_depois_do_mestre_e_dentro_do_prazo() {
+        let ping = serde_json::json!({ "type": "ping" });
+        let ausente = serde_json::json!({ "type": "ping", "away": true });
+        let outra = serde_json::json!({ "type": "token.move" });
+        let quando = Instant::now();
+        let logo_depois = quando + Duration::from_secs(1);
+        // Antes da primeira mensagem do mestre: só quem ele aceitou ouve o pong.
+        assert!(!sala_responde_o_ping(&ping, None, quando));
+        assert!(sala_responde_o_ping(&ping, Some(quando), logo_depois));
+        assert!(sala_responde_o_ping(&ausente, Some(quando), logo_depois));
+        assert!(!sala_responde_o_ping(&outra, Some(quando), logo_depois));
+        // Mestre calado há 15 s ou mais: a sala não fala por ele.
+        assert!(!sala_responde_o_ping(&ping, Some(quando), quando + PRAZO_DO_PONG_DA_SALA));
+        // `agora` antes de `quando` satura em zero: responde.
+        assert!(sala_responde_o_ping(&ping, Some(logo_depois), quando));
+    }
 }
