@@ -5,13 +5,13 @@ import { ATRIBUTO_COLA_IMAGEM } from '../components/PinImageDrop'
 import { DoorContextMenu } from '../components/DoorContextMenu'
 import { MenuDaSelecao } from '../components/MenuDaSelecao'
 import { ComSaida } from '../components/grimorio/ComSaida'
-import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle, Matrix } from 'pixi.js'
+import { Application, Container, Graphics, Sprite, Texture, Assets, Rectangle } from 'pixi.js'
 import { dataUrlToBytes, imageExportScale, mapForImageExport, type ImageExportOptions, type MapImageExporter } from '../lib/mapImageExport'
 import { registrarNaSonda } from '../lib/sondaDeDesempenho'
 import { criarDesenhoSobPedido, type DesenhoSobPedido } from './desenhoSobPedido'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { currentRendererResolution, watchDevicePixelRatio } from './rendererResolution'
-import type { AlturaDoPenhasco, Drawing, Light, MapData, ModoDoPenhasco, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
+import type { Drawing, Light, MapData, Pin, Prop, Region, Stair, Token, Wall } from '../types/map'
 import type { DrawingTool } from '../types/tools'
 import { barradoPeloGesto, ligarSinalDeGesto, useMapStore } from '../stores/mapStore'
 import { useFerramentaDaAgua } from '../stores/ferramentaDaAgua'
@@ -69,26 +69,13 @@ import { visionSegments, type Segment } from '../lib/visibility'
 import { chaoQueLimita } from '../lib/offFloor'
 import { createRegionsRenderer, resolveHighlightedRegionId } from './drawRegions'
 import { createRelevoRenderer, type EntradaDoRelevo } from './drawRelevo'
-import { createTexturasRenderer, escalaDaTextura, ladoDoLadrilhoNoMundo, soltarPintura, vistaDaCamera, type EntradaDasTexturas } from './drawTexturas'
-import { passoDaPincelada, raioDoPincelDeTextura, type ResultadoDaTextura } from '../lib/texturas'
+import { createTexturasRenderer, soltarPintura, vistaDaCamera, type EntradaDasTexturas } from './drawTexturas'
+import { raioDoPincelDeTextura } from '../lib/texturas'
 import { createCarimbosRenderer } from './drawCarimbos'
-import {
-  carimboDestravado,
-  carimboPorId,
-  criarSpray,
-  criarTraco,
-  idsDebaixoDaBorracha,
-  raioDoSpray,
-  tamanhoNatural,
-  TETO_DE_CARIMBOS,
-  type ResultadoDoCarimbo,
-  type Spray,
-} from '../lib/carimbos'
+import { carimboDestravado, carimboPorId, raioDoSpray } from '../lib/carimbos'
 import { isStairPin } from '../lib/stairTravel'
 import { terrenoNoPonto } from '../lib/terrenoNaSelecao'
-import { carimboDoCatalogo, tracoDoCarimbo } from '../carimbos/catalogo'
-import { consultaDaTerra, regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
-import { passoDoRisco, raioDoPincelDePenhasco, type ResultadoDoRisco } from '../lib/penhasco'
+import { regioesDaTerra, relevoLigado, unidadeDoRelevo } from '../lib/relevo'
 import { criarDesenhoDoBarranco } from './drawBarranco'
 import { criarDesenhoDoAbismo } from './drawAbismo'
 import { criarGestoDoAbismo } from './abismoNoEditor'
@@ -99,6 +86,9 @@ import { useFerramentaDoAbismo } from '../stores/ferramentaDoAbismo'
 import { criarGestoDoBarranco } from './barrancoNoEditor'
 import { criarGestoDaAgua } from './aguaNoEditor'
 import { criarGestoDoMuroDeFogo } from './muroDeFogoNoEditor'
+import { gestoMexeNoMapa, type ModoDoGesto } from './modoDoGesto'
+import { criarGestoDaTextura, criarGestoDoPenhasco, criarGestoDoPincelDeRevelar } from './pinceisNoEditor'
+import { criarGestoDoCarimbo } from './carimboNoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -186,7 +176,7 @@ import { createContaGotasGesture } from './contaGotasGesture'
 import { pixelDaTela, rgbaParaHex } from '../lib/contaGotas'
 import { useAwayTokensStore } from '../stores/awayTokensStore'
 import { useDonosDasFichasStore } from '../stores/donosDasFichasStore'
-import { coresDosPinos, isContinente, type PinosNoToque } from '../lib/marcadorDeContinente'
+import { coresDosPinos, type PinosNoToque } from '../lib/marcadorDeContinente'
 import { createLaserGesture } from './laserGesture'
 import { LASER_KEY_TAP_MS, isLaserKey } from '../lib/laser'
 import { createMeasurementIndicatorRenderer } from './drawMeasurementIndicator'
@@ -265,7 +255,6 @@ import { drawPatrolRoutes } from './drawNpcPatrol'
 import { createPinsRenderer } from './drawPins'
 import { drawMarcas } from './drawMarcas'
 import { findConcealZoneAt } from '../lib/concealZones'
-import { revealBrushRadius, type RevealBrushMode } from '../lib/concealBrush'
 import { findPinAt, pinKindAfterShortcut, pinSizeFloor, pinSizeFloorFor, pinSizeScale, pinTapTolerance } from '../lib/pins'
 import { pinosDosDesafios } from '../lib/desafios'
 import { useDesafiosStore } from '../stores/desafiosStore'
@@ -339,25 +328,7 @@ import { cloneEntity, type CloneableEntity } from '../lib/entityClone'
 import { placeNewRoom, subtreeIds } from '../lib/roomNesting'
 import { useToastStore } from '../stores/toastStore'
 import { baldeDeTintaNoPonto } from '../lib/baldeDeTinta'
-import {
-  AVISO_PENHASCO_BEIRA_ESCONDIDA,
-  AVISO_PENHASCO_COSTA_ESCONDIDA,
-  AVISO_PENHASCO_LONGE_DA_BEIRA,
-  AVISO_PENHASCO_LONGE_DA_COSTA,
-  AVISO_PENHASCO_NADA_A_APAGAR,
-  AVISO_PENHASCO_SEM_RELEVO,
-  AVISO_PINCEL_SEM_ZONA,
-  AVISO_TEXTURA_AREA_GRANDE,
-  AVISO_TEXTURA_BALDE_FORA,
-  AVISO_TEXTURA_BALDE_IGUAL,
-  AVISO_TEXTURA_AUSENTE,
-  AVISO_TEXTURA_NADA_A_APAGAR,
-  AVISO_CARIMBO_AUSENTE,
-  AVISO_CARIMBO_NADA_A_APAGAR,
-  AVISO_CARIMBO_TETO,
-  CORRIDOR_DISCARDED_TEXT,
-  STAIR_CLICK_WITHOUT_DRAG_TEXT,
-} from '../components/labels'
+import { CORRIDOR_DISCARDED_TEXT, STAIR_CLICK_WITHOUT_DRAG_TEXT } from '../components/labels'
 import { WallGestureMenuHost } from '../components/WallGestureMenuHost'
 import { botaoDireitoEhDaParede, ligarMenuDaParede, WALL_GESTURE_HIT_TOLERANCE, type MenuDaParede } from './wallGesture'
 import { paredeDoGesto } from '../lib/abrirVao'
@@ -435,92 +406,6 @@ import { expandToGroup, NO_GROUPS } from '../lib/itemGroups'
 // do integrador — a geometria pura (lib/eraseGeometry.ts) recebe qualquer
 // raio, não tem opinião sobre o valor.
 const ERASE_PART_RADIUS_RATIO = 0.25
-
-// Pincel de revelar — rascunho do traço em curso. Claro = o jogador vai ver;
-// escuro = volta a ficar escondido (o mesmo preto translúcido da zona no editor).
-const REVEAL_STROKE_COLOR = 0xffffff
-const REVEAL_STROKE_ALPHA = 0.3
-const HIDE_STROKE_COLOR = 0x000000
-const HIDE_STROKE_ALPHA = 0.55
-/** Passo mínimo entre pontos do traço, em px de mundo: menor que meia célula do pincel. */
-const REVEAL_STROKE_MIN_STEP = 3
-// Penhasco — rascunho do risco em curso, na "terra clara" das faixas da parede
-// (`AJUSTE_DO_PENHASCO`); a borracha usa o mesmo escuro do esconder.
-const PENHASCO_STROKE_COLOR = 0xc69a66
-const PENHASCO_STROKE_ALPHA = 0.45
-
-/**
- * O que a tela diz depois de soltar o pincel de penhasco, ou `null` quando o
- * risco fez o que prometia e já aparece. Fora do continente não há costa nem
- * mar: os avisos falam da beira da região.
- */
-function avisoDoPenhasco(resultado: ResultadoDoRisco, comRelevo: boolean, continente: boolean): string | null {
-  switch (resultado) {
-    case 'longe-da-costa':
-      return continente ? AVISO_PENHASCO_LONGE_DA_COSTA : AVISO_PENHASCO_LONGE_DA_BEIRA
-    case 'costa-escondida':
-      return continente ? AVISO_PENHASCO_COSTA_ESCONDIDA : AVISO_PENHASCO_BEIRA_ESCONDIDA
-    case 'nada-a-apagar':
-      return AVISO_PENHASCO_NADA_A_APAGAR
-    case 'riscou':
-      return comRelevo ? null : AVISO_PENHASCO_SEM_RELEVO
-    case 'apagou':
-    // O aviso da camada travada já saiu (com "Destravar"); outro por cima seria repetido.
-    case 'camada-travada':
-      return null
-  }
-}
-
-// Texturas — prévia do traço enquanto o ladrilho da textura ainda não saiu
-// (a primeira pincelada de uma textura): um tom neutro de terra, translúcido.
-const TEXTURA_PREVIA_COR = 0xb9a27a
-const TEXTURA_PREVIA_ALPHA = 0.4
-
-/** O que a tela diz depois de soltar o gesto da ferramenta Texturas, ou `null` quando pintou. */
-function avisoDaTextura(resultado: ResultadoDaTextura): string | null {
-  switch (resultado) {
-    case 'nada-a-apagar':
-      return AVISO_TEXTURA_NADA_A_APAGAR
-    case 'fora-de-forma':
-      return AVISO_TEXTURA_BALDE_FORA
-    case 'area-grande':
-      return AVISO_TEXTURA_AREA_GRANDE
-    case 'igual':
-      return AVISO_TEXTURA_BALDE_IGUAL
-    case 'textura-ausente':
-      return AVISO_TEXTURA_AUSENTE
-    // A store já avisou qual camada segurou, com "Destravar".
-    case 'camada-travada':
-    case 'pintou':
-      return null
-  }
-}
-
-/** O que a tela diz depois de soltar o gesto da ferramenta Carimbos, ou `null` quando fez o que se pediu. */
-function avisoDoCarimbo(resultado: ResultadoDoCarimbo): string | null {
-  switch (resultado) {
-    case 'nada-a-apagar':
-      return AVISO_CARIMBO_NADA_A_APAGAR
-    case 'tipo-ausente':
-      return AVISO_CARIMBO_AUSENTE
-    case 'teto':
-      return AVISO_CARIMBO_TETO
-    // A store já avisou qual camada segurou, com "Destravar".
-    case 'camada-travada':
-    case 'carimbou':
-    case 'apagou':
-      return null
-  }
-}
-
-/** O tamanho natural de um carimbo da biblioteca, em px do protótipo; o importado usa o de um pinheiro. */
-const TAMANHO_NATURAL_DO_IMPORTADO = 14
-
-/**
- * Movimento mínimo, em px de TELA, para o clique virar spray: abaixo disso a
- * mão só tremeu no clique e sai um objeto só.
- */
-const LIMIAR_DO_SPRAY_PX = 6
 
 // Largura padrão do corredor de chão, como fração do grid: meia célula lê
 // como passagem sem engolir a sala ao lado, e escala com grids diferentes.
@@ -4018,92 +3903,13 @@ function PixiCanvasDoContexto({
         if (tracos !== null) straightenGhost.mostrar(tracos)
       })
 
-      let mode:
-        | 'idle'
-        | 'panning'
-        | 'dragging-token'
-        | 'dragging-prop'
-        | 'drawing-wall'
-        | 'drawing-freehand'
-        | 'drawing-line'
-        | 'drawing-circle'
-        | 'drawing-rect'
-        | 'drawing-ellipse'
-        | 'drawing-polygon'
-        | 'drawing-light'
-        | 'drawing-curve'
-        | 'dragging-curve-point'
-        | 'dragging-curve-body'
-        // Alça de ponto-chave do traço do Pincel e do polígono (lib/pontosChave.ts).
-        | 'dragging-drawing-key-point'
-        | 'dragging-light-radius'
-        | 'erasing'
-        | 'drawing-room'
-        | 'drawing-polygon-room'
-        | 'drawing-stair'
-        | 'resizing-room-corner'
-        | 'dragging-wall-point'
-        | 'dragging-region-point'
-        | 'dragging-wall-body'
-        | 'dragging-region-body'
-        | 'dragging-stair-body'
-        // Alças da escada selecionada (pixi/stairHandleGesture.ts).
-        | 'resizing-stair'
-        // Alça de curvar da cerca selecionada (pixi/cercaCurvaGesture.ts).
-        | 'curving-fence'
-        // Alça de ponta da porta selecionada (pixi/doorEndGesture.ts).
-        | 'resizing-door'
-        | 'dragging-line-point'
-        | 'dragging-line-body'
-        // B3 (bug3 "mover e redimensionar"): resize por canto de Drawing
-        // rect/ellipse/polygon, Token e Prop — geometria em objectTransform.ts.
-        | 'resizing-drawing-corner'
-        // Onda 3, item 18 (Frente B) — alça de raio do Drawing 'circle'.
-        | 'resizing-drawing-radius'
-        | 'resizing-token'
-        | 'resizing-prop-corner'
-        // Chip de canto do carimbo selecionado (`carimboAlcaGesture.ts`).
-        | 'resizing-carimbo'
-        // N3 "ferramenta de seleção de área".
-        | 'area-marquee-drag'
-        | 'dragging-area-selection'
-        // Chão por peças: arrasto de criação e mover corpo da peça selecionada.
-        | 'drawing-floor'
-        | 'dragging-floor-body'
-        // Pincel de blocos: arrasto que pinta (botão esquerdo) ou apaga (direito).
-        | 'painting-floor-blocks'
-        // A4 — arrastar só o nome da Sala.
-        | 'dragging-room-label'
-        // A5 — arrasto de criação da Zona oculta.
-        | 'drawing-conceal-zone'
-        // Pincel de revelar: arrasto que revela (ou, com Alt, esconde) um pedaço da zona oculta.
-        | 'painting-reveal-brush'
-        // Penhasco: arrasto que risca (ou, com Alt, apaga) penhasco na costa.
-        | 'painting-penhasco'
-        // Barranco: risco, traço da área alta ou clique de rampa (`barrancoNoEditor.ts`).
-        | 'painting-barranco'
-        // Abismo: o contorno da boca à mão (`abismoNoEditor.ts`).
-        | 'painting-abismo'
-        // Água: o traço do rio ou o contorno do lago e do mar (`aguaNoEditor.ts`).
-        | 'painting-agua'
-        // Muro de fogo: o traço à mão ou o canto do ponto a ponto (`muroDeFogoNoEditor.ts`).
-        | 'painting-muro-de-fogo'
-        // Texturas: arrasto do pincel (ou da borracha) de textura.
-        | 'painting-textura'
-        // Neblina: arrasto do pincel (ou da borracha) de neblina (`neblinaNoEditor.ts`).
-        | 'painting-neblina'
-        // Carimbos: o clique (ou o spray, ou a borracha) de objetos.
-        | 'painting-carimbo'
-        // Mover um pino de ponto de interesse já cravado.
-        | 'dragging-pin'
-        // Girar sala pela alça (pixi/roomRotateGesture.ts).
-        | 'rotating-room' = 'idle'
+      let mode: ModoDoGesto = 'idle'
       // SINAL DE GESTO EM CURSO (análise de 18/11/2026): com o botão apertado num
       // arrasto, a store barra Ctrl+Z, Ctrl+Y, Delete, Ctrl+D e as setas — o
       // desfazer no meio do arrasto tirava a ação ANTERIOR e, ao soltar, o
       // arrasto empilhava o mapa de antes e zerava o refazer. Mover a vista
       // (`panning`) não mexe no mapa e não barra nada.
-      const desligarSinalDeGesto = ligarSinalDeGesto(() => mode !== 'idle' && mode !== 'panning')
+      const desligarSinalDeGesto = ligarSinalDeGesto(() => gestoMexeNoMapa(mode))
       let lastPoint = { x: 0, y: 0 }
       let draggingTokenId: string | null = null
       let draggingPinId: string | null = null
@@ -4201,47 +4007,6 @@ function PixiCanvasDoContexto({
       // A5 — canto inicial (com snap) e ponto bruto do clique da Zona oculta.
       let concealDraftStart: Point | null = null
       let concealDraftRawStart: Point | null = null
-      /**
-       * Pincel de revelar: o traço em curso fica AQUI, local ao gesto, e só
-       * vira mapa ao soltar (`finishRevealStroke`). Gravar a cada pointermove
-       * mandaria um snapshot por passo do mouse a cada jogador e empilharia o
-       * Ctrl+Z; o que se move durante o arrasto é só o rascunho.
-       */
-      let revealStroke: Point[] = []
-      let revealStrokeMode: RevealBrushMode = 'revelar'
-      let revealStrokeRadius = 0
-      /**
-       * Penhasco: o risco em curso, local ao gesto como o do Pincel de revelar
-       * — só vira mapa ao soltar (`finishPenhascoStroke`), um Ctrl+Z por risco.
-       */
-      let penhascoStroke: Point[] = []
-      let penhascoStrokeMode: ModoDoPenhasco = 'riscar'
-      let penhascoStrokeRadius = 0
-      let penhascoStrokeAltura: AlturaDoPenhasco = 'medio'
-      /**
-       * Texturas: a pincelada em curso, local ao gesto como a do penhasco — só
-       * vira mapa ao soltar (`finishTexturaStroke`), um Ctrl+Z por pincelada.
-       * Textura e força são lidas no começo: mexer no painel no meio não muda
-       * a pincelada que já está saindo.
-       */
-      let texturaStroke: Point[] = []
-      let texturaStrokeTipo: 'pincel' | 'borracha' = 'pincel'
-      let texturaStrokeRadius = 0
-      let texturaStrokeTextura = ''
-      let texturaStrokeForca = 1
-      /**
-       * Carimbos: o gesto em curso, local como a pincelada de textura — só
-       * vira mapa ao soltar (`finishCarimbo`), um Ctrl+Z por gesto. O spray
-       * (`criarSpray`) sorteia os objetos uma vez, aqui; a borracha guarda o
-       * caminho. Objeto, tamanho e densidade são lidos no começo.
-       */
-      let carimboSpray: Spray | null = null
-      let carimboBorracha: Point[] = []
-      let carimboRaio = 0
-      /** Onde o ponteiro desceu, em px de TELA: abaixo do limiar, o gesto é um clique. */
-      let carimboInicioNaTela: Point | null = null
-      /** Os objetos debaixo do caminho da borracha até aqui (somados trecho a trecho). */
-      let carimboApagando: Set<string> = new Set()
       let polygonDraftCenter: Point | null = null
       let polygonDraftSides = ROOM_CIRCLE_SIDES
       let stairDraftStart: Point | null = null
@@ -5899,100 +5664,15 @@ function PixiCanvasDoContexto({
         eraseGestureFuture = null
       }
 
-      /**
-       * Rascunho do Pincel de revelar: o traço na largura real, claro para
-       * revelar e escuro para esconder — o mesmo par de cores do que a zona
-       * vira no editor (`drawConcealZones.ts`: escuro = o jogador não vê).
-       */
-      const drawRevealStroke = () => {
-        draftGraphics.clear()
-        const [first, ...rest] = revealStroke
-        if (first === undefined) return
-        const color = revealStrokeMode === 'revelar' ? REVEAL_STROKE_COLOR : HIDE_STROKE_COLOR
-        const alpha = revealStrokeMode === 'revelar' ? REVEAL_STROKE_ALPHA : HIDE_STROKE_ALPHA
-        if (rest.length === 0) {
-          draftGraphics.circle(first.x, first.y, revealStrokeRadius).fill({ color, alpha })
-          return
-        }
-        draftGraphics.moveTo(first.x, first.y)
-        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
-        draftGraphics.stroke({ width: revealStrokeRadius * 2, color, alpha, cap: 'round', join: 'round' })
-      }
-
-      /** Mais um ponto no traço, só quando andou o bastante: arrasto parado não enche a lista. */
-      const extendRevealStroke = (point: Point) => {
-        const last = revealStroke[revealStroke.length - 1]
-        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < REVEAL_STROKE_MIN_STEP) return
-        revealStroke.push(point)
-        drawRevealStroke()
-      }
-
-      /**
-       * Solta o pincel: o traço inteiro vira UMA mudança no mapa (um Ctrl+Z, um
-       * snapshot por jogador). Revelar fora de qualquer zona ativa não faz nada
-       * — e a tela diz por quê, em vez de o gesto sumir calado.
-       */
-      const finishRevealStroke = (last: Point | null) => {
-        if (last !== null && revealStroke.length > 0) extendRevealStroke(last)
-        const stroke = revealStroke
-        revealStroke = []
-        draftGraphics.clear()
-        if (stroke.length === 0) return
-        const hitZone = useMapStore.getState().paintRevealBrush(stroke, revealStrokeRadius, revealStrokeMode)
-        if (hitZone || revealStrokeMode !== 'revelar') return
+      /** Mostra o aviso de um gesto, se ele já não estiver na tela. */
+      const avisarSemRepetir = (texto: string) => {
         const toasts = useToastStore.getState()
-        if (toasts.toasts.some((toast) => toast.text === AVISO_PINCEL_SEM_ZONA)) return
-        toasts.push('instrucao', AVISO_PINCEL_SEM_ZONA)
+        if (!toasts.toasts.some((toast) => toast.text === texto)) toasts.push('instrucao', texto)
       }
 
-      /**
-       * Rascunho do Penhasco: o risco na largura real do pincel, na cor da
-       * pedra do penhasco para riscar e escuro para apagar.
-       */
-      const drawPenhascoStroke = () => {
-        draftGraphics.clear()
-        const [first, ...rest] = penhascoStroke
-        if (first === undefined) return
-        const color = penhascoStrokeMode === 'riscar' ? PENHASCO_STROKE_COLOR : HIDE_STROKE_COLOR
-        const alpha = penhascoStrokeMode === 'riscar' ? PENHASCO_STROKE_ALPHA : HIDE_STROKE_ALPHA
-        if (rest.length === 0) {
-          draftGraphics.circle(first.x, first.y, penhascoStrokeRadius).fill({ color, alpha })
-          return
-        }
-        draftGraphics.moveTo(first.x, first.y)
-        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
-        draftGraphics.stroke({ width: penhascoStrokeRadius * 2, color, alpha, cap: 'round', join: 'round' })
-      }
-
-      /** Mais um ponto no risco, só quando andou um quarto do raio: o arquivo não guarda cada passo do mouse. */
-      const extendPenhascoStroke = (point: Point) => {
-        const last = penhascoStroke[penhascoStroke.length - 1]
-        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < passoDoRisco(penhascoStrokeRadius)) return
-        penhascoStroke.push(point)
-        drawPenhascoStroke()
-      }
-
-      /**
-       * Solta o pincel de penhasco: o risco inteiro vira UMA mudança no mapa.
-       * Risco que não mudou nada (longe da costa, só na beira escondida,
-       * borracha no vazio) diz por quê, em vez de sumir calado; o risco que
-       * entrou com o relevo desligado também avisa, porque ainda não aparece.
-       */
-      const finishPenhascoStroke = (last: Point | null) => {
-        if (last !== null && penhascoStroke.length > 0) extendPenhascoStroke(last)
-        const pontos = penhascoStroke
-        penhascoStroke = []
-        draftGraphics.clear()
-        if (pontos.length === 0) return
-        const store = useMapStore.getState()
-        const resultado = store.riscarPenhasco({ modo: penhascoStrokeMode, raio: penhascoStrokeRadius, pontos, altura: penhascoStrokeAltura })
-        const depois = useMapStore.getState().map
-        const aviso = avisoDoPenhasco(resultado, relevoLigado(depois), isContinente(depois))
-        if (aviso === null) return
-        const toasts = useToastStore.getState()
-        if (toasts.toasts.some((toast) => toast.text === aviso)) return
-        toasts.push('instrucao', aviso)
-      }
+      // PINCEL DE REVELAR e PENHASCO (`pinceisNoEditor.ts`): o traço em curso fica no gesto e só vira mapa ao soltar.
+      const gestoDoPincelDeRevelar = criarGestoDoPincelDeRevelar({ rascunho: draftGraphics, avisar: avisarSemRepetir })
+      const gestoDoPenhasco = criarGestoDoPenhasco({ rascunho: draftGraphics, avisar: avisarSemRepetir })
 
       /**
        * Anel do pincel de Texturas: o tamanho do pincel em volta do ponteiro,
@@ -6005,7 +5685,7 @@ function PixiCanvasDoContexto({
         const { activeTool, texturaModo, texturaTamanho, carimboLargura, carimboModo, map } = useMapStore.getState()
         // Carimbos: o anel é a largura do spray (e da borracha) — onde os objetos vão cair. No Traço os
         // objetos caem no caminho da mão, sem largura: o anel só aparece na borracha do Alt, durante o gesto.
-        const apagandoNoTraco = mode === 'painting-carimbo' && carimboSpray === null
+        const apagandoNoTraco = mode === 'painting-carimbo' && gestoDoCarimbo.semSpray()
         const raio =
           activeTool === 'carimbos'
             ? carimboModo === 'traco' && !apagandoNoTraco
@@ -6028,170 +5708,20 @@ function PixiCanvasDoContexto({
         anelDoPincelGraphics.circle(centro.x, centro.y, raio).stroke({ width: 1.25 * px, color: 0xffffff, alpha: 0.85 })
       }
 
-      /**
-       * Rascunho da pincelada de textura: a própria textura repetida, na força
-       * escolhida, enquanto o ladrilho já existe; antes disso, um tom neutro. A
-       * borracha usa o escuro do esconder. A borda macia vem ao soltar.
-       */
-      const drawTexturaStroke = () => {
-        draftGraphics.clear()
-        const [first, ...rest] = texturaStroke
-        if (first === undefined) return
-        const { map } = useMapStore.getState()
-        const tile = texturaStrokeTipo === 'pincel' ? texturas.ladrilhoParaPrevia(texturaStrokeTextura, map.texturasImportadas) : null
-        let estilo: { color: number; alpha: number } | { texture: Texture; matrix: Matrix; textureSpace: 'global'; alpha: number }
-        if (texturaStrokeTipo === 'borracha') estilo = { color: HIDE_STROKE_COLOR, alpha: HIDE_STROKE_ALPHA }
-        else if (tile === null) estilo = { color: TEXTURA_PREVIA_COR, alpha: TEXTURA_PREVIA_ALPHA }
-        else {
-          const lado = ladoDoLadrilhoNoMundo(map, escalaDaTextura(texturaStrokeTextura))
-          estilo = { texture: tile, matrix: new Matrix().scale(lado / tile.width, lado / tile.height), textureSpace: 'global', alpha: texturaStrokeForca }
-        }
-        if (rest.length === 0) {
-          draftGraphics.circle(first.x, first.y, texturaStrokeRadius).fill(estilo)
-          return
-        }
-        draftGraphics.moveTo(first.x, first.y)
-        for (const p of rest) draftGraphics.lineTo(p.x, p.y)
-        draftGraphics.stroke({ ...estilo, width: texturaStrokeRadius * 2, cap: 'round', join: 'round' })
-      }
-
-      /** Mais um ponto na pincelada, só quando andou um quarto do raio (o arquivo não guarda cada passo do mouse). */
-      const extendTexturaStroke = (point: Point) => {
-        desenharAnelDoPincel(point)
-        const last = texturaStroke[texturaStroke.length - 1]
-        if (last !== undefined && Math.hypot(point.x - last.x, point.y - last.y) < passoDaPincelada(texturaStrokeRadius)) return
-        texturaStroke.push(point)
-        drawTexturaStroke()
-      }
-
-      /** Diz por que o gesto de textura não fez nada (borracha no vazio, balde no mar), sem repetir o aviso. */
-      const avisarTextura = (resultado: ResultadoDaTextura) => {
-        const aviso = avisoDaTextura(resultado)
-        if (aviso === null) return
-        const toasts = useToastStore.getState()
-        if (toasts.toasts.some((toast) => toast.text === aviso)) return
-        toasts.push('instrucao', aviso)
-      }
-
-      /** Diz por que o gesto de carimbo não fez (tudo) o que se pediu, sem repetir o aviso. */
-      const avisarCarimbo = (resultado: ResultadoDoCarimbo) => {
-        const aviso = avisoDoCarimbo(resultado)
-        if (aviso === null) return
-        const toasts = useToastStore.getState()
-        if (toasts.toasts.some((toast) => toast.text === aviso)) return
-        toasts.push('instrucao', aviso)
-      }
-
-      /**
-       * Começa o gesto de Carimbos. Carimbo: o primeiro objeto cai no ponto
-       * exato (o clique), e o spray só espalha se a mão andar. Traço: o
-       * primeiro também, e o arrasto solta um a cada passo fixo ao longo do
-       * caminho (`criarTraco`). Borracha (ou Alt): guarda o caminho e apaga na
-       * prévia o que vai sair.
-       */
-      const startCarimbo = (worldPoint: Point, screen: Point, alt: boolean) => {
-        const { map: mapaInteiro, carimboModo, carimboEscolhido, carimboTamanho, carimboLargura, carimboDensidade, carimboEspaco } = useMapStore.getState()
-        // PISOS: a terra, os objetos que o spray evita e os que a borracha apaga são os do piso em edição.
-        const map = doPisoEmEdicao(mapaInteiro)
-        const unidade = unidadeDoRelevo(map)
-        mode = 'painting-carimbo'
-        carimboRaio = raioDoSpray(unidade, carimboLargura)
-        carimboInicioNaTela = screen
-        if ((carimboModo === 'borracha') !== alt) {
-          carimboSpray = null
-          carimboBorracha = [worldPoint]
-          carimboApagando = idsDebaixoDaBorracha(map.carimbos, carimboBorracha, carimboRaio)
-          carimbos.mostrarPrevia([], carimboApagando, map.carimbosImportados)
-          return
-        }
-        carimboBorracha = []
-        carimboApagando = new Set()
-        const existentes = map.carimbos ?? []
-        const natural = carimboDoCatalogo(carimboEscolhido)?.tamanho ?? TAMANHO_NATURAL_DO_IMPORTADO
-        const tamanho = tamanhoNatural(unidade, map.grid, natural, carimboTamanho)
-        const vagas = TETO_DE_CARIMBOS - existentes.length
-        if (carimboModo === 'traco') {
-          // O traço vai aonde a mão vai: sem a costa nem o espaço dos que já estão (a sebe por cima da
-          // sebe, a trilha de pedras que entra na água). Barra e camada travada: o `carimbar` do soltar.
-          carimboSpray = criarTraco({ tipo: carimboEscolhido, tamanho, espaco: carimboEspaco, jeito: tracoDoCarimbo(carimboEscolhido), vagas })
-        } else {
-          // A costa manda no spray: começou na terra, só põe na terra; no mar,
-          // só no mar (pedras no mar). Sem terra no mapa, em qualquer lugar.
-          const naTerra = consultaDaTerra(visibleRegions(map.regions, map.hiddenLayers))
-          const comecouNaTerra = naTerra(worldPoint)
-          carimboSpray = criarSpray({
-            tipo: carimboEscolhido,
-            tamanho,
-            raio: carimboRaio,
-            densidade: carimboDensidade,
-            existentes,
-            aceita: (p) => naTerra(p) === comecouNaTerra,
-            vagas,
-          })
-        }
-        carimboSpray.comecar(worldPoint)
-        carimbos.mostrarPrevia(carimboSpray.soltos(), carimboApagando, map.carimbosImportados)
-      }
-
-      /** O ponteiro andou: o spray espalha pelo trecho; a borracha soma o que passa debaixo dela. */
-      const moveCarimbo = (worldPoint: Point, screen: Point) => {
-        desenharAnelDoPincel(worldPoint)
-        const map = doPisoEmEdicao(useMapStore.getState().map)
-        if (carimboSpray === null) {
-          const last = carimboBorracha[carimboBorracha.length - 1]
-          if (last !== undefined && Math.hypot(worldPoint.x - last.x, worldPoint.y - last.y) < carimboRaio / 4) return
-          // Só o trecho novo é conferido: mil objetos não pesam no arrasto.
-          const trecho = last === undefined ? [worldPoint] : [last, worldPoint]
-          carimboBorracha.push(worldPoint)
-          const novos = idsDebaixoDaBorracha(map.carimbos, trecho, carimboRaio)
-          if ([...novos].some((id) => !carimboApagando.has(id))) {
-            carimboApagando = new Set([...carimboApagando, ...novos])
-            carimbos.mostrarPrevia([], carimboApagando, map.carimbosImportados)
-          }
-          return
-        }
-        // Abaixo do limiar a mão só tremeu no clique: continua um objeto só.
-        const inicio = carimboInicioNaTela
-        if (!carimboSpray.espalhou() && inicio !== null && Math.hypot(screen.x - inicio.x, screen.y - inicio.y) < LIMIAR_DO_SPRAY_PX) return
-        if (carimboSpray.passar(worldPoint).length > 0) carimbos.mostrarPrevia(carimboSpray.soltos(), carimboApagando, map.carimbosImportados)
-      }
-
-      /** Solta o gesto de Carimbos: o clique, o spray inteiro ou o caminho da borracha vira UMA mudança no mapa. */
-      const finishCarimbo = (last: { world: Point; screen: Point } | null) => {
-        if (last !== null) moveCarimbo(last.world, last.screen)
-        const spray = carimboSpray
-        const caminho = carimboBorracha
-        carimboSpray = null
-        carimboBorracha = []
-        carimboApagando = new Set()
-        carimboInicioNaTela = null
-        carimbos.limparPrevia()
-        const store = useMapStore.getState()
-        if (spray !== null) {
-          // O traço fecha o caminho até onde a mão soltou (o módulo que emenda ganha a ponta).
-          spray.terminar(last === null ? null : last.world)
-          const soltos = spray.soltos()
-          // Nenhum objeto no gesto: a cena já estava no teto.
-          avisarCarimbo(soltos.length === 0 ? 'teto' : store.carimbar(soltos))
-        } else if (caminho.length > 0) {
-          avisarCarimbo(store.apagarCarimbos(caminho, carimboRaio))
-        }
-      }
-
-      /** Solta o pincel de textura: a pincelada inteira vira UMA mudança no mapa. */
-      const finishTexturaStroke = (last: Point | null) => {
-        if (last !== null && texturaStroke.length > 0) extendTexturaStroke(last)
-        const pontos = texturaStroke
-        texturaStroke = []
-        draftGraphics.clear()
-        if (pontos.length === 0) return
-        const store = useMapStore.getState()
-        avisarTextura(
-          texturaStrokeTipo === 'pincel'
-            ? store.pintarTextura({ tipo: 'pincel', textura: texturaStrokeTextura, forca: texturaStrokeForca, raio: texturaStrokeRadius, pontos })
-            : store.pintarTextura({ tipo: 'borracha', forca: texturaStrokeForca, raio: texturaStrokeRadius, pontos }),
-        )
-      }
+      // TEXTURAS (`pinceisNoEditor.ts`): a pincelada (ou o balde); o anel do pincel segue a mão.
+      const gestoDaTextura = criarGestoDaTextura({
+        rascunho: draftGraphics,
+        avisar: avisarSemRepetir,
+        ladrilhoParaPrevia: (id, importadas) => texturas.ladrilhoParaPrevia(id, importadas),
+        anel: (p) => desenharAnelDoPincel(p),
+      })
+      // CARIMBOS (`carimboNoEditor.ts`): o clique, o spray, o traço ou a borracha; a prévia mora no renderer dos carimbos.
+      const gestoDoCarimbo = criarGestoDoCarimbo({
+        previa: { mostrar: (novos, apagando, importados) => carimbos.mostrarPrevia(novos, apagando, importados), limpar: () => carimbos.limparPrevia() },
+        doPiso: doPisoEmEdicao,
+        anel: (p) => desenharAnelDoPincel(p),
+        avisar: avisarSemRepetir,
+      })
 
       /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
@@ -6226,12 +5756,12 @@ function PixiCanvasDoContexto({
         roomDraftStart = null
         concealDraftStart = null
         concealDraftRawStart = null
-        revealStroke = []
+        gestoDoPincelDeRevelar.descartar()
         // Penhasco: Esc ou troca de ferramenta com o botão ainda apertado
         // encerra o GESTO, não só o rascunho. Sem isso o próximo movimento
         // recomeçava o risco e o soltar o gravava no mapa (com passo no
         // desfazer) depois de cancelado, ou já com outra ferramenta na mão.
-        penhascoStroke = []
+        gestoDoPenhasco.descartar()
         if (mode === 'painting-penhasco') mode = 'idle'
         // Barranco: idem — o traço da área cancelado não vira passo, e o risco cancelado não entra.
         gestoDoBarranco.cancelar()
@@ -6246,17 +5776,13 @@ function PixiCanvasDoContexto({
         gestoDoMuroDeFogo.cancelar()
         if (mode === 'painting-muro-de-fogo') mode = 'idle'
         // Texturas: idem — a pincelada cancelada não vira passo no mapa.
-        texturaStroke = []
+        gestoDaTextura.descartar()
         if (mode === 'painting-textura') mode = 'idle'
         // Neblina: idem.
         gestoDaNeblina.cancelar()
         if (mode === 'painting-neblina') mode = 'idle'
         // Carimbos: idem — o spray (ou a borracha) cancelado não vira passo no mapa.
-        carimboSpray = null
-        carimboBorracha = []
-        carimboApagando = new Set()
-        carimboInicioNaTela = null
-        carimbos.limparPrevia()
+        gestoDoCarimbo.descartar()
         if (mode === 'painting-carimbo') mode = 'idle'
         anelDoPincelGraphics.clear()
         polygonDraftCenter = null
@@ -7296,12 +6822,8 @@ function PixiCanvasDoContexto({
           // Sem snap: o pincel segue a mão, como o Pincel de desenho. Alt
           // INVERTE o modo do painel só neste traço (revelar ⇄ esconder) e é
           // lido aqui, no começo: soltar o Alt no meio não troca o traço.
-          const { revealBrushMode, revealBrushWidth } = useMapStore.getState()
           mode = 'painting-reveal-brush'
-          revealStrokeMode = event.altKey ? (revealBrushMode === 'revelar' ? 'esconder' : 'revelar') : revealBrushMode
-          revealStrokeRadius = revealBrushRadius(map.grid, revealBrushWidth)
-          revealStroke = [worldPoint]
-          drawRevealStroke()
+          gestoDoPincelDeRevelar.comecar(worldPoint, event.altKey, map)
           return
         }
 
@@ -7329,33 +6851,21 @@ function PixiCanvasDoContexto({
           // neste risco, lido no começo. O raio segue o tamanho do mapa, como a
           // própria parede (`raioDoPincelDePenhasco`). A altura também é a do
           // começo do risco: o risco inteiro desce a mesma parede.
-          const { penhascoModo, penhascoLargura, penhascoAltura } = useMapStore.getState()
           mode = 'painting-penhasco'
-          penhascoStrokeMode = event.altKey ? (penhascoModo === 'riscar' ? 'apagar' : 'riscar') : penhascoModo
-          penhascoStrokeRadius = raioDoPincelDePenhasco(unidadeDoRelevo(map), penhascoLargura)
-          penhascoStrokeAltura = penhascoAltura
-          penhascoStroke = [worldPoint]
-          drawPenhascoStroke()
+          gestoDoPenhasco.comecar(worldPoint, event.altKey, map)
           return
         }
 
         if (activeTool === 'texturas') {
-          const { texturaModo, texturaTamanho, texturaForca, texturaEscolhida } = useMapStore.getState()
           // Balde: um clique enche a área fechada por paredes (ou a forma) debaixo dele; não há arrasto.
           // Alt + clique tira a textura dela, como o Alt troca pincel e borracha no arrasto.
-          if (texturaModo === 'balde') {
-            avisarTextura(useMapStore.getState().encherComTextura(worldPoint, event.altKey))
+          if (useMapStore.getState().texturaModo === 'balde') {
+            gestoDaTextura.encher(worldPoint, event.altKey)
             return
           }
           // Sem snap, como o penhasco; Alt troca pincel e borracha só nesta pincelada.
           mode = 'painting-textura'
-          const borracha = texturaModo === 'borracha'
-          texturaStrokeTipo = borracha !== event.altKey ? 'borracha' : 'pincel'
-          texturaStrokeRadius = raioDoPincelDeTextura(unidadeDoRelevo(map), texturaTamanho)
-          texturaStrokeTextura = texturaEscolhida
-          texturaStrokeForca = texturaForca
-          texturaStroke = [worldPoint]
-          drawTexturaStroke()
+          gestoDaTextura.comecar(worldPoint, event.altKey, map)
           return
         }
 
@@ -7369,7 +6879,8 @@ function PixiCanvasDoContexto({
         // Carimbos: sem snap (o objeto cai onde o mestre apontou); Alt troca
         // carimbo e borracha só neste gesto.
         if (activeTool === 'carimbos') {
-          startCarimbo(worldPoint, { x: event.global.x, y: event.global.y }, event.altKey)
+          mode = 'painting-carimbo'
+          gestoDoCarimbo.comecar(worldPoint, { x: event.global.x, y: event.global.y }, event.altKey)
           return
         }
 
@@ -8594,8 +8105,8 @@ function PixiCanvasDoContexto({
           draftGraphics.clear()
         }
 
-        if (mode === 'painting-reveal-brush') finishRevealStroke(toWorldPoint(event.global.x, event.global.y))
-        if (mode === 'painting-penhasco') finishPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-reveal-brush') gestoDoPincelDeRevelar.soltar(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-penhasco') gestoDoPenhasco.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-abismo') gestoDoAbismo.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-agua') gestoDaAgua.soltar(toWorldPoint(event.global.x, event.global.y))
@@ -8603,9 +8114,9 @@ function PixiCanvasDoContexto({
           const pontoDoMuro = toWorldPoint(event.global.x, event.global.y)
           gestoDoMuroDeFogo.soltar(pontoDoMuro, applySnap(pontoDoMuro, useMapStore.getState().map.grid, 'prop', event.altKey))
         }
-        if (mode === 'painting-textura') finishTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+        if (mode === 'painting-textura') gestoDaTextura.soltar(toWorldPoint(event.global.x, event.global.y))
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(toWorldPoint(event.global.x, event.global.y))
-        if (mode === 'painting-carimbo') finishCarimbo({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
+        if (mode === 'painting-carimbo') gestoDoCarimbo.soltar({ world: toWorldPoint(event.global.x, event.global.y), screen: { x: event.global.x, y: event.global.y } })
 
         if (mode === 'drawing-polygon-room' && polygonDraftCenter) {
           const worldPoint = toWorldPoint(event.global.x, event.global.y)
@@ -9032,16 +8543,16 @@ function PixiCanvasDoContexto({
         }
         // Pincel de revelar solto fora do canvas: o que já foi pintado vale,
         // como no pincel de blocos acima (o ponto de fora não entra no traço).
-        if (mode === 'painting-reveal-brush') finishRevealStroke(null)
-        if (mode === 'painting-penhasco') finishPenhascoStroke(null)
+        if (mode === 'painting-reveal-brush') gestoDoPincelDeRevelar.soltar(null)
+        if (mode === 'painting-penhasco') gestoDoPenhasco.soltar(null)
         if (mode === 'painting-barranco') gestoDoBarranco.soltar(null)
         if (mode === 'painting-abismo') gestoDoAbismo.soltar(null)
         if (mode === 'painting-agua') gestoDaAgua.soltar(null)
         if (mode === 'painting-muro-de-fogo') gestoDoMuroDeFogo.soltar(null, null)
-        if (mode === 'painting-textura') finishTexturaStroke(null)
+        if (mode === 'painting-textura') gestoDaTextura.soltar(null)
         if (mode === 'painting-neblina') gestoDaNeblina.soltar(null)
         // Carimbos soltos fora do canvas: o que o spray já espalhou vale.
-        if (mode === 'painting-carimbo') finishCarimbo(null)
+        if (mode === 'painting-carimbo') gestoDoCarimbo.soltar(null)
         // Onda 1, item 3 (Frente F) — mesmo padrão de commit acima, ver
         // comentário completo no pointerup.
         if (mode === 'dragging-token' && tokenDragSnapshot) {
@@ -9646,7 +9157,7 @@ function PixiCanvasDoContexto({
         }
 
         if (mode === 'painting-reveal-brush') {
-          extendRevealStroke(toWorldPoint(event.global.x, event.global.y))
+          gestoDoPincelDeRevelar.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -9677,12 +9188,12 @@ function PixiCanvasDoContexto({
         }
 
         if (mode === 'painting-penhasco') {
-          extendPenhascoStroke(toWorldPoint(event.global.x, event.global.y))
+          gestoDoPenhasco.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
         if (mode === 'painting-textura') {
-          extendTexturaStroke(toWorldPoint(event.global.x, event.global.y))
+          gestoDaTextura.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
@@ -9692,7 +9203,7 @@ function PixiCanvasDoContexto({
         }
 
         if (mode === 'painting-carimbo') {
-          moveCarimbo(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y })
+          gestoDoCarimbo.mover(toWorldPoint(event.global.x, event.global.y), { x: event.global.x, y: event.global.y })
           return
         }
 
