@@ -1,15 +1,20 @@
 import { chaveDaVez, type PedidoDeAcao } from '../lib/batalha/combate'
+import { travaDoToken } from '../lib/batalha/condicoes'
 import { acoesDaCarta, sugestaoParaNpc } from '../lib/batalha/golpe'
+import type { LinhaDoRegistro, TipoDaLinha } from '../lib/batalha/registro'
+import { danoFinal } from '../lib/batalha/reacao'
+import { bonusDaBatalha } from '../lib/batalha/selos'
 import { formasQueDesligamNoFim } from '../lib/batalha/transformacao'
-import { cartaDaVez, tokensCaidos, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../lib/batalha/turnos'
+import { cartaDaVez, contrasQueSeguramAVez, tokensCaidos, type AutorDaAcao, type CartaDaOrdem, type TurnosDaCena } from '../lib/batalha/turnos'
 import { ehDoMestre, golpesDaVezDoNpc, mesaAgora, sugestaoNaTela, type MesaDaCena } from '../components/batalha/BatalhaDoMestre'
 import { faixaDoMestre, linhasDoMestre, type RecursoNaCarta } from '../components/batalha/dadosDaFaixa'
-import { economiaEmTexto, formatarNumero, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
+import { armaPadraoNaBatalha, economiaEmTexto, formatarNumero, golpesDeAtaque, golpesDeHabilidade, pipsDaVez, type GolpeNaTela } from '../components/batalha/dadosDoMenu'
 import { alvosDaOrdem, nomeDaFicha } from '../components/batalha/mesaDoMestre'
 import { pedidoDoGolpe } from '../components/batalha/MiraDoGolpe'
 import { useBatalhaStore } from '../stores/batalhaStore'
 import { useToastStore } from '../stores/toastStore'
-import type { AlvoNoEspelho, CartaNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
+import { ligarOMenuDoMapa, menuDoMapaAberto } from './telaDaMesa'
+import type { AjusteDoGolpe, AlvoNoEspelho, CartaNoEspelho, ContraNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, LinhaNoEspelho, PedidoDaMesa, PendenteNoEspelho, RecursoNoEspelho, RespostaDaMesa, VezNoEspelho } from './tipos'
 
 /**
  * A MESA DA BATALHA no One Piece: o espelho lido das stores (as mesmas leituras
@@ -21,10 +26,17 @@ import type { AlvoNoEspelho, CartaNoEspelho, EspelhoDaBatalha, GolpeNoEspelho, L
 const MESTRE: AutorDaAcao = { tipo: 'mestre' }
 /** O registro na tela: as mais novas (o livro tem o inteiro). */
 const LINHAS_NA_MESA = 60
+/** O que aconteceu nesta vez, no cartão da vez: as mais novas. */
+const FEITOS_NA_VEZ = 3
 const SEPARA_ID = '|'
+/** As linhas que contam o que a vez fez (golpe, reação, dano); as de ordem e regra ficam só no registro. */
+const LINHAS_DA_VEZ: ReadonlySet<TipoDaLinha> = new Set<TipoDaLinha>(['acao', 'golpe', 'habilidade', 'reacao', 'dano', 'transformacao', 'selo'])
 
 const recusa = (motivo: string): RespostaDaMesa => ({ ok: false, motivo })
 const OK: RespostaDaMesa = { ok: true, motivo: null }
+
+/** Quando cada contra-ataque começou a esperar (a store não guarda a hora): visto pela primeira vez aqui. */
+const contraVistoEm = new Map<string, number>()
 
 function recursos(lista: readonly RecursoNaCarta[]): RecursoNoEspelho[] {
   return lista.map((recurso) => ({ rotulo: recurso.rotulo, atual: recurso.atual, maximo: recurso.maximo, tom: recurso.tom }))
@@ -61,6 +73,7 @@ function detalheDoGolpe(golpe: GolpeNaTela): string {
 
 function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
   const teto = golpe.semAlvo === true ? 0 : (golpe.tetoDeAlvos ?? golpe.divide ?? 8)
+  const comNumero = !golpe.dano.semDano && golpe.dano.valor !== null
   return {
     chave: golpe.chave,
     nome: golpe.nome,
@@ -70,7 +83,37 @@ function golpeNoEspelho(golpe: GolpeNaTela): GolpeNoEspelho {
     alvo: golpe.semAlvo === true ? 'nenhum' : teto === 1 ? 'um' : 'varios',
     alvosMax: teto,
     alvosPermitidos: null,
+    dano: comNumero ? golpe.dano.valor : null,
+    perfurante: golpe.perfurante,
+    ajustavel: comNumero,
   }
+}
+
+function alvosNoEspelho(alvos: ReturnType<typeof alvosDaOrdem>): AlvoNoEspelho[] {
+  return alvos.map((alvo) => ({ id: alvo.tokenId, nome: alvo.nome, lado: alvo.lado, caiu: alvo.caiu, motivo: alvo.motivo ?? null, detalhe: null }))
+}
+
+/**
+ * Quando a vez começou e o que ela já fez: as linhas depois da última "Vez" de
+ * pé no registro (o registro vem da mais velha à mais nova).
+ */
+function daVez(registro: readonly LinhaDoRegistro[]): { desde: number | null; feitos: string[] } {
+  let inicio = -1
+  for (let indice = registro.length - 1; indice >= 0; indice -= 1) {
+    const linha = registro[indice]
+    if (linha !== undefined && linha.tipo === 'vez' && linha.desfeita === undefined) {
+      inicio = indice
+      break
+    }
+  }
+  const desde = inicio >= 0 ? (registro[inicio]?.quando ?? null) : null
+  const feitos = registro
+    .slice(inicio + 1)
+    .filter((linha) => linha.desfeita === undefined && LINHAS_DA_VEZ.has(linha.tipo))
+    .map((linha) => linha.texto)
+    .reverse()
+    .slice(0, FEITOS_NA_VEZ)
+  return { desde, feitos }
 }
 
 interface VezDoNpc {
@@ -91,31 +134,55 @@ function vezDoNpc(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrdem): 
   return { carta, golpes: [...habilidades, ...armas], alvos: alvosDaOrdem(mesa, turnos.cartas, carta), trava }
 }
 
-function vezNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrdem, recursosDaVez: readonly RecursoNoEspelho[], equipe: string | null): VezNoEspelho {
+/** As ações do NPC que contra-ataca, como o menu do contra no centro as lê: fora da vez (sem a ação da vez), com a trava dele. */
+function golpesDoContra(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrdem): GolpeNaTela[] {
+  const { personagens, sistema } = mesa
+  const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+  const combate = carta.personagemId === null ? undefined : turnos.combate?.[carta.personagemId]
+  const arma = armaPadraoNaBatalha(personagem, combate)
+  const bonus = bonusDaBatalha(turnos.selos, carta.tokenId)
+  const trava = travaDoToken(turnos.selos, carta.tokenId)
+  const habilidades = personagem !== null && sistema !== null ? golpesDeHabilidade(personagem, sistema, combate, null, arma, bonus) : []
+  const todos = [...habilidades, ...golpesDeAtaque(personagem, sistema, combate, null, bonus)]
+  return trava === null ? todos : todos.map((golpe) => ({ ...golpe, motivo: trava }))
+}
+
+function vezNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena, carta: CartaDaOrdem, recursosDaVez: readonly RecursoNoEspelho[], equipe: string | null, posicao: number, registro: readonly LinhaDoRegistro[]): VezNoEspelho {
   const quem = nomeDaFicha(mesa, carta.tokenId, carta)
-  const base = { chave: chaveDe(turnos, carta), quem, recursos: recursosDaVez, sugestao: { golpe: null, alvo: null } }
+  const { cena, personagens, sistema, equipes } = mesa
+  const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
+  const acoes = carta.bando === undefined ? acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena?.regras ?? null }) : null
+  const { desde, feitos } = daVez(registro)
+  const base = {
+    chave: chaveDe(turnos, carta),
+    quem,
+    recursos: recursosDaVez,
+    sugestao: { golpe: null, alvo: null },
+    posicao,
+    desde,
+    feitos,
+    pips: acoes === null ? [] : pipsDaVez(acoes).map((pip) => ({ texto: pip.texto, gasto: pip.gasto })),
+    menuDoMapa: false,
+  }
   if (carta.bando !== undefined) {
     return { ...base, npc: true, descricao: 'Bando de invocados', golpes: [], alvos: [], aviso: 'A vez do bando (cada invocado age) fica na página Batalha do livro. Daqui dá para passar a vez.' }
   }
   const doNpc = vezDoNpc(mesa, turnos, carta)
   if (doNpc === null) {
-    return { ...base, npc: false, descricao: equipe === null ? 'Jogador' : `Jogador · ${equipe}`, golpes: [], alvos: [], aviso: `A vez de ${quem} é do jogador, que escolhe na tela própria. Daqui você passa a vez, desfaz e responde às reações.` }
+    return { ...base, npc: false, descricao: equipe === null ? 'Jogador' : `Jogador · ${equipe}`, golpes: [], alvos: [], aviso: `${quem} joga na tela própria. Daqui você passa a vez, desfaz e responde às reações.` }
   }
-  const { cena, personagens, sistema, equipes } = mesa
-  const personagem = carta.personagemId === null ? null : (personagens.find((candidato) => candidato.id === carta.personagemId) ?? null)
-  const acoes = acoesDaCarta({ turnos, carta, personagem, sistema, regras: cena?.regras ?? null })
   const sugestao = personagem === null || cena === undefined ? null : sugestaoParaNpc(personagem, cena, { personagens, sistema, equipes, caidos: tokensCaidos(turnos.cartas, personagens, sistema) })
   const naTela = sugestaoNaTela(sugestao)
-  const alvos: AlvoNoEspelho[] = doNpc.alvos.map((alvo) => ({ id: alvo.tokenId, nome: alvo.nome, lado: alvo.lado, caiu: alvo.caiu, motivo: alvo.motivo ?? null, detalhe: null }))
-  const economia = economiaEmTexto(acoes)
+  const economia = acoes === null ? '' : economiaEmTexto(acoes)
   return {
     ...base,
     npc: true,
-    descricao: [equipe === null ? 'NPC' : `NPC · ${equipe}`, economia].filter((parte) => parte !== '').join(' · '),
+    descricao: [equipe === null ? 'NPC' : `NPC · ${equipe}`, base.pips.length === 0 ? economia : ''].filter((parte) => parte !== '').join(' · '),
     golpes: doNpc.golpes.map(golpeNoEspelho),
-    alvos,
+    alvos: alvosNoEspelho(doNpc.alvos),
     sugestao: { golpe: naTela.chave, alvo: naTela.alvoTokenId },
     aviso: doNpc.trava ?? (doNpc.golpes.length === 0 ? 'Sem técnica nem arma na ficha: passe a vez ou dê dano pelo livro.' : null),
+    menuDoMapa: true,
   }
 }
 
@@ -126,20 +193,57 @@ function pendentes(mesa: MesaDaCena, turnos: TurnosDaCena, quandoDaLinha: Readon
       if (alvo.danoFinal !== undefined || !alvo.podeReagir) continue
       const doMestre = ehDoMestre(alvo.personagemId, mesa.personagens)
       const nomeDoAlvo = nomeDaFicha(mesa, alvo.tokenId)
+      const atacante = nomeDaFicha(mesa, golpe.atacanteTokenId)
       const dano = alvo.dano === null ? '' : ` (${formatarNumero(alvo.dano)})`
+      const antesDoDado = alvo.rolagem === undefined
       itens.push({
         id: `${golpe.id}${SEPARA_ID}${alvo.tokenId}`,
-        titulo: `${golpe.nome} de ${nomeDaFicha(mesa, golpe.atacanteTokenId)} em ${nomeDoAlvo}${dano}`,
+        titulo: `${golpe.nome} de ${atacante} em ${nomeDoAlvo}${dano}`,
         quem: doMestre ? 'Você (NPC)' : `${nomeDoAlvo} (jogador)`,
         doMestre,
         desde: quandoDaLinha.get(golpe.linhaId) ?? null,
         ativa: true,
-        respostas: doMestre ? [alvo.rolagem === undefined ? { chave: 'naoReagir', rotulo: 'Não reagir', bloqueio: null } : { chave: 'passar', rotulo: 'Tomar o golpe', bloqueio: null }] : [],
-        nota: doMestre ? 'Rolar esquiva ou defesa: na carta REAÇÃO do mapa.' : null,
+        // O mestre responde pelo NPC; pelo jogador que sumiu, só o "Sem reação" antes do dado (o "Tomar o golpe" depois).
+        respostas: [antesDoDado ? { chave: 'naoReagir', rotulo: 'Sem reação', bloqueio: null } : { chave: 'passar', rotulo: 'Tomar o golpe', bloqueio: null }],
+        nota: doMestre
+          ? antesDoDado
+            ? 'Rolar a esquiva ou a defesa: na carta REAÇÃO, no meio do mapa do app.'
+            : 'Escolher o que o dado liberou: na carta REAÇÃO, no meio do mapa do app.'
+          : `${nomeDoAlvo} rola 1d20 na tela do jogador.`,
+        golpe: {
+          nome: golpe.nome,
+          de: atacante,
+          alvo: nomeDoAlvo,
+          chega: alvo.dano,
+          rolou: alvo.rolagem === undefined ? null : { d20: alvo.rolagem.d20, total: alvo.rolagem.total },
+          danos: alvo.dano === null ? null : { critico: danoFinal(alvo.dano, 'critico'), cheio: danoFinal(alvo.dano, 'cheio'), metade: danoFinal(alvo.dano, 'metade') },
+        },
       })
     }
   }
   return itens
+}
+
+function contraNoEspelho(mesa: MesaDaCena, turnos: TurnosDaCena): ContraNoEspelho | null {
+  const seguram = contrasQueSeguramAVez(turnos)
+  const ids = new Set(seguram.map((contra) => contra.golpeId))
+  for (const id of [...contraVistoEm.keys()]) if (!ids.has(id)) contraVistoEm.delete(id)
+  const contra = seguram[0]
+  if (contra === undefined) return null
+  if (!contraVistoEm.has(contra.golpeId)) contraVistoEm.set(contra.golpeId, Date.now())
+  const doMestre = ehDoMestre(contra.personagemId, mesa.personagens)
+  const carta = turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
+  const comMenu = doMestre && carta !== undefined
+  return {
+    golpeId: contra.golpeId,
+    quem: nomeDaFicha(mesa, contra.tokenId, carta),
+    de: nomeDaFicha(mesa, contra.atacanteTokenId),
+    doMestre,
+    desde: contraVistoEm.get(contra.golpeId) ?? null,
+    golpes: comMenu ? golpesDoContra(mesa, turnos, carta).map(golpeNoEspelho) : [],
+    alvos: comMenu ? alvosNoEspelho(alvosDaOrdem(mesa, turnos.cartas, carta)) : [],
+    alvoSugerido: contra.atacanteTokenId,
+  }
 }
 
 /** O espelho da batalha One Piece da cena; `null` = a cena não está nela. */
@@ -149,7 +253,8 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
   if (cena === undefined) return null
   const { turnos } = cena
   const faixa = faixaDoMestre({ turnos, fichas: mesa.fichas, personagens: mesa.personagens, equipes: mesa.equipes, sistema: mesa.sistema, registro: cena.registro })
-  const ordem: CartaNoEspelho[] = faixa.cartas.map((carta) => {
+  const indiceDaVez = faixa.cartas.findIndex((carta) => carta.id === faixa.vez)
+  const ordem: CartaNoEspelho[] = faixa.cartas.map((carta, indice) => {
     const marcas = (carta.selos ?? []).map((selo) => selo.texto)
     if (carta.forma) marcas.unshift(carta.forma)
     if (carta.extra !== null) marcas.push(carta.extra === 'rodada' ? 'Carta extra (rodada)' : 'Carta extra')
@@ -166,21 +271,27 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
       vez: carta.id === faixa.vez,
       proxima: carta.id === faixa.proxima,
       marcas,
+      posicao: indice + 1,
+      agiu: indiceDaVez >= 0 && indice < indiceDaVez,
     }
   })
   const carta = cartaDaVez(turnos)
-  const daVez = carta === null ? undefined : faixa.cartas.find((candidata) => candidata.id === carta.id)
+  const daVezNaFaixa = carta === null ? undefined : faixa.cartas.find((candidata) => candidata.id === carta.id)
   const quandoDaLinha = new Map(cena.registro.map((linha) => [linha.id, linha.quando]))
   const linhas = linhasDoMestre(cena.registro)
   const registro: LinhaNoEspelho[] = linhas.slice(0, LINHAS_NA_MESA).map((linha) => ({ id: linha.id, rodada: linha.rodada, autor: linha.autor, texto: linha.texto, desfeita: linha.desfeitaPor !== null, podeDesfazer: linha.podeDesfazer }))
   const ultima = linhas.find((linha) => linha.podeDesfazer)
+  const vez =
+    carta === null
+      ? null
+      : vezNoEspelho(mesa, turnos, carta, daVezNaFaixa !== undefined && daVezNaFaixa.vida === 'numeros' ? recursos(daVezNaFaixa.recursos) : [], daVezNaFaixa?.equipe ?? null, indiceDaVez + 1, cena.registro)
   return {
     sistema: 'op',
     sceneKey,
     fase: 'combate',
     rodada: turnos.rodada,
     turno: faixa.turno.m === 0 ? null : faixa.turno,
-    vez: carta === null ? null : vezNoEspelho(mesa, turnos, carta, daVez !== undefined && daVez.vida === 'numeros' ? recursos(daVez.recursos) : [], daVez?.equipe ?? null),
+    vez,
     ordem,
     pendentes: pendentes(mesa, turnos, quandoDaLinha),
     registro,
@@ -188,6 +299,11 @@ export function espelhoOP(sceneKey: string): EspelhoDaBatalha | null {
     podePassar: carta !== null,
     avisoDoEncerrar: 'Encerrar desliga a batalha desta cena e tira as formas de quem lutou. As fichas ficam como estão.',
     avisos: [],
+    contra: contraNoEspelho(mesa, turnos),
+    temCaminhos: Object.values(cena.caminhos).some((blocos) => blocos > 0),
+    podeOrdenar: turnos.cartas.length > 1,
+    // Aberto pela vez do NPC ou pelo contra-ataque dele (que acontece também na vez do jogador): a chave é a da vez de agora.
+    menuDoMapaAberto: vez !== null && menuDoMapaAberto(sceneKey, vez.chave),
   }
 }
 
@@ -203,6 +319,34 @@ function encerrarOP(sceneKey: string): RespostaDaMesa {
   return OK
 }
 
+/** O pedido do golpe com o de sempre da mira e o ajuste da mesa (Dano base, Surpresa, Perfurante). */
+function acaoDoGolpe(golpe: GolpeNaTela, alvos: readonly string[], ajuste: AjusteDoGolpe | undefined): PedidoDeAcao {
+  const comNumero = !golpe.dano.semDano && golpe.dano.valor !== null
+  const danoDaFicha = golpe.dano.semDano ? null : (golpe.dano.valor ?? 0)
+  const dano = comNumero && ajuste !== undefined && ajuste.dano !== null ? ajuste.dano : danoDaFicha
+  const perfurante = ajuste?.perfurante ?? golpe.perfurante
+  const selo = golpe.selo === undefined ? null : { nome: golpe.selo.nome, turnos: golpe.selo.turnos, ...(golpe.selo.mods === undefined ? {} : { mods: golpe.selo.mods }) }
+  return pedidoDoGolpe(golpe, {
+    alvos: golpe.semAlvo === true ? [] : [...new Set(alvos)].map((tokenId) => ({ tokenId, dano })),
+    surpresa: ajuste?.surpresa ?? false,
+    perfurante,
+    perfuracao: perfurante ? golpe.perfuracao : null,
+    custo: null,
+    acao: null,
+    selo,
+  })
+}
+
+/** Confere os alvos do pedido contra os da lista; `null` = valem. */
+function motivoDosAlvos(golpe: GolpeNaTela, alvos: readonly string[], lista: ReturnType<typeof alvosDaOrdem>): string | null {
+  if (golpe.semAlvo === true) return null
+  const validos = new Set(lista.filter((alvo) => alvo.motivo === undefined || alvo.motivo === null).map((alvo) => alvo.tokenId))
+  if (alvos.length === 0) return 'Escolha ao menos um alvo.'
+  if (alvos.some((alvo) => !validos.has(alvo))) return 'Um dos alvos não pode ser escolhido.'
+  if (golpe.tetoDeAlvos !== undefined && alvos.length > golpe.tetoDeAlvos) return golpe.tetoDeAlvos === 1 ? `${golpe.nome} acerta um alvo só.` : `${golpe.nome} acerta no máximo ${golpe.tetoDeAlvos} alvos.`
+  return null
+}
+
 /** O golpe do NPC com o de sempre da mira (o pedido sai pelo mesmo `pedidoDoGolpe` do menu). */
 function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }>): RespostaDaMesa {
   const mesa = mesaAgora(sceneKey)
@@ -216,23 +360,9 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   if (golpe.motivo !== null) return recusa(golpe.motivo)
   const noMapa = porQueNoMapa(golpe)
   if (noMapa !== null) return recusa(noMapa)
-  const validos = new Set(doNpc.alvos.filter((alvo) => alvo.motivo === undefined || alvo.motivo === null).map((alvo) => alvo.tokenId))
-  if (golpe.semAlvo !== true) {
-    if (pedido.alvos.length === 0) return recusa('Escolha ao menos um alvo.')
-    if (pedido.alvos.some((alvo) => !validos.has(alvo))) return recusa('Um dos alvos não pode ser escolhido.')
-    if (golpe.tetoDeAlvos !== undefined && pedido.alvos.length > golpe.tetoDeAlvos) return recusa(golpe.tetoDeAlvos === 1 ? `${golpe.nome} acerta um alvo só.` : `${golpe.nome} acerta no máximo ${golpe.tetoDeAlvos} alvos.`)
-  }
-  const dano = golpe.dano.semDano ? null : (golpe.dano.valor ?? 0)
-  const selo = golpe.selo === undefined ? null : { nome: golpe.selo.nome, turnos: golpe.selo.turnos, ...(golpe.selo.mods === undefined ? {} : { mods: golpe.selo.mods }) }
-  const acao: PedidoDeAcao = pedidoDoGolpe(golpe, {
-    alvos: golpe.semAlvo === true ? [] : [...new Set(pedido.alvos)].map((tokenId) => ({ tokenId, dano })),
-    surpresa: false,
-    perfurante: golpe.perfurante,
-    perfuracao: golpe.perfurante ? golpe.perfuracao : null,
-    custo: null,
-    acao: null,
-    selo,
-  })
+  const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, doNpc.alvos)
+  if (dosAlvos !== null) return recusa(dosAlvos)
+  const acao = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste)
   const vez = { cartaId: carta.id, rodada: turnos.rodada }
   const loja = useBatalhaStore.getState()
   const motivo = loja.motivoDoAgir(sceneKey, MESTRE, vez, acao)
@@ -240,15 +370,46 @@ function agirOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'agir' }
   return loja.agir(sceneKey, MESTRE, vez, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
 }
 
-/** A reação do NPC daqui: só o "não reagir" (antes do dado) ou o "tomar o golpe" (depois dele). */
+/** O contra-ataque do NPC (Q6): o golpe dele fora da vez, com `contraDe`; usado, a vez volta para quem atacou. */
+function contraOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'contra' | 'abrirMao' }>): RespostaDaMesa {
+  const mesa = mesaAgora(sceneKey)
+  const turnos = mesa.cena?.turnos
+  const contra = turnos === undefined ? undefined : contrasQueSeguramAVez(turnos).find((candidato) => candidato.golpeId === pedido.golpeId)
+  if (turnos === undefined || contra === undefined) return recusa('Este contra-ataque já foi usado.')
+  if (!ehDoMestre(contra.personagemId, mesa.personagens)) return recusa('Quem contra-ataca é o jogador, na tela dele.')
+  const loja = useBatalhaStore.getState()
+  if (pedido.acao === 'abrirMao') {
+    const mover: PedidoDeAcao = { tipo: 'mover', contraDe: contra.golpeId }
+    const motivo = loja.motivoDoAgir(sceneKey, MESTRE, null, mover)
+    if (motivo !== null) return recusa(motivo)
+    return loja.agir(sceneKey, MESTRE, null, mover) ? OK : recusa('A regra recusou o Mover do contra-ataque.')
+  }
+  const carta = turnos.cartas.find((candidata) => candidata.tokenId === contra.tokenId && candidata.bando === undefined)
+  if (carta === undefined) return recusa('Quem contra-ataca saiu da ordem.')
+  const golpe = golpesDoContra(mesa, turnos, carta).find((candidato) => candidato.chave === pedido.golpe)
+  if (golpe === undefined) return recusa('Esta ação não está mais na ficha.')
+  if (golpe.motivo !== null) return recusa(golpe.motivo)
+  const noMapa = porQueNoMapa(golpe)
+  if (noMapa !== null) return recusa(noMapa)
+  const dosAlvos = motivoDosAlvos(golpe, pedido.alvos, alvosDaOrdem(mesa, turnos.cartas, carta))
+  if (dosAlvos !== null) return recusa(dosAlvos)
+  const golpeDaMira = acaoDoGolpe(golpe, pedido.alvos, pedido.ajuste)
+  if (golpeDaMira.tipo !== 'atacar' && golpeDaMira.tipo !== 'habilidade') return recusa('Esta ação não serve de contra-ataque.')
+  const acao: PedidoDeAcao = { ...golpeDaMira, contraDe: contra.golpeId }
+  const motivo = loja.motivoDoAgir(sceneKey, MESTRE, null, acao)
+  if (motivo !== null) return recusa(motivo)
+  return loja.agir(sceneKey, MESTRE, null, acao) ? OK : recusa('A regra recusou: confira a ação, o custo e a recarga.')
+}
+
+/** A resposta do mestre a um golpe que espera: "Sem reação" antes do dado, "Tomar o golpe" depois (NPC ou jogador que sumiu). */
 function responderOP(sceneKey: string, pedido: Extract<PedidoDaMesa, { acao: 'responder' }>): RespostaDaMesa {
   const [golpeId, tokenId] = pedido.pendente.split(SEPARA_ID)
   const mesa = mesaAgora(sceneKey)
   const golpe = mesa.cena?.turnos.golpes?.find((candidato) => candidato.id === golpeId)
   const alvo = golpe?.alvos.find((candidato) => candidato.tokenId === tokenId)
   if (golpe === undefined || alvo === undefined || alvo.danoFinal !== undefined) return recusa('Esta reação já foi resolvida.')
-  if (!ehDoMestre(alvo.personagemId, mesa.personagens)) return recusa('Quem reage é o jogador, na tela dele.')
   if (pedido.resposta !== 'naoReagir' && pedido.resposta !== 'passar') return recusa('Resposta desconhecida.')
+  if (pedido.resposta === 'naoReagir' && alvo.rolagem !== undefined) return recusa('O dado já rolou: escolha o que ele liberou na carta REAÇÃO, ou tome o golpe.')
   const ok = useBatalhaStore.getState().reagir(sceneKey, MESTRE, { tipo: pedido.resposta, golpeId: golpe.id, tokenId: alvo.tokenId })
   return ok ? OK : recusa('A regra recusou a resposta.')
 }
@@ -269,12 +430,28 @@ export function aplicarPedidoOP(pedido: PedidoDaMesa): RespostaDaMesa {
       return loja.darVez(sceneKey, pedido.cartaId) ? OK : recusa('Esta carta não está mais na ordem.')
     case 'agir':
       return agirOP(sceneKey, pedido)
+    case 'contra':
+    case 'abrirMao':
+      return contraOP(sceneKey, pedido)
     case 'responder':
       return responderOP(sceneKey, pedido)
     case 'desfazer':
       return loja.desfazer(sceneKey, pedido.linhaId, MESTRE) ? OK : recusa('Esta linha não se desfaz mais.')
     case 'iniciativa':
       return recusa('No One Piece a ordem sai da Agilidade: não há iniciativa a rolar.')
+    case 'ordenar':
+      return loja.ordenarPelaAgilidade(sceneKey) ? OK : recusa('A ordem já está pela Agilidade.')
+    case 'zerarCaminhos':
+      loja.zerarCaminhos(sceneKey)
+      return OK
+    case 'menuDoMapa': {
+      const carta = cartaDaVez(turnos)
+      if (pedido.ligar && carta === null) return recusa('Sem vez agora.')
+      ligarOMenuDoMapa(sceneKey, pedido.ligar && carta !== null ? chaveDe(turnos, carta) : null)
+      return OK
+    }
+    case 'abrirLivro':
+      return recusa('O livro abre pela janela principal.')
     case 'encerrar':
       return encerrarOP(sceneKey)
   }
