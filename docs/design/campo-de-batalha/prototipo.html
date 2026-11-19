@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo: campo de batalha</title>
+<!--
+  PROTÓTIPO, não é código do app. Um arquivo só, mapa e dados de mentira.
+  Ideia: o mapa fala por três marcas, e cada uma tem uma forma só.
+    ANEL de latão  = quem age agora (tracejado = a vez é dele, mas espera).
+    CANTOS na casa = o alvo (latão enquanto se mira, brasa depois que o golpe saiu).
+    CASAS claras   = até onde dá para andar.
+  A grade deixa de ser uma tela branca: é o tom escuro do próprio chão, em cruzes,
+  e só vira linha onde se conta casa (dentro do alcance).
+  Cores, fontes e medidas da interface copiadas de docs/design/mesa-da-batalha/prototipo.html.
+  Chão: paleta do Meio-Termo (docs/design/vila-meio-termo/README.md).
+-->
+<style>
+:root {
+  --ink: #121214;
+  --stone: rgba(19, 19, 23, 0.94);
+  --raised: #232328;
+  --hover: #2c2c33;
+  --sunken: #141417;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-panel: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --parch: #eceae4;
+  --dim: #a2a09a;
+  --faint: #858480;
+  --brass: #e0a44a;
+  --brass-bright: #f3ba66;
+  --brass-contrast: #1c1608;
+  --ember: #e2645a;
+  --tide: #79a9cc;
+  --sangue: #b4493c;
+  --tinta: #0c0c0e;
+  --contorno: rgba(12, 12, 14, 0.62);
+  --display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --util: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --sombra: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --barra-proto: 44px;
+  --mesa-larg: 400px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--ink); color: var(--parch); font: 13px/1.45 var(--sans); overflow: hidden; }
+button { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+/* ------------------------------------------------ barra do protótipo (não faz parte do desenho) */
+.proto { height: var(--barra-proto); display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #0a0a0c; border-bottom: 1px dashed var(--line-strong); font-family: var(--util); font-size: 12px; color: var(--dim); }
+.proto__nome { color: var(--parch); white-space: nowrap; }
+.proto__grupo { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.proto button { min-height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; white-space: nowrap; }
+.proto button[aria-pressed='true'] { background: var(--parch); border-color: var(--parch); color: var(--tinta); font-weight: 600; }
+.proto button:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+.proto__nota { margin-left: auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+
+/* ------------------------------------------------ o mapa */
+.app { position: relative; height: calc(100% - var(--barra-proto)); overflow: hidden; background: #0e0e10; }
+.mundo { position: absolute; left: 0; top: 0; width: 1456px; height: 896px; transform-origin: 0 0; transform: translateX(var(--cx, 0px)) scale(var(--z, 1)); }
+.mundo canvas, .mundo > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+:where(#marcas) :where(path, line, polyline) { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+/* A grade é o tom escuro do chão onde ela passa (multiplica), nunca branco. */
+.grade { mix-blend-mode: multiply; }
+.grade--cruzes { stroke: #56634c; stroke-width: 1.5; opacity: 0.5; }
+.grade--linhas { stroke: #56634c; stroke-width: 1; opacity: 0.3; }
+.mundo[data-grade='cruzes'] #g-linhas, .mundo[data-grade='linhas'] #g-cruzes { display: none; }
+
+/* Até onde dá para andar: o chão clareia um pouco e as casas ganham linha. */
+.alcance__claro { fill: rgba(255, 252, 240, 0.17); }
+.alcance__casas { fill: url(#p-dentro); mix-blend-mode: multiply; }
+.k { stroke: var(--contorno); }
+.alcance__borda { stroke: var(--brass); stroke-width: 2; }
+.alcance__borda.k { stroke: var(--contorno); stroke-width: 4.5; }
+.golpe__borda { stroke: var(--brass-bright); stroke-width: 2; stroke-dasharray: 8 6; stroke-linecap: butt; }
+.golpe__borda.k { stroke: var(--contorno); stroke-width: 5; }
+.trilha { stroke: var(--parch); stroke-width: 5; stroke-dasharray: 0.1 12; }
+.trilha.k { stroke: var(--contorno); stroke-width: 8.5; }
+.previa { stroke: var(--parch); stroke-width: 2; }
+.previa.k { stroke: var(--contorno); stroke-width: 5; }
+.previa__casa { fill: rgba(224, 164, 74, 0.3); stroke: var(--brass-bright); stroke-width: 2; }
+.fio { stroke-width: 2.5; }
+.fio--mira { stroke: var(--brass-bright); stroke-dasharray: 7 7; stroke-linecap: butt; }
+.fio--voo { stroke: var(--ember); stroke-dasharray: 7 7; stroke-linecap: butt; }
+.fio--feito { stroke: var(--ember); }
+.fio.k { stroke: var(--contorno); stroke-width: 6; }
+.fio__ponta { stroke-width: 1.5; stroke: var(--contorno); }
+.fio__ponta--mira { fill: var(--brass-bright); }
+.fio__ponta--voo, .fio__ponta--feito { fill: var(--ember); }
+
+/* A névoa do jogador: o que a ficha dele não vê. */
+.nevoa { position: absolute; left: -1600px; top: -1100px; width: 3200px; height: 2200px; pointer-events: none; background: radial-gradient(circle at center, transparent 0, transparent 372px, rgba(12, 12, 14, 0.93) 436px); transition: transform 280ms var(--ease-in-out); }
+
+/* ------------------------------------------------ a ficha */
+.ficha { position: absolute; left: 0; top: 0; width: 0; height: 0; --lado: var(--parch); }
+.ficha__disco { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--raised); color: var(--parch); display: grid; place-items: center; font: 600 14px/1 var(--util); box-shadow: 0 0 0 3px var(--lado), 0 0 0 4.5px rgba(12, 12, 14, 0.9), 0 5px 10px 2px rgba(0, 0, 0, 0.32); }
+.ficha__disco:disabled { color: var(--parch); }
+.ficha[data-miravel] .ficha__disco { cursor: crosshair; transition: transform 120ms var(--ease-out); }
+.ficha[data-miravel] .ficha__disco:active { transform: scale(0.97); }
+.ficha[data-longe] .ficha__disco { cursor: not-allowed; }
+.ficha__disco:focus-visible { outline: 2px solid var(--parch); outline-offset: 7px; }
+.ficha__marca { position: absolute; left: -40px; top: -40px; width: 80px; height: 80px; pointer-events: none; overflow: visible; }
+.ficha__marca * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.anel, .cantos { opacity: 0; transition: opacity 160ms var(--ease-out); transform-box: fill-box; transform-origin: center; }
+.anel circle { stroke: var(--brass); stroke-width: 3; }
+.anel circle.k { stroke: rgba(12, 12, 14, 0.9); stroke-width: 6; }
+.ficha[data-age] .anel, .ficha[data-espera] .anel { opacity: 1; }
+.ficha[data-espera] .anel circle { stroke-dasharray: 6 5.97; stroke-linecap: butt; }
+.cantos path { stroke: var(--brass-bright); stroke-width: 3; }
+.cantos path.k { stroke: rgba(12, 12, 14, 0.85); stroke-width: 6.5; }
+.ficha[data-alvo] .cantos { opacity: 1; }
+.ficha[data-alvo='golpe'] .cantos path:not(.k) { stroke: var(--ember); }
+.ficha[data-reagindo] .cantos { animation: pulso 1.4s ease-in-out infinite; }
+@keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (hover: hover) and (pointer: fine) {
+  .ficha[data-miravel]:not([data-alvo]):hover .cantos { opacity: 0.75; }
+}
+.ficha[data-miravel]:not([data-alvo]):focus-within .cantos { opacity: 0.75; }
+
+.ficha__nome { position: absolute; top: 40px; left: 0; transform: translateX(-50%); display: grid; justify-items: center; gap: 3px; padding: 1px 8px 2px; border-radius: 9px; background: rgba(12, 12, 14, 0.82); font: 400 11.5px/1.5 var(--sans); white-space: nowrap; }
+.ficha__nome > span:first-child { display: flex; align-items: center; gap: 6px; }
+/* Segundo canal além da cor: Tripulação = ponto redondo, Estábulo do Rei = losango. */
+.pip { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lado); }
+[data-time='a'] .pip { border-radius: 1px; transform: rotate(45deg) scale(0.9); }
+.vida { display: none; grid-template-columns: 46px auto; align-items: center; gap: 6px; padding-bottom: 2px; font: 10.5px/1 var(--util); color: var(--dim); font-variant-numeric: tabular-nums; }
+.vida i { display: block; height: 4px; border-radius: 2px; background: #3a2422; overflow: hidden; }
+.vida em { font-style: normal; }
+.vida i > span { display: block; height: 100%; transform-origin: left; background: var(--ember); transition: transform 280ms var(--ease-out); }
+.ficha[data-vida] .vida { display: grid; }
+@media (hover: hover) and (pointer: fine) { .ficha:hover .vida { display: grid; } }
+.ficha:focus-within .vida { display: grid; }
+
+.ficha__cima { position: absolute; bottom: 42px; left: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; white-space: nowrap; pointer-events: none; }
+.selo { padding: 0 8px; border-radius: 999px; background: rgba(12, 12, 14, 0.82); color: var(--parch); font: 400 11px/1.7 var(--util); font-variant-numeric: tabular-nums; }
+.selo--mudo { color: var(--dim); }
+.selo--contra { background: var(--sangue); color: #fff; font-weight: 600; }
+.selo--espera { background: var(--tinta); color: var(--brass-bright); box-shadow: inset 0 0 0 1px var(--brass); }
+.selo--voce { background: var(--parch); color: var(--tinta); font-weight: 600; }
+.selo--reage b { color: var(--ember); font-weight: 600; }
+.dano { padding: 3px 7px 2px; border-radius: 6px; background: var(--parch); color: var(--tinta); font: 700 19px/1 var(--util); font-variant-numeric: tabular-nums; box-shadow: 3px 3px 0 var(--sangue); }
+
+.rotulo { position: absolute; left: 0; top: 0; padding: 0 8px; border-radius: 999px; background: rgba(12, 12, 14, 0.82); color: var(--parch); font: 400 11px/1.7 var(--util); font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+.rotulo--latao { color: var(--brass-bright); }
+
+/* ------------------------------------------------ a mesa (resumo): só acompanha o mapa */
+.doca { position: absolute; top: 12px; right: 12px; bottom: 12px; width: var(--mesa-larg); display: flex; flex-direction: column; border-radius: 12px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra); overflow: hidden; }
+.mesa__topo { flex: none; display: flex; align-items: center; height: 46px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.rodada { margin: 0; display: flex; align-items: baseline; gap: 8px; }
+.rodada b { font: 400 18px/1 var(--display); font-variant-numeric: lining-nums; }
+.rodada span { font: 11.5px/1 var(--util); color: var(--faint); font-variant-numeric: tabular-nums; }
+.ordem { list-style: none; margin: 0; padding: 8px 12px 12px; display: grid; gap: 4px; }
+.av { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--sunken); box-shadow: 0 0 0 2px var(--lado); font: 600 10.5px/1 var(--util); color: var(--parch); }
+.av--g { width: 40px; height: 40px; font-size: 13px; }
+.tag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--hover); font: 400 10.5px/1.5 var(--util); color: var(--dim); white-space: nowrap; }
+.tag--contra { background: var(--sangue); color: #fff; }
+.linha { display: grid; grid-template-columns: 14px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px 6px 8px; border-radius: 8px; }
+.linha__num { font: 11.5px/1 var(--util); color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
+.linha__quem { min-width: 0; display: grid; }
+.linha__quem > span { display: flex; align-items: center; min-width: 0; }
+.linha__quem b { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linha__quem small { font-size: 11px; color: var(--faint); }
+.mini { display: grid; grid-template-columns: 52px auto; align-items: center; gap: 3px 8px; font: 11px/1 var(--util); color: var(--dim); font-variant-numeric: tabular-nums; }
+.mini i { display: block; height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.mini i > span { display: block; height: 100%; transform-origin: left; background: var(--ember); }
+.mini i[data-tom='sp'] > span { background: var(--tide); }
+.mini em { font-style: normal; min-width: 3ch; text-align: right; }
+.cartao { position: relative; margin: 10px 0 6px; padding: 16px 12px 12px; border-radius: 10px; background: linear-gradient(180deg, rgba(224, 164, 74, 0.18), var(--raised) 110px); box-shadow: inset 0 0 0 1.5px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.35); }
+.fita { position: absolute; top: -9px; left: 12px; padding: 0 7px; border-radius: 4px; background: var(--brass); color: var(--brass-contrast); font: 700 10px/17px var(--util); letter-spacing: 0.1em; text-transform: uppercase; }
+.cartao[data-espera] .fita { background: var(--raised); color: var(--brass-bright); box-shadow: inset 0 0 0 1px var(--brass); }
+.cab { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.cab h2 { margin: 0; font: 400 27px/1.05 var(--display); color: var(--brass-bright); }
+.cartao[data-espera] .cab h2 { font-size: 20px; color: var(--parch); }
+.cab p { margin: 2px 0 0; font-size: 11.5px; color: var(--dim); }
+.agora { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--tinta); box-shadow: inset 0 0 0 1px var(--line-panel); font: 400 16px/1.3 var(--display); font-variant-numeric: lining-nums tabular-nums; }
+.doca__nota { margin: auto 14px 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--faint); }
+
+/* ------------------------------------------------ visão do jogador: sem mesa, com a faixa dele */
+.faixa { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: grid; grid-template-columns: 40px auto auto; align-items: center; gap: 4px 14px; padding: 10px 16px 10px 12px; border-radius: 12px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra); }
+.faixa b { display: block; font: 400 19px/1.15 var(--display); color: var(--brass-bright); }
+.faixa p { margin: 0; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.app[data-jogador] { background: #8cbf80; }
+.app[data-jogador] .doca, .app:not([data-jogador]) .faixa, .app:not([data-jogador]) .nevoa { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ficha[data-reagindo] .cantos { animation: none; opacity: 0.8; }
+  .nevoa, .vida i > span, .ficha[data-miravel] .ficha__disco { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="proto">
+  <span class="proto__nome">Protótipo · campo de batalha</span>
+  <div class="proto__grupo" role="toolbar" aria-label="Estados do protótipo">
+    <button type="button" data-ir="1">1 Vez</button>
+    <button type="button" data-ir="2">2 Mira</button>
+    <button type="button" data-ir="3">3 Esperando a reação</button>
+    <button type="button" data-ir="4">4 Resultado</button>
+    <button type="button" data-ir="5">5 Contra-ataque</button>
+    <button type="button" data-ir="6">6 Visão do jogador</button>
+  </div>
+  <div class="proto__grupo" role="group" aria-label="Grade fora do alcance">
+    <span>Grade</span>
+    <button type="button" data-grade="cruzes">cruzes</button>
+    <button type="button" data-grade="linhas">linhas</button>
+  </div>
+  <span class="proto__nota" id="nota"></span>
+</header>
+
+<main class="app" id="app">
+  <div class="mundo" id="mundo" data-grade="cruzes">
+    <canvas id="chao" aria-hidden="true"></canvas>
+    <svg id="marcas" viewBox="0 0 1456 896" aria-hidden="true">
+      <defs>
+        <pattern id="p-cruz" x="-28" y="-28" width="56" height="56" patternUnits="userSpaceOnUse"><path class="grade--cruzes" d="M28 24v8M24 28h8"/></pattern>
+        <pattern id="p-linha" width="56" height="56" patternUnits="userSpaceOnUse"><path class="grade--linhas" d="M0 0.5h56M0.5 0v56"/></pattern>
+        <pattern id="p-dentro" width="56" height="56" patternUnits="userSpaceOnUse"><path d="M0 0.5h56M0.5 0v56" stroke="#56634c" stroke-width="1" opacity="0.5"/></pattern>
+      </defs>
+      <rect id="g-cruzes" class="grade" width="1456" height="896" fill="url(#p-cruz)"/>
+      <rect id="g-linhas" class="grade" width="1456" height="896" fill="url(#p-linha)"/>
+      <g id="g-alcance"></g>
+      <g id="g-trilha"></g>
+      <g id="g-previa"></g>
+      <g id="g-golpe"></g>
+      <g id="g-fio"></g>
+      <rect id="toque" width="1456" height="896" fill="transparent"/>
+    </svg>
+    <div class="nevoa" id="nevoa" aria-hidden="true"></div>
+    <div id="fichas"></div>
+    <div id="rotulos" aria-hidden="true"></div>
+  </div>
+  <aside class="doca" id="doca" aria-label="Mesa da batalha, resumo"></aside>
+  <section class="faixa" id="faixa" aria-label="Sua ficha"></section>
+</main>
+
+<script>
+'use strict'
+
+/* Prova da troca de estado: tarefas longas e o tempo de cada troca ficam aqui para quem medir. */
+const medida = { tarefasLongas: [], trocas: [] }
+window.__campo = medida
+try {
+  new PerformanceObserver((lista) => lista.getEntries().forEach((e) => medida.tarefasLongas.push({ ms: Math.round(e.duration), em: Math.round(e.startTime) }))).observe({ type: 'longtask', buffered: true })
+} catch { /* navegador sem longtask: fica só o tempo de cada troca */ }
+
+/* ---------------------------------------------------------------- o mapa de mentira */
+const C = 56
+const COLS = 26
+const LINS = 16
+const LARG = COLS * C
+const ALT = LINS * C
+const k = ([c, l]) => `${c},${l}`
+const centro = ([c, l]) => [c * C + C / 2, l * C + C / 2]
+/* O que barra o passo: o poço (2 x 2) e as árvores. */
+const ARVORES = [[2, 7], [16, 4], [15, 12], [11, 13], [20, 9], [23, 13]]
+const POCO = [[9, 7], [10, 7], [9, 8], [10, 8]]
+const BARRA = new Set([...ARVORES, ...POCO].map(k))
+
+const TIMES = { a: { nome: 'Estábulo do Rei', cor: '#ab93d6' }, b: { nome: 'Tripulação', cor: '#7fb48a' } }
+const QUEM = {
+  cisco: { nome: 'Cavalo Cisco', curto: 'Cisco', ini: 'CC', time: 'a', hpMax: 300, sp: 100, spMax: 100, de: 'NPC' },
+  beau: { nome: 'Cavalo Beau', curto: 'Beau', ini: 'CB', time: 'b', hpMax: 300, sp: 100, spMax: 100, de: 'NPC' },
+  kaito: { nome: 'Kaito', curto: 'Kaito', ini: 'KA', time: 'b', hpMax: 280, sp: 60, spMax: 120, de: 'Jogador: Duda' },
+  brasa: { nome: 'Sargento Brasa', curto: 'Brasa', ini: 'SB', time: 'a', hpMax: 260, sp: 80, spMax: 80, de: 'NPC' },
+}
+const ORDEM = ['cisco', 'beau', 'kaito', 'brasa']
+const HP = { cisco: 300, beau: 300, kaito: 240, brasa: 260 }
+const LUGAR = { cisco: [5, 6], kaito: [8, 5], beau: [12, 8], brasa: [3, 4] }
+const COICE = { nome: 'Coice', alcance: 3, dano: 80 }
+const VISAO_EM_CASAS = 6.9
+
+/* Os seis estados são fotos fixas da mesma batalha. */
+const CENAS = {
+  1: { fase: 'vez', vez: 'cisco', age: 'cisco', pos: { ...LUGAR, cisco: [5, 9] }, trilha: [[3, 11], [4, 10], [5, 9]], passos: 6 },
+  2: { fase: 'mira', vez: 'cisco', age: 'cisco', pos: LUGAR, golpe: COICE, alvo: 'kaito' },
+  3: { fase: 'espera', vez: 'cisco', age: 'cisco', pos: LUGAR, golpe: COICE, alvo: 'kaito', segundos: 7 },
+  4: { fase: 'resultado', vez: 'cisco', age: 'cisco', pos: LUGAR, golpe: COICE, alvo: 'kaito', d20: 12, dano: 40 },
+  5: { fase: 'contra', vez: 'cisco', age: 'beau', pos: { ...LUGAR, cisco: [9, 9] }, golpe: COICE, alvo: 'cisco', d20: 20 },
+  6: { fase: 'vez', jogador: 'kaito', vez: 'kaito', age: 'kaito', pos: { ...LUGAR, brasa: [1, 13] }, trilha: [[8, 5]], passos: 6 },
+}
+const NOTAS = {
+  1: 'Clique numa casa clara para andar, ou use as setas. Teclas 1 a 6 trocam de estado.',
+  2: 'Clique num alvo dentro do alcance. Esc solta a mira.',
+  3: 'O golpe saiu: os cantos do alvo passam de latão para brasa e piscam enquanto ele decide.',
+  4: 'Dados de mentira: Kaito sempre tira 12 e defende.',
+  5: 'Beau sempre tira 20. Anel cheio: age agora. Anel tracejado: a vez volta para ele.',
+  6: 'Sargento Brasa está na névoa: o jogador não o vê. Clique numa casa clara para andar.',
+}
+
+/* ---------------------------------------------------------------- estado */
+let S = null
+let numero = 0
+let relogio = null
+let previa = null
+const antes = { age: null }
+const semMovimento = matchMedia('(prefers-reduced-motion: reduce)')
+const $ = (seletor) => document.querySelector(seletor)
+const texto = (s) => String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m])
+const blocosEntre = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]))
+const andou = () => S.trilha.length - 1
+const tempo = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+function visivel(id) {
+  if (!S.jogador || id === S.jogador) return true
+  const [a, b] = [S.pos[S.jogador], S.pos[id]]
+  return Math.hypot(a[0] - b[0], a[1] - b[1]) <= VISAO_EM_CASAS
+}
+const naMesa = () => ORDEM.filter(visivel)
+const miraveis = () => (S.fase === 'mira' ? naMesa().filter((id) => QUEM[id].time !== QUEM[S.age].time) : [])
+const noAlcance = (id) => blocosEntre(S.pos[S.age], S.pos[id]) <= S.golpe.alcance
+
+/* Passos como no app: diagonal vale 1 e não raspa a quina do que barra. */
+const DIRECOES = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+function casasAoAlcance() {
+  const sobra = S.passos - andou()
+  const saida = S.pos[S.age]
+  const dist = new Map([[k(saida), 0]])
+  const veio = new Map()
+  const fila = [saida]
+  for (let i = 0; i < fila.length; i++) {
+    const [c, l] = fila[i]
+    const d = dist.get(k([c, l]))
+    if (d >= sobra) continue
+    for (const [dc, dl] of DIRECOES) {
+      const para = [c + dc, l + dl]
+      const chave = k(para)
+      if (para[0] < 0 || para[1] < 0 || para[0] >= COLS || para[1] >= LINS || BARRA.has(chave) || dist.has(chave)) continue
+      if (dc !== 0 && dl !== 0 && (BARRA.has(k([c + dc, l])) || BARRA.has(k([c, l + dl])))) continue
+      if (S.jogador && Math.hypot(para[0] - S.pos[S.jogador][0], para[1] - S.pos[S.jogador][1]) > VISAO_EM_CASAS) continue
+      dist.set(chave, d + 1)
+      veio.set(chave, [c, l])
+      fila.push(para)
+    }
+  }
+  return { dist, veio }
+}
+function caminhoAte(casa, veio) {
+  const caminho = [casa]
+  while (veio.has(k(caminho[0]))) caminho.unshift(veio.get(k(caminho[0])))
+  return caminho
+}
+const ocupada = (casa) => naMesa().some((id) => id !== S.age && k(S.pos[id]) === k(casa))
+
+/* ---------------------------------------------------------------- ações */
+function ir(n) {
+  const inicio = performance.now()
+  numero = n
+  S = JSON.parse(JSON.stringify(CENAS[n]))
+  S.hp = { ...HP }
+  if (S.fase === 'resultado') S.hp[S.alvo] -= S.dano
+  previa = null
+  clearInterval(relogio)
+  relogio = S.fase === 'espera' ? setInterval(() => { S.segundos += 1; pintar() }, 1000) : null
+  pintar(true)
+  medida.trocas.push({ estado: n, ms: Math.round((performance.now() - inicio) * 10) / 10 })
+}
+
+function andarAte(casa, peloTeclado = false) {
+  if (S.fase !== 'vez') return
+  const { dist, veio } = casasAoAlcance()
+  if (!dist.has(k(casa)) || dist.get(k(casa)) === 0 || ocupada(casa)) return
+  const caminho = caminhoAte(casa, veio)
+  S.trilha.push(...caminho.slice(1))
+  S.pos[S.age] = casa
+  previa = null
+  pintar(false, caminho, !peloTeclado && !semMovimento.matches)
+}
+
+function mirar(id) {
+  if (S.fase !== 'mira' || !miraveis().includes(id) || !noAlcance(id)) return
+  S.alvo = id
+  pintar()
+}
+
+/* ---------------------------------------------------------------- desenho das marcas */
+function contorno(casas) {
+  const tem = new Set(casas.map(k))
+  let cheio = ''
+  let borda = ''
+  for (const [c, l] of casas) {
+    const x = c * C
+    const y = l * C
+    cheio += `M${x} ${y}h${C}v${C}h${-C}z`
+    if (!tem.has(k([c, l - 1]))) borda += `M${x} ${y}h${C}`
+    if (!tem.has(k([c + 1, l]))) borda += `M${x + C} ${y}v${C}`
+    if (!tem.has(k([c, l + 1]))) borda += `M${x} ${y + C}h${C}`
+    if (!tem.has(k([c - 1, l]))) borda += `M${x} ${y}v${C}`
+  }
+  return { cheio, borda }
+}
+const duplo = (classe, d) => `<path class="${classe} k" d="${d}"/><path class="${classe}" d="${d}"/>`
+const pontos = (casas) => casas.map((casa) => centro(casa).join(',')).join(' ')
+
+function marcasDoMovimento() {
+  if (S.fase !== 'vez') return { alcance: '', trilha: '' }
+  const { dist } = casasAoAlcance()
+  const casas = [...dist.keys()].map((chave) => chave.split(',').map(Number))
+  const { cheio, borda } = contorno(casas)
+  const alcance = casas.length > 1 ? `<path class="alcance__claro" d="${cheio}"/><path class="alcance__casas" d="${cheio}"/>${duplo('alcance__borda', borda)}` : ''
+  const trilha = S.trilha.length > 1 ? `<polyline class="trilha k" points="${pontos(S.trilha)}"/><polyline class="trilha" points="${pontos(S.trilha)}"/>` : ''
+  return { alcance, trilha }
+}
+
+function marcasDoGolpe() {
+  let golpe = ''
+  let fio = ''
+  let rotulo = ''
+  if (S.fase === 'mira') {
+    const [c0, l0] = S.pos[S.age]
+    const casas = []
+    for (let l = l0 - S.golpe.alcance; l <= l0 + S.golpe.alcance; l++) for (let c = c0 - S.golpe.alcance; c <= c0 + S.golpe.alcance; c++) if (c >= 0 && l >= 0 && c < COLS && l < LINS) casas.push([c, l])
+    golpe = duplo('golpe__borda', contorno(casas).borda)
+    rotulo = `<span class="rotulo rotulo--latao" style="transform:translate(${(c0 - S.golpe.alcance) * C + 6}px, ${(l0 + S.golpe.alcance + 1) * C + 6}px)">${texto(S.golpe.nome)} alcança ${S.golpe.alcance} blocos</span>`
+  }
+  if (S.alvo && S.fase !== 'vez') {
+    const tipo = S.fase === 'mira' ? 'mira' : S.fase === 'resultado' ? 'feito' : 'voo'
+    const [x1, y1] = centro(S.pos[S.age])
+    const [x2, y2] = centro(S.pos[S.alvo])
+    const n = Math.hypot(x2 - x1, y2 - y1)
+    const [ux, uy] = [(x2 - x1) / n, (y2 - y1) / n]
+    const a = [x1 + ux * 39, y1 + uy * 39]
+    const b = [x2 - ux * 66, y2 - uy * 66]
+    const ponta = [x2 - ux * 54, y2 - uy * 54]
+    const linha = `x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"`
+    fio = `<line class="fio fio--${tipo} k" ${linha}/><line class="fio fio--${tipo}" ${linha}/><polygon class="fio__ponta fio__ponta--${tipo}" points="${ponta.join(',')} ${b[0] - uy * 6.5},${b[1] + ux * 6.5} ${b[0] + uy * 6.5},${b[1] - ux * 6.5}"/>`
+  }
+  return { golpe, fio, rotulo }
+}
+
+function pintarPrevia() {
+  let marcas = ''
+  let rotulo = ''
+  if (previa !== null && S.fase === 'vez') {
+    const { dist, veio } = casasAoAlcance()
+    const blocos = dist.get(k(previa))
+    if (blocos > 0 && !ocupada(previa)) {
+      const caminho = caminhoAte(previa, veio)
+      marcas = `<rect class="previa__casa" x="${previa[0] * C + 3}" y="${previa[1] * C + 3}" width="${C - 6}" height="${C - 6}" rx="6"/><polyline class="previa k" points="${pontos(caminho)}"/><polyline class="previa" points="${pontos(caminho)}"/>`
+      const sobra = S.passos - andou() - blocos
+      rotulo = `<span class="rotulo" style="transform:translate(${previa[0] * C + C / 2}px, ${previa[1] * C - 22}px) translateX(-50%)">${blocos} ${blocos === 1 ? 'bloco' : 'blocos'}, ${sobra === 0 ? 'não sobra nenhum' : `sobram ${sobra}`}</span>`
+    }
+  }
+  $('#g-previa').innerHTML = marcas
+  $('#rotulo-previa').innerHTML = rotulo
+}
+
+/* ---------------------------------------------------------------- as fichas */
+const MARCA = `<svg class="ficha__marca" viewBox="-40 -40 80 80" aria-hidden="true">
+  <g class="anel"><circle class="k" r="30.5"/><circle r="30.5"/></g>
+  <g class="cantos"><path class="k" d="M-33-22V-33H-22M22-33H33V-22M33 22V33H22M-22 33H-33V22"/><path d="M-33-22V-33H-22M22-33H33V-22M33 22V33H22M-22 33H-33V22"/></g>
+</svg>`
+
+function montarFichas() {
+  $('#fichas').innerHTML = ORDEM.map((id) => {
+    const q = QUEM[id]
+    return `<div class="ficha" id="f-${id}" data-time="${q.time}" style="--lado:${TIMES[q.time].cor}">${MARCA}<button type="button" class="ficha__disco" data-mirar="${id}">${q.ini}</button><span class="ficha__nome"><span><i class="pip"></i>${texto(q.nome)}</span><span class="vida"><i><span></span></i><em></em></span></span><span class="ficha__cima"></span></div>`
+  }).join('')
+  $('#rotulos').innerHTML = '<span id="rotulo-golpe"></span><span id="rotulo-previa"></span>'
+}
+
+/* Só o passo dado com o ponteiro anima. Troca de estado e seta do teclado vão direto ao lugar. */
+function mover(el, caminho, animado) {
+  const fim = `translate(${centro(caminho[caminho.length - 1]).join('px, ')}px)`
+  const agora = animado ? getComputedStyle(el).transform : null
+  el.getAnimations().forEach((animacao) => animacao.cancel())
+  el.style.transform = fim
+  if (!animado) return
+  const quadros = [{ transform: agora }, ...caminho.map((casa) => ({ transform: `translate(${centro(casa).join('px, ')}px)` }))]
+  el.animate(quadros, { duration: Math.min(300, 150 + 40 * caminho.length), easing: 'cubic-bezier(0.77, 0, 0.175, 1)' })
+}
+
+function seloDe(id) {
+  if (S.fase === 'mira' && miraveis().includes(id) && !noAlcance(id)) return '<span class="selo selo--mudo">fora do alcance</span>'
+  if (S.fase === 'espera' && id === S.alvo) return `<span class="selo selo--reage">reagindo <b>${tempo(S.segundos)}</b></span>`
+  if (S.fase === 'resultado' && id === S.alvo) return `<span class="dano">&minus;${S.dano}</span><span class="selo">defendeu</span>`
+  if (S.fase === 'contra' && id === S.age) return '<span class="selo selo--contra">contra-ataca agora</span>'
+  if (S.fase === 'contra' && id === S.vez) return '<span class="selo selo--espera">a vez volta para ele</span>'
+  if (S.jogador === id) return '<span class="selo selo--voce">você</span>'
+  return ''
+}
+
+function pintarFichas(entrada, caminho, suave) {
+  const alvoGolpe = S.fase === 'espera' || S.fase === 'resultado' || S.fase === 'contra'
+  for (const id of ORDEM) {
+    const el = $(`#f-${id}`)
+    const q = QUEM[id]
+    const aVista = visivel(id)
+    el.hidden = !aVista
+    const andando = id === S.age && caminho !== null
+    if (entrada || andando || el.style.transform === '') mover(el, andando ? caminho.slice(1) : [S.pos[id]], andando && suave)
+
+    const miravel = miraveis().includes(id)
+    const perto = miravel && noAlcance(id)
+    el.toggleAttribute('data-age', id === S.age)
+    el.toggleAttribute('data-espera', S.fase === 'contra' && id === S.vez)
+    el.toggleAttribute('data-miravel', perto)
+    el.toggleAttribute('data-longe', miravel && !perto)
+    el.toggleAttribute('data-reagindo', S.fase === 'espera' && id === S.alvo)
+    if (id === S.alvo && S.fase !== 'vez') el.setAttribute('data-alvo', alvoGolpe ? 'golpe' : 'mira')
+    else el.removeAttribute('data-alvo')
+
+    const botao = el.querySelector('.ficha__disco')
+    botao.disabled = !miravel
+    botao.removeAttribute('aria-pressed')
+    botao.removeAttribute('aria-disabled')
+    if (perto) {
+      botao.setAttribute('aria-label', `Mirar em ${q.nome}`)
+      botao.setAttribute('aria-pressed', String(S.alvo === id))
+    } else if (miravel) {
+      botao.setAttribute('aria-label', `${q.nome}: fora do alcance do ${S.golpe.nome}`)
+      botao.setAttribute('aria-disabled', 'true')
+    } else botao.setAttribute('aria-label', q.nome)
+
+    /* A vida mora na mesa. No mapa ela só aparece quando muda (ou com o mouse em cima); o jogador não vê a do outro time. */
+    const mostraVida = !S.jogador || q.time === QUEM[S.jogador].time
+    const vida = el.querySelector('.vida')
+    vida.hidden = !mostraVida
+    const barra = vida.querySelector('i > span')
+    const levouAgora = S.fase === 'resultado' && id === S.alvo
+    el.toggleAttribute('data-vida', levouAgora)
+    if (levouAgora && entrada && !semMovimento.matches) {
+      barra.style.transform = `scaleX(${HP[id] / q.hpMax})`
+      void barra.offsetWidth
+    }
+    barra.style.transform = `scaleX(${S.hp[id] / q.hpMax})`
+    vida.querySelector('em').textContent = `${S.hp[id]}/${q.hpMax}`
+    el.querySelector('.ficha__cima').innerHTML = seloDe(id)
+  }
+
+  if (!entrada || semMovimento.matches) { antes.age = S.age; return }
+  /* O anel chega de fora e fecha em quem age: o olho vai direto para a ficha. */
+  if (antes.age !== S.age) $(`#f-${S.age} .anel`).animate([{ opacity: 0, transform: 'scale(1.16)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+  antes.age = S.age
+  if (S.fase === 'resultado') {
+    /* O golpe pega: a ficha recua um pouco para longe de quem bateu e volta. */
+    const [a, b] = [S.pos[S.age], S.pos[S.alvo]]
+    const n = Math.hypot(b[0] - a[0], b[1] - a[1])
+    const recuo = `translate(${((b[0] - a[0]) / n) * 7}px, ${((b[1] - a[1]) / n) * 7}px)`
+    $(`#f-${S.alvo} .ficha__disco`).animate([{ transform: 'none' }, { transform: recuo, offset: 0.3 }, { transform: 'none' }], { duration: 260, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+    $(`#f-${S.alvo} .dano`).animate([{ opacity: 0, transform: 'translateY(6px) scale(0.94)' }, { opacity: 1, transform: 'none' }], { duration: 200, delay: 60, fill: 'backwards', easing: 'cubic-bezier(0.23, 1, 0.32, 1)' })
+  }
+}
+
+/* ---------------------------------------------------------------- a mesa (resumo) e a faixa do jogador */
+function agoraEmPalavras() {
+  const alvo = S.alvo ? QUEM[S.alvo].curto : ''
+  if (S.fase === 'vez') return S.passos === andou() ? `Andou ${andou()} de ${S.passos} blocos. Não sobra movimento.` : `Andou ${andou()} de ${S.passos} blocos.`
+  if (S.fase === 'mira') return S.alvo ? `${S.golpe.nome} em ${alvo}. O golpe alcança ${S.golpe.alcance} blocos.` : `Escolha no mapa o alvo do ${S.golpe.nome}.`
+  if (S.fase === 'espera') return `${S.golpe.nome} lançado em ${alvo}. Esperando a reação, ${tempo(S.segundos)}.`
+  if (S.fase === 'resultado') return `${alvo} rolou ${S.d20} e defendeu: tomou ${S.dano}, metade de ${S.golpe.dano}.`
+  return `${QUEM[S.age].curto} rolou ${S.d20} e contra-ataca agora. Depois a vez volta para ${QUEM[S.vez].curto}.`
+}
+
+const mini = (id) => `<span class="mini"><i><span style="transform:scaleX(${S.hp[id] / QUEM[id].hpMax})"></span></i><em>${S.hp[id]}</em><i data-tom="sp"><span style="transform:scaleX(${QUEM[id].sp / QUEM[id].spMax})"></span></i><em>${QUEM[id].sp}</em></span>`
+
+function pintarMesa() {
+  const linhas = ORDEM.map((id, i) => {
+    const q = QUEM[id]
+    const lado = `style="--lado:${TIMES[q.time].cor}"`
+    if (id === S.vez) {
+      const espera = S.fase === 'contra'
+      return `<li class="cartao" ${lado}${espera ? ' data-espera' : ''}><span class="fita">${espera ? 'Vez · em espera' : 'Vez'}</span><div class="cab"><span class="av av--g">${q.ini}</span><div><h2>${texto(q.nome)}</h2><p>${q.de}, ${TIMES[q.time].nome}</p></div></div><p class="agora" role="status">${texto(agoraEmPalavras())}</p></li>`
+    }
+    const contra = S.fase === 'contra' && id === S.age ? '<span class="tag tag--contra">contra-ataca agora</span>' : ''
+    return `<li class="linha" ${lado}><span class="linha__num">${i + 1}</span><span class="av">${q.ini}</span><span class="linha__quem"><span><b>${texto(q.nome)}</b>${contra}</span><small>${q.de}, ${TIMES[q.time].nome}</small></span>${mini(id)}</li>`
+  }).join('')
+  $('#doca').innerHTML = `<div class="mesa__topo"><p class="rodada"><b>Rodada 1</b><span>vez 1 de 4</span></p></div><ol class="ordem">${linhas}</ol><p class="doca__nota">A mesa aprovada mora aqui. Neste protótipo ela só acompanha o mapa.</p>`
+}
+
+function pintarFaixa() {
+  if (!S.jogador) return
+  const q = QUEM[S.jogador]
+  const sobra = S.passos - andou()
+  $('#faixa').innerHTML = `<span class="av av--g" style="--lado:${TIMES[q.time].cor}">${q.ini}</span><div><b>Sua vez, ${texto(q.nome)}</b><p role="status">${sobra === 0 ? `Você andou os ${S.passos} blocos.` : `Você andou ${andou()} de ${S.passos} blocos. Clique numa casa clara para andar.`}</p></div>${mini(S.jogador)}`
+}
+
+/* ---------------------------------------------------------------- pintar tudo */
+function pintar(entrada = false, caminho = null, suave = false) {
+  const app = $('#app')
+  app.toggleAttribute('data-jogador', !!S.jogador)
+  ajustarOMundo()
+  const movimento = marcasDoMovimento()
+  const golpe = marcasDoGolpe()
+  $('#g-alcance').innerHTML = movimento.alcance
+  $('#g-trilha').innerHTML = movimento.trilha
+  $('#g-golpe').innerHTML = golpe.golpe
+  $('#g-fio').innerHTML = golpe.fio
+  $('#rotulo-golpe').innerHTML = golpe.rotulo
+  $('#toque').style.cursor = S.fase === 'vez' ? 'pointer' : 'default'
+  if (S.jogador) {
+    const [x, y] = centro(S.pos[S.jogador])
+    const nevoa = $('#nevoa')
+    nevoa.style.transition = suave ? '' : 'none'
+    nevoa.style.transform = `translate(${x}px, ${y}px)`
+  }
+  pintarFichas(entrada, caminho, suave)
+  pintarPrevia()
+  pintarMesa()
+  pintarFaixa()
+  document.querySelectorAll('[data-ir]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.ir === numero)))
+  $('#nota').textContent = NOTAS[numero]
+}
+
+/* O mundo cobre a tela sem encolher abaixo de 100%; na visão do jogador a câmera centra na ficha dele. */
+function ajustarOMundo() {
+  const app = $('#app')
+  const z = Math.max(1, app.clientWidth / LARG, app.clientHeight / ALT)
+  const mundo = $('#mundo')
+  mundo.style.setProperty('--z', String(z))
+  mundo.style.setProperty('--cx', S && S.jogador ? `${Math.round(app.clientWidth / 2 - centro(CENAS[6].pos[S.jogador])[0] * z)}px` : '0px')
+}
+
+function casaDoPonteiro(evento) {
+  const caixa = $('#mundo').getBoundingClientRect()
+  const z = caixa.width / LARG
+  const casa = [Math.floor((evento.clientX - caixa.left) / z / C), Math.floor((evento.clientY - caixa.top) / z / C)]
+  return casa[0] < 0 || casa[1] < 0 || casa[0] >= COLS || casa[1] >= LINS ? null : casa
+}
+
+/* ---------------------------------------------------------------- eventos */
+document.addEventListener('click', (evento) => {
+  const alvo = evento.target.closest('button[data-ir], button[data-grade], button[data-mirar]')
+  if (alvo === null) return
+  if (alvo.dataset.ir) ir(+alvo.dataset.ir)
+  else if (alvo.dataset.grade) trocarGrade(alvo.dataset.grade)
+  else if (alvo.getAttribute('aria-disabled') !== 'true') mirar(alvo.dataset.mirar)
+})
+$('#toque').addEventListener('pointermove', (evento) => {
+  if (S.fase !== 'vez') return
+  const casa = casaDoPonteiro(evento)
+  if ((casa === null ? '' : k(casa)) === (previa === null ? '' : k(previa))) return
+  previa = casa
+  pintarPrevia()
+})
+$('#toque').addEventListener('pointerleave', () => { previa = null; pintarPrevia() })
+$('#toque').addEventListener('click', (evento) => { const casa = casaDoPonteiro(evento); if (casa !== null) andarAte(casa) })
+
+const SETAS = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }
+document.addEventListener('keydown', (evento) => {
+  if (evento.ctrlKey || evento.metaKey || evento.altKey) return
+  if (/^[1-6]$/.test(evento.key)) return ir(+evento.key)
+  if (evento.key === 'Escape' && S.fase === 'mira' && S.alvo) { S.alvo = null; return pintar() }
+  const seta = SETAS[evento.key]
+  if (seta && S.fase === 'vez') {
+    evento.preventDefault()
+    const [c, l] = S.pos[S.age]
+    andarAte([c + seta[0], l + seta[1]], true)
+  }
+})
+
+function trocarGrade(qual) {
+  $('#mundo').dataset.grade = qual
+  document.querySelectorAll('button[data-grade]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.grade === qual)))
+}
+addEventListener('resize', ajustarOMundo)
+
+/* ---------------------------------------------------------------- o chão Meio-Termo, pintado uma vez, por posição */
+function pintarChao() {
+  const tela = $('#chao')
+  const dpr = Math.min(2, devicePixelRatio || 1)
+  tela.width = LARG * dpr
+  tela.height = ALT * dpr
+  const g = tela.getContext('2d')
+  const acaso = (x, y, s) => {
+    let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s, 1442695041)) | 0
+    n = Math.imul(n ^ (n >>> 13), 1274126177)
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296
+  }
+  const suave = (x, y, t, s) => {
+    const xi = Math.floor(x / t)
+    const yi = Math.floor(y / t)
+    let fx = x / t - xi
+    let fy = y / t - yi
+    fx = fx * fx * (3 - 2 * fx)
+    fy = fy * fy * (3 - 2 * fy)
+    const [a, b, c, d] = [acaso(xi, yi, s), acaso(xi + 1, yi, s), acaso(xi, yi + 1, s), acaso(xi + 1, yi + 1, s)]
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+  }
+
+  /* Grama: base, realce e sombra em manchas largas, a meia resolução. */
+  const GRAMA = [0x8c, 0xbf, 0x80]
+  const REALCE = [0xa2, 0xcc, 0x92]
+  const SOMBRA = [0x76, 0xac, 0x6d]
+  const meia = document.createElement('canvas')
+  meia.width = LARG / 2
+  meia.height = ALT / 2
+  const gm = meia.getContext('2d')
+  const imagem = gm.createImageData(meia.width, meia.height)
+  for (let y = 0, i = 0; y < meia.height; y++) {
+    for (let x = 0; x < meia.width; x++, i += 4) {
+      let v = 0.65 * suave(x * 2, y * 2, 130, 1) + 0.35 * suave(x * 2, y * 2, 42, 2)
+      v = 0.45 * v + 0.55 * Math.round(v * 5) / 5
+      const para = v > 0.5 ? REALCE : SOMBRA
+      const peso = Math.abs(v - 0.5) * 1.7
+      for (let canal = 0; canal < 3; canal++) imagem.data[i + canal] = GRAMA[canal] + (para[canal] - GRAMA[canal]) * peso
+      imagem.data[i + 3] = 255
+    }
+  }
+  gm.putImageData(imagem, 0, 0)
+  g.drawImage(meia, 0, 0, tela.width, tela.height)
+  g.scale(dpr, dpr)
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+
+  /* A trilha de terra e a praça de pedra. */
+  const TRILHAS = [
+    [[-30, 12.9 * C], [3 * C, 12.7 * C], [4.2 * C, 10.3 * C], [6.4 * C, 9.6 * C]],
+    [[13.6 * C, 6.5 * C], [16.6 * C, 6.3 * C], [18.2 * C, 3.4 * C], [LARG + 30, 2.5 * C]],
+  ]
+  const amostras = []
+  for (const [p0, p1, p2, p3] of TRILHAS) {
+    for (let t = 0; t <= 1; t += 0.02) {
+      const u = 1 - t
+      amostras.push([u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]])
+    }
+  }
+  const PRACA = { x: 6 * C + 5, y: 4 * C + 5, l: 8 * C - 10, a: 8 * C - 10 }
+  const naGrama = (x, y) => !(x > PRACA.x - 8 && x < PRACA.x + PRACA.l + 8 && y > PRACA.y - 8 && y < PRACA.y + PRACA.a + 8) && !amostras.some(([px, py]) => Math.hypot(px - x, py - y) < 40)
+
+  /* Tufos e flores: um sorteio por bloco, nunca um ladrilho repetido. */
+  for (let by = 0; by < ALT; by += 26) {
+    for (let bx = 0; bx < LARG; bx += 26) {
+      const x = bx + acaso(bx, by, 3) * 22
+      const y = by + acaso(bx, by, 4) * 22
+      const sorte = acaso(bx, by, 5)
+      if (sorte > 0.24 || !naGrama(x, y)) continue
+      if (sorte < 0.045) {
+        const cor = ['#f3efe2', '#f0d266', '#e8a2c4', '#f3efe2'][Math.floor(acaso(bx, by, 6) * 4)]
+        g.fillStyle = cor
+        for (const [dx, dy] of [[-2.2, 0], [2.2, 0], [0, -2.2], [0, 2.2]]) { g.beginPath(); g.arc(x + dx, y + dy, 1.7, 0, 7); g.fill() }
+        g.fillStyle = '#c99a3a'
+        g.beginPath(); g.arc(x, y, 1.1, 0, 7); g.fill()
+        continue
+      }
+      g.strokeStyle = sorte < 0.15 ? '#6aa663' : '#afd59e'
+      g.lineWidth = 1.4
+      g.beginPath()
+      g.moveTo(x - 3, y); g.lineTo(x - 4.5, y - 5)
+      g.moveTo(x, y); g.lineTo(x, y - 6.5)
+      g.moveTo(x + 3, y); g.lineTo(x + 4.5, y - 5)
+      g.stroke()
+    }
+  }
+
+  for (const [p0, p1, p2, p3] of TRILHAS) {
+    const tracar = (cor, largura) => { g.strokeStyle = cor; g.lineWidth = largura; g.beginPath(); g.moveTo(...p0); g.bezierCurveTo(...p1, ...p2, ...p3); g.stroke() }
+    tracar('#b98755', 62)
+    tracar('#dda56c', 57)
+    tracar('rgba(238, 196, 150, 0.5)', 26)
+  }
+  for (let i = 0; i < amostras.length; i += 2) {
+    const [x, y] = amostras[i]
+    g.fillStyle = acaso(i, 7, 8) > 0.5 ? '#c58f5a' : '#ecc296'
+    g.beginPath(); g.ellipse(x + (acaso(i, 1, 9) - 0.5) * 40, y + (acaso(i, 2, 9) - 0.5) * 40, 2.6, 1.8, 0, 0, 7); g.fill()
+  }
+
+  /* Praça: lajes de tamanho sorteado, junta em tom de sombra da própria pedra (fraca, para não brigar com a grade). */
+  g.save()
+  g.beginPath(); g.roundRect(PRACA.x, PRACA.y, PRACA.l, PRACA.a, 16); g.clip()
+  g.fillStyle = '#dcd0b6'
+  g.fillRect(PRACA.x, PRACA.y, PRACA.l, PRACA.a)
+  let fileira = 0
+  for (let y = PRACA.y; y < PRACA.y + PRACA.a; fileira++) {
+    const alto = 21 + Math.floor(acaso(fileira, 0, 10) * 13)
+    for (let x = PRACA.x - acaso(fileira, 1, 10) * 30, laje = 0; x < PRACA.x + PRACA.l; laje++) {
+      const largo = 30 + Math.floor(acaso(fileira, laje, 11) * 44)
+      const tom = acaso(fileira, laje, 12)
+      g.fillStyle = tom < 0.12 ? '#ebe2cd' : tom < 0.45 ? '#e1d6bd' : tom < 0.8 ? '#dcd0b6' : '#d3c6aa'
+      g.fillRect(x, y, largo, alto)
+      g.strokeStyle = 'rgba(176, 161, 134, 0.75)'
+      g.lineWidth = 1
+      g.strokeRect(x + 0.5, y + 0.5, largo, alto)
+      x += largo
+    }
+    y += alto
+  }
+  g.restore()
+  g.strokeStyle = '#a3957a'
+  g.lineWidth = 2
+  g.beginPath(); g.roundRect(PRACA.x, PRACA.y, PRACA.l, PRACA.a, 16); g.stroke()
+
+  /* O poço no meio da praça. */
+  const [px, py] = [10 * C, 8 * C]
+  g.fillStyle = 'rgba(92, 82, 60, 0.26)'
+  g.beginPath(); g.ellipse(px + 5, py + 7, 44, 42, 0, 0, 7); g.fill()
+  g.fillStyle = '#c3c0b2'
+  g.strokeStyle = '#8b8878'
+  g.lineWidth = 2
+  g.beginPath(); g.arc(px, py, 40, 0, 7); g.fill(); g.stroke()
+  g.strokeStyle = 'rgba(139, 136, 120, 0.7)'
+  g.lineWidth = 1.2
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + 0.2
+    g.beginPath(); g.moveTo(px + Math.cos(a) * 26, py + Math.sin(a) * 26); g.lineTo(px + Math.cos(a) * 39, py + Math.sin(a) * 39); g.stroke()
+  }
+  g.fillStyle = '#4f7f9d'
+  g.strokeStyle = '#3a5f78'
+  g.lineWidth = 2
+  g.beginPath(); g.arc(px, py, 25, 0, 7); g.fill(); g.stroke()
+  g.strokeStyle = '#9cc0d3'
+  g.lineWidth = 2.5
+  g.beginPath(); g.arc(px, py, 17, 3.5, 4.6); g.stroke()
+
+  /* Árvores: copa em bolas, contorno no verde escuro da própria copa. */
+  for (const [c, l] of ARVORES) {
+    const [x, y] = centro([c, l])
+    const bolas = [[0, 0, 24], [-15, -8, 17], [14, -10, 17], [-12, 13, 16], [15, 11, 17]]
+    g.fillStyle = 'rgba(54, 92, 58, 0.28)'
+    g.beginPath(); g.ellipse(x + 6, y + 10, 34, 30, 0, 0, 7); g.fill()
+    g.fillStyle = '#467a47'
+    for (const [dx, dy, r] of bolas) { g.beginPath(); g.arc(x + dx, y + dy, r + 2, 0, 7); g.fill() }
+    g.fillStyle = '#69a862'
+    for (const [dx, dy, r] of bolas) { g.beginPath(); g.arc(x + dx, y + dy, r, 0, 7); g.fill() }
+    g.fillStyle = '#88c079'
+    for (const [dx, dy, r] of [[-9, -11, 10], [10, -13, 8], [-3, 2, 7]]) { g.beginPath(); g.arc(x + dx, y + dy, r, 0, 7); g.fill() }
+    g.fillStyle = '#5a9958'
+    for (const [dx, dy, r] of [[10, 12, 8], [-13, 13, 6]]) { g.beginPath(); g.arc(x + dx, y + dy, r, 0, 7); g.fill() }
+  }
+}
+
+/* ---------------------------------------------------------------- começo */
+pintarChao()
+montarFichas()
+trocarGrade('cruzes')
+ir(1)
+</script>
+</body>
+</html>
