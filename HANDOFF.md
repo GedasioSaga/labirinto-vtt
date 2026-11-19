@@ -1,3 +1,39 @@
+# CONTRA-ATAQUE + PROTÓTIPO DA MESA 19/11 ~12h15 (EM VOO)
+
+## Objetivo
+(1) Protótipo HTML da "melhor mesa de todas" da batalha (pedido depois do print "Meio poluido não?"). (2) Bug: quando alguém acerta o contra-ataque nada acontece; deve ir para quem contra-atacou escolher o golpe e voltar para quem atacou primeiro. Publicar 0.5.85 só com ok do usuário (o modo automático barrou publicar sem pedido).
+
+## Estado atual
+Dois agentes em paralelo, arquivos disjuntos: designer-fable, pedido do usuário 19/11 (só docs/design/mesa-da-batalha/; o designer-opus foi parado no começo, sem escrever) e debugador Opus (área de batalha; commit sem push nem release).
+
+**Contra-ataque: FEITO 19/11 12h34 (date), commit 2fc9fe65, sem push e sem release.** Causa: o contra-ataque do One Piece já era guardado na store (`turnos.contras`) e o jogador já tinha o menu, mas (a) o do NPC não tinha tela nenhuma: `VezDoNpcNoCentro` (`client/src/components/batalha/BatalhaDoMestre.tsx`) só montava o menu na vez do próprio NPC e não lia `contras`; (b) a vez atacada seguia aberta ao mesmo tempo. Agora: o contra nasce carimbado com a vez (`ContraAtaque.vez`, `contraGanhoAgora` em `lib/batalha/turnos.ts`); enquanto essa vez corre, `contrasQueSeguramAVez` a segura. Mestre: contra do NPC abre no meio do mapa (`ContraDoNpcNoCentro`: Atacar, Habilidade, Mover; quem atacou já marcado), a vez do NPC espera atrás montada e volta igual; contra de jogador = aviso "X contra-atacou..." com "Seguir sem esperar" (só na tela do mestre). Jogador: recorte com `esperaContra` (`vistaDoJogador.ts` + leitor em `protocoloDaBatalha.ts`), menu da vez escondido e `inert` com aviso; o próprio contra abre no meio do mapa (`player.css` `[data-contra]`). Decisões do Claude: o contra não gasta ação da vez, paga o custo normal da técnica (SP/HP, recarga, usos) e o alvo pode reagir (a leitura da Q6 que já estava no código); "Mover" segue sendo o jeito de abrir mão. DBT: o equivalente (ação gratuita do erro crítico, pendência `acaoGratuita`) já é sequencial: pendência trava a vez, vai ao jogador ou ao mestre com as técnicas e "Não usar", e é salva; conferido por leitura, não no navegador. Fica aberto: o "Passar a vez" da faixa continua aceso durante a espera (escape); na Arena (mestre opera tudo) o contra segue no menu da vez, sem espera.
+
+## Próximos passos
+Ao voltar o protótipo: mostrar ao usuário e esperar aprovação antes de mexer no app. Ao voltar o conserto: perguntar se publica 0.5.85.
+
+## Critério de pronto
+Protótipo abre no navegador com os estados (vez do NPC, reação pendente, contra-ataque, resultado); contra-ataque com 20 passa a escolha do golpe para quem contra-atacou e depois devolve a vez; tsc 0; latest.json responde 0.5.85.
+
+## Evidência
+Contra-ataque: `rtk proxy npx tsc --noEmit` em client/ = 0. Testes existentes da área, sem teste novo (regra do usuário): `npx vitest run` em batalhaFabrica.vezEGolpes, mecanicasFatiaB/D, contratoDoCombate, treino/luta, treino/vistaDoDuelo, batalhaNoHost.faixaPerdida/recusa, visaoDeTeste.vazamento, vezNoCentro.css, ladoDoNpcNaTela, ReacaoNoCentro.foco = 13 arquivos, 111 testes, todos passam. Navegador (vite dev, mestre + Visão de jogador, roteiro `tmp/contra-ataque/montar.js`, d20 forçado em 20): (1) vez do Marujo (NPC) ataca a Curandeira, ela tira 20 e escolhe Contra-atacar: o menu dela abre no meio do mapa (x 687..1152 de 1366, meio do mapa ~918), o mestre vê só o aviso e a vez do Marujo escondida; ela lança Mão nua, o Marujo reage e a vez volta ao Marujo, menu à vista. (2) vez da Curandeira ataca o Marujo, o mestre tira 20 e escolhe Contra-atacar: abre "Marujo de Teste · contra-ataque" no meio do mapa do mestre; a jogadora vê "Marujo de Teste contra-atacou: esperando o golpe" com o menu escondido e inert; F5 da jogadora no meio: o aviso volta; o mestre lança e a vez dela volta com o que já tinha gasto ("Simples 0"). Registro: "... d20 20+0 = 20 · contra-atacou" e "Marujo de Teste usa Mão nua em Curandeira de Teste (contra-ataque)". Prints: `tmp/contra-ataque/01-jogador-escolhe-o-contra.png`, `02-mestre-contra-do-npc.png`, `03-jogador-espera-o-contra.png`. Protótipo da mesa: pendente (outro agente).
+
+# TELA DA BATALHA POLUÍDA 19/11 12h08 (ABERTO, esperando o usuário)
+
+## Objetivo
+Usuário mandou print da batalha na 0.5.84 e perguntou "Meio poluido não?". Limpar a tela da batalha (modo batalha) sem perder controle do mestre.
+
+## Estado atual
+Só diagnóstico na conversa (repetições: Passar a vez 2x, vez/rodada/turno 3x, "Depois: Cavalo Beau" 2x, botões antigos do painel da direita somados à mesa nova; editor e ficha de outro token abertos durante a batalha). Registrado em PEDIDOS.md. Nenhum código mudou.
+
+## Próximos passos
+Se o usuário topar: protótipo HTML do modo batalha (designer-opus, skills do Emil) para aprovar; depois implementar.
+
+## Critério de pronto
+Protótipo aprovado pelo usuário; no app, cada informação da vez aparece uma vez só e o botão Passar a vez existe em um lugar só.
+
+## Evidência
+Print do usuário (sessão 7e0cc173, 19/11 12h08). Nada executado ainda.
+
 # CONSERTO DOS 49 + BATALHA 18/11 (FEITO; 0.5.84 PUBLICADA 19/11 02h59 com Google)
 
 ## Objetivo
