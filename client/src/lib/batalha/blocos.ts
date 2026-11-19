@@ -360,6 +360,47 @@ export function menorCaminhoEmBlocos(mapa: MapaDosBlocos, de: Casa, para: Casa, 
   return null
 }
 
+/**
+ * CAMPO DE BATALHA (19/11/2026): todas as casas aonde se chega de `de` em até
+ * `limite` blocos, só por passos livres e dentro do mapa (a mesma regra de
+ * `menorCaminhoEmBlocos`: diagonal custa 1 e não raspa a quina). A de saída
+ * entra, com 0 blocos. É o "até onde dá para andar" das casas claras no mapa.
+ */
+export function casasAoAlcance(mapa: MapaDosBlocos, de: Casa, limite: number): { casa: Casa; blocos: number }[] {
+  if (Number.isNaN(limite) || !casaNoMapa(mapa, de)) return []
+  const teto = Math.max(0, Math.floor(limite))
+  const c0 = Math.max(0, de.col - teto)
+  const c1 = Math.min(mapa.colunas - 1, de.col + teto)
+  const r0 = Math.max(0, de.row - teto)
+  const r1 = Math.min(mapa.linhas - 1, de.row + teto)
+  const largura = c1 - c0 + 1
+  const total = largura * (r1 - r0 + 1)
+  const indiceDe = (col: number, row: number): number => col - c0 + (row - r0) * largura
+  const distancia = new Int32Array(total).fill(-1)
+  const fila = new Int32Array(total)
+  distancia[indiceDe(de.col, de.row)] = 0
+  fila[0] = indiceDe(de.col, de.row)
+  let fim = 1
+  const casas: { casa: Casa; blocos: number }[] = [{ casa: de, blocos: 0 }]
+  for (let cabeca = 0; cabeca < fim; cabeca += 1) {
+    const atual = fila[cabeca]
+    const andados = distancia[atual]
+    if (andados >= teto) continue
+    const daqui = { col: c0 + (atual % largura), row: r0 + Math.floor(atual / largura) }
+    for (const [dc, dr] of VIZINHOS) {
+      const ali = { col: daqui.col + dc, row: daqui.row + dr }
+      if (ali.col < c0 || ali.col > c1 || ali.row < r0 || ali.row > r1) continue
+      const indice = indiceDe(ali.col, ali.row)
+      if (distancia[indice] !== -1 || conferirPasso(mapa, daqui, ali) !== 'livre') continue
+      distancia[indice] = andados + 1
+      fila[fim] = indice
+      fim += 1
+      casas.push({ casa: ali, blocos: andados + 1 })
+    }
+  }
+  return casas
+}
+
 /** Refaz o caminho pelos `veio`, da chegada até a saída, e devolve na ordem de andar. */
 function caminhoAte(veio: Int32Array, alvo: number, c0: number, r0: number, largura: number): Casa[] {
   const caminho: Casa[] = []
