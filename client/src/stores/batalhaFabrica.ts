@@ -56,7 +56,6 @@ import {
 import { fichaDoInvocado } from '../lib/livros/combate'
 import { NOME_DA_MARCA, acertoNaMarca, criarMarca, golpeComOAlvo, marcaDoToken, modificadorDoTeste, motivoDaMarca, passivaDaMarca, type AcertoNaMarca } from '../lib/batalha/marca'
 import { isTokenPhotoData } from '../lib/tokenPhoto'
-import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import type { Token } from '../types/map'
 import {
   bonusDaBatalha,
@@ -115,7 +114,7 @@ import {
 } from '../lib/batalha/golpe'
 import { quemUsaVence, rolarDisputa, textoDaDisputa } from '../lib/batalha/disputa'
 import { lerDano } from '../lib/batalha/formula'
-import { avisoAoCairDe, chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
+import { chavesDoDono, disputaNoAcerto, disputaNoUso, fatorDaVelocidade, formulaDaCura, limpezaDe, mantidaDe, mecanicaDoCartao, perdaNoFimDaVez, porcentoDoMaximo, reacaoAMaoDe, rebatePertoDe, saidasTiradasDoDono, seloPegaNoAlvo, sobeDeParte } from '../lib/batalha/mecanicasAMao'
 import { comADisputaNoUso } from '../lib/batalha/disputaNoUso'
 import { debuffsDobrados, debuffsDoToken } from '../lib/batalha/debuffs'
 import {
@@ -133,7 +132,6 @@ import {
   selosDaPassiva,
   semLembretes,
   textoDoPorTurno,
-  type TurnosComLembretes,
 } from '../lib/batalha/passivas'
 import { motivoDaReacaoComTecnica, reacoesDisponiveis, reagirComTecnica, temOverloadDeReacao, temReacaoContraSurpresa, type PedidoDeTecnica } from '../lib/batalha/reacaoComTecnica'
 import { casaNaAreaVirada } from '../lib/batalha/area'
@@ -145,14 +143,10 @@ import { ajustesDaCura, ajustesDoDano, curaQueCabe, notaDaCura, perfuracaoValida
 import type { VezEsperada } from '../lib/batalha/ponte'
 import {
   escudoMaisAlto,
-  marcarDesfeita,
   mudancasDaVez,
   nomeDoAutor,
   novoIdDeLinha,
   registrarAjuste as registrarAjusteNasLinhas,
-  semOContraGasto,
-  semARecargaNasVezes,
-  semOGastoNaFotoDaVez,
   semOLigarDeGraca,
   textoDaLinha,
   TIPOS_QUE_O_JOGADOR_DESFAZ,
@@ -199,7 +193,6 @@ import {
   MESTRE,
   GASTO_ZERO,
   semACena,
-  type FichasDaMesa,
   fichasDaMesa,
   nomeDaCarta,
   type LinhaNova,
@@ -230,15 +223,8 @@ import {
   mudancaValida,
   trocarFicha,
 } from './batalha/naMesa'
-import {
-  linhasDaDecisaoDe,
-  desfazerReversao,
-  devolverFichasDaAcao,
-  reacoesComTecnicaDe,
-  golpesDaReversao,
-  linhasJuntoDe,
-  contrasDaReversao,
-} from './batalha/desfazer'
+import { linhasDaDecisaoDe, devolverFichasDaAcao, reacoesComTecnicaDe, golpesDaReversao, linhasJuntoDe } from './batalha/desfazer'
+import { criarNucleo } from './batalha/nucleo'
 
 /**
  * MODO BATALHA (fatia B4 de docs/planos/modo-batalha-2026-10-24.md): quais
@@ -446,16 +432,9 @@ function contadorDeExtra(valor: number): number {
  * `deps.rolarD20`.
  */
 function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: StoreApi<BatalhaState>['setState'], get: StoreApi<BatalhaState>['getState']): BatalhaState {
-  /** O sistema e os personagens da mesa desta store, lidos agora. */
-  const mesaDoRpg = (): FichasDaMesa => fichasDaMesa(mesa)
-
-  /** A cena ligada, ou `undefined`. */
-  const cenaDe = (sceneKey: string): BatalhaDaCena | undefined => get().cenas[sceneKey]
-
-  /** Troca a cena (que tem de estar ligada). */
-  const gravarCena = (sceneKey: string, cena: BatalhaDaCena): void => {
-    set({ cenas: { ...get().cenas, [sceneKey]: cena } })
-  }
+  // As fatias da store por assunto (stores/batalha/): o núcleo (cena, gravação, avisos, Desfazer) e as que dependem dele.
+  const nucleo = criarNucleo(mesa, deps, set, get)
+  const { mesaDoRpg, cenaDe, gravarCena, mudarTurnos, avisarQuemCaiu, comAvisoDeQuemCaiu, revelarAoUsar, ocultoParaQuemPede, lembrarDepoisDoDano, desfazerLinha } = nucleo
 
   /**
    * Conserto de 18/11/2026 (análise, seção 2.3): a carta que sai da ordem tinha a vez. Antes a vez só pulava
@@ -470,16 +449,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       const daVez = turnos === undefined ? null : cartaDaVez(turnos)
       if (daVez === null || !sai(daVez) || !get().passarVez(sceneKey)) return
     }
-  }
-
-  /** Aplica `mudar` aos turnos da cena; mudou = grava com a linha que `linha` monta. */
-  const mudarTurnos = (sceneKey: string, mudar: (turnos: TurnosDaCena) => TurnosDaCena, linha: (antes: TurnosDaCena, depois: TurnosDaCena) => LinhaNova | null): boolean => {
-    const cena = cenaDe(sceneKey)
-    if (cena === undefined) return false
-    const turnos = mudar(cena.turnos)
-    if (turnos === cena.turnos) return false
-    gravarCena(sceneKey, comMudanca(cena, turnos, linha(cena.turnos, turnos)))
-    return true
   }
 
   /**
@@ -901,44 +870,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
   }
 
   /**
-   * F2 (fatia B): o aviso ao mestre de quem caiu a 0 com cartão que avisa
-   * (Recuperação Espantosa: o mestre decide quando e com quanto HP volta), uma
-   * vez por batalha (chave em `lembradas`). Linha própria "acao", cujo
-   * Desfazer tira a chave. Nada a avisar: a cena fica como está.
-   */
-  const avisarQuemCaiu = (sceneKey: string, autor: AutorDaAcao): void => {
-    const cena = cenaDe(sceneKey)
-    const { personagens, sistema } = mesaDoRpg()
-    const recurso = sistema === null ? null : recursoDeVida(sistema)
-    if (cena === undefined || recurso === null) return
-    let novos = cena.turnos
-    const partes: Reversao[] = []
-    const textos: string[] = []
-    const ids = new Set(cena.turnos.cartas.flatMap((carta) => (carta.personagemId === null ? [] : [carta.personagemId])))
-    for (const personagemId of ids) {
-      const personagem = personagens.find((candidato) => candidato.id === personagemId)
-      const vida = personagem === undefined ? null : vidaDoPersonagem(personagem, recurso)
-      if (personagem === undefined || vida === null || vida.atual > 0) continue
-      const aviso = avisoAoCairDe(Object.values(personagem.abas).flatMap((cartoes) => cartoes.map((cartao) => cartao.id)))
-      const chave = aviso === null ? null : `${aviso.cartaoId}:caiu`
-      const antes = novos.combate?.[personagemId]
-      if (aviso === null || chave === null || (antes?.lembradas ?? []).includes(chave)) continue
-      const depois: CombateDoPersonagem = { ...(antes ?? combateVazio()), lembradas: [...(antes?.lembradas ?? []), chave] }
-      partes.push({ tipo: 'combate', personagemId, antes: antes ?? null, depois })
-      novos = { ...novos, combate: { ...(novos.combate ?? {}), [personagemId]: depois } }
-      textos.push(`${personagem.nome.trim() || 'A ficha'}: ${aviso.texto}`)
-    }
-    if (textos.length === 0) return
-    gravarCena(sceneKey, comMudanca(cena, novos, { tipo: 'acao', texto: textos.join(' · '), autor, reversao: { tipo: 'composta', partes } }))
-  }
-
-  /** F2 (fatia B): o pedido que saiu e pode ter tirado HP (o Aplicar do Sangramento ou do Queimando, o "a cada turno", o Ajustar) passa pelo aviso de quem caiu. */
-  const comAvisoDeQuemCaiu = (sceneKey: string, autor: AutorDaAcao, feito: boolean): boolean => {
-    if (feito) avisarQuemCaiu(sceneKey, autor)
-    return feito
-  }
-
-  /**
    * F3 (fatia T): Ativar a forma (gasta a ação escolhida, liga o cartão, o
    * atual ganha a diferença do máximo, Q1) ou Desfazer a forma (ação livre).
    * Só na vez da carta. A ficha muda pela aventura; a linha "transformacao"
@@ -994,20 +925,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     }
     return { turnos: novos, partes }
   }
-
-  /**
-   * Fatia C7 (revisão): o cartão oculto que revela ao usar sai revelado depois
-   * do uso (golpe, forma, passiva, reação, evolução, contador, marca,
-   * invocação). O Desfazer da linha não o esconde de novo. Cartão sem a marca:
-   * a ficha fica a mesma e nada grava.
-   */
-  const revelarAoUsar = (personagemId: string, cartaoId: string): void => {
-    mesa.ajustarPersonagem(personagemId, (atual) => revelacaoAoUsar(atual, cartaoId) ?? atual)
-  }
-
-  /** Fatia C7 (revisão): o pedido do JOGADOR por um cartão oculto (que ele nem vê) é forjado: recusado em toda rota. */
-  const ocultoParaQuemPede = (autor: AutorDaAcao, personagem: Personagem | null | undefined, cartaoId: string): boolean =>
-    autor.tipo === 'jogador' && motivoDoOcultoParaJogador(personagem ?? null, cartaoId) !== null
 
   const mudarForma = (sceneKey: string, autor: AutorDaAcao, vez: VezEsperada | null, pedido: Extract<PedidoDeAcao, { tipo: 'transformar' | 'destransformar' }>): boolean => {
     const cena = cenaDe(sceneKey)
@@ -1108,14 +1025,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     })
     return true
   }
-
-  /**
-   * Tipos de habilidade F3: depois de dano ou custo de vida (golpe, reação,
-   * Dar dano), os lembretes das passivas de vida baixa. Um ponto só, chamado
-   * depois de `danoNoAlvo` e de `darDano`: a ficha já mudou pela mesa, e o
-   * gatilho lê a vida de AGORA.
-   */
-  const lembrarDepoisDoDano = (turnos: TurnosDaCena): TurnosComLembretes => comLembretesDoMomento('dano', turnos, mesaDoRpg())
 
   /**
    * Conserto das fichas F1 (bug 10, P6): o lembrete "Aplicar / pular" do
@@ -1724,39 +1633,6 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const texto = depois === null ? `Mestre tirou ${textoDoSelo(antes)} de ${nome}` : `Mestre: ${textoDoSeloComMods(antes, sistema)} → ${textoDoSeloComMods(depois, sistema)} em ${nome}`
     const reversao: Reversao = depois === null ? { tipo: 'selo', seloId, antes } : { tipo: 'selo', seloId, antes, editado: true }
     gravarCena(sceneKey, comMudanca(cena, { ...cena.turnos, selos }, { tipo: 'selo', texto, tokenIds: [antes.tokenId], reversao }))
-    return true
-  }
-
-  /**
-   * Reverte a linha e a deixa riscada, sem conferir quem pede (o `desfazer`
-   * confere). A reação com técnica desfeita refaz o texto da linha do golpe
-   * (o alvo volta a "esperando reação").
-   */
-  const desfazerLinha = (sceneKey: string, linhaId: string, autor: AutorDaAcao): boolean => {
-    const cena = cenaDe(sceneKey)
-    const linha = cena?.registro.find((candidata) => candidata.id === linhaId)
-    if (cena === undefined || linha === undefined || linha.desfeita !== undefined) return false
-    const feito = desfazerReversao(mesa, sceneKey, cena, linha.reversao, autor)
-    if (!feito.ok) return false
-    const por = `${nomeDoAutor(autor)}${feito.emParte ? ' (em parte)' : ''}`
-    // A cena de agora: o Desfazer da ficha passa pela aventura, e a store pode ter mudado no meio.
-    const atual = cenaDe(sceneKey) ?? cena
-    // F3: o desfazer do MESTRE faz o Judge erguer a carta em todas as telas; o do jogador, não.
-    const efeitos = autor.tipo === 'mestre' ? comEfeitos(atual.efeitos, [{ tipo: 'judge', gesto: 'carta' }]) : atual.efeitos
-    // Bug 3: a linha de uma vez que já passou: o gasto dela sai também da linha "Vez" que encerrou aquela vez.
-    let registro = semOGastoNaFotoDaVez(marcarDesfeita(atual.registro, linhaId, por, Date.now()), linha)
-    // Bug 3: a recarga que esta linha pôs sai também das linhas "Vez" que a desceram (a que chegou a 0 voltaria no Desfazer delas).
-    registro = semARecargaNasVezes(registro, linha)
-    // O contra-ataque que esta linha deu e alguém já gastou: o Desfazer de quem gastou não o devolve mais.
-    for (const { golpeId, tokenId } of contrasDaReversao(linha.reversao)) registro = semOContraGasto(registro, golpeId, tokenId)
-    const nomeDoToken = nomeDoTokenNa(feito.cena.turnos, mesaDoRpg().personagens)
-    for (const parte of reacoesComTecnicaDe(linha.reversao)) {
-      const voltou = feito.cena.turnos.golpes?.find((golpe) => golpe.id === parte.golpe.id)
-      if (voltou !== undefined) registro = linhaAtualizada(registro, voltou.linhaId, textoDoGolpe(voltou, nomeDoToken), [])
-    }
-    // Invocação: o invocado que saiu ou voltou leva a carta do bando junto (some sem ninguém, volta com o mesmo id).
-    const turnos = comBandosEmDia(feito.cena.turnos, nomeDoBandoNa(feito.cena.turnos, mesaDoRpg().personagens))
-    gravarCena(sceneKey, { ...atual, turnos, regras: feito.cena.regras, registro, efeitos, turnosRev: atual.turnosRev + 1 })
     return true
   }
 
