@@ -1094,6 +1094,13 @@ export const HOST_STALE_AFTER_MS = 6_000
 export const HOST_AWAY_STALE_AFTER_MS = 150_000
 /** De quanto em quanto tempo o host confere quem ficou mudo. */
 export const LIVENESS_SWEEP_MS = 1_000
+/**
+ * EU É QUE TRAVEI (análise 18/11/2026, 2.2): a varredura que chega mais que
+ * isto depois da anterior diz que o app do MESTRE ficou parado (disco, um
+ * recorte pesado, o sistema segurando a janela). Bem abaixo de
+ * `HOST_STALE_AFTER_MS`, para a guarda pegar a trava antes de alguém cair por ela.
+ */
+export const HOST_STALL_MS = 3 * LIVENESS_SWEEP_MS
 /** "Diego abriu uma porta com Chave do Escudo", mais " em Mansão" quando a porta está numa cena de fundo. */
 export function doorKeyLine(used: DoorKeyUse): string {
   const where = used.sceneName === undefined ? '' : ` em ${used.sceneName}`
@@ -1411,6 +1418,8 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   /** CONTAS: conexões com a entrada com conta sendo conferida — uma por conexão. Sai ao cair. */
   const accountJoinsInFlight = new Set<string>()
   let livenessTimer: ReturnType<typeof setInterval> | null = null
+  /** Hora da última `sweepSilent`; `null` = a varredura ainda não rodou desde que ligou (EU É QUE TRAVEI). */
+  let lastSweepAt: number | null = null
   /** Pergunta "Ana voltou?" de quem entrou agora: `playerId` dele -> id do toast. */
   const returnToasts = new Map<string, string>()
   /**
@@ -4441,6 +4450,16 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
   const sweepSilent = () => {
     if (session === null) return
     const at = now()
+    const gap = lastSweepAt === null ? 0 : at - lastSweepAt
+    lastSweepAt = at
+    // EU É QUE TRAVEI: o que os jogadores mandaram enquanto o mestre estava parado ainda está na fila do evento,
+    // sem passar por `onMessage`; o silêncio é daqui, não deles. Os prazos andam o tempo parado e ninguém cai
+    // nesta volta (antes, 5 s de trava derrubavam a sala inteira e os pedidos pendentes sumiam).
+    if (gap > HOST_STALL_MS) {
+      const parado = gap - LIVENESS_SWEEP_MS
+      for (const [clientId, heard] of lastHeard) lastHeard.set(clientId, heard + parado)
+      return
+    }
     for (const player of session.listPlayers()) {
       const clientId = player.clientId
       if (clientId === null) continue
@@ -4466,6 +4485,7 @@ export function createHostBridge(deps: HostBridgeDeps): HostBridge {
     repasseDoFogo = null
     lastHeard.clear()
     awayClients.clear()
+    lastSweepAt = null
   }
 
   const removeListeners = () => {

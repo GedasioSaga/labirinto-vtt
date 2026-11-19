@@ -30,7 +30,29 @@ export interface OpcoesDoTransporte {
   /** O código que `net_start_room` devolve (o mesmo da mesa-semente: a ponte não acusa "código mudou"). */
   codigo: string
   enviar(mensagem: MensagemDoHost): void
+  /**
+   * COMO O RUST (análise 18/11/2026, 2.2): sem isto a janela de teste entrega
+   * tudo na hora, em ordem e sem limite, e o que passa nela pode falhar na sala
+   * real. Ligado, faz o que `desktop/src-tauri/src/net/server.rs` faz:
+   * - `net_send`: a mensagem vai por JSON ida e volta (o `invoke` do Tauri) e
+   *   chega DEPOIS de o comando voltar, em ordem por conexão; mais de
+   *   `FILA_DE_SAIDA` esperando = `net_send` falha (`OUTBOX_CAPACITY`);
+   * - do jogador: texto acima de `MAX_BYTES_DO_JOGADOR` derruba a conexão
+   *   (`MAX_MESSAGE_BYTES`), e acima de `MENSAGENS_POR_SEGUNDO` o excesso some
+   *   calado (`MAX_MESSAGES_PER_SECOND`, balde que começa cheio).
+   * Desligado (padrão), o de sempre: os testes da ponte de teste contam com a entrega na hora.
+   */
+  comoORust?: boolean
+  /** Relógio do balde de mensagens, em ms. Padrão: `performance.now`. */
+  agora?: () => number
 }
+
+/** `MAX_MESSAGE_BYTES` de `server.rs`: maior que isto, o Rust derruba o jogador. */
+export const MAX_BYTES_DO_JOGADOR = 64 * 1024
+/** `MAX_MESSAGES_PER_SECOND` de `server.rs`: o balde por conexão. */
+export const MENSAGENS_POR_SEGUNDO = 30
+/** `OUTBOX_CAPACITY` de `server.rs`: mensagens do host esperando para sair a uma conexão. */
+export const FILA_DE_SAIDA = 256
 
 type Ouvinte = (event: { payload: unknown }) => void
 
@@ -55,6 +77,22 @@ function objetoDoTexto(texto: string): unknown {
   }
 }
 
+/** O balde do Rust (`TokenBucket` de `server.rs`): `MENSAGENS_POR_SEGUNDO` por segundo, começa cheio, teto = a taxa. */
+function criarBalde(agora: () => number): () => boolean {
+  let fichas = MENSAGENS_POR_SEGUNDO
+  let ultima = agora()
+  return () => {
+    const instante = agora()
+    fichas = Math.min(MENSAGENS_POR_SEGUNDO, fichas + ((instante - ultima) / 1000) * MENSAGENS_POR_SEGUNDO)
+    ultima = instante
+    if (fichas < 1) return false
+    fichas -= 1
+    return true
+  }
+}
+
+const codificador = new TextEncoder()
+
 /** O `clientId` dos argumentos de `net_send`/`net_kick`; `null` se não veio. */
 function clientIdDe(args: InvokeArgs | undefined): string | null {
   if (!isRecord(args)) return null
@@ -64,9 +102,14 @@ function clientIdDe(args: InvokeArgs | undefined): string | null {
 
 export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLocal {
   const { sessao, geracao, codigo } = opcoes
+  const comoORust = opcoes.comoORust === true
+  const agora = opcoes.agora ?? (() => performance.now())
   const ouvintes = new Map<string, Set<Ouvinte>>()
   /** Conexões abertas: `clientId` -> número da conexão na janela. */
   const conexoes = new Map<string, number>()
+  /** COMO O RUST: por conexão, as mensagens do host que ainda não saíram, e o balde do que o jogador manda. */
+  const naFila = new Map<number, number>()
+  const baldes = new Map<number, () => boolean>()
   let desligado = false
 
   const emitir = (evento: string, payload: unknown) => {
@@ -90,7 +133,11 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
         const msg = isRecord(args) ? args.msg : undefined
         // Conexão que já fechou: a mensagem se perde, como num socket fechado. Não é erro da ponte.
         if (conexao === undefined || typeof msg !== 'object' || msg === null) return undefined
-        enviar({ de: 'host', tipo: 'msg', sessao, conexao, msg })
+        if (!comoORust) {
+          enviar({ de: 'host', tipo: 'msg', sessao, conexao, msg })
+          return undefined
+        }
+        mandarComoORust(conexao, msg)
         return undefined
       }
       case 'net_kick': {
@@ -98,6 +145,7 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
         const conexao = clientId === null ? undefined : conexoes.get(clientId)
         if (clientId === null || conexao === undefined) return undefined
         conexoes.delete(clientId)
+        baldes.delete(conexao)
         enviar({ de: 'host', tipo: 'derrubar', sessao, conexao })
         // O Rust avisa a queda de quem ele derrubou; aqui também, depois de o comando voltar.
         void Promise.resolve().then(() => emitir('net:peer', { clientId, event: 'disconnected' }))
@@ -111,6 +159,49 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
       default:
         throw new Error(`comando desconhecido na Visão de jogador: ${cmd}`)
     }
+  }
+
+  /**
+   * COMO O RUST, a ida: JSON ida e volta (campo `undefined` some, `Map` vira `{}`, ciclo lança como no `invoke`),
+   * fila cheia lança como o `net_send` do Rust, e a entrega fica para depois de o comando voltar. `setTimeout`
+   * mantém a ordem de chegada, então cada conexão recebe na ordem em que a ponte mandou.
+   */
+  const mandarComoORust = (conexao: number, msg: object): void => {
+    const copia: unknown = JSON.parse(JSON.stringify(msg))
+    if (typeof copia !== 'object' || copia === null) return
+    const esperando = naFila.get(conexao) ?? 0
+    if (esperando >= FILA_DE_SAIDA) throw new Error('fila de saída cheia: a janela de teste não está lendo')
+    naFila.set(conexao, esperando + 1)
+    setTimeout(() => {
+      const resta = (naFila.get(conexao) ?? 1) - 1
+      if (resta > 0) naFila.set(conexao, resta)
+      else naFila.delete(conexao)
+      // Fechou enquanto esperava: some, como no socket fechado.
+      if (clientIdDaConexao(conexao) === null) return
+      enviar({ de: 'host', tipo: 'msg', sessao, conexao, msg: copia })
+    }, 0)
+  }
+
+  /** COMO O RUST, a volta: `false` = a mensagem não chega à ponte (grande demais derruba; acima da taxa, some). */
+  const passaComoORust = (clientId: string, conexao: number, texto: string): boolean => {
+    if (codificador.encode(texto).length > MAX_BYTES_DO_JOGADOR) {
+      fecharConexao(clientId, conexao)
+      enviar({ de: 'host', tipo: 'derrubar', sessao, conexao })
+      return false
+    }
+    let balde = baldes.get(conexao)
+    if (balde === undefined) {
+      balde = criarBalde(agora)
+      baldes.set(conexao, balde)
+    }
+    return balde()
+  }
+
+  /** A conexão acabou (a janela fechou, ou o Rust a derrubou): a ponte ouve a queda. */
+  const fecharConexao = (clientId: string, conexao: number): void => {
+    conexoes.delete(clientId)
+    baldes.delete(conexao)
+    emitir('net:peer', { clientId, event: 'disconnected' })
   }
 
   const listen: ListenFn = async (evento, handler) => {
@@ -136,14 +227,15 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
         }
         case 'msg': {
           const clientId = clientIdDaConexao(mensagem.conexao)
-          if (clientId !== null) emitir('net:message', { clientId, msg: objetoDoTexto(mensagem.data) })
+          if (clientId === null) return
+          if (comoORust && !passaComoORust(clientId, mensagem.conexao, mensagem.data)) return
+          emitir('net:message', { clientId, msg: objetoDoTexto(mensagem.data) })
           return
         }
         case 'fechar-conexao': {
           const clientId = clientIdDaConexao(mensagem.conexao)
           if (clientId === null) return
-          conexoes.delete(clientId)
-          emitir('net:peer', { clientId, event: 'disconnected' })
+          fecharConexao(clientId, mensagem.conexao)
           return
         }
         default:
@@ -154,6 +246,8 @@ export function criarTransporteLocal(opcoes: OpcoesDoTransporte): TransporteLoca
     desligar() {
       desligado = true
       conexoes.clear()
+      naFila.clear()
+      baldes.clear()
     },
   }
 }
