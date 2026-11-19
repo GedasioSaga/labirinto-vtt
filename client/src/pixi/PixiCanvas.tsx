@@ -90,6 +90,7 @@ import { gestoMexeNoMapa, type ModoDoGesto } from './modoDoGesto'
 import { criarGestoDaTextura, criarGestoDoPenhasco, criarGestoDoPincelDeRevelar } from './pinceisNoEditor'
 import { criarGestoDoCarimbo } from './carimboNoEditor'
 import { criarEscolhaNoCanvas } from './escolhaDoEditor'
+import { criarGestoDosBlocos } from './blocosNoEditor'
 import { criarAguaDoMapa } from './aguaDoMapa'
 import { entornoDaAgua, type EntornoDaAgua } from '../lib/agua/entorno'
 import { criarGestoDaNeblina, criarNeblinaDoEditor, raioDoPincelDeNeblina } from './neblinaNoEditor'
@@ -103,7 +104,7 @@ import { nuvensLigadas } from '../lib/nuvens'
 import { contornoDoGrupoAparece, createShapesRedrawer, paintedTextLayer, TIPOS_SO_COM_CONTORNO, type ShapesLayer, type ShapesSnapshot } from './shapesRedraw'
 import { createMontadorEmFatias } from './montagemEmFatias'
 import { createRoomNamesRenderer, findRoomLabelAt, roomLabelAnchor, roomLabelEditorLook, roomLabelFontSize, roomLabelText, type RoomLabelEditorLook } from './drawRoomNames'
-import { createFloorRenderer, drawBlocosDraft, drawFloorDraft } from './drawFloor'
+import { createFloorRenderer, drawFloorDraft } from './drawFloor'
 import { drawMapLines, drawMapMarkers } from './drawMapLines'
 import { drawMapFrame } from './drawMapFrame'
 import { createDebouncedTask, syncWorldTextResolution } from './textResolution'
@@ -136,13 +137,11 @@ import {
   pincelDeBlocosApaga,
 } from '../lib/floorTool'
 import type { FloorShapeKind } from '../lib/floorTool'
-import { blocosDoTraco, chaveDoBloco, type Bloco } from '../lib/floorBlocks'
 import { mapFloorClip } from '../lib/floorContour'
 import { buildCaminhoShape, comTerreno, PASSO_DO_TRACO_EM_CASAS, pecasLisas } from '../lib/terrenoDoChao'
 import { useTerrenoStore } from '../stores/terrenoStore'
 import { criarTerrenoDoChao } from './terrenoDoChao'
-import { corDaCamada, pecaNaCamada } from '../lib/camadasDoChao'
-import { corDoPincel } from '../lib/camadasDoPincel'
+import { pecaNaCamada } from '../lib/camadasDoChao'
 
 /** Referência estável: camada oculta não força recalcular o contorno a cada redraw. */
 const EMPTY_FLOOR: FloorPiece[] = []
@@ -3926,21 +3925,6 @@ function PixiCanvasDoContexto({
       // pontos do corredor em construção — este sem `mode`, como
       // regionDraftPoints: cada clique é um pointerdown independente.
       let floorDraftStart: Point | null = null
-      /**
-       * Pincel de blocos: as células já tocadas neste arrasto, por chave de
-       * coluna/linha. O gesto NÃO escreve na store enquanto anda — ele só
-       * acumula e desenha a prévia, e o mapa muda uma vez só no pointerup.
-       * É o que dá 1 Ctrl+Z por traço (e não um por célula) e o que mantém o
-       * arrasto fluido: o contorno do chão inteiro é caro demais para
-       * recalcular a cada pointermove.
-       */
-      let blocoCells: Map<string, Bloco> | null = null
-      /** Apaga em vez de pintar: botão direito (decisão de 15/09/2026) ou operação Subtrair — `pincelDeBlocosApaga`. */
-      let blocoApagando = false
-      /** `map.grid` de quando o traço começou: mudar a grade no meio não parte o traço. */
-      let blocoCellSize = 0
-      /** Último ponto do ponteiro, para amostrar o caminho entre dois pointermove. */
-      let blocoUltimoPonto: Point | null = null
       let corridorDraftPoints: Point[] = []
       // CAMINHO do Chão (CHÃO E CAMINHO, 12/11/2026): os mesmos pontos do corredor, mas o
       // botão apertado arrastando também traça; soltar depois de arrastar termina o caminho.
@@ -5634,6 +5618,8 @@ function PixiCanvasDoContexto({
         anel: (p) => desenharAnelDoPincel(p),
         avisar: avisarSemRepetir,
       })
+      // PINCEL DE BLOCOS do Chão (`blocosNoEditor.ts`): as células do traço só viram mapa ao soltar.
+      const gestoDosBlocos = criarGestoDosBlocos({ rascunho: draftGraphics })
 
       /**
        * Chão fica por baixo de tudo: só vira alvo de clique quando nada acima
@@ -5702,8 +5688,7 @@ function PixiCanvasDoContexto({
         measureDraftStart = null
         floorDraftStart = null
         corridorDraftPoints = []
-        blocoCells = null
-        blocoUltimoPonto = null
+        gestoDosBlocos.descartar()
         draftGraphics.clear()
         esconderPontaPuxada()
         measurementIndicatorRenderer.hide()
@@ -5748,42 +5733,6 @@ function PixiCanvasDoContexto({
         return { end, piece, dimension }
       }
 
-
-      /**
-       * Acumula as células do trecho percorrido pelo pincel e redesenha a
-       * prévia. Amostra o caminho inteiro de `de` até `ate` (e não só o ponto
-       * de chegada): o navegador entrega pointermove em saltos, e sem isso um
-       * arrasto rápido deixaria buraco no traço.
-       */
-      const acumularBlocos = (de: Point, ate: Point) => {
-        if (!blocoCells) return
-        const { map, floorBrushSize, floorCamada, pisoAtivo, camadaDoPincelId } = useMapStore.getState()
-        for (const bloco of blocosDoTraco(de, ate, blocoCellSize, floorBrushSize)) {
-          blocoCells.set(chaveDoBloco(bloco.col, bloco.row), bloco)
-        }
-        // A prévia na cor da camada ATIVA, que é onde a tinta vai cair.
-        const cor = corDoPincel(map, pisoAtivo, camadaDoPincelId, corDaCamada(floorCamada))
-        drawBlocosDraft(draftGraphics, [...blocoCells.values()], blocoCellSize, cor, blocoApagando)
-      }
-
-      /** Fecha o traço do pincel: uma peça nova (pintando) ou um apagar (botão direito ou Subtrair). */
-      const finishBlocos = () => {
-        const cells = blocoCells ? [...blocoCells.values()] : []
-        const cell = blocoCellSize
-        const apagando = blocoApagando
-        blocoCells = null
-        blocoUltimoPonto = null
-        draftGraphics.clear()
-        if (cells.length === 0) return
-        if (apagando) {
-          useMapStore.getState().eraseFloorBlocks(cells, cell)
-          return
-        }
-        // CAMADAS DO PINCEL: o traço soma na camada ativa, sem tirar blocos
-        // das outras (`lib/camadasDoPincel.ts`). Dois caminhos de cores
-        // diferentes = duas camadas.
-        useMapStore.getState().paintFloorBlocks(cells, cell)
-      }
 
       /**
        * Balde: enche a camada ativa na área em volta do clique, até as
@@ -7026,11 +6975,7 @@ function PixiCanvasDoContexto({
           if (floorShapeKind === 'blocos') {
             mode = 'painting-floor-blocks'
             // Botão direito OU operação Subtrair apagam: ver `pincelDeBlocosApaga`.
-            blocoApagando = pincelDeBlocosApaga(floorOp, event.button)
-            blocoCellSize = map.grid
-            blocoCells = new Map()
-            blocoUltimoPonto = worldPoint
-            acumularBlocos(worldPoint, worldPoint)
+            gestoDosBlocos.comecar(worldPoint, pincelDeBlocosApaga(floorOp, event.button), map.grid)
             return
           }
           // Balde é um clique só: não há arrasto para acompanhar.
@@ -8088,7 +8033,7 @@ function PixiCanvasDoContexto({
         if (mode === 'painting-floor-blocks') {
           // Clique parado também conta: uma célula pintada é uma peça válida
           // (ao contrário do arrasto de retângulo, que precisa de área).
-          finishBlocos()
+          gestoDosBlocos.soltar()
         }
 
         // CAMINHO arrastado: soltar termina o traço; o clique parado só deixou um ponto.
@@ -8447,7 +8392,7 @@ function PixiCanvasDoContexto({
         // Soltar o botão fora do canvas no meio de um traço do pincel: o que já
         // foi pintado vira peça, em vez de sumir sem explicação. Precisa vir
         // ANTES do `mode = 'idle'` lá embaixo, como os commits vizinhos.
-        if (mode === 'painting-floor-blocks') finishBlocos()
+        if (mode === 'painting-floor-blocks') gestoDosBlocos.soltar()
         // CAMINHO arrastado e solto fora do canvas: o que já foi traçado vira caminho.
         if (caminhoArrastando) {
           caminhoArrastando = false
@@ -8904,10 +8849,8 @@ function PixiCanvasDoContexto({
           return
         }
 
-        if (mode === 'painting-floor-blocks' && blocoUltimoPonto) {
-          const worldPoint = toWorldPoint(event.global.x, event.global.y)
-          acumularBlocos(blocoUltimoPonto, worldPoint)
-          blocoUltimoPonto = worldPoint
+        if (mode === 'painting-floor-blocks' && gestoDosBlocos.emCurso()) {
+          gestoDosBlocos.mover(toWorldPoint(event.global.x, event.global.y))
           return
         }
 
