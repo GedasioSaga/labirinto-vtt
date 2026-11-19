@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipo: mesa da batalha do mestre</title>
+<!--
+  PROTÓTIPO, não é código do app. Um arquivo só, dados de mentira.
+  Ideia: UMA coluna. A carta de quem tem a vez fica aberta no lugar dela na ordem;
+  dentro dela mora tudo o que é da vez (golpe, alvo, a reação, o contra-ataque).
+  A mesma coluna encosta na direita do mapa ou vai para uma janela à parte.
+  Cores, fontes e medidas copiadas de client/src/theme.ts e components/batalha/*.css.
+-->
+<style>
+:root {
+  --ink: #121214;
+  --stone: rgba(19, 19, 23, 0.94);
+  --stone-solid: #1a1a1e;
+  --raised: #232328;
+  --hover: #2c2c33;
+  --sunken: #141417;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-panel: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --parch: #eceae4;
+  --dim: #a2a09a;
+  --faint: #858480;
+  --brass: #e0a44a;
+  --brass-bright: #f3ba66;
+  --brass-soft: rgba(224, 164, 74, 0.14);
+  --brass-contrast: #1c1608;
+  --ember: #e2645a;
+  --ember-soft: rgba(226, 100, 90, 0.14);
+  --online: #7fb48a;
+  --tide: #79a9cc;
+  --arcane: #ab93d6;
+  --sangue: #b4493c;
+  --sangue-claro: #c75a4c;
+  --tinta: #0c0c0e;
+  --display: 'Sitka Banner', 'Sitka Display', Sitka, Constantia, Georgia, 'Times New Roman', serif;
+  --sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --util: 'Bahnschrift', 'DIN Alternate', 'Segoe UI Variable Small', 'Segoe UI', system-ui, sans-serif;
+  --titulo: 'Bahnschrift Condensed', 'Bahnschrift', 'DIN Alternate', 'Segoe UI', system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --sombra: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --barra-proto: 44px;
+  --mesa-larg: 400px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--ink); color: var(--parch); font: 13px/1.45 var(--sans); overflow: hidden; }
+button, input { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ------------------------------------------------ barra do protótipo (não faz parte do desenho) */
+.proto { height: var(--barra-proto); display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #0a0a0c; border-bottom: 1px dashed var(--line-strong); font-family: var(--util); font-size: 12px; color: var(--dim); }
+.proto__nome { color: var(--parch); white-space: nowrap; }
+.proto__estados { display: flex; gap: 4px; }
+.proto__estados button { min-height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--dim); cursor: pointer; white-space: nowrap; }
+.proto__estados button[aria-pressed='true'] { background: var(--parch); border-color: var(--parch); color: var(--tinta); font-weight: 600; }
+.proto__estados button:focus-visible, .proto__nota button:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+.proto__nota { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+
+/* ------------------------------------------------ o app em modo batalha */
+.app { position: relative; height: calc(100% - var(--barra-proto)); overflow: hidden; }
+.mapa { position: absolute; inset: 0; background: #2b2c30; overflow: hidden; }
+.mapa__piso { position: absolute; top: 0; bottom: 0; left: 24%; width: 30%; background: #35363b; box-shadow: 0 0 0 3px #232428; }
+.mapa__torre { position: absolute; top: -110px; width: 300px; height: 300px; border-radius: 50%; background: #3d3e44; box-shadow: 0 0 0 8px #26272b; }
+.mapa__torre--a { left: calc(24% - 170px); }
+.mapa__torre--b { left: calc(54% - 130px); }
+.mapa::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px); background-size: 48px 48px; }
+
+/* O que sobra da moldura do app: a lombada fina, o nome da cena, o zoom. Só enfeite neste protótipo. */
+.lombada { position: absolute; top: 12px; bottom: 12px; left: 12px; width: 52px; padding: 8px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; border-radius: 12px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel); }
+.lombada__logo { width: 30px; height: 30px; margin-bottom: 8px; border-radius: 8px; background: linear-gradient(180deg, #f0b962, #c98a34); }
+.lombada__item { width: 44px; padding: 6px 0 4px; display: grid; justify-items: center; gap: 3px; font: 10px/1 var(--util); color: var(--faint); }
+.lombada__item i { width: 16px; height: 12px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); }
+.palco { position: absolute; top: 0; bottom: 0; left: 76px; right: calc(var(--mesa-larg) + 24px); }
+.palco svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.palco line, .palco polyline { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.cena { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 7px 16px; border-radius: 999px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel); font: 15px/1.2 var(--display); white-space: nowrap; }
+.zoom { position: absolute; right: 8px; bottom: 16px; padding: 4px 10px; border-radius: 999px; background: var(--stone); font: 11px/1.4 var(--util); color: var(--dim); }
+
+.ficha { position: absolute; width: 58px; height: 58px; margin: -29px 0 0 -29px; padding: 0; border: 0; border-radius: 50%; background: var(--raised); display: grid; place-items: center; font: 600 15px/1 var(--util); color: var(--parch); box-shadow: 0 0 0 3px var(--lado), 0 4px 12px rgba(0, 0, 0, 0.5); }
+button.ficha { cursor: crosshair; }
+button.ficha:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 6px; }
+.ficha[data-vez] { box-shadow: 0 0 0 3px var(--lado), 0 0 0 6px var(--tinta), 0 0 0 9px var(--brass), 0 4px 12px rgba(0, 0, 0, 0.5); }
+.ficha[data-alvo] { box-shadow: 0 0 0 3px var(--lado), 0 0 0 6px var(--tinta), 0 0 0 9px var(--ember), 0 4px 12px rgba(0, 0, 0, 0.5); }
+.ficha[data-caiu] { opacity: 0.45; filter: grayscale(1); }
+.ficha__nome { position: absolute; top: calc(100% + 12px); left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 999px; background: rgba(12, 12, 14, 0.82); font: 400 11.5px/1.5 var(--sans); white-space: nowrap; }
+.ficha__onda { position: absolute; inset: -14px; border-radius: 50%; border: 2px solid var(--ember); animation: onda 1.4s ease-in-out infinite; pointer-events: none; }
+@keyframes onda { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.9; } }
+
+/* ------------------------------------------------ botões (como .bt-botao do app) */
+.bt { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); color: var(--parch); font-size: 13px; white-space: nowrap; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease, transform 120ms var(--ease-out); }
+.bt:active:not(:disabled) { transform: scale(0.97); }
+.bt:disabled { opacity: 0.45; cursor: not-allowed; }
+.bt:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+.bt--ouro { background: linear-gradient(180deg, #f0b962, #d99a3e); border-color: var(--brass-bright); color: var(--brass-contrast); font-weight: 600; }
+.bt--golpe { background: var(--sangue); border-color: var(--sangue); color: #fff; font-weight: 600; }
+.bt--fantasma { background: transparent; border-color: transparent; color: var(--dim); }
+.bt--alto { min-height: 44px; padding: 0 18px; font-size: 14px; }
+.bt[aria-expanded='true']:not(.bt--fantasma) { background: var(--brass-soft); border-color: rgba(224, 164, 74, 0.5); color: var(--brass-bright); }
+.bt--p { min-height: 28px; padding: 0 8px; font-size: 11.5px; }
+.bt kbd { padding: 0 5px; border-radius: 4px; background: rgba(0, 0, 0, 0.22); font: 600 10.5px/1.6 var(--util); }
+@media (hover: hover) and (pointer: fine) {
+  .bt:hover:not(:disabled) { background: var(--hover); }
+  .bt--ouro:hover:not(:disabled) { background: linear-gradient(180deg, #f6c373, #e0a44a); }
+  .bt--golpe:hover:not(:disabled) { background: var(--sangue-claro); }
+  .bt--fantasma:hover:not(:disabled) { background: var(--hover); color: var(--parch); }
+}
+
+/* ------------------------------------------------ a mesa: uma coluna */
+.doca { position: absolute; top: 12px; right: 12px; bottom: 12px; width: var(--mesa-larg); border-radius: 12px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra); overflow: hidden; }
+.mesa { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mesa__topo { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 46px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
+.rodada { margin: 0; display: flex; align-items: baseline; gap: 8px; }
+.rodada b { font: 400 18px/1 var(--display); font-variant-numeric: lining-nums; }
+.rodada span { font: 11.5px/1 var(--util); color: var(--faint); font-variant-numeric: tabular-nums; }
+.mesa__corpo { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px 12px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.ordem { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+
+.av { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--sunken); box-shadow: 0 0 0 2px var(--lado); font: 600 10.5px/1 var(--util); color: var(--parch); }
+.av--g { width: 40px; height: 40px; font-size: 13px; }
+.tag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--hover); font: 400 10.5px/1.5 var(--util); color: var(--dim); white-space: nowrap; vertical-align: 1px; }
+.tag--reage { background: var(--ember-soft); color: var(--ember); }
+.tag--contra { background: var(--sangue); color: #fff; }
+
+.linha { position: relative; display: grid; grid-template-columns: 14px 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px 6px 8px; border-radius: 8px; }
+.linha[data-agiu] .linha__quem b { font-weight: 400; color: var(--dim); }
+.linha[data-agiu] .mini i { opacity: 0.6; }
+.linha__num { font: 11.5px/1 var(--util); color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
+.linha__quem { min-width: 0; display: grid; }
+.linha__quem > span { display: flex; align-items: center; min-width: 0; }
+.linha__quem .tag { flex: none; }
+.linha__quem b { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linha__quem small { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini { display: grid; grid-template-columns: 52px auto; align-items: center; gap: 3px 8px; font: 11px/1 var(--util); color: var(--dim); font-variant-numeric: tabular-nums; }
+.mini i { display: block; height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.mini i > span { display: block; height: 100%; transform-origin: left; background: var(--ember); }
+.mini i[data-tom='sp'] > span { background: var(--tide); }
+.mini em { font-style: normal; min-width: 3ch; text-align: right; }
+.linha__dar { position: absolute; right: 8px; top: 50%; margin-top: -14px; opacity: 0; background: var(--hover); border-color: var(--line-strong); color: var(--parch); }
+.linha:hover .linha__dar, .linha__dar:focus-visible { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .linha:hover { background: rgba(255, 255, 255, 0.04); } }
+
+/* a carta de quem tem a vez: aberta no lugar dela */
+.cartao { position: relative; margin: 10px 0 6px; padding: 16px 12px 12px; border-radius: 10px; background: linear-gradient(180deg, rgba(224, 164, 74, 0.18), var(--raised) 110px); box-shadow: inset 0 0 0 1.5px var(--brass), 0 6px 18px rgba(0, 0, 0, 0.35); }
+.fita { position: absolute; top: -9px; left: 12px; padding: 0 7px; border-radius: 4px; background: var(--brass); color: var(--brass-contrast); font: 700 10px/17px var(--util); letter-spacing: 0.1em; text-transform: uppercase; }
+.cab { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.cab h2 { margin: 0; font: 400 27px/1.05 var(--display); font-variant-numeric: lining-nums; color: var(--brass-bright); overflow-wrap: anywhere; }
+.cab p { margin: 2px 0 0; font-size: 11.5px; color: var(--dim); }
+.cab__resto { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-top: 8px; }
+.barra { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 6px; font: 11px/1 var(--util); }
+.barra__rot { color: var(--faint); }
+.barra__trilho { height: 5px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+.barra__cheio { display: block; height: 100%; transform-origin: left; background: var(--ember); }
+.barra[data-tom='sp'] .barra__cheio { background: var(--tide); }
+.barra__num { color: var(--parch); font-variant-numeric: tabular-nums; }
+.barra__num small { font-size: inherit; color: var(--faint); }
+.pips { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 4px; }
+.pip { padding: 1px 7px; border-radius: 3px; background: var(--parch); color: var(--tinta); font: 700 10.5px/1.6 var(--util); font-variant-numeric: tabular-nums; }
+.pip[data-gasto] { background: rgba(255, 255, 255, 0.1); color: var(--faint); font-weight: 400; text-decoration: line-through; }
+.cartao[data-espera] .cab h2 { font-size: 20px; color: var(--parch); }
+.cartao[data-espera] .fita { background: var(--raised); color: var(--brass-bright); box-shadow: inset 0 0 0 1px var(--brass); }
+
+.corpo { margin-top: 12px; display: grid; gap: 12px; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 4px; }
+legend { padding: 0; margin-bottom: 4px; width: 100%; display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--dim); }
+.elo { padding: 0; border: 0; background: none; color: var(--brass-bright); font-size: 11.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.elo:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; border-radius: 2px; }
+.op { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0 9px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line-panel); border-radius: 8px; background: rgba(0, 0, 0, 0.16); cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
+.op input { margin: 0; accent-color: var(--brass); }
+.op:has(input:checked) { border-color: rgba(224, 164, 74, 0.6); background: var(--brass-soft); }
+.op:has(input:focus-visible) { outline: 2px solid var(--brass-bright); outline-offset: 1px; }
+.op__nome { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op__lado { font: 11.5px/1 var(--util); color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.op[data-apagado] { cursor: not-allowed; }
+.op[data-apagado] .op__nome { color: var(--faint); font-weight: 400; }
+.op__porque { grid-column: 2 / -1; font-size: 11px; color: var(--faint); }
+.sug { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-bright); font: 400 10.5px/1.6 var(--util); }
+@media (hover: hover) and (pointer: fine) { .op:not([data-apagado]):hover { background: rgba(255, 255, 255, 0.06); } }
+.alvos { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 6px; }
+.alvos .op { grid-template-columns: auto 22px minmax(0, 1fr); gap: 0 7px; }
+.alvos .av { width: 22px; height: 22px; font-size: 9px; }
+.alvos small { display: block; font: 11px/1.2 var(--util); color: var(--faint); font-variant-numeric: tabular-nums; }
+.ajuste { display: grid; gap: 8px; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; }
+.ajuste label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.ajuste small { color: var(--faint); font-size: 11px; }
+.ajuste input[type='number'] { width: 64px; min-height: 28px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--sunken); font: 600 13px var(--util); }
+.ajuste input[type='checkbox'] { margin: 0; accent-color: var(--brass); width: 15px; height: 15px; }
+.ajuste input:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: 2px; }
+.lancar { display: flex; flex-wrap: wrap; gap: 6px; }
+.lancar .bt--golpe { flex: 1 1 200px; min-width: 0; }
+.lancar .bt--golpe span { overflow: hidden; text-overflow: ellipsis; }
+.lancar__porque { flex-basis: 100%; margin: 0; font-size: 11.5px; color: var(--faint); }
+.joga { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--dim); }
+
+/* a troca: o golpe lançado, a reação, o resultado e o contra-ataque moram no mesmo quadro */
+.troca { position: relative; padding: 12px; border-radius: 8px; background: var(--tinta); box-shadow: inset 0 0 0 1px var(--line-panel); }
+.troca[data-contra] { box-shadow: inset 0 0 0 1px var(--line-panel), 6px 6px 0 var(--sangue); margin: 0 6px 6px 0; }
+.troca__golpe { margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; color: var(--dim); }
+.troca__golpe b { color: var(--parch); font-weight: 600; }
+.troca__golpe span { font: 11.5px/1 var(--util); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.espera { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.espera p { margin: 0; font: 400 19px/1.2 var(--display); font-variant-numeric: lining-nums; }
+.relogio { font: 600 20px/1 var(--util); color: var(--brass-bright); font-variant-numeric: tabular-nums; }
+.nota { margin: 2px 0 0; font-size: 11.5px; color: var(--dim); }
+.troca__acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.resultado { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.resultado[data-sem-dado] { grid-template-columns: minmax(0, 1fr); }
+.dado { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; background: var(--parch); color: var(--tinta); font: 700 24px/1 var(--util); box-shadow: 3px 3px 0 var(--sangue); font-variant-numeric: tabular-nums; }
+.resultado p { margin: 0; }
+.resultado__o-que { font: 400 19px/1.2 var(--display); font-variant-numeric: lining-nums; }
+.resultado__conta { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.resultado__conta b { color: var(--parch); font-weight: 600; }
+
+/* a régua do d20: a regra da reação só aparece quando há reação, e com os números deste golpe */
+.regua { display: grid; gap: 3px; margin-top: 12px; }
+.regua__nums, .regua__trilho, .regua__zonas { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; }
+.regua__nums span { font: 10.5px/1 var(--util); color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
+.regua__trilho i { display: grid; place-items: center; height: 16px; border-radius: 2px; background: rgba(255, 255, 255, 0.13); font: 700 10px/1 var(--util); font-style: normal; color: transparent; }
+.regua__trilho i[data-z='c'] { background: rgba(226, 100, 90, 0.7); }
+.regua__trilho i[data-z='d'] { background: rgba(121, 169, 204, 0.45); }
+.regua__trilho i[data-z='e'] { background: rgba(127, 180, 138, 0.45); }
+.regua__trilho i[data-z='k'] { background: rgba(224, 164, 74, 0.9); }
+.regua[data-fim] .regua__trilho i:not([data-on]) { opacity: 0.4; }
+.regua__trilho i[data-marca] { background: var(--parch); color: var(--tinta); transform: scale(1.4); border-radius: 3px; box-shadow: 0 0 0 2px var(--tinta); position: relative; z-index: 1; }
+.regua__zonas span { font-size: 10.5px; line-height: 1.3; color: var(--dim); text-align: center; white-space: nowrap; }
+.regua__zonas b { display: block; font-weight: 600; color: var(--parch); }
+.regua__pontas { display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: var(--dim); }
+.regua[data-fim] [data-zona]:not([data-on]) { opacity: 0.6; }
+
+/* o contra-ataque: a única hora em que a ação não é de quem tem a vez */
+.trilha { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(3, auto); gap: 6px; }
+.trilha li { position: relative; padding-top: 10px; font-size: 11px; line-height: 1.3; color: var(--faint); }
+.trilha li::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); }
+.trilha li[data-e='feito'] { color: var(--dim); }
+.trilha li[data-e='feito']::before { background: var(--dim); }
+.trilha li[data-e='agora'] { color: var(--parch); font-weight: 600; }
+.trilha li[data-e='agora']::before { background: var(--sangue-claro); }
+.trilha li[data-e='agora'][data-volta]::before { background: var(--brass); }
+.contra__titulo { margin: 0 0 10px; font: 700 30px/1 var(--titulo); font-stretch: condensed; letter-spacing: 0.02em; text-transform: uppercase; color: var(--parch); text-shadow: 3px 3px 0 var(--sangue); transform: rotate(-2deg); transform-origin: left bottom; }
+.contra__quem { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 10px; }
+.contra__quem b { display: block; font: 400 20px/1.1 var(--display); }
+.contra__alvo { margin: 10px 0 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+.contra__alvo .av { width: 22px; height: 22px; font-size: 9px; }
+.contra__alvo b { color: var(--parch); font-weight: 600; }
+
+/* o pé: o último acontecimento, o Desfazer e o único Passar a vez */
+.mesa__pe { flex: none; border-top: 1px solid var(--line); }
+.reg { list-style: none; margin: 0; padding: 8px 14px; max-height: 190px; overflow: auto; display: grid; gap: 6px; border-bottom: 1px solid var(--line); font-size: 12px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.reg small { display: block; font: 10.5px/1.3 var(--util); color: var(--faint); }
+.ultima { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 4px 6px 0 14px; }
+.ultima p { flex: 1; min-width: 0; margin: 0; font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ultima .bt small { font: 10.5px/1 var(--util); color: var(--faint); }
+.pe__acoes { display: flex; align-items: center; gap: 12px; padding: 6px 12px 12px 14px; }
+.status { flex: 1; min-width: 0; margin: 0; font-size: 12px; line-height: 1.35; color: var(--dim); }
+.confirma { display: grid; gap: 8px; padding: 6px 12px 12px 14px; }
+.confirma p { margin: 0; font-size: 12.5px; }
+.confirma div { display: flex; justify-content: flex-end; gap: 8px; }
+.bt--perigo { border-color: rgba(226, 100, 90, 0.6); color: var(--ember); }
+
+/* o menu das ações secundárias */
+.menu { position: absolute; top: 42px; right: 6px; z-index: 5; width: 252px; padding: 4px; border-radius: 10px; background: var(--stone-solid); box-shadow: inset 0 0 0 1px var(--line-strong), var(--sombra); transform-origin: top right; }
+.menu button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; font-size: 13px; text-align: left; cursor: pointer; }
+.menu button:focus-visible { outline: none; background: var(--hover); box-shadow: inset 0 0 0 1px var(--brass); }
+@media (hover: hover) and (pointer: fine) { .menu button:hover { background: var(--hover); } }
+.menu [role='separator'] { height: 1px; margin: 4px 6px; background: var(--line); }
+.menu [aria-checked] svg { opacity: 0; }
+.menu [aria-checked='true'] svg { opacity: 1; color: var(--brass-bright); }
+.menu .perigo { color: var(--ember); }
+
+.vazia { display: grid; place-content: center; justify-items: center; gap: 8px; min-height: 260px; padding: 24px; text-align: center; }
+.vazia p { margin: 0; font: 400 20px/1.3 var(--display); }
+.vazia small { max-width: 36ch; color: var(--dim); }
+
+/* Com largura (a janela à parte), a mesma lista vira duas colunas: a carta aberta à esquerda, a fila à direita. */
+.mesa__corpo { container-type: inline-size; }
+@container (min-width: 640px) {
+  .mini { grid-template-columns: 40px auto; }
+  .ordem { grid-template-columns: minmax(0, 1fr) 316px; grid-template-rows: repeat(var(--fila, 3), auto) 1fr; column-gap: 12px; }
+  .cartao { grid-column: 1; grid-row: 1 / -1; margin-bottom: 0; align-self: start; }
+  .linha { grid-column: 2; }
+  .linha:nth-child(1 of .linha) { margin-top: 10px; }
+}
+
+/* ------------------------------------------------ estado 5: a mesma mesa numa janela à parte (segundo monitor) */
+.app { --mon2: 0px; }
+.app[data-janela] { --mon2: 848px; }
+.app[data-janela] .mapa { right: var(--mon2); }
+.app[data-janela] .palco { right: calc(var(--mon2) + 12px); }
+.monitor2 { position: absolute; top: 0; right: 0; bottom: 0; width: var(--mon2); display: grid; place-content: center; justify-items: center; gap: 14px; background: #060608; border-left: 8px solid #000; }
+.monitor2 > small, .monitor1-nota { font: 11.5px/1.3 var(--util); color: var(--faint); }
+.monitor1-nota { position: absolute; left: 76px; bottom: 16px; padding: 2px 8px; border-radius: 4px; background: rgba(6, 6, 8, 0.7); }
+.aviso-janela { position: absolute; left: calc(76px + (100% - var(--mon2) - 88px) / 2); bottom: 52px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border-radius: 12px; background: var(--stone); box-shadow: inset 0 0 0 1px var(--line-panel), var(--sombra); font-size: 12.5px; white-space: nowrap; }
+.janela { width: 800px; height: 696px; display: flex; flex-direction: column; border-radius: 8px; background: var(--stone-solid); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 30px 80px rgba(0, 0, 0, 0.7); overflow: hidden; }
+.janela__barra { flex: none; display: flex; align-items: center; height: 32px; padding-left: 10px; background: #202024; font: 12px/1 var(--sans); color: var(--dim); }
+.janela__barra::before { content: ''; width: 14px; height: 14px; margin-right: 8px; border-radius: 4px; background: linear-gradient(180deg, #f0b962, #c98a34); }
+.janela__barra span { flex: 1; }
+.janela__barra i { width: 44px; text-align: center; font-style: normal; color: var(--faint); }
+.janela__barra button { width: 44px; height: 32px; border: 0; background: none; color: var(--dim); cursor: pointer; }
+.janela__barra button:hover { background: #c42b1c; color: #fff; }
+.janela__barra button:focus-visible { outline: 2px solid var(--brass-bright); outline-offset: -2px; }
+.janela__corpo { flex: 1; min-height: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ficha__onda { animation: none; opacity: 0.7; }
+  .bt, .op { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="proto">
+  <span class="proto__nome">Protótipo · mesa da batalha (mestre, PC)</span>
+  <div class="proto__estados" role="toolbar" aria-label="Estados do protótipo">
+    <button type="button" data-ir="1">1 Vez do NPC</button>
+    <button type="button" data-ir="2">2 Esperando a reação</button>
+    <button type="button" data-ir="3">3 Resultado</button>
+    <button type="button" data-ir="4">4 Contra-ataque</button>
+    <button type="button" data-ir="5">5 Em janela à parte</button>
+  </div>
+  <span class="proto__nota">Dados de mentira: Kaito sempre tira 12, Cavalo Beau sempre tira 20. Teclas 1 a 5 trocam de estado.</span>
+</header>
+
+<main class="app">
+  <div class="mapa" aria-hidden="true">
+    <div class="mapa__piso"></div>
+    <div class="mapa__torre mapa__torre--a"></div>
+    <div class="mapa__torre mapa__torre--b"></div>
+  </div>
+  <div class="lombada" aria-hidden="true">
+    <span class="lombada__logo"></span>
+    <span class="lombada__item"><i></i>Ficha</span>
+    <span class="lombada__item"><i></i>Cena</span>
+    <span class="lombada__item"><i></i>Aventura</span>
+    <span class="lombada__item"><i></i>Acervo</span>
+    <span class="lombada__item"><i></i>Jogos</span>
+    <span class="lombada__item"><i></i>Roteiro</span>
+  </div>
+  <div class="palco">
+    <svg id="linhas" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div id="fichas"></div>
+    <span class="cena" aria-hidden="true">Castelo: Entrada</span>
+    <span class="zoom" aria-hidden="true">52%</span>
+  </div>
+  <aside class="doca" id="doca"></aside>
+  <div class="aviso-janela" id="aviso-janela" hidden>
+    <span>A mesa da batalha está em outra janela.</span>
+    <button type="button" class="bt" data-a="trazer" data-fk="trazer">Trazer para o app</button>
+  </div>
+  <small class="monitor1-nota" id="monitor1-nota" hidden>Monitor 1: o app, com o mapa inteiro</small>
+  <div class="monitor2" id="monitor2" hidden>
+    <div class="janela" id="janela" role="group" aria-label="Janela à parte: mesa da batalha">
+      <div class="janela__barra">
+        <span>Mesa da batalha · Labirinto</span>
+        <i aria-hidden="true">&#x2013;</i><i aria-hidden="true">&#x25A1;</i>
+        <button type="button" data-a="trazer" aria-label="Fechar a janela (a mesa volta para o app)">&#x2715;</button>
+      </div>
+      <div class="janela__corpo" id="janela-corpo"></div>
+    </div>
+    <small>Monitor 2: a mesma mesa numa janela de 800 × 696. Estreita, ela volta a ser uma coluna só.</small>
+  </div>
+</main>
+
+<script>
+'use strict'
+
+/* ---------------------------------------------------------------- dados de mentira */
+const LADOS = { a: { nome: 'Estábulo do Rei', cor: 'var(--arcane)' }, b: { nome: 'Tripulação', cor: 'var(--online)' } }
+const FICHAS = {
+  cisco: { nome: 'Cavalo Cisco', curto: 'Cisco', ini: 'CC', npc: true, lado: 'a', hp: 300, hpMax: 300, sp: 100, spMax: 100, agi: 12, x: 40, y: 58 },
+  beau: { nome: 'Cavalo Beau', curto: 'Beau', ini: 'CB', npc: true, lado: 'b', hp: 300, hpMax: 300, sp: 100, spMax: 100, agi: 15, x: 63, y: 40 },
+  kaito: { nome: 'Kaito', curto: 'Kaito', ini: 'KA', npc: false, jogador: 'Duda', lado: 'b', hp: 240, hpMax: 280, sp: 60, spMax: 120, agi: 18, x: 58, y: 76 },
+  brasa: { nome: 'Sargento Brasa', curto: 'Brasa', ini: 'SB', npc: true, lado: 'a', hp: 260, hpMax: 260, sp: 80, spMax: 80, agi: 9, x: 24, y: 36 },
+}
+const GOLPES = {
+  cisco: [
+    { id: 'coice', nome: 'Coice', dano: 80, sug: true },
+    { id: 'mordida', nome: 'Mordida', dano: 50 },
+    { id: 'maonua', nome: 'Mão nua', dano: 50 },
+    { id: 'disparada', nome: 'Disparada', dano: 120, falta: 'Custa 120 de SP; Cisco tem 100.' },
+  ],
+  beau: [
+    { id: 'coice', nome: 'Coice', dano: 80, sug: true },
+    { id: 'cabecada', nome: 'Cabeçada', dano: 60 },
+    { id: 'maonua', nome: 'Mão nua', dano: 50 },
+  ],
+  brasa: [
+    { id: 'espadada', nome: 'Espadada', dano: 90, sug: true },
+    { id: 'empurrao', nome: 'Empurrão', dano: 40 },
+  ],
+}
+const ALVO_SUGERIDO = { cisco: 'kaito', beau: 'cisco', brasa: 'kaito' }
+/* Os dados deste protótipo são fixos, para os cinco estados saírem sempre iguais. */
+const DADO_FIXO = { kaito: 12, beau: 20, cisco: 7, brasa: 16 }
+
+/* ---------------------------------------------------------------- estado */
+let S
+const hist = []
+const ui = { menu: false, menuAbriu: false, menuPeloTeclado: false, registro: false, confirma: false, status: '' }
+const semMovimento = matchMedia('(prefers-reduced-motion: reduce)')
+let ultimo = { fase: null, vez: null, janela: null }
+const barrasAntes = new Map()
+
+function base() {
+  return {
+    rodada: 1,
+    vez: 'cisco',
+    fase: 'escolha',
+    janela: false,
+    ordem: ['cisco', 'beau', 'kaito', 'brasa'],
+    c: JSON.parse(JSON.stringify(FICHAS)),
+    agiu: [],
+    eco: { simples: 1, mov: 0 },
+    esc: { golpe: 'coice', alvo: 'kaito', dano: null, surpresa: false, perf: false, todos: false, ajuste: false },
+    troca: null,
+    desdeVez: Date.now(),
+    caminhos: true,
+    reg: [{ r: 1, t: 'A batalha começou. Vez de Cavalo Cisco.' }],
+    op: { camera: true, som: true },
+  }
+}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m])
+const ator = () => S.c[S.vez]
+const golpesDe = (id) => GOLPES[id] || []
+const golpeEscolhido = () => golpesDe(S.vez).find((g) => g.id === S.esc.golpe && !g.falta) || null
+const danoBase = () => (golpeEscolhido() === null ? 0 : (S.esc.dano ?? golpeEscolhido().dano))
+const chega = () => Math.round(danoBase() * (S.esc.surpresa ? 1.5 : 1))
+const alvosPossiveis = () => S.ordem.filter((id) => S.c[id].hp > 0 && (S.esc.todos || S.c[id].lado !== ator().lado))
+const escondidos = () => S.ordem.filter((id) => S.c[id].hp > 0 && S.c[id].lado === ator().lado).length
+const log = (t) => S.reg.push({ r: S.rodada, t })
+const guardar = () => { hist.push(JSON.stringify(S)); ui.status = '' }
+
+function prepararEscolha() {
+  const golpes = golpesDe(S.vez)
+  const golpe = golpes.find((g) => g.sug && !g.falta) || golpes.find((g) => !g.falta) || null
+  S.esc = { golpe: golpe ? golpe.id : null, alvo: null, dano: null, surpresa: false, perf: false, todos: false, ajuste: false }
+  const possiveis = alvosPossiveis()
+  S.esc.alvo = possiveis.includes(ALVO_SUGERIDO[S.vez]) ? ALVO_SUGERIDO[S.vez] : (possiveis[0] ?? null)
+}
+
+/* ---------------------------------------------------------------- ações */
+function lancar() {
+  const golpe = golpeEscolhido()
+  if (S.fase !== 'escolha' || !ator().npc || golpe === null || !alvosPossiveis().includes(S.esc.alvo)) return
+  guardar()
+  const alvo = S.c[S.esc.alvo]
+  S.troca = { de: S.vez, alvo: S.esc.alvo, golpe: golpe.nome, base: danoBase(), chega: chega(), surpresa: S.esc.surpresa, desde: Date.now(), d20: null, feito: false }
+  S.eco.simples = 0
+  log(`${ator().nome} lançou ${golpe.nome} em ${alvo.nome}: chega ${S.troca.chega}.`)
+  if (S.esc.surpresa) return resolver(null)
+  S.fase = 'espera'
+  render()
+}
+
+/** d20 = null: sem reação (não reagiu, ou golpe de Surpresa). */
+function resolver(d20) {
+  const t = S.troca
+  const alvo = S.c[t.alvo]
+  let dano = t.chega
+  let nome = t.surpresa ? 'foi pego de surpresa' : 'não reagiu'
+  if (d20 !== null) {
+    if (d20 === 1) { dano = Math.round(t.chega * 1.5); nome = 'sofreu um crítico' }
+    else if (d20 >= 20) { dano = 0; nome = 'contra-ataca' }
+    else if (d20 >= 15) { dano = 0; nome = 'esquivou' }
+    else if (d20 >= 10) { dano = Math.round(t.chega / 2); nome = 'defendeu' }
+    else nome = 'tomou o golpe'
+  }
+  Object.assign(t, { d20, dano, nome, hpAntes: alvo.hp, feito: true })
+  alvo.hp = Math.max(0, alvo.hp - dano)
+  log(`${alvo.nome} ${d20 === null ? '' : `rolou ${d20}: `}${nome}. ${dano > 0 ? `Tomou ${dano}.` : 'Sem dano.'}`)
+  if (d20 !== null && d20 >= 20) {
+    const golpes = golpesDe(t.alvo)
+    t.contraGolpe = (golpes.find((g) => g.sug && !g.falta) || golpes[0] || { id: null }).id
+    t.desdeContra = Date.now()
+    S.fase = 'contra'
+  } else S.fase = 'resultado'
+  render()
+}
+
+function rolar() { if (S.fase === 'espera') { guardar(); resolver(DADO_FIXO[S.troca.alvo] ?? 8) } }
+function semReacao() { if (S.fase === 'espera') { guardar(); resolver(null) } }
+
+function contraAtacar() {
+  if (S.fase !== 'contra') return
+  const t = S.troca
+  const golpe = golpesDe(t.alvo).find((g) => g.id === t.contraGolpe)
+  if (!golpe) return
+  guardar()
+  const atacante = S.c[t.de]
+  t.contra = { golpe: golpe.nome, dano: golpe.dano, hpAntes: atacante.hp }
+  atacante.hp = Math.max(0, atacante.hp - golpe.dano)
+  log(`${S.c[t.alvo].nome} contra-atacou com ${golpe.nome}: ${atacante.nome} tomou ${golpe.dano}. A vez voltou para ${atacante.nome}.`)
+  S.fase = 'voltou'
+  render()
+}
+function abrirMao() {
+  if (S.fase !== 'contra') return
+  guardar()
+  S.troca.contra = { abriu: true }
+  log(`${S.c[S.troca.alvo].nome} abriu mão do contra-ataque. A vez voltou para ${S.c[S.troca.de].nome}.`)
+  S.fase = 'voltou'
+  render()
+}
+
+function novaVez(id) {
+  S.vez = id
+  S.fase = 'escolha'
+  S.troca = null
+  S.eco = { simples: 1, mov: 0 }
+  S.desdeVez = Date.now()
+  prepararEscolha()
+}
+function passar() {
+  if (S.fase === 'espera' || S.fase === 'contra' || S.fase === 'fim') return
+  guardar()
+  const quem = ator().nome
+  S.agiu.push(S.vez)
+  let i = S.ordem.indexOf(S.vez)
+  for (let n = 0; n < S.ordem.length; n++) {
+    i = (i + 1) % S.ordem.length
+    if (i === 0) { S.rodada += 1; S.agiu = [] }
+    if (S.c[S.ordem[i]].hp > 0) break
+  }
+  novaVez(S.ordem[i])
+  log(`${quem} passou a vez. Vez de ${ator().nome}.`)
+  render()
+}
+function darVez(id) {
+  if (S.fase === 'espera' || S.fase === 'contra' || id === S.vez) return
+  guardar()
+  novaVez(id)
+  S.agiu = S.agiu.filter((outro) => outro !== id)
+  log(`O mestre deu a vez a ${ator().nome}.`)
+  render()
+}
+function desfazer() {
+  if (hist.length === 0) return
+  const desfeita = S.reg[S.reg.length - 1].t
+  S = JSON.parse(hist.pop())
+  ui.status = `Desfeito: ${desfeita}`
+  ui.confirma = false
+  render()
+}
+function ordenar() {
+  guardar()
+  S.ordem.sort((a, b) => S.c[b].agi - S.c[a].agi)
+  log('Ordem refeita pela Agilidade.')
+  ui.status = 'Ordem refeita pela Agilidade: Kaito 18, Beau 15, Cisco 12, Brasa 9.'
+  render()
+}
+
+/** Os cinco estados da barra do protótipo, sempre montados do zero. */
+function irPara(n, seco) {
+  const t0 = performance.now()
+  S = base()
+  hist.length = 0
+  Object.assign(ui, { menu: false, registro: false, confirma: false, status: '' })
+  if (n === 2 || n === 3) {
+    S.troca = { de: 'cisco', alvo: 'kaito', golpe: 'Coice', base: 80, chega: 80, surpresa: false, desde: Date.now() - 8000, d20: null, feito: false }
+    S.eco.simples = 0
+    log('Cavalo Cisco lançou Coice em Kaito: chega 80.')
+    S.fase = 'espera'
+    hist.push(JSON.stringify(base()))
+  }
+  if (n === 3) { hist.push(JSON.stringify(S)); resolverSemRender(12) }
+  if (n === 4) {
+    hist.push(JSON.stringify(base()))
+    S.esc.alvo = 'beau'
+    S.troca = { de: 'cisco', alvo: 'beau', golpe: 'Coice', base: 80, chega: 80, surpresa: false, desde: Date.now() - 5000, d20: null, feito: false }
+    S.eco.simples = 0
+    log('Cavalo Cisco lançou Coice em Cavalo Beau: chega 80.')
+    S.fase = 'espera'
+    hist.push(JSON.stringify(S))
+    resolverSemRender(20)
+    S.troca.desdeContra = Date.now() - 4000
+  }
+  if (n === 5) S.janela = true
+  render({ seco })
+  const t1 = performance.now()
+  requestAnimationFrame(() => (window.__trocas = window.__trocas || []).push({ estado: n, render: +(t1 - t0).toFixed(1), ateOQuadro: +(performance.now() - t0).toFixed(1) }))
+}
+let calado = false
+function resolverSemRender(d20) { calado = true; resolver(d20); calado = false }
+
+/* ---------------------------------------------------------------- desenho */
+const avatar = (id, classe = '') => `<span class="av ${classe}" style="--lado:${LADOS[S.c[id].lado].cor}" aria-hidden="true">${S.c[id].ini}</span>`
+const fracao = (v, max) => (max <= 0 ? 0 : Math.max(0, Math.min(1, v / max)))
+const relogio = (desde) => { const s = Math.max(0, Math.floor((Date.now() - desde) / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+const tempo = (desde, rotulo) => `<span class="relogio" role="timer" aria-label="${rotulo}" data-relogio="${desde}">${relogio(desde)}</span>`
+
+function barra(id, tom, rotulo, v, max) {
+  return `<div class="barra" data-tom="${tom}"><span class="barra__rot">${rotulo}</span><span class="barra__trilho" aria-hidden="true"><span class="barra__cheio" data-barra="${id}-${tom}" data-v="${fracao(v, max)}" style="transform:scaleX(${fracao(v, max)})"></span></span><span class="barra__num">${v}<small>/${max}</small></span></div>`
+}
+
+function linha(id, posicao) {
+  const c = S.c[id]
+  const pendente = S.fase === 'espera' || S.fase === 'contra'
+  const proximo = S.ordem[(S.ordem.indexOf(S.vez) + 1) % S.ordem.length]
+  let tag = ''
+  if (S.fase === 'espera' && S.troca.alvo === id) tag = '<span class="tag tag--reage">reagindo</span>'
+  else if (S.fase === 'contra' && S.troca.alvo === id) tag = '<span class="tag tag--contra">contra-ataca agora</span>'
+  else if (id === proximo && S.fase !== 'fim') tag = '<span class="tag">a seguir</span>'
+  return `<li class="linha" data-flip="${id}"${S.agiu.includes(id) ? ' data-agiu' : ''}>
+    <span class="linha__num" aria-hidden="true">${posicao}</span>
+    ${avatar(id)}
+    <span class="linha__quem"><span><b>${esc(c.nome)}</b>${tag}</span><small>${c.npc ? 'NPC' : `Jogador: ${esc(c.jogador)}`} · ${LADOS[c.lado].nome}${S.agiu.includes(id) ? ' · já agiu' : ''}</small></span>
+    <span class="mini"><i data-tom="hp" aria-hidden="true"><span data-barra="${id}-hp" data-v="${fracao(c.hp, c.hpMax)}" style="transform:scaleX(${fracao(c.hp, c.hpMax)})"></span></i><em>${c.hp}</em><i data-tom="sp" aria-hidden="true"><span data-barra="${id}-sp" data-v="${fracao(c.sp, c.spMax)}" style="transform:scaleX(${fracao(c.sp, c.spMax)})"></span></i><em>${c.sp}</em><span class="sr">HP ${c.hp} de ${c.hpMax}, SP ${c.sp} de ${c.spMax}</span></span>
+    ${pendente ? '' : `<button type="button" class="bt bt--p linha__dar" data-a="dar" data-id="${id}" data-fk="dar-${id}">Dar a vez</button>`}
+  </li>`
+}
+
+function regua(valorQueChega, marca) {
+  const zona = (n) => (n === 1 ? 'c' : n >= 20 ? 'k' : n >= 15 ? 'e' : n >= 10 ? 'd' : 't')
+  const zm = marca == null ? null : zona(marca)
+  const on = (z) => (zm === z ? ' data-on' : '')
+  const critico = Math.round(valorQueChega * 1.5)
+  const metade = Math.round(valorQueChega / 2)
+  let celulas = ''
+  let numeros = ''
+  for (let n = 1; n <= 20; n++) {
+    celulas += `<i data-z="${zona(n)}"${zm === zona(n) ? ' data-on' : ''}${marca === n ? ' data-marca data-pop' : ''}>${marca === n ? n : ''}</i>`
+    numeros += `<span>${n === 1 || n === 10 || n === 15 || n === 20 ? n : ''}</span>`
+  }
+  return `<div class="regua"${zm ? ' data-fim' : ''} role="img" aria-label="Reação no d20. 1: crítico, toma ${critico}. 2 a 9: toma ${valorQueChega}. 10 a 14: defende, toma ${metade}. 15 a 19: esquiva. 20: contra-ataca.${marca == null ? '' : ` Saiu ${marca}.`}">
+    <div class="regua__nums" aria-hidden="true">${numeros}</div>
+    <div class="regua__trilho" aria-hidden="true">${celulas}</div>
+    <div class="regua__zonas" aria-hidden="true"><span data-zona style="grid-column:2/10"${on('t')}><b>toma ${valorQueChega}</b>2 a 9</span><span data-zona style="grid-column:10/15"${on('d')}><b>defende: ${metade}</b>10 ou mais</span><span data-zona style="grid-column:15/20"${on('e')}><b>esquiva</b>15 ou mais</span></div>
+    <div class="regua__pontas" aria-hidden="true"><span data-zona${on('c')}>1 é crítico: toma ${critico}</span><span data-zona${on('k')}>20 contra-ataca</span></div>
+  </div>`
+}
+
+function corpoDaEscolha() {
+  const a = ator()
+  if (!a.npc) {
+    return `<p class="joga"><span>${esc(a.nome)} joga no próprio aparelho (${esc(a.jogador)}).</span>${tempo(S.desdeVez, 'Tempo desta vez')}</p>`
+  }
+  const golpe = golpeEscolhido()
+  const possiveis = alvosPossiveis()
+  const alvo = possiveis.includes(S.esc.alvo) ? S.c[S.esc.alvo] : null
+  const golpes = golpesDe(S.vez).map((g) => `<label class="op"${g.falta ? ' data-apagado' : ''}>
+      <input type="radio" name="golpe" value="${g.id}" data-fk="g-${g.id}"${S.esc.golpe === g.id ? ' checked' : ''}${g.falta ? ' disabled' : ''}>
+      <span class="op__nome">${esc(g.nome)}${g.sug ? '<span class="sug">sugestão</span>' : ''}</span>
+      <span class="op__lado">dano ${g.dano}</span>
+      ${g.falta ? `<span class="op__porque">${esc(g.falta)}</span>` : ''}
+    </label>`).join('')
+  const alvos = possiveis.map((id) => `<label class="op">
+      <input type="radio" name="alvo" value="${id}" data-fk="a-${id}"${S.esc.alvo === id ? ' checked' : ''}>
+      ${avatar(id)}
+      <span><span class="op__nome">${esc(S.c[id].nome)}</span><small>${id === S.vez ? 'ele mesmo' : S.c[id].lado === a.lado ? 'aliado' : `HP ${S.c[id].hp}`}</small></span>
+    </label>`).join('')
+  const outros = escondidos()
+  const ajustes = [S.esc.surpresa ? 'surpresa' : null, S.esc.perf ? 'perfurante' : null].filter(Boolean).join(', ')
+  const porque = golpe === null ? 'Escolha um golpe.' : alvo === null ? 'Escolha o alvo (na lista ou clicando na ficha no mapa).' : ''
+  return `<fieldset><legend>Golpe</legend>${golpes}</fieldset>
+    <fieldset><legend><span>Alvo</span>${outros > 0 ? `<button type="button" class="elo" data-a="todos" data-fk="todos" aria-pressed="${S.esc.todos}">${S.esc.todos ? 'Só o outro lado' : `Mostrar todos (+${outros})`}</button>` : ''}</legend><div class="alvos">${alvos || '<p class="nota">Ninguém pode ser alvo agora.</p>'}</div></fieldset>
+    ${S.esc.ajuste ? `<div class="ajuste" id="ajuste">
+      <label>Dano base <input type="number" min="0" step="5" value="${danoBase()}" data-c="dano" data-fk="dano" ${golpe === null ? 'disabled' : ''}></label>
+      <label><input type="checkbox" data-c="surpresa" data-fk="surpresa"${S.esc.surpresa ? ' checked' : ''}> Surpresa <small>×1,5 e sem reação</small></label>
+      <label><input type="checkbox" data-c="perf" data-fk="perf"${S.esc.perf ? ' checked' : ''}> Perfurante <small>direto no HP, sem gastar o Escudo</small></label>
+    </div>` : ''}
+    <div class="lancar">
+      <button type="button" class="bt bt--alto bt--golpe" data-a="lancar" data-fk="lancar"${porque ? ' disabled' : ''}><span>${golpe && alvo ? `Lançar ${esc(golpe.nome)} em ${esc(alvo.curto)}` : 'Lançar'}</span><kbd>Enter</kbd></button>
+      <button type="button" class="bt bt--alto" data-a="ajuste" data-fk="ajuste" aria-expanded="${S.esc.ajuste}" aria-controls="ajuste">Dano <b data-chega>${chega()}</b>${ajustes ? `<small>${ajustes}</small>` : ''}</button>
+      ${porque ? `<p class="lancar__porque">${porque}</p>` : ''}
+    </div>`
+}
+
+function corpoDaTroca() {
+  const t = S.troca
+  const de = S.c[t.de]
+  const alvo = S.c[t.alvo]
+  const cabeca = `<p class="troca__golpe"><span><b>${esc(t.golpe)}</b> em ${esc(alvo.nome)}</span><span>chega ${t.chega}</span></p>`
+  if (S.fase === 'espera') {
+    const doMestre = alvo.npc
+    return `<div class="troca" data-entra>${cabeca}
+      <div class="espera"><p>${doMestre ? `A reação de ${esc(alvo.curto)} é sua` : `Esperando ${esc(alvo.curto)} reagir`}</p>${doMestre ? '' : tempo(t.desde, 'Tempo de espera')}</div>
+      <p class="nota">${doMestre ? `${esc(alvo.nome)} é NPC: você rola o 1d20.` : `${esc(alvo.jogador)} rola 1d20 no próprio aparelho.`}</p>
+      ${regua(t.chega, null)}
+      <div class="troca__acoes"><button type="button" class="bt" data-a="rolar" data-fk="rolar">${doMestre ? `Rolar 1d20 por ${esc(alvo.curto)}` : `Rolar por ${esc(alvo.curto)}`}</button><button type="button" class="bt bt--fantasma" data-a="sem-reacao" data-fk="sem-reacao">Sem reação</button></div>
+    </div>`
+  }
+  if (S.fase === 'resultado') {
+    const conta = t.dano > 0 ? `Tomou <b>${t.dano}</b>${t.d20 !== null && t.d20 >= 10 ? `, metade de ${t.chega}` : t.d20 === 1 ? ` (${t.chega} × 1,5)` : ''}. HP ${t.hpAntes} → <b>${alvo.hp}</b>.` : 'Não tomou dano.'
+    return `<div class="troca" data-entra>${cabeca}
+      <div class="resultado"${t.d20 === null ? ' data-sem-dado' : ''}>${t.d20 === null ? '' : `<span class="dado" data-pop aria-label="1d20: ${t.d20}">${t.d20}</span>`}<div><p class="resultado__o-que">${esc(alvo.curto)} ${t.nome}</p><p class="resultado__conta">${conta}</p></div></div>
+      ${t.d20 === null ? '' : regua(t.chega, t.d20)}
+    </div>`
+  }
+  const voltou = S.fase === 'voltou'
+  const trilha = `<ol class="trilha" aria-label="Ordem desta troca">
+      <li data-e="feito">1. ${esc(de.curto)} atacou</li>
+      <li data-e="${voltou ? 'feito' : 'agora'}"${voltou ? '' : ' aria-current="step"'}>2. ${esc(alvo.curto)} ${voltou ? (t.contra.abriu ? 'abriu mão' : 'contra-atacou') : 'contra-ataca'}</li>
+      <li data-e="${voltou ? 'agora' : 'depois'}" data-volta${voltou ? ' aria-current="step"' : ''}>3. ${voltou ? `Voltou para ${esc(de.curto)}` : `Volta para ${esc(de.curto)}`}</li>
+    </ol>`
+  if (voltou) {
+    return `<div class="troca" data-entra>${trilha}
+      <div class="resultado" data-sem-dado><div><p class="resultado__o-que">A vez voltou para ${esc(de.nome)}</p><p class="resultado__conta">${t.contra.abriu ? `${esc(alvo.nome)} abriu mão do contra-ataque.` : `${esc(alvo.nome)} acertou ${esc(t.contra.golpe)}: ${esc(de.curto)} tomou <b>${t.contra.dano}</b>. HP ${t.contra.hpAntes} → <b>${de.hp}</b>.`}</p></div></div>
+    </div>`
+  }
+  const golpes = golpesDe(t.alvo).map((g) => `<label class="op">
+      <input type="radio" name="contra" value="${g.id}" data-fk="c-${g.id}"${t.contraGolpe === g.id ? ' checked' : ''}>
+      <span class="op__nome">${esc(g.nome)}${g.sug ? '<span class="sug">sugestão</span>' : ''}</span><span class="op__lado">dano ${g.dano}</span>
+    </label>`).join('')
+  const golpe = golpesDe(t.alvo).find((g) => g.id === t.contraGolpe)
+  return `<div class="troca" data-contra data-entra>${trilha}
+      <h3 class="contra__titulo">Contra-ataque</h3>
+      <div class="contra__quem">${avatar(t.alvo, 'av--g')}<b>${esc(alvo.nome)} age agora</b><span class="dado" data-pop aria-label="Tirou 20 na reação">20</span></div>
+      <fieldset><legend class="sr">Golpe de ${esc(alvo.curto)}</legend>${golpes}</fieldset>
+      <p class="contra__alvo">Alvo: ${avatar(t.de)}<span><b>${esc(de.nome)}</b>, quem atacou</span></p>
+      <div class="troca__acoes"><button type="button" class="bt bt--alto bt--golpe" data-a="contra" data-fk="contra"${golpe ? '' : ' disabled'}>${golpe ? `Contra-atacar com ${esc(golpe.nome)}` : 'Contra-atacar'}</button><button type="button" class="bt bt--alto bt--fantasma" data-a="abrir-mao" data-fk="abrir-mao">Abrir mão</button></div>
+    </div>`
+}
+
+function cartao(id, posicao) {
+  const c = S.c[id]
+  const emEspera = S.fase === 'contra'
+  return `<li class="cartao" data-flip="${id}" aria-current="step"${emEspera ? ' data-espera' : ''}>
+    <span class="fita">${emEspera ? 'Vez · em espera' : 'Vez'}</span>
+    <div class="cab">
+      ${avatar(id, 'av--g')}
+      <div><h2>${esc(c.nome)}</h2><p>${c.npc ? 'NPC' : `Jogador: ${esc(c.jogador)}`} · ${LADOS[c.lado].nome} · ${posicao}º da ordem</p></div>
+      <div class="cab__resto">
+        ${barra(id, 'hp', 'HP', c.hp, c.hpMax)}${barra(id, 'sp', 'SP', c.sp, c.spMax)}
+        ${emEspera ? '' : `<div class="pips" aria-label="Ações desta vez"><span class="pip"${S.eco.simples === 0 ? ' data-gasto' : ''}>Simples ${S.eco.simples}${S.eco.simples === 0 ? '<span class="sr"> (usada)</span>' : ''}</span><span class="pip">Mov ${S.eco.mov}/1</span></div>`}
+      </div>
+    </div>
+    <div class="corpo"${S.fase === 'escolha' ? ' data-entra-vez' : ''}>${S.fase === 'escolha' ? corpoDaEscolha() : corpoDaTroca()}</div>
+  </li>`
+}
+
+function menu() {
+  const visto = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>'
+  const item = (a, texto, extra = '') => `<button type="button" role="menuitem" data-a="${a}" ${extra}>${texto}</button>`
+  const marca = (k, texto) => `<button type="button" role="menuitemcheckbox" aria-checked="${S.op[k]}" data-a="m-op" data-k="${k}">${texto}${visto}</button>`
+  return `<div class="menu" id="menu" role="menu" aria-label="Mais ações da batalha">
+    ${item('m-abre', 'Dar dano ou cura…', 'data-n="Dar dano ou cura"')}${item('m-abre', 'Pôr selo…', 'data-n="Pôr selo"')}${item('m-abre', 'Ações extras…', 'data-n="Ações extras"')}
+    <div role="separator"></div>
+    ${item('m-ordenar', 'Ordenar pela Agilidade')}${item('m-zerar', 'Zerar caminhos', S.caminhos ? '' : 'disabled title="Não há caminho desenhado"')}${item('m-abre', 'Regras do campo…', 'data-n="Regras do campo"')}
+    <div role="separator"></div>
+    ${marca('camera', 'Câmera segue a vez')}${marca('som', 'Som da batalha')}
+    <div role="separator"></div>
+    ${item('m-janela', S.janela ? 'Trazer para o app' : 'Abrir em outra janela')}
+    <button type="button" role="menuitem" class="perigo" data-a="m-encerrar">Encerrar batalha…</button>
+  </div>`
+}
+
+function mesa() {
+  if (S.fase === 'fim') {
+    return `<section class="mesa" aria-label="Mesa da batalha"><div class="vazia"><p>Batalha encerrada.</p><small>O modo batalha fecha e o editor volta. O registro fica guardado na cena.</small><button type="button" class="bt" data-a="reiniciar" data-fk="reiniciar">Recomeçar o protótipo</button></div></section>`
+  }
+  const posicao = S.ordem.indexOf(S.vez) + 1
+  const ultima = S.reg[S.reg.length - 1]
+  const pendente = S.fase === 'espera' ? `Falta a reação de ${S.c[S.troca.alvo].curto}.` : S.fase === 'contra' ? `Falta o contra-ataque de ${S.c[S.troca.alvo].curto}.` : ''
+  const hora = S.fase === 'resultado' || S.fase === 'voltou'
+  return `<section class="mesa" aria-label="Mesa da batalha">
+    <header class="mesa__topo">
+      <p class="rodada"><b>Rodada ${S.rodada}</b><span>vez ${posicao} de ${S.ordem.length}</span></p>
+      <button type="button" class="bt bt--fantasma" data-a="menu" data-fk="menu" aria-haspopup="menu" aria-expanded="${ui.menu}" aria-controls="menu">Mais <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 3.5l3 3 3-3"/></svg></button>
+      ${ui.menu ? menu() : ''}
+    </header>
+    <div class="mesa__corpo"><ol class="ordem" style="--fila:${S.ordem.length - 1}" aria-label="Ordem dos turnos">${S.ordem.map((id, i) => (id === S.vez ? cartao(id, i + 1) : linha(id, i + 1))).join('')}</ol></div>
+    <footer class="mesa__pe">
+      ${ui.registro ? `<ol class="reg" id="reg" aria-label="Registro da batalha">${S.reg.slice().reverse().map((l) => `<li><small>Rodada ${l.r}</small>${esc(l.t)}</li>`).join('')}</ol>` : ''}
+      <div class="ultima">
+        ${ui.registro ? '<p>Registro, do mais novo ao mais antigo</p>' : `<p title="${esc(ultima.t)}">${esc(ultima.t)}</p>`}
+        <button type="button" class="bt bt--p bt--fantasma" data-a="desfazer" data-fk="desfazer"${hist.length === 0 ? ' disabled' : ''} title="${hist.length === 0 ? 'Nada para desfazer' : `Desfazer: ${esc(ultima.t)} (Ctrl+Z)`}" aria-keyshortcuts="Control+Z">Desfazer</button>
+        <button type="button" class="bt bt--p bt--fantasma" data-a="registro" data-fk="registro" aria-expanded="${ui.registro}" aria-controls="reg">Registro <small>${S.reg.length}</small></button>
+      </div>
+      ${ui.confirma
+        ? `<div class="confirma" role="group" aria-label="Encerrar a batalha?"><p>Encerrar a batalha? A ordem some e o editor volta; o registro fica guardado.</p><div><button type="button" class="bt" data-a="continuar" data-fk="continuar">Continuar a batalha</button><button type="button" class="bt bt--perigo" data-a="encerrar" data-fk="encerrar">Encerrar a batalha</button></div></div>`
+        : `<div class="pe__acoes"><p class="status" role="status">${esc(pendente || ui.status)}</p><button type="button" class="bt bt--alto${hora ? ' bt--ouro' : ''}" data-a="passar" data-fk="passar"${pendente ? ' disabled' : ''}>Passar a vez</button></div>`}
+    </footer>
+  </section>`
+}
+
+function fichasDoMapa() {
+  const mirando = S.fase === 'escolha' && ator().npc
+  const possiveis = mirando ? alvosPossiveis() : []
+  const alvoAgora = S.fase === 'escolha' ? (mirando ? S.esc.alvo : null) : S.fase === 'contra' ? S.troca.de : S.fase === 'fim' || S.fase === 'voltou' ? null : S.troca.alvo
+  const age = S.fase === 'contra' ? S.troca.alvo : S.vez
+  return S.ordem.map((id) => {
+    const c = S.c[id]
+    const atributos = `class="ficha" style="left:${c.x}%;top:${c.y}%;--lado:${LADOS[c.lado].cor}"${S.fase !== 'fim' && id === age ? ' data-vez' : ''}${id === alvoAgora && id !== age ? ' data-alvo' : ''}${c.hp <= 0 ? ' data-caiu' : ''}`
+    const dentro = `${c.ini}<span class="ficha__nome">${esc(c.nome)}</span>${S.fase === 'espera' && S.troca.alvo === id ? '<span class="ficha__onda"></span>' : ''}`
+    return possiveis.includes(id) && id !== S.vez
+      ? `<button type="button" ${atributos} data-a="mirar" data-id="${id}" data-fk="f-${id}" aria-label="Mirar em ${esc(c.nome)}" aria-pressed="${S.esc.alvo === id}">${dentro}</button>`
+      : `<div ${atributos}>${dentro}</div>`
+  }).join('')
+}
+
+function linhasDoMapa() {
+  let s = S.caminhos ? '<polyline points="22,70 30,66 36,60 40,58" stroke="rgba(236,234,228,0.4)" stroke-width="2" stroke-dasharray="2 7"/>' : ''
+  const fio = (de, para, cor, traco) => `<line x1="${S.c[de].x}" y1="${S.c[de].y}" x2="${S.c[para].x}" y2="${S.c[para].y}" stroke="${cor}" stroke-width="2.5"${traco ? ' stroke-dasharray="7 7"' : ''}/>`
+  if (S.fase === 'escolha' && ator().npc && S.esc.alvo && S.esc.alvo !== S.vez && alvosPossiveis().includes(S.esc.alvo)) s += fio(S.vez, S.esc.alvo, 'var(--brass)', true)
+  if (S.fase === 'espera' || S.fase === 'resultado') s += fio(S.troca.de, S.troca.alvo, 'var(--ember)', S.fase === 'espera')
+  if (S.fase === 'contra') s += fio(S.troca.alvo, S.troca.de, 'var(--ember)', true)
+  return s
+}
+
+const $ = (seletor) => document.querySelector(seletor)
+const estadoDaBarra = () => (S.janela ? 5 : S.fase === 'espera' ? 2 : S.fase === 'resultado' ? 3 : S.fase === 'contra' || S.fase === 'voltou' ? 4 : 1)
+
+function render(opcoes = {}) {
+  if (calado) return
+  const reduzido = semMovimento.matches
+  const seco = opcoes.seco === true
+  const mudouDeLugar = ultimo.janela !== null && ultimo.janela !== S.janela
+  const mudouAFase = ultimo.fase !== S.fase || ultimo.vez !== S.vez
+  const mudouAVez = ultimo.vez !== null && ultimo.vez !== S.vez
+  const antes = new Map()
+  if (!seco && !mudouDeLugar) document.querySelectorAll('[data-flip]').forEach((el) => antes.set(el.dataset.flip, el.getBoundingClientRect().top))
+  const foco = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : undefined
+  const focoNaMesa = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.mesa'))
+
+  const destino = S.janela ? $('#janela-corpo') : $('#doca')
+  ;(S.janela ? $('#doca') : $('#janela-corpo')).innerHTML = ''
+  destino.innerHTML = mesa()
+  $('#doca').hidden = S.janela
+  $('#monitor2').hidden = !S.janela
+  $('#monitor1-nota').hidden = !S.janela
+  $('#aviso-janela').hidden = !S.janela
+  $('.app').toggleAttribute('data-janela', S.janela)
+  $('#fichas').innerHTML = fichasDoMapa()
+  $('#linhas').innerHTML = linhasDoMapa()
+  const n = estadoDaBarra()
+  document.querySelectorAll('[data-ir]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.ir === n)))
+
+  // O foco volta para o mesmo controle; se ele sumiu e o foco estava na mesa, vai para o próximo passo.
+  let alvoDoFoco = foco ? document.querySelector(`[data-fk="${foco}"]`) : null
+  if (ui.menuAbriu) alvoDoFoco = document.querySelector('.menu button:not(:disabled)')
+  else if ((!alvoDoFoco || alvoDoFoco.disabled) && focoNaMesa) {
+    const proximo = { espera: 'rolar', resultado: 'passar', voltou: 'passar', contra: 'contra', fim: 'reiniciar' }[S.fase]
+    alvoDoFoco = proximo ? document.querySelector(`[data-fk="${proximo}"]`) : null
+  }
+  if (alvoDoFoco && !alvoDoFoco.disabled) alvoDoFoco.focus({ preventScroll: true })
+
+  // Movimento: só a troca de vez, a chegada do pedido e a vida que muda.
+  const anima = (el, quadros, ms, curva) => el.animate(quadros, { duration: ms, easing: curva || 'cubic-bezier(0.23, 1, 0.32, 1)' })
+  if (!seco) {
+    if (ui.menuAbriu && !ui.menuPeloTeclado) { const m = $('#menu'); if (m) anima(m, reduzido ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'scale(1)' }], 140) }
+    if (!mudouDeLugar && !reduzido) {
+      document.querySelectorAll('[data-flip]').forEach((el) => {
+        const topoAntes = antes.get(el.dataset.flip)
+        if (topoAntes === undefined) return
+        const dy = topoAntes - el.getBoundingClientRect().top
+        if (Math.abs(dy) > 1) anima(el, [{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], 220, 'cubic-bezier(0.77, 0, 0.175, 1)')
+      })
+    }
+    if (mudouAFase && ultimo.fase !== null && !mudouDeLugar) {
+      const chegou = mudouAVez ? document.querySelector('[data-entra-vez]') : document.querySelector('[data-entra]')
+      if (chegou) anima(chegou, reduzido ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], 200)
+      if (!reduzido) document.querySelectorAll('[data-pop]').forEach((el) => { const fim = getComputedStyle(el).transform; anima(el, [{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: fim === 'none' ? 'scale(1)' : fim }], 180) })
+    }
+  }
+  document.querySelectorAll('[data-barra]').forEach((el) => {
+    const agora = +el.dataset.v
+    const era = barrasAntes.get(el.dataset.barra)
+    if (!seco && !reduzido && era !== undefined && Math.abs(era - agora) > 0.001) anima(el, [{ transform: `scaleX(${era})` }, { transform: `scaleX(${agora})` }], 240)
+  })
+  document.querySelectorAll('[data-barra]').forEach((el) => barrasAntes.set(el.dataset.barra, +el.dataset.v))
+  ui.menuAbriu = false
+  ultimo = { fase: S.fase, vez: S.vez, janela: S.janela }
+}
+
+/* ---------------------------------------------------------------- eventos */
+function fecharMenu(devolverFoco) {
+  if (!ui.menu) return
+  ui.menu = false
+  render()
+  if (devolverFoco) { const b = document.querySelector('[data-fk="menu"]'); if (b) b.focus() }
+}
+
+const ACOES = {
+  lancar,
+  rolar,
+  'sem-reacao': semReacao,
+  contra: contraAtacar,
+  'abrir-mao': abrirMao,
+  passar,
+  desfazer,
+  dar: (el) => darVez(el.dataset.id),
+  mirar: (el) => { S.esc.alvo = el.dataset.id; render() },
+  todos: () => { S.esc.todos = !S.esc.todos; if (!alvosPossiveis().includes(S.esc.alvo)) S.esc.alvo = null; render() },
+  ajuste: () => { S.esc.ajuste = !S.esc.ajuste; render() },
+  registro: () => { ui.registro = !ui.registro; render() },
+  menu: (el, evento) => { ui.menu = !ui.menu; ui.menuAbriu = ui.menu; ui.menuPeloTeclado = !!evento && evento.detail === 0; render() },
+  'm-abre': (el) => { ui.menu = false; ui.status = `Protótipo: aqui abre “${el.dataset.n}”, a mesma tela de hoje.`; render(); voltarAoMenu() },
+  'm-ordenar': () => { ui.menu = false; ordenar(); voltarAoMenu() },
+  'm-zerar': () => { ui.menu = false; guardar(); S.caminhos = false; log('Caminhos zerados.'); ui.status = 'Caminhos zerados no mapa.'; render(); voltarAoMenu() },
+  'm-op': (el) => { S.op[el.dataset.k] = !S.op[el.dataset.k]; const k = el.dataset.k; render(); const b = document.querySelector(`.menu [data-k="${k}"]`); if (b) b.focus() },
+  'm-janela': () => { ui.menu = false; S.janela = !S.janela; render(); voltarAoMenu() },
+  'm-encerrar': () => { ui.menu = false; ui.confirma = true; render(); const b = document.querySelector('[data-fk="continuar"]'); if (b) b.focus() },
+  continuar: () => { ui.confirma = false; render(); voltarAoMenu() },
+  encerrar: () => { guardar(); ui.confirma = false; S.fase = 'fim'; S.troca = null; render(); const b = document.querySelector('[data-fk="reiniciar"]'); if (b) b.focus() },
+  reiniciar: () => irPara(1),
+  trazer: () => { S.janela = false; render(); voltarAoMenu() },
+}
+function voltarAoMenu() { const b = document.querySelector('[data-fk="menu"]'); if (b) b.focus({ preventScroll: true }) }
+
+document.addEventListener('click', (evento) => {
+  const estado = evento.target.closest('[data-ir]')
+  if (estado) return irPara(+estado.dataset.ir, evento.detail === 0)
+  const el = evento.target.closest('[data-a]')
+  if (ui.menu && !evento.target.closest('.menu') && !(el && el.dataset.a === 'menu')) { ui.menu = false; if (!el) return render() }
+  if (el && !el.disabled && ACOES[el.dataset.a]) ACOES[el.dataset.a](el, evento)
+})
+
+document.addEventListener('change', (evento) => {
+  const el = evento.target
+  if (el.name === 'golpe') { S.esc.golpe = el.value; S.esc.dano = null; render() }
+  else if (el.name === 'alvo') { S.esc.alvo = el.value; render() }
+  else if (el.name === 'contra') { S.troca.contraGolpe = el.value; render() }
+  else if (el.dataset.c === 'surpresa') { S.esc.surpresa = el.checked; render() }
+  else if (el.dataset.c === 'perf') { S.esc.perf = el.checked; render() }
+})
+// O campo do dano não redesenha a mesa (o cursor não pula): só troca o número no botão.
+document.addEventListener('input', (evento) => {
+  if (evento.target.dataset.c !== 'dano') return
+  const valor = Number(evento.target.value)
+  S.esc.dano = Number.isFinite(valor) && valor >= 0 ? Math.round(valor) : null
+  document.querySelectorAll('[data-chega]').forEach((el) => { el.textContent = chega() })
+})
+
+document.addEventListener('keydown', (evento) => {
+  const el = evento.target
+  if (evento.key === 'Escape') {
+    if (ui.menu) { evento.preventDefault(); return fecharMenu(true) }
+    if (ui.confirma) { ui.confirma = false; render(); return voltarAoMenu() }
+    if (ui.registro) { ui.registro = false; return render() }
+    return
+  }
+  if (ui.menu && el.closest && el.closest('.menu')) {
+    const itens = [...document.querySelectorAll('.menu button:not(:disabled)')]
+    const i = itens.indexOf(el)
+    const ir = { ArrowDown: (i + 1) % itens.length, ArrowUp: (i - 1 + itens.length) % itens.length, Home: 0, End: itens.length - 1 }[evento.key]
+    if (ir !== undefined) { evento.preventDefault(); itens[ir].focus() }
+    if (evento.key === 'Tab') fecharMenu(false)
+    return
+  }
+  if (el.matches && el.matches('input[type="number"]')) return
+  if ((evento.key === 'z' || evento.key === 'Z') && (evento.ctrlKey || evento.metaKey) && !evento.shiftKey && !evento.altKey) { evento.preventDefault(); return desfazer() }
+  if (evento.ctrlKey || evento.metaKey || evento.altKey) return
+  if (/^[1-5]$/.test(evento.key)) return irPara(+evento.key, true)
+  if (evento.key === 'Enter' && S.fase === 'escolha' && ator().npc && (el === document.body || (el.matches && el.matches('input[type="radio"]')))) { evento.preventDefault(); lancar() }
+})
+
+// O tempo corre sem redesenhar a mesa: só o texto do relógio muda.
+setInterval(() => document.querySelectorAll('[data-relogio]').forEach((el) => { el.textContent = relogio(+el.dataset.relogio) }), 1000)
+
+irPara(1, true)
+</script>
+</body>
+</html>
