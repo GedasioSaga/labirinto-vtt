@@ -942,6 +942,25 @@
 }
 
 /*
+ * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): com a medida da tela
+ * (`player/lugarDaFaixa.ts`, a partir de 700 px), a faixa mora no vão entre a
+ * barra (ou o painel aberto) e o canto (`data-lugar='cima'`) ou, quando as cartas
+ * não cabem nele, numa linha só dela, logo abaixo, com a largura toda
+ * (`'propria'`). Nos dois, `left` + `right` são o vão e `fit-content` + `margin:
+ * auto` a centram nele. Nunca fica por baixo de um botão da barra. Vence as duas
+ * regras de cima (o atributo pesa mais que as duas classes).
+ */
+.bt-faixa.pp-batalha-faixa[data-lugar] {
+  top: var(--pp-faixa-topo);
+  left: var(--pp-faixa-esq);
+  right: var(--pp-faixa-dir);
+  translate: none;
+  width: fit-content;
+  max-width: none;
+  margin-inline: auto;
+}
+
+/*
  * BATALHA F2: o invólucro do mapa que treme (S8). Absoluto e sem z-index:
  * não cria pilha nova nem muda o bloco das peças fixas do PlayerView; só no
  * tremor (220 ms, transform) as fixas de dentro andam junto com ele.
@@ -1000,7 +1019,7 @@
   position: fixed;
   /* Tipos de habilidade F3: com lembrete de passiva, o menu começa abaixo dele (`--pp-lembretes-alto`, medido por `BatalhaDoJogador`). */
   top: calc(
-    max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px)) +
+    max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(var(--pp-faixa-topo, calc(12px + var(--pp-alarm-space, 0px))) + var(--pp-faixa-alto, 0px) + 12px)) +
       var(--pp-lembretes-alto, 0px)
   );
   /* Termina acima do botão REAÇÃO (chão + 8 + 44 de toque + 12 de vão): a mira alta
@@ -1159,7 +1178,7 @@
  */
 .pp-batalha-lembretes {
   position: fixed;
-  top: max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(12px + var(--pp-alarm-space, 0px) + var(--pp-faixa-alto, 0px) + 12px));
+  top: max(calc(var(--pp-abaixo-da-barra) + var(--pp-alarm-space, 0px)), calc(var(--pp-faixa-topo, calc(12px + var(--pp-alarm-space, 0px))) + var(--pp-faixa-alto, 0px) + 12px));
   left: calc(var(--pp-edge, 12px) + 12px + var(--pp-painel-ocupa, 0px));
   z-index: 9;
   width: max-content;
@@ -1193,7 +1212,9 @@
   padding: 0 10px 10px 0;
   translate: calc(-50% + 5px) 0;
   z-index: 11;
-  max-height: calc(100% - 130px);
+  /* Painel do jogador (19/11/2026): a caixa não sobe além do fundo da faixa (`--pp-faixa-fundo`, de
+     player/lugarDaFaixa.ts), para o dano que chega, riscado na barra da carta, continuar à vista. */
+  max-height: min(calc(100% - 130px), calc(100% - var(--pp-chao, 12px) - 58px - var(--pp-faixa-fundo, 0px) - 12px));
   overflow-y: auto;
 }
 .pp-batalha-reacao > .bt-reacao {
@@ -1938,6 +1959,94 @@
 
 .pp-toggle[aria-expanded='true'] .pp-toggle__chevron {
   transform: rotate(180deg);
+}
+
+/*
+ * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): com a faixa da ordem na
+ * tela (`pp-bar--batalha`, de `PlayerPanel`), a barra fica com "Painel" e três
+ * ícones: "Centralizar em mim", "Inventário (I)" e "Ficha de personagem". O nome
+ * de cada um mora no balão e no leitor de tela (o rótulo escondido continua no
+ * botão). Sai a dupla "Minha ficha" / "Ficha" e o vão da faixa cresce.
+ */
+.pp-bar--batalha .pp-mine__rotulo,
+.pp-bar--batalha .pp-bag__rotulo,
+.pp-bar--batalha .pp-ficha-btn__rotulo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.pp-bar--batalha .pp-bag__key {
+  display: none;
+}
+/* O alvo quadrado de toque; no celular em pé a barra é a faixa de couro de colunas iguais e fica como é. */
+@media (min-width: 700px), (max-height: 480px) {
+  .pp-bar--batalha > .pp-mine,
+  .pp-bar--batalha > .pp-bag,
+  .pp-bar--batalha > .pp-ficha-btn {
+    justify-content: center;
+    width: var(--pp-bar-h);
+    padding: 0;
+  }
+}
+/*
+ * O balão do botão só-ícone: espera o `tipDelay` do tema no ponteiro e chega em
+ * 125 ms; pelo teclado aparece na hora, sem movimento. Sai sem esmaecer por cima
+ * do próximo. Aberto um, o do vizinho abre na hora até o ponteiro sair da barra
+ * (`data-quente`, posto por `PlayerPanel`).
+ */
+.pp-bar--batalha [data-dica]::after {
+  content: attr(data-dica);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  padding: 5px 9px;
+  border-radius: var(--lb-radius-sm, 6px);
+  background: var(--lb-color-stone-raised, #232328);
+  box-shadow:
+    inset 0 0 0 1px var(--lb-color-line-panel, rgba(255, 255, 255, 0.13)),
+    var(--lb-shadow-md, 0 6px 16px rgba(0, 0, 0, 0.34));
+  font-family: var(--lb-font-sans, system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--lb-color-parchment, #eceae4);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition-property: opacity, transform;
+  transition-duration: 0ms;
+  transition-timing-function: var(--lb-gr-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+@media (hover: hover) and (pointer: fine) {
+  .pp-bar--batalha [data-dica]:hover::after {
+    opacity: 1;
+    transform: none;
+    transition-duration: 125ms;
+    transition-delay: var(--lb-motion-tip-delay, 320ms);
+  }
+  .pp-bar--batalha[data-quente] [data-dica]:hover::after {
+    transition-duration: 0ms;
+    transition-delay: 0ms;
+  }
+}
+.pp-bar--batalha [data-dica]:focus-visible::after {
+  opacity: 1;
+  transform: none;
+  transition-duration: 0ms;
+  transition-delay: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-bar--batalha [data-dica]::after {
+    transform: none;
+  }
 }
 
 /*

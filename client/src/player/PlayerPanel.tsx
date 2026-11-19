@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, RefObject } from 'react'
+import type { ChangeEvent, ComponentProps, FormEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent, PointerEvent, RefObject } from 'react'
 import type { StorageLike } from './playerConnection'
 import { PlayerBackpack } from './PlayerBackpack'
 import { NAME_MAX_LENGTH, type ClueEntry, type PartyMember, type PartyWhere, type OwnTokenElsewhere } from '../net/protocol'
@@ -384,7 +384,19 @@ interface PlayerPanelProps {
    * antigo: o host não serve ficha) = sem o botão.
    */
   onOpenFicha?: (byKeyboard: boolean) => void
+  /**
+   * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): com a faixa da ordem dos
+   * turnos na tela (a batalha da cena dele, One Piece ou Dragon Ball), a barra fica
+   * com "Painel" e três ícones, cada um com o nome no balão: "Centralizar em mim"
+   * (o "Minha ficha", que centra a câmera), "Inventário (I)" e "Ficha de
+   * personagem". Sai a dupla "Minha ficha" / "Ficha" e o vão da faixa cresce. Sem
+   * a faixa (inclusive no modo batalha B6 sem ordem), a barra de sempre.
+   */
+  barraDaBatalha?: boolean
 }
+
+/** O balão do botão só-ícone espera isto no ponteiro (o `tipDelay` do tema); depois do primeiro, os vizinhos abrem na hora. */
+const ESPERA_DO_BALAO_MS = 320
 
 /** Resultado do último "Baixar meu caderno", para a aba dizer o que houve. */
 type DownloadResult = { ok: true; fileName: string } | { ok: false; reason: string }
@@ -445,6 +457,7 @@ export function PlayerPanel({
   onDownloadNotebook,
   onOpenInventory,
   onOpenFicha,
+  barraDaBatalha = false,
 }: PlayerPanelProps) {
   const baseTabs = onRollDice === undefined ? PANEL_TABS_NO_DICE : PANEL_TABS
   const tabs = chat === undefined ? baseTabs : [...baseTabs, CHAT_TAB]
@@ -755,12 +768,36 @@ export function PlayerPanel({
     }
   }
 
+  // Barra da batalha: o primeiro balão espera no ponteiro; aberto um, os vizinhos abrem na hora,
+  // sem espera nem movimento, até o ponteiro sair da barra (`data-quente`, player.css).
+  const balaoTimer = useRef(0)
+  useEffect(() => () => window.clearTimeout(balaoTimer.current), [])
+  function aquecerOBalao(event: PointerEvent<HTMLDivElement>) {
+    const bar = barElRef.current
+    if (event.pointerType !== 'mouse' || bar === null || bar.hasAttribute('data-quente') || balaoTimer.current !== 0) return
+    if (!(event.target instanceof Element) || event.target.closest('[data-dica]') === null) return
+    balaoTimer.current = window.setTimeout(() => {
+      balaoTimer.current = 0
+      barElRef.current?.setAttribute('data-quente', '')
+    }, ESPERA_DO_BALAO_MS)
+  }
+  function esfriarOBalao() {
+    window.clearTimeout(balaoTimer.current)
+    balaoTimer.current = 0
+    barElRef.current?.removeAttribute('data-quente')
+  }
+
   return (
     <>
       {/* A barra fica FORA do painel: recolhido, ele some e ela continua no
           mesmo lugar (aberto, ela é o cabeçalho dele). Primeiro no DOM: o Tab
           passa por ela antes do conteúdo do painel, na ordem da leitura. */}
-      <div ref={barElRef} className={open ? 'pp-bar' : 'pp-bar pp-bar--alone'}>
+      <div
+        ref={barElRef}
+        className={['pp-bar', open ? null : 'pp-bar--alone', barraDaBatalha ? 'pp-bar--batalha' : null].filter(Boolean).join(' ')}
+        onPointerOver={barraDaBatalha ? aquecerOBalao : undefined}
+        onPointerLeave={barraDaBatalha ? esfriarOBalao : undefined}
+      >
         <button
           ref={toggleRef}
           type="button"
@@ -777,10 +814,11 @@ export function PlayerPanel({
           {chatMention && <UnreadDot />}
         </button>
         {first !== undefined && (
-          <button type="button" className="pp-mine" onClick={(event) => focusToken(first.id, event)}>
+          <button type="button" className="pp-mine" data-dica={barraDaBatalha ? 'Centralizar em mim' : undefined} onClick={(event) => focusToken(first.id, event)}>
             <IconeDoJogador nome="mira" className="pp-mine__icon" />
-            {/* Abaixo de 380 px só a mira fica à vista: com a "Ficha" de personagem, a barra passava da tela de 320 (player.css). */}
-            <span className="pp-mine__rotulo">Minha ficha</span>
+            {/* Abaixo de 380 px só a mira fica à vista: com a "Ficha" de personagem, a barra passava da tela de 320 (player.css).
+                Na batalha, só a mira e o nome que diz o que ela faz (no balão e no leitor de tela). */}
+            <span className="pp-mine__rotulo">{barraDaBatalha ? 'Centralizar em mim' : 'Minha ficha'}</span>
           </button>
         )}
         {onOpenInventory !== undefined && (
@@ -789,6 +827,7 @@ export function PlayerPanel({
             className="pp-bag"
             aria-haspopup="dialog"
             aria-keyshortcuts="I"
+            data-dica={barraDaBatalha ? 'Inventário (I)' : undefined}
             // `detail` 0 = Enter/Espaço: quem veio pelo teclado não espera animação.
             onClick={(event) => onOpenInventory(event.detail === 0)}
           >
@@ -807,6 +846,7 @@ export function PlayerPanel({
             aria-haspopup="dialog"
             // "Minha ficha", ao lado, centra a câmera no token: o nome diz que esta é a ficha de PERSONAGEM.
             aria-label="Ficha de personagem"
+            data-dica={barraDaBatalha ? 'Ficha de personagem' : undefined}
             onClick={(event) => onOpenFicha(event.detail === 0)}
           >
             <IconeDoJogador nome="ficha" className="pp-ficha-btn__icon" />

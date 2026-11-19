@@ -1184,6 +1184,280 @@ button.bt-carta__corpo {
   }
 }
 
+/* ---------------------------------------------------------------- painel do jogador */
+/*
+ * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026, docs/design/painel-do-jogador/):
+ * a faixa da tela do jogador (`FaixaDaOrdem desenho="jogador"`). Sem o quadro da
+ * rodada: "Rodada N" e "Você joga em N turnos" / "Sua vez" no cabeçalho, com a
+ * legenda das equipes uma vez só. A carta sem número e sem etiqueta de equipe (o
+ * anel do retrato diz), o nome em até 3 linhas, as barras de vida na mesma altura
+ * em todas (`--bt-linhas` e `--bt-topo`, medidos pela faixa), a vida oculta no
+ * trilho tracejado e a fita VOCÊ. A fila não mostra barra de rolagem: a borda
+ * esmaece e "‹ 2" / "3 ›" contam. O mestre, a Arena e o treino não mudam.
+ * `--bt-carta-min` e `--bt-cartas-vao` também servem à tela do jogador, que mede
+ * se as cartas cabem no vão (player/lugarDaFaixa.ts).
+ */
+.bt-faixa--jogador {
+  --bt-carta-min: 112px;
+  --bt-cartas-vao: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--lb-space-2) var(--lb-space-3) 6px;
+}
+/* O cabeçalho mede pela faixa e não a alarga: quem dá a largura são as cartas. */
+.bt-faixa--jogador .bt-faixa__cab {
+  contain: inline-size;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-height: 28px;
+  padding-left: 2px;
+}
+.bt-faixa--jogador .bt-faixa__titulo {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  font-family: var(--lb-font-utility);
+  font-size: var(--lb-font-size-sm);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--lb-color-parchment-dim);
+  white-space: normal;
+}
+.bt-faixa__rodada {
+  font-family: var(--bt-titulo, 'Bahnschrift Condensed', 'Bahnschrift', var(--lb-font-utility));
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--lb-color-parchment);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bt-faixa__estado {
+  font-size: 12.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.bt-faixa__estado[data-tom='vez'] {
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+.bt-faixa__estado[data-tom='caiu'] {
+  color: var(--lb-color-ember);
+}
+.bt-faixa__lados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.bt-faixa__lado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--lb-font-utility);
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--lb-color-parchment-dim);
+  white-space: nowrap;
+}
+.bt-faixa__lado i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lado, var(--bt-lado-padrao));
+}
+.bt-faixa__acoes {
+  display: flex;
+  gap: 2px;
+}
+/* Sem legenda (ninguém com equipe), Regras e Registro vão para a direita sozinhos. */
+.bt-faixa__titulo + .bt-faixa__acoes {
+  margin-left: auto;
+}
+.bt-faixa__acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 var(--lb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lb-radius-sm);
+  background: transparent;
+  color: var(--lb-color-parchment-dim);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    color var(--lb-motion-fast) ease,
+    transform 120ms var(--lb-gr-ease-out);
+}
+.bt-faixa__icone {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bt-faixa__acao:active {
+  transform: scale(0.97);
+}
+.bt-faixa__acao:focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+.bt-faixa__acao[aria-expanded='true'] {
+  background: var(--lb-color-brass-soft);
+  color: var(--lb-color-brass-bright);
+}
+@media (hover: hover) and (pointer: fine) {
+  .bt-faixa__acao:hover:not([aria-expanded='true']) {
+    background: var(--lb-color-stone-hover);
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* A fila: sem barra de rolagem à vista (a roda do mouse e o "‹ 2" / "3 ›" rolam). */
+.bt-faixa--jogador .bt-cartas {
+  gap: var(--bt-cartas-vao);
+  padding: 13px 4px 7px;
+  scrollbar-width: none;
+}
+.bt-faixa--jogador .bt-cartas::-webkit-scrollbar {
+  display: none;
+}
+.bt-faixa--jogador .bt-carta {
+  display: flex;
+  min-width: var(--bt-carta-min);
+}
+.bt-faixa--jogador .bt-carta__corpo {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--lb-space-2) var(--lb-space-2) 7px;
+  font-size: 10.5px;
+  line-height: 1.2;
+}
+/* O retrato e os selos numa linha; a de todas acompanha a mais alta (`--bt-topo`). */
+.bt-faixa--jogador .bt-carta__topo {
+  align-items: flex-start;
+  min-height: var(--bt-topo, 24px);
+}
+.bt-faixa--jogador .bt-carta__retrato {
+  width: 24px;
+  height: 24px;
+}
+.bt-faixa--jogador .bt-carta__retrato .lb-ficha__iniciais {
+  font-size: 9.5px;
+}
+.bt-faixa--jogador .bt-carta__selos {
+  flex: 1;
+  align-content: center;
+  min-width: 0;
+  min-height: 24px;
+  margin-top: 0;
+}
+.bt-faixa--jogador .bt-carta__selos .bt-marca--carga {
+  line-height: 13px;
+  font-weight: 700;
+}
+/* A forma ligada (F3) vira um selo roxo ao lado do retrato, para não empurrar as barras. */
+.bt-faixa--jogador .bt-carta__forma {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bt-forma, var(--lb-color-arcane)) 18%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 13px;
+}
+/* O nome quebra em palavras, até 3 linhas; todas as cartas reservam as linhas do mais comprido da fila (`--bt-linhas`). */
+.bt-faixa--jogador .bt-carta__nome {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  flex: none;
+  min-height: calc(var(--bt-linhas, 2) * 1.2em);
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  font-family: 'Bahnschrift SemiCondensed', 'Bahnschrift', var(--lb-font-utility);
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+.bt-faixa--jogador .bt-carta__vida > .bt-carta__linha:first-child {
+  margin-top: 0;
+}
+.bt-faixa--jogador .bt-barra {
+  height: 5px;
+}
+.bt-faixa--jogador .bt-carta__oculta {
+  margin-top: 0;
+}
+.bt-faixa--jogador .bt-carta__marcas {
+  min-height: 0;
+  margin-top: 0;
+}
+/* A vida que ele não pode ver: o trilho tracejado, sem frase. */
+.bt-carta__linha--oculta b {
+  color: var(--lb-color-parchment-faint);
+  font-weight: 400;
+}
+.bt-barra--oculta {
+  box-sizing: border-box;
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+}
+/* O dano que está chegando (pedido de reação): hachurado sobre o pedaço da barra que iria embora. */
+.bt-barra__chega {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, rgba(255, 238, 220, 0.85) 0 2px, transparent 2px 4px);
+  text-decoration: none;
+}
+.bt-carta__perda {
+  color: var(--bt-hp);
+  font-weight: 600;
+}
+/* A fita VOCÊ: a tinta da batalha com a sombra de sangue, como as tiras do menu da vez. */
+.bt-carta__fita--voce {
+  background: var(--bt-tinta, #0c0c0e);
+  color: var(--lb-color-parchment);
+  font-weight: 700;
+  box-shadow: 2px 2px 0 var(--bt-sangue);
+}
+/* A fita troca de carta quando a vez anda: chega de leve, sem pular. */
+.bt-faixa--jogador .bt-carta__fita {
+  transition:
+    opacity 150ms var(--lb-gr-ease-out),
+    transform 150ms var(--lb-gr-ease-out);
+}
+@starting-style {
+  .bt-faixa--jogador .bt-carta__fita {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
 /* ---------------------------------------------------------------- movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
   .bt-faixa,
@@ -1191,6 +1465,17 @@ button.bt-carta__corpo {
   .bt-menu,
   .bt-janela {
     transition: opacity var(--lb-motion-fast) ease;
+  }
+  .bt-faixa--jogador .bt-carta__fita {
+    transition: opacity 150ms ease;
+  }
+  .bt-faixa__acao {
+    transition:
+      background-color var(--lb-motion-fast) ease,
+      color var(--lb-motion-fast) ease;
+  }
+  .bt-faixa__acao:active {
+    transform: none;
   }
   .bt-carta[data-vez='sim'] .bt-carta__corpo {
     transform: none;
@@ -1215,7 +1500,8 @@ button.bt-carta__corpo {
     .bt-faixa,
     .bt-janela,
     .bt-menu,
-    .bt-carta__corpo {
+    .bt-carta__corpo,
+    .bt-faixa--jogador .bt-carta__fita {
       transform: none;
     }
   }

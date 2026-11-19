@@ -80,6 +80,7 @@ import { CutsceneDeVideoOverlay } from '../transicoes/CutsceneDeVideoOverlay'
 import { aquecerAbertura, aquecerMotorDasCutscenes, aquecerTransicao, aquecerTransicoesDoMapa } from '../transicoes/aquecimento'
 import { parseTransicao } from '../transicoes/catalogo'
 import { FaixaDoJogador } from '../components/batalha/FaixaDoJogador'
+import { useLugarDaFaixa } from './lugarDaFaixa'
 import { BatalhaDoJogador } from '../components/batalha/BatalhaDoJogador'
 import { BatalhaDoJogadorDBT, type EnvioDaBatalhaDBT, type RespostaDoEnvioDBT } from '../components/dbt/batalha/BatalhaDoJogadorDBT'
 import type { TecnicaNoMenu } from '../components/dbt/batalha/MenuDeAcoesDBT'
@@ -1151,6 +1152,9 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
    * só este: as do One Piece e as DBT nunca montam juntas.
    */
   const vistaDBT = state.batalhaEstado === undefined && motorDoSistema(state.sistemaDeRpg) === MOTOR_DRAGON_BALL ? state.batalhaDBTEstado : undefined
+  // PAINEL DO JOGADOR (19/11/2026): a faixa da ordem One Piece no vão entre a barra e o canto, ou na linha própria.
+  // A do Dragon Ball é outro componente (com o quadro da rodada) e segue no lugar de sempre.
+  useLugarDaFaixa(state.batalhaEstado !== undefined)
   const personagensDoJogador = state.personagens?.personagens
   const sistemaDoJogador = state.sistemaDeRpg ?? null
   /**
@@ -2232,6 +2236,7 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           onDownloadNotebook={downloadNotebook}
           onOpenInventory={canOpenInventory ? (byKeyboard) => setInventory({ instant: byKeyboard }) : undefined}
           onOpenFicha={servePersonagens ? (byKeyboard) => setFicha({ instant: byKeyboard }) : undefined}
+          barraDaBatalha={state.batalhaEstado !== undefined || vistaDBT !== undefined}
         />
         {/*
           BATALHA F1: a faixa da ordem dos turnos, no alto e no meio, entre o
@@ -2246,7 +2251,6 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             aliados={state.aliados}
             fichas={state.map.tokens}
             sistema={state.sistemaDeRpg ?? null}
-            onPassarVez={(cartaId, rodada) => connection.passarVezNaBatalha(cartaId, rodada)}
             onDesfazer={(linhaId) => connection.desfazerNaBatalha(linhaId)}
             onAbrirMinhaFicha={servePersonagens ? () => setFicha({ instant: false }) : undefined}
             onMeDarDano={(tokenId, valor) => connection.darDanoEmMim(tokenId, valor)}

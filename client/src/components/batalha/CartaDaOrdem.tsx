@@ -36,25 +36,46 @@ export interface CartaDaOrdemProps {
   onMenuDeContexto?: (evento: MouseEvent<HTMLButtonElement>) => void
   /** O menu desta carta está aberto. */
   menuAberto?: boolean
+  /**
+   * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): `jogador` = sem o número
+   * da posição nem a etiqueta da equipe (a equipe é o anel do retrato e a legenda
+   * da faixa), o nome em até 3 linhas embaixo do retrato, os selos ao lado dele,
+   * a vida oculta no trilho tracejado e a fita VOCÊ na carta dele. Ausente = a
+   * carta de sempre (mestre, Arena, treino).
+   */
+  desenho?: 'mesa' | 'jogador'
+  /** Só no desenho `jogador`: o dano que está chegando nesta ficha (pedido de reação), riscado na barra de vida. */
+  perda?: number
+  /** Só no desenho `jogador`: o nome da vida no trilho tracejado da vida oculta ("HP"). */
+  rotuloDaVida?: string
 }
 
 const numero = new Intl.NumberFormat('pt-BR')
 
-/** A linha com a barra: HP e SP da ficha, e o Escudo (tom próprio, C10). */
-function Barra({ recurso }: { recurso: Omit<RecursoNaCarta, 'tom'> & { tom: RecursoNaCarta['tom'] | 'escudo' } }) {
+/** A linha com a barra: HP e SP da ficha, e o Escudo (tom próprio, C10). `perda` = o dano que chega, riscado no fim da barra. */
+function Barra({ recurso, perda = 0 }: { recurso: Omit<RecursoNaCarta, 'tom'> & { tom: RecursoNaCarta['tom'] | 'escudo' }; perda?: number }) {
   const proporcao = recurso.maximo > 0 ? Math.max(0, Math.min(1, recurso.atual / recurso.maximo)) : 0
   const escala = { transform: `scaleX(${proporcao.toFixed(4)})` }
+  const chega = Math.min(Math.max(0, perda), Math.max(0, recurso.atual))
+  const depois = recurso.maximo > 0 ? Math.max(0, recurso.atual - chega) / recurso.maximo : 0
   return (
     <>
       <span className="bt-carta__linha">
         <b data-tom={recurso.tom}>{recurso.rotulo}</b>
-        <span className="bt-carta__num">
-          {numero.format(recurso.atual)}/{numero.format(recurso.maximo)}
-        </span>
+        {perda > 0 ? (
+          <span className="bt-carta__num" title={`${numero.format(recurso.atual)} agora; ${numero.format(recurso.atual - chega)} se receber o golpe inteiro`}>
+            {numero.format(recurso.atual)} <span className="bt-carta__perda">−{numero.format(perda)}</span>
+          </span>
+        ) : (
+          <span className="bt-carta__num">
+            {numero.format(recurso.atual)}/{numero.format(recurso.maximo)}
+          </span>
+        )}
       </span>
       <span className="bt-barra" data-tom={recurso.tom} aria-hidden="true">
         <b style={escala} />
         <i style={escala} />
+        {chega > 0 && <s className="bt-barra__chega" style={{ left: `${(depois * 100).toFixed(2)}%`, width: `${((proporcao - depois) * 100).toFixed(2)}%` }} />}
       </span>
     </>
   )
@@ -134,11 +155,13 @@ export function descricaoDaCarta(carta: DadosDaCarta, posicao: number, vez: bool
   return partes.join(', ')
 }
 
-export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoClique, onClique, onMenuDeContexto, menuAberto }: CartaDaOrdemProps) {
+export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoClique, onClique, onMenuDeContexto, menuAberto, desenho = 'mesa', perda = 0, rotuloDaVida = 'HP' }: CartaDaOrdemProps) {
   const estilo = carta.cor === null ? undefined : ({ '--lado': carta.cor } as CSSProperties)
-  const descricao = descricaoDaCarta(carta, posicao, vez, proxima, doMestre)
+  const doJogador = desenho === 'jogador'
   const forma = carta.forma ?? null
   const selos = carta.selos ?? []
+  const comPerda = doJogador && perda > 0 && carta.vida === 'numeros'
+  const descricao = [descricaoDaCarta(carta, posicao, vez, proxima, doMestre), doJogador && carta.minha ? 'você' : null, comPerda ? `golpe chegando: ${perda} de dano` : null].filter(Boolean).join(', ')
 
   // A forma ligou (não na montagem): a carta acende e apaga. Movimento reduzido: só o contorno.
   const corpo = useRef<HTMLElement | null>(null)
@@ -153,7 +176,77 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
     corpo.current = elemento
   }
 
-  const miolo = (
+  // Uma fita por carta, VEZ antes de VOCÊ antes de A SEGUIR: a carta da vez já diz de quem é pela fita e pelo "Sua vez" da faixa.
+  const fita = vez ? 'vez' : carta.minha ? 'voce' : proxima ? 'seguir' : null
+  const carga = carta.carga ?? 0
+  const comSelos = forma !== null || carga > 0 || selos.length > 0
+  const mioloDoJogador = (
+    <>
+      {fita !== null && (
+        <span className={`bt-carta__fita bt-carta__fita--${fita}`} aria-hidden="true">
+          {fita === 'vez' ? 'VEZ' : fita === 'voce' ? 'VOCÊ' : 'A SEGUIR'}
+        </span>
+      )}
+      <span className="bt-carta__topo">
+        {carta.bando !== undefined ? (
+          <RostosDoBando membros={carta.bando.membros} nome={carta.nome} />
+        ) : (
+          <span className="bt-carta__retrato">
+            <ImagemOuIniciais imagem={carta.imagem} nome={carta.nome} />
+          </span>
+        )}
+        {comSelos && (
+          <span className="bt-carta__selos" aria-hidden="true">
+            {forma !== null && (
+              <span className="bt-carta__forma" title={forma}>
+                {forma}
+              </span>
+            )}
+            {carga > 0 && (
+              <span className="bt-marca bt-marca--carga" title="Concentração guardada para o próximo golpe">
+                CONC {carga}
+              </span>
+            )}
+            {selos.map((selo, i) => (
+              <span key={selo.id ?? `${i}:${selo.texto}`} className="bt-selo" data-natureza={selo.natureza} title={textoLongoDoSelo(selo)}>
+                {selo.texto}
+                {selo.mods !== '' && <span className="bt-selo__mods">{selo.mods}</span>}
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+      <span className="bt-carta__nome" title={carta.nome}>
+        {carta.nome}
+      </span>
+      <span className="bt-carta__vida">
+        {carta.vida === 'numeros' && carta.recursos.map((recurso) => <Barra key={recurso.id} recurso={recurso} perda={comPerda && recurso.tom === 'vida' ? perda : 0} />)}
+        {carta.escudo !== undefined && carta.escudo > 0 && carta.bando === undefined && (
+          <Barra recurso={{ id: 'escudo', rotulo: 'Escudo', tom: 'escudo', atual: carta.escudo, maximo: Math.max(carta.escudo, carta.escudoMax ?? 0) }} />
+        )}
+        {/* A vida que ele não pode ver: o trilho tracejado, sem frase (o leitor de tela ouve "vida oculta" no nome da carta). */}
+        {carta.vida === 'oculta' && (
+          <>
+            <span className="bt-carta__linha bt-carta__linha--oculta">
+              <b>{rotuloDaVida}</b>
+            </span>
+            <span className="bt-barra bt-barra--oculta" aria-hidden="true" />
+          </>
+        )}
+        {carta.bando !== undefined && <MembrosDoBando membros={carta.bando.membros} />}
+        {carta.vida === 'sem' && carta.bando === undefined && <span className="bt-carta__oculta">{carta.personagemId === null ? 'Sem ficha ligada' : 'Sem vida na ficha'}</span>}
+      </span>
+      {(carta.extra !== null || carta.caiu) && (
+        <span className="bt-carta__marcas" aria-hidden="true">
+          {carta.extra !== null && <span className="bt-marca bt-marca--extra">{carta.extra === 'rodada' ? 'EXTRA · só nesta rodada' : 'EXTRA'}</span>}
+          {carta.caiu && <span className="bt-marca">caiu</span>}
+        </span>
+      )}
+    </>
+  )
+  const miolo = doJogador ? (
+    mioloDoJogador
+  ) : (
     <>
       {vez ? (
         <span className="bt-carta__fita bt-carta__fita--vez" aria-hidden="true">
@@ -239,6 +332,7 @@ export function CartaDaOrdem({ carta, posicao, vez, proxima, doMestre, rotuloDoC
       data-caiu={carta.caiu ? 'sim' : 'nao'}
       data-forma={forma === null ? undefined : 'sim'}
       data-bando={carta.bando === undefined ? undefined : 'sim'}
+      data-minha={doJogador && carta.minha ? 'sim' : undefined}
       style={estilo}
     >
       {onClique === undefined ? (

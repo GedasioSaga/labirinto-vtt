@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PedidoDeAjusteNaBatalha, PedidoDePassiva } from '../../lib/batalha/combate'
 import { travaDoContador } from '../../lib/batalha/condicoes'
 import { contadorDoPersonagem } from '../../lib/batalha/contador'
@@ -17,19 +17,23 @@ import { PerfilDaCarta } from './PerfilDaCarta'
 
 /**
  * A FAIXA DA ORDEM na tela do JOGADOR: o `batalha.estado` que o host recortou
- * para ele, com a vida dele e a dos aliados (`batalha.aliados`). "Passar a
- * vez" só aparece na vez dele; o Desfazer, só nas linhas dele durante a vez
- * dele (o host decide com `podeDesfazer`). Clicar na carta de aliado abre o
- * perfil, só leitura; na própria, a ficha de sempre; na de NPC ou de outra
- * equipe, nada.
+ * para ele, com a vida dele e a dos aliados (`batalha.aliados`), no desenho do
+ * painel do jogador (protótipo aprovado em 19/11/2026, `desenho="jogador"`): a
+ * rodada e "Você joga em N turnos" / "Sua vez" no cabeçalho, a fita VOCÊ na
+ * carta dele e, no pedido de reação, o dano que chega riscado na barra de vida.
+ * Passar a vez é só o "Encerrar vez" do menu da vez. O Desfazer aparece só nas
+ * linhas dele durante a vez dele (o host decide com `podeDesfazer`). Clicar na
+ * carta de aliado abre o perfil, só leitura; na própria, a ficha de sempre; na
+ * de NPC ou de outra equipe, nada. O lugar da faixa na tela (o vão entre a
+ * barra e o canto, ou a linha própria) é de `player/lugarDaFaixa.ts`.
  *
  * Tipos de habilidade F3: na carta dele, "Passivas (N)…" abre a lista das
  * passivas dele (Ativar/Desligar a qualquer hora, fora da vez, sem gastar
  * ação); o menu da vez só existe na vez dele.
  *
  * Os pedidos vão ao host; o resultado chega no próximo `batalha.estado`.
- * Enquanto não chega, o botão diz "Passando…" e o Desfazer, "Desfazendo…"
- * (com prazo, para um pedido recusado não prender o botão).
+ * Enquanto não chega, o Desfazer diz "Desfazendo…" (com prazo, para um pedido
+ * recusado não prender o botão).
  */
 
 export interface FaixaDoJogadorProps {
@@ -42,7 +46,6 @@ export interface FaixaDoJogadorProps {
   fichas: readonly FichaNaFaixa[]
   sistema: SistemaDeRpg | null
   /** `false` = o pedido não saiu (sem conexão, teto de pedidos). */
-  onPassarVez: (cartaId: string, rodada: number) => boolean
   onDesfazer: (linhaId: string) => boolean
   /** A carta dele abre a ficha de sempre (o botão "Ficha"); ausente = a sala não serve fichas e a carta dele não abre nada. */
   onAbrirMinhaFicha?: () => void
@@ -71,77 +74,26 @@ function nivelNaCarta(carta: DadosDaCarta, nome: string): number {
   return 0
 }
 
-/** A variável que diz quanto o canto da direita do jogador come do alto da tela (player.css). */
-const CANTO_OCUPA_VAR = '--pp-canto-ocupa'
-
-/**
- * O canto da direita do jogador (`.pp-canto`: abas de andar, "Onde estou",
- * "Tela acesa") só come o alto da tela até a peça mais larga NA ALTURA DA
- * FAIXA; as rolagens moram no pé e não contam. Mede essa largura e põe na
- * raiz (`--pp-canto-ocupa`), para a faixa da ordem usar o vão de verdade: a
- * reserva fixa de 300 px deixava a 4ª carta rolando com o painel aberto.
- */
-function useCantoOcupa(className: string | undefined) {
-  useLayoutEffect(() => {
-    const canto = document.querySelector<HTMLElement>('.pp-canto')
-    if (canto === null || className === undefined) return
-    const raiz = document.documentElement
-    // A caixa das rolagens estica até o alto da coluna, mas a lista mora no pé dela e
-    // cresce para cima: conta a lista (quando sobe até a faixa), não a caixa.
-    const pecas = () => Array.from(canto.children).flatMap((peca) => (peca.classList.contains('pp-rolagens') ? Array.from(peca.querySelectorAll('.pp-dice-feed')) : [peca]))
-    const medir = () => {
-      const faixa = document.querySelector<HTMLElement>(`.${className.split(' ')[0]}`)
-      const fundo = faixa === null ? Number.POSITIVE_INFINITY : faixa.getBoundingClientRect().bottom
-      let esquerda = window.innerWidth
-      for (const peca of pecas()) {
-        const caixa = peca.getBoundingClientRect()
-        if (caixa.width > 0 && caixa.height > 0 && caixa.top < fundo) esquerda = Math.min(esquerda, caixa.left)
-      }
-      raiz.style.setProperty(CANTO_OCUPA_VAR, `${Math.ceil(window.innerWidth - esquerda)}px`)
-    }
-    const tamanho = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
-    const vigiar = () => {
-      tamanho?.disconnect()
-      tamanho?.observe(canto)
-      for (const peca of pecas()) tamanho?.observe(peca)
-      medir()
-    }
-    // Aba de andar que chega ou sai, a lista de rolagens que nasce: vigia a peça nova.
-    const filhos = typeof MutationObserver === 'undefined' ? null : new MutationObserver(vigiar)
-    filhos?.observe(canto, { childList: true, subtree: true })
-    window.addEventListener('resize', medir)
-    vigiar()
-    return () => {
-      tamanho?.disconnect()
-      filhos?.disconnect()
-      window.removeEventListener('resize', medir)
-      raiz.style.removeProperty(CANTO_OCUPA_VAR)
-    }
-  }, [className])
-}
-
-/** Sem resposta do host neste prazo, o botão volta (o pedido foi recusado ou se perdeu). */
+/** Sem resposta do host neste prazo, o Desfazer volta (o pedido foi recusado ou se perdeu). */
 const PRAZO_DO_PEDIDO_MS = 4000
 const NINGUEM: readonly Personagem[] = []
 
-export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onPassarVez, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, onPassiva, onAjustar, onCarregar, className }: FaixaDoJogadorProps) {
+/** O dano dos golpes que esperam a reação dele, por ficha alvo (somados quando são vários). Golpe sem dano não risca nada. */
+function perdasQueChegam(estado: EstadoParaJogador): ReadonlyMap<string, number> {
+  const perdas = new Map<string, number>()
+  for (const reacao of estado.reacoes ?? []) if (reacao.dano !== null && reacao.dano > 0) perdas.set(reacao.tokenId, (perdas.get(reacao.tokenId) ?? 0) + reacao.dano)
+  return perdas
+}
+
+export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fichas, sistema, onDesfazer, onAbrirMinhaFicha, onMeDarDano, onZerarMinhaCarga, onPassiva, onAjustar, onCarregar, className }: FaixaDoJogadorProps) {
   const [danoEm, setDanoEm] = useState<DadosDaCarta | null>(null)
   const [ajusteEm, setAjusteEm] = useState<DadosDaCarta | null>(null)
   const [passivasEm, setPassivasEm] = useState<DadosDaCarta | null>(null)
   const personagens = useMemo(() => [...meus, ...aliados], [meus, aliados])
   const dados = useMemo(() => faixaDoJogador({ estado, fichas, personagens, sistema }), [estado, fichas, personagens, sistema])
   const registro = useMemo(() => linhasDoJogador(estado.registro), [estado.registro])
+  const perdas = useMemo(() => perdasQueChegam(estado), [estado])
   const [perfilId, setPerfilId] = useState<string | null>(null)
-
-  // "Passar a vez" pedido para ESTA vez: some sozinho quando a vez anda (ou no prazo).
-  const chaveDaVez = `${estado.vez ?? ''}:${estado.rodada}`
-  const [passouEm, setPassouEm] = useState<string | null>(null)
-  useEffect(() => {
-    if (passouEm === null) return
-    const prazo = window.setTimeout(() => setPassouEm(null), PRAZO_DO_PEDIDO_MS)
-    return () => window.clearTimeout(prazo)
-  }, [passouEm])
-  const passando = passouEm === chaveDaVez
 
   const [pendentes, setPendentes] = useState<ReadonlySet<string>>(() => new Set())
   useEffect(() => {
@@ -165,9 +117,6 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
     else if (carta.personagemId !== null) setPerfilId(carta.personagemId)
   }
 
-  useCantoOcupa(className)
-
-  const vez = estado.vez
   const daCarta = perfil === undefined ? undefined : dados.cartas.find((carta) => carta.personagemId === perfil.id)
 
   // Tipos de habilidade F3: as passivas da ficha dele, pelo recorte (as ligadas em `passivasAtivas`).
@@ -252,15 +201,8 @@ export function FaixaDoJogador({ estado, meus = NINGUEM, aliados = NINGUEM, fich
                 return itens
               }
         }
-        onPassarVez={
-          estado.minhaVez && vez !== null
-            ? () => {
-                if (passando) return
-                if (onPassarVez(vez, estado.rodada)) setPassouEm(chaveDaVez)
-              }
-            : undefined
-        }
-        passandoVez={passando}
+        desenho="jogador"
+        perdas={perdas}
         regras={estado.regras}
         registro={registro}
         onDesfazer={(linhaId) => {

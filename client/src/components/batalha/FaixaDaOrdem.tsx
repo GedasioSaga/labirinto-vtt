@@ -48,6 +48,76 @@ export interface FaixaDaOrdemProps {
   onSelo?: (carta: DadosDaCarta, seloId: string) => void
   /** Achado 4 (09/11), mestre: o mouse está sobre a carta desta ficha (`null` = saiu das cartas): quem monta acende a ficha no mapa. */
   onApontar?: (tokenId: string | null) => void
+  /**
+   * PAINEL DO JOGADOR (protótipo aprovado em 19/11/2026): `jogador` = sem o quadro
+   * da rodada (a rodada e o "Você joga em N turnos" / "Sua vez" sobem para o
+   * cabeçalho), sem "Passar a vez" (fica o "Encerrar vez" do menu da vez), a legenda
+   * das equipes uma vez só no cabeçalho, as cartas no desenho `jogador` e a fila sem
+   * barra de rolagem à vista. Quem põe a faixa no lugar (o vão entre a barra e o
+   * canto, ou a linha própria) é a tela do jogador. Ausente = a faixa de sempre.
+   */
+  desenho?: 'mesa' | 'jogador'
+  /** Só no desenho `jogador`: o dano que está chegando em cada ficha (pedido de reação), por `tokenId`. */
+  perdas?: ReadonlyMap<string, number>
+}
+
+/** Só no desenho `jogador`: quantas linhas o nome pode tomar antes do "…". */
+const LINHAS_DO_NOME = 3
+
+/** A equipe na legenda do cabeçalho: uma vez cada, a de quem olha primeiro. */
+function equipesDaFaixa(cartas: readonly DadosDaCarta[]): { nome: string; cor: string }[] {
+  const vistas = new Map<string, string>()
+  const minha = cartas.find((carta) => carta.minha && carta.equipe !== null && carta.cor !== null)
+  if (minha?.equipe && minha.cor) vistas.set(minha.equipe, minha.cor)
+  for (const carta of cartas) if (carta.equipe !== null && carta.cor !== null && !vistas.has(carta.equipe)) vistas.set(carta.equipe, carta.cor)
+  return Array.from(vistas, ([nome, cor]) => ({ nome, cor }))
+}
+
+/** O estado no cabeçalho do jogador: "Sua vez", "Você joga em 2 turnos", "Você caiu". */
+function estadoDoJogador(dados: DadosDaFaixa): { texto: string; tom?: 'vez' | 'caiu' } | null {
+  if (dados.minhaVez) return { texto: 'Sua vez', tom: 'vez' }
+  if (dados.depois === 'Você caiu') return { texto: dados.depois, tom: 'caiu' }
+  if (dados.depois !== null) return { texto: dados.vezForaDaVista ? `${dados.depois} · vez fora da sua vista` : dados.depois }
+  return dados.vezForaDaVista ? { texto: 'Vez de alguém fora da sua vista' } : null
+}
+
+/**
+ * Só no desenho `jogador`: todas as cartas reservam as linhas do nome mais comprido
+ * da fila (1 a 3, `--bt-linhas`) e a altura da linha de cima mais alta (retrato e
+ * selos, `--bt-topo`): as barras de vida ficam todas na mesma altura.
+ */
+function medirAsCartas(faixa: HTMLElement, lista: HTMLElement): void {
+  faixa.style.setProperty('--bt-linhas', '1')
+  faixa.style.setProperty('--bt-topo', '0px')
+  let linhas = 1
+  let topo = 0
+  for (const nome of Array.from(lista.querySelectorAll<HTMLElement>('.bt-carta__nome'))) {
+    const entrelinha = Number.parseFloat(getComputedStyle(nome).lineHeight)
+    if (entrelinha > 0) linhas = Math.max(linhas, Math.min(LINHAS_DO_NOME, Math.round(nome.scrollHeight / entrelinha)))
+  }
+  for (const linha of Array.from(lista.querySelectorAll<HTMLElement>('.bt-carta__topo'))) topo = Math.max(topo, Math.ceil(linha.getBoundingClientRect().height))
+  faixa.style.setProperty('--bt-linhas', String(linhas))
+  faixa.style.setProperty('--bt-topo', `${topo}px`)
+}
+
+function IconeDoLivro() {
+  return (
+    <svg className="bt-faixa__icone" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2.5 3.2c1.8-.8 3.6-.8 5.5.4 1.9-1.2 3.7-1.2 5.5-.4v9.6c-1.8-.8-3.6-.8-5.5.4-1.9-1.2-3.7-1.2-5.5-.4z" />
+      <path d="M8 3.6v9.6" />
+    </svg>
+  )
+}
+
+function IconeDaLista() {
+  return (
+    <svg className="bt-faixa__icone" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M5.5 4h8M5.5 8h8M5.5 12h8" />
+      <circle cx="2.6" cy="4" r=".8" />
+      <circle cx="2.6" cy="8" r=".8" />
+      <circle cx="2.6" cy="12" r=".8" />
+    </svg>
+  )
 }
 
 /** Arrastar só começa depois deste tanto: clique com a mão tremendo continua clique. */
@@ -90,11 +160,13 @@ function moverVoltando(el: HTMLElement, dx: number): void {
   el.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], { duration: VOLTA_MS, easing: CURVA_DA_VOLTA })
 }
 
-export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo, onApontar }: FaixaDaOrdemProps) {
+export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil, abrePerfil, onPassarVez, passandoVez, regras, registro, onDesfazer, pendentes, className, onSelo, onApontar, desenho = 'mesa', perdas }: FaixaDaOrdemProps) {
   const doMestre = papel === 'mestre'
+  const doJogador = desenho === 'jogador'
   const arrasta = doMestre && onMover !== undefined
   const tituloId = useId()
   const registroId = useId()
+  const secao = useRef<HTMLElement>(null)
   const caixa = useRef<HTMLDivElement>(null)
   const lista = useRef<HTMLOListElement>(null)
   const encaixe = useRef<HTMLDivElement>(null)
@@ -178,6 +250,38 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
       observador?.disconnect()
     }
   }, [totalDeCartas, ordem])
+  // Desenho `jogador`: as barras na mesma altura (o nome mais comprido manda), medido de novo quando
+  // os nomes ou os selos mudam e quando a fila muda de largura (a faixa trocou de linha, a janela mudou).
+  const nomesESelos = dados.cartas.map((carta) => `${carta.nome}|${carta.forma ?? ''}|${carta.carga ?? 0}|${(carta.selos ?? []).map((selo) => selo.texto).join(',')}`).join('§')
+  useLayoutEffect(() => {
+    const faixa = secao.current
+    const ol = lista.current
+    if (!doJogador || faixa === null || ol === null) return
+    let largura = -1
+    const medir = () => {
+      if (ol.clientWidth === largura) return
+      largura = ol.clientWidth
+      medirAsCartas(faixa, ol)
+    }
+    medir()
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    observador?.observe(ol)
+    return () => observador?.disconnect()
+  }, [doJogador, nomesESelos])
+
+  // Desenho `jogador`: sem barra de rolagem à vista, a roda do mouse em pé rola a fila deitada (só quando ela rola).
+  useEffect(() => {
+    const ol = lista.current
+    if (!doJogador || ol === null) return
+    const rodar = (evento: WheelEvent) => {
+      if (ol.scrollWidth <= ol.clientWidth || Math.abs(evento.deltaY) <= Math.abs(evento.deltaX)) return
+      evento.preventDefault()
+      ol.scrollLeft += evento.deltaY
+    }
+    ol.addEventListener('wheel', rodar, { passive: false })
+    return () => ol.removeEventListener('wheel', rodar)
+  }, [doJogador, totalDeCartas])
+
   const rolarAsCartas = (lado: -1 | 1) => {
     const ol = lista.current
     if (ol === null) return
@@ -330,27 +434,64 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
   const anuncio = dados.minhaVez ? 'Sua vez' : cartaDaVez !== undefined ? `Vez de ${cartaDaVez.nome}` : dados.vezForaDaVista ? 'Vez de alguém fora da sua vista' : ''
   const estiloDoQuadro = cartaDaVez?.cor ? ({ '--lado': cartaDaVez.cor } as CSSProperties) : undefined
   const itensDoMenu = cartaDoMenu === undefined || menuDaCarta === undefined ? [] : menuDaCarta(cartaDoMenu)
+  const estado = doJogador ? estadoDoJogador(dados) : null
+  const equipes = doJogador ? equipesDaFaixa(dados.cartas) : []
+  const rotuloDaVida = dados.cartas.flatMap((carta) => carta.recursos).find((recurso) => recurso.tom === 'vida')?.rotulo ?? 'HP'
+  const classes = ['bt-faixa', doJogador ? 'bt-faixa--jogador' : null, className].filter(Boolean).join(' ')
 
   return (
-    <section className={className === undefined ? 'bt-faixa' : `bt-faixa ${className}`} aria-labelledby={tituloId}>
+    <section ref={secao} className={classes} aria-labelledby={tituloId}>
       <div className="bt-faixa__esq">
-        <div className="bt-faixa__cab">
-          <h2 className="bt-faixa__titulo" id={tituloId}>
-            Ordem dos turnos ({dados.cartas.length})
-          </h2>
-          <button type="button" className="bt-botao bt-botao--p" aria-haspopup="dialog" onClick={() => setRegrasAbertas(true)}>
-            Regras do campo
-          </button>
-          <button
-            type="button"
-            className="bt-botao bt-botao--p"
-            aria-expanded={registroAberto}
-            aria-controls={registroId}
-            onClick={() => setRegistroAberto((aberto) => !aberto)}
-          >
-            Registro
-          </button>
-        </div>
+        {doJogador ? (
+          <div className="bt-faixa__cab">
+            <h2 className="bt-faixa__titulo" id={tituloId}>
+              <span className="bt-faixa__rodada">Rodada {dados.rodada}</span>
+              {estado !== null && (
+                <span className="bt-faixa__estado" data-tom={estado.tom}>
+                  {estado.texto}
+                </span>
+              )}
+            </h2>
+            {equipes.length > 0 && (
+              <ul className="bt-faixa__lados" aria-label="Equipes">
+                {equipes.map((equipe) => (
+                  <li key={equipe.nome} className="bt-faixa__lado" style={{ '--lado': equipe.cor } as CSSProperties}>
+                    <i aria-hidden="true" />
+                    {equipe.nome}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="bt-faixa__acoes">
+              <button type="button" className="bt-faixa__acao" aria-haspopup="dialog" onClick={() => setRegrasAbertas(true)}>
+                <IconeDoLivro />
+                Regras do campo
+              </button>
+              <button type="button" className="bt-faixa__acao" aria-expanded={registroAberto} aria-controls={registroId} onClick={() => setRegistroAberto((aberto) => !aberto)}>
+                <IconeDaLista />
+                Registro
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bt-faixa__cab">
+            <h2 className="bt-faixa__titulo" id={tituloId}>
+              Ordem dos turnos ({dados.cartas.length})
+            </h2>
+            <button type="button" className="bt-botao bt-botao--p" aria-haspopup="dialog" onClick={() => setRegrasAbertas(true)}>
+              Regras do campo
+            </button>
+            <button
+              type="button"
+              className="bt-botao bt-botao--p"
+              aria-expanded={registroAberto}
+              aria-controls={registroId}
+              onClick={() => setRegistroAberto((aberto) => !aberto)}
+            >
+              Registro
+            </button>
+          </div>
+        )}
         {dados.cartas.length === 0 ? (
           <p className="bt-faixa__vazia">
             {doMestre ? 'Ninguém na ordem. Inclua um combatente pelo painel da batalha, no livro da mesa.' : 'Nenhum combatente à sua vista.'}
@@ -362,7 +503,8 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
               className="bt-cartas"
               aria-label="Ordem dos turnos"
               data-arrasta={arrasta ? 'sim' : 'nao'}
-              data-compacta={totalDeCartas >= CARTAS_PARA_COMPACTAR ? 'sim' : undefined}
+              // Desenho `jogador`: compacta só como último recurso, quando nem a linha própria comporta as cartas (a tela do jogador decide, `data-aperto`).
+              data-compacta={!doJogador && totalDeCartas >= CARTAS_PARA_COMPACTAR ? 'sim' : undefined}
               data-fora-esq={fora.esq > 0 ? 'sim' : undefined}
               data-fora-dir={fora.dir > 0 ? 'sim' : undefined}
               onPointerDown={aoApertar}
@@ -405,6 +547,9 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
                         : undefined
                     }
                     menuAberto={temMenu && clicavel ? menu?.cartaId === carta.id : undefined}
+                    desenho={desenho}
+                    perda={doJogador ? (perdas?.get(carta.tokenId) ?? 0) : 0}
+                    rotuloDaVida={rotuloDaVida}
                   />
                 )
               })}
@@ -425,25 +570,31 @@ export function FaixaDaOrdem({ papel, dados, onMover, menuDaCarta, onAbrirPerfil
         )}
         {arrasta && dados.cartas.length > 1 && <p className="bt-faixa__dica">Arraste uma carta para mudar a ordem · com a carta em foco, Alt + ← → move · clique abre o menu</p>}
       </div>
-      <div className="bt-turno" style={estiloDoQuadro}>
-        <span className="bt-turno__rodada">Rodada {dados.rodada}</span>
-        <span className="bt-turno__num">
-          Turno {dados.turno.n}
-          <small>/{dados.turno.m}</small>
-        </span>
-        <span className="bt-turno__quem" data-fora={cartaDaVez === undefined ? 'sim' : 'nao'}>
-          ▸ {quem}
-        </span>
-        {dados.depois !== null && <span className="bt-turno__depois">{dados.depois}</span>}
-        {onPassarVez !== undefined && (
-          <button type="button" className="bt-botao bt-botao--batalha" disabled={passandoVez} onClick={onPassarVez}>
-            {passandoVez ? 'Passando…' : 'Passar a vez'}
-          </button>
-        )}
+      {doJogador ? (
         <span className="bt-sr" aria-live="polite">
           {anuncio}
         </span>
-      </div>
+      ) : (
+        <div className="bt-turno" style={estiloDoQuadro}>
+          <span className="bt-turno__rodada">Rodada {dados.rodada}</span>
+          <span className="bt-turno__num">
+            Turno {dados.turno.n}
+            <small>/{dados.turno.m}</small>
+          </span>
+          <span className="bt-turno__quem" data-fora={cartaDaVez === undefined ? 'sim' : 'nao'}>
+            ▸ {quem}
+          </span>
+          {dados.depois !== null && <span className="bt-turno__depois">{dados.depois}</span>}
+          {onPassarVez !== undefined && (
+            <button type="button" className="bt-botao bt-botao--batalha" disabled={passandoVez} onClick={onPassarVez}>
+              {passandoVez ? 'Passando…' : 'Passar a vez'}
+            </button>
+          )}
+          <span className="bt-sr" aria-live="polite">
+            {anuncio}
+          </span>
+        </div>
+      )}
       {registroAberto && (
         <div className="bt-faixa__registro" id={registroId}>
           <RegistroDaBatalha linhas={registro} onDesfazer={onDesfazer} pendentes={pendentes} />
