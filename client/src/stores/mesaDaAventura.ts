@@ -125,6 +125,8 @@ export const mesaDaAventura: MesaDaBatalha = {
 
   fichaDaCena: (sceneKey, tokenId) => tokensDaCena(sceneKey).find((candidato) => candidato.id === tokenId) ?? null,
 
+  fichasDaCena: (sceneKey) => tokensDaCena(sceneKey),
+
   mudarFichaDaCena: (sceneKey, tokenId, mudar) => {
     const naFicha = (map: MapData): MapData => mudarFichaNoMapa(map, tokenId, mudar)
     if (cenaAberta(sceneKey)) useMapStore.getState().applyPlayerChange(naFicha)

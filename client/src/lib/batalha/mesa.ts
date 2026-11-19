@@ -67,6 +67,11 @@ export interface MesaDaBatalha {
    */
   fichaDaCena?(sceneKey: string, tokenId: string): Token | null
   /**
+   * Todas as fichas da cena como estão AGORA (18/11/2026): na virada da rodada, o prazo das condições de quem
+   * está FORA da ordem (o refém envenenado) também anda. Opcional, como `fichaDaCena`: sem ele, só a ordem anda.
+   */
+  fichasDaCena?(sceneKey: string): readonly Token[]
+  /**
    * Fase C: troca a ficha pelo que `mudar` devolve, FORA do Ctrl+Z do mestre
    * (como a ponte das condições). `mudar` é reaplicado nos passos guardados do
    * Ctrl+Z: precisa valer para qualquer versão da ficha (pôr campos, não somar).

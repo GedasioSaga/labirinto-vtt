@@ -344,6 +344,12 @@ export interface BatalhaState {
    * pela memória. Cena já em batalha aqui: nada.
    */
   encerrarSalva: (sceneKey: string, cena: BatalhaDaCena) => void
+  /**
+   * A mesa saiu da tela (18/11/2026, análise, seção 2.3): as cenas dela saem da MEMÓRIA sem fim de batalha
+   * nenhum (nada nas fichas, nos invocados nem no arquivo). O arquivo guarda o ponto salvo e volta pelo
+   * "Retomar a batalha" quando a mesa abrir de novo (`batalhaSalvaNaMesa`).
+   */
+  esquecerCenas: (sceneKeys: readonly string[]) => void
 
   // ---- F1: ordem e vez (o mestre chama direto; o jogador só `passarVez` e `desfazer`, pela ponte) ----
   /** "Passar a vez" (pula carta caída, Q3). Com `esperado`, só passa se a vez ainda é aquela: clique duplo não passa duas. */
@@ -1310,6 +1316,21 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     set({ cenas: { ...get().cenas, [sceneKey]: cena } })
   }
 
+  /**
+   * Conserto de 18/11/2026 (análise, seção 2.3): a carta que sai da ordem tinha a vez. Antes a vez só pulava
+   * para a carta seguinte, sem o começo de vez (recarga, +10 SP, prazo das condições) e sem virar a rodada
+   * quando era a última. Agora a vez anda ANTES pelo "Passar a vez" de sempre, numa linha própria (o Desfazer
+   * de cada linha segue separado), como o DBT faz (`motor.ts`, ação 'tirar'). Cai noutra carta que também
+   * sai (a extra do mesmo token): passa de novo. Ninguém mais joga: a saída leva a vez como antes.
+   */
+  const passarAVezDeQuemSai = (sceneKey: string, sai: (carta: CartaDaOrdem) => boolean): void => {
+    for (let voltas = cenaDe(sceneKey)?.turnos.cartas.length ?? 0; voltas > 0; voltas -= 1) {
+      const turnos = cenaDe(sceneKey)?.turnos
+      const daVez = turnos === undefined ? null : cartaDaVez(turnos)
+      if (daVez === null || !sai(daVez) || !get().passarVez(sceneKey)) return
+    }
+  }
+
   /** Aplica `mudar` aos turnos da cena; mudou = grava com a linha que `linha` monta. */
   const mudarTurnos = (sceneKey: string, mudar: (turnos: TurnosDaCena) => TurnosDaCena, linha: (antes: TurnosDaCena, depois: TurnosDaCena) => LinhaNova | null): boolean => {
     const cena = cenaDe(sceneKey)
@@ -1536,6 +1557,52 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     const linha = comMudanca(atual, lembrados.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
     gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
     if (efeitos.length > 0) avisarQuemCaiu(sceneKey, autor)
+  }
+
+  /**
+   * Conserto de 18/11/2026 (análise, seção 2.3): o prazo das condições só andava na vez de quem tem carta. A
+   * ficha da cena FORA da ordem (o refém envenenado, o invocado do bando) ficava com o prazo parado a batalha
+   * inteira. Na virada da rodada cada uma passa um turno, como `prazosDaVez` faz com quem tem a vez: a vida
+   * por turno e o desconto. Uma linha própria com Desfazer; só o desconto, sem notícia, fica sem linha (igual).
+   */
+  const prazosForaDaOrdem = (sceneKey: string, autor: AutorDaAcao): void => {
+    const { fichasDaCena, mudarFichaDaCena } = mesa
+    const cena = cenaDe(sceneKey)
+    if (cena === undefined || fichasDaCena === undefined || mudarFichaDaCena === undefined) return
+    const naOrdem = new Set(cena.turnos.cartas.map((carta) => carta.tokenId))
+    const seguradas = chavesDosSelos(cena.turnos.selos)
+    const partes: Reversao[] = []
+    const textos: string[] = []
+    const tokenIds = new Set<string>()
+    const efeitos: EfeitoNovo[] = []
+    for (const ficha of fichasDaCena(sceneKey)) {
+      if (naOrdem.has(ficha.id)) continue
+      const comeco = comecoDoPrazoNaVez(ficha)
+      const fim = fimDoPrazoNaVez(ficha, seguradas.get(ficha.id))
+      const nome = ficha.name.trim() || 'Ficha sem nome'
+      if (comeco !== null && ficha.characterId !== null) {
+        const feito = mexerNaFicha(mesa, ficha.characterId, (atual, sistema) => ajustesDoDano(atual, sistema, comeco.dano, true), quemNaFicha(autor))
+        if (feito !== null && feito !== 'recusada' && feito.length > 0) {
+          partes.push(...reversaoDaFicha(ficha.characterId, feito))
+          textos.push(`${nome} perde ${comeco.dano} HP (${motivoDoPrazo(comeco.danos)})`)
+          tokenIds.add(ficha.id)
+          efeitos.push({ tipo: 'dano', tokenId: ficha.id, valor: comeco.dano, saida: 'direto' })
+        }
+      }
+      if (fim !== null) {
+        const depois = condicoesDaFicha(fim.token)
+        mudarFichaDaCena(sceneKey, ficha.id, (token) => comCondicoes(token, depois))
+        partes.push({ tipo: 'prazo', tokenId: ficha.id, antes: condicoesDaFicha(ficha) })
+        if (fim.acabaram.length > 0) {
+          textos.push(textoDosPrazosQueAcabaram(fim.acabaram, nome))
+          tokenIds.add(ficha.id)
+        }
+      }
+    }
+    if (textos.length === 0) return
+    const atual = cenaDe(sceneKey) ?? cena
+    const linha = comMudanca(atual, atual.turnos, { tipo: efeitos.length > 0 ? 'dano' : 'acao', texto: `Condições fora da ordem: ${textos.join(' · ')}`, autor, tokenIds: [...tokenIds], reversao: { tipo: 'composta', partes } })
+    gravarCena(sceneKey, efeitos.length === 0 ? linha : { ...linha, efeitos: comEfeitos(atual.efeitos, efeitos) })
   }
 
   /**
@@ -3166,6 +3233,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
 
     reset: () => set({ cenas: {}, anuncio: null }),
 
+    esquecerCenas: (sceneKeys) => {
+      const { cenas } = get()
+      if (!sceneKeys.some((sceneKey) => Object.hasOwn(cenas, sceneKey))) return
+      set({ cenas: Object.fromEntries(Object.entries(cenas).filter(([sceneKey]) => !sceneKeys.includes(sceneKey))) })
+    },
+
     retomar: (sceneKey, cena) => {
       if (Object.hasOwn(get().cenas, sceneKey) || deps.outraBatalhaLigada(sceneKey)) return false
       // As animações não voltam (já tocaram); sem `anuncio`, a abertura não toca de novo.
@@ -3241,6 +3314,8 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
       fimDaVezDasMecanicas(sceneKey, de, de === null ? undefined : turnos.gastos[de.id], turnos.rodada, autor)
       // Fase C: o prazo das condições (o desconto de quem saiu, a vida por turno de quem entra).
       prazosDaVez(sceneKey, de, para, autor)
+      // 18/11/2026: na virada, o prazo de quem está fora da ordem também anda (um turno por rodada).
+      if (passada.turnos.rodada !== turnos.rodada) prazosForaDaOrdem(sceneKey, autor)
       return true
     },
 
@@ -3352,9 +3427,12 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     },
 
     tirarCombatente: (sceneKey, tokenId) => {
-      const cena = cenaDe(sceneKey)
+      const inicio = cenaDe(sceneKey)
       // Invocação: a carta do bando não sai assim (todo Desfazer a recriaria sem aviso): saem os membros dela.
-      if (cena === undefined || cena.turnos.cartas.some((carta) => carta.tokenId === tokenId && carta.bando !== undefined)) return false
+      if (inicio === undefined || inicio.turnos.cartas.some((carta) => carta.tokenId === tokenId && carta.bando !== undefined)) return false
+      if (!inicio.turnos.cartas.some((carta) => carta.tokenId === tokenId)) return false
+      passarAVezDeQuemSai(sceneKey, (carta) => carta.tokenId === tokenId)
+      const cena = cenaDe(sceneKey) ?? inicio
       const { turnos, removidas } = tirarCombatenteDaOrdem(cena.turnos, tokenId)
       const primeira = removidas[0]
       if (primeira === undefined) return false
@@ -3377,11 +3455,16 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     },
 
     removerCarta: (sceneKey, cartaId) => {
-      const cena = cenaDe(sceneKey)
-      if (cena === undefined) return false
-      const feito = removerCartaDaOrdem(cena.turnos, cartaId)
+      const inicio = cenaDe(sceneKey)
+      if (inicio === undefined) return false
+      const antes = removerCartaDaOrdem(inicio.turnos, cartaId)
       // Invocação: a carta do bando não sai assim (todo Desfazer a recriaria sem aviso): saem os membros dela.
-      if (feito === null || feito.removida.carta.bando !== undefined) return false
+      if (antes === null || antes.removida.carta.bando !== undefined) return false
+      passarAVezDeQuemSai(sceneKey, (carta) => carta.id === cartaId)
+      const cena = cenaDe(sceneKey) ?? inicio
+      const feito = removerCartaDaOrdem(cena.turnos, cartaId)
+      // A virada da rodada já tirou a carta extra "só nesta rodada": a vez andou e ela saiu.
+      if (feito === null) return true
       const { carta, indice } = feito.removida
       const nome = nomeDaCarta(carta, mesaDoRpg().personagens)
       const linha: LinhaNova = {
@@ -3403,8 +3486,11 @@ function estadoDaBatalha(mesa: MesaDaBatalha, deps: DependenciasDaBatalha, set: 
     },
 
     normalizarCena: (sceneKey, tokenIdsDaCena) => {
-      const cena = cenaDe(sceneKey)
-      if (cena === undefined) return
+      const inicio = cenaDe(sceneKey)
+      if (inicio === undefined) return
+      // A ficha apagada tinha a vez: ela anda antes pelo "Passar a vez" (começo de vez, virada), como no "Tirar".
+      passarAVezDeQuemSai(sceneKey, (carta) => carta.bando === undefined && !tokenIdsDaCena.has(carta.tokenId))
+      const cena = cenaDe(sceneKey) ?? inicio
       const turnos = normalizar(cena.turnos, tokenIdsDaCena)
       if (turnos !== cena.turnos) gravarCena(sceneKey, comMudanca(cena, turnos, null))
     },
