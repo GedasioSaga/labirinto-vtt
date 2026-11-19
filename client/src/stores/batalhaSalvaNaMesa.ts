@@ -1,7 +1,9 @@
+import type { StoreApi } from 'zustand'
 import type { BatalhaSalva, TextoDaBatalhaSalva } from '../lib/batalha/batalhaSalva'
 import type { MesaDaBatalha } from '../lib/batalha/mesa'
 import { formasQueDesligamNoFim } from '../lib/batalha/transformacao'
 import { hasUnsavedWork, useAdventureStore } from './adventureStore'
+import { useBatalhaDBTStore, type BatalhaDBTState, type CenaDBT } from './batalhaDBTStore'
 import type { BatalhaDaCena, LojaDaBatalha } from './batalhaFabrica'
 import { useMapStore } from './mapStore'
 import { useSessionStore } from './sessionStore'
@@ -40,7 +42,8 @@ export const BATALHA_SALVA_INTERVALO_MS = 1000
 
 const AVISO_DA_VERSAO = 'A batalha guardada nesta mesa foi gravada por uma versão mais nova do app: atualize o app para retomá-la.'
 const AVISO_DO_ILEGIVEL = 'A batalha guardada nesta mesa estava estragada e não pôde voltar.'
-const AVISO_SEM_ACESSO = 'Esta batalha não vai ficar guardada: o app não tem permissão de usar a pasta desta mesa. Se o app fechar, ela se perde.'
+const AVISO_DBT_SEM_FIM = 'Batalha Dragon Ball encerrada sem aplicar o fim nas fichas: o Ki bloqueado e os usos da forma máxima ficaram como estavam'
+const AVISO_SEM_ACESSO ='Esta batalha não vai ficar guardada: o app não tem permissão de usar a pasta desta mesa. Se o app fechar, ela se perde.'
 
 /** O que o disco devolve ao ler: o texto lido, `null` (não há batalha guardada ali) ou `sem-acesso` (o app não pode usar a pasta). */
 export type BatalhaLidaDoDisco = TextoDaBatalhaSalva | { ok: false; motivo: 'sem-acesso' } | null
@@ -79,8 +82,17 @@ export interface OfertaDaBatalhaSalva {
   salvaEm: number
 }
 
+/** A store da batalha Dragon Ball, o que a batalha salva usa dela. */
+export type LojaDBTDaBatalhaSalva = Pick<StoreApi<BatalhaDBTState>, 'getState' | 'subscribe'>
+
 export interface OpcoesDaBatalhaSalva {
   loja: Pick<LojaDaBatalha, 'getState' | 'subscribe'>
+  /**
+   * A batalha Dragon Ball da mesa (18/11/2026, análise item 7: só a One Piece ia ao disco, e F5 ou queda na
+   * rodada 4 perdia ordem, condições, formas, Ki e registro). Ausente = a da mesa de verdade
+   * (`useBatalhaDBTStore`), para o App ligar sem mudar; `null` = sem DBT (o teste que não a usa).
+   */
+  lojaDBT?: LojaDBTDaBatalhaSalva | null
   /** Para os avisos "fulano saiu da forma" do Encerrar. */
   mesa: Pick<MesaDaBatalha, 'personagens' | 'sistema'>
   disco: DiscoDaBatalhaSalva
@@ -125,6 +137,7 @@ function personagensDaBatalha(cena: BatalhaDaCena): string[] {
 
 export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaNaMesa {
   const { loja, mesa, disco, lugar: lugarDe, assinarLugar, tudoSalvo, assinarSalvo, aoOfertar, aoAvisar, aoFalhar, intervaloMs = BATALHA_SALVA_INTERVALO_MS, agora = Date.now } = opcoes
+  const lojaDBT = opcoes.lojaDBT === undefined ? useBatalhaDBTStore : opcoes.lojaDBT
   let mapaSolto: MapaSolto | null = null
   /** A mesa de agora, com as cenas lidas na última conferência. */
   let atual: LugarDaMesa | null = null
@@ -167,13 +180,24 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
     return Object.fromEntries(Object.entries(cenas).filter(([sceneKey]) => lugar.cenas.has(sceneKey)))
   }
 
+  /** As cenas DBT de `lugar` na memória. */
+  const cenasDBTDoLugar = (lugar: LugarDaMesa): Record<string, CenaDBT> => {
+    if (lojaDBT === null) return {}
+    const { cenas } = lojaDBT.getState()
+    return Object.fromEntries(Object.entries(cenas).filter(([sceneKey]) => lugar.cenas.has(sceneKey)))
+  }
+
+  /** A cena está em batalha na memória agora (One Piece ou Dragon Ball). */
+  const naMemoria = (sceneKey: string): boolean => Object.hasOwn(loja.getState().cenas, sceneKey) || (lojaDBT !== null && Object.hasOwn(lojaDBT.getState().cenas, sceneKey))
+
   /** Guarda a batalha das cenas de `lugar` (ou apaga o arquivo, se ela acabou). */
   const gravar = (lugar: LugarDaMesa | null): void => {
     if (lugar === null) return
     const chave = chaveDoLugar(lugar)
     if (chave === lendo || pendente?.chave === chave || barradas.has(chave)) return
     const cenas = cenasDoLugar(lugar)
-    const emBatalha = Object.keys(cenas).length > 0
+    const dbt = cenasDBTDoLugar(lugar)
+    const emBatalha = Object.keys(cenas).length > 0 || Object.keys(dbt).length > 0
     if (semAcesso.has(chave)) {
       // Abrir a mesa sem batalha não avisa nada; a batalha que começa ali avisa uma vez.
       if (emBatalha && !avisadasSemAcesso.has(chave)) {
@@ -195,6 +219,7 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
     }
     comArquivo.add(chave)
     const salva: BatalhaSalva = { mesaId: lugar.mesaId, salvaEm: agora(), cenas }
+    if (Object.keys(dbt).length > 0) salva.dbt = dbt
     naFila('guardar a batalha em andamento', () => disco.gravar(lugar.pasta, salva))
   }
 
@@ -217,7 +242,10 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
   }
 
   const ofertaDe = (lugar: LugarDaMesa, salva: BatalhaSalva): OfertaDaBatalhaSalva => ({
-    cenas: Object.entries(salva.cenas).map(([sceneKey, cena]) => ({ nome: lugar.cenas.get(sceneKey) ?? 'Cena sem nome', rodada: cena.turnos.rodada })),
+    cenas: [
+      ...Object.entries(salva.cenas).map(([sceneKey, cena]) => ({ nome: lugar.cenas.get(sceneKey) ?? 'Cena sem nome', rodada: cena.turnos.rodada })),
+      ...Object.entries(salva.dbt ?? {}).map(([sceneKey, cena]) => ({ nome: lugar.cenas.get(sceneKey) ?? 'Cena sem nome', rodada: cena.ordem.rodada })),
+    ],
     salvaEm: salva.salvaEm,
   })
 
@@ -253,14 +281,16 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
       return
     }
     comArquivo.add(chave)
-    const { cenas: naMemoria } = loja.getState()
-    // A cena que já está em batalha nesta sessão (reabriu a mesma aventura sem fechar o app) vale a da memória.
-    const cenas = Object.fromEntries(Object.entries(lido.salva.cenas).filter(([sceneKey]) => lugar.cenas.has(sceneKey) && !Object.hasOwn(naMemoria, sceneKey)))
-    if (Object.keys(cenas).length === 0) {
+    // A cena que já está em batalha na memória vale a da memória (a troca de mesa a esquece: `conferirLugar`).
+    const daMesa = (sceneKey: string): boolean => lugar.cenas.has(sceneKey) && !naMemoria(sceneKey)
+    const cenas = Object.fromEntries(Object.entries(lido.salva.cenas).filter(([sceneKey]) => daMesa(sceneKey)))
+    const dbt = lojaDBT === null ? {} : Object.fromEntries(Object.entries(lido.salva.dbt ?? {}).filter(([sceneKey]) => daMesa(sceneKey) && !Object.hasOwn(cenas, sceneKey)))
+    if (Object.keys(cenas).length === 0 && Object.keys(dbt).length === 0) {
       gravar(lugar)
       return
     }
-    pendente = { chave, salva: { ...lido.salva, cenas } }
+    const { dbt: _todas, ...semDBT } = lido.salva
+    pendente = { chave, salva: Object.keys(dbt).length === 0 ? { ...semDBT, cenas } : { ...semDBT, cenas, dbt } }
     aoOfertar(ofertaDe(lugar, pendente.salva))
   }
 
@@ -275,6 +305,25 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
         throw erro
       }
     })
+  }
+
+  /**
+   * Conserto de 18/11/2026 (análise, seção 2.3): nenhuma store de batalha era zerada ao trocar de mesa. Fechar
+   * a aventura com "Não salvar" e reabri-la na mesma sessão misturava a batalha da memória (o dano já no
+   * registro, o Desfazer somaria de novo) com as fichas do disco (o HP de antes). Agora as cenas da mesa que
+   * saiu deixam a memória, sem fim de batalha: o arquivo guarda o ponto salvo, sempre junto das fichas, e
+   * volta pelo "Retomar a batalha". Fica na memória: a cena que a mesa nova também tem (a mesma aventura
+   * salva noutra pasta) e a mesa sem arquivo possível (pasta recusada, arquivo de app mais novo), onde a
+   * memória é a única cópia.
+   */
+  const esquecerAMesaQueSaiu = (antes: LugarDaMesa | null, novo: LugarDaMesa | null): void => {
+    if (antes === null) return
+    const chave = chaveDoLugar(antes)
+    if (semAcesso.has(chave) || barradas.has(chave)) return
+    const sairam = [...antes.cenas.keys()].filter((sceneKey) => novo === null || !novo.cenas.has(sceneKey))
+    if (sairam.length === 0) return
+    loja.getState().esquecerCenas(sairam)
+    lojaDBT?.getState().esquecerCenas(sairam)
   }
 
   /** A mesa aberta pode ter mudado: a de antes grava o que faltava, e a nova é procurada no disco. */
@@ -297,6 +346,7 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
       pendente = null
       aoOfertar(null)
     }
+    esquecerAMesaQueSaiu(atual, novo)
     atual = novo
     lendo = null
     if (novo !== null) procurar(novo)
@@ -323,6 +373,13 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
     loja.subscribe((state, previous) => {
       if (state.cenas !== previous.cenas) agendar()
     }),
+    ...(lojaDBT === null
+      ? []
+      : [
+          lojaDBT.subscribe((state, previous) => {
+            if (state.cenas !== previous.cenas) agendar()
+          }),
+        ]),
     assinarLugar(conferirLugar),
     assinarSalvo(aoMudarSalvo),
   ]
@@ -341,6 +398,8 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
       aoOfertar(null)
       // Cada cena volta pela store; a mudança agenda a gravação de sempre.
       for (const [sceneKey, cena] of Object.entries(salva.cenas)) loja.getState().retomar(sceneKey, cena)
+      // A DBT volta pela store dela; nunca numa cena que já está na One Piece (a cena nunca está nas duas).
+      for (const [sceneKey, cena] of Object.entries(salva.dbt ?? {})) if (!naMemoria(sceneKey)) lojaDBT?.getState().retomar(sceneKey, cena)
     },
 
     encerrar: () => {
@@ -354,6 +413,10 @@ export function iniciarBatalhaSalva(opcoes: OpcoesDaBatalhaSalva): BatalhaSalvaN
         sairam.push(...formasQueDesligamNoFim(personagensDaBatalha(cena), mesa.personagens(), mesa.sistema()))
         loja.getState().encerrarSalva(sceneKey, cena)
       }
+      // A DBT encerra SEM aplicar: o fim dela (Ki bloqueado, usos da forma máxima) o mestre edita na tabela
+      // antes de gravar (`fim.ts`, "o aviso nunca encerra sozinho"), e daqui não há tabela. O aviso diz.
+      const nomesDBT = Object.keys(salva.dbt ?? {}).map((sceneKey) => atual?.cenas.get(sceneKey) ?? 'Cena sem nome')
+      if (nomesDBT.length > 0) sairam.push(`${AVISO_DBT_SEM_FIM} (${nomesDBT.join(', ')})`)
       // Nenhuma cena desta mesa ficou em batalha: o arquivo sai.
       gravarAgora()
       return sairam

@@ -69,6 +69,7 @@
 
       <rect width="100%" height="100%" fill="#f5f5f5"/>
       <!-- nota de 18/11/2026: no app, cada mensagem a um jogador espera a anterior dele chegar ao servidor (criarSaidaEmOrdem com sempreEmFila), então o batalha.estado nunca passa na frente do mapa da entrada (era o F5 que tirava o jogador da batalha); e o host manda o recorte de novo a quem perdeu a faixa sem cair (perdeuAFaixa: o scene.changed na mesma cena, ou um envio da batalha que falhou) -->
+      <!-- nota 2 de 18/11/2026: tirar da ordem (ou apagar do mapa) quem tem a vez passa a vez pelo "Passar a vez" antes (começo de vez, +10 SP, virada); na virada, o prazo das condições de quem está fora da ordem anda um turno (mesa.fichasDaCena); a batalha Dragon Ball vai ao mesmo batalha-em-andamento.json (campo dbt) e a mesa que sai da tela tem a batalha esquecida da memória (esquecerCenas), que volta pelo Retomar; o jogador que olha outro andar volta ao andar ao vivo quando a batalha o chama, e as caixas da batalha ficam no meio do mapa à vista -->
 
       <!-- Conectores primeiro -->
       <!-- Disco carrega as regras na store e as equipes no host -->

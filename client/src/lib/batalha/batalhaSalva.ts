@@ -1,3 +1,4 @@
+import type { CenaDBT } from '../../stores/batalhaDBTStore'
 import type { BatalhaDaCena } from '../../stores/batalhaFabrica'
 import type { Casa } from './blocos'
 import { lerJudgeNaCena } from './judge'
@@ -36,6 +37,11 @@ export interface BatalhaSalva {
   salvaEm: number
   /** Chave da cena (a de `tableSceneKey`) → a cena em batalha. */
   cenas: Readonly<Record<string, BatalhaDaCena>>
+  /**
+   * A batalha Dragon Ball (18/11/2026, análise item 7): chave da cena → a cena DBT (o núcleo é JSON puro).
+   * Campo novo e opcional, sem mudar a `versao`: o app de antes lê só `cenas` e ignora este.
+   */
+  dbt?: Readonly<Record<string, CenaDBT>>
 }
 
 /** O que a leitura do texto deu. `versao-mais-nova` = gravada por um app mais novo: não volta e não se grava por cima. */
@@ -49,7 +55,9 @@ function cenaParaOArquivo(cena: BatalhaDaCena): BatalhaDaCena {
 
 export function textoDaBatalhaSalva(salva: BatalhaSalva): string {
   const cenas = Object.fromEntries(Object.entries(salva.cenas).map(([chave, cena]) => [chave, cenaParaOArquivo(cena)]))
-  return JSON.stringify({ versao: VERSAO_DA_BATALHA_SALVA, mesaId: salva.mesaId, salvaEm: salva.salvaEm, cenas })
+  // A DBT sem as animações (já tocaram); o `seq` fica, e as próximas seguem a conta.
+  const dbt = Object.fromEntries(Object.entries(salva.dbt ?? {}).map(([chave, cena]) => [chave, { ...cena, efeitos: [] }]))
+  return JSON.stringify({ versao: VERSAO_DA_BATALHA_SALVA, mesaId: salva.mesaId, salvaEm: salva.salvaEm, cenas, ...(Object.keys(dbt).length === 0 ? {} : { dbt }) })
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -199,5 +207,33 @@ export function batalhaSalvaDoTexto(texto: string): TextoDaBatalhaSalva {
     const cena = cenaDoArquivo(bruta)
     if (cena !== null) lidas.push([chave, cena])
   }
-  return { ok: true, salva: { mesaId, salvaEm, cenas: Object.fromEntries(lidas) } }
+  const salva: BatalhaSalva = { mesaId, salvaEm, cenas: Object.fromEntries(lidas) }
+  // A DBT torta fica de fora como a One Piece; o campo torto inteiro vira "nenhuma DBT".
+  if (isRecord(lido.dbt)) {
+    const dbt: [string, CenaDBT][] = []
+    for (const [chave, bruta] of Object.entries(lido.dbt)) if (ehCenaDBTSalva(bruta)) dbt.push([chave, { ...bruta, efeitos: [] }])
+    if (dbt.length > 0) salva.dbt = Object.fromEntries(dbt)
+  }
+  return { ok: true, salva }
+}
+
+/**
+ * Uma cena DBT do arquivo: o ESQUELETO que a store e o motor percorrem (as listas, os registros, a ordem e
+ * os números da vez), com a mesma ressalva de `ehTurnosSalvos` para o miolo de cada combatente e pendência.
+ */
+function ehCenaDBTSalva(valor: unknown): valor is CenaDBT {
+  if (!isRecord(valor)) return false
+  const { fase, opcoes, combatentes, ordem, turno, pendencias, registro, zerados, rev, turnosRev, seq } = valor
+  if ((fase !== 'iniciativa' && fase !== 'combate') || !isRecord(opcoes) || !registroDe(combatentes, ehCombatenteDBTSalvo)) return false
+  if (!isRecord(ordem) || !ehListaDeTextos(ordem.cartas) || (ordem.vez !== null && !ehTexto(ordem.vez)) || !ehContagem(ordem.rodada)) return false
+  if ((turno !== null && !isRecord(turno)) || !listaDeObjetos(pendencias) || !listaDeObjetos(registro)) return false
+  if (!ehContagem(zerados) || !ehContagem(rev) || !ehContagem(turnosRev) || !ehContagem(seq)) return false
+  if (caminhosDe(valor.caminhos) === null || trilhasDe(valor.trilhas) === null) return false
+  return valor.judge === undefined || lerJudgeNaCena(valor.judge) !== null
+}
+
+function ehCombatenteDBTSalvo(valor: unknown): boolean {
+  if (!isRecord(valor)) return false
+  const { id, personagemId, nome, npc, condicoes, morte } = valor
+  return ehTexto(id) && (personagemId === null || ehTexto(personagemId)) && ehTexto(nome) && typeof npc === 'boolean' && listaDeObjetos(condicoes) && isRecord(morte) && ehTexto(morte.situacao)
 }
