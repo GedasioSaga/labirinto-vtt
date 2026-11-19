@@ -1,6 +1,38 @@
 import { coresDosPinos } from '../lib/marcadorDeContinente'
 import { criarCenariosNaSessao } from './cenariosNaSessao'
 import { criarEstadoPorConexao, criarEstadoPorJogador, type MotivoDoEsquecer } from './registroDeEstado'
+import {
+  blankExploration,
+  dimsOf,
+  forgetSceneMemories,
+  inheritMemory,
+  isUpperFloorMemory,
+  mapIdOfMemory,
+  memoryKey,
+  rememberDoor,
+  restoredMemoryOf,
+  savedSceneOf,
+  sceneMemoryId,
+  touchScene,
+  worldSizeOf,
+  type PlayerMemory,
+  type SceneMemory,
+} from './memoriaNoHost'
+import {
+  comParedesReveladas,
+  contentOf,
+  doorsKey,
+  encodeExplorationKept,
+  explorationGrewSince,
+  extrasOf,
+  planOfSent,
+  sameExploration,
+  samePlan,
+  sameViewInputs,
+  type SentView,
+  type SnapshotMessage,
+  type ViewInputs,
+} from './telaEnviadaNoHost'
 import type { CenarioLidoMessage } from './protocol'
 import type { LeiturasDosCenarios } from '../types/cenarioEFalas'
 import { medidaCabeNoMapa, type MedidaCompartilhada } from '../lib/batalha/ferramentasDoJogador'
@@ -17,8 +49,7 @@ import { fichaAlcancaPonto, MARCA_INTERVALO_MS, MARCAS_POR_CENA, MARCAS_POR_JOGA
 import { contractFromTerms, isContractDue, type LoanTerms } from '../lib/tokenLoan'
 import { tokenAsSeenByPlayer } from '../lib/tokenPublicName'
 import { idDePortaCabeNoFio, MAX_PORTAS_POR_ATRAVESSAR } from '../lib/portasPorAtravessar'
-import { createExploration, decodeExploration, encodeExploration, forgetBlocked, forgetInside, forgetOutsideFloor, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration, type ExploredWire, type MemoryRing } from '../lib/exploration'
-import { cacheDoRecorte } from '../lib/cacheDoRecorte'
+import { createExploration, encodeExploration, forgetBlocked, forgetInside, forgetOutsideFloor, isPointExplored, markAll, markRings, mergeExploration, mergeExplored, resizeExploration, type Exploration } from '../lib/exploration'
 import { buildFloorOutline, pointInRing } from '../lib/floorContour'
 import { chaoQueLimita, foraDoChaoLivre } from '../lib/offFloor'
 import { comAsAguasDoJogador } from '../lib/agua/comoChao'
@@ -58,7 +89,6 @@ import {
   type CompanionMarks,
   type GroupViewer,
   type OwnTokenElsewhere,
-  type PlanMemory,
   type PlayerClueContent,
   type PlayerMapView,
   type SceneAlarm,
@@ -75,7 +105,6 @@ import { luzDoPisoDeBaixo, luzParaJogador, periodoDaCena, raioNoPeriodo, type Pe
 import { sameBuilding, sortFloorLabels } from '../lib/buildingFloors'
 import { clampNoiseRangeCells } from '../lib/noise'
 import { guardarPeca, pecaDoPino, progressoDasColecoes, type ColecoesDoJogador, type PecaDeColecao } from '../lib/colecao'
-import { ehConstrucao } from '../lib/mobilia/construcoes'
 import { travaDaFichaDoJogador, validateTokenMove, type TokenMoveOptions, type TokenMoveRejection } from '../lib/moveValidation'
 import { cliqueParaAndarLigado, trechoNoConhecido } from '../lib/cliqueParaAndar'
 import { tokensOccupy } from '../lib/movementRules'
@@ -119,7 +148,7 @@ import { selectedTokenColor } from '../lib/tokenColor'
 import { acceptsLockedExitRequest, arrivalSpot, arrivalSpotWithoutPin, exitLabelsOf, exitPassageOf, freeSeatNear, isArrivalOnly, isExitPassage, oneWayExitsOf, resolvePinTravel, SAIDA_PRINCIPAL, sameDestination, travelExitOf, type TravelScene } from '../lib/pinTravel'
 import { disembarkSpot, gatherSpots, pinClearance, type KeepClear, type SeatHold } from '../lib/gatherParty'
 import { boardVehicle, driveTarget, driverOf, passengerIdsOf, ridesWithoutDriving, vehicleCarrying, vehicleDrivenBy, withRiders } from '../lib/vehicle'
-import { doorStateOf, savedDoorOf, type SavedSceneMemory, type SavedSeat, type SavedSeatExploration, type SavedSeatNotes } from '../lib/savedTable'
+import type { SavedSeat, SavedSeatExploration, SavedSeatNotes } from '../lib/savedTable'
 import { MY_NOTES_MAX, MY_NOTES_MIN_INTERVAL_MS, type PersonalNote } from '../lib/minhasNotas'
 import { companionSpots, companionsNear, entourageNear, entourageSeats, type Companion, type Seat } from '../lib/travelTogether'
 import { pinTravelChosenReach, pinTravelChosenWithin, pinTravelGroupOf } from '../lib/pinTravelers'
@@ -257,7 +286,7 @@ import { caravanCity, caravanMembers, caravanRegroup, caravanSize, caravanStep, 
 import { personagensDoNome } from '../lib/livros/jogadores'
 import { novoPersonagem, paraOFio, type Personagem } from '../lib/personagem'
 import { barrasParaJogador, type BarrasParaJogador } from '../lib/vidaDaFicha'
-import { formasVisiveisDoMapa, mesmasFormasVisiveis, type FormasVisiveis } from '../lib/mudarFicha'
+import { formasVisiveisDoMapa, type FormasVisiveis } from '../lib/mudarFicha'
 import { lerAura } from '../lib/auras'
 import { mochilaComAVagaAcesa } from '../lib/luzDoItem'
 import type { ContaNaSala, ContasNaSala } from '../lib/contasDosJogadores'
@@ -2963,223 +2992,11 @@ interface ValidTravel {
  */
 type TravelCheck = { ok: true; travel: ValidTravel } | { ok: false; reason: 'far' | 'unavailable' | 'congelado' | 'a_bordo' }
 
-/**
- * O que uma FICHA lembra de um mapa (MEMÓRIA POR FICHA): células exploradas e
- * último estado visto de cada porta. `doorSeen` guarda quando (ordem do host,
- * `memorySeq`) cada porta foi vista: ao somar memórias, vale a vista mais nova.
- */
-interface SceneMemory {
-  key: string
-  /**
-   * O mapa a que o explorado corresponde: é o que a mesa grava para retomar.
-   * Com a mesma grade, redimensionar o mapa leva o explorado junto e troca isto.
-   */
-  dims: MemoryDims
-  exp: Exploration
-  doors: Map<string, DoorState>
-  /**
-   * Por id da parede: quando (`memorySeq`) a porta foi vista por último. A
-   * tela da mesa junta a memória do grupo pela vista mais recente, e a MEMÓRIA
-   * POR FICHA soma memórias do mesmo jeito.
-   */
-  doorSeen: Map<string, number>
-  /**
-   * FORA DO CHÃO (caça de 12/11/2026, N6): o Chão limitava a visão na última
-   * vez que esta memória foi conferida (`esquecerForaDoChao`). Ausente = nunca
-   * conferida (memória nova ou da mesa retomada). Quando a cena passa de
-   * "Livre" para "Bloqueado", o que ela lembra fora do Chão é apagado.
-   */
-  chaoLimitava?: boolean
-}
-
-/**
- * O que um jogador lembra de um mapa: a memória de cena, a planta como ele a
- * viu e a visão do último snapshot.
- */
-interface PlayerMemory extends SceneMemory {
-  /**
-   * Só o que a VISÃO dele marcou (sem "Revelar planta" nem planta conhecida).
-   * É o que "Dar o que o grupo viu" repassa: a planta que o mestre revelou a
-   * um jogador não pode vazar para o colega por esse caminho.
-   */
-  seen: Exploration
-  /** A planta revelada (da cena ou por "Revelar planta para…") já foi marcada nesta memória. */
-  planMarked: boolean
-  /** Ids das marcas de jogador (bilhete no lugar) que ele já recebeu: só estas voltam pelo explorado. */
-  marcas: Set<string>
-  /**
-   * Pinos que o jogador viu BARRADOS da última vez que os teve na visão. Na
-   * névoa o pino sai com esta barra, não a de agora (`marcarTrancasParaJogador`).
-   */
-  pinosBarrados: Set<string>
-  /** Visão enviada no último snapshot: é o que o jogador está vendo agora na tela. */
-  vision: RegionPoint[][]
-  /**
-   * MODO BATALHA (regra de 27/10): paredes invisíveis em que a ficha dele
-   * esbarrou neste mapa. Para ele deixam de ser invisíveis (entram no recorte
-   * como parede comum); para os colegas, nada muda. Ausente = nenhuma.
-   */
-  paredesReveladas?: Set<string>
-  /** Fichas de OUTROS jogadores no último snapshot (`partyTokens`): os colegas que ele vê agora. */
-  party: string[]
-  /** Zonas ocultas e tetos fechados do último snapshot: o que ele já sabe que está escondido. */
-  covered: RegionPoint[][]
-  /**
-   * CLICAR PARA ANDAR: só as zonas ocultas do último snapshot (o `concealed`
-   * que ele recebeu, sem os tetos): a mesma máscara do caminho que a tela dele
-   * calcula. Ausente = nenhum snapshot ainda.
-   */
-  ocultas?: RegionPoint[][]
-  /**
-   * Veio da mesa guardada e ainda não foi conferida contra o mapa de hoje: no
-   * primeiro uso, o que o mestre escondeu desde então sai da memória.
-   */
-  restored: boolean
-  /**
-   * CÔMODO LEMBRADO — ids dos cômodos (`RoomMeta.comodo`) que o jogador já viu
-   * neste mapa. Mora junto do explorado de propósito: "Esconder planta" e o
-   * mapa redimensionado esquecem os dois de uma vez.
-   */
-  seenRooms: Set<string>
-  /**
-   * LUGARES: o id desta memória que vai ao jogador (`snapshot.place`). Nasce
-   * com a memória e morre com ela ("Esconder planta", teto de cenas, kick):
-   * memória nova é lugar novo. É um contador DO JOGADOR, nunca o id nem o nome
-   * da cena: o mesmo id em dois jogadores não diz que eles estão no mesmo lugar.
-   */
-  place: string
-  /**
-   * A última versão VISTA de cada item da planta (`lib/fogFilter.ts`). Fora da
-   * visão, o explorado mostra esta — o que o mestre mudou longe do jogador só
-   * chega quando ele volta a ver o lugar. Só o snapshot a atualiza.
-   */
-  plan: PlanMemory
-  /** O explorado que seguiu no último snapshot desta cena. `null` = nenhum ainda. */
-  sentExplored: Pick<ExploredWire, 'bits' | 'rings'> | null
-  /**
-   * As fichas do último snapshot desta cena, COMO ELE AS RECEBEU (máscara do
-   * nome, vulto sem nome). É daqui que sai o nome da ficha no sinal e no laser
-   * de outro jogador: o que não está aqui, ele não pode ler.
-   */
-  tokens: readonly Token[]
-  /**
-   * DENTRO DA SALA SECRETA — salas secretas deste mapa em que a ficha dele já
-   * esteve (`occupiedSecretRooms` do recorte). Abrem só para ele, também depois
-   * que ele sai. Vive na memória da cena: "Esconder planta", mapa novo e o kick
-   * esquecem junto com o explorado.
-   */
-  secretRooms: Set<string>
-  /**
-   * SALA SECRETA NA MEMÓRIA (caça de 12/11/2026, N3): as salas secretas
-   * FECHADAS para ele no último recorte desta cena, com o polígono de então
-   * (`PlayerMapView.closedSecretRooms`). A memória marca por cima delas como
-   * chão vazio; no recorte em que uma deixa de estar fechada (a ficha entrou,
-   * o mestre desmarcou "secreta" ou apagou a sala), o lugar dela é apagado da
-   * memória antes de marcar, para ele não "lembrar" um interior que nunca viu.
-   * Ausente = nenhum recorte ainda (memória nova, ou da mesa gravada por uma
-   * versão sem o campo): toda sala secreta aberta no primeiro recorte conta
-   * como recém-aberta. Vai para a mesa gravada (`SavedSceneMemory`, só no
-   * arquivo do mestre) e volta na retomada (`restoredMemoryOf`).
-   */
-  secretasFechadas?: Map<string, RegionPoint[]>
-}
-
-type MemoryDims = Pick<MapData, 'id' | 'width' | 'height' | 'grid'>
-
 /** Põe `member` no conjunto de `key`, criando o conjunto na primeira vez. */
 function addToSet(sets: Map<string, Set<string>>, key: string, member: string): void {
   const found = sets.get(key)
   if (found === undefined) sets.set(key, new Set([member]))
   else found.add(member)
-}
-
-/**
- * Com o que o último recorte de um jogador foi feito. Igual no broadcast
- * seguinte = o recorte sairia igual: o host não refiltra nem reenvia. Os mapas
- * são comparados por REFERÊNCIA — as stores do mestre (mapStore e o cache da
- * aventura) nunca editam um `MapData` no lugar, então mapa que mudou é outro
- * objeto. `epoch` cobre o que é da sessão e vale para todos ("Quem vê").
- */
-interface ViewInputs {
-  map: MapData
-  /** Mapas das OUTRAS cenas onde ele tem ficha (a lista "minhas fichas em outras cenas"). */
-  elsewhere: MapData[]
-  owned: string
-  radius: number
-  epoch: number
-  /**
-   * CABINE DE TRANSPORTE: as cabines da aventura (por referência) e as que
-   * outro jogador ocupa, vistas por ele. Mudam o "aqui/longe/ocupada" da
-   * parada no recorte sem mudar o mapa.
-   */
-  cabines: readonly CabineDeTransporte[] | undefined
-  ocupadas: string
-  /**
-   * MUDAR FICHA: a imagem da forma de cada token da cena (`formasDoMapa`). Vem
-   * da ficha de personagem, não do mapa: trocar a imagem do cartão muda o
-   * recorte sem o mapa mudar. Comparada por conteúdo (`mesmasFormasVisiveis`).
-   */
-  formas: FormasVisiveis | undefined
-}
-
-function sameViewInputs(a: ViewInputs, b: ViewInputs): boolean {
-  return (
-    a.map === b.map &&
-    a.owned === b.owned &&
-    a.radius === b.radius &&
-    a.epoch === b.epoch &&
-    a.cabines === b.cabines &&
-    a.ocupadas === b.ocupadas &&
-    mesmasFormasVisiveis(a.formas, b.formas) &&
-    a.elsewhere.length === b.elsewhere.length &&
-    a.elsewhere.every((map, i) => map === b.elsewhere[i])
-  )
-}
-
-/** O explorado `exp` continua igual aos bits e contornos guardados antes de uma soma no lugar. */
-function sameExploration(exp: Exploration, bitsBefore: Uint8Array, ringsBefore: readonly MemoryRing[]): boolean {
-  return (
-    exp.bits.length === bitsBefore.length &&
-    exp.bits.every((byte, i) => byte === bitsBefore[i]) &&
-    exp.rings.length === ringsBefore.length &&
-    exp.rings.every((ring, i) => ring === ringsBefore[i])
-  )
-}
-
-/**
- * Põe `memory` como a cena mais recente de `byScene` e esquece as mais
- * antigas acima de `max`.
- */
-function touchScene<T>(byScene: Map<string, T>, mapId: string, memory: T, max: number): void {
-  // Apagar e regravar põe a cena no fim da ordem: é a mais recente agora.
-  byScene.delete(mapId)
-  byScene.set(mapId, memory)
-  for (const oldest of byScene.keys()) {
-    if (byScene.size <= max) break
-    byScene.delete(oldest)
-  }
-}
-
-/** Grava a porta vista agora, no instante `seq`. */
-function rememberDoor(memory: SceneMemory, doorId: string, door: DoorState, seq: number): void {
-  memory.doors.set(doorId, { ...door })
-  memory.doorSeen.set(doorId, seq)
-}
-
-/**
- * MEMÓRIA POR FICHA — soma em `target` o que `source` lembra: células (menos
- * as que tocam `forbidden`) e portas, cada porta com a vista mais nova das
- * duas. O estado lembrado de uma porta não põe a porta no pacote: quem decide
- * se ela sai é o recorte (célula explorada ao lado, fora de zona e de sala
- * secreta), igual à porta que o jogador lembra por si.
- */
-function inheritMemory(target: SceneMemory, source: SceneMemory, forbidden: readonly RegionPoint[][]): void {
-  mergeExploration(target.exp, source.exp, forbidden)
-  for (const [doorId, door] of source.doors) {
-    const seenAt = source.doorSeen.get(doorId) ?? 0
-    if ((target.doorSeen.get(doorId) ?? -1) >= seenAt) continue
-    rememberDoor(target, doorId, door, seenAt)
-  }
 }
 
 /**
@@ -3194,109 +3011,6 @@ function normalizeName(name: string): string {
 /** O ponto cai dentro de algum anel com área (anel degenerado não conta). */
 function inAnyRing(rings: readonly RegionPoint[][], point: RegionPoint): boolean {
   return rings.some((ring) => ring.length >= 3 && pointInRing(point, ring))
-}
-
-function memoryKey(map: MemoryDims): string {
-  return `${map.id}|${map.width}|${map.height}|${map.grid}`
-}
-
-/** MapData.width/height estão em células; o explorado mede px de mundo (mesma unidade da visão). */
-function worldSizeOf(map: MemoryDims): { width: number; height: number; grid: number } {
-  return { width: map.width * map.grid, height: map.height * map.grid, grid: map.grid }
-}
-
-function dimsOf(map: MapData): MemoryDims {
-  return { id: map.id, width: map.width, height: map.height, grid: map.grid }
-}
-
-/** Explorado vazio do tamanho do mapa. */
-function blankExploration(map: MemoryDims): Exploration {
-  return createExploration(worldSizeOf(map))
-}
-
-/** A memória como a mesa a grava: o fio do explorado e as portas vistas. */
-function savedSceneOf(memory: PlayerMemory): SavedSceneMemory {
-  const { id, width, height, grid } = memory.dims
-  return {
-    mapId: id,
-    width,
-    height,
-    grid,
-    explored: encodeExploration(memory.exp),
-    doors: [...memory.doors].map(([wallId, door]) => savedDoorOf(wallId, door)),
-    // SALA SECRETA (N3): as fechadas do último recorte vão junto, para a retomada saber quais o explorado lembra como chão.
-    ...(memory.secretasFechadas === undefined ? {} : { secretasFechadas: [...memory.secretasFechadas].map(([id, points]) => ({ id, points })) }),
-  }
-}
-
-/**
- * A memória guardada de volta, ou `null` quando o fio está torto ou não tem o
- * tamanho que o mapa gravado daria hoje (bitset de outro tamanho leria células erradas).
- */
-function restoredMemoryOf(scene: SavedSceneMemory): Omit<PlayerMemory, 'place'> | null {
-  const dims: MemoryDims = { id: scene.mapId, width: scene.width, height: scene.height, grid: scene.grid }
-  const exp = decodeExploration(scene.explored)
-  const blank = blankExploration(dims)
-  if (exp === null || exp.cell !== blank.cell || exp.cols !== blank.cols || exp.rows !== blank.rows) return null
-  const doors = new Map<string, DoorState>(scene.doors.map((door) => [door.wallId, doorStateOf(door)]))
-  // Cômodo lembrado não é gravado na mesa: volta a ser lembrado quando for visto de novo.
-  return {
-    key: memoryKey(dims),
-    dims,
-    exp,
-    seen: blankExploration(dims),
-    planMarked: false,
-    doors,
-    doorSeen: new Map(),
-    marcas: new Set(),
-    // A barra lembrada não vai para a mesa: é estado da sessão, e a sessão nova começa sem barra.
-    pinosBarrados: new Set(),
-    vision: [],
-    party: [],
-    covered: [],
-    restored: true,
-    seenRooms: new Set(),
-    plan: emptyPlanMemory(),
-    sentExplored: null,
-    tokens: [],
-    secretRooms: new Set(),
-    // SALA SECRETA (N3): as que estavam fechadas quando a mesa foi gravada. A que o mestre desmarcou ou apagou
-    // nesse meio-tempo tem o lugar apagado no primeiro recorte (`esquecerSalasQueAbriram`): nasce preta, não
-    // lembrada. Mesa de antes (sem o campo): ausente, e toda sala aberta conta como recém-aberta.
-    ...(scene.secretasFechadas === undefined ? {} : { secretasFechadas: new Map(scene.secretasFechadas.map((sala) => [sala.id, sala.points])) }),
-  }
-}
-
-/** Separa o id do mapa do piso na chave de memória: não aparece em id gerado pelo app. */
-const PISO_NA_CHAVE = '#piso:'
-
-/**
- * PISOS NA MESMA CENA — a memória de cada piso é outra (explorado e portas
- * lembradas): o térreo explorado não pode abrir o 1º piso, que ocupa o mesmo
- * lugar do plano. O térreo usa a chave de sempre (`map.id`), então a memória de
- * quem já jogava num mapa sem pisos continua valendo.
- */
-function sceneMemoryId(map: MapData, piso: number): string {
-  return piso === 0 ? map.id : `${map.id}${PISO_NA_CHAVE}${piso}`
-}
-
-/** O id do mapa de uma chave de memória (`sceneMemoryId`): a de qualquer piso volta ao mesmo mapa. */
-function mapIdOfMemory(memoryId: string): string {
-  const cut = memoryId.indexOf(PISO_NA_CHAVE)
-  return cut === -1 ? memoryId : memoryId.slice(0, cut)
-}
-
-/** A chave é de um piso fora do térreo? (a mesa guardada só grava o térreo). */
-function isUpperFloorMemory(memoryId: string): boolean {
-  return memoryId.includes(PISO_NA_CHAVE)
-}
-
-/** "Esconder planta" da cena: a memória de TODOS os pisos dela. */
-function forgetSceneMemories(byScene: Map<string, unknown> | undefined, mapId: string): void {
-  if (byScene === undefined) return
-  for (const key of [...byScene.keys()]) {
-    if (key === mapId || key.startsWith(`${mapId}${PISO_NA_CHAVE}`)) byScene.delete(key)
-  }
 }
 
 /**
@@ -3318,217 +3032,6 @@ interface PlayerRecord {
   /** CONTAS: entrou com a conta. É por ela (e não pelo nome) que volta a ser ele, de outro aparelho. */
   conta?: ContaNaSala
 }
-
-/**
- * A última tela que uma CONEXÃO recebeu, e de quais entradas ela saiu. É o que
- * deixa o broadcast mandar só o que mudou: o mapa da cena (referência — o
- * `mapStore` e o cache da aventura trocam o objeto a cada edição, nunca o
- * alteram no lugar), o raio, a posse e a memória do jogador.
- */
-interface SentView {
-  playerId: string
-  /** Mapa da cena de onde a tela saiu; `null` = a espera (sem cena). */
-  map: MapData | null
-  radius: number
-  ownershipRev: number
-  memory: PlayerMemory | undefined
-  /** CABINE DE TRANSPORTE: as mesmas entradas de `ViewInputs.cabines`/`ocupadas`. */
-  cabines: readonly CabineDeTransporte[] | undefined
-  ocupadas: string
-  /** O que a conexão tem na tela; `null` = a espera. É de onde sai o próximo `patch`. */
-  view: PlayerViewContent | null
-  /**
-   * Os campos do snapshot que o `patch` NÃO leva (batalha, perigo,
-   * portas por atravessar…), em JSON; `null` = a espera. Mudou algum: vai o
-   * snapshot inteiro, senão o jogador ficaria com o de antes.
-   */
-  extras: string | null
-  /** `rev` da última tela que a conexão recebeu: a `base` do próximo `patch`. */
-  rev: number
-  /**
-   * Caracteres do JSON da última tela INTEIRA que a conexão recebeu (0 = não
-   * medida: espera, ou conexão que não aplica `patch`). Decide se vale
-   * mandar `patch` (`PATCH_MIN_SNAPSHOT_LENGTH`).
-   */
-  snapshotLength: number
-  /**
-   * O último recálculo, com estas MESMAS entradas, repetiu a tela e deixou a
-   * memória como estava: recalcular de novo daria o mesmo, e o recorte pode
-   * ser pulado. O primeiro recálculo depois de uma mudança nunca é estável — a
-   * marcação do explorado pode mostrar mais no seguinte.
-   */
-  stable: boolean
-  /**
-   * As entradas de `lastViews` (`ViewInputs`: `viewEpoch` do "Quem vê", da
-   * espera e do kick, mapas das outras cenas onde ele tem ficha); `null` = a
-   * espera. Sem elas, o atalho do `stable` pularia o que só sobe o epoch.
-   */
-  inputs: ViewInputs | null
-  /** Vez da iniciativa, hora do relógio e fator de visão, em JSON: entram na tela sem mudar o mapa. */
-  session: string
-}
-
-type SnapshotMessage = Extract<HostMessage, { type: 'snapshot' }>
-
-/** O que sai na tela do jogador, sem o `rev` (que muda a cada broadcast). */
-function contentOf(msg: SnapshotMessage): PlayerViewContent {
-  // Caça 12/11 (O2): as portas por atravessar mudam a cada passo na cidade; nos extras, cada passo ia inteiro (~300 kB).
-  // QUEDA DO ALCANCE (peça D das sombras): os olhares mudam a cada passo, como a visão; vão no patch junto dela.
-  const tela: PlayerViewContent = { map: msg.map, vision: msg.vision, explored: msg.explored, ownTokens: msg.ownTokens, concealed: msg.concealed, porAtravessar: msg.porAtravessar ?? [], olhares: msg.olhares ?? [] }
-  // TERRENO ALTO: no patch, não nos extras — o passo de uma ficha do piso de baixo ia como a tela inteira, com as fotos.
-  if (msg.alto !== undefined) tela.alto = msg.alto
-  // MODO BATALHA (análise 18/11, 2.2): o caminho andado muda a cada passo em batalha; nos extras, cada passo ia como a tela inteira.
-  if (msg.caminhos !== undefined) tela.caminhos = msg.caminhos
-  return tela
-}
-
-/**
- * O resto do snapshot (fora `contentOf`, `type` e `rev`), em JSON: batalha,
- * perigo, andares, relógio… O `patch` não leva nada disto — o jogador mantém
- * o que já tinha —, então mudou, vai inteiro. As portas por atravessar vão no patch (`contentOf`).
- */
-function extrasOf(msg: SnapshotMessage): string {
-  const rest: Partial<SnapshotMessage> = { ...msg }
-  delete rest.type
-  delete rest.rev
-  delete rest.map
-  delete rest.vision
-  delete rest.explored
-  delete rest.ownTokens
-  delete rest.concealed
-  delete rest.porAtravessar
-  delete rest.olhares
-  delete rest.alto
-  delete rest.caminhos
-  return JSON.stringify(rest)
-}
-
-/** Mesmas entradas, item a item (a planta lembrada guarda o objeto do mapa, não cópia). */
-function samePlan(a: PlanMemory, b: PlanMemory): boolean {
-  const keys = ['walls', 'floor', 'regions', 'drawings', 'markers', 'lines', 'stairs', 'pins'] as const // chaves de PlanMemory, conferidas pelo tsc
-  return keys.every((key) => {
-    const left: ReadonlyMap<string, unknown> = a[key]
-    const right: ReadonlyMap<string, unknown> = b[key]
-    if (left.size !== right.size) return false
-    for (const [id, item] of left) if (right.get(id) !== item) return false
-    return true
-  }) && sameConstrucoes(a.construcoes, b.construcoes)
-}
-
-/** CONSTRUÇÕES lembradas (12/11/2026, campo opcional da planta): ausente conta como vazio. */
-function sameConstrucoes(a: PlanMemory['construcoes'], b: PlanMemory['construcoes']): boolean {
-  const left = a ?? new Map()
-  const right = b ?? new Map()
-  if (left.size !== right.size) return false
-  for (const [id, item] of left) if (right.get(id) !== item) return false
-  return true
-}
-
-/**
- * O explorado ganhou célula que o recorte anterior não tinha (`before`):
- * mesa retomada, memória por ficha, mapa de papel, planta revelada, "Dar o que
- * o grupo viu". Sem recorte anterior, qualquer célula conta.
- */
-function explorationGrewSince(exp: Exploration, before: Uint8Array | undefined): boolean {
-  const bits = exp.bits
-  if (before === undefined || before.length !== bits.length) return bits.some((byte) => byte !== 0)
-  for (let i = 0; i < bits.length; i += 1) if ((bits[i] & ~before[i]) !== 0) return true
-  return false
-}
-
-/**
- * A memória da planta de um recorte feito sem ela (`explorationGrewSince`): a
- * versão do mestre de cada item que saiu ao jogador. Peça recortada (zona,
- * cone) tem outro id e fica de fora, como em `planOfWholeMap`.
- */
-/** A cópia "revelada" de cada parede invisível: a mesma a cada recorte, para a planta lembrada não mudar à toa. */
-const paredeRevelada = new WeakMap<Wall, Wall>()
-/** O mapa com as paredes reveladas, por mapa e por conjunto: o mesmo objeto enquanto nada muda. */
-const mapaRevelado = new WeakMap<MapData, Map<string, MapData>>()
-
-/**
- * MODO BATALHA (regra de 27/10, esbarrar REVELA): o mapa como o recorte DESTE
- * jogador o lê — as paredes invisíveis em que ele esbarrou viram parede comum.
- * Sem nenhuma, o próprio mapa.
- */
-function comParedesReveladas(map: MapData, reveladas: ReadonlySet<string> | undefined): MapData {
-  if (reveladas === undefined || reveladas.size === 0) return map
-  const chave = [...reveladas].sort().join('\u0000')
-  const porConjunto = mapaRevelado.get(map) ?? new Map<string, MapData>()
-  const pronto = porConjunto.get(chave)
-  if (pronto !== undefined) return pronto
-  let mudou = false
-  const walls = map.walls.map((w) => {
-    if (w.hidden !== true || !reveladas.has(w.id)) return w
-    mudou = true
-    const copia = paredeRevelada.get(w) ?? { ...w, hidden: false }
-    paredeRevelada.set(w, copia)
-    return copia
-  })
-  const mapa = mudou ? { ...map, walls } : map
-  porConjunto.set(chave, mapa)
-  mapaRevelado.set(map, porConjunto)
-  return mapa
-}
-
-function planOfSent(map: MapData, sent: MapData): PlanMemory {
-  const keep = <T extends { id: string }>(all: readonly T[], out: readonly { id: string }[]): Map<string, T> => {
-    const ids = new Set(out.map((item) => item.id))
-    return new Map(all.filter((item) => ids.has(item.id)).map((item) => [item.id, item]))
-  }
-  return {
-    walls: keep(map.walls, sent.walls),
-    floor: keep(map.floor, sent.floor),
-    regions: keep(map.regions, sent.regions),
-    drawings: keep(map.drawings, sent.drawings),
-    markers: keep(map.markers, sent.markers),
-    lines: keep(map.lines, sent.lines),
-    stairs: keep(map.stairs, sent.stairs),
-    pins: keep(map.pins ?? [], sent.pins ?? []),
-    // CONSTRUÇÕES (12/11/2026): a que saiu no recorte fica lembrada, como o telhado.
-    construcoes: keep(map.props.filter((p) => ehConstrucao(p.mobilia)), sent.props),
-  }
-}
-
-function doorsKey(doors: ReadonlyMap<string, DoorState>): string {
-  return JSON.stringify([...doors])
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
-  return true
-}
-
-/** O último explorado codificado de cada memória: o que ele era (cópia dos bits) e o que saiu. */
-const lastEncoded = new WeakMap<Exploration, { cell: number; cols: number; rows: number; bits: Uint8Array; rings: MemoryRing[]; ringCount: number; wire: ExploredWire }>()
-
-/**
- * `encodeExploration` que devolve o MESMO objeto quando o explorado não mudou
- * desde a última vez (os bits iguais, byte a byte, e os anéis: a lista só
- * cresce por `push` ou é trocada inteira). No mapa 200x200 eram ~107 KB de
- * base64 refeitos a cada passo do NPC que o mestre arrasta; e o mesmo objeto
- * faz o patch resolver o explorado por identidade.
- */
-function encodeExplorationKept(exp: Exploration): ExploredWire {
-  if (!cacheDoRecorte.ligado) return encodeExploration(exp)
-  const kept = lastEncoded.get(exp)
-  if (
-    kept !== undefined &&
-    kept.cell === exp.cell &&
-    kept.cols === exp.cols &&
-    kept.rows === exp.rows &&
-    kept.rings === exp.rings &&
-    kept.ringCount === exp.rings.length &&
-    sameBytes(kept.bits, exp.bits)
-  ) {
-    return kept.wire
-  }
-  const wire = encodeExploration(exp)
-  lastEncoded.set(exp, { cell: exp.cell, cols: exp.cols, rows: exp.rows, bits: exp.bits.slice(), rings: exp.rings, ringCount: exp.rings.length, wire })
-  return wire
-}
-
 
 /** Como uma entrada do "?" (P5) entra no caderno: a chave, o conteúdo e, na fala, o tipo e quem disse. */
 interface PistaDaFala {
