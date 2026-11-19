@@ -131,9 +131,13 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnic
   const [desfazendo, setDesfazendo] = useState<string | null>(null)
   const kiVoltou = useKiQueVoltou(vista)
   const { janela } = vista
-  // A reação da janela aberta vai para a caixa embaixo; o resto fica no menu.
+  // A reação da janela aberta vai para a caixa embaixo, no meio. Conserto de 18/11/2026 ("às vezes fica na lateral
+  // em vez do meio"): toda resposta que a mesa espera DELE agora (a pendência ativa: teste, salvaguarda, Choque,
+  // a reação sem janela à vista) e a declaração da iniciativa vão para o meio também. No menu fica só a fila.
   const reacoes = janela === null ? [] : vista.pendencias.filter((pendencia) => pendencia.tipo === 'reacao' && pendencia.id === janela.pendenciaId)
   const outras = vista.pendencias.filter((pendencia) => !reacoes.includes(pendencia))
+  const agora = outras.filter((pendencia) => pendencia.ativa)
+  const naFila = outras.filter((pendencia) => !pendencia.ativa)
   const desde = useDesde(reacoes.map((pendencia) => pendencia.id))
 
   /** true = enviado sem recusa (sem resposta do host conta como enviado). */
@@ -214,25 +218,17 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnic
           </p>
         )}
 
-        {vista.declaracoes.map((declaracao) => (
-          <Declaracao
-            key={declaracao.combatenteId}
-            declaracao={declaracao}
-            nome={nomeDe(declaracao.combatenteId)}
-            ocupado={ocupado}
-            onDeclarar={(transformacaoId) => void executar(() => enviar.declarar({ combatenteId: declaracao.combatenteId, transformacaoId }))}
-          />
-        ))}
+        {(agora.length > 0 || vista.declaracoes.length > 0) && (
+          <p className="dbb-espera" role="status">
+            A mesa espera a sua resposta, no meio da tela.
+          </p>
+        )}
 
-        {outras.map((pendencia) => (
-          <section key={`${pendencia.id}-${pendencia.combatenteId}`} className={pendencia.ativa ? 'dbb-cartao' : 'dbb-cartao dbb-cartao--calmo'} aria-label={pendencia.texto}>
+        {naFila.map((pendencia) => (
+          <section key={`${pendencia.id}-${pendencia.combatenteId}`} className="dbb-cartao dbb-cartao--calmo" aria-label={pendencia.texto}>
             <p className="dbb-cartao__t">{pendencia.texto}</p>
             {vista.meus.length > 1 && <p className="dbb-cartao__d">Responde: {nomeDe(pendencia.combatenteId)}</p>}
-            {pendencia.ativa ? (
-              <RespostasDaPendencia opcoes={pendencia.opcoes} ocupado={ocupado} onResponder={responder(pendencia)} />
-            ) : (
-              <p className="dbb-espera">Na fila: responde quando chegar a vez desta.</p>
-            )}
+            <p className="dbb-espera">Na fila: responde quando chegar a vez desta.</p>
           </section>
         ))}
 
@@ -285,18 +281,35 @@ export function BatalhaDoJogadorDBT({ vista, enviar, recusa = null, mira, tecnic
         </div>
       </aside>
 
-      {janela !== null && reacoes.length > 0 && (
-        <div className="dbf dbb dbb-jogador-reacao">
-          {reacoes.map((pendencia) => (
-            <CaixaDeReacaoDBT
-              key={`${pendencia.id}-${pendencia.combatenteId}`}
-              golpe={golpeDaJanela(janela)}
-              reator={nomeDe(pendencia.combatenteId)}
-              opcoes={pendencia.opcoes}
-              desde={desde.get(pendencia.id) ?? null}
+      {(reacoes.length > 0 || agora.length > 0 || vista.declaracoes.length > 0) && (
+        <div className="dbf dbb dbb-jogador-reacao" role="region" aria-label="A mesa espera a sua resposta">
+          {vista.declaracoes.map((declaracao) => (
+            <Declaracao
+              key={declaracao.combatenteId}
+              declaracao={declaracao}
+              nome={nomeDe(declaracao.combatenteId)}
               ocupado={ocupado}
-              onResponder={responder(pendencia)}
+              onDeclarar={(transformacaoId) => void executar(() => enviar.declarar({ combatenteId: declaracao.combatenteId, transformacaoId }))}
             />
+          ))}
+          {janela !== null &&
+            reacoes.map((pendencia) => (
+              <CaixaDeReacaoDBT
+                key={`${pendencia.id}-${pendencia.combatenteId}`}
+                golpe={golpeDaJanela(janela)}
+                reator={nomeDe(pendencia.combatenteId)}
+                opcoes={pendencia.opcoes}
+                desde={desde.get(pendencia.id) ?? null}
+                ocupado={ocupado}
+                onResponder={responder(pendencia)}
+              />
+            ))}
+          {agora.map((pendencia) => (
+            <section key={`${pendencia.id}-${pendencia.combatenteId}`} className="dbb-cartao" aria-label={pendencia.texto}>
+              <p className="dbb-cartao__t">{pendencia.texto}</p>
+              {vista.meus.length > 1 && <p className="dbb-cartao__d">Responde: {nomeDe(pendencia.combatenteId)}</p>}
+              <RespostasDaPendencia opcoes={pendencia.opcoes} ocupado={ocupado} onResponder={responder(pendencia)} />
+            </section>
           ))}
         </div>
       )}

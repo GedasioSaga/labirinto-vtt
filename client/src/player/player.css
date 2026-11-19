@@ -1105,11 +1105,12 @@
  */
 .pp-batalha-recusa-lugar {
   position: fixed;
-  left: 50%;
+  /* No meio do MAPA à vista: com a coluna do painel aberta, o meio da janela caía ao lado dela (18/11/2026). */
+  left: calc(50% + var(--pp-painel-ocupa, 0px) / 2);
   bottom: calc(var(--pp-chao, 12px) + 64px);
   z-index: 10;
   width: max-content;
-  max-width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px)));
+  max-width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px) - var(--pp-painel-ocupa, 0px)));
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -1156,21 +1157,35 @@
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
+/*
+ * Conserto de 18/11/2026 ("às vezes as coisas da batalha ficam na lateral em vez do meio"): o botão e a
+ * caixa REAÇÃO (e o aviso da recusa, acima) ficavam no meio da JANELA. Com a coluna do painel aberta
+ * (`--pp-painel-ocupa`), o meio da janela cai ao lado do painel: a caixa abria encostada nele, por cima
+ * da borda dele, longe do meio do mapa. Agora o meio é o do mapa à vista (o que sobra à direita do
+ * painel), e a caixa encolhe para caber nele. Painel fechado ou gaveta: `--pp-painel-ocupa` é 0 e nada muda.
+ */
 .pp-batalha-reacao-botao {
   position: fixed;
-  left: 50%;
+  left: calc(50% + var(--pp-painel-ocupa, 0px) / 2);
   bottom: calc(var(--pp-chao, 12px) + 8px);
   translate: -50% 0;
   z-index: 9;
 }
 .pp-batalha-reacao {
   position: fixed;
-  left: 50%;
-  bottom: calc(var(--pp-chao, 12px) + 68px);
-  translate: -50% 0;
+  left: calc(50% + var(--pp-painel-ocupa, 0px) / 2);
+  bottom: calc(var(--pp-chao, 12px) + 58px);
+  /* A sombra de sangue da caixa sai 8 px para a direita e para baixo (combate.css `.bt-reacao::after`): sem
+     esta folga ela contava como conteúdo que não cabe, e a caixa ganhava as duas barras de rolagem mesmo
+     cabendo inteira. A folga entra na conta do meio (5 px para a direita) e do pé (10 px a menos). */
+  padding: 0 10px 10px 0;
+  translate: calc(-50% + 5px) 0;
   z-index: 11;
-  max-height: calc(100% - 140px);
+  max-height: calc(100% - 130px);
   overflow-y: auto;
+}
+.pp-batalha-reacao > .bt-reacao {
+  width: min(540px, calc(100vw - 24px - var(--pp-painel-ocupa, 0px)));
 }
 
 /* Janela estreita: a faixa desce para baixo da barra (largura toda); o menu

@@ -6,6 +6,7 @@ import { efeitosDaCenaDBT, useBatalhaDBTStore } from '../../../stores/batalhaDBT
 import '../ficha/fichaDBT.css'
 import './batalhaDBT.css'
 import { NOME_DA_FAIXA } from './dadosDaBatalhaDBT'
+import { PendenciaNoCentroDBT } from './PendenciaNoCentroDBT'
 
 /**
  * OS EFEITOS DA BATALHA DBT sobre o mapa (seção 19, `EfeitosDBT`): um aviso
@@ -293,7 +294,14 @@ export function EfeitosDoMestreDBT({ sceneKey, consulta }: EfeitosDoMestreDBTPro
     }
   }, [combatentes])
   if (cena === undefined) return null
-  return <EfeitosDBT efeitos={efeitos} consulta={consulta} registro={cena.registro} formaDe={leitores.formaDe} condicaoDe={leitores.condicaoDe} />
+  return (
+    <>
+      <EfeitosDBT efeitos={efeitos} consulta={consulta} registro={cena.registro} formaDe={leitores.formaDe} condicaoDe={leitores.condicaoDe} />
+      {/* 18/11/2026: o que espera o mestre abre no MEIO do mapa (antes só na página Batalha do livro, na lateral).
+          Montada aqui porque este componente já mora na área do mapa, ao lado da carta REAÇÃO do One Piece. */}
+      <PendenciaNoCentroDBT sceneKey={sceneKey} />
+    </>
+  )
 }
 
 export interface EfeitosDoJogadorDBTProps {

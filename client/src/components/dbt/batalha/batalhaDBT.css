@@ -691,6 +691,56 @@
   text-align: left;
 }
 
+/*
+ * ---------- Mestre: a pendência ativa no MEIO do mapa (`PendenciaNoCentroDBT`, 18/11/2026) ----------
+ * O mesmo lugar da carta REAÇÃO do One Piece (vezNoCentro.css `.bt-reacao-no-centro`): entre os livros,
+ * abaixo da faixa da ordem, acima da barra do pé. O invólucro não pega clique: o mapa em volta segue
+ * clicável (a mira escolhe o alvo nele). Recolhida: só o aviso curto, no alto à direita do lugar.
+ */
+.dbb-centro-do-mestre {
+  position: absolute;
+  top: var(--bt-centro-topo, 300px);
+  bottom: var(--bt-centro-base, 118px);
+  left: calc(var(--lb-livroesq-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  right: calc(var(--lb-coldir-espaco, var(--lb-layout-livro-do-mestre, 0px)) + var(--lb-layout-edge-gap, 16px));
+  z-index: 10;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  pointer-events: none;
+}
+.dbb-centro-do-mestre > * {
+  pointer-events: auto;
+}
+.dbb-centro-do-mestre > .dbb {
+  flex: none;
+  width: min(480px, 100% - 8px);
+  max-height: 100%;
+  margin-block: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  box-shadow: var(--lb-shadow-md);
+}
+.dbb-centro-do-mestre__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dbb-centro-do-mestre[data-recolhida='sim'] {
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 10px 10px 0 0;
+}
+.dbb-centro-do-mestre[data-recolhida='sim'] > .dbf-btn {
+  max-width: min(360px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--lb-shadow-md);
+}
+
 /* ---------- Jogador: o menu da vez à esquerda, a reação embaixo no meio ---------- */
 .dbb-jogador-menu {
   position: fixed;
@@ -706,10 +756,11 @@
 }
 .dbb-jogador-reacao {
   position: fixed;
-  left: 50%;
+  /* No meio do MAPA à vista: com a coluna do painel aberta, o meio da janela caía ao lado dela (18/11/2026). */
+  left: calc(50% + var(--pp-painel-ocupa, 0px) / 2);
   bottom: calc(var(--pp-chao, 12px) + 12px);
   z-index: 10;
-  width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px)));
+  width: min(420px, calc(100vw - 2 * var(--pp-edge, 12px) - var(--pp-painel-ocupa, 0px)));
   translate: -50% 0;
   max-height: 60vh;
   overflow-y: auto;
