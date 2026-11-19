@@ -243,6 +243,22 @@ function ultimoTrecho(caminho: string): string {
 }
 
 /**
+ * UM NOME SÓ: o nome do mapa aberto como o card do "Carregar Mapa" o mostra —
+ * o do mapa da raiz quando a aventura tem um (aberto ou no cache); sem ele, o
+ * da aventura. O link do roteiro não mostra um nome com o mapa aberto e outro
+ * com ele fechado (`lerTodosOsMapas` lê o do card).
+ */
+function nomeDoCard({ aventura, aberto }: LojasDoMapa): string {
+  const { adventure, activeSceneId, cache } = aventura
+  if (adventure === null) return aberto.name
+  const raiz = adventure.scenes.find((cena) => ehArquivoDaRaiz(cena.file))
+  if (raiz === undefined) return adventure.name
+  if (raiz.id === activeSceneId) return aberto.name
+  const slot = cache[raiz.id]
+  return slot !== undefined && slot.status === 'ok' ? slot.map.name : adventure.name
+}
+
+/**
  * A chave do mapa aberto como a lista de mapas a dá: a da pasta de mapas; na
  * aventura, o nome da pasta dela; no mapa solto, o id dele (`listSavedMaps`).
  */
@@ -252,7 +268,7 @@ export function mapaNaMemoria({ aventura, aberto }: LojasDoMapa): MapaNaMemoria 
   if (chave === '') return null
   return {
     chave,
-    nome: adventure?.name ?? aberto.name,
+    nome: nomeDoCard({ aventura, aberto }),
     cenas: adventure === null ? null : cenasDaAventura(adventure.scenes),
     pinosDa: (sceneId) => {
       if (adventure === null) return sceneId === '' ? pinosDoMapa(aberto.pins) : undefined

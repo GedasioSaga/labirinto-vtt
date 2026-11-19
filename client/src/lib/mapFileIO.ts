@@ -499,7 +499,40 @@ export async function renameMap(id: string, newName: string): Promise<string> {
   // Renomear não é jogar: o mapa guarda a hora do último salvar (`lib/mochila/horaDoSalvar.ts`).
   const savedAtMs = await lastSaveMsOf(mapJsonPath, content)
   await writeTextFileSafely(mapJsonPath, comHoraDoSalvar(serializeMap({ ...map, name: finalName }), savedAtMs))
+  const adventure = await adventureBeside(mapDir)
+  if (adventure !== null) {
+    await writeTextFileSafely(adventure.path, serializeAdventure(comNomeDoCard(adventure.dados, map.name, finalName)))
+  }
   return finalName
+}
+
+/** O arquivo da cena que mora na raiz da pasta do mapa: é o nome DELE que o card do "Carregar Mapa" mostra. */
+const ROOT_SCENE_FILE = 'map.json'
+
+/**
+ * O `adventure.json` ao lado do `map.json` da raiz, lido. `null` = mapa solto,
+ * ou aventura ilegível — renomear e duplicar seguem só com o mapa, como antes.
+ */
+async function adventureBeside(mapDir: string): Promise<{ path: string; dados: Adventure } | null> {
+  const path = await join(mapDir, ADVENTURE_FILE)
+  if (!(await exists(path))) return null
+  try {
+    return { path, dados: parseAdventure(await readTextFile(path)) }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * UM NOME SÓ: o nome do card passa a ser também o da aventura (o que o
+ * Prelúdio mostra com ela aberta). A cena da raiz acompanha quando é a única
+ * (o mapa É a cena) ou quando ainda tinha o nome de antes; cena que o mestre
+ * renomeou por conta própria numa aventura de várias cenas fica como está.
+ */
+function comNomeDoCard(adventure: Adventure, nomeDeAntes: string, nome: string): Adventure {
+  const sozinha = adventure.scenes.length === 1
+  const scenes = adventure.scenes.map((entry) => (entry.file === ROOT_SCENE_FILE && (sozinha || entry.name === nomeDeAntes) ? { ...entry, name: nome } : entry))
+  return { ...adventure, name: nome, scenes }
 }
 
 /**
@@ -586,6 +619,16 @@ export async function duplicateMap(id: string): Promise<SavedMapEntry> {
   const savedAtMs = await lastSaveMsOf(sourceMapJsonPath, sourceContent)
   await writeTextFileSafely(destMapJsonPath, comHoraDoSalvar(serializeMap(duplicated), savedAtMs))
 
+  // Aventura com `map.json` na raiz: a cópia crua trouxe o `adventure.json` com o MESMO `adventure.id`. A mesa
+  // guardada (donos, névoa explorada, notas) é endereçada por esse id — sem um novo, a cópia herdava a névoa da
+  // original e, ao jogar, gravava por cima da dela. Mesmo conserto de `duplicateAdventure`, gravado por último.
+  const adventure = await adventureBeside(destDir)
+  if (adventure !== null) {
+    await rebaseCopiedScenes(adventure.dados, sourceDir, destDir)
+    const renewed = comNomeDoCard({ ...adventure.dados, id: `adv_${crypto.randomUUID()}` }, sourceMap.name, finalName)
+    await writeTextFileSafely(adventure.path, serializeAdventure(renewed))
+  }
+
   const info = await stat(destMapJsonPath)
   return {
     path: destMapJsonPath,
@@ -615,7 +658,25 @@ async function duplicateAdventure(sourceDir: string, adventurePath: string): Pro
   const newId = `adv_${crypto.randomUUID()}`
   const destDir = await mapDirFor(newId)
   await copyDirRecursive(sourceDir, destDir)
+  await rebaseCopiedScenes(adventure, sourceDir, destDir)
 
+  const finalName = uniqueMapName(sanitizeMapName(`${adventure.name} (cópia)`), existingNames)
+  const destAdventurePath = await join(destDir, ADVENTURE_FILE)
+  await writeTextFileSafely(destAdventurePath, serializeAdventure({ ...adventure, id: newId, name: finalName }))
+
+  // A entrada da cópia sai do mesmo lugar que a lista usa: cena inicial que
+  // não abre volta marcada, como voltaria no card da origem.
+  return listedAdventure(destAdventurePath, destDir, newId)
+}
+
+/**
+ * As cenas de uma aventura recém-copiada de `sourceDir` para `destDir`: as
+ * imagens que moravam na pasta de origem passam a apontar para a da cópia
+ * (`rebaseMapImagePaths`) — sem isto, apagar a original deixava a cópia sem
+ * fundo e sem token. Cena ilegível (ou com caminho recusado por `scenePath`)
+ * fica como a cópia crua trouxe, sem derrubar a duplicação.
+ */
+async function rebaseCopiedScenes(adventure: Adventure, sourceDir: string, destDir: string): Promise<void> {
   for (const scene of adventure.scenes) {
     try {
       const path = await scenePath(destDir, scene.file)
@@ -631,14 +692,6 @@ async function duplicateAdventure(sourceDir: string, adventurePath: string): Pro
       // Cena que não abre: a cópia leva o arquivo como estava, igual à origem.
     }
   }
-
-  const finalName = uniqueMapName(sanitizeMapName(`${adventure.name} (cópia)`), existingNames)
-  const destAdventurePath = await join(destDir, ADVENTURE_FILE)
-  await writeTextFileSafely(destAdventurePath, serializeAdventure({ ...adventure, id: newId, name: finalName }))
-
-  // A entrada da cópia sai do mesmo lugar que a lista usa: cena inicial que
-  // não abre volta marcada, como voltaria no card da origem.
-  return listedAdventure(destAdventurePath, destDir, newId)
 }
 
 /**

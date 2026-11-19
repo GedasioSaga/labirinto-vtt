@@ -1737,13 +1737,27 @@ export const useAdventureStore = create<AdventureState>()((set, get) => ({
   },
 
   renameScene: (sceneId, name) => {
-    const { adventure } = get()
+    const { adventure, activeSceneId } = get()
     if (adventure === null) return
     const sceneName = cleanSceneName(name)
+    // UM NOME SÓ: na aventura de uma cena só, a cena É o mapa — o nome dela vale também para a aventura e para o
+    // mapa (o card do "Carregar Mapa" e o Prelúdio leem de lá). Com várias cenas, cada cena tem o nome dela e o
+    // do card muda no card (`renameMap`).
+    const sozinha = adventure.scenes.length === 1 && adventure.scenes[0].id === sceneId
     set({
-      adventure: { ...adventure, scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)) },
+      adventure: {
+        ...adventure,
+        ...(sozinha ? { name: sceneName } : {}),
+        scenes: adventure.scenes.map((entry) => (entry.id === sceneId ? { ...entry, name: sceneName } : entry)),
+      },
       structureDirty: true,
     })
+    if (!sozinha || sceneId !== activeSceneId) return
+    const { map, past, future } = useMapStore.getState()
+    if (map.name === sceneName) return
+    // Fora do Ctrl+Z, como o nome na lista: o desfazer de outra coisa não traz o nome velho de volta.
+    const renomear = (mapa: MapData): MapData => ({ ...mapa, name: sceneName })
+    useMapStore.setState({ map: renomear(map), past: past.map(renomear), future: future.map(renomear) })
   },
 
   duplicateScene: (sceneId, playerTokenIds = new Set()) => {
