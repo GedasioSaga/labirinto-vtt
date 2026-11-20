@@ -102,9 +102,11 @@ describe('App: livro da mesa', () => {
     // A esquerda: o livro do mestre, sem as Cenas; as abas dele são as páginas, não Jogo e Chat.
     expect(livro()).not.toBeNull()
     expect(botao('Cenas', false, livro() ?? container)).toBeUndefined()
-    const abas = Array.from(livro()?.querySelectorAll('[role="tab"]') ?? []).map((aba) => aba.textContent)
+    // Só os marcadores: a página Jogos tem abas próprias (Ação, Objetos e Puzzles, desde a P6).
+    const abas = Array.from(livro()?.querySelectorAll('[role="tablist"][aria-label="Páginas do livro do mestre"] [role="tab"]') ?? []).map((aba) => aba.textContent)
     // Jogos (15/11/2026): a página dos desafios e dos baús, caixas e barris (`components/livro/PaginaJogos`).
-    expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo', 'Jogos'])
+    // Documentos (D2, 19/11/2026): a página dos documentos do mestre.
+    expect(abas).toEqual(['Ficha', 'Cena', 'Aventura', 'Acervo', 'Jogos', 'Documentos'])
     // Navegador puro: sem sala, o livro da mesa só tem os marcadores Cenas, Batalha (F2), Sons e Cutscenes e nenhum topo da Sala.
     // Só a lista de marcadores: a página Sons tem abas próprias (Músicas e Efeitos sonoros).
     const marcadores = direita?.querySelectorAll('[role="tablist"][aria-label="Páginas do livro da mesa"] [role="tab"]')
