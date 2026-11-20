@@ -1,0 +1,754 @@
+/*
+ * A TELA DO JOGADOR NO PUZZLE (TelaDoPuzzle.tsx): o quadro de perto, a gaveta
+ * da mochila e o cartão do desfecho. Portado do protótipo aprovado
+ * (docs/design/puzzles/prototipo-v2.html: .pz, .mochila, .item, .resultado,
+ * .aviso, .fantasma). O quadro em si é do QuadroDoPuzzle.css.
+ *
+ * Tudo sob .tpz, com classes tpz-*, e só com os tokens --lb-* do tema: a página
+ * do jogador não carrega main.css nem o grimório (folhaSemGrimorio.test.ts).
+ */
+
+.tpz {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px 16px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--lb-color-ink);
+  color: var(--lb-color-parchment);
+  font: 400 var(--lb-font-size-md) / 1.45 var(--lb-font-sans);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  /* A saída: some rápido, o jogador já decidiu sair. */
+  transition: opacity 140ms var(--lb-gr-ease-out);
+}
+
+.tpz[data-saindo] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A entrada: um fade curto (entrar num puzzle é ocasional, não cem vezes por dia). */
+@media (prefers-reduced-motion: no-preference) {
+  .tpz {
+    animation: tpz-aparece 200ms var(--lb-gr-ease-out);
+  }
+}
+
+@keyframes tpz-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .tpz {
+    grid-template-columns: minmax(0, 1fr) 276px;
+    gap: 10px 12px;
+    padding: 10px 12px;
+  }
+}
+
+.tpz *,
+.tpz *::before,
+.tpz *::after {
+  box-sizing: border-box;
+}
+
+.tpz :is(h1, h2, h3, p, ul) {
+  margin: 0;
+}
+
+.tpz button {
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tpz :focus-visible {
+  outline: none;
+  box-shadow: var(--lb-shadow-focus);
+}
+
+.tpz kbd {
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+  border: 1px solid var(--lb-gr-filete-forte);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+.tpz .pp-ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------- botões (o .bt do protótipo) */
+
+.tpz-bt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--lb-radius-sm);
+  background: var(--lb-gr-cartao-alto);
+  border: 1px solid var(--lb-gr-filete-forte);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lb-motion-fast) ease,
+    border-color var(--lb-motion-fast) ease,
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out);
+}
+
+.tpz-bt:active {
+  transform: scale(0.97);
+}
+
+.tpz-bt--primario {
+  background: linear-gradient(180deg, var(--lb-gr-latao-1), var(--lb-gr-latao-2) 60%, #cf9440);
+  border-color: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+
+.tpz .tpz-bt--primario {
+  color: var(--lb-color-brass-contrast);
+}
+
+.tpz-bt--latao {
+  background: transparent;
+  border-color: var(--lb-gr-filete-latao);
+}
+
+.tpz .tpz-bt--latao {
+  color: var(--lb-color-brass-bright);
+}
+
+.tpz-bt--fantasma {
+  background: transparent;
+  border-color: transparent;
+}
+
+.tpz .tpz-bt--fantasma {
+  color: var(--lb-color-parchment-dim);
+}
+
+.tpz-bt--p {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: var(--lb-font-size-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tpz-bt:hover {
+    background-color: var(--lb-gr-hover-forte);
+  }
+
+  .tpz .tpz-bt--fantasma:hover {
+    color: var(--lb-color-parchment);
+  }
+}
+
+/* ---------------------------------------------------------------- a cena: cabeça, palco e pé */
+
+.tpz__cena {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tpz__cab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.tpz__titulo {
+  min-width: 0;
+  font: 400 var(--lb-font-size-xl) / 1.15 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+
+.tpz-chip {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 40%;
+  height: 24px;
+  padding: 0 9px 0 3px;
+  border-radius: 999px;
+  background: var(--lb-color-stone-raised);
+  border: 1px solid var(--lb-color-line);
+  font-size: var(--lb-font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tpz-chip__av {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--lb-color-brass);
+  color: var(--lb-color-brass-contrast);
+  font: 600 10px / 1 var(--lb-font-utility);
+}
+
+/* O palco é o contêiner: o quadro cabe inteiro em 16:10, pela largura ou pela altura. */
+.tpz__palco {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+
+.tpz__moldura {
+  width: min(100cqw, 160cqh);
+}
+
+.tpz__pe {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-height: 36px;
+}
+
+.tpz__estado {
+  flex: none;
+  font: 500 var(--lb-font-size-md) / 1.3 var(--lb-font-utility);
+}
+
+.tpz__estado b {
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+
+.tpz__dica {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+  font-size: var(--lb-font-size-sm);
+  line-height: 1.45;
+  color: var(--lb-color-parchment-dim);
+  overflow-wrap: anywhere;
+}
+
+.tpz__dica em {
+  font-style: normal;
+  color: var(--lb-gr-gravado);
+  font-family: var(--lb-font-display);
+  font-size: 13.5px;
+}
+
+/* ---------------------------------------------------------------- a gaveta da mochila (a grade do pp-inv) */
+
+.tpz__gaveta {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.tpz-mochila {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line-panel);
+  border-radius: var(--lb-radius-lg);
+  padding: 12px;
+  box-shadow: var(--lb-shadow-float);
+}
+
+.tpz-mochila__cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tpz-mochila__cab h2 {
+  font: 400 var(--lb-font-size-lg) / 1.2 var(--lb-font-display);
+}
+
+.tpz-mochila__cab span {
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass-bright);
+}
+
+.tpz-mochila__nota {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-faint);
+  line-height: 1.4;
+}
+
+.tpz-mochila__grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tpz-vaga {
+  aspect-ratio: 1;
+  min-width: 0;
+}
+
+.tpz-vaga--vazia {
+  border: 1px dashed var(--lb-color-line);
+  border-radius: var(--lb-radius-sm);
+}
+
+.tpz-item {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 3px 4px;
+  font: 500 var(--lb-font-size-xs) / 1.1 var(--lb-font-utility);
+  background: var(--lb-color-stone);
+  border: 1px solid var(--lb-color-line-strong);
+  border-radius: var(--lb-radius-sm);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition:
+    transform var(--lb-motion-fast) var(--lb-gr-ease-out),
+    opacity 120ms ease,
+    border-color var(--lb-motion-fast) ease;
+}
+
+.tpz .tpz-item {
+  color: var(--lb-color-parchment-dim);
+}
+
+.tpz-item img {
+  width: 62%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.tpz-item__inicial {
+  width: 58%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #d9b26a, #a07b3f 70%, #6e5328);
+  color: #2b1f0c;
+  font: 400 18px / 1 var(--lb-font-display);
+  pointer-events: none;
+}
+
+/* O que não é peça de puzzle (a corda, a poção) vai depois e mais apagado: nunca quer dizer "não serve". */
+.tpz-item--outro .tpz-item__inicial {
+  background: var(--lb-color-stone-raised);
+  color: var(--lb-color-parchment-dim);
+  box-shadow: inset 0 0 0 1px var(--lb-color-line-strong);
+}
+
+.tpz-item__nome {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tpz-item__qtd {
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  font: 600 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tpz .tpz-item:hover {
+    color: var(--lb-color-parchment);
+    border-color: var(--lb-color-line-divider);
+  }
+}
+
+/* O aperto responde na hora (o .item:active do v2). */
+.tpz-item:active {
+  transform: scale(0.97);
+  transition-duration: 0ms;
+}
+
+.tpz .tpz-item[aria-pressed='true'] {
+  color: var(--lb-color-parchment);
+  background: var(--lb-color-stone-raised);
+  border-color: var(--lb-color-parchment);
+  box-shadow: inset 0 0 0 1px var(--lb-color-parchment);
+}
+
+/* A peça que está no ar: a vaga fica fraca, o fantasma leva o desenho. */
+.tpz-item.is-levantado {
+  opacity: 0.3;
+}
+
+.tpz-item.is-novo::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lb-color-brass-bright);
+  box-shadow: 0 0 0 2px var(--lb-color-stone-solid);
+}
+
+.tpz-mochila__detalhe {
+  min-height: 76px;
+  padding: 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-sunken);
+  border: 1px solid var(--lb-color-line);
+}
+
+.tpz-mochila__detalhe h3 {
+  font: 400 var(--lb-font-size-lg) / 1.2 var(--lb-font-display);
+  margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+
+.tpz-mochila__detalhe p {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  line-height: 1.45;
+}
+
+.tpz-pv {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  color: var(--lb-color-parchment-dim);
+}
+
+.tpz-pv__barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lb-color-stone-sunken);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--lb-color-line);
+}
+
+.tpz-pv__barra i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #b4493c, #c75a4c);
+  transform-origin: left center;
+  transition: transform 260ms var(--lb-gr-ease-out);
+}
+
+/* ---------------------------------------------------------------- o fantasma da peça arrastada (o .fantasma do v2) */
+
+.tpz-fantasma {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 1;
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.55));
+  will-change: transform;
+}
+
+.tpz-fantasma img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tpz-fantasma__inicial {
+  width: 76%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #d9b26a, #a07b3f 70%, #6e5328);
+  color: #2b1f0c;
+  font: 400 26px / 1 var(--lb-font-display);
+}
+
+body.tpz-arrastando,
+body.tpz-arrastando * {
+  cursor: grabbing !important;
+}
+
+/* ---------------------------------------------------------------- o cartão do desfecho (o .resultado do v2), por cima do quadro */
+
+.tpz-veu {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 6, 0.5);
+  animation: tpz-aparece 240ms var(--lb-gr-ease-out) both;
+}
+
+.tpz-cartao {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(440px, 76%);
+  max-height: 92%;
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 18px 18px 16px;
+  border-radius: var(--lb-radius-lg);
+  background: rgba(21, 18, 14, 0.95);
+  border: 1px solid var(--lb-gr-filete-latao);
+  box-shadow: var(--lb-shadow-lg);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  color: var(--lb-color-parchment);
+  /* Modal no centro do quadro: cresce do centro, de 0,96, nunca do zero. */
+  animation: tpz-cartao-entra 260ms var(--lb-gr-ease-out) both;
+}
+
+@keyframes tpz-cartao-entra {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+
+.tpz-cartao__selo {
+  font: 500 var(--lb-font-size-xs) / 1 var(--lb-font-utility);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lb-color-brass-bright);
+}
+
+.tpz-cartao h2 {
+  font: 400 22px / 1.15 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+
+.tpz-cartao__por {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.tpz-cartao__texto {
+  font: 400 15px / 1.5 var(--lb-font-display);
+  max-width: 36ch;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.tpz-cartao__porta {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-brass-bright);
+}
+
+.tpz-cartao__itens {
+  width: 100%;
+  border-top: 1px solid var(--lb-gr-filete);
+  padding-top: 10px;
+}
+
+.tpz-cartao__itens p {
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.tpz-cartao__itens ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tpz-cartao__itens li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 10px 5px 6px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete);
+  overflow-wrap: anywhere;
+}
+
+.tpz-cartao__itens img,
+.tpz-cartao__itens .pp-ic {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.tpz-cartao__qtd {
+  color: var(--lb-color-parchment-dim);
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+}
+
+.tpz-cartao__moedas {
+  padding-left: 10px;
+  color: var(--lb-color-brass-bright);
+}
+
+.tpz-cartao__doc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-gr-cartao);
+  border: 1px solid var(--lb-gr-filete-latao);
+  text-align: left;
+}
+
+.tpz-cartao__doc p {
+  flex: 1;
+  font-size: var(--lb-font-size-sm);
+  color: var(--lb-color-parchment-dim);
+}
+
+.tpz-cartao__doc b {
+  display: block;
+  color: var(--lb-color-parchment);
+  font: 400 var(--lb-font-size-lg) / 1.2 var(--lb-font-display);
+  overflow-wrap: anywhere;
+}
+
+.tpz-mini-papel {
+  flex: none;
+  width: 30px;
+  height: 38px;
+  border-radius: 2px;
+  background: #efe6cf;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.tpz-mini-papel::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 9px;
+  height: 18px;
+  background: repeating-linear-gradient(to bottom, rgba(59, 47, 34, 0.45) 0 1.5px, transparent 1.5px 5px);
+}
+
+/* ---------------------------------------------------------------- o aviso (o Torrada do app, simplificado como no v2) */
+
+.tpz-aviso {
+  position: absolute;
+  left: 50%;
+  bottom: 72px;
+  z-index: 2;
+  max-width: min(560px, 80vw);
+  padding: 9px 14px;
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-solid);
+  border: 1px solid var(--lb-color-line-panel);
+  box-shadow: var(--lb-shadow-float);
+  font-size: var(--lb-font-size-md);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  /* Transição, não keyframe: um aviso atrás do outro retoma de onde estava. */
+  transition:
+    opacity 150ms ease,
+    transform 150ms var(--lb-gr-ease-out);
+}
+
+.tpz-aviso[data-visivel] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition-duration: 200ms;
+}
+
+.tpz-aviso[data-tom='perigo'] {
+  border-color: rgba(226, 100, 90, 0.45);
+  color: #f3b2aa;
+}
+
+.tpz-aviso[data-tom='latao'] {
+  border-color: var(--lb-gr-filete-latao);
+  color: var(--lb-color-brass-bright);
+}
+
+/* ---------------------------------------------------------------- movimento reduzido: nada anda, a opacidade fica */
+
+@media (prefers-reduced-motion: reduce) {
+  .tpz-bt,
+  .tpz-item,
+  .tpz-pv__barra i {
+    transition-property: opacity, background-color, border-color, color;
+  }
+
+  .tpz-bt:active,
+  .tpz-item:active {
+    transform: none;
+  }
+
+  .tpz-cartao {
+    animation-name: tpz-aparece;
+  }
+
+  .tpz-aviso,
+  .tpz-aviso[data-visivel] {
+    transform: translate(-50%, 0);
+  }
+}
