@@ -15,7 +15,7 @@
  * redesenha o SVG grande (PLANO §5.4, desempenho).
  */
 import { memo, useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
-import { classes, movimentoReduzido } from '../components/grimorio/comum'
+import { classes, movimentoReduzido } from '../lib/primitivosDaTela'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { svgDoModelo, temMolduraPorta } from './arte/modelos'
 import { PESO_MAX } from './tipos'

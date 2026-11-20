@@ -168,9 +168,9 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
   )
 
   const recusarNaTela = useCallback(
-    (motivo: MotivoDaRecusa, el: Element | null) => {
+    (texto: string, el: Element | null) => {
       tremer(el)
-      avisar({ texto: TEXTO_DA_RECUSA[motivo], tom: 'perigo' })
+      avisar({ texto, tom: 'perigo' })
     },
     [avisar],
   )
@@ -184,7 +184,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
       setLevantada(vagaId)
     },
     aoSoltar: porNoAlvo,
-    aoRecusar: (alvo, el) => recusarNaTela(motivoNaTela(vista, alvo, eu) ?? 'nao_encaixa', el),
+    aoRecusar: (alvo, el) => recusarNaTela(TEXTO_DA_RECUSA[motivoNaTela(vista, alvo, eu) ?? 'nao_encaixa'], el),
     aoTerminar: () => setLevantada(null),
   })
 
@@ -220,7 +220,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
       }
       if (naMao !== null) {
         const motivo = motivoNaTela(vista, { tipo: 'encaixe', id: encaixeId }, eu)
-        if (motivo !== null) recusarNaTela(motivo, botao)
+        if (motivo !== null) recusarNaTela(TEXTO_DA_RECUSA[motivo], botao)
         else porNoAlvo(naMao, { tipo: 'encaixe', id: encaixeId })
         return
       }
@@ -242,7 +242,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
       if (troca === null) return
       if (naMao !== null) {
         const motivo = motivoNaTela(vista, { tipo: 'bandeja' }, eu)
-        if (motivo !== null) recusarNaTela(motivo, botao)
+        if (motivo !== null) recusarNaTela(TEXTO_DA_RECUSA[motivo], botao)
         else porNoAlvo(naMao, { tipo: 'bandeja' })
         return
       }
@@ -334,7 +334,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica 
         case 'recusado': {
           const alvo = ultimoAlvo.current
           const el = alvo === null ? null : alvo.tipo === 'encaixe' ? elDoQuadro(seletorDoEncaixe(alvo.id)) : alvo.tipo === 'bandeja' ? elDoQuadro('[data-alvo="bandeja"]') : elDoQuadro('[data-pedestal]')
-          recusarNaTela(acontecimento.motivo, el)
+          recusarNaTela(acontecimento.texto, el)
           // A peça recusada continua na mão, como no v2.
           const enviada = ultimaEnviada.current
           if (enviada !== null && vista.mochila.some((vaga) => vaga.vagaId === enviada)) setEscolhida(enviada)

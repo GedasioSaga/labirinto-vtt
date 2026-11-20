@@ -13,6 +13,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { mochilaComItemDoAcervo } from '../../lib/items'
 import { agirNoPuzzle, progressoInicial } from '../../puzzles/motor'
 import { vistaDoPuzzle } from '../../puzzles/recorte'
+import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
 import type { AcaoNoPuzzle, DesfechoDoPuzzle, EfeitoDoPuzzle, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe, VistaDoPuzzle } from '../../puzzles/tipos'
 import type { CarriedItem } from '../../types/map'
 import type { AcontecimentoNoPuzzle, CastigoNaTela, CorpoDoAcontecimento, DesfechoNaTela, PvNaTela } from './tipos'
@@ -83,7 +84,7 @@ function passo(antes: EstadoLocal, mesa: Mesa, acao: AcaoNoPuzzle, rev: number):
   let ids = 0
   // Determinístico: o React pode chamar o atualizador duas vezes (StrictMode) e o resultado tem de ser o mesmo.
   const novoId = () => `vaga-local-${antes.proximo}-${(ids += 1)}`
-  if (rev !== antes.progresso.rev) return comAcontecimentos(antes, [{ tipo: 'recusado', motivo: 'velho' }])
+  if (rev !== antes.progresso.rev) return comAcontecimentos(antes, [{ tipo: 'recusado', texto: TEXTO_DA_RECUSA.velho }])
 
   const resultado = agirNoPuzzle(mesa.puzzle, antes.progresso, antes.mochila, acao, {
     quem: mesa.quem,
@@ -115,7 +116,7 @@ function acontecimentosDosEfeitos(efeitos: readonly EfeitoDoPuzzle[], mesa: Mesa
   return efeitos.flatMap((efeito): CorpoDoAcontecimento[] => {
     switch (efeito.tipo) {
       case 'recusado':
-        return [{ tipo: 'recusado', motivo: efeito.motivo }]
+        return [{ tipo: 'recusado', texto: TEXTO_DA_RECUSA[efeito.motivo] }]
       case 'errou':
         return [{ tipo: 'errou', em: efeito.em, castigo: castigar === undefined ? null : castigoNaTela(castigar.castigo) }]
       case 'juntou':

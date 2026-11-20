@@ -9,7 +9,7 @@
  * `puzzle.castigo` e `puzzle.resolvido` do §2.2: chegam só a quem cabem, e só
  * depois de acontecer (o castigo e o desfecho nunca vão antes).
  */
-import type { MotivoDaRecusa, TipoDeCastigo } from '../../puzzles/tipos'
+import type { TipoDeCastigo } from '../../puzzles/tipos'
 
 /** O castigo como chega a quem errou: o tipo, o texto do mestre (vazio = o padrão) e os PV que saíram. */
 export interface CastigoNaTela {
@@ -48,7 +48,11 @@ export interface PvNaTela {
 
 /** O acontecimento antes de ganhar o `id` (quem monta a lista é que numera). */
 export type CorpoDoAcontecimento =
-  | { tipo: 'recusado'; motivo: MotivoDaRecusa }
+  /**
+   * O texto já pronto: o do motor (`TEXTO_DA_RECUSA`) ou o da sala, que o motor
+   * não conhece ("Sua ficha está parada agora", `textoDaRecusaDoPuzzle`).
+   */
+  | { tipo: 'recusado'; texto: string }
   /** `castigo: null` = o mestre não pôs castigo ("Nada acontece"). */
   | { tipo: 'errou'; em: 'ordem' | 'peso'; castigo: CastigoNaTela | null }
   /** As duas metades se juntaram neste encaixe. */

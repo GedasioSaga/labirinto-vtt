@@ -161,9 +161,15 @@ interface PlayerPinCardProps {
    * se joga ali. A equipe continua vindo do mestre, pelo painel.
    */
   onApagarComBolhas?: () => void
+  /**
+   * PUZZLE: "Examinar" pede ao host para entrar no puzzle do selo, e a tela do
+   * puzzle abre quando a vista chegar. Apagado com a ficha longe. Ausente = o
+   * cartão só diz que há um mecanismo ali.
+   */
+  onExaminar?: () => void
 }
 
-const TEXTO_LONGE = 'Chegue mais perto para passar'
+const TEXTO_LONGE ='Chegue mais perto para passar'
 /**
  * O REGISTRO DOS JOGOS no cartão: o que cada um diz quando o mestre não
  * escreveu nada no pino (`vazio`) e quando quem chama é o mestre (`doMestre`).
@@ -195,6 +201,7 @@ const TEXTO_LONGE_DA_PESCA = 'Chegue mais perto para pescar.'
 /** Tiro "Jogador toca no pino" sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DO_TIRO_NO_PINO = 'Barraca de tiro. Encoste no pino e toque em "Atirar".'
 const TEXTO_LONGE_DO_TIRO = 'Chegue mais perto para atirar.'
+const TEXTO_LONGE_DO_PUZZLE = 'Chegue mais perto para examinar.'
 
 /** Nome da cabeça do pino para quem não vê o desenho: o que ela mostra no mapa. */
 function nomeDaCabeca(pin: PinDoCartao): string {
@@ -385,6 +392,7 @@ export function PlayerPinCard({
   onAtirar,
   onApagarFogo,
   onApagarComBolhas,
+  onExaminar,
 }: PlayerPinCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   /**
@@ -513,6 +521,8 @@ export function PlayerPinCard({
   const bolha = minigame && pin.minigameVisivel?.jogo === 'bolha' ? pin.minigameVisivel : null
   // O pedido de ajuda (quem pede e a fala) vem do fogo ou da bolha.
   const pedidoDeAjuda = fogo ?? bolha
+  // O PUZZLE sempre começa pelo jogador: o "Examinar" no lugar da frase do mestre.
+  const examinar = minigame && pin.minigameVisivel?.jogo === 'puzzle' && onExaminar !== undefined
   // O símbolo que o mestre escolheu (baú, armadilha…) é o que o jogador vê no
   // mapa: o cartão repete o mesmo desenho e o nome dele, em vez do "!" do
   // tipo. Nome desconhecido (versão futura) cai no glifo, como no mapa.
@@ -757,7 +767,16 @@ export function PlayerPinCard({
             Puxar a alavanca
           </button>
         )}
-        {minigame && pesca === null && tiro === null && fogo === null && bolha === null && (
+        {examinar && (
+          // Sem confirmação, como o "Pescar": a tela do puzzle abre quando o host mandar a vista.
+          <>
+            <button type="button" className="pp-pincard__travel" disabled={longe} onClick={onExaminar}>
+              Examinar
+            </button>
+            {longe && <p className="pp-itemcard__longe">{TEXTO_LONGE_DO_PUZZLE}</p>}
+          </>
+        )}
+        {minigame && pesca === null && tiro === null && fogo === null && bolha === null && !examinar && (
           // Frase, não botão: o convite chega quando o mestre chamar, e um
           // botão aqui prometeria um gesto que o jogador não tem.
           <p className="pp-pincard__locked">{textosDoJogo?.doMestre ?? TEXTOS_DO_JOGO.danca.doMestre}</p>

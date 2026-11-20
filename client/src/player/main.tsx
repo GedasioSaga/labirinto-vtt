@@ -9,7 +9,7 @@ import { textoDaRecusaDoFogo } from './estadoDoFogo'
 import { textoDaRecusaDaBolha } from './estadoDaBolha'
 import { chamadoDaBatalha } from './chamadoDaBatalha'
 import { themeCss } from '../theme'
-import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, RESUME_STORAGE_KEY } from './playerConnection'
+import { chatOf, contaLembrada, createPlayerConnection, esquecerContaLembrada, PUZZLE_RECUSA_AVISO_MS, RESUME_STORAGE_KEY } from './playerConnection'
 import type { PlayerConnectionOptions } from './playerConnection'
 import { PIN_MAX_DIGITOS, PIN_MIN_DIGITOS } from '../lib/contasDosJogadores'
 import { rotuloDoNavegador } from './rotuloDoAparelho'
@@ -105,6 +105,12 @@ import { BolhaOverlay } from '../minigames/bolha/tela/BolhaOverlay'
 import { TiroOverlay, type AjustesDaTelaDoTiro } from '../minigames/tiro/tela/TiroOverlay'
 import { JogoDeAbrirOverlay } from '../minigames/abrir/tela/JogoDeAbrirOverlay'
 import { textoDaRecusaDoObjeto } from '../net/protocoloDoObjeto'
+import { textoDaRecusaDoPuzzle, type PuzzleFechadoMotivo } from '../net/protocoloDoPuzzle'
+import type { AcaoNoPuzzle } from '../puzzles/tipos'
+import { nomeNoPuzzle, textoDoFechado } from './puzzle/naRede'
+import { PuzzleNaRede } from './puzzle/PuzzleNaRede'
+import type { PvNaTela } from './puzzle/tipos'
+import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
 import { deveTocarCenario, marcarCenarioVisto } from '../cenario/jaVisto'
 import { revelacaoDoPino } from '../cenario/revelacao/doPino'
@@ -1179,6 +1185,14 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   const mapaQueTreme = useRef<HTMLDivElement>(null)
   /** Pino aberto no cartão; `null` = cartão fechado. */
   const [openPinId, setOpenPinId] = useState<string | null>(null)
+  /**
+   * PUZZLE: a ficha que este "Examinar" mandou entrar. O host marca o que ela
+   * põe com o nome dela, e a tela compara com o `por`. Depois do F5 o host
+   * reabre a tela sem dizer qual: vale a mesma conta da entrada (`fichaDoPuzzle`).
+   */
+  const [entrouNoPuzzle, setEntrouNoPuzzle] = useState<{ desafioId: string; tokenId: string } | null>(null)
+  /** PUZZLE: o mestre fechou a tela (mudou ou tirou o puzzle); o aviso some sozinho. */
+  const [puzzleFechado, setPuzzleFechado] = useState<{ id: number; texto: string } | null>(null)
   /** ITEM NO MAPA: a imagem de item no chão aberta no cartão do item; `null` = nenhuma. */
   const [openItemNoChaoId, setOpenItemNoChaoId] = useState<string | null>(null)
   /** ANIMAÇÃO DO CENÁRIO tocando agora (por cima do cartão do pino "!"); `null` = nenhuma. */
@@ -1650,6 +1664,63 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
   // BARRAR A PASSAGEM: só com uma ficha dele encostada no pino aberto — a mesma conta do host.
   const alcancaPinoAberto =
     openPin !== null && map !== undefined && map.tokens.some((t) => ownTokens.includes(t.id) && tokenAlcancaPino(t, openPin, map.grid, pelosObjetos))
+  // PUZZLE: a primeira ficha dele encostada no selo, a mesma régua do host (`fichaNoPuzzle`: `tokenReachesPin`, pelo objeto também).
+  const fichaQueAlcancaOSelo = useCallback(
+    (seloId: string): Token | null => {
+      if (map === undefined) return null
+      const selo = map.pins.find((p) => p.id === seloId)
+      if (selo === undefined) return null
+      return map.tokens.find((t) => ownTokens.includes(t.id) && tokenReachesPin(t, selo, map.grid, pelosObjetos)) ?? null
+    },
+    [map, ownTokens, pelosObjetos],
+  )
+  // PUZZLE: a ficha que está dentro — a que entrou por aqui; depois do F5, a que alcança o selo; senão a primeira dele.
+  const desafioDoPuzzle = state.puzzle?.desafioId ?? null
+  const fichaDoPuzzle = useMemo((): Token | null => {
+    if (desafioDoPuzzle === null || map === undefined) return null
+    const lembrada = entrouNoPuzzle !== null && entrouNoPuzzle.desafioId === desafioDoPuzzle ? map.tokens.find((t) => t.id === entrouNoPuzzle.tokenId) : undefined
+    return lembrada ?? fichaQueAlcancaOSelo(desafioDoPuzzle) ?? map.tokens.find((t) => ownTokens.includes(t.id)) ?? null
+  }, [desafioDoPuzzle, map, entrouNoPuzzle, fichaQueAlcancaOSelo, ownTokens])
+  const euNoPuzzle = nomeNoPuzzle({ name: fichaDoPuzzle?.name ?? '' })
+  // PUZZLE: os PV da ficha de personagem dela, para o castigo ficar à vista; sem ficha ou sem vida no sistema, sem a barra.
+  const fichasDoJogador = state.personagens?.tokens
+  const pvNoPuzzle = useMemo((): PvNaTela | null => {
+    if (fichaDoPuzzle === null) return null
+    const personagemId = fichasDoJogador?.find((ficha) => ficha.tokenId === fichaDoPuzzle.id)?.personagemId ?? null
+    const personagem = personagemId === null ? undefined : personagensDoJogador?.find((p) => p.id === personagemId)
+    const recurso = recursoDeVida(sistemaDoJogador)
+    if (personagem === undefined || recurso === null) return null
+    const vida = vidaDoPersonagem(personagem, recurso)
+    return vida === null ? null : { atual: vida.atual, max: vida.maximo }
+  }, [fichaDoPuzzle, fichasDoJogador, personagensDoJogador, sistemaDoJogador])
+  const examinarPuzzle = useCallback(
+    (seloId: string) => {
+      const ficha = fichaQueAlcancaOSelo(seloId)
+      // Sem ficha encostada o host recusa com "longe"; com ela, é essa que entra (e que a tela chama de "você").
+      const enviado = ficha === null ? connection.entrarNoPuzzle(seloId) : connection.entrarNoPuzzle(seloId, ficha.id)
+      if (!enviado) return
+      setEntrouNoPuzzle(ficha === null ? null : { desafioId: seloId, tokenId: ficha.id })
+      setOpenPinId(null)
+    },
+    [connection, fichaQueAlcancaOSelo],
+  )
+  const agirNoPuzzle = useCallback((acao: AcaoNoPuzzle) => void connection.acaoNoPuzzle(acao), [connection])
+  const sairDoPuzzle = useCallback(() => connection.sairDoPuzzle(), [connection])
+  const proximoAvisoDoPuzzle = useRef(0)
+  const puzzleFoiFechado = useCallback(
+    (motivo: PuzzleFechadoMotivo) => {
+      connection.sairDoPuzzle()
+      proximoAvisoDoPuzzle.current += 1
+      setPuzzleFechado({ id: proximoAvisoDoPuzzle.current, texto: textoDoFechado(motivo) })
+    },
+    [connection],
+  )
+  const idDoPuzzleFechado = puzzleFechado?.id
+  useEffect(() => {
+    if (idDoPuzzleFechado === undefined) return
+    const id = window.setTimeout(() => setPuzzleFechado((atual) => (atual?.id === idDoPuzzleFechado ? null : atual)), PUZZLE_RECUSA_AVISO_MS)
+    return () => window.clearTimeout(id)
+  }, [idDoPuzzleFechado])
   // Estável: o cartão devolve o foco ao "Fechar" sempre que `onClose` muda, e
   // um snapshot novo a cada passo do mapa tiraria o foco do "Pedir" no meio da pergunta.
   // Fechar o cartão esquece a resposta da fechadura: reabrir começa limpo.
@@ -2450,6 +2521,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onApagarComBolhas={() => {
               if (connection.pedirBolha(openPin.id)) setOpenPinId(null)
             }}
+            // PUZZLE "Examinar": pedido enviado, o cartão sai; a vista volta e abre a tela do puzzle.
+            onExaminar={() => examinarPuzzle(openPin.id)}
           />
         )}
         {/* ESPIAR PELA PASSAGEM: o recorte do outro lado, por alguns segundos. Nunca entra no mapa. */}
@@ -2744,6 +2817,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             {textoDaRecusaDoObjeto(state.objetoRecusado.motivo)}
           </p>
         )}
+        {/* PUZZLE: o host não deixou entrar (o cartão já fechou ao pedir), ou o mestre fechou a tela. Somem sozinhos. */}
+        {state.puzzleRecusado && (
+          <p key={`recusa-${state.puzzleRecusado.id}`} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {textoDaRecusaDoPuzzle(state.puzzleRecusado.motivo)}
+          </p>
+        )}
+        {puzzleFechado && !state.puzzleRecusado && (
+          <p key={`fechado-${puzzleFechado.id}`} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
+            {puzzleFechado.texto}
+          </p>
+        )}
         {state.pescaRecusada && (
           <p key={state.pescaRecusada.id} className="pp-notice pp-notice--travel" role="status" aria-live="polite">
             {textoDaRecusaDaPesca(state.pescaRecusada.motivo)}
@@ -2923,6 +3007,18 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
           />
         )}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
+        {/* PUZZLE: a vista do host abre a tela do puzzle por cima do mapa, até o "Sair" ou o mestre fechar. */}
+        {state.puzzle && (
+          <PuzzleNaRede
+            key={state.puzzle.desafioId}
+            puzzle={state.puzzle}
+            eu={euNoPuzzle}
+            pv={pvNoPuzzle}
+            onAgir={agirNoPuzzle}
+            onSair={sairDoPuzzle}
+            onFechado={puzzleFoiFechado}
+          />
+        )}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}
         {state.transicao && <TransicaoOverlay nonce={state.transicao.nonce} escolha={state.transicao.escolha} antes={state.transicao.mapaNovo} />}
         {/* MODO BATALHA (B5): a abertura que o mestre escolheu ao ligar a batalha, no volume e no movimento deste aparelho. */}

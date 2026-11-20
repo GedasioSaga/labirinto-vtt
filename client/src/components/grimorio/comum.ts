@@ -38,15 +38,8 @@ export function focaveisEm(raiz: ParentNode): HTMLElement[] {
   )
 }
 
-/** Junta as classes que valem, na ordem: `classes('gr-bt', ativo && 'gr-bt--p')`. */
-export function classes(...partes: (string | false | null | undefined)[]): string {
-  return partes.filter(Boolean).join(' ')
-}
-
-/** Sem `matchMedia` (jsdom, WebView antiga) vale o movimento normal. */
-export function movimentoReduzido(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
+/* Os dois moram num módulo neutro, que a tela do jogador alcança sem trazer o Grimório. */
+export { classes, movimentoReduzido } from '../../lib/primitivosDaTela'
 
 const SETAS_QUE_VOLTAM = new Set(['ArrowLeft', 'ArrowUp'])
 const SETAS = new Set(['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'])
