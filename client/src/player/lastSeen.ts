@@ -1,4 +1,5 @@
-import type { CamadaId, MapData } from '../types/map'
+import type { CamadaId, MapData, Token } from '../types/map'
+import { pisoDe } from '../lib/pisos'
 import { contextoDoJogador } from '../lib/camadas/doJogador'
 import { ehCamadaPadrao } from '../lib/camadas/padrao'
 
@@ -50,6 +51,12 @@ export interface LastSeenGhost extends SeenToken {
 export interface LastSeenMemory {
   /** Cena dos pacotes lembrados; `null` = nenhum ainda. */
   readonly mapId: string | null
+  /**
+   * PISOS: o piso dos pacotes lembrados (o das fichas dele). O contorno é de um
+   * ponto DESTE piso: quem sobe a escada não leva o do térreo para cima.
+   * Ausente = térreo.
+   */
+  readonly piso?: number
   /** Fichas alheias do último pacote, por id. */
   readonly seen: ReadonlyMap<string, SeenToken>
   /** Fichas que saíram do pacote nesta cena, por id. */
@@ -104,7 +111,11 @@ export function rememberSnapshot(
   now: number,
 ): LastSeenMemory {
   const own = new Set(ownTokenIds)
-  const sameScene = memory.mapId === snapshot.id
+  // O pacote só traz o piso do grupo (`lib/fogFilter.ts`): a ficha dele diz qual.
+  // Piso novo é cena nova: o contorno do térreo não é desenhado no 1º piso.
+  // Pacote sem ficha nenhuma não diz o piso: vale o de antes.
+  const piso = pisoDoPacote(snapshot.tokens, own) ?? memory.piso ?? 0
+  const sameScene = memory.mapId === snapshot.id && (memory.piso ?? 0) === piso
   const before = sameScene ? memory.seen : new Map<string, SeenToken>()
   const camadasAntes = sameScene ? memory.camadas : new Map<string, CamadaId>()
   // Toda ficha lembrada tem camada; uma que não tenha (não deveria acontecer) vale a padrão das fichas.
@@ -131,7 +142,13 @@ export function rememberSnapshot(
     if (seen.has(id) || own.has(id) || !camadaNoPacote(camadaAntes(id), snapshot)) continue
     guardar({ tokenId: id, ...last, lostAt: now })
   }
-  return { mapId: snapshot.id, seen, ghosts, camadas }
+  return { mapId: snapshot.id, ...(piso === 0 ? {} : { piso }), seen, ghosts, camadas }
+}
+
+/** O piso do pacote: o da ficha dele (todas as fichas do pacote são do piso do grupo); sem ficha dele, o de qualquer uma. */
+function pisoDoPacote(tokens: readonly Token[], own: ReadonlySet<string>): number | undefined {
+  const referencia = tokens.find((t) => own.has(t.id)) ?? tokens[0]
+  return referencia === undefined ? undefined : pisoDe(referencia)
 }
 
 /** Tira da memória os contornos vencidos; nada vencido = a mesma memória (o chamador compara por referência). */
