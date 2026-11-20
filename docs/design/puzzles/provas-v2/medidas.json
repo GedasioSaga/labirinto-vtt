@@ -1,23 +1,30 @@
 {
- "data": "2026-11-20T00:18:56.580Z",
+ "data": "2026-11-20T00:41:12.901Z",
  "navegador": "Microsoft Edge (Playwright, sem janela)",
  "viewport": "1440x900 e 1024x768",
  "desempenho": {
   "arrasto": {
-   "quadros": 301,
+   "quadros": 302,
    "p50": 16.7,
    "p95": 16.8,
    "p99": 16.9,
+   "max": 17.3
+  },
+  "abrirPorta": {
+   "quadros": 75,
+   "p50": 16.7,
+   "p95": 16.8,
+   "p99": 17,
    "max": 17
   },
   "tarefasLongas": 2,
-  "maiorTarefaLonga": 94,
+  "maiorTarefaLonga": 89,
   "longas": [
-   70,
-   94
+   77,
+   89
   ]
  },
- "conferencias": 29,
+ "conferencias": 34,
  "falhas": 0,
  "resultados": [
   {
@@ -42,10 +49,10 @@
    "nome": "Editor: p95 do quadro ao arrastar até 20 ms",
    "ok": true,
    "detalhe": {
-    "quadros": 301,
+    "quadros": 302,
     "p50": 16.7,
     "p95": 16.8,
-    "max": 17
+    "max": 17.3
    }
   },
   {
@@ -102,6 +109,77 @@
     "regAntes": 3,
     "regDepois": 3,
     "cartao": " Resolvido no testeFonte do pátio Algo cede com um estalo. No jogo, quem resolver recebe Moeda do teste, o documento “Juramento da guarda”. Aqui nada foi entreg"
+   }
+  },
+  {
+   "nome": "Porta: trocar a moldura desenha a porta e os encaixes ficam no mesmo lugar (dado e tela)",
+   "ok": true,
+   "detalhe": {
+    "moldura": "porta",
+    "folhasNaArte": 1,
+    "encaixes": [
+     [
+      52.6,
+      64.5,
+      17.2
+     ],
+     [
+      50,
+      45,
+      9.4
+     ],
+     [
+      63,
+      52,
+      9.4
+     ]
+    ],
+    "caixas": [
+     [
+      746,
+      371,
+      132
+     ],
+     [
+      756,
+      308,
+      72
+     ],
+     [
+      856,
+      341,
+      72
+     ]
+    ]
+   }
+  },
+  {
+   "nome": "Porta: salvar e recarregar mantém a moldura Porta e a porta do mapa escolhida",
+   "ok": true,
+   "detalhe": {
+    "moldura": "porta",
+    "porta": "porta-adega",
+    "portaNoCartao": 1
+   }
+  },
+  {
+   "nome": "Porta: resolver no Testar abre as folhas e não entrega nada (nem a porta do mapa)",
+   "ok": true,
+   "detalhe": {
+    "folha": "matrix(0.1, 0, 0, 1, 0, 0)",
+    "regAntes": 4,
+    "regDepois": 4,
+    "cartao": " Resolvido no testePorta do pátio Algo cede com um estalo. No jogo, quem resolver recebe Moeda do teste, o documento “Juramento da guarda”, e abre a Porta da adega (Casa "
+   }
+  },
+  {
+   "nome": "Porta: p95 do quadro enquanto a porta abre até 20 ms",
+   "ok": true,
+   "detalhe": {
+    "quadros": 75,
+    "p50": 16.7,
+    "p95": 16.8,
+    "max": 17
    }
   },
   {
@@ -165,7 +243,7 @@
     "badge": "1 documento novo",
     "entrada": {
      "doc": "d-diario",
-     "em": 1795133927951,
+     "em": 1795135260230,
      "origem": "puzzle",
      "de": "Cofre do Capitão",
      "novo": true
@@ -177,6 +255,15 @@
    "ok": true,
    "detalhe": {
     "novoDepois": false
+   }
+  },
+  {
+   "nome": "Mapa: resolver a Passagem das Garças abre a porta do escritório no mapa, e ela continua aberta depois de recarregar",
+   "ok": true,
+   "detalhe": {
+    "aviso": "A porta do escritório se abriu no mapa.",
+    "folhaMapa": "matrix(0.14, 0, 0, 1, 0, 0)",
+    "folhaMapa2": "matrix(0.14, 0, 0, 1, 0, 0)"
    }
   },
   {
@@ -249,8 +336,8 @@
    "ok": true,
    "detalhe": {
     "longas": [
-     70,
-     94
+     77,
+     89
     ]
    }
   },

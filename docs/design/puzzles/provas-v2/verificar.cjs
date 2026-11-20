@@ -8,6 +8,7 @@ const ARQ = 'file:///C:/dev/labirinto/docs/design/puzzles/prototipo-v2.html'
 const PROVAS = 'C:/dev/labirinto/docs/design/puzzles/provas-v2'
 const PRINTS = process.argv.includes('--prints')
 const resultados = []
+let p95Porta = null, quadrosAbrir = []
 let pag
 const LONGAS = []
 function conferir(nome, ok, detalhe = '') { resultados.push({ nome, ok: !!ok, detalhe }); console.log(`${ok ? 'OK ' : 'FALHOU'} ${nome}${detalhe !== '' ? ` :: ${typeof detalhe === 'string' ? detalhe : JSON.stringify(detalhe)}` : ''}`) }
@@ -139,6 +140,56 @@ const pct = (arr, p) => { const a = [...arr].sort((x, y) => x - y); return a.len
   conferir('Testar: a faixa "Teste" está na tela', faixa)
   conferir('Testar: resolver no teste não entrega item, documento nem registra', /Resolvido no teste/.test(textoRes) && /Aqui nada foi entregue/.test(textoRes) && JSON.stringify(e1.jogadores) === fotoJog && e1.registro.length === regAntes, { regAntes, regDepois: e1.registro.length, cartao: textoRes.replace(/\s+/g, ' ').slice(0, 160) })
 
+  /* 3b. versão Porta: trocar a moldura mantém os encaixes; salvar e recarregar mantém a moldura; resolver no teste abre a porta e não entrega nada */
+  await aba('editor')
+  const caixas = () => pag.locator('.enc-ed').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width)] }))
+  const encAntesP = (await est()).ed.cfg.encaixes.map((e) => [e.id, e.x, e.y, e.t])
+  const caixasAntesP = await caixas()
+  await pag.click('label:has([data-campo="moldura"][value="porta"])')
+  await espera(250)
+  const eP = await est()
+  const encDepoisP = eP.ed.cfg.encaixes.map((e) => [e.id, e.x, e.y, e.t])
+  const caixasDepoisP = await caixas()
+  const folhasNaArte = await pag.locator('[data-ed-quadro] .pf-e').count()
+  conferir('Porta: trocar a moldura desenha a porta e os encaixes ficam no mesmo lugar (dado e tela)', eP.ed.cfg.visual.moldura === 'porta' && folhasNaArte === 1 && JSON.stringify(encAntesP) === JSON.stringify(encDepoisP) && JSON.stringify(caixasAntesP) === JSON.stringify(caixasDepoisP), { moldura: eP.ed.cfg.visual.moldura, folhasNaArte, encaixes: encDepoisP.map((e) => e.slice(1)), caixas: caixasDepoisP })
+  await pag.selectOption('[data-campo="desfecho-porta"]', 'porta-adega')
+  await pag.fill('[data-campo="nome"]', 'Porta do pátio')
+  await espera(350)
+  await pag.click('[data-acao="salvar-novo"]')
+  await espera(150)
+  await pag.reload()
+  await espera(250)
+  await aba('meus')
+  const eR = await est()
+  const mP = eR.modelos.find((m) => m.nome === 'Porta do pátio')
+  const cartaoP = pag.locator('.cartao-mp', { hasText: 'Porta do pátio' })
+  const portaNoCartao = await cartaoP.locator('.pf-e').count()
+  conferir('Porta: salvar e recarregar mantém a moldura Porta e a porta do mapa escolhida', mP?.visual.moldura === 'porta' && mP?.desfecho.porta === 'porta-adega' && portaNoCartao === 1, { moldura: mP?.visual.moldura, porta: mP?.desfecho.porta, portaNoCartao })
+  const fotoJogP = JSON.stringify(eR.jogadores), regAntesP = eR.registro.length
+  await cartaoP.locator('[data-acao="testar-modelo"]').click()
+  await pag.waitForSelector('[data-pz] .quadro.is-porta')
+  await print('6-fonte-porta-fechada-1440.jpg')
+  for (let i = 0; i < mP.encaixes.length; i++) {
+    await pag.click(`[data-pz] .item[data-peca="${mP.encaixes[i].peca}"]`)
+    if (i === mP.encaixes.length - 1) await pag.evaluate(() => window.__med.ini())
+    await pag.click(`[data-pz] .encaixe[data-enc="${mP.encaixes[i].id}"]`)
+    await espera(320)
+  }
+  await espera(900)
+  const quadrosPorta = await pag.evaluate(() => window.__med.fim())
+  const folhaTeste = await pag.evaluate(() => getComputedStyle(document.querySelector('[data-pz] .pf-e')).transform)
+  const aberta = await pag.locator('[data-pz] .quadro.is-porta.is-resolvido').count()
+  await pag.waitForSelector('[data-pz] [data-resultado]', { timeout: 4000 })
+  const textoPorta = (await pag.locator('[data-pz] [data-resultado]').textContent()).replace(/\s+/g, ' ')
+  await pag.keyboard.press('Escape')
+  await espera(250)
+  await print('7-fonte-porta-aberta-1440.jpg')
+  const eT = await est()
+  conferir('Porta: resolver no Testar abre as folhas e não entrega nada (nem a porta do mapa)', aberta === 1 && /^matrix\(0\.1,/.test(folhaTeste) && /abre a Porta da adega/.test(textoPorta) && /Aqui nada foi entregue/.test(textoPorta) && JSON.stringify(eT.jogadores) === fotoJogP && eT.registro.length === regAntesP, { folha: folhaTeste, regAntes: regAntesP, regDepois: eT.registro.length, cartao: textoPorta.slice(0, 170) })
+  p95Porta = pct(quadrosPorta, 95)
+  conferir('Porta: p95 do quadro enquanto a porta abre até 20 ms', p95Porta !== null && p95Porta <= 20, { quadros: quadrosPorta.length, p50: pct(quadrosPorta, 50), p95: p95Porta, max: pct(quadrosPorta, 100) })
+  quadrosAbrir = quadrosPorta
+
   /* 4. ler o documento no mapa põe na lista e sobrevive ao recarregar */
   await aba('mapa')
   await pag.focus('[data-cena]')
@@ -246,6 +297,31 @@ const pct = (arr, p) => { const a = [...arr].sort((x, y) => x - y); return a.len
   const novoDepois = (await est()).jogadores.Lara.docs.find((d) => d.doc === 'd-diario').novo
   conferir('Reler pela lista tira a marca de novo', novoDepois === false, { novoDepois })
 
+  /* 7b. no mapa: a Passagem das Garças é um puzzle-porta; resolvida, a porta do mapa abre e continua aberta */
+  await pag.keyboard.press('d')
+  await espera(150)
+  await pag.click('[data-cena] [data-obj="puzzle"][data-id="l-passagem-casa"]', { force: true })
+  await pag.waitForFunction(() => document.querySelector('[data-pz]') || /Passagem das Garças/.test(document.querySelector('[data-cena] .tocar')?.textContent || ''), null, { timeout: 6000 })
+  if (!(await pag.locator('[data-pz]').count())) await pag.keyboard.press('e')
+  await pag.waitForSelector('[data-pz] .encaixe')
+  const lugarP = (await est()).lugares.find((l) => l.id === 'l-passagem-casa')
+  for (const en of lugarP.cfg.encaixes) {
+    await pag.click(`[data-pz] .item[data-peca="${en.peca}"]`)
+    await pag.click(`[data-pz] .encaixe[data-enc="${en.id}"]`)
+    await espera(320)
+  }
+  await pag.waitForSelector('[data-pz] [data-porta-aberta]', { timeout: 5000 })
+  const avisoPorta = await pag.locator('[data-pz] [data-porta-aberta]').textContent()
+  await pag.click('[data-pz] [data-acao="fechar-resultado"]')
+  await pag.keyboard.press('Escape')
+  await espera(900)
+  const folhaMapa = await pag.evaluate(() => getComputedStyle(document.querySelector('[data-obj="puzzle"][data-id="l-passagem-casa"] .pm-folha')).transform)
+  await pag.reload()
+  await espera(250)
+  const folhaMapa2 = await pag.evaluate(() => getComputedStyle(document.querySelector('[data-obj="puzzle"][data-id="l-passagem-casa"] .pm-folha')).transform)
+  const e7b = await est()
+  conferir('Mapa: resolver a Passagem das Garças abre a porta do escritório no mapa, e ela continua aberta depois de recarregar', /se abriu/.test(avisoPorta) && /^matrix\(0\.14,/.test(folhaMapa) && /^matrix\(0\.14,/.test(folhaMapa2) && e7b.progresso['l-passagem-casa']?.resolvido === true && e7b.registro.some((r) => /porta do escritório se abriu/.test(r.texto)), { aviso: avisoPorta, folhaMapa, folhaMapa2 })
+
   /* 8. cópia própria em cada lugar: editar a cópia não muda o modelo */
   await aba('meus')
   await pag.locator('.lista-lugares li').first().locator('[data-acao="editar-copia"]').click()
@@ -315,7 +391,7 @@ const pct = (arr, p) => { const a = [...arr].sort((x, y) => x - y); return a.len
   const falhas = resultados.filter((r) => !r.ok).length
   const medidas = {
     data: new Date().toISOString(), navegador: 'Microsoft Edge (Playwright, sem janela)', viewport: '1440x900 e 1024x768',
-    desempenho: { arrasto: { quadros: quadros.length, p50: pct(quadros, 50), p95: p95Arrasto, p99: pct(quadros, 99), max: pct(quadros, 100) }, tarefasLongas: longas.length, maiorTarefaLonga: longas.length ? Math.max(...longas) : 0, longas },
+    desempenho: { arrasto: { quadros: quadros.length, p50: pct(quadros, 50), p95: p95Arrasto, p99: pct(quadros, 99), max: pct(quadros, 100) }, abrirPorta: { quadros: quadrosAbrir.length, p50: pct(quadrosAbrir, 50), p95: p95Porta, p99: pct(quadrosAbrir, 99), max: pct(quadrosAbrir, 100) }, tarefasLongas: longas.length, maiorTarefaLonga: longas.length ? Math.max(...longas) : 0, longas },
     conferencias: resultados.length, falhas, resultados,
   }
   if (PRINTS) fs.writeFileSync(path.join(PROVAS, 'medidas.json'), JSON.stringify(medidas, null, 1))

@@ -251,6 +251,27 @@ body.arrastando, body.arrastando * { cursor: grabbing !important; }
 .is-abrindo .gaveta { animation: pz-gaveta 700ms var(--lb-gr-ease-out) both; }
 @keyframes pz-gaveta { from { transform: translateY(0); } to { transform: translateY(46px); } }
 .is-resolvido .some-ao-resolver { opacity: 0; pointer-events: none; transition: opacity 240ms ease; }
+/* versão Porta dos modelos: as folhas giram (duas) ou correm para dentro da parede (uma) e aparece o escuro do outro lado */
+.pf-e, .pf-d, .pf-correr { transform-box: fill-box; }
+.pf-e { transform-origin: left center; }
+.pf-d { transform-origin: right center; }
+.is-resolvido .pf-e, .is-resolvido .pf-d { transform: scaleX(0.1); }
+.is-resolvido .pf-correr { transform: translateX(96%); }
+.is-abrindo .pf-e, .is-abrindo .pf-d { animation: pf-gira 640ms var(--pz-ease-in-out) 80ms both; }
+.is-abrindo .pf-correr { animation: pf-corre 640ms var(--pz-ease-in-out) 80ms both; }
+@keyframes pf-gira { from { transform: scaleX(1); } to { transform: scaleX(0.1); } }
+@keyframes pf-corre { from { transform: translateX(0); } to { transform: translateX(96%); } }
+.pf-luz { opacity: 0; }
+.is-resolvido .pf-luz { opacity: 1; }
+.is-abrindo .pf-luz { animation: pf-aparece 480ms var(--lb-gr-ease-out) 300ms both; }
+@keyframes pf-aparece { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pf-some { from { opacity: 1; } to { opacity: 0; } }
+/* as peças e o controle ficam presos nas folhas: somem com elas */
+.quadro.is-porta.is-resolvido .quadro__camada, .quadro.is-porta.is-resolvido .controle { opacity: 0; pointer-events: none; }
+.quadro.is-porta.is-abrindo .quadro__camada, .quadro.is-porta.is-abrindo .controle { animation: pf-some 220ms var(--lb-gr-ease-out) both; }
+.rm .is-resolvido .pf-e, .rm .is-resolvido .pf-d, .rm .is-resolvido .pf-correr { transform: none; opacity: 0; }
+.rm .is-abrindo .pf-e, .rm .is-abrindo .pf-d, .rm .is-abrindo .pf-correr { animation: pf-some 240ms ease both; }
+.rm .is-abrindo .pf-luz, .rm .is-abrindo .agua--fio, .rm .is-abrindo .agua--bacia { animation: pf-aparece 240ms ease both; }
 .relogio { display: flex; align-items: center; gap: 14px; }
 .relogio svg { width: 200px; height: 200px; touch-action: none; }
 .ponteiro { cursor: grab; transition: transform 150ms var(--lb-gr-ease-out); }
@@ -977,12 +998,12 @@ function puzzleDoModelo(m, nome) {
   const b = BASE[m]
   return {
     id: uid('pz'), nome: nome || `Puzzle novo (${NOME_MODELO[m]})`, tipo: b.tipo, qualquer: b.qualquer,
-    visual: { tipo: 'modelo', modelo: m, imagem: null, cores: { ...b.cores }, inscricao: b.inscricao },
+    visual: { tipo: 'modelo', modelo: m, imagem: null, cores: { ...b.cores }, inscricao: b.inscricao, moldura: 'original' },
     encaixes: encaixesDoModelo(m),
     controle: { ...b.controle },
     resposta: respostaPadrao(),
     dica: { tipo: 'texto', texto: '', doc: null },
-    desfecho: { texto: 'Algo cede com um estalo.', itens: [], doc: null },
+    desfecho: { texto: 'Algo cede com um estalo.', itens: [], doc: null, porta: null },
     castigo: { tipo: 'nada', dano: 3, texto: '' },
   }
 }
@@ -1007,14 +1028,21 @@ function estadoInicial() {
     desfecho: { texto: 'Os quatro brasões afundam juntos. A tranca cede e a porta range para dentro.', itens: ['Anel do salão'], doc: null },
     castigo: { tipo: 'dano', dano: 3, texto: '' },
   })
+  const passagem = puzzleDoModelo('fonte', 'Passagem das Garças')
+  passagem.visual.moldura = 'porta'
+  Object.assign(passagem, {
+    dica: { tipo: 'texto', texto: 'Três garças secas sobre a verga. Embaixo de cada uma, um encaixe redondo.', doc: null },
+    desfecho: { texto: 'As garças voltam a jorrar e as duas folhas de pedra se afastam. Do outro lado, uma escada desce para o escuro.', itens: [], doc: null, porta: 'porta-escritorio' },
+  })
   const t = Date.now()
   const rascunho = puzzleDoModelo('fonte', 'Fonte do pátio')
   rascunho.dica.texto = 'Embaixo de cada garça, um encaixe redondo.'
   return {
-    versao: 2,
+    versao: 3,
     pecasProprias: {}, nomesPecas: {},
-    modelos: [fonte, cofre, porta],
-    lugares: [{ id: 'l-cofre-casa', lugar: LUGAR_CENA, modeloId: cofre.id, cfg: clone(cofre), criado: t - 3600e3 }],
+    modelos: [fonte, cofre, porta, passagem],
+    lugares: [{ id: 'l-cofre-casa', lugar: LUGAR_CENA, modeloId: cofre.id, cfg: clone(cofre), criado: t - 3600e3 },
+      { id: 'l-passagem-casa', lugar: LUGAR_CENA, modeloId: passagem.id, cfg: clone(passagem), criado: t - 1800e3 }],
     ed: { alvo: { tipo: 'rascunho', id: null }, cfg: rascunho, sujo: false },
     docs: [
       { id: 'd-bilhete', titulo: 'Bilhete na parede', papel: 'alfinete', imagemPapel: null, depois: 'fica', dicaDe: cofre.id, noMapa: true, pos: { x: 6, y: 1 }, sumiu: false,
@@ -1033,7 +1061,7 @@ function estadoInicial() {
         paginas: [{ texto: 'Juramos guardar o salão **da sombra à aurora**: o carvalho que nos cobre, o lobo que vigia, a lua que escuta e o sol que nos acorda.', imagem: null }] },
     ],
     jogadores: {
-      Lara: { docs: [], mochila: ['med-garca', 'bra-sol', 'chave-latao'], itens: [], pos: { x: 8, y: 7 }, pv: 20 },
+      Lara: { docs: [], mochila: ['med-garca', 'med-sapo', 'med-junco', 'bra-sol', 'chave-latao'], itens: [], pos: { x: 8, y: 7 }, pv: 20 },
       Bento: { docs: [], mochila: ['bra-lua'], itens: [], pos: { x: 11, y: 7 }, pv: 20 },
       Iara: { docs: [], mochila: [], itens: [], pos: { x: 3, y: 8 }, pv: 20 },
     },
@@ -1045,7 +1073,7 @@ function estadoInicial() {
 function carregar() {
   try {
     const s = JSON.parse(localStorage.getItem(CHAVE) || 'null')
-    if (s && s.versao === 2) return s
+    if (s && s.versao === 3) return s
   } catch { /* guardado estragado: recomeça */ }
   return estadoInicial()
 }
@@ -1255,8 +1283,104 @@ function arteAltar(p, k, insc) {
   ${veu(p)}</svg>`
 }
 const ARTE = { fonte: arteFonte, porta: artePorta, cofre: arteCofre, altar: arteAltar }
+
+/* ---------------------------------------------------------------- versão Porta de cada modelo: o mesmo objeto vira uma passagem de pedra.
+   Os encaixes e o controle ficam nos mesmos %, então a porta é desenhada em volta das posições do modelo. */
+const PORTAS_MAPA = [
+  { id: 'porta-escritorio', nome: 'Porta do escritório', onde: 'Casa do capitão' },
+  { id: 'porta-adega', nome: 'Porta da adega', onde: 'Casa do capitão' },
+  { id: 'porta-torre', nome: 'Porta da torre', onde: 'Vila do Brejo' },
+]
+const portaMapa = (id) => PORTAS_MAPA.find((p) => p.id === id) || null
+const temMolduraPorta = (c) => c.visual.tipo === 'modelo' && c.visual.modelo !== 'porta' && c.visual.moldura === 'porta'
+/** Abre uma porta: a Porta de brasões sempre, e os outros modelos quando a moldura é Porta. */
+const ehPortaVisual = (c) => c.visual.tipo === 'modelo' && (c.visual.modelo === 'porta' || c.visual.moldura === 'porta')
+/** Batente, verga, soleira, o escuro do outro lado e as folhas (recortadas no vão, para correr para dentro da parede). */
+function passagem(p, g) {
+  const { x0, x1, y0, pedra, folha, folhas } = g
+  const y1 = 900, cx = (x0 + x1) / 2
+  const c1 = tom(pedra, 0.6), c2 = tom(pedra, 0.82), c3 = tom(pedra, 1.12)
+  const blocos = (x, w) => { let s = ''; for (let y = y0 + 90; y < y1; y += 110) s += `<path d="M${x} ${y}h${w}" stroke="${c2}" stroke-width="4"/>`; return s }
+  const painel = (a, b) => `<rect x="${a + 34}" y="${y0 + 40}" width="${b - a - 68}" height="${(y1 - y0) * 0.38}" rx="8" fill="none" stroke="${tom(folha, 0.72)}" stroke-width="5"/>
+    <rect x="${a + 34}" y="${y0 + 60 + (y1 - y0) * 0.42}" width="${b - a - 68}" height="${(y1 - y0) * 0.46}" rx="8" fill="none" stroke="${tom(folha, 0.72)}" stroke-width="5"/>`
+  const umaFolha = (cls, a, b, argola) => `<g class="${cls}"><rect x="${a}" y="${y0}" width="${b - a}" height="${y1 - y0}" fill="${folha}" stroke="${tom(folha, 0.58)}" stroke-width="6"/>
+    ${painel(a, b)}<path d="M${a + 10} ${y0 + 8}h${b - a - 20}" stroke="${tom(folha, 1.18)}" stroke-width="4" stroke-linecap="round"/>
+    ${argola ? `<circle cx="${argola}" cy="${y0 + (y1 - y0) * 0.6}" r="20" fill="none" stroke="${tom(folha, 0.5)}" stroke-width="8"/><circle cx="${argola}" cy="${y0 + (y1 - y0) * 0.6}" r="20" fill="none" stroke="${tom(folha, 1.25)}" stroke-width="3"/>` : ''}</g>`
+  const leaves = folhas === 2
+    ? umaFolha('pf-e', x0, cx, cx - 40) + umaFolha('pf-d', cx, x1, cx + 40)
+    : `<g class="pf-correr"><rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="${folha}" stroke="${tom(folha, 0.55)}" stroke-width="6"/>
+        ${[0.18, 0.5, 0.82].map((f) => `<path d="M${x0} ${y0 + (y1 - y0) * f}h${x1 - x0}" stroke="${tom(folha, 0.72)}" stroke-width="10"/>`).join('')}
+        ${Array.from({ length: Math.floor((x1 - x0 - 40) / 56) + 1 }, (_, i) => x0 + 20 + i * 56).map((x) => `<circle cx="${x}" cy="${y0 + 22}" r="6" fill="${tom(folha, 1.3)}" stroke="${tom(folha, 0.5)}" stroke-width="2"/><circle cx="${x}" cy="${y1 - 22}" r="6" fill="${tom(folha, 1.3)}" stroke="${tom(folha, 0.5)}" stroke-width="2"/>`).join('')}
+        <rect x="${x0 + 18}" y="${y0 + (y1 - y0) * 0.56}" width="22" height="120" rx="8" fill="${tom(folha, 0.6)}"/></g>`
+  return `<defs><clipPath id="${p}vao"><rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}"/></clipPath>
+    <linearGradient id="${p}fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d0b09"/><stop offset="1" stop-color="#231c15"/></linearGradient></defs>
+  <rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="url(#${p}fundo)"/>
+  <g class="pf-luz"><path d="M${x0 + 40} ${y1}L${cx - 60} ${y0 + (y1 - y0) * 0.55}h120L${x1 - 40} ${y1}Z" fill="#ffd9a0" opacity=".07"/>
+    ${[0, 1, 2, 3].map((n) => `<path d="M${cx - 150 + n * 26} ${y1 - 18 - n * 34}h${300 - n * 52}" stroke="#3a3027" stroke-width="7" stroke-linecap="round"/>`).join('')}</g>
+  <g clip-path="url(#${p}vao)">${leaves}</g>
+  <rect x="${x0 - 72}" y="${y0 - 6}" width="72" height="${y1 - y0 + 12}" fill="${pedra}" stroke="${c1}" stroke-width="6"/>${blocos(x0 - 72, 72)}
+  <rect x="${x1}" y="${y0 - 6}" width="72" height="${y1 - y0 + 12}" fill="${pedra}" stroke="${c1}" stroke-width="6"/>${blocos(x1, 72)}
+  <path d="M${x0 - 4} ${y0 - 6}V${y1 + 6}M${x1 + 4} ${y0 - 6}V${y1 + 6}" stroke="${c3}" stroke-width="4"/>
+  <rect x="${x0 - 96}" y="${y1}" width="${x1 - x0 + 192}" height="40" rx="6" fill="${tom(pedra, 0.9)}" stroke="${c1}" stroke-width="6"/>`
+}
+/** Verga sobre o vão; devolve o desenho e o meio vertical da faixa do texto. */
+function verga(x0, x1, yTopo, yBase, pedra) {
+  const c1 = tom(pedra, 0.6)
+  return `<rect x="${x0 - 104}" y="${yTopo}" width="${x1 - x0 + 208}" height="${yBase - yTopo}" rx="8" fill="${pedra}" stroke="${c1}" stroke-width="7"/>
+    <path d="M${x0 - 92} ${yTopo + 12}h${x1 - x0 + 184}" stroke="${tom(pedra, 1.14)}" stroke-width="5" stroke-linecap="round"/>`
+}
+function fontePorta(p, k, insc) {
+  const o = k.objeto, c1 = tom(o, 0.58)
+  const x0 = 470, x1 = 1130, y0 = 372
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.5, 0.38)}
+  ${parede(11, 0, 760, k.parede)}${chao(12, 760, k.chao)}
+  ${passagem(p, { x0, x1, y0, pedra: o, folha: tom(o, 0.94), folhas: 2 })}
+  ${verga(x0, x1, 116, y0, o)}
+  <path d="M${x0 - 92} 344h${x1 - x0 + 184}" stroke="${c1}" stroke-width="5"/>
+  ${textoSvg(insc, 800, 176, 42, tom(o, 0.4), 640)}
+  ${garca(592, false, o)}${garca(800, false, o)}${garca(1008, true, o)}
+  <path class="agua agua--fio" d="M527 265C480 300 452 420 446 900" stroke="#a9cfd6" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path class="agua agua--fio" d="M1073 265C1120 300 1148 420 1154 900" stroke="#a9cfd6" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path d="M300 930H1300V962Q800 990 300 962Z" fill="${tom(o, 0.86)}" stroke="${c1}" stroke-width="6" stroke-linejoin="round"/>
+  <ellipse class="agua agua--bacia" cx="800" cy="936" rx="490" ry="12" fill="#8fbcc4" stroke="#567176" stroke-width="3"/>
+  ${musgo([[400, 905, 26], [1210, 908, 30], [330, 950, 20]])}
+  ${veu(p)}</svg>`
+}
+function cofrePorta(p, k, insc) {
+  const pedra = tom(k.parede, 1.38)
+  const x0 = 470, x1 = 1130, y0 = 190
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.5, 0.4)}
+  ${parede(31, 0, 780, k.parede)}${chao(32, 780, k.chao)}
+  <g transform="rotate(-4 250 420)"><rect x="140" y="270" width="230" height="290" fill="#e9dfc8" stroke="#8b8270" stroke-width="4"/>
+  ${textoSvg(insc, 255, 420, 26, '#5a4a32', 190, 6)}
+  <circle cx="255" cy="284" r="10" fill="#c4574a" stroke="#7a241d" stroke-width="3"/></g>
+  ${passagem(p, { x0, x1, y0, pedra, folha: k.objeto, folhas: 1 })}
+  ${verga(x0, x1, 70, y0, pedra)}
+  ${Array.from({ length: 13 }, (_, i) => 400 + i * 66.6).map((x) => `<circle cx="${x.toFixed(1)}" cy="150" r="8" fill="${tom(k.objeto, 1.25)}" stroke="${tom(k.objeto, 0.55)}" stroke-width="3"/>`).join('')}
+  ${musgo([[410, 905, 24], [1196, 902, 28]])}
+  ${veu(p)}</svg>`
+}
+function altarPorta(p, k, insc) {
+  const o = k.objeto, c1 = tom(o, 0.62)
+  const x0 = 380, x1 = 1000, y0 = 312
+  const vela = (x) => `<rect x="${x - 34}" y="500" width="68" height="18" rx="4" fill="${tom(o, 0.9)}" stroke="${c1}" stroke-width="4"/><rect x="${x - 15}" y="420" width="30" height="80" rx="4" fill="#efe6d0" stroke="#9a927f" stroke-width="4"/>
+    <ellipse cx="${x}" cy="398" rx="11" ry="20" fill="#f3ba66" stroke="#c17a2c" stroke-width="3"/><circle cx="${x}" cy="400" r="70" fill="#ffd9a0" opacity=".09"/>`
+  return `<svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${luz(p, 0.45, 0.42)}
+  ${parede(41, 0, 760, k.parede)}${chao(42, 760, k.chao)}
+  <path d="M${x0 - 104} 210Q${x0 - 104} 60 690 60Q${x1 + 104} 60 ${x1 + 104} 210Z" fill="${tom(k.parede, 0.62)}" stroke="${tom(k.parede, 0.9)}" stroke-width="6"/>
+  ${passagem(p, { x0, x1, y0, pedra: o, folha: tom(o, 0.92), folhas: 2 })}
+  ${verga(x0, x1, 200, y0, o)}
+  ${textoSvg(insc, 690, 264, 36, tom(o, 0.4), 620)}
+  ${vela(250)}${vela(1130)}
+  <rect x="1190" y="296" width="290" height="44" rx="6" fill="${tom(o, 1.12)}" stroke="${c1}" stroke-width="6"/>
+  <rect x="1214" y="340" width="242" height="570" fill="${tom(o, 1.03)}" stroke="${c1}" stroke-width="6"/>
+  ${musgo([[300, 905, 26], [1060, 902, 24], [1440, 905, 26]])}
+  ${veu(p)}</svg>`
+}
+const ARTE_PORTA = { fonte: fontePorta, cofre: cofrePorta, altar: altarPorta }
 function htmlArte(c, prefixo) {
   const v = c.visual
+  if (v.tipo === 'modelo' && v.moldura === 'porta' && ARTE_PORTA[v.modelo]) return ARTE_PORTA[v.modelo](prefixo, v.cores || BASE[v.modelo].cores, v.inscricao)
   if (v.tipo === 'modelo' && ARTE[v.modelo]) return ARTE[v.modelo](prefixo, v.cores || BASE[v.modelo].cores, v.inscricao)
   if (v.imagem) return `<img src="${v.imagem}" alt="">`
   return '<div class="quadro__vazio">Sem imagem ainda. Use “Escolher imagem” ou solte um arquivo aqui.</div>'
@@ -1402,6 +1526,7 @@ function htmlQuadroPz(s) {
   const cls = ['quadro']
   if (p.resolvido) cls.push('is-resolvido')
   if (p.resolvido && s.abrindo) cls.push('is-abrindo')
+  if (temMolduraPorta(c)) cls.push('is-porta')
   return `<div class="${cls.join(' ')}" data-quadro>
     <div class="quadro__arte">${htmlArte(c, 'pz')}</div><div class="quadro__grao" aria-hidden="true"></div>
     <div class="quadro__camada" data-encaixes>${TIPOS_PECA.has(c.tipo) ? htmlEncaixesPz(s) : ''}</div>
@@ -1414,7 +1539,9 @@ function listaGanhos(c) {
   const partes = c.desfecho.itens.map((i) => `<b>${esc(i)}</b>`)
   const d = c.desfecho.doc && docPorId(c.desfecho.doc)
   if (d) partes.push(`o documento <b>“${esc(d.titulo)}”</b>`)
-  return partes.length ? partes.join(', ') : '<b>nada</b> (o mestre não pôs itens nem documento)'
+  const pm = ehPortaVisual(c) && portaMapa(c.desfecho.porta)
+  const ganhos = partes.length ? partes.join(', ') : '<b>nada</b> (o mestre não pôs itens nem documento)'
+  return pm ? `${ganhos}, e abre a <b>${esc(pm.nome)}</b> (${esc(pm.onde)})` : ganhos
 }
 function htmlResultadoPz(s) {
   const c = s.cfg
@@ -1432,6 +1559,7 @@ function htmlResultadoPz(s) {
   <div class="resultado" role="dialog" aria-labelledby="res-t" data-resultado>
     <p class="resultado__selo">Resolvido</p><h2 id="res-t">${esc(c.nome)}</h2>
     <p class="resultado__texto">${esc(c.desfecho.texto)}</p>
+    ${ehPortaVisual(c) && portaMapa(c.desfecho.porta) ? `<p class="resultado__porta" data-porta-aberta>A ${esc(portaMapa(c.desfecho.porta).nome.toLowerCase())} se abriu no mapa.</p>` : ''}
     ${c.desfecho.itens.length ? `<div class="resultado__itens"><p>Foi para o inventário de ${esc(s.jogador)}</p><ul>${c.desfecho.itens.map((i) => `<li>${ic('mochila')}${esc(i)}</li>`).join('')}</ul></div>` : ''}
     ${d ? `<div class="resultado__doc" data-doc-ganho><span class="mini-papel" aria-hidden="true"></span><p><b>${esc(d.titulo)}</b>${s.docNovo ? 'Documento novo, guardado em Documentos.' : 'Você já tinha este documento.'}</p><button type="button" class="bt bt--latao bt--p" data-acao="ler-doc" data-doc="${d.id}">Ler agora</button></div>` : ''}
     <button type="button" class="bt bt--primario" data-acao="fechar-resultado">Continuar</button>
@@ -1649,6 +1777,7 @@ function resolverPz(s) {
     for (const it of c.desfecho.itens) j.itens.push(it)
     s.docNovo = c.desfecho.doc ? darDocumento(s.jogador, c.desfecho.doc, 'puzzle', c.nome) : false
     registrar(`${s.jogador} resolveu ${c.nome}`)
+    if (ehPortaVisual(c) && portaMapa(c.desfecho.porta)) { registrar(`A ${portaMapa(c.desfecho.porta).nome.toLowerCase()} se abriu (${portaMapa(c.desfecho.porta).onde})`); ui.portaAbriu = s.lugarId }
     salvar()
     pintarBarraJ()
   }
@@ -1823,10 +1952,11 @@ function htmlFichaVisual(c) {
       <label class="cor">Parede<input type="color" data-campo="cor" data-k="parede" value="${v.cores.parede}"></label>
       <label class="cor">Chão<input type="color" data-campo="cor" data-k="chao" value="${v.cores.chao}"></label>
       <label class="cor">${rotuloObjeto(v.modelo)}<input type="color" data-campo="cor" data-k="objeto" value="${v.cores.objeto}"></label></div>
-    <label class="campo"><span class="campo__rot">Texto gravado na arte <small>${{ fonte: 'na bacia', porta: 'na placa', cofre: 'no bilhete da parede', altar: 'na pedra do altar' }[v.modelo]}</small></span><input class="entrada" data-campo="inscricao" maxlength="80" value="${esc(v.inscricao)}"></label>
+    <label class="campo"><span class="campo__rot">Texto gravado na arte <small>${v.moldura === 'porta' && v.modelo !== 'cofre' ? 'na verga' : { fonte: 'na bacia', porta: 'na placa', cofre: 'no bilhete da parede', altar: 'na pedra do altar' }[v.modelo]}</small></span><input class="entrada" data-campo="inscricao" maxlength="80" value="${esc(v.inscricao)}"></label>
     <button type="button" class="bt bt--fantasma bt--p" data-acao="cores-modelo" style="align-self:flex-start">Voltar às cores do modelo</button>` : `<p class="nota">${v.imagem ? 'A imagem fica guardada só neste navegador (no app, vai para a campanha). Arraste os encaixes sobre ela.' : 'Escolha uma imagem ou solte um arquivo sobre a tela ao lado.'}</p>`
   return `<section class="ficha"><h3>Visual</h3>
     <div class="campo"><span class="campo__rot">Começar de um modelo</span>${modelos}</div>
+    ${v.tipo === 'modelo' && v.modelo !== 'porta' ? `<div class="campo"><span class="campo__rot">Moldura</span>${seg('moldura', [['original', 'Original'], ['porta', 'Porta']], v.moldura || 'original', 'Moldura do modelo')}<p class="nota">${v.moldura === 'porta' ? 'Vira uma porta de pedra: os encaixes ficam onde estão e, ao resolver, as folhas abrem.' : 'Porta transforma o modelo numa passagem que abre ao resolver.'}</p></div>` : ''}
     ${imagem}${cores}</section>`
 }
 function htmlListaEncaixes(c) {
@@ -1888,6 +2018,7 @@ function htmlFichaEditor() {
         <div class="dar"><input class="entrada" data-campo="novo-item" placeholder="Nome do item" maxlength="40" aria-label="Nome do item a dar"><button type="button" class="bt bt--p" data-acao="dar-item">Pôr</button></div></div>
       <label class="campo"><span class="campo__rot">Dar documento</span><select class="entrada" data-campo="desfecho-doc">${opcoesDoc(c.desfecho.doc, 'Nenhum documento')}</select></label>
       <p class="nota">O documento vai para a lista de quem resolveu, com o aviso de novo.</p>
+      ${ehPortaVisual(c) ? `<label class="campo"><span class="campo__rot">Abre a porta do mapa</span><select class="entrada" data-campo="desfecho-porta"><option value="">Nenhuma porta</option>${PORTAS_MAPA.map((pm) => `<option value="${pm.id}"${c.desfecho.porta === pm.id ? ' selected' : ''}>${esc(pm.nome)} · ${esc(pm.onde)}</option>`).join('')}</select></label><p class="nota">No app, a porta ligada no mapa abre para todos. No Testar ela abre só na tela.</p>` : ''}
     </section>
     <section class="ficha"><h3>Se errar</h3>${seg('castigo', Object.entries(NOME_CASTIGO), c.castigo.tipo, 'Castigo ao errar', true)}
       ${c.castigo.tipo === 'dano' ? `<label class="campo"><span class="campo__rot">Dano em PV</span><input class="entrada" type="number" min="1" max="20" data-campo="dano" value="${c.castigo.dano}"></label>` : ''}
@@ -2028,7 +2159,7 @@ function salvarEd(como) {
 function aplicarModeloEd(m) {
   mudarEd((c) => {
     const b = BASE[m]
-    c.visual = { tipo: 'modelo', modelo: m, imagem: null, cores: { ...b.cores }, inscricao: b.inscricao }
+    c.visual = { tipo: 'modelo', modelo: m, imagem: null, cores: { ...b.cores }, inscricao: b.inscricao, moldura: c.visual.moldura || 'original' }
     c.tipo = b.tipo
     c.qualquer = b.qualquer
     c.encaixes = encaixesDoModelo(m)
@@ -2311,7 +2442,18 @@ function svgPapelMapa(tipo) {
   if (tipo === 'imagem') return '<rect x="-15" y="-18" width="30" height="36" fill="#d8ccb0" stroke="#8b8270" stroke-width="2"/><path d="M-11 12l7-9 5 6 4-4 6 7z" fill="#8b8270"/><circle cx="6" cy="-8" r="3.5" fill="#8b8270"/>'
   return '<rect x="-15" y="-17" width="30" height="36" fill="#f1e8d2" stroke="#9a8e74" stroke-width="2" transform="rotate(-4)"/><path d="M-9-6h18M-9 0h16M-9 6h18M-9 12h11" stroke="#8b7a60" stroke-width="1.6" transform="rotate(-4)"/><circle cx="0" cy="-15" r="4" fill="#d2483b" stroke="#8e2a22" stroke-width="1.5"/>'
 }
-function svgPuzzleMapa(cfg) {
+/** Puzzle-porta no mapa: uma porta de pedra na parede; resolvida, as folhas ficam abertas e aparece o escuro. */
+function svgPortaMapa(cfg, aberto) {
+  const o = cfg.visual.cores?.objeto || '#b8b4a6', c1 = tom(o, 0.58), fo = tom(o, 0.94)
+  const folha = (cls, x, origem) => `<rect class="pm-folha ${cls}" x="${x}" y="-38" width="22" height="64" fill="${fo}" stroke="${c1}" stroke-width="2.5" style="transform-box:fill-box;transform-origin:${origem} center${aberto ? ';transform:scaleX(0.14)' : ''}"/>`
+  return `<rect x="-34" y="-48" width="68" height="76" rx="3" fill="${o}" stroke="${c1}" stroke-width="3"/>
+    <rect x="-22" y="-38" width="44" height="64" fill="#110e0b"/>
+    ${aberto ? '<path d="M-14 22h28M-10 14h20M-6 6h12" stroke="#3a3027" stroke-width="3" stroke-linecap="round"/>' : ''}
+    ${folha('pm-e', -22, 'left')}${folha('pm-d', 0, 'right')}
+    <rect x="-34" y="-48" width="68" height="9" fill="${tom(o, 1.08)}" stroke="${c1}" stroke-width="2"/>`
+}
+function svgPuzzleMapa(cfg, aberto) {
+  if (temMolduraPorta(cfg)) return svgPortaMapa(cfg, aberto)
   const m = cfg.visual.tipo === 'modelo' ? cfg.visual.modelo : null
   const o = cfg.visual.cores?.objeto || '#8b8270'
   if (m === 'cofre') return `<rect x="-30" y="-26" width="60" height="62" rx="6" fill="${o}" stroke="${tom(o, 0.55)}" stroke-width="3"/><rect x="-22" y="-18" width="44" height="40" rx="4" fill="${tom(o, 0.85)}" stroke="${tom(o, 0.55)}" stroke-width="2"/><circle cx="0" cy="2" r="9" fill="${tom(o, 0.7)}" stroke="${tom(o, 0.5)}" stroke-width="2"/><path d="M0-7v4M0 7v4M-9 2h4M5 2h4" stroke="#d1b06c" stroke-width="2"/>`
@@ -2355,7 +2497,7 @@ function svgCena(soFundo) {
   if (soFundo) return `<svg viewBox="0 0 ${COLS * CEL} ${LINHAS * CEL}" preserveAspectRatio="xMidYMid slice">${fundoCenaCache}</svg>`
   const perto = objetoPerto()
   const puz = puzzlesNaCena().map((z) => `<g class="obj-puzzle${perto?.tipo === 'puzzle' && perto.id === z.l.id ? ' is-perto' : ''}" data-obj="puzzle" data-id="${z.l.id}" transform="translate(${z.x * CEL + 30} ${z.y * CEL + 34})"><title>${esc(z.l.cfg.nome)}</title>
-      <circle class="obj-perto" r="44" fill="none" stroke="#f3ba66" stroke-width="3" stroke-dasharray="7 6"/>${svgPuzzleMapa(z.l.cfg)}</g>`).join('')
+      <circle class="obj-perto" r="44" fill="none" stroke="#f3ba66" stroke-width="3" stroke-dasharray="7 6"/>${svgPuzzleMapa(z.l.cfg, !!estado.progresso[z.l.id]?.resolvido)}</g>`).join('')
   const pap = papeisNaCena().map((d) => `<g class="obj-papel${perto?.tipo === 'papel' && perto.id === d.id ? ' is-perto' : ''}" data-obj="papel" data-id="${d.id}" transform="translate(${d.pos.x * CEL + 30} ${d.pos.y * CEL + 32})"><title>${esc(d.titulo)}</title>
       <circle class="obj-perto" r="30" fill="none" stroke="#f3ba66" stroke-width="3" stroke-dasharray="7 6"/>${svgPapelMapa(d.papel)}</g>`).join('')
   const fichas = NOMES_J.map((n) => {
@@ -2423,6 +2565,15 @@ function vistaMapa() {
     <div class="jog__mapa" style="grid-row:1"><div class="cena" tabindex="0" data-cena aria-label="Mapa. Setas andam com a sua ficha; E lê ou abre o que estiver encostado.">${svgCena(false)}${htmlTocar()}</div></div>
     <div class="bancada" style="grid-row:2;margin:0 16px 12px" role="note"><span class="bancada__rot">Só no protótipo</span><span>Setas andam com a ficha (ou clique numa casa). Encoste no papel e toque nele, ou aperte <kbd>E</kbd>. <kbd>D</kbd> abre os Documentos, <kbd>I</kbd> o Inventário.</span></div>
   </section>`
+  // voltando de uma passagem resolvida: a porta do mapa abre diante do jogador
+  if (ui.portaAbriu) {
+    const l = lugarPorId(ui.portaAbriu)
+    const folhas = palco.querySelectorAll(`[data-obj="puzzle"][data-id="${ui.portaAbriu}"] .pm-folha`)
+    ui.portaAbriu = null
+    folhas.forEach((el) => animar(el, [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0.14)' }], { duration: 520, delay: 120, easing: EASE_IN_OUT, fill: 'backwards' }, [{ opacity: 0.2 }, { opacity: 1 }]))
+    const pm = l && portaMapa(l.cfg.desfecho.porta)
+    if (pm) aviso(`A ${pm.nome.toLowerCase()} está aberta.`, 'feito')
+  }
 }
 function pintarCena() {
   const c = palco.querySelector('[data-cena]')
@@ -3023,6 +3174,8 @@ const ESCOLHER = {
   'dica-tipo': (el) => mudarEd((c) => { c.dica.tipo = el.value }),
   'dica-doc': (el) => mudarEd((c) => { c.dica.doc = el.value || null }),
   'desfecho-doc': (el) => mudarEd((c) => { c.desfecho.doc = el.value || null }),
+  'desfecho-porta': (el) => mudarEd((c) => { c.desfecho.porta = el.value || null }, '[data-campo="desfecho-porta"]'),
+  moldura: (el) => mudarEd((c) => { c.visual.moldura = el.value }, `[data-campo="moldura"][value="${el.value}"]`),
   castigo: (el) => mudarEd((c) => { c.castigo.tipo = el.value }),
   dano: (el) => mudarEd((c) => { c.castigo.dano = limitar(+el.value || 1, 1, 20) }),
   imagem: (el) => { const f = el.files?.[0]; if (f) usarImagemEd(f) },
