@@ -1,5 +1,4 @@
-import type { DocumentoNoPapel } from '../documentos/Papel'
-import type { BlocoNoFio, DocumentoNaFicha, DocumentoNoFio } from '../documentos/tipos'
+import type { DocumentoNaFicha } from '../documentos/tipos'
 import type { Personagem } from '../lib/personagem'
 import type { Token } from '../types/map'
 
@@ -81,24 +80,5 @@ export function metaDaLinha(linha: Pick<DocumentoNaFicha, 'origem' | 'de' | 'em'
       return `${linha.de === undefined ? 'achado num objeto' : `achado em ${linha.de}`} · ${quando}`
     case 'mestre':
       return `entregue pelo mestre · ${quando}`
-  }
-}
-
-/**
- * O texto de um pedaço da página como ele lê AGORA: o resolver do host já pôs
- * no `texto` o que cabe a ele (o cifrado de quem não tem o item, o claro de
- * quem tem, o borrado embaralhado). A marca visual de cada trecho é da D5.
- */
-function textoDoBloco(bloco: BlocoNoFio): string {
-  return bloco.texto
-}
-
-/** O documento do fio na forma do papel (`documentos/Papel.tsx`): cada página, os pedaços juntos no texto de antes. */
-export function documentoNoPapel(documento: DocumentoNoFio): DocumentoNoPapel {
-  return {
-    titulo: documento.titulo,
-    papel: documento.papel,
-    imagemDoPapel: documento.imagemDoPapel,
-    paginas: documento.paginas.map((pagina) => ({ texto: pagina.blocos.map(textoDoBloco).join(''), imagem: pagina.imagem })),
   }
 }

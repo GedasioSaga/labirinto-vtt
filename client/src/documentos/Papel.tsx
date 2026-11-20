@@ -2,7 +2,7 @@ import { useId, type CSSProperties, type ReactNode } from 'react'
 import type { ResolverDeImagem } from '../lib/midia'
 import { ARTES, contornoDaCera, furosDoCarimbo, recorteDoPapel, tamanhoDoTextoDoCarimbo, tom, fundoDasManchas } from './desenhoDoPapel'
 import { sementeDoTexto } from './resolver'
-import type { ArteDoDocumento, BlocoNoFio, BlocoProtegidoNoFio, Documento, DocumentoNoFio, ExtrasDoDocumento, PaginaDoDocumento, PaginaNoFio, PapelDoDocumento } from './tipos'
+import type { ArteDoDocumento, BlocoNoFio, BlocoProtegidoNoFio, DocumentoNoFio, ExtrasDoDocumento, PaginaNoFio, PapelDoDocumento } from './tipos'
 import './Papel.css'
 
 /**
@@ -28,11 +28,6 @@ export const NOMES_DOS_PAPEIS: Readonly<Record<PapelDoDocumento, string>> = {
   bilhete: 'Bilhete rasgado',
   pergaminho: 'Pergaminho',
   imagem: 'Imagem própria',
-}
-
-/** A forma de antes da D5 (o texto já juntado), que `player/documentosDoJogador.ts` ainda monta. */
-export interface DocumentoNoPapel extends Pick<Documento, 'titulo' | 'papel' | 'imagemDoPapel'> {
-  paginas: readonly PaginaDoDocumento[]
 }
 
 export interface PapelProps {
