@@ -1,4 +1,4 @@
-import type { AlturaDeUmPiso, AlturaDoPiso, Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
+import type { AlturaDeUmPiso, AlturaDoPiso, Desafio, Light, MapData, NoPiso, Pin, Stair, Token } from '../types/map'
 import type { SelectionKind } from '../types/tools'
 import { carriedBy, carrierIdOf, withoutCarrier } from './carry'
 import { subtreeIds } from './roomNesting'
@@ -106,7 +106,8 @@ function listasDoRelevo(map: MapData, f: <T extends NoPiso & { id: string }>(lis
 export function temPisos(map: MapData): boolean {
   const fora = (item: NoPiso): boolean => pisoDe(item) !== 0
   const doRelevo = [map.texturas, map.carimbos, map.penhascos, map.neblinaPintada, map.ambientePintado, map.aguas].some((list) => (list ?? []).some(fora))
-  return doRelevo || listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
+  const desafioFora = (map.desafios ?? []).some((d) => d.lugar.tipo === 'ponto' && fora(d))
+  return doRelevo || desafioFora || listasDe(map).some((list) => list.some(fora)) || (map.stairs ?? []).some((s) => fora(s) || s.levaAoPiso !== undefined)
 }
 
 /**
@@ -203,7 +204,16 @@ function recortarPiso(map: MapData, piso: number): MapData {
     // TEXTURAS, CARIMBOS e PENHASCO: a pincelada do 1º piso não aparece no térreo.
     ...listasDoRelevo(map, (list) => doPiso(list, chave, noPiso)),
     stairs: doPiso(map.stairs, `escada:${piso}`, (s) => escadaNoPiso(s, piso)),
+    // DESAFIOS: o selo marcado num ponto é do piso dele (o recorte do jogador
+    // montava o selo do térreo no 1º piso). O posto num objeto fica: o selo
+    // segue o objeto, e o objeto de outro piso já saiu de `props` acima.
+    ...(map.desafios === undefined ? {} : { desafios: doPiso(map.desafios, chave, (d) => desafioNoPiso(d, piso)) }),
   }
+}
+
+/** O desafio entra no recorte do piso: o do ponto só no piso dele; o do objeto e o sem lugar sempre (o objeto decide). */
+function desafioNoPiso(desafio: Desafio, piso: number): boolean {
+  return desafio.lugar.tipo !== 'ponto' || pisoDe(desafio) === piso
 }
 
 /** Entidade com piso e identidade — toda lista do mapa que tem piso. */
