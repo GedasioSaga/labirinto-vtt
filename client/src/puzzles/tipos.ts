@@ -391,6 +391,8 @@ export interface VagaNaVista {
   vagaId: string
   nome: string
   imagem: string | null
+  /** Quantas a vaga tem (a pilha de peças iguais): é a mochila dele, nada a esconder. */
+  quantidade: number
   /** É da categoria "Peça de puzzle" (as peças vêm primeiro). Nunca quer dizer "serve aqui". */
   peca: boolean
 }
