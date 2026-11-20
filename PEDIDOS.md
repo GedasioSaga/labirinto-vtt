@@ -2828,3 +2828,5 @@ Fila: as três entram depois do que estiver em andamento (nada em andamento em 1
   - Fato achado: já existem os pinos "!"/"?" com "quem recebeu/leu" (`client/src/lib/clues.ts`, `components/CluesSection.tsx`); o plano olha se o documento aproveita esse caminho.
   - Próximo: protótipo HTML v2 (regra 2l), com o editor personalizado do puzzle e o documento (papel no mapa, leitura, lista do jogador, ficha e biblioteca do mestre). Depois aprovar, fazer o plano e construir em ondas.
 19/11 20h36
+
+- 19/11 21h30 (date), protótipo v2 `085b57bd` aberto. Literal, com print da Fonte no editor (3 medalhões, cobras, "Aqui a água lembra"): "aqui coloca uma versão de porta". Pergunta de esclarecimento, resposta: "Porta em todo modelo". Entendido: cada modelo ganha a escolha de moldura "original | Porta" (Fonte, Cofre e Altar; a Porta de brasões já é porta). Os encaixes ficam onde estão, a moldura vira uma porta de pedra e, ao resolver, a porta abre e libera a passagem no mapa (no app: desfecho "abrir porta" ligado a uma porta do mapa). Fila: designer-opus atualiza o prototipo-v2.html. As 19 decisões do Claude no v2 ainda esperam confirmação.
