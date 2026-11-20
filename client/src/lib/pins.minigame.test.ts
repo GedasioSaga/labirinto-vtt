@@ -53,6 +53,7 @@ describe('minigamePadraoDo e trocarJogoDoMinigame', () => {
     expect(danca).not.toBe(MINIGAME_PADRAO)
     expect(pesca).toEqual(MINIGAME_PESCA_PADRAO)
     expect(pesca).not.toBe(MINIGAME_PESCA_PADRAO)
+    if (pesca.jogo !== 'pesca') throw new Error('esperava a pesca')
     expect(pesca.premio).not.toBe(MINIGAME_PESCA_PADRAO.premio)
   })
 

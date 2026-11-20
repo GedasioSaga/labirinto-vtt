@@ -116,7 +116,8 @@ describe('mapFile: minigame', () => {
   it('o padrão lido é cópia: mexer nele não alcança a constante', () => {
     const pino = lerPino('')
     expect(pino.minigame).not.toBe(MINIGAME_PADRAO)
-    expect(pino.minigame?.premio).not.toBe(MINIGAME_PADRAO.premio)
+    if (pino.minigame?.jogo !== 'danca') throw new Error('esperava a dança')
+    expect(pino.minigame.premio).not.toBe(MINIGAME_PADRAO.premio)
   })
 
   it('campo torto cai no padrão e o resto do desafio fica', () => {
@@ -154,10 +155,11 @@ describe('mapFile: minigame', () => {
       consequencia: { tipo: 'espera', texto: 'c'.repeat(PREMIO_TEXTO_MAX_LENGTH + 30) },
     })
     const lido = lerPino(longo).minigame
-    expect(lido?.npc).toBe('n'.repeat(NPC_MAX_LENGTH))
-    expect(lido?.fala).toHaveLength(FALA_MAX_LENGTH)
-    expect(lido?.premio.texto).toHaveLength(PREMIO_TEXTO_MAX_LENGTH)
-    expect(lido?.consequencia.texto).toHaveLength(PREMIO_TEXTO_MAX_LENGTH)
+    if (lido?.jogo !== 'danca') throw new Error('esperava a dança')
+    expect(lido.npc).toBe('n'.repeat(NPC_MAX_LENGTH))
+    expect(lido.fala).toHaveLength(FALA_MAX_LENGTH)
+    expect(lido.premio.texto).toHaveLength(PREMIO_TEXTO_MAX_LENGTH)
+    expect(lido.consequencia.texto).toHaveLength(PREMIO_TEXTO_MAX_LENGTH)
   })
 
   it('música importada inválida vira a demo', () => {

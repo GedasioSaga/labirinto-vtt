@@ -102,10 +102,56 @@ const BOLHA: PinSymbolShape = {
   ],
 }
 
+/**
+ * Peça de quebra-cabeça: o corpo quadrado com o pino em cima e o do lado
+ * (puzzles, 19/11/2026). Pela silhueta, não pelo detalhe: não se confunde
+ * com a chave nem com o baú dos símbolos do pino, mesmo numa cabeça pequena.
+ */
+const PUZZLE: PinSymbolShape = {
+  strokes: [
+    {
+      closed: true,
+      points: [
+        { x: -0.8, y: -0.4 },
+        { x: -0.32, y: -0.4 },
+        { x: -0.32, y: -0.472 },
+        { x: -0.408, y: -0.56 },
+        { x: -0.44, y: -0.68 },
+        { x: -0.408, y: -0.8 },
+        { x: -0.32, y: -0.888 },
+        { x: -0.2, y: -0.92 },
+        { x: -0.08, y: -0.888 },
+        { x: 0.008, y: -0.8 },
+        { x: 0.04, y: -0.68 },
+        { x: 0.008, y: -0.56 },
+        { x: -0.08, y: -0.472 },
+        { x: -0.08, y: -0.4 },
+        { x: 0.4, y: -0.4 },
+        { x: 0.4, y: 0.08 },
+        { x: 0.472, y: 0.08 },
+        { x: 0.56, y: -0.008 },
+        { x: 0.68, y: -0.04 },
+        { x: 0.8, y: -0.008 },
+        { x: 0.888, y: 0.08 },
+        { x: 0.92, y: 0.2 },
+        { x: 0.888, y: 0.32 },
+        { x: 0.8, y: 0.408 },
+        { x: 0.68, y: 0.44 },
+        { x: 0.56, y: 0.408 },
+        { x: 0.472, y: 0.32 },
+        { x: 0.4, y: 0.32 },
+        { x: 0.4, y: 0.8 },
+        { x: -0.8, y: 0.8 },
+      ],
+    },
+  ],
+}
+
 export const SIMBOLO_DO_JOGO: { readonly [J in JogoDoMinigame]: PinSymbolShape } = {
   danca: DANCA,
   pesca: PESCA,
   tiro: TIRO,
   fogo: FOGO,
   bolha: BOLHA,
+  puzzle: PUZZLE,
 }

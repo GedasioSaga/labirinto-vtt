@@ -12,6 +12,7 @@
 import type { Desafio, LugarDoDesafio, MapData, Pin, Prop } from '../types/map'
 import type { JogoDoMinigame, MinigameDoPino } from '../minigames/tipos'
 import { entradaDoMinigame, nomeDoJogo, padraoDoJogo, type EntradaDoDesafio } from '../minigames/registro'
+import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 
 /** Teto do nome do desafio (o mesmo do nome do pino). */
 export const DESAFIO_NOME_MAX_LENGTH = 60
@@ -190,6 +191,24 @@ export function atualizarDesafio(map: MapData, id: string, patch: PatchDoDesafio
   if (chaves.every((chave) => JSON.stringify(atual[chave]) === JSON.stringify(patch[chave]))) return map
   const novo: Desafio = { ...atual, ...patch }
   if (patch.portaLigada === undefined && 'portaLigada' in patch) delete novo.portaLigada
+  return { ...map, desafios: lista.map((desafio, j) => (j === i ? novo : desafio)) }
+}
+
+/**
+ * O PROGRESSO DO PUZZLE `id`, gravado pelo caminho do jogador
+ * (`net/playerChanges.ts`), fora do Ctrl+Z do mestre. Fica fora do patch do
+ * desafio (`CHAVES_DO_PATCH`) de propósito: editar a cópia ou desfazer não o
+ * apagam. Pura e reaplicável: entra no mapa E em todo passo do desfazer da
+ * cena; num passo em que o desafio não existe, ou ainda não é puzzle, devolve
+ * o próprio mapa, como devolve quando o progresso é o mesmo.
+ */
+export function mapaComProgressoDoPuzzle(map: MapData, id: string, progresso: ProgressoDoPuzzle): MapData {
+  const lista = desafiosDo(map)
+  const i = lista.findIndex((desafio) => desafio.id === id)
+  const atual = lista[i]
+  if (atual === undefined || atual.minigame.jogo !== 'puzzle') return map
+  if (JSON.stringify(atual.progressoDoPuzzle) === JSON.stringify(progresso)) return map
+  const novo: Desafio = { ...atual, progressoDoPuzzle: progresso }
   return { ...map, desafios: lista.map((desafio, j) => (j === i ? novo : desafio)) }
 }
 

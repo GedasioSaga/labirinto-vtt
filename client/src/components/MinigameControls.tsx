@@ -68,6 +68,18 @@ import {
   type DificuldadeBolha,
   type MinigameBolha,
 } from '../minigames/bolha/tipos'
+import { NOME_DO_MODELO, visualEhPorta } from '../puzzles/padroes'
+import {
+  TEXTO_DA_RECUSA,
+  VERSAO_DO_PUZZLE,
+  type CastigoDoPuzzle,
+  type DesfechoDoPuzzle,
+  type EncaixeDoPuzzle,
+  type MinigamePuzzle,
+  type RegraDoPuzzle,
+  type TipoDeCastigo,
+  type VisualDoPuzzle,
+} from '../puzzles/tipos'
 import { BolhaAoVivoPainel } from './BolhaAoVivo'
 import type { BolhaNoPainel } from './bolhaNoPainel'
 import { PacoteDoMinigame } from './PacoteDoMinigame'
@@ -179,6 +191,7 @@ const JOGOS: readonly { valor: JogoDoMinigame; rotulo: string }[] = [
   { valor: 'tiro', rotulo: 'Tiro' },
   { valor: 'fogo', rotulo: 'Fogo na Floresta' },
   { valor: 'bolha', rotulo: "Bolha d'Água" },
+  { valor: 'puzzle', rotulo: 'Puzzle' },
 ]
 
 const PERMITIDAS_DO_FOGO: readonly { valor: 'escolha' | DificuldadeFogo; rotulo: string }[] = [
@@ -739,7 +752,7 @@ export function MinigameControls(props: MinigameControlsProps) {
     <div className="lb-minigame">
       <fieldset className="lb-minigame__grupo">
         <legend className="lb-label">Jogo</legend>
-        {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha): numa fila só, os 5 jogos
+        {/* Em GRADE de 3 (Dança, Pesca, Tiro / Fogo, Bolha, Puzzle): numa fila só, os jogos
             passavam da largura do rail e a Bolha vazava da caixa (medido em 1366x768, 10/11/2026). */}
         <Pastilhas
           rotulo="Jogo"
@@ -765,6 +778,87 @@ const PAINEL_DO_JOGO: { readonly [J in JogoDoMinigame]: (props: MinigameControls
   tiro: (props, minigame) => <PainelDoTiro {...props} minigame={minigame} />,
   fogo: (props, minigame) => <PainelDoFogo {...props} minigame={minigame} />,
   bolha: (props, minigame) => <PainelDaBolha {...props} minigame={minigame} />,
+  puzzle: (_props, minigame) => <PainelDoPuzzle minigame={minigame} />,
+}
+
+const TEXTO_DA_REGRA: Readonly<Record<RegraDoPuzzle, string>> = {
+  qualquerLugar: 'Qualquer peça do conjunto em qualquer encaixe',
+  lugarCerto: 'Cada encaixe aceita só a peça dele',
+  ordem: 'Ordem certa: cada peça no seu número',
+}
+
+const TEXTO_DO_CASTIGO: Readonly<Record<TipoDeCastigo, string>> = {
+  nada: 'Nenhum',
+  dano: 'Dano',
+  armadilha: 'Armadilha',
+  barulho: 'Barulho: avisa você',
+}
+
+function textoDoVisual(visual: VisualDoPuzzle): string {
+  if (visual.tipo === 'imagem') return visual.imagem === null ? 'Imagem própria (ainda sem imagem)' : 'Imagem própria'
+  const nome = NOME_DO_MODELO[visual.modelo]
+  return visual.moldura === 'porta' ? `${nome}, na moldura Porta` : nome
+}
+
+function textoDosEncaixes(encaixes: readonly EncaixeDoPuzzle[]): string {
+  if (encaixes.length === 0) return 'Nenhum encaixe'
+  const semPeca = encaixes.filter((e) => (e.jeito === 'peca' ? e.itemId === null : e.metades.some((metade) => metade === null))).length
+  const total = encaixes.length === 1 ? '1 encaixe' : `${encaixes.length} encaixes`
+  if (semPeca === 0) return `${total}, todos com a peça certa`
+  return `${total}, ${semPeca === 1 ? '1 sem a peça certa' : `${semPeca} sem a peça certa`}`
+}
+
+function textoDoDesfecho(desfecho: DesfechoDoPuzzle, abre: boolean): string {
+  const partes = [desfecho.modo === 'cena' ? 'Cena e texto' : 'Só texto']
+  if (desfecho.itens.length > 0) partes.push(desfecho.itens.length === 1 ? '1 item' : `${desfecho.itens.length} itens`)
+  if (desfecho.moedas > 0) partes.push(desfecho.moedas === 1 ? '1 moeda' : `${desfecho.moedas} moedas`)
+  if (abre && desfecho.abrePorta) partes.push('abre a porta ligada')
+  return partes.join(' · ')
+}
+
+function textoDoCastigo(castigo: CastigoDoPuzzle): string {
+  const nome = TEXTO_DO_CASTIGO[castigo.tipo]
+  return castigo.tipo === 'dano' || castigo.tipo === 'armadilha' ? `${nome}: ${castigo.pv} PV` : nome
+}
+
+/**
+ * O PUZZLE do desafio, por enquanto só o RESUMO (fase P2 do plano dos
+ * puzzles): o editor em tela cheia, a porta ligada e o "Zerar progresso"
+ * chegam com o editor do mestre. Nada aqui grava.
+ */
+function PainelDoPuzzle({ minigame }: { minigame: MinigamePuzzle }) {
+  const { puzzle } = minigame
+  const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || puzzle.futuro !== undefined
+  const linhas: readonly { rotulo: string; valor: string }[] = [
+    { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
+    { rotulo: 'Visual', valor: textoDoVisual(puzzle.visual) },
+    { rotulo: 'Regra', valor: TEXTO_DA_REGRA[puzzle.regra] },
+    { rotulo: 'Encaixes', valor: textoDosEncaixes(puzzle.encaixes) },
+    { rotulo: 'Troca de peso', valor: puzzle.troca === null ? 'Sem troca' : `A bandeja pede ${puzzle.troca.peso}` },
+    { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, visualEhPorta(puzzle.visual)) },
+    { rotulo: 'Castigo', valor: textoDoCastigo(puzzle.castigo) },
+  ]
+  return (
+    <fieldset className="lb-minigame__grupo">
+      <legend className="lb-label">{puzzle.nome}</legend>
+      {versaoNova && (
+        <p className="lb-minigame__aviso" role="alert">
+          {TEXTO_DA_RECUSA.versao_nova}
+        </p>
+      )}
+      <div className="lb-minigame__grade">
+        <dl className="lb-minigame__medidas">
+          {linhas.map((linha) => (
+            <div key={linha.rotulo} className="lb-minigame__medida">
+              <dt>{linha.rotulo}</dt>
+              <dd className="lb-minigame__valor">{linha.valor}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <span className="lb-label">O jogador encosta no selo e examina. O editor do puzzle ainda não está nesta versão.</span>
+    </fieldset>
+  )
 }
 
 function painelDoJogo<J extends JogoDoMinigame>(jogo: J, props: MinigameControlsProps, minigame: MinigamesPorJogo[J]): ReactNode {

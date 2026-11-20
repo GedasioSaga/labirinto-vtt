@@ -176,6 +176,8 @@ const TEXTOS_DO_JOGO: Record<JogoDoMinigame, { vazio: string; doMestre: string }
   tiro: { vazio: 'Uma barraca de tiro ao alvo.', doMestre: 'Barraca de tiro. O mestre chama quando for a hora.' },
   fogo: { vazio: 'Fogo na floresta! Alguém precisa de ajuda aqui.', doMestre: 'Fogo na floresta. O mestre chama quando for a hora.' },
   bolha: { vazio: 'Fogo! Alguém precisa de ajuda para apagar com bolhas.', doMestre: "Bolha d'Água. O mestre chama quando for a hora." },
+  // O puzzle começa pelo jogador ("Examinar", na tela do puzzle); o mestre nunca chama.
+  puzzle: { vazio: 'Há algo aqui para examinar de perto.', doMestre: 'Um mecanismo para examinar de perto.' },
 }
 /** Fogo sem como pedir daqui (o cartão que o mestre mostrou). */
 const TEXTO_DO_FOGO_NO_PINO = 'Fogo na floresta. Encoste no pino e toque em "Apagar o fogo".'

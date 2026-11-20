@@ -9,7 +9,7 @@ import { FolhaDoLivro, TituloDaPagina } from './FolhaDoLivro'
 import type { PaginaExtraDoMestre } from './LivroDoMestre'
 import { IconeDoJogo, IconeDosJogos } from './IconeDoJogo'
 import { DESAFIO_NOME_MAX_LENGTH, desafiosDo, desafiosMigrados, faltaNoLugar, novoDesafio, pontoDoDesafio, textoDoLugar } from '../../lib/desafios'
-import { ORDEM_DOS_JOGOS, nomeDoJogo } from '../../minigames/registro'
+import { ORDEM_DOS_JOGOS, REGISTRO_DE_MINIGAMES, nomeDoJogo } from '../../minigames/registro'
 import type { JogoDoMinigame } from '../../minigames/tipos'
 import type { DancaAoVivo } from '../../net/dancaNoHost'
 import type { PescaAoVivo } from '../../net/pescaNoHost'
@@ -156,7 +156,7 @@ function ListaDosJogos({ desafios, props, aoVivo, mapaId, avisoDispensado }: Pro
   // encostavam na borda do livro (auditoria de 16/11/2026).
   return (
     <>
-      <TituloDaPagina titulo="Jogos" sub="Os desafios desta cena: dança, pesca, tiro, fogo e bolha." />
+      <TituloDaPagina titulo="Jogos" sub="Os desafios desta cena: dança, pesca, tiro, fogo, bolha e puzzle." />
       <div className="lb-zona gr-paginas">
         {migrados.length > 0 && !avisoDispensado && (
           <div className="mg-aviso" role="status">
@@ -281,6 +281,9 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
     return () => window.removeEventListener('keydown', aoTeclar)
   }, [marcandoEste])
 
+  // Só os lugares que o jogo aceita (o puzzle não fica "sem lugar"), mais o de agora: o desafio que acabou de trocar de jogo ainda mostra onde está.
+  const lugaresDoJogo = REGISTRO_DE_MINIGAMES[desafio.minigame.jogo].lugares
+  const opcoesDoLugar = OPCOES_DO_LUGAR.filter((opcao) => lugaresDoJogo.includes(opcao.valor) || opcao.valor === desafio.lugar.tipo)
   const escolherLugar = (tipo: TipoDoLugarDoDesafio) => {
     if (tipo === 'nenhum') {
       pararDeMarcar()
@@ -298,7 +301,7 @@ function FichaDoDesafio({ desafio, props, painel }: PropsDaFicha) {
     <SubFicha voltarPara="Jogos" onVoltar={() => abrir(null)} icone={<IconeDoJogo jogo={desafio.minigame.jogo} />} titulo={desafio.nome} tipo={`Desafio de ${nomeDoJogo(desafio.minigame.jogo).toLowerCase()}`}>
       <CampoTexto rotulo="Nome" valor={desafio.nome} maxLength={DESAFIO_NOME_MAX_LENGTH} onChange={(nome) => gravar(desafio.id, { nome })} />
       <div className="mg-onde">
-        <CampoSeg rotulo="Onde fica" opcoes={OPCOES_DO_LUGAR} valor={marcandoEste ?? desafio.lugar.tipo} onChange={escolherLugar} />
+        <CampoSeg rotulo="Onde fica" opcoes={opcoesDoLugar} valor={marcandoEste ?? desafio.lugar.tipo} onChange={escolherLugar} />
         {marcandoEste !== null ? (
           <>
             <Nota>{marcandoEste === 'ponto' ? 'Clique no mapa onde o jogo acontece.' : 'Clique no objeto do mapa onde o jogo acontece.'} Esc cancela.</Nota>

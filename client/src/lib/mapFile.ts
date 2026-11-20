@@ -1,7 +1,9 @@
 import type { CamadaId, ConcealZone, Desafio, DoorState, FloorStyle, Light, LugarDoDesafio, MapData, Pin, Prop, Region, Token, Wall } from '../types/map'
 import { comPinosDeMinigameComoDesafios, DESAFIO_NOME_MAX_LENGTH, nomePadraoDoDesafio } from './desafios'
-import { ehJogoDoRegistro, type MinigamesPorJogo } from '../minigames/registro'
+import { ehJogoDoRegistro, padraoDoJogo, type MinigamesPorJogo } from '../minigames/registro'
 import type { JogoDoMinigame } from '../minigames/tipos'
+import { lerProgressoDoPuzzle, lerPuzzleDoArquivo } from '../puzzles/leitor'
+import type { MinigamePuzzle } from '../puzzles/tipos'
 import { parseTransicao } from '../transicoes/catalogo'
 import { parseCenario } from '../cenario/catalogo'
 import { idDeAnimacaoDePortaValido } from '../portas/animacoesDePorta'
@@ -326,6 +328,17 @@ const LEITORES_DO_ARQUIVO: { readonly [J in JogoDoMinigame]: (valor: object) => 
   tiro: lerTiroDoArquivo,
   fogo: lerFogoDoArquivo,
   bolha: lerBolhaDoArquivo,
+  puzzle: lerPuzzleDoDisco,
+}
+
+/**
+ * O PUZZLE do disco, pela leitura dele (`puzzles/leitor.ts`): campo torto vira
+ * o padrão do modelo, a mecânica de uma leva futura fica como veio. O `jogo`
+ * já foi conferido em `lerMinigameDoArquivo`, então o leitor sempre devolve
+ * um puzzle; o padrão é só a rede de segurança do tipo.
+ */
+function lerPuzzleDoDisco(valor: object): MinigamePuzzle {
+  return lerPuzzleDoArquivo(valor) ?? padraoDoJogo('puzzle')
 }
 
 /**
@@ -353,6 +366,8 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
   if (minigame === undefined) return null
   const portaLigada = readPinLeverDoor(cru.portaLigada)
   const eraPino = lerPinoDeAntes(cru.eraPino, cru.id)
+  // PUZZLE: o progresso é lido só no desafio que é puzzle; o de um desafio que mudou de jogo não volta.
+  const progressoDoPuzzle = minigame.jogo === 'puzzle' ? lerProgressoDoPuzzle(cru.progressoDoPuzzle) : undefined
   return {
     id: cru.id,
     nome: textoDoArquivo(cru.nome, DESAFIO_NOME_MAX_LENGTH, '') || nomePadraoDoDesafio(minigame),
@@ -361,6 +376,7 @@ function lerDesafioDoArquivo(cru: Desafio): Desafio | null {
     ...(portaLigada === undefined ? {} : { portaLigada }),
     ...(Number.isInteger(cru.piso) ? { piso: cru.piso } : {}),
     ...(eraPino === undefined ? {} : { eraPino }),
+    ...(progressoDoPuzzle === undefined ? {} : { progressoDoPuzzle }),
   }
 }
 

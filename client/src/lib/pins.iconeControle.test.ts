@@ -89,7 +89,8 @@ describe('buildPin e minigamePadrao', () => {
     const b = buildPin('b', { x: 0, y: 0 }, 'minigame')
     expect(a.minigame).toEqual(MINIGAME_PADRAO)
     expect(a.minigame).not.toBe(MINIGAME_PADRAO)
-    expect(a.minigame?.premio).not.toBe(b.minigame?.premio)
+    if (a.minigame?.jogo !== 'danca' || b.minigame?.jogo !== 'danca') throw new Error('esperava a dança')
+    expect(a.minigame.premio).not.toBe(b.minigame.premio)
     expect(buildPin('c', { x: 0, y: 0 }, 'alavanca').minigame).toBeUndefined()
   })
 

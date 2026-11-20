@@ -2,6 +2,7 @@ import type { TransicaoEscolhida } from '../transicoes/catalogo'
 import type { CenarioDoPino } from '../cenario/catalogo'
 import type { FalaDoPino, FalaParaJogador, QuandoDoCenario } from './cenarioEFalas'
 import type { MinigameDoPino, MinigameVisivel } from '../minigames/tipos'
+import type { ProgressoDoPuzzle } from '../puzzles/tipos'
 import type { AuraDaFicha } from '../lib/auras'
 import type { SelectionKind } from './tools'
 /**
@@ -2750,8 +2751,20 @@ export interface Desafio extends NoPiso {
   lugar: LugarDoDesafio
   /** O jogo e os campos dele (quem desafia, fala, música, dificuldade...), como o pino gravava. */
   minigame: MinigameDoPino
-  /** Só da dança: a parede-porta deste mapa que abre quando todos passam. Nunca vai ao jogador. */
+  /**
+   * Da dança e do puzzle: a parede-porta deste mapa que abre quando todos
+   * passam (dança) ou quando o puzzle é resolvido. Nunca vai ao jogador.
+   */
   portaLigada?: string
+  /**
+   * Só com `minigame.jogo === 'puzzle'`: o que os jogadores já puseram, de
+   * todos (plano dos puzzles, §1.2). Fica FORA da configuração para que editar
+   * a cópia ou o Ctrl+Z do mestre não o apaguem: o patch do desafio não o toca
+   * (`lib/desafios.ts`), e quem o grava é o caminho do jogador
+   * (`mapaComProgressoDoPuzzle`), em todo passo do desfazer. Ausente = ninguém
+   * mexeu. Nunca vai ao jogador como está: ele recebe a `VistaDoPuzzle`.
+   */
+  progressoDoPuzzle?: ProgressoDoPuzzle
   /**
    * Veio de um pino ▷ (migração de `lib/mapFile.ts`): o pino inteiro de antes,
    * menos o desafio, que mora em `minigame`. Guarda o que o pino tinha e o

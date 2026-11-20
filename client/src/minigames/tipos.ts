@@ -8,12 +8,13 @@ import type { MinigameDanca } from './danca/tipos'
 import type { MinigameFogo } from './fogo/tipos'
 import type { EntradaPesca, MinigamePesca } from './pesca/tipos'
 import type { EntradaTiro, MinigameTiro } from './tiro/tipos'
+import type { MinigamePuzzle } from '../puzzles/tipos'
 
 /** O que fica gravado no pino (`Pin.minigame`): o desafio inteiro do jogo escolhido. */
-export type MinigameDoPino = MinigameDanca | MinigamePesca | MinigameTiro | MinigameFogo | MinigameBolha
+export type MinigameDoPino = MinigameDanca | MinigamePesca | MinigameTiro | MinigameFogo | MinigameBolha | MinigamePuzzle
 
 export type JogoDoMinigame = MinigameDoPino['jogo']
-export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha']
+export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'puzzle']
 
 /**
  * O pouco do desafio que vai no recorte do JOGADOR (`Pin.minigameVisivel`):
@@ -25,6 +26,10 @@ export const JOGOS_DO_MINIGAME: readonly JogoDoMinigame[] = ['danca', 'pesca', '
  * jogador lê no cartão (pedido do usuário, 09/11/2026). "Apagar o fogo"
  * começa sozinho (`entrada: 'pino'`); a bolha começa sozinha só quando o
  * mestre deixou (`entrada` do pino). A equipe continua vindo do mestre, pelo painel.
+ *
+ * O PUZZLE sempre começa pelo jogador (`entrada: 'pino'`: encosta no selo e
+ * examina). Do puzzle vai só o jogo: nome, regra, encaixes e progresso chegam
+ * pela `VistaDoPuzzle` (`puzzles/recorte.ts`), e só a quem entra nele.
  */
 export interface MinigameVisivel {
   jogo: JogoDoMinigame

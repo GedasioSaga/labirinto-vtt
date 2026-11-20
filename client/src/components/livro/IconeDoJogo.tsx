@@ -34,7 +34,7 @@ function DesenhoDoSimbolo({ forma }: { forma: PinSymbolShape }) {
   )
 }
 
-/** O símbolo do jogo (nota, anzol, alvo, chama, bolhas). */
+/** O símbolo do jogo (nota, anzol, alvo, chama, bolhas, peça de quebra-cabeça). */
 export function IconeDoJogo({ jogo }: { jogo: JogoDoMinigame }) {
   return (
     <svg className="gr-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">

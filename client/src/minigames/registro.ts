@@ -1,6 +1,6 @@
 /**
  * REGISTRO ÚNICO DOS MINIGAMES (Fase B do pedido de 15/11/2026). Cada jogo
- * declara aqui: id, nome, ícone, onde o desafio pode ficar, como ele pode
+ * declara aqui: id, nome, aba (ação ou puzzle), ícone, onde o desafio pode ficar, como ele pode
  * começar, o desafio padrão, o recorte do jogador e os desfechos que produz.
  * Os pontos que antes repetiam a união dos jogos (o padrão e o nome em
  * `lib/pins.ts`, o recorte em `lib/fogFilter.ts`, a leitura em
@@ -21,6 +21,8 @@ import { MINIGAME_PESCA_PADRAO, type MinigamePesca } from './pesca/tipos'
 import { MINIGAME_TIRO_PADRAO, type MinigameTiro } from './tiro/tipos'
 import type { JogoDoMinigame, MinigameDoPino, MinigameVisivel } from './tipos'
 import { JOGOS_PORTADOS, type JogoDoObjeto } from './abrir/objeto'
+import { puzzleDoModelo } from '../puzzles/padroes'
+import { VERSAO_DO_PUZZLE, type MinigamePuzzle } from '../puzzles/tipos'
 
 /** O desafio gravado de cada jogo, pelo id do jogo. */
 export interface MinigamesPorJogo {
@@ -29,15 +31,24 @@ export interface MinigamesPorJogo {
   tiro: MinigameTiro
   fogo: MinigameFogo
   bolha: MinigameBolha
+  puzzle: MinigamePuzzle
 }
 
 /** Como o desafio começa: o jogador encosta no selo e toca, ou o mestre convida. */
 export type EntradaDoDesafio = 'pino' | 'mestre'
 
+/**
+ * A aba do jogo na página Jogos: os minigames de AÇÃO (dança, pesca, tiro,
+ * fogo, bolha) ou os PUZZLES (plano dos puzzles, §0). Os jogos de objeto
+ * (baú, caixa, barril) têm a aba deles e não moram neste registro.
+ */
+export type CategoriaDoJogo = 'acao' | 'puzzle'
+
 export interface DefinicaoDoMinigame<J extends JogoDoMinigame> {
   id: J
   /** O nome do jogo para o mestre e no cartão ("Pesca", "Fogo na Floresta"). */
   nome: string
+  categoria: CategoriaDoJogo
   /** O símbolo do selo e da lista (`minigames/simbolosDosJogos.ts`), um por jogo. */
   icone: J
   /** Onde o desafio deste jogo pode ficar. */
@@ -71,6 +82,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   danca: {
     id: 'danca',
     nome: 'Dança',
+    categoria: 'acao',
     icone: 'danca',
     lugares: TODOS_OS_LUGARES,
     entradas: ['mestre'],
@@ -82,6 +94,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   pesca: {
     id: 'pesca',
     nome: 'Pesca',
+    categoria: 'acao',
     icone: 'pesca',
     lugares: TODOS_OS_LUGARES,
     entradas: ['pino', 'mestre'],
@@ -94,6 +107,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   tiro: {
     id: 'tiro',
     nome: 'Tiro',
+    categoria: 'acao',
     icone: 'tiro',
     lugares: TODOS_OS_LUGARES,
     entradas: ['pino', 'mestre'],
@@ -105,6 +119,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   fogo: {
     id: 'fogo',
     nome: 'Fogo na Floresta',
+    categoria: 'acao',
     icone: 'fogo',
     lugares: TODOS_OS_LUGARES,
     // "Apagar o fogo" começa sozinho no selo; a equipe vem do convite do mestre.
@@ -117,6 +132,7 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
   bolha: {
     id: 'bolha',
     nome: "Bolha d'Água",
+    categoria: 'acao',
     icone: 'bolha',
     lugares: TODOS_OS_LUGARES,
     entradas: ['pino', 'mestre'],
@@ -126,10 +142,29 @@ export const REGISTRO_DE_MINIGAMES: { readonly [J in JogoDoMinigame]: DefinicaoD
       comPedidoDeAjuda({ jogo: 'bolha', entrada: minigame.entrada === 'pino' ? 'pino' : 'mestre' }, minigame, legivel),
     desfechos: [],
   },
+  puzzle: {
+    id: 'puzzle',
+    nome: 'Puzzle',
+    categoria: 'puzzle',
+    icone: 'puzzle',
+    // Sem 'nenhum': o puzzle não vira convite do mestre nem pino ▷ antigo; o jogador encosta e examina.
+    lugares: ['ponto', 'objeto'],
+    entradas: ['pino'],
+    padrao: puzzlePadrao,
+    entradaDe: () => 'pino',
+    // Só o jogo: a configuração e o progresso vão pela `VistaDoPuzzle`, a quem entra nele (`puzzles/recorte.ts`).
+    recorteDoJogador: () => ({ jogo: 'puzzle', entrada: 'pino' }),
+    desfechos: ['abrir porta', 'dar itens', 'dano'],
+  },
+}
+
+/** O puzzle novo da página Jogos: o primeiro modelo pronto (a Fonte), feito aqui e sem progresso. */
+function puzzlePadrao(): MinigamePuzzle {
+  return { jogo: 'puzzle', versao: VERSAO_DO_PUZZLE, npc: '', modeloId: null, puzzle: puzzleDoModelo('fonte') }
 }
 
 /** A ordem dos jogos na escolha do mestre (a mesma de `JOGOS_DO_MINIGAME`). */
-export const ORDEM_DOS_JOGOS: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha']
+export const ORDEM_DOS_JOGOS: readonly JogoDoMinigame[] = ['danca', 'pesca', 'tiro', 'fogo', 'bolha', 'puzzle']
 
 /** O jogo é um que este app conhece? (arquivo de versão futura pode trazer outro). */
 export function ehJogoDoRegistro(valor: unknown): valor is JogoDoMinigame {
