@@ -1,0 +1,42 @@
+{
+  "id": "ponte-levadica-saindo",
+  "fonte": "docs/design/transicoes/provas-ponte/fonte/ponte-levadica-saindo.ts",
+  "geradoEm": "2026-11-20T17:42:30.857Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.6,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 5.05,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -1.53,
+    "picoVerdadeiroDbtp": -1.53,
+    "lufsIntegrado": -19.27,
+    "lufsCurtoPrazoMax": -18.24,
+    "dcPct": 0.0656,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [],
+    "equilibrioLRdb": 0.26,
+    "centroideHzPorSegundo": [
+      673,
+      205,
+      193,
+      208,
+      175,
+      null
+    ],
+    "duracaoNaturalS": 4.8
+  }
+}

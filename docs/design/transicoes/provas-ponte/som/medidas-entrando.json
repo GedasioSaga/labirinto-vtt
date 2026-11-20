@@ -1,0 +1,42 @@
+{
+  "id": "ponte-levadica-entrando",
+  "fonte": "docs/design/transicoes/provas-ponte/fonte/ponte-levadica-entrando.ts",
+  "geradoEm": "2026-11-20T17:42:23.951Z",
+  "veredito": "aprovado",
+  "motivos": [],
+  "referencia": {
+    "ids": [
+      "porta",
+      "escada-pedra",
+      "escada-pedra-descendo",
+      "portao-pesado"
+    ],
+    "medianaLufsIntegrado": -18.6,
+    "toleranciaLU": 3
+  },
+  "medidas": {
+    "duracaoS": 5.05,
+    "canais": 2,
+    "taxa": 48000,
+    "picoDbfs": -2.4,
+    "picoVerdadeiroDbtp": -2.37,
+    "lufsIntegrado": -19.66,
+    "lufsCurtoPrazoMax": -18.79,
+    "dcPct": 0.0875,
+    "cortes": 0,
+    "cliques": [],
+    "ataques": [],
+    "trensDePulsos": [],
+    "silenciosNoMeio": [],
+    "equilibrioLRdb": 0.09,
+    "centroideHzPorSegundo": [
+      254,
+      254,
+      211,
+      277,
+      641,
+      null
+    ],
+    "duracaoNaturalS": 4.8
+  }
+}

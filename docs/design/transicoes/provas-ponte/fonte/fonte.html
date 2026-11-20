@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ponte levadiça</title>
+<style>
+:root {
+  --fundo: #f4f1ea;
+  --superficie: #ffffff;
+  --tinta: #1f1d1a;
+  --tinta-2: #5c574f;
+  --borda: #ddd6c8;
+  /* #8f6118 com texto branco dá 5,4:1 (AA para texto normal); o #a8741f de antes ficava em 4,0:1. */
+  --acento: #8f6118;
+  --acento-tinta: #ffffff;
+  --foco: #2a6fdb;
+  --raio: 12px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #14120f;
+    --superficie: #1f1c18;
+    --tinta: #efe9dd;
+    --tinta-2: #b3aa99;
+    --borda: #3a352d;
+    --acento: #e0a948;
+    --acento-tinta: #1a1408;
+    --foco: #8db7ff;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #14120f;
+  --superficie: #1f1c18;
+  --tinta: #efe9dd;
+  --tinta-2: #b3aa99;
+  --borda: #3a352d;
+  --acento: #e0a948;
+  --acento-tinta: #1a1408;
+  --foco: #8db7ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--tinta);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+main { max-width: 992px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 16px; color: var(--tinta-2); font-size: 0.9375rem; }
+.escolha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.escolha .rotulo { color: var(--tinta-2); font-size: 0.9375rem; }
+.segmentos { display: inline-flex; padding: 4px; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+.segmentos button { border-color: transparent; min-width: 168px; }
+.segmentos button[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+.descricao { margin: 0 0 12px; color: var(--tinta-2); font-size: 0.9375rem; min-height: 3em; }
+/* Mesmas camadas da tela do app (TransicaoTela + transicoes.css). */
+.palco { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #000; border-radius: var(--raio); }
+.palco:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+.palco canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.granulado { opacity: 0.06; mix-blend-mode: screen; pointer-events: none; }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 48%, transparent 42%, rgba(0, 0, 0, 0.88) 100%); pointer-events: none; }
+.cortina { position: absolute; inset: 0; background: #000; opacity: 1; pointer-events: none; }
+/* O "Pular" do app (lb-transicao-jogo__pular). */
+.pular {
+  position: absolute; right: 16px; bottom: 16px; min-height: 0; padding: 10px 16px;
+  border: 1px solid rgba(216, 208, 191, 0.35); border-radius: 4px; background: rgba(0, 0, 0, 0.55);
+  color: #d8d0bf; font-size: 13px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase;
+  /* Borda e aperto iguais aos do app; o aparecer/sumir (só existe aqui, entre as voltas) usa a curva forte. */
+  transition: border-color 150ms ease, transform 120ms ease-out, opacity 150ms var(--ease-out), visibility 0s linear 0s;
+}
+.pular[data-escondido="true"] { opacity: 0; visibility: hidden; transition: opacity 150ms var(--ease-out), visibility 0s linear 150ms; }
+.pular:focus-visible { outline: 2px solid #d8d0bf; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .pular:hover { border-color: rgba(216, 208, 191, 0.7); } }
+.barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px; background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); }
+button {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, color 160ms ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+button:disabled:active { transform: none; }
+button.primario { background: var(--acento); color: var(--acento-tinta); border-color: transparent; }
+.barra button[aria-pressed="true"] { border-color: var(--acento); box-shadow: inset 0 0 0 1px var(--acento); }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+label.opcao { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; cursor: pointer; color: var(--tinta); }
+label.opcao input { width: 20px; height: 20px; accent-color: var(--acento); margin: 0; }
+.tempo { margin-left: auto; color: var(--tinta-2); font-variant-numeric: tabular-nums; font-size: 0.9375rem; }
+.campo { display: grid; gap: 6px; margin-top: 16px; max-width: 420px; }
+.campo label { font-weight: 600; font-size: 0.9375rem; }
+.campo input {
+  min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--tinta); font: inherit;
+}
+.nota { margin: 10px 2px 0; color: var(--tinta-2); font-size: 0.875rem; }
+.campo .nota { margin: 0; }
+.aviso { margin: 16px 0 0; padding: 12px 14px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--superficie); color: var(--tinta-2); font-size: 0.875rem; }
+.aviso strong { color: var(--tinta); }
+details { margin-top: 16px; padding: 12px 14px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--superficie); }
+summary { cursor: pointer; font-weight: 600; min-height: 28px; }
+details ul { margin: 10px 0 0; padding-left: 20px; color: var(--tinta-2); font-size: 0.875rem; }
+details li { margin: 4px 0; }
+details b { color: var(--tinta); font-weight: 600; }
+.erro { display: none; position: absolute; inset: 0; place-items: center; padding: 16px; text-align: center; color: #f3eee4; background: #000; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: background-color 160ms ease, color 160ms ease; }
+  button:active { transform: none; }
+}
+@media (max-width: 560px) {
+  .tempo { margin-left: 0; width: 100%; }
+  .segmentos { width: 100%; }
+  .segmentos button { flex: 1; min-width: 0; padding: 0 8px; }
+}
+</style>
+<script>/*__CENAS__*/</script>
+</head>
+<body>
+<main>
+  <h1>Ponte levadiça</h1>
+  <p class="sub">Transição de viagem do pino · duas versões de 4,8 s · fim de tarde · protótipo para aprovar</p>
+  <div class="escolha">
+    <span class="rotulo" id="rotulo-versao">Versão</span>
+    <div class="segmentos" role="group" aria-labelledby="rotulo-versao">
+      <button type="button" data-versao="entrando" aria-pressed="true">Entrando no castelo</button>
+      <button type="button" data-versao="saindo" aria-pressed="false">Saindo do castelo</button>
+    </div>
+  </div>
+  <p class="descricao" id="descricao" aria-live="polite"></p>
+  <div class="palco" id="palco">
+    <canvas id="cena"></canvas>
+    <canvas id="granulado" class="granulado" aria-hidden="true"></canvas>
+    <div class="vinheta" aria-hidden="true"></div>
+    <div class="cortina" id="cortina" aria-hidden="true"></div>
+    <div class="erro" id="erro" role="alert"></div>
+    <button type="button" class="pular" id="pular" data-escondido="true">Pular</button>
+  </div>
+  <div class="barra">
+    <button type="button" class="primario" id="repetir">Repetir</button>
+    <button type="button" id="som" aria-pressed="false">Som: desligado</button>
+    <button type="button" id="tela-cheia">Tela cheia</button>
+    <label class="opcao"><input type="checkbox" id="reduzir"> Movimento reduzido</label>
+    <span class="tempo" id="tempo" aria-live="off">0,0 s / 4,8 s</span>
+  </div>
+  <p class="nota" id="nota-tela-cheia" hidden>Tela cheia indisponível aqui: esta moldura não deixa a página ocupar a tela.</p>
+  <div class="campo">
+    <label for="nome">Nome do lugar (aparece no fim)</label>
+    <input id="nome" type="text" maxlength="28" autocomplete="off" spellcheck="false" aria-describedby="nota-nome">
+    <p class="nota" id="nota-nome">Cada versão guarda o seu nome. Vazio = sem placa. Mudar o nome recomeça a animação.</p>
+  </div>
+  <p class="aviso"><strong>Para o nome aparecer no app:</strong> hoje a transição de viagem não recebe o nome do destino (só as aberturas de batalha recebem). A cena já lê o nome; falta o app passar o nome do pino para ela, e isso pede uma versão nova do app. Sem isso, no app ela toca sem a placa.</p>
+  <p class="nota">Trocar a versão, o nome, o movimento reduzido ou ligar o som recomeça do início. Esc ou "Pular" encerra, como no app. A vinheta, o granulado e a cortina preta são os mesmos da tela do app.</p>
+  <details>
+    <summary>Direção de arte e ritmo</summary>
+    <ul>
+      <li><b>Olhar:</b> primeiro a figura (capa azul fria contra a pedra e a madeira quentes, e é o que se mexe), depois o vão escuro do portão (o destino, o ponto de mais contraste), por último o castelo e o céu.</li>
+      <li><b>Luz:</b> entrando, o sol baixo vem de trás da câmera e doura a pedra, e a sombra comprida da figura chega ao portão antes dela. Saindo, o sol fica à frente, dentro do arco: contraluz, e a sombra volta para a câmera.</li>
+      <li><b>Paleta (Meio-Termo):</b> pedra creme quente, ardósia azul-acinzentada, carmim contido nos estandartes, grama de verde calmo, terra de caminho alaranjada. A sombra é fria e o contorno da figura e das copas fica no tom escuro da própria cor.</li>
+      <li><b>Entrando:</b> 0 a 0,45 s sai do preto já andando · até 3,2 s cruza a ponte · 3,0 a 3,55 s o nome sobe enquanto a câmera recua até as torres · 4,3 a 4,8 s escurece.</li>
+      <li><b>Saindo:</b> 0 a 0,45 s sai do preto dentro da passagem · aos 1,1 s a figura passa do escuro para a luz · 3,0 a 3,55 s o nome sobe · 4,3 a 4,8 s escurece.</li>
+      <li><b>Som:</b> vento, água do fosso, passos (madeira oca na ponte, pedra com eco na passagem), andorinhas longe e um acorde baixo quando o nome sobe.</li>
+    </ul>
+  </details>
+</main>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js'
+
+// Igual ao motor do app: gerenciamento de cor desligado, mesmo renderer, mesmo fator nas luzes pontuais.
+THREE.ColorManagement.enabled = false
+const DURACAO = 4.8
+const SAIDA_DO_PULAR_MS = 260
+const CENAS = window.PonteLevadica
+const TEXTOS = {
+  entrando: {
+    descricao: 'Fim de tarde. Do lado de fora, atrás de quem chega: a figura de capa atravessa a ponte sobre o fosso e some na sombra do portão, enquanto a câmera recua até as torres e o nome do lugar sobe.',
+    rotulo: 'Animação: uma figura de capa atravessa a ponte levadiça sobre o fosso e entra pelo portão do castelo no fim da tarde; a câmera recua até as torres e o nome do lugar aparece.',
+    nome: 'Castelo do Vale',
+  },
+  saindo: {
+    descricao: 'Fim de tarde. De dentro da passagem, atrás de quem sai: a figura deixa o escuro, atravessa a ponte rumo ao sol baixo e a sombra dela volta para a câmera; o nome do lugar sobe.',
+    rotulo: 'Animação: de dentro do portão, uma figura de capa sai para a luz do fim da tarde e atravessa a ponte levadiça rumo à estrada; o nome do lugar aparece.',
+    nome: 'Estrada do Vale',
+  },
+}
+const nomes = { entrando: TEXTOS.entrando.nome, saindo: TEXTOS.saindo.nome }
+const palco = document.getElementById('palco')
+const canvas = document.getElementById('cena')
+const cortina = document.getElementById('cortina')
+const tempo = document.getElementById('tempo')
+const descricao = document.getElementById('descricao')
+const botaoSom = document.getElementById('som')
+const botaoTela = document.getElementById('tela-cheia')
+const botaoPular = document.getElementById('pular')
+const caixaReduzir = document.getElementById('reduzir')
+const campoNome = document.getElementById('nome')
+const segmentos = [...document.querySelectorAll('[data-versao]')]
+const virgula = (n) => n.toFixed(1).replace('.', ',')
+
+let renderer
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.setClearColor(0x000000, 1)
+  renderer.shadowMap.enabled = true
+  renderer.shadowMap.type = THREE.PCFShadowMap
+} catch (e) {
+  const erro = document.getElementById('erro')
+  erro.textContent = 'Este navegador não abriu o WebGL, então a animação não pode tocar aqui.'
+  erro.style.display = 'grid'
+  for (const b of document.querySelectorAll('button')) b.disabled = true
+  throw e
+}
+
+// Granulado de fita velha: 160×100 de ruído redesenhado a cada 3 quadros (como no app).
+{
+  const g = document.getElementById('granulado')
+  const ctx = g.getContext('2d')
+  g.width = 160
+  g.height = 100
+  let n = 0
+  const desenhar = () => {
+    if (n++ % 3 === 0) {
+      const img = ctx.createImageData(160, 100)
+      for (let i = 0; i < img.data.length; i += 4) {
+        const v = Math.random() * 255
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+        img.data[i + 3] = 255
+      }
+      ctx.putImageData(img, 0, 0)
+    }
+    requestAnimationFrame(desenhar)
+  }
+  requestAnimationFrame(desenhar)
+}
+
+let versao = 'entrando'
+let reduzir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+caixaReduzir.checked = reduzir
+let cena = null
+let audio = null
+let pistas = null
+let somLigado = false
+let inicio = 0
+let tocando = false
+let rodada = 0
+
+function kitDoMotor(ctx, destino) {
+  const ruidos = new Map()
+  return {
+    ctx,
+    destino,
+    ruido: (segundos) => {
+      const pronto = ruidos.get(segundos)
+      if (pronto) return pronto
+      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * segundos), ctx.sampleRate)
+      const dados = buffer.getChannelData(0)
+      for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1
+      ruidos.set(segundos, buffer)
+      return buffer
+    },
+  }
+}
+
+/** Saída nova a cada volta: o que a volta anterior já agendou some em 40 ms, sem estalo e sem tocar por cima. */
+function religarSom() {
+  if (!audio) return
+  const velho = audio.volume
+  velho.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.012)
+  setTimeout(() => velho.disconnect(), 160)
+  audio.volume = audio.ctx.createGain()
+  audio.volume.gain.value = somLigado ? 1 : 0
+  audio.volume.connect(audio.ctx.destination)
+  audio.kit = kitDoMotor(audio.ctx, audio.volume)
+  pistas = cena?.criarSom ? cena.criarSom(audio.kit) : null
+}
+
+function ajustar() {
+  if (!cena) return
+  const largura = canvas.clientWidth || 1
+  const altura = canvas.clientHeight || 1
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setSize(largura, altura, false)
+  cena.ajustarTela(largura / altura)
+}
+
+function montar() {
+  cena?.descartar()
+  performance.mark('ponte:montar')
+  cena = CENAS[versao](THREE, { reduzirMovimento: reduzir, nome: nomes[versao] })
+  performance.measure('ponte:montar', 'ponte:montar')
+  cena.scene.traverse((o) => {
+    if (o.isSpotLight || o.isPointLight) o.intensity *= Math.PI * 3.5
+  })
+  for (const b of segmentos) b.setAttribute('aria-pressed', String(b.dataset.versao === versao))
+  descricao.textContent = TEXTOS[versao].descricao
+  canvas.setAttribute('aria-label', TEXTOS[versao].rotulo)
+  if (campoNome.value !== nomes[versao]) campoNome.value = nomes[versao]
+  ajustar()
+}
+
+// Mesmo preparo do motor do app (motor.ts): compila os programas sem travar (compileAsync), sobe as
+// texturas e desenha um quadro escondido atrás da cortina, e só então o relógio começa.
+const ESPERA_DOS_SHADERS_MAX_MS = 1500
+async function compilar() {
+  performance.mark('ponte:compilar')
+  let teto
+  try {
+    await Promise.race([renderer.compileAsync(cena.scene, cena.camera), new Promise((r) => { teto = setTimeout(r, ESPERA_DOS_SHADERS_MAX_MS) })])
+  } catch {
+    // Segue: o primeiro quadro compila do jeito antigo.
+  } finally {
+    clearTimeout(teto)
+  }
+  performance.measure('ponte:compilar', 'ponte:compilar')
+}
+function aquecerNaPlaca() {
+  performance.mark('ponte:placa')
+  const texturas = new Set()
+  const colher = (v) => { if (v && v.isTexture && v.image) texturas.add(v) }
+  cena.scene.traverse((o) => {
+    if (!o.material) return
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      for (const v of Object.values(m)) colher(v)
+      if (m.uniforms) for (const u of Object.values(m.uniforms)) colher(u.value)
+    }
+  })
+  for (const t of texturas) renderer.initTexture(t)
+  performance.measure('ponte:texturas', 'ponte:placa')
+  performance.mark('ponte:primeiro-quadro')
+  cena.atualizar(0)
+  renderer.render(cena.scene, cena.camera)
+  performance.measure('ponte:primeiro-quadro', 'ponte:primeiro-quadro')
+  performance.measure('ponte:placa', 'ponte:placa')
+}
+
+let preparo = 0
+let preparando = false
+/** Remonta a cena (versão, nome ou movimento mudou) atrás da cortina preta e toca do começo. */
+async function remontarETocar() {
+  const meu = ++preparo
+  preparando = true
+  rodada++
+  tocando = false
+  cortina.style.transition = 'none'
+  cortina.style.opacity = '1'
+  botaoPular.dataset.escondido = 'true'
+  tempo.textContent = 'Preparando…'
+  // Deixa a cortina pintar antes do trabalho pesado de montar.
+  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
+  if (meu !== preparo) return
+  montar()
+  await compilar()
+  if (meu !== preparo) return
+  aquecerNaPlaca()
+  await new Promise((r) => setTimeout(r, 0))
+  if (meu !== preparo) return
+  preparando = false
+  tocar()
+}
+
+function tick(agora) {
+  if (!tocando) return
+  const t = (agora - inicio) / 1000
+  if (t >= DURACAO) {
+    // O motor fecha em preto no fim.
+    cortina.style.opacity = '1'
+    tempo.textContent = `${virgula(DURACAO)} s / ${virgula(DURACAO)} s`
+    terminar()
+    return
+  }
+  const { fade } = cena.atualizar(t)
+  cortina.style.opacity = String(fade)
+  if (somLigado) pistas?.atualizar(t)
+  renderer.render(cena.scene, cena.camera)
+  tempo.textContent = `${virgula(t)} s / ${virgula(DURACAO)} s`
+  requestAnimationFrame(tick)
+}
+
+function terminar() {
+  tocando = false
+  botaoPular.dataset.escondido = 'true'
+  if (document.activeElement === botaoPular) document.getElementById('repetir').focus()
+}
+
+function tocar() {
+  rodada++
+  cortina.style.transition = 'none'
+  religarSom()
+  botaoPular.dataset.escondido = 'false'
+  const esta = rodada
+  requestAnimationFrame((agora) => {
+    if (esta !== rodada) return
+    inicio = agora
+    performance.mark('ponte:largada', { startTime: agora })
+    if (!tocando) {
+      tocando = true
+      tick(agora)
+    }
+  })
+}
+
+/** Como o "Pular" do app: a cortina fecha em 260 ms e o som some junto. */
+function pular() {
+  if (!tocando) return
+  rodada++
+  terminar()
+  cortina.style.transition = `opacity ${SAIDA_DO_PULAR_MS}ms ease-out`
+  cortina.style.opacity = '1'
+  if (audio) audio.volume.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.05)
+  tempo.textContent = 'Pulado'
+}
+
+/** Repetir sem remontar; se um preparo estiver no meio, ele mesmo toca no fim. */
+function repetir() {
+  if (preparando) return
+  tocar()
+}
+for (const b of segmentos) {
+  b.addEventListener('click', () => {
+    if (b.dataset.versao !== versao) {
+      versao = b.dataset.versao
+      void remontarETocar()
+    } else repetir()
+  })
+}
+document.getElementById('repetir').addEventListener('click', repetir)
+botaoPular.addEventListener('click', pular)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && tocando && !document.fullscreenElement) pular()
+})
+caixaReduzir.addEventListener('change', () => {
+  reduzir = caixaReduzir.checked
+  void remontarETocar()
+})
+let esperaDoNome = 0
+campoNome.addEventListener('input', () => {
+  clearTimeout(esperaDoNome)
+  esperaDoNome = setTimeout(() => {
+    nomes[versao] = campoNome.value
+    void remontarETocar()
+  }, 450)
+})
+botaoSom.addEventListener('click', () => {
+  if (!audio) {
+    const ctx = new AudioContext()
+    const volume = ctx.createGain()
+    volume.connect(ctx.destination)
+    audio = { ctx, volume, kit: kitDoMotor(ctx, volume) }
+  }
+  somLigado = !somLigado
+  void audio.ctx.resume()
+  botaoSom.setAttribute('aria-pressed', String(somLigado))
+  botaoSom.textContent = somLigado ? 'Som: ligado' : 'Som: desligado'
+  if (somLigado) repetir()
+  else audio.volume.gain.setTargetAtTime(0, audio.ctx.currentTime, 0.03)
+})
+
+// Tela cheia: só o palco; Esc sai (o navegador cuida). Sem a API (moldura sem permissão), o botão fica desligado com o motivo.
+if (document.fullscreenEnabled && palco.requestFullscreen) {
+  botaoTela.addEventListener('click', () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void palco.requestFullscreen().catch(() => undefined)
+  })
+  document.addEventListener('fullscreenchange', () => {
+    botaoTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'
+  })
+} else {
+  botaoTela.disabled = true
+  document.getElementById('nota-tela-cheia').hidden = false
+}
+
+new ResizeObserver(ajustar).observe(canvas)
+void remontarETocar()
+</script>
+</body>
+</html>
