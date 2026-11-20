@@ -5,6 +5,7 @@ import { idDoItemDaPeca } from '../../../lib/acervoDeItens'
 import { resolverComBase, URL_DA_MIDIA_NA_SALA, type ResolverDeImagem } from '../../../lib/midia'
 import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../../../puzzles/arte/pecas'
 import { progressoInicial } from '../../../puzzles/motor'
+import { combinacaoPadrao } from '../../../puzzles/combinacao'
 import { PECAS_DESENHADAS, puzzleDoModelo } from '../../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from '../../../puzzles/tipos'
 import type { IdDaPecaDesenhada, PecaDoAcervo, ProgressoDoPuzzle, Puzzle, QuemMexe } from '../../../puzzles/tipos'
@@ -168,7 +169,37 @@ function imagem(): Exemplo {
   return { puzzle, mochila }
 }
 
-const EXEMPLOS = { fonte, porta, altar, imagem } as const
+/** O Cofre do Capitão do v2 (passo "Cadeia"): rodas de números, código 318, com dano ao errar. */
+function cofre(): Exemplo {
+  const puzzle = puzzleDoModelo('cofre')
+  puzzle.nomePublico = 'Cofre do Capitão'
+  puzzle.dica = { tipo: 'texto', texto: 'Conte os degraus antes de dormir.' }
+  puzzle.castigo = { tipo: 'dano', pv: 3, texto: '' }
+  puzzle.desfecho = { modo: 'cena', texto: 'A porta do cofre gira nas dobradiças. Dentro, um diário encadernado em couro.', itens: [], moedas: 30, documentos: [], abrePorta: false }
+  return { puzzle, mochila: [vaga(CORDA), vaga(POCAO)] }
+}
+
+/** As outras três combinações do v2, sobre o mesmo Cofre (`?puzzle=simbolos`, `relogio`, `botoes`). */
+function combinacaoNoCofre(forma: 'simbolos' | 'relogio' | 'botoes', nome: string, castigo: Puzzle['castigo']): () => Exemplo {
+  return () => {
+    const exemplo = cofre()
+    exemplo.puzzle.futuro = combinacaoPadrao(forma)
+    exemplo.puzzle.nomePublico = nome
+    exemplo.puzzle.castigo = castigo
+    return exemplo
+  }
+}
+
+const EXEMPLOS = {
+  fonte,
+  porta,
+  altar,
+  imagem,
+  cofre,
+  simbolos: combinacaoNoCofre('simbolos', 'Cofre das Marés', { tipo: 'barulho', texto: '' }),
+  relogio: combinacaoNoCofre('relogio', 'Relógio da Torre', { tipo: 'armadilha', pv: 2, texto: '' }),
+  botoes: combinacaoNoCofre('botoes', 'Painel dos Quatro Botões', { tipo: 'nada' }),
+} as const
 type NomeDoExemplo = keyof typeof EXEMPLOS
 
 function ehNomeDoExemplo(valor: string): valor is NomeDoExemplo {
@@ -211,7 +242,8 @@ function Fora({ jogo, onExaminar }: { jogo: JogoLocalDoPuzzle; onExaminar: () =>
           Examinar
         </button>
         <p style={{ margin: 0, fontSize: 10.5, color: 'var(--lb-color-parchment-faint)' }}>
-          Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a>
+          Outros exemplos: <a href="?puzzle=fonte">Fonte</a> · <a href="?puzzle=porta">Porta</a> · <a href="?puzzle=altar">Altar</a> · <a href="?puzzle=imagem">Imagem própria</a> · <a href="?puzzle=cofre">Cofre</a> · <a href="?puzzle=simbolos">Símbolos</a> ·{' '}
+          <a href="?puzzle=relogio">Relógio</a> · <a href="?puzzle=botoes">Botões</a>
         </p>
       </div>
     </main>

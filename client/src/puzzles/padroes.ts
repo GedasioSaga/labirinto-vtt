@@ -5,13 +5,15 @@
  * estão em % do quadro, casados com a arte de cada modelo
  * (`puzzles/arte/modelos.ts`): mudar um número aqui desencaixa o desenho.
  *
- * O Cofre é da combinação, que só chega na leva 2: nesta leva ele nasce sem
- * encaixes, e o mestre usa a arte e põe os encaixes que quiser.
+ * O Cofre é da combinação: nasce com as rodas de números do v2 (código 318),
+ * sem encaixes, e o controle no meio da porta do cofre.
  *
  * Puro: sem React, sem disco.
  */
+import { combinacaoPadrao } from './combinacao'
 import type {
   CastigoDoPuzzle,
+  CombinacaoDoPuzzle,
   CoresDoModelo,
   EncaixeDoPuzzle,
   FormaDoEncaixe,
@@ -46,6 +48,8 @@ interface PadraoDoModelo {
   controle: { x: number; y: number; s: number }
   /** O v1 abre a Fonte, a Porta e o Altar com a cena; o Cofre, só com o texto. */
   modoDoDesfecho: 'texto' | 'cena'
+  /** A mecânica do modelo quando não é de encaixes: o Cofre é de rodas de números (o `tipo: 'numeros'` do v2). */
+  combinacao?: 'numeros'
 }
 
 /** O `BASE` do v2. A Fonte aceita qualquer medalhão em qualquer encaixe (`qualquer: true`). */
@@ -82,6 +86,7 @@ export const PADROES_DOS_MODELOS: Readonly<Record<ModeloDoPuzzle, Readonly<Padra
     encaixes: [],
     controle: { x: 50, y: 46, s: 1 },
     modoDoDesfecho: 'texto',
+    combinacao: 'numeros',
   },
   altar: {
     regra: 'lugarCerto',
@@ -163,7 +168,7 @@ export function puzzleDoModelo(modelo: ModeloDoPuzzle, pecas: Partial<Record<IdD
     jeito: 'peca',
     itemId: pecas[encaixe.peca] ?? null,
   }))
-  return {
+  const puzzle: Puzzle = {
     nome: `Puzzle novo (${NOME_DO_MODELO[modelo]})`,
     nomePublico: NOME_DO_MODELO[modelo],
     regra: padrao.regra,
@@ -175,6 +180,9 @@ export function puzzleDoModelo(modelo: ModeloDoPuzzle, pecas: Partial<Record<IdD
     castigo: castigoPadrao('nada'),
     controle: { ...padrao.controle },
   }
+  const combinacao: CombinacaoDoPuzzle | null = padrao.combinacao === undefined ? null : combinacaoPadrao(padrao.combinacao)
+  if (combinacao !== null) puzzle.futuro = combinacao
+  return puzzle
 }
 
 /** A moldura Porta só existe nos modelos que não são porta; a Porta de brasões já é porta. */

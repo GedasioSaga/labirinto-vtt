@@ -441,7 +441,7 @@ export function agirNoHost(pedido: PedidoNoPuzzle): ResultadoNoHost {
         devolver(livro, efeito.para, efeito.vaga)
         break
       case 'errou':
-        erro = efeito.em === 'ordem' ? { em: 'ordem' } : { em: 'peso', soma: efeito.soma, pedido: efeito.pedido }
+        erro = efeito.em === 'peso' ? { em: 'peso', soma: efeito.soma, pedido: efeito.pedido } : { em: efeito.em }
         castigo = { tipo: 'nada', texto: '', pv: 0 }
         break
       case 'castigar':
@@ -493,6 +493,14 @@ export function agirNoHost(pedido: PedidoNoPuzzle): ResultadoNoHost {
   return { ok: true, aplicado, castigo: erro === null || castigo === null ? null : { erro, castigo }, resolvido }
 }
 
+/** "Lara errou a combinação em Cofre do Capitão": o que errou, no aviso do mestre. */
+const COMO_ERROU: Readonly<Record<Exclude<ErroDoPuzzleNoFio['em'], 'peso'>, string>> = {
+  ordem: 'a ordem',
+  combinacao: 'a combinação',
+  hora: 'a hora',
+  sequencia: 'a sequência',
+}
+
 interface OQueAconteceu {
   erro: ErroDoPuzzleNoFio | null
   castigo: CastigoDoPuzzleNoFio | null
@@ -518,7 +526,7 @@ function avisoDaAcao(nomeDoJogador: string, desafioId: string, titulo: string, o
     return { desafioId, tipo: 'resolveu', titulo: `${nomeDoJogador} resolveu ${titulo}`, linhas }
   }
   if (o.erro !== null && o.castigo !== null) {
-    const como = o.erro.em === 'ordem' ? 'a ordem' : `o peso (${o.erro.soma} de ${o.erro.pedido})`
+    const como = o.erro.em === 'peso' ? `o peso (${o.erro.soma} de ${o.erro.pedido})` : COMO_ERROU[o.erro.em]
     return { desafioId, tipo: 'errou', titulo: `${nomeDoJogador} errou ${como} em ${titulo}`, linhas: [linhaDoCastigo(o.castigo), ...o.avisos] }
   }
   if (o.trocou !== null) return { desafioId, tipo: 'trocou', titulo: `${nomeDoJogador} fez a troca de peso em ${titulo}`, linhas: [`Levou ${o.trocou}.`, ...o.avisos] }

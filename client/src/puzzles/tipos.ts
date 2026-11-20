@@ -78,10 +78,15 @@ export interface Puzzle {
   dica: DicaDoPuzzle
   desfecho: DesfechoDoPuzzle
   castigo: CastigoDoPuzzle
-  /** Posição dos controles da combinação (v2), em % do quadro; nesta leva só é guardada. */
+  /** Posição e tamanho dos controles da combinação (v2), em % do quadro. */
   controle: { x: number; y: number; s: number }
-  /** Levas 2 a 4 (§1.6). Nesta leva o editor nunca cria; o leitor guarda o que vier. */
-  futuro?: MecanicaFutura
+  /**
+   * A mecânica que não é de encaixe (§1.6), no lugar que o plano previu: a
+   * Combinação (`tipo: 'combinacao'`), que este app joga, ou a de uma leva
+   * futura, guardada como veio. Lida sempre por `combinacaoDoPuzzle`
+   * (`puzzles/combinacao.ts`): o que ela não reconhece é "versão nova".
+   */
+  futuro?: CombinacaoDoPuzzle | MecanicaFutura
 }
 
 /**
@@ -181,6 +186,50 @@ export type TipoDeCastigo = CastigoDoPuzzle['tipo']
 export type MecanicaPrevista = 'combinacao' | 'giratorias' | 'luzes' | 'estatuas'
 export const MECANICAS_PREVISTAS: readonly MecanicaPrevista[] = ['combinacao', 'giratorias', 'luzes', 'estatuas']
 
+// ------------------------------------------------------------------ a combinação (leva 2, antecipada em 20/11)
+
+/** Os 4 tipos do grilling de 19/11: rodas de números, rodas de símbolos, ponteiros de relógio e sequência de botões. */
+export type FormaDaCombinacao = 'numeros' | 'simbolos' | 'relogio' | 'botoes'
+export const FORMAS_DA_COMBINACAO: readonly FormaDaCombinacao[] = ['numeros', 'simbolos', 'relogio', 'botoes']
+
+/** Os 6 glifos das rodas de símbolos do v2 (`SIMBOLOS`), nesta ordem: a roda gira por eles. */
+export type SimboloDaRoda = 'ancora' | 'estrela' | 'peixe' | 'coroa' | 'chave' | 'olho'
+export const SIMBOLOS_DA_RODA: readonly SimboloDaRoda[] = ['ancora', 'estrela', 'peixe', 'coroa', 'chave', 'olho']
+
+/** O editor do v2: de 3 a 6 rodas, de 2 a 6 botões e uma sequência de até 12 toques. */
+export const RODAS_MIN = 3
+export const RODAS_MAX = 6
+export const BOTOES_MIN = 2
+export const BOTOES_MAX = 6
+export const SEQUENCIA_MAX = 12
+/** O nome de um botão ("IV", "Lua"): cabe no botão redondo do v2. */
+export const ROTULO_DO_BOTAO_MAX = 12
+/** O relógio guarda a hora em minutos depois das 12h (0 a 715), de 5 em 5, como o mostrador do v2. */
+export const MINUTOS_NO_MOSTRADOR = 720
+export const PASSO_DO_RELOGIO = 5
+
+/**
+ * A combinação, como o mestre a guarda (o `futuro` do plano §1.6, agora
+ * jogado): a resposta mora SÓ aqui, e nunca vai ao jogador (o recorte manda o
+ * número de rodas, os nomes dos botões e o tamanho da sequência). A hora é em
+ * minutos depois das 12h (`2:50` = 170). Os botões são pelo índice em `rotulos`.
+ * `type`, e não `interface`, para caber no `futuro` guardado como veio.
+ */
+export type CombinacaoDoPuzzle =
+  | { tipo: 'combinacao'; forma: 'numeros'; resposta: number[] }
+  | { tipo: 'combinacao'; forma: 'simbolos'; resposta: SimboloDaRoda[] }
+  | { tipo: 'combinacao'; forma: 'relogio'; resposta: number }
+  | { tipo: 'combinacao'; forma: 'botoes'; rotulos: string[]; resposta: number[] }
+
+/** O controle como o jogador o vê (lista branca do recorte): onde está, e o que está nele agora. */
+export type CombinacaoNaVista = { x: number; y: number; s: number } & (
+  /** `rodas` = o algarismo de cada roda; nos símbolos, o índice em `SIMBOLOS_DA_RODA`. */
+  | { forma: 'numeros' | 'simbolos'; rodas: number[] }
+  | { forma: 'relogio'; minutos: number }
+  /** `total` = os toques da sequência (as luzes do v2); `certos` = quantos já acenderam. */
+  | { forma: 'botoes'; rotulos: string[]; total: number; certos: number }
+)
+
 /**
  * A mecânica de uma leva futura, guardada COMO VEIO: o objeto do disco
  * inteiro, e não `{ tipo, bruto }` embrulhado, porque o mapa é gravado por
@@ -225,9 +274,9 @@ export interface ProgressoDoPuzzle {
   resolvido: { por: string; em: number } | null
   erros: number
   /**
-   * Levas 2 a 4 (§1.6): os controles da combinação, as rotações das peças
-   * giratórias e as luzes. Nesta leva o motor não mexe; o leitor guarda o que
-   * vier, para um app desta leva não zerar o progresso de um puzzle mais novo.
+   * Os controles da combinação (`rodas`, `relogio` em minutos, `sequencia` =
+   * toques certos até agora), e, das levas 3 e 4, as rotações das peças
+   * giratórias e as luzes, que o leitor só guarda. Ausente = como nasceu.
    */
   controles?: Record<string, number | number[]>
   rotacoes?: number[]
@@ -279,7 +328,14 @@ export type AcaoNoPuzzle =
   /** Tira a última pedra posta. */
   | { tipo: 'tirarDaBandeja' }
   | { tipo: 'trocar' }
-// Leva 2: 'girar' (controle, passo) e 'tentar'.
+  /** Combinação: a roda `roda` anda um passo (para cima, +1). Relativo: dois jogadores girando somam. */
+  | { tipo: 'girar'; roda: number; passo: 1 | -1 }
+  /** Combinação: os ponteiros param em `minutos` depois das 12h (de 5 em 5; o arrasto manda só ao soltar). */
+  | { tipo: 'ponteiro'; minutos: number }
+  /** Combinação: aperta o botão `botao` (índice nos nomes). Cada toque conta na sequência. */
+  | { tipo: 'apertar'; botao: number }
+  /** Combinação de rodas ou de relógio: confere o que está nos controles agora. */
+  | { tipo: 'tentar' }
 
 /**
  * Por que o pedido não valeu. Os 6 primeiros são os da mensagem
@@ -324,8 +380,11 @@ export type EfeitoDoPuzzle =
   | { tipo: 'recusado'; motivo: MotivoDaRecusa }
   /** As duas metades se juntaram neste encaixe. */
   | { tipo: 'juntou'; encaixeId: string }
-  /** Tudo cheio na ordem errada, ou a bandeja com o peso errado. */
-  | { tipo: 'errou'; em: 'ordem' }
+  /**
+   * Tudo cheio na ordem errada, ou a bandeja com o peso errado; na combinação,
+   * o "Tentar" com as rodas erradas, a hora errada, ou o botão fora da sequência.
+   */
+  | { tipo: 'errou'; em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' }
   | { tipo: 'errou'; em: 'peso'; soma: number; pedido: number }
   | { tipo: 'resolveu' }
   /** A peça guardada saiu do pedestal e foi para a mochila de quem trocou. */
@@ -422,6 +481,8 @@ export interface VistaDoPuzzle {
   contagem: { postos: number; total: number }
   /** A mochila DELE. */
   mochila: VagaNaVista[]
+  /** O controle da combinação; ausente = o puzzle é de encaixes (que, na combinação, não vão). */
+  combinacao?: CombinacaoNaVista
   /** O puzzle traz uma mecânica de uma leva que este app não joga. */
   versaoNova?: true
 }

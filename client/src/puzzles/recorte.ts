@@ -5,6 +5,8 @@
  * aqui, de propósito.
  *
  * Nunca vão ao jogador: a peça certa de cada encaixe, a regra e a ordem certa,
+ * a resposta da combinação (vão só o número de rodas, os nomes dos botões, o
+ * tamanho da sequência e o que está nos controles agora),
  * a peça guardada da troca, os pesos (só o das pedras já na bandeja, que o
  * mostrador do v1 soma), o castigo, o desfecho, a porta ligada, o `modeloId`
  * e o nome do mestre. O desfecho chega depois, na mensagem de resolvido, só
@@ -13,6 +15,7 @@
  * Puro: o host chama com o mapa de agora e a mochila da ficha de quem vê.
  */
 import type { CarriedItem } from '../types/map'
+import { combinacaoDoPuzzle, combinacaoNaVista, mecanicaDesconhecida } from './combinacao'
 import { contagemDoPuzzle, pesoDe, postaEm } from './motor'
 import { CATEGORIA_DA_PECA_DE_PUZZLE } from './tipos'
 import type { EncaixeDoPuzzle, EncaixeNaVista, PecaPosta, PostaNaVista, ProgressoDoPuzzle, Puzzle, VagaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
@@ -32,19 +35,23 @@ export interface EntradaDaVista {
 
 export function vistaDoPuzzle(entrada: EntradaDaVista): VistaDoPuzzle {
   const { puzzle, progresso } = entrada
+  const combinacao = combinacaoDoPuzzle(puzzle)
+  // Na combinação os encaixes não valem (o motor recusa pôr e tirar): não vão, nem na contagem.
+  const encaixes = combinacao === null ? puzzle.encaixes : []
   const vista: VistaDoPuzzle = {
     desafioId: entrada.desafioId,
     rev: progresso.rev,
     titulo: puzzle.nomePublico,
     visual: visualNaVista(puzzle.visual),
-    encaixes: puzzle.encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
+    encaixes: encaixes.map((encaixe) => encaixeNaVista(encaixe, progresso)),
     troca: trocaNaVista(puzzle, progresso),
     dica: dicaNaVista(puzzle, entrada.documentoDaDica),
     resolvido: progresso.resolvido !== null,
     contagem: contagemDoPuzzle(puzzle, progresso),
     mochila: entrada.mochila.map(vagaNaVista),
   }
-  if (puzzle.futuro !== undefined) vista.versaoNova = true
+  if (combinacao !== null) vista.combinacao = combinacaoNaVista(combinacao, progresso, puzzle.controle)
+  if (mecanicaDesconhecida(puzzle)) vista.versaoNova = true
   return vista
 }
 

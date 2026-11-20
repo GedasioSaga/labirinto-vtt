@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { AcoesDaCombinacao, TecladoDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
 import type { AcaoNoPuzzle, EncaixeNaVista, MotivoDaRecusa, VistaDoPuzzle } from '../../puzzles/tipos'
@@ -73,7 +74,10 @@ const CASCATA_DO_BRILHO_MS = 60
 const SUSPENSE_DA_TROCA_MS = 400
 const VOLTA_DA_AGULHA_MS = 380
 
-type AlvoTocado = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo: 'pedestal' }
+type AlvoTocado = { tipo: 'encaixe'; id: string } | { tipo: 'bandeja' } | { tipo: 'pedestal' } | { tipo: 'controle' }
+
+/** O aviso da mochila num puzzle de combinação sem troca de peso (v2). */
+const NOTA_DA_COMBINACAO = 'Este puzzle não usa peças: é uma combinação.'
 
 export function TelaDoPuzzle({ raiz, ...props }: PropsDaTelaDoPuzzle) {
   return createPortal(<Tela {...props} />, raiz ?? document.body)
@@ -132,6 +136,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   const vagasConhecidas = useRef(new Set(vista.mochila.map((vaga) => vaga.vagaId)))
   const ultimoAcontecimento = useRef(acontecimentos.at(-1)?.id ?? 0)
   const timers = useRef(new Set<number>())
+  // As setas numa roda ou num ponteiro: a tela segura o teclado inteiro e entrega estas ao controle.
+  const tecladoDoControle = useRef<TecladoDoControle | null>(null)
 
   const depois = useCallback((ms: number, fazer: () => void) => {
     const id = window.setTimeout(() => {
@@ -279,6 +285,18 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     [vista, naMao, eu, avisar, recusarNaTela, porNoAlvo, agir],
   )
 
+  // ---------------------------------------------------------------- a combinação: cada gesto é um pedido; o valor que vale volta na vista
+
+  const acoesDaCombinacao = useMemo(
+    (): AcoesDaCombinacao => ({
+      onGirar: (roda, passo) => agir({ tipo: 'girar', roda, passo }, { tipo: 'controle' }),
+      onPonteiro: (minutos) => agir({ tipo: 'ponteiro', minutos }, { tipo: 'controle' }),
+      onApertar: (botao) => agir({ tipo: 'apertar', botao }, { tipo: 'controle' }),
+      onTentar: () => agir({ tipo: 'tentar' }, { tipo: 'controle' }),
+    }),
+    [agir],
+  )
+
   const trocar = useCallback(() => {
     const troca = vista.troca
     if (troca === null || troca.feita || trocandoDesde.current !== null) return
@@ -352,7 +370,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
       switch (acontecimento.tipo) {
         case 'recusado': {
           const alvo = ultimoAlvo.current
-          const el = alvo === null ? null : alvo.tipo === 'encaixe' ? elDoQuadro(seletorDoEncaixe(alvo.id)) : alvo.tipo === 'bandeja' ? elDoQuadro('[data-alvo="bandeja"]') : elDoQuadro('[data-pedestal]')
+          const el = alvo === null ? null : elDoAlvo(alvo, elDoQuadro)
           recusarNaTela(acontecimento.texto, el)
           // A peça recusada continua na mão, como no v2.
           const enviada = ultimaEnviada.current
@@ -378,6 +396,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               pedestalDeEstalo(elDoQuadro('[data-pedestal]'), soma < pedido)
               voltarAgulha()
             }
+            // A combinação errada: o controle diz "não" de lado, como o encaixe recusado.
+            if (em === 'combinacao' || em === 'hora' || em === 'sequencia') tremer(elDoQuadro('[data-controle]'))
             if (castigo === null) return
             piscar(elDoQuadro('.qpz__flash'), castigo.tipo)
             if (castigo.tipo !== 'barulho') sacudir(quadro.current)
@@ -460,6 +480,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     const desceu = (e: KeyboardEvent) => {
       // Tela modal: o mapa atrás não ouve as teclas (as setas mexeriam a ficha).
       e.stopPropagation()
+      if (tecladoDoControle.current?.(e) === true) return
       if (e.key !== 'Escape' || e.ctrlKey || e.metaKey || e.altKey) return
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable="true"]') !== null) return
       e.preventDefault()
@@ -538,6 +559,9 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
               onTocarBandeja={tocarBandeja}
               onTrocar={trocar}
               onAbriu={() => setPortaAbriu(true)}
+              combinacao={vista.combinacao}
+              acoesDaCombinacao={vista.versaoNova === true ? undefined : acoesDaCombinacao}
+              tecladoDoControle={tecladoDoControle}
               rotulo={titulo}
             >
               {cartao !== null && <CartaoDoDesfecho titulo={titulo} desfecho={cartao} eu={eu} onContinuar={fecharCartao} teste={teste} onVoltar={() => sair(false)} />}
@@ -559,7 +583,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
           novas={novas}
           pv={ehTeste ? null : pv}
           titulo={ehTeste ? TITULO_DAS_PECAS_DO_TESTE : undefined}
-          nota={ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
+          nota={vista.combinacao !== undefined && vista.troca === null ? NOTA_DA_COMBINACAO : ehTeste ? NOTA_DAS_PECAS_DO_TESTE : undefined}
           onEscolher={escolher}
           onApertar={arrasto.aoApertar}
         />
@@ -569,6 +593,20 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
       </p>
     </div>
   )
+}
+
+/** O elemento que diz "não" quando o host recusa o pedido feito nele. */
+function elDoAlvo(alvo: AlvoTocado, elDoQuadro: (seletor: string) => HTMLElement | null): HTMLElement | null {
+  switch (alvo.tipo) {
+    case 'encaixe':
+      return elDoQuadro(seletorDoEncaixe(alvo.id))
+    case 'bandeja':
+      return elDoQuadro('[data-alvo="bandeja"]')
+    case 'pedestal':
+      return elDoQuadro('[data-pedestal]')
+    case 'controle':
+      return elDoQuadro('[data-controle]')
+  }
 }
 
 function Dica({ dica, onLer }: { dica: VistaDoPuzzle['dica']; onLer: ((peloTeclado: boolean) => void) | undefined }) {

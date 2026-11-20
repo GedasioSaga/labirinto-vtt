@@ -16,16 +16,23 @@
  *   tirar devolve as duas metades, porque a peça inteira não existe no acervo;
  * - Troca de peso: as pedras da bandeja voltam até a troca dar certo; depois
  *   ficam presas, e a peça guardada vai para quem apertou "Trocar".
+ * - Combinação (`puzzles/combinacao.ts`; `girarRodaPz`, `tentarPz`,
+ *   `relogioPor` e `apertarBotaoPz` do v2): as rodas e os ponteiros só mudam,
+ *   e o "Tentar" confere (errado castiga); cada botão fora da sequência
+ *   castiga e a recomeça (do 1, se ele for o primeiro toque). Na combinação
+ *   os encaixes não valem: pôr e tirar são recusados.
  *
  * Nunca muda o que recebeu: o resultado é sempre cópia. Pedido recusado
  * devolve o MESMO progresso, sem subir o `rev`.
  */
 import { mochilaComItemDoAcervo, quantidadeDe } from '../lib/items'
 import type { CarriedItem } from '../types/map'
+import { certosNoProgresso, combinacaoCerta, combinacaoDoPuzzle, comCertos, comMinutos, comRodas, mecanicaDesconhecida, modulo, rodasNoProgresso, tamanhoDaRoda } from './combinacao'
 import { visualEhPorta } from './padroes'
 import { BANDEJA_MAX } from './tipos'
 import type {
   AcaoNoPuzzle,
+  CombinacaoDoPuzzle,
   ContextoDoMotor,
   EfeitoDoPuzzle,
   EncaixeDoPuzzle,
@@ -75,8 +82,10 @@ export function encaixeCheio(encaixe: EncaixeDoPuzzle, progresso: Pick<Progresso
 }
 
 /** "2 de 3 no lugar": a contagem que o jogador e a página Jogos mostram. */
-export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
-  return { postos: puzzle.encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: puzzle.encaixes.length }
+export function contagemDoPuzzle(puzzle: Pick<Puzzle, 'encaixes' | 'futuro'>, progresso: Pick<ProgressoDoPuzzle, 'encaixes'>): { postos: number; total: number } {
+  // Na combinação os encaixes ficam guardados (para quando o mestre voltar ao Encaixe), mas não contam: ninguém os vê.
+  const encaixes = combinacaoDoPuzzle(puzzle) === null ? puzzle.encaixes : []
+  return { postos: encaixes.filter((encaixe) => encaixeCheio(encaixe, progresso)).length, total: encaixes.length }
 }
 
 /** O peso marcado do item, ou `null` (a chave própria, pelo mesmo motivo de `postaEm`). */
@@ -145,20 +154,88 @@ export function agirNoPuzzle(
   contexto: ContextoDoMotor,
 ): ResultadoDoMotor {
   // Um app desta leva não sabe jogar a mecânica de uma leva futura: recusa tudo, sem mexer no que veio.
-  if (puzzle.futuro !== undefined) return recusa(progresso, mochila, 'versao_nova')
+  if (mecanicaDesconhecida(puzzle)) return recusa(progresso, mochila, 'versao_nova')
   if (progresso.resolvido !== null) return recusa(progresso, mochila, 'resolvido')
+  const combinacao = combinacaoDoPuzzle(puzzle)
   switch (acao.tipo) {
     case 'por':
-      return por(puzzle, progresso, mochila, acao, contexto)
+      // Na combinação os encaixes não aparecem: o pedido é de uma tela de antes da troca de mecânica.
+      return combinacao !== null ? recusa(progresso, mochila, 'mudou') : por(puzzle, progresso, mochila, acao, contexto)
     case 'tirar':
-      return tirar(puzzle, progresso, mochila, acao.encaixeId, contexto)
+      return combinacao !== null ? recusa(progresso, mochila, 'mudou') : tirar(puzzle, progresso, mochila, acao.encaixeId, contexto)
     case 'porNaBandeja':
       return porNaBandeja(puzzle, progresso, mochila, acao.vagaId, contexto)
     case 'tirarDaBandeja':
       return tirarDaBandeja(puzzle, progresso, mochila, contexto)
     case 'trocar':
       return trocar(puzzle, progresso, mochila, contexto)
+    case 'girar':
+      return girar(puzzle, combinacao, progresso, mochila, acao, contexto)
+    case 'ponteiro':
+      return ponteiro(puzzle, combinacao, progresso, mochila, acao.minutos, contexto)
+    case 'apertar':
+      return apertar(puzzle, combinacao, progresso, mochila, acao.botao, contexto)
+    case 'tentar':
+      return tentar(puzzle, combinacao, progresso, mochila, contexto)
   }
+}
+
+// ------------------------------------------------------------------ a combinação
+
+function girar(
+  puzzle: Puzzle,
+  combinacao: CombinacaoDoPuzzle | null,
+  progresso: ProgressoDoPuzzle,
+  mochila: readonly CarriedItem[],
+  acao: Extract<AcaoNoPuzzle, { tipo: 'girar' }>,
+  contexto: ContextoDoMotor,
+): ResultadoDoMotor {
+  if (combinacao === null || (combinacao.forma !== 'numeros' && combinacao.forma !== 'simbolos')) return recusa(progresso, mochila, 'mudou')
+  const quantas = combinacao.resposta.length
+  if (!Number.isInteger(acao.roda) || acao.roda < 0 || acao.roda >= quantas) return recusa(progresso, mochila, 'mudou')
+  const tamanho = tamanhoDaRoda(combinacao.forma)
+  const rodas = rodasNoProgresso(progresso, quantas, tamanho).map((valor, i) => (i === acao.roda ? modulo(valor + acao.passo, tamanho) : valor))
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso = comRodas(a.progresso, rodas)
+  return fim(a)
+}
+
+function ponteiro(puzzle: Puzzle, combinacao: CombinacaoDoPuzzle | null, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], minutos: number, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (combinacao === null || combinacao.forma !== 'relogio') return recusa(progresso, mochila, 'mudou')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  a.progresso = comMinutos(a.progresso, minutos)
+  return fim(a)
+}
+
+/**
+ * Um botão: o certo acende a próxima luz (e o último resolve); o errado
+ * castiga e recomeça a sequência, já com uma luz se ele é o primeiro toque
+ * (o v2: `p.seq = i === seq[0] ? 1 : 0`).
+ */
+function apertar(puzzle: Puzzle, combinacao: CombinacaoDoPuzzle | null, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], botao: number, contexto: ContextoDoMotor): ResultadoDoMotor {
+  if (combinacao === null || combinacao.forma !== 'botoes') return recusa(progresso, mochila, 'mudou')
+  if (!Number.isInteger(botao) || botao < 0 || botao >= combinacao.rotulos.length) return recusa(progresso, mochila, 'mudou')
+  const sequencia = combinacao.resposta
+  const certos = certosNoProgresso(progresso, sequencia.length)
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  if (certos < sequencia.length && sequencia[certos] === botao) {
+    a.progresso = comCertos(a.progresso, certos + 1)
+    if (certos + 1 === sequencia.length) resolver(a)
+    return fim(a)
+  }
+  a.progresso = comCertos(a.progresso, sequencia[0] === botao ? 1 : 0)
+  errar(a, { tipo: 'errou', em: 'sequencia' })
+  return fim(a)
+}
+
+/** O "Tentar abrir" das rodas e o "Tentar" do relógio: certo resolve; errado castiga, e os controles ficam onde estão (v2). */
+function tentar(puzzle: Puzzle, combinacao: CombinacaoDoPuzzle | null, progresso: ProgressoDoPuzzle, mochila: readonly CarriedItem[], contexto: ContextoDoMotor): ResultadoDoMotor {
+  // A sequência de botões confere a cada toque: não tem "Tentar".
+  if (combinacao === null || combinacao.forma === 'botoes') return recusa(progresso, mochila, 'mudou')
+  const a = andamento(puzzle, progresso, mochila, contexto)
+  if (combinacaoCerta(combinacao, progresso)) resolver(a)
+  else errar(a, { tipo: 'errou', em: combinacao.forma === 'relogio' ? 'hora' : 'combinacao' })
+  return fim(a)
 }
 
 function por(
@@ -325,7 +402,13 @@ function conferir(a: Andamento): void {
     errar(a, { tipo: 'errou', em: 'ordem' })
     return
   }
-  progresso.resolvido = { por: a.contexto.quem.nome, em: a.contexto.agora }
+  resolver(a)
+}
+
+/** Resolvido por quem agiu; no jogo, o desfecho vai para ele (no teste, nada é entregue). */
+function resolver(a: Andamento): void {
+  const { puzzle } = a
+  a.progresso.resolvido = { por: a.contexto.quem.nome, em: a.contexto.agora }
   a.efeitos.push({ tipo: 'resolveu' })
   if (a.contexto.modo === 'jogo') {
     const desfecho = structuredClone(puzzle.desfecho)

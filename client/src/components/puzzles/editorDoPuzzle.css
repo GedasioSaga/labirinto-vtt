@@ -778,3 +778,61 @@ body.pze-arrastando * {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------- a combinação: o controle arrastável e a resposta */
+.pze-controle {
+  cursor: grab;
+  touch-action: none;
+  outline: 2px dashed rgba(243, 186, 102, 0.55);
+  outline-offset: 4px;
+}
+.pze-controle.is-arrastando {
+  cursor: grabbing;
+  z-index: 3;
+  will-change: transform;
+}
+.pze-controle:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 6px;
+}
+/* O desenho do controle é só para ver: o gesto é do controle inteiro. */
+.pze-controle__miolo {
+  display: contents;
+  pointer-events: none;
+}
+
+.pze-barra__campo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pze-digitos,
+.pze-simbolos,
+.pze-seq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pze-digitos .gr-entrada {
+  width: 40px;
+  padding: 4px 2px;
+  text-align: center;
+  font: 600 var(--lb-font-size-lg) / 1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+}
+.pze-simbolos .gr-entrada {
+  width: auto;
+}
+.pze-seq b {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(243, 186, 102, 0.14);
+  color: var(--lb-color-brass-bright);
+  font-weight: 600;
+}
+.pze-linha2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}

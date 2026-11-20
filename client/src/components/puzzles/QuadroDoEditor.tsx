@@ -2,9 +2,11 @@ import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent
 import { flushSync } from 'react-dom'
 import { classes } from '../grimorio/comum'
 import { useImagemDaMesa } from '../ImagemDaMesa'
+import { combinacaoDoPuzzle, combinacaoNaVista } from '../../puzzles/combinacao'
+import { CorpoDoControle, estiloDoControle, nomeDoControle } from '../../puzzles/ControlesDaCombinacao'
 import { QuadroDoPuzzle } from '../../puzzles/QuadroDoPuzzle'
-import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
-import { comEncaixe, encaixeDoTamanho, encaixeMovido, limitar, PASSO_DA_SETA, PASSO_DO_TAMANHO, PASSO_LARGO_DA_SETA, umaCasa } from './edicao'
+import { TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type CombinacaoDoPuzzle, type EncaixeDoPuzzle, type Puzzle } from '../../puzzles/tipos'
+import { comControle, comEncaixe, encaixeDoTamanho, encaixeMovido, limitar, PASSO_DA_SETA, PASSO_DO_TAMANHO, PASSO_LARGO_DA_SETA, umaCasa } from './edicao'
 import { srcDaPeca, type PecasDoEditor } from './pecasDoEditor'
 
 /**
@@ -14,9 +16,16 @@ import { srcDaPeca, type PecasDoEditor } from './pecasDoEditor'
  * com o encaixe em foco, as setas movem (Shift: passo largo), + e − mudam o
  * tamanho, Delete tira e Esc solta a escolha.
  *
- * O gesto não re-renderiza nada: o encaixe se move pelo `transform` do próprio
- * botão, e o puzzle só muda (um passo do Desfazer) ao soltar.
+ * Na combinação, no lugar dos encaixes fica o controle (o `is-ed` do v2):
+ * arrastar o leva para onde ele fica na imagem; com ele em foco, as setas o
+ * movem e + e − mudam o tamanho.
+ *
+ * O gesto não re-renderiza nada: o encaixe (ou o controle) se move pelo
+ * `transform` do próprio elemento, e o puzzle só muda (um passo do Desfazer) ao soltar.
  */
+
+/** O + e o − no tamanho do controle (a faixa do v2 anda de 0,05). */
+const PASSO_DA_ESCALA = 0.05
 
 /** Abaixo disto o toque é escolha, não arrasto (v2: 3 px). */
 const LIMIAR_DO_ARRASTO_PX = 3
@@ -54,6 +63,7 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
   const [soltandoArquivo, setSoltandoArquivo] = useState(false)
   const resolver = useImagemDaMesa()
   const { troca } = puzzle
+  const combinacao = combinacaoDoPuzzle(puzzle)
 
   const comecar = (evento: PointerEvent<HTMLButtonElement>, encaixe: EncaixeDoPuzzle) => {
     if (evento.button !== 0 || arrasto.current !== null) return
@@ -173,7 +183,8 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
             if (evento.target === evento.currentTarget && escolhido !== null) onEscolher(null)
           }}
         >
-          {puzzle.encaixes.map((encaixe, i) => {
+          {combinacao !== null && <ControleNoEditor puzzle={puzzle} combinacao={combinacao} onMudar={onMudar} />}
+          {combinacao === null && puzzle.encaixes.map((encaixe, i) => {
             const certa = encaixe.jeito === 'peca' ? encaixe.itemId : encaixe.metades[0]
             const peca = pecas.porId(certa)
             const src = srcDaPeca(peca, resolver)
@@ -213,6 +224,102 @@ export function QuadroDoEditor({ puzzle, escolhido, pecas, onEscolher, onMudar, 
           Solte a imagem para usar como fundo
         </div>
       </QuadroDoPuzzle>
+    </div>
+  )
+}
+
+// ------------------------------------------------------------------ o controle da combinação
+
+interface ArrastoDoControle {
+  ponteiro: number
+  x0: number
+  y0: number
+  largura: number
+  altura: number
+  moveu: boolean
+  x: number
+  y: number
+}
+
+/** O controle no editor: o desenho de verdade, parado (a resposta não aparece nele), e arrastável. */
+function ControleNoEditor({ puzzle, combinacao, onMudar }: { puzzle: Puzzle; combinacao: CombinacaoDoPuzzle; onMudar: PropsDoQuadroDoEditor['onMudar'] }) {
+  const arrasto = useRef<ArrastoDoControle | null>(null)
+  // Os controles como nascem para o jogador: o editor mostra o lugar e o tamanho, nunca a resposta.
+  const vista = combinacaoNaVista(combinacao, {}, puzzle.controle)
+
+  const comecar = (evento: PointerEvent<HTMLDivElement>) => {
+    if (evento.button !== 0 || arrasto.current !== null) return
+    const el = evento.currentTarget
+    const quadro = el.closest('.qpz')
+    if (quadro === null) return
+    const caixa = quadro.getBoundingClientRect()
+    arrasto.current = { ponteiro: evento.pointerId, x0: evento.clientX, y0: evento.clientY, largura: caixa.width, altura: caixa.height, moveu: false, x: puzzle.controle.x, y: puzzle.controle.y }
+    el.setPointerCapture(evento.pointerId)
+    evento.preventDefault()
+    el.focus({ preventScroll: true })
+  }
+
+  const mover = (evento: PointerEvent<HTMLDivElement>) => {
+    const a = arrasto.current
+    if (a === null || evento.pointerId !== a.ponteiro) return
+    const dx = evento.clientX - a.x0
+    const dy = evento.clientY - a.y0
+    if (!a.moveu && Math.hypot(dx, dy) < LIMIAR_DO_ARRASTO_PX) return
+    if (!a.moveu) {
+      a.moveu = true
+      evento.currentTarget.classList.add('is-arrastando')
+    }
+    a.x = limitar(puzzle.controle.x + (dx / a.largura) * 100, 0, 100)
+    a.y = limitar(puzzle.controle.y + (dy / a.altura) * 100, 0, 100)
+    const px = ((a.x - puzzle.controle.x) / 100) * a.largura
+    const py = ((a.y - puzzle.controle.y) / 100) * a.altura
+    evento.currentTarget.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`
+  }
+
+  const terminar = (evento: PointerEvent<HTMLDivElement>, aplicar: boolean) => {
+    const a = arrasto.current
+    if (a === null || evento.pointerId !== a.ponteiro) return
+    arrasto.current = null
+    const el = evento.currentTarget
+    if (el.hasPointerCapture(a.ponteiro)) el.releasePointerCapture(a.ponteiro)
+    // O lugar novo entra no DOM antes de o deslocamento sair: senão o controle somava os dois por um quadro.
+    if (a.moveu && aplicar) flushSync(() => onMudar(comControle(puzzle, { x: a.x, y: a.y })))
+    el.style.transform = ''
+    el.classList.remove('is-arrastando')
+  }
+
+  const teclar = (evento: KeyboardEvent<HTMLDivElement>) => {
+    if (evento.ctrlKey || evento.metaKey || evento.altKey) return
+    const passo = evento.shiftKey ? PASSO_LARGO_DA_SETA : PASSO_DA_SETA
+    const seta: Readonly<Record<string, readonly [number, number]>> = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }
+    const d = seta[evento.key]
+    if (d !== undefined) {
+      evento.preventDefault()
+      onMudar(comControle(puzzle, { x: puzzle.controle.x + d[0], y: puzzle.controle.y + d[1] }), 'teclado:controle')
+    } else if (evento.key === '+' || evento.key === '=' || evento.key === '-') {
+      evento.preventDefault()
+      onMudar(comControle(puzzle, { s: puzzle.controle.s + (evento.key === '-' ? -PASSO_DA_ESCALA : PASSO_DA_ESCALA) }), 'teclado:controle')
+    }
+  }
+
+  return (
+    <div
+      className="qpz-controle pze-controle"
+      style={estiloDoControle(vista)}
+      role="button"
+      tabIndex={0}
+      aria-label={`Controle da combinação (${nomeDoControle(vista)}): arraste para mudar o lugar; setas movem, + e − mudam o tamanho`}
+      data-controle-ed
+      onPointerDown={comecar}
+      onPointerMove={mover}
+      onPointerUp={(evento) => terminar(evento, true)}
+      onPointerCancel={(evento) => terminar(evento, false)}
+      onLostPointerCapture={(evento) => terminar(evento, true)}
+      onKeyDown={teclar}
+    >
+      <div className="pze-controle__miolo" aria-hidden="true">
+        <CorpoDoControle combinacao={vista} travado />
+      </div>
     </div>
   )
 }

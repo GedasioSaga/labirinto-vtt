@@ -1,6 +1,7 @@
 import { aceitaMolduraPorta, NOME_DO_MODELO, PADROES_DOS_MODELOS, PESO_DA_TROCA_PADRAO, POSICAO_DA_TROCA_PADRAO, puzzleDoModelo, visualEhPorta } from '../../puzzles/padroes'
-import { ENCAIXES_MAX, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
-import type { EncaixeDoPuzzle, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
+import { combinacaoDoPuzzle, combinacaoPadrao } from '../../puzzles/combinacao'
+import { ENCAIXES_MAX, ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN } from '../../puzzles/tipos'
+import type { CombinacaoDoPuzzle, EncaixeDoPuzzle, FormaDaCombinacao, IdDaPecaDesenhada, ModeloDoPuzzle, Puzzle, VisualDoPuzzle } from '../../puzzles/tipos'
 
 /**
  * AS CONTAS DO EDITOR DO PUZZLE, puras: cada uma recebe o puzzle do editor e
@@ -39,8 +40,8 @@ export function comVisual(puzzle: Puzzle, visual: VisualDoPuzzle): Puzzle {
 }
 
 /**
- * "Começar de um modelo": a arte, as cores, a inscrição, a regra, os encaixes
- * e os controles do modelo; o nome, a dica, o desfecho e o castigo ficam. A
+ * "Começar de um modelo": a arte, as cores, a inscrição, a regra, os encaixes,
+ * a mecânica e os controles do modelo; o nome, a dica, o desfecho e o castigo ficam. A
  * moldura Porta escolhida fica, se o modelo novo a aceita. O nome para o
  * jogador acompanha só se ainda era o nome do modelo de antes.
  */
@@ -51,7 +52,48 @@ export function comModelo(puzzle: Puzzle, modelo: ModeloDoPuzzle, pecas: Partial
   const nomeDoModeloAntes = puzzle.visual.tipo === 'modelo' ? NOME_DO_MODELO[puzzle.visual.modelo] : ''
   const nomePublico = puzzle.nomePublico === nomeDoModeloAntes ? NOME_DO_MODELO[modelo] : puzzle.nomePublico
   const visual: VisualDoPuzzle = base.visual.tipo === 'modelo' ? { ...base.visual, moldura } : base.visual
-  return comPortaCoerente({ ...puzzle, nomePublico, regra: base.regra, visual, encaixes: base.encaixes, controle: base.controle })
+  // A mecânica vem junto: o Cofre traz as rodas; os outros tiram a combinação (e só ela: a de uma leva futura não chega ao editor).
+  const { futuro: _mecanicaDeAntes, ...semMecanica } = puzzle
+  const proximo: Puzzle = { ...semMecanica, nomePublico, regra: base.regra, visual, encaixes: base.encaixes, controle: base.controle }
+  if (base.futuro !== undefined) proximo.futuro = base.futuro
+  return comPortaCoerente(proximo)
+}
+
+/** A mecânica do seletor do editor (v2): Encaixe, Ordem certa, ou um dos 4 tipos de combinação. */
+export type MecanicaDoEditor = 'encaixe' | 'ordem' | FormaDaCombinacao
+
+export function mecanicaDoEditor(puzzle: Puzzle): MecanicaDoEditor {
+  const combinacao = combinacaoDoPuzzle(puzzle)
+  if (combinacao !== null) return combinacao.forma
+  return puzzle.regra === 'ordem' ? 'ordem' : 'encaixe'
+}
+
+/**
+ * Troca a mecânica. Os encaixes ficam guardados (voltar ao Encaixe os traz de
+ * volta); a combinação nova nasce com a resposta do v2, e a mesma forma não muda.
+ */
+export function comMecanica(puzzle: Puzzle, mecanica: MecanicaDoEditor): Puzzle {
+  if (mecanica === mecanicaDoEditor(puzzle)) return puzzle
+  if (mecanica === 'encaixe' || mecanica === 'ordem') {
+    const { futuro: _combinacao, ...semCombinacao } = puzzle
+    return { ...semCombinacao, regra: mecanica === 'ordem' ? 'ordem' : puzzle.regra === 'ordem' ? 'lugarCerto' : puzzle.regra }
+  }
+  return { ...puzzle, futuro: combinacaoPadrao(mecanica) }
+}
+
+/** A combinação do editor trocada pela que `mudar` devolver (só quando o puzzle é de combinação). */
+export function comCombinacao(puzzle: Puzzle, mudar: (combinacao: CombinacaoDoPuzzle) => CombinacaoDoPuzzle): Puzzle {
+  const combinacao = combinacaoDoPuzzle(puzzle)
+  return combinacao === null ? puzzle : { ...puzzle, futuro: mudar(combinacao) }
+}
+
+/** O controle movido ou de outro tamanho (o arrasto e as setas do quadro, a faixa "Tamanho"). */
+export function comControle(puzzle: Puzzle, controle: Partial<Puzzle['controle']>): Puzzle {
+  const proximo = { ...puzzle.controle, ...controle }
+  return {
+    ...puzzle,
+    controle: { x: umaCasa(limitar(proximo.x, 0, 100)), y: umaCasa(limitar(proximo.y, 0, 100)), s: Math.round(limitar(proximo.s, ESCALA_DO_CONTROLE_MIN, ESCALA_DO_CONTROLE_MAX) * 100) / 100 },
+  }
 }
 
 /** "Voltar às cores do modelo". */

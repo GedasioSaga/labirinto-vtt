@@ -4,7 +4,8 @@
  * ignora; mestre antigo responde `error invalid_message`.
  *
  *  - jogador → mestre: `puzzle.entrar` (encostou e tocou em "Examinar"),
- *    `puzzle.acao` (pôr, tirar, bandeja, trocar) e `puzzle.sair`;
+ *    `puzzle.acao` (pôr, tirar, bandeja, trocar; na combinação, girar,
+ *    ponteiro, apertar e tentar) e `puzzle.sair`;
  *  - mestre → jogador: `puzzle.vista` (o puzzle como ELE o vê, a cada
  *    mudança, a quem está dentro), `puzzle.recusado`, `puzzle.castigo` (só a
  *    quem errou, e só agora), `puzzle.resolvido` (a quem está dentro, cada um
@@ -19,9 +20,19 @@
  */
 import { ehIdDeDocumento } from '../documentos/leitor'
 import { lerAcaoNoPuzzle } from '../puzzles/leitor'
+import { ALGARISMOS } from '../puzzles/combinacao'
 import {
   BANDEJA_MAX,
+  BOTOES_MAX,
+  BOTOES_MIN,
   ENCAIXES_MAX,
+  ESCALA_DO_CONTROLE_MAX,
+  MINUTOS_NO_MOSTRADOR,
+  RODAS_MAX,
+  RODAS_MIN,
+  ROTULO_DO_BOTAO_MAX,
+  SEQUENCIA_MAX,
+  SIMBOLOS_DA_RODA,
   FORMAS_DO_ENCAIXE,
   INSCRICAO_MAX,
   MODELOS_DO_PUZZLE,
@@ -34,6 +45,7 @@ import {
 } from '../puzzles/tipos'
 import type {
   AcaoNoPuzzle,
+  CombinacaoNaVista,
   EncaixeNaVista,
   FormaDoEncaixe,
   ModeloDoPuzzle,
@@ -97,8 +109,11 @@ export function textoDaRecusaDoPuzzle(motivo: PuzzleMotivoDaRecusa): string {
 
 // ------------------------------------------------------------------ o que viaja
 
-/** O erro que castigou: a Ordem certa cheia na ordem errada, ou o peso errado na bandeja. */
-export type ErroDoPuzzleNoFio = { em: 'ordem' } | { em: 'peso'; soma: number; pedido: number }
+/**
+ * O erro que castigou: a Ordem certa cheia na ordem errada, o peso errado na
+ * bandeja, ou, na combinação, as rodas, a hora ou o botão fora da sequência.
+ */
+export type ErroDoPuzzleNoFio = { em: 'ordem' | 'combinacao' | 'hora' | 'sequencia' } | { em: 'peso'; soma: number; pedido: number }
 
 /**
  * O castigo como ele chegou a quem errou. `texto` já é o do mestre ou o padrão
@@ -276,6 +291,30 @@ function lerLista<T>(value: unknown, max: number, ler: (item: unknown) => T | nu
   return lidos
 }
 
+/** O controle da combinação: ausente = puzzle de encaixes (`undefined`); torto = `null`, e a vista cai inteira. */
+function lerCombinacaoNaVista(value: unknown): CombinacaoNaVista | null | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value) || !porcento(value.x) || !porcento(value.y) || typeof value.s !== 'number' || !Number.isFinite(value.s) || value.s <= 0 || value.s > ESCALA_DO_CONTROLE_MAX) return null
+  const { x, y, s } = value
+  switch (value.forma) {
+    case 'numeros':
+    case 'simbolos': {
+      const tamanho = value.forma === 'numeros' ? ALGARISMOS : SIMBOLOS_DA_RODA.length
+      const rodas = lerLista(value.rodas, RODAS_MAX, (roda) => (inteiroAte(roda, tamanho - 1) ? roda : null))
+      return rodas === null || rodas.length < RODAS_MIN ? null : { x, y, s, forma: value.forma, rodas }
+    }
+    case 'relogio':
+      return inteiroAte(value.minutos, MINUTOS_NO_MOSTRADOR - 1) ? { x, y, s, forma: 'relogio', minutos: value.minutos } : null
+    case 'botoes': {
+      const rotulos = lerLista(value.rotulos, BOTOES_MAX, (rotulo) => (textoAte(rotulo, ROTULO_DO_BOTAO_MAX) ? rotulo : null))
+      if (rotulos === null || rotulos.length < BOTOES_MIN || !inteiroAte(value.total, SEQUENCIA_MAX) || !inteiroAte(value.certos, value.total)) return null
+      return { x, y, s, forma: 'botoes', rotulos, total: value.total, certos: value.certos }
+    }
+    default:
+      return null
+  }
+}
+
 /** A vista inteira, campo a campo; um campo torto derruba a mensagem. */
 export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   if (!isRecord(value) || !idAte(value.desafioId) || !inteiroAte(value.rev, Number.MAX_SAFE_INTEGER) || !textoAte(value.titulo, NOME_DO_PUZZLE_MAX)) return null
@@ -287,15 +326,17 @@ export function lerVistaDoPuzzle(value: unknown): VistaDoPuzzle | null {
   const troca = lerTroca(value.troca)
   const dica = lerDica(value.dica)
   const mochila = lerLista(value.mochila, VAGAS_NA_VISTA_MAX, lerVaga)
-  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null) return null
+  const combinacao = lerCombinacaoNaVista(value.combinacao)
+  if (visual === null || encaixes === null || troca === undefined || dica === undefined || mochila === null || combinacao === null) return null
   const vista: VistaDoPuzzle = { desafioId: value.desafioId, rev: value.rev, titulo: value.titulo, visual, encaixes, troca, dica, resolvido: value.resolvido, contagem: { postos, total }, mochila }
+  if (combinacao !== undefined) vista.combinacao = combinacao
   if (value.versaoNova === true) vista.versaoNova = true
   return vista
 }
 
 function lerErro(value: unknown): ErroDoPuzzleNoFio | null {
   if (!isRecord(value)) return null
-  if (value.em === 'ordem') return { em: 'ordem' }
+  if (value.em === 'ordem' || value.em === 'combinacao' || value.em === 'hora' || value.em === 'sequencia') return { em: value.em }
   if (value.em === 'peso' && inteiroAte(value.soma, NUMERO_MAX) && inteiroAte(value.pedido, PESO_MAX)) return { em: 'peso', soma: value.soma, pedido: value.pedido }
   return null
 }

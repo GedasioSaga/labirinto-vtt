@@ -624,3 +624,285 @@ span.qpz-bandeja,
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------- a combinação: o controle sobre a arte (o `.controle` do v2) */
+
+.qpz-controle {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8cqw;
+  padding: 1.2cqw 1.6cqw 1.4cqw;
+  border-radius: 1.2cqw;
+  background: linear-gradient(180deg, #c7a768, #b08e52 60%, #9a7a44);
+  box-shadow:
+    inset 0 0.2cqw 0 rgba(255, 240, 200, 0.45),
+    0 0 0 0.25cqw #6e5931,
+    0 1cqw 2cqw rgba(0, 0, 0, 0.5);
+  transform-origin: center;
+}
+
+.qpz-controle.is-feito {
+  filter: saturate(0.6) brightness(0.9);
+}
+
+.qpz-controle__rot {
+  font: 500 max(10px, 0.95cqw) / 1 var(--lb-font-utility);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #4a3b1f;
+}
+
+.qpz-controle__rodas {
+  display: flex;
+  gap: 0.9cqw;
+}
+
+.qpz-roda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45cqw;
+}
+
+.qpz-roda__seta {
+  width: max(30px, 4.4cqw);
+  height: max(24px, 2.6cqw);
+  border: 0;
+  border-radius: 0.6cqw;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(60, 46, 20, 0.35);
+  color: #3b2f17;
+  cursor: pointer;
+  transition:
+    background-color 110ms ease,
+    transform 110ms var(--lb-gr-ease-out);
+}
+
+.qpz-roda__seta svg {
+  width: 60%;
+  height: 60%;
+}
+
+.qpz-roda__seta--baixo svg {
+  transform: rotate(180deg);
+}
+
+.qpz-roda__seta:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.qpz-roda__seta:disabled {
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .qpz-roda__seta:hover:not(:disabled) {
+    background: rgba(60, 46, 20, 0.55);
+  }
+}
+
+.qpz-roda__janela {
+  width: max(34px, 4.8cqw);
+  height: max(44px, 6.4cqw);
+  border-radius: 0.8cqw;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(180deg, #171512, #3a3732 48%, #171512);
+  box-shadow:
+    inset 0 0.3cqw 0.7cqw rgba(0, 0, 0, 0.75),
+    0 0 0 0.22cqw #6e5931;
+  font: 600 max(18px, 3.4cqw) / 1 var(--lb-font-utility);
+  font-variant-numeric: tabular-nums;
+  color: #efe4c8;
+  cursor: ns-resize;
+}
+
+.qpz-roda__janela[aria-disabled='true'] {
+  cursor: default;
+}
+
+.qpz-roda__janela:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+.qpz-roda__valor {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.qpz-roda__valor svg {
+  width: 70%;
+  height: 70%;
+}
+
+.qpz-tentar {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #3b2f17;
+  color: #f3e6c8;
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: transform 110ms var(--lb-gr-ease-out);
+}
+
+.qpz-tentar:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.qpz-tentar:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.qpz-tentar:focus-visible,
+.qpz-relogio__bt:focus-visible,
+.qpz-botao:focus-visible {
+  outline: 2px solid var(--lb-color-brass-bright);
+  outline-offset: 2px;
+}
+
+/* o relógio */
+
+.qpz-relogio {
+  display: block;
+  width: max(150px, 17cqw);
+  touch-action: none;
+}
+
+.qpz-relogio__romano {
+  font: 600 12px 'Sitka Banner', Georgia, serif;
+  fill: #4a3b1f;
+}
+
+.qpz-ponteiro {
+  transform-box: view-box;
+  transform-origin: 100px 100px;
+  cursor: grab;
+  transition: transform 150ms var(--lb-gr-ease-out);
+}
+
+.qpz-ponteiro.is-solto {
+  transition: none;
+}
+
+.qpz-ponteiro:focus {
+  outline: none;
+}
+
+.qpz-ponteiro:focus-visible .qpz-ponteiro__haste {
+  stroke: var(--lb-color-brass-bright);
+}
+
+.qpz-controle.is-feito .qpz-ponteiro {
+  cursor: default;
+}
+
+.qpz-relogio__bts {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 4px;
+}
+
+.qpz-relogio__bt {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(60, 46, 20, 0.4);
+  border-radius: 6px;
+  background: rgba(60, 46, 20, 0.35);
+  color: #2c2212;
+  font: 500 var(--lb-font-size-sm) / 1 var(--lb-font-utility);
+  cursor: pointer;
+  transition: transform 110ms var(--lb-gr-ease-out);
+}
+
+.qpz-relogio__bt:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.qpz-relogio__bt:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* os botões e as luzes da sequência */
+
+.qpz-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1cqw;
+  max-width: 36cqw;
+}
+
+.qpz-botao {
+  width: max(40px, 5.6cqw);
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  font: 600 max(13px, 1.6cqw) / 1 var(--lb-font-display);
+  color: #3b2f17;
+  background: radial-gradient(circle at 50% 38%, #e8dcc0, #c9b88f 60%, #a08c62);
+  box-shadow:
+    inset 0 -0.35cqw 0 rgba(70, 52, 24, 0.45),
+    0 0 0 0.22cqw #6e5931,
+    0 0.4cqw 0.8cqw rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition:
+    transform 90ms var(--lb-gr-ease-out),
+    box-shadow 90ms ease;
+}
+
+.qpz-botao:active:not(:disabled) {
+  transform: translateY(0.25cqw);
+  box-shadow:
+    inset 0 -0.1cqw 0 rgba(70, 52, 24, 0.45),
+    0 0 0 0.22cqw #6e5931;
+}
+
+.qpz-botao:disabled {
+  cursor: default;
+}
+
+.qpz-luzes {
+  display: flex;
+  gap: 0.6cqw;
+}
+
+.qpz-luzes i {
+  width: max(9px, 1cqw);
+  height: max(9px, 1cqw);
+  border-radius: 50%;
+  background: #4a3b1f;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transition: background-color 120ms ease;
+}
+
+.qpz-luzes i.is-certa {
+  background: var(--lb-color-brass-bright);
+  box-shadow: 0 0 6px rgba(243, 186, 102, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qpz-ponteiro,
+  .qpz-roda__seta,
+  .qpz-tentar,
+  .qpz-relogio__bt,
+  .qpz-botao {
+    transition: none;
+  }
+}

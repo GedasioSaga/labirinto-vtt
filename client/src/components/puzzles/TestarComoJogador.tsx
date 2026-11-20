@@ -7,6 +7,7 @@ import { useJogoLocalDoPuzzle } from '../../player/puzzle/jogoLocal'
 import { TelaDoPuzzle } from '../../player/puzzle/TelaDoPuzzle'
 import type { PvNaTela, TesteNaTela } from '../../player/puzzle/tipos'
 import { urlDaPeca } from '../../puzzles/arte/pecas'
+import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
 import { visualEhPorta } from '../../puzzles/padroes'
 import { CATEGORIA_DA_PECA_DE_PUZZLE, type PecaDoAcervo, type Puzzle, type QuemMexe, type TrocaDePeso } from '../../puzzles/tipos'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
@@ -163,6 +164,8 @@ function embaralhado<T>(lista: readonly T[], chave: (item: T, i: number) => stri
  */
 function mochilaDeTeste(puzzle: Puzzle, pecas: PecasDoEditor, itens: readonly ItemDoCatalogo[]): CarriedItem[] {
   const base = puzzle.encaixes.map((encaixe) => encaixe.id).join(',')
+  // A combinação não usa peças (v2: a mochila do teste vem vazia); só as pedras, se houver troca de peso.
+  if (combinacaoDoPuzzle(puzzle) !== null) return pedrasDaTroca(puzzle.troca).map((itemId, i): CarriedItem => ({ ...itemDaPeca(itemId, pecas, itens), id: `vaga-de-teste-${i}` }))
   const servem = [...pecasCertas(puzzle), ...pedrasDaTroca(puzzle.troca)]
   const usadas = new Set([...servem, ...(puzzle.troca === null ? [] : [puzzle.troca.guarda])])
   const candidatas = pecas.biblioteca.map((peca) => peca.itemId).filter((itemId) => !usadas.has(itemId))
@@ -186,8 +189,10 @@ function ganhosDoDesfecho(puzzle: Puzzle, titulos: ReadonlyMap<string, string>):
   ]
 }
 
-/** O aviso do v2 ao testar: um encaixe sem peça certa não fecha em regra nenhuma. `null` = todos têm. */
+/** O aviso do v2 ao testar: um encaixe sem peça certa não fecha em regra nenhuma; a sequência vazia, também. `null` = nada falta. */
 function avisoDosEncaixesSemPeca(puzzle: Puzzle): string | null {
+  const combinacao = combinacaoDoPuzzle(puzzle)
+  if (combinacao !== null) return combinacao.forma === 'botoes' && combinacao.resposta.length === 0 ? 'A sequência certa está vazia: assim ninguém resolve. Aperte os botões na ordem, no editor.' : null
   const sem = puzzle.encaixes.filter((encaixe) => (encaixe.jeito === 'peca' ? encaixe.itemId === null : encaixe.metades.some((metade) => metade === null))).length
   if (sem === 0) return null
   return `${sem} ${sem > 1 ? 'encaixes ainda não têm' : 'encaixe ainda não tem'} peça certa: assim ninguém resolve. Escolha no editor.`

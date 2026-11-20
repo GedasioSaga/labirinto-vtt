@@ -1,7 +1,8 @@
 /**
  * O QUADRO DE PERTO do puzzle (PLANO §3.1): a arte do modelo (ou a imagem do
- * mestre), o grão, os encaixes com as peças postas, a troca de peso e a porta
- * que abre ao resolver. Um componente só para a tela do jogador, o "Testar
+ * mestre), o grão, os encaixes com as peças postas, a troca de peso, os
+ * controles da combinação (`ControlesDaCombinacao.tsx`) e a porta que abre ao
+ * resolver. Um componente só para a tela do jogador, o "Testar
  * como jogador" e o editor (que põe a camada dele por cima, em `children`).
  *
  * Só desenha: o que tocar faz é de quem usa (`onTocarEncaixe`, `onTocarBandeja`,
@@ -14,12 +15,13 @@
  * A arte é memoizada pelo visual: mexer nos encaixes (a cada peça posta) não
  * redesenha o SVG grande (PLANO §5.4, desempenho).
  */
-import { memo, useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
+import { memo, useEffect, useId, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react'
 import { classes, movimentoReduzido } from '../lib/primitivosDaTela'
 import { useImagemDaMesa } from '../components/ImagemDaMesa'
 import { svgDoModelo, temMolduraPorta } from './arte/modelos'
+import { CorpoDoControle, estiloDoControle, nomeDoControle, type AcoesDaCombinacao, type TecladoDoControle } from './ControlesDaCombinacao'
 import { PESO_MAX } from './tipos'
-import type { EncaixeNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
+import type { CombinacaoNaVista, EncaixeNaVista, PostaNaVista, VisualDoPuzzle, VistaDoPuzzle } from './tipos'
 import './QuadroDoPuzzle.css'
 
 /** O tempo até o cartão do desfecho: a porta inteira (900 ms) e a folga do v2; sem arte, só a folga; reduzido, quase já. */
@@ -50,6 +52,12 @@ export interface PropsDoQuadroDoPuzzle {
   onTrocar?: () => void
   /** A porta acabou de abrir (ou, sem arte de modelo, o resolver assentou): mostre o cartão do desfecho. */
   onAbriu?: () => void
+  /** O controle da combinação sobre a arte; ausente = puzzle de encaixes. */
+  combinacao?: CombinacaoNaVista
+  /** O que girar, mexer o ponteiro, apertar e tentar fazem. Sem isto, o controle é só para ver. */
+  acoesDaCombinacao?: AcoesDaCombinacao
+  /** Onde pendurar o teclado do controle (a tela do jogador segura as teclas e as entrega a ele). */
+  tecladoDoControle?: RefObject<TecladoDoControle | null>
   /** O nome do quadro para o leitor de tela ("Fonte", o título público). */
   rotulo?: string
   className?: string
@@ -97,6 +105,12 @@ export function QuadroDoPuzzle(props: PropsDoQuadroDoPuzzle) {
             onTocarBandeja={props.onTocarBandeja}
             onTrocar={props.onTrocar}
           />
+        )}
+        {props.combinacao !== undefined && (
+          // Dentro da camada: com a moldura Porta, o controle some junto com as folhas (o `.controle` do v2).
+          <div className={classes('qpz-controle', resolvido && 'is-feito')} style={estiloDoControle(props.combinacao)} role="group" aria-label={nomeDoControle(props.combinacao)} data-controle>
+            <CorpoDoControle combinacao={props.combinacao} travado={resolvido} acoes={props.acoesDaCombinacao} teclado={props.tecladoDoControle} />
+          </div>
         )}
       </div>
       <div className="qpz__flash" aria-hidden="true" />

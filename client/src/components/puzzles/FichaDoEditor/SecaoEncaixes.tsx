@@ -2,7 +2,8 @@ import { CampoLiga } from '../../grimorio/CampoLiga'
 import { CampoSeg } from '../../grimorio/CampoSeg'
 import { classes } from '../../grimorio/comum'
 import { FORMAS_DO_ENCAIXE, NOME_DA_PECA_MAX, TAMANHO_DO_ENCAIXE_MAX, TAMANHO_DO_ENCAIXE_MIN, type EncaixeDoPuzzle, type FormaDoEncaixe, type Puzzle } from '../../../puzzles/tipos'
-import { comEncaixe, encaixeComPeca, encaixeDoJeito, encaixeDoTamanho } from '../edicao'
+import { NOME_DA_COMBINACAO } from '../../../puzzles/combinacao'
+import { comEncaixe, comMecanica, encaixeComPeca, encaixeDoJeito, encaixeDoTamanho, mecanicaDoEditor, type MecanicaDoEditor } from '../edicao'
 import type { PecaDoEditor, PecasDoEditor } from '../pecasDoEditor'
 import { Secao, SeletorDePeca, type PropsDaSecao, type UsarPeca } from './comum'
 
@@ -16,9 +17,13 @@ const NOME_DA_FORMA: Readonly<Record<FormaDoEncaixe, string>> = {
 /** As duas metades, pela posição em `metades`. */
 const LADOS: readonly (0 | 1)[] = [0, 1]
 
-const MECANICAS: readonly { valor: 'encaixe' | 'ordem'; rotulo: string }[] = [
+const MECANICAS: readonly { valor: MecanicaDoEditor; rotulo: string }[] = [
   { valor: 'encaixe', rotulo: 'Encaixe' },
   { valor: 'ordem', rotulo: 'Ordem certa' },
+  { valor: 'numeros', rotulo: NOME_DA_COMBINACAO.numeros },
+  { valor: 'simbolos', rotulo: NOME_DA_COMBINACAO.simbolos },
+  { valor: 'relogio', rotulo: NOME_DA_COMBINACAO.relogio },
+  { valor: 'botoes', rotulo: NOME_DA_COMBINACAO.botoes },
 ]
 
 const JEITOS: readonly { valor: EncaixeDoPuzzle['jeito']; rotulo: string }[] = [
@@ -26,21 +31,23 @@ const JEITOS: readonly { valor: EncaixeDoPuzzle['jeito']; rotulo: string }[] = [
   { valor: 'metades', rotulo: 'Duas metades' },
 ]
 
-/** "Mecânica" (v2): Encaixe, com ou sem "qualquer peça em qualquer encaixe", ou Ordem certa. */
+/** "Mecânica" (v2): Encaixe, com ou sem "qualquer peça em qualquer encaixe", Ordem certa, ou um dos 4 tipos de combinação. */
 export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
-  const mecanica = puzzle.regra === 'ordem' ? 'ordem' : 'encaixe'
+  const mecanica = mecanicaDoEditor(puzzle)
   return (
     <Secao titulo="Mecânica">
       <CampoSeg
         nomeAcessivel="Mecânica do puzzle"
         opcoes={MECANICAS}
         valor={mecanica}
+        forma="grade"
         onChange={(valor) => {
-          if (valor === mecanica) return
-          mudar({ ...puzzle, regra: valor === 'ordem' ? 'ordem' : 'lugarCerto' })
+          if (valor !== mecanica) mudar((atual) => comMecanica(atual, valor))
         }}
       />
-      {mecanica === 'encaixe' ? (
+      {mecanica !== 'encaixe' && mecanica !== 'ordem' ? (
+        <p className="pze-nota">Combinação: a resposta fica só com você. O jogador mexe no controle sobre a imagem e tenta; errar castiga. Os encaixes ficam guardados para quando voltar ao Encaixe.</p>
+      ) : mecanica === 'encaixe' ? (
         <CampoLiga
           rotulo="Qualquer peça do puzzle serve em qualquer encaixe"
           ajuda={puzzle.regra === 'qualquerLugar' ? 'Como a Fonte: as peças certas formam um conjunto, e a ordem não importa.' : 'Como o Altar: cada encaixe só aceita a peça dele, e a errada nem entra.'}
@@ -50,7 +57,7 @@ export function SecaoMecanica({ puzzle, mudar }: PropsDaSecao) {
       ) : (
         <p className="pze-nota">Ordem certa: qualquer peça do puzzle entra em qualquer encaixe, e a tranca só cede com cada peça no seu número. Errar a ordem castiga.</p>
       )}
-      <p className="pze-nota">Combinação, peças giratórias e luzes chegam nas próximas versões.</p>
+      <p className="pze-nota">Peças giratórias e luzes chegam nas próximas versões.</p>
     </Secao>
   )
 }

@@ -10,7 +10,10 @@ import { lerOAcervoSeFaltar } from '../../stores/acervoDeItensStore'
 import { useMapStore } from '../../stores/mapStore'
 import { PUZZLE_SEM_NOME, useMeusPuzzlesStore } from '../../stores/meusPuzzlesStore'
 import { BibliotecaDePecas } from './BibliotecaDePecas'
-import { comEncaixeNovo, comModelo, comVisual, semEncaixe } from './edicao'
+import { combinacaoDoPuzzle } from '../../puzzles/combinacao'
+import { ESCALA_DO_CONTROLE_MAX, ESCALA_DO_CONTROLE_MIN } from '../../puzzles/tipos'
+import { comControle, comEncaixeNovo, comModelo, comVisual, semEncaixe } from './edicao'
+import { SecaoCombinacao } from './FichaDoEditor/SecaoCombinacao'
 import { devolverAsPecas, useEditorDoPuzzleStore, type AlvoDoEditor } from './editorDoPuzzleStore'
 import { SecaoCastigo, SecaoDesfecho, SecaoDica, type PortaDoEditor } from './FichaDoEditor/SecaoDesfecho'
 import { comPecaNoEncaixe, SecaoEncaixes, SecaoMecanica } from './FichaDoEditor/SecaoEncaixes'
@@ -330,6 +333,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
   }
 
   const numeroEscolhido = puzzle.encaixes.findIndex((encaixe) => encaixe.id === escolhido) + 1
+  // Na combinação os encaixes ficam guardados, mas o quadro e a ficha mostram o controle e a resposta.
+  const ehCombinacao = combinacaoDoPuzzle(puzzle) !== null
   const nomeDaPorta = alvo.tipo === 'copia' && edicao.porta !== null ? (opcoesDePorta.find((opcao) => opcao.id === edicao.porta)?.label ?? null) : null
   const porta: PortaDoEditor | null =
     alvo.tipo === 'copia'
@@ -377,14 +382,18 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
               </div>
             </header>
             <p className={classes('pze-aviso', aviso?.tipo === 'error' && 'pze-aviso--perigo')} role="status" aria-live="polite">
-              {aviso?.texto ?? 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.'}
+              {aviso?.texto ?? (ehCombinacao ? 'Arraste o controle no quadro. Teclado: setas movem, + e − mudam o tamanho, Ctrl+Z desfaz.' : 'Arraste os encaixes no quadro. Teclado: setas movem, + e − mudam o tamanho, Delete tira, Ctrl+Z desfaz.')}
             </p>
             <div className="pze-corpo">
               <div className="pze-ficha-col">
                 <SecaoBasico puzzle={puzzle} mudar={mudar} />
                 <SecaoVisual puzzle={puzzle} mudar={mudar} onModelo={usarModelo} onImagem={() => void usarImagem(escolherFundoDoPuzzle)} />
                 <SecaoMecanica puzzle={puzzle} mudar={mudar} />
-                <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
+                {ehCombinacao ? (
+                  <SecaoCombinacao puzzle={puzzle} mudar={mudar} />
+                ) : (
+                  <SecaoEncaixes puzzle={puzzle} mudar={mudar} pecas={pecas} escolhido={escolhido} onEscolher={setEscolhido} onTirar={tirarEncaixe} usarPeca={usarPeca} />
+                )}
                 <SecaoTroca puzzle={puzzle} mudar={mudar} pecas={pecas} usarPeca={usarPeca} />
                 <SecaoDica puzzle={puzzle} mudar={mudar} />
                 <SecaoDesfecho puzzle={puzzle} mudar={mudar} porta={porta} />
@@ -400,6 +409,25 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onTirar={tirarEncaixe}
                   onImagemSolta={(arquivo) => void usarImagem(() => fundoDoPuzzleDoArquivo(arquivo))}
                 />
+                {ehCombinacao ? (
+                  <div className="pze-barra">
+                    <span>Controle da combinação</span>
+                    <label className="pze-barra__campo">
+                      <span>Tamanho</span>
+                      <input
+                        type="range"
+                        className="pze-faixa"
+                        min={ESCALA_DO_CONTROLE_MIN}
+                        max={ESCALA_DO_CONTROLE_MAX}
+                        step={0.05}
+                        value={puzzle.controle.s}
+                        aria-label="Tamanho do controle"
+                        onChange={(evento) => mudar(comControle(puzzle, { s: Number(evento.currentTarget.value) }), 'tamanho:controle')}
+                      />
+                    </label>
+                    <span className="pze-nota">Arraste o controle para onde ele fica na imagem.</span>
+                  </div>
+                ) : (
                 <div className="pze-barra">
                   <Botao variante="latao" tamanho="p" onClick={novoEncaixe}>
                     + Adicionar encaixe
@@ -409,6 +437,8 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   </Botao>
                   <span className="pze-nota">Arraste para mover; a alça do canto muda o tamanho.</span>
                 </div>
+                )}
+                {!ehCombinacao && (
                 <BibliotecaDePecas
                   pecas={pecas}
                   selecionada={pecaEscolhida}
@@ -417,6 +447,7 @@ function EditorDoPuzzle({ alvo: alvoInicial, saindo }: { alvo: AlvoDoEditor; sai
                   onPecaNoEncaixe={pecaNoEncaixe}
                   onAviso={avisar}
                 />
+                )}
               </div>
             </div>
           </div>

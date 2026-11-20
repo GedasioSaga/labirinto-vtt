@@ -68,6 +68,7 @@ import {
   type DificuldadeBolha,
   type MinigameBolha,
 } from '../minigames/bolha/tipos'
+import { combinacaoDoPuzzle, mecanicaDesconhecida, NOME_DA_COMBINACAO } from '../puzzles/combinacao'
 import { NOME_DO_MODELO, visualEhPorta } from '../puzzles/padroes'
 import { contagemDoPuzzle, pecasPostas, progressoInicial } from '../puzzles/motor'
 import { desafiosDo, mapaComProgressoDoPuzzle } from '../lib/desafios'
@@ -830,6 +831,7 @@ function textoDoCastigo(castigo: CastigoDoPuzzle): string {
 function textoDoProgresso(puzzle: MinigamePuzzle['puzzle'], progresso: ProgressoDoPuzzle | undefined): string {
   if (progresso === undefined) return 'Ninguém mexeu ainda'
   if (progresso.resolvido !== null) return `Resolvido por ${progresso.resolvido.por}`
+  if (combinacaoDoPuzzle(puzzle) !== null) return progresso.erros === 0 ? 'Ainda não abriu' : progresso.erros === 1 ? 'Ainda não abriu · 1 erro' : `Ainda não abriu · ${progresso.erros} erros`
   const { postos, total } = contagemDoPuzzle(puzzle, progresso)
   const erros = progresso.erros === 0 ? '' : progresso.erros === 1 ? ' · 1 erro' : ` · ${progresso.erros} erros`
   return `${postos} de ${total} encaixes${erros}`
@@ -864,12 +866,17 @@ function PainelDoPuzzle({ pinId, porta, minigame }: Pick<MinigameControlsProps, 
       })
       .catch((causa: unknown) => setErro(causa instanceof Error ? causa.message : String(causa)))
   }
-  const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || puzzle.futuro !== undefined
+  const versaoNova = minigame.versao > VERSAO_DO_PUZZLE || mecanicaDesconhecida(puzzle)
+  const combinacao = combinacaoDoPuzzle(puzzle)
   const linhas: readonly { rotulo: string; valor: string }[] = [
     { rotulo: 'Nome para o jogador', valor: puzzle.nomePublico.trim() === '' ? 'Sem título' : puzzle.nomePublico },
     { rotulo: 'Visual', valor: textoDoVisual(puzzle.visual) },
-    { rotulo: 'Regra', valor: TEXTO_DA_REGRA[puzzle.regra] },
-    { rotulo: 'Encaixes', valor: textoDosEncaixes(puzzle.encaixes) },
+    ...(combinacao !== null
+      ? [{ rotulo: 'Mecânica', valor: `Combinação: ${NOME_DA_COMBINACAO[combinacao.forma].toLowerCase()}` }]
+      : [
+          { rotulo: 'Regra', valor: TEXTO_DA_REGRA[puzzle.regra] },
+          { rotulo: 'Encaixes', valor: textoDosEncaixes(puzzle.encaixes) },
+        ]),
     { rotulo: 'Troca de peso', valor: puzzle.troca === null ? 'Sem troca' : `A bandeja pede ${puzzle.troca.peso}` },
     { rotulo: 'Ao resolver', valor: textoDoDesfecho(puzzle.desfecho, visualEhPorta(puzzle.visual)) },
     { rotulo: 'Castigo', valor: textoDoCastigo(puzzle.castigo) },

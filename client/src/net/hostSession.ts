@@ -177,6 +177,7 @@ import {
   type PuzzleAoVivo,
 } from './puzzleNoHost'
 import type { PuzzleFechadoMotivo, PuzzleMotivoDaRecusa, PuzzlePlayerMessage } from './protocoloDoPuzzle'
+import { acaoDeControle } from '../puzzles/combinacao'
 import type { VistaDoPuzzle } from '../puzzles/tipos'
 import { fichaComODocumento, lerDaLista, lerNoMapa, semNovo, type AppliedDocumento } from './documentoNoHost'
 import type { DocumentoMotivoDaRecusa, DocumentoPlayerMessage } from './protocoloDoDocumento'
@@ -9418,7 +9419,8 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     const ficha = fichaNoPuzzle(playerId, scene, world, desafio.id, aberto.tokenId)
     if (typeof ficha === 'string') return recusa(ficha)
     // A tela velha: a recusa e a vista de agora, para ele tentar de novo sobre o que existe.
-    if (msg.rev !== progressoDoDesafio(desafio).rev) {
+    // Girar, mexer o ponteiro e apertar valem sobre o progresso de agora (vários cliques seguidos não esperam a vista).
+    if (msg.rev !== progressoDoDesafio(desafio).rev && !acaoDeControle(msg.acao)) {
       return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca), true)] }
     }
     const resultado = agirNoHost({

@@ -19,6 +19,7 @@ import { readCarriedItems } from '../lib/items'
 import { ehIdDeItemDoAcervo } from '../lib/leituraDoItem'
 import { ehRefDeMidia } from '../lib/midia'
 import type { CarriedItem, ItemNoConteudo } from '../types/map'
+import { lerCombinacao, minutosNoMostrador } from './combinacao'
 import { aceitaMolduraPorta, PADROES_DOS_MODELOS, POSICAO_DA_TROCA_PADRAO, PESO_DA_TROCA_PADRAO, PV_DO_CASTIGO_PADRAO, puzzleDoModelo, visualEhPorta } from './padroes'
 import {
   BANDEJA_MAX,
@@ -49,7 +50,6 @@ import type {
   DicaDoPuzzle,
   EncaixeDoPuzzle,
   FormaDoEncaixe,
-  MecanicaFutura,
   MetadesPostas,
   MinigamePuzzle,
   ModeloDoPuzzle,
@@ -331,10 +331,13 @@ function lerControle(valor: unknown, padrao: Puzzle['controle']): Puzzle['contro
 }
 
 /**
- * A mecânica de uma leva futura, guardada como veio (uma cópia pelo JSON, que
- * tira o que não é dado). Sem `tipo` de texto, ou grande demais: some.
+ * A combinação, ou a mecânica de uma leva futura guardada como veio (uma cópia
+ * pelo JSON, que tira o que não é dado). Sem `tipo` de texto, ou grande demais: some.
  */
-function lerFuturo(valor: unknown): MecanicaFutura | undefined {
+function lerFuturo(valor: unknown): Puzzle['futuro'] {
+  // A combinação que este app joga é lida campo a campo; a de uma forma que ele não conhece segue como veio.
+  const combinacao = lerCombinacao(valor)
+  if (combinacao !== null) return combinacao
   if (!isRecord(valor) || typeof valor.tipo !== 'string' || valor.tipo === '') return undefined
   let json: string
   try {
@@ -430,6 +433,11 @@ function listaDe<T>(valor: unknown, bom: (item: unknown) => item is T): T[] | un
 
 // ------------------------------------------------------------------ a ação vinda da rede
 
+/** A roda ou o botão pelo índice: inteiro pequeno (o motor confere se existe). */
+function indiceLido(valor: unknown): number | null {
+  return typeof valor === 'number' && Number.isInteger(valor) && valor >= 0 && valor < LISTA_DO_FUTURO_MAX ? valor : null
+}
+
 /** A ação de `puzzle.acao`, do jogador. `null` = não é uma ação desta leva (o host recusa). */
 export function lerAcaoNoPuzzle(valor: unknown): AcaoNoPuzzle | null {
   if (!isRecord(valor)) return null
@@ -454,6 +462,19 @@ export function lerAcaoNoPuzzle(valor: unknown): AcaoNoPuzzle | null {
       return { tipo: 'tirarDaBandeja' }
     case 'trocar':
       return { tipo: 'trocar' }
+    case 'girar': {
+      const roda = indiceLido(valor.roda)
+      const passo = valor.passo === 1 || valor.passo === -1 ? valor.passo : null
+      return roda === null || passo === null ? null : { tipo: 'girar', roda, passo }
+    }
+    case 'ponteiro':
+      return typeof valor.minutos === 'number' && Number.isFinite(valor.minutos) ? { tipo: 'ponteiro', minutos: minutosNoMostrador(valor.minutos) } : null
+    case 'apertar': {
+      const botao = indiceLido(valor.botao)
+      return botao === null ? null : { tipo: 'apertar', botao }
+    }
+    case 'tentar':
+      return { tipo: 'tentar' }
     default:
       return null
   }

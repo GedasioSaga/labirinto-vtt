@@ -40,6 +40,9 @@ export interface DesfechoNaTela {
   abriuPorta: boolean
 }
 
+/** O que errou: a ordem, o peso, e na combinação as rodas, a hora ou a sequência de botões. */
+export type ErroNaTela = 'ordem' | 'peso' | 'combinacao' | 'hora' | 'sequencia'
+
 /** Os PV de quem joga, para o castigo ficar à vista. */
 export interface PvNaTela {
   atual: number
@@ -54,7 +57,7 @@ export type CorpoDoAcontecimento =
    */
   | { tipo: 'recusado'; texto: string }
   /** `castigo: null` = o mestre não pôs castigo ("Nada acontece"). */
-  | { tipo: 'errou'; em: 'ordem' | 'peso'; castigo: CastigoNaTela | null }
+  | { tipo: 'errou'; em: ErroNaTela; castigo: CastigoNaTela | null }
   /** As duas metades se juntaram neste encaixe. */
   | { tipo: 'juntou'; encaixeId: string }
   /** A peça guardada saiu do pedestal e foi para a mochila de quem trocou. */

@@ -11,6 +11,7 @@
  */
 import { useCallback, useMemo, useState } from 'react'
 import { mochilaComItemDoAcervo } from '../../lib/items'
+import { acaoDeControle } from '../../puzzles/combinacao'
 import { agirNoPuzzle, progressoInicial } from '../../puzzles/motor'
 import { vistaDoPuzzle } from '../../puzzles/recorte'
 import { TEXTO_DA_RECUSA } from '../../puzzles/tipos'
@@ -93,7 +94,8 @@ function passo(antes: EstadoLocal, mesa: Mesa, acao: AcaoNoPuzzle, rev: number):
   let ids = 0
   // Determinístico: o React pode chamar o atualizador duas vezes (StrictMode) e o resultado tem de ser o mesmo.
   const novoId = () => `vaga-local-${antes.proximo}-${(ids += 1)}`
-  if (rev !== antes.progresso.rev) return comAcontecimentos(antes, [{ tipo: 'recusado', texto: TEXTO_DA_RECUSA.velho }])
+  // Como no host: girar, o ponteiro e os botões não esperam a vista de antes chegar.
+  if (rev !== antes.progresso.rev && !acaoDeControle(acao)) return comAcontecimentos(antes, [{ tipo: 'recusado', texto: TEXTO_DA_RECUSA.velho }])
 
   const resultado = agirNoPuzzle(mesa.puzzle, antes.progresso, antes.mochila, acao, {
     quem: mesa.quem,
