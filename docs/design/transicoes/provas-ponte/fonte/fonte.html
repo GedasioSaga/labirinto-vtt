@@ -121,7 +121,7 @@ details b { color: var(--tinta); font-weight: 600; }
 <body>
 <main>
   <h1>Ponte levadiça</h1>
-  <p class="sub">Transição de viagem do pino · duas versões de 4,8 s · fim de tarde · protótipo para aprovar</p>
+  <p class="sub">Transição de viagem do pino · primeira pessoa · duas versões de 4,8 s · fim de tarde · protótipo para aprovar</p>
   <div class="escolha">
     <span class="rotulo" id="rotulo-versao">Versão</span>
     <div class="segmentos" role="group" aria-labelledby="rotulo-versao">
@@ -156,12 +156,12 @@ details b { color: var(--tinta); font-weight: 600; }
   <details>
     <summary>Direção de arte e ritmo</summary>
     <ul>
-      <li><b>Olhar:</b> primeiro a figura (capa azul fria contra a pedra e a madeira quentes, e é o que se mexe), depois o vão escuro do portão (o destino, o ponto de mais contraste), por último o castelo e o céu.</li>
-      <li><b>Luz:</b> entrando, o sol baixo vem de trás da câmera e doura a pedra, e a sombra comprida da figura chega ao portão antes dela. Saindo, o sol fica à frente, dentro do arco: contraluz, e a sombra volta para a câmera.</li>
-      <li><b>Paleta (Meio-Termo):</b> pedra creme quente, ardósia azul-acinzentada, carmim contido nos estandartes, grama de verde calmo, terra de caminho alaranjada. A sombra é fria e o contorno da figura e das copas fica no tom escuro da própria cor.</li>
-      <li><b>Entrando:</b> 0 a 0,45 s sai do preto já andando · até 3,2 s cruza a ponte · 3,0 a 3,55 s o nome sobe enquanto a câmera recua até as torres · 4,3 a 4,8 s escurece.</li>
-      <li><b>Saindo:</b> 0 a 0,45 s sai do preto dentro da passagem · aos 1,1 s a figura passa do escuro para a luz · 3,0 a 3,55 s o nome sobe · 4,3 a 4,8 s escurece.</li>
-      <li><b>Som:</b> vento, água do fosso, passos (madeira oca na ponte, pedra com eco na passagem), andorinhas longe e um acorde baixo quando o nome sobe.</li>
+      <li><b>Olhar:</b> em primeira pessoa, como nas portas e escadas do Resident Evil: quem vê é quem anda, na altura dos olhos. O ponto de mais contraste é sempre o destino: o vão do portão com o pátio claro no fundo (entrando) ou o arco claro sobre a ponte (saindo). As correntes das laterais convergem para ele.</li>
+      <li><b>Luz:</b> entrando, o sol baixo vem de trás e doura a pedra; a passagem escurece e só a tocha de dentro acende a parede. Saindo, o sol fica à frente, dentro do arco: contraluz, e a pedra da passagem fica escura em volta.</li>
+      <li><b>Paleta (Meio-Termo):</b> pedra creme quente, ardósia azul-acinzentada, carmim contido nos estandartes, grama de verde calmo, terra de caminho alaranjada. A sombra é fria e o contorno das copas fica no tom escuro da própria cor.</li>
+      <li><b>Entrando:</b> 0 a 0,45 s sai do preto já andando na estrada · 1,4 s o pé sobe na madeira · 3,0 a 3,55 s o nome sobe com o arco chegando · 4,0 s passa pelo arco · 4,3 a 4,8 s escurece dentro da passagem.</li>
+      <li><b>Saindo:</b> 0 a 0,45 s sai do preto no fundo da passagem · 1,3 s a tocha passa ao lado · 2,3 s sai pelo arco para a ponte · 3,0 a 3,55 s o nome sobe sobre o campo · 4,3 a 4,8 s escurece perto do fim da ponte.</li>
+      <li><b>Som:</b> os próprios passos (terra abafada, madeira oca na ponte, pedra com eco na passagem), as correntes das laterais tilintando a cada passo na ponte, vento, água do fosso, andorinhas longe e um acorde baixo quando o nome sobe.</li>
     </ul>
   </details>
 </main>
@@ -175,13 +175,13 @@ const SAIDA_DO_PULAR_MS = 260
 const CENAS = window.PonteLevadica
 const TEXTOS = {
   entrando: {
-    descricao: 'Fim de tarde. Do lado de fora, atrás de quem chega: a figura de capa atravessa a ponte sobre o fosso e some na sombra do portão, enquanto a câmera recua até as torres e o nome do lugar sobe.',
-    rotulo: 'Animação: uma figura de capa atravessa a ponte levadiça sobre o fosso e entra pelo portão do castelo no fim da tarde; a câmera recua até as torres e o nome do lugar aparece.',
+    descricao: 'Fim de tarde, em primeira pessoa. Da estrada para a ponte: o portão e o arco vêm chegando entre as correntes, o pátio claro aparece no fim da passagem, e o nome do lugar sobe antes de entrar no escuro.',
+    rotulo: 'Animação em primeira pessoa: quem olha anda pela ponte levadiça sobre o fosso, entre as correntes, até passar pelo arco do portão do castelo no fim da tarde; o nome do lugar aparece.',
     nome: 'Castelo do Vale',
   },
   saindo: {
-    descricao: 'Fim de tarde. De dentro da passagem, atrás de quem sai: a figura deixa o escuro, atravessa a ponte rumo ao sol baixo e a sombra dela volta para a câmera; o nome do lugar sobe.',
-    rotulo: 'Animação: de dentro do portão, uma figura de capa sai para a luz do fim da tarde e atravessa a ponte levadiça rumo à estrada; o nome do lugar aparece.',
+    descricao: 'Fim de tarde, em primeira pessoa. Do fundo da passagem escura, com a tocha passando ao lado: sai pelo arco para a ponte, entre as correntes, rumo ao sol baixo e ao campo, e o nome do lugar sobe.',
+    rotulo: 'Animação em primeira pessoa: de dentro do portão, quem olha sai pelo arco para a luz do fim da tarde e atravessa a ponte levadiça rumo à estrada e ao campo; o nome do lugar aparece.',
     nome: 'Estrada do Vale',
   },
 }

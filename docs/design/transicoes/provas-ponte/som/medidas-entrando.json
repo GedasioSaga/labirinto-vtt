@@ -1,7 +1,7 @@
 {
   "id": "ponte-levadica-entrando",
   "fonte": "docs/design/transicoes/provas-ponte/fonte/ponte-levadica-entrando.ts",
-  "geradoEm": "2026-11-20T17:42:23.951Z",
+  "geradoEm": "2026-11-20T18:04:53.808Z",
   "veredito": "aprovado",
   "motivos": [],
   "referencia": {
@@ -18,23 +18,25 @@
     "duracaoS": 5.05,
     "canais": 2,
     "taxa": 48000,
-    "picoDbfs": -2.4,
-    "picoVerdadeiroDbtp": -2.37,
-    "lufsIntegrado": -19.66,
-    "lufsCurtoPrazoMax": -18.79,
-    "dcPct": 0.0875,
+    "picoDbfs": -2.09,
+    "picoVerdadeiroDbtp": -2.07,
+    "lufsIntegrado": -19.04,
+    "lufsCurtoPrazoMax": -18.13,
+    "dcPct": 0.1044,
     "cortes": 0,
     "cliques": [],
-    "ataques": [],
+    "ataques": [
+      4.359
+    ],
     "trensDePulsos": [],
     "silenciosNoMeio": [],
-    "equilibrioLRdb": 0.09,
+    "equilibrioLRdb": 0.2,
     "centroideHzPorSegundo": [
-      254,
-      254,
-      211,
-      277,
-      641,
+      774,
+      298,
+      240,
+      228,
+      275,
       null
     ],
     "duracaoNaturalS": 4.8

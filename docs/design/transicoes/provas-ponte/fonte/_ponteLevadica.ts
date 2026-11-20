@@ -6,22 +6,22 @@ import { descartarCena, semente } from '../../../../../client/src/transicoes/tex
 /*
  * PONTE LEVADIÇA (protótipo de transição de viagem, pedido de 20/11/2026):
  * "alguém passando por uma ponte levadiça indo e vindo do castelo à tarde".
- * Duas versões de 4,8 s, mesma cena e mesmo sol baixo de fim de tarde:
+ * Ajuste do dono no mesmo dia: "faz a transição sendo em primeira pessoa como
+ * em resident evil". Duas versões de 4,8 s, mesma cena e mesmo sol baixo:
  *
- * - "entrando": a câmera fica do lado de fora, atrás de quem anda. A figura de
- *   capa atravessa a ponte e some na sombra do portão (o pátio claro do outro
- *   lado recorta a silhueta) enquanto a câmera recua e sobe até as torres. O
- *   sol vem de trás da câmera: a pedra acende dourada e a sombra comprida da
- *   figura chega ao portão antes dela.
- * - "saindo": a câmera fica dentro da passagem, atrás de quem sai. A figura sai
- *   do escuro para a luz, atravessa a ponte rumo ao sol e a sombra dela volta
- *   para a câmera; o arco escuro emoldura a paisagem.
+ * - "entrando": a câmera é quem anda, na altura dos olhos, da estrada para a
+ *   ponte e para dentro do portão. O arco e as correntes vêm chegando, o pátio
+ *   claro aparece no fim da passagem escura. O sol vem de trás e doura a pedra.
+ * - "saindo": a câmera sai da passagem escura (a tocha passa ao lado), cruza a
+ *   ponte entre as correntes rumo ao sol e chega à beira do campo.
  *
- * No fim o nome do lugar sobe devagar no terço de baixo (`opcoes.nome`; sem
- * nome, sem placa) e o motor fecha em preto. Estilo Meio-Termo
- * (docs/design/ESTILO-DO-RPG.md): pintura por código e determinística, cores
- * contidas, contorno no tom escuro da própria cor (a figura e as copas têm
- * casco), sombra suave. Tudo é função do tempo `t`: a miniatura é sempre o
+ * O passo balança de leve (sobe e desce a cada pé, pende de lado a cada dois),
+ * como nas portas e escadas do Resident Evil. Com movimento reduzido não há
+ * balanço: só um avanço liso e curto. No fim o nome do lugar sobe devagar no
+ * terço de baixo (`opcoes.nome`; sem nome, sem placa) e o motor fecha em preto.
+ * Estilo Meio-Termo (docs/design/ESTILO-DO-RPG.md): pintura por código e
+ * determinística, cores contidas, contorno no tom escuro da própria cor nas
+ * copas, sombra suave. Tudo é função do tempo `t`: a miniatura é sempre o
  * mesmo quadro e o motor pode escalar a duração.
  */
 
@@ -38,15 +38,34 @@ export const ROTEIRO_DA_PONTE = {
 } as const
 const T = ROTEIRO_DA_PONTE
 
-/** Passo de viajante: 1,55 m/s e 76 cm por passo (~2 passos por segundo, como o Campo ensolarado). */
-const VELOCIDADE = 1.55
-const PASSADA = 0.76
-/** Onde a figura está em t = 0 (z) e para onde anda. */
-const PARTIDA: Record<Sentido, number> = { entrando: 5.1, saindo: -1.7 }
+/**
+ * Passo de quem olha: 2,25 m/s e 85 cm por passo (~2,6 passos por segundo), passo decidido de quem
+ * tem 4,8 s para cruzar. Com movimento reduzido: 0,45 m/s, passos curtos e lentos, sem balanço.
+ */
+const ANDAR = {
+  normal: { velocidade: 2.25, passada: 0.85 },
+  reduzido: { velocidade: 0.45, passada: 0.5 },
+} as const
+/** Onde os olhos estão em t = 0 (z) e para onde andam. */
+const PARTIDA: Record<Sentido, { normal: number; reduzido: number }> = {
+  // Da estrada, com o castelo inteiro à frente, até 1,8 m dentro da passagem (cruza o arco aos 4,0 s).
+  entrando: { normal: 9.0, reduzido: 6.0 },
+  // Do fundo da passagem (o arco claro recortado à frente, a tocha passa ao lado) até o fim da ponte.
+  // Reduzido: fica dentro da passagem, chegando devagar ao arco claro (as paredes escuras emolduram).
+  saindo: { normal: -5.2, reduzido: -2.6 },
+}
 const RUMO: Record<Sentido, number> = { entrando: -1, saindo: 1 }
-const X_DA_FIGURA = 0.18
-/** Ângulo das pernas no passo (rad). */
-const PERNA = 0.42
+/** Altura dos olhos acima do piso (m). */
+const OLHOS = 1.62
+/** Balanço do passo: altura (m) a cada pé, lado (m) e giro (rad) a cada dois. Sutil de propósito. */
+const BALANCO = { altura: 0.026, lado: 0.016, giro: 0.0055 }
+/** Inclinação do olhar (rad, + para cima) no começo e no fim do caminho. */
+const OLHAR: Record<Sentido, { de: number; ate: number; reduzido: number }> = {
+  // Começa erguido para ler o arco e as torres; nivela ao chegar no portão.
+  entrando: { de: 0.11, ate: 0.02, reduzido: 0.07 },
+  // Começa erguido para o arco claro caber inteiro; baixa para a ponte e o campo, e o nome cabe embaixo.
+  saindo: { de: 0.06, ate: -0.06, reduzido: 0.0 },
+}
 
 /** Medidas em metros. A fachada da guarita fica em z = 0, virada para +z (o lado de fora). */
 /** `topo`: o tabuleiro fica um palmo acima do gramado, sem brigar com ele onde assenta na margem. */
@@ -77,28 +96,11 @@ const SOL: Record<Sentido, { azimute: number; elevacao: number; cor: number; for
   saindo: { azimute: 0.2, elevacao: 0.2, cor: 0xffcf9c, forca: 3.2 },
 }
 
-interface Pose {
-  pos: readonly [number, number, number]
-  alvo: readonly [number, number, number]
-}
-const CAMERAS: Record<Sentido, { de: Pose; ate: Pose; reduzido: Pose }> = {
-  // Alta o bastante para a água do fosso aparecer por cima da margem; recua e sobe até as torres.
-  entrando: {
-    de: { pos: [2.9, 3.9, 14.8], alvo: [-0.3, 2.0, 1.5] },
-    ate: { pos: [6.0, 4.5, 23.0], alvo: [0.3, 7.7, 0] },
-    reduzido: { pos: [4.6, 3.9, 19.5], alvo: [0.1, 5.0, 0.5] },
-  },
-  saindo: {
-    de: { pos: [0.32, 1.8, -5.5], alvo: [0.1, 2.0, 6] },
-    // O olhar final fica um pouco abaixo do horizonte: a figura sobe no quadro e o nome cabe embaixo dela.
-    ate: { pos: [0.15, 1.95, -2.9], alvo: [-0.4, 1.15, 12] },
-    reduzido: { pos: [0.28, 1.88, -4.8], alvo: [0, 1.6, 8] },
-  },
-}
-const FOV = 42
-/** Em tela estreita o campo de visão abre até manter ~58° na horizontal (teto 72°). */
-const FOV_HORIZONTAL_MIN = 58
-const FOV_MAX = 72
+/** Campo de visão de olho (vertical, graus): ~84° na horizontal em 16:9. */
+const FOV = 54
+/** Em tela estreita o campo de visão abre até manter ~66° na horizontal (teto 80°). */
+const FOV_HORIZONTAL_MIN = 66
+const FOV_MAX = 80
 
 const NOME_MAX_LETRAS = 28
 /** A fonte de título do app (`--lb-font-display`), a mesma das aberturas de batalha. */
@@ -108,20 +110,25 @@ const FONTE_DO_NOME = "'Sitka Banner', 'Sitka Display', Constantia, Georgia, 'Ti
 // Movimento (funções puras: o som, o teste e o gráfico leem sem desenhar)
 // ---------------------------------------------------------------------------
 
-export function zDaFigura(t: number, s: Sentido): number {
-  return PARTIDA[s] + RUMO[s] * VELOCIDADE * t
+const andarDe = (reduzir: boolean) => (reduzir ? ANDAR.reduzido : ANDAR.normal)
+
+/** Onde os olhos estão no eixo da ponte (z) no instante `t`. */
+export function zDosOlhos(t: number, s: Sentido, reduzir: boolean): number {
+  return PARTIDA[s][reduzir ? 'reduzido' : 'normal'] + RUMO[s] * andarDe(reduzir).velocidade * t
 }
 
-/** Fase do passo: avança π a cada passo; o pé assenta em π/2 + kπ (pernas no maior afastamento). */
-export function faseDoPasso(t: number): number {
-  return (Math.PI * VELOCIDADE * t) / PASSADA
+/** Fase do passo: avança π a cada passo; o pé assenta em π/2 + kπ (é quando a cabeça está mais baixa). */
+export function faseDoPasso(t: number, reduzir: boolean): number {
+  const { velocidade, passada } = andarDe(reduzir)
+  return (Math.PI * velocidade * t) / passada
 }
 
 /** Instantes em que um pé assenta, dentro da cena. */
-export function passosDaFigura(): number[] {
+export function passosDosOlhos(reduzir: boolean): number[] {
+  const { velocidade, passada } = andarDe(reduzir)
   const tempos: number[] = []
   for (let k = 0; ; k++) {
-    const t = (PASSADA * (k + 0.5)) / VELOCIDADE
+    const t = (passada * (k + 0.5)) / velocidade
     if (t >= T.escuroFim) break
     tempos.push(t)
   }
@@ -146,38 +153,42 @@ export function nomeEm(t: number): number {
   return easeOutCubic(span(t, T.nomeInicio, T.nomeCheio))
 }
 
-export function poseDaCamera(t: number, s: Sentido, reduzir: boolean): Pose {
-  const c = CAMERAS[s]
-  if (reduzir) return c.reduzido
-  const u = easeInOutSine(span(t, 0, T.escuroFim))
-  const mistura = (a: readonly number[], b: readonly number[]) => [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * u) as unknown as [number, number, number]
-  return { pos: mistura(c.de.pos, c.ate.pos), alvo: mistura(c.de.alvo, c.ate.alvo) }
+export interface Olhos {
+  pos: [number, number, number]
+  olhar: [number, number, number]
+  /** Giro em volta do eixo do olhar (rad). */
+  giro: number
 }
 
-/** Quanto do passo ecoa na passagem de pedra (a figura dentro, ou a câmera dentro, na saída). */
-function dentroDaPassagem(z: number): number {
-  return clamp01(-z / 2.2)
-}
-
-/** O que o ouvido da câmera escuta de um passo: volume pela distância, lado pela tela, eco pela passagem. */
-export function escutaDoPasso(t: number, s: Sentido, reduzir: boolean): { volume: number; pan: number; piso: Piso; eco: number } {
-  const z = zDaFigura(t, s)
-  const { pos, alvo } = poseDaCamera(t, s, reduzir)
-  const p = [X_DA_FIGURA - pos[0], 0.1 - pos[1], z - pos[2]]
-  const f = [alvo[0] - pos[0], alvo[1] - pos[1], alvo[2] - pos[2]]
-  const nf = Math.hypot(f[0], f[1], f[2])
-  const frente = (p[0] * f[0] + p[1] * f[1] + p[2] * f[2]) / nf
-  // Direita da câmera = frente × cima = (-f.z, 0, f.x) normalizado.
-  const nd = Math.hypot(f[0], f[2])
-  const lado = (p[0] * -f[2] + p[2] * f[0]) / nd
-  const distancia = Math.hypot(p[0], p[1], p[2])
+/** Onde a câmera (os olhos) está e para onde olha. Sem balanço com movimento reduzido. */
+export function olhosEm(t: number, s: Sentido, reduzir: boolean): Olhos {
+  const z = zDosOlhos(t, s, reduzir)
+  const piso = pisoEm(z) === 'madeira' ? PONTE.topo : 0
+  const fase = faseDoPasso(t, reduzir)
+  const b = reduzir ? 0 : 1
+  // Cabeça mais baixa quando o pé assenta (π/2 + kπ), mais alta no meio da passada; pende para o pé de apoio.
+  const y = piso + OLHOS + b * BALANCO.altura * Math.cos(2 * fase)
+  const x = b * BALANCO.lado * Math.sin(fase)
+  const o = OLHAR[s]
+  const inclinacao = reduzir ? o.reduzido : o.de + (o.ate - o.de) * easeInOutSine(span(t, 0, 3.6))
+  const longe = 10
   return {
-    // Piso alto de propósito: a figura que o olho segue não pode sumir do ouvido quando se afasta.
-    volume: Math.min(1, Math.max(0.42, 4.2 / distancia)),
-    pan: Math.max(-0.6, Math.min(0.6, (lado / Math.max(1, frente)) * 1.3)),
-    piso: pisoEm(z),
-    eco: clamp01(dentroDaPassagem(z) * 0.85 + dentroDaPassagem(pos[2] + 1) * 0.45),
+    pos: [x, y, z],
+    // O olhar mira o eixo da ponte lá na frente: o corpo pende e a cabeça compensa, como gente.
+    olhar: [0, y + Math.tan(inclinacao) * longe, z + RUMO[s] * longe],
+    giro: b * BALANCO.giro * Math.sin(fase),
   }
+}
+
+/** Quanto do passo ecoa: cheio dentro da passagem de pedra, um pouco junto da fachada. */
+function ecoEm(z: number): number {
+  return clamp01(clamp01(-z / 2.2) * 0.9 + 0.25 * clamp01(1 - Math.abs(z) / 3))
+}
+
+/** O que se ouve do próprio passo: piso de onde o pé assenta, um pé de cada lado, eco pela passagem. */
+export function escutaDoPasso(t: number, k: number, s: Sentido, reduzir: boolean): { volume: number; pan: number; piso: Piso; eco: number } {
+  const z = zDosOlhos(t, s, reduzir)
+  return { volume: reduzir ? 0.7 : 0.8, pan: k % 2 === 0 ? -0.12 : 0.12, piso: pisoEm(z), eco: ecoEm(z) }
 }
 
 /** Espaços juntados, até 28 letras (sem partir emoji ao meio); `''` = sem nome. */
@@ -1305,95 +1316,6 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   poeira.frustumCulled = false
   scene.add(poeira)
 
-  // --- A figura: viajante de capa e capuz, com mochila e manta enrolada ---------------
-  const figura = new THREE.Group()
-  const corpo = new THREE.Group()
-  figura.add(corpo)
-  const corDaCapa = 0x4e6b78
-  const capaMat = lambert(corDaCapa, { side: THREE.DoubleSide, shadowSide: THREE.BackSide })
-  const contornoDaCapa = basico(0x22333a, { side: THREE.BackSide })
-  const perfil = [
-    [0.1, 1.52],
-    [0.19, 1.47],
-    [0.255, 1.39],
-    [0.27, 1.26],
-    [0.285, 1.05],
-    [0.31, 0.82],
-    [0.345, 0.6],
-    [0.37, 0.44],
-  ].map(([r, y]) => new THREE.Vector2(r, y))
-  const capaGeo = new THREE.LatheGeometry(perfil, 28)
-  {
-    // Dobras verticais que abrem para a barra, e o corpo mais largo que fundo.
-    const pos = capaGeo.getAttribute('position')
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i)
-      const y = pos.getY(i)
-      const z = pos.getZ(i)
-      const ang = Math.atan2(z, x)
-      const baixo = clamp01((1.4 - y) / 0.95)
-      const dobra = 1 + 0.07 * baixo * Math.sin(ang * 7 + 0.6)
-      pos.setXYZ(i, x * dobra, y, z * dobra * 0.84)
-    }
-    capaGeo.computeVertexNormals()
-  }
-  const capa = new THREE.Mesh(capaGeo, capaMat)
-  capa.castShadow = true
-  const capaContorno = new THREE.Mesh(casco(capaGeo, 0.014), contornoDaCapa)
-  const barra = new THREE.Group()
-  barra.add(capa, capaContorno)
-  corpo.add(barra)
-
-  const capuzGeo = new THREE.SphereGeometry(0.16, 18, 12)
-  capuzGeo.scale(1, 1.12, 1.06)
-  const capuz = new THREE.Mesh(capuzGeo, capaMat)
-  capuz.position.set(0, 1.63, -0.01)
-  capuz.castShadow = true
-  const capuzContorno = new THREE.Mesh(casco(capuzGeo, 0.014), contornoDaCapa)
-  capuzContorno.position.copy(capuz.position)
-  const pontaGeo = new THREE.ConeGeometry(0.09, 0.2, 10)
-  const ponta = new THREE.Mesh(pontaGeo, capaMat)
-  ponta.position.set(0, 1.66, -0.15)
-  ponta.rotation.x = -2.1
-  corpo.add(capuz, capuzContorno, ponta)
-
-  const couro = lambert(0x8a6a46)
-  const contornoDoCouro = basico(0x4a3522, { side: THREE.BackSide })
-  const mochilaGeo = new THREE.BoxGeometry(0.32, 0.38, 0.16)
-  const mochila = new THREE.Mesh(mochilaGeo, couro)
-  mochila.position.set(0, 1.12, -0.29)
-  mochila.castShadow = true
-  const mochilaContorno = new THREE.Mesh(casco(mochilaGeo, 0.012), contornoDoCouro)
-  mochilaContorno.position.copy(mochila.position)
-  const mantaGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.46, 14).rotateZ(Math.PI / 2)
-  const manta = new THREE.Mesh(mantaGeo, lambert(0xb89c74))
-  manta.position.set(0, 1.37, -0.29)
-  manta.castShadow = true
-  const mantaContorno = new THREE.Mesh(casco(mantaGeo, 0.012), basico(0x5e4a32, { side: THREE.BackSide }))
-  mantaContorno.position.copy(manta.position)
-  const faixa = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.088, 0.05, 14).rotateZ(Math.PI / 2), lambert(0x9c4a3c))
-  faixa.position.copy(manta.position)
-  corpo.add(mochila, mochilaContorno, manta, mantaContorno, faixa)
-
-  const calca = lambert(0x5a4636)
-  const bota = lambert(0x3e2f25)
-  const pernas: Three.Group[] = []
-  for (const lado of [-1, 1]) {
-    const quadril = new THREE.Group()
-    quadril.position.set(lado * 0.1, 0.86, 0)
-    const perna = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.62, 4, 8), calca)
-    perna.position.y = -0.4
-    const pe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.24), bota)
-    pe.position.set(0, -0.82, 0.04)
-    perna.castShadow = pe.castShadow = true
-    quadril.add(perna, pe)
-    figura.add(quadril)
-    pernas.push(quadril)
-  }
-  figura.rotation.y = sentido === 'entrando' ? Math.PI : 0
-  scene.add(figura)
-  const materiaisDaFigura = [capaMat, couro, calca, bota].map((mat) => ({ mat, base: mat.color.clone() }))
-
   // --- Placa do nome e o véu de baixo (presos à câmera) ------------------------------
   const nomeLimpo = nomeDoLugar(nome)
   const veu = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: textura(pintarVeuDeBaixo()), transparent: true, depthTest: false, depthWrite: false, fog: false, opacity: 0 }))
@@ -1424,8 +1346,8 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
     if (placa) {
       const largura = Math.min(larguraVista * (a < 1 ? 0.96 : 0.62), alturaVista * 1.5)
       placa.scale.set(largura, largura, 1)
-      // Terço de baixo, abaixo de onde a figura termina nas duas versões.
-      placaY = -alturaVista * 0.31
+      // Terço de baixo, sobre o tabuleiro e o chão da passagem, longe do arco e do horizonte.
+      placaY = -alturaVista * 0.3
       placa.position.set(0, placaY, -0.99)
     }
   }
@@ -1433,24 +1355,6 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
 
   // --- Animação ----------------------------------------------------------------------
   const alvo = new THREE.Vector3()
-  function atualizarFigura(t: number) {
-    const z = zDaFigura(t, sentido)
-    const fase = faseDoPasso(t)
-    const ritmo = reduzirMovimento ? 0.5 : 1
-    figura.position.set(X_DA_FIGURA, pisoEm(z) === 'madeira' ? PONTE.topo : 0, z)
-    const balanco = Math.sin(fase)
-    pernas[0].rotation.x = PERNA * balanco
-    pernas[1].rotation.x = -PERNA * balanco
-    corpo.position.y = -0.03 * ritmo * balanco * balanco
-    corpo.position.x = 0.016 * ritmo * Math.cos(fase)
-    corpo.rotation.x = 0.05
-    barra.rotation.z = 0.03 * ritmo * balanco
-    barra.rotation.x = -0.02 * ritmo * Math.cos(fase * 2)
-    // Dentro da passagem o céu não chega: a figura escurece com a pedra.
-    const sombra = 1 - 0.55 * Math.pow(dentroDaPassagem(z + 0.3), 0.9)
-    for (const { mat, base } of materiaisDaFigura) mat.color.copy(base).multiplyScalar(sombra)
-  }
-
   function atualizarMundo(t: number) {
     materialDaAgua.uniforms.uT.value = t
     const vento = reduzirMovimento ? 0.4 : 1
@@ -1507,10 +1411,10 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
   }
 
   function atualizar(t: number) {
-    const { pos, alvo: olhar } = poseDaCamera(t, sentido, reduzirMovimento)
+    const { pos, olhar, giro } = olhosEm(t, sentido, reduzirMovimento)
     camera.position.set(pos[0], pos[1], pos[2])
     camera.lookAt(alvo.set(olhar[0], olhar[1], olhar[2]))
-    atualizarFigura(t)
+    camera.rotateZ(giro)
     atualizarMundo(t)
     const n = nomeEm(t)
     veu.visible = n > 0.001
@@ -1536,11 +1440,8 @@ function montarPonte(THREE: ThreeModule, { reduzirMovimento, nome }: OpcoesDaCen
 // Som (todo sintetizado; disparado pelo tempo da cena)
 // ---------------------------------------------------------------------------
 
-/**
- * Ganho da mixagem por versão: põe cada uma perto das aprovadas (~-18,6 LUFS integrado; conferir-som.cjs).
- * Entrando pede mais porque a figura se afasta da câmera e os passos ficam longe.
- */
-const MIXAGEM: Record<Sentido, number> = { entrando: 2.4, saindo: 1.6 }
+/** Ganho da mixagem por versão: põe cada uma perto das aprovadas (~-18,6 LUFS integrado; conferir-som.cjs). */
+const MIXAGEM: Record<Sentido, number> = { entrando: 1.4, saindo: 1.4 }
 
 function criarSomDaPonte(kitDoMotor: KitDeSom, sentido: Sentido, reduzir: boolean, comNome: boolean) {
   const { ctx } = kitDoMotor
@@ -1595,9 +1496,11 @@ function criarSomDaPonte(kitDoMotor: KitDeSom, sentido: Sentido, reduzir: boolea
       },
     ],
   ]
-  passosDaFigura().forEach((quando, k) => {
-    const escuta = escutaDoPasso(quando, sentido, reduzir)
+  passosDosOlhos(reduzir).forEach((quando, k) => {
+    const escuta = escutaDoPasso(quando, k, sentido, reduzir)
     pistas.push([`passo${k}`, quando, (a) => passo(kit, sala, a, k, escuta)])
+    // Na ponte, o tabuleiro cede um nada a cada passo e as correntes das laterais tilintam, um lado de cada vez.
+    if (escuta.piso === 'madeira') pistas.push([`corrente${k}`, quando + 0.035, (a) => correntes(kit, a, k % 2 === 0 ? 0.6 : -0.6, k)])
   })
   for (const [quando, pan] of sentido === 'entrando'
     ? ([
@@ -1716,6 +1619,40 @@ function passo(kit: KitDeSom, sala: AudioNode, at: number, k: number, escuta: Re
     ruidoCurto(kit, saida, at, 0.18, 'lowpass', 300, 0.7, 0.8, 0.14)
     ruidoCurto(kit, saida, at + 0.005, 0.1, 'bandpass', 2600, 1.4, 0.22, 0.08)
   }
+}
+
+/**
+ * Corrente de ferro de lado: três ou quatro elos batendo (ruído estreito e agudo, cada um com seu tom)
+ * e um rangido curto e grave do ferro puxado. Baixo: é textura, não evento.
+ */
+function correntes(kit: KitDeSom, at: number, panValor: number, k: number) {
+  const { ctx } = kit
+  const rnd = semente(9203 + k * 6151)
+  const pan = ctx.createStereoPanner()
+  pan.pan.value = panValor
+  const saida = ctx.createGain()
+  saida.gain.value = 0.85 + rnd() * 0.3
+  saida.connect(pan).connect(kit.destino)
+  const elos = 3 + Math.floor(rnd() * 2)
+  for (let i = 0; i < elos; i++) {
+    const quando = at + i * (0.028 + rnd() * 0.03)
+    ruidoCurto(kit, saida, quando, 0.12, 'bandpass', 2900 + rnd() * 1700, 9, 0.5 + rnd() * 0.3, 0.06 + rnd() * 0.05)
+  }
+  const rangido = ctx.createOscillator()
+  rangido.type = 'sawtooth'
+  rangido.frequency.setValueAtTime(118 + rnd() * 20, at)
+  rangido.frequency.exponentialRampToValueAtTime(84, at + 0.16)
+  const filtro = ctx.createBiquadFilter()
+  filtro.type = 'bandpass'
+  filtro.frequency.value = 700
+  filtro.Q.value = 1.4
+  const volume = ctx.createGain()
+  volume.gain.setValueAtTime(0.0001, at)
+  volume.gain.exponentialRampToValueAtTime(0.05, at + 0.02)
+  volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.18)
+  rangido.connect(filtro).connect(volume).connect(saida)
+  rangido.start(at)
+  rangido.stop(at + 0.2)
 }
 
 function ruidoCurto(kit: KitDeSom, destino: AudioNode, at: number, dur: number, tipo: BiquadFilterType, freq: number, q: number, volume: number, queda: number) {
