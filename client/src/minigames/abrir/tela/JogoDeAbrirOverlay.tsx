@@ -21,6 +21,8 @@ export interface DesfechoDoObjetoNoJogador {
   jumpscare: boolean
   itens: { nome: string; quantidade: number }[]
   moedas: number
+  /** Os títulos dos documentos que entraram na lista dele; ausente = nenhum (a tela fora da mesa, sem lista). */
+  documentos?: readonly string[]
   /** PV perdidos (0 sem armadilha). */
   dano: number
   /** 'Envenenado' | 'Lento' | null */
@@ -364,6 +366,7 @@ function TelaDeAbrir({
 
   const bicho = desfecho?.armadilha ?? null
   const linhaDoBicho = desfecho === null ? null : linhaDaArmadilha(desfecho)
+  const documentosGanhos = desfecho?.documentos ?? []
   const anuncio = (() => {
     switch (tela) {
       case 'recusa':
@@ -474,7 +477,18 @@ function TelaDeAbrir({
               </ul>
             )}
             {desfecho.moedas > 0 && <p className="ab-moedas">{textoDasMoedas(desfecho.moedas)}</p>}
-            {desfecho.itens.length === 0 && desfecho.moedas <= 0 && <p className="ab-nota">Estava vazio.</p>}
+            {/* O documento entrou na lista dele com o "novo": a mesma frase do cartão do puzzle. */}
+            {documentosGanhos.length > 0 && (
+              <ul className="ab-itens" aria-label="Documentos">
+                {documentosGanhos.map((titulo, k) => (
+                  <li key={`${k}|${titulo}`}>
+                    <span>{titulo}</span>
+                    <b>Documento novo</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {desfecho.itens.length === 0 && desfecho.moedas <= 0 && documentosGanhos.length === 0 && <p className="ab-nota">Estava vazio.</p>}
             <button ref={botaoRef} type="button" className="ab-btn ab-btn--primario ab-btn--bloco" onClick={fechar}>
               Fechar
             </button>

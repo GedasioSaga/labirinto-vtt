@@ -17,6 +17,7 @@
  *
  * Este módulo não importa `protocol.ts`, que importa daqui.
  */
+import { ehIdDeDocumento } from '../documentos/leitor'
 import { lerAcaoNoPuzzle } from '../puzzles/leitor'
 import {
   BANDEJA_MAX,
@@ -114,7 +115,7 @@ export interface CastigoDoPuzzleNoFio {
 export interface PremioDoPuzzleNoFio {
   itens: { nome: string; quantidade: number }[]
   moedas: number
-  /** Os títulos dos documentos ganhos (a biblioteca Documentos chega na leva do Documento). */
+  /** Os títulos dos documentos que entraram agora na lista dele, com o "novo" (o que ele já tinha não volta aqui). */
   documentos: string[]
 }
 
@@ -249,8 +250,10 @@ function lerDica(value: unknown): VistaDoPuzzle['dica'] | undefined {
   if (value === null) return null
   if (!isRecord(value)) return undefined
   if (value.tipo === 'texto') return textoAte(value.texto, TEXTO_DO_PUZZLE_MAX) ? { tipo: 'texto', texto: value.texto } : undefined
-  if (value.tipo === 'documento' && textoAte(value.titulo, NOME_NO_FIO_MAX) && typeof value.podeLer === 'boolean') {
-    return { tipo: 'documento', titulo: value.titulo, podeLer: value.podeLer }
+  if (value.tipo === 'documento' && textoAte(value.titulo, NOME_NO_FIO_MAX)) {
+    // Só o que ele já leu leva o id (o da lista dele); o que não leu vem sem título e sem id.
+    if (value.podeLer === true) return ehIdDeDocumento(value.docId) ? { tipo: 'documento', titulo: value.titulo, podeLer: true, docId: value.docId } : undefined
+    if (value.podeLer === false) return { tipo: 'documento', titulo: value.titulo, podeLer: false }
   }
   return undefined
 }

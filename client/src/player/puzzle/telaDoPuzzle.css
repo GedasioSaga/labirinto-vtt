@@ -35,6 +35,13 @@
   pointer-events: none;
 }
 
+/* O documento do "Ler" da dica (PuzzleNaRede.PorCimaDoPuzzle): uma camada logo acima da tela. O papel dentro é fixo e
+   ocupa a tela inteira; esta caixa só dá a ele o lugar na pilha. */
+.tpz-por-cima {
+  position: relative;
+  z-index: 10001;
+}
+
 /* A entrada: um fade curto (entrar num puzzle é ocasional, não cem vezes por dia). */
 @media (prefers-reduced-motion: no-preference) {
   .tpz {

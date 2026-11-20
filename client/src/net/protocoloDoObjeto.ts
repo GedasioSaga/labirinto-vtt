@@ -32,6 +32,8 @@ export const OBJETO_ID_MAX = 128
 export const OBJETO_SESSAO_MAX = 64
 export const OBJETO_NOME_MAX = 80
 export const OBJETO_ITENS_MAX = 40
+/** Documentos ganhos num objeto (o teto do conteúdo é menor; este só barra lixo). */
+const OBJETO_DOCUMENTOS_MAX = 20
 const QUANTIDADE_MAX = 9999
 const NUMERO_MAX = 999_999
 
@@ -42,6 +44,8 @@ export interface DesfechoDoObjetoNoFio {
   jumpscare: boolean
   itens: { nome: string; quantidade: number }[]
   moedas: number
+  /** Os títulos dos documentos que entraram agora na lista dele, com o "novo". Ausente = nenhum (e o mestre de antes nunca manda). */
+  documentos?: string[]
   /** Vida tirada na picada (0 sem armadilha). */
   dano: number
   /** O nome da pastilha ("Envenenado", "Lento"); `null` sem armadilha. */
@@ -92,7 +96,23 @@ function lerDesfecho(value: unknown): DesfechoDoObjetoNoFio | null {
   if (!inteiroAte(value.moedas, NUMERO_MAX) || !inteiroAte(value.dano, NUMERO_MAX) || !inteiroAte(value.turnos, NUMERO_MAX)) return null
   const efeito = value.efeito === null ? null : textoAte(value.efeito, OBJETO_NOME_MAX) ? value.efeito : undefined
   if (efeito === undefined) return null
-  return { armadilha, jumpscare: value.jumpscare, itens, moedas: value.moedas, dano: value.dano, efeito, turnos: value.turnos }
+  const documentos = lerTitulosDosDocumentos(value.documentos)
+  if (documentos === null) return null
+  const desfecho: DesfechoDoObjetoNoFio = { armadilha, jumpscare: value.jumpscare, itens, moedas: value.moedas, dano: value.dano, efeito, turnos: value.turnos }
+  if (documentos.length > 0) desfecho.documentos = documentos
+  return desfecho
+}
+
+/** Ausente = nenhum; torto = a mensagem inteira cai. */
+function lerTitulosDosDocumentos(value: unknown): string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > OBJETO_DOCUMENTOS_MAX) return null
+  const titulos: string[] = []
+  for (const titulo of value) {
+    if (!textoAte(titulo, OBJETO_NOME_MAX)) return null
+    titulos.push(titulo)
+  }
+  return titulos
 }
 
 /** Do mestre, no jogador. O host é de confiança, mas a mensagem torta cai inteira em vez de virar meia tela. */

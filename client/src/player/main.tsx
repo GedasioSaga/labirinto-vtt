@@ -112,7 +112,7 @@ import { textoDaRecusaDoObjeto } from '../net/protocoloDoObjeto'
 import { textoDaRecusaDoPuzzle, type PuzzleFechadoMotivo } from '../net/protocoloDoPuzzle'
 import type { AcaoNoPuzzle } from '../puzzles/tipos'
 import { nomeNoPuzzle, textoDoFechado } from './puzzle/naRede'
-import { PuzzleNaRede } from './puzzle/PuzzleNaRede'
+import { PorCimaDoPuzzle, PuzzleNaRede } from './puzzle/PuzzleNaRede'
 import type { PvNaTela } from './puzzle/tipos'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import { CenarioOverlay } from '../cenario/CenarioOverlay'
@@ -3120,14 +3120,17 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
         )}
         {state.tiro && <TiroOverlay tiro={state.tiro} playerId={state.playerId} acoes={connection} {...ajustesDoTiro} />}
         {/* DOCUMENTOS: o papel aberto, como o host o montou para ELE. Remonta a cada leitura (a página volta para a primeira). */}
+        {/* Com a tela do puzzle aberta (o "Ler" da dica), o papel sobe para cima dela. */}
         {documentoAberto && (
-          <LeituraDoDocumento
-            key={documentoAberto.id}
-            aberto={documentoAberto}
-            de={pedidoDeLeitura?.de ?? null}
-            instant={pedidoDeLeitura?.instant ?? false}
-            onClose={fecharLeituraDoDocumento}
-          />
+          <PorCimaDoPuzzle ativo={state.puzzle !== undefined}>
+            <LeituraDoDocumento
+              key={documentoAberto.id}
+              aberto={documentoAberto}
+              de={pedidoDeLeitura?.de ?? null}
+              instant={pedidoDeLeitura?.instant ?? false}
+              onClose={fecharLeituraDoDocumento}
+            />
+          </PorCimaDoPuzzle>
         )}
         {/* PUZZLE: a vista do host abre a tela do puzzle por cima do mapa, até o "Sair" ou o mestre fechar. */}
         {state.puzzle && (
@@ -3139,6 +3142,8 @@ export function Session({ connection, code, typedName, hostName, onLeave, onQuit
             onAgir={agirNoPuzzle}
             onSair={sairDoPuzzle}
             onFechado={puzzleFoiFechado}
+            onLerDica={lerDaLista}
+            porBaixo={documentoAberto !== undefined}
           />
         )}
         {/* TRANSIÇÃO ESPECIAL: por cima de tudo, até o "Pular" ou o fim da animação. */}

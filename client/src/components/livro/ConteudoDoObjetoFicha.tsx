@@ -5,6 +5,7 @@ import {
   armadilhaPadrao,
   conteudoDe,
   DANO_DA_ARMADILHA_MAX,
+  DOCUMENTOS_NO_CONTEUDO_MAX,
   ITENS_NO_CONTEUDO_MAX,
   MINIGAME_DO_OBJETO,
   minigameLigado,
@@ -18,6 +19,7 @@ import { itemParaDar, type ItemDoCatalogo } from '../../lib/acervoDeItens'
 import { ITEM_QUANTIDADE_MAX } from '../../lib/items'
 import { useAcervoDeItensStore } from '../../stores/acervoDeItensStore'
 import { useMapStore } from '../../stores/mapStore'
+import { BIBLIOTECA_DE_DOCUMENTOS_VAZIA, DOCUMENTO_APAGADO_DA_BIBLIOTECA, EscolhaDeDocumento, tituloNaBiblioteca, useBibliotecaDeDocumentos } from '../documentos/EscolhaDeDocumento'
 import { Botao } from '../grimorio/Botao'
 import { Toggle } from '../Toggle'
 import './conteudoDoObjeto.css'
@@ -181,6 +183,54 @@ function CamposDaArmadilha({ armadilha, aoMudar, jumpscare }: { armadilha: Armad
   )
 }
 
+/** Os documentos da biblioteca: entram na lista de quem abrir, marcados como novos (só com ficha de personagem). */
+function DocumentosDoConteudo({ conteudo, mudar }: { conteudo: ConteudoDoObjeto; mudar: (novo: ConteudoDoObjeto) => void }) {
+  const documentos = useBibliotecaDeDocumentos()
+  const docIds = conteudo.documentos ?? []
+  const comDocumentos = (proximos: string[]): ConteudoDoObjeto => {
+    const { documentos: _antes, ...semDocumentos } = conteudo
+    return proximos.length > 0 ? { ...semDocumentos, documentos: proximos } : semDocumentos
+  }
+  return (
+    <div className="lb-conteudo__campo">
+      <span className="lb-conteudo__rotulo">Documentos</span>
+      {docIds.length > 0 && (
+        <ul className="lb-conteudo__itens">
+          {docIds.map((docId) => {
+            const titulo = tituloNaBiblioteca(documentos, docId) ?? DOCUMENTO_APAGADO_DA_BIBLIOTECA
+            return (
+              <li key={docId} className="lb-conteudo__item">
+                <span className="lb-conteudo__nome">{titulo}</span>
+                <button type="button" className="lb-conteudo__tirar" aria-label={`Tirar ${titulo}`} onClick={() => mudar(comDocumentos(docIds.filter((outro) => outro !== docId)))}>
+                  ×
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {documentos.length === 0 ? (
+        <p className="lb-field__hint">{BIBLIOTECA_DE_DOCUMENTOS_VAZIA}</p>
+      ) : (
+        docIds.length < DOCUMENTOS_NO_CONTEUDO_MAX && (
+          <EscolhaDeDocumento
+            documentos={documentos}
+            rotulo="Pôr documento da biblioteca"
+            marcador="+ Documento da biblioteca"
+            valor={null}
+            fora={docIds}
+            classe="lb-input"
+            aoEscolher={(docId) => {
+              if (!docIds.includes(docId)) mudar(comDocumentos([...docIds, docId]))
+            }}
+          />
+        )
+      )}
+      {docIds.length > 0 && <p className="lb-field__hint">Entram na lista de documentos de quem abrir, marcados como novos.</p>}
+    </div>
+  )
+}
+
 /** A seção Conteúdo; só existe para o baú, a caixa, o barril e os destroços deles. */
 export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
   const updateProp = useMapStore((state) => state.updateProp)
@@ -287,6 +337,7 @@ export function ConteudoDoObjetoFicha({ prop }: { prop: Prop }) {
         <span>Moedas</span>
         <Passo rotulo="Moedas" valor={conteudo.moedas} min={0} max={MOEDAS_NO_CONTEUDO_MAX} passo={5} aoMudar={(moedas) => mudar({ ...conteudo, moedas })} />
       </div>
+      <DocumentosDoConteudo conteudo={conteudo} mudar={mudar} />
       <div className="lb-conteudo__campo">
         <span className="lb-conteudo__rotulo">Armadilha</span>
         <div className="lb-conteudo__seg" role="radiogroup" aria-label="Armadilha">

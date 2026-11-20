@@ -12,7 +12,9 @@ import { moedasDe } from '../lib/troca'
 import { recursoDeVida, vidaDoPersonagem } from '../lib/vidaDaFicha'
 import { tokenRadiusOf } from '../lib/doorReach'
 import type { AlcancePeloObjeto } from '../lib/tipoDoAlcancePeloObjeto'
+import { avisosDosDocumentos, darDocumentos } from '../documentos/naFicha'
 import type { DesfechoDoObjetoNoFio } from './protocoloDoObjeto'
+import type { DocumentoDaBiblioteca } from './puzzleNoHost'
 
 /**
  * BAÚ, CAIXA E BARRIL NO HOST (Fase C do pedido de 15/11/2026): as contas
@@ -92,10 +94,12 @@ interface Abertura {
   em: number
   semJumpscare: boolean
   novoId: () => string
+  /** Os documentos do conteúdo saem da biblioteca de agora (o título e o papel que vão à lista). */
+  documentoDaBiblioteca: DocumentoDaBiblioteca
 }
 
 /** A conta inteira da vitória: o que a tela do jogador recebe e o que o mapa do mestre grava. */
-export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJogador, em, semJumpscare, novoId }: Abertura): {
+export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJogador, em, semJumpscare, novoId, documentoDaBiblioteca }: Abertura): {
   desfecho: DesfechoDoObjetoNoFio
   aplicado: Omit<AppliedObjetoAberto, 'sceneId'>
 } {
@@ -115,6 +119,18 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
     if (ficha !== null) ficha = fichaComMochila(ficha, ficha.mochila ?? [], moedasDe(ficha) + conteudo.moedas)
     else avisos.push(`${token.name} não tem ficha de personagem: as ${conteudo.moedas} moedas ficaram no ${NOME_DO_OBJETO[jogo].toLowerCase()}.`)
   }
+  const nomeDoObjeto = prop.playerLabel?.trim() || NOME_DO_OBJETO[jogo]
+  // Os documentos vão à lista da ficha de personagem, com o "novo" (o "de" é o nome que o jogador vê no objeto).
+  const docIds = conteudo.documentos ?? []
+  let documentos: string[] = []
+  if (docIds.length > 0 && ficha === null) {
+    avisos.push(`${token.name} não tem ficha de personagem: ${docIds.length === 1 ? 'o documento ficou' : `os ${docIds.length} documentos ficaram`} no ${NOME_DO_OBJETO[jogo].toLowerCase()}.`)
+  } else if (docIds.length > 0 && ficha !== null) {
+    const dados = darDocumentos(ficha, docIds, documentoDaBiblioteca, 'objeto', nomeDoObjeto, em)
+    ficha = dados.personagem
+    documentos = dados.entraram
+    avisos.push(...avisosDosDocumentos(dados, ficha.nome))
+  }
   const armadilha = conteudo.armadilha
   if (armadilha !== null && armadilha.dano > 0) {
     const recurso = recursoDeVida(sistema)
@@ -125,10 +141,9 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
       avisos.push(`${token.name} não tem vida numa ficha de personagem: os ${armadilha.dano} PV da picada não foram tirados.`)
     }
   }
-  const levou = oQueLevou(conteudo)
+  const levou = oQueLevou(conteudo, documentos)
   const verbo = jogo === 'bau' ? 'abriu' : 'quebrou'
   const artigo = jogo === 'caixa' ? 'a' : 'o'
-  const nomeDoObjeto = prop.playerLabel?.trim() || NOME_DO_OBJETO[jogo]
   const registro: RegistroDoObjetoAberto = {
     propId: prop.id,
     jogo,
@@ -143,6 +158,8 @@ export function abrirObjeto({ prop, jogo, token, personagem, sistema, nomeDoJoga
     jumpscare: !semJumpscare,
     itens: conteudo.itens.map(({ item, quantidade }) => ({ nome: item.nome, quantidade })),
     moedas: conteudo.moedas,
+    // Só com documento: o desfecho de sempre não muda de forma (`documentos` ausente = nenhum).
+    ...(documentos.length > 0 ? { documentos } : {}),
     dano: armadilha?.dano ?? 0,
     efeito: armadilha !== null && armadilha.turnos > 0 ? armadilha.efeito : null,
     turnos: armadilha?.turnos ?? 0,

@@ -9281,6 +9281,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
         em: now(),
         semJumpscare: map.semJumpscare === true,
         novoId: randomId,
+        documentoDaBiblioteca,
       })
       return {
         outbound: [{ clientId, msg: { type: 'objeto.desfecho', sessao: emJogo.sessao, propId: prop.id, desfecho } }],
@@ -9363,7 +9364,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (assinaturaDoPuzzle(desafio.minigame) !== aberto.assinatura) return fecharPuzzleDe(playerId, clientId, 'mudou')
     const token = scene.map.tokens.find((t) => t.id === aberto.tokenId)
     if (token === undefined || !(ownership[playerId] ?? []).includes(token.id)) return fecharPuzzleDe(playerId, clientId, 'sumiu')
-    return vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, token, personagensDoMundo(world)), false)
+    return vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, token, personagensDoMundo(world), documentoDaBiblioteca), false)
   }
 
   /** PUZZLES: `syncDoPuzzle` de todos que estão dentro e na sala (no broadcast, depois das fichas). */
@@ -9408,7 +9409,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       if (typeof ficha === 'string') return recusa(ficha)
       // Um puzzle por vez: entrar noutro troca.
       puzzlesAbertos.set(playerId, { desafioId: desafio.id, cena: sceneKey(scene), tokenId: ficha.id, assinatura: assinaturaDoPuzzle(desafio.minigame) })
-      return { outbound: vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens), true) }
+      return { outbound: vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca), true) }
     }
     const aberto = puzzlesAbertos.get(playerId)
     if (aberto === undefined || aberto.desafioId !== msg.desafioId || aberto.cena !== sceneKey(scene)) return recusa('indisponivel')
@@ -9418,7 +9419,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
     if (typeof ficha === 'string') return recusa(ficha)
     // A tela velha: a recusa e a vista de agora, para ele tentar de novo sobre o que existe.
     if (msg.rev !== progressoDoDesafio(desafio).rev) {
-      return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens), true)] }
+      return { outbound: [...recusa('velho').outbound, ...vistaDoPuzzlePara(clientId, vistaParaABoneco(desafio, ficha, personagens, documentoDaBiblioteca), true)] }
     }
     const resultado = agirNoHost({
       desafio,
@@ -9431,6 +9432,7 @@ export function createHostSession(options: HostSessionOptions): HostSession {
       agora: now(),
       novoId: randomId,
       pecaDoAcervo,
+      documentoDaBiblioteca,
     })
     if (!resultado.ok) return recusa(resultado.motivo)
     const outbound: Outbound[] = []

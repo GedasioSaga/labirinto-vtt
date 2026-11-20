@@ -8,7 +8,8 @@ import { ITENS_NO_CONTEUDO_MAX, MOEDAS_NO_CONTEUDO_MAX } from '../../../lib/cont
 import { ITEM_QUANTIDADE_MAX } from '../../../lib/items'
 import type { LeverDoorOption } from '../../../lib/lever'
 import { castigoPadrao, TEXTO_DO_CASTIGO_PADRAO, visualEhPorta } from '../../../puzzles/padroes'
-import { PV_DO_CASTIGO_MAX, TEXTO_DO_CASTIGO_MAX, TEXTO_DO_PUZZLE_MAX, type CastigoDoPuzzle, type DesfechoDoPuzzle, type TipoDeCastigo } from '../../../puzzles/tipos'
+import { DOCUMENTOS_DO_DESFECHO_MAX, PV_DO_CASTIGO_MAX, TEXTO_DO_CASTIGO_MAX, TEXTO_DO_PUZZLE_MAX, type CastigoDoPuzzle, type DesfechoDoPuzzle, type TipoDeCastigo } from '../../../puzzles/tipos'
+import { BIBLIOTECA_DE_DOCUMENTOS_VAZIA, DOCUMENTO_APAGADO_DA_BIBLIOTECA, EscolhaDeDocumento, tituloNaBiblioteca, useBibliotecaDeDocumentos } from '../../documentos/EscolhaDeDocumento'
 import { EscolhaDeItem, NumeroDoCampo, Secao, type PropsDaSecao } from './comum'
 import '../../livro/conteudoDoObjeto.css'
 
@@ -39,14 +40,30 @@ export function SecaoDica({ puzzle, mudar }: PropsDaSecao) {
           <p className="pze-nota">Aparece embaixo da tela de perto. Vazia, o jogador não vê dica.</p>
         </>
       )}
-      {tipo === 'documento' && (
-        <p className="pze-nota">
-          {dica.tipo === 'documento'
-            ? 'A dica aponta um documento da biblioteca Documentos, que chega numa próxima versão. Ela fica guardada como está.'
-            : 'A biblioteca Documentos chega numa próxima versão. Até lá, a dica fica em texto.'}
-        </p>
-      )}
+      {tipo === 'documento' && <DicaNumDocumento docId={dica.tipo === 'documento' ? dica.docId : null} aoEscolher={(docId) => mudar({ ...puzzle, dica: { tipo: 'documento', docId } })} />}
     </Secao>
+  )
+}
+
+/** A dica num documento da biblioteca: quem já o leu vê "Ler" na tela do puzzle; quem não leu, só que ela existe. */
+function DicaNumDocumento({ docId, aoEscolher }: { docId: string | null; aoEscolher: (docId: string) => void }) {
+  const documentos = useBibliotecaDeDocumentos()
+  const apagado = docId !== null && tituloNaBiblioteca(documentos, docId) === null
+  if (documentos.length === 0 && docId === null) return <p className="pze-nota">{BIBLIOTECA_DE_DOCUMENTOS_VAZIA}</p>
+  return (
+    <>
+      <label className="gr-campo">
+        <span className="gr-campo__rot">Documento da dica</span>
+        <EscolhaDeDocumento documentos={documentos} rotulo="Documento da dica" marcador="Escolha o documento" valor={apagado ? null : docId} classe="gr-entrada" aoEscolher={aoEscolher} />
+      </label>
+      <p className="pze-nota">
+        {apagado
+          ? 'O documento da dica foi apagado da biblioteca: o jogador não vê dica. Escolha outro.'
+          : docId === null
+            ? 'Sem documento escolhido, o jogador não vê dica.'
+            : 'Quem já leu este documento vê o botão Ler embaixo do quadro. Quem não leu vê só que a dica está num documento que ainda não leu, sem o título.'}
+      </p>
+    </>
   )
 }
 
@@ -127,11 +144,7 @@ export function SecaoDesfecho({ puzzle, mudar, porta }: PropsDaSecao & { porta: 
         <span className="gr-campo__rot">Moedas</span>
         <NumeroDoCampo valor={desfecho.moedas} min={0} max={MOEDAS_NO_CONTEUDO_MAX} rotulo="Moedas" onChange={(moedas) => mudarDesfecho((atual) => ({ ...atual, moedas }), 'moedas')} />
       </label>
-      <p className="pze-nota">
-        {desfecho.documentos.length > 0
-          ? `${desfecho.documentos.length === 1 ? '1 documento ligado' : `${desfecho.documentos.length} documentos ligados`}: a biblioteca Documentos chega numa próxima versão.`
-          : 'Dar documento chega com a biblioteca Documentos, numa próxima versão.'}
-      </p>
+      <DocumentosDoDesfecho docIds={desfecho.documentos} mudar={(documentos) => mudarDesfecho((atual) => ({ ...atual, documentos: documentos(atual.documentos) }))} />
       {ehPorta && (
         <div className="pze-grupo">
           <CampoLiga
@@ -161,6 +174,49 @@ export function SecaoDesfecho({ puzzle, mudar, porta }: PropsDaSecao & { porta: 
         </div>
       )}
     </Secao>
+  )
+}
+
+/** "Dar documentos": entram na lista de quem resolver, marcados como novos. */
+function DocumentosDoDesfecho({ docIds, mudar }: { docIds: readonly string[]; mudar: (mudanca: (atuais: string[]) => string[]) => void }) {
+  const documentos = useBibliotecaDeDocumentos()
+  return (
+    <div className="gr-campo">
+      <span className="gr-campo__rot">Dar documentos</span>
+      {docIds.length === 0 ? (
+        <p className="pze-vazio">Nenhum documento.</p>
+      ) : (
+        <ul className="pze-lista-itens">
+          {docIds.map((docId) => {
+            const titulo = tituloNaBiblioteca(documentos, docId) ?? DOCUMENTO_APAGADO_DA_BIBLIOTECA
+            return (
+              <li key={docId}>
+                <span className="pze-lista-itens__nome">{titulo}</span>
+                <button type="button" className="pze-bt-ico" aria-label={`Tirar ${titulo}`} onClick={() => mudar((atuais) => atuais.filter((outro) => outro !== docId))}>
+                  ×
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {documentos.length === 0 ? (
+        <p className="pze-nota">{BIBLIOTECA_DE_DOCUMENTOS_VAZIA}</p>
+      ) : (
+        docIds.length < DOCUMENTOS_DO_DESFECHO_MAX && (
+          <EscolhaDeDocumento
+            documentos={documentos}
+            rotulo="Dar documento a quem resolver"
+            marcador="+ Documento da biblioteca"
+            valor={null}
+            fora={docIds}
+            classe="gr-entrada"
+            aoEscolher={(docId) => mudar((atuais) => (atuais.includes(docId) ? atuais : [...atuais, docId]))}
+          />
+        )
+      )}
+      <p className="pze-nota">Entram na lista de documentos de quem resolver, marcados como novos.</p>
+    </div>
   )
 }
 

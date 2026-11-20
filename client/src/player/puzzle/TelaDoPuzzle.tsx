@@ -49,8 +49,10 @@ export interface PropsDaTelaDoPuzzle {
   /** `rev` é o da vista em que ele agiu: o host recusa a tela velha (`velho`). */
   onAgir: (acao: AcaoNoPuzzle, rev: number) => void
   onSair: () => void
-  /** A dica está num documento que ele já leu: o botão "Ler". Ausente = sem o botão. */
-  onLerDica?: () => void
+  /** A dica está num documento que ele já leu: o botão "Ler" (`peloTeclado`: o papel abre sem animação). Ausente = sem o botão. */
+  onLerDica?: (peloTeclado: boolean) => void
+  /** Outra janela está por cima (o documento da dica aberto): a tela não ouve o teclado, que passa a ser dela. */
+  porBaixo?: boolean
   /** Onde a tela entra (o portal). Ausente = o `body`. */
   raiz?: Element
   /** O "Testar como jogador" do editor (P9): a faixa TESTE, as peças do teste e o cartão sem entrega. `onSair` volta ao editor. */
@@ -100,7 +102,7 @@ function motivoNaTela(vista: VistaDoPuzzle, alvo: AlvoNoQuadro, eu: string): Mot
   return encaixe.posta !== null && encaixe.posta.por !== eu ? 'ocupado' : null
 }
 
-function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica, teste }: Omit<PropsDaTelaDoPuzzle, 'raiz'>) {
+function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica, porBaixo = false, teste }: Omit<PropsDaTelaDoPuzzle, 'raiz'>) {
   const ehTeste = teste !== undefined
   const idDoTitulo = useId()
   const raiz = useRef<HTMLDivElement>(null)
@@ -453,6 +455,8 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   )
 
   useEffect(() => {
+    // O documento da dica aberto por cima: o teclado é dele (o Esc fecha o papel, não o puzzle; as setas viram a página).
+    if (porBaixo) return
     const desceu = (e: KeyboardEvent) => {
       // Tela modal: o mapa atrás não ouve as teclas (as setas mexeriam a ficha).
       e.stopPropagation()
@@ -466,7 +470,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
     }
     window.addEventListener('keydown', desceu, true)
     return () => window.removeEventListener('keydown', desceu, true)
-  }, [arrasto, cartao, fecharCartao, naMao, sair])
+  }, [arrasto, cartao, fecharCartao, naMao, sair, porBaixo])
 
   // Ao entrar, o foco vai à primeira peça (ou ao Sair, com a mochila vazia), como no v2.
   useEffect(() => {
@@ -567,7 +571,7 @@ function Tela({ vista, eu, pv = null, acontecimentos, onAgir, onSair, onLerDica,
   )
 }
 
-function Dica({ dica, onLer }: { dica: VistaDoPuzzle['dica']; onLer: (() => void) | undefined }) {
+function Dica({ dica, onLer }: { dica: VistaDoPuzzle['dica']; onLer: ((peloTeclado: boolean) => void) | undefined }) {
   if (dica === null) return null
   if (dica.tipo === 'texto') {
     return (
@@ -587,7 +591,8 @@ function Dica({ dica, onLer }: { dica: VistaDoPuzzle['dica']; onLer: (() => void
     <p className="tpz__dica">
       <em>Dica:</em> está no documento “{dica.titulo}”
       {onLer !== undefined && (
-        <button type="button" className="tpz-bt tpz-bt--latao tpz-bt--p" onClick={onLer}>
+        // `detail` 0: o clique veio do Enter ou do Espaço (o papel abre na hora, sem animação).
+        <button type="button" className="tpz-bt tpz-bt--latao tpz-bt--p" onClick={(evento) => onLer(evento.detail === 0)}>
           Ler
         </button>
       )}

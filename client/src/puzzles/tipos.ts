@@ -413,8 +413,11 @@ export interface VistaDoPuzzle {
   encaixes: EncaixeNaVista[]
   /** O peso pedido vai porque o mostrador do v1 o mostra. */
   troca: { x: number; y: number; pesoPedido: number; naBandeja: { nome: string; peso: number }[]; feita: boolean } | null
-  /** Num documento que ele não leu, só sabe que existe: `podeLer: false` e título vazio. */
-  dica: { tipo: 'texto'; texto: string } | { tipo: 'documento'; titulo: string; podeLer: boolean } | null
+  /**
+   * Num documento que ele não leu, só sabe que existe: `podeLer: false` e título vazio. O que ele já leu leva o
+   * `docId`, que já está na lista dele, para o "Ler" reabrir pela lista (`documento.ler` com `daLista`).
+   */
+  dica: { tipo: 'texto'; texto: string } | { tipo: 'documento'; titulo: string; podeLer: true; docId: string } | { tipo: 'documento'; titulo: string; podeLer: false } | null
   resolvido: boolean
   contagem: { postos: number; total: number }
   /** A mochila DELE. */

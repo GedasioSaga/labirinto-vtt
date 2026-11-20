@@ -26,7 +26,7 @@ export interface EntradaDaVista {
   progresso: ProgressoDoPuzzle
   /** A mochila de QUEM VÊ (a da ficha dele). */
   mochila: readonly CarriedItem[]
-  /** Ausente = a dica por documento não aparece (a biblioteca Documentos chega na leva do Documento). */
+  /** Ausente = a dica por documento não aparece (o teste local do editor, que não tem a lista de ninguém). */
   documentoDaDica?: DocumentoDaDica
 }
 
@@ -95,8 +95,8 @@ function dicaNaVista(puzzle: Puzzle, documentoDaDica: DocumentoDaDica | undefine
   if (dica.tipo === 'texto') return dica.texto.trim() === '' ? null : { tipo: 'texto', texto: dica.texto }
   const documento = documentoDaDica?.(dica.docId) ?? null
   if (documento === null) return null
-  // Quem não leu só sabe que existe: nem o título vai, porque o documento pode nunca ter estado no mapa.
-  return documento.podeLer ? { tipo: 'documento', titulo: documento.titulo, podeLer: true } : { tipo: 'documento', titulo: '', podeLer: false }
+  // Quem não leu só sabe que existe: nem o título nem o id vão, porque o documento pode nunca ter estado no mapa.
+  return documento.podeLer ? { tipo: 'documento', titulo: documento.titulo, podeLer: true, docId: dica.docId } : { tipo: 'documento', titulo: '', podeLer: false }
 }
 
 function vagaNaVista(vaga: CarriedItem): VagaNaVista {

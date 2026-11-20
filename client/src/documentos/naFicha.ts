@@ -40,6 +40,61 @@ export function darDocumento(
   return { tipo: 'entrou', personagem: { ...personagem, documentos: [...lista, linha] } }
 }
 
+/** O título como o jogador o lê; o documento que o mestre não nomeou é "Sem título", como o papel. */
+export function tituloOuSemTitulo(documento: Pick<Documento, 'titulo'>): string {
+  const titulo = documento.titulo.trim()
+  return titulo === '' ? 'Sem título' : titulo
+}
+
+/** O que sobrou de dar vários documentos de uma vez: a ficha nova e o que não entrou, para o aviso do mestre. */
+export interface DocumentosDados {
+  /** A ficha com as linhas novas; nada entrou = a MESMA ficha. */
+  personagem: Personagem
+  /** Os títulos que entraram agora, com o "novo". */
+  entraram: string[]
+  /** Quantos o mestre apagou da biblioteca (não há o que dar). */
+  apagados: number
+  /** Os títulos que não couberam: a lista no teto. */
+  naoCouberam: string[]
+}
+
+/**
+ * O desfecho do puzzle e o conteúdo do baú: cada documento pelo id, da
+ * biblioteca de AGORA, um por um por `darDocumento` (o repetido e o que ele
+ * já tinha não entram de novo nem voltam a ser novos).
+ */
+export function darDocumentos(
+  personagem: Personagem,
+  docIds: readonly string[],
+  documentoPeloId: (docId: string) => Pick<Documento, 'id' | 'titulo' | 'papel'> | null,
+  origem: Exclude<OrigemDoDocumento, 'mapa'>,
+  de: string | undefined,
+  agora: number,
+): DocumentosDados {
+  const dados: DocumentosDados = { personagem, entraram: [], apagados: 0, naoCouberam: [] }
+  for (const docId of docIds) {
+    const documento = documentoPeloId(docId)
+    if (documento === null) {
+      dados.apagados++
+      continue
+    }
+    const dado = darDocumento(dados.personagem, documento, origem, de, agora)
+    if (dado.tipo === 'cheia') dados.naoCouberam.push(tituloOuSemTitulo(documento))
+    if (dado.tipo !== 'entrou') continue
+    dados.personagem = dado.personagem
+    dados.entraram.push(tituloOuSemTitulo(documento))
+  }
+  return dados
+}
+
+/** As linhas do aviso do mestre para o que `darDocumentos` não entregou (vazia: nada a avisar). */
+export function avisosDosDocumentos(dados: Pick<DocumentosDados, 'apagados' | 'naoCouberam'>, nome: string): string[] {
+  const avisos: string[] = []
+  if (dados.apagados > 0) avisos.push(dados.apagados === 1 ? 'Um documento foi apagado da biblioteca: não foi entregue.' : `${dados.apagados} documentos foram apagados da biblioteca: não foram entregues.`)
+  for (const titulo of dados.naoCouberam) avisos.push(`A lista de documentos de ${nome} está cheia: “${titulo}” não foi guardado.`)
+  return avisos
+}
+
 /** Tira o documento da lista. Sem ele na lista: o mesmo personagem. A lista vazia sai da ficha. */
 export function semDocumento(personagem: Personagem, docId: string): Personagem {
   const lista = personagem.documentos

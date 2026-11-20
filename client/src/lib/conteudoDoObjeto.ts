@@ -1,4 +1,5 @@
 import type { AberturaDoObjeto, ArmadilhaDoObjeto, ConteudoDoObjeto, ItemNoConteudo, Prop, TipoDeArmadilha, TipoMobilia } from '../types/map'
+import { ehIdDeDocumento } from '../documentos/leitor'
 import { ITEM_QUANTIDADE_MAX, readPinItem, type ItemParaDar } from './items'
 import { pegadaDePartidaEmCasas } from './mobilia'
 
@@ -41,6 +42,8 @@ const CENTESIMOS = 100
 /** Tetos dos números do mestre (a tela e a leitura do disco usam os mesmos). */
 export const MOEDAS_NO_CONTEUDO_MAX = 999_999
 export const ITENS_NO_CONTEUDO_MAX = 40
+/** Documentos da biblioteca num objeto (o mesmo teto do desfecho do puzzle). */
+export const DOCUMENTOS_NO_CONTEUDO_MAX = 10
 export const DANO_DA_ARMADILHA_MAX = 999
 export const TURNOS_DA_ARMADILHA_MAX = 20
 export const POR_VEZ_DA_ARMADILHA_MAX = 99
@@ -100,9 +103,9 @@ export function conteudoDe(prop: Pick<Prop, 'mobilia' | 'conteudo'>): ConteudoDo
   return prop.conteudo ?? conteudoVazio()
 }
 
-/** Há algo dentro: item, moeda ou armadilha. */
+/** Há algo dentro: item, moeda, documento ou armadilha. */
 function temAlgoDentro(conteudo: ConteudoDoObjeto): boolean {
-  return conteudo.itens.length > 0 || conteudo.moedas > 0 || conteudo.armadilha !== null
+  return conteudo.itens.length > 0 || conteudo.moedas > 0 || (conteudo.documentos ?? []).length > 0 || conteudo.armadilha !== null
 }
 
 /**
@@ -122,21 +125,27 @@ export function totalDeItens(conteudo: Pick<ConteudoDoObjeto, 'itens'>): number 
   return conteudo.itens.reduce((soma, { quantidade }) => soma + quantidade, 0)
 }
 
-/** O resumo da ficha e da lista ("3 itens, 35 moedas, Cobra"; "Vazio"). */
+/** O resumo da ficha e da lista ("3 itens, 35 moedas, 1 documento, Cobra"; "Vazio"). */
 export function resumoDoConteudo(conteudo: ConteudoDoObjeto): string {
   const partes: string[] = []
   const itens = totalDeItens(conteudo)
   if (itens > 0) partes.push(itens === 1 ? '1 item' : `${itens} itens`)
   if (conteudo.moedas > 0) partes.push(conteudo.moedas === 1 ? '1 moeda' : `${conteudo.moedas} moedas`)
+  const documentos = (conteudo.documentos ?? []).length
+  if (documentos > 0) partes.push(documentos === 1 ? '1 documento' : `${documentos} documentos`)
   if (conteudo.armadilha !== null) partes.push(NOME_DA_ARMADILHA[conteudo.armadilha.tipo])
   const resumo = partes.length === 0 ? 'Vazio' : partes.join(', ')
   return conteudo.aberto === undefined ? resumo : `Aberto · ${resumo}`
 }
 
-/** O que a pessoa leva, numa frase ("Poção de cura ×2, Antídoto e 35 moedas"); `''` = nada. */
-export function oQueLevou(conteudo: Pick<ConteudoDoObjeto, 'itens' | 'moedas'>): string {
+/**
+ * O que a pessoa leva, numa frase ("Poção de cura ×2, 35 moedas e “Diário do capitão”"); `''` = nada.
+ * `documentos`: os títulos que entraram na lista dele (o conteúdo só guarda o id).
+ */
+export function oQueLevou(conteudo: Pick<ConteudoDoObjeto, 'itens' | 'moedas'>, documentos: readonly string[]): string {
   const partes = conteudo.itens.map(({ item, quantidade }) => (quantidade > 1 ? `${item.nome} ×${quantidade}` : item.nome))
   if (conteudo.moedas > 0) partes.push(conteudo.moedas === 1 ? '1 moeda' : `${conteudo.moedas} moedas`)
+  for (const titulo of documentos) partes.push(`“${titulo}”`)
   if (partes.length <= 1) return partes.join('')
   return `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
 }
@@ -194,6 +203,12 @@ function lerAbertura(valor: unknown): AberturaDoObjeto | undefined {
   return abertura
 }
 
+/** Os ids dos documentos do conteúdo como vêm do disco: o torto cai sozinho, o repetido sai. */
+function lerDocumentosDoConteudo(valor: unknown): string[] {
+  if (!Array.isArray(valor)) return []
+  return [...new Set(valor.filter(ehIdDeDocumento))].slice(0, DOCUMENTOS_NO_CONTEUDO_MAX)
+}
+
 function ehTamanho(valor: unknown): valor is number {
   return typeof valor === 'number' && Number.isFinite(valor) && valor > 0
 }
@@ -219,6 +234,9 @@ export function lerConteudoDoArquivo(valor: unknown, mobilia: Prop['mobilia']): 
     moedas: inteiroEntre(valor.moedas, 0, MOEDAS_NO_CONTEUDO_MAX, 0),
     armadilha: lerArmadilha(valor.armadilha),
   }
+  // Os documentos (ligação L1): só ids de documento, sem repetir, até o teto; nenhum = o campo fica de fora.
+  const documentos = lerDocumentosDoConteudo(valor.documentos)
+  if (documentos.length > 0) conteudo.documentos = documentos
   if (aberto !== undefined) conteudo.aberto = aberto
   // O interruptor só entra gravado (booleano); ausente segue a regra do de antes (`minigameLigado`).
   if (typeof valor.minigame === 'boolean') conteudo.minigame = valor.minigame

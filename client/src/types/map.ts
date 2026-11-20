@@ -1986,8 +1986,9 @@ export interface ConteudoDoObjeto {
   /**
    * DOCUMENTOS (plano dos puzzles, §1.7): os `Documento.id` da biblioteca que
    * o objeto entrega ao ser aberto. Ausente = nenhum, sem linha de migração.
-   * Quem lê e grava é a ligação L1 (`lib/conteudoDoObjeto.ts`); antes dela,
-   * nenhum caminho do app escreve o campo. Só do mestre, como o resto do conteúdo.
+   * Lido por `lerConteudoDoArquivo` (`lib/conteudoDoObjeto.ts`), posto pela
+   * ficha do objeto e entregue por `net/objetoNoHost.ts` (ligação L1). Só do
+   * mestre, como o resto do conteúdo: o recorte do jogador nunca o leva.
    */
   documentos?: string[]
 }

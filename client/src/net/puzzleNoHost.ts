@@ -1,4 +1,6 @@
 import type { CarriedItem, Desafio, MapData, Token } from '../types/map'
+import { avisosDosDocumentos, darDocumentos, linhaDoDocumento, tituloOuSemTitulo } from '../documentos/naFicha'
+import type { Documento } from '../documentos/tipos'
 import { aplicarAjuste } from '../lib/ajusteDaFicha'
 import { itemParaAMochila } from '../lib/conteudoDoObjeto'
 import { mapaComProgressoDoPuzzle } from '../lib/desafios'
@@ -101,10 +103,24 @@ export function mochilaQueConta(token: Pick<Token, 'mochila'>, ficha: Pick<Perso
   return ficha !== null ? [...(ficha.mochila ?? [])] : [...(token.mochila ?? [])]
 }
 
-/** O puzzle como o jogador da ficha `token` o vê (o recorte, por lista branca), com a mochila dele. */
-export function vistaParaABoneco(desafio: DesafioDePuzzle, token: Token, personagens: readonly Personagem[]): VistaDoPuzzle {
-  const mochila = mochilaQueConta(token, fichaDoBoneco(token, personagens))
-  return vistaDoPuzzle({ desafioId: desafio.id, puzzle: desafio.minigame.puzzle, progresso: progressoDoDesafio(desafio), mochila })
+/** O documento da biblioteca do app pelo id; `null` = o mestre o apagou (ou não há biblioteca). */
+export type DocumentoDaBiblioteca = (docId: string) => Documento | null
+
+/**
+ * O puzzle como o jogador da ficha `token` o vê (o recorte, por lista branca),
+ * com a mochila dele. A dica por documento: "já leu" é ter a linha na lista da
+ * FICHA que está dentro (é ela que leu, e é por ela que o "Ler" reabre); o
+ * título é o da biblioteca de agora, como a leitura (uma correção do mestre vale).
+ */
+export function vistaParaABoneco(desafio: DesafioDePuzzle, token: Token, personagens: readonly Personagem[], documentoDaBiblioteca: DocumentoDaBiblioteca): VistaDoPuzzle {
+  const ficha = fichaDoBoneco(token, personagens)
+  const mochila = mochilaQueConta(token, ficha)
+  const documentoDaDica = (docId: string): { titulo: string; podeLer: boolean } | null => {
+    const documento = documentoDaBiblioteca(docId)
+    if (documento === null) return null
+    return { titulo: tituloOuSemTitulo(documento), podeLer: ficha !== null && linhaDoDocumento(ficha, docId) !== undefined }
+  }
+  return vistaDoPuzzle({ desafioId: desafio.id, puzzle: desafio.minigame.puzzle, progresso: progressoDoDesafio(desafio), mochila, documentoDaDica })
 }
 
 /** Quem mexe, como o progresso guarda: a ficha, o boneco e o nome que os colegas veem nele. */
@@ -186,6 +202,8 @@ export interface PedidoNoPuzzle {
   novoId: () => string
   /** O item do acervo pelo id (a peça guardada da troca); `null` = não está no acervo. */
   pecaDoAcervo: (itemId: string) => PecaDoAcervo | null
+  /** Os documentos do desfecho saem da biblioteca de agora (o título e o papel que vão à lista). */
+  documentoDaBiblioteca: DocumentoDaBiblioteca
 }
 
 /** O que quem resolveu leva, e o que todos os que estão dentro leem. */
@@ -296,8 +314,35 @@ export function devolverPecasNoHost(entrada: { map: MapData; personagens: readon
   return { personagens: [...livro.fichas.values()], mochilasDosBonecos: [...livro.bonecos].map(([tokenId, mochila]) => ({ tokenId, mochila })), avisos: livro.avisos }
 }
 
-/** O desfecho de quem resolveu: os itens (como o baú), as moedas (só com ficha) e a porta ligada. */
-function entregar(livro: Livro, para: QuemMexe, desfecho: DesfechoDoPuzzle): PremioDoPuzzleNoFio {
+/** O que os documentos do desfecho precisam para entrar na lista de quem resolveu. */
+interface EntregaDeDocumentos {
+  documentoDaBiblioteca: DocumentoDaBiblioteca
+  /** O "de" da linha ("ganhou em Cofre do Capitão"): o título que o jogador vê; `undefined` = o puzzle sem título público. */
+  de: string | undefined
+  agora: number
+}
+
+/**
+ * Os documentos do desfecho na lista da FICHA DE PERSONAGEM de quem resolveu,
+ * com o "novo" (`darDocumento`, origem 'puzzle'). Devolve os títulos que
+ * entraram agora; o que ele já tinha não entra de novo nem volta a ser novo.
+ * Boneco sem ficha, documento apagado e lista cheia viram aviso do mestre.
+ */
+function entregarDocumentos(livro: Livro, destino: Destino, para: QuemMexe, docIds: readonly string[], entrega: EntregaDeDocumentos): string[] {
+  const quantos = new Set(docIds).size
+  if (quantos === 0) return []
+  if (destino.tipo === 'boneco') {
+    livro.avisos.push(`${para.nome} não tem ficha de personagem: ${quantos === 1 ? 'o documento do desfecho não foi guardado' : `os ${quantos} documentos do desfecho não foram guardados`}.`)
+    return []
+  }
+  const dados = darDocumentos(destino.ficha, docIds, entrega.documentoDaBiblioteca, 'puzzle', entrega.de, entrega.agora)
+  if (dados.personagem !== destino.ficha) livro.fichas.set(dados.personagem.id, dados.personagem)
+  livro.avisos.push(...avisosDosDocumentos(dados, destino.ficha.nome))
+  return dados.entraram
+}
+
+/** O desfecho de quem resolveu: os itens (como o baú), as moedas e os documentos (só com ficha) e a porta ligada. */
+function entregar(livro: Livro, para: QuemMexe, desfecho: DesfechoDoPuzzle, entrega: EntregaDeDocumentos): PremioDoPuzzleNoFio {
   const premio: PremioDoPuzzleNoFio = { itens: [], moedas: 0, documentos: [] }
   let destino = destinoDe(livro, para)
   if (destino === null) {
@@ -318,8 +363,8 @@ function entregar(livro: Livro, para: QuemMexe, desfecho: DesfechoDoPuzzle): Pre
       premio.moedas = desfecho.moedas
     } else livro.avisos.push(`${para.nome} não tem ficha de personagem: as ${desfecho.moedas} moedas não foram entregues.`)
   }
-  // A biblioteca Documentos chega na leva do Documento (L1): até lá, nada finge entregar.
-  if (desfecho.documentos.length > 0) livro.avisos.push(`Os documentos do desfecho ainda não são entregues nesta versão (${desfecho.documentos.length}).`)
+  // A ficha de agora (com os itens e as moedas já dentro): os documentos entram por cima dela.
+  premio.documentos = entregarDocumentos(livro, destinoDe(livro, para) ?? destino, para, desfecho.documentos, entrega)
   return premio
 }
 
@@ -403,7 +448,11 @@ export function agirNoHost(pedido: PedidoNoPuzzle): ResultadoNoHost {
         castigo = { tipo: efeito.castigo.tipo, texto: textoDoCastigo(efeito.castigo), pv: castigar(livro, efeito.para, efeito.castigo) }
         break
       case 'entregar':
-        premio = entregar(livro, efeito.para, efeito.desfecho)
+        premio = entregar(livro, efeito.para, efeito.desfecho, {
+          documentoDaBiblioteca: pedido.documentoDaBiblioteca,
+          de: puzzle.nomePublico.trim() === '' ? undefined : puzzle.nomePublico.trim(),
+          agora: pedido.agora,
+        })
         if (efeito.desfecho.abrePorta) {
           const porta = desafio.portaLigada
           if (porta !== undefined && pedido.map.walls.some((w) => w.id === porta && w.door !== null)) abrirPorta = porta
@@ -452,10 +501,11 @@ interface OQueAconteceu {
   avisos: string[]
 }
 
-/** "Chave de latão e 30 moedas" (a mesma frase do baú, `oQueLevou`). */
+/** "Chave de latão, 30 moedas e “Diário do capitão”" (a mesma frase do baú, `oQueLevou`). */
 function textoDoPremio(premio: PremioDoPuzzleNoFio): string {
   const partes = premio.itens.map(({ nome, quantidade }) => (quantidade > 1 ? `${nome} ×${quantidade}` : nome))
   if (premio.moedas > 0) partes.push(premio.moedas === 1 ? '1 moeda' : `${premio.moedas} moedas`)
+  for (const titulo of premio.documentos) partes.push(`“${titulo}”`)
   if (partes.length <= 1) return partes.join('')
   return `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
 }
