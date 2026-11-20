@@ -1,0 +1,263 @@
+{
+ "data": "2026-11-20T00:18:56.580Z",
+ "navegador": "Microsoft Edge (Playwright, sem janela)",
+ "viewport": "1440x900 e 1024x768",
+ "desempenho": {
+  "arrasto": {
+   "quadros": 301,
+   "p50": 16.7,
+   "p95": 16.8,
+   "p99": 16.9,
+   "max": 17
+  },
+  "tarefasLongas": 2,
+  "maiorTarefaLonga": 94,
+  "longas": [
+   70,
+   94
+  ]
+ },
+ "conferencias": 29,
+ "falhas": 0,
+ "resultados": [
+  {
+   "nome": "Editor: arrastar o encaixe 1 muda a posição guardada",
+   "ok": true,
+   "detalhe": {
+    "antes": [
+     37,
+     52
+    ],
+    "depois": [
+     52.6,
+     64.5
+    ],
+    "esperado": [
+     52.6,
+     64.5
+    ]
+   }
+  },
+  {
+   "nome": "Editor: p95 do quadro ao arrastar até 20 ms",
+   "ok": true,
+   "detalhe": {
+    "quadros": 301,
+    "p50": 16.7,
+    "p95": 16.8,
+    "max": 17
+   }
+  },
+  {
+   "nome": "Editor: a alça do canto muda o tamanho do encaixe",
+   "ok": true,
+   "detalhe": {
+    "antes": 9.4,
+    "depois": 17.2
+   }
+  },
+  {
+   "nome": "Editor: adicionar, tirar (Delete) e desfazer (Ctrl+Z) encaixe",
+   "ok": true,
+   "detalhe": {
+    "n4": 4,
+    "n3": 3,
+    "n4b": 4
+   }
+  },
+  {
+   "nome": "Editor: cor e texto do modelo mudam a arte",
+   "ok": true,
+   "detalhe": {
+    "cor": "#c9b28a",
+    "texto": "Onde a garça bebe"
+   }
+  },
+  {
+   "nome": "Editor: peça arrastada da biblioteca acende o encaixe na pausa e vira a peça certa",
+   "ok": true,
+   "detalhe": {
+    "acende": true,
+    "peca2": "joia-safira"
+   }
+  },
+  {
+   "nome": "Meus puzzles: o modelo salvo volta igual depois de recarregar (posição do encaixe)",
+   "ok": true,
+   "detalhe": {
+    "ponto": "left:52.6%;top:64.5%;width:10.32cqw",
+    "x": 52.6,
+    "y": 64.5
+   }
+  },
+  {
+   "nome": "Testar: a faixa \"Teste\" está na tela",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Testar: resolver no teste não entrega item, documento nem registra",
+   "ok": true,
+   "detalhe": {
+    "regAntes": 3,
+    "regDepois": 3,
+    "cartao": " Resolvido no testeFonte do pátio Algo cede com um estalo. No jogo, quem resolver recebe Moeda do teste, o documento “Juramento da guarda”. Aqui nada foi entreg"
+   }
+  },
+  {
+   "nome": "Mapa: encostar e tocar (E) abre o papel",
+   "ok": true,
+   "detalhe": {
+    "tocar": "Ler “Bilhete na parede” E",
+    "titulo": "Bilhete na parede"
+   }
+  },
+  {
+   "nome": "Mapa: o documento lido entra em Documentos e continua lá depois de recarregar",
+   "ok": true,
+   "detalhe": {
+    "lista1": [
+     "Bilhete na parede"
+    ],
+    "lista2": [
+     "Bilhete na parede"
+    ]
+   }
+  },
+  {
+   "nome": "Documento com 2 páginas: a seta troca para a página 2",
+   "ok": true,
+   "detalhe": "Página 2 de 2"
+  },
+  {
+   "nome": "Mestre marca \"some depois de pego\": depois de lido o papel sai do mapa (também depois de recarregar) e fica na lista de quem leu",
+   "ok": true,
+   "detalhe": {
+    "depoisCfg": "some",
+    "naCena": 0,
+    "naCena2": 0,
+    "laraTem": true
+   }
+  },
+  {
+   "nome": "Mestre \"Dar a…\" Bento: só o Bento recebe, com o aviso de novo",
+   "ok": true,
+   "detalhe": {
+    "quem": {
+     "Lara": false,
+     "Bento": true,
+     "Iara": false
+    },
+    "novoBento": "1 documento novo",
+    "novoIara": false
+   }
+  },
+  {
+   "nome": "Cadeia: a dica do cofre aponta para o bilhete já lido, com o botão Ler",
+   "ok": true,
+   "detalhe": "Dica: está no documento “Bilhete na parede” Ler"
+  },
+  {
+   "nome": "Cofre resolvido (318) entrega o \"Diário do capitão\" na lista, marcado como novo",
+   "ok": true,
+   "detalhe": {
+    "ganho": "Diário do capitãoDocumento novo, guardado em Documentos.Ler agora",
+    "badge": "1 documento novo",
+    "entrada": {
+     "doc": "d-diario",
+     "em": 1795133927951,
+     "origem": "puzzle",
+     "de": "Cofre do Capitão",
+     "novo": true
+    }
+   }
+  },
+  {
+   "nome": "Reler pela lista tira a marca de novo",
+   "ok": true,
+   "detalhe": {
+    "novoDepois": false
+   }
+  },
+  {
+   "nome": "Editar a cópia do lugar não muda o modelo",
+   "ok": true,
+   "detalhe": {
+    "copia": "Cofre da casa do capitão",
+    "modelo": "Cofre do Capitão"
+   }
+  },
+  {
+   "nome": "Meus puzzles mostra que a cópia mudou só no lugar",
+   "ok": true,
+   "detalhe": "Cofre da casa do capitão Casa do capitão · Vila do Brejo (Sombras do Brejo) · cópia de “Cofre do Capitão”, mudada só aqui Editar esta cópiaV"
+  },
+  {
+   "nome": "Imagem própria: vira o fundo do puzzle e recebe encaixes novos; peça nova com imagem e nome entra na biblioteca",
+   "ok": true,
+   "detalhe": {
+    "visual": "imagem",
+    "encaixes": 5,
+    "pecas": [
+     "Selo do capitão"
+    ]
+   }
+  },
+  {
+   "nome": "Documento com papel de imagem própria aparece na prévia",
+   "ok": true,
+   "detalhe": {
+    "papelImg": 1
+   }
+  },
+  {
+   "nome": "Movimento reduzido: o papel abre só com opacidade, nada se move",
+   "ok": true,
+   "detalhe": {
+    "classeRm": true,
+    "animacoes": 3,
+    "comTransform": 0
+   }
+  },
+  {
+   "nome": "1024: a página Documentos (mestre) não vaza na largura",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "1024: a aba editor não vaza na largura",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "1024: a aba meus não vaza na largura",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "1024: a aba testar não vaza na largura",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "1024: a aba mapa não vaza na largura",
+   "ok": true,
+   "detalhe": ""
+  },
+  {
+   "nome": "Nenhuma tarefa longa de 200 ms ou mais em todo o roteiro",
+   "ok": true,
+   "detalhe": {
+    "longas": [
+     70,
+     94
+    ]
+   }
+  },
+  {
+   "nome": "Nenhum erro no console",
+   "ok": true,
+   "detalhe": []
+  }
+ ]
+}
