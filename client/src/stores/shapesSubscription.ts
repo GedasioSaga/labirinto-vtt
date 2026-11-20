@@ -46,6 +46,10 @@ export function subscribeToShapesRedraw(onChange: () => void): () => void {
       // mora em `map.desafios`. Sem ele aqui, marcar o lugar não mostrava o selo e
       // apagar o desafio deixava o selo fantasma no mapa até outro redesenho.
       state.map.desafios,
+      // MARCAS e PAPÉIS DOS DOCUMENTOS: o portão da camada dos pinos também conta
+      // com eles (`pixi/shapesRedraw.ts`); fora daqui, tirar um deixava fantasma.
+      state.map.marcas,
+      state.map.documentos,
       // RELEVO (`lib/relevo.ts`): a chave "Relevo" e o "Tipo de mapa" (Continente
       // liga por padrão) não mexem em forma nenhuma; sem eles aqui, ligar ou
       // desligar só aparecia no próximo zoom ou edição.
