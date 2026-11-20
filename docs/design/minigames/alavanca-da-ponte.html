@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Alavanca da ponte · protótipo</title>
+<!-- Duas cenas, o mesmo jogo: abra com ?cena=canhao para começar no Canhão do chão. -->
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
@@ -193,7 +195,7 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
   <header class="topo">
     <div class="topo__marca">
       <span class="wordmark">Labirinto</span>
-      <nav class="migalhas" aria-label="Onde você está">Castelo de Valverde <span aria-hidden="true">›</span> <b>Alavanca da ponte</b></nav>
+      <nav class="migalhas" aria-label="Onde você está">Castelo de Valverde <span aria-hidden="true">›</span> <b id="migalhaCena">Alavanca da ponte</b></nav>
     </div>
     <div class="visao">
       <div class="seg" role="group" aria-label="Ver como">
@@ -221,14 +223,14 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
       <section class="tela" id="tConvite" aria-labelledby="cTitulo">
         <div class="cabeca">
           <canvas id="icone" width="96" height="96" aria-hidden="true"></canvas>
-          <div><h1 id="cTitulo">Alavanca da ponte</h1><p>Portão de Valverde, fosso norte</p></div>
+          <div><h1 id="cTitulo">Alavanca da ponte</h1><p id="cSub">Portão de Valverde, fosso norte</p></div>
         </div>
-        <p class="fala">A ponte levadiça está erguida e a corrente é pesada. Girem a alavanca sem parar: quem descansa a mão deixa a catraca soltar, e a corrente puxa a ponte de volta.</p>
+        <p class="fala" id="cFala">A ponte levadiça está erguida e a corrente é pesada. Girem a alavanca sem parar: quem descansa a mão deixa a catraca soltar, e a corrente puxa a ponte de volta.</p>
         <dl class="ficha">
           <div><dt class="rotulo">Dificuldade</dt><dd id="cDif">Normal</dd></div>
           <div><dt class="rotulo">Tempo</dt><dd id="cTempo">16 s</dd></div>
           <div class="larga"><dt class="rotulo">Quem gira</dt><dd id="cEquipe">Você</dd></div>
-          <div class="larga"><dt class="rotulo">Se a ponte descer</dt><dd id="cDesfecho">A ponte do mapa desce.</dd></div>
+          <div class="larga"><dt class="rotulo" id="cSeVencer">Se a ponte descer</dt><dd id="cDesfecho">A ponte do mapa desce.</dd></div>
         </dl>
         <ul class="teclas" id="cTeclas" aria-label="Teclas"></ul>
         <button type="button" class="lb-btn lb-btn--primary lb-btn--block" id="bComecar">Começar</button>
@@ -239,11 +241,11 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
         <div class="relogio" id="relogio"><b id="rTempo">16,0</b><span>segundos</span></div>
         <div class="tempo-trilho" aria-hidden="true"><i id="rTempoBarra"></i></div>
         <div class="medidor" role="meter" aria-label="Ponte baixada" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mPonte">
-          <div class="medidor__topo"><span class="rotulo">Ponte</span><b id="rPonte">0%</b></div>
+          <div class="medidor__topo"><span class="rotulo" id="rRotuloObjeto">Ponte</span><b id="rPonte">0%</b></div>
           <div class="medidor__trilho"><i id="rPonteBarra"></i></div>
         </div>
         <div class="medidor medidor--corrente" id="mCorrente">
-          <div class="medidor__topo"><span class="rotulo">Força da corrente</span><b id="rCorrente">puxando</b></div>
+          <div class="medidor__topo"><span class="rotulo" id="rRotuloForca">Força da corrente</span><b id="rCorrente">puxando</b></div>
           <div class="medidor__trilho" aria-hidden="true"><i id="rCorrenteBarra"></i></div>
         </div>
         <ul class="equipe" id="rEquipe" aria-label="Quem gira"></ul>
@@ -269,6 +271,14 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
     <div class="mestre__grade">
       <form class="painel" id="fMestre" aria-labelledby="mTitulo" onsubmit="return false">
         <h2 id="mTitulo">Desafio da alavanca</h2>
+        <fieldset class="campo">
+          <legend class="rotulo">Cena</legend>
+          <div class="seg" id="mCena" role="group" aria-label="Cena">
+            <button type="button" data-cena="ponte" aria-pressed="true">Ponte levadiça</button>
+            <button type="button" data-cena="canhao" aria-pressed="false">Canhão do chão</button>
+          </div>
+          <p class="nota">O mesmo jogo e os mesmos números nas duas cenas: só muda o que se vê e se ouve.</p>
+        </fieldset>
         <fieldset class="campo">
           <legend class="rotulo">Dificuldade</legend>
           <div class="seg" id="mDif" role="group" aria-label="Dificuldade">
@@ -297,9 +307,9 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
           <p class="nota">No protótipo, os outros jogadores são bots ou alguém no mesmo teclado. No app, cada um aperta X no próprio computador.</p>
         </fieldset>
         <fieldset class="campo">
-          <legend class="rotulo">Quando a ponte descer</legend>
+          <legend class="rotulo" id="dLegenda">Quando a ponte descer</legend>
           <div class="opcoes">
-            <label class="opcao"><input type="radio" name="desfecho" value="ponte" checked><span><b>Abaixar a ponte do mapa</b><span>A ponte levadiça do mapa desce e o fosso pode ser atravessado.</span></span></label>
+            <label class="opcao"><input type="radio" name="desfecho" value="ponte" checked><span><b id="dMapaTitulo">Abaixar a ponte do mapa</b><span id="dMapaTexto">A ponte levadiça do mapa desce e o fosso pode ser atravessado.</span></span></label>
             <label class="opcao"><input type="radio" name="desfecho" value="porta"><span><b>Abrir uma porta</b><span>Uma porta do mapa se abre.</span></span></label>
           </div>
           <label class="rotulo" for="mPorta">Porta que abre</label>
@@ -317,8 +327,8 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
         <dl class="aovivo">
           <dt>Situação</dt><dd id="mSit">No convite</dd>
           <dt>Tempo</dt><dd id="mT">–</dd>
-          <dt>Ponte</dt><dd id="mP">–</dd>
-          <dt>Corrente</dt><dd id="mC">–</dd>
+          <dt id="mPRotulo">Ponte</dt><dd id="mP">–</dd>
+          <dt id="mCRotulo">Corrente</dt><dd id="mC">–</dd>
           <dt>Giros</dt><dd id="mG">–</dd>
         </dl>
         <div class="linha">
@@ -510,7 +520,26 @@ const SOM = (() => {
     const off = ((quando * 7.919) % 1.7)
     src.start(quando, off); src.stop(quando + o.dur * 1.6 + 0.05)
   }
-  function cadeia(ctx, destino, inicio = 0) {
+  // Cada cena tem a sua voz sobre o mesmo mecanismo: a ponte range madeira; o
+  // canhão range mais grave e a plataforma de pedra raspa nas paredes do poço.
+  const PERFIS = {
+    ponte: { f1: 88, f2: 133, filtro: 700, rangido: 0.22, raspa: 0 },
+    canhao: { f1: 62, f2: 95, filtro: 470, rangido: 0.15, raspa: 0.34 },
+  }
+  const FOLHAS = 0.2 // canhão: as folhas do alçapão terminam de abrir aqui (fração da subida)
+  /** Eventos que só a cena do canhão tem, tirados da posição: as folhas batem abertas e o alçapão fecha. */
+  function criarDetector(cena) {
+    let aberto = false, longe = false
+    return (p) => {
+      const ev = []
+      if (cena !== 'canhao') return ev
+      if (!aberto && p >= FOLHAS) { aberto = true; ev.push('folhasBatem') } else if (aberto && p < FOLHAS - 0.03) aberto = false
+      if (p >= 0.05) longe = true
+      else if (longe && p < 0.015) { longe = false; ev.push('alcapaoFecha') }
+      return ev
+    }
+  }
+  function cadeia(ctx, destino, inicio = 0, cena = 'ponte') {
     const mestre = ctx.createGain(); mestre.gain.value = VOLUME
     const comp = ctx.createDynamicsCompressor()
     comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15
@@ -540,16 +569,25 @@ const SOM = (() => {
     as.connect(af); af.connect(ag); ag.connect(C.centro); as.start(inicio)
     C.rangido = { g: rg, f1: r1.frequency, f2: r2.frequency, filtro: rf.frequency }
     C.corrente = { g: cg }
+    // pedra raspando nas paredes do poço: ruído grave, só quando a plataforma anda (mudo na ponte)
+    const rs = ctx.createBufferSource(); rs.buffer = ruido(ctx); rs.loop = true; rs.playbackRate.value = 0.7
+    const rsf = ctx.createBiquadFilter(); rsf.type = 'bandpass'; rsf.frequency.value = 240; rsf.Q.value = 0.9
+    const rsg = ctx.createGain(); rsg.gain.value = 0
+    rs.connect(rsf); rsf.connect(rsg); rsg.connect(C.ponte); rs.start(inicio)
+    C.raspa = rsg
+    trocarCena(C, cena)
     return C
   }
-  /** Parâmetros contínuos: velocidade da ponte (fração/s), tensão 0..1, catraca solta 0..1. */
+  function trocarCena(C, cena) { C.cena = PERFIS[cena] ? cena : 'ponte'; C.perfil = PERFIS[C.cena] }
+  /** Parâmetros contínuos: velocidade (fração/s), tensão 0..1, catraca solta 0..1. */
   function continuo(C, quando, vel, tensao, solta) {
-    const mov = Math.min(1, Math.abs(vel) / 0.3)
-    C.rangido.g.gain.setTargetAtTime(0.22 * mov, quando, 0.03)
-    C.rangido.f1.setTargetAtTime(88 + 64 * tensao, quando, 0.08)
-    C.rangido.f2.setTargetAtTime(133 + 96 * tensao, quando, 0.08)
-    C.rangido.filtro.setTargetAtTime(700 + 560 * tensao, quando, 0.08)
+    const mov = Math.min(1, Math.abs(vel) / 0.3), P = C.perfil
+    C.rangido.g.gain.setTargetAtTime(P.rangido * mov, quando, 0.03)
+    C.rangido.f1.setTargetAtTime(P.f1 + 64 * tensao, quando, 0.08)
+    C.rangido.f2.setTargetAtTime(P.f2 + 96 * tensao, quando, 0.08)
+    C.rangido.filtro.setTargetAtTime(P.filtro + 560 * tensao, quando, 0.08)
     C.corrente.g.gain.setTargetAtTime(0.5 * solta * Math.min(1, Math.max(0, -vel) / 0.12), quando, 0.03)
+    C.raspa.gain.setTargetAtTime(P.raspa * mov, quando, 0.04)
   }
   function evento(C, nome, quando, dados) {
     switch (nome) {
@@ -580,10 +618,45 @@ const SOM = (() => {
       case 'relogio': // os últimos 3 segundos
         tom(C, C.centro, quando, { f: 1180, ganho: 0.16, ataque: 0.003, dur: 0.05, tipo: 'triangle' })
         break
+      case 'folhasBatem': // canhão: as duas folhas do alçapão caem abertas nas lajes, uma logo depois da outra
+        tom(C, C.ponte, quando, { f: 150, f2: 92, varre: 0.1, ganho: 0.42, ataque: 0.003, dur: 0.16 })
+        chiado(C, C.ponte, quando, { f: 650, q: 0.7, filtro: 'lowpass', ganho: 0.32, ataque: 0.003, dur: 0.14 })
+        tom(C, C.ponte, quando + 0.06, { f: 138, f2: 88, varre: 0.1, ganho: 0.34, ataque: 0.003, dur: 0.14 })
+        break
+      case 'alcapaoFecha': // canhão: as folhas voltam e batem fechadas
+        tom(C, C.ponte, quando, { f: 128, f2: 80, varre: 0.12, ganho: 0.45, ataque: 0.003, dur: 0.2 })
+        chiado(C, C.ponte, quando, { f: 520, q: 0.7, filtro: 'lowpass', ganho: 0.34, ataque: 0.003, dur: 0.18 })
+        break
     }
   }
+  /** O fim do canhão: trava no topo com um clangor e baixa o cano até a ameia, ou despenca no poço. */
+  function finalCanhao(C, quando, tipo) {
+    const at = tipo === 'subiu' ? quando + QUEDA : quando
+    if (tipo === 'subiu') {
+      C.corrente.g.gain.setTargetAtTime(0.55, quando, 0.03)
+      C.corrente.g.gain.setTargetAtTime(0, at, 0.05)
+      C.raspa.gain.setTargetAtTime(0.34, quando, 0.04); C.raspa.gain.setTargetAtTime(0, at, 0.05)
+      C.rangido.g.gain.setTargetAtTime(0.14, quando, 0.05)
+      C.rangido.g.gain.setTargetAtTime(0, at, 0.05)
+      tom(C, C.ponte, at, { f: 72, f2: 36, varre: 0.4, ganho: 0.8, ataque: 0.004, dur: 0.75 }) // a plataforma bate no fundo
+      chiado(C, C.ponte, at, { f: 220, q: 0.7, filtro: 'lowpass', ganho: 0.55, ataque: 0.004, dur: 0.4 })
+      evento(C, 'alcapaoFecha', at + 0.09)
+      return
+    }
+    C.rangido.g.gain.setTargetAtTime(0, quando, 0.04)
+    C.corrente.g.gain.setTargetAtTime(0, quando, 0.04)
+    C.raspa.gain.setTargetAtTime(0, quando, 0.04)
+    tom(C, C.ponte, at, { f: 88, f2: 48, varre: 0.25, ganho: 0.6, ataque: 0.004, dur: 0.45 }) // a pedra assenta
+    chiado(C, C.ponte, at, { f: 300, q: 0.7, filtro: 'lowpass', ganho: 0.4, ataque: 0.003, dur: 0.22 })
+    chiado(C, C.mec, at, { f: 3400, q: 3, ganho: 0.35, ataque: 0.0015, dur: 0.05 }) // o ferrolho entra
+    for (const [f, gn, d] of [[523, 0.2, 1.1], [1290, 0.12, 0.8], [2140, 0.07, 0.55], [3010, 0.04, 0.4]]) tom(C, C.ponte, at, { f, ganho: gn, ataque: 0.002, dur: d }) // o clangor
+    for (const [f, gn] of [[196, 0.1], [466, 0.05], [755, 0.03]]) tom(C, C.ponte, at + 0.02, { f, ganho: gn, ataque: 0.004, dur: 1.4 }) // o bronze do cano ressoa
+    for (let i = 0; i < 4; i++) chiado(C, C.mec, at + 0.14 + i * 0.1, { f: 2500, q: 4, ganho: 0.4, ataque: 0.0015, dur: 0.03 }) // o cano baixa dente a dente
+    tom(C, C.mec, at + 0.56, { f: 1400, ganho: 0.16, ataque: 0.002, dur: 0.06, tipo: 'triangle' })
+  }
   /** O fim: a ponte assenta (baixou) ou volta a subir e bate no portão (subiu). */
-  function final(C, quando, tipo) {
+  function final(C, quando, tipo, cena = 'ponte') {
+    if (cena === 'canhao') return finalCanhao(C, quando, tipo)
     const at = tipo === 'subiu' ? quando + QUEDA : quando
     if (tipo === 'subiu') {
       C.corrente.g.gain.setTargetAtTime(0.55, quando, 0.03)
@@ -605,22 +678,27 @@ const SOM = (() => {
     }
   }
   /** Rodada inteira já simulada, renderizada offline: contagem, eventos, contínuos e fim. */
-  async function renderizar(res, Offline, taxa = 48000) {
+  async function renderizar(res, Offline, taxa = 48000, cena = 'ponte') {
     const t0 = CONTAGEM + 0.2
     const cauda = res.fase === 'subiu' ? QUEDA + 2.0 : 2.0
     const dur = t0 + res.tFim + cauda
     const ctx = new Offline(2, Math.ceil(taxa * dur), taxa)
-    const C = cadeia(ctx, ctx.destination, 0)
+    const C = cadeia(ctx, ctx.destination, 0, cena)
     evento(C, 'prontos', 0.2); evento(C, 'ja', t0)
     for (const e of res.eventos) if (e.nome !== 'baixou' && e.nome !== 'subiu') evento(C, e.nome, t0 + e.t, e)
     for (const s of res.trilha) continuo(C, t0 + s[0], s[1], s[2], s[3])
+    if (cena !== 'ponte') { // a posição sai da velocidade da trilha (passo de 1/60 s), para os eventos da cena
+      const det = criarDetector(cena)
+      let p = 0, tAnt = 0
+      for (const s of res.trilha) { p = Math.max(0, Math.min(1, p + s[1] * (s[0] - tAnt))); tAnt = s[0]; for (const n of det(p)) evento(C, n, t0 + s[0]) }
+    }
     const tempo = res.R.tempo
     for (let k = 3; k >= 1; k--) if (tempo - k < res.tFim && tempo - k > 0) evento(C, 'relogio', t0 + tempo - k)
-    final(C, t0 + res.tFim, res.fase)
+    final(C, t0 + res.tFim, res.fase, cena)
     const buf = await ctx.startRendering()
     return { canais: [buf.getChannelData(0), buf.getChannelData(1)], taxa, inicio: t0, duracao: dur }
   }
-  return { QUEDA, CONTAGEM, VOLUME, cadeia, continuo, evento, final, renderizar }
+  return { QUEDA, CONTAGEM, VOLUME, FOLHAS, PERFIS, criarDetector, cadeia, trocarCena, continuo, evento, final, renderizar }
 })()
 // ==== SOM:FIM ====
 
@@ -755,7 +833,10 @@ function desenharFixo(g) {
     if (x > 185 && x < 475 && y > 306) continue
     if (rng() < 0.16) { g.fillStyle = [COR.amarelo, COR.branco, COR.rosa][Math.floor(rng() * 3)]; g.beginPath(); g.arc(x, y, 1.6, 0, Math.PI * 2); g.fill() } else { g.strokeStyle = tomDe(COR.gramaS, 0.8); g.lineWidth = 1; g.beginPath(); g.moveTo(x - 2.5, y - 3); g.lineTo(x, y + 1); g.lineTo(x + 2.5, y - 3); g.stroke() }
   }
-  // o quadro do sarilho: o mecanismo dentro da torre, de perto
+  quadroFixo(g, 'Sarilho, dentro da torre')
+}
+/** O quadro do sarilho: o mecanismo de perto, no canto, igual nas duas cenas. */
+function quadroFixo(g, rotulo) {
   const S = SARILHO
   g.save(); g.translate(S.x, S.y)
   caminhoArredondado(g, 0, 0, S.w, S.h, 10); g.save(); g.clip()
@@ -774,18 +855,21 @@ function desenharFixo(g) {
   g.restore()
   g.lineWidth = 4; g.strokeStyle = tomDe(COR.pedra, 0.62); caminhoArredondado(g, 0, 0, S.w, S.h, 10); g.stroke()
   g.lineWidth = 1; g.strokeStyle = 'rgba(255, 255, 255, 0.12)'; caminhoArredondado(g, 3, 3, S.w - 6, S.h - 6, 8); g.stroke()
-  g.fillStyle = 'rgba(18, 14, 12, 0.72)'; caminhoArredondado(g, S.w - 112, S.h - 22, 104, 16, 8); g.fill()
-  g.fillStyle = '#eceae4'; g.font = '600 9px Bahnschrift, Barlow, "Segoe UI", sans-serif'; g.textBaseline = 'middle'; g.fillText('Sarilho, dentro da torre', S.w - 105, S.h - 13.5)
+  g.font = '600 9px Bahnschrift, Barlow, "Segoe UI", sans-serif'; g.textBaseline = 'middle'
+  const largura = Math.ceil(g.measureText(rotulo).width) + 14
+  g.fillStyle = 'rgba(18, 14, 12, 0.72)'; caminhoArredondado(g, S.w - 8 - largura, S.h - 22, largura, 16, 8); g.fill()
+  g.fillStyle = '#eceae4'; g.fillText(rotulo, S.w - 1 - largura, S.h - 13.5)
   g.restore()
 }
 
 const cacheFixo = new Map()
-function camadaFixa(W, H, s, ox, oy) {
-  const chave = `${W}x${H}`
+function camadaFixa(W, H, s, ox, oy, cena = 'ponte') {
+  const chave = `${cena}|${W}x${H}`
   let c = cacheFixo.get(chave)
   if (c) return c
   c = document.createElement('canvas'); c.width = W; c.height = H
-  const g = c.getContext('2d'); g.setTransform(s, 0, 0, s, ox, oy); desenharFixo(g)
+  const g = c.getContext('2d'); g.setTransform(s, 0, 0, s, ox, oy)
+  if (cena === 'canhao') desenharFixoCanhao(g); else desenharFixo(g)
   if (cacheFixo.size > 6) cacheFixo.clear()
   cacheFixo.set(chave, c)
   return c
@@ -914,15 +998,268 @@ function desenharAgua(g, t) {
   }
 }
 
+// ---- cena do canhão
+// O terraço do baluarte em projeção oblíqua: X anda para a direita, Z entra na
+// tela (sobe e desliza um pouco para a direita) e H sobe. Quem olha está à
+// direita e acima: aparecem as faces viradas para +X, para cima e para quem
+// olha (-Z). O canhão aponta para dentro (+Z), para a ameia do parapeito.
+// O canhão fica de viés (GUINADA) para a boca, no fim, sair quase deitada pela
+// ameia da direita: apontado reto para dentro, o cano subiria na tela e
+// pareceria mirar o céu. A cena inteira é vista com ZOOM em torno do poço.
+const BAL = { y0: 340, kx: 0.35, kz: 0.55, xc: 300, meia: 58, z0: 150, z1: 262, zc: 206, poco: 165, zp: 284, esp: 28, merlao: 62, peitoril: 20, larg: 42, vao: 40, ameia: 369 }
+const ZOOM = { k: 1.25, x: 372, y: 175 } // pivô alto: o cano erguido no topo não sai do quadro em 16:9
+const VISTA = [-0.35, -0.55, 1] // direção em que se olha, em (X, H, Z): face com normal·VISTA < 0 aparece
+const CANO = { ergue: (75 * Math.PI) / 180, mira: (2 * Math.PI) / 180, guinada: (40 * Math.PI) / 180, atras: 34, frente: 100, rAtras: 13, rFrente: 9, munhao: [8, 50] }
+const BRONZE = '#a8733e', LAJE = '#cec7b4'
+function pb(X, Z, H = 0) { return [X + Z * BAL.kx, BAL.y0 - Z * BAL.kz - H] }
+/** O mesmo ponto já com o zoom da cena (para a poeira, que é desenhada sem zoom). */
+function pbz(X, Z, H = 0) { const [x, y] = pb(X, Z, H); return [ZOOM.x + (x - ZOOM.x) * ZOOM.k, ZOOM.y + (y - ZOOM.y) * ZOOM.k] }
+function aplicarZoom(g) { g.translate(ZOOM.x, ZOOM.y); g.scale(ZOOM.k, ZOOM.k); g.translate(-ZOOM.x, -ZOOM.y) }
+function caminho(g, pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath() }
+function preencher(g, pts, cor, borda, lw = 1) { caminho(g, pts); g.fillStyle = cor; g.fill(); if (borda) { g.strokeStyle = borda; g.lineWidth = lw; g.stroke() } }
+function linha(g, a, b, cor, lw) { g.strokeStyle = cor; g.lineWidth = lw; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke() }
+function buracoPts(m = 0) { const { xc, meia, z0, z1 } = BAL; return [pb(xc - meia - m, z0 - m), pb(xc + meia + m, z0 - m), pb(xc + meia + m, z1 + m), pb(xc - meia - m, z1 + m)] }
+/** Disco num plano X constante (roda, polia, munhão): círculo em (Z, H). */
+function discoLateral(X, Z, H, r, n = 18) { const pts = []; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; pts.push(pb(X, Z + r * Math.cos(a), H + r * Math.sin(a))) } return pts }
+/** Cilindro em pé (barril): o arco da frente embaixo, o de trás em cima. */
+function barril(g, X, Z, r, h) {
+  const aD = Math.atan(BAL.kx), arco = (H, a0, a1) => { const pts = []; for (let i = 0; i <= 12; i++) { const a = a0 + ((a1 - a0) * i) / 12; pts.push(pb(X + r * Math.cos(a), Z + r * Math.sin(a), H)) } return pts }
+  const corpo = [...arco(0, aD + Math.PI, aD + 2 * Math.PI), ...arco(h, aD, aD + Math.PI)]
+  const [xa] = pb(X - r, Z), [xb] = pb(X + r, Z), grad = g.createLinearGradient(xa, 0, xb, 0)
+  grad.addColorStop(0, tomDe(COR.carvalho, 0.78)); grad.addColorStop(0.65, COR.carvalho); grad.addColorStop(1, tomDe(COR.carvalho, 1.08))
+  preencher(g, corpo, grad, contorno(COR.carvalho))
+  g.strokeStyle = COR.ferro; g.lineWidth = 2.2
+  for (const H of [5, h - 5]) { const a = arco(H, aD + Math.PI, aD + 2 * Math.PI); g.beginPath(); g.moveTo(a[0][0], a[0][1]); for (const q of a) g.lineTo(q[0], q[1]); g.stroke() }
+  preencher(g, arco(h, 0, Math.PI * 2), tomDe(COR.carvalho, 1.14), contorno(COR.carvalho))
+}
+function balas(g, X, Z) {
+  g.fillStyle = 'rgba(40, 30, 24, 0.22)'; caminho(g, [pb(X - 22, Z - 8), pb(X + 22, Z - 8), pb(X + 22, Z + 8), pb(X - 22, Z + 8)]); g.fill()
+  for (const [dx, h] of [[-13, 6.5], [0, 6.5], [13, 6.5], [-6.5, 17.5], [6.5, 17.5], [0, 28.5]]) {
+    const [x, y] = pb(X + dx, Z, h)
+    g.fillStyle = COR.ferro; g.beginPath(); g.arc(x, y, 6.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = contorno(COR.ferro); g.lineWidth = 1; g.stroke()
+    g.fillStyle = tomDe(COR.ferro, 1.55); g.beginPath(); g.arc(x + 2.2, y - 2.2, 1.7, 0, Math.PI * 2); g.fill()
+  }
+}
+
+/** Tudo o que não se mexe na cena do canhão: céu, vale, parapeito, lajes, a boca do poço. */
+function desenharFixoCanhao(g) {
+  const { xc, meia, z0, z1, poco, zp, esp, merlao, peitoril, larg, vao, ameia } = BAL
+  g.save(); aplicarZoom(g)
+  const ceu = g.createLinearGradient(0, -140, 0, 170)
+  ceu.addColorStop(0, '#a3bfcc'); ceu.addColorStop(0.62, '#dcd8c8'); ceu.addColorStop(1, '#efd5ac')
+  g.fillStyle = ceu; g.fillRect(-700, -500, 2000, 700)
+  const sol = g.createRadialGradient(560, 46, 4, 560, 46, 110)
+  sol.addColorStop(0, 'rgba(255, 242, 210, 0.95)'); sol.addColorStop(0.16, 'rgba(255, 234, 196, 0.5)'); sol.addColorStop(1, 'rgba(255, 234, 196, 0)')
+  g.fillStyle = sol; g.fillRect(420, -80, 300, 260)
+  nuvem(g, 150, 34, 0.9); nuvem(g, 420, 18, 0.7); nuvem(g, 680, 44, 1.05); nuvem(g, -120, 26, 0.9)
+  // o vale lá embaixo, visto por cima do parapeito e pelas ameias
+  const morro = (cor, base, a1, a2, f) => { g.fillStyle = cor; g.beginPath(); g.moveTo(-700, 220); for (let x = -700; x <= 1300; x += 20) g.lineTo(x, base + a1 * Math.sin(x * 0.011 + f) + a2 * Math.sin(x * 0.029 + 2 * f)); g.lineTo(1300, 220); g.closePath(); g.fill() }
+  morro(mistura(COR.gramaS, '#dcd8c8', 0.66), 100, 9, 5, 0.4)
+  morro(mistura(COR.gramaS, '#dcd8c8', 0.44), 116, 7, 4, 1.7)
+  morro(mistura(COR.grama, '#dcd8c8', 0.3), 128, 3, 2, 2.9)
+  g.strokeStyle = mistura(COR.agua, '#dcd8c8', 0.3); g.lineWidth = 2.4; g.beginPath()
+  for (let x = -700; x <= 1300; x += 20) { const y = 140 + 4 * Math.sin(x * 0.02) + 2 * Math.sin(x * 0.051); if (x === -700) g.moveTo(x, y); else g.lineTo(x, y) }
+  g.stroke()
+  const rngV = SIM.criarRng('vale')
+  g.fillStyle = mistura(COR.gramaS, '#dcd8c8', 0.22)
+  for (let i = 0; i < 70; i++) { const x = -500 + rngV() * 1600, y = 124 + rngV() * 28; g.beginPath(); g.arc(x, y, 1.4 + rngV() * 1.6, 0, Math.PI * 2); g.fill() }
+  // o parapeito: muro baixo de ponta a ponta e os merlões por cima
+  const [ax, ay] = pb(-900, zp, 0), [bx, by] = pb(1300, zp, peitoril)
+  g.fillStyle = tomDe(COR.pedra, 0.95); g.fillRect(ax, by, bx - ax, ay - by)
+  blocos(g, ax, by, bx - ax, ay - by, 10, 24, tomDe(COR.pedra, 0.84, 0.7), 'peitoril')
+  preencher(g, [pb(-900, zp, peitoril), pb(1300, zp, peitoril), pb(1300, zp + esp, peitoril), pb(-900, zp + esp, peitoril)], tomDe(COR.pedra, 1.08), contorno(COR.pedra))
+  for (let a = ameia + vao / 2 - (larg + vao) * 14; a < 1300; a += larg + vao) {
+    const b = a + larg, [fx, fy] = pb(a, zp, merlao), [gx, gy] = pb(b, zp, peitoril)
+    preencher(g, [pb(b, zp, peitoril), pb(b, zp + esp, peitoril), pb(b, zp + esp, merlao), pb(b, zp, merlao)], tomDe(COR.pedra, 0.8), contorno(COR.pedra))
+    g.fillStyle = COR.pedra; g.fillRect(fx, fy, gx - fx, gy - fy)
+    blocos(g, fx, fy, gx - fx, gy - fy, 10, 22, tomDe(COR.pedra, 0.84, 0.7), `merlao${a}`)
+    grao(g, fx, fy, gx - fx, gy - fy, tomDe(COR.pedra, 0.76, 0.45), 14, `gm${a}`)
+    g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1; g.strokeRect(fx, fy, gx - fx, gy - fy)
+    preencher(g, [pb(a, zp, merlao), pb(b, zp, merlao), pb(b, zp + esp, merlao), pb(a, zp + esp, merlao)], tomDe(COR.pedra, 1.12), contorno(COR.pedra))
+  }
+  g.strokeStyle = contorno(COR.pedra); g.lineWidth = 1.2; g.beginPath(); g.moveTo(ax, ay + 0.5); g.lineTo(bx, ay + 0.5); g.stroke()
+  torre(g, 150, 104, 68, ay)
+  // as lajes do terraço
+  g.fillStyle = LAJE; g.fillRect(-700, ay, 2000, 640)
+  const rngL = SIM.criarRng('lajes')
+  for (let z = zp, fila = 0; z > -340; z -= 26, fila++) {
+    const juntas = []
+    for (let x = -1000 + (fila % 2) * 21 + rngL() * 8; x < 1300; x += 34 + rngL() * 18) juntas.push(x)
+    for (let i = 0; i + 1 < juntas.length; i++) { const t = rngL(); if (t < 0.3) preencher(g, [pb(juntas[i], z), pb(juntas[i + 1], z), pb(juntas[i + 1], z - 26), pb(juntas[i], z - 26)], tomDe(LAJE, t < 0.15 ? 0.94 : 1.04)) }
+    g.strokeStyle = tomDe(LAJE, 0.8, 0.8); g.lineWidth = 0.9; g.beginPath()
+    const [, y] = pb(0, z); g.moveTo(-700, y); g.lineTo(1300, y)
+    for (const x of juntas) { const [x0, y0] = pb(x, z), [x1, y1] = pb(x, z - 26); g.moveTo(x0, y0); g.lineTo(x1, y1) }
+    g.stroke()
+  }
+  grao(g, -700, ay, 2000, 640, tomDe(LAJE, 0.78, 0.45), 1400, 'glaje')
+  const ao = g.createLinearGradient(0, ay, 0, ay + 16); ao.addColorStop(0, 'rgba(50, 38, 30, 0.26)'); ao.addColorStop(1, 'rgba(50, 38, 30, 0)')
+  g.fillStyle = ao; g.fillRect(-700, ay, 2000, 16)
+  // a boca do poço: soleira de pedra, o vão escuro, as paredes de dentro
+  preencher(g, buracoPts(6), tomDe(COR.pedra, 0.88), contorno(COR.pedra), 1.2)
+  preencher(g, buracoPts(0), '#1d1713')
+  g.save(); caminho(g, buracoPts(0)); g.clip()
+  const L = xc - meia, [tx, ty] = pb(L, z1, 0), [ux] = pb(xc + meia, z1, 0)
+  const fundo = g.createLinearGradient(0, ty, 0, ty + 70); fundo.addColorStop(0, '#54463b'); fundo.addColorStop(1, '#1b1512')
+  g.fillStyle = fundo; g.fillRect(tx, ty, ux - tx, poco)
+  blocos(g, tx, ty, ux - tx, poco, 10, 22, 'rgba(0, 0, 0, 0.28)', 'poco')
+  const lado = g.createLinearGradient(0, pb(L, z0, 0)[1] - 60, 0, pb(L, z0, 0)[1] + 10); lado.addColorStop(0, '#685749'); lado.addColorStop(1, '#1c1613')
+  preencher(g, [pb(L, z0, 0), pb(L, z1, 0), pb(L, z1, -poco), pb(L, z0, -poco)], lado)
+  g.strokeStyle = 'rgba(0, 0, 0, 0.3)'; g.lineWidth = 0.8; g.beginPath()
+  for (let h = -10; h > -poco; h -= 10) { const [x0, y0] = pb(L, z0, h), [x1, y1] = pb(L, z1, h); g.moveTo(x0, y0); g.lineTo(x1, y1) }
+  g.stroke()
+  for (const z of [182, 236]) { preencher(g, discoLateral(L + 2, z, -6, 5.5), COR.ferro, contorno(COR.ferro)); const [x, y] = pb(L + 2, z, -6); g.fillStyle = COR.latao; g.beginPath(); g.arc(x, y, 1.6, 0, Math.PI * 2); g.fill() }
+  const [sx, sy] = pb(xc - 36, z1, -34); g.fillStyle = COR.ferro; g.fillRect(sx - 2, sy, 4, 10)
+  g.restore()
+  // dobradiças das folhas e as caixas dos ferrolhos
+  for (const hx of [xc - meia, xc + meia]) for (const z of [172, 240]) preencher(g, [pb(hx - 5, z - 4), pb(hx + 5, z - 4), pb(hx + 5, z + 4), pb(hx - 5, z + 4)], tomDe(COR.ferro, 0.9), contorno(COR.ferro))
+  for (const [za, zb] of [[z0 - 22, z0 - 4], [z1 + 4, z1 + 22]]) preencher(g, [pb(xc - 7, za), pb(xc + 7, za), pb(xc + 7, zb), pb(xc - 7, zb)], tomDe(COR.ferro, 0.75), contorno(COR.ferro))
+  balas(g, 446, 214)
+  barril(g, 470, 116, 13, 28)
+  g.restore()
+  quadroFixo(g, 'Sarilho, debaixo do baluarte')
+}
+
+/** Uma folha do alçapão (lado -1 esquerda, 1 direita), girada th radianos (0 fechada, π deitada aberta). */
+function desenharFolha(g, lado, th) {
+  const { xc, meia, z0, z1 } = BAL, hx = xc + lado * meia, w = meia - 1
+  const ponta = (f) => [hx - lado * w * f * Math.cos(th), w * f * Math.sin(th)]
+  const [tx, tH] = ponta(1)
+  const pts = [pb(hx, z0), pb(hx, z1), pb(tx, z1, tH), pb(tx, z0, tH)]
+  const topo = VISTA[0] * lado * Math.sin(th) + VISTA[1] * Math.cos(th) < 0
+  const cor = topo ? tomDe(COR.carvalho, 1.02 - 0.14 * Math.sin(th)) : tomDe(COR.nogueira, 0.92 + 0.16 * Math.abs(Math.cos(th)))
+  preencher(g, pts, cor)
+  const veio = topo ? tomDe(COR.nogueira, 0.95, 0.7) : tomDe(COR.nogueira, 0.7, 0.7)
+  for (const f of [1 / 3, 2 / 3]) { const [x, h] = ponta(f); linha(g, pb(x, z0 + 2, h), pb(x, z1 - 2, h), veio, 1) }
+  if (!topo) linha(g, pb(hx, z0 + 6), pb(tx, z1 - 6, tH), tomDe(COR.nogueira, 0.62), 3)
+  for (const z of [172, 240]) {
+    linha(g, pb(hx, z), pb(tx, z, tH), COR.ferro, 3.4)
+    g.fillStyle = COR.latao
+    for (const f of [0.3, 0.7]) { const [x, h] = ponta(f), [px, py] = pb(x, z, h); g.beginPath(); g.arc(px, py, 1.3, 0, Math.PI * 2); g.fill() }
+  }
+  linha(g, pb(hx, z0), pb(tx, z0, tH), tomDe(COR.nogueira, 0.78), 3)
+  caminho(g, pts); g.strokeStyle = contorno(COR.carvalho); g.lineWidth = 1.1; g.stroke()
+}
+
+/** O cano de bronze, girado phi (radianos acima do chão), preso no munhão do reparo. */
+function desenharCano(g, P, phi, luz) {
+  const s = Math.sin(phi), c = Math.cos(phi), [mz, mh] = CANO.munhao
+  const ponto = (t) => P(0, mz + t * c, mh + t * s)
+  const p0 = ponto(-CANO.atras), p1 = ponto(CANO.frente)
+  let nx = p1[1] - p0[1], ny = p0[0] - p1[0]
+  const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L
+  if (nx - ny < 0) { nx = -nx; ny = -ny } // n aponta para cima e para a direita, o lado da luz
+  const r0 = CANO.rAtras, r1 = CANO.rFrente, raio = (t) => r0 + ((r1 - r0) * (t + CANO.atras)) / (CANO.atras + CANO.frente)
+  const meio = tomDe(BRONZE, luz), borda = tomDe(BRONZE, 0.55 * luz), sombra = tomDe(BRONZE, 0.68 * luz)
+  // os dois eixos do disco das pontas, na tela: o X do reparo e o que fica no plano do cano
+  const O = P(0, 0, 0), eixo = (dx, dz, h) => { const q = P(dx, dz, h); return [q[0] - O[0], q[1] - O[1]] }
+  const a1 = eixo(1, 0, 0), a2 = eixo(0, -s, c)
+  const disco = (q, r) => { g.save(); g.transform(a1[0] * r, a1[1] * r, a2[0] * r, a2[1] * r, q[0], q[1]); g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.restore() }
+  const gs = Math.sin(CANO.guinada), gc = Math.cos(CANO.guinada)
+  const boca = VISTA[0] * c * gs + VISTA[1] * s + VISTA[2] * c * gc < 0 // a boca vira para quem olha quando o cano está erguido
+  const pc = ponto(-CANO.atras - 7)
+  const botao = () => { linha(g, pc, p0, sombra, 4); g.fillStyle = meio; g.beginPath(); g.arc(pc[0], pc[1], 4.4, 0, Math.PI * 2); g.fill(); g.strokeStyle = borda; g.lineWidth = 1; g.stroke() }
+  if (boca) botao()
+  const m = ponto((CANO.frente - CANO.atras) / 2), rm = raio((CANO.frente - CANO.atras) / 2)
+  const grad = g.createLinearGradient(m[0] + nx * rm, m[1] + ny * rm, m[0] - nx * rm, m[1] - ny * rm)
+  grad.addColorStop(0, tomDe(BRONZE, 1.22 * luz)); grad.addColorStop(0.3, tomDe(BRONZE, 1.08 * luz)); grad.addColorStop(1, tomDe(BRONZE, 0.7 * luz))
+  caminho(g, [[p0[0] + nx * r0, p0[1] + ny * r0], [p1[0] + nx * r1, p1[1] + ny * r1], [p1[0] - nx * r1, p1[1] - ny * r1], [p0[0] - nx * r0, p0[1] - ny * r0]])
+  g.fillStyle = grad; g.fill(); g.strokeStyle = borda; g.lineWidth = 1.1; g.stroke()
+  for (const [t, extra] of [[-CANO.atras + 3, 1.6], [-2, 1.1], [44, 0.8], [CANO.frente - 7, 1.5]]) {
+    const q = ponto(t), r = raio(t) + extra
+    linha(g, [q[0] + nx * r, q[1] + ny * r], [q[0] - nx * r, q[1] - ny * r], sombra, 2.6)
+  }
+  linha(g, [p0[0] + nx * r0 * 0.45, p0[1] + ny * r0 * 0.45], [p1[0] + nx * r1 * 0.45, p1[1] + ny * r1 * 0.45], tomDe(BRONZE, 1.45 * luz, 0.5), 1.6)
+  if (boca) {
+    disco(p1, r1 + 1.4); g.fillStyle = meio; g.fill(); g.strokeStyle = borda; g.lineWidth = 1; g.stroke()
+    disco(p1, r1 * 0.58); g.fillStyle = '#1a1410'; g.fill()
+  } else {
+    disco(p0, r0); g.fillStyle = sombra; g.fill(); g.strokeStyle = borda; g.lineWidth = 1; g.stroke()
+    disco(p0, r0 * 0.66); g.strokeStyle = tomDe(BRONZE, 0.9 * luz); g.stroke()
+    botao()
+  }
+}
+
+/** O canhão no reparo de madeira, com a plataforma na altura Hp (0 = rente às lajes). */
+function desenharCanhao(g, Hp, phi, luz) {
+  // dx, dz, h são do próprio reparo (dz para onde o cano aponta); o reparo está girado CANO.guinada
+  const gs = Math.sin(CANO.guinada), gc = Math.cos(CANO.guinada)
+  const P = (dx, dz, h) => pb(BAL.xc + dx * gc + dz * gs, BAL.zc - dx * gs + dz * gc, Hp + h)
+  const disco = (dx, dz, h, r, n = 18) => { const pts = []; for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; pts.push(P(dx, dz + r * Math.cos(a), h + r * Math.sin(a))) } return pts }
+  const cor = (h, f = 1) => tomDe(h, f * luz), borda = (h) => tomDe(h, 0.6 * luz)
+  const [mz, mh] = CANO.munhao, c = Math.cos(phi)
+  g.fillStyle = `rgba(24, 16, 12, ${0.26 * luz})`; caminho(g, [P(-30, -36, 0), P(30, -36, 0), P(30, 38, 0), P(-30, 38, 0)]); g.fill()
+  // a sombra do cano no chão: comprida quando ele deita, curta quando aponta para cima
+  g.lineCap = 'round'; linha(g, P(0, mz - CANO.atras * c, 0.5), P(0, mz + CANO.frente * c, 0.5), `rgba(24, 16, 12, ${0.2 * luz})`, 16); g.lineCap = 'butt'
+  const roda = (dx, dz, f) => { // a face mais longe (escura) primeiro; a que aparece por cima
+    const longe = dx < 0 ? dx : dx - 4, perto = dx < 0 ? dx + 4 : dx
+    preencher(g, disco(longe, dz, 9, 9), cor(COR.nogueira, 0.6 * f))
+    preencher(g, disco(perto, dz, 9, 9), cor(COR.nogueira, 0.92 * f), cor(COR.ferro, f), 1.8)
+    const [x, y] = P(perto, dz, 9); g.fillStyle = cor(COR.ferro, 1.1 * f); g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill()
+  }
+  const perfil = [[-30, 4], [34, 4], [34, 26], [24, 46], [-4, 46], [-10, 26], [-30, 26]]
+  const bochecha = (dx) => perfil.map(([z, h]) => P(dx, z, h))
+  roda(-26, -20, 0.8); roda(-26, 24, 0.8)
+  preencher(g, bochecha(-20), cor(COR.carvalho, 1.1), borda(COR.carvalho))
+  preencher(g, bochecha(-14), cor(COR.carvalho, 0.76), borda(COR.carvalho))
+  preencher(g, [P(-20, -30, 4), P(-14, -30, 4), P(-14, -30, 26), P(-20, -30, 26)], cor(COR.carvalho, 0.92), borda(COR.carvalho))
+  preencher(g, [P(-26, -24, 4), P(26, -24, 4), P(26, -24, 13), P(-26, -24, 13)], cor(COR.nogueira), borda(COR.nogueira))
+  desenharCano(g, P, phi, luz)
+  preencher(g, bochecha(14), cor(COR.carvalho, 1.16), borda(COR.carvalho))
+  preencher(g, bochecha(20), cor(COR.carvalho), borda(COR.carvalho))
+  preencher(g, [P(14, -30, 4), P(20, -30, 4), P(20, -30, 26), P(14, -30, 26)], cor(COR.carvalho, 1.06), borda(COR.carvalho))
+  preencher(g, disco(20.5, mz, mh, 4.6, 12), cor(BRONZE, 0.9), borda(BRONZE))
+  g.strokeStyle = cor(COR.ferro); g.lineWidth = 2.6; g.beginPath()
+  for (let i = 0; i <= 8; i++) { const a = (i / 8) * Math.PI, [x, y] = P(20.6, mz + 6.5 * Math.cos(a), mh + 6.5 * Math.sin(a)); if (i) g.lineTo(x, y); else g.moveTo(x, y) }
+  g.stroke()
+  roda(26, -20, 1); roda(26, 24, 1)
+}
+
+/** Tudo o que se mexe na cena do canhão. */
+function desenharMovelCanhao(g, est) {
+  const { xc, meia, z0, z1, poco } = BAL
+  const p = est.p, Hp = -poco * (1 - p), luz = 0.6 + 0.4 * p
+  const k = Math.min(1, p / SOM.FOLHAS), th = Math.PI * Math.pow(k, 1.4)
+  const phi = CANO.mira + (CANO.ergue - CANO.mira) * est.cano
+  const buraco = buracoPts(0)
+  g.save(); caminho(g, buraco); g.clip()
+  chama(g, ...pb(xc - 36, z1, -30), est.t, 0.7)
+  const L = xc - meia + 2
+  for (const [i, z] of [[0, 182], [1, 236]]) { const a = pb(L, z, -6), b = pb(L, z, Hp - 8); if (b[1] > a[1] + 1) desenharCorrente(g, a[0], a[1], b[0], b[1], (1 - p) * 240, est.vib * 0.8, est.t, i * 1.7) }
+  const plat = [pb(xc - meia + 2, z0 + 2, Hp), pb(xc + meia - 2, z0 + 2, Hp), pb(xc + meia - 2, z1 - 2, Hp), pb(xc - meia + 2, z1 - 2, Hp)]
+  preencher(g, plat, tomDe(LAJE, 0.9 * luz), tomDe(COR.ferro, luz), 2.2)
+  linha(g, pb(xc, z0 + 2, Hp), pb(xc, z1 - 2, Hp), tomDe(LAJE, 0.72 * luz, 0.8), 0.9)
+  g.restore()
+  // ferrolhos: correm para dentro da plataforma quando o canhão trava no topo
+  const tv = est.trava * 14
+  preencher(g, [pb(xc - 4, z0 - 19 + tv, 1), pb(xc + 4, z0 - 19 + tv, 1), pb(xc + 4, z0 - 5 + tv, 1), pb(xc - 4, z0 - 5 + tv, 1)], tomDe(COR.ferro, 1.2), contorno(COR.ferro))
+  preencher(g, [pb(xc - 4, z1 + 5 - tv, 1), pb(xc + 4, z1 + 5 - tv, 1), pb(xc + 4, z1 + 19 - tv, 1), pb(xc - 4, z1 + 19 - tv, 1)], tomDe(COR.ferro, 1.2), contorno(COR.ferro))
+  if (th > Math.PI / 2) desenharFolha(g, -1, th)
+  // dentro do poço o canhão só aparece pela boca do alçapão; acima das lajes, inteiro
+  const [, yc] = pb(0, BAL.zc)
+  g.save(); caminho(g, buraco.slice().reverse()); g.rect(-900, -600, 2400, 600 + yc); g.clip()
+  desenharCanhao(g, Hp, phi, luz)
+  g.restore()
+  if (th <= Math.PI / 2) desenharFolha(g, -1, th)
+  desenharFolha(g, 1, th)
+}
+
 /** A cena inteira num canvas de W x H pixels. `est` é o estado visual (ver estadoVisual). */
 function desenharCena(ctx, W, H, est) {
   const s = Math.min(W / MUNDO.w, H / MUNDO.h), ox = W / 2 - MUNDO.cx * s, oy = H / 2 - MUNDO.cy * s
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   const tr = est.tremor
   const dx = tr ? 6 * tr * Math.sin(est.tReal * 51) * s : 0, dy = tr ? 4 * tr * Math.sin(est.tReal * 69 + 1) * s : 0
+  const cena = est.cena === 'canhao' ? 'canhao' : 'ponte'
   ctx.fillStyle = '#9ec0a0'; ctx.fillRect(0, 0, W, H)
-  ctx.drawImage(camadaFixa(W, H, s, ox, oy), dx, dy)
+  ctx.drawImage(camadaFixa(W, H, s, ox, oy, cena), dx, dy)
   ctx.setTransform(s, 0, 0, s, ox + dx, oy + dy)
+  if (cena === 'canhao') {
+    ctx.save(); aplicarZoom(ctx); desenharMovelCanhao(ctx, est); ctx.restore()
+    desenharPoeira(ctx, est.poeira)
+    desenharSarilho(ctx, est)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    return
+  }
   desenharAgua(ctx, est.t)
   // tocha dentro do portão (fica atrás da ponte erguida)
   ctx.save(); ctx.beginPath(); ctx.moveTo(270, 244); ctx.lineTo(270, 182); ctx.arc(330, 182, 60, Math.PI, 0); ctx.lineTo(390, 244); ctx.closePath(); ctx.clip()
@@ -958,19 +1295,88 @@ const $ = (s) => document.querySelector(s)
 const TECLAS = ['KeyX', 'KeyM', 'KeyQ', 'KeyP'], LETRAS = ['X', 'M', 'Q', 'P']
 const NOMES_BOT = ['', 'Bia', 'Tomé', 'Odete']
 const FIM_BAIXOU = 1.5, FIM_SUBIU = SOM.QUEDA + 1.3, CONGELA = 0.07
-const config = { dif: 'normal', tempo: null, jogadores: 1, modos: ['voce', 'bot', 'bot', 'bot'], desfecho: 'ponte', porta: 'Portão de Valverde' }
+const DENTES_CANO = [0.14, 0.24, 0.34, 0.44] // os cliques do cano baixando, iguais aos do som (SOM.final do canhão)
+const cenaDaUrl = new URLSearchParams(location.search).get('cena') === 'canhao' ? 'canhao' : 'ponte'
+// `desfecho: 'ponte'` quer dizer "o que a cena faz no mapa" (a ponte desce, o canhão sobe).
+const config = { cena: cenaDaUrl, dif: 'normal', tempo: null, jogadores: 1, modos: ['voce', 'bot', 'bot', 'bot'], desfecho: 'ponte', porta: 'Portão de Valverde' }
 const prefs = { som: true }
 const movimentoReduzido = matchMedia('(prefers-reduced-motion: reduce)')
-const J = { tela: 'convite', visao: 'jogador', P: null, robos: [], fila: [], pausado: false, pausaMestre: false, manual: false, acum: 0, tFase: 0, fimTipo: null, pVis: 0, trauma: 0, congela: 0, flash: [0, 0, 0, 0], poeira: [], resultado: null, tReal: 0, tCena: 0, tGiros: [[], [], [], []], dicaAtual: '', relogioDado: 0, roboVoce: null, semente: 'ao-vivo' }
+// O que muda de uma cena para a outra é só texto, desenho e som: o jogo é o mesmo.
+const TEXTOS = {
+  ponte: {
+    nome: 'Alavanca da ponte', sub: 'Portão de Valverde, fosso norte',
+    fala: 'A ponte levadiça está erguida e a corrente é pesada. Girem a alavanca sem parar: quem descansa a mão deixa a catraca soltar, e a corrente puxa a ponte de volta.',
+    seVencer: 'Se a ponte descer', quandoVencer: 'Quando a ponte descer',
+    mapaTitulo: 'Abaixar a ponte do mapa', mapaTexto: 'A ponte levadiça do mapa desce e o fosso pode ser atravessado.',
+    mapaOk: 'No mapa: a ponte levadiça desce e o fosso pode ser atravessado.', mapaNada: 'No mapa, nada muda: a ponte continua erguida.',
+    objeto: 'Ponte', objetoAria: 'Ponte baixada', forca: 'Força da corrente', forcaCurta: 'Corrente', pesada: 'pesada', parada: 'parada',
+    dica: 'Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.', dicaPerto: 'Falta pouco: perto do chão a corrente pesa mais.',
+    dicaVenceu: 'A ponte desceu! A catraca trava.', dicaPerdeu: 'O tempo acabou: a corrente puxa a ponte de volta.',
+    anuncioVenceu: 'A ponte desceu!', anuncioPerdeu: 'O tempo acabou. A corrente puxou a ponte de volta.',
+    venceu: 'A ponte desceu!', perdeu: 'A corrente venceu',
+    subPerdeu: (pct, R) => `A ponte chegou a ${pct}% e voltou a subir (${R.nome}, ${R.tempo} s).`,
+    subEncerrado: (d, pct) => `A rodada parou em ${d} s, com a ponte a ${pct}%.`,
+    progresso: (pct) => `${pct}% baixada`, fimVenceu: 'A ponte desceu', fimPerdeu: 'A ponte está subindo',
+    pausa: 'A corrente espera. Esc ou o botão continua.',
+    aria: (p) => (p >= 1 ? 'A ponte levadiça desceu e está assentada na margem.' : p <= 0.01 ? 'A ponte levadiça está erguida diante do portão.' : `A ponte levadiça está ${Math.round(p * 10) * 10}% baixada.`),
+  },
+  canhao: {
+    nome: 'Canhão do chão', sub: 'Baluarte de Valverde, muralha norte',
+    fala: 'Debaixo das lajes do baluarte espera um canhão de bronze. Girem a alavanca sem parar: o alçapão abre e a plataforma sobe. Quem descansa a mão deixa a catraca soltar, e o peso do canhão leva tudo de volta ao fundo.',
+    seVencer: 'Se o canhão subir', quandoVencer: 'Quando o canhão subir',
+    mapaTitulo: 'Erguer o canhão no mapa', mapaTexto: 'O canhão aparece no alto da muralha, apontado pela ameia.',
+    mapaOk: 'No mapa: o canhão sobe e fica apontado pela ameia.', mapaNada: 'No mapa, nada muda: o canhão continua escondido debaixo das lajes.',
+    objeto: 'Canhão', objetoAria: 'Canhão erguido', forca: 'Peso do canhão', forcaCurta: 'Peso', pesada: 'pesado', parada: 'parado',
+    dica: 'Aperte X sem parar. O peso do canhão puxa a plataforma de volta o tempo todo.', dicaPerto: 'Falta pouco: perto do topo o canhão pesa mais.',
+    dicaVenceu: 'O canhão chegou! A trava fecha.', dicaPerdeu: 'O tempo acabou: o canhão desce de volta ao poço.',
+    anuncioVenceu: 'O canhão subiu e travou!', anuncioPerdeu: 'O tempo acabou. O peso levou o canhão de volta ao poço.',
+    venceu: 'O canhão subiu!', perdeu: 'O peso venceu',
+    subPerdeu: (pct, R) => `O canhão chegou a ${pct}% e desceu de volta (${R.nome}, ${R.tempo} s).`,
+    subEncerrado: (d, pct) => `A rodada parou em ${d} s, com o canhão a ${pct}%.`,
+    progresso: (pct) => `${pct}% erguido`, fimVenceu: 'O canhão subiu', fimPerdeu: 'O canhão está descendo',
+    pausa: 'O canhão espera. Esc ou o botão continua.',
+    aria: (p) => (p >= 1 ? 'O canhão subiu e está travado no alto da muralha, apontado pela ameia.' : p <= 0.01 ? 'O alçapão está fechado nas lajes do baluarte.' : `O canhão está ${Math.round(p * 10) * 10}% erguido.`),
+  },
+}
+const J = { cena: cenaDaUrl, detector: null, tela: 'convite', visao: 'jogador', P: null, robos: [], fila: [], pausado: false, pausaMestre: false, manual: false, acum: 0, tFase: 0, fimTipo: null, pVis: 0, trauma: 0, congela: 0, flash: [0, 0, 0, 0], poeira: [], resultado: null, tReal: 0, tCena: 0, tGiros: [[], [], [], []], dicaAtual: '', relogioDado: 0, roboVoce: null, semente: 'ao-vivo' }
 const amostras = { intervalos: [], trabalho: [] }
 const audio = { C: null }
 
 function nomeDoJogador(j) { return j === 0 ? 'Você' : config.modos[j] === 'bot' ? `${NOMES_BOT[j]} (bot)` : `Jogador ${j + 1}` }
 const virg = (v, c = 1) => v.toFixed(c).replace('.', ',')
 function regrasAtuais() { return SIM.regras({ dif: config.dif, jogadores: config.jogadores, tempo: config.tempo }) }
-function textoDesfecho(ok) {
-  if (!ok) return 'No mapa, nada muda: a ponte continua erguida.'
-  return config.desfecho === 'porta' ? `No mapa: a porta “${config.porta || 'sem nome'}” se abre.` : 'No mapa: a ponte levadiça desce e o fosso pode ser atravessado.'
+function textoDesfecho(ok, cena = J.cena) {
+  const T = TEXTOS[cena]
+  if (!ok) return T.mapaNada
+  return config.desfecho === 'porta' ? `No mapa: a porta “${config.porta || 'sem nome'}” se abre.` : T.mapaOk
+}
+/** Textos que descrevem o desafio montado (convite, painel do mestre): seguem a escolha na hora. */
+function pintarTextosDaCena() {
+  const T = TEXTOS[config.cena]
+  document.title = `${T.nome} · protótipo`
+  $('#migalhaCena').textContent = T.nome
+  $('#cTitulo').textContent = T.nome; $('#cSub').textContent = T.sub; $('#cFala').textContent = T.fala
+  $('#cSeVencer').textContent = T.seVencer; $('#dLegenda').textContent = T.quandoVencer
+  $('#dMapaTitulo').textContent = T.mapaTitulo; $('#dMapaTexto').textContent = T.mapaTexto
+  marcarSeg($('#mCena'), 'cena', config.cena)
+}
+/** A cena da rodada (desenho, som, rótulos do HUD): troca só fora de uma rodada. */
+function aplicarCena() {
+  J.cena = config.cena
+  const T = TEXTOS[J.cena]
+  $('#rRotuloObjeto').textContent = T.objeto; $('#mPonte').setAttribute('aria-label', T.objetoAria)
+  $('#rRotuloForca').textContent = T.forca
+  $('#mPRotulo').textContent = T.objeto; $('#mCRotulo').textContent = T.forcaCurta
+  $('#pausaMotivo').textContent = T.pausa
+  canvas.setAttribute('aria-label', T.aria(0))
+  if (audio.C) SOM.trocarCena(audio.C, J.cena)
+  hudCache = {}
+}
+function escolherCena(cena) {
+  config.cena = cena === 'canhao' ? 'canhao' : 'ponte'
+  pintarTextosDaCena()
+  if (J.tela === 'convite') aplicarCena()
+  pintarConvite()
 }
 
 // ---- áudio
@@ -979,7 +1385,7 @@ function garantirAudio() {
   const Ctx = window.AudioContext || window.webkitAudioContext
   if (!Ctx) return null
   const ctx = new Ctx()
-  audio.C = SOM.cadeia(ctx, ctx.destination, ctx.currentTime)
+  audio.C = SOM.cadeia(ctx, ctx.destination, ctx.currentTime, J.cena)
   audio.C.mestre.gain.value = prefs.som ? SOM.VOLUME : 0
   return audio.C
 }
@@ -992,7 +1398,7 @@ function irPara(tela) {
   $('#tConvite').hidden = tela !== 'convite'
   $('#tRodada').hidden = !(tela === 'contagem' || tela === 'rodada' || tela === 'fim')
   $('#tResultado').hidden = tela !== 'resultado'
-  if (tela === 'convite') { J.P = null; J.pVis = 0; pintarConvite() }
+  if (tela === 'convite') { J.P = null; J.pVis = 0; aplicarCena(); pintarConvite() }
   pintarMestre()
 }
 function pintarConvite() {
@@ -1002,7 +1408,7 @@ function pintarConvite() {
   const outros = []
   for (let j = 1; j < R.n; j++) outros.push(nomeDoJogador(j))
   $('#cEquipe').textContent = ['Você', ...outros].join(', ')
-  $('#cDesfecho').textContent = textoDesfecho(true).replace(/^No mapa: /, '').replace(/^./, (c) => c.toUpperCase())
+  $('#cDesfecho').textContent = textoDesfecho(true, config.cena).replace(/^No mapa: /, '').replace(/^./, (c) => c.toUpperCase())
   const ul = $('#cTeclas'); ul.innerHTML = ''
   const li = (html) => { const e = document.createElement('li'); e.innerHTML = html; ul.appendChild(e) }
   li('<kbd>X</kbd> girar a alavanca (cada aperto, um pouco)')
@@ -1024,7 +1430,9 @@ function montarEquipe(ul, R, comRitmo) {
 // ---- rodada
 function comecar() {
   if (J.tela === 'contagem' || J.tela === 'rodada') return
+  aplicarCena()
   garantirAudio()
+  J.detector = SOM.criarDetector(J.cena)
   const R = regrasAtuais()
   J.P = SIM.criarPartida({ dif: config.dif, jogadores: config.jogadores, tempo: config.tempo })
   J.robos = Array.from({ length: R.n }, (_, j) => (j === 0 ? J.roboVoce : config.modos[j] === 'bot' ? SIM.criarHumano(`${J.semente}|${Date.now()}|${j}`) : null))
@@ -1055,7 +1463,20 @@ function passoDoJogo() {
   const i0 = P.ev.length
   SIM.passo(P, quem)
   for (let i = i0; i < P.ev.length; i++) reagir(P.ev[i])
+  if (J.detector) for (const nome of J.detector(P.p)) reagirCena(nome)
   if (P.fase !== 'rodada') acabar(P.fase)
+}
+/** Eventos que só a cena do canhão tem: as folhas do alçapão batendo abertas ou fechadas. */
+function reagirCena(nome) {
+  tocar(nome)
+  if (movimentoReduzido.matches) return
+  const { xc, meia, z0, z1 } = BAL
+  if (nome === 'folhasBatem') {
+    for (const lado of [-1, 1]) for (let i = 0; i < 4; i++) { const [x, y] = pbz(xc + lado * (meia + 54), z0 + 14 + i * 28); soltarPoeira(x, y, 1, 0.5, COR.praca) }
+    J.trauma = Math.min(1, J.trauma + 0.2)
+  } else if (nome === 'alcapaoFecha') {
+    for (let i = 0; i < 6; i++) { const [x, y] = pbz(xc - meia + 10 + i * 20, z0 + 4); soltarPoeira(x, y, 1, 0.45, COR.praca) }
+  }
 }
 function reagir(e) {
   switch (e.nome) {
@@ -1091,14 +1512,18 @@ function soltarPoeira(x, y, n, forca, cor) {
 function acabar(fase) {
   J.tela = 'fim'; J.tFase = 0; J.fimTipo = fase; J.pVis = J.P.p
   const C = audio.C
-  if (C && prefs.som && !J.manual) SOM.final(C, C.ctx.currentTime + 0.004, fase)
+  if (C && prefs.som && !J.manual) SOM.final(C, C.ctx.currentTime + 0.004, fase, J.cena)
+  const T = TEXTOS[J.cena], forca = movimentoReduzido.matches ? 0.2 : 1.1
   if (fase === 'baixou') {
     J.congela = CONGELA
     if (!movimentoReduzido.matches) J.trauma = Math.min(1, J.trauma + 0.62)
     const rng = SIM.criarRng('pouso')
-    for (let i = 0; i < 26; i++) { const l = -1 + 2 * rng(), [x, y] = pontoDaPonte(1, 1, l * 1.05); soltarPoeira(x, y + 6, 1, movimentoReduzido.matches ? 0.2 : 1.1, COR.praca) }
-    anunciar('A ponte desceu!')
-  } else anunciar('O tempo acabou. A corrente puxou a ponte de volta.')
+    if (J.cena === 'canhao') { // a plataforma assenta: poeira saindo pelas frestas em volta
+      const { xc, meia, z0, z1 } = BAL, b = [pbz(xc - meia - 1, z0 - 1), pbz(xc + meia + 1, z0 - 1), pbz(xc + meia + 1, z1 + 1), pbz(xc - meia - 1, z1 + 1)]
+      for (let i = 0; i < 26; i++) { const lado = i % 4, a = b[lado], d = b[(lado + 1) % 4], u = rng(); soltarPoeira(a[0] + (d[0] - a[0]) * u, a[1] + (d[1] - a[1]) * u, 1, forca * 0.9, COR.praca) }
+    } else for (let i = 0; i < 26; i++) { const l = -1 + 2 * rng(), [x, y] = pontoDaPonte(1, 1, l * 1.05); soltarPoeira(x, y + 6, 1, forca, COR.praca) }
+    anunciar(T.anuncioVenceu)
+  } else anunciar(T.anuncioPerdeu)
   pintarMestre()
 }
 function encerrarPeloMestre() {
@@ -1114,8 +1539,9 @@ function mostrarResultado(tipoForcado) {
   const total = P.giros.reduce((a, b) => a + b, 0), dur = Math.max(0.1, P.tFim || P.t)
   J.resultado = { tipo, tFim: dur, giros: P.giros.slice(), total, ritmo: total / dur, soltou: P.soltou, maiorPausa: P.maiorPausa, pMax: P.pMax }
   const ver = $('#resVeredito'); ver.dataset.tipo = tipo
-  $('#resTitulo').textContent = tipo === 'baixou' ? 'A ponte desceu!' : tipo === 'subiu' ? 'A corrente venceu' : 'Encerrada pelo mestre'
-  $('#resSub').textContent = tipo === 'baixou' ? `Em ${virg(dur)} s de ${R.tempo} s (${R.nome}).` : tipo === 'subiu' ? `A ponte chegou a ${Math.round(P.pMax * 100)}% e voltou a subir (${R.nome}, ${R.tempo} s).` : `A rodada parou em ${virg(dur)} s, com a ponte a ${Math.round(P.p * 100)}%.`
+  const T = TEXTOS[J.cena]
+  $('#resTitulo').textContent = tipo === 'baixou' ? T.venceu : tipo === 'subiu' ? T.perdeu : 'Encerrada pelo mestre'
+  $('#resSub').textContent = tipo === 'baixou' ? `Em ${virg(dur)} s de ${R.tempo} s (${R.nome}).` : tipo === 'subiu' ? T.subPerdeu(Math.round(P.pMax * 100), R) : T.subEncerrado(virg(dur), Math.round(P.p * 100))
   const nums = [['Giros', String(total)], ['Ritmo', `${virg(total / dur)}/s`], ['Maior pausa', `${virg(P.maiorPausa)} s`], ['Catraca soltou', `${P.soltou}×`]]
   $('#resNumeros').innerHTML = nums.map(([k, v]) => `<div><dt class="rotulo">${k}</dt><dd>${v}</dd></div>`).join('')
   montarEquipe($('#resEquipe'), R, (j) => `${P.giros[j]} giros · ${virg(P.giros[j] / dur)}/s`)
@@ -1158,7 +1584,10 @@ function avancar(dt) {
       if (k >= 1 && !J.bateu) {
         J.bateu = true
         if (!movimentoReduzido.matches) J.trauma = Math.min(1, J.trauma + 0.45)
-        for (let i = 0; i < 10; i++) { const [x, y] = pontoDaPonte(0, 1, -1 + i / 4.5); soltarPoeira(x, y, 1, movimentoReduzido.matches ? 0.2 : 0.7, '#cfc9bb') }
+        if (J.cena === 'canhao') { // a plataforma bate no fundo: a poeira sobe pela boca do poço
+          const rng = SIM.criarRng('fundo')
+          for (let i = 0; i < 14; i++) { const [x, y] = pbz(BAL.xc - BAL.meia + 8 + rng() * 100, BAL.z0 + 10 + rng() * 90); soltarPoeira(x, y, 1, movimentoReduzido.matches ? 0.2 : 1.3, '#cfc9bb') }
+        } else for (let i = 0; i < 10; i++) { const [x, y] = pontoDaPonte(0, 1, -1 + i / 4.5); soltarPoeira(x, y, 1, movimentoReduzido.matches ? 0.2 : 0.7, '#cfc9bb') }
       }
       if (J.tFase >= FIM_SUBIU) { J.bateu = false; mostrarResultado() }
     } else if (J.tFase >= FIM_BAIXOU) mostrarResultado()
@@ -1177,7 +1606,18 @@ function estadoVisual() {
   }
   if (J.tela === 'resultado' && J.resultado) p = J.resultado.tipo === 'baixou' ? 1 : J.resultado.tipo === 'subiu' ? 0 : P.p
   const reduz = movimentoReduzido.matches
-  return { p, solta, tensao, vib: reduz ? 0 : (J.tela === 'rodada' ? 0.5 + 1.6 * tensao + 1.4 * solta : 0), flash: J.flash, poeira: J.poeira, tremor: reduz ? 0 : J.trauma * J.trauma, t: J.tCena, tReal: J.tReal }
+  // canhão: no topo, os ferrolhos entram com o clangor e o cano baixa até a ameia, um dente por clique do som
+  let cano = 1, trava = 0
+  if (J.cena === 'canhao' && P) {
+    const venceu = (J.tela === 'fim' && J.fimTipo === 'baixou') || (J.tela === 'resultado' && J.resultado && J.resultado.tipo === 'baixou')
+    if (venceu) {
+      const t = J.tela === 'resultado' ? 9 : CONGELA - Math.max(0, J.congela) + J.tFase
+      const kt = Math.min(1, t / 0.06); trava = 1 - (1 - kt) ** 3 // o ferrolho dispara: sai rápido e assenta
+      if (reduz) cano = t >= DENTES_CANO[0] ? 0 : 1
+      else for (const tc of DENTES_CANO) { const k = Math.min(1, Math.max(0, (t - tc + 0.05) / 0.05)); cano -= (k * k * (3 - 2 * k)) / DENTES_CANO.length }
+    }
+  }
+  return { cena: J.cena, cano, trava, p, solta, tensao, vib: reduz ? 0 : (J.tela === 'rodada' ? 0.5 + 1.6 * tensao + 1.4 * solta : 0), flash: J.flash, poeira: J.poeira, tremor: reduz ? 0 : J.trauma * J.trauma, t: J.tCena, tReal: J.tReal }
 }
 const canvas = $('#cena'), ctx2d = canvas.getContext('2d')
 function ajustarCanvas() {
@@ -1203,15 +1643,16 @@ function pintarHud(forcar) {
   const solta = J.tela === 'rodada' && P.solta > 0
   const tensao = P.forca / SIM.forcaMax(R)
   $('#rCorrenteBarra').style.transform = `scaleX(${(J.tela === 'rodada' ? tensao : 0).toFixed(4)})`
-  const sTxt = solta ? 'soltou!' : J.tela === 'rodada' ? (tensao > 0.62 ? 'pesada' : 'puxando') : 'parada'
+  const T = TEXTOS[J.cena]
+  const sTxt = solta ? 'soltou!' : J.tela === 'rodada' ? (tensao > 0.62 ? T.pesada : 'puxando') : T.parada
   definir('#rCorrente', 'corrente', sTxt)
   if (hudCache.soltaAttr !== solta) { hudCache.soltaAttr = solta; $('#mCorrente').dataset.solta = solta ? '1' : '0' }
-  let dica = 'Aperte X sem parar. A corrente puxa a ponte de volta o tempo todo.', tomDica = ''
+  let dica = T.dica, tomDica = ''
   if (J.tela === 'contagem') dica = 'Prepare o dedo no X.'
-  else if (J.tela === 'fim') dica = J.fimTipo === 'baixou' ? 'A ponte desceu! A catraca trava.' : 'O tempo acabou: a corrente puxa a ponte de volta.'
+  else if (J.tela === 'fim') dica = J.fimTipo === 'baixou' ? T.dicaVenceu : T.dicaPerdeu
   else if (solta) { dica = 'A catraca soltou! Gire de novo para a lingueta pegar.'; tomDica = 'alerta' }
   else if (resta <= 3) { dica = 'Últimos segundos!'; tomDica = 'alerta' }
-  else if (P.p > 0.78) dica = 'Falta pouco: perto do chão a corrente pesa mais.'
+  else if (P.p > 0.78) dica = T.dicaPerto
   definir('#rDica', 'dica', dica)
   if (hudCache.tomDica !== tomDica) { hudCache.tomDica = tomDica; $('#rDica').dataset.tom = tomDica }
   const ul = $('#rEquipe')
@@ -1222,16 +1663,17 @@ function pintarHud(forcar) {
     const li = ul.children[j]
     if (li) definir(`#rEquipe li:nth-child(${j + 1}) .ritmo`, `ritmo${j}`, `${virg(n / janela)}/s`)
   }
-  const rotulo = P.p >= 1 ? 'A ponte levadiça desceu e está assentada na margem.' : P.p <= 0.01 ? 'A ponte levadiça está erguida diante do portão.' : `A ponte levadiça está ${Math.round(P.p * 10) * 10}% baixada.`
+  const rotulo = T.aria(P.p)
   if (hudCache.rotulo !== rotulo) { hudCache.rotulo = rotulo; canvas.setAttribute('aria-label', rotulo) }
 }
 function pintarMestre() {
-  const P = J.P, nomes = { convite: 'No convite', contagem: 'Contagem', rodada: 'Girando', fim: J.fimTipo === 'baixou' ? 'A ponte desceu' : 'A ponte está subindo', resultado: J.resultado ? (J.resultado.tipo === 'baixou' ? 'Venceram' : J.resultado.tipo === 'subiu' ? 'Perderam' : 'Encerrada') : 'Resultado' }
+  const T = TEXTOS[J.cena]
+  const P = J.P, nomes = { convite: 'No convite', contagem: 'Contagem', rodada: 'Girando', fim: J.fimTipo === 'baixou' ? T.fimVenceu : T.fimPerdeu, resultado: J.resultado ? (J.resultado.tipo === 'baixou' ? 'Venceram' : J.resultado.tipo === 'subiu' ? 'Perderam' : 'Encerrada') : 'Resultado' }
   const emJogo = J.tela === 'contagem' || J.tela === 'rodada'
   $('#mSit').textContent = (J.pausaMestre ? 'Pausada pelo mestre · ' : '') + nomes[J.tela]
   $('#mT').textContent = P ? `${virg(Math.min(P.t, P.R.tempo))} s de ${P.R.tempo} s` : '–'
-  $('#mP').textContent = P ? `${Math.round(P.p * 100)}% baixada` : '–'
-  $('#mC').textContent = !P ? '–' : J.tela !== 'rodada' ? 'parada' : P.solta > 0 ? 'catraca solta' : `${Math.round((P.forca / SIM.forcaMax(P.R)) * 100)}% da força`
+  $('#mP').textContent = P ? T.progresso(Math.round(P.p * 100)) : '–'
+  $('#mC').textContent = !P ? '–' : J.tela !== 'rodada' ? T.parada : P.solta > 0 ? 'catraca solta' : `${Math.round((P.forca / SIM.forcaMax(P.R)) * 100)}% da força`
   $('#mG').textContent = P ? P.giros.map((g, j) => `${nomeDoJogador(j)} ${g}`).join(' · ') : '–'
   $('#bPausaTodos').disabled = !emJogo
   $('#bPausaTodos').textContent = J.pausaMestre ? 'Continuar para todos' : 'Pausar para todos'
@@ -1278,7 +1720,7 @@ function alternarPausa(forcar) {
   if (!(J.tela === 'contagem' || J.tela === 'rodada')) return
   J.pausado = forcar !== undefined ? forcar : !J.pausado
   $('#pausa').hidden = !(J.pausado || J.pausaMestre)
-  $('#pausaMotivo').textContent = J.pausaMestre ? 'O mestre pausou para todos. Só ele continua.' : 'A corrente espera. Esc ou o botão continua.'
+  $('#pausaMotivo').textContent = J.pausaMestre ? 'O mestre pausou para todos. Só ele continua.' : TEXTOS[J.cena].pausa
   $('#bContinuar').disabled = J.pausaMestre
   if (audio.C && (J.pausado || J.pausaMestre)) SOM.continuo(audio.C, audio.C.ctx.currentTime, 0, 0, 0)
   if (J.pausado && !J.manual) $('#bContinuar').focus({ preventScroll: true })
@@ -1356,6 +1798,7 @@ function aoMudarConfig(chance = true) {
   pintarConvite()
   if (chance) atualizarChance()
 }
+$('#mCena').querySelectorAll('[data-cena]').forEach((b) => b.addEventListener('click', () => escolherCena(b.dataset.cena)))
 $('#mDif').querySelectorAll('[data-dif]').forEach((b) => b.addEventListener('click', () => { config.dif = b.dataset.dif; config.tempo = null; marcarSeg($('#mDif'), 'dif', config.dif); aoMudarConfig() }))
 $('#mJog').querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', () => { config.jogadores = Number(b.dataset.n); marcarSeg($('#mJog'), 'n', config.jogadores); pintarVagas(); aoMudarConfig() }))
 $('#mTempo').addEventListener('input', (e) => { const v = Number(e.target.value); config.tempo = v === SIM.DIF[config.dif].tempo ? null : v; aoMudarConfig() })
@@ -1366,9 +1809,9 @@ $('#bPausaTodos').addEventListener('click', () => { J.pausaMestre = !J.pausaMest
 $('#bEncerrar').addEventListener('click', encerrarPeloMestre)
 
 desenharIcone($('#icone'))
-pintarVagas(); aoMudarConfig(false); irPara('convite')
+pintarTextosDaCena(); pintarVagas(); aoMudarConfig(false); irPara('convite')
 requestAnimationFrame(quadro)
-window.AlavancaDaPonte = { SIM, SOM, J, config, prefs, amostras, irPara, comecar, apertar, rodar, avancar, trocarVisao, alternarPausa, encerrarPeloMestre, desenharCena, estadoVisual, pintarHud, pontoDaPonte, aoMudarConfig, pintarVagas, marcarSeg, atualizarChance }
+window.AlavancaDaPonte = { SIM, SOM, J, config, prefs, amostras, TEXTOS, BAL, CANO, DENTES_CANO, irPara, comecar, apertar, rodar, avancar, trocarVisao, alternarPausa, encerrarPeloMestre, desenharCena, estadoVisual, pintarHud, pontoDaPonte, pb, escolherCena, aplicarCena, aoMudarConfig, pintarVagas, marcarSeg, atualizarChance }
 </script>
 </body>
 </html>

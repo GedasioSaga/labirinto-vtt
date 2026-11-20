@@ -1,0 +1,19 @@
+{
+  "_": "Metas da cena Canhão do chão, escritas antes das provas. O jogo é o da Alavanca da ponte: os números do robô não podem mudar.",
+  "numeros": {
+    "blocoSimIgualAoCommit": "2cf75597",
+    "vitoriaIgualAPonte": "as mesmas 400 partidas por caso dão exatamente a mesma taxa de vitória que provas-alavanca/testes.json",
+    "mesmaPartidaNasDuasCenas": "a mesma semente jogada ao vivo dá o mesmo resultado, os mesmos giros e o mesmo tempo nas duas cenas"
+  },
+  "cena": {
+    "folhasAbertasEm": 0.2,
+    "bocaEscondidaComAlcapaoFechado": true,
+    "bocaNaAmeiaNoFim": true,
+    "cliquesDoCanoBaixando": [0.14, 0.24, 0.34, 0.44],
+    "toleranciaDoCliqueS": 0.02
+  },
+  "folhaDeContato": { "min": 12, "max": 16 },
+  "prints": { "max": 3 },
+  "som": { "picoVerdadeiroMaxDbtp": -1, "cortes": 0, "cliques": 0, "lufsDoTiro": -19.29, "luDoTiroMax": 3, "diferencaDaPonteMinDb": 6 },
+  "quadro": { "p95MaxMs": 20, "tarefaLongaMaxMs": 200 }
+}

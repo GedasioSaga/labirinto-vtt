@@ -1,0 +1,493 @@
+{
+  "metas": {
+    "_": "Metas da cena Canhão do chão, escritas antes das provas. O jogo é o da Alavanca da ponte: os números do robô não podem mudar.",
+    "numeros": {
+      "blocoSimIgualAoCommit": "2cf75597",
+      "vitoriaIgualAPonte": "as mesmas 400 partidas por caso dão exatamente a mesma taxa de vitória que provas-alavanca/testes.json",
+      "mesmaPartidaNasDuasCenas": "a mesma semente jogada ao vivo dá o mesmo resultado, os mesmos giros e o mesmo tempo nas duas cenas"
+    },
+    "cena": {
+      "folhasAbertasEm": 0.2,
+      "bocaEscondidaComAlcapaoFechado": true,
+      "bocaNaAmeiaNoFim": true,
+      "cliquesDoCanoBaixando": [
+        0.14,
+        0.24,
+        0.34,
+        0.44
+      ],
+      "toleranciaDoCliqueS": 0.02
+    },
+    "folhaDeContato": {
+      "min": 12,
+      "max": 16
+    },
+    "prints": {
+      "max": 3
+    },
+    "som": {
+      "picoVerdadeiroMaxDbtp": -1,
+      "cortes": 0,
+      "cliques": 0,
+      "lufsDoTiro": -19.29,
+      "luDoTiroMax": 3,
+      "diferencaDaPonteMinDb": 6
+    },
+    "quadro": {
+      "p95MaxMs": 20,
+      "tarefaLongaMaxMs": 200
+    }
+  },
+  "testes": [
+    {
+      "nome": "o bloco SIM (física, dificuldades, robôs) é idêntico ao do commit 2cf75597, letra por letra",
+      "passou": true,
+      "detalhe": {
+        "caracteres": 7060
+      }
+    },
+    {
+      "nome": "robô humano, 400 partidas por caso, página no canhão: a vitória é exatamente a da ponte (Fácil, Normal, Difícil, Normal com 3)",
+      "passou": true,
+      "detalhe": [
+        {
+          "caso": "facil_1",
+          "canhao": 0.9425,
+          "ponte": 0.9425
+        },
+        {
+          "caso": "normal_1",
+          "canhao": 0.725,
+          "ponte": 0.725
+        },
+        {
+          "caso": "dificil_1",
+          "canhao": 0.355,
+          "ponte": 0.355
+        },
+        {
+          "caso": "normal_3",
+          "canhao": 1,
+          "ponte": 1
+        }
+      ]
+    },
+    {
+      "nome": "a mesma semente jogada ao vivo dá o mesmo resultado nas duas cenas (desfecho, tempo, giros, catraca solta, ponto máximo)",
+      "passou": true,
+      "detalhe": [
+        {
+          "semente": "mesma|1",
+          "ponte": {
+            "cena": "ponte",
+            "tipo": "subiu",
+            "tFim": 16,
+            "giros": 80,
+            "soltou": 2,
+            "pMax": 0.9305
+          },
+          "canhao": {
+            "cena": "canhao",
+            "tipo": "subiu",
+            "tFim": 16,
+            "giros": 80,
+            "soltou": 2,
+            "pMax": 0.9305
+          }
+        },
+        {
+          "semente": "mesma|2",
+          "ponte": {
+            "cena": "ponte",
+            "tipo": "baixou",
+            "tFim": 9.0917,
+            "giros": 57,
+            "soltou": 0,
+            "pMax": 1
+          },
+          "canhao": {
+            "cena": "canhao",
+            "tipo": "baixou",
+            "tFim": 9.0917,
+            "giros": 57,
+            "soltou": 0,
+            "pMax": 1
+          }
+        },
+        {
+          "semente": "mesma|3",
+          "ponte": {
+            "cena": "ponte",
+            "tipo": "baixou",
+            "tFim": 14.7583,
+            "giros": 77,
+            "soltou": 2,
+            "pMax": 1
+          },
+          "canhao": {
+            "cena": "canhao",
+            "tipo": "baixou",
+            "tFim": 14.7583,
+            "giros": 77,
+            "soltou": 2,
+            "pMax": 1
+          }
+        }
+      ]
+    },
+    {
+      "nome": "as folhas do alçapão batem abertas quando a plataforma passa de 20% (evento de som na hora certa, antes da amostra de 0,1 s que primeiro passa)",
+      "passou": true,
+      "detalhe": {
+        "folhas": [
+          {
+            "t": 1.242,
+            "nome": "folhasBatem",
+            "p": 0.2005
+          }
+        ],
+        "primeiroAcima": [
+          1.3,
+          0.2096,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "nome": "com o alçapão fechado a boca do cano fica abaixo das lajes; erguido no poço, cabe no vão do alçapão",
+      "passou": true,
+      "detalhe": {
+        "bocaFechada": {
+          "X": 321.7788684117725,
+          "Z": 231.95504467236643,
+          "H": -18.407417371093175
+        },
+        "bocaErguidaNoPoco": {
+          "X": 321.7788684117725,
+          "Z": 231.95504467236643,
+          "H": 64.09258262890683
+        }
+      }
+    },
+    {
+      "nome": "no fim a boca do cano fica dentro da ameia: entre os merlões, na espessura do parapeito e acima do peitoril",
+      "passou": true,
+      "detalhe": {
+        "X": 369.38190496171813,
+        "Z": 288.6861344991576,
+        "H": 53.4899496702501
+      }
+    },
+    {
+      "nome": "vitória: o cano fica erguido a rodada toda; no topo os ferrolhos entram em 60 ms e o cano baixa em 4 dentes, cada um chegando no clique do som (± 20 ms)",
+      "passou": true,
+      "detalhe": {
+        "marcas": [
+          {
+            "alvo": 0.75,
+            "chegou": 0.15,
+            "clique": 0.14
+          },
+          {
+            "alvo": 0.5,
+            "chegou": 0.25,
+            "clique": 0.24
+          },
+          {
+            "alvo": 0.25,
+            "chegou": 0.35,
+            "clique": 0.34
+          },
+          {
+            "alvo": 0,
+            "chegou": 0.45,
+            "clique": 0.44
+          }
+        ],
+        "travaEm": 0.0667,
+        "monotono": true
+      }
+    },
+    {
+      "nome": "a página aberta com ?cena=canhao já começa no canhão (título, migalha, aba do navegador, legenda do mestre, desenho)",
+      "passou": true,
+      "detalhe": {
+        "titulo": "Canhão do chão",
+        "migalha": "Canhão do chão",
+        "aba": "Canhão do chão · protótipo",
+        "legenda": "Quando o canhão subir",
+        "cena": "canhao",
+        "desenho": "canhao",
+        "botao": "true"
+      }
+    },
+    {
+      "nome": "o mestre troca a cena no convite (ponte e volta) e o desenho troca junto",
+      "passou": true,
+      "detalhe": {
+        "ponte": {
+          "titulo": "Alavanca da ponte",
+          "migalha": "Alavanca da ponte",
+          "aba": "Alavanca da ponte · protótipo",
+          "legenda": "Quando a ponte descer",
+          "cena": "ponte",
+          "desenho": "ponte",
+          "botao": "false"
+        },
+        "canhao": {
+          "titulo": "Canhão do chão",
+          "migalha": "Canhão do chão",
+          "aba": "Canhão do chão · protótipo",
+          "legenda": "Quando o canhão subir",
+          "cena": "canhao",
+          "desenho": "canhao",
+          "botao": "true"
+        }
+      }
+    },
+    {
+      "nome": "trocar no meio da rodada não troca o que está na tela: vale a partir da próxima rodada",
+      "passou": true,
+      "detalhe": {
+        "meio": {
+          "cena": "canhao",
+          "config": "ponte",
+          "tela": "rodada",
+          "rotulo": "Canhão"
+        },
+        "depois": {
+          "titulo": "Alavanca da ponte",
+          "migalha": "Alavanca da ponte",
+          "aba": "Alavanca da ponte · protótipo",
+          "legenda": "Quando a ponte descer",
+          "cena": "ponte",
+          "desenho": "ponte",
+          "botao": "false"
+        }
+      }
+    },
+    {
+      "nome": "no canhão o HUD, o mestre e o resultado falam do canhão (Canhão, Peso do canhão, \"O canhão subiu!\", desfecho no mapa)",
+      "passou": true,
+      "detalhe": {
+        "hud": {
+          "objeto": "Canhão",
+          "forca": "Peso do canhão",
+          "aria": "Canhão erguido",
+          "canvas": "O canhão está 10% erguido.",
+          "mestre": "Canhão"
+        },
+        "resultado": {
+          "titulo": "O canhão subiu!",
+          "desfecho": "No mapa: o canhão sobe e fica apontado pela ameia.",
+          "canvas": "O canhão subiu e está travado no alto da muralha, apontado pela ameia."
+        }
+      }
+    },
+    {
+      "nome": "prefers-reduced-motion: o canhão sobe sem tremor de tela nem corrente vibrando, e o cano vai direto do erguido para a ameia (sem os 4 dentes)",
+      "passou": true,
+      "detalhe": {
+        "tela": "resultado",
+        "vibMax": 0,
+        "tremorMax": 0,
+        "trauma": 0,
+        "canos": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "nome": "rodada inteira no canhão (Normal) em tempo real, jogada por eventos de teclado (X), vence e chega ao resultado em 1440 e 1024",
+      "passou": true,
+      "detalhe": [
+        {
+          "tipo": "baixou",
+          "tFim": 8.18,
+          "giros": 56,
+          "s": 10.6
+        },
+        {
+          "tipo": "baixou",
+          "tFim": 8.18,
+          "giros": 56,
+          "s": 10.6
+        }
+      ]
+    },
+    {
+      "nome": "quadro durante a rodada: p95 do intervalo <= 20 ms e nenhuma tarefa longa >= 200 ms (1440 e 1024)",
+      "passou": true,
+      "detalhe": [
+        {
+          "largura": 1440,
+          "quadros": 634,
+          "intervaloP50": 16.7,
+          "intervaloP95": 16.8,
+          "trabalhoP95": 1.2,
+          "trabalhoMax": 13.9,
+          "tarefasLongas": []
+        },
+        {
+          "largura": 1024,
+          "quadros": 629,
+          "intervaloP50": 16.7,
+          "intervaloP95": 16.8,
+          "trabalhoP95": 1.2,
+          "trabalhoMax": 10.9,
+          "tarefasLongas": []
+        }
+      ]
+    },
+    {
+      "nome": "sem rolagem horizontal em 1440 e 1024 com os textos do canhão (convite, rodada, resultado, mestre)",
+      "passou": true,
+      "detalhe": []
+    },
+    {
+      "nome": "folha de contato com 12 a 16 quadros, com a catraca solta, a trava, o cano baixando e a derrota",
+      "passou": true,
+      "detalhe": {
+        "quadros": 15,
+        "rotulos": [
+          "Convite: o alçapão fechado nas lajes | antes da rodada | canhão 0%",
+          "Contagem: \"Prontos…\" | contagem 0,30 s | canhão 0% · peso 9%",
+          "Os primeiros giros: as folhas se erguem | t = 0,57 s | canhão 7% · peso 11%",
+          "As folhas batem abertas nas lajes | t = 1,32 s | canhão 21% · peso 14%",
+          "A boca do canhão aparece no poço | t = 2,30 s | canhão 36% · peso 17%",
+          "Mão parada: a catraca soltou | t = 2,89 s | canhão 34% · peso 45% · solta",
+          "O peso puxa a plataforma de volta | t = 3,23 s | canhão 24% · peso 84% · solta",
+          "Voltou a girar: a lingueta pega | t = 3,66 s | canhão 14% · peso 12%",
+          "Reta final: o reparo sai do poço | t = 12,89 s | canhão 86% · peso 27%",
+          "Topo: os ferrolhos entram (clangor) | fim + 0,00 s | canhão 100% · peso 30%",
+          "O cano baixa dente a dente | fim + 0,20 s | canhão 100% · peso 30% · cano 74%",
+          "Travado, apontado pela ameia | fim + 1,19 s | canhão 100% · peso 30% · cano 0%",
+          "Difícil, 4,5/s: últimos segundos, o canhão empaca | t = 14,10 s | canhão 69% · peso 20%",
+          "Tempo esgotado: o canhão despenca no poço | fim + 0,42 s | canhão 51% · peso 21%",
+          "Bate no fundo; o alçapão fecha | fim + 0,84 s | canhão 0% · peso 21%"
+        ]
+      }
+    },
+    {
+      "nome": "som do canhão: pico verdadeiro <= -1 dBTP, nenhum corte, nenhum clique fora de ataque, DC < 0,5%",
+      "passou": true,
+      "detalhe": [
+        {
+          "arquivo": "som/canhao-normal-vence.wav",
+          "lufsIntegrado": -19.88,
+          "picoVerdadeiroDbtp": -2.61,
+          "cortes": 0,
+          "cliques": 0,
+          "dcPct": -0.0201,
+          "diferencaDaPonteDb": 8.3
+        },
+        {
+          "arquivo": "som/canhao-dificil-perde.wav",
+          "lufsIntegrado": -20.25,
+          "picoVerdadeiroDbtp": -3.66,
+          "cortes": 0,
+          "cliques": 0,
+          "dcPct": -0.0226,
+          "diferencaDaPonteDb": 7.6
+        }
+      ]
+    },
+    {
+      "nome": "som do canhão: volume dentro de 3 LU do tiro (-19.29 LUFS)",
+      "passou": true,
+      "detalhe": [
+        {
+          "arquivo": "som/canhao-normal-vence.wav",
+          "lufs": -19.88
+        },
+        {
+          "arquivo": "som/canhao-dificil-perde.wav",
+          "lufs": -20.25
+        }
+      ]
+    },
+    {
+      "nome": "o som do canhão é outro, não o da ponte: a mesma rodada difere em pelo menos 6 dB em algum trecho de 0,1 s",
+      "passou": true,
+      "detalhe": [
+        {
+          "arquivo": "som/canhao-normal-vence.wav",
+          "diferencaDaPonteDb": 8.3
+        },
+        {
+          "arquivo": "som/canhao-dificil-perde.wav",
+          "diferencaDaPonteDb": 7.6
+        }
+      ]
+    },
+    {
+      "nome": "nenhum erro no console da página",
+      "passou": true,
+      "detalhe": []
+    }
+  ],
+  "desempenho": [
+    {
+      "largura": 1440,
+      "quadros": 634,
+      "intervaloP50": 16.7,
+      "intervaloP95": 16.8,
+      "trabalhoP95": 1.2,
+      "trabalhoMax": 13.9,
+      "tarefasLongas": []
+    },
+    {
+      "largura": 1024,
+      "quadros": 629,
+      "intervaloP50": 16.7,
+      "intervaloP95": 16.8,
+      "trabalhoP95": 1.2,
+      "trabalhoMax": 10.9,
+      "tarefasLongas": []
+    }
+  ],
+  "folha": {
+    "quadros": 15,
+    "rotulos": [
+      "Convite: o alçapão fechado nas lajes | antes da rodada | canhão 0%",
+      "Contagem: \"Prontos…\" | contagem 0,30 s | canhão 0% · peso 9%",
+      "Os primeiros giros: as folhas se erguem | t = 0,57 s | canhão 7% · peso 11%",
+      "As folhas batem abertas nas lajes | t = 1,32 s | canhão 21% · peso 14%",
+      "A boca do canhão aparece no poço | t = 2,30 s | canhão 36% · peso 17%",
+      "Mão parada: a catraca soltou | t = 2,89 s | canhão 34% · peso 45% · solta",
+      "O peso puxa a plataforma de volta | t = 3,23 s | canhão 24% · peso 84% · solta",
+      "Voltou a girar: a lingueta pega | t = 3,66 s | canhão 14% · peso 12%",
+      "Reta final: o reparo sai do poço | t = 12,89 s | canhão 86% · peso 27%",
+      "Topo: os ferrolhos entram (clangor) | fim + 0,00 s | canhão 100% · peso 30%",
+      "O cano baixa dente a dente | fim + 0,20 s | canhão 100% · peso 30% · cano 74%",
+      "Travado, apontado pela ameia | fim + 1,19 s | canhão 100% · peso 30% · cano 0%",
+      "Difícil, 4,5/s: últimos segundos, o canhão empaca | t = 14,10 s | canhão 69% · peso 20%",
+      "Tempo esgotado: o canhão despenca no poço | fim + 0,42 s | canhão 51% · peso 21%",
+      "Bate no fundo; o alçapão fecha | fim + 0,84 s | canhão 0% · peso 21%"
+    ]
+  },
+  "som": [
+    {
+      "arquivo": "som/canhao-normal-vence.wav",
+      "lufsIntegrado": -19.88,
+      "picoVerdadeiroDbtp": -2.61,
+      "cortes": 0,
+      "cliques": 0,
+      "dcPct": -0.0201,
+      "diferencaDaPonteDb": 8.3
+    },
+    {
+      "arquivo": "som/canhao-dificil-perde.wav",
+      "lufsIntegrado": -20.25,
+      "picoVerdadeiroDbtp": -3.66,
+      "cortes": 0,
+      "cliques": 0,
+      "dcPct": -0.0226,
+      "diferencaDaPonteDb": 7.6
+    }
+  ],
+  "errosNoConsole": [],
+  "resumo": "20 de 20"
+}
