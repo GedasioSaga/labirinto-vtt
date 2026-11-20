@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { categoriaLimpa, novoItemDoCatalogo, type ItemDoCatalogo, type PastaDeItens } from '../lib/acervoDeItens'
+import { categoriaLimpa, idDoItemDaPeca, itemDaPecaDesenhada, novoItemDoCatalogo, pastaDaPecaDePuzzle, type ItemDoCatalogo, type PastaDeItens } from '../lib/acervoDeItens'
 import { escolherImagemDoItem, imagemDoItemDoBlob } from '../lib/imagemDoItem'
 import { focoDeixaDesfazerGlobal } from '../lib/keymap'
 import type { AlvoDoAcervo } from '../lib/party'
@@ -20,6 +20,10 @@ import {
   recusaParaMoverAPasta,
   semAPasta,
 } from '../lib/pastasDosItens'
+import { IDS_DAS_PECAS_DESENHADAS, urlDaPeca } from '../puzzles/arte/pecas'
+import { guardarPecaDesenhada } from '../puzzles/arte/rasterizar'
+import { PECAS_DESENHADAS } from '../puzzles/padroes'
+import { CATEGORIA_DA_PECA_DE_PUZZLE, type IdDaPecaDesenhada } from '../puzzles/tipos'
 import { useAcervoDeItensStore } from '../stores/acervoDeItensStore'
 import { useToastStore } from '../stores/toastStore'
 import { ATRIBUTO_DO_ALVO, TOPO, useArrastoDoAcervoDeItens, type Arrastado, type Avaliacao } from './arrastoDoAcervoDeItens'
@@ -27,7 +31,7 @@ import { BotaoMais } from './BotaoMais'
 import { lerListaDeIds } from '../lib/cenasFixadas'
 import { CampoDeBusca, ehAtalhoDaBusca, itemCasaNaBusca, palavrasDaBusca, textosDeBusca } from './BuscaDoAcervoDeItens'
 import { ImagemOuIniciais } from './FichaPecas'
-import { ChevronDownIcon, FolderIcon, ReticenciasIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, FolderIcon, ReticenciasIcon } from './icons'
 import { ItemDoCatalogoDialog } from './ItemDoCatalogoDialog'
 import { IconeDoLivro } from './livro/icones'
 import './AcervoDeItensPanel.css'
@@ -51,6 +55,11 @@ import './TokenLibraryPanel.css'
  * BUSCA ("Nos dois acervos"): a mesma do acervo de tokens — sem acento nem
  * maiúscula, palavras em qualquer ponto do nome; a pasta com achado abre só
  * na tela, a sem achado sai da vista; "N de M itens" ou "Nada com …".
+ *
+ * PEÇAS DE PUZZLE (plano dos puzzles, §1.4): o "+ Peça" abre a vitrine das 13
+ * peças desenhadas. Tocar numa grava o desenho em PNG na mídia e cria o item,
+ * na pasta "Peça de puzzle"; a que já está no acervo leva o selo e abre o item
+ * (para "Dar a…"), sem criar outro.
  */
 
 export interface AcervoDeItensPanelProps {
@@ -276,6 +285,12 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
   })
   /** RECENTES (18/11/2026): os itens dados, postos no mapa ou salvos por último, deste computador. */
   const [recentes, setRecentes] = useState<string[]>(() => lerListaDeIds(lerDoNavegador(CHAVE_DOS_RECENTES)).slice(0, RECENTES_DO_ACERVO_MAX))
+  /** PEÇAS DE PUZZLE: a vitrine das peças desenhadas aberta. */
+  const [pecasAbertas, setPecasAbertas] = useState(false)
+  /** A peça sendo desenhada e gravada agora: o segundo toque no meio não grava de novo. */
+  const pondoRef = useRef<IdDaPecaDesenhada | null>(null)
+  const [pondo, setPondo] = useState<IdDaPecaDesenhada | null>(null)
+  const botaoDasPecasRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     void useAcervoDeItensStore.getState().recarregar()
@@ -447,6 +462,46 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
     usou(item.id)
   }
 
+  /** Abre a vitrine com o foco na primeira peça; fecha com o foco de volta no "+ Peça". */
+  const alternarPecas = (abrir: boolean) => {
+    setPecasAbertas(abrir)
+    requestAnimationFrame(() => {
+      if (!abrir) botaoDasPecasRef.current?.focus()
+      else raizRef.current?.querySelector<HTMLButtonElement>('.lb-itens__peca')?.focus()
+    })
+  }
+
+  /**
+   * A peça desenhada vira item: o PNG vai para a mídia, o item para a pasta das
+   * peças (que abre, para o item ficar à vista), e o aviso tem o "Abrir". A que
+   * já está no acervo só abre o item.
+   */
+  const porPecaNoAcervo = async (peca: IdDaPecaDesenhada) => {
+    const jaNoAcervo = useAcervoDeItensStore.getState().itens.find((item) => item.id === idDoItemDaPeca(peca))
+    if (jaNoAcervo !== undefined) {
+      setAberto({ id: jaNoAcervo.id })
+      return
+    }
+    if (pondoRef.current !== null) return
+    pondoRef.current = peca
+    setPondo(peca)
+    try {
+      const imagem = await guardarPecaDesenhada(peca)
+      const loja = useAcervoDeItensStore.getState()
+      const lugar = itemDaPecaDesenhada(peca, imagem, loja.pastas)
+      const pasta = lugar.item.pasta
+      await loja.salvarItem(lugar.item, pasta === undefined ? lugar.pastas : comAbertas(lugar.pastas, pasta))
+      usou(lugar.item.id)
+      const onde = pasta === undefined ? SEM_PASTA : (lugar.pastas.find((outra) => outra.id === pasta)?.nome ?? CATEGORIA_DA_PECA_DE_PUZZLE)
+      useToastStore.getState().push('info', `“${lugar.item.nome}” entrou no acervo, em ${onde}.`, undefined, { actions: [{ label: 'Abrir', run: () => setAberto({ id: lugar.item.id }) }] })
+    } catch (erro) {
+      avisarErro(erro)
+    } finally {
+      pondoRef.current = null
+      setPondo(null)
+    }
+  }
+
   /** Põe o cursor na busca com o texto selecionado: digitar substitui, a seta mantém. */
   const focarBusca = () => {
     const campo = buscaRef.current
@@ -567,6 +622,67 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
         onCancelar={() => fecharFormulario(paiId)}
       />
     ) : null
+
+  const vitrineDasPecas = () => {
+    const idDoTitulo = `${idBase}-pecas`
+    const pastaDasPecas = pastaDaPecaDePuzzle(pastas)
+    const idsNoAcervo = new Set(itens.map((item) => item.id))
+    return (
+      <div
+        className="lb-itens__pecas"
+        role="group"
+        aria-labelledby={idDoTitulo}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          // Fecha a vitrine e volta ao "+ Peça"; não chega ao mapa.
+          event.preventDefault()
+          event.stopPropagation()
+          alternarPecas(false)
+        }}
+      >
+        <div className="lb-itens__pecas-topo">
+          <p id={idDoTitulo} className="lb-acervo__pasta-titulo">
+            Peças de puzzle desenhadas
+          </p>
+          <button type="button" className="lb-acervo__mover" aria-label="Fechar as peças desenhadas" title="Fechar (Esc)" onClick={() => alternarPecas(false)}>
+            <CloseIcon size={14} />
+          </button>
+        </div>
+        <p className="lb-label lb-itens__dica">Toque numa peça para pô-la no acervo, na pasta {pastaDasPecas?.nome ?? CATEGORIA_DA_PECA_DE_PUZZLE}.</p>
+        <ul className="lb-itens__grade">
+          {IDS_DAS_PECAS_DESENHADAS.map((peca) => {
+            const { nome } = PECAS_DESENHADAS[peca]
+            const noAcervo = idsNoAcervo.has(idDoItemDaPeca(peca))
+            return (
+              <li key={peca} className="lb-itens__celula">
+                <button
+                  type="button"
+                  className="lb-itens__item lb-itens__peca"
+                  aria-label={noAcervo ? `Abrir ${nome}, já no acervo` : `Pôr ${nome} no acervo`}
+                  title={noAcervo ? `${nome}: já está no acervo` : nome}
+                  aria-busy={pondo === peca}
+                  data-no-acervo={noAcervo ? '' : undefined}
+                  onClick={() => void porPecaNoAcervo(peca)}
+                >
+                  <span className="lb-itens__foto">
+                    <img src={urlDaPeca(peca)} alt="" draggable={false} />
+                  </span>
+                  <span className="lb-itens__nome">{nome}</span>
+                  {noAcervo && (
+                    <span className="lb-itens__peca-selo" aria-hidden="true">
+                      <svg viewBox="0 0 12 12" width="10" height="10" focusable="false">
+                        <path d="M2.5 6.2 5 8.6l4.5-5.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    )
+  }
 
   const menuDaPasta = (pasta: PastaDeItens) => {
     const mae = pastasAcimaDe(pastas, pasta.id).at(-1)
@@ -705,9 +821,11 @@ export function AcervoDeItensPanel({ alvos, onDar, onErro, onSoltarNoMapa, onPor
           <div className="lb-acervo__acoes-topo">
             <BotaoMais nome="Nova pasta" texto="Pasta" dica="Cria uma pasta no acervo de itens" onClick={() => abrirFormulario({ tipo: 'nova', paiId: null })} />
             <BotaoMais nome="Novo item" texto="Item" dica="Cadastra um item no acervo do app" onClick={() => setAberto({ novo: novoItemDoCatalogo() })} />
+            <BotaoMais ref={botaoDasPecasRef} nome="Nova peça de puzzle" texto="Peça" dica="Põe no acervo uma das peças de puzzle desenhadas" onClick={() => alternarPecas(!pecasAbertas)} />
           </div>
         )}
       </div>
+      {pecasAbertas && podeGravar && vitrineDasPecas()}
       {!vazio && (
         <div className="lb-acervo__busca" role="search">
           <CampoDeBusca campoRef={buscaRef} onMudar={setBusca} onDescer={descerParaOPrimeiro} />

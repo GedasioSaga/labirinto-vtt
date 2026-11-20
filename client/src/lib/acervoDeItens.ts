@@ -5,7 +5,9 @@ import { luzDoItemLida } from './luzDoItem'
 import { ehRefDeMidia } from './midia'
 import type { LuzDoItem } from '../types/map'
 import { ensureDir, writeTextFileSafely } from './mapFileIO'
-import { ehIdDePasta, pastasDasCategorias, pastasLidas, type PastaDeItens } from './pastasDosItens'
+import { ehIdDePasta, pastasDasCategorias, pastasLidas, pastasPorPai, PASTAS_MAX, type PastaDeItens } from './pastasDosItens'
+import { PECAS_DESENHADAS } from '../puzzles/padroes'
+import { CATEGORIA_DA_PECA_DE_PUZZLE, type IdDaPecaDesenhada } from '../puzzles/tipos'
 
 export type { PastaDeItens }
 
@@ -37,16 +39,19 @@ const ARQUIVO_ANTERIOR = 'itens.json.anterior'
 /**
  * 2 (16/11/2026): a categoria Munição entrou; o índice de antes a ganha uma vez ao ser lido (`acervoDoTexto`).
  * 3 (18/11/2026): as pastas entraram; o índice de antes ganha uma pasta por categoria mostrada (`pastasDasCategorias`).
+ * 4 (19/11/2026): as peças de puzzle entraram; o índice de antes ganha a categoria e a pasta "Peça de puzzle" uma vez (`comAPecaDePuzzle`).
  */
-const VERSAO_DO_INDICE = 3
+const VERSAO_DO_INDICE = 4
 /** A versão que trouxe a categoria Munição. */
 const VERSAO_DA_MUNICAO = 2
+/** A versão que trouxe a categoria e a pasta das peças de puzzle. */
+const VERSAO_DA_PECA_DE_PUZZLE = 4
 
 /** MUNIÇÃO (pedido de 16/11/2026): a categoria das balas, que empilham e que a arma de fogo declara que aceita (`municoes`). */
 export const CATEGORIA_DA_MUNICAO = 'Munição'
 
 /** As categorias de um acervo novo. A lista é do mestre: ele tira e põe. */
-export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consumível', 'Munição', 'Fruta', 'Chave', 'Tesouro']
+export const CATEGORIAS_PADRAO: readonly string[] = ['Arma', 'Armadura', 'Consumível', 'Munição', 'Fruta', 'Chave', 'Tesouro', CATEGORIA_DA_PECA_DE_PUZZLE]
 // O teto mora em `lib/items.ts` porque a vaga da mochila também o aplica; daqui ele segue exportado para a tela do item.
 export { MUNICOES_POR_ARMA_MAX }
 
@@ -196,6 +201,12 @@ export function categoriasLidas(value: unknown): string[] {
 
 /** O índice como texto. `null` = não é JSON de acervo (o arquivo vai para `.invalido`). */
 export function acervoDoTexto(texto: string): AcervoDeItens | null {
+  const indice = indiceDoTexto(texto)
+  return indice === null ? null : indice.acervo
+}
+
+/** O índice como texto, com a versão que o gravou (0 = de antes de o índice ter versão). */
+function indiceDoTexto(texto: string): { acervo: AcervoDeItens; versao: number } | null {
   let bruto: unknown
   try {
     bruto = JSON.parse(texto)
@@ -219,7 +230,62 @@ export function acervoDoTexto(texto: string): AcervoDeItens | null {
   // O índice de antes das pastas: as categorias que a lista mostrava viram as pastas de cima, cada item na dele.
   const guardadas = pastasLidas(bruto.pastas)
   const organizado = guardadas === null ? pastasDasCategorias(itens) : { pastas: guardadas, itens: semPastaQueSumiu(itens, guardadas) }
-  return { itens: organizado.itens, categorias: comMunicao, pastas: organizado.pastas }
+  return { acervo: { itens: organizado.itens, categorias: comMunicao, pastas: organizado.pastas }, versao: typeof bruto.version === 'number' ? bruto.version : 0 }
+}
+
+// ------------------------------------------------------------------ peças de puzzle (PLANO dos puzzles, §1.4)
+
+/**
+ * O id fixo da pasta das peças de puzzle: ler duas vezes o mesmo índice de
+ * antes dela dá a mesma pasta, sem gravar nada, e o "Pôr no acervo" a acha
+ * mesmo depois de o mestre renomeá-la ou levá-la para dentro de outra.
+ */
+export const ID_DA_PASTA_DA_PECA_DE_PUZZLE = 'pasta_peca_de_puzzle'
+
+function mesmoNome(a: string, b: string): boolean {
+  return a.toLocaleLowerCase('pt-BR') === b.toLocaleLowerCase('pt-BR')
+}
+
+/** A pasta das peças de puzzle que já está no índice: a do id fixo, ou uma de cima com o nome da categoria. */
+export function pastaDaPecaDePuzzle(pastas: readonly PastaDeItens[]): PastaDeItens | undefined {
+  return pastas.find((pasta) => pasta.id === ID_DA_PASTA_DA_PECA_DE_PUZZLE) ?? (pastasPorPai(pastas).get(null) ?? []).find((pasta) => mesmoNome(pasta.nome, CATEGORIA_DA_PECA_DE_PUZZLE))
+}
+
+/**
+ * O índice de antes das peças de puzzle (versão 3 ou mais velho) ganha a
+ * categoria e a pasta "Peça de puzzle", cada uma só se ainda não houver uma
+ * igual e se couber no teto. Gravado de novo, com a versão nova, o mestre que
+ * tirar uma das duas não a vê voltar.
+ */
+export function comAPecaDePuzzle(acervo: AcervoDeItens): AcervoDeItens {
+  const temCategoria = acervo.categorias.some((categoria) => mesmoNome(categoria, CATEGORIA_DA_PECA_DE_PUZZLE))
+  const categorias = temCategoria || acervo.categorias.length >= CATEGORIAS_MAX ? acervo.categorias : [...acervo.categorias, CATEGORIA_DA_PECA_DE_PUZZLE]
+  const semPasta = pastaDaPecaDePuzzle(acervo.pastas) === undefined && acervo.pastas.length < PASTAS_MAX
+  const pastas = semPasta ? [...acervo.pastas, { id: ID_DA_PASTA_DA_PECA_DE_PUZZLE, nome: CATEGORIA_DA_PECA_DE_PUZZLE }] : acervo.pastas
+  return { ...acervo, categorias, pastas }
+}
+
+/**
+ * O id do item de cada peça desenhada, sempre o mesmo: o puzzle liga o
+ * encaixe ao item pelo id (`puzzleDoModelo`), e pôr de novo a peça que o
+ * mestre apagou devolve o item que os puzzles já apontavam.
+ */
+export function idDoItemDaPeca(peca: IdDaPecaDesenhada): string {
+  return `item_peca_${peca}`
+}
+
+/**
+ * O item novo de uma peça desenhada, com a imagem já gravada (`imagem` =
+ * `midia:<id>`), e onde ele mora: na pasta das peças de puzzle, criada (com o
+ * id fixo) se não houver. Sem lugar no teto de pastas, fica Sem pasta.
+ */
+export function itemDaPecaDesenhada(peca: IdDaPecaDesenhada, imagem: string, pastas: readonly PastaDeItens[]): { item: ItemDoCatalogo; pastas: PastaDeItens[] } {
+  const { nome, descricao } = PECAS_DESENHADAS[peca]
+  const item: ItemDoCatalogo = { id: idDoItemDaPeca(peca), nome, imagem, descricao, categoria: CATEGORIA_DA_PECA_DE_PUZZLE, preco: null, empilhavel: false }
+  const achada = pastaDaPecaDePuzzle(pastas)
+  if (achada !== undefined) return { item: { ...item, pasta: achada.id }, pastas: [...pastas] }
+  if (pastas.length >= PASTAS_MAX) return { item, pastas: [...pastas] }
+  return { item: { ...item, pasta: ID_DA_PASTA_DA_PECA_DE_PUZZLE }, pastas: [...pastas, { id: ID_DA_PASTA_DA_PECA_DE_PUZZLE, nome: CATEGORIA_DA_PECA_DE_PUZZLE }] }
 }
 
 /** O item que aponta para uma pasta que não está no índice fica Sem pasta (o campo sai). */
@@ -286,8 +352,9 @@ export async function lerAcervoDeItens(): Promise<AcervoDeItensLido> {
   } catch (erro) {
     return { acervo: acervoVazio(), aviso: `${AVISO}: ${motivo(erro)}.`, lido: false }
   }
-  const acervo = acervoDoTexto(texto)
-  if (acervo !== null) return { acervo, aviso: null, lido: true }
+  const indice = indiceDoTexto(texto)
+  // A peça de puzzle entra aqui, na leitura do disco, e não em `acervoDoTexto`: aquela segue devolvendo o índice com as migrações das versões 2 e 3 só.
+  if (indice !== null) return { acervo: indice.versao < VERSAO_DA_PECA_DE_PUZZLE ? comAPecaDePuzzle(indice.acervo) : indice.acervo, aviso: null, lido: true }
   try {
     await writeTextFile(await join(await pastaDoAcervo(), ARQUIVO_INVALIDO), texto)
   } catch {

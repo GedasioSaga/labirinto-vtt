@@ -288,6 +288,100 @@ body.lb-itens-recusando * {
   padding-bottom: var(--lb-space-1);
 }
 
+/* PEÇAS DE PUZZLE (19/11/2026): a vitrine das peças desenhadas, aberta pelo
+   "+ Peça". Uma caixa de pedra erguida, como o menu da pasta, e entra do
+   mesmo jeito, do canto do "+ Peça"; dentro, o mesmo cartão da grade. */
+.lb-itens__pecas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lb-space-1);
+  padding: var(--lb-space-1) var(--lb-space-2) var(--lb-space-2);
+  border: 1px solid var(--lb-color-line);
+  border-radius: var(--lb-radius-md);
+  background: var(--lb-color-stone-raised);
+  transform-origin: top right;
+  transition:
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .lb-itens__pecas {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+}
+
+.lb-itens__pecas-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lb-space-2);
+}
+
+.lb-itens__pecas-topo > .lb-acervo__pasta-titulo {
+  margin: 0;
+}
+
+/* O "×" da vitrine: o botão de ação da pasta, sempre à vista (lá ele só aparece sob o ponteiro). */
+.lb-itens__pecas-topo > .lb-acervo__mover {
+  opacity: 1;
+}
+
+/* A peça desenhada é arte de linha fina sobre transparente: um fundo um passo
+   mais fundo que o cartão a destaca, e o desenho não encosta na borda. */
+.lb-itens__peca .lb-itens__foto {
+  padding: 4px;
+  background: var(--lb-color-stone-solid);
+}
+
+/* Quatro brasões e três medalhões começam com a mesma palavra: na vitrine o
+   nome quebra em até duas linhas, para "Brasão do Lobo" não virar "Brasão do…". */
+.lb-itens__peca .lb-itens__nome {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+}
+
+/* Gravando: o cartão espera um instante, sem trocar de tamanho. */
+.lb-itens__peca[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* Já no acervo: o selo de latão no canto, e tocar abre o item. */
+.lb-itens__peca[data-no-acervo] {
+  position: relative;
+  border-color: var(--lb-color-brass-soft);
+}
+
+.lb-itens__peca-selo {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--lb-radius-full);
+  background: var(--lb-color-brass);
+  color: var(--lb-color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-itens__pecas {
+    transition: opacity 140ms ease;
+  }
+
+  @starting-style {
+    .lb-itens__pecas {
+      transform: none;
+    }
+  }
+}
+
 /* O fantasma diz onde o item vai cair ("Soltar em Balas") ou por que não cabe.
    A frase longa quebra linha em vez de alargar o fantasma pela janela afora. */
 .lb-itens__fantasma {
